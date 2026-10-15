@@ -120,8 +120,9 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   for(let n=0;n<100&&(await read('/bootstrap')).explorations[0]?.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
   await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);
   const card=async()=>evaluate<string>(`document.querySelector(${text(content)}).innerText`);
-  const noModelCard=async()=>{const shown=await card();assert.match(shown,/还没有可用模型/);assert.match(shown,/打开模型设置/);assert.doesNotMatch(shown,/RUNTIME_NOT_CONFIGURED|等待执行|失败|这次炼化未完成/);assert.equal(shown.split('还没有可用模型').length-1,1,'the hint is shown once');};
-  const saved=await read('/bootstrap');assert.equal(saved.directions.length,4);assert.equal(saved.explorations[0].status,'failed');assert.equal(saved.explorations[0].errorCode,'RUNTIME_NOT_CONFIGURED');assert.deepEqual(saved.explorations[0].cards,[]);
+  // J5C-01/J5C-03: the real page keeps one actionable hint and hides its machine code.
+  const noModelCard=async()=>{const shown=await card();assert.match(shown,/还没有可用模型/);assert.match(shown,/打开模型设置/);assert.doesNotMatch(shown,/alchemist\.runtime_not_configured|等待执行|失败|这次炼化未完成/);assert.equal(shown.split('还没有可用模型').length-1,1,'the hint is shown once');};
+  const saved=await read('/bootstrap');assert.equal(saved.directions.length,4);assert.equal(saved.explorations[0].status,'failed');assert.equal(saved.explorations[0].errorCode,'alchemist.runtime_not_configured');assert.deepEqual(saved.explorations[0].cards,[]);
   await noModelCard();
   await click('[data-alc-action="explore"]');
   for(let n=0;n<100&&(await read('/bootstrap')).explorations[0]?.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
@@ -144,6 +145,6 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   for(let n=0;n<100&&(await read(`/ideas/${ids.planned}/versions/1/research`)).lenses.market_space.status!=='failed';n++)await new Promise(r=>setTimeout(r,100));
   await waitFor(`document.querySelector(${text(content)})?.innerText.includes('还没有可用模型') && !document.querySelector(${text(content+' .alc-progress')})`,12_000);
   const stopped=await evaluate<string>(`document.querySelector(${text(content)}).innerText`);
-  assert.match(stopped,/打开模型设置/);assert.doesNotMatch(stopped,/RUNTIME_MODEL_UNAVAILABLE|RUNTIME_NOT_CONFIGURED|研究未完成|规划|收集|交叉验证/);assert.equal(stopped.split('还没有可用模型').length-1,1,'the hint is shown once');
-  assert.equal((await read(`/ideas/${ids.planned}/versions/1/research`)).lenses.market_space.run.errorCode,'RUNTIME_MODEL_UNAVAILABLE');
+  assert.match(stopped,/打开模型设置/);assert.doesNotMatch(stopped,/alchemist\.runtime_model_unavailable|alchemist\.runtime_not_configured|研究未完成|规划|收集|交叉验证/);assert.equal(stopped.split('还没有可用模型').length-1,1,'the hint is shown once');
+  assert.equal((await read(`/ideas/${ids.planned}/versions/1/research`)).lenses.market_space.run.errorCode,'alchemist.runtime_model_unavailable');
 });

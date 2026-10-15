@@ -19,7 +19,7 @@ export class ResearchRuntimeSelector implements ResearchExecutionRuntimePort {
   async synthesize(input: RuntimeInput & { evidence: readonly Evidence[]; claims: readonly Claim[]; runId: string }) { await this.assertModel(input); const result = await this.runtime.synthesize(input); await this.options.workReuse?.validate(input.plan, input.signal); return result; }
   private async assertModel(input: RuntimeInput): Promise<void> {
     input.signal?.throwIfAborted();
-    if (!(await this.options.ai.listModels()).some(model => model.id === input.plan.modelId)) throw new Error("RUNTIME_MODEL_UNAVAILABLE");
+    if (!(await this.options.ai.listModels()).some(model => model.id === input.plan.modelId)) throw new Error("alchemist.runtime_model_unavailable");
     await this.options.workReuse?.validate(input.plan, input.signal);
   }
 }

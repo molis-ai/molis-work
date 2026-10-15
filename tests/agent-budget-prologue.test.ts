@@ -19,7 +19,8 @@ function toolResponse(): Response {
   return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
 }
 
-for (const mode of ["output", "total", "turns", "duration"] as const) test(`real Prologue SDK enforces the declared ${mode} budget`, { timeout: 15_000 }, async t => {
+// W2-18-THINKING-BUDGET-01: thinking must not replace this round's explicit output ceiling.
+for (const mode of ["output", "thinking", "total", "turns", "duration"] as const) test(`real Prologue SDK enforces the declared ${mode} budget`, { timeout: 15_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "agent-budget-")); await writeFile(join(home, "note.txt"), "Original file");
   const requests: any[] = []; let aborted = false;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -29,10 +30,10 @@ for (const mode of ["output", "total", "turns", "duration"] as const) test(`real
       const abort = () => { aborted = true; clearTimeout(timer); reject(new DOMException("Aborted", "AbortError")); };
       init.signal!.addEventListener("abort", abort, { once: true }); if (init.signal!.aborted) abort();
     });
-    return mode === "total" || mode === "turns" ? toolResponse() : cogniaModelResponse("Finished");
+    return mode === "total" || mode === "turns" ? toolResponse() : cogniaModelResponse("Finished", 7);
   });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.budget-test", appVersion: "1.0.0" }, storageRoot: join(home, "runtime"),
-    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture", ...(mode === "thinking" ? { thinking: "adaptive" as const } : {}) }), resolveCredential: () => "fixture-only" });
   try {
     const owner = { project_id: "board", plugin_id: "fixture", install_id: "install", actor_id: "owner", directory: { canonical_path: home, realpath_verified: true } };
     const session = await adapter.createSession({ ...owner, title: "Budget" });
@@ -47,7 +48,7 @@ for (const mode of ["output", "total", "turns", "duration"] as const) test(`real
     });
     assert.deepEqual(handle.frozen.budget, budget);
     assert.equal(requests.length, 1, "an exhausted budget cannot dispatch another request");
-    if (mode === "output") { assert.equal(requests[0].max_tokens, 7); assert.equal(view.phase, "completed"); }
+    if (mode === "output" || mode === "thinking") { assert.equal(requests[0].max_tokens, 7); assert.equal(view.phase, "completed"); assert.equal(view.usage.tokens.output, 7); if (mode === "thinking") assert.deepEqual(requests[0].thinking, { type: "adaptive" }); }
     else if (mode === "duration") { assert.equal(aborted, true); assert.equal(view.phase, "failed"); assert.ok(Date.now() - started < 1_500); }
     else { assert.ok(view.stop_reason && /budget|turn|token/i.test(view.stop_reason), JSON.stringify(view)); }
   } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }

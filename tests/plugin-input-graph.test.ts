@@ -402,7 +402,7 @@ test("a binding whose types do not match is refused before it is persisted", asy
       origin: "user",
       actor_id: "actor",
     }),
-    (error: unknown) => error instanceof PluginWiringError && error.code === "port_type_mismatch",
+    (error: unknown) => error instanceof PluginWiringError && error.code === "plugin.port_type_mismatch",
   );
   assert.deepEqual(rig.graph.view().plugins.find((entry) => entry.plugin_id === CODING)?.ports[0]?.state, "missing");
 });
@@ -646,6 +646,7 @@ test("an input port can be given a fixed 成果 version instead of another plugi
   const deliveries: PluginUpstreamReadyInputs[] = [];
   const projects = portPlugin({ id: PROJECTS, outputs: [{ port: "project", type: PROJECT_TYPE }] });
   const coding = portPlugin({ id: CODING, inputs: [{ port: "project", type: PROJECT_TYPE }], onReady: (inputs) => { deliveries.push(inputs); } });
+  coding.definition.manifest.artifacts.consumes = [{ artifact_type_id: PROJECT_TYPE, schema_version: 1 }];
   const runtime = new PluginRuntime(), supervisor = new PluginSupervisor(runtime), store = artifactStore(), library = new Set<string>();
   const graph = new PluginInputGraph({ projectId: BOARD, lifecycle: supervisor, repository: new MemoryPluginWiringRepository(),
     artifacts: { read: (reference) => store.read(reference),
@@ -658,9 +659,9 @@ test("an input port can be given a fixed 成果 version instead of another plugi
   const pinned = store.put("report", 2); library.add("report@2");
   const exchanged = store.put("exchange", 1);
   const otherType = store.put("selection", 1); library.add("selection@1"); store.read(otherType)!.artifact_type_id = FILES_TYPE;
-  assert.throws(() => give(exchanged), refused("port_artifact_invalid"), "a process item is not a 成果 version");
-  assert.throws(() => give(otherType), refused("port_type_mismatch"));
-  assert.throws(() => give(pinned, "missing"), refused("port_unknown"));
+  assert.throws(() => give(exchanged), refused("plugin.port_artifact_invalid"), "a process item is not a 成果 version");
+  assert.throws(() => give(otherType), refused("plugin.port_type_mismatch"));
+  assert.throws(() => give(pinned, "missing"), refused("plugin.port_unknown"));
   assert.equal(port().state, "missing");
 
   give(pinned);
@@ -679,7 +680,7 @@ test("an input port can be given a fixed 成果 version instead of another plugi
   assert.equal(status.status === "missing" && status.reason?.code, "content_unavailable");
   assert.equal(port().state, "unavailable");
   store.read(pinned)!.lifecycle_state = "active";
-  assert.throws(() => { store.read(pinned)!.availability = "unavailable"; give(pinned); }, refused("port_artifact_invalid"));
+  assert.throws(() => { store.read(pinned)!.availability = "unavailable"; give(pinned); }, refused("plugin.port_artifact_invalid"));
   store.read(pinned)!.availability = "available";
 
   // Another plugin's output on the same port replaces the fixed version; unbinding clears whichever is there.

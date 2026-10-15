@@ -7,6 +7,7 @@ import { connect as tlsConnect } from 'node:tls';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
+import { pluginSecrets } from '../apps/local-host/src/plugin-builder/secrets.js';
 import { hostNetwork, NETWORK_STAND_IN, publicAddress } from '../apps/local-host/src/plugin-builder/network.js';
 import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from './fixtures/public-address-policy.js';
 
@@ -71,8 +72,14 @@ test('an approved https request goes out with the saved secret, comes back bound
       // Reach the local test server as if it were the approved site on 443; the connection still asks our lookup.
       const agent = new Agent({ ca: cert });
       (agent as unknown as { createConnection(options: object, callback: unknown): unknown }).createConnection = (options: object) => tlsConnect({ ...options, port });
+      // W2-18-UPGRADE-SECRETS-01: the same sealed-store staging used by a version switch feeds the actual HTTPS header.
+      const privateValues = new Map<string, string>(), storage = { get: (key: string) => privateValues.get(key) ?? null,
+        set: (key: string, value: string) => { privateValues.set(key, value); }, delete: (key: string) => privateValues.delete(key) };
+      const secrets = pluginSecrets(dir, 'p', storage), pluginId = 'io.molis.work.generated.weather';
+      secrets.save(pluginId, { name: 'weather', header: 'Authorization', value: 'Bearer previous' });
+      const changed = secrets.stage!(pluginId, [{ name: 'weather', header: 'Authorization', value: 'Bearer s3cret' }]); changed.apply();
       const network = hostNetwork({ reach: () => 'all', lookup: lookupTo('127.0.0.1'), allowAddress: () => true, agent,
-        secret: async (_plugin, reference) => reference === 'weather' ? { header: 'Authorization', value: 'Bearer s3cret' } : null });
+        secret: (plugin, reference) => secrets.resolve(plugin, reference) });
       const ok = await network.request(context(), { url: 'https://api.weather.example/today', headers: { Accept: 'application/json', Cookie: 'x=1', Authorization: 'forged' }, secretRefs: ['weather'] }, { ...approved, secretRefs: ['weather'] });
       assert.deepEqual(undated(ok), { status: 200, headers: { 'content-type': 'application/json' }, body: '{"temperature":21}' }, 'no cookies come back');
       assert.deepEqual(seen[0], { path: '/today', method: 'GET', authorization: 'Bearer s3cret', cookie: undefined, accept: 'application/json' }, 'the saved secret replaces what the plugin wrote; cookies never leave');
@@ -101,7 +108,6 @@ test('an approved https request goes out with the saved secret, comes back bound
 });
 
 test('a plugin\'s saved secrets: listed without values, one plugin cannot read another\'s, the host\'s headers are off limits, uninstall forgets them', async () => {
-  const { pluginSecrets } = await import('../apps/local-host/src/plugin-builder/secrets.js');
   const values = new Map<string, string>(), kept = new Map<string, string>();
   const sealed = { put: (ref: string, value: string) => { values.set(ref, value); }, get: (ref: string) => values.get(ref) ?? null, delete: (ref: string) => { values.delete(ref); } } as never;
   const storage = { get: (key: string) => kept.get(key) ?? null, set: (key: string, value: string) => { kept.set(key, value); }, delete: (key: string) => kept.delete(key) } as never;
@@ -116,4 +122,18 @@ test('a plugin\'s saved secrets: listed without values, one plugin cannot read a
   assert.ok(![...kept.values()].some(value => value.includes('k-123')), 'the value never lands in plain plugin storage');
   secrets.remove(a);
   assert.deepEqual(secrets.list(a), []); assert.equal(values.size, 0);
+});
+
+// W2-18-UPGRADE-SECRETS-01: prevalidation and selective restoration never erase a later direct edit.
+test('staged secret values reject malformed batches before writing and restore only their own keys', async () => {
+  const values = new Map<string, string>(), kept = new Map<string, string>();
+  const sealed = { put: (ref: string, value: string) => { values.set(ref, value); }, get: (ref: string) => values.get(ref) ?? null, delete: (ref: string) => { values.delete(ref); } } as never;
+  const storage = { get: (key: string) => kept.get(key) ?? null, set: (key: string, value: string) => { kept.set(key, value); }, delete: (key: string) => kept.delete(key) };
+  const secrets = pluginSecrets(undefined, 'project', storage, sealed), id = 'plugin';
+  secrets.save(id, { name: 'original', header: 'Authorization', value: 'old' });
+  assert.throws(() => secrets.stage!(id, [{ name: 'original', header: 'Authorization', value: 'new' }, { name: 'bad', header: 'Cookie', value: 'bad' }]), /不能用来放密钥/);
+  assert.deepEqual(await secrets.resolve(id, 'original'), { header: 'Authorization', value: 'old' });
+  const attempt = secrets.stage!(id, [{ name: 'original', header: 'Authorization', value: 'new' }, { name: 'extra', header: 'X-Api-Key', value: 'temporary' }]); attempt.apply();
+  secrets.save(id, { name: 'original', header: 'X-Later', value: 'later user edit' }); attempt.restore();
+  assert.deepEqual(await secrets.resolve(id, 'original'), { header: 'X-Later', value: 'later user edit' }); assert.equal(await secrets.resolve(id, 'extra'), null);
 });

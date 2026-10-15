@@ -1,5 +1,9 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "正在重新整理…": "Reorganizing…",
+  "内容已变化，请重新整理。": "The content changed. Please reorganize again.",
+  "已重新整理，确认后保存。": "Reorganized. Review and save when ready.",
+  "没能重新整理，修改已保留，可以重试或直接保存。": "Could not reorganize. Your edits are kept; retry or save them directly.",
   // The Assistant's question and action cards, drawn on the Host (A1, H2).
   "时刻（24 小时制）": "Time (24-hour)",
   "将使用这些内容": "What will be used",
@@ -23,6 +27,10 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "原始尺寸": "Original size",
   "适应窗口": "Fit to window",
   "请描述问题或添加图片": "Describe the issue or add an image",
+  "遇到什么问题？写下来，截图可以直接粘贴": "What went wrong? Write it here, or paste a screenshot",
+  "我的 Issue": "My issues",
+  "添加截图": "Add screenshot",
+  "重新整理": "Organize again",
   "问题描述": "Issue description",
   "图片尺寸过大，请裁剪后添加。": "The image dimensions are too large. Crop it first.",
   "图片压缩后仍超过 2 MiB，请裁剪后添加。": "The compressed image exceeds 2 MiB. Crop it first.",
@@ -83,6 +91,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "这个版本没有可取回的文件": "This version has no file to retrieve",
   // apps/local-host/src/web-request.ts
   "这个侧栏内容已经不在了（插件可能已停用）": "This side panel content is gone (the plugin may have been turned off)",
+  "还没有配置可用的模型，助理无法开始工作": "No usable model is configured yet, so the assistant can't start",
   // apps/workbench/src/capabilities.ts
   "可使用": "Available",
   "查询": "Query",
@@ -369,6 +378,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "只显示了开头一部分。": "Only the beginning is shown.",
   "这种文件不能在这里预览，可以下载后打开。": "This kind of file can't be previewed here; download it to open it.",
   // Issue: capture, list and record (plugins/native/issues).
+  "截图草稿未能保存在本机，请重试后再离开页面。": "Screenshot draft could not be saved on this device. Retry before leaving this page.",
   "已记录：": "Recorded: ",
   "整理超时，点开补全标题和类型": "Organizing timed out. Open it to add a title and type",
   "请确认标题和类型后保存": "Check the title and type, then save",

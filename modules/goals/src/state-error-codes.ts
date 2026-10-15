@@ -1,0 +1,148 @@
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+
+const goals_event_agreement = defineErrorCodes("goals.event_agreement", {
+  change_mismatch: "invalid",
+  duplicate_retire: "invalid",
+  duplicate_revision: "invalid",
+  expected_agreement_version_required: "invalid",
+  expected_config_version_required: "invalid",
+  invalid_change: "invalid",
+  no_changes: "invalid",
+  outcome_required: "invalid",
+  revision_empty: "invalid",
+  stale_config_version: "invalid",
+  stale_version: "conflict",
+  unauthorized_change: "invalid",
+});
+
+const goals_event_closure = defineErrorCodes("goals.event_closure", {
+  cancelled: "invalid",
+  expected_agreement_version_required: "invalid",
+  expected_config_version_required: "invalid",
+  invalid_kind: "invalid",
+  reason_required: "invalid",
+  stale_version: "conflict",
+});
+
+const goals_event_concern = defineErrorCodes("goals.event_concern", {
+  accept_requires_user_decision: "invalid",
+  cross_goal_reference: "invalid",
+  evidence_not_subsequent: "invalid",
+  evidence_required: "invalid",
+  id_required: "invalid",
+  invalid_action: "invalid",
+  not_found: "invalid",
+  reason_required: "invalid",
+  scope_required: "invalid",
+  statement_required: "invalid",
+  title_required: "invalid",
+});
+
+const goals_event_decision = defineErrorCodes("goals.event_decision", {
+  change_mismatch: "invalid",
+  conclusion_required: "invalid",
+  cross_goal_reference: "invalid",
+  duplicate_option: "invalid",
+  effect_conflict: "invalid",
+  effect_scope_mismatch: "invalid",
+  effect_widened: "invalid",
+  invalid_effect: "invalid",
+  invalid_options: "invalid",
+  invalid_purpose: "invalid",
+  missing_proposed_change: "invalid",
+  not_found: "invalid",
+  option_not_found: "invalid",
+  question_required: "invalid",
+  request_not_found: "invalid",
+  scope_expanded: "invalid",
+  scope_required: "invalid",
+  stale_commitment: "invalid",
+  superseded: "invalid",
+  unexpected_proposed_change: "invalid",
+});
+
+const goals_event_note = defineErrorCodes("goals.event_note", {
+  body_required: "invalid",
+});
+
+const goals_event_progress = defineErrorCodes("goals.event_progress", {
+  cursor_not_on_goal: "invalid",
+  future_cursor: "invalid",
+  invalid_cursor: "invalid",
+  invalid_source: "invalid",
+  stale_goal: "invalid",
+  summary_required: "invalid",
+});
+
+const goals_event_resume = defineErrorCodes("goals.event_resume", {
+  already_open: "invalid",
+  not_resumable: "invalid",
+  reason_required: "invalid",
+});
+
+const goals_event_state = defineErrorCodes("goals.event_state", {
+  not_owner: "invalid",
+});
+
+export const stateErrors = {
+  "goals.event_agreement.change_mismatch": goals_event_agreement.change_mismatch,
+  "goals.event_agreement.duplicate_retire": goals_event_agreement.duplicate_retire,
+  "goals.event_agreement.duplicate_revision": goals_event_agreement.duplicate_revision,
+  "goals.event_agreement.expected_agreement_version_required": goals_event_agreement.expected_agreement_version_required,
+  "goals.event_agreement.expected_config_version_required": goals_event_agreement.expected_config_version_required,
+  "goals.event_agreement.invalid_change": goals_event_agreement.invalid_change,
+  "goals.event_agreement.no_changes": goals_event_agreement.no_changes,
+  "goals.event_agreement.outcome_required": goals_event_agreement.outcome_required,
+  "goals.event_agreement.revision_empty": goals_event_agreement.revision_empty,
+  "goals.event_agreement.stale_config_version": goals_event_agreement.stale_config_version,
+  "goals.event_agreement.stale_version": goals_event_agreement.stale_version,
+  "goals.event_agreement.unauthorized_change": goals_event_agreement.unauthorized_change,
+  "goals.event_closure.cancelled": goals_event_closure.cancelled,
+  "goals.event_closure.expected_agreement_version_required": goals_event_closure.expected_agreement_version_required,
+  "goals.event_closure.expected_config_version_required": goals_event_closure.expected_config_version_required,
+  "goals.event_closure.invalid_kind": goals_event_closure.invalid_kind,
+  "goals.event_closure.reason_required": goals_event_closure.reason_required,
+  "goals.event_closure.stale_version": goals_event_closure.stale_version,
+  "goals.event_concern.accept_requires_user_decision": goals_event_concern.accept_requires_user_decision,
+  "goals.event_concern.cross_goal_reference": goals_event_concern.cross_goal_reference,
+  "goals.event_concern.evidence_not_subsequent": goals_event_concern.evidence_not_subsequent,
+  "goals.event_concern.evidence_required": goals_event_concern.evidence_required,
+  "goals.event_concern.id_required": goals_event_concern.id_required,
+  "goals.event_concern.invalid_action": goals_event_concern.invalid_action,
+  "goals.event_concern.not_found": goals_event_concern.not_found,
+  "goals.event_concern.reason_required": goals_event_concern.reason_required,
+  "goals.event_concern.scope_required": goals_event_concern.scope_required,
+  "goals.event_concern.statement_required": goals_event_concern.statement_required,
+  "goals.event_concern.title_required": goals_event_concern.title_required,
+  "goals.event_decision.change_mismatch": goals_event_decision.change_mismatch,
+  "goals.event_decision.conclusion_required": goals_event_decision.conclusion_required,
+  "goals.event_decision.cross_goal_reference": goals_event_decision.cross_goal_reference,
+  "goals.event_decision.duplicate_option": goals_event_decision.duplicate_option,
+  "goals.event_decision.effect_conflict": goals_event_decision.effect_conflict,
+  "goals.event_decision.effect_scope_mismatch": goals_event_decision.effect_scope_mismatch,
+  "goals.event_decision.effect_widened": goals_event_decision.effect_widened,
+  "goals.event_decision.invalid_effect": goals_event_decision.invalid_effect,
+  "goals.event_decision.invalid_options": goals_event_decision.invalid_options,
+  "goals.event_decision.invalid_purpose": goals_event_decision.invalid_purpose,
+  "goals.event_decision.missing_proposed_change": goals_event_decision.missing_proposed_change,
+  "goals.event_decision.not_found": goals_event_decision.not_found,
+  "goals.event_decision.option_not_found": goals_event_decision.option_not_found,
+  "goals.event_decision.question_required": goals_event_decision.question_required,
+  "goals.event_decision.request_not_found": goals_event_decision.request_not_found,
+  "goals.event_decision.scope_expanded": goals_event_decision.scope_expanded,
+  "goals.event_decision.scope_required": goals_event_decision.scope_required,
+  "goals.event_decision.stale_commitment": goals_event_decision.stale_commitment,
+  "goals.event_decision.superseded": goals_event_decision.superseded,
+  "goals.event_decision.unexpected_proposed_change": goals_event_decision.unexpected_proposed_change,
+  "goals.event_note.body_required": goals_event_note.body_required,
+  "goals.event_progress.cursor_not_on_goal": goals_event_progress.cursor_not_on_goal,
+  "goals.event_progress.future_cursor": goals_event_progress.future_cursor,
+  "goals.event_progress.invalid_cursor": goals_event_progress.invalid_cursor,
+  "goals.event_progress.invalid_source": goals_event_progress.invalid_source,
+  "goals.event_progress.stale_goal": goals_event_progress.stale_goal,
+  "goals.event_progress.summary_required": goals_event_progress.summary_required,
+  "goals.event_resume.already_open": goals_event_resume.already_open,
+  "goals.event_resume.not_resumable": goals_event_resume.not_resumable,
+  "goals.event_resume.reason_required": goals_event_resume.reason_required,
+  "goals.event_state.not_owner": goals_event_state.not_owner,
+} as const;

@@ -24,6 +24,6 @@ export async function handlePluginEventHttp(request: IncomingMessage, response: 
     sendLocalWebJson(response, 200, { resolution });
   } catch (error) {
     if (!(error instanceof PluginEventError)) throw error;
-    sendLocalWebJson(response, error.code === "event_recovery_invalid" ? 400 : 409, { code: error.code, error: error.message });
+    sendLocalWebJson(response, error.code === "plugin.event_recovery_invalid" ? 400 : 409, { code: error.code, error: error.message });
   }
 }

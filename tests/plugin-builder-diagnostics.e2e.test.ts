@@ -9,7 +9,7 @@ import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES } from '@molis-ai/mol
 import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-plugin-builder';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from '@molis-ai/molis-work-ui-host';
 import { runBuilderBrowserAcceptance } from '../apps/local-host/src/plugin-builder/browser.js';
-import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
+import { builderBrowserExecutable, openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { readingContract, readingNodes, readingSamples } from './fixtures/plugin-composition.js';
 
 test('Builder diagnoses accepted reads with current selection, without another call or a stale response', { timeout: 60_000 }, async () => {
@@ -61,7 +61,7 @@ test('Builder diagnoses accepted reads with current selection, without another c
 
     // Exercise the production G7 diagnosis with an immediate failed assertion.
     const acceptance = [{ id: 'probe', description: '诊断选中记录', steps: [{ action: 'select', componentId: 'notes', text: readingSamples[0]!.title }, { action: 'expectAbsent', componentId: 'reader', text: readingSamples[0]!.title }] }];
-    const result = await runBuilderBrowserAcceptance({ ...draft, design: { ...draft.design, acceptance } } as any, { url, signal: new AbortController().signal });
+    const result = await runBuilderBrowserAcceptance({ ...draft, design: { ...draft.design, acceptance } } as any, { url, signal: new AbortController().signal, executable: builderBrowserExecutable });
     assert.equal(result.passed, false);
     const diagnosis = JSON.parse(result.cases[0]!.detail);
     assert.equal(diagnosis.componentId, 'reader');

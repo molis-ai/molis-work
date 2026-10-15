@@ -66,9 +66,9 @@ export type BrowserProblemCode =
   | "browser.start_failed"
   | "browser.profile_in_use"
   | "browser.crashed"
-  | "page.crashed"
-  | "page.load_failed"
-  | "page.blocked_scheme";
+  | "browser.page_crashed"
+  | "browser.load_failed"
+  | "browser.blocked_scheme";
 
 export type BrowserModifiers = number; // CDP bit mask: Alt=1, Ctrl=2, Meta=4, Shift=8
 

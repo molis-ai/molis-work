@@ -1,5 +1,10 @@
 /** The resident Assistant in the bottom bar. */
 export const ASSISTANT_EN: Record<string, string> = {
+  "回复到原评论": "Replying to the original comment",
+  "请回到原评论继续回复": "Return to the original comment to continue",
+  "在主区展开": "Expand in workspace",
+  "收回底部": "Return to the bottom bar",
+  "返回助理": "Return to Assistant",
   "助理": "Assistant",
   "切换工作": "Switch work",
   "新工作": "New work",

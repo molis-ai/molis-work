@@ -383,7 +383,7 @@ test("Gmail incremental sync enforces the configured range and preserves account
       if (url.includes("/history?")) {
         return new Response(JSON.stringify({
           historyId: "201",
-          history: [{
+          history: [{ id: "200",
             messagesAdded: [
               { message: { id: "starred-1" } },
               { message: { id: "ordinary-2" } },
@@ -571,7 +571,7 @@ test("Connector service persists cursor only after success and safely replays or
     next = failure("needs_auth");
     await assert.rejects(
       service.sync(source.source_id, { idempotencyKey: "connector-sync-0002" }),
-      (error: unknown) => providerFailure(error, "connector_needs_auth") && /管理账号连接/.test((error as Error).message),
+      (error: unknown) => providerFailure(error, "connector.needs_auth") && /管理账号连接/.test((error as Error).message),
     );
     assert.deepEqual(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, cursor1);
     const fault = service.feed.listInboxEntries(DEMO_PROJECT_ID).find(
@@ -629,10 +629,10 @@ test("Connector failure commits Source and event together while retaining the Li
     assert.equal(replay.run.outcome, "failed");
     assert.deepEqual(replay.source, source);
     assert.equal(calls, 1, "the Listener receipt remains durable independently of the later Source/event transaction");
-    await assert.rejects(service.sync(source.source_id, { idempotencyKey: "connector-commit-failure-2" }), (error: unknown) => providerFailure(error, "connector_needs_auth"));
+    await assert.rejects(service.sync(source.source_id, { idempotencyKey: "connector-commit-failure-2" }), (error: unknown) => providerFailure(error, "connector.needs_auth"));
     const updated = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
     assert.equal(updated.status, "error");
-    assert.equal(updated.last_error_code, "connector_needs_auth");
+    assert.equal(updated.last_error_code, "connector.needs_auth");
     assert.deepEqual(updated.cursor, source.cursor);
     const events = store.db.prepare("SELECT actor_id, reason, payload_json FROM events WHERE project_id = ? AND object_id = ? AND type = 'feed_connector.sync_failed'").all(DEMO_PROJECT_ID, source.source_id) as Array<{ actor_id: string; reason: string; payload_json: string }>;
     assert.deepEqual(events, [{ actor_id: "feed-connector-service", reason: "GitHub 同步失败：Provider request failed safely", payload_json: JSON.stringify({ failure: "needs_auth", action: "Reconnect and retry" }) }]);
@@ -640,6 +640,7 @@ test("Connector failure commits Source and event together while retaining the Li
   });
 });
 
+// J3C-01/J3C-03: the real Feed chain retains retry time and avoids Inbox noise.
 test("Connector service preserves cursor and schedules rate-limit recovery without Inbox noise", async () => {
   await withBoard(async (store) => {
     const retryAfterAt = "2026-08-30T10:05:00.000Z";
@@ -667,7 +668,7 @@ test("Connector service preserves cursor and schedules rate-limit recovery witho
     });
     await assert.rejects(
       service.sync(source.source_id, { idempotencyKey: "connector-rate-limit-0001" }),
-      (error: unknown) => providerFailure(error, "connector_rate_limited"),
+      (error: unknown) => providerFailure(error, "connector.rate_limited"),
     );
     const durable = service.feed.getSource(DEMO_PROJECT_ID, source.source_id);
     assert.equal(durable.status, "active");
@@ -710,7 +711,7 @@ test("Connector interruption is recoverable with the same idempotency key", asyn
       async health() { return { ok: true, status: "connected", message: "stub" }; },
       async sync() {
         calls += 1;
-        if (calls === 1) throw Object.assign(new Error("socket failed"), { code: "provider_interrupted" });
+        if (calls === 1) throw Object.assign(new Error("socket failed"), { code: "connector.network" });
         return success([], { since: "cursor-after-retry" });
       },
     };
@@ -725,6 +726,9 @@ test("Connector interruption is recoverable with the same idempotency key", asyn
     );
     const interrupted = service.feed.snapshot(DEMO_PROJECT_ID).runs[0]!;
     assert.equal(interrupted.phase, "interrupted");
+    // J3E-01: the real Connector/Listener wrapper and Feed catch preserve their refusal while retrying.
+    assert.equal(interrupted.error_code, "listener.connector_failed");
+    assert.equal(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).last_error_code, "listener.connector_failed");
     assert.deepEqual(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).cursor, {});
 
     const retried = await service.sync(source.source_id, { idempotencyKey: "connector-recovery-0001" });

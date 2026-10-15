@@ -1,7 +1,8 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { defineFragmentOffersAction, defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 // What a plugin may declare about being put things into (W1-4, context-program §18): creation entries (`intake`), appends
@@ -126,14 +127,14 @@ test("W1-04: entries that are not shaped like actions or views are reported by t
   const withPrepare = writing({ intake: intake({ prepare: { capability_id: "example.prepare", version: 1 } }), attach: attach() });
   const refused = (input: unknown) => {
     try { parsePluginManifest(input); return null; } catch (error) {
-      if (error instanceof PluginManifestError) return error.code;
+      if ((error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid")) return error.code;
       throw error;
     }
   };
   // A null or a number among the actions, ahead of and after the ones the declarations point at.
   for (const stray of [null, 5, "action", [], {}]) {
     const actions = [stray, withPrepare, prepare, reader, stray, itemReader] as Part[];
-    assert.equal(refused(manifest(actions)), "plugin_declaration_invalid", JSON.stringify(stray));
+    assert.equal(refused(manifest(actions)), "plugin.declaration_invalid", JSON.stringify(stray));
   }
   // A reader that lists its kinds in the wrong shape owns no kind, so the append to its object is told so.
   for (const kinds of ["example_doc", null, 7, { 0: "example_doc" }, [7]]) {

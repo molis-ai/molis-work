@@ -1,4 +1,4 @@
-import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { McpToolCallContext } from "@molis-ai/molis-work-app-mcp";
 
@@ -24,7 +24,7 @@ export function runtimeConnectionIdentity(
 ): { client_id: string; runtime_session_id: string | null; actor_id: string } {
   const runtimeId = host?.runtimeContext.runtime_id?.trim();
   if (!host || !runtimeId) {
-    throw new MolisWorkV1Error(
+    throw new ActionError(
       "mcp.runtime_identity_missing",
       "MCP 宿主没有可信 Runtime 身份。请重新连接 Molis Work MCP，由宿主提供 runtime_id；不要在工具参数里填身份。",
     );

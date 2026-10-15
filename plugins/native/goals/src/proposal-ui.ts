@@ -56,7 +56,7 @@ function renderGoalTreeProposalScenario(
   const relationEffect = relationItem
     ? goalTreeRelationScenario(relationItem, view, proposal, goalId)
     : L("本次不会自动改变 Goal「{title}」与其他 Goal 的归属或依赖。", { title: goalTitle });
-  const nextStage = goal ? proposedGoalNextStage(goal) : L("现有 Goal 是否能开始，仍由各自的状态和前置条件决定。");
+  const nextStage = goal ? proposedGoalNextStage() : L("现有 Goal 是否能开始，仍由各自的状态和前置条件决定。");
   return renderDecisionScenario({
     confirmLabel: L("如果采用"),
     confirmEffect: `${goalEffect}${relationEffect}${nextStage}`,

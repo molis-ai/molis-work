@@ -18,7 +18,7 @@ const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
   runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
-  functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"]) {
+  functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"]) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
@@ -84,7 +84,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     }
   } else seed(databasePath);
   store = new LocalProjectDatabase(databasePath);
-  localHost = completion === undefined && !runtimeSessionTransport && !functions ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions,
+  localHost = completion === undefined && !runtimeSessionTransport && !functions && !workspaceFor ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions, workspaceFor,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: CONTROL_TOKEN });
@@ -92,7 +92,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     connections.add(connection);
     connection.once("close", () => connections.delete(connection));
   });
-  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 5_000 });
+  // The limits stop a hang; they are not speed checks. They are sized for the Linux CI runner, which runs these pages about
+  // 2.5 times slower than a development Mac (one command or wait that takes 4 s there takes 10 s here).
+  const browser = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000 });
   harness = browser;
   /** A page load may take far longer than any other command. */
   function command<T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string, timeoutMs = method === "Page.navigate" || method === "Page.reload" ? 30_000 : undefined): Promise<T> {
@@ -116,7 +118,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
     return result.result.value;
   }
-  async function waitFor(expression: string, timeoutMs = 4000): Promise<void> {
+  async function waitFor(expression: string, timeoutMs = 10_000): Promise<void> {
     const result = await command<{ result: { value: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression: `new Promise((resolve, reject) => {
       const deadline = Date.now() + ${timeoutMs};
       const check = () => { if (${expression}) resolve(true); else if (Date.now() >= deadline) reject(new Error('DOM condition timeout: ' + ${JSON.stringify(expression.slice(0, 200))} + '; toast=' + document.querySelector('[data-toast]')?.textContent + '; focused=' + document.activeElement?.outerHTML.slice(0,300))); else setTimeout(check, 16); }; check();
@@ -151,8 +153,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       };
       reveal(element);
       await new Promise(resolve => requestAnimationFrame(resolve));
-      // A list may still be closing from the previous choice, or take a few frames to open on a busy machine.
-      for (let tries = 0; tries < 30; tries++) {
+      // A list may still be closing from the previous choice, or take a few frames to open on a busy machine (up to 5 s: the
+      // Linux CI runner).
+      for (let tries = 0; tries < 150; tries++) {
         const current = document.querySelector(${JSON.stringify(selector)}) || element;
         if (current.getClientRects().length) break;
         reveal(current);
@@ -173,7 +176,10 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y }, sessionId);
       const hit = await evaluate<string | null>(`(async () => { await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const element = document.querySelector(${JSON.stringify(selector)}); const hit = document.elementFromPoint(${point.x}, ${point.y});
-        return element && element.contains(hit) ? null : (hit?.outerHTML.slice(0, 400) ?? 'nothing'); })()`);
+        if (!element || element.contains(hit)) return null;
+        const style = getComputedStyle(element), rect = element.getBoundingClientRect();
+        return (hit?.outerHTML.slice(0, 400) ?? 'nothing') + ' (target: pointer-events ' + style.pointerEvents + ', visibility ' + style.visibility
+          + ', rect ' + [rect.x, rect.y, rect.width, rect.height].map(Math.round).join(',') + ', viewport ' + innerWidth + 'x' + innerHeight + ')'; })()`);
       if (hit !== null) throw new Error("Click target " + selector + " is covered by " + hit);
     }
     await command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, sessionId);
@@ -233,5 +239,5 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   /** The person's side of the Host's local HTTP interface, for settings the page does not need to show (grants, projects). */
   const web = new LocalHostHttpClient({ origin, controlToken: CONTROL_TOKEN });
-  return { store, localHost, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  return { store, localHost, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

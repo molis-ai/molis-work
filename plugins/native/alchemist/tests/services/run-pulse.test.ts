@@ -35,7 +35,7 @@ describe("Market Pulse worker", () => {
           status: "error",
           requestUrl: "https://www.toolify.ai/Best-trending-AI-Tools",
           fetchedAt: "2026-07-31T10:03:00.000Z",
-          errorCode: "SOURCE_CHALLENGE",
+          errorCode: "alchemist.source_challenge",
           signals: [],
         }),
       },

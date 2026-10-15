@@ -73,7 +73,33 @@ const seconds = (value) => `${value.toFixed(1)}s`;
 const minutes = (milliseconds) => `${(milliseconds / 60_000).toFixed(1)} min`;
 
 /** The whole parallel run with the terminal: progress, failing output, summary. Resolves to the exit code. */
-export async function runParallel(root, targets, { jobs, browserJobs, timeoutSeconds, testArgs, verbose }) {
+/**
+ * Runs the failed files again, up to `retries` rounds with the same caps; a file that passes in a later round is flaky. Prints a line
+ * per attempt. Resolves to { flaky, failed }, `failed` being the entries still failing after the last round.
+ */
+async function retryFailed(failed, { retries, jobs, browserJobs, runFile, verbose, timeoutSeconds }) {
+  let still = failed;
+  const flaky = [];
+  for (let round = 1; round <= retries && still.length; round++) {
+    console.log(`\nrun-tests: retry ${round} of ${retries} for ${still.length} failed file(s)`);
+    const again = [];
+    await runQueue(still.map(({ entry }) => entry), {
+      jobs, browserJobs, runFile,
+      onDone: (entry, result) => {
+        const { status } = statusOf(result);
+        const ok = status === "pass" || status === "skipped";
+        console.log(`[retry ${round}] ${ok ? "ok  " : status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(result.seconds)}`);
+        if (ok) flaky.push(entry.file);
+        else again.push({ entry, status, result });
+        if (!ok && verbose) console.log(`${result.output.trimEnd()}\n${result.timedOut ? `(killed after ${timeoutSeconds} s)\n` : ""}`);
+      },
+    });
+    still = again;
+  }
+  return { flaky, failed: still };
+}
+
+export async function runParallel(root, targets, { jobs, browserJobs, timeoutSeconds, testArgs, verbose, retries = 0 }) {
   const started = Date.now();
   // The files as the caller named them (relative to where it stands, or absolute), from the root the files run in.
   const files = targets.map((target) => path.relative(root, path.resolve(target)).split(path.sep).join("/"));
@@ -98,9 +124,9 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
   for (const [signal, handler] of handlers) process.once(signal, handler);
 
   try {
+    const runFile = (entry) => runOnce(root, entry.file, timeoutSeconds * 1000, { environment: process.env, testArgs });
     const results = await runQueue(queue, {
-      jobs, browserJobs,
-      runFile: (entry) => runOnce(root, entry.file, timeoutSeconds * 1000, { environment: process.env, testArgs }),
+      jobs, browserJobs, runFile,
       onDone: (entry, result) => {
         finished += 1;
         const { status, counts } = statusOf(result);
@@ -113,15 +139,21 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
       },
     });
 
+    // A file that failed and then passed on a retry is flaky: listed on its own, and it does not fail the run.
+    const { flaky, failed: still } = await retryFailed(failed, { retries, jobs, browserJobs, runFile, verbose, timeoutSeconds });
     const slowest = [...results].sort((a, b) => b.result.seconds - a.result.seconds).slice(0, 8);
-    console.log(`\nrun-tests: ${files.length - failed.length} of ${files.length} files passed in ${minutes(Date.now() - started)} (${Math.min(jobs, files.length)} at a time)`);
+    console.log(`\nrun-tests: ${files.length - still.length} of ${files.length} files passed${flaky.length ? ` (${flaky.length} only on a retry)` : ""} in ${minutes(Date.now() - started)} (${Math.min(jobs, files.length)} at a time)`);
     console.log(`slowest: ${slowest.map(({ entry, result }) => `${entry.file} ${seconds(result.seconds)}`).join(", ")}`);
-    if (failed.length) {
-      console.log(`\nfailed (${failed.length}):`);
-      for (const { entry, status } of failed) console.log(`  ${status.padEnd(7)} ${entry.file}`);
-      console.log(`\nagain: node scripts/run-tests.mjs ${failed.map(({ entry }) => entry.file).join(" ")}`);
+    if (flaky.length) {
+      console.log(`\nflaky, failed and then passed on a retry (${flaky.length}):`);
+      for (const file of flaky) console.log(`  ${file}`);
     }
-    return failed.length ? 1 : 0;
+    if (still.length) {
+      console.log(`\nfailed (${still.length}):`);
+      for (const { entry, status } of still) console.log(`  ${status.padEnd(7)} ${entry.file}`);
+      console.log(`\nagain: node scripts/run-tests.mjs ${still.map(({ entry }) => entry.file).join(" ")}`);
+    }
+    return still.length ? 1 : 0;
   } finally {
     for (const [signal, handler] of handlers) process.off(signal, handler);
     finish();

@@ -18,11 +18,11 @@ export class GoalTreeMaterializationConflicts {
     if (item.kind === "goal") {
       const payload = this.inputs.goalTreePayloadRecord(item.payload, "Goal 条目");
       const goalId = String(payload.goal_id ?? "").trim();
-      if (!goalId) return { code: "goal_tree_proposal.goal_id_required", message: "创建 Goal 需要稳定 goal_id" };
+      if (!goalId) return { code: "goals.goal_tree_proposal.goal_id_required", message: "创建 Goal 需要稳定 goal_id" };
       const existing = onBoard(goalId);
-      if (existing) return { code: "goal_tree_proposal.goal_exists", message: `Goal 已存在: ${goalId}`, objects: [{ object_type: "goal", object_id: goalId }] };
+      if (existing) return { code: "goals.goal_tree_proposal.goal_exists", message: `Goal 已存在: ${goalId}`, objects: [{ object_type: "goal", object_id: goalId }] };
       if (this.goals.query.hasGoalIdentity(goalId)) {
-        return { code: "goal_tree_proposal.cross_board", message: `不能引用其他项目的 Goal: ${goalId}`, objects: [{ object_type: "goal", object_id: goalId }] };
+        return { code: "goals.goal_tree_proposal.cross_board", message: `不能引用其他项目的 Goal: ${goalId}`, objects: [{ object_type: "goal", object_id: goalId }] };
       }
       return null;
     }
@@ -35,18 +35,18 @@ export class GoalTreeMaterializationConflicts {
       for (const goalId of [fromId, toId].filter(Boolean)) {
         const existing = onBoard(goalId);
         if (existing?.trashed_at) {
-          return { code: "goal_tree_proposal.goal_trashed", message: `不能关联回收站 Goal: ${goalId}`, objects: [{ object_type: "goal", object_id: goalId }] };
+          return { code: "goals.goal_tree_proposal.goal_trashed", message: `不能关联回收站 Goal: ${goalId}`, objects: [{ object_type: "goal", object_id: goalId }] };
         }
         if (existing?.archived_at) {
-          return { code: "goal_tree_proposal.goal_archived", message: `不能关联已归档 Goal: ${goalId}`, objects: [{ object_type: "goal", object_id: goalId }] };
+          return { code: "goals.goal_tree_proposal.goal_archived", message: `不能关联已归档 Goal: ${goalId}`, objects: [{ object_type: "goal", object_id: goalId }] };
         }
         if (!existing && this.goals.query.hasGoalIdentity(goalId)) {
-          return { code: "goal_tree_proposal.cross_board", message: `不能引用其他项目的 Goal: ${goalId}`, objects: [{ object_type: "goal", object_id: goalId }] };
+          return { code: "goals.goal_tree_proposal.cross_board", message: `不能引用其他项目的 Goal: ${goalId}`, objects: [{ object_type: "goal", object_id: goalId }] };
         }
       }
       const type = String(relation.type ?? "").trim();
       if (item.operation !== "deactivate" && type === "part_of" && fromId && toId && this.goals.planning.wouldCreatePartOfCycle(projectId, fromId, toId)) {
-        return { code: "goal_tree_proposal.part_of_cycle", message: "父子关系会形成循环", goal_ids: [fromId, toId] };
+        return { code: "goals.goal_tree_proposal.part_of_cycle", message: "父子关系会形成循环", goal_ids: [fromId, toId] };
       }
     }
     return null;

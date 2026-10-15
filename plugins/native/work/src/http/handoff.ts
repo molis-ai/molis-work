@@ -1,5 +1,5 @@
 import type { WorkSessionHttpContext } from "./types.js";
-import { MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workActions } from "../actions.js";
 
@@ -31,7 +31,7 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
         ...(typeof body.target_workspace_path === "string" ? { target_workspace_path: body.target_workspace_path.trim() || null } : {}),
         project_name: projectOptions.project!.display_name }));
     } catch (error) {
-      respond( error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
+      respond( error instanceof ActionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -65,7 +65,7 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
         const body = await readBody();
         respond(200, await requireActions(context).invoke(workActions.handoffUpdate, target(current.package_id, body)));
       } catch (error) {
-        respond( error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
+        respond( error instanceof ActionError ? 400 : 503, {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -79,7 +79,7 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
         const status = result.handoff.state === "sent" ? 201 : 502;
         respond(status, { ...result, ...(status === 502 ? { error: result.handoff.error_message } : {}) });
       } catch (error) {
-        respond( error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
+        respond( error instanceof ActionError ? 400 : 503, {
           error: error instanceof Error ? error.message : String(error),
         });
       }
@@ -89,7 +89,7 @@ export async function handleSessionHandoffHttp(context: WorkSessionHttpContext):
       try {
         respond(200, await requireActions(context).invoke(workActions.handoffCancel, { package_id: current.package_id }));
       } catch (error) {
-        respond( error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
+        respond( error instanceof ActionError ? 400 : 503, {
           error: error instanceof Error ? error.message : String(error),
         });
       }

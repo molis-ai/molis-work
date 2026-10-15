@@ -1,5 +1,6 @@
 
 import { EN } from "./i18n/en.js";
+import { pluginTabTitles } from "./plugin-catalog.js";
 
 
 export { EN } from "./i18n/en.js";
@@ -119,7 +120,10 @@ function englishCatalogJson(): string {
 
 function clientI18nScript(): string {
   const catalog = currentLocale() === "en" ? englishCatalogJson() : "{}";
+  // The built-in plugins' tab titles in this page's language, read by the workbench scripts (one copy, not one per script).
+  const titles = JSON.stringify(pluginTabTitles(currentLocale() === "en")).replaceAll("<", "\\u003c");
   return `globalThis.MOLIS_WORK_EN = ${catalog};
+  globalThis.MOLIS_WORK_PLUGIN_TITLES = ${titles};
   globalThis.L = function L(zh, vars) {
     const useEn = !String(document.documentElement.lang || "zh").toLowerCase().startsWith("zh");
     let text = useEn && globalThis.MOLIS_WORK_EN && globalThis.MOLIS_WORK_EN[zh] ? globalThis.MOLIS_WORK_EN[zh] : zh;

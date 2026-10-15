@@ -8,6 +8,8 @@
 
 ### 升级须知（需要动手）
 
+- **Goals 当前错误合同**：事件、目标、规划、树提案和决定错误统一以 `goals.` 开头；HTTP/MCP 保留消息、kind、owner 详情和真实调用编号。规划影响/关系图检查、树检查/决定动作改为 v2，固定旧动作版本的客户端须重新发现并授予当前动作；业务事件类型与历史事实不变。
+
 - **改名。** 产品名从 GoalBoard 改为 Molis Work（`9824f6e6`，2026-09-15；v0.2.0 的 tag 仍是旧名）。npm 包 `@adeptify/goalboard` 现在是 `@molis-ai/molis-work`；命令 `goalboard`、`goalboard-mcp`、`goalboard-web` 现在是 `molis-work`、`molis-work-mcp`、`molis-work-web`；默认 Home `~/.goalboard` 现在是 `~/.molis-work`；环境变量 `GOALBOARD_*` 现在是 `MOLIS_WORK_*`，代码不再认旧名；MCP 工具名前缀 `goalboard_v1_` 现在是 `molis_work_v1_`。按旧名写的 Runtime 接入配置不再有效（MCP 会报「MCP 宿主没有提供 Runtime 标识」），要用产品自己的 Runtime 接入流程重写（「设置 → AI 与执行工具」）。
 - **每个库只认一个当前版本，不就地升级。** 项目库、目录库、会话库和 Home 级的库各留一份当前建库代码加版本号，版本不符就拒绝打开（#255、#260、#261、#264、#265、#267；有特殊处理的见检查清单）；v0.2.0 里按序执行的数据库迁移链和 V3 导入已经删除。v0.2.0 的目录库是 10、会话库是 5，现在分别是 22 和 7；各库现行版本见 [CHECKLIST.md](CHECKLIST.md) 第 3 节。所以 v0.2.0 的 Home 不能直接用新版本打开，产品里也没有随发行的升级工具：要保留数据，发布者按检查清单第 4 节先备份、在副本上演练，再做一次性维护。
 - **`board_id` 全部改为 `project_id`**（#287）：存储列、平台自己存的 JSON 键、索引名（项目库 v6、Functions v3、目录库 v21）、命令行参数 `--board-id` 改为 `--project-id`。Casebook 导出合同里的合同修订号保持 1，不改外部合同版本。
@@ -37,6 +39,8 @@
 - **模型设置**：在模型设置页填写钥匙，并从未配模型处直达（#90）。
 
 ### 变化
+
+- **管理 MCP 复用 Goals 动作**（W3-07 PR-4）：`initialize`、`event_decide`、`goal_tree_decide` 经 Host 现有管理工厂，以本机这个人和原 management 出处各调用一个 Goals 动作，消除 typed 业务的重复结算。工具名/schema、成功 JSON、身份拒绝、显式路径与幂等键不变；真正进入动作才留单一行与 Host 编号，前置拒绝可无行、无号。
 
 - **工作台是唯一的外壳**：插件只提供内容、挂在工作台的位置，不出自己的整页、不开第二个浏览器标签页（#176、#177、#186、#187、#193、#195、#197、#198）；门禁 `tests/shell-page-gate.test.ts` 在 CI 里跑（#196）。
 - **Soft Workbench 全局升级**（#101）；页面动线与导航（#114）；Characters 只在「设置 › 角色」（#141）。

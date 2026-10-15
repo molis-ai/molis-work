@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { WebSocket } from "ws";
 import { createHash, randomUUID } from "node:crypto";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, ProjectDeletionService, createMolisWorkLocalHost, molisWorkHostProjectReference, type ProjectDeletionPorts } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -292,7 +292,35 @@ test("with the control token of a Host that has stopped, the connection is refus
   assert.equal(localHost.status().projects.some(row => row.project_id === project.project_id), false, "the process's own runtime of the project was let go of");
 });
 
-test("a failure inside the resident Host keeps its own code and message in the MCP tool's answer: it is not made a transport failure", { timeout: 60_000 }, async t => {
+test("W3-02-G1-01 real deletion HTTP and its forwarding MCP retain owner conflict details without deleting", { timeout: 60_000 }, async t => {
+  const { home, catalog } = await scratchHome(t);
+  const project = await catalog.createProject({ display_name: "等待释放的项目", actor_id: "test-user" });
+  const { localHost, origin, token, stop } = await residentHost(t, home);
+  t.after(stop);
+  const details = { current_phase: "busy", current_version: 3 };
+  const original = localHost.closeProject.bind(localHost);
+  const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", null, runtimeHost(home), localHost, origin);
+  t.after(() => mcp.close());
+  try {
+    localHost.closeProject = async () => { throw new ActionError("example.runtime_busy", "运行环境尚未释放", { kind: "conflict", details }); };
+    const reply = await fetch(origin + "/api/internal/project-deletion", { method: "POST", headers: {
+      origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID(),
+    }, body: JSON.stringify({ home_id: createHash("sha256").update(resolvePath(home)).digest("hex"), client_id: "runtime:codex",
+      project_id: project.project_id, delete_confirmed: true, idempotency_key: "owner-refusal-http" }) });
+    assert.equal(reply.status, 409);
+    assert.deepEqual(await reply.json(), { error: "运行环境尚未释放", code: "example.runtime_busy", details });
+    const forwarded = await callTool(mcp, "molis_work_v1_project_delete", {
+      project_id: project.project_id, delete_confirmed: true, idempotency_key: "owner-refusal-mcp",
+    });
+    assert.equal(forwarded.isError, true);
+    const text = forwarded.content[0]!.text;
+    assert.deepEqual(JSON.parse(text), { error: "运行环境尚未释放", code: "example.runtime_busy", details });
+    assert.deepEqual(catalog.listProjectDeletions(), []);
+    assert.equal(existsSync(project.database_path), true);
+  } finally { localHost.closeProject = original; }
+});
+
+test("W3-02-G1-01 an uncoded resident deletion failure keeps its message through MCP and uses the common internal code", { timeout: 60_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
   const project = await catalog.createProject({ display_name: "目录不见了", actor_id: "test-user" });
   const { localHost, origin, stop } = await residentHost(t, home);
@@ -305,12 +333,12 @@ test("a failure inside the resident Host keeps its own code and message in the M
   const failed = await callTool(mcp, "molis_work_v1_project_delete", { project_id: project.project_id, delete_confirmed: true, idempotency_key: "mcp-host-failure" });
   assert.equal(failed.isError, true);
   assert.match(failed.content[0]?.text ?? "", /ENOENT/, "the message names what failed");
-  assert.match(failed.content[0]?.text ?? "", /"code":"project_deletion\.failed"/, "the code is the deletion's own");
+  assert.match(failed.content[0]?.text ?? "", /"code":"actions\.execution_failed"/, "an uncoded file failure uses the common internal code");
   assert.doesNotMatch(failed.content[0]?.text ?? "", /transport_failed/);
   assert.equal(catalog.listProjectDeletions().length, 0, "nothing was recorded: the MCP process did not go on to delete in its own process");
 });
 
-test("the resident Host answers a deletion that fails inside it with a 500 and the failure's own code, and keeps 409, 400 and 403 for their cases", { timeout: 60_000 }, async t => {
+test("W3-02-G1-01 deletion answers use the common kind and body: uncoded failures are 500, input is 400 and authority is 403", { timeout: 60_000 }, async t => {
   const { home, catalog } = await scratchHome(t);
   const project = await catalog.createProject({ display_name: "目录不见了", actor_id: "test-user" });
   const { origin, token, stop } = await residentHost(t, home);
@@ -350,7 +378,7 @@ test("the resident Host answers a deletion that fails inside it with a 500 and t
   const failed = await post(request);
   const body = await failed.json() as { code: string; error: string };
   assert.equal(failed.status, 500, JSON.stringify(body));
-  assert.equal(body.code, "project_deletion.failed", "the deletion's own failure, not a transport failure");
+  assert.equal(body.code, "actions.execution_failed", "an uncoded file failure uses the common internal code");
   assert.match(body.error, /ENOENT/, "the message names what failed");
   assert.equal(catalog.listProjectDeletions().length, 0, "nothing was recorded");
 });

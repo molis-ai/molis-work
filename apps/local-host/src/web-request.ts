@@ -1,12 +1,12 @@
 import { observeGitOperations } from "./git-operation-notifications.js";
-import { feedRuleActions, feedSourceActions, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
+import { feedRuleActions } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
-import { createHomeJudgmentTrigger, HOME_ACTION_PERMISSIONS } from "./home-actions.js";
+import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-artifacts";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
@@ -33,7 +33,7 @@ import { handleFunctionsHttp } from "./functions-http.js";
 import { ActionError, bindActionClient, type ActionCallContext, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { inboxActions, INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
@@ -52,26 +52,23 @@ import { handleGoalsWebHttp, goalsActions } from "@molis-ai/molis-work-plugin-go
 import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, shownProjectPlugins, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import type { SessionRuntimeResources } from "./web-session.js";
-import { cachedMolisWorkWebView, feedPull, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
+import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
-import { createLocalFeedApplication } from "./feed-application.js";
-import { bindScheduledTaskRunner, scheduleServiceFor } from "./schedule-runtime.js";
-import { createHostScheduledTaskRunner } from "./schedule-task-runner.js";
+import { projectFeedOptions } from "./workflow-feed-options.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { handleAssistantHttp } from "./assistant/assistant-http.js";
-import { handleMemoryHttp, memoryForAgentRun } from "./memory/memory-host.js";
+import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleContextualHttp } from "./contextual/contextual-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
-import { SCHEDULE_ACTION_PERMISSIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
+import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
 import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
@@ -132,7 +129,6 @@ export async function handleMolisWorkWebRequest(
   composition: LocalWebComposition,
   agentHost: AgentHost,
   agentReady: () => Promise<void>,
-  workspaceFor: (projectId: string) => ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>,
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
   if (await handleHomePluginHttp(request, response, url, localHost, controlToken, PAGE_CSP)) return;
@@ -158,7 +154,7 @@ export async function handleMolisWorkWebRequest(
     // Personal memories are managed from the global settings, outside any project.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost })) return;
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
-      localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady,
+      localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady, projectReference: async projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
       projectTitle: async projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
     })) return;
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/side/files/") && await handleUnscopedComputerFiles(request, response, url, serverOptions.homeDirectory)) return;
@@ -185,10 +181,9 @@ export async function handleMolisWorkWebRequest(
         }
         return;
       }
-      const hostReference = molisWorkHostProjectReference({
-        databasePath: options.databasePath,
-        projectId: options.projectId,
-      });
+      // The prefix locates an existing project, but Home plugin HTTP keeps its Home caller and the same instance.
+      if (await handleHomePluginHttp(request, response, url, localHost, controlToken, PAGE_CSP)) return;
+      const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
       // A web user's call into one surface's own actions, with whatever transport (cancellation) the surface adds.
       const userActions = (permissions: readonly string[], transport: Partial<ActionCallContext> = {}) => bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user" as const, permissions: [...permissions], ...transport }));
       const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
@@ -216,16 +211,7 @@ export async function handleMolisWorkWebRequest(
         shownPlugins: async () => new Set(await shownPlugins(options.project!.project_id)) })) return;
       await localHost.withProject(hostReference, async (runtime) => {
         const { store, coordinator } = runtime;
-        const feedOptions = {
-          captureJudgment: createFeedCaptureTrigger({ scenes: localHost.sceneClient(hostReference), projectId: hostReference.project_id,
-            context: () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user",
-              permissions: ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"] }) }),
-          homeJudgment: createHomeJudgmentTrigger({ scenes: localHost.sceneClient(hostReference), projectId: hostReference.project_id,
-            context: () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user", permissions: HOME_ACTION_PERMISSIONS.filter(permission => permission !== "home:write") }) }),
-          inboxJudgment: createInboxJudgmentTrigger({ scenes: localHost.sceneClient(hostReference), projectId: hostReference.project_id,
-            context: () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user",
-              permissions: ["inbox:read", "model:invoke", "functions:invoke"] }) }),
-        };
+        const feedOptions = projectFeedOptions(localHost, hostReference);
         // Home shows and runs what any plugin offers the person here: native plugins by their manifests, Runtime plugins by their installed grants.
         const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
         const goalActions = bindGoalsWebActions(localHost.actionClient(hostReference), hostReference);
@@ -291,27 +277,6 @@ export async function handleMolisWorkWebRequest(
             actorId: LOCAL_PERSON_ACTOR_ID, goalTitle: (id) => coordinator.goalQueries.getGoal(options.projectId, id)?.title,
             escapeHtml: (value) => String(value), translate: (value) => value })) return;
         }
-        if (!feedSchedulers.has(options.databasePath)) {
-        const feed = createLocalFeedApplication(store.db, feedOptions);
-        feed.recoverInterruptedSourceRuns(options.projectId);
-        const scheduler = { tick: () => feedPull(() => homeActions.invoke(feedSourceActions.tick, {})) };
-        const schedule = scheduleServiceFor(store.db);
-        bindScheduledTaskRunner(store.db, createHostScheduledTaskRunner({
-          agentHost,
-          ready: agentReady,
-          projectId: options.projectId,
-          workspaceFor,
-          memory: (task, title) => memoryForAgentRun(localHost, { project_id: options.project?.project_id ?? null, task, plugin_id: SCHEDULE_PLUGIN_ID,
-            used_for: `定时任务 · ${title.replace(/\s+/g, " ").trim().slice(0, 40)}` }),
-        }));
-        feedSchedulers.set(options.databasePath, {
-          scheduler,
-          schedule,
-        });
-        void scheduler.tick().then((result) => {
-          if (result.completed || result.failed) webViewCache.delete(options.databasePath);
-        }).catch(() => undefined);
-      }
       const readWebView = async (): Promise<MolisWorkWebView> => {
         coordinator.goalDecisionAttention.reconcile(options.projectId);
         let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions);
@@ -321,7 +286,7 @@ export async function handleMolisWorkWebRequest(
           view = { ...view, feed: { ...view.feed, out_rules: rules, feed_items: view.feed.feed_items.map(item => ({ ...item,
             suggested_behavior_ids: recommendations.find(result => result.item_id === item.item_id)?.suggested_behavior_ids ?? [] })) } };
         } catch (error) {
-          if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found"].includes(String(error.code)))) throw error;
+          if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
         }
         const inboxActionsClient = bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS);
         try {
@@ -331,7 +296,7 @@ export async function handleMolisWorkWebRequest(
             inbox_entries: view.feed.inbox_entries.map(entry => { const judgment = byEntry.get(entry.entry_id) ?? null;
               return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
         } catch (error) {
-          if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.not_found"].includes(String(error.code)))) throw error;
+          if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
         }
         return { ...view, plugin_stages: await renderHomePluginStages(localHost.homePlugins) };
       };
@@ -449,7 +414,7 @@ export async function handleMolisWorkWebRequest(
         // This project's memories (and the person's own) from the project's settings and work panel.
         if (serverOptions.homeDirectory && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost, projectRef: hostReference })) return;
         if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
-          localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady, projectRef: hostReference,
+          localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady, projectRef: hostReference, projectReference: async projectId => projectId === hostReference.project_id ? hostReference : composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
           projectTitle: async projectId => projectId === options.project?.project_id ? options.project.display_name
             : composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
         })) return;

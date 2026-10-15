@@ -59,7 +59,17 @@ export type PluginFixture = PluginDefinition | { readonly definition: PluginDefi
  * fixture is not a plugin the Host ships, so it registers under its installation id and no shipped plugin's id.
  */
 export function projectFixtureEntries(homeDirectory: string | undefined): PluginPlatformEntry[] {
-  return (homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.project ?? [] : []).map((fixture: PluginFixture) => {
+  return pluginFixtureEntries(homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.project ?? [] : []);
+}
+
+/** The same Home's fixtures, for comparing the actual two start lists. */
+export function homeFixtureEntries(homeDirectory: string): PluginPlatformEntry[] {
+  return pluginFixtureEntries(sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.home ?? []);
+}
+
+/** Both scopes use the same unbundled, in-process fixture declarations. */
+export function pluginFixtureEntries(fixtures: readonly PluginFixture[]): PluginPlatformEntry[] {
+  return fixtures.map(fixture => {
     const { definition, database } = "manifest" in fixture ? { definition: fixture, database: undefined } : fixture;
     if (definition.execution === "sandbox") throw new Error(`夹具插件 ${definition.manifest.plugin_id} 是沙箱执行的；夹具是宿主自己运行的测试插件`);
     return { definition, ...(database ? { database } : {}) };

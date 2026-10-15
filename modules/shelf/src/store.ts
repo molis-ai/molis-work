@@ -852,7 +852,7 @@ export class ShelfStore {
     if (!existsSync(this.catalogPath())) {
       return emptyCatalog();
     }
-    return normalizeCatalog(JSON.parse(readFileSync(this.catalogPath(), "utf8")) as CatalogFile);
+    return readCurrentCatalog(JSON.parse(readFileSync(this.catalogPath(), "utf8")), this.catalogPath());
   }
 
   private update(mutate: (catalog: CatalogFile) => void): void {
@@ -1002,56 +1002,19 @@ function normalizeSettings(raw: unknown): ShelfDeviceSettings {
   return normalizeShelfSettings(raw);
 }
 
-function normalizeCatalog(raw: CatalogFile): CatalogFile {
-  const clipboard = Array.isArray(raw.clipboard) ? raw.clipboard.map(normalizeClip) : [];
-  const current = typeof raw.current_clip_id === "string" && clipboard.some((clip) => clip.clip_id === raw.current_clip_id)
-    ? raw.current_clip_id
-    : null;
-  return {
-    version: CATALOG_VERSION,
-    seeded_sample: Boolean(raw.seeded_sample),
-    items: Array.isArray(raw.items) ? raw.items.map(normalizeItem) : [],
-    jobs: Array.isArray(raw.jobs) ? raw.jobs.map(normalizeJob) : [],
-    clipboard,
-    current_clip_id: current,
-    settings: normalizeSettings(raw.settings),
-  };
-}
-
-/** Catalogs written before a job listed every material still load. */
-function normalizeJob(raw: ShelfJobRecord): ShelfJobRecord {
-  return {
-    ...raw,
-    item_ids: Array.isArray(raw.item_ids) ? raw.item_ids : raw.item_id ? [raw.item_id] : [],
-    option_id: typeof raw.option_id === "string" ? raw.option_id : null,
-    runtime: typeof raw.runtime === "string" ? raw.runtime : "",
-  };
-}
-
-/** Catalogs written before results carried a verdict still load. */
-function normalizeItem(raw: StoredItem): StoredItem {
-  return {
-    ...raw,
-    source_item_ids: Array.isArray(raw.source_item_ids)
-      ? raw.source_item_ids
-      : raw.source_item_id ? [raw.source_item_id] : [],
-    status: raw.status === "failed" ? "failed" : "done",
-    failure_reason: typeof raw.failure_reason === "string" ? raw.failure_reason : null,
-    children: Array.isArray(raw.children) ? raw.children : [],
-  };
-}
-
-function normalizeClip(raw: ShelfClipboardRecord): ShelfClipboardRecord {
-  const body = clipText(String(raw.body ?? ""));
-  const kind = raw.kind === "url" || isHttpUrl(body) ? "url" : "text";
-  return {
-    clip_id: String(raw.clip_id ?? ""),
-    kind,
-    title: String(raw.title || clipTitleFor(kind, body)),
-    body,
-    created_at: String(raw.created_at ?? now()),
-    fingerprint: String(raw.fingerprint || clipFingerprint(kind, body)),
-  };
+function readCurrentCatalog(value: unknown, filename: string): CatalogFile {
+  const raw = value as Partial<CatalogFile> | null;
+  if (!raw || raw.version !== CATALOG_VERSION || typeof raw.seeded_sample !== "boolean"
+    || !Array.isArray(raw.items) || !Array.isArray(raw.jobs) || !Array.isArray(raw.clipboard)
+    || !(raw.current_clip_id === null || typeof raw.current_clip_id === "string") || !raw.settings
+    || raw.items.some(item => !item || !Array.isArray(item.source_item_ids) || !Array.isArray(item.children)
+      || !["done", "failed"].includes(item.status) || !(item.failure_reason === null || typeof item.failure_reason === "string"))
+    || raw.jobs.some(job => !job || !Array.isArray(job.item_ids) || !(job.option_id === null || typeof job.option_id === "string") || typeof job.runtime !== "string")
+    || raw.clipboard.some(clip => !clip || typeof clip.clip_id !== "string" || !["url", "text"].includes(clip.kind)
+      || typeof clip.body !== "string" || typeof clip.title !== "string" || typeof clip.created_at !== "string" || typeof clip.fingerprint !== "string")) {
+    throw shelfErrors.invalid_file(`Shelf 目录格式不符：${filename}；期望版本 ${CATALOG_VERSION} 的现行格式。原文件已保留，请恢复当前格式的目录。`);
+  }
+  return raw as CatalogFile;
 }
 
 function clipText(body: string): string {

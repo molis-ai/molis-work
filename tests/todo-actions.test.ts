@@ -62,7 +62,8 @@ test("scope: personal and unplaced todos everywhere, a project's todos only in t
 
   const bTodo = (await f.inB.invoke(actions.list, { placement: "project" })).items[0]!;
   await assert.rejects(f.agentA.invoke(actions.get, { id: bTodo.id }), { code: "todo.not_found" });
-  await assert.rejects(f.agentA.invoke(actions.update, { id: bTodo.id, title: "越界修改" }), { code: "todo.not_found" });
+  // An AI caller sends the revision it read (W3-09-3), so what refuses this is the scope, not the missing precondition.
+  await assert.rejects(f.agentA.invoke(actions.update, { id: bTodo.id, expected_revision: bTodo.revision, title: "越界修改" }), { code: "todo.not_found" });
   // The person's own page may edit another project's todo from "所有项目" without moving it.
   const edited = await f.inA.invoke(actions.update, { id: bTodo.id, title: "B 项目的事（改）", placement: "project" });
   assert.equal(edited.item.project_id, "project-b");
@@ -78,7 +79,7 @@ test("revisions refuse stale writes; the person's edits are recorded and the Ass
   await assert.rejects(f.me.invoke(actions.update, { id: created.item.id, expected_revision: 1, title: "旧版本上的修改" }), { code: "todo.conflict" });
   const byMe = await f.me.invoke(actions.update, { id: created.item.id, expected_revision: 2, due_date: "2026-10-05", important: true });
   assert.deepEqual([...byMe.item.edited_fields].sort(), ["due_date", "important"]);
-  await assert.rejects(f.agentHome.invoke(actions.update, { id: created.item.id, important: false }), { code: "todo.forbidden" });
+  await assert.rejects(f.agentHome.invoke(actions.update, { id: created.item.id, expected_revision: byMe.item.revision, important: false }), { code: "todo.forbidden" });
   const unchanged = await f.me.invoke(actions.update, { id: created.item.id, expected_revision: 3, due_date: "2026-10-05" });
   assert.equal(unchanged.change_id, null);
   assert.equal(unchanged.item.revision, 3);
@@ -202,7 +203,8 @@ test("links: todo relations read from both ends; unreachable todos cannot be lin
   assert.deepEqual(back.backlinks, [{ item_id: send.id, title: send.title, relation: "blocked_by" }]);
   await assert.rejects(f.me.invoke(actions.link, { id: send.id, add: { kind: "todo", subject: { kind: "todo_item", id: wait.id }, title: "重复" } }), { code: "todo.invalid" });
   const other = (await f.inB.invoke(actions.create, { title: "B 的事", placement: "project" })).item;
-  await assert.rejects(f.agentA.invoke(actions.link, { id: send.id, add: { kind: "todo", subject: { kind: "todo_item", id: other.id }, title: "B 的事" } }), { code: "todo.not_found" });
+  const sendNow = (await f.me.invoke(actions.get, { id: send.id })).item;
+  await assert.rejects(f.agentA.invoke(actions.link, { id: send.id, expected_revision: sendNow.revision, add: { kind: "todo", subject: { kind: "todo_item", id: other.id }, title: "B 的事" } }), { code: "todo.not_found" });
   const outcome = await f.me.invoke(actions.link, { id: send.id, add: { kind: "outcome", subject: { kind: "page", id: "doc-1" }, title: "回复张总的草稿", outcome: "draft", open: { surface: "pages", id: "doc-1" } } });
   assert.equal(outcome.item.links.length, 2);
   const undone = await f.me.invoke(actions.revert, { change_id: outcome.change_id });

@@ -5,7 +5,7 @@ import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platfo
  * direct save the person can undo. The rules for a title are written for a list a developer scans later.
  */
 export const issuesMethods: readonly AgentSkillDefinition[] = [{
-  skill_id: "issues-capture", version: 9, name: "记录与管理个人问题",
+  skill_id: "issues-capture", version: 10, name: "记录与管理个人问题",
   summary: "把用户在开发中遇到的问题记进个人 Issue：起标题、判类型、保存；也能查看、修改或删除。",
   // Method tools are a declaration (contracts METHOD_TOOLS); the Assistant's gateway also offers change-reversible.
   tools: ["suggest-action", "ask-user", "find-capabilities", "read-capability", "change-capability"],
@@ -19,6 +19,10 @@ export const issuesMethods: readonly AgentSkillDefinition[] = [{
     '4. 如果 change-reversible 被拒绝（用户设置了每次确认），改用 suggest-action，身份和 input 相同，外层 title 写“记录这条 Issue”，summary 写标题和类型，editable 为 ["title","type"]。',
     "5. 调用成功后只回一句：已记录「标题」（类型）。不复述描述。没有调用成功就不要说已记录。",
     "6. 参数错误只按返回的合同修正一次；仍失败就停下，用一句话说明原因，不要重复同一个调用。",
+    "",
+    "【页面重新整理：消息里有“待整理记录 <ID> 版本 <N>”】这是一条已保存 Issue 的未保存编辑稿，不是新录入。只根据本次问题描述与截图重新建议标题和类型。",
+    '只用 suggest-action 提出 {"capability_id":"issues.update","version":2,"provider_id":"io.molis.work.issues","input":{"id":"<记录 ID>","expected_version":<N>,"title":"<标题>","type":"bug"},"title":"重新整理 Issue","summary":"<标题和类型>","editable":["title","type"]}。不要调用 capture、create、change-capability 或 change-reversible，不读取旧描述替换本次编辑稿，不传 description 或 images。页面会把建议填回编辑器，由用户点保存更新原记录。',
+    "依据不足时只用 ask-user 追问；提出建议后只说已整理、请核对后保存，不说已保存。参数错误只按返回合同修正一次。",
     "",
     "【标题】",
     "- 一句话，和本次描述用同一种语言：描述是英文就写英文标题，不要翻译。中文 8 到 30 字，不超过 30 字；英文不超过 12 个词。不加“问题：”“Bug：”之类前缀，不加句号。",

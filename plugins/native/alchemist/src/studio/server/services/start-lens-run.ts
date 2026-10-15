@@ -1,3 +1,4 @@
+import { alchemistStateErrors } from "../../errors.js";
 import type { Clock, IdFactory } from "../../domain/kernel/identity.js";
 import type { LensKind, LensRun } from "../../domain/research/lens.js";
 import type { SqliteDatabase } from "../db/open-database.js";
@@ -11,13 +12,6 @@ export interface ResearchLensJobInput {
   planId: string;
 }
 
-export class StartLensRunError extends Error {
-  readonly name = "StartLensRunError";
-  constructor(readonly code: "RESEARCH_PLAN_NOT_FOUND" | "RESEARCH_PLAN_MISMATCH" | "LENS_RUN_EXISTS") {
-    super(code);
-  }
-}
-
 interface Dependencies {
   database: SqliteDatabase;
   clock: Clock;
@@ -29,13 +23,13 @@ interface Dependencies {
 export function createStartLensRunService(dependencies: Dependencies) {
   return (input: { ideaId: string; lens: LensKind; planId: string }): LensRun => {
     const plan = dependencies.research.getPlan(input.planId);
-    if (!plan) throw new StartLensRunError("RESEARCH_PLAN_NOT_FOUND");
+    if (!plan) throw alchemistStateErrors.research_plan_not_found("alchemist.research_plan_not_found");
     if (plan.key.ideaId !== input.ideaId || plan.key.lens !== input.lens) {
-      throw new StartLensRunError("RESEARCH_PLAN_MISMATCH");
+      throw alchemistStateErrors.research_plan_mismatch("alchemist.research_plan_mismatch");
     }
     const now = dependencies.clock.now();
     return dependencies.database.transaction(() => {
-      if (dependencies.research.getRunForPlan(plan.id)) throw new StartLensRunError("LENS_RUN_EXISTS");
+      if (dependencies.research.getRunForPlan(plan.id)) throw alchemistStateErrors.lens_run_exists("alchemist.lens_run_exists");
       const runId = dependencies.idFactory.next("lens_run");
       const job = dependencies.jobs.enqueue({
         kind: RESEARCH_LENS_JOB,

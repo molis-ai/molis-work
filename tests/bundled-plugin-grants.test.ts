@@ -94,7 +94,7 @@ test("a start of the same build whose record holds fewer permissions completes t
     const second = hostProcess(directory);
     try {
       const report = await second.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), bundled: true }]);
-      assert.deepEqual(report.failed, [], "plugin_state_invalid would be the refusal of a changed grant by a repeated install");
+      assert.deepEqual(report.failed, [], "plugin.state_invalid would be the refusal of a changed grant by a repeated install");
       assert.deepEqual(report.running, [PLUGIN_ID]);
       assert.deepEqual(second.grants(), [OPTIONAL.permission, REQUIRED.permission]);
       assert.deepEqual(await second.availability(), { available: true });
@@ -159,7 +159,7 @@ test("a permission a newer bundled build no longer declares is dropped, and the 
 
 // The list a Supervisor entry names for itself is not looked at when the entry is bundled: a first install that honoured it would be a
 // narrower record than the rule leaves, the next start would widen it (recordToFollow), and the start after that would meet a repeated
-// install whose own list differs from the record and refuse it as a silent grant change (plugin_state_invalid).
+// install whose own list differs from the record and refuse it as a silent grant change (plugin.state_invalid).
 test("a bundled entry that names fewer grants than its Manifest declares is installed with every declared permission", withDirectory(async directory => {
   const first = hostProcess(directory);
   try {
@@ -181,7 +181,7 @@ test("a bundled entry that names fewer grants than its Manifest declares starts 
     } finally { host.store.close(); }
   }
   const every = { failed: [], running: [PLUGIN_ID], grants: [OPTIONAL.permission, REQUIRED.permission] };
-  assert.deepEqual(outcomes, [every, every, every, every, every], "a repeated install is not a silent grant change (plugin_state_invalid), whichever start it is");
+  assert.deepEqual(outcomes, [every, every, every, every, every], "a repeated install is not a silent grant change (plugin.state_invalid), whichever start it is");
 }));
 
 test("PluginRuntime.install with bundled records every declared permission whatever grants it is given, and installing again replays; without bundled it records what it is given",
@@ -204,7 +204,7 @@ test("PluginRuntime.install with bundled records every declared permission whate
     const definition = build("1.0.0", [REQUIRED, OPTIONAL]);
     assert.deepEqual(other.install({ definition, deployment: "local", grants: [REQUIRED.permission] }).install.grants, [REQUIRED.permission], "any other plugin gets what it was given");
     assert.throws(() => other.install({ definition, deployment: "local", grants: declared }),
-      (error: unknown) => (error as { code?: string }).code === "plugin_state_invalid", "and a repeated install that names other grants is still a silent grant change");
+      (error: unknown) => (error as { code?: string }).code === "plugin.state_invalid", "and a repeated install that names other grants is still a silent grant change");
   });
 
 // Every permission without asking is for code the Host ships. Sandboxed code is generated or installed from outside and runs in
@@ -216,7 +216,7 @@ test("a sandboxed definition is never granted everything because an entry calls 
     const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
     for (const grants of [undefined, [], [REQUIRED.permission], [OPTIONAL.permission, REQUIRED.permission]]) {
       assert.throws(() => runtime.install({ definition: sandboxed, deployment: "local", bundled: true, ...(grants ? { grants } : {}) }),
-        (error: unknown) => (error as { code?: string }).code === "plugin_grant_denied", `grants ${JSON.stringify(grants)}`);
+        (error: unknown) => (error as { code?: string }).code === "plugin.grant_denied", `grants ${JSON.stringify(grants)}`);
     }
     assert.deepEqual(runtime.list(), []);
     // Not bundled, with the grants the person confirmed: unchanged, and it holds exactly those.
@@ -226,7 +226,7 @@ test("a sandboxed definition is never granted everything because an entry calls 
     try {
       const report = await host.platform.start([{ definition: sandboxed, bundled: true, grants: [REQUIRED.permission] }]);
       assert.deepEqual(report.running, []);
-      assert.deepEqual(report.failed.map(failure => failure.code), ["plugin_grant_denied"]);
+      assert.deepEqual(report.failed.map(failure => failure.code), ["plugin.grant_denied"]);
       assert.deepEqual(host.platform.runtime.list(), [], "nothing was installed, so nothing holds a permission");
     } finally { host.store.close(); }
   }));

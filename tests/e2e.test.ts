@@ -518,16 +518,27 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       }), async (genericMcp) => {
         await genericMcp.initialize();
         const genericSessionA = { sessionId: "generic-session-a" };
+        // A new Session confirms even its only candidate (PRODUCT.md; W1-18-SESSION-CONFIRM): the directory's one project is a
+        // suggestion until this Session binds it, and another new Session is asked again.
         const genericSuggested = await genericMcp.call("molis_work_v1_context_resolve", {}, genericSessionA);
-        assert.equal(genericSuggested.status, "bound");
-        assert.equal(genericSuggested.connection.project_id, created.project.project_id);
+        assert.equal(genericSuggested.status, "suggested");
+        assert.equal(genericSuggested.connection, null);
+        assert.deepEqual(genericSuggested.suggested_projects.map((project: { project_id: string }) => project.project_id), [created.project.project_id]);
+        const genericBound = await genericMcp.call("molis_work_v1_context_bind", {
+          project_id: created.project.project_id,
+          user_confirmed: true,
+        }, genericSessionA);
+        assert.equal(genericBound.connection.project_id, created.project.project_id);
+        const genericResolved = await genericMcp.call("molis_work_v1_context_resolve", {}, genericSessionA);
+        assert.equal(genericResolved.status, "bound");
+        assert.equal(genericResolved.connection.project_id, created.project.project_id);
         const freshGenericSession = await genericMcp.call(
           "molis_work_v1_context_resolve",
           {},
           { sessionId: "generic-session-b" },
         );
-        assert.equal(freshGenericSession.status, "bound");
-        assert.equal(freshGenericSession.connection.project_id, created.project.project_id);
+        assert.equal(freshGenericSession.status, "suggested");
+        assert.equal(freshGenericSession.connection, null);
       });
 
       const removePlanResponse = await securePost(origin, token, "/api/settings/runtimes/codex/plan", { action: "remove" });

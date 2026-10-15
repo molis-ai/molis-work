@@ -1,3 +1,4 @@
+import { codingStoreErrors } from "./store-errors.js";
 import type { CodingSessionEntry, CodingSessionState } from "./projection.js";
 import type { CodingPlanDraft } from "./plans.js";
 
@@ -44,13 +45,6 @@ export interface CreateCodingSessionInput {
   runtime_id: string;
   goal_id?: string | null;
   at: string;
-}
-
-export class CodingStoreError extends Error {
-  constructor(readonly code: "coding.session_unknown" | "coding.session_duplicate", message: string) {
-    super(message);
-    this.name = "CodingStoreError";
-  }
 }
 
 /** The Coding session tables, as one current schema; the host composes them into the project database baseline. */
@@ -141,7 +135,7 @@ export class CodingSessionStore {
       "SELECT session_id FROM coding_sessions WHERE project_id = ? AND session_id = ?",
     ).get(input.project_id, input.session_id);
     if (existing !== undefined && existing !== null) {
-      throw new CodingStoreError("coding.session_duplicate", `会话已存在：${input.session_id}`);
+      throw codingStoreErrors.session_duplicate(`会话已存在：${input.session_id}`);
     }
     this.db.prepare(`
       INSERT INTO coding_sessions
@@ -163,7 +157,7 @@ export class CodingSessionStore {
     const row = this.db.prepare(
       "SELECT * FROM coding_sessions WHERE project_id = ? AND session_id = ?",
     ).get(projectId, sessionId) as Row | undefined;
-    if (!row) throw new CodingStoreError("coding.session_unknown", `找不到这条会话：${sessionId}`);
+    if (!row) throw codingStoreErrors.session_unknown(`找不到这条会话：${sessionId}`);
     return mapSession(row);
   }
 
@@ -221,7 +215,7 @@ export class CodingSessionStore {
 
   archive(projectId: string, sessionId: string, at: string): CodingSessionRecord {
     const record = this.get(projectId, sessionId);
-    if (record.archived) throw new CodingStoreError("coding.session_unknown", "会话已归档");
+    if (record.archived) throw codingStoreErrors.session_unknown("会话已归档");
     this.db.prepare("UPDATE coding_sessions SET archived = 1, updated_at = ? WHERE project_id = ? AND session_id = ?")
       .run(at, projectId, sessionId);
     return this.get(projectId, sessionId);

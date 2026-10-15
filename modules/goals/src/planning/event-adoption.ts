@@ -1,3 +1,4 @@
+import { goalErrors } from "../errors.js";
 import type {
   GoalEventAdoptedPlanningRef,
   GoalEventAdoptedPlanningRequest,
@@ -11,8 +12,6 @@ import type {
 import { BUILTIN_PLANNING_METHOD_PACKS } from "./method-packs.js";
 import { sameTypeShape } from "../event-facts-validation.js";
 
-export type PlanningAdoptionError = (code: string, message: string, details?: Record<string, unknown>) => Error;
-
 export function instantiatePlanningRequirementId(goalId: string, templateRequirementId: string): string {
   return `goal:${goalId}:req:${templateRequirementId}`;
 }
@@ -24,7 +23,6 @@ export function resolvePlanningEventAdoption(
     personal: readonly PlanningMethodPack[];
     project: readonly PlanningMethodPack[];
   },
-  error: PlanningAdoptionError,
 ): ResolvedPlanningEventAdoption {
   const adopted: GoalEventAdoptedPlanningRef[] = [];
   const typesById = new Map<string, GoalEventTypeDefinitionInput>();
@@ -32,14 +30,10 @@ export function resolvePlanningEventAdoption(
   const seen = new Set<string>();
   for (const item of requested) {
     const methodId = item.method_id?.trim();
-    if (!methodId) throw error("event_config.invalid_planning", "采用的规划方法 ID 不能为空");
-    const pack = lookupPlanningMethod(methodId, item.source, sources, error);
+    if (!methodId) throw goalErrors["goals.event_config.invalid_planning"]("采用的规划方法 ID 不能为空");
+    const pack = lookupPlanningMethod(methodId, item.source, sources);
     if (item.version != null && item.version !== pack.version) {
-      throw error(
-        "event_config.planning_version_unavailable",
-        `规划 ${methodId} 当前版本是 ${pack.version}，没有可读取的版本 ${item.version}`,
-        { method_id: methodId, requested_version: item.version, current_version: pack.version, source: pack.scope },
-      );
+      throw goalErrors["goals.event_config.planning_version_unavailable"](`规划 ${methodId} 当前版本是 ${pack.version}，没有可读取的版本 ${item.version}`, { method_id: methodId, requested_version: item.version, current_version: pack.version, source: pack.scope });
     }
     const ref: GoalEventAdoptedPlanningRef = {
       method_id: pack.method_id,
@@ -47,7 +41,7 @@ export function resolvePlanningEventAdoption(
       source: pack.scope,
     };
     const key = `${ref.source}:${ref.method_id}:${ref.version}`;
-    if (seen.has(key)) throw error("event_config.duplicate_planning", `重复采用规划: ${methodId}`);
+    if (seen.has(key)) throw goalErrors["goals.event_config.duplicate_planning"](`重复采用规划: ${methodId}`);
     seen.add(key);
     adopted.push(ref);
     const methodRef: GoalEventPlanningMethodRef = {
@@ -57,10 +51,10 @@ export function resolvePlanningEventAdoption(
       name: pack.name,
     };
     for (const type of pack.event_types ?? []) {
-      mergeAdoptedType(typesById, planningTypeForAdoption(type, pack, methodRef), methodRef, error);
+      mergeAdoptedType(typesById, planningTypeForAdoption(type, pack, methodRef), methodRef);
     }
     for (const requirement of pack.default_requirements ?? []) {
-      mergeAdoptedRequirement(requirementsById, requirement, methodRef, error);
+      mergeAdoptedRequirement(requirementsById, requirement, methodRef);
     }
   }
   return {
@@ -74,7 +68,6 @@ function mergeAdoptedType(
   typesById: Map<string, GoalEventTypeDefinitionInput>,
   type: GoalEventTypeDefinitionInput,
   method: GoalEventPlanningMethodRef,
-  error: PlanningAdoptionError,
 ): void {
   const current = typesById.get(type.type_id);
   if (!current) {
@@ -82,17 +75,13 @@ function mergeAdoptedType(
     return;
   }
   if (!sameTypeShape(current, type)) {
-    throw error(
-      "event_config.planning_type_conflict",
-      `规划类型 ${type.type_id} 在不同方法中定义冲突，不能合并采用`,
-      {
+    throw goalErrors["goals.event_config.planning_type_conflict"](`规划类型 ${type.type_id} 在不同方法中定义冲突，不能合并采用`, {
         type_id: type.type_id,
         methods: [
           ...(current.source?.contributing_methods ?? methodRefsFromSource(current)),
           method,
         ],
-      },
-    );
+      });
   }
   const contributing = current.source?.contributing_methods ?? methodRefsFromSource(current);
   if (!contributing.some((item) => item.method_id === method.method_id && item.version === method.version && item.source === method.source)) {
@@ -111,7 +100,6 @@ function mergeAdoptedRequirement(
   requirementsById: Map<string, PlanningMethodDefaultRequirement>,
   requirement: PlanningMethodDefaultRequirement,
   method: GoalEventPlanningMethodRef,
-  error: PlanningAdoptionError,
 ): void {
   const current = requirementsById.get(requirement.requirement_id);
   if (!current) {
@@ -122,14 +110,10 @@ function mergeAdoptedRequirement(
     return;
   }
   if (current.statement !== requirement.statement || (current.bound_type_id ?? "") !== (requirement.bound_type_id ?? "")) {
-    throw error(
-      "event_config.planning_requirement_conflict",
-      `规划要求 ${requirement.requirement_id} 在不同方法中定义冲突，不能合并采用`,
-      {
+    throw goalErrors["goals.event_config.planning_requirement_conflict"](`规划要求 ${requirement.requirement_id} 在不同方法中定义冲突，不能合并采用`, {
         requirement_id: requirement.requirement_id,
         methods: [...(current.sources ?? []), method],
-      },
-    );
+      });
   }
   const sources = current.sources ?? [];
   if (!sources.some((item) => item.method_id === method.method_id && item.version === method.version && item.source === method.source)) {
@@ -156,7 +140,6 @@ function lookupPlanningMethod(
     personal: readonly PlanningMethodPack[];
     project: readonly PlanningMethodPack[];
   },
-  error: PlanningAdoptionError,
 ): PlanningMethodPack {
   const pool = source === "built_in"
     ? BUILTIN_PLANNING_METHOD_PACKS
@@ -167,13 +150,9 @@ function lookupPlanningMethod(
         : sources.effective;
   const pack = pool.find((item) => item.method_id === methodId && item.enabled !== false);
   if (pack) return pack;
-  throw error(
-    "event_config.planning_not_found",
-    source
+  throw goalErrors["goals.event_config.planning_not_found"](source
       ? `在 ${source} 规划中找不到方法 ${methodId}`
-      : `找不到规划方法 ${methodId}`,
-    { method_id: methodId, source: source ?? null },
-  );
+      : `找不到规划方法 ${methodId}`, { method_id: methodId, source: source ?? null });
 }
 
 function planningTypeForAdoption(

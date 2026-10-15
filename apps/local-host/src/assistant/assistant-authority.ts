@@ -5,7 +5,7 @@ import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules
 import { MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { ActionError, type ActionCallContext, type ActionReference, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readProjectGuidance } from "../goals-actions.js";
-import { assertActionInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
+import { assertActionCommandInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
 import type { StoredWork } from "./assistant-store.js";
@@ -32,7 +32,7 @@ export function directEligible(view: ActionView, offered: readonly ActionView[],
  * default on 2026-09-28; each write still stops at a review of its exact parameters, and the grants are the Assistant's
  * own — separate from Coding's and external agents'.
  */
-export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "actionClient" | "homeActionClient">, work: StoredWork, disabled: () => ReadonlySet<string>,
+export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectActions" | "inspectActionMetadata" | "actionClient" | "homeActionClient">, work: StoredWork, disabled: () => ReadonlySet<string>,
   /** Records a suggestion for the person, checked against the capabilities offered now. */
   offer?: (offer: AgentActionOffer, views: readonly ActionView[]) => Promise<{ offer_id: string }>,
   /** Told after a command succeeded, with the action as offered, so the work can keep a relation to what it changed. */
@@ -40,7 +40,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   /** Hands independent sub-tasks to separate works (absent for a delegated work: one level deep). */
   delegation?: AgentDelegation,
   /** Told of a change its owner was still running when the round stopped or ran out of time, to learn how it ended. */
-  unsettled?: (view: ActionView, call: Promise<unknown>) => void,
+  unsettled?: (view: Omit<ActionView, "availability">, call: Promise<unknown>) => void,
   /** Remember, list and forget for the person (absent when forming memories is switched off). */
   memory?: AgentMemoryTools,
   /** Changes the person wants confirmed each time even though they could be undone (action keys). */
@@ -55,7 +55,7 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
   const base = (session?: string, signal?: AbortSignal): ActionCallContext => ({ actor_id: ASSISTANT_ACTOR, actor_kind: "runtime", audit_actor_id: `assistant:${work.work_id}`, call_id: callId,
     ...(session ? { runtime_session_id: session } : {}), project_id: reference?.project_id ?? null, audience: "agent", permissions: [],
     page_context: pageContext?.(), ...(signal ? { signal } : {}) });
-  const accepted = (catalog: readonly ActionView[], caller: ActionCallContext) => {
+  const accepted = <View extends Omit<ActionView, "availability">>(catalog: readonly View[], caller: ActionCallContext) => {
     const off = disabled();
     // Memory reaches the Assistant through its own remember / list / forget tools (under its switches, no extra
     // confirmation); the directory's memory actions are for other Agents, so they are not offered here as well.
@@ -100,19 +100,35 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       check: async (action, input) => {
         const view = (await service().discover(await context(validate))).find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
         if (!view) throw new ActionError("assistant.action_revoked", "这项能力已对助理关闭或不再可用");
-        assertActionInput(view.action.input_schema, input);
-        requireVersionPrecondition(view, input);
+        assertActionCommandInput(view, base(), input);
       },
       invoke: async (action, input, signal) => {
-        const caller = await context(validate, signal);
+        const stoppedBeforeDispatch = (view: Omit<ActionView, "availability">) => {
+          const refused = Promise.reject(new ActionError("actions.cancelled", "这一轮停止时它还没有发出，没有执行"));
+          refused.catch(() => undefined);
+          unsettled?.(view, refused);
+          return refused;
+        };
+        let caller: ActionCallContext;
+        try { caller = await context(validate, signal); }
+        catch (error) {
+          if (!signal?.aborted) throw error;
+          const cached = offered.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+          if (cached?.operation === "command") return await stoppedBeforeDispatch(cached);
+          // Naming a cancelled operation needs only registered metadata; it must not start a plugin or Runtime.
+          const metadataCaller = base(work.session_id ?? undefined);
+          let rows: readonly Omit<ActionView, "availability">[];
+          try { rows = accepted(localHost.inspectActionMetadata(metadataCaller, reference), metadataCaller); }
+          catch { throw error; /* An unavailable diagnostic name does not replace the original cancellation. */ }
+          const view = rows.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
+          if (view?.operation === "command") return await stoppedBeforeDispatch(view);
+          throw error;
+        }
         const view = offered.find(row => row.capability_id === action.capability_id && row.version === action.version && row.provider.provider_id === action.provider_id);
         // Stopped before it was sent (working out the person's grants takes a moment): it never reaches its owner, and
         // the work says it did not run rather than leaving it “not known” (seen live on a reversible Todo change).
         if (signal?.aborted && view && view.operation === "command") {
-          const refused = Promise.reject(new ActionError("actions.cancelled", "这一轮停止时它还没有发出，没有执行"));
-          refused.catch(() => undefined);
-          unsettled?.(view, refused);
-          return await refused;
+          return await stoppedBeforeDispatch(view);
         }
         if (view && view.operation === "command") dispatched?.(view);
         const call = service().invoke(caller, action, input);
@@ -130,21 +146,6 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       },
     }),
   };
-}
-
-/**
- * A change to an existing object that could carry the revision it was read at must carry it: otherwise it may
- * overwrite what the person (or anything else) changed since. Checked before the person is asked to approve.
- */
-export function requireVersionPrecondition(view: Pick<ActionView, "operation" | "action">, input: unknown): void {
-  if (view.operation !== "command") return;
-  const declared = (view.action.input_schema as { properties?: Record<string, unknown> }).properties ?? {};
-  const field = ["expected_version", "expected_revision"].find(name => name in declared);
-  if (!field || !input || typeof input !== "object") return;
-  const value = (input as Record<string, unknown>)[field];
-  if (value === undefined || value === null || value === "") {
-    throw new ActionError("assistant.version_required", `修改已有对象时要带上读取时的版本（${field}）：先读取它的当前版本再提交，避免覆盖别人在此之后的修改。`);
-  }
 }
 
 /** The project's confirmed guidance as the project layer; personal work and unreadable guidance contribute nothing. */

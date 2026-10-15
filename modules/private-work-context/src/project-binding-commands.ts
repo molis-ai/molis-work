@@ -4,7 +4,9 @@ import type { RuntimeWorkContext, NormalizedRuntimeWorkContext, NormalizedRuntim
 import type { ProjectWorkspaceMembership as MolisWorkWorkspaceMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import { boundResolution, type RuntimeProjectResolution } from "./project-resolution.js";
-import type { RuntimeProjectBindingValidation, RuntimeProjectBindingErrorFactory } from "./project-binding-validation.js";
+import type { RuntimeProjectBindingValidation } from "./project-binding-validation.js";
+import { bindingErrors } from "./binding-errors.js";
+import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
 export interface RuntimeProjectBindingPorts {
   query: Pick<ProjectsQueryApi, "getProject" | "listWorkspaceMemberships">;
@@ -21,7 +23,6 @@ export class RuntimeProjectBindingCommands {
     private readonly contextResolution: RuntimeProjectResolution,
     private readonly projects: RuntimeProjectBindingPorts,
     private readonly validation: RuntimeProjectBindingValidation,
-    private readonly error: RuntimeProjectBindingErrorFactory,
     private readonly transaction: <T>(operation: () => T) => T,
   ) {}
   resolveRuntimeContext(context: RuntimeWorkContext, clues: readonly RuntimeProjectSuggestionClue[] = []): MolisWorkRuntimeContextResolution {
@@ -34,25 +35,19 @@ rejectRuntimeContextSuggestion(
     const actorId = this.validation.requiredActorId(input.actor_id);
     const projectId = this.validation.requiredProjectId(input.project_id);
     if (input.user_confirmed !== true) {
-      throw this.error(
-        "context.user_confirmation_required",
-        "只有用户在当前对话明确拒绝候选项目后才能停止在本 Session 推荐它",
+      throw bindingErrors.user_confirmation_required("只有用户在当前对话明确拒绝候选项目后才能停止在本 Session 推荐它",
       );
     }
 
     return this.transaction(() => {
       if (this.contextResolution.findRuntimeContextBinding(normalized)) {
-        throw this.error(
-          "context.suggestion_not_available",
-          "当前 Runtime 工作入口已经绑定项目，不能拒绝未绑定 Session 的候选项目",
+        throw bindingErrors.suggestion_not_available("当前 Runtime 工作入口已经绑定项目，不能拒绝未绑定 Session 的候选项目",
         );
       }
       const allSuggestions = this.contextResolution.runtimeContextSuggestions(normalized, input.suggestion_clues, true);
       const suggestion = allSuggestions.find((candidate) => candidate.project_id === projectId);
       if (!suggestion) {
-        throw this.error(
-          "context.suggestion_not_available",
-          "这个项目不是当前 Runtime Session 的候选项目，不能把它标记为已拒绝",
+        throw bindingErrors.suggestion_not_available("这个项目不是当前 Runtime Session 的候选项目，不能把它标记为已拒绝",
         );
       }
       const changed = this.workContexts.rejectSuggestion({
@@ -84,18 +79,14 @@ bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextR
     const actorId = this.validation.requiredActorId(input.actor_id);
     const projectId = input.project_id.trim();
     if (!projectId) {
-      throw this.error("catalog.project_not_found", "绑定时必须选择一个 Molis Work 项目");
+      throw projectCatalogErrors.project_not_found("绑定时必须选择一个 Molis Work 项目");
     }
     if (input.user_confirmed !== true) {
-      throw this.error(
-        "context.user_confirmation_required",
-        "只有用户在当前对话明确选择项目后才能建立绑定",
+      throw bindingErrors.user_confirmation_required("只有用户在当前对话明确选择项目后才能建立绑定",
       );
     }
     if (input.binding_scope === "workspace_default") {
-      throw this.error(
-        "context.workspace_default_unsupported",
-        "工作目录不再保存默认项目；请为当前 Session 选择项目",
+      throw bindingErrors.workspace_default_unsupported("工作目录不再保存默认项目；请为当前 Session 选择项目",
       );
     }
 
@@ -116,18 +107,14 @@ unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeCont
     const normalized = this.validation.requireRoutableRuntimeWorkContext(input.context);
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.user_confirmed !== true) {
-      throw this.error(
-        "context.user_confirmation_required",
-        "只有用户在当前对话明确要求解除绑定后才能断开当前项目",
+      throw bindingErrors.user_confirmation_required("只有用户在当前对话明确要求解除绑定后才能断开当前项目",
       );
     }
 
     return this.transaction(() => {
       if (input.binding_scope === "workspace") {
         if (!normalized.workspace) {
-          throw this.error(
-            "context.workspace_required",
-            "解除目录关联时，Runtime 必须提供当前项目目录",
+          throw bindingErrors.workspace_required("解除目录关联时，Runtime 必须提供当前项目目录",
           );
         }
         const projectId = this.validation.requiredProjectId(input.project_id ?? "");
@@ -179,17 +166,13 @@ bindRuntimeContextInTransaction(input: {
   }): MolisWorkRuntimeContextResolution {
     const project = this.projects.query.getProject(input.projectId);
     if (input.bindingScope === "workspace_default") {
-      throw this.error(
-        "context.workspace_default_unsupported",
-        "工作目录不再保存默认项目；请为当前 Session 选择项目",
+      throw bindingErrors.workspace_default_unsupported("工作目录不再保存默认项目；请为当前 Session 选择项目",
       );
     }
 
     if (input.bindingScope === "workspace_member") {
       if (!input.normalized.workspace) {
-        throw this.error(
-          "context.workspace_required",
-          "当前 Runtime 没有 Session 标识时，必须提供项目目录才能记录本次选择",
+        throw bindingErrors.workspace_required("当前 Runtime 没有 Session 标识时，必须提供项目目录才能记录本次选择",
         );
       }
       this.upsertWorkspaceMembership(input.normalized.workspace, project.project_id, input.actorId);
@@ -197,9 +180,7 @@ bindRuntimeContextInTransaction(input: {
     }
 
     if (!input.normalized.stable_work_context_id) {
-      throw this.error(
-        "context.stable_identity_required",
-        "只切换当前 Session 时需要 Runtime 提供稳定 Session 标识",
+      throw bindingErrors.stable_identity_required("只切换当前 Session 时需要 Runtime 提供稳定 Session 标识",
       );
     }
     if (input.normalized.workspace) {
@@ -237,9 +218,7 @@ bindRuntimeContextInTransaction(input: {
       return boundResolution(input.normalized, project);
     }
     if (!input.rebindConfirmed) {
-      throw this.error(
-        "context.rebind_confirmation_required",
-        "这个 Runtime 工作入口已绑定其他项目；请在当前对话明确确认后再切换",
+      throw bindingErrors.rebind_confirmation_required("这个 Runtime 工作入口已绑定其他项目；请在当前对话明确确认后再切换",
       );
     }
 

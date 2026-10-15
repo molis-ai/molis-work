@@ -1,7 +1,8 @@
 [[permission]]
 identifier = "allow-capsule-window"
-description = "Allow the Molis Work menu-bar popover to hide, update its status, and open an exact Molis Work path."
+description = "Allow the Molis Work menu-bar popover to resize, hide, update its status, and open an exact Molis Work path."
 commands.allow = [
+  "capsule_resize",
   "capsule_hide",
   "capsule_update_menu_bar",
   "capsule_set_locale",

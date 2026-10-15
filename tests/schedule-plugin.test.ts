@@ -1,7 +1,8 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import {
   SCHEDULE_CLIENT_FACTORY_SCRIPT,
@@ -102,7 +103,7 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
   assert.deepEqual(host.list().map((item) => item.contribution_id), [SCHEDULE_UI_CONTRIBUTION_ID]);
   assert.throws(
     () => host.register(scheduleUiContribution),
-    (error) => error instanceof UiContributionError && error.code === "ui_contribution_conflict",
+    (error) => error instanceof ActionError && error.code === "ui_host.contribution_conflict",
   );
   const directory = host.render({
     contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,

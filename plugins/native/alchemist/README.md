@@ -48,3 +48,9 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
 - 相关手册：[specs/archive/alchemist-plugin/spec.md](../../../specs/archive/alchemist-plugin/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 LocalWorker 经 Plugin SDK 共用执行生命周期：本地关闭、取消和失租都禁止迟到的业务提交、检查点和终态写入，并停止续租。关闭后的未决外部调用保留原检查点，恢复仍由 Alchemist 判断，不自动重复模型请求。
+
+前台调用逐次传递原 `signal/beforeEffect/assert_authority_current`，模型或来源等待结束后在实际写点复查，并在最后一次等待后同步检查。取消或撤权不产生新的失败回复、研究计划或模型设置；已合法保存的本人消息保留，正常模型失败仍有解释。已接受的后台任务沿原任务生命周期运行，不携带创建调用的临时授权。页面通过共享 UI 生命周期管理事件、读取与轮询，隐藏停读、卸载取消，系统搜索可按对象 ID 跨集合与过滤打开。
+
+固定研究成果的生产 Host 端口尚未接线。报告根据当前成果入口的 availability 禁用「保存固定版本」并解释原因，研究方法复用仍可使用；fixture 端口不代表生产支持，完整固定成果发布与预览仍未完成。
+
+本轮控制与客户端回归：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-client-boundaries.e2e.test.ts`。浏览器用例使用真实 Studio HTTP/SQLite 与受控模型响应；正式 Host 的等待后提交另由生命周期用例覆盖，不代替真实模型质量与整合实操。

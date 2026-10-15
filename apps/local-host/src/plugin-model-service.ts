@@ -5,7 +5,6 @@ import { createPluginModelClient, pluginModelErrors, type PluginModelPort } from
 import { decodePrologueJsonOutput, reportedTokenTotal } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { AgentDefinitionsError } from "./agent-definitions/agent-definitions.js";
 import { registeredInstructionBody, resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { hostTextGeneration, type HostTextGeneration, type HostTextRequestOptions } from "./host-complete-text.js";
 import type { PluginPlatformHome } from "./home-side.js";
@@ -66,7 +65,7 @@ function resolved(home: string, owner: string, prompt: InstructedPrompt, system:
   try {
     return { text: resolveModelPrompt(home, prompt, owner), system: system && registeredInstructionBody(home, system, owner) };
   } catch (error) {
-    if (error instanceof AgentDefinitionsError) throw pluginModelErrors.model_instruction_refused(`${error.message}：在 PluginDefinition.instructions 里登记这段指令`);
+    if (error instanceof ActionError && ["agent_definitions.not_found", "agent_definitions.invalid"].includes(error.code)) throw pluginModelErrors.model_instruction_refused(`${error.message}：在 PluginDefinition.instructions 里登记这段指令`);
     throw error;
   }
 }

@@ -30,10 +30,10 @@ export class LocalWorker {
   ) {}
 
   cancel(jobId: string): void {
-    if (this.active?.id === jobId) this.active.controller.abort(new Error("JOB_CANCELLED"));
+    if (this.active?.id === jobId) this.active.controller.abort(new Error("alchemist.job_cancelled"));
   }
 
-  stop(): void { this.active?.controller.abort(new Error("RUNTIME_SHUTDOWN")); }
+  stop(): void { this.active?.controller.abort(new Error("alchemist.runtime_shutdown")); }
   whenIdle(): Promise<void> { return this.settlement; }
 
   async runNext(): Promise<boolean> {
@@ -42,7 +42,7 @@ export class LocalWorker {
     if (!job) return false;
     const handler = this.handlers[job.kind];
     if (!handler) {
-      this.jobs.fail(job.id, "JOB_KIND_UNSUPPORTED");
+      this.jobs.fail(job.id, "alchemist.job_kind_unsupported");
       return true;
     }
     const controller = new AbortController();
@@ -52,7 +52,7 @@ export class LocalWorker {
     const lifetime = createExecutionLifetime({
       signal: controller.signal,
       monitor: { intervalMs: this.jobs.renewalIntervalMs, check: () => {
-        if (!this.jobs.renewLease(job.id)) throw new Error("JOB_LEASE_NOT_OWNED");
+        if (!this.jobs.renewLease(job.id)) throw new Error("alchemist.job_lease_not_owned");
       } },
     });
     const isCancelled = () => lifetime.signal.aborted || !this.jobs.ownsLease(job.id);
@@ -73,7 +73,7 @@ export class LocalWorker {
       this.jobs.complete(job.id);
     } catch (error) {
       if (isCancelled()) return true;
-      this.jobs.fail(job.id, error instanceof JobExecutionError ? error.code : "JOB_EXECUTION_FAILED");
+      this.jobs.fail(job.id, error instanceof JobExecutionError ? error.code : "alchemist.job_execution_failed");
     } finally {
       lifetime.dispose();
       this.active = undefined;

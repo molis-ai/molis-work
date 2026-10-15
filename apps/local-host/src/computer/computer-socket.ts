@@ -4,6 +4,7 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import { WebSocketServer, type WebSocket } from "ws";
 import { COMPUTER_SOCKET_PATH, type ComputerClientMessage, type ComputerServerMessage } from "@molis-ai/molis-work-contracts/services/computer";
+import { loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import type { ComputerDesk } from "./computer-desk.js";
 
 /**
@@ -11,14 +12,6 @@ import type { ComputerDesk } from "./computer-desk.js";
  * stop / pause / take over / hand back up. Authenticated like the browser channel — same-host origin, then the control
  * token as the first message. The pictures are PNGs of only the app the Assistant is looking at, password fields covered.
  */
-const local = (hostname: string) => hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1" || hostname === "[::1]";
-
-function requestHost(request: IncomingMessage): string | null {
-  const value = request.headers.host?.trim();
-  if (!value) return null;
-  try { const parsed = new URL(`http://${value}`); return local(parsed.hostname) ? parsed.host : null; } catch { return null; }
-}
-
 function tokenMatches(expected: string, actual: unknown): boolean {
   if (typeof actual !== "string") return false;
   const a = Buffer.from(expected), b = Buffer.from(actual);
@@ -33,7 +26,7 @@ export function attachMolisWorkComputerSocket(server: http.Server, controlToken:
     let pathname = "";
     try { pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname; } catch { return; }
     if (pathname !== COMPUTER_SOCKET_PATH) return;
-    const httpHost = requestHost(request);
+    const httpHost = loopbackHost(request.headers.host);
     const origin = request.headers.origin;
     let sameHost = !!httpHost;
     if (sameHost && typeof origin === "string") {
@@ -56,7 +49,7 @@ export function attachMolisWorkComputerSocket(server: http.Server, controlToken:
       let message: ComputerClientMessage;
       try { message = JSON.parse(raw.toString("utf8")) as ComputerClientMessage; } catch { return; }
       if (!authed) {
-        if (message.type !== "auth" || !tokenMatches(controlToken, message.token)) { ws.close(); return; }
+        if (message.type !== "auth" || !tokenMatches(controlToken, message.token)) { send(ws, { type: "error", message: "电脑通道校验失败" }); ws.close(); return; }
         authed = true;
         const current = desk();
         if (!current) { send(ws, { type: "error", message: "这个进程没有电脑助手" }); ws.close(); return; }

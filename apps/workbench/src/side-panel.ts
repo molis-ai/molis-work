@@ -1,4 +1,5 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { SIDE_CONTEXT_FACTORY } from "./side-panel-context.js";
 import { renderSideBrowser } from "./side-panel-browser.js";
 import { renderSideComputer } from "./side-panel-computer.js";
 import { renderSideFiles } from "./side-panel-files.js";
@@ -26,6 +27,8 @@ export interface SidePanelPluginTab {
   readonly src: string;
   /** A Home tool's summon chord (`Mod+Shift+I`): opens and focuses the tab from anywhere, again closes it. */
   readonly keys?: string;
+  readonly contextOwner?: string;
+  readonly contextSurface?: string;
 }
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], projectTools = true): string {
@@ -34,11 +37,12 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
     `<button class="side-panel-tab" type="button" role="tab" id="side-tab-${escapeHtml(id)}" aria-controls="side-body-${escapeHtml(id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(id)}" title="${escapeHtml(label)}"${extra}>${icon(glyph)}<span>${escapeHtml(label)}</span></button>`;
   const body = (id: string, label: string, inner: string, extra = "") =>
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;
-  const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, ...entry }));
+  // A plugin's side view names itself in its Manifest; the panel shows that name in the interface language.
+  const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, ...entry, title: L(entry.title) }));
   return `<section class="side-panel" id="dock-window-im" role="region" aria-label="${L("侧栏")}" data-side-panel data-dock-window="im" hidden>
         <header class="side-panel-head">
           <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs>
-            ${projectTools ? tab("discussion", L("讨论"), "message") + tab("browser", L("浏览器"), "globe") + tab("computer", L("电脑"), "system") + tab("files", L("文件"), "folder") : ""}${plugins.map(entry => tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}`)).join("")}
+            ${projectTools ? tab("discussion", L("讨论"), "message") + tab("browser", L("浏览器"), "globe") + tab("computer", L("电脑"), "system") + tab("files", L("文件"), "folder") : ""}${plugins.map(entry => tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"${entry.contextOwner ? ` data-side-context-owner="${escapeHtml(entry.contextOwner)}" data-side-context-surface="${escapeHtml(entry.contextSurface)}" hidden` : ""}${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}`)).join("")}
           </div>
           <button class="side-panel-close" type="button" data-side-close aria-label="${L("收起侧栏")}" title="${L("收起侧栏")}">${icon("x")}</button>
         </header>
@@ -60,6 +64,7 @@ html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transfo
 .side-panel-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
 .side-panel-tab{display:inline-flex;align-items:center;gap:6px;flex:none;height:30px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer}
 :is(.side-panel-tab,.side-panel-close){transition:background-color var(--dur-hover) var(--ease-quint),color var(--dur-hover) var(--ease-quint)}
+.side-panel-tab[hidden]{display:none}
 .side-panel-tab svg{width:15px;height:15px;flex:none}
 :is(.side-panel-tab,.side-panel-close):hover{background:var(--nav-hover);color:var(--ink)}
 .side-panel-tab[aria-selected=true]{background:var(--nav-active);color:var(--ink)}
@@ -106,16 +111,16 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   stage.setAttribute('data-plugin-stage','');
   document.querySelector('[data-workspace]').append(panel);
   const frame=panel.querySelector('[data-dock-frame="im"]'),projectId=document.body.dataset.projectId;
-  const tabs=()=>[...panel.querySelectorAll('[data-side-tab]')];
+  const tabs=()=>[...panel.querySelectorAll('[data-side-tab]')].filter(tab=>!tab.hidden);
   const divider=document.createElement('div');divider.className='side-panel-divider';divider.tabIndex=0;
-  divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label','调整侧栏宽度');divider.setAttribute('aria-controls',panel.id);
+  divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',globalThis.L('调整侧栏宽度'));divider.setAttribute('aria-controls',panel.id);
   panel.after(divider);
   const read=(key)=>{try{return localStorage.getItem(key);}catch{return null;}};
   const write=(key,value)=>{try{localStorage.setItem(key,value);}catch{}};
   let open=false,closing=null,trigger=null,ratio=.35,current=null;
   const storedRatio=Number(read('molis:side-ratio')??read('molis:discussion-ratio'));if(storedRatio>=.25&&storedRatio<=.55)ratio=storedRatio;
   const size=()=>Math.min(Math.max(innerWidth*ratio,360),innerWidth*.55);
-  const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));};
+  const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});};
   const imVisible=()=>frame?.contentWindow?.postMessage({type:'molis:im-visibility',visible:open&&current==='discussion',theme:document.documentElement.dataset.resolvedTheme},location.origin);
   const known=(id)=>!!id&&tabs().some(button=>button.dataset.sideTab===id);
   const load=(body)=>{
@@ -126,10 +131,10 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   const select=(id,target)=>{
     if(!known(id))id=tabs()[0]?.dataset.sideTab;
     current=id;write('molis:side-tab',id);
-    for(const button of tabs()){const on=button.dataset.sideTab===id;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
+    for(const button of panel.querySelectorAll('[data-side-tab]')){const on=button.dataset.sideTab===id;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
     for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open)load(body);}
     document.querySelectorAll('[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&id==='plugin:'+button.dataset.sidePluginOpen)));
-    imVisible();
+    imVisible();if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:id,target:target??null,open}}));
   };
   const setOpen=(next,options={})=>{
@@ -203,6 +208,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   divider.addEventListener('dblclick',()=>{ratio=.35;paint();keep();});
   addEventListener('resize',paint);paint();
   document.body.dataset.sideOpen='false';
+  (${SIDE_CONTEXT_FACTORY})({panel,select,current:()=>current});
   select(read('molis:side-tab'));
   (window.requestIdleCallback||setTimeout)(()=>panel.querySelectorAll('[data-side-keys]').forEach(tab=>load(panel.querySelector('[data-side-body="'+tab.dataset.sideTab+'"]'))),{timeout:4000});
 })();`.replace(/^[ \t]*\/\/.*\n/gm, "");

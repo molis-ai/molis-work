@@ -1,3 +1,4 @@
+import { alchemistStateErrors } from "../../errors.js";
 import type { PulseRun } from "../../domain/discovery/pulse.js";
 import type { PulseSourceId } from "../../domain/discovery/source.js";
 import type { Clock, IdFactory } from "../../domain/kernel/identity.js";
@@ -10,10 +11,6 @@ export const DISCOVERY_PULSE_JOB = "discovery.pulse.v1";
 export interface DiscoveryPulseJobInput {
   pulseRunId: string;
   periodStart: string;
-}
-
-export class StartPulseRunError extends Error {
-  readonly name = "StartPulseRunError";
 }
 
 interface Dependencies {
@@ -34,7 +31,7 @@ export function createStartPulseRunService(dependencies: Dependencies) {
     const sourceIds = input.sourceIds
       ? input.sourceIds.filter((sourceId) => enabledSourceIds.includes(sourceId))
       : enabledSourceIds;
-    if (sourceIds.length === 0) throw new StartPulseRunError("PULSE_NO_ENABLED_SOURCES");
+    if (sourceIds.length === 0) throw alchemistStateErrors.pulse_no_enabled_sources("alchemist.pulse_no_enabled_sources");
     const now = dependencies.clock.now();
     const periodStart = new Date(Date.parse(now) - 7 * 24 * 60 * 60 * 1_000).toISOString();
     return dependencies.database.transaction(() => {

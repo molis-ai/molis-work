@@ -32,12 +32,13 @@ test("Alchemist domain parsing consumes SDK JSON, with one explicitly budgeted c
   assert.deepEqual(result.usage, { inputTokens: 12 }, "one unreported output count keeps the total unknown");
 });
 
+// J5C-01/J5C-02: the current failure preserves the one-correction budget.
 test("Alchemist cannot silently correct syntax or retry a second invalid output", async () => {
   const single: string[] = [];
-  await assert.rejects(generateWithHost(ai(["invalid JSON"], single), input), /AI_OUTPUT_INVALID/);
+  await assert.rejects(generateWithHost(ai(["invalid JSON"], single), input), /alchemist\.ai_output_invalid/);
   assert.equal(single.length, 1);
   const twice: string[] = []; let reserved = 0;
-  await assert.rejects(generateWithHost(ai(['{"summary":3}', 'not JSON'], twice), input, undefined, async () => { reserved++; }), /AI_OUTPUT_INVALID/);
+  await assert.rejects(generateWithHost(ai(['{"summary":3}', 'not JSON'], twice), input, undefined, async () => { reserved++; }), /alchemist\.ai_output_invalid/);
   assert.equal(twice.length, 2);
   assert.equal(reserved, 1);
 });

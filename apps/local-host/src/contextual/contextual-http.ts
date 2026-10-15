@@ -1,3 +1,4 @@
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { ActionError, type ActionReference, type ActionView, type FragmentActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -159,7 +160,7 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
   if (url.pathname === "/api/contextual/surfaces") {
     if (request.method !== "GET") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
     try { sendJson(response, 200, { surfaces: surfaceKinds(await ports.actions().discover()) }); }
-    catch { sendJson(response, 500, { code: "contextual.failed", error: "暂时处理不了，请稍后重试" }); }
+    catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
     return true;
   }
   const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal|draft)$/u.exec(url.pathname);
@@ -193,9 +194,8 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     }
     sendJson(response, 200, await prepare(judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), caller));
   } catch (error) {
-    const status = error instanceof ActionError ? (error.code === "actions.forbidden" ? 403 : error.code === "actions.input_invalid" || error.kind === "invalid" ? 400 : 409) : 500;
-    sendJson(response, status, { code: error instanceof ActionError ? error.code : "contextual.failed",
-      error: error instanceof ActionError ? error.message : "暂时处理不了，请稍后重试" });
+    const failure = actionErrorResponse(error);
+    sendJson(response, failure.status, failure.body);
   }
   return true;
 }

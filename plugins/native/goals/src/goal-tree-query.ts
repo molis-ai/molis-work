@@ -1,3 +1,4 @@
+import { treeErrors } from "./goal-tree-errors.js";
 import type { GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalTreeApplicationApi, GoalTreeProposalListQuery, GoalTreeProposalListResult } from "./goal-tree-contract.js";
@@ -9,24 +10,23 @@ export class GoalTreeQueryApplication implements Pick<GoalTreeApplicationApi, "l
   constructor(private readonly ports: {
     goals: Pick<GoalsQueryApi, "getBoard" | "getGoal" | "snapshot">;
     governance: Pick<GovernanceApplicationApi, "query" | "provenance">;
-    errorFactory: (code: string, message: string) => Error;
   }) {
     this.baselines = new GoalTreeBaselineQuery(ports.goals);
   }
 
   readNative(projectId: string, proposalId: string) {
-    if (!this.ports.goals.getBoard(projectId)) throw this.ports.errorFactory("board.not_found", `这个项目还没有初始化目标资料库: ${projectId}`);
+    if (!this.ports.goals.getBoard(projectId)) throw treeErrors["goals.board.not_found"](`这个项目还没有初始化目标资料库: ${projectId}`);
     const proposal = this.ports.governance.query.getGoalTreeProposal(projectId, proposalId);
-    if (!proposal) throw this.ports.errorFactory("goal_tree_proposal.not_found", `找不到 Goal Tree 提案: ${proposalId}`);
+    if (!proposal) throw treeErrors["goals.goal_tree_proposal.not_found"](`找不到 Goal Tree 提案: ${proposalId}`);
     return proposal;
   }
 
   listGoalTreeProposals(input: GoalTreeProposalListQuery): GoalTreeProposalListResult {
     if (!this.ports.goals.getBoard(input.project_id)) {
-      throw this.ports.errorFactory("board.not_found", `这个项目还没有初始化目标资料库: ${input.project_id}`);
+      throw treeErrors["goals.board.not_found"](`这个项目还没有初始化目标资料库: ${input.project_id}`);
     }
     if (input.root_goal_id && !this.ports.goals.getGoal(input.project_id, input.root_goal_id)) {
-      throw this.ports.errorFactory("goal.not_found", `Goal 不存在: ${input.root_goal_id}`);
+      throw treeErrors["goals.not_found"](`Goal 不存在: ${input.root_goal_id}`);
     }
     const snapshot = this.ports.governance.query.snapshot(input.project_id);
     const proposals = snapshot.goal_tree_proposals

@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
 
 import type {
@@ -31,15 +32,7 @@ export interface SignalsSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-export class SignalsError extends Error {
-  constructor(
-    readonly code: "signal_not_found" | "signal_invalid_draft",
-    message: string,
-  ) {
-    super(message);
-    this.name = "SignalsError";
-  }
-}
+const signalErrors = defineErrorCodes("signals", { not_found: "invalid", invalid_draft: "invalid" });
 
 /** The signal tables, as one current schema; the host composes them into the project database baseline. */
 export const SIGNALS_SCHEMA_SQL = `
@@ -118,7 +111,7 @@ export class SignalsModule implements SignalsApi {
     const row = this.db.prepare(
       "SELECT * FROM signals WHERE project_id = ? AND signal_id = ?",
     ).get(projectId, signalId) as Row | undefined;
-    if (!row) throw new SignalsError("signal_not_found", "找不到这个 Signal");
+    if (!row) throw signalErrors.not_found("找不到这个 Signal");
     return mapSignal(row);
   }
 
@@ -310,7 +303,7 @@ function assertDraft(draft: SignalDraft): void {
     || !isObject(draft.payload)
     || !isObject(draft.provenance)
   ) {
-    throw new SignalsError("signal_invalid_draft", "Signal Draft 缺少可信身份、时间或结构化内容");
+    throw signalErrors.invalid_draft("Signal Draft 缺少可信身份、时间或结构化内容");
   }
 }
 

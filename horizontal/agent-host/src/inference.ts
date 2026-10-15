@@ -93,6 +93,6 @@ export function isDispatchRefusal(error: unknown): error is Error { return error
 export function inferenceServiceUnavailableReason(error: unknown): string | undefined {
   const code = typeof error === "object" && error !== null && "code" in error ? String((error as { code: unknown }).code) : "";
   if (code === "agent.storage_busy") return "这台电脑上另一个 Molis Work 进程正在使用 AI 执行服务，请在那个窗口操作，或关闭它后重试";
-  if (code === "inference.unbound" || code === "inference.closed" || code === "inference.home_in_use") return "AI 执行服务尚未就绪或已停止，请稍后重试";
+  if (code === "agent.inference.unbound" || code === "agent.inference.closed" || code === "agent.inference.home_in_use") return "AI 执行服务尚未就绪或已停止，请稍后重试";
   return undefined;
 }

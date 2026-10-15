@@ -119,7 +119,7 @@ export interface WorkflowStep {
   /** A judgment held this step's content back and the run stopped here; the run's `stopped` is read from it. */
   readonly held?: WorkflowHold;
   /** Saved before delivery: a retry after a crash or a lost race re-sends exactly this, instead of asking the model again. */
-  /** attempted_at: an action step was called and its result never confirmed; attempt_error: what that call said when it failed after starting. */
+  /** attempted_at: the station was dispatched and its result never confirmed; attempt_error: what an action said when it failed after starting. */
   readonly pending?: WorkflowHandoff & { readonly key: string; readonly attempted_at?: string; readonly attempt_error?: string };
   /** An action step keeps what it received (the next handoff reads it) and what the action returned. */
   readonly payload?: WorkflowPayload;

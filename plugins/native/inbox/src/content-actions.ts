@@ -52,7 +52,7 @@ export function createInboxContentHandlers(ports: InboxContentPorts) {
         const detail = typeof entry.detail?.message === "string" ? entry.detail.message : "";
         return { title: `来源「${source.name}」需要处理`, body: detail || `来源「${source.name}」需要人工恢复。`, source: source.name, feed_item_id: null };
       }
-      throw new ActionError("actions.invalid_input", "这条 Inbox 事项没有可以交接的正文");
+      throw new ActionError("actions.input_invalid", "这条 Inbox 事项没有可以交接的正文");
     },
     receive: async (input, caller) => {
       const origin = { ...inboxContentActions.receive, provider_id: INBOX_PLUGIN_ID };

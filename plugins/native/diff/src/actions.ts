@@ -53,7 +53,7 @@ function readState(context: PluginStartContext, input: DiffStateInput): DiffView
     try {
       const record = inputs.read("changeset");
       if (!record || record.availability !== "available") return emptyDiff("change-set");
-      return compareRunChangeSet({ content: parseCodingChangeSet(record.payload), source_plugin_id: record.producer_plugin_id, content_version: record.version });
+      return compareRunChangeSet({ content: parseCodingChangeSet(record.payload), source_plugin_id: record.producer_plugin_id, content_version: record.version }, undefined, input.change_index ?? 0);
     } catch { throw diffErrors.invalid("Coding 固定变更当前不可读，请保留原会话后重试"); }
   }
   if (inputs?.selectedGroup() === "git-change-set") {

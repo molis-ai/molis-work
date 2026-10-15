@@ -36,6 +36,8 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 
 ### 侧栏标签（`side`）
 
+需要随当前文档变化的侧栏，在 view 上声明 `context_binding: "focused-object"`。复用工作台给出的对象上下文，不自行追踪全局选中项：接收 `molis:side-context` 和递增的 `context_epoch`，启动时发 `molis:side-ready`，发回编辑器的请求携带所收 epoch。只信任宿主父窗口、同源和当前绑定对象；业务读写仍走对象所有者的动作授权。收起保持收起，选中的普通工具不因换文档被抢走。Pages 评论与备注使用这条协议，详情见 [统一规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
+
 - 声明：`ui.views` 里写 `{ view_id, slot: "side", title, contribution_id, icon }`；contribution 的 surface 目标是 `workbench.side`（格式 `declarative-html`）。插件在项目里启用才出现，停用或卸载就撤下，不留空标签。
 - Host 在 `/projects/<id>/side/<project_plugin_id>/<view_id>` 用独立文档渲染它，侧栏用同源 iframe 装载：引用工作台同一份样式表（随页面缓存，插件在舞台上怎样显示，这里就怎样显示），并运行插件的 `clientFactory`（多一个 `side: true`）。contribution 收到的 model 只有位置：`{ project_id, route_prefix, view_id }`，数据仍经插件自己的动作与路由读取。
 - 复用舞台外壳（`renderPluginStageShell`）没问题：外壳默认 `hidden`，侧栏文档作为宿主会在挂载客户端前显示它。个人插件（不按项目存的，如灵光）同样出现。

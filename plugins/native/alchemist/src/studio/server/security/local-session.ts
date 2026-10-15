@@ -21,11 +21,11 @@ export function localSessionGuard(options: LocalSecurityOptions): MiddlewareHand
       return;
     }
     if (!session || !safeEqual(session, options.sessionToken)) {
-      return context.json({ code: "LOCAL_SESSION_REQUIRED", message: "本地会话已失效，请刷新页面。" }, 401);
+      return context.json({ code: "alchemist.local_session_required", message: "本地会话已失效，请刷新页面。" }, 401);
     }
     const origin = context.req.header("origin");
     if (!origin || !options.allowedOrigins.includes(origin)) {
-      return context.json({ code: "LOCAL_ORIGIN_REJECTED", message: "拒绝来自其他站点的写入请求。" }, 403);
+      return context.json({ code: "alchemist.local_origin_rejected", message: "拒绝来自其他站点的写入请求。" }, 403);
     }
     await next();
   };

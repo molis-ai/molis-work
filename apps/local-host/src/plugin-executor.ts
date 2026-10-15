@@ -30,6 +30,8 @@ export interface PluginHostExecutorOptions {
    * (the Runtime's `actions.providerId`) has to give the same answer: this is how the Plugin's own client finds them.
    */
   providerFor?(definition: PluginDefinition, installId: string): string;
+  /** Host start-list qualification of this actual definition; the returned release withdraws this session before stop. */
+  qualifyCaller?(definition: PluginDefinition, caller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller): (() => void) | undefined;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;

@@ -261,7 +261,7 @@ export class SqliteResearchRepository {
   saveReport(input: { report: LensReport; evidence: readonly Evidence[] }): LensReport {
     const existing = this.getReport(input.report.id);
     if (existing) {
-      if (existing.runId !== input.report.runId) throw new Error("LENS_REPORT_CONFLICT");
+      if (existing.runId !== input.report.runId) throw new Error("alchemist.lens_report_conflict");
       this.updateRun(input.report.runId, {
         status: existing.status,
         stage: "synthesizing",
@@ -424,13 +424,13 @@ export class SqliteResearchRepository {
     const row = this.database
       .prepare("SELECT * FROM mvp_scope_versions WHERE idea_id = ? AND version = ?")
       .get(ideaId, version) as MvpScopeRow | undefined;
-    if (!row) throw new Error("MVP_SCOPE_NOT_FOUND");
+    if (!row) throw new Error("alchemist.mvp_scope_not_found");
     return mapMvpScope(row);
   }
 
   private requireRun(id: string): LensRun {
     const run = this.getRun(id);
-    if (!run) throw new Error("LENS_RUN_NOT_FOUND");
+    if (!run) throw new Error("alchemist.lens_run_not_found");
     return run;
   }
 }

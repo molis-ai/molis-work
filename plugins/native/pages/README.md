@@ -4,6 +4,10 @@
 
 `pages.generate` 接收调用方已解析的材料快照，通过同一模型配置执行；缺少模型时目录及调用明确拒绝，不生成占位文稿。插件内部的 `generatePagesFromMaterials` 通过短 Store 操作保存 `page_generations`，不跨模型等待持有数据库。历史按项目和请求保存要求、采用版本、错误和文稿 ID；失败或取消保留快照，重试成功后返回原文稿，不覆盖手工编辑。Workbench 的 Inbox 提供材料选择、要求与恢复入口，生成不会自动完成 Inbox。编辑器与 MCP 的 AI 使用统一文字模型配置；候选正文由用户确认或后续创建/修改动作保存。生成前后核对文档版本和取消状态，过期候选不提交。
 
+文档右侧的「评论与备注」跟随当前主区文档。评论保存在 Pages 自己的 `page_comments` 表，正文的原批注与块备注不变。普通评论只保存文字；选中 `@助理` 后发送，宿主把当前正文、引用及本线程作为快照交给同一个 Prologue 运行时，答复只回到原评论，不修改正文。移除引用原文后保留摘录并显示失去定位。回复生成后投递失败可单独重试，避免重复调用模型。
+
+Pages 存储基线为 2；本次未实现旧库读取兼容或自动迁移，也未操作真实 Home。已有基线 1 的 Home 须先经过明确授权的维护升级，才能试用此构建。
+
 包名：`@molis-ai/molis-work-plugin-pages`。
 
 导入入口在 Pages 文档列表的「导入」。支持 Notion 的 Markdown & CSV / HTML ZIP 导出包，飞书等工具导出的 DOCX、Markdown，以及通用 HTML、TXT、CSV。先预览、查看转换提示并勾选文档，再导入当前项目的指定文件夹；可继续编辑、自动保存。保留常用文字格式、列表、待办、表格和代码。导入只创建新文档；一次批量写入使用事务，同一请求重试不会覆盖手工编辑或重复创建。
@@ -18,15 +22,15 @@
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 
-动作服务迁移：插件自己的 `actions.ts` 声明并实现 20 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布），加上 12 项标准能力（主体读取、片段、系统搜索、文件条目与内容、成果库的预览/固定/比较/继续/被引用、放置的移动与复制），共 32 项。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。MCP 只经授权的动作工具。
+动作服务迁移：插件自己的 `actions.ts` 声明并实现 20 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布），加上 12 项标准能力（主体读取、片段、系统搜索、文件条目与内容、成果库的预览/固定/比较/继续/被引用、放置的移动与复制），加上 4 项评论线程能力，共 36 项，统一由 `PAGES_ACTIONS` 声明，与 `createPagesActionHandlers` 逐项对应。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。MCP 只经授权的动作工具。
 
 内部与 MCP 的项目来自可信调用上下文；HTTP 的项目由 Host 绑定，query/body 中声明不同项目会拒绝。`pages.update` 接受 `expected_version`，编辑器自动使用服务器版本，冲突保留草稿并阻止离开。提取任务/知识页和删除文件夹各自在原 SQLite 库事务内完成。原表、文档 ID、导入请求和历史均保留。
 
 Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。文档按 canonical project_id 分区；库只认当前 schema 基线（`PAGES_STORE_BASELINE`）。
 
-`pages.promote` 在原 `pages` 行保存未完成发布快照后才调用 Artifact owner；失败后继续原快照和版本。已存成 Artifact、尚未回写文稿关联时，重试读取并核对原 Artifact，恢复关联而不重复发布。旧版中断记录没有快照时，只在成果库里恰有一个文稿没记过、又没写明来源修订号的版本时，才从原 Artifact 恢复。文稿移走又移回时记录重新从 0 数固定版本，而项目成果库仍留着之前的各版：下一次固定接着成果库里已有的最高版号（`nextPinnedVersion`），不把旧版当作中断记录交回。完成关联与清除快照在同一文稿事务提交，保留后续正文和 Goal 编辑；固定下来的版本归本机的人，不论谁（人、工作流、Agent、MCP 客户端）固定的，生产者记在 `created_by`，下一次固定不会因为上一版是别人固定的而被拒绝；未完成的发布意图仍只由发起它的行为者恢复，其他行为者不能代为完成。
+`pages.promote` 在原 `pages` 行保存未完成发布快照后才调用 Artifact owner；失败后继续原快照和版本。已存成 Artifact、尚未回写文稿关联时，重试读取并核对原 Artifact，恢复关联而不重复发布。没有未完成发布快照时，已有成果（包括没有数字来源修订号的版本）保留，显式新固定生成下一版，不把它当作中断恢复。文稿移走又移回时记录重新从 0 数固定版本，而项目成果库仍留着之前的各版：下一次固定接着成果库里已有的最高版号（`nextPinnedVersion`），不把旧版当作中断记录交回。完成关联与清除快照在同一文稿事务提交，保留后续正文和 Goal 编辑；固定下来的版本归本机的人，不论谁（人、工作流、Agent、MCP 客户端）固定的，生产者记在 `created_by`，下一次固定不会因为上一版是别人固定的而被拒绝；未完成的发布意图仍只由发起它的行为者恢复，其他行为者不能代为完成。
 
-列表和编辑器从 `publication_pending` 显示“继续保存上次成果”，恢复成功明确说明当前编辑仍保留。客户端传 `expected_version`，过期请求不会再创建一版；旧客户端不传版本时继续保留每次明确调用新增版本的语义。返回 `recovered` 表示恢复上次成果。此迁移只新增可空列，不搬移原数据；降级前应完成未结束的发布，旧版代码无法识别新快照，不能安全地继续这些请求。
+列表和编辑器从 `publication_pending` 显示“继续保存上次成果”，恢复成功明确说明当前编辑仍保留。客户端传 `expected_version`，过期请求不会再创建一版；顶层 Agent/MCP 按现行合同必须提供版本，人亲自发起的可选版本调用仍表示显式新固定。返回 `recovered` 只表示恢复已保存的未完成快照。Pages 库只认当前基线，不在读取时补历史发布快照。
 
 标准 MCP 的查询、写入、AI、生成、历史及发布中断恢复有独立 stdio 客户端验证；生产客户端授权管理和系统生命周期仍属于系统服务未完成范围，测试启动授权不能替代它。
 
@@ -37,6 +41,9 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 公开入口：`@molis-ai/molis-work-plugin-pages`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `pages.<原因>`，状态由错误种类决定，Pages 不自带状态表）、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 新建、导入打开和提取返回时，先核对正在编辑的文档与本次编辑状态；新输入通过原版本保存，提取与输入冲突时保留草稿并明确报错，不用返回值确认未显示过的编辑。
+  - 不支持的正文结构只读保留；返回、导入打开、发布、提取、导出和打印不把编辑器占位正文写回或当成原文。图片读取、写作候选及卡片浮层属于打开它们的文档；切文档结束这些资源，同文档的延迟图片沿原插入位置映射。
+  - Markdown 与静态 HTML 保留表格单元格的所有段落和任务、日程、引用的可见文字；多篇合成沿现有 1500 个字符的节选范围，材料保留对象、版本与截断标记，成稿说明节选并链接原 Pages。
   - HTTP 的项目由 Host 绑定，query 或 body 声明不同项目会拒绝；`pages.update` 带 `expected_version`，冲突保留草稿。
   - 生成按请求保存材料快照；缺模型明确拒绝，不生成占位文稿。
   - 被取消或撤权的生成不写任何业务记录（调用记录里的“未执行”诊断行除外），本进程可以立即接手重试；其他进程的尝试仍守租约。
@@ -49,4 +56,9 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-pages run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts tests/pages-publication.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/pages-blank-discard.test.ts tests/pages-draft-race.test.ts tests/plugin-client-served.test.ts tests/document-plugins-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-small-ux.e2e.test.ts`
+- 上述内容与编辑状态的定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-editing-regressions.e2e.test.ts tests/content-portable-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；受控模型与下载/打印拦截不代替真实模型、文件应用或读屏体验验收）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+评论回归：`node scripts/run-tests.mjs tests/pages-comments.test.ts tests/assistant-thread-reply.test.ts tests/pages-assistant-surfaces.e2e.test.ts`。后两项分别经过真实 Host/Prologue（本机流式模型夹具）与真实浏览器。
+
+评论浏览器控制器位于现有 Pages 编辑器资源包。目录工厂用 getter 提供当前编辑器状态；侧栏文档在挂载前加载同一份已声明的客户端依赖，首次独立打开侧栏也可用。草稿键、所属插件请求、来源检查与上下文 epoch 保持不变（PAS-14）。

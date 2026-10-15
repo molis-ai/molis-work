@@ -26,9 +26,14 @@
   - 流程只决定顺序与交接，插件各自工作；没配好的衔接显示为未接上，不能走。
   - 实例保留当时的链、进度与每段交接的内容；判断规则拦下一次运行时，原因与判断结果记在被拦下的那一步，重新读取时仍在。
   - 实例每次写入都让并发凭证（`updated_at`）变大，不会停在原值或倒退；带旧凭证的继续调用被拒绝。
+  - 编辑保存固定所属流程和每次内容快照；排队请求只推进该流程的版本，切换流程或返回目录不会改写后来对象。标题与交接字段的去抖在离开时归原流程提交；动画后的编辑只操作仍在看的原流程。
+  - 保存失败保留该流程的最新编辑并暂停它后续的排队写入；本标签页重新打开或重载后仍可查看并明确重试。开始实例先等该次编辑保存完成，失败草稿不能拿旧链开始。失败与重读不会跳回原流程，其他流程继续可用。
+  - 搜索和对象标签的打开请求按同一流程 ID 读取正文、标题与助理上下文；首次加载先读目录，最新打开意图优先于旧的页面记忆，无 ID 的请求返回目录。
   - 能力撤回、失权或升级使原版本不可用时，保留原引用并显示原因，不自动换成同名新能力。
   - 只有目录在交给提供方之前拒绝的调用才算没执行；其他错误按可能已执行处理。
   - 项目被删除时宿主按目录条目上的 `project_data`（`workflowsProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeWorkflowsProject`）调用清掉流程（含已隐藏的）与它们的运行实例；只读库文件，库不存在时不创建，重复运行没有副作用。
 - 改动后必跑：`node scripts/run-tests.mjs tests/workflows-plugin.test.ts tests/workflows-action-steps.test.ts tests/workflows-handoff-idempotency.test.ts tests/workflows-step-directory.test.ts tests/workflow-content-actions.test.ts tests/workflow-station-kinds.test.ts tests/workflows-judgment-link.test.ts tests/workflows-stop-and-token.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
+- 保存与编辑导航改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/workflows-save-ownership.e2e.test.ts`（W2-18-WFSAVE-01/02：真实 HTTP/Store 回执屏障、跨流程与目录、标题/交接去抖、失败重载及明确重试、动画后过期编辑）。
+- 对象打开改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/workflows-open-object.e2e.test.ts`（W2-18-WF-OPEN-01：正式搜索、已开另一条流程、对象标签/重载恢复、首次按需加载、无 ID 返回目录）。
 - 相关手册：[skills/molis-plugin-dev/host.md](../../../skills/molis-plugin-dev/host.md)、[specs/action-architecture/spec.md](../../../specs/action-architecture/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { HostSurfaceDriver, HostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceDriver, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity, ComputerControlMode, ComputerState } from "@molis-ai/molis-work-contracts/services/computer";
 import { showsMolis, tierOf } from "./app-tiers.js";
 import { refused } from "./computer-errors.js";
@@ -154,7 +154,7 @@ export class ComputerDesk implements DeskContext {
   }
 
   /** A round of this session ended or was stopped: the computer is free again and its record is finished. */
-  release(sessionId: string, outcome?: { readonly outcome: "completed" | "failed" | "stopped"; readonly conclusion: string }): void {
+  release(sessionId: string, ended?: HostSurfaceRoundEnd): void {
     if (this.lease?.session_id !== sessionId) return;
     const record = this.lease.record_id ? this.options.records.get(this.lease.record_id) : null;
     if (record) {
@@ -163,7 +163,7 @@ export class ComputerDesk implements DeskContext {
         ...(this.seenTitle ? { windowTitle: this.seenTitle } : {}),
         files: [...this.seenFiles],
         record: record.steps.map(step => step.summary),
-      }, outcome);
+      }, ended);
       this.options.records.finish(record.id, { outcome: judged.outcome, conclusion: judged.conclusion, unfinished });
     }
     this.seenTitle = "";

@@ -35,13 +35,13 @@ export function completionUnmetReasons(input: {
   const reasons: GoalEventUnmetReason[] = [];
   if (!input.agreement.has_minimum_result_agreement) {
     reasons.push({
-      code: "event_closure.missing_agreement",
+      code: "goals.event_closure.missing_agreement",
       message: `没有具体结果约定：${input.agreement.missing.join("、")}`,
     });
   }
   if (!input.result) {
     reasons.push({
-      code: "event_closure.missing_result",
+      code: "goals.event_closure.missing_result",
       message: "完成需要本 Goal 的明确结果，空结果只能保存未成立的收尾报告",
     });
   }
@@ -49,28 +49,28 @@ export function completionUnmetReasons(input: {
     if (requirementCurrentlySatisfied(requirement)) continue;
     if (requirement.human_decision_required) {
       reasons.push({
-        code: "event_closure.human_decision_required",
+        code: "goals.event_closure.human_decision_required",
         message: `要求「${requirement.statement}」需要仍然有效的可信用户结论`,
         requirement_id: requirement.requirement_id,
       });
       continue;
     }
     reasons.push({
-      code: "event_closure.requirement_unsupported",
+      code: "goals.event_closure.requirement_unsupported",
       message: `要求「${requirement.statement}」尚未得到当前结果支持`,
       requirement_id: requirement.requirement_id,
     });
   }
   for (const concern of input.blockingConcerns) {
     reasons.push({
-      code: "event_closure.blocking_concern",
+      code: "goals.event_closure.blocking_concern",
       message: `未解决的 Concern「${concern.title}」阻塞收尾`,
       concern_id: concern.concern_id,
     });
   }
   for (const dependency of input.context.open_dependencies) {
     reasons.push({
-      code: "event_closure.open_dependency",
+      code: "goals.event_closure.open_dependency",
       message: `前置 Goal「${dependency.title}」尚未完成，不能完成当前 Goal`,
       goal_id: dependency.goal_id,
     });
@@ -80,13 +80,13 @@ export function completionUnmetReasons(input: {
     && !hasCurrentHumanApproval(input.requirements, input.agreement.outcome, input.appliedDecisions)
   ) {
     reasons.push({
-      code: "event_closure.human_approval_required",
+      code: "goals.event_closure.human_approval_required",
       message: "当前 Goal 已有明确的人工验收约定，完成前需要可信用户结论",
     });
   }
   for (const risk of input.context.blocking_risks) {
     reasons.push({
-      code: "event_closure.blocking_risk",
+      code: "goals.event_closure.blocking_risk",
       message: `未解决的完成风险：${risk.description}`,
       risk_id: risk.risk_id,
     });
@@ -94,7 +94,7 @@ export function completionUnmetReasons(input: {
   for (const pending of input.pendingDecisions) {
     if (!pendingBlocksCompletion(pending, input.requirements)) continue;
     reasons.push({
-      code: "event_closure.pending_decision",
+      code: "goals.event_closure.pending_decision",
       message: pending.purpose === "requirement_acceptance"
         ? `还有针对当前要求的待验收决定：「${pending.question}」`
         : `还有针对完成动作的待决定：「${pending.question}」`,
@@ -104,7 +104,7 @@ export function completionUnmetReasons(input: {
   const currentComplete = currentActionDecision(input.appliedDecisions, "complete");
   if (currentComplete && decisionHasEffect(currentComplete, "deny_action", "complete")) {
     reasons.push({
-      code: "event_closure.denied_action",
+      code: "goals.event_closure.denied_action",
       message: "当前有效决定拒绝这次完成",
     });
   }

@@ -165,3 +165,25 @@ test("reconcile restores Attention for a historical pending Goal that has no row
     rmSync(data.directory, { recursive: true, force: true });
   }
 });
+
+test("W2-18-ATTENTION-TX-01 independent Goal reconcile refuses a failing journal atomically and retries once", () => {
+  const data = fixture();
+  try {
+    const proposal = propose(data.app, "child-atomic", "propose-atomic");
+    data.store.db.prepare("DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = 'goal_decision'").run(BOARD);
+    const snapshot = () => ({ entries: data.store.db.prepare("SELECT * FROM inbox_entries ORDER BY entry_id").all(),
+      attention: data.store.db.prepare("SELECT * FROM attention_events ORDER BY event_id").all(),
+      journal: data.store.db.prepare("SELECT * FROM events ORDER BY seq").all() });
+    const before = snapshot();
+    data.store.db.exec("CREATE TRIGGER refuse_attention BEFORE INSERT ON events WHEN NEW.object_type = 'inbox_entry' BEGIN SELECT RAISE(ABORT, 'journal refused'); END;");
+    assert.throws(() => data.app.goalDecisionAttention.reconcile(BOARD), /journal refused/);
+    assert.deepEqual(snapshot(), before);
+    assert.equal(data.app.goalTree.listGoalTreeProposals({ project_id: BOARD }).proposals.find(row => row.proposal_id === proposal.proposal_id)?.state, proposal.state);
+    data.store.db.exec("DROP TRIGGER refuse_attention");
+    data.app.goalDecisionAttention.reconcile(BOARD);
+    data.app.goalDecisionAttention.reconcile(BOARD);
+    assert.equal(goalDecisionEntries(data.feed).length, 1);
+    assert.equal(snapshot().attention.length - before.attention.length, 1);
+    assert.equal(snapshot().journal.length - before.journal.length, 1);
+  } finally { data.store.close(); rmSync(data.directory, { recursive: true, force: true }); }
+});

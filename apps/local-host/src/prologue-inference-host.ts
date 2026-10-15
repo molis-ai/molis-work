@@ -7,13 +7,13 @@ import { PrologueInferenceError, type PrologueInferenceClient } from "@molis-ai/
 const bindings = new Map<string, PrologueInferenceClient>();
 export function bindPrologueInference(home: string, inference: PrologueInferenceClient): () => void {
   const key = path.resolve(home);
-  if (bindings.has(key) && bindings.get(key) !== inference) throw new PrologueInferenceError("inference.home_in_use", "这个 Home 已有运行中的推理服务");
+  if (bindings.has(key) && bindings.get(key) !== inference) throw new PrologueInferenceError("agent.inference.home_in_use", "这个 Home 已有运行中的推理服务");
   bindings.set(key, inference);
   return () => { if (bindings.get(key) === inference) bindings.delete(key); };
 }
 export async function resolvePrologueInference(homeDirectory = resolveMolisWorkHome()): Promise<PrologueInferenceClient> {
   const client = bindings.get(path.resolve(homeDirectory));
-  if (!client) throw new PrologueInferenceError("inference.unbound", "这个 Home 的推理服务尚未装配");
+  if (!client) throw new PrologueInferenceError("agent.inference.unbound", "这个 Home 的推理服务尚未装配");
   return client;
 }
 

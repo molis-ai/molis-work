@@ -22,6 +22,8 @@ AttentionModule 通过 subject resolver 检查对象；commands 创建或更新�
 
 注意事项不是 OS 通知、调度任务或自动执行指令。本包不启动 Runtime，也不拥有 Feed 条目、Session 或 Goal 内容。
 
+创建、状态变化和按对象删除都由 Owner 的同库事务覆盖 Inbox 引用、Attention 事件及同步 journal 写入。独立 Feed 加入和 Goals reconcile 也具有这条原子性；调用方已有外层事务时沿用嵌套事务，不单独提交。
+
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 
 ## 本地开发
@@ -51,7 +53,7 @@ node scripts/run-tests.mjs tests/feed-module-repositories.test.ts
   - 处置状态不能替代 Goal 的工作状态或完成结论。
   - 已完成或已取消 Goal 的继续归 Goals 的 `resumeWork`，必须给出原因。
   - 切换关注对象不改绑终端、不发送消息。
-- 改动后必跑：`node scripts/run-tests.mjs tests/feed-out-rules.test.ts tests/context-owner-isolation.test.ts tests/goal-decision-attention.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/feed-out-rules.test.ts tests/context-owner-isolation.test.ts tests/goal-decision-attention.test.ts tests/attention-atomic-effects.test.ts tests/feed-inbox-lifecycle.test.ts`
 - 相关手册：[docs/modules/attention-resumption.md](../../docs/modules/attention-resumption.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -10,6 +10,7 @@ import { createGitWorktreePort } from "@molis-ai/molis-work-app-local-host";
 
 const run = promisify(execFile);
 
+// GITERR-01 / GITERR-02: real writer worktrees preserve ownership, starting commits and rejected dirty state.
 test("准备独立工作树不执行 hooks、fsmonitor 或内容过滤器，批准的提交起点不能改变", async () => {
   const repo = await repository();
   try {

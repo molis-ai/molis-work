@@ -208,7 +208,8 @@ test("rewriting a body from Markdown keeps the title the person gave; only a new
     const { document: titled } = await bound.invoke(actions.create, { title: "周会纪要" });
     const agent = bindActionClient(client, () => ({ ...caller, actor_id: "runtime:x", audience: "agent" }));
     for (const writer of [bound, agent]) {
-      await writer.invoke(actions.update, { id: titled.id, markdown: "## 进展\n\n- 上线灰度\n" });
+      const current = (await bound.invoke(actions.get, { id: titled.id })).document;
+      await writer.invoke(actions.update, { id: titled.id, expected_version: current.version, markdown: "## 进展\n\n- 上线灰度\n" });
       assert.equal((await bound.invoke(actions.get, { id: titled.id })).document.title, "周会纪要");
     }
     const { document: fresh } = await bound.invoke(actions.create, { markdown: "# 来自 Markdown 的标题\n\n正文" });

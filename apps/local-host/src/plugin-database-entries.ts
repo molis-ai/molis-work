@@ -18,6 +18,7 @@ export interface PluginDatabaseEntry {
  */
 const HOST_LIBRARY_NAMES: ReadonlySet<string> = new Set([
   "functions", "connectors", "context-onboarding", "search", "memory", "server", "plugin-runtime", "issues",
+  "assistant", "placement", "agent-definitions", "characters",
 ]);
 
 /**
@@ -29,10 +30,11 @@ const HOST_LIBRARY_NAMES: ReadonlySet<string> = new Set([
  * and platforms that reach no Home cannot be given one. The name has to be on the uninstall purge list, so that
  * `uninstall --purge-user-data` reaches the library (docs/system/HOME-DATA.md section 11) and every other top-level directory
  * of the Home (`feed`, `config`, `agent-runtime`, ...) is refused by that alone; of the names on it, the Host's own libraries
- * are refused (`HOST_LIBRARY_NAMES`). Whether a name is also used by a Home-level entry is not checked here: that list is the
- * catalog's (`HomePluginHost.start` checks its own), and two baselines under one name are refused when the library is opened.
+ * are refused (`HOST_LIBRARY_NAMES`). Each scope checks its own library names; actual Home/project entries also refuse duplicate plugin identity. Different owners
+ * using one store name across scopes remain a composition error: the future Home store registry replaces this temporary list.
  */
-export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], home: PluginPlatformHome | null): void {
+export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], home: PluginPlatformHome | null,
+  homeOwned?: Pick<WeakMap<PluginDefinition, PluginDatabaseDeclaration>, "get">): void {
   const taken = new Set<string>();
   for (const { definition, database } of entries) {
     if (!database) continue;
@@ -44,7 +46,9 @@ export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], h
     if (!(PERSONAL_HOME_SQLITE_STORES as readonly string[]).includes(name)) {
       throw new Error(`库名 ${name} 不在卸载清除清单（PERSONAL_HOME_SQLITE_STORES）里：先把它加进清单，uninstall --purge-user-data 才清得到`);
     }
-    if (HOST_LIBRARY_NAMES.has(name)) throw new Error(`库名 ${name} 是宿主自己的库，插件不能用`);
+    if (HOST_LIBRARY_NAMES.has(name) && !(name === "issues" && homeOwned?.get(definition) === database)) {
+      throw new Error(`库名 ${name} 是宿主自己的库，插件不能用`);
+    }
     if (taken.has(name)) throw new Error(`库 ${name} 被同一份启动名单里的两个插件声明，库归属重复`);
     taken.add(name);
     const declared = new Set(definition.manifest.permissions.map(item => item.permission));

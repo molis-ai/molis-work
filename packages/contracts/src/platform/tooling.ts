@@ -1,6 +1,5 @@
 /** Generated as the F2 contract-only workspace boundary. */
 import type { ContractDescriptor } from "./package.js";
-import type { HostCapabilityDefinition } from "./app-host.js";
 import type { PluginInstanceRecord } from "./plugin.js";
 import type { ArtifactVersionRecord } from "../modules/artifacts.js";
 import type { ConnectorHealth, ConnectorPollResult } from "../services/connector-host.js";
@@ -19,16 +18,6 @@ export interface PluginDevelopmentResult {
   artifacts: ArtifactVersionRecord[];
   rendered_ui: Array<{ contribution_id: string; surface: string; html: string }>;
 }
-/**
- * Host-only: it installs and runs unsigned local code with the grants it is given, and records the actor the Host fixes for
- * this door, so a plugin that lists it under capabilities.consumes is refused (`actions.host_only`).
- */
-export const pluginDevelopmentCapability = {
-  capability_id: "io.molis.work.local-host.plugin.development",
-  version: 1,
-  operation: "command",
-  host_only: true,
-} as HostCapabilityDefinition<PluginDevelopmentInput, PluginDevelopmentResult>;
 
 export const platformToolingContract = {
   contractId: "io.molis.work.platform.tooling.v1",

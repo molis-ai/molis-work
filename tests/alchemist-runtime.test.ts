@@ -104,7 +104,7 @@ test("Alchemist: host settings contain no secret surface; generation uses select
     assert.equal(unavailable.configured, false);
     const again = await api(runtime, `/directions/${direction.id}/explorations`, "POST");
     await runtime.runPending();
-    assert.equal((await api(runtime, `/explorations/${again.runId}`)).exploration.errorCode, "RUNTIME_MODEL_UNAVAILABLE");
+    assert.equal((await api(runtime, `/explorations/${again.runId}`)).exploration.errorCode, "alchemist.runtime_model_unavailable");
     assert.equal(host.generated.length, 2, "a missing fixed model must never fall back");
   });
 });
@@ -118,7 +118,7 @@ test("Alchemist: invalid generated JSON fails without persisting cards and a new
     await runtime.runPending();
     const failed = (await api(runtime, `/explorations/${first.runId}`)).exploration;
     assert.equal(failed.status, "failed");
-    assert.equal(failed.errorCode, "AI_OUTPUT_INVALID");
+    assert.equal(failed.errorCode, "alchemist.ai_output_invalid");
     assert.deepEqual(failed.cards, []);
     host.ai.generate = original;
     const second = await api(runtime, `/directions/${direction.id}/explorations?reuse=existing`, "POST");
@@ -189,7 +189,7 @@ test("Alchemist: each Lens searches one concise problem or MVP capability, witho
 test("Alchemist: safe search failure codes survive the job boundary and unusable pages never become a report", async () => {
   await withRuntime(async (runtime, host) => {
     const { ideaId } = await createIdea(runtime);
-    host.ai.search = async () => { throw Object.assign(new Error("公开搜索暂时不可用"), { code: "RESEARCH_SEARCH_DEADLINE_EXCEEDED" }); };
+    host.ai.search = async () => { throw Object.assign(new Error("公开搜索暂时不可用"), { code: "alchemist.research_search_deadline_exceeded" }); };
     const run = async () => {
       const { plan } = await api(runtime, `/ideas/${ideaId}/lenses/market_space/plans`, "POST", { ideaVersion: 1, modelPolicy: "fixed", modelId: model.id, budget: { kind: "calls", limit: 3 } });
       await api(runtime, `/ideas/${ideaId}/lenses/market_space/runs`, "POST", { planId: plan.id });
@@ -197,10 +197,10 @@ test("Alchemist: safe search failure codes survive the job boundary and unusable
       return (await api(runtime, `/ideas/${ideaId}/versions/1/research`)).lenses.market_space;
     };
     const failed = await run();
-    assert.equal(failed.run.errorCode, "RESEARCH_SEARCH_DEADLINE_EXCEEDED"); assert.equal(failed.report, undefined);
+    assert.equal(failed.run.errorCode, "alchemist.research_search_deadline_exceeded"); assert.equal(failed.report, undefined);
     host.ai.search = async () => [{ url: "https://example.org/failed", title: "无法提取", excerpt: "extract_failed\nUnable to extract content from the URL." }];
     const empty = await run();
-    assert.equal(empty.run.errorCode, "RESEARCH_NO_SOURCES"); assert.equal(empty.report, undefined); assert.equal(empty.evidence, undefined);
+    assert.equal(empty.run.errorCode, "alchemist.research_no_sources"); assert.equal(empty.report, undefined); assert.equal(empty.evidence, undefined);
     assert.equal(host.generated.length, 1, "neither failed search may spend a cross-check or synthesis call");
   });
 });
@@ -244,7 +244,7 @@ test("Alchemist: restart before lease expiry recovers on a later drain and never
       await restarted.runPending();
       const lens = (await api(restarted, `/ideas/${ideaId}/versions/1/research`)).lenses.market_space;
       assert.equal(lens.run.status, "failed");
-      assert.equal(lens.run.errorCode, "RESEARCH_CALL_INTERRUPTED");
+      assert.equal(lens.run.errorCode, "alchemist.research_call_interrupted");
       assert.equal(host.searched.length, 0);
       assert.equal(host.generated.length, 1);
     } finally { await restarted.close(); }
@@ -293,7 +293,7 @@ test("Alchemist: close waits for cancelled in-flight work before closing SQLite"
       restarted.database.prepare("UPDATE jobs SET lease_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?").run(jobId);
       await restarted.runPending();
       const recovered = restarted.database.prepare("SELECT status, error_code FROM exploration_runs WHERE id = ?").get(runId);
-      assert.deepEqual({ ...recovered }, { status: "failed", error_code: "AI_CALL_INTERRUPTED" });
+      assert.deepEqual({ ...recovered }, { status: "failed", error_code: "alchemist.ai_call_interrupted" });
       assert.equal(repeatedCalls, 0);
     } finally { await restarted.close(); }
   });

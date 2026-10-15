@@ -55,11 +55,11 @@ export interface PageStateOwner {
 
 export const PAGE_STATE_OWNERS = {
   "side-panel": {
-    files: ["apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"],
+    files: ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"],
     state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.",
   },
   assistant: {
-    files: ["apps/workbench/src/scripts/client/assistant-island.ts"],
+    files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts"],
     state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.",
   },
   "context-actions": {
@@ -75,7 +75,7 @@ export const PAGE_STATE_OWNERS = {
     state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.",
   },
   "tab-workspace": {
-    files: ["apps/workbench/src/scripts/client/tab-workspace.ts"],
+    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts"],
     state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show.",
   },
   "settings-directory": {
@@ -283,6 +283,19 @@ export const DOM_EVENTS = [
     summary: "A settings page was placed into the settings area; page scripts bind to root.",
   },
   {
+    name: "molis-work:system-view-changed", kind: "announcement", owner: "tab-workspace", on: "document",
+    detail: "{ active: { owner, id, tab_id } | null, open: Array<{ owner, id, tab_id }> }",
+    summary: "System view owners mount their existing controller into the focused system tab and retain hidden state.",
+  },
+  {
+    name: "molis-work:system-view-close", kind: "request", owner: "tab-workspace", on: "document",
+    detail: "{ owner, id }", summary: "Close the presentation of a system object without stopping its work.",
+  },
+  {
+    name: "molis-work:system-view-open", kind: "request", owner: "tab-workspace", on: "document", cancelable: true,
+    detail: "{ owner, id, title }", summary: "Focus or open one system-owned object in the common tab layout.",
+  },
+  {
     name: "molis-work:terminal-theme-change", kind: "announcement", owner: "preferences", on: "window",
     detail: "{ theme }",
     summary: "The terminal colour theme changed; open terminals repaint.",
@@ -381,6 +394,16 @@ export const DOM_EVENTS = [
     name: "molis:side-close", kind: "request", owner: "side-panel", on: "document",
     detail: "none",
     summary: "Close the side panel.",
+  },
+  {
+    name: "molis:side-context-command", kind: "announcement", owner: "side-panel", on: "document",
+    detail: "{ context_epoch, context: { plugin_id, pane_id, tab_id, view_id, object_ref, revision, unsaved }, command }",
+    summary: "A mounted contextual side view asks its current stage owner to focus an anchor or prepare a comment. UI context carries no authority.",
+  },
+  {
+    name: "molis:side-context-result", kind: "request", owner: "side-panel", on: "document",
+    detail: "{ type, object_id, request_id, notes?, version?, saved?, error? }",
+    summary: "The currently bound editor answers its contextual side view; the shell checks mounted source and object identity.",
   },
   {
     name: "molis:side-open", kind: "request", owner: "side-panel", on: "document", cancelable: true,

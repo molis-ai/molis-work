@@ -1,7 +1,8 @@
+import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import type { SessionContentStore } from "./content-store.js";
-import { MolisWorkSessionError } from "./errors.js";
+
 import {
   SESSION_EVENT_SOURCES,
   SESSION_TIMELINE_KINDS,
@@ -26,10 +27,10 @@ export class SessionEventRepository {
     const sessionId = requiredText(input.session_id, "Molis Work Session ID 不能为空");
     this.sessions.get(sessionId);
     if (!SESSION_EVENT_SOURCES.includes(input.source)) {
-      throw new MolisWorkSessionError("session.invalid_input", "Session 事件来源无效");
+      throw sessionErrors.invalid_input("Session 事件来源无效");
     }
     if (!SESSION_TIMELINE_KINDS.includes(input.kind)) {
-      throw new MolisWorkSessionError("session.invalid_input", "Session 事件类型无效");
+      throw sessionErrors.invalid_input("Session 事件类型无效");
     }
     const sourceId = requiredText(input.source_id, "Session 事件 source_id 不能为空");
     const content = typeof input.content === "string" ? input.content : "";
@@ -97,7 +98,7 @@ export class SessionEventRepository {
     const row = this.db.prepare("SELECT * FROM session_events WHERE event_id = ?").get(eventId) as
       | Record<string, unknown>
       | undefined;
-    if (!row) throw new MolisWorkSessionError("session.not_found", "找不到这条 Session 事件");
+    if (!row) throw sessionErrors.not_found("找不到这条 Session 事件");
     return this.map(row);
   }
 

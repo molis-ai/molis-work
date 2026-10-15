@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { AssistantError, AssistantService, stopInWords } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { AssistantService, stopInWords } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -61,7 +62,7 @@ test("a cap the person puts on one work holds its rounds: what is left bounds th
     // Nothing left: no round, no model call, and the words say which cap and what to do; the text stays as the draft.
     const before = calls;
     await assert.rejects(service.send({ text: "第三轮", request_id: "work-budget-3", work_id: sent.work.work_id }, {}),
-      (error: unknown) => error instanceof AssistantError && error.code === "assistant.budget" && /这项工作已用 1,220 tokens，达到给它设的上限 1,000/.test(error.message));
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.budget" && error.kind === "invalid" && /这项工作已用 1,220 tokens，达到给它设的上限 1,000/.test(error.message));
     assert.equal(calls, before, "no model call ran");
     assert.equal((await service.read(sent.work.work_id)).work.draft, "第三轮");
 

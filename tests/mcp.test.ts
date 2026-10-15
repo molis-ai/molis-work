@@ -1,5 +1,6 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { CATALOG_SCHEMA_VERSION, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_SCHEMA_VERSION, LocalProjectDatabase, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -8,14 +9,13 @@ import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 import Database from "better-sqlite3";
 import { MolisWorkServer, runtimeContextHostFromEnvironment } from "../apps/desktop/launchers/mcp/server.js";
-
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-plugin-goals";
+
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-describe("mcp server", () => {
-    it("defaults to a Runtime-only tool surface", async () => {
+describe("mcp runtime surface and catalog reader", () => {
+it("defaults to a Runtime-only tool surface", async () => {
     const server = new MolisWorkServer();
     const init = await server.handleMessage({
       jsonrpc: "2.0",
@@ -67,7 +67,7 @@ describe("mcp server", () => {
     for (const name of [
       "molis_work_v1_project_delete", "molis_work_v1_context_resolve",
     ]) assert.ok(names.includes(name), name);
-    for (const action of ["molis_work_v1_action_goals.tree.submit__v1", "molis_work_v1_action_goals.tree.read__v1", "molis_work_v1_action_goals.tree.check__v1", "molis_work_v1_action_goals.active.set__v1", "molis_work_v1_action_goals.trash.set__v1", "molis_work_v1_action_goals.trash.list__v1", "molis_work_v1_action_goals.create__v1", "molis_work_v1_action_goals.list__v1", "molis_work_v1_action_goals.note__v1", "molis_work_v1_action_goals.state.read__v1", "molis_work_v1_action_goals.events.list__v1", "molis_work_v1_action_goals.events.read__v1", "molis_work_v1_action_goals.events.configure__v1", "molis_work_v1_action_goals.events.report__v1", "molis_work_v1_action_goals.progress.record__v1", "molis_work_v1_action_goals.concerns.apply__v1", "molis_work_v1_action_goals.decisions.request__v1", "molis_work_v1_action_goals.decisions.cite__v1", "molis_work_v1_action_goals.agreement.set__v1", "molis_work_v1_action_goals.closure.submit__v1", "molis_work_v1_action_goals.work.resume__v1"]) {
+    for (const action of ["molis_work_v1_action_goals.tree.submit__v1", "molis_work_v1_action_goals.tree.read__v1", "molis_work_v1_action_goals.tree.check__v2", "molis_work_v1_action_goals.active.set__v1", "molis_work_v1_action_goals.trash.set__v1", "molis_work_v1_action_goals.trash.list__v1", "molis_work_v1_action_goals.create__v1", "molis_work_v1_action_goals.list__v1", "molis_work_v1_action_goals.note__v1", "molis_work_v1_action_goals.state.read__v1", "molis_work_v1_action_goals.events.list__v1", "molis_work_v1_action_goals.events.read__v1", "molis_work_v1_action_goals.events.configure__v1", "molis_work_v1_action_goals.events.report__v1", "molis_work_v1_action_goals.progress.record__v1", "molis_work_v1_action_goals.concerns.apply__v1", "molis_work_v1_action_goals.decisions.request__v1", "molis_work_v1_action_goals.decisions.cite__v1", "molis_work_v1_action_goals.agreement.set__v1", "molis_work_v1_action_goals.closure.submit__v1", "molis_work_v1_action_goals.work.resume__v1"]) {
       assert.equal(names.includes(action), false, "Goals action tools require a bound project and explicit action grants");
     }
     assert.ok(!names.some((name) => !name.startsWith("molis_work_v1_")));
@@ -75,7 +75,7 @@ describe("mcp server", () => {
     assert.ok(listedTools.every((tool) => !("project_id" in (tool.inputSchema.properties ?? {})) || tool.name.startsWith("molis_work_v1_context_") || tool.name === "molis_work_v1_project_delete"));
   });
 
-  it("returns structured reader-too-old diagnostics without exposing the catalog path", async () => {
+it("returns structured reader-too-old diagnostics without exposing the catalog path", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-reader-too-old-"));
     const home = path.join(directory, "home", ".molis-work");
     try {
@@ -108,7 +108,7 @@ describe("mcp server", () => {
       }) as { result: { isError: boolean; content: Array<{ text: string }> } };
       const errorText = response.result.content[0]?.text ?? "";
       assert.equal(response.result.isError, true);
-      assert.match(errorText, new RegExp(`错误: Molis Work catalog schema=${futureSchema}`));
+      assert.match(JSON.parse(errorText).error, new RegExp(`Molis Work catalog schema=${futureSchema}`));
       assert.match(errorText, /"code":"catalog\.reader_too_old"/);
       assert.match(errorText, new RegExp(`"actual_schema_version":${futureSchema}`));
       assert.match(errorText, new RegExp(`"supported_schema_max":${CATALOG_SCHEMA_VERSION}`));
@@ -119,7 +119,7 @@ describe("mcp server", () => {
     }
   });
 
-  it("does not restore the removed static Runtime DB connection from environment", () => {
+it("does not restore the removed static Runtime DB connection from environment", () => {
     const keys = [
       "MOLIS_WORK_DATABASE",
       "MOLIS_WORK_PROJECT_ID",
@@ -143,8 +143,10 @@ describe("mcp server", () => {
       }
     }
   });
+});
 
-  it("a management call that names no database fails instead of using a path under the working directory", async () => {
+describe("mcp management database scope", () => {
+it("a management call that names no database fails instead of using a path under the working directory", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-no-default-"));
     const previousCwd = process.cwd();
     const previousDatabase = process.env.MOLIS_WORK_DATABASE;
@@ -156,7 +158,7 @@ describe("mcp server", () => {
       for (const named of [{}, { database_path: "" }, { database_path: "  " }, { database_path: 5 }]) {
         await assert.rejects(
           () => management.callTool("molis_work_v1_initialize", { project_id: "no-default", title: "无默认库", idempotency_key: "k", ...named }),
-          (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.path_required",
+          (error: unknown) => error instanceof ActionError && error.code === "mcp.path_required",
           JSON.stringify(named),
         );
       }
@@ -166,7 +168,7 @@ describe("mcp server", () => {
       process.env.MOLIS_WORK_DATABASE = named;
       await assert.rejects(
         () => management.callTool("molis_work_v1_goal_tree_decide", { project_id: "no-default" }),
-        (error: unknown) => error instanceof MolisWorkV1Error && error.code === "mcp.not_found" && error.message.includes(named),
+        (error: unknown) => error instanceof ActionError && error.code === "mcp.not_found" && error.message.includes(named),
       );
       assert.deepEqual(fs.readdirSync(directory), []);
     } finally {
@@ -177,7 +179,7 @@ describe("mcp server", () => {
     }
   });
 
-  it("a management call takes its database from database_path before MOLIS_WORK_DATABASE", async () => {
+it("a management call takes its database from database_path before MOLIS_WORK_DATABASE", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-argument-over-environment-"));
     const previousDatabase = process.env.MOLIS_WORK_DATABASE;
     const fromEnvironment = path.join(directory, "from-environment.db");
@@ -199,26 +201,37 @@ describe("mcp server", () => {
     }
   });
 
-  it("a management call that names no project_id runs as database:<path>, and a later name for the same database conflicts with it", async () => {
+it("a management call that names no project_id runs as database:<path>, and a later name for the same database conflicts with it", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-database-project-"));
     const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
     const management = new MolisWorkServer("management", null, null, host);
     try {
       const project = await withMolisWorkProjectCatalog({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "没有项目号", actor_id: "user" }));
+      // W3-07-4-02: inspect the real facts without binding the Host to the catalog's project name first.
+      const facts = () => {
+        const store = new LocalProjectDatabase(project.database_path, { existingOnly: true });
+        try { return { snapshot: store.snapshot(project.project_id), events: store.readEventsDescending(project.project_id) }; }
+        finally { store.close(); }
+      };
+      const before = facts();
       // goal_tree_decide reads no project_id of its own: only the scope the call runs in is in play.
       await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", { database_path: project.database_path }),
         { code: "actions.scope_mismatch" });
       await assert.rejects(() => management.callTool("molis_work_v1_goal_tree_decide", { database_path: project.database_path, project_id: project.project_id }),
         (error: unknown) => (error as { code?: string }).code === "host.project_identity_conflict"
           && (error as Error).message.includes(`database:${path.resolve(project.database_path)}`));
+      assert.deepEqual(facts(), before, "both refusals preserve the original project facts");
+      assert.deepEqual(host.callLog!.recent(), [], "project pre-open and scope/identity refusal invoke no action or typed business capability");
     } finally {
       await management.close();
       await host.close();
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });
+});
 
-  it("keeps Molis Work Session, native Runtime Session, surface, Goal and legacy work context separate", () => {
+describe("mcp contexts and resources", () => {
+it("keeps Molis Work Session, native Runtime Session, surface, Goal and legacy work context separate", () => {
     const host = runtimeContextHostFromEnvironment({
       MOLIS_WORK_RUNTIME_ID: "codex",
       MOLIS_WORK_SESSION_ID: "session-molis-work",
@@ -238,7 +251,7 @@ describe("mcp server", () => {
     assert.equal(host.runtimeContext.stable_work_context_id, "host-work-context");
   });
 
-  it("unknown method", async () => {
+it("unknown method", async () => {
     const server = new MolisWorkServer();
     const result = await server.handleMessage({
       jsonrpc: "2.0",
@@ -249,7 +262,7 @@ describe("mcp server", () => {
     assert.equal((result as { error: { code: number } }).error.code, -32601);
   });
 
-  it("serves empty resource and resource-template lists for clients that enumerate them", async () => {
+it("serves empty resource and resource-template lists for clients that enumerate them", async () => {
     const server = new MolisWorkServer();
     const resources = await server.handleMessage({
       jsonrpc: "2.0",
@@ -272,8 +285,10 @@ describe("mcp server", () => {
       [],
     );
   });
+});
 
-  it("lets the current Runtime list, unbind, and separately confirm project deletion", async () => {
+describe("mcp project deletion", () => {
+it("lets the current Runtime list, unbind, and separately confirm project deletion", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-project-lifecycle-"));
     const home = path.join(directory, "home", ".molis-work");
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
@@ -391,8 +406,10 @@ describe("mcp server", () => {
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });
+});
 
-  it("auto-connects one exact workspace project and keeps ambiguous Session overrides local", async () => {
+describe("mcp confirmed Session bindings", () => {
+it("W1-18-SESSION-CONFIRM-01 suggests one exact workspace project and keeps confirmed Session bindings local", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "molis-work-mcp-workspace-routing-"));
     const home = path.join(directory, "home", ".molis-work");
     const workspace = path.join(directory, "ordinary-workspace");
@@ -436,9 +453,9 @@ describe("mcp server", () => {
         connection: { project_id: string } | null;
         suggested_projects: Array<{ project_id: string }>;
       };
-      assert.equal(candidatePayload.status, "bound");
-      assert.equal(candidatePayload.connection?.project_id, first.project_id);
-      assert.deepEqual(candidatePayload.suggested_projects, []);
+      assert.equal(candidatePayload.status, "suggested");
+      assert.equal(candidatePayload.connection, null);
+      assert.deepEqual(candidatePayload.suggested_projects.map(project => project.project_id), [first.project_id]);
 
       const explicitDefault = await call(restarted, "molis_work_v1_context_bind", {
         project_id: first.project_id,
@@ -455,9 +472,9 @@ describe("mcp server", () => {
         connection: { project_id: string } | null;
         suggested_projects: Array<{ project_id: string }>;
       };
-      assert.equal(restoredPayload.status, "bound");
-      assert.equal(restoredPayload.connection?.project_id, first.project_id);
-      assert.deepEqual(restoredPayload.suggested_projects, []);
+      assert.equal(restoredPayload.status, "suggested");
+      assert.equal(restoredPayload.connection, null);
+      assert.deepEqual(restoredPayload.suggested_projects.map(project => project.project_id), [first.project_id]);
 
       const sessionA = { threadId: "codex-thread-a" };
       const sessionB = { threadId: "codex-thread-b" };
@@ -484,5 +501,4 @@ describe("mcp server", () => {
       fs.rmSync(directory, { recursive: true, force: true });
     }
   });
-
 });

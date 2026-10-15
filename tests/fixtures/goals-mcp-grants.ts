@@ -10,7 +10,7 @@ import { serveTestHost } from "./test-home.js";
  * Where the grants are saved. A Home directory: a short-lived Host assembled the way the product assembles it serves that Home for
  * the length of the call, so the test's own Host is never reconfigured. A Home has one open Host at a time, so this is only for a
  * test whose own Host is not bound to that Home (it was made without a `homeDirectory`); otherwise the call fails with
- * `inference.home_in_use`. Or the test's own served Host (`serveTestHost`, `openTestHome`): needed when the Host is bound to the
+ * `agent.inference.home_in_use`. Or the test's own served Host (`serveTestHost`, `openTestHome`): needed when the Host is bound to the
  * Home, or when the actions to grant live on that Host (a provider the test registered on it).
  */
 export type GoalsGrantTarget = string | { readonly web: LocalHostHttpClient };

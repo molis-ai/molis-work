@@ -1,3 +1,4 @@
+import { artifactsErrors } from "./errors.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
   PluginArtifactClient, PluginManifest, PluginStartContext, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput,
@@ -6,14 +7,14 @@ import type {
 import type { ActionDefinition, ActionRegistryPort, SyncActionClient, ActionCallContext, ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { id, version, text, object, nullable, record, processRecord, reference, origin, array } from "./action-schemas.js";
 
-export class PluginArtifactAccessError extends Error {
-  constructor(
-    readonly code: "plugin_artifact_denied" | "plugin_artifact_incompatible",
-    message: string,
-  ) { super(message); this.name = "PluginArtifactAccessError"; }
-}
-
 /** Created by the trusted Host for one installation; authors receive only the returned client. */
+/** What the person is told when a version cannot be used here, by the owner's reason. */
+const UNCONSUMABLE_MESSAGE: Readonly<Record<string, string>> = {
+  artifact_unavailable: "这一版成果已失效，不能再使用；请换一个可用的版本",
+  artifact_archived: "这一版成果已归档，不能再使用；请换一个可用的版本",
+  consumer_missing: "这个插件没有声明能使用这种成果",
+};
+
 export function createPluginArtifactClient(input: {
   api: ArtifactsApplicationApi;
   /** The process items store (specs/artifact-positioning A2): exchange data recorded apart from the 成果库. */
@@ -27,23 +28,27 @@ export function createPluginArtifactClient(input: {
   const { api, process, context, project_id, actor_id } = input;
   const manifest = structuredClone(input.manifest);
   if (manifest.plugin_id !== context.plugin_id || manifest.version !== context.version) {
-    throw new PluginArtifactAccessError("plugin_artifact_denied", "Host 的 Plugin Manifest 与安装上下文不匹配");
+    throw artifactsErrors.plugin_denied("Host 的 Plugin Manifest 与安装上下文不匹配");
   }
   function requirePermission(permission: string): void {
     if (!manifest.permissions.some(item => item.permission === permission)) {
-      throw new PluginArtifactAccessError("plugin_artifact_denied", "Manifest 未声明该成果权限");
+      throw artifactsErrors.plugin_denied("Manifest 未声明该成果权限");
     }
     context.requireGrant(permission);
   }
+  const denied = (reason: string): ActionAvailability => {
+    const error = artifactsErrors.plugin_denied(reason);
+    return { available: false, code: error.code, kind: error.kind, reason: error.message };
+  };
   const available = (permission: string): ActionAvailability => {
     try { requirePermission(permission); return { available: true }; }
-    catch (error) { return { available: false, code: "plugin_artifact_denied", reason: (error as Error).message }; }
+    catch (error) { return denied((error as Error).message); }
   };
   const declares = (list: PluginManifest["artifacts"]["produces"] | undefined, value: { artifact_type_id: string; schema_version: number }) =>
     (list ?? []).some(type => type.artifact_type_id === value.artifact_type_id && type.schema_version === value.schema_version);
   // One ID names one thing: a 成果 and a process item never share it, so a reference always reads back the same record.
   const unused = (other: ArtifactsApplicationApi | ProcessItemsApplicationApi, artifactId: string, what: string) => {
-    if (other.query.latestArtifactVersion(project_id, artifactId)) throw new PluginArtifactAccessError("plugin_artifact_incompatible", `这个 ID 已用于${what}`);
+    if (other.query.latestArtifactVersion(project_id, artifactId)) throw artifactsErrors.plugin_incompatible(`这个 ID 已用于${what}`);
   };
   // Pick fields explicitly: runtime JavaScript must not override bound identity or share authority.
   const fixed = (value: PluginProcessItemInput) => ({
@@ -58,7 +63,7 @@ export function createPluginArtifactClient(input: {
     publish(value) {
       requirePermission("artifact:write");
       if (!declares(manifest.artifacts.produces, value)) {
-        throw new PluginArtifactAccessError("plugin_artifact_incompatible", "Manifest 未声明生产此成果 type/schema");
+        throw artifactsErrors.plugin_incompatible("Manifest 未声明生产此成果 type/schema");
       }
       unused(process, value.artifact_id, "过程项");
       return api.commands.registerVersion({ ...fixed(value), origin: value.origin, title: value.title, media_type: value.media_type,
@@ -67,7 +72,7 @@ export function createPluginArtifactClient(input: {
     record(value) {
       requirePermission("artifact:write");
       if (!declares(manifest.process_items?.produces, value)) {
-        throw new PluginArtifactAccessError("plugin_artifact_incompatible", "Manifest 未声明记下这种过程项");
+        throw artifactsErrors.plugin_incompatible("Manifest 未声明记下这种过程项");
       }
       unused(api, value.artifact_id, "成果");
       return process.commands.registerVersion(fixed(value));
@@ -80,12 +85,13 @@ export function createPluginArtifactClient(input: {
       // A personal 成果 belongs to the Home's person whoever produced it, so any installation reads it by type. A process item
       // belongs to the actor whose installation recorded it (2026-10-07 decided personal 成果 only): no one else's installation reads it.
       if (!pinned && artifact.scope === "personal" && artifact.owner_actor_id !== actor_id) {
-        throw new PluginArtifactAccessError("plugin_artifact_denied", "不能读取其他用户的个人过程项");
+        throw artifactsErrors.plugin_denied("不能读取其他用户的个人过程项");
       }
       const compatibility = pinned ? api.query.consumptionCompatibility(project_id, reference, manifest.artifacts.consumes)
         : process.query.consumptionCompatibility(project_id, reference, manifest.process_items?.consumes ?? []);
       if (!compatibility.consumable) {
-        throw new PluginArtifactAccessError("plugin_artifact_incompatible", compatibility.reason);
+        // The person reads this message wherever the consumer shows the owner's failure; the reason stays in the details.
+        throw artifactsErrors.plugin_incompatible(UNCONSUMABLE_MESSAGE[compatibility.reason] ?? "这一版成果不能在这里使用", { reason: compatibility.reason });
       }
       return artifact;
     },
@@ -117,7 +123,7 @@ export function createPluginArtifactClient(input: {
     provider: { provider_id: providerId, title: `${manifest.name} · 成果 SDK`, kind: "system", project_id: input.actions.project_id },
     definitions: [read, publish, recordItem],
     availability: call => call.actor_id === actor_id && call.plugin_install_id === context.install_id
-      ? { available: true } : { available: false, code: "plugin_artifact_denied", reason: "成果 SDK 属于其他安装实例或用户" },
+      ? { available: true } : denied("成果 SDK 属于其他安装实例或用户"),
     handlers: [
       { ...read, execution: "sync", availability: () => available("artifact:read"), handle: (_call, value) => operations.read(value as Parameters<PluginArtifactClient["read"]>[0]) },
       { ...publish, execution: "sync", availability: () => available("artifact:write"), handle: (_call, value) => operations.publish(value as PluginArtifactPublishInput) },

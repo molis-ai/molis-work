@@ -36,10 +36,10 @@ async function fixture(t: test.TestContext) {
 test("a built-in plugin writes only the types its Manifest declares, each to the store it declares it for", async t => {
   const { coordinator } = await fixture(t);
   // Pages declares documents as 成果 and nothing else.
-  assert.throws(() => coordinator.artifacts.commands.registerVersion(write("pages-stray", "io.molis.work.pages.outline", pages, "未声明")), { code: "artifact.type_undeclared" });
+  assert.throws(() => coordinator.artifacts.commands.registerVersion(write("pages-stray", "io.molis.work.pages.outline", pages, "未声明")), { code: "artifacts.artifact.type_undeclared" });
   // Coding's change set is a process item; its report is a 成果. Neither goes to the other store.
-  assert.throws(() => coordinator.artifacts.commands.registerVersion(write("changeset-in-library", "coding.changeset.v1", coding, "变更集")), { code: "artifact.type_undeclared" });
-  assert.throws(() => coordinator.processItems.commands.registerVersion(write("report-as-process", "coding.report.v1", coding, "报告")), { code: "artifact.type_undeclared" });
+  assert.throws(() => coordinator.artifacts.commands.registerVersion(write("changeset-in-library", "coding.changeset.v1", coding, "变更集")), { code: "artifacts.artifact.type_undeclared" });
+  assert.throws(() => coordinator.processItems.commands.registerVersion(write("report-as-process", "coding.report.v1", coding, "报告")), { code: "artifacts.artifact.type_undeclared" });
   assert.equal(coordinator.artifacts.query.listArtifacts(DEMO_PROJECT_ID).filter(item => ["pages-stray", "changeset-in-library"].includes(item.artifact_id)).length, 0);
   assert.equal(coordinator.processItems.commands.registerVersion(write("changeset-ok", "coding.changeset.v1", coding, "变更集")).replayed, false);
   // A plugin this host did not build in is held to its Manifest by the Plugin Runtime's own clients.

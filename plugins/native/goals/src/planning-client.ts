@@ -32,18 +32,27 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
     const detail=board.querySelector("[data-planning-detail]");
     if(!detail || board.dataset.planningStageBound==="1") return;
     board.dataset.planningStageBound="1";
+    let detailRequest=0;
+    let detailAbort;
     const loadDetail=async(path)=>{
+      const request=++detailRequest;
+      detailAbort?.abort();
+      const abort=new AbortController();detailAbort=abort;
+      const current=()=>request===detailRequest&&!abort.signal.aborted&&board.isConnected&&board.contains(detail);
       board.dataset.planningSplit="detail";
-      detail.innerHTML='<p class="mw-loading" role="status"></p>';detail.firstChild.textContent=L("正在加载设置");
+      detail.innerHTML='<button type="button" class="mw-btn mw-btn--link" data-planning-close></button><p class="mw-loading" role="status"></p>';
+      detail.querySelector("button").textContent=L("返回");detail.querySelector("p").textContent=L("正在加载设置");
       try{
-        const response=await fetch(path,{headers:{Accept:"text/html"}});
+        const response=await fetch(path,{headers:{Accept:"text/html"},signal:abort.signal});
         const html=await response.text();
+        if(!current())return;
         const parsed=new DOMParser().parseFromString(html,"text/html");
         const content=parsed.querySelector(".planning-detail, .planning-edit");
         if(!response.ok || !content) throw new Error(L("无法加载设置"));
         detail.replaceChildren(document.importNode(content,true));
         globalThis.molisWorkBindPlanningSettings?.(detail);
       }catch(error){
+        if(!current())return;
         // The reason and Retry in place, like every list that cannot be read.
         detail.innerHTML='<div class="mw-empty mw-empty--error" role="alert"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button></div>';
         detail.querySelector("strong").textContent=L("无法加载设置");
@@ -53,11 +62,13 @@ export const PLANNING_SETTINGS_CLIENT_SCRIPT = `
       }
     };
     const closeDetail=()=>{
+      ++detailRequest;detailAbort?.abort();
       board.dataset.planningSplit="hero";
       detail.replaceChildren();
       board.querySelectorAll("[data-planning-open][aria-current]").forEach((item)=>item.removeAttribute("aria-current"));
     };
     board.addEventListener("click",(event)=>{
+      if(event.target.closest("[data-planning-close]")){closeDetail();return;}
       if(event.target.closest("[data-adopt-planning-method]")) return;
       const opener=event.target.closest("[data-planning-open]");
       if(opener && board.contains(opener)){

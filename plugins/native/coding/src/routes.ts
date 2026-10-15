@@ -1,7 +1,8 @@
 import { CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
-import { codingRouteActions } from "./route-actions.js";
+import { dispatchCodingDelegation } from "./delegation-dispatch.js";
+import { codingBackgroundState } from "./background-state.js";
+import { codingActionControl, codingRouteEntry, type CodingBeforeWrite } from "./route-entry.js";
 import { codingReportSteps } from "./report-steps.js";
 import { parseFilePath } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingWriterAssignments } from "./writers.js";
@@ -17,8 +18,8 @@ import { chosenEffort, nextConfiguration, runControl, text } from "./run-inputs.
 import type { AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingArtifacts, CODING_REPORT_TYPE } from "./artifacts.js";
 import { codingReportPreview, codingReportPublication, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
-import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
-import { currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { currentGoalDirectory, readCurrentGoalSnapshot, currentGoalContext, savedGoalContext, saveGoalContext, resolveGoalContext, runGoalContext } from "./goal-context.js";
 import { codingContinuation, CONTINUATION_MARKER } from "./continuation.js";
 import { COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
@@ -100,7 +101,7 @@ function mcpSources(value: unknown): AgentMcpSourceRef[] {
 }
 /** A capability this host does not offer reads as nothing chosen; any other failure is still a failure. */
 const unlessMissing = <T>(call: Promise<T>, fallback: T): Promise<T> =>
-  call.catch((error: unknown) => { if ((error as { code?: unknown })?.code === "kernel.capability_missing") return fallback; throw error; });
+  call.catch((error: unknown) => { if ((error as { code?: unknown })?.code === "actions.dependency_missing") return fallback; throw error; });
 /** A delegation's letters are the people's to answer, at their pace: they are kept a year before they lapse. */
 const DELEGATION_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 /** A person's plan change, checked before it reaches the Host. */
@@ -308,23 +309,13 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : "会话暂不可读" }); }
     }
     // Parked sessions, from the SDK; the loop that takes fired waits up is (re)started here, after a restart too.
-    const parked = new Map<string, AgentWait>(), running = new Map<string, { task_id: string; summary: string; started_at_ms: number }[]>();
+    const parked = new Map<string, AgentWait>(), backgroundUnreadable = await codingBackgroundState(api, records, execution.sessions, projectId);
     for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
       try { for (const [session, wait] of await openWaits(api, runtimeId)) parked.set(`${runtimeId}:${session}`, wait); } catch { /* shown as not waiting */ }
-      // Background commands still running, kept on each session so the list across projects can show them.
-      try {
-        for (const task of await api.invoke(agent.readBackground, [runtimeId])) if (task.state === "running") {
-          const key = `${runtimeId}:${task.session_id}`;
-          running.set(key, [...running.get(key) ?? [], { task_id: task.task_id, summary: task.summary, started_at_ms: task.started_at_ms }]);
-        }
-      } catch { /* left as last read */ }
       wakeLoop(api, execution, runtimeId);
     }
-    for (const record of records) if (record.runtime_session_id) {
-      const now = running.get(`${record.runtime_id}:${record.runtime_session_id}`) ?? null;
-      if (JSON.stringify(now) !== JSON.stringify(execution.sessions.backgroundOf(projectId, record.session_id))) execution.sessions.setBackground(projectId, record.session_id, now);
-    }
     const sessions = records.map(record => {
+      const background_unreadable = backgroundUnreadable.has(record.runtime_id);
       let checkpointBusy = false, steps = execution.sessions.stepsOf(projectId, record.session_id);
       // A parked session waits whatever its last round did — unless a round is under way right now.
       const wait = record.runtime_session_id ? parked.get(`${record.runtime_id}:${record.runtime_session_id}`) : undefined;
@@ -332,7 +323,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       const active = status && !("error" in status) && status.latest_phase && !isTerminalAgentPhase(status.latest_phase);
       if (wait && !active) {
         if (record.state !== "queued") record = execution.sessions.setState(projectId, record.session_id, "queued", record.updated_at);
-        return { ...record, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: waitView(wait),
+        return { ...record, background_unreadable, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: waitView(wait),
           goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
       }
       if (record.runtime_session_id) {
@@ -349,7 +340,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
           record = execution.sessions.setState(projectId, record.session_id, "reconcile-required", record.updated_at);
         }
       }
-      return { ...record, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
+      return { ...record, background_unreadable, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
     });
     const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
     const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
@@ -369,7 +360,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
    * done. The same checks run either way; nothing about a queued round is decided at the moment it starts.
    */
   const startRound = async (record: ReturnType<typeof selected>, body: Record<string, unknown>, actorId: string,
-    api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts, beforeWrite: () => Promise<void> = async () => {}) => {
+    api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, execution: CodingExecutionPorts, beforeWrite: CodingBeforeWrite = Object.assign(async () => {}, { assert_current: () => stopped.signal.throwIfAborted() })) => {
         // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
     const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
     if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("继续计划需要原计划修订，并以执行或并行写入方式开始");
@@ -426,11 +417,12 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
   execution.characters.resolve(character);
     }
-    const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null);
+    const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null, codingActionControl(beforeWrite));
     const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), sessionTitle(execution));
     if (goal) text_materials.unshift(goal.material);
     if (plan) text_materials.unshift(planMaterial(plan));
     if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
+    await beforeWrite(); beforeWrite.assert_current();
     const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
   : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
     if (!record.runtime_session_id) execution.sessions.setRuntimeSession(projectId, record.session_id, session.session_id, new Date().toISOString());
@@ -469,26 +461,32 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   history = "digest"; historyReason = "完整的对话历史已放不进模型窗口";
   run = await start("digest");
     }
-    if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
-    // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
-    // The round has started either way; the delegation shows its own last recorded state.
-    if (session.runtime_id === "prologue") await startDelegation(record, api!, session.session_id).catch(() => undefined);
-    if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
-    // A session named by default takes its name from the first task, the way a person would label it.
-    if (firstRound && execution.sessions.get(projectId, record.session_id).title === DEFAULT_SESSION_TITLE) execution.sessions.rename(projectId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
-    execution.sessions.setState(projectId, record.session_id, "running", new Date().toISOString());
-    // How this round was started, so a round woken later (an answer arrived) starts the same way.
-    // A round woken later is a plain round in the same way of working: without the plan it ran or the directory split.
-    // A round continued from a breakpoint goes on with the task it continues, not the continuation's own wording.
-    const lastStart = (() => { try { return JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as { origin_task?: unknown } | null; } catch { return null; } })();
-    const continued = typeof body.task === "string" && body.task.startsWith(CONTINUATION_MARKER) && typeof lastStart?.origin_task === "string";
-    context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
-      ...(effort ? { reasoning_effort: effort } : {}),
-      workspace_id: body.workspace_id, actor_id: actorId,
-      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
-    follow(api!, execution, record.session_id, session, run.ref, workspace.workspace_id);
-    return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
-  ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
+    try {
+      await beforeWrite(); beforeWrite.assert_current();
+      if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
+      // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
+      // The round has started either way; the delegation shows its own last recorded state.
+      if (session.runtime_id === "prologue") await startDelegation(record, context.services!.capabilities!, session.session_id).catch(() => undefined);
+      await beforeWrite(); beforeWrite.assert_current();
+      if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
+      // A session named by default takes its name from the first task, the way a person would label it.
+      if (firstRound && execution.sessions.get(projectId, record.session_id).title === DEFAULT_SESSION_TITLE) execution.sessions.rename(projectId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
+      execution.sessions.setState(projectId, record.session_id, "running", new Date().toISOString());
+      // How this round was started, so a round woken later (an answer arrived) starts the same way.
+      // A round woken later is a plain round in the same way of working: without the plan it ran or the directory split.
+      // A round continued from a breakpoint goes on with the task it continues, not the continuation's own wording.
+      const lastStart = (() => { try { return JSON.parse(context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as { origin_task?: unknown } | null; } catch { return null; } })();
+      const continued = typeof body.task === "string" && body.task.startsWith(CONTINUATION_MARKER) && typeof lastStart?.origin_task === "string";
+      context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
+        ...(effort ? { reasoning_effort: effort } : {}),
+        workspace_id: body.workspace_id, actor_id: actorId,
+        origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
+      return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
+    ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
+    } finally {
+      // R-CODING-RECEIPT-01/02: accepted work keeps its activation follower even when the caller cannot finish its receipt.
+      follow(context.services!.capabilities!, ports ?? execution, record.session_id, session, run.ref, workspace.workspace_id);
+    }
   };
   /*
    * A session parked until something happens: the model waits for an answer or a background command, or the person
@@ -541,16 +539,20 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
   };
   const waking = new Set<string>();
   /** One loop per runtime: it waits for waits to fire (no polling of the things they wait on) and takes them up. */
-  const wakeLoop = (api: Capabilities, execution: CodingExecutionPorts, runtimeId: string) => {
+  const wakeLoop = (_api: Capabilities, _execution: CodingExecutionPorts, runtimeId: string) => {
+    const api = context.services!.capabilities!, execution = ports ?? _execution;
     if (waking.has(runtimeId) || stopped.signal.aborted) return;
     waking.add(runtimeId);
     void (async () => {
       const held = new Set<string>();
-      // A Host that keeps no waits, or has gone, answers with errors: after a few the loop stops (a later read restarts it).
-      for (let failures = 0; failures < 3 && !stopped.signal.aborted;) {
+      // Transient read failures back off while this activation is alive; opening a page is not a recovery mechanism.
+      for (let failures = 0; !stopped.signal.aborted;) {
         let fired: AgentWait[];
-        try { fired = await api.invoke(agent.awaitFiredWaits, [runtimeId, 25_000, [...held]]); failures = 0; }
-        catch { failures += 1; await pause(5_000); continue; }
+        try { fired = await api.invoke(agent.awaitFiredWaits, [runtimeId, 25_000, [...held]], { signal: stopped.signal }); failures = 0; }
+        catch (error) {
+          if (error && typeof error === "object" && "code" in error && error.code === "agent.capability_unavailable") break;
+          failures += 1; await pause(Math.min(30_000, failures * 5_000)); continue;
+        }
         if (stopped.signal.aborted) break;
         let later = false;
         for (const wait of fired) {
@@ -562,6 +564,13 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       }
     })().catch(() => undefined).finally(() => waking.delete(runtimeId));
   };
+  // Recovery after a restart: only a project with sessions tied to an Agent run starts the Agent runtime here. Starting the
+  // plugin (or discovering its actions) must not initialize the runtime's storage when there is nothing to wake.
+  const resumable = () => new Set(ports!.sessions.list(projectId).filter(record => record.runtime_session_id).map(record => record.runtime_id));
+  if (ports && context.services?.capabilities && resumable().size) void ports.ready().then(() => {
+    if (stopped.signal.aborted) return;
+    for (const runtimeId of resumable()) wakeLoop(context.services!.capabilities!, ports, runtimeId);
+  }).catch(() => undefined);
   /** The workspace a send names, as the directory it will run in. */
   const directoryOf = async (api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, workspaceId: unknown) => {
     const workspace = (await api.invoke(projectSettingsCapabilities.workspaces, [])).find(entry => entry.workspace_id === workspaceId);
@@ -588,35 +597,13 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       : code === "actions.forbidden" || code === "actions.owner_mismatch" ? 403 : code === "actions.unredeemed" ? 503 : 400,
       body: { error: error instanceof Error ? error.message : "Coding 操作失败", ...(code ? { code } : {}) } };
   };
-  const unassembled = () => Object.assign(new Error("Coding 执行入口尚未装配"), { code: "actions.unredeemed" });
-  const route = (route_id: string, handle: (request: PluginRouteRequest, api: NonNullable<PluginStartContext["services"]>["capabilities"], execution: CodingExecutionPorts, beforeWrite: () => Promise<void>) => Promise<unknown>): PluginRouteBinding => {
-    const execute = async (request: PluginRouteRequest, beforeWrite: () => Promise<void> = async () => {}) => {
-      const api = context.services?.capabilities;
-      if (!ports || !api || !projectId) throw unassembled();
-      await ports.ready();
-      return handle(request, api, ports, beforeWrite);
-    };
-    const action = codingRouteActions[route_id];
-    if (!action) return { route_id, async handle(request) {
-      try { return { status: 200, body: await execute(request) }; }
-      catch (error) { return (error as { code?: string }).code === "actions.unredeemed" ? { status: 503, body: { error: "Coding 执行入口尚未装配" } } : failure(error); }
-    } };
-    // The business surface is one owner-bound action; the route only translates its old parameters and status codes.
-    actions.push(bindOwnerPluginAction(context, action.definition, (input, beforeWrite) => execute({ ...action.toRequest(input), pathname: "", actor_id: context.actor_id! }, beforeWrite)));
-    return { route_id, async handle(request) {
-      if (!context.actor_id || request.actor_id !== context.actor_id) return { status: 403, body: { error: "调用者与当前插件入口不一致", code: "actions.forbidden" } };
-      try {
-        if (!context.services?.actions) throw Object.assign(new Error("宿主未提供系统动作调用入口"), { code: "actions.unredeemed" });
-        return { status: 200, body: await context.services.actions.invoke(action.definition, action.toInput(request)) };
-      } catch (error) { return failure(error); }
-    } };
-  };
+  const route = codingRouteEntry(context, ports, actions, () => !stopped.signal.aborted, failure);
   const selected = (request: PluginRouteRequest, execution: CodingExecutionPorts) =>
     execution.sessions.get(projectId, request.params.sessionId ?? "");
-  const reportRoute = (save: boolean) => route(save ? "coding.save-report" : "coding.read-report", async (request, api, execution) =>
-    roundReport(selected(request, execution), text(request.params.runId, "执行引用"), api!, save, request.query?.fixed === "1"));
+  const reportRoute = (save: boolean) => route(save ? "coding.save-report" : "coding.read-report", async (request, api, execution, beforeWrite) =>
+    roundReport(selected(request, execution), text(request.params.runId, "执行引用"), api, save, beforeWrite, request.query?.fixed === "1"));
   /** A round's report: the fixed version when there is one; built from the round and, when asked, fixed now. */
-  const roundReport = async (record: CodingSessionRecord, runId: string, api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, save: boolean, fixedOnly = false) => {
+  const roundReport = async (record: CodingSessionRecord, runId: string, api: NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>, save: boolean, beforeWrite: CodingBeforeWrite, fixedOnly = false) => {
     const artifacts = codingArtifacts(context);
     const existing = readCodingExecutionReport(artifacts, record.session_id, runId);
     if (existing) return existing;
@@ -639,6 +626,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     if (!save) return { report, reference: null, saved_at: null };
     // No asynchronous gap between recheck and publish: concurrent clicks share
     // the existing fixed version, even if their evidence reads finished later.
+    await beforeWrite(); beforeWrite.assert_current();
     const saved = readCodingExecutionReport(artifacts, record.session_id, runId);
     if (saved) return saved;
     const reference = codingReportReference(record.session_id, runId);
@@ -659,7 +647,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const current = outputs.reference("report");
     return { reference: saved.reference, current, selected: current?.artifact_id === saved.reference.artifact_id && current?.version === saved.reference.version };
   });
-  const reportProgress = (write: boolean) => route(write ? "coding.record-report-progress" : "coding.report-progress", async (request, api, execution) => {
+  const reportProgress = (write: boolean) => route(write ? "coding.record-report-progress" : "coding.report-progress", async (request, _api, execution, beforeWrite) => {
     const session = selected(request, execution);
     const runId = text(request.params.runId, "执行引用");
     const saved = readCodingExecutionReport(codingArtifacts(context), session.session_id, runId);
@@ -671,9 +659,9 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     const actorId = request.actor_id;
     if (!actorId) throw new Error("当前操作缺少用户身份");
     if (!write) {
-      const receipt = await api!.invoke(goalProgressCapabilities.receipt, { goal_id: goalId, idempotency_key: idempotencyKey });
+      const receipt = await context.services!.actions!.invoke(goalPluginActions.receipt, { goal_id: goalId, idempotency_key: idempotencyKey }, codingActionControl(beforeWrite));
       if (receipt) return { report_goal: report.goal, reference, title: report.title, recorded: receipt, current: null };
-      const current = await api!.invoke(goalContextCapabilities.read, { goal_id: goalId });
+      const current = await readCurrentGoalSnapshot(context, goalId, codingActionControl(beforeWrite));
       return { report_goal: report.goal, reference, title: report.title, recorded: null, current };
     }
     const body = bodyOf(request);
@@ -681,18 +669,18 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     if (typeof cursor !== "number" || !Number.isSafeInteger(cursor) || cursor < 0) throw new Error("请先查看原目标当前版本，再确认记录进展");
     // The original Goal transaction checks replay first, then versions and write.
     // Nothing is derived from a browser-supplied report, Goal id, or source body.
-    return api!.invoke(goalProgressCapabilities.record, {
+    return context.services!.actions!.invoke(goalPluginActions.progress, {
       goal_id: goalId, idempotency_key: idempotencyKey,
       based_on_cursor: cursor, expected_goal_cursor: cursor,
       summary: text(body.summary, "进展内容", 10000),
       ...(body.next_step ? { next_step: text(body.next_step, "下一步", 10000) } : {}),
       source: { ...reference, title: report.title, origin: { plugin_id: "coding", item_id: reference.artifact_id } },
-    });
+    }, codingActionControl(beforeWrite));
   });
   return [
     route("coding.writer-directories", async (request, api) => ({ directories: await api!.invoke(writerDirectoryCapabilities.list, { workspace_id: text(request.params.workspaceId, "主工作区") }) })),
     route("coding.prepare-writer-directory", async (request, api) => api!.invoke(writerDirectoryCapabilities.prepare, { workspace_id: text(request.params.workspaceId, "主工作区"), operation_id: text(bodyOf(request).operation_id, "操作标识", 80) })),
-    ...[false, true].map(save => route(save ? "coding.save-changeset" : "coding.read-changeset", async (request, api, execution) => {
+    ...[false, true].map(save => route(save ? "coding.save-changeset" : "coding.read-changeset", async (request, api, execution, beforeWrite) => {
       const record = selected(request, execution), runId = text(request.params.runId, "执行引用");
       const artifacts = codingArtifacts(context);
       const existing = readCodingChangeSet(artifacts, record.session_id, runId);
@@ -705,6 +693,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       const run = await api!.invoke(agent.readRun, [session, ref]);
       const change = createCodingChangeSet(record.session_id, run, await api!.invoke(agent.readRunReviews, [session, ref]));
       if (!save) return { change, reference: null, saved_at: null, output: context.services!.outputs!.reference("changeset") };
+      await beforeWrite(); beforeWrite.assert_current();
       const saved = readCodingChangeSet(artifacts, record.session_id, runId);
       if (saved) return { ...saved, output: context.services!.outputs!.reference("changeset") };
       const reference = codingChangeSetReference(record.session_id, runId);
@@ -727,11 +716,9 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       return { task: codingChangeFeedback(saved.change, bodyOf(request).comments), reference: saved.reference };
     }),
     reportRoute(false), reportRoute(true), reportOutput(false), reportOutput(true), reportProgress(false), reportProgress(true),
-    route("coding.goals", async (request, api) => api!.invoke(goalContextCapabilities.list, {
-      ...(request.query?.after_cursor ? { after_cursor: String(request.query.after_cursor) } : {}),
-    })),
-    route("coding.goal-context", async (request) => {
-      const value = await currentGoalContext(context, text(request.params.goalId, "目标"));
+    route("coding.goals", async (request, _api, _execution, beforeWrite) => currentGoalDirectory(context, request.query?.after_cursor ? String(request.query.after_cursor) : undefined, codingActionControl(beforeWrite))),
+    route("coding.goal-context", async (request, _api, _execution, beforeWrite) => {
+      const value = await currentGoalContext(context, text(request.params.goalId, "目标"), codingActionControl(beforeWrite));
       return { ...value, text: value.material.text };
     }),
     route("coding.read-goal", async (request, _api, execution) => {
@@ -740,13 +727,14 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       try { return { goal_id: record.goal_id, selected: savedGoalContext(context, record.session_id) }; }
       catch (error) { return { goal_id: record.goal_id, selected: null, error: error instanceof Error ? error.message : "固定目标不可读" }; }
     }),
-    route("coding.select-goal", async (request, _api, execution) => {
+    route("coding.select-goal", async (request, _api, execution, beforeWrite) => {
       const record = selected(request, execution), body = bodyOf(request);
       if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标");
       const goalId = body.goal_id === null ? null : text(body.goal_id, "目标");
       if (goalId) {
-        const value = await currentGoalContext(context, goalId);
+        const value = await currentGoalContext(context, goalId, codingActionControl(beforeWrite));
         if (value.reference.artifact_id !== body.expected_artifact_id) throw new Error("目标内容已变化，请重新查看后确认");
+        await beforeWrite(); beforeWrite.assert_current();
         if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标");
         saveGoalContext(context, record.session_id, value);
       }
@@ -852,7 +840,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       }
       return { plan: execution.sessions.plan(projectId, record.session_id) };
     }),
-    route("coding.save-plan", async (request, api, execution) => {
+    route("coding.save-plan", async (request, api, execution, beforeWrite) => {
       const record = selected(request, execution), body = bodyOf(request);
       if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后调整下一版计划");
       const expected = body.expected_revision;
@@ -878,6 +866,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
         if (!current) throw new Error("请先从规划轮次形成计划");
         proposal = { source: current.source, content: parseCodingPlan(body.content) };
       }
+      await beforeWrite(); beforeWrite.assert_current();
       if (current?.confirmed && !proposal.content.change_reason) throw new Error("调整已确认计划时，请说明变更理由");
       if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后调整下一版计划");
       const plan = execution.sessions.savePlan(projectId, record.session_id, Number(expected), {
@@ -912,7 +901,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
         ...(typeof file.resolution === "string" ? { resolution: file.resolution.length <= 262_144 ? file.resolution : (() => { throw new Error("合并结果过长"); })() } : {}) }));
       return api!.invoke(writerIntegrationCapabilities.prepare, { ...source, operation_id: text(body.operation_id, "操作标识", 80), files });
     })),
-    route("coding.evaluate-step", async (request, api, execution) => {
+    route("coding.evaluate-step", async (request, api, execution, beforeWrite) => {
       const record = selected(request, execution), body = bodyOf(request);
       if (!record.runtime_session_id) throw new Error("此会话没有执行记录");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -928,6 +917,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (!["accepted", "needs-work"].includes(String(body.action)) || body.action === "accepted" && node.state !== "succeeded") throw new Error("只有模型报告成功的步骤可以验收通过；其他结果可要求返工");
       const notes = typeof body.notes === "string" ? body.notes.trim() : "";
       if (notes.length > 4000 || body.action === "needs-work" && !notes) throw new Error("返工需写明原因，说明最多 4000 字符");
+      await beforeWrite(); beforeWrite.assert_current();
       const key = stepVerdictKey(record.session_id, ref.run_id, node.id), saved = context.services!.storage!.get(key);
       const revision = typeof saved === "string" ? JSON.parse(saved).revision : 0;
       if (body.expected_revision !== revision) throw new Error("评价已变化，请重新查看后提交");
@@ -935,7 +925,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       context.services!.storage!.set(key, JSON.stringify(verdict));
       return { verdict };
     }),
-    route("coding.control-subagent", async (request, api, execution) => {
+    route("coding.control-subagent", async (request, api, execution, beforeWrite) => {
       const record = selected(request, execution), body = bodyOf(request);
       if (!record.runtime_session_id) throw new Error("此会话没有执行记录");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -948,6 +938,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
         if (!["accepted", "needs-work"].includes(String(body.action)) || child.state !== "completed") throw new Error("只有已结束的成功执行可以评价结果，失败或中断需先核对");
         const notes = typeof body.notes === "string" ? body.notes.trim() : "";
         if (notes.length > 4000 || body.action === "needs-work" && !notes) throw new Error("返工需写明原因，说明最多 4000 字符");
+        await beforeWrite(); beforeWrite.assert_current();
         const key = `subagent-verdict:${record.session_id}:${run.run_id}:${child.subagent_id}`;
         const previous = context.services!.storage!.get(key);
         const revision = typeof previous === "string" ? JSON.parse(previous).revision : 0;
@@ -1127,7 +1118,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     }),
     // Delegating creates a session with the task as its draft and sends it the letter; nothing runs until that
     // session's person sends it.
-    route("coding.delegate", async (request, api, execution) => {
+    route("coding.delegate", async (request, api, execution, beforeWrite) => {
       const record = selected(request, execution), body = bodyOf(request);
       if (record.runtime_id !== "prologue") throw new Error("委派经 Prologue 的会话间通信送达，这个会话用的是别的运行时");
       const task = text(body.task, "委派的任务", 20_000), title = text(body.title ?? codingSessionTitleFrom(task), "委派标题", 80);
@@ -1138,25 +1129,9 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       const letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
       const hops = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1)?.hops ?? 0;
       if (hops + 1 > MAX_DELEGATION_HOPS) throw new Error(`委派最多转交 ${MAX_DELEGATION_HOPS} 层；这个会话本身已是第 ${hops} 层委派`);
-      const at = new Date().toISOString();
-      const target = execution.sessions.create({ project_id: projectId, session_id: crypto.randomUUID(), title: "委派：" + title, runtime_id: "prologue", at });
-      try {
-        context.services!.storage!.set(`draft:${target.session_id}`, task);
-        if (materials.length) context.services!.storage!.set(`materials:${target.session_id}`, JSON.stringify(materials));
-        // The work happens where the asking session works, with its model, unless the receiving person changes them.
-        const configuration = context.services!.storage!.get(`configuration:${record.session_id}`);
-        if (typeof configuration === "string") context.services!.storage!.set(`configuration:${target.session_id}`, configuration);
-        const theirs = await runtimeSessionOf(target, api!, execution, request.actor_id);
-        const sent = await api!.invoke(agent.sendPeopleMessage, [record.runtime_id, { from_session: mine, to_session: theirs, kind: "request", body: JSON.stringify({ title, task }),
-          attachments: materials.map(asAttachment), ttl_ms: DELEGATION_TTL_MS, hops }]);
-        // The session made for it holds it as its draft: it has arrived.
-        const delivered = await api!.invoke(agent.actOnPeopleMessage, [record.runtime_id, sent.message_id, "deliver", {}]);
-        return { delegation: delegationView(execution, delivered, []), session: execution.sessions.get(projectId, target.session_id) };
-      } catch (error) {
-        // Nothing was sent: the session made for it is put away rather than left waiting on a letter that never came.
-        execution.sessions.archive(projectId, target.session_id, new Date().toISOString());
-        throw error;
-      }
+      return dispatchCodingDelegation(context, api, execution, ports ?? execution, record,
+        { mine, task, title, materials, hops, ttlMs: DELEGATION_TTL_MS }, beforeWrite,
+        target => runtimeSessionOf(target, api, execution, request.actor_id), (letter, observed, side) => delegationView(side, letter, observed));
     }),
     route("coding.delegation-action", async (request, api, execution) => {
       const record = selected(request, execution), body = bodyOf(request);
@@ -1177,6 +1152,9 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
         // Accepted, not started yet: turning it down after all ends it the same way.
         else if (view.state === "accepted") next = await act("cancel", { event: "rejected", note: reason });
         else throw new Error("已经开始执行的委派不能再拒绝；可以交付成果，或请发起的会话取消");
+      } else if (body.action === "deliver") {
+        if (letter.from_session !== mine) throw new Error("只有发起委派的会话可以核对并继续送达");
+        next = letter.state === "queued" ? await act("deliver") : letter;
       } else if (body.action === "cancel") {
         if (letter.from_session !== mine) throw new Error("只有发起委派的会话可以取消");
         if (ended) return lateOnly(api!, record.runtime_id, letter, view.state_label, "cancelled", reason);
@@ -1186,7 +1164,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     }),
     // Handing a finished round back: its report is fixed now if it was not yet; a fixed change must already be saved.
     // The delivery is a reply to the delegation's letter.
-    route("coding.delegation-deliver", async (request, api, execution) => {
+    route("coding.delegation-deliver", async (request, api, execution, beforeWrite) => {
       const record = selected(request, execution), body = bodyOf(request);
       const { letter, view, mine } = await delegationOf(record, api!, execution, text(request.params.delegationId, "委派"), body.expected_revision);
       if (letter.to_session !== mine) throw new Error("只有接收委派的会话可以交付成果");
@@ -1196,7 +1174,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (DELEGATION_ENDED.includes(view.state)) return lateOnly(api!, record.runtime_id, letter, view.state_label, "delivery-sent", note);
       if (view.deliveries.some(delivery => delivery.state === "sent")) throw new Error("上一次交付还在等发起的会话决定");
       let artifact, title;
-      if (kind === "report") { const saved = await roundReport(record, runId, api!, true); if (!saved.reference) throw new Error("这一轮的报告没有固定下来"); artifact = saved.reference; title = saved.report.title; }
+      if (kind === "report") { const saved = await roundReport(record, runId, api, true, beforeWrite); if (!saved.reference) throw new Error("这一轮的报告没有固定下来"); artifact = saved.reference; title = saved.report.title; }
       else { const saved = readCodingChangeSet(codingArtifacts(context), record.session_id, runId); if (!saved) throw new Error("请先固定这一轮的变更，再交付"); artifact = saved.reference; title = "固定变更"; }
       const reply = await api!.invoke(agent.sendPeopleMessage, [record.runtime_id, { from_session: mine, to_session: letter.from_session, kind: "reply", in_reply_to: letter.message_id,
         body: JSON.stringify({ kind, run_id: runId, title, note }), attachments: [asAttachment(artifact)], ttl_ms: DELEGATION_TTL_MS }]);
@@ -1207,7 +1185,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
     }),
     // The asking session decides: taking a delivery completes the delegation and attaches it to the next round;
     // returning it says why, and the work stays with the other session.
-    route("coding.delegation-decide", async (request, api, execution) => {
+    route("coding.delegation-decide", async (request, api, execution, beforeWrite) => {
       const record = selected(request, execution), body = bodyOf(request);
       const { letter, letters, view, mine } = await delegationOf(record, api!, execution, text(request.params.delegationId, "委派"), body.expected_revision);
       if (letter.from_session !== mine) throw new Error("只有发起委派的会话可以决定是否收下交付");
@@ -1228,11 +1206,19 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       } else {
         if (!delivery.artifact) throw new Error("这次交付没有带上固定成果");
         resolveMaterials(context, [delivery.artifact], sessionTitle(execution));
+        await beforeWrite(); beforeWrite.assert_current();
+        if (busy.has(record.session_id)) throw new Error("这个会话正在提交任务或收下交付");
+        busy.add(record.session_id);
+        try {
+        const saved = savedMaterials(context, record.session_id);
+        const included = saved.some(ref => ref.artifact_id === delivery.artifact!.artifact_id && ref.version === delivery.artifact!.version);
+        if (!included && saved.length >= 30) throw new Error("下一轮材料已达到 30 项；请先移除一项，再收下这次交付");
         await on(reply.message_id, "accept"); await on(reply.message_id, "complete");
         await on(letter.message_id, "complete", { event: "delivery-accepted", attachments: handed });
-        const saved = savedMaterials(context, record.session_id);
-        if (!saved.some(ref => ref.artifact_id === delivery.artifact!.artifact_id && ref.version === delivery.artifact!.version) && saved.length < 30)
+        await beforeWrite(); beforeWrite.assert_current();
+        if (!included)
           context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify([...saved, delivery.artifact]));
+        } finally { busy.delete(record.session_id); }
       }
       const now = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
       return { delegation: delegationView(execution, now.find(one => one.message_id === letter.message_id)!, now), ...(body.decision === "accept" ? { attached: true } : {}) };
@@ -1350,6 +1336,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       }
       if (record.archived) throw new Error("会话已归档，不能再修改");
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
+      if (materials && busy.has(record.session_id)) throw new Error("正在提交任务或收下交付，请稍后修改材料");
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       const character = body.character === undefined ? undefined : characterSelection(body.character);
       const characterSkills = body.character_skill_ids === undefined ? undefined : characterSkillSelection(body.character_skill_ids);
@@ -1439,7 +1426,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       return { overlaps };
     }),
     // A parked session: start it now (the wait is taken up by the person), or give the wait up.
-    route("coding.queued-round", async (request, api, execution) => {
+    route("coding.queued-round", async (request, api, execution, beforeWrite) => {
       const record = selected(request, execution), wait = await openWaitOf(api!, record), action = bodyOf(request).action;
       if (!wait) throw new Error("这个会话没有在等待");
       if (action === "cancel") {
@@ -1455,7 +1442,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       if (busy.has(record.session_id)) throw Object.assign(new Error("这个会话正在提交任务"), { code: "agent.session_busy" });
       busy.add(record.session_id);
       try {
-        const started = await startRound(record, wakeBody(record, wait, true), request.actor_id, api!, execution);
+        const started = await startRound(record, wakeBody(record, wait, true), request.actor_id, api, execution, beforeWrite);
         await api!.invoke(agent.resumeWait, [record.runtime_id, wait.wait_id, "用户选择现在开始"]).catch(() => undefined);
         return started;
       } finally { busy.delete(record.session_id); }

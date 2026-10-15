@@ -40,11 +40,12 @@ pnpm --filter @molis-ai/molis-work-service-placement build
 - 公开入口：`@molis-ai/molis-work-service-placement`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/placement`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同；关系存储、位置列表与按位置打开的动作客户端由 Host 注入（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - Host 每次调用创建保留原信号和同步授权检查的服务端口；关系、标题缓存与跨 owner 目标提交在各自实际写点复查。共享服务不保存可覆盖的当前 caller，已知部分提交保留供人核对。
   - 对象正文与是否存在只向所有者读取；本服务只保存自己记下的关系与最近见过的标题（缓存）。
   - 移动保持对象身份，旧引用经位置索引找到新位置；移入某项目时，指向该项目的“用于项目”关系自动去掉。
   - 删除与读不到分开：所有者报 `not_found` 才是“原对象已删除”，其余是“暂时读不到”并带原因。
   - 改变位置与访问范围的动作只对本机用户开放；助理和工作流只能读取描述。
-- 改动后必跑：`node scripts/run-tests.mjs tests/work-placement.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/work-placement-restart.test.ts tests/work-placement.test.ts`
 - 相关手册：[specs/archive/work-placement/spec.md](../../specs/archive/work-placement/spec.md)、[skills/molis-plugin-dev/placement.md](../../skills/molis-plugin-dev/placement.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

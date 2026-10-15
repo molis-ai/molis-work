@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   HostCapabilityDefinition,
   HostCapabilityDescriptor,
@@ -23,14 +24,11 @@ export type CapabilityHandler<Context, Input, Output> = (
   input: Input,
 ) => Output | Promise<Output>;
 
-export class CapabilityRegistryError extends Error {
-  constructor(
-    readonly code: "kernel.capability_invalid" | "kernel.capability_duplicate" | "kernel.capability_missing",
-    message: string,
-  ) {
-    super(message);
-  }
-}
+const kernelErrors = defineErrorCodes("kernel", {
+  capability_invalid: "invalid",
+  capability_duplicate: "invalid",
+  capability_missing: "invalid",
+});
 
 interface RegisteredCapability<Context> {
   token: symbol;
@@ -45,16 +43,15 @@ function normalizedDescriptor<Input, Output>(
 ): HostCapabilityDescriptor {
   const capabilityId = definition.capability_id.trim();
   if (!capabilityId || !Number.isInteger(definition.version) || definition.version < 1) {
-    throw new CapabilityRegistryError("kernel.capability_invalid", "Capability 必须有非空 ID 和正整数版本");
+    throw kernelErrors.capability_invalid("Capability 必须有非空 ID 和正整数版本");
   }
   if (definition.operation !== "query" && definition.operation !== "command" && definition.operation !== "wait") {
-    throw new CapabilityRegistryError("kernel.capability_invalid", "Capability operation 必须是 query、command 或 wait");
+    throw kernelErrors.capability_invalid("Capability operation 必须是 query、command 或 wait");
   }
   return {
     capability_id: capabilityId,
     version: definition.version,
     operation: definition.operation,
-    ...(definition.host_only ? { host_only: true } : {}),
     ...(definition.scheduling === "concurrent" ? { scheduling: "concurrent" as const } : {}),
     ...(definition.action ? { action: structuredClone(definition.action) } : {}),
     ...(definition.action_provider ? { action_provider: structuredClone(definition.action_provider) } : {}),
@@ -84,10 +81,7 @@ export class CapabilityRegistry<Context> {
       && (!current.action_provider?.project_id || !descriptor.action_provider?.project_id
         || current.action_provider.project_id === descriptor.action_provider.project_id));
     if (overlapping) {
-      throw new CapabilityRegistryError(
-        "kernel.capability_duplicate",
-        `Capability 已注册: ${key}`,
-      );
+      throw kernelErrors.capability_duplicate(`Capability 已注册: ${key}`);
     }
     const token = Symbol(key);
     this.ordered = null;
@@ -152,18 +146,17 @@ export class CapabilityRegistry<Context> {
     const descriptor = normalizedDescriptor(definition);
     const registered = this.entries.get(capabilityKey(descriptor));
     if (!registered || registered.descriptor.operation !== descriptor.operation) {
-      throw new CapabilityRegistryError(
-        "kernel.capability_missing",
-        `Capability 未注册: ${capabilityKey(descriptor)}`,
-      );
+      throw kernelErrors.capability_missing(`Capability 未注册: ${capabilityKey(descriptor)}`);
     }
     const availability = requireSynchronous(registered.availability?.(context));
-    if (availability && !availability.available) throw new ActionError(availability.code, availability.reason);
+    if (availability && !availability.available) throw new ActionError(availability.code, availability.reason, { kind: availability.kind });
     return registered;
   }
 }
 
 export { ActionService, actionSceneCompatibilityReason } from "./action-service.js";
-export { assertActionInput, compileActionSchema } from "./action-schema.js";
+export { registeredActionMetadata, type RegisteredActionMetadata } from "./action-metadata.js";
+export { assertActionInput, compileActionSchema, precompileActionSchemas } from "./action-schema.js";
+export { assertActionCommandInput } from "./version-precondition.js";
 export { newCallId, currentCallId, withCallId, withCallIdSync, markCallRecorded, recordedCallId, expectingRefusal, refusalExpected } from "./call-scope.js";
 export { bindCall, refuseCall, settleCall, startHandler, type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "./action-settlement.js";

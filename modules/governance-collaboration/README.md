@@ -53,6 +53,7 @@ node scripts/run-tests.mjs tests/goal-tree-event-flow.test.ts tests/goal-events-
 - 公开入口：`@molis-ai/molis-work-module-governance-collaboration`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/governance-collaboration`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 本包直接声明并抛出共同 `ActionError`；装配不注入错误工厂，现行用户来源拒绝与聚合输入详情由本包保留。
   - 记录谁在什么来源下批准了哪一项变化，不替 Goals 计算完成。
   - Runtime 不能用自填的 `actor_kind=user`、`user_confirmed` 或对话摘要作为授权；不同范围的授权不能互相复用。
   - 跨 owner 写入走实际的决定事务，UI 与 MCP 不另写批准或完成规则。

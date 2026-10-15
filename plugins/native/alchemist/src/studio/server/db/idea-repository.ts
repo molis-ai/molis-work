@@ -65,7 +65,7 @@ export class SqliteIdeaRepository {
 
   keepCard(input: KeepIdeaCardInput): { idea: Idea; version: IdeaVersion } {
     const card = this.getCard(input.cardId);
-    if (!card) throw new Error("IDEA_CARD_NOT_FOUND");
+    if (!card) throw new Error("alchemist.idea_card_not_found");
     const formed = formIdeaFromCard(card, input);
 
     return this.database.transaction(() => {
@@ -89,7 +89,7 @@ export class SqliteIdeaRepository {
            WHERE id = ? AND status = 'candidate'`,
         )
         .run(input.now, input.ideaId, input.cardId);
-      if (cardUpdate.changes !== 1) throw new Error("IDEA_CARD_NOT_CANDIDATE");
+      if (cardUpdate.changes !== 1) throw new Error("alchemist.idea_card_not_candidate");
 
       this.database
         .prepare(
@@ -217,7 +217,7 @@ export class SqliteIdeaRepository {
 
   discardCard(input: { cardId: string; activityId: string; now: string }): IdeaCard {
     const card = this.getCard(input.cardId);
-    if (!card) throw new Error("IDEA_CARD_NOT_FOUND");
+    if (!card) throw new Error("alchemist.idea_card_not_found");
     const discarded = discardCandidate(card, input.now);
     return this.database.transaction(() => {
       const update = this.database
@@ -226,7 +226,7 @@ export class SqliteIdeaRepository {
            WHERE id = ? AND status = 'candidate'`,
         )
         .run(input.now, input.cardId);
-      if (update.changes !== 1) throw new Error("IDEA_CARD_NOT_CANDIDATE");
+      if (update.changes !== 1) throw new Error("alchemist.idea_card_not_candidate");
       this.recordCardActivity(input.activityId, discarded, "idea_card.discarded", input.now);
       return discarded;
     })();
@@ -234,7 +234,7 @@ export class SqliteIdeaRepository {
 
   restoreCard(input: { cardId: string; activityId: string; now: string }): IdeaCard {
     const card = this.getCard(input.cardId);
-    if (!card) throw new Error("IDEA_CARD_NOT_FOUND");
+    if (!card) throw new Error("alchemist.idea_card_not_found");
     const restored = restoreCandidate(card);
     return this.database.transaction(() => {
       const update = this.database
@@ -243,7 +243,7 @@ export class SqliteIdeaRepository {
            WHERE id = ? AND status = 'discarded'`,
         )
         .run(input.cardId);
-      if (update.changes !== 1) throw new Error("IDEA_CARD_NOT_DISCARDED");
+      if (update.changes !== 1) throw new Error("alchemist.idea_card_not_discarded");
       this.recordCardActivity(input.activityId, restored, "idea_card.restored", input.now);
       return restored;
     })();

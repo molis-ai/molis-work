@@ -1,5 +1,11 @@
 /** Existing Goal document copy; user content is never translated. */
 export const GOALS_DOCUMENT_EN: Record<string, string> = {
+  "核对交付物": "Check deliverables",
+  "固定结果尚未核对，请先核对交付物。": "The pin result is still unknown. Check the deliverables before continuing.",
+  "交付物清单未读回，请重新核对。": "The deliverable list could not be read. Check again.",
+  "已核对。若固定版本已生成但未关联，可从清单中选择已有版本。": "Checked. If a pinned version exists without a Goal link, select that version from the list.",
+  "处理证据（后续事件 ID）": "Supporting evidence (later event IDs)",
+  "引用本 Goal 在问题提出后记录的事件；多个 ID 用空格或逗号分开。": "Reference events recorded on this Goal after the concern was opened. Separate IDs with spaces or commas.",
   "回收站是空的": "Trash is empty",
   "移入回收站的 Goal 可以在这里恢复；日常 Goal Tree 不会被它们干扰。": "Goals in trash can be restored here. They will not clutter the everyday Goal Tree.",
   "还没有归档 Goal": "No archived Goal yet",

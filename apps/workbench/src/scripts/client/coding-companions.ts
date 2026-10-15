@@ -21,16 +21,18 @@ export const CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
         showReviews:host.reviewFactory({mountPluginClient:host.mountPluginClient,route:host.route,headers:host.headers,onDecision:outcome=>browser.afterDecision(outcome)})});
       q('[data-git-browser]').hidden=false;q('[data-git-close]').textContent='返回改动列表';
     } else {
-      let reading=0,viewSignal;
-      const activate=async()=>{
-        if(!lifetime.visible)return;const signal=viewSignal;
-        const ticket=++reading,refresh=q('[data-companion-refresh]'),content=q('[data-companion-content]');refresh.disabled=true;refresh.querySelector('.mw-spinner').hidden=false;content.setAttribute('aria-busy','true');q('[data-companion-status]').textContent='正在读取固定内容…';
-        try{const state=await host.request(plugin,'/state','GET',undefined,signal);lifetime.assertCurrent(signal);if(ticket!==reading)return;q('[data-companion-content]').innerHTML=state.html || '';q('[data-companion-status]').textContent='';}
-        catch(error){if(!signal.aborted && lifetime.visible && ticket===reading){q('[data-companion-content]').replaceChildren();q('[data-companion-status]').textContent=error.message+'。请点击刷新重试。';}}
-        finally{if(lifetime.alive && ticket===reading){refresh.disabled=false;refresh.querySelector('.mw-spinner').hidden=true;content.setAttribute('aria-busy','false');}}
+      let read=0,view,index=0;
+      const reload=q('[data-companion-refresh]'),body=q('[data-companion-content]'),note=q('[data-companion-status]'),spin=reload.querySelector('.mw-spinner');
+      const busy=v=>{reload.disabled=v;spin.hidden=!v;body.setAttribute('aria-busy',String(v));};
+      const load=async()=>{
+        if(!lifetime.visible)return;const signal=view,id=++read;busy(true);note.textContent='正在读取固定内容…';
+        try{const state=await host.request(plugin,'/state'+(plugin==='diff'?'?change_index='+index:''),'GET',undefined,signal);lifetime.assertCurrent(signal);if(id!==read)return;body.innerHTML=state.html||'';note.textContent='';
+          body.querySelectorAll('[data-change-index]').forEach(button=>button.setAttribute('aria-pressed',String(Number(button.dataset.changeIndex)===index)));}
+        catch(error){if(!signal.aborted&&lifetime.visible&&id===read){body.replaceChildren();molisWorkRequest.show(note,error);note.append(document.createTextNode('。请点击刷新重试。'));}}
+        finally{if(lifetime.alive&&id===read)busy(false);}
       };
-      lifetime.listen(q('[data-companion-refresh]'),'click',()=>void activate());
-      lifetime.whenVisible(signal=>{viewSignal=signal;void activate();return()=>{reading++;q('[data-companion-refresh]').disabled=false;q('[data-companion-refresh] .mw-spinner').hidden=true;q('[data-companion-content]').setAttribute('aria-busy','false');};});
+      lifetime.listen(root,'click',event=>{const file=event.target.closest('[data-action="diff.show-file"]');if(file){index=Number(file.dataset.changeIndex);void load();}else if(event.target.closest('[data-companion-refresh]'))void load();});
+      lifetime.whenVisible(signal=>{view=signal;void load();return()=>{read++;busy(false);};});
     }
   }
 }`;

@@ -1,6 +1,8 @@
+import { installerErrors } from "./errors.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { MolisWorkHomeInstallError } from "./home-contract.js";
+
 import { pathState } from "./home-files.js";
 import { vendorReleaseAssetPaths } from "./release-assets.js";
 
@@ -71,13 +73,10 @@ export async function runtimeDependencyReleaseEntries(directory: string): Promis
     });
     return [...new Set(["package.json", ...declared])].sort();
   } catch (error) {
-    if (error instanceof MolisWorkHomeInstallError) throw error;
+    if ((error instanceof ActionError && ["installer.home.not_directory","installer.source.invalid","installer.source.asset_missing","installer.source.build_stale","installer.version.invalid","installer.home.unknown_file","installer.release.conflict"].includes(error.code))) throw error;
     const message = error instanceof Error ? error.message : String(error);
-    throw new MolisWorkHomeInstallError(
-      message.includes("Missing release asset") ? "source.asset_missing" : "source.invalid",
-      message.startsWith("Missing release asset") || message.startsWith("Unsupported release files")
+    throw installerErrors[message.includes("Missing release asset") ? "installer.source.asset_missing" : "installer.source.invalid"](message.startsWith("Missing release asset") || message.startsWith("Unsupported release files")
         ? message
-        : `Molis Work 依赖发布文件范围无效: ${message}`,
-    );
+        : `Molis Work 依赖发布文件范围无效: ${message}`);
   }
 }

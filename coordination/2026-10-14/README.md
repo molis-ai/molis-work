@@ -298,6 +298,11 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 
 ## 5. 机器、锁与验证
 
+**10-15 合入与审查**：
+- 回执 1a #531 已合 main（`9a883966`）。审查时退回过一次：Coding 动作的版本表去掉了默认值，修复进了同一个 PR。
+- 交互 S1 #532 退回：要删掉被取代的 `form.questions.ai`；宿主里按 Form 写的问卷卡包装要改成通用的（结果形状进合同，宿主不认 Form 的码）；正文补上「防腐复查」。
+- 采用 P3a 防腐两问都选 A：留一个 typed 长等待 `agent.collaboration.await.v1`，顶替旧的四个，净减 3；Coding 两个新状态词记为原有翻译缺口，随 W5-03 一起做。
+
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 
 **整机一次一个构建、浏览器用例最多三批。** 锁是这台机器上的目录，用 `coordination/2026-10-14/tools/build-lock.sh`（原件在主检出 `.claude/handoff/tools/`，不入库）。和防腐那边的 codex 会话共用，它跑全量时会长时间占着构建锁。

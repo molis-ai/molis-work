@@ -9,6 +9,7 @@ import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { withPersonDispatchGuard, type PersonActions } from "../apps/local-host/dist/assistant/assistant-coding.js";
+import { codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -17,7 +18,9 @@ function fakeCoding() {
   const sessions = new Map<string, { configuration: Record<string, string> | null; runs: AgentRunView[] }>();
   const calls: Array<{ name: string; input: any }> = [];
   const names = ["state", "sessions.create", "sessions.read", "sessions.update", "runs.start", "runs.control"];
-  const views = names.map(name => ({ capability_id: `coding.${name}`, version: 1, provider: { provider_id: "io.molis.coding", title: "Coding" },
+  // Each at the version Coding publishes now, so the executor is checked against Coding's real contract.
+  const version = (name: string) => Object.values(codingRouteActions).find(entry => entry.definition.capability_id === `coding.${name}`)!.definition.version;
+  const views = names.map(name => ({ capability_id: `coding.${name}`, version: version(name), provider: { provider_id: "io.molis.coding", title: "Coding" },
     availability: { available: true } }) as unknown as ActionView);
   const run = (id: string, task: string): AgentRunView => ({ ref: { run_id: id }, phase: "completed", turns: [{ turn_id: "u", kind: "user", text: task }],
     activity: [], awaiting_input: [], usage: {}, started_at: "2026-09-28T00:00:00.000Z", ended_at: "2026-09-28T00:00:01.000Z" }) as unknown as AgentRunView;
@@ -94,6 +97,18 @@ test("a Coding work keeps its mode on Coding's own session, so the bottom bar an
   await service.send({ work_id: first.work.work_id, text: "现在改吧", request_id: randomUUID() }, caller);
   assert.equal(coding.calls.filter(call => call.name === "runs.start").at(-1)!.input.intent, "execute");
   assert.equal(view.rounds.length, 2);
+});
+
+test("words sent to a Coding round under way reach it through Coding's current control action", async () => {
+  const { coding, service, caller } = fixture();
+  const first = await service.send({ executor: "coding", scope: { kind: "project", project_id: "project" }, text: "加一个 subtract 函数", request_id: randomUUID() }, caller);
+  const sessionId = (first.work.executor as { session_id: string }).session_id;
+  (coding.sessions.get(sessionId)!.runs.at(-1) as { phase: string }).phase = "running";
+  const steered = await service.send({ work_id: first.work.work_id, text: "顺便补上测试", request_id: randomUUID() }, caller);
+  assert.equal(steered.outcome, "steered");
+  const control = coding.calls.filter(call => call.name === "runs.control").at(-1)!;
+  assert.equal(control.input.kind, "steer");
+  assert.equal(control.input.text, "顺便补上测试");
 });
 
 test("only a Coding work has a mode, and only a mode Coding knows", async () => {

@@ -185,7 +185,7 @@ export const COSS_CONTROL_STYLES = `
   .feed-task-extra summary small { margin-left: 8px; color: var(--muted); font-weight: 400; }
   .feed-task-health { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--muted); }
   .feed-task-health strong { color: var(--ink); font-weight: var(--weight-control, 500); }
-  .feed-config-actions, .feed-task-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .feed-task-controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
   [data-feed-task] { position: relative; }
   .feed-task-config-trigger { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: var(--muted); border-radius: 5px; cursor: pointer; }
   .feed-task-config-trigger:hover { color: var(--ink); background: var(--nav-hover); }

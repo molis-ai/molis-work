@@ -221,7 +221,8 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   await waitFor(`Boolean(document.querySelector('${row}'))`);
   await evaluate(`{const original=window.fetch;let fail=true;window.fetch=(url,options)=>{if(fail&&String(url).includes('/detail?')){fail=false;return Promise.resolve(new Response('failed',{status:503}));}return original(url,options);};}`);
   await click(row);await waitFor("document.querySelector('[data-feed-stage-shell][data-expanded=true] [data-retry-feed-detail]')");
-  // The retry a person sees: the placeholder over the failed detail.
+  // One retry, in the placeholder under the reader bar.
+  assert.equal(await evaluate<number>("[...document.querySelectorAll('[data-feed-stage-workspace] [data-retry-feed-detail]')].filter(b=>b.checkVisibility()).length"),1);
   await click('[data-feed-stage-workspace] [data-feed-detail-empty] [data-retry-feed-detail]');
   await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] .feed-rich-content')`);
   assert.ok(feed.getFeedItem(DEMO_PROJECT_ID,item.item_id).read_at);

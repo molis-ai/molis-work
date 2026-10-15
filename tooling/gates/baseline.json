@@ -2,10 +2,10 @@
   "giantUnits": 146,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2239,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2222,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1814,
-      "methods": 112
+      "lines": 1796,
+      "methods": 110
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 280,
@@ -52,7 +52,7 @@
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2423,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 1008,
+    "file apps/workbench/src/scripts/client/navigation-feed.ts": 1003,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2019,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,

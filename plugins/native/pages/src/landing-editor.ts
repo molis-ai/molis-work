@@ -1,5 +1,6 @@
 import type { Node } from "prosemirror-model";
 import type { EditorView } from "prosemirror-view";
+import type { ContextActionChosen } from "@molis-ai/molis-work-contracts/services/contextual";
 import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
 
 /**
@@ -7,10 +8,10 @@ import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
  *
  * - It tells the context row where something in hand would go in the open document (`molis:surface-landing`): the
  *   selection, the cursor once the person has been in the editor, else the end; with the saved version the positions
- *   belong to. Reported again whenever the document or the selection changes.
+ *   belong to. Reported again whenever the document, its saving or the selection changes; none while edits are unsaved.
  * - When the person chooses to put something here (an `attach.` candidate the row hands over), it shows what will be
- *   written at that place and writes nothing itself: confirming saves what is typed first, then runs the choice through
- *   the Host with the new version, and shows the saved document. If the document changed after the landing was
+ *   written at that place and writes nothing itself: confirming runs the choice through the Host (`run`, bound by the row
+ *   to the landing it was ranked with) and shows the saved document. If the document changed after the landing was
  *   reported, nothing is written and the person chooses the place again.
  */
 const PLUGIN_ID = "io.molis.work.pages";
@@ -19,22 +20,16 @@ const AROUND = 200;
 export interface PagesLandingPort {
   readonly bench: HTMLElement;
   readonly view: () => EditorView | null;
-  /** The open document as saved; null when nothing is open or this editor cannot show it. */
+  /** The open document as saved; null when nothing is open, this editor cannot show it, or edits are not saved yet. */
   readonly open: () => { readonly id: string; readonly version: number; readonly title: string } | null;
-  /** Saves what is typed but not saved yet; the saved version, or null when nothing is open any more. */
-  readonly settle: () => Promise<number | null>;
   /** Shows the document as it is now stored. */
   readonly refresh: () => Promise<unknown>;
   readonly translate: (text: string) => string;
 }
 
 interface Reported { readonly key: string; readonly doc: Node | null; readonly from: number; readonly to: number }
-interface Chosen {
-  readonly title: string;
-  readonly landing?: { readonly plugin_id: string; readonly object: { readonly id: string } };
-  prepare(): Promise<{ readonly input?: { anchor?: number; head?: number; text?: string; source?: { title?: string } } }>;
-  run?(landing: { version: number }): Promise<unknown>;
-}
+/** What a Pages landing action is prepared with (landing-actions.ts), as far as the preview shows it. */
+type Prepared = { anchor?: number; head?: number; text?: string; source?: { title?: string } } | undefined;
 
 export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
   const L = port.translate;
@@ -59,7 +54,7 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
 
   let pop: HTMLElement | null = null;
   const close = () => { pop?.remove(); pop = null; };
-  const preview = async (chosen: Chosen, view: EditorView) => {
+  const preview = async (chosen: ContextActionChosen, view: EditorView) => {
     close();
     const box = pop = document.createElement("div"), base = shown;
     box.className = "pages-pop";
@@ -74,7 +69,7 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
     cancel.onclick = close;
     (port.bench.querySelector("[data-pages-stage-workspace]") ?? port.bench).append(box);
     placeOverlay(box, view.coordsAtPos(Math.min(base.from, view.state.doc.content.size)), "below");
-    const input = (await chosen.prepare().catch(() => null))?.input;
+    const input = (await chosen.prepare().catch(() => null))?.input as Prepared;
     if (pop !== box) return;
     if (typeof input?.text !== "string" || Math.min(input.anchor!, input.head!) !== base.from || Math.max(input.anchor!, input.head!) !== base.to) return fail(moved);
     lead.textContent = chosen.title;
@@ -87,9 +82,8 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
       ok.disabled = true;
       // Only into the document the landing was reported for: the positions mean nothing in another one.
       void (async () => {
-        const version = base.doc && view.state.doc.eq(base.doc) ? await port.settle() : null;
-        if (version === null) return fail(moved);
-        await chosen.run!({ version });
+        if (!base.doc || !view.state.doc.eq(base.doc) || !port.open()) return fail(moved);
+        await chosen.run!();
         close();
         await port.refresh();
       })().catch((error: unknown) => fail(error instanceof Error ? error.message : moved));
@@ -98,7 +92,7 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
   };
 
   window.addEventListener("molis:assistant-context-action-chosen", (event) => {
-    const chosen = (event as CustomEvent<Chosen>).detail, view = port.view(), open = port.open();
+    const chosen = (event as CustomEvent<ContextActionChosen>).detail, view = port.view(), open = port.open();
     if (!chosen?.landing || typeof chosen.run !== "function" || chosen.landing.plugin_id !== PLUGIN_ID || !view || !open || chosen.landing.object.id !== open.id) return;
     event.preventDefault();
     void preview(chosen, view);

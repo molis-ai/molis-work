@@ -308,7 +308,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:assistant-context-action-chosen", kind: "announcement", owner: "context-actions", on: "window", cancelable: true,
     detail: "ContextActionChosen (services/contextual); CONTEXT_ACTION_CHOSEN_EVENT",
-    summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent.",
+    summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent. An attach choice carries landing and run: the landing's owner takes it, previews there and confirms with run.",
   },
   {
     name: "molis:assistant-effect", kind: "announcement", owner: "assistant", on: "window",

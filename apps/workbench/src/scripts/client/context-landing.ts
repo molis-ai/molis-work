@@ -8,8 +8,8 @@
  *   `assistant`, else the left. Only a thing in hand that is not on the left carries the landing, so an `attach.` candidate
  *   (「插入到光标处」) is offered for exactly that.
  * - Choosing an `attach.` candidate prepares its input and hands it to the landing's owner, which previews it at the
- *   landing; confirming there runs it through the Host (`run`), never by the page writing on its own. Nobody taking it
- *   means the landing went away: the row says so.
+ *   landing; confirming there runs it through the Host (`run`, bound to this landing and this choice: the page cannot
+ *   send another), never by the page writing on its own. Nobody taking it means the landing went away: the row says so.
  *
  * Only this document's landing is kept: a split pane's frame does not report one yet.
  */
@@ -29,7 +29,7 @@ export const CONTEXT_LANDING_SCRIPT = String.raw`  const landing = {
         const event = new CustomEvent("molis:assistant-context-action-chosen", { cancelable: true, detail: {
           plugin_id: at.plugin_id, context_id: focus.context_id, key: candidate.key, offer_id: candidate.offer_id, apply: candidate.apply,
           intent: candidate.intent, title: candidate.title, object: at.object, landing: at, prepare: async () => offer,
-          run: (where) => send("/api/contextual/attach", { ...at, ...where }) } });
+          run: () => send("/api/contextual/attach", at) } });
         window.dispatchEvent(event);
         if (!event.defaultPrevented) bar.error(new Error(L("左边的内容已经换了，请重新选择要放进去的位置")));
       }).catch((error) => bar.error(error));

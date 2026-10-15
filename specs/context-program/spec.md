@@ -1347,6 +1347,9 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - **B-1**：三个动作，共用一个处理器，不改合同。三个是不同的操作，各占一个 `capability_id`，都是 version 1；提交时带上 `tooling/gates/actions/` 的快照。处理器在 `beforeEffect()` 之后按读取时的版本（`expected_version`）提交，被取消或撤权就不写。
 - **B-2**：W3-B 只用 `confirmReferences`；「`attach` 的 `find` 取候选」（`search.references@1`）改到 W4 的 F2「追加到已有」。
 - **B-3**：拆开。W3-B1 = 第 1–6 步，H3（#546）合入后开 PR；W3-B2 = 第 7 步，排在 W3-A2 之后。
+- **B-4（统筹 2026-10-15）**：选中事件 `ContextActionChosen` 加两个可选字段 `landing?: SurfaceLanding` 与 `run?(): Promise<unknown>`，`run` 不收参数。`run` 由总线在派发时绑死总线手上的落点和这一次选择，只发 `/api/contextual/attach`；页面拿 `landing` 只定位预览，执行时换不了落点。宿主照旧两道检查：先 `confirmReferences`，再按 `expected_version` 提交。不选「复用现有字段」：插件代码要点名平台路由，`object` 的含义也被挪用；不选「另起一个事件」：多一对发和听，换来的一样。只增字段，现有页面不用改，不留兼容。
+- **B-5（本线按体验定，统筹同意）**：只按规则排序时，派生出的 `attach.` 去处排在其他规则之上（内核 `ruleScores`，按声明顺序）。不这样它们永远进不了主行的前三，而版面从不把去处放进「更多」。只在手上的东西不在左边、左边又真有落点时才派生，平常的选区不受影响。
+- **B-6**：分屏窗格（iframe）里的落点不在 W3-B1，由情境线在 W3-B2 之后补（W3-B3）：沿用 `workbench-surface-*` 窗格消息，来源照现有写法核对 origin 与来源窗口；若新加消息类型，按 `SECURITY-INVARIANTS.md` 对应条补「别的来源发来的落点被丢掉」的拒绝用例。
 
 **开工须知（统筹 2026-10-15）**：页面资源只许变小，第 3、5 步加的字节在同一个 PR 里自己抵消，不借别的 PR 省下的；第 1 步改合同，同一个 PR 跑 `pnpm api:update`，事件要有人发、有人听；第 5 步的预览挂在主人页面的面板槽里，不开整页、不开第二个标签页（shell-page-gate）；开工先并最新 main（防腐 #542 改 Pages 的 `index.ts`、`store.ts`、`project-data.ts`）；开工前把要改的文件清单发统筹核对。
 
@@ -1367,6 +1370,8 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - **排序**：版面只把前三个里的落点类候选放进主行，从不放进「更多」；只按规则时它们从来排不进前三。内核 `ruleScores` 让派生出的 `attach.` 候选按声明顺序排在其他规则之上（判断时权重和其他规则一样，只占百分之一分）。只在左边真有落点、手上的东西不在左边时才派生，所以不影响平常的选区。
 - **输入怎样拼**：宿主 `contextual-attach.ts` 确定性地拼：`id` 取落点对象，`expected_version` 取落点版本，`anchor`/`head` 取落点第一个带位置的目标，`material_field` 取手上各段文字（空行相接，至多 20000 字），动作有 `source` 时取手上对象的标题。手上没有文字就拒绝（`contextual.empty`），没有落点就是 `contextual.stale`。
 - **预览**：画在 Pages 编辑器自己的浮层里、落点下方（`placeOverlay`，在 `[data-pages-stage-workspace]` 内），不是 `molis:context-panel-open`（那个槽停在情境条下，离落点远）；仍在主人页面里，不开整页、不开标签页。准备好的输入位置与报告的不同，或确认时文档已改，就不写，请人重新选位置。确认先保存未存的输入，用保存后的版本经 `/api/contextual/attach` 调动作，再按存储重载文档。
-- **分屏窗格**（iframe 里的落点）不在 W3-B1。
-- **待统筹答复**：选中事件 `ContextActionChosen` 加可选的 `landing` 与 `run`（现在代码已这样传，类型未改）；页面资源的抵消方式。
+- **只有保存了的文字有落点**：Pages 有未保存的输入时报 `null`，保存后再报，所以落点的位置总属于它带的版本；确认时文档若已不同于报告时，不写，请人重新选位置。`run` 因此不用带版本（B-4）。
+- **宿主不信页面给的位置**：Pages 的动作先按 `expected_version` 读当前文档，版本不符拒绝（`pages.conflict`），越界、插入带了范围、替换没有范围都拒绝（`pages.invalid`），写入走 `PagesStore.update`。备好输入是确定性的，不调模型，所以动作不声明 `scheduling: "concurrent"`；以后要调模型就得声明，返回后再 `beforeEffect()`。
+- **分屏窗格**（iframe 里的落点）不在 W3-B1，见 B-6。
+- **待用户定**：页面资源的抵消方式（统筹在问；`served-page-text.ts` 保留绑定名是有测试钉住的决定，没定之前不动）。
 - **证据**：`tests/pages-landing-actions.test.ts`（三个动作、版本冲突、撤销、撤权不写），`tests/context-landing.e2e.test.ts`（右栏选一句 → 「插入到光标处」→ 落点处预览 → 放进去）。

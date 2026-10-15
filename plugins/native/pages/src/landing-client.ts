@@ -4,8 +4,9 @@
  * `mountPagesLanding` (landing-editor.ts); this joins it to the open document, its saving and its list.
  */
 export const PAGES_LANDING_CLIENT_SCRIPT = String.raw`const landing = Editor.mountPagesLanding({ bench, translate: L, view: () => (editor ? editor.view : null),
-    open: () => (sel && !unshowable ? { id: sel.id, version: sel.version, title: titleInput.value || sel.title } : null),
-    settle: async () => { await persist(); return sel ? sel.version : null; }, refresh: () => loadList() });
+    // Only the saved text has a landing: its positions belong to the version it is reported with.
+    open: () => (sel && !unshowable && !saveTimer && !dirty ? { id: sel.id, version: sel.version, title: titleInput.value || sel.title } : null),
+    refresh: () => loadList() });
   // The person chose one of this document's actions in the bar: run it on the range they had in hand when it was
   // ranked, through the writing popup, so the result is a candidate they accept before anything is written. A
   // whole-document action (also one of the Assistant's starting points, with nothing in hand) runs on this document

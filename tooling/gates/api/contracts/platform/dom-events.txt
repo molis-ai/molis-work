@@ -201,7 +201,7 @@ export declare const DOM_EVENTS: readonly [{
     readonly on: "window";
     readonly cancelable: true;
     readonly detail: "ContextActionChosen (services/contextual); CONTEXT_ACTION_CHOSEN_EVENT";
-    readonly summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent.";
+    readonly summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent. An attach choice carries landing and run: the landing's owner takes it, previews there and confirms with run.";
 }, {
     readonly name: "molis:assistant-effect";
     readonly kind: "announcement";

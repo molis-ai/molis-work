@@ -238,7 +238,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (text) context.draft_text = text.slice(0, 20000);
       }
     }
-    bench.setAttribute("data-assistant-context", JSON.stringify(context));
+    bench.setAttribute("data-assistant-context", JSON.stringify(context)); landing.report();
   };
   // What the person has in hand here, for the bar and the Assistant (specs/archive/contextual-interaction §4): the editor's
   // focus around this document, nothing for one it cannot show. Pages reports its own focus, so a list row's selection is not part of it.

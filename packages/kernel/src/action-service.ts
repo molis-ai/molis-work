@@ -189,10 +189,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
-    return registeredActionMetadata(this.registry, context).flatMap(metadata => {
-      if (!inspection && !visibleAction(metadata, metadata.provider, context)) return [];
-      return [{ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) }];
-    });
+    // Visibility is checked with the rest of the directory's checks, before any row is made.
+    const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) => visibleAction(definition, provider, context);
+    return registeredActionMetadata(this.registry, context, visible).map(metadata =>
+      ({ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) }));
   }
 
   /** Every way in is settled once, whether the handler ran or the call was turned away: host policy, lookup, authority, contract, rate limit. */

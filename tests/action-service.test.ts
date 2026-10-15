@@ -298,7 +298,7 @@ test("single capability lookups keep metadata and project isolation without copy
   const { CapabilityRegistry } = await import("@molis-ai/molis-work-kernel");
   class CountingRegistry extends CapabilityRegistry<ActionCallContext> {
     directoryCopies = 0;
-    override descriptors() { this.directoryCopies++; return super.descriptors(); }
+    override descriptors(...args: Parameters<CapabilityRegistry<ActionCallContext>["descriptors"]>) { this.directoryCopies++; return super.descriptors(...args); }
   }
   const registry = new CountingRegistry(); const service = new ActionService(registry);
   const read: ActionDefinition = { capability_id: "lookup.note.read", version: 1, operation: "query", action: {
@@ -309,7 +309,9 @@ test("single capability lookups keep metadata and project isolation without copy
     definitions: [read, write], handlers: [{ ...read, handle: () => ({ project }) }, { ...write, handle: () => ({ project }) }] });
   const stopA = register("a"), stopB = register("b");
   const copy = registry.descriptor(read, "a")!;
-  (copy.action as { title: string }).title = "Changed by consumer";
+  // Readers share the registration's frozen snapshot: a reader cannot change it, and neither can the provider's own object.
+  assert.throws(() => { (copy.action as { title: string }).title = "Changed by consumer"; }, TypeError);
+  (read.action as { title: string }).title = "Changed by provider";
   assert.equal(registry.descriptor(read, "a")!.action!.title, "Original title");
   assert.equal(registry.descriptor(read)?.action_provider, undefined);
   assert.deepEqual(await service.invoke({ ...context, project_id: "a" }, write, {}), { project: "a" });
@@ -317,7 +319,10 @@ test("single capability lookups keep metadata and project isolation without copy
   assert.equal(registry.directoryCopies, 0, "normal dispatch and dependency checks resolve only their target");
   const visible = service.discover({ ...context, project_id: "a" });
   assert.ok(visible.every(view => view.provider.project_id === "a" && view.availability.available));
+  assert.throws(() => { (visible[0]!.action.input_schema as { additionalProperties: boolean }).additionalProperties = true; }, TypeError);
+  assert.throws(() => { (visible[0]!.provider as { title: string }).title = "Changed by consumer"; }, TypeError);
   assert.equal(registry.directoryCopies, 1, "one full directory copy serves discovery; dependency checks do not copy it again");
+  assert.equal(service.discover({ ...context, project_id: "a" })[0]!.action.input_schema.additionalProperties, false);
   await assert.rejects(service.invoke({ ...context, project_id: "foreign" }, write, {}), { code: "actions.scope_mismatch" });
   await assert.rejects(service.invoke({ ...context, project_id: "a" }, { ...write, provider_id: "notes-b" }, {}), { code: "actions.provider_changed" });
   stopA(); assert.equal(registry.descriptor(read, "a"), undefined);

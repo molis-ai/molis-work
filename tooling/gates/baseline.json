@@ -748,7 +748,7 @@
     "apps/local-host/src/workflows-actions.ts#actions": 1,
     "apps/local-host/src/workflows-native-plugin-http.ts#native-plugin-http": 1
   },
-  "registerProviderSitesTotal": 40,
+  "registerProviderSitesTotal": 24,
   "registerProviderSites": {
     "apps/local-host/src/assistant/assistant-rule-actions.ts#register-provider": 1,
     "apps/local-host/src/connector-mcp-actions.ts#register-provider": 1,
@@ -761,16 +761,16 @@
     "apps/local-host/src/placement-actions.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/catalog.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/exposed-actions.ts#register-provider": 1,
-    "apps/local-host/src/project-host.ts#register-provider": 25,
+    "apps/local-host/src/project-host.ts#register-provider": 9,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 17,
+  "hybridPluginsTotal": 16,
   "hybridPlugins": {
     "characters#host-files": 4,
     "coding#host-files": 3,
     "git#host-files": 5,
     "shelf#host-files": 3,
-    "shelf#host-providers": 2
+    "shelf#host-providers": 1
   },
   "pluginOutsideMentionsTotal": 423,
   "pluginOutsideMentions": {

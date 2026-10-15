@@ -6,7 +6,7 @@ import { workflowEventsFeedOptions } from "./workflow-feed-options.js";
 import { bindScheduleDeliveryFeed } from "./schedule-runtime.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
 import { SessionRuntimeService } from "./session-runtime-resources.js";
-import { refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
+import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { workActionProvider } from "./work-actions.js";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
@@ -53,7 +53,7 @@ import { releaseProjectPlugins } from "./project-plugins.js";
 import type { HostCapabilityDefinition, LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActionProvider } from "./inbox-actions.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
@@ -161,7 +161,7 @@ export class MolisWorkLocalHost {
       actionAvailability: options.actionAvailability,
       sceneAvailability: options.sceneAvailability,
       runtimeFactory: {
-        open: (reference) => {
+        open: async (reference) => {
           options.onRuntimeOpen?.(reference);
           const store = new LocalProjectDatabase(reference.storage_key);
           const personalMethods = options.planningMethods ?? (() => this.personalPlanningHome ? readPersonalPlanningMethodPacks(this.personalPlanningHome) : []);
@@ -177,30 +177,30 @@ export class MolisWorkLocalHost {
             const feed = createLocalFeedApplication(store.db, eventFeed);
             // Reminders and scheduled results are delivered into Feed by the Scheduler's wakeup, with the same judgments.
             bindScheduleDeliveryFeed(store.db, eventFeed);
-            const registry = this.host.actionRegistry(reference);
-            registry.registerProvider(goalsActionProvider(runtime, personalMethods, this.actionClient(reference)));
-            registry.registerProvider(workActionProvider(reference.project_id, this.sessions, this.actionClient(reference)));
-            registry.registerProvider(projectWorkspaceActionProvider(reference.project_id, this.sessions,
-              () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
-            registry.registerProvider(artifactActionProvider(runtime, options, this.actionClient(reference)));
-            for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) registry.registerProvider(provider);
-            if (options.homeDirectory) registry.registerProvider(pagesActionProvider(options.homeDirectory, runtime, this.actionClient(reference), options.completeText));
-            if (options.homeDirectory) registry.registerProvider(pptActionProvider(options.homeDirectory, runtime, options.completeText, this.actionClient(reference)));
-            if (options.homeDirectory) registry.registerProvider(formActionProvider(options.homeDirectory, runtime, options.completeText));
-            if (options.homeDirectory) registry.registerProvider(datasetActionProvider(options.homeDirectory, runtime, options.completeText));
-            if (options.homeDirectory) registry.registerProvider(lingguangActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
-            registry.registerProvider(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
-            registry.registerProvider(scheduleActionProvider(runtime, { homeDirectory: options.homeDirectory, workspaceFor: options.workspaceFor }));
-            registry.registerProvider(scheduleReminderActionProvider(runtime, options.projectRoutePrefix?.(reference.project_id)));
-            if (options.homeDirectory) registry.registerProvider(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
-            if (options.homeDirectory) registry.registerProvider(shelfProjectActionProvider(runtime, options.homeDirectory));
-            if (options.homeDirectory) registry.registerProvider(workflowsActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
-            if (options.homeDirectory) registry.registerProvider(homeActionProvider(options.homeDirectory, reference.project_id,
+            const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
+            add(goalsActionProvider(runtime, personalMethods, this.actionClient(reference)));
+            add(workActionProvider(reference.project_id, this.sessions, this.actionClient(reference)));
+            add(projectWorkspaceActionProvider(reference.project_id, this.sessions, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
+            add(artifactActionProvider(runtime, options, this.actionClient(reference)));
+            for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
+            if (options.homeDirectory) add(pagesActionProvider(options.homeDirectory, runtime, this.actionClient(reference), options.completeText));
+            if (options.homeDirectory) add(pptActionProvider(options.homeDirectory, runtime, options.completeText, this.actionClient(reference)));
+            if (options.homeDirectory) add(formActionProvider(options.homeDirectory, runtime, options.completeText));
+            if (options.homeDirectory) add(datasetActionProvider(options.homeDirectory, runtime, options.completeText));
+            if (options.homeDirectory) add(lingguangActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
+            add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
+            add(scheduleActionProvider(runtime, { homeDirectory: options.homeDirectory, workspaceFor: options.workspaceFor }));
+            add(scheduleReminderActionProvider(runtime, options.projectRoutePrefix?.(reference.project_id)));
+            if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
+            if (options.homeDirectory) add(shelfProjectActionProvider(runtime, options.homeDirectory));
+            if (options.homeDirectory) add(workflowsActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
+            if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
+            await registerProviders(this.host.actionRegistry(reference), providers);
             openProjectSchedulers(this, runtime, reference);
             return runtime;
           } catch (error) {
@@ -431,6 +431,15 @@ export class MolisWorkLocalHost {
   status(): LocalHostStatus {
     return this.host.status();
   }
+}
+
+/**
+ * Registers a project's providers in the order they were built. Their contracts are compiled first, a little at a time,
+ * so that opening a project never holds the Host for the whole of it.
+ */
+async function registerProviders(registry: ActionRegistryPort, providers: readonly ActionProviderRegistration[]): Promise<void> {
+  await precompileActionSchemas(providers.flatMap(provider => provider.definitions));
+  for (const provider of providers) registry.registerProvider(provider);
 }
 
 /**

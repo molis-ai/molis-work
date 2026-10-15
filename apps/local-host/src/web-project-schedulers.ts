@@ -20,8 +20,10 @@ export function startWebProjectSchedulers(options: {
   const runtimes = new Map<string, FeedSchedulerRuntime>();
   const unbind = bindProjectSchedulers(localHost, { runtimes, changed, agentHost: agents.agentHost, ready: () => agents.ready,
     workspaceFor: projectId => withCatalog({ homeDirectory }, catalog => workspaceRefFor(catalog, projectId)) });
-  let stopped = false, stopping: Promise<void> | undefined;
-  const startup = runWithMolisWorkHome(homeDirectory, async () => {
+  let stopped = false, stopping: Promise<void> | undefined, opening: Promise<void> | undefined;
+  // Every project with a database is opened before the first round, not at start: opening one compiles its contracts and starts its
+  // plugins, and the first requests of a launch do not wait behind that. Its schedules only run on a round anyway.
+  const openAll = () => opening ??= runWithMolisWorkHome(homeDirectory, async () => {
     const projects = fixture ? [{ database_path: fixture.databasePath, project_id: fixture.projectId }]
       : await withCatalog({ homeDirectory }, catalog => catalog.listProjects());
     for (const project of projects) {
@@ -29,20 +31,20 @@ export function startWebProjectSchedulers(options: {
       if (fs.existsSync(project.database_path)) await localHost.withProject(molisWorkHostProjectReference({
         databasePath: project.database_path, projectId: project.project_id }), () => undefined);
     }
-  });
-  void startup.catch(error => { if (!stopped) options.onError(error); });
-  const timer = setInterval(() => runWithMolisWorkHome(homeDirectory, () => {
+  }).catch(error => { if (!stopped) options.onError(error); });
+  const round = () => runWithMolisWorkHome(homeDirectory, () => {
     for (const [databasePath, runtime] of runtimes) {
       void runtime.scheduler.tick().then(result => { if (result.completed || result.failed) changed(databasePath); }).catch(() => undefined);
       void withCallId(newCallId(), () => runtime.schedule.tick())
         .then(result => { if (result.invoked) changed(databasePath); }).catch(() => undefined);
     }
-  }), 30_000);
+  });
+  const timer = setInterval(() => { void openAll().then(() => { if (!stopped) round(); }); }, 30_000);
   timer.unref();
   return { runtimes, stop: () => stopping ??= (async () => {
     stopped = true;
     clearInterval(timer);
-    await startup.catch(() => undefined);
+    await opening;
     await unbind();
   })() };
 }

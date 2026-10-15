@@ -22,9 +22,10 @@ export function openCharacters(homeDirectory: string, actorId: string): { servic
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const filename = join(directory, "characters.sqlite"), db = new DatabaseSync(filename);
   try {
-    chmodSync(filename, 0o600);
     db.exec("PRAGMA busy_timeout = 3000");
     applySqliteBaseline(db, filename, CHARACTERS_STORE_BASELINE);
+    // Only a store this build opens is narrowed to its owner; a refused one is left exactly as it was found, mode included.
+    chmodSync(filename, 0o600);
     return { service: new CharactersService(new CharactersRepository(db, actorId), actorId), close: () => db.close() };
   } catch (error) { db.close(); throw error; }
 }

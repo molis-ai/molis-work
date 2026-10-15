@@ -181,6 +181,8 @@ export class BrowserHost {
     child.once("exit", () => {
       if (this.current !== running) return;
       this.current = null; this.running = null;
+      // The process can be reported gone before its DevTools socket is: close that first, so every page sees a stopped browser.
+      running.cdp.close();
       this.problem = this.closed ? null : { code: "browser.crashed", message: "浏览器意外停止了。可以重新启动，页面会回到原来的地址。" };
       for (const page of this.pages.values()) page.hostChanged();
     });

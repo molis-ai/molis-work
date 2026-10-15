@@ -1,4 +1,4 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,8 +31,9 @@ for (const version of [0, 2]) test(`W1-18-CHARACTER-SCHEMA-01 an existing versio
   db.close();
   const bytes = readFileSync(filename), mode = statSync(filename).mode;
   try {
-    assert.throws(() => openCharacters(home, "owner"), error => error instanceof ActionError
-      && error.code === "characters.invalid" && error.message.includes(filename) && error.message.includes(`实际版本 ${version}`));
+    // The common store baseline refuses it (C-06 moved the Characters store onto it): the path and the version found are named.
+    assert.throws(() => openCharacters(home, "owner"), error => error instanceof SqliteSchemaVersionError
+      && error.code === "storage.schema_version_mismatch" && error.path === filename && error.found === version && error.message.includes(filename));
     assert.deepEqual(readFileSync(filename), bytes);
     assert.equal(statSync(filename).mode, mode);
     const check = new DatabaseSync(filename);

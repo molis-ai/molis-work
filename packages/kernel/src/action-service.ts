@@ -52,9 +52,9 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");
     const handlers = exactBindings(registration.definitions, registration.handlers, actionKey, "能力");
     const sceneHandlers = exactBindings(registration.scenes ?? [], registration.scene_handlers ?? [], sceneKey, "消费场景");
-    // A provider commonly shares its full workspace schema across many commands.
-    // Compile that immutable registration snapshot once; never retain a global
-    // cache that could carry a mutated contract into a later installation.
+    // A provider commonly shares its full workspace schema across many commands: compile that immutable
+    // registration snapshot once. Across registrations validators are reused only by exact schema text
+    // (action-schema.ts), so a mutated contract never reaches a later installation.
     const compileSchema = createActionSchemaCompiler();
     const validators = new WeakMap<object, ReturnType<typeof compileActionSchema>>();
     const compile = (original: import("@molis-ai/molis-work-contracts/platform/actions").ActionSchema,

@@ -156,7 +156,7 @@ export class CapabilityRegistry<Context> {
 
 export { ActionService, actionSceneCompatibilityReason } from "./action-service.js";
 export { registeredActionMetadata, type RegisteredActionMetadata } from "./action-metadata.js";
-export { assertActionInput, compileActionSchema } from "./action-schema.js";
+export { assertActionInput, compileActionSchema, precompileActionSchemas } from "./action-schema.js";
 export { assertActionCommandInput } from "./version-precondition.js";
 export { newCallId, currentCallId, withCallId, withCallIdSync, markCallRecorded, recordedCallId, expectingRefusal, refusalExpected } from "./call-scope.js";
 export { bindCall, refuseCall, settleCall, startHandler, type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "./action-settlement.js";

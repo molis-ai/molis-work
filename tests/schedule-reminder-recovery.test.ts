@@ -276,8 +276,11 @@ test("W2-18-SCHEDULE-01: persistent and gateway-created jobs execute without vis
     const persisted = await client.invoke<{ job_id: string }>(caller, automaticSchedule, { ref: "Persisted automatic Todo", title: "Persisted", at: new Date(Date.now() - 1000).toISOString() });
     await served.close(); await host.close();
     host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); served = await serveTestHost(null, { home, host });
-    await waitAutomatic(() => host.status().projects.some(row => row.project_id === project.project_id && row.state === "ready"));
+    // Start opens no project (2026-10-15): the first round opens it from the Catalog, then runs its due job, still without a page.
+    await new Promise(resolve => setTimeout(resolve, 50));
+    assert.equal(host.status().projects.some(row => row.project_id === project.project_id), false, "a launch does not open projects before the first round");
     t.mock.timers.tick(30_000); await waitAutomatic(() => results.length === 1);
+    assert.ok(host.status().projects.some(row => row.project_id === project.project_id && row.state === "ready"));
     assert.deepEqual(results, ["Persisted automatic Todo"]);
     await host.withProject(project.reference, runtime => assert.equal(scheduleServiceFor(runtime.store.db).get(persisted.job_id)?.last_wakeup?.status, "ok"));
     await register(); client = new LocalActionGatewayClient({ url: served.origin, homeDirectory: home, clientId: caller.actor_id, projectId: project.project_id, controlToken: served.controlToken });

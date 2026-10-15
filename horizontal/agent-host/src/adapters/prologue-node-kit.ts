@@ -20,6 +20,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
   questionTypes?: readonly import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionType[]; // typed types every interface showing questions renders; absent or empty: the plain question
+  /** Reads each object a person picked for a reference question again from its owner before the answer goes on (S-26); absent: refused. */
+  confirmReferences?: import("./prologue-questions.js").ReferenceConfirmer;
   /**
    * The side panel's browser pages (specs/archive/side-panel): attached to a business round in their project, looked at and
    * driven only through Prologue's interface control. Absent: no round gets the surface tools.

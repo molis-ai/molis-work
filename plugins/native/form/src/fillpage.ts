@@ -28,7 +28,7 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
 .rating{display:flex;gap:14px}.req{color:#c0392b}button{font:inherit;border:0;border-radius:8px;padding:10px 18px;background:var(--accent);color:#fff;cursor:pointer}
 .error{color:#c0392b;min-height:1.4em}.done{display:none}.done.on{display:block}.foot{margin-top:16px;font-size:12px;color:var(--muted)}
 </style></head>
-<body><main><div class="sheet"><form id="f"><h1 id="t"></h1><p class="lede" id="d"></p><div id="qs"></div><p class="error" id="e" role="alert"></p><button type="submit" id="go">生成答卷文件</button>
+<body><main><div class="sheet"><form id="f" novalidate><h1 id="t"></h1><p class="lede" id="d"></p><div id="qs"></div><p class="error" id="e" role="alert"></p><button type="submit" id="go">生成答卷文件</button>
 <p class="hint" id="h">填完后会保存一个答卷文件（.json）。把它发回给发起人即可；这个页面不会上传任何内容。</p></form>
 <div class="done" id="ok"><h1 id="okt">答卷文件已保存</h1><p class="lede" id="okd">请把刚下载的文件发回给发起人。需要改的话，可以重新填写再生成一份；发起人导入时同一份只算一次。</p><button type="button" id="again">重新填写</button></div></div>
 <p class="foot" id="foot">Molis Work 问卷 · 在你的浏览器里填写，不需要账号</p></main>
@@ -62,7 +62,7 @@ h1{font-size:22px;margin:0 0 6px}.lede,.hint{color:var(--muted);margin:0 0 18px}
     } else {
       var t = el("input"); t.type = q.type === "date" ? "date" : "text"; t.name = q.id; box.appendChild(t);
     }
-    [].forEach.call(box.querySelectorAll("input[type=text],input[type=date],select"), function(input){ input.id = label.id + "-input"; label.htmlFor = input.id; input.setAttribute("aria-labelledby", label.id); input.setAttribute("aria-required", String(q.required)); if (input.type === "text") input.maxLength = ${FORM_ANSWER_LIMIT}; });
+    [].forEach.call(box.querySelectorAll("input[type=text],input[type=date],select"), function(input){ input.id = label.id + "-input"; label.htmlFor = input.id; input.setAttribute("aria-labelledby", label.id); input.setAttribute("aria-required", String(q.required)); input.required = Boolean(q.required); if (input.type === "text") input.maxLength = ${FORM_ANSWER_LIMIT}; });
     qs.appendChild(box);
   });
   var answers = function(){

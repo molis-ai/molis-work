@@ -15,13 +15,19 @@ const open = async (b: Browser, plugin: string, id: string) => {
 // Capture only the download sink: the page still creates its actual Blob and runs its own export/submit handler.
 const captureDownloads = (b: Browser) => b.evaluate(`(() => { const urls=new Map();window.contentDownloads=[];const create=URL.createObjectURL,click=HTMLAnchorElement.prototype.click;URL.createObjectURL=blob=>{const url=create.call(URL,blob);urls.set(url,blob);return url;};HTMLAnchorElement.prototype.click=function(){if(!this.download)return click.call(this);const file={name:this.download,content:null};window.contentDownloads.push(file);urls.get(this.href).text().then(text=>file.content=text);};window.restoreContentDownloads=()=>{URL.createObjectURL=create;HTMLAnchorElement.prototype.click=click;};})()`);
 const downloads = (b: Browser) => b.evaluate<Download[]>("window.contentDownloads");
-async function assertQuestionNames(b: Browser) {
+async function assertQuestionNames(b: Browser, nativeSelect = false) {
   const { nodes } = await b.command<{ nodes: { ignored: boolean; role?: { value: string }; name?: { value: string }; properties?: { name: string; value: { value: unknown } }[] }[] }>("Accessibility.getFullAXTree", {}, b.sessionId);
   const active = nodes.filter(node => !node.ignored);
   for (const [role, name] of [["textbox", "Required words"], ["combobox", "Choose team"], ["radiogroup", "Choose one"], ["group", "Choose several"]] as const) {
     const question = active.find(node => node.role?.value === role && node.name?.value.includes(name));
     assert.ok(question, `${role}: ${name}`);
-    if (role !== "group") assert.ok(question.properties?.some(property => property.name === "required" && property.value.value === true), `${name}: required`);
+    if (role === "group") continue;
+    if (role === "combobox" && nativeSelect) {
+      // Chrome 155 reports no `required` property for a native <select> (its select role is not among the roles that carry one),
+      // with or without the attribute; the exported page's own words and the native state are what a reader gets there.
+      assert.match(question.name!.value, /（必填）|\(Required\)/u, `${name}: required in its name`);
+      assert.equal(await b.evaluate("document.querySelector('select[name=team]').required && document.querySelector('select[name=team]').getAttribute('aria-required')"), "true", `${name}: required`);
+    } else assert.ok(question.properties?.some(property => property.name === "required" && property.value.value === true), `${name}: required`);
   }
 }
 
@@ -43,9 +49,12 @@ test("W2-18-FORM-ANSWER-01 / W2-18-FORM-LABEL-01: exported HTML creates an impor
   await captureDownloads(b); await b.click("[data-form-export-fill]");
   await b.waitFor("window.contentDownloads[0]?.content");
   const html = (await downloads(b))[0]!.content;
+  // Answers typed into the preview are unsaved input: leaving asks first, and this journey means to leave.
+  const leaving: string[] = [];
+  const stopLeaving = b.on("Page.javascriptDialogOpening", params => { leaving.push(String(params.type)); void b.command("Page.handleJavaScriptDialog", { accept: true }, b.sessionId); });
   await b.navigate(() => b.command("Page.navigate", { url: "data:text/html;charset=utf-8," + encodeURIComponent(html) }, b.sessionId));
-  await b.waitFor("document.querySelector('#qs input[name=words]')"); await captureDownloads(b);
-  await assertQuestionNames(b);
+  await b.waitFor("document.querySelector('#qs input[name=words]')"); stopLeaving(); assert.deepEqual(leaving, ["beforeunload"]); await captureDownloads(b);
+  await assertQuestionNames(b, true);
   await b.click('input[name="words"]'); await b.command("Input.insertText", { text: "Keyboard offline" }, b.sessionId);
   assert.equal(await b.evaluate('document.querySelector(\'input[name="words"]\').value'), "Keyboard offline");
   await b.evaluate(`(() => { document.querySelector('input[name=one]').checked=true;document.querySelector('select[name=team]').value='Design';document.querySelector('input[name=date]').value='2026-11-03';document.querySelector('input[name=words]').value='';document.querySelector('#f').requestSubmit(); })()`);

@@ -44,13 +44,16 @@ const typeEnd = async (b: Browser, text: string) => {
   await b.evaluate(`(() => { const editor=document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus(); const range=document.createRange(); range.selectNodeContents(editor);range.collapse(false); const selection=getSelection();selection.removeAllRanges();selection.addRange(range); })()`);
   await b.command("Input.insertText", { text }, b.sessionId);
 };
-const key = async (b: Browser, key: string, code: string, windowsVirtualKeyCode: number) => {
-  await b.command("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode }, b.sessionId);
-  await b.command("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode }, b.sessionId);
-};
-const syncCaret = async (b: Browser, atStart = false) => {
-  await key(b, atStart ? "ArrowRight" : "ArrowLeft", atStart ? "ArrowRight" : "ArrowLeft", atStart ? 39 : 37);
-  await key(b, atStart ? "ArrowLeft" : "ArrowRight", atStart ? "ArrowLeft" : "ArrowRight", atStart ? 37 : 39);
+// A person moves the caret with the pointer; the editor puts a caret set only through the DOM back where its own state has
+// it, so a script that sets a DOM range and then presses keys races the editor (on Linux CI the editor won, and "Prefix "
+// landed at the paragraph's end). Click at the start or the end of the paragraph's text, then wait until the caret is there.
+const clickCaret = async (b: Browser, paragraph: number, at: "start" | "end") => {
+  const point = await b.evaluate<{ x: number; y: number }>(`(() => { const text=document.querySelectorAll('.ProseMirror p')[${paragraph}].firstChild,range=document.createRange();
+    ${at === "start" ? "range.setStart(text,0);range.setEnd(text,1);" : "range.setStart(text,text.length-1);range.setEnd(text,text.length);"}
+    const rect=range.getBoundingClientRect();return {x:${at === "start" ? "rect.left+1" : "rect.right-1"},y:rect.top+rect.height/2}; })()`);
+  for (const type of ["mousePressed", "mouseReleased"]) await b.command("Input.dispatchMouseEvent", { type, ...point, button: "left", clickCount: 1 }, b.sessionId);
+  await b.waitFor(`(() => { const s=getSelection(),p=document.querySelectorAll('.ProseMirror p')[${paragraph}];if(!s.isCollapsed||!p.contains(s.anchorNode))return false;
+    const r=document.createRange();r.setStart(p,0);r.setEnd(s.anchorNode,s.anchorOffset);return r.toString().length===${at === "start" ? "0" : "p.textContent.length"}; })()`);
 };
 const holdTimers = (b: Browser) => b.evaluate(`(() => { const original=window.setTimeout, held=[]; window.setTimeout=(fn,delay,...args)=>{const id=original(fn,delay===400?60000:delay,...args);if(delay===400)held.push(id);return id;}; window.restoreContentTimers=()=>{window.setTimeout=original;held.forEach(clearTimeout);}; })()`);
 const holdReply = (b: Browser, path: string) => b.evaluate(`(() => { const original=window.fetch;let held=false; window.fetch=async (url,options)=>{const response=await original(url,options);if(!held&&options?.method==='POST'&&new URL(url,location.href).pathname.endsWith(${JSON.stringify(path)})){held=true;window.heldContentPayload=await response.clone().json();await new Promise(resolve=>window.releaseContentReply=resolve);}return response;};window.restoreContentFetch=()=>{window.fetch=original;}; })()`);
@@ -156,14 +159,11 @@ test("W2-18-PAGES-TRANSIENT-01: delayed image/popup on A cannot write B; a read 
   await b.click(".pages-card--task"); await b.waitFor("document.querySelector('.pages-pop[data-open=card]')");
   await b.click(`button[data-page-id="${c.id}"]`); await b.waitFor("!document.querySelector('.pages-pop[data-open=card]')");
   assert.deepEqual(readPage(b, c.id), c);
-  await b.evaluate(`(() => { const editor=document.querySelector('.ProseMirror'),text=editor.querySelector('p').firstChild;editor.focus();const range=document.createRange();range.setStart(text,text.length);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`);
-  await syncCaret(b);
+  await clickCaret(b, 0, "end");
   await paste();
-  await b.evaluate(`(() => { const editor=document.querySelector('.ProseMirror'),text=editor.querySelector('p').firstChild;editor.focus();const range=document.createRange();range.setStart(text,0);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`);
-  await syncCaret(b, true);
+  await clickCaret(b, 0, "start");
   await b.command("Input.insertText", { text: "Prefix " }, b.sessionId);
-  await b.evaluate(`(() => { const editor=document.querySelector('.ProseMirror'),text=editor.querySelectorAll('p')[1].firstChild;const range=document.createRange();range.setStart(text,text.length);range.collapse(true);getSelection().removeAllRanges();getSelection().addRange(range);})()`);
-  await syncCaret(b);
+  await clickCaret(b, 1, "end");
   await b.evaluate("window.releaseContentRead()");
   await b.waitFor("document.querySelector('.ProseMirror img') && document.querySelector('[data-pages-editor-status]').textContent === '已保存'");
   const saved = nodeFromUnknown(readPage(b, c.id).body);

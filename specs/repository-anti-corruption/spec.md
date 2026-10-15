@@ -16,6 +16,12 @@ W4-04 第一片（2026-10-15，插件读自己成果线的最新版本，#545 �
 - `tests/plugin-artifact-client.test.ts` 原来按「唯一的查询动作」找 SDK 的读取动作，现在有两个查询动作，改成按动作 id 找 `.read`，断言不变。
 - 动作快照：每个安装多一条 `sdk.artifacts.<安装>.head@1`。
 
+W4-04 第二片（2026-10-15，插件读回自己固定的版本，#547）：Form 迁到 Runtime 还缺的两处平台能力，按同一规则先补。
+- 新增 `services.artifacts.readOwn(reference)`：读这个插件自己固定的一个版本，不看它 `consumes` 里有没有这种类型，也不管是否已归档；别的生产者固定的版本拒绝（`artifacts.plugin_denied`）。原因：宿主今天替 Form 读回自己的成果（`readFormArtifactVersion`）时不看归档状态，问卷固定前要读回已写的最新版本、恢复中断的固定也要读回那一版；`read` 只答插件消费且仍可用的版本，迁过去用 `read` 会让「归档了上一版再固定」从成功变成失败。`read` 本身不变，所以 Coding 读自己报告时归档即拒的行为不变。
+- 放置（`bindObjectMoveHandler`、`bindHomeObjectMoveHandler`、`bindObjectCopyHandler`）与工作流内容（`WorkflowContentHandlers`）的处理函数收到的调用方，类型从 `ActionCallContext` 改成执行时真实传入的 `ActionExecutionContext`。Runtime 插件的写入要先等 `beforeEffect()`（插件库的事务要它），这几处原来拿不到。只是把类型写成实际传的值：已有的实现收到的对象不变，照样编译。
+- `W4-04-02` 在 `tests/plugin-host-services.test.ts`。变异检查：去掉「必须是自己固定的」，`W4-04-02` 失败。
+- 动作快照：每个安装多一条 `sdk.artifacts.<安装>.own@1`。`createPluginArtifactClient` 加上这一条后到了 153 行，超过函数行数上限，把 SDK 动作的定义拆到同文件的 `sdkArtifactActions`。
+
 W4-09（2026-10-15，两个 PR 开着）：#539 把 Web 服务的五个周期任务登记在一处（`apps/local-host/src/periodic-tasks.ts`），「设置 › 诊断」列出「后台任务」；`W4-09-01`、`W4-09-02`（反复启停不留计时器）在 `tests/host-periodic-tasks.test.ts`。#540 让成果游标改为进程内通知加 30 秒兜底（`W4-09-03`，`tests/plugin-platform-composition.test.ts`），炼金术士工作室空闲 10 分钟且手上没事就关（`W4-09-04`，`tests/alchemist-studio-idle.test.ts`）。三处都做了变异检查。
 
 W4-11（2026-10-15，Home 存储统一登记，#542）：

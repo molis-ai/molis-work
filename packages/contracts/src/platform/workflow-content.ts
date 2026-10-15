@@ -1,4 +1,4 @@
-import type { ActionCallContext, ActionDefinition, ActionHandlerBinding, ActionReference, ActionSchema } from "./actions.js";
+import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding, ActionReference, ActionSchema } from "./actions.js";
 
 /** Content handoffs are one explicit workflow protocol, not a claim that every action returns text. */
 export type WorkflowContentRole = "list" | "read" | "receive" | "create";
@@ -90,16 +90,16 @@ export function defineWorkflowContentActions(station: WorkflowStationSpec & { re
 }
 
 export interface WorkflowContentHandlers {
-  list(caller: ActionCallContext): readonly WorkflowStartItem[] | Promise<readonly WorkflowStartItem[]>;
-  read(input: { item_id: string }, caller: ActionCallContext): WorkflowPayload | Promise<WorkflowPayload>;
-  receive?(input: WorkflowReceiveInput, caller: ActionCallContext): WorkflowItemRef | Promise<WorkflowItemRef>;
-  create?(input: { title: string }, caller: ActionCallContext): WorkflowItemRef | Promise<WorkflowItemRef>;
+  list(caller: ActionExecutionContext): readonly WorkflowStartItem[] | Promise<readonly WorkflowStartItem[]>;
+  read(input: { item_id: string }, caller: ActionExecutionContext): WorkflowPayload | Promise<WorkflowPayload>;
+  receive?(input: WorkflowReceiveInput, caller: ActionExecutionContext): WorkflowItemRef | Promise<WorkflowItemRef>;
+  create?(input: { title: string }, caller: ActionExecutionContext): WorkflowItemRef | Promise<WorkflowItemRef>;
 }
 export function bindWorkflowContentHandlers(definitions: WorkflowContentActions | WorkflowSourceContentActions, handlers: WorkflowContentHandlers): ActionHandlerBinding[] {
   return Object.entries(definitions).map(([role, definition]) => {
     const handler = handlers[role as WorkflowContentRole];
     if (!handler) throw new Error(`工作流内容能力缺少实现：${definition.capability_id}`);
     return { capability_id: definition.capability_id, version: definition.version,
-      handle: (caller, input) => role === "list" ? handlers.list(caller) : (handler as (value: unknown, caller: ActionCallContext) => unknown)(input, caller) };
+      handle: (caller, input) => role === "list" ? handlers.list(caller) : (handler as (value: unknown, caller: ActionExecutionContext) => unknown)(input, caller) };
   });
 }

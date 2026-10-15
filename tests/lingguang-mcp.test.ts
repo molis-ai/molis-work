@@ -8,7 +8,9 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 
-test("official stdio MCP client uses actual Lingguang business actions with scoped grants and shared persisted results", { timeout: 30_000 }, async () => {
+// Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
+// whole test at two files at once): the budget only stops a hang, it is not a speed check.
+test("official stdio MCP client uses actual Lingguang business actions with scoped grants and shared persisted results", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "lingguang-mcp-"));
   const clients: Client[] = [];
   const connect = async (project: string, access = "write") => {

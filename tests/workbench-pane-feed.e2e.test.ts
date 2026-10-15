@@ -136,8 +136,9 @@ test("opening a related Goal inside a pane leaves the original Goal tab intact",
   await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView==='CORE'");
   await click('[data-titlebar-tabs] [data-tab-split]');
   await click('[data-layout-split=right]');
-  // Each pane is a page of its own: both load the whole workbench (about five seconds here) before showing the Goal.
-  await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-goal-view]')?.dataset.goalView==='CORE' && f.contentDocument.querySelector('[data-goal-node-workspace]')?.hidden===false)", 8_000);
+  // Each pane is a page of its own: both load the whole workbench (about five seconds on a development Mac, over twice that on the
+  // Linux CI runner, whose busy main thread also delays the page's own deadline) before showing the Goal.
+  await waitFor("[...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-goal-view]')?.dataset.goalView==='CORE' && f.contentDocument.querySelector('[data-goal-node-workspace]')?.hidden===false)", 30_000);
   const relatedId = await evaluate<string>(`(() => {
     const paneId = document.querySelector('.tab-pane.is-focused').dataset.tabPane;
     window.originalFrame = document.querySelector('iframe[data-pane-owner="'+paneId+'"]:not([hidden])');

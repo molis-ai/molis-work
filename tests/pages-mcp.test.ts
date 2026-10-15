@@ -9,7 +9,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
-test("official stdio MCP client queries, imports, edits and generates with actual Pages actions across isolated projects", { timeout: 30_000 }, async () => {
+// Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
+// whole test at two files at once): the budget only stops a hang, it is not a speed check.
+test("official stdio MCP client queries, imports, edits and generates with actual Pages actions across isolated projects", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "pages-mcp-"));
   const clients: Client[] = [];
   const connect = async (project: string, access = "write") => {

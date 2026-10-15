@@ -6,18 +6,18 @@ export const ISSUE_IMAGES_CLIENT_SCRIPT = String.raw`
   let importing = 0, restoring = true, pictureWrites = 0, pictureFault = false, pictureQueue = Promise.resolve();
   // Serialize image changes: a later drop/removal must read the preceding draft, even while its disk write is pending.
   // Cache Storage keeps the accepted image size locally without a network request or a business database change.
+  // Only a write can lose something on leaving: reading the kept draft back is neither pending nor a fault.
   const pictures = change => {
-    pictureWrites++;
+    if (change) pictureWrites++;
     const result = pictureQueue.catch(() => { /* A failed write does not block a retry. */ }).then(async () => {
       const next = change?.(images);
       try {
         const cache = await caches.open(KEY), key = '/issue-draft-pictures';
-        if (change) { await cache.put(key, new Response(JSON.stringify(next))); images = next; }
+        if (change) { await cache.put(key, new Response(JSON.stringify(next))); images = next; pictureFault = false; }
         else images = await (await cache.match(key))?.json() || [];
-        pictureFault = false;
-      } catch { pictureFault = true; throw new Error(L('截图草稿未能保存在本机，请重试后再离开页面。')); }
+      } catch { if (change) pictureFault = true; throw new Error(L('截图草稿未能保存在本机，请重试后再离开页面。')); }
     })
-      .finally(() => { pictureWrites--; if (scope.alive) paint(); });
+      .finally(() => { if (change) pictureWrites--; if (scope.alive) paint(); });
     pictureQueue = result; return result;
   };
   const shots = (items, editable) => items.map((image, index) => '<figure><button type="button" data-preview><img src="' + esc(image.data_url) + '" alt="' + esc(image.name) + '"></button>'
@@ -38,13 +38,14 @@ export const ISSUE_IMAGES_CLIENT_SCRIPT = String.raw`
     } catch { throw new Error(L('图片无法读取，请重新选择有效的图片。')); }
     try {
       if (bitmap.width * bitmap.height > 64000000) throw new Error(L('图片尺寸过大，请裁剪后添加。'));
+      // 2 << 20 is 2 MiB.
       let blob = file;
-      if (file.size > 2 * 1024 * 1024 || Math.max(bitmap.width, bitmap.height) > 2560) {
+      if (file.size > 2 << 20 || Math.max(bitmap.width, bitmap.height) > 2560) {
         const canvas = document.createElement('canvas'), scale = Math.min(1, 2560 / Math.max(bitmap.width, bitmap.height));
         canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale); canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
         blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.9));
       }
-      if (!blob || blob.size > 2 * 1024 * 1024) throw new Error(L('图片压缩后仍超过 2 MiB，请裁剪后添加。'));
+      if (!blob || blob.size > 2 << 20) throw new Error(L('图片压缩后仍超过 2 MiB，请裁剪后添加。'));
       return { name: file.name.slice(0, 200) || 'image.png', data_url: await dataUrl(blob) };
     } finally { bitmap.close(); }
   };

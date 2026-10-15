@@ -44,6 +44,8 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 
 **采用线（10-15 恢复，只做 P2k）**：Prologue #25（P2k）已合进 Prologue main（`6c17647e`）：最终代码 `0107d9b0` 上 SDK 全量 3918 过 0 失败、干净包 13 个消费者全过，覆盖防腐 F-24。P3 的包从 `6c17647e` 或之后的 main 打。P3a 等防腐 I8 的第二个 PR（F109 其余：acceptance 包换包、agent-host、contracts/services/agent-host）合入后再变基、再换成 P2k 之后的 Prologue main——Molis 换两次包，主会话同意。之前不碰 `vendor/prologue-sdk`。#498 已合（`5d62d77f`）。
 
+**采用线 P3a 恢复（10-15 13:40 UTC）**：防腐 I8 第二个 PR #523 已合入 Molis main（`f74e29d8`，换上 acceptance 包）。P3a 从最新 main 变基，按 B 实现，从 Prologue main `e5123369`（含 #25 P2k、#27 撤销资源修复）打包换掉 acceptance 包；P3a 动共享核心，全量用 CI `full-suite` 标签，macOS 专有部分本机补；PR 交主会话进合并队列。其余三线仍暂停。
+
 **⏸ 四条需求线已暂停（用户 10-14 原话：「当前任务完成后，可以先暂停一下需求的线，让防腐线先继续。」）**。各线把手上的推到远端分支、撤掉自己排在构建锁后面的等待、在本线需求书写好「暂停点」后停下；整机让给防腐线（Codex，由用户恢复）。暂停时全部**没有构建、没有跑用例**：
 
 | 线 | 远端分支 @ head | 暂停点 | 恢复第一步 |

@@ -42,7 +42,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 
 **Molis 合并方式变了（10-15，PR #515，用户弹窗定）**：main 开了合并队列（规则集 "main merge queue"，squash，ALLGREEN，最多 5 个并行验证），分支保护去掉「必须与 main 同步」，必需检查仍只有 Verify，仓库开了 auto-merge。`gh pr merge <号> --squash` 只是入队，队列在 main+前序 PR 上跑 Verify 后自动合；判定合入看 PR 状态 `MERGED`，不再手动同步分支。全量可上 CI：PR 加 `full-suite` 标签、推 `integration/**`、或手动跑 Full suite（10 个 ubuntu 分片，不挡合并；macOS 专有的 24 个文件仍本机跑），见 `PARALLEL-DEVELOPMENT.md` §3、§7。§4「合并（merge commit）」一条以此为准。
 
-**采用线（10-15 恢复，只做 P2k）**：Prologue #25 最终 head `0107d9b0`，验证（SDK 全量 + 干净包消费者，覆盖防腐 F-24）排在构建锁后，过了由主会话合。P3a 等防腐 I8 的第二个 PR（F109 其余：acceptance 包换包、agent-host、contracts/services/agent-host）合入后再变基、再换成 P2k 之后的 Prologue main——Molis 换两次包，主会话同意。之前不碰 `vendor/prologue-sdk`。#498 已合（`5d62d77f`）。
+**采用线（10-15 恢复，只做 P2k）**：Prologue #25（P2k）已合进 Prologue main（`6c17647e`）：最终代码 `0107d9b0` 上 SDK 全量 3918 过 0 失败、干净包 13 个消费者全过，覆盖防腐 F-24。P3 的包从 `6c17647e` 或之后的 main 打。P3a 等防腐 I8 的第二个 PR（F109 其余：acceptance 包换包、agent-host、contracts/services/agent-host）合入后再变基、再换成 P2k 之后的 Prologue main——Molis 换两次包，主会话同意。之前不碰 `vendor/prologue-sdk`。#498 已合（`5d62d77f`）。
 
 **⏸ 四条需求线已暂停（用户 10-14 原话：「当前任务完成后，可以先暂停一下需求的线，让防腐线先继续。」）**。各线把手上的推到远端分支、撤掉自己排在构建锁后面的等待、在本线需求书写好「暂停点」后停下；整机让给防腐线（Codex，由用户恢复）。暂停时全部**没有构建、没有跑用例**：
 

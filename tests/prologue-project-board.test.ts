@@ -7,19 +7,21 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-a
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 
 const response = (text: string, tool?: { name: string; input: unknown }) => {
-  const events: string[] = [], emit = (type: string, value: any) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
+  const events: string[] = [], emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
   emit("message_start", { message: { id: "fixture", type: "message", role: "assistant", model: "fixture", content: [], usage: { input_tokens: 30, output_tokens: 0 } } });
   if (tool) emit("content_block_start", { index: 0, content_block: { type: "tool_use", id: "call-" + Math.random(), name: tool.name, input: tool.input } });
   else { emit("content_block_start", { index: 0, content_block: { type: "text", text: "" } }); emit("content_block_delta", { index: 0, delta: { type: "text_delta", text } }); }
   emit("content_block_stop", { index: 0 }); emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn" }, usage: { output_tokens: 8 } }); emit("message_stop", {});
   return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
 };
-const bodyOf = (init: RequestInit) => JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
-const opening = (message: any) => typeof message.content === "string" ? message.content : (message.content ?? []).map((block: any) => block.text ?? block.content ?? "").join("");
+type Block = { type?: string; text?: string; content?: unknown };
+type Body = { system: unknown; messages: Array<{ role: string; content: string | Block[] }> };
+const bodyOf = (init: RequestInit): Body => JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+const opening = (message: Body["messages"][number]) => typeof message.content === "string" ? message.content : message.content.map(block => block.text ?? block.content ?? "").join("");
 const versionIn = (messages: string) => Number([...messages.matchAll(/board (?:at|[^ ]+ at) version (\d+)/g)].at(-1)?.[1] ?? 1);
 const placeIn = (system: string) => ({ board: system.match(/本轮确认计划在项目任务图 (\S+) 上/)![1]!, prefix: system.match(/编号以 (\S+?)\. 开头/)![1]! });
 /** The latest tool result the round was given. */
-const lastResult = (body: any) => JSON.stringify([...body.messages].reverse().find((message: any) => Array.isArray(message.content) && message.content.some((block: any) => block.type === "tool_result")) ?? "");
+const lastResult = (body: Body) => JSON.stringify([...body.messages].reverse().find(message => Array.isArray(message.content) && message.content.some(block => block.type === "tool_result")) ?? "");
 const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const until = async (what: string, check: () => boolean, ms = 20_000) => {
   for (const deadline = Date.now() + ms; !check();) { if (Date.now() > deadline) throw new Error(`timed out: ${what}`); await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -43,7 +45,7 @@ test("PA-03: two sessions on the project's board report at once and both land; a
   let ids: Record<string, string> = {};
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = bodyOf(init), messages = JSON.stringify(body.messages), system = JSON.stringify(body.system);
-    const who = body.messages.filter((message: any) => message.role === "user").map(opening).reverse().map((text: string) => text.match(/^(ONE|TWO|OUT)_TASK/)?.[1]).find(Boolean);
+    const who = body.messages.filter(message => message.role === "user").map(opening).reverse().map((text: string) => text.match(/^(ONE|TWO|OUT)_TASK/)?.[1]).find(Boolean);
     if (!who) return response("其他。");
     const turns = (seen[who] ??= []); turns.push(messages); const turn = turns.length;
     if (who === "OUT") {

@@ -14,6 +14,12 @@ export const PROJECT_STEP = "project";
 /** A session's block on the project's board: its rounds stand on it; its plans' steps and its subtasks' steps hang under it. */
 export const blockId = (session: { readonly id: string }) => `s-${session.id}`;
 export const isBlock = (id: string) => /^s-[^.]+$/.test(id);
+/**
+ * A plan's own step in the session's block: its steps hang under it, not under the block, so a step handed to another
+ * session is not next to the block (a letter from the block to that session would otherwise find two of its steps there,
+ * its block and the handed step, and go nowhere: P2g).
+ */
+export const isPlanStep = (id: string) => /^s-[^.]+\.p\d+$/.test(id);
 
 const boardRef = (id: string) => ({ kind: "task-board", id, revision: 1 }) as ExactRef<"task-board">;
 const HUMAN_STEP_NOTE = "用户开始了新的一轮";

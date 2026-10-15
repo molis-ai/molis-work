@@ -42,9 +42,9 @@ test("the delegation view names both ends as this project's sessions and counts 
 const command = { kind: "command" as const, ref: "task-1", label: "后台命令 构建结束", last: { status: "satisfied" as const, at: "2026-09-28T03:00:00.000Z" } };
 const view = (wait: Partial<AgentCollaborationWait>, continuation?: Partial<NonNullable<CodingWaitView["continuation"]>>): CodingWaitView => ({
   session_id: "rt-a",
-  wait: { wait_id: "w1", session_id: "rt-a", board_id: "b1", node_id: "session", by: "agent", reason: "等构建结束", mode: "all", until: "success", on_failure: "block",
+  wait: { wait_id: "w1", session_id: "rt-a", graph_id: "b1", node_id: "session", by: "agent", reason: "等构建结束", mode: "all", until: "success", on_failure: "block",
     deadline_at: "2026-10-05T02:00:00.000Z", conditions: [command], state: "satisfied", created_at: "2026-09-28T02:00:00.000Z", ...wait },
-  ...(continuation ? { continuation: { board_id: "b1", node_id: "session", session_id: "rt-a", request_key: "b1.w1", state: "eligible", auto: true, ...continuation } } : {}),
+  ...(continuation ? { continuation: { graph_id: "b1", node_id: "session", session_id: "rt-a", request_key: "b1.w1", state: "eligible", auto: true, ...continuation } } : {}),
 });
 
 test("a wait that is over goes on to the next round with how things stand and the original task", () => {

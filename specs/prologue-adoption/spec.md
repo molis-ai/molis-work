@@ -1,12 +1,15 @@
 # Prologue 采用：能力接入与 TaskBoard 统一协作
 
-> **2026-10-14 暂停（用户让需求线先停、防腐线先走）：恢复从 §6.0c「暂停点」开始。** 现状核对见 §6.0b。
+状态：执行中（2026-10-15：P3a 已恢复——已并 main `f74e29d8`（#523）、换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 剩换模型后撤权（就是 P3b，接 SDK 的 `beforeAccept`）与「从断点继续」（§5.6a）；P3b、P3c（外部条件检查器）在 P3a 合入后各一个 PR；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
 
-> **当前接续入口是 §6.0b「现状核对（2026-10-14）」**：原 23 项与 24、25 项逐项对照 Molis main 与 Prologue main 的真实代码和测试，列出已实现、部分、未做、暂缓与依据，以及文中写了完成但代码不符的地方。§7（2026-10-13 晚）的分支、决策、工作规则、已知问题和复现命令仍有效，其中进度句以 §6.0b 为准；正文里的旧绝对路径、旧工作树、旧授权语句都是历史记录。
+> **2026-10-15 P3a 恢复：接续入口是 §6.0d「P3a 恢复记录」。** §6.0c 的暂停点已解除（防腐线 I8 第二个 PR #523 已合入），其中「恢复时按这个顺序」第 1、2、3 步已做完。
+
+> 2026-10-14 曾暂停（用户让需求线先停、防腐线先走），暂停点见 §6.0c。现状核对见 §6.0b。
+
+> **§6.0b「现状核对（2026-10-14）」**：原 23 项与 24、25 项逐项对照 Molis main 与 Prologue main 的真实代码和测试，列出已实现、部分、未做、暂缓与依据，以及文中写了完成但代码不符的地方。§7（2026-10-13 晚）的分支、决策、工作规则、已知问题和复现命令仍有效，其中进度句以 §6.0b 为准；正文里的旧绝对路径、旧工作树、旧授权语句都是历史记录。
 
 > 2026-10-13 晚已与 main（#471 Computer Use、#472 旧采用树）对账：实现以 main 为准，#408 只留 main 没有的部分；Molis 依赖换成过渡包。对账记录见 §6.0a。
 
-状态：执行中（2026-10-14：#408、#491 已合 main；Molis 依赖仍是过渡包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz`（Prologue `923e5a40`，两个父提交在 Prologue main，用户 2026-10-13 决定）；A0 工程通过；A1 核对已合（#491），剩换模型后撤权与「从断点继续」两处（§5.6a，前者随 P3 接 SDK 的 `beforeAccept`）；P1 冻结；P2a–P2j、S4 与换模型验收复查（#24）都在 Prologue main `b01067b4`，合入后补跑见 §6.0b；P3–P6、A2（写后诊断）、A3 的结构化一半未做；W4-06（#498）是 P3 硬前置）
 
 目标完成等级：Prologue **完整采用范围内部完整**——§2 原 1–23 项与存储/预算等既有决定逐项完成采用、验证或按已定边界不做；新增 24/25 项使 Coding 与个人助理共用协作事实及外部条件等待。需要接入的路径在真实执行、界面、权限及异常恢复中可顺畅试用。A0 只是当前基础切片，不是整线完成定义。工程通过、真实产品实操、用户本人验收分别记录。A0 基础采用已完成（工程通过），当前在做 P2 SDK 机制（见 §7.1、§7.5）。授权和工作规则以 §7.8 为准：可推送自己的分支（先跑 secrets 检查、用 SSH 地址）；Molis 侧只往交接 PR #408 提交，Prologue 侧每刀单独 PR；不自己合并、不改真实 Home 或安装版。
 
@@ -385,7 +388,7 @@ Coding 步骤板和助理工作/委派视图都读同一图，仍挂在现有工
 
 #### 4.6.10 P3 落地（2026-10-14，采用线定）
 
-P1 冻结的是语义（§4.6.9）。这一节写 P3 在 Molis 一侧具体怎么接，以及和 §4.6.9 映射表不一样的几处，理由按「技术决定看防腐后果」。依据是 Prologue main `b01067b4` 的公开接口，和 P2 各刀 PR 正文「对消费方的影响」一节。
+P1 冻结的是语义（§4.6.9）。这一节写 P3 在 Molis 一侧具体怎么接，以及和 §4.6.9 映射表不一样的几处，理由按「技术决定看防腐后果」。依据是 Prologue main 的公开接口（起初是 `b01067b4`，换包时是 `e5123369`），和 P2 各刀 PR 正文「对消费方的影响」一节。
 
 **为什么换包与接线必须同一刀**：新包同时做了四件事：
 
@@ -401,14 +404,14 @@ P1 冻结的是语义（§4.6.9）。这一节写 P3 在 Molis 一侧具体怎�
 | 事 | 怎么接 | 和 §4.6.9 的出入 |
 | --- | --- | --- |
 | 哪些跑要绑 | 这一跑的工具里有协作工具（上面那几个），或者带确认计划。助理（App 模式、自己的委派工具）、Schedule、创作台的跑照旧不绑 | — |
-| 绑到哪 | 一律绑在这个会话在项目工作板上的那一块（`prologue-collaboration.ts` 的 `sessionBlock`）：项目根 `project` 第一次用到时加上，会话的块 `s-<会话>` 挂在它下面、由这个会话负责。这个会话有一条可以接着做的接续时，用接续的请求键开跑、绑在接续所在的那一步（就是这一块）。确认计划的步骤加在这一块下面，编号带前缀 `s-<会话>.p<n>.`（`prologue-plan-steps.ts`），给 Coding 的视图仍是 `step-N`、`user-N` | 用户 2026-10-14 选 B（见下面一段），X5 改了；计划不再单开一块板 |
+| 绑到哪 | 一律绑在这个会话在项目工作板上的那一块（`prologue-collaboration.ts` 的 `sessionBlock`）：项目根 `project` 第一次用到时加上，会话的块 `s-<会话>` 挂在它下面、由这个会话负责。这个会话有一条可以接着做的接续时，用接续的请求键开跑、绑在接续所在的那一步（就是这一块）。确认计划在这一块下面先加一个计划节点 `s-<会话>.p<n>`，步骤挂在计划节点下面，编号带前缀 `s-<会话>.p<n>.`（`prologue-plan-steps.ts`），给 Coding 的视图仍是 `step-N`、`user-N`。步骤不直接挂在这一块下面：交给另一个会话的步骤若与这一块是兄弟，这一块再给那个会话写信时，对方在旁边就有两步（它自己那一块和交来的步骤），P2g 会以「不止一步相邻」拒绝。根、块与计划节点都是宿主的，模型报告它们会被拒绝 | 用户 2026-10-14 选 B（见下面一段），X5 改了；计划不再单开一块板 |
 | 派出复核 | `collaborationHost.admitDispatch`：沿用 `verifySubagentStart` 的角色、目录核对，再跑这一跑的 `beforeDispatch`（授权、安装、停用）。拒绝就带原因码 | 共享用量账的预留这一刀不做，PA-07 的预算一半留到 P4（那里有工作级额度） |
 | 接续起跑 | 不给 `startContinuation`。接续满足后停在 `eligible`；Coding 插件看到它，用接续的请求键起跑（`startAgentRun` 的 `agent.idempotencyKey` 填请求键，`collaboration` 填接续所在的那一步）。这一轮走 Coding 自己的 `startRound`，所以照常经过宿主开跑前的全部复核 | §4.6.9 写由协作口起跑。改的理由：Coding 一轮开始时插件还要做自己的账（会话状态、跟随这一跑、委派的接受、标题），宿主替它起跑会漏掉这些；SDK 明确支持「App 看图事件，自己用请求键起」这条路，开跑的唯一入口仍是同一个。助理在 P4 若要宿主直接起跑，再接协作口 |
-| 人排队等另一个会话那一轮 | 宿主在排队会话的那一块上以 app 身份 `arm` 一个等待，条件是同一张板上那一轮的节点（`node`），`onFailure: block`。排进去的那一轮的请求体由 Coding 自己存（`queued:<wait>`），等待上不挂数据（`HeldWait` 没有 `data`） | — |
-| 等待的读与控制 | 新合同子路径 `services/agent-collaboration`，三个动作（Action，不是 typed capability）：<br>• `agent.collaboration.read.v1`：按会话读等待与接续视图；<br>• `agent.collaboration.await.v1`：`operation: wait`，项目里刚变成 `eligible` / `blocked` 的接续，最多等 25 秒；<br>• `agent.collaboration.control.v1`：本刀只做 `cancel-wait`、`continue-now`。<br>旧的 `agent.waits.read/await/resume/cancel` 只有 Coding 在调，同一刀删掉 | §4.6.9 只列了 read / revise / control。`await` 是加的：Coding 要「等到有一条能接着做」而不轮询。`revise`（替换 `step-board.amend`）、`control` 的 `retry` / `resolve-reconciliation` 留到 P4 |
+| 人排队等另一个会话那一轮 | 宿主在排队会话的那一块上以 app 身份 `arm` 一个等待，条件是同一张板上那一轮的节点（`node`），`onFailure: block`。排进去的那一轮的请求体由 Coding 自己存（`queued:<wait>`），等待上不挂数据（`HeldWait` 没有 `data`）。人不等了、直接开始那一轮（开跑请求带 `queued_work_id`，接过那一项）时，宿主撤掉这条等待（`queueTakenOver`），那边做完不会再起一轮 | — |
+| 等待的读与控制 | 新合同子路径 `services/agent-collaboration`，两个动作和一个等待：<br>• `agent.collaboration.read.v1`（动作）：每个会话一条视图，是它还要紧的最近一条等待（还在等，或接续还没被接上、没被放弃）；<br>• `agent.collaboration.await.v1`（typed，`operation: wait`，在 `agentHostCapabilities.awaitContinuations`：动作不能是等待）：项目里可以接着做或留给人的接续，最多等 25 秒；<br>• `agent.collaboration.control.v1`（动作）：本刀只做 `cancel-wait`、`continue-now`。等待已经结束、它那一步留给人决定时（失败、到期、要核对），`cancel-wait` 把那一步交还（SDK 没有别的出口），视图从此不再列它。<br>旧的 `agent.waits.read/await/resume/cancel` 只有 Coding 在调，同一刀删掉 | §4.6.9 只列了 read / revise / control。`await` 是加的：Coding 要「等到有一条能接着做」而不轮询。`revise`（替换 `step-board.amend`）、`control` 的 `retry` / `resolve-reconciliation` 留到 P4 |
 | 让出 | 删 `subagentYieldGuard`。`dispatch-subagent` 带 `yield` 按 SDK 走：派出、这一步等孩子那一步、收工；孩子那一步结束，接续 `eligible`，Coding 起下一轮 | PA-23 的「不开放私有自动续做」改由 PA-08、PA-11 证明 |
 | 宿主代用户发的「优先」notice | 不再发成信，改由宿主直接告诉范围重叠、此刻正在跑的那几轮（宿主来源的补充）。理由有两条：agents 受众的信只能在相邻的步骤之间走；`people` 受众的信又到不了对方的模型那里。没有在跑的会话不再收到这句话：它下一轮开跑时，项目工作摘要会写出重叠 | — |
-| 信交给收件人 | 「子任务一律不能发信」删掉：能不能发、发给谁由 SDK 的位置检查决定（同一项目的会话在项目板上是兄弟，子任务是会话那一块的孩子）。宿主的发信钩子只留三件事：说清不能发的（发给自己、发给别的项目）、把「范围重叠的会话」换成名单、群发上限 5 个。宿主仍负责把信交给收件人正在跑的那一轮，孩子的跑也算在内（`watchChild` 给每个孩子都登记了 steer）；没在跑的主会话，信留到它下一轮的收件箱。Runtime 自己写回的信（`inject`：子任务回报、等待带回的结果）由 SDK 自己交 | — |
+| 信交给收件人 | 「子任务一律不能发信」删掉：能不能发、发给谁由 SDK 的位置检查决定（同一项目的会话在项目板上是兄弟，子任务是会话那一块的孩子）。宿主的发信钩子只留三件事：说清不能发的（发给自己、发给别的项目、发给子任务）、把「范围重叠的会话」换成名单、群发上限 5 个。收件人还没有在项目板上的那一块时（它从没跑过一轮），发信之前先给它放上（`place`），不然 SDK 找不到它的位置。会话的信件列表只列四种信（request、notice、reply、handoff），宿主给正在跑的那一轮的 inject 不算信。宿主仍负责把信交给收件人正在跑的那一轮，孩子的跑也算在内（`watchChild` 给每个孩子都登记了 steer）；没在跑的主会话，信留到它下一轮的收件箱。Runtime 自己写回的信（`inject`：子任务回报、等待带回的结果）由 SDK 自己交 | — |
 | 跨会话的信与交接 | 保留（用户选 B）。同一项目的会话之间可以互相请求、答复、通知、交接计划步骤（`handoff` 的 `steps` 写步骤在任务图上的编号，没有计划的一轮交不了步骤，用 request）；别人交来的步骤照旧作为材料交给下一轮。跨项目的会话不在同一张板上，照旧拒绝 | — |
 | `following`、2 小时认领过期 | 不动，留到 P4（§4.6.9 的 Coding 一项） | — |
 
@@ -909,6 +912,75 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
    6. `pnpm api:update`、`pnpm actions:update`；`page-assets` 量两个新状态词（只许变小，超了就在同一个文件里省字节）；`check-health-gates --base`。
    7. 写验证证据，开 PR。
 4. 之后是 P3b（换模型的 `beforeAccept`）、P3c（外部条件检查器），再往后 P4。
+
+### 6.0d P3a 恢复记录（2026-10-15，当前接续入口）
+
+统筹 2026-10-15 转达：防腐线 I8 第二个 PR（#523）已合入，P3a 恢复。要求五条：并 main、换包、按 B 做、同一个 PR 里做默认路径验证（共享核心要跑全量）、证据写进 PR 后由统筹放进合并队列。P3b、P3c 在 P3a 合入后各一个 PR。
+
+**做了什么（分支 `adoption/p3-collaboration`）**：
+
+1. **并 main**（`91f76ada`）：并的是 `f74e29d8`（#523）。冲突按 main 的现行形状解：W3-02 去掉的 `AgentHostError` 没有带回来，错误码走 `defineErrorCodes`。
+2. **换包**（`addf8157`）：vendored 包从过渡包换成从 Prologue main `e5123369` 打的 `prologue-sdk-0.0.0-rc.1-collaboration.tgz`。
+   - 大小 1,182,902 字节，SHA-256 `9f001ede…`。
+   - 它含 P2a–P2k，还有 #27（撤销资源不逐块写墓碑）。
+   - 打包脚本是 `prologue-verify.sh`：SDK 全量 3924 过、0 失败（没跑 `desktop-computer-use.live`），13 个消费者脚本都在这个包上过。
+   - 旧包从目录里删掉，字节数、SHA-256、git blob 和来源提交记进 `patch-history.json`。
+   - 另外两处同步改了：登记表 `scripts/workspace-packages.mjs` 里 agent-host 的包路径，和 `docs/system/SECURITY-INVARIANTS.md` 里 S-13 指向的当前包。
+   - 编译修复：#27 新加的 `HostStorage.discard` 和 `remove`、`purge` 一样走副作用围栏；项目工作的状态表读得懂步骤的 `waiting`、`needs-reconciliation`。
+3. **按 B 接项目工作板**（`8dc0cd72` 和本 PR 的后续提交）。结构：
+   - 项目根 `project`；
+   - 每个会话一块 `s-<会话>`；
+   - 每份确认计划一个计划节点 `s-<会话>.p<n>`，步骤 `s-<会话>.p<n>.step-N` 挂在计划节点下面；
+   - 项目工作项 `w-…`。
+
+   并发用例是 `tests/prologue-project-board.test.ts`（PA-03，已加进 `tests/ci-product-subset.txt`）：
+   - 两个会话同时开跑、同时读板，在一道栅栏后同时报告各自的 `step-1`，两边都落下；
+   - 人在 TWO 的计划里插了一步之后，TWO 用旧版本报告 `step-2`，拿到明确的 `TASKBOARD_CONFLICT`（「changed after version N … read it again」），什么都没改；
+   - ONE 报告 TWO 的步骤，拿到 `TASKBOARD_NOT_ASSIGNED`；
+   - 另一个项目的会话读板、报告、发信都被拒绝，板和信箱都不变。
+
+**在新路径上跑用例和门禁时找到、已修的缺陷**（最后一条是门禁找到的，其余都是用例先红，修完变绿）：
+
+- 两个会话同时第一次开跑，会各建一张项目板：项目板的入场改成同一个 promise 共用。
+- 根和会话的块被当成项目工作列出来：工作项改用 `w-` 前缀，只列它们。
+- 收件人从没跑过一轮时，在板上还没有它那一块，SDK 找不到它的位置，信发不出去：发信前先给收件人放上那一块（`place`）。
+- 会话的信件列表把宿主给正在跑的那一轮的 `inject` 也算成了信：只列 request、notice、reply、handoff。
+- 发信拒绝的说法和「不能发给子任务」在改写时丢了：已恢复。
+- 计划步骤直接挂在会话那一块下面时，A 交给 B 的那一步和 A 的块是兄弟，A 再给 B 写信时，B 在旁边有两步，SDK 以「不止一步相邻」拒绝：步骤改挂到计划节点下面，`coding-collab-handoff` 加了交接之后再写一封信的一轮。
+- 等待结束、那一步留给人决定（失败、到期、要核对）时，人点「取消等待」什么也不发生，SDK 没有别的出口：宿主的 `cancel-wait` 把那一步交还，视图不再列它，Coding 对这种等待也调 control。
+- `awaitReady` 一有变化就返回，哪怕没有可以接着做的接续：改成一直等到有一条、到时或被停。
+- 读视图每个会话返回好几条：改成每个会话一条，是它还要紧的最近一条。
+- 人不等了、直接开始排队的那一轮（开跑请求带 `queued_work_id`）时，等待还挂着，那边做完会再起一轮：开跑接过那一项时，宿主撤掉这条等待（`queueTakenOver`）。main 上原有这一步（旧 `waits.resume`），P3a 改写时漏了，`coding-project-work` 用例抓到。
+- 合同里两个视图的字段 `board_id` 撞上旧名门禁（它指的是项目），改名 `graph_id`。
+
+**用例跟着改的、属于预期变化的**：
+
+- 派子任务要先过人的审查卡，`prologue-adoption-guard` 改成批准审查卡。
+- 让出的孩子拿不到板工具，所以它那一步总是「back with you unfinished」，等待记为 failed；因为让出等到 settled，接续照样能走，用例按这个断言。
+- 被接上的接续不再出现在视图里，`awaitReady` 返回空：这是合同。
+- 正在跑的那一轮只在下一次工具结果里听到等待结束：夹具里被挡住的那一轮要调一个工具。
+- W2-18-CODING-WAKE-01 改了场景：原来命令被重启截断、叫醒后告诉模型「中断了」；新包把截断的命令记为结果未知、那一步留给人核对（§4.6.4「被重启截断的……先核对，不自动重派」），Coding 只记一条给人的说明，不起跑。用例改成命令在插件停着时结束：等待结束的事实已落盘，SDK 重开、插件重新激活后，连续四次读失败之后照样只起一轮。
+- 旧的 `任务图：…。` 写法和不带前缀的步骤编号换成「本轮确认计划在项目任务图 … 上」与 `s-<会话>.p<n>.` 前缀：`prologue-step-amend`、`coding-runtime-regressions`、`coding-plan-dependencies`、`prologue-taskboard`。
+
+**验证**：（见下表，跑完补）
+
+| 项 | 命令 | 结果 |
+| --- | --- | --- |
+| 构建 | `pnpm build` | 待补 |
+| 包边界 | `pnpm boundary:check` | 待补 |
+| 门禁 | `node scripts/check-health-gates.mjs --base origin/main` | 待补 |
+| 快照 | `pnpm api:update`、`pnpm actions:update` | 待补 |
+| 页面资源 | `node scripts/gates/page-assets.mjs --base origin/main` | 待补 |
+| 选出的用例 | `node scripts/affected-tests.mjs --base origin/main` 选出的非浏览器文件 | 待补 |
+| 浏览器 | 选出的浏览器文件，含 `coding-taskboard.e2e` | 待补 |
+| 安全 | `pnpm test:security`（含 S-13 在新包上） | 待补 |
+| 全量 | PR 加 `full-suite` 标签，CI 上 Linux 分片；只在 macOS 跑的部分在本机补 | 待补 |
+
+**留到后面的（不在 P3a 里）**：
+
+- Coding 的协调者角色没有板工具，它的孩子也就没有（SDK T12），让出的孩子永远报不了自己那一步，等待总是 failed、照样往下走。要不要给协调者或孩子开板工具是产品问题，P4 再定。
+- 宿主代人发的「优先」只告诉此刻正在跑的那几轮（§4.6.10 表里已写）。
+- `following`、2 小时认领过期，留到 P4。
 
 ### 6.1 当前记录
 

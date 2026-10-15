@@ -1,6 +1,6 @@
 import { APP_MODE_SURFACE_TOOLS, SYSTEM_TOOL_NAMES, type ExactRef, type Runtime, type PolicyRule } from "@prologue/sdk";
 import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { blockId, isBlock, PROJECT_STEP } from "./prologue-collaboration.js";
+import { blockId, isBlock, isPlanStep, PROJECT_STEP } from "./prologue-collaboration.js";
 import { amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace } from "./prologue-plan-steps.js";
 
 type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
@@ -55,8 +55,9 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
     if (!context.toolName?.startsWith("board-") || context.toolName === "board-wait") return { kind: "allow" };
     const denied = { kind: "deny" as const, why: "只能读取或回报本项目的任务图，不能访问其他任务图或改写计划" };
     const asked = context.input as { board?: unknown; node?: unknown } | undefined;
-    // The step a session stands on, and the project's root, are the Host's: they say where a round is, not what it did.
-    if (context.toolName === "board-report" && (asked?.node === PROJECT_STEP || isBlock(String(asked?.node)))) return { kind: "deny", why: "这一步是会话所在的位置，不用报告；请报告计划里的步骤" };
+    // The step a session stands on, a plan's own step and the project's root are the Host's: they say where work is, not
+    // what it did.
+    if (context.toolName === "board-report" && (asked?.node === PROJECT_STEP || isBlock(String(asked?.node)) || isPlanStep(String(asked?.node)))) return { kind: "deny", why: "这一步是会话或计划所在的位置，不用报告；请报告计划里的步骤" };
     if (!["board-read", "board-report"].includes(context.toolName) || !context.origin?.session) return denied;
     // An earlier plan of this session is the person's to take up again (「继续计划」): a round reports on its own plan's
     // steps in its block, not on another plan's.
@@ -104,14 +105,19 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
     }
   });
   return {
-    /** A confirmed plan's steps, under the session's block on the project's board; each starts with the round's session. */
+    /**
+     * A confirmed plan's steps, under the plan's own step in the session's block on the project's board; each starts with
+     * the round's session.
+     */
     async admit(plan: AgentExecutionPlan, owner: ExactRef<"session">, at: { board: ExactRef<"task-board">; block: string; prefix: string }): Promise<PlanPlace> {
       const place: PlanPlace = { ref: at.board, block: at.block, prefix: at.prefix, plan };
+      // Added, not admitted, and comparing only what they touch (P2k): another session's changes meanwhile miss nothing.
+      await runtime.boards.addNode({ ref: at.board, expectedVersion: runtime.boards.get(at.board).version,
+        node: { id: at.prefix, title: plan.title.slice(0, 120) || "计划", parent: at.block, dependsOn: [], onFailure: "block-for-human", assignee: owner } });
       for (const [index, step] of plan.steps.entries()) {
         const dependsOn = (step.depends_on ?? (index ? [plan.steps[index - 1]!.id] : [])).map(id => fullId(place, id));
-        // A step with no earlier steps to wait for, under the block only: nothing a concurrent change could make it miss (P2k).
         await runtime.boards.addNode({ ref: at.board, expectedVersion: runtime.boards.get(at.board).version,
-          node: { id: fullId(place, step.id), title: `步骤 ${index + 1}`, parent: at.block, dependsOn, onFailure: "block-for-human", assignee: owner } });
+          node: { id: fullId(place, step.id), title: `步骤 ${index + 1}`, parent: at.prefix, dependsOn, onFailure: "block-for-human", assignee: owner } });
       }
       return place;
     },

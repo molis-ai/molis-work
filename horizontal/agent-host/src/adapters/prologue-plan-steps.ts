@@ -189,7 +189,7 @@ export async function amendPlan(runtime: Runtime, place: PlanPlace, amendment: A
       const id = fullId(place, `user-${planNodes(board, place).filter(entry => localId(place, entry.id)!.startsWith("user-")).length + 1}`), after = dependents(anchor.id);
       // An inserted step is the round's to do, or the person's own when they take it on.
       const holder = amendment.mine ? person : roundSession;
-      board = await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version, node: { id, title: heading, parent: place.block, dependsOn: [anchor.id], onFailure: "block-for-human", ...(holder ? { assignee: holder } : {}) } });
+      board = await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version, node: { id, title: heading, parent: place.prefix, dependsOn: [anchor.id], onFailure: "block-for-human", ...(holder ? { assignee: holder } : {}) } });
       await report(id, `用户插入：${heading}；完成条件：${acceptance}${amendment.mine ? "；由用户处理" : ""}`);
       for (const next of after) await rewire(next, replaced(node(next).dependsOn, anchor.id, [id]));
       break;

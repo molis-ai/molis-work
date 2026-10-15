@@ -20,7 +20,7 @@ import { inlineMethods } from "./prologue-methods.js";
 import { projectWorkDigest, workPaths, type createProjectWork } from "./prologue-project-work.js";
 import { withInteractionRepairLimit } from "./prologue-questions.js";
 import { runModelParams } from "./prologue-run-params.js";
-import { collaborates, eligibleContinuation, planPrefix, readyStep, sessionBlock } from "./prologue-collaboration.js";
+import { blockId, collaborates, eligibleContinuation, planPrefix, readyStep, sessionBlock } from "./prologue-collaboration.js";
 import type { PlanPlace } from "./prologue-plan-steps.js";
 import { exactCharacterKey, verifySubagentStart, type PrologueSubagentRoot } from "./prologue-subagents.js";
 import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, type PrologueSurfaces } from "./prologue-surfaces.js";
@@ -506,6 +506,7 @@ async function afterStart(deps: RunDeps, input: PrologueStartInput, index: Sessi
     try {
       const workId = await deps.projectWork.begin(at.project, { session: session.ref, run_id: started.run.ref.id, title: input.session_title ?? index.title, task: input.task,
         directory: input.root_path, paths: at.scopePaths, ...(input.queued_work_id ? { queued: input.queued_work_id } : {}) });
+      if (workId === input.queued_work_id) await deps.waitsPort.queueTakenOver(session.ref.id, { board: await deps.projectWork.projectId(at.project), node: blockId(session.ref) });
       state.runWork.set(started.run.ref.id, { project: at.project, id: workId, session: session.ref, directory: input.root_path });
       state.liveSessions.set(session.ref.id, started.run.ref.id);
     } catch { /* not listed as project work; the round itself is unaffected */ }

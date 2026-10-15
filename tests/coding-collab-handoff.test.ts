@@ -49,6 +49,8 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
       // A starts step-1 and ends its round with it unfinished.
       if (turn === 3) return response("", { name: "board-read", input: { board } });
       if (turn === 4) return response("", { name: "board-report", input: { board, node: `${prefix}.step-1`, state: "running", note: "开始改 a.ts", version: versionIn(messages) } });
+      // A step handed to B is not next to A's block: A can still write to B.
+      if (turn === 5) return response("", { name: "session-send", input: { to: ids.B, kind: "notice", body: "a.ts 的导出没变，step-2 照常做。", idempotencyKey: "a-notice" } });
       return response("step-2 交给了 B，我这边只做 step-1。");
     }
     if (who === "B") {
@@ -120,7 +122,8 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
     assert.equal((await node())!.owner?.kind, "other", "step-2 is someone else's now, from A's side");
     assert.ok((await node())!.reports.some(report => report.handover), "the handover is on the step's record");
     const mail = await adapter.messages!.read("b", b.session.session_id);
-    assert.deepEqual(mail.map(message => [message.kind, message.from_title, message.state]), [["handoff", "A", "queued"]]);
+    assert.match(seen.A![5]!, /envelope \S+ is queued/, "a letter after the handover still finds B");
+    assert.deepEqual(mail.map(message => [message.kind, message.from_title, message.state]), [["handoff", "A", "queued"], ["notice", "A", "queued"]]);
     // B's next round is handed it, reads and reports on the step on A's graph, and finishes it.
     await ended((await b.start()).ref);
     assert.match(seen.B![0]!, /来自会话「A」.*的交接/);

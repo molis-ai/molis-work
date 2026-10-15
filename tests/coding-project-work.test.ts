@@ -57,8 +57,9 @@ test("sessions in one project see each other's work: overlaps before a round sta
     const waiting = await work.queue("b", { session: sessionB, directory: root, task: "B_TASK 等一等", after: probe.overlaps[0]!.work.work_id }, "user");
     assert.equal(waiting.state, "waiting"); assert.deepEqual(waiting.waits_for, [probe.overlaps[0]!.work.work_id]);
     // B is parked on A's work in the SDK, carrying what to start with and the item it waits as.
-    const parkedOnWork = (await adapter.waits!.read("b", sessionB.session_id))[0]!;
-    assert.deepEqual([parkedOnWork.by, parkedOnWork.state, parkedOnWork.wait_id, parkedOnWork.waiting_on, (parkedOnWork.data as any).work_id], ["app", "waiting", waiting.wait_id, "「改标签格式」那一轮", waiting.work_id]);
+    const parkedOnWork = (await adapter.collaboration!.read("b", sessionB.session_id))[0]!.wait!;
+    assert.deepEqual([parkedOnWork.by, parkedOnWork.state, parkedOnWork.wait_id, parkedOnWork.conditions.map(one => [one.kind, one.ref.split("/").at(-1), one.label])],
+      ["app", "waiting", waiting.wait_id, [["node", probe.overlaps[0]!.work.work_id, "「改标签格式」那一步"]]]);
     // The person starts B anyway: it takes over its waiting item and the wait is dropped.
     const b = await host.start("prologue", { ...owner, session: sessionB, directory, role_id: "builder", task: "B_TASK 给 src/label.ts 加前缀", queued_work_id: waiting.work_id } as never, authority);
     let reviewed = false;
@@ -86,13 +87,17 @@ test("sessions in one project see each other's work: overlaps before a round sta
     const listed = (await work.read("b")).items;
     const itemB = listed.find(item => item.work_id === waiting.work_id)!;
     assert.equal(itemB.state, "done"); assert.equal(itemB.waits_for, undefined, "started anyway: the wait was dropped");
-    assert.deepEqual((await adapter.waits!.read("b", sessionB.session_id)).map(wait => [wait.state, wait.note]), [["resumed", "等待中的那一轮已开始"]], "its firing starts nothing more");
+    // Started anyway: the wait that would have started it is gone, so A ending starts nothing more.
+    const dropped = (await adapter.collaboration!.read("b", sessionB.session_id))[0]!;
+    assert.deepEqual([dropped.wait, dropped.continuation], [undefined, undefined], JSON.stringify(dropped));
+    assert.deepEqual(await adapter.collaboration!.awaitReady("b", 0), []);
     assert.deepEqual(itemB.paths, ["src/label.ts"]);
     releaseA();
     for (const deadline = Date.now() + 10_000; (await work.read("b")).items.some(item => item.state === "running");) {
       if (Date.now() > deadline) throw new Error("A never ended"); await new Promise(resolve => setTimeout(resolve, 20));
     }
     assert.deepEqual((await work.read("b")).items.map(item => [item.title, item.state]), [["标签加前缀", "done"], ["改标签格式", "done"]]);
+    assert.deepEqual(await adapter.collaboration!.awaitReady("b", 0), [], "A ending starts nothing more");
     void (a.ref as AgentRunRef);
   } finally { releaseA(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

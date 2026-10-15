@@ -58,7 +58,7 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
       const seen = wait.observations[index]!, named = await label(condition);
       conditions.push({ kind: condition.kind, ...named, last: { status: seen.status, at: iso(seen.atMs), ...(seen.note ? { note: seen.note } : {}), ...(seen.checkerError ? { checker_error: seen.checkerError.code } : {}) } });
     }
-    return { wait_id: wait.ref.id, session_id: wait.session.id, ...(wait.run ? { run_id: wait.run.id } : {}), board_id: wait.scope.board, node_id: wait.scope.node,
+    return { wait_id: wait.ref.id, session_id: wait.session.id, ...(wait.run ? { run_id: wait.run.id } : {}), graph_id: wait.scope.board, node_id: wait.scope.node,
       by: wait.by, reason: wait.reason, mode: wait.mode, until: wait.until, on_failure: wait.onFailure, deadline_at: iso(wait.deadlineMs), conditions, state: wait.state,
       ...(wait.continued ? { continued: true as const } : {}), created_at: iso(wait.createdAtMs), ...(wait.settledAtMs === undefined ? {} : { settled_at: iso(wait.settledAtMs) }),
       ...(wait.note === undefined ? {} : { note: wait.note }) };
@@ -66,7 +66,7 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
   const continuationOf = (wait: HeldWait): AgentContinuationView | undefined => {
     const continuation = nodeOf(wait.scope.board, wait.scope.node)?.continuation;
     if (!continuation || continuation.wait.ref.id !== wait.ref.id) return undefined;
-    return { board_id: wait.scope.board, node_id: wait.scope.node, session_id: continuation.target.session.id, request_key: continuation.requestKey, state: continuation.state,
+    return { graph_id: wait.scope.board, node_id: wait.scope.node, session_id: continuation.target.session.id, request_key: continuation.requestKey, state: continuation.state,
       auto: continuation.auto, ...(continuation.run ? { run_id: continuation.run.id } : {}), ...(continuation.reason ? { reason: { code: continuation.reason.code, ...(continuation.reason.note ? { note: continuation.reason.note } : {}) } } : {}) };
   };
   /**
@@ -161,6 +161,12 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
       // No round of this session runs now: the step waits (a running round would hand it over when it ends).
       if (!armed.already && nodeOf(at.board, at.node)?.state === "running") await runtime.boards.transition({ ref: boardRef(at.board), nodeId: at.node, to: "waiting" });
       return { waitId: armed.wait.ref.id, already: armed.already };
+    },
+    /** The queued round started anyway and took over its waiting item: the wait that would have started it goes. */
+    async queueTakenOver(sessionId: string, at: { board: string; node: string }) {
+      const nowMs = await now();
+      for (const wait of runtime.waits.list({ session: sessionId })) if (wait.state === "waiting" && wait.by === "app" && wait.scope.board === at.board && wait.scope.node === at.node)
+        await runtime.waits.cancel(wait.ref.id, nowMs, "等待中的那一轮已开始");
     },
     close() { for (const off of unsubscribe) off(); changed(); },
   };

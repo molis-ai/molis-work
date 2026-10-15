@@ -60,9 +60,9 @@ test("a round told to wait for another session's work waits on it, starts on its
         const item = { work_id: workId, session_id: "sdk-b", title: "标签加前缀", task: input[1].task, state: "waiting", directory: root, paths: ["src/label.ts"], waits_for: [input[1].after], updated_at_ms: 2, wait_id: waitId };
         work.push(item);
         waits.push({ session_id: "sdk-b",
-          wait: { wait_id: waitId, session_id: "sdk-b", board_id: "board-b", node_id: "session", by: "app", reason: "等「改标签格式」那一轮完成后再开始", mode: "all", until: "success", on_failure: "block",
+          wait: { wait_id: waitId, session_id: "sdk-b", graph_id: "board-b", node_id: "session", by: "app", reason: "等「改标签格式」那一轮完成后再开始", mode: "all", until: "success", on_failure: "block",
             deadline_at: now, conditions: [{ kind: "node", ref: `p/${input[1].after}`, label: "「改标签格式」那一步", last: { status: "pending", at: now } }], state: "waiting", created_at: now },
-          continuation: { board_id: "board-b", node_id: "session", session_id: "sdk-b", request_key: `board-b.${waitId}`, state: "armed", auto: true } });
+          continuation: { graph_id: "board-b", node_id: "session", session_id: "sdk-b", request_key: `board-b.${waitId}`, state: "armed", auto: true } });
         return item as Output;
       }
       if (id === agent.releaseProjectRound.capability_id) { work.find(item => item.work_id === input[1])!.state = "stopped"; return undefined as Output; }
@@ -114,7 +114,7 @@ test("a round told to wait for another session's work waits on it, starts on its
     const queued = await call("/sessions/b/runs", { ...send, wait_for: "wa" });
     assert.equal(queued.status, 200, JSON.stringify(queued.body));
     assert.deepEqual([queued.body.queued.work_id, queued.body.queued.wait_id], ["wb", "w-wb"]);
-    assert.equal(calls.find(([id]) => id === agent.queueProjectRound.capability_id)![1] && ((calls.find(([id]) => id === agent.queueProjectRound.capability_id)![1] as any[])[1].data), undefined, "the Host is not given the send");
+    assert.equal((calls.find(([id]) => id === agent.queueProjectRound.capability_id)![1] as [string, { data?: unknown }])[1].data, undefined, "the Host is not given the send");
     assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "queued");
     assert.equal(started().length, 0, "nothing ran while it waits");
     assert.equal((await call("/sessions/b/runs", send)).status, 400, "a second send is refused while one waits");
@@ -138,7 +138,7 @@ test("a round told to wait for another session's work waits on it, starts on its
     const cancelled = await call("/sessions/b/queued", { action: "cancel" });
     assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
     assert.ok(calls.some(([id, args]) => id === agent.releaseProjectRound.capability_id && (args as any[])[1] === "wb1"));
-    assert.deepEqual(calls.filter(([id]) => id === collaboration.control.capability_id).map(([, args]) => [(args as any).kind, (args as any).wait_id]), [["cancel-wait", "w-wb1"]]);
+    assert.deepEqual(calls.filter(([id]) => id === collaboration.control.capability_id).map(([, args]) => { const { kind, wait_id } = args as { kind: string; wait_id: string }; return [kind, wait_id]; }), [["cancel-wait", "w-wb1"]]);
     assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "done");
     assert.equal((await call("/sessions/b")).body.session.queued, null);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }

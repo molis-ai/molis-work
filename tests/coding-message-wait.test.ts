@@ -28,9 +28,9 @@ test("a round that ends waiting on an answer or a background command waits as th
   const starts: any[] = [], cancels: string[] = [], continued: string[] = [], cancelledWaits: string[] = [];
   const now = () => new Date().toISOString();
   const wait = (park: typeof parks[number], run: string): Held => ({ session_id: "sdk-b",
-    wait: { wait_id: park.wait_id, session_id: "sdk-b", run_id: run, board_id: "board-b", node_id: "session", by: "agent", reason: park.reason, mode: "all", until: park.until ?? "success",
+    wait: { wait_id: park.wait_id, session_id: "sdk-b", run_id: run, graph_id: "board-b", node_id: "session", by: "agent", reason: park.reason, mode: "all", until: park.until ?? "success",
       on_failure: park.on_failure ?? "block", deadline_at: now(), conditions: [{ ...park.condition, last: { status: "pending", at: now() } }], state: "waiting", created_at: now() },
-    continuation: { board_id: "board-b", node_id: "session", session_id: "sdk-b", request_key: `board-b.${park.wait_id}`, state: "armed", auto: true } });
+    continuation: { graph_id: "board-b", node_id: "session", session_id: "sdk-b", request_key: `board-b.${park.wait_id}`, state: "armed", auto: true } });
   // How the task graph settles a wait: success, or (until settled, or on_failure continue) a failure, lets the step go on; otherwise it is held.
   const fire = (id: string, status: "satisfied" | "failed", note?: string, state?: AgentCollaborationWait["state"]) => {
     const one = waits.find(item => item.wait.wait_id === id)!;

@@ -38,7 +38,8 @@ export interface AgentCollaborationWait {
   session_id: string;
   /** The round that registered it; none when the Host did, for the person. */
   run_id?: string;
-  board_id: string;
+  /** The task graph the waiting step is on (for Coding, the project's work board), and the step. */
+  graph_id: string;
   node_id: string;
   /** "agent": the model waits; "app": the Host waits for the person (a round queued behind another). */
   by: "agent" | "app";
@@ -61,7 +62,7 @@ export type AgentContinuationState = "armed" | "eligible" | "claimed" | "started
 
 /** How the step goes on after its wait: ready to (eligible), taken up (claimed, started), or held for a person. */
 export interface AgentContinuationView {
-  board_id: string;
+  graph_id: string;
   node_id: string;
   /** The session that goes on. */
   session_id: string;

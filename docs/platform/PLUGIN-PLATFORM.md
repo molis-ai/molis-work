@@ -39,7 +39,7 @@ Manifest 内部的一致性由解析器保证，而不是留到运行时才炸�
 
 成果与过程项分开存（`specs/artifact-positioning` A2）：成果是人要留存、引用的固定版本，进成果库；过程项是插件之间交换的数据
 （文件快照、变更集、运行回执），记在生产插件名下，不出现在成果库、侧栏文件和搜索里。端口发布（`outputs.publish`）一律记成过程项；
-插件直接记过程项用 `services.processItems.record`，固定成果用 `services.artifacts.publish`；按引用读取两边都能读到。
+插件直接记过程项用 `services.processItems.record`，固定成果用 `services.artifacts.publish`；按引用读取两边都能读到。下一次固定要用的版本号，用 `services.artifacts.head(artifact_id)` 读自己这条成果线的最新版本和它固定时的修订号（项目里还没有就是 `null`，交给 `nextPinnedVersion`）；别的插件开的成果线读不了。
 
 ## 4. v2 的四条运行机制
 

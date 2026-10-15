@@ -39,7 +39,6 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
               </div>
               <p class="assistant-summary-title" data-assistant-work-title>${L("新工作")}</p>
               <p class="assistant-summary-now" data-assistant-now hidden></p>
-              <button class="mw-btn mw-btn--primary mw-btn--sm assistant-next" type="button" data-assistant-next hidden></button>
               <dl class="assistant-summary-meta" data-assistant-meta></dl>
             </section>
             <section class="assistant-block assistant-block--attention" data-assistant-block="attention" aria-label="${L("还等你处理")}" hidden></section>
@@ -53,7 +52,6 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
               <span class="assistant-state" data-assistant-strip-state></span>
               <span class="assistant-strip-now" data-assistant-strip-now></span>
               <span class="assistant-strip-actions">
-                <button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-assistant-strip-next hidden></button>
                 <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
                 <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
                 <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button>
@@ -71,7 +69,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
       <div class="assistant-popover" id="assistant-modes" data-assistant-modes role="group" aria-label="${L("下一轮的方式")}" hidden></div>
       <div class="assistant-popover" id="assistant-characters" data-assistant-characters role="group" aria-label="${L("由哪个角色负责")}" hidden></div>
       <div class="assistant-popover" data-assistant-starters role="group" aria-label="${L("可以这样开始")}" hidden></div>
-      <div class="assistant-offer" data-assistant-offer role="status" aria-live="polite" hidden></div>
+      <div class="assistant-next-row" data-assistant-next-row hidden></div>
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${L("需要你看看")}" hidden></div>
       <div class="assistant-popover assistant-more" id="assistant-more" data-assistant-more role="group" aria-label="${L("添加")}" hidden></div>
       <form class="assistant-composer bar-composer" id="assistant-composer" data-assistant-composer aria-label="Molis Work Assistant">

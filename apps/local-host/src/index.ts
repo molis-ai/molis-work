@@ -230,9 +230,10 @@ export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemis
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { AssistantService } from "./assistant/assistant-service.js";
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
+export { interactionNextSteps, NEXT_STEP, type NextStepCard, type NextStepReview } from "./agent-next-steps.js";
 export { withPluginInteraction } from "./plugin-interaction-answer.js";
 export { assistantCardHtml, cardInputValues, instantIn } from "./assistant/assistant-card-view.js";
-export { assistantNextSteps, drawAssistantReply } from "./assistant/assistant-view-html.js";
+export { assistantNextSteps, assistantStepRow, drawAssistantReply } from "./assistant/assistant-view-html.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { prologueMemoryBackend } from "./memory/memory-host.js";

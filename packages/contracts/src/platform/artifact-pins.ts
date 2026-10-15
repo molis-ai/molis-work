@@ -1,6 +1,6 @@
 import { ActionError, retainActionAuthority, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "./actions.js";
 import type { ActionSubject } from "./action-subjects.js";
-import type { ArtifactReference, ArtifactVersionRecord } from "../modules/artifacts.js";
+import type { ArtifactOrigin, ArtifactReference, ArtifactVersionRecord } from "../modules/artifacts.js";
 
 /**
  * How a work object is pinned into the 成果库 on the spot (specs/artifact-positioning A5): the owner fixes its current
@@ -35,6 +35,12 @@ export function isArtifactPinAction(action: { input_type?: string; output_type?:
  * object that version pinned (null when the owner has no numeric source revision).
  */
 export interface ArtifactLineHead { version: number; source_revision: number | null }
+
+/** The head a line's newest version gives: a pinned origin whose revision is a number names the source revision. */
+export function artifactLineHeadOf(latest: { version: number; origin: ArtifactOrigin }): ArtifactLineHead {
+  const revision = latest.origin.kind === "pinned" && /^\d+$/u.test(latest.origin.revision) ? Number(latest.origin.revision) : null;
+  return { version: latest.version, source_revision: revision };
+}
 
 /**
  * The version number an object's next pin gets. The object's own record counts the versions it has seen written

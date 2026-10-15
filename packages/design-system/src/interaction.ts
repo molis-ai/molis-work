@@ -100,8 +100,13 @@ export interface InteractionOperationView {
   recovery?: InteractionAction[];
   result?: { title: string; body: string; actions?: InteractionAction[]; details?: { title: string; body: string } };
 }
-/** One step beside a composer: a view of an existing record, never an execution by itself (§15.6). */
-export interface InteractionNextStep { id: string; label: string; source: string; primary?: boolean; busy?: boolean; disabled?: boolean }
+/**
+ * One step beside a composer: a view of an existing record, never an execution by itself (§15.6). `waiting` marks a step
+ * that waits on the person (an amber dot); `waitingLabel` is what a screen reader hears for it, in the caller's words.
+ */
+export interface InteractionNextStep { id: string; label: string; source: string; primary?: boolean; busy?: boolean; disabled?: boolean; waiting?: boolean; waitingLabel?: string }
+/** `max`: draw that many steps in the caller's order and fold the rest into one button whose words `more(n)` gives. */
+export interface InteractionNextStepsOptions { max?: number; more?: (count: number) => string }
 
 const esc = escapeHtml;
 /** Ids are raw strings here and escaped exactly once, where they are written into an attribute. */
@@ -217,10 +222,15 @@ export function renderInteractionOperation(view: InteractionOperationView): stri
     view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${view.fields?.length ? `<div class="mw-ix-fields" data-ix-fields>${view.fields.map(field => renderInteractionField(scope, field, view.optionalLabel)).join("")}</div>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;
 }
 /** Next steps beside a composer: at most one primary and one secondary; a busy step shows its progress. */
-export function renderInteractionNextSteps(steps: InteractionNextStep[], label = "下一步"): string {
-  const shown = [...steps.filter(step => step.primary !== false).slice(0, 1), ...steps.filter(step => step.primary === false).slice(0, 1)];
+export function renderInteractionNextSteps(steps: InteractionNextStep[], label = "下一步", options?: InteractionNextStepsOptions): string {
+  const max = options?.max;
+  // Without a limit: one primary and one secondary, as beside a composer with a single next step.
+  const shown = max === undefined ? [...steps.filter(step => step.primary !== false).slice(0, 1), ...steps.filter(step => step.primary === false).slice(0, 1)] : steps.slice(0, Math.max(0, max));
+  const rest = max === undefined ? 0 : steps.length - shown.length;
+  const more = rest > 0 && options?.more ? `<button type="button" class="mw-ix-step mw-ix-steps__more" data-ix-steps-more="${rest}" data-secondary>${esc(options.more(rest))}</button>` : "";
   return `<div class="mw-ix-steps" data-ix-steps role="group" aria-label="${esc(label)}">${shown.map((step, index) => `<button type="button" class="mw-ix-step" data-ix-step="${index}" data-ix-step-id="${esc(step.id)}" title="${esc(step.source)}"${
-    step.primary === false ? " data-secondary" : ""}${step.busy ? ' data-busy aria-busy="true"' : ""}${step.disabled || step.busy ? " disabled" : ""}><span class="mw-ix-step__glyph" aria-hidden="true">${icon("arrow")}</span><span class="mw-spinner mw-ix-step__spin" aria-hidden="true"></span><span data-ix-step-label>${esc(step.label)}</span></button>`).join("")}</div>`;
+    step.primary === false ? " data-secondary" : ""}${step.waiting ? " data-waiting" : ""}${step.busy ? ' data-busy aria-busy="true"' : ""}${step.disabled || step.busy ? " disabled" : ""}><span class="mw-ix-step__glyph" aria-hidden="true">${icon("arrow")}</span><span class="mw-spinner mw-ix-step__spin" aria-hidden="true"></span>${
+    step.waiting && step.waitingLabel ? `<span class="mw-sr-only">${esc(step.waitingLabel)}</span>` : ""}<span data-ix-step-label>${esc(step.label)}</span></button>`).join("")}${more}</div>`;
 }
 /** The mark inside a composer saying where its words go while a question waits. */
 export function renderInteractionComposerTarget(label: string): string {

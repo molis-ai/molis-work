@@ -2356,6 +2356,7 @@ export interface PluginAppContribution {
 export interface PluginArtifactClient {
     publish(input: PluginArtifactPublishInput): ArtifactVersionResult;
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
+    head(artifactId: string): ArtifactLineHead | null;
 }
 
 export interface PluginArtifactPublishInput extends PluginProcessItemInput {
@@ -3859,6 +3860,11 @@ export declare function actionResultSubject(action: Pick<ActionDefinition["actio
     subject: ActionSubject;
     revision: string | null;
 } | null;
+
+export declare function artifactLineHeadOf(latest: {
+    version: number;
+    origin: ArtifactOrigin;
+}): ArtifactLineHead;
 
 export declare function assertDueReminderWindow(window: DueReminderWindow): void;
 

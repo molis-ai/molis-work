@@ -127,6 +127,11 @@ export class SqliteJobRunner {
     ).map(mapJob);
   }
 
+  /** Whether any job is waiting or running: a studio with one is not closed for being idle. */
+  hasActive(): boolean {
+    return this.database.prepare("SELECT 1 FROM jobs WHERE status IN ('queued', 'running') LIMIT 1").get() !== undefined;
+  }
+
   claimNext(): PersistedJob | undefined {
     return this.database.transaction(() => {
       const row = this.database

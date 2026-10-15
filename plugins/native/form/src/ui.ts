@@ -127,8 +127,9 @@ export function renderFormWorkbench(model: FormUiModel): string {
         <div class="form-prompt">
           <label class="form-field">${p.text("题目或 AI 提示")}<input class="mw-input" data-form-ai-prompt autocomplete="off" placeholder="${p.text("例如：你最常用的工具是什么")}"></label>
           <button class="mw-btn mw-btn--ghost" type="button" data-form-generate>${p.text("按题目加题")}</button>
-          <button class="mw-btn mw-btn--ghost" type="button" data-form-generate-ai disabled>${icon("sparkles")}<span>${p.text("AI 拟题加题")}</span></button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-form-generate-ai disabled>${icon("sparkles")}<span>${p.text("AI 生成题目")}</span></button>
         </div>
+        <div class="form-draft-ask" data-form-draft-ask hidden></div>
         <p class="form-note" data-form-ai-reason></p>
       </div>
       <form class="form-workspace" data-form-pane="preview" hidden>

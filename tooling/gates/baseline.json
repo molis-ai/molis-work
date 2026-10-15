@@ -41,8 +41,8 @@
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 382,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 284,
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 213,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 210,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 211,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 208,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
@@ -191,7 +191,7 @@
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
     "function packages/storage/src/adapters/search-storage.ts#createSearchOpaqueBlobStore": 161,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 153,
-    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 234,
+    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 233,
     "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
       "lines": 381,
       "methods": 23
@@ -216,7 +216,7 @@
       "lines": 493,
       "methods": 44
     },
-    "file plugins/native/form/src/client.ts": 930,
+    "file plugins/native/form/src/client.ts": 900,
     "function plugins/native/goals/src/event-document-forms.ts#createEventDocumentForms": 348,
     "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 269,
     "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 243,

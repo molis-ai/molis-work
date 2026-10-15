@@ -125,6 +125,20 @@ export type { PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugi
 export type { PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginUiClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export declare const QUESTION_LIMITS: Readonly<{
+    maxQuestions: 10;
+    maxOptionsPerQuestion: 20;
+    maxOtherChars: 500;
+    maxTextChars: 2000;
+    maxHelpChars: 500;
+    maxOptionDescriptionChars: 300;
+    maxRefKinds: 10;
+    maxRefKindChars: 64;
+    maxReferences: 20;
+    maxReferenceChars: 200;
+}>;
+
 export { SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -250,6 +264,10 @@ export declare function questionAnswer(values: unknown): {
 } | {
     text: string;
 } | null;
+
+export declare function questionProblems(questions: readonly AgentQuestion[], answers: readonly AgentQuestionAnswer[]): AgentQuestionProblem[];
+
+export declare function questionSetFlaw(questions: readonly AgentQuestion[]): string | null;
 
 export declare function reconstructSides(ops: readonly DiffOp[]): {
     before: string;

@@ -12,7 +12,7 @@
     "/assets/molis-work-plugins/dataset.js": 25832,
     "/assets/molis-work-plugins/diff.js": 432438,
     "/assets/molis-work-plugins/files.js": 432439,
-    "/assets/molis-work-plugins/form.js": 37633,
+    "/assets/molis-work-plugins/form.js": 37472,
     "/assets/molis-work-plugins/git.js": 432437,
     "/assets/molis-work-plugins/images.js": 22546,
     "/assets/molis-work-plugins/issues.js": 26331,
@@ -28,7 +28,7 @@
     "/assets/molis-work-plugins/workflows.js": 82533,
     "/assets/molis-work-settings.css": 1115230,
     "/assets/molis-work-workbench.css": 1701711,
-    "/assets/molis-work-workbench.js": 1097560,
+    "/assets/molis-work-workbench.js": 1097494,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }
 }

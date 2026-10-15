@@ -82,7 +82,8 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
 
     const liveUiInteractionActive = () => {
       const active = document.activeElement;
-      if (active?.closest?.("[data-live-form], [data-event-form]")) return true;
+      // A menu the person opened in a Goal document counts too: replacing the document now would close it under their next click.
+      if (active?.closest?.("[data-live-form], [data-event-form]") || document.querySelector("[data-record-menu][open], .goal-more[open]")) return true;
       const dirtyVisibleForm = [...document.querySelectorAll('[data-live-form][data-live-dirty="true"], [data-event-form][data-live-dirty="true"]')]
         .some((form) => form.getClientRects().length > 0 || form.closest("[data-goal-node-workspace]")?.hidden);
       if (dirtyVisibleForm) return true;
@@ -143,12 +144,10 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         const compactRefreshPath = route("/api/board/refresh?view=" + documentCollection +
           (refreshGoalId ? "&goal_id=" + encodeURIComponent(refreshGoalId) : ""));
         const refreshGeneration = documentReplaceGeneration;
-        let pageResponse=await molisWorkRequest(compactRefreshPath,{scope:boardLifetime,signal,as:"response"});
-        if (!pageResponse.ok) {
-          pageResponse=await molisWorkRequest(pagePath,{scope:boardLifetime,signal,as:"response"});
-        }
-        if (!pageResponse.ok) {
-          pageResponse=await molisWorkRequest(route(collectionPath),{scope:boardLifetime,signal,as:"response"});
+        let pageResponse;
+        for (const path of [compactRefreshPath, pagePath, route(collectionPath)]) {
+          pageResponse=await molisWorkRequest(path,{scope:boardLifetime,signal,as:"response"});
+          if (pageResponse.ok) break;
         }
         if (!pageResponse.ok) throw new Error("无法更新 Goal 页面");
         const parsed = new DOMParser().parseFromString(await pageResponse.text(), "text/html");

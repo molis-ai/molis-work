@@ -4,6 +4,7 @@ import type { PluginExecutionControl, PluginRouteResponse } from "@molis-ai/moli
 import type { PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPlatform } from "./plugin-platform.js";
+import { withPluginInteraction } from "./plugin-interaction-answer.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /**
@@ -88,6 +89,6 @@ export async function dispatchRuntimePluginRoute(
   });
   if (!result) return false;
   await hooks.afterDispatch?.(result);
-  sendLocalWebJson(response, result.status, result.body);
+  sendLocalWebJson(response, result.status, withPluginInteraction(result.body));
   return true;
 }

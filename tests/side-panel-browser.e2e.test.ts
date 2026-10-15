@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import test from "node:test";
 
 import { BrowserHost, type BrowserListener, type BrowserPage } from "../apps/local-host/dist/browser/browser-host.js";
@@ -10,6 +10,7 @@ import { createBrowserSurfaceDriver } from "../apps/local-host/dist/browser/surf
 import { locateBrowser } from "../apps/local-host/dist/browser/locate.js";
 import type { BrowserPageState } from "@molis-ai/molis-work-contracts/services/browser";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 
 /*
  * The side panel's browser on a real local Chrome (specs/archive/side-panel P2, P5): what the person sees and drives, and what
@@ -64,7 +65,10 @@ test("R5B-01/03: real page and browser process crashes retain their distinct rec
   await ui.click('[data-side-tab="browser"]');
   await ui.waitFor("document.querySelector('[data-side-tab=browser]').getAttribute('aria-selected')==='true'");
   const home = await mkdtemp(join(tmpdir(), "browser-recovery-owner-")), site = await serve();
-  const browsers = new BrowserHost({ homeDirectory: home });
+  // The test machine's Chrome (CI runs it unsandboxed): on a runner that restricts user namespaces a sandboxed renderer told to
+  // crash hangs instead of dying, so the page never reports the crash (diagnosed on ubuntu-latest, 2026-10-15).
+  const chrome = locateTestChrome();
+  const browsers = new BrowserHost({ homeDirectory: home, locate: () => chrome ? { path: chrome, name: basename(chrome) } : locateBrowser() });
   const page = browsers.page("recovery");
   const listener: BrowserListener = { state: () => undefined, frame: () => undefined };
   let detach = () => {};
@@ -222,7 +226,7 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
     await page.navigate(`${forbidden.origin}/`);
     // Settled means the refusal is in: right after the navigation the previous state can still read "not loading" while the
     // document is between pages (no body yet), which is how this failed on the Linux runner.
-    await until(() => state, value => !!value && !value.loading && value.problem?.code === "page.load_failed", "the blocked load to settle");
+    await until(() => state, value => !!value && !value.loading && value.problem?.code === "browser.load_failed", "the blocked load to settle");
     assert.equal(await page.evaluate("document.body.innerText.includes('控制令牌在这里')"), false, "the forbidden origin's page never loaded");
     assert.notEqual(state!.title, "本机服务");
     assert.equal(state!.problem?.code, "browser.load_failed");

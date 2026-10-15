@@ -26,7 +26,7 @@ async function setup(t: test.TestContext, completeText: HostCompleteText | null 
     const registry = originalRegistry.call(this, reference), register = registry.registerProvider;
     return { ...registry, registerProvider: registration => register({ ...registration,
       handlers: registration.handlers.map(handler => {
-        if (handler.execution === "sync" || handler.capability_id !== formActions.generateAi.capability_id) return handler;
+        if (handler.execution === "sync" || handler.capability_id !== formActions.draft.capability_id) return handler;
         observed = true;
         return { ...handler, handle: async (context: ActionExecutionContext, input: unknown) => {
           try { return await handler.handle(context, input); } finally { generated(); }
@@ -47,7 +47,7 @@ async function setup(t: test.TestContext, completeText: HostCompleteText | null 
 
 test("W2-18-WF-STOP-01: stop reaches Form's final effect after its model wait and no later station runs", { timeout: 25_000 }, async t => {
   const entered = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>(), childFinished = Promise.withResolvers<void>();
-  const f = await setup(t, async () => { entered.resolve(); await finish.promise; return "Late generated question"; }, () => childFinished.resolve());
+  const f = await setup(t, async () => { entered.resolve(); await finish.promise; return JSON.stringify({ status: "done", questions: [{ title: "Late generated question", type: "text" }] }); }, () => childFinished.resolve());
   f.release.push(() => finish.resolve());
   // The actual Host Form provider is observed in setup; no second provider can shadow it.
   const providerId = "io.molis.work.form";
@@ -55,7 +55,7 @@ test("W2-18-WF-STOP-01: stop reaches Form's final effect after its model wait an
   const { form } = await f.actions.invoke(create, { title: "Current target" });
   const { form: later } = await f.actions.invoke(create, { title: "Later target" });
   const { actions } = await f.actions.invoke(w.actionSteps, {});
-  const generate = actions.find(action => action.ref.capability_id === formActions.generateAi.capability_id && action.ref.provider_id === providerId)!;
+  const generate = actions.find(action => action.ref.capability_id === formActions.draft.capability_id && action.ref.provider_id === providerId)!;
   const local = actions.find(action => action.ref.capability_id === formActions.generate.capability_id)!;
   assert.ok(generate && local);
   const { workflow } = await f.actions.invoke(w.create, { title: "Stop uncommitted Form generation", chain: { stations: [{ plugin: "pages" },

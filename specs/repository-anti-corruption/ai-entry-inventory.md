@@ -94,7 +94,7 @@ Issue 的页面录入（#396、#420）不是新的入口：页面开一件助理
 | TX-2 | `pages.generate`（从材料生成文稿） | 同上 | 不可用，同上 | 同一绑定；`inbox.pages.generate` 复用它（Inbox 的可用性与 Pages 一致，`tests/pages-cross-module.test.ts` 第一条断言）。[已确认] |
 | TX-3 | `inbox.pages.generate` | 同上 | 不可用 | Inbox 动作，经动作客户端调 `pages.generate`，不自己碰模型。[已确认] |
 | TX-4 | `ppt.outline_ai` | 同上 | 不可用，列表里 `ai_available:false` 且界面按钮置灰 | `ppt-actions.ts`；`client.ts` 按 `ai_available` 禁用并给出原因。[已确认] |
-| TX-5 | `form.questions.ai`（AI 拟一道题） | 同上 | 同上 | `form-actions.ts`；`list` 带 `ai_available`。[已确认] |
+| TX-5 | `form.questions.draft`（AI 生成题目，信息不够时先问；2026-10-15 取代 `form.questions.ai`） | 同上 | 同上 | `form-actions.ts`；`list` 带 `ai_available`。[已确认] |
 | TX-6 | `dataset.columns.ai`（AI 拟列名，不发表内数据） | 同上 | 同上 | `dataset-actions.ts`。[已确认] |
 | TX-7 | `todo.organize.extract`（整理材料成待办候选） | 用户、助理、工作流、MCP | 不可用 | `todo-actions.ts`。**Todo 界面没有触发它的按钮**（`plugins/native/todo/src/client.ts` 只列、采用、关闭整理批次），生产里只有项目上手（`apps/local-host/src/web-onboarding.ts:30`）与助理/MCP 调它。[已确认] |
 | TX-8 | `lingguang.conversation.message`（灵光对话） | 用户、助理、工作流、MCP | 不可用 | `lingguang-actions.ts`。[已确认] |

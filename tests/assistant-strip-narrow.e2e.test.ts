@@ -68,12 +68,15 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   // The opened panel ends at least 8px above the row of next steps, and the row ends above the input, here and at a phone's width
   // (touch steps are 44px tall), so neither covers the panel's last line.
   const clear = `(() => { const box = selector => document.querySelector(selector).getBoundingClientRect(), panel = box('[data-assistant-panel]'), row = box('[data-assistant-next-row]'), input = box('[data-assistant-composer]');
-    return { gap: Math.round(row.top - panel.bottom), under: Math.round(input.top - row.bottom) }; })()`;
+    // At a phone's width the band from the panel's edge to the input is the bar's own ground: the page does not show in the gap or between the steps.
+    const band = [[4, panel.bottom + 4], [innerWidth - 4, row.bottom - 2]].every(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-assistant-next-row]'));
+    return { gap: Math.round(row.top - panel.bottom), under: Math.round(input.top - row.bottom), band }; })()`;
   for (const width of [800, 390]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     await waitFor(`!document.querySelector('[data-assistant-panel]').hidden && ${shown(review)}`, 10_000);
-    const { gap, under } = await evaluate<{ gap: number; under: number }>(clear);
-    assert.ok(gap >= 8 && under >= 0, `at ${width}px the panel ends ${gap}px above the next steps, which end ${under}px above the input`);
+    const { gap, under, band } = await evaluate<{ gap: number; under: number; band: boolean }>(clear);
+    if (width === 390) assert.ok(band && gap >= 0 && under >= 0, `at 390px the next steps sit on a solid band from the panel (${gap}px) down to the input (${under}px)`);
+    else assert.ok(gap >= 8 && under >= 0, `at ${width}px the panel ends ${gap}px above the next steps, which end ${under}px above the input`);
   }
   await command("Emulation.setDeviceMetricsOverride", { width: 800, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await click(review);

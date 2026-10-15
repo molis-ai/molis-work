@@ -39,7 +39,7 @@ const SESSIONS_LIST = "body.immersive-workbench .session-stage-shell:not([data-e
 const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog):not(.mw-sheet)";
 
 /** Popovers and menus that drop from the control that opened them. */
-const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .tab-menu, .assistant-composer)";
+const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .assistant-composer)";
 
 function viewChipTints(): string {
   return MW_PLUGINS.map((plugin) => `${PAGES} .tab-view-chip[data-plugin="${plugin.id}"] { --plugin-tint: var(--plugin-${plugin.id}); }`).join("\n  ");
@@ -1234,6 +1234,8 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 1 1 100%; }
     html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; }
     ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px + var(--next-row, 0px)); width: auto; height: min(70dvh, 560px); }
+    /* The next steps' band, from the panel's edge down to the input, is the bar's own ground: the page does not show between the steps. */
+    ${ASSIST} .bar-center > .assistant-next-row { inset: auto -8px 100%; max-width: none; padding: 8px 8px 6px; background: var(--desk); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
@@ -1431,15 +1433,15 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} ${DROPDOWN} { transform-origin: top left; }
   ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop 250ms var(--ease-quint); }
   ${PAGES} details[open] > .navigator-project-menu-popover { animation: craft-drop 250ms var(--ease-quint); transform-origin: top left; }
-  ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tab-menu) { border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3); }
+  ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover) { border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3); }
   /* Dark reads as three layers: whatever floats (menus, popovers, dialogs, the Assistant panel) sits a step above the
      work surface on --popover, edged by the light ring in its lift rather than by a darker shadow. */
   html[data-resolved-theme="dark"] ${PAGES} :is(.mw-menu, .mw-popover, .navigator-project-menu-popover, .plugin-market-project-popover,
-    .tab-menu, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu,
+    .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu,
     [data-plugin-picker-popover], .account-global-popover, .shelf-side-menu, .shelf-find, .feed-source-rail, ${CENTRED_DIALOG},
     dialog.mw-sheet, .assistant-panel, .home-talk) { background-color: var(--popover); }
   @keyframes craft-drop { from { opacity: 0; transform: translateY(-5px) scale(.97); } to { opacity: 1; transform: none; } }
-  ${PAGES} :is(.mw-menu, .tab-menu) :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
+  ${PAGES} .mw-menu :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
 
   /* Toasts: a graphite note that rises above the bar and says, with a mark, how it went. */
   ${PAGES} .toast {

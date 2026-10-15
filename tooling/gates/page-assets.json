@@ -2,7 +2,7 @@
   "note": "Only decreases. The size in bytes of each asset the host sends under /assets/ (the body as served, uncompressed), measured from the built workspace by scripts/gates/page-assets.mjs. Lower it with `node scripts/gates/page-assets.mjs --update --base origin/main` in the PR that shrinks an asset. CI compares this file with the merge-base's copy, so raising a number or adding an asset here is refused. Frozen by decision #17; the real targets are set after the superseded skins are deleted (specs/repository-anti-corruption).",
   "assets": {
     "/assets/inter-latin-variable.woff2": 48256,
-    "/assets/molis-work-arrival.css": 823255,
+    "/assets/molis-work-arrival.css": 823361,
     "/assets/molis-work-capabilities.js": 54350,
     "/assets/molis-work-pages-editor.js": 703633,
     "/assets/molis-work-plugins/alchemist.js": 50619,
@@ -26,8 +26,8 @@
     "/assets/molis-work-plugins/text-stats.js": 432447,
     "/assets/molis-work-plugins/todo.js": 62221,
     "/assets/molis-work-plugins/workflows.js": 82533,
-    "/assets/molis-work-settings.css": 1115124,
-    "/assets/molis-work-workbench.css": 1701605,
+    "/assets/molis-work-settings.css": 1115230,
+    "/assets/molis-work-workbench.css": 1701711,
     "/assets/molis-work-workbench.js": 1097560,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }

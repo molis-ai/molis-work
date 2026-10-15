@@ -136,6 +136,7 @@
 | BL-134 | 列表刷新失败时少了「当前输入已保留」：W3-10 把 Feed、Inbox 的提示换成共同请求出口的话（读不到时「连不上 Molis Work 服务，请稍后重试」），Issue 的模型设置读不出时也一样；输入其实还在，但这句安慰没有了。共同出口忽略调用方给的兜底话 | [防腐 §10.11 F-6](repository-anti-corruption/spec.md) | 已知缺口 | 随 I8 落地后再定：让调用方补一句，或出口按场合说 | I8 | 低 | 第二步 |
 | BL-135 | Goal 收尾被拒后，表单上「收尾未生效」和未满足的原因在读回文档时被重画掉，只剩提示「顶部已按当前权威状态更新」；读回后原因仍应可见 | [防腐 §10.11 F-11](repository-anti-corruption/spec.md) | 已知缺口 | main 与 I8 相同，不是回退 | 无 | 中 | 未分配 |
 | BL-136 | 共同请求出口把所有非 GET 的断网都说成「不知道这次操作有没有完成，请刷新后核对」，Files 用 POST 打开文件这类读请求也这样说。要让调用方标明是读，或按 query 路由判 | [防腐 §10.11 F-12](repository-anti-corruption/spec.md) | 已知缺口 | 随 I8 落地后改 `packages/ui-host` 的请求出口 | I8 | 低 | 第二步 |
+| BL-137 | Prologue SDK 释放一个 8 MiB 资源（`runtime.resources.revoke`）要约 0.8 秒，比暂存加发布还慢；Molis 的文档解析每次释放两份，大附件的解析因此多等约 0.8 秒 | [防腐 §10.11 F-15](repository-anti-corruption/spec.md) | 已知缺口 | 要在 Prologue 里看释放为什么慢 | Prologue | 低 | 未分配 |
 
 ## 8. 交给第二步（防腐整理）
 

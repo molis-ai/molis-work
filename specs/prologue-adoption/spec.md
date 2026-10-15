@@ -961,6 +961,11 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 - 被接上的接续不再出现在视图里，`awaitReady` 返回空：这是合同。
 - 正在跑的那一轮只在下一次工具结果里听到等待结束：夹具里被挡住的那一轮要调一个工具。
 - W2-18-CODING-WAKE-01 改了场景：原来命令被重启截断、叫醒后告诉模型「中断了」；新包把截断的命令记为结果未知、那一步留给人核对（§4.6.4「被重启截断的……先核对，不自动重派」），Coding 只记一条给人的说明，不起跑。用例改成命令在插件停着时结束：等待结束的事实已落盘，SDK 重开、插件重新激活后，连续四次读失败之后照样只起一轮。
+- `assistant-page-written.e2e` 的 W3-02-G4-ANSWER-01（full-suite 第 14 片抓到）：问卷答案交给模型的那条工具结果多了 `pending`。
+  - 来源：Prologue `5b259a16`（输入回执第四刀，10-13），新包有、旧过渡包 `4007a93c` 没有。
+  - 用途：让模型在 `acknowledge-inputs` 里用 `pending` 指向这个问题。
+  - 判断是预期变化，不是泄漏：它就是页面已经显示的 `awaiting_input[].pending_id`（`pending.ref.id`），不是密钥，也不是只给宿主看的内部编号。Molis 读这条结果的地方（`assistant-service.ts` 只看 `kind`、`picked`）不受影响。
+  - 用例改成同时断言 `pending` 等于页面答的那个 `pending_id`。断言比原来多一项，不是放宽。
 - 旧的 `任务图：…。` 写法和不带前缀的步骤编号换成「本轮确认计划在项目任务图 … 上」与 `s-<会话>.p<n>.` 前缀：`prologue-step-amend`、`coding-runtime-regressions`、`coding-plan-dependencies`、`prologue-taskboard`。
 
 **验证**（2026-10-15，并 main `9a883966`（#531）之后的树，本机 macOS）：

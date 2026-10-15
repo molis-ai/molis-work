@@ -544,7 +544,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-panel {
     --assistant-side-w: 272px;
     /* --assistant-room: space left before the platform side panel, set only while it is open. */
-    position: absolute; z-index: 50; left: -40px; right: calc(-1 * min(40px, var(--assistant-room, 40px))); bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
+    position: absolute; z-index: 50; left: -40px; right: calc(-1 * min(40px, var(--assistant-room, 40px))); bottom: calc(100% + 8px + var(--next-row, 0px)); display: flex; flex-direction: column; overflow: hidden;
     height: min(620px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px));
     border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise var(--dur-move) var(--ease-quint) both;
   }
@@ -1026,11 +1026,12 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-msg-more:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
   /* A plugin's own floating bars and menus stay inside its stage, under the bottom bar and its menus. */
   ${SHELL} .immersive-plugin-stage { isolation: isolate; }
-  /* The next steps sit just above the input, as part of it: the open panel moves up to make room. */
-  ${ASSIST} .assistant-next-row { position: absolute; z-index: 55; inset: auto auto calc(100% + 6px) 0; max-width: 100%; }
-  ${ASSIST} .assistant-next-row .mw-ix-steps { --mw-ix-step-h: 32px; overflow-x: auto; scrollbar-width: none; }
-  ${ASSIST} .assistant-next-row .mw-ix-step:not(:hover) { background: var(--paper); }
-  ${ASSIST} .bar-center:has(> .assistant-next-row:not([hidden])) > .assistant-panel { bottom: calc(100% + 46px); }
+  /* The next steps sit just above the input, as part of it: the open panel moves up to make room (44px also clears a touch row). */
+  ${ASSIST} .assistant-next-row{position:absolute;z-index:55;inset:auto auto calc(100% + 6px) 0;max-width:100%}
+  ${ASSIST} .assistant-next-row .mw-ix-steps{--mw-ix-step-h:32px;overflow-x:auto;scrollbar-width:none}
+  ${ASSIST} .assistant-next-row .mw-ix-step:not(:hover){background:var(--paper)}
+  ${ASSIST} .bar-center:has(>.assistant-next-row:not([hidden])){--next-row:44px}
+  ${ASSIST} .assistant-notice-actions{display:flex;gap:6px;justify-content:flex-end}
   /* Attention: a count only for what the person's rules let through here; the list says what waits and why. */
   ${ASSIST} .assistant-attention {
     display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
@@ -1232,8 +1233,7 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex-basis: 100%; height: 44px; }
     html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 1 1 100%; }
     html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; }
-    ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; height: min(70dvh, 560px); }
-    ${SHELL} .bar-center:has(> .assistant-next-row:not([hidden])) > .assistant-panel { bottom: calc(var(--dock-h) + 46px); }
+    ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px + var(--next-row, 0px)); width: auto; height: min(70dvh, 560px); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */

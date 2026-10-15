@@ -1575,7 +1575,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const item = el("div", "assistant-notice");
       item.append(el("p", "assistant-notice-text", notice.text));
       if (notice.held) item.append(el("p", "assistant-material-origin", L("按你的规则暂不提醒") + "：" + notice.held.reason));
-      const actions = el("div", "assistant-offer-actions");
+      const actions = el("div", "assistant-notice-actions");
       const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("打开")); go.type = "button";
       go.dataset.noticeId = notice.notice_id; go.dataset.noticeAction = "open";
       go.setAttribute("aria-label", L("打开") + "：" + notice.text);
@@ -1607,7 +1607,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const item = el("div", "assistant-notice");
       const text = L("插件通知：{count} 条待核对").replace("{count}", String(pluginWaiting));
       item.append(el("p", "assistant-notice-text", text));
-      const actions = el("div", "assistant-offer-actions");
+      const actions = el("div", "assistant-notice-actions");
       const go = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("去核对")); go.type = "button";
       go.dataset.noticeId = "plugin-events"; go.dataset.noticeAction = "open";
       go.setAttribute("aria-label", L("去核对") + "：" + text);

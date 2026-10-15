@@ -175,7 +175,7 @@ const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
   ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-dock-choice]", "[data-plugin-toggle]"]],
   ["the project menu", ".navigator-project-selector", ".navigator-project-menu-popover", [".navigator-project-option", ".navigator-project-manage"]],
   ["the Dock's list", "[data-dock-more]", "[data-dock-overflow]", [".dock-overflow-item"]],
-  ["a suggestion", "", "[data-assistant-offer]", [".mw-btn"]],
+  ["a suggestion", "", "[data-assistant-next-row]", ["[data-step-offer]"]],
 ];
 /** What a list holds for a touch pointer that a fine pointer shows only under the cursor or on focus. */
 const HOVER_ONLY = ["[data-dock-choice]", "[data-plugin-toggle]"];
@@ -306,12 +306,12 @@ const PANEL_BODY = `(async () => {
   if (panel.dataset.side === "open" && panel.dataset.layout === "drawer") panel.querySelector("[data-assistant-side-toggle]").click();
   await wait(300);
   // The panel's own markup holds controls that the island shows only in some states of a work (pause, resume and stop, in the details and
-  // on the strip above the thread; the next step; the jump to what waits). They are shown here, with a word in them, and put back.
-  const waiting = [...panel.querySelectorAll("[data-assistant-strip], [data-assistant-control], [data-assistant-next], [data-assistant-strip-next], [data-assistant-jump]")];
+  // on the strip above the thread; the jump to what waits; the next steps above the input are measured with the suggestion). They are shown here, with a word in them, and put back.
+  const waiting = [...panel.querySelectorAll("[data-assistant-strip], [data-assistant-control], [data-assistant-jump]")];
   const hiddenBefore = waiting.map(el => [el.hidden, el.textContent]);
   waiting.forEach(el => { el.hidden = false; if (!el.textContent.trim()) el.textContent = "文字"; });
   await wait(200);
-  real["what a work shows when it runs"] = sizes(panel).filter(item => /assistant-control|assistant-next|assistant-jump|mw-btn/.test(item.cls));
+  real["what a work shows when it runs"] = sizes(panel).filter(item => /assistant-control|assistant-jump|mw-btn/.test(item.cls));
   waiting.forEach((el, index) => { el.hidden = hiddenBefore[index][0]; el.textContent = hiddenBefore[index][1]; });
   const holder = document.createElement("div"); holder.className = "assistant-rich"; holder.setAttribute("data-test-made", "");
   const made = [];

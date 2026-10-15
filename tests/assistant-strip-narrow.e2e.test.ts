@@ -60,10 +60,12 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   const strip = "[data-assistant-strip]";
 
   await say("记一下：整理周报");
-  await waitFor(`${shown(strip)} && ${shown(`${strip} [data-assistant-strip-next]`)} && document.querySelector('${strip} [data-assistant-strip-next]').textContent === '去确认'`, 30_000);
+  // FLOW-01: the strip says the state; what to press is the next step just above the input, the same as the card's own control.
+  const review = `[data-assistant-next-row] [data-ix-step-id^="review:"]`;
+  await waitFor(`${shown(strip)} && ${shown(review)} && document.querySelector('${review} [data-ix-step-label]').textContent === '去确认'`, 30_000);
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').dataset.side"), "closed", "at this width the side pane is a closed drawer");
   await waitFor("document.querySelector('.assistant-tab[data-current] .assistant-tab-mark .mw-state-ring')?.dataset.mwState === 'approval'"); // RING-07
-  await click(`${strip} [data-assistant-strip-next]`);
+  await click(review);
   // It lands on the card's own decision, not on a copy button inside the code it shows.
   await waitFor("Boolean(document.activeElement?.closest('[data-review]')) && !document.activeElement.classList.contains('assistant-code-copy')", 10_000);
 

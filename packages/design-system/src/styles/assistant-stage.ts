@@ -14,7 +14,8 @@ html body.immersive-workbench [data-assistant-island][data-assistant-stage] .ass
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-tabs,.assistant-tab-new,[data-assistant-panel-close]){display:none}
 html body.immersive-workbench [data-assistant-stage] .assistant-stage-footer{position:relative;flex:none;min-width:0}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{flex:none;width:calc(100% - 40px);max-width:800px;min-height:56px;margin:12px auto 20px}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-context-actions,.assistant-offer){flex:none}
+html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-context-actions,.assistant-next-row){flex:none}
+html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-next-row{position:static;width:calc(100% - 40px);max-width:800px;margin:8px auto -4px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-thread{scrollbar-gutter:stable;padding:24px max(20px,calc((100% - 800px)/2));font-size:15px;line-height:1.7}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer-input{font-size:15px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar-actions{gap:8px}

@@ -190,8 +190,6 @@ export const INTERACTION_STEP_STYLES = `
 .mw-ix-step[data-secondary] .mw-ix-step__glyph, .mw-ix-step:not([data-busy]) .mw-ix-step__spin, .mw-ix-step[data-busy] .mw-ix-step__glyph { display: none; }
 .mw-ix-step__spin { width: 14px; height: 14px; color: var(--accent); }
 .mw-ix-step[data-waiting]::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
-.mw-ix-step__waiting { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.mw-ix-steps__more { color: var(--muted); }
 @keyframes mw-ix-step-in { from { opacity: 0; transform: translateX(6px) scale(.98); } to { opacity: 1; transform: none; } }
 @media (max-width: 760px), (pointer: coarse) {
   .mw-ix-step { min-height: 44px; }

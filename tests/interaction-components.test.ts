@@ -75,14 +75,14 @@ test("FLOW-05 / AC-17: with a limit, next steps keep the caller's order, fold th
   const html = renderInteractionNextSteps(steps, "下一步", { max: 3, more: count => `还有 ${count} 项` });
   assert.deepEqual([...html.matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]), ["a&lt;1&gt;", "b", "c"], "the first three, in the caller's order, escaped once");
   assert.match(html, /<button type="button" class="mw-ix-step mw-ix-steps__more" data-ix-steps-more="2" data-secondary>还有 2 项<\/button><\/div>$/);
-  assert.match(html, /data-ix-step-id="a&lt;1&gt;" title="s1" data-secondary data-waiting>[\s\S]*?<span class="mw-ix-step__waiting">等你：<\/span><span data-ix-step-label>确认 &lt;卡&gt;<\/span>/,
+  assert.match(html, /data-ix-step-id="a&lt;1&gt;" title="s1" data-secondary data-waiting>[\s\S]*?<span class="mw-sr-only">等你：<\/span><span data-ix-step-label>确认 &lt;卡&gt;<\/span>/,
     "the amber dot comes with words a screen reader reads");
   assert.equal(html.match(/data-waiting/g)?.length, 1);
   assert.doesNotMatch(renderInteractionNextSteps(steps.slice(2), "下一步", { max: 3, more: count => `还有 ${count} 项` }), /data-ix-steps-more/, "nothing folded, no more button");
   // Without options the component draws exactly what it drew before.
   const plain = [{ id: "result", label: "打开结果", source: "x" }, { id: "continue", label: "继续调整", source: "y", primary: false }];
   assert.equal(renderInteractionNextSteps(plain, "接下来"), renderInteractionNextSteps(plain, "接下来", undefined));
-  assert.doesNotMatch(renderInteractionNextSteps(plain), /data-waiting|data-ix-steps-more|mw-ix-step__waiting/);
+  assert.doesNotMatch(renderInteractionNextSteps(plain), /data-waiting|data-ix-steps-more|mw-sr-only/);
 });
 test("AC-17 / AC-06: the operation card states its target and version, the exact parameters, its status and result", () => {
   const html = renderInteractionOperation({ id: "op", kicker: "操作建议", title: "创建安排", badge: { label: "结果未知", tone: "waiting" },

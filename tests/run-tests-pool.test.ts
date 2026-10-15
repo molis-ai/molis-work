@@ -155,3 +155,26 @@ test("--skip-macos-only: a file the Linux probe marks darwin is left out, a brow
   assert.match(output, /left out 1 macOS-only files of 3/);
   assert.deepEqual(readFileSync(seen, "utf8").trim().split("\n").sort(), ["page.e2e.test.mjs", "plain.test.mjs"]);
 });
+
+test("--retries: a file that fails and then passes is listed as flaky and does not fail the run; one that fails every time still does", () => {
+  const made = directory();
+  const write = (name: string, body: string) => { const file = path.join(made, name); writeFileSync(file, `import test from "node:test";\nimport { existsSync, writeFileSync } from "node:fs";\ntest(${JSON.stringify(name)}, () => { ${body} });\n`); return file; };
+  const marker = path.join(made, "tried");
+  const flaky = write("flaky.test.mjs", `if (!existsSync(${JSON.stringify(marker)})) { writeFileSync(${JSON.stringify(marker)}, ""); throw new Error("first try fails"); }`);
+  const steady = write("steady.test.mjs", "");
+  const once = spawnSync(process.execPath, [runner, "--retries", "1", "--jobs", "2", flaky, steady], { encoding: "utf8", timeout: 120_000 });
+  const output = `${once.stdout}${once.stderr}`;
+  assert.equal(once.status, 0, output);
+  assert.match(output, /\[retry 1\] ok\s+\S*flaky\.test\.mjs/);
+  assert.match(output, /2 of 2 files passed \(1 only on a retry\)/);
+  assert.match(output, /flaky, failed and then passed on a retry \(1\):\n\s+\S*flaky\.test\.mjs/);
+  assert.doesNotMatch(output, /^failed \(/m);
+
+  const broken = write("broken.test.mjs", 'throw new Error("always");');
+  const twice = spawnSync(process.execPath, [runner, "--retries", "1", "--jobs", "2", broken, steady], { encoding: "utf8", timeout: 120_000 });
+  const again = `${twice.stdout}${twice.stderr}`;
+  assert.equal(twice.status, 1, again);
+  assert.match(again, /\[retry 1\] FAIL\s+\S*broken\.test\.mjs/);
+  assert.match(again, /1 of 2 files passed in/);
+  assert.match(again, /failed \(1\):\n\s+fail\s+\S*broken\.test\.mjs/);
+});

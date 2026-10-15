@@ -2,6 +2,8 @@
 
 状态：现行规范（2026-10-01 合入后梳理确认）。Coding 的单一需求来源；七块能力已合入 main，下一阶段需求见 [next-requirements.md](next-requirements.md)。未做事项见[统一待办清单](../BACKLOG.md)。
 
+2026-10-15 的可靠性、性能与 Harness 优化提案见[完整优化需求书](../coding-harness-optimization/spec.md)（待审阅）；产品基础合同仍以本文为准，用户纠正与输入生命周期沿用 [AI 输入回执需求](../ai-input-receipts/spec.md) §20。
+
 把编码这件事作为一个 **Plugin Platform v2 的 app 插件**做进 Molis Work：
 用户在项目里开一条编码会话，交给 Agent Runtime 去读、去想、去给建议，
 成果以 Artifact 的形式回到项目里，副作用一律经宿主审批。

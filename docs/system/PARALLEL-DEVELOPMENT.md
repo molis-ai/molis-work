@@ -82,15 +82,10 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 
 ## 5. 构建与浏览器用例排时段
 
-- 整体 `pnpm build` 先跑 `workspace:clean`，把本检出里每个包的 `dist` 清空再重建（根 `package.json` 的 `workspace:build`）。同一检出里同时跑两次构建，或构建时跑测试，会读到空的 `dist`。单包构建写成 `pnpm --filter <包> run build`，`--filter` 在 `run` 前；写成 `pnpm run build --filter …` 会被当成根构建的参数，清空全部包。
-- 不同工作树的 `dist` 互不影响，但构建和浏览器用例都吃满 CPU。几件同时跑，浏览器用例会因负载超时（spec §9.5 记录了只因负载超时、单独重跑就过的 `goals-document.e2e` 与 `goal-event-document.e2e`）。所以整台机器同一时间最多一个构建、一个浏览器用例批次，其余排队。
-- 开跑前看一眼有没有人在跑：
-
-  ```sh
-  pgrep -fl "run-tests.mjs|pnpm .*build|tsc "
-  ```
-
-  有，就等；有会话在统筹排期时听它的。停进程只按 pid（`kill <pid>`），不用 `pkill -f scripts/run-tests.mjs`：那会连别的工作树的测试一起杀掉。
+- 整体 `pnpm build`（其中的 `pnpm workspace:build`，即 `scripts/build-workspace.mjs`）只重建输入变了的包（2026-10-15）：一个包的输入是它目录下 git 跟踪或会跟踪的文件（不含 `dist/`）、根的 `pnpm-lock.yaml` 与 `tsconfig*.json`、Node 主版本，加上它依赖的工作区包的输入，所以一处改动会传到所有依赖它的包。输入与上次成功构建记下的一样、`dist/` 也还是那次留下的，就跳过；否则照旧先 `clean` 再 `build`，排在它依赖的包之后。记录在本检出的 `node_modules/.cache/molis-work-build/records.json`，不进 `dist/`。没改什么时整体 `pnpm build` 约 20 秒（大半是安装指纹 `write-build-manifest`），改一个插件只重建它和依赖它的那条链（工作台、local-host、desktop、server），改 contracts 这类被所有包依赖的就全部重建。构建读了包外、又没声明依赖的文件时看不出来，这时用 `pnpm build:clean`（等于以前的整体构建：全部清空重建）。CI 没有记录，总是全部构建。同一检出里同时跑两次构建，或构建时跑测试，仍会读到正在重建的包的空 `dist`。单包构建写成 `pnpm --filter <包> run build`，`--filter` 在 `run` 前；写成 `pnpm run build --filter …` 会被当成根构建的参数，清空全部包。
+- 不同工作树的 `dist` 互不影响，但构建和浏览器用例都吃满 CPU。几件同时跑，浏览器用例会因负载超时（spec §9.5 记录了只因负载超时、单独重跑就过的 `goals-document.e2e` 与 `goal-event-document.e2e`）。所以整台机器同一时间最多一个构建、一个浏览器用例批次，由**机器槽位**（`scripts/machine-slot.mjs`，2026-10-15）自动排队：`pnpm build`（真要构建时）拿 `build` 槽，`node scripts/run-tests.mjs` 的运行里有浏览器文件（全量也算）时拿 `browser` 槽；槽被别的检出占着就按到达顺序等，并打出谁占着、从几点起；占着的进程没了就接手。不用再 `pgrep` 看、写 `until … sleep` 轮询，也不用各会话自己的锁脚本。`node scripts/machine-slot.mjs status` 看谁占着、谁在等；别的重活要排队时用 `node scripts/machine-slot.mjs run <build|browser> --label <说明> -- <命令…>`。CI 里、测试进程里（`NODE_ENV=test`）、父进程已占着同一槽时不拿槽；`MOLIS_WORK_SLOT=off` 关掉。
+- **等待不占前台。** 构建、浏览器用例、全量都可能要排队，会话一律用后台方式起（Claude Code 的 `run_in_background`），等完成通知再看结果，期间做别的；不要在前台写 `until … sleep` 循环去等自己的后台任务或别人的进程。依据：2026-09-16 到 10-15 的 42 个会话里，前台等待共约 29 小时（等自己的后台输出 16 小时，等别人的构建与测试 13 小时），每次轮询还要把整个上下文再读一遍。
+- 停进程只按 pid（`kill <pid>`），不用 `pkill -f scripts/run-tests.mjs`：那会连别的工作树的测试一起杀掉。
 - 测试运行按文件隔离、几份同时跑（W5-12）：`node scripts/run-tests.mjs` 点名多个文件（或不带参数跑全量）时，每个文件单独一个进程，各有一份临时 `MOLIS_WORK_HOME` 与密钥库，同时跑的份数默认是核数的一半、最多 6（`--jobs <n>`，或环境变量 `MOLIS_WORK_TEST_JOBS`），其中浏览器文件（Linux 探针规则认作 browser 的）同时最多 2 个（`--browser-jobs <n>`、`MOLIS_WORK_TEST_BROWSER_JOBS`）。上次记下用时长的文件先跑（记在本检出的 `node_modules/.cache/molis-work-tests/durations.json`，不入库）。每个文件跑完打一行；失败的文件打出它自己的输出，最后列出失败的文件和只重跑它们的命令；`--verbose` 打出每个文件的输出；`--shard <k>/<n>` 只跑列表里从第 k 个起每隔 n 个的文件（CI 把同一份列表分给 n 个作业）。只点名一个文件时和以前一样：一个 `node --test` 进程，输出直接到终端。实现在 `scripts/run-tests/pool.mjs`，逐个文件跑的那一层与 Linux 探针、产品子集共用（`scripts/ci-linux-probe/run.mjs`）。一次运行就占去大半台机器，所以上面「整台机器同一时间最多一个构建、一个浏览器用例批次」照旧；和别的会话同时跑时把 `--jobs` 调小。
 - 全量回归期间，被测的那棵树里不改源码：安装类测试比对源码与构建指纹，指纹覆盖根的 `package.json`、`tsconfig.json`、`tsconfig.base.json`、`tsconfig.package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`scripts`、`src`、`apps/desktop/launchers`，以及每个工作区包的 `package.json`、`src`、`tooling`、`bin`、`tsconfig.json` 和原生工具源码（`apps/local-host/src/installer/fingerprint.ts` 的 `computeBuildSourceDigest`）。`skills/` 也不改：安装类用例会把它拷进发布目录并比较两次安装的内容。`docs/`、`specs/` 可以改。改过指纹覆盖的文件之后，跑全量前要整体 `pnpm build`，单包重建不刷新指纹。
 
@@ -100,7 +95,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 
 - **子代理不跑全量。** 全量由统筹的会话在集成分支上跑一次（第 7 节）；子代理只跑定向用例：包 README 的「改动后必跑」、自己改到的测试、门禁。派活时在实现和评审两份提示里都写明这一条，路线图某行写着「Full regression」也一样，否则评审会把它当成必须修的问题，修复的子代理就去跑全量。依据：2026-10-09 有两个修复子代理在负载很高的机器上轮询全量 3 到 5 个小时。
 - **只停自己起的进程，按 pid。** 用 `$!` 记下自己起的进程，或用 `pgrep` 按自己工作树的路径过滤后 `kill <pid>`；不用 `pkill`、`killall` 或按模式的 `kill`。依据：2026-10-11 一个子代理发现自己误起了全量，`pkill -f "scripts/run-tests.mjs"` 把统筹会话跑了约 50 分钟的全量一起杀了。统筹会话起全量时写成 `node $PWD/scripts/./run-tests.mjs`，这种误杀匹配不到它。
-- **测试运行默认占大半台机器。** 不带参数的 `node scripts/run-tests.mjs` 默认按核数一半同时跑（10 核的机器上是 5 个文件），一次全量就把机器占满大半。同一时间只让一个会话跑全量；别的会话（或子代理）也在跑测试时，用 `--jobs 2`（或环境变量 `MOLIS_WORK_TEST_JOBS=2`）把自己的份数调小；开跑前照上面看一眼 `pgrep`。
+- **测试运行默认占大半台机器。** 不带参数的 `node scripts/run-tests.mjs` 默认按核数一半同时跑（10 核的机器上是 5 个文件），一次全量就把机器占满大半。同一时间只让一个会话跑全量；别的会话（或子代理）也在跑测试时，用 `--jobs 2`（或环境变量 `MOLIS_WORK_TEST_JOBS=2`）把自己的份数调小；浏览器批次由机器槽位排队，非浏览器的运行不排队，所以并发时自己调小份数。
 
 ## 6. 验证频率（2026-10-03 的决定）
 
@@ -184,7 +179,7 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 
 ## 7. 集成分支上跑全量
 
-**全量在 CI 上跑**（spec §1，2026-10-15）：`.github/workflows/full-suite.yml` 把 `node scripts/run-tests.mjs` 不带参数时的全部文件（含浏览器文件）分给 10 个 ubuntu runner，每个 3 个文件同时跑、其中浏览器文件 1 个，约 15–20 分钟；本机一次全量约 60 分钟，并且整台机器一次只能跑一个。触发：PR 加 `full-suite` 标签（加上时跑，之后每次推送都跑）；推到 `integration/**` 分支；每晚的 main；Actions 页面手动跑任意分支。每个分片的摘要列出失败文件和只重跑它们的命令，汇总检查叫 `Full suite`。它不挡合并。Linux 探针标为 macOS 专有的文件（`--skip-macos-only`：Seatbelt、Keychain、launchctl、Swift 辅助程序）不在里面，改到这些的仍在本机跑。所以下面第 2 步的「最后跑一次全量」，先推集成分支让 CI 跑；本机全量只用来补 macOS 专有的文件，或复现 CI 上的失败。
+**全量在 CI 上跑**（spec §1，2026-10-15）：`.github/workflows/full-suite.yml` 把 `node scripts/run-tests.mjs` 不带参数时的全部文件（含浏览器文件）分给 16 个 ubuntu runner，每个 2 个文件同时跑、其中浏览器文件 1 个，约 20 分钟；失败的文件自动重跑一次（`--retries 1`），重跑通过的在摘要里单列为「flaky」、不让分片变红，所以 `Full suite` 红只说明有文件两次都失败（2026-10-15：3 个同时跑时，每轮都有一批不同的浏览器文件因 CDP、DOM 等待超时失败，#519 前后五轮）；本机一次全量约 60 分钟，并且整台机器一次只能跑一个。触发：PR 加 `full-suite` 标签（加上时跑，之后每次推送都跑）；推到 `integration/**` 分支；每晚的 main；Actions 页面手动跑任意分支。每个分片的摘要列出失败文件和只重跑它们的命令，汇总检查叫 `Full suite`。它不挡合并。Linux 探针标为 macOS 专有的文件（`--skip-macos-only`：Seatbelt、Keychain、launchctl、Swift 辅助程序）不在里面，改到这些的仍在本机跑。所以下面第 2 步的「最后跑一次全量」，先推集成分支让 CI 跑；本机全量只用来补 macOS 专有的文件，或复现 CI 上的失败。
 
 几个 PR 同时动共享核心，各跑一次全量太贵，也看不到它们合在一起的结果。做法（第二步各批的做法，记录在 spec §9.5）：
 

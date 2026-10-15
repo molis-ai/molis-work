@@ -1641,6 +1641,10 @@ Prologue（10-14 复查到 #22 为止，这次看 #24～#27）：
 在途：
 - #530：目录读取改为共享冻结的快照，写入会抛错而不是只改到副本；调用方核查与 Agent 工具参数拷贝合理。
 - #532、#534、#536：由四线各自负责，与第 4 波的冲突已经告知统筹（W4-04 等 #532，W4-07 等 #534）。
+- 本节的修复是 #541，已合入（`4eead9d5`）。
+- #539、#540（W4-09）的 CI 全量各有红片，查过不是它们引入的：
+  - 两者共有的是 `tests/agent-action-selection.e2e.test.ts`。它在 #535 合入前的各分支全量里都红（`context/assistant-flow`、`adoption/p3-collaboration`、`feature/ai-interaction-s1`），#535 修了这处 Characters 偶发，而这两个分支的基点早于 #535。
+  - #540 另有 `W2-18-PAGES-TRANSIENT-01`（插入的文字落在段尾）：失败片重跑全过，本机在该分支上 9/9 通过；之前没有记录。只出现一次，没有进隔离名单，再出现就按 `tests/quarantine.json` 登记。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
@@ -1748,7 +1752,7 @@ Prologue（10-14 复查到 #22 为止，这次看 #24～#27）：
 
 | 既有路线/验收编号 | 严重性、根因与影响 | 必须动作与验收方式 |
 | --- | --- | --- |
-| W3-09 / W2-19（S-08/S-18） | P1 授权竞态，源码已确认、复现待跑：共同 `beforeEffect` 在精确授权之后还 await 权限与 Host 可用性检查；最后只用初始 `allowed_actions`，期间撤销精确动作可能仍写。MCP 权限并集不能识别保留同权限 B、撤销 A 的差别 | 唯一 writer 优先以真实 MCP 授权文件、Form SQLite 与可控后续可用性检查复现；`form.questions.ai` 最后检查后写题目的路径可触发。修共同入口，断言 A 被拒、业务记录不变、B 不能替 A 授权、重新授权恢复；不要每插件补兜底。涉及 kernel/MCP，按共享核心整合验证，I6 结束前只准备源码。依据：`packages/kernel/src/action-service.ts` 119–124/446、`apps/local-host/src/mcp-action-client.ts` 16–26、`local-host.ts` 99–106、Form `actions.ts` 109–110；现 `tests/action-before-effect.test.ts` 只覆盖模型等待时撤权和授权等待时换提供方，未覆盖此窗口。 |
+| W3-09 / W2-19（S-08/S-18） | P1 授权竞态，源码已确认、复现待跑：共同 `beforeEffect` 在精确授权之后还 await 权限与 Host 可用性检查；最后只用初始 `allowed_actions`，期间撤销精确动作可能仍写。MCP 权限并集不能识别保留同权限 B、撤销 A 的差别 | 唯一 writer 优先以真实 MCP 授权文件、Form SQLite 与可控后续可用性检查复现；`form.questions.ai`（#532 起是 `form.questions.draft@1`）最后检查后写题目的路径可触发。修共同入口，断言 A 被拒、业务记录不变、B 不能替 A 授权、重新授权恢复；不要每插件补兜底。涉及 kernel/MCP，按共享核心整合验证，I6 结束前只准备源码。依据：`packages/kernel/src/action-service.ts` 119–124/446、`apps/local-host/src/mcp-action-client.ts` 16–26、`local-host.ts` 99–106、Form `actions.ts` 109–110；现 `tests/action-before-effect.test.ts` 只覆盖模型等待时撤权和授权等待时换提供方，未覆盖此窗口。 |
 | W1-18 | P1 完成声明失真：把事实表 PR 当作三阶段逐包审查，71 行全待审仍写第 1 波全完；owner/放置错误可能遗漏 | 按 §5.1 已登记的深 11、中 43、浅 17 逐包写职责、依赖方向、变化原因、代码放置、重叠和必要动作；每行有源码依据与裁决。未完成项不得改成已审。按风险读码，不靠文件数/门禁替代 |
 | W2-18-FR | P1 验收范围遗漏：首轮亮色无模型页面和部分浏览器测试被当成前端整体；暗色/英文/辅助技术/异常恢复未全覆盖 | 在已有 frontend-flow-walk 中接续同一表，复用有效截图；核关键路径的键盘/读屏、三种宽度、暗色/英文、离线/失败/无权限/部分成功、多窗口与真实模型。状态、操作、反馈及输入保持需实际操作；受限项写明，不伪装通过。接 W4-12/W6-05 |
 | W2-18-LC | P1 生命周期证据缺口：首轮差集名单过期，§11 的 15 组修复不覆盖所有插件/官方接入 | 按现行成员重对安装/启用/发现/调用/停用/撤权/卸载/升级/重启；按有意义的路径制造真实交错，验返回、持久化、副作用、重试和下次可观察状态；组合场景按原 11 条更新。已删 Experiments 明确退役，Issue 纳入。批准的例外写理由，迁移后接 W6-02 |
@@ -1766,7 +1770,7 @@ Prologue（10-14 复查到 #22 为止，这次看 #24～#27）：
 
 | 验收编号 | 可观察结果与证据要求 |
 | --- | --- |
-| W3-09-AUTH-01 | 真实隔离 Home 经 HTTP 授予 MCP A/B 两个精确动作且权限相同；A 为实际 form.questions.ai。A 精确检查后在后续 availability 等待期间撤 A、保留 B，A 必须拒绝，Form SQLite 业务事实/失败业务记录均不变；保留原缺陷复现日志，不能只测人工构造 caller。 |
+| W3-09-AUTH-01 | 真实隔离 Home 经 HTTP 授予 MCP A/B 两个精确动作且权限相同；A 为实际 form.questions.draft@1（#532 起取代 form.questions.ai@1；`tests/mcp-effect-authority.test.ts` 用的就是它）。A 精确检查后在后续 availability 等待期间撤 A、保留 B，A 必须拒绝，Form SQLite 业务事实/失败业务记录均不变；保留原缺陷复现日志，不能只测人工构造 caller。 |
 | W3-09-AUTH-02 | 重新授权 A 后同一真实入口正常提交一次；已有提供方替换、取消、timeout、安装/运输撤销拒绝仍生效。原异步 validators/合法异步 transport 继续可用；最终同步尾检不得接受 Promise，也不得新增循环重查。 |
 | W3-09-AUTH-03 | 真实 bind/control、原动作包裹的嵌套动作与函数/scene 路径保留来源和目标的精确拒绝；同权限目标不能替已撤销来源放行。测试调用生产共同路径，literal code/事实/真实平台拒绝行与编号分别核对，不把无业务写入误记为无平台调用记录。 |
 

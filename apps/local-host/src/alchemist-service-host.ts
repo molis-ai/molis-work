@@ -13,9 +13,13 @@ export interface AlchemistHostOptions {
   /** Explicit embedding/test boundary. Production uses the configured Prologue and search owners. */
   ai?: (projectId: string) => AlchemistAiPort;
   pulseSourceMode?: "live" | "fixture";
+  /** How long a project's studio stays open with no action and no job before it is closed (W4-09); the next action opens it again. */
+  idleReclaimMs?: number;
 }
-interface SharedStudio { runtime: AlchemistStudioRuntime; search?: ReturnType<typeof createAlchemistSearchPort>; owners: Set<AlchemistHostService>; closing?: Promise<void> }
+interface SharedStudio { runtime: AlchemistStudioRuntime; search?: ReturnType<typeof createAlchemistSearchPort>; owners: Set<AlchemistHostService>; closing?: Promise<void>; lastUsed: number }
 const studios = new Map<string, SharedStudio>();
+/** An open studio drains its jobs four times a second; one nobody has used for this long and with no job is closed. */
+const STUDIO_IDLE_MS = 10 * 60_000;
 
 /** The original project Studio is shared by Host owners, independent of page requests. */
 export class AlchemistHostService {
@@ -24,6 +28,7 @@ export class AlchemistHostService {
   private readonly pulseGithub: ReturnType<typeof alchemistPulseGithub>;
   private readonly entries = new Map<string, SharedStudio>();
   private closed = false;
+  private sweep?: NodeJS.Timeout;
   constructor(home: string, private readonly options: AlchemistHostOptions = {}) {
     this.home = resolve(home);
     this.pulseGithub = alchemistPulseGithub(this.home);
@@ -54,7 +59,7 @@ export class AlchemistHostService {
     this.assertOpen();
     if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目。");
     const key = JSON.stringify([this.home, caller.project_id]);
-    const own = this.entries.get(key); if (own) return own.runtime;
+    const own = this.entries.get(key); if (own) { own.lastUsed = Date.now(); return own.runtime; }
     let entry = studios.get(key);
     if (entry?.closing) throw new ActionError("alchemist.closing", "炼金术士服务正在关闭，请稍后重试。");
     if (!entry) {
@@ -65,10 +70,28 @@ export class AlchemistHostService {
       } });
       const runtime = createAlchemistStudioRuntime({ databasePath: join(alchemistProjectDirectory(this.home, projectId), "studio.sqlite"),
         ai, pulseSourceMode: this.options.pulseSourceMode, pulseGithub: this.pulseGithub });
-      entry = { runtime, owners: new Set() }; studios.set(key, entry); runtime.start();
+      entry = { runtime, owners: new Set(), lastUsed: Date.now() }; studios.set(key, entry); runtime.start();
     }
-    entry.owners.add(this); this.entries.set(key, entry);
+    entry.owners.add(this); this.entries.set(key, entry); entry.lastUsed = Date.now();
+    this.watchIdle();
     return entry.runtime;
+  }
+  /**
+   * While this Host holds a studio, it looks every so often for one nobody has used for a while and that has nothing to do,
+   * and closes it in every Host that holds it (W4-09). The next action on that project opens it again.
+   */
+  private watchIdle(): void {
+    const idleMs = this.options.idleReclaimMs ?? STUDIO_IDLE_MS;
+    this.sweep ??= setInterval(() => {
+      for (const [key, entry] of this.entries) if (!entry.closing && Date.now() - entry.lastUsed >= idleMs && entry.runtime.idle()) void this.evict(key, entry);
+      if (!this.entries.size) { clearInterval(this.sweep); this.sweep = undefined; }
+    }, Math.min(60_000, idleMs)).unref();
+  }
+  /** Takes the studio out of every Host in this process that holds it and closes it, its worker and search database with it. */
+  private evict(key: string, entry: SharedStudio): Promise<void> {
+    if (studios.get(key) === entry) studios.delete(key);
+    for (const owner of entry.owners) owner.entries.delete(key);
+    return entry.closing ??= (async () => { try { await entry.runtime.close(); } finally { await entry.search?.shutdown(); } })();
   }
   /**
    * The project is deleted: its studio is evicted from every Host in this process that holds it, closed (its worker and
@@ -77,16 +100,12 @@ export class AlchemistHostService {
   async deleteProject(projectId: string): Promise<void> {
     const key = JSON.stringify([this.home, projectId]);
     const entry = studios.get(key);
-    if (entry) {
-      studios.delete(key);
-      for (const owner of entry.owners) owner.entries.delete(key);
-      entry.closing ??= (async () => { try { await entry.runtime.close(); } finally { await entry.search?.shutdown(); } })();
-      await entry.closing;
-    }
+    if (entry) await this.evict(key, entry);
     await rm(alchemistProjectDirectory(this.home, projectId), { recursive: true, force: true });
   }
   async close(): Promise<void> {
     this.closed = true;
+    clearInterval(this.sweep); this.sweep = undefined;
     const closing: Promise<void>[] = [];
     for (const [key, entry] of this.entries) {
       entry.owners.delete(this);

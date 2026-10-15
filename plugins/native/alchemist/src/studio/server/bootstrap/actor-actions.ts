@@ -4,6 +4,20 @@ import type { SqliteDatabase } from "../db/open-database.js";
 import type { AlchemistActionInvoker } from "../services/action-operations.js";
 
 /** Bind one trusted actor without making resolution write a row before the invocation's effect check. */
+/** Counts the actions in flight through the invokers it wraps: a studio with one is not idle (W4-09). */
+export function actionsInFlight() {
+  let count = 0;
+  return {
+    none: () => count === 0,
+    track(invoker: AlchemistActionInvoker): AlchemistActionInvoker {
+      return { invoke: async (definition, input, signal, control) => {
+        count++;
+        try { return await invoker.invoke(definition, input, signal, control); } finally { count--; }
+      } };
+    },
+  };
+}
+
 export function bindAlchemistActor(owner: string, d: { database: SqliteDatabase; actors: AsyncLocalStorage<string>;
   clock: Clock; actions: AlchemistActionInvoker; closed(): boolean }): AlchemistActionInvoker {
   if (!owner.trim()) throw new Error("alchemist.alchemist_actor_required");

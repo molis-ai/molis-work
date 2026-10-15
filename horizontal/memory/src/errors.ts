@@ -1,4 +1,7 @@
-export type MemoryErrorCode = "memory.invalid" | "memory.not_found" | "memory.forbidden" | "memory.scope" | "memory.limit" | "memory.conflict" | "memory.off";
-export class MemoryError extends Error {
-  constructor(readonly code: MemoryErrorCode, message: string) { super(message); this.name = "MemoryError"; }
-}
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export const memoryErrors = defineErrorCodes("memory", {
+  invalid: "invalid", not_found: "not_found", forbidden: "forbidden", scope: "forbidden",
+  limit: "conflict", conflict: "conflict", off: "invalid",
+});
+export type MemoryErrorCode = `memory.${keyof typeof memoryErrors}`;

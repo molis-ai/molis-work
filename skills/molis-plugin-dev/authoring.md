@@ -19,13 +19,13 @@ import { definePlugin, definePollingIntegrationPlugin } from "@molis-ai/molis-wo
 
 | services | 何时有 | 做什么 |
 | --- | --- | --- |
-| `storage` | 声明了私人存储 | get/set/delete；可选 `compareAndSet`。需要冲突检测时 Host 没有该方法就拒绝，不要用 get+set 假装原子 |
-| `artifacts` | 一直在 | publish 固定一版成果：除内容外必须写 `origin`（`{kind:"pinned", subject:{kind,id}, revision}` 或导入文件 `{kind:"imported", file_name}`）、`title`、真实 `media_type`，可选 `trace`（来自哪些过程项）；按 id+version read 成果或过程项。Host 绑定项目、用户、生产者 |
+| `storage` | 声明了 `storage:private`，安装持有授权 | get/set/delete；可选 `compareAndSet`。需要冲突检测时 Host 没有该方法就拒绝，不要用 get+set 假装原子 |
+| `artifacts` | 有真实项目的执行器；Home 不提供 | publish 固定一版成果：除内容外必须写 `origin`（`{kind:"pinned", subject:{kind,id}, revision}` 或导入文件 `{kind:"imported", file_name}`）、`title`、真实 `media_type`，可选 `trace`（来自哪些过程项）；按 id+version read 成果或过程项。Host 绑定项目、用户、生产者 |
 | `processItems` | 声明了 `process_items.produces` | `record` 记下交给别的插件的过程项（不进成果库）；端口 `outputs.publish` 也是过程项 |
 | `ui` | 一直在 | register/unregister Manifest 声明过的 contribution |
 | `events` | 声明了 publishes | `publish({ event_type_id, type_version, payload })`。没声明就没有这个 client |
 | `inputs` / `outputs` | 声明了端口 | 输入读绑定和 `selectedGroup`。输出是 `publish`、`invalidate`、`retain`。`scope_key` 由 Host 创建 client 时附上，见 [elements.md](elements.md) |
-| `actions` | 声明了 actions | 调用本插件已注册的公开动作；Host 绑定用户，停用后失效。HTTP 用 `bindPluginActionRoute` 薄转发，不另写业务实现 |
+| `actions` | 声明了 actions 或消费了宿主动作 | 调用本插件已注册的公开动作；Host 绑定用户，停用后失效。HTTP 用 `bindPluginActionRoute` 薄转发，不另写业务实现 |
 | `capabilities` | 声明了 consumes | `invoke` 已 grant 的 Capability |
 
 动作处理器的 `ActionCallContext.actor_id` 是可信调用主体，MCP 授权按此客户端身份判断。`audit_actor_id` 由可信 Host 写入本次写入的作者：经 MCP 是 `<客户端>:<会话>`，助理是 `assistant:<work_id>`，生成插件是「插件「名称」」；声明 `authorship: "session"` 的动作从这里读作者。它不参与授权，不得从业务 JSON 覆盖。跨进程 Host 只根据固定客户端和可信会话元数据推导审计作者，不接受任意作者 ID。`actor_kind` 是可信审计分类，`null` 表示可信调用方不知道，不授予用户决策权限。公共输入只声明业务数据，项目、权限及身份从调用上下文取得。Goals 的目录/创建/便笺可通过其 `goalsActions` 引用；创建 Goal 的来源由调用主体决定：`audience` 不是 `user` 的调用一律记为 runtime，指定别的渠道会被拒绝；本人不指定时记为 web。

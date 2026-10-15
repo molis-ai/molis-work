@@ -23,7 +23,7 @@
 
 ## 3. 各库版本表
 
-每个库只认一个当前版本，不符时的处理在最后一列。表里有两类东西：Home 里的 SQLite 库，和两个版本不符就让全部凭据或授权失效的 JSON 文件（`feed/secrets.json` 拒绝读取，`config/mcp-tools.json` 读成空）。其他带版本字段的小 JSON 文件（`shelf/catalog.json`、`browser/sites.json`、`jelly/preferences.json`、`config/` 下的各个文件，包括 `config/installation.json`）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
+每个库只认一个当前版本，不符时的处理在最后一列。表里有两类东西：Home 里的 SQLite 库，和两个版本不符就让全部凭据或授权失效的 JSON 文件（`feed/secrets.json` 拒绝读取，`config/mcp-tools.json` 明确拒绝读取）。其他带版本字段的小 JSON 文件（`shelf/catalog.json`、`browser/sites.json`、`jelly/preferences.json`、`config/` 下的各个文件，包括 `config/installation.json`）不在表里：它们的版本见 [docs/system/HOME-DATA.md](../system/HOME-DATA.md) 第 6 节的「种类 · 版本」列，版本不符时各自怎样没有逐个核对过，改其中任何一个的版本，就在发布说明的「兼容与升级」里写明。每个库的 owner、表、备份与卸载规则也在 HOME-DATA.md。位置都相对 Home（默认 `~/.molis-work`，`MOLIS_WORK_HOME` 可改）。
 
 `scripts/verify-release-versions.mjs` 对照代码核对这张表，下面几种情况 CI 会失败：某行的版本和定义处的代码不一致；定义处不存在；包的 `src/` 里有一个 `SqliteBaseline` 常量（`const X: SqliteBaseline = {…}`、`const X = {…} satisfies SqliteBaseline`、`… as SqliteBaseline` 三种写法都算）没有列进表，或者它的版本不是对象里写成数字的 `version: N`（引用别的常量，脚本读不出来）；`applySqliteBaseline`、`openBaselineHomeSqlite` 收到的不是一个已声明的常量（内联对象不行）；标「无」的库的定义处文件加上了版本标记。它找不到的是完全不经 `applySqliteBaseline` 的新库（比如又一个只靠 `CREATE TABLE IF NOT EXISTS` 的库）和表以外的 JSON 文件，这类只能靠 HOME-DATA.md 的清单和评审发现。
 
@@ -36,7 +36,7 @@
 | 会话库 | `sessions/sessions.db` | 7 | `session_meta.schema_version` | `modules/private-work-context/src/session-schema.ts#SESSION_REGISTRY_SCHEMA_VERSION` | 拒绝 |
 | Functions | `functions/functions.db` | 3 | `user_version` | `modules/functions/src/store.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
 | 助理 | `assistant/assistant.db` | 2 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
-| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 1 | `user_version` | `apps/local-host/src/home-plugins.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
+| Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 2 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
 | Issue | `issues/issues.db` | 2 | `user_version` | `plugins/native/issues/src/store.ts#ISSUES_DATABASE` | 拒绝 |
 | 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝 |
 | Form | `form/form.db` | 2 | `user_version` | `plugins/native/form/src/store.ts#FORM_STORE_BASELINE` | 拒绝 |
@@ -58,7 +58,7 @@
 | 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 2 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 2 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出 |
-| MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 2 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 读成空，所有 MCP 动作授权失效 |
+| MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 2 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取并报告配置错误；保留原文件，明确修复后恢复 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
 
 - Pages 评论线程将库基线从 1 改为 2，新增 `page_comments`，正文与块备注保持原结构。旧 Home 仍拒绝直接打开；真实 Home 尚未执行这一项维护，发布前须在副本演练并取得维护授权。实现与隔离验证见 [Pages 与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
@@ -119,7 +119,7 @@
 ### 4.5 动完之后
 
 - [ ] 只读核对第 3 节每个库在真实 Home 里的版本、`integrity_check`、`foreign_key_check`；项目数与动之前一致；抽查一个项目的 Goal、成果版本和会话内容能读。
-- [ ] 核对 `config/mcp-tools.json` 的授权条数没有莫名变少（版本不符时它读成空，不报错）。
+- [ ] 核对 `config/mcp-tools.json` 的授权条数没有莫名变少（版本不符时明确拒绝并报告配置错误，原文件不改）。
 - [ ] 内置插件的安装记录等于这个构建的清单，版本和摘要都要一致（[POLICY.md](POLICY.md) 第 7 节；第 1 节也用这条命令）。对开发机的真实 Home，在 A 落地后的第一次启动之后查，确认记录已经跟上：在新拷贝上查（只打开拷贝里的路径，见第 4.3 节第一项），不碰真库；查拷贝也是真实 Home 的数据操作，照例先问用户。先在构建好的仓库根目录打出这个构建里每个内置插件清单的版本与摘要：
 
   ```sh

@@ -1,7 +1,8 @@
+import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
 import type { MolisWorkSessionRecord, WorkSessionBindingInput, WorkSessionPanelInput } from "./contract-aliases.js";
-import { MolisWorkSessionError } from "./errors.js";
+
 import { SessionRecordRepository } from "./session-records.js";
 
 /** A desktop panel and a Runtime binding write their Session when they are written; nothing is copied at read time. */
@@ -41,13 +42,13 @@ export class SessionSurfaceRecorder {
         });
       }
       if (current.runtime_id !== panel.runtime_id) {
-        throw new MolisWorkSessionError("session.runtime_mismatch", "panel 与已有 Session 的 Runtime 不匹配");
+        throw sessionErrors.runtime_mismatch("panel 与已有 Session 的 Runtime 不匹配");
       }
       if (current.project_id && current.project_id !== panel.project_id) {
-        throw new MolisWorkSessionError("session.identity_conflict", "panel 与已有 Session 指向不同项目");
+        throw sessionErrors.identity_conflict("panel 与已有 Session 指向不同项目");
       }
       if (panel.host_session_id && current.native_runtime_session_id && current.native_runtime_session_id !== panel.host_session_id) {
-        throw new MolisWorkSessionError("session.identity_conflict", "panel 已连接另一个 Runtime 原生 Session");
+        throw sessionErrors.identity_conflict("panel 已连接另一个 Runtime 原生 Session");
       }
       this.sessions.setAssociationReferences(current.session_id, current.project_id ?? panel.project_id,
         panel.goal_id, current.workspace_id ?? panel.workspace_id, actor, now);
@@ -94,7 +95,7 @@ export class SessionSurfaceRecorder {
         });
       }
       if (current.project_id && current.project_id !== binding.project_id) {
-        throw new MolisWorkSessionError("session.identity_conflict", "这个 Runtime Session 已属于另一个项目");
+        throw sessionErrors.identity_conflict("这个 Runtime Session 已属于另一个项目");
       }
       if (!current.project_id) {
         this.sessions.setAssociationReferences(current.session_id, binding.project_id,

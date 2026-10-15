@@ -207,7 +207,8 @@ test("S-07 the action gateway takes the number of an operation only on an invoca
   // A number the forwarding process made is accepted, and is the one the Host's row and its answer carry: nothing else gives a number.
   const id = randomUUID();
   const refusedCall = await post({ ...invoke, call_id: id });
-  assert.equal(refusedCall.status, 403);
+  // W3-02-G1-01: the missing action keeps its recorded refusal and UUID checks, and the common not_found exit answers 404.
+  assert.equal(refusedCall.status, 404);
   assert.equal(refusedCall.headers.get("x-molis-work-call-id"), id);
   assert.equal((await refusedCall.json() as { code: string; call_id: string }).call_id, id);
   const rows = log().trim().split("\n").map(line => JSON.parse(line) as { call_id: string; code?: string; refused?: boolean });

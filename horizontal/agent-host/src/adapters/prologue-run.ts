@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ExactRef, Runtime } from "@prologue/sdk";
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentTextMaterialContent, type AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, memoryHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
@@ -12,6 +12,7 @@ import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { createPrologueCompactor } from "./prologue-compaction.js";
 import type { PrologueCredentialBridge } from "./prologue-credentials.js";
+import type { PrologueEffects } from "./prologue-effects.js";
 import { mcpConnectionId, type createPrologueMcpLibrary } from "./prologue-mcp.js";
 import type { createPrologueMemory } from "./prologue-memory.js";
 import type { createSessionMessages } from "./prologue-messages.js";
@@ -54,6 +55,8 @@ export const HELD_LABELS: Record<HeldKind, { target: string; summary: string }> 
 
 export interface RunDeps {
   readonly runtime: Runtime;
+  /** Per-invocation commit checks (prologue-effects): the SDK's writes in a call re-check the caller first. */
+  readonly effects: PrologueEffects;
   readonly options: PrologueNodeAdapterOptions;
   readonly state: RoundState;
   readonly index: SessionIndexStore;
@@ -318,23 +321,19 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
   return { character: runtime.characters.publish(created.ref), runTools, pinnedMemory };
 }
 
-/** Persist the intent before the SDK can dispatch a model or tool: a crash in this window stays visibly unresolved. */
-async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: SessionIndex["attempts"][number]): Promise<number> {
+/**
+ * The caller is checked once more, then only this invocation's prepared intent is recorded: acceptance is the SDK's
+ * initial durable Run commit. `abandon` takes back an intent the SDK never accepted.
+ */
+async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: SessionIndex["attempts"][number]): Promise<{ attemptIndex: number; abandon: () => Promise<void> }> {
+  await input.beforeStart?.(); requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成");
   let attemptIndex = -1;
-  await deps.index.update(input.session_id, index => {
-    attemptIndex = index.attempts.length;
-    index.attempts.push(attempt);
-  });
-  try { await input.beforeStart?.(); }
-  catch (error) {
-    // The SDK has not seen this intent, so it is known not to have dispatched.
-    await deps.index.update(input.session_id, saved => {
-      const held = saved.attempts[attemptIndex];
-      if (held && !held.run_id && isDeepStrictEqual(held, attempt)) saved.attempts.splice(attemptIndex, 1);
-    });
-    throw error;
-  }
-  return attemptIndex;
+  await deps.index.update(input.session_id, index => { attemptIndex = index.attempts.length; index.attempts.push(attempt); });
+  const abandon = () => deps.effects.detach(() => deps.index.update(input.session_id, saved => {
+    const held = saved.attempts[attemptIndex];
+    if (held && !held.run_id && isDeepStrictEqual(held, attempt)) saved.attempts.splice(attemptIndex, 1);
+  }));
+  return { attemptIndex, abandon };
 }
 
 /**
@@ -401,7 +400,7 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
   const params = runModelParams(input.model, input.provenance.frozen.budget, input.provenance.frozen.reasoning_effort);
   const cache = input.model.prompt_cache === undefined || input.model.prompt_cache === "off" ? {} : { promptCache: input.model.prompt_cache };
   return {
-    session,
+    session: deps.effects.session(session),
     ...(root ? { rootRef: root.ref } : business ? { workspace: "app" as const } : { workspace: "none" as const }),
     // A digest round carries earlier rounds in its task; replaying them verbatim too is what stopped long sessions.
     ...(input.history === "digest" ? {} : { history: "session" as const }),
@@ -542,7 +541,12 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
       },
       pause: () => control.pause(), resume: () => control.resume(),
       // The new model's key is exchanged first; the runtime refuses a target or frozen settings it cannot carry.
-      switchModel: async target => control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef: await deps.credentials.prologueRefFor(target.credential_ref) }),
+      beforeModelSwitch: deps.effects.beforeEffect,
+      switchModel: async (target, beforeAccept) => {
+        const credentialRef = await deps.credentials.prologueRefFor(target.credential_ref);
+        await deps.effects.beforeEffect();
+        return control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef }, { beforeAccept: () => { deps.effects.assertCurrent(); beforeAccept(); } });
+      },
       steer: async input => { await control.steer(input); }, subscribe: listener => control.subscribe(listener),
     },
   };
@@ -572,7 +576,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, plan, session, actionTools });
   // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
-  const attemptIndex = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
+  const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
     ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
     ...(materials.stepBoard ? { step_board: materials.stepBoard.ref } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) });
   const dispatchGuard = async () => {
@@ -585,10 +589,15 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const started = await deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
     session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory,
   }))).catch(async (error: unknown) => {
-    // Refused while the context was still being packed: the runtime creates the run only after that, so nothing
-    // ran and the attempt is a settled refusal rather than an unknown outcome that would block the session.
-    const code = (error as { code?: string }).code;
-    if (code && REFUSED_BEFORE_RUN.has(code)) await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
+    // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
+    // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.
+    if (!deps.effects.accepted()) {
+      const code = (error as { code?: string }).code;
+      let current = true;
+      try { requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); } catch { current = false; }
+      if (!current || !code || !REFUSED_BEFORE_RUN.has(code)) await abandon();
+      else await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
+    }
     throw error;
   });
   const stopping: { current: Promise<void> | undefined } = { current: undefined };

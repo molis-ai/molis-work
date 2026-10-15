@@ -78,7 +78,7 @@ Home 里有 30 种 SQLite 文件：权威库 26 种（Home 级 23 种，按项�
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
 | `workflows/workflows.db` | `plugins/native/workflows/src/store.ts:195-197`，基线 `:166` | 1 · WAL | `workflows`、`instances` |
 
-Issue 与 Home Runtime 为新库，无历史盖版本；当前基线与保存重启见 `tests/issue-home.test.ts`、`tests/issue-home-runtime.test.ts`。以下是已有库的基线来源：
+Issue 与 Home Runtime 最初为新库，无历史盖版本；Home Runtime 当前 v2 把安装、发行物与安装隔离 KV 放在同一库，非空 v1 或结构不完整的 v2 拒绝，不就地迁移或补表。基线、拒绝与保存重启见 `tests/home-store-baselines.test.ts`、`tests/home-plugin-private-store.test.ts`、`tests/issue-home-runtime.test.ts`。任何其他 Home 的 v1 数据仍须独立列出与演练后取得具体维护授权。以下是已有库的基线来源：
 
 `tests/home-store-baselines.test.ts` 把已有库的基线（以及 3.2 里的 assistant、memory、functions、placement、agent-definitions、connectors、context-onboarding）和 `tests/fixtures/home-store-schemas/` 下取自存量库的结构夹具比对。2026-10-04 真实 Home 的 17 个库用一次性工具盖了版本 1，工具已删（取自 Git 历史 `scripts/stamp-store-baselines.mjs`）；炼金术士搜索库的夹具是 `alchemist-search.sql`（上一版建库语句生成，真实 Home 没有这种文件）。
 
@@ -86,7 +86,7 @@ Issue 与 Home Runtime 为新库，无历史盖版本；当前基线与保存重
 
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
-| `plugin-runtime/plugin-runtime.db` | 平台 Home Runtime；`apps/local-host/src/home-plugins.ts`，schema 由 `packages/plugin-runtime` 提供 | SQLite 当前基线 1 · 回滚 | 必备份 | purge |
+| `plugin-runtime/plugin-runtime.db` | 平台 Home Runtime；安装/发行物/KV 事实归 `packages/plugin-runtime`；`apps/local-host/src/home-plugin-store.ts` 组合当前结构 | SQLite 当前基线 2 · 回滚；旧版或坏结构拒绝 | 必备份 | purge |
 | `server/server.sqlite` | `server`；`server/src/database.ts:34-37` 打开，基线 `:29`；本机由 `apps/local-host/src/im-server.ts:13` 挂载。右栏「讨论」页签的群聊与 Thread 存在这里（在用、还会迭代的功能，`specs/repository-anti-corruption/spec.md` §1，2026-10-08「右栏『讨论』页签与 IM 代码」） | SQLite 带版本 · WAL · 1 | 必备份（第 7 节 E 组，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()`），备份副本按密钥对待。库里有聊天正文、成员显示名，也有明文的房间邀请令牌：`im_rooms.invite_token`（`server/src/im/schema.ts:7`，`randomBytes(24)` 生成，`server/src/im/writes.ts:51`、`:75`）是非项目群的加入凭据，拿到它的人可以经 `POST /im/api/join` 加入这个群（`server/src/im/index.ts:50-51`）；重置邀请的结果 `{token, url}` 经 `mutation()` 连同提交回执写进 `im_receipts.result_json`（`server/src/im/writes.ts:39-40`），重置后旧令牌失效但仍留在回执里。项目群的 `invite_token` 是 `randomUUID()`，加入时被拒绝（`server/src/im/writes.ts:61`），不能当凭据用。登录会话 `mw_sessions.token_hash` 和一次性代码 `mw_codes.hash` 只存哈希。归组不变：D 组要求同一时点，是因为引用和密文分在两个文件里，而邀请令牌和它能打开的群在同一个文件里，不存在配对问题；它只需要和 `runtime-config-backups/` 一样不进共享位置与日志 | purge（`server` 在 `PERSONAL_HOME_SQLITE_STORES`，整个目录；普通卸载保留） |
 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | `plugins/native/alchemist`；路径 `apps/local-host/src/alchemist-paths.ts:4`（`alchemistProjectDirectory`；`apps/local-host/src/alchemist-service-host.ts:49` 在其下拼 `studio.sqlite`），建库 `src/studio/server/db/schema.ts:480`，基线 `:8` | SQLite 带版本 · WAL · 1 | 必备份 | purge（`alchemist` 在 `PERSONAL_HOME_SQLITE_STORES`，整个目录） |
 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 宿主；`apps/local-host/src/alchemist-search.ts`（`createAlchemistSearchPort`，基线 `ALCHEMIST_SEARCH_BASELINE`；目录同样由 `apps/local-host/src/alchemist-paths.ts:4` 给出），表 `feed_runtime_blobs` 来自 `packages/storage` 的 `LOCAL_OPAQUE_BLOB_SCHEMA_SQL` | SQLite 带版本 · WAL · 1（W2-05） | 必备份（研究报告引用的证据，重取要花外部请求）；只在用过搜索后才出现 | purge（同上） |

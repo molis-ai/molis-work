@@ -2,7 +2,8 @@ import type {
   ContextAccess, ContextEdge, ContextLedgerApi, ContextMaterializationApi, ContextMaterializedNode,
   ContextObjectRead, ContextRebuildRequest, ObjectRef,
 } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { ContextLedgerError, sameRef } from "./service.js";
+import { sameRef } from "./service.js";
+import { ledgerErrors } from "./errors.js";
 
 function identity(ref: ObjectRef): string {
   return JSON.stringify([ref.scope.kind, ref.scope.id, ref.module, ref.object_type ?? null,
@@ -17,7 +18,7 @@ class ContextMaterializer implements ContextMaterializationApi {
     read: (ref: ObjectRef, access: ContextAccess) => ContextObjectRead<T>) {
     if (!Number.isSafeInteger(request.max_depth) || request.max_depth < 0
       || !Number.isSafeInteger(request.max_nodes) || request.max_nodes < 1) {
-      throw new ContextLedgerError("context.invalid_reference", "上下文遍历需要有效的深度和对象数限制");
+      throw ledgerErrors.invalid_reference("上下文遍历需要有效的深度和对象数限制");
     }
     // Validate every root before calling any content owner, including mixed-scope requests.
     for (const root of request.roots) this.ledger.query.list(access, { source: root });

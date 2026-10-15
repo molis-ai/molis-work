@@ -10,6 +10,7 @@ import type { SqliteMemoryRepository } from "../studio/server/db/memory-reposito
 import type { SqliteResearchRepository } from "../studio/server/db/research-repository.js";
 import { generateWithHost, type AlchemistAiPort } from "../studio/server/runtime/host-port.js";
 import { AlchemistOperationError } from "../studio/server/services/action-error.js";
+import type { AlchemistEffectControl } from "../studio/server/services/action-operations.js";
 import { reuseAssessmentSchema, reuseFeedbackSchema, reuseReviseSchema, type reuseAssessInputSchema, type reuseCandidateInputSchema,
   type ReuseCandidates, type ReuseReceipt, type ReuseSelection, type ReuseSnapshot, type WorkReuseHostPort } from "./contracts.js";
 
@@ -32,11 +33,11 @@ export class WorkReuseService {
   }
   private async caller(signal?: AbortSignal, permissions: string[] = ["alchemist:read"], actorId = this.d.actorId()): Promise<ActionCallContext> {
     const host = this.d.host;
-    if (!host) return fail("REUSE_HOST_UNAVAILABLE", "成果入口尚未连接；可以先沿用方法或从头研究。");
+    if (!host) return fail("alchemist.reuse_host_unavailable", "成果入口尚未连接；可以先沿用方法或从头研究。");
     signal?.throwIfAborted();
     const caller = await host.callerFor(actorId, signal);
-    if (caller.actor_id !== actorId || caller.project_id !== host.projectId) return fail("REUSE_ACCESS_DENIED", "成果权限或项目已经变化，请重新打开项目。");
-    if (permissions.some(permission => !caller.permissions.includes(permission))) return fail("REUSE_ACCESS_DENIED", "本次操作权限已撤回，请重新确认授权。");
+    if (caller.actor_id !== actorId || caller.project_id !== host.projectId) return fail("alchemist.reuse_access_denied", "成果权限或项目已经变化，请重新打开项目。");
+    if (permissions.some(permission => !caller.permissions.includes(permission))) return fail("alchemist.reuse_access_denied", "本次操作权限已撤回，请重新确认授权。");
     await caller.validate_permissions?.(permissions);
     signal?.throwIfAborted();
     return caller;
@@ -46,11 +47,11 @@ export class WorkReuseService {
     const artifact = await this.d.host!.readArtifact(caller, reference);
     signal?.throwIfAborted();
     if (!artifact || artifact.project_id !== this.d.host!.projectId || artifact.artifact_id !== reference.artifact_id || artifact.version !== reference.version)
-      return fail("REUSE_SOURCE_UNAVAILABLE", "所选成果已不可读取，请重新选择固定版本。");
+      return fail("alchemist.reuse_source_unavailable", "所选成果已不可读取，请重新选择固定版本。");
     if (artifact.lifecycle_state !== "active" || artifact.availability !== "available")
-      return fail("REUSE_SOURCE_WITHDRAWN", "所选成果已归档或撤回，请移除它后重新确认计划。");
+      return fail("alchemist.reuse_source_withdrawn", "所选成果已归档或撤回，请移除它后重新确认计划。");
     if (artifact.content_kind !== "inline" || artifact.payload === null)
-      return fail("REUSE_SOURCE_UNREADABLE", "这个成果还没有可用于研究的文本，请先提取或选择文本版本。");
+      return fail("alchemist.reuse_source_unreadable", "这个成果还没有可用于研究的文本，请先提取或选择文本版本。");
     return artifact;
   }
   private text(artifact: ArtifactVersionRecord): string {
@@ -83,7 +84,7 @@ export class WorkReuseService {
       let artifact: ArtifactVersionRecord;
       try { artifact = await this.read(reference, signal); }
       catch (error) {
-        if (error instanceof AlchemistOperationError && ["REUSE_SOURCE_UNAVAILABLE", "REUSE_SOURCE_WITHDRAWN", "REUSE_SOURCE_UNREADABLE"].includes(error.code)) continue;
+        if (error instanceof AlchemistOperationError && ["alchemist.reuse_source_unavailable", "alchemist.reuse_source_withdrawn", "alchemist.reuse_source_unreadable"].includes(error.code)) continue;
         throw error;
       }
       const warnings = ["历史结论只作背景；本次事实仍需用当前证据确认。"];
@@ -95,17 +96,18 @@ export class WorkReuseService {
     }
     return { available: true, artifacts, methods, truncated: references.length > seen.size };
   }
-  async assess(input: z.infer<typeof reuseAssessInputSchema>, signal?: AbortSignal) {
+  async assess(input: z.infer<typeof reuseAssessInputSchema>, signal?: AbortSignal, control?: AlchemistEffectControl) {
     if (this.d.host) await this.caller(signal, ["alchemist:read", "alchemist:write", "alchemist:generate"]);
     const candidates = await this.candidates(input, signal);
     if (candidates.artifacts.length !== new Set(input.references.map(artifactReuseKey)).size)
-      return fail("REUSE_SOURCE_UNAVAILABLE", "部分成果已不可读取，请刷新候选后重试。");
+      return fail("alchemist.reuse_source_unavailable", "部分成果已不可读取，请刷新候选后重试。");
     const methods = candidates.methods.filter(m => input.methodIds.includes(m.id));
-    if (methods.length !== new Set(input.methodIds).size) return fail("REUSE_METHOD_CHANGED", "所选方法已停用或不再适用，请重新选择。");
+    if (methods.length !== new Set(input.methodIds).size) return fail("alchemist.reuse_method_changed", "所选方法已停用或不再适用，请重新选择。");
     const entries = [...candidates.artifacts.map(a => ({ key: artifactReuseKey(a.reference), ...a })),
       ...methods.map(m => ({ key: `method:${m.id}@${m.version}`, ...m }))];
-    if (!entries.length) return fail("REUSE_SELECTION_EMPTY", "先选择要检查的成果或方法。");
-    const guard = this.generationGuard({ actorId: this.d.actorId(), methods, artifacts: input.references.map(reference => ({ reference, reason: "适用性检查" })) }, signal);
+    if (!entries.length) return fail("alchemist.reuse_selection_empty", "先选择要检查的成果或方法。");
+    const validate = this.generationGuard({ actorId: this.d.actorId(), methods, artifacts: input.references.map(reference => ({ reference, reason: "适用性检查" })) }, signal);
+    const guard = async () => { await validate(); await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted(); };
     const resultSchema = reuseAssessmentSchema.omit({ runtimeLabel: true });
     const result = await generateWithHost(this.d.ai, { operationId: `reuse:${crypto.randomUUID()}`, purpose: "检查历史成果与已确认方法在本次任务中的适用性",
       systemPrompt: instructed(ALCHEMIST_REUSE, ""),
@@ -113,7 +115,7 @@ export class WorkReuseService {
       parse: value => resultSchema.parse(value), signal, beforeModelDispatch: guard }, input.modelId);
     const expected = new Set(entries.map(e => e.key)), got = result.value.recommendations.map(r => r.key);
     if (got.length !== expected.size || new Set(got).size !== expected.size || got.some(k => !expected.has(k)))
-      return fail("REUSE_ASSESSMENT_INVALID", "这次建议没有覆盖所选内容；尚未采用，可以重试或手动选择。");
+      return fail("alchemist.reuse_assessment_invalid", "这次建议没有覆盖所选内容；尚未采用，可以重试或手动选择。");
     await guard();
     return { ...result.value, runtimeLabel: result.runtimeLabel };
   }
@@ -121,10 +123,10 @@ export class WorkReuseService {
     const applicable = context.lens === "market_space" ? this.methods(context) : [];
     const ids = selection?.methodIds ?? applicable.map(m => m.id);
     if (new Set(ids).size !== ids.length || ids.some(id => !applicable.some(m => m.id === id)))
-      return fail("REUSE_METHOD_NOT_APPLICABLE", "所选方法不适用当前方向或研究类型，请重新选择。");
+      return fail("alchemist.reuse_method_not_applicable", "所选方法不适用当前方向或研究类型，请重新选择。");
     const artifacts = selection?.artifacts ?? [];
     if (new Set(artifacts.map(a => artifactReuseKey(a.reference))).size !== artifacts.length)
-      return fail("REUSE_DUPLICATE_SOURCE", "同一固定版本只需选择一次。");
+      return fail("alchemist.reuse_duplicate_source", "同一固定版本只需选择一次。");
     const adopted = [];
     for (const selected of artifacts) adopted.push({ ...selected, title: this.title(await this.read(selected.reference, signal)) });
     return { actorId: this.d.actorId(), artifacts: adopted, methods: applicable.filter(m => ids.includes(m.id)).map(methodSnapshot) };
@@ -139,11 +141,11 @@ export class WorkReuseService {
   private async validateSnapshot(snapshot: ReuseSnapshot | undefined, signal: AbortSignal | undefined, actorId: string) {
     if (this.d.host) await this.caller(signal, ["alchemist:read", "alchemist:write", "alchemist:generate"], actorId);
     if (!snapshot) return [];
-    if (snapshot.actorId !== actorId) return fail("REUSE_ACCESS_DENIED", "这份计划属于另一个调用者，请重新确认本次计划。");
+    if (snapshot.actorId !== actorId) return fail("alchemist.reuse_access_denied", "这份计划属于另一个调用者，请重新确认本次计划。");
     for (const method of snapshot.methods) {
       const current = this.d.memory.getPlaybookRule(method.id);
       if (!current || current.status !== "active" || current.version !== method.version)
-        return fail("REUSE_METHOD_CHANGED", "计划采用的方法已修改或停用，请重新确认研究计划。");
+        return fail("alchemist.reuse_method_changed", "计划采用的方法已修改或停用，请重新确认研究计划。");
     }
     const materials = [];
     for (const selected of snapshot.artifacts) {
@@ -155,7 +157,7 @@ export class WorkReuseService {
     if (this.d.host) await this.caller(signal, ["alchemist:read", "alchemist:write", "alchemist:generate"], actorId);
     for (const method of snapshot.methods) {
       const current = this.d.memory.getPlaybookRule(method.id);
-      if (!current || current.status !== "active" || current.version !== method.version) return fail("REUSE_METHOD_CHANGED", "方法已改变，请重新确认研究计划。");
+      if (!current || current.status !== "active" || current.version !== method.version) return fail("alchemist.reuse_method_changed", "方法已改变，请重新确认研究计划。");
     }
     return materials;
   }
@@ -201,32 +203,36 @@ export class WorkReuseService {
     return { ...receipt, artifacts: projected.artifacts, methods: projected.methods,
       feedback: projected.artifacts.some(item => item.contentUnavailable) ? null : receipt.feedback };
   }
-  async reconcile(planId: string, signal?: AbortSignal): Promise<ReuseReceipt | null> {
+  async reconcile(planId: string, signal?: AbortSignal, control?: AlchemistEffectControl): Promise<ReuseReceipt | null> {
     const receipt = this.rawReceipt(planId);
     if (!receipt || receipt.relationState !== "pending") return this.receipt(planId, signal);
     // Recover a missing edge without repeating model calls. A revoked source remains pending.
     for (const selected of receipt.artifacts) await this.read(selected.reference, signal);
-    await this.d.host!.linkConsumption(await this.caller(signal, ["alchemist:read", "alchemist:write"]), { planId, runId: receipt.runId, references: receipt.artifacts.map(a => a.reference) });
+    const caller = await this.caller(signal, ["alchemist:read", "alchemist:write"]);
+    await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
+    await this.d.host!.linkConsumption(caller, { planId, runId: receipt.runId, references: receipt.artifacts.map(a => a.reference) });
+    await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
     this.d.database.prepare("UPDATE work_reuse_receipts SET relation_state = 'recorded' WHERE plan_id = ? AND actor_id = ?").run(planId, this.d.actorId());
     return this.receipt(planId, signal);
   }
   async feedback(input: z.infer<typeof reuseFeedbackSchema>, signal?: AbortSignal) {
-    if (!this.rawReceipt(input.planId)) return fail("REUSE_NOT_CONSUMED", "本次还没有实际使用记录，不能填写复用效果。");
+    if (!this.rawReceipt(input.planId)) return fail("alchemist.reuse_not_consumed", "本次还没有实际使用记录，不能填写复用效果。");
     const { planId, ...feedback } = input;
     this.d.database.prepare("UPDATE work_reuse_receipts SET feedback_json = ? WHERE plan_id = ? AND actor_id = ?").run(JSON.stringify(feedback), planId, this.d.actorId());
     return (await this.receipt(planId, signal))!;
   }
   revise(input: z.infer<typeof reuseReviseSchema>) {
     const rule = this.d.memory.getPlaybookRule(input.id);
-    if (!rule || rule.workspaceId !== this.d.workspaceId) return fail("PLAYBOOK_RULE_NOT_FOUND", "没有找到这条研究方法。");
-    if (rule.status !== "active") return fail("REUSE_METHOD_DISABLED", "已停用的方法不能直接修改，请从报告反馈确认新的方法。");
+    if (!rule || rule.workspaceId !== this.d.workspaceId) return fail("alchemist.playbook_rule_not_found", "没有找到这条研究方法。");
+    if (rule.status !== "active") return fail("alchemist.reuse_method_disabled", "已停用的方法不能直接修改，请从报告反馈确认新的方法。");
     return this.d.memory.revisePlaybookRule(input, this.d.now());
   }
-  async publish(reportId: string, signal?: AbortSignal) {
+  async publish(reportId: string, signal?: AbortSignal, control?: AlchemistEffectControl) {
     const report = this.d.research.getReport(reportId);
-    if (!report) return fail("REUSE_REPORT_NOT_FOUND", "研究报告不存在。");
+    if (!report) return fail("alchemist.reuse_report_not_found", "研究报告不存在。");
     const evidence = this.d.research.listEvidence(reportId);
     const caller = await this.caller(signal, ["alchemist:read", "alchemist:write"]);
+    await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
     return this.d.host!.publishReport(caller, { report, evidence, title: report.summary.slice(0, 100) });
   }
 }

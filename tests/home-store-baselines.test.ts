@@ -17,7 +17,7 @@ import { WORKFLOWS_STORE_BASELINE } from "@molis-ai/molis-work-plugin-workflows"
 import { FUNCTIONS_STORE_BASELINE } from "@molis-ai/molis-work-module-functions";
 import { IMAGES_STORE_BASELINE } from "@molis-ai/molis-work-plugin-images";
 import { CHARACTERS_STORE_BASELINE, openCharacters } from "@molis-ai/molis-work-module-characters";
-import { AGENT_DEFINITIONS_BASELINE, ALCHEMIST_SEARCH_BASELINE, ASSISTANT_STORE_BASELINE, CONNECTORS_BASELINE, CONTEXT_ONBOARDING_BASELINE, PLACEMENT_BASELINE } from "@molis-ai/molis-work-app-local-host";
+import { AGENT_DEFINITIONS_BASELINE, ALCHEMIST_SEARCH_BASELINE, ASSISTANT_STORE_BASELINE, CONNECTORS_BASELINE, CONTEXT_ONBOARDING_BASELINE, MolisWorkLocalHost, PLACEMENT_BASELINE } from "@molis-ai/molis-work-app-local-host";
 
 /** Stores past their first baseline: the memory ledger without its first facts table, the assistant without its memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id), Form answers that always keep their questions. */
@@ -42,6 +42,17 @@ for (const [name, baseline] of Object.entries<SqliteBaseline>({ pages: PAGES_STO
     assert.deepEqual(Object.keys(want.tables).filter(table => !existing.tables[table]), LAZY_TABLES[name] ?? [], `${name}: tables only the baseline has`);
   });
 }
+
+test("W3-06-F-04 Home Runtime created by the public Host is the complete independent v2 baseline", async () => {
+  const home = mkdtempSync(join(tmpdir(), "home-runtime-baseline-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  let db: DatabaseSync | undefined;
+  try {
+    await host.homePlugins!.ready();
+    db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"), { readOnly: true });
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 2);
+    assert.deepEqual(describeSqliteSchema(db), shape(readFileSync(new URL("./fixtures/home-store-schemas/plugin-runtime-v2.sql", import.meta.url), "utf8")));
+  } finally { db?.close(); try { await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } }
+});
 
 // C-06 (anti-corruption code audit 2026-10-15): the Characters store had its own opening that stamped version 1 over any
 // table it found. It now opens through the common baseline: a store without a version, or from a newer build, is refused untouched.

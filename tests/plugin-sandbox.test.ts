@@ -23,6 +23,7 @@ async function fixture(body: string, options: { effects?: SandboxEffects; grants
 const mac = { skip: process.platform !== 'darwin' };
 const code = (expected: string) => (error: unknown) => Boolean(error && typeof error === 'object' && 'code' in error && error.code === expected);
 
+// J6-01/J6-03: actual process isolation remains the refusal boundary.
 test('real Seatbelt process has empty environment and cannot read/write host files or execute children', mac, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'sandbox-protected-'));
   const secretPath = join(directory, 'secret.txt'); await writeFile(secretPath, 'must-not-read');
@@ -55,7 +56,7 @@ test('SDK awaits real host services, scopes private storage by channel identity 
   const f = await fixture(`export const operations={run:async(input,sdk)=>{try{await sdk.storage.set('value',input);return await sdk.storage.get('value')}catch(e){return e.code}}};`, { effects: { storage: ['read', 'write'] }, grants: { storage: ['read', 'write'] }, services: { storage }, limits: { storageBytes: 64 } });
   try {
     assert.equal(await f.runner.call('run', 'first'), 'first');
-    assert.equal(await f.runner.call('run', 'x'.repeat(100)), 'STORAGE_QUOTA');
+    assert.equal(await f.runner.call('run', 'x'.repeat(100)), 'sandbox.storage_quota');
     assert.equal(entries.get('value'), 'first');
     assert.ok(identities.length >= 3); assert.ok(identities.every(v => JSON.stringify(v) === JSON.stringify(identity)));
   } finally { await f.close(); }
@@ -65,7 +66,7 @@ test('both effect declaration and explicit installation grant are mandatory', ma
   let touched = 0;
   for (const configuration of [{ effects: { capabilities: ['safe'] }, grants: {} }, { effects: {}, grants: { capabilities: ['safe'] } }]) {
     const f = await fixture(`export const operations={run:async(_,sdk)=>{try{await sdk.capability.call('safe',{identity:{pluginId:'victim'}});return 'allowed'}catch(e){return e.code}}};`, { ...configuration, services: { capability: { async call() { touched++; return null; } } } });
-    try { assert.equal(await f.runner.call('run', ''), 'NOT_AUTHORIZED'); } finally { await f.close(); }
+    try { assert.equal(await f.runner.call('run', ''), 'sandbox.not_authorized'); } finally { await f.close(); }
   }
   assert.equal(touched, 0);
 });
@@ -102,7 +103,7 @@ test('operation queues are independently bounded and stop rejects pending work',
   try {
     const first = f.runner.call('run', 'one'), second = f.runner.call('run', 'two');
     const outcomes = Promise.allSettled([first, second]);
-    await assert.rejects(f.runner.call('run', 'three'), code('QUEUE_FULL'));
+    await assert.rejects(f.runner.call('run', 'three'), code('sandbox.queue_full'));
     assert.equal(await g.runner.call('run', 'independent'), 'independent');
     await f.runner.stop();
     assert.ok((await outcomes).every(result => result.status === 'rejected'));
@@ -112,12 +113,12 @@ test('operation queues are independently bounded and stop rejects pending work',
 
 test('infinite loop is terminated by host deadline and leaves no process', mac, async () => {
   const f = await fixture(`export const operations={run:async()=>{while(true){}}};`, { limits: { operationTimeoutMs: 250 } });
-  try { await assert.rejects(f.runner.call('run', ''), code('OPERATION_TIMEOUT')); await f.runner.stop(); assert.throws(() => process.kill(f.runner.pid, 0), code('ESRCH')); } finally { await f.close(); }
+  try { await assert.rejects(f.runner.call('run', ''), code('sandbox.operation_timeout')); await f.runner.stop(); assert.throws(() => process.kill(f.runner.pid, 0), code('ESRCH')); } finally { await f.close(); }
 });
 
 test('external RSS watchdog terminates native Buffer allocation, including outside V8 heap', mac, async () => {
   const f = await fixture(`export const operations={run:async()=>{const buffers=[];while(true){buffers.push(Buffer.alloc(16*1024*1024,1));await new Promise(r=>setTimeout(r,10))}}};`, { limits: { heapMb: 32, rssMb: 80, operationTimeoutMs: 4000 } });
-  try { await assert.rejects(f.runner.call('run', ''), code('MEMORY_LIMIT')); await f.runner.stop(); assert.throws(() => process.kill(f.runner.pid, 0), code('ESRCH')); } finally { await f.close(); }
+  try { await assert.rejects(f.runner.call('run', ''), code('sandbox.memory_limit')); await f.runner.stop(); assert.throws(() => process.kill(f.runner.pid, 0), code('ESRCH')); } finally { await f.close(); }
 });
 
 test('malformed stdout, forged identity and output outside schema terminate the channel', mac, async () => {
@@ -127,15 +128,15 @@ test('malformed stdout, forged identity and output outside schema terminate the 
     `export const operations={run:async()=>({unexpected:true})};`,
   ]) {
     const f = await fixture(body);
-    try { await assert.rejects(f.runner.call('run', ''), error => code('PROTOCOL_ERROR')(error) || code('SCHEMA_MISMATCH')(error)); } finally { await f.close(); }
+    try { await assert.rejects(f.runner.call('run', ''), error => code('sandbox.protocol_error')(error) || code('sandbox.schema_mismatch')(error)); } finally { await f.close(); }
   }
 });
 
 test('oversized frames and rate excess are rejected', mac, async () => {
   const f = await fixture(`export const operations={run:async()=>{process.stdout.write('x'.repeat(20000));return ''}};`, { limits: { messageBytes: 4096 } });
-  try { await assert.rejects(f.runner.call('run', ''), code('CHANNEL_LIMIT')); } finally { await f.close(); }
+  try { await assert.rejects(f.runner.call('run', ''), code('sandbox.channel_limit')); } finally { await f.close(); }
   const g = await fixture(`export const operations={run:async(input)=>input};`, { limits: { operationsPerMinute: 1 } });
-  try { assert.equal(await g.runner.call('run', 'one'), 'one'); await assert.rejects(g.runner.call('run', 'two'), code('RATE_LIMIT')); } finally { await g.close(); }
+  try { assert.equal(await g.runner.call('run', 'one'), 'one'); await assert.rejects(g.runner.call('run', 'two'), code('sandbox.rate_limit')); } finally { await g.close(); }
 });
 
 test('SDK host timeout is bounded and unavailable ports fail closed', mac, async () => {
@@ -143,8 +144,8 @@ test('SDK host timeout is bounded and unavailable ports fail closed', mac, async
   for (const services of [{}, { capability: { call: async () => new Promise<SandboxJson>(() => {}) } }]) {
     const f = await fixture(`export const operations={run:async(_,sdk)=>{try{await sdk.capability.call('slow',null);return 'allowed'}catch(e){return e.code}}};`, { effects, grants: effects, services, limits: { serviceTimeoutMs: 50 } });
     try {
-      if ('capability' in services) await assert.rejects(f.runner.call('run', ''), { code: 'SERVICE_TIMEOUT', outcome: 'unknown' });
-      else assert.equal(await f.runner.call('run', ''), 'SERVICE_UNAVAILABLE');
+      if ('capability' in services) await assert.rejects(f.runner.call('run', ''), { code: 'sandbox.service_timeout', outcome: 'unknown' });
+      else assert.equal(await f.runner.call('run', ''), 'sandbox.service_unavailable');
     } finally { await f.close(); }
   }
 });
@@ -167,27 +168,28 @@ test('trusted per-call deadlines update a reused process and remain private to e
     const limits = { operationTimeoutMs: 1000, serviceTimeoutMs: 500 };
     const queued = f.runner.call('run', 'second', { limits }); limits.serviceTimeoutMs = 1;
     release.resolve(); assert.equal(await first, 'head'); assert.equal(await queued, 'second', 'policy is copied at admission, not shared by queued calls');
-    await assert.rejects(f.runner.call('run', 'third', { limits: { operationTimeoutMs: 1000, serviceTimeoutMs: 30 } }), { code: 'SERVICE_TIMEOUT', outcome: 'unknown' });
+    await assert.rejects(f.runner.call('run', 'third', { limits: { operationTimeoutMs: 1000, serviceTimeoutMs: 30 } }), { code: 'sandbox.service_timeout', outcome: 'unknown' });
     assert.ok(cancelled.includes('third'), 'service timeout aborts the timed-out Host service');
     assert.equal(await f.runner.call('run', 'fourth', { limits: { operationTimeoutMs: 1000, serviceTimeoutMs: 500 } }), 'fourth');
-    await assert.rejects(f.runner.call('run', 'bad', { limits: { operationTimeoutMs: 0 } }), { code: 'INVALID_LIMIT' });
-    await assert.rejects(f.runner.call('run', 'short', { limits: { operationTimeoutMs: 25, serviceTimeoutMs: 500 } }), { code: 'OPERATION_TIMEOUT' });
+    await assert.rejects(f.runner.call('run', 'bad', { limits: { operationTimeoutMs: 0 } }), { code: 'sandbox.invalid_limit' });
+    await assert.rejects(f.runner.call('run', 'short', { limits: { operationTimeoutMs: 25, serviceTimeoutMs: 500 } }), { code: 'sandbox.operation_timeout' });
   } finally { release.resolve(); await f.close(); }
 });
 
+// J6-01/J6-02: a trusted uncertain effect fences writes; worker JSON cannot claim it.
 test('trusted unknown outcomes prevent fallback writes, but worker errors cannot forge an unknown outcome', mac, async () => {
   const effects = { capabilities: ['slow'], storage: ['write'] as Array<'write'> }; let writes = 0;
-  const f = await fixture(`export const operations={run:async(input,sdk)=>{if(input==='forge')throw {code:'SERVICE_TIMEOUT',message:'claimed timeout',outcome:'unknown'};try{await sdk.capability.call('slow',null)}catch{}try{await sdk.storage.set('fallback','value')}catch{}return 'success'}};`, {
+  const f = await fixture(`export const operations={run:async(input,sdk)=>{if(input==='forge'||input==='forge-current')throw {code:input==='forge'?'SERVICE_TIMEOUT':'sandbox.service_timeout',message:'claimed timeout',outcome:'unknown'};try{await sdk.capability.call('slow',null)}catch{}try{await sdk.storage.set('fallback','value')}catch{}return 'success'}};`, {
     effects, grants: effects, limits: { serviceTimeoutMs: 50 }, services: {
       capability: { call: async () => new Promise<SandboxJson>(() => {}) },
       storage: { async transaction(_, mutate) { writes++; return mutate(new Map()); } },
     },
   });
   try {
-    await assert.rejects(f.runner.call('run', 'timeout'), { code: 'SERVICE_TIMEOUT', outcome: 'unknown' });
+    await assert.rejects(f.runner.call('run', 'timeout'), { code: 'sandbox.service_timeout', outcome: 'unknown' });
     assert.equal(writes, 0, 'catching an uncertain SDK call cannot authorize a fallback commit');
-    await assert.rejects(f.runner.call('run', 'forge'), error => {
-      assert.equal((error as { code?: string }).code, 'PLUGIN_ERROR');
+    for (const forged of ['forge', 'forge-current']) await assert.rejects(f.runner.call('run', forged), error => {
+      assert.equal((error as { code?: string }).code, 'sandbox.plugin_error');
       assert.equal((error as { outcome?: string }).outcome, undefined); return true;
     });
   } finally { await f.close(); }
@@ -200,7 +202,7 @@ test('SDK concurrency overflow terminates the channel and aborts every dispatche
     return new Promise((_resolve, reject) => context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }));
   } } } });
   try {
-    await assert.rejects(f.runner.call('run', ''), { code: 'QUEUE_FULL' }); await f.runner.stop();
+    await assert.rejects(f.runner.call('run', ''), { code: 'sandbox.queue_full' }); await f.runner.stop();
     // Overflow may occur before asynchronous admission lets any service dispatch. Services that did start must all stop.
     assert.ok(signals.length <= 1, 'the Host service queue remains serial');
     assert.deepEqual(signals.map(signal => signal.aborted), signals.map(() => true));
@@ -217,12 +219,12 @@ test('idle CPU work after an operation is killed by cumulative CPU watchdog', ma
     let alive = true;
     while (alive && Date.now() < deadline) { await new Promise(r => setTimeout(r, 100)); try { process.kill(f.runner.pid, 0); } catch { alive = false; } }
     assert.equal(alive, false);
-    await assert.rejects(f.runner.call('run', ''), { code: 'CPU_LIMIT' });
+    await assert.rejects(f.runner.call('run', ''), { code: 'sandbox.cpu_limit' });
   } finally { await f.close(); }
 });
 
 test('startup top-level infinite loop is bounded before runner becomes callable', mac, async () => {
-  await assert.rejects(fixture(`while(true){}; export const operations={run:async()=>''};`, { limits: { startupTimeoutMs: 200 } }), { code: 'START_TIMEOUT' });
+  await assert.rejects(fixture(`while(true){}; export const operations={run:async()=>''};`, { limits: { startupTimeoutMs: 200 } }), { code: 'sandbox.start_timeout' });
 });
 
 test('queued cancellation never executes or kills another call; running cancellation aborts the Host service', { ...mac, timeout: 10_000 }, async () => {
@@ -246,7 +248,7 @@ test('queued cancellation never executes or kills another call; running cancella
     services: { capability: { async call(context, _, input) { serviceSignal = context.signal; started.resolve(); await released.promise; return input; } } } });
   try {
     const cancelled = new AbortController(), pending = g.runner.call('run', 'running', { signal: cancelled.signal });
-    const rejected = assert.rejects(pending, code('CANCELLED')); await started.promise; cancelled.abort(); await rejected;
+    const rejected = assert.rejects(pending, code('sandbox.cancelled')); await started.promise; cancelled.abort(); await rejected;
     assert.equal(serviceSignal.aborted, true); released.resolve(); await g.runner.stop();
     assert.throws(() => process.kill(g.runner.pid, 0), code('ESRCH'));
   } finally { released.resolve(); await g.close(); }
@@ -260,7 +262,7 @@ test('Host admission and final authority checks are bounded and runner stop rele
       const pending = f.runner.call('run', 'value', { beforeEffect: async () => {
         if (++checks === (phase === 'result' ? 2 : 1)) { entered.resolve(); await new Promise<void>(() => {}); }
       } });
-      const rejected = assert.rejects(pending, code(phase === 'stop' ? 'STOPPED' : 'OPERATION_TIMEOUT'));
+      const rejected = assert.rejects(pending, code(phase === 'stop' ? 'sandbox.stopped' : 'sandbox.operation_timeout'));
       await entered.promise;
       if (phase === 'stop') await f.runner.stop();
       await rejected;

@@ -240,6 +240,9 @@ importers:
       '@molis-ai/molis-work-app-server':
         specifier: workspace:*
         version: link:apps/server
+      '@molis-ai/molis-work-im-ui':
+        specifier: workspace:*
+        version: link:packages/im-ui
       '@molis-ai/molis-work-server':
         specifier: workspace:*
         version: link:server
@@ -544,6 +547,9 @@ importers:
       '@molis-ai/molis-work-plugin-goals':
         specifier: workspace:*
         version: link:../../plugins/native/goals
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
   apps/server:
     dependencies:
@@ -677,8 +683,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -1077,6 +1083,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
@@ -1727,8 +1736,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz':
-    resolution: {integrity: sha512-1LGSuablzuFpAGdMfhzKj0YKpHEpfMFIXBLY8fergzSIoIxl9deoU0PfJHvRwgor62IIKB8V/Cb0gefLLlJ7RA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz':
+    resolution: {integrity: sha512-1+Q0r9NJk7y/to+AoAlgWfjc1fiH3bJhb3xoqB62LRUcUj5s3cODKkWaSilz596azpwB4FTsNRaiLG+7CIJnqg==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':
@@ -3450,7 +3459,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

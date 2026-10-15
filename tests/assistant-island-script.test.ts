@@ -26,10 +26,9 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
     }
     return script.slice(start, index - 1).trim();
   });
-  // A stale card's "prepare it again" is the Host's now (POST cards/<id>/redo writes the note, marked as the page's: assistant-page-written.e2e).
-  assert.equal(calls.length, 2, "the bottom bar sends from two places: the browser hand-back and the composer");
-  assert.equal(calls.filter(call => call === "body").length, 1, "the composer sends the body it builds");
-  for (const call of calls.filter(call => call !== "body")) assert.match(call, /written_by: "page"/, call.slice(0, 100));
+  assert.equal(calls.length, 2, "the bottom bar sends from two places: the browser hand-back and the frozen composer");
+  assert.equal(calls.filter(call => call === "intent.body, intent.route").length, 1, "the composer sends the frozen body and trusted route it captured");
+  for (const call of calls.filter(call => call !== "intent.body, intent.route")) assert.match(call, /written_by: "page"/, call.slice(0, 100));
   assert.match(script, /const body = \{[^\n]*\.\.\.\(byPage \? \{ written_by: "page" \} : \{\}\)/, "the composer marks a hand-over the person neither wrote nor changed");
   assert.match(script, /pageText = message\.text && input\.value\.trim\(\);/, "a hand-over with words is remembered as the page's until it is sent");
 });
@@ -49,7 +48,7 @@ test("what the bottom bar is looking at is one translated sentence, with the obj
 // Where an object lives is named by the plugin catalog (the host passes the tab workspace's names, which hold the catalog and
 // the plugins installed at run time), not by whatever the plugin switcher's list shows in the page (specs/BACKLOG BL-086).
 test("a plugin's name in the bottom bar comes from the catalog, not from the plugin list in the page", async () => {
-  const body = ASSISTANT_ISLAND_FACTORY_SCRIPT.match(/const surfaceName = \(surface\) => [^\n]*\n/)?.[0] ?? "";
+  const body = ASSISTANT_ISLAND_FACTORY_SCRIPT.match(/const surfaceName = \(surf\) => [^\n]*\n/)?.[0] ?? "";
   assert.match(body, /host\.pluginTitle/);
   assert.doesNotMatch(body, /plugin-rail-items|querySelector/);
   const { renderMolisWorkWorkbenchClientScript } = await import("./workbench-renderer-fixture.js");
@@ -61,7 +60,7 @@ test("a plugin's name in the bottom bar comes from the catalog, not from the plu
 // leaves the steps where they were; and the steps that take parts off the line are made only where the stylesheet applies them
 // (44px targets), never in a fine-pointer window, where a folded chip would still be on the line. tests/touch-targets.e2e.test.ts measures both.
 test("the bottom bar measures its line with its chips on it and folds parts off only in touch windows", () => {
-  const fit = ASSISTANT_ISLAND_FACTORY_SCRIPT.match(/const fitComposer = \(\) => \{[\s\S]*?\n  \};/)?.[0] ?? "";
-  assert.match(fit, /composer\.dataset\.measuring = "";[\s\S]*dataset\.crowded = step;[\s\S]*delete composer\.dataset\.measuring;/, "the typing rule is off from the first measurement to the last");
+  const fit = ASSISTANT_ISLAND_FACTORY_SCRIPT.match(/const fitInput = \(\) => \{[\s\S]*?\n  \};/)?.[0] ?? "";
+  assert.match(fit, /compose\.dataset\.measuring = "";[\s\S]*dataset\.crowded = step;[\s\S]*delete compose\.dataset\.measuring;/, "the typing rule is off from the first measurement to the last");
   assert.match(fit, /if \(matchMedia\("\(max-width: 600px\), \(pointer: coarse\)"\)\.matches\) for \(const step of \["choosers", "mark", "chips"\]\)/, "and the steps are the touch rules'");
 });

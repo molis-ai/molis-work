@@ -82,7 +82,7 @@ test("Web Goals use shared actions and store a result exactly once across async 
       assert.ok(seen.includes(capability), `${capability} must use shared action policy`);
       deniedQueries.add(capability);
       const deniedRead = await request(path);
-      assert.equal(deniedRead.status, 400);
+      assert.equal(deniedRead.status, 403);
       assert.equal((await deniedRead.json() as { code: string }).code, "actions.plugin_disabled");
       deniedQueries.delete(capability);
     }
@@ -131,13 +131,13 @@ test("Web Goals use shared actions and store a result exactly once across async 
     pending = request(decisionPath, { ...decisionInput, idempotency_key: "disabled-decision" });
     await Promise.race([decisionDeniedEntered, pending.then(() => { throw new Error("Decision bypassed policy wait"); })]);
     deniedQueries.add(gateAction); release!(); response = await pending; pending = undefined; gate = undefined; gateAction = "goals.note";
-    assert.equal(response.status, 400);
+    assert.equal(response.status, 403);
     const deniedEntered = new Promise<void>(resolve => { enter = resolve; });
     gate = new Promise<void>(resolve => { release = resolve; });
     pending = request(notePath, { note: "等待中停用，不应保存", idempotency_key: "denied-note" });
     await Promise.race([deniedEntered, pending.then(() => { throw new Error("HTTP returned before the action policy checkpoint"); })]);
     denied = true; release!(); response = await pending; pending = undefined; gate = undefined;
-    assert.equal(response.status, 400);
+    assert.equal(response.status, 403);
     assert.equal((await response.json() as { code: string }).code, "actions.plugin_disabled");
     const events = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1);

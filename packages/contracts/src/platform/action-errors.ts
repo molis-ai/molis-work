@@ -35,10 +35,9 @@ export class ActionError extends Error {
 export const ACTION_ERROR_KINDS = {
   // The caller may not do this, here or at all.
   "actions.forbidden": "forbidden", "actions.scope_mismatch": "forbidden", "actions.owner_mismatch": "forbidden", "actions.plugin_permission": "forbidden",
-  "actions.home_mismatch": "forbidden", "actions.plugin_disabled": "forbidden", "actions.unauthenticated": "forbidden", "actions.host_only": "forbidden",
-  "actions.transport_denied": "forbidden",
+  "actions.home_mismatch": "forbidden", "actions.plugin_disabled": "forbidden", "actions.unauthenticated": "forbidden",
   // The thing asked for is not there (any more).
-  "actions.missing": "not_found", "actions.not_found": "not_found", "actions.binding_missing": "not_found", "actions.scene_missing": "not_found",
+  "actions.missing": "not_found", "actions.binding_missing": "not_found", "actions.scene_missing": "not_found",
   "actions.recommendation_missing": "not_found", "actions.subject_unavailable": "not_found",
   // It changed under the caller, or two things claim the same place: read again and decide again. The whole `actions.event_*` and
   // `actions.offer_*` families are here because the Home dock has always answered 409 for them.
@@ -48,12 +47,12 @@ export const ACTION_ERROR_KINDS = {
   "actions.event_changed": "conflict", "actions.event_invalid": "conflict", "actions.event_source_changed": "conflict",
   "actions.service_configured": "conflict", "actions.mcp_name_conflict": "conflict", "actions.scene_duplicate": "conflict",
   // The input or the declaration is wrong.
-  "actions.input_invalid": "invalid", "actions.invalid_input": "invalid", "actions.project_required": "invalid", "actions.reference_invalid": "invalid",
+  "actions.input_invalid": "invalid", "actions.version_required": "invalid", "actions.project_required": "invalid", "actions.reference_invalid": "invalid",
   "actions.binding_invalid": "invalid", "actions.transport_invalid": "invalid", "actions.usage_invalid": "invalid", "actions.schema_invalid": "invalid",
   "actions.definition_invalid": "invalid", "actions.provider_invalid": "invalid", "actions.target_invalid": "invalid", "actions.scene_incompatible": "invalid",
   "actions.scene_ambiguous": "invalid", "actions.subject_incompatible": "invalid", "actions.subject_mismatch": "invalid", "actions.subject_ambiguous": "invalid",
   "actions.recommendation_incompatible": "invalid", "actions.gateway_mismatch": "invalid", "actions.home_required": "invalid", "actions.dependency_cycle": "invalid",
-  "actions.function_unpublished": "invalid",
+  "actions.function_unpublished": "invalid", "actions.provider_ambiguous": "invalid",
   "actions.input_too_large": "too_large",
   "actions.rate_limited": "rate_limited",
   "actions.cancelled": "cancelled",
@@ -69,7 +68,7 @@ export const ACTION_ERROR_KINDS = {
   // Something we called did not answer completely.
   "actions.delivery_unknown": "upstream",
   // Our own failure, or an outcome we cannot tell.
-  "actions.execution_failed": "internal", "actions.failed": "internal", "actions.transport_failed": "internal", "actions.judgment_failed": "internal",
+  "actions.execution_failed": "internal", "actions.judgment_failed": "internal",
   "actions.async_required": "internal", "actions.output_invalid": "internal", "actions.output_invalid_after_effect": "internal", "actions.outcome_unknown": "internal",
   // The protocol codes the helpers in this package raise.
   "placement.same_location": "invalid", "search.entry_duplicate": "invalid", "files.entry_duplicate": "invalid", "files.too_large": "too_large",

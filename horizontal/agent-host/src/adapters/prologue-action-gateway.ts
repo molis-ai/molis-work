@@ -98,6 +98,25 @@ function inputSchemaError(error: unknown, schema: ActionView["action"]["input_sc
   throw error;
 }
 
+function guardGatewayTool(run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>, runSignal?: AbortSignal): ToolRunner {
+  return async call => {
+    const abort = new AbortController();
+    const stop = () => abort.abort(new ActionError("actions.cancelled", "Agent action cancelled"));
+    const unsubscribe = call.abort?.subscribe(stop);
+    call.signal?.addEventListener("abort", stop, { once: true });
+    runSignal?.addEventListener("abort", stop, { once: true });
+    if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
+    try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal); }
+    catch (error) {
+      if (error instanceof ActionError && !abort.signal.aborted) {
+        throw createPrologueError("HOST_RESPONSE_INVALID", `${error.code}: ${error.message}`);
+      }
+      throw error;
+    }
+    finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
+  };
+}
+
 /**
  * The Host's action gateway as one SDK pack: three tools instead of one per action.
  *
@@ -108,16 +127,7 @@ function inputSchemaError(error: unknown, schema: ActionView["action"]["input_sc
 export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal) {
   // Capabilities this round has seen offered (found or used): one missing later was taken away, not guessed.
   const known = new Set<string>();
-  const guarded = (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>): ToolRunner => async call => {
-    const abort = new AbortController();
-    const stop = () => abort.abort(new ActionError("actions.cancelled", "Agent action cancelled"));
-    const unsubscribe = call.abort?.subscribe(stop);
-    call.signal?.addEventListener("abort", stop, { once: true });
-    runSignal?.addEventListener("abort", stop, { once: true });
-    if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
-    try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal); }
-    finally { unsubscribe?.(); call.signal?.removeEventListener("abort", stop); runSignal?.removeEventListener("abort", stop); }
-  };
+  const guarded = (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => guardGatewayTool(run, runSignal);
   const current = async (args: CapabilityArgs, write: boolean): Promise<ActionView> => {
     const views = await gateway.client.discover();
     const view = views.find(row => row.capability_id === args.capability_id && row.version === args.version && row.provider.provider_id === args.provider_id);
@@ -371,7 +381,7 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   const view = views.find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
   if (!view || !view.action.audiences.includes("agent")) return notOffered(views, parsed, known ?? new Set());
   known?.add(view.capability_id);
-  if (!view.availability.available) return `${view.availability.reason}; nothing was done.`;
+  if (!view.availability.available) return `${view.availability.code}: ${view.availability.reason}; nothing was done.`;
   const reads = actionEffect(view.action, view.capability_id) === "read";
   if ((toolName === GATEWAY_TOOLS.change || toolName === GATEWAY_TOOLS.direct) && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
   if (toolName === GATEWAY_TOOLS.direct && !gateway.client.direct?.(view)) return `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`;
@@ -388,7 +398,7 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
     const at = /(?:^|[\s：:])(\/[\w/-]+)/.exec(message)?.[1];
     const found = at ? at.split("/").slice(1).reduce<unknown>((inner, key) => inner && typeof inner === "object" ? (inner as Record<string, unknown>)[key] : undefined, sent) : undefined;
     const named = at && found !== undefined ? ` At ${at} you sent ${Array.isArray(found) ? "an array" : typeof found === "string" ? "the text" : typeof found} ${JSON.stringify(found)?.slice(0, 120)}.` : "";
-    return `${message}.${named} (you sent ${kind}: ${excerpt}). The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`;
+    return `${error instanceof ActionError ? error.code + ": " : ""}${message}.${named} (you sent ${kind}: ${excerpt}). The input must be a JSON value matching this schema: ${JSON.stringify(view.action.input_schema).slice(0, 2000)}`;
   }
   return null;
 }

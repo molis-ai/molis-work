@@ -5,6 +5,6 @@ export function mcpWebUrl(path: string, baseUrl: string, createError: McpPresent
   try {
     return new URL(path, baseUrl).toString();
   } catch {
-    throw createError("web.url_invalid", `无效的 Molis Work Web 地址: ${baseUrl}`);
+    throw createError("mcp.url_invalid", `无效的 Molis Work Web 地址: ${baseUrl}`);
   }
 }

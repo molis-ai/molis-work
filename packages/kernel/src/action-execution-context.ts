@@ -1,18 +1,13 @@
 import { ActionError, actionReachesAudience, type ActionDefinition, type ActionProvider, type ActionCallContext, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { CapabilityRegistry } from "./index.js";
+import { assertCurrentAuthority, effectGuard } from "./action-settlement.js";
 
 /** A retained guard checks original registrations, without extending a finished handler's effect lifetime. */
 export function actionExecutionContext(context: ActionCallContext, reference: ActionReference, permissions: readonly string[],
-  assertCurrent: () => void, effect: (() => void | Promise<void>) | undefined,
+  assertCurrent: () => void, effect: ((context: ActionCallContext, reference: ActionReference) => void | Promise<void>) | undefined,
   registry: CapabilityRegistry<ActionCallContext>, resolve: (reference: ActionReference) => HostCapabilityDescriptor | undefined): ActionExecutionContext {
-  return { ...context, beforeEffect: async () => {
-    assertCurrent();
-    await context.validate_authority?.(reference);
-    await context.validate_permissions?.(permissions);
-    await effect?.();
-    assertCurrent();
-  }, retainAuthority: references => {
+  return { ...context, ...effectGuard(context, reference, permissions, assertCurrent, effect), retainAuthority: references => {
     assertCurrent();
     const snapshots = references.map(source => {
       const reference = { ...source };
@@ -21,15 +16,16 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ac
         || reference.provider_id && definition.action_provider.provider_id !== reference.provider_id) throw new ActionError("actions.forbidden", "不能保留未获授权的能力");
       return { reference, definition, token: registry.registrationToken(definition) };
     });
-    return async () => {
-      const check = () => {
+    const check = () => {
         context.signal?.throwIfAborted();
         for (const saved of snapshots) {
           if (!saved.token || registry.registrationToken(saved.definition) !== saved.token || !resolve(saved.reference)) throw new ActionError("actions.provider_changed", "原能力已停用或重新加载，旧回复不能继续写入");
           const availability = registry.availability(context, saved.definition);
-          if (!availability.available) throw new ActionError(availability.code ?? "actions.unavailable", availability.reason ?? "原能力已不可用");
+          if (!availability.available) throw new ActionError(availability.code ?? "actions.unavailable", availability.reason ?? "原能力已不可用", { kind: availability.kind });
+          assertCurrentAuthority(context, saved.reference, saved.definition.action?.permissions ?? []);
         }
-      };
+    };
+    const guard = async () => {
       check();
       for (const saved of snapshots) {
         await context.validate_authority?.(saved.reference);
@@ -37,6 +33,7 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ac
       }
       check();
     };
+    return Object.assign(guard, { assertCurrent: check });
   } };
 }
 

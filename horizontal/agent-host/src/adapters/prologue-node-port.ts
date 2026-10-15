@@ -15,7 +15,8 @@ import type { createPrologueSchedule } from "./prologue-schedule.js";
 import { createPrologueSubagents } from "./prologue-subagents.js";
 import { surfaceRules, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { codingExecutionRules } from "./prologue-taskboard.js";
-import { PrologueAdapterError, type PrologueAdapterOptions, type PrologueRuntimePort } from "./prologue.js";
+import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue.js";
+import { agentErrors } from "../errors.js";
 import { MAX_COMPOSED_INSTRUCTION_CHARS, readResource, sameRef, stageTextResource, type CommandEvent, type NodeHost, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
 
@@ -194,13 +195,20 @@ function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["rea
 /** Sessions: created with their Host index, restored with their runs, read for their status only. */
 function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
   return {
-    async create(input) {
+    create: (input, execution) => deps.effects.start(execution, async () => {
       const session = await deps.runtime.sessions.create();
-      await deps.index.save({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
-        owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] });
+      try { await deps.index.save({ schema: 1, ref: session.ref, title: input.title, workspace: input.workspace ?? "required",
+        owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id }, attempts: [] }); }
+      catch (error) {
+        try {
+          // Only this unpublished Session is eligible: a durable owner index is the Session acceptance point.
+          if (!await deps.index.read(session.ref.id)) await deps.effects.detach(async () => session.purge(await session.previewPurge()));
+        } catch (cleanup) { throw new AggregateError([error, cleanup], "新会话没有被接受，清理未完成"); }
+        throw error;
+      }
       deps.state.sessions.set(session.ref.id, session.ref);
       return session;
-    },
+    }),
     restore: id => deps.recovery.restore(id),
     async readStatus(id) {
       const saved = await deps.recovery.restore(id, true);
@@ -273,7 +281,7 @@ export function questionReader(runtime: Runtime) {
     const pending = await runtime.effects.pendings.read({ kind: "pending", id, revision });
     if (!pending || pending.origin?.session !== run.session_id || pending.origin.run !== run.run_id
       || !["text", "questionnaire"].includes(pending.kind)) {
-      throw new PrologueAdapterError("agent.pending_not_open", "原问题不属于本轮执行，不能提交答案");
+      throw agentErrors.pending_not_open("原问题不属于本轮执行，不能提交答案");
     }
     return pending;
   };
@@ -284,19 +292,19 @@ export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" 
   return async (run, answer) => {
     const { runtime } = deps;
     if (!Number.isInteger(answer.pending_revision) || answer.pending_revision! < 1) {
-      throw new PrologueAdapterError("agent.pending_not_open", "原问题缺少精确版本，不能提交答案");
+      throw agentErrors.pending_not_open("原问题缺少精确版本，不能提交答案");
     }
     const pending = await deps.readQuestion(run, answer.pending_id, answer.pending_revision!);
     const now = await deps.host.readClock();
     const unavailable = questionUnavailable(pending, now.monotonicMs, Boolean(deps.state.activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref)));
-    if (unavailable) throw new PrologueAdapterError("agent.pending_not_open", unavailable);
+    if (unavailable) throw agentErrors.pending_not_open(unavailable);
     if (pending.kind === "text") {
-      if (typeof answer.text !== "string" || !answer.text.trim() || answer.answers !== undefined) throw new PrologueAdapterError("agent.answer_invalid", "请填写原问题的文字回答");
+      if (typeof answer.text !== "string" || !answer.text.trim() || answer.answers !== undefined) throw agentErrors.answer_invalid("请填写原问题的文字回答");
       await runtime.effects.pendings.answer(pending.ref, { kind: "text", text: answer.text }, now);
     } else {
-      if (!answer.answers || answer.text !== undefined) throw new PrologueAdapterError("agent.answer_invalid", "请按原问卷逐题回答");
+      if (!answer.answers || answer.text !== undefined) throw agentErrors.answer_invalid("请按原问卷逐题回答");
       const problems = answerProblems(pending.questions, answer.answers);
-      if (problems.length) throw new PrologueAdapterError("agent.answer_invalid", `有 ${problems.length} 道题的回答不能提交`, problems);
+      if (problems.length) throw Object.assign(agentErrors.answer_invalid(`有 ${problems.length} 道题的回答不能提交`, { problems }), { problems });
       await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
     }
   };

@@ -37,7 +37,7 @@ test('one unknown bundled entry supplies actual UI mounting, ordered assets, cli
   assert.deepEqual(pluginSearchRows(packs), [['future', '[data-future-id]', 'futureId']]);
   const mounted: unknown[] = [];
   runInNewContext(pluginWorkbenchClientBootstrap(packs), { mountPluginClient: (...args: unknown[]) => mounted.push(args),
-    L: (text: string) => text, state: { project: { project_id: 'project-1' } }, feedApi: () => {}, route: () => {} });
+    L: (text: string) => text, state: { project: { project_id: 'project-1' } }, api: () => {}, route: () => {} });
   assert.deepEqual(mounted.map(args => [...args as unknown[]]), [['future', 'project-1'], ['future.settings', 'project-1']]);
 });
 

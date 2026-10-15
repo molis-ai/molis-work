@@ -138,7 +138,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
   });
   const promote = (id: string, caller: ActionCallContext, goalId?: string, expectedVersion?: number) => ports.withStore(store => promotePagesDocument(store, id, project(caller),
     value => ports.publishArtifact!(value, caller), goalId, { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
-  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "pages.unavailable", reason: "当前环境不能发出成果" };
+  const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "pages.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   return [...createPagesCommentHandlers(ports.withStore),
     // The whole document (整篇) is prepared from its stored text; preparing never writes.
     bind(pagesActions.fragmentOffers, (input, caller) => ({ offers: preparePagesFragmentOffers(input, PAGES_SUBJECT_KIND, undefined, id => ports.withStore(store => {

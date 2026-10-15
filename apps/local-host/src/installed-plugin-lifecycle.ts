@@ -10,7 +10,7 @@ import type { AgentBuilderPorts, AgentRelease } from './installed-plugin-host.js
 import type { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
 import type { PluginSecrets } from './plugin-builder/secrets.js';
-import { releaseVersion } from './plugin-builder/installed.js';
+import { changeInstalledVersion } from './installed-plugin-version.js';
 
 export const APPROVED_KEY = 'plugin-builder:agent-studio:approved:';
 
@@ -29,7 +29,7 @@ export interface InstalledLifecycleContext {
   releaseFor(pluginId: string): AgentRelease | undefined;
   approvedFor(pluginId: string): SandboxEffects | null;
   definition(release: AgentRelease, approved: SandboxEffects): PluginDefinition;
-  expose(release: AgentRelease): Promise<void>;
+  expose(release: AgentRelease, onFailure?: 'caller'): Promise<void>;
   withdraw(pluginId: string): void;
   registerPrompts(release: AgentRelease, state: 'enabled' | 'disabled'): void;
   /** Reminders and scheduled operations of one installation stop with it. */
@@ -66,7 +66,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     let undone: unknown;
     if (attempt) {
       try { await platform.runtime.abandonInstall(record, attempt.earlier); } catch (failure) {
-        if ((failure as { code?: unknown } | null)?.code === 'plugin_install_replaced') return false;
+        if ((failure as { code?: unknown } | null)?.code === 'plugin.install_replaced') return false;
         undone = failure;
       }
     }
@@ -101,7 +101,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       for (const secret of secrets) c.secrets.save(pluginId, secret);
       c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(release.permissions));
       await platform.start([entry]);
-      const state = platform.supervisor.state(pluginId)?.code === 'plugin_revoked' ? await platform.supervisor.enable(pluginId) : platform.supervisor.state(pluginId);
+      const state = platform.supervisor.state(pluginId)?.code === 'plugin.revoked' ? await platform.supervisor.enable(pluginId) : platform.supervisor.state(pluginId);
       if (state?.status !== 'running') throw new Error('安装没有完成：' + (state?.message ?? '插件未能启动'));
       await c.expose(release); c.registerPrompts(release, 'enabled'); c.recoveryErrors.delete(pluginId);
     } catch (error) {
@@ -124,19 +124,12 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     }
     if (!record) throw new Error('这个插件还没有安装');
     if (action === 'upgrade' || action === 'rollback') {
-      const verb = action === 'upgrade' ? '升级' : '回滚', off = record.state === 'disabled';
+      const verb = action === 'upgrade' ? '升级' : '回滚';
       if (record.state === 'quarantined') throw new Error('插件多次启动失败，已被隔离，不能' + verb + '：请先卸载并保留数据，再重新安装');
       const approved = c.approvedFor(pluginId) ?? {};
       if (!covered(release.permissions, approved) && !consent) throw new Error('这个版本需要新的权限，请确认后再切换');
       const nextApproval = covered(release.permissions, approved) ? approved : release.permissions;
-      const next = c.definition(release, nextApproval);
-      const state = action === 'upgrade' ? await platform.upgrade(pluginId, next) : await platform.rollback(pluginId, next);
-      // A plugin the person switched off changes version and stays off; the installation's own record says whether it did.
-      const moved = off ? c.recordFor(pluginId)?.version === releaseVersion(release.version) && c.recordFor(pluginId)?.state === 'disabled' : state?.status === 'running';
-      if (!moved) throw new Error(state?.code === 'plugin_revoked' ? state.message! : verb + '没有完成：' + (state?.message ?? '插件未能启动') + (off ? '，仍停留在原版本，插件保持停用' : '，原版本继续可用'));
-      c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(nextApproval));
-      if (!off) await c.expose(release);
-      c.registerPrompts(release, off ? 'disabled' : 'enabled'); c.recoveryErrors.delete(pluginId); return;
+      return changeInstalledVersion(c, action, release, record, nextApproval, secretsOf(grants.secrets, release));
     }
     if (action === 'disable') { c.withdraw(pluginId); platform.supervisor.revoke(pluginId); await platform.runtime.stop(record.install_id); c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return; }
     if (action === 'enable') {

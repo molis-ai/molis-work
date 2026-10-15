@@ -9,7 +9,16 @@
 // COUNTING DEFINITIONS. This header is the one place they are written down (tooling/gates/README.md repeats them for readers).
 //
 // Which files: the TypeScript sources under apps, horizontal, modules, packages, plugins, server and tooling (not tests,
-// fixtures, dist or .d.ts), the entry's isSource. Both rules read sources only, because a test names things as fixtures.
+// fixtures, dist or .d.ts), the entry's isSource. These rules read sources only, because a test names things as fixtures.
+//
+// rawFetchInScripts     Calls in executable browser programs, not words in a string: bare/member/computed fetch, local
+//                      aliases (including assignment/destructuring/bind), call/apply. browser-programs.mjs expands named
+//                      SCRIPT/CLIENT declarations, inline HTML scripts, constant concatenations/joins and function ASTs
+//                      used by toString. Relative/workspace imports retain original source attribution. Typed browser
+//                      entry dependencies include Workbench terminal-client and Work's terminal subpath. Three exact
+//                      transport roles in ui-host admit only one original call site per role, not a directory. Unknown
+//                      recognized program syntax is a failure, never zero. Workbench is absolutely zero, including update;
+//                      plugin and other browser sites are per-file ratchets. See browser-fetch.mjs and the CLI tests.
 //
 // emptyCatchesInScripts An empty `catch` clause (no statement, no comment: `catch {}`, `catch (error) { }`, the shape the
 //                       static check molis/no-empty-catch reports in real code) found in the text of string and template
@@ -38,6 +47,7 @@
 //                       plugins/native/goals/src (a destructuring rename in document-collection.ts, a parameter in
 //                       goal-tree-materialization-order.ts). Each stays in the baseline like any other count; it can only fall.
 import ts from "typescript";
+import { browserFetchScan, browserFetchProblems } from "./browser-fetch.mjs";
 
 const CATCH_SHAPE = /catch\s*(?:\([^)]*\))?\s*\{\s*\}/g;
 const OLD_PRODUCT_NAME = /goalboard/gi;
@@ -81,9 +91,13 @@ const measureSnapshot = (snapshot, { isSource }) => {
  * The rules, in the shape the entry turns into metrics. `measure(snapshot, scope)` returns { file: count } for a snapshot
  * (a file list plus a reader) and the entry's `isSource` predicate.
  */
-export const SOURCE_COUNT_RULES = [
+export const SOURCE_COUNT_RULES = [...[
   { id: "emptyCatchesInScripts", title: "Empty catch blocks (browser scripts in string and template literals)", summary: "empty catches in scripts", what: "empty catch blocks in a browser script",
     hint: "handle the error, or say in a comment inside the block why ignoring it is safe" },
   { id: "oldNames", title: "Old names (goalboard, board_id) in sources", summary: "old names", what: "uses of an old name (goalboard, board_id)",
     hint: "use Molis Work and project_id; a kept constant belongs in the baseline, not in new code" },
-].map((rule) => ({ ...rule, measure: (snapshot, scope) => measureSnapshot(snapshot, scope)[rule.id] }));
+].map((rule) => ({ ...rule, measure: (snapshot, scope) => measureSnapshot(snapshot, scope)[rule.id] })),
+  { id: "rawFetchInScripts", title: "Raw fetch calls in executable browser programs", summary: "raw browser fetch calls",
+    what: "raw fetch calls in a browser program", hint: "use the public UiRequest; Workbench is zero and plugin counts may only fall",
+    measure: (snapshot, { isSource }) => browserFetchScan(snapshot, isSource).counts, absolute: browserFetchProblems },
+];

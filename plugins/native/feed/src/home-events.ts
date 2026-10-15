@@ -13,10 +13,10 @@ export function createFeedHomeEventsHandler(feed: FeedApplication, board: string
     const faults = new Set(snapshot.inbox_entries.filter(entry => entry.subject_type === "source_fault").map(entry => entry.subject_id));
     const events: HomeEvent[] = [];
     for (const source of snapshot.sources) {
-      const needsAttention = source.status === "disconnected" || source.status === "error" || source.last_error_code === "auth_required"
+      const needsAttention = source.status === "disconnected" || source.status === "error" || source.last_error_code === "feed.auth_required"
         || (source.last_outcome === "failed" && !!source.last_error_code);
       if (!needsAttention || faults.has(source.source_id)) continue;
-      const disconnected = source.status === "disconnected" || source.last_error_code === "auth_required";
+      const disconnected = source.status === "disconnected" || source.last_error_code === "feed.auth_required";
       events.push({ event_id: "auth:" + source.source_id, subject: { kind: "source", id: source.source_id }, occurred_at: source.updated_at,
         placement: "today", category: organization.has(source.kind) ? "organization" : "personal", title: source.name + " 需要处理",
         summary: disconnected ? "检查来源连接后继续接收内容" : "检查来源状态及最近同步结果",

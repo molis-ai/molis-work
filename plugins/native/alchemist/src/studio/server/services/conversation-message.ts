@@ -6,15 +6,17 @@ import type { ConversationContext } from "../../domain/conversation/context.js";
 import { buildLensCompatibilityKey, marketLensCompatibilityKey } from "../../domain/research/lens.js";
 import type { ApiDependencies } from "../api/dependencies.js";
 import { AlchemistOperationError } from "./action-error.js";
+import type { AlchemistEffectControl } from "./action-operations.js";
 
-export async function sendConversationMessage(dependencies: ApiDependencies, input: AlchemistOperationInput<"conversationSend">, signal?: AbortSignal) {
+export async function sendConversationMessage(dependencies: ApiDependencies, input: AlchemistOperationInput<"conversationSend">, signal?: AbortSignal, control?: AlchemistEffectControl) {
     const object = resolveContext(input.context, dependencies);
-    if (object === undefined) throw new AlchemistOperationError("CONVERSATION_CONTEXT_NOT_FOUND", "当前讨论对象已不可读取，请重新选择。", 404);
+    if (object === undefined) throw new AlchemistOperationError("alchemist.conversation_context_not_found", "当前讨论对象已不可读取，请重新选择。", 404);
     const history = dependencies.conversations.list(dependencies.workspaceId)
       .filter(item => contextKey(item.context) === contextKey(input.context) && item.responseState === "complete")
       .slice(-20).map(item => ({ role: item.author, text: item.body }));
     const realRuntime = await dependencies.runtimeSettings.isRealEnabled();
     signal?.throwIfAborted();
+    await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
     const message = dependencies.conversations.create({
       id: dependencies.idFactory.next("message"),
       workspaceId: dependencies.workspaceId,
@@ -38,8 +40,10 @@ export async function sendConversationMessage(dependencies: ApiDependencies, inp
           jsonSchema: z.toJSONSchema(schema) as Record<string, unknown>,
           parse: (value) => schema.parse(value),
           signal,
+          beforeModelDispatch: control ? async () => { await control.beforeEffect(); control.assert_authority_current?.(); signal?.throwIfAborted(); } : undefined,
         });
         signal?.throwIfAborted();
+        await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
         const assistantMessage = dependencies.conversations.create({
           id: dependencies.idFactory.next("message"),
           workspaceId: dependencies.workspaceId,
@@ -54,6 +58,9 @@ export async function sendConversationMessage(dependencies: ApiDependencies, inp
         });
         return { message, assistantMessage };
       } catch {
+        // Refusal is not a model failure reply. A validly saved user message remains available for an explicit retry.
+        signal?.throwIfAborted();
+        await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
         const assistantMessage = dependencies.conversations.create({
           id: dependencies.idFactory.next("message"),
           workspaceId: dependencies.workspaceId,

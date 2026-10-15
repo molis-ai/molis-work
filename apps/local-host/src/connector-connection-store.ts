@@ -3,7 +3,7 @@ import { openConnectorsStore } from "./connectors-store.js";
 import { ConnectorConnectionStore, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
 import { invalidateConnectorRequests } from "./connector-lifecycle.js";
 
-export { ConnectorConnectionStore, ConnectorConnectionError } from "@molis-ai/molis-work-service-connector-host";
+export { ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
 
 /** Opens one short-lived connection to the Home-owned registry. */
 export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore) => T): T {

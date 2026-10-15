@@ -97,7 +97,7 @@ test("a failed upgrade of a disabled install does not start the old code either"
   await runtime.start(id);
   await runtime.stop(id);
   starts.length = 0;
-  assert.equal(await code(runtime.upgrade({ install_id: id, definition: v2 })), "plugin_upgrade_validation_failed");
+  assert.equal(await code(runtime.upgrade({ install_id: id, definition: v2 })), "plugin.upgrade_validation_failed");
   assert.equal(runtime.get(id).state, "disabled");
   assert.equal(runtime.get(id).version, "1.0.0");
   assert.equal(runtime.contribution(id), null);
@@ -110,7 +110,7 @@ test("a running install that fails its upgrade is restored to running; a disable
   const v1 = probe("1.0.0", { starts }), v2 = probe("2.0.0", { starts, compatible: ["1.0.0"], failStart: true });
   const id = runtime.install({ definition: v1, deployment: "local" }).install.install_id;
   await runtime.start(id);
-  assert.equal(await code(runtime.upgrade({ install_id: id, definition: v2 })), "plugin_executor_failed");
+  assert.equal(await code(runtime.upgrade({ install_id: id, definition: v2 })), "plugin.executor_failed");
   assert.equal(runtime.get(id).state, "running", "the old version keeps serving");
   assert.equal(runtime.get(id).version, "1.0.0");
   await runtime.stop(id);
@@ -133,7 +133,7 @@ test("upgrading or rolling back a disabled install still works after a restart, 
   assert.equal(restarted.get(id).version, "1.0.0");
   assert.deepEqual(starts, [], "no code ran");
   assert.equal(await code(restarted.upgrade({ install_id: id, definition: probe("3.0.0", { starts, sandbox: true, compatible: ["1.0.0"], failValidation: true }) })),
-    "plugin_upgrade_validation_failed");
+    "plugin.upgrade_validation_failed");
   assert.equal(restarted.get(id).state, "disabled", "a failed switch leaves it off too");
 });
 
@@ -149,11 +149,11 @@ test("Supervisor switches the version of a plugin the Host switched off, keeps i
   starts.length = 0;
 
   const switched = await supervisor.upgrade(ID, v2);
-  assert.equal(switched.code, "plugin_revoked", "the plugin is still switched off");
+  assert.equal(switched.code, "plugin.revoked", "the plugin is still switched off");
   assert.equal(runtime.get(id).version, "2.0.0", "but the installation moved");
   assert.equal(runtime.get(id).state, "disabled");
   assert.equal(supervisor.manifest(ID)?.version, "2.0.0");
-  assert.equal(supervisor.state(ID)?.code, "plugin_revoked");
+  assert.equal(supervisor.state(ID)?.code, "plugin.revoked");
   assert.equal(supervisor.state(ID)?.install_id, id);
   assert.equal(supervisor.contribution(ID), null);
   assert.deepEqual(starts, []);
@@ -164,11 +164,11 @@ test("Supervisor switches the version of a plugin the Host switched off, keeps i
   await runtime.stop(id);
   starts.length = 0;
   const refused = await supervisor.upgrade(ID, probe("3.0.0", { starts, sandbox: true, compatible: ["2.0.0"], failValidation: true }));
-  assert.equal(refused.code, "plugin_upgrade_validation_failed");
-  assert.equal(supervisor.state(ID)?.code, "plugin_revoked", "a failed switch leaves the plugin switched off, not failed");
+  assert.equal(refused.code, "plugin.upgrade_validation_failed");
+  assert.equal(supervisor.state(ID)?.code, "plugin.revoked", "a failed switch leaves the plugin switched off, not failed");
   assert.equal(runtime.get(id).version, "2.0.0");
   assert.equal(runtime.get(id).state, "disabled");
-  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin_revoked", "rolling a switched-off plugin back is not refused either");
+  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin.revoked", "rolling a switched-off plugin back is not refused either");
   assert.equal(runtime.get(id).version, "1.0.0");
   assert.equal(supervisor.manifest(ID)?.version, "1.0.0");
   assert.equal(runtime.get(id).state, "disabled");
@@ -192,14 +192,14 @@ test("Supervisor switches the version of a disabled install it has never been to
   const runtime = new PluginRuntime(repository), supervisor = new PluginSupervisor(runtime);
   assert.equal(supervisor.manifest(ID), undefined, "nothing was registered for it");
   const switched = await supervisor.upgrade(ID, v2);
-  assert.equal(switched.code, "plugin_revoked");
+  assert.equal(switched.code, "plugin.revoked");
   assert.equal(switched.install_id, id);
   assert.equal(runtime.get(id).version, "2.0.0");
   assert.equal(runtime.get(id).state, "disabled");
   assert.equal(supervisor.manifest(ID)?.version, "2.0.0", "it is registered now, so enable can find it");
   assert.equal(supervisor.contribution(ID), null);
   assert.deepEqual(starts, []);
-  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin_revoked");
+  assert.equal((await supervisor.rollback(ID, v1)).code, "plugin.revoked");
   assert.equal(runtime.get(id).version, "1.0.0");
   assert.equal((await supervisor.enable(ID)).status, "running");
   assert.deepEqual(starts, ["1.0.0"]);
@@ -253,11 +253,11 @@ test("a reinstall at another version reuses kept data only when that version dec
   const id = runtime.install({ definition: v1, deployment: "local" }).install.install_id;
 
   await runtime.uninstall(id, { retain_private_data: true });
-  assert.equal(await code(() => runtime.install({ definition: v2, deployment: "local" })), "plugin_kept_data_incompatible",
+  assert.equal(await code(() => runtime.install({ definition: v2, deployment: "local" })), "plugin.kept_data_incompatible",
     "kept data from 1.0.0 is not handed to code that never promised to read it");
-  assert.equal(await code(() => runtime.install({ definition: v3, deployment: "local" })), "plugin_kept_data_incompatible",
+  assert.equal(await code(() => runtime.install({ definition: v3, deployment: "local" })), "plugin.kept_data_incompatible",
     "reading it needs a migration check an install cannot run");
-  assert.equal(await code(() => runtime.install({ definition: v2, deployment: "local", discard_kept_data: false })), "plugin_kept_data_incompatible");
+  assert.equal(await code(() => runtime.install({ definition: v2, deployment: "local", discard_kept_data: false })), "plugin.kept_data_incompatible");
   assert.equal(runtime.get(id).state, "uninstalled", "a refused install changes nothing");
   assert.equal(runtime.get(id).version, "1.0.0");
   assert.equal(runtime.install({ definition: v1, deployment: "local" }).install.version, "1.0.0", "the uninstalled version itself is always possible");
@@ -286,17 +286,17 @@ test("an install that did not finish goes back to the uninstalled record it repl
   const fresh = runtime.install({ definition: v3, deployment: "local", grants: [], discard_kept_data: true }).install;
   await runtime.start(id);
   assert.equal(runtime.get(id).state, "running");
-  assert.equal(await code(() => runtime.abandonInstall(fresh, { ...earlier, state: "installed" })), "plugin_state_invalid", "only an uninstalled record can be gone back to");
+  assert.equal(await code(() => runtime.abandonInstall(fresh, { ...earlier, state: "installed" })), "plugin.state_invalid", "only an uninstalled record can be gone back to");
   const receipt = await runtime.abandonInstall(fresh, earlier);
   assert.deepEqual(runtime.get(id), earlier, "version, Manifest digest, installation generation and kept data are the earlier ones, whole");
   assert.equal(receipt.replayed, false);
   assert.equal(runtime.contribution(id), null, "the running code was stopped");
-  assert.equal(await code(() => runtime.install({ definition: v3, deployment: "local", grants: [] })), "plugin_kept_data_incompatible",
+  assert.equal(await code(() => runtime.install({ definition: v3, deployment: "local", grants: [] })), "plugin.kept_data_incompatible",
     "so a plain install of the version that failed is asked about the kept data again");
   assert.equal((await runtime.abandonInstall(fresh, earlier)).replayed, true, "taking it back twice changes nothing");
 
   const another = runtime.install({ definition: v1, deployment: "local", grants: [] }).install;
-  assert.equal(await code(() => runtime.abandonInstall(fresh, earlier)), "plugin_install_replaced",
+  assert.equal(await code(() => runtime.abandonInstall(fresh, earlier)), "plugin.install_replaced",
     "an install that started over since is not undone by the old attempt, and the refusal says why, apart from a wrong record being named");
   assert.deepEqual(runtime.get(id), another);
 });
@@ -316,12 +316,12 @@ test("a first-ever install that did not finish is taken back only while it is st
   // The person uninstalled it, or uninstalled it and installed again: the attempt is no longer the one the row holds.
   const second = runtime.install({ definition: v1, deployment: "local", grants: [] }).install;
   await runtime.start(second.install_id);
-  assert.equal(await code(() => runtime.abandonInstall(first)), "plugin_install_replaced", "a newer install is not undone by the old attempt");
+  assert.equal(await code(() => runtime.abandonInstall(first)), "plugin.install_replaced", "a newer install is not undone by the old attempt");
   assert.deepEqual(runtime.get(second.install_id).state, "running");
   assert.equal(runtime.get(second.install_id).installation_generation, second.installation_generation);
   await runtime.uninstall(second.install_id, { retain_private_data: true });
   const uninstalled = runtime.get(second.install_id);
-  assert.equal(await code(() => runtime.abandonInstall(second)), "plugin_install_replaced", "an attempt the person uninstalled is theirs to have uninstalled: its choice about the data stands");
+  assert.equal(await code(() => runtime.abandonInstall(second)), "plugin.install_replaced", "an attempt the person uninstalled is theirs to have uninstalled: its choice about the data stands");
   assert.deepEqual(runtime.get(second.install_id), uninstalled);
 });
 
@@ -338,7 +338,7 @@ test("an install over kept data that the person uninstalled meanwhile is not tak
   await runtime.uninstall(id, { retain_private_data: false });   // the person drops the data while the install is starting
   const chosen = runtime.get(id);
   assert.ok(chosen.state === "uninstalled" && !chosen.retain_private_data && chosen.installation_generation === fresh.installation_generation);
-  assert.equal(await code(() => runtime.abandonInstall(fresh, earlier)), "plugin_install_replaced");
+  assert.equal(await code(() => runtime.abandonInstall(fresh, earlier)), "plugin.install_replaced");
   assert.deepEqual(runtime.get(id), chosen, "the record keeps what the person chose; it does not go back to the one that kept the data");
 });
 
@@ -355,7 +355,7 @@ test("a reinstall of a generated plugin may use an older release; a Host that sh
   await host.uninstall(hostId, { retain_private_data: true });
   assert.equal(host.install({ definition: h2, deployment: "local", bundled: true }).install.version, "2.0.0");
   await host.uninstall(hostId, { retain_private_data: true });
-  assert.equal(await code(() => host.install({ definition: h1, deployment: "local", bundled: true })), "plugin_kept_data_incompatible",
+  assert.equal(await code(() => host.install({ definition: h1, deployment: "local", bundled: true })), "plugin.kept_data_incompatible",
     "the Host only moves its plugins up: an older bundled version does not get newer kept data");
 });
 
@@ -365,7 +365,7 @@ test("a reinstall at the same version with a different manifest is still refused
   const id = runtime.install({ definition: original, deployment: "local" }).install.install_id;
   await runtime.uninstall(id);
   const changed = probe("1.0.0", { publishes: ["extra"] });
-  assert.equal(await code(() => runtime.install({ definition: changed, deployment: "local" })), "plugin_definition_conflict");
+  assert.equal(await code(() => runtime.install({ definition: changed, deployment: "local" })), "plugin.definition_conflict");
 });
 
 test("a Host start can follow a bundled upgrade that made a required permission optional", async () => {
@@ -413,6 +413,6 @@ test("a failed upgrade from a crashed install leaves the old code with its own e
   assert.equal(supervisor.manifest(ID)?.version, "1.0.0");
   assert.deepEqual([...supervisor.contract(ID)!.publishes.keys()], [ID + ".a@1"], "the candidate's declarations did not stay behind");
   assert.equal(publish("a"), "accepted", "the old code publishes what it declared");
-  assert.equal(publish("b"), "event_not_declared", "and nothing the failed candidate declared");
+  assert.equal(publish("b"), "plugin.event_not_declared", "and nothing the failed candidate declared");
   await runtime.stop(id);
 });

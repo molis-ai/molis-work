@@ -1,10 +1,12 @@
+import { managementGoals } from "./goal-management-caller.js";
+import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { cliFlagValue, cliGoalUrl, readCliJsonPayload } from "@molis-ai/molis-work-app-cli";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference, MolisWorkLocalHost, snapshotBoardCapability } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
@@ -66,14 +68,14 @@ test("CLI help and failed input retain storage side effects, error order and inj
     const output = await captureCli(() => runV1Cli(["init", "--db", databasePath, "--file", file], { localHost: host }));
     assert.match(output[0]!, /\n  "/, "JSON output remains indented");
     const reference = molisWorkHostProjectReference({ databasePath, projectId: input.project_id });
-    const snapshot = await host.client(reference).invoke(snapshotBoardCapability, { project_id: input.project_id });
+    const snapshot = await managementGoals(host.actionClient(reference, false), input.project_id).invoke(goalsActions.snapshot, {});
     assert.equal(snapshot.board.title, "从文件初始化");
     await assert.rejects(runV1Cli(["unknown", "--db", databasePath, "--project-id", input.project_id], { localHost: host }), {
       message: "未知 V1 operation: unknown",
     });
     assert.equal(host.status().state, "running");
     assert.equal(opens, 1);
-    assert.deepEqual(await host.client(reference).invoke(snapshotBoardCapability, { project_id: input.project_id }), snapshot);
+    assert.deepEqual(await managementGoals(host.actionClient(reference, false), input.project_id).invoke(goalsActions.snapshot, {}), snapshot);
   } finally {
     await host.close();
     rmSync(directory, { recursive: true, force: true });

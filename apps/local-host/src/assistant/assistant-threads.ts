@@ -1,5 +1,6 @@
+import { assistantErrors } from "./assistant-errors.js";
 import { randomUUID } from "node:crypto";
-import { ActionError, type ActionClient, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type RetainedActionAuthority, type ActionClient, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantThreadContext } from "@molis-ai/molis-work-contracts/services/assistant";
 import { isTerminalAgentPhase, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -22,7 +23,7 @@ const identity = (input: StartThreadReply["target"]): string => JSON.stringify([
 /** Fixed destinations, retries and delivery. Runtime execution stays in the existing Assistant service. */
 export class AssistantThreads {
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
-  private readonly guards = new Map<string, () => Promise<void>>();
+  private readonly guards = new Map<string, RetainedActionAuthority>();
   private readonly failures = new Map<string, string>();
   private readonly delivering = new Map<string, AbortController>();
   constructor(private readonly store: AssistantStore, private readonly service: AssistantService, private readonly ports: ThreadPorts) {}
@@ -35,7 +36,7 @@ export class AssistantThreads {
     const find = (role: "context" | "reply") => views.filter(view => view.provider.provider_id === input.target.provider_id
       && view.action.thread_source?.role === role && view.action.thread_source.subject_kind === input.target.subject_kind && view.availability.available);
     const readers = find("context"), writers = find("reply");
-    if (readers.length !== 1 || writers.length !== 1) throw new ActionError("assistant.scope", "原评论没有可用的上下文或回复入口");
+    if (readers.length !== 1 || writers.length !== 1) throw assistantErrors.scope("原评论没有可用的上下文或回复入口");
     const reader = reference(readers[0]!), writer = reference(writers[0]!);
     const context = this.context(await client.invoke(caller, reader, { subject_id: input.target.subject_id, thread_id: input.target.thread_id, message_id: input.message_id,
       ...(input.draft ? { draft: input.draft } : {}) }));
@@ -46,7 +47,7 @@ export class AssistantThreads {
       ? this.retry(work.work_id, work.revision, caller) : this.status(work.work_id, caller.project_id!);
     if (work?.thread_round && !["delivered", "stopped"].includes(work.thread_round.state)) {
       const run = await this.run(work);
-      if (!run || !isTerminalAgentPhase(run.phase) || run.phase === "completed") throw new ActionError("assistant.state", "这条评论的上一轮尚未结束，请先查看或停止它");
+      if (!run || !isTerminalAgentPhase(run.phase) || run.phase === "completed") throw assistantErrors.state("这条评论的上一轮尚未结束，请先查看或停止它");
       await caller.beforeEffect();
     }
     if (!work) work = this.store.create({ actor_id: this.ports.actorId, title: `${context.title} · 评论`,
@@ -77,7 +78,7 @@ export class AssistantThreads {
   async retry(workId: string, expected: number, caller: ActionExecutionContext): Promise<ThreadReplyStatus> {
     this.assertPerson(caller);
     let work = this.owned(workId, caller.project_id!);
-    if (work.revision !== expected) throw new ActionError("assistant.stale", "这项回复已改变，请刷新后重试");
+    if (work.revision !== expected) throw assistantErrors.stale("这项回复已改变，请刷新后重试");
     const run = await this.run(work);
     await caller.beforeEffect();
     if (work.thread_round!.state === "delivered") return this.status(workId, caller.project_id!);
@@ -88,7 +89,7 @@ export class AssistantThreads {
     }
     if ((!run && work.thread_round!.state !== "failed") || (run && !isTerminalAgentPhase(run.phase))) {
       if (run) { this.retainAuthority(work, caller); this.watch(workId); return this.status(workId, caller.project_id!); }
-      throw new ActionError("assistant.needs_check", "上次启动的结果尚不明确，没有重新调用模型");
+      throw assistantErrors.needs_check("上次启动的结果尚不明确，没有重新调用模型");
     }
     this.retainAuthority(work, caller);
     await this.authorize(work, true);
@@ -111,13 +112,14 @@ export class AssistantThreads {
   }
 
   async authorize(work: StoredWork, restarting = false): Promise<void> {
-    const current = this.owned(work.work_id, work.project_ref!.project_id);
-    if (current.archived || !restarting && current.thread_round?.state === "stopped" || current.thread_round?.attempt_id !== work.thread_round?.attempt_id) throw new ActionError("actions.cancelled", "这次评论回复已停止或被替换");
+    this.assertRoundCurrent(work, restarting);
     await this.guards.get(work.work_id)?.();
     const caller = await this.ports.caller(work.project_ref!);
     const value = await this.ports.client(work.project_ref!).invoke(caller, work.thread_round!.reader,
       { subject_id: work.reply_target!.subject_id, thread_id: work.reply_target!.thread_id, message_id: work.thread_round!.message_id });
     this.context(value);
+    this.assertRoundCurrent(work, restarting);
+    this.guards.get(work.work_id)?.assertCurrent();
   }
 
   private async dispatch(work: StoredWork, caller: ActionExecutionContext): Promise<ThreadReplyStatus> {
@@ -127,9 +129,12 @@ export class AssistantThreads {
     try {
       const result = await this.service.send({ work_id: work.work_id, text: round.context.message.body, request_id: round.attempt_id,
         materials: [{ material_id: `thread-${round.attempt_id}`, kind: "text", title: `${round.context.title} · 原评论上下文${round.context.truncated ? "（部分内容）" : ""}`, text: round.context.text, explicit: true }] },
-      { project_ref: work.project_ref, thread_request: round.attempt_id, beforeStart: async () => { await this.authorize(work); await caller.beforeEffect(); } }, "page");
+      { project_ref: work.project_ref, thread_request: round.attempt_id, beforeStart: async () => { await this.authorize(work); await caller.beforeEffect(); },
+        assertBeforeStart: () => { this.assertRoundCurrent(work); this.guards.get(work.work_id)?.assertCurrent(); requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); } }, "page");
       await this.authorize(work);
-      this.store.update(this.ports.actorId, work.work_id, null, { thread_round: { ...round, run_id: result.run_id ?? null, state: "running" } });
+      const current = this.assertRoundCurrent(work);
+      this.guards.get(work.work_id)?.assertCurrent();
+      this.store.update(this.ports.actorId, work.work_id, current.revision, { thread_round: { ...round, run_id: result.run_id ?? null, state: "running" } });
       this.failures.delete(work.work_id);this.watch(work.work_id);
     } catch (error) {
       const current = this.store.get(this.ports.actorId, work.work_id);
@@ -170,17 +175,24 @@ export class AssistantThreads {
     const control = new AbortController();this.delivering.set(work.work_id, control);
     try {
       const body = run.turns.filter(turn => turn.kind === "assistant" && turn.text.trim()).at(-1)?.text.trim();
-      if (!body) throw new ActionError("assistant.empty_reply", "这一轮没有可投递的回复，请查看运行结果");
+      if (!body) throw assistantErrors.empty_reply("这一轮没有可投递的回复，请查看运行结果");
       await this.authorize(work);
       const caller = await this.ports.caller(work.project_ref!);
-      const guard = async (ref: ActionReference) => {
-        await this.guards.get(work.work_id)?.();
-        await caller.validate_authority?.(ref);
+      const retained = this.guards.get(work.work_id);
+      if (!retained) throw assistantErrors.authority("宿主没有提供后台回复的授权检查");
+      const assertCurrent = (reference?: ActionReference, permissions?: readonly string[]) => {
         control.signal.throwIfAborted();
-        const current = this.store.get(this.ports.actorId, work.work_id);
-        if (current.thread_round?.state !== "running" || current.thread_round.attempt_id !== work.thread_round!.attempt_id) throw new ActionError("actions.cancelled", "原回复已经停止或被替换");
+        const current = this.assertRoundCurrent(work);
+        if (current.thread_round!.state !== "running") throw new ActionError("actions.cancelled", "原回复已经停止或被替换");
+        retained.assertCurrent();
+        requireSynchronous(caller.assert_authority_current?.(reference, permissions), "最终授权检查必须同步完成");
       };
-      await this.ports.client(work.project_ref!).invoke({ ...caller, signal: control.signal, validate_authority: guard,
+      const guard = async (ref: ActionReference) => {
+        await retained();
+        await caller.validate_authority?.(ref);
+        assertCurrent(ref);
+      };
+      await this.ports.client(work.project_ref!).invoke({ ...caller, signal: control.signal, validate_authority: guard, assert_authority_current: assertCurrent,
         assistant_reply: { target: work.reply_target!, message_id: work.thread_round!.message_id, request_id: work.thread_round!.request_id,
           work_id: work.work_id, run_id: run.ref.run_id, body } }, work.thread_round!.writer,
       { subject_id: work.reply_target!.subject_id, thread_id: work.reply_target!.thread_id });
@@ -191,7 +203,7 @@ export class AssistantThreads {
   }
   private retainAuthority(work: StoredWork, caller: ActionExecutionContext): void {
     // The background work has its own lifetime. Keep revocable transport grants, never a completed handler's beforeEffect.
-    if (!caller.retainAuthority) throw new ActionError("assistant.authority", "宿主没有提供后台回复的授权检查");
+    if (!caller.retainAuthority) throw assistantErrors.authority("宿主没有提供后台回复的授权检查");
     this.guards.set(work.work_id, caller.retainAuthority([work.thread_round!.reader, work.thread_round!.writer]));
   }
   private async run(work: StoredWork): Promise<AgentRunView | null> {
@@ -199,8 +211,13 @@ export class AssistantThreads {
   }
   private owned(workId: string, projectId: string): StoredWork {
     const work = this.store.get(this.ports.actorId, workId);
-    if (!work.reply_target || !work.thread_round || work.project_ref?.project_id !== projectId) throw new ActionError("assistant.scope", "这项回复不属于当前项目的评论");
+    if (!work.reply_target || !work.thread_round || work.project_ref?.project_id !== projectId) throw assistantErrors.scope("这项回复不属于当前项目的评论");
     return work;
+  }
+  private assertRoundCurrent(work: StoredWork, restarting = false): StoredWork {
+    const current = this.owned(work.work_id, work.project_ref!.project_id);
+    if (current.archived || !restarting && current.thread_round?.state === "stopped" || current.thread_round?.attempt_id !== work.thread_round?.attempt_id) throw new ActionError("actions.cancelled", "这次评论回复已停止或被替换");
+    return current;
   }
   private assertPerson(caller: ActionExecutionContext): void {
     if (caller.actor_id !== this.ports.actorId || caller.audience !== "user" || !caller.project_id) throw new ActionError("actions.forbidden", "请从原评论显式召唤助理");

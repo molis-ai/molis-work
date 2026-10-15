@@ -82,7 +82,7 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
         idempotency_key: "forged-runtime",
       }),
       (error: unknown) => error instanceof Error && (
-        (error as { code?: string }).code === "goal_tree_proposal.whole_confirmation_ambiguous"
+        (error as { code?: string }).code === "goals.goal_tree_proposal.whole_confirmation_ambiguous"
         || String(error).includes("绑定准确的 Proposal ID")
       ),
     );
@@ -121,7 +121,7 @@ test("tree submit does not need a Run and approved goals can be recorded immedia
         idempotency_key: "tree-risk",
       }),
       (error: unknown) => error instanceof Error && (
-        (error as { code?: string }).code === "goal_tree_proposal.kind_invalid"
+        (error as { code?: string }).code === "goals.goal_tree_proposal.kind_invalid"
         || String(error).includes("只能是 goal")
       ),
     );

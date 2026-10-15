@@ -131,7 +131,7 @@ modelAvailability: () => model() ? { available: true } : { available: false, cod
 
 Cognia 同时保留已登记的知识角色与回答指令：角色作为共享单次推理的 system 输入，回答指令与固定资料作为正文。可编辑的提示词必须真实进入调用，不能只有登记页面。`tests/cognia-prologue.test.ts` 与 `tests/plugin-model-generation.test.ts` 经真实 SDK 和本地 HTTP 核对用户覆盖、工具边界、取消和撤权；`tests/installed-plugin-host.test.ts` 核对真实安装生命周期。
 
-**Runtime 插件（宿主自己运行的）：`services.model`**（W3-06 E；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke`、定义不是沙箱执行、平台有 Home，`context.services.model` 才存在；它不是 typed 能力，沙箱插件（生成插件）仍走 `model.generate`。
+**Runtime 插件（宿主自己运行的 Home 与项目实例）：`services.model`**（W3-06 E/F；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke`、定义不是沙箱执行、平台有 Home，`context.services.model` 才存在；它不是 typed 能力，沙箱插件（生成插件）仍走 `model.generate`。 HomePluginExecutor 与项目执行器复用 `pluginModelFor` / `registerPluginInstructions`，Home 的模型注入仍在每次调用时读取；停止开始撤执行权，最后一个持有该安装的实例退出时撤指令，不能新增 Home 推理进程。Home 组合用例见 `tests/home-plugin-model-lifecycle.test.ts`，替身覆盖不等于真实账号验收。
 
 - **只在插件自己的动作里**：处理器所在的动作要在 `action.permissions` 里写 `model:invoke`，并且 `scheduling: "concurrent"`。Runtime 给每个动作处理器包一层（`action-scope.ts`，`AsyncLocalStorage`），记下正在执行的动作和这次调用的 `beforeEffect`；插件不传、也伪造不了。`start()`、路由、定时器、别的插件的动作、串行动作、没声明权限的动作里调用，在发出之前就以 `plugin.model_action_required`、`plugin.model_action_not_concurrent`、`plugin.model_permission_undeclared` 拒绝。
 - **发出前和返回后各问一次**：实例仍在运行、安装仍持有 `model:invoke`、这次调用的 `beforeEffect()` 通过，才发出；模型返回后再问一遍，才把结果交给插件。动作已经返回的调用得到 `actions.expired`（定时器里迟到的调用就是这样被挡下的），取消、撤权、停用的调用拿不到结果。插件写入前仍要自己 `await caller.beforeEffect()`，按读取时的版本提交。
@@ -228,7 +228,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 | 错误 | 后果 | 正确做法 |
 | --- | --- | --- |
 | 等模型的动作没声明并发 | 一次对话把整个项目的操作卡住数分钟 | `scheduling: "concurrent"` + 返回后按快照提交 |
-| 在同一 Home 再起一个执行进程/宿主 | `inference.home_in_use` 或 `agent.storage_busy` | 一个 Home 一个执行归属；MCP 等入口转发给常驻 Web 宿主 |
+| 在同一 Home 再起一个执行进程/宿主 | `agent.inference.home_in_use` 或 `agent.storage_busy` | 一个 Home 一个执行归属；MCP 等入口转发给常驻 Web 宿主 |
 | 在 Prologue 上登记全局钩子并对别人的会话回 `later` | 并发构建互相挂起 | 钩子一律 `forSession` |
 | 被拒绝后仍写失败记录 | 违反 F2，撤权后仍改数据 | 被拒绝就不写；可重试性另行设计 |
 | 把执行服务不可用报成网络问题 | 用户去查网络 | `inferenceServiceUnavailableReason` |
@@ -266,3 +266,6 @@ Builder `images` 是宿主持有的 PNG 字节（最多 9 张、总共 12 MiB）
 UI 复查只使用隔离验收数据，不截整个工作台；只使用当前选定且声明 `vision: true` 的模型，缺失或失败时不宣称视觉通过。
 
 Work 助理的 Agent 图文材料路径当前最多 6 张图，与 Issue 图文草稿上限一致，入口和适配器均独立检查；直接 inference 的原图上限仍是 30 张。图片不静默截断，不支持视觉的模型拒绝这轮请求。
+
+
+AI通过共同动作服务修改已有对象时，必须带schema声明的读取版本；版本表需覆盖全部ids。Kernel与助理preflight共用检查，缺前提为`actions.version_required`，错类型等schema错误仍为`actions.input_invalid`。本人页面、非AI工作流与可信插件自调保留现行合同，活跃handler的真实嵌套调用只豁免额外版本规则，仍受原权限、安装、signal与beforeEffect约束；取消或超时后旧promise不能延长豁免。独立创建无版本字段时不新增前提。

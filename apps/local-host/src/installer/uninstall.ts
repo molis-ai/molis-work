@@ -1,3 +1,4 @@
+import { installerErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -6,7 +7,7 @@ import { PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
 import { RuntimeIntegrationService } from "./runtime-integration.js";
 import { SUPPORTED_RUNTIME_IDS } from "./runtime-integration-contract.js";
 import { MolisWorkWebServiceManager } from "./web-service.js";
-import { UNINSTALL_OWNER, MolisWorkUninstallError, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallChange, type PreparedUninstallPlan, type UninstallReceipt } from "./uninstall-contract.js";
+import { UNINSTALL_OWNER, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallChange, type PreparedUninstallPlan, type UninstallReceipt } from "./uninstall-contract.js";
 import { inspectOwnedHomeAssets, existingPaths, assetKind, assetKindLabel, pathFingerprint, digest, removeEmptyDirectory } from "./uninstall-files.js";
 export class MolisWorkUninstallService {
   readonly homeDirectory: string;
@@ -129,15 +130,15 @@ export class MolisWorkUninstallService {
     purge_confirmation?: { home_directory: string; user_project_count: number };
   }): Promise<MolisWorkUninstallResult> {
     const prepared = this.plans.get(input.plan_id);
-    if (!prepared) throw new MolisWorkUninstallError("uninstall.plan_missing", "卸载预览不存在或已失效，请重新预览");
+    if (!prepared) throw installerErrors["installer.uninstall.plan_missing"]("卸载预览不存在或已失效，请重新预览");
     this.plans.delete(input.plan_id);
     const plan = prepared.publicPlan;
     if (input.decision === "declined") {
       return { status: "declined", home_directory: this.homeDirectory, removed_paths: [], preserved_paths: plan.preserved_paths, receipt_path: null, message: "已取消，没有修改 Molis Work 安装或数据" };
     }
-    if (plan.status === "conflict") throw new MolisWorkUninstallError("uninstall.conflict", plan.message);
+    if (plan.status === "conflict") throw installerErrors["installer.uninstall.conflict"](plan.message);
     if (await this.snapshotHash(prepared.snapshotPaths) !== prepared.snapshotHash) {
-      throw new MolisWorkUninstallError("uninstall.plan_stale", "Molis Work 安装内容在预览后发生变化，请重新预览");
+      throw installerErrors["installer.uninstall.plan_stale"]("Molis Work 安装内容在预览后发生变化，请重新预览");
     }
     if (plan.purge_user_data) this.requirePurgeConfirmation(plan, input.purge_confirmation);
     if (plan.status === "no_change") {
@@ -220,7 +221,7 @@ export class MolisWorkUninstallService {
       receipt.error = error instanceof Error ? error.message : String(error);
       receipt.updated_at = new Date().toISOString();
       await this.writeReceipt(receipt).catch(() => undefined);
-      throw new MolisWorkUninstallError("uninstall.step_failed", `卸载未完成，进度收据已保留：${receipt.error}`);
+      throw installerErrors["installer.uninstall.step_failed"](`卸载未完成，进度收据已保留：${receipt.error}`);
     }
   }
 
@@ -233,10 +234,7 @@ export class MolisWorkUninstallService {
       && path.resolve(confirmation.home_directory) === this.homeDirectory
       && confirmation.user_project_count === plan.user_project_count
     ) return;
-    throw new MolisWorkUninstallError(
-      "uninstall.purge_confirmation_required",
-      `永久清除还需要再次确认精确目录 ${this.homeDirectory} 和用户项目数量 ${plan.user_project_count}`,
-    );
+    throw installerErrors["installer.uninstall.purge_confirmation_required"](`永久清除还需要再次确认精确目录 ${this.homeDirectory} 和用户项目数量 ${plan.user_project_count}`);
   }
 
   private async writeReceipt(receipt: UninstallReceipt): Promise<void> {

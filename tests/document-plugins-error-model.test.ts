@@ -252,12 +252,8 @@ test("real routes: a change made on a stale version is 409 <owner>.conflict at P
   assert.deepEqual([answer.status, answer.body.code], [409, "workflows.conflict"], JSON.stringify(answer.body));
 });
 
-test("real routes: a publish in an environment with no publisher is refused by the plugin's availability object: 400 <owner>.unavailable at Pages, PPT, Dataset and Form", async t => {
-  // The publishable plugins say "no publisher here" with an availability object (`{ available: false, code: "<owner>.unavailable" }`), which the kernel raises as an
-  // ActionError with that code and no kind. A code of the owner's with no kind is a caller mistake, so it answers 400; the deleted mappers gave 409. This is the one
-  // status change of the slice that the design did not list. The code is the same and nothing is written. Pinned here for all four so a change of it is a decision:
-  // the owner's availability carrying its kind (ActionAvailability `kind`, passed on by the kernel's `assertAvailable`) is the shared core's (W3-02-G1, plan
-  // wave3-batchB-plan.md), and when it lands these four answers become 409 in the same change.
+test("real routes: a publish in an environment with no publisher is refused by the plugin's availability object: 409 <owner>.unavailable at Pages, PPT, Dataset and Form", async t => {
+  // W3-02-G1-02: the owner classifies its availability refusal as conflict; Kernel and HTTP preserve it without publishing or changing the draft.
   const home = await mkdtemp(join(tmpdir(), "document-error-model-publish-"));
   const pages = openPagesStore(home), ppt = openPptStore(home), dataset = openDatasetStore(home), form = openFormStore(home);
   t.after(async () => { pages.close(); ppt.close(); dataset.close(); form.close(); await rm(home, { recursive: true, force: true }); });
@@ -272,8 +268,10 @@ test("real routes: a publish in an environment with no publisher is refused by t
     assert.equal(created.status, 200, JSON.stringify(created.body));
     const record = Object.values(created.body).find((value): value is { id: string } => typeof value === "object" && value !== null && "id" in value);
     assert.ok(record, `${owner} answers the record it created`);
+    const store = { pages, ppt, dataset, form }[owner], before = store.get(record.id);
     const answer = await server.post(`/api/${owner}/${record.id}/promote`, JSON.stringify({ goal_id: "CORE" }));
-    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 400, `${owner}.unavailable`], JSON.stringify(answer.body));
+    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 409, `${owner}.unavailable`], JSON.stringify(answer.body));
+    assert.deepEqual(store.get(record.id), before, `${owner}: the refusal keeps the persisted draft unchanged`);
   }
 });
 
@@ -292,9 +290,9 @@ test("MCP action port: a Pages failure comes out as its own code and message, no
   const call = async (action: ActionDefinition<never, unknown>, args: Record<string, unknown>) => {
     const reply = await handleMcpMessage({ id: 1, method: "tools/call", params: { name: actionMcpToolName(action), arguments: args } }, ports);
     const result = reply!.result as { isError: boolean; content: Array<{ text: string }> };
-    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; message: string } : {}) };
+    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; error: string } : {}) };
   };
-  assert.deepEqual(await call(pagesActions.get, { id: "no-such-document" }), { isError: true, code: "pages.not_found", message: "找不到这篇文档" });
+  assert.deepEqual(await call(pagesActions.get, { id: "no-such-document" }), { isError: true, code: "pages.not_found", error: "找不到这篇文档" });
   const document = store.create({ project_id: "a", title: "原稿" });
   const stale = await call(pagesActions.update, { id: document.id, title: "改过", expected_version: document.version + 5 });
   assert.deepEqual([stale.isError, stale.code], [true, "pages.conflict"]);
@@ -388,6 +386,21 @@ test("the owner-error check ignores browser script text but detects executable t
   assert.deepEqual(bareServerErrors('export const SCRIPT = `client ${new Error("server interpolation")}`;'), ['"server interpolation"']);
   assert.deepEqual(bareServerErrors('throw new Error("server input");'), ['"server input"']);
   assert.deepEqual(bareServerErrors('throw new Error("没有 Host binding");'), []);
+});
+
+test("the owner-error check keeps shared browser modules covered when a server export or Host binding consumes them", () => {
+  const sources = new Map([
+    ["/p/src/browser.ts", 'import "./only-browser.js"; import "./shared.js";'],
+    ["/p/src/only-browser.ts", 'throw new Error("browser input");'],
+    ["/p/src/shared.ts", 'throw new Error("server input");'],
+    ["/p/src/server.ts", 'export * from "./shared.js";'],
+  ]);
+  const modules = browserOnlyFiles(sources, ["/p/src/browser.ts"], ["/p/src/server.ts"]);
+  assert.equal(modules.has("/p/src/only-browser.ts"), true);
+  assert.equal(modules.has("/p/src/shared.ts"), false, "a transitive server export keeps the same browser module covered");
+  assert.deepEqual(bareServerErrors(sources.get("/p/src/shared.ts")!), ['"server input"']);
+  sources.set("/p/host.ts", 'import "./src/only-browser.js";');
+  assert.equal(browserOnlyFiles(sources, ["/p/src/browser.ts"], ["/p/src/server.ts"]).has("/p/src/only-browser.ts"), false, "a Host import brings a browser module under the server check");
 });
 
 test("no document plugin keeps an error class, a route-error mapper, or a raise of its own code outside its declarations", async () => {

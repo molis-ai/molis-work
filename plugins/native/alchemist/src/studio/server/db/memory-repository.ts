@@ -111,7 +111,7 @@ export class SqliteMemoryRepository {
     const result = this.database
       .prepare("UPDATE taste_rules SET status = ?, updated_at = ? WHERE id = ?")
       .run(status, now, id);
-    if (result.changes !== 1) throw new Error("TASTE_RULE_NOT_FOUND");
+    if (result.changes !== 1) throw new Error("alchemist.taste_rule_not_found");
     return this.getTasteRule(id) as TasteRule;
   }
 
@@ -165,7 +165,7 @@ export class SqliteMemoryRepository {
     const result = this.database
       .prepare("UPDATE research_playbook_rules SET status = ?, updated_at = ? WHERE id = ?")
       .run(status, now, id);
-    if (result.changes !== 1) throw new Error("PLAYBOOK_RULE_NOT_FOUND");
+    if (result.changes !== 1) throw new Error("alchemist.playbook_rule_not_found");
     return this.getPlaybookRule(id) as PlaybookRule;
   }
 
@@ -173,13 +173,13 @@ export class SqliteMemoryRepository {
     return this.database.transaction(() => {
       const previous = this.getPlaybookRule(input.id);
       if (!previous || previous.version !== input.expectedVersion || previous.status !== "active")
-        throw new AlchemistOperationError("REUSE_METHOD_CHANGED", "方法已被修改或停用，请刷新后继续。", 409);
+        throw new AlchemistOperationError("alchemist.reuse_method_changed", "方法已被修改或停用，请刷新后继续。", 409);
       this.database.prepare("INSERT OR IGNORE INTO research_playbook_revisions (rule_id, version, snapshot_json) VALUES (?, ?, ?)")
         .run(previous.id, previous.version, JSON.stringify(previous));
       const result = this.database.prepare(`UPDATE research_playbook_rules SET version = version + 1, method_change = ?,
         positive_examples_json = ?, negative_examples_json = ?, updated_at = ? WHERE id = ? AND version = ? AND status = 'active'`)
         .run(input.methodChange, JSON.stringify(input.positiveExamples), JSON.stringify(input.negativeExamples), now, input.id, input.expectedVersion);
-      if (result.changes !== 1) throw new AlchemistOperationError("REUSE_METHOD_CHANGED", "方法已被修改，请刷新后继续。", 409);
+      if (result.changes !== 1) throw new AlchemistOperationError("alchemist.reuse_method_changed", "方法已被修改，请刷新后继续。", 409);
       return this.getPlaybookRule(input.id)!;
     })();
   }

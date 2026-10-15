@@ -1,6 +1,7 @@
 import type { QueuedTask, Runtime } from "@prologue/sdk";
 import type { AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { PrologueAdapterError, type PrologueRuntimePort } from "./prologue.js";
+import type { PrologueRuntimePort } from "./prologue.js";
+import { agentErrors } from "../errors.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
 
 /**
@@ -24,9 +25,9 @@ export function createPrologueSchedule() {
     claim: () => { const claim = runtime.queue.claim(); return { survives_window_close: claim.survivesWindowClose, why: claim.why }; },
     enqueue: async input => {
       const session = await index.read(input.session_id);
-      if (!session) throw new PrologueAdapterError("agent.session_unknown", "会话不存在，不能安排定时");
+      if (!session) throw agentErrors.session_unknown("会话不存在，不能安排定时");
       const due = Date.parse(input.due_at);
-      if (!Number.isFinite(due)) throw new PrologueAdapterError("agent.capability_unavailable", "定时的时间无效");
+      if (!Number.isFinite(due)) throw agentErrors.capability_unavailable("定时的时间无效");
       return view(await runtime.queue.enqueue({ key: input.key, sessionRef: session.ref, work: { kind: input.kind, payload: { ...input.payload } }, dueAtMs: due,
         ...(input.max_attempts ? { maxAttempts: input.max_attempts } : {}) }));
     },

@@ -1,3 +1,6 @@
+import { GOALS_DELIVERABLES_SCRIPT } from "./event-document-deliverables.js";
+
+/** Keep source indentation readable; omit it from the served program within the frozen asset budget. */
 export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { documentPane, route, translate: L, isAbortError, showError, showStatus, reloadDocument, controlHeaders } = host;
     let selectedRequest = 0;
@@ -183,53 +186,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       showDetail(true);
     };
 
-    // The closure form's deliverables (specs/artifact-positioning A5): versions in the 成果库, recorded before closing.
-    const loadDeliverables = async (form) => {
-      const box = q(form, "[data-closure-deliverables]"), currentGoal = goalId();
-      if (!box || box.dataset.loadedFor === currentGoal) return;
-      const list = q(box, "[data-closure-deliverable-list]");
-      list.textContent = L("正在读取成果…");
-      try {
-        const read = (path, fallback) => fetch(route(path), { cache: "no-store" }).then(response => response.ok ? response.json() : fallback);
-        const [library, current] = await Promise.all([read("/api/artifacts/versions", { versions: [] }),
-          read("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables", { deliverables: [] })]);
-        if (goalId() !== currentGoal) return;
-        const key = (reference) => reference.artifact_id + "@" + reference.version;
-        const recorded = current.deliverables || [], listed = new Set(recorded.map(item => key(item.reference)));
-        const chosen = new Set(recorded.filter(item => !item.proposed).map(item => key(item.reference)));
-        // Proposals from the assistant, Coding or a workflow stay unticked: ticking one is the person's confirmation.
-        const rows = [...recorded.filter(item => item.proposed).map(item => ({ reference: item.reference, title: item.title, type_title: L("助理提议") + (item.reason ? "：" + item.reason : "") })),
-          ...recorded.filter(item => !item.proposed).map(item => ({ reference: item.reference, title: item.title, type_title: "" })),
-          ...(library.versions || []).filter(item => !listed.has(key(item.reference)))];
-        const option = (fieldName, value, checked, title, meta) => {
-          const label = document.createElement("label"), input = document.createElement("input"), name = document.createElement("span"), small = document.createElement("small");
-          input.type = "checkbox"; input.name = fieldName; input.value = JSON.stringify(value); input.checked = checked; input.dataset.was = String(checked);
-          name.textContent = title; small.textContent = meta;
-          label.append(input, name, small);
-          return label;
-        };
-        // The Goal's own materials can be pinned on the spot: the current content becomes a new version and is handed in.
-        const pinnable = (current.candidates || []).map(item => option("deliverable-pin", item.subject, false, item.title, L("固定当前内容并交付")));
-        const versions = rows.map(item => option("deliverable", item.reference, chosen.has(key(item.reference)), item.title, [item.type_title, "v" + item.reference.version].filter(Boolean).join(" · ")));
-        list.replaceChildren(...(pinnable.length || versions.length ? [...pinnable, ...versions]
-          : [Object.assign(document.createElement("p"), { className: "form-note", textContent: L("成果库里还没有版本。可以先在 Pages、问卷等插件里存为成果，或导入文件。") })]));
-        box.dataset.loadedFor = currentGoal;
-      } catch { list.textContent = L("成果库暂时读不到；可以先收尾，之后再记交付物。"); }
-    };
-    const saveDeliverables = async (form, currentGoal) => {
-      for (const input of form.querySelectorAll('input[name="deliverable"], input[name="deliverable-pin"]')) {
-        if (input.checked === (input.dataset.was === "true")) continue;
-        const pin = input.name === "deliverable-pin";
-        const response = await fetch(route("/api/goals/" + encodeURIComponent(currentGoal) + "/deliverables"), { method: "POST",
-          headers: { ...jsonHeaders(), "x-molis-work-idempotency-key": globalThis.crypto?.randomUUID?.() || String(Date.now()) + Math.random() },
-          body: JSON.stringify({ [pin ? "subject" : "reference"]: JSON.parse(input.value), delivered: input.checked }) });
-        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || L("交付物没有记下"));
-        input.dataset.was = String(input.checked);
-        // A pinned version is now an ordinary deliverable; pinning again would write another version.
-        if (pin) input.disabled = true;
-      }
-    };
-
+${GOALS_DELIVERABLES_SCRIPT}
     const fieldError = (form, fieldId, message) => {
       form.querySelectorAll("[data-field-error]").forEach((node) => { node.hidden = true; node.textContent = ""; });
       if (!fieldId) return;
@@ -306,6 +263,8 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
             concern_ids: [],
             action: text("scope_action") || null,
           };
+        } else if (action === "resolve" || action === "overturn") {
+          payload.supporting_event_ids = text("supporting_event_ids").split(/[\\s,]+/).filter(Boolean);
         }
         return payload;
       }
@@ -641,6 +600,13 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       const reader = event.target.closest("[data-event-reader]");
+      const reconcile = event.target.closest("[data-reconcile-deliverables]");
+      if (reconcile) {
+        const form = reconcile.closest("[data-event-form]");
+        reconcile.disabled = true;
+        void loadDeliverables(form, true).finally(() => { reconcile.disabled = false; });
+        return;
+      }
       if (reader) { showForm(reader.dataset.eventReader, undefined, reader); return; }
       const openForm = event.target.closest("[data-event-form-open]");
       if (openForm) { showForm(openForm.dataset.eventFormOpen, openForm.dataset.typeId, openForm); return; }
@@ -730,7 +696,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         });
         const empty = q(form, "[data-adopt-empty]"); if (empty) empty.hidden = count > 0;
       }
-      if (form.dataset.eventForm === "concern" && (input.name === "concern_id" || input.name === "action")) {
+      if (form.dataset.eventForm === "concern" && (input.name === "concern_id" || input.name === "action" || input.name === "cited_decision_id")) {
         const existing = Boolean(q(form, '[name="concern_id"]')?.value);
         const action = q(form, '[name="action"]');
         if (input.name === "concern_id") action.value = existing ? "resolve" : "open";
@@ -740,7 +706,11 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         q(form, '[name="statement"]').required = !existing;
         q(form, '[name="reason"]').required = existing;
         const open = q(action, 'option[value="open"]'); if (open) open.hidden = existing;
+        form.querySelectorAll("[data-concern-decision]").forEach(row => row.hidden = !existing);
         form.querySelectorAll("[data-concern-accept]").forEach(row => row.hidden = action.value !== "accept");
+        const evidenceRequired = existing && (action.value === "resolve" || action.value === "overturn");
+        form.querySelectorAll("[data-concern-evidence]").forEach(row => row.hidden = !evidenceRequired);
+        const evidence = q(form, '[name="supporting_event_ids"]'); if (evidence) evidence.required = evidenceRequired && !q(form, '[name="cited_decision_id"]')?.value;
         const decision = q(form, '[name="cited_decision_id"]'); if (decision) decision.required = action.value === "accept";
       }
     };
@@ -789,4 +759,4 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         else if (reading.item) void locateHistory(reading.item);
       },
     };
-  }`;
+  }`.replace(/^[ \t]+/gm, "");

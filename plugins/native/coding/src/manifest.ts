@@ -4,7 +4,7 @@ import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SEL
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { goalContextCapabilities, goalProgressCapabilities } from "@molis-ai/molis-work-contracts/modules/goals";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
   CODING_CHANGESET_TYPE,
@@ -46,6 +46,8 @@ export const codingManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
+    { permission: "goals:read", required: true, reason: "读取已关联目标的当前约定、状态和固定来源" },
+    { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
     { permission: "artifact:read", required: true, reason: "读取本项目固定文件、差异、Git 结果、Shelf 材料与已保存的执行报告" },
     { permission: "storage:private", required: true, reason: "保存编码会话的未发送草稿" },
     {
@@ -59,8 +61,7 @@ export const codingManifest: PluginManifest = {
     provides: [],
     consumes: [
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
-      ...Object.values(goalContextCapabilities).map((entry) => entry.capability_id),
-      ...Object.values(goalProgressCapabilities).map((entry) => entry.capability_id),
+      ...Object.values(goalPluginActions).map(entry => entry.capability_id),
       projectsCapabilities.readWorkspace.capability_id,
       workspaceReadActions.file.capability_id,
       projectSettingsCapabilities.workspaces.capability_id,

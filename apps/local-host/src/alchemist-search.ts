@@ -49,7 +49,7 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
           .find(value => typeof value === "string" && /^[a-z][a-z0-9_]{0,79}$/.test(value))
           ?? result.budget.stopReason ?? result.outcome;
         throw Object.assign(new Error(`公开搜索暂未取得可引用来源（${code}），请稍后重试研究。不会用模型编造来源。`),
-          { code: `RESEARCH_SEARCH_${String(code).toUpperCase()}` });
+          { code: `alchemist.research_search_${String(code).toLowerCase()}` });
       }
       const sources = [];
       for (const item of result.materials) {
@@ -58,7 +58,7 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
         const excerpt = researchExcerpt(markdown, input.query);
         if (excerpt) sources.push({ url: item.canonicalUrl, title: item.title, excerpt });
       }
-      if (!sources.length) throw Object.assign(new Error("公开来源未提供可用正文；本次研究仍未知，请调整范围后重试。"), { code: "RESEARCH_NO_SOURCES" });
+      if (!sources.length) throw Object.assign(new Error("公开来源未提供可用正文；本次研究仍未知，请调整范围后重试。"), { code: "alchemist.research_no_sources" });
       return sources;
     }),
     shutdown() {

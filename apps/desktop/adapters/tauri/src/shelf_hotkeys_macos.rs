@@ -7,17 +7,18 @@ use crate::shelf_hotkeys::{
     CaptureDecision, FrontFileFailure, FrontFileKind, HotKeyAvailability, HotKeyChord,
     ToggleAction, FINDER_BUNDLE, HOTKEY_CAPTURE, HOTKEY_FILES, HOTKEY_TOGGLE, SELF_BUNDLE,
 };
-use crate::shelf_http;
+use crate::{shelf_clipboard_macos, shelf_http};
 use objc2::msg_send;
-use objc2_app_kit::{NSPasteboard, NSWorkspace};
-use objc2_foundation::{ns_string, MainThreadMarker, NSArray, NSString};
+use objc2_app_kit::NSWorkspace;
+use objc2_foundation::MainThreadMarker;
 use std::ffi::c_void;
 use std::path::PathBuf;
 use std::process::Command;
 use std::ptr;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicPtr, Ordering};
+use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager, WebviewWindow};
 
 const EVENT_CLASS_KEYBOARD: u32 = 0x6B657962;
@@ -286,21 +287,47 @@ fn on_toggle() {
     }
 }
 
+static IO_RUNNING: AtomicBool = AtomicBool::new(false);
+
+struct IoJob;
+impl Drop for IoJob {
+    fn drop(&mut self) {
+        IO_RUNNING.store(false, Ordering::Release);
+    }
+}
+
+/// Only AppKit/foreground snapshots happen here; blocking work never runs in Carbon's main-thread handler.
+fn start_io(work: impl FnOnce(&AppHandle) -> Result<(), String> + Send + 'static) {
+    let Some(host) = host() else { return };
+    if IO_RUNNING.swap(true, Ordering::AcqRel) {
+        notice("正在收取，请稍候再试");
+        return;
+    }
+    let app = host.app.clone();
+    thread::spawn(move || {
+        let _job = IoJob;
+        let result = work(&app);
+        let _ = app.run_on_main_thread(move || match result {
+            Ok(()) => show_shelf_refresh(),
+            Err(error) => notice(&error),
+        });
+    });
+}
+
 fn on_capture() {
     let front = front_app();
     let kind = front
         .as_ref()
         .and_then(|(bundle, _)| BrowserKind::from_bundle(bundle));
     let ax = ax_trusted();
-    let automation = kind.is_some_and(BrowserKind::uses_apple_script);
-    match capture_decision(kind, ax, automation) {
+    match capture_decision(kind, ax, kind.is_some_and(BrowserKind::uses_apple_script)) {
         CaptureDecision::Stop { message, .. } => {
             notice(&capture_hotkey_message(&message));
             return;
         }
         CaptureDecision::Proceed => {}
     }
-    let Some(kind) = kind else {
+    let (Some(kind), Some((bundle, _))) = (kind, front) else {
         notice(&capture_hotkey_message(shelf_hotkeys::NO_BROWSER));
         return;
     };
@@ -309,20 +336,14 @@ fn on_capture() {
         notice(&message);
         return;
     }
-    match browser_page(kind) {
-        Ok((url, title)) => match admit_page(&url, &title) {
-            Ok(()) => show_shelf_refresh(),
-            Err(error) => notice(&error),
-        },
-        Err(denied) if denied => {
-            let (message, _) = capture_failure(Some(kind), ax, false);
-            notice(&capture_hotkey_message(&message));
-        }
-        Err(_) => {
-            let (message, _) = capture_failure(Some(kind), ax, true);
-            notice(&capture_hotkey_message(&message));
-        }
-    }
+    // Browser kind was selected before yielding; never re-read the new front app on the worker.
+    start_io(move |_| {
+        let (url, title) = browser_page(kind, &bundle).map_err(|denied| {
+            let (message, _) = capture_failure(Some(kind), ax, !denied);
+            capture_hotkey_message(&message)
+        })?;
+        admit_page(&url, &title)
+    });
 }
 
 fn on_files() {
@@ -330,51 +351,48 @@ fn on_files() {
     let bundle = front.as_ref().map(|(bundle, _)| bundle.as_str());
     let pid = front.as_ref().map(|(_, pid)| *pid).unwrap_or(0);
     let kind = classify_front(bundle, SELF_BUNDLE);
-    let ax = ax_trusted();
     let capture_label = shelf_hotkeys::current_capture().label();
-    if let Err(fail) = decide_front(kind, ax, true) {
+    if let Err(fail) = decide_front(kind, ax_trusted(), true) {
         notice(&fail.message(&capture_label));
         return;
     }
-    let paths = match kind {
-        FrontFileKind::Finder => match finder_selection() {
-            Ok(paths) if paths.is_empty() => {
-                notice(&FrontFileFailure::EmptyFinder.message(&capture_label));
-                return;
-            }
-            Ok(paths) => paths,
-            Err(true) => {
-                notice(&FrontFileFailure::NeedFinderAutomation.message(&capture_label));
-                return;
-            }
-            Err(false) => {
-                notice(&FrontFileFailure::EmptyFinder.message(&capture_label));
-                return;
-            }
-        },
-        FrontFileKind::Other => {
-            let copied = copy_file_urls(pid);
-            if copied.is_empty() {
-                notice(&FrontFileFailure::Empty.message(&capture_label));
-                return;
-            }
-            copied
+    start_io(move |app| {
+        let paths = match kind {
+            FrontFileKind::Finder => finder_selection().map_err(|denied| {
+                let failure = if denied {
+                    FrontFileFailure::NeedFinderAutomation
+                } else {
+                    FrontFileFailure::EmptyFinder
+                };
+                failure.message(&capture_label)
+            })?,
+            FrontFileKind::Other => copy_file_urls(app, pid)?,
+            FrontFileKind::Itself | FrontFileKind::Browser => return Ok(()),
+        };
+        if paths.is_empty() {
+            let failure = if kind == FrontFileKind::Finder {
+                FrontFileFailure::EmptyFinder
+            } else {
+                FrontFileFailure::Empty
+            };
+            return Err(failure.message(&capture_label));
         }
-        FrontFileKind::Itself | FrontFileKind::Browser => return,
-    };
-    let mut admitted = 0usize;
-    let mut last_error = None;
-    for path in paths {
-        match shelf_http::admit_file(&path) {
-            Ok(_) => admitted += 1,
-            Err(error) => last_error = Some(error),
+        let mut admitted = 0usize;
+        let mut last_error = None;
+        for path in paths {
+            match shelf_http::admit_file(&path) {
+                Ok(_) => admitted += 1,
+                Err(error) => last_error = Some(error),
+            }
         }
-    }
-    if admitted == 0 {
-        notice(last_error.as_deref().unwrap_or(shelf_hotkeys::FILES_EMPTY));
-    } else {
-        show_shelf_refresh();
-    }
+        if admitted == 0 {
+            Err(last_error.unwrap_or_else(|| shelf_hotkeys::FILES_EMPTY.to_string()))
+        } else if let Some(error) = last_error {
+            Err(format!("已收下 {admitted} 项，另有文件未收下：{error}"))
+        } else {
+            Ok(())
+        }
+    });
 }
 
 fn admit_page(url: &str, title: &str) -> Result<(), String> {
@@ -411,12 +429,10 @@ fn fetch_html(url: &str) -> Option<String> {
     String::from_utf8(output.stdout).ok()
 }
 
-fn browser_page(kind: BrowserKind) -> Result<(String, String), bool> {
+fn browser_page(kind: BrowserKind, bundle: &str) -> Result<(String, String), bool> {
     let script = match kind {
         BrowserKind::Safari => safari_tab_script(),
-        BrowserKind::Chrome => chrome_tab_script("Google Chrome"),
-        BrowserKind::Edge => chrome_tab_script("Microsoft Edge"),
-        BrowserKind::Brave => chrome_tab_script("Brave Browser"),
+        BrowserKind::Chrome | BrowserKind::Edge | BrowserKind::Brave => chrome_tab_script(bundle),
         BrowserKind::Arc | BrowserKind::Firefox => return Err(false),
     };
     let text = run_osascript(&script)?;
@@ -441,10 +457,10 @@ end timeout"#
         .to_string()
 }
 
-fn chrome_tab_script(application: &'static str) -> String {
+fn chrome_tab_script(bundle: &str) -> String {
     format!(
         r#"with timeout of 3 seconds
-tell application "{application}"
+tell application id "{bundle}"
   if (count of windows) is 0 then error "no window"
   set theURL to URL of active tab of front window
   set theName to title of active tab of front window
@@ -492,50 +508,80 @@ fn run_osascript(script: &str) -> Result<String, bool> {
         || stderr.contains("1002"))
 }
 
-fn copy_file_urls(pid: i32) -> Vec<PathBuf> {
-    if pid <= 0 {
-        return Vec::new();
-    }
-    let pasteboard = NSPasteboard::generalPasteboard();
-    let saved = pasteboard.stringForType(ns_string!("public.utf8-plain-text"));
-    post_command_c(pid);
-    thread::sleep(Duration::from_millis(450));
-    let files = filenames_from_pasteboard(&pasteboard)
-        .into_iter()
-        .filter(|path| path.exists())
-        .collect::<Vec<_>>();
-    pasteboard.clearContents();
-    if let Some(text) = saved {
-        let _ = pasteboard.setString_forType(&text, ns_string!("public.utf8-plain-text"));
-    }
-    files
+/// AppKit calls stay on main; only this worker waits. The captured pid cannot drift to another app.
+fn on_main<T: Send + 'static>(
+    app: &AppHandle,
+    call: impl FnOnce() -> T + Send + 'static,
+) -> Result<T, String> {
+    let (tx, rx) = mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = tx.send(call());
+    })
+    .map_err(|error| error.to_string())?;
+    rx.recv().map_err(|error| error.to_string())
 }
 
-fn filenames_from_pasteboard(board: &NSPasteboard) -> Vec<PathBuf> {
-    let mut files = Vec::new();
-    if let Some(list) = board.propertyListForType(ns_string!("NSFilenamesPboardType")) {
-        if let Ok(array) = list.downcast::<NSArray>() {
-            for item in array.iter() {
-                if let Some(name) = item.downcast_ref::<NSString>() {
-                    files.push(PathBuf::from(name.to_string()));
-                }
+fn copy_file_urls(app: &AppHandle, pid: i32) -> Result<Vec<PathBuf>, String> {
+    if pid <= 0 {
+        return Ok(Vec::new());
+    }
+    let snapshot = on_main(app, move || {
+        let snapshot = shelf_clipboard_macos::Snapshot::take(
+            &objc2_app_kit::NSPasteboard::generalPasteboard(),
+        )?;
+        post_command_c(pid);
+        Ok::<_, String>(snapshot)
+    })??;
+    let before = snapshot.change_count;
+    let deadline = Instant::now() + Duration::from_millis(450);
+    loop {
+        if let Some((copied_count, mut paths, text)) = on_main(app, move || {
+            shelf_clipboard_macos::copied_files(
+                &objc2_app_kit::NSPasteboard::generalPasteboard(),
+                before,
+            )
+        })? {
+            if paths.is_empty() {
+                let lines: Option<Vec<String>> = text
+                    .unwrap_or_default()
+                    .lines()
+                    .map(|line| {
+                        let raw = line.trim();
+                        let raw = raw
+                            .strip_prefix('"')
+                            .and_then(|value| value.strip_suffix('"'))
+                            .or_else(|| {
+                                raw.strip_prefix('\'')
+                                    .and_then(|value| value.strip_suffix('\''))
+                            })
+                            .unwrap_or(raw);
+                        if raw.starts_with("file://") {
+                            shelf_clipboard_macos::file_url_path(raw)
+                                .map(|path| path.to_string_lossy().into_owned())
+                        } else {
+                            Some(line.to_string())
+                        }
+                    })
+                    .collect();
+                paths = lines
+                    .map(|lines| paths_from_text(&lines.join("\n")))
+                    .unwrap_or_default();
             }
+            let files = paths.into_iter().filter(|path| path.exists()).collect();
+            on_main(app, move || {
+                snapshot.restore(
+                    &objc2_app_kit::NSPasteboard::generalPasteboard(),
+                    copied_count,
+                )
+            })??;
+            return Ok(files);
         }
-    }
-    if files.is_empty() {
-        if let Some(url) = board.stringForType(ns_string!("public.file-url")) {
-            let raw = url.to_string();
-            if let Some(path) = raw.strip_prefix("file://") {
-                files.push(PathBuf::from(path));
-            }
+        if Instant::now() >= deadline {
+            // Nothing changed: leave the original board untouched and admit no old files.
+            return Ok(Vec::new());
         }
+        thread::sleep(Duration::from_millis(20));
     }
-    if files.is_empty() {
-        if let Some(text) = board.stringForType(ns_string!("public.utf8-plain-text")) {
-            files.extend(paths_from_text(&text.to_string()));
-        }
-    }
-    files
 }
 
 fn post_command_c(pid: i32) {

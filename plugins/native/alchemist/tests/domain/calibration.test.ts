@@ -25,17 +25,18 @@ const annotation: Annotation = {
 };
 
 describe("Calibration domain", () => {
+  // J5A-01/J5A-02: invalid annotations keep the original refusal and current code.
   it("keeps the quote and authored comment independently required", () => {
     expect(assertValidAnnotation(annotation)).toEqual(annotation);
     expect(() => assertValidAnnotation({ ...annotation, quotedSnapshot: " " })).toThrowError(
-      "ANNOTATION_QUOTE_REQUIRED",
+      "alchemist.annotation_quote_required",
     );
     expect(() => assertValidAnnotation({ ...annotation, comment: " " })).toThrowError(
-      "ANNOTATION_COMMENT_REQUIRED",
+      "alchemist.annotation_comment_required",
     );
     expect(() =>
       assertValidAnnotation({ ...annotation, target: { ...annotation.target, revision: 0 } }),
-    ).toThrowError("ANNOTATION_REVISION_INVALID");
+    ).toThrowError("alchemist.annotation_revision_invalid");
   });
 
   it("resolves an annotation once without changing its quote", () => {
@@ -46,7 +47,7 @@ describe("Calibration domain", () => {
       resolvedAt: "2026-07-31T10:10:00.000Z",
     });
     expect(() => resolveAnnotation(resolved, "2026-07-31T10:11:00.000Z")).toThrowError(
-      new CalibrationStateError("ANNOTATION_ALREADY_RESOLVED"),
+      new CalibrationStateError("alchemist.annotation_already_resolved"),
     );
   });
 
@@ -69,7 +70,7 @@ describe("Calibration domain", () => {
     const applied = applyActionProposal(proposal, "2026-07-31T10:20:00.000Z");
     expect(applied).toMatchObject({ status: "applied", appliedAt: "2026-07-31T10:20:00.000Z" });
     expect(() => applyActionProposal(applied, "2026-07-31T10:21:00.000Z")).toThrowError(
-      new CalibrationStateError("ACTION_PROPOSAL_NOT_PENDING"),
+      new CalibrationStateError("alchemist.action_proposal_not_pending"),
     );
   });
 });

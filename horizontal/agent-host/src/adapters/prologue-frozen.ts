@@ -1,6 +1,7 @@
-import { AGENT_REASONING_EFFORTS, type AgentImageMaterial, type AgentRunView, type AgentStartRequest, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentErrors } from "../errors.js";
+import { AGENT_REASONING_EFFORTS, agentTextMaterialContent, type AgentCreateSessionInput, type AgentImageMaterial, type AgentRunView, type AgentStartRequest, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { PrologueAdapterError, type PrologueModelConfiguration } from "./prologue.js";
+import { type PrologueModelConfiguration } from "./prologue.js";
 
 /**
  * What a Run is frozen with at its start: the role, its prompts and tools, the model and how it is asked, its materials,
@@ -12,7 +13,7 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
   // An effort goes out only to a model the person marked as taking one: otherwise the request is refused before it is sent.
   if (request.reasoning_effort !== undefined && !AGENT_REASONING_EFFORTS.includes(request.reasoning_effort)) throw new Error("思考力度只能是快速、平衡或深入");
   if (request.reasoning_effort !== undefined && model.reasoning_effort !== true) {
-    throw new PrologueAdapterError("agent.capability_unavailable", `模型设置里没有标注「${model.model}」可调思考力度；没有发出。可以在模型设置里确认后再选，或不选力度直接发送`);
+    throw agentErrors.capability_unavailable(`模型设置里没有标注「${model.model}」可调思考力度；没有发出。可以在模型设置里确认后再选，或不选力度直接发送`);
   }
   return {
     ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
@@ -55,4 +56,25 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
     budget: request.execution_plan ? { ...request.budget, max_turns: request.budget?.max_turns ?? 8 + request.execution_plan.steps.length * 3 } : request.budget ?? null,
     ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { directory: structuredClone(request.directory) }),
   };
+}
+
+/** Validate the exact materials before any model or SDK run is started. */
+export function validateRunAttachments(request: AgentStartRequest, supportsImages: boolean) {
+  const textMaterials = request.text_materials ?? [];
+  if (textMaterials.length > 30 || new Set(textMaterials.map(item => item.material_id)).size !== textMaterials.length) throw new Error("材料过多或选择重复");
+  textMaterials.forEach(agentTextMaterialContent);
+  const imageMaterials = request.image_materials ?? [];
+  if (imageMaterials.length > 6 || new Set(imageMaterials.map(item => item.material_id)).size !== imageMaterials.length
+    || imageMaterials.some(item => !item || typeof item.resource?.id !== "string" || !Number.isSafeInteger(item.resource.revision) || !/^image\//.test(String(item.media_type)))) throw new Error("图片过多、重复或格式无效");
+  if (imageMaterials.length && (!supportsImages || request.workspace !== "business")) throw agentErrors.capability_unavailable("这个运行方式还不能把图片交给模型");
+  return { textMaterials, imageMaterials };
+}
+
+export function assertSessionCreation(input: AgentCreateSessionInput, workspaceNone: boolean | undefined, workspaceBusiness: boolean | undefined): void {
+  if (input.workspace === "none" && (!workspaceNone || input.directory !== undefined || !input.actor_id?.trim())) {
+    throw agentErrors.capability_unavailable("当前运行时不能创建此无工作区会话");
+  }
+  if (input.workspace === "business" && (!workspaceBusiness || input.directory !== undefined || !input.actor_id?.trim())) {
+    throw agentErrors.capability_unavailable("当前运行时不能创建此业务会话");
+  }
 }

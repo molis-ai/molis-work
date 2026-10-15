@@ -148,7 +148,7 @@ export interface BrowserPageState {
 
 export type BrowserPageStatus = "starting" | "loading" | "ready" | "crashed" | "stopped" | "unavailable";
 
-export type BrowserProblemCode = "browser.not_found" | "browser.start_failed" | "browser.profile_in_use" | "browser.crashed" | "page.crashed" | "page.load_failed" | "page.blocked_scheme";
+export type BrowserProblemCode = "browser.not_found" | "browser.start_failed" | "browser.profile_in_use" | "browser.crashed" | "browser.page_crashed" | "browser.load_failed" | "browser.blocked_scheme";
 
 export type BrowserServerMessage = {
     readonly type: "ready";

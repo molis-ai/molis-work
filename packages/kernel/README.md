@@ -72,9 +72,9 @@ node scripts/run-tests.mjs tests/local-host.test.ts
   - 目录从唯一的 `CapabilityRegistry` 派生，不另存名单。
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。
   - `action.execution` 明确声明的时限与调用频率由统一执行器落实；费用只作声明，未声明为未知。计数按 actor、项目、安装隔离且跨入口共享，注册退出时释放，不承担持久计费。超时转发 signal 并停止等待，迟到处理器必须经写入 fence，不能承诺抢占同步代码或撤销外部请求。
-  - `beforeEffect` 每次复查注册版本、可用性、授权与权限；调用结束后不能再产生副作用。
+  - `beforeEffect` 每次复查注册版本、可用性、授权与权限；最后一次异步检查后以可信 `assert_authority_current` 同步核对精确来源/目标及原注册、时限和取消，Promise 尾检被拒绝。场景绑定与成功/失败消费在最后等待后使用同一尾检，同时核对当前场景/启用声明的独立权限；停用绑定仍核原配置权限和来源，不新增目标函数授权。调用结束后不能再产生副作用。 可用性拒绝的可选 `kind` 与码、原因一起抛出；动作派发与 Registry 的 typed 派发使用同一分类。
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
-  - 声明了 `authorship: "session"` 的动作，在派发处拒绝调用上下文带 `runtime_session_missing`（可信的 MCP 适配器给没有稳定 Session 的外部 Runtime 标上）的调用，直接调用和包装动作（首页事项动作、工作流步骤）发起的嵌套调用一样，只在这一处检查（`mcp.runtime_identity_missing`）。
+  - 声明了 `authorship: "session"` 的动作，在派发处拒绝调用上下文带 `runtime_session_missing`（可信的 MCP 适配器给没有稳定 Session 的外部 Runtime 标上）的调用，直接调用和包装动作（首页事项动作、工作流步骤）发起的嵌套调用一样，只在这一处检查（`kernel.runtime_identity_missing`）。
   - 注册时检查同一次注册里的交叉引用（规则在插件 SDK 的 `inspectActionCrossReferences`）：撤销命令、后台任务状态查询、片段与事项选项的目标要在同一次注册里、种类与范围对，被指的字段和位置要在输入输出合同里。检查在 `registerProvider` 原有的一行里调用，不往函数里加行；谁能用目标留到使用时按调用者核对。
   - 调用记录只写谁调了什么、怎样结束，不写输入与结果；业务校验与事务留在处理器里。
   - 调用方可以声明哪些拒绝码是它要的答案（`expectingRefusal`，在 `src/call-scope.ts`；作用域随异步调用传下去）：页面找项目可能没有的插件的区域，「未启用」就是答案，宿主不为这样的拒绝留调用记录行。只对作用域内、调用方自己那一次、处理器之前的、码在声明里的拒绝生效：进入处理器时清空（`startHandler` 经 `insideHandler`，动作的 `execute` 与宿主 typed 口各进一次），所以处理器再调的、它派出去还在跑的，被拒了照常记；声明也有终点：它像 `CallScope` 的 `open` 一样，在 `run` 结束（返回、抛出、拒绝）时关闭，所以调用结束后才触发的计时器、流、子进程、插件平台启动里的同一个拒绝照常记；别的拒绝和作用域之外的同一个拒绝也照常记（`tests/action-call-log.test.ts`）。
@@ -83,7 +83,8 @@ node scripts/run-tests.mjs tests/local-host.test.ts
   - `admit` 是宿主的异步策略，在解析与授权复查之前跑；`invokeSync` 不跑它（事务里不能等），同步入口自己的检查用第四个参数传入，在结算范围内先跑，它的拒绝同样结算。
   - 核心代码不调用情境排序：核心文件不导入它，也不经入口转手导入它的名字（`pnpm health:check` 的 K1）。根入口不转出它，情境排序走子入口 `@molis-ai/molis-work-kernel/contextual`，所以核心的导入闭包里没有情境排序。它只读 `contracts/platform/actions`、`contracts/services/contextual` 和 `node:crypto`（K2、K3）。
   - 情境排序无 I/O、无计时器、无模块级可变状态，同样的输入得到同样的陈列（K4）。候选只从授权目录来，不点名插件或能力 id（K5）；陈列不删候选；答案里不在候选中的键一律丢掉，模型不能编出动作。会写入的先确认，不可撤回的不推荐。
-- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts tests/security-invariants-injection.test.ts tests/action-call-id.test.ts tests/action-cross-references.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts tests/security-invariants-injection.test.ts tests/action-call-id.test.ts tests/action-cross-references.test.ts tests/action-availability-kind.test.ts`
+- 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[docs/system/ARCHITECTURE.md](../../docs/system/ARCHITECTURE.md)、[docs/horizontal/README.md](../../docs/horizontal/README.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
@@ -99,4 +100,11 @@ node scripts/run-tests.mjs tests/local-host.test.ts
 
 `createExecutionLifetime` 统一进程内取消、时限和同步周期监测。实现在 `@molis-ai/molis-work-plugin-sdk`（`src/execution-lifetime.ts`）：外部作者装的只有 contracts 与 SDK，工具放在这里，SDK 不必依赖私有的 Kernel；内核、宿主、调度服务、Shelf 模块和沙箱都直接从 SDK 取同一份，内核自己不再转出。取消后停止监测，异步等待后调用 `assertActive()` 再进入原事务/版本校验；`dispose()` 在 finally 中释放资源并拒绝迟到回调。它不登记任务、不保存状态、不恢复或重试。Alchemist 用于租约续期，Images 用于持久取消检查及 180 秒时限。
 
+
+AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字段，必须提交读到的前提：`expected_version`、`expected_revision`、`expected_revisions`、`expected_updated_at`，以及Functions authoring的`updated_at`。版本表覆盖全部`ids`；缺字段、空表、部分表及Functions的null前提由共同输入校验报`actions.version_required`，其他schema错误仍为`actions.input_invalid`。同一输入只经一次schema校验；助理preflight复用`assertActionCommandInput`。本人页面、非AI工作流、可信插件自调与无版本字段的独立创建沿用合同。嵌套豁免只认dispatcher实际发出的活跃execution上下文，不认ALS继承或JSON标志；原权限、signal、provider和beforeEffect继续检查，handler返回/超时/取消后豁免结束。回归：`tests/action-version-precondition.test.ts`。
+
 后台动作所有者可在处理器仍存活时调用 `ActionExecutionContext.retainAuthority(references)`，保留已有动作的授权和注册实例检查。返回的函数不延长 `beforeEffect`，不授予新能力；后台开始新调用之前应执行它，并在新调用的可信 `validate_authority` 中继续执行。原提供方重新注册、外部撤权或原入口取消均拒绝旧结果。它不持久化：宿主重启后恢复投递需要新的显式用户请求。验证：`node scripts/run-tests.mjs tests/action-retained-authority.test.ts`。
+
+返回的临时 `RetainedActionAuthority` 同时提供 `assertCurrent()`：新调用者须在 `validate_authority` 里执行原异步guard，并把它的同步断言与自己的断言合成到 `assert_authority_current`，覆盖下游最后一次权限等待；不复用已结束处理器的 `beforeEffect`。同步断言不得返回Promise。真实Host/Pages交错回归见 `tests/assistant-thread-reply.test.ts` 的S-18-102-02/03。
+
+`registeredActionMetadata` 只复制当前登记的动作声明，沿目录的同一项目与 audience 过滤，不调用提供方、处理器、依赖或 Host 可用性策略；结果没有 `availability`，不代表执行许可。常规目录在这份声明上继续执行原可见性与可用性检查。取消操作的诊断可借它命名，实际动作仍经完整调度与最终授权。

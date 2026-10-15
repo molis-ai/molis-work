@@ -21,7 +21,7 @@ The bundle is one self-contained ESM file exporting `operations`, whose keys exa
 match the contract: `export const operations = { 'notes.list': async (input, sdk) => ... }`.
 The host snapshots the bundle before execution. SDK calls are asynchronous; every call
 must be awaited. Return values and thrown `{code,message}` errors cross a bounded JSON
-channel. Declared errors retain their codes; unexpected errors use `PLUGIN_ERROR`.
+channel. Declared errors retain their codes; unexpected errors use `sandbox.plugin_error`.
 Trusted Host errors may carry `SandboxError.outcome = 'unknown'`. A service timeout or
 an adapter reporting an uncertain external result fences subsequent effects and rejects
 the operation even if plugin code catches the SDK error and returns a fallback. Worker

@@ -133,7 +133,6 @@ const platformSources = (): Map<string, string> => {
 /** String literals shaped like an `actions.` code that are not errors, with why. A listed literal that is not in the sources, or has a row after all, fails the test. */
 const NOT_ERROR_CODES: Readonly<Record<string, string>> = {
   "actions.catalog": "the Characters plugin's capability id, not an error code",
-  "actions.permission_denied": "read at memory-host.ts but raised nowhere (tests throw it as a fake); W3-02-G3 deletes the read",
 };
 
 test("every platform code the sources raise has a row in ACTION_ERROR_KINDS, and every row is a code the sources still use", () => {

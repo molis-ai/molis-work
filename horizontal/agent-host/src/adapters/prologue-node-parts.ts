@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Runtime } from "@prologue/sdk";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
-import type { PrologueCredentialBridge } from "./prologue-credentials.js";
+import { prepareInferenceCredential, type PrologueCredentialBridge } from "./prologue-credentials.js";
 import { createPrologueInference } from "./prologue-inference.js";
 import { createSessionMessages } from "./prologue-messages.js";
 import { createProjectWork } from "./prologue-project-work.js";
@@ -94,22 +94,7 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
 
 /** The inference client, and the plugin builder agents it hands out (closed with the runtime). */
 export function createNodeInference(runtime: Runtime, options: PrologueNodeAdapterOptions, credentials: PrologueCredentialBridge, dispatchGuards: DispatchGuards) {
-  const inference = createPrologueInference(runtime, async (input, signal, optional) => {
-    const normalize = (value: string | null) => value?.trim() ? value : null;
-    signal.throwIfAborted();
-    await input.beforeDispatch?.();
-    const snapshot = normalize(await input.resolveCredential(input.credential_ref));
-    signal.throwIfAborted();
-    const assertCurrent = async () => {
-      signal.throwIfAborted();
-      if (normalize(await input.resolveCredential(input.credential_ref)) !== snapshot) throw new Error("模型凭据或配置已改变");
-      signal.throwIfAborted();
-    };
-    if (optional && snapshot === null) return { assertCurrent };
-    if (snapshot === null) throw new Error("模型凭据不可用");
-    const ref = await credentials.prologueRefFor(input.credential_ref, async () => { await assertCurrent(); return snapshot; }, signal);
-    return { ref, assertCurrent };
-  }, (guard, operation) => dispatchGuards.run(guard, operation));
+  const inference = createPrologueInference(runtime, prepareInferenceCredential(credentials), (guard, operation) => dispatchGuards.run(guard, operation));
   const builders = new Set<Awaited<ReturnType<typeof createPluginBuilderAgent>>>();
   let closingBuilders = false;
   const createBuilderAgent = async (input: PluginBuilderAgentOptions) => {

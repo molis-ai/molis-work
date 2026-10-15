@@ -47,7 +47,8 @@ test("official stdio MCP client uses actual Lingguang business actions with scop
     await a.close();
     const restarted = await connect("a");
     assert.deepEqual((await call(restarted, "lingguang.conversation.get", { id: conversation.id })).messages, result.messages);
-    await call(restarted, "lingguang.discard", { ids: [spark.id] });
+    const latest = (await call(restarted, "lingguang.get", { id: spark.id })).spark;
+    await call(restarted, "lingguang.discard", { ids: [spark.id], expected_updated_at: { [spark.id]: latest.updated_at } });
     assert.deepEqual((await call(reader, "lingguang.list", {})).sparks, []);
   } finally { await Promise.all(clients.map(client => client.close())); await rm(home, { recursive: true, force: true }); }
 });

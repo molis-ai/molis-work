@@ -43,7 +43,7 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     const input = { workspace_id: ws, path: ["note"], side: "index" };
     assert.equal((await request(api("git", "/diff"), "POST", input, false)).status, 403);
     refused(await request(api("git", "/diff", projects[1]), "POST", input), "git.invalid");
-    refused(await request(api("git", "/diff"), "POST", { ...input, path: ["..", "elsewhere"] }), "workspace.invalid_path");
+    refused(await request(api("git", "/diff"), "POST", { ...input, path: ["..", "elsewhere"] }), "work.workspace.invalid_path");
     const staged = await request(api("git", "/diff"), "POST", input); assert.equal(staged.status, 200, JSON.stringify(staged));
     assert.equal(staged.body.result.before, "base\n"); assert.equal(staged.body.result.after, "staged\n");
     const fixedPath = (ref: any) => "/state?artifact_id=" + encodeURIComponent(ref.artifact_id) + "&version=" + ref.version;

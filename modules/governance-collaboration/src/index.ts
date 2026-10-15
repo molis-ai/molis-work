@@ -12,7 +12,6 @@ import { GovernanceRecordStore } from "./record-store.js";
 import { GovernanceProvenance } from "./provenance.js";
 import { GovernanceDecisionTransactions } from "./decision-transactions.js";
 import { GovernanceEventDecisions } from "./event-decisions.js";
-import type { GovernanceErrorFactory } from "./errors.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-governance-collaboration",
@@ -34,7 +33,6 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export interface GovernanceCollaborationModuleOptions {
   db: GovernanceSqliteDatabase;
   now?: () => string;
-  errorFactory?: GovernanceErrorFactory;
 }
 
 export class GovernanceCollaborationModule implements GovernanceApplicationApi {
@@ -46,20 +44,18 @@ export class GovernanceCollaborationModule implements GovernanceApplicationApi {
   readonly query: GovernanceQueryApi;
 
   constructor(options: GovernanceCollaborationModuleOptions) {
-    this.provenance = new GovernanceProvenance(options.errorFactory);
+    this.provenance = new GovernanceProvenance();
     this.repository = new GovernanceRepository(options.db);
-    this.records = new GovernanceRecordStore(options.db, options.errorFactory);
+    this.records = new GovernanceRecordStore(options.db);
     this.decisions = new GovernanceDecisionTransactions(options.db);
     this.eventDecisions = new GovernanceEventDecisions(
       options.db,
       options.now,
-      options.errorFactory,
     );
     this.query = governanceQueries(this.repository);
   }
 }
 
-export { GovernanceError, type GovernanceErrorFactory } from "./errors.js";
 export { GovernanceProvenance } from "./provenance.js";
 export {
   json as governanceJson,

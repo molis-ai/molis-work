@@ -18,7 +18,7 @@ const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
 export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
   runtimeSessionTransport?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["runtimeSessionTransport"],
-  functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"]) {
+  functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"]) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Goals UI E2E"); return null; }
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goals-browser-"));
@@ -84,7 +84,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     }
   } else seed(databasePath);
   store = new LocalProjectDatabase(databasePath);
-  localHost = completion === undefined && !runtimeSessionTransport && !functions ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions,
+  localHost = completion === undefined && !runtimeSessionTransport && !functions && !workspaceFor ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, runtimeSessionTransport, functions, workspaceFor,
     ...(projectId ? { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, directory) } : {}) });
   server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: CONTROL_TOKEN });
@@ -239,5 +239,5 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   /** The person's side of the Host's local HTTP interface, for settings the page does not need to show (grants, projects). */
   const web = new LocalHostHttpClient({ origin, controlToken: CONTROL_TOKEN });
-  return { store, localHost, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  return { store, localHost, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

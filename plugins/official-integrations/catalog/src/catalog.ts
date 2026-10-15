@@ -2,6 +2,7 @@ import type { ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/s
 import type { IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { asList, asRecord, bearer, CatalogLiveError, nestedText, splitParts, text, tokenContext, USER_AGENT } from "./http.js";
 import { setupLinksFor } from "./setup-links.js";
+import { atlassianBase, catalogCloudOrigin } from "./targets.js";
 import type { CatalogAuthContext, CatalogConnectorSpec, CatalogHttpRequest } from "./types.js";
 
 type CatalogConnectorDraft = Omit<CatalogConnectorSpec, "setup_links">;
@@ -601,11 +602,11 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "atlassian.net", additional_permission_hosts: ["api.atlassian.com"],
     parseToken: (raw) => splitParts(raw, "|", 3, ["site", "email", "token"]),
     identity: {
-      request: (ctx) => get(`${jiraBase(ctx)}/rest/api/3/myself`, jiraHeaders(ctx)),
+      request: (ctx) => get(`${atlassianBase(ctx, "jira")}/rest/api/3/myself`, jiraHeaders(ctx)),
       read: (json) => text(asRecord(json)?.displayName, asRecord(json)?.emailAddress),
     },
     feed: {
-      request: (ctx) => get(`${jiraBase(ctx)}/rest/api/3/search/jql?jql=${encodeURIComponent("assignee=currentUser() ORDER BY updated DESC")}&maxResults=20&fields=summary,updated`, jiraHeaders(ctx)),
+      request: (ctx) => get(`${atlassianBase(ctx, "jira")}/rest/api/3/search/jql?jql=${encodeURIComponent("assignee=currentUser() ORDER BY updated DESC")}&maxResults=20&fields=summary,updated`, jiraHeaders(ctx)),
       read: (json, ctx) => mapList(asRecord(json)?.issues, "jira", (row) => {
         const fields = asRecord(row.fields);
         return item({
@@ -625,11 +626,11 @@ const CATALOG: CatalogConnectorDraft[] = [
     permission_host: "atlassian.net", additional_permission_hosts: ["api.atlassian.com"],
     parseToken: (raw) => splitParts(raw, "|", 3, ["site", "email", "token"]),
     identity: {
-      request: (ctx) => get(`${jiraBase(ctx)}/wiki/rest/api/user/current`, jiraHeaders(ctx)),
+      request: (ctx) => get(`${atlassianBase(ctx, "confluence")}/wiki/rest/api/user/current`, jiraHeaders(ctx)),
       read: (json) => text(asRecord(json)?.displayName, asRecord(json)?.email),
     },
     feed: {
-      request: (ctx) => get(`${jiraBase(ctx)}/wiki/rest/api/content/search?cql=${encodeURIComponent("type=page order by lastmodified desc")}&limit=20`, jiraHeaders(ctx)),
+      request: (ctx) => get(`${atlassianBase(ctx, "confluence")}/wiki/rest/api/content/search?cql=${encodeURIComponent("type=page order by lastmodified desc")}&limit=20`, jiraHeaders(ctx)),
       read: (json, ctx) => mapList(asRecord(json)?.results, "confluence", (row) => {
         const path = nestedText(asRecord(row._links), ["webui"]);
         return item({
@@ -941,7 +942,7 @@ function adobeUserinfoUrl(ctx: CatalogAuthContext): string {
 }
 
 function jiraHost(ctx: CatalogAuthContext): string {
-  return (ctx.extra.site_url ?? ctx.extra.site ?? "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  return catalogCloudOrigin(ctx.extra.site_url ?? ctx.extra.site ?? "", "atlassian.net").slice(8);
 }
 
 function jiraHeaders(ctx: CatalogAuthContext): Record<string, string> {
@@ -977,9 +978,7 @@ function adobeApiKey(ctx: CatalogAuthContext): Record<string, string> {
 }
 
 function salesforceInstance(ctx: CatalogAuthContext): string {
-  const raw = (ctx.extra.instance ?? "").replace(/\/$/, "");
-  if (!raw) return "";
-  return /^https?:\/\//iu.test(raw) ? raw : `https://${raw}`;
+  return catalogCloudOrigin(ctx.extra.instance ?? "", "salesforce.com");
 }
 
 export const CATALOG_CONNECTORS: readonly CatalogConnectorSpec[] = CATALOG.map((entry) => ({
@@ -1003,7 +1002,6 @@ export function catalogConnectorIds(): readonly string[] {
   return CATALOG_CONNECTORS.map((entry) => entry.id);
 }
 
-function jiraBase(ctx: CatalogAuthContext): string { return ctx.extra.base || `https://${jiraHost(ctx)}`; }
 function linearHeaders(ctx: CatalogAuthContext): Record<string, string> {
   return ctx.extra.auth_method === "oauth" ? bearer(ctx) : { Authorization: ctx.accessToken, Accept: "application/json", "User-Agent": USER_AGENT };
 }

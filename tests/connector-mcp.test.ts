@@ -148,7 +148,8 @@ test("MCP initializes, discovers real SDK tools/resources, calls explicitly, and
     await assert.rejects(host.resolveMcpConnectionToken(temp, result.connectionId, remote.endpoint + "?other=1"), /完整服务地址/);
     withConnectorConnections(temp, store => store.disconnect(result.connectionId));
     const before = remote.stats().initializationCount;
-    await assert.rejects(host.inspectMcpConnection(temp, result.connectionId), /已断开/);
+    // J2C-01: the current owner code accompanies the refusal; no new remote initialization occurs.
+    await assert.rejects(host.inspectMcpConnection(temp, result.connectionId), { code: "connector.mcp.disconnected", message: /已断开/ });
     assert.equal(remote.stats().initializationCount, before);
     assert.equal(remote.stats().callCount, 1);
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
@@ -164,7 +165,7 @@ test("MCP Bearer credentials are independent, remain private, and cannot move en
     assert.equal(JSON.stringify(result).includes("mcp-bearer-secret"), false);
     const publicView = withConnectorConnections(temp, store => store.view(store.require(result.connectionId)));
     assert.equal(JSON.stringify(publicView).includes("mcp-bearer-secret"), false);
-    await assert.rejects(host.startMcpConnection(temp, { serviceId: "github", displayName: "Other", endpoint: "https://attacker.example/mcp", token: "mcp-bearer-secret", origin: callbackOrigin }), /官方地址/);
+    await assert.rejects(host.startMcpConnection(temp, { serviceId: "github", displayName: "Other", endpoint: "https://attacker.example/mcp", token: "mcp-bearer-secret", origin: callbackOrigin }), { code: "connector.mcp.configuration", message: /官方地址/ });
     const anotherHome = home();
     try { await assert.rejects(host.inspectMcpConnection(anotherHome, result.connectionId)); } finally { rmSync(anotherHome, { recursive: true, force: true }); }
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }

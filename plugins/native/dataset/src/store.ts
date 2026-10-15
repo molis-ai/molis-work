@@ -425,10 +425,16 @@ function normalizeColumns(value: readonly DatasetColumnInput[]): DatasetColumn[]
   if (value.length > 40) throw datasetErrors.invalid("最多 40 列");
   return value.map((column, index) => ({
     id: column.id || crypto.randomUUID(),
-    name: String(column.name ?? "").trim() || `列 ${index + 1}`,
+    name: normalizeColumnName(column.name, index),
     type: column.type && COLUMN_TYPES.includes(column.type) ? column.type : "text",
     order: index + 1,
   }));
+}
+
+function normalizeColumnName(value: string, index: number): string {
+  const name = String(value ?? "").trim() || `列 ${index + 1}`;
+  if ([...name].length > 80) throw datasetErrors.invalid("列名最多 80 个字，请保留原 CSV 并缩短表头后再导入");
+  return name;
 }
 
 function normalizeRows(rows: readonly DatasetRowInput[], columns: readonly DatasetColumn[]): DatasetRow[] {

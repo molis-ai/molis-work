@@ -27,6 +27,10 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "原始尺寸": "Original size",
   "适应窗口": "Fit to window",
   "请描述问题或添加图片": "Describe the issue or add an image",
+  "遇到什么问题？写下来，截图可以直接粘贴": "What went wrong? Write it here, or paste a screenshot",
+  "我的 Issue": "My issues",
+  "添加截图": "Add screenshot",
+  "重新整理": "Organize again",
   "问题描述": "Issue description",
   "图片尺寸过大，请裁剪后添加。": "The image dimensions are too large. Crop it first.",
   "图片压缩后仍超过 2 MiB，请裁剪后添加。": "The compressed image exceeds 2 MiB. Crop it first.",
@@ -87,6 +91,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "这个版本没有可取回的文件": "This version has no file to retrieve",
   // apps/local-host/src/web-request.ts
   "这个侧栏内容已经不在了（插件可能已停用）": "This side panel content is gone (the plugin may have been turned off)",
+  "还没有配置可用的模型，助理无法开始工作": "No usable model is configured yet, so the assistant can't start",
   // apps/workbench/src/capabilities.ts
   "可使用": "Available",
   "查询": "Query",

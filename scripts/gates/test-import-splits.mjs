@@ -1,16 +1,8 @@
-// Test processes that load one package twice (specs/repository-anti-corruption W2-10, interim form).
-//
-// A test process (one tests/*.test.{ts,mts,mjs} file, with the tests/ helpers it reads) that loads a package from its source
-// (../P/src, run by tsx) and from its build (the package name, ../P/dist) holds two copies of it: instanceof across the copies,
-// module-level caches and AsyncLocalStorage then disagree. scripts/test-imports/graph.mjs says which processes do (its header has
-// the rule). This counts, per file, the packages its process loads both ways: per test file, and per tests/ file that no test
-// reads (a fixture a test spawns is a process of its own, keyed by its own path). Like every per-file number it may only fall
-// against the merge-base and a file with no record starts at 0, so a new test or spawned fixture cannot start split and an old
-// one cannot split a second package. Not seen: which file a test spawns, so a fixture that a test also imports is measured as part
-// of that test's process, not as the child; and a fixture a test stops importing becomes a process of its own, which counts as new
-// if it is split. It is the interim form: when the last split is rewritten (scripts/test-imports.mjs does it), an absolute rule
-// ("no process loads a package both ways") replaces it and this metric goes. `node scripts/test-imports.mjs --check --chains` lists
-// every split with a path for each side.
+// W2-10-E: no test process may load a package both from its source and from its build.
+// The graph and chain reporting are unchanged. Old baseline entries cannot authorize a split;
+// the local quick check no longer stores this measurement, and --update refuses any split too.
+// Child fixtures that no test imports remain separate process entries. Dynamic imports without
+// a literal target and a fixture that a test both imports and spawns remain graph limitations.
 import { createGraph, isProcessFile, splitCounts } from "../test-imports/graph.mjs";
 import { wantsText } from "../test-imports/snapshot.mjs";
 import { countMetric } from "./count-metric.mjs";
@@ -41,7 +33,16 @@ export function testImportSplits(kit) {
   });
   return {
     ...metric,
-    // The message names the packages and how each side is reached, for the files that grew.
+    toBaseline: () => ({}),
+    fromBaseline: () => ({}),
+    absolute(counts) {
+      const graph = graphs.get(counts);
+      return Object.entries(counts).filter(([, count]) => count > 0).map(([file, count]) => {
+        const chains = graph?.chains(file).map(entry => `${short(entry.pkg)}: source via ${entry.src.join(" → ")}; build via ${entry.dist.join(" → ")}`) ?? [];
+        return `test import absolute zero: ${file} loads ${count} packages from both source and build. ${chains.join(" | ")}`;
+      });
+    },
+    // Retain merge-base diagnostics in addition to the absolute refusal; baseline data grants no exception.
     grew(head, ref, env) {
       const graph = graphs.get(head);
       return metric.grew(head, ref, env).map((message) => {

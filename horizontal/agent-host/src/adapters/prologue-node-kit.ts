@@ -3,7 +3,8 @@ import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type Runtime, type S
 import type { createNodeHost } from "@prologue/sdk/node";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PrologueAdapterError, type PrologueAdapterPorts, type PrologueStartInput } from "./prologue.js";
+import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
+import { agentErrors } from "../errors.js";
 import type { HostMcpConnection } from "./prologue-mcp.js";
 import type { PrologueSurfacePorts } from "./prologue-surfaces.js";
 import type { AgentReviewQueue } from "../reviews.js";
@@ -145,7 +146,7 @@ export async function stageInstructions(
   instructions: string,
 ): Promise<ExactRef<"resource"> | undefined> {
   if (instructions.length > MAX_COMPOSED_INSTRUCTION_CHARS) {
-    throw new PrologueAdapterError("agent.capability_unavailable", "本轮角色、项目说明、方法与恢复上下文合计超过 64000 字符，未启动执行。请缩短指令或减少本轮选择的方法后重试；不会截断指令。");
+    throw agentErrors.capability_unavailable("本轮角色、项目说明、方法与恢复上下文合计超过 64000 字符，未启动执行。请缩短指令或减少本轮选择的方法后重试；不会截断指令。");
   }
   if (instructions.trim() === "") return undefined;
   return stageTextResource(sdk, instructions, "role-instructions");

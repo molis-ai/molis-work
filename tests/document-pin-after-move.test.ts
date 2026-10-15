@@ -97,9 +97,9 @@ for (const kind of kinds) {
       await f.a.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: "pb" });
       await f.b.invoke(kind.move, { subject: { kind: kind.subject, id }, to_project_id: "pa" });
     };
-    const pin = async (client: typeof f.a, title: string) => { await edit(title); return await client.invoke(kind.promote, { id }) as any; };
+    const pin = async (client: typeof f.a, title: string) => { const edited = await edit(title); return await client.invoke(kind.promote, { id, expected_version: edited.version }) as any; };
 
-    assert.deepEqual([(await agent.invoke(kind.promote, { id }) as any).artifact.version], [1], "the Agent pins it first");
+    assert.deepEqual([(await agent.invoke(kind.promote, { id, expected_version: created[kind.record].version }) as any).artifact.version], [1], "the Agent pins it first");
     // Away and back: the record counts no fixed version, the 成果库 holds the Agent's. The person's pin goes on from it.
     await away();
     const person = await pin(f.a, "Second");
@@ -141,12 +141,12 @@ for (const kind of kinds) {
   });
 }
 
-test("the next fixed version: after the record's own count, finishing a pending one, recovering an unrecorded older write, or going on after what was written", () => {
+test("W1-18-PIN-CURRENT-01 next pin retains a pending number and otherwise follows the current project line", () => {
   const head = (version: number, source_revision: number | null) => ({ version, source_revision });
   assert.equal(nextPinnedVersion({ recorded: 0, pending: null, head: null }), 1, "first pin");
   assert.equal(nextPinnedVersion({ recorded: 3, pending: null, head: head(3, 7) }), 4, "everything in the 成果库 is recorded");
   assert.equal(nextPinnedVersion({ recorded: 2, pending: 3, head: head(3, 7) }), 3, "a pending pin keeps its number");
-  assert.equal(nextPinnedVersion({ recorded: 0, pending: null, head: head(1, null) }), 1, "one write without a source revision that the record never saw is an interrupted pin from before snapshots");
+  assert.equal(nextPinnedVersion({ recorded: 0, pending: null, head: head(1, null) }), 2, "a source revision is not a pending pin; retain the written version and create the next one");
   assert.equal(nextPinnedVersion({ recorded: 0, pending: null, head: head(1, 4) }), 2, "a write that names its source revision was recorded once: the record was moved or restored");
   assert.equal(nextPinnedVersion({ recorded: 0, pending: null, head: head(3, 4) }), 4, "several unrecorded versions are never one interrupted pin");
   assert.equal(nextPinnedVersion({ recorded: 1, pending: null, head: head(5, null) }), 6);

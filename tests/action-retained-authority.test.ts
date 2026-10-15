@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionError, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type RetainedActionAuthority, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 
 const action: ActionDefinition = { capability_id: "fixture.deferred", version: 1, operation: "command", action: {
@@ -50,4 +50,30 @@ test("PAS-10: retaining another project's or provider's action never grants auth
     return null;
   } }] });
   await service.invoke(caller, action, {});
+});
+
+test("PAS-10 S-18-102-01: retained authority rechecks the original synchronous caller after permission validation waits", async () => {
+  const service = new ActionService(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let guard!: RetainedActionAuthority, held = false, current = true;
+  const dispose = service.registerProvider({ provider: { provider_id: "owner", title: "Owner", kind: "system", project_id: "a" }, definitions: [action],
+    handlers: [{ ...action, handle: context => { guard = context.retainAuthority!([action]); return null; } }] });
+  try {
+    await service.invoke({ ...caller, validate_permissions: async () => { if (held) { entered.resolve(); await release.promise; } },
+      assert_authority_current: () => { if (!current) throw new ActionError("actions.revoked", "Original authority revoked"); } }, action, {});
+    held = true; const rejected = assert.rejects(guard(), { code: "actions.revoked" });
+    await entered.promise; current = false; release.resolve(); await rejected;
+    assert.throws(() => guard.assertCurrent(), { code: "actions.revoked" });
+  } finally { release.resolve(); dispose(); }
+});
+
+test("PAS-10 S-18-102-01: an asynchronous final checker cannot approve retained authority", async () => {
+  const service = new ActionService(); let guard!: RetainedActionAuthority, asynchronous = false;
+  const dispose = service.registerProvider({ provider: { provider_id: "owner", title: "Owner", kind: "system", project_id: "a" }, definitions: [action],
+    handlers: [{ ...action, handle: context => { guard = context.retainAuthority!([action]); return null; } }] });
+  try {
+    await service.invoke({ ...caller, assert_authority_current: () => asynchronous ? Promise.resolve() : undefined }, action, {});
+    asynchronous = true;
+    assert.throws(() => guard.assertCurrent(), { code: "actions.async_required" });
+    await assert.rejects(guard(), { code: "actions.async_required" });
+  } finally { dispose(); }
 });

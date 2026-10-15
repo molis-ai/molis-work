@@ -1,3 +1,4 @@
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -21,11 +22,6 @@ export const workTerminalUiContribution: UiContribution<WorkTerminalUiModel> = {
   },
   render: (request) => renderWorkTerminal(request.model),
 };
-
-function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
-}
 
 function renderWorkTerminal(model: WorkTerminalUiModel): string {
   const { selected, children, cliAvailability, text: L, icon } = model;

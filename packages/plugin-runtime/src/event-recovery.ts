@@ -52,17 +52,17 @@ export function resolveEventRecovery(ports: RecoveryPorts & { now(): Date; busy(
     || !Number.isSafeInteger(input.type_version) || input.type_version < 1
     || [input.subscriber_plugin_id, input.source_plugin_id, input.event_type_id, input.event_id,
       input.expected_install_id, input.expected_generation, input.expected_version].some(value => typeof value !== "string" || !value)) {
-    throw new PluginEventError("event_recovery_invalid", "请重新读取待核对事件并填写处理依据");
+    throw new PluginEventError("plugin.event_recovery_invalid", "请重新读取待核对事件并填写处理依据");
   }
   const previous = ports.repository.cursor(ports.projectId, input.subscriber_plugin_id, input,
     { install_id: input.expected_install_id, installation_generation: input.expected_generation });
   if (!previous || previous.state !== "quarantined" || previous.revision !== input.expected_revision) {
-    throw new PluginEventError("event_recovery_changed", "待核对事件已变化，请重新读取后确认");
+    throw new PluginEventError("plugin.event_recovery_changed", "待核对事件已变化，请重新读取后确认");
   }
   const view = recoveryView(ports, previous);
   if (!view.can_recover || view.subscriber_version !== input.expected_version || view.event?.event_id !== input.event_id
     || ports.busy(input.subscriber_plugin_id, input.source_plugin_id)) {
-    throw new PluginEventError("event_recovery_changed", view.unavailable_reason ?? "插件版本或原处理已变化，请重新读取后确认");
+    throw new PluginEventError("plugin.event_recovery_changed", view.unavailable_reason ?? "插件版本或原处理已变化，请重新读取后确认");
   }
   const at = ports.now().toISOString();
   const resolution: PluginEventResolutionRecord = {
@@ -77,7 +77,7 @@ export function resolveEventRecovery(ports: RecoveryPorts & { now(): Date; busy(
     delivered_sequence: input.decision === "skip" ? view.event!.sequence : previous.delivered_sequence,
   };
   if (!ports.repository.resolveCursor(previous, next, resolution)) {
-    throw new PluginEventError("event_recovery_changed", "待核对事件已被其他操作处理，请重新读取");
+    throw new PluginEventError("plugin.event_recovery_changed", "待核对事件已被其他操作处理，请重新读取");
   }
   return resolution;
 }

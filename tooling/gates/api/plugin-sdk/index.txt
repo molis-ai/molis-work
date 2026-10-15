@@ -115,20 +115,8 @@ export type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/p
 export type { PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-
-export declare class PluginDefinitionError extends Error {
-    readonly code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid";
-    constructor(code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid", message: string);
-}
-
 export type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-
-export declare class PluginManifestError extends Error {
-    readonly code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid";
-    constructor(code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid", message: string);
-}
-
 export type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";

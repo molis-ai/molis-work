@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -6,26 +7,23 @@ import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
-import { PluginRuntime, PluginRuntimeError, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
-import { UiHost, PluginUiAccessError } from "@molis-ai/molis-work-ui-host";
+import { PluginRuntime, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
 
-test("an unknown Runtime plugin cannot turn a Host-only adapter into user authority through consumes", async () => {
+test("W3-07-6-02: an unknown Runtime plugin cannot revive the removed developer protocol through consumes", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-host-only-plugin-"));
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const protectedEntry = { capability_id: "unfamiliar.user-approval", version: 1, operation: "command" as const, host_only: true };
-  let calls = 0;
-  host.register(protectedEntry, () => ++calls);
+  const host = new MolisWorkLocalHost();
+  const protectedEntry = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" as const };
   const port = host.client({ project_id: DEMO_PROJECT_ID, storage_key: file });
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: pluginActions(store, port.project.project_id),
     project_id: DEMO_PROJECT_ID, actor_id: "user", capabilities: port,
@@ -42,8 +40,9 @@ test("an unknown Runtime plugin cannot turn a Host-only adapter into user author
     async start(context) {
       const sdk = context.services!.capabilities!;
       const availability = sdk.availability(protectedEntry);
-      assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.host_only");
-      await assert.rejects(sdk.invoke({ ...protectedEntry, host_only: false }, { authority: { actor_kind: "user" } }, { consumer: undefined }), { code: "actions.host_only" });
+      assert.equal(availability.available, false); assert.equal(!availability.available && availability.code, "actions.dependency_missing");
+      const forged = { ...protectedEntry, host_only: false };
+      await assert.rejects(sdk.invoke(forged, { authority: { actor_kind: "user" } }, { consumer: undefined }), { code: "actions.dependency_missing" });
       return base.start(context);
     },
   };
@@ -51,8 +50,7 @@ test("an unknown Runtime plugin cannot turn a Host-only adapter into user author
   try {
     installId = runtime.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(p => p.permission) }).install.install_id;
     await runtime.start(installId);
-    assert.equal(calls, 0);
-    assert.equal(await port.invoke(protectedEntry, {}), 1);
+    await assert.rejects(port.invoke(protectedEntry, {}), { code: "actions.dependency_missing" }, "the normal Host client cannot restore the removed protocol");
   } finally {
     if (installId && runtime.get(installId).state === "running") await runtime.stop(installId);
     await host.close(); store.close(); rmSync(directory, { recursive: true, force: true });
@@ -111,26 +109,27 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     assert.equal(ui.mount({ slot: { slot_id: "main", version: 1, accepts: ["html"] },
       contribution: { contribution_id: "example.notes", surface: "main", model: null } }).html, "<p>Visit 1</p>");
     assert.deepEqual(old.artifacts.read({ artifact_id: "hosted-note", version: 1 })!.payload, { visits: 1 });
-    assert.throws(() => old.ui.unregister("another-plugin"), PluginUiAccessError);
+    // UIERR-01: an actual Plugin client cannot remove another owner or register undeclared content.
+    assert.throws(() => old.ui.unregister("another-plugin"), (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden");
     assert.throws(() => old.ui.register({ descriptor: { contribution_id: "undeclared", plugin_id: id,
-      kind: "primary-page", label: "No", slots: [] }, render: () => "bad" }), PluginUiAccessError);
+      kind: "primary-page", label: "No", slots: [] }, render: () => "bad" }), (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden");
     assert.equal(ui.list().length, 1);
     await runtime.reportCrash(installId);
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "crash must release SDK actions");
-    assert.throws(() => old.storage!.get("visits"), PluginRuntimeError);
+    assert.throws(() => old.storage!.get("visits"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     await runtime.recover(installId);
     assert.equal(contexts[1]!.services!.storage!.get("visits"), "2");
     assert.deepEqual(contexts[1]!.services!.artifacts.read({ artifact_id: "hosted-note", version: 1 })!.payload, { visits: 1 });
-    assert.throws(() => old.artifacts.read({ artifact_id: "hosted-note", version: 1 }), PluginRuntimeError);
+    assert.throws(() => old.artifacts.read({ artifact_id: "hosted-note", version: 1 }), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
 
     failStop = true;
-    await assert.rejects(runtime.uninstall(installId), PluginRuntimeError);
+    await assert.rejects(runtime.uninstall(installId), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     assert.equal(runtime.get(installId).state, "crashed");
     assert.equal(runtime.contribution(installId), null);
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "failed stop must release SDK actions");
-    assert.throws(() => contexts[1]!.services!.storage!.set("visits", "bad"), PluginRuntimeError);
+    assert.throws(() => contexts[1]!.services!.storage!.set("visits", "bad"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     await runtime.uninstall(installId);
     assert.equal(runtime.get(installId).state, "uninstalled");
     assert.equal(artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, "hosted-note").length, 2);
@@ -138,7 +137,7 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     failStart = true;
     failStop = false;
     runtime.install({ definition, deployment: "local", grants: definition.manifest.permissions.map(permission => permission.permission) });
-    await assert.rejects(runtime.start(installId), PluginRuntimeError);
+    await assert.rejects(runtime.start(installId), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "failed startup must release SDK actions");
     assert.equal(runtime.get(installId).state, "crashed");
@@ -203,7 +202,7 @@ test("compatible Host execution and crash recovery use the implementation versio
       contribution: { contribution_id: "example.compatible", surface: "main", model: null } }).html, "<p>2.0.0</p>");
     const previous = contexts.at(-1)!;
     await runtime.reportCrash(installed.install_id);
-    assert.throws(() => previous.services!.storage!.get("visits"), PluginRuntimeError);
+    assert.throws(() => previous.services!.storage!.get("visits"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     await runtime.recover(installed.install_id);
     assert.equal(contexts.at(-1)!.version, "2.0.0");
     assert.equal(contexts.at(-1)!.services!.storage!.get("visits"), "3");
@@ -218,7 +217,7 @@ test("compatible Host execution and crash recovery use the implementation versio
     await assert.rejects(runtime.recover(installed.install_id), /只有 crashed/);
     await assert.rejects(runtime.recover(installed.install_id, { release_quarantine: true }), /已隔离/);
     assert.equal(runtime.get(installed.install_id).state, "quarantined");
-    assert.throws(() => contexts.at(-1)!.requireGrant("storage:private"), PluginRuntimeError);
+    assert.throws(() => contexts.at(-1)!.requireGrant("storage:private"), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"));
     failStart = false;
     await runtime.recover(installed.install_id, { release_quarantine: true });
     assert.equal(runtime.get(installed.install_id).state, "running");

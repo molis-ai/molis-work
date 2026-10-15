@@ -144,6 +144,42 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
   }
 });
 
+// J3E-01/J3E-02/J3E-03: actual public sync preserves a current owner code and keeps unsafe values out of storage.
+test("public Feed interruption preserves current owner failures and an uncoded retry still recovers", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "feed-current-error-code-")), databasePath = join(directory, "project.sqlite");
+  seedDemoBoard(databasePath);
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    let failure: unknown = Object.assign(new Error("Source needs authorization"), { code: "connector.needs_auth" });
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, () => ({
+      intelligenceCollect: { async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
+        if (failure) throw failure;
+        return createCompletedIntentResultFixtureV1(request);
+      }, async shutdown() {} },
+      content: { write() { throw new Error("this empty result writes no content"); }, read() { return ""; }, has() { return false; },
+        inspect() { return { referenced: 0, available: 0, missing: 0, keyAvailable: true }; }, delete() { return false; },
+        collect() { return { deleted: [], kept: [] }; } }, async shutdown() {},
+    }));
+    const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    for (const [error, expected, operation] of [
+      [failure, "connector.needs_auth", "owner-code-1"],
+      [Object.assign(new Error("Unsafe upstream value"), { code: "private detail with spaces" }), "feed.provider_interrupted", "owner-code-2"],
+    ] as const) {
+      failure = error;
+      await assert.rejects(service.sync(source.source_id, { idempotencyKey: operation }), { code: "feed.source_sync_interrupted" });
+      const snapshot = service.feed.snapshot(DEMO_PROJECT_ID), run = snapshot.runs.find(item => item.source_id === source.source_id && item.phase === "interrupted");
+      assert.equal(service.feed.getSource(DEMO_PROJECT_ID, source.source_id).last_error_code, expected);
+      assert.ok(snapshot.runs.some(item => item.source_id === source.source_id && item.error_code === expected && item.phase === "interrupted"));
+      assert.ok(run); assert.equal(snapshot.feed_items.length, 0);
+    }
+    failure = undefined;
+    const recovered = await service.sync(source.source_id, { idempotencyKey: "owner-code-2" });
+    assert.equal(recovered.run.phase, "terminal"); assert.equal(recovered.run.recovery_count, 1);
+    assert.equal(recovered.source.last_error_code, null);
+    assert.equal((await service.sync(source.source_id, { idempotencyKey: "owner-code-2" })).replayed, true);
+  } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("custom RSS registration rejects private and catalog-shadowing URLs before network", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-custom-rss-"));
   const databasePath = join(directory, "molis-work.sqlite");
@@ -464,7 +500,7 @@ test("non-retryable scheduled source failures create one actionable Inbox refere
       service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
       now = new Date("2026-08-30T09:05:00.000Z");
       const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async () => {
-        throw Object.assign(new Error("需要重新授权"), { code: "connector_needs_auth" });
+        throw Object.assign(new Error("需要重新授权"), { code: "connector.needs_auth" });
       }, () => now);
       const result = await scheduler.tick(now);
       assert.equal(result.failed, 1);
@@ -474,7 +510,7 @@ test("non-retryable scheduled source failures create one actionable Inbox refere
       assert.ok(fault);
       assert.equal(fault.reason, "source_fault");
       assert.deepEqual(fault.detail, {
-        error_code: "connector_needs_auth",
+        error_code: "connector.needs_auth",
         category: "auth",
         retryable: false,
         user_action: "reconnect",

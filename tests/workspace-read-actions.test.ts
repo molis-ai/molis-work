@@ -68,5 +68,5 @@ test("project folders are readable through one action id by the person and by ex
 
   // The Host's own typed client has no second door to the same read.
   await assert.rejects(host.client(reference).invoke({ capability_id: "projects.workspace.file.read.v1", version: 1, operation: "query" },
-    { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }), { code: "kernel.capability_missing" });
+    { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }), { code: "actions.dependency_missing" });
 });

@@ -1,5 +1,4 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
+
 import type { McpToolResult } from "@molis-ai/molis-work-app-mcp";
 import { recordedCallId } from "@molis-ai/molis-work-kernel";
 
@@ -18,18 +17,5 @@ export function withCallIdMeta(result: string | McpToolResult): string | McpTool
   return { ...base, _meta: { ...base._meta, [MCP_CALL_ID_META_KEY]: id } };
 }
 
-/**
- * The text of a failed tool call: the message, then its code as a JSON line. `callId` is the operation's number when it left a row (see
- * `recordedCallId`); the error's details cannot replace its code or name an operation that left no row.
- */
-export function formatMcpToolError(error: unknown, callId?: string): string {
-  const message = error instanceof Error ? error.message : String(error);
-  const number = callId ? { call_id: callId } : {};
-  if (error instanceof ActionError || error instanceof MolisWorkV1Error) {
-    const details: Record<string, unknown> = { ...error.details };
-    delete details.code;
-    delete details.call_id;
-    return `错误: ${message}\n${JSON.stringify({ ...details, code: error.code, ...number })}`;
-  }
-  return callId ? `错误: ${message}\n${JSON.stringify(number)}` : `错误: ${message}`;
-}
+// The MCP package renders every tool failure; the Host stamps its own recorded call number.
+export { formatMcpToolError } from "@molis-ai/molis-work-app-mcp";

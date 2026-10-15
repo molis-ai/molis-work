@@ -398,7 +398,7 @@ async function fetchGithubIdentity(
 ): Promise<GithubIdentity> {
   let res: Response;
   try {
-    res = await fetchImpl("https://api.github.com/user", { headers: githubHeaders(token) });
+    res = await fetchImpl("https://api.github.com/user", { headers: githubHeaders(token), redirect: "error" });
   } catch {
     throw new GithubLiveError("network");
   }
@@ -490,46 +490,69 @@ async function liveSyncNotifications(
 ): Promise<{ items: ConnectorIngestItem[]; cursor: GithubNotificationCursor }> {
   const headers = githubHeaders(token);
   if (previous?.last_modified) headers["If-Modified-Since"] = previous.last_modified;
-  let res: Response;
-  try {
-    res = await fetchImpl(GITHUB_NOTIFICATIONS_URL, { headers });
-  } catch {
-    throw new GithubLiveError("network");
-  }
-  if (res.status !== 304 && !res.ok) throwGithubResponseError(res, at);
-  const pollSeconds = pollIntervalSeconds(res);
   const syncedAt = at.toISOString();
-  const cursorBase = {
-    v: 1 as const,
-    provider: "github" as const,
-    mode: "live" as const,
-    granted_scopes: previous?.granted_scopes ?? [],
-    authorization_kind: previous?.authorization_kind ?? "unknown" as const,
-    poll_interval_seconds: pollSeconds,
-    next_poll_at: new Date(at.getTime() + pollSeconds * 1_000).toISOString(),
-    synced_at: syncedAt,
-  };
-  if (res.status === 304) {
-    return {
-      items: [],
-      cursor: {
-        ...cursorBase,
-        ...(previous?.account_login ? { account_login: previous.account_login } : {}),
-        ...(previous?.last_modified ? { last_modified: previous.last_modified } : {}),
-        ...(previous?.last_provider_updated_at ? { last_provider_updated_at: previous.last_provider_updated_at } : {}),
-      },
-    };
+  const items: ConnectorIngestItem[] = [];
+  let first: Response | undefined;
+  let page = 1;
+  for (;;) {
+    const url = page === 1 ? GITHUB_NOTIFICATIONS_URL : GITHUB_NOTIFICATIONS_URL + "&page=" + page;
+    let res: Response;
+    try { res = await fetchImpl(url, { headers, redirect: "error" }); }
+    catch { throw new GithubLiveError("network"); }
+    first ??= res;
+    if (res.status === 304) {
+      if (page !== 1) throw new GithubLiveError("provider", res.status);
+      break;
+    }
+    if (!res.ok) throwGithubResponseError(res, at);
+    let raw: unknown;
+    try { raw = await res.json(); } catch { throw new GithubLiveError("provider", res.status); }
+    if (!Array.isArray(raw)) throw new GithubLiveError("provider", res.status);
+    items.push(...notificationItems(raw, syncedAt, res.status));
+    const next = nextNotificationPage(res.headers.get("link"), page);
+    if (next === null) break;
+    if (page === 20) throw new GithubLiveError("provider", res.status);
+    page = next;
+    delete headers["If-Modified-Since"];
   }
-  let raw: unknown;
-  try {
-    raw = await res.json();
-  } catch {
-    throw new GithubLiveError("provider", res.status);
+  const pollSeconds = pollIntervalSeconds(first!);
+  const lastModified = first!.headers.get("last-modified") ?? previous?.last_modified;
+  const providerTime = latestProviderTime(items, previous?.last_provider_updated_at);
+  return { items, cursor: {
+    v: 1, provider: "github", mode: "live", granted_scopes: previous?.granted_scopes ?? [],
+    authorization_kind: previous?.authorization_kind ?? "unknown",
+    poll_interval_seconds: pollSeconds, next_poll_at: new Date(at.getTime() + pollSeconds * 1_000).toISOString(), synced_at: syncedAt,
+    ...(previous?.account_login ? { account_login: previous.account_login } : {}),
+    ...(lastModified ? { last_modified: lastModified } : {}),
+    ...(providerTime ? { last_provider_updated_at: providerTime } : {}),
+  } };
+}
+
+/** Read only the next page number; dispatch always reconstructs the fixed official notifications endpoint. */
+function nextNotificationPage(link: string | null, current: number): number | null {
+  if (!link) return null;
+  let next: number | null = null;
+  for (const part of link.split(",")) {
+    const match = /^\s*<([^>]+)>;\s*rel="([^"]+)"\s*$/u.exec(part);
+    if (!match) throw new GithubLiveError("provider");
+    if (!match[2]!.split(" ").includes("next")) continue;
+    let url: URL;
+    try { url = new URL(match[1]!); } catch { throw new GithubLiveError("provider"); }
+    const keys = [...url.searchParams.keys()];
+    const number = Number(url.searchParams.get("page"));
+    if (next !== null || url.origin !== "https://api.github.com" || url.pathname !== "/notifications" || url.username || url.password || url.hash
+      || new Set(keys).size !== keys.length || keys.some(key => !["page", "all", "participating", "per_page"].includes(key))
+      || ["all", "participating"].some(key => url.searchParams.has(key) && url.searchParams.get(key) !== "false")
+      || (url.searchParams.has("per_page") && url.searchParams.get("per_page") !== "50") || number !== current + 1) throw new GithubLiveError("provider");
+    next = number;
   }
-  if (!Array.isArray(raw)) throw new GithubLiveError("provider", res.status);
-  const items = raw.map((value): ConnectorIngestItem => {
+  return next;
+}
+
+function notificationItems(raw: unknown[], syncedAt: string, status: number): ConnectorIngestItem[] {
+  return raw.map((value): ConnectorIngestItem => {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw new GithubLiveError("provider", res.status);
+      throw new GithubLiveError("provider", status);
     }
     const notification = value as Record<string, unknown>;
     const repository = notification.repository && typeof notification.repository === "object"
@@ -548,7 +571,7 @@ async function liveSyncNotifications(
     const subjectTitle = typeof subject.title === "string" ? subject.title.trim() : "";
     const subjectType = typeof subject.type === "string" ? subject.type.trim() : "Notification";
     const reason = typeof notification.reason === "string" ? notification.reason.trim() : "unknown";
-    if (!threadId || !repositoryName || !subjectTitle) throw new GithubLiveError("provider", res.status);
+    if (!threadId || !repositoryName || !subjectTitle) throw new GithubLiveError("provider", status);
     const occurredAt = safeProviderTime(notification.updated_at, syncedAt);
     const attention = GITHUB_ATTENTION_REASONS.has(reason)
       ? { reason: "source_rule" as const, detail: { provider_reason: reason, repository: repositoryName, rule: "github_direct_attention_v1" } }
@@ -572,14 +595,4 @@ async function liveSyncNotifications(
       attention,
     };
   });
-  const lastModified = res.headers.get("last-modified") ?? previous?.last_modified;
-  const providerTime = latestProviderTime(items, previous?.last_provider_updated_at);
-  return {
-    items,
-    cursor: {
-      ...cursorBase,
-      ...(lastModified ? { last_modified: lastModified } : {}),
-      ...(providerTime ? { last_provider_updated_at: providerTime } : {}),
-    },
-  };
 }

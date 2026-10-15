@@ -1,13 +1,15 @@
 import {
   ActionError, isObjectCopier, isObjectMover, isSubjectReader, PERSONAL_SPACE_PROJECT_ID,
-  type ActionCallContext, type ActionClient, type ActionReference, type ActionSubjectContext, type ActionView, type PlacementResult,
+  type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type PlacementResult,
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextAccess, ContextEdge, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type {
   PlacedObject, PlacementAssociation, PlacementConvertRequest, PlacementConvertResponse, PlacementCreateRequest, PlacementDescription, PlacementGoalView,
-  PlacementLocation, PlacementMoveResponse, PlacementObjectState, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
+  PlacementLocation, PlacementMoveResponse, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
+
+import { readPlacementIn, PROJECT_GONE, type PlacementRead } from "./subject-reader.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-placement",
@@ -28,6 +30,8 @@ export interface PlacementPorts {
   spaces(): Promise<readonly PlacementSpaceView[]>;
   /** Opens the partition when needed. Throws `placement.project_missing` when the project no longer exists. */
   scope(projectId: string | null): Promise<PlacementScope>;
+  /** Original dispatcher control, bound per invocation; never stored as placement data. */
+  beforeEffect?(): void | Promise<void>;
   /** Last title seen for an object, so a deleted one is still named where it was used. A cache, never a fact. */
   titles: { get(kind: string, id: string): string | null; set(kind: string, id: string, title: string): void };
   /** Text in the reader's language. Strings are Chinese with `{name}` slots; without it the slots are only filled in. */
@@ -45,7 +49,7 @@ const projectRef = (projectId: string): ObjectRef => ({ module: "projects", id: 
 const key = (...parts: string[]) => JSON.stringify(parts);
 const sameObject = (ref: ObjectRef, kind: string, id: string) => ref.module === "plugins" && ref.object_type === kind && ref.id === id;
 
-interface Read { state: PlacementObjectState; reason: string | null; context: ActionSubjectContext | null; plugin: { plugin_id: string; title: string } | null }
+type Read = PlacementRead;
 
 /**
  * Where an object lives and what it is linked to (specs/archive/work-placement §7.2). Object facts are always read back from
@@ -127,7 +131,7 @@ export class PlacementService {
     }
     const tools = read.state === "ok" ? await this.tools(object) : { mover: null, copier: null };
     const here = object.project_id ?? this.belongsOf(read);
-    if (object.project_id === null && read.state === "ok") this.rememberBelonging(object, here);
+    if (object.project_id === null && read.state === "ok") { await this.ports.beforeEffect?.(); this.rememberBelonging(object, here); }
     // A Home-kept object that changed where it belongs remembers where it was, as a moved object does.
     const belonged = object.project_id === null ? this.ports.ledger.query.get(ACCESS, key("belonged_to", object.kind, object.id)) : null;
     const before = belonged && belonged.target.id !== (here ?? PERSONAL_SPACE_PROJECT_ID) ? belonged.target.id : null;
@@ -164,6 +168,7 @@ export class PlacementService {
     const read = await this.read(object);
     if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? this.t("暂时读不到这个对象"));
     if (this.belongsOf(read) === projectId) throw new ActionError("placement.already_here", this.t("它就放在这个项目里，不需要再关联"));
+    await this.ports.beforeEffect?.();
     this.remember(object);
     const linkKey = key("used_in", object.kind, object.id, projectId);
     this.ports.ledger.commands.put(ACCESS, { key: linkKey, type: TYPES.used, source: identity(object.kind, object.id), target: projectRef(projectId),
@@ -182,6 +187,7 @@ export class PlacementService {
       return { removed: (await scope.client.invoke(scope.caller, release, { goal_id: goalId, binding_id: bindingId }) as { released: boolean }).released };
     }
     if (!Array.isArray(parts) || parts[0] !== "used_in") throw new ActionError("placement.not_removable", this.t("这条关系由插件自己管理，请在原处修改"));
+    await this.ports.beforeEffect?.();
     const edge = this.ports.ledger.commands.remove(ACCESS, linkKey, "placement.unlink");
     return { removed: !!edge && edge.state === "removed" };
   }
@@ -211,12 +217,14 @@ export class PlacementService {
     const bind = await this.action(scope, "goals.inputs.bind");
     if (!bind) throw new ActionError("placement.target_unavailable", this.t("这个位置没有启用 Goals，不能关联目标"));
     const result = await scope.client.invoke(scope.caller, bind, { goal_id: goalId, subject: { kind: object.kind, id: object.id }, title: read.context!.title || this.t("未命名") }) as { binding: { binding_id: string } };
+    await this.ports.beforeEffect?.();
     this.remember(object);
     this.ports.ledger.commands.put(ACCESS, { key: key("goal_in", object.kind, object.id, projectId), type: TYPES.goal, source: identity(object.kind, object.id),
       target: projectRef(projectId), cause: "placement.goal" });
     if (object.project_id !== projectId) {
       const spaces = await this.ports.spaces();
       if (spaces.some(space => space.project_id === projectId && space.kind === "project")) {
+        await this.ports.beforeEffect?.();
         this.ports.ledger.commands.put(ACCESS, { key: key("used_in", object.kind, object.id, projectId), type: TYPES.used, source: identity(object.kind, object.id),
           target: projectRef(projectId), cause: "placement.goal" });
       }
@@ -236,6 +244,7 @@ export class PlacementService {
     const item = await scope.client.invoke(scope.caller, ref(create), { title }) as WorkflowItemRef;
     const readers = views.filter(view => isSubjectReader(view.action) && view.provider.provider_id === create.provider.provider_id);
     const created: PlacedObject = { kind: readers.length === 1 ? readers[0]!.action.subject_kinds[0]! : request.station, id: item.item_id, project_id: request.project_id };
+    await this.ports.beforeEffect?.();
     this.remember(created);
     const goalKey = request.goal_id ? (await this.bindGoal(created, request.project_id, request.goal_id)).key : null;
     const createdRead = await this.read(created);
@@ -269,6 +278,7 @@ export class PlacementService {
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
       throw new ActionError("placement.result_mismatch", this.t("插件返回的移动结果与请求不一致，请刷新后核对"));
     }
+    await this.ports.beforeEffect?.();
     this.ports.ledger.commands.put(ACCESS, { key: key("location", object.kind, object.id), type: TYPES.location,
       source: identity(object.kind, object.id), target: projectRef(to), cause: `placement.move:${object.project_id}` });
     // It now lives in that project: “used in” it says nothing more.
@@ -295,6 +305,7 @@ export class PlacementService {
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
       throw new ActionError("placement.result_mismatch", this.t("插件返回的移动结果与请求不一致，请刷新后核对"));
     }
+    await this.ports.beforeEffect?.();
     this.remember(object);
     this.ports.ledger.commands.put(ACCESS, { key: key("belonged_to", object.kind, object.id), type: TYPES.belonging,
       source: identity(object.kind, object.id), target: projectRef(from), cause: `placement.move:${to}` });
@@ -314,6 +325,7 @@ export class PlacementService {
     const result = await scope.client.invoke(scope.caller, copier, { subject: { kind: object.kind, id: object.id }, to_project_id: to, request_id: requestId }) as PlacementResult;
     if (result.project_id !== to || result.subject.kind !== object.kind) throw new ActionError("placement.result_mismatch", this.t("插件返回的副本与请求不一致，请刷新后核对"));
     const copy = { kind: result.subject.kind, id: result.subject.id, project_id: to };
+    await this.ports.beforeEffect?.();
     this.remember(object);
     this.remember(copy);
     this.ports.ledger.commands.put(ACCESS, { key: key("copied_from", copy.kind, copy.id), type: TYPES.copied,
@@ -332,7 +344,7 @@ export class PlacementService {
     const title = (request.payload?.title ?? read.context!.title).trim() || this.t("未命名");
     const body = request.payload?.body ?? read.context!.content;
     const sourceTitle = read.context?.title ?? request.payload!.title;
-    if (!read.context) this.ports.titles.set(source.kind, source.id, sourceTitle);
+    if (!read.context) { await this.ports.beforeEffect?.(); this.ports.titles.set(source.kind, source.id, sourceTitle); }
     const from = read.plugin ? `${read.plugin.title} · ${sourceTitle}` : sourceTitle;
     const scope = await this.ports.scope(request.to_project_id);
     const views = await scope.client.discover(scope.caller);
@@ -355,6 +367,7 @@ export class PlacementService {
       const kind = declared ? declared.action.subject_kinds[0]! : readers.length === 1 ? readers[0]!.action.subject_kinds[0]! : station;
       created = { kind, id: item.item_id, project_id: request.to_project_id };
     }
+    await this.ports.beforeEffect?.();
     this.remember(source);
     this.remember(created);
     this.ports.ledger.commands.put(ACCESS, { key: key("derived_from", created.kind, created.id), type: TYPES.derived,
@@ -386,32 +399,8 @@ export class PlacementService {
       source: identity(object.kind, object.id), target: projectRef(target), cause: "placement.seen" });
   }
 
-  private async readIn(object: PlacedObject, projectId: string | null): Promise<Read> {
-    let scope: PlacementScope;
-    try { scope = await this.ports.scope(projectId); }
-    catch (error) {
-      if (error instanceof ActionError && error.code === "placement.project_missing") return { state: "missing", reason: this.t(PROJECT_GONE), context: null, plugin: null };
-      return { state: "unavailable", reason: error instanceof Error ? error.message : this.t("暂时打不开它所在的位置"), context: null, plugin: null };
-    }
-    let views: readonly ActionView[];
-    try { views = await scope.client.discover(scope.caller); }
-    catch (error) { return { state: "unavailable", reason: error instanceof Error ? error.message : this.t("暂时读不到"), context: null, plugin: null }; }
-    const readers = views.filter(view => isSubjectReader(view.action) && view.action.subject_kinds.includes(object.kind));
-    const reader = readers.find(view => view.availability.available);
-    const plugin = readers[0] ? { plugin_id: readers[0].provider.plugin_id ?? readers[0].provider.provider_id, title: readers[0].provider.title } : null;
-    if (!reader) {
-      const state = readers[0]?.availability;
-      return { state: "unavailable", reason: state && !state.available ? state.reason : this.t("这个插件没有启用，或没有提供对象读取"), context: null, plugin };
-    }
-    try {
-      const context = await scope.client.invoke(scope.caller, ref(reader), { subject_id: object.id }) as ActionSubjectContext;
-      if (context.title) this.ports.titles.set(object.kind, object.id, context.title);
-      return { state: "ok", reason: null, context, plugin };
-    } catch (error) {
-      const code = error instanceof ActionError ? error.code : "";
-      if (code.endsWith(".not_found")) return { state: "missing", reason: this.t("原对象已删除"), context: null, plugin };
-      return { state: "unavailable", reason: error instanceof Error ? error.message : this.t("暂时读不到"), context: null, plugin };
-    }
+  private readIn(object: PlacedObject, projectId: string | null): Promise<Read> {
+    return readPlacementIn(this.ports, object, projectId, zh => this.t(zh));
   }
 
   private async tools(object: PlacedObject): Promise<{ mover: ActionReference | null; copier: ActionReference | null }> {
@@ -472,7 +461,6 @@ export class PlacementService {
   }
 }
 
-const PROJECT_GONE = "所在的项目已删除";
 const ref = (view: ActionView): ActionReference => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */

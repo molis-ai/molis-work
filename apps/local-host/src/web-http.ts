@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isLoopbackHostname, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { L } from "./web-locale.js";
@@ -162,7 +163,7 @@ export function readLocalWebBody(request: IncomingMessage, maximumBytes = 256_00
     request.on("data", (chunk) => {
       if (rejected) return;
       bytes += Buffer.byteLength(chunk, "utf8");
-      if (bytes > maximumBytes) { rejected = true; body = ""; reject(new RangeError("请求内容过大")); return; }
+      if (bytes > maximumBytes) { rejected = true; body = ""; reject(new ActionError("actions.input_too_large", "请求内容过大", { kind: "too_large" })); return; }
       body += chunk;
     });
     request.on("end", () => {
@@ -170,7 +171,7 @@ export function readLocalWebBody(request: IncomingMessage, maximumBytes = 256_00
       try {
         resolve(body ? (JSON.parse(body) as Record<string, unknown>) : {});
       } catch {
-        reject(new Error("请求不是有效 JSON"));
+        reject(new ActionError("actions.input_invalid", "请求不是有效 JSON", { kind: "invalid" }));
       }
     });
     request.on("error", reject);

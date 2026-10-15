@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,7 +12,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { AssistantError, AssistantService } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
@@ -87,7 +88,7 @@ test("an object picked with “@” is checked with its owner and read by it bef
     // A pointer that no longer holds is refused before anything starts, and the words say which one.
     const before = requests.length;
     await assert.rejects(service.send({ text: "再看看这个", request_id: "mention-send-2", work_id: sent.work.work_id, materials: [{ ...picked, reference: { hit_id: "forged-hit" } }] }, {}),
-      (error: unknown) => error instanceof AssistantError && /引用的「供应商准入问卷」/.test(error.message));
+      (error: unknown) => error instanceof ActionError && /引用的「供应商准入问卷」/.test(error.message));
     assert.equal(requests.length, before, "no model call ran");
 
     // Which kind an open tab is, from what plugins declare for their searchable objects.

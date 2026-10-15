@@ -12,10 +12,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.home_mismatch": "forbidden";
     readonly "actions.plugin_disabled": "forbidden";
     readonly "actions.unauthenticated": "forbidden";
-    readonly "actions.host_only": "forbidden";
-    readonly "actions.transport_denied": "forbidden";
     readonly "actions.missing": "not_found";
-    readonly "actions.not_found": "not_found";
     readonly "actions.binding_missing": "not_found";
     readonly "actions.scene_missing": "not_found";
     readonly "actions.recommendation_missing": "not_found";
@@ -39,7 +36,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.mcp_name_conflict": "conflict";
     readonly "actions.scene_duplicate": "conflict";
     readonly "actions.input_invalid": "invalid";
-    readonly "actions.invalid_input": "invalid";
+    readonly "actions.version_required": "invalid";
     readonly "actions.project_required": "invalid";
     readonly "actions.reference_invalid": "invalid";
     readonly "actions.binding_invalid": "invalid";
@@ -59,6 +56,7 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.home_required": "invalid";
     readonly "actions.dependency_cycle": "invalid";
     readonly "actions.function_unpublished": "invalid";
+    readonly "actions.provider_ambiguous": "invalid";
     readonly "actions.input_too_large": "too_large";
     readonly "actions.rate_limited": "rate_limited";
     readonly "actions.cancelled": "cancelled";
@@ -86,8 +84,6 @@ export declare const ACTION_ERROR_KINDS: {
     readonly "actions.host_context_missing": "unavailable";
     readonly "actions.delivery_unknown": "upstream";
     readonly "actions.execution_failed": "internal";
-    readonly "actions.failed": "internal";
-    readonly "actions.transport_failed": "internal";
     readonly "actions.judgment_failed": "internal";
     readonly "actions.async_required": "internal";
     readonly "actions.output_invalid": "internal";
@@ -390,6 +386,7 @@ export type ActionAvailability = {
     readonly available: false;
     readonly code: string;
     readonly reason: string;
+    readonly kind?: ActionErrorKind;
 };
 
 export interface ActionCallContext extends ActionCallOrigin {
@@ -419,6 +416,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly allowed_capability_ids?: readonly string[];
     readonly allowed_actions?: readonly ActionReference[];
     readonly validate_authority?: (reference: ActionReference) => void | Promise<void>;
+    readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
     readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
     readonly signal?: AbortSignal;
     readonly on_progress?: (event: {
@@ -464,7 +462,7 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
-    readonly retainAuthority?: (references: readonly ActionReference[]) => () => Promise<void>;
+    readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
 }
 
 export interface ActionExecutionPolicy {
@@ -811,7 +809,7 @@ export interface ArtifactReferrersResult {
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context">): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2196,6 +2194,11 @@ export interface PlacementResult {
     revision: string;
 }
 
+export interface RetainedActionAuthority {
+    (): Promise<void>;
+    readonly assertCurrent: () => void;
+}
+
 export declare const SEARCH_ENTRIES_INPUT_SCHEMA: {
     type: string;
     properties: {
@@ -3051,7 +3054,7 @@ export declare function objectOrMissing<T>(read: () => T): T | null;
 
 export declare function parseExactActionReferences(value: unknown): ExactActionReference[];
 
-export declare function pinActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<ArtifactPinResult>;
+export declare function pinActionSubject(client: ActionClient, caller: ActionExecutionContext, subject: ActionSubject): Promise<ArtifactPinResult>;
 
 export declare function pinnableSubjectKinds(client: ActionClient, caller: ActionCallContext): Promise<string[]>;
 

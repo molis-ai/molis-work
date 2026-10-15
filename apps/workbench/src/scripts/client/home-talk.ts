@@ -58,7 +58,7 @@ export const HOME_TALK_FACTORY_SCRIPT = `(host) => {
     else if (state.receipt?.state === 'failed') status = L('Runtime 明确未接收消息，可以重试原请求。');
     else if (state.payload) status = L('送达结果尚未确认。请核对原请求或查看会话，不要另发一遍。');
     html += '<p class="home-talk-status" role="status" aria-live="polite">' + esc(status) + '</p>';
-    if (state.error) html += '<p class="home-talk-error" role="alert">' + esc(state.error) + '</p>';
+    if (state.error) html += '<p class="home-talk-error" role="alert">' + esc(typeof state.error==='string'?state.error:molisWorkRequest.text(state.error)) + '</p>';
     if (state.storageError) html += '<p class="home-talk-error">' + esc(state.storageError) + '</p>';
     if (!state.busy && !state.loading) {
       let controls = '';
@@ -69,7 +69,7 @@ export const HOME_TALK_FACTORY_SCRIPT = `(host) => {
       } else if (state.error) controls = button('reload', '重新载入');
       if (controls) html += '<div class="home-talk-controls">' + controls + '</div>';
     }
-    body.innerHTML = html;
+    body.innerHTML=html;if(state.error && typeof state.error!=='string')molisWorkRequest.show(body.querySelector('.home-talk-error[role=alert]'),state.error);
     requestAnimationFrame(layout);
   };
   const prepare = async (key, state) => {
@@ -80,7 +80,7 @@ export const HOME_TALK_FACTORY_SCRIPT = `(host) => {
       state.preparation = result;
       if (!result.candidates.some(row => row.session_id === state.selected)) state.selected = result.selected_session_id;
       save(key, state);
-    } catch (error) { state.preparation = null; state.selected = null; state.error = error.message || L('无法读取事项'); }
+    } catch (error) { state.preparation = null; state.selected = null; state.error=error; }
     finally { state.loading = false; if (key === activeKey) render(); }
   };
   const deliver = async (key, state, operation) => {
@@ -93,7 +93,7 @@ export const HOME_TALK_FACTORY_SCRIPT = `(host) => {
       else result = await messageApi('/api/sessions/' + encodeURIComponent(state.payload.session_id) + '/messages', 'POST', state.payload);
       state.receipt = result; state.requestId = result.request_id;
       if (typeof result.text === 'string') state.text = result.text;
-    } catch (error) { state.error = error.message || L('暂时无法核对送达结果'); }
+    } catch (error) { state.error=error; }
     finally { state.busy = false; state.checked = true; save(key, state); if (key === activeKey) render(); }
   };
   form.addEventListener('input', () => { const state = active(); if (!state || state.payload) return; state.text = input.value; save(activeKey, state); submit.disabled = state.loading || state.busy || !state.selected || !state.text.trim(); });

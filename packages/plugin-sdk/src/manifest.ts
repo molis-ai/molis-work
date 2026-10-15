@@ -1,3 +1,4 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
@@ -7,19 +8,7 @@ import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 
-export class PluginManifestError extends Error {
-  constructor(
-    readonly code:
-      | "plugin_manifest_invalid"
-      | "plugin_entrypoint_missing"
-      | "plugin_permission_invalid"
-      | "plugin_declaration_invalid",
-    message: string,
-  ) {
-    super(message);
-    this.name = "PluginManifestError";
-  }
-}
+
 
 const PLUGIN_ID = /^io\.molis\.work\.[a-z0-9][a-z0-9.-]*$/u;
 const ROUTE_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
@@ -33,51 +22,48 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   const publisher = record(manifest.publisher, "publisher");
   const schemaVersion = manifest.schema_version;
   if ((schemaVersion !== 1 && schemaVersion !== 2) || manifest.host_api_version !== schemaVersion) {
-    throw new PluginManifestError(
-      "plugin_manifest_invalid",
-      "Plugin Manifest schema_version 必须是 1 或 2，且 host_api_version 与之相同",
-    );
+    throw pluginErrors.manifest_invalid("Plugin Manifest schema_version 必须是 1 或 2，且 host_api_version 与之相同");
   }
   if (!text(manifest.plugin_id) || !PLUGIN_ID.test(manifest.plugin_id)
     || !text(manifest.version) || !SEMVER.test(manifest.version)
     || !text(manifest.name) || !text(publisher.publisher_id) || !text(publisher.signature)
     || (manifest.kind !== "native" && manifest.kind !== "integration" && manifest.kind !== "app")) {
-    throw new PluginManifestError("plugin_manifest_invalid", "Plugin Manifest 身份、名称、类型或版本不合法");
+    throw pluginErrors.manifest_invalid("Plugin Manifest 身份、名称、类型或版本不合法");
   }
   if (manifest.kind === "app" && schemaVersion !== 2) {
-    throw new PluginManifestError("plugin_manifest_invalid", "app Plugin 必须使用 schema_version 2");
+    throw pluginErrors.manifest_invalid("app Plugin 必须使用 schema_version 2");
   }
   inspectUpgradeCompatibility(manifest);
   if (!Array.isArray(manifest.entrypoints) || manifest.entrypoints.length === 0) {
-    throw new PluginManifestError("plugin_entrypoint_missing", "Plugin 至少需要一个 entrypoint");
+    throw pluginErrors.entrypoint_missing("Plugin 至少需要一个 entrypoint");
   }
   const deployments = new Set<string>();
   for (const value of manifest.entrypoints) {
     const entry = record(value, "entrypoint");
     if ((entry.deployment !== "local" && entry.deployment !== "server")
       || !text(entry.entrypoint) || deployments.has(entry.deployment)) {
-      throw new PluginManifestError("plugin_entrypoint_missing", "同一部署环境只能声明一个有效 entrypoint");
+      throw pluginErrors.entrypoint_missing("同一部署环境只能声明一个有效 entrypoint");
     }
     deployments.add(entry.deployment);
   }
   if (!Array.isArray(manifest.permissions)) {
-    throw new PluginManifestError("plugin_permission_invalid", "Plugin permissions 必须为数组");
+    throw pluginErrors.permission_invalid("Plugin permissions 必须为数组");
   }
   const permissions = new Set<string>();
   for (const value of manifest.permissions) {
     const permission = record(value, "permission");
     if (!text(permission.permission) || !text(permission.reason)
       || typeof permission.required !== "boolean" || permissions.has(permission.permission)) {
-      throw new PluginManifestError("plugin_permission_invalid", "Plugin permission 必须唯一并说明用途及是否必需");
+      throw pluginErrors.permission_invalid("Plugin permission 必须唯一并说明用途及是否必需");
     }
     permissions.add(permission.permission);
     if (permission.permission === SURFACE_BROWSER_PERMISSION) {
       // Coarse and exact, like a site rule: a path or query would make the declaration say less than it allows.
       if (!Array.isArray(permission.origins) || permission.origins.length === 0 || permission.origins.some(origin => !isWebOrigin(origin))) {
-        throw new PluginManifestError("plugin_permission_invalid", "surface:browser 的 origins 必须列出完整的网站来源（如 https://example.com），不带路径、查询串或片段");
+        throw pluginErrors.permission_invalid("surface:browser 的 origins 必须列出完整的网站来源（如 https://example.com），不带路径、查询串或片段");
       }
     } else if (permission.origins !== undefined) {
-      throw new PluginManifestError("plugin_permission_invalid", "只有 surface:browser 可以列出 origins");
+      throw pluginErrors.permission_invalid("只有 surface:browser 可以列出 origins");
     }
   }
   const capabilities = record(manifest.capabilities, "capabilities");
@@ -151,8 +137,9 @@ function inspectUpgradeCompatibility(manifest: Record<string, unknown>): void {
 export function comparePluginVersions(left: string, right: string): number {
   const parse = (value: string) => {
     const withoutBuild = value.split("+", 1)[0]!;
-    const [core, prerelease] = withoutBuild.split("-", 2);
-    return { core: core!.split(".").map(BigInt), prerelease: prerelease?.split(".") ?? null };
+    const separator = withoutBuild.indexOf("-");
+    const core = separator < 0 ? withoutBuild : withoutBuild.slice(0, separator);
+    return { core: core.split(".").map(BigInt), prerelease: separator < 0 ? null : withoutBuild.slice(separator + 1).split(".") };
   };
   const a = parse(left), b = parse(right);
   for (let index = 0; index < 3; index += 1) {
@@ -188,10 +175,7 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
   ];
   for (const [name, value] of v2Blocks) {
     if (value !== undefined) {
-      throw new PluginManifestError(
-        "plugin_declaration_invalid",
-        `${name} 需要 schema_version 2；请递增 Manifest 版本而不是混用`,
-      );
+      throw pluginErrors.declaration_invalid(`${name} 需要 schema_version 2；请递增 Manifest 版本而不是混用`);
     }
   }
 }
@@ -203,7 +187,7 @@ function assertArtifactDeclarations(parsed: PluginManifest): void {
 
 /** The one place a list of declaration problems becomes the refusal (the error-code gates count each literal of a code). */
 function assertNoDeclarationProblems(problems: readonly string[]): void {
-  if (problems.length > 0) throw new PluginManifestError("plugin_declaration_invalid", problems.join("；"));
+  if (problems.length > 0) throw pluginErrors.declaration_invalid(problems.join("；"));
 }
 
 function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): void {
@@ -431,5 +415,5 @@ function strings(value: unknown, label: string): void {
 }
 
 function invalid(message: string): never {
-  throw new PluginManifestError("plugin_manifest_invalid", message);
+  throw pluginErrors.manifest_invalid(message);
 }

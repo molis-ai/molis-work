@@ -26,12 +26,12 @@ export interface ImportedArtifactDocument {
 }
 
 /**
- * What the document import refuses, every code `document.<reason>`. The kind is the sort of failure, and the Host's edge turns it into
+ * What the document import refuses, every code `artifacts.document.<reason>`. The kind is the sort of failure, and the Host's edge turns it into
  * the status (SDK `actionHttpStatus`): what is wrong with the request or the document is `invalid` (400, also for the files that were 415
  * and the documents that were 422), and a document over its size is `too_large` (413). The Host's reading of a connected service raises
  * the rest of the family (`artifactImportErrors` in apps/local-host/src/artifact-document-import.ts).
  */
-export const documentErrors = defineErrorCodes("document", {
+export const documentErrors = defineErrorCodes("artifacts.document", {
   source_invalid: "invalid",
   content_invalid: "invalid",
   filename_invalid: "invalid",
@@ -151,7 +151,7 @@ function originalFileOf(value: unknown): NonNullable<ImportedArtifactDocument["o
   const data = file.data_base64;
   if (typeof data !== "string" || data.length > 8_000_000 || data.length % 4 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(data)
     || Buffer.from(data, "base64").toString("base64") !== data || Buffer.from(data, "base64").length > 6_000_000) {
-    throw new ActionError("document.original_invalid", "原文件必须为有效的 base64，最大 6 MB", { kind: "too_large" });
+    throw new ActionError("artifacts.document.original_invalid", "原文件必须为有效的 base64，最大 6 MB", { kind: "too_large" });
   }
   return { filename: name, mime, data_base64: data };
 }

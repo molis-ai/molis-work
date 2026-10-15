@@ -1,3 +1,5 @@
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -14,7 +16,7 @@ import {
   renderMolisWorkPrimitiveCatalog,
   renderWorkbenchDocument,
 } from "@molis-ai/molis-work-app-workbench";
-import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 
 test("Workbench owns the document shell and escapes document metadata", () => {
   const html = renderWorkbenchDocument({
@@ -38,6 +40,16 @@ test("Workbench owns the document shell and escapes document metadata", () => {
   assert.match(html, /<main data-workbench-main>真实页面<\/main>/);
 });
 
+// K1-01: the real document shell uses the shared escaping for metadata and body attributes.
+test("K1-01 document metadata keeps hostile markup inside its text and attribute values", () => {
+  const value = `O'Reilly & </title><img src=x onerror="alert(1)">`;
+  const html = renderWorkbenchDocument({ lang: "en", title: value, head_html: "", body_attributes: { title: value }, body_html: "<main>safe</main>" });
+  assert.match(html, /<title>O&#039;Reilly &amp; &lt;\/title&gt;&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;<\/title>/);
+  assert.match(html, /<body title="O&#039;Reilly &amp; &lt;\/title&gt;&lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;">/);
+  assert.equal(html.match(/<body[^>]*>/)?.[0], '<body title="O&#039;Reilly &amp; &lt;/title&gt;&lt;img src=x onerror=&quot;alert(1)&quot;&gt;">');
+  assert.doesNotMatch(html, /<img/);
+});
+
 test("UI Host mounts only declared Plugin surfaces into compatible Workbench slots", () => {
   const contribution: UiContribution<{ title: string }> = {
     descriptor: {
@@ -54,6 +66,14 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
   };
   const host = new UiHost();
   host.register(contribution);
+  // UIERR-01 / UIERR-02: rejected duplicates and missing content preserve the current registry.
+  const before = host.list();
+  assert.throws(() => host.register(contribution), (error: unknown) => error instanceof ActionError
+    && error.code === "ui_host.contribution_conflict" && error.kind === "conflict" && actionHttpStatus(error) === 409);
+  assert.throws(() => host.render({ contribution_id: "missing-uierr", surface: "panel", model: { title: "Missing" } }), (error: unknown) => error instanceof ActionError
+    && error.code === "ui_host.contribution_not_found" && error.kind === "not_found" && actionHttpStatus(error) === 404);
+  assert.deepEqual(host.list(), before);
+
 
   const mounted = host.mount({
     slot: WORKBENCH_UI_SLOTS.main,
@@ -78,7 +98,7 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
         model: { title: "Wrong slot" },
       },
     }),
-    (error) => error instanceof UiContributionError && error.code === "ui_slot_incompatible",
+    (error) => error instanceof ActionError && error.code === "ui_host.slot_incompatible" && error.kind === "invalid" && actionHttpStatus(error) === 400,
   );
   assert.throws(
     () => host.mount({
@@ -89,7 +109,7 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
         model: { title: "Missing surface" },
       },
     }),
-    (error) => error instanceof UiContributionError && error.code === "ui_surface_invalid",
+    (error) => error instanceof ActionError && error.code === "ui_host.surface_invalid" && error.kind === "invalid" && actionHttpStatus(error) === 400,
   );
 });
 

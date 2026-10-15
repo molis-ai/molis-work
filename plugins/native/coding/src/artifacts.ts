@@ -1,3 +1,4 @@
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 /**
  * Coding's output types and its immutable Goal input snapshot.
  *
@@ -80,12 +81,7 @@ export interface CodingDiagram {
   run_id: string;
 }
 
-export class CodingDiagramError extends Error {
-  constructor(readonly code: "diagram.unknown_node" | "diagram.duplicate_node", message: string) {
-    super(message);
-    this.name = "CodingDiagramError";
-  }
-}
+const diagramErrors = defineErrorCodes("coding.diagram", { duplicate_node: "invalid", unknown_node: "invalid" });
 
 /**
  * Check a diagram refers only to nodes it declares.
@@ -93,14 +89,12 @@ export class CodingDiagramError extends Error {
  * A run can name an edge endpoint that does not exist; drawing that silently
  * would show a graph that is not the one the run meant.
  */
-export function inspectDiagram(diagram: CodingDiagram): CodingDiagramError[] {
-  const errors: CodingDiagramError[] = [];
+export function inspectDiagram(diagram: CodingDiagram): ActionError[] {
+  const errors: ActionError[] = [];
   const seen = new Set<string>();
   for (const node of diagram.nodes) {
     if (seen.has(node.node_id)) {
-      errors.push(new CodingDiagramError(
-        "diagram.duplicate_node",
-        `节点 id 重复：${node.node_id}`,
+      errors.push(diagramErrors.duplicate_node(`节点 id 重复：${node.node_id}`,
       ));
     }
     seen.add(node.node_id);
@@ -108,9 +102,7 @@ export function inspectDiagram(diagram: CodingDiagram): CodingDiagramError[] {
   for (const edge of diagram.edges) {
     for (const endpoint of [edge.from, edge.to]) {
       if (!seen.has(endpoint)) {
-        errors.push(new CodingDiagramError(
-          "diagram.unknown_node",
-          `连线指向不存在的节点：${endpoint}`,
+        errors.push(diagramErrors.unknown_node(`连线指向不存在的节点：${endpoint}`,
         ));
       }
     }

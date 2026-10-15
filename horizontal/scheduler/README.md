@@ -66,3 +66,5 @@ node scripts/run-tests.mjs tests/scheduler.test.ts tests/schedule-plugin.test.ts
 执行期间通过 SDK 的执行生命周期独立续租，不依赖下一次 tick。唤醒处理器的第二个参数 `ScheduleWakeupControl` 提供 signal 和同步 `beforeEffect()`，等待后写入前必须复查；该控制对象不属于持久化任务输入。暂停、取消、重排或被接管会撤销原执行身份，迟到结果不能写成成功或普通业务失败。领域幂等和未知副作用的恢复仍由 owner 负责。
 
 租约只可在到期前续期。到期即失去执行权，即使尚无人接管，原执行也不能续租或写入业务结果、成功或失败回执；休眠或长阻塞后必须遵守同一边界。`isExecuting()`、提交检查和续租使用相同的有效期判断。
+
+关闭服务先撤销在途执行并等待其可取消等待收束，再释放自己的租约，之后宿主才关项目库。关闭不会把已派发任务倒回派发前：一次任务可能已经提交 owner 效果，未知结果仍由 owner 核对，不能通用自动重放。借用同一 live Host 的服务重新绑定可启动同一 facade；已释放项目则按新库实例装配。W2-18-SCHEDULE-02 的真实 SQLite 用例覆盖 owner 已提交但响应尚未返回的交错。

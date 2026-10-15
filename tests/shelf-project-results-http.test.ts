@@ -79,10 +79,13 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   app.artifacts.commands.registerVersion(unavailable);
   const priorUnavailable=await request(path+'?artifact_id='+encodeURIComponent(unavailable.artifact_id)+'&version=1');assert.equal(priorUnavailable.status,200);
   app.artifacts.commands.markUnavailable({project_id:projectId,actor_id:'web-user',artifact_id:unavailable.artifact_id,version:1,reason:'原正文失效'});
-  refused(await request(path,{reference:{artifact_id:unavailable.artifact_id,version:1},expected_fingerprint:priorUnavailable.body.fingerprint}),'shelf.invalid');
+  // The artifact owner refuses an unavailable version with its own code (W3-02-I25), and Shelf passes it on as the owner's.
+  const unavailableRefusal=await request(path,{reference:{artifact_id:unavailable.artifact_id,version:1},expected_fingerprint:priorUnavailable.body.fingerprint});
+  refused(unavailableRefusal,'artifacts.plugin_incompatible');
+  assert.match(String(unavailableRefusal.body.error),/已失效/,'the person is told in words, not the reason token');
   assert.equal(shelf.snapshot().materials.length,before+1);
   app.artifacts.commands.archiveVersion({project_id:projectId,actor_id:'web-user',...reference});
-  refused(await read(),'shelf.invalid'); refused(await request(path,confirmation),'shelf.invalid');
+  refused(await read(),'artifacts.plugin_incompatible'); refused(await request(path,confirmation),'artifacts.plugin_incompatible');
   assert.equal((await request(base+'/project-results')).body.results.length,0);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),'只改 Shelf 副本，来源保持。','source archival does not rewrite the independent copy');
 });

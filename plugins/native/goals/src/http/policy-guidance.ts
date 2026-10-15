@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { respondGoalsFailure } from "./failure.js";
 import { goalsActions } from "../actions.js";
 import { randomUUID } from "node:crypto";
 import type { GoalsHttpContext } from "./types.js";
@@ -7,7 +9,7 @@ export async function handleGoalPolicyGuidanceHttp(context: GoalsHttpContext): P
   if (context.method === "POST" && context.pathname === "/api/policy-bindings") {
     const body = await context.readBody();
     try {
-      if (body.scope !== "project_default" || body.goal_id != null) throw new Error("此入口只保存项目默认规则。");
+      if (body.scope !== "project_default" || body.goal_id != null) throw new ActionError("actions.input_invalid", "此入口只保存项目默认规则。");
       const result = await context.actions.invoke(goalsActions.policySave, {
         user_confirmed: body.user_confirmed === true,
         policy: body.policy as Parameters<GoalsCommandApi["saveProjectPolicy"]>[0]["policy"],
@@ -15,14 +17,12 @@ export async function handleGoalPolicyGuidanceHttp(context: GoalsHttpContext): P
       });
       context.respond(200, result);
       context.changed();
-    } catch (error) {
-      context.respond(400, { error: error instanceof Error ? error.message : String(error) });
-    }
+    } catch (error) { return respondGoalsFailure(context, error); }
     return true;
   }
   if (context.method === "GET" && context.pathname === "/api/project-guidance") {
     try { context.respond(200, await context.actions.invoke(goalsActions.guidanceRead, {})); }
-    catch (error) { context.respond(400, { error: error instanceof Error ? error.message : String(error) }); }
+    catch (error) { return respondGoalsFailure(context, error); }
     return true;
   }
   if (context.method === "POST" && context.pathname === "/api/project-guidance") {
@@ -41,11 +41,7 @@ export async function handleGoalPolicyGuidanceHttp(context: GoalsHttpContext): P
         ...result,
         ...await guidanceAfterWrite(context),
       });
-    } catch (error) {
-      context.respond( 400, {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    } catch (error) { return respondGoalsFailure(context, error); }
     return true;
   }
   const projectGuidanceUpdateMatch = context.pathname.match(/^\/api\/project-guidance\/([^/]+)$/);
@@ -75,11 +71,7 @@ export async function handleGoalPolicyGuidanceHttp(context: GoalsHttpContext): P
         ...result,
         ...await guidanceAfterWrite(context),
       });
-    } catch (error) {
-      context.respond( 400, {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    } catch (error) { return respondGoalsFailure(context, error); }
     return true;
   }
   return false;

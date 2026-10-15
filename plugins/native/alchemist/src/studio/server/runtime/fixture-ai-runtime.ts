@@ -65,7 +65,7 @@ export class FixtureAiRuntimeAdapter implements AiRuntimePort {
 function parseDirectionPrompt(prompt: string): { title: string; description: string } {
   const parsed = JSON.parse(prompt) as { title?: unknown; description?: unknown };
   if (typeof parsed.title !== "string" || typeof parsed.description !== "string") {
-    throw new Error("FIXTURE_DIRECTION_INVALID");
+    throw new Error("alchemist.fixture_direction_invalid");
   }
   return { title: parsed.title, description: parsed.description };
 }

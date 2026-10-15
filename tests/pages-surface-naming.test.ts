@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/context-actions.ts";
 
 // Pages and the workbench's fallback naming (context-actions) share one surface element: whoever writes
@@ -93,7 +94,9 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     document: (globalThis as Record<string, unknown>).document, window: (globalThis as Record<string, unknown>).window,
     Element: (globalThis as Record<string, unknown>).Element, innerWidth: (globalThis as Record<string, unknown>).innerWidth,
     innerHeight: (globalThis as Record<string, unknown>).innerHeight, matchMedia: (globalThis as Record<string, unknown>).matchMedia,
-    getSelection: (globalThis as Record<string, unknown>).getSelection, addEventListener: (globalThis as Record<string, unknown>).addEventListener };
+    getSelection: (globalThis as Record<string, unknown>).getSelection, addEventListener: (globalThis as Record<string, unknown>).addEventListener,
+    location: (globalThis as Record<string, unknown>).location, molisWorkRequest: (globalThis as Record<string, unknown>).molisWorkRequest,
+    molisWorkControlHeaders: (globalThis as Record<string, unknown>).molisWorkControlHeaders };
   t.after(() => Object.assign(globalThis, saved));
   globalThis.setTimeout = ((fn: () => unknown, delay = 0) => { const id = ++timerId; timers.set(id, { at: now + delay, fn }); return id; }) as unknown as typeof setTimeout;
   globalThis.clearTimeout = ((id?: number) => { if (id) timers.delete(id); }) as typeof clearTimeout;
@@ -121,6 +124,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     window: windowStub,
     document: {
       body: { dataset: { routePrefix: "" }, hasAttribute: () => false, append() {} },
+      documentElement: { dataset: {} as Record<string, string> },
       activeElement: null,
       querySelector: (selector: string) => selector === "[data-pages=workbench]" ? surface : null,
       // The document's open tab, named after it (tab-workspace's appendTab).
@@ -132,6 +136,10 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
       dispatchEvent: (event: { type: string; detail?: unknown }) => { dispatched.push(event); return true; },
     },
   });
+  // The Workbench page installs the shared request helper (ui-host) before any of its programs runs, and the toolbar program
+  // calls it as molisWorkRequest; the real helper runs here over the stubbed fetch.
+  Object.assign(globalThis, { location: new URL("http://workbench.test/"), molisWorkRequest: undefined, molisWorkControlHeaders: undefined });
+  Function(UI_REQUEST_CLIENT_SCRIPT)();
   const pages = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: unknown) => void;
   pages({ translate: (text: string) => text, projectId: "project-a" });
   const contextRow = Function(`return (${CONTEXT_ACTIONS_FACTORY_SCRIPT})`)() as (host: unknown) => unknown;

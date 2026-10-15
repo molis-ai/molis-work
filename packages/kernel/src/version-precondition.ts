@@ -1,6 +1,6 @@
-import type { ErrorObject, ValidateFunction } from "ajv";
+import type { ErrorObject } from "ajv";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { compileActionSchema, validateActionValue } from "./action-schema.js";
+import { compileActionSchema, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { isActiveNestedAction } from "./action-settlement.js";
 
 const VERSION_FIELDS = ["expected_version", "expected_revision", "expected_revisions", "expected_updated_at"] as const;
@@ -40,7 +40,7 @@ function check(definition: Pick<ActionDefinition, "capability_id" | "operation" 
 }
 
 /** One schema validation, then the additional version prerequisite for top-level AI commands. */
-export function validateActionInput(validate: ValidateFunction, definition: Pick<ActionDefinition, "capability_id" | "operation" | "action">, context: ActionCallContext, input: unknown): void {
+export function validateActionInput(validate: ActionValidator, definition: Pick<ActionDefinition, "capability_id" | "operation" | "action">, context: ActionCallContext, input: unknown): void {
   const names = required(context) ? fields(definition) : [];
   validateActionValue(validate, input, "input", errors => {
     if (missingVersionErrors(errors, names)) refuse(names.join(", "));

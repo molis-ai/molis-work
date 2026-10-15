@@ -24,8 +24,9 @@ export interface CodingSessionRead {
   error?: string;
 }
 
-/** The version of each Coding action this executor speaks: a new shape there is a new version here, in the same change. */
-const VERSIONS: Readonly<Record<string, number>> = { "runs.control": 2 };
+/** Each Coding action this executor calls, at the version Coding publishes now: a new shape there is a new version here, in the same change. */
+const VERSIONS = { state: 1, "sessions.create": 1, "sessions.read": 1, "sessions.update": 1, "runs.start": 1, "runs.control": 2 } as const;
+type CodingActionName = keyof typeof VERSIONS;
 
 export class CodingUnavailable extends Error {
   constructor(message: string, readonly action?: string) { super(message); this.name = "CodingUnavailable"; }
@@ -42,15 +43,15 @@ export class CodingExecutor {
 
   constructor(private readonly actions: PersonActions, private readonly beforeDispatch?: () => void) {}
 
-  private async reference(name: string): Promise<ExactActionReference> {
+  private async reference(name: CodingActionName): Promise<ExactActionReference> {
     this.offered ??= this.actions.discover();
-    const view = (await this.offered).find(row => row.capability_id === `coding.${name}` && row.version === (VERSIONS[name] ?? 1));
+    const view = (await this.offered).find(row => row.capability_id === `coding.${name}` && row.version === VERSIONS[name]);
     if (!view) throw new CodingUnavailable("这个项目还没有可用的 Coding 插件", "在插件市场添加 Coding");
     if (!view.availability.available) throw new CodingUnavailable(view.availability.reason);
     return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
   }
 
-  private async call<T>(name: string, input: Record<string, unknown>): Promise<T> {
+  private async call<T>(name: CodingActionName, input: Record<string, unknown>): Promise<T> {
     const reference = await this.reference(name);
     this.beforeDispatch?.();
     return await this.actions.invoke(reference, input, this.beforeDispatch) as T;

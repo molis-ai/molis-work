@@ -42,10 +42,14 @@ test("a round that ends waiting on an answer or a background command waits as th
   const actions = pluginActions(store, DEMO_PROJECT_ID);
   actions.registry.registerProvider({ provider: { provider_id: "fixture.agent-host", title: "fixture", kind: "system" }, definitions: [collaboration.read, collaboration.control], handlers: [
     { ...collaboration.read, handle: async (_caller, input) => { const session = (input as { session_id?: string }).session_id;
-      return { sessions: waits.filter(one => session === undefined || one.session_id === session).map(one => structuredClone(one)) }; } },
+      // As the Host serves it: one view a session, its latest wait that still matters (open, or not taken up or given up).
+      const latest = (id: string) => [...waits].reverse().find(one => one.session_id === id && (one.wait.state === "waiting" || !["started", "cancelled"].includes(one.continuation.state))) ?? { session_id: id };
+      return { sessions: (session === undefined ? [...new Set(waits.map(one => one.session_id))] : [session]).map(id => structuredClone(latest(id))) }; } },
     { ...collaboration.control, handle: async (_caller, input) => { const { kind, wait_id } = input as { kind: string; wait_id: string };
       const one = waits.find(item => item.wait.wait_id === wait_id)!;
-      if (kind === "cancel-wait") { one.wait.state = "cancelled"; one.continuation.state = "cancelled"; cancelledWaits.push(wait_id); }
+      // Given up while it waits: cancelled. Over already, its step held for the person: the step is given back, and the
+      // Host no longer shows it (here, as a cancelled continuation).
+      if (kind === "cancel-wait") { if (one.wait.state === "waiting") one.wait.state = "cancelled"; one.continuation.state = "cancelled"; cancelledWaits.push(wait_id); }
       else { one.wait.state = "cancelled"; one.wait.continued = true; one.continuation.state = "eligible"; continued.push(wait_id); }
       return { session: structuredClone(one) }; } },
   ] });
@@ -150,11 +154,13 @@ test("a round that ends waiting on an answer or a background command waits as th
     }
     assert.match((await call("/sessions/b")).body.session.queued.note, /会话「改接口」的答复等到期限也没有结果/);
     assert.equal(starts.length, 6);
-    // Given up: the request is withdrawn; the wait is over already, so there is no wait to cancel; the session is free.
+    // Given up: the request is withdrawn; the wait is over already, and its step, held for the person, is given back; the
+    // session is free.
     const cancelled = await call("/sessions/b/queued", { action: "cancel" });
     assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
-    assert.deepEqual([cancels, cancelledWaits], [["m5"], []]);
+    assert.deepEqual([cancels, cancelledWaits], [["m5"], ["w5"]]);
     assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "done");
+    assert.equal((await call("/sessions/b")).body.session.queued, null);
     // Priority: the others are told to make way, by the names the person knows; the mark shows in the directory.
     const marked = await call("/sessions/b/priority", { on: true });
     assert.equal(marked.status, 200, JSON.stringify(marked.body));

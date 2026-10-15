@@ -1,6 +1,7 @@
 import type { BackgroundTask, ExactRef, HeldWait, Runtime, WaitCondition } from "@prologue/sdk";
 import type { AgentBackgroundTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCollaborationCondition, AgentCollaborationControl, AgentCollaborationPort, AgentCollaborationSessionView, AgentCollaborationWait, AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
+import { readyStep } from "./prologue-collaboration.js";
 
 /** What the waits need to know about a session: its project, and how the person knows it. */
 export interface WaitSessions {
@@ -13,6 +14,8 @@ export interface WaitSessions {
 export const APP_WAIT_MS = 7 * 24 * 60 * 60 * 1000;
 
 const iso = (ms: number) => new Date(ms).toISOString();
+/** A continuation (and its step) held for the person: the wait failed or expired, or its result needs reconciling. */
+const HELD: readonly string[] = ["blocked", "needs-reconciliation"];
 const boardRef = (id: string) => ({ kind: "task-board", id, revision: 1 }) as ExactRef<"task-board">;
 const task = (one: BackgroundTask): AgentBackgroundTask => ({
   task_id: one.id, session_id: one.session.id, ...(one.run ? { run_id: one.run.id } : {}), summary: one.summary, state: one.state,
@@ -66,12 +69,17 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
     return { board_id: wait.scope.board, node_id: wait.scope.node, session_id: continuation.target.session.id, request_key: continuation.requestKey, state: continuation.state,
       auto: continuation.auto, ...(continuation.run ? { run_id: continuation.run.id } : {}), ...(continuation.reason ? { reason: { code: continuation.reason.code, ...(continuation.reason.note ? { note: continuation.reason.note } : {}) } } : {}) };
   };
+  /**
+   * A continuation held for the person stays held while its step does: once the person starts a round or gives the wait
+   * up, the step is given back and the continuation is left as it was (the SDK has no way out of it but a new wait).
+   */
+  const stillHeld = (wait: HeldWait, continuation: AgentContinuationView) => HELD.includes(continuation.state) && HELD.includes(nodeOf(wait.scope.board, wait.scope.node)?.state ?? "");
   /** A session's wait that still matters: the open one, or the latest whose continuation was not taken up or given up. */
   const sessionView = async (sessionId: string): Promise<AgentCollaborationSessionView> => {
     const held = [...runtime.waits.list({ session: sessionId })].sort((a, b) => b.createdAtMs - a.createdAtMs);
     for (const wait of held) {
       const continuation = continuationOf(wait);
-      if (wait.state === "waiting" || continuation && !["started", "cancelled"].includes(continuation.state)) {
+      if (wait.state === "waiting" || continuation && !["started", "cancelled"].includes(continuation.state) && (!HELD.includes(continuation.state) || stillHeld(wait, continuation))) {
         return { session_id: sessionId, wait: await waitView(wait), ...(continuation ? { continuation } : {}) };
       }
     }
@@ -93,18 +101,29 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
   const collaboration: AgentCollaborationPort = {
     read,
     async awaitReady(project, timeoutMs, exclude = [], signal) {
-      const found = await ready(project, exclude);
-      if (found.length || timeoutMs <= 0) return found;
-      await new Promise<void>(resolve => {
-        const done = () => { clearTimeout(timer); listeners.delete(done); signal?.removeEventListener("abort", done); resolve(); };
-        const timer = setTimeout(done, timeoutMs);
-        listeners.add(done);
-        signal?.addEventListener("abort", done);
-      });
-      return ready(project, exclude);
+      // A change is not yet a continuation that may go on (a wait's look, another project's step): look again until one
+      // is, the time is up, or the caller stops.
+      for (const deadline = Date.now() + timeoutMs; ;) {
+        const found = await ready(project, exclude), left = deadline - Date.now();
+        if (found.length || left <= 0 || signal?.aborted) return found;
+        await new Promise<void>(resolve => {
+          const done = () => { clearTimeout(timer); listeners.delete(done); signal?.removeEventListener("abort", done); resolve(); };
+          const timer = setTimeout(done, left);
+          listeners.add(done);
+          signal?.addEventListener("abort", done);
+        });
+      }
     },
-    async control(project, control: AgentCollaborationControl) {
+    async control(project, control: AgentCollaborationControl, actorId) {
       const wait = await owned(project, control.wait_id), at = await now();
+      if (wait.state !== "waiting") {
+        // Over already, its step held for the person: giving it up gives the step back (the person's decision, on the
+        // step's record); going on is the round the person starts now, which gives it back the same way.
+        const continuation = continuationOf(wait);
+        if (!continuation || !stillHeld(wait, continuation)) throw new Error("这个等待已经结束");
+        if (control.kind === "cancel-wait") await readyStep(runtime, wait.scope.board, wait.scope.node, actorId, control.note ?? "用户取消了等待");
+        return sessionView(wait.session.id);
+      }
       if (control.kind === "cancel-wait") await runtime.waits.cancel(wait.ref.id, at, control.note ?? "用户取消了等待");
       else await runtime.waits.continueEarly(wait.ref.id, at, control.note ?? "用户选择不再等，直接接着做");
       return sessionView(wait.session.id);

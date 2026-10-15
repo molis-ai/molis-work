@@ -83,7 +83,10 @@ export interface AgentCollaborationSessionView {
 }
 
 export type AgentCollaborationControl =
-  /** The person gives the wait up: the step stops waiting and its continuation is cancelled. */
+  /**
+   * The person gives the wait up: the step stops waiting and its continuation is cancelled. A wait already over whose
+   * step is held for the person (it failed, expired, or needs reconciling) gives the step back instead.
+   */
   | { kind: "cancel-wait"; wait_id: string; note?: string }
   /**
    * The person goes on before it is over: the continuation is eligible at once and nothing waited for is counted as

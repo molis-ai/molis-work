@@ -23,15 +23,15 @@ function reply(tool?: { name: string; input: object }, text = "done"): string {
   return events.join("");
 }
 
-async function terminal(adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>>, ref: AgentRunRef): Promise<AgentRunView> {
-  return new Promise((resolve, reject) => {
-    let stop = () => {};
-    const timer = setTimeout(() => { stop(); reject(new Error("Run did not finish")); }, 10_000);
-    stop = adapter.observe(ref, view => {
-      if (!["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) return;
-      clearTimeout(timer); queueMicrotask(() => stop()); resolve(view);
-    });
-  });
+/** Wait for the round to end; a dispatch is the person's to approve (a card, prologue-review-documents), and they approve it. */
+async function terminal(adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>>, ref: AgentRunRef, queue: AgentReviewQueue): Promise<AgentRunView> {
+  for (const deadline = Date.now() + 10_000; ;) {
+    const view = await adapter.read(ref);
+    if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) return view;
+    if (Date.now() > deadline) throw new Error(`Run did not finish: ${view.phase}`);
+    for (const review of queue.list("project", "pending")) await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "person" });
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
 }
 
 const until = async (what: string, check: () => boolean | Promise<boolean>, ms = 10_000) => {
@@ -84,13 +84,17 @@ test("PA-23: after a yield the Runtime starts no parent run; a revoked next roun
     const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [world.root] };
     const session = await adapter.createSession({ ...owner, directory, title: "P3a yield" });
     const first = await host.start("prologue", { ...owner, directory, session, role_id: "coordinator", task: "Ask one child to read README, then wait for it." }, authority);
-    const ended = await terminal(adapter, first.ref);
+    const ended = await terminal(adapter, first.ref, world.queue);
     assert.deepEqual(world.errors, []);
     assert.equal(ended.phase, "completed", ended.stop_reason ?? "");
     // The child ran (its own model call); the step waits on the child's step, and once it ended the continuation may go on.
     await until("the continuation may go on", async () => (await adapter.collaboration!.read("project", session.session_id))[0]?.continuation?.state === "eligible");
     const ready = (await adapter.collaboration!.read("project", session.session_id))[0]!;
-    assert.equal(ready.wait?.state, "satisfied");
+    // The coordinator holds no board tools, so neither does its child (SDK T12): the child cannot report its step, the step
+    // comes back to the parent unfinished and the wait settles as failed. A yield waits until "settled" and goes on
+    // either way, so the continuation may go on all the same.
+    assert.deepEqual([ready.wait?.state, ready.wait?.until, ready.wait?.on_failure, ready.wait?.conditions[0]?.last.note, ready.continuation?.auto],
+      ["failed", "settled", "continue", "back with you unfinished", true]);
     assert.deepEqual(world.requests.map(one => one.who), ["parent", "child"], "the Runtime starts no parent run of its own");
     await new Promise(resolve => setTimeout(resolve, 300));
     assert.equal(world.requests.length, 2, "an eligible continuation waits for the Host");
@@ -101,16 +105,17 @@ test("PA-23: after a yield the Runtime starts no parent run; a revoked next roun
     assert.equal((await adapter.collaboration!.read("project", session.session_id))[0]?.continuation?.state, "eligible", "the continuation stays where it was");
     // The Host's next round takes the continuation up: one run, under its request key, given the child's report.
     const second = await host.start("prologue", { ...owner, directory, session, role_id: "coordinator", task: "Go on with what the child found." }, authority);
-    await terminal(adapter, second.ref);
-    const taken = (await adapter.collaboration!.read("project", session.session_id))[0]!;
-    assert.deepEqual([taken.continuation?.state, taken.continuation?.run_id], ["started", second.ref.run_id]);
+    await terminal(adapter, second.ref, world.queue);
+    // Taken up, it is no longer one to go on (the view keeps only open waits and continuations not yet taken up).
+    assert.deepEqual(await adapter.collaboration!.read("project", session.session_id), [{ session_id: session.session_id }]);
+    assert.deepEqual(await adapter.collaboration!.awaitReady("project", 0), []);
     assert.deepEqual(world.requests.map(one => one.who), ["parent", "child", "parent"]);
     assert.match(world.requests[2]!.body, /README 一共三节/, "the child's report reaches the round that goes on");
     assert.deepEqual((await adapter.readSession(session)).runs, [first.ref, second.ref]);
     await adapter.close(); adapter = await world.make();
     const reopened = await adapter.readSession(session);
     assert.deepEqual(reopened.runs, [first.ref, second.ref], "recovery creates no parent run");
-    assert.equal((await adapter.collaboration!.read("project", session.session_id))[0]?.continuation?.state, "started");
+    assert.deepEqual(await adapter.collaboration!.awaitReady("project", 0), [], "reopening makes nothing eligible again");
     await new Promise(resolve => setTimeout(resolve, 300));
     assert.equal(world.requests.length, 3, "reopening asks no model");
   } finally { await adapter.close(); await world.close(); }
@@ -128,7 +133,7 @@ test("PA-07: a child is not dispatched once the round's own check fails: the Hos
     const run = await host.start("prologue", { ...owner, directory, session, role_id: "coordinator", task: "Ask one child to read README." },
       { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [world.root],
         beforeDispatch: () => { if (revoked) throw Object.assign(new Error("授权已撤回"), { code: "actions.revoked" }); } });
-    const view = await terminal(adapter, run.ref);
+    const view = await terminal(adapter, run.ref, world.queue);
     assert.notEqual(view.phase, "running");
     assert.deepEqual(world.requests.map(one => one.who), ["parent"], "no child asked a model, and the round's next call was stopped too");
     assert.deepEqual(await adapter.subagents!.list(run.ref), []);

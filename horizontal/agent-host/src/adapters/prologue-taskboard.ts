@@ -1,6 +1,6 @@
 import { APP_MODE_SURFACE_TOOLS, SYSTEM_TOOL_NAMES, type ExactRef, type Runtime, type PolicyRule } from "@prologue/sdk";
 import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { isBlock, PROJECT_STEP } from "./prologue-collaboration.js";
+import { blockId, isBlock, PROJECT_STEP } from "./prologue-collaboration.js";
 import { amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace } from "./prologue-plan-steps.js";
 
 type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
@@ -58,6 +58,15 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
     // The step a session stands on, and the project's root, are the Host's: they say where a round is, not what it did.
     if (context.toolName === "board-report" && (asked?.node === PROJECT_STEP || isBlock(String(asked?.node)))) return { kind: "deny", why: "这一步是会话所在的位置，不用报告；请报告计划里的步骤" };
     if (!["board-read", "board-report"].includes(context.toolName) || !context.origin?.session) return denied;
+    // An earlier plan of this session is the person's to take up again (「继续计划」): a round reports on its own plan's
+    // steps in its block, not on another plan's.
+    if (context.toolName === "board-report" && typeof asked?.node === "string" && asked.node.startsWith(`${blockId({ id: context.origin.session })}.`)) {
+      const own = `${blockId({ id: context.origin.session })}.`, rest = asked.node.slice(own.length);
+      if (/^p\d+\./.test(rest)) {
+        const attempt = context.origin.run ? await original({ session_id: context.origin.session, run_id: context.origin.run }).catch(() => undefined) : undefined;
+        if (placeOf(attempt)?.prefix !== own + rest.slice(0, rest.indexOf("."))) return { kind: "deny", why: "这是本会话之前那一轮计划的步骤；要接着做，请用户点「继续计划」" };
+      }
+    }
     // The project's board: read, and reported on where the SDK lets this session (steps it holds, its own binding).
     const shared = projectBoard ? await projectBoard(context.origin.session).catch(() => undefined) : undefined;
     if (shared && asked?.board === shared) return { kind: "allow" };

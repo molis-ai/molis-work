@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import type { Runtime } from "@prologue/sdk";
+import type { ExactRef, Runtime } from "@prologue/sdk";
+import { sessionBlock } from "./prologue-collaboration.js";
 import { createPluginBuilderAgent, type PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { prepareInferenceCredential, type PrologueCredentialBridge } from "./prologue-credentials.js";
 import { createPrologueInference } from "./prologue-inference.js";
@@ -68,6 +69,12 @@ export function createNodeCoordination(runtime: Runtime, index: SessionIndexStor
       if (!mine) return [];
       const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
       return [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))];
+    },
+    async place(sessionId) {
+      const saved = await index.read(sessionId).catch(() => undefined);
+      if (!saved || saved.parent_run) return;
+      await runtime.sessions.open(saved.ref);
+      await sessionBlock(runtime, { kind: "task-board", id: await projectWork.projectId(saved.owner.project_id), revision: 1 } as ExactRef<"task-board">, saved.ref, saved.title);
     },
   });
   /** The project's waits and continuations, and background commands (the SDK hands a wait that is over to a live round). */

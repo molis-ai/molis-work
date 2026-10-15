@@ -117,8 +117,10 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
     for (const one of view.wait.conditions) if (one.kind === "envelope") await api.invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
     const queued = queuedOf(view.wait.wait_id);
     if (view.wait.by === "app" && queued) await api.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
-    if (view.wait.state === "waiting") await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" },
-      beforeWrite && codingActionControl(beforeWrite));
+    // An open wait is cancelled; one over whose step is held for the person gives the step back.
+    if (view.wait.state === "waiting" || ["blocked", "needs-reconciliation"].includes(view.continuation?.state ?? ""))
+      await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" },
+        beforeWrite && codingActionControl(beforeWrite));
     storage()?.delete(`queued:${view.wait.wait_id}`);
   };
   /** The person goes on before the wait is over: the continuation is ready at once, and the round started now takes it up. */

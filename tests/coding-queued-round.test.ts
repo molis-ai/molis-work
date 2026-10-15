@@ -31,10 +31,14 @@ test("a round told to wait for another session's work waits on it, starts on its
   const actions = pluginActions(store, DEMO_PROJECT_ID);
   actions.registry.registerProvider({ provider: { provider_id: "fixture.agent-host", title: "fixture", kind: "system" }, definitions: [collaboration.read, collaboration.control], handlers: [
     { ...collaboration.read, handle: async (_caller, input) => { calls.push([collaboration.read.capability_id, input]); const session = (input as { session_id?: string }).session_id;
-      return { sessions: waits.filter(one => session === undefined || one.session_id === session).map(one => structuredClone(one)) }; } },
+      // As the Host serves it: one view a session, its latest wait that still matters (open, or not taken up or given up).
+      const latest = (id: string) => [...waits].reverse().find(one => one.session_id === id && (one.wait.state === "waiting" || !["started", "cancelled"].includes(one.continuation.state))) ?? { session_id: id };
+      return { sessions: (session === undefined ? [...new Set(waits.map(one => one.session_id))] : [session]).map(id => structuredClone(latest(id))) }; } },
     { ...collaboration.control, handle: async (_caller, input) => { calls.push([collaboration.control.capability_id, input]); const { kind, wait_id } = input as { kind: string; wait_id: string };
       const one = waits.find(item => item.wait.wait_id === wait_id)!;
-      if (kind === "cancel-wait") { one.wait.state = "cancelled"; one.continuation.state = "cancelled"; } else { one.wait.state = "cancelled"; one.wait.continued = true; one.continuation.state = "eligible"; }
+      // Given up while it waits: cancelled. Over already, its step held for the person: the step is given back, and the
+      // Host no longer shows it (here, as a cancelled continuation).
+      if (kind === "cancel-wait") { if (one.wait.state === "waiting") one.wait.state = "cancelled"; one.continuation.state = "cancelled"; } else { one.wait.state = "cancelled"; one.wait.continued = true; one.continuation.state = "eligible"; }
       return { session: structuredClone(one) }; } },
   ] });
   const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", goalTitle: () => undefined,
@@ -130,11 +134,12 @@ test("a round told to wait for another session's work waits on it, starts on its
     }
     assert.match((await call("/sessions/b")).body.session.queued.note, /「改标签格式」那一步没有完成/);
     assert.equal(started().length, 1);
-    // Given up: the item is released; the wait is over already (it failed), so there is no wait left to cancel.
+    // Given up: the item is released; the wait is over already (it failed), and its step, held for the person, is given back.
     const cancelled = await call("/sessions/b/queued", { action: "cancel" });
     assert.equal(cancelled.status, 200, JSON.stringify(cancelled.body));
     assert.ok(calls.some(([id, args]) => id === agent.releaseProjectRound.capability_id && (args as any[])[1] === "wb1"));
-    assert.equal(calls.some(([id]) => id === collaboration.control.capability_id), false);
+    assert.deepEqual(calls.filter(([id]) => id === collaboration.control.capability_id).map(([, args]) => [(args as any).kind, (args as any).wait_id]), [["cancel-wait", "w-wb1"]]);
     assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "done");
+    assert.equal((await call("/sessions/b")).body.session.queued, null);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

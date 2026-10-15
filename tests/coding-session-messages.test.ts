@@ -86,7 +86,9 @@ test("sessions of one project write to each other: a request reaches a running r
     const b = await host.start("prologue", { ...owner, session: sessionB, directory, role_id: "builder", task: "B_TASK 在调用方用 formatLabel 的新参数", session_title: "调用方" } as never, authority);
     await ended(adapter, b.ref);
     // B started knowing A's work and how to wait on work it depends on.
-    assert.match(seen.B[0]!, /会话「改接口」（session \S+?）进行中/);
+    assert.match(seen.B[0]!, /会话「改接口」（session \S+?）进行中：A_TASK/);
+    // The board also holds the project's root and each session's block: they are not work under way.
+    assert.doesNotMatch(seen.B[0]!, /会话「项目」|（session ）/);
     assert.match(seen.B[0]!, /设 wait: true/);
     assert.match(seen.B[1]!, /you asked to wait for the answer/);
     await until("the request is handed to A's running round", async () => (await adapter.messages!.read("b"))[0]?.state === "delivered", 5_000);
@@ -102,9 +104,11 @@ test("sessions of one project write to each other: a request reaches a running r
     mail = await adapter.messages!.read("b");
     assert.deepEqual(mail.map(message => [message.kind, message.state]), [["request", "completed"], ["reply", "queued"]], "the answer ends the request; B has no round to hear it yet");
     assert.equal(mail[1]!.in_reply_to, asked);
-    // Waiting for the answer parked B in the SDK; the answer fired it, for the App to take up.
-    const parked = await adapter.waits!.read("b", sessionB.session_id);
-    assert.deepEqual(parked.map(wait => [wait.by, wait.state, wait.fired?.outcome, wait.fired?.text, wait.waiting_on]), [["agent", "fired", "answered", "formatLabel 已加 options 参数", "会话「改接口」的答复"]]);
+    // Waiting for the answer parked B's step on the project's board (specs/prologue-adoption §4.6.10); the answer ended
+    // the wait, and B's next round may go on with it.
+    const parked = await adapter.collaboration!.read("b", sessionB.session_id);
+    assert.deepEqual(parked.map(view => [view.wait?.by, view.wait?.state, view.wait?.conditions.map(one => [one.kind, one.ref, one.label, one.last.status]), view.continuation?.state]),
+      [["agent", "satisfied", [["envelope", asked, "会话「改接口」的答复", "satisfied"]], "eligible"]]);
     // Only this project's messages are listed; one session's view has what it sent and received.
     assert.equal((await adapter.messages!.read("another")).length, 0);
     assert.equal((await adapter.messages!.read("b", sessionB.session_id)).length, 2);

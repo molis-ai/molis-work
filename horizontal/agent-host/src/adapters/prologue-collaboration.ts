@@ -12,7 +12,7 @@ export const COLLABORATION_TOOLS: readonly string[] = ["dispatch-subagent", "boa
 /** The project's root on its work board: every session's block hangs under it, so the blocks are siblings (P2g). */
 export const PROJECT_STEP = "project";
 /** A session's block on the project's board: its rounds stand on it; its plans' steps and its subtasks' steps hang under it. */
-export const blockId = (session: ExactRef<"session">) => `s-${session.id}`;
+export const blockId = (session: { readonly id: string }) => `s-${session.id}`;
 export const isBlock = (id: string) => /^s-[^.]+$/.test(id);
 
 const boardRef = (id: string) => ({ kind: "task-board", id, revision: 1 }) as ExactRef<"task-board">;
@@ -61,12 +61,13 @@ export function eligibleContinuation(runtime: Runtime, session: ExactRef<"sessio
 
 /**
  * Make the step a round stands on one it may bind to. A step held for the person (blocked, or needing reconciliation
- * after a restart) goes back to ready: the person starting a round is their decision, recorded as theirs.
+ * after a restart) goes back to ready: the person starting a round, or giving up the wait that held it, is their
+ * decision, recorded as theirs.
  */
-export async function readyStep(runtime: Runtime, board: string, node: string, actor: string): Promise<void> {
+export async function readyStep(runtime: Runtime, board: string, node: string, actor: string, note = HUMAN_STEP_NOTE): Promise<void> {
   const ref = boardRef(board), step = runtime.boards.get(ref).nodes.find(one => one.id === node);
   if (!step) throw new Error("会话的任务图缺少这一步，不能开始");
-  if (step.state === "blocked") await runtime.boards.report({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: node, by: undefined, human: { kind: "human", id: actor }, override: true, note: HUMAN_STEP_NOTE, atMs: Date.now(), to: "ready" });
+  if (step.state === "blocked") await runtime.boards.report({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: node, by: undefined, human: { kind: "human", id: actor }, override: true, note, atMs: Date.now(), to: "ready" });
   else if (step.state === "needs-reconciliation") await runtime.boards.transition({ ref, nodeId: node, to: "ready" });
   else if (!["ready", "running", "waiting"].includes(step.state)) throw new Error("会话的任务图已经结束，不能再开始新的一轮");
 }

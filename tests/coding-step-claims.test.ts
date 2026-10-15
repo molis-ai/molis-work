@@ -19,6 +19,9 @@ const bodyOf = (init: RequestInit) => JSON.parse(typeof init.body === "string" ?
 const opening = (message: any) => typeof message.content === "string" ? message.content : (message.content ?? []).map((block: any) => block.text ?? block.content ?? "").join("");
 /** The latest board version this side saw in its own tool results. */
 const versionIn = (messages: string) => Number([...messages.matchAll(/board (?:at|[^ ]+ at) version (\d+)/g)].at(-1)?.[1] ?? 1);
+/** Where the round's plan is (the user's B, specs/prologue-adoption §4.6.10): the project's board, and the prefix of its steps. */
+const placeIn = (system: string) => ({ board: system.match(/本轮确认计划在项目任务图 (\S+) 上/)![1]!, prefix: system.match(/编号以 (\S+?)\. 开头/)![1]! });
+const esc = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const plan = { source: { artifact_id: "fixed-plan", version: 1 }, title: "三步", steps: [
   { id: "step-1", title: "改 a.ts", acceptance: "a 的测试通过" },
@@ -64,25 +67,26 @@ async function bench(t: { mock: { method: Function } }, script: (side: "parent" 
 
 test("a coordinator hands a step to a subtask: only the subtask reports on it, the coordinator hears its progress, and an unfinished step comes back", { timeout: 60_000 }, async t => {
   let release!: () => void; const parentDone = new Promise<void>(resolve => { release = resolve; });
-  let board = "", system = "", opening = "", refused = "", delta = "", subagent = "", childSaw = "";
+  let board = "", prefix = "", system = "", opening = "", refused = "", delta = "", subagent = "", childSaw = "";
   const b = await bench(t, async (side, body, turn) => {
     const messages = JSON.stringify(body.messages);
-    const report = (node: string, state: string, note: string) => response("", { name: "board-report", input: { board, node, state, note, version: versionIn(messages) } });
+    const report = (step: string, state: string, note: string) => response("", { name: "board-report", input: { board, node: `${prefix}.${step}`, state, note, version: versionIn(messages) } });
     if (side === "child") {
       // The child waits until the coordinator has tried its step and finished its own, so versions do not race.
       if (turn === 1) { await parentDone; return response("", { name: "board-read", input: { board } }); }
       if (turn === 2) {
-        assert.match(messages, /step-2 \[ready\] — 步骤 2 — owner you \(this session\)/);
-        assert.match(messages, /step-3 \[not-started\] — 步骤 3 — owner the session that dispatched you/);
+        // The child's run is bound to the step it was handed, and binding puts the step under way (SDK P2c).
+        assert.match(messages, new RegExp(`${esc(prefix)}\\.step-2 \\[running\\] — 步骤 2 — owner you \\(this session\\)`));
+        assert.match(messages, new RegExp(`${esc(prefix)}\\.step-3 \\[not-started\\] — 步骤 3 — owner the session that dispatched you`));
         return report("step-2", "running", "开始改 b");
       }
       childSaw = messages; return response("b 只改了一半，轮次用完。");
     }
     if (turn === 1) {
-      system = JSON.stringify(body.system); opening = messages; board = system.match(/任务图：([^。]+)。/)![1]!;
+      system = JSON.stringify(body.system); opening = messages; ({ board, prefix } = placeIn(system));
       const character = system.match(/molis-child-[a-z0-9-]+@\d+/)![0];
       return response("", { name: "dispatch-subagent", input: { instruction: "CHILD_TWO 改 b.ts，完成条件：b 的测试通过。", tools: ["read", "search", "context-remaining", "write", "edit", "run-command"],
-        character, workspace: "writer-0", idempotencyKey: "two", background: true, node: "step-2" } });
+        character, workspace: "writer-0", idempotencyKey: "two", background: true, node: `${prefix}.step-2` } });
     }
     if (turn === 2) { subagent = messages.match(/sub-[a-z0-9-]+/)![0]; return response("", { name: "board-read", input: { board } }); }
     if (turn === 3) return report("step-2", "running", "我自己来做 b");
@@ -104,8 +108,8 @@ test("a coordinator hands a step to a subtask: only the subtask reports on it, t
     assert.equal(done.phase, "completed", JSON.stringify({ phase: done.phase, turns: b.turns }));
     // The round starts with the graph at a glance, given with its task: every step and who holds it. The fixed
     // instructions say how to hand steps on, and that the snapshot is newer than the conversation.
-    assert.match(opening, /任务图现状（第 1 版/);
-    assert.match(opening, /step-2「改 b\.ts」可开始（ready），负责：本会话/);
+    assert.match(opening, /任务图现状（第 \d+ 版/);
+    assert.match(opening, new RegExp(`${esc(prefix)}\\.step-2「改 b\\.ts」可开始（ready），负责：本会话`));
     assert.doesNotMatch(system, /任务图现状（第/);
     assert.match(system, /dispatch-subagent 里写 node: 步骤编号/);
     assert.match(system, /比之前对话里的说法新/);
@@ -113,11 +117,11 @@ test("a coordinator hands a step to a subtask: only the subtask reports on it, t
     assert.match(refused, /TASKBOARD_NOT_ASSIGNED/);
     // What the subtask did reached the coordinator without it asking.
     assert.match(delta, /任务图有更新/);
-    assert.match(delta, /step-2「改 b\.ts」.*负责：/);
+    assert.match(delta, new RegExp(`${esc(prefix)}\\.step-2「改 b\\.ts」.*负责：`));
     const nodes = done.step_board!.nodes;
     assert.deepEqual(nodes.map(node => [node.id, node.state, node.owner?.kind]), [["step-1", "succeeded", "session"], ["step-2", "succeeded", "session"], ["step-3", "succeeded", "session"]]);
     const two = nodes.find(node => node.id === "step-2")!;
-    assert.match(childSaw, /board at version \d+; step-2 is running/, childSaw);
+    assert.match(childSaw, new RegExp(`board at version \\d+; ${esc(prefix)}\\.step-2 is running`), childSaw);
     assert.deepEqual(two.reports.map(entry => [entry.by, entry.note]), [
       ["改派", "本会话 → 子任务「two」（派出子任务时交给它）"],
       ["子任务「two」", "开始改 b"],
@@ -130,11 +134,11 @@ test("a coordinator hands a step to a subtask: only the subtask reports on it, t
 });
 
 test("a person takes a step on, records its result, adds a step for themselves and hands one back", { timeout: 60_000 }, async t => {
-  let board = "", later = "";
+  let board = "", prefix = "", later = "";
   const b = await bench(t, (side, body, turn) => {
     const messages = JSON.stringify(body.messages);
     if (JSON.stringify(body.messages).includes("现在每一步谁在负责")) { later = JSON.stringify(body.messages); return response("step-1 用户已完成，step-2 在本会话，插入的一步由用户处理。"); }
-    if (turn === 1) { board = JSON.stringify(body.system).match(/任务图：([^。]+)。/)![1]!; return response("", { name: "board-read", input: { board } }); }
+    if (turn === 1) { ({ board, prefix } = placeIn(JSON.stringify(body.system))); return response("", { name: "board-read", input: { board } }); }
     // The round stops early, leaving the graph unfinished for the person.
     return response(messages.includes("board at version") ? "先停在这里，等用户安排。" : "…");
   });
@@ -168,10 +172,10 @@ test("a person takes a step on, records its result, adds a step for themselves a
     // A later round without a plan of its own starts knowing who holds what on the unfinished graph.
     const asked = await b.startPlain("现在每一步谁在负责？");
     assert.equal((await b.settle(asked.ref)).phase, "completed");
-    assert.match(later, /本会话还有一张没结束的任务图/);
-    assert.match(later, /step-1「改 a\.ts」已完成（succeeded），负责：用户/);
-    assert.match(later, /step-2「改 b\.ts」可开始（ready），负责：本会话/);
-    assert.match(later, /user-1「手工核对页面」.*负责：用户/);
+    assert.match(later, /本会话还有一份没做完的计划/);
+    assert.match(later, new RegExp(`${esc(prefix)}\\.step-1「改 a\\.ts」已完成（succeeded），负责：用户`));
+    assert.match(later, new RegExp(`${esc(prefix)}\\.step-2「改 b\\.ts」可开始（ready），负责：本会话`));
+    assert.match(later, new RegExp(`${esc(prefix)}\\.user-1「手工核对页面」.*负责：用户`));
     // A question asked after the plan does not close it: the person can still take a step on.
     await amend({ kind: "assign", node: "step-2", to: "me" });
     assert.equal(view.nodes.find(node => node.id === "step-2")!.owner?.kind, "person");

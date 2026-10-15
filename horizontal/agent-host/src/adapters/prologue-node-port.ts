@@ -120,8 +120,7 @@ function prioritize(deps: PortDeps): NonNullable<PrologueRuntimePort["messages"]
     const seen = await projectWork.read(project, { session_id: sessionId, directory: mine.directory, paths: mine.paths });
     const targets = [...new Set(seen.overlaps.map(overlap => overlap.work.session_id))].slice(0, MAX_BROADCAST);
     const paths = [...new Set(seen.overlaps.flatMap(overlap => overlap.paths))];
-    // The person's word, said by the Host to each round running now. It is not a letter between agents: those go only
-    // between neighbouring steps of one task graph (P2g), and these sessions each stand on their own.
+    // The person's word, said by the Host to each round running now: it is not a letter between the sessions' agents.
     const text = `（宿主代用户发出）用户把会话「${mine.title.slice(0, 40)}」标成了优先。它要改 ${paths.join("、")}：请让出这些文件——先别再改它们，手头和它们有关的修改先停下，说明你停在哪里；等它做完或用户另行安排再继续。和这些文件无关的部分照常做。（标记人：${actorId}）`;
     const notified: string[] = [];
     for (const target of targets) {

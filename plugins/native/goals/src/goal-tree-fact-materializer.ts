@@ -1,3 +1,4 @@
+import { treeErrors } from "./goal-tree-errors.js";
 import type { GoalsCommandApi, GoalsQueryApi, CreateGoalIntentInput, CreateGoalIntentResult } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalTreeProposalItemRecord, ProposalAffectedObject } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GoalTreeInputReader } from "./goal-tree-inputs.js";
@@ -7,7 +8,6 @@ export class GoalTreeFactMaterializer {
   constructor(
     private readonly goals: { commands: Pick<GoalsCommandApi, "applyConfirmedRelations">; query: Pick<GoalsQueryApi, "getGoal"> },
     private readonly inputs: GoalTreeInputReader,
-    private readonly errorFactory: (code: string, message: string, details?: Record<string, unknown>) => Error,
     private readonly createIntent: (input: CreateGoalIntentInput) => CreateGoalIntentResult,
   ) {}
 
@@ -32,7 +32,7 @@ export class GoalTreeFactMaterializer {
     _at: string,
   ): ProposalAffectedObject {
     if (item.kind !== "goal" || item.operation !== "create") {
-      throw this.errorFactory("goal_tree_proposal.item_operation_invalid", "结构提案只能新增 Goal");
+      throw treeErrors["goals.goal_tree_proposal.item_operation_invalid"]("结构提案只能新增 Goal");
     }
     const goal = this.inputs.goalTreeGoalInput(item);
     const goalId = this.inputs.goalTreeTargetGoalId(item, goal);

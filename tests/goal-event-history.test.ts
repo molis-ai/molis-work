@@ -99,7 +99,7 @@ test("mixed document history keeps next_cursor when a work fetch window is full"
   };
   const readEvent = (_boardId: string, _goalId: string, eventId: string) => {
     const item = work.find((row) => row.event_id === eventId);
-    if (!item) throw Object.assign(new Error("事件不存在"), { code: "event.not_found" });
+    if (!item) throw Object.assign(new Error("事件不存在"), { code: "goals.event.not_found" });
     return {
       ...item,
       project_id: "b",

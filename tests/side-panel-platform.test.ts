@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -12,7 +13,7 @@ import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { UiViewRegistry } from "@molis-ai/molis-work-ui-host";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { browserSiteDeclarations } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -69,17 +70,20 @@ test("file entries page by kind and id with a revision over every entry; preview
   assert.throws(() => fileContentOf({ subject: { kind: "memo", id: "big" }, revision: "1", title: "big", media_type: "image/png", bytes: new Uint8Array(FILE_CONTENT_MAX_BYTES + 1) }), /太大/u);
 });
 
-test("the side slot places a plugin's tab only while the plugin is enabled, and the panel renders it as a frame", () => {
+test("PAS-08: the side slot places a plugin's tab only while the plugin is enabled, and the panel renders it as a frame", () => {
   assert.equal(UI_VIEW_SLOTS.includes("side"), true);
   const manifest = { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.side", version: "1.0.0", name: "侧栏样例", kind: "native",
     publisher: { publisher_id: "example", signature: "example-side" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
-    ui: { contributions: ["io.molis.work.example.side.notes"], views: [{ view_id: "notes", slot: "side", title: "随手记", icon: "note" }] } } as const;
+    ui: { contributions: ["io.molis.work.example.side.notes"], views: [{ view_id: "notes", slot: "side", context_binding: "focused-object", title: "随手记", icon: "note" }] } } as const;
   assert.deepEqual(new UiViewRegistry([{ manifest: manifest as never, enabled: true }]).slot("side").map(view => view.view_id), ["notes"]);
   assert.deepEqual(new UiViewRegistry([{ manifest: manifest as never, enabled: false }]).slot("side"), [], "a disabled plugin leaves no tab behind");
+  assert.equal(new UiViewRegistry([{ manifest: manifest as never, enabled: true }]).slot("side")[0]!.context_binding, "focused-object");
+  assert.throws(() => parsePluginManifest({ ...manifest, ui: { ...manifest.ui, views: [{ ...manifest.ui.views[0], slot: "stage" }] } }), /context_binding/);
   const html = renderSidePanel({ L: text => text, escapeHtml: value => String(value), icon: name => `<svg data-icon="${name}"></svg>` },
-    [{ key: "example/notes", title: "随手记", icon: "note", src: "/projects/p1/side/example/notes" }]);
+    [{ key: "example/notes", title: "随手记", icon: "note", src: "/projects/p1/side/example/notes", contextOwner: manifest.plugin_id, contextSurface: "example" }]);
   assert.match(html, /data-side-tab="plugin:example\/notes"/u);
+  assert.match(html, /data-side-context-owner="io\.molis\.work\.example\.side" data-side-context-surface="example" hidden/u);
   assert.match(html, /data-side-src="\/projects\/p1\/side\/example\/notes"/u);
   assert.match(html, /data-side-tab="discussion"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="files"/u);
   assert.doesNotMatch(html, /assistant-/u, "the panel stays out of the Assistant's classes");
@@ -195,7 +199,7 @@ test("a Plugin names the websites it uses in the side panel browser as exact ori
   assert.deepEqual(browserSiteDeclarations(parsePluginManifest(manifest([sites]))), ["https://shop.example.com", "http://localhost:8080"]);
   assert.deepEqual(browserSiteDeclarations(parsePluginManifest(manifest([]))), []);
   const refused = (origins: unknown, permission = "surface:browser") => assert.throws(() => parsePluginManifest(manifest([{ ...sites, permission, origins }])),
-    (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_permission_invalid", JSON.stringify(origins));
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.permission_invalid", JSON.stringify(origins));
   // A path, a query, a fragment or another scheme would say less than the site it allows; none, or origins on another permission, say nothing.
   for (const origins of [["https://shop.example.com/orders"], ["https://shop.example.com/?token=x"], ["https://shop.example.com#top"], ["file:///etc"], ["shop.example.com"], [], undefined]) refused(origins);
   refused(["https://shop.example.com"], "artifact:write");

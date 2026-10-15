@@ -51,9 +51,10 @@
     },
     "attention": {
       "paths": [
-        "modules/attention-resumption/"
+        "modules/attention-resumption/",
+        "packages/contracts/src/modules/attention-errors.ts"
       ],
-      "reason": "The attention and resumption module: its attention_* codes become attention.*."
+      "reason": "The attention and resumption module: its attention_* codes become attention.*. The public Attention contract declares these refusals; Inbox errors remain owned by Inbox."
     },
     "browser": {
       "paths": [
@@ -64,6 +65,7 @@
     "catalog": {
       "paths": [
         "modules/projects/",
+        "packages/contracts/src/modules/projects.ts",
         "apps/local-host/src/project-catalog*.ts",
         "apps/local-host/src/catalog-schema.ts",
         "apps/local-host/src/managed-project-*",
@@ -73,7 +75,7 @@
         "apps/local-host/src/project-file-paths.ts",
         "apps/desktop/src/panels.ts"
       ],
-      "reason": "The project catalog: creating, binding, recovering and deleting projects and their panels (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2)."
+      "reason": "The project catalog: creating, binding, recovering and deleting projects and their panels (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2). Its public module contract holds the single Catalog error declaration used by Projects and Work."
     },
     "catalog_integration": {
       "paths": [
@@ -112,9 +114,10 @@
         "horizontal/connector-host/",
         "apps/local-host/src/connector*",
         "apps/local-host/src/web-connector*",
-        "apps/local-host/src/host-connector-methods.ts"
+        "apps/local-host/src/host-connector-methods.ts",
+        "packages/contracts/src/services/connector-host.ts"
       ],
-      "reason": "Connector connections, drivers, OAuth and the connector settings routes (ConnectorHostError, ConnectorConnectionError, McpConnectionError): one owner, whose bare-word and connector_* codes become connector.*."
+      "reason": "Connector connections, drivers, OAuth and the connector settings routes (ConnectorHostError, ConnectorConnectionError, McpConnectionError): one owner, whose bare-word and connector_* codes become connector.*. Its public service contract declares the service and MCP connection refusals once."
     },
     "context_ledger": {
       "paths": [
@@ -278,9 +281,10 @@
         "tooling/plugin-cli/",
         "apps/local-host/src/installed-plugin-*",
         "packages/contracts/src/platform/plugin-events.ts",
-        "packages/contracts/src/platform/plugin-wiring.ts"
+        "packages/contracts/src/platform/plugin-wiring.ts",
+        "packages/contracts/src/platform/plugin-errors.ts"
       ],
-      "reason": "The Plugin Runtime, the plugin SDK's manifest and definition checks, the plugin CLI and the Host's installed-plugin files: their plugin_* codes become plugin.* (spec W3-02 J1)."
+      "reason": "The Plugin Runtime, the plugin SDK's manifest and definition checks, the plugin CLI and the Host's installed-plugin files: their plugin_* codes become plugin.* (spec W3-02 J1). The shared public contract declares Runtime and authoring refusals once."
     },
     "plugin_builder": {
       "paths": [

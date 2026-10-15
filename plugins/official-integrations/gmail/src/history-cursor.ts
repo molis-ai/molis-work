@@ -9,7 +9,7 @@
  * - history ids increase but are not contiguous
  * - history.list returns changes *after* startHistoryId
  * - stale/invalid startHistoryId typically needs a full resync (HTTP 404)
- * - only a final response without nextPageToken makes historyId safe to store
+ * - response high water is safe only after its final page; complete records can checkpoint earlier
  * - History.messages duplicates specific change arrays; use named fields only
  */
 
@@ -60,13 +60,15 @@ export type GmailLiveCursor = {
   v: typeof GMAIL_LIVE_CURSOR_VERSION;
   historyId: string;
   mode: "live";
-  /** ISO-8601 UTC time of the successful complete sync that produced this cursor. */
+  /** ISO-8601 UTC time of the successful batch that produced this progress. */
   at: string;
   provenance: GmailLiveCursorProvenance;
   /** Non-secret source scope used to produce this cursor. */
   scope?: GmailScope;
   /** Profile identity used for direct-recipient attention matching. */
   account_email?: string;
+  /** Next unread part of one immutable history record; historyId still excludes only complete records. */
+  position?: { historyId: string; offset: number };
 };
 
 export type GmailFixtureCursor = typeof GMAIL_FIXTURE_CURSOR;
@@ -116,6 +118,8 @@ export type GmailHistoryPageFacts = {
 export type GmailHistoryReduceState = {
   messageIds: string[];
   pagesSeen: number;
+  cursor: GmailLiveCursor;
+  startHistoryId: string;
 };
 
 export type GmailHistoryPageDecision =
@@ -124,11 +128,13 @@ export type GmailHistoryPageDecision =
       nextPageToken: string;
       messageIds: string[];
       pagesSeen: number;
+      cursor: GmailLiveCursor;
+      startHistoryId: string;
     }
   | {
       kind: "complete";
       messageIds: string[];
-      /** Eligible only when pagination is finished and historyId is valid. */
+      /** Only consumed records (or the completely drained response) are covered. */
       candidateCursor: GmailLiveCursor;
     }
   | {
@@ -250,9 +256,16 @@ function normalizeAccountEmail(value: unknown): string | undefined | null {
   return normalized;
 }
 
+function historyPosition(value: unknown, historyId: string): GmailLiveCursor["position"] | null {
+  if (value === undefined) return undefined;
+  if (!isPlainObject(value) || !isValidGmailHistoryId(value.historyId)
+    || BigInt(value.historyId) <= BigInt(historyId) || !Number.isSafeInteger(value.offset) || Number(value.offset) <= 0) return null;
+  return { historyId: value.historyId, offset: Number(value.offset) };
+}
+
 /**
  * Build a versioned live cursor only from already-validated progress facts.
- * Callers must only invoke this after complete pagination or a complete full sync.
+ * A record checkpoint or position must cover only details the caller successfully consumed.
  */
 export function buildGmailLiveCursor(input: {
   historyId: string;
@@ -260,6 +273,7 @@ export function buildGmailLiveCursor(input: {
   provenance: GmailLiveCursorProvenance;
   scope?: GmailScope;
   accountEmail?: string;
+  position?: GmailLiveCursor["position"];
 }): { ok: true; cursor: GmailLiveCursor } | { ok: false; message: string } {
   if (!isValidGmailHistoryId(input.historyId)) {
     return {
@@ -286,6 +300,8 @@ export function buildGmailLiveCursor(input: {
       message: "Gmail live cursor account identity is invalid",
     };
   }
+  const position = historyPosition(input.position, input.historyId);
+  if (position === null) return { ok: false, message: "Gmail history record position is invalid" };
   return {
     ok: true,
     cursor: {
@@ -296,6 +312,7 @@ export function buildGmailLiveCursor(input: {
       provenance: input.provenance,
       ...(input.scope ? { scope: input.scope } : {}),
       ...(accountEmail ? { account_email: accountEmail } : {}),
+      ...(position ? { position } : {}),
     },
   };
 }
@@ -376,6 +393,7 @@ export function decideGmailSyncFromCursor(raw: unknown): GmailSyncEntryDecision 
     provenance: raw.provenance,
     scope,
     accountEmail,
+    position: raw.position as GmailLiveCursor["position"],
   });
   if (!built.ok) {
     return invalid("unsafe", built.message);
@@ -447,122 +465,64 @@ export function collectGmailHistoryMessageIds(history: unknown): string[] {
   return out;
 }
 
-/**
- * First-seen merge capped at the detail-fetch bound so reducer output cannot
- * ask later callers to fan out past GMAIL_DETAIL_FETCH_LIMIT.
- */
-function mergeUniqueIdsBounded(
-  existing: string[],
-  incoming: string[],
-  limit: number,
-): string[] {
-  if (limit <= 0) return [];
-  if (existing.length >= limit) return existing.slice(0, limit);
-  if (incoming.length === 0) return existing.slice();
-  const seen = new Set(existing);
-  const out = existing.slice();
-  for (const id of incoming) {
-    if (out.length >= limit) break;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
+type HistoryMetadata = { at: string; scope?: GmailScope; accountEmail?: string };
+const unsafeHistoryPage = (): GmailHistoryPageDecision => ({ kind: "fail", reason: "unsafe_page", message: "Gmail history page cannot establish safe progress" });
+
+function historyBatch(state: GmailHistoryReduceState, metadata: HistoryMetadata, position?: GmailLiveCursor["position"]): GmailHistoryPageDecision {
+  const built = buildGmailLiveCursor({ historyId: state.cursor.historyId, provenance: "history", ...metadata, position });
+  return built.ok ? { kind: "complete", messageIds: state.messageIds, candidateCursor: built.cursor }
+    : { kind: "fail", reason: "incomplete", message: built.message };
 }
 
-/**
- * Reduce one history.list page into continue / complete / fail.
- * A new cursor candidate is eligible only on a final page (no nextPageToken)
- * with a validated response historyId — partial work never advances progress.
- * messageIds are capped at GMAIL_DETAIL_FETCH_LIMIT (stable first-seen order).
- */
+/** Consume at most 25 distinct candidates, retaining the next offset inside a record with many messages. */
+function consumeHistoryRecords(state: GmailHistoryReduceState, history: unknown, metadata: HistoryMetadata, ceiling: string): GmailHistoryPageDecision | null {
+  if (history !== undefined && !Array.isArray(history)) return unsafeHistoryPage();
+  const seen = new Set(state.messageIds);
+  for (const record of history ?? []) {
+    if (!isPlainObject(record) || !isValidGmailHistoryId(record.id) || BigInt(record.id) <= BigInt(state.cursor.historyId) || BigInt(record.id) > BigInt(ceiling)) return unsafeHistoryPage();
+    const position = state.cursor.position;
+    if (position && position.historyId !== record.id) return unsafeHistoryPage();
+    const ids = collectGmailHistoryMessageIds([record]);
+    const offset = position?.offset ?? 0;
+    if (offset > ids.length) return unsafeHistoryPage();
+    for (let index = offset; index < ids.length; index++) {
+      const id = ids[index]!;
+      if (seen.has(id)) continue;
+      if (state.messageIds.length === GMAIL_DETAIL_FETCH_LIMIT) {
+        return historyBatch(state, metadata, index ? { historyId: record.id, offset: index } : undefined);
+      }
+      seen.add(id); state.messageIds.push(id);
+    }
+    state.cursor = { ...state.cursor, historyId: record.id, position: undefined };
+  }
+  return null;
+}
+
+/** A bounded batch checkpoints complete records; only a drained final page may use the response high water. */
 export function reduceGmailHistoryPage(
   state: GmailHistoryReduceState,
   page: GmailHistoryPageFacts,
-  opts: { at: string; scope?: GmailScope; accountEmail?: string },
+  metadata: HistoryMetadata,
 ): GmailHistoryPageDecision {
-  const pagesSeen = state.pagesSeen + 1;
-  if (pagesSeen > GMAIL_HISTORY_PAGE_LIMIT) {
-    return {
-      kind: "fail",
-      reason: "pagination_limit",
-      message: "Gmail history pagination exceeded the fixed page cap",
-    };
-  }
-
-  const pageIds = collectGmailHistoryMessageIds(page?.history);
-  const messageIds = mergeUniqueIdsBounded(
-    state.messageIds,
-    pageIds,
-    GMAIL_DETAIL_FETCH_LIMIT,
-  );
-
-  const tokenRaw = page?.nextPageToken;
-  if (tokenRaw != null && tokenRaw !== "") {
-    if (typeof tokenRaw !== "string") {
-      return {
-        kind: "fail",
-        reason: "unsafe_page",
-        message: "Gmail history nextPageToken is unsafe",
-      };
+  const next = { messageIds: state.messageIds.slice(), pagesSeen: state.pagesSeen + 1, cursor: state.cursor, startHistoryId: state.startHistoryId };
+  if (next.pagesSeen > GMAIL_HISTORY_PAGE_LIMIT) return { kind: "fail", reason: "pagination_limit", message: "Gmail history pagination exceeded the fixed page cap" };
+  const token = page.nextPageToken;
+  if ((token != null && token !== "" && (typeof token !== "string" || token.length > MAX_PAGE_TOKEN_CHARS))
+    || !isValidGmailHistoryId(page.historyId) || BigInt(page.historyId) < BigInt(state.cursor.historyId)) return unsafeHistoryPage();
+  const batch = consumeHistoryRecords(next, page.history, metadata, page.historyId);
+  if (batch) return batch;
+  if (token != null && token !== "") {
+    if (typeof token !== "string" || token.length > MAX_PAGE_TOKEN_CHARS) return unsafeHistoryPage();
+    if (next.pagesSeen === GMAIL_HISTORY_PAGE_LIMIT || next.messageIds.length === GMAIL_DETAIL_FETCH_LIMIT) {
+      return next.cursor.position || next.cursor.historyId === state.startHistoryId ? unsafeHistoryPage() : historyBatch(next, metadata);
     }
-    if (tokenRaw.length > MAX_PAGE_TOKEN_CHARS) {
-      return {
-        kind: "fail",
-        reason: "unsafe_page",
-        message: "Gmail history nextPageToken exceeds the safe size bound",
-      };
-    }
-    // Still have pages but we are at the cap — cannot continue without risk of skip.
-    if (pagesSeen >= GMAIL_HISTORY_PAGE_LIMIT) {
-      return {
-        kind: "fail",
-        reason: "pagination_limit",
-        message: "Gmail history pagination exceeded the fixed page cap",
-      };
-    }
-    return {
-      kind: "continue",
-      nextPageToken: tokenRaw,
-      messageIds,
-      pagesSeen,
-    };
+    return { kind: "continue", nextPageToken: token, ...next };
   }
-
-  // Final page: only a validated historyId may become a cursor candidate.
-  const responseHistoryId = page?.historyId;
-  if (!isValidGmailHistoryId(responseHistoryId)) {
-    return {
-      kind: "fail",
-      reason: "missing_history_id",
-      message:
-        "Gmail history final page is missing a safe historyId; cursor cannot advance",
-    };
-  }
-
-  const built = buildGmailLiveCursor({
-    historyId: responseHistoryId,
-    at: opts.at,
-    provenance: "history",
-    scope: opts.scope,
-    accountEmail: opts.accountEmail,
-  });
-  if (!built.ok) {
-    return {
-      kind: "fail",
-      reason: "incomplete",
-      message: built.message,
-    };
-  }
-
-  return {
-    kind: "complete",
-    messageIds,
-    candidateCursor: built.cursor,
-  };
+  if (next.cursor.position || !isValidGmailHistoryId(page.historyId) || BigInt(page.historyId) < BigInt(next.cursor.historyId)) return unsafeHistoryPage();
+  next.cursor = { ...next.cursor, historyId: page.historyId };
+  return historyBatch(next, metadata);
 }
 
-/** Empty reducer state for the start of an incremental history.list walk. */
-export function initialGmailHistoryReduceState(): GmailHistoryReduceState {
-  return { messageIds: [], pagesSeen: 0 };
+export function initialGmailHistoryReduceState(cursor: GmailLiveCursor): GmailHistoryReduceState {
+  return { messageIds: [], pagesSeen: 0, cursor, startHistoryId: cursor.historyId };
 }

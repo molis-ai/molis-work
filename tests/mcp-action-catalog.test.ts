@@ -83,6 +83,11 @@ test("assembleMcpCatalog lists exactly the granted actions that are available no
     actions: [{ ...invoke, availability: { available: false, code: "offline", reason: "offline" } }] });
   assert.equal(names(offline).includes(molisWorkActionToolName(invoke)), false, "an unavailable action is not listed even when granted");
   assert.ok(offline.known_names.has(molisWorkActionToolName(invoke)));
+  assert.equal(offline.entries.filter(entry => entry.source === "action").length, 1, "W3-09-2-01: an exact grant retains the unavailable action for named dispatch");
+  for (const wrong of [{ ...reference(invoke), provider_id: "other-provider" }, { ...reference(invoke), version: invoke.version + 1 }]) {
+    const denied = assembleMcpCatalog({ audience: "runtime", actions: [invoke], authorized_actions: [wrong] });
+    assert.equal(denied.entries.filter(entry => entry.source === "action").length, 0, "a different provider or version confers no named-call authority");
+  }
 });
 
 test("Pages Forms Dataset PPT actions take no identity fields: the project comes from the connection", () => {

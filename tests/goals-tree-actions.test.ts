@@ -6,11 +6,10 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, goalTreeCapabilities } from "@molis-ai/molis-work-plugin-goals";
+import { managementTreeAuthority, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalTreeProposalItemInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
-import { filesManifest } from "@molis-ai/molis-work-plugin-files";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -23,6 +22,7 @@ const proposalInput = (prefix: string) => ({ summary: "Create a parent and child
       type: "part_of", reason: "Part of the same result" }, source_refs: ["conversation://tree"], reason: "Define ownership", confidence: 1 },
   ] as GoalTreeProposalItemInput[] });
 
+// R3-03: owner codes preserve atomic writes, authority refusals, replay and restart.
 test("tree actions preserve proposals, protected authority, atomic materialization, old receipts and restart", async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-tree-actions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Tree", actor_id: "user" }));
@@ -32,7 +32,7 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     denied.has(view.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Tree disabled" } : { available: true } });
   const caller: ActionCallContext = { actor_id: "runtime:tree", audit_actor_id: "runtime:tree:session", runtime_session_id: "session", actor_kind: "runtime",
     project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
-  const client = host.actionClient(ref), typed = host.client(ref), bound = bindActionClient(client, () => caller);
+  const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   const trusted: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", project_id: project.project_id, audience: "user",
     permissions: ["goals:read", "goals:write", "goals:decide"], user_action: { source: "management", conversation_ref: "conversation://tree",
       message_ref: "message://approve", whole_confirmation_prompted: true } };
@@ -40,14 +40,37 @@ test("tree actions preserve proposals, protected authority, atomic materializati
   const input = proposalInput("original");
   try {
     const empty = await snapshot();
+    // I5-01: real Host submission retains all provenance issues, and rejection writes no facts.
+    const invalidItem = { ...input.items[0]!, source_refs: [" "], reason: " " };
+    const invalidInput = { ...input, items: [invalidItem], idempotency_key: "invalid-provenance" };
+    const originalInvalid = structuredClone(invalidInput);
+    await assert.rejects(bound.invoke(goalsActions.treeSubmit, invalidInput), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "goals.goal_tree_proposal.source_required");
+      assert.equal(error.kind, "invalid");
+      assert.equal(actionHttpStatus(error), 400);
+      assert.equal(error.message, "items[0].source_refs: 第 1 个条目至少需要一个来源引用\nitems[0].reason: 第 1 个条目必须说明业务理由");
+      assert.equal(error.details?.path, "items[0].source_refs");
+      assert.deepEqual(error.details?.issues, [
+        { code: "goals.goal_tree_proposal.source_required", path: "items[0].source_refs",
+          message: "第 1 个条目至少需要一个来源引用", expected: "包含真实来源的字符串数组，例如已保存的 Goal 事件 event_id" },
+        { code: "goals.goal_tree_proposal.reason_required", path: "items[0].reason",
+          message: "第 1 个条目必须说明业务理由", expected: "非空字符串" },
+      ]);
+      assert.equal(error.details?.recovery, "修正列出的字段后重试 goals.tree.submit；失败调用不会创建提案，无需切换接口。");
+      return true;
+    });
+    assert.deepEqual(invalidInput, originalInvalid);
+    assert.deepEqual(await snapshot(), empty);
+    assert.deepEqual((await bound.invoke(goalsActions.treeRead, {})).proposals, []);
     const old = await host.withProject(ref, r => r.coordinator.goalTreeSubmission.submitGoalTreeProposal({ ...input,
       project_id: project.project_id, actor_id: caller.audit_actor_id!, submitted_session_id: caller.runtime_session_id }));
     assert.equal(old.proposal.submitted_session_id, "session");
     assert.deepEqual(await bound.invoke(goalsActions.treeSubmit, input), { ...old, replayed: true });
-    // The typed door is the management door: it records the person on this machine and refuses the Runtime's identity and Session,
+    // Action inputs refuse a Runtime identity or Session; both come from the trusted call context,
     // so it never replays the Runtime's proposal, and nothing is written by the refused call.
     for (const identity of [{ actor_id: caller.audit_actor_id! }, { submitted_session_id: "session" }]) {
-      await assert.rejects(typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ ...input, project_id: project.project_id, ...identity }] as never), { code: "actions.input_invalid" });
+      await assert.rejects(client.invoke(trusted, goalsActions.treeSubmit, { ...input, ...identity } as never), { code: "actions.input_invalid" });
     }
     assert.deepEqual(await bound.invoke(goalsActions.treeRead, { proposal_id: old.proposal.proposal_id }).then(read => read.proposals.map(item => item.proposal_id)), [old.proposal.proposal_id]);
     await assert.rejects(bound.invoke(goalsActions.treeSubmit, { ...input, summary: "Changed request" }));
@@ -55,19 +78,19 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     const check = { proposal_id, idempotency_key: "check" };
     const checked = await bound.invoke(goalsActions.treeCheck, check);
     assert.deepEqual(checked.conflict_item_ids, []);
-    await assert.rejects(typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [{ ...check, project_id: project.project_id, actor_id: caller.audit_actor_id! }]), { code: "actions.input_invalid" });
-    const localCheck = { proposal_id, project_id: project.project_id, idempotency_key: "check-local" };
-    const typedChecked = await typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [localCheck]);
-    assert.deepEqual(typedChecked.conflict_item_ids, checked.conflict_item_ids);
-    assert.deepEqual(await typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [localCheck]), typedChecked);
+    await assert.rejects(client.invoke(trusted, goalsActions.treeCheck, { ...check, actor_id: caller.audit_actor_id! } as never), { code: "actions.input_invalid" });
+    const localCheck = { proposal_id, idempotency_key: "check-local" };
+    const localChecked = await client.invoke(trusted, goalsActions.treeCheck, localCheck);
+    assert.deepEqual(localChecked.conflict_item_ids, checked.conflict_item_ids);
+    assert.deepEqual(await client.invoke(trusted, goalsActions.treeCheck, localCheck), localChecked);
     assert.deepEqual((await snapshot()).goals, empty.goals, "submission and check never materialize Goals");
     assert.deepEqual((await snapshot()).relations, empty.relations);
     const read = { proposal_id };
-    assert.deepEqual(await bound.invoke(goalsActions.treeRead, read), await typed.invoke(goalTreeCapabilities.listGoalTreeProposals, [{ ...read, project_id: project.project_id }]));
+    assert.deepEqual(await bound.invoke(goalsActions.treeRead, read), await client.invoke(trusted, goalsActions.treeRead, read));
     for (const extra of [{ actor_id: "forged" }, { submitted_session_id: "forged" }, { project_id: "foreign" }]) {
       await assert.rejects(bound.invoke(goalsActions.treeSubmit, { ...input, ...extra } as never), { code: "actions.input_invalid" });
     }
-    await assert.rejects(typed.invoke(goalTreeCapabilities.listGoalTreeProposals, [{ project_id: "foreign" }]), { code: "actions.scope_mismatch" });
+    await assert.rejects(client.invoke({ ...trusted, project_id: "foreign" }, goalsActions.treeRead, {}), { code: "actions.scope_mismatch" });
     await assert.rejects(client.invoke({ ...caller, project_id: "foreign" }, goalsActions.treeRead, {}), { code: "actions.scope_mismatch" });
     await assert.rejects(client.invoke({ ...caller, permissions: ["goals:read"] }, goalsActions.treeCheck, check), { code: "actions.forbidden" });
     const decision = { proposal_id, confirm_all_pending: true, reason: "Approve this exact structure", idempotency_key: "approve" };
@@ -84,20 +107,15 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     await assert.rejects(served.grant("runtime:tree", project.project_id, [view]), { status: 404, code: "actions.missing" });
     assert.deepEqual((await readMcpActionAccess(served.web, { clientId: "runtime:tree", projectId: project.project_id })).grants, [], "a refused grant leaves no record");
     await served.close();
-    await assert.rejects(client.invoke({ ...trusted, user_action: undefined }, goalsActions.treeDecide, decision), { code: "goal_tree_proposal.untrusted_actor" });
-    await assert.rejects(client.invoke({ ...trusted, user_action: { ...trusted.user_action!, source: "runtime_dialogue" } }, goalsActions.treeDecide, decision), { code: "goal_tree_proposal.untrusted_actor" });
+    await assert.rejects(client.invoke({ ...trusted, user_action: undefined }, goalsActions.treeDecide, decision), { code: "goals.goal_tree_proposal.untrusted_actor" });
+    await assert.rejects(client.invoke({ ...trusted, user_action: { ...trusted.user_action!, source: "runtime_dialogue" } }, goalsActions.treeDecide, decision), { code: "goals.goal_tree_proposal.untrusted_actor" });
     await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, { ...decision, authority }), { code: "actions.input_invalid" });
-    const plugin = createPluginCapabilityClient({ ...filesManifest, plugin_id: "io.molis.test.tree-forgery",
-      capabilities: { provides: [], consumes: [goalTreeCapabilities.decideGoalTreeProposal.capability_id] } }, typed);
-    assert.equal(plugin.availability(goalTreeCapabilities.decideGoalTreeProposal).available, false);
-    await assert.rejects(plugin.invoke({ ...goalTreeCapabilities.decideGoalTreeProposal, host_only: false },
-      [{ ...decision, project_id: project.project_id, authority: { conversation_ref: authority.conversation_ref, message_ref: authority.message_ref } }], { consumer: undefined }), { code: "actions.host_only" });
-    // The host capability belongs to the management entry, which decides as the person on this machine (§9.5 #6): the authority it
-    // takes only points at the conversation, and an identity or origin in it is refused.
+    // W3-07-5-01: the management evidence owner still refuses identity and source claims;
+    // the actual action input cannot carry an authority at all.
     const evidence = { conversation_ref: authority.conversation_ref, message_ref: authority.message_ref, whole_confirmation_prompted: true };
     for (const forged of [{ ...authority, actor_id: "another-person" }, { ...authority, authority_source: "web" as const }, { ...evidence, actor_kind: "runtime" }, authority]) {
-      await assert.rejects(typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, project_id: project.project_id, authority: forged } as never]),
-        { code: "goal_tree_proposal.authority_source_invalid" });
+      assert.throws(() => managementTreeAuthority(project.project_id, decision.idempotency_key, forged), { code: "goals.goal_tree_proposal.authority_source_invalid" });
+      await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, { ...decision, authority: forged } as never), { code: "actions.input_invalid" });
     }
     const before = await snapshot();
     await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER reject_tree_decision BEFORE INSERT ON goal_tree_proposal_decisions
@@ -105,7 +123,7 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, decision), /injected tree decision failure/);
     assert.deepEqual(await snapshot(), before, "failed decision rolls back materialized Goals, relations and audits");
     await host.withProject(ref, r => r.store.db.exec("DROP TRIGGER reject_tree_decision"));
-    const approved = await typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, project_id: project.project_id, authority: evidence }]);
+    const approved = await client.invoke(trusted, goalsActions.treeDecide, decision);
     assert.deepEqual(approved.applied_item_ids, ["original-parent", "original-child", "original-relation"]);
     assert.equal(approved.proposal.decisions[0]?.actor_id, trusted.actor_id);
     assert.deepEqual(await client.invoke(trusted, goalsActions.treeDecide, decision), { ...approved, replayed: true });
@@ -127,10 +145,10 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     assert.ok(after.goals.some(g => g.goal_id === "original-child"));
     assert.ok(after.relations.some(r => r.from_goal_id === "original-child" && r.to_goal_id === "original-parent" && r.state === "active"));
     for (const definition of [goalsActions.treeSubmit, goalsActions.treeRead, goalsActions.treeCheck, goalsActions.treeDecide]) denied.add(definition.capability_id);
-    await assert.rejects(typed.invoke(goalTreeCapabilities.listGoalTreeProposals, [{ project_id: project.project_id }]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalTreeCapabilities.submitGoalTreeProposal, [{ ...proposalInput("denied"), project_id: project.project_id }]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalTreeCapabilities.checkGoalTreeProposal, [{ ...check, project_id: project.project_id }]), { code: "actions.plugin_disabled" });
-    await assert.rejects(typed.invoke(goalTreeCapabilities.decideGoalTreeProposal, [{ ...decision, project_id: project.project_id, authority: evidence }]), { code: "actions.plugin_disabled" });
+    await assert.rejects(client.invoke(trusted, goalsActions.treeRead, {}), { code: "actions.plugin_disabled" });
+    await assert.rejects(client.invoke(trusted, goalsActions.treeSubmit, proposalInput("denied")), { code: "actions.plugin_disabled" });
+    await assert.rejects(client.invoke(trusted, goalsActions.treeCheck, check), { code: "actions.plugin_disabled" });
+    await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, decision), { code: "actions.plugin_disabled" });
     assert.deepEqual(await snapshot(), after);
     await host.close();
     const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -166,7 +184,7 @@ test("Web tree approval reaches action policy, preserves trusted provenance and 
     const before = await snapshot();
     assert.equal((await request(id, decision, false)).status, 403);
     denied = true;
-    const blocked = await request(id, decision); assert.equal(blocked.status, 400); assert.match(await blocked.text(), /Tree disabled/);
+    const blocked = await request(id, decision); assert.equal(blocked.status, 403); assert.match(await blocked.text(), /Tree disabled/);
     assert.deepEqual(await snapshot(), before);
     denied = false;
     const response = await request(id, { ...decision, authority: { actor_id: "forged" }, runtime_actor_id: "forged" });

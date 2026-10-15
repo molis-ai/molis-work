@@ -1,4 +1,5 @@
-import { bindActionClient, bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, bindWorkflowContentHandlers, defineWorkflowContentActions, retainActionAuthority, workflowDeliveryKey, type ActionClient, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LINGGUANG_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import { lingguangActions } from "./actions.js";
 
 export const lingguangContentActions = defineWorkflowContentActions({ id: "lingguang", title: "灵光", icon: "idea", create: true, subject_kind: "lingguang_spark",
@@ -18,5 +19,6 @@ export function createLingguangContentHandlers(actions: ActionClient) {
     // One delivery is one spark: a retried handoff returns the spark it created the first time.
     receive: async ({ payload, context }, caller) => ref((await bindActionClient(actions, () => caller)
       .invoke(lingguangActions.create, { title: payload.title, body: payload.body, request_id: workflowDeliveryKey(context) })).spark),
-  });
+  }).map<ActionHandlerBinding>(binding => ({ ...binding, handle: (caller, input) => binding.handle(retainActionAuthority(caller,
+    { capability_id: binding.capability_id, version: binding.version, provider_id: LINGGUANG_PLUGIN_ID }, caller.beforeEffect), input) }));
 }

@@ -58,10 +58,10 @@ test("MCP action port: a Todo failure comes out as its own code and message, not
   const call = async (name: string, args: Record<string, unknown>) => {
     const reply = await handleMcpMessage({ id: 1, method: "tools/call", params: { name, arguments: args } }, ports);
     const result = reply!.result as { isError: boolean; content: Array<{ text: string }> };
-    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; message: string } : {}) };
+    return { isError: result.isError, ...(result.isError ? JSON.parse(result.content[0]!.text) as { code: string; error: string } : {}) };
   };
   const missing = await call(actionMcpToolName(todoActions.get), { id: "no-such-todo" });
-  assert.deepEqual(missing, { isError: true, code: "todo.not_found", message: "找不到这件待办，可能已被删除" });
+  assert.deepEqual(missing, { isError: true, code: "todo.not_found", error: "找不到这件待办，可能已被删除" });
   const created = await person.invoke(todoActions.create, { title: "写周报" });
   const stale = await call(actionMcpToolName(todoActions.update), { id: created.item.id, expected_revision: created.item.revision + 5, title: "改过的标题" });
   assert.deepEqual([stale.isError, stale.code], [true, "todo.conflict"]);
@@ -98,42 +98,35 @@ test("the Host's own MCP server: a Todo failure carries its code line", async t 
   const reply = await external.handleMessage({ id: 1, method: "tools/call", params: { name: molisWorkActionToolName(todoActions.get), arguments: { id: "no-such-todo" } } }) as
     { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(reply.result.isError, true, JSON.stringify(reply));
-  // CHANGED by W3-01 D. The text is still the message line and the code line; the failed read left a row in the call log, so the code line also names
-  // the operation (`call_id`), and a person who is given it can look the row up.
-  const [message, codeLine, ...rest] = reply.result.content[0]!.text.split("\n");
-  assert.equal(message, "错误: 找不到这件待办，可能已被删除");
-  assert.deepEqual(rest, []);
-  const line = JSON.parse(codeLine!) as { code: string; call_id?: string };
-  assert.deepEqual(Object.keys(line), ["code", "call_id"]);
+  // W3-02-H-01: one JSON error body; only the actual recorded read has a diagnostic number.
+  const line = JSON.parse(reply.result.content[0]!.text) as { error: string; code: string; call_id?: string };
+  assert.equal(line.error, "找不到这件待办，可能已被删除");
+  assert.deepEqual(Object.keys(line), ["error", "code", "call_id"]);
   assert.equal(line.code, "todo.not_found");
   assert.match(line.call_id ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
   assert.equal(host.callLog!.find(line.call_id!)[0]?.code, "todo.not_found", "the number finds the row of the failed read");
 });
 
-test("Home dock: a failed Todo action on execute answers with the Todo's own code and a 400, not as an unknown 500", async t => {
-  // CHANGED. origin/main: a TodoError was not an ActionError, and home.actions.execute lets the offered action's own error through, so
-  // /api/home/actions/execute answered 500 { code: "actions.failed" } with a generic sentence. The dock still maps by code, not by kind, until its own
-  // slice (W3-02-C onward). The stand-in client fails every call the way todo.get does for a todo that is gone.
+test("W3-02-G1-03 Home dock execute preserves the Todo owner's not_found kind and answers 404", async t => {
+  // The actual Todo reader refuses a deleted object; the common HTTP exit preserves its code and message.
   const { person } = todoHost(t);
   const failing: BoundActionClient = { discover: async () => [], invoke: async () => await person.invoke(todoActions.get, { id: "no-such-todo" }) as never };
   const server = await serveNativeHttp((request, response, url) => handleHomeDockJudgmentHttp(request, response, url, { actions: failing, invalidateWebView: () => undefined }));
   try {
     const execute = await server.post("/api/home/actions/execute", "{}");
-    assert.deepEqual([execute.status, execute.body.code, execute.body.error], [400, "todo.not_found", "找不到这件待办，可能已被删除"]);
+    assert.deepEqual([execute.status, execute.body.code, execute.body.error], [404, "todo.not_found", "找不到这件待办，可能已被删除"]);
   } finally { await server.close(); }
 });
 
-test("Home dock: talk/prepare answers a Todo that is not there with the reader's code and a 400 (unchanged by W3-02-A)", async t => {
-  // UNCHANGED. home.talk.prepare starts by reading the subject through its owner's reader (resolveActionSubject, in home-talk-actions.ts), and Todo's
-  // reader already raised ActionError("todo.not_found") on origin/main, so this route answered 400 with that code before the slice as well. It is pinned
-  // because the slice rewrote that reader's error (`todoErrors.not_found`). The stand-in client does only that first step.
+test("W3-02-G1-03 Home dock talk/prepare preserves a missing Todo's code and answers 404", async t => {
+  // Preparation begins with the real subject reader, whose refusal reaches the same common HTTP exit.
   const { service, caller } = todoHost(t);
   const reading: BoundActionClient = { discover: async () => [], invoke: async (_definition, input) =>
     await resolveActionSubject(service, caller("user"), (input as { subject: ActionSubject }).subject) as never };
   const server = await serveNativeHttp((request, response, url) => handleHomeDockJudgmentHttp(request, response, url, { actions: reading, invalidateWebView: () => undefined }));
   try {
     const prepare = await server.post("/api/home/talk/prepare", JSON.stringify({ subject: { kind: "todo_item", id: "no-such-todo" } }));
-    assert.deepEqual([prepare.status, prepare.body.code, prepare.body.error], [400, "todo.not_found", "这件待办已删除，或不在当前范围内"]);
+    assert.deepEqual([prepare.status, prepare.body.code, prepare.body.error], [404, "todo.not_found", "这件待办已删除，或不在当前范围内"]);
   } finally { await server.close(); }
 });
 

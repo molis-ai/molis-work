@@ -70,7 +70,7 @@ test("an unsatisfied required Capability blocks only its own Plugin and names th
   });
   assert.deepEqual(resolution.blocked, ["io.molis.work.coding"]);
   assert.deepEqual(resolution.order, ["io.molis.work.files"]);
-  const missing = resolution.diagnostics.find((item) => item.code === "capability_missing");
+  const missing = resolution.diagnostics.find((item) => item.code === "plugin.capability_missing");
   assert.equal(missing?.plugin_id, "io.molis.work.coding");
   assert.equal(missing?.contract, "projects.read.v1@1");
 });
@@ -86,7 +86,7 @@ test("an optional Capability degrades instead of blocking", () => {
   });
   assert.deepEqual(resolution.blocked, []);
   assert.deepEqual(resolution.order, ["io.molis.work.coding"]);
-  assert.equal(resolution.diagnostics[0]?.code, "capability_optional_missing");
+  assert.equal(resolution.diagnostics[0]?.code, "plugin.capability_optional_missing");
 });
 
 test("Host-provided Capabilities satisfy requirements without adding an ordering edge", () => {
@@ -121,7 +121,7 @@ test("a dependency cycle blocks its members with a named diagnostic and spares t
   });
   assert.deepEqual(resolution.order, ["io.molis.work.c"]);
   assert.deepEqual(resolution.blocked, ["io.molis.work.a", "io.molis.work.b"]);
-  assert.ok(resolution.diagnostics.some((item) => item.code === "dependency_cycle"));
+  assert.ok(resolution.diagnostics.some((item) => item.code === "plugin.dependency_cycle"));
 });
 
 test("a blocked provider blocks the Plugins that required it", () => {
@@ -168,6 +168,6 @@ test("ports never create ordering edges, and an unproducible required input is r
   assert.deepEqual(unsatisfiable.blocked, []);
   assert.deepEqual(
     unsatisfiable.diagnostics.map((item) => [item.code, item.contract]),
-    [["port_type_unsatisfiable", "projects.project@1"]],
+    [["plugin.port_type_unsatisfiable", "projects.project@1"]],
   );
 });

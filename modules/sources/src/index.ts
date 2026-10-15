@@ -1,4 +1,4 @@
-import { SourcesError, sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
+import { sourceDeletedAt, sourceErrors } from "@molis-ai/molis-work-contracts/modules/sources";
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -34,8 +34,6 @@ export interface SourcesSqliteDatabase {
   pragma(sql: string): unknown;
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
-
-export { SourcesError } from "@molis-ai/molis-work-contracts/modules/sources";
 
 const FEED_SOURCES_COLUMNS = `
       project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
@@ -82,7 +80,6 @@ export const SOURCES_SCHEMA_SQL = `
       ON source_events(project_id, source_id, at, event_id);
 `;
 
-
 function hasStoredSources(db: Pick<SourcesSqliteDatabase, "prepare">): boolean {
   return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get());
 }
@@ -113,7 +110,7 @@ export function refreshSourceConnectionState(db: SourcesSqliteDatabase, input: {
         : source.status === "paused" ? "paused" : "disconnected";
       if (status === source.status) continue;
       sources.commands.save({ ...source, status, updated_at: at,
-        last_error_code: input.available ? null : "connector_disconnected" });
+        last_error_code: input.available ? null : "sources.connector_disconnected" });
       changed++;
     }
     return changed;
@@ -162,7 +159,7 @@ export class SourcesModule implements SourcesApi {
     const row = this.db.prepare(
       "SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?",
     ).get(projectId, sourceId) as Row | undefined;
-    if (!row) throw new SourcesError("source_not_found", "找不到这个来源");
+    if (!row) throw sourceErrors.not_found("找不到这个来源");
     return mapSource(row);
   }
 
@@ -249,7 +246,7 @@ export class SourcesModule implements SourcesApi {
 
   private setEnabled(projectId: string, sourceId: string, enabled: boolean, at?: string): SourceRecord {
     const source = this.get(projectId, sourceId);
-    if (sourceDeletedAt(source)) throw new SourcesError("source_not_found", "找不到这个来源");
+    if (sourceDeletedAt(source)) throw sourceErrors.not_found("找不到这个来源");
     return this.save({
       ...source,
       enabled,
@@ -265,7 +262,7 @@ export class SourcesModule implements SourcesApi {
     at?: string,
   ): SourceRecord {
     if (historyDecision !== "retain_history" && historyDecision !== "delete_local_history") {
-      throw new SourcesError("source_invalid_transition", "删除来源前必须选择如何处理本地历史");
+      throw sourceErrors.invalid_transition("删除来源前必须选择如何处理本地历史");
     }
     const source = this.get(projectId, sourceId);
     const retiredAt = at ?? new Date().toISOString();
@@ -356,7 +353,7 @@ function assertSchedule(schedule: SourceSchedule): void {
     || schedule.interval_minutes > 10_080
     || (schedule.next_pull_at !== null && !Number.isFinite(Date.parse(schedule.next_pull_at)))
   ) {
-    throw new SourcesError("source_invalid_schedule", "来源计划不合法");
+    throw sourceErrors.invalid_schedule("来源计划不合法");
   }
 }
 
@@ -369,7 +366,7 @@ function assertStatusTransition(current: SourceStatus, next: SourceStatus): void
     disconnected: ["active", "paused", "error"],
   };
   if (!allowed[current]?.includes(next)) {
-    throw new SourcesError("source_invalid_transition", `来源不能从 ${current} 变成 ${next}`);
+    throw sourceErrors.invalid_transition(`来源不能从 ${current} 变成 ${next}`);
   }
 }
 

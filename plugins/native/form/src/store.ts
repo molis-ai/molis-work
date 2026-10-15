@@ -12,7 +12,7 @@ import type {
   FormSubmissionSource,
 } from "@molis-ai/molis-work-contracts/modules/form";
 import { formErrors } from "./error.js";
-import { FORM_ANSWER_FORMAT } from "./fillpage.js";
+import { FORM_ANSWER_FORMAT, FORM_ANSWER_LIMIT } from "./fillpage.js";
 import type { FormPublicationIntent, FormPublicationSnapshot } from "./promote.js";
 
 interface FormRow {
@@ -484,11 +484,11 @@ function normalizeAnswers(
   const ids = new Set(questions.map(question => question.id));
   if (Object.keys(answers).some(key => !ids.has(key))) throw formErrors.invalid("答卷含有不存在的题目，请重新读取问卷");
   for (const question of questions) {
-    const value = String(answers[question.id] ?? "").trim();
+    const value = Object.hasOwn(answers, question.id) ? String(answers[question.id] ?? "").trim() : "";
     if (question.required && !value) {
       throw formErrors.invalid(`请回答：${question.title}`);
     }
-    if (value.length > 4000) throw formErrors.invalid("回答过长");
+    if (value.length > FORM_ANSWER_LIMIT) throw formErrors.invalid("回答过长");
     if (value && usesOptions(question.type)) {
       const allowed = new Set((question.options ?? []).map(option => option.label));
       const values = question.type === "multiChoice" ? value.split("\n") : [value];

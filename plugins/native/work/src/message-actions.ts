@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrepareSessionMessage, SessionMessageRecord } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { SessionMessageService } from "./messages.js";
 
@@ -29,17 +29,18 @@ export const sessionMessageActions = {
 };
 export function createSessionMessageHandlers(projectId: string, resources: () => Promise<{ messages: SessionMessageService }>,
   assertAuthority: (caller: ActionCallContext, action: ActionReference) => Promise<void>): ActionHandlerBinding[] {
-  const bind = <I>(definition: ActionDefinition<I, SessionMessageRecord>, operation: (service: SessionMessageService, input: I, caller: { actor_id: string; project_id: string }, authorize: () => Promise<void>) => SessionMessageRecord | Promise<SessionMessageRecord>): ActionHandlerBinding => ({
+  const bind = <I>(definition: ActionDefinition<I, SessionMessageRecord>, operation: (service: SessionMessageService, input: I, caller: { actor_id: string; project_id: string }, authorize: () => Promise<void>, control: ActionExecutionContext) => SessionMessageRecord | Promise<SessionMessageRecord>): ActionHandlerBinding => ({
     ...definition, async handle(caller, input) {
       if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "消息调用不属于当前项目");
-      const authorize = async () => { await assertAuthority(caller, definition); caller.signal?.throwIfAborted(); };
+      const authorize = async () => { await caller.beforeEffect(); await assertAuthority(caller, definition); caller.signal?.throwIfAborted(); };
       const { messages } = await resources(); await authorize();
-      return operation(messages, input as I, { actor_id: caller.actor_id, project_id: projectId }, authorize);
+      caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
+      return operation(messages, input as I, { actor_id: caller.actor_id, project_id: projectId }, authorize, caller);
     },
   });
   return [
-    bind(sessionMessageActions.messageSend, (service, input, caller, authorize) => service.send({ ...input, ...caller }, authorize)),
+    bind(sessionMessageActions.messageSend, (service, input, caller, authorize, control) => service.send({ ...input, ...caller }, authorize, control)),
     bind(sessionMessageActions.messageRead, (service, input, caller) => service.read(input.request_id, caller)),
-    bind(sessionMessageActions.messageRetry, (service, input, caller, authorize) => service.retry(input.request_id, caller, authorize)),
+    bind(sessionMessageActions.messageRetry, (service, input, caller, authorize, control) => service.retry(input.request_id, caller, authorize, control)),
   ];
 }

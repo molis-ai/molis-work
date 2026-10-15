@@ -67,7 +67,7 @@ export async function runPluginCli(args: readonly string[], output: PluginCliOut
     output.stdout(`${JSON.stringify({ valid: true, plugin_id: manifest.plugin_id, version: manifest.version, ...(sites.length ? { browser_sites: sites } : {}) })}\n`);
     return 0;
   } catch (error) {
-    const code = error && typeof error === "object" && "code" in error ? error.code : "plugin_manifest_invalid";
+    const code = error && typeof error === "object" && "code" in error ? error.code : "plugin.manifest_invalid";
     output.stderr(`${JSON.stringify({ valid: false, code,
       message: error instanceof Error ? error.message : "Plugin Manifest validation failed" })}\n`);
     return 1;

@@ -13,8 +13,8 @@ import {
   type ActionDefinition, type FragmentOfferChoice, type SubjectOfferChoice,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { inspectActionCrossReferences, inspectActionDeclarations, parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
-import { PluginRuntime, PluginRuntimeError } from "@molis-ai/molis-work-plugin-runtime";
+import { inspectActionCrossReferences, inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 type Part = Record<string, unknown>;
@@ -287,7 +287,7 @@ test("a Manifest whose references do not hold is not a Manifest: parsing it name
   assert.equal(manifestProblems(declarationManifest({ actions: [defined("notes.untitled", "command", { title: "" }), add()] })),
     "能力 notes.untitled@1 的输入输出、权限或展示定义不完整；能力 notes.add@1 的撤销命令 notes.remove@1 不在同一提供方的声明里");
   assert.equal(manifestProblems(declarationManifest({ actions: [subject("note.id")] })), "能力 notes.save@1 的结果对象声明必须是对象，写明 id（可加 revision）在输出里的路径");
-  assert.throws(() => parsePluginManifest(declarationManifest({ actions: [add()] })), (error: unknown) => error instanceof PluginManifestError && error.code === "plugin_declaration_invalid");
+  assert.throws(() => parsePluginManifest(declarationManifest({ actions: [add()] })), (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.declaration_invalid");
 });
 
 test("the Plugin Runtime does not install a plugin whose Manifest has a reference that does not hold", () => {
@@ -295,7 +295,7 @@ test("the Plugin Runtime does not install a plugin whose Manifest has a referenc
   const runtime = new PluginRuntime();
   assert.doesNotThrow(() => runtime.install({ definition: definition(add(), remove()), deployment: "local", grants: [] }));
   assert.throws(() => new PluginRuntime().install({ definition: definition(add()), deployment: "local", grants: [] }),
-    (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin_manifest_invalid" && /撤销命令 notes\.remove@1 不在同一提供方的声明里/.test(error.message));
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid" && /撤销命令 notes\.remove@1 不在同一提供方的声明里/.test(error.message));
 });
 
 // ---- the bundled Manifests ----------------------------------------------------------------------------------------------------

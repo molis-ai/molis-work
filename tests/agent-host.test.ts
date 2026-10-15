@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentManifest } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -11,13 +13,7 @@ import type {
   AgentReviewRequest,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import {
-  AgentHost,
-  AgentHostError,
-  AgentReviewError,
-  AgentReviewQueue,
-  emptyCapabilityMatrix,
-} from "@molis-ai/molis-work-service-agent-host";
+import { AgentHost, AgentReviewQueue, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 
 const BOARD = "board-agent";
 const PLUGIN = "io.molis.work.coding";
@@ -215,7 +211,16 @@ test("a role the Plugin never declared cannot start", async () => {
   host.register(adapterFor({ runtimeId: "prologue", supported: ["text-edit", "command"] }));
   await assert.rejects(
     () => host.start("prologue", startRequest("smuggled"), authority),
-    (error: unknown) => error instanceof AgentHostError && error.code === "agent.role_not_declared",
+    (error: unknown) => {
+      // I6-01: the common owner error preserves the role refusal and its current HTTP status.
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "agent.role_not_declared");
+      assert.equal(error.message, "插件没有声明角色 smuggled");
+      assert.equal(error.kind, "invalid");
+      assert.equal(actionHttpStatus(error), 400);
+      assert.equal(Object.hasOwn(error, "details"), false);
+      return true;
+    },
   );
 });
 
@@ -224,7 +229,7 @@ test("a writing role is refused on a Runtime that cannot write", async () => {
   host.register(adapterFor({ runtimeId: "fixture-read-only" }));
   await assert.rejects(
     () => host.start("fixture-read-only", startRequest("builder", "fixture-read-only"), authority),
-    (error: unknown) => error instanceof AgentHostError
+    (error: unknown) => error instanceof ActionError
       && error.code === "agent.capability_unavailable",
   );
   // The read-only role on the same Runtime still works.
@@ -241,7 +246,7 @@ test("an unverified or unauthorized directory never reaches the Runtime", async 
       ...startRequest("reader"),
       directory: { canonical_path: "/somewhere/else", realpath_verified: true },
     }, authority),
-    (error: unknown) => error instanceof AgentHostError
+    (error: unknown) => error instanceof ActionError
       && error.code === "agent.directory_unauthorized",
   );
   await assert.rejects(
@@ -249,7 +254,7 @@ test("an unverified or unauthorized directory never reaches the Runtime", async 
       ...startRequest("reader"),
       directory: { canonical_path: DIRECTORY, realpath_verified: false },
     }, authority),
-    (error: unknown) => error instanceof AgentHostError
+    (error: unknown) => error instanceof ActionError
       && error.code === "agent.directory_unauthorized",
   );
 });
@@ -268,7 +273,7 @@ test("a Runtime that returns wider authority than the Manifest froze has its run
 
   await assert.rejects(
     () => host.start("prologue", startRequest("reader"), authority),
-    (error: unknown) => error instanceof AgentHostError
+    (error: unknown) => error instanceof ActionError
       && error.code === "agent.role_execution_exceeded",
   );
   assert.equal(cancelled, true, "越权的 Run 必须被取消，不能放着继续跑");
@@ -302,8 +307,15 @@ test("an effect runs only after a recorded approval, and that approval is single
 
   assert.throws(
     () => queue.consumeApproval("review-1"),
-    (error: unknown) => error instanceof AgentReviewError
-      && error.code === "agent.review_not_approved",
+    (error: unknown) => {
+      // I6-01: refusing an unapproved effect does not become an accepted receipt.
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "agent.review_not_approved");
+      assert.equal(error.message, "这条操作没有可用的批准；未经批准不得执行");
+      assert.equal(error.kind, "invalid");
+      assert.equal(actionHttpStatus(error), 400);
+      return true;
+    },
     "未批准就执行必须被拒绝",
   );
 
@@ -315,7 +327,7 @@ test("an effect runs only after a recorded approval, and that approval is single
   assert.equal(queue.consumeApproval("review-1").review_id, "review-1");
   assert.throws(
     () => queue.consumeApproval("review-1"),
-    (error: unknown) => error instanceof AgentReviewError
+    (error: unknown) => error instanceof ActionError
       && error.code === "agent.review_not_approved",
     "同一份批准不能授权第二次写入",
   );
@@ -331,12 +343,12 @@ test("a rejected review can never be turned into permission", () => {
 
   assert.throws(
     () => queue.consumeApproval("review-2"),
-    (error: unknown) => error instanceof AgentReviewError
+    (error: unknown) => error instanceof ActionError
       && error.code === "agent.review_not_approved",
   );
   assert.throws(
     () => queue.decide({ review_id: "review-2", decision: "approve", actor_id: "tester" }),
-    (error: unknown) => error instanceof AgentReviewError
+    (error: unknown) => error instanceof ActionError
       && error.code === "agent.review_already_decided",
     "拒绝之后不能换个入口再批一次",
   );
@@ -354,7 +366,7 @@ test("an expired review is refused rather than silently approved", () => {
   assert.deepEqual(queue.list(BOARD, "pending"), []);
   assert.throws(
     () => queue.decide({ review_id: "review-3", decision: "approve", actor_id: "tester" }),
-    (error: unknown) => error instanceof AgentReviewError && error.code === "agent.review_expired",
+    (error: unknown) => error instanceof ActionError && error.code === "agent.review_expired",
   );
 });
 
@@ -377,7 +389,7 @@ test("reconcile-required is not a terminal phase", () => {
 });
 
 test("the Prologue adapter runs a read-only role and refuses a writing one", async () => {
-  const { PrologueAgentAdapter, PrologueAdapterError } =
+  const { PrologueAgentAdapter } =
     await import("@molis-ai/molis-work-service-agent-host");
 
   const rig = prologueRig();
@@ -455,7 +467,7 @@ test("the Prologue adapter runs a read-only role and refuses a writing one", asy
         host_tools: [],
       },
     }),
-    (error: unknown) => error instanceof PrologueAdapterError
+    (error: unknown) => error instanceof ActionError
       && error.code === "agent.capability_unavailable",
     "审批桥未接通前，会写入的角色必须被拒绝",
   );
@@ -597,7 +609,7 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
       "fixture-read-only",
       { ...startRequest("builder"), session: { session_id: "session-1", runtime_id: "fixture-read-only" } },
     ]),
-    (error: unknown) => error instanceof AgentHostError
+    (error: unknown) => error instanceof ActionError
       && error.code === "agent.capability_unavailable",
     "经 Capability 调用不能绕过启动授权",
   );
@@ -641,7 +653,6 @@ test("Plugins reach the Agent Host only through registered Capabilities", async 
   );
 });
 
-
 test("review replay preserves consumed approval and refuses changed content under the same id", () => {
   const queue = new AgentReviewQueue();
   const request = reviewRequest("stable-review");
@@ -658,7 +669,6 @@ test("review replay preserves consumed approval and refuses changed content unde
   assert.throws(() => queue.request(changed), /不能替换/);
   assert.equal(queue.get(request.review_id)?.project_id, request.project_id);
 });
-
 
 test("selected methods freeze only declared exact bodies and reject stale, duplicate, wider or ignored selections", async () => {
   const host = new AgentHost();

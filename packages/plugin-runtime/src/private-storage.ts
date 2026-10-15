@@ -1,3 +1,4 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginManifest, PluginPrivateStorage, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export interface PluginPrivateStorageDatabase {
@@ -11,11 +12,7 @@ export interface PluginPrivateStorageDatabase {
 
 export interface PluginPrivateStorageSnapshotRecord { item_key: string; item_value: string }
 
-export class PluginPrivateStorageError extends Error {
-  constructor(readonly code: "plugin_storage_denied" | "plugin_storage_input_invalid", message: string) {
-    super(message); this.name = "PluginPrivateStorageError";
-  }
-}
+
 
 /** The plugin private values table, as one current schema; the host composes it into the project database baseline. */
 export const PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL = `
@@ -36,13 +33,13 @@ export class SqlitePluginPrivateStorage {
   forPlugin(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage {
     if (manifest.plugin_id !== context.plugin_id || manifest.version !== context.version
       || !manifest.permissions.some(item => item.permission === "storage:private")) {
-      throw new PluginPrivateStorageError("plugin_storage_denied", "Manifest 未声明当前 Plugin 的私有存储权限");
+      throw pluginErrors.storage_denied("Manifest 未声明当前 Plugin 的私有存储权限");
     }
     const installId = context.install_id;
     const authorize = (key: string) => {
       context.requireGrant("storage:private");
       if (typeof key !== "string" || key.length === 0) {
-        throw new PluginPrivateStorageError("plugin_storage_input_invalid", "私有存储 key 必须为非空字符串");
+        throw pluginErrors.storage_input_invalid("私有存储 key 必须为非空字符串");
       }
     };
     return {
@@ -55,7 +52,7 @@ export class SqlitePluginPrivateStorage {
       set: (key, value) => {
         authorize(key);
         if (typeof value !== "string") {
-          throw new PluginPrivateStorageError("plugin_storage_input_invalid", "私有存储值必须由 Plugin 编码为字符串");
+          throw pluginErrors.storage_input_invalid("私有存储值必须由 Plugin 编码为字符串");
         }
         this.db.prepare(`INSERT INTO plugin_private_values (install_id, item_key, item_value) VALUES (?, ?, ?)
           ON CONFLICT (install_id, item_key) DO UPDATE SET item_value = excluded.item_value`).run(installId, key, value);
@@ -68,7 +65,7 @@ export class SqlitePluginPrivateStorage {
       compareAndSet: (key, expected, value) => {
         authorize(key);
         if ((expected !== null && typeof expected !== "string") || typeof value !== "string") {
-          throw new PluginPrivateStorageError("plugin_storage_input_invalid", "比较值必须为字符串或 null，新值必须为字符串");
+          throw pluginErrors.storage_input_invalid("比较值必须为字符串或 null，新值必须为字符串");
         }
         // One conditional statement, including across separate DB connections.
         // Never emulate compare-and-set with a read followed by an unconditional write.

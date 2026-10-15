@@ -27,11 +27,6 @@ export interface FeedCommands {
     deleteBySource(projectId: string, sourceId: string): string[];
 }
 
-export declare class FeedError extends Error {
-    readonly code: "feed_item_not_found" | "feed_revision_conflict" | "feed_invalid_transition" | "feed_read_not_supported";
-    constructor(code: "feed_item_not_found" | "feed_revision_conflict" | "feed_invalid_transition" | "feed_read_not_supported", message: string);
-}
-
 export interface FeedEvent {
     event_id: string;
     project_id: string;
@@ -134,6 +129,7 @@ export interface IngestFeedItemInput {
 }
 
 export declare const feedErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly contract_source_history_decision_required: "internal";
     readonly item_not_found: "not_found";
     readonly source_not_found: "not_found";
     readonly out_rule_not_found: "not_found";

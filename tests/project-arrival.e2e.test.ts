@@ -110,17 +110,25 @@ test("a returning person's first look in a session types the name in the titleba
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "Object.defineProperty(navigator, 'webdriver', { get: () => false });" }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
   const wordmark = "document.querySelector('.arrival-titlebar .mw-wordmark').dataset.state";
+  // The typing lasts under three seconds, which a loaded runner can spend between the navigation and the first look; the page's
+  // animation clock runs at a twentieth while the test looks, so what it sees is the page's state and not the runner's speed.
+  await command("Animation.enable", {}, sessionId);
+  const clock = (playbackRate: number) => command("Animation.setPlaybackRate", { playbackRate }, sessionId);
+  await clock(0.05);
   await open("/");
   assert.equal(await evaluate(wordmark), "typing", "a new session starts with the name being typed");
   assert.ok(await evaluate("!!document.querySelector('.arrival-titlebar [data-caption]')"), "and the caption beside it");
+  await clock(1);
   await waitFor(`${wordmark} === 'done'`, 8_000);
   await open("/");
   assert.equal(await evaluate(wordmark), "done", "the same session finds it already typed");
   // Typing is never in the way: a fresh session and Enter at once goes in.
   await evaluate("sessionStorage.clear()");
+  await clock(0.05);
   await open("/");
   assert.equal(await evaluate(wordmark), "typing");
   await navigate(() => press("Enter"));
+  await clock(1);
   assert.equal(await evaluate("location.pathname"), `/projects/${projectId}/`);
 });
 

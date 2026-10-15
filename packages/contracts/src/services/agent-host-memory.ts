@@ -89,8 +89,16 @@ export interface AgentDocumentCapability {
   readImage?(resource: { id: string; revision: number }): Promise<Uint8Array | null>;
 }
 
+/** Trusted per-call control, retained through each SDK storage commit. Never persisted or model input. */
+export interface AgentMemoryExecutionControl {
+  beforeEffect(): void | Promise<void>;
+  assert_current(): void;
+}
+
 /** Prologue Memory through the Host: each call names its scope and owner; the store keeps them apart. */
 export interface AgentMemoryCapability {
+  /** Per-invocation facade; SDK preparation waits retain the same final authority check. */
+  withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
   write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
   update(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string; text: string }): Promise<AgentMemoryEntry>;

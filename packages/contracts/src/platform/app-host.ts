@@ -76,8 +76,6 @@ export interface HostCapabilityDescriptor {
   capability_id: string;
   version: number;
   operation: HostCapabilityOperation;
-  /** Authenticated Host composition only; a plugin's consumes declaration cannot grant access. */
-  readonly host_only?: boolean;
   /**
    * The call touches no project state (a model draft written in a directory of its own, say): it runs beside the
    * project's operation queue instead of holding every later operation until it answers. The Host reads this from the
@@ -124,12 +122,12 @@ export interface LocalHostStatus {
   capabilities: HostCapabilityDescriptor[];
 }
 
-/** Bound by the original Plugin Host executor; never parsed from a request body. */
+/** Bound by the Home or project Plugin Host executor; never parsed from a request body. */
 export interface HostPluginCaller {
   readonly plugin_id: string;
   readonly install_id: string;
   readonly actor_id: string;
-  readonly project_id: string;
+  readonly project_id: string | null;
   readonly declaration: Pick<import("./plugin.js").PluginDefinition, "manifest" | "agent_prompts" | "agent_skills">;
   /** Installation lifetime, also usable by the original Agent after this typed call ends. */
   readonly assertActive: () => void;
@@ -142,6 +140,8 @@ export interface HostCapabilityCallOptions {
   /** Host-only binding. The Plugin SDK executor always overrides a supplied value. */
   plugin_caller?: HostPluginCaller;
   before_effect?: () => void | Promise<void>;
+  /** A stricter original-call fence, invoked synchronously without borrowing this typed target's authority. */
+  assert_authority_current?: () => void;
   /** SDK-enforced restriction, not caller authority; plugins cannot remove it through invocation options. */
   consumer?: "plugin";
 }
@@ -151,6 +151,8 @@ export interface HostCapabilityInvocation extends ActionCallOrigin {
   readonly consumer?: "plugin";
   /** Recheck original authority and live project policy immediately before a side effect. */
   beforeEffect(): Promise<void>;
+  /** Final synchronous fence after the last await and immediately before the owner's effect. */
+  assertAuthorityCurrent(): void;
 }
 
 export interface LocalHostProjectClient {
@@ -174,8 +176,8 @@ export type DesktopPanelErrorCode =
   | "catalog.project_not_found"
   | "catalog.panel_not_found"
   | "catalog.panel_confirmation_required"
-  | "context.stable_identity_required"
-  | "context.user_confirmation_required";
+  | "catalog.context.stable_identity_required"
+  | "catalog.context.user_confirmation_required";
 
 export interface DesktopPanelRepository {
   transaction<T>(operation: () => T): T;

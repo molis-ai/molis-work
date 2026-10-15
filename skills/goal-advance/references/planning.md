@@ -104,3 +104,5 @@ The user applies or rejects the stored items through the protected Web/managemen
 Use goals.planning.impact with changed_goal_ids for actual ancestors, downstream consumers, adjacent providers and review order. Reuse compatible current open Goals; historic decomposition labels are not work gates. Impact analysis does not itself authorize rewriting the tree.
 
 After a user tree decision, read its semantic_review. Structural validity says the graph is well-formed; it does not prove every affected outcome still makes sense. Review those current agreements in the returned order and propose only necessary changes. Preserve unaffected work and all history. Finish with goals.planning.graph.check after actual relationship changes when its structural result is needed.
+
+The current versions of goals.planning.impact, goals.planning.graph.check, goals.tree.check and goals.tree.decide are 2. Resolve the exact discovered action (tree check uses molis_work_v1_action_goals.tree.check__v2), and follow semantic_review.review_action as goals.planning.impact@2. Planning issue codes are goals.planning.*; Goal event types remain unchanged.

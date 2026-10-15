@@ -54,6 +54,8 @@ node scripts/run-tests.mjs tests/cli-protocol.test.ts
   - JSON 与文件输入的解析、错误呈现留在 CLI；状态变化由实际 owner 完成。
   - 参数优先级、输出格式与退出码按 `src/protocol.ts`，改动同步更新协议测试。
   - 项目命令必须有明确的 `--db PATH`，没有默认路径：不按当前目录猜库，没给（缺值、空白，或后面紧跟另一个 `--` 旗标）就在打开任何东西之前报错。
+项目管理命令的 Local Host 接线会只读匹配当前 Home 目录；登记数据库借常驻 Host（`MOLIS_WORK_WEB_URL`）执行，别名使用目录路径。未连接或独立数据库保留进程内执行；明确拒绝、取消、送出后结果未知不回退。`--db`、JSON 与成功 stdout 格式保持。
+
 - 改动后必跑：`node scripts/run-tests.mjs tests/cli-protocol.test.ts tests/goal-management-identity.test.ts tests/goal-read-entry.test.ts tests/proposal-entry-chain.test.ts tests/management-door-identity.test.ts tests/cli-goals-actions.test.ts tests/goals-query-boundaries.test.mjs tests/command-entry-chain.test.ts`
 - 相关手册：[docs/cli-and-development.md](../../docs/cli-and-development.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

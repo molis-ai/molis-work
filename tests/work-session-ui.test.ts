@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import vm from "node:vm";
 import test from "node:test";
 import { createWorkbenchUiHost, renderProjectOperations, WORKBENCH_UI_SLOTS } from "@molis-ai/molis-work-app-workbench";
-import { PROJECT_OPERATIONS_CLIENT_SCRIPT, WORK_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-work";
+import { PROJECT_OPERATIONS_CLIENT_SCRIPT, WORK_UI_CONTRIBUTION_ID, workTerminalUiContribution } from "@molis-ai/molis-work-plugin-work";
 import { icon } from "@molis-ai/molis-work-design-system";
 
 test("Workbench mounts Work surfaces with real Session data and escapes user content", () => {
@@ -42,6 +42,10 @@ test("Workbench mounts Work surfaces with real Session data and escapes user con
   assert.doesNotMatch(rendered.surfaces, /session-context-disclosure|goal-hero|goal-document/);
   assert.match(rendered.surfaces, /&lt;script&gt;session&lt;\/script&gt;/);
   assert.doesNotMatch(rendered.surfaces, /<script>session/);
+  // K2-01: the real Work surface still escapes user titles with the shared server helper.
+  const hostile = renderProjectOperations(project, { ...data, sessions: [{ ...data.sessions[0]!, title: `O'Reilly & <img src=x onerror="alert(1)">` }] }, icon);
+  assert.match(hostile.surfaces, /O&#039;Reilly &amp; &lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
+  assert.doesNotMatch(hostile.surfaces, /<img src=x|\sonerror="alert/);
   assert.match(rendered.overlays, /data-session-handoff-form/);
   const host = createWorkbenchUiHost();
   assert.equal(host.mount({
@@ -225,3 +229,14 @@ for (const scenario of ["success", "unsupported", "failure"] as const) {
     assert.equal(classes.has("is-error"), scenario !== "success");
   });
 }
+
+test("K2-01 Work terminal contribution escapes the actual Goal and child titles", () => {
+  const hostile = `O'Reilly & <img src=x onerror="alert(1)">`;
+  const html = workTerminalUiContribution.render({ surface: "terminal", contribution_id: workTerminalUiContribution.descriptor.contribution_id, model: {
+    selected: { goal_id: "goal-k2", title: hostile, decomposition_state: "closed_leaf", fulfillment_state: "unmet", statusHtml: "" },
+    children: [{ goal_id: "child-k2", title: hostile, statusLabel: "Ready", nextAction: "Read" }],
+    cliAvailability: {}, text: value => value, icon,
+  } });
+  assert.match(html, /O&#039;Reilly &amp; &lt;img src=x onerror=&quot;alert\(1\)&quot;&gt;/);
+  assert.doesNotMatch(html, /<img src=x|\sonerror="alert/);
+});

@@ -6,12 +6,12 @@ import { ContinuityActions } from "./actions.js";
 import type { ActionFactory, ArtifactVersionRecord, BoundActions, GoalEventProgressResult, GoalEventStateView, GoalProjection, ProgressCommand, ProjectScope } from "./types.js";
 
 function count(value: unknown): number {
-  if (!Number.isSafeInteger(value) || Number(value) < 0) throw new ImError("continuity.invalid_version", "缺少有效的目标版本");
+  if (!Number.isSafeInteger(value) || Number(value) < 0) throw new ImError("im.continuity.invalid_version", "缺少有效的目标版本");
   return Number(value);
 }
 export function progressInput(value: Record<string, unknown>, projectId: string): ProgressCommand {
   const allowed = ["command_id","project_id","goal_id","cursor","summary","next_step","next_actor"];
-  if (Object.keys(value).some(k => !allowed.includes(k)) || value.project_id !== projectId) throw new ImError("continuity.invalid_input", "操作不属于此项目或包含不支持的字段");
+  if (Object.keys(value).some(k => !allowed.includes(k)) || value.project_id !== projectId) throw new ImError("im.continuity.invalid_input", "操作不属于此项目或包含不支持的字段");
   const optional = (v: unknown, max: number) => v === "" || v === undefined ? "" : textInput(v, "后续说明", max);
   return {command_id:clientId(value.command_id),project_id:projectId,goal_id:textInput(value.goal_id,"目标",128),cursor:count(value.cursor),
     summary:textInput(value.summary,"进展",4000),next_step:optional(value.next_step,2000),next_actor:optional(value.next_actor,100)};
@@ -24,12 +24,12 @@ export class ContinuityService {
   /** Local operator API, never exposed as a browser mutation. Existing ids are required. */
   registerProject(scope: ProjectScope, ownerId: string): void {
     textInput(scope.id,"项目",128); textInput(scope.title,"项目名称",200);
-    if (!Array.isArray(scope.goal_ids) || scope.goal_ids.length > 100 || !Array.isArray(scope.artifacts) || scope.artifacts.length > 100) throw new ImError("continuity.invalid_scope", "请选择不超过 100 个目标和成果");
+    if (!Array.isArray(scope.goal_ids) || scope.goal_ids.length > 100 || !Array.isArray(scope.artifacts) || scope.artifacts.length > 100) throw new ImError("im.continuity.invalid_scope", "请选择不超过 100 个目标和成果");
     scope.goal_ids.forEach(id => textInput(id,"目标",128));
-    scope.artifacts.forEach(ref => {textInput(ref.artifact_id,"成果",128);if (count(ref.version) < 1) throw new ImError("continuity.invalid_version","成果版本必须大于零");});
+    scope.artifacts.forEach(ref => {textInput(ref.artifact_id,"成果",128);if (count(ref.version) < 1) throw new ImError("im.continuity.invalid_version","成果版本必须大于零");});
     transaction(this.db, () => {
       const old = this.db.prepare("SELECT owner_id FROM mw_projects WHERE id=?").get(scope.id) as {owner_id:string}|undefined;
-      if (old && old.owner_id !== ownerId) throw new ImError("continuity.owner_conflict","项目已属于另一位成员",409);
+      if (old && old.owner_id !== ownerId) throw new ImError("im.continuity.owner_conflict","项目已属于另一位成员",409);
       this.db.prepare("INSERT INTO mw_projects VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,scope_json=excluded.scope_json").run(scope.id,scope.title,ownerId,JSON.stringify(scope));
       this.db.prepare("INSERT OR IGNORE INTO mw_access VALUES (?,?,'owner')").run(scope.id,ownerId);
     });
@@ -54,7 +54,7 @@ export class ContinuityService {
   }
   scope(projectId: string): ProjectScope {
     const row = this.db.prepare("SELECT scope_json FROM mw_projects WHERE id=?").get(projectId) as {scope_json:string}|undefined;
-    if (!row) throw new ImError("continuity.not_found","项目不存在",404);
+    if (!row) throw new ImError("im.continuity.not_found","项目不存在",404);
     return JSON.parse(row.scope_json) as ProjectScope;
   }
   projects(session: Session) {
@@ -66,7 +66,7 @@ export class ContinuityService {
   }
   private async authorized<T>(session: Session, projectId: string, minimum: Role, operation: (bound: BoundActions, validate: () => void) => Promise<T>): Promise<T> {
     const member = this.identity.requireMember(session), controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(new ImError("continuity.timeout","等待桌面响应超时，请核对后重试",503)),20000);
+    const timeout = setTimeout(() => controller.abort(new ImError("im.continuity.timeout","等待桌面响应超时，请核对后重试",503)),20000);
     timeout.unref();
     const validate = () => { controller.signal.throwIfAborted(); this.identity.access(session,projectId,minimum); };
     const active = {session,projectId,controller}; this.active.add(active);
@@ -84,8 +84,8 @@ export class ContinuityService {
     const records: ArtifactVersionRecord[] = [];
     for (const reference of scope.artifacts) {
       const result = await this.actions.invoke<{selected:ArtifactVersionRecord|null}>(bound,"artifacts.read",{reference});
-      if (!result.selected) throw new ImError("continuity.artifact_missing","共享成果的固定版本暂不可读取",503);
-      if (team && result.selected.scope !== "team_project") throw new ImError("continuity.private_artifact","成果仍是私人版本。请在桌面明确共享后再邀请成员。",403);
+      if (!result.selected) throw new ImError("im.continuity.artifact_missing","共享成果的固定版本暂不可读取",503);
+      if (team && result.selected.scope !== "team_project") throw new ImError("im.continuity.private_artifact","成果仍是私人版本。请在桌面明确共享后再邀请成员。",403);
       records.push(result.selected);
     }
     return records;
@@ -102,7 +102,7 @@ export class ContinuityService {
     });
   }
   async invite(session: Session, projectId: string, role: unknown) {
-    if (role !== "viewer" && role !== "editor") throw new ImError("continuity.invalid_role","请选择只读或协作权限");
+    if (role !== "viewer" && role !== "editor") throw new ImError("im.continuity.invalid_role","请选择只读或协作权限");
     return this.authorized(session,projectId,"owner",async (bound,validate) => {
       await this.artifacts(bound,this.scope(projectId),true); validate();
       return this.identity.code("invite",session.member_id!,{projectId,role,session});
@@ -110,27 +110,27 @@ export class ContinuityService {
   }
   revoke(session: Session, projectId: string, memberId: string): void {
     this.identity.access(session,projectId,"owner");
-    if (memberId === session.member_id) throw new ImError("continuity.owner_required","项目所有者不能在此撤回自己",409);
+    if (memberId === session.member_id) throw new ImError("im.continuity.owner_required","项目所有者不能在此撤回自己",409);
     transaction(this.db, () => {
       this.db.prepare("DELETE FROM mw_access WHERE project_id=? AND member_id=? AND role!='owner'").run(projectId,memberId);
       // Outstanding project invites are invalidated too; an old link cannot restore access.
       this.db.prepare("UPDATE mw_codes SET consumed=1 WHERE project_id=? AND kind='invite'").run(projectId);
       this.events.append({scopeKind:"project",scopeId:projectId,kind:"access",entityId:memberId});
     });
-    for (const active of this.active) if (active.projectId === projectId && active.session.member_id === memberId) active.controller.abort(new ImError("identity.forbidden","项目访问已撤回",403));
+    for (const active of this.active) if (active.projectId === projectId && active.session.member_id === memberId) active.controller.abort(new ImError("im.identity.forbidden","项目访问已撤回",403));
     this.events.notify();
   }
   deviceRevoked(deviceId: string): void {
-    for (const active of this.active) if (active.session.id === deviceId) active.controller.abort(new ImError("identity.unauthenticated","设备已断开",401));
+    for (const active of this.active) if (active.session.id === deviceId) active.controller.abort(new ImError("im.identity.unauthenticated","设备已断开",401));
     this.events.notify();
   }
   async progress(session: Session, input: ProgressCommand): Promise<{saved:true;event_id:string;replayed:boolean}> {
     return this.authorized(session,input.project_id,"editor",async (bound,validate) => {
-      if (!this.scope(input.project_id).goal_ids.includes(input.goal_id)) throw new ImError("continuity.goal_denied","此目标未在共享范围内",403);
+      if (!this.scope(input.project_id).goal_ids.includes(input.goal_id)) throw new ImError("im.continuity.goal_denied","此目标未在共享范围内",403);
       const key = [input.project_id,session.member_id!,input.command_id], json = JSON.stringify(input);
       const old = transaction(this.db, () => {
         const row = this.db.prepare("SELECT request_json,result_json FROM mw_commands WHERE project_id=? AND member_id=? AND command_id=?").get(...key) as {request_json:string;result_json:string|null}|undefined;
-        if (row && row.request_json !== json) throw new ImError("continuity.key_reused","这条操作标识已用于不同内容，请重新提交",409);
+        if (row && row.request_json !== json) throw new ImError("im.continuity.key_reused","这条操作标识已用于不同内容，请重新提交",409);
         if (!row) this.db.prepare("INSERT INTO mw_commands(project_id,member_id,command_id,request_json,state) VALUES (?,?,?,?,'pending')").run(...key,json);
         return row;
       });
@@ -150,9 +150,9 @@ export class ContinuityService {
           if (!saved.result_json) this.events.append({scopeKind:"project",scopeId:input.project_id,kind:"progress",entityId:input.goal_id});
         }); this.events.notify(); return receipt;
       } catch (error) {
-        const code = error && typeof error === "object" && "code" in error ? String(error.code) : "continuity.delivery_unknown";
+        const code = error && typeof error === "object" && "code" in error ? String(error.code) : "im.continuity.delivery_unknown";
         this.db.prepare("UPDATE mw_commands SET state='pending',error_code=? WHERE project_id=? AND member_id=? AND command_id=? AND result_json IS NULL").run(code,...key);
-        if (code === "event_progress.stale_goal" || code.includes("idempotency_key_reused")) throw new ImError(code,"桌面状态已变化，请查看最新状态后重新提交",409);
+        if (code === "goals.event_progress.stale_goal" || code.includes("idempotency_key_reused")) throw new ImError(code,"桌面状态已变化，请查看最新状态后重新提交",409);
         throw error;
       }
     });

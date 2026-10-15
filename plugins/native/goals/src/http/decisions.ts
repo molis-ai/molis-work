@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { respondGoalsFailure } from "./failure.js";
 import { goalsActions } from "../actions.js";
 import type { GoalTreeProposalDecideInput } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import type { GoalsHttpContext } from "./types.js";
@@ -9,7 +11,7 @@ export async function handleGoalDecisionsHttp(context: GoalsHttpContext): Promis
   if (context.method === "POST" && goalTreeProposalMatch) {
     const body = await context.readBody();
     if (body.decisions != null && !Array.isArray(body.decisions)) {
-      context.respond( 400, { error: "decisions 必须是条目决定列表" });
+      respondGoalsFailure(context, new ActionError("actions.input_invalid", "decisions 必须是条目决定列表"));
       return true;
     }
     try {
@@ -25,9 +27,7 @@ export async function handleGoalDecisionsHttp(context: GoalsHttpContext): Promis
         idempotency_key: idempotencyKey,
       });
       context.respond( 200, result);
-    } catch (error) {
-      context.respond( 400, { error: error instanceof Error ? error.message : String(error) });
-    }
+    } catch (error) { return respondGoalsFailure(context, error); }
     return true;
   }
   return false;

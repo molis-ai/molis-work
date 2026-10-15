@@ -1,7 +1,7 @@
-import { ActionError, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { githubWhoami } from "@molis-ai/molis-work-integration-github";
 import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
-import { ConnectorConnectionError } from "./connector-connection-store.js";
+
 import { resolveApiConnection } from "./connector-access.js";
 
 export interface ConnectorAccount { connection_id: string; service_id: string; login: string; scopes?: string[]; account_id?: string }
@@ -17,16 +17,20 @@ export const connectorAccountActions = {
 };
 export const CONNECTOR_ACCOUNT_PERMISSIONS = ["connectors:account:read"];
 
+const accountErrors = defineErrorCodes("connector.account", {
+  unknown: "invalid", disconnected: "invalid", needs_auth: "invalid", configuration: "invalid", unavailable: "invalid",
+});
 const failed = (failure: string | undefined, message: string | undefined, fallback: string) =>
-  new ActionError(failure === "needs_auth" ? "connectors.needs_auth" : failure === "configuration" ? "connectors.configuration" : "connectors.unavailable", message || fallback);
+  failure === "needs_auth" ? accountErrors.needs_auth(message || fallback)
+    : failure === "configuration" ? accountErrors.configuration(message || fallback) : accountErrors.unavailable(message || fallback);
 
 /** Account identity behind one connection, through the same resolver and provider calls its readers use. */
 export async function readConnectorAccount(home: string, connectionId: string): Promise<ConnectorAccount> {
   let access: Awaited<ReturnType<typeof resolveApiConnection>>;
   try { access = await resolveApiConnection(home, connectionId); }
   catch (error) {
-    if (error instanceof ConnectorConnectionError && error.code === "not_found") throw new ActionError("connectors.unknown", "没有这条连接");
-    throw new ActionError("connectors.disconnected", error instanceof Error ? error.message : "连接不可用");
+    if ((error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code)) && error.code === "connector.connection.not_found") throw accountErrors.unknown("没有这条连接");
+    throw accountErrors.disconnected(error instanceof Error ? error.message : "连接不可用");
   }
   const service = access.connection.service_id;
   const identity = { connection_id: connectionId, service_id: service };
@@ -35,7 +39,7 @@ export async function readConnectorAccount(home: string, connectionId: string): 
     if (!result.ok) throw failed(result.failure, result.failure === "needs_auth" ? "GitHub 需要重新授权" : result.message, "无法读取 GitHub 账号");
     return { ...identity, login: result.login, scopes: [...result.scopes] };
   }
-  if (!isCatalogConnectorId(service)) throw new ActionError("connectors.unknown", "这条连接的服务不提供账号读取");
+  if (!isCatalogConnectorId(service)) throw accountErrors.unknown("这条连接的服务不提供账号读取");
   let result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl: access.fetchImpl });
   if (!result.ok && result.failure === "needs_auth" && access.connection.auth_method === "oauth") {
     try {

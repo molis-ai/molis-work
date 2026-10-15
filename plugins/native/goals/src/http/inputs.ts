@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { respondGoalsFailure } from "./failure.js";
 import type { GoalsHttpContext } from "./types.js";
 import { goalsActions } from "../actions.js";
 
@@ -12,7 +14,7 @@ export async function handleGoalInputsHttp(context: GoalsHttpContext): Promise<b
   try {
     const body = await context.readBody();
     if (typeof body.binding_id !== "string" || !body.binding_id || (body.action !== "accept" && body.action !== "remove")) {
-      context.respond(400, { error: "binding_id 必须是输入的编号，action 必须是 accept 或 remove" });
+      respondGoalsFailure(context, new ActionError("actions.input_invalid", "binding_id 必须是输入的编号，action 必须是 accept 或 remove"));
       return true;
     }
     const result = body.action === "accept"
@@ -20,8 +22,6 @@ export async function handleGoalInputsHttp(context: GoalsHttpContext): Promise<b
       : await context.actions.invoke(goalsActions.inputsRelease, { goal_id: goalId, binding_id: body.binding_id });
     context.changed();
     context.respond(200, result);
-  } catch (error) {
-    context.respond(400, { error: error instanceof Error ? error.message : String(error), code: (error as { code?: string }).code });
-  }
+  } catch (error) { return respondGoalsFailure(context, error); }
   return true;
 }

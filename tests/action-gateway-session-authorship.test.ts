@@ -1,3 +1,4 @@
+// R-KERNEL-OWNER-01: this refusal comes from session authorship in the Kernel; missing Runtime identity remains an MCP refusal.
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -36,7 +37,7 @@ test("the gateway refuses a Runtime client that names no Session for an action t
     const bare: ActionCallContext = { actor_id: CLIENT, project_id: project.project_id, audience: "mcp", permissions: [] };
     const withoutSession = new LocalActionGatewayClient({ url: origin, homeDirectory: home, clientId: CLIENT, projectId: project.project_id });
     await withoutSession.discover(bare);
-    await assert.rejects(withoutSession.invoke(bare, ref, { text: "no session" }), { code: "mcp.runtime_identity_missing" });
+    await assert.rejects(withoutSession.invoke(bare, ref, { text: "no session" }), { code: "kernel.runtime_identity_missing", kind: "invalid" });
     assert.deepEqual(handled, [], "the handler never ran");
 
     const bound: ActionCallContext = { ...bare, audit_actor_id: `${CLIENT}:s1`, actor_kind: "runtime", runtime_session_id: "s1" };

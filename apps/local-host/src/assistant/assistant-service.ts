@@ -1,13 +1,16 @@
+import { threadReplyMaterials } from "./assistant-thread-types.js";
+import { assistantFailure } from "./assistant-error.js";
 import { isDeepStrictEqual } from "node:util";
+import { FOLLOW_UP_KIND, followUpTask, enqueueCurrentFollowUp, runDueFollowUp } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { ActionError, requireSynchronous, actionEffect, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
 import { cardView } from "./assistant-card-view.js";
 import { AssistantOffers } from "./assistant-offers.js";
-import { actionEffect, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
@@ -23,12 +26,13 @@ import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from ".
 import { identity } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AssistantStoreError, typedTexts, type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
-import { assistantMemoryTools } from "./assistant-memory-tools.js";
+import { typedTexts, type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { assistantErrors } from "./assistant-errors.js";
+import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
 import { randomUUID } from "node:crypto";
-import type { MemoryCandidate, MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
-import { MemoryError, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
-import { CodingExecutor, CodingUnavailable, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
+import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
+import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 
 const RUNTIME = "prologue";
@@ -42,13 +46,6 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const ROUND_TURNS = 24;
 /** The directory lists at most this many; the gateway itself searches all of them. */
 const MAX_ACTION_TOOLS = 1000;
-
-export class AssistantError extends Error {
-  constructor(readonly code: string, message: string, readonly work?: AssistantWork, readonly action?: string) {
-    super(message);
-    this.name = "AssistantError";
-  }
-}
 
 export interface AssistantServicePorts {
   /** The Home's Agent Host, ready to run. */
@@ -77,10 +74,12 @@ export interface AssistantServicePorts {
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
 export interface AssistantCaller {
   project_ref?: LocalHostProjectReference;
+  /** Set by the discussion controller, never read from HTTP input. */
+  thread_request?: string;
+  beforeStart?: () => Promise<void>;
+  assertBeforeStart?: () => void;
 }
 
-/** A due time later than this (Molis Work was not running) is reported as missed, not run late. */
-const FOLLOW_UP_GRACE_MS = 10 * 60 * 1000;
 const MAX_FOLLOW_UPS_PER_WORK = 5;
 
 /** Delegation bounds: works one work may hand out in all, at once, and follow-ups to each. */
@@ -119,31 +118,31 @@ function titleFrom(text: string): string {
 }
 
 function checkText(value: unknown, field: string, max: number): string {
-  if (typeof value !== "string" || !value.trim()) throw new AssistantError("assistant.invalid", `${field}不能为空`);
-  if (value.length > max) throw new AssistantError("assistant.invalid", `${field}超过 ${max} 字，请缩短或作为附件添加`);
+  if (typeof value !== "string" || !value.trim()) throw assistantErrors.invalid(`${field}不能为空`);
+  if (value.length > max) throw assistantErrors.invalid(`${field}超过 ${max} 字，请缩短或作为附件添加`);
   return value;
 }
 
 function checkMaterials(value: unknown): AssistantMaterial[] {
   if (value === undefined) return [];
-  if (!Array.isArray(value) || value.length > MAX_MATERIALS) throw new AssistantError("assistant.invalid", `一次最多带 ${MAX_MATERIALS} 份材料`);
+  if (!Array.isArray(value) || value.length > MAX_MATERIALS) throw assistantErrors.invalid(`一次最多带 ${MAX_MATERIALS} 份材料`);
   let total = 0;
   return value.map((raw, index) => {
     const item = raw as AssistantMaterial;
     if (!item || typeof item !== "object" || !["selection", "object", "text", "file", "image", "capability", "method"].includes(item.kind)
       || typeof item.title !== "string" || typeof item.explicit !== "boolean" || item.text !== undefined && typeof item.text !== "string") {
-      throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
+      throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
     }
     // A capability picked with “/”: its exact identity; the words the model reads are the Host's, not the page's.
     // A method chosen with “/”: only its identity; the Host adds the registered body before the round.
     if (item.kind === "method") {
-      if (typeof item.method?.method_id !== "string" || !/^[^\/\s]{1,120}\/[^\/\s]{1,80}$/.test(item.method.method_id)) throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
+      if (typeof item.method?.method_id !== "string" || !/^[^\/\s]{1,120}\/[^\/\s]{1,80}$/.test(item.method.method_id)) throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
       return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "method" as const, title: item.title.slice(0, 200), explicit: true, method: { method_id: item.method.method_id } };
     }
     if (item.kind === "capability") {
       const cap = item.capability;
       if (!cap || typeof cap.capability_id !== "string" || !Number.isSafeInteger(cap.version) || typeof cap.provider_id !== "string" || typeof cap.title !== "string") {
-        throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
+        throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
       }
       const capability = { capability_id: cap.capability_id.slice(0, 200), version: cap.version, provider_id: cap.provider_id.slice(0, 200), title: cap.title.slice(0, 200) };
       return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "capability" as const, title: `用：${capability.title}`, explicit: true, capability,
@@ -153,7 +152,7 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
     if (item.kind === "image") {
       const image = item.image;
       if (!image || typeof image.resource_id !== "string" || !Number.isSafeInteger(image.revision) || typeof image.media_type !== "string" || !Number.isSafeInteger(image.byte_length)) {
-        throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
+        throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
       }
       return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "image" as const, title: item.title.slice(0, 200), explicit: true,
         image: { resource_id: image.resource_id.slice(0, 200), revision: image.revision, media_type: image.media_type.slice(0, 40), byte_length: image.byte_length },
@@ -161,7 +160,7 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
     }
     // Picked with “@”: the page's words about it are only the search snippet; the Host reads the object before the round.
     if (item.reference !== undefined) {
-      if (item.kind !== "object" || !item.object || typeof item.reference?.hit_id !== "string" || !item.reference.hit_id) throw new AssistantError("assistant.invalid", `第 ${index + 1} 份材料格式无效`);
+      if (item.kind !== "object" || !item.object || typeof item.reference?.hit_id !== "string" || !item.reference.hit_id) throw assistantErrors.invalid(`第 ${index + 1} 份材料格式无效`);
       return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: "object" as const, title: item.title.slice(0, 200), explicit: true,
         reference: { hit_id: item.reference.hit_id.slice(0, 2000) },
         object: { kind: String(item.object.kind).slice(0, 80), id: String(item.object.id).slice(0, 200), ...(item.object.title ? { title: String(item.object.title).slice(0, 200) } : {}) },
@@ -169,7 +168,7 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
         ...(typeof item.text === "string" ? { text: item.text.slice(0, 600) } : {}) };
     }
     total += item.text?.length ?? 0;
-    if (total > MAX_MATERIAL_TEXT) throw new AssistantError("assistant.invalid", "材料正文合计过长，请只带需要的片段");
+    if (total > MAX_MATERIAL_TEXT) throw assistantErrors.invalid("材料正文合计过长，请只带需要的片段");
     return { material_id: String(item.material_id || `m${index + 1}`).slice(0, 80), kind: item.kind, title: item.title.slice(0, 200), explicit: item.explicit,
       ...(item.source ? { source: { surface: String(item.source.surface).slice(0, 80), ...(item.source.plugin_id ? { plugin_id: String(item.source.plugin_id).slice(0, 120) } : {}), ...(item.source.title ? { title: String(item.source.title).slice(0, 200) } : {}) } } : {}),
       ...(item.object ? { object: { kind: String(item.object.kind).slice(0, 80), id: String(item.object.id).slice(0, 200), ...(item.object.version !== undefined ? { version: item.object.version } : {}), ...(item.object.title ? { title: String(item.object.title).slice(0, 200) } : {}) } } : {}),
@@ -189,7 +188,7 @@ function looksLikeImage(bytes: Buffer): boolean {
 function checkContext(value: unknown): AssistantContextSnapshot | null {
   if (value === undefined || value === null) return null;
   const context = value as AssistantContextSnapshot;
-  if (!context || typeof context !== "object" || !context.source || typeof context.source.surface !== "string") throw new AssistantError("assistant.invalid", "当前页面信息格式无效");
+  if (!context || typeof context !== "object" || !context.source || typeof context.source.surface !== "string") throw assistantErrors.invalid("当前页面信息格式无效");
   const selection = context.selection && typeof context.selection.text === "string" ? { text: context.selection.text.slice(0, 8000), ...(context.selection.truncated || context.selection.text.length > 8000 ? { truncated: true } : {}) } : undefined;
   return { source: { surface: context.source.surface.slice(0, 80), ...(context.source.plugin_id ? { plugin_id: String(context.source.plugin_id).slice(0, 120) } : {}), ...(context.source.title ? { title: String(context.source.title).slice(0, 200) } : {}) },
     ...(context.object ? { object: { kind: String(context.object.kind).slice(0, 80), id: String(context.object.id).slice(0, 200), ...(context.object.version !== undefined ? { version: context.object.version } : {}), ...(context.object.title ? { title: String(context.object.title).slice(0, 200) } : {}) } } : {}),
@@ -379,7 +378,6 @@ function answerOf(output: string | undefined): string {
 /** Recall words: the platform memory's own (Chinese two-character pieces and Latin words). */
 export { recallKeywords } from "@molis-ai/molis-work-service-memory";
 
-const FOLLOW_UP_KIND = "assistant.follow-up";
 const JOB_KIND = "assistant.job-check";
 /** The value at a dot path (`run.jobId`), or undefined. */
 function pathValue(value: unknown, path: string): unknown {
@@ -393,21 +391,11 @@ function setPath(target: Record<string, unknown>, path: string, value: unknown):
   return target;
 }
 /** A follow-up's next due time as a queued task: one key per follow-up and due time. */
-function followUpTask(followUp: AssistantFollowUp, sessionId: string) {
-  return { key: `fu-${followUp.followup_id}-${Date.parse(followUp.next_at!)}`, session_id: sessionId, kind: FOLLOW_UP_KIND,
-    payload: { followup_id: followUp.followup_id }, due_at: followUp.next_at!, max_attempts: 1 };
-}
 
-/** The same wall-clock time `days` later where the person is: “每天六点” stays at six across a daylight-saving change. */
-export function sameLocalTimeLater(at: number, days: number, timeZone: string | undefined): number {
-  let wall: (ms: number) => number;
-  try {
-    const format = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
-    wall = ms => { const part = Object.fromEntries(format.formatToParts(new Date(ms)).map(item => [item.type, item.value])); return Date.UTC(+part.year!, +part.month! - 1, +part.day!, +part.hour!, +part.minute!, +part.second!) + ms % 1000; };
-  } catch { return at + days * 86_400_000; }
-  const target = wall(at) + days * 86_400_000;
-  const guess = target - (wall(at) - at);
-  return target - (wall(guess) - guess);
+export { sameLocalTimeLater } from "./assistant-followups.js";
+
+function assertSendCurrent(stillCurrent: (() => boolean) | undefined): void {
+  if (stillCurrent && !stillCurrent()) throw assistantErrors.cancelled("这项定时已删除或变化，这一轮没有开始");
 }
 
 export class AssistantService {
@@ -428,16 +416,17 @@ export class AssistantService {
     this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
       readSubject: (work, subject) => this.readSubject(work, subject), authority: work => ports.authority(work),
       watchJob: (work, view, output, cardId) => this.watchJob(work, view, output, cardId),
-      createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => new AssistantError(code, message) });
+      createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
     this.delegations = new AssistantDelegations({ store, actorId, host: () => ports.host(), ...(ports.characters ? { characters: project => ports.characters!(project) } : {}),
       stateOf: (host, work) => this.stateFor(host, work), latestRun: (host, work) => this.latestRun(host, work), chooseCharacter: (work, choice) => this.chooseCharacter(work, choice),
       lastReply: async work => [...((await this.assistantPart(work)).rounds.at(-1)?.turns ?? [])].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim(),
-      read: workId => this.read(workId), fail: (code, message) => new AssistantError(code, message),
+      read: workId => this.read(workId),
       notify: (work, text, key) => void this.store.raiseNotice(actorId, { kind: "needs-decision", work_id: work.work_id, work_title: work.title, text }, key),
       // A start the Host writes happens once per key: a repeated settle finds it claimed.
-      dispatch: async (work, text, materials, writtenBy, request) => {
+      dispatch: async (work, text, materials, writtenBy, request, stillCurrent) => {
+        assertSendCurrent(stillCurrent);
         if (request && !store.claimRequest(actorId, request).claimed) return;
-        try { const result = await this.dispatch(work, text, materials, null, undefined, writtenBy); if (request) store.finishRequest(actorId, request, result); return result; }
+        try { const result = await this.dispatch(work, text, materials, null, undefined, writtenBy, stillCurrent); if (request) store.finishRequest(actorId, request, result); return result; }
         catch (error) { if (request) store.releaseRequest(actorId, request); throw error; }
       } });
   }
@@ -587,29 +576,30 @@ export class AssistantService {
    */
   async saveFollowUp(input: { work_id: string; text: string; at: string; repeat?: AssistantFollowUp["repeat"]; label: string; time_zone?: string }): Promise<AssistantFollowUp> {
     const work = this.store.get(this.actorId, String(input?.work_id ?? ""));
-    if (work.archived) throw new AssistantError("assistant.state", "这项工作已归档，不能再给它加定时");
+    if (work.reply_target || work.archived) throw assistantErrors.state("评论回复或已归档工作不能添加定时");
     const text = typeof input.text === "string" ? input.text.trim().slice(0, 4000) : "";
     const label = typeof input.label === "string" ? input.label.trim().slice(0, 120) : "";
-    if (!text || !label) throw new AssistantError("assistant.invalid", "定时要写明到时让助理做什么，以及一句说法");
+    if (!text || !label) throw assistantErrors.invalid("定时要写明到时让助理做什么，以及一句说法");
     const at = new Date(String(input.at));
-    if (Number.isNaN(at.getTime()) || at.getTime() <= this.now().getTime()) throw new AssistantError("assistant.invalid", "时间要在现在之后，并写明日期和时间");
+    if (Number.isNaN(at.getTime()) || at.getTime() <= this.now().getTime()) throw assistantErrors.invalid("时间要在现在之后，并写明日期和时间");
     const repeat = input.repeat ?? "none";
-    if (!["none", "daily", "weekly"].includes(repeat)) throw new AssistantError("assistant.invalid", "重复只能是一次、每天或每周");
-    if (this.store.followUps(this.actorId, work.work_id).filter(item => item.enabled).length >= MAX_FOLLOW_UPS_PER_WORK) throw new AssistantError("assistant.limit", `一项工作最多 ${MAX_FOLLOW_UPS_PER_WORK} 个定时`);
-    if (!work.session_id) throw new AssistantError("assistant.state", "这项工作还没有开始过：先让助理做一轮，再给它加定时");
+    if (!["none", "daily", "weekly"].includes(repeat)) throw assistantErrors.invalid("重复只能是一次、每天或每周");
+    if (this.store.followUps(this.actorId, work.work_id).filter(item => item.enabled).length >= MAX_FOLLOW_UPS_PER_WORK) throw assistantErrors.limit(`一项工作最多 ${MAX_FOLLOW_UPS_PER_WORK} 个定时`);
+    if (!work.session_id) throw assistantErrors.state("这项工作还没有开始过：先让助理做一轮，再给它加定时");
     const schedule = await this.schedule();
     const followUp: AssistantFollowUp = { followup_id: randomUUID(), work_id: work.work_id, label, text, repeat, next_at: at.toISOString(),
       time_zone: input.time_zone || this.ports.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone, enabled: true, created_at: this.now().toISOString() };
     this.store.saveFollowUp(this.actorId, followUp);
     this.#runnerFor(schedule);
-    await schedule.enqueue(followUpTask(followUp, work.session_id));
+    await enqueueCurrentFollowUp(this.store, this.actorId, followUp, work.session_id, schedule);
     return followUp;
   }
 
   async removeFollowUp(followupId: string): Promise<boolean> {
     const followUp = this.store.followUps(this.actorId).find(item => item.followup_id === followupId);
+    const removed = this.store.removeFollowUp(this.actorId, followupId);
     if (followUp?.next_at) await (await this.schedule().catch(() => null))?.cancel(followUpTask(followUp, "").key).catch(() => null);
-    return this.store.removeFollowUp(this.actorId, followupId);
+    return removed;
   }
 
   #detachSchedule: (() => void) | null = null;
@@ -639,7 +629,7 @@ export class AssistantService {
       // Its time came with no runner attached (the Host was still starting): decided now by the same rule — on time
       // enough it runs, too late it is reported as missed — never left silently undone.
       if (held && (held.state === "failed" || held.state === "reconcile-required")) { await this.runFollowUp(followUp).catch(() => undefined); continue; }
-      await schedule.enqueue(task).catch(() => undefined);
+      await enqueueCurrentFollowUp(this.store, this.actorId, followUp, work.session_id, schedule).catch(() => undefined);
     }
     // Sub-tasks that settled while nobody took up what they hand back (the Host went away in between): taken up now.
     void this.delegations.resume();
@@ -657,7 +647,7 @@ export class AssistantService {
 
   private async schedule(): Promise<AgentScheduleCapability> {
     const schedule = (await this.ports.host()).adapter(RUNTIME).schedule;
-    if (!schedule) throw new AssistantError("assistant.unsupported", "当前运行时不能安排定时");
+    if (!schedule) throw assistantErrors.unsupported("当前运行时不能安排定时");
     return schedule;
   }
 
@@ -674,48 +664,25 @@ export class AssistantService {
    * time is queued.
    */
   private async runFollowUp(followUp: AssistantFollowUp): Promise<void> {
-    const now = this.now(), due = followUp.next_at!;
-    let outcome: NonNullable<AssistantFollowUp["last"]>["outcome"] = "started", detail: string | undefined;
-    let work: StoredWork | undefined;
-    try { work = this.store.get(this.actorId, followUp.work_id); } catch { outcome = "failed"; detail = "这项工作已不存在"; }
-    if (work?.archived) { outcome = "skipped"; detail = "这项工作已归档，这一次没有开始"; }
-    else if (work && now.getTime() - Date.parse(due) > FOLLOW_UP_GRACE_MS) {
-      outcome = "missed"; detail = "当时 Molis Work 没有在运行，没有补做";
-      this.store.raiseNotice(this.actorId, { kind: "failed", work_id: work.work_id, work_title: work.title,
-        text: `错过了「${followUp.label}」（原定 ${new Date(due).toLocaleString("zh-CN", { timeZone: followUp.time_zone })}）：当时 Molis Work 没有在运行，没有补做` }, `followup:${followUp.followup_id}:${due}:missed`);
-    } else if (work) {
-      const host = await this.ports.host();
-      const state = await this.stateFor(host, work);
-      if (["running", "paused", "waiting-input", "waiting-review"].includes(state)) { outcome = "skipped"; detail = "上一轮还没结束，这一次没有开始"; }
-      else {
-        try { await this.send({ work_id: work.work_id, text: `（按你的定时安排「${followUp.label}」）${followUp.text}`, request_id: `fu-${followUp.followup_id}-${Date.parse(due)}` }, {}, "host"); }
-        catch (error) { outcome = "failed"; detail = error instanceof Error ? error.message : String(error); }
-      }
-    }
-    const days = followUp.repeat === "daily" ? 1 : followUp.repeat === "weekly" ? 7 : 0;
-    let next = days && !work?.archived ? sameLocalTimeLater(Date.parse(due), days, followUp.time_zone) : undefined;
-    while (next !== undefined && next <= now.getTime()) next = sameLocalTimeLater(next, days, followUp.time_zone);
-    const { next_at: _next, ...rest } = followUp;
-    const saved: AssistantFollowUp = { ...rest, ...(next !== undefined ? { next_at: new Date(next).toISOString() } : {}), enabled: next !== undefined,
-      last: { due_at: due, at: now.toISOString(), outcome, ...(detail ? { detail } : {}) } };
-    this.store.saveFollowUp(this.actorId, saved);
-    if (next !== undefined && work?.session_id) await (await this.schedule()).enqueue(followUpTask(saved, work.session_id));
+    await runDueFollowUp(followUp, { store: this.store, actorId: this.actorId, now: this.now,
+      host: () => this.ports.host(), state: (host, work) => this.stateFor(host, work), schedule: () => this.schedule(),
+      send: (work, text, request_id, stillCurrent) => this.send({ work_id: work.work_id, text, request_id }, {}, "host", stillCurrent) });
   }
 
   /** Add or change one of the person's attention rules; checked strictly, since the Host applies them exactly as written. */
   saveRule(input: AssistantRuleInput, ruleId?: string): AssistantRule[] {
     const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result", "material", "reminder"];
-    if (!input || !["quiet", "pause"].includes(input.kind)) throw new AssistantError("assistant.invalid", "规则只能是“在某处不提醒”或“暂停提醒”");
+    if (!input || !["quiet", "pause"].includes(input.kind)) throw assistantErrors.invalid("规则只能是“在某处不提醒”或“暂停提醒”");
     const surfaces = Array.isArray(input.surfaces) ? [...new Set(input.surfaces.filter(value => typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,80}$/.test(value)))].slice(0, 20) : [];
     const except = Array.isArray(input.except) ? [...new Set(input.except.filter(kind => kinds.includes(kind)))] : [];
     const label = typeof input.label === "string" ? input.label.trim().slice(0, 200) : "";
-    if (!label) throw new AssistantError("assistant.invalid", "写一句这条规则的说法，方便以后认出它");
+    if (!label) throw assistantErrors.invalid("写一句这条规则的说法，方便以后认出它");
     const until = input.until === undefined || input.until === null || input.until === "" ? undefined : new Date(String(input.until));
-    if (until && (Number.isNaN(until.getTime()) || until.getTime() <= this.now().getTime())) throw new AssistantError("assistant.invalid", "结束时间要在现在之后");
-    if (input.kind === "pause" && !until) throw new AssistantError("assistant.invalid", "暂停提醒要有结束时间");
+    if (until && (Number.isNaN(until.getTime()) || until.getTime() <= this.now().getTime())) throw assistantErrors.invalid("结束时间要在现在之后");
+    if (input.kind === "pause" && !until) throw assistantErrors.invalid("暂停提醒要有结束时间");
     const rules = this.store.rules(this.actorId);
     const existing = ruleId ? rules.find(rule => rule.rule_id === ruleId) : undefined;
-    if (ruleId && !existing) throw new AssistantError("assistant.not_found", "没有这条规则");
+    if (ruleId && !existing) throw assistantErrors.not_found("没有这条规则");
     const rule: AssistantRule = { rule_id: existing?.rule_id ?? randomUUID(), kind: input.kind, surfaces: input.kind === "pause" ? [] : surfaces, except, label,
       ...(until ? { until: until.toISOString() } : {}), enabled: input.enabled ?? true, created_at: existing?.created_at ?? this.now().toISOString() };
     const next = existing ? rules.map(item => item.rule_id === rule.rule_id ? rule : item) : [...rules, rule].slice(-50);
@@ -835,13 +802,14 @@ export class AssistantService {
    */
   async handover(workId: string, input: AssistantHandover): Promise<AssistantWorkView> {
     let work = this.store.get(this.actorId, workId);
-    if (input?.to !== "coding" && input?.to !== "assistant") throw new AssistantError("assistant.invalid", "只能交给 Coding Agent 或助理");
+    if (work.reply_target) throw assistantErrors.scope("请回到原评论继续这项回复");
+    if (input?.to !== "coding" && input?.to !== "assistant") throw assistantErrors.invalid("只能交给 Coding Agent 或助理");
     const state = await this.stateSafely(work);
-    if (["running", "waiting-input", "waiting-review", "paused"].includes(state)) throw new AssistantError("assistant.state", "这一轮还没有结束：结束或停止后再转交");
+    if (["running", "waiting-input", "waiting-review", "paused"].includes(state)) throw assistantErrors.state("这一轮还没有结束：结束或停止后再转交");
     if (input.to === "coding") {
-      if (work.executor.kind === "coding") throw new AssistantError("assistant.invalid", "这项工作已经由 Coding Agent 执行");
-      if (work.scope.kind !== "project") throw new AssistantError("assistant.scope", "Coding Agent 在项目里工作；个人工作不能交给它");
-      if (input.mode !== undefined && !CODING_MODES.includes(input.mode)) throw new AssistantError("assistant.invalid", "不认识的方式");
+      if (work.executor.kind === "coding") throw assistantErrors.invalid("这项工作已经由 Coding Agent 执行");
+      if (work.scope.kind !== "project") throw assistantErrors.scope("Coding Agent 在项目里工作；个人工作不能交给它");
+      if (input.mode !== undefined && !CODING_MODES.includes(input.mode)) throw assistantErrors.invalid("不认识的方式");
       const coding = await this.coding(work);
       let sessionId = this.linkedCodingSession(work);
       if (!sessionId) {
@@ -852,7 +820,7 @@ export class AssistantService {
       const brief = await this.handoverBrief(work);
       work = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId }, handover_brief: brief });
     } else {
-      if (work.executor.kind !== "coding") throw new AssistantError("assistant.invalid", "这项工作已经由助理执行");
+      if (work.executor.kind !== "coding") throw assistantErrors.invalid("这项工作已经由助理执行");
       work = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "assistant" }, handover_brief: undefined });
     }
     return this.read(work.work_id);
@@ -886,24 +854,24 @@ export class AssistantService {
    * answers the round's open question when that is what the round is waiting for. A repeated press returns the first
    * outcome and does nothing more. A round whose words the person did not write is marked (`writtenBy` for Host code, `input.written_by` from a page).
    */
-  async send(input: AssistantSendInput, caller: AssistantCaller, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
+  async send(input: AssistantSendInput, caller: AssistantCaller, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
     const text = checkText(input?.text, "要发送的内容", MAX_TEXT);
     let materials = checkMaterials(input.materials);
     const images = materials.filter(item => item.kind === "image");
-    if (images.length > MAX_IMAGES) throw new AssistantError("assistant.invalid", `一次最多带 ${MAX_IMAGES} 张图片`);
+    if (images.length > MAX_IMAGES) throw assistantErrors.invalid(`一次最多带 ${MAX_IMAGES} 张图片`);
     for (const image of images) {
       const held = this.images.get(image.image!.resource_id);
-      if (!held || held.revision !== image.image!.revision) throw new AssistantError("assistant.invalid", `图片「${image.title}」已失效（应用重启过），请重新添加`);
+      if (!held || held.revision !== image.image!.revision) throw assistantErrors.invalid(`图片「${image.title}」已失效（应用重启过），请重新添加`);
     }
     const context = checkContext(input.context);
-    if (input.mode !== undefined && (input.work_id || input.executor !== "coding" || !CODING_MODES.includes(input.mode))) throw new AssistantError("assistant.invalid", "只有新的 Coding 工作可以在这里选择第一轮的方式");
+    if (input.mode !== undefined && (input.work_id || input.executor !== "coding" || !CODING_MODES.includes(input.mode))) throw assistantErrors.invalid("只有新的 Coding 工作可以在这里选择第一轮的方式");
     if (input.coding_session_id !== undefined && (input.work_id || input.executor !== "coding" || typeof input.coding_session_id !== "string" || !input.coding_session_id)) {
-      throw new AssistantError("assistant.invalid", "只有新的 Coding 工作可以接着一个已有的 Coding 会话");
+      throw assistantErrors.invalid("只有新的 Coding 工作可以接着一个已有的 Coding 会话");
     }
     // A session another work already carries stays with it: say which, before anything is created.
     if (input.coding_session_id && !input.work_id) {
       const holder = this.sessionHolder(caller.project_ref?.project_id ?? null, input.coding_session_id);
-      if (holder) throw new AssistantError("assistant.conflict", `这个 Coding 会话已属于工作「${holder.title}」，请切换到那项工作继续`);
+      if (holder) throw assistantErrors.conflict(`这个 Coding 会话已属于工作「${holder.title}」，请切换到那项工作继续`);
     }
     const claim = this.store.claimRequest(this.actorId, String(input.request_id ?? ""));
     if (!claim.claimed) return claim.result;
@@ -911,33 +879,37 @@ export class AssistantService {
     try {
       const created = !input.work_id;
       work = input.work_id ? this.store.get(this.actorId, input.work_id) : await this.createWork(text, input.scope, context, caller, input.executor);
+      if (work.reply_target && caller.thread_request !== work.thread_round?.attempt_id) throw assistantErrors.scope("请在原评论内继续这项讨论");
       if (created && input.coding_session_id) work = await this.adoptCodingSession(work, input.coding_session_id);
       work = await this.chooseCharacter(work, input.character);
       if (materials.some(item => item.reference)) materials = await this.readReferences(work, materials);
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
+      assertSendCurrent(stillCurrent);
       this.linkSent(work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by);
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart);
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {
       this.store.releaseRequest(this.actorId, input.request_id);
+      if (stillCurrent && !stillCurrent()) throw error;
       // Nothing the person typed is lost: an unsent message stays as the work's draft.
-      if (work) {
+      if (work && !work.reply_target) {
         const kept = this.store.update(this.actorId, work.work_id, null, { draft: text }, false);
-        const failure = error instanceof AssistantError ? error : this.explain(error);
-        throw new AssistantError(failure.code, failure.message, this.publicWork(kept, await this.stateSafely(kept)), failure.action);
+        const failure = this.explain(error);
+        throw new ActionError(failure.code, failure.message, { kind: failure.kind, cause: failure,
+          details: { ...failure.details, work: this.publicWork(kept, await this.stateSafely(kept)) } });
       }
-      throw error instanceof AssistantError ? error : this.explain(error);
+      throw this.explain(error);
     }
   }
 
   async control(workId: string, control: AssistantControl): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    if (!["pause", "resume", "stop"].includes(control?.kind)) throw new AssistantError("assistant.invalid", "不支持的操作");
+    if (!["pause", "resume", "stop"].includes(control?.kind)) throw assistantErrors.invalid("不支持的操作");
     if (work.executor.kind === "coding") {
       const coding = await this.coding(work);
       const latest = work.executor.session_id ? (await coding.read(work.executor.session_id, 1)).runs.at(-1) : undefined;
-      if (!latest || isTerminalAgentPhase(latest.phase)) throw new AssistantError("assistant.state", "这项工作当前没有在执行的一轮");
+      if (!latest || isTerminalAgentPhase(latest.phase)) throw assistantErrors.state("这项工作当前没有在执行的一轮");
       await coding.control(work.executor.session_id!, latest.ref.run_id, { kind: control.kind });
       return this.read(workId);
     }
@@ -947,7 +919,7 @@ export class AssistantService {
     const children = control.kind === "stop" ? (await Promise.all(this.store.delegatedBy(this.actorId, work.work_id, "any")
       .map(async child => ({ child, run: await this.latestRun(host, child).catch(() => null) })))).filter(item => item.run && !isTerminalAgentPhase(item.run.phase)) : [];
     const running = latest && !isTerminalAgentPhase(latest.phase);
-    if (!running && !children.length) throw new AssistantError("assistant.state", "这项工作当前没有在执行的一轮");
+    if (!running && !children.length && !(control.kind === "stop" && this.delegations.isHandingBack(work.work_id))) throw assistantErrors.state("这项工作当前没有在执行的一轮");
     if (control.kind === "stop") this.delegations.hold(work);
     if (running) {
       await host.adapter(RUNTIME).control(latest.ref, { kind: control.kind });
@@ -968,18 +940,18 @@ export class AssistantService {
       const coding = await this.coding(work);
       const run = work.executor.session_id ? (await coding.read(work.executor.session_id, 6)).runs.find(item => item.ref.run_id === input.run_id) : undefined;
       const question = run?.awaiting_input.find(item => item.pending_id === input.pending_id);
-      if (!run || !question || run.phase !== "awaiting-input") throw new AssistantError("assistant.stale", "这个问题已经结束或被替换，回答没有发送");
+      if (!run || !question || run.phase !== "awaiting-input") throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
       await coding.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: input.pending_revision ?? question.pending_revision ?? 1,
         ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
       return this.read(workId);
     }
-    if (!this.store.rounds(work.work_id).some(round => round.run_id === input.run_id)) throw new AssistantError("assistant.scope", "这个问题不属于这项工作");
+    if (!this.store.rounds(work.work_id).some(round => round.run_id === input.run_id)) throw assistantErrors.scope("这个问题不属于这项工作");
     const host = await this.ports.host();
     const run = await host.adapter(RUNTIME).read({ session_id: work.session_id!, run_id: input.run_id });
     const question = run.awaiting_input.find(item => item.pending_id === input.pending_id);
     // A late answer to a question that is already closed or replaced starts nothing.
-    if (!question || run.phase !== "awaiting-input") throw new AssistantError("assistant.stale", "这个问题已经结束或被替换，回答没有发送");
-    if (input.text !== undefined && (typeof input.text !== "string" || input.text.length > MAX_TEXT)) throw new AssistantError("assistant.invalid", "回答过长");
+    if (!question || run.phase !== "awaiting-input") throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
+    if (input.text !== undefined && (typeof input.text !== "string" || input.text.length > MAX_TEXT)) throw assistantErrors.invalid("回答过长");
     await host.adapter(RUNTIME).control(run.ref, { kind: "answer", pending_id: input.pending_id,
       ...(input.pending_revision !== undefined ? { pending_revision: input.pending_revision } : question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}),
       ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
@@ -993,8 +965,8 @@ export class AssistantService {
     // A Coding work's confirmations are Coding's own, in the same queue its page decides from.
     const session = work.executor.kind === "coding" && work.executor.session_id
       ? (await (await this.coding(work)).read(work.executor.session_id, 1)).session.runtime_session_id ?? null : work.session_id;
-    if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)) throw new AssistantError("assistant.scope", "这项确认不属于这项工作");
-    if (!["approve", "reject"].includes(input.decision)) throw new AssistantError("assistant.invalid", "请选择允许或拒绝");
+    if (!review || review.run?.session_id !== session || review.project_id !== ownerOf(work)) throw assistantErrors.scope("这项确认不属于这项工作");
+    if (!["approve", "reject"].includes(input.decision)) throw assistantErrors.invalid("请选择允许或拒绝");
     await host.reviews.respond({ review_id: review.review_id, decision: input.decision, actor_id: this.actorId, ...(input.note ? { note: String(input.note).slice(0, 2000) } : {}) });
     // The runtime tells the round only that policy blocked the change; the round must know the person declined it.
     if (input.decision === "reject" && work.executor.kind !== "coding" && review.run) {
@@ -1048,7 +1020,7 @@ export class AssistantService {
     const source = input.source as { surface?: unknown; title?: unknown } | undefined;
     const text = (value: unknown) => typeof value === "string" && value.trim() && value.length <= 200 ? value.trim() : null;
     const kind = text(object?.kind), id = text(object?.id), from = text(source?.title) ?? text(source?.surface);
-    if (!kind || !id || !from) throw new AssistantError("assistant.invalid", "交回的结果要说明对象种类、标识和来自哪里");
+    if (!kind || !id || !from) throw assistantErrors.invalid("交回的结果要说明对象种类、标识和来自哪里");
     this.store.relations.link(identity(work), "result", { kind, id, revision: revisionOf(typeof object?.version === "number" || typeof object?.version === "string" ? object.version : undefined) }, `${from} 交回`);
     this.store.raiseNotice(this.actorId, { kind: "result", work_id: work.work_id, work_title: work.title, text: `${from} 把结果交回了「${work.title}」` }, `${work.work_id}:result:${kind}:${id}:${String(object?.version ?? "")}`);
     return this.read(workId);
@@ -1224,15 +1196,15 @@ export class AssistantService {
   async undo(workId: string, undoId: string): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     const record = this.store.undos(this.actorId, workId).find(item => item.undo_id === undoId);
-    if (!record) throw new AssistantError("assistant.invalid", "这项修改不能在这里撤销");
-    if (record.state === "undone") throw new AssistantError("assistant.state", "这项修改已经撤销过了");
+    if (!record) throw assistantErrors.invalid("这项修改不能在这里撤销");
+    if (record.state === "undone") throw assistantErrors.state("这项修改已经撤销过了");
     // Claimed before anything is sent: a second request while the owner's undo runs (another tab, a retry) gets this one's outcome and sends nothing.
     const claimed = this.#undoing.get(undoId);
     if (claimed) return claimed;
     const running = (async () => {
       let actions: PersonActions | null = null;
       try { actions = await this.ports.scopeActions?.(work) ?? null; } catch { actions = null; }
-      if (!actions) throw new AssistantError("assistant.unsupported", "现在不能撤销，请到原处修改");
+      if (!actions) throw assistantErrors.unsupported("现在不能撤销，请到原处修改");
       try {
         await actions.invoke(record.reference, record.input);
         this.store.saveUndo(this.actorId, { ...record, state: "undone", undone_at: this.now().toISOString(), detail: undefined });
@@ -1241,7 +1213,7 @@ export class AssistantService {
         // Spent meanwhile (the round made that very change itself): it is undone, whatever the owner said to this call.
         if (this.store.undos(this.actorId, workId).find(item => item.undo_id === undoId)?.state === "undone") return this.read(workId);
         this.store.saveUndo(this.actorId, { ...record, state: "failed", detail });
-        throw new AssistantError("assistant.failed", `没能撤销「${record.title}」：${detail}`);
+        throw assistantErrors.failed(`没能撤销「${record.title}」：${detail}`);
       }
       return this.read(workId);
     })();
@@ -1368,21 +1340,21 @@ export class AssistantService {
   private async readReferences(work: StoredWork, materials: AssistantMaterial[]): Promise<AssistantMaterial[]> {
     let actions: PersonActions | null = null;
     try { actions = await this.ports.scopeActions?.(work) ?? null; } catch { actions = null; }
-    if (!actions) throw new AssistantError("assistant.unsupported", "现在读不到引用的内容，请稍后再试或去掉引用");
+    if (!actions) throw assistantErrors.unsupported("现在读不到引用的内容，请稍后再试或去掉引用");
     const views = await actions.discover().catch(() => [] as ActionView[]);
     const opener = views.find(view => view.capability_id === "search.open" && view.availability.available);
     const readers = views.filter(view => isSubjectReader(view.action) && view.availability.available);
     const out: AssistantMaterial[] = [];
     for (const material of materials) {
       if (!material.reference || !material.object) { out.push(material); continue; }
-      if (!opener) throw new AssistantError("assistant.unsupported", `现在不能核对「${material.title}」，请稍后再试或去掉这个引用`);
+      if (!opener) throw assistantErrors.unsupported(`现在不能核对「${material.title}」，请稍后再试或去掉这个引用`);
       const opened = await actions.invoke({ capability_id: opener.capability_id, version: opener.version, provider_id: opener.provider.provider_id }, { hit_id: material.reference.hit_id })
         .catch((error: unknown) => ({ state: "unavailable" as const, reason: error instanceof Error ? error.message : String(error) })) as
         { state: "ok"; subject: { kind: string; id: string }; title: string; revision: string } | { state: "missing" | "unavailable"; reason: string };
       if (opened.state !== "ok") {
         const moved = opened.state === "missing" ? await whereNow(work, actions, material.object) : null;
-        if (moved) throw new AssistantError("assistant.invalid", `引用的「${material.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」，这项工作读不到它；去掉引用，或在那里继续`);
-        throw new AssistantError("assistant.invalid", `引用的「${material.title}」${opened.state === "missing" ? "已不存在" : "现在读不到"}（${opened.reason}）；去掉它或重新选择后再发`);
+        if (moved) throw assistantErrors.invalid(`引用的「${material.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」，这项工作读不到它；去掉引用，或在那里继续`);
+        throw assistantErrors.invalid(`引用的「${material.title}」${opened.state === "missing" ? "已不存在" : "现在读不到"}（${opened.reason}）；去掉它或重新选择后再发`);
       }
       const subject = opened.subject, reader = readers.find(view => view.action.subject_kinds.includes(subject.kind));
       let context: ActionSubjectContext | null = null;
@@ -1417,7 +1389,7 @@ export class AssistantService {
   /** One method's body for a round, when this work's scope can use it. */
   async readMethod(work: StoredWork | null, methodId: string): Promise<AssistantMethod & { body: string }> {
     const found = (await this.methods(work)).find(method => method.method_id === methodId);
-    if (!found || !this.ports.methods) throw new AssistantError("assistant.invalid", `没有可用的方法「${methodId}」（插件没有提供、已停用，或不在这个范围）`);
+    if (!found || !this.ports.methods) throw assistantErrors.invalid(`没有可用的方法「${methodId}」（插件没有提供、已停用，或不在这个范围）`);
     const body = this.ports.methods.read(found.plugin_id, methodId.slice(found.plugin_id.length + 1), found.version).body;
     return { ...found, body };
   }
@@ -1475,7 +1447,7 @@ export class AssistantService {
     const coding = await this.coding(work);
     await coding.read(sessionId, 1);
     const holder = this.sessionHolder(identity(work).project_id, sessionId, work.work_id);
-    if (holder) throw new AssistantError("assistant.conflict", `这个 Coding 会话已属于工作「${holder.title}」，请切换到那项工作继续`);
+    if (holder) throw assistantErrors.conflict(`这个 Coding 会话已属于工作「${holder.title}」，请切换到那项工作继续`);
     const adopted = this.store.update(this.actorId, work.work_id, null, { executor: { kind: "coding", title: "Coding Agent", session_id: sessionId } });
     this.store.relations.link(identity(adopted), "session", { kind: CODING_SESSION_KIND, id: sessionId, revision: null }, "接着用户在 Coding 里开始的会话");
     return adopted;
@@ -1493,8 +1465,8 @@ export class AssistantService {
   /** A Coding work's next-round mode, kept on Coding's session so both entries agree. */
   async setExecutorMode(workId: string, mode: string): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    if (work.executor.kind !== "coding") throw new AssistantError("assistant.invalid", "这项工作不由专业 Agent 执行");
-    if (!CODING_MODES.includes(mode)) throw new AssistantError("assistant.invalid", "不认识的方式");
+    if (work.executor.kind !== "coding") throw assistantErrors.invalid("这项工作不由专业 Agent 执行");
+    if (!CODING_MODES.includes(mode)) throw assistantErrors.invalid("不认识的方式");
     const coding = await this.coding(work);
     let sessionId = work.executor.session_id;
     if (!sessionId) {
@@ -1511,16 +1483,16 @@ export class AssistantService {
     const work = this.store.get(this.actorId, workId);
     if (!work.session_id) return { blockers: [], rounds: [] };
     const adapter = (await this.ports.host()).adapter(RUNTIME);
-    if (!adapter.recovery) throw new AssistantError("assistant.unsupported", "当前运行时不能核对中断的执行");
+    if (!adapter.recovery) throw assistantErrors.unsupported("当前运行时不能核对中断的执行");
     return recoveryView(await adapter.recovery.inspect(sessionRef(work)));
   }
 
   /** The person has checked the outcome: close the interrupted round so the work can go on. Never re-runs it. */
   async closeInterrupted(workId: string, input: { run_id: string; version: number }): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    if (!work.session_id || !this.store.rounds(work.work_id).some(round => round.run_id === input.run_id)) throw new AssistantError("assistant.scope", "这一轮不属于这项工作");
+    if (!work.session_id || !this.store.rounds(work.work_id).some(round => round.run_id === input.run_id)) throw assistantErrors.scope("这一轮不属于这项工作");
     const adapter = (await this.ports.host()).adapter(RUNTIME);
-    if (!adapter.recovery) throw new AssistantError("assistant.unsupported", "当前运行时不能核对中断的执行");
+    if (!adapter.recovery) throw assistantErrors.unsupported("当前运行时不能核对中断的执行");
     await adapter.recovery.close(sessionRef(work), String(input.run_id), Number(input.version));
     if (work.delegated_by) void this.delegations.settle(work.delegated_by.work_id);
     return this.read(workId);
@@ -1535,7 +1507,7 @@ export class AssistantService {
   material(workId: string, materialId: string): AssistantMaterialText {
     const work = this.store.get(this.actorId, workId);
     const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId);
-    if (!found) throw new AssistantError("assistant.not_found", "这项工作里没有这份材料");
+    if (!found) throw assistantErrors.not_found("这项工作里没有这份材料");
     const text = typeof found.text === "string" ? found.text : undefined;
     // A page brought from the browser says where it came from on its first line.
     const url = text?.match(/^来源：\s*(https?:\/\/\S+)/u)?.[1];
@@ -1548,8 +1520,8 @@ export class AssistantService {
   async materialImage(workId: string, materialId: string): Promise<{ media_type: string; data: string }> {
     const work = this.store.get(this.actorId, workId);
     const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId && item.kind === "image" && item.image);
-    if (!found?.image) throw new AssistantError("assistant.not_found", "这项工作里没有这张图片");
-    const gone = new AssistantError("assistant.expired", "这张图片已失效：应用重启后不再保留。需要时请重新添加这张图片。");
+    if (!found?.image) throw assistantErrors.not_found("这项工作里没有这张图片");
+    const gone = assistantErrors.expired("这张图片已失效：应用重启后不再保留。需要时请重新添加这张图片。");
     if (!this.holdsImage(found.image)) throw gone;
     const bytes = await (await this.ports.host()).adapter(RUNTIME).documents?.readImage?.({ id: found.image.resource_id, revision: found.image.revision });
     if (!bytes) throw gone;
@@ -1562,7 +1534,7 @@ export class AssistantService {
 
 
   saveDraft(workId: string, draft: string): AssistantWork {
-    if (typeof draft !== "string" || draft.length > MAX_TEXT) throw new AssistantError("assistant.invalid", "草稿过长");
+    if (typeof draft !== "string" || draft.length > MAX_TEXT) throw assistantErrors.invalid("草稿过长");
     const work = this.store.update(this.actorId, workId, null, { draft }, false);
     return this.publicWork(work, "idle");
   }
@@ -1577,7 +1549,7 @@ export class AssistantService {
     if (archived) {
       const host = await this.ports.host(), group = [this.store.get(this.actorId, workId), ...this.store.delegatedBy(this.actorId, workId, "any")];
       if ((await Promise.all(group.map(item => this.stateFor(host, item)))).some(state => ["running", "paused", "waiting-input", "waiting-review"].includes(state))) {
-        throw new AssistantError("assistant.state", "这项工作还有一轮在进行，先停止它再归档");
+        throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
       }
       const schedule = await this.schedule().catch(() => null), at = this.now().toISOString();
       for (const { next_at, ...rest } of this.store.followUps(this.actorId, workId).filter(item => item.enabled)) {
@@ -1592,10 +1564,10 @@ export class AssistantService {
   private async createWork(text: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot | null, caller: AssistantCaller,
     executor: AssistantSendInput["executor"]): Promise<StoredWork> {
     const wanted: AssistantScope = scope ?? (caller.project_ref ? { kind: "project", project_id: caller.project_ref.project_id } : { kind: "personal" });
-    if (executor === "coding" && wanted.kind !== "project") throw new AssistantError("assistant.scope", "Coding Agent 在项目里工作；个人工作请交给助理");
-    if (executor !== undefined && executor !== "assistant" && executor !== "coding") throw new AssistantError("assistant.invalid", "不认识的执行者");
+    if (executor === "coding" && wanted.kind !== "project") throw assistantErrors.scope("Coding Agent 在项目里工作；个人工作请交给助理");
+    if (executor !== undefined && executor !== "assistant" && executor !== "coding") throw assistantErrors.invalid("不认识的执行者");
     if (wanted.kind === "project" && wanted.project_id !== caller.project_ref?.project_id) {
-      throw new AssistantError("assistant.scope", "只能在当前打开的项目里为它新建工作；个人工作不需要项目");
+      throw assistantErrors.scope("只能在当前打开的项目里为它新建工作；个人工作不需要项目");
     }
     const scopeTitle = wanted.kind === "project" ? await this.ports.projectTitle?.(wanted.project_id).catch(() => null) : null;
     return this.store.create({ actor_id: this.actorId, title: titleFrom(text), scope: wanted, origin: context?.source ?? null, ...(scopeTitle ? { scope_title: scopeTitle } : {}),
@@ -1603,15 +1575,15 @@ export class AssistantService {
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 
-  private async coding(work: StoredWork): Promise<CodingExecutor> {
-    if (!this.ports.personActions) throw new AssistantError("assistant.unsupported", "当前环境不能从这里使用 Coding Agent");
-    return new CodingExecutor(await this.ports.personActions(work));
+  private async coding(work: StoredWork, beforeDispatch?: () => void): Promise<CodingExecutor> {
+    if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用 Coding Agent");
+    return new CodingExecutor(await this.ports.personActions(work), beforeDispatch);
   }
 
   /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
-  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
-    if (materials.some(item => item.kind === "image")) throw new AssistantError("assistant.unsupported", "Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
-    const coding = await this.coding(work);
+  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
+    if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
+    const coding = await this.coding(work, stillCurrent ? () => assertSendCurrent(stillCurrent) : undefined);
     let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
     if (!sessionId) {
       sessionId = await coding.createSession(work.title);
@@ -1621,7 +1593,8 @@ export class AssistantService {
       if (mode) await coding.setMode(sessionId, mode);
     }
     const read = await coding.read(sessionId, 2);
-    if (read.recovery_required) throw new AssistantError("assistant.needs_check", read.error ?? "Coding 会话有需要核对的中断操作", undefined, "打开 Coding 核对");
+    assertSendCurrent(stillCurrent);
+    if (read.recovery_required) throw assistantErrors.needs_check(read.error ?? "Coding 会话有需要核对的中断操作", { action: "打开 Coding 核对" });
     const latest = read.runs.at(-1);
     if (latest && !isTerminalAgentPhase(latest.phase)) {
       const question = this.freeTextQuestion(latest.awaiting_input);
@@ -1641,28 +1614,37 @@ export class AssistantService {
     return this.result(work, "started", run?.ref.run_id ?? "");
   }
 
-  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"]): Promise<AssistantSendResult> {
-    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy);
+  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void): Promise<AssistantSendResult> {
+    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy, stillCurrent);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
-    const authority = await this.ports.authority(work);
+    const base = await this.ports.authority(work);
+    const authority = stillCurrent || beforeStart || assertBeforeStart ? { ...base, beforeStart: async () => {
+      await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent);
+    }, assertBeforeStart: () => {
+      requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
+      requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent);
+    } } : base;
+    const role = work.reply_target ? "thread-reply" : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
       const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
-        actor_id: this.actorId, title: work.title, workspace: "business", role_id: ASSISTANT_ROLE_ID }, authority);
+        actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);
       work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
     }
+    assertSendCurrent(stillCurrent);
     const session = await adapter.readSession(sessionRef(work));
-    if (session.recovery) throw new AssistantError("assistant.needs_check", session.recovery.reason, undefined, "核对上一轮的实际结果后再继续");
+    if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: "核对上一轮的实际结果后再继续" });
+    assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
     if (latest && !isTerminalAgentPhase(latest.phase)) {
-      if (latest.phase === "reconcile-required") throw new AssistantError("assistant.needs_check", "上一轮有结果未确认的操作，需要先核对", undefined, "打开这项工作核对");
+      if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
       const question = this.freeTextQuestion(latest.awaiting_input);
       if (latest.phase === "awaiting-input" && question && !materials.length) {
         await adapter.control(latest.ref, { kind: "answer", pending_id: question.pending_id, ...(question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}), text });
         return this.result(work, "answered", latest.ref.run_id);
       }
       // A running round cannot be shown a picture any more; it goes with the next round.
-      if (materials.some(item => item.kind === "image")) throw new AssistantError("assistant.state", "这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮");
+      if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮");
       await adapter.control(latest.ref, { kind: "steer", text: this.steerText(text, materials, context) });
       return this.result(work, "steered", latest.ref.run_id);
     }
@@ -1670,7 +1652,7 @@ export class AssistantService {
     // The work's own cap: none left means no round; otherwise the round may spend only what is left.
     const spent = await this.workUsage(work);
     if (spent.budget_tokens !== null && spent.tokens >= spent.budget_tokens) {
-      throw new AssistantError("assistant.budget", `${spent.budget_of ? `委托这项子任务的工作「${spent.budget_of.title}」连同它的子任务` : "这项工作"}已用 ${spent.tokens.toLocaleString("en-US")} tokens，达到给它设的上限 ${spent.budget_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。要继续，先调高${spent.budget_of ? "那项工作" : "这项工作"}的上限`, undefined, "调高这项工作的上限");
+      throw assistantErrors.budget(`${spent.budget_of ? `委托这项子任务的工作「${spent.budget_of.title}」连同它的子任务` : "这项工作"}已用 ${spent.tokens.toLocaleString("en-US")} tokens，达到给它设的上限 ${spent.budget_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。要继续，先调高${spent.budget_of ? "那项工作" : "这项工作"}的上限`, { action: "调高这项工作的上限" });
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
     if (writtenBy) this.starting.delete(work.work_id); else this.starting.set(work.work_id, text);
@@ -1680,19 +1662,20 @@ export class AssistantService {
     this.chosenMemory.delete(work.work_id); this.recalled.delete(work.work_id);
     let prepared: RoundMaterials, handle: Awaited<ReturnType<AgentHost["start"]>>;
     try {
-      await this.memoryForRound(work, text, context);
-      prepared = await this.roundMaterials(work, materials, context, offered);
+      if (!work.reply_target) await this.memoryForRound(work, text, context);
+      prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered);
+      assertSendCurrent(stillCurrent);
       handle = await host.start(RUNTIME, {
         project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
-        session: sessionRef(work), role_id: ASSISTANT_ROLE_ID, workspace: "business", task: text,
-        action_gateway: true,
+        session: sessionRef(work), role_id: role, workspace: "business", task: text,
+        action_gateway: !work.reply_target,
         text_materials: prepared.materials,
         // Pictures the person added: the runtime shows them to the model in this round (refused if the model cannot see).
         ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
           .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
         history: "session", budget: { max_turns: ROUND_TURNS, ...(left === undefined ? {} : { max_total_tokens: left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
         // The project's side panel browser is the person's work surface: a work delegated in the background never drives it.
-        ...(work.delegated_by ? { browser: false as const } : {}),
+        ...(work.delegated_by || work.reply_target ? { browser: false as const } : {}),
         // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
         ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
       }, authority);
@@ -1703,6 +1686,7 @@ export class AssistantService {
       this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
       throw error;
     }
+    await beforeStart?.();
     this.store.markTold(this.actorId, prepared.told); this.delegations.markHandedBack(prepared.handedBack);
     this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
       ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
@@ -1978,10 +1962,10 @@ export class AssistantService {
   /** The person's cap on one work (its sub-tasks included), or none. A sub-task is held to its delegating work's cap. */
   async saveWorkBudget(workId: string, tokens: unknown): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
-    if (work.delegated_by) throw new AssistantError("assistant.invalid", `子任务按委托它的工作「${work.delegated_by.title}」的上限计算，请在那项工作里设置`);
-    if (work.executor.kind === "coding") throw new AssistantError("assistant.invalid", "这项工作由 Coding 负责，它的用量在 Coding 会话里管理");
+    if (work.delegated_by) throw assistantErrors.invalid(`子任务按委托它的工作「${work.delegated_by.title}」的上限计算，请在那项工作里设置`);
+    if (work.executor.kind === "coding") throw assistantErrors.invalid("这项工作由 Coding 负责，它的用量在 Coding 会话里管理");
     const value = tokens === null || tokens === "" || tokens === undefined ? null : Number(tokens);
-    if (value !== null && (!Number.isSafeInteger(value) || value < 1000)) throw new AssistantError("assistant.invalid", "这项工作的上限至少 1000 tokens，或留空表示不单独设限");
+    if (value !== null && (!Number.isSafeInteger(value) || value < 1000)) throw assistantErrors.invalid("这项工作的上限至少 1000 tokens，或留空表示不单独设限");
     this.store.update(this.actorId, workId, null, { budget_tokens: value ?? undefined }, false);
     return this.read(workId);
   }
@@ -1989,7 +1973,7 @@ export class AssistantService {
   /** The person's daily cap on the Assistant's own rounds (input plus output tokens), or none. */
   saveBudget(dailyTokens: unknown): AssistantUsage["daily_tokens"] {
     const value = dailyTokens === null || dailyTokens === "" || dailyTokens === undefined ? null : Number(dailyTokens);
-    if (value !== null && (!Number.isSafeInteger(value) || value < 1000)) throw new AssistantError("assistant.invalid", "每日上限至少 1000 tokens，或留空表示不限");
+    if (value !== null && (!Number.isSafeInteger(value) || value < 1000)) throw assistantErrors.invalid("每日上限至少 1000 tokens，或留空表示不限");
     this.store.setSetting(this.actorId, "daily_tokens", value === null ? "" : String(value));
     return value;
   }
@@ -2000,7 +1984,7 @@ export class AssistantService {
     if (usage.daily_tokens === null) return;
     const used = usage.today.input + usage.today.output;
     if (used >= usage.daily_tokens) {
-      throw new AssistantError("assistant.budget", `今天助理已用 ${used.toLocaleString("en-US")} tokens，达到你设的每日上限 ${usage.daily_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。可以明天继续，或在设置里调高上限`, undefined, "打开设置");
+      throw assistantErrors.budget(`今天助理已用 ${used.toLocaleString("en-US")} tokens，达到你设的每日上限 ${usage.daily_tokens.toLocaleString("en-US")}；这一轮没有开始，已做的都保留。可以明天继续，或在设置里调高上限`, { action: "打开设置" });
     }
   }
 
@@ -2011,17 +1995,17 @@ export class AssistantService {
    */
   async readAttachment(input: { name: string; data: string }): Promise<AssistantMaterial & { pages?: number; truncated?: boolean }> {
     const name = typeof input?.name === "string" ? input.name.trim().slice(0, 200) : "";
-    if (!name || typeof input.data !== "string" || !input.data) throw new AssistantError("assistant.invalid", "没有收到文件");
+    if (!name || typeof input.data !== "string" || !input.data) throw assistantErrors.invalid("没有收到文件");
     const bytes = Buffer.from(input.data, "base64");
-    if (bytes.byteLength > 8 * 1024 * 1024) throw new AssistantError("assistant.invalid", "文件超过 8 MB，请只带需要的部分");
+    if (bytes.byteLength > 8 * 1024 * 1024) throw assistantErrors.invalid("文件超过 8 MB，请只带需要的部分");
     const documents = (await this.ports.host()).adapter(RUNTIME).documents;
-    if (!documents) throw new AssistantError("assistant.unsupported", "当前运行时不能读取这类文件");
+    if (!documents) throw assistantErrors.unsupported("当前运行时不能读取这类文件");
     if (looksLikeImage(bytes) || /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?|svg)$/i.test(name)) return this.takeImage(name, bytes, documents);
     let parsed: { text: string; truncated: boolean; pages?: number };
     try { parsed = await documents.parse({ bytes: new Uint8Array(bytes), name }); }
     catch (error) {
       const code = (error as { code?: string }).code ?? "";
-      throw new AssistantError("assistant.invalid", code === "RESOURCE_PARSER_UNAVAILABLE" ? "暂时只能读取文本文件、PDF 和图片" : (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, ""));
+      throw assistantErrors.invalid(code === "RESOURCE_PARSER_UNAVAILABLE" ? "暂时只能读取文本文件、PDF 和图片" : (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, ""));
     }
     return { material_id: `file-${randomUUID()}`, kind: "file", title: name + (parsed.pages ? `（${parsed.pages} 页${parsed.truncated ? "，只取了前面一部分" : ""}）` : ""),
       text: parsed.text, explicit: true, ...(parsed.pages ? { pages: parsed.pages } : {}), ...(parsed.truncated ? { truncated: true } : {}) };
@@ -2029,12 +2013,12 @@ export class AssistantService {
 
   /** A picture the person brings: taken in by the runtime (its bytes stay there) and named by reference in the Send. */
   private async takeImage(name: string, bytes: Buffer, documents: AgentDocumentCapability): Promise<AssistantMaterial> {
-    if (!looksLikeImage(bytes)) throw new AssistantError("assistant.invalid", "只能带 PNG、JPEG、GIF 或 WebP 图片");
-    if (bytes.byteLength > MAX_IMAGE_BYTES) throw new AssistantError("assistant.invalid", "图片超过 5 MB，请压缩或截取需要的部分");
-    if (!documents.intakeImage) throw new AssistantError("assistant.unsupported", "当前运行时还不能接收图片");
+    if (!looksLikeImage(bytes)) throw assistantErrors.invalid("只能带 PNG、JPEG、GIF 或 WebP 图片");
+    if (bytes.byteLength > MAX_IMAGE_BYTES) throw assistantErrors.invalid("图片超过 5 MB，请压缩或截取需要的部分");
+    if (!documents.intakeImage) throw assistantErrors.unsupported("当前运行时还不能接收图片");
     let taken: Awaited<ReturnType<NonNullable<AgentDocumentCapability["intakeImage"]>>>;
     try { taken = await documents.intakeImage({ bytes: new Uint8Array(bytes), name }); }
-    catch (error) { throw new AssistantError("assistant.invalid", (error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, "")); }
+    catch (error) { throw assistantErrors.invalid((error instanceof Error ? error.message : String(error)).replace(/^[A-Z_]+:\s*/, "")); }
     this.images.set(taken.resource.id, { revision: taken.resource.revision, media_type: taken.media_type });
     return { material_id: `image-${randomUUID()}`, kind: "image", title: name, explicit: true,
       image: { resource_id: taken.resource.id, revision: taken.resource.revision, media_type: taken.media_type, byte_length: taken.byte_length } };
@@ -2043,7 +2027,7 @@ export class AssistantService {
   /** The platform memory (specs/archive/memory-system): the Assistant reads and writes it like every other consumer. */
   private memory(): MemoryService {
     const memory = this.ports.memory?.();
-    if (!memory) throw new AssistantError("assistant.unsupported", "当前没有记忆服务");
+    if (!memory) throw assistantErrors.unsupported("当前没有记忆服务");
     return memory;
   }
 
@@ -2074,10 +2058,8 @@ export class AssistantService {
 
   /** Change, switch off or delete one memory, in the scope it lives in (a project's only from that project's page). */
   async changeMemory(input: { memory_id: string; action: "update" | "disable" | "enable" | "remove"; text?: string }, projectId?: string | null): Promise<AssistantMemory[]> {
-    if (!["update", "disable", "enable", "remove"].includes(input?.action)) throw new AssistantError("assistant.invalid", "不支持的操作");
-    try {
-      await this.memory().change(this.memoryCaller(null, projectId ?? null, true), { memory_id: String(input?.memory_id ?? ""), action: input.action, ...(typeof input.text === "string" ? { text: input.text } : {}) });
-    } catch (error) { throw memoryAsAssistantError(error); }
+    if (!["update", "disable", "enable", "remove"].includes(input?.action)) throw assistantErrors.invalid("不支持的操作");
+    await this.memory().change(this.memoryCaller(null, projectId ?? null, true), { memory_id: String(input?.memory_id ?? ""), action: input.action, ...(typeof input.text === "string" ? { text: input.text } : {}) });
     return this.memories(projectId);
   }
 
@@ -2091,16 +2073,13 @@ export class AssistantService {
 
   /** The person keeps a suggestion (as it was, or as they reworded it): written like anything they asked to remember. */
   async acceptMemoryCandidate(candidateId: string, input: { text?: string } = {}): Promise<AssistantMemoryCandidate> {
-    try {
-      const { candidate } = await this.memory().accept(this.memoryCaller(null, null, true), candidateId, input);
-      return assistantCandidate(candidate);
-    } catch (error) { throw memoryAsAssistantError(error); }
+    const { candidate } = await this.memory().accept(this.memoryCaller(null, null, true), candidateId, input);
+    return assistantCandidate(candidate);
   }
 
   /** The person declines a suggestion: it goes, and the same one is not suggested again. */
   async discardMemoryCandidate(candidateId: string): Promise<AssistantMemoryCandidate> {
-    try { return assistantCandidate((await this.memory().discard(this.memoryCaller(null, null, true), candidateId)).candidate); }
-    catch (error) { throw memoryAsAssistantError(error); }
+    return assistantCandidate((await this.memory().discard(this.memoryCaller(null, null, true), candidateId)).candidate);
   }
 
   /** The round's memory tools (see assistant-memory-tools.ts), or none when forming memories is off. */
@@ -2108,8 +2087,8 @@ export class AssistantService {
     const memory = this.ports.memory?.();
     if (!memory) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
-    return assistantMemoryTools({ memory, actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId), fail: (code, message) => new AssistantError(code, message),
-      spoken: () => [...typedTexts(this.store.rounds(work.work_id)), ...(this.starting.has(work.work_id) ? [this.starting.get(work.work_id)!] : [])], asAssistantError: memoryAsAssistantError });
+    return assistantMemoryTools({ memory, actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
+      spoken: () => [...typedTexts(this.store.rounds(work.work_id)), ...(this.starting.has(work.work_id) ? [this.starting.get(work.work_id)!] : [])] });
   }
 
   /**
@@ -2183,12 +2162,12 @@ export class AssistantService {
   private async chooseCharacter(work: StoredWork, choice: AssistantCharacterRef | null | undefined): Promise<StoredWork> {
     if (choice === undefined) return work;
     if (choice === null) return work.character ? this.store.update(this.actorId, work.work_id, null, { character: undefined }, false) : work;
-    if (typeof choice !== "object" || typeof choice.artifact_id !== "string" || !Number.isSafeInteger(choice.version)) throw new AssistantError("assistant.invalid", "Character 版本引用无效");
-    if (work.executor.kind === "coding") throw new AssistantError("assistant.invalid", "这项工作由 Coding 负责，它的角色在 Coding 会话里选择");
-    if (!work.project_ref || !this.ports.characters) throw new AssistantError("assistant.invalid", "Character 发布在项目里，个人工作暂时不能指定角色；在项目里发起这项工作就可以选择");
+    if (typeof choice !== "object" || typeof choice.artifact_id !== "string" || !Number.isSafeInteger(choice.version)) throw assistantErrors.invalid("Character 版本引用无效");
+    if (work.executor.kind === "coding") throw assistantErrors.invalid("这项工作由 Coding 负责，它的角色在 Coding 会话里选择");
+    if (!work.project_ref || !this.ports.characters) throw assistantErrors.invalid("Character 发布在项目里，个人工作暂时不能指定角色；在项目里发起这项工作就可以选择");
     const found = (await this.ports.characters(work.project_ref)).find(item => item.reference.artifact_id === choice.artifact_id && item.reference.version === choice.version);
-    if (!found) throw new AssistantError("assistant.invalid", "这个项目里没有这个 Character 版本");
-    if (!found.available) throw new AssistantError("assistant.character_unavailable", found.reason ?? "所选 Character 版本不可用，请明确选择其他版本，或不指定角色", undefined, "重新选择角色");
+    if (!found) throw assistantErrors.invalid("这个项目里没有这个 Character 版本");
+    if (!found.available) throw assistantErrors.character_unavailable(found.reason ?? "所选 Character 版本不可用，请明确选择其他版本，或不指定角色", { action: "重新选择角色" });
     if (work.character?.artifact_id === choice.artifact_id && work.character.version === choice.version) return work;
     return this.store.update(this.actorId, work.work_id, null, { character: { artifact_id: choice.artifact_id, version: choice.version, title: found.title } }, false);
   }
@@ -2224,20 +2203,13 @@ export class AssistantService {
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {
-    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, handed_back_run: _handed, hand_back_held: _held, question_drafts: _drafts, ...rest } = work;
+    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, handed_back_run: _handed, hand_back_held: _held, question_drafts: _drafts, thread_round: _thread, ...rest } = work;
     return { ...rest, state };
   }
 
   /** A runtime failure in words the person can act on; codes stay for the surface. */
-  private explain(error: unknown): AssistantError {
-    if (error instanceof AssistantStoreError) return new AssistantError(error.code, error.message);
-    if (error instanceof CodingUnavailable) return new AssistantError("assistant.coding_unavailable", error.message, undefined, error.action);
-    const code = (error as { code?: string })?.code ?? "";
-    const message = error instanceof Error ? error.message : String(error);
-    if (code === "agent.model_not_configured" || /没有配置可用的模型/.test(message)) return new AssistantError("assistant.model_missing", "还没有配置可用的模型，助理无法开始工作", undefined, "打开模型设置");
-    if (code === "agent.session_busy") return new AssistantError("assistant.busy", message);
-    if (code === "agent.storage_busy") return new AssistantError("assistant.runtime_busy", "Agent 执行服务正由另一个进程使用，稍后再试", undefined, "关闭另一个正在运行的 Molis 服务后重试");
-    return new AssistantError(code || "assistant.failed", message || "这次没有完成");
+  private explain(error: unknown): ActionError {
+    return assistantFailure(error);
   }
 }
 
@@ -2263,19 +2235,4 @@ async function whereNow(work: StoredWork, actions: PersonActions | null, subject
 function recoveryView(report: AgentRecoveryReport): AssistantRecovery {
   return { blockers: [...report.blockers], rounds: report.runs.filter(run => !run.subagent).map(run => ({ run_id: run.run_id, version: run.version, can_close: run.can_close,
     blockers: [...run.blockers], operations: run.operations.map(operation => ({ summary: operation.summary, outcome: operation.outcome })) })) };
-}
-
-/** A platform memory candidate as the Assistant's work view has always shown it. */
-function assistantCandidate(candidate: MemoryCandidate): AssistantMemoryCandidate {
-  return { candidate_id: candidate.candidate_id, work_id: candidate.work?.work_id ?? "", work_title: candidate.work?.title ?? "", scope: candidate.scope,
-    ...(candidate.project_id ? { project_id: candidate.project_id } : {}), text: candidate.text, why: candidate.why, applies: candidate.applies.task ?? "",
-    state: candidate.state, created_at: candidate.created_at, ...(candidate.memory_id ? { memory_id: candidate.memory_id } : {}) };
-}
-
-/** The memory service's refusals, in the Assistant's own error words and codes. */
-function memoryAsAssistantError(error: unknown): unknown {
-  if (!(error instanceof MemoryError)) return error;
-  const code = error.code === "memory.not_found" ? "assistant.not_found" : error.code === "memory.scope" ? "assistant.scope" : error.code === "memory.forbidden" ? "assistant.forbidden"
-    : error.code === "memory.limit" ? "assistant.limit" : "assistant.invalid";
-  return new AssistantError(code as never, error.message);
 }

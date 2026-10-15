@@ -9,7 +9,9 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
-test("official stdio MCP client queries, imports, edits and generates with actual Pages actions across isolated projects", { timeout: 30_000 }, async () => {
+// Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
+// whole test at two files at once): the budget only stops a hang, it is not a speed check.
+test("official stdio MCP client queries, imports, edits and generates with actual Pages actions across isolated projects", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "pages-mcp-"));
   const clients: Client[] = [];
   const connect = async (project: string, access = "write") => {
@@ -34,9 +36,10 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     assert.equal((await b.callTool({ name: "pages.get__v1", arguments: { id: document.id } })).isError, true);
     assert.equal((await reader.callTool({ name: "pages.create__v1", arguments: { title: "Denied" } })).isError, true);
     assert.equal((await a.callTool({ name: "pages.create__v1", arguments: { title: "Spoof", project_id: "b" } })).isError, true);
-    await call(a, "pages.update", { id: document.id, title: "Updated", expected_version: document.version });
+    // W3-09-3: an AI source (here MCP) sends the version it read whenever it changes, asks about or publishes an existing document.
+    const updated = (await call(a, "pages.update", { id: document.id, title: "Updated", expected_version: document.version })).document;
     assert.equal((await a.callTool({ name: "pages.update__v1", arguments: { id: document.id, title: "Stale", expected_version: document.version } })).isError, true);
-    const result = await call(a, "pages.ai", { id: document.id, command: "summarize", text: "MCP content" });
+    const result = await call(a, "pages.ai", { id: document.id, command: "summarize", text: "MCP content", expected_version: updated.version });
     assert.equal(result.text, "MCP fixture reply"); assert.equal("stub" in result, false);
     const files = [{ name: "import.md", data: Buffer.from("# Imported\nExternal source").toString("base64") }];
     const preview = await call(a, "pages.import.preview", { files });
@@ -45,7 +48,7 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     assert.deepEqual((await call(a, "pages.import", input)).documents, imported.documents);
     const parsedInput = { request_id: "external-parsed", request_hash: "confirmed-import", documents: [{ title: "Parsed source", body: document.body }] };
     const parsed = await call(a, "pages.documents.import", parsedInput);
-    await call(a, "pages.update", { id: parsed.documents[0].id, title: "Source manually edited" });
+    await call(a, "pages.update", { id: parsed.documents[0].id, title: "Source manually edited", expected_version: parsed.documents[0].version });
     assert.equal((await call(a, "pages.documents.import", parsedInput)).documents[0].title, "Source manually edited");
     const generationInput = { request_id: "external-generation", request_hash: "confirmed-snapshot", title: "Generated", instructions: "Keep source boundary",
       inputs: [{ entry_id: "external-material", item_id: "external-item", revision: 1, title: "Source", body: "Only a summary was read", url: null,
@@ -58,7 +61,7 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     assert.deepEqual(record.inputs, generationInput.inputs);
     assert.equal((await call(reader, "pages.generations.list", {})).records[0].document_id, generated.document.id);
     assert.equal((await call(b, "pages.generations.get", { request_id: generationInput.request_id })).record, null);
-    await call(a, "pages.update", { id: generated.document.id, title: "Generated then edited" });
+    await call(a, "pages.update", { id: generated.document.id, title: "Generated then edited", expected_version: generated.document.version });
     await a.close();
     const restarted = await connect("a");
     const store = openPagesStore(home);
@@ -73,16 +76,19 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     const db = openHomeSqliteDatabase(home, "pages");
     try {
       db.exec("CREATE TRIGGER fail_mcp_publication BEFORE UPDATE OF artifact_version ON pages WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
-      const failed = await restarted.callTool({ name: "pages.promote__v1", arguments: { id: document.id } });
+      const before = (await call(reader, "pages.get", { id: document.id })).document;
+      const failed = await restarted.callTool({ name: "pages.promote__v1", arguments: { id: document.id, expected_version: before.version } });
       assert.equal(failed.isError, true);
+      assert.notEqual(JSON.parse((failed.content as Array<{ text: string }>)[0]!.text).code, "actions.version_required", "the promote fails at the association, not for a missing version");
       const pending = (await call(reader, "pages.get", { id: document.id })).document;
       assert.equal(pending.publication_pending.version, 1); assert.equal(pending.artifact_version, 0);
-      await call(restarted, "pages.update", { id: document.id, title: "Edited during recovery" });
+      await call(restarted, "pages.update", { id: document.id, title: "Edited during recovery", expected_version: pending.version });
       db.exec("DROP TRIGGER fail_mcp_publication");
     } finally { db.close(); }
     await restarted.close();
     const recovering = await connect("a");
-    const recovered = await call(recovering, "pages.promote", { id: document.id });
+    const current = (await call(reader, "pages.get", { id: document.id })).document;
+    const recovered = await call(recovering, "pages.promote", { id: document.id, expected_version: current.version });
     assert.equal(recovered.recovered, true); assert.equal(recovered.artifact.version, 1);
     assert.equal(recovered.document.title, "Edited during recovery"); assert.equal(recovered.document.publication_pending, undefined);
     const saved = openPagesStore(home);

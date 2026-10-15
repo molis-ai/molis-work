@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { inferenceServiceUnavailableReason, isDispatchRefusal } from "@molis-ai/molis-work-service-agent-host";
 import { resolve } from "node:path";
@@ -7,7 +8,7 @@ import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { ImagesService, imagesErrors, imagesProjectData, type ImageConnectionInput } from "@molis-ai/molis-work-plugin-images";
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { ConnectorConnectionError, withConnectorConnections } from "./connector-connection-store.js";
+import { withConnectorConnections } from "./connector-connection-store.js";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 interface SharedImages { service: ImagesService; owners: Set<ImagesHostService>; closing?: Promise<void> }
@@ -117,7 +118,7 @@ export class ImagesHostService {
       if (store.state(selected) !== "connected") throw imagesErrors.key_required("所选图像连接不可用");
       store.assertTarget(selected.connection_id, "image-api", input.base_url);
     }); } catch (error) {
-      if (error instanceof ConnectorConnectionError) throw imagesErrors.connection_invalid(error.message);
+      if ((error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code))) throw imagesErrors.connection_invalid(error.message);
       throw error;
     }
   }

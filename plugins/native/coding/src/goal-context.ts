@@ -1,7 +1,9 @@
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { codingArtifacts } from "./artifacts.js";
 import { createHash } from "node:crypto";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { goalContextCapabilities, type GoalContextSnapshot } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalContextSnapshot } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTextMaterialContent, type AgentTextMaterial, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -25,11 +27,23 @@ function material(snapshot: GoalContextSnapshot, reference: ArtifactReference): 
   agentTextMaterialContent(value);
   return value;
 }
-export async function currentGoalContext(context: PluginStartContext, goalId: string) {
-  const snapshot = await context.services!.capabilities!.invoke(goalContextCapabilities.read, { goal_id: goalId });
+/** Coding's current goal directory retains the original Host bridge's page size. */
+export async function currentGoalDirectory(context: PluginStartContext, afterCursor: string | undefined, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
+  return context.services!.actions!.invoke(goalPluginActions.list, { limit: 100, ...(afterCursor ? { after_cursor: afterCursor } : {}) }, control);
+}
+export async function readCurrentGoalSnapshot(context: PluginStartContext, goalId: string, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
+  const actions = context.services!.actions!;
+  const { goal } = await actions.invoke(goalPluginActions.contract, { goal_id: goalId }, control);
+  if (!goal || goal.trashed_at || goal.archived_at) throw new Error("这个目标已归档、删除或不属于当前项目，请重新选择");
+  const { observed_event_cursor: _cursor, ...state } = await actions.invoke(goalPluginActions.state, { goal_id: goalId }, control);
+  const snapshot: GoalContextSnapshot = { goal, state };
   if (snapshot.goal.project_id !== context.project_id || snapshot.goal.goal_id !== goalId
     || snapshot.state.goal_id !== goalId || snapshot.state.project_id !== context.project_id) throw new Error("目标上下文归属不一致");
   if (snapshot.goal.trashed_at || snapshot.goal.archived_at) throw new Error("目标已归档或删除，请重新选择");
+  return snapshot;
+}
+export async function currentGoalContext(context: PluginStartContext, goalId: string, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
+  const snapshot = await readCurrentGoalSnapshot(context, goalId, control);
   const reference = identity(snapshot);
   return { snapshot, reference, material: material(snapshot, reference) };
 }
@@ -61,11 +75,11 @@ export function saveGoalContext(context: PluginStartContext, sessionId: string, 
     metadata: { title: value.material.title, goal_id: snapshot.goal.goal_id } });
   context.services!.storage!.set(`goal-context:${sessionId}`, JSON.stringify(reference));
 }
-export async function resolveGoalContext(context: PluginStartContext, sessionId: string, goalId: string | null) {
+export async function resolveGoalContext(context: PluginStartContext, sessionId: string, goalId: string | null, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">) {
   if (!goalId) return null;
   const saved = savedGoalContext(context, sessionId);
   if (!saved || saved.snapshot.goal.goal_id !== goalId) throw new Error("关联目标尚未固定上下文，请打开目标并确认版本");
-  const current = await currentGoalContext(context, goalId);
+  const current = await currentGoalContext(context, goalId, control);
   if (current.reference.artifact_id !== saved.reference.artifact_id) throw new Error("目标内容或进展已变化，请打开关联目标查看并确认新版本后再发送");
   return saved;
 }

@@ -1,0 +1,31 @@
+import { defineErrorCodes } from "./action-errors.js";
+
+/** Current Runtime and authoring refusals; the transport classification remains the prior default 400. */
+export const pluginErrors = defineErrorCodes("plugin", {
+  capability_denied: "invalid",
+  contribution_kind_invalid: "invalid",
+  contribution_unredeemed: "invalid",
+  declaration_invalid: "invalid",
+  definition_conflict: "invalid",
+  definition_missing: "invalid",
+  entrypoint_missing: "invalid",
+  event_type_missing: "invalid",
+  event_type_undeclared: "invalid",
+  executor_failed: "invalid",
+  grant_denied: "invalid",
+  install_replaced: "invalid",
+  kept_data_incompatible: "invalid",
+  manifest_invalid: "invalid",
+  package_invalid: "invalid",
+  permission_invalid: "invalid",
+  quarantined: "invalid",
+  signature_invalid: "invalid",
+  signer_mismatch: "invalid",
+  state_invalid: "invalid",
+  storage_denied: "invalid",
+  storage_input_invalid: "invalid",
+  upgrade_required: "invalid",
+  upgrade_rollback_failed: "invalid",
+  upgrade_validation_failed: "invalid",
+  upgrade_validation_missing: "invalid",
+});

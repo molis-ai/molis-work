@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
@@ -31,11 +32,13 @@ test("one service keeps two independent credentials and bindings never cross ser
     assert.notEqual(first.credential_ref, second.credential_ref);
     assert.equal(store.resolveToken(first.connection_id, "gmail"), "gmail-work-token");
     assert.equal(store.resolveToken(second.connection_id, "gmail"), "gmail-home-token");
-    assert.throws(() => store.resolveToken(first.connection_id, "github"), /不属于这个服务/);
+    assert.throws(() => store.resolveToken(first.connection_id, "github"), { code: "connector.connection.service_mismatch", message: /不属于这个服务/ });
     store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "inbox", serviceId: "gmail", connectionId: second.connection_id });
     assert.equal(store.binding("project-a", "feed", "inbox")?.connection_id, second.connection_id);
     store.disconnect(first.connection_id);
     assert.equal(store.state(store.require(first.connection_id)), "disconnected");
+    // J2B-01: connection state stays a business value; the refusal carries its owner's current code.
+    assert.throws(() => store.resolveToken(first.connection_id, "gmail"), { code: "connector.connection.disconnected", message: /断开/ });
     assert.equal(store.resolveToken(second.connection_id, "gmail"), "gmail-home-token");
     assert.equal(JSON.stringify(store.list()).includes("gmail-home-token"), false);
   } finally { db.close(); }
@@ -166,13 +169,16 @@ test("Feed switching account creates a separate source and keeps the old history
       assert.equal(service.update(switched.source_id, { connection_id: second!.connection_id }).source_id, switched.source_id);
       withConnectorConnections(home, store => store.disconnect(second!.connection_id));
       refreshFeedConnectionState(home, second!.connection_id);
+      // J3C-01: disconnection changes the error fact; reconnect clears it.
       assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).status, "disconnected");
+      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).last_error_code, "sources.connector_disconnected");
       assert.equal(feed.getSource(DEMO_PROJECT_ID, source.source_id).status, "paused");
       withConnectorConnections(home, store => store.replaceToken(second!.connection_id, "github-token-account-b-rotated"));
       assert.equal(withConnectorConnections(home, store => store.state(store.require(second!.connection_id))), "connected");
       assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).enabled, true);
       refreshFeedConnectionState(home, second!.connection_id);
       assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).status, "active");
+      assert.equal(feed.getSource(DEMO_PROJECT_ID, switched.source_id).last_error_code, null);
       assert.deepEqual(feed.getSource(DEMO_PROJECT_ID, switched.source_id).cursor, {});
     } finally { board.close(); }
   } finally {
@@ -291,6 +297,35 @@ test("managed Notion OAuth keeps workspace identity and the selected connection 
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
     resetSecretStoreCache();
+    if (prior.home === undefined) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = prior.home;
+    if (prior.backend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior.backend;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+// CONERR-01 / CONERR-02: real HTTP classification preserves authorization and masks private connection failures.
+test("MCP settings keep authorization at 401 and missing connections as safe provider failures", async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-mcp-refusal-"));
+  const prior = { home: process.env.MOLIS_WORK_HOME, backend: process.env.MOLIS_WORK_SECRET_BACKEND };
+  process.env.MOLIS_WORK_HOME = home; process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
+  const controlToken = randomUUID();
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const origin = "http://127.0.0.1:" + address.port;
+  const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
+  try {
+    const before = withConnectorConnections(home, store => store.list());
+    const refused = await fetch(origin + "/api/settings/connectors/methods/mcp/complete", { method: "POST", headers: headers(),
+      body: JSON.stringify({ returned_url: origin + "/api/settings/connectors/methods/mcp/callback?state=missing-state&code=unused" }) });
+    assert.equal(refused.status, 401);
+    assert.deepEqual(await refused.json(), { error: "MCP 授权会话无效、已过期或已使用，请重新连接", code: "connector.mcp.authorization" });
+    const missing = await fetch(origin + "/api/settings/connectors/connections/missing-connection/mcp", { method: "POST", headers: headers(), body: JSON.stringify({ action: "inspect" }) });
+    assert.equal(missing.status, 400);
+    assert.deepEqual(await missing.json(), { error: "MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试", code: "connector.mcp.provider" });
+    assert.deepEqual(withConnectorConnections(home, store => store.list()), before);
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve())); resetSecretStoreCache();
     if (prior.home === undefined) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = prior.home;
     if (prior.backend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior.backend;
     rmSync(home, { recursive: true, force: true });

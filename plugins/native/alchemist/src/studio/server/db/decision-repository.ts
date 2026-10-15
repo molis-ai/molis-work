@@ -25,7 +25,7 @@ export class SqliteDecisionRepository {
     return this.database.transaction(() => {
       const market = decision.reportBindings.find((binding) => binding.lens === "market_space");
       const cost = decision.reportBindings.find((binding) => binding.lens === "build_cost");
-      if (!market || !cost) throw new Error("DECISION_REPORT_BINDINGS_INVALID");
+      if (!market || !cost) throw new Error("alchemist.decision_report_bindings_invalid");
       this.database
         .prepare(
           `INSERT INTO decisions
@@ -53,7 +53,7 @@ export class SqliteDecisionRepository {
       const update = this.database
         .prepare("UPDATE ideas SET lifecycle = ?, updated_at = ? WHERE id = ?")
         .run(decision.outcome, decision.createdAt, decision.ideaId);
-      if (update.changes !== 1) throw new Error("IDEA_NOT_FOUND");
+      if (update.changes !== 1) throw new Error("alchemist.idea_not_found");
       const workspace = this.database
         .prepare(
           `SELECT directions.workspace_id AS workspace_id
@@ -61,7 +61,7 @@ export class SqliteDecisionRepository {
            WHERE ideas.id = ?`,
         )
         .get(decision.ideaId) as { workspace_id: string } | undefined;
-      if (!workspace) throw new Error("IDEA_NOT_FOUND");
+      if (!workspace) throw new Error("alchemist.idea_not_found");
       this.database
         .prepare(
           `INSERT INTO activity_events

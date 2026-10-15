@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { settleCall, type CallContext, type CallDescription, type CallSettled } from "@molis-ai/molis-work-kernel";
 
 /** What a settlement needs of a typed capability; deliberately not a `HostCapabilityDefinition`, which only the registry takes. */
@@ -19,5 +20,14 @@ const describeTyped = (reference: TypedReference): CallDescription =>
  * here, once, like any other. A wait only observes (it follows a live round) and is not a call to record.
  */
 export function settleTyped<T>(settled: CallSettled | undefined, caller: CallContext, reference: TypedReference, run: () => Promise<T>): Promise<T> {
-  return reference.operation === "wait" ? run() : settleCall(settled, caller, () => describeTyped(reference), run);
+  const invoke = async () => {
+    try { return await run(); }
+    catch (error) {
+      if (error instanceof ActionError && error.code === "kernel.capability_missing") {
+        throw new ActionError("actions.dependency_missing", error.message, { cause: error });
+      }
+      throw error;
+    }
+  };
+  return reference.operation === "wait" ? invoke() : settleCall(settled, caller, () => describeTyped(reference), invoke);
 }

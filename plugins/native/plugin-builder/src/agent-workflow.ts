@@ -50,7 +50,7 @@ export interface AgentBuilderPorts {
   prepareBuild(previous: AgentBuild, design: AgentDesign, manifest: BuildManifest): Promise<string>;
   check(build: AgentBuild, operationIds: string[], signal: AbortSignal): Promise<BuildCheckResult>;
   call(build: AgentBuild, operationId: string, input: SandboxJson): Promise<SandboxJson>;
-  resetPreview(buildId: string): Promise<void>;
+  resetPreview(buildId: string, beforeReset?: () => void): Promise<void>;
   choose?(question: { key: string; instructions: string; state: string; candidates: readonly { key: string; description: string }[] }): Promise<{ choice: string | null; model: string; elapsedMs: number; confidence: number | null }>;
   /** How many operations are written at once (default 3; 1 writes them one after another). */
   parallel?: number;
@@ -354,7 +354,7 @@ export class AgentBuilderWorkflow {
     const kept = before.design ? before.nodes.filter(node => { const { kind: _kind, ...plan } = node; const next = design.parts.find(part => part.id === node.id); return !!next && same(plan, next); }) : [];
     const rework = result.rework ?? {};
     const unchanged = before.design ? before.connected.filter(operationId => !rework[operationId] && same(before.design!.contract.operations.find(item => item.id === operationId), design.contract.operations.find(item => item.id === operationId))) : [];
-    await this.resetPreview(id);
+    await this.resetPreview(id, token);
     this.change(id, value => {
       if (value.design) value.history.push(snapshot(value));
       if (value.history.length > 20) value.history.splice(0, value.history.length - 20);
@@ -426,7 +426,7 @@ export class AgentBuilderWorkflow {
     const checked = await this.check(id, this.store.require(id).design!.contract.operations.map(item => item.id), signal); this.current(id, token);
     this.change(id, value => { value.checks.global = checked; });
     if (!checked.passed) throw new Error('按真实数据修正后，门禁没有通过：' + (checked.gates.find(gate => !gate.passed)?.detail ?? ''));
-    await this.resetPreview(id);
+    await this.resetPreview(id, token);
     broken = await run(); this.current(id, token);
     this.step(id, { id: stepId, agent: 'code', action: 'implement', label: broken ? '用真实数据读取仍然出错' : '已按真实数据修正', operationId: broken?.operation.id, status: broken ? 'failed' : 'done', detail: broken?.error });
     if (broken) throw new Error('用真实数据读取「' + (broken.operation.description || broken.operation.id) + '」出错：' + broken.error);
@@ -572,7 +572,7 @@ export class AgentBuilderWorkflow {
       const missing = /Undeclared or unapproved capabilities: ([\w.:-]+)/.exec(result.gates.map(gate => gate.detail).join('\n'))?.[1];
       throw Object.assign(new Error('操作 ' + operation.id + ' 已达到 3 轮修复上限；请修订需求后继续'), missing ? { missingCapability: { operation: operation.id, description: operation.description ?? operation.id, capability: missing } } : {});
     }
-    await this.resetPreview(id); this.change(id, build => { build.connected.push(operation.id); if (build.rework) { delete build.rework[operation.id]; if (!Object.keys(build.rework).length) delete build.rework; } });
+    await this.resetPreview(id, token); this.change(id, build => { build.connected.push(operation.id); if (build.rework) { delete build.rework[operation.id]; if (!Object.keys(build.rework).length) delete build.rework; } });
   }
   /** One code-agent run. A run that runs out of turns or fails still counts as an attempt; the host check decides what follows. */
   private async codeAttempt(agent: Awaited<ReturnType<AgentBuilderPorts['agent']>>, id: string, token: string, signal: AbortSignal,
@@ -677,7 +677,7 @@ export class AgentBuilderWorkflow {
     const call = resolvePluginComponentCall(node, binding, payload); if (!build.connected.includes(call.operationId)) throw new Error('这个操作尚未接通，输入已保留');
     return this.ports.call(build, call.operationId, call.input as SandboxJson);
   }
-  private async resetPreview(id: string) { await this.ports.resetPreview(id); }
+  private async resetPreview(id: string, token?: string) { const check = token ? () => this.current(id, token) : undefined; check?.(); await this.ports.resetPreview(id, check); check?.(); }
   /**
    * Pausing takes effect at once: the build is marked paused and the running work is told to stop. A model call or a
    * check can take a while to notice; its results are void by then, so the person does not wait for it.

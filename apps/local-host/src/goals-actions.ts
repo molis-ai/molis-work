@@ -1,3 +1,4 @@
+import { isBuiltinPluginCaller } from "./builtin-plugin-callers.js";
 import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, bindActionClient, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
@@ -13,7 +14,9 @@ const pinPermissions = () => [...new Set([...artifactTypeDeclarations().values()
 export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMethods: () => readonly PlanningMethodPack[], client: ActionClient): ActionProviderRegistration {
   return { provider: { provider_id: goalsManifest.plugin_id, plugin_id: goalsManifest.plugin_id,
     title: goalsManifest.name, kind: "plugin", project_id: runtime.project_id },
-    definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ events: runtime.coordinator.goalEvents, projectId: runtime.project_id,
+    definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ trustedPluginCaller: caller => isBuiltinPluginCaller(caller.host_plugin)
+      && caller.actor_kind === "user" && caller.host_plugin!.actor_id === caller.actor_id
+      && caller.host_plugin!.project_id === caller.project_id && caller.host_plugin!.install_id === caller.plugin_install_id, events: runtime.coordinator.goalEvents, projectId: runtime.project_id,
       board: { initializeBoard: input => runtime.coordinator.initializeBoard(input) },
       collection: { snapshot: projectId => runtime.store.snapshot(projectId), events: projectId => runtime.store.readEventsDescending(projectId),
         goals: runtime.coordinator.goalQueries, inputs: runtime.coordinator.goalInputs, eventWork: runtime.coordinator.goalEvents },
@@ -127,7 +130,7 @@ function managementUserAction(projectId: string, capabilityId: string, input: un
  * call number belongs to the operation the entry opened, which the kernel reads; it is not made here. Give it the client that does
  * not prepare the project's plugins (`actionClient(reference, false)`): Goals is registered when the project opens.
  */
-export function bindGoalsManagementActions(client: ActionClient, reference: LocalHostProjectReference): GoalsManagementActions {
+export function bindGoalsManagementActions(client: ActionClient, reference: LocalHostProjectReference, transport: { signal?: AbortSignal } = {}): GoalsManagementActions {
   const projectId = reference.project_id;
   return {
     project_id: projectId,
@@ -135,8 +138,15 @@ export function bindGoalsManagementActions(client: ActionClient, reference: Loca
       const refused = MANAGEMENT_REFUSED_IDENTITY[definition.capability_id];
       if (refused && typeof input === "object" && input !== null) refusePayloadIdentity(input, refused);
       return await client.invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
-        permissions: definition.action.permissions, allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: GOALS_PLUGIN_ID }],
+        permissions: definition.action.permissions, ...(transport.signal ? { signal: transport.signal } : {}), allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, provider_id: GOALS_PLUGIN_ID }],
         user_action: managementUserAction(projectId, definition.capability_id, input, evidence) }, { ...definition, provider_id: GOALS_PLUGIN_ID }, input) as Output;
     },
   };
+}
+
+/** The existing CLI/MCP management action subset, resolved against the owner's definitions and exact version. */
+export function managementActionDefinition(reference: { capability_id: string; version: number }): ActionDefinition | undefined {
+  return [goalsActions.initialize, goalsActions.active, goalsActions.snapshot, goalsActions.treeSubmit,
+    goalsActions.treeRead, goalsActions.treeCheck, goalsActions.treeDecide, goalsActions.decide]
+    .find(entry => entry.capability_id === reference.capability_id && entry.version === reference.version);
 }

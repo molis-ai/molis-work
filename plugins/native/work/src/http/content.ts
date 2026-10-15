@@ -21,7 +21,7 @@ export async function handleSessionContentHttp(context: WorkSessionHttpContext):
     } else respond(405, { error: "Session 操作不支持这个请求方法" });
   } catch (error) {
     const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : undefined;
-    respond(code === "session.not_found" || code === "sessions.not_found" || code === "actions.plugin_disabled" || code === "actions.missing" ? 404 : code === "actions.forbidden" ? 403
+    respond(code === "work.session.not_found" || code === "work.sessions.not_found" || code === "actions.plugin_disabled" || code === "actions.missing" ? 404 : code === "actions.forbidden" ? 403
       : code === "actions.service_unavailable" ? 503 : 400, { error: error instanceof Error ? error.message : String(error), ...(code ? { code } : {}) });
   }
   return true;

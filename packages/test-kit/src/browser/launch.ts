@@ -8,7 +8,7 @@ export interface LaunchHeadlessChromeOptions {
   readonly profileDirectory: string;
   /** Flags added after the standard set, before the start URL. */
   readonly extraArgs?: readonly string[];
-  /** How long to wait for Chrome to print its debugger address. */
+  /** How long to wait for Chrome to print its debugger address (default 30 s: a cold Chrome on a loaded CI runner can take over 8 s). */
   readonly startTimeoutMs?: number;
 }
 
@@ -19,12 +19,15 @@ export interface LaunchedChrome {
   close(): Promise<void>;
 }
 
-/** The flags every test browser gets: Chinese locale, no network chatter, and no throttling of background pages. */
+/** The flags every test browser gets: Chinese locale, no network chatter, no throttling of background pages, and a mouse. */
 const STANDARD_ARGS = [
   "--headless=new", "--lang=zh-CN", "--accept-lang=zh-CN", "--disable-gpu", "--disable-background-networking",
   "--disable-component-update", "--disable-extensions", "--disable-background-timer-throttling",
   "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", "--no-first-run",
   "--no-default-browser-check", "--remote-debugging-port=0",
+  // A desktop with a mouse (hover, fine pointer), as headless Chrome on macOS reports by itself: on Linux it finds no pointing
+  // device and reports `hover: none`, which the pages rightly treat as a touch screen. Touch emulation still overrides it.
+  "--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4",
 ] as const;
 const DEBUGGER_LINE = /DevTools listening on (ws:\/\/\S+)/;
 /** What of Chrome's stderr is kept: enough to hold the debugger line and the tail an error message quotes. */
@@ -32,9 +35,15 @@ const STDERR_WINDOW = 8_192;
 const ERROR_TAIL = 700;
 const KILL_AFTER_MS = 1_000;
 const EXIT_GRACE_MS = 100;
+/** How long closing waits, after the main process, for the helpers holding its stderr: they still write into the profile while
+ * they wind down, so removing the profile right away can fail with ENOTEMPTY (seen on Linux). Bounded, since a helper can hold
+ * the pipe for seconds. */
+const HELPERS_GRACE_MS = 500;
 
-/** Waits for the main browser process to exit. Never waits for `close`: helper processes can inherit stderr and keep it open. */
+/** Waits for the main browser process to exit, then briefly for its helpers (the stderr pipe closing), never longer. */
 async function shutdown(child: ChildProcess): Promise<void> {
+  const stderr = child.stderr;
+  const released = stderr && !stderr.destroyed ? once(stderr, "close").then(() => undefined, () => undefined) : undefined;
   // A child that never started (no pid) emits no `exit`.
   if (child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
     const exited = once(child, "exit");
@@ -43,13 +52,18 @@ async function shutdown(child: ChildProcess): Promise<void> {
     try { await exited; }
     finally { clearTimeout(force); }
   }
+  if (released) {
+    let timer: NodeJS.Timeout | undefined;
+    await Promise.race([released, new Promise<void>((resolve) => { timer = setTimeout(resolve, HELPERS_GRACE_MS); })]);
+    clearTimeout(timer);
+  }
   // Release the pipe when Chrome had already exited, too.
-  child.stderr?.destroy();
+  stderr?.destroy();
 }
 
 /** Starts headless Chrome with remote debugging on a free port and resolves once it announces the address. */
 export async function launchHeadlessChrome(options: LaunchHeadlessChromeOptions): Promise<LaunchedChrome> {
-  const startTimeoutMs = options.startTimeoutMs ?? 8_000;
+  const startTimeoutMs = options.startTimeoutMs ?? 30_000;
   const child = spawn(options.executable,
     [...STANDARD_ARGS, `--user-data-dir=${options.profileDirectory}`, ...(options.extraArgs ?? []), "about:blank"],
     { stdio: ["ignore", "ignore", "pipe"] });

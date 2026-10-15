@@ -66,15 +66,15 @@ async function handleLensJob(
     input = inputSchema.parse(job.input);
     const run = dependencies.repository.getRun(input.lensRunId);
     const plan = dependencies.repository.getPlan(input.planId);
-    if (!run || !plan || run.planId !== plan.id) throw new Error("LENS_RUN_INPUT_INVALID");
+    if (!run || !plan || run.planId !== plan.id) throw new Error("alchemist.lens_run_input_invalid");
     const ideaVersion = dependencies.ideas.getVersion(plan.key.ideaId, plan.key.ideaVersion);
-    if (!ideaVersion) throw new Error("IDEA_VERSION_NOT_FOUND");
+    if (!ideaVersion) throw new Error("alchemist.idea_version_not_found");
     await dependencies.workReuse?.validate(plan, control.signal);
     if (control.isCancelled()) return;
     // A crash after dispatch can have incurred a charge even without a result.
     // Retain the marker and fail visibly; a fresh user-approved plan is required.
-    if ((job.checkpoint as { stage?: string } | undefined)?.stage === "call_dispatched") throw new Error("RESEARCH_CALL_INTERRUPTED");
-    if (plan.budget.kind !== "calls" || !Number.isInteger(plan.budget.limit) || plan.budget.limit < 1) throw new Error("RESEARCH_BUDGET_INVALID");
+    if ((job.checkpoint as { stage?: string } | undefined)?.stage === "call_dispatched") throw new Error("alchemist.research_call_interrupted");
+    if (plan.budget.kind !== "calls" || !Number.isInteger(plan.budget.limit) || plan.budget.limit < 1) throw new Error("alchemist.research_budget_invalid");
     control.commit(() => dependencies.repository.updateRun(run.id, {
       status: "running",
       stage: run.stage,
@@ -110,7 +110,7 @@ async function handleLensJob(
         beginCall(control, "cross_checking", 2, plan.budget.limit, checkpoint);
         let callsUsed = 2;
         const beforeCorrection = plan.budget.limit >= 4 ? async () => {
-          if (callsUsed !== 2) throw new Error("RESEARCH_BUDGET_INVALID");
+          if (callsUsed !== 2) throw new Error("alchemist.research_budget_invalid");
           await dependencies.workReuse?.validate(plan, control.signal);
           beginCall(control, "cross_checking_format_correction", 3, plan.budget.limit, checkpoint!);
           callsUsed = 3;
@@ -165,7 +165,7 @@ async function handleLensJob(
     }
   } catch (error) {
     if (control.isCancelled()) return;
-    const code = error instanceof ZodError ? "RESEARCH_OUTPUT_INVALID" : classifyError(error);
+    const code = error instanceof ZodError ? "alchemist.research_output_invalid" : classifyError(error);
     if (input) {
       const current = dependencies.repository.getRun(input.lensRunId);
       if (current) {
@@ -186,7 +186,7 @@ function runtimeInput(plan: ResearchPlan, ideaVersion: IdeaVersion, dependencies
 
 function beginCall(control: JobHandlerControl, operation: string, callsUsed: number, limit: number, previous: LensExecutionCheckpoint): void {
   control.signal.throwIfAborted();
-  if (callsUsed > limit) throw new Error("RESEARCH_BUDGET_INVALID");
+  if (callsUsed > limit) throw new Error("alchemist.research_budget_invalid");
   control.saveCheckpoint({ stage: "call_dispatched", operation, callsUsed, previous }, { type: "call_started", payload: { operation, callsUsed, limit } });
 }
 
@@ -201,27 +201,13 @@ function saveStage(
 function classifyError(error: unknown): string {
   if (error instanceof Error) {
     const hostCode = (error as Error & { code?: unknown }).code;
-    if (typeof hostCode === "string" && hostCode.startsWith("REUSE_")) return hostCode;
-    if (typeof hostCode === "string" && (hostCode === "RESEARCH_NO_SOURCES" || /^RESEARCH_SEARCH_[A-Z0-9_]{1,80}$/u.test(hostCode))) return hostCode;
-    if (["LENS_RUN_INPUT_INVALID", "IDEA_VERSION_NOT_FOUND", "AI_OUTPUT_INVALID", "RESEARCH_CALL_INTERRUPTED", "RESEARCH_NO_SOURCES", "RESEARCH_BUDGET_INVALID", "RUNTIME_MODEL_UNAVAILABLE", "RUNTIME_NOT_CONFIGURED", "RUNTIME_SHUTDOWN"].includes(error.message)) {
-      return error.message;
-    }
-    if (
-      [
-        "OPENAI_TIMEOUT",
-        "OPENAI_NETWORK_FAILED",
-        "OPENAI_AUTH_FAILED",
-        "OPENAI_RATE_LIMITED",
-        "OPENAI_RESEARCH_NO_CITATIONS",
-        "REAL_RESEARCH_RUNTIME_DISABLED",
-        "OPENAI_SECRET_MISSING",
-      ].includes(error.message) ||
-      /^OPENAI_HTTP_\d+$/.test(error.message)
-    ) {
+    if (typeof hostCode === "string" && hostCode.startsWith("alchemist.reuse_")) return hostCode;
+    if (typeof hostCode === "string" && (hostCode === "alchemist.research_no_sources" || /^alchemist\.research_search_[a-z0-9_]{1,80}$/u.test(hostCode))) return hostCode;
+    if (["alchemist.lens_run_input_invalid", "alchemist.idea_version_not_found", "alchemist.ai_output_invalid", "alchemist.research_call_interrupted", "alchemist.research_no_sources", "alchemist.research_budget_invalid", "alchemist.runtime_model_unavailable", "alchemist.runtime_not_configured", "alchemist.runtime_shutdown"].includes(error.message)) {
       return error.message;
     }
   }
-  return "RESEARCH_RUNTIME_FAILED";
+  return "alchemist.research_runtime_failed";
 }
 
 function createPartialReport(input: {

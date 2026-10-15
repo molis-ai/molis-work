@@ -32,6 +32,7 @@ import type { PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
+import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -112,14 +113,14 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // (user decision 2026-10-10, W3-06 Q1). "Ships with the Host" is the Host's own start list saying `bundled` about a definition
   // object, not anything a plugin declares or its record holds, so a developed or generated plugin that names a built-in
   // plugin_id gets no more than an installation id.
-  const bundled = new WeakSet<PluginDefinition>();
-  const providerFor = (definition: PluginDefinition, installId: string) => bundled.has(definition) ? definition.manifest.plugin_id : installId;
+  const identity = pluginEntryIdentity();
+  const providerFor = identity.providerFor;
   // The same holds for a library in the Home: the Host's list declares it about a definition object, so another definition that
   // carries the same plugin_id is given none.
-  const databases = new WeakMap<PluginDefinition, PluginDatabaseDeclaration>();
   const executor = new PluginHostExecutor({
     providerFor,
-    databaseFor: definition => databases.get(definition),
+    qualifyCaller: identity.qualifyCaller,
+    databaseFor: identity.databaseFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
@@ -207,10 +208,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
         listed.add(definition.manifest.plugin_id);
       }
       assertDatabaseEntries(entries, options.home);
-      for (const entry of entries) {
-        if (entry.bundled) bundled.add(entry.definition);
-        if (entry.database) databases.set(entry.definition, entry.database);
-      }
+      identity.remember(entries);
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();

@@ -88,8 +88,10 @@ tests/assistant-contributions.test.ts
 tests/assistant-delegation.test.ts
 tests/assistant-diagnostics.test.ts
 tests/assistant-followups.test.ts
+tests/assistant-image-restart-http.test.ts
 tests/assistant-island-script.test.ts
 tests/assistant-material.test.ts
+tests/assistant-memory-error-model.test.ts
 tests/assistant-reminders.test.ts
 tests/assistant-tool-words.test.ts
 tests/assistant-turns.test.ts
@@ -281,6 +283,7 @@ tests/prologue-inference-images.test.ts
 tests/prologue-inference-native.test.ts
 tests/prologue-materials.test.ts
 tests/prologue-model-retry.test.ts
+tests/prologue-node-start-order.test.ts
 tests/prologue-recovery.test.ts
 tests/prologue-review-child-command.test.ts
 tests/prologue-review-feedback.test.ts

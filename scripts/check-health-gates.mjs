@@ -33,6 +33,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
+import { browserWantsText } from "./gates/browser-graph.mjs";
 import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
 import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
 import { domEventProblems } from "./gates/dom-events.mjs";
@@ -133,7 +134,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file);
+const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -402,6 +403,7 @@ const compatMarkers = {
 const sourceCounts = SOURCE_COUNT_RULES.map((rule) => ({
   id: rule.id,
   measure: (snapshot) => rule.measure(snapshot, { isSource, isTestFile }),
+  absolute: rule.absolute,
   toBaseline: (counts) => ({ [`${rule.id}Total`]: sumOf(counts), [rule.id]: counts }),
   fromBaseline: (json) => perFile.fromBaseline(json, rule.id),
   grew: perFile.grew(rule.what, rule.hint),
@@ -517,12 +519,16 @@ if (report) {
 
 // ---- --update --------------------------------------------------------------------------------------------------------
 if (update) {
-  if (mergeBase) {
-    const errors = [...growth(), ...limitErrors()];
-    if (errors.length) {
-      console.error(`Baseline not written: something grew relative to ${against}:\n- ` + errors.join("\n- "));
-      process.exit(1);
-    }
+  const browserErrors = sourceCounts.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []);
+  if (browserErrors.length) {
+    console.error(`Baseline not written: executable browser programs failed:\n- ` + browserErrors.join("\n- "));
+    process.exit(1);
+  }
+  const splitMetric = METRICS.find(metric => metric.id === "testImportSplits");
+  const errors = [...(splitMetric?.absolute(head.testImportSplits) ?? []), ...(mergeBase ? [...growth(), ...limitErrors()] : [])];
+  if (errors.length) {
+    console.error(`Baseline not written: the working tree violates a gate${mergeBase ? ` relative to ${against}` : ""}:\n- ` + errors.join("\n- "));
+    process.exit(1);
   }
   const written = Object.assign({}, ...METRICS.map((metric) => metric.toBaseline(head[metric.id])),
     { note: "Only decreases. Lower it with `node scripts/check-health-gates.mjs --update --base origin/main` in the PR that lowers a number. CI compares with the merge-base, not with this file." });

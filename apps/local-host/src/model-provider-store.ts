@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KeychainUnavailableError } from "@molis-ai/molis-work-storage";
 import type {
   ModelApiFormat,
@@ -38,15 +39,9 @@ export interface ModelSecretPort {
   get(authRef: string): string | null;
 }
 
-export class ModelProviderError extends Error {
-  constructor(
-    readonly code: "model-provider.unknown" | "model-provider.invalid",
-    message: string,
-  ) {
-    super(message);
-    this.name = "ModelProviderError";
-  }
-}
+const modelProviderErrors = defineErrorCodes("model_provider", {
+  invalid: "invalid",
+});
 
 export function createModelProviderTables(db: ModelProviderSqlite): void {
   db.exec(`
@@ -152,7 +147,7 @@ export class ModelProviderStore {
     const existing = this.get(input.provider_id);
     const record = this.check(input);
     const credentialRef = input.credential_ref?.trim() || existing?.credential_ref;
-    if (!credentialRef) throw new ModelProviderError("model-provider.invalid", "请填写 API Key，或选择一条已保存的连接");
+    if (!credentialRef) throw modelProviderErrors.invalid("请填写 API Key，或选择一条已保存的连接");
     record.credential_ref = credentialRef;
     this.#db.prepare(`
       INSERT INTO model_providers
@@ -179,30 +174,30 @@ export class ModelProviderStore {
   /** The record `upsert` would write, without its credential; throws what `upsert` would refuse. Writes nothing. */
   check(input: ModelProviderInput): ModelProviderRecord {
     if (!PROVIDER_ID.test(input.provider_id)) {
-      throw new ModelProviderError("model-provider.invalid", `供应商 id 不合法：${input.provider_id}`);
+      throw modelProviderErrors.invalid(`供应商 id 不合法：${input.provider_id}`);
     }
     if (!API_FORMATS.includes(input.api_format)) {
-      throw new ModelProviderError("model-provider.invalid", `不认识的 API 格式：${input.api_format}`);
+      throw modelProviderErrors.invalid(`不认识的 API 格式：${input.api_format}`);
     }
     let endpoint: URL;
     try { endpoint = new URL(input.base_url); }
-    catch { throw new ModelProviderError("model-provider.invalid", "Base URL 必须是完整地址"); }
+    catch { throw modelProviderErrors.invalid("Base URL 必须是完整地址"); }
     const localHttp = isLoopbackHttpUrl(endpoint);
     if ((!localHttp && endpoint.protocol !== "https:") || endpoint.username || endpoint.password || endpoint.hash || endpoint.search) {
-      throw new ModelProviderError("model-provider.invalid", "Base URL 必须使用 HTTPS 或本机 HTTP，不能包含密码、查询参数或片段");
+      throw modelProviderErrors.invalid("Base URL 必须使用 HTTPS 或本机 HTTP，不能包含密码、查询参数或片段");
     }
     if (input.models !== undefined && (input.models.length > 200 || input.models.some((model) =>
       typeof model.model_id !== "string" || !model.model_id.trim() || model.model_id.length > 200
       || typeof model.enabled !== "boolean"
       || (model.context_tokens !== undefined && (!Number.isSafeInteger(model.context_tokens) || model.context_tokens <= 0)))
       || new Set(input.models.map((model) => model.model_id)).size !== input.models.length)) {
-      throw new ModelProviderError("model-provider.invalid", "模型 ID 必须非空且不重复，上下文长度必须是正整数");
+      throw modelProviderErrors.invalid("模型 ID 必须非空且不重复，上下文长度必须是正整数");
     }
     const at = this.#now().toISOString();
     const existing = this.get(input.provider_id);
     const promptCache = input.prompt_cache ?? existing?.prompt_cache ?? "off";
     if (!PROMPT_CACHE_MODES.includes(promptCache)) {
-      throw new ModelProviderError("model-provider.invalid", `不认识的缓存档位：${promptCache}`);
+      throw modelProviderErrors.invalid(`不认识的缓存档位：${promptCache}`);
     }
     // Refused here, while the user is looking at the field they just changed —
     // not at the first Run, days later, on a different screen.
@@ -211,12 +206,12 @@ export class ModelProviderStore {
       prompt_cache: promptCache,
     });
     if (cacheProblem !== null) {
-      throw new ModelProviderError("model-provider.invalid", cacheProblem);
+      throw modelProviderErrors.invalid(cacheProblem);
     }
     const thinking = input.thinking ?? existing?.thinking ?? "off";
-    if (!THINKING_MODES.includes(thinking)) throw new ModelProviderError("model-provider.invalid", `不认识的思考档：${thinking}`);
+    if (!THINKING_MODES.includes(thinking)) throw modelProviderErrors.invalid(`不认识的思考档：${thinking}`);
     const thinkingProblem = inspectThinkingChoice({ api_format: input.api_format, thinking });
-    if (thinkingProblem !== null) throw new ModelProviderError("model-provider.invalid", thinkingProblem);
+    if (thinkingProblem !== null) throw modelProviderErrors.invalid(thinkingProblem);
     const record: ModelProviderRecord = {
       provider_id: input.provider_id,
       display_name: input.display_name.trim() === "" ? input.provider_id : input.display_name.trim(),

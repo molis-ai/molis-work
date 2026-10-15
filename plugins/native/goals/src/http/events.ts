@@ -1,3 +1,4 @@
+import { respondGoalsFailure } from "./failure.js";
 import { randomUUID } from "node:crypto";
 import type { GoalsHttpContext } from "./types.js";
 import { goalsActions } from "../actions.js";
@@ -30,7 +31,7 @@ function rejectUnknownHttp(action: string, body: Record<string, unknown>): void 
   const unexpected = Object.keys(body).filter((key) => !allowed.has(key));
   if (unexpected.length) {
     throw Object.assign(new Error(`不能使用未许可字段：${unexpected.join("、")}`), {
-      code: "event_http.unexpected_field",
+      code: "goals.event_http.unexpected_field",
       details: { fields: unexpected },
     });
   }
@@ -47,7 +48,7 @@ export async function handleGoalEventHttp(context: GoalsHttpContext): Promise<bo
       const itemId = decodeURIComponent(historyMatch[2]!);
       const result = await context.actions.invoke(goalsActions.historyItem, { goal_id: goalId, item_id: itemId });
       if (!result) {
-        context.respond(404, { error: "历史记录不存在", code: "event.not_found" });
+        context.respond(404, { error: "历史记录不存在", code: "goals.event.not_found" });
         return true;
       }
       context.respond(200, result);
@@ -142,7 +143,7 @@ export async function handleGoalEventHttp(context: GoalsHttpContext): Promise<bo
     }
     if (action === "event-close") {
       if (body.kind !== "complete" && body.kind !== "cancel") {
-        context.respond(400, { error: "收尾类型只能是 complete 或 cancel", code: "event_closure.invalid_kind" });
+        respondGoalsFailure(context, { code: "goals.event_closure.invalid_kind", message: "收尾类型只能是 complete 或 cancel" });
         return true;
       }
       return writeOk(context, await context.actions.invoke(goalsActions.close, {
@@ -167,10 +168,7 @@ export async function handleGoalEventHttp(context: GoalsHttpContext): Promise<bo
       }));
     }
     return false;
-  } catch (error) {
-    const responded = respondGoalEventError(context, error);
-    return responded;
-  }
+  } catch (error) { return respondGoalsFailure(context, error); }
 }
 
 function readTimelineQuery(context: GoalsHttpContext): { before_cursor?: string; limit?: number } {
@@ -190,24 +188,12 @@ function optionalText(value: unknown): string | undefined {
 
 function requiredInt(value: unknown, name: string): number {
   const number = Number(value);
-  if (!Number.isInteger(number)) throw Object.assign(new Error(`${name} 必须是整数`), { code: "event_http.invalid_version" });
+  if (!Number.isInteger(number)) throw Object.assign(new Error(`${name} 必须是整数`), { code: "goals.event_http.invalid_version" });
   return number;
 }
 
 function writeOk(context: GoalsHttpContext, body: unknown): true {
   context.changed();
   context.respond(200, body);
-  return true;
-}
-
-function respondGoalEventError(context: GoalsHttpContext, error: unknown): true {
-  const code = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : "";
-  const details = error && typeof error === "object" && "details" in error ? (error as { details: unknown }).details : undefined;
-  const conflict = /version_conflict|stale_version|already_adopted|completed_requires/.test(code);
-  context.respond(conflict ? 409 : 400, {
-    error: error instanceof Error ? error.message : String(error),
-    ...(code ? { code } : {}),
-    ...(details !== undefined ? { details } : {}),
-  });
   return true;
 }

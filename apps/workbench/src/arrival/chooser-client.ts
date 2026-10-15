@@ -160,9 +160,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
       if (controller.signal.aborted || state.selected !== id) return;
     }
     try {
-      const response = await fetch('/api/projects/' + encodeURIComponent(id) + '/brief', { headers: globalThis.molisWorkControlHeaders(), signal: controller.signal, cache: 'no-store' });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || L('请求失败，请重试'));
+      const result = await molisWorkRequest('/api/projects/' + encodeURIComponent(id) + '/brief', {signal:controller.signal, fallback:L('请求失败，请重试')});
       if (controller.signal.aborted || state.selected !== id) return;
       paintRow(result.summary);
       writeCache(id, { html: result.html, summary: result.summary, at: Date.now() });
@@ -172,7 +170,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
       if (controller.signal.aborted || state.selected !== id) return;
       if (cached && cached.html) return;
       const node = fill('error', { name: nameOf(id), id });
-      $('.mw-empty p', node).textContent = error && error.message ? error.message : L('这个项目没有及时响应。仍然可以直接进入它。');
+      molisWorkRequest.show($('.mw-empty p',node),error,L('这个项目没有及时响应。仍然可以直接进入它。'));
       show(node, { animate: false });
     }
   };

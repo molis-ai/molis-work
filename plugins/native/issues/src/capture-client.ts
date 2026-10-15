@@ -6,12 +6,13 @@
  * opens into the editor with nothing lost. Watching does not depend on the panel being open.
  */
 export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
-  const ready = () => { $('submit').disabled = Boolean(importing) || !desc.value.trim() && !images.length; };
+  const ready = () => { $('submit').disabled = Boolean(importing || restoring || pictureWrites) || !desc.value.trim() && !images.length; };
   // The page the person was on, as the shell reports it; a report, never proof of what was on screen.
   const where = () => { try { return host.page?.() || null; } catch { return null; } };
   const message = item => {
     const long = item.text.length > 19000, first = item.text.trim().split('\n')[0].slice(0, 40);
-    return '记录 Issue：' + (first || '截图 ×' + item.images.length) + '\n录入草稿 ' + item.id + '。请按 Issue 方法处理。'
+    return (item.target ? '重新整理 Issue：' : '记录 Issue：') + (first || '截图 ×' + item.images.length)
+      + (item.target ? '\n待整理记录 ' + item.target.id + ' 版本 ' + item.target.version : '\n录入草稿 ' + item.id) + '。请按 Issue 方法处理。'
       + (item.page?.title ? '\n记录时所在页面：' + item.page.title + (item.page.url ? '（' + item.page.url + '）' : '') : '')
       + (item.images.length ? '\n附带 ' + item.images.length + ' 张截图。' : '')
       + '\n本次问题描述：\n' + (long ? '见附带的“问题描述”全文材料。' : item.text || '（没有文字，只有截图）');
@@ -55,7 +56,7 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
       if (already) saved(item, already); else attention(item, L('整理超时，点开补全标题和类型'));
       return;
     }
-    try { saved(item, await api('read?id=' + encodeURIComponent(item.id))); return; }
+    try { saved(item, await read(item.id)); return; }
     catch (error) { if (error.status !== 404) { attention(item, error.message); return; } }
     if (card) {
       const field = key => card.fields.find(entry => entry.key === key);
@@ -64,56 +65,68 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
     } else if (question) attention(item, L('需要补充：') + (question.questions?.[0]?.prompt || question.prompt), 'question');
     else attention(item, L(/MODEL_|model/i.test(round?.stop_reason || '') ? '模型暂时不可用，点开手动保存，或检查模型设置' : '没能自动整理，点开补全标题和类型'));
   };
+  const sendWork = async (item, active = () => scope.alive) => {
+    const materials = [{ material_id: 'issue-method', kind: 'method', title: 'Issue', explicit: true, method: { method_id: 'io.molis.work.issues/issues-capture' } }];
+    if (item.text.length > 19000) materials.push({ material_id: 'issue-description', kind: 'text', title: L('问题描述'), explicit: true, text: item.text });
+    for (const image of item.images) materials.push((await api('/api/assistant/attachments', { name: image.name, data: image.data_url.split(',')[1] })).material);
+    if (!active()) throw new DOMException('Cancelled', 'AbortError');
+    const result = await api('/api/assistant/send', { request_id: item.id, scope: { kind: 'personal' }, written_by: 'page', text: message(item), materials,
+      context: { source: { surface: 'issues', title: item.page?.title || 'Issue' }, captured_at: new Date(item.at).toISOString() } });
+    return result.work.work_id;
+  };
   const organize = async item => {
     item.state = 'organizing'; item.note = ''; item.at = Date.now(); render();
     try {
       await api('prepare', { draft_id: item.id, description: item.text, images: item.images, ...(item.page ? { page: item.page } : {}) });
-      const materials = [{ material_id: 'issue-method', kind: 'method', title: 'Issue', explicit: true, method: { method_id: 'io.molis.work.issues/issues-capture' } }];
-      if (item.text.length > 19000) materials.push({ material_id: 'issue-description', kind: 'text', title: L('问题描述'), explicit: true, text: item.text });
-      for (const image of item.images) materials.push((await api('/api/assistant/attachments', { name: image.name, data: image.data_url.split(',')[1] })).material);
-      const result = await api('/api/assistant/send', { request_id: item.id, scope: { kind: 'personal' }, written_by: 'page', text: message(item), materials,
-        context: { source: { surface: 'issues', title: item.page?.title || 'Issue' }, captured_at: new Date(item.at).toISOString() } });
-      item.work = result.work.work_id; await watch(item);
+      item.work = await sendWork(item); await watch(item);
     } catch (error) {
       if (error.name !== 'AbortError') attention(item, (error.message || L('没能交给助理整理')) + ' ' + L('点开可手动保存。'));
     }
   };
   const submit = async () => {
-    if (importing || !desc.value.trim() && !images.length) return;
+    if (importing || restoring || pictureWrites || !desc.value.trim() && !images.length) return;
     const item = { id: crypto.randomUUID(), text: desc.value, images, page: where(), at: Date.now() };
+    const cleared = pictures(() => []);
     pending.unshift(item); desc.value = ''; images = [];
     try { localStorage.removeItem(KEY); } catch { /* Nothing kept, nothing to clear. */ }
     paint(); fit(desc); desc.focus();
-    await organize(item);
+    try { await cleared; await organize(item); } catch (error) { attention(item, error.message); }
   };
   // Undo takes the record back while nobody has changed it, and returns the words to an empty composer.
   const undo = async (issue, item) => {
     await api('discard', { id: issue.id, expected_version: issue.version });
     rows = rows.filter(row => row.id !== issue.id); render();
-    if (!desc.value.trim() && !images.length) { desc.value = item.text; images = item.images; paint(); fit(desc); desc.focus(); toast(L('已撤销，内容放回了输入框')); }
+    if (!desc.value.trim() && !images.length) { desc.value = item.text; const restored = pictures(() => item.images); try { localStorage.setItem(KEY, desc.value); } catch { /* The live draft remains available. */ } paint(); fit(desc); desc.focus(); toast(L('已撤销，内容放回了输入框')); await restored; }
     else toast(L('已撤销'));
   };
   const drop = item => { pending = pending.filter(entry => entry !== item); };
   const add = issue => { rows = [issue, ...rows.filter(row => row.id !== issue.id)]; fresh = issue.id; };
   // Retires an unfinished draft. The Assistant may have saved it meanwhile: then that record is the result.
   const release = async item => {
-    const result = await api('cancel-capture', { draft_id: item.id }); void quiet(item, true);
-    return result.saved_id ? api('read?id=' + encodeURIComponent(result.saved_id)) : null;
+    await api('cancel-capture', { draft_id: item.id }); void quiet(item, true);
+    try { return await read(item.id); }
+    catch (error) { if (error.status !== 404) throw error; return null; }
   };
-  const settled = async (item, issue) => { drop(item); add(issue); current = null; editing = false; await back(); };
+  const settled = async (item, issue, original) => {
+    drop(item); add(issue); current = null; editing = false; await back();
+    toast(L('已记录：') + issue.title, original ? L('撤销') : '', original && (() => undo(issue, original)));
+  };
   const keep = async (item, data) => {
     const already = await release(item);
-    if (already) { await settled(item, already); toast(L('这条已经由助理保存')); return; }
-    const id = crypto.randomUUID();
+    if (already) return settled(item, already);
+    // Retain the request identity before dispatch: a lost receipt is checked before another write.
+    if (!item.manual) item.id = crypto.randomUUID();
+    Object.assign(item, { manual: true, text: data.description, images: data.images, card: { title: data.title, type: data.type } }); remember();
+    const id = item.id;
     await api('prepare', { draft_id: id, description: data.description, images: data.images, ...(item.page ? { page: item.page } : {}) });
     const issue = await api('capture', { draft_id: id, title: data.title, type: data.type });
-    await settled(item, issue); toast(L('已记录：') + issue.title, L('撤销'), () => undo(issue, { text: data.description, images: data.images }));
+    await settled(item, issue, item);
   };
   const redo = async item => {
-    const text = editor.elements.description.value, shot = edits;
+    const text = detailInput.value, shot = edits;
     if (!text.trim() && !shot.length) { flag(L('先写一句话或加一张截图。')); return; }
     const already = await release(item);
-    if (already) { await settled(item, already); toast(L('这条已经由助理保存')); return; }
+    if (already) return settled(item, already);
     const next = { id: crypto.randomUUID(), text, images: shot, page: item.page, at: Date.now() };
     pending[pending.indexOf(item)] = next; current = null; editing = false; await back();
     await organize(next);
@@ -121,7 +134,7 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
   const abandon = async item => {
     if (!await confirm('放弃这条记录？', L('写下的内容和截图都不会保存。'), '放弃')) return;
     const already = await release(item);
-    if (already) { await settled(item, already); toast(L('这条已经由助理保存')); return; }
+    if (already) return settled(item, already);
     drop(item); current = null; editing = false; await back(); toast(L('已放弃这条记录'));
   };
   try {

@@ -107,7 +107,7 @@ test("an upgrade that does not happen answers 409 with the supervisor's reason a
     // when somebody asks for an upgrade, so this install's version is not below the build's: nothing to move up to.
     const refused = await request(upgrade, "POST", {});
     assert.equal(refused.status, 409);
-    assert.deepEqual(await refused.json(), { error: "升级目标必须高于当前安装版本", code: "plugin_upgrade_required" });
+    assert.deepEqual(await refused.json(), { error: "升级目标必须高于当前安装版本", code: "plugin.upgrade_required" });
     assert.equal(repository.get(installId)!.version, before.version);
     assert.equal(repository.get(installId)!.manifest_digest, before.manifest_digest);
   });
@@ -118,7 +118,7 @@ test("the shared route operations know no plugin: they are the only place that r
   assert.match(shared, /export async function dispatchRuntimePluginRoute\(/);
   // One implementation for the project's instance and the Home-level one: neither a plugin id nor a plugin package is written in it.
   assert.doesNotMatch(shared, /io\.molis\.work\./);
-  assert.doesNotMatch(shared, /@molis-ai\/molis-work-plugin-(?!runtime\b)/);
+  assert.doesNotMatch(shared, /@molis-ai\/molis-work-plugin-(?!(?:runtime|sdk)\b)/);
   assert.doesNotMatch(shared, /@molis-ai\/molis-work-module-/);
   const surface = await readFile(path.join(repoRoot, "apps/local-host/src/coding-surface.ts"), "utf8");
   for (const operation of [/supervisor\.restart\(/, /platform\.upgrade\(/, /\.viewRevision\(/]) {

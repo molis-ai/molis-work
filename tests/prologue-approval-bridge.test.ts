@@ -1,14 +1,9 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentReviewDocument } from "@molis-ai/molis-work-contracts/services/agent-host";
-import {
-  AgentReviewQueue,
-  PrologueApprovalBridge,
-  PrologueApprovalError,
-  type ProloguePending,
-  type ProloguePendingPort,
-  type ProloguePendingState,
-} from "@molis-ai/molis-work-service-agent-host";
+import { AgentReviewQueue, PrologueApprovalBridge, type ProloguePending, type ProloguePendingPort, type ProloguePendingState } from "@molis-ai/molis-work-service-agent-host";
 
 const BOARD = "board-coding";
 const PLUGIN = "io.molis.work.coding";
@@ -164,8 +159,15 @@ test("a pending the execution owner already closed cannot be approved here", asy
   ledger.pending.state = "expired";
   await assert.rejects(
     () => bridge.decide({ review_id: "prologue:pending-1", decision: "approve", actor_id: "tester" }),
-    (error: unknown) => error instanceof PrologueApprovalError
-      && error.code === "agent.pending_not_open",
+    (error: unknown) => {
+      // I6-01: an expired SDK pending remains refused and no answer is sent.
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "agent.pending_not_open");
+      assert.equal(error.message, "这笔待批已经结束，请刷新后按当前状态处理");
+      assert.equal(error.kind, "invalid");
+      assert.equal(actionHttpStatus(error), 400);
+      return true;
+    },
   );
   assert.deepEqual(ledger.answers, [], "已结束的待批不能再答复");
 });
@@ -175,7 +177,7 @@ test("a closed pending is never mirrored onto the review surface", () => {
   const { queue, bridge } = bridgeFor(ledger.port);
   assert.throws(
     () => bridge.mirror({ pending: ledger.pending, run: RUN, owner: { project_id: BOARD, plugin_id: PLUGIN }, kind: "text-edit", document }),
-    (error: unknown) => error instanceof PrologueApprovalError
+    (error: unknown) => error instanceof ActionError
       && error.code === "agent.pending_not_open",
   );
   assert.deepEqual(queue.list(BOARD), []);
@@ -198,7 +200,6 @@ test("deferring leaves the effect unauthorized and still answerable", async () =
   assert.equal(receipt.status, "approved");
   assert.deepEqual(ledger.answers, ["allow"]);
 });
-
 
 test("Host dispatch reaches the original exact SDK pending once and does not claim completion", async () => {
   const ledger = pendingLedger();
@@ -238,7 +239,6 @@ test("failed deny delivery remains visible and cannot be mistaken for an SDK den
   assert.equal(receipt.effect_error, null);
   assert.equal(receipt.delivery_error, "拒绝答复连接中断");
 });
-
 
 test("an open restored pending without a live waiter cannot receive approval", async () => {
   const ledger = pendingLedger();

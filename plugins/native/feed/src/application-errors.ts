@@ -1,34 +1,16 @@
-import { AttentionError, inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import { FeedError, feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { attentionErrors, inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourceHistoryDecision } from "./projection.js";
-
-/** The module's refusals, as Feed declares them; the message is the module's own. */
-const FEED_MODULE_FAILURES = {
-  feed_item_not_found: feedErrors.item_not_found,
-  feed_revision_conflict: feedErrors.revision_conflict,
-  feed_invalid_transition: feedErrors.invalid_transition,
-  // The module names this code in its type but nothing raises it; if it ever does, it is a transition the item cannot make.
-  feed_read_not_supported: feedErrors.invalid_transition,
-} as const satisfies Record<FeedError["code"], (message: string) => unknown>;
-
-/** A Feed module refusal reaches callers as Feed's own declared failure, with the same message. */
-export function callFeed<T>(operation: () => T): T {
-  try {
-    return operation();
-  } catch (error) {
-    if (error instanceof FeedError) throw FEED_MODULE_FAILURES[error.code](error.message);
-    throw error;
-  }
-}
 
 /** An Attention module refusal reaches callers as a declared failure: the Inbox's for a missing entry, Feed's for the rest. */
 export function callAttention<T>(operation: () => T): T {
   try {
     return operation();
   } catch (error) {
-    if (error instanceof AttentionError) {
-      throw error.code === "attention_entry_not_found" ? inboxErrors.entry_not_found(error.message)
-        : error.code === "attention_revision_conflict" ? feedErrors.revision_conflict(error.message)
+    if (error instanceof ActionError && error.code.startsWith("attention.") && Object.hasOwn(attentionErrors, error.code.slice("attention.".length))) {
+      throw error.code === "attention.entry_not_found" ? inboxErrors.entry_not_found(error.message)
+        : error.code === "attention.revision_conflict" ? feedErrors.revision_conflict(error.message)
           : feedErrors.invalid_transition(error.message);
     }
     throw error;
@@ -37,7 +19,7 @@ export function callAttention<T>(operation: () => T): T {
 
 export function assertSourceHistoryDecision(value: unknown): asserts value is SourceHistoryDecision {
   if (value !== "retain_history" && value !== "delete_local_history") {
-    throw new Error("feed_contract_source_history_decision_required");
+    throw feedErrors.contract_source_history_decision_required("feed.contract_source_history_decision_required");
   }
 }
 
@@ -66,7 +48,7 @@ export function toFeedPublicError(error: unknown): FeedPublicError {
   const value = error && typeof error === "object" ? error as { code?: unknown; message?: unknown; details?: unknown } : {};
   // A failure the provider reported carries the provider's own code in its details; that is the code a run and a source fault store.
   const reported = value.details && typeof value.details === "object" ? (value.details as { error_code?: unknown }).error_code : undefined;
-  const code = typeof reported === "string" && reported ? reported : typeof value.code === "string" && value.code ? value.code : "feed_unknown";
+  const code = typeof reported === "string" && reported ? reported : typeof value.code === "string" && value.code ? value.code : "feed.unknown";
   const message = typeof value.message === "string" && value.message
     ? value.message.slice(0, 400)
     : "信息流操作失败";

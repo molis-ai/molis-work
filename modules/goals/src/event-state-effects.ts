@@ -1,3 +1,4 @@
+import { goalErrors } from "./errors.js";
 import { randomUUID } from "node:crypto";
 import type {
   ApplyGoalConcernInput,
@@ -59,7 +60,7 @@ export class GoalEventStateEffects {
     private readonly host: GoalEventStateHost,
     private readonly core: GoalEventStateCore,
   ) {
-    this.concerns = new GoalEventConcerns(context, facts, records, core, (goal, cited) => {
+    this.concerns = new GoalEventConcerns(facts, records, core, (goal, cited) => {
       this.assertReusable(goal, cited, cited.scope);
     });
     this.agreement = new GoalEventStateAgreement(context, records, host, core);
@@ -80,34 +81,34 @@ export class GoalEventStateEffects {
       scope: input.scope ?? null,
     });
     return this.core.mutate(input, "request_goal_decision", hash, (goal, actorKind) => {
-      const question = requiredText(this.core.error, input.question, "event_decision.question_required", "决定请求需要具体问题");
-      const options = normalizeOptions(this.core.error, input.options);
-      const purpose = requiredDecisionPurpose(this.core.error, input.purpose);
+      const question = requiredText(input.question, "goals.event_decision.question_required", "决定请求需要具体问题");
+      const options = normalizeOptions(input.options);
+      const purpose = requiredDecisionPurpose(input.purpose);
       const requirements = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
       const currentOutcome = this.records.latestAgreement(goal.project_id, goal.goal_id)?.outcome || goal.outcome.trim();
       let proposedChange = input.proposed_change
-        ? toWireChange(compactChange(normalizeAgreementChange(this.core.error, input.proposed_change), requirements, currentOutcome))
+        ? toWireChange(compactChange(normalizeAgreementChange(input.proposed_change), requirements, currentOutcome))
         : null;
       let commitment: GoalEventDecisionCommitment | null = null;
       if (purpose === "agreement_change") {
         if (!proposedChange) {
-          throw this.context.error("event_decision.missing_proposed_change", "约定变更请求必须带上可审阅的具体变化");
+          throw goalErrors["goals.event_decision.missing_proposed_change"]("约定变更请求必须带上可审阅的具体变化");
         }
-        const canonical = compactChange(normalizeAgreementChange(this.core.error, proposedChange), requirements, currentOutcome);
+        const canonical = compactChange(normalizeAgreementChange(proposedChange), requirements, currentOutcome);
         if (isEmptyChange(canonical, currentOutcome)) {
-          throw this.context.error("event_agreement.no_changes", "需要补充结果说明、新增、修订或退休要求");
+          throw goalErrors["goals.event_agreement.no_changes"]("需要补充结果说明、新增、修订或退休要求");
         }
         proposedChange = toWireChange(canonical);
         commitment = snapshotAgreementChangeCommitment(canonical, requirements, currentOutcome);
       } else if (input.proposed_change) {
-        throw this.context.error("event_decision.unexpected_proposed_change", "只有约定变更请求才能附带具体变化");
+        throw goalErrors["goals.event_decision.unexpected_proposed_change"]("只有约定变更请求才能附带具体变化");
       }
       const requestedScope = input.scope ?? (purpose === "agreement_change"
-        ? { action: "set_agreement", requirement_ids: proposedChange ? affectedExistingRequirementIds(normalizeAgreementChange(this.core.error, proposedChange)) : [] }
+        ? { action: "set_agreement", requirement_ids: proposedChange ? affectedExistingRequirementIds(normalizeAgreementChange(proposedChange)) : [] }
         : undefined);
       const scope = this.core.requireLocalScope(goal, requestedScope);
       if (emptyScope(scope)) {
-        throw this.context.error("event_decision.scope_required", "决定请求需要明确的作用范围");
+        throw goalErrors["goals.event_decision.scope_required"]("决定请求需要明确的作用范围");
       }
       const requestId = `gdec-req-${randomUUID()}`;
       const event = this.core.insertSystem(goal, input.actor_id, actorKind, `请求决定：${question}`, {
@@ -163,7 +164,7 @@ export class GoalEventStateEffects {
       const existing = this.records.getAppliedDecision(goal.project_id, goal.goal_id, input.decision_id)
         ?? this.records.getAppliedDecisionByGovernanceId(goal.project_id, goal.goal_id, input.decision_id);
       if (!existing) {
-        throw this.context.error("event_decision.not_found", "只能引用当前 Goal 已持久化的可信决定");
+        throw goalErrors["goals.event_decision.not_found"]("只能引用当前 Goal 已持久化的可信决定");
       }
       const requested = this.core.requireLocalScope(goal, input.scope);
       this.assertReusable(goal, existing, requested);
@@ -209,13 +210,13 @@ export class GoalEventStateEffects {
         ? this.records.getDecisionRequest(goal.project_id, goal.goal_id, input.request_id)
         : null;
       if (input.request_id && !request) {
-        throw this.context.error("event_decision.request_not_found", "决定请求不存在或不属于当前 Goal");
+        throw goalErrors["goals.event_decision.request_not_found"]("决定请求不存在或不属于当前 Goal");
       }
       const scope = this.core.requireLocalScope(goal, input.scope ?? request?.scope);
       if (emptyScope(scope)) {
-        throw this.context.error("event_decision.scope_required", "可信决定需要明确的作用范围，空范围不能扩大权限");
+        throw goalErrors["goals.event_decision.scope_required"]("可信决定需要明确的作用范围，空范围不能扩大权限");
       }
-      const resolved = resolveRecordedDecision(this.core.error, input, request, scope);
+      const resolved = resolveRecordedDecision(input, request, scope);
       const requirements = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
       const agreement = this.records.latestAgreement(goal.project_id, goal.goal_id);
       const outcome = agreement?.outcome || goal.outcome.trim();
@@ -224,15 +225,12 @@ export class GoalEventStateEffects {
         && resolved.effects.some((effect) => effect.kind === "authorize_agreement_change")
       ) {
         const proposed = compactChange(
-          normalizeAgreementChange(this.core.error, request.proposed_change ?? {}),
+          normalizeAgreementChange(request.proposed_change ?? {}),
           requirements,
           outcome,
         );
         if (!agreementChangeCommitmentCurrent(request.commitment, requirements, outcome, proposed)) {
-          throw this.context.error(
-            "event_decision.stale_commitment",
-            "原约定或受影响要求已经变化，不能批准这份过期请求",
-          );
+          throw goalErrors["goals.event_decision.stale_commitment"]("原约定或受影响要求已经变化，不能批准这份过期请求");
         }
       }
       const recorded = persistGovernance({
@@ -243,27 +241,27 @@ export class GoalEventStateEffects {
         scope: resolved.scope,
       });
       if (recorded.project_id !== goal.project_id || recorded.goal_id !== goal.goal_id) {
-        throw this.context.error("event_decision.cross_goal_reference", "可信决定不属于当前 Goal");
+        throw goalErrors["goals.event_decision.cross_goal_reference"]("可信决定不属于当前 Goal");
       }
       if (recorded.request_id) {
         const existingRequest = this.records.getDecisionRequest(goal.project_id, goal.goal_id, recorded.request_id);
-        if (!existingRequest) throw this.context.error("event_decision.request_not_found", "决定请求不存在或不属于当前 Goal");
+        if (!existingRequest) throw goalErrors["goals.event_decision.request_not_found"]("决定请求不存在或不属于当前 Goal");
         if (recorded.selected_option_id && !existingRequest.options.some((option) => option.option_id === recorded.selected_option_id)) {
-          throw this.context.error("event_decision.option_not_found", "所选选项不在该决定请求中");
+          throw goalErrors["goals.event_decision.option_not_found"]("所选选项不在该决定请求中");
         }
       }
-      const conclusion = requiredText(this.core.error, recorded.conclusion, "event_decision.conclusion_required", "用户决定需要结论");
+      const conclusion = requiredText(recorded.conclusion, "goals.event_decision.conclusion_required", "用户决定需要结论");
       const commitmentScope = resolved.authorized_change
         ? {
             ...resolved.scope,
-            requirement_ids: affectedExistingRequirementIds(normalizeAgreementChange(this.core.error, resolved.authorized_change)),
+            requirement_ids: affectedExistingRequirementIds(normalizeAgreementChange(resolved.authorized_change)),
           }
         : resolved.scope;
       const commitment = request?.purpose === "agreement_change" && request.commitment
         ? request.commitment
         : resolved.authorized_change
           ? snapshotAgreementChangeCommitment(
-              compactChange(normalizeAgreementChange(this.core.error, resolved.authorized_change), requirements, outcome),
+              compactChange(normalizeAgreementChange(resolved.authorized_change), requirements, outcome),
               requirements,
               outcome,
             )
@@ -344,7 +342,7 @@ export class GoalEventStateEffects {
 
 
   submitClosure(input: SubmitGoalEventClosureInput): GoalEventClosureResult {
-    const kind = requiredClosureKind(this.core.error, input.kind);
+    const kind = requiredClosureKind(input.kind);
     const hash = requestHash({
       project_id: input.project_id,
       goal_id: input.goal_id,
@@ -361,25 +359,23 @@ export class GoalEventStateEffects {
       if (replay) return { ...replay, replayed: true };
       const goal = this.core.requireOwnedWritable(input.project_id, input.goal_id);
       const expectedConfig = requiredVersion(
-        this.core.error,
         input.expected_config_version,
-        "event_closure.expected_config_version_required",
+        "goals.event_closure.expected_config_version_required",
         "正式收尾需要 expected_config_version",
       );
       const expectedAgreement = requiredVersion(
-        this.core.error,
         input.expected_agreement_version,
-        "event_closure.expected_agreement_version_required",
+        "goals.event_closure.expected_agreement_version_required",
         "正式收尾需要 expected_agreement_version",
       );
       this.core.assertConfigVersion(goal, expectedConfig);
-      this.core.assertAgreementVersion(goal, expectedAgreement, "event_closure.stale_version");
+      this.core.assertAgreementVersion(goal, expectedAgreement, "goals.event_closure.stale_version");
       const agreementVersion = expectedAgreement;
       const status = this.records.workStatus(goal.project_id, goal.goal_id);
       if (status === "cancelled") {
-        throw this.context.error("event_closure.cancelled", "已取消的 Goal 需要显式继续后才能再收尾");
+        throw goalErrors["goals.event_closure.cancelled"]("已取消的 Goal 需要显式继续后才能再收尾");
       }
-      const reason = requiredText(this.core.error, input.reason, "event_closure.reason_required", "收尾需要理由");
+      const reason = requiredText(input.reason, "goals.event_closure.reason_required", "收尾需要理由");
       const actorKind = this.host.actorKind(input.actor_kind);
       const result = input.result?.trim() || null;
       const configVersion = this.host.configVersion(goal.project_id, goal.goal_id);
@@ -469,13 +465,13 @@ export class GoalEventStateEffects {
       reason: input.reason,
     });
     return this.core.mutate(input, "resume_goal_event_work", hash, (goal, actorKind) => {
-      const reason = requiredText(this.core.error, input.reason, "event_resume.reason_required", "重新继续需要说明理由");
+      const reason = requiredText(input.reason, "goals.event_resume.reason_required", "重新继续需要说明理由");
       const previous = this.records.workStatus(goal.project_id, goal.goal_id);
       if (previous === "open") {
-        throw this.context.error("event_resume.already_open", "当前已在进行，无须重开");
+        throw goalErrors["goals.event_resume.already_open"]("当前已在进行，无须重开");
       }
       if (previous !== "completed" && previous !== "cancelled") {
-        throw this.context.error("event_resume.not_resumable", "只有已完成或已取消的 Goal 才能显式继续");
+        throw goalErrors["goals.event_resume.not_resumable"]("只有已完成或已取消的 Goal 才能显式继续");
       }
       if (previous === "completed") {
         this.records.supersedeAppliedClosures(goal.project_id, goal.goal_id, reason);
@@ -518,18 +514,18 @@ export class GoalEventStateEffects {
 
   assertReusable(goal: GoalRecord, decision: GoalEventAppliedDecisionView, requested: GoalEventScope): void {
     if (emptyScope(decision.scope)) {
-      throw this.context.error("event_decision.scope_expanded", "空范围的决定不能被复用");
+      throw goalErrors["goals.event_decision.scope_expanded"]("空范围的决定不能被复用");
     }
     if (!emptyScope(requested) && !scopeIsSubset(requested, decision.scope)) {
-      throw this.context.error("event_decision.scope_expanded", "不能把已有决定扩大到原范围之外");
+      throw goalErrors["goals.event_decision.scope_expanded"]("不能把已有决定扩大到原范围之外");
     }
     const requirements = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
     if (!scopedRequirementCommitmentsMatch(decision, requirements)) {
-      throw this.context.error("event_decision.stale_commitment", "承诺已经变化，不能把旧决定静默套用到新约定");
+      throw goalErrors["goals.event_decision.stale_commitment"]("承诺已经变化，不能把旧决定静默套用到新约定");
     }
     const later = laterComparableDecision(this.records.listAppliedDecisions(goal.project_id, goal.goal_id), decision);
     if (later) {
-      throw this.context.error("event_decision.superseded", "已有更新的决定覆盖了这个授权，不能把旧决定当作当前有效结果");
+      throw goalErrors["goals.event_decision.superseded"]("已有更新的决定覆盖了这个授权，不能把旧决定当作当前有效结果");
     }
   }
 
@@ -589,11 +585,10 @@ export class GoalEventStateEffects {
 }
 
 function normalizeOptions(
-  error: (code: string, message: string, details?: Record<string, unknown>) => Error,
   options: GoalEventDecisionOption[] | undefined,
 ): GoalEventDecisionOption[] {
   if (!Array.isArray(options) || options.length < 2) {
-    throw error("event_decision.invalid_options", "决定请求至少需要两个可区分选项和影响");
+    throw goalErrors["goals.event_decision.invalid_options"]("决定请求至少需要两个可区分选项和影响");
   }
   const seen = new Set<string>();
   return options.map((option, index) => {
@@ -601,9 +596,9 @@ function normalizeOptions(
     const label = option.label?.trim();
     const impact = option.impact?.trim();
     if (!optionId || !label || !impact) {
-      throw error("event_decision.invalid_options", `第 ${index + 1} 个选项需要 option_id、label 和 impact`);
+      throw goalErrors["goals.event_decision.invalid_options"](`第 ${index + 1} 个选项需要 option_id、label 和 impact`);
     }
-    if (seen.has(optionId)) throw error("event_decision.duplicate_option", `选项重复: ${optionId}`);
+    if (seen.has(optionId)) throw goalErrors["goals.event_decision.duplicate_option"](`选项重复: ${optionId}`);
     seen.add(optionId);
     return { option_id: optionId, label, impact };
   });

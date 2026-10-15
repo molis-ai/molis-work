@@ -56,23 +56,23 @@ export function hostNetwork(options: HostNetworkOptions): NonNullable<SandboxSer
       const reach = options.reach(context.identity), method = request.method ?? 'GET';
       if (reach === 'none' || reach === 'read' && method !== 'GET' && method !== 'HEAD') return NETWORK_STAND_IN;
       let url: URL;
-      try { url = new URL(request.url); } catch { throw new SandboxError('INVALID_REQUEST', '网址无效'); }
-      if (url.protocol !== 'https:') throw new SandboxError('NOT_AUTHORIZED', '插件只能访问 https 网址');
-      if (url.username || url.password) throw new SandboxError('NOT_AUTHORIZED', '网址里不能带用户名或密码');
-      if (url.port && url.port !== '443') throw new SandboxError('NOT_AUTHORIZED', '插件只能访问标准 https 端口');
-      if (!authorization.domains.includes(url.hostname)) throw new SandboxError('NOT_AUTHORIZED', '没有批准访问 ' + url.hostname);
-      if (isIP(url.hostname.replace(/^\[|\]$/g, ''))) throw new SandboxError('NOT_AUTHORIZED', '插件只能按域名访问网站，不能直接访问 IP 地址');
-      if (request.body !== undefined && (typeof request.body !== 'string' || Buffer.byteLength(request.body) > MAX_REQUEST_BODY)) throw new SandboxError('INVALID_REQUEST', '请求内容太大');
+      try { url = new URL(request.url); } catch { throw new SandboxError('plugin_builder.invalid_request', '网址无效'); }
+      if (url.protocol !== 'https:') throw new SandboxError('plugin_builder.not_authorized', '插件只能访问 https 网址');
+      if (url.username || url.password) throw new SandboxError('plugin_builder.not_authorized', '网址里不能带用户名或密码');
+      if (url.port && url.port !== '443') throw new SandboxError('plugin_builder.not_authorized', '插件只能访问标准 https 端口');
+      if (!authorization.domains.includes(url.hostname)) throw new SandboxError('plugin_builder.not_authorized', '没有批准访问 ' + url.hostname);
+      if (isIP(url.hostname.replace(/^\[|\]$/g, ''))) throw new SandboxError('plugin_builder.not_authorized', '插件只能按域名访问网站，不能直接访问 IP 地址');
+      if (request.body !== undefined && (typeof request.body !== 'string' || Buffer.byteLength(request.body) > MAX_REQUEST_BODY)) throw new SandboxError('plugin_builder.invalid_request', '请求内容太大');
       const headers: Record<string, string> = {};
       for (const [name, value] of Object.entries(request.headers ?? {})) {
         const key = name.toLowerCase();
         if (RESERVED.has(key) || key === 'authorization' && authorization.secretRefs.length) continue;
-        if (typeof value !== 'string' || /[\r\n]/.test(value) || !/^[a-z0-9!#$%&'*+.^_`|~-]+$/.test(key)) throw new SandboxError('INVALID_REQUEST', '请求头无效：' + name);
+        if (typeof value !== 'string' || /[\r\n]/.test(value) || !/^[a-z0-9!#$%&'*+.^_`|~-]+$/.test(key)) throw new SandboxError('plugin_builder.invalid_request', '请求头无效：' + name);
         headers[key] = value;
       }
       for (const reference of authorization.secretRefs) {
         const secret = await options.secret?.(context.identity.pluginId, reference);
-        if (!secret) throw new SandboxError('NOT_AUTHORIZED', '还没有为这个插件保存密钥「' + reference + '」');
+        if (!secret) throw new SandboxError('plugin_builder.not_authorized', '还没有为这个插件保存密钥「' + reference + '」');
         headers[secret.header.toLowerCase()] = secret.value;
       }
       if (request.body !== undefined) headers['content-length'] = String(Buffer.byteLength(request.body));
@@ -102,7 +102,7 @@ function send(url: URL, method: string, headers: Record<string, string>, body: s
       const chunks: Buffer[] = []; let size = 0;
       response.on('data', (chunk: Buffer) => {
         size += chunk.length;
-        if (size > MAX_BODY) { response.destroy(); fail(new SandboxError('INVALID_REQUEST', '网站返回的内容太大（超过 1MB）')); return; }
+        if (size > MAX_BODY) { response.destroy(); fail(new SandboxError('plugin_builder.invalid_request', '网站返回的内容太大（超过 1MB）')); return; }
         chunks.push(chunk);
       });
       response.on('end', () => {
@@ -110,12 +110,12 @@ function send(url: URL, method: string, headers: Record<string, string>, body: s
         for (const name of VISIBLE) { const value = response.headers[name]; if (typeof value === 'string') visible[name] = value; }
         done({ status: response.statusCode ?? 0, headers: visible, body: Buffer.concat(chunks).toString('utf8') });
       });
-      response.on('error', error => fail(new SandboxError('INVALID_REQUEST', '读取网站返回的内容失败：' + error.message)));
+      response.on('error', error => fail(new SandboxError('plugin_builder.invalid_request', '读取网站返回的内容失败：' + error.message)));
     });
     outgoing.on('error', error => {
-      if ((error as { code?: string }).code === 'PRIVATE_ADDRESS') fail(new SandboxError('NOT_AUTHORIZED', '不能访问本机或内网地址'));
-      else if (timeout.aborted) fail(new SandboxError('TIMEOUT', '网站在 15 秒内没有响应'));
-      else fail(new SandboxError('INVALID_REQUEST', '访问网站失败：' + error.message));
+      if ((error as { code?: string }).code === 'PRIVATE_ADDRESS') fail(new SandboxError('plugin_builder.not_authorized', '不能访问本机或内网地址'));
+      else if (timeout.aborted) fail(new SandboxError('plugin_builder.timeout', '网站在 15 秒内没有响应'));
+      else fail(new SandboxError('plugin_builder.invalid_request', '访问网站失败：' + error.message));
     });
     if (body !== undefined) outgoing.write(body);
     outgoing.end();

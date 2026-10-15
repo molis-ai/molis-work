@@ -8,7 +8,8 @@ import {
   type TextDiffRow,
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareTexts, textDiffRow } from "@molis-ai/molis-work-plugin-sdk";
-import { UnifiedDiffError, hunkRows, parseUnifiedDiff } from "./unified.js";
+import { unifiedErrors, hunkRows, parseUnifiedDiff } from "./unified.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * One bounded projection behind every comparison surface.
@@ -218,13 +219,14 @@ export function compareRunChangeSet(
     const side: DiffSide = { workspace_id: change.origin?.workspace_id ?? change.run_id, workspace_name: change.origin?.workspace_name ?? change.run_id,
       path: chosen.path, source_plugin_id: input.source_plugin_id, content_version: input.content_version };
     return { ...renderComparison(group, side, { ...side }, chosen.review.before_text ?? "", chosen.review.after_text,
-      chosen.review.before_text === null, false), files: [] };
+      chosen.review.before_text === null, false), files };
   }
   let rows: readonly TextDiffRow[];
   try {
     rows = hunkRows(parseUnifiedDiff(chosen.diff));
   } catch (error) {
-    const message = error instanceof UnifiedDiffError ? error.message : "读不了这一轮的 diff";
+    const message = error instanceof ActionError && error.code.startsWith("diff.unified.")
+      && Object.hasOwn(unifiedErrors, error.code.slice("diff.unified.".length)) ? error.message : "读不了这一轮的 diff";
     return { ...emptyDiff(group, message, "unavailable", recoveryMessage(group)), files };
   }
   const side: DiffSide = {

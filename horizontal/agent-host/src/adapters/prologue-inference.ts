@@ -10,8 +10,8 @@ export function createPrologueInference(runtime: Runtime,
   const active = new Map<AbortController, Promise<unknown>>();
   let closed = false;
   const bounded = <T>(input: { signal?: AbortSignal; timeout_ms: number }, operation: (signal: AbortSignal) => Promise<T>): Promise<T> => {
-    if (closed) return Promise.reject(new PrologueInferenceError("inference.closed", "推理服务已关闭"));
-    if (!Number.isFinite(input.timeout_ms) || input.timeout_ms <= 0) return Promise.reject(new PrologueInferenceError("inference.invalid_timeout", "推理时限无效"));
+    if (closed) return Promise.reject(new PrologueInferenceError("agent.inference.closed", "推理服务已关闭"));
+    if (!Number.isFinite(input.timeout_ms) || input.timeout_ms <= 0) return Promise.reject(new PrologueInferenceError("agent.inference.invalid_timeout", "推理时限无效"));
     const controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(input.timeout_ms), ...(input.signal ? [input.signal] : [])]);
     const task = (async () => { signal.throwIfAborted(); try { return await operation(signal); } catch (error) { signal.throwIfAborted(); throw safeError(error); } })();
@@ -32,7 +32,7 @@ export function createPrologueInference(runtime: Runtime,
     } catch (error) { throw refused ?? error; }
   })();
   const completeTextResult = (input: PrologueTextInput): Promise<PrologueTextResult> => bounded(input, signal => execute(input, signal, false, async (credentialRef, check) => {
-    if (!credentialRef) throw new PrologueInferenceError("inference.credential_missing", "模型密钥不可用");
+    if (!credentialRef) throw new PrologueInferenceError("agent.inference.credential_missing", "模型密钥不可用");
     return withInferenceImages(runtime, input.images, check, async attachments => {
       const session = await runtime.sessions.create({ ephemeral: true });
       try {
@@ -53,7 +53,7 @@ export function createPrologueInference(runtime: Runtime,
             error instanceof PrologueInferenceError ? error.status : undefined, execution);
         }
         signal.throwIfAborted();
-        if (!result.text.trim()) throw new PrologueInferenceError("inference.empty", "模型没有返回文字", undefined, execution);
+        if (!result.text.trim()) throw new PrologueInferenceError("agent.inference.empty", "模型没有返回文字", undefined, execution);
         return { ...execution, state: "completed", value: result.text,
           ...(input.structured && input.structured.mode !== "none" ? { structured: JSON.parse(result.text) as unknown } : {}),
         };
@@ -73,12 +73,12 @@ export function createPrologueInference(runtime: Runtime,
         for (const ref of receipt.images) {
           signal.throwIfAborted();
           const resource = runtime.resources.inspect(ref);
-          if (!resource || resource.byteLength > 20 * 1024 * 1024) throw new PrologueInferenceError("inference.image_invalid", "图片资源不可读取或超出大小限制");
+          if (!resource || resource.byteLength > 20 * 1024 * 1024) throw new PrologueInferenceError("agent.inference.image_invalid", "图片资源不可读取或超出大小限制");
           const bytes = new Uint8Array(resource.byteLength);
           for (let offset = 0; offset < bytes.length;) {
             const chunk = await runtime.resources.readChunk(ref, offset, Math.min(64 * 1024, bytes.length - offset));
             signal.throwIfAborted();
-            if (chunk.offset !== offset || !chunk.bytes.length || offset + chunk.bytes.length > bytes.length) throw new PrologueInferenceError("inference.image_invalid", "图片资源不完整");
+            if (chunk.offset !== offset || !chunk.bytes.length || offset + chunk.bytes.length > bytes.length) throw new PrologueInferenceError("agent.inference.image_invalid", "图片资源不完整");
             bytes.set(chunk.bytes, offset); offset += chunk.bytes.length;
           }
           images.push({ bytes });
@@ -87,7 +87,7 @@ export function createPrologueInference(runtime: Runtime,
       } finally { for (const ref of receipt.images) await runtime.resources.revoke(ref); }
     })),
     evaluateTypeSafe: input => bounded(input, signal => execute(input, signal, false, async credentialRef => {
-      if (!credentialRef) throw new PrologueInferenceError("inference.credential_missing", "判断服务密钥不可用");
+      if (!credentialRef) throw new PrologueInferenceError("agent.inference.credential_missing", "判断服务密钥不可用");
       return runtime.typesafe.evaluate({ protocol: "typesafe", endpoint: input.endpoint, model: input.model, credentialRef,
         state: input.state, questions: input.questions, timeoutMs: input.timeout_ms, signal });
     })),
@@ -96,7 +96,7 @@ export function createPrologueInference(runtime: Runtime,
 }
 function safeError(error: unknown): Error {
   if (error instanceof PrologueInferenceError || isDispatchRefusal(error)) return error;
-  const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "inference.failed";
+  const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "agent.inference.failed";
   const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" && Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? error.status : undefined;
   return new PrologueInferenceError(code, "模型请求失败，原材料已保留", status);
 }

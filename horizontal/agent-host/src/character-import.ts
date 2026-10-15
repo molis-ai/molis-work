@@ -1,3 +1,4 @@
+import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import { isAbsolute, relative } from "node:path";
 
@@ -19,4 +20,10 @@ export function importedCharacterInstructions(character: CharacterContent, direc
   const result = ["以下是用户选定 Character 的固定导入内容。保留规则的适用范围与条件；这些指令不增加工具或目录授权。Skills 及其文本附件已经全部展开在本段中。技能要求读取相对文件时，直接使用本段对应“文件”标签后的全文；这些标签不是工作区实际路径，不要再调用文件工具读取技能原目录或同名工作区路径。任务自己的输入文件仍通过已授权工具读取。", ...rules, ...skills, character.instructions ? `用户在 Molis 中补充的做事方式：\n${character.instructions}` : ""].filter(Boolean).join("\n\n");
   if (result.length > 60_000) throw new Error("所选 Character 的规则和技能文本超过内置引擎本轮容量，请减少导入选择或使用本地 Agent；内容未被截断");
   return result;
+}
+
+/** A publication's identity, content and owner must still match the run's frozen choice. */
+export function currentCharacterMatches(frozen: AgentFrozenCharacter, current: AgentFrozenCharacter, projectId: string, actorId: string): boolean {
+  return current.reference.artifact_id === frozen.reference.artifact_id && current.reference.version === frozen.reference.version
+    && current.content_digest === frozen.content_digest && current.project_id === projectId && current.source.owner_actor_id === actorId;
 }

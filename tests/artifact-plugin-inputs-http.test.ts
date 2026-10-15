@@ -43,6 +43,9 @@ test("a Coding report in the 成果库 can be given to Shelf's report input and 
   assert.equal((await post("/api/artifacts/plugin-inputs", give, false)).status, 403, "changing what a plugin reads needs the page's control token");
   const refused = await post("/api/artifacts/plugin-inputs", { ...give, port: "materials" });
   assert.equal(refused.status, 400, JSON.stringify(refused.body));
+  // W3-02-G1-05: the current platform input code does not change the plugin's real wiring or the artifact version.
+  assert.deepEqual([refused.body.code, refused.body.error], ["actions.input_invalid", "这个插件输入不接收这一版的类型"]);
+  assert.match(shelfRow(await detail()), /现在跟着 Coding/u);
 
   const given = await post("/api/artifacts/plugin-inputs", give);
   assert.equal(given.status, 200, JSON.stringify(given.body));

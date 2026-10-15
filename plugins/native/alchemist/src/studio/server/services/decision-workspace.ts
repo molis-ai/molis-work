@@ -15,12 +15,12 @@ export class DecisionServiceError extends Error {
   readonly name = "DecisionServiceError";
   constructor(
     readonly code:
-      | "IDEA_VERSION_NOT_FOUND"
-      | "DECISION_VERSION_NOT_CURRENT"
-      | "DECISION_REPORTS_INCOMPLETE"
-      | "DECISION_REPORTS_PARTIAL"
-      | "DECISION_REPORTS_STALE"
-      | "DECISION_ALREADY_EXISTS",
+      | "alchemist.idea_version_not_found"
+      | "alchemist.decision_version_not_current"
+      | "alchemist.decision_reports_incomplete"
+      | "alchemist.decision_reports_partial"
+      | "alchemist.decision_reports_stale"
+      | "alchemist.decision_already_exists",
   ) {
     super(code);
   }
@@ -39,7 +39,7 @@ export function createDecisionWorkspaceService(dependencies: Dependencies) {
   const getWorkspace = (ideaId: string, ideaVersion: number): DecisionWorkspaceDto => {
     const idea = dependencies.ideas.getIdea(ideaId);
     const version = dependencies.ideas.getVersion(ideaId, ideaVersion);
-    if (!idea || !version) throw new DecisionServiceError("IDEA_VERSION_NOT_FOUND");
+    if (!idea || !version) throw new DecisionServiceError("alchemist.idea_version_not_found");
     const scope = dependencies.research.getMvpScopeForIdeaVersion(ideaId, ideaVersion);
     const marketReport = dependencies.research.getLatestReport(
       marketLensCompatibilityKey(ideaId, ideaVersion),
@@ -66,7 +66,7 @@ export function createDecisionWorkspaceService(dependencies: Dependencies) {
           ? gate
           : {
               ready: false,
-              code: "DECISION_VERSION_NOT_CURRENT",
+              code: "alchemist.decision_version_not_current",
               message: "这是旧 Idea 版本，只能回看，不能形成新的正式决策。",
             },
       materials: {
@@ -107,7 +107,7 @@ export function createDecisionWorkspaceService(dependencies: Dependencies) {
     revisitCondition?: string;
   }) => {
     const workspace = getWorkspace(input.ideaId, input.ideaVersion);
-    if (workspace.decision) throw new DecisionServiceError("DECISION_ALREADY_EXISTS");
+    if (workspace.decision) throw new DecisionServiceError("alchemist.decision_already_exists");
     if (!workspace.gate.ready)
       throw new DecisionServiceError(workspace.gate.code as DecisionServiceError["code"]);
     const scope = dependencies.research.getMvpScopeForIdeaVersion(input.ideaId, input.ideaVersion);
@@ -119,7 +119,7 @@ export function createDecisionWorkspaceService(dependencies: Dependencies) {
           buildLensCompatibilityKey(input.ideaId, input.ideaVersion, scope.version),
         )
       : undefined;
-    if (!scope) throw new DecisionServiceError("DECISION_REPORTS_INCOMPLETE");
+    if (!scope) throw new DecisionServiceError("alchemist.decision_reports_incomplete");
     const decision = createDecision({
       id: dependencies.idFactory.next("decision"),
       ideaId: input.ideaId,

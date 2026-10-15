@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -9,7 +10,7 @@ import type { AssistantFollowUp } from "@molis-ai/molis-work-contracts/services/
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { AssistantError, AssistantService, sameLocalTimeLater } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { AssistantService, sameLocalTimeLater } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_FOLLOW_UP_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/dist/assistant/assistant-rule-actions.js";
 
@@ -154,7 +155,7 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
     hold = new Promise(resolve => { release = resolve; });
     await service.send({ work_id: workId, text: "再补一句", request_id: "req-followups-archive-2" }, {});
     await until(async () => (await service.read(workId)).work.state === "running", "a round in progress");
-    await assert.rejects(service.archive(workId, true), (error: unknown) => error instanceof AssistantError && error.code === "assistant.state" && /先停止/.test(error.message));
+    await assert.rejects(service.archive(workId, true), (error: unknown) => error instanceof ActionError && error.code === "assistant.state" && error.kind === "conflict" && /先停止/.test(error.message));
     assert.equal(store.get("web-user", workId).archived, false);
     hold = null; release!();
     await until(async () => (await service.read(workId)).work.state === "completed", "that round ends");
@@ -165,7 +166,7 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
     const away = service.followUps(workId)[0]!;
     assert.deepEqual([away.enabled, away.next_at ?? null, away.last?.outcome, away.last?.detail], [false, null, "skipped", "这项工作已归档，定时已停用"]);
     assert.equal(schedule.find(key)?.state, "cancelled");
-    await assert.rejects(service.saveFollowUp({ work_id: workId, text: "x", at: new Date(Date.now() + 60_000).toISOString(), label: "归档后" }), (error: unknown) => error instanceof AssistantError && error.code === "assistant.state");
+    await assert.rejects(service.saveFollowUp({ work_id: workId, text: "x", at: new Date(Date.now() + 60_000).toISOString(), label: "归档后" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.state" && error.kind === "conflict");
 
     // A time that still reaches a work archived since (it was queued before the Host last started) starts nothing and is not repeated.
     const straggler: AssistantFollowUp = { followup_id: "fu-straggler-1", work_id: workId, label: "漏网的一次", text: "不该运行", repeat: "daily", next_at: new Date(Date.now() + 300).toISOString(),

@@ -91,7 +91,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     },
     signal(key, signal) {
       if (!this.focus || !this.source) return;
-      post("/api/contextual/signal", { pane_id: this.source.pane, focus: this.focus, key, signal, event_id: requestId() }).catch(() => undefined);
+      post("/api/contextual/signal", { pane_id: this.source.pane, focus: this.focus, key, signal, event_id: newRequestId() }).catch(() => undefined);
     },
     dismiss(key) {
       if (!this.focus) return;
@@ -110,7 +110,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     if (!focus || !source || !candidate || !candidate.available) return;
     bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
     bus.signal(key, "accepted");
-    const prepared = () => post("/api/contextual/prepare", { pane_id: source.pane, focus, key: candidate.key, request_id: requestId() });
+    const prepared = () => post("/api/contextual/prepare", { pane_id: source.pane, focus, key: candidate.key, request_id: newRequestId() });
     // What the workbench shows itself: a word looked up across the project opens in the search palette.
     if (candidate.action.capability_id === "search.query" && host.openSearch) {
       prepared().then((offer) => host.openSearch(offer.input && offer.input.query)).catch((error) => bar.error(error));
@@ -135,7 +135,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     const card = { title: candidate.title, summary, reference: offer.action, input: offer.input,
       ...(offer.editable ? { editable: offer.editable } : {}), ...(offer.missing ? { missing: offer.missing } : {}),
       source_object: focus.object, materials: [material] };
-    const placed = await post("/api/assistant/cards", { message_id: requestId(), source, card });
+    const placed = await post("/api/assistant/cards", { message_id: newRequestId(), source, card });
     openAssistant({ work_id: placed.work_id });
   };
   // The split pane's page did not take the choice: same as here, a card, else the words and the material.
@@ -143,7 +143,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     const focus = bus.focus, source = bus.source, plan = bar.plan;
     const candidate = plan && plan.candidates.find((item) => item.key === key);
     if (!focus || !source || !candidate || focus.context_id !== contextId) { openAssistant(detail); return; }
-    post("/api/contextual/prepare", { pane_id: source.pane, focus, key, request_id: requestId() })
+    post("/api/contextual/prepare", { pane_id: source.pane, focus, key, request_id: newRequestId() })
       .then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(detail));
   };
   const askAssistant = () => {
@@ -153,10 +153,10 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     const words = ask && ask.form === "compare" ? L("帮我并排比较这几处内容的相同点、不同点和冲突。")
       : ask && ask.form === "options" ? L("这段内容可以往哪几个方向走？可以考虑：") + titles.join("、")
       : L("帮我看看这段内容，") + (titles[0] ? L("先从「") + titles[0] + L("」开始。") : "");
-    openAssistant(assistantDetail(focus, words));
+    openAssistant(assistantHint(focus, words));
   };
   // Only into the Assistant's input, unsent: the person adds their own words and sends.
-  const bringToAssistant = () => { if (bus.focus) openAssistant(assistantDetail(bus.focus, "")); };
+  const bringToAssistant = () => { if (bus.focus) openAssistant(assistantHint(bus.focus, "")); };
 
   const starters = {
     focus: null,
@@ -180,21 +180,21 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
         .map((item) => ({ key: item.key, label: item.title, hint: item.hint, ...(item.source.provider_id !== pluginId ? { kind: item.provider_title } : {}) }));
     },
     // Each answer names the request it answers, so the Assistant never shows one for what was open before.
-    answer(requestId, objectKey, items) {
-      document.dispatchEvent(new CustomEvent("molis:assistant-starters", { detail: { request_id: requestId, object_key: objectKey, items } }));
+    answer(newRequestId, objectKey, items) {
+      document.dispatchEvent(new CustomEvent("molis:assistant-starters", { detail: { request_id: newRequestId, object_key: objectKey, items } }));
     },
-    request(context, requestId) {
+    request(context, newRequestId) {
       const inHand = bar.plan || bar.published;
-      if (bus.focus && inHand && inHand.context_id === bus.focus.context_id) { this.answer(requestId, bus.focus.context_id, this.items(inHand, bus.focus.plugin_id)); return; }
+      if (bus.focus && inHand && inHand.context_id === bus.focus.context_id) { this.answer(newRequestId, bus.focus.context_id, this.items(inHand, bus.focus.plugin_id)); return; }
       const focus = this.focusFor(context);
-      if (!focus || !focus.plugin_id) { this.answer(requestId, "", []); return; }
-      if (this.plan && this.focus && this.focus.context_id === focus.context_id && Date.now() - this.at < 15000) { this.answer(requestId, focus.context_id, this.items(this.plan, focus.plugin_id)); return; }
+      if (!focus || !focus.plugin_id) { this.answer(newRequestId, "", []); return; }
+      if (this.plan && this.focus && this.focus.context_id === focus.context_id && Date.now() - this.at < 15000) { this.answer(newRequestId, focus.context_id, this.items(this.plan, focus.plugin_id)); return; }
       const seq = ++this.seq;
       post("/api/contextual/candidates", { pane_id: "assistant-start", focus }).then((out) => {
         if (seq !== this.seq) return;
         this.focus = focus; this.plan = out.plan; this.at = Date.now();
-        this.answer(requestId, focus.context_id, this.items(out.plan, focus.plugin_id));
-      }).catch(() => { if (seq === this.seq) this.answer(requestId, focus.context_id, []); });
+        this.answer(newRequestId, focus.context_id, this.items(out.plan, focus.plugin_id));
+      }).catch(() => { if (seq === this.seq) this.answer(newRequestId, focus.context_id, []); });
     },
     choose(objectKey, key) {
       if (bus.focus && bus.focus.context_id === objectKey) { chooseFrom(objectKey, key); return; }
@@ -203,7 +203,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       // Shown a moment ago but gone or switched off since: say why instead of doing nothing.
       if (!candidate || !candidate.available) { bar.error(new Error(candidate ? candidate.reason || L("不可用") : L("这个动作已不在当前内容的候选里"))); return; }
       bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
-      const prepared = () => post("/api/contextual/prepare", { pane_id: "assistant-start", focus, key, request_id: requestId() });
+      const prepared = () => post("/api/contextual/prepare", { pane_id: "assistant-start", focus, key, request_id: newRequestId() });
       if (candidate.action.capability_id === "search.query" && host.openSearch) {
         prepared().then((offer) => host.openSearch(offer.input && offer.input.query)).catch((error) => bar.error(error));
         return;

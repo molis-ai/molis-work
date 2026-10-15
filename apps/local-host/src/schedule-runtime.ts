@@ -33,6 +33,7 @@ const tickContext = new AsyncLocalStorage<{
   runner: ScheduledTaskRunner;
 }>();
 const runners = new WeakMap<object, ScheduledTaskRunner>();
+const services = new WeakMap<object, ScheduleService>();
 const deliveryFeeds = new WeakMap<object, LocalFeedApplicationOptions>();
 let wakeupBound = false;
 
@@ -109,6 +110,8 @@ export function bindScheduledTaskRunner(db: ScheduleSqliteDatabase, runner: Sche
 }
 
 export function scheduleServiceFor(db: ScheduleSqliteDatabase, now?: () => Date): ScheduleService {
+  const existing = services.get(db);
+  if (existing) return existing;
   ensureHostWakeups();
   db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const inner = createScheduleService(db, {
@@ -117,20 +120,31 @@ export function scheduleServiceFor(db: ScheduleSqliteDatabase, now?: () => Date)
   });
   db.exec(SCHEDULE_REMINDERS_SCHEMA_SQL);
   db.exec(SCHEDULED_OPERATIONS_SCHEMA_SQL);
-  return {
+  const service: ScheduleService = {
     ...inner,
+    get active() { return inner.active; },
     async tick(at) {
+      if (!inner.active) return { invoked: 0, failed: 0, skipped: 0 };
       const runner = runners.get(db) ?? missingRunner;
       const when = at ?? now?.() ?? new Date();
       return tickContext.run({ db, runner }, async () => {
         reconcileScheduledOperations(db, inner);
         const result = await inner.tick(when);
+        if (!inner.active) return result;
         reconcileScheduledOperations(db, inner);
         await rescheduleEnabledConversationTasks(db, inner, () => when);
         return result;
       });
     },
   };
+  services.set(db, service);
+  return service;
+}
+
+/** Revoke waits and renewals before the owning project's database is released. */
+export async function closeHostSchedule(db: ScheduleSqliteDatabase): Promise<void> {
+  await services.get(db)?.close();
+  runners.delete(db);
 }
 
 export function registerHostScheduleCapabilities<Context>(

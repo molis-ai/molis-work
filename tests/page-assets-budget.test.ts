@@ -570,13 +570,11 @@ test("this repository's build is within the committed page asset budget, which h
   assert.ok(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).length >= 20, "the plugin client packs are measured");
 });
 
-// ISSUE-06: admitting one measured plugin resource must not become a general new-resource or growth exemption.
-test("Issue first asset has its own exact ceiling; increases and other plugin paths still fail", () => {
+// ISSUE-06: the Issue client's first ceiling (24,000 bytes, user-approved) was a one-time admission for a path the merge-base did not
+// budget. It is in the base now, so the gate has no exception left: adding it again, growing it, or adding any other path all fail.
+test("no new asset path is admitted, the Issue client included, and an established asset may only fall", () => {
   const asset = "/assets/molis-work-plugins/issues.js";
   branch("issue-first-asset", () => { sizes[asset] = 24000; putBudget(sizes); });
-  assert.equal(gate("--base", "main").code, 0);
-  assert.equal(gate("--update", "--base", "main").code, 0);
-  sizes[asset]++; putBudget(sizes);
   assert.equal(gate("--base", "main").code, 1);
   assert.equal(gate("--update", "--base", "main").code, 1);
   branch("issue-established", () => { sizes[asset] = 9000; putBudget(sizes); });
@@ -586,6 +584,56 @@ test("Issue first asset has its own exact ceiling; increases and other plugin pa
   assert.equal(gate("--update", "--base", "issue-established").code, 1);
   branch("another-new-plugin", () => { sizes["/assets/molis-work-plugins/unreviewed.js"] = 10; putBudget(sizes); });
   assert.equal(gate("--base", "main").code, 1);
-  branch("existing-asset-still-frozen", () => { sizes[asset] = 24000; sizes["/assets/a.css"]++; putBudget(sizes); });
-  assert.equal(gate("--base", "main").code, 1);
+});
+
+// ISSUE-45/46 spent their one approved increase (23,451 → 24,379 measured, under the 24 KiB the user allowed on 2026-10-15,
+// specs/issue-home-v0): the Issue client, even back at its old size, grows under the same rule as every asset.
+test("the spent Issue draft/preview increase leaves no allowance, even at the Issue client's old size", () => {
+  const asset = "/assets/molis-work-plugins/issues.js";
+  branch("issue-draft-old", () => { sizes[asset] = 23451; putBudget(sizes); });
+  git("checkout", "-q", "-b", "issue-draft-regrow");
+  sizes[asset]++;
+  assert.equal(gate("--update", "--base", "issue-draft-old").code, 1);
+  putBudget(sizes); commit("attempt to regrow from the old Issue size");
+  assert.equal(gate("--base", "issue-draft-old").code, 1);
+  sizes[asset] = 23451; sizes["/assets/a.css"]++; putBudget(sizes);
+  assert.equal(gate("--base", "issue-draft-old").code, 1, "other assets remain frozen");
+});
+
+// ISSUE-48: exactly the current baseline receives the user's 26 KiB exception; the next baseline freezes again.
+test("saved Issue reorganization has one bounded allowance; other assets and later growth still fail", () => {
+  const asset = "/assets/molis-work-plugins/issues.js";
+  branch("issue-reorganize-base", () => { sizes[asset] = 24378; putBudget(sizes); });
+  git("checkout", "-q", "-B", "issue-reorganize-change");
+  sizes[asset] = 26624;
+  assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 0);
+  assert.equal(gate("--base", "issue-reorganize-base").code, 0);
+  sizes[asset] = 26625;
+  assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 1);
+  sizes[asset] = 26268; sizes["/assets/a.css"]++;
+  assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 1);
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 0);
+  commit("freeze actual reorganization size"); git("branch", "-f", "issue-reorganize-frozen");
+  sizes[asset]++; putBudget(sizes); commit("try to grow the new baseline");
+  assert.equal(gate("--base", "issue-reorganize-frozen").code, 1);
+  assert.equal(gate("--update", "--base", "issue-reorganize-frozen").code, 1);
+});
+
+// I8-PAGES-01: exactly the current Pages editor baseline receives the user's one-time allowance; the next baseline freezes again.
+test("the Pages editor has one bounded allowance for the I8 fixes; other assets and later growth still fail", () => {
+  const asset = "/assets/molis-work-pages-editor.js";
+  branch("pages-editor-base", () => { sizes[asset] = 698574; putBudget(sizes); });
+  git("checkout", "-q", "-B", "pages-editor-change");
+  sizes[asset] = 703633;
+  assert.equal(gate("--update", "--base", "pages-editor-base").code, 0);
+  assert.equal(gate("--base", "pages-editor-base").code, 0);
+  sizes[asset] = 703634;
+  assert.equal(gate("--update", "--base", "pages-editor-base").code, 1);
+  sizes[asset] = 703633; sizes["/assets/a.css"]++;
+  assert.equal(gate("--update", "--base", "pages-editor-base").code, 1);
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "pages-editor-base").code, 0);
+  commit("freeze actual Pages editor size"); git("branch", "-f", "pages-editor-frozen");
+  sizes[asset]++; putBudget(sizes); commit("try to grow the new baseline");
+  assert.equal(gate("--base", "pages-editor-frozen").code, 1);
+  assert.equal(gate("--update", "--base", "pages-editor-frozen").code, 1);
 });

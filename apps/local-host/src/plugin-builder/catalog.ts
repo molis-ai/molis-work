@@ -126,7 +126,7 @@ export function catalogCapabilities(options: { actions: ProjectActions; catalog(
   return {
     async call(context, id, input) {
       const entry = latestCapability(await options.catalog(), id);
-      if (!entry) throw new SandboxError('CAPABILITY_DENIED', '平台目录里没有开放给插件的能力：' + id);
+      if (!entry) throw new SandboxError('plugin_builder.capability_denied', '平台目录里没有开放给插件的能力：' + id);
       if (!options.live(context.identity) || entry.effect !== 'read' && context.identity.namespace !== 'installed') return standIn(entry, input);
       const author = options.author?.(context.identity.pluginId);
       const caller: ActionCallContext = { actor_id: 'plugin:' + context.identity.pluginId, actor_kind: 'runtime', project_id: options.actions.project_id, audience: 'plugin',
@@ -135,13 +135,13 @@ export function catalogCapabilities(options: { actions: ProjectActions; catalog(
         validate_authority: async () => {
           await context.beforeEffect?.();
           context.signal.throwIfAborted();
-          if (!options.live(context.identity)) throw new SandboxError('CAPABILITY_DENIED', '这个插件的能力调用已停止');
+          if (!options.live(context.identity)) throw new SandboxError('plugin_builder.capability_denied', '这个插件的能力调用已停止');
         } };
       try { return await options.actions.client.invoke(caller, { capability_id: entry.id, version: entry.version, provider_id: entry.provider_id }, input) as SandboxJson; }
       catch (error) {
         const code = (error as { code?: string })?.code;
         const uncertain = context.signal.aborted || ['actions.timeout', 'actions.provider_changed', 'actions.output_invalid_after_effect', 'actions.outcome_unknown'].includes(code ?? '');
-        throw new SandboxError('CAPABILITY_REFUSED', error instanceof Error ? error.message : String(error), uncertain ? 'unknown' : undefined);
+        throw new SandboxError('plugin_builder.capability_refused', error instanceof Error ? error.message : String(error), uncertain ? 'unknown' : undefined);
       }
     },
   };

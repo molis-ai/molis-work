@@ -35,7 +35,7 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
       (state.busy ? '<p role="status">' + L('正在执行，请稍候…') + '</p>' : '') +
       (!state.busy && state.pending ? '<p role="status">' + L('执行结果尚未确认。请打开事项核对；这项原请求不会再次提交。') + '</p>' : '') +
       [...state.issues, ...state.offers.filter(o => !o.availability.available).map(o => o.title + '：' + o.availability.reason)].map(message => '<p class="home-offers-note">' + esc(message) + '</p>').join('') +
-      (state.error ? '<p role="alert">' + esc(state.error) + '</p>' : '') +
+      (state.error ? '<p role="alert">' + esc(typeof state.error==='string'?state.error:molisWorkRequest.text(state.error)) + '</p>' : '') +
       (state.result ? '<details class="home-offers-result"><summary>' + esc(state.result.title) + ' · ' + L('查看结果') + '</summary><pre>' + esc(JSON.stringify(state.result.result, null, 2)) + '</pre></details>' : '') +
       (!state.busy && (state.error || state.pending || state.issues.length) ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-offers-reload>' + L('重新读取事项') + '</button>' : '');
     if (rendered.get(node)?.html !== html || rendered.get(node)?.key !== state.key) {
@@ -43,6 +43,7 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
       node.innerHTML = html; rendered.set(node, { html, key: state.key });
       if (keepResultOpen && node.querySelector('.home-offers-result')) node.querySelector('.home-offers-result').open = true;
     }
+    if(state.error && typeof state.error!=='string')molisWorkRequest.show(node.querySelector('[role=alert]'),state.error);
   };
   const load = async state => {
     if (state.loading || state.busy) return;
@@ -51,7 +52,7 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
       if (state.pending && result.sources.some(source => JSON.stringify(ordered(source)) === JSON.stringify(ordered(state.pending.source)))
         && !state.offers.some(offer => identity(offer) === identity(state.pending))) { state.pending = null; persist(state); }
     }
-    catch(error) { state.offers = []; state.error = error.message || L('无法读取可用动作'); }
+    catch(error) { state.offers = []; state.error=error; }
     finally { state.loading = false; state.loadedAt = Date.now(); if (currentState() === state) render(); }
     if (state.reloadRequested && !state.busy) await load(state);
   };
@@ -68,7 +69,7 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
       state.pending = null; persist(state); state.requestId = crypto.randomUUID();
       state.offers = []; state.busy = false; state.loading = true; render();
       await refresh();
-    } catch(error) { state.error = error instanceof TypeError ? L('连接中断，尚未取得执行结果。请先核对事项状态。') : error.message || L('暂时无法取得动作结果'); }
+    } catch(error) { state.error = error instanceof TypeError ? L('连接中断，尚未取得执行结果。请先核对事项状态。') : error; }
     finally { state.busy = false; state.loading = false; if (currentState() === state) render(); }
     if (!state.pending) await load(state);
   });

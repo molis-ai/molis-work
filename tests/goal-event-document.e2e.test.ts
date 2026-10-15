@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef } from "@molis-ai/molis-work-contracts/modules/goals";
 
 test("event document writes planning, report, concern, decision and closure through the production UI", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -55,9 +56,12 @@ test("event document writes planning, report, concern, decision and closure thro
   }
   async function submitSuccess(selector: string) {
     const before = app.goalEvents.readState(DEMO_PROJECT_ID, goalId).goal_event_cursor;
+    // The page puts the re-read document in first and closes its panels after; the submitted form stays busy until both are
+    // done, so the next step does not open a form the closing then hides (seen on the slower Linux runner).
+    await evaluate(`(window.__savingForm = document.querySelector(${JSON.stringify(selector)})?.closest("[data-event-form]") ?? null, true)`);
     await click(selector);
     await waitDom(
-      `document.querySelector("[data-goal-event-document]")?.dataset.goalView === ${JSON.stringify(goalId)} && Number(document.querySelector("[data-goal-event-document]")?.dataset.goalEventCursor) > ${before} && document.querySelector("[data-document-pane]")?.getAttribute("aria-busy") !== "true"`,
+      `document.querySelector("[data-goal-event-document]")?.dataset.goalView === ${JSON.stringify(goalId)} && Number(document.querySelector("[data-goal-event-document]")?.dataset.goalEventCursor) > ${before} && document.querySelector("[data-document-pane]")?.getAttribute("aria-busy") !== "true" && !window.__savingForm?.hasAttribute("aria-busy")`,
     );
   }
   async function fillField(selector: string, value: string) {
@@ -261,6 +265,132 @@ test("event document writes planning, report, concern, decision and closure thro
   assert.equal(state.owner?.kind, "event_work");
   assert.ok(state.concerns.length >= 1);
   assert.ok(state.current_decisions.length >= 1);
+});
+
+for (const action of ["resolve", "overturn"] as const) test(`W2-18-CONCERN-EVIDENCE-01 ${action} sends subsequent evidence and retains refused input`, { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t); if (!browser) return;
+  const { store, origin, command, sessionId, evaluate, click, navigate, waitFor } = browser, app = new GoalProjectApplication(store);
+  const goal = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "证据处理", outcome: "真实后续事实", requirements: [{ requirement_id: "delivered", statement: "真实结果" }], actor_id: "web-user", actor_kind: "user", idempotency_key: "concern-goal" }).goal;
+  app.goalEvents.configure({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, actor_id: "web-user", actor_kind: "user", expected_version: 0, idempotency_key: "concern-config",
+    types: [{ type_id: "delivery", version: 1, name: "交付", purpose: "真实结果", fields: [{ field_id: "body", name: "内容", purpose: "证据", format: "text", required: true }] }],
+    requirement_bindings: [{ type_id: "delivery", requirement_id: "delivered" }] });
+  app.goalEvents.report({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, actor_id: "web-user", actor_kind: "user", idempotency_key: "concern-report",
+    events: [{ type_id: "delivery", type_version: 1, title: "已有真实结果", fields: { body: "本目标的结果可读" }, judgments: [{ requirement_id: "delivered", verdict: "supports" }] }] });
+  const other = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "另一个目标", actor_id: "web-user", actor_kind: "user", idempotency_key: "other-goal" }).goal;
+  const earlier = app.goalEvents.recordNote({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, body: "问题提出前的备注", actor_id: "web-user", actor_kind: "user", idempotency_key: "earlier-note" });
+  const foreign = app.goalEvents.recordNote({ project_id: DEMO_PROJECT_ID, goal_id: other.goal_id, body: "其他 Goal 的备注", actor_id: "web-user", actor_kind: "user", idempotency_key: "foreign-note" });
+  const formSelector = '[data-goal-event-document]:not([hidden]) [data-event-form="concern"]';
+  const open = async (kind: string) => {
+    await click('[data-goal-event-document]:not([hidden]) [data-record-menu] > summary');
+    await click(`[data-goal-event-document]:not([hidden]) [data-event-form-open="${kind}"]`);
+    await waitFor(`document.querySelector('[data-event-form="${kind}"]')?.hidden === false`);
+  };
+  const submit = async (selector: string) => {
+    const cursor = app.goalEvents.readState(DEMO_PROJECT_ID, goal.goal_id).goal_event_cursor;
+    await click(selector);
+    await waitFor(`Number(document.querySelector('[data-goal-event-document]')?.dataset.goalEventCursor) > ${cursor} && document.querySelector('[data-document-pane]')?.getAttribute('aria-busy') !== 'true'`, 10_000);
+  };
+  // The Goal details sit beside the work at the desktop width the other journeys here use; below 840px they fold away.
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/goals/" + goal.goal_id }, sessionId));
+  await browser.openGoalWork();
+  await open("concern");
+  await evaluate(`(() => { const form = document.querySelector(${JSON.stringify(formSelector)});
+    form.querySelector('[name=title]').value='待核对的问题'; form.querySelector('[name=statement]').value='需要真实后续事实';
+    form.querySelector('[name=scope_action]').value='complete'; })()`);
+  await submit(formSelector + ' button[type=submit]');
+  const concern = app.goalEvents.readState(DEMO_PROJECT_ID, goal.goal_id).concerns[0]!;
+  assert.equal(concern.status, "open"); assert.equal(concern.blocks_closure, true);
+  await open("note");
+  await evaluate("document.querySelector('[data-event-form=note] [name=note]').value='问题提出之后的实际处理记录'");
+  await submit('[data-event-form=note] button[type=submit]');
+  const later = app.goalEvents.listLatestEvents(DEMO_PROJECT_ID, goal.goal_id).events.find(event => event.kind === "system" && event.payload.operation === "observation_note")!;
+  assert.ok(later); assert.notEqual(later.event_id, earlier.event_id);
+  await open("concern");
+  await evaluate(`(() => { const form=document.querySelector(${JSON.stringify(formSelector)}); const choose=form.querySelector('[name=concern_id]');
+    choose.value=${JSON.stringify(concern.concern_id)}; choose.dispatchEvent(new Event('change',{bubbles:true}));
+    const action=form.querySelector('[name=action]'); action.value=${JSON.stringify(action)}; action.dispatchEvent(new Event('change',{bubbles:true}));
+    form.querySelector('[name=reason]').value='已检查实际处理记录'; })()`);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(formSelector)}).querySelector('[data-concern-evidence]').hidden`), false);
+  const before = app.goalEvents.readState(DEMO_PROJECT_ID, goal.goal_id);
+  for (const evidence of [earlier.event_id, foreign.event_id]) {
+    await evaluate(`(() => { const input=document.querySelector(${JSON.stringify(formSelector)}).querySelector('[name=supporting_event_ids]');
+      input.value=${JSON.stringify(evidence)}; input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
+    await click(formSelector + ' button[type=submit]');
+    await waitFor(`!document.querySelector(${JSON.stringify(formSelector)}).querySelector('[data-form-status]').hidden && !document.querySelector(${JSON.stringify(formSelector)}).querySelector('[type=submit]').disabled`);
+    assert.deepEqual(app.goalEvents.readState(DEMO_PROJECT_ID, goal.goal_id), before);
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(formSelector)}).querySelector('[name=supporting_event_ids]').value`), evidence);
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(formSelector)}).querySelector('[name=reason]').value`), "已检查实际处理记录");
+  }
+  await evaluate(`document.querySelector(${JSON.stringify(formSelector)}).querySelector('[name=supporting_event_ids]').value=${JSON.stringify(later.event_id)}`);
+  await submit(formSelector + ' button[type=submit]');
+  const updated = app.goalEvents.readState(DEMO_PROJECT_ID, goal.goal_id).concerns[0]!;
+  assert.equal(updated.status, action === "resolve" ? "resolved" : "overturned");
+  const resolution = app.goalEvents.readEvent(DEMO_PROJECT_ID, goal.goal_id, updated.resolution_event_id!);
+  assert.deepEqual((resolution.payload as { supporting_event_ids: string[] }).supporting_event_ids, [later.event_id]);
+  await click('[data-goal-event-document]:not([hidden]) [data-goal-requirement-progress]');
+  await click('[data-event-panel="requirements"] [data-event-form-open="closure"]');
+  await evaluate("document.querySelector('[data-event-form=closure] [name=reason]').value='问题已按证据处理'; document.querySelector('[data-event-form=closure] [name=result]').value='真实结果与处理记录可读'");
+  await submit('[data-event-form=closure] button[type=submit]');
+  assert.equal(app.goalEvents.readState(DEMO_PROJECT_ID, goal.goal_id).work_status, "completed", "the handled concern no longer blocks closure");
+});
+
+test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled before retry, while a new explicit intent pins a new version", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t); if (!browser) return;
+  const { origin, store, controlToken, command, sessionId, navigate, evaluate, waitFor, click, reloadPage } = browser, app = new GoalProjectApplication(store);
+  const goal = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "固定回包恢复", outcome: "重复收尾不重复固定", requirements: [{ requirement_id: "pending", statement: "仍待验收" }],
+    actor_id: "web-user", actor_kind: "user", idempotency_key: "pin-retry-goal" }).goal;
+  const created = await fetch(origin + "/api/pages", { method: "POST", headers: { "content-type": "application/json", origin,
+    "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": "pin-retry-create-page" }, body: JSON.stringify({ title: "真实交付稿", markdown: "保留这个固定版本" }) });
+  assert.equal(created.status, 200, await created.clone().text());
+  const document = (await created.json() as { document: { id: string } }).document, subject = { kind: "pages_document", id: document.id }, artifactId = "pages-" + document.id;
+  app.goalInputs.register({ binding_id: "pin-retry-binding", project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, input_name: "交付稿", source_type: GOAL_PLUGIN_OBJECT_SOURCE,
+    source_ref: goalPluginObjectRef(subject), snapshot_digest: null, state: "confirmed", reason: "Fixture", created_by: "web-user", created_at: new Date().toISOString() });
+  const openClosure = async () => {
+    await click('[data-goal-event-document]:not([hidden]) [data-goal-requirement-progress]');
+    await click('[data-event-panel="requirements"] [data-event-form-open="closure"]');
+    await waitFor("!!document.querySelector('[data-event-form=closure] input[name=deliverable-pin]')");
+    await evaluate("document.querySelector('[data-event-form=closure] [name=reason]').value='记录真实交付物'");
+  };
+  const submit = '[data-event-form=closure] button[type=submit]';
+  // The Goal details sit beside the work at the desktop width the other journeys here use; below 840px they fold away.
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/goals/" + goal.goal_id }, sessionId));
+  await browser.openGoalWork();
+  await openClosure();
+  await evaluate(`(() => { const original=window.fetch; window.__pinPosts=0; window.__pinLost=true; window.__rejectDeliverableRead=false;
+    window.fetch=async(url, options)=>{
+      const endpoint=String(url).endsWith(${JSON.stringify("/api/goals/" + goal.goal_id + "/deliverables")});
+      if(endpoint && options?.method === 'POST' && JSON.parse(options.body).subject){
+        window.__pinPosts++; const response=await original(url,options);
+        if(window.__pinLost && response.ok){window.__pinLost=false; await response.text(); throw new TypeError('reply lost after commit');} return response;
+      }
+      // A read: the shared request helper names GET, a bare fetch names no method.
+      if(endpoint && (!options?.method || options.method === 'GET') && window.__rejectDeliverableRead) return new Response('{}',{status:503});
+      return original(url,options);
+    }; })()`);
+  await click('[data-event-form=closure] input[name=deliverable-pin]');
+  await click(submit);
+  await waitFor("document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent.includes('尚未核对') && !document.querySelector('[data-event-form=closure] [type=submit]').disabled");
+  const versions = () => app.artifacts.query.listArtifactVersions(DEMO_PROJECT_ID, artifactId).map(row => row.version);
+  const linked = async () => (await (await fetch(origin + "/api/goals/" + goal.goal_id + "/deliverables")).json() as { deliverables: Array<{ reference: { version: number } }> }).deliverables.map(row => row.reference.version);
+  assert.deepEqual(versions(), [1]); assert.deepEqual(await linked(), [1]);
+  await click(submit); await waitFor("!document.querySelector('[data-event-form=closure] [type=submit]').disabled");
+  assert.equal(await evaluate("window.__pinPosts"), 1);
+  await evaluate("window.__rejectDeliverableRead=true"); await click('[data-reconcile-deliverables]');
+  await waitFor("document.querySelector('[data-deliverable-read-status]').textContent.includes('未读回') && !document.querySelector('[data-reconcile-deliverables]').disabled");
+  await click(submit); await waitFor("!document.querySelector('[data-event-form=closure] [type=submit]').disabled");
+  assert.equal(await evaluate("window.__pinPosts"), 1, "a failed read cannot unblock the original pin");
+  await evaluate("window.__rejectDeliverableRead=false"); await click('[data-reconcile-deliverables]');
+  await waitFor("document.querySelector('[data-reconcile-deliverables]').hidden && !!document.querySelector('[data-event-form=closure] input[name=deliverable]:checked')");
+  // The closure is refused and said so; after the document reads back the message is the page's status toast (same on main), and
+  // the versions below prove nothing was pinned or linked twice.
+  await click(submit); await waitFor("[document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent, document.querySelector('[data-toast]')?.textContent].some(text => text?.includes('收尾未生效')) && !document.querySelector('[data-event-form=closure] [type=submit]').disabled", 10_000);
+  assert.deepEqual(versions(), [1]); assert.deepEqual(await linked(), [1]);
+  await reloadPage(); await browser.openGoalWork(); await openClosure();
+  await click('[data-event-form=closure] input[name=deliverable-pin]'); await click(submit);
+  await waitFor("[document.querySelector('[data-event-form=closure] [data-form-status]')?.textContent, document.querySelector('[data-toast]')?.textContent].some(text => text?.includes('收尾未生效')) && !document.querySelector('[data-event-form=closure] [type=submit]').disabled", 10_000);
+  assert.deepEqual(versions(), [1, 2]); assert.deepEqual((await linked()).sort(), [1, 2]);
 });
 
 test("a Goal without event work stays readable without writing an owner or offering a retired transfer form", { timeout: 60_000 }, async (t) => {

@@ -31,9 +31,9 @@ export class DesktopPanelService implements DesktopPanelApi {
   open(input: OpenDesktopPanelInput): DesktopPanelRecord {
     const projectId = this.required(input.project_id, "catalog.project_not_found", "项目 ID 不能为空");
     const goalId = this.required(input.goal_id, "catalog.panel_not_found", "打开终端时必须指定 Goal");
-    const runtimeKind = this.required(input.runtime_kind, "context.stable_identity_required", "Runtime 标识不能为空");
+    const runtimeKind = this.required(input.runtime_kind, "catalog.context.stable_identity_required", "Runtime 标识不能为空");
     const command = this.required(input.launch_command, "catalog.invalid_name", "打开终端时必须提供启动命令");
-    const actorId = this.required(input.actor_id, "context.user_confirmation_required", "绑定操作必须记录执行者");
+    const actorId = this.required(input.actor_id, "catalog.context.user_confirmation_required", "绑定操作必须记录执行者");
     if (input.user_confirmed !== true) {
       throw this.errorFactory("catalog.panel_confirmation_required", "只有在 Goal 详情里点开终端后才能建立这个面板");
     }
@@ -108,7 +108,7 @@ export class DesktopPanelService implements DesktopPanelApi {
   }
 
   close(panelId: string, actorId: string): void {
-    const actor = this.required(actorId, "context.user_confirmation_required", "绑定操作必须记录执行者");
+    const actor = this.required(actorId, "catalog.context.user_confirmation_required", "绑定操作必须记录执行者");
     this.repository.transaction(() => {
       const current = this.get(panelId);
       this.repository.delete(current.panel_id);
@@ -122,9 +122,9 @@ export class DesktopPanelService implements DesktopPanelApi {
 
   aliasSession(input: AliasDesktopPanelSessionInput): DesktopPanelRecord {
     const panelId = input.panel_id.trim();
-    const runtimeId = this.required(input.runtime_id, "context.stable_identity_required", "Runtime 标识不能为空");
-    const hostSessionId = this.required(input.host_session_id, "context.stable_identity_required", "宿主 Session 标识不能为空");
-    const actorId = this.required(input.actor_id, "context.user_confirmation_required", "绑定操作必须记录执行者");
+    const runtimeId = this.required(input.runtime_id, "catalog.context.stable_identity_required", "Runtime 标识不能为空");
+    const hostSessionId = this.required(input.host_session_id, "catalog.context.stable_identity_required", "宿主 Session 标识不能为空");
+    const actorId = this.required(input.actor_id, "catalog.context.user_confirmation_required", "绑定操作必须记录执行者");
     return this.repository.transaction(() => {
       const current = this.get(panelId);
       const now = this.now();
@@ -147,7 +147,7 @@ export class DesktopPanelService implements DesktopPanelApi {
   }
 
   findByWorkContext(runtimeId: string, workContextId: string): DesktopPanelRecord | null {
-    const runtime = this.required(runtimeId, "context.stable_identity_required", "Runtime 标识不能为空");
+    const runtime = this.required(runtimeId, "catalog.context.stable_identity_required", "Runtime 标识不能为空");
     return this.repository.findByWorkContext(runtime, workContextId.trim());
   }
 

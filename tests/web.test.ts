@@ -1011,7 +1011,7 @@ test("Web explains incomplete product decomposition and shows who owns each prod
         idempotency_key: "web-decomposition-propose",
       }),
       (error: unknown) => error instanceof Error && (
-        (error as { code?: string }).code === "goal_tree_proposal.kind_invalid"
+        (error as { code?: string }).code === "goals.goal_tree_proposal.kind_invalid"
         || String(error).includes("只能是 goal")
       ),
     );

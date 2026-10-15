@@ -8,7 +8,6 @@
 export {
   FILE_PATH_MAX_SEGMENTS,
   FILE_SEGMENT_MAX_LENGTH,
-  WorkspaceArtifactError as FilePathError,
   parseFilePath,
   pathKey,
   pathLabel,

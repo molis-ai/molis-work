@@ -59,7 +59,7 @@ test("real Plugin executor: schedule.* belongs to the calling plugin whatever th
     }
 
     // cancel and setEnabled cannot reach another plugin's job: not by naming its owner, not by an input shape the owner check once skipped.
-    const notMine = { code: "schedule_job_not_found" }, malformed = { code: "schedule_job_invalid" };
+    const notMine = { code: "scheduler.job_not_found" }, malformed = { code: "scheduler.job_invalid" };
     await assert.rejects(ownB.invoke(schedule.cancel, { job_id: forged.job_id, plugin_id: A } as never), notMine);
     await assert.rejects(ownB.invoke(schedule.setEnabled, { job_id: forged.job_id, plugin_id: A, enabled: false } as never), notMine);
     const asArray = Object.assign([], { job_id: forged.job_id, enabled: false }), asFunction = Object.assign(() => undefined, { job_id: forged.job_id, enabled: false });

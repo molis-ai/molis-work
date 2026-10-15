@@ -65,16 +65,8 @@ function renderDecisionScenario(options: {
   </section>`;
 }
 
-function proposedGoalNextStage(goal: Record<string, unknown>): string {
-  const definitionState = String(goal.definition_state ?? "draft");
-  const decompositionState = String(goal.decomposition_state ?? "abstract");
-  if (definitionState !== "accepted") {
-    return L("随后仍是草稿，需要继续澄清，不能开始。");
-  }
-  if (decompositionState === "closed_compound") {
-    return L("随后进入“等待子 Goal”，由子 Goal 推进，不会直接开工。");
-  }
-  return L("随后进入“待执行”，但仍要由 Runtime 领取后才会开始。");
+function proposedGoalNextStage(): string {
+  return L("随后可在 Goal 中记录进展；完成前仍需满足约定的要求和依赖。");
 }
 
   return { renderNewDecisionBadge, renderDecisionGuidance, renderDecisionScenario, proposedGoalNextStage };

@@ -1,10 +1,11 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import Database from "better-sqlite3";
 import {
   artifactContentDigest,
-  ArtifactsError,
   ArtifactsModule,
   canonicalArtifactJson,
   createArtifactsSchema,
@@ -105,9 +106,11 @@ function registration(
   };
 }
 
+// I1-01: the owner raises the shared model and keeps the current exact code and HTTP category.
 function expectCode(operation: () => unknown, code: string): void {
   assert.throws(operation, (error: unknown) =>
-    error instanceof ArtifactsError && error.code === code);
+    error instanceof ActionError && error.code === code && error.kind === "invalid" && actionHttpStatus(error) === 400
+    && actionErrorBody(error).code === code && actionErrorBody(error).error === error.message);
 }
 
 test("Artifacts Module owns exact id + version, opaque content, scope and producer binding", () => {
@@ -128,18 +131,20 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
     assert.equal(replayed.artifact.created_at, first.artifact.created_at);
     assert.equal(db.prepare("SELECT COUNT(*) AS count FROM library_artifact_versions").get().count, 1);
 
+    const journalBeforeRefusals = db.prepare("SELECT * FROM events ORDER BY seq").all();
     expectCode(
       () => module.commands.registerVersion(registration({
         content: { kind: "inline", payload: { title: "conflicting overwrite" } },
       })),
-      "artifact.version_conflict",
+      // R4B-01: a conflicting version still leaves the prior bytes and revision intact.
+      "artifacts.artifact.version_conflict",
     );
     expectCode(
       () => module.commands.registerVersion(registration({
         artifact_id: "artifact-bad-hash",
         expected_digest: `sha256:${"0".repeat(64)}`,
       })),
-      "artifact.hash_mismatch",
+      "artifacts.artifact.hash_mismatch",
     );
 
     expectCode(
@@ -148,8 +153,13 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
         scope: "team_project",
         supersedes_version: 1,
       })),
-      "artifact.team_share_not_authorized",
+      "artifacts.artifact.team_share_not_authorized",
     );
+    // I1-01: conflict, bad digest and unauthorized sharing leave the version and journal unchanged.
+    assert.deepEqual(module.query.getArtifactVersion("board-artifacts", { artifact_id: "artifact-report", version: 1 }), first.artifact);
+    assert.equal(module.query.getArtifactVersion("board-artifacts", { artifact_id: "artifact-bad-hash", version: 1 }), null);
+    assert.deepEqual(module.query.listArtifactVersions("board-artifacts", "artifact-report"), [first.artifact]);
+    assert.deepEqual(db.prepare("SELECT * FROM events ORDER BY seq").all(), journalBeforeRefusals);
     const thirdInput = registration({
       version: 3,
       producer: {
@@ -172,14 +182,14 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
 
     expectCode(
       () => module.commands.registerVersion(registration({ version: 2 })),
-      "artifact.version_not_increasing",
+      "artifacts.artifact.version_not_increasing",
     );
     expectCode(
       () => module.commands.registerVersion(registration({
         version: 4,
         actor_id: "user-b",
       })),
-      "artifact.not_owner",
+      "artifacts.artifact.not_owner",
     );
     expectCode(
       () => module.commands.registerVersion(registration({
@@ -190,7 +200,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
           binding_signature: "different-binding-signature",
         },
       })),
-      "artifact.producer_mismatch",
+      "artifacts.artifact.producer_mismatch",
     );
 
     assert.deepEqual(
@@ -215,7 +225,7 @@ test("Artifacts Module owns exact id + version, opaque content, scope and produc
         actor_id: "user-b",
         reason: "blob missing",
       }),
-      "artifact.not_owner",
+      "artifacts.artifact.not_owner",
     );
     const unavailable = module.commands.markUnavailable({
       project_id: "board-artifacts",
@@ -317,7 +327,7 @@ test("Artifact reference digest mismatch is rollback-safe, and the owner schema 
           size_bytes: 4096,
         },
       })),
-      "artifact.hash_mismatch",
+      "artifacts.artifact.hash_mismatch",
     );
     assert.equal(module.query.listArtifactVersions("board-artifacts", "artifact-blob").length, 0);
   } finally {

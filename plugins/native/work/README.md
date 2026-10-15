@@ -18,6 +18,8 @@
 
 SessionDirectoryService 继续处理发现/创建，SessionContentService 继续处理内容与恢复，SessionHandoffService 继续准备并交付交接包。Registry、Runtime adapter、内容服务和 recorder 由系统 Host 的一个资源实例持有，网页借用该实例，关闭借用方不关闭 Host。创建、关联、交接与终端的旧业务入口仍在迁移；浏览器 terminal-client 负责 xterm 与连接控制。
 
+目录发现、创建和交接按每次 Action 传入原 `signal/beforeEffect/assert_authority_current`，原生等待返回后在本地提交或下一次派发前复查，并在最后一次等待后同步检查；取消、撤权或停用后不新增 Session 关联、草稿、失败记录或继续派发。已经创建但未获本地提交授权的外部目标保留未知，不自动重建。普通消息只有已经接受的真实 turn 回执可收敛原幂等请求，调用者仍须通过返回前复查；失败或未知结果不套用这个例外，保持未确认请求，恢复不重发。
+
 ## 从哪里读代码
 
 公开入口是 [src/index.ts](src/index.ts)。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。

@@ -1,3 +1,4 @@
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import {
   type ScheduleUiModel,
@@ -48,12 +49,5 @@ export function createWorkbenchScheduleProjectionRenderer(primitives: {
   return { buildScheduleNativePluginModel, renderScheduleNativePluginSurface };
 }
 
-function escapeHtml(value: unknown): string {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
 
 export type { ScheduleJobRecord };

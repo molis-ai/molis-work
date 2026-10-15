@@ -615,7 +615,7 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(PAGES_STYLES, /pages-image-resize/);
   assert.match(source, /setColumnWidth/);
   assert.match(source, /moveTableEdge/);
-  assert.match(source, /moveTableEdge\("left"\), collapseEmptyColumn/);
+  assert.match(source, /moveTableEdge\("left"\),\s*collapseEmptyColumn/, "the build minifies whitespace, so only the space between the two expressions may differ");
   assert.match(source, /toggleHeaderRow/);
   assert.match(source, /moveTableRow/);
   assert.match(source, /moveTableColumn/);
@@ -658,7 +658,7 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(source, /data-pages-image/);
   assert.match(source, /insertImage/);
   assert.match(source, /acceptedImageFile/);
-  assert.match(source, /readClipboardImage/);
+  assert.match(source, /readPagesImage/); // the pasted or dropped image reader (readClipboardImage before 4f8eff62c)
   assert.match(source, /data-pages-columns/);
   assert.match(source, /addColumn/);
   assert.match(source, /moveColumnEdge/);

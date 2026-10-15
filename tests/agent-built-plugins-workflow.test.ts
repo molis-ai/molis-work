@@ -1,6 +1,6 @@
+import { memoryStorage, proposal, detail, experience, finding, detailUsing, proposalsUsing, detailWithFour, composition, PROPOSALS, CAPABILITY_WORDS, COMPONENT_WORDS, GOALS_CATALOG, until } from './fixtures/builder-workflow-design.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
@@ -8,7 +8,7 @@ import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
@@ -20,53 +20,10 @@ import { builderSkill } from '../apps/local-host/dist/plugin-builder/skill.js';
 import { acceptExperience } from '../plugins/native/plugin-builder/dist/agent-experience.js';
 
 /** In-memory storage with the atomic replacement the Builder store requires. */
-function memoryStorage(): PluginPrivateStorage {
-  const values = new Map<string, string>();
-  return {
-    get: key => values.get(key) ?? null,
-    set: (key, value) => { values.set(key, value); },
-    delete: key => values.delete(key),
-    compareAndSet: (key, expected, value) => { if ((values.get(key) ?? null) !== expected) return false; values.set(key, value); return true; },
-  };
-}
 
 /** Stage one: a product-level proposal in the designer's authoring format. */
-function proposal(id: string, title: string) {
-  return { id, title, description: '记下想法并随时回看', rationale: '最短的录入与浏览路径', journey: ['写一条笔记', '在列表里看到它'],
-    operations: [
-      { id: 'notes.list', kind: 'query', description: '列出笔记', input: {}, output: [{ id: 'string', text: 'string' }] },
-      { id: 'notes.add', kind: 'command', description: '添加笔记', input: { text: 'string(1..200) 笔记' }, output: { id: 'string' } },
-    ],
-    pages: [{ id: 'home', title, parts: [
-      { id: 'title', intent: 'heading', purpose: '说明插件' },
-      { id: 'editor', intent: 'input', purpose: '写一条笔记', uses: 'notes.add' },
-      { id: 'notes', intent: 'collection', purpose: '浏览笔记', uses: 'notes.list' },
-    ] }] };
-}
-const PROPOSALS = JSON.stringify({ summary: '两种录入方式', candidates: [proposal('quick', '快记'), proposal('board', '笔记板')] });
-/** Stage two: the chosen proposal in full. */
-function detail(title: string) {
-  return JSON.stringify({ summary: '细化完成', design: { title, description: '记下想法并随时回看', journey: ['写一条笔记', '在列表里看到它'],
-    operations: [
-      { id: 'notes.list', kind: 'query', description: '列出笔记', input: {}, output: [{ id: 'string', text: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] },
-      { id: 'notes.add', kind: 'command', description: '添加笔记', input: { text: 'string(1..200) 笔记' }, output: { id: 'string' }, effects: { storage: ['write'] }, examples: [{ input: { text: '第一条' }, includes: {} }] },
-    ],
-    pages: [{ id: 'home', title, parts: [
-      { id: 'title', intent: 'heading', purpose: '说明插件', props: { title } },
-      { id: 'editor', intent: 'input', purpose: '写一条笔记', props: { submitLabel: '添加' }, submit: 'notes.add' },
-      { id: 'notes', intent: 'collection', purpose: '浏览笔记', props: { idField: 'id', titleField: 'text' }, read: 'notes.list' },
-    ] }],
-    acceptance: [{ id: 'add-note', description: '添加后能在列表里看到', steps: ['fill editor.text = hello', 'submit editor', 'expect notes hello'] }] } });
-}
 
-function experience() {
-  const sketch = proposal('quick', '快记');
-  return JSON.stringify({ summary: '以浏览已有内容为主，随手录入不中断浏览', journey: sketch.journey, pages: sketch.pages,
-    scenarios: [{ task: '写入后继续浏览', content: '先读《理解媒介》，再记下一个问题。', expected: '保存后能找到记录并继续新建' }] });
-}
-function finding(change = '调整密度', screenshot = 'sample') {
-  return { scope: 'presentation', screenshot, pageId: 'home', partId: 'notes', evidence: '正文排列过密', impact: '难以连续阅读', property: 'appearance.density', change };
-}
+/** Stage two: the chosen proposal in full. */
 
 interface Harness { ports: AgentBuilderPorts; requests: BuilderAgentRequest[]; implemented: Set<string>; choices: number; /** The instructions of each question Jev was asked. */ asked: string[] }
 /** Designer answers are played back in order; the code agent "implements" the operation it is given. */
@@ -112,18 +69,6 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
 }
 
 /** What the workflow said to Jev before the two sentences were registered, word for word. */
-const CAPABILITY_WORDS = '只从合法候选中选最适合这项功能的一个能力；同样合适时选已经启用的、主线设计原本选的。';
-const COMPONENT_WORDS = '结合整页布局与相邻部件，从合法候选中选择组件。优先保留界面设计的偏好，不破坏主次与交互，不改变属性或合同。';
-
-async function until(workflow: AgentBuilderWorkflow, id: string, done: (build: AgentBuild) => boolean, timeoutMs = 5_000): Promise<AgentBuild> {
-  const started = Date.now();
-  for (;;) {
-    const build = workflow.store.require(id);
-    if (done(build)) return build;
-    if (Date.now() - started > timeoutMs) throw new Error(`timed out in phase ${build.phase}: ${build.error ?? ''}`);
-    await new Promise(resolve => setTimeout(resolve, 5));
-  }
-}
 
 test('designer answer wrapped in reasoning and broken JSON goes back once with the reason, then the build reaches ready and publishes', async () => {
   const h = harness(['<think>先想想用户要什么</think>{"candidates":[{"id":"quick",', '<think>修正</think>\n' + PROPOSALS, detail('笔记板')]);
@@ -396,7 +341,6 @@ test('a change inside an operation that its contract cannot show still reaches t
   } finally { await workflow.close(); }
 });
 
-
 test('an expectation that joins a column label to a value goes to the designer, whatever the data holds', async () => {
   const labelled = JSON.stringify((() => { const answer = JSON.parse(detail('快记')); answer.design.pages[0].parts[2].props.columns = [{ field: 'text', label: '内容' }]; answer.design.acceptance[0].steps[2] = 'expect notes 内容 hello'; return answer; })());
   const h = harness([PROPOSALS, labelled, labelled]);
@@ -416,11 +360,7 @@ test('an expectation that joins a column label to a value goes to the designer, 
 });
 
 /** The detailed design, with `notes.add` also writing a note through another plugin's capability. */
-function detailUsing(title: string, capability?: string) {
-  const answer = JSON.parse(detail(title));
-  if (capability) answer.design.operations[1].effects.capabilities = [capability];
-  return JSON.stringify(answer);
-}
+
 /** A project where the Goals plugin offers `goals.note` but is not enabled until the person says so. */
 function withDisabledPlugin(h: Harness) {
   const enabled: string[] = [];
@@ -483,21 +423,6 @@ test('declining the plugin sends the design back to the designer without it', as
 });
 
 /** Proposals whose "add" names Goals' note capability for writing a weekly progress line. */
-function proposalsUsing(capability: string) {
-  const answer = JSON.parse(PROPOSALS);
-  for (const candidate of answer.candidates) { candidate.operations[1].description = '给目标写一句本周进展'; candidate.operations[1].effects = { storage: ['write'], capabilities: [capability] }; }
-  return JSON.stringify(answer);
-}
-const GOALS_CATALOG = [
-  { id: 'goals.note', title: '记录目标便笺', source: 'Goals', description: '在目标上附一条便笺', effect: 'write', input: { type: 'object' } },
-  { id: 'goals.progress.record', title: '记录目标进展', source: 'Goals', description: '记录目标的一次进展', effect: 'write', input: { type: 'object' } },
-  { id: 'goals.list', title: '目标目录', source: 'Goals', description: '列出项目目标', effect: 'read', input: { type: 'object' } },
-  { id: 'goals.archive.set', title: '设置目标归档状态', source: 'Goals', description: '归档或恢复目标', effect: 'write', input: { type: 'object' } },
-  { id: 'pages.list', title: '文档列表', source: 'Pages', description: '列出文稿', effect: 'read', input: { type: 'object' } },
-  { id: 'inbox.entry.status', title: '更新事项状态', source: 'Inbox', description: '按版本更新事项', effect: 'write', input: { type: 'object' } },
-  // A project's directory is large; common words weigh little against it.
-  ...Array.from({ length: 40 }, (_, index) => ({ id: 'alchemist.item' + index, title: '记录一条炼金素材 ' + index, source: '炼金术士', description: '素材', effect: 'write', input: { type: 'object' } })),
-];
 
 test('capabilities are settled before the full design: Jev picks among the provider\'s legal alternatives and the design is written against the pick', async () => {
   const h = harness([proposalsUsing('goals.note'), detailUsing('快记', 'goals.progress.record')], { jev: 'goals.progress.record' });
@@ -538,14 +463,6 @@ test('when Jev cannot pick a capability, the designer\'s choice stands and the b
 });
 
 /** The detailed design with two more queries, each shown by its own part: four operations in all. */
-function detailWithFour(title: string) {
-  const answer = JSON.parse(detail(title));
-  answer.design.operations.push(
-    { id: 'notes.count', kind: 'query', description: '统计笔记', input: {}, output: { count: 'integer' }, effects: { storage: ['read'] }, examples: [{ input: {}, output: { count: 0 } }] },
-    { id: 'notes.latest', kind: 'query', description: '最新一条', input: {}, output: [{ id: 'string', text: 'string' }], effects: { storage: ['read'] }, examples: [{ input: {}, output: [] }] });
-  answer.design.pages[0].parts.push({ id: 'count', intent: 'description', purpose: '笔记数', read: 'notes.count' }, { id: 'latest', intent: 'collection', purpose: '最新', read: 'notes.latest', props: { idField: 'id', titleField: 'text' } });
-  return JSON.stringify(answer);
-}
 
 test('operations are written side by side after the one that writes the data; each parallel run may write only its own files', async () => {
   const h = harness([PROPOSALS, detailWithFour('快记')]);
@@ -778,10 +695,6 @@ test('a dropped connection to the model is asked again rather than failing the d
     assert.ok(build.steps.some(step => /网络中断，重新请求/.test(step.label)));
   } finally { await workflow.close(); }
 });
-
-function composition(gap = 'roomy') {
-  return JSON.stringify({ summary: '先浏览内容，新建收进侧栏', presentation: { version: 1, pages: [{ pageId: 'home', layout: { layout: 'stack', gap, children: [{ part: 'title' }, { part: 'notes' }, { part: 'editor' }] } }], parts: { notes: { kind: 'directory', density: 'reading', detail: true }, editor: { kind: 'sheet', emphasis: 'primary' } } } });
-}
 
 for (const structural of [true, false]) test('a failed visual suggestion keeps a working version only when structure was sound: ' + structural, async () => {
   const h = harness([PROPOSALS, experience(), detail('阅读'), composition(), JSON.stringify({ issues: [finding()] }), composition('tight')]);
@@ -1147,4 +1060,83 @@ test('through the studio surface: the studio asks Jev the question the person sa
     await new Promise<void>(resolve => server.close(() => resolve()));
     store.close(); rmSync(home, { recursive: true, force: true });
   }
+});
+
+// W2-18-BUILDER-LATE-01: a reset belonging to an older job cannot adopt or connect into its replacement.
+test('W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed build preview', { timeout: 180_000, skip: process.platform !== 'darwin' }, async t => {
+  const home = mkdtempSync(join(tmpdir(), 'builder-reset-http-')), file = join(home, 'project.db'); seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file), options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, ...agentStudioFixture(0) };
+  const server = createServer((request, response) => {
+    void handleAgentStudioHttp(request, response, new URL(request.url ?? '/', 'http://localhost'), options, 'control-token').then(handled => { if (!handled) { response.writeHead(404); response.end(); } });
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address(); assert.ok(address && typeof address === 'object'); const origin = `http://127.0.0.1:${address.port}/api/plugin-builder/studio`;
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), removed = Promise.withResolvers<void>(); let arm = false, heldPath = '', removal: Promise<void> | undefined;
+  const remove = fs.rm;
+  const mock = t.mock.method(fs, 'rm', async (path: Parameters<typeof fs.rm>[0], settings?: Parameters<typeof fs.rm>[1]) => {
+    const name = String(path);
+    if (arm && name.startsWith(join(tmpdir(), 'molis-plugin-sandbox-'))) {
+      arm = false; heldPath = name; entered.resolve();
+      removal = release.promise.then(() => remove(path, settings)).finally(() => removed.resolve());
+    }
+    return name === heldPath ? removal! : remove(path, settings);
+  });
+  const send = async <Output>(path: string, body?: object): Promise<Output> => {
+    const response = await fetch(origin + path, { method: body ? 'POST' : 'GET', headers: { 'content-type': 'application/json', 'x-molis-work-control-token': 'control-token' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    assert.equal(response.status, path === '/builds' && body ? 201 : 200, await response.clone().text()); return response.json() as Promise<Output>;
+  };
+  const read = async (id: string) => (await send<{ build: AgentBuild }>('/builds/' + id)).build;
+  const reached = async (id: string, phase: AgentBuild['phase']) => {
+    const deadline = Date.now() + 60_000;
+    for (;;) { const build = await read(id); if (build.phase === phase) return build; assert.notEqual(build.phase, 'failed', build.error); if (Date.now() > deadline) assert.fail('real studio phase timeout: ' + phase); await new Promise(resolve => setTimeout(resolve, 25)); }
+  };
+  try {
+    const created = (await send<{ build: AgentBuild }>('/builds', { brief: '做一个随手记笔记的插件' })).build;
+    const choice = await reached(created.id, 'choosing');
+    await send('/builds/' + created.id + '/action', { action: 'choose', revision: choice.revision, candidateId: 'board' });
+    const ready = await reached(created.id, 'ready');
+    await send('/builds/' + ready.id + '/call', { componentId: 'editor', binding: 'submit', payload: { form: { text: 'Old preview record' } } });
+    arm = true;
+    await send('/builds/' + ready.id + '/action', { action: 'revise', revision: ready.revision, message: '保留这两个笔记操作，重新确认完整设计。' });
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([entered.promise, new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('real Host reset did not reach old sandbox cleanup')), 30_000); })]); } finally { clearTimeout(timeout); }
+    assert.ok(heldPath, 'the paused operation is the real old SandboxRunner cleanup');
+    const pause = send('/builds/' + ready.id + '/action', { action: 'pause' });
+    const paused = await reached(ready.id, 'paused');
+    await send('/builds/' + ready.id + '/action', { action: 'resume', revision: paused.revision });
+    await reached(ready.id, 'ready');
+    await send('/builds/' + ready.id + '/call', { componentId: 'editor', binding: 'submit', payload: { form: { text: 'New preview must remain' } } });
+    const preview = await send<{ value: unknown }>('/builds/' + ready.id + '/call', { componentId: 'notes', binding: 'read', payload: {} });
+    assert.match(JSON.stringify(preview.value), /New preview must remain/);
+    const resumed = await read(ready.id);
+    release.resolve(); await removed.promise; await pause;
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(await read(ready.id), resumed, 'the old reset cannot replace the current ready build');
+    assert.deepEqual(await send('/builds/' + ready.id + '/call', { componentId: 'notes', binding: 'read', payload: {} }), preview, 'the real preview storage remains after old cleanup finishes');
+  } finally {
+    arm = false; release.resolve(); mock.mock.restore();
+    await releaseAgentStudio(store, DEMO_PROJECT_ID); await releaseInstalledPlugins(store, DEMO_PROJECT_ID);
+    server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); store.close(); rmSync(home, { recursive: true, force: true });
+  }
+});
+
+for (const stage of ["adopt", "connect"] as const) test(`a late ${stage} reset cannot change a newer ready build`, { timeout: 20_000 }, async () => {
+  const h = harness([PROPOSALS, detail('Old detail'), detail('New detail')]);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let resets = 0;
+  const chosenReset = stage === 'adopt' ? 1 : 2;
+  // This port deliberately ignores the optional checker: the workflow must still check after awaiting it.
+  h.ports.resetPreview = async () => { if (++resets === chosenReset) { entered.resolve(); await release.promise; } };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const created = workflow.create('A note keeper'), proposed = await until(workflow, created.id, value => value.phase === 'choosing');
+    await workflow.action(created.id, { action: 'choose', revision: proposed.revision, candidateId: proposed.candidates[0]!.id });
+    await entered.promise;
+    const paused = workflow.pause(created.id);
+    const current = await until(workflow, created.id, value => value.phase === 'paused');
+    await workflow.action(created.id, { action: 'resume', revision: current.revision });
+    const ready = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed');
+    assert.equal(ready.phase, 'ready', ready.error ?? ''); const snapshot = structuredClone(ready);
+    release.resolve(); await paused;
+    assert.deepEqual(workflow.store.require(created.id), snapshot, 'old token changes neither revision, steps, code/contract nor connected list');
+  } finally { release.resolve(); await workflow.close(); }
 });

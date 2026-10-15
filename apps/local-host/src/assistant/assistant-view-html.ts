@@ -1,5 +1,6 @@
 import { renderInteractionNextSteps, type InteractionNextStep, type InteractionValues } from "@molis-ai/molis-work-design-system";
 import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { assistantTextHtml, assistantReviewHtml } from "@molis-ai/molis-work-app-workbench";
 import { agentQuestionHtml } from "../agent-question-card.js";
 
 /**
@@ -21,7 +22,7 @@ const isView = (value: unknown): value is AssistantWorkView => Boolean(value) &&
 
 /**
  * A reply's work views and cards, drawn on the Host so the page only binds them (specs/ai-interaction-experience A1, H2):
- * each waiting question with the person's half-written answer in place, each card, and the steps under the latest round.
+ * each waiting question with the person's half-written answer, each card, text, review, and steps under the latest round.
  * Read by the Assistant's own page; the records themselves are unchanged.
  */
 export function drawAssistantReply(body: unknown, ports: { say: (text: string, values?: Record<string, string | number>) => string; drafts(workId: string): Record<string, InteractionValues>; card(card: AssistantCard): string }): void {
@@ -30,6 +31,10 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
     if (isView(candidate)) {
       const drafts = ports.drafts(candidate.work.work_id);
       for (const round of candidate.rounds) for (const question of round.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, ports.say, drafts[question.pending_id]) });
+      for (const round of candidate.rounds) for (const turn of round.turns) {
+        if (turn.kind === "assistant") Object.assign(turn, { html: assistantTextHtml(turn.text, candidate.objects, ports.say) });
+      }
+      for (const review of candidate.reviews) Object.assign(review, { html: assistantReviewHtml(review, ports.say) });
       candidate.cards.forEach(drawCard);
       const steps = assistantNextSteps(candidate, ports.say);
       Object.assign(candidate, { next_html: steps.length ? renderInteractionNextSteps(steps, ports.say("接下来")) : "" });

@@ -19,7 +19,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   // The market entry lives in the bar's Dock menu (the rail's only on older shells); its count lights the menu's dot too.
   const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"], [data-plugin-strip] [data-plugin-id="market"]');
   const updateCount = marketLink?.querySelector("[data-market-update-count]");
-  let projects = null, updates = [], marketRequest = null, updatesRequest = null, pending = false;
+  let projects = null, updates = [], marketRequest = null, updatesRequest = null, pending = false, marketDirty = true, marketRevision = 0;
   const paintUpdateCount = () => {
     if (updateCount) {
       updateCount.hidden = updates.length === 0;
@@ -34,9 +34,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     updatesRequest = (async () => {
       try {
         if (!projectId) { updates = []; return; }
-        const response = await fetch(route("/api/plugins/runtime/updates"), { cache: "no-store" });
-        if (!response.ok) throw new Error(L("无法读取插件更新"));
-        updates = (await response.json()).updates || [];
+        updates=(await molisWorkRequest(route("/api/plugins/runtime/updates"),{fallback:L("无法读取插件更新")})).updates||[];
       } catch { updates = []; }
       finally { paintUpdateCount(); }
     })().finally(() => { updatesRequest = null; });
@@ -114,7 +112,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");
-      button.disabled = !current || pending;
+      button.disabled = !current || pending || marketDirty;
       button.dataset.marketMembership = added ? "added" : "available";
       button.textContent = added ? L("移除") : L("添加");
       const currentProject = selector.value === projectId;
@@ -128,7 +126,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const upgradeButton = card.querySelector("[data-market-upgrade]");
       upgradeButton.dataset.marketUpgrade = update?.plugin_id || "";
       upgradeButton.hidden = !update;
-      upgradeButton.disabled = !current || pending || !update?.can_upgrade;
+      upgradeButton.disabled = !current || pending || marketDirty || !update?.can_upgrade;
       const version = card.querySelector("[data-market-version]");
       if (update) {
         version.hidden = false;
@@ -145,25 +143,33 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     syncProjectMenu();
   };
   const loadMarket = async () => {
-    if (marketRequest) return marketRequest;
-    if (projects) return;
+    if (marketRequest || pending) return marketRequest;
+    const revision = marketRevision, selectedProject = selector.value;
+    marketDirty = true; selector.disabled = true;
     status.textContent = L("正在读取项目…"); retry.hidden = true;
     marketRequest = (async () => {
       try {
-        const response = await fetch("/api/settings/project-plugins", { cache: "no-store" });
-        if (!response.ok) throw new Error(L("无法读取项目插件"));
-        projects = (await response.json()).projects;
+        const latest=(await molisWorkRequest("/api/settings/project-plugins",{fallback:L("无法读取项目插件")})).projects;
         await refreshUpdates();
+        if (revision !== marketRevision) return;
+        projects = latest; marketDirty = false;
         selector.replaceChildren(...projects.map(project => new Option(project.display_name, project.project_id)));
-        if (projects.some(project => project.project_id === projectId)) selector.value = projectId;
+        if (projects.some(project => project.project_id === selectedProject)) selector.value = selectedProject;
+        else if (projects.some(project => project.project_id === projectId)) selector.value = projectId;
         selector.disabled = !projects.length;
         status.textContent = projects.length ? "" : L("先创建一个项目，再添加插件。");
         filter();
-      } catch (error) { status.textContent = error.message; retry.hidden = false; }
-      finally { marketRequest = null; }
-    })();
+      } catch (error) { if (revision === marketRevision) { molisWorkRequest.show(status,error); retry.hidden = false; } }
+    })().finally(() => {
+      marketRequest = null; selector.disabled = pending || !projects?.length; filter();
+      if (revision !== marketRevision && !pending) void loadMarket();
+    });
+    filter();
     return marketRequest;
   };
+  document.addEventListener("molis-work:plugins-changed", () => {
+    marketRevision++; marketDirty = true; filter(); if (!pending) void loadMarket();
+  });
   market.addEventListener("input", filter);
   market.addEventListener("change", filter);
   // The dock bell opens this project's notifications, and the list only shows them for the current project.
@@ -221,16 +227,12 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       pending = true; selector.disabled = true; filter();
       status.textContent = L("正在升级插件…");
       try {
-        const response = await fetch(route("/api/plugins/" + encodeURIComponent(pluginId) + "/upgrade"), {
-          method: "POST", headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify({}),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || L("插件升级失败"));
+        const result=await molisWorkRequest(route("/api/plugins/"+encodeURIComponent(pluginId)+"/upgrade"),{body:{},fallback:L("插件升级失败")});
         updates = updates.filter(item => item.plugin_id !== pluginId);
         status.textContent = L("已升级至") + " v" + result.version;
         filter();
-      } catch (error) { status.textContent = error.message; }
-      finally { pending = false; selector.disabled = false; filter(); }
+      } catch (error) { molisWorkRequest.show(status,error); }
+      finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty) void loadMarket(); }
       return;
     }
     const button = event.target.closest("[data-market-add]");
@@ -244,23 +246,18 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       if (targetProject === projectId && host.membership) {
         // This project: the page changes in place (the switcher and the Dock follow); no reload.
         const outcome = await host.membership.change(button.dataset.marketAdd, removing ? "remove" : "add", { quiet: true });
-        if (!outcome.ok) throw new Error(outcome.error);
+        if(!outcome.ok)throw outcome.error;
         result = outcome.result;
       } else {
-        const response = await fetch("/api/settings/projects/" + encodeURIComponent(targetProject) + "/plugins", {
-          method: removing ? "DELETE" : "POST", headers: globalThis.molisWorkControlHeaders(),
-          body: JSON.stringify({ plugin_id: button.dataset.marketAdd }),
-        });
-        result = await response.json();
-        if (!response.ok) throw new Error(result.error || (removing ? L("无法移除插件") : L("无法添加插件")));
+        result=await molisWorkRequest("/api/settings/projects/"+encodeURIComponent(targetProject)+"/plugins",{method:removing?"DELETE":"POST",body:{plugin_id:button.dataset.marketAdd},fallback:removing?L("无法移除插件"):L("无法添加插件")});
       }
       const project = projects.find(project => project.project_id === targetProject);
       project.plugins = result.plugins;
       project.hidden = result.hidden || [];
       status.textContent = (removing ? L("已移除自") : L("已添加到")) + " " + project.display_name;
       if (targetProject === projectId && !host.membership) { saveUiState(); location.reload(); }
-    } catch (error) { status.textContent = error.message; }
-    finally { pending = false; selector.disabled = false; filter(); }
+    } catch (error) { molisWorkRequest.show(status,error); }
+    finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty) void loadMarket(); }
   });
   const directory = document.querySelector("[data-artifact-directory]");
   const detail = document.querySelector("[data-artifact-detail]");
@@ -285,9 +282,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const message = document.createElement("p"); message.textContent = L("正在读取成果…"); message.role = "status";
     detail.replaceChildren(message);
     try {
-      const response = await fetch(path, { cache: "no-store", headers: { "x-molis-work-fragment": "artifact-workbench" }, signal: controller.signal });
-      if (!response.ok && response.status !== 404) throw new Error(L("无法读取成果"));
-      const template = document.createElement("template"); template.innerHTML = await response.text();
+      const html=await molisWorkRequest(path,{as:"text",accept:[404],headers:{"x-molis-work-fragment":"artifact-workbench"},signal:controller.signal,fallback:L("无法读取成果")});
+      const template=document.createElement("template");template.innerHTML=html;
       const nextDirectory = template.content.querySelector("[data-artifact-directory]");
       const nextDetail = template.content.querySelector("[data-artifact-detail]");
       if (!nextDirectory || !nextDetail) throw new Error(L("无法读取成果"));
@@ -304,7 +300,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       showHandoff();
     } catch (error) {
       if (controller.signal.aborted) return;
-      message.textContent = error.message;
+      molisWorkRequest.show(message,error);
       const button = document.createElement("button"); button.type = "button"; button.dataset.artifactRetry = path; button.textContent = L("重试");
       detail.replaceChildren(message, button);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
@@ -329,13 +325,10 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (!status) { status = document.createElement("span"); status.dataset.artifactContinueStatus = ""; status.role = "status"; button.parentElement.append(status); }
     status.textContent = "";
     try {
-      const response = await fetch(route("/api/artifacts/continue"), { method: "POST",
-        headers: { ...(globalThis.molisWorkControlHeaders?.() || {}), "content-type": "application/json", "x-molis-work-idempotency-key": crypto.randomUUID() },
-        body: JSON.stringify({ reference: JSON.parse(button.dataset.artifactReference), plugin_id: button.dataset.artifactContinue }) });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.open?.id) throw new Error(payload?.error || L("没能从这一版继续"));
+      const payload=await molisWorkRequest(route("/api/artifacts/continue"),{body:{reference:JSON.parse(button.dataset.artifactReference),plugin_id:button.dataset.artifactContinue},fallback:L("没能从这一版继续")});
+      if(!payload?.open?.id)throw new Error(L("没能从这一版继续"));
       openTabItem?.(payload.open.surface, payload.open.id, payload.open.title);
-    } catch (error) { status.textContent = error.message; }
+    } catch (error) { molisWorkRequest.show(status,error); }
     finally { button.disabled = false; }
   };
   document.addEventListener("click", event => {

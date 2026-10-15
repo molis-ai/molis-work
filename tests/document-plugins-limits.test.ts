@@ -57,7 +57,7 @@ test("a form submission's source comes from the call, not from the input: only a
   form = (await f.bound.invoke(formActions.update, { id: form.id, questions: [{ id: "q", type: "text", title: "Q?" }], expected_version: form.version })).form;
   form = (await f.bound.invoke(formActions.publish, { id: form.id, expected_version: form.version })).form;
   const submit = async (audience: ActionAudience, source?: "preview" | "fill") =>
-    (await f.as(audience).invoke(formActions.submit, { id: form.id, answers: { q: `${audience}-${source ?? "none"}` }, ...(source ? { source } : {}) })).submission.source;
+    (await f.as(audience).invoke(formActions.submit, { id: form.id, expected_version: form.version, answers: { q: `${audience}-${source ?? "none"}` }, ...(source ? { source } : {}) })).submission.source;
   assert.equal(await submit("user", "fill"), "fill", "the fill page in the workbench names itself");
   assert.equal(await submit("user", "preview"), "preview");
   assert.equal(await submit("user"), "preview");

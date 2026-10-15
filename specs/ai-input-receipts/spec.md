@@ -662,10 +662,10 @@ interface AgentInputView {
 
 | 片 | 内容 | 落点 |
 | --- | --- | --- |
-| 1a 抽取，行为不变 | 把 `applyPrologueEvent` 里补充相关的分支抽到 `prologue-inputs.ts`（W5-10 形状）；把助理的发送路由与回执抽成协作者 `assistant-inputs.ts`（W4-05 形状：≤25 个方法、≤300 行，只依赖自己的端口）；把 Coding 的回执渲染抽到 `input-receipts-client.ts` | agent-host、助理、Coding |
+| 1a 抽取，行为不变 | 把 `applyPrologueEvent` 里补充相关的分支抽到 `prologue-inputs.ts`（W5-10 形状）；把助理的发送路由与回执抽成协作者 `assistant-inputs.ts`（W4-05 形状：≤25 个方法、≤300 行，只依赖自己的端口）（Coding 的回执渲染抽到 `input-receipts-client.ts` 挪进 1d，原因见 §16 2026-10-15） | agent-host、助理 |
 | 1b 合同 | 新子路径 `services/agent-inputs`（L0/L1 与来源）；`AgentRunControl.steer` 加 `key`、`interrupt`、`source` | contracts |
 | 1c agent-host | 见下方列表 | agent-host |
-| 1d Coding | 措辞改成 §3.3；发送方式菜单（补充 / 打断 / 下一轮）；「发送中」气泡与同键重发；宿主说明不再显示成你的话；「核对并继续」带上没读到的输入；计划轮次不再未经核实就写「已体现」 | Coding |
+| 1d Coding | 回执条与补充发送抽到 `input-receipts-client.ts`，抽取的字节在同一片里省出来；措辞改成 §3.3；发送方式菜单（补充 / 打断 / 下一轮）；「发送中」气泡与同键重发；宿主说明不再显示成你的话；「核对并继续」带上没读到的输入；计划轮次不再未经核实就写「已体现」 | Coding |
 | 1e 助理 | 工作视图显示每条输入的回执（新模块；用删掉的重复渲染抵消资源字节）；回答 / 补充由用户点选；重试键跨刷新保存；运行中补充的原话按 person 来源记录（供「你说过」） | 助理 |
 
 1c agent-host 的内容：
@@ -937,6 +937,9 @@ interface AgentInputView {
     - 草稿分支 `receipts/1d-coding`（叠在 1c 上，WIP 提交）：Coding 发送方式下拉（补充要求 / 打断并改向 / 这一轮结束后再做）；「发送中」气泡与同键重发（只有断网或回包读不出才算「没送到」，被拒的不留气泡）；宿主转告的 `notice` 轮不再挂补充回执条，改标「Molis 的说明，不是你发的话」并换样式；输入框 Esc 不再直接停止（D3），停止按钮去掉 Esc 提示；`plans.ts` 的规划补充不再写「已体现在确认的计划里」（RC-07，G14）。
   - **没验证的**：三条分支都**没有构建、没有跑任何用例**（构建锁一直被别的会话占着）；没有在隔离 Home 实走（准备了慢速替身模型脚本，未启动）；没开 PR。1c 还缺：`prologue-node*.ts` 一侧的接线（活动跑句柄 `steer` 要把 SDK 的回执交回、`createNodePort` 加 `queueInput`）——等 W4-06（#498）合入后在拆开的 `prologue-run.ts`、`prologue-node-port.ts` 里做；恢复报告的「输入」一类；`pnpm api:update`、`pnpm actions:update`；页面资源字节与巨大单元按 merge-base 复核。1d 还缺：「核对并继续」带上没读到的输入（要 1c 给 `agent.run.start` 加 `queued` 带入），以及三宽度与深色截图。1d 的界面字节没有量过。
   - **恢复时第一步**：在 `receipts/1a-extract` 上并入最新 main → 拿构建锁 `pnpm build` → 跑 `node scripts/affected-tests.mjs` 选出的 1a 定向用例（含 `assistant-coding-executor`、`coding-client-scripts`、`assistant-*`、Coding 浏览器用例，浏览器用例拿浏览器锁）→ `node scripts/gates/page-assets.mjs --update --base origin/main` 把 Coding 资源字节降到实测 → 在隔离 Home（`MOLIS_WORK_HOME=<临时目录>`、不用 4173/4207/4208 端口、慢速替身模型）把 Coding 与助理的补充回执各实走一遍，结果补进现状核对 → 开 1a PR。之后 1c 等 #498 合入、并入 main 再续写，1d 叠在 1c 之后。
+- 2026-10-15（回执线会话，恢复，只做 1a；1c、1d 继续等 P3a）：
+  - `receipts/1a-extract` 并入 main `e8218714`（#523 I8 整树、#489）；冲突按 main 的现行形状解：助理的错误改用 `assistantErrors`，两处发送仍只经 `assistant-inputs.ts`。
+  - **Coding 的 `input-receipts-client.ts` 退出 1a，挪进 1d。** 宿主发页面脚本前用 esbuild 压空白与语法（`apps/local-host/src/served-page-text.ts` 的 `tightenServedJs`），模板里的注释本来就不下发；所以「注释移出模板约 −470 字节」是按源码量的，不对。按下发的字节量，抽成工厂反而多出包装：原样抽取 +229 字节，最省的写法（只抽回执条、补充发送留在原处）也 +46，`page-assets` 门禁对照 merge-base 不放行。1d 要给这个模块加发送方式、发送中气泡与重发，本来就得在 Coding 页面脚本里省出字节，抽取和省字节放在同一片里做。量法：取 `CODING_CLIENT_FACTORY_SCRIPT`，按 `tightenServedJs` 的选项压缩后比字节。
 
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）
 

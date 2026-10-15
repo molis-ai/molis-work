@@ -9,15 +9,16 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-14",
-    "mainHead": "c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a",
-    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。",
+    "checkedOn": "2026-10-15",
+    "mainHead": "e51233699c1463e3c8f0a8b08658c5860c962769",
+    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。 2026-10-15 对上游 main e51233699c1463e3c8f0a8b08658c5860c962769（collaboration 包的来源）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
       "08b84296f81df1bd5f3429c2dc2997d18b72473a",
       "18a1c827c933eb22624a6904b71d704945567682",
       "22a1be0866eaa6241c49038aee51860226c73037",
+      "4007a93c8901f090994bff8d847009982958bdef",
       "46d8092e6057370012e8148c792d587f62a01275",
       "4702abe3e701cd2394db192bcb535436a85ed4c7",
       "4b6cd9bcf772f2b73185d8858a3ab4c7c52aa962",
@@ -37,6 +38,7 @@
       "c63ea1a16eec8d8217223db1624b2409a1a33d14",
       "d2f5a05df6459440a253787e94ee6520f12d754d",
       "d4908c118f7899d44e3d1975806797a05f0094b9",
+      "e51233699c1463e3c8f0a8b08658c5860c962769",
       "f5ef12e6085c2865133b732ebc8ec235142685e1"
     ]
   },
@@ -638,6 +640,14 @@
       "gitBlob": "0d38581afa4d457b1d1b540126571017dae6b7af",
       "commit": "923e5a40e568a5df15a9a5a542d3c083c783a5e2",
       "description": "提交923e5a40，CU-image过渡线接上窗口图。2026-10-14按用户授权被同系谱的模型切换同步beforeAccept包替换；旧包和其来源记录从Git历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz",
+      "bytes": 1123719,
+      "sha256": "317d097a1e44f84e501413283bdfa94c4b43ee4ac86a689957b9b83d2853597c",
+      "gitBlob": "f633a41a491d70b69b4325aa0d386812562c93f3",
+      "commit": "4007a93c8901f090994bff8d847009982958bdef",
+      "description": "提交 `4007a93c`（分支 `feature/model-switch-acceptance-cu-image`：CU-image 过渡线加上换模型的同步 beforeAccept 复查，即 Prologue #20，同样的改动在上游 main 是 #24；它自己不在 Prologue main）。2026-10-15 起是 main 的依赖（防腐线 I8，#523）；同日随 Molis P3a 换成从上游 main `e5123369` 打的 collaboration 包；旧包和其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

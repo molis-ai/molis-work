@@ -50,8 +50,9 @@ function overlapping(a: readonly string[], b: readonly string[]): string[] {
   return [...hit];
 }
 
-const STATE: Record<Node["state"], AgentProjectWork["state"]> = { "not-started": "waiting", ready: "waiting", running: "running", blocked: "running",
-  succeeded: "done", failed: "failed", cancelled: "stopped" };
+// A step held for the person (blocked, or needing reconciliation after a restart) is still the work it covers.
+const STATE: Record<Node["state"], AgentProjectWork["state"]> = { "not-started": "waiting", ready: "waiting", waiting: "waiting", running: "running", blocked: "running",
+  "needs-reconciliation": "running", succeeded: "done", failed: "failed", cancelled: "stopped" };
 
 /**
  * A project's work under way, on one standing SDK task graph: each round is a node its session holds, and a round

@@ -1,5 +1,5 @@
 import { CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
-import { parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseExactActionReferences, searchEntriesPage, subjectContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dispatchCodingDelegation } from "./delegation-dispatch.js";
 import { codingBackgroundState } from "./background-state.js";
 import { codingActionControl, codingRouteEntry, type CodingBeforeWrite } from "./route-entry.js";
@@ -931,7 +931,7 @@ function codingRouteBindings(context: PluginStartContext, ports: CodingExecution
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
       const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
       const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
-      const wait = await openWaitOf(api!, record).catch(() => undefined), queuedView = wait ? waitView(wait) : null, priority = priorityOf(record.session_id);
+      const wait = await openWaitOf(record).catch(() => undefined), queuedView = wait ? waitView(wait) : null, priority = priorityOf(record.session_id);
       if (!record.runtime_session_id) return { session: { ...record, queued: queuedView, priority, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {

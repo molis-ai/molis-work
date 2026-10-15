@@ -306,10 +306,10 @@ async function roundSurface(deps: RunDeps, input: PrologueStartInput, index: Ses
 async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, parts: {
   readonly mode: Mode; readonly methods: readonly string[]; readonly childInstructions: string; readonly childRoles: Map<string, ChildRole>;
   readonly surface: Awaited<ReturnType<typeof roundSurface>>; readonly stepBoard: Awaited<ReturnType<typeof roundMaterials>>["stepBoard"];
-  readonly plan: PrologueStartInput["provenance"]["frozen"]["execution_plan"]; readonly session: Session; readonly actionTools: ReturnType<typeof roundGateway>["actionTools"];
+  readonly actionTools: ReturnType<typeof roundGateway>["actionTools"];
 }) {
   const { runtime, stepBoards, mcpLibrary } = deps;
-  const { mode: { none, business }, surface, plan, stepBoard, session, childRoles } = parts;
+  const { mode: { none, business }, surface, stepBoard, childRoles } = parts;
   const instructions = await stageInstructions(runtime, [input.character.instructions, parts.childInstructions, ...parts.methods,
     ...(surface.surfaces.includes("browser") ? [SURFACE_GUIDANCE] : []), ...(surface.surfaces.includes("desktop") ? [DESKTOP_GUIDANCE] : []), ...(surface.note ? [`## 界面控制\n${surface.note}`] : []),
     ...(stepBoard ? [stepBoards.instructions(stepBoard, { dispatch: childRoles.size > 0 })] : []), (none || business ? "" : await deps.checkpoints?.context(input.session_id) ?? "")].join("\n\n"));
@@ -602,7 +602,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const materials = await roundMaterials(deps, input, index, session, mode.none, plan, textResources);
   const surface = await roundSurface(deps, input, index, session, mode.business);
   const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
-  const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, plan, session, actionTools });
+  const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools });
   // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
   const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),

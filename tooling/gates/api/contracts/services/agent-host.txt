@@ -865,7 +865,7 @@ export type AgentRunControl = {
     kind: "stop";
 } | {
     kind: "cancel";
-} | import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentSteerControl | {
+} | {
     kind: "switch-model";
     provider_id: string;
     model_id: string;
@@ -940,6 +940,7 @@ export interface AgentRuntimeAdapter {
     readonly projectWork?: AgentProjectWorkCapability;
     readonly messages?: AgentSessionMessagesCapability;
     readonly collaboration?: AgentCollaborationPort;
+    readonly inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputsPort;
     readonly background?: AgentBackgroundCapability;
     start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;
     read(run: AgentRunRef): Promise<AgentRunView>;
@@ -1582,6 +1583,7 @@ interface AgentStartRequestFields {
     execution_plan?: AgentExecutionPlan;
     continue_step_board_of?: string;
     queued_work_id?: string;
+    queued?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInputs;
     session_title?: string;
     browser?: false;
     history?: "session" | "digest";

@@ -51,7 +51,7 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   // What each round asked the Host for: a delegated work never gets the person's side panel browser.
-  const starts: Array<{ task: string; browser?: false }> = [];
+  const starts: Array<{ task: string; browser?: false; queued?: unknown }> = [];
   const start = host.start.bind(host);
   host.start = (async (runtime, input, authority) => { starts.push(input as never); return start(runtime, input, authority); }) as typeof host.start;
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -70,6 +70,7 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     assert.deepEqual(done.rounds[0]!.activity.map(item => item.verb), ["delegate", "delegate-check"]);
     assert.equal(starts[0]!.browser, undefined, "the person's own work may use the side panel browser");
     assert.ok(starts.length > 1 && starts.slice(1).every(input => input.browser === false), "the delegated work starts without it");
+    assert.ok(starts.every(input => input.queued === "carry"), "RC-06: each round takes the words its session kept from a round that had just ended");
     await service.list();
     assert.deepEqual(service.notices(null).filter(notice => notice.work_id === child.work.work_id), [], "a delegated work reports to its parent, not to the person");
 

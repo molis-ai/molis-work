@@ -37,6 +37,7 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
 - `src/index.ts`：`AgentHost` 的注册、能力矩阵与启动授权。
 - `src/reviews.ts`：`AgentReviewQueue` 的请求、决定、一次性消费与回执。
 - `src/capability-registration.ts`：对外暴露的 Capability 与它们的授权边界。
+- `src/session-actions.ts`：关于会话轮次的统一动作——等待与接续（`agent.collaboration.*`），以及插件向一轮补充要求（`agent.inputs.send`，回执说这一轮收下了还是留到下一轮）。
 - `tests/agent-host.test.ts`：授权与批准各条边界的断言。
 
 ## 开发要求

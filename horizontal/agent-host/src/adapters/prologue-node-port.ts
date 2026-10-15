@@ -239,6 +239,12 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
       act: (project, id, action, detail, actorId) => messages.act(project, id, action, detail, actorId),
       prioritize: prioritize(deps) },
     collaboration: deps.waitsPort.collaboration,
+    // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key.
+    queueInput: async (sessionId, input) => {
+      const index = await deps.index.read(sessionId), session = index && await runtime.sessions.open(index.ref);
+      if (!session) throw agentErrors.session_unknown("这条会话读不到，补充留不到下一轮");
+      return session.queueInput(input);
+    },
     background: deps.waitsPort.background,
     projectWork: projectWorkPort(deps),
     documents: createPrologueDocuments(runtime, deps.options.storageRoot),

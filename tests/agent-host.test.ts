@@ -141,8 +141,9 @@ function prologueRig() {
     resume() {
       state = "running";
     },
-    steer(input: { text: string }) {
+    async steer(input: { text: string }) {
       steers.push(input.text);
+      return { steerId: `steer-${steers.length}`, replayed: false };
     },
     subscribe(fn: () => void) {
       controlListeners.add(fn);
@@ -508,6 +509,9 @@ test("the control surface owns the run state, not the event stream", async () =>
     },
   });
 
+  await adapter.inputs.send(handle.ref, { text: "再看一处" });
+  assert.deepEqual(rig.steers, ["再看一处"], "a round under way takes a supplement through its own control");
+
   await adapter.control(handle.ref, { kind: "stop" });
   assert.deepEqual(rig.stops, ["stopped"]);
   assert.equal((await adapter.read(handle.ref)).phase, "running", "停止请求不能冒充已落账的终态");
@@ -518,7 +522,8 @@ test("the control surface owns the run state, not the event stream", async () =>
   rig.emit({ type: "completed" });
   assert.equal((await adapter.read(handle.ref)).phase, "stopped");
 
-  await adapter.control(handle.ref, { kind: "steer", text: "再看一处" });
+  // A stopped round takes nothing more: a supplement now waits in the session, and this runtime keeps no queue.
+  await assert.rejects(adapter.inputs.send(handle.ref, { text: "还有一处" }), (error: unknown) => (error as { code?: string }).code === "agent.capability_unavailable");
   assert.deepEqual(rig.steers, ["再看一处"]);
 });
 

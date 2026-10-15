@@ -51,8 +51,8 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
         await reload();
       }
       if (res.work.executor && res.work.executor.kind === "coding") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: res.work.work_id, capability_id: "coding.runs.start", session_id: res.work.executor.session_id } }));
-      if (visible && res.outcome === "steered") host.showToast?.(L("已补充到正在进行的这一轮"));
-      if (visible && res.outcome === "answered") host.showToast?.(L("已作为回答发送"));
+      const said = { steered: L("已补充到正在进行的这一轮"), answered: L("已作为回答发送"), queued: L("已保存，下一轮开始生效") }[res.outcome];
+      if (visible && said) host.showToast?.(said);
     } catch (error) {
       const unknown=error.code==="ui_host.outcome_unknown";if(!unknown)unsettled.delete(intent.work);
       const data=error.body?.details||{},visible=here();

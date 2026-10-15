@@ -433,6 +433,8 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
     ...(root ? { rootRef: root.ref } : business ? { workspace: "app" as const } : { workspace: "none" as const }),
     // A digest round carries earlier rounds in its task; replaying them verbatim too is what stopped long sessions.
     ...(input.history === "digest" ? {} : { history: "session" as const }),
+    // Supplements kept in the session for the next round come in only when the Host says so (specs/ai-input-receipts §4.4).
+    ...(input.queued ? { queued: input.queued } : {}),
     ...(childRoles.size ? { subagents: {
       // The user's decision: a parent that split work across directories may read (never write) exactly those.
       ...(childRoots.length ? { workspaces: childRoots.map(({ id, rootRef }) => ({ id, rootRef })), requireWorkspace: true, parentReads: true } : {}),
@@ -576,7 +578,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
         await deps.effects.beforeEffect();
         return control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef }, { beforeAccept: () => { deps.effects.assertCurrent(); beforeAccept(); } });
       },
-      steer: async input => { await control.steer(input); }, subscribe: listener => control.subscribe(listener),
+      steer: input => control.steer(input), subscribe: listener => control.subscribe(listener),
     },
   };
 }

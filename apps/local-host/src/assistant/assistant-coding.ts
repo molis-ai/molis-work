@@ -1,5 +1,6 @@
 import type { ActionCallContext, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunControl, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 /** The person's own action client in a project: what the Coding page itself can do, nothing more. */
 export interface PersonActions {
@@ -25,7 +26,7 @@ export interface CodingSessionRead {
 }
 
 /** Each Coding action this executor calls, at the version Coding publishes now: a new shape there is a new version here, in the same change. */
-const VERSIONS = { state: 1, "sessions.create": 1, "sessions.read": 1, "sessions.update": 1, "runs.start": 1, "runs.control": 2 } as const;
+const VERSIONS = { state: 1, "sessions.create": 1, "sessions.read": 1, "sessions.update": 1, "runs.start": 1, "runs.control": 3 } as const;
 type CodingActionName = keyof typeof VERSIONS;
 
 export class CodingUnavailable extends Error {
@@ -97,5 +98,10 @@ export class CodingExecutor {
 
   async control(sessionId: string, runId: string, control: AgentRunControl): Promise<void> {
     await this.call("runs.control", { session_id: sessionId, run_id: runId, ...control });
+  }
+
+  /** A supplement through Coding's own control; its receipt says whether the round took it or it waits for the next one. */
+  async send(sessionId: string, runId: string, input: AgentInputSend): Promise<AgentSteerReceipt | undefined> {
+    return (await this.call<{ receipt?: AgentSteerReceipt } | undefined>("runs.control", { session_id: sessionId, run_id: runId, kind: "steer", ...input }))?.receipt;
   }
 }

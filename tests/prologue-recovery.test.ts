@@ -18,7 +18,7 @@ for (const result of ["saved", "failed"] as const) {
       startAgentRun: async () => ({
         run: { ref: { id: "steer-run" }, subscribe: () => () => {}, cancel: async () => {} },
         control: { state: "running", stop() {}, pause() {}, resume() {}, subscribe: () => () => {},
-          steer: async ({ text }) => { assert.equal(text, "不要改测试"); entered.resolve(); await receipt.promise; } },
+          steer: async ({ text }) => { assert.equal(text, "不要改测试"); entered.resolve(); await receipt.promise; return { steerId: "steer-1", replayed: false }; } },
       }), shutdown: async () => {},
     };
     const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
@@ -27,7 +27,7 @@ for (const result of ["saved", "failed"] as const) {
     const handle = await adapter.start({ ...owner, actor_id: "user", session, directory, task: "read", role_id: "reader",
       role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } });
     let accepted = false;
-    const submission = adapter.control(handle.ref, { kind: "steer", text: "不要改测试" }).then(() => { accepted = true; });
+    const submission = adapter.inputs.send(handle.ref, { text: "不要改测试" }).then(() => { accepted = true; });
     await entered.promise;
     assert.equal(accepted, false);
     if (result === "saved") { receipt.resolve(); await submission; assert.equal(accepted, true); }

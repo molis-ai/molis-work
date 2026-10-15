@@ -1,5 +1,6 @@
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort, type AgentRunControl } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { AGENT_INPUT_KEY_PATTERN, AGENT_STEER_MODES, type AgentInputSend, type AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { codingWriterAssignments } from "./writers.js";
 import type { CodingModelChoice } from "./routes.js";
 
@@ -36,7 +37,7 @@ export const codingRunControlInput: ActionSchema = {
       pending_id: words(200), pending_revision: { type: "integer", minimum: 1 },
       answers: { type: "array", minItems: 1, maxItems: 10, items: answerItem },
     }, ["pending_id", "pending_revision", "answers"]),
-    controlBranch("steer", { text: words(100_000) }, ["text"]),
+    controlBranch("steer", { text: words(100_000), key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN }, mode: { enum: [...AGENT_STEER_MODES] } }, ["text"]),
     controlBranch("stop", {}, []),
     controlBranch("pause", {}, []),
     controlBranch("resume", {}, []),
@@ -97,13 +98,18 @@ export function chosenEffort(body: Record<string, unknown>, model: CodingModelCh
   return effort as AgentReasoningEffort | undefined;
 }
 
+/** A supplement goes to the Agent Host's `agent.inputs.send`; every other control to the round's own control. */
+export type CodingRunControl = AgentRunControl | { kind: "steer"; send: AgentInputSend };
+
 /**
- * A control the person sends to the running round. A switch names only a model the Host offers this plugin; whether
- * the round can carry it is the Host's check.
+ * A control the person sends to the round. A switch names only a model the Host offers this plugin; whether the round
+ * can carry it is the Host's check. A supplement's key and mode were checked against the action's schema; its key is
+ * the page's, so one sent again after a lost answer is the same supplement to the runtime.
  */
-export async function runControl(body: Record<string, unknown>, models: () => Promise<readonly CodingModelChoice[]>): Promise<AgentRunControl> {
+export async function runControl(body: Record<string, unknown>, models: () => Promise<readonly CodingModelChoice[]>): Promise<CodingRunControl> {
   if (body.kind === "answer") return questionAnswer(body);
-  if (body.kind === "steer") return { kind: "steer", text: text(body.text, "补充要求", 100_000) };
+  if (body.kind === "steer") return { kind: "steer", send: { text: text(body.text, "补充要求", 100_000),
+    ...(typeof body.key === "string" ? { key: body.key } : {}), ...(typeof body.mode === "string" ? { mode: body.mode as AgentSteerMode } : {}) } };
   if (body.kind === "stop" || body.kind === "pause" || body.kind === "resume") return { kind: body.kind };
   if (body.kind === "switch-model") {
     const model = (await models()).find(entry => entry.provider_id === body.provider_id && entry.model_id === body.model_id);

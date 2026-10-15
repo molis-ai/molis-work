@@ -1,7 +1,7 @@
 name: Full suite
 
 # The full product suite (every file `node scripts/run-tests.mjs` takes without arguments, browser files included) spread over
-# ten ubuntu runners, so a change that needs the full suite (docs/system/PARALLEL-DEVELOPMENT.md §6) does not wait for the one
+# sixteen ubuntu runners, so a change that needs the full suite (docs/system/PARALLEL-DEVELOPMENT.md §6) does not wait for the one
 # full-suite slot of a development machine. About an hour on one machine; about a quarter of that here.
 # Left out: the files the Linux probe marks macOS-only (`--skip-macos-only`, scripts/ci-linux-probe/select.mjs: Seatbelt,
 # Keychain, launchctl, Swift helpers); those still run locally. Live tests skip themselves, since no key is set here.
@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   shard:
-    name: Full suite (${{ matrix.shard }}/10)
+    name: Full suite (${{ matrix.shard }}/16)
     if: >-
       ${{ github.event_name != 'pull_request'
           || (github.event.action == 'labeled' && github.event.label.name == 'full-suite')
@@ -42,10 +42,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     env:
-      # Four cores per runner: three files at once, one of them a browser file (Chrome under load is what times out).
-      MOLIS_WORK_TEST_JOBS: 3
+      # Four cores per runner: two files at once, one of them a browser file. With three at once, browser files timed out on CDP and
+      # DOM waits under load, a different handful each run (#519, five runs); sixteen shards keep the wall time about the same.
+      MOLIS_WORK_TEST_JOBS: 2
       MOLIS_WORK_TEST_BROWSER_JOBS: 1
     steps:
       # The whole history, as on a development machine: some tests read git (the merge-base of a gate, the history of a file).
@@ -97,17 +98,19 @@ jobs:
           key: full-suite-durations-${{ matrix.shard }}-${{ github.run_id }}
           restore-keys: full-suite-durations-${{ matrix.shard }}-
 
+      # A file that fails is run once more; one that then passes is listed as flaky in the summary and does not turn the shard red, so
+      # the check shows the files that fail every time (user 2026-10-15).
       - name: Run this shard
         shell: bash
-        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/10 --timeout-seconds 900 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
+        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/16 --timeout-seconds 900 --retries 1 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
 
-      # The runner's closing lines: files passed, the slowest, the failed files and the command that reruns only them.
+      # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.
       - name: Summary
         if: ${{ always() }}
         shell: bash
         run: |
           {
-            echo "### Shard ${{ matrix.shard }}/10"
+            echo "### Shard ${{ matrix.shard }}/16"
             echo '```'
             sed -n '/^run-tests: [0-9]* of [0-9]* files passed/,$p' "$RUNNER_TEMP/full-suite.log" 2>/dev/null || echo "no summary (the run did not finish)"
             echo '```'

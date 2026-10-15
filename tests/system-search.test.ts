@@ -34,6 +34,9 @@ interface Source {
   availability: ActionAvailability;
   /** What the reader throws for an object it no longer has; a plugin's own error need not carry an action code. */
   absent?: () => Error;
+  /** The owner's listing waits on this, after calling `onList`. */
+  hold?: Promise<void>;
+  onList?: () => void;
 }
 
 const kinds = [{ kind: "note", title: "笔记", surface: "notes" }];
@@ -51,8 +54,10 @@ function register(service: ActionService, state: Source, provider: { provider_id
     availability: () => state.availability,
     definitions: [entries, reader],
     handlers: [
-      bindSearchEntriesHandler(entries, () => {
+      bindSearchEntriesHandler(entries, async () => {
         state.lists += 1;
+        state.onList?.();
+        await state.hold;
         if (state.fail) throw new ActionError("notes.broken", "笔记库暂时打不开");
         return [...state.notes.values()].map((note): SearchEntry => ({ subject: { kind: "note", id: note.id }, revision: String(note.version), title: note.title,
           summary: note.secret ? "（私密）" : "", updated_at: null, content: note.secret ? "summary" : "context", open: { surface: "notes", id: note.id } }));
@@ -198,6 +203,28 @@ test("project, personal and grant scopes: nothing leaks to a caller who cannot r
   assert.equal((await f.search.open({ client: f.actions, caller: withReader }, { hit_id: hit.hit_id })).state, "ok");
   assert.equal((await f.search.open({ client: f.actions, caller: client }, { hit_id: hit.hit_id })).state, "unavailable");
   assert.equal((await f.search.open({ client: f.actions, caller: owner("b") }, { hit_id: hit.hit_id })).state, "unavailable");
+});
+
+test("a source revoked while the query waits for the index answers nothing from that query", async t => {
+  const f = await fixture(t);
+  const notes = source([{ id: "a1", title: "A 项目合同", body: "甲方付款条款", version: 1 }]);
+  register(f.actions, notes, { provider_id: "notes", project_id: "a" });
+  // The owner's listing is held so the query is mid-wait when the external client loses the source and its reader.
+  let release!: () => void, listing!: () => void;
+  const listed = new Promise<void>(resolve => { listing = resolve; });
+  notes.hold = new Promise<void>(resolve => { release = resolve; });
+  notes.onList = listing;
+  const granted = [{ capability_id: entries.capability_id, version: 1, provider_id: "notes" }, { capability_id: reader.capability_id, version: 1, provider_id: "notes" }];
+  const client: ActionCallContext = { actor_id: "mcp-client", project_id: "a", audience: "mcp", permissions: ["notes:read", "search:read"], allowed_actions: granted };
+  const pending = ask(f, client, "合同");
+  await listed;
+  granted.splice(0);
+  release();
+  const answered = await pending;
+  assert.deepEqual(ids(answered), [], "the hit the client could read when the query started is not returned once the grant is gone");
+  assert.equal(answered.status, "empty_scope", "nor is the revoked source reported");
+  assert.deepEqual(answered.sources, []);
+  assert.deepEqual(ids(await ask(f, owner("a"), "合同")), ["a1"], "the owner's index still holds it");
 });
 
 // Todo is one Home provider over one store, with todos placed in a project, in the personal space or not yet placed.

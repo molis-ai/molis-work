@@ -1,6 +1,6 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-15，Claude 按用户 10-14 目标接手，Codex 写线已暂停交接）。I8 的修复树 F109（本地分支，未推送、未进 main）已合入 main 5d62d77f（含 W4-06 拆分）；108 的失败只在 F109 上修完，F109 全量 974/985、其余 11 个已逐个查明；F109 不是 main 的结果。下一步按工作流拆片、串行合入 main（§10.11 决定 7）：第 1 片在做构建闭包，再接第 4–6 波。10-14 独立复查的发现与处理见 §10.11。
+状态：执行中，整线未完成（2026-10-15，Claude 按用户 10-14 目标接手，Codex 写线已暂停交接）。I8 的修复树 F109（本地分支 `9a30b3135`，未推送、未进 main）已合入 main 到 #513；F109 全量 974/985、其余 11 个已逐个查明；F109 不是 main 的结果。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 main 上修（§10.12），C-01、C-02、C-04、A-01、A-04 只在 F109，随 I8 进 main。下一步按工作流拆片、串行合入 main（§10.11 决定 7）：S1 的闭包离不开 W3-02，改成 S1+W3-02 一片，再接第 4–6 波。10-14 独立复查见 §10.11。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
@@ -1574,6 +1574,29 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 其余：#489（Pages 评论侧栏与助理主区）新动作只给用户、等模型的动作并发声明并在写前复核、后台投递用可撤销授权；删掉的断言都是原样保留、等价改写，或换成按模块图判定浏览器专属代码（PR 写明）。#498（W4-06）只拆文件，没有删断言。#504 的 Issue 草稿截图存在浏览器 Cache Storage，属于本机草稿。I8 的门禁只收紧（`rawFetchInScripts` 是 W3-10-5 的批准项），资源预算 24 项下降、0 项上升，产品子集只增，断言数下降的 7 个文件都是退役的 Goals typed 桥（PR-5）和 `host_only`（PR-6），改由动作重新断言。
 
 I8 修复树 F109 上另修的产品问题（都带用例）：卡片结果未知的判断在合并 7c7999489 里丢了（assistant-offers）；Coding 打开会话就提前启动运行时（只在有可恢复会话时启动）；工作流接续与停止投递同一毫秒的时间戳冲突（`nextUpdatedAt`）；Pages 新建与导入时空白页丢弃了两次；成果交给别的插件失败时直接显示内部原因（改成可读的话）；consumes 先查目录再查授权（改成先查授权）；导出的问卷页必填题只有 aria-required，原生下拉框在 Chrome 的可访问树里看不到必填（加原生 required 并 `novalidate`，提交校验与错误话不变）。其余是测试跟着已批准的变化改（共同请求出口的话、按 id 现读详情、MCP 新会话要用户确认、AI 改对象要带版本），每条在提交说明里写了依据，没有放宽断言。
+
+
+### 10.12 2026-10-15 代码回溯审查的逐项状态
+
+来源：`docs/reviews/anti-corruption-code-audit-2026-10-15.md`（对 main `24d04d98` 的回溯审查，C-01～C-06、A-01～A-06、B-01～B-12）与 `docs/reviews/anti-corruption-pr-audit-2026-10-14.md`。两份报告未入库，以本节为准。「main」指已合入的共同版本；F109 是本地修复树，不算完成。
+
+| 编号 | 问题 | main 状态 | 处理 |
+| --- | --- | --- | --- |
+| C-01 | 共同副作用守卫在最后一次 Host 等待（`beforeEffect`）之后不再复查调用者授权 | 仍在 | F109 有 `assertCurrentAuthority` 候选，随 I8 第 1 片（S1+W3-02 闭包）进 main；进之前不算修 |
+| C-02 | Pages 评论回复在停止后被异步返回写回「运行中」 | 仍在 | F109 有读取返回后复查轮次与按 revision 提交的候选，随 I8 进 main |
+| C-03 | 搜索等索引追上时撤权，这次查询仍返回旧授权内容 | #514 修 | 查询在追上索引之后重读调用者目录，再按那份目录过滤和报来源；`tests/system-search.test.ts`「a source revoked while the query waits for the index answers nothing from that query」（未修时返回 `a1`，已复现） |
+| C-04 | 外部 MCP 改已有对象可以不带读取版本 | 仍在 | F109 有中央版本前置候选（W3-09-3），随 I8 进 main |
+| C-05 | 「永久清除用户数据」漏掉现行库和数据 | #514 修 | 清除范围补上 `assistant`、`placement`、`agent-definitions`、`characters` 四个库（进 `PERSONAL_HOME_SQLITE_STORES`，归为宿主库，插件不能用这些名字），以及 `docs/system/HOME-DATA.md` 登记的 `agent-runtime/`、`feed/`、`browser/`、`plugin-builder/`、`cache/`、`directory-access/`、`git-operation-details.json`、`runtime-integration-attempts/` 和 `config/` 里属于人的五个文件；`tests/uninstall.test.ts` 往每一项放内容，断言在计划里且 Home 整个删掉（未修时「purge 要删 assistant」失败）。Keychain 主密钥不在 Home，不碰。统一登记（W4-11）仍未做 |
+| C-06 | Characters 打开无版本旧库时直接盖成版本 1 | #514 修 | `openCharacters` 改经 `applySqliteBaseline`（`CHARACTERS_STORE_BASELINE`）；无版本的表、更高版本都拒绝且原库不动（`tests/home-store-baselines.test.ts`，未修时「Missing expected exception」）。发布检查清单该行改成「拒绝」。真实 Home 的库在 10-14 只读拷贝上是现行形状（F-9） |
+| A-01 | 模型切换在 SDK 接受时没有末端授权复核 | 仍在 | 随 I8 第 1 片（新 SDK 包 + `beforeAccept`）进 main |
+| A-02 | Computer Use 停下或出错的一轮被记成「失败：模型说完成了」 | 已修 | #510 |
+| A-03 | 电脑 socket 自带本机名单、S-04 未覆盖 | 已修 | #510；`SECURITY-INVARIANTS.md` 第 9、70 行「Computer Use 不在 main」#514 改掉，并补 S-25（桌面动作的拒绝，用例只在本机跑） |
+| A-04 | `withPreparedActions` 准备失败不进共同调用结算 | 仍在 | F109 有 `refuse` 第三参候选，随 I8 进 main |
+| A-05 | 测试内部引用台账开头仍写 16 条 | #514 修 | 改成 15 条、8 个测试文件，注明 10-15 删去的一条 |
+| A-06 | AI 入口清单没有 Pages 评论线程 | #514 修 | `ai-entry-inventory.md` 补 AG-7（模型调用仍走 AG-1；C-02 记在这一行） |
+| B-01～B-12 | 结构项（手工装配、浏览器模板脚本、Home 清单分散等） | 照路线图 | 第 4～6 波；不在本节关闭 |
+
+I8 落地的实际情况（10-15）：第 1 片（S1）的构建闭包把 136 个文件拉进来，仍有 19 个测试文件失败，原因都是 W3-02 的错误改名、`goal-actions` 子路径和管理入口没跟进。S1 不能单独成片，下一步把 S1 与 W3-02 合成一片，从 F109 `9a30b3135`（已合入 #505～#513）整文件取，而不是 `7882cf09c`。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

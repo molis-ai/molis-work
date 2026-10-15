@@ -6,7 +6,7 @@
 - 表由门禁看住：`pnpm health:check` 的 `security invariants` 规则（`scripts/gates/security-invariants.mjs`）检查每一行点名的测试文件存在、每一个「标题片段」（一个文件后面可以连写几个，一个都不漏）确在文件里、「CI 里跑」一列的文件确实被 CI 跑到，每个 `tests/security-invariants-*.test.ts` 都被某一行点名。改了测试名就改这里。
 - CI 里跑的集合是根 `package.json` 的 `test:security`，加上 `test:contracts` 里已有的几条（动作网关、`beforeEffect`、MCP 授权）。CI 是 Linux：只在 macOS 上能跑的（Seatbelt 沙箱、真 Chrome）和较重的整机用例列在「只在本机跑」一列，等 Linux 探针（`linux-probe`，决定 #14）确认能过后再移进 CI 一列（W2-16）。
 - **这一步现在不挡合并**：`ci.yml` 的 `security-invariants` 作业（「Security invariants (not required yet)」）带 `continue-on-error: true`，不在 `Verify` 的 `needs` 里（红了在作业上显示失败，`Verify` 仍是绿的；单独一个作业，也不拖长挡合并的作业）。理由是决定 #14（先不挡产品用例，约两周后并入）：`test:security` 里有产品用例（目标树与决定动作、侧栏、记忆等），新写的 7 个 `security-invariants-*` 文件（含起启动器和整机的）也还没在 Linux 上跑过；`linux-probe` 作业会把它们跑进它的报告。探针连续两周没有这些文件的失败后，把它加进 `Verify` 的 `needs`、去掉 `continue-on-error`，它才挡合并（和 W2-16 一起做）。合并前至少要看到这个 PR 的 CI 里这一步在 Linux 上是绿的。
-- 范围外：Computer Use 还没进 main（只有分支 `docs/computer-use-goal` 上的 spec），它的站点策略与确认节奏等功能落地时再加一行。
+- Computer Use 已在 main：助理电脑 socket 在 S-04，桌面动作的拒绝在 S-25。
 
 ## 1. 表
 
@@ -36,6 +36,7 @@
 | S-22 | 命令点名额外路径或联网权限时，只能批准这一次完整内容；不能建立或命中不含这些扩权的本会话免询问规则 | `horizontal/agent-host/src/reviews.ts` 的 `standingKey`；`horizontal/agent-host/src/adapters/prologue-node.ts` 的命令审查投影；`apps/workbench/src/agent-review-surface.ts` | `tests/agent-review-standing.test.ts`「a command that names extra paths or the network is approved once, never as a standing rule, and a rule never covers it」 | |
 | S-23 | 统一协作接续接通前，Coding 正式入口的 `dispatch-subagent` 带 `yield: true` 在派出前拒绝；不创建孩子、审批或新父 Run，存储重开也不自动请求模型 | `horizontal/agent-host/src/adapters/prologue-subagents.ts` 的 `subagentYieldGuard`；`horizontal/agent-host/src/adapters/prologue-node.ts` 的角色装配 | `tests/prologue-adoption-guard.test.ts`「PA-23: production Node adapter refuses yield before dispatch, with no child or resumed parent after reopen」 | |
 | S-24 | Assistant 的 Host HTML 投影拒绝把模型正文、代码、对象标题或审查字段当作标记；所有文本与属性转义，链接只接受 http/https/mailto，不接受模型提供的 HTML。投影只随响应返回，不写回事实；审查按钮仍经原受保护的 HTTP 决定入口 | `apps/workbench/src/assistant-text-parts.ts`、`assistant-text-html.ts`；`apps/local-host/src/assistant/assistant-view-html.ts` | `tests/security-invariants-assistant-html.test.ts`「Assistant words, code, object titles and links cannot become executable markup」「review summaries and every field remain text」 | |
+| S-25 | 助理操作桌面（Computer Use）：Molis Work 自己的窗口、助手和标题带 Molis 标记的窗口是禁区，看与动都拒；系统设置是禁区；终端只能看和点，打字、按键与菜单都拒；落点不在目标应用、截图会带出别的应用或没涂黑的密码框、往密码框里打字都在注入前拒绝，并记成 refused；注入后 1.5 秒内到的桌面确认答复不算（409，确认仍待定）；确认入口只列、只决定持有电脑那一轮的确认，别的轮次的决定 404。窗口里的文字不能让这些规则让步 | `apps/local-host/src/computer/computer-policy.ts`、`computer-driver.ts`；确认入口的持有轮次与时间闸在 `apps/local-host/src/agent-review-http.ts` | | `tests/computer-use-gaps.test.ts`「the four published refusals reject a representative forbidden input and ignore window text」「the review HTTP follows the holding round, and a fresh click cannot approve itself」「the desktop driver refuses the same four inputs before it acts」「a look at the assistant's own window is recorded as refused」 |
 
 ## 2. 怎么跑
 
@@ -67,5 +68,5 @@ node scripts/run-tests.mjs tests/security-invariants-local-entry.test.ts   # 单
 - **提示注入的标记中和随当前包验证**：SDK 对 pinned memory 伪标记的中和（Prologue `f40af26c`）在当前 vendored 包 `prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz` 里，S-13 的 `tests/prologue-memory-boundary.test.ts` 对这份包断言拒绝（`pnpm test:security`）。换包时同一条用例必须在新包上再过一次。进度见 [采用 spec](../../specs/prologue-adoption/spec.md) §6。
 - **五处公网地址实现仍是五份**：S-10 用同一张表钉住了行为，没有合成一份：Jelly 与插件创作台各有自己认可的 `198.18.0.0/15` 例外（用户 2026-09-27 的决定），AnySearch 用 `BlockList`，RSS 在插件包内。合成一份要先决定放在哪（`contracts` 的纯函数不能引 `node:net`）。
 - **Seatbelt 沙箱用例永远不会在 Linux 上跑**：S-15 里读写、起进程、直连网络被拒的断言只在 macOS 上有；Linux 上的沙箱继任者属于 C 端就绪方案的 D4。
-- **Computer Use 不在 main**：站点策略与逐步确认的 S-16 目前只覆盖侧栏浏览器。
+- **Computer Use 的拒绝用例只在本机跑**：S-25 的用例用假驱动，没在 Linux 上确认过，先放「只在本机跑」一列；真机上终端打字、系统设置、被挡住的落点和自批四种拒绝还没有记录（`specs/computer-use/spec.md` 状态句）。
 - **GitHub 的 secret scanning 与 push protection 在这个公开仓库上是关的**：要在仓库设置里开，属于用户的操作（`spec.md` §7）。

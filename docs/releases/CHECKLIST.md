@@ -55,7 +55,7 @@
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/store.ts#WORKFLOWS_STORE_BASELINE` | 拒绝 |
 | 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝 |
 | server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
-| 角色 | `characters/characters.sqlite` | 1 | `user_version`（自己读写） | `modules/characters/src/open.ts#PRAGMA user_version` | 只拒绝更高的版本 |
+| 角色 | `characters/characters.sqlite` | 1 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 2 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 2 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 2 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 读成空，所有 MCP 动作授权失效 |

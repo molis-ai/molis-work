@@ -35,12 +35,13 @@ const idOf = (name: string) => `io.molis.work.example.${name}`;
  * entry may not name, and `issues`, the Issue plugin's, opened through its Home catalog entry. Temporary: the Home store registry
  * of W4-11 replaces the list in plugin-database-entries.ts with "already registered by another owner".
  */
-const HOST_LIBRARIES = ["functions", "connectors", "context-onboarding", "search", "memory", "server", "plugin-runtime", "issues"];
+const HOST_LIBRARIES = ["functions", "connectors", "context-onboarding", "search", "memory", "server", "plugin-runtime", "issues",
+  "assistant", "placement", "agent-definitions", "characters"];
 /** The libraries of the personal plugins the Host still runs from its build: the Runtime plugins that replace them keep these names. */
 const PERSONAL_LIBRARIES = ["images", "pages", "form", "dataset", "ppt", "lingguang", "todo", "jelly", "cognia", "alchemist", "workflows"];
 /** The Home's other top-level directories (docs/system/HOME-DATA.md sections 5 and 6): none is on the purge list as a library. */
 const HOST_DIRECTORIES = ["feed", "config", "agent-runtime", "browser", "shelf", "logs", "releases", "bin", "cache", "backups", "plugin-builder",
-  "directory-access", "runtime-integrations", "projects", "sessions", "assistant", "placement", "agent-definitions", "characters"];
+  "directory-access", "runtime-integrations", "projects", "sessions"];
 
 interface ProbeOptions {
   name?: string;

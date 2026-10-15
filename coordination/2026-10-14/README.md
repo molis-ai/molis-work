@@ -325,6 +325,14 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 - 采用 P3a #534、情境 W3-A1 #536 都过了 full-suite（只挂既有的 agent-action-selection），入队后因为 main 又合了 #535、#538–#544，被以 `merge_conflict` 踢出队列。冲突在 `tooling/gates/page-assets.json`，#536 还多一个 `apps/local-host/src/index.ts`。
 - 解法：#534 先并 main、构建后用 `--update --base` 重新生成门禁数字，推送后重新入队；#534 合入后 #536 再做同样的事，免得来回撞。
 - 只并 main、重新生成门禁数字的 head，不重跑 full-suite：沿用上一轮的结论，合并队列在合并结果上跑 Verify。
+- 结果：采用 P3a #534 已合（`7fe8ee65`），情境 W3-A1 #536 已合（`ac47ed78`）。下一步部件与派生的形状从此冻结。
+- 交互 H3 #546（head `82a90764`）防腐复查通过，统筹加了 full-suite，全绿后入队；它与 `ac47ed78` 能干净合并。合入后通知情境线开 W3-B：落点取候选用 `search.references@1` 和 `horizontal/search/src/references.ts` 的 `confirmReferences`，不另写一套。
+- 回执 1c 的决定（回执线发来的 1c 对 P3a 清单，统筹答复）：
+  - 新动作 `agent.inputs.send@1`，返回 `AgentSteerReceipt`；`controlRun` 去掉 steer 分支，不留兼容。
+  - 次序：`beforeEffect` → `assertAuthorityCurrent` → `queueInput` 前再查一次；被取消或撤权就不写记录。
+  - 助理传入排队的那一条（carry）。
+  - 提示条挪到 1e；但 1c 的措辞要说真话，不能写「已补充到正在进行的这一轮」。
+  - 开工条件：H3 与防腐 W4-07 都已合入。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

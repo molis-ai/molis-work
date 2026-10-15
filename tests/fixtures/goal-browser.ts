@@ -153,8 +153,9 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       };
       reveal(element);
       await new Promise(resolve => requestAnimationFrame(resolve));
-      // A list may still be closing from the previous choice, or take a few frames to open on a busy machine.
-      for (let tries = 0; tries < 30; tries++) {
+      // A list may still be closing from the previous choice, or take a few frames to open on a busy machine (up to 5 s: the
+      // Linux CI runner).
+      for (let tries = 0; tries < 150; tries++) {
         const current = document.querySelector(${JSON.stringify(selector)}) || element;
         if (current.getClientRects().length) break;
         reveal(current);

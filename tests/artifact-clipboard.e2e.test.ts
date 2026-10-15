@@ -10,7 +10,7 @@ import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 // This checks the real browser clipboard, not the automation tool's virtual clipboard.
-test("migrated result reference copies exact text and handles denied clipboard permission without changing facts", { timeout: 30_000 }, async (t) => {
+test("migrated result reference copies exact text and handles denied clipboard permission without changing facts", { timeout: 60_000 }, async (t) => {
   const chrome = locateTestChrome();
   if (!chrome) return t.skip("Chrome is required for actual clipboard E2E");
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-clipboard-"));
@@ -32,7 +32,8 @@ test("migrated result reference copies exact text and handles denied clipboard p
     reason: "fixture", created_by: "fixture-user", created_at: new Date().toISOString() });
   server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory,
     controlToken: "artifact-clipboard-test-control-token-0123456789" });
-  harness = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 5_000 });
+  // Sized for the Linux CI runner, as in tests/fixtures/goal-browser.ts: a limit stops a hang, it is not a speed check.
+  harness = await ChromeHarness.start(directory, { executable: chrome, commandTimeoutMs: 15_000 });
   const browser = harness;
   const command = <T = unknown>(method: string, params: Record<string, unknown> = {}, sessionId?: string) => browser.command<T>(method, params, sessionId);
   await new Promise<void>((resolve) => server!.listen(0, "127.0.0.1", resolve));
@@ -50,7 +51,7 @@ test("migrated result reference copies exact text and handles denied clipboard p
   }
   async function waitFor(expression: string): Promise<void> {
     await evaluate(`new Promise((resolve, reject) => {
-      const deadline = Date.now() + 4000;
+      const deadline = Date.now() + 10_000;
       const check = () => { if (${expression}) resolve(true); else if (Date.now() >= deadline) reject(new Error('DOM condition timeout; toast=' + document.querySelector('[data-toast]')?.textContent + '; focused=' + document.activeElement?.outerHTML.slice(0,500))); else requestAnimationFrame(check); }; check();
     })`);
   }

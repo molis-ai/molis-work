@@ -18,7 +18,7 @@ W4-04 第一片（2026-10-15，插件读自己成果线的最新版本，#545 �
 
 W4-09（2026-10-15，两个 PR 开着）：#539 把 Web 服务的五个周期任务登记在一处（`apps/local-host/src/periodic-tasks.ts`），「设置 › 诊断」列出「后台任务」；`W4-09-01`、`W4-09-02`（反复启停不留计时器）在 `tests/host-periodic-tasks.test.ts`。#540 让成果游标改为进程内通知加 30 秒兜底（`W4-09-03`，`tests/plugin-platform-composition.test.ts`），炼金术士工作室空闲 10 分钟且手上没事就关（`W4-09-04`，`tests/alchemist-studio-idle.test.ts`）。三处都做了变异检查。
 
-W4-11（2026-10-15，Home 存储统一登记，PR 待开）：
+W4-11（2026-10-15，Home 存储统一登记，#542）：
 - 登记：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里 43 项有数据的条目和它们的 owner，库另带基线。
 - 声明：各 owner 在打开它的代码旁声明。插件的 `*_HOME_STORE` 经目录条目 `home_store` 带进；Issues 的经 `runtime.database` 带进；模块、存储层和宿主的各在自己的文件里。类型 `HomeStoreDeclaration` 放在 `contracts/platform/plugin`，形状与检查 `homeStoreRegistry` 放在 `packages/storage`；storage 不认识任何插件或模块。
 - 读登记的：卸载清除（决定 #20：清除覆盖所有登记的库），不再手列；插件库的发放（`plugin-database-entries.ts`）；基线用例（`tests/home-store-baselines.test.ts` 按登记逐个检查，新库要带结构样本或写进无样本名单）。路线图里的「维护」在仓库里没有代码（真实 Home 的维护脚本在交接目录，不入库），所以没有接。

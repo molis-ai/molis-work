@@ -30,6 +30,7 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
     commitBatch: inputs => commit(() => host.storage.commitBatch(inputs)),
     remove: input => commit(() => host.storage.remove(input)),
     purge: input => commit(() => host.storage.purge(input)),
+    discard: input => commit(() => host.storage.discard(input)),
   };
   const wrap = <T extends object>(target: T, control: AgentMemoryExecutionControl): T => new Proxy(target, {
     get(object, key) {

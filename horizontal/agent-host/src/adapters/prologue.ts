@@ -174,7 +174,7 @@ export interface PrologueRuntimePort {
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
-  waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
+  collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   /** The runtime's durable local queue for timed work. */
@@ -299,7 +299,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   readonly projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
-  readonly waits?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentWaitsCapability;
+  readonly collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
@@ -324,7 +324,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#runtime = options.runtime;
     if (options.runtime.projectWork) this.projectWork = options.runtime.projectWork;
     if (options.runtime.messages) this.messages = options.runtime.messages;
-    if (options.runtime.waits) this.waits = options.runtime.waits;
+    if (options.runtime.collaboration) this.collaboration = options.runtime.collaboration;
     if (options.runtime.background) this.background = options.runtime.background;
     if (options.runtime.schedule) this.schedule = options.runtime.schedule;
     if (options.runtime.memory) this.memory = options.runtime.memory;

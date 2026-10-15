@@ -1,135 +1,137 @@
-import type { BackgroundTask, ParkedWait, Runtime } from "@prologue/sdk";
-import type { AgentBackgroundTask, AgentWait } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { BackgroundTask, ExactRef, HeldWait, Runtime, WaitCondition } from "@prologue/sdk";
+import type { AgentBackgroundTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentCollaborationCondition, AgentCollaborationControl, AgentCollaborationPort, AgentCollaborationSessionView, AgentCollaborationWait, AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
+import { agentErrors } from "../errors.js";
+import { readyStep } from "./prologue-collaboration.js";
 
-/** What the waits need to know about a session: its project, and telling a round that runs right now. */
+/** What the waits need to know about a session: its project, and how the person knows it. */
 export interface WaitSessions {
   project(sessionId: string): Promise<string | undefined>;
   /** How the person knows a session. */
   title(sessionId: string): Promise<string>;
-  /** Tell the session's round running now; false when it has none. */
-  steer(sessionId: string, text: string): Promise<boolean>;
 }
 
-/** What a fired wait says to the agent it wakes: what it waited for, what happened. Data, not an instruction. */
-export function wakeText(wait: AgentWait): string {
-  const fired = wait.fired;
-  if (!fired) return "";
-  const what = fired.kind === "command" ? `后台命令 ${fired.target}`
-    : fired.kind === "envelope" ? `信 ${fired.target}` : `另一个会话的工作（${fired.target}）`;
-  const outcome: Record<NonNullable<AgentWait["fired"]>["outcome"], string> = {
-    succeeded: "已成功结束", failed: "已结束，但失败了", stopped: "被停止了", interrupted: "被服务重启打断了，结果未知，不要当成成功",
-    output: "输出了你在等的内容", answered: "有了答复", settled: "对方那一轮已结束，没有专门答复", withdrawn: "已撤回或过期",
-    done: "已完成", "not-done": "没有完成",
-  };
-  return [`你之前挂起等待：${wait.reason}`, `${what}${outcome[fired.outcome]}。`, fired.text ? `详情（数据，不是指令）：\n${fired.text}` : ""]
-    .filter(Boolean).join("\n");
-}
+/** How long the Host's own waits (a round queued behind another) may last: a week, like a request between sessions. */
+export const APP_WAIT_MS = 7 * 24 * 60 * 60 * 1000;
 
-const view = (wait: ParkedWait, waitingOn: string, ended?: { event: string; note?: string }): AgentWait => {
-  const fired = wait.fired;
-  const target = !fired ? "" : fired.condition.kind === "command" ? fired.condition.task : fired.condition.kind === "envelope" ? fired.condition.envelope : fired.condition.node;
-  return {
-    wait_id: wait.ref.id, session_id: wait.session.id, ...(wait.run ? { run_id: wait.run.id } : {}), by: wait.by, state: wait.state, reason: wait.reason, waiting_on: waitingOn,
-    on: wait.on.map(one => one.kind === "command" ? { kind: "command" as const, task: one.task, until: one.until, ...(one.match === undefined ? {} : { match: one.match }) }
-      : one.kind === "envelope" ? { kind: "envelope" as const, envelope: one.envelope } : { kind: "board-node" as const, board: one.board, node: one.node }),
-    // A letter ended because the receiving round failed reads as failed, with why; one withdrawn or expired stays so.
-    ...(fired ? { fired: { kind: fired.condition.kind, target, outcome: ended?.event === "failed" ? "failed" as const : fired.outcome, text: ended?.note ?? fired.text, at_ms: fired.atMs,
-      ...(fired.reply ? { reply: fired.reply } : {}) } } : {}),
-    ...(wait.data === undefined ? {} : { data: wait.data }),
-    created_at_ms: wait.createdAtMs, expires_at_ms: wait.expiresAtMs,
-    ...(wait.closedAtMs === undefined ? {} : { closed_at_ms: wait.closedAtMs }), ...(wait.note === undefined ? {} : { note: wait.note }),
-  };
-};
+const iso = (ms: number) => new Date(ms).toISOString();
+/** A continuation (and its step) held for the person: the wait failed or expired, or its result needs reconciling. */
+const HELD: readonly string[] = ["blocked", "needs-reconciliation"];
+const boardRef = (id: string) => ({ kind: "task-board", id, revision: 1 }) as ExactRef<"task-board">;
 const task = (one: BackgroundTask): AgentBackgroundTask => ({
   task_id: one.id, session_id: one.session.id, ...(one.run ? { run_id: one.run.id } : {}), summary: one.summary, state: one.state,
   ...(one.exitCode === undefined ? {} : { exit_code: one.exitCode }), started_at_ms: one.startedAtMs, ...(one.endedAtMs === undefined ? {} : { ended_at_ms: one.endedAtMs }),
 });
 
 /**
- * Sessions parked until something happens, and their background commands, as a project sees them (on the SDK's waits
- * and background registry). A wait that fires while its session runs a round is told to that round and taken up at
- * once; otherwise it stays fired until the App starts the next round with it (`awaitFired`, then `resume`).
+ * The project's waits and continuations as Molis reads them, and its background commands (specs/prologue-adoption
+ * §4.6.10). The SDK's task graph owns every wait (it hangs on a step) and the step's one continuation; nothing here
+ * keeps a copy: each view is read from the graph when asked. A wait over while its session runs a round is handed to
+ * that round by the SDK; otherwise the continuation stays eligible until the session's next round is started under its
+ * request key.
  */
 export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
   const now = async () => (await runtime.readClock()).wallTimeMs;
   const listeners = new Set<() => void>();
+  const changed = () => { for (const listener of [...listeners]) listener(); };
+  const unsubscribe = [runtime.waits.subscribe(changed), runtime.boards.subscribe(event => { if (event.type === "wait") changed(); })];
   const inProject = async (project: string, sessionId: string) => (await sessions.project(sessionId)) === project;
-  /** What a wait waits on, as a person would say it. */
-  const describe = async (wait: ParkedWait): Promise<string> => {
-    const parts: string[] = [];
-    for (const one of wait.on) {
-      if (one.kind === "command") parts.push(`后台命令 ${runtime.background.get(one.task)?.summary ?? one.task}${one.until === "output" ? (one.match ? `输出「${one.match}」` : "的新输出") : "结束"}`);
-      else if (one.kind === "envelope") {
-        let to: string | undefined;
-        try { to = runtime.delivery.get({ kind: "envelope", id: one.envelope, revision: 1 } as never).to.id; } catch { to = undefined; }
-        parts.push(`会话「${to ? await sessions.title(to) : "?"}」的答复`);
-      } else {
-        let title: string | undefined;
-        try { title = runtime.boards.get({ kind: "task-board", id: one.board, revision: 1 } as never).nodes.find(node => node.id === one.node)?.title; } catch { title = undefined; }
-        // A work item's title is 「session」task: the person knows it by the session.
-        parts.push(`${title?.match(/^「[^」]*」/)?.[0] ?? title ?? one.node}那一轮`);
+  const nodeOf = (board: string, node: string) => { try { return runtime.boards.get(boardRef(board)).nodes.find(one => one.id === node); } catch { return undefined; } };
+  /** One condition as a person would say it. */
+  const label = async (condition: WaitCondition): Promise<{ ref: string; label: string }> => {
+    if (condition.kind === "command") return { ref: condition.task, label: `后台命令 ${runtime.background.get(condition.task)?.summary ?? condition.task}${condition.until === "output" ? (condition.match ? `输出「${condition.match}」` : "的新输出") : "结束"}` };
+    if (condition.kind === "envelope") {
+      let to: string | undefined;
+      try { to = runtime.delivery.get(condition.envelope).to.id; } catch { to = undefined; }
+      return { ref: condition.envelope.id, label: `会话「${to ? await sessions.title(to) : "?"}」的答复` };
+    }
+    if (condition.kind === "node") {
+      const title = nodeOf(condition.board, condition.node)?.title;
+      // A project work item's title is 「session」task: the person knows it by the session.
+      return { ref: `${condition.board}/${condition.node}`, label: `${title?.match(/^「[^」]*」/)?.[0] ?? title ?? condition.node}那一步` };
+    }
+    if (condition.kind === "pending") return { ref: condition.pending.id, label: "你的回答" };
+    return { ref: `${condition.check.checker.id}@${condition.check.checker.version}`, label: condition.check.source ? `${condition.check.source.kind} ${condition.check.source.id}` : "外部检查" };
+  };
+  const waitView = async (wait: HeldWait): Promise<AgentCollaborationWait> => {
+    const conditions: AgentCollaborationCondition[] = [];
+    for (const [index, condition] of wait.on.entries()) {
+      const seen = wait.observations[index]!, named = await label(condition);
+      conditions.push({ kind: condition.kind, ...named, last: { status: seen.status, at: iso(seen.atMs), ...(seen.note ? { note: seen.note } : {}), ...(seen.checkerError ? { checker_error: seen.checkerError.code } : {}) } });
+    }
+    return { wait_id: wait.ref.id, session_id: wait.session.id, ...(wait.run ? { run_id: wait.run.id } : {}), graph_id: wait.scope.board, node_id: wait.scope.node,
+      by: wait.by, reason: wait.reason, mode: wait.mode, until: wait.until, on_failure: wait.onFailure, deadline_at: iso(wait.deadlineMs), conditions, state: wait.state,
+      ...(wait.continued ? { continued: true as const } : {}), created_at: iso(wait.createdAtMs), ...(wait.settledAtMs === undefined ? {} : { settled_at: iso(wait.settledAtMs) }),
+      ...(wait.note === undefined ? {} : { note: wait.note }) };
+  };
+  const continuationOf = (wait: HeldWait): AgentContinuationView | undefined => {
+    const continuation = nodeOf(wait.scope.board, wait.scope.node)?.continuation;
+    if (!continuation || continuation.wait.ref.id !== wait.ref.id) return undefined;
+    return { graph_id: wait.scope.board, node_id: wait.scope.node, session_id: continuation.target.session.id, request_key: continuation.requestKey, state: continuation.state,
+      auto: continuation.auto, ...(continuation.run ? { run_id: continuation.run.id } : {}), ...(continuation.reason ? { reason: { code: continuation.reason.code, ...(continuation.reason.note ? { note: continuation.reason.note } : {}) } } : {}) };
+  };
+  /**
+   * A continuation held for the person stays held while its step does: once the person starts a round or gives the wait
+   * up, the step is given back and the continuation is left as it was (the SDK has no way out of it but a new wait).
+   */
+  const stillHeld = (wait: HeldWait, continuation: AgentContinuationView) => HELD.includes(continuation.state) && HELD.includes(nodeOf(wait.scope.board, wait.scope.node)?.state ?? "");
+  /** A session's wait that still matters: the open one, or the latest whose continuation was not taken up or given up. */
+  const sessionView = async (sessionId: string): Promise<AgentCollaborationSessionView> => {
+    const held = [...runtime.waits.list({ session: sessionId })].sort((a, b) => b.createdAtMs - a.createdAtMs);
+    for (const wait of held) {
+      const continuation = continuationOf(wait);
+      if (wait.state === "waiting" || continuation && !["started", "cancelled"].includes(continuation.state) && (!HELD.includes(continuation.state) || stillHeld(wait, continuation))) {
+        return { session_id: sessionId, wait: await waitView(wait), ...(continuation ? { continuation } : {}) };
       }
     }
-    return parts.join("，或");
+    return { session_id: sessionId };
   };
-  // A letter that ended without an answer says how on its record (the other round failed, the person withdrew it).
-  const howEnded = (wait: ParkedWait): { event: string; note?: string } | undefined => {
-    const fired = wait.fired;
-    if (fired?.outcome !== "withdrawn" || fired.condition.kind !== "envelope") return undefined;
-    try {
-      const last = runtime.delivery.get({ kind: "envelope", id: fired.condition.envelope, revision: 1 } as never).history.at(-1);
-      return last ? { event: last.event, ...(last.note ? { note: last.note } : {}) } : undefined;
-    } catch { return undefined; }
-  };
-  const shown = async (wait: ParkedWait) => view(wait, await describe(wait), howEnded(wait));
-  const unsubscribe = runtime.waits.subscribe(event => {
-    if (event.type !== "fired") return;
-    void (async () => {
-      // A round running now hears it at its next model boundary; nothing more to start.
-      if (await sessions.steer(event.wait.session.id, wakeText(await shown(event.wait)))) {
-        runtime.waits.resume(event.wait.ref.id, await now(), "告诉了当时正在进行的一轮");
-        await runtime.waits.flush();
-      }
-    })().catch(() => undefined).finally(() => { for (const listener of [...listeners]) listener(); });
-  });
-  const fired = async (project: string, exclude: readonly string[] = []) => {
-    const out: AgentWait[] = [];
-    for (const wait of runtime.waits.list({ states: ["fired"] })) if (!exclude.includes(wait.ref.id) && await inProject(project, wait.session.id)) out.push(await shown(wait));
+  const read = async (project: string, sessionId?: string): Promise<AgentCollaborationSessionView[]> => {
+    const ids = sessionId ? [sessionId] : [...new Set(runtime.waits.list().map(wait => wait.session.id))];
+    const out: AgentCollaborationSessionView[] = [];
+    for (const id of ids) if (await inProject(project, id)) out.push(await sessionView(id));
     return out;
   };
-  return {
-    waits: {
-      async read(project: string, sessionId?: string): Promise<AgentWait[]> {
-        const out: AgentWait[] = [];
-        for (const wait of runtime.waits.list(sessionId ? { session: sessionId } : undefined)) if (await inProject(project, wait.session.id)) out.push(await shown(wait));
-        return out;
-      },
-      async awaitFired(project: string, timeoutMs: number, exclude: string[] = [], signal?: AbortSignal): Promise<AgentWait[]> {
-        const ready = await fired(project, exclude);
-        if (ready.length || timeoutMs <= 0) return ready;
+  const ready = async (project: string, exclude: readonly string[]) => (await read(project))
+    .filter(view => view.continuation && ["eligible", "blocked", "needs-reconciliation"].includes(view.continuation.state) && !exclude.includes(view.continuation.request_key));
+  const owned = async (project: string, waitId: string) => {
+    const wait = runtime.waits.get(waitId);
+    if (!wait || !(await inProject(project, wait.session.id))) throw agentErrors.collaboration_unknown("这个等待不属于这个项目");
+    return wait;
+  };
+  const collaboration: AgentCollaborationPort = {
+    read,
+    async awaitReady(project, timeoutMs, exclude = [], signal) {
+      // A change is not yet a continuation that may go on (a wait's look, another project's step): look again until one
+      // is, the time is up, or the caller stops.
+      for (const deadline = Date.now() + timeoutMs; ;) {
+        const found = await ready(project, exclude), left = deadline - Date.now();
+        if (found.length || left <= 0 || signal?.aborted) return found;
         await new Promise<void>(resolve => {
           const done = () => { clearTimeout(timer); listeners.delete(done); signal?.removeEventListener("abort", done); resolve(); };
-          const timer = setTimeout(done, timeoutMs);
+          const timer = setTimeout(done, left);
           listeners.add(done);
           signal?.addEventListener("abort", done);
         });
-        return fired(project, exclude);
-      },
-      async resume(project: string, waitId: string, note?: string): Promise<AgentWait> {
-        const wait = runtime.waits.get(waitId);
-        if (!wait || !(await inProject(project, wait.session.id))) throw new Error("这个等待不属于这个项目");
-        const resumed = runtime.waits.resume(waitId, await now(), note);
-        await runtime.waits.flush();
-        return shown(resumed);
-      },
-      async cancel(project: string, waitId: string, note?: string): Promise<AgentWait> {
-        const wait = runtime.waits.get(waitId);
-        if (!wait || !(await inProject(project, wait.session.id))) throw new Error("这个等待不属于这个项目");
-        const cancelled = runtime.waits.cancel(waitId, await now(), note);
-        await runtime.waits.flush();
-        return shown(cancelled);
-      },
+      }
     },
+    async control(project, control: AgentCollaborationControl, actorId) {
+      const wait = await owned(project, control.wait_id), at = await now();
+      if (wait.state !== "waiting") {
+        // Over already, its step held for the person: giving it up gives the step back (the person's decision, on the
+        // step's record); going on is the round the person starts now, which gives it back the same way.
+        const continuation = continuationOf(wait);
+        if (!continuation || !stillHeld(wait, continuation)) throw agentErrors.collaboration_conflict("这个等待已经结束");
+        if (control.kind === "cancel-wait") await readyStep(runtime, wait.scope.board, wait.scope.node, actorId, control.note ?? "用户取消了等待");
+        return sessionView(wait.session.id);
+      }
+      if (control.kind === "cancel-wait") await runtime.waits.cancel(wait.ref.id, at, control.note ?? "用户取消了等待");
+      else await runtime.waits.continueEarly(wait.ref.id, at, control.note ?? "用户选择不再等，直接接着做");
+      return sessionView(wait.session.id);
+    },
+  };
+  return {
+    collaboration,
     background: {
       async read(project: string, sessionId?: string): Promise<AgentBackgroundTask[]> {
         const out: AgentBackgroundTask[] = [];
@@ -142,19 +144,31 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
         return runtime.background.stop(taskId);
       },
     },
-    /** Park a session on another piece of work (the person chose to wait); `data` is what to start with. */
-    async parkOnWork(session: Parameters<Runtime["waits"]["park"]>[0]["session"], board: string, node: string, reason: string, data: unknown) {
-      const parked = await runtime.waits.park({ session, on: [{ kind: "board-node", board, node }], reason, by: "app", data }, await now());
-      await runtime.waits.flush();
-      return parked.ref.id;
+    /**
+     * The person queued a round behind another piece of the project's work: the session's step waits, by "app", for that
+     * work's step; once it succeeds the step may go on, and the queued round is started under the continuation's key.
+     * Work that does not succeed holds the step for the person.
+     */
+    async queueBehind(session: ExactRef<"session">, at: { board: string; node: string }, work: { board: string; node: string }, reason: string): Promise<{ waitId: string; already: boolean }> {
+      let step = nodeOf(at.board, at.node);
+      if (!step) throw new Error("会话的任务图不可读，不能排队");
+      // A wait hangs on a step under way: a session that never ran is put under way, and waits once the wait is armed.
+      if (step.state === "ready") { await runtime.boards.transition({ ref: boardRef(at.board), nodeId: at.node, to: "running" }); step = nodeOf(at.board, at.node)!; }
+      const nowMs = await now();
+      const armed = await runtime.waits.arm({ session, reason, by: "app", arrangement: {
+        scope: { board: at.board, node: at.node, generation: step.generation }, on: [{ kind: "node", board: work.board, node: work.node }],
+        mode: "all", until: "success", onFailure: "block", onEarlyContinue: "keep", deadlineMs: nowMs + APP_WAIT_MS, autoContinue: true,
+      } }, nowMs);
+      // No round of this session runs now: the step waits (a running round would hand it over when it ends).
+      if (!armed.already && nodeOf(at.board, at.node)?.state === "running") await runtime.boards.transition({ ref: boardRef(at.board), nodeId: at.node, to: "waiting" });
+      return { waitId: armed.wait.ref.id, already: armed.already };
     },
-    /** A round a person-chosen wait was holding has started: the wait is taken up. */
-    async startedQueued(sessionId: string, workId: string) {
-      for (const wait of runtime.waits.list({ session: sessionId, states: ["waiting", "fired"] })) {
-        if (wait.by === "app" && (wait.data as { work_id?: string } | undefined)?.work_id === workId) runtime.waits.resume(wait.ref.id, await now(), "等待中的那一轮已开始");
-      }
-      await runtime.waits.flush();
+    /** The queued round started anyway and took over its waiting item: the wait that would have started it goes. */
+    async queueTakenOver(sessionId: string, at: { board: string; node: string }) {
+      const nowMs = await now();
+      for (const wait of runtime.waits.list({ session: sessionId })) if (wait.state === "waiting" && wait.by === "app" && wait.scope.board === at.board && wait.scope.node === at.node)
+        await runtime.waits.cancel(wait.ref.id, nowMs, "等待中的那一轮已开始");
     },
-    close() { unsubscribe(); for (const listener of [...listeners]) listener(); },
+    close() { for (const off of unsubscribe) off(); changed(); },
   };
 }

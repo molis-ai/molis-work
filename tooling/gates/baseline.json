@@ -1,5 +1,5 @@
 {
-  "giantUnits": 147,
+  "giantUnits": 146,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
     "file apps/local-host/src/assistant/assistant-service.ts": 2222,
@@ -41,8 +41,8 @@
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 382,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 284,
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 213,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 210,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 211,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 208,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
@@ -62,15 +62,14 @@
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
-    "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 170,
+    "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 202,
-    "function horizontal/agent-host/src/adapters/prologue-taskboard.ts#createPrologueTaskBoards": 220,
     "file horizontal/agent-host/src/adapters/prologue.ts": 969,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
       "lines": 606,
       "methods": 18
     },
-    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 391,
+    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 385,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
       "lines": 384,
       "methods": 12
@@ -156,7 +155,7 @@
       "methods": 35
     },
     "function modules/shelf/src/store.ts#runJob": 199,
-    "file packages/contracts/src/services/agent-host.ts": 1630,
+    "file packages/contracts/src/services/agent-host.ts": 1576,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
@@ -191,7 +190,7 @@
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
     "function packages/storage/src/adapters/search-storage.ts#createSearchOpaqueBlobStore": 161,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 153,
-    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 234,
+    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 233,
     "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
       "lines": 381,
       "methods": 23
@@ -203,8 +202,8 @@
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
     "file plugins/native/coding/src/client.ts": 1644,
-    "file plugins/native/coding/src/routes.ts": 1510,
-    "function plugins/native/coding/src/routes.ts#codingRouteBindings": 1333,
+    "file plugins/native/coding/src/routes.ts": 1440,
+    "function plugins/native/coding/src/routes.ts#codingRouteBindings": 1262,
     "file plugins/native/coding/src/styles.ts": 832,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
@@ -686,7 +685,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 199,
+  "typedCapabilitiesTotal": 192,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 10,
     "apps/local-host/src/local-host.ts#type-refs": 5,
@@ -696,7 +695,7 @@
     "apps/local-host/src/project-host.ts#type-refs": 1,
     "apps/local-host/src/project-host.ts#register-calls": 1,
     "horizontal/agent-host/src/capability-registration.ts#type-refs": 2,
-    "horizontal/agent-host/src/capability-registration.ts#register-calls": 42,
+    "horizontal/agent-host/src/capability-registration.ts#register-calls": 41,
     "horizontal/scheduler/src/index.ts#type-refs": 1,
     "horizontal/scheduler/src/index.ts#register-calls": 4,
     "packages/contracts/src/modules/workspace-artifacts.ts#type-refs": 8,
@@ -704,8 +703,8 @@
     "packages/contracts/src/platform/actions.ts#type-refs": 1,
     "packages/contracts/src/platform/app-host.ts#type-refs": 4,
     "packages/contracts/src/platform/plugin.ts#type-refs": 1,
-    "packages/contracts/src/services/agent-host.ts#type-refs": 42,
-    "packages/contracts/src/services/agent-host.ts#without-action": 42,
+    "packages/contracts/src/services/agent-host.ts#type-refs": 39,
+    "packages/contracts/src/services/agent-host.ts#without-action": 39,
     "packages/contracts/src/services/scheduler.ts#type-refs": 4,
     "packages/contracts/src/services/scheduler.ts#without-action": 4,
     "packages/kernel/src/action-service.ts#register-calls": 1,
@@ -1163,7 +1162,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 521,
+  "explicitAnyTotal": 518,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1218,13 +1217,13 @@
     "tests/coding-goal-context-http.test.ts": 9,
     "tests/coding-history-summary-http.test.ts": 4,
     "tests/coding-materials-http.test.ts": 3,
-    "tests/coding-message-wait.test.ts": 4,
+    "tests/coding-message-wait.test.ts": 3,
     "tests/coding-plan-amend-http.test.ts": 1,
     "tests/coding-plan-dependencies.test.ts": 1,
     "tests/coding-plans-http.test.ts": 11,
     "tests/coding-product-http.test.ts": 1,
-    "tests/coding-project-work.test.ts": 5,
-    "tests/coding-queued-round.test.ts": 6,
+    "tests/coding-project-work.test.ts": 4,
+    "tests/coding-queued-round.test.ts": 5,
     "tests/coding-session-messages.test.ts": 4,
     "tests/coding-step-claims.test.ts": 5,
     "tests/coding-subagents-http.test.ts": 2,

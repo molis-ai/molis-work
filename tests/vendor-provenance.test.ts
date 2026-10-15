@@ -204,24 +204,21 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  const current = "prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz";
+  const current = "prologue-sdk-0.0.0-rc.1-collaboration.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the one agent-host depends on, the interim line plus the window picture and the model-switch acceptance check, pushed and built without a patch", () => {
+  test("the current Prologue package is the one agent-host depends on, packed from a named commit of upstream main without a patch", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "4007a93c8901f090994bff8d847009982958bdef");
-    // Still the 2026-10-13 interim line (until Molis P3 takes P2): the window-picture commit from upstream main cherry-picked onto
-    // it, then (2026-10-14, user-authorized) the model-switch beforeAccept check (Prologue #20 into that line; #24 on main). The
-    // package commit is not on upstream main.
-    assert.equal(provenance.source.inFlight.branch, "feature/model-switch-acceptance-cu-image");
-    assert.equal(provenance.source.inFlight.pushed, true);
-    assert.equal(provenance.source.inFlight.parentsOnUpstreamMain, false);
-    assert.deepEqual(provenance.source.inFlight.parents, ["b88b2422084a9010b62bac2da39e65b0383ef7ea"]);
+    // P3a (specs/prologue-adoption §4.6.10): the interim line is over; the package is upstream main's merge of PR #27, with P2a–P2k.
+    assert.equal(provenance.source.commit, "e51233699c1463e3c8f0a8b08658c5860c962769");
+    assert.equal(provenance.source.mergedUpstream.pullRequest, 27);
+    assert.equal(provenance.source.inFlight, undefined);
+    assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, provenance.source.commit);
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
   });
@@ -235,9 +232,9 @@ describe("the records of this repository", () => {
   test("patch-history.json holds the 26 deleted patches and the 16 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
     assert.equal(record.patches.length, 26);
-    assert.equal(record.packagesWithoutPatch.length, 16);
-    // The 16th is the CU-image package this one replaced.
-    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-interim-p1-cu-image.tgz");
+    assert.equal(record.packagesWithoutPatch.length, 17);
+    // The 17th is the model-switch acceptance package this one replaced.
+    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-interim-p1-cu-image-acceptance.tgz");
     assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
     assert.deepEqual(kinds, { "upstream-commit": 8, "uncommitted-worktree": 17, "molis-repo": 1 });
@@ -246,7 +243,7 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 25);
+    assert.equal(record.upstream.commitsChecked.length, 27);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);

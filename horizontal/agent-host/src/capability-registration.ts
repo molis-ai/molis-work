@@ -2,6 +2,7 @@ import { agentErrors } from "./errors.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withAgentEffect } from "./invocation-effects.js";
 import type { HostCapabilityDefinition, HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentRunView, type AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { type AgentHost, type AgentStartAuthority } from "./index.js";
@@ -296,32 +297,26 @@ export function registerAgentHostCapabilities<Context>(
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       await adapter.messages.cancel(ports.projectId(context), messageId);
     }),
-    // Parked sessions of this project: read, taken up when they fire, or given up by the person.
-    register(agentHostCapabilities.readWaits, async (context, [runtimeId, sessionId]) => {
+    // What this project's sessions wait for and how they go on: read, waited on until one may go on, given up or gone on
+    // with by the person. The task graph keeps them; these only read and ask it.
+    register(agentCollaborationActions.read, async (context, input) => {
       pluginFor(context);
-      const adapter = ports.agentHost(context).adapter(runtimeId);
-      if (!adapter.waits) return [];
-      return adapter.waits.read(ports.projectId(context), sessionId);
+      const adapter = ports.agentHost(context).adapter(input.runtime_id);
+      return { sessions: adapter.collaboration ? await adapter.collaboration.read(ports.projectId(context), input.session_id) : [] };
     }),
-    register(agentHostCapabilities.awaitFiredWaits, async (context, [runtimeId, timeoutMs, exclude]) => {
+    register(agentHostCapabilities.awaitContinuations, async (context, [runtimeId, timeoutMs, exclude]) => {
       pluginFor(context);
       const adapter = ports.agentHost(context).adapter(runtimeId);
-      if (!adapter.waits) throw agentErrors.capability_unavailable("当前运行时没有挂起与唤醒");
-      return adapter.waits.awaitFired(ports.projectId(context), Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : []);
+      if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时没有等待与接续");
+      return adapter.collaboration.awaitReady(ports.projectId(context), Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : []);
     }),
-    register(agentHostCapabilities.resumeWait, async (context, [runtimeId, waitId, note]) => {
-      pluginFor(context);
-      const adapter = ports.agentHost(context).adapter(runtimeId);
-      if (!adapter.waits) throw agentErrors.capability_unavailable("当前运行时没有挂起与唤醒");
+    register(agentCollaborationActions.control, async (context, input) => {
+      const caller = pluginFor(context);
+      const adapter = ports.agentHost(context).adapter(input.runtime_id);
+      if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时没有等待与接续");
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      return adapter.waits.resume(ports.projectId(context), waitId, note);
-    }),
-    register(agentHostCapabilities.cancelWait, async (context, [runtimeId, waitId, note]) => {
-      pluginFor(context);
-      const adapter = ports.agentHost(context).adapter(runtimeId);
-      if (!adapter.waits) throw agentErrors.capability_unavailable("当前运行时没有挂起与唤醒");
-      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      return adapter.waits.cancel(ports.projectId(context), waitId, note);
+      const { runtime_id: _runtime, ...control } = input;
+      return { session: await adapter.collaboration.control(ports.projectId(context), control, caller?.actor_id ?? "user") };
     }),
     register(agentHostCapabilities.readBackground, async (context, [runtimeId, sessionId]) => {
       pluginFor(context);

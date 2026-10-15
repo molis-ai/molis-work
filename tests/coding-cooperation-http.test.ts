@@ -53,7 +53,7 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
         return message(action === "deliver" ? box.markDelivered(letter(id), now, how) : action === "accept" ? box.respond(letter(id), true, now, how) : action === "reject" ? box.respond(letter(id), false, now, how)
           : action === "complete" ? box.complete(letter(id), now, how) : action === "cancel" ? box.cancel(letter(id), how, now) : box.record(letter(id), { ...how, event: detail.event ?? "note" }, now)) as Output;
       }
-      if (definition.capability_id === agent.readWaits.capability_id || definition.capability_id === agent.readBackground.capability_id) return [] as Output;
+      if (definition.capability_id === agent.readBackground.capability_id) return [] as Output;
       if (definition.capability_id === agent.readRun.capability_id) return view(input[1]) as Output;
       if (definition.capability_id === agent.listSubagents.capability_id) return [] as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);

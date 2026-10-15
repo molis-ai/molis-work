@@ -206,6 +206,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 ## 8. 流式、结构化输出、错误、取消、超时、恢复
 
 - **流式**：Agent 轮次用 `agent.run.wait.v1`（最长 25 秒的长轮询，按版本返回变化）；有界推理可用 `onProgress` 观察原 Run 的文本、模型和用量事件，最终结果仍需等待终态与领域校验。
+- **等待与接续**（Coding 的协作轮次）：模型等答复、等后台命令、等另一个会话的那一步，人排队等另一轮，都挂在 Prologue 任务图的步骤上；等待与接续的事实只在任务图里，插件不另存一份。读与控制走 `@molis-ai/molis-work-contracts/services/agent-collaboration` 的两个动作：`agent.collaboration.read.v1`（每个会话一条视图）、`agent.collaboration.control.v1`（`cancel-wait`、`continue-now`）。等到有接续可以走，用 typed 等待 `agentHostCapabilities.awaitContinuations`（最长 25 秒；动作不能是等待）。接续由插件用它的请求键起下一轮，照常经过宿主开跑前的全部复核；被重启截断、结果未知的等待留给人核对，不自动起跑（`specs/prologue-adoption/spec.md` §4.6.4、§4.6.10）。
 - **结构化输出**：SDK `structured` 执行明确支持的 schema；`decodeJsonOutput` 只处理格式，不能替代领域验证。Alchemist 默认不纠正，仅在原业务预算明确允许时增加一次；Jelly 不自动重试。判断类用 TypeSafe（`evaluateTypeSafe`），返回 Choice/Score/Noul。
 - **错误**：推理层抛 `PrologueInferenceError`（保留 `code`，文字统一为安全文案）。消费方先用 `inferenceServiceUnavailableReason(error)` 识别「执行服务被本机另一进程占用 / 未就绪」，如实告诉用户，不要改写成网络或厂商问题；宿主自己的派出前复核（`beforeDispatch`、凭据是否变了）拒绝时，SDK 报 `EFFECT_NOT_AUTHORIZED`，推理层把复核自己抛的错误原样交回，消费方用 `isDispatchRefusal(error)` 识别并说明「没有发出」；Agent 轮次的 `stop_reason` 同样以 `EFFECT_NOT_AUTHORIZED` 开头；HTTP 4xx/5xx 按状态给可操作提示。
 - **取消**：`caller.signal` 一路传到 SDK（`run.cancel()`）；被取消、撤权、停用的调用**不再写任何业务记录**，包括失败记账（action-architecture F2，`tests/action-before-effect.test.ts`）；其中处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记），不算业务数据（用户 2026-10-10 决定）。需要让用户能立刻重试的，用「发起者已结束即可接管」的设计，而不是在被拒绝后写记录。

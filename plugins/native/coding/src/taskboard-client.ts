@@ -31,7 +31,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   // Status words and marks follow the Goal list: an icon and a short label, coloured by tone.
   const STATE={
     'not-started':['等待前置','waiting','idle'],ready:['可以开始','ready','ready'],running:['进行中','running','progress'],succeeded:['模型报告完成','done','done'],
-    failed:['模型报告失败','failed','blocked'],blocked:['受阻，等你决定','blocked','blocked'],cancelled:['已取消','cancelled','quiet'],skipped:['已跳过','cancelled','quiet'],
+    failed:['模型报告失败','failed','blocked'],blocked:['受阻，等你决定','blocked','blocked'],waiting:['在等别的步骤','waiting','progress'],'needs-reconciliation':['重启后需要核对','verify','attention'],cancelled:['已取消','cancelled','quiet'],skipped:['已跳过','cancelled','quiet'],
     accepted:['你已验收','done','accepted'],'needs-work':['要求返工','blocked','attention'],pending:['待执行','idle','idle'],
   };
   const PHASE={starting:['准备中','starting','progress'],running:['进行中','running','progress'],compacting:['整理上下文','running','progress'],pausing:['正在暂停','paused','attention'],paused:['已暂停','paused','attention'],

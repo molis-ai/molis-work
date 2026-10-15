@@ -117,7 +117,7 @@ export function codingContinuation(input: ContinuationInput): { task: string; in
   // step reading only "可开始" after being blocked leaves the model guessing, and it stalls rather than act.
   const personNote = (node: NonNullable<AgentRunView["step_board"]>["nodes"][number]) => [...(node.reports ?? [])].reverse().find(report => report.note.startsWith("用户"))?.note;
   const steps = run.step_board?.nodes.map((node, index) => { const note = personNote(node);
-    return `${node.title ? `「${clip(node.title, 80)}」` : `步骤 ${index + 1}`}（${node.id}）：${{ "not-started": "未开始", ready: "可开始", running: "进行中", succeeded: "已回报完成", failed: "已回报失败", cancelled: "已取消", blocked: "受阻" }[node.state]}${note ? `；${clip(note, 240)}` : ""}`; }) ?? [];
+    return `${node.title ? `「${clip(node.title, 80)}」` : `步骤 ${index + 1}`}（${node.id}）：${{ "not-started": "未开始", ready: "可开始", running: "进行中", waiting: "在等", succeeded: "已回报完成", failed: "已回报失败", cancelled: "已取消", blocked: "受阻", "needs-reconciliation": "需核对" }[node.state]}${note ? `；${clip(note, 240)}` : ""}`; }) ?? [];
   // A round that only announced its next step and ended did nothing; replayed as it was, the model tends to do the
   // same again. The continuation says so plainly and asks for the first tool call straight away.
   const said = [...run.turns].reverse().find(turn => turn.kind === "assistant")?.text.trim() ?? "";

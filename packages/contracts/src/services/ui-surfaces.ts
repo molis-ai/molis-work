@@ -58,6 +58,9 @@ export function isHostSurfaceRefusal(error: unknown): error is HostSurfaceRefusa
   return refusal === "driver-unavailable" || refusal === "person-present" || refusal === "screen-locked" || refusal === "outside-target";
 }
 
+/** How the round that used a surface ended, as its run settled: a person or the Host stopping it is `stopped`. */
+export type HostSurfaceRoundEnd = "completed" | "failed" | "stopped";
+
 export interface HostSurfaceDriver {
   readonly kind: HostSurfaceKind;
   /** The project whose page this is: a surface serves only works in that project. The desktop serves every project: null. */
@@ -73,8 +76,8 @@ export interface HostSurfaceDriver {
    * A desktop step returns the accessibility tree from after it; a browser step returns nothing.
    */
   perform(action: HostSurfaceAction, context: { readonly session_id: string | null }): Promise<HostSurfaceActReceipt | void>;
-  /** The round using the page ended — finished, failed or stopped: the page is the person's again at once. */
-  release?(): Promise<void>;
+  /** The round using the page ended — finished, failed or stopped (`ended`, when the Host knows it): the page is the person's again at once. */
+  release?(ended?: HostSurfaceRoundEnd): Promise<void>;
   close(): Promise<void>;
   /** The name of what sits at a point of the page now (for the person's approval card); empty when nothing readable. */
   describePoint?(x: number, y: number): Promise<string>;

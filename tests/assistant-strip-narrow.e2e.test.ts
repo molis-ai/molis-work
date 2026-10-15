@@ -65,6 +65,17 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   await waitFor(`${shown(strip)} && ${shown(review)} && document.querySelector('${review} [data-ix-step-label]').textContent === '去确认'`, 30_000);
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').dataset.side"), "closed", "at this width the side pane is a closed drawer");
   await waitFor("document.querySelector('.assistant-tab[data-current] .assistant-tab-mark .mw-state-ring')?.dataset.mwState === 'approval'"); // RING-07
+  // The opened panel ends at least 8px above the row of next steps, and the row ends above the input, here and at a phone's width
+  // (touch steps are 44px tall), so neither covers the panel's last line.
+  const clear = `(() => { const box = selector => document.querySelector(selector).getBoundingClientRect(), panel = box('[data-assistant-panel]'), row = box('[data-assistant-next-row]'), input = box('[data-assistant-composer]');
+    return { gap: Math.round(row.top - panel.bottom), under: Math.round(input.top - row.bottom) }; })()`;
+  for (const width of [800, 390]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+    await waitFor(`!document.querySelector('[data-assistant-panel]').hidden && ${shown(review)}`, 10_000);
+    const { gap, under } = await evaluate<{ gap: number; under: number }>(clear);
+    assert.ok(gap >= 8 && under >= 0, `at ${width}px the panel ends ${gap}px above the next steps, which end ${under}px above the input`);
+  }
+  await command("Emulation.setDeviceMetricsOverride", { width: 800, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await click(review);
   // It lands on the card's own decision, not on a copy button inside the code it shows.
   await waitFor("Boolean(document.activeElement?.closest('[data-review]')) && !document.activeElement.classList.contains('assistant-code-copy')", 10_000);
@@ -101,4 +112,26 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   }
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   await evaluate("document.getElementById('ring-host-sample').remove()");
+});
+
+// FLOW-03 (A7): a page's suggestion is one step above the input and the only one while the panel is closed. It keeps its one button
+// while it stands: the island repaints the row when the window crosses the Assistant's layout widths (1240px, 560px), and a new button
+// each time played its entrance again from transparent, so the suggestion could be caught invisible (§21.6).
+test("a page's suggestion stays one visible button above the input across the Assistant's width changes", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1300, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("Boolean(document.querySelector('[data-assistant-next-row]'))");
+  await evaluate(`window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: { message_id: "strip-offer", purpose: "suggest", source: { surface: "browser", title: "侧栏浏览器" }, text: "把这一页整理成要点" } }))`);
+  const offer = "[data-assistant-next-row] [data-step-offer]";
+  await waitFor(`Boolean(document.querySelector('${offer}'))`);
+  await evaluate(`document.querySelector('${offer}').dataset.testFirst = ""`);
+  for (const width of [1200, 1300, 600, 520, 390, 1300]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+    await new Promise(resolve => setTimeout(resolve, 600));
+    assert.deepEqual(await evaluate(`(() => { const node = document.querySelector('${offer}'); if (!node) return null; const box = node.getBoundingClientRect();
+      return { same: node.hasAttribute("data-test-first"), opacity: getComputedStyle(node).opacity, inside: box.width > 0 && box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight }; })()`),
+      { same: true, opacity: "1", inside: true }, `the suggestion at ${width}px`);
+  }
 });

@@ -427,7 +427,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   /** Every card in the conversation has one shape: what kind of moment it is (and what kind of act), what it is about,
       then what to do and a line on what happens when you do. */
-  const cardHint = (text) => el("p", "assistant-card-hint", text);
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
      shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
   const ixClient = host.interaction;

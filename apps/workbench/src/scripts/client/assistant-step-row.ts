@@ -11,7 +11,7 @@
  */
 export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
   const { row, thread, L, el } = input;
-  let offer = null, unfolded = false, shownWork = null;
+  let offer = null, offerNode = null, unfolded = false, shownWork = null;
   const press = (node, control) => { input.jumpTo(node); if (control && !control.disabled) control.click(); };
   // A step's id names the record it leads to (review:, question:, card:), as the conversation keys it.
   const go = (id) => {
@@ -32,18 +32,18 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     const step = el("button", "mw-ix-step"); step.type = "button"; step.dataset.stepOffer = ""; step.dataset.secondary = "";
     step.title = offer.message.text + (offer.unconfirmed ? "\n" + L("没有确认是你刚才在那里发起的：放进输入框后，请你确认再发送。") : "");
     step.append(el("span", "", (offer.unconfirmed ? L("{source}想交给助理") : L("{source}的建议")).replace("{source}", offer.message.source.title)));
-    step.addEventListener("click", () => { const taken = offer.message; offer = null; paint(); input.take(taken); });
+    step.addEventListener("click", () => { const taken = offer.message; offer = offerNode = null; step.remove(); paint(); input.take(taken); });
     return step;
   };
   const paint = () => {
     const view = input.view(), open = input.open(), work = view ? view.work.work_id : null;
     if (work !== shownWork) { shownWork = work; unfolded = false; }
     input.drawn(row, open && view ? (unfolded ? view.next_all_html : view.next_html) || "" : "", { onStep: (_index, button) => go(button.dataset.ixStepId) });
-    row.querySelector("[data-step-offer]")?.remove();
+    // The suggestion keeps its one button while it stands: a new button on every paint (a resize, a poll) would play its entrance again.
     if (offer) {
       let group = row.querySelector(".mw-ix-steps");
       if (!group) { group = el("div", "mw-ix-steps"); group.setAttribute("role", "group"); group.setAttribute("aria-label", L("下一步")); row.append(group); }
-      group.append(offerStep());
+      if (offerNode?.parentNode !== group) group.append(offerNode ||= offerStep());
     }
     row.hidden = !row.querySelector(".mw-ix-step");
   };
@@ -52,5 +52,5 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     unfolded = true; paint();
     row.querySelector('[data-ix-step="3"]')?.focus();
   });
-  return { paint, offer(message, unconfirmed) { offer = { message, unconfirmed }; paint(); } };
+  return { paint, offer(message, unconfirmed) { offerNode?.remove(); offer = { message, unconfirmed }; offerNode = null; paint(); } };
 }`;

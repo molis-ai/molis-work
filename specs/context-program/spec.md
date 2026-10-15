@@ -1282,8 +1282,13 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 删掉：A10「接下来」、A11 概况与顶部条带的「去…」按钮、A7 建议条（连同 #489 页脚名单里的 `.assistant-offer`，换成 `.assistant-next-row`）、底部小片里「等你…」的一半。`assistant-island.ts` 净减；页面资源四个文件都不大于 main（预算已按实测降低）。
 - 工程验证：`pnpm build`；`tests/agent-next-steps.test.ts`、`tests/interaction-components.test.ts`、`tests/assistant-interaction-html.test.ts`（新增 FLOW-04/05 行的用例）与 design-system 必跑用例通过；`check-health-gates --base origin/main`、`page-assets --base origin/main` 通过；`affected-tests` 选出的单元用例与 Assistant 相关的浏览器用例见 PR。全量按统筹的安排上 CI（`full-suite` 标签）。
 - 真实场景验证（隔离 Home，脚本模型出真实的问卷卡与操作卡，`walk-serve.mts`）：两题问卷 →「去回答（2 题）」带琥珀点，按下落到卡上；单题单选 →「团队（推荐）」「只给经理」，按一下即交回答、这一轮接着做完（记录里「你的回答：团队」）；操作卡 →「记成待办：整理周报」，先改字段不提交时按下只带到卡上、卡仍是 ready，撤回改动再按即执行、卡变 done；页面建议 →「侧栏浏览器的建议」。1440 浅色 / 深色、1024、390、主区展开各截图，证据在统筹共享笔记 `contextual-line/w3a1/`。走查中发现并修掉两处：卡执行后下一步仍显示它（改为执行后重读工作）；390 宽时次要样式透明、页面内容透出（这一行的按钮改为纸色底）。
-- 浏览器用例（本机，`run-tests` 自取 browser 槽）：Assistant 相关的 14 个文件第一轮 13 过；`tests/touch-targets.e2e.test.ts` 失败——通知卡的「知道了」只有 28px（下限 32），因为通知借用了 `.assistant-offer-actions`，样式随建议条删了。基线工作树（`e8218714`）同一文件 4/4 过，确认是本线引入；改为通知自己的 `.assistant-notice-actions` 后 4/4 过。390 宽时触控按钮 44px，这一行与面板重叠 2px：面板让出的高度改为一个变量，这一行在时取 44px（1440：面板底 785、行 799–831、输入框 837；390：面板底 678、行 682–726、输入框 732，均不重叠）。
-- 未解释的现象：走查中两次在改窗口宽度后页面建议那一项不见了，之后三次重放都没复现；页面建议只在内存里、窗口变化不清它，原因未查到，记在 PR 里。
+- 浏览器用例（本机，`run-tests` 自取 browser 槽）：Assistant 相关的 14 个文件第一轮 13 过；`tests/touch-targets.e2e.test.ts` 失败——通知卡的「知道了」只有 28px（下限 32），因为通知借用了 `.assistant-offer-actions`，样式随建议条删了。基线工作树（`e8218714`）同一文件 4/4 过，确认是本线引入；改为通知自己的 `.assistant-notice-actions` 后 4/4 过。390 宽时触控按钮 44px，这一行先与面板重叠 2px，后来只差 4px。现在面板让出的高度是一个变量，这一行在时取 48px，触控时面板底边与这一行至少隔 8px（统筹 10-15 复查第 5 条）；`assistant-strip-narrow` 在 800 与 390 宽量这段间距。
+- 触控尺寸：`tests/touch-targets.e2e.test.ts` 的面板一组补回普通下一步的覆盖。原先量的 `[data-assistant-next]`、`[data-assistant-strip-next]` 已随元素删掉；现在用宿主的 `renderInteractionNextSteps` 画出等你、普通与「还有 N 项」三种按钮放进这一行，一起量 44px（统筹 10-15 复查第 2 条）。
+- 页面建议「改宽度后消失」已复现并修掉（统筹 10-15 复查第 3 条）：
+  - 复现：在 1300、1200、1300、600、520、600 宽各量一次，每次改宽度，岛都重画这一行，并把建议按钮拆掉重建一个，进场动画从透明重放。窗格不在前台时动画停在第一帧，按钮就是透明的；前台时则每次重画闪一下。
+  - 修法：一条建议从出现到被点掉只用一个按钮，重画时原样留着（`assistant-step-row.ts`）。
+  - 用例：`tests/assistant-strip-narrow.e2e.test.ts` 新增一条，在 1200、1300、600、520、390、1300 宽检查仍是同一个按钮、不透明、在窗口内。
+  - 不加 BACKLOG。
 - 防腐复查（清单 `ANTI-CORRUPTION-REVIEW.md`）：2026-10-15 · 并入 main `414f61b4` · merge-base `414f61b4` · 通过，无暂缓项。
   - 机器检查：M1、M2、M4、M5、M6、M8、M9、M10、M15 全过；M7 本线改动的文件里没有 Biome 告警；api 与 actions 快照无变化。
   - 人看的条目：逐条结论写在 PR #536「防腐复查」节。

@@ -97,7 +97,7 @@
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 282,
     "class horizontal/search/src/index.ts#SearchService": {
-      "lines": 407,
+      "lines": 403,
       "methods": 26
     },
     "class modules/feed/src/index.ts#FeedModule": {
@@ -1568,7 +1568,7 @@
     "server/src/http.ts": 2,
     "server/src/identity.ts": 3
   },
-  "errorCodeOwnerTotal": 1013,
+  "errorCodeOwnerTotal": 1012,
   "errorCodeOwner": {
     "apps/local-host/src/artifact-document-import.ts": 6,
     "apps/local-host/src/browser/browser-host.ts": 2,
@@ -1615,7 +1615,7 @@
     "modules/artifacts/src/service.ts": 10,
     "modules/artifacts/src/validation.ts": 9,
     "modules/attention-resumption/src/index.ts": 8,
-    "modules/characters/src/open.ts": 2,
+    "modules/characters/src/open.ts": 1,
     "modules/characters/src/service.ts": 14,
     "modules/context-ledger/src/materialization.ts": 1,
     "modules/context-ledger/src/service.ts": 5,

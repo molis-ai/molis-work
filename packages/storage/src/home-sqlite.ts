@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-/** Home directories that hold user data in SQLite (a personal `{name}/{name}.db`, `server/server.sqlite`, ...). Uninstall --purge must cover these. */
+/** Home directories that hold user data in SQLite (a personal `{name}/{name}.db`, `server/server.sqlite`, `characters/characters.sqlite`, ...). Uninstall --purge must cover these. */
 export const PERSONAL_HOME_SQLITE_STORES = [
   "issues",
   "plugin-runtime",
@@ -23,6 +23,10 @@ export const PERSONAL_HOME_SQLITE_STORES = [
   "search",
   "memory",
   "server",
+  "assistant",
+  "placement",
+  "agent-definitions",
+  "characters",
 ] as const;
 
 export type PersonalHomeSqliteStore = (typeof PERSONAL_HOME_SQLITE_STORES)[number];

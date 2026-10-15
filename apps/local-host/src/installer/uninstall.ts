@@ -53,6 +53,14 @@ export class MolisWorkUninstallService {
         ...PERSONAL_HOME_SQLITE_STORES.map((storeName) => path.join(this.homeDirectory, storeName)),
         path.join(this.homeDirectory, "runtime-config-backups"),
         path.join(this.homeDirectory, "runtime-integrations"),
+        path.join(this.homeDirectory, "runtime-integration-attempts"),
+        // The rest of what docs/system/HOME-DATA.md registers in the Home: Agent run records and their key, the encrypted
+        // credentials and Feed evidence, the side browser's profile and site choices, Plugin Studio work, caches, the desktop
+        // shell's folder bookmarks, Git review details, and the person's settings beside the installer's own config files.
+        ...["agent-runtime", "feed", "browser", "plugin-builder", "cache", "directory-access", "git-operation-details.json"]
+          .map((entry) => path.join(this.homeDirectory, entry)),
+        ...["onboarding.json", "project-arrival.json", "mcp-tools.json", "external-mcp-tools.json", "connector-mcp-tools.json"]
+          .map((file) => path.join(this.homeDirectory, "config", file)),
       ])
       : [];
     const changes: MolisWorkUninstallChange[] = [

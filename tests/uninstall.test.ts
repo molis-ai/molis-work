@@ -126,7 +126,23 @@ test("purge needs a second exact home and user-project-count confirmation", asyn
     const discussionDatabase = join(item.home, "server", "server.sqlite");
     await mkdir(dirname(discussionDatabase), { recursive: true });
     for (const file of [discussionDatabase, `${discussionDatabase}-wal`, `${discussionDatabase}-shm`]) await writeFile(file, "discussion-store\n");
+    // C-05 (anti-corruption code audit 2026-10-15): everything else docs/system/HOME-DATA.md registers in the Home goes too —
+    // the Host's own libraries, Agent run records and their key, encrypted credentials, the side browser, Plugin Studio work,
+    // caches, folder bookmarks, Git review details and the person's settings in config/. The Home is gone afterwards only if none stays.
+    const registered = ["assistant/assistant.db", "placement/placement.db", "agent-definitions/agent-definitions.db", "characters/characters.sqlite",
+      "agent-runtime/storage.key", "agent-runtime/records/run/one.json", "feed/secrets.json", "feed/evidence/blobs/one", "browser/sites.json",
+      "browser/profile/Cookies", "plugin-builder/project/design/one.json", "cache/research-library/one/HEAD", "directory-access/bookmarks.json",
+      "git-operation-details.json", "runtime-integration-attempts/plan-one.json", "config/onboarding.json", "config/project-arrival.json",
+      "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json"];
+    for (const file of registered) {
+      await mkdir(dirname(join(item.home, file)), { recursive: true });
+      await writeFile(join(item.home, file), "user data\n");
+    }
     const plan = await item.service.prepare({ purge_user_data: true });
+    for (const file of registered) {
+      const top = file.startsWith("config/") ? file : file.split("/")[0]!;
+      assert.ok(plan.changes.some((change) => change.target === join(item.home, top)), `purge 要删 ${top}`);
+    }
     assert.ok(plan.changes.some((change) => change.target === join(item.home, "runtime-config-backups")));
     assert.ok(plan.changes.some((change) => change.target === join(item.home, "server")), "purge 要删讨论库 server/");
     for (const storeName of ["images", "jelly", "pages", "form", "dataset", "ppt", "lingguang", "todo", "alchemist", "functions"]) {

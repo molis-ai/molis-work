@@ -7,4 +7,4 @@ export const packageDescriptor = {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { CharacterError, CharactersService } from "./service.js";
-export { openCharacters } from "./open.js";
+export { CHARACTERS_STORE_BASELINE, openCharacters } from "./open.js";

@@ -18,6 +18,7 @@ export interface PluginDatabaseEntry {
  */
 const HOST_LIBRARY_NAMES: ReadonlySet<string> = new Set([
   "functions", "connectors", "context-onboarding", "search", "memory", "server", "plugin-runtime", "issues",
+  "assistant", "placement", "agent-definitions", "characters",
 ]);
 
 /**

@@ -8,13 +8,23 @@
 
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
-W4-04 第一片（2026-10-15，插件读自己成果线的最新版本，PR 待开）：
+W4-04 第一片（2026-10-15，插件读自己成果线的最新版本，#545 已合入 main）：
 - 范围：Form 迁到 Runtime 前要先补的平台服务（RUNTIME-MIGRATION「迁移要用到时先补服务，不在迁移 PR 里补」）。Form、Dataset、PPT、Pages 固定成果时，要知道这条成果线在项目里的最新版本，才能给下一版编号；现在这一步由宿主的 `artifactLineHead` 端口给。
 - 新增 `services.artifacts.head(artifact_id)`：返回 `{ version, source_revision }`，项目里还没有就是 `null`。只读得到这个插件自己开的成果线，要有 `artifact:read`。
 - 宿主的 `artifactLineHead` 改用合同里的同一个推导 `artifactLineHeadOf`，不再另写一份。
 - `W4-04-01` 在 `tests/plugin-host-services.test.ts`。变异检查：去掉「成果线必须是自己的」，`W4-04-01` 失败。
 - `tests/plugin-artifact-client.test.ts` 原来按「唯一的查询动作」找 SDK 的读取动作，现在有两个查询动作，改成按动作 id 找 `.read`，断言不变。
 - 动作快照：每个安装多一条 `sdk.artifacts.<安装>.head@1`。
+
+W4-09（2026-10-15，两个 PR 开着）：#539 把 Web 服务的五个周期任务登记在一处（`apps/local-host/src/periodic-tasks.ts`），「设置 › 诊断」列出「后台任务」；`W4-09-01`、`W4-09-02`（反复启停不留计时器）在 `tests/host-periodic-tasks.test.ts`。#540 让成果游标改为进程内通知加 30 秒兜底（`W4-09-03`，`tests/plugin-platform-composition.test.ts`），炼金术士工作室空闲 10 分钟且手上没事就关（`W4-09-04`，`tests/alchemist-studio-idle.test.ts`）。三处都做了变异检查。
+
+W4-11（2026-10-15，Home 存储统一登记，#542）：
+- 登记：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里 43 项有数据的条目和它们的 owner，库另带基线。
+- 声明：各 owner 在打开它的代码旁声明。插件的 `*_HOME_STORE` 经目录条目 `home_store` 带进；Issues 的经 `runtime.database` 带进；模块、存储层和宿主的各在自己的文件里。类型 `HomeStoreDeclaration` 放在 `contracts/platform/plugin`，形状与检查 `homeStoreRegistry` 放在 `packages/storage`；storage 不认识任何插件或模块。
+- 读登记的：卸载清除（决定 #20：清除覆盖所有登记的库），不再手列；插件库的发放（`plugin-database-entries.ts`）；基线用例（`tests/home-store-baselines.test.ts` 按登记逐个检查，新库要带结构样本或写进无样本名单）。路线图里的「维护」在仓库里没有代码（真实 Home 的维护脚本在交接目录，不入库），所以没有接。
+- 行为变化：原来的临时宿主名单（`HOST_LIBRARY_NAMES`）删掉，改为「库必须登记为这个插件自己的、基线相同」。所以个人插件的库不再对任意插件开放，只对登记的主人（及以同一 id 替换它的 Runtime 插件）开放；`alchemist/` 由宿主决定目录，登记给宿主，不再是可发给插件的库。测试夹具的库：名字没人登记的，按夹具自己的 id 登记；已登记给别人的（Issues 的 `issues`、宿主的 `plugin-runtime`、Dataset 的 `dataset`、存储层的 `feed`）不替它登记，启动名单检查按原因拒绝（`tests/home-plugin-platform.test.ts` 的用例相应改成这几种原因；原来「不在清除清单」那一条对夹具不再成立，未登记库的拒绝留在 `tests/plugin-project-database.test.ts`）。
+- 删掉 `PERSONAL_HOME_SQLITE_STORES`；`docs/system/HOME-DATA.md` 第 9、11 节改成登记的说明。
+- `W4-11-03`（夹具不能占用别人的库）在 `tests/plugin-project-database.test.ts`。变异检查：去掉主人检查，「声明错的启动名单」用例失败；再去掉夹具登记，`W4-11-03` 失败。
 
 ## 0. 现场与范围
 

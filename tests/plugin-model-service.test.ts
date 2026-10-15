@@ -12,6 +12,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import {
+  homeStores,
   DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, createPluginPlatform, molisWorkHostProjectReference, seedDemoBoard,
   type HostCompleteText, type HostTextRequestOptions,
 } from "@molis-ai/molis-work-app-local-host";
@@ -122,7 +123,7 @@ function platformIn(directory: string, injection: { current: Injection } | null 
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
-    home: injection === null ? null : { directory, completeText: () => injection.current } });
+    home: injection === null ? null : { directory, completeText: () => injection.current, stores: homeStores() } });
   const installId = (pluginId: string) => platform.runtime.list().find(record => record.plugin_id === pluginId)!.install_id;
   const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: "tester", project_id: DEMO_PROJECT_ID, audience: "user", permissions: [MODEL_INVOKE], ...extra });
   const invoke = async <T = unknown>(definition: ActionDefinition<Record<string, never>, string>, extra: Partial<ActionCallContext> = {}) =>

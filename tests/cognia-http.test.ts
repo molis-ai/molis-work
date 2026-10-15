@@ -1,5 +1,5 @@
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
-import { assembleMcpCatalog } from "@molis-ai/molis-work-app-local-host";
+import { assembleMcpCatalog, homeStores } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTION_PERMISSIONS, cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -15,7 +15,6 @@ import { handleCogniaNativePluginHttp } from "../apps/local-host/dist/cognia-nat
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/dist/plugin-workbench.js";
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
-import { PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads and missing model", async t => {
@@ -47,7 +46,7 @@ test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads
 });
 
 test("Cognia registers as personal workspace, Home cleanup and read-only Home actions",async()=>{
-  const entry=BUILTIN_PLUGIN_CATALOG.find(e=>e.project_plugin_id==='cognia');assert.equal(entry?.personal,true);assert.equal(entry?.manifest.plugin_id,COGNIA_PLUGIN_ID);assert.ok(BUILTIN_PLUGIN_WORKBENCH.some(e=>e.project_plugin_id==='cognia'));assert.ok(PERSONAL_HOME_SQLITE_STORES.includes('cognia'));
+  const entry=BUILTIN_PLUGIN_CATALOG.find(e=>e.project_plugin_id==='cognia');assert.equal(entry?.personal,true);assert.equal(entry?.manifest.plugin_id,COGNIA_PLUGIN_ID);assert.ok(BUILTIN_PLUGIN_WORKBENCH.some(e=>e.project_plugin_id==='cognia'));assert.equal(homeStores().get('cognia')?.owner,COGNIA_PLUGIN_ID,'uninstall --purge-user-data reaches the Cognia store');
   for (const action of [cogniaActions.search, cogniaActions.read]) { assert.equal(action.operation, 'query'); assert.equal(action.action.scope, 'home'); }
   assert.ok(!assembleMcpCatalog({ audience: 'runtime' }).entries.some(row => row.action?.provider.plugin_id === COGNIA_PLUGIN_ID), 'no Cognia tool without a grant');
   const home = await mkdtemp(join(tmpdir(), 'cognia-mcp-')), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

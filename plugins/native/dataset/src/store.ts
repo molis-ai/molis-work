@@ -1,4 +1,4 @@
-import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   DatasetColumn,
@@ -307,7 +307,7 @@ export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openDatasetStore(homeDirectory: string): DatasetStore {
-  const db = openBaselineHomeSqlite(homeDirectory, "dataset", DATASET_STORE_BASELINE);
+  const db = openBaselineHomeSqlite(homeDirectory, DATASET_HOME_STORE.path, DATASET_STORE_BASELINE);
   return new DatasetStore(db);
 }
 
@@ -445,3 +445,6 @@ function normalizeRows(rows: readonly DatasetRowInput[], columns: readonly Datas
     cells: Object.fromEntries(columns.map((column) => [column.id, String(row.cells?.[column.id] ?? "")])),
   }));
 }
+
+/** This plugin's store in the Home's store registry (W4-11): `dataset/dataset.db` at its one baseline. */
+export const DATASET_HOME_STORE: HomeStoreDeclaration = { path: "dataset", library: { baseline: DATASET_STORE_BASELINE } };

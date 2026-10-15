@@ -133,7 +133,7 @@ test("W3-06-F-02 local web discovers a scene-only Home installation by actual sc
 
 test("W3-06-F-02 a Home database comes from the trusted definition entry, never an identity, path or another owner's library", async t => {
   const probe = homeProbe("dbprobe");
-  const declaration: PluginDatabaseDeclaration = { store_name: "dataset", version: 1, schema: "CREATE TABLE notes (text TEXT NOT NULL);",
+  const declaration: PluginDatabaseDeclaration = { store_name: "dbprobe-notes", version: 1, schema: "CREATE TABLE notes (text TEXT NOT NULL);",
     read_permission: "dbprobe:read", write_permission: "dbprobe:write" };
   const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [{ definition: probe.definition, database: declaration }] } });
   const platform = await host.homePlugins!.ready();
@@ -167,7 +167,10 @@ test("W3-06-F-02 a Home database comes from the trusted definition entry, never 
 });
 
 test("W3-06-F-02 a fixture cannot take the Host's Issue library or declare an invalid or duplicate Home store", async () => {
-  for (const [store, message] of [["issues", /宿主自己的库/u], ["plugin-runtime", /宿主自己的库/u], ["../dataset", /一个目录名/u], ["unregistered", /清除清单/u]] as const) {
+  // W4-11: a fixture is given a library under a free name (registered as its own); a name the Home registered to another
+  // owner stays theirs. A shipped plugin's unregistered library is refused in plugin-project-database.test.ts.
+  for (const [store, message] of [["issues", /登记的主人是 io\.molis\.work\.issues，/u], ["plugin-runtime", /登记的主人是 apps\/local-host，/u],
+    ["dataset", /登记的主人是 io\.molis\.work\.dataset，/u], ["feed", /归 packages\/storage，不是库/u], ["../dataset", /一个目录名/u]] as const) {
     const home = mkdtempSync(join(tmpdir(), "home-store-owner-")), probe = homeProbe();
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [{ definition: probe.definition,
       database: { store_name: store, version: 1, schema: "CREATE TABLE notes(text TEXT);", read_permission: "homeprobe:read", write_permission: "homeprobe:write" } }] } });
@@ -176,12 +179,13 @@ test("W3-06-F-02 a fixture cannot take the Host's Issue library or declare an in
   }
   const home = mkdtempSync(join(tmpdir(), "home-duplicate-store-")), one = homeProbe("one-store"), two = homeProbe("two-store");
   const entry = (probe: ReturnType<typeof homeProbe>) => ({ definition: probe.definition,
-    database: { store_name: "dataset", version: 1, schema: "CREATE TABLE notes(text TEXT);", read_permission: `${probe.definition.manifest.name}:read`, write_permission: `${probe.definition.manifest.name}:write` } });
+    database: { store_name: "shared-notes", version: 1, schema: "CREATE TABLE notes(text TEXT);", read_permission: `${probe.definition.manifest.name}:read`, write_permission: `${probe.definition.manifest.name}:write` } });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [entry(one), entry(two)] } });
   try {
-    await assert.rejects(host.homePlugins!.ready(), /库归属重复/u);
+    // The first fixture is given the free name; the second cannot take a library registered as another's.
+    await assert.rejects(host.homePlugins!.ready(), new RegExp(`库 shared-notes 登记的主人是 ${one.id.replaceAll(".", "\\.")}，插件 ${two.id.replaceAll(".", "\\.")} 不能用`, "u"));
     assert.equal(one.contexts.length + two.contexts.length, 0);
-    assert.equal(existsSync(join(home, "dataset", "dataset.db")), false);
+    assert.equal(existsSync(join(home, "shared-notes")), false);
   } finally { await host.close(); rmSync(home, { recursive: true, force: true }); }
 });
 

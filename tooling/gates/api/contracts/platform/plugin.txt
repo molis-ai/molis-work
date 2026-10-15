@@ -2142,6 +2142,17 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomeStoreDeclaration {
+    readonly path: string;
+    readonly library?: {
+        readonly baseline: {
+            readonly version: number;
+            readonly schema: string;
+        };
+        readonly file?: string;
+    };
+}
+
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
 
 export declare const ITEM_DECLARATION_LIMITS: {

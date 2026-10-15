@@ -24,3 +24,15 @@ export interface PluginDatabaseDeclaration {
   readonly read_permission: string;
   readonly write_permission: string;
 }
+
+/**
+ * An entry of the Home that holds an owner's data (docs/system/HOME-DATA.md), declared beside the code that opens it and listed
+ * by the Host in one registry, which `uninstall --purge-user-data` removes in full. Like the database declaration it is the
+ * trusted Host entry's to carry, never a Manifest's or an action's.
+ */
+export interface HomeStoreDeclaration {
+  /** Relative to the Home, `/` between segments: `pages`, `git-operation-details.json`, `config/onboarding.json`. */
+  readonly path: string;
+  /** The SQLite library this store is, at its owner's one baseline: `file` in the store's directory (default `<path>.db`). */
+  readonly library?: { readonly baseline: { readonly version: number; readonly schema: string }; readonly file?: string };
+}

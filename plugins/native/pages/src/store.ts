@@ -1,6 +1,6 @@
 import { PagesComments } from "./comments-store.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
-import { homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { realpathSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -470,8 +470,8 @@ export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
 ` };
 
 export function openPagesStore(homeDirectory: string): PagesStore {
-  const db = openBaselineHomeSqlite(homeDirectory, "pages", PAGES_STORE_BASELINE);
-  const database = realpathSync(homeSqlitePath(homeDirectory, "pages"));
+  const db = openBaselineHomeSqlite(homeDirectory, PAGES_HOME_STORE.path, PAGES_STORE_BASELINE);
+  const database = realpathSync(homeSqlitePath(homeDirectory, PAGES_HOME_STORE.path));
   let attempts = attemptsByDatabase.get(database);
   if (!attempts) attemptsByDatabase.set(database, attempts = new Map());
   return new PagesStore(db, attempts);
@@ -541,3 +541,6 @@ function normalizeFolderId(value: string | undefined, store: PagesStore, project
   store.getFolder(id, projectId);
   return id;
 }
+
+/** This plugin's store in the Home's store registry (W4-11): `pages/pages.db` at its one baseline. */
+export const PAGES_HOME_STORE: HomeStoreDeclaration = { path: "pages", library: { baseline: PAGES_STORE_BASELINE } };

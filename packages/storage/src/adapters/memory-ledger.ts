@@ -8,6 +8,7 @@ import type {
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
+import type { HomeStoreDeclaration } from "../home-stores.js";
 import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js";
 
 /**
@@ -186,3 +187,6 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
   };
   return ledger;
 }
+
+/** The memory ledger in the Home's store registry (W4-11). */
+export const MEMORY_LEDGER_HOME_STORE: HomeStoreDeclaration = { path: MEMORY_LEDGER_STORE, library: { baseline: MEMORY_LEDGER_BASELINE } };

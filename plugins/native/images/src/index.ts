@@ -14,6 +14,6 @@ export * from "./en.js";
 export * from "./routes.js";
 
 export * from "./actions.js";
-export { IMAGES_STORE_BASELINE, purgeImagesProject } from "./store.js";
+export { IMAGES_STORE_BASELINE, IMAGES_HOME_STORE, purgeImagesProject } from "./store.js";
 export { imagesProjectData } from "./project-data.js";
 export type { ImageGeneration, ImageProviderRequest } from "./providers.js";

@@ -23,9 +23,10 @@ test("S1 contextual Todo: real selection → prepared card → refused request �
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
   })()`);
   await select(0);
-  await waitFor("document.querySelectorAll('[data-assistant-context-actions] .context-action[data-key]').length > 0", 8000);
-  await click("[data-assistant-context-actions] [data-more]");
-  await waitFor("[...document.querySelectorAll('.context-actions-menu button')].some(button => !button.disabled && button.textContent.startsWith('记成待办'))");
+  // The actions sit on the floating context toolbar beside the selection (it replaced the bottom action strip, #411).
+  await waitFor("document.querySelector('.mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) [data-more]')", 8000);
+  await click(".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) [data-more]");
+  await waitFor("[...document.querySelectorAll('.mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) button,.mw-ctx-menu button')].some(button => !button.disabled && button.textContent.startsWith('记成待办'))");
   // Hold only delivery of the genuine prepare response: the Host and Todo already evaluated the original focus.
   await evaluate(`(() => {
     const original = window.fetch; window.todoFetch = original; window.todoPrepare = null; window.todoCard = null; window.todoRefusals = 0;
@@ -42,7 +43,7 @@ test("S1 contextual Todo: real selection → prepared card → refused request �
       if (String(url).endsWith('/api/assistant/cards')) window.todoCard = { status: response.status, ...(await response.clone().json()) };
       return response;
     };
-    [...document.querySelectorAll('.context-actions-menu button')].find(button => !button.disabled && button.textContent.startsWith('记成待办')).click();
+    [...document.querySelectorAll('.mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('记成待办')).click();
   })()`);
   await waitFor("typeof window.releaseTodoPrepare === 'function'", 10_000);
   const prepared = await evaluate<{ focus: { targets: Array<{ text: string }>; object: { kind: string; id: string } } }>("window.todoPrepare");
@@ -62,7 +63,7 @@ test("S1 contextual Todo: real selection → prepared card → refused request �
   const ownerBefore = openTodoStore(homeDirectory);
   try { assert.equal(ownerBefore.list({ actor: "user", actorId: "web-user", projectId: projectId!, everything: true }).length, 0); } finally { ownerBefore.close(); }
   const cardSelector = `[data-card="${card.card_id}"]`;
-  await waitFor(`document.querySelector(${JSON.stringify(cardSelector + " .assistant-card-actions .mw-btn--primary")})`);
+  await waitFor(`document.querySelector(${JSON.stringify(cardSelector + " [data-ix-action=\"run\"]")})`);
   const draft = await evaluate<string[]>(`[...document.querySelector(${JSON.stringify(cardSelector)}).querySelectorAll('input,textarea')].map(control => control.value)`);
   const closeStarters = async () => {
     if (!await evaluate("!document.querySelector('[data-assistant-starters]').hidden")) return;
@@ -72,14 +73,14 @@ test("S1 contextual Todo: real selection → prepared card → refused request �
   };
   await closeStarters();
   await evaluate("window.refuseTodoRun = true");
-  await click(cardSelector + " .assistant-card-actions .mw-btn--primary");
-  await waitFor(`window.todoRefusals === 1 && !document.querySelector(${JSON.stringify(cardSelector + " .assistant-card-actions .mw-btn--primary")}).disabled`);
+  await click(cardSelector + " [data-ix-action=\"run\"]");
+  await waitFor(`window.todoRefusals === 1 && !document.querySelector(${JSON.stringify(cardSelector + " [data-ix-action=\"run\"]")}).disabled`);
   assert.deepEqual(await evaluate(`[...document.querySelector(${JSON.stringify(cardSelector)}).querySelectorAll('input,textarea')].map(control => control.value)`), draft);
   const refusedOwner = openTodoStore(homeDirectory);
   try { assert.equal(refusedOwner.list({ actor: "user", actorId: "web-user", projectId: projectId!, everything: true }).length, 0); } finally { refusedOwner.close(); }
   await evaluate("window.refuseTodoRun = false");
   await closeStarters();
-  await click(cardSelector + " .assistant-card-actions .mw-btn--primary");
+  await click(cardSelector + " [data-ix-action=\"run\"]");
   await waitFor(`document.querySelector(${JSON.stringify(cardSelector)})?.dataset.status === 'done'`, 10_000);
   const owner = openTodoStore(homeDirectory);
   try {

@@ -158,7 +158,7 @@ async function buildStale(order, stale, digests, records, jobs) {
         if (!entry.dependencies.every((name) => done.has(name))) continue;
         pending.splice(index--, 1);
         running += 1;
-        start(entry);
+        void start(entry); // start() reports its own failure and calls next()
       }
       if (!running && !pending.length) resolve();
     };

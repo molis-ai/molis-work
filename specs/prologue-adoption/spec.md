@@ -963,23 +963,25 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 - W2-18-CODING-WAKE-01 改了场景：原来命令被重启截断、叫醒后告诉模型「中断了」；新包把截断的命令记为结果未知、那一步留给人核对（§4.6.4「被重启截断的……先核对，不自动重派」），Coding 只记一条给人的说明，不起跑。用例改成命令在插件停着时结束：等待结束的事实已落盘，SDK 重开、插件重新激活后，连续四次读失败之后照样只起一轮。
 - 旧的 `任务图：…。` 写法和不带前缀的步骤编号换成「本轮确认计划在项目任务图 … 上」与 `s-<会话>.p<n>.` 前缀：`prologue-step-amend`、`coding-runtime-regressions`、`coding-plan-dependencies`、`prologue-taskboard`。
 
-**验证**：（见下表，跑完补）
+**验证**（2026-10-15，并 main `9a883966`（#531）之后的树，本机 macOS）：
 
 | 项 | 命令 | 结果 |
 | --- | --- | --- |
-| 构建 | `pnpm build` | 待补 |
-| 包边界 | `pnpm boundary:check` | 待补 |
-| 门禁 | `node scripts/check-health-gates.mjs --base origin/main` | 待补 |
-| 快照 | `pnpm api:update`、`pnpm actions:update` | 待补 |
-| 页面资源 | `node scripts/gates/page-assets.mjs --base origin/main` | 待补 |
-| 选出的用例 | `node scripts/affected-tests.mjs --base origin/main` 选出的非浏览器文件 | 待补 |
-| 浏览器 | 选出的浏览器文件，含 `coding-taskboard.e2e` | 待补 |
-| 安全 | `pnpm test:security`（含 S-13 在新包上） | 待补 |
-| 全量 | PR 加 `full-suite` 标签，CI 上 Linux 分片；只在 macOS 跑的部分在本机补 | 待补 |
+| 构建 | `pnpm build` | 通过 |
+| 包边界 | `pnpm boundary:check` | 通过，`errors: []` |
+| 门禁 | `node scripts/check-health-gates.mjs --base origin/main` | 通过，对照 merge-base `9a883966`；巨大单元、typed、显式 `any` 都比 merge-base 少，`--update` 已写 |
+| 快照 | `pnpm api:update`、`pnpm actions:update` | 已重新生成并提交 |
+| 页面资源 | `node scripts/gates/page-assets.mjs --base origin/main` | 通过 |
+| 类型 | `tsc --noEmit -p tsconfig.json` | 通过 |
+| 安全 | `pnpm test:security`（含 S-13 在新包上） | 54 个文件全过 |
+| 密钥 | `pnpm secrets:check` | 没有（2353 行） |
+| 选出的用例 | `node scripts/affected-tests.mjs` 选出的非浏览器文件，加 Coding、助理相关的，共 186 个（含只在 macOS 跑的 24 个） | 186 个全过（9.6 分钟）。并 main 之前那一轮 182 个里 `installed-plugin-host` 在负载下 30 秒超时、单独重跑 10 秒通过，这一轮在里面也过了：是时序，不是 P3a |
+| 浏览器 | 选出的 12 个浏览器文件，含 `coding-taskboard.e2e` | 12 个全过 |
+| 全量 | PR 加 `full-suite` 标签，CI 上 Linux 分片 | 见 PR |
 
 **防腐复查**（清单 `coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md`，对本线 diff `f74e29d8..HEAD`）：
 
-- 2026-10-15 · 合入的 main 是 `f74e29d8`（#523）· merge-base 也是 `f74e29d8`。
+- 2026-10-15 · 合入的 main 先是 `f74e29d8`（#523），推送前又并了 `9a883966`（#531，和本线没有共同改动的源码文件）· merge-base `9a883966`。
 - 已修的项：
   - 16（命名）：两个视图的 `board_id` 改名 `graph_id`；
   - 19（页面资源）：两个新状态词的字节由 plan-progress 客户端改用 `change(...)` 抵消，预算降了 30；
@@ -995,7 +997,10 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 | M2 `check-health-gates --base origin/main` | 通过；数字只降不升，见 PR「只许减少的数字」 |
 | M4、M5 快照 | 已重新生成：新增子路径 `agent-collaboration`；`agent-host` 删 `waits`、加 `collaboration`；新增两个宿主动作 |
 | M6 `page-assets --base` | 通过，五个页面资源各降 30 字节 |
+| M7 `pnpm lint`（只看新行） | 本线新增、改动的行上没有诊断；改名行上原有的一个 `any` 改成了类型 |
 | M8 DOM 事件、M9 翻译、M10 test-imports | 都通过；M9 与基线工作树逐行相同 |
+| M14 `pnpm test:security` | 54 个文件全过 |
+| M15 `pnpm secrets:check` | 没有 |
 | 1 不留兼容 | `subagentYieldGuard`、`claims`、旧 `agent.waits.*` 删干净，没有别名；`following` 按 §4.6.10 留到 P4，没动 |
 | 2 注册一次 | read、control 是宿主登记的动作，一处注册；typed 等待按统筹的 A：顶替旧的四个，净减 3（见上）；唯一调用方 `wake-loop.ts` 开跑被拒时不写记录，`coding-queued-round` 断言撤权、取消两种 |
 | 4 身份 | `control` 的操作者和项目取自调用上下文；`control` 先 `beforeEffect()` 再改 |

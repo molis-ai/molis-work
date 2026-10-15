@@ -46,6 +46,12 @@
 - 项目作用域的来源只在该项目里被搜到；`"home"` 作用域的来源在任何项目和项目外都能在“个人”范围搜到。
 - 插件在项目里被停用或卸载，系统删掉它的索引内容；重新启用后从你的数据重建。
 
+## 让人挑一个对象（`search.references`）
+
+Agent 问「挂在哪个 Goal 下」这类要人挑对象的题时，候选来自系统动作 `search.references@1`：按种类在调用者的项目里搜，每一个都经它的主人的读取器、以调用者的权限重新读过才给出，模型给不了候选。人提交之后、交给运行之前，宿主再读一遍；读取器抛 `<plugin>.not_found` 或调用者已不能读，这一题就被拒，原因是 `reference-unavailable`（宿主的原因，与 SDK 的题型原因并列）。
+
+你不用为此多写什么：声明了搜索来源、读取器按现在的状态回答，你的对象就能被挑、被复核。不要在读取器里放宽「还在」的判断，它就是复核用的那一读。
+
 ## 不要做的
 
 - 不要为搜索另建表、另存一份正文，或在你的动作里调用搜索服务。
@@ -60,4 +66,4 @@
 - 个人范围：Cognia、Jelly（三种对象、三个读取器）。
 - 只给本机的人：Shelf 剪贴板（`shelf.clipboard.search.entries`，受众 `user`）。
 - Runtime 插件：Characters（`bindOwnerPluginAction`）、Coding（路由兑现）。
-- 测试：`tests/system-search.test.ts`（协议、中文与短词、增量、失败、停用、重建）、`tests/system-search-host.test.ts`（真实宿主、项目隔离、MCP 授权、未知插件仅凭声明接入）、`tests/system-search-lifecycle.test.ts`（停用/启用、重启、MCP 进程、助理消费）。
+- 测试：`tests/system-search.test.ts`（协议、中文与短词、增量、失败、停用、重建）、`tests/system-search-host.test.ts`（真实宿主、项目隔离、MCP 授权、未知插件仅凭声明接入）、`tests/system-search-lifecycle.test.ts`（停用/启用、重启、MCP 进程、助理消费）、`tests/search-references.test.ts`（挑对象的候选）、`tests/security-invariants-object-references.test.ts`（S-26：提交前的复核）。

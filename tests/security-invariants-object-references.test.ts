@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
+import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 
 import { confirmReferences } from "@molis-ai/molis-work-service-search";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
@@ -42,7 +42,7 @@ async function until<T>(read: () => T | Promise<T>, what: string): Promise<NonNu
 }
 
 test("S-26 a reference answer the Host cannot confirm never reaches the run", { timeout: 60_000 }, async t => {
-  const home = await mkdtemp(join(tmpdir(), "molis-s24-"));
+  const home = await mkdtemp(join(tmpdir(), "molis-s26-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const requests: string[] = [];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
@@ -56,19 +56,15 @@ test("S-26 a reference answer the Host cannot confirm never reaches the run", { 
   let verdict = false;
   const start = async (confirm: boolean) => {
     requests.length = 0;
-    const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.s24-test", appVersion: "1.0.0" }, storageRoot: join(home, `sdk-${confirm}`), reviewQueue: queue,
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.s26-test", appVersion: "1.0.0" }, storageRoot: join(home, `sdk-${confirm}`), reviewQueue: new AgentReviewQueue(),
       questionTypes: ["choice", "reference"],
       ...(confirm ? { confirmReferences: async (owner: { project_id: string; actor_id: string }, picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => {
         asked.push({ owner, picked, kinds }); return picked.map(() => verdict); } } : {}),
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
-    host.register(adapter);
-    const owner = { project_id: "a", plugin_id: "caller", install_id: "i", actor_id: "web-user" }, directory = { canonical_path: home, realpath_verified: true };
-    const session = await adapter.createSession({ ...owner, directory, title: "S-26" });
-    const authority: AgentStartAuthority = { authorizedDirectories: [home],
-      manifest: { roles: [{ role_id: "asker", version: 1, name: "Asker", execution: "read-only", prompts: ["base"], host_tools: [] }], prompts: [{ prompt_id: "base", version: 1 }] },
-      prompts: [{ prompt_id: "base", version: 1, layer: "base", body: "Ask which Goal." }] };
-    const handle = await host.start("prologue", { ...owner, session, directory, task: "约一个复盘会", role_id: "asker" }, authority);
+    const owner = { project_id: "a", plugin_id: "caller", install_id: "i", actor_id: "web-user" };
+    const session = await adapter.createSession({ ...owner, workspace: "business", title: "S-26" });
+    const role = { role_id: "asker", version: 1, workspace: "business" as const, execution: "operate" as const, prompts: [], host_tools: ["ask-user"] };
+    const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "asker", role, task: "约一个复盘会" });
     const question = await until(async () => (await adapter.read(handle.ref)).awaiting_input[0], "the question");
     return { adapter, run: handle.ref, question };
   };

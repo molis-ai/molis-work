@@ -119,6 +119,7 @@ search.fragment.offers	1	system.search	query	query	home	read	concurrent	agent,mc
 search.open	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	search:read	-	-	-	ea6bf59461ad	3dec1eff6f99	-
 search.query	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	search:read	-	-	-	5d13a86ef959	68e25746b838	-
 search.rebuild	1	system.search	command	operation	home	write	concurrent	user	search:manage	-	-	-	95b7741253bf	b11c9beb88b3	-
+search.references	1	system.search	query	query	home	read	concurrent	plugin,user	search:read	-	-	-	b97ecba7506e	d300be37db51	-
 search.status	1	system.search	query	query	home	read	concurrent	agent,mcp,plugin,user,workflow	search:read	-	-	-	95b7741253bf	67fb0130cd9a	-
 shelf.clipboard.add	1	io.molis.work.shelf	command	operation	home	write	concurrent	user	shelf:write	shelf_item	-	-	1e70b19dcc36	58a37003b20e	-
 shelf.clipboard.delete	1	io.molis.work.shelf	command	operation	home	irreversible	concurrent	user	shelf:write	shelf_item	-	-	6b2a3feaa067	07a9ad95ba37	-

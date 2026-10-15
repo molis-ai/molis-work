@@ -600,40 +600,17 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
   assert.equal(gate("--base", "issue-draft-old").code, 1, "other assets remain frozen");
 });
 
-// ISSUE-48: exactly the current baseline receives the user's 26 KiB exception; the next baseline freezes again.
-test("saved Issue reorganization has one bounded allowance; other assets and later growth still fail", () => {
-  const asset = "/assets/molis-work-plugins/issues.js";
-  branch("issue-reorganize-base", () => { sizes[asset] = 24378; putBudget(sizes); });
-  git("checkout", "-q", "-B", "issue-reorganize-change");
-  sizes[asset] = 26624;
-  assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 0);
-  assert.equal(gate("--base", "issue-reorganize-base").code, 0);
-  sizes[asset] = 26625;
-  assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 1);
-  sizes[asset] = 26268; sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 1);
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "issue-reorganize-base").code, 0);
-  commit("freeze actual reorganization size"); git("branch", "-f", "issue-reorganize-frozen");
-  sizes[asset]++; putBudget(sizes); commit("try to grow the new baseline");
-  assert.equal(gate("--base", "issue-reorganize-frozen").code, 1);
-  assert.equal(gate("--update", "--base", "issue-reorganize-frozen").code, 1);
-});
-
-// I8-PAGES-01: exactly the current Pages editor baseline receives the user's one-time allowance; the next baseline freezes again.
-test("the Pages editor has one bounded allowance for the I8 fixes; other assets and later growth still fail", () => {
-  const asset = "/assets/molis-work-pages-editor.js";
-  branch("pages-editor-base", () => { sizes[asset] = 698574; putBudget(sizes); });
-  git("checkout", "-q", "-B", "pages-editor-change");
-  sizes[asset] = 703633;
-  assert.equal(gate("--update", "--base", "pages-editor-base").code, 0);
-  assert.equal(gate("--base", "pages-editor-base").code, 0);
-  sizes[asset] = 703634;
-  assert.equal(gate("--update", "--base", "pages-editor-base").code, 1);
-  sizes[asset] = 703633; sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "pages-editor-base").code, 1);
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "pages-editor-base").code, 0);
-  commit("freeze actual Pages editor size"); git("branch", "-f", "pages-editor-frozen");
-  sizes[asset]++; putBudget(sizes); commit("try to grow the new baseline");
-  assert.equal(gate("--base", "pages-editor-frozen").code, 1);
-  assert.equal(gate("--update", "--base", "pages-editor-frozen").code, 1);
-});
+// ISSUE-48 and I8-PAGES-01 spent their one approved increase each (user, 2026-10-15): saved-Issue reorganization took
+// issues.js from 24,378 to 26,331 measured bytes (#521), and the I8 fixes took the Pages editor from 698,574 to 703,633 (#522).
+// Back at either old size, the asset grows under the same rule as every asset.
+for (const [asset, old] of [["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574]] as const) {
+  test(`the spent increase of ${asset} leaves no allowance, even at its old size`, () => {
+    const name = asset.replace(/\W+/g, "-").replace(/^-/, "");
+    branch(`${name}-old`, () => { sizes[asset] = old; putBudget(sizes); });
+    git("checkout", "-q", "-B", `${name}-regrow`);
+    sizes[asset]++;
+    assert.equal(gate("--update", "--base", `${name}-old`).code, 1);
+    putBudget(sizes); commit("attempt to regrow from the old size");
+    assert.equal(gate("--base", `${name}-old`).code, 1);
+  });
+}

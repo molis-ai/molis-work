@@ -55,9 +55,12 @@ test("event document writes planning, report, concern, decision and closure thro
   }
   async function submitSuccess(selector: string) {
     const before = app.goalEvents.readState(DEMO_PROJECT_ID, goalId).goal_event_cursor;
+    // The page puts the re-read document in first and closes its panels after; the submitted form stays busy until both are
+    // done, so the next step does not open a form the closing then hides (seen on the slower Linux runner).
+    await evaluate(`(window.__savingForm = document.querySelector(${JSON.stringify(selector)})?.closest("[data-event-form]") ?? null, true)`);
     await click(selector);
     await waitDom(
-      `document.querySelector("[data-goal-event-document]")?.dataset.goalView === ${JSON.stringify(goalId)} && Number(document.querySelector("[data-goal-event-document]")?.dataset.goalEventCursor) > ${before} && document.querySelector("[data-document-pane]")?.getAttribute("aria-busy") !== "true"`,
+      `document.querySelector("[data-goal-event-document]")?.dataset.goalView === ${JSON.stringify(goalId)} && Number(document.querySelector("[data-goal-event-document]")?.dataset.goalEventCursor) > ${before} && document.querySelector("[data-document-pane]")?.getAttribute("aria-busy") !== "true" && !window.__savingForm?.hasAttribute("aria-busy")`,
     );
   }
   async function fillField(selector: string, value: string) {

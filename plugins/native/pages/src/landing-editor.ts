@@ -1,0 +1,108 @@
+import type { Node } from "prosemirror-model";
+import type { EditorView } from "prosemirror-view";
+import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+
+/**
+ * Pages as the landing on the left (specs/context-program §3.4, §21.8 steps 3 and 5).
+ *
+ * - It tells the context row where something in hand would go in the open document (`molis:surface-landing`): the
+ *   selection, the cursor once the person has been in the editor, else the end; with the saved version the positions
+ *   belong to. Reported again whenever the document or the selection changes.
+ * - When the person chooses to put something here (an `attach.` candidate the row hands over), it shows what will be
+ *   written at that place and writes nothing itself: confirming saves what is typed first, then runs the choice through
+ *   the Host with the new version, and shows the saved document. If the document changed after the landing was
+ *   reported, nothing is written and the person chooses the place again.
+ */
+const PLUGIN_ID = "io.molis.work.pages";
+const AROUND = 200;
+
+export interface PagesLandingPort {
+  readonly bench: HTMLElement;
+  readonly view: () => EditorView | null;
+  /** The open document as saved; null when nothing is open or this editor cannot show it. */
+  readonly open: () => { readonly id: string; readonly version: number; readonly title: string } | null;
+  /** Saves what is typed but not saved yet; the saved version, or null when nothing is open any more. */
+  readonly settle: () => Promise<number | null>;
+  /** Shows the document as it is now stored. */
+  readonly refresh: () => Promise<unknown>;
+  readonly translate: (text: string) => string;
+}
+
+interface Reported { readonly key: string; readonly doc: Node | null; readonly from: number; readonly to: number }
+interface Chosen {
+  readonly title: string;
+  readonly landing?: { readonly plugin_id: string; readonly object: { readonly id: string } };
+  prepare(): Promise<{ readonly input?: { anchor?: number; head?: number; text?: string; source?: { title?: string } } }>;
+  run?(landing: { version: number }): Promise<unknown>;
+}
+
+export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
+  const L = port.translate;
+  let touched = "";
+  let shown: Reported = { key: "", doc: null, from: 0, to: 0 };
+  const send = (detail: unknown) => port.bench.dispatchEvent(new CustomEvent("molis:surface-landing", { bubbles: true, detail }));
+  const report = () => {
+    const view = port.view(), open = port.open();
+    if (!view || !open) { if (shown.key) { shown = { key: "", doc: null, from: 0, to: 0 }; send(null); } return; }
+    if (view.hasFocus()) touched = open.id;
+    const { doc, selection } = view.state;
+    const position = !selection.empty ? "selection" : touched === open.id ? "cursor" : "end";
+    const from = position === "end" ? doc.content.size : selection.from, to = position === "selection" ? selection.to : from;
+    const key = [open.id, open.version, open.title, position, from, to].join(" ");
+    if (key === shown.key && doc.eq(shown.doc ?? doc)) { shown = { ...shown, doc }; return; }
+    shown = { key, doc, from, to };
+    const text = position === "selection" ? doc.textBetween(from, to, "\n") : "";
+    send({ pane_id: "", plugin_id: PLUGIN_ID, object: { kind: "pages_document", id: open.id, title: open.title }, position, version: open.version,
+      targets: [{ kind: "text_range", role: "paragraph", text: text.slice(0, 4000), ...(text.length > 4000 ? { truncated: true } : {}), anchor: from, head: to }],
+      surroundings: { heading_path: [], before: doc.textBetween(Math.max(0, from - AROUND), from, "\n"), after: doc.textBetween(to, Math.min(doc.content.size, to + AROUND), "\n") } });
+  };
+
+  let pop: HTMLElement | null = null;
+  const close = () => { pop?.remove(); pop = null; };
+  const preview = async (chosen: Chosen, view: EditorView) => {
+    close();
+    const box = pop = document.createElement("div"), base = shown;
+    box.className = "pages-pop";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-label", chosen.title);
+    box.innerHTML = '<p></p><div class="pages-landing-preview" hidden></div><div class="pages-pop-actions"><button type="button" class="mw-btn mw-btn--ghost"></button><button type="button" class="mw-btn mw-btn--primary" hidden></button></div>';
+    const lead = box.querySelector("p")!, text = box.querySelector<HTMLElement>(".pages-landing-preview")!, [cancel, ok] = [...box.querySelectorAll("button")] as [HTMLButtonElement, HTMLButtonElement];
+    const fail = (message: string) => { lead.textContent = message; lead.className = "pages-pop-error"; ok.disabled = false; };
+    const moved = L("位置已经变了，请重新选择要放进去的位置");
+    lead.textContent = L("正在准备…");
+    cancel.textContent = L("取消");
+    cancel.onclick = close;
+    (port.bench.querySelector("[data-pages-stage-workspace]") ?? port.bench).append(box);
+    placeOverlay(box, view.coordsAtPos(Math.min(base.from, view.state.doc.content.size)), "below");
+    const input = (await chosen.prepare().catch(() => null))?.input;
+    if (pop !== box) return;
+    if (typeof input?.text !== "string" || Math.min(input.anchor!, input.head!) !== base.from || Math.max(input.anchor!, input.head!) !== base.to) return fail(moved);
+    lead.textContent = chosen.title;
+    // A quote looks as Pages draws one, with where it came from under it.
+    if (input.source) text.classList.add("pages-quote");
+    text.textContent = input.text + (input.source?.title ? "\n— " + input.source.title : "");
+    ok.textContent = L("放进去");
+    text.hidden = ok.hidden = false;
+    ok.onclick = () => {
+      ok.disabled = true;
+      // Only into the document the landing was reported for: the positions mean nothing in another one.
+      void (async () => {
+        const version = base.doc && view.state.doc.eq(base.doc) ? await port.settle() : null;
+        if (version === null) return fail(moved);
+        await chosen.run!({ version });
+        close();
+        await port.refresh();
+      })().catch((error: unknown) => fail(error instanceof Error ? error.message : moved));
+    };
+    ok.focus();
+  };
+
+  window.addEventListener("molis:assistant-context-action-chosen", (event) => {
+    const chosen = (event as CustomEvent<Chosen>).detail, view = port.view(), open = port.open();
+    if (!chosen?.landing || typeof chosen.run !== "function" || chosen.landing.plugin_id !== PLUGIN_ID || !view || !open || chosen.landing.object.id !== open.id) return;
+    event.preventDefault();
+    void preview(chosen, view);
+  });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && pop) close(); });
+  return { report };
+}

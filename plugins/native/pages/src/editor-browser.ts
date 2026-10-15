@@ -130,7 +130,8 @@ import { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePages
 import { applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus } from "./focus.js";
 
 export { emptyDoc, pagesSchema };
-export { applyToPagesFrozen, clearPagesCompare, freezePagesFocus, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus, type FrozenPagesFocus } from "./focus.js";
+export { applyToPagesFrozen, freezePagesFocus, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus, type FrozenPagesFocus } from "./focus.js";
+export { mountPagesLanding } from "./landing-editor.js";
 
 export interface PagesEditorHandle {
   readonly view: EditorView;

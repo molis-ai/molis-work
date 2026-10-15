@@ -370,6 +370,14 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "SurfaceFocus | null (services/contextual); SURFACE_FOCUS_EVENT";
     readonly summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.";
 }, {
+    readonly name: "molis:surface-landing";
+    readonly kind: "request";
+    readonly owner: "context-actions";
+    readonly on: "element";
+    readonly bubbles: true;
+    readonly detail: "SurfaceLanding | null (services/contextual)";
+    readonly summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; the row keeps one landing and sends it with the requests for a thing in hand elsewhere.";
+}, {
     readonly name: "workbench-feed-task";
     readonly kind: "request";
     readonly owner: "tab-workspace";
@@ -414,8 +422,8 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.";
     };
     readonly "context-actions": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts"];
-        readonly state: "What the person has in hand on the focused surface, the ranked actions offered for it, and the starters offered for the open Work.";
+        readonly files: readonly ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-landing.ts"];
+        readonly state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.";
     };
     readonly "context-toolbar": {
         readonly files: readonly ["packages/design-system/src/context-toolbar.ts"];

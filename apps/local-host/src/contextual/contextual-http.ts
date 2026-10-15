@@ -13,6 +13,7 @@ import { draftPorts } from "../drafting/draft-wiring.js";
 import { resolvePrologueInference } from "../prologue-inference-host.js";
 import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connection.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
+import { prepareAttach, runAttach } from "./contextual-attach.js";
 import { chosenCandidate } from "./contextual-choice.js";
 import { draftRequest } from "./contextual-draft.js";
 import { contextualErrors, invalid, readJudgeRequest, readString } from "./contextual-request.js";
@@ -163,7 +164,7 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
     return true;
   }
-  const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal|draft)$/u.exec(url.pathname);
+  const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal|draft|attach)$/u.exec(url.pathname);
   if (!match) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
   const route = match[1]!;
@@ -192,6 +193,8 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
       sendJson(response, 200, await reportSignal(judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80), signal, readString(body.event_id, "event_id", 120), caller));
       return true;
     }
+    // A confirmed 「放进左边」: the owner showed the preview and the person confirmed it there.
+    if (route === "attach") { sendJson(response, 200, await runAttach(caller.actions, judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80))); return true; }
     sendJson(response, 200, await prepare(judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), caller));
   } catch (error) {
     const failure = actionErrorResponse(error);
@@ -206,8 +209,10 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
  */
 async function prepare(focus: SurfaceFocus, landing: SurfaceLanding | undefined, key: string, requestId: string, caller: Caller) {
   const candidate = chosenCandidate(await caller.actions.discover(), focus, landing, key);
-  // A destination is not prepared by an offers query that the provider answers: the person's passage is drafted into its input (`/api/contextual/draft`).
-  if (candidate.origin === "intake" || candidate.origin === "attach") throw contextualErrors.not_drafted("这个去处的参数要由起草服务准备，这里还不能直接准备");
+  // An attach is computed from the landing and the passage, without a model (contextual-attach.ts).
+  if (candidate.origin === "attach") return prepareAttach(caller.actions, focus, landing, key);
+  // An intake is not prepared by an offers query that the provider answers: the person's passage is drafted into its input (`/api/contextual/draft`).
+  if (candidate.origin === "intake") throw contextualErrors.not_drafted("这个去处的参数要由起草服务准备，这里还不能直接准备");
   // One of the object's subject offers: prepared exactly as the Home / Dock prepares it, by the query that declared it.
   if (candidate.origin === "subject") {
     const notOffered = () => contextualErrors.not_offered(`${candidate.provider_title} 没有为这件事项准备「${candidate.title}」`);

@@ -11,6 +11,7 @@ import { createLocalHostCapsule } from "./capsule.js";
 import { createLocalOnboardingHttp } from "./web-onboarding.js";
 import { createLocalPlanningHttp } from "./web-planning.js";
 import { createLocalGoalsReadHttp } from "./web-goals-read.js";
+import { createPeriodicTasks } from "./periodic-tasks.js";
 import type { MolisWorkProjectCatalog, MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 
 export interface LocalWebPlatform {
@@ -54,6 +55,8 @@ export function createLocalWebComposition(platform: LocalWebPlatform) {
     handleSessions, handleDesktopPanelApi, projectSettings,
     servePtyClient, serveWorkbenchAsset, handleArtifactNativePluginHttp,
     buildCapsuleSnapshot, renderCapsuleShell, planningHttp, goalsReadHttp, handleOnboarding,
+    /** This server's periodic tasks (W4-09): registered by their owners, listed in Settings › 诊断, stopped when the server closes. */
+    periodicTasks: createPeriodicTasks(),
   };
 }
 export type LocalWebComposition = ReturnType<typeof createLocalWebComposition>;

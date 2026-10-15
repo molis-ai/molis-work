@@ -70,7 +70,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     const actions = pluginActions(store, DEMO_PROJECT_ID);
     const caller = { actor_id: "author", project_id: DEMO_PROJECT_ID, audience: "plugin" as const,
       plugin_install_id: consumer.installId, permissions: ["artifact:read", "artifact:write"] };
-    const read = actions.registry.discover(caller).find(action => action.provider.provider_id === `sdk.artifacts.${consumer.installId}` && action.operation === "query")!;
+    const read = actions.registry.discover(caller).find(action => action.capability_id === `sdk.artifacts.${consumer.installId}.read`)!;
     assert.ok(read, "the SDK operation must exist in the same Kernel directory");
     assert.deepEqual(await actions.client.invoke(caller, { ...read, provider_id: read.provider.provider_id }, { artifact_id: value.artifact_id, version: 1 }), first.artifact);
     assert.deepEqual(actions.registry.discover({ ...caller, audience: "mcp" }), [], "producer-bound SDK calls are not public MCP tools");
@@ -98,7 +98,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
 
     const noRead = await author("denied", { read: false });
     const denied = actions.registry.discover({ ...caller, plugin_install_id: noRead.installId })
-      .find(action => action.provider.provider_id === `sdk.artifacts.${noRead.installId}` && action.operation === "query");
+      .find(action => action.capability_id === `sdk.artifacts.${noRead.installId}.read`);
     assert.equal(denied?.availability.available, false, "directory reflects the actual Runtime grant");
     assert.ok(denied && !denied.availability.available);
     assert.equal(denied.availability.code, "artifacts.plugin_denied");

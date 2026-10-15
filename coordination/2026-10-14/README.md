@@ -320,6 +320,12 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
 - W4-05（AssistantService 协作者）和回执 1c/1d、情境 W3-A2 会撞：防腐线先发范围，由主会话排顺序。
 - 防腐线其余 W4 项也是每项先发范围。
 
+**10-15 晚的合并进度**：
+- 交互 S1 #532 已合（`eebfa9f3`）。
+- 采用 P3a #534、情境 W3-A1 #536 都过了 full-suite（只挂既有的 agent-action-selection），入队后因为 main 又合了 #535、#538–#544，被以 `merge_conflict` 踢出队列。冲突在 `tooling/gates/page-assets.json`，#536 还多一个 `apps/local-host/src/index.ts`。
+- 解法：#534 先并 main、构建后用 `--update --base` 重新生成门禁数字，推送后重新入队；#534 合入后 #536 再做同样的事，免得来回撞。
+- 只并 main、重新生成门禁数字的 head，不重跑 full-suite：沿用上一轮的结论，合并队列在合并结果上跑 Verify。
+
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 
 **整机一次一个构建、浏览器用例最多三批。** 锁是这台机器上的目录，用 `coordination/2026-10-14/tools/build-lock.sh`（原件在主检出 `.claude/handoff/tools/`，不入库）。和防腐那边的 codex 会话共用，它跑全量时会长时间占着构建锁。

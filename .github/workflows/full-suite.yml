@@ -26,8 +26,18 @@ on:
 permissions:
   contents: read
 
+# A new run cancels the older one in its group, so a push to a labelled pull request stops the run for the previous push. Only a
+# run whose shards will run takes that group: a pull request event whose shards the job `if` below skips (a push before the label
+# is on, another label added) gets a group of its own (its run id), so it cannot cancel a run that is testing. Before this, the
+# `synchronize` run of a push made right before the label was added cancelled the labelled run (#519, 2026-10-15). The condition
+# is the job `if` of `shard`, written twice because the concurrency key cannot read a job; change both together.
 concurrency:
-  group: full-suite-${{ github.event_name == 'schedule' && 'nightly' || github.event.pull_request.number || github.ref }}
+  group: >-
+    full-suite-${{ (github.event_name != 'pull_request'
+      || (github.event.action == 'labeled' && github.event.label.name == 'full-suite')
+      || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'full-suite')))
+      && (github.event_name == 'schedule' && 'nightly' || github.event.pull_request.number || github.ref)
+      || format('skip-{0}', github.run_id) }}
   cancel-in-progress: true
 
 jobs:

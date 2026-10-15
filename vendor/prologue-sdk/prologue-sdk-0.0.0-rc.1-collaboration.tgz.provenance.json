@@ -1,0 +1,45 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "e51233699c1463e3c8f0a8b08658c5860c962769",
+    "mergedUpstream": {
+      "pullRequest": 27,
+      "head": "3d6b1f9d0613d1d7890649aa8743df9b012dce1a",
+      "mergedAt": "2026-10-15T11:28:27Z",
+      "note": "The tip of upstream main when it was packed: P2a–P2k (task-board collaboration, with P2k's per-step conflicts), S4, the window picture, the model-switch acceptance check and #27. Molis P3a takes it in one change (specs/prologue-adoption §4.6.10)."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-collaboration.tgz",
+    "bytes": 1182902,
+    "sha256": "9f001edeec1d6832ab1ca2e6443398ab2ab376f9cb15fc92e6393fce0c35ca62",
+    "integrity": "sha512-6VlInpU/mSyFlB1bQPG7HjKwkTaRySnY1IRmqvKLo+aAX/XSzWlejRwdXz+19EeZqAZXtAsK42XZoFURfSRFiA=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive e51233699c1463e3c8f0a8b08658c5860c962769 | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --offline",
+      "pnpm --filter @prologue/sdk run build",
+      "cd packages/sdk && pnpm pack --pack-destination <dir>   # writes prologue-sdk-0.0.0-rc.1.tgz; renamed to prologue-sdk-0.0.0-rc.1-collaboration.tgz"
+    ],
+    "packedOn": "2026-10-15",
+    "reproducedFrom": "e51233699c1463e3c8f0a8b08658c5860c962769",
+    "reproducedByteIdentical": false,
+    "note": "Packed once by prologue-verify.sh from a clean git archive of the commit, after the SDK full suite on the same commit (desktop-computer-use.live not run: it drives the real desktop) and with the 13 consumer scripts passing on this package; the result is recorded in the adoption spec §6.0d."
+  }
+}

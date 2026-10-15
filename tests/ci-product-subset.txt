@@ -284,6 +284,7 @@ tests/prologue-inference-native.test.ts
 tests/prologue-materials.test.ts
 tests/prologue-model-retry.test.ts
 tests/prologue-node-start-order.test.ts
+tests/prologue-project-board.test.ts
 tests/prologue-recovery.test.ts
 tests/prologue-review-child-command.test.ts
 tests/prologue-review-feedback.test.ts

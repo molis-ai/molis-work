@@ -47,10 +47,10 @@ test("steps that wait on nothing run side by side on the SDK graph, and a joinin
     calls++; turn++;
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const system = JSON.stringify(body.system), messages = JSON.stringify(body.messages);
-    const board = system.match(/任务图：([^。]+)。/)?.[1];
-    assert.ok(board, system);
+    const board = system.match(/本轮确认计划在项目任务图 (\S+) 上/)?.[1], prefix = system.match(/编号以 (\S+?)\. 开头/)?.[1];
+    assert.ok(board && prefix, system);
     const version = Number([...messages.matchAll(/board (?:at|[^ ]+ at) version (\d+)/g)].at(-1)?.[1] || 1);
-    const report = (node: string, state: string, note: string) => response("", { name: "board-report", input: { board, node, state, note, version } });
+    const report = (node: string, state: string, note: string) => response("", { name: "board-report", input: { board, node: `${prefix}.${node}`, state, note, version } });
     if (turn === 1) { assert.match(system, /写明了步骤之间的依赖/); return response("", { name: "board-read", input: { board } }); }
     if (turn === 2) return report("step-3", "running", "想先做合并那一步");
     if (turn === 3) return response("", { name: "board-read", input: { board } });

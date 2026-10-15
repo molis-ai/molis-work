@@ -129,6 +129,8 @@ Text stats 是最小完整 app：一个必选输入口、一个 `navigator` 入�
 
 Kernel `registerCapability` 是 Module/Host 的事（Goals、Agent Host），不是插件包自己登记一份。插件只 `requires` / `capabilities.consumes`，由 Host 注入 `services.capabilities.invoke`。
 
+Agent 会话的一步在等（回信、后台命令、别的会话那一步）时，等待和接续归 Agent Host 的任务图，插件不存副本：读与控制调宿主登记的动作 `agent.collaboration.read.v1`、`agent.collaboration.control.v1`（合同 `packages/contracts/src/services/agent-collaboration.ts`），接续由插件起下一轮来接；开跑被拒时不留言、不动接续。Coding 的 `plugins/native/coding/src/wake-loop.ts` 是现行写法，细节见 [molis-prologue-ai](../molis-prologue-ai/SKILL.md) 第 7 步。
+
 ## integration
 
 不要在 Native 插件里写 GitHub/Gmail 分支。清单：

@@ -89,29 +89,36 @@ test("a failed SDK background read preserves the last actual command observation
 });
 
 // W2-18-CODING-WAKE-01: a persisted real SDK wait wakes on activation alone, despite four consecutive read failures.
+// The command ends while the plugin is stopped, so the wait is over on the record before the SDK reopens: a finished
+// fact may start the next round by itself (specs/prologue-adoption §4.6.4). A command the restart cut off is not one: its
+// result is unknown, so the step is held for the person (needs-reconciliation) and nothing is started.
 test("Coding activation resumes a persisted SDK wait without opening a page and keeps retrying transient owner failures", { timeout: 100_000 }, async t => {
   const fixture = await codingSdkRuntime(t); fixture.create("A"); let turn = 0; const requests: string[] = [];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const wire = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     const messages = JSON.stringify(JSON.parse(wire).messages); requests.push(messages); turn++;
-    if (turn === 1) return codingToolResponse("start-command", { executable: process.execPath, argv: ["-e", "setTimeout(()=>{},30000)"] });
+    if (turn === 1) return codingToolResponse("start-command", { executable: process.execPath, argv: ["-e", "setTimeout(()=>{},4000)"] });
     if (turn === 2) { const task = messages.match(/started (\S+) in the background/)?.[1]; assert.ok(task); return codingToolResponse("await-commands", { handles: [task], park: true, reason: "Wait for the controlled command." }); }
     return cogniaModelResponse(turn === 3 ? "Parked without polling." : "WOKE_FROM_PERSISTED_COMMAND");
   });
   const opened = body<Started>(await fixture.call("/sessions/A/runs", { ...configuration, task: "Start and park on a controlled command.", intent: "execute" }));
   await until("command approval did not appear", () => fixture.reviews.list(DEMO_PROJECT_ID, "pending").length > 0);
   for (const review of fixture.reviews.list(DEMO_PROJECT_ID, "pending")) await fixture.reviews.respond({ review_id: review.review_id, actor_id: "web-user", decision: "approve" });
-  await settle(fixture, opened.run.ref); const parked = await fixture.adapter.waits!.read(DEMO_PROJECT_ID); assert.equal(parked.length, 1); assert.equal(parked[0]!.state, "waiting");
+  await settle(fixture, opened.run.ref); const parked = (await fixture.adapter.collaboration!.read(DEMO_PROJECT_ID)).flatMap(view => view.wait ?? []); assert.equal(parked.length, 1); assert.equal(parked[0]!.state, "waiting");
   const installation = fixture.platform.supervisor.state("io.molis.work.coding")!; await fixture.platform.runtime.stop(installation.install_id!);
-  await fixture.reopenSdk(); const persisted = await fixture.adapter.waits!.read(DEMO_PROJECT_ID); assert.equal(persisted[0]!.wait_id, parked[0]!.wait_id); assert.equal(persisted[0]!.state, "fired");
-  const original = fixture.adapter.waits!.awaitFired.bind(fixture.adapter.waits), entered = Promise.withResolvers<void>(); let failures = 0;
-  t.mock.method(fixture.adapter.waits!, "awaitFired", async (...args) => { if (failures < 4) { failures++; entered.resolve(); throw new Error("transient owner read failure"); } return original(...args); });
+  await until("the command did not end the wait", async () => (await fixture.adapter.collaboration!.read(DEMO_PROJECT_ID))[0]?.continuation?.state === "eligible", 15_000);
+  await fixture.reopenSdk(); const persisted = (await fixture.adapter.collaboration!.read(DEMO_PROJECT_ID))[0]!;
+  assert.deepEqual([persisted.wait?.wait_id, persisted.wait?.state, persisted.continuation?.state], [parked[0]!.wait_id, "satisfied", "eligible"], "the wait is over on the record");
+  assert.equal(turn, 3, "reopening asks no model");
+  const original = fixture.adapter.collaboration!.awaitReady.bind(fixture.adapter.collaboration), entered = Promise.withResolvers<void>(); let failures = 0;
+  t.mock.method(fixture.adapter.collaboration!, "awaitReady", async (...args) => { if (failures < 4) { failures++; entered.resolve(); throw new Error("transient owner read failure"); } return original(...args); });
   await fixture.platform.supervisor.restart("io.molis.work.coding"); await entered.promise;
   // No HTTP/directory/session read starts this work: only the new plugin activation owns the loop.
   await until("activation stopped retrying or failed to resume the persisted wait", () => turn >= 4, 70_000);
-  assert.equal(failures, 4); assert.match(requests[3]!, /interrupted|中断/);
-  await until("the wake did not close its original wait", async () => (await fixture.adapter.waits!.read(DEMO_PROJECT_ID))[0]!.state === "resumed");
-  assert.equal((await fixture.adapter.waits!.read(DEMO_PROJECT_ID)).length, 1);
+  assert.equal(failures, 4); assert.match(requests[3]!, /the wait on your step is over/); assert.match(requests[3]!, /Wait for the controlled command/);
+  // Taken up once: the round that went on holds it, and nothing is left to go on.
+  await until("the wake did not take its wait up", async () => (await fixture.adapter.collaboration!.read(DEMO_PROJECT_ID))[0]?.wait === undefined);
+  assert.deepEqual(await fixture.adapter.collaboration!.awaitReady(DEMO_PROJECT_ID, 0), []);
 });
 
 // W2-18-CODING-REPORT-01: current SDK inserted graph -> user verdict -> immutable report, including SDK reopening.
@@ -125,12 +132,12 @@ test("a real inserted SDK step and its verdict are saved in a fixed report that 
   t.after(() => release.resolve());
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const wire = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
-    turn++; const request = JSON.parse(wire), project = JSON.stringify(request.system).match(/任务图：([^。]+)。/)?.[1]; assert.ok(project);
+    turn++; const request = JSON.parse(wire), system = JSON.stringify(request.system), project = system.match(/本轮确认计划在项目任务图 (\S+) 上/)?.[1], prefix = system.match(/编号以 (\S+?)\. 开头/)?.[1]; assert.ok(project && prefix);
     if (turn === 1) return codingToolResponse("board-read", { board: project });
     if (turn === 2) { entered.resolve(); await release.promise; return codingToolResponse("board-read", { board: project }); }
     if (turn < 7) {
       const current = (await fixture.adapter.read(execution)).step_board!;
-      return codingToolResponse("board-report", { board: project, node: turn < 5 ? "step-1" : "user-1", state: turn % 2 ? "running" : "succeeded", note: "Actual SDK step evidence", version: current.version });
+      return codingToolResponse("board-report", { board: project, node: `${prefix}.${turn < 5 ? "step-1" : "user-1"}`, state: turn % 2 ? "running" : "succeeded", note: "Actual SDK step evidence", version: current.version });
     }
     return cogniaModelResponse("Both steps are reported.");
   });

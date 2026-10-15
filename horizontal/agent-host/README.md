@@ -107,4 +107,16 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 
 显式输出预算优先于思考默认值；只读工具必须同时声明 query 操作和 read 副作用。修改提议、委派、记忆的工具按写入处理，仍由原 Host 规则授权。SDK 状态投影保留 sleep 和每轮真实写入回执；sleep 不等于工作完成。命令额外路径/联网请求进入同一 Review，批准只适用于当前请求，不生成会话常驻规则。
 
-当前 Molis 不接 SDK 自动 yield 接续：生产派发入口在执行前拒绝，重开会话不自动启动新父 Run（`tests/prologue-adoption-guard.test.ts`）。输入回执 SDK 的 steer 返回值暂在装配边界等待后丢弃，Molis 输入产品合同与 UI 留给输入线。采用包的工程、安装与实操证据见 [采用 spec](../../specs/prologue-adoption/spec.md) §6，不能把基础采用当作 TaskBoard 统一协作已完成。
+输入回执 SDK 的 steer 返回值暂在装配边界等待后丢弃，Molis 输入产品合同与 UI 留给输入线。采用包的工程、安装与实操证据见 [采用 spec](../../specs/prologue-adoption/spec.md) §6，不能把基础采用当作 TaskBoard 统一协作已完成。
+
+## 统一协作（P3a）
+
+要协作的一轮（工具里有派子任务、发信、报告步骤、登记等待，或带确认计划）开跑前，宿主把它绑到这个会话在项目工作板上的那一块（`prologue-collaboration.ts` 的 `sessionBlock`）。项目根是 `project`，每个会话的块挂在它下面，所以同一项目的会话互为兄弟。这个会话有一条可以接着做的接续时，用接续的请求键开跑。确认计划的步骤挂在这一块下面，编号带前缀（`prologue-plan-steps.ts`），给 Coding 的视图仍是计划自己的编号。
+
+没绑的跑拿不到这些工具。
+
+每次派子任务之前，宿主协作口（`admitDispatch`）都会再跑一遍这一轮自己的派出前复核。让出（`yield`）、`board-wait`、带 `wait` / `park` 的简写，都只登记等待并结束这一轮，Runtime 不会自己起父跑。等待满足后，接续停在可以接着做；下一轮由宿主照常开跑时，才把接续接过去（`tests/prologue-adoption-guard.test.ts`）。
+
+等待与接续的视图在 `services/agent-collaboration`，读与控制是两个动作，等到能接着做是一个宿主等待（`agent.collaboration.await.v1`）。
+
+信的规则：agents 受众的信只在同一张板相邻的步骤之间走，宿主负责把信交给收件人正在跑的那一轮。同一项目的会话可以互相请求、答复、通知、交接计划步骤；跨项目的会话不在同一张板上，照旧拒绝。几个会话同写一张板靠 SDK 按节点判冲突（P2k）：只有要改的那一步在模型读过之后被人改过，才报冲突。

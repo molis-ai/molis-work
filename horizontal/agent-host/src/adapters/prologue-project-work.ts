@@ -23,6 +23,12 @@ export interface ProjectWorkStore {
 }
 
 const KEEP_FINISHED = 40;
+/**
+ * A round's work item on the project's board. The board also holds the project's root, each session's block and what
+ * hangs under it (specs/prologue-adoption §4.6.10): those are not work items.
+ */
+const WORK = "w-";
+const isWork = (node: Node) => node.id.startsWith(WORK);
 const MAX_PATHS = 40;
 const FILE = /(?:^|[\s`'"(（「【：:，,；;@])((?:[\w.@-]+\/)*[\w@-][\w.@-]*\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs|json|md|mdx|css|scss|html|vue|svelte|py|rs|go|java|kt|swift|rb|php|c|cc|cpp|h|hpp|yml|yaml|toml|sh|sql|txt|csv))(?=$|[\s`'")）」】：:，,。；;!?！？]|#)/g;
 const FOLDER = /(?:^|[\s`'"(（「【：:，,；;@])((?:[\w.@-]+\/)+)(?=$|[\s`'")）」】：:，,。；;])/g;
@@ -50,8 +56,9 @@ function overlapping(a: readonly string[], b: readonly string[]): string[] {
   return [...hit];
 }
 
-const STATE: Record<Node["state"], AgentProjectWork["state"]> = { "not-started": "waiting", ready: "waiting", running: "running", blocked: "running",
-  succeeded: "done", failed: "failed", cancelled: "stopped" };
+// A step held for the person (blocked, or needing reconciliation after a restart) is still the work it covers.
+const STATE: Record<Node["state"], AgentProjectWork["state"]> = { "not-started": "waiting", ready: "waiting", waiting: "waiting", running: "running", blocked: "running",
+  "needs-reconciliation": "running", succeeded: "done", failed: "failed", cancelled: "stopped" };
 
 /**
  * A project's work under way, on one standing SDK task graph: each round is a node its session holds, and a round
@@ -59,7 +66,7 @@ const STATE: Record<Node["state"], AgentProjectWork["state"]> = { "not-started":
  * what each piece of work covers, so overlaps can be found before and while it runs.
  */
 export function createProjectWork(runtime: Runtime, store: ProjectWorkStore, live: (runId: string) => boolean = () => true) {
-  const refs = new Map<string, ExactRef<"task-board">>();
+  const refs = new Map<string, Promise<ExactRef<"task-board">>>();
   const scopes = new Map<string, Record<string, ProjectWorkScope>>();
   const writes = new Map<string, Promise<unknown>>();
   // One project's changes run one after another: the graph and its scopes move together.
@@ -68,12 +75,14 @@ export function createProjectWork(runtime: Runtime, store: ProjectWorkStore, liv
     writes.set(project, next.catch(() => undefined));
     return next;
   };
-  const board = async (project: string): Promise<ExactRef<"task-board">> => {
+  // Two rounds of a project starting at once share one admission: the project has one board.
+  const board = (project: string): Promise<ExactRef<"task-board">> => {
     const held = refs.get(project);
     if (held) return held;
-    const admitted = await runtime.boards.admit({ nodes: [], idempotencyKey: `molis-project-work:${project}`, standing: { keepFinished: KEEP_FINISHED } });
-    refs.set(project, admitted.ref);
-    return admitted.ref;
+    const admitted = runtime.boards.admit({ nodes: [], idempotencyKey: `molis-project-work:${project}`, standing: { keepFinished: KEEP_FINISHED } }).then(one => one.ref);
+    refs.set(project, admitted);
+    admitted.catch(() => refs.delete(project));
+    return admitted;
   };
   const scopesOf = async (project: string) => {
     let held = scopes.get(project);
@@ -114,11 +123,11 @@ export function createProjectWork(runtime: Runtime, store: ProjectWorkStore, liv
     async read(project: string, probe?: { session_id?: string; directory: string; paths: string[] }): Promise<{ items: AgentProjectWork[]; overlaps: AgentProjectWorkOverlap[] }> {
       const ref = await board(project), held = await scopesOf(project);
       // A round that is no longer running (the service restarted under it) is not work under way.
-      for (const node of runtime.boards.get(ref).nodes) {
+      for (const node of runtime.boards.get(ref).nodes.filter(isWork)) {
         const run = held[node.id]?.run_id;
         if (node.state === "running" && run && !live(run)) await end(project, node.id, "interrupted");
       }
-      const items = runtime.boards.get(ref).nodes.map(node => item(node, held[node.id])).reverse();
+      const items = runtime.boards.get(ref).nodes.filter(isWork).map(node => item(node, held[node.id])).reverse();
       const overlaps = probe ? items.flatMap(work => {
         if (work.session_id === probe.session_id || !["running", "waiting"].includes(work.state) || work.directory !== probe.directory) return [];
         const paths = overlapping(probe.paths, work.paths);
@@ -138,7 +147,7 @@ export function createProjectWork(runtime: Runtime, store: ProjectWorkStore, liv
           // Starting before what it waited for has finished is the person's choice; the wait is dropped, not faked.
           if (node.state === "not-started") await runtime.boards.rewire({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: id, dependsOn: [] });
         } else {
-          id = `w-${randomUUID().slice(0, 12)}`;
+          id = `${WORK}${randomUUID().slice(0, 12)}`;
           await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version,
             node: { id, title: titleOf(input.title, input.task), dependsOn: [], onFailure: "block-for-human", assignee: input.session } });
         }
@@ -166,7 +175,7 @@ export function createProjectWork(runtime: Runtime, store: ProjectWorkStore, liv
         const ref = await board(project), held = await scopesOf(project);
         const target = runtime.boards.get(ref).nodes.find(node => node.id === input.after);
         if (!target || !["running", "not-started", "ready"].includes(target.state)) throw new Error("要等待的那项工作已经结束或不存在，可以直接开始");
-        const id = `w-${randomUUID().slice(0, 12)}`;
+        const id = `${WORK}${randomUUID().slice(0, 12)}`;
         await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version,
           node: { id, title: titleOf(input.title, input.task), dependsOn: [input.after], onFailure: "block-for-human", assignee: input.session } });
         await runtime.boards.report({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: id, by: undefined, human: { kind: "human", id: input.person }, override: true,
@@ -196,11 +205,12 @@ export function projectWorkDigest(projectId: string, items: readonly AgentProjec
   if (!others.length) return "";
   const line = (work: AgentProjectWork) => `- 会话「${work.title.slice(0, 40)}」（session ${work.session_id}）${work.state === "running" ? "进行中" : "等待开始"}：${work.task.split("\n")[0]!.slice(0, 80)}`
     + `${work.paths.length ? "；范围：" + work.paths.slice(0, 8).join("、") : ""}（目录 ${work.directory}）`;
-  return [`项目里其他会话正在做的事（第 ${projectId} 号项目任务图，宿主在这一轮开始时读取；可以用 board-read 读这张图看最新状态，但不能改它）：`,
+  return [`项目里其他会话正在做的事（第 ${projectId} 号项目任务图，宿主在这一轮开始时读取；可以用 board-read 读这张图看最新状态，别的会话那一块不能改）：`,
     ...others.slice(0, 12).map(line),
     ...(overlaps.length ? ["和这一轮登记的范围重叠：", ...overlaps.map(overlap => `- 会话「${overlap.work.title.slice(0, 40)}」也在改 ${overlap.paths.join("、")}`),
       "改这些文件之前先告诉用户重叠在哪里；不要替用户决定谁先谁后。"] : []),
-    // A round that can write to other sessions is told how to wait on one it depends on, rather than guessing its result.
+    // A round that can write to other sessions (they all stand on this board, so they are its neighbours) is told how to
+    // wait on one it depends on, rather than guessing its result.
     ...(canSend ? ["如果这一轮要做的事依赖上面某个会话正在做的改动（比如它在改你要调用的接口），不要猜它改完的样子：用 session-send 给它发 kind 为 request 的信（to 写它的 session id），说清楚你需要什么，并设 wait: true；然后说明你在等什么，结束这一轮，不做依赖它的部分。它答复或那一轮结束后，宿主会带着答复让你接着做。不依赖就照常做。",
-      "你改了上面这些会话也在用的接口或文件时，用 session-send 发一条通知：to 写 \"overlapping\"，kind 写 notice，说清改了什么（宿主会发给范围重叠的会话，最多 5 个）。任务里有一部分明显属于上面某个会话的范围时，可以用 kind 为 handoff 的信交给它：写清交出去的是什么、做到了哪里；这一轮有确认的计划时，把计划里对应的步骤用 board（计划那张图）和 steps 一并交出，没有计划就不带 board 和 steps（上面的项目任务图不能交出）。交出去的部分你就不再做。"] : [])].join("\n");
+      "你改了上面这些会话也在用的接口或文件时，用 session-send 发一条通知：to 写 \"overlapping\"，kind 写 notice，说清改了什么（宿主会发给范围重叠的会话，最多 5 个）。这一轮有确认的计划、其中一步明显属于上面某个会话的范围时，可以用 kind 为 handoff 的信把那一步交给它：steps 写这一步在任务图上的编号，写清交出去的是什么、做到了哪里；交出去的步骤你就不再做。没有计划的一轮交不了步骤，用 request 请它做。"] : [])].join("\n");
 }

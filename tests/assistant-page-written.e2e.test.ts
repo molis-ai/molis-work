@@ -194,5 +194,6 @@ test("W3-02-G4-ANSWER-01: a real Runtime refusal shows the field error and a cor
   const continuation = requests[1] as { messages: { content: string | { type: string; tool_use_id?: string; content?: string }[] }[] };
   const result = continuation.messages.flatMap(message => Array.isArray(message.content) ? message.content : []).find(block => block.type === "tool_result" && block.tool_use_id === "question-call");
   assert.ok(result, "the answer is the tool result of the original question");
-  assert.deepEqual(JSON.parse(result.content!), { kind: "questionnaire", picked: [{ question: 0, labels: ["周报"] }] }, "the selected label reaches the provider in the original question's result");
+  // The result names its question by the id the page answered (Prologue 5b259a16, input receipts slice 4): the model cites it as a `pending` target.
+  assert.deepEqual(JSON.parse(result.content!), { kind: "questionnaire", picked: [{ question: 0, labels: ["周报"] }], pending: pending.pending_id }, "the selected label reaches the provider in the original question's result");
 });

@@ -18,17 +18,19 @@ const response = (text: string, tool?: {name:string; input:unknown}) => {
 
 test('confirmed step graphs use scoped SDK reports, dependency/version guards and durable original state', {timeout:45_000}, async t=>{
   const root=await mkdtemp(join(tmpdir(),'molis-step-board-'));await writeFile(join(root,'sample.txt'),'ORIGINAL PLAN EVIDENCE');
-  let stage='success',turn=0,calls=0,firstBoard='',currentBoard='';
+  let stage='success',turn=0,calls=0,firstBoard='',currentBoard='',firstPrefix='',currentPrefix='';
   t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
     calls++;turn++;const body=JSON.parse(typeof init.body==='string'?init.body:new TextDecoder().decode(init.body as Uint8Array));
     const system=JSON.stringify(body.system),messages=JSON.stringify(body.messages);
-    const board=system.match(/任务图：([^。]+)。/)?.[1];
+    // The user's B (specs/prologue-adoption §4.6.10): a round's plan is on the project's board, in its session's block,
+    // its steps named with the plan's prefix.
+    const board=system.match(/本轮确认计划在项目任务图 (\S+) 上/)?.[1],prefix=system.match(/编号以 (\S+?)\. 开头/)?.[1];
     if(stage==='ordinary'){assert.equal(board,undefined);assert.ok(!body.tools.some((tool:any)=>tool.name==='board-read'||tool.name==='board-report'));return response('Ordinary task has no graph.');}
-    assert.ok(board,system);currentBoard=board;
+    assert.ok(board&&prefix,system);currentBoard=board;currentPrefix=prefix;
     const version=Number([...messages.matchAll(/board (?:at|[^ ]+ at) version (\d+)/g)].at(-1)?.[1]||1);
-    const report=(node:string,state:string,note:string,v=version)=>response('',{name:'board-report',input:{board,node,state,note,version:v}});
+    const report=(step:string,state:string,note:string,v=version)=>response('',{name:'board-report',input:{board,node:`${prefix}.${step}`,state,note,version:v}});
     if(stage==='success'){
-      firstBoard=board;
+      firstBoard=board;firstPrefix=prefix;
       if(turn===1)return response('',{name:'board-read',input:{board}});
       if(turn===2)return report('step-1','running','开始核对第一步');
       if(turn===3)return response('',{name:'read',input:{path:'sample.txt'}});
@@ -41,18 +43,22 @@ test('confirmed step graphs use scoped SDK reports, dependency/version guards an
       return response('Both steps reported. User acceptance pending.');
     }
     if(stage==='guards'){
-      if(turn===1)return response('',{name:'board-read',input:{board:firstBoard,node:'step-1'}});
-      if(turn===2){assert.match(messages,/不能访问其他任务图/);assert.doesNotMatch(messages,/实际读取内容为/);return report('step-2','running','不能跳过前置步骤');}
-      if(turn===3)return response('',{name:'board-read',input:{board}});
-      if(turn===4)return report('step-1','running','核对第一步');
-      if(turn===5)return report('step-1','succeeded','过期版本不能保存',1);
-      if(turn===6)return response('',{name:'board-read',input:{board}});
-      if(turn===7)return report('step-1','failed','证据不足，保留失败');
+      // Another session's plan is on the same board: it may be read, and a report on it is refused (here because the step
+      // has ended; a live step of another session is refused as not this session's: tests/prologue-project-board.test.ts).
+      if(turn===1)return response('',{name:'board-read',input:{board}});
+      if(turn===2)return response('',{name:'board-report',input:{board:firstBoard,node:`${firstPrefix}.step-1`,state:'failed',note:'not mine',version}});
+      if(turn===3){assert.match(messages,/is already succeeded; it takes no further progress/);return report('step-2','running','不能跳过前置步骤');}
+      if(turn===4)return response('',{name:'board-read',input:{board}});
+      if(turn===5)return report('step-1','running','核对第一步');
+      if(turn===6)return report('step-1','succeeded','过期版本不能保存',1);
+      if(turn===7)return response('',{name:'board-read',input:{board}});
+      if(turn===8)return report('step-1','failed','证据不足，保留失败');
       return response('The run ended, but steps did not succeed.');
     }
     if(stage==='same-session'){
-      if(turn===1)return response('',{name:'board-report',input:{board:firstBoard,node:'step-1',version:1,state:'running',note:'old run must not change'}});
-      assert.match(messages,/不能访问其他任务图/);return response('Old run graph denied.');
+      // The session's earlier plan is the person's to take up again: a later round cannot report on it.
+      if(turn===1)return response('',{name:'board-report',input:{board:firstBoard,node:`${firstPrefix}.step-1`,version,state:'running',note:'old run must not change'}});
+      assert.match(messages,/之前那一轮计划的步骤；要接着做，请用户点「继续计划」/);return response('Old run graph denied.');
     }
     if(stage==='interrupted'){
       if(turn===1)return response('',{name:'board-read',input:{board}});
@@ -81,7 +87,7 @@ test('confirmed step graphs use scoped SDK reports, dependency/version guards an
     assert.match(done.step_board!.nodes[0].reports.at(-1)!.note,/ORIGINAL PLAN EVIDENCE/);assert.equal(done.step_board!.nodes[1].reports.length,5);
     assert.equal(done.frozen.budget?.max_turns,14);assert.deepEqual(done.frozen.execution_plan,plan);
     stage='guards';turn=0;const second=await host.start('prologue',request(other),authority);const failedSteps=await finish(second.ref);
-    assert.equal(failedSteps.phase,'completed',JSON.stringify(failedSteps));assert.notEqual(currentBoard,firstBoard);
+    assert.equal(failedSteps.phase,'completed',JSON.stringify(failedSteps));assert.equal(currentBoard,firstBoard,'one board for the project');assert.notEqual(currentPrefix,firstPrefix);
     assert.deepEqual(failedSteps.step_board?.nodes.map(node=>node.state),['failed','not-started']);
     assert.equal(failedSteps.step_board!.nodes[0].reports.length,2);assert.equal(failedSteps.step_board!.nodes[1].reports.length,0);
     assert.deepEqual((await adapter.read(first.ref)).step_board,done.step_board,'foreign read or writes never change the old graph');

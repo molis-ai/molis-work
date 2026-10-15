@@ -3,6 +3,7 @@ import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/
 import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
@@ -61,6 +62,7 @@ export const codingManifest: PluginManifest = {
     provides: [],
     consumes: [
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
+      ...Object.values(agentCollaborationActions).map((entry) => entry.capability_id),
       ...Object.values(goalPluginActions).map(entry => entry.capability_id),
       projectsCapabilities.readWorkspace.capability_id,
       workspaceReadActions.file.capability_id,

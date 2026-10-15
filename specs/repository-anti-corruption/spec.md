@@ -8,6 +8,14 @@
 
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
+W4-04 第一片（2026-10-15，插件读自己成果线的最新版本，PR 待开）：
+- 范围：Form 迁到 Runtime 前要先补的平台服务（RUNTIME-MIGRATION「迁移要用到时先补服务，不在迁移 PR 里补」）。Form、Dataset、PPT、Pages 固定成果时，要知道这条成果线在项目里的最新版本，才能给下一版编号；现在这一步由宿主的 `artifactLineHead` 端口给。
+- 新增 `services.artifacts.head(artifact_id)`：返回 `{ version, source_revision }`，项目里还没有就是 `null`。只读得到这个插件自己开的成果线，要有 `artifact:read`。
+- 宿主的 `artifactLineHead` 改用合同里的同一个推导 `artifactLineHeadOf`，不再另写一份。
+- `W4-04-01` 在 `tests/plugin-host-services.test.ts`。变异检查：去掉「成果线必须是自己的」，`W4-04-01` 失败。
+- `tests/plugin-artifact-client.test.ts` 原来按「唯一的查询动作」找 SDK 的读取动作，现在有两个查询动作，改成按动作 id 找 `.read`，断言不变。
+- 动作快照：每个安装多一条 `sdk.artifacts.<安装>.head@1`。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。
@@ -28,6 +36,8 @@ W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只
 | 2026-10-15 | 本机验证的等待（弹窗） | 只重建变了的包（推荐）；机器槽位工具（推荐）；把点名的用例送 CI 跑；本机浏览器槽提到 3 | 只重建变了的包；机器槽位工具 | 依据 42 个会话：前台构建 19 小时（每次整体清空重建 71 个包，整台机器一次一个）、浏览器用例 16 小时、前台轮询等待 29 小时（其中 13 小时等别的会话，靠 `pgrep` 或某个会话私有的锁脚本）。`scripts/build-workspace.mjs` 按输入摘要跳过没变的包，`pnpm build:clean` 保留全量重建；`scripts/machine-slot.mjs` 让构建与浏览器批次按到达顺序排队、死掉的占用者被接手；`docs/system/PARALLEL-DEVELOPMENT.md` §5 写明等待用后台加通知 |
 | 2026-10-15 | main 开合并队列（弹窗，推翻 2026-10-02「不开合并队列」） | 开（推荐）；不开 | 开 | 10-02 时 `Verify` 约 28 分钟，现在约 5 分钟；10-13 到 10-15 的 200 次 CI 里 95 次因分支同步后重跑被取消。`ci.yml` 加 `merge_group`，健康门禁与密钥扫描在队列里以 `merge_group.base_sha` 为比较点；分支保护去掉「必须与 main 同步」，由规则集的合并队列验证 `Verify`；不挡合并的作业不进队列。做法见 `docs/system/PARALLEL-DEVELOPMENT.md` §3 |
 | 2026-10-15 | 测试自己的时限能不能按慢机调大（#519 与 #527 口径相反，§10.13 R-5） | 用户直接答复 | 可以：「时限可以90秒，我没说必须30秒」 | 时限只用来拦卡死，不是行为断言：Linux CI 比 macOS 慢约 2.3–2.5 倍，按这个倍数调大时限、在注释里写明，不算放宽断言；断言本身仍不放宽、不跳过。`tests/mcp-scene-effect-authority.test.ts` 定为 90 秒 |
+| 2026-10-15 | W4-01 探针插件既要 bundled、又要 id 只在自己的包里：bundled 插件现在都要在 `project-plugins.ts` 里点名，声明式登记（W5-02）未做，测试夹具按 W3-06 永远不是 bundled | 走夹具路径、bundled 留给 W5-02（推荐）；现在先做声明式发现；允许测试夹具标 bundled；推迟 W4-01 | W4-01 推迟到 W5-02 之后 | W4-04（Form）不再等 W4-01，按 `docs/system/RUNTIME-MIGRATION.md` §5.1 直接迁；W4-01 的验收（探针对 Form 同样成立等）随 W4-01 一起后移 |
+| 2026-10-15 | W4-01 回放样本里 2–3 个「创作台生成的插件」从哪来（仓库里没有，创作台回放只到设计定稿） | 隔离 Home 里用 MiniMax 真跑创作台（推荐）；从真实 Home 只读拷贝里取；手写仿制 | 隔离 Home 里真跑 | 生成的源码与清单入库当样本；做 W4-01 时执行 |
 | 2026-10-15 | 全量搬到 CI 分片跑（弹窗） | 上 CI 分片（推荐）；只在本机 | 上 CI 分片 | `.github/workflows/full-suite.yml`：10 个 ubuntu runner，PR 加 `full-suite` 标签、推到 `integration/**`、每晚和手动时跑；不挡合并；Linux 探针标为 macOS 专有的文件（`run-tests.mjs --skip-macos-only`）仍在本机跑。依据：本机全量 56–61 分钟，其中浏览器文件 116 分钟、同时 2 个就占 58 分钟，整台机器一次只能一个全量，并行需求互相排队 |
 | 2026-10-15 | Prologue #26 由我合入后被权限检查标成「未经评审合并」（弹窗） | 保留（推荐）；回退等评审 | 保留合入 | #26 只改两个消费者脚本（P2i、P2h 改用真实会话），SDK 代码未动；12 个消费者脚本在干净包上全部通过 |
 | 2026-10-15 | BL-137：SDK 释放 8 MiB 资源约 0.8 秒（弹窗） | 在 Prologue 开 PR 修（推荐）；只记录 | 在 Prologue 修 | 先作废索引，再逐块直接删、目录 fsync 一次；崩溃后由扫块兜底补删，断电语义不变；另跑 SDK 全量与干净包 |

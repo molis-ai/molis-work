@@ -434,6 +434,29 @@ test("a 成果 port carries a pinned version by selection: exact identity, no co
   } finally { rig.close(); }
 });
 
+test("W4-04-01 a plugin reads the head of its own line of 成果; another producer's line and a plugin without artifact:read are refused", async () => {
+  const rig = harness(() => []);
+  try {
+    const REPORT = "demo.report";
+    const reader = manifestFor({ id: CONSUMER, inputs: ["payload"] }), writer = manifestFor({ id: PRODUCER, outputs: ["payload"] });
+    reader.permissions.push({ permission: "artifact:write", required: true, reason: "固定自己的成果" });
+    const readerPreview = artifactPreview(CONSUMER, REPORT), writerPreview = artifactPreview(PRODUCER, REPORT);
+    reader.actions = [readerPreview.definition]; reader.artifacts.produces.push(readerPreview.type);
+    writer.actions = [writerPreview.definition]; writer.artifacts.produces.push(writerPreview.type);
+    await rig.supervisor.start([{ definition: definitionFor(rig, writer, [writerPreview.handler]) }, { definition: definitionFor(rig, reader, [readerPreview.handler]) }]);
+    const own = rig.services[CONSUMER]!.artifacts, other = rig.services[PRODUCER]!.artifacts;
+    const pin = (artifacts: typeof own, artifact_id: string, version: number, revision: string) => artifacts.publish({ artifact_id, version,
+      artifact_type_id: REPORT, schema_version: 1, content: { kind: "inline", payload: { version } }, supersedes_version: version > 1 ? version - 1 : null,
+      ...pinnedArtifact("报告", { kind: "report", id: artifact_id }, revision) });
+    assert.equal(own.head("report-a"), null, "a line the project does not hold yet");
+    pin(own, "report-a", 1, "3"); pin(own, "report-a", 2, "7");
+    assert.deepEqual(own.head("report-a"), { version: 2, source_revision: 7 });
+    pin(other, "report-b", 1, "1");
+    assert.throws(() => own.head("report-b"), (error: { code?: string }) => error.code === "artifacts.plugin_denied", "another producer's line");
+    assert.throws(() => other.head("report-b"), /未声明/u, "a plugin that does not declare artifact:read");
+  } finally { rig.close(); }
+});
+
 test("a process item port keeps its own version sequence: selecting an older version guards stale choices and never rewinds generation", async () => {
   const rig = harness(() => []);
   try {

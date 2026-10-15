@@ -2892,6 +2892,11 @@ export declare function actionResultSubject(action: Pick<ActionDefinition["actio
     revision: string | null;
 } | null;
 
+export declare function artifactLineHeadOf(latest: {
+    version: number;
+    origin: ArtifactOrigin;
+}): ArtifactLineHead;
+
 export declare function assertDueReminderWindow(window: DueReminderWindow): void;
 
 export declare function assertHomeEventWindow(window: HomeEventWindow): void;

@@ -1,4 +1,4 @@
-import type { ArtifactLineHead } from "@molis-ai/molis-work-contracts/platform/actions";
+import { artifactLineHeadOf, type ArtifactLineHead } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalProjectApplication } from "./goal-project-application.js";
 
 /**
@@ -8,7 +8,5 @@ import type { GoalProjectApplication } from "./goal-project-application.js";
  */
 export function artifactLineHead(coordinator: GoalProjectApplication, projectId: string, artifactId: string): ArtifactLineHead | null {
   const latest = coordinator.artifacts.query.latestArtifactVersion(projectId, artifactId);
-  if (!latest) return null;
-  const revision = latest.origin.kind === "pinned" && /^\d+$/u.test(latest.origin.revision) ? Number(latest.origin.revision) : null;
-  return { version: latest.version, source_revision: revision };
+  return latest ? artifactLineHeadOf(latest) : null;
 }

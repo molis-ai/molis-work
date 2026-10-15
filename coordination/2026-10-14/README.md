@@ -333,6 +333,11 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 助理传入排队的那一条（carry）。
   - 提示条挪到 1e；但 1c 的措辞要说真话，不能写「已补充到正在进行的这一轮」。
   - 开工条件：H3 与防腐 W4-07 都已合入。
+- 情境 W3-B 设计草案（spec §21.8，本地分支 `context/w3b-landing` @ `96958c45`），三件按推荐定：
+  - B-1：三个 Pages 写入动作共用一个处理器，各挂一份 attach，不改合同。
+  - B-2：W3-B 只用 `confirmReferences`；「attach 的 find 取候选」改到 W4 的 F2「追加到已有」。
+  - B-3：拆成 W3-B1（第 1–6 步，H3 合入后开工）和 W3-B2（第 7 步，情境条显示落点，排在 W3-A2 之后）。
+  - 提醒过的约束：Pages 与工作台的资源字节在同一个 PR 里自己抵消；`client.ts` 只许缩；新事件 `molis:surface-landing` 要登记，并跑 `api:update`；预览挂在主人页面的面板槽，不出整页；先并 #542（W4-11，改 Pages 的 store）；开工前把文件清单发统筹。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

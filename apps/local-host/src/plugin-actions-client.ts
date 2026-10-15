@@ -53,7 +53,11 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     discover: async () => (await ownActions.discover()).filter(view => view.provider.plugin_install_id === context.install_id),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">) => {
       if ((manifest.actions ?? []).some(action => sameAction(action, definition))) return ownActions.invoke(definition, input, control);
-      if (!consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项宿主动作");
+      if (!consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
+      // A missing grant is said as one before the directory is asked: the directory hides what the plugin may not use, and would
+      // otherwise answer that the action is not there.
+      options.assertActive();
+      for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
       const providerId = await pluginActionProvider(options.client, { ...dependencyCaller(definition), ...(control?.signal ? { signal: control.signal } : {}) }, definition);
       options.assertActive();
       return bindActionClient(options.client, () => dependencyCaller(definition, providerId)).invoke(definition, input, control);

@@ -32,7 +32,7 @@ const sideContent = FILES_ACTIONS.find(definition => definition.capability_id ==
 const WORKSPACE_FILE_KIND = sideEntries.action.file_source!.kinds[0]!.kind;
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 
-test("a Runtime plugin reaches a Host action only when its Manifest consumes it: as the plugin audience, with its own grants, that exact action", async () => {
+test("a Runtime plugin reaches an action only when its Manifest consumes it: as the plugin audience, with its own grants, that exact action", async () => {
   const home = mkdtempSync(join(tmpdir(), "workspace-read-executor-")), file = join(home, "board.sqlite");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
@@ -41,7 +41,7 @@ test("a Runtime plugin reaches a Host action only when its Manifest consumes it:
   const reads = { host: 0, other: 0 };
   service.registerProvider({ provider: { provider_id: HOST_PROVIDER_ID, title: "Molis Work", kind: "system" }, definitions: [readFile],
     handlers: [{ ...readFile, handle: context => { reads.host++; seen.push(context); return { outcome: "directory", entries: [], truncated: false }; } }] });
-  // Another plugin's action, offered to plugins too: listing it under consumes does not reach it.
+  // Another plugin's action, offered to plugins too (an agent action reaches the plugin audience): listing it under consumes reaches it.
   const other: ActionDefinition = { capability_id: "other.read", version: 1, operation: "query", action: { title: "Other", description: "Another plugin's read", kind: "query", scope: "project",
     audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "object" } } };
   service.registerProvider({ provider: { provider_id: "io.molis.work.other", title: "Other", kind: "plugin", project_id: DEMO_PROJECT_ID }, definitions: [other],
@@ -91,9 +91,13 @@ test("a Runtime plugin reaches a Host action only when its Manifest consumes it:
     const own = await client.discover();
     assert.deepEqual(own.map(view => view.capability_id), ["reader.list"]);
     assert.equal(own[0]!.availability.available, true);
-    // Another plugin's action is not reachable this way, even listed under consumes.
-    await assert.rejects(client.invoke(other, {}));
-    assert.equal(reads.other, 0);
+    // Another plugin's action listed under consumes is reachable too (user decision 2026-10-14): as the plugin audience, with the
+    // plugin's own grants, pinned to the one provider the project's directory has for it.
+    assert.deepEqual(await client.invoke(other, {}), {});
+    assert.equal(reads.other, 1);
+    // A plugin that does not list it cannot reach it.
+    await assert.rejects(contexts.get("silent")!.services!.actions!.invoke(other, {}), { code: "actions.forbidden" });
+    assert.equal(reads.other, 1);
 
     // Not listed: refused before the Host is asked.
     await assert.rejects(contexts.get("silent")!.services!.actions!.invoke(readFile, query), { code: "actions.forbidden" });

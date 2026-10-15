@@ -7,6 +7,10 @@ on:
   push:
     branches:
       - main
+  # The merge queue of main (docs/system/PARALLEL-DEVELOPMENT.md §3): GitHub builds each queued pull request on top of main and the
+  # pull requests ahead of it, and merges it when `Verify` passes on that commit. A pull request no longer has to be brought up to date
+  # with main by hand before it merges.
+  merge_group:
   workflow_dispatch:
   # Nightly on main, for the Linux probe (it runs only on this and on a manual run, see the job); the other jobs run too.
   schedule:
@@ -61,13 +65,14 @@ jobs:
       # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the gate
       # itself (script, limits.json, this step), which is reviewed. tooling/gates/giant-exceptions.json admits nothing new.
       # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
-      # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip.
+      # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip; in the merge
+      # queue it is the queue's base (merge_group.base_sha, passed as PUSH_BEFORE).
       # scripts/ci-health-base.mjs picks it and fetches it when the shallow checkout lacks it. Nothing here needs the build.
       - name: Health gates (against the merge-base)
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
-          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_BEFORE: ${{ github.event.before || github.event.merge_group.base_sha }}
         run: |
           base="$(node scripts/ci-health-base.mjs)"
           node scripts/check-health-gates.mjs --base "$base"
@@ -189,7 +194,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
-          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_BEFORE: ${{ github.event.before || github.event.merge_group.base_sha }}
         run: |
           base="$(node scripts/ci-health-base.mjs)"
           node scripts/gates/page-assets.mjs --base "$base"
@@ -226,7 +231,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
-          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_BEFORE: ${{ github.event.before || github.event.merge_group.base_sha }}
         run: |
           base="$(node scripts/ci-health-base.mjs)"
           pnpm studio:replay --base "$base"
@@ -289,10 +294,11 @@ jobs:
 
       # API keys, GitHub/Slack tokens, AWS keys, private keys, JWTs and `api_key|secret|password|token = "…"` literals in
       # the lines this change adds. Known test fixtures are listed in tooling/gates/secret-allowlist.txt, each with a reason.
-      # Pull request: since its base branch tip. Push to main: since the tip before the push. Manual run: the whole tree.
+      # Pull request: since its base branch tip. Merge queue: since the queue's base. Push to main: since the tip before the push.
+      # Manual run: the whole tree.
       - name: No credentials in the commits this change adds
         env:
-          SECRET_SCAN_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          SECRET_SCAN_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             node scripts/check-secrets.mjs --all
@@ -367,8 +373,8 @@ jobs:
     name: Verify
     needs: [gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks]
     if: ${{ always() }}
-    # Keep this job name while `Verify` is required by main branch protection.
-    # The full product suite runs locally; the gates, package boundaries, the contract subset, the secret scan and the Rust, Swift and shell checks run here.
+    # Keep this job name while `Verify` is required by main branch protection and the merge queue.
+    # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the gates, package boundaries, the contract subset, the secret scan and the Rust, Swift and shell checks run here.
     runs-on: ubuntu-latest
     steps:
       - name: Required package gate passed
@@ -402,6 +408,8 @@ jobs:
   # "(not required yet)" from the name, when the probe has shown these files green for two weeks.
   security-invariants:
     name: Security invariants (not required yet)
+    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`.
+    if: ${{ github.event_name != 'merge_group' }}
     runs-on: ubuntu-latest
     continue-on-error: true
     env:
@@ -506,6 +514,8 @@ jobs:
   # writes its report on that signal, and the upload below is `if: always()`.
   product-subset:
     name: Product subset (not required yet)
+    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`.
+    if: ${{ github.event_name != 'merge_group' }}
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 35

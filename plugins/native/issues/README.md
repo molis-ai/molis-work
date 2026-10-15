@@ -9,7 +9,7 @@
 - **唤起**：任何地方按 ⌘⇧I（其他系统 Ctrl+Shift+I），或点首页与项目右上角的「Issue」。侧栏打开，键盘直接落在输入框；从 Issue 里再按一次收起。按钮也是开关。键盘在侧栏的其他视图、讨论或嵌入窗格里时同样有效。
 - **记录**：写一句话，截图直接粘贴或拖进来（也可以点图片按钮选），⌘↵。输入框马上清空、可以接着写下一条；这条以「整理中」出现在列表顶部，Work 助理在后台起标题、判类型并直接保存，保存后提示「已记录：标题」，可以撤销。关掉侧栏不影响，侧栏收起时右上角按钮带点：整理中是铜色，需要你处理是琥珀色。
 - **需要你处理**：助理要补充信息、模型不可用、整理超时，或你设置了这类保存每次都要确认时，这条留在列表顶部并写明原因。点开就是编辑器，原文原图都在：补充后「重新整理」，或写标题、选类型直接「保存」，或「放弃」。
-- **查看**：列表按记录时间倒序，每行是标题、类型、时间、记录时的地点和截图数。点开是只读详情，写明记录于哪个页面、由谁整理；「编辑」改标题、类型、描述和截图，「删除」要再确认一次。Esc 从详情回到列表，再按收起侧栏。
+- **查看**：列表按记录时间倒序，每行是标题、类型、时间、记录时的地点和截图数。点开是只读详情，写明记录于哪个页面、由谁整理；「编辑」改标题、类型、描述和截图，「重新整理」按当前编辑的图文建议标题和类型，核对后点「保存」更新同一条记录；失败或整理期间内容变化时保留编辑稿。「删除」要再确认一次。Esc 从详情回到列表，再按收起侧栏。
 - **离开页面不丢草稿**：输入框的文字与截图留在本机，换页面、换项目再打开还在，直到发出或移除；还没完成的录入也留下文字，回来时以「上次没有完成」排在顶部（截图要重新添加），期间助理已经保存的会自动消失。输入框截图使用浏览器 Cache Storage 保存，保留既有图片数量与大小上限；存储失败会提示。
 - **界面语言**：Home、项目侧栏和完整页面沿用工作台的语言设置。静态控件与已知错误使用现有词典；标题、描述和截图名称保持原文。模型不可用时可打开同页设置、重试加载并返回，录入内容保留。
 
@@ -27,7 +27,9 @@
 
 ## 助理方法
 
-方法 `issues-capture` v9：页面录入一轮完成，先看依据够不够（只有数字、测试字样、乱码又没有能看懂的截图就不保存，只用 ask-user 问一个自由文本问题，参数只有 why），够就不先发现能力、直接保存一次，没有调用成功不说已记录；标题和描述同一种语言，以本次描述为准（一句话、中文 8 到 30 字，写清在哪里做了什么出了什么问题，不推测原因、不写方案，日志和报错只写现象不抄数值），截图只辅助理解，旧标题和截图里的文字不是来源；列表另外显示地点，所以只有描述用「这里」「这个页面」指代时才用页面名点明位置，项目名不进标题；类型按 bug / experience / feature 的定义，拿不准时坏了选 bug、别扭选 experience。页面发给助理的消息只说「请按 Issue 方法处理」，保存还是追问由方法决定。普通对话里「记个 issue：…」照抄原话用 `issues.create` 直接记录（可撤销）；修改和删除先读版本、只在用户明确要求时做。
+方法 `issues-capture` v10：页面录入一轮完成，先看依据够不够（只有数字、测试字样、乱码又没有能看懂的截图就不保存，只用 ask-user 问一个自由文本问题，参数只有 why），够就不先发现能力、直接保存一次，没有调用成功不说已记录；标题和描述同一种语言，以本次描述为准（一句话、中文 8 到 30 字，写清在哪里做了什么出了什么问题，不推测原因、不写方案，日志和报错只写现象不抄数值），截图只辅助理解，旧标题和截图里的文字不是来源；列表另外显示地点，所以只有描述用「这里」「这个页面」指代时才用页面名点明位置，项目名不进标题；类型按 bug / experience / feature 的定义，拿不准时坏了选 bug、别扭选 experience。页面发给助理的消息只说「请按 Issue 方法处理」，保存还是追问由方法决定。普通对话里「记个 issue：…」照抄原话用 `issues.create` 直接记录（可撤销）；修改和删除先读版本、只在用户明确要求时做。
+
+重新整理已保存 Issue 复用个人助理的 `issues.update@2` 建议卡，只把标题和类型填回当前编辑器；不新建录入草稿或记录，不由页面执行建议卡。离开编辑器会停止并归档本次整理。保存仍使用打开记录时的版本，冲突时核对后再保存。
 
 ## 图片
 
@@ -51,7 +53,7 @@
   - 原话不改写，类型不默认；可信元数据不从业务输入读取，页面位置只作为页面的报告保存。
   - 提交前复查授权，更新和删除要求版本，冲突不覆盖；撤销只删除没改过的新记录。
 - 改动后必跑：`node scripts/run-tests.mjs tests/issue-home.test.ts tests/issue-home-runtime.test.ts tests/issue-capture.test.ts tests/issue-assistant.test.ts tests/issue-capture-page.e2e.test.ts tests/issue-page.e2e.test.ts`
-- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/issue-manual-save.e2e.test.ts tests/issue-global-navigation.e2e.test.ts tests/issue-clarification-page.e2e.test.ts tests/issue-assistant-repair-page.e2e.test.ts tests/issue-draft-preview.e2e.test.ts`
+- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/issue-manual-save.e2e.test.ts tests/issue-global-navigation.e2e.test.ts tests/issue-clarification-page.e2e.test.ts tests/issue-assistant-repair-page.e2e.test.ts tests/issue-draft-preview.e2e.test.ts tests/issue-reorganize.e2e.test.ts`
 - Home 语言接线加跑：`node scripts/run-tests.mjs tests/issue-home-locale.e2e.test.ts`（W2-18-HOME-LOCALE-01：中英控件、原文保持、无模型设置往返与真实启动失败）。
 - 相关手册：[插件开发](../../../skills/molis-plugin-dev/SKILL.md)、[Home 数据归属](../../../docs/system/HOME-DATA.md)、[开发要求](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

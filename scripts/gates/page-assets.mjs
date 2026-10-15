@@ -232,12 +232,14 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
+// User approved on 2026-10-15: only this baseline may grow once for saved-Issue reorganization.
+const approvedCeiling = (asset, bytes) => asset === "/assets/molis-work-plugins/issues.js" && bytes === 24378 ? 26624 : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {
   const errors = [];
   for (const [asset, allowed] of Object.entries(budget)) {
     if (base[asset] === undefined) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
-    else if (allowed > base[asset]) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
+    else if (allowed > approvedCeiling(asset, base[asset])) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
   }
   return errors;
 };
@@ -250,7 +252,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
   if (reference[asset] === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
-  return bytes > reference[asset] ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
+  return bytes > approvedCeiling(asset, reference[asset]) ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
 });
 
 // ---- the merge-base's budget -----------------------------------------------------------------------------------------

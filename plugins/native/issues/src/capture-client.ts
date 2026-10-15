@@ -11,7 +11,8 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
   const where = () => { try { return host.page?.() || null; } catch { return null; } };
   const message = item => {
     const long = item.text.length > 19000, first = item.text.trim().split('\n')[0].slice(0, 40);
-    return '记录 Issue：' + (first || '截图 ×' + item.images.length) + '\n录入草稿 ' + item.id + '。请按 Issue 方法处理。'
+    return (item.target ? '重新整理 Issue：' : '记录 Issue：') + (first || '截图 ×' + item.images.length)
+      + (item.target ? '\n待整理记录 ' + item.target.id + ' 版本 ' + item.target.version : '\n录入草稿 ' + item.id) + '。请按 Issue 方法处理。'
       + (item.page?.title ? '\n记录时所在页面：' + item.page.title + (item.page.url ? '（' + item.page.url + '）' : '') : '')
       + (item.images.length ? '\n附带 ' + item.images.length + ' 张截图。' : '')
       + '\n本次问题描述：\n' + (long ? '见附带的“问题描述”全文材料。' : item.text || '（没有文字，只有截图）');
@@ -64,16 +65,20 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
     } else if (question) attention(item, L('需要补充：') + (question.questions?.[0]?.prompt || question.prompt), 'question');
     else attention(item, L(/MODEL_|model/i.test(round?.stop_reason || '') ? '模型暂时不可用，点开手动保存，或检查模型设置' : '没能自动整理，点开补全标题和类型'));
   };
+  const sendWork = async (item, active = () => scope.alive) => {
+    const materials = [{ material_id: 'issue-method', kind: 'method', title: 'Issue', explicit: true, method: { method_id: 'io.molis.work.issues/issues-capture' } }];
+    if (item.text.length > 19000) materials.push({ material_id: 'issue-description', kind: 'text', title: L('问题描述'), explicit: true, text: item.text });
+    for (const image of item.images) materials.push((await api('/api/assistant/attachments', { name: image.name, data: image.data_url.split(',')[1] })).material);
+    if (!active()) throw new DOMException('Cancelled', 'AbortError');
+    const result = await api('/api/assistant/send', { request_id: item.id, scope: { kind: 'personal' }, written_by: 'page', text: message(item), materials,
+      context: { source: { surface: 'issues', title: item.page?.title || 'Issue' }, captured_at: new Date(item.at).toISOString() } });
+    return result.work.work_id;
+  };
   const organize = async item => {
     item.state = 'organizing'; item.note = ''; item.at = Date.now(); render();
     try {
       await api('prepare', { draft_id: item.id, description: item.text, images: item.images, ...(item.page ? { page: item.page } : {}) });
-      const materials = [{ material_id: 'issue-method', kind: 'method', title: 'Issue', explicit: true, method: { method_id: 'io.molis.work.issues/issues-capture' } }];
-      if (item.text.length > 19000) materials.push({ material_id: 'issue-description', kind: 'text', title: L('问题描述'), explicit: true, text: item.text });
-      for (const image of item.images) materials.push((await api('/api/assistant/attachments', { name: image.name, data: image.data_url.split(',')[1] })).material);
-      const result = await api('/api/assistant/send', { request_id: item.id, scope: { kind: 'personal' }, written_by: 'page', text: message(item), materials,
-        context: { source: { surface: 'issues', title: item.page?.title || 'Issue' }, captured_at: new Date(item.at).toISOString() } });
-      item.work = result.work.work_id; await watch(item);
+      item.work = await sendWork(item); await watch(item);
     } catch (error) {
       if (error.name !== 'AbortError') attention(item, (error.message || L('没能交给助理整理')) + ' ' + L('点开可手动保存。'));
     }

@@ -1,5 +1,6 @@
 import { ISSUES_STYLES } from "./ui.js";
 import { ISSUE_CAPTURE_CLIENT_SCRIPT } from "./capture-client.js";
+import { ISSUE_REVIEW_CLIENT_SCRIPT } from "./review-client.js";
 import { ISSUE_IMAGES_CLIENT_SCRIPT } from "./image-client.js";
 
 /**
@@ -102,12 +103,12 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   const changed = () => { const now = values(); return Object.fromEntries(Object.entries(now).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(current[key]))); };
   const mode = () => {
     $('view').hidden = editing; editor.hidden = !editing; $('edit').hidden = $('delete').hidden = editing;
-    $('redo').hidden = !draft(); $('cancel').textContent = L(draft() ? '放弃' : '取消');
-    if (!draft()) primary('save');
+    $('redo').hidden = false; $('cancel').textContent = L(draft() ? '放弃' : '取消');
+    if (!draft()) { primary('save'); primary('redo', false); }
     if (editing) scope.frame(() => fit(detailInput));
   };
   const show = issue => {
-    current = issue; editing = false; flag(); home.hidden = true; detail.hidden = false;
+    void stopReview(); current = issue; editing = false; flag(); home.hidden = true; detail.hidden = false;
     $('type').textContent = L(kinds[issue.type]); $('when').textContent = full(issue.created_at); $('title').textContent = issue.title;
     $('text').textContent = issue.description; $('view-shots').innerHTML = shots(issue.images, false);
     $('source').textContent = [issue.context?.page?.title && L('记录于 ') + issue.context.page.title, L(via[issue.entered_via]),
@@ -116,6 +117,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   };
   const open = async id => {
     if (saving) return;
+    await stopReview();
     const item = pending.find(entry => entry.id === id);
     if (item) { if (item.state === 'organizing') { toast(L('还在整理，稍等几秒')); return; }
       current = item; editing = true; fill(item.card ? { ...item, ...item.card } : item); flag(item.note); home.hidden = true; detail.hidden = false; mode();
@@ -130,13 +132,15 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   const back = async () => {
     if (draft()) Object.assign(current, { text: detailInput.value, images: edits, card: { title: titleInput.value, type: editor.dataset.type } });
     else if (editing && Object.keys(changed()).length && !await confirm('放弃这次修改？', L('修改还没有保存。'), '放弃修改')) return;
-    const id = current?.id; ++readEpoch; current = null; editing = false; detail.hidden = true; home.hidden = false; render();
+    void stopReview(); const id = current?.id; ++readEpoch; current = null; editing = false; detail.hidden = true; home.hidden = false; render();
     (list.querySelector('[data-issue-id="' + CSS.escape(id || '') + '"]') || desc).focus();
   };
   ${ISSUE_IMAGES_CLIENT_SCRIPT}
   ${ISSUE_CAPTURE_CLIENT_SCRIPT}
+  ${ISSUE_REVIEW_CLIENT_SCRIPT}
   const save = async () => {
     if (saving || importing || !editing) return;
+    await stopReview();
     const data = values(), focus = document.activeElement;
     if (!data.title || !data.type) { flag(L('写个标题并选一个类型再保存。')); (data.title ? editor.querySelector('[data-type]') : titleInput).focus(); return; }
     saving = editor.inert = $('save').disabled = true;
@@ -174,7 +178,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     else if (is('back')) await back();
     else if (is('edit')) { editing = true; fill(current); mode(); titleInput.focus(); }
     else if (is('cancel')) { if (draft()) await abandon(current); else show(current); }
-    else if (is('redo')) await redo(current);
+    else if (is('redo')) { if (draft()) await redo(current); else await reviewIssue(); }
     else if (is('delete')) {
       const target = current;
       if (!await confirm('删除这条 Issue？', target.title + '\n\n' + L('删除后无法恢复。'), '删除') || current !== target) return;

@@ -137,3 +137,21 @@ test("--shard: the same list in n jobs gives every file to exactly one of them, 
     assert.match(refused.stderr, /--shard needs <k>\/<n>/);
   }
 });
+
+test("--skip-macos-only: a file the Linux probe marks darwin is left out, a browser file stays, and the rest run", () => {
+  const made = directory();
+  const seen = path.join(made, "seen");
+  const write = (name: string, note: string) => {
+    const file = path.join(made, name);
+    writeFileSync(file, `import test from "node:test";\nimport { appendFileSync } from "node:fs";\n// ${note}\ntest(${JSON.stringify(name)}, () => { appendFileSync(${JSON.stringify(seen)}, ${JSON.stringify(`${name}\n`)}); });\n`);
+    return file;
+  };
+  // The two platform words are put together at run time: written whole here they would mark this file itself macOS-only.
+  const launchAgentTool = ["launch", "ctl"].join(""), mac = ["dar", "win"].join("");
+  const files = [write("plain.test.mjs", "nothing platform-specific"), write("agent.test.mjs", `starts a ${launchAgentTool} job`), write("page.e2e.test.mjs", `skips unless the platform is "${mac}"`)];
+  const run = spawnSync(process.execPath, [runner, "--skip-macos-only", "--jobs", "2", ...files], { encoding: "utf8", timeout: 120_000 });
+  const output = `${run.stdout}${run.stderr}`;
+  assert.equal(run.status, 0, output);
+  assert.match(output, /left out 1 macOS-only files of 3/);
+  assert.deepEqual(readFileSync(seen, "utf8").trim().split("\n").sort(), ["page.e2e.test.mjs", "plain.test.mjs"]);
+});

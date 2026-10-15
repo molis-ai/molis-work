@@ -110,11 +110,26 @@ function callbackOrigin(raw: string): string {
   }
   return url.origin;
 }
+function authorizationError(message: string): ActionError { return connectorErrors["connector.mcp.authorization"](message); }
 function safeError(error: unknown): ActionError {
   const connectionRefusal = error instanceof ActionError && error.code.startsWith("connector.connection.") && Object.hasOwn(connectorErrors, error.code);
   if (error instanceof ActionError && !connectionRefusal) return error;
-  if (error instanceof UnauthorizedError) return connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权，请检查账号权限或 OAuth 应用配置");
+  if (error instanceof UnauthorizedError) return authorizationError("MCP 需要重新授权，请检查账号权限或 OAuth 应用配置");
   return connectorErrors["connector.mcp.provider"]("MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试");
+}
+
+function readOAuthCredential<T extends { issuer?: string }>(raw: string | null, allowUnbound = false): T | undefined {
+  if (!raw) return undefined;
+  const credential = JSON.parse(raw) as T;
+  if (!allowUnbound && !credential.issuer?.trim()) throw authorizationError("MCP 授权凭据来自旧版本，请重新连接");
+  return credential;
+}
+
+function bindStagedOAuthClient(secrets: ReturnType<typeof connectorProtocolSecrets>, issuer: string, staged: boolean): void {
+  const raw = staged ? secrets.get("client") : null;
+  if (!raw) return;
+  const client = JSON.parse(raw) as OAuthClientInformationMixed;
+  if (!client.issuer) secrets.put("client", JSON.stringify({ ...client, issuer }));
 }
 
 interface ConnectorMcpHostOptions {
@@ -207,9 +222,9 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
         return { client_name: "Molis", client_uri: "https://molis.ai", redirect_uris: [config.redirectUri], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: client?.client_secret ? "client_secret_post" : "none" };
       },
       state: () => { if (!state) throw connectorErrors["connector.mcp.authorization"]("MCP 授权已失效，请重新连接"); return state; },
-      clientInformation: () => { const raw = secrets.get("client"); return raw ? JSON.parse(raw) as OAuthClientInformationMixed : undefined; },
+      clientInformation: () => readOAuthCredential<OAuthClientInformationMixed>(secrets.get("client"), Boolean(servers[config.serviceId]?.stdio)),
       saveClientInformation: client => { checkActive?.(); secrets.put("client", JSON.stringify(client)); },
-      tokens: () => { checkActive?.(); const raw = secrets.get("oauth"); return raw ? JSON.parse(raw) as OAuthTokens : undefined; },
+      tokens: () => { checkActive?.(); return readOAuthCredential<OAuthTokens>(secrets.get("oauth")); },
       saveTokens: tokens => {
         checkActive?.();
         secrets.put("oauth", JSON.stringify(tokens));
@@ -226,7 +241,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
         authorizationUrl = url.href;
       },
       discoveryState: () => config.discovery,
-      saveDiscoveryState: discovery => { config.discovery = discovery; saveConfig(); },
+      saveDiscoveryState: discovery => { bindStagedOAuthClient(secrets, discovery.authorizationServerUrl, Boolean(state)); config.discovery = discovery; saveConfig(); },
       invalidateCredentials: scope => {
         checkActive?.();
         if (scope === "all" || scope === "tokens") for (const name of ["oauth", "access", "expires"]) secrets.delete(name);

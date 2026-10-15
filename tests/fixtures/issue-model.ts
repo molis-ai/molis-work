@@ -40,7 +40,8 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const body = JSON.parse(Buffer.concat(chunks).toString("utf8")); requests.push(body);
     if (behavior.unavailable) { response.writeHead(503); response.end('{"error":{"message":"fixture model unavailable"}}'); return; }
-    const draft_id = JSON.stringify(body).match(/录入草稿 ([0-9a-f-]{36})/)?.[1] ?? "missing-draft";
+    const revision = JSON.stringify(body).match(/待整理记录 ([0-9a-f-]{36}) 版本 (\d+)/);
+    const draft_id = JSON.stringify(body).match(/录入草稿 ([0-9a-f-]{36})/)?.[1] ?? (revision ? revision[1] + revision[2] + behavior.title : "missing-draft");
     const turn = rounds.get(draft_id) ?? 0; rounds.set(draft_id, turn + 1);
     if (turn === 0) await behavior.firstReply;
     const identity = { capability_id: "issues.capture", version: 1, provider_id: "io.molis.work.issues" };
@@ -58,7 +59,10 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
     const plan = behavior.replyText ? [] : behavior.question === "free-text" ? [ask(true)] : behavior.question === "correct-once" ? [ask(false), ask(true)]
       : behavior.question === "never-correct" ? [ask(false), ask(false), ask(false), ask(false)] : behavior.malformedCaptureAlways ? [bad, bad, bad, bad]
       : behavior.malformedCaptureOnce ? [bad, good] : behavior.suggest ? [good, card] : [good];
-    const tool = plan[turn];
+    const tool = revision && !behavior.replyText && !behavior.question ? (turn === 0 ? { name: "suggest-action", input: {
+      capability_id: "issues.update", version: 2, provider_id: "io.molis.work.issues", title: "重新整理 Issue", summary: input.title,
+      input: { id: revision[1], expected_version: Number(revision[2]), title: input.title, type: input.type }, editable: ["title", "type"],
+    } } : undefined) : plan[turn];
     response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(tool, behavior.replyText));
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));

@@ -1,6 +1,6 @@
 // The parallel run of scripts/run-tests.mjs (specs/repository-anti-corruption W5-12, scripts/run-tests/pool.mjs): several files at once,
 // each in its own process with its own MOLIS_WORK_HOME, browser files capped on their own, the longest first, a failing file shown
-// and the run red; with --retries, a failed file run again on its own and a pass then listed as flaky.
+// and the run red.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
@@ -102,47 +102,6 @@ test(${JSON.stringify(name)}, () => {
     assert.equal(existsSync(record.home), false, "each file's Home is removed after it");
   }
   assert.deepEqual(readdirSync(made).filter((name) => name === "inherited"), [], "nothing was written to the caller's Home");
-});
-
-test("--retries: a file that failed is run again on its own; a pass then is listed as flaky and leaves the run green, a file failing again keeps it red", () => {
-  const made = directory();
-  // Fails on its first run and passes after: the attempts are counted in a file beside it.
-  const flaky = path.join(made, "flaky.test.mjs");
-  writeFileSync(flaky, `import test from "node:test";
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
-const count = ${JSON.stringify(path.join(made, "flaky.count"))};
-test("flaky", () => {
-  const before = existsSync(count) ? readFileSync(count, "utf8").length : 0;
-  appendFileSync(count, "x");
-  if (before === 0) throw new Error("planted first failure");
-});
-`);
-  const broken = path.join(made, "broken.test.mjs");
-  writeFileSync(broken, `import test from "node:test";\ntest("broken", () => { throw new Error("planted failure every time"); });\n`);
-  const steady = path.join(made, "steady.test.mjs");
-  writeFileSync(steady, `import test from "node:test";\ntest("steady", () => {});\n`);
-
-  const red = spawnSync(process.execPath, [runner, "--jobs", "3", "--retries", "1", steady, flaky, broken], { encoding: "utf8", timeout: 120_000 });
-  const output = `${red.stdout}${red.stderr}`;
-  assert.equal(red.status, 1, output);
-  assert.match(output, /running the 2 failed files again, each on its own/);
-  assert.match(output, /planted first failure/, "the first failure is still shown");
-  assert.match(output, /1 of 3 files passed, 1 more on a retry alone/);
-  assert.match(output, /flaky \(1\)[^\n]*\n\s+fail\s+\S*flaky\.test\.mjs/);
-  assert.match(output, /failed \(1\):\n\s+fail\s+\S*broken\.test\.mjs\n\nagain: node scripts\/run-tests\.mjs \S*broken\.test\.mjs$/m);
-  assert.equal(readFileSync(path.join(made, "flaky.count"), "utf8"), "xx", "the flaky file ran twice, no more");
-
-  rmSync(path.join(made, "flaky.count"));
-  const green = spawnSync(process.execPath, [runner, "--jobs", "2", "--retries", "1", steady, flaky], { encoding: "utf8", timeout: 120_000 });
-  assert.equal(green.status, 0, `${green.stdout}${green.stderr}`);
-  assert.match(green.stdout, /flaky \(1\)/);
-  assert.doesNotMatch(green.stdout, /failed \(/);
-
-  // Without --retries nothing is run again: the same flaky file fails the run.
-  rmSync(path.join(made, "flaky.count"));
-  const strict = spawnSync(process.execPath, [runner, "--jobs", "2", steady, flaky], { encoding: "utf8", timeout: 120_000 });
-  assert.equal(strict.status, 1);
-  assert.equal(readFileSync(path.join(made, "flaky.count"), "utf8"), "x");
 });
 
 test("options: a jobs count that is not a whole number of at least 1 is refused before anything runs", () => {

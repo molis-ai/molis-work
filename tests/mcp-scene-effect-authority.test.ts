@@ -8,7 +8,9 @@ import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis
 import type { FunctionRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { openTestHome } from "./fixtures/test-home.js";
 
-test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its independent scene permission is revoked", { timeout: 30_000 }, async t => {
+// About 6 s on a development Mac, 22 s and then over 30 s on the loaded Linux CI runner (security-invariants job, after #523): the
+// budget only stops a hang, it is not a speed check (as #519 did for the MCP files).
+test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its independent scene permission is revoked", { timeout: 120_000 }, async t => {
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let returned = false, scenePermissionsChecked = false, held = true, models = 0;
   const call: ActionDefinition = { capability_id: "fixture.home.consume", version: 1, operation: "command", action: {

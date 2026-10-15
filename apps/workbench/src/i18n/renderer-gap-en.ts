@@ -1,5 +1,9 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "正在重新整理…": "Reorganizing…",
+  "内容已变化，请重新整理。": "The content changed. Please reorganize again.",
+  "已重新整理，确认后保存。": "Reorganized. Review and save when ready.",
+  "没能重新整理，修改已保留，可以重试或直接保存。": "Could not reorganize. Your edits are kept; retry or save them directly.",
   // The Assistant's question and action cards, drawn on the Host (A1, H2).
   "时刻（24 小时制）": "Time (24-hour)",
   "将使用这些内容": "What will be used",

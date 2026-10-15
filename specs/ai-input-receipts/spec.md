@@ -940,6 +940,8 @@ interface AgentInputView {
 - 2026-10-15（回执线会话，恢复，只做 1a；1c、1d 继续等 P3a）：
   - `receipts/1a-extract` 并入 main `e8218714`（#523 I8 整树、#489）；冲突按 main 的现行形状解：助理的错误改用 `assistantErrors`，两处发送仍只经 `assistant-inputs.ts`。
   - **Coding 的 `input-receipts-client.ts` 退出 1a，挪进 1d。** 宿主发页面脚本前用 esbuild 压空白与语法（`apps/local-host/src/served-page-text.ts` 的 `tightenServedJs`），模板里的注释本来就不下发；所以「注释移出模板约 −470 字节」是按源码量的，不对。按下发的字节量，抽成工厂反而多出包装：原样抽取 +229 字节，最省的写法（只抽回执条、补充发送留在原处）也 +46，`page-assets` 门禁对照 merge-base 不放行。1d 要给这个模块加发送方式、发送中气泡与重发，本来就得在 Coding 页面脚本里省出字节，抽取和省字节放在同一片里做。量法：取 `CODING_CLIENT_FACTORY_SCRIPT`，按 `tightenServedJs` 的选项压缩后比字节。
+  - 验证：`pnpm build` 后跑 `node scripts/affected-tests.mjs` 选出的 82 个非浏览器文件，加 `coding-run-control-contract`、`assistant-image-restart-http`、`assistant-memory-error-model`、`assistant-undo`、`assistant-delegation`、`prologue-input-receipts`，全部通过（`install.test.ts` 第一次因只重建了 Coding 包、构建指纹落后而失败，整体重建后 22/22）。Coding 页面脚本与 main 相同，不选浏览器用例。`check-health-gates --base origin/main` 通过（`AssistantService` 1814 → 1796 行、112 → 110 个方法），`page-assets --base origin/main` 通过。
+  - 隔离 Home 实走（临时 `MOLIS_WORK_HOME`、端口 4391、慢速替身模型 4392，每次回复流 20 秒）：① 助理自己的一轮进行中再发一句 → `outcome: steered`，替身模型下一次调用的最后一条 user 正是这句；助理页面仍没有回执条（1e）。② 把同一项工作「交给 Coding 继续」，Coding 一轮进行中从助理再发一句 → `outcome: steered`（main 上这条路报「这个项目还没有可用的 Coding 插件」），替身模型下一次调用收到这句；Coding 页面的这句下面先显示「已放进上下文，等 AI 回应」，这一轮结束后变「AI 已读到」。③ 一轮已经结束后再发的话开了新的一轮（`outcome: started`），与现行规则一致。
 
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）
 

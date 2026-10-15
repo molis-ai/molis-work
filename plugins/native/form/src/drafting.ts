@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { FormQuestionInput, FormQuestionType, FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
-import type { AgentQuestion, AgentQuestionProblem } from "@molis-ai/molis-work-contracts/services/agent-interaction";
+import type { AgentQuestion, AgentQuestionProblem, InteractionRequest } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { questionAnswer, questionProblems, questionSetFlaw } from "@molis-ai/molis-work-plugin-sdk";
 import { formErrors } from "./error.js";
 import { FORM_DRAFT_QUESTIONS } from "./prompts.js";
@@ -9,13 +9,13 @@ import { FORM_DRAFT_QUESTIONS } from "./prompts.js";
  * 「AI 生成题目」(specs/ai-interaction-experience S1): the model drafts a few questions from the person's request, or first
  * says what it needs to know (who fills it in, how many questions, what it is for) as a short set of choice questions. The
  * questions it asked are kept here, with the form and the version they were asked about, until the person answers them in
- * the shared question card; the answer is checked against those exact questions and goes back to the model once. This is
- * not a durable wait: what was asked lives as long as this plugin runs (at most a day), and a form changed meanwhile is asked
- * about afresh. The model only asks choice questions: that is what every question card draws today.
+ * the shared question card (contracts `InteractionRequest`; the Host draws it on the way out); the answer is checked against
+ * those exact questions and goes back to the model once. This is not a durable wait: what was asked lives as long as this
+ * plugin runs (at most a day), and a form changed meanwhile is asked about afresh. The model only asks choice questions: that
+ * is what every question card draws today.
  */
 export interface FormDraftRequest { id: string; expected_version?: number; prompt: string; interaction?: { interaction_id: string; values: unknown } }
-export interface FormDraftInteraction { interaction_id: string; why: string; questions: AgentQuestion[] }
-export type FormDraftResult = { status: "done"; form: FormRecord } | { status: "needs_input"; interaction: FormDraftInteraction };
+export type FormDraftResult = { status: "done"; form: FormRecord } | { status: "needs_input"; interaction: InteractionRequest };
 
 const string = { type: "string" }, bool = { type: "boolean" }, index = { type: "integer", minimum: 0 };
 const askedQuestion = { type: "object", properties: { index, id: string, prompt: string, type: { const: "choice" }, required: bool, multiple: bool, allow_other: bool,
@@ -25,13 +25,13 @@ const askedQuestion = { type: "object", properties: { index, id: string, prompt:
 export const FORM_DRAFT_INPUT_SCHEMA = { type: "object", properties: { id: { type: "string", minLength: 1, pattern: "\\S" }, expected_version: { type: "integer", minimum: 1 },
   prompt: { type: "string", maxLength: 500 }, interaction: { type: "object", properties: { interaction_id: { type: "string", minLength: 1, maxLength: 200 }, values: { type: "object" } },
     required: ["interaction_id", "values"], additionalProperties: false } }, required: ["id", "prompt"], additionalProperties: false };
-/** Done with the form as it now is, or the questions to answer first. */
-export const formDraftOutputSchema = (record: Record<string, unknown>) => ({ anyOf: [
-  { type: "object", properties: { status: { const: "done" }, form: record }, required: ["status", "form"], additionalProperties: false },
-  { type: "object", properties: { status: { const: "needs_input" }, interaction: { type: "object", properties: { interaction_id: string, why: string, questions: { type: "array", items: askedQuestion } },
-    required: ["interaction_id", "why", "questions"], additionalProperties: false } }, required: ["status", "interaction"], additionalProperties: false },
-] });
+/** Done with the form as it now is (`form`), or the questions to answer first (`interaction`). One object, so an MCP tool returns it as it is. */
+export const formDraftOutputSchema = (record: Record<string, unknown>) => ({ type: "object", properties: { status: { enum: ["done", "needs_input"] }, form: record,
+  interaction: { type: "object", properties: { interaction_id: string, why: string, note: string, questions: { type: "array", items: askedQuestion } },
+    required: ["interaction_id", "why", "questions"], additionalProperties: false } }, required: ["status"], additionalProperties: false });
 const KEPT = 32, LIFETIME_MS = 24 * 60 * 60 * 1000, MAX_DRAFTED = 8;
+/** The card's footer line: what answering leads to here (the Host draws the card and puts it in the reader's language). */
+const ANSWER_NOTE = "回答后接着生成题目。";
 const TYPES: readonly FormQuestionType[] = ["text", "singleChoice", "multiChoice", "dropdown", "rating", "date"];
 interface Asked { form_id: string; project_id: string; form_version: number; prompt: string; why: string; questions: AgentQuestion[]; at: number }
 
@@ -110,7 +110,8 @@ export function createFormDrafting(ports: FormDraftPorts) {
       const prior = input.interaction ? answered(input, form) : null;
       const request = prior ? prior.row.prompt : input.prompt.trim();
       if (!request || request.length > 500) throw formErrors.invalid("生成要求须为 1 到 500 个字");
-      const data = { request, existing: form.questions.map(question => question.title), ...(prior ? { answers: heard(prior.row.questions, prior.answers) } : {}) };
+      // The form's own questions stay on this computer: only the request and the answers go to the model.
+      const data = { request, ...(prior ? { answers: heard(prior.row.questions, prior.answers) } : {}) };
       const reply = parsed(await ports.completeText(instructed(FORM_DRAFT_QUESTIONS, JSON.stringify(data)), { signal: call.signal, beforeDispatch: call.beforeEffect }));
       call.signal?.throwIfAborted();
       if (!reply) throw formErrors.invalid("模型没有返回有效题目，请调整提示后重试");
@@ -121,7 +122,7 @@ export function createFormDrafting(ports: FormDraftPorts) {
         const questions = asked(reply.questions), interaction_id = `draft-${crypto.randomUUID()}`;
         const why = typeof reply.why === "string" && reply.why.trim() ? reply.why.trim().slice(0, 300) : "生成前想先确认几件事";
         kept.set(interaction_id, { form_id: form.id, project_id: form.project_id, form_version: form.version, prompt: request, why, questions, at: now() });
-        return { status: "needs_input", interaction: { interaction_id, why, questions } };
+        return { status: "needs_input", interaction: { interaction_id, why, questions, note: ANSWER_NOTE } };
       }
       if (reply.status !== "done") throw formErrors.invalid("模型没有返回有效题目，请调整提示后重试");
       return { status: "drafted", questions: drafted(reply.questions) };

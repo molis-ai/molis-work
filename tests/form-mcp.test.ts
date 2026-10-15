@@ -33,7 +33,7 @@ test("Form standard MCP preserves submissions and publications across processes 
   try {
     const writer = await connect("a"), reader = await connect("a", "read"), other = await connect("b");
     assert.deepEqual((await writer.listTools()).tools.map(t => t.name).filter(n => n.startsWith("form.")).sort(),
-      ["list","get","create","update","publish","close","promote","artifacts.pin","delete","questions.add","questions.ai","questions.draft","submit","results","results.csv","answers.import","fillpage","search.entries","subject.read",
+      ["list","get","create","update","publish","close","promote","artifacts.pin","delete","questions.add","questions.draft","submit","results","results.csv","answers.import","fillpage","search.entries","subject.read",
         "content.list","content.read","content.receive","content.create"].map(n=>`form.${n}__v1`).sort());
     assert.equal((await call(reader,"list")).ai_available, false);
     let {form} = await call(writer,"create",{title:"MCP 问卷"}); const id = form.id;
@@ -56,7 +56,7 @@ test("Form standard MCP preserves submissions and publications across processes 
     await secondWriter.close();
     form = (await call(writer,"update",{id,questions:[],expected_version:form.version})).form;
     assert.equal((await call(reader,"results",{id})).submissions[0].questions[0].title,"原始题目");
-    form = (await call(writer,"questions.ai",{id,prompt:"拟一道题",expected_version:form.version})).form;
+    form = (await call(writer,"questions.draft",{id,prompt:"拟一道题",expected_version:form.version})).form;
     assert.equal(form.questions[0].title,"MCP 题目");
     form = (await call(writer,"publish",{id,expected_version:form.version})).form;
     const share = form.share_id; assert.ok(share);

@@ -22,8 +22,6 @@ export const FORM_EN: Record<string, string> = {
   "AI 生成题目": "Draft questions with AI",
   "回答后接着生成题目。": "Once you answer, the questions are drafted.",
   "这里画不出补充问题，请把要求写得更具体后重试": "These follow-up questions cannot be shown here; make the request more specific and try again",
-  "这一题需要回答": "This question needs an answer",
-  "这一题的回答不能提交，请改一下": "This answer cannot be sent; please change it",
   "当前没有可用的文字模型，请检查模型设置和服务连接。": "No text model is available. Check model settings and service connections.",
   "标记已发布": "Mark as published",
   "发布状态保存在本机，不会生成外网填写链接。": "Publication status is local; it does not create a public response link.",

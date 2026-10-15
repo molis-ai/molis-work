@@ -1,5 +1,4 @@
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { FORM_DRAFT_QUESTION } from "./prompts.js";
+import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createFormDrafting, FORM_DRAFT_INPUT_SCHEMA, formDraftOutputSchema, type FormDraftRequest, type FormDraftResult } from "./drafting.js";
 import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FORM_ARTIFACT_TYPE_ID, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "@molis-ai/molis-work-contracts/modules/form";
@@ -27,7 +26,7 @@ const read = ["form:read"], write = ["form:read", "form:write"];
 type Identity = { id: string; expected_version?: number };
 type Edit = Identity & { title?: string; description?: string; questions?: readonly FormQuestionInput[] };
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions: readonly string[] = operation === "query" ? read : write, execution?: ActionDefinition["action"]["execution"]): ActionDefinition<I, O> {
-  return { capability_id: `form.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["form"], input_schema: input, output_schema: output, permissions, ...(name === "questions.ai" || name === "questions.draft" ? { scheduling: "concurrent" as const } : {}) } };
+  return { capability_id: `form.${name}`, version: 1, operation, action: { title, description, ...(execution ? { execution } : {}), kind: operation === "query" ? "query" : "operation", scope: "project", audiences: ["user", "workflow", "agent", "mcp"], subject_kinds: ["form"], input_schema: input, output_schema: output, permissions, ...(name === "questions.draft" ? { scheduling: "concurrent" as const } : {}) } };
 }
 export const formActions = {
   /** A pinned version as the 成果库 and side panel show it (artifact-positioning A4). */
@@ -45,7 +44,6 @@ export const formActions = {
   publish: define<Identity, { form: FormRecord }>("publish", "开始收集答卷", "开始在这台电脑上收集答卷：本机填写页可以提交，也可以导出填写页文件发给别人，对方生成的答卷文件导回结果；收集中才接受助理、MCP、流程和插件的提交与答卷文件导入；不会生成外网链接，也不发布成果", "command", object(identity, ["id"]), changed),
   delete: define<Identity, { ok: true }>("delete", "删除问卷", "原子删除问卷和答卷；未完成的成果发布需先恢复", "command", object(identity, ["id"]), object({ ok: { const: true } })),
   generate: define<Identity & { prompt: string }, { form: FormRecord }>("questions.add", "按题目加题", "本地追加一题填空，以输入作为题目，不调用模型", "command", object({ ...identity, prompt: { ...text, maxLength: 200 } }, ["id", "prompt"]), changed),
-  generateAi: define<Identity & { prompt: string }, { form: FormRecord }>("questions.ai", "AI 拟题并追加", "按明确提示拟一道填空题；调用当前文字模型，失败或问卷变化时不写入", "command", object({ ...identity, prompt: { ...id, maxLength: 2000 } }, ["id", "prompt"]), changed, [...write, "model:invoke"], { cost: "metered" }),
   /** 「AI 生成题目」(S1): several questions from the request, or first the few things it needs to know, asked in the shared question card. */
   draft: define<FormDraftRequest, FormDraftResult>("questions.draft", "AI 生成题目", "按要求拟几道题追加到问卷；信息不够时先返回几个选择题（needs_input），用户回答后带着 interaction 再调一次接着生成。调用当前文字模型，失败或问卷变化时不写入",
     "command", FORM_DRAFT_INPUT_SCHEMA, formDraftOutputSchema(record), [...write, "model:invoke"], { cost: "metered" }),
@@ -103,17 +101,6 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
     bind(formActions.publish, (input, caller) => ports.withStore(store => ({ form: store.publish(input.id, project(caller), input.expected_version) }))),
     bind(formActions.delete, (input, caller) => ports.withStore(store => { store.delete(input.id, project(caller), input.expected_version); return { ok: true }; })),
     bind(formActions.generate, (input, caller) => ports.withStore(store => ({ form: store.generateQuestions(input.id, input.prompt, project(caller), input.expected_version) }))),
-    bind(formActions.generateAi, async (input, caller) => {
-      const current = ports.withStore(store => store.get(input.id, project(caller)));
-      if (input.expected_version !== undefined && current.version !== input.expected_version) throw formErrors.conflict("问卷已改变，请重新读取后生成");
-      caller.signal?.throwIfAborted();
-      if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-      const title = (await ports.completeText(instructed(FORM_DRAFT_QUESTION, JSON.stringify({ request: input.prompt })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
-      caller.signal?.throwIfAborted();
-      if (!title || title.length > 200 || /[\r\n]/.test(title)) throw formErrors.invalid("模型没有返回有效题目，请调整提示后重试");
-      await caller.beforeEffect();
-      return ports.withStore(store => ({ form: store.generateQuestions(input.id, title, project(caller), current.version) }));
-    }, () => ports.modelAvailability()),
     bind(formActions.draft, async (input, caller) => {
       const current = ports.withStore(store => store.get(input.id, project(caller)));
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw formErrors.conflict("问卷已改变，请重新读取后生成");

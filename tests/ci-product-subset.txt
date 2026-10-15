@@ -371,6 +371,7 @@ tests/package-dev-requirements.test.ts
 tests/panel-sessions.test.ts
 tests/personal-artifact-owner.test.ts
 tests/planning-engine.test.ts
+tests/plugin-interaction-answer.test.ts
 tests/ppt-subject-kind.test.ts
 tests/primitives.test.ts
 tests/private-work-context-module.test.ts

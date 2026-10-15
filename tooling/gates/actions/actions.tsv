@@ -236,6 +236,7 @@ form.promote	1	io.molis.work.form	io.molis.work.form	command	operation	project	w
 form.publish	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:write	form	-	-	d1f3dac66b98	d43039f240f2	-
 form.questions.add	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:write	form	-	-	6d373c53dc8f	d43039f240f2	-
 form.questions.ai	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	concurrent	agent,mcp,user,workflow	form:read,form:write,model:invoke	form	-	-	5d14bdb7e4de	d43039f240f2	613063238287
+form.questions.draft	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	concurrent	agent,mcp,user,workflow	form:read,form:write,model:invoke	form	-	-	9905e6de95ae	a20b6cf20925	613063238287
 form.results	1	io.molis.work.form	io.molis.work.form	query	query	project	read	-	agent,mcp,user,workflow	form:read	form	-	-	61f64d4ce922	0c4f0b7142bf	-
 form.results.csv	1	io.molis.work.form	io.molis.work.form	query	query	project	read	-	agent,mcp,user,workflow	form:read	form	-	-	61f64d4ce922	b98ba31d611c	-
 form.search.entries	1	io.molis.work.form	io.molis.work.form	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	form:read	form	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	8e8475e19e06

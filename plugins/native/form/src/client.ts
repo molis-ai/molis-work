@@ -59,20 +59,14 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
   };
   const fixedCell = (record) => {
-    const node = document.createElement("span");
-    node.className = "mw-status mw-status--plain feed-entry-status";
+    const node = make("span", "mw-status mw-status--plain feed-entry-status");
     if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
     else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
     else node.setAttribute("aria-hidden", "true");
     return node;
   };
-  const textCell = (className, text) => {
-    const node = document.createElement("span");
-    node.className = className;
-    node.title = text;
-    node.textContent = text;
-    return node;
-  };
+  const make = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
+  const textCell = (className, text) => { const node = make("span", className, text); node.title = text; return node; };
 
   const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const headers = () => typeof molisWorkControlHeaders === "function"
@@ -144,26 +138,24 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   /** Full-screen fill page on this computer: one person after another, each submission counted as a response. */
   const openFillPage = (record) => {
-    const stage = document.createElement("div");
-    stage.className = "form-fill-page";
+    const stage = make("div", "form-fill-page");
     stage.setAttribute("role", "dialog");
     stage.setAttribute("aria-label", L("填写页") + " · " + record.title);
-    const sheet = document.createElement("form");
-    sheet.className = "form-fill-sheet";
+    const sheet = make("form", "form-fill-sheet");
     const leave = () => { document.removeEventListener("keydown", onKey, true); stage.remove(); if (tab === "results") void loadResults(); };
     const onKey = (event) => { if (event.key === "Escape") { event.preventDefault(); leave(); } };
     const draw = () => {
       sheet.replaceChildren();
-      const kicker = document.createElement("p"); kicker.className = "form-fill-kicker"; kicker.textContent = L("在这台电脑上填写 · 回答只保存在这台电脑");
-      const heading = document.createElement("h1"); heading.textContent = record.title;
+      const kicker = make("p", "form-fill-kicker", L("在这台电脑上填写 · 回答只保存在这台电脑"));
+      const heading = make("h1", "", record.title);
       sheet.append(kicker, heading);
-      if (record.description) { const lede = document.createElement("p"); lede.className = "form-fill-lede"; lede.textContent = record.description; sheet.append(lede); }
-      const fields = document.createElement("div"); fields.className = "form-fill-fields";
+      if (record.description) { const lede = make("p", "form-fill-lede", record.description); sheet.append(lede); }
+      const fields = make("div", "form-fill-fields");
       buildFields(fields, record.questions || []);
-      const error = document.createElement("p"); error.className = "form-fill-error"; error.setAttribute("role", "alert");
-      const actions = document.createElement("div"); actions.className = "form-fill-actions";
-      const exit = document.createElement("button"); exit.type = "button"; exit.className = "mw-btn mw-btn--secondary"; exit.textContent = L("退出填写页"); exit.onclick = leave;
-      const submit = document.createElement("button"); submit.type = "submit"; submit.className = "mw-btn mw-btn--primary"; submit.textContent = L("提交");
+      const error = make("p", "form-fill-error"); error.setAttribute("role", "alert");
+      const actions = make("div", "form-fill-actions");
+      const exit = make("button", "mw-btn mw-btn--secondary", L("退出填写页")); exit.type = "button"; exit.onclick = leave;
+      const submit = make("button", "mw-btn mw-btn--primary", L("提交")); submit.type = "submit";
       actions.append(exit, submit);
       sheet.append(fields, error, actions);
       let attempt = null;
@@ -178,11 +170,11 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
           await request("POST", "/api/plugins/form/" + encodeURIComponent(record.id) + "/submit", { answers, expected_version: record.version, request_id: attempt, source: "fill" });
           const results = await request("GET", "/api/plugins/form/" + encodeURIComponent(record.id) + "/results");
           sheet.replaceChildren();
-          const done = document.createElement("h1"); done.textContent = L("已提交，谢谢");
-          const count = document.createElement("p"); count.className = "form-fill-lede"; count.textContent = L("这是第 {count} 份答卷。可以把电脑交给下一位。", { count: results.analysis?.submission_count || 0 });
-          const next = document.createElement("button"); next.type = "button"; next.className = "mw-btn mw-btn--primary"; next.textContent = L("下一位填写"); next.onclick = draw;
-          const quit = document.createElement("button"); quit.type = "button"; quit.className = "mw-btn mw-btn--secondary"; quit.textContent = L("退出填写页"); quit.onclick = leave;
-          const row = document.createElement("div"); row.className = "form-fill-actions"; row.append(quit, next);
+          const done = make("h1", "", L("已提交，谢谢"));
+          const count = make("p", "form-fill-lede"); count.textContent = L("这是第 {count} 份答卷。可以把电脑交给下一位。", { count: results.analysis?.submission_count || 0 });
+          const next = make("button", "mw-btn mw-btn--primary", L("下一位填写")); next.type = "button"; next.onclick = draw;
+          const quit = make("button", "mw-btn mw-btn--secondary", L("退出填写页")); quit.type = "button"; quit.onclick = leave;
+          const row = make("div", "form-fill-actions"); row.append(quit, next);
           sheet.append(done, count, row);
           next.focus();
         } catch (failure) { error.textContent = failure.message || L("提交失败"); submit.disabled = false; }
@@ -201,28 +193,28 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!submissions.length) return;
     const sources = {};
     submissions.forEach((submission) => { const key = submission.source || "preview"; sources[key] = (sources[key] || 0) + 1; });
-    const origin = document.createElement("p"); origin.className = "form-stats-origin";
+    const origin = make("p", "form-stats-origin");
     origin.textContent = Object.entries(sources).map(([key, count]) => L(SOURCE[key] || key) + " " + count).join(" · ");
     statsEl.append(origin);
     questions.forEach((question, index) => {
-      const card = document.createElement("article"); card.className = "form-stat";
-      const head = document.createElement("strong"); head.textContent = (index + 1) + ". " + (question.title || L("未命名题目"));
+      const card = make("article", "form-stat");
+      const head = make("strong", "", (index + 1) + ". " + (question.title || L("未命名题目")));
       card.append(head);
       const values = submissions.map((submission) => String(submission.answers?.[question.id] ?? "")).filter(Boolean);
-      const meta = document.createElement("small"); meta.textContent = L("{count} 人回答", { count: values.length });
+      const meta = make("small", "", L("{count} 人回答", { count: values.length }));
       card.append(meta);
       if (["singleChoice", "multiChoice", "dropdown", "rating"].includes(question.type)) {
         const counts = new Map();
         const labels = question.type === "rating" ? ["5", "4", "3", "2", "1"] : (question.options || []).map((option) => option.label);
         labels.forEach((label) => counts.set(label, 0));
         values.forEach((value) => (question.type === "multiChoice" ? value.split("\\n") : [value]).forEach((item) => counts.set(item, (counts.get(item) || 0) + 1)));
-        const bars = document.createElement("div"); bars.className = "form-stat-bars";
+        const bars = make("div", "form-stat-bars");
         counts.forEach((count, label) => {
           const row = document.createElement("div");
-          const name = document.createElement("span"); name.textContent = question.type === "rating" ? L("{score} 分", { score: label }) : label;
-          const track = document.createElement("span"); track.className = "form-stat-track";
+          const name = make("span", "", question.type === "rating" ? L("{score} 分", { score: label }) : label);
+          const track = make("span", "form-stat-track");
           const fill = document.createElement("i"); fill.style.width = (values.length ? Math.round(count / values.length * 100) : 0) + "%"; track.append(fill);
-          const value = document.createElement("span"); value.className = "form-stat-count"; value.textContent = String(count);
+          const value = make("span", "form-stat-count"); value.textContent = String(count);
           row.append(name, track, value); bars.append(row);
         });
         card.append(bars);
@@ -231,8 +223,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
           meta.textContent += " · " + L("平均 {score} / 5", { score: average.toFixed(1) });
         }
       } else if (values.length) {
-        const list = document.createElement("ul"); list.className = "form-stat-texts";
-        values.slice(-3).reverse().forEach((value) => { const item = document.createElement("li"); item.textContent = value; list.append(item); });
+        const list = make("ul", "form-stat-texts");
+        values.slice(-3).reverse().forEach((value) => { const item = make("li", "", value); list.append(item); });
         card.append(list);
       }
       statsEl.append(card);
@@ -278,10 +270,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     };
   });
   const addOptionRow = (container, option) => {
-    const row = document.createElement("div");
-    row.className = "form-option-row";
-    const input = document.createElement("input");
-    input.className = "mw-input";
+    const row = make("div", "form-option-row");
+    const input = make("input", "mw-input");
     input.dataset.optionLabel = "true";
     input.dataset.optionId = option?.id || crypto.randomUUID();
     input.value = option?.label || "";
@@ -299,8 +289,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const optionsEl = row.querySelector("[data-question-options]");
     optionsEl.replaceChildren();
     if (!usesOptions(type)) return;
-    const list = document.createElement("div");
-    list.className = "form-option-list";
+    const list = make("div", "form-option-list");
     const source = options && options.length ? options : [{ label: "" }, { label: "" }];
     source.forEach((option) => addOptionRow(list, option));
     const add = document.createElement("button");
@@ -311,8 +300,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     optionsEl.append(list, add);
   };
   const renderQuestion = (question) => {
-    const row = document.createElement("div");
-    row.className = "form-question";
+    const row = make("div", "form-question");
     row.dataset.formQuestion = "true";
     row.dataset.questionId = question.id;
     row.innerHTML = '<input class="mw-input" data-question-title autocomplete="off">'
@@ -363,9 +351,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const submitBtn = previewForm.querySelector("[data-form-submit]");
     if (submitBtn) submitBtn.hidden = !(record.questions || []).length;
     if (!(record.questions || []).length) {
-      const emptyPreview = document.createElement("p");
-      emptyPreview.className = "form-preview-empty";
-      emptyPreview.textContent = L("还没有题目。回到编辑加一题。");
+      const emptyPreview = make("p", "form-preview-empty", L("还没有题目。回到编辑加一题。"));
       previewEl.append(emptyPreview);
       return;
     }
@@ -373,19 +359,17 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const buildFields = (container, questions) => {
     questions.forEach((question) => {
-      const field = document.createElement("div"); field.className = "form-field";
+      const field = make("div", "form-field");
       const title = document.createElement(["singleChoice", "multiChoice", "rating"].includes(question.type) ? "span" : "label");
       title.id = "form-question-" + crypto.randomUUID(); title.textContent = question.title + (question.required ? "（" + L("必填") + "）" : "");
       field.setAttribute("role", ["singleChoice", "rating"].includes(question.type) ? "radiogroup" : "group"); field.setAttribute("aria-labelledby", title.id);
       if (field.getAttribute("role") === "radiogroup") field.setAttribute("aria-required", String(question.required)); field.append(title);
       if (question.type === "singleChoice" || question.type === "multiChoice") {
-        const box = document.createElement("div");
-        box.className = "form-preview-options";
+        const box = make("div", "form-preview-options");
         box.dataset.answerId = question.id;
         box.dataset.answerKind = question.type === "multiChoice" ? "multi" : "single";
         (question.options || []).forEach((option) => {
-          const label = document.createElement("label");
-          label.className = "form-preview-option";
+          const label = make("label", "form-preview-option");
           const input = document.createElement("input");
           input.type = question.type === "multiChoice" ? "checkbox" : "radio";
           input.className = question.type === "multiChoice" ? "mw-check" : "mw-radio";
@@ -396,20 +380,17 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         });
         field.append(box);
       } else if (question.type === "dropdown") {
-        const input = document.createElement("select");
-        input.className = "mw-select";
+        const input = make("select", "mw-select");
         input.dataset.answerId = question.id;
         input.append(new Option("", ""));
         (question.options || []).forEach((option) => input.append(new Option(option.label, option.label)));
         field.append(input);
       } else if (question.type === "rating") {
-        const box = document.createElement("div");
-        box.className = "form-preview-options form-preview-rating";
+        const box = make("div", "form-preview-options form-preview-rating");
         box.dataset.answerId = question.id;
         box.dataset.answerKind = "single";
         for (let score = 1; score <= 5; score += 1) {
-          const label = document.createElement("label");
-          label.className = "form-preview-option";
+          const label = make("label", "form-preview-option");
           const input = document.createElement("input");
           input.type = "radio";
           input.className = "mw-radio";
@@ -420,8 +401,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         }
         field.append(box);
       } else {
-        const input = document.createElement("input");
-        input.className = "mw-input";
+        const input = make("input", "mw-input");
         input.dataset.answerId = question.id;
         input.type = question.type === "date" ? "date" : "text";
         field.append(input);
@@ -505,15 +485,13 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     empty.hidden = records.length > 0;
     rowsEl.replaceChildren();
     records.forEach((record) => {
-      const item = document.createElement("article");
-      item.className = "feed-stage-item creative-artifact-row";
+      const item = make("article", "feed-stage-item creative-artifact-row");
       const row = document.createElement("button");
       row.type = "button";
       row.className = "feed-stage-entry directory-list-row" + (sel?.id === record.id ? " is-selected" : "");
       row.dataset.formId = record.id;
       row.setAttribute("aria-selected", String(sel?.id === record.id));
-      const leading = document.createElement("span");
-      leading.className = "feed-stage-leading";
+      const leading = make("span", "feed-stage-leading");
       const title = document.createElement("strong");
       title.title = record.title;
       title.textContent = record.title;
@@ -603,8 +581,9 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (sel) paintStatus(sel);
   };
 
+  const generated = async (record) => { fillEditor(record); aiPrompt.value = ""; await loadList(); };
   const draft = (${FORM_DRAFT_CLIENT_SCRIPT})({ host, request, L, ask: bench.querySelector("[data-form-draft-ask]"), prompt: aiPrompt, button: bench.querySelector("[data-form-generate-ai]"),
-    form: () => sel, done: async (record) => { fillEditor(record); await loadList(); }, note: showNote });
+    form: () => sel, done: generated, note: showNote });
   bench.addEventListener("click", async (event) => {
     const button = event.target.closest("button");
     if (!button || button.type === "submit" || button.closest("dialog") || button.disabled || busy) return;
@@ -734,9 +713,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-form-generate-ai]") && sel) { await save(); await draft.start(); return; }
       if (event.target.closest("[data-form-generate]") && sel) {
         await save();
-        fillEditor((await request("POST", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/generate-questions", { prompt: aiPrompt.value, expected_version: sel.version })).form);
-        aiPrompt.value = "";
-        await loadList();
+        await generated((await request("POST", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/generate-questions", { prompt: aiPrompt.value, expected_version: sel.version })).form);
         return;
       }
       if (event.target.closest("[data-form-publish]") && sel) {
@@ -844,8 +821,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const questions = sel.questions || [];
     resultListEl.replaceChildren();
     (payload.submissions || []).forEach((submission, index) => {
-      const card = document.createElement("article");
-      card.className = "form-result";
+      const card = make("article", "form-result");
       const head = document.createElement("strong");
       const when = submission.submitted_at ? new Date(submission.submitted_at).toLocaleString() : "";
       head.textContent = L("答卷") + " " + (index + 1) + (when ? " · " + when : "");
@@ -914,8 +890,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
   const listFailed = (error) => {
     if (empty) empty.hidden = true;
-    const box = document.createElement("div");
-    box.className = "mw-empty mw-empty--error";
+    const box = make("div", "mw-empty mw-empty--error");
     box.setAttribute("role", "alert");
     box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
     box.querySelector("strong").textContent = L("列表暂时读不到");

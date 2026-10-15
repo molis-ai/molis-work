@@ -64,7 +64,7 @@ function asked(value: unknown): AgentQuestion[] {
     return { index, prompt: typeof item.prompt === "string" ? item.prompt.trim().slice(0, 300) : "", type: "choice", required: item.required !== false,
       ...(typeof item.id === "string" ? { id: item.id } : {}), multiple: item.multiple === true, allow_other: item.allow_other === true,
       options: options.map((option, at) => {
-        const one = option && typeof option === "object" ? option as Record<string, unknown> : { label: option };
+        const one: Record<string, unknown> = option && typeof option === "object" ? option as Record<string, unknown> : { label: option };
         return { index: at, label: typeof one.label === "string" ? one.label.trim().slice(0, 120) : "",
           ...(typeof one.description === "string" && one.description.trim() ? { description: one.description.trim().slice(0, 300) } : {}), ...(one.recommended === true ? { recommended: true } : {}) };
       }) };

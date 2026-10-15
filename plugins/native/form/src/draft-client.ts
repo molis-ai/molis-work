@@ -1,8 +1,9 @@
 /**
  * 「AI 生成题目」 in the Forms page (specs/ai-interaction-experience S1): sends the request; when the model first needs to know a
  * few things, shows the Host's shared question card under the prompt and binds it with the shared client the workbench gives
- * every plugin page (`host.interaction`), then sends the answer to go on. Field problems come back beside their fields; the
- * person's picks stay in the card meanwhile. Embedded into the page factory as text, so no imports at run time.
+ * every plugin page (`host.interaction`), then sends the answer to go on. Field problems come back beside their fields, worded
+ * by the Host; the person's picks stay in the card, which is inert while a request is out. Embedded into the page factory as
+ * text, so no imports at run time.
  */
 export const FORM_DRAFT_CLIENT_SCRIPT = `({ host, request, L, ask, prompt, button, form, done, note }) => {
   let bound = null;
@@ -10,20 +11,16 @@ export const FORM_DRAFT_CLIENT_SCRIPT = `({ host, request, L, ask, prompt, butto
   const send = async (extra) => {
     const record = form();
     if (!record) return;
-    button.disabled = true;
-    const card = ask.firstElementChild;
-    if (card && extra.interaction) card.querySelectorAll("fieldset,button").forEach((node) => { node.disabled = true; });
+    button.disabled = ask.inert = true;
+    const sent = request("POST", "/api/plugins/form/" + encodeURIComponent(record.id) + "/draft-questions", { prompt: prompt.value, expected_version: record.version, ...extra })
+      .finally(() => { button.disabled = ask.inert = false; });
     try {
-      const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(record.id) + "/draft-questions", { prompt: prompt.value, expected_version: record.version, ...extra });
-      if (payload.status === "needs_input") { show(payload.interaction); return; }
-      close(); prompt.value = ""; await done(payload.form);
+      const payload = await sent;
+      if (payload.status === "needs_input") show(payload.interaction);
+      else { close(); await done(payload.form); }
     } catch (failure) {
-      const problems = failure.details && Array.isArray(failure.details.problems) ? failure.details.problems : null;
-      if (bound && problems) bound.showErrors(Object.fromEntries(problems.map((problem) => ["q" + problem.question, problem.reason === "required" || problem.reason === "unanswered" ? L("这一题需要回答") : L("这一题的回答不能提交，请改一下")])));
+      if (bound && failure.details?.errors) bound.showErrors(failure.details.errors, { focus: true });
       else note(failure.message, true);
-    } finally {
-      button.disabled = false;
-      if (card && card.isConnected) card.querySelectorAll("fieldset,button").forEach((node) => { node.disabled = false; });
     }
   };
   const show = (interaction) => {

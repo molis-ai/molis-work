@@ -5,6 +5,8 @@ import { join } from "node:path";
 import test from "node:test";
 
 import type { ActionExecutionContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { AgentQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { formActions, createFormActionHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -21,6 +23,9 @@ const DONE = { status: "done", questions: [
   { title: "给内部试用打分", type: "rating" },
 ] };
 
+/** Either reply, read without narrowing: each test knows which one it expects. */
+type Drafted = { status: string; interaction: { interaction_id: string; why: string; questions: AgentQuestion[] }; form: FormRecord };
+
 async function fixture(t: import("node:test").TestContext, replies: unknown[]) {
   const home = await mkdtemp(join(tmpdir(), "form-draft-"));
   const forms = openFormStore(home);
@@ -31,7 +36,7 @@ async function fixture(t: import("node:test").TestContext, replies: unknown[]) {
   const draft = handlers.find(handler => handler.capability_id === formActions.draft.capability_id)!;
   const caller: ActionExecutionContext = { actor_id: "web-user", project_id: "p", audience: "user", permissions: [], beforeEffect: async () => {} };
   const form = forms.create({ project_id: "p", title: "试用反馈" });
-  return { forms, form, heard, call: (input: Record<string, unknown>) => draft.handle(caller, { id: form.id, prompt: "做一份试用反馈问卷", ...input }) as Promise<any> };
+  return { forms, form, heard, call: (input: Record<string, unknown>) => draft.handle(caller, { id: form.id, prompt: "做一份试用反馈问卷", ...input }) as Promise<Drafted> };
 }
 
 test("AC-26 a request that does not say enough is asked about first, in questions the shared card draws", async t => {

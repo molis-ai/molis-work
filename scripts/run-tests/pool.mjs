@@ -69,11 +69,34 @@ export function runQueue(queue, { jobs, browserJobs, runFile, onStart, onDone })
   });
 }
 
+/**
+ * Runs each failed file again on its own, one after another, up to `retries` times: under the load of the whole run a browser file
+ * can time out where alone it passes. A pass on a later attempt makes the file `flaky`; one still failing stays failed. A file
+ * killed at the per-file timeout is not run again (it hung, and another run would only spend the same time). Resolves to
+ * `{ failed, flaky }`, each a list of `{ entry, status, result }`.
+ */
+export async function retryAlone(failed, { retries, runFile, onRetry }) {
+  const still = [], flaky = [];
+  for (const failure of failed) {
+    let last = failure;
+    for (let attempt = 1; attempt <= retries && !last.result.timedOut; attempt += 1) {
+      const result = await runFile(failure.entry);
+      const { status } = statusOf(result);
+      last = { entry: failure.entry, status, result };
+      onRetry?.(failure.entry, attempt, status, result);
+      if (status === "pass") break;
+    }
+    if (last.status === "pass") flaky.push({ ...failure, retried: last.result });
+    else still.push(last);
+  }
+  return { failed: still, flaky };
+}
+
 const seconds = (value) => `${value.toFixed(1)}s`;
 const minutes = (milliseconds) => `${(milliseconds / 60_000).toFixed(1)} min`;
 
 /** The whole parallel run with the terminal: progress, failing output, summary. Resolves to the exit code. */
-export async function runParallel(root, targets, { jobs, browserJobs, timeoutSeconds, testArgs, verbose }) {
+export async function runParallel(root, targets, { jobs, browserJobs, timeoutSeconds, testArgs, verbose, retries = 0 }) {
   const started = Date.now();
   // The files as the caller named them (relative to where it stands, or absolute), from the root the files run in.
   const files = targets.map((target) => path.relative(root, path.resolve(target)).split(path.sep).join("/"));
@@ -97,10 +120,10 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
   const handlers = [["SIGINT", 2], ["SIGTERM", 15], ["SIGHUP", 1]].map(([signal, number]) => [signal, interrupt(signal, number)]);
   for (const [signal, handler] of handlers) process.once(signal, handler);
 
+  const runFile = (entry) => runOnce(root, entry.file, timeoutSeconds * 1000, { environment: process.env, testArgs });
   try {
     const results = await runQueue(queue, {
-      jobs, browserJobs,
-      runFile: (entry) => runOnce(root, entry.file, timeoutSeconds * 1000, { environment: process.env, testArgs }),
+      jobs, browserJobs, runFile,
       onDone: (entry, result) => {
         finished += 1;
         const { status, counts } = statusOf(result);
@@ -113,15 +136,29 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
       },
     });
 
+    if (retries && failed.length) console.log(`\nrun-tests: running the ${failed.length} failed files again, each on its own (up to ${retries} more times)`);
+    const retried = retries ? await retryAlone(failed, {
+      retries, runFile,
+      onRetry: (entry, attempt, status, result) => {
+        console.log(`[retry ${attempt}] ${status === "pass" ? "ok  " : status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(result.seconds)}`);
+        if (status !== "pass") console.log(`${result.output.trimEnd()}\n${result.timedOut ? `(killed after ${timeoutSeconds} s)\n` : ""}`);
+      },
+    }) : { failed, flaky: [] };
+
     const slowest = [...results].sort((a, b) => b.result.seconds - a.result.seconds).slice(0, 8);
-    console.log(`\nrun-tests: ${files.length - failed.length} of ${files.length} files passed in ${minutes(Date.now() - started)} (${Math.min(jobs, files.length)} at a time)`);
+    const passed = files.length - failed.length;
+    console.log(`\nrun-tests: ${passed} of ${files.length} files passed${retried.flaky.length ? `, ${retried.flaky.length} more on a retry alone` : ""} in ${minutes(Date.now() - started)} (${Math.min(jobs, files.length)} at a time)`);
     console.log(`slowest: ${slowest.map(({ entry, result }) => `${entry.file} ${seconds(result.seconds)}`).join(", ")}`);
-    if (failed.length) {
-      console.log(`\nfailed (${failed.length}):`);
-      for (const { entry, status } of failed) console.log(`  ${status.padEnd(7)} ${entry.file}`);
-      console.log(`\nagain: node scripts/run-tests.mjs ${failed.map(({ entry }) => entry.file).join(" ")}`);
+    if (retried.flaky.length) {
+      console.log(`\nflaky (${retried.flaky.length}): failed in the run, passed when run again on its own (its first failure is printed above)`);
+      for (const { entry, status } of retried.flaky) console.log(`  ${status.padEnd(7)} ${entry.file}`);
     }
-    return failed.length ? 1 : 0;
+    if (retried.failed.length) {
+      console.log(`\nfailed (${retried.failed.length}):`);
+      for (const { entry, status } of retried.failed) console.log(`  ${status.padEnd(7)} ${entry.file}`);
+      console.log(`\nagain: node scripts/run-tests.mjs ${retried.failed.map(({ entry }) => entry.file).join(" ")}`);
+    }
+    return retried.failed.length ? 1 : 0;
   } finally {
     for (const [signal, handler] of handlers) process.off(signal, handler);
     finish();

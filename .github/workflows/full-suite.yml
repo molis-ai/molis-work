@@ -97,11 +97,14 @@ jobs:
           key: full-suite-durations-${{ matrix.shard }}-${{ github.run_id }}
           restore-keys: full-suite-durations-${{ matrix.shard }}-
 
+      # A file that fails is run once more on its own after the others (user, 2026-10-15): with three files at once under load,
+      # about five of 900-odd time out in every run, a different five each time. A pass on that retry is listed as flaky and does
+      # not fail the shard; a second failure does. A file flaky again and again is a candidate for tests/quarantine.json.
       - name: Run this shard
         shell: bash
-        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/10 --timeout-seconds 900 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
+        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/10 --timeout-seconds 900 --retries 1 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
 
-      # The runner's closing lines: files passed, the slowest, the failed files and the command that reruns only them.
+      # The runner's closing lines: files passed, the slowest, the flaky and the failed files and the command that reruns only them.
       - name: Summary
         if: ${{ always() }}
         shell: bash

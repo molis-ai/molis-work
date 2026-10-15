@@ -91,7 +91,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
   ```
 
   有，就等；有会话在统筹排期时听它的。停进程只按 pid（`kill <pid>`），不用 `pkill -f scripts/run-tests.mjs`：那会连别的工作树的测试一起杀掉。
-- 测试运行按文件隔离、几份同时跑（W5-12）：`node scripts/run-tests.mjs` 点名多个文件（或不带参数跑全量）时，每个文件单独一个进程，各有一份临时 `MOLIS_WORK_HOME` 与密钥库，同时跑的份数默认是核数的一半、最多 6（`--jobs <n>`，或环境变量 `MOLIS_WORK_TEST_JOBS`），其中浏览器文件（Linux 探针规则认作 browser 的）同时最多 2 个（`--browser-jobs <n>`、`MOLIS_WORK_TEST_BROWSER_JOBS`）。上次记下用时长的文件先跑（记在本检出的 `node_modules/.cache/molis-work-tests/durations.json`，不入库）。每个文件跑完打一行；失败的文件打出它自己的输出，最后列出失败的文件和只重跑它们的命令；`--verbose` 打出每个文件的输出；`--shard <k>/<n>` 只跑列表里从第 k 个起每隔 n 个的文件（CI 把同一份列表分给 n 个作业）。只点名一个文件时和以前一样：一个 `node --test` 进程，输出直接到终端。实现在 `scripts/run-tests/pool.mjs`，逐个文件跑的那一层与 Linux 探针、产品子集共用（`scripts/ci-linux-probe/run.mjs`）。一次运行就占去大半台机器，所以上面「整台机器同一时间最多一个构建、一个浏览器用例批次」照旧；和别的会话同时跑时把 `--jobs` 调小。
+- 测试运行按文件隔离、几份同时跑（W5-12）：`node scripts/run-tests.mjs` 点名多个文件（或不带参数跑全量）时，每个文件单独一个进程，各有一份临时 `MOLIS_WORK_HOME` 与密钥库，同时跑的份数默认是核数的一半、最多 6（`--jobs <n>`，或环境变量 `MOLIS_WORK_TEST_JOBS`），其中浏览器文件（Linux 探针规则认作 browser 的）同时最多 2 个（`--browser-jobs <n>`、`MOLIS_WORK_TEST_BROWSER_JOBS`）。上次记下用时长的文件先跑（记在本检出的 `node_modules/.cache/molis-work-tests/durations.json`，不入库）。每个文件跑完打一行；失败的文件打出它自己的输出，最后列出失败的文件和只重跑它们的命令；`--verbose` 打出每个文件的输出；`--shard <k>/<n>` 只跑列表里从第 k 个起每隔 n 个的文件（CI 把同一份列表分给 n 个作业）；`--retries <n>` 在其余文件跑完后把失败的文件逐个单独再跑，最多 n 次，再跑通过的记作 flaky、单独列出、不让这次运行变红，在每个文件的时限上被杀掉的不再跑（CI 全量用 `--retries 1`）。只点名一个文件时和以前一样：一个 `node --test` 进程，输出直接到终端。实现在 `scripts/run-tests/pool.mjs`，逐个文件跑的那一层与 Linux 探针、产品子集共用（`scripts/ci-linux-probe/run.mjs`）。一次运行就占去大半台机器，所以上面「整台机器同一时间最多一个构建、一个浏览器用例批次」照旧；和别的会话同时跑时把 `--jobs` 调小。
 - 全量回归期间，被测的那棵树里不改源码：安装类测试比对源码与构建指纹，指纹覆盖根的 `package.json`、`tsconfig.json`、`tsconfig.base.json`、`tsconfig.package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`scripts`、`src`、`apps/desktop/launchers`，以及每个工作区包的 `package.json`、`src`、`tooling`、`bin`、`tsconfig.json` 和原生工具源码（`apps/local-host/src/installer/fingerprint.ts` 的 `computeBuildSourceDigest`）。`skills/` 也不改：安装类用例会把它拷进发布目录并比较两次安装的内容。`docs/`、`specs/` 可以改。改过指纹覆盖的文件之后，跑全量前要整体 `pnpm build`，单包重建不刷新指纹。
 
 ### 5.1 子代理与并发的 Agent
@@ -184,7 +184,7 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 
 ## 7. 集成分支上跑全量
 
-**全量在 CI 上跑**（spec §1，2026-10-15）：`.github/workflows/full-suite.yml` 把 `node scripts/run-tests.mjs` 不带参数时的全部文件（含浏览器文件）分给 10 个 ubuntu runner，每个 3 个文件同时跑、其中浏览器文件 1 个，约 15–20 分钟；本机一次全量约 60 分钟，并且整台机器一次只能跑一个。触发：PR 加 `full-suite` 标签（加上时跑，之后每次推送都跑）；推到 `integration/**` 分支；每晚的 main；Actions 页面手动跑任意分支。每个分片的摘要列出失败文件和只重跑它们的命令，汇总检查叫 `Full suite`。它不挡合并。Linux 探针标为 macOS 专有的文件（`--skip-macos-only`：Seatbelt、Keychain、launchctl、Swift 辅助程序）不在里面，改到这些的仍在本机跑。所以下面第 2 步的「最后跑一次全量」，先推集成分支让 CI 跑；本机全量只用来补 macOS 专有的文件，或复现 CI 上的失败。
+**全量在 CI 上跑**（spec §1，2026-10-15）：`.github/workflows/full-suite.yml` 把 `node scripts/run-tests.mjs` 不带参数时的全部文件（含浏览器文件）分给 10 个 ubuntu runner，每个 3 个文件同时跑、其中浏览器文件 1 个，约 15–20 分钟；本机一次全量约 60 分钟，并且整台机器一次只能跑一个。触发：PR 加 `full-suite` 标签（加上时跑，之后每次推送都跑）；推到 `integration/**` 分支；每晚的 main；Actions 页面手动跑任意分支。失败的文件在分片跑完后单独再跑一次（`--retries 1`，用户 2026-10-15 定：一次跑 900 多个文件、三个同时跑时，每次总有约 5 个文件在负载下超时，而且每次是不同的文件）：再跑通过的记作 flaky，列在摘要里、不让检查变红；再失败的才算失败。每个分片的摘要列出 flaky 文件、失败文件和只重跑失败文件的命令，汇总检查叫 `Full suite`。摘要里反复出现的 flaky 文件是 `tests/quarantine.json` 的候选。它不挡合并。Linux 探针标为 macOS 专有的文件（`--skip-macos-only`：Seatbelt、Keychain、launchctl、Swift 辅助程序）不在里面，改到这些的仍在本机跑。所以下面第 2 步的「最后跑一次全量」，先推集成分支让 CI 跑；本机全量只用来补 macOS 专有的文件，或复现 CI 上的失败。
 
 几个 PR 同时动共享核心，各跑一次全量太贵，也看不到它们合在一起的结果。做法（第二步各批的做法，记录在 spec §9.5）：
 

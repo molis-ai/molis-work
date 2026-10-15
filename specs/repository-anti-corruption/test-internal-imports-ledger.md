@@ -16,16 +16,15 @@
 | 1 | `tests/mcp-action-grants.test.ts:8` | `createMcpActionGrant`、`resolveMcpActionContext`、`assertMcpActionAuthority` | 它们就是被测对象：S-08 的授权规则用例（精确到客户端、项目、Home、提供方、版本和权限，不借用权限）。受众规则（本片补进来的断言：只给本人的动作、`agent:` 与 `runtime:` 身份各自的受众、空客户端名）也在这里，因为经设置接口走时请求在更早一步就以 404 `actions.missing` 被拒，走不到 `createMcpActionGrant` | 授权规则的主人 `mcp-action-grants.ts`；W5-08 把它迁出 Host 入口时，这个用例随它搬到包内 |
 | 2 | `tests/mcp-action-grants.test.ts:9` | `parseMcpToolPreference`、`readMcpToolPreference`、`writeMcpActionGrant`、`mcpToolPreferencePath` | 授权文件的并发写入、版本不符与损坏时的拒绝（S-08）：要直接写出坏文件才测得到，设置接口只会产出合法的文件。`readMcpToolPreference` 已公开，但同一条导入里有非公开名，整条留在 `src` | 同上 |
 | 3 | `tests/generated-action-costs.test.ts:8` | `createMcpActionGrant`、`resolveMcpActionContext` | 在合成的创作台动作视图上直接解授权，测的是生成动作的成本项；没有项目、没有 Home 目录，经设置接口走需要真实目录里有这个生成动作 | 创作台（`plugin-builder`）的测试主人；W5-08 随授权规则一起迁 |
-| 4 | `tests/companion-actions.test.ts:17` | `projectActionAvailability` | 名字已公开；文件里同时从 `src` 导入 `apps/desktop` 的 `createDesktopPanelTables`、`SqliteDesktopPanelRepository`（非公开）和 `MolisWorkProjectCatalog`，改走包入口会让同一个测试进程把 `apps/desktop` 加载两份（新增混用） | W2-10（面板存储与目录类型处理后，这条随文件一起改走公开入口） |
-| 5 | `tests/companion-actions.test.ts:18`、`:20` | `createMcpActionGrant`、`readMcpToolPreference`、`writeMcpActionGrant` | 同一个文件的同一个原因：它的 Host 用 `src` 里的目录（带面板存储）装配，网页服务要么换成包里装配的另一个目录，要么在同一进程里把 `apps/desktop` 加载两份。授权先写进这个 Home，再由无头同伴的 stdio MCP 进程读 | 同上 |
-| 6 | `tests/connector-mcp.test.ts:26`、`:27`、`:28` | `authorizeMcpActions`、`createMcpActionGrant`、`writeMcpActionGrant` | 文件只从 `src` 加载 local-host，并保留 7 条非公开的 `src` 导入（六个连接器模块和 `mcp-tool-actions`）；授权是 Home 级的连接器工具（`project_id` 为 null），并在准备请求的途中被撤销，用进程内的 `authorizeMcpActions` 取同一个宿主的授权。换成网页服务会让它同时从包加载 local-host | 连接器（`connector-mcp`）的主人；W5-08 把连接器内部名字分类后 |
-| 7 | `tests/agent-action-tools-prologue.test.ts:9`、`:10`、`:11` | `authorizeMcpActions`、`createMcpActionGrant`、`writeMcpActionGrant` | 只从 `src` 加载；Host 是一个裸 `LocalHost`（非公开类）加上注册在内存项目 `memory:project` 里的夹具提供方，目录里没有项目，经项目设置接口建不出它；`authorizeMcpActions` 带每次调用的取消信号和执行前检查（第五个参数）。`refactor/agent-entries` 也在这个文件的装配上 | Agent 入口（`agent-host-composition`）与 W5-08 |
-| 8 | `tests/external-mcp-dispatch.test.ts:14` | `authorizeMcpActions` | 取消：调用带自己的 `signal`，用例断言服务端对取消的反应（`CANCELLED`、取消太晚后的 `EFFECT_RECONCILE_REQUIRED`）。经网关时调用方只看到一个 `AbortError`，服务端那一半的错误码不会回到调用方；`LocalMcpServer` 的调用信号是连接的寿命，不是每次调用的。授权本身已走设置接口 | W5-08：要么公开一个带每次调用信号的进程内 MCP 客户端，要么把取消的断言挪到网关一侧 |
-| 9 | `tests/feed-sync-authority.test.ts:14` | `authorizeMcpActions` | 同上：中途取消后马上比较 Feed 的快照，经网关时服务端可能还在收尾。授权本身已走设置接口 | 同上 |
-| 10 | `tests/function-agent-authoring.e2e.test.ts:13`、`:15` | `createMcpActionGrant`、`writeMcpActionGrant` | 一条授权设置接口做不出：Home 级的判断规则要推荐某个项目插件的动作，接口以 `mcp.grant_requires` 拒绝（Home 目录不列项目的动作，即使项目里已授权）。用例先断言这个拒绝（产品哪天接受它，这条用例就变红），再写文件造出需要的状态 | W2-11 c3（授权接口与 Home 目录的关系由 Home 判断规则的主人 `functions` 决定） |
-| 11 | `scripts/contextual-slice/dock-compare.mts:18` | `projectActionAvailability` | 审计脚本从 `apps/local-host/dist` 深引用；名字 #385 起已公开，可改走包入口。不在测试门禁的数里 | 审计脚本的主人；W5-08（装配名单的第 16 个名字，或它的替代） |
-| 12 | `scripts/contextual-slice/p1-server.mts:11` | `projectActionAvailability` | 同上 | 同上 |
-| 13 | `scripts/gates/action-contract-host.mjs:58` | `projectActionAvailability`（动态导入） | 动作合同快照门禁在临时 Home 里装配宿主时用它；从 `apps/local-host/dist` 深引用，可改走包入口 | 动作合同快照门禁（`scripts/gates/`）的主人；W5-08 |
+| 4 | `tests/companion-actions.test.ts:18`、`:20` | `createMcpActionGrant`、`readMcpToolPreference`、`writeMcpActionGrant` | 目录与 Host 已经从包入口装配（#486 起），面板存储仍从 `apps/desktop/src` 取。`createMcpActionGrant`、`writeMcpActionGrant` 不在包入口，从 `dist` 的模块路径取；`readMcpToolPreference` 已公开，但和 `writeMcpActionGrant` 同出一个模块，整条留在 `dist`。授权先写进这个 Home，再由无头同伴的 stdio MCP 进程读 | W2-10 |
+| 5 | `tests/connector-mcp.test.ts:26`、`:27`、`:28` | `authorizeMcpActions`、`createMcpActionGrant`、`writeMcpActionGrant` | 文件只从 `src` 加载 local-host，并保留 7 条非公开的 `src` 导入（六个连接器模块和 `mcp-tool-actions`）；授权是 Home 级的连接器工具（`project_id` 为 null），并在准备请求的途中被撤销，用进程内的 `authorizeMcpActions` 取同一个宿主的授权。换成网页服务会让它同时从包加载 local-host | 连接器（`connector-mcp`）的主人；W5-08 把连接器内部名字分类后 |
+| 6 | `tests/agent-action-tools-prologue.test.ts:9`、`:10`、`:11` | `authorizeMcpActions`、`createMcpActionGrant`、`writeMcpActionGrant` | 只从 `src` 加载；Host 是一个裸 `LocalHost`（非公开类）加上注册在内存项目 `memory:project` 里的夹具提供方，目录里没有项目，经项目设置接口建不出它；`authorizeMcpActions` 带每次调用的取消信号和执行前检查（第五个参数）。`refactor/agent-entries` 也在这个文件的装配上 | Agent 入口（`agent-host-composition`）与 W5-08 |
+| 7 | `tests/external-mcp-dispatch.test.ts:14` | `authorizeMcpActions` | 取消：调用带自己的 `signal`，用例断言服务端对取消的反应（`CANCELLED`、取消太晚后的 `EFFECT_RECONCILE_REQUIRED`）。经网关时调用方只看到一个 `AbortError`，服务端那一半的错误码不会回到调用方；`LocalMcpServer` 的调用信号是连接的寿命，不是每次调用的。授权本身已走设置接口 | W5-08：要么公开一个带每次调用信号的进程内 MCP 客户端，要么把取消的断言挪到网关一侧 |
+| 8 | `tests/feed-sync-authority.test.ts:14` | `authorizeMcpActions` | 同上：中途取消后马上比较 Feed 的快照，经网关时服务端可能还在收尾。授权本身已走设置接口 | 同上 |
+| 9 | `tests/function-agent-authoring.e2e.test.ts:13`、`:15` | `createMcpActionGrant`、`writeMcpActionGrant` | 一条授权设置接口做不出：Home 级的判断规则要推荐某个项目插件的动作，接口以 `mcp.grant_requires` 拒绝（Home 目录不列项目的动作，即使项目里已授权）。用例先断言这个拒绝（产品哪天接受它，这条用例就变红），再写文件造出需要的状态 | W2-11 c3（授权接口与 Home 目录的关系由 Home 判断规则的主人 `functions` 决定） |
+| 10 | `scripts/contextual-slice/dock-compare.mts:18` | `projectActionAvailability` | 审计脚本从 `apps/local-host/dist` 深引用；名字 #385 起已公开，可改走包入口。不在测试门禁的数里 | 审计脚本的主人；W5-08（装配名单的第 16 个名字，或它的替代） |
+| 11 | `scripts/contextual-slice/p1-server.mts:11` | `projectActionAvailability` | 同上 | 同上 |
+| 12 | `scripts/gates/action-contract-host.mjs:58` | `projectActionAvailability`（动态导入） | 动作合同快照门禁在临时 Home 里装配宿主时用它；从 `apps/local-host/dist` 深引用，可改走包入口 | 动作合同快照门禁（`scripts/gates/`）的主人；W5-08 |
 
 ## 3. 不在这张表里的
 
@@ -40,4 +39,4 @@ git grep -n -E "from ['\"].*(mcp-action-grants|mcp-settings-store|project-action
 git grep -n "project-action-availability" -- scripts
 ```
 
-第一条应只命中上表第 1 至 12 行（共 16 条 `import` 加 `dock-compare`、`p1-server` 两条脚本导入）；第二条另会命中第 13 行的动态导入。多出来的就是新增的内部引用（门禁会按文件拦下），少了的就是这张表该删的行。
+第一条应只命中上表第 1 至 11 行（共 15 条 `import` 加 `dock-compare`、`p1-server` 两条脚本导入）；第二条另会命中第 12 行的动态导入。（2026-10-15：原第 4 行 `companion-actions.test.ts:17` 的 `projectActionAvailability` 在 #486 改走包入口，按本节规则删去，后面的行号前移一位。）多出来的就是新增的内部引用（门禁会按文件拦下），少了的就是这张表该删的行。

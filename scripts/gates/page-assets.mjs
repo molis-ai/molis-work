@@ -232,8 +232,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// User approved on 2026-10-15: only this baseline may grow once for saved-Issue reorganization.
-const approvedCeiling = (asset, bytes) => asset === "/assets/molis-work-plugins/issues.js" && bytes === 24378 ? 26624 : bytes;
+// One-time allowances the user approved on 2026-10-15, each for exactly one baseline: saved-Issue reorganization, and the
+// Pages editor's fixes from the I8 tree (transient image reads and popovers end with their document; cards stay visible as text).
+const APPROVED_CEILINGS = {
+  "/assets/molis-work-plugins/issues.js": [24378, 26624],
+  "/assets/molis-work-pages-editor.js": [698574, 703633],
+};
+const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {
   const errors = [];

@@ -80,7 +80,10 @@ jobs:
         run: pnpm build
 
       # The same Chrome the product subset uses (ci.yml): the ubuntu image's, with --no-sandbox for a runner whose kernel restricts
-      # unprivileged user namespaces.
+      # unprivileged user namespaces. The side panel's own browser (BrowserHost, which finds Chrome by MOLIS_WORK_BROWSER_PATH, then
+      # PATH) gets the same wrapper: sandboxed on this runner, a renderer that crashes stays in the kernel's do_exit and never
+      # finishes exiting, so Chrome reports no crash at all (no Target.targetCrashed, no Inspector.targetCrashed; probed
+      # 2026-10-15) and the page-crash test waits for an event that cannot come.
       - name: Chrome for the browser files
         run: |
           chrome="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
@@ -89,6 +92,7 @@ jobs:
           printf '#!/bin/sh\nexec "%s" --no-sandbox "$@"\n' "$chrome" > "$RUNNER_TEMP/chrome-ci"
           chmod +x "$RUNNER_TEMP/chrome-ci"
           echo "MOLIS_WORK_TEST_CHROME=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
+          echo "MOLIS_WORK_BROWSER_PATH=$RUNNER_TEMP/chrome-ci" >> "$GITHUB_ENV"
 
       # The pages are Chinese first and the layout tests measure Chinese text; the runner image has no CJK font, so without one a
       # page that does not load the product's own Chinese face (a test page from a file) has no real glyphs and wraps differently

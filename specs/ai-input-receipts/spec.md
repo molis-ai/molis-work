@@ -662,10 +662,10 @@ interface AgentInputView {
 
 | 片 | 内容 | 落点 |
 | --- | --- | --- |
-| 1a 抽取，行为不变 | 把 `applyPrologueEvent` 里补充相关的分支抽到 `prologue-inputs.ts`（W5-10 形状）；把助理的发送路由与回执抽成协作者 `assistant-inputs.ts`（W4-05 形状：≤25 个方法、≤300 行，只依赖自己的端口）；把 Coding 的回执渲染抽到 `input-receipts-client.ts` | agent-host、助理、Coding |
+| 1a 抽取，行为不变 | 把 `applyPrologueEvent` 里补充相关的分支抽到 `prologue-inputs.ts`（W5-10 形状）；把助理的发送路由与回执抽成协作者 `assistant-inputs.ts`（W4-05 形状：≤25 个方法、≤300 行，只依赖自己的端口）（Coding 的回执渲染抽到 `input-receipts-client.ts` 挪进 1d，原因见 §16 2026-10-15） | agent-host、助理 |
 | 1b 合同 | 新子路径 `services/agent-inputs`（L0/L1 与来源）；`AgentRunControl.steer` 加 `key`、`interrupt`、`source` | contracts |
 | 1c agent-host | 见下方列表 | agent-host |
-| 1d Coding | 措辞改成 §3.3；发送方式菜单（补充 / 打断 / 下一轮）；「发送中」气泡与同键重发；宿主说明不再显示成你的话；「核对并继续」带上没读到的输入；计划轮次不再未经核实就写「已体现」 | Coding |
+| 1d Coding | 回执条与补充发送抽到 `input-receipts-client.ts`，抽取的字节在同一片里省出来；措辞改成 §3.3；发送方式菜单（补充 / 打断 / 下一轮）；「发送中」气泡与同键重发；宿主说明不再显示成你的话；「核对并继续」带上没读到的输入；计划轮次不再未经核实就写「已体现」 | Coding |
 | 1e 助理 | 工作视图显示每条输入的回执（新模块；用删掉的重复渲染抵消资源字节）；回答 / 补充由用户点选；重试键跨刷新保存；运行中补充的原话按 person 来源记录（供「你说过」） | 助理 |
 
 1c agent-host 的内容：
@@ -898,6 +898,51 @@ interface AgentInputView {
   - `agent-action-selection.e2e` 一条：全量负载下的时序。本分支与干净基线（`fc18d5f6`）上单独重跑都通过。
   - `touch-targets.e2e` 两条：main 上已有的失败，与本线无关。
   - 合 main `2768dd71`（#491）后重新构建：相关用例 56/56（`prologue-stream`、`prologue-model-controls`、`prologue-input-receipts`、`prologue-review-feedback`、`prologue-recovery`、`coding-report-persistence`）；健康门禁对照 merge-base 通过；边界检查与页面资源通过。
+
+- 2026-10-14（回执线会话，现状核对）：按 origin/main `393e8958` 的代码与用例逐项核对原始需求（§0 四问）与阶段 1–3 的验收。只读代码与跑过的用例；隔离 Home 实走见下一条。等级：「已实现」= 有代码且有用例；「部分」= 有一半或只有某个入口；「未做」= 没有代码。
+
+  | 项（§11） | 状态 | 证据 / 缺什么 |
+  | --- | --- | --- |
+  | 1a 补充回执投影抽出 | 已实现 | `horizontal/agent-host/src/adapters/prologue-inputs.ts`（#409）；`tests/prologue-input-receipts.test.ts` AC-R1–R3 |
+  | 1a `assistant-inputs.ts` | 未做 | 发送路由（回答 / 补充 / 开新轮）仍在 `AssistantService.dispatch` 与 `codingDispatch` 两处各写一份（`assistant-service.ts` 的 `freeTextQuestion`、`steerText`） |
+  | 1a `input-receipts-client.ts` | 未做 | 回执条与补充发送仍在 Coding `client.ts` 主模板里 |
+  | 1b 合同 `services/agent-inputs` | 部分 | `AgentSteerControl` 有 `source`、`key`；没有 `interrupt`、`about`；`control()` 返回 `void`，调用方拿不到输入编号与 `replayed` |
+  | 1c 键与同键去重 | 部分 | `prologue.ts` 的 `control()` 把 `key` 交给 SDK（SDK S1 已去重）；但 Coding `run-inputs.ts` 的 `runControl` 与助理两处 steer 都不带键，所以页面断线重发仍会落两笔 |
+  | 1c 宿主代写标来源（D18） | 已实现 | `prologue-node.ts` 的活动跑句柄以 `source: "app"` 转告（审查拒绝、会话来信、等待唤醒、任务图更新）；助理审查转告、Coding 改计划说明带 `source: "host"`；`prologue-stream.ts` 把 `app` 显示成 `notice`；`prologue-review-feedback` 用例 |
+  | 1c 读到（D17） | 已实现 | SDK `steer-read`、`steer-withdrawn` 直接投影；一轮结束未读到记 `unread` |
+  | 1c `RUN_NOT_RUNNING` 竞态 | 未做 | Coding 路由先读一次相位再发（`routes.ts` `coding.control-run`），读后到发之间的竞态仍抛错；助理把错误原样给页面。现用包已有 `session.queueInput`（S2） |
+  | 1c `runViewVersion` 纳入输入状态 | 未做 | `capability-registration.ts` 的版本串不含任何 `steer.state`：早先一条补充从 `applied` 变 `read` 不改版本，页面要等别的变化才刷新 |
+  | 1c 恢复报告「输入」一类 | 未做 | `AgentRecoveryReport` 只有跑、阻塞与操作 |
+  | 1c 会话条目记录收下的输入 | 未做 | 等 W4-06（#498）拆完 `prologue-node.ts` 再接 |
+  | 1d 措辞（§3.3） | 已实现 | Coding `client.ts` 回执条、`report.ts` 的 `STEER_WORDS`（#409） |
+  | 1d 发送方式菜单（补充 / 打断 / 下一轮） | 未做 | 运行中只有一种发送（steer），合同没有 `interrupt` |
+  | 1d 「发送中」气泡与同键重发 | 未做 | 发出后只在状态行写「补充要求已交给执行引擎」；失败只显示错误 |
+  | 1d 宿主说明不显示成你的话 | 部分 | 转告是 `notice` 轮、不套用户气泡样式；但 `notice` 轮也挂了补充回执条（`steerOf` 只看 role），读着像你发的补充；没有「Molis 转告」的样式 |
+  | 1d 「核对并继续」带上没读到的输入 | 未做 | `continuation.ts` 只从首条任务与宿主事实重建 |
+  | 1d 计划轮次不写「已体现」 | 未做 | `plans.ts` 的 `planTask` 仍写「已体现在确认的计划里」 |
+  | 1e 助理工作视图回执 | 未做 | `assistant-island.ts` 不读 `turn.steer`，只弹「已补充到正在进行的这一轮」 |
+  | 1e 回答 / 补充由用户点选（D14） | 未做 | 仍按「恰好一条自由文本题、没带材料」自动当回答 |
+  | 1e 重试键跨刷新保存 | 未做 | 页面的 `unsettled` 只在内存里；宿主的 `request_id` 去重只覆盖开新轮，补充不带键 |
+  | 1e 补充原话按 person 记录（G13） | 未做 | 助理只为开新轮存 round |
+  | 阶段 2（SDK S1–S4） | S1–S3 已在现用过渡包；S4 未进包 | 现用包 `interim-p1-cu-image` 里有 `queueInput`、`inputQueue`、`steer({interrupt,key,source,about})` 回 `SteerReceipt`；S4 等 P3 换包 |
+  | 阶段 3（处理说明、关联、影响、纠正） | 未做 | 依赖 P3；D16 仍由采用线暂时隐藏 |
+
+  对四问的回答程度：「被怎么处理」只答到送达、放进上下文、读到、没读到（Coding 有，助理没有）；「在哪里处理」「改变了什么」都没有；「还有什么没处理」只有 Coding 回执条上的「这一轮结束时 AI 没读到」，没有托盘、没有带到下一轮。
+
+- 2026-10-14（回执线会话，**暂停点**；统筹按用户 10-14「当前任务完成后，先暂停需求的线，让防腐线先继续」叫停，整机让给防腐线）：
+  - **已完成（都已推送，没有只在本地的东西）**：
+    - 现状核对（上一条）。
+    - 分支 `receipts/1a-extract`（基于 main `393e8958`）：1a 抽取，行为不变——助理两处发送路由合成 `apps/local-host/src/assistant/assistant-inputs.ts`；Coding 的回执条与补充发送搬到 `plugins/native/coding/src/input-receipts-client.ts`；Coding 页面脚本的四段注释移出模板，按源码算约 −470 字节。另一个提交修了一个现存缺陷：`coding.runs.control` 自 `ed5acdfe` 升到第 2 版后，助理的 Coding 执行者仍只找第 1 版，从助理给正在跑的 Coding 轮次补充或回答会报「这个项目还没有可用的 Coding 插件」；改为按动作写明版本，`tests/assistant-coding-executor.test.ts` 的替身改读 Coding 自己发布的版本，并加一条补充走到 `runs.control` 的用例。本地 `check-health-gates --base origin/main` 通过（巨大单元下降，已 `--update` 本地快查）；`tsc --noEmit` 只有旧 dist 带来的既有类型错，新文件无错。
+    - 草稿分支 `receipts/1c-agent-host`（叠在 1a 上，WIP 提交）：合同 `AgentSteerControl` 加 `mode`（`next-boundary` / `interrupt` / `after-run`）与键的写法 `AGENT_INPUT_KEY_PATTERN`（与 SDK 的 SEGMENT 一致），`control()` 返回 `AgentSteerReceipt`（`input_id`、`replayed`、`delivered: run | queued`）；`prologue-inputs.ts` 的 `deliverSteer`：已结束或 `after-run` 进会话排队、`RUN_NOT_RUNNING` 用同一个键 `queueInput`；`prologue.ts` 接上（文件行数不变、类缩 2 行）；`runViewVersion` 纳入每条补充的状态；Coding `coding.runs.control` 升第 3 版（`key`、`mode`），路由对已结束的轮次放行补充并回传回执；助理用 `send.<request_id>` 作键、竞态时结果为 `queued`（合同 `AssistantSendResult.outcome` 加 `queued`，底栏提示「这一轮刚结束 · 已排到下一轮」，英文已加）。用例 `tests/agent-input-delivery.test.ts`（RC-02–RC-04）、`coding-run-control-contract`（RC-01）。
+    - 草稿分支 `receipts/1d-coding`（叠在 1c 上，WIP 提交）：Coding 发送方式下拉（补充要求 / 打断并改向 / 这一轮结束后再做）；「发送中」气泡与同键重发（只有断网或回包读不出才算「没送到」，被拒的不留气泡）；宿主转告的 `notice` 轮不再挂补充回执条，改标「Molis 的说明，不是你发的话」并换样式；输入框 Esc 不再直接停止（D3），停止按钮去掉 Esc 提示；`plans.ts` 的规划补充不再写「已体现在确认的计划里」（RC-07，G14）。
+  - **没验证的**：三条分支都**没有构建、没有跑任何用例**（构建锁一直被别的会话占着）；没有在隔离 Home 实走（准备了慢速替身模型脚本，未启动）；没开 PR。1c 还缺：`prologue-node*.ts` 一侧的接线（活动跑句柄 `steer` 要把 SDK 的回执交回、`createNodePort` 加 `queueInput`）——等 W4-06（#498）合入后在拆开的 `prologue-run.ts`、`prologue-node-port.ts` 里做；恢复报告的「输入」一类；`pnpm api:update`、`pnpm actions:update`；页面资源字节与巨大单元按 merge-base 复核。1d 还缺：「核对并继续」带上没读到的输入（要 1c 给 `agent.run.start` 加 `queued` 带入），以及三宽度与深色截图。1d 的界面字节没有量过。
+  - **恢复时第一步**：在 `receipts/1a-extract` 上并入最新 main → 拿构建锁 `pnpm build` → 跑 `node scripts/affected-tests.mjs` 选出的 1a 定向用例（含 `assistant-coding-executor`、`coding-client-scripts`、`assistant-*`、Coding 浏览器用例，浏览器用例拿浏览器锁）→ `node scripts/gates/page-assets.mjs --update --base origin/main` 把 Coding 资源字节降到实测 → 在隔离 Home（`MOLIS_WORK_HOME=<临时目录>`、不用 4173/4207/4208 端口、慢速替身模型）把 Coding 与助理的补充回执各实走一遍，结果补进现状核对 → 开 1a PR。之后 1c 等 #498 合入、并入 main 再续写，1d 叠在 1c 之后。
+- 2026-10-15（回执线会话，恢复，只做 1a；1c、1d 继续等 P3a）：
+  - `receipts/1a-extract` 并入 main `e8218714`（#523 I8 整树、#489）；冲突按 main 的现行形状解：助理的错误改用 `assistantErrors`，两处发送仍只经 `assistant-inputs.ts`。
+  - **Coding 的 `input-receipts-client.ts` 退出 1a，挪进 1d。** 宿主发页面脚本前用 esbuild 压空白与语法（`apps/local-host/src/served-page-text.ts` 的 `tightenServedJs`），模板里的注释本来就不下发；所以「注释移出模板约 −470 字节」是按源码量的，不对。按下发的字节量，抽成工厂反而多出包装：原样抽取 +229 字节，最省的写法（只抽回执条、补充发送留在原处）也 +46，`page-assets` 门禁对照 merge-base 不放行。1d 要给这个模块加发送方式、发送中气泡与重发，本来就得在 Coding 页面脚本里省出字节，抽取和省字节放在同一片里做。量法：取 `CODING_CLIENT_FACTORY_SCRIPT`，按 `tightenServedJs` 的选项压缩后比字节。
+  - 验证：`pnpm build` 后跑 `node scripts/affected-tests.mjs` 选出的 82 个非浏览器文件，加 `coding-run-control-contract`、`assistant-image-restart-http`、`assistant-memory-error-model`、`assistant-undo`、`assistant-delegation`、`prologue-input-receipts`，全部通过（`install.test.ts` 第一次因只重建了 Coding 包、构建指纹落后而失败，整体重建后 22/22）。Coding 页面脚本与 main 相同，不选浏览器用例。`check-health-gates --base origin/main` 通过（`AssistantService` 1814 → 1796 行、112 → 110 个方法），`page-assets --base origin/main` 通过。
+  - 隔离 Home 实走（临时 `MOLIS_WORK_HOME`、端口 4391、慢速替身模型 4392，每次回复流 20 秒）：① 助理自己的一轮进行中再发一句 → `outcome: steered`，替身模型下一次调用的最后一条 user 正是这句；助理页面仍没有回执条（1e）。② 把同一项工作「交给 Coding 继续」，Coding 一轮进行中从助理再发一句 → `outcome: steered`（main 上这条路报「这个项目还没有可用的 Coding 插件」），替身模型下一次调用收到这句；Coding 页面的这句下面先显示「已放进上下文，等 AI 回应」，这一轮结束后变「AI 已读到」。③ 一轮已经结束后再发的话开了新的一轮（`outcome: started`），与现行规则一致。
+  - 防腐复查（统筹 10-15 起每个 PR 都要过，清单 `coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md`）：2026-10-15 · main `e8218714` · merge-base `e8218714` · **通过**。机器项 M1、M2、M4–M10、M15 全过，M14 不适用。人看 27 条里适用的都符合，逐条结论与依据写在 PR #531 的「防腐复查」一节。已修一项（第 1 条）：助理找 Coding 动作的版本改成逐个写明现行版本（`runs.control` 为 2，其余为 1），去掉「没写就当第 1 版」的默认值。暂缓一项：`codingDispatch` 回答 Coding 问题时的 `pending_revision ?? 1` 是 main 上已有的行为，1a 原样保留，归 1c（1c 本来就要改这条控制的合同）。
 
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）
 

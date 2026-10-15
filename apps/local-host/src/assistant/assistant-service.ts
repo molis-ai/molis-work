@@ -33,6 +33,7 @@ import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
+import { AssistantInputs } from "./assistant-inputs.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 
 const RUNTIME = "prologue";
@@ -408,6 +409,8 @@ export class AssistantService {
   private readonly starting = new Map<string, string>();
   /** The memories chosen for the round a work is starting (null: none), until it starts. */
   private readonly chosenMemory = new Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>();
+  /** Where the person's words to a round under way go: its open question, or a supplement. */
+  private readonly inputs = new AssistantInputs(MAX_TEXT);
   /** Sub-tasks this person's works hand out, and what they hand back. */
   private readonly delegations: AssistantDelegations;
   readonly offers: AssistantOffers;
@@ -1597,16 +1600,13 @@ export class AssistantService {
     if (read.recovery_required) throw assistantErrors.needs_check(read.error ?? "Coding 会话有需要核对的中断操作", { action: "打开 Coding 核对" });
     const latest = read.runs.at(-1);
     if (latest && !isTerminalAgentPhase(latest.phase)) {
-      const question = this.freeTextQuestion(latest.awaiting_input);
-      if (latest.phase === "awaiting-input" && question && !materials.length) {
-        await coding.control(sessionId, latest.ref.run_id, { kind: "answer", pending_id: question.pending_id, pending_revision: question.pending_revision ?? 1, text });
-        return this.result(work, "answered", latest.ref.run_id);
-      }
-      await coding.control(sessionId, latest.ref.run_id, { kind: "steer", text: this.steerText(text, materials, context) });
-      return this.result(work, "steered", latest.ref.run_id);
+      // Coding's own control asks every answer for the revision it answers.
+      const outcome = await this.inputs.deliver(latest, text, materials, context, { control: control => coding.control(sessionId, latest.ref.run_id,
+        control.kind === "answer" ? { ...control, pending_revision: control.pending_revision ?? 1 } : control) });
+      return this.result(work, outcome, latest.ref.run_id);
     }
     const task = work.handover_brief ? `${work.handover_brief}\n\n用户现在的要求：${text}` : text;
-    await coding.start(sessionId, this.steerText(task, materials, context), read);
+    await coding.start(sessionId, this.inputs.compose(task, materials, context), read);
     if (work.handover_brief) work = this.store.update(this.actorId, work.work_id, null, { handover_brief: undefined }, false);
     const after = await coding.read(sessionId, 1);
     const run = after.runs.at(-1);
@@ -1638,15 +1638,10 @@ export class AssistantService {
     const latest = session.latest_run;
     if (latest && !isTerminalAgentPhase(latest.phase)) {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
-      const question = this.freeTextQuestion(latest.awaiting_input);
-      if (latest.phase === "awaiting-input" && question && !materials.length) {
-        await adapter.control(latest.ref, { kind: "answer", pending_id: question.pending_id, ...(question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}), text });
-        return this.result(work, "answered", latest.ref.run_id);
-      }
-      // A running round cannot be shown a picture any more; it goes with the next round.
-      if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮");
-      await adapter.control(latest.ref, { kind: "steer", text: this.steerText(text, materials, context) });
-      return this.result(work, "steered", latest.ref.run_id);
+      const outcome = await this.inputs.deliver(latest, text, materials, context, { control: control => adapter.control(latest.ref, control),
+        // A running round cannot be shown a picture any more; it goes with the next round.
+        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } });
+      return this.result(work, outcome, latest.ref.run_id);
     }
     await this.assertBudget();
     // The work's own cap: none left means no round; otherwise the round may spend only what is left.
@@ -1839,18 +1834,6 @@ export class AssistantService {
       out.push(...chunked({ ...base, title: `材料：${material.title}` }, `material-${material.material_id}`, `${head}\n\n${material.text ?? "（没有可读正文）"}`));
     }
     return { materials: out.slice(0, 30), told, handedBack };
-  }
-
-  /** A supplement reaches a running round as text; its materials go with it, marked as data. */
-  private steerText(text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null): string {
-    const parts = [text];
-    if (context?.selection) parts.push(`【发送时的选区，数据】${context.selection.text.slice(0, 4000)}`);
-    for (const material of materials) parts.push(`【附带材料「${material.title}」，数据】${(material.text ?? "").slice(0, 4000)}`);
-    return parts.join("\n\n").slice(0, MAX_TEXT);
-  }
-
-  private freeTextQuestion(questions: AgentRunView["awaiting_input"]): AgentRunView["awaiting_input"][number] | undefined {
-    return questions.length === 1 && questions[0]!.allows_free_text && !questions[0]!.questions?.length ? questions[0] : undefined;
   }
 
   private async latestRun(host: AgentHost, work: StoredWork): Promise<AgentRunView | null> {

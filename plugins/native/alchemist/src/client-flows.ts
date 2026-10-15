@@ -12,7 +12,7 @@ runtime=await api('/settings/runtime');
 reuseCtx={intent:(model.title+' '+(model.problem||'')).slice(0,2000),directionId:data.ideas.find(i=>i.id===chosen.id)?.directionId,...(study?.lenses[lens]?.report?{reportId:study.lenses[lens].report.id}:{})};
 reuseChoices=await api('/reuse/candidates',reuseCtx);if(!sheet.open||!same(chosen))return;if(lens!=='market_space')reuseChoices.methods=[];
 reuseKey=stateKey+':reuse:'+chosen.id+':'+chosen.version+':'+lens;
-show('确认研究范围',modelChoices()+field('调用上限','limit',{type:'number',value:runtime.defaultBudgets[lens==='market_space'?'marketSpace':'buildCost'].limit,required:true})+'<p class="alc-muted">'+tx('一次搜索（含最多 3 个网页提取）或一次模型请求，各计 1 次。预算允许时，格式无效可纠错一次；仍无效就停止。费用由供应商收取。')+'</p>'+renderReuseChoices(reuseChoices,esc,L)+(!runtime.configured?modelLink():''),'生成研究计划',async f=>{
+show('确认研究范围',modelChoices()+field('调用上限','limit',{type:'number',value:runtime.defaultBudgets[lens==='market_space'?'marketSpace':'buildCost'].limit,required:true})+muted(tx('一次搜索（含最多 3 个网页提取）或一次模型请求，各计 1 次。预算允许时，格式无效可纠错一次；仍无效就停止。费用由供应商收取。'))+renderReuseChoices(reuseChoices,esc,L)+(!runtime.configured?modelLink():''),'生成研究计划',async f=>{
 if(!runtime.models.length)throw new Error(L('请先在宿主设置里配置模型。'));const selected=f.get('model');if(!selected)throw new Error(L('请选择研究模型。'));
 const reuse=selectedReuse(f);if(reuse.artifacts.some(a=>!a.reason))throw new Error(L('请说明沿用理由与仍需重核的内容。'));
 const r=await api('/ideas/'+enc(chosen.id)+'/lenses/'+lens+'/plans',{ideaVersion:chosen.version,modelPolicy:selected==='auto'?'auto':'fixed',...(selected==='auto'?{}:{modelId:selected}),budget:{kind:'calls',limit:Number(f.get('limit'))},reuse});
@@ -28,12 +28,12 @@ sideMode=mode;const captured=JSON.stringify(ctx),oldTarget=target?{...target}:nu
 if(mode==='chat'){
 const r=await api('/conversation/messages');if(captured!==JSON.stringify(ctx)||sideMode!==mode)return;
 const key=c=>JSON.stringify([c.kind,c.ideaId||c.directionId||c.pulseReportId||c.surface,c.version||'',c.panel||'']);const messages=r.messages.filter(m=>key(m.context)===key(ctx));
-body.innerHTML='<p class="alc-muted">'+esc(ctx.label)+'</p>'+messages.map(m=>'<div class="alc-message"><small>'+tx(m.author==='user'?'你':'AI')+(m.responseState==='complete'?'':' · '+tx('未完成'))+'</small>'+esc(m.body)+'</div>').join('')+'<form data-alc-chat-form>'+field('继续讨论','message',{area:true,required:true,max:8000})+'<button class="mw-btn mw-btn--primary" type="submit">'+tx('发送')+'</button></form>';
+body.innerHTML=muted(esc(ctx.label))+messages.map(m=>'<div class="alc-message"><small>'+tx(m.author==='user'?'你':'AI')+(m.responseState==='complete'?'':' · '+tx('未完成'))+'</small>'+esc(m.body)+'</div>').join('')+'<form data-alc-chat-form>'+field('继续讨论','message',{area:true,required:true,max:8000})+'<button class="mw-btn mw-btn--primary" type="submit">'+tx('发送')+'</button></form>';
 }else{
 if(!oldTarget){body.innerHTML=empty('保留想法或生成报告后，可以选中原文添加注释。');return;}
 const r=await api('/annotations?'+new URLSearchParams({kind:oldTarget.kind,objectId:oldTarget.objectId,revision:String(oldTarget.revision)}));if(captured!==JSON.stringify(ctx)||JSON.stringify(oldTarget)!==JSON.stringify(target)||sideMode!==mode)return;
 const quoted=quote&&quote.target.objectId===target.objectId?quote:null;
-body.innerHTML=(quoted?'<form data-alc-annotation-form><blockquote>'+esc(quoted.text)+'</blockquote>'+field('你的意见','comment',{area:true,required:true})+'<button class="mw-btn mw-btn--primary" type="submit">'+tx('保存注释')+'</button></form>':'<p class="alc-muted">'+tx('先在正文中选中一段文字，再打开注释。')+'</p>')+r.annotations.map(a=>'<article class="alc-comment"><blockquote>'+esc(a.quotedSnapshot)+'</blockquote>'+paraHtml(a.comment)+'<small>'+tx(a.status==='open'?'待处理':'已解决')+'</small><div class="alc-actions">'+(a.status==='open'?button('标为已解决','resolve',false,'data-id="'+esc(a.id)+'"')+(target.kind==='lens_report'?button('校准研究方法','calibrate',false,'data-id="'+esc(a.id)+'"'):''):'')+'</div></article>').join('');
+body.innerHTML=(quoted?'<form data-alc-annotation-form><blockquote>'+esc(quoted.text)+'</blockquote>'+field('你的意见','comment',{area:true,required:true})+'<button class="mw-btn mw-btn--primary" type="submit">'+tx('保存注释')+'</button></form>':muted(tx('先在正文中选中一段文字，再打开注释。')))+r.annotations.map(a=>'<article class="alc-comment"><blockquote>'+esc(a.quotedSnapshot)+'</blockquote>'+paraHtml(a.comment)+'<small>'+tx(a.status==='open'?'待处理':'已解决')+'</small><div class="alc-actions">'+(a.status==='open'?button('标为已解决','resolve',false,'data-id="'+esc(a.id)+'"')+(target.kind==='lens_report'?button('校准研究方法','calibrate',false,'data-id="'+esc(a.id)+'"'):''):'')+'</div></article>').join('');
 }
 }
 function closeAfterSubmit(){busy=false;closeDialog();}
@@ -45,7 +45,7 @@ if(name==='close'){closeDialog();return;}
 if(name==='side-close'){side.hidden=true;sideMode='';if(focus?.kind==='idea'&&['market','cost'].includes(focus.panel)&&study&&JSON.stringify(study)!==detailId){const scroll=mainEl.scrollTop;paintStudy(study);mainEl.scrollTop=scroll;detailId=JSON.stringify(study);$('action=annotations').hidden=!target;}return;}
 if(name==='reload'){await load();if(focus)await open(focus,false);notice('');return;}
 if(name==='archived-toggle'){archived=!archived;renderList();return;}
-if(name==='new'){let created=null;show('新建方向',field('你想探索的问题','description',{area:true,rows:5,required:true,max:4000})+'<p class="alc-muted">'+tx('从一个具体的人和场景开始，AI 会给出不同的候选机制。')+'</p>','保存并炼化',async f=>{const r=created||(created=await api('/directions',{description:f.get('description')}));await api('/directions/'+enc(r.direction.id)+'/explorations',{});closeAfterSubmit();view='directions';await load();await open({kind:'direction',id:r.direction.id});});return;}
+if(name==='new'){let created=null;show('新建方向',field('你想探索的问题','description',{area:true,rows:5,required:true,max:4000})+muted(tx('从一个具体的人和场景开始，AI 会给出不同的候选机制。')),'保存并炼化',async f=>{const r=created||(created=await api('/directions',{description:f.get('description')}));await api('/directions/'+enc(r.direction.id)+'/explorations',{});closeAfterSubmit();view='directions';await load();await open({kind:'direction',id:r.direction.id});});return;}
 if(name==='settings'){await open({kind:'settings'});return;}
 if(name==='runtime'){await runtimeForm();return;}
 if(name==='sources'){await sources();return;}

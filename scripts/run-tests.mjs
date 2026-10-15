@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // node scripts/run-tests.mjs [options] [files…]       without files: every test file, the `.mjs` boundary checks included
@@ -11,10 +11,13 @@ import { fileURLToPath } from "node:url";
 //   --verbose               print every file's output, not only the failing ones'
 //   --shard <k>/<n>         only every n-th file of the list, starting at the k-th (CI spreads one list over n jobs: the same
 //                           list in each job gives each file to exactly one of them)
+//   --skip-macos-only       leave out the files the Linux probe marks darwin and not browser (scripts/ci-linux-probe/select.mjs),
+//                           before --shard picks: the full suite on a Linux runner (.github/workflows/full-suite.yml). A browser
+//                           file stays: its darwin mark comes from the platform check of the shared Chrome locator.
 // Any other `--` option is handed to `node --test` (e.g. `--test-name-pattern=…`).
 // One file: one `node --test` process, as before. Several files: each file runs alone in its own process with its own
 // MOLIS_WORK_HOME and secret store (this script again, with that one file), several at once (scripts/run-tests/pool.mjs).
-const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--shard <k>/<n>] [node --test options] [files…]";
+const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--shard <k>/<n>] [--skip-macos-only] [node --test options] [files…]";
 const die = (message) => { console.error(`run-tests: ${message}\n${USAGE}`); process.exit(2); };
 const whole = (name, value, least) => {
   const number = Number(value);
@@ -22,7 +25,7 @@ const whole = (name, value, least) => {
   return number;
 };
 
-const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false, shard: undefined };
+const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false, shard: undefined, skipMacosOnly: false };
 const targets = [], testArgs = [];
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index++) {
@@ -32,6 +35,7 @@ for (let index = 0; index < args.length; index++) {
   else if (name === "--browser-jobs") options.browserJobs = whole(name, value(), 1);
   else if (name === "--timeout-seconds") options.timeoutSeconds = whole(name, value(), 1);
   else if (name === "--verbose") options.verbose = true;
+  else if (name === "--skip-macos-only") options.skipMacosOnly = true;
   else if (name === "--shard") {
     const shard = /^(\d+)\/(\d+)$/.exec(value() ?? "");
     if (!shard || Number(shard[1]) < 1 || Number(shard[1]) > Number(shard[2])) die(`--shard needs <k>/<n> with 1 <= k <= n, not "${args[index]}"`);
@@ -41,6 +45,14 @@ for (let index = 0; index < args.length; index++) {
   else targets.push(args[index]);
 }
 if (!targets.length) targets.push(...(await readdir("tests")).filter(name => /\.test\.(ts|mjs)$/.test(name)).sort().map(name => `tests/${name}`));
+const root = fileURLToPath(new URL("..", import.meta.url));
+if (options.skipMacosOnly) {
+  const { classifyFile } = await import("./ci-linux-probe/select.mjs");
+  const macosOnly = (file) => { const { marks } = classifyFile(root, relative(root, resolve(file))); return marks.includes("darwin") && !marks.includes("browser"); };
+  const kept = targets.filter((file) => !macosOnly(file));
+  console.log(`run-tests: left out ${targets.length - kept.length} macOS-only files of ${targets.length}`);
+  targets.splice(0, targets.length, ...kept);
+}
 if (options.shard) {
   const { index, count } = options.shard;
   const mine = targets.filter((_, position) => position % count === index);
@@ -53,7 +65,6 @@ if (targets.length > 1) {
   const jobs = options.jobs ?? fromEnvironment("MOLIS_WORK_TEST_JOBS", Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2))));
   const browserJobs = Math.min(jobs, options.browserJobs ?? fromEnvironment("MOLIS_WORK_TEST_BROWSER_JOBS", 2));
   const { runParallel } = await import("./run-tests/pool.mjs");
-  const root = fileURLToPath(new URL("..", import.meta.url));
   process.exitCode = await runParallel(root, targets, { jobs, browserJobs, timeoutSeconds: options.timeoutSeconds, testArgs, verbose: options.verbose });
 } else {
   // Test processes, including spawned web servers, inherit an isolated credential

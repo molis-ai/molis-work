@@ -493,7 +493,7 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
   if (stepBoard) deps.stepBoards.unfollow(stepBoard.ref.id);
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
   // The side panel stops saying the Assistant is using the page the moment its round is over, and this run's app approvals are dropped.
-  if (surfaceHost) { void surfaceHost.release(session.ref.id).catch(() => undefined); surfaceHost.releaseRun(started.run.ref); } state.runRefs.delete(started.run.ref.id);
+  if (surfaceHost) { void surfaceHost.release(session.ref.id, type === "cancelled" ? "stopped" : type).catch(() => undefined); surfaceHost.releaseRun(started.run.ref); } state.runRefs.delete(started.run.ref.id);
   const work = state.runWork.get(started.run.ref.id);
   if (work) { state.runWork.delete(started.run.ref.id); void deps.projectWork.end(work.project, work.id, type === "cancelled" ? "stopped" : type).catch(() => undefined); }
   // A round that finished normally saw every message given to it; unanswered requests are settled.

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import type { HostSurfaceAction } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceAction, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { ComputerDesk, ComputerRecords, ComputerSettings, desktopTaskComplete } from "@molis-ai/molis-work-app-local-host";
 
 test("a desktop task is finished only when a window title, a file, or the record shows it", () => {
@@ -49,7 +49,7 @@ function endedRound(window: { title: string; document?: string }) {
   return { home, desk, records };
 }
 
-async function finishRound(goal: string, window: { title: string; document?: string }, actions: readonly HostSurfaceAction[]) {
+async function finishRound(goal: string, window: { title: string; document?: string }, actions: readonly HostSurfaceAction[], ended: HostSurfaceRoundEnd | null = "completed") {
   const round = endedRound(window);
   try {
     const driver = round.desk.driver();
@@ -57,7 +57,8 @@ async function finishRound(goal: string, window: { title: string; document?: str
     for (const action of actions) await driver.perform(action, { session_id: "sess-molis" });
     const id = round.desk.state().record_id;
     assert.ok(id);
-    await driver.release?.();
+    // null: a Host that releases without saying how the run ended.
+    await (ended === null ? driver.release?.() : driver.release?.(ended));
     return round.records.get(id);
   } finally {
     round.desk.close();
@@ -84,4 +85,29 @@ test("a model run ending does not complete the desktop record unless the window,
     { what: "menu", path: ["文件", "已保存"] },
   ]);
   assert.equal(recorded?.outcome, "completed");
+});
+
+// ACL-09 judges a run that says it completed; a round that was stopped, or whose run failed, keeps that outcome (review F-16).
+test("a stopped round is recorded as stopped and a failed run as failed, not as the model claiming it was done", async () => {
+  const stopped = await finishRound("窗口：备忘录", { title: "未命名" }, [{ what: "app", app: "com.apple.TextEdit" }], "stopped");
+  assert.equal(stopped?.outcome, "stopped");
+  assert.equal(stopped?.conclusion, "这一轮被停下了");
+  const failed = await finishRound("窗口：备忘录", { title: "未命名" }, [{ what: "app", app: "com.apple.TextEdit" }], "failed");
+  assert.equal(failed?.outcome, "failed");
+  assert.doesNotMatch(failed?.conclusion ?? "", /模型说完成了/);
+  // A stopped round whose facts happen to be there is still the person's stop, not a completion.
+  const stoppedThere = await finishRound("窗口：备忘录", { title: "备忘录" }, [{ what: "app", app: "com.apple.TextEdit" }], "stopped");
+  assert.equal(stoppedThere?.outcome, "stopped");
+});
+
+test("a goal that names no window, file or record is not completed, and says that instead of blaming the model", async () => {
+  const unlabeled = await finishRound("打开备忘录", { title: "备忘录" }, [{ what: "app", app: "com.apple.TextEdit" }]);
+  assert.equal(unlabeled?.outcome, "failed");
+  assert.match(unlabeled?.conclusion ?? "", /没有写要核对的窗口、文件或记录/);
+  assert.doesNotMatch(unlabeled?.conclusion ?? "", /模型说完成了/);
+  assert.equal(desktopTaskComplete({}, { windowTitle: "备忘录" }, true).complete, false);
+  // A Host that does not say how the run ended: the facts decide, and nothing is said about the model.
+  const unsaid = await finishRound("窗口：备忘录", { title: "未命名" }, [{ what: "app", app: "com.apple.TextEdit" }], null);
+  assert.equal(unsaid?.outcome, "failed");
+  assert.doesNotMatch(unsaid?.conclusion ?? "", /模型说完成了/);
 });

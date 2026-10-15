@@ -129,7 +129,8 @@ test("Agent authoring discovers runtime capabilities, preserves exact references
       const reply = await call(definition, input); assert.equal(reply.result.isError, false, JSON.stringify(reply)); return reply.result.structuredContent;
     };
     const noTarget = await call(judgment, { content: "No target grant" });
-    assert.equal(noTarget.result.isError, true); assert.match(JSON.stringify(noTarget), /mcp\.tool_disabled/, "the recommendation target is not granted, so the judgment is not offered");
+    // The tool is called by its name, so the Host decides and answers with its own code (W3-09-2; docs/mcp.md).
+    assert.equal(noTarget.result.isError, true); assert.equal(JSON.parse(noTarget.result.content[0].text).code, "actions.forbidden", "the recommendation target is not granted, so the judgment is not offered");
     const noTargetInvoke = await call(functionsActions.invoke, { function_key: published.function_key, input: "No target grant" });
     assert.equal(noTargetInvoke.result.isError, true); assert.match(JSON.stringify(noTargetInvoke), /actions\.recommendation_missing/);
     assert.equal(history().length, 0); assert.equal(note().state, "new");

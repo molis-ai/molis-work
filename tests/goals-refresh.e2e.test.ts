@@ -115,3 +115,30 @@ test("failed compact refresh falls back to the full Goal page and keeps other wo
   assert.equal(await evaluate("Boolean(globalThis.__feedSurface) && document.querySelector('[data-work-surface=feed]') === globalThis.__feedSurface"), true);
   assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), afterExternalWrite);
 });
+
+// BL-140: right after a save the next poll sees a new cursor and replaces the Goal document; a menu the person had just opened
+// closed under their next click. An open menu now holds the refresh back, and closing it lets the refresh in.
+test("BL-140: a menu open in the Goal document holds the background refresh until it is closed", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t);
+  if (!browser) return;
+  const { origin, sessionId, command, evaluate, waitFor, navigate } = browser;
+  await navigate(() => command("Page.navigate", { url: origin + "/goals/CORE" }, sessionId));
+  await waitFor("document.querySelector('[data-goal-event-document] .goal-more')", 10_000);
+  await evaluate(`(() => {
+    window.__refreshes = 0;
+    const original = window.fetch;
+    window.fetch = (input, init) => {
+      if (new URL(String(input instanceof Request ? input.url : input), location.href).pathname === '/api/board/refresh') window.__refreshes += 1;
+      return original(input, init);
+    };
+    document.querySelector('[data-goal-event-document] .goal-more').open = true;
+    return true;
+  })()`);
+  await addGoal(origin, "MENU-HELD");
+  // Two 4-second polls see the new cursor while the menu is open.
+  await evaluate("new Promise(resolve => setTimeout(resolve, 9000))");
+  assert.equal(await evaluate("window.__refreshes"), 0, "no refresh replaces the document under an open menu");
+  assert.equal(await evaluate("document.querySelector('[data-goal-event-document] .goal-more').open"), true);
+  await evaluate("document.querySelector('[data-goal-event-document] .goal-more').open = false");
+  await waitFor("window.__refreshes > 0", 10_000);
+});

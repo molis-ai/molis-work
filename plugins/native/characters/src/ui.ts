@@ -61,7 +61,7 @@ export function renderCharacters(model: CharactersUiModel): string {
       <ol class="characters-steps" aria-label="角色怎么用">${steps}</ol>
       <section class="settings-section characters-block" aria-labelledby="characters-mine-title">
         <header class="characters-block-head"><div><h2 id="characters-mine-title">我的角色</h2><p class="characters-hint">只属于你，所有项目都能用；发布到当前项目后，这个项目的任务才能选它。</p></div>
-          <div class="characters-block-actions"><button class="mw-btn mw-btn--secondary" type="button" data-character-import-open>${icon("upload")}<span>从本机导入</span></button><button class="mw-btn mw-btn--primary" type="button" data-character-new>${icon("plus")}<span>新建角色</span></button></div></header>
+          <div class="characters-block-actions"><button class="mw-btn mw-btn--secondary" type="button" data-character-import-open disabled>${icon("upload")}<span>从本机导入</span></button><button class="mw-btn mw-btn--primary" type="button" data-character-new disabled>${icon("plus")}<span>新建角色</span></button></div></header>
         <div class="characters-rows" data-character-list role="list"></div>
         <div class="characters-empty" data-character-empty hidden><strong>还没有自己的角色</strong><p>新建一个，写下你希望 AI 怎么做事；或从 Codex、Claude Code 等本机 Agent 导入已有的规则与 Skills。</p></div>
       </section>

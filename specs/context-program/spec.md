@@ -1318,3 +1318,42 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 3. 隔离 Home 实走：`node --import tsx walk-serve.mts 4296`（脚本放回 scratchpad 并把 `node_modules` 链到工作树；它起隔离 Home 与脚本模型，「问我…」出问卷卡、「待办 / 建议」出操作卡），1440/1024/800/390 与深色截图，结果补进 21.6。
 4. 等 #489 合入后接执行：岛外新文件画输入框旁的下一步（`renderInteractionNextSteps` 带 `max: 3`），按 `NEXT_STEP` id 点卡自己的控件（选项像人点一样、卡上有没交的改动就只滚到卡上）；删 A10「接下来」、A11 两个「去…」、A7 建议条（连同 #489 页脚名单里的 `.assistant-offer`），页面资源每个文件只减。
 5. 定向用例、门禁、截图齐了开 W3-A1 的 PR（本分支的文档与部件一起），PR 号与证据发统筹。
+
+### 21.8 W3-B 设计草案（2026-10-15，本地，未开工；等 H3 #546 合入，再经统筹）
+
+**现状（main `ac47ed78`）**：
+
+- 合同已有：`SurfaceLanding`（`contracts/services/contextual.ts`）、`ActionAttach.positions`（`contracts/platform/item-intake.ts`）。
+- 内核已能派生：`destinationCandidates` 在手上的东西不在左边（`place !== "main"`）、左边落点是提供方自己的对象种类、位置合声明时，出 `attach.` 候选。
+- 宿主的判断请求已能带 `landing`（`contextual-request.ts` 有界读取）。
+- **缺的是页面这一半**：没有页面报告落点，情境总线不持有落点，没有插件声明 `attach`，落点处没有预览，执行也没有接上。所以今天 `attach.` 候选永远不出现。
+
+**要做的（按依赖顺序）**：
+
+1. **落点事件**：登记 `molis:surface-landing`（`dom-events.ts`，主人 `context-actions`，发在元素上、冒泡，载荷 `SurfaceLanding | null`），与发它的 Pages 代码同一个改动。`molis:landing-at`（拖放）不在 W3-B，随 W6 拖放做。
+2. **总线持有落点**：`context-bus.ts` 收左边焦点窗格的落点，窗格失焦或报 `null` 时清掉自己的；手上的东西在右栏或助理时，判断与准备请求带上落点（宿主已能读）。窗格转发沿用现有的窗格消息。
+3. **Pages 报告落点**：光标、选区，没有光标时是文末，带 `version` 与有界的 `surroundings`。写在 Pages 的新文件里（`client.ts` 已 1135 行，只许变小）。
+4. **三个确定性的 `attach`**（§14 已定）：插入到光标处（`cursor`、`end`）、替换选中的文字（`selection`）、作为引用插入（`cursor`、`end`，带出处）。
+   - 一个动作只能挂一份 `attach`（`ActionView.action.attach` 是单个），所以是 Pages 自己的三个写入动作，共用一个处理器。
+   - 输入：`id`、`expected_version`、位置（`anchor`、`head`）、文字、出处（仅引用）。
+   - 每个动作带 `undo: pages.revert`（沿用 `update` 的 `change_id`）。
+   - 版本不符就拒绝。
+5. **落点处预览**（§3.6「放进落点，一律预览确认」）：选了 `attach.` 候选后，由落点的主人页面（Pages）在落点处开面板槽（`molis:context-panel-open`，W1-6 已登记），画出将写入的内容。确认后经动作服务调第 4 步的动作；不在页面里直接改文档，保证与助理、MCP 同一个入口。
+6. **H3 那一对函数**：执行前宿主用 `confirmReferences`（`horizontal/search/src/references.ts`）按调用者的权限重读落点对象。不在或没权限时，用合同里的 `reference-unavailable` 拒绝，不另写读取。版本由 Pages 的动作自己比对。
+7. **情境条显示落点**：「→ Pages · 第 3 段光标处」。依赖 W3-A2 的情境条，排在 W3-A2 之后。
+
+**要统筹定的**：
+
+- **B-1 三个动作**：是否接受「三个动作共用一个处理器」？另一个做法是改合同，让一个动作挂多份 `attach`，那是合同语义的改动，按规矩先停。推荐三个动作，不改合同。
+- **B-2 `find`**：W3-B 的三个动作都是落点目标（`positions`），用不到 `find`。H3 的 `search.references@1` 取候选用于 F2「追加到已有」（`find` 目标），按 §10 波次在 W4；W3-B 只用那一对里的 `confirmReferences`。21.4 W3-B 行写的「`attach` 的 `find` 取候选」是否改到 W4？推荐改。
+- **B-3 依赖**：21.4 写 W3-B 依赖 W3-A3。实际只有第 7 步依赖 W3-A2 的情境条，第 1–6 步只依赖 H3。推荐拆成 W3-B1（1–6，H3 合入即可开工）和 W3-B2（7，排在 W3-A2 之后）。
+
+**防腐预检**：
+
+- 新动作：注册一次，要跑 `actions:update`。
+- 新事件：同一改动里登记。
+- `assistant-island.ts`、`client.ts`、`context-bus.ts` 只减或持平，新东西写新文件。
+- 页面资源靠删掉的代码抵消。
+- 不新增 typed 能力。
+- 写入从一开始就带读取版本（W3-09-3）。
+- 页面请求用 `request-client.ts`（W3-10）。

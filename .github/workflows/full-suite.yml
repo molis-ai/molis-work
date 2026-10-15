@@ -7,7 +7,9 @@ name: Full suite
 # Keychain, launchctl, Swift helpers); those still run locally. Live tests skip themselves, since no key is set here.
 # It informs and decides nothing: branch protection and the merge queue wait only for `Verify` (ci.yml).
 # When it runs:
-#   - a pull request labelled `full-suite` (when the label is added, and on each push while it is on);
+#   - a pull request, once, when the label `full-suite` is added. A later push does not run it again: add the label again (remove
+#     and add), or run it by hand on the branch (`gh workflow run full-suite.yml --ref <branch>`). Running on every push of every
+#     labelled pull request took all 20 runners the repository gets and left `Verify` queued 10 to 20 minutes (2026-10-15);
 #   - a push to an integration branch (`integration/**`, §7 of the same document);
 #   - nightly on main, and by hand (Actions → Full suite → Run workflow, on any branch).
 
@@ -15,7 +17,7 @@ on:
   pull_request:
     branches:
       - main
-    types: [labeled, synchronize, reopened]
+    types: [labeled]
   push:
     branches:
       - "integration/**"
@@ -26,16 +28,13 @@ on:
 permissions:
   contents: read
 
-# A new run cancels the older one in its group, so a push to a labelled pull request stops the run for the previous push. Only a
-# run whose shards will run takes that group: a pull request event whose shards the job `if` below skips (a push before the label
-# is on, another label added) gets a group of its own (its run id), so it cannot cancel a run that is testing. Before this, the
-# `synchronize` run of a push made right before the label was added cancelled the labelled run (#519, 2026-10-15). The condition
-# is the job `if` of `shard`, written twice because the concurrency key cannot read a job; change both together.
+# A new run cancels the older one in its group (the label added again on the same pull request, a newer push to an integration
+# branch). A `labeled` event for another label skips its shards and gets a group of its own (its run id), so it cannot cancel a
+# run that is testing (#526). The condition is the job `if` of `shard`, written twice because the concurrency key cannot read a
+# job; change both together.
 concurrency:
   group: >-
-    full-suite-${{ (github.event_name != 'pull_request'
-      || (github.event.action == 'labeled' && github.event.label.name == 'full-suite')
-      || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'full-suite')))
+    full-suite-${{ (github.event_name != 'pull_request' || github.event.label.name == 'full-suite')
       && (github.event_name == 'schedule' && 'nightly' || github.event.pull_request.number || github.ref)
       || format('skip-{0}', github.run_id) }}
   cancel-in-progress: true
@@ -43,14 +42,14 @@ concurrency:
 jobs:
   shard:
     name: Full suite (${{ matrix.shard }}/16)
-    if: >-
-      ${{ github.event_name != 'pull_request'
-          || (github.event.action == 'labeled' && github.event.label.name == 'full-suite')
-          || (github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'full-suite')) }}
+    if: ${{ github.event_name != 'pull_request' || github.event.label.name == 'full-suite' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
+      # At most six runners per run, so several runs at once still leave most of the repository's 20 runners to `Verify` and the
+      # merge queue (user 2026-10-15). The sixteen shards then run in about three waves: some 30 to 35 minutes a run.
+      max-parallel: 6
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     env:

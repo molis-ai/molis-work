@@ -159,3 +159,27 @@ test("ISSUE-36 ISSUE-38 asked to record, the Assistant saves a page draft or a s
   const recorded = (await list()).items[0]!;
   assert.deepEqual([recorded.title, recorded.entered_via, recorded.context.page?.title], ["切换项目后草稿丢失", "assistant", "Issue 页面"]);
 });
+
+test("ISSUE-48 saved Issue reorganization proposes only a versioned title and type, without writing before Save", { timeout: 60_000 }, async t => {
+  const { replies, requests, request, list, state, send } = await assistantHome(t);
+  const original = await request<Issue>(`/api/plugins/${ISSUES_PLUGIN_ID}/create`, { title: "旧标题", type: "feature", description: "原来的说明" });
+  const input = { id: original.id, expected_version: original.version, title: "保存按钮点击后没有反应", type: "bug" };
+  replies.push(reply({ name: "suggest-action", input: { capability_id: "issues.update", version: 2, provider_id: ISSUES_PLUGIN_ID,
+    input, title: "重新整理 Issue", summary: input.title, editable: ["title", "type"] } }), reply());
+  const sent = await send(`重新整理 Issue：补充后保存没反应\n待整理记录 ${original.id} 版本 ${original.version}。请按 Issue 方法处理。\n本次问题描述：补充后保存没反应`, {
+    materials: [{ material_id: "issue-method", kind: "method", title: "Issue", explicit: true, method: { method_id: `${ISSUES_PLUGIN_ID}/issues-capture` } }],
+  });
+  const view = await state(sent.work.work_id, view => view.cards.some(card => card.status === "ready") || ["failed", "completed"].includes(view.work.state));
+  assert.equal(view.cards.length, 1, JSON.stringify(view));
+  const card = view.cards[0]!;
+  const value = (key: string) => { const field = card.fields.find(field => field.key === key); return field?.raw ?? field?.value; };
+  assert.equal(card.capability_id, "issues.update");
+  assert.equal(value("id"), original.id); assert.equal(Number(value("expected_version")), 1);
+  assert.equal(value("title"), input.title); assert.equal(value("type"), "bug");
+  assert.deepEqual(await request<Issue>(`/api/plugins/${ISSUES_PLUGIN_ID}/read?id=${original.id}`), original);
+  assert.match(JSON.stringify(requests), /页面重新整理/);
+  await state(sent.work.work_id, view => view.work.state === "completed");
+  await request(`/api/assistant/works/${sent.work.work_id}/archive`, { archived: true });
+  const saved = await request<Issue>(`/api/plugins/${ISSUES_PLUGIN_ID}/update`, { ...input, description: "补充后保存没反应" });
+  assert.equal(saved.id, original.id); assert.equal(saved.version, 2); assert.equal((await list()).items.length, 1);
+});

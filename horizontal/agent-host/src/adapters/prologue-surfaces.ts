@@ -1,6 +1,6 @@
 import type { ExactRef, PolicyRule, Runtime, UiAction, UiAssessment, UiReadiness, UiSurface } from "@prologue/sdk";
 import { APP_MODE_SURFACE_TOOLS, createSurfaceRefusal } from "@prologue/sdk";
-import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceAction, HostSurfaceDriver, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { isHostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { deliverDesktopAct } from "./desktop-act-delivery.js";
 
@@ -114,7 +114,7 @@ export interface PrologueSurfaces {
    */
   allowAppForRound(run: ExactRef<"run">, bundleId: string): void;
   /** A round of this session ended or was stopped: the surfaces it used are the person's again, not after an idle wait. */
-  release(sessionRefId: string): Promise<void>;
+  release(sessionRefId: string, ended?: HostSurfaceRoundEnd): Promise<void>;
   /** A run reached a terminal state: its run-bound approvals are dropped. */
   releaseRun(run: ExactRef<"run">): void;
   /** The round's run started (after attach): name it on the desktop driver so the record names the run. */
@@ -274,9 +274,9 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
         match: { what: "surface", surface: "desktop", scope: bundleId },
         why: "The person lets the Assistant act in this app for the rest of this round." }, { run });
     },
-    async release(sessionRefId) {
-      await attached.get(sessionRefId)?.driver.release?.();
-      await desktopAttached.get(sessionRefId)?.driver.release?.();
+    async release(sessionRefId, ended) {
+      await attached.get(sessionRefId)?.driver.release?.(ended);
+      await desktopAttached.get(sessionRefId)?.driver.release?.(ended);
     },
     releaseRun(run) {
       runtime().effects.releaseRun(run);

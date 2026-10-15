@@ -247,15 +247,16 @@ test("the desktop driver stores the round's project and frees the computer when 
     await assert.rejects(() => driver.observe("accessibility-tree", { session_id: "sess-2" }), /另一项工作/);
     assert.equal(desk.holding()?.sessionId, "sess-molis");
 
-    // prologue-node.ts:1494 passes the Prologue ref to the surface host. The same driver must
-    // still finish the Molis lease: using that ref as the lease id would leave the computer held.
-    const release = driver.release! as (sessionId?: string) => Promise<void>;
-    await release("sess-prologue-ref");
+    // The surface host keys drivers by the Prologue session ref and ends the round with how its run settled. The
+    // driver must still finish the Molis lease: using that ref as the lease id would leave the computer held.
+    const release = driver.release!;
+    await release("completed");
     assert.equal(desk.holding(), null);
     assert.equal(desk.state().record_id, null);
     const finished = records.get(openId);
+    // 「打开备忘录」 names no window, file or record to check: not completed, and the reason says so.
     assert.equal(finished?.outcome, "failed");
-    assert.match(finished?.conclusion ?? "", /模型说完成了/);
+    assert.match(finished?.conclusion ?? "", /没有写要核对的窗口、文件或记录/);
     assert.equal(typeof finished?.ended_at, "string");
 
     driver.describeRound!("sess-2", { run_id: null, project_id: "project-b", goal: "下一轮" });

@@ -77,7 +77,7 @@ export interface HostSurfaceDriver {
     perform(action: HostSurfaceAction, context: {
         readonly session_id: string | null;
     }): Promise<HostSurfaceActReceipt | void>;
-    release?(): Promise<void>;
+    release?(ended?: HostSurfaceRoundEnd): Promise<void>;
     close(): Promise<void>;
     describePoint?(x: number, y: number): Promise<string>;
     focusedField?(): Promise<{
@@ -117,5 +117,7 @@ export interface HostSurfaceRefusalError extends Error {
     readonly refusal: HostSurfaceRefusal;
     readonly partial?: boolean;
 }
+
+export type HostSurfaceRoundEnd = "completed" | "failed" | "stopped";
 
 export declare function isHostSurfaceRefusal(error: unknown): error is HostSurfaceRefusalError;

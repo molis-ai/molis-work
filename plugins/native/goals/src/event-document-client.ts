@@ -6,9 +6,10 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
     let selectedRequest = 0;
     let moreRequest = 0;
     let returnFocusTarget = null;
-    const reading = { goal: "", item: "", filter: "all", reader: "", form: "", infoOpen: null };
+    const reading = { goal: "", item: "", filter: "all", reader: "", form: "", infoOpen: null, hold: "" };
     const escapeText = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-    const root = () => documentPane.querySelector("[data-goal-event-document]");
+    const q = (node, selector) => node.querySelector(selector);
+    const root = () => q(documentPane, "[data-goal-event-document]");
     const goalId = () => root()?.dataset.goalView || "";
     const jsonHeaders = () => ({ accept: "application/json", ...(typeof controlHeaders === "function" ? controlHeaders() : (typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" })) });
     const captureRestore = () => ({
@@ -27,7 +28,20 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       reading.reader = "";
       reading.form = "";
       reading.infoOpen = null;
+      reading.hold = "";
       returnFocusTarget = null;
+    };
+    const clearHold = (form) => {
+      if (!form || form.dataset.eventForm !== "closure" || !reading.hold) return;
+      reading.hold = "";
+      const note = q(form, "[data-form-status]");
+      if (note) { note.hidden = true; note.textContent = ""; }
+    };
+    const readBreak = (s, e) => {
+      if (!s) return;
+      s.hidden = false;
+      s.innerHTML = escapeText((e.message || L("读取断线")) + " · " + L("已保存，请重试读取，不会再写一条。"))
+        + '<button type="button" class="mw-btn mw-btn--secondary" data-retry-read>' + escapeText(L("重试读取")) + "</button>";
     };
     const applyLaneFilter = (node) => {
       const filter = reading.filter || "all";
@@ -47,15 +61,15 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const hidePanels = (restoreFocus = false) => {
       const article = root();
       if (!article) return;
-      article.querySelector("[data-event-reader-root]")?.setAttribute("hidden", "");
+      q(article, "[data-event-reader-root]")?.setAttribute("hidden", "");
       article.querySelectorAll("[data-event-form]").forEach((form) => { form.hidden = true; });
-      const sheet = article.querySelector("[data-event-sheet]");
+      const sheet = q(article, "[data-event-sheet]");
       if (sheet) sheet.hidden = !reading.item;
       article.classList.remove("is-editing-goal");
       syncPanelPresence();
       if (restoreFocus) requestAnimationFrame(() => requestAnimationFrame(() => {
         if (root() !== article || article.classList.contains("is-editing-goal")) return;
-        const target = returnFocusTarget?.isConnected ? returnFocusTarget : article.querySelector("[data-record-menu] > summary, [data-goal-info] > summary");
+        const target = returnFocusTarget?.isConnected ? returnFocusTarget : q(article, "[data-record-menu] > summary, [data-goal-info] > summary");
         target?.focus({ preventScroll: true });
       }));
     };
@@ -83,8 +97,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       } else if (reading.form || reading.reader) {
         return;
       }
-      root()?.querySelectorAll("[data-timeline-item]").forEach((node) => node.setAttribute("aria-current", String(node.dataset.timelineItem === itemId)));
-      root()?.querySelectorAll("[data-timeline-item]").forEach((node) => node.setAttribute("aria-expanded", String(node.dataset.timelineItem === itemId)));
+      root()?.querySelectorAll("[data-timeline-item]").forEach((node) => { const on = String(node.dataset.timelineItem === itemId); node.setAttribute("aria-current", on); node.setAttribute("aria-expanded", on); });
       const sheet = root()?.querySelector("[data-event-sheet]");
       const anchor = root()?.querySelector('[data-timeline-item="' + CSS.escape(itemId || "") + '"]');
       if (sheet) {
@@ -140,12 +153,12 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       hidePanels();
       article.classList.add("is-editing-goal");
       syncPanelPresence();
-      const sheet = article.querySelector("[data-event-sheet]");
+      const sheet = q(article, "[data-event-sheet]");
       if (sheet) sheet.hidden = true;
       if (isReader) {
-        article.querySelector("[data-event-reader-root]")?.removeAttribute("hidden");
+        q(article, "[data-event-reader-root]")?.removeAttribute("hidden");
         article.querySelectorAll("[data-event-panel]").forEach((panel) => { panel.hidden = panel.dataset.eventPanel !== name; });
-        const title = article.querySelector("[data-reader-title]");
+        const title = q(article, "[data-reader-title]");
         if (title) {
           title.textContent = name === "planning" ? L("记录模板") : name === "description" ? L("目标与要求") : L("完成要求");
           title.tabIndex = -1;
@@ -155,13 +168,16 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       const form = typeId && name === "type-edit"
-        ? article.querySelector('[data-event-form="type-edit"][data-type-id="' + CSS.escape(typeId) + '"]')
+        ? q(article, '[data-event-form="type-edit"][data-type-id="' + CSS.escape(typeId) + '"]')
         : typeId && name === "report"
-          ? article.querySelector('[data-event-form="report"][data-type-id="' + CSS.escape(typeId) + '"]')
-          : article.querySelector('[data-event-form="' + CSS.escape(name) + '"]');
+          ? q(article, '[data-event-form="report"][data-type-id="' + CSS.escape(typeId) + '"]')
+          : q(article, '[data-event-form="' + CSS.escape(name) + '"]');
       if (form) {
         form.hidden = false;
-        if (name === "closure") void loadDeliverables(form);
+        if (name === "closure") {
+          void loadDeliverables(form);
+          if (reading.hold) { const note = q(form, "[data-form-status]"); if (note) { note.hidden = false; note.innerHTML = reading.hold; } }
+        }
         requestAnimationFrame(() => {
           if (!form.isConnected || form.hidden || reading.form !== name) return;
           [...form.querySelectorAll('input:not([type="hidden"]), textarea, select')].find((field) => !field.disabled && field.getClientRects().length)?.focus({ preventScroll: true });
@@ -174,18 +190,18 @@ ${GOALS_DELIVERABLES_SCRIPT}
     const fieldError = (form, fieldId, message) => {
       form.querySelectorAll("[data-field-error]").forEach((node) => { node.hidden = true; node.textContent = ""; });
       if (!fieldId) return;
-      const node = form.querySelector('[data-field-error="' + CSS.escape(fieldId) + '"]');
-      const input = form.querySelector('[name="' + CSS.escape(fieldId) + '"]');
+      const node = q(form, '[data-field-error="' + CSS.escape(fieldId) + '"]');
+      const input = q(form, '[name="' + CSS.escape(fieldId) + '"]');
       if (node) { node.hidden = false; node.textContent = message; }
       if (input?.setCustomValidity) { input.setCustomValidity(message); input.reportValidity(); }
     };
     const checkedValues = (form, name) => [...form.querySelectorAll('[name="' + name + '"]:checked')].map((input) => input.value);
     const typeFields = (form) => [...form.querySelectorAll(".type-field-row")].map((row) => ({
-      field_id: row.querySelector('[name="field_id"]')?.value.trim(),
-      name: row.querySelector('[name="field_name"]')?.value.trim(),
-      purpose: row.querySelector('[name="field_purpose"]')?.value.trim(),
-      format: row.querySelector('[name="field_format"]')?.value || "text",
-      required: row.querySelector('[name="field_required"]')?.checked === true,
+      field_id: q(row, '[name="field_id"]')?.value.trim(),
+      name: q(row, '[name="field_name"]')?.value.trim(),
+      purpose: q(row, '[name="field_purpose"]')?.value.trim(),
+      format: q(row, '[name="field_format"]')?.value || "text",
+      required: q(row, '[name="field_required"]')?.checked === true,
     })).filter((field) => field.field_id && field.name && field.purpose);
 
     const formPath = (kind) => ({
@@ -201,10 +217,10 @@ ${GOALS_DELIVERABLES_SCRIPT}
       if (kind === "report") {
         const fields = Object.create(null);
         form.querySelectorAll("[data-report-field]").forEach((input) => { fields[input.name] = input.value; });
-        const requirementId = form.querySelector("[data-judgment-requirement]")?.value.trim();
-        const verdict = form.querySelector("[data-judgment-verdict]")?.value.trim();
+        const requirementId = q(form, "[data-judgment-requirement]")?.value.trim();
+        const verdict = q(form, "[data-judgment-verdict]")?.value.trim();
         const judgments = requirementId && verdict ? [{ requirement_id: requirementId, verdict }] : [];
-        const title = form.querySelector("[data-event-title]")?.value.trim() || text("event_title");
+        const title = q(form, "[data-event-title]")?.value.trim() || text("event_title");
         return { events: [{ type_id: form.dataset.typeId, type_version: Number(form.dataset.typeVersion), title, fields, judgments }] };
       }
       if (kind === "note") return { body: text("note") };
@@ -222,12 +238,12 @@ ${GOALS_DELIVERABLES_SCRIPT}
             requirement_id: text("requirement_id"),
             statement: text("statement"),
             bound_type_id: text("bound_type_id") || undefined,
-            human_decision_required: form.querySelector('[name="human_decision_required"]')?.checked === true,
+            human_decision_required: q(form, '[name="human_decision_required"]')?.checked === true,
           }],
         };
       }
       if (kind === "adopt") {
-        const selected = form.querySelector('[name="method_id"] option:checked');
+        const selected = q(form, '[name="method_id"] option:checked');
         const defaults = checkedValues(form, "adopt_default_requirement_ids");
         return {
           expected_version: Number(form.dataset.configVersion || article.dataset.configVersion || 0),
@@ -239,7 +255,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
       if (kind === "progress") return { summary: text("summary"), next_step: text("next_step") || undefined, next_actor: text("next_actor") || undefined, based_on_cursor: Number(data.get("based_on_cursor") || article.dataset.goalEventCursor || 0) };
       if (kind === "concern") {
         const action = text("action") || "open";
-        const payload = { action, concern_id: text("concern_id") || undefined, title: text("title") || undefined, statement: text("statement") || undefined, reason: text("reason") || undefined, cited_decision_id: text("cited_decision_id") || undefined, blocks_closure: form.querySelector('[name="blocks_closure"]')?.checked === true };
+        const payload = { action, concern_id: text("concern_id") || undefined, title: text("title") || undefined, statement: text("statement") || undefined, reason: text("reason") || undefined, cited_decision_id: text("cited_decision_id") || undefined, blocks_closure: q(form, '[name="blocks_closure"]')?.checked === true };
         if (action === "open") {
           payload.scope = {
             requirement_ids: checkedValues(form, "requirement_ids"),
@@ -253,8 +269,8 @@ ${GOALS_DELIVERABLES_SCRIPT}
         return payload;
       }
       if (kind === "decision") {
-        const agreementChoice = form.querySelector('[name="agreement_change_decision"]:checked')?.value;
-        if (form.querySelector('[name="agreement_change_decision"]')) {
+        const agreementChoice = q(form, '[name="agreement_change_decision"]:checked')?.value;
+        if (q(form, '[name="agreement_change_decision"]')) {
           return {
             request_id: text("request_id") || undefined,
             conclusion: text("conclusion"),
@@ -274,14 +290,14 @@ ${GOALS_DELIVERABLES_SCRIPT}
         const revise_requirements = [];
         const retire_requirement_ids = [];
         form.querySelectorAll("[data-requirement-edit]").forEach((row) => {
-          const requirementId = row.querySelector('[name="requirement_id"]')?.value.trim();
+          const requirementId = q(row, '[name="requirement_id"]')?.value.trim();
           if (!requirementId) return;
-          if (row.querySelector('[name="retire_requirement"]')?.checked) {
+          if (q(row, '[name="retire_requirement"]')?.checked) {
             retire_requirement_ids.push(requirementId);
             return;
           }
-          const statement = row.querySelector('[name="requirement_statement"]')?.value.trim();
-          const human = row.querySelector('[name="human_decision_required"]')?.checked === true;
+          const statement = q(row, '[name="requirement_statement"]')?.value.trim();
+          const human = q(row, '[name="human_decision_required"]')?.checked === true;
           revise_requirements.push({ requirement_id: requirementId, statement, human_decision_required: human });
         });
         return {
@@ -304,7 +320,8 @@ ${GOALS_DELIVERABLES_SCRIPT}
       const article = root();
       const currentGoal = goalId();
       const kind = form.dataset.eventForm;
-      const status = form.querySelector("[data-form-status]");
+      if (kind === "closure") reading.hold = "";
+      const status = q(form, "[data-form-status]");
       const conflict = article?.querySelector("[data-event-conflict]");
       if (conflict) { conflict.hidden = true; conflict.textContent = ""; }
       if (status) { status.hidden = true; status.textContent = ""; }
@@ -313,8 +330,8 @@ ${GOALS_DELIVERABLES_SCRIPT}
         if (status) { status.hidden = false; status.textContent = L("至少保留一个字段。"); }
         return;
       }
-      if (kind === "decision" && form.querySelector('[name="agreement_change_decision"]')) {
-        const choice = form.querySelector('[name="agreement_change_decision"]:checked')?.value;
+      if (kind === "decision" && q(form, '[name="agreement_change_decision"]')) {
+        const choice = q(form, '[name="agreement_change_decision"]:checked')?.value;
         if (choice !== "authorize" && choice !== "deny") {
           if (status) { status.hidden = false; status.textContent = L("必须选择批准或拒绝这一份约定变更"); }
           return;
@@ -324,11 +341,11 @@ ${GOALS_DELIVERABLES_SCRIPT}
       form.dataset.idempotencyKey = key;
       form.setAttribute("data-live-dirty", "true");
       form.setAttribute("aria-busy", "true");
-      const fields = form.querySelector(".event-form-body");
+      const fields = q(form, ".event-form-body");
       if (fields) fields.inert = true;
       const buttons = [...form.querySelectorAll("button:not(:disabled)")];
       buttons.forEach(button => { button.disabled = true; });
-      const submit = form.querySelector("[type=submit]");
+      const submit = q(form, "[type=submit]");
       const submitLabel = submit?.textContent;
       if (submit) submit.textContent = L("正在保存…");
       const restore = { ...captureRestore(), form: kind };
@@ -350,13 +367,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
                 const replaced = await reloadDocument(currentGoal, restore);
                 if (replaced === false) throw new Error(L("读取断线"));
               }
-            } catch (readError) {
-              if (status) {
-                status.hidden = false;
-                status.innerHTML = escapeText((readError.message || L("读取断线")) + " · " + L("已保存，请重试读取，不会再写一条。"))
-                  + '<button type="button" class="mw-btn mw-btn--secondary" data-retry-read>' + escapeText(L("重试读取")) + "</button>";
-              }
-            }
+            } catch (readError) { readBreak(status, readError); }
             return;
           }
           let current = {};
@@ -377,7 +388,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
           return;
         }
         typeSaved = kind === "type";
-        if (kind === "type" && form.querySelector('[name="add_requirement"]')?.checked) {
+        if (kind === "type" && q(form, '[name="add_requirement"]')?.checked) {
           const extraData = new FormData(form);
           const extraStatement = String(extraData.get("requirement_statement") || "").trim();
           if (!extraStatement) {
@@ -406,9 +417,10 @@ ${GOALS_DELIVERABLES_SCRIPT}
           }
         }
         form.dataset.writeReceipt = body.event_id || "recorded";
-        if (body.unmet_reasons?.length && body.completion_applied === false && status) {
-          status.hidden = false;
-          status.innerHTML = escapeText(L("收尾未生效")) + "<ul>" + body.unmet_reasons.map((item) => "<li>" + escapeText(item.message) + "</li>").join("") + "</ul>";
+        const refused = kind === "closure" && body.completion_applied === false && body.unmet_reasons?.length;
+        if (refused) {
+          reading.hold = escapeText(L("收尾未生效")) + "<ul>" + body.unmet_reasons.map((item) => "<li>" + escapeText(item.message) + "</li>").join("") + "</ul>";
+          if (status) { status.hidden = false; status.innerHTML = reading.hold; }
         }
         try {
           if (typeof reloadDocument === "function") {
@@ -418,17 +430,14 @@ ${GOALS_DELIVERABLES_SCRIPT}
             form.removeAttribute("data-live-dirty");
           }
         } catch (readError) {
-          if (status) {
-            status.hidden = false;
-            status.innerHTML = escapeText((readError.message || L("读取断线")) + " · " + L("已保存，请重试读取，不会再写一条。"))
-              + '<button type="button" class="mw-btn mw-btn--secondary" data-retry-read>' + escapeText(L("重试读取")) + "</button>";
-          }
+          if (status?.isConnected) reading.hold = "";
+          readBreak(status, readError);
           showError?.(L("已保存，但当前页面还没读回。"));
           return;
         }
         delete form.dataset.idempotencyKey;
         if (goalId() !== currentGoal) return;
-        if (body.unmet_reasons?.length && body.completion_applied === false) {
+        if (refused) {
           showStatus?.(L("收尾未生效。顶部已按当前权威状态更新。"));
           return;
         }
@@ -445,7 +454,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
         if (fields) fields.inert = false;
         buttons.forEach(button => { button.disabled = false; });
         if (submit) submit.textContent = submitLabel;
-        if (form.isConnected && !form.hidden) (form.querySelector(":invalid") || submit)?.focus();
+        if (form.isConnected && !form.hidden) (q(form, ":invalid") || submit)?.focus();
       }
     };
 
@@ -486,8 +495,8 @@ ${GOALS_DELIVERABLES_SCRIPT}
         const status = item.type_label === "请求决定" ? pending.has(item.event_id) ? L("待你决定") : L("已处理") : item.status_label;
         const mark = item.relation ? "↗" : item.lane === "result" ? "✓" : item.lane === "decision" ? "◇" : item.lane === "problem" ? "!" : "·";
         button.innerHTML = "<time></time><span class=timeline-dot aria-hidden=true><span class=timeline-mark>" + mark + "</span></span><span class=timeline-copy><strong>" + escapeText(item.title || "") + "</strong><small><b class=timeline-type>" + escapeText(item.type_label || "") + "</b> <span class=timeline-actor>" + escapeText(item.actor_id || "") + "</span></small>" + (status ? "<em class=history-state>" + escapeText(status) + "</em>" : "") + "</span>";
-        button.querySelector("time").dateTime = received;
-        button.querySelector("time").textContent = time;
+        q(button, "time").dateTime = received;
+        q(button, "time").textContent = time;
         nav.append(button);
       });
     };
@@ -495,10 +504,10 @@ ${GOALS_DELIVERABLES_SCRIPT}
     const onClick = (event) => {
       const article = event.target.closest?.("[data-goal-event-document]");
       if (!article || article !== root()) return;
-      if (article.querySelector('[data-event-form][aria-busy="true"]')) { event.preventDefault(); return; }
+      if (q(article, '[data-event-form][aria-busy="true"]')) { event.preventDefault(); return; }
       const item = event.target.closest("[data-timeline-item]");
       if (item) {
-        const sheet = article.querySelector("[data-event-sheet]");
+        const sheet = q(article, "[data-event-sheet]");
         if (item.getAttribute("aria-expanded") === "true" && sheet && !sheet.hidden && !reading.form && !reading.reader) {
           selectedRequest += 1;
           item.setAttribute("aria-expanded", "false");
@@ -538,16 +547,16 @@ ${GOALS_DELIVERABLES_SCRIPT}
       if (retry) {
         void (async () => {
           const state = await fetch(route("/api/goals/" + encodeURIComponent(goalId()) + "/event-state"), { cache: "no-store" }).then((res) => res.json());
-          const form = article.querySelector("[data-event-form]:not([hidden])");
+          const form = q(article, "[data-event-form]:not([hidden])");
           if (!form) return;
-          const config = form.querySelector('[name="expected_config_version"]');
-          const agreement = form.querySelector('[name="expected_agreement_version"]');
+          const config = q(form, '[name="expected_config_version"]');
+          const agreement = q(form, '[name="expected_agreement_version"]');
           if (config) config.value = String(state.config?.version ?? 0);
           if (agreement) agreement.value = String(state.agreement?.version ?? 0);
           form.dataset.configVersion = String(state.config?.version ?? 0);
           form.dataset.agreementVersion = String(state.agreement?.version ?? 0);
           delete form.dataset.idempotencyKey;
-          const box = article.querySelector("[data-event-conflict]");
+          const box = q(article, "[data-event-conflict]");
           if (box) {
             box.hidden = false;
             box.innerHTML = "<p>" + escapeText(L("已换成当前版本。请核对输入后再提交。")) + "</p>"
@@ -650,7 +659,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
     const onKeydown = (event) => {
       if (event.key === "Escape") {
         const menu = event.target.closest?.("[data-record-menu][open], .goal-more[open]");
-        if (menu) { event.preventDefault(); menu.open = false; menu.querySelector("summary")?.focus(); return; }
+        if (menu) { event.preventDefault(); menu.open = false; q(menu, "summary")?.focus(); return; }
       }
       if (!event.target.closest?.("[data-event-timeline]")) return;
       if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -664,16 +673,17 @@ ${GOALS_DELIVERABLES_SCRIPT}
       const input = event.target;
       const form = input.closest?.("[data-event-form]");
       if (!form || form.closest("[data-goal-event-document]") !== root()) return;
+      clearHold(form);
       if (input.name === "effect" && input.checked) {
         const opposite = { accept_requirements: "reject_requirements", reject_requirements: "accept_requirements", accept_concerns: "reject_concerns", reject_concerns: "accept_concerns", authorize_action: "deny_action", deny_action: "authorize_action" }[input.value];
-        if (opposite) { const other = form.querySelector('[name="effect"][value="' + opposite + '"]'); if (other) other.checked = false; }
+        if (opposite) { const other = q(form, '[name="effect"][value="' + opposite + '"]'); if (other) other.checked = false; }
       }
       if (input.matches('[name="add_requirement"]')) {
-        const row = form.querySelector("[data-new-requirement]");
-        if (row) { row.hidden = !input.checked; row.querySelector("textarea").required = input.checked; }
+        const row = q(form, "[data-new-requirement]");
+        if (row) { row.hidden = !input.checked; q(row, "textarea").required = input.checked; }
       }
       if (input.matches("[data-judgment-requirement]")) {
-        const verdict = form.querySelector("[data-judgment-verdict]");
+        const verdict = q(form, "[data-judgment-verdict]");
         verdict.disabled = !input.value; verdict.closest("label").hidden = !input.value;
         if (!input.value) verdict.value = "";
       }
@@ -681,27 +691,27 @@ ${GOALS_DELIVERABLES_SCRIPT}
         let count = 0;
         form.querySelectorAll("[data-adopt-method]").forEach(row => {
           row.hidden = row.dataset.adoptMethod !== input.value;
-          const checkbox = row.querySelector("input"); checkbox.disabled = row.hidden;
+          const checkbox = q(row, "input"); checkbox.disabled = row.hidden;
           if (row.hidden) checkbox.checked = false; else count++;
         });
-        const empty = form.querySelector("[data-adopt-empty]"); if (empty) empty.hidden = count > 0;
+        const empty = q(form, "[data-adopt-empty]"); if (empty) empty.hidden = count > 0;
       }
       if (form.dataset.eventForm === "concern" && (input.name === "concern_id" || input.name === "action" || input.name === "cited_decision_id")) {
-        const existing = Boolean(form.querySelector('[name="concern_id"]')?.value);
-        const action = form.querySelector('[name="action"]');
+        const existing = Boolean(q(form, '[name="concern_id"]')?.value);
+        const action = q(form, '[name="action"]');
         if (input.name === "concern_id") action.value = existing ? "resolve" : "open";
         form.querySelectorAll("[data-concern-new]").forEach(row => row.hidden = existing);
         form.querySelectorAll("[data-concern-existing]").forEach(row => row.hidden = !existing);
-        form.querySelector('[name="title"]').required = !existing;
-        form.querySelector('[name="statement"]').required = !existing;
-        form.querySelector('[name="reason"]').required = existing;
-        const open = action.querySelector('option[value="open"]'); if (open) open.hidden = existing;
+        q(form, '[name="title"]').required = !existing;
+        q(form, '[name="statement"]').required = !existing;
+        q(form, '[name="reason"]').required = existing;
+        const open = q(action, 'option[value="open"]'); if (open) open.hidden = existing;
         form.querySelectorAll("[data-concern-decision]").forEach(row => row.hidden = !existing);
         form.querySelectorAll("[data-concern-accept]").forEach(row => row.hidden = action.value !== "accept");
         const evidenceRequired = existing && (action.value === "resolve" || action.value === "overturn");
         form.querySelectorAll("[data-concern-evidence]").forEach(row => row.hidden = !evidenceRequired);
-        const evidence = form.querySelector('[name="supporting_event_ids"]'); if (evidence) evidence.required = evidenceRequired && !form.querySelector('[name="cited_decision_id"]')?.value;
-        const decision = form.querySelector('[name="cited_decision_id"]'); if (decision) decision.required = action.value === "accept";
+        const evidence = q(form, '[name="supporting_event_ids"]'); if (evidence) evidence.required = evidenceRequired && !q(form, '[name="cited_decision_id"]')?.value;
+        const decision = q(form, '[name="cited_decision_id"]'); if (decision) decision.required = action.value === "accept";
       }
     };
 
@@ -712,6 +722,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
     });
     documentPane.addEventListener("click", onClick);
     documentPane.addEventListener("change", onChange);
+    documentPane.addEventListener("input", (event) => clearHold(event.target?.closest?.("[data-event-form]")));
     documentPane.addEventListener("submit", onSubmit);
     documentPane.addEventListener("keydown", onKeydown);
     documentPane.addEventListener("toggle", (event) => {

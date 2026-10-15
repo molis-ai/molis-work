@@ -1,4 +1,5 @@
 export const PAGES_EN: Record<string, string> = {
+  "评论与备注": "Comments and notes",
   "这篇文档的内容结构暂不支持此操作，原内容已保留。": "This document structure does not support this operation yet. The original content is preserved.",
   "还没有块备注，可从正文的块菜单添加。": "No block notes yet. Add one from a block's menu in the document.",
   "正在载入评论…": "Loading comments…",

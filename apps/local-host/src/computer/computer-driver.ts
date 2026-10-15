@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
 import { tierOf, type AppTierVerdict } from "./app-tiers.js";
 import { modelImageReason, observationExpired, pointerFromNode } from "./computer-act.js";
@@ -143,7 +143,7 @@ export interface DeskContext {
   /** Folds in the run id once the round's run exists. The id here may differ from the session that holds the lease. */
   noteRun(sessionId: string, runId: string): void;
   /** Ends the round that `describeRound` named: finishes its record and frees the computer. */
-  release(sessionId: string): void;
+  release(sessionId: string, ended?: HostSurfaceRoundEnd): void;
   /** The window title just read. Empty when that window is gone. */
   noteWindow?(title: string): void;
   /** A file this round handed over, took out, or found as the window's document. */
@@ -167,8 +167,8 @@ export class ComputerDriver {
 
   /** The stable `HostSurfaceDriver` the Agent Host attaches. */
   surface(): HostSurfaceDriver {
-    // The host ends the round with `release()` and no id (`HostSurfaceDriver.release`). The lease id is the Molis
-    // session from `describeRound`, not the Prologue session ref passed to `noteRun` and `release(sessionRefId)`.
+    // The host ends the round with `release(ended)` (`HostSurfaceDriver.release`), saying how the run settled. The lease id
+    // is the Molis session from `describeRound`, not the Prologue session ref the surface host keys its drivers by.
     const round = { sessionId: null as string | null };
     return {
       kind: "desktop",
@@ -180,11 +180,9 @@ export class ComputerDriver {
       perform: (action, context) => this.perform(action, context.session_id),
       describeRound: (sessionId, context) => { round.sessionId = sessionId; this.ctx.describeRound(sessionId, context); },
       noteRun: (sessionId, runId) => this.ctx.noteRun(sessionId, runId),
-      // `prologue-node.ts` releases with the Prologue session ref. The surface host calls this with no id.
-      // The lease is the Molis session from `describeRound`; the ref is only a fallback before that ran.
-      release: async (sessionId?: string) => {
-        const leaseId = round.sessionId ?? sessionId ?? null;
-        if (leaseId) this.ctx.release(leaseId);
+      // A run that ended without saying how (an older Host) is judged from the facts alone.
+      release: async (ended?: HostSurfaceRoundEnd) => {
+        if (round.sessionId) this.ctx.release(round.sessionId, ended);
       },
       close: async () => undefined,
       describePoint: (x, y) => this.describePoint(x, y),

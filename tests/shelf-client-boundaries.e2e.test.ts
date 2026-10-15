@@ -82,8 +82,7 @@ async function openShelfBrowser(t: TestContext) {
     await harness?.close();
     server.closeAllConnections();
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    // Chrome's helper processes can still be writing the profile just after the main process exits (seen on Linux CI).
-    await rm(home, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    await rm(home, { recursive: true, force: true });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");

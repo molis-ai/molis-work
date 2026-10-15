@@ -226,7 +226,7 @@ test("the side panel browser shows and drives a real page, and the Assistant's d
     await page.navigate(`${forbidden.origin}/`);
     // Settled means the refusal is in: right after the navigation the previous state can still read "not loading" while the
     // document is between pages (no body yet), which is how this failed on the Linux runner.
-    await until(() => state, value => !!value && !value.loading && value.problem?.code === "page.load_failed", "the blocked load to settle");
+    await until(() => state, value => !!value && !value.loading && value.problem?.code === "browser.load_failed", "the blocked load to settle");
     assert.equal(await page.evaluate("document.body.innerText.includes('控制令牌在这里')"), false, "the forbidden origin's page never loaded");
     assert.notEqual(state!.title, "本机服务");
     assert.equal(state!.problem?.code, "browser.load_failed");

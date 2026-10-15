@@ -959,6 +959,7 @@ interface AgentInputView {
   - Coding：`runs.control` 第 3 版；补充经 `agent.inputs.send`，已结束的轮次也放行补充；改计划的说明同样经它（`routes.ts` 行数不变，W4-07 拆完后按新位置落）。
   - 助理：`RunningRoundPort` 拆成 `answer` 与 `send`；键 `send.<request_id>`；`queued` 结果；下一轮 `queued: "carry"`；`exactRevision` 去掉 `pending_revision ?? 1`（两处）。页面：三句提示合成一张表，`queued` 复用已有的「已保存，下一轮开始生效」；删掉没人用的 `cardHint`，工作台脚本比 main 小 28 字节（`page-assets.json` 已降）。
   - 验证：`pnpm build` 后定向 11 个文件全过（含新的 `agent-input-delivery` RC-02–RC-05、`coding-run-control-contract` RC-01、`assistant-coding-executor` 与 `assistant-delegation` RC-06）；健康门禁对照 merge-base 通过（巨大单元与 typed 能力位置变少，`baseline.json` 已更新）；`api:update`、`actions:update` 已刷新（`coding.runs.control` 2→3，新增 `agent.inputs.send.v1@1`，受众 plugin）；页面资源、边界、页面事件、测试引用检查通过。
+  - 变基到 ac47ed78（#536，W3-A1）：只有 `baseline.json`、`page-assets.json` 两个生成文件冲突，取 main 的再整体构建、`--update`。#536 已删掉 `cardHint`，第三句提示的字节改由 `assistant-send.ts` 里三处 `a && a.b` 写成 `a?.b`（结果相同）抵掉，工作台脚本比 main 小 10 字节。`affected-tests` 选出的 218 个非浏览器文件：216 过，2 个是本片的预期变化——`coding-actions` 断言 `runs.control` 第 2 版（改为第 3 版，并断言第 1、2 版都已不在），`coding-plan-amend-http` 的替身拦的是旧的 `controlRun` 补充（改为登记 `agent.inputs.send`，并断言说明以 `host` 来源发出）；改后两个都过。
   - 还没做：恢复报告列出输入（读 SDK `inputQueue()`）；会话条目记录收下的输入——SDK 的输入记录已带键、来源，按一个事实一个主人不在 Molis 另存，待统筹确认后从 1c 清单删去；隔离 Home 实走；防腐复查节。
 
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）

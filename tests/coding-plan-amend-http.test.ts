@@ -7,6 +7,7 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
@@ -19,13 +20,18 @@ test("plan changes are checked, applied through the Host graph operation, and to
   const board = { project_id: "b1", version: 4, terminal: false, nodes: [
     { id: "step-1", state: "running", reports: [], title: "读取代码" }, { id: "step-2", state: "not-started", reports: [], title: "实现功能" }] };
   const amendments: unknown[] = [], steers: string[] = []; let steerFails = false;
-  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
+  // The live round hears of the change through agent.inputs.send, as the Host's note (never the person's words).
+  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  actions.registry.registerProvider({ provider: { provider_id: "fixture.agent-host", title: "fixture", kind: "system" }, definitions: [agentInputActions.send], handlers: [
+    { ...agentInputActions.send, handle: async (_caller, input) => { const sent = input as { text: string; source?: string; run_id: string };
+      assert.equal(sent.source, "host"); assert.equal(sent.run_id, "r");
+      if (steerFails) throw new Error("run is not accepting input"); steers.push(sent.text); return { input_id: "steer-1", replayed: false, delivered: "run" }; } }] });
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
     execution: { ready: async () => {}, models: async () => [] }, capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
       const input = args as any[];
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
       if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "running", step_board: board } as O;
       if (definition.capability_id === agent.amendStepBoard.capability_id) { amendments.push({ amendment: input[2], version: input[3] }); return { ...board, version: board.version + 2 } as O; }
-      if (definition.capability_id === agent.controlRun.capability_id) { if (steerFails) throw new Error("run is not accepting input"); steers.push(input[2].text); return undefined as O; }
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } } });
   const server = createServer((req, res) => { void handleCodingPluginHttp(req, res, new URL(req.url!, "http://localhost"), host()).catch(error => { res.writeHead(500); res.end(String(error)); }); });

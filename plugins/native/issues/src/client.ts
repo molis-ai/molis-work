@@ -187,7 +187,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   }));
   scope.listen(root, 'molis-work:select-item', event => { if (typeof event.detail?.itemId === 'string') run(() => open(event.detail.itemId)); });
   scope.listen(window, 'beforeunload', event => {
-    if (pending.some(item => item.state === 'organizing') || editing && !draft() && Object.keys(changed()).length) { event.preventDefault(); event.returnValue = ''; }
+    if (importing || pictureWrites || pictureFault || pending.some(item => item.state === 'organizing') || editing && !draft() && Object.keys(changed()).length) { event.preventDefault(); event.returnValue = ''; }
   });
   // The side panel focuses this frame when it is summoned: land in the composer, ready to type. A click into the
   // frame also focuses it; that click goes where it was aimed, with nothing moved under it.

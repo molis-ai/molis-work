@@ -30,7 +30,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后 `beforeEffect()` 再按读取时的版本提交。被取消、撤权、停用的调用不再写任何业务记录（插件、Module 与 Home 里属于某项事实的数据，含失败记账）；其中处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记），不算业务数据（用户 2026-10-10 决定）。
 - 合同读写都只认现行取值：存量数据由维护改成现行形状，读取时不兜底历史取值；新增兼容或迁移逻辑要先写进 `specs/repository-anti-corruption` 的保留机制并经用户确认。以后的读取兼容怎样做、从什么时候起算（第一个装到开发机之外的版本），见 `docs/system/CONTRACT-CHANGES.md`。
 - 可信身份（actor、项目、安装）从调用上下文来，不从输入读；密钥只给引用。
-- 新的内置插件只走 Plugin Runtime 装配（`apps/local-host/src/project-plugins.ts` 的监督器条目）：不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往 `apps/workbench/src/builtin-plugins.ts` 加构建期条目。现存的旧路径插件名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`，只许减少。
+- 新的内置插件只走 Plugin Runtime 装配：项目级的是 `apps/local-host/src/project-plugins.ts` 的监督器条目；个人数据跨项目一致的 Home 级插件，是 `apps/workbench/src/builtin-plugins.ts` 目录条目上的 `runtime: { scope: "home", … }`，由宿主的 Home 监督器（`apps/local-host/src/home-plugins.ts`）装配（用户 2026-10-14 定，写法见 `skills/molis-plugin-dev/host.md`）。两者之外不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往 `apps/workbench/src/builtin-plugins.ts` 加构建期条目。现存的旧路径插件名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`，只许减少。
 - 插件只提供内容，挂在工作台的位置（目录、主区、浮层、设置、侧栏）；不出自己的整页、不开第二个浏览器标签页。例外清单见 `specs/artifact-positioning/spec.md` §4，门禁 `tests/shell-page-gate.test.ts`（CI 里跑）。
 - 成果库只收人要留存、引用的固定版本与导入文件：类型在 manifest `artifacts.produces` 声明，带显示名与 owner 的预览动作；交给别的插件的数据是过程项（`process_items.produces`），不进成果库、侧栏文件和搜索。宿主按 manifest 拒绝未声明的写入；门禁 `tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts`（CI 里跑）。
 - 删除项目只有一份 Host 服务（`apps/local-host/src/project-deletion-service.ts` 的 `ProjectDeletionService`）：新的删除入口调它，操作者由入口给、不从请求参数读；现有入口与例外见 `docs/system/CALL-CHAINS.md` 链 2 步骤 7。

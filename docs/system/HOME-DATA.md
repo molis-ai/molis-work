@@ -193,7 +193,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | `agent-runtime/checkpoints/` | SDK（`node_modules/@prologue/sdk/dist/host/plugin/node.js:181`）：检查点索引，重启后还在 | JSON 文件 · 无版本 | 必备份（与 `records/` 同一时点） | 否 |
 | `agent-runtime/leases/` | SDK（`node_modules/@prologue/sdk/dist/host/plugin/node.js:174-177`）：持有者写成 `pid-<进程号>` | 目录 · 无版本 | 临时 | 否 |
 | `agent-runtime/storage.key` | SDK `node_modules/@prologue/sdk/dist/host/plugin/node-storage.js`（`KEY_FILE`，`:6`）：32 字节，首次以 `wx` 创建，0600 | 密钥文件 | 密钥：丢了 `records/` 里的加密正文读不出 | 否 |
-| `agent-runtime/image-intake/` | `horizontal/agent-host/src/adapters/prologue-node.ts:876` | 目录 | 临时 | 否 |
+| `agent-runtime/image-intake/` | `horizontal/agent-host/src/adapters/prologue-documents.ts:33` | 目录 | 临时 | 否 |
 | `git-operation-details.json`（Home 根目录） | `apps/local-host/src/agent-host-composition.ts:162`：Git 操作审查产生的细节文字，按审查键存 | JSON 文件 · 无版本 | 必备份，与 `agent-runtime/` 同一时点（`molis-git-review-*` 记录里只有回执） | 否 |
 | `feed/secrets.json` | `packages/storage/src/adapters/file-secret-store.ts:82`；`SecretStore` 的密文，含模型 API Key、连接器凭据、Feed 证据密钥（`apps/local-host/src/project-catalog.ts:179`、`apps/local-host/src/agent-connector-ports.ts:33`） | JSON，AES-256-GCM 封条 · 文件字段 `version` = 2（`packages/storage/src/adapters/file-secret-store.ts:60`），旧格式拒绝 | 密钥。主密钥在 macOS Keychain，不在 Home 里（第 8 节） | 否 |
 | `feed/secrets.key` | `packages/storage/src/adapters/file-secret-store.ts:134`：没有 Keychain、没有 `MOLIS_WORK_ENCRYPTION_KEY` 时的安装密钥文件 | 密钥文件 · 0600 | 密钥；真实 Home 里不存在，用的是 Keychain | 否 |

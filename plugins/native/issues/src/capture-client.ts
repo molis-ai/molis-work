@@ -6,7 +6,7 @@
  * opens into the editor with nothing lost. Watching does not depend on the panel being open.
  */
 export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
-  const ready = () => { $('submit').disabled = Boolean(importing) || !desc.value.trim() && !images.length; };
+  const ready = () => { $('submit').disabled = Boolean(importing || restoring || pictureWrites) || !desc.value.trim() && !images.length; };
   // The page the person was on, as the shell reports it; a report, never proof of what was on screen.
   const where = () => { try { return host.page?.() || null; } catch { return null; } };
   const message = item => {
@@ -79,18 +79,19 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
     }
   };
   const submit = async () => {
-    if (importing || !desc.value.trim() && !images.length) return;
+    if (importing || restoring || pictureWrites || !desc.value.trim() && !images.length) return;
     const item = { id: crypto.randomUUID(), text: desc.value, images, page: where(), at: Date.now() };
+    const cleared = pictures(() => []);
     pending.unshift(item); desc.value = ''; images = [];
     try { localStorage.removeItem(KEY); } catch { /* Nothing kept, nothing to clear. */ }
     paint(); fit(desc); desc.focus();
-    await organize(item);
+    try { await cleared; await organize(item); } catch (error) { attention(item, error.message); }
   };
   // Undo takes the record back while nobody has changed it, and returns the words to an empty composer.
   const undo = async (issue, item) => {
     await api('discard', { id: issue.id, expected_version: issue.version });
     rows = rows.filter(row => row.id !== issue.id); render();
-    if (!desc.value.trim() && !images.length) { desc.value = item.text; images = item.images; paint(); fit(desc); desc.focus(); toast(L('已撤销，内容放回了输入框')); }
+    if (!desc.value.trim() && !images.length) { desc.value = item.text; const restored = pictures(() => item.images); try { localStorage.setItem(KEY, desc.value); } catch { /* The live draft remains available. */ } paint(); fit(desc); desc.focus(); toast(L('已撤销，内容放回了输入框')); await restored; }
     else toast(L('已撤销'));
   };
   const drop = item => { pending = pending.filter(entry => entry !== item); };

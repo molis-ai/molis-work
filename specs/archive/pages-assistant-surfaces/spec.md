@@ -1,6 +1,8 @@
 # Pages 评论、插件侧栏与个人助理展示位置
 
-状态：实现与本轮验证完成（2026-10-13，含全屏输入与左栏高度整理，尚未合入主干）。本轮达到约定的**内部完整**范围：真实侧栏联动、助理主区标签、Pages 评论线程内回复，以及隔离 Home 的主链路与异常恢复验证；系统 IME、软键盘、屏幕阅读器与外部模型质量的未验证边界见第 8 节。P0 高保真切片已完成，证据保留在第 7 节；它不代替生产验收。用户已授权同步 main、提交推送、创建 PR 并合入 main；真实 Home 数据维护与发布仍为后续范围。
+> 归档（2026-10-14，随 PR #489 交付）：判定为**已实现**，达到本规格约定的内部完整范围。实现、隔离 Home 的真实路径、全量及失败复验依据见第 8 节与第 12.4 节；最终 CI 与合并记录见 [PR #489](https://github.com/molis-ai/molis-work/pull/489)。系统 IME、软键盘与 VoiceOver 的真机验证并入 [BL-016](../../BACKLOG.md)；真实 Home 库维护仍按[发布清单](../../../docs/releases/CHECKLIST.md)单独处理。
+
+范围包括真实侧栏联动、助理主区标签、Pages 评论线程内回复，以及隔离 Home 的主链路与异常恢复。外部模型质量和一骏本人体验验收不由自动化结果代替。P0 高保真切片证据保留在第 7 节，生产验证见第 8 节；真实 Home 数据维护与发布不在本次实现范围。
 
 ## 1. 目标与现状证据
 
@@ -10,16 +12,16 @@
 
 | 现状 | 来源 | 本次差距 |
 | --- | --- | --- |
-| Manifest 已有 side 槽，宿主派生插件侧栏标签，独立同源 iframe 挂载 | [UI 合同](../../packages/contracts/src/platform/ui.ts)、[侧栏壳](../../apps/workbench/src/side-panel.ts)、[目录投影](../../apps/workbench/src/plugin-catalog.ts) | 缺主区对象、选区与侧栏视图之间可校验的动态绑定和生命周期 |
-| 侧栏开关事件支持 tab / view / target；隐藏保留实例 | [侧栏壳](../../apps/workbench/src/side-panel.ts)、[接入约定](../../skills/molis-plugin-dev/ui.md) | target 不能代替完整上下文与权限合同；需要 ready 后补发及迟到消息丢弃 |
-| 主区已有标签、窗格与恢复；助理另外维护最多六个工作标签 | [主区标签](../../apps/workbench/src/scripts/client/tab-workspace.ts)、[助理脚本](../../apps/workbench/src/scripts/client/assistant-island.ts)、[底栏](../../apps/workbench/src/assistant-dock.ts) | 缺同一 work 在底栏/主区间迁移的展示控制，不能复制两套会话状态 |
-| Pages 评论为 comment mark 的 id/text，块备注为 node.attrs.note；编辑与预览用浮层 | [schema](../../plugins/native/pages/src/schema.ts)、[命令](../../plugins/native/pages/src/commands.ts)、[编辑器](../../plugins/native/pages/src/editor-browser.ts) | 不是有作者、消息、运行归属的线程；单纯搬 DOM 不足以支持助理参与 |
-| Pages 持久化正文、文档版本与生成记录 | [Pages 合同](../../packages/contracts/src/modules/pages.ts)、[存储](../../plugins/native/pages/src/store.ts) | 缺线程、消息、锚点和幂等回复记录 |
-| 个人助理有 work / round、对象上下文及插件消息协议 | [助理合同](../../packages/contracts/src/services/assistant.ts)、[服务](../../apps/local-host/src/assistant/assistant-service.ts) | 现有 purpose: reply 是插件把结果交给助理，不是助理写入评论；不得反用 |
+| Manifest 已有 side 槽，宿主派生插件侧栏标签，独立同源 iframe 挂载 | [UI 合同](../../../packages/contracts/src/platform/ui.ts)、[侧栏壳](../../../apps/workbench/src/side-panel.ts)、[目录投影](../../../apps/workbench/src/plugin-catalog.ts) | 缺主区对象、选区与侧栏视图之间可校验的动态绑定和生命周期 |
+| 侧栏开关事件支持 tab / view / target；隐藏保留实例 | [侧栏壳](../../../apps/workbench/src/side-panel.ts)、[接入约定](../../../skills/molis-plugin-dev/ui.md) | target 不能代替完整上下文与权限合同；需要 ready 后补发及迟到消息丢弃 |
+| 主区已有标签、窗格与恢复；助理另外维护最多六个工作标签 | [主区标签](../../../apps/workbench/src/scripts/client/tab-workspace.ts)、[助理脚本](../../../apps/workbench/src/scripts/client/assistant-island.ts)、[底栏](../../../apps/workbench/src/assistant-dock.ts) | 缺同一 work 在底栏/主区间迁移的展示控制，不能复制两套会话状态 |
+| Pages 评论为 comment mark 的 id/text，块备注为 node.attrs.note；编辑与预览用浮层 | [schema](../../../plugins/native/pages/src/schema.ts)、[命令](../../../plugins/native/pages/src/commands.ts)、[编辑器](../../../plugins/native/pages/src/editor-browser.ts) | 不是有作者、消息、运行归属的线程；单纯搬 DOM 不足以支持助理参与 |
+| Pages 持久化正文、文档版本与生成记录 | [Pages 合同](../../../packages/contracts/src/modules/pages.ts)、[存储](../../../plugins/native/pages/src/store.ts) | 缺线程、消息、锚点和幂等回复记录 |
+| 个人助理有 work / round、对象上下文及插件消息协议 | [助理合同](../../../packages/contracts/src/services/assistant.ts)、[服务](../../../apps/local-host/src/assistant/assistant-service.ts) | 现有 purpose: reply 是插件把结果交给助理，不是助理写入评论；不得反用 |
 
 保留：Soft Workbench、底栏入口、既有 side 槽/主区标签、个人助理与 Home 唯一 Prologue Runtime、Pages 数据归属。替换：评论浮层的主要交互位置、助理只能在底部面板查看的限制。忽略：旧浮层尺寸和独立标签上限对主区的约束。
 
-与 [跨插件 AI 交互](../ai-interaction-experience/spec.md) 分工：该任务拥有问询、选项、动作卡与通用输入部件；本文拥有侧栏上下文、助理展示迁移、Pages 评论线程及回复归属。其“不默认迁入主区”是旧任务的范围限制，本次用户已明确提出该新增范围，不改写旧任务历史。在途 PR #180 / #411 的情境工具条、#410 的 AI 交互、#472 的 Prologue 接入，在生产实施前按最新基线核对共享合同，不复制其输入回执、选区冻结或交互卡机制。
+与 [跨插件 AI 交互](../../ai-interaction-experience/spec.md) 分工：该任务拥有问询、选项、动作卡与通用输入部件；本文拥有侧栏上下文、助理展示迁移、Pages 评论线程及回复归属。其“不默认迁入主区”是旧任务的范围限制，本次用户已明确提出该新增范围，不改写旧任务历史。在途 PR #180 / #411 的情境工具条、#410 的 AI 交互、#472 的 Prologue 接入，在生产实施前按最新基线核对共享合同，不复制其输入回执、选区冻结或交互卡机制。
 
 ## 2. 交互方案
 
@@ -145,7 +147,7 @@
 
 ## 7. 切片范围与证据
 
-切片：[说明与运行入口](../../docs/design/pages-assistant-surfaces/README.md)。只写 docs/design 和本 spec 及两份索引，不改生产源码、合同、真实 Home、发布包。不做账号/多人同步、通知中心、正文自动改写或通用 UI 引擎。
+切片：[说明与运行入口](../../../docs/design/pages-assistant-surfaces/README.md)。只写 docs/design 和本 spec 及两份索引，不改生产源码、合同、真实 Home、发布包。不做账号/多人同步、通知中心、正文自动改写或通用 UI 引擎。
 
 2026-10-13 在隔离工作树、回环静态服务中完成以下验证。浏览器为 Codex 内置浏览器，串行操作切片；未启动生产构建、生产浏览器用例批次或第二个 Home Runtime。复现步骤见切片 README，页面右上角可清空本切片示例后重走。
 
@@ -295,3 +297,28 @@ PAS-15：原 Markdown（段落、标题、表格、嵌套/任务列表、引用�
 14 文件 82 项短回归首轮 80 通过、2 失败、无跳过。两项均为新增测试准备错误：重载后面板关闭时真实点击新建被可见性守卫拒绝；列表测试把空行误当作原规则不存在的类型分隔。补真实空输入 Enter 展开路径，在两组独立列表间加入段落，并另加原混合标记同级列表的断言；生产代码不变。仅这两个文件复验 5/5 通过。PAS-15 真实浏览器完整验证分段流式文字保留同一气泡、重复实际响应保留展开状态、真实 Clipboard 精确复制、对象侧栏打开请求、Arrival 纯文字回退、重载绑定、审查网络失败后的原诊断与按钮恢复，以及拒绝后真实 Todo 为 0、允许后为 1。其他用例覆盖原授权、线程投递、主干 Host 问答/卡片、窄屏审查状态环、实时跟随、页面组合、原程序转换与缓存、Pages 实际长讨论和八组助理主区尺寸/主题。
 
 短构建/浏览器槽已释放给 I8。共同全量、最终远端 CI 与合并尚未完成；本节结果不宣称全量全绿，不代替系统 IME、软键盘或一骏本人验收。
+
+
+### 12.4 独立完成 #489 合入（2026-10-14）
+
+用户要求继续将 #489 合入 main，防腐总任务仍暂停。本分支已无冲突合入实际主干 `393e8958c`（含 #497 测试进程隔离/并发与 #499 桌面截图拖入修复）；不把尚未合并的防腐集成树整体带入。联合全量 108 的冻结树只作为已有组合证据，仍须区分本 PR、主干已有问题与未合入防腐改动。
+
+PAS-14/PAS-15 补齐当前编辑器合同的两处既有测试夹具：空白文档退出、工作台对象命名的 Editor stub 增加 `bindComments`，与草稿竞争夹具一致。它们继续调用生产 Pages 工厂并保留原行为断言；真实评论接线由 Pages/Assistant 浏览器回归覆盖。源码已确认此前会在初始化时抛出缺方法错误，修复后的运行结果待执行，不能用这项静态结论代替验收。
+
+按机器现有构建/浏览器锁排期，先整体构建与门禁，再进行本分支最终全量及实际 Pages/Assistant 浏览器路径；逐项处理失败，必要时以干净主干跑同批用例比较。推送前检查密钥，更新 PR 的现行范围与实际证据，CI 通过并确认最新 main 后合并。真实 Home、发布安装与系统 IME 等未验证边界继续按第 8 节保留。
+
+本轮完整回归发现 `document-plugins-error-model` 把新浏览器模块中的本地提示、HTTP 失败与 Promise 拒绝按服务端错误表达式检查；原逻辑位于浏览器模板正文时不在其表达式范围。核对该测试原合同明确只覆盖服务器源码和 Host，故保持产品实现，修正测试的扫描域：从现有 `tsconfig.editor.json` 的实际入口沿导入关系识别纯浏览器模块；同时从所有非浏览器文件追踪服务器可达模块。共享及来源未确定的文件继续按服务端检查，浏览器模板插值仍检查；其他 owner code、错误类与映射器断言全部保留。复用现有 AST 导入解析器，补共享模块、动态导入、重导出、require 与 type-only 的反证，不添加按文件名豁免的名单或新框架。冻结全量结束后才应用测试修正并定向验证，不将首次全量记为全绿。
+
+远端产品子集先出现 Chrome debugger 启动失败，重跑后该项通过而 Goals MCP 第二用例达到原 60 秒上限。相同 merge-base 的 main CI 全部通过；另一个 PR 的产品源码不变、只合文档后，该 Goals 用例也从通过变为超时，支持存在运行波动，但尚不能确定具体原因。仅在该用例补充真实调用的阶段与耗时诊断，保持原时间预算、输入输出和所有断言，以后续 CI 的实际结果裁决。
+
+`3f647ab89` 的整体构建、包边界与逐项资源检查通过。冻结全量于 2026-10-14 完成，69.1 分钟：916 文件中 914 通过，6,298 项测试中 6,287 通过、2 失败、9 条件跳过，无取消。失败一是上述错误模型扫描域，失败二是 `workbench-pane-feed.e2e` 的第三项在真实鼠标事件处达到原 CDP 5 秒预算，尚未到达标签保持的业务断言；补充点击目标诊断后原样复验，不提高超时。9 项跳过来自既有的真实账号、模型、联网与本机工具条件，不增加跳过。
+
+随后无冲突合入 main `9a6e4947e4`（#500–#504），包含 Issue 草稿/预览修复及其已在主干批准的预算变更。当前追加验证为整体构建、包边界、逐项预算、health、两项失败的复验、Goals 阶段诊断、新 Issue 浏览器用例及 Pages/Assistant 真实浏览器路径。错误扫描域只跟踪静态可解析的相对运行时导入；运行时拼接的模块名不在此静态检查范围。浏览器入口与实际 esbuild 入口已核对，构建入口变化时须重新核对。
+
+
+最终组合（main `9a6e4947e4`）整体构建、包边界和相对主干 health 均通过；29 项资产逐项满足预算，合计 9,618,115 字节。7 文件 58 项定向复验全部通过、无跳过：错误模型检查 14/14、Goals MCP 2/2、资源预算 33/33、新 Issue 图文草稿与预览 4/4、窗格 3/3，以及 Assistant 正文与 Pages 侧栏各 1/1。窗格仅增加点击目标诊断，原点击、5 秒 CDP 预算和业务断言均不变；此前超时未复现，具体根因未确认。上述复验解决首轮失败的验收状态，不把首轮 2 失败改写为全绿。最后仅整理规格归档与引用，产品源码保持此组合；远端 CI 的最新结果与最终合并 SHA 记录在 PR #489。
+
+`308dd02d0` 的远端 CI（38626042379）仍有 Goals MCP 单例超时，其他 361/362 文件通过。阶段诊断显示该单例在 60,206 ms 时仍于结构提案拒绝检查中推进，之前六次调用均正常完成（约 0.5 秒/次，目录约 1 秒）。原单例串联了读取、回收站、guidance/planning、工作记录/决定、结构提案和个人配置多个独立合同。收尾修正仅调整测试组织：在同一文件复用真实隔离 Home/Host/MCP 的建立与关闭，分为“读取与回收站”“guidance、planning 与用户配置”“工作记录、决定与结构提案”三例。每例仍为 60 秒，CI 文件级 180 秒、并发、重试和清单不变；全部原请求、断言与可信身份保留。撤权后的持久化零新增、同一连接中个人规划更新、撤权后再授权 apply、两份提案及伪造拒绝仍分别位于同一业务例中。不以增加时间预算、删减断言或模拟返回消除失败。
+
+
+拆分后保留原 HTTP 超时清理钩子，正常路径仍在各例的 `finally` 中关闭 SDK、HTTP、Host 和临时 Home。4 项真实测试首轮全部通过（26.1 秒）；最终用与 CI 相同的执行器、180 秒文件预算且不重试复验，4/4 通过（25.6 秒）。相对 main 的 health 通过；原 280 处断言及关键调用表达式逐项对照未丢失。独立只读审阅核对三组状态依赖后未发现 Blocker/P1。最终远端结果仍以 PR 的新提交为准。

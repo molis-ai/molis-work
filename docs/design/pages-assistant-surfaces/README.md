@@ -1,6 +1,6 @@
 # Pages 与个人助理：可交互切片
 
-这是参考原型，目标为可交互高保真切片。规范沿用 [DESIGN.md](../../../DESIGN.md)，唯一需求来源是 [统一 spec](../../../specs/pages-assistant-surfaces/spec.md)。生产接线与验收进度见规格第 8 节；本目录仍是独立模拟原型，不会连接真实 Home。
+这是参考原型，目标为可交互高保真切片。规范沿用 [DESIGN.md](../../../DESIGN.md)，唯一需求来源是 [统一 spec](../../../specs/archive/pages-assistant-surfaces/spec.md)。生产接线与验收进度见规格第 8 节；本目录仍是独立模拟原型，不会连接真实 Home。
 
 在本工作树根目录运行：
 

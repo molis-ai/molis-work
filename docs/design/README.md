@@ -4,7 +4,7 @@
 
 | 目录 | 是什么 | 现在的地位 |
 | --- | --- | --- |
-| [pages-assistant-surfaces/](pages-assistant-surfaces/README.md) | Pages 侧栏与助理主区高保真交互切片 | 参考原型；生产实施见 [spec](../../specs/pages-assistant-surfaces/spec.md) |
+| [pages-assistant-surfaces/](pages-assistant-surfaces/README.md) | Pages 侧栏与助理主区高保真交互切片 | 参考原型；生产实施见 [spec](../../specs/archive/pages-assistant-surfaces/spec.md) |
 | [project-arrival-flow/](project-arrival-flow/README.md) | 打开 Molis Work：项目选择页、Welcome 与新建项目引导的高保真设计、可交互原型、状态与深色/窄屏图、三段动效录屏 | 当前的**参考原型**（2026-10-01 用户认可），生产实现见 [specs/archive/project-arrival-flow](../../specs/archive/project-arrival-flow/spec.md)。原型里的项目、材料、整理结果都是示例数据 |
 | [soft-workbench/](soft-workbench/README.md) | 用户认可的 Soft Workbench 高保真原型（首页、目标、信息流、新手引导） | 当前视觉语言的**参考原型**；已按 [specs/archive/soft-workbench-rollout](../../specs/archive/soft-workbench-rollout/spec.md) 落到生产。原型里的数据、AI 回复和 localStorage 都是演示 |
 | [taste.md](taste.md) | 历次纠偏抽出的验收口径 | 仍在用；视觉条目已按 Soft Workbench 更新 |

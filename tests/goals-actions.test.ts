@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -83,7 +83,16 @@ test("Goals actions keep the runtime author; the management caller and the first
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("official MCP launcher discovers granted Goals actions and writes into the shared Host", { timeout: 60_000 }, async t => {
+// Each independent contract gets a fresh real connection; all grant changes within a contract stay on that connection.
+async function openGoalsMcp(t: TestContext) {
+  const started = Date.now(), recent: string[] = []; let active = "create Home", activeStarted = started;
+  const traceAbort = () => t.diagnostic(`Goals MCP timed out or was interrupted at ${active}; activeElapsed=${Date.now() - activeStarted}ms; elapsed=${Date.now() - started}ms; completed=${recent.join("; ")}`);
+  t.signal.addEventListener("abort", traceAbort, { once: true });
+  const step = async <T>(name: string, work: () => Promise<T>): Promise<T> => {
+    active = name; const began = Date.now(); activeStarted = began; const result = await work();
+    recent.push(`${name}=${Date.now() - began}ms`); if (recent.length > 6) recent.shift();
+    active = `after ${name}`; activeStarted = Date.now(); return result;
+  };
   const home = await mkdtemp(join(tmpdir(), "goals-actions-mcp-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "MCP Goals", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -92,9 +101,20 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
   // A Runtime write through MCP is recorded under the Session the launcher declares.
   const sessionActor = `${caller.actor_id}:goals-actions-session`;
   // The Host's own web server: the access settings the grants go through, and the gateway the MCP launcher reaches.
-  const served = await serveTestHost(t, { home, host });
+  const served = await step("Host HTTP startup", () => serveTestHost(t, { home, host }));
   const origin = served.origin;
   const sdk = new Client({ name: "untrusted-client-name", version: "1" });
+  // These wrappers forward every argument to the real methods; they only name a stalled stage.
+  const callTool = sdk.callTool.bind(sdk), listTools = sdk.listTools.bind(sdk), revoke = served.revoke.bind(served), grant = served.grant.bind(served);
+  t.mock.method(sdk, "callTool", (...args: Parameters<typeof sdk.callTool>) => step(`MCP ${args[0].name}`, () => callTool(...args)));
+  t.mock.method(sdk, "listTools", (...args: Parameters<typeof sdk.listTools>) => step("MCP tools/list", () => listTools(...args)));
+  t.mock.method(served, "grant", (...args: Parameters<typeof served.grant>) => step(`Host grant ${args[2].map(view => view.capability_id).join(",")}`, () => grant(...args)));
+  t.mock.method(served, "revoke", (...args: Parameters<typeof served.revoke>) => step(`Host revoke ${args[2].map(view => view.capability_id).join(",")}`, () => revoke(...args)));
+  const close = async () => {
+    await step("MCP close", () => sdk.close()); await step("HTTP close", () => served.close()); await step("Host close", () => host.close());
+    await step("remove Home", () => rm(home, { recursive: true, force: true }));
+    t.signal.removeEventListener("abort", traceAbort);
+  };
   try {
     await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({
       context: { runtime_id: "goals-actions", stable_work_context_id: "goals-actions-session", host_declares_stable: true },
@@ -106,7 +126,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
       MOLIS_WORK_WORK_CONTEXT_ID: "goals-actions-session", MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
     }, stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
-    await sdk.connect(transport).catch(error => { throw new Error(String(error) + errors); });
+    await step("MCP initialize", () => sdk.connect(transport)).catch(error => { throw new Error(String(error) + errors); });
     const name = molisWorkActionToolName(goalsActions.create);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);
     const views = (await host.inspectActions(caller, ref)).filter(view => Object.values(goalsActions).some(action => action.capability_id === view.capability_id));
@@ -115,7 +135,7 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.deepEqual(views.map(view => view.capability_id).sort(), declaredForMcp.map(action => action.capability_id).sort());
     assert.equal(views.some(view => view.capability_id === goalsActions.decide.capability_id), false);
     // Every Goals action the declaration offers a model's client (the assertion above), saved through the access settings.
-    await grantGoalsMcp(served, project, caller.actor_id);
+    await step("Host grant Goals actions", () => grantGoalsMcp(served, project, caller.actor_id));
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), true);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === molisWorkActionToolName(goalsActions.decide)), false);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(goalsActions.decide), arguments: { goal_id: "forged", idempotency_key: "forged",
@@ -140,6 +160,25 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     const listed = await sdk.callTool({ name: molisWorkActionToolName(goalsActions.list), arguments: {} });
     assert.ok((listed.structuredContent as { goals: Array<{ goal_id: string }> }).goals.some(goal => goal.goal_id === input.goal_id));
     assert.equal((await sdk.callTool({ name: noteName, arguments: { ...noteInput, actor_kind: "user" } })).isError, true);
+    const invokeWork = async <Input, Output>(action: ActionDefinition<Input, Output>, payload: Omit<Input, "goal_id">): Promise<Output> => {
+      const result = await sdk.callTool({ name: molisWorkActionToolName(action), arguments: { goal_id: input.goal_id, ...payload } });
+      assert.equal(result.isError, false, JSON.stringify(result));
+      return result.structuredContent as Output;
+    };
+    const invokePlanning = async <Input, Output>(action: ActionDefinition<Input, Output>, payload: Input): Promise<Output> => {
+      const result = await sdk.callTool({ name: molisWorkActionToolName(action), arguments: payload as Record<string, unknown> });
+      assert.equal(result.isError, false, JSON.stringify(result));
+      return result.structuredContent as Output;
+    };
+    const parseText = (result: Awaited<ReturnType<typeof sdk.callTool>>) => JSON.parse((result.content as Array<{ type: string; text: string }>).find(item => item.type === "text")!.text);
+    return { home, project, ref, host, caller, sessionActor, served, sdk, input, noteInput, noteName, eventId, event, views, invokeWork, invokePlanning, parseText, close };
+  } catch (error) { await close(); throw error; }
+}
+
+test("official MCP launcher: granted reads and the trash lifecycle use the shared Host", { timeout: 60_000 }, async t => {
+  const context = await openGoalsMcp(t);
+  const { sdk, host, ref, project, caller, served, input, eventId, event, views, sessionActor, invokePlanning, parseText } = context;
+  try {
     const stateResult = await sdk.callTool({ name: molisWorkActionToolName(goalsActions.state), arguments: { goal_id: input.goal_id } });
     assert.equal(stateResult.isError, false, JSON.stringify(stateResult));
     const publicState = stateResult.structuredContent as { goal_id: string; intent: { title: string } };
@@ -163,16 +202,6 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     const history = await sdk.callTool({ name: molisWorkActionToolName(goalsActions.historyItem), arguments: { goal_id: input.goal_id, item_id: eventId } });
     assert.equal(history.isError, false, JSON.stringify(history));
     assert.match((history.structuredContent as { result: { html: string } }).result.html, /来自标准 MCP 的原文/);
-    const invokeWork = async <Input, Output>(action: ActionDefinition<Input, Output>, payload: Omit<Input, "goal_id">): Promise<Output> => {
-      const result = await sdk.callTool({ name: molisWorkActionToolName(action), arguments: { goal_id: input.goal_id, ...payload } });
-      assert.equal(result.isError, false, JSON.stringify(result));
-      return result.structuredContent as Output;
-    };
-    const invokePlanning = async <Input, Output>(action: ActionDefinition<Input, Output>, payload: Input): Promise<Output> => {
-      const result = await sdk.callTool({ name: molisWorkActionToolName(action), arguments: payload as Record<string, unknown> });
-      assert.equal(result.isError, false, JSON.stringify(result));
-      return result.structuredContent as Output;
-    };
     const lifecycleInput = { goal_id: input.goal_id, reason: "用户确认整理", idempotency_key: "public-active" };
     assert.equal((await invokePlanning(goalsActions.active, lifecycleInput)).active_goal_id, input.goal_id);
     const repeatActive = { ...lifecycleInput, idempotency_key: "repeat-active" };
@@ -184,7 +213,6 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.equal((await invokePlanning(goalsActions.trashed, {})).goals[0]?.goal_id, input.goal_id);
     const trashList = await sdk.callTool({ name: molisWorkActionToolName(goalsActions.trashed), arguments: {} });
     assert.equal(trashList.isError, false, JSON.stringify(trashList));
-    const parseText = (result: Awaited<ReturnType<typeof sdk.callTool>>) => JSON.parse((result.content as Array<{ type: string; text: string }>).find(item => item.type === "text")!.text);
     const snapshotName = molisWorkActionToolName(goalsActions.snapshot);
     const expectedSnapshot = await host.withProject(ref, r => r.store.snapshot(project.project_id));
     const fullSnapshot = await sdk.callTool({ name: snapshotName, arguments: {} });
@@ -221,6 +249,13 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === molisWorkActionToolName(goalsActions.trash)), false);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(goalsActions.trash), arguments: { ...trashInput, idempotency_key: "denied" } })).isError, true);
     assert.deepEqual((await invokePlanning(goalsActions.trashed, {})).goals, []);
+  } finally { await context.close(); }
+});
+
+test("official MCP launcher: guidance, live planning and user-owned configuration retain grant boundaries", { timeout: 60_000 }, async t => {
+  const context = await openGoalsMcp(t);
+  const { home, sdk, host, ref, project, caller, served, input, views, sessionActor, invokePlanning } = context;
+  try {
     const guidance = await invokePlanning(goalsActions.guidanceAdd, { kind: "constraint", content: "保留用户原始文件。", reason: "数据边界",
       confirmation_summary: "已向用户展示精确原文并确认", user_confirmed: true, idempotency_key: "public-guidance" });
     assert.equal(guidance.entry.created_by, sessionActor);
@@ -257,6 +292,48 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === molisWorkActionToolName(goalsActions.planningApply)), false);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(goalsActions.planningApply), arguments: { method_id: method.method_id, user_confirmed: true } })).isError, true);
     assert.equal((await invokePlanning(goalsActions.planningRead, {})).methods.find(item => item.method_id === method.method_id)?.version, software.version + 1);
+    const personal = { ...BUILTIN_PLANNING_METHOD_PACKS.find(m => m.method_id === "domain-software-development")!, method_id: "mcp-personal-live", name: "Current personal method" };
+    await withCatalog({ homeDirectory: home }, c => c.personalPlanningMethods.save(personal, new Date().toISOString()));
+    assert.equal((await invokePlanning(goalsActions.planningRead, {})).methods.find(m => m.method_id === personal.method_id)?.name, personal.name);
+    const nextPersonal = await withCatalog({ homeDirectory: home }, c => c.personalPlanningMethods.save({ ...personal, name: "Updated while connected" }, new Date().toISOString()));
+    const publicPersonal = (await invokePlanning(goalsActions.planningRead, {})).methods.find(m => m.method_id === personal.method_id)!;
+    assert.equal(publicPersonal.version, nextPersonal.version); assert.equal(publicPersonal.name, nextPersonal.name);
+    // The earlier planning test revoked this grant; the new apply is a distinct authorized operation.
+    await served.grant(caller.actor_id, project.project_id, [views.find(v => v.capability_id === goalsActions.planningApply.capability_id)!]);
+    const copiedPersonal = await invokePlanning(goalsActions.planningApply, { method_id: personal.method_id, user_confirmed: true });
+    assert.equal(copiedPersonal.method.name, nextPersonal.name); assert.equal(copiedPersonal.method.scope, "project");
+    const user: ActionCallContext = { actor_id: "local-user", actor_kind: "user", audience: "user", project_id: project.project_id,
+      permissions: ["goals:read", "goals:write", "goals:decide"], user_action: { source: "management", conversation_ref: "test://configuration", message_ref: "test://save" } };
+    const local = bindActionClient(host.actionClient(ref), () => user);
+    await local.invoke(goalsActions.create, { title: "Relation target", goal_id: "RELATION-TARGET", idempotency_key: "relation-target" });
+    const relationInput = { from_goal_id: input.goal_id, to_goal_id: "RELATION-TARGET", type: "extends" as const, reason: "Public read of user-owned structure", idempotency_key: "configuration-relation" };
+    const relation = await local.invoke(goalsActions.relationAdd, relationInput);
+    const policyInput = { policy: { human_approval: true }, user_confirmed: true, idempotency_key: "configuration-policy" };
+    const policy = await local.invoke(goalsActions.policySave, policyInput);
+    assert.equal((await invokePlanning(goalsActions.relations, { goal_id: input.goal_id })).relations.find(r => r.relation_id === relation.relation_id)?.to_goal_id, "RELATION-TARGET");
+    assert.equal((await invokePlanning(goalsActions.policyHistory, {})).bindings.find(b => b.policy_binding_id === policy.policy_binding_id)?.created_by, user.actor_id);
+    assert.equal((await invokePlanning(goalsActions.policyResolve, { goal_id: input.goal_id })).policy.human_approval, true);
+    const beforeForged = await host.withProject(ref, r => r.store.snapshot(project.project_id));
+    const tools = (await sdk.listTools()).tools;
+    for (const [definition, payload] of [[goalsActions.relationAdd, relationInput], [goalsActions.relationDeactivate, { relation_id: relation.relation_id, reason: "Forge", idempotency_key: "forge" }], [goalsActions.policySave, policyInput]] as const) {
+      const protectedName = molisWorkActionToolName(definition);
+      assert.equal(tools.some(tool => tool.name === protectedName), false);
+      assert.equal((await sdk.callTool({ name: protectedName, arguments: { ...payload, user_action: user.user_action, actor_kind: "user", user_confirmed: true } })).isError, true);
+    }
+    assert.deepEqual(await host.withProject(ref, r => r.store.snapshot(project.project_id)), beforeForged);
+    for (const [definition, payload] of [[goalsActions.relations, { goal_id: input.goal_id }], [goalsActions.policyHistory, {}], [goalsActions.policyResolve, { goal_id: input.goal_id }]] as const) {
+      await served.revoke(caller.actor_id, project.project_id, [views.find(view => view.capability_id === definition.capability_id)!]);
+      const name = molisWorkActionToolName(definition);
+      assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);
+      assert.equal((await sdk.callTool({ name, arguments: payload })).isError, true);
+    }
+  } finally { await context.close(); }
+});
+
+test("official MCP launcher: work records and tree proposals retain provenance and protected decisions", { timeout: 60_000 }, async t => {
+  const context = await openGoalsMcp(t);
+  const { sdk, host, ref, project, caller, served, input, views, sessionActor, invokeWork, invokePlanning, parseText, noteName, noteInput } = context;
+  try {
     const configured = await invokeWork(goalsActions.configure, { expected_version: 0, idempotency_key: "public-config",
       types: [{ type_id: "work", version: 1, name: "实际交付", purpose: "完整原文", fields: [{ field_id: "body", name: "内容", purpose: "工作事实", format: "text", required: true }] }],
       requirement_bindings: [{ type_id: "work", requirement_id: "delivered" }] });
@@ -341,43 +418,5 @@ test("official MCP launcher discovers granted Goals actions and writes into the 
     assert.equal((await sdk.callTool({ name: noteName, arguments: { ...noteInput, idempotency_key: "denied-note" } })).isError, true);
     const events = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1);
-    const personal = { ...BUILTIN_PLANNING_METHOD_PACKS.find(m => m.method_id === "domain-software-development")!, method_id: "mcp-personal-live", name: "Current personal method" };
-    await withCatalog({ homeDirectory: home }, c => c.personalPlanningMethods.save(personal, new Date().toISOString()));
-    assert.equal((await invokePlanning(goalsActions.planningRead, {})).methods.find(m => m.method_id === personal.method_id)?.name, personal.name);
-    const nextPersonal = await withCatalog({ homeDirectory: home }, c => c.personalPlanningMethods.save({ ...personal, name: "Updated while connected" }, new Date().toISOString()));
-    const publicPersonal = (await invokePlanning(goalsActions.planningRead, {})).methods.find(m => m.method_id === personal.method_id)!;
-    assert.equal(publicPersonal.version, nextPersonal.version); assert.equal(publicPersonal.name, nextPersonal.name);
-    // The earlier planning test revoked this grant; the new apply is a distinct authorized operation.
-    await served.grant(caller.actor_id, project.project_id, [views.find(v => v.capability_id === goalsActions.planningApply.capability_id)!]);
-    const copiedPersonal = await invokePlanning(goalsActions.planningApply, { method_id: personal.method_id, user_confirmed: true });
-    assert.equal(copiedPersonal.method.name, nextPersonal.name); assert.equal(copiedPersonal.method.scope, "project");
-    const user: ActionCallContext = { actor_id: "local-user", actor_kind: "user", audience: "user", project_id: project.project_id,
-      permissions: ["goals:read", "goals:write", "goals:decide"], user_action: { source: "management", conversation_ref: "test://configuration", message_ref: "test://save" } };
-    const local = bindActionClient(host.actionClient(ref), () => user);
-    await local.invoke(goalsActions.create, { title: "Relation target", goal_id: "RELATION-TARGET", idempotency_key: "relation-target" });
-    const relationInput = { from_goal_id: input.goal_id, to_goal_id: "RELATION-TARGET", type: "extends" as const, reason: "Public read of user-owned structure", idempotency_key: "configuration-relation" };
-    const relation = await local.invoke(goalsActions.relationAdd, relationInput);
-    const policyInput = { policy: { human_approval: true }, user_confirmed: true, idempotency_key: "configuration-policy" };
-    const policy = await local.invoke(goalsActions.policySave, policyInput);
-    assert.equal((await invokePlanning(goalsActions.relations, { goal_id: input.goal_id })).relations.find(r => r.relation_id === relation.relation_id)?.to_goal_id, "RELATION-TARGET");
-    assert.equal((await invokePlanning(goalsActions.policyHistory, {})).bindings.find(b => b.policy_binding_id === policy.policy_binding_id)?.created_by, user.actor_id);
-    assert.equal((await invokePlanning(goalsActions.policyResolve, { goal_id: input.goal_id })).policy.human_approval, true);
-    const beforeForged = await host.withProject(ref, r => r.store.snapshot(project.project_id));
-    const tools = (await sdk.listTools()).tools;
-    for (const [definition, payload] of [[goalsActions.relationAdd, relationInput], [goalsActions.relationDeactivate, { relation_id: relation.relation_id, reason: "Forge", idempotency_key: "forge" }], [goalsActions.policySave, policyInput]] as const) {
-      const protectedName = molisWorkActionToolName(definition);
-      assert.equal(tools.some(tool => tool.name === protectedName), false);
-      assert.equal((await sdk.callTool({ name: protectedName, arguments: { ...payload, user_action: user.user_action, actor_kind: "user", user_confirmed: true } })).isError, true);
-    }
-    assert.deepEqual(await host.withProject(ref, r => r.store.snapshot(project.project_id)), beforeForged);
-    for (const [definition, payload] of [[goalsActions.relations, { goal_id: input.goal_id }], [goalsActions.policyHistory, {}], [goalsActions.policyResolve, { goal_id: input.goal_id }]] as const) {
-      await served.revoke(caller.actor_id, project.project_id, [views.find(view => view.capability_id === definition.capability_id)!]);
-      const name = molisWorkActionToolName(definition);
-      assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);
-      assert.equal((await sdk.callTool({ name, arguments: payload })).isError, true);
-    }
-  } finally {
-    await sdk.close(); await served.close(); await host.close();
-    await rm(home, { recursive: true, force: true });
-  }
+  } finally { await context.close(); }
 });

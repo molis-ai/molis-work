@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { PrologueHost, Session } from "@prologue/sdk";
 import type { AgentMemoryCapability, AgentMemoryExecutionControl, AgentStartExecution } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-interface PrologueEffects {
+export interface PrologueEffects {
   readonly host: PrologueHost;
   call<T>(control: AgentMemoryExecutionControl, work: () => Promise<T>): Promise<T>;
   start<T>(execution: AgentStartExecution | undefined, work: () => Promise<T>): Promise<T>;

@@ -122,7 +122,11 @@ test("merging a Feed overview pane preserves its unfinished inline source form",
 test("opening a related Goal inside a pane leaves the original Goal tab intact", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { evaluate, waitFor, click, openGoalFrame, command, sessionId, navigate, origin, projectId } = browser;
+  const { evaluate, waitFor, openGoalFrame, command, sessionId, navigate, origin, projectId } = browser;
+  const click = async (selector: string) => {
+    t.diagnostic(`Related Goal pane mouse target: ${selector}`);
+    await browser.click(selector);
+  };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");

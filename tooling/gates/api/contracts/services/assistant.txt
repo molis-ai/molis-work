@@ -394,6 +394,23 @@ export interface AssistantRelatedWork {
 
 export type AssistantRelation = keyof typeof ASSISTANT_RELATIONS;
 
+export interface AssistantReplyDelivery {
+    target: AssistantReplyTarget;
+    message_id: string;
+    request_id: string;
+    work_id: string;
+    run_id: string;
+    body: string;
+}
+
+export interface AssistantReplyTarget {
+    provider_id: string;
+    subject_kind: string;
+    subject_id: string;
+    thread_id: string;
+    title: string;
+}
+
 export interface AssistantRound {
     run_id: string;
     executor?: "assistant" | "coding";
@@ -552,6 +569,23 @@ export interface AssistantSurfaceRef {
     title?: string;
 }
 
+export interface AssistantThreadContext {
+    title: string;
+    revision: string;
+    text: string;
+    truncated: boolean;
+    message: {
+        message_id: string;
+        body: string;
+        request_id: string;
+    };
+}
+
+export interface AssistantThreadDraft {
+    text: string;
+    revision: string;
+}
+
 export interface AssistantUndoable {
     undo_id: string;
     title: string;
@@ -583,6 +617,7 @@ export interface AssistantUsage {
 }
 
 export interface AssistantWork {
+    reply_target?: AssistantReplyTarget;
     work_id: string;
     executor: AssistantExecutor;
     revision: number;

@@ -81,6 +81,8 @@ Agent 运行
 | AG-5 | 助理委托的子任务与 Prologue 子代理 | `prologue-subagents.ts`、助理的 `delegate-work` 系列工具 | 子任务不带记忆工具，浏览器关闭（`assistant-service.ts` 的 `work.delegated_by` 分支） | 保留 | [已确认] |
 | AG-6 | 助理与 Coding 使用的外部 MCP 工具 | `horizontal/agent-host/src/adapters/prologue-mcp.ts` + `apps/local-host/src/agent-host-composition.ts` 的 `createExternalMcpDirectory` | 连接的外部工具并入项目目录，随连接变化同步 | 保留（连接与授权在宿主） | 这是 Agent 向外调用，不是模型调用，列出来因为它也经 Agent 工具闸门。[已确认] |
 
+Issue 的页面录入（#396、#420）不是新的入口：页面开一件助理工作，带 Issue 插件的方法 `issues-capture`（`plugins/native/issues/src/methods.ts`），一轮模型给草稿起标题、判类型，再经助理网关的 `change-reversible` 调 `issues.capture`（本人能撤销；设了每次确认就改成 `suggest-action`）。走的是 AG-1 的链和守卫。[已确认，代码，2026-10-14 审查补记]
+
 ### 3.2 有界文字：插件动作
 
 下表的动作在目录里全部是 `cost: "metered"`、`scheduling: "concurrent"`（P+G），指令都已登记（G），处理器都按「读取快照 → 带 `signal` 调模型 → 返回后 `beforeEffect()` → 按快照提交」写（R）。
@@ -114,6 +116,7 @@ Agent 运行
 | HJ-2 | 记忆整理（找重复与矛盾，只提给人） | `memory-upkeep.ts` 的 `runUpkeep` | 同上，且只产出待人确认的对子 | 保留 |
 | HJ-3 | 项目上手的笔记与提案 | `context-onboarding-service.ts`：`ONBOARDING_NOTES`、`ONBOARDING_PROPOSAL` 两次调用，各 180 秒 | 没有 `beforeDispatch`；无模型时材料已保存、`needs_model`，写「请在设置中连接文字模型，再回来继续整理」 | 保留 |
 | HJ-4 | Coding 的提交说明与对话整理 | `model-draft.ts`（`agent.draft-text.v1` 能力，宿主能力而非动作）：无工具、无工作区；指令必须登记且取自原调用的插件身份；调用方是 `plugins/native/coding/src/routes.ts` 的两处（对话整理 `:480`、提交说明 `:1533`） | `createExecutionLifetime` 两分钟；派出前后复查；用量只在 input/output 都上报时给出 | 共享（能力通用，现在只有 Coding 一个调用方） |
+| HJ-5 | 放进去处的起草（情境 W1-7：把选中的内容或一句话放进某个创建入口时，宿主先填好这个入口的输入） | `apps/local-host/src/contextual/contextual-http.ts` → `drafting/draft-service.ts` 的 `draftIntake`：`hostTextGeneration`（`draft-wiring.ts`），指令登记为 `CONTEXTUAL_DRAFT`、经 `registeredInstructionBody` 取，材料先过 `screenModelMaterial` | 只返回草稿、不写入，创建仍由人提交对应的创建动作；请求断开即取消（`whileWaited` 的 signal）；没配模型或答得不合 schema 时只按规则填，并在 `fallback` 里说明 | 保留（#411 新增，2026-10-14 审查补记） |
 
 ### 3.4 判断（Jev，TypeSafe）
 

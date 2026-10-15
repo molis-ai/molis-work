@@ -41,7 +41,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 公共合同（`packages/contracts/src/` 下） | `platform/plugin.ts`、`platform/actions.ts`、`services/agent-host.ts`、`services/assistant.ts` |
 | 登记与门禁 | `scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`、根 `package.json` 与 `pnpm-lock.yaml`、`tooling/gates/baseline.json`、`.github/workflows/ci.yml`、`tests/ci-product-subset.txt`（CI 产品子集的清单，见下） |
 | 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` |
-| 巨大文件 | `apps/workbench/src/scripts/client/assistant-island.ts`、`horizontal/agent-host/src/adapters/prologue-node.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`horizontal/agent-host/src/adapters/announce-guard.ts` |
+| 巨大文件 | `apps/workbench/src/scripts/client/assistant-island.ts`、`apps/local-host/src/assistant/assistant-service.ts`、`horizontal/agent-host/src/adapters/announce-guard.ts` |
 
 `apps/local-host/src/project-plugins.ts` 不到 7 次，但 `AGENTS.md` 把每个新内置插件的装配点指到它的监督器条目，按枢纽对待。`tests/ci-product-subset.txt`（2026-10-09 才有，谈不上次数）也按枢纽对待：它点名三百多个用例，其中任何一个改名或删除，都要在同一个 PR 里改它的那一行，不然 `pnpm health:check` 变红（见第 3 节）；一行一个文件，解冲突时两边的行都留。
 
@@ -64,11 +64,11 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 ## 3. 合并
 
 - 合同与扩展点先合，实现后合；体量大的需求按包与层拆开（`docs/prompts/repository-anti-corruption.md` §4.7）。
-- 合并前把分支同步到最新 main（spec §1，2026-10-03）。main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它等 `architecture-boundaries` 和 `secret-scan` 两个作业都成功；改这个作业的名字就等于改保护规则），并且要求分支与 main 同步；必需的批准数是 0，没有开「必须由代码所有者批准」。
+- 合并前把分支同步到最新 main（spec §1，2026-10-03）。main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它等 `gates`、`health-gate-rules`（两份）、`architecture-boundaries`、`action-contracts`、`secret-scan`、`native-checks`、`shell-checks` 都成功；改这个作业的名字就等于改保护规则），并且要求分支与 main 同步；必需的批准数是 0，没有开「必须由代码所有者批准」。
 - 不开合并队列，不强制评审（spec §1，2026-10-02）。`.github/CODEOWNERS` 只自动请求评审，不改分支保护；谁评审、评审哪些包见 `docs/SSOT-MATRIX.md` 的「归属」列。
 - PR 描述按 `.github/pull_request_template.md` 写，包括验证结果、基线比对、API 与动作合同影响和基本合同检查。
-- 产品用例子集进 CI 的做法（用户 2026-10-08 定，spec §1「CI 产品子集是否挡合并」）：先作一个单独的作业，不挡合并，跑约两周；隔离掉不稳定的用例后并入 `Verify`，不改分支保护。现在 `ci.yml` 有 `architecture-boundaries`、`secret-scan`、`linux-probe`、`product-subset` 和 `verify` 五个作业，其中挡合并的只有前两个，经 `verify` 汇总。`linux-probe` 在 ubuntu 上把全部非浏览器用例逐个跑一遍，记下哪些通过（只记录，约 50 分钟）；`product-subset` 跑 `tests/ci-product-subset.txt`（快而稳、走用户动线的约 360 个文件，加 5 个浏览器冒烟、`tests/i18n.test.ts`），有时间预算，不稳定的文件写进 `tests/quarantine.json`（`file`、`owner`、`since`、`expires`、`reason`，至多 30 天（从 `since` 数起，`since` 不能比运行当天晚）、最多 10 条，到期自动重新计入）。做法、预算、退出码与并入 `Verify` 的步骤见 [PACKAGE-BOUNDARIES.md](PACKAGE-BOUNDARIES.md) 的「产品子集作业」。**日常怎么用**：产品用例新增或改动后，若它快（几秒）、在 Linux 上稳、走用户动线，就加进清单；`product-subset` 作业红了，先看摘要里「Failed」与「Flaky」两节，是自己引入的就修，是偶发的就按摘要里附的条目格式写进隔离名单（owner 写你自己），不要跳过或放宽断言，也不要为了变绿把文件从清单里拿掉。全量产品用例和浏览器用例的全量仍在本机跑。
-- 清单和隔离文件自己的规则现在就挡合并，作业本身不挡：这些规则（每行的文件存在、没有 live 或 macOS 专有的用例、冒烟 3 到 5 个、`tests/i18n.test.ts` 在内、隔离项的字段与日期）在 `pnpm health:check` 里，随挡合并的 `architecture-boundaries`（经 `Verify`）检查，没有基线，出一处就失败。这是 W2-16 实现时加的，决定 #14 说的是作业不挡合并（记在 spec §1 同一行）。对每个人的影响：重命名或删除清单里的某个用例，要在同一个 PR 里改 `tests/ci-product-subset.txt` 那一行；给清单里的用例加上 macOS 专有或 live 的用法（直接写，或经它引入的夹具）也会变红，那个用例已经不适合 Linux 子集，在 PR 描述里说明后从清单拿掉。需要日期的两条（隔离到期、`since` 不在将来）不在门禁里，由运行器按当天日期判断。
+- 产品用例子集进 CI 的做法（用户 2026-10-08 定，spec §1「CI 产品子集是否挡合并」）：先作一个单独的作业，不挡合并，跑约两周；隔离掉不稳定的用例后并入 `Verify`，不改分支保护。现在 `ci.yml` 挡合并的是 `gates`（健康门禁与文档、运行器、扫描器的变异用例，不要构建）、`health-gate-rules`（健康门禁各条规则的变异用例，分两份）、`architecture-boundaries`（构建与构建之上的门禁）、`action-contracts`（构建与动作、插件合同，分两份）、`secret-scan`、`native-checks`、`shell-checks`，并行跑，经 `verify` 汇总，约 5 分钟；不挡合并的是 `security-invariants`、`linux-probe` 和 `product-subset`。`linux-probe` 每晚（和手动触发时）在 ubuntu 上把全部非浏览器用例逐个跑一遍，记下哪些通过（只记录，约 60 分钟，PR 和推送上不跑）；`product-subset` 跑 `tests/ci-product-subset.txt`（快而稳、走用户动线的约 360 个文件，加 5 个浏览器冒烟、`tests/i18n.test.ts`），4 个非浏览器文件同时跑（2026-10-14 起），有时间预算，不稳定的文件写进 `tests/quarantine.json`（`file`、`owner`、`since`、`expires`、`reason`，至多 30 天（从 `since` 数起，`since` 不能比运行当天晚）、最多 10 条，到期自动重新计入）。做法、预算、退出码与并入 `Verify` 的步骤见 [PACKAGE-BOUNDARIES.md](PACKAGE-BOUNDARIES.md) 的「产品子集作业」。**日常怎么用**：产品用例新增或改动后，若它快（几秒）、在 Linux 上稳、走用户动线，就加进清单；`product-subset` 作业红了，先看摘要里「Failed」与「Flaky」两节，是自己引入的就修，是偶发的就按摘要里附的条目格式写进隔离名单（owner 写你自己），不要跳过或放宽断言，也不要为了变绿把文件从清单里拿掉。全量产品用例和浏览器用例的全量仍在本机跑。
+- 清单和隔离文件自己的规则现在就挡合并，作业本身不挡：这些规则（每行的文件存在、没有 live 或 macOS 专有的用例、冒烟 3 到 5 个、`tests/i18n.test.ts` 在内、隔离项的字段与日期）在 `pnpm health:check` 里，随挡合并的 `gates`（经 `Verify`）检查，没有基线，出一处就失败。这是 W2-16 实现时加的，决定 #14 说的是作业不挡合并（记在 spec §1 同一行）。对每个人的影响：重命名或删除清单里的某个用例，要在同一个 PR 里改 `tests/ci-product-subset.txt` 那一行；给清单里的用例加上 macOS 专有或 live 的用法（直接写，或经它引入的夹具）也会变红，那个用例已经不适合 Linux 子集，在 PR 描述里说明后从清单拿掉。需要日期的两条（隔离到期、`since` 不在将来）不在门禁里，由运行器按当天日期判断。
 
 ## 4. PR 体量
 
@@ -90,8 +90,16 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
   ```
 
   有，就等；有会话在统筹排期时听它的。停进程只按 pid（`kill <pid>`），不用 `pkill -f scripts/run-tests.mjs`：那会连别的工作树的测试一起杀掉。
-- 一次测试运行内部已经串行：`scripts/run-tests.mjs` 带 `--test-concurrency=1`，整次运行共用一个临时 `MOLIS_WORK_HOME`。把它改成并发的计划见 W5-12，现在不要绕开。
+- 测试运行按文件隔离、几份同时跑（W5-12）：`node scripts/run-tests.mjs` 点名多个文件（或不带参数跑全量）时，每个文件单独一个进程，各有一份临时 `MOLIS_WORK_HOME` 与密钥库，同时跑的份数默认是核数的一半、最多 6（`--jobs <n>`，或环境变量 `MOLIS_WORK_TEST_JOBS`），其中浏览器文件（Linux 探针规则认作 browser 的）同时最多 2 个（`--browser-jobs <n>`、`MOLIS_WORK_TEST_BROWSER_JOBS`）。上次记下用时长的文件先跑（记在本检出的 `node_modules/.cache/molis-work-tests/durations.json`，不入库）。每个文件跑完打一行；失败的文件打出它自己的输出，最后列出失败的文件和只重跑它们的命令；`--verbose` 打出每个文件的输出；`--shard <k>/<n>` 只跑列表里从第 k 个起每隔 n 个的文件（CI 把同一份列表分给 n 个作业）。只点名一个文件时和以前一样：一个 `node --test` 进程，输出直接到终端。实现在 `scripts/run-tests/pool.mjs`，逐个文件跑的那一层与 Linux 探针、产品子集共用（`scripts/ci-linux-probe/run.mjs`）。一次运行就占去大半台机器，所以上面「整台机器同一时间最多一个构建、一个浏览器用例批次」照旧；和别的会话同时跑时把 `--jobs` 调小。
 - 全量回归期间，被测的那棵树里不改源码：安装类测试比对源码与构建指纹，指纹覆盖根的 `package.json`、`tsconfig.json`、`tsconfig.base.json`、`tsconfig.package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`scripts`、`src`、`apps/desktop/launchers`，以及每个工作区包的 `package.json`、`src`、`tooling`、`bin`、`tsconfig.json` 和原生工具源码（`apps/local-host/src/installer/fingerprint.ts` 的 `computeBuildSourceDigest`）。`skills/` 也不改：安装类用例会把它拷进发布目录并比较两次安装的内容。`docs/`、`specs/` 可以改。改过指纹覆盖的文件之后，跑全量前要整体 `pnpm build`，单包重建不刷新指纹。
+
+### 5.1 子代理与并发的 Agent
+
+一个会话派出的子代理、Workflow 里的 Agent，和别的会话一样受上面的规矩约束；下面几条是它们常出事的地方（用户 2026-10-14 要求写进仓库：之前只记在某一个会话的记忆里，别的会话和工具看不到）。
+
+- **子代理不跑全量。** 全量由统筹的会话在集成分支上跑一次（第 7 节）；子代理只跑定向用例：包 README 的「改动后必跑」、自己改到的测试、门禁。派活时在实现和评审两份提示里都写明这一条，路线图某行写着「Full regression」也一样，否则评审会把它当成必须修的问题，修复的子代理就去跑全量。依据：2026-10-09 有两个修复子代理在负载很高的机器上轮询全量 3 到 5 个小时。
+- **只停自己起的进程，按 pid。** 用 `$!` 记下自己起的进程，或用 `pgrep` 按自己工作树的路径过滤后 `kill <pid>`；不用 `pkill`、`killall` 或按模式的 `kill`。依据：2026-10-11 一个子代理发现自己误起了全量，`pkill -f "scripts/run-tests.mjs"` 把统筹会话跑了约 50 分钟的全量一起杀了。统筹会话起全量时写成 `node $PWD/scripts/./run-tests.mjs`，这种误杀匹配不到它。
+- **测试运行默认占大半台机器。** 不带参数的 `node scripts/run-tests.mjs` 默认按核数一半同时跑（10 核的机器上是 5 个文件），一次全量就把机器占满大半。同一时间只让一个会话跑全量；别的会话（或子代理）也在跑测试时，用 `--jobs 2`（或环境变量 `MOLIS_WORK_TEST_JOBS=2`）把自己的份数调小；开跑前照上面看一眼 `pgrep`。
 
 ## 6. 验证频率（2026-10-03 的决定）
 
@@ -237,7 +245,6 @@ node scripts/run-tests.mjs <你这边失败的那几个文件>
   1. “workbench 外壳”。选项：名单上的 26 个文件（推荐：`apps/workbench` 的 `src` 下有 214 个文件（包里共 217 个），大多是某个插件的一页或一块界面，这类改动已经会选浏览器用例，整包都算外壳会让每个界面小改动都建议跑 77 分钟）；整个 `apps/workbench`（README 第一行把整个包叫“工作台外壳”）；名单加上 `side-panel*`、`assistant-dock`、`project-home` 这类外壳零件。“local-host 的装配”同理，名单是 13 个文件：README 按文件名点到的 10 个（`project-host`、`home-plugins`、`local-host`、`project-capabilities`、`web-server`、`mcp-server`、`system-agent-service`、`home-side`、`goal-project-application`，加 workbench README 指到的 `workbench-renderer`），加第 2 节枢纽表与 `AGENTS.md` 点到的 3 个（`web-request`、`web-catalog`、`project-plugins`）。workbench 的 13 个里，README 按文件名点到 8 个（`ui-composition`、`goals-page-renderer`、`home-plugin-page`、`scripts/client/initialization`、`browser-assets`、`builtin-plugins`、`plugin-catalog`、`plugin-workbench`）；另 5 个（`renderer`、`immersive-shell`、`page-assets` 和客户端程序 `scripts/client/plugin-workbench` 来自枢纽表，`document-shell` 是实现时加的，两处都没点名）要不要留，随这一问一起定。
   2. “删除整块旧代码”。选项：3 个文件或净取走 300 行（推荐，现状，以 245 个 PR 量过）；只看文件数；再加一条“一个文件净取走 150 行以上”以抓住只删一个大函数的情形（245 个 PR 里 18 个会触发，其中只有 4 个是 300 行条件抓不到的）。
   3. “所有读这条路由的用例”。现状：一条路由被超过 25 个用例提到就不选（Notes 写出路由和个数，`--wide` 选全部），因为 `/projects/`（199 个）、`/health`（143 个）、`/desktop/`（236 个）这类只是路径的常见片段，全选会让每个路由改动都带上几百个用例（`web-request.ts` 原来选出 265 个，现在 70 个）。代价是真路由也被挡，在 `76ba1545` 上量：`/settings`（77）、`/api/plugins`（62）、`/archive`（58）、`/sessions`（38）、`/api/plugins/io.molis.work.coding`（28）；不在装配名单上的文件（`web-goals-read.ts`、`web-routing.ts`、`document-routes.ts`）改到它们时，读者只在 Notes 里。选项：保持 25（推荐，现状；Notes 与 `--wide` 兜底）；把上限提到 80，让上面五条真路由选上（`/settings/` 的 66 也会进来），`/projects/`、`/health`、`/desktop/` 仍挡；不设上限，路由改动一律带上所有读者（一次可到几百个用例）。
-- 测试并发隔离（每个测试文件一个 Home 和密钥库，非浏览器用例并发）：路线图 W5-12。在那之前全量约 76–78 分钟。
 - 产品子集并入 `Verify`（路线图 W2-16，决定 #14）：`product-subset` 作业已有（清单、浏览器冒烟、隔离名单，见第 3 节），现在不挡合并；它在 main 上第一次运行之后约两周，隔离掉不稳定的文件，再并入 `Verify`，步骤见 [PACKAGE-BOUNDARIES.md](PACKAGE-BOUNDARIES.md) 的「产品子集作业」。
 - 远端已合入分支的清理与「合并后自动删除分支」：用户来做（见第 10 节），还没做。
 - 第 4 节的 PR 体量数字是建议；要改成门禁，先量再定。

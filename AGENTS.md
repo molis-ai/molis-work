@@ -17,7 +17,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 | 界面 | `DESIGN.md`、`specs/craft-finish/spec.md`，规格板 `/__ui/catalog` |
 | 仓库里放什么：评审截图、根目录杂项、vendored 补丁 | `docs/system/REPOSITORY-HYGIENE.md` |
 | 某项任务 | `specs/<task>/spec.md`，开头写状态句；完成后按 `specs/README.md` 归档 |
-| 多个会话、工作树同时开发 | `docs/system/PARALLEL-DEVELOPMENT.md`：枢纽文件、构建与浏览器用例排时段、集成分支跑全量、基线比对、共享 Agent 锁、清理、PR 体量 |
+| 多个会话、工作树、子代理同时开发 | `docs/system/PARALLEL-DEVELOPMENT.md`：枢纽文件、构建与浏览器用例排时段、子代理与并发的 Agent（第 5.1 节：不跑全量、只按 pid 停进程、测试份数）、集成分支跑全量、基线比对、共享 Agent 锁、清理、PR 体量 |
 | 改合同（导出、动作 schema、Manifest、MCP 工具名、库结构） | `docs/system/CONTRACT-CHANGES.md`：现在不留兼容期；读取兼容的流程，从第一个装到开发机之外的版本开始 |
 | 某个包归谁、请谁评审 | `docs/SSOT-MATRIX.md` 各表的「归属」列与 `.github/CODEOWNERS`，由 `scripts/package-owners.mjs` 的规则生成 |
 | 发版、改版本号、动真实 Home 的库 | `docs/releases/POLICY.md`、`docs/releases/CHECKLIST.md`；版本核对 `node scripts/verify-release-versions.mjs`（CI 里跑） |
@@ -30,7 +30,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后 `beforeEffect()` 再按读取时的版本提交。被取消、撤权、停用的调用不再写任何业务记录（插件、Module 与 Home 里属于某项事实的数据，含失败记账）；其中处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记），不算业务数据（用户 2026-10-10 决定）。
 - 合同读写都只认现行取值：存量数据由维护改成现行形状，读取时不兜底历史取值；新增兼容或迁移逻辑要先写进 `specs/repository-anti-corruption` 的保留机制并经用户确认。以后的读取兼容怎样做、从什么时候起算（第一个装到开发机之外的版本），见 `docs/system/CONTRACT-CHANGES.md`。
 - 可信身份（actor、项目、安装）从调用上下文来，不从输入读；密钥只给引用。
-- 新的内置插件只走 Plugin Runtime 装配（`apps/local-host/src/project-plugins.ts` 的监督器条目）：不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往 `apps/workbench/src/builtin-plugins.ts` 加构建期条目。现存的旧路径插件名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`，只许减少。
+- 新的内置插件只走 Plugin Runtime 装配：项目级的是 `apps/local-host/src/project-plugins.ts` 的监督器条目；个人数据跨项目一致的 Home 级插件，是 `apps/workbench/src/builtin-plugins.ts` 目录条目上的 `runtime: { scope: "home", … }`，由宿主的 Home 监督器（`apps/local-host/src/home-plugins.ts`）装配（用户 2026-10-14 定，写法见 `skills/molis-plugin-dev/host.md`）。两者之外不再新增 `apps/local-host/src/<插件>-native-plugin-http.ts`，也不再往 `apps/workbench/src/builtin-plugins.ts` 加构建期条目。现存的旧路径插件名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`，只许减少。
 - 插件只提供内容，挂在工作台的位置（目录、主区、浮层、设置、侧栏）；不出自己的整页、不开第二个浏览器标签页。例外清单见 `specs/artifact-positioning/spec.md` §4，门禁 `tests/shell-page-gate.test.ts`（CI 里跑）。
 - 成果库只收人要留存、引用的固定版本与导入文件：类型在 manifest `artifacts.produces` 声明，带显示名与 owner 的预览动作；交给别的插件的数据是过程项（`process_items.produces`），不进成果库、侧栏文件和搜索。宿主按 manifest 拒绝未声明的写入；门禁 `tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts`（CI 里跑）。
 - 删除项目只有一份 Host 服务（`apps/local-host/src/project-deletion-service.ts` 的 `ProjectDeletionService`）：新的删除入口调它，操作者由入口给、不从请求参数读；现有入口与例外见 `docs/system/CALL-CHAINS.md` 链 2 步骤 7。
@@ -44,7 +44,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 安装：`pnpm install --frozen-lockfile --offline`。单包构建写成 `pnpm --filter <包> run build`（`--filter` 在 `run` 前）。
 - 改过任何 `*/src`、`scripts`、`package.json` 后，跑全量前先整体 `pnpm build`：安装类测试比对源码与构建指纹。
 - 全量回归期间不要改源码、脚本、`package.json` 和 `skills/`（安装类测试会拷贝 `skills/` 并比较两次安装的内容；`docs/`、`specs/` 可以改）；也不要并发构建。
-- 跑测试：`node scripts/run-tests.mjs <文件…>`；浏览器用例需要本机 Chrome。判断是否自己引入的失败，用干净的基线工作树（`git worktree add --detach`）跑同一批文件对比。
+- 跑测试：`node scripts/run-tests.mjs <文件…>`；浏览器用例需要本机 Chrome。多个文件时每个文件一个进程、一份临时 Home，几份同时跑（`--jobs <n>` 或 `MOLIS_WORK_TEST_JOBS`，浏览器文件另有上限），失败的文件最后列出并给出重跑命令（`docs/system/PARALLEL-DEVELOPMENT.md` 第 5 节）。判断是否自己引入的失败，用干净的基线工作树（`git worktree add --detach`）跑同一批文件对比。
 - 按改动挑相关用例：`node scripts/affected-tests.mjs`（选法、全量条件和局限见 `docs/system/PARALLEL-DEVELOPMENT.md` 第 6.1 节）；它只给建议，命中全量条件由人决定，`--run` 也不启动全量。
 - 测试截图默认写入已忽略的 `.impeccable/qa/review/`；要刷新仓库里的评审截图才设 `MOLIS_WORK_REVIEW_EVIDENCE=1`，只覆盖已有的图：`.impeccable/` 里入库的文件数只许减少，新增图或新评审组会被 `pnpm health:check` 拦下。
 - 不为变绿而跳过、放宽或删除断言；先分清产品回归、预期变化、测试缺陷、环境与时序。

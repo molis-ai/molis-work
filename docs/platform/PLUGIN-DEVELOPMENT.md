@@ -2,7 +2,7 @@
 
 写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 走完整路径：对象与时刻 → Manifest → UI/客户端 → HTTP → 现场动作 → 判断场景 → MCP → Artifact / 事件 / ports → 按 kind 接到 Host 或 CLI。本文件是命令、MCP 登记、动作录取和打包的手册，不替代那份顺序。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
-新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：在 `apps/local-host/src/project-plugins.ts` 加监督器条目，不再手接 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 里要有它的目录条目（Manifest、`summary`、`workbench` 次序与客户端资源），并把它的 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（门禁要求每个 Runtime 装配的 id 都有目录条目）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
+新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：项目级的在 `apps/local-host/src/project-plugins.ts` 加监督器条目，Home 级的（个人数据跨项目一致、没有项目也能用）在 `BUILTIN_PLUGIN_CATALOG` 的目录条目上声明 `runtime: { scope: "home", … }`，由宿主的 Home 监督器装配（写法见 `skills/molis-plugin-dev/host.md`）；不再手接 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 里要有它的目录条目（Manifest、`summary`、`workbench` 次序与客户端资源），并把它的 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（门禁要求每个 Runtime 装配的 id 都有目录条目）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
@@ -348,3 +348,13 @@ Pages 的 prepareImport 是 Host 注入端口：公共 MaterialDocumentReader �
 Builder 的截图评审把 presentation、design、host、unverified 问题分开：只有截图/目标有效、呈现属性受支持的意见进入有限自动修订，其余显示为未自动修改。合同示例的本地空存储规则同时检查 output 与 includes/outputIncludes/expect，矛盾在设计阶段返回，不交给代码 Agent 制造假记录。
 
 工作台客户端首次打开时从原注册目录加载，UI 依赖由其 `clientAssets` 声明。Host 先保留原 surface 根、准备依赖，再调用 client factory；同一页面已打开的实例继续留存，隐藏只暂停其 UI 读取。客户端所需能力从注入的 Host 取，不依赖组合脚本的私有变量。设置与公共层叠沿现有 shell 提供。资源失败按钮只重载 UI，不能作为重新发出模型或副作用请求的依据。
+
+### 跟随主区对象的侧栏与原线程助理回复
+
+侧栏视图在现有 `ui.views` 声明 `slot: "side", context_binding: "focused-object"`。工作台依据当前焦点 pane 的对象上下文显示该入口，通过 `molis:side-context` 投递带递增 `context_epoch` 的对象标识、版本和未保存标记。侧栏启动发 `molis:side-ready`；已隐藏的面板不会因切换文档自动打开，用户选中的普通工具也不会被抢走。上下文只是展示定位，所有对象读写仍由提供方检查项目和权限。消息只接受已挂载的同源 frame；旧 epoch 的编辑请求被拒绝。
+
+提供方用两条用户专属、项目范围动作声明 `action.thread_source: { role: "context" | "reply", subject_kind }`。同一提供方和对象种类只能有一个可用的读取入口与回复入口。context 查询接收 `subject_id, thread_id, message_id`，返回 `AssistantThreadContext`（文档与线程快照、截断标记、原用户消息）。reply 命令只接收 `subject_id, thread_id`，内容、作者和运行标识从可信的 `ActionCallContext.assistant_reply` 读取，业务输入不得提供这些身份。
+
+宿主的 `assistant.threads.start/status/retry/stop` 统一管理执行与投递，使用同一个 Home 的 Prologue。普通评论不调用它；只有用户明确请求助理回复才发 start。保存评论与调用模型分别幂等，重试已完成的运行只重投递；正文仍由原插件独占管理。Pages 是第一项实现，动作与侧栏协议不要求助理导入 Pages。
+
+评论上下文读取动作可接受用户明确提供的 `draft: { text, revision }`（公开类型 `AssistantThreadDraft`）：owner 先核对它的基准版本与当前对象权限，再返回带「未保存草稿」标识的上下文。它不授予写正文的权限，也不替换保存后的对象；未声明支持的 owner 不接收该可选输入。

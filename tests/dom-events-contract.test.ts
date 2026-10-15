@@ -366,11 +366,12 @@ test("the report names the receivers that cannot meet, and does not fail on them
   assert.doesNotMatch(text, /alpha\/src\/client\.ts:5/, "an event that bubbles reaches a window listener");
   assert.deepEqual(domEventProblems(changed({ [NEW_FILE]: script('window.addEventListener("molis:side-open", () => {});') })), []);
   // A document event that bubbles does reach a window listener.
+  const bubblingRegistry = registryText.replace(/(name: "molis:side-open"[^\n]*on: "document"), cancelable: true/u, '$1, bubbles: true, cancelable: true');
   const bubbling = domEventReport(changed({
-    [DOM_EVENTS_CONTRACT]: registryText.replace('on: "document", cancelable: true', 'on: "document", bubbles: true, cancelable: true'),
+    [DOM_EVENTS_CONTRACT]: bubblingRegistry,
     [NEW_FILE]: script('window.addEventListener("molis:side-open", () => {});'),
   }));
-  assert.notEqual(registryText, registryText.replace('on: "document", cancelable: true', 'on: "document", bubbles: true, cancelable: true'));
+  assert.notEqual(registryText, bubblingRegistry);
   assert.doesNotMatch(bubbling.findings.join("\n"), /alpha\/src\/client\.ts:2/);
 });
 

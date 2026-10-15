@@ -64,7 +64,7 @@ pnpm --filter @molis-ai/molis-work-ui-host build
 已有行为示例与回归：[workbench-ui-platform.test.ts](../../tests/workbench-ui-platform.test.ts)、[plugin-host-executor.test.ts](../../tests/plugin-host-executor.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/workbench-ui-platform.test.ts tests/plugin-host-executor.test.ts
+node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host-executor.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。

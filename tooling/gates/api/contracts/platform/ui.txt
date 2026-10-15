@@ -113,6 +113,27 @@ export interface UiRequestScope {
     assertCurrent(signal?: AbortSignal): void;
 }
 
+export interface UiSideContext {
+    readonly plugin_id: string;
+    readonly pane_id: string;
+    readonly tab_id: string;
+    readonly view_id: string;
+    readonly object_ref: {
+        readonly kind: string;
+        readonly id: string;
+        readonly title?: string;
+        readonly version?: string | number;
+    };
+    readonly revision: string | number | null;
+    readonly unsaved: boolean;
+}
+
+export interface UiSideContextMessage {
+    readonly type: "molis:side-context";
+    readonly context_epoch: number;
+    readonly context: UiSideContext | null;
+}
+
 export interface UiSlotDescriptor {
     readonly slot_id: string;
     readonly version: number;
@@ -147,6 +168,7 @@ export interface UiViewDeclaration {
     readonly contribution_id?: string;
     readonly icon?: string;
     readonly accepts_objects?: boolean;
+    readonly context_binding?: "focused-object";
     readonly objects?: readonly string[];
     readonly order?: number;
 }

@@ -7,6 +7,7 @@ export function homePluginSideTabs(): SidePanelPluginTab[] {
   return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home").flatMap(entry =>
     (entry.manifest.ui?.views ?? []).filter(view => view.slot === "side").map((view, index) => ({
       key: `${entry.project_plugin_id}/${view.view_id}`, title: view.title,
+      ...(view.context_binding ? { contextOwner: entry.manifest.plugin_id, contextSurface: entry.project_plugin_id } : {}),
       icon: (view.icon ?? "package") as MolisWorkIcon,
       src: `/plugins/${encodeURIComponent(entry.project_plugin_id)}?side=${encodeURIComponent(view.view_id)}`,
       ...(index === 0 && entry.runtime?.keys ? { keys: entry.runtime.keys } : {}),

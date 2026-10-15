@@ -74,7 +74,7 @@ AP2 保证一个 Local Host 实例内，每个 Project storage key 只有一份 
 ## 验证
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/local-host.test.ts
+node scripts/run-tests.mjs tests/local-host.test.ts
 pnpm workspace:check
 pnpm boundary:check
 pnpm typecheck

@@ -60,7 +60,7 @@ pnpm --filter @molis-ai/molis-work-plugin-feed build
 已有行为示例与回归：[feed-native-plugin.test.ts](../../../tests/feed-native-plugin.test.ts)、[feed-goal-promotion.test.ts](../../../tests/feed-goal-promotion.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/feed-native-plugin.test.ts tests/feed-goal-promotion.test.ts
+node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-promotion.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。

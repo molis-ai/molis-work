@@ -257,6 +257,9 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
     if (!UI_VIEW_SLOTS.includes(view.slot)) {
       problems.push(`视图 ${view.view_id} 的 slot 不合法`);
     }
+    if (view.context_binding !== undefined && (view.slot !== "side" || view.context_binding !== "focused-object")) {
+      problems.push(`视图 ${view.view_id} 的 context_binding 只支持 side 的 focused-object`);
+    }
     if (!text(view.title)) problems.push(`视图 ${view.view_id} 缺少标题`);
     const contributionId = view.contribution_id ?? `${parsed.plugin_id}.${view.view_id}`;
     if (!contributions.has(contributionId)) {

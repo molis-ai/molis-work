@@ -35,7 +35,7 @@ Host 明确接收固定成果时，可随 `admit` 提供 `artifact_source`；该
 ```bash
 pnpm --filter @molis-ai/molis-work-module-shelf typecheck
 pnpm --filter @molis-ai/molis-work-module-shelf build
-node --import tsx --test --test-concurrency=1 tests/shelf-plugin.test.ts
+node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 ```
 
 ## 开发要求

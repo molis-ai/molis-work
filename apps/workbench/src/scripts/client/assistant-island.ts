@@ -1,5 +1,14 @@
+import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT } from "./assistant-stage.js";
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
+import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
+
+// The existing Coding tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
+export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: (text: string) => string): string =>
+  renderAssistantTextHtml(text, { objects, say, language: codeLanguage, tokens: codeTokens });
+export const assistantReviewHtml = (review: AssistantPendingReview, say: (text: string) => string): string =>
+  renderAssistantReviewHtml(review, { objects: [], say, language: codeLanguage, tokens: codeTokens });
 
 /**
  * The resident Assistant in the bottom bar: one assistant, many works.
@@ -41,8 +50,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let project = host.project && host.project.id ? host.project : null;
   const searchKey = () => !document.querySelector("[data-global-search-open], [data-global-search-dialog]") || (window.matchMedia && window.matchMedia("(hover: none)").matches) ? ""
     : /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
-  const BT = String.fromCharCode(96);
-  const FENCE = BT + BT + BT;
   const STATE_LABELS = { idle: "尚未开始", running: "进行中", "waiting-input": "等你回答", "waiting-review": "等你确认", paused: "已暂停",
     completed: "已完成", failed: "没有完成", stopped: "已停止", "needs-check": "需要核对" };
   const store = {
@@ -205,26 +212,22 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     return result;
   };
-  const el = (tag, className, text) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined && text !== null) node.textContent = text;
-    return node;
-  };
+  const el = ${ASSISTANT_ELEMENT_SCRIPT};
   const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
   const currentWork = () => works.find((work) => work.work_id === currentId) || (view && view.work.work_id === currentId ? view.work : null);
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
-  const setPanel = (open) => { if (panel) panel.hidden = !open; };
-  const syncSend = () => { send.disabled = busy || !String(input.value || "").trim(); };
+  let presentation;
+  const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
+  const syncSend = () => { send.disabled = busy || !!currentWork()?.reply_target || !String(input.value || "").trim(); };
 
   /* ─── Where the next Send goes ─────────────────────────────────────────── */
   const paintTarget = () => {
-    const work = currentWork();
+    const work = currentWork(); presentation?.syncWork(work); input.readOnly = !!work?.reply_target;
     if (work) {
-      targetLabel.textContent = (isLive(work.state) ? L("补充到") : L("继续")) + "：" + work.title;
-      target.title = L("下一次发送进入这项工作；点 × 改为开始新工作");
+      targetLabel.textContent = work.reply_target ? L("回复到原评论") + "：" + work.reply_target.title : (isLive(work.state) ? L("补充到") : L("继续")) + "：" + work.title;
+      target.title = work.reply_target ? L("请回到原评论继续回复") : L("下一次发送进入这项工作；点 × 改为开始新工作");
       if (targetClear) targetClear.hidden = false;
       if (targetWrap) { targetWrap.dataset.mode = "work"; targetWrap.hidden = false; }
     } else {
@@ -236,7 +239,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
     const hint = !work && newExecutor === "assistant" && host.placeholder ? host.placeholder(project) : "";
-    input.placeholder = work ? L("补充、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…")
+    input.placeholder = work?.reply_target ? L("请回到原评论继续回复") : work ? L("补充、回答或纠正…") : newExecutor === "coding" ? L("让 Coding Agent 做点什么…")
       : hint ? hint : searchKey() ? L("让助理做点什么，或按 {key} 搜索").replace("{key}", searchKey()) : L("让助理做点什么…");
     // A Coding work shows the mode its next round runs in — the session's own setting, the same one its page shows.
     if (modeButton) {
@@ -384,159 +387,26 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (object.open && host.openItem) host.openItem(object.open.surface, object.open.id, object.title);
   };
 
-  /* ─── Text: the model's words read as Markdown into text nodes — structure, never markup ─────────────── */
-  // Code is coloured with the Coding App's own tokenizer, carried as source: plain pieces with a kind, never HTML.
-  const codeLanguageOf = ${codeLanguage.toString()};
-  const tokensOf = ${codeTokens.toString()};
-  const LANGUAGE_NAME = { ts: "TypeScript", js: "JavaScript", json: "JSON", py: "Python", sh: "Shell", yaml: "YAML", html: "HTML", css: "CSS", go: "Go", rust: "Rust",
-    java: "Java", c: "C", sql: "SQL", diff: "Diff", markdown: "Markdown" };
-  /** A block of code: what language, how long, a copy button; long code folds after a screenful. */
-  const codeBlock = (code, hint) => {
-    const text = String(code || "").replace(/\n$/, "");
-    const guessed = /^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? "json" : /^\s*\$ /.test(text) ? "sh" : /^(@@|\+\+\+|---) /m.test(text) ? "diff" : "";
-    const language = codeLanguageOf(hint || "") || guessed;
-    const lines = text.split("\n").length;
-    const figure = el("figure", "assistant-code"), head = el("figcaption", "assistant-code-head");
-    head.append(el("span", "assistant-code-lang", LANGUAGE_NAME[language] || hint || L("代码")), el("span", "assistant-code-lines", L("{n} 行").replace("{n}", String(lines))));
-    const copy = el("button", "assistant-code-copy", L("复制")); copy.type = "button";
-    copy.addEventListener("click", async () => {
-      try { await navigator.clipboard.writeText(text); } catch { host.showToast?.(L("没能复制，请手动选中文字")); return; }
-      copy.textContent = L("已复制"); copy.dataset.done = "";
-      setTimeout(() => { copy.textContent = L("复制"); delete copy.dataset.done; }, 1400);
+  /* The Host draws text and code from raw words; only reading interactions live here. */
+  const bindText = (root) => {
+    root.querySelectorAll(".assistant-code").forEach((figure) => {
+      const copy = figure.querySelector(".assistant-code-copy"), more = figure.querySelector(".assistant-code-more");
+      copy.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(figure.querySelector("pre code").textContent); } catch { host.showToast?.(L("没能复制，请手动选中文字")); return; }
+        copy.textContent = L("已复制"); copy.dataset.done = "";
+        setTimeout(() => { copy.textContent = L("复制"); delete copy.dataset.done; }, 1400);
+      });
+      more?.addEventListener("click", () => {
+        figure.toggleAttribute("data-folded");
+        more.textContent = figure.hasAttribute("data-folded") ? L("展开全部 {n} 行").replace("{n}", figure.dataset.lines) : L("收起");
+      });
     });
-    head.append(copy);
-    const pre = el("pre"), body = el("code");
-    const pieces = language && text.length <= 40000 ? tokensOf(text, language) : null;
-    if (pieces) body.append(...pieces.map(([kind, value]) => kind ? el("span", "tok-" + kind, value) : document.createTextNode(value)));
-    else body.textContent = text;
-    pre.append(body); figure.append(head, pre);
-    if (lines > 18) {
-      figure.setAttribute("data-folded", "");
-      const label = () => figure.hasAttribute("data-folded") ? L("展开全部 {n} 行").replace("{n}", String(lines)) : L("收起");
-      const more = el("button", "assistant-code-more", label()); more.type = "button";
-      more.addEventListener("click", () => { figure.toggleAttribute("data-folded"); more.textContent = label(); });
-      figure.append(more);
-    }
-    return figure;
-  };
-  const SAFE_LINK = /^(https?:\/\/|mailto:)/i;
-  const link = (label, href) => {
-    if (!SAFE_LINK.test(href)) return document.createTextNode(label);
-    const node = el("a", "assistant-link", label); node.href = href; node.target = "_blank"; node.rel = "noopener noreferrer";
-    return node;
-  };
-  const namedObject = (text) => {
-    const name = text.slice(1, -1);
-    const object = view && view.objects ? view.objects.find((one) => one.title === name && one.open) : null;
-    if (!object || !host.openItem) return document.createTextNode(text);
-    const button = el("button", "assistant-inline-object"); button.type = "button";
-    button.append(glyph(objectGlyph(object)), document.createTextNode(name));
-    button.setAttribute("aria-label", L("打开") + "：" + name);
-    button.addEventListener("click", () => showObject(object));
-    return button;
-  };
-  const INLINE = [BT + "[^" + BT + "]+" + BT, "\\*\\*[^*]+\\*\\*", "__[^_]+__", "~~[^~]+~~", "\\*[^*\\s][^*]*\\*", "(?<![\\w])_[^_\\s][^_]*_(?![\\w])",
-    "\\[[^\\]]+\\]\\([^)\\s]+\\)", "https?://[^\\s<>「」（）()，。；、]+", "「[^」]{1,80}」"].join("|");
-  const inline = (parent, text) => {
-    const pattern = new RegExp(INLINE, "g");
-    let last = 0, match;
-    while ((match = pattern.exec(text))) {
-      if (match.index > last) parent.append(document.createTextNode(text.slice(last, match.index)));
-      const token = match[0];
-      if (token.startsWith(BT)) parent.append(el("code", "", token.slice(1, -1)));
-      else if (token.startsWith("**") || token.startsWith("__")) { const node = el("strong"); inline(node, token.slice(2, -2)); parent.append(node); }
-      else if (token.startsWith("~~")) { const node = el("s"); inline(node, token.slice(2, -2)); parent.append(node); }
-      else if (token.startsWith("[")) { const at = token.indexOf("]("); parent.append(link(token.slice(1, at), token.slice(at + 2, -1))); }
-      else if (/^https?:/i.test(token)) parent.append(link(token, token));
-      else if (token.startsWith("「")) parent.append(namedObject(token));
-      else { const node = el("em"); inline(node, token.slice(1, -1)); parent.append(node); }
-      last = match.index + token.length;
-    }
-    if (last < text.length) parent.append(document.createTextNode(text.slice(last)));
-  };
-  const LIST_ITEM = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
-  /** A list, nested by indent; “[ ]” and “[x]” items read as a checklist. Returns where the list ended. */
-  const readList = (lines, start, parent) => {
-    const stack = [];
-    let index = start, lastItem = null;
-    while (index < lines.length) {
-      const line = lines[index];
-      if (!line.trim()) { if (index + 1 < lines.length && LIST_ITEM.test(lines[index + 1])) { index += 1; continue; } break; }
-      const match = LIST_ITEM.exec(line);
-      if (!match) {
-        if (lastItem && /^\s{2,}\S/.test(line)) { lastItem.append(el("br")); inline(lastItem, line.trim()); index += 1; continue; }
-        break;
-      }
-      const indent = match[1].replace(/\t/g, "  ").length, ordered = /\d/.test(match[2]);
-      while (stack.length && indent < stack[stack.length - 1].indent) stack.pop();
-      let top = stack[stack.length - 1];
-      if (!top || indent > top.indent) {
-        const list = el(ordered ? "ol" : "ul");
-        const number = Number(match[2].replace(/\D/g, ""));
-        if (ordered && number > 1) list.start = number;
-        (top && lastItem ? lastItem : parent).append(list);
-        stack.push(top = { indent, list });
-      }
-      const item = el("li"), task = /^\[( |x|X)\]\s+(.*)$/.exec(match[3]);
-      if (task) { item.className = "assistant-task" + (task[1] === " " ? "" : " is-done"); item.append(el("span", "assistant-task-box")); inline(item, task[2]); }
-      else inline(item, match[3]);
-      top.list.append(item); lastItem = item; index += 1;
-    }
-    return index;
-  };
-  const rich = (text) => {
-    const root = el("div", "assistant-rich");
-    const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
-    lines.forEach((line, at) => {
-      const loose = /^(\s*)([-•])([^\s\-•].*)$/.exec(line);
-      if (loose && [lines[at - 1], lines[at + 1]].some((near) => near !== undefined && new RegExp("^\\s*\\" + loose[2] + "\\s+\\S").test(near))) lines[at] = loose[1] + loose[2] + " " + loose[3];
+    root.querySelectorAll("[data-assistant-object]").forEach((button) => {
+      const object = view.objects[Number(button.dataset.assistantObject)];
+      if (!object || !host.openItem) { button.replaceWith(document.createTextNode("「" + button.textContent + "」")); return; }
+      button.prepend(glyph(objectGlyph(object)));
+      button.addEventListener("click", () => showObject(object));
     });
-    const fencePattern = new RegExp("^\\s*(" + FENCE + "|~~~)");
-    const isFence = (line) => fencePattern.test(line);
-    const isRule = (line) => /^\s*([-*_])(\s*\1){2,}\s*$/.test(line);
-    const isTableAt = (at) => lines[at].includes("|") && at + 1 < lines.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[at + 1]);
-    const cells = (line) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
-    const startsBlock = (at) => isFence(lines[at]) || LIST_ITEM.test(lines[at]) || /^#{1,6}\s/.test(lines[at]) || /^\s*>/.test(lines[at]) || isRule(lines[at]) || isTableAt(at);
-    let index = 0;
-    while (index < lines.length) {
-      const line = lines[index];
-      if (!line.trim()) { index += 1; continue; }
-      if (isFence(line)) {
-        const mark = line.trim().slice(0, 3), hint = line.trim().slice(3).trim(), code = [];
-        index += 1;
-        while (index < lines.length && !lines[index].trim().startsWith(mark)) { code.push(lines[index]); index += 1; }
-        index += 1; root.append(codeBlock(code.join("\n"), hint)); continue;
-      }
-      const heading = /^(#{1,6})\s+(.*)$/.exec(line);
-      if (heading) { const node = el(heading[1].length <= 1 ? "h3" : heading[1].length === 2 ? "h4" : "h5", "assistant-rich-heading"); inline(node, heading[2].replace(/\s+#+\s*$/, "")); root.append(node); index += 1; continue; }
-      if (isRule(line)) { root.append(el("hr")); index += 1; continue; }
-      if (/^\s*>/.test(line)) {
-        const quoted = [];
-        while (index < lines.length && /^\s*>/.test(lines[index])) { quoted.push(lines[index].replace(/^\s*>\s?/, "")); index += 1; }
-        const quote = el("blockquote"); quote.append(...rich(quoted.join("\n")).childNodes); root.append(quote); continue;
-      }
-      if (isTableAt(index)) {
-        const head = cells(line), aligns = cells(lines[index + 1]).map((cell) => cell.startsWith(":") && cell.endsWith(":") ? "center" : cell.endsWith(":") ? "right" : "");
-        index += 2;
-        const table = el("table"), thead = el("thead"), tbody = el("tbody"), headRow = el("tr");
-        const cell = (tag, value, at) => { const node = el(tag); if (aligns[at]) node.style.textAlign = aligns[at]; inline(node, value); return node; };
-        head.forEach((value, at) => headRow.append(cell("th", value, at)));
-        thead.append(headRow);
-        while (index < lines.length && lines[index].includes("|") && lines[index].trim()) { const row = el("tr"); cells(lines[index]).forEach((value, at) => row.append(cell("td", value, at))); tbody.append(row); index += 1; }
-        table.append(thead, tbody);
-        const wrap = el("div", "assistant-table"); wrap.append(table); root.append(wrap); continue;
-      }
-      if (LIST_ITEM.test(line)) { index = readList(lines, index, root); continue; }
-      // A paragraph: lines until a blank one or the start of another block.
-      const paragraph = el("p");
-      let first = true;
-      while (index < lines.length && lines[index].trim() && (first || !startsBlock(index))) {
-        if (!first) paragraph.append(el("br"));
-        inline(paragraph, lines[index]); first = false; index += 1;
-      }
-      root.append(paragraph);
-    }
-    return root;
   };
 
   /* ─── Rendering, updated in place so reading and focus are never disturbed ─ */
@@ -593,41 +463,17 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       },
     }, question.pending_id + question.pending_revision + question.answerable);
   };
-  /** What the held effect is, in the person's words and with its glyph: data, files, a command, an outside tool. */
-  const REVIEW_KIND = [[/command|shell|exec|terminal/i, "运行命令", "terminal"], [/file|patch|edit|write-file/i, "修改文件", "code"],
-    [/mcp|external|http|web|network/i, "调用外部工具", "external"], [/./, "修改数据", "edit"]];
   const renderReview = (card, work, review) => {
-    const [, kind, kindIcon] = REVIEW_KIND.find(([pattern]) => pattern.test(String(review.kind || ""))) || REVIEW_KIND[REVIEW_KIND.length - 1];
-    const head = el("div", "assistant-card-head"), mark = el("span", "assistant-card-kicker is-attention"), badge = el("span", "assistant-card-badge");
-    mark.append(spinner("approval"), document.createTextNode(L("执行前需要你确认"))); badge.append(glyph(kindIcon), document.createTextNode(L(kind)));
-    head.append(mark, badge); card.replaceChildren(head, el("p", "assistant-card-title", review.summary));
-    const plain = review.fields.filter((field) => field.label !== "完整参数" && field.label !== "能力");
-    const CODE_FIELD = { "改动": "diff", "命令": "sh", "参数": "json" };
-    if (plain.length) {
-      const list = el("dl", "assistant-fields");
-      plain.forEach((field) => {
-        // A change, a command or parameters read as code: exact, coloured, copyable; the rest as words.
-        if (CODE_FIELD[field.label]) { const box = el("div", "assistant-field-code"); box.append(el("p", "assistant-field-label", L(field.label)), codeBlock(field.value, CODE_FIELD[field.label])); card.append(box); return; }
-        list.append(el("dt", "", L(field.label)), el("dd", "", field.value));
-      });
-      if (list.children.length) card.insertBefore(list, card.querySelector(".assistant-field-code"));
-    }
-    const exact = review.fields.filter((field) => field.label === "完整参数" || field.label === "能力");
-    if (exact.length) {
-      const more = el("details", "assistant-exact"); more.append(el("summary", "", L("准确参数与能力")));
-      exact.forEach((field) => { more.append(el("p", "assistant-muted", L(field.label))); more.append(el("pre", "", field.value)); });
-      card.append(more);
-    }
-    const row = el("div", "assistant-card-actions");
+    card.innerHTML = review.html;
+    card.querySelectorAll("[data-assistant-review-glyph]").forEach((node) => node.replaceWith(glyph(node.dataset.assistantReviewGlyph)));
+    bindText(card);
+    const row = card.querySelector(".assistant-card-actions");
     const decide = async (decision) => {
       row.querySelectorAll("button").forEach((one) => { one.disabled = true; });
       try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision }); render(); schedule(); }
       catch (error) { showProblem({ message: error.message }); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); }
     };
-    const allow = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("允许执行")); allow.type = "button";
-    const reject = el("button", "mw-btn mw-btn--secondary mw-btn--sm", L("拒绝")); reject.type = "button";
-    allow.addEventListener("click", () => decide("approve")); reject.addEventListener("click", () => decide("reject"));
-    row.append(allow, reject); card.append(row, cardHint(L("允许只执行这一次；拒绝就不执行，助理会知道你拒绝了。")));
+    row.querySelectorAll("[data-assistant-decision]").forEach((button) => button.addEventListener("click", () => decide(button.dataset.assistantDecision)));
   };
   const renderCard = (node, work, card) => {
     node.dataset.status = card.status;
@@ -785,7 +631,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const bubble = keyed(node, "data-entry", entry.key, () => el("div", "assistant-msg assistant-msg--" + kind));
         if (bubble.dataset.text !== turn.text) {
           bubble.dataset.text = turn.text;
-          if (kind === "assistant") bubble.replaceChildren(rich(turn.text)); else bubble.textContent = turn.text;
+          if (kind === "assistant") { bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
         }
         put(bubble);
         if (kind === "assistant") {
@@ -2566,6 +2412,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (currentId) await refresh(); else render();
     } finally { busy = false; syncSend(); schedule(); }
   });
+  presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:currentWork,switchTo,showProblem,L,el});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
   island.querySelectorAll("[data-assistant-control]").forEach((button) => button.addEventListener("click", async () => {

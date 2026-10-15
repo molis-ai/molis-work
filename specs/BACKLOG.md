@@ -33,7 +33,7 @@
 | BL-013 | 项目讨论分屏（群聊与公开 Thread） | [molis-work-im/redesign-v2](archive/molis-work-im/redesign-v2/spec.md) | 无 | 低 | 用户 |
 | BL-014 | Shelf 原生手势：真人划选不出轮盘、Finder 拖放、系统文件选择器 | [shelf-drop-wheel-arming](archive/shelf-drop-wheel-arming/spec.md)、[shelf-dropagent-parity](archive/shelf-dropagent-parity/spec.md) | 本机原生环境 | 中 | 用户 |
 | BL-015 | 菜单栏胶囊在副屏上的点击 | [macos-secondary-display-tray-click](archive/macos-secondary-display-tray-click/spec.md) | 双屏 | 低 | 用户 |
-| BL-016 | 真机中文输入法与 VoiceOver：底栏输入、Todo、侧栏、动态交互的读屏 | [system-assistant/implementation.md §14](archive/system-assistant/implementation.md)、[todo-plugin/implementation.md](archive/todo-plugin/implementation.md)、[side-panel §7.4](archive/side-panel/spec.md)、[contextual-interaction](archive/contextual-interaction/spec.md) | 真机 | 中 | 用户 |
+| BL-016 | 真机中文输入法、软键盘与 VoiceOver：底栏/主区助理、Pages 评论、Todo、侧栏和动态交互 | [system-assistant/implementation.md §14](archive/system-assistant/implementation.md)、[todo-plugin/implementation.md](archive/todo-plugin/implementation.md)、[side-panel §7.4](archive/side-panel/spec.md)、[contextual-interaction](archive/contextual-interaction/spec.md)、[Pages 与助理](archive/pages-assistant-surfaces/spec.md) | 真机 | 中 | 用户 |
 | BL-017 | 平台侧栏 7.3 的 8 步，特别是在侧栏浏览器里登录真实网站（AC05） | [side-panel §7.4](archive/side-panel/spec.md) | 无 | 低 | 用户 |
 | BL-105 | 打开 Molis Work 的重做：项目选择页（预选上次项目、右边是项目简介）、开场与 Welcome、新建项目引导、更新页（#159） | [project-arrival-flow](archive/project-arrival-flow/spec.md) | 无 | 中 | 用户 |
 | BL-109 | #150 性能修复：完整视觉走查，以及原生窗口里的输入与导航验收 | [performance-preserving-fixes](archive/performance-preserving-fixes/spec.md) | 无 | 中 | 用户 |
@@ -133,6 +133,9 @@
 | BL-126 | 维护六收尾核对（2026-10-11 ①②已做：新构建打开 18 个 v7 项目库的拷贝，Goal 数与各表行数与维护六前相同，见检查清单第 4.3 节；只剩③，要用户重开会话）：①新构建打开 v7 项目库——在安装版里绑定一个项目并读它的 Goal 数，与维护前一致（或在项目库拷贝上用新构建打开一次，看工作台和插件切换器里没有「实验」、没有 `storage.schema_version_mismatch`）；②重装之后逐库只读核对（v7、无 Casebook 表、`integrity_check`、行数）；③重装之前起的会话里的 MCP 仍是只认 v6 的旧代码，重连或重开会话。2026-10-10 只做了重装和列出 18 个项目（只读目录库），这一半没做 | [repository-anti-corruption §4.1 维护六](repository-anti-corruption/spec.md)、[CHECKLIST 第 4.3 节「做完核对」](../docs/releases/CHECKLIST.md) | 部分实现 | 绑定项目、重连会话都会动真实 Home 与用户的会话，按检查清单 4.1 先得到用户同意 | 无 | 中 | 协调会话 |
 | BL-129 | 首页事项动作不区分撤不回的目标：情境条把效果为撤不回的事项选项标为不可用（`packages/kernel/src/contextual.ts` 的 `subjectCandidates`），首页的事项动作（`apps/local-host/src/home-offer-actions.ts`）没有这个判断。今天没有这样的生产方（Feed、Inbox 的事项选项目标都可撤回），等真有了再定首页怎么处理 | W3-05 的使用端核对 | 已知缺口 | 没有生产方，先不做 | 无 | 低 | 未分配 |
 | BL-130 | 插件开发 Skill 补写注册时的引用规则：撤销、后台任务、片段与事项推荐的选项、结果对象（`result_subject` 与未声明时的明文推断规则）；规则已写在 `docs/platform/PLUGIN-DEVELOPMENT.md`，`skills/molis-plugin-dev/` 还没有，生成插件和第三方作者看不到。随 W6-03 做，用 W1-12 的回放工具验证；Skill 的改动在全量回归之外做 | [action-architecture §3 末尾 G7](action-architecture/spec.md) | 明确后续做 | W3-05 不改 `skills/` | W1-12、W6-03 | 中 | 未分配 |
+| BL-134 | 列表刷新失败时少了「当前输入已保留」：W3-10 把 Feed、Inbox 的提示换成共同请求出口的话（读不到时「连不上 Molis Work 服务，请稍后重试」），Issue 的模型设置读不出时也一样；输入其实还在，但这句安慰没有了。共同出口忽略调用方给的兜底话 | [防腐 §10.11 F-6](repository-anti-corruption/spec.md) | 已知缺口 | 随 I8 落地后再定：让调用方补一句，或出口按场合说 | I8 | 低 | 第二步 |
+| BL-135 | Goal 收尾被拒后，表单上「收尾未生效」和未满足的原因在读回文档时被重画掉，只剩提示「顶部已按当前权威状态更新」；读回后原因仍应可见 | [防腐 §10.11 F-11](repository-anti-corruption/spec.md) | 已知缺口 | main 与 I8 相同，不是回退 | 无 | 中 | 未分配 |
+| BL-136 | 共同请求出口把所有非 GET 的断网都说成「不知道这次操作有没有完成，请刷新后核对」，Files 用 POST 打开文件这类读请求也这样说。要让调用方标明是读，或按 query 路由判 | [防腐 §10.11 F-12](repository-anti-corruption/spec.md) | 已知缺口 | 随 I8 落地后改 `packages/ui-host` 的请求出口 | I8 | 低 | 第二步 |
 
 ## 8. 交给第二步（防腐整理）
 

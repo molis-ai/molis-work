@@ -10,7 +10,7 @@
 - **记录**：写一句话，截图直接粘贴或拖进来（也可以点图片按钮选），⌘↵。输入框马上清空、可以接着写下一条；这条以「整理中」出现在列表顶部，Work 助理在后台起标题、判类型并直接保存，保存后提示「已记录：标题」，可以撤销。关掉侧栏不影响，侧栏收起时右上角按钮带点：整理中是铜色，需要你处理是琥珀色。
 - **需要你处理**：助理要补充信息、模型不可用、整理超时，或你设置了这类保存每次都要确认时，这条留在列表顶部并写明原因。点开就是编辑器，原文原图都在：补充后「重新整理」，或写标题、选类型直接「保存」，或「放弃」。
 - **查看**：列表按记录时间倒序，每行是标题、类型、时间、记录时的地点和截图数。点开是只读详情，写明记录于哪个页面、由谁整理；「编辑」改标题、类型、描述和截图，「删除」要再确认一次。Esc 从详情回到列表，再按收起侧栏。
-- **离开页面不丢字**：输入框的文字留在本机，换页面、换项目再打开还在，直到发出；还没完成的录入也留下文字，回来时以「上次没有完成」排在顶部（截图要重新添加），期间助理已经保存的会自动消失。截图只在当前页面里保留。
+- **离开页面不丢草稿**：输入框的文字与截图留在本机，换页面、换项目再打开还在，直到发出或移除；还没完成的录入也留下文字，回来时以「上次没有完成」排在顶部（截图要重新添加），期间助理已经保存的会自动消失。输入框截图使用浏览器 Cache Storage 保存，保留既有图片数量与大小上限；存储失败会提示。
 
 ## 归属与接入
 
@@ -30,6 +30,7 @@
 ## 图片
 
 - 用户用电脑上的工具截图；产品只接收图片，不截图、不申请屏幕共享，也不限制图片来自哪个应用。粘贴、拖入或选择，每条最多 6 张，仅 PNG/JPEG/WebP；保存后单张 2 MiB、合计 8 MiB，大图缩放到最长边 2560 并用 WebP 编码。
+- 预览的关闭和缩放按钮固定在图片滚动区之外，原始尺寸滚动时仍可操作。
 - 导入时检查声明类型与文件头并解码，类型不符立即提示，原有图文保留。编辑某条记录时开始导入、导入完成前离开了这条记录，图片不会挂到别的记录上。
 - `images` 是有序的 `{ name, data_url }` 数组；更新时省略表示不改、空数组表示全部移除。列表只返回 `image_count`，详情和写入结果返回完整图片。服务端独立校验类型、base64、文件头、数量与大小，不接受远程 URL 或 SVG。
 
@@ -48,7 +49,7 @@
   - 原话不改写，类型不默认；可信元数据不从业务输入读取，页面位置只作为页面的报告保存。
   - 提交前复查授权，更新和删除要求版本，冲突不覆盖；撤销只删除没改过的新记录。
 - 改动后必跑：`node scripts/run-tests.mjs tests/issue-home.test.ts tests/issue-home-runtime.test.ts tests/issue-capture.test.ts tests/issue-assistant.test.ts tests/issue-capture-page.e2e.test.ts tests/issue-page.e2e.test.ts`
-- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/issue-global-navigation.e2e.test.ts tests/issue-clarification-page.e2e.test.ts tests/issue-assistant-repair-page.e2e.test.ts`
+- 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/issue-global-navigation.e2e.test.ts tests/issue-clarification-page.e2e.test.ts tests/issue-assistant-repair-page.e2e.test.ts tests/issue-draft-preview.e2e.test.ts`
 - 相关手册：[插件开发](../../../skills/molis-plugin-dev/SKILL.md)、[Home 数据归属](../../../docs/system/HOME-DATA.md)、[开发要求](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 模型回复替身（`tests/fixtures/issue-model.ts`）只证明数据流、撤销与写入边界；真实模型的标题与分类质量、中文输入法和跨应用粘贴手感由用户验收。

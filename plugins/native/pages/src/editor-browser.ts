@@ -1,3 +1,8 @@
+export { mountComments } from "./comment-side-client.js";
+export { bindComments } from "./comment-editor-client.js";
+export { listFailed } from "./list-client.js";
+import { openEditorComment } from "./editor-comments.js";
+export { focusComment, commentBlock } from "./editor-comments.js";
 import { baseKeymap, chainCommands, setBlockType } from "prosemirror-commands";
 import { dropCursor } from "prosemirror-dropcursor";
 import { gapCursor } from "prosemirror-gapcursor";
@@ -181,6 +186,7 @@ export interface PagesEditorMountOptions {
   translate?: (value: string) => string;
   pages?: () => readonly PagesListItem[];
   onOpenPage?: (id: string) => void;
+  onComment?: (markId: string) => void;
   runAi?: (input: { command: string; text: string; style?: string }) => Promise<{ text: string }>;
   onCreateFromAi?: (input: { title: string; text: string }) => Promise<void>;
   /** What the person has in hand, whenever it changes (specs/archive/contextual-interaction §4.1); `null` is the page as a whole. */
@@ -3050,24 +3056,8 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     area.focus();
   };
 
-  const openComment = (view: EditorView) => {
-    const found = commentAt(view.state.doc, view.state.selection);
-    if (!found) return;
-    pop.hidden = false;
-    pop.replaceChildren();
-    const area = document.createElement("textarea");
-    area.className = "mw-input";
-    area.rows = 3;
-    area.placeholder = t(options.translate, "评论");
-    area.value = found.text;
-    pop.append(area);
-    pop.append(actions(options.translate, () => {
-      applyComment(view, found.from, found.to, area.value, found.id);
-      hidePop();
-    }, hidePop));
-    placePop(view.coordsAtPos(found.from), "below", t(options.translate, "评论"));
-    area.focus();
-  };
+  const openComment = (view: EditorView) => openEditorComment(view, { onComment: options.onComment,
+    pop, translate: options.translate, actions, hidePop, applyComment, placePop });
 
   const openTone = (view: EditorView) => {
     pop.hidden = false;

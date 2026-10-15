@@ -121,14 +121,14 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
     if (mode === "failure") throw new Error("Fixture model failure");
     if (mode === "empty") return " ";
     if (mode !== "success") { entered.resolve(); await release.promise; }
-    return "你最常用的工具是什么？";
+    return JSON.stringify({ status: "done", questions: [{ title: "你最常用的工具是什么？", type: "text" }] });
   });
   const { form } = await f.bound.invoke(actions.create, {});
   await f.bound.invoke(actions.generate, { id: form.id, prompt: "Local question" }); assert.equal(calls, 0);
-  await assert.rejects(f.client.invoke({ ...f.caller, permissions: ["form:read", "form:write"] }, actions.generateAi, { id: form.id, prompt: "deny" }), { code: "actions.forbidden" });
+  await assert.rejects(f.client.invoke({ ...f.caller, permissions: ["form:read", "form:write"] }, actions.draft, { id: form.id, prompt: "deny" }), { code: "actions.forbidden" });
   const controller = new AbortController();
-  const promise = f.client.invoke({ ...f.caller, signal: controller.signal }, actions.generateAi, { id: form.id, prompt: "最常用的工具" });
-  if (mode === "success") { assert.equal((await promise).form.questions.length, 2); return; }
+  const promise = f.client.invoke({ ...f.caller, signal: controller.signal }, actions.draft, { id: form.id, prompt: "最常用的工具" });
+  if (mode === "success") { assert.equal((await promise as { form: { questions: unknown[] } }).form.questions.length, 2); return; }
   const rejected = assert.rejects(promise);
   if (["cancel", "edit", "delete"].includes(mode)) {
     await entered.promise;

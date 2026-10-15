@@ -1,6 +1,7 @@
 import type http from "node:http";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import type { PeriodicTasks } from "./periodic-tasks.js";
 
 /**
  * Deletions other processes left pending (the CLI, MCP, an earlier Host) wait for owners only a Host has: the Agent
@@ -8,7 +9,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
  * deletion made by another process is finished here without a restart; one that is deferred again (another process
  * holds the runtime) is simply tried at the next tick.
  */
-export function finishLeftOverDeletions(server: http.Server, home: string, catalog: { warm(): Promise<unknown>; withCatalog: LocalWebCatalogRunner }, intervalMs = 60_000): void {
+export function finishLeftOverDeletions(server: http.Server, home: string, catalog: { warm(): Promise<unknown>; withCatalog: LocalWebCatalogRunner }, periodic: PeriodicTasks, intervalMs = 60_000): void {
   let closed = false, running = false, warned = "";
   const finish = async () => {
     if (closed || running) return;
@@ -19,8 +20,7 @@ export function finishLeftOverDeletions(server: http.Server, home: string, catal
       if (!closed && message !== warned) console.warn("[projects] 上次删除项目留下的清理没有做完", warned = message);
     } finally { running = false; }
   };
-  const timer = setInterval(() => { void finish(); }, intervalMs);
-  timer.unref();
-  server.once("close", () => { closed = true; clearInterval(timer); });
+  const cancel = periodic.every({ id: "projects.deletions", title: "完成上次没删完的项目", owner: "local-host", intervalMs, run: finish });
+  server.once("close", () => { closed = true; cancel(); });
   void catalog.warm().then(finish, () => undefined);
 }

@@ -17,7 +17,9 @@ const picked = (value: InteractionValues[string] | undefined): string[] =>
 const otherOf = (value: InteractionValues[string] | undefined): string => value && typeof value === "object" && "picked" in value ? value.other ?? "" : "";
 
 /** The card, with what the person already wrote back in place. */
-export function agentQuestionHtml(question: AgentPendingQuestion, say: (text: string, values?: Record<string, string | number>) => string, draft: InteractionValues = {}): string {
+export function agentQuestionHtml(question: AgentPendingQuestion, say: (text: string, values?: Record<string, string | number>) => string, draft: InteractionValues = {},
+  /** What answering leads to, in the asker's words; an Agent's run goes on by default. */
+  note = say("回答后这一轮会接着做。")): string {
   const fields: InteractionField[] = question.questions?.length
     ? question.questions.map(item => ({ id: `q${item.index}`, label: item.prompt, optional: !item.required, ...(item.help ? { hint: item.help } : {}),
       control: { kind: "choice" as const, multiple: item.multiple, recommendedLabel: say("推荐"), options: item.options.map(option => ({ value: String(option.index), label: option.label,
@@ -34,7 +36,7 @@ export function agentQuestionHtml(question: AgentPendingQuestion, say: (text: st
   return renderInteractionQuestion({
     id: `q-${question.pending_id}`, kicker: say("等你回答"), state: closed ? "unavailable" : "answer", title: question.prompt, fields, optionalLabel: say("选填"),
     ...(closed ? { banner: { text: question.unavailable_reason || say("这个问题暂时不能回答"), tone: "quiet" as const, actions: [] } } : {}),
-    footer: { note: say("回答后这一轮会接着做。"), keys: "⌘↵", actions: closed ? [] : [{ id: "answer", label: say("提交回答"), variant: "primary", type: "submit" }] },
+    footer: { note, keys: "⌘↵", actions: closed ? [] : [{ id: "answer", label: say("提交回答"), variant: "primary", type: "submit" }] },
   });
 }
 

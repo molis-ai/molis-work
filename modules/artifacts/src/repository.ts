@@ -9,6 +9,7 @@ import type {
   ArtifactVersionRecord,
   FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { announceVersionStoreWrite, type CommitWatchedDatabase } from "./committed.js";
 
 type Row = Record<string, unknown>;
 
@@ -18,7 +19,7 @@ export interface ArtifactsSqliteStatement {
   run(...params: unknown[]): { changes: number | bigint; lastInsertRowid?: number | bigint };
 }
 
-export interface ArtifactsSqliteDatabase {
+export interface ArtifactsSqliteDatabase extends CommitWatchedDatabase {
   prepare(sql: string): ArtifactsSqliteStatement;
   exec(sql: string): unknown;
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
@@ -125,7 +126,9 @@ export class ArtifactsRepository<R extends FixedVersionRecord = ArtifactVersionR
   }
 
   immediate<T>(operation: () => T): T {
-    return this.db.transaction(operation).immediate();
+    const result = this.db.transaction(operation).immediate();
+    announceVersionStoreWrite(this.db);
+    return result;
   }
 
   getIdentityById(artifactId: string): ArtifactIdentityRecord | null {

@@ -68,7 +68,7 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
   dataset: { pkg: "@molis-ai/molis-work-plugin-dataset", declarations: "datasetErrors", removed: ["DatasetError", "datasetRouteErrorResponse"],
     status: { invalid: 400, not_found: 404, conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
   form: { pkg: "@molis-ai/molis-work-plugin-form", declarations: "formErrors", removed: ["FormError", "formRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, closed: 409, request_conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
+    status: { invalid: 400, not_found: 404, conflict: 409, closed: 409, request_conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403, answer_invalid: 400 } },
   lingguang: { pkg: "@molis-ai/molis-work-plugin-lingguang", declarations: "lingguangErrors", removed: ["LingguangError", "lingguangRouteErrorResponse"],
     status: { invalid: 400, not_found: 404, conflict: 409, request_conflict: 409, context_too_large: 400, empty_reply: 400 } },
   workflows: { pkg: "@molis-ai/molis-work-plugin-workflows", declarations: "workflowsErrors", removed: ["WorkflowError", "workflowsRouteErrorResponse"],

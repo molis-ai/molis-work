@@ -7,12 +7,14 @@ import { bindProjectSchedulers } from "./project-schedulers.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { ResolvedWebBoardOptions, FeedSchedulerRuntime } from "./web-types.js";
 import type { ensureSystemAgentService } from "./system-agent-service.js";
+import type { PeriodicTasks } from "./periodic-tasks.js";
 
 /** One service timer over the Host's current project instances, independent of page visits. */
 export function startWebProjectSchedulers(options: {
   localHost: MolisWorkLocalHost; homeDirectory: string; withCatalog: LocalWebCatalogRunner;
   fixture: ResolvedWebBoardOptions | null;
   agents: Pick<ReturnType<typeof ensureSystemAgentService>, "agentHost" | "ready">;
+  periodic: PeriodicTasks;
   changed(databasePath: string): void;
   onError(error: unknown): void;
 }) {
@@ -39,11 +41,11 @@ export function startWebProjectSchedulers(options: {
         .then(result => { if (result.invoked) changed(databasePath); }).catch(() => undefined);
     }
   });
-  const timer = setInterval(() => { void openAll().then(() => { if (!stopped) round(); }); }, 30_000);
-  timer.unref();
+  const cancel = options.periodic.every({ id: "projects.schedules", title: "项目里的定时任务", owner: "local-host", intervalMs: 30_000,
+    run: () => openAll().then(() => { if (!stopped) return round(); }) });
   return { runtimes, stop: () => stopping ??= (async () => {
     stopped = true;
-    clearInterval(timer);
+    cancel();
     await opening;
     await unbind();
   })() };

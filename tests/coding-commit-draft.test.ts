@@ -49,7 +49,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
   const options = { homeDirectory: home, env: { MOLIS_WORK_TEXT_API_KEY: "test-only", MOLIS_WORK_TEXT_BASE_URL: `http://127.0.0.1:${address.port}`,
     MOLIS_WORK_TEXT_API_FORMAT: "anthropic-messages", MOLIS_WORK_TEXT_MODEL: "fixture" }, resolveInference: async () => adapter.inference };
   // A draft's instruction is always one its plugin registered: here Form's, so Coding's own prompts stay unused below.
-  const fixturePlugin = "io.molis.work.form", fixturePrompt = "form.draft-question";
+  const fixturePlugin = "io.molis.work.form", fixturePrompt = "form.draft-questions";
   const rules = agentDefinitionsFor(home, builtinRegistrations).prompt(`${fixturePlugin}/${fixturePrompt}`).default_body.split("\n")[0]!.slice(0, 20);
   const before = await readdir(home), refs: string[] = [];
   try {

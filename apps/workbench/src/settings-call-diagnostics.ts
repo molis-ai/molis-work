@@ -3,7 +3,7 @@ import { renderAgentDiagnostics } from "./settings-agent-diagnostics.js";
 import { renderCallRow, type CallRowView } from "./call-row.js";
 import { settingRow } from "./settings-row.js";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
-import type { MolisWorkSettingsView } from "./settings-view.js";
+import type { MolisWorkSettingsView, WebPeriodicTask } from "./settings-view.js";
 
 type DiagnosticsPrimitives = Pick<SettingsRenderPrimitives, "L" | "escapeHtml" | "icon" | "withDesktopQuery">;
 
@@ -46,6 +46,21 @@ function renderCallLookup(view: MolisWorkSettingsView, p: DiagnosticsPrimitives,
     </section>`;
 }
 
+/** What the server does on a timer: how often, when it last finished, and the error of a run that failed. */
+function renderPeriodicTasks(tasks: readonly WebPeriodicTask[] | undefined, p: DiagnosticsPrimitives): string {
+  if (!tasks?.length) return "";
+  const { L, escapeHtml } = p;
+  const every = (ms: number) => ms === 3_600_000 ? L("每小时") : ms % 3_600_000 === 0 ? L("每 {count} 小时", { count: ms / 3_600_000 })
+    : ms === 60_000 ? L("每分钟") : ms % 60_000 === 0 ? L("每 {count} 分钟", { count: ms / 60_000 }) : L("每 {count} 秒", { count: Math.round(ms / 1000) });
+  const rows = tasks.map(task => {
+    const last = task.running ? L("正在运行") : task.last_finished_at ? L("上次 {time}", { time: new Date(task.last_finished_at).toTimeString().slice(0, 5) }) : L("还没到第一次");
+    const state = task.last_error ? { tone: "danger", label: L("上次出错") } : task.runs ? { tone: "success", label: L("正常") } : { tone: "neutral", label: L("等待中") };
+    const description = [every(task.interval_ms), last].join(" · ") + (task.last_error ? `<br>${escapeHtml(task.last_error)}` : "");
+    return settingRow(escapeHtml(L(task.title)), description, `<span class="settings-state settings-state--${state.tone}">${state.label}</span>`);
+  }).join("");
+  return `<section class="settings-section" aria-labelledby="periodic-tasks-title" data-periodic-tasks><h2 id="periodic-tasks-title">${L("后台任务")}</h2><p>${L("这个服务按时做的事。上一次还没做完时，到点的那一次跳过。")}</p>${rows}</section>`;
+}
+
 /** The diagnostics page: how to find a call by its 诊断编号, then the installation, the registries, the launchers and the resident service. */
 export function renderDiagnosticsSettings(view: MolisWorkSettingsView, p: DiagnosticsPrimitives, desktopShell: boolean): string {
   const { L, escapeHtml, icon } = p;
@@ -85,6 +100,7 @@ export function renderDiagnosticsSettings(view: MolisWorkSettingsView, p: Diagno
       ${settingRow(L("提示词与角色登记"), L("查看每个来源登记了什么、哪些没有生效。"), `<a class="mw-btn mw-btn--secondary mw-btn--sm" href="/settings/prompts#diagnostics">${L("开发者诊断")}</a>`)}
     </section>
     ${renderAgentDiagnostics({ L })}
+    ${renderPeriodicTasks(view.periodic_tasks, p)}
     <section class="settings-section" aria-labelledby="launcher-title"><h2 id="launcher-title">${L("启动入口")}</h2>${launchers}</section>
     <section class="settings-section settings-project-maintenance" aria-labelledby="web-service-title">
       <h2 id="web-service-title">${L("Web 常驻服务")}</h2>

@@ -8,6 +8,7 @@ import { ComputerRecords } from "./computer-records.js";
 import { HelperConnection } from "./helper-connection.js";
 import { handleComputerHttp } from "./computer-http.js";
 import { attachMolisWorkComputerSocket } from "./computer-socket.js";
+import type { PeriodicTasks } from "../periodic-tasks.js";
 
 /**
  * What the Agent Host may attach from the person's Mac (specs/computer-use): the one desktop desk, offered only when the
@@ -67,7 +68,7 @@ export function computerSurfaceProvider(desk: ComputerDesk, enabled: () => boole
  * giant request-wiring stays small: the desk and helper, the surface and file-record providers, the hourly screenshot
  * sweep, the HTTP endpoints and the socket. Attaching to a server also disposes it all when the server closes.
  */
-export function installComputerDesk(localHost: object, homeDirectory: string): InstalledComputerDesk {
+export function installComputerDesk(localHost: object, homeDirectory: string, periodic: PeriodicTasks): InstalledComputerDesk {
   const settings = new ComputerSettings(homeDirectory);
   const records = new ComputerRecords(homeDirectory);
   const helper = new HelperConnection({ appPath: resolveComputerHelperApp() });
@@ -75,9 +76,9 @@ export function installComputerDesk(localHost: object, homeDirectory: string): I
   const unregisterSurfaces = registerComputerSurfaces(localHost, computerSurfaceProvider(desk, () => settings.enabled));
   const unregisterHolder = registerComputerHolder(localHost, () => desk.holding());
   // Screenshots in records hold screen content: cleared after the retention period, swept hourly.
-  const sweep = setInterval(() => { try { records.sweep(); } catch { /* a failed sweep retries next hour */ } }, 60 * 60 * 1000);
-  sweep.unref();
-  const dispose = () => { unregisterSurfaces(); unregisterHolder(); clearInterval(sweep); desk.close(); void helper.close(); };
+  // A failed sweep is recorded and retried the next hour.
+  const stopSweep = periodic.every({ id: "computer.records", title: "清理过期的桌面截图", owner: "local-host", intervalMs: 60 * 60 * 1000, run: () => records.sweep() });
+  const dispose = () => { unregisterSurfaces(); unregisterHolder(); stopSweep(); desk.close(); void helper.close(); };
   return {
     desk,
     handleHttp: (request, response, url) => handleComputerHttp(request, response, url, { settings, helper, desk, records }),

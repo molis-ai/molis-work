@@ -99,8 +99,9 @@ test("AI actions of Form, Dataset, PPT and 灵光 recheck the grant right before
   const form = forms.create({ project_id: "p", title: "F" }), dataset = datasets.create({ project_id: "p", title: "D" }), deck = decks.create({ project_id: "p", title: "P" });
   const spark = sparks.create({ project_id: "p", title: "S", body: "b" }), conversation = sparks.openConversation([spark.id], "p").conversation;
   const cases: Array<{ name: string; run: (state: ReturnType<typeof newState>) => Promise<unknown>; unchanged: () => unknown }> = [
-    { name: "form.questions.ai", unchanged: () => forms.get(form.id, "p").questions.length,
-      run: state => handle(createFormActionHandlers({ withStore: run => run(forms), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "题目？") }), formActions.generateAi.capability_id)
+    { name: "form.questions.draft", unchanged: () => forms.get(form.id, "p").questions.length,
+      run: state => handle(createFormActionHandlers({ withStore: run => run(forms), modelAvailability: () => ({ available: true }),
+        completeText: hostModel(state, JSON.stringify({ status: "done", questions: [{ title: "题目？", type: "text" }] })) }), formActions.draft.capability_id)
         .handle(revocable(state), { id: form.id, prompt: "加一题" }) },
     { name: "dataset.columns.ai", unchanged: () => datasets.get(dataset.id, "p").columns.length,
       run: state => handle(createDatasetActionHandlers({ withStore: run => run(datasets), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "列") }), datasetActions.generateAi.capability_id)

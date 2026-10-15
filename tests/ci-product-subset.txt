@@ -339,6 +339,7 @@ tests/draft-dialogue-boundaries.test.mjs
 tests/execution-lifetime.test.ts
 tests/feishu-cli-status.test.ts
 tests/files-plugin.test.ts
+tests/form-draft-questions.test.ts
 tests/functions-agent-references.test.ts
 tests/generated-action-costs.test.ts
 tests/generated-plugin-prompts.test.ts
@@ -371,10 +372,12 @@ tests/package-dev-requirements.test.ts
 tests/panel-sessions.test.ts
 tests/personal-artifact-owner.test.ts
 tests/planning-engine.test.ts
+tests/plugin-interaction-answer.test.ts
 tests/ppt-subject-kind.test.ts
 tests/primitives.test.ts
 tests/private-work-context-module.test.ts
 tests/projects-module.test.ts
+tests/question-rules-consistency.test.ts
 tests/prompt-registration.test.ts
 tests/runtime-binding-ledger.test.ts
 tests/runtime-context-entry.test.ts

@@ -251,7 +251,7 @@ export async function handleLocalCatalogWebRequest(
         ? listConnectorConnectionViews(serverOptions.homeDirectory) : [],
       projects,
       web_service: await webService.detect(),
-      diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? callDiagnosticsView(localHost.callLog, url) : {}),
+      diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }

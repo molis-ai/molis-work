@@ -27,7 +27,7 @@ export function createFormRouteHandlers(ports: FormRoutePorts): Record<string, F
     "form.delete": call(formActions.delete, identified),
     "form.promote": call(formActions.promote, identified),
     "form.generate": call(formActions.generate, identified),
-    "form.generate-ai": call(formActions.generateAi, identified),
+    "form.draft": call(formActions.draft, identified),
     "form.publish": call(formActions.publish, identified),
     "form.submit": call(formActions.submit, identified),
     "form.results": call(formActions.results, ({ params }) => ({ id: params.id })),

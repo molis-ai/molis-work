@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { bindAlchemistActor } from "./actor-actions.js";
+import { actionsInFlight, bindAlchemistActor } from "./actor-actions.js";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Hono } from "hono";
@@ -74,6 +74,8 @@ export interface LocalRuntime {
   database: SqliteDatabase;
   worker: LocalWorker;
   runPending(): Promise<void>;
+  /** Nothing to do: no action in flight, no drain under way and no job waiting or running. The Host may then close it. */
+  idle(): boolean;
   start(): void;
   close(): Promise<void>;
 }
@@ -274,10 +276,8 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   const actions = createAlchemistOperationExecutor(dependencies);
   const app = createApp(dependencies, options.actions ?? actions);
 
-  let interval: NodeJS.Timeout | undefined;
-  let draining: Promise<void> | undefined;
-  let closed = false;
-  let closing: Promise<void> | undefined;
+  let interval: NodeJS.Timeout | undefined, draining: Promise<void> | undefined, closing: Promise<void> | undefined, closed = false;
+  const inFlight = actionsInFlight();
   const runPending = (): Promise<void> => {
     if (draining) return draining;
     if (closed) return Promise.resolve();
@@ -292,10 +292,11 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   return {
     app,
     actions,
-    actionsFor(owner) { return bindAlchemistActor(owner, { database, actors, clock, actions, closed: () => closed }); },
+    actionsFor(owner) { return inFlight.track(bindAlchemistActor(owner, { database, actors, clock, actions, closed: () => closed })); },
     database,
     worker,
     runPending,
+    idle: () => !closed && !draining && inFlight.none() && !jobs.hasActive(),
     start() {
       if (interval || closed) return;
       void runPending();

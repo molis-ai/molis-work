@@ -1,11 +1,11 @@
 import { FEED_RULE_AUTHORING_SCRIPT } from "./feed-rule-authoring.js";
-import { OWN_DIRECTORY_SURFACES, pluginTabTitles } from "../../plugin-catalog.js";
+import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
 
 /** AP3 Workbench client segment: navigation-feed. */
 export const CLIENT_NAVIGATION_FEED_SCRIPT = `
 ${FEED_RULE_AUTHORING_SCRIPT}
     const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
-    const PLUGIN_TAB_TITLES = ${JSON.stringify({ goal: "Goals", sources: "Feed", ...pluginTabTitles() })};
+    const PLUGIN_TAB_TITLES = { goal: "Goals", sources: "Feed", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
     const directoryPanelFor = (directory) => directory;
 
     const restoreLastGoal = (openGoalsDirectory = false) => {

@@ -39,7 +39,7 @@ const SESSIONS_LIST = "body.immersive-workbench .session-stage-shell:not([data-e
 const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialog.runtime-plan-dialog, dialog.inbox-compose-dialog):not(.mw-sheet)";
 
 /** Popovers and menus that drop from the control that opened them. */
-const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .tab-menu, .assistant-composer)";
+const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .assistant-composer)";
 
 function viewChipTints(): string {
   return MW_PLUGINS.map((plugin) => `${PAGES} .tab-view-chip[data-plugin="${plugin.id}"] { --plugin-tint: var(--plugin-${plugin.id}); }`).join("\n  ");
@@ -544,7 +544,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-panel {
     --assistant-side-w: 272px;
     /* --assistant-room: space left before the platform side panel, set only while it is open. */
-    position: absolute; z-index: 50; left: -40px; right: calc(-1 * min(40px, var(--assistant-room, 40px))); bottom: calc(100% + 8px); display: flex; flex-direction: column; overflow: hidden;
+    position: absolute; z-index: 50; left: -40px; right: calc(-1 * min(40px, var(--assistant-room, 40px))); bottom: calc(100% + 8px + var(--next-row, 0px)); display: flex; flex-direction: column; overflow: hidden;
     height: min(620px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px));
     border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise var(--dur-move) var(--ease-quint) both;
   }
@@ -634,8 +634,6 @@ const CRAFT_BASE_STYLES = `
   /* The work's state retains its label beside the shared ring. */
   ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px 1px 7px; border-radius: 999px; background: var(--wash); color: var(--ink-soft); font-size: 11px; line-height: 18px; }
   ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state:is([data-state="waiting-input"], [data-state="waiting-review"], [data-state="needs-check"]) { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 13%, transparent); color: var(--ink); }
-  ${ASSIST} .assistant-next { align-self: flex-start; margin-top: 8px; }
-  ${ASSIST} .assistant-next[hidden] { display: none; }
   /* One row of equal parts, however many choices: five Coding modes fit the side pane without wrapping. */
   ${ASSIST} .assistant-segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; padding: 2px; border-radius: 8px; background: var(--wash); }
   ${ASSIST} .assistant-segment { min-width: 0; height: 24px; padding: 0 4px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
@@ -693,7 +691,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-summary[data-tone="running"] { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 8%, var(--paper)); }
   ${ASSIST} .assistant-summary[data-tone="failed"] { background: color-mix(in srgb, var(--tone-blocked, #c53030) 8%, var(--paper)); }
   ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state { background: var(--paper); }
-  ${ASSIST} .assistant-summary .assistant-next { align-self: stretch; justify-content: center; margin-top: 10px; }
   ${ASSIST} .assistant-summary .assistant-summary-meta { margin-top: 12px; padding-top: 10px; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent); }
   ${ASSIST} .assistant-glyph-icon { display: inline-grid; place-items: center; flex: none; }
   ${ASSIST} .assistant-glyph-icon svg { width: 15px; height: 15px; }
@@ -1029,15 +1026,12 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-msg-more:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
   /* A plugin's own floating bars and menus stay inside its stage, under the bottom bar and its menus. */
   ${SHELL} .immersive-plugin-stage { isolation: isolate; }
-  /* A plugin's suggestion waits above the bar until the person puts it in the input or ignores it. */
-  ${ASSIST} .assistant-offer {
-    position: absolute; z-index: 55; right: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 6px; width: min(420px, 100%);
-    padding: 10px 12px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
-  }
-  ${ASSIST} .assistant-offer[hidden] { display: none; }
-  ${ASSIST} .assistant-offer-copy { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
-  ${ASSIST} .assistant-offer-copy strong { margin-right: 4px; }
-  ${ASSIST} .assistant-offer-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  /* The next steps sit just above the input, as part of it: the open panel moves up to make room (48px leaves 8px above a touch row). */
+  ${ASSIST} .assistant-next-row{position:absolute;z-index:55;inset:auto auto calc(100% + 6px) 0;max-width:100%}
+  ${ASSIST} .assistant-next-row .mw-ix-steps{--mw-ix-step-h:32px;overflow-x:auto;scrollbar-width:none}
+  ${ASSIST} .assistant-next-row .mw-ix-step:not(:hover){background:var(--paper)}
+  ${ASSIST} .bar-center:has(>.assistant-next-row:not([hidden])){--next-row:48px}
+  ${ASSIST} .assistant-notice-actions{display:flex;gap:6px;justify-content:flex-end}
   /* Attention: a count only for what the person's rules let through here; the list says what waits and why. */
   ${ASSIST} .assistant-attention {
     display: inline-flex; flex: none; align-items: center; gap: 3px; height: 28px; padding: 0 7px; border: 0; border-radius: 7px;
@@ -1239,7 +1233,9 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex-basis: 100%; height: 44px; }
     html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 1 1 100%; }
     html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; }
-    ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px); width: auto; height: min(70dvh, 560px); }
+    ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px + var(--next-row, 0px)); width: auto; height: min(70dvh, 560px); }
+    /* The next steps' band, from the panel's edge down to the input, is the bar's own ground: the page does not show between the steps. */
+    ${ASSIST} .bar-center > .assistant-next-row { inset: auto -8px 100%; max-width: none; padding: 8px 8px 6px; background: var(--desk); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
@@ -1437,15 +1433,15 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} ${DROPDOWN} { transform-origin: top left; }
   ${PAGES} ${DROPDOWN}:is(:popover-open, [open], .is-open, :not([hidden])) { animation: craft-drop 250ms var(--ease-quint); }
   ${PAGES} details[open] > .navigator-project-menu-popover { animation: craft-drop 250ms var(--ease-quint); transform-origin: top left; }
-  ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tab-menu) { border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3); }
+  ${PAGES} :is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover) { border: 0; border-radius: var(--r-card); box-shadow: var(--lift-3); }
   /* Dark reads as three layers: whatever floats (menus, popovers, dialogs, the Assistant panel) sits a step above the
      work surface on --popover, edged by the light ring in its lift rather than by a darker shadow. */
   html[data-resolved-theme="dark"] ${PAGES} :is(.mw-menu, .mw-popover, .navigator-project-menu-popover, .plugin-market-project-popover,
-    .tab-menu, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu,
+    .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu,
     [data-plugin-picker-popover], .account-global-popover, .shelf-side-menu, .shelf-find, .feed-source-rail, ${CENTRED_DIALOG},
     dialog.mw-sheet, .assistant-panel, .home-talk) { background-color: var(--popover); }
   @keyframes craft-drop { from { opacity: 0; transform: translateY(-5px) scale(.97); } to { opacity: 1; transform: none; } }
-  ${PAGES} :is(.mw-menu, .tab-menu) :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
+  ${PAGES} .mw-menu :is([role="menuitem"], [role="option"], button) { transition: background-color 130ms var(--ease-quint), color 130ms var(--ease-quint); }
 
   /* Toasts: a graphite note that rises above the bar and says, with a mark, how it went. */
   ${PAGES} .toast {

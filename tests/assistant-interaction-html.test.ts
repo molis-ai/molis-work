@@ -3,7 +3,7 @@ import test from "node:test";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import {
-  agentQuestionHtml, assistantCardHtml, assistantNextSteps, cardInputValues, drawAssistantReply, instantIn, questionErrors,
+  agentQuestionHtml, assistantCardHtml, assistantNextSteps, assistantStepRow, cardInputValues, drawAssistantReply, instantIn, questionErrors,
 } from "@molis-ai/molis-work-app-local-host";
 import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -131,6 +131,20 @@ test("AC-23: the steps under the latest round derive from the work: open what it
   assert.deepEqual(assistantNextSteps(view("running"), say), []);
 });
 
+test("FLOW-04, FLOW-05: the row above the input puts what waits first, shows three and folds the rest; nothing in it re-runs an unknown result", () => {
+  const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check" } as AssistantWorkView["work"],
+    reviews: [{ review_id: "r1", run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }],
+    cards: [card("ready"), { ...card("unknown"), card_id: "card-2" }, { ...card("done"), card_id: "card-3" }],
+    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }, { work_id: "child-2", title: "已收回", state: "waiting-input", follow_ups: 0, taken_back: true }] });
+  const { next_html, next_all_html } = assistantStepRow(busy, say);
+  const ids = (html: string) => [...html.matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]);
+  assert.deepEqual(ids(next_all_html), ["review:r1", "card:card-1:run", "card:card-2", "check", "work:child-1"]);
+  assert.deepEqual(ids(next_html), ids(next_all_html).slice(0, 3));
+  assert.match(next_html, /data-ix-steps-more="2" data-secondary>还有 2 项</);
+  assert.doesNotMatch(next_all_html, /card:card-2:run|card:card-3/, "an unknown card is only reached; a done one is not a step");
+  assert.deepEqual(assistantStepRow(view("running"), say), { next_html: "", next_all_html: "" });
+});
+
 test("AC-21, AC-23: a reply's views and cards are drawn wherever it carries them, with each question's draft", () => {
   const waiting = view("awaiting-input", { cards: [card("ready")] });
   waiting.rounds[0]!.awaiting_input = [questionnaire];
@@ -140,7 +154,11 @@ test("AC-21, AC-23: a reply's views and cards are drawn wherever it carries them
   assert.match(optionTag(drawn.html ?? "", "q1", "1"), /aria-pressed="true"/, "the question is drawn with its draft");
   assert.match(optionTag(drawn.html ?? "", "q1", "0"), /aria-pressed="false"/);
   assert.equal((waiting.cards[0] as AssistantCard & { html?: string }).html, "<card card-1>");
-  assert.equal((waiting as AssistantWorkView & { next_html?: string }).next_html, "", "no steps while the round waits on the person");
+  // FLOW-02, FLOW-01: two questions are only reached; the ready card's step is its own run button, by the card's title.
+  const row = waiting as AssistantWorkView & { next_html?: string; next_all_html?: string };
+  assert.deepEqual([...(row.next_html ?? "").matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]), ["question:pending-1", "card:card-1:run"]);
+  assert.match(row.next_html ?? "", /aria-label="下一步"/);
+  assert.equal(row.next_all_html, row.next_html, "nothing folded, so unfolding shows the same");
   const single = { work_id: "w1", card: card("done") };
   drawAssistantReply(single, { say, drafts: () => ({}), card: () => "<drawn>" });
   assert.equal((single.card as AssistantCard & { html?: string }).html, "<drawn>", "a reply that carries one card gets it drawn");

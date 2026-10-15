@@ -7,7 +7,7 @@ export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,s
   const expand=island.querySelector('[data-assistant-expand]');
   const retract=island.querySelector('[data-assistant-retract]');
   const footer=el('div','assistant-stage-footer');
-  const footerHomes=[...island.querySelectorAll(':scope > .assistant-popover,:scope > .assistant-context-actions,:scope > .assistant-offer,:scope > .assistant-composer')].map(node=>{const marker=document.createComment('assistant-footer-home');node.before(marker);return {node,marker};});
+  const footerHomes=[...island.querySelectorAll(':scope > .assistant-popover,:scope > .assistant-context-actions,:scope > .assistant-next-row,:scope > .assistant-composer')].map(node=>{const marker=document.createComment('assistant-footer-home');node.before(marker);return {node,marker};});
   const offsets=new Map();
   let staged=false,open=[],active=null,mounting=false,shownId=null,returning=false,dockedTab=null;
   const request=(type,id,title)=>{const options={detail:{owner:'assistant',id,title},cancelable:true};return document.dispatchEvent(type==='molis-work:system-view-open'?new CustomEvent('molis-work:system-view-open',options):new CustomEvent('molis-work:system-view-close',options));};

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { layoutFindings } from "./fixtures/layout-audit.js";
+import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
 
 // DESIGN.md → Focus and accessibility: every target is 44px wherever the pointer is coarse (a phone, a phone held sideways, a
 // tablet) or the window is a phone's width, and the desktop window's chrome (the title bar's tab strip and the bottom bar) keeps
@@ -175,7 +176,7 @@ const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
   ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-dock-choice]", "[data-plugin-toggle]"]],
   ["the project menu", ".navigator-project-selector", ".navigator-project-menu-popover", [".navigator-project-option", ".navigator-project-manage"]],
   ["the Dock's list", "[data-dock-more]", "[data-dock-overflow]", [".dock-overflow-item"]],
-  ["a suggestion", "", "[data-assistant-offer]", [".mw-btn"]],
+  ["a suggestion", "", "[data-assistant-next-row]", ["[data-step-offer]"]],
 ];
 /** What a list holds for a touch pointer that a fine pointer shows only under the cursor or on focus. */
 const HOVER_ONLY = ["[data-dock-choice]", "[data-plugin-toggle]"];
@@ -280,6 +281,13 @@ const PANEL_HEADER = `(async () => {
  * produce them (a reply with code, a link, a question, an approval, a step list, a usage budget) need a model. A control is a target by
  * its box, except what sits inside a sentence: a link is as wide as its words and its box is 44px tall; an object chip's box is the chip,
  * and what is 44px is the area that answers to a finger (read by hit testing above and below it). */
+/** The next steps above the input as the Host draws them for a work: a step that waits on the person, plain ones and the fold. */
+const NEXT_STEPS_HTML = renderInteractionNextSteps([
+  { id: "question:q1", label: "去回答（2 题）", source: "等你回答", primary: false, waiting: true, waitingLabel: "等你：" },
+  { id: "card:c1:run", label: "记成待办：整理周报", source: "来自操作卡", primary: false },
+  { id: "open:page:p1", label: "打开「周报」", source: "这一轮做出的结果", primary: false },
+  { id: "retry", label: "用同样的话再试一次", source: "整理周报", primary: false },
+], "下一步", { max: 3, more: count => `还有 ${count} 项` });
 type BodyControl = { cls: string; w: number; h: number; hit?: boolean };
 type PanelBody = { real: Record<string, BodyControl[]>; made: BodyControl[]; kinds: number; overflow: number };
 const PANEL_BODY = `(async () => {
@@ -306,13 +314,18 @@ const PANEL_BODY = `(async () => {
   if (panel.dataset.side === "open" && panel.dataset.layout === "drawer") panel.querySelector("[data-assistant-side-toggle]").click();
   await wait(300);
   // The panel's own markup holds controls that the island shows only in some states of a work (pause, resume and stop, in the details and
-  // on the strip above the thread; the next step; the jump to what waits). They are shown here, with a word in them, and put back.
-  const waiting = [...panel.querySelectorAll("[data-assistant-strip], [data-assistant-control], [data-assistant-next], [data-assistant-strip-next], [data-assistant-jump]")];
+  // on the strip above the thread; the jump to what waits). They are shown here, with a word in them, and put back.
+  const waiting = [...panel.querySelectorAll("[data-assistant-strip], [data-assistant-control], [data-assistant-jump]")];
   const hiddenBefore = waiting.map(el => [el.hidden, el.textContent]);
   waiting.forEach(el => { el.hidden = false; if (!el.textContent.trim()) el.textContent = "文字"; });
   await wait(200);
-  real["what a work shows when it runs"] = sizes(panel).filter(item => /assistant-control|assistant-next|assistant-jump|mw-btn/.test(item.cls));
+  real["what a work shows when it runs"] = sizes(panel).filter(item => /assistant-control|assistant-jump|mw-btn/.test(item.cls));
   waiting.forEach((el, index) => { el.hidden = hiddenBefore[index][0]; el.textContent = hiddenBefore[index][1]; });
+  // The next steps above the input (the suggestion there is measured with the popovers), drawn into the row and put back.
+  const nextRow = document.querySelector("[data-assistant-next-row]"), rowBefore = [nextRow.hidden, nextRow.innerHTML];
+  nextRow.innerHTML = ${JSON.stringify(NEXT_STEPS_HTML)}; nextRow.hidden = false; await wait(200);
+  real["the next steps"] = sizes(nextRow);
+  [nextRow.hidden, nextRow.innerHTML] = rowBefore;
   const holder = document.createElement("div"); holder.className = "assistant-rich"; holder.setAttribute("data-test-made", "");
   const made = [];
   for (const [tag, classes] of kinds.values()) {
@@ -728,7 +741,7 @@ for (const scheme of ["light", "dark"] as const) {
       const body = await w.panelBody();
       assert.ok(body.kinds >= 30, `panel body · ${width}: the island's controls were read from the page's script (${body.kinds} kinds)`);
       assert.ok(body.made.length === body.kinds, `panel body · ${width}: and each was put into the thread`);
-      for (const [place, kinds] of [["the details", ["assistant-block-head", "assistant-side-action"]], ["all works", ["assistant-works-item"]], ["what a work shows when it runs", ["assistant-control", "assistant-jump"]]] as const) {
+      for (const [place, kinds] of [["the details", ["assistant-block-head", "assistant-side-action"]], ["all works", ["assistant-works-item"]], ["what a work shows when it runs", ["assistant-control", "assistant-jump"]], ["the next steps", ["mw-ix-step", "mw-ix-steps__more"]]] as const) {
         assert.ok(kinds.every(kind => body.real[place].some(item => item.cls.includes(kind))), `panel body · ${width}: ${place} shows what this test measures (${JSON.stringify(body.real[place])})`);
         assert.deepEqual(body.real[place].filter(item => Math.min(item.w, item.h) < 44).map(item => `${item.cls} ${item.w}×${item.h}`), [], `panel body · ${width}: every control in ${place} is a 44px target`);
       }

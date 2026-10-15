@@ -116,19 +116,20 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     // The status panel: off, unsupported, missing permissions, or nothing in the way.
     const problem=state.helper?.problem,perms=state.permissions,missing=perms?Object.keys(perms).filter(k=>!perms[k]):[];
     let statusHtml='';
+    const box=(h,p)=>'<h3>'+esc(L(h))+'</h3><p>'+esc(p)+'</p>';
     if(!state.enabled){
-      statusHtml='<h3>'+esc(L('助理使用电脑：已关闭'))+'</h3><p>'+esc(L('它需要系统授权、会影响整台电脑，所以默认关闭。要用它，先在助理设置里打开「允许助理使用电脑」。'))+'</p>';
+      statusHtml=box('助理使用电脑：已关闭',L('它需要系统授权、会影响整台电脑，所以默认关闭。要用它，先在助理设置里打开「允许助理使用电脑」。'));
     }else if(state.helper?.state==='unsupported'){
-      statusHtml='<h3>'+esc(L('不可用'))+'</h3><p>'+esc(problem?.message||L('操作电脑只支持 macOS 14 及以上。'))+'</p>';
+      statusHtml=box('不可用',L(problem?.message||'操作电脑只支持 macOS 14 及以上。'));
     }else if(state.helper?.state==='missing'){
-      statusHtml='<h3>'+esc(L('缺少电脑助手'))+'</h3><p>'+esc(problem?.message||L('这次安装里没有电脑助手。'))+'</p>';
+      statusHtml=box('缺少电脑助手',L(problem?.message||'这次安装里没有电脑助手。'));
     }else if(perms&&missing.length){
       const names={accessibility:L('辅助功能'),screen_recording:L('屏幕录制'),input_monitoring:L('输入监控')};
-      statusHtml='<h3>'+esc(L('需要系统授权'))+'</h3><p>'+esc(L('请在「系统设置 › 隐私与安全性」里给「Molis Work Computer Helper」打开这几项，然后回到这里。'))+'</p>'+missing.map(k=>'<div class="side-computer-perm"><span>'+esc(names[k]||k)+'</span><button type="button" data-computer-grant="'+esc(k)+'" class="primary">'+esc(L('去授权'))+'</button></div>').join('');
+      statusHtml=box('需要系统授权',L('请在「系统设置 › 隐私与安全性」里给「Molis Work Computer Helper」打开这几项，然后回到这里。'))+missing.map(k=>'<div class="side-computer-perm"><span>'+esc(names[k]||k)+'</span><button type="button" data-computer-grant="'+esc(k)+'" class="primary">'+esc(L('去授权'))+'</button></div>').join('');
     }else if(problem){
-      statusHtml='<h3>'+esc(L('电脑助手暂时不可用'))+'</h3><p>'+esc(problem.message)+'</p>';
+      statusHtml=box('电脑助手暂时不可用',L(problem.message));
     }else if(state.presence?.locked||state.presence?.away){
-      statusHtml='<p>'+esc((state.presence.reason||'')+'，'+L('助理暂时不操作电脑。'))+'</p>';
+      statusHtml='<p>'+esc(state.presence.reason?L('{reason}，助理暂时不操作电脑。',{reason:L(state.presence.reason)}):L('助理暂时不操作电脑。'))+'</p>';
     }
     statusBox.innerHTML=statusHtml;statusBox.hidden=!statusHtml;
     // The doing strip and controls.
@@ -209,7 +210,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       const response=await env.fetch(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id),{headers:{accept:'application/json'}});
       const record=(await response.json()).record;if(!record)throw 0;
       const outcome=record.outcome==='completed'?env.L('完成'):record.outcome==='failed'?env.L('失败'):record.outcome==='stopped'?env.L('已停止'):env.L('进行中');
-      const lines=[record.goal?env.L('目标：{goal}',{goal:record.goal}):'',env.L('结果：{outcome}',{outcome}),record.conclusion||'',
+      const lines=[record.goal?env.L('目标：{goal}',{goal:record.goal}):'',env.L('结果：{outcome}',{outcome}),record.conclusion?env.L(record.conclusion):'',
         '',env.L('步骤（{n} 步）：',{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
       const title=(record.goal?record.goal.slice(0,40):env.L('电脑操作'))+'（'+new Date(record.started_at).toLocaleString()+'）';
       const shelf=await env.fetch('/api/shelf/items',{method:'POST',headers:{...env.headers(),'content-type':'application/json','x-molis-work-idempotency-key':'cu-shelf-'+id+'-'+env.now},body:JSON.stringify({title,text:lines.join('\n')})});

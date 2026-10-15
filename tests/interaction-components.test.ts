@@ -78,7 +78,7 @@ test("FLOW-05 / AC-17: with a limit, next steps keep the caller's order, fold th
   assert.match(html, /data-ix-step-id="a&lt;1&gt;" title="s1" data-secondary data-waiting>[\s\S]*?<span class="mw-ix-step__waiting">等你：<\/span><span data-ix-step-label>确认 &lt;卡&gt;<\/span>/,
     "the amber dot comes with words a screen reader reads");
   assert.equal(html.match(/data-waiting/g)?.length, 1);
-  assert.doesNotMatch(renderInteractionNextSteps(steps.slice(1), "下一步", { max: 3, more: count => `还有 ${count} 项` }), /data-ix-steps-more/, "nothing folded, no more button");
+  assert.doesNotMatch(renderInteractionNextSteps(steps.slice(2), "下一步", { max: 3, more: count => `还有 ${count} 项` }), /data-ix-steps-more/, "nothing folded, no more button");
   // Without options the component draws exactly what it drew before.
   const plain = [{ id: "result", label: "打开结果", source: "x" }, { id: "continue", label: "继续调整", source: "y", primary: false }];
   assert.equal(renderInteractionNextSteps(plain, "接下来"), renderInteractionNextSteps(plain, "接下来", undefined));

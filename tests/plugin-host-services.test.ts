@@ -427,7 +427,10 @@ test("a 成果 port carries a pinned version by selection: exact identity, no co
     const wrong = services.artifacts.publish({ artifact_id: "other-kind", version: 1, artifact_type_id: "other.type", schema_version: 1, content: { kind: "inline", payload: {} }, ...pinnedArtifact("另一种成果") }).artifact;
     assert.throws(() => outputs.select({ port: "report", reference: wrong, expected_reference: fixed }), /类型/);
     rig.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "tester", ...fixed });
-    assert.throws(() => outputs.select({ port: "report", reference: fixed, expected_reference: null }), /artifact_archived/);
+    // The person reads why in words; the reason stays machine-readable in the details.
+    assert.throws(() => outputs.select({ port: "report", reference: fixed, expected_reference: null }),
+      (error: { code?: string; message?: string; details?: { reason?: string } }) => error.code === "artifacts.plugin_incompatible"
+        && error.details?.reason === "artifact_archived" && /已归档/u.test(error.message ?? ""));
   } finally { rig.close(); }
 });
 

@@ -7,6 +7,7 @@ import { once } from 'node:events';
 import { WebSocket } from 'ws';
 import { isLoopbackHttpUrl } from '@molis-ai/molis-work-contracts/platform/loopback';
 import type { AgentBuild, BrowserAcceptance } from '@molis-ai/molis-work-plugin-builder';
+import { locateBrowser } from '../browser/locate.js';
 
 /** Host-owned G7 driver. Contract steps never supply JavaScript, selectors, URLs or browser launch arguments. */
 /** Each case starts from empty data, as the designer is told: `reset` empties the preview and the page is reopened. */
@@ -199,7 +200,7 @@ class BuilderBrowser {
   private rejectPending(error: Error) { for (const item of this.pending.values()) { clearTimeout(item.timer); item.reject(error); } this.pending.clear(); }
   static async open(signal: AbortSignal, executable?: string) {
     signal.throwIfAborted();
-    const chrome = [executable, process.env.MOLIS_WORK_BUILDER_BROWSER, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium'].find((path): path is string => Boolean(path && existsSync(path)));
+    const chrome = [executable, process.env.MOLIS_WORK_BUILDER_BROWSER].find((path): path is string => Boolean(path && existsSync(path))) ?? locateBrowser()?.path;
     if (!chrome) throw new Error('G7 需要本机 Chrome/Chromium，请安装后重试；尚未通过的界面不能发布');
     const directory = await mkdtemp(join(tmpdir(), 'molis-builder-browser-'));
     const child = spawn(chrome, ['--headless=new', '--disable-gpu', '--disable-background-networking', '--disable-component-update', '--disable-extensions', '--no-first-run', '--no-default-browser-check', '--remote-debugging-port=0', '--user-data-dir=' + directory, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });

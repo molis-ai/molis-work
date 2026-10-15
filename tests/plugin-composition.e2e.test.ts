@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { build } from 'esbuild';
 import { VISUAL_FOUNDATION_STYLES, renderIconSprite, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
-import { openStudioChrome } from './fixtures/plugin-builder-browser.js';
+import { builderBrowserExecutable, openStudioChrome } from './fixtures/plugin-builder-browser.js';
 import { readingContract, readingNodes, readingPresentation, readingSamples } from './fixtures/plugin-composition.js';
 
 test('composed reading plugin retains input, opens and returns from details, survives failures and layout changes', { timeout: 90_000 }, async () => {
@@ -65,7 +65,7 @@ test('visual inspection detects real viewport overflow and a covered action on t
   const server = createServer((_request, response) => { response.setHeader('content-type', 'text/html; charset=utf-8'); response.end('<!doctype html><html><style>body{margin:0}.pc-view{width:100%;min-height:200px}button{height:40px;width:120px}' + (fault ? 'body{width:2400px}.cover{position:absolute;top:0;left:0;width:120px;height:40px;background:black}' : '') + '</style><main class="pc-view"><div class="pc-page" data-page="home"><section data-component-id="notes"><span data-record-id="sample">示例</span><button>新建</button></section><section data-component-id="reader"><article class="pc-single-record">完整正文</article></section></div></main><div class="cover"></div><script>globalThis.__molisPluginReady=true;globalThis.__molisPluginPending=0</script></html>'); });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const build = { design: { contract: readingContract, acceptance: [{ id: 'visible', description: '示例显示', steps: [{ action: 'expect', componentId: 'notes', text: '示例' }, { action: 'expect', componentId: 'reader', text: '完整正文' }] }] }, nodes: readingNodes } as any;
-  const options = { url: 'http://127.0.0.1:' + (server.address() as { port: number }).port, signal: new AbortController().signal };
+  const options = { url: 'http://127.0.0.1:' + (server.address() as { port: number }).port, signal: new AbortController().signal, executable: builderBrowserExecutable };
   try {
     const clean = await inspectBuilderPresentation(build, options); assert.equal(clean.structural, true); assert.equal(clean.images.length, 6, 'captures the list and the completed article state');
     fault = true; const broken = await inspectBuilderPresentation(build, options); assert.equal(broken.structural, false); assert.ok(broken.issues.some(issue => issue.includes('横向溢出'))); assert.ok(broken.issues.some(issue => issue.includes('遮挡')));
@@ -145,7 +145,7 @@ test('G7 waits for selection reads before acting on a repainted record and refus
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const build = { design: { contract: readingContract, acceptance: [{ id: 'open', description: '选择后展开', steps: [{ action: 'select', componentId: 'notes', text: '示例' }, { action: 'submit', componentId: 'open' }, { action: 'expect', componentId: 'open', text: '已展开' }] }] }, nodes: readingNodes } as any;
-  const options = { url: 'http://127.0.0.1:' + (server.address() as { port: number }).port, signal: new AbortController().signal };
+  const options = { url: 'http://127.0.0.1:' + (server.address() as { port: number }).port, signal: new AbortController().signal, executable: builderBrowserExecutable };
   try {
     const result = await runBuilderBrowserAcceptance(build, options);
     assert.equal(result.passed, true, JSON.stringify(result.cases)); assert.equal(calls, 1, 'exactly one operation after selection has settled');

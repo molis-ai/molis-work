@@ -9,7 +9,9 @@ import { alchemistActions as alchemist } from "@molis-ai/molis-work-plugin-alche
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { openTestHome } from "./fixtures/test-home.js";
 
-test("production MCP reads persisted scoped grants on every list/call, shares real Alchemist data and preserves revocation after restart", { timeout: 40_000 }, async t => {
+// Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
+// whole test at two files at once): the budget only stops a hang, it is not a speed check.
+test("production MCP reads persisted scoped grants on every list/call, shares real Alchemist data and preserves revocation after restart", { timeout: 120_000 }, async t => {
   const clients: Client[] = [];
   const testHome = await openTestHome(t), home = testHome.home;
   const a = await testHome.createProject("授权项目 A"), b = await testHome.createProject("授权项目 B");

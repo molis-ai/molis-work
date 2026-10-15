@@ -10,7 +10,9 @@ import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
-test("PPT standard MCP shares exports, concurrent edits and fixed publication across processes",{timeout:45_000},async()=>{
+// Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
+// whole test at two files at once): the budget only stops a hang, it is not a speed check.
+test("PPT standard MCP shares exports, concurrent edits and fixed publication across processes",{timeout:120_000},async()=>{
   const home=await mkdtemp(join(tmpdir(),'ppt-mcp-')),clients:Client[]=[];
   const connect=async(project:string,access='write')=>{
     const client=new Client({name:'external-ppt',version:'1'});clients.push(client);

@@ -44,6 +44,9 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
   const host = new MolisWorkLocalHost({ homeDirectory: home, functions, actionAvailability: policy, sceneAvailability: policy });
   const token = "automatic-inbox-01234567890123456789";
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  // The fetches reuse a kept-alive connection while this same process runs long synchronous steps between them; under load the
+  // server's 5 s idle timer can fire just as the next request arrives and reset it (ECONNRESET on a Linux CI runner).
+  server.keepAliveTimeout = 0;
   let sequence = 0;
   const history = () => withFunctionsService(home, service => service.listJudgments(), functions);
   try {

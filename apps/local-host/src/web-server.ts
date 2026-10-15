@@ -102,7 +102,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     void sessionResources.catch(() => undefined);
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const warnBackground = (message: string, error: unknown) => console.warn(message, error);
-    const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, agents,
+    const { periodicTasks: periodic } = composition;
+    const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, agents, periodic,
       changed: databasePath => webViewCache.delete(databasePath), onError: error => warnBackground("[schedule] 项目后台调度没有启动", error) });
     const feedSchedulers = projectSchedulers.runtimes;
     const pty = { host: null as MolisWorkPtyHost | null };
@@ -120,7 +121,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // found by the project its round works on; sites the person allowed or blocked are kept beside the browser profile.
     const sites = new BrowserSiteDecisions(storageHome);
     const drivers = new Map<string, HostSurfaceDriver>();
-    const computer = installComputerDesk(localHost, storageHome); // the Assistant's desktop: desk, helper, providers, sweep, HTTP, socket (specs/computer-use)
+    const computer = installComputerDesk(localHost, storageHome, periodic); // the Assistant's desktop: desk, helper, providers, sweep, HTTP, socket (specs/computer-use)
     const unregisterSurfaces = registerBrowserSurfaces(localHost, {
       siteDecisions: () => sites.list(),
       driverFor: async projectId => {
@@ -239,22 +240,19 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       }
     });
     // New material that shares a Goal with a live work: looked for every five minutes.
-    const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().scanNewMaterial(); }))
-      .catch(error => warnBackground("[assistant] 新资料没有读到", error)), 300_000);
-    assistantTimer.unref();
+    periodic.every({ id: "assistant.material", title: "为进行中的工作找新资料", owner: "assistant", intervalMs: 300_000,
+      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().scanNewMaterial())), onError: error => warnBackground("[assistant] 新资料没有读到", error) });
     // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
-    const reminderTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().sweepReminders(); }))
-      .catch(error => warnBackground("[assistant] 到期提醒没有读到", error)), 60_000);
-    reminderTimer.unref();
+    periodic.every({ id: "assistant.reminders", title: "到期提醒", owner: "assistant", intervalMs: 60_000,
+      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().sweepReminders())), onError: error => warnBackground("[assistant] 到期提醒没有读到", error) });
     server.once("close", () => {
-      clearInterval(assistantTimer);
-      clearInterval(reminderTimer);
+      void periodic.stop();
       im.close();
       void browserHost.current()?.close();
       unregisterSurfaces();
       void projectSchedulers.stop().catch(() => undefined);
     });
-    if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, serverOptions.deletionSweepMs);
+    if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
     return server;
   }
 

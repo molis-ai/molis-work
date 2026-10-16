@@ -877,6 +877,11 @@ export interface AgentRunHandle {
     frozen: AgentFrozenStart;
 }
 
+export interface AgentRunOffer extends AgentActionOffer {
+    offer_id: string;
+    offered_at: string;
+}
+
 export type AgentRunPhase = "starting" | "running" | "awaiting-review" | "awaiting-input" | "paused" | "compacting" | "completed" | "failed" | "cancelled" | "stopped" | "reconcile-required";
 
 export interface AgentRunRef {
@@ -919,6 +924,7 @@ export interface AgentRunView {
         now?: string;
         requested?: string;
     };
+    offers?: readonly AgentRunOffer[];
     started_at: string;
     ended_at: string | null;
 }

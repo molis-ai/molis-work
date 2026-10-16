@@ -1,4 +1,5 @@
 import { builderWorkbenchPanel } from "./plugin-builder-surface.js";
+import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { availableProjectPluginIds, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
@@ -23,6 +24,9 @@ import {
   type CodingSurfacePorts,
 } from "./coding-surface.js";
 
+
+/** The page still opens without the installed plugins' entries; why they are missing is written. */
+const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
   renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "renderMolisWorkMomentumFragment" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment">;
@@ -141,7 +145,7 @@ export function createLocalGoalsReadHttp(ports: {
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
           const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
             models: async () => await codingServices.execution?.models() ?? [], actorId: LOCAL_PERSON_ACTOR_ID, actions: codingServices.actions,
-            ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }).catch(() => []);
+            ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }).catch(noInstalledStages);
           if (installed.length) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)], plugin_rail: installed.map(({ surface, label }) => ({ surface, label })) };
           if (projectConfiguration.plugins.includes("coding")) {
             const stage = await codingWorkbenchPanel(surfacePorts);

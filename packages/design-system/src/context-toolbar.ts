@@ -10,7 +10,7 @@ import { FLOATING_CLIENT_SOURCE } from "./floating-source.js";
  * the focus from the editor. A page program, so it can be put in any document (the workbench, a split pane, the board).
  *
  * `host`: `parent` (where it is drawn; default the body), `translate`, `width()` (the room it has, default the window), `inset`
- * ({ top, bottom } of fixed chrome it must not sit under), and the choices it reports: `choose(key)`, `assistant("bring" | "ask")`,
+ * ({ top, bottom } of fixed chrome it must not sit under), and the choices it reports: `choose(key)`, `assistant()` (hand what is in hand to the Assistant),
  * `dismiss(reason)`, `hold({ interacting, pinned })` (the pointer or focus entered or left it, with the keys under them), `settled()` (the pointer and
  * focus are off it again, after a newer view may have been held back). An anchor's `rect` may be a function, read at every placement.
  * `show(view)`: `{ context_id, anchor: { rect, placement? }, touch?, actions: [{ key, label, badge?, emphasis?, hint? }],
@@ -119,7 +119,7 @@ const more = (extra) => {
 const title = (text) => h("p", { class: "mw-ctx-menu__label", text }), act = (a) => entry(a.label, a.note, a.disabled, () => host.choose(a.key)), out = [];
 if (extra.length) out.push(title(L("推荐")), ...extra.map(act));
 for (const g of view.more || []) out.push(title(g.title), ...g.items.map(act));
-if (view.assistant) out.push(h("div", { class: "mw-ctx-menu__gap", role: "separator" }), title(L("助理")), entry(L("带到助理"), "", 0, () => host.assistant("bring")), entry(L("说出要做什么"), "", 0, () => host.assistant("ask")));
+if (view.assistant) out.push(h("div", { class: "mw-ctx-menu__gap", role: "separator" }), title(L("助理")), entry(L("带到助理"), "", 0, () => host.assistant()));
 if (view.basis) out.push(h("p", { class: "mw-ctx-menu__basis", title: view.basis.title || "", text: view.basis.text, ...(view.basis.state ? { "data-mw-state": view.basis.state } : {}) }));
 return out;
 };
@@ -136,7 +136,7 @@ kids.push(wrap);
 for (const a of actions.slice(0, slots)) { const n = btn(a.label, () => host.choose(a.key), { "data-key": a.key, "data-emphasis": String(!!a.emphasis), title: a.hint || "" }); if (a.badge) n.append(h("small", { class: "mw-ctx__badge", text: a.badge })); kids.push(n); }
 const extra = actions.slice(slots);
 if (extra.length || (view.more || []).length || view.assistant) kids.push(menuButton(L("更多"), () => more(extra), { "data-more": "" }));
-if (view.assistant) kids.push(btn(slots < 3 ? "✦" : "✦ " + L("助理"), () => host.assistant("ask"), { "data-assistant": "", "aria-label": L("助理"), title: L("交给助理") }));
+if (view.assistant) kids.push(btn(slots < 3 ? "✦" : "✦ " + L("助理"), () => host.assistant(), { "data-assistant": "", "aria-label": L("助理"), title: L("交给助理") }));
 root.replaceChildren(...kids); root.hidden = false;
 if (keep) { opener = root.querySelector(keep); if (opener) opener.setAttribute("aria-expanded", "true"); else closeMenu(); }
 if (!fold && root.scrollWidth > room() && mine.some((g) => g.collapse === "overflow")) { draw(true); return; }

@@ -77,6 +77,7 @@ export async function isGitRepository(root: string): Promise<boolean> {
     const { stdout } = await run("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root });
     return stdout.trim() === "true";
   } catch {
+    // git refuses outside a repository (and is absent where git is not installed): either way not a repository here.
     return false;
   }
 }

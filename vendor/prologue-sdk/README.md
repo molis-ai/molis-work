@@ -4,18 +4,24 @@
 
 目录里现在有这些东西：
 
-- 当前包 `prologue-sdk-0.0.0-rc.1-collaboration.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
+- 当前包 `prologue-sdk-0.0.0-rc.1-found-tools.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 17 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
+- `patch-history.json`：已删除的 26 份历史补丁和 18 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
 另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
 
-## 当前依赖：collaboration（2026-10-15，Molis P3a）
+## 当前依赖：found-tools（2026-10-16，Molis 采用线 §6.0e）
 
-当前包 `prologue-sdk-0.0.0-rc.1-collaboration.tgz`（1,182,902 字节），SHA-256 `9f001edeec1d6832ab1ca2e6443398ab2ab376f9cb15fc92e6393fce0c35ca62`。来源是上游 main 的 `e51233699c1463e3c8f0a8b08658c5860c962769`（[Prologue #27](https://github.com/molis-ai/prologue/pull/27) 的合并，当时的 main 头），从干净 `git archive` 构建，不加补丁、`dirty: false`。过渡线到此结束：包里是上游 main 上的 P2a–P2k（任务图协作：输入引用、代次与尝试、运行绑定、门禁与派出、派出四步与 `admitDispatch`、重启恢复、受限通信、等待、接续、外部条件、按节点判冲突）、S4、窗口图、换模型的同步 beforeAccept 复查（#24）和撤销资源不逐块写墓碑（#27）。
+当前包 `prologue-sdk-0.0.0-rc.1-found-tools.tgz`（1,186,918 字节），SHA-256 `cfed7ff4653289c67ee0dd2801e1b6d9a287d6c8873f477b4927e12dbf510705`。来源是上游 main 的 `e4afd1a718bd8a8629d52526b953bbe75149baa6`（[Prologue #28](https://github.com/molis-ai/prologue/pull/28) 的合并，当时的 main 头；树与评审过的 head `af7be966` 相同），从干净 `git archive` 构建，不加补丁、`dirty: false`。比上一份多的只有 #28：`find-tools` 交出过形状的工具，之后的请求照常声明（记成 Run 事件 `tools-found`，接着历史的下一跑照它接上）；只列了名字的延后工具，Model 那道门也照收；检查器可以说出参数形状（`ConditionCheckers.list()`、`CheckerDescriptor.params`），`board-wait` 的 `params` 照它写类型、登记时先按它核。
 
-验证（2026-10-15，`prologue-verify.sh`）：build dist、`tsc` 无错；同一提交上的 SDK 全量 354 个文件，3924 条通过、21 条跳过、0 条失败（未跑 `desktop-computer-use.live`，它会操作真实桌面）；这个包上 13 个消费者脚本全过。重建命令与工具版本见旁边 `.provenance.json`。Molis 侧的验证写在 [采用 spec](../../specs/prologue-adoption/spec.md) §6.0d。
+验证（2026-10-16）：build dist、`tsc` 无错；同一棵树上的 SDK 全量 354 个文件，3931 条通过、21 条跳过、0 条失败（未跑 `desktop-computer-use.live`，它会操作真实桌面）；这个包上 13 个消费者脚本全过。重建命令与工具版本见旁边 `.provenance.json`。Molis 侧的验证写在 [采用 spec](../../specs/prologue-adoption/spec.md) §6.0e。
+
+## main 上的上一份：collaboration（#534，2026-10-16 换掉）
+
+`prologue-sdk-0.0.0-rc.1-collaboration.tgz`（1,182,902 字节），SHA-256 `9f001edeec1d6832ab1ca2e6443398ab2ab376f9cb15fc92e6393fce0c35ca62`。来源是上游 main 的 `e51233699c1463e3c8f0a8b08658c5860c962769`（[Prologue #27](https://github.com/molis-ai/prologue/pull/27) 的合并，当时的 main 头），从干净 `git archive` 构建，不加补丁、`dirty: false`。过渡线到此结束：包里是上游 main 上的 P2a–P2k（任务图协作：输入引用、代次与尝试、运行绑定、门禁与派出、派出四步与 `admitDispatch`、重启恢复、受限通信、等待、接续、外部条件、按节点判冲突）、S4、窗口图、换模型的同步 beforeAccept 复查（#24）和撤销资源不逐块写墓碑（#27）。
+
+验证（2026-10-15，`prologue-verify.sh`）：同一提交上的 SDK 全量 3924 条通过、0 条失败，13 个消费者脚本全过；Molis 侧见 [采用 spec](../../specs/prologue-adoption/spec.md) §6.0d。#534 起是 main 的依赖，2026-10-16 换成 found-tools；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
 
 ## main 上的上一份：interim-p1-cu-image-acceptance（#523，2026-10-15 换掉）
 
@@ -69,8 +75,8 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：17 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：27 个 Prologue 提交于 2026-10-15 对 main `e51233699c1463e3c8f0a8b08658c5860c962769` 逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
+- `packagesWithoutPatch`：18 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `upstream`：28 个 Prologue 提交于 2026-10-16 对 main `e4afd1a718bd8a8629d52526b953bbe75149baa6` 逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
 
 怎么取回并核对：
 

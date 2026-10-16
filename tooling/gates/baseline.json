@@ -583,7 +583,7 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "scriptConstantsTotal": 129,
+  "scriptConstantsTotal": 130,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
@@ -594,7 +594,7 @@
     "apps/workbench/src/primitive-catalog.ts": 2,
     "apps/workbench/src/renderer.ts": 1,
     "apps/workbench/src/scripts/client/agent-review.ts": 1,
-    "apps/workbench/src/scripts/client/background-tasks.ts": 1,
+    "apps/workbench/src/scripts/client/attention.ts": 1,
     "apps/workbench/src/scripts/client/bootstrap.ts": 1,
     "apps/workbench/src/scripts/client/coding-companions.ts": 1,
     "apps/workbench/src/scripts/client/coding-setup.ts": 1,
@@ -648,6 +648,7 @@
     "plugins/native/coding/src/commands-client.ts": 1,
     "plugins/native/coding/src/composer-model-client.ts": 1,
     "plugins/native/coding/src/cooperation-client.ts": 1,
+    "plugins/native/coding/src/input-receipts-client.ts": 1,
     "plugins/native/coding/src/mcp-settings-client.ts": 1,
     "plugins/native/coding/src/plan-progress-client.ts": 1,
     "plugins/native/coding/src/plans-client.ts": 1,

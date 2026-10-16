@@ -485,6 +485,8 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - C 选 C1：对话末尾常驻「排着 N 条」；C2 记 BL。
       - D 选 D1：门槛不动，工具不再念规则，卡片一下就能记住。
       - 顺序：A → 3a → B → C1（可以并进 3c）→ D1。
+    - 10-16 16:20 UTC：#598、#591 的全量都只挂 visual-surfaces（Linux 上 CDP 取样式超时，#604 修的那条），按「时间类失败可入队」手动入队。门禁脚本 `gate-and-queue.sh` 加了 `EXTRA_KNOWN`（空格分隔，本次运行额外视为已知的文件）；#605 的链带着它。#604 自己不带：它的全量里 visual-surfaces 必须过。
+    - prologue#31（会话给自己包里工具的参数加分支，网关输入 schema 的上游一刀，head `94ef428bc`）：统筹审过，用户批准，统筹 squash 合入（prologue main `0793a837a`）。只改模型看到的声明（`anyOf: [...分支, 登记那份]`），参数名、必填项与调用核对不变，只作用于本会话包里的工具，写错属性报 `SCENARIO_PACK_INVALID`。该仓库没有 CI，依据是本机全库 349 文件全过。unit 那一刀是 #32，开好后审、再弹窗问用户；两刀都合入后采用线打包换包，Molis 换包 PR 带 AgentQuestion.unit 三处（含 plugin-sdk，共享核心，全量由统筹跑）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

@@ -235,12 +235,12 @@ const headErrors = (measured, budget, base) => {
 // One-time allowance for receipts 3c (specs/ai-input-receipts D24–D28, RCPT-311–313: one shared supplement receipt for
 // Coding and the Assistant, with the model's claim apart from the run's fact, the in-place detail and the status-region
 // announcements). The user approved it on 2026-10-16 (D25, relayed by the coordinator): workbench.js +4,113, workbench.css and
-// arrival.css +2,062 each; coding.js falls. Each entry is for exactly one merge-base budget (main ea396a27), capped at the
-// measured size, and used once: the next baseline freezes again. It replaces 1e's spent entries. Delete it in the next change
-// to this gate (as #541 and #584 did).
+// arrival.css +2,062 each; coding.js falls. Each entry is for exactly one merge-base budget (main 958946e2), capped at the
+// measured size, and used once: the next baseline freezes again. W5-05 slice 1 (#611) deleted 1e's spent entries; this brings the
+// object back with 3c's three only. Delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [821470, 823532],
-  "/assets/molis-work-workbench.css": [1699728, 1701790],
+  "/assets/molis-work-arrival.css": [810350, 812412],
+  "/assets/molis-work-workbench.css": [1688608, 1690670],
   "/assets/molis-work-workbench.js": [1097604, 1101714],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
@@ -262,7 +262,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
   if (reference[asset] === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
-  return bytes > reference[asset] ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
+  return bytes > approvedCeiling(asset, reference[asset]) ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
 });
 
 // ---- the merge-base's budget -----------------------------------------------------------------------------------------

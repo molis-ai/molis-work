@@ -1,4 +1,5 @@
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { hostLog } from "./host-log.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { bindScheduledTaskRunner, closeHostSchedule, scheduleServiceFor } from "./schedule-runtime.js";
 import { createHostScheduledTaskRunner, scheduledTaskMemory } from "./schedule-task-runner.js";
@@ -58,5 +59,6 @@ function activate(host: MolisWorkLocalHost, composition: Composition, runtime: M
   bindScheduledTaskRunner(runtime.store.db, createHostScheduledTaskRunner({ ...composition, projectId: reference.project_id,
     memory: scheduledTaskMemory(host, reference.project_id) }));
   composition.runtimes.set(reference.storage_key, { scheduler, schedule });
-  void scheduler.tick().then(result => { if (result.completed || result.failed) composition.changed(reference.storage_key); }).catch(() => undefined);
+  void scheduler.tick().then(result => { if (result.completed || result.failed) composition.changed(reference.storage_key); })
+    .catch(error => { hostLog.warn("schedule", "round_failed", error, { schedule: "feed", first: true }); });
 }

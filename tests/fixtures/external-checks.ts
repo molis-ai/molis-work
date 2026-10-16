@@ -16,8 +16,8 @@ export type ModelReply = { text: string } | { tool: string; input: unknown };
 /** A real provider instead of scripted replies (the live eval): its key is read only through `key`, never written anywhere. */
 export interface LiveModel { readonly endpoint: string; readonly model: string; readonly key: () => string }
 export interface ToolUse { readonly name: string; readonly input: unknown }
-/** A tool as the model was offered it. */
-export interface OfferedTool { readonly name: string; readonly description: string }
+/** A tool as the model was offered it: its input schema when the request declared it, none when it is only listed by name. */
+export interface OfferedTool { readonly name: string; readonly description: string; readonly schema?: unknown }
 /** The name of the offered action tool with this title: what the model sees and calls, never a hash built here. */
 export const toolTitled = (tools: readonly OfferedTool[], title: string) => tools.find(tool => tool.name.startsWith("molis-action-") && tool.description.includes(` · ${title}`))?.name ?? `no tool titled ${title}`;
 
@@ -88,10 +88,10 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const messages = JSON.stringify(body.messages);
     requests.push(messages);
-    const tools: { name: string; description?: string }[] = body.tools ?? [];
+    const tools: { name: string; description?: string; input_schema?: unknown }[] = body.tools ?? [];
     // Tools whose shapes were left out are listed by name in find-tools' description: "- <name>: <provider> · <effect> · <title> …".
     const deferred = [...(tools.find(tool => tool.name === "find-tools")?.description ?? "").matchAll(/^- (molis-action-[\w-]+): (.*)$/gm)];
-    const offered: OfferedTool[] = [...tools.map(tool => ({ name: tool.name, description: tool.description ?? "" })), ...deferred.map(row => ({ name: row[1]!, description: row[2]! }))];
+    const offered: OfferedTool[] = [...tools.map(tool => ({ name: tool.name, description: tool.description ?? "", schema: tool.input_schema })), ...deferred.map(row => ({ name: row[1]!, description: row[2]! }))];
     if (!live) return sse(script(requests.length, messages, offered));
     // Only the request's messages and the reply's tool calls are kept; headers (the key) are not.
     const response = await real(url, init);

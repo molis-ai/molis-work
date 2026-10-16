@@ -15,6 +15,7 @@ const PENDING_TTL_MS = 10 * 60_000;
 type Pending = { state: string; clientId: string; clientSecret?: string; redirectUri: string; createdAt: number; connectionId: string; displayName?: string };
 const refreshInFlight = new Map<string, Promise<string>>();
 function pendingIndex(): Array<{ state: string; at: number }> {
+  // No pending sign-ins, or an index a crash left torn: either way no sign-in is waiting to be finished.
   try { return JSON.parse(createFileSecretStore().get(PENDING_INDEX) || "[]"); } catch { return []; }
 }
 function removePending(state: string): void {
@@ -54,6 +55,7 @@ function saveTokens(tokens: NotionOAuthTokens, refs: TokenRefs): void {
 
 export function notionOAuthConfigured(): boolean {
   try {
+    // The question is whether Notion sign-in is set up here: credentials that cannot be read are the answer "no".
     const { clientId, clientSecret } = credentials();
     return Boolean(clientId && clientSecret);
   } catch { return false; }

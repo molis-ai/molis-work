@@ -30,6 +30,7 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 
 import { AgentReviewQueue } from "./reviews.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "./execution-plan.js";
+import { SUGGEST_HOST_TOOL } from "./adapters/prologue-action-tools.js";
 
 export { AgentReviewQueue } from "./reviews.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
@@ -257,6 +258,22 @@ export interface AgentStartAuthority {
 /** Looks up the text a registered prompt runs with now. Returns the prompt unchanged when the person has not edited it. */
 export interface AgentPromptResolver {
   effective(ownerId: string, prompt: AgentPromptText): AgentPromptText;
+}
+
+/** Suggesting offers the person one of the round's own actions as a button: only a role that may change things may do it. */
+function assertMaySuggest(hostTools: readonly string[], execution: string | undefined): void {
+  if (hostTools.includes(SUGGEST_HOST_TOOL) && execution !== "workspace-write" && execution !== "operate") {
+    throw agentErrors.role_execution_exceeded("当前执行方式只读，不能向人建议操作，请更换执行方式");
+  }
+}
+
+/** A per-action round's client: discovering, checking and invoking only, each rechecking the Character it runs as. */
+function frozenActionClient(source: AgentActionClient, validateCharacter: (() => void) | undefined): AgentActionClient {
+  return {
+    discover: async () => { validateCharacter?.(); return source.discover(); },
+    ...(source.check ? { check: async (ref: ExactActionReference, input: unknown) => { validateCharacter?.(); return source.check!(ref, input); } } : {}),
+    invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
+  };
 }
 
 export class AgentHost implements AgentHostApi {
@@ -494,6 +511,7 @@ export class AgentHost implements AgentHostApi {
     }
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
     if (request.action_gateway && actionRefs.length) throw agentErrors.capability_unavailable("能力网关与逐项能力不能同时使用");
+    assertMaySuggest(hostTools, execution);
     let actions: NonNullable<AgentStartRequest["role"]>["actions"];
     if (actionRefs.length) {
       if (!adapter.descriptor.supports_action_tools || !authority.actions) throw agentErrors.capability_unavailable("当前执行引擎尚未接入动作服务");
@@ -502,10 +520,7 @@ export class AgentHost implements AgentHostApi {
         throw agentErrors.role_execution_exceeded("所选能力超出了这个 Character 的工具范围");
       }
       const source = await authority.actions(runtimeId, validateCharacter);
-      const client: AgentActionClient = {
-        discover: async () => { validateCharacter?.(); return source.discover(); },
-        invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
-      };
+      const client = frozenActionClient(source, validateCharacter);
       const directory = await client.discover();
       const tools = actionRefs.map(ref => {
         const view = directory.find(view => view.capability_id === ref.capability_id && view.version === ref.version && view.provider.provider_id === ref.provider_id);

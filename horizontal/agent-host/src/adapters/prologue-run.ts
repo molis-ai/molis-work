@@ -7,7 +7,7 @@ import { requireSynchronous, actionEffect, type ExactActionReference } from "@mo
 import { agentTextMaterialContent, type AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, memoryHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
-import { prologueActionTools } from "./prologue-action-tools.js";
+import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { createPrologueCompactor } from "./prologue-compaction.js";
@@ -106,6 +106,9 @@ function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefi
   if (!none && !business && !input.root_path) throw new Error("执行缺少已授权工作区");
 }
 
+/** The round's Prologue system tools. Suggesting is the round's own action pack tool (prologue-action-tools.ts), not one of them. */
+const systemTools = (input: PrologueStartInput) => input.character.tools.filter(tool => tool !== SUGGEST_HOST_TOOL).map(prologueToolName);
+
 /**
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
  * forgets, offers and changes is counted for the stop check; a call to a capability that is gone is refused before review.
@@ -136,7 +139,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   } } : input.action_gateway;
   const actionTools = none ? undefined : gatewayForRun
     ? { ...prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
-    : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
+    : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL));
   if (input.action_gateway) {
     state.gatewayRuns.set(input.session_id, input.action_gateway);
     if (actionTools && "known" in actionTools) state.gatewayKnown.set(input.session_id, actionTools.known as Set<string>);
@@ -281,7 +284,7 @@ async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: S
  */
 async function roundBinding(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, stepBoard: PlanPlace | undefined) {
   const { runtime } = deps;
-  if (index.parent_run || !collaborates(input.character.tools.map(prologueToolName), Boolean(stepBoard))) return undefined;
+  if (index.parent_run || !collaborates(systemTools(input), Boolean(stepBoard))) return undefined;
   const board = stepBoard?.ref ?? await projectBoardOf(deps, index);
   const block = stepBoard?.block ?? await sessionBlock(runtime, board, session.ref, input.session_title ?? index.title);
   const ready = eligibleContinuation(runtime, session.ref, [board]);
@@ -326,7 +329,7 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
     if (at < 0 || !adopted[at]) throw new Error("MCP 工具已变化，请重新选择");
     mcpTools.push(adopted[at]!);
   }
-  const tools = [...input.character.tools.map(prologueToolName), ...mcpTools, ...(parts.actionTools?.names ?? []), ...surface.tools];
+  const tools = [...systemTools(input), ...mcpTools, ...(parts.actionTools?.names ?? []), ...surface.tools];
   const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
   // The memories the Host chose for this run, as exact references (one deleted meanwhile is simply not given).
   const pinnedMemory = input.memory?.pinned.length ? await deps.platformMemory.refsFor(input.memory.pinned) : [];
@@ -597,7 +600,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   if (bindActions && session) state.actionToolSessions.add(input.session_id);
   if (session === undefined) throw new Error("agent.session_unknown");
   const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
-  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], input.character.tools.map(prologueToolName), prologueToolName);
+  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], systemTools(input), prologueToolName);
   const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
   for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
   const { childRoots, childRoles, childInstructions } = await childSetup(deps, input);

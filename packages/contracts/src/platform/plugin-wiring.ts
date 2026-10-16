@@ -57,7 +57,7 @@ export interface PluginInputPortDeclaration extends PluginPortDeclaration {
    * run there and the port reads nothing yet, never over another plugin's output or a fixed 成果 version the person gave it.
    * The types must match, as for any binding. For now it takes effect only between plugins that ship with the Host (both this
    * plugin and the source): an installed or generated plugin's declaration is read as absent, and so is its default group.
-   * Whether installed plugins may declare defaults is a product decision not yet made.
+   * Installed plugins may not declare defaults (用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议).
    */
   default_source?: PluginPortSourceDeclaration;
 }

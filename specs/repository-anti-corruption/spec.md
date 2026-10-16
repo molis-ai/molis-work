@@ -10,7 +10,7 @@ W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只
 
 W4-03 第一片（2026-10-15，端口的默认来源由 Manifest 声明，#565；BL-087、D-04 的 A）：任务书要求「当时选择短期维持的项（例如 D-04 端口默认连线）重新判断是否到了该做的时候」，路线图把它排进 W4-03；新增一个端口插件只改自己的包和声明（§4.6），名单挡着这条，所以现在做。
 - 合同：输入口加可选的 `default_source: { plugin_id, port }`（另一个插件的输出口），输入组加可选的 `default`（至多一个）。SDK 的 Manifest 检查拒绝指向自己、不像插件 id、端口名不合法、不是对象的默认来源，以及两个默认组、不是布尔值的 `default`（`packages/plugin-sdk/src/wiring-declarations.ts`；插件 id 的写法挪到 `plugin-id.ts`，与 Manifest 自己的 id 共用）。公开 API 快照多出这两个可选字段，现有 Manifest 不受影响。
-- 宿主：`workspace-plugin-bindings.ts` 的 13 行名单删掉，换成 `plugin-default-bindings.ts` 的 `bindDeclaredDefaults`：按项目里运行中的插件读声明，只给什么也没读的口接，人选过的来源、固定成果版本、选过的组都不动；来源插件不在、没有那个口或类型不同就不接（原来名单靠类型恰好一致，第三方插件的声明可能不一致，不接比让项目启动失败对）。默认连线只在随 Host 发布的插件之间生效（统筹 10-16 复查要求，保持重构前的行为）：两端都要是 Host 启动名单标了 `bundled` 的定义（`platform.shipsWithHost`，与动作提供方用的是同一个判断，不是名单，也不读插件自己的声明），已安装或生成的插件写了 `default_source` 或默认组都当作没写；否则已安装的插件写一行 `default_source` 就能自动收到 Coding 的变更集或 Shelf 的材料，是这一片不该开的新数据通路。已安装的插件能不能声明默认连线是产品决定，由统筹弹窗问用户。13 行搬进 Coding（6）、Shelf（2）、Diff（4 加默认组「两份快照」）、Text Stats（1）各自的 Manifest。
+- 宿主：`workspace-plugin-bindings.ts` 的 13 行名单删掉，换成 `plugin-default-bindings.ts` 的 `bindDeclaredDefaults`：按项目里运行中的插件读声明，只给什么也没读的口接，人选过的来源、固定成果版本、选过的组都不动；来源插件不在、没有那个口或类型不同就不接（原来名单靠类型恰好一致，第三方插件的声明可能不一致，不接比让项目启动失败对）。默认连线只在随 Host 发布的插件之间生效（统筹 10-16 复查要求，保持重构前的行为）：两端都要是 Host 启动名单标了 `bundled` 的定义（`platform.shipsWithHost`，与动作提供方用的是同一个判断，不是名单，也不读插件自己的声明），已安装或生成的插件写了 `default_source` 或默认组都当作没写；否则已安装的插件写一行 `default_source` 就能自动收到 Coding 的变更集或 Shelf 的材料，是这一片不该开的新数据通路。已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。13 行搬进 Coding（6）、Shelf（2）、Diff（4 加默认组「两份快照」）、Text Stats（1）各自的 Manifest。
 - 测试：新增 `tests/plugin-default-bindings.test.ts`：`W4-03-01`（Coding 家族接出的默认连线与原名单逐行相同、Diff 默认组；名单外的插件按自己的声明接上、默认组生效）、`W4-03-02`（人选的来源与组不被覆盖；来源不在、口不存在、类型不同都不接）、`W4-03-04`（不随 Host 发布的插件拿不到 Coding 的变更集、默认组不生效，用内置插件的 id 也不行；内置插件不按默认读它的输出；先在旧构建上看它失败）；`tests/plugin-declaration-rules.test.ts` 加 8 条 `W4-03-03`。变异检查：去掉类型比对、去掉「已有来源就跳过」、去掉默认组，各有一条失败。`tests/workspace-plugin-graph.test.ts` 改从包入口取 `bindDeclaredDefaults`（新的具名导出），少一处包内部引用。
 - 文档：`docs/system/EXTENSION-POINTS.md`（Text Stats 包外点名从 12 个文件降到 11 个，按第 1 节的复核命令重数）、`apps/local-host/README.md`、`skills/molis-plugin-dev/elements.md`、`examples.md`、`host.md`。
 - 剩下的两项（Diff 与 Text Stats 自己渲染视图、伙伴舞台由 Manifest 视图生成而不是 `coding-surface.ts` 的名单）要改 `coding-surface.ts`，在途的 H4（#554）也改它，排在它合入之后做第二片。
@@ -60,6 +60,12 @@ W4-04 第四片（2026-10-15，Form 客户端改成打包的 TypeScript，PR #55
 - 证据：门禁 `--base origin/main`、`boundary:check`、`page-assets`（`--update` 后）通过；相关 18 个非浏览器文件全过；浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e`、`model-ready-surfaces.e2e` 共 19 条全过。全量由统筹在 CI 跑。
 - 变基到 #551 合入后的 main（`19823a62`）后重跑：门禁 `--base origin/main`、`boundary:check`、`page-assets`、页面事件通过；Form 与门禁相关的 11 个非浏览器文件、7 个浏览器文件（另加 `goal-form-viewport`、`policy-form-binding`、`remaining-forms-viewport`）全过。Runtime 停 Form 时库先关（`home-plugin-executor.ts`、`plugin-host-services.ts` 的 `dispose`），#551 第 7 片那次原生崩溃统筹重跑已过，判为跑机环境。
 
+W4-03 第二片（2026-10-16，伴随面借 Coding 的客户端，PR 待开；统筹 10-16 定范围：只去重，Manifest 视图另成一片）：
+- 去重：Files、Git、Diff、Text Stats 四个目录条目原来各把 Coding 的 `CODING_WORKBENCH_SETUP_SCRIPT` 登记成自己的 `clientFactory`，宿主于是发五份逐字相同的 434 KB 客户端。现在四个条目写 `clientFrom: CODING_PROJECT_PLUGIN_ID`；`apps/workbench/src/plugin-workbench.ts` 的 `pluginSurfaceClients()` 给每个有客户端的面指出那一份包，按需加载（`deferred-plugin-client.ts`）、主区的延迟面（`goals-page-renderer.ts`）和侧栏文档（`side-view-document.ts`）都读它。按需加载取 `coding.js` 一次，用同一个工厂挂各自的根：工厂和根与原来一样，画面不变。
+- 大小：宿主不再发 `files.js`、`git.js`、`diff.js`、`text-stats.js`（共 1,736,113 字节）；加载器多带四个包名，同片把它里面重复三次的失败文字和两处收尾合成一处，`molis-work-workbench.js` 净降 8 字节。`tooling/gates/page-assets.json` 删掉四条、降一条。
+- 门禁：`scripts/gates/page-assets.mjs` 的一次性放行（W3-B1 #553、回执 1d #564）都已用完，按原注释「下一次改这个门禁时删掉」整段删去（与 #541 相同）；`tests/page-assets-budget.test.ts` 的两条放行用例改成「用完的放行在旧大小上也不再有效」，与 #541 的两条并成一组。
+- 测试：`W4-03-05`：`tests/builtin-plugin-composition.test.ts`（四个伴随面的包都是 Coding、工厂是同一份，宿主不发它们自己的包；别的客户端都是自己的包）；`tests/workbench-deferred-clients.e2e.test.ts`（逐个打开有客户端的面：伴随面不下载自己的包，Coding 的包整页只下载一次）。
+
 W4-05（2026-10-15，助理服务拆分样板，PR #559；决定 #3）：
 - 抽出：提醒与跟进协作者 `AssistantFollowUps`（`apps/local-host/src/assistant/assistant-followups.ts`）：Plugin 的到期提醒（`sweepReminders`）、工作上的定时轮次（保存、取消、到点运行、归档时停用、宿主启动时重新排队）、关注规则（`saveRule`、`removeRule`）。它只经 `AssistantFollowUpPorts` 依赖宿主（工作、通知、设置、规则、Home 动作、Agent Host、发送、队列），不 import 助理其他模块的实现（只用共同的错误表 `assistant-errors.ts`），带走自己的表：`assistant_followups` 的读写从 `AssistantStore` 搬到 `AssistantFollowUpRecords`（`store.followUps`）。服务上的 `followUps` 现在是这个协作者，HTTP、动作（`assistant-rule-actions.ts`）、`web-server.ts` 的定时任务改为经它调用。
 - 不变的：行为与文字一字不改（逐段搬，旧的 `runDueFollowUp`、`enqueueCurrentFollowUp` 并进类里）；到期提醒对 Home 动作的每一步仍有 20 秒限时，由服务包在端口里（`withinTime`）。没有动 `assistant-inputs.ts`，没有动发送与回执的路径；没有往 contracts 加 typed 能力。
@@ -101,6 +107,14 @@ W4-08（2026-10-16，平台产品服务的边界，不新增规则，统筹 10-1
 - 能力：它们以系统动作登记；新的 typed 宿主能力由 `pnpm health:check` 的结构数字拦着（只许减少）。情境排序的 HTTP 例外与删除条件写在架构文档同一节。
 - 拆 `MemoryService`（`horizontal/memory/src/service.ts` 现 1,262 行）不在本项：按 `docs/system/HUGE-CLASS-MIGRATION.md` 的决定在包内由 W5-10 拆，路线图 W4-08 一行同步删去了「再拆 MemoryService」。
 
+W5-12 测量（2026-10-16，统筹给的安静时段 23:56 起，main `cbf2341c5`；并发隔离的运行器早由 #497 做完，#518 加了只重建变了的包与机器槽位）：路线图「Measure full-run and build time before and after」。
+- 全量：`node scripts/run-tests.mjs`（不带参数）1,017 个文件、5 份同时跑（浏览器文件 196 个，同时至多 2 个）、每个文件一份 `MOLIS_WORK_HOME`：58.2 分钟（3,493 秒）。之前串行 76–78 分钟（N-16 引用的口径，当时 762 个文件），文件多了约三分之一，墙钟少了约四分之一。
+- 构建：冷构建（新工作树，71 个包）81.9 秒；不改源码再跑 10 秒（71 个都跳过）；改 `contracts` 一个文件，71 个包全重建（都依赖它）28.9 秒；只改一个插件的文件，重建它和依赖它的 5 个包 13.7 秒。只 `touch` 不改内容不算改动（按内容摘要判）。
+- 争用：每 10 分钟记一次 `machine-slot status`（6 次）：build 槽一直空，browser 槽只有这次全量；负载 8–13（10 核），全是这次运行自己，没有别的会话的构建或浏览器批次插进来，这一段不标争用。
+- 失败：13 个文件红；同一棵树逐个（`--jobs 1`）重跑，9 个过（负载下的时序）。剩下 4 个在 #565 之前的基线 `bd2472ae7` 上也红，不是这几天的合并引入的：
+  - `onboarding-journey.e2e`、`project-arrival.e2e` 每次都红：项目还在打开（`registerProviders` 编译完动作合同才登记）时 Host 开始关闭，登记看到 Host 已关、打开失败；`LocalHost.closeProject` 再 `await` 这次打开，把它的错误又抛给 `close()`，夹具收尾记成失败。本片修掉（HOST-CLOSE-01）：打开失败已经告诉了打开的调用方，没有东西要关，Host 照常关完，打开成功的项目照常关闭。`tests/local-host-close.test.ts` 钉住（去掉修复即红），两个浏览器文件在修复后都过。
+  - `issue-capture-page.e2e`、`issue-clarification-page.e2e` 偶发：基线与 main 各跑四次都有红，每次红的子用例不同（ISSUE-34、ISSUE-37、ISSUE-38，都是等 Issues 侧栏 iframe 里的某个状态 20 秒超时）。不是本线引入，交 Issues 的主人；没有放进 `tests/quarantine.json`（要 owner 与到期日，由统筹定）。
+
 W5-13 第一片（2026-10-16，Host 日志，PR #570；统筹 10-16 认可盘点与分片）：路线图「最小的结构化日志替换 Host 里的 console.*」与任务书 §4.8「结构化日志与调用标识贯穿主链路」。
 - 加：`apps/local-host/src/host-log.ts` 的 `hostLog.warn/error/debug(区域, 事件, 错误?, 字段?)`，Host 侧唯一的实现。每条是 stderr 上的一行 JSON（常驻服务的 LaunchAgent 写进 Home 的日志文件），用稳定的区域加事件名（如 `search` / `index_update_failed`）和错误码定位，带 `call_id`（内核调用范围里的编号，就是页面失败提示里可复制的诊断编号）。
 - 只记键（`docs/system/SECURITY-INVARIANTS.md` 的「密钥只给引用」）：错误只留名字和码，不留消息和调用栈（会带人写的字、路径或密钥）；字段只留数字、布尔、null 和像键的字符串（字母数字与 `._:@-`，至多 120 字，没有空格和路径分隔符），其余写成 `"[omitted]"`；不是键的区域或事件名也写成 `"[omitted]"`，不在 catch 里抛错。
@@ -110,6 +124,20 @@ W5-13 第一片（2026-10-16，Host 日志，PR #570；统筹 10-16 认可盘点
 - 数字：`console` 88 → 28（剩下的是 `assistant-http.ts` 2 处、`apps/server` 的命令行入口 7 处、测试与示例）。
 - 测试：`tests/host-log.test.ts`：`W5-13-01`（一条记录的区域、事件、调用编号、错误名与码、字段；调用之外没有编号）、`W5-13-02`（debug 只为列出的区域写，`*` 为全部；warn 不看开关）、`W5-13-03`（搜索索引失败与记忆提炼经 Host 实际用的两个函数，错误消息、字段、嵌套对象、数组、名字里的人写的字、路径和密钥都进不了日志）。变异检查：错误留消息（01、03 失败）、字段留任意字符串（03 失败）、去掉 `call_id`（01 失败）、去掉 debug 的开关判断（02 失败）。
 - 吞错的盘点（下一片起按区域修，每片开工前把文件清单给统筹）：TypeScript 代码（不含浏览器模板字符串）里 1,631 个 `catch` 与 `.catch(…)`，按处理方式分：重抛或包装 345、有记录 180、空且带注释 123、空 26、只返回默认值 354、其他处理 603。空的、只带注释的、只返回默认值的三类共 503 处：`apps/local-host/src` 247（顶层 102、`assistant/` 63、`browser/` 35、`installer/` 15、`computer/` 14、`plugin-builder/` 9、`memory/` 7）、`horizontal/agent-host` 61（几乎都在 `adapters/prologue-*.ts`，是模型调用路径，只列给 AI 开发手册线，不在本项改）、Pages 21、Coding 18、`packages/storage` 17、gmail 13、Work 11、runtime-host 10、memory 9，其余每包 7 处以下。逐处判：确是「没有就是答案」（解析失败返回空、可选文件不存在）或尽力清理（关闭时删临时文件）的，留下并在注释里写明真实原因（不写「忽略」）；把失败当成功的，改为记 `hostLog` 或向调用方报错。分片：2 顶层（不含 `coding-surface.ts`）；3 `browser/`、`installer/`、`computer/`、`plugin-builder/`、`memory/`；4 storage、runtime-host、memory、search、plugin-runtime、contracts；5 插件（不含 Coding）；最后 `assistant/`、Coding（相关 PR 合入后）。
+
+W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；第一片 #570 已合入，已变基到 main；统筹 10-16 认可文件清单，另提三点，已并入）：
+- 改成记录或收窄（原来把失败当成功）：
+  - 按 id 查项目：`web-server.ts` 3 处、`web-request.ts`、`system-agent-service.ts`、`project-arrival-http.ts` 原来捕获一切当「没有这个项目」。现在经新文件 `catalog-lookup.ts` 的 `projectOrNull`，只有目录的 `catalog.project_not_found` 读成没有，别的错误（目录打不开、读不了）在这里记一条 `projects` / `catalog_lookup_failed`（只记键），再交给调用方，由各边缘按惯常的 500 答（目录类已是巨大单元，不往里加方法）。这是行为变化：项目简介（`project-arrival-http.ts`）原来读成 404，现在是 500；侧栏浏览器的项目检查原来是 404，现在经 Web 服务最后的 catch 成 500；群聊的项目连接（`im-server.ts`）原来一律 403，现在目录读不了是 500（`im.server.catalog_unavailable`），没有这个项目仍是 403；进程不崩，下一个请求照常答。
+  - 定时轮次：`web-project-schedulers.ts` 的 Feed 与定时任务两种轮次、`project-schedulers.ts` 启动时的首轮、`schedule-task-runner.ts` 取消失败，原来静默；现在记 `schedule` 区域。每 30 秒一轮的失败只在开始失败时记一条，跑通过后再失败才再记（`host-log.ts` 的 `repeatingFailure`，Coding 后台清单与终端记录共用）。
+  - 连接目录：`connector-mcp-actions.ts` 重启后某个连接登记失败按连接 id 记，其余照常登记；`external-mcp-actions.ts` 重启副本写不进、恢复失败，`project-host.ts` 启动时 `connectorMcp.sync()` 失败，都记 `connections` 区域。
+  - 成果预览：`artifact-actions.ts`、`side-files-http.ts`、`artifact-native-plugin-http.ts` 的主人预览失败仍显示为没有预览；「不能读」（`forbidden`）与「不在了」（`not_found`）是答案不记，别的按成果类型记（`logPreviewFailure`）。
+  - 其余：Characters 解析不了的记录按 id 记；已安装插件的入口读不出来时页面照开、记一条；终端记录写不进每个进程记一次；Coding 后台清单读不了的库按项目记（开始失败时一条）。Coding 的读取器 `listCodingBackgroundSessions` 不变（没有 Coding 的库照旧抛错，`tests/owner-readers.test.ts` 钉着）；Coding 另出 `holdsCodingSessions` 回答这个库有没有用过 Coding，宿主接线（`web-catalog.ts` 的 `homeBackgroundTasks`）先问它，没用过的项目安静地什么也不列，读不了的才记，宿主不再把一切失败当「没有 Coding」。Alchemist 读不到绑定账户的令牌（只记键，不记错误文字和任何可能带令牌的值；界面上该不该显示「读不到」而不是「未连接」是界面改动，不在本片，记为后续）、Images 绑定连接对这个地址被拒或读不到密钥，仍按无令牌处理，但记一条。项目关闭时搜索、放置关不掉也记，不挡其余部分关闭。
+  - `web-onboarding-input.ts` 的空 `catch {}` 写明真实原因（空 catch 4 → 3）。
+- 留下并写明真实原因（不写「忽略」）：队列串接（`connector-api-oauth.ts`、`connector-mcp.ts`、`mcp-settings-store.ts`：上一个的失败已经答给它自己的调用方）、收尾关闭（`connector-mcp.ts` ×4、`material-web.ts` ×2、`workspace-git-index.ts`、`git-operations.ts` ×2、`alchemist-native-plugin-http.ts`）、「没有就是答案」（`action-call-log.ts` ×3、`git-status.ts`、`git-worktrees.ts`、`onboarding.ts`、`jelly-source-providers.ts` ×3、`personal-planning-methods.ts`、`notion-oauth.ts` ×2、`feed-history-release.ts`、`web-assets.ts`、`home-plugin-http.ts`、`resident-host-request.ts`）；`project-host.ts` 原来的「closing anyway」改成记录。
+- 模型路径，只列给 AI 手册线、不在本片改：`home-event-actions.ts:52`（行为判断失败不记）、`information-actions.ts:27` 与 `workflows-actions.ts:12`（`hostCompleteText` 不可用时为 undefined）、`schedule-runtime.ts:92`（Feed 的 `flushPendingJudgments`）。
+- #570 评审的两点并入本片：像键只是形状检查，不是密钥识别（邮箱、`sk-` 令牌形状像键，会照写），所以字段只放调用处自己定的编号、枚举和计数，`host-log.ts` 注释与 README 写明，`W5-13-09` 钉住；搜索索引的告警按（遍次、错误码）在进程内只记一次，`W5-13-10` 钉住。
+- 测试：`tests/host-log-catches.test.ts`：`W5-13-04`（项目查找只把 not_found 当没有，目录读不了与别的目录错误照抛）、`W5-13-05`（预览失败按类型记，forbidden、not_found 不记，消息与路径不进日志）、`W5-13-06`（Coding 后台清单，经宿主的真实接线：没有 Coding 的项目不记，读不了的库开始失败时记一条、读通后再失败再记；没有 Coding 的库用不带 Coding 表的空库——演示看板会建 Coding 的表，用它就量不到这一条；去掉接线里的询问即红）、`W5-13-08`（重复失败只在开始时记）、`W5-13-11`（项目简介与侧栏浏览器：没有这个项目仍是 404，目录读不了是 500 并记一条，服务照常答下一个）；`tests/im-local-project.test.ts` 的 `W5-13-11`（群聊连接：目录读不了 500，没有这个项目仍 403，之后照常连上）；`tests/connector-mcp.test.ts` 的 `W5-13-07`（重启后一个连接登记失败按 id 记，另一个照常登记）。变异检查：项目查找改回全捕获（04 失败）、预览不分种类（05 失败）、重复失败不去重（06、08 失败）、连接登记改回静默（07 失败）、Coding 去掉表检查（06 失败）。
+- 门禁：`--base origin/main` 通过；新加的几行没有留在巨大单元里（移到模块级小函数或同行注释），巨大单元的行数不变。
 
 ## 0. 现场与范围
 
@@ -121,6 +149,7 @@ W5-13 第一片（2026-10-16，Host 日志，PR #570；统筹 10-16 认可盘点
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |
 | --- | --- | --- | --- | --- |
+| 2026-10-16 | 已安装的插件能不能在 Manifest 里声明默认数据来源（`default_source`、默认输入组；W4-03 第一片 #565 留下的产品问题，统筹弹窗） | 暂只在随宿主发的插件之间（推荐）；已安装的也生效 | 暂只在随宿主发的插件之间 | 已安装或生成的插件写了也当作没写，免得没人同意就拿到 Coding 的变更集或 Shelf 的材料；装插件时有同意流程后再议。改的是 #565 留下的「产品还没定」措辞（合同注释、宿主注释、EXTENSION-POINTS、Skill 的 elements/host、Host README、本规格），行为不变 |
 | 2026-10-15 | CI 全量占满 runner（弹窗） | 限流并只在加标签时跑（推荐）；只限流；全量只在每晚和集成分支跑 | 限流并只在加标签时跑 | 6 个带 `full-suite` 标签的 PR 每次推送各开 16 个分片，占满仓库的 20 台并发，`Verify` 与 main 的 CI 排队 10–20 分钟。`full-suite.yml`：PR 只在加上标签时跑一次，`max-parallel: 6`；要再跑就重新加标签或手动触发 |
 | 2026-10-15 | F109 在启动时打开所有项目（为了恢复各项目的定时任务），每次打开都同步编译全部动作合同（Goals 一项约 250 ms），Catalog 读取被卡住（`tests/catalog-read-contention.test.ts`：最长停顿 84 ms，main 是 22 ms；加载重时 3 次都失败；弹窗） | 推迟到第一次调度时再打开（推荐）；拆小打开项目的同步工作；撤掉启动时打开项目 | 推迟到第一次调度时再打开 | 启动不打开项目，第一轮调度（30 秒）先从 Catalog 打开各项目、再跑到期的任务；同一份合同只编译一次（按合同全文缓存），打开项目时先分批编译再注册。最长停顿回到 22 ms；`tests/schedule-reminder-recovery.test.ts` W2-18-SCHEDULE-01 改为断言启动不打开、第一轮打开 |
 | 2026-10-15 | F109 合 main 后 Pages 编辑器资源 698,574 → 703,633 字节（+5,059，全部来自 `editor-transient.ts` 与 `card-content.ts` 的修复；弹窗） | 单次资源例外（推荐）；瘦身现有编辑器代码 ≥5 KB；去掉几种代码高亮语言 | 单次资源例外 | 照 #520 的做法在 #522 里只给这一个资源、这一个旧基线开一次，上限等于实测，多一字节、其他资源、之后再长都拒绝；名字混淆会破坏现有 `/Decoration\.node/` 断言，不用 |
@@ -508,7 +537,7 @@ W5-13 第一片（2026-10-16，Host 日志，PR #570；统筹 10-16 认可盘点
 | N-13 | 仍然成立 [已确认] | 没有 eslint、biome、prettier 配置，根 `package.json` 的 31 个脚本里没有 lint 或 format | W1-09 |
 | N-14 | 部分 [已确认/引用] | `vendor/prologue-sdk/` 有 26 个 `.patch` 加 1 个 tgz；`vendor/prologue-sdk/README.md:16` 仍写着来源分支的提交「暂未推到 prologue 远端」，但 W1-20 的方案（#318，[dependencies-and-sdk-plan.md](dependencies-and-sdk-plan.md) §1、§4.1）查到来源分支早已推到 Prologue 远端并合入（PR #3，2026-09-30），现行 vendored 包不需要补丁：用上游提交 `9fc3b173` 直接构建，打出的 tgz 与仓库里的逐字节相同 [引用方案，这次没有重跑]，所以「别人无法重建」的前提不成立，README 与 BL-024 都过期；25 个历史补丁可删，还没有删；另两个 vendored 包（`intelligence-client`、`search-evidence-layer`）有 sha256 与 provenance，Prologue 没有 | 决定 #25（推上游分支、删 25 个历史补丁并记 sha256 与来源、tgz 改从私有 registry 或 release 附件取）：方案已出（W1-20）；推送、删除、改取用都等用户确认后分片做（W1-23）；BL-024 已按方案改写 |
 | N-15 | 代码已修复，文档与示例有残留 [已确认] | `schemaPatches` 0；兼容标记 9 处（按文件计数，只许减少，#283；10-10 删 Casebook 后，之前 17 处）；`tooling/migrations/`、`compatibility-allowlist.json`、`apps/local-host/sdk/`、`tsconfig.sdk.json` 已不存在；`modules/execution`、`modules/evidence-verification` 已删（#268）；AGENTS.md:29 与两个 Skill 的读取兼容规则（#290；以后的读取兼容从第一个装到开发机之外的版本起算，流程见 `docs/system/CONTRACT-CHANGES.md`，#314）、`CONTRACTS-AND-OPERATIONS.md`、`ARCHITECTURE.md`、README（#295–#298）已改。余：① `specs/action-architecture/spec.md:248` 仍写「旧环境/文本密钥入口可作为兼容来源」（文本密钥 `model:text:api_key` 已不读，开发用的 `MOLIS_WORK_TEXT_*` 环境变量还在 `apps/local-host/src/host-complete-text.ts:100`）；② `specs/action-architecture/migration.md`（1,625 行）仍写「兼容入口」「旧名字仍可用」（:14、:261、:653–663）；③ 内部名 `checkGoalBoard` 在 `project-capabilities.ts` 里 36 处，W2-02 已改名 `requireRuntimeProject`（`oldNames` 基线里该文件的 36 处随之清零）；④ `board_id` 在运行代码里 0 处，但随根包发布的 `examples/draft-goal.json`、`examples/leaf-goal.json` 仍写 `"board_id"`：W2-02 查到这两个文件的形状（顶层 `goal` 对象）没有任何现行命令接受（`goal-tree-propose` 要 `summary` 与 `items`，`submitGoalTreeProposal` 先报 `goal_tree_proposal.summary_required`），仓库里没有文档或测试引用它们，来自初始发布，已删并从根 `package.json` 的 `files` 去掉 | ①② W1-02；③④ W2-02 已做 |
-| N-16 | 仍然成立 [已确认] | `scripts/run-tests.mjs:16` 用 `--test-concurrency=1`；757 个 `tests/*.test.ts`（其中 128 个 e2e）加 5 个 `.test.mjs`；全量 76–78 分钟（§4.1、§9 各批记录）[引用] | W5-12（每文件一个 Home 与密钥库，非浏览器文件并发）、W2-17（受影响用例挑选） |
+| N-16 | 仍然成立 [已确认] | `scripts/run-tests.mjs:16` 用 `--test-concurrency=1`；757 个 `tests/*.test.ts`（其中 128 个 e2e）加 5 个 `.test.mjs`；全量 76–78 分钟（§4.1、§9 各批记录）[引用]。W5-12 已做（#497 隔离并发；2026-10-16 测量：1,017 个文件 58.2 分钟，见文首「W5-12 测量」） | W5-12（每文件一个 Home 与密钥库，非浏览器文件并发）、W2-17（受影响用例挑选） |
 | N-17 | 仍然成立 [已确认] | `tooling/gates/` 现在有 `baseline.json`、`giant-exceptions.json`（#320）、`limits.json`、`secret-allowlist.txt`，没有 `api/`；WIP 分支 `chore/health-gates-lint-api` 只在本地 | W1-04（API 快照）、W2-15（动作合同快照，取代 `specs/archive/post-merge-review/capability-snapshot.mts`） |
 | N-18 | 部分 [已确认] | W1-17 已做（#315）：`docs/system/GLOSSARY.md` 一概念一名一定义，含术语到翻译稳定键的对应、界面用词待批清单（第 4 节，等用户批准）、代码改名清单（第 5 节，分内部改名与合同改名，尚未执行），AGENTS.md「先读哪里」指向它。改名前各词出现在多少个源码文件里：Action 939、Capability 421、Method 382、Role 257、Character 154、Judgment 118、Behavior 113、Skill 73、Scene 53 [引用]；Project 与 Board 已统一（#287，`boards` 表名按决定保留） | 决定 #27（文档一个定义、内部名跟着改、界面用词另列清单经用户批准）：W1-17 已做；代码改名 W5-14 |
 | N-19 | 部分 [已确认] | 版本与发布策略已写（W1-22，#321）：`docs/releases/POLICY.md`（一个产品版本、下一版 0.3.0）、`CHANGELOG.md`（第一节 `[Unreleased]`）、`CHECKLIST.md`（含各库版本表与真实 Home 的处理）；核对脚本移到 `scripts/verify-release-versions.mjs`，CI 里跑（「Release versions agree」）。余：根包仍是 0.2.0，71 个工作区包 0.0.0，`examples/plugin-sample` 2.0.0；内置插件清单版本仍各自独立（1.0.0 到 1.50.0，`POLICY.md` 第 1 节），Runtime 对内置插件一律跟当前构建的做法用户 10-08 已选定（A，`POLICY.md` 第 7 节，#323），还没实现；v0.2.0 之后 1,868 个提交（不含合并提交 1,213 个，`git rev-list --count v0.2.0..origin/main`）都在 `[Unreleased]` 里，还没发布 0.3.0；根目录仍入库 `molis-work-introduction.html`、`outputs/`（3 个文件，含商业计划）、`.zcode/plans/`（1 个文件），`.gitignore:8` 还留着旧名 `.goalboard/`；`docs/product-intro/` 才是对外介绍的正式位置 | 决定 #23（一个产品版本，下一版 0.3.0）、决定 #22（介绍页移到 `docs/product-intro/archive`，`outputs/` 与 `.zcode/` 移出并加进 `.gitignore`）：W1-22 已做；W1-23、W5-15；BL-117 |
@@ -576,7 +605,7 @@ W5-13 第一片（2026-10-16，Host 日志，PR #570；统筹 10-16 认可盘点
 | --- | --- | --- | --- |
 | 浏览器用例的固定时限对负载敏感 | 仍然成立 [已确认] | `tests/fixtures/goal-browser.ts` 里 `waitFor(expression, timeoutMs = 4000)`（W2-11 a 把启动与 DevTools 连接搬到 `packages/test-kit` 的 `/browser`，这一条时限与诊断留在夹具里；按函数名引用，行号会随夹具的其他改动移动）；130 个测试文件定义或调用 `waitFor` | W2-16（时限改为等真实条件，稳定的部分进 CI 子集） |
 | 测试依赖 `fs.watch` 收到其他进程的文件事件 | 不再成立 [已确认] | 全仓 `fs.watch`、`watchFile` 0 处；#143 修的那一处改成轮询（`tests/feed-research-authority.test.ts:52` 的注释） | — |
-| 全量回归两小时以上，并行会话互相干扰 | 部分 [已确认] | 全量 76–78 分钟 [引用]；`scripts/run-tests.mjs` 仍串行；#250 让全量也跑 `.mjs` 用例 | W2-17（受影响用例挑选）、W5-12（隔离与并发） |
+| 全量回归两小时以上，并行会话互相干扰 | 部分 [已确认] | 全量 76–78 分钟 [引用]；`scripts/run-tests.mjs` 已按文件隔离并发（#497），2026-10-16 测得 58.2 分钟（1,017 个文件）；#250 让全量也跑 `.mjs` 用例 | W2-17（受影响用例挑选）、W5-12（隔离与并发） |
 | 页面在浏览器窗格隐藏时不启动（`lifetime.whenVisible`），自动化验收会误判 | 未做 [已确认] | 验收脚本没有先确认 `document.visibilityState`（`tests/` 里 0 处） | 补记：并入 W1-12（回放工具先确认可见性） |
 
 ### 3.5 小结与补记
@@ -1158,7 +1187,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | §4.4 包级清单 | 部分（W1-18 的第一个 PR 已做，#322）：事实表是 70 个包，带层、状态（在用 42、Runtime 7、构建期 18、非产品 3）与计划深度（深 11、中 43、浅 16），`scripts/gates/package-inventory.mjs` 在健康门禁里守表；逐包深审（深 11、中 43）与浅审（16）待做，审查列现在 70 个都是「待审」 | §5.1、§5.2 |
 | §4.5 巨大单元 | 部分（W1-19 已做，#320）：门禁对照合并基点，只减不增（164 个单元）；`docs/system/HUGE-CLASS-MIGRATION.md` 重写为每个单元一个判定（拆、归线、例外）和计划，2026-09 的迁移记录移入 `docs/archive/huge-class-migration-2026-09.md`；`tooling/gates/giant-exceptions.json` 登记 4 个必然很长的单元，由门禁校验、不放行新增。W4-06 已做（#498）：`prologue-node.ts` 的文件与 `initializePrologueNodeAdapter`、`startAgentRun` 三个单元拆成九个模块，初始化只剩组合。W4-07 已做：Coding 的 `routes.ts` 与 `codingRouteBindings` 按资源拆成七组路由。拆分待做：W4-05、W5-09、W5-10 | `tooling/gates/baseline.json`、`docs/system/HUGE-CLASS-MIGRATION.md`、§3 N-08 |
 | §4.6 扩展点与插件平台 | 部分（W1-15 已做，#317）：[`docs/system/EXTENSION-POINTS.md`](../../docs/system/EXTENSION-POINTS.md)（15 个方向各写怎么加、现在要改的位置、目标，另有六个下一步功能的推演）、`RUNTIME-MIGRATION.md`（迁移计划与批准的构建期例外）、`THIRD-PARTY-PLUGINS.md`（安装方案，只是计划）；`LOCAL-HOST.md`、`PLUGIN-DEVELOPMENT.md` 的装配说法已改。余：`skills/molis-plugin-dev/host.md` 的必改步骤与 AGENTS.md 的说法未改（EXTENSION-POINTS §6，BL-119，W6-03）；装配名单冻结 18 个（2026-10-10 删实验插件从 19 个减掉 1 个，迁移还没有减过）；迁移从 W4-04（Form）起 | `docs/system/EXTENSION-POINTS.md`、`tests/builtin-plugin-assembly-gate.test.ts`、§3 R-01 |
-| §4.7 多人并行 | 部分（W1-13 已做，#314；健康门禁对照合并基点 #293、密钥扫描进 CI #294 更早合入）：`docs/system/PARALLEL-DEVELOPMENT.md`（枢纽文件、排时段、集成分支、基线比对、Agent 锁、清理、PR 体量）、`docs/system/CONTRACT-CHANGES.md`（现在不留兼容期；读取兼容从第一个装到开发机之外的版本开始，日期未到）、`.github/CODEOWNERS` 与 SSOT 各表「归属」列（由 `scripts/package-owners.mjs` 生成，`pnpm boundary:check` 校验）、PR 模板新栏目、`AGENTS.md` 指针。待做：公开 API 快照 W1-04、动作合同快照 W2-15、挑相关用例脚本 W2-17、CI 产品子集 W1-11/W2-16、插件回放工具 W4-01、测试并发隔离 W5-12、Prologue SDK 合成负责人（W1-20 提名）、固定记录 main 最新全量数字的位置（`PARALLEL-DEVELOPMENT.md` 没有定义，归 W6-05）；CODEOWNERS 现在只路由包根目录，Coding、Jelly、Shelf 在宿主与外壳里的代码未路由 | §1、`docs/system/PARALLEL-DEVELOPMENT.md` |
+| §4.7 多人并行 | 部分（W1-13 已做，#314；健康门禁对照合并基点 #293、密钥扫描进 CI #294 更早合入）：`docs/system/PARALLEL-DEVELOPMENT.md`（枢纽文件、排时段、集成分支、基线比对、Agent 锁、清理、PR 体量）、`docs/system/CONTRACT-CHANGES.md`（现在不留兼容期；读取兼容从第一个装到开发机之外的版本开始，日期未到）、`.github/CODEOWNERS` 与 SSOT 各表「归属」列（由 `scripts/package-owners.mjs` 生成，`pnpm boundary:check` 校验）、PR 模板新栏目、`AGENTS.md` 指针。待做：公开 API 快照 W1-04、动作合同快照 W2-15、挑相关用例脚本 W2-17、CI 产品子集 W1-11/W2-16、插件回放工具 W4-01、测试并发隔离 W5-12（#497 已做，2026-10-16 测量见文首）、Prologue SDK 合成负责人（W1-20 提名）、固定记录 main 最新全量数字的位置（`PARALLEL-DEVELOPMENT.md` 没有定义，归 W6-05）；CODEOWNERS 现在只路由包根目录，Coding、Jelly、Shelf 在宿主与外壳里的代码未路由 | §1、`docs/system/PARALLEL-DEVELOPMENT.md` |
 | §4.8 改需求的便利 | 待做：页面资源预算 W1-07，翻译检查 W1-08（决定 #16），浏览器代码打包 W4-04、W5-04 | §3 R-07 |
 | §4.9 体检报告逐项闭环 | 已闭环（10-08）：附录 A 39 行、报告 §5 的 6 步、§7.5 的 5 条、交接清单 25 项，各有结论、证据、归属 | §3 |
 | §4.10 新合同全链路 | 部分：搜索来源与对象读取器、侧栏文件来源、成果库的预览固定比较继续、工作流内容站、插件通知（只对 Runtime 插件）、撤销声明在使用端的授权，都已走通并有用例（roadmap §4.10）；Manifest `methods` 对 Runtime 与已安装插件按决定 #18 和内置一样注册（W4-02，`tests/plugin-methods-runtime.test.ts`）；无使用者的接口按决定 #19 处理（W2-03）；注册时交叉校验 W3-05；八类新合同按基本合同逐条复核已做（`specs/action-architecture/spec.md` §3 末尾，#319），缺口 G1–G9 各有去向 | roadmap §4.10 |
@@ -1806,6 +1835,22 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 - #571：建议工具对输入的检查靠可选的 `client.check`；调用方没给它时，记录下来的建议没核过输入（不执行，点卡时再核），S-28 的「输入被动作拒绝也拒」以给了 `check` 为前提。已由 2c 覆盖：统筹 10-16 认可逐项回合的 client 带上 `check` 的透传，建议在提出时就核。
 - #576 → 手册线（在 PR B 里改，或 PR B 之前单独一个小文档改动）：`elements.md` 与 `PROLOGUE-AI.md` 把 `default` 写成「开新一轮时已经选上」，但宿主读 `role.skills` 要等 PR B 与 Coding 那一片；在那之前照文档写的外部作者会发现默认不生效。请在 PR B 合入前把这两处写成「宿主开轮时按它选上（PR B 起）」，或与 PR B 一起合。
 
+### 10.17 2026-10-16 在途 PR 的独立复查（#580、#581、#583、#585；#571、#573 在 §10.16 之后的提交；在途 9 个的组合效果）
+
+结论：都有依据，不用改代码。#583 照复查建议补了 S-13 的措辞；#580、#585 要先解与 main 的冲突。
+
+- #580（D4）：八处要模型的动作改用同一个 `textModelAvailability` 判断可用。没配模型时与原来相同（`actions.connection_required`，各用原来的话）；设置读不了时带失败自己的码（没有码就用 `actions.configuration_unavailable`），原因是固定的一句话、不带失败内容，界面不会再带人去设置里找一个不存在的问题。Feed 的判断队列取出的每一项都试一遍、全部试完再抛第一处失败，原来是第一处失败就丢掉同批其余的（PR 里做过变异核对）。宿主日志只记码（W5-13 的 `hostLog`）。动作合同不变，`ai_available` 仍是布尔值。
+- #581（换包）：独立核对。tgz 的 SHA-256 `cfed7ff4…0705` 与 `.sha256`、provenance 一致；来源提交 `e4afd1a7` 在 Prologue main 上（#28 的合并），树 `9dbe15b1` 与评审过的 head `af7be966` 相同；包里有 `tools-found`；`prologue-node-port.ts` 与 #575 之前的 main 逐字相同。§10.16 里「#575 的暂时做法等换包后删」由这个 PR 完成。
+- #583（B3）：Todo 整理的材料与已有待办放进 `fencedMaterials` 的固定声明后面，S-13 新增 Todo 一条用例；项目上手那条从「只有一次带围栏的请求」改成每一次请求都查、自己的那次恰好一次，更严。复查建议：围栏前的「用户这次的要求」由调用方给出，经助理调用时是 Agent 的转述。它只影响等用户确认的候选、不带工具，不算缺陷，但 S-13 应写明来源。PR 在 `3200b1901` 照此改了 S-13，已变基、去掉 #577 的提交。
+- #585（B5）：什么时候写 yes 只写在 reader 角色里，给代码读的格式写在任务末尾一行。位置有对照评测（共 68 次调用），用户 10-16 在弹窗里选定；单次的错判按「模型能力不打补丁」记下，没有加规则。角色与提示词升 v2，PR 里写明改过提示词的 Home 会看到「默认已更新」。历史回合不经围栏是旧问题，PR 列为后续。与 main 在 `specs/ai-development-handbook/spec.md` 冲突（与 B2 的记录写在同一处）。
+- #571 `693726fd8`：S-28 加一条拒绝用例：角色点名不是这一轮的 `molis-suggest-` 工具，在发模型请求前就被拒；调用一个没给这一轮的建议工具，什么都不执行。建议工具的名字统一取 `GATEWAY_TOOLS.suggest`。
+- #573 `7487fa34d`、`acbd2becc`：加 STRIP-03（排满时横向滚动，键盘和滚轮都能到最后一个），触控用例同时量 + 与 ×；相对 main，5 个页面资源与 3 项基线全部变小。
+
+组合效果：
+- 在途 9 个按队列顺序（571 → 573 → 581 → 578 → 580 → 582 → 583 → 584 → 585）在 main `f48f56fe` 上试合并。文字冲突三处：#580、#585 各自与 main 在手册 spec；#584 与 #573 在 `tooling/gates/page-assets.json`（数字，#573 合入后 #584 变基、重新量）。在合得进的那几个上查过跨 PR 引用（`aiAvailable`、旧的材料声明常量、`deferToolSchemasBeyond`、`codingBackgroundTasks`），没有遗留。
+- #581 恢复「超过 20 个工具就延后」，而 #571 的建议工具和 S-28 用例是在不延后时（#575）写的，两个 PR 各自的全量都不含对方。在 main+#571+#581 上构建，跑了两边动过的 5 个用例文件，89 条全过。
+- 缺口（不是缺陷）：S-28 的回合只声明 2 个工具，没有走到延后；agent-host 对一轮的动作工具数没有上限，超过 20 个时建议工具只列名字。#28 之后只列名字的照样调得动、宿主照样核。交给 H4 2b 补一条用例：一轮工具超过 20 个时，建议工具仍只指向这一轮的动作，输入仍被核。
+
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
 用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。
@@ -1898,7 +1943,7 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 | N-13 | 已确认 Biome/原生静态检查、API/页面预算入 CI；存量告警未清零，Jelly Whisper 构建边界见 BL-122，不能泛称全仓无静态问题 |
 | N-14 | 部分：收敛方案经用户确认，I6 仍用旧命名的当前 tgz；上游结果与本仓采用是两件事，#408 等在途接入不得记已完成。W1-20/W6-03/05 |
 | N-15 | 历史迁移/旧别名已大批删除、就地补表为 0、剩余 9 标记逐项解释；仍须核全库登记、旧服务入口与最终真实 Home，新发现历史读取分支不能用登记保留机制放行。W4-11/W6-01/05 |
-| N-16 | 未完成：本次全量仍串行且约百分钟级，W5-12 的隔离并发与同口径耗时比较未交付 |
+| N-16 | 已交付（2026-10-16）：隔离并发由 #497 做完；同口径测量见文首「W5-12 测量」：全量 1,017 个文件 58.2 分钟（之前串行 76–78 分钟、762 个文件），冷构建 81.9 秒、增量 10–29 秒；全量里唯一每次都红的收尾竞态（HOST-CLOSE-01）同片修掉 |
 | N-17 | 已确认 API 签名快照与动作声明快照入 CI；I6 API 60 份/2,284 声明，刷新无新增写入。实际生产输出仍须 W2-18-AC |
 | N-18 | 术语文档已存在，内部改名/界面批准边界仍 W5-14；不把旧词字符串总数当语义重复的证明 |
 | N-19 | 纠正：发布策略/版本检查已存在，内置跟随当前构建已在 Runtime 实现（#337）；原「尚未实现」、根目录 outputs/.zcode 等为历史现场。下一产品版本及最终发布未完成，W5-15；未因此授权发布 |

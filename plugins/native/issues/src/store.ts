@@ -1,3 +1,4 @@
+import { replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase, PluginDatabaseDeclaration, PluginDatabaseReader, PluginSqlRow, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { validateIssueImages, type IssueImage } from "./images.js";
@@ -24,14 +25,14 @@ export interface IssueList { type?: IssueType; limit?: number; cursor?: IssueCur
 export interface IssueListResult { items: IssueSummary[]; next_cursor: IssueCursor | null }
 
 export const ISSUES_DATABASE: PluginDatabaseDeclaration = {
-  store_name: "issues", version: 2, read_permission: "issues:read", write_permission: "issues:write",
-  schema: `CREATE TABLE issues (
+  store_name: "issues", version: 3, read_permission: "issues:read", write_permission: "issues:write",
+  schema: (`CREATE TABLE issues (
     id TEXT PRIMARY KEY, title TEXT NOT NULL CHECK(length(trim(title)) BETWEEN 1 AND 200),
     type TEXT NOT NULL CHECK(type IN ('bug','experience','feature')), description TEXT NOT NULL CHECK(length(description) <= 100000),
     context_json TEXT NOT NULL, images_json TEXT NOT NULL, submitter_id TEXT NOT NULL,
     entered_via TEXT NOT NULL CHECK(entered_via IN ('manual','assistant','mcp')),
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL, version INTEGER NOT NULL CHECK(version >= 1)
-  ); CREATE INDEX issues_by_submitter_created ON issues(submitter_id,created_at DESC,id DESC);`,
+  ); CREATE INDEX issues_by_submitter_created ON issues(submitter_id,created_at DESC,id DESC);`)+replicaSchemaSql()+"CREATE TABLE issue_sync_owner(id INTEGER PRIMARY KEY CHECK(id=1),owner_id TEXT NOT NULL);CREATE TABLE issue_editor_versions(id TEXT PRIMARY KEY,version INTEGER NOT NULL);",
 };
 
 function decode(row: PluginSqlRow): IssueSummary {

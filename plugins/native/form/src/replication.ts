@@ -1,5 +1,6 @@
+import { syncError } from './sync-errors.js';
 import type { AggregateDefinition } from '@molis-ai/molis-work-storage';
-import { PluginSyncError, type PluginSyncDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export const formSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'forms',title:'问卷与答卷',schema_version:1,requires:[]}]};
 export const formAggregates:readonly AggregateDefinition[]=[{
@@ -20,7 +21,7 @@ export const formAggregates:readonly AggregateDefinition[]=[{
       check(s.request_id===null||(typeof s.request_id==='string'&&s.request_id.length>0&&!requests.has(s.request_id)));if(s.request_id)requests.add(String(s.request_id));
       check(s.questions_json===null||typeof s.questions_json==='string');
       const answers:unknown=JSON.parse(s.answers_json);check(answers&&typeof answers==='object'&&!Array.isArray(answers)&&Object.values(answers).every(v=>typeof v==='string'&&v.length<=4000));
-      // Legacy submissions deliberately keep their original question IDs when no snapshot exists.
+      // Submissions without a captured question snapshot keep their original question IDs when no snapshot exists.
       if(s.questions_json!==null){
         const captured=JSON.parse(String(s.questions_json)),qs=questions(captured);check(Object.keys(answers).every(k=>qs.includes(k)));
         const entries=new Map(Object.entries(answers));
@@ -36,7 +37,7 @@ export const formAggregates:readonly AggregateDefinition[]=[{
       }
     }
   },
-  dependencies({record:r},context,projectId){if(r.artifact_id&&!context.hasArtifact(projectId,String(r.artifact_id),Number(r.artifact_version)))throw new PluginSyncError('sync.dependencies','等待问卷关联的成果版本');},
+  dependencies({record:r},context,projectId){if(r.artifact_id&&!context.hasArtifact(projectId,String(r.artifact_id),Number(r.artifact_version)))throw syncError("dependencies",'等待问卷关联的成果版本');},
 }];
 function questions(value:unknown):string[]{
   check(Array.isArray(value)&&value.length<=40);const ids=new Set<string>();
@@ -50,4 +51,4 @@ function questions(value:unknown):string[]{
     }else check(q.options===undefined);
   });return [...ids];
 }
-function check(value:unknown):asserts value{if(!value)throw new PluginSyncError('sync.invalid','问卷同步数据不合法');}
+function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'问卷同步数据不合法');}

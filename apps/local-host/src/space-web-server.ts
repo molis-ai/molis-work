@@ -24,10 +24,7 @@ export interface SpaceWebSurface extends http.Server {
   spaceDisposed?:Promise<void>;
 }
 
-/** One public listener. Each scope owns its Host, databases, caches and timers.
- * Child servers are in-process dispatchers: no extra port and no browser-selected Home.
- */
-export function createSpaceWebServer(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog?:LocalWebCatalogRunner):http.Server {
+function createSpaceContext(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog:LocalWebCatalogRunner|undefined,address:()=>ReturnType<http.Server["address"]>){
   const home=path.resolve(options.homeDirectory??resolveMolisWorkHome());
   const local=ensureStorageSpace(home);
   const native=createPersonalNativeSession(home);
@@ -84,7 +81,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
     const coreOptions=space.kind==='local'?{...options,homeDirectory:directory}:{homeDirectory:directory};
     const token=space.kind==='local'?rootToken:resolveWebControlToken(coreOptions);
     const core=runWithMolisWorkHome(directory,()=>createCore({...coreOptions,controlToken:token}));
-    core.address=()=>server.address();
+    core.address=address;
     result={home:directory,space,token,server:core,users:new Map(),connections:new Map(),responses:new Map()};
     surfaces.set(space.spaceId,result);
     return result;
@@ -123,10 +120,19 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
     }
     return valid;
   };
+  const stop=()=>{stopping=true;account.close();for(const entry of syncs.values())entry.service?.close();for(const entry of [...surfaces.values()])retire(entry);};
+  return {home,local,native,account,rootToken,mutations,surface,selection,attach,sweep,syncFor,surfaces,retiring,openSurface,stop,isStopping:()=>stopping};
+}
+
+/** One public listener. Each scope owns its Host, databases, caches and timers.
+ * Child servers are in-process dispatchers: no extra port and no browser-selected Home.
+ */
+export function createSpaceWebServer(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog?:LocalWebCatalogRunner):http.Server {
+  const {home,local,native,account,rootToken,mutations,surface,selection,attach,sweep,syncFor,surfaces,retiring,openSurface,stop,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server.address());
   const server=http.createServer((request,response)=>{
     void runWithMolisWorkHome(home,async()=>{
       try {
-        if(stopping){sendLocalWebJson(response,503,{error:'服务正在关闭。'});return;}
+        if(isStopping()){sendLocalWebJson(response,503,{error:'服务正在关闭。'});return;}
         const url=new URL(request.url??'/','http://localhost');
         if(refuseForeignRequest(request,response))return;
         // CLI/MCP have no browser cookies. Only an already-open, authenticated
@@ -139,7 +145,10 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
             entry.responses.set(response,active);response.once('close',()=>entry.responses.delete(response));
             entry.server.emit('request',request,response);return;
           }
-          sendLocalWebJson(response,403,{code:'actions.home_mismatch',error:'此空间未打开或登录已失效。'});return;
+          // A valid root credential may reach its own gate, which reports the Home mismatch.
+          // An unknown/retired space credential still gets only the opaque control refusal.
+          if(request.headers['x-molis-work-control-token']===rootToken){surfaces.get(local.spaceId)!.server.emit('request',request,response);return;}
+          refuseLocalWebRequest(response);return;
         }
         const selected=selection(request);
         const token=selected.space.kind==='local'?rootToken:resolveWebControlToken({homeDirectory:selected.directory});
@@ -211,9 +220,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
   const timer=setInterval(sweep,1000);timer.unref();
   const close=server.close.bind(server);
   server.close=callback=>{
-    stopping=true;clearInterval(timer);account.close();
-    for(const entry of syncs.values())entry.service?.close();
-    for(const entry of [...surfaces.values()])retire(entry);
+    clearInterval(timer);stop();
     return close(error=>{void Promise.all([...retiring.values()]).then(()=>callback?.(error));});
   };
   // Preserve synchronous configuration validation and start local background owners.

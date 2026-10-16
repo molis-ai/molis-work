@@ -1,5 +1,7 @@
+import {queueReplicaChange,replicaApplyingSql} from "@molis-ai/molis-work-storage";
+import { syncError } from './sync-errors.js';
 import type { DatabaseSync } from "node:sqlite";
-import { PluginSyncError, type PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import {
   createSqliteReplica, initializeReplica, readDatabaseSpace, replicaMarkSql, replicaTransaction,
@@ -23,12 +25,12 @@ export function initializeWorkflowsReplication(db: DatabaseSync): void {
   if (readDatabaseSpace(db)?.kind !== "personal") return;
   replicaTransaction(db, () => {
     initializeReplica(db);
-    db.exec("CREATE TABLE IF NOT EXISTS workflow_editor_versions(workflow_id TEXT PRIMARY KEY, revision INTEGER NOT NULL)");
-    db.exec("CREATE TABLE IF NOT EXISTS workflow_imported_instances(instance_id TEXT PRIMARY KEY)");
+    db.prepare("SELECT workflow_id,revision FROM workflow_editor_versions LIMIT 0").all();
+    db.prepare("SELECT instance_id FROM workflow_imported_instances LIMIT 0").all();
     db.exec("INSERT INTO workflow_editor_versions SELECT workflow_id,revision FROM workflows WHERE 1 ON CONFLICT(workflow_id) DO UPDATE SET revision=MAX(revision,excluded.revision)");
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='workflows_replica_insert'").get()) {
-      db.exec("INSERT INTO replica_changes(key) SELECT json_array(project_id,'workflow',workflow_id) FROM workflows ORDER BY workflow_id");
-      db.exec("INSERT INTO replica_changes(key) SELECT json_array(project_id,'instance',instance_id) FROM instances ORDER BY instance_id");
+      for(const row of db.prepare("SELECT project_id,workflow_id FROM workflows ORDER BY workflow_id").all())queueReplicaChange(db,JSON.stringify([row.project_id,"workflow",row.workflow_id]));
+      for(const row of db.prepare("SELECT project_id,instance_id FROM instances ORDER BY instance_id").all())queueReplicaChange(db,JSON.stringify([row.project_id,"instance",row.instance_id]));
       for (const event of ["INSERT", "UPDATE", "DELETE"] as const) {
         const row = event === "DELETE" ? "OLD" : "NEW";
         const other = event === "UPDATE" ? replicaMarkSql("json_array(OLD.project_id,'workflow',OLD.workflow_id)", "OLD.project_id<>NEW.project_id") : "";
@@ -41,7 +43,7 @@ export function initializeWorkflowsReplication(db: DatabaseSync): void {
       }
       for (const event of ["INSERT", "UPDATE"] as const) {
         db.exec("CREATE TRIGGER instances_imported_" + event.toLowerCase() + " AFTER " + event +
-          " ON instances WHEN (SELECT applying FROM replica_state WHERE id=1)=1 BEGIN " +
+          " ON instances WHEN "+replicaApplyingSql()+"=1 BEGIN " +
           "INSERT OR IGNORE INTO workflow_imported_instances VALUES (NEW.instance_id); END");
       }
     }
@@ -55,7 +57,7 @@ export function isImportedWorkflowInstance(db: DatabaseSync, id: string): boolea
 
 export function createWorkflowsReplica(db: DatabaseSync, context: AggregateReplicaContext): SyncReplicaAdapter {
   const space = readDatabaseSpace(db);
-  if (space?.kind !== "personal" || space.spaceId !== context.spaceId) throw new PluginSyncError("sync.scope", "同步空间不匹配");
+  if (space?.kind !== "personal" || space.spaceId !== context.spaceId) throw syncError("scope", "同步空间不匹配");
   const decode = (key: string): { projectId: string; kind: Kind; id: string } => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
@@ -65,7 +67,7 @@ export function createWorkflowsReplica(db: DatabaseSync, context: AggregateRepli
   };
   const local = (kind: Kind, id: string, projectId: string): Row | null => {
     const row = db.prepare(kind === "workflow" ? "SELECT * FROM workflows WHERE workflow_id=?" : "SELECT * FROM instances WHERE instance_id=?").get(id) as Row | undefined;
-    if (row && row.project_id !== projectId) throw new PluginSyncError("sync.scope", "资产标识已属于其他项目");
+    if (row && row.project_id !== projectId) throw syncError("scope", "资产标识已属于其他项目");
     return row ?? null;
   };
   return createSqliteReplica(db, {
@@ -86,7 +88,7 @@ export function createWorkflowsReplica(db: DatabaseSync, context: AggregateRepli
       context.project(projectId);
       const current = local(kind, id, projectId);
       if (kind === "instance" && current?.status === "active" && !isImportedWorkflowInstance(db, id)) {
-        throw new PluginSyncError("sync.busy", "本机运行中的流程实例不能被远端覆盖");
+        throw syncError("busy", "本机运行中的流程实例不能被远端覆盖");
       }
       const table = kind === "workflow" ? "workflows" : "instances";
       const identity = kind === "workflow" ? "workflow_id" : "instance_id";
@@ -105,8 +107,8 @@ export function createWorkflowsReplica(db: DatabaseSync, context: AggregateRepli
       validate(kind, record);
       if (kind === "instance") {
         const parent = db.prepare("SELECT project_id FROM workflows WHERE workflow_id=?").get(record.workflow_id as string) as { project_id: string } | undefined;
-        if (!parent) throw new PluginSyncError("sync.dependencies", "等待流程定义");
-        if (parent.project_id !== projectId) throw new PluginSyncError("sync.scope", "运行实例引用了其他项目的流程");
+        if (!parent) throw syncError("dependencies", "等待流程定义");
+        if (parent.project_id !== projectId) throw syncError("scope", "运行实例引用了其他项目的流程");
         record.updated_at = new Date(Math.max(Date.now(), Date.parse(record.updated_at as string),
           current ? Date.parse(current.updated_at as string) + 1 : 0)).toISOString();
       } else {
@@ -155,6 +157,6 @@ function recordOf(value: unknown, fields: readonly string[]): Record<string, unk
   return row;
 }
 function checkSize(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > limit) throw new PluginSyncError("sync.limit", "流程记录超过当前同步上限（512 KiB），原数据仍保留在本机");
+  if (Buffer.byteLength(JSON.stringify(value)) > limit) throw syncError("limit", "流程记录超过当前同步上限（512 KiB），原数据仍保留在本机");
 }
-function invalid(): never { throw new PluginSyncError("sync.invalid", "工作流程同步数据不合法"); }
+function invalid(): never { throw syncError("invalid", "工作流程同步数据不合法"); }

@@ -24,7 +24,7 @@ test('sync settings: failed save retains selection and retry saves it',{timeout:
     const selection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};
     let policy={spaceId:'synthetic-only',revision:0,selections:[]};
     window.fetch=async(url,init)=>{
-      if(!String(url).startsWith('/api/sync'))return original(url,init);
+      if(!new URL(String(url),location.href).pathname.startsWith('/api/sync'))return original(url,init);
       if(String(url).endsWith('/policy')){
         if(window.failSyncSave)return Response.json({error:'synthetic save failure'},{status:503});
         policy={...JSON.parse(init.body),revision:policy.revision+1};window.savedSyncPolicy=policy;
@@ -62,7 +62,7 @@ test('waiting linked assets offers retry, not destructive conflict choices',{tim
     const original=window.fetch.bind(window);let waiting=true;
     const selection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};
     window.fetch=async(url,init)=>{
-      if(!String(url).startsWith('/api/sync'))return original(url,init);
+      if(!new URL(String(url),location.href).pathname.startsWith('/api/sync'))return original(url,init);
       if(String(url).endsWith('/run'))waiting=false;
       return Response.json({available:true,policy:{spaceId:'synthetic-only',revision:1,selections:[selection]},running:false,error:null,lastSuccess:null,collections:[{selection,title:'文档与文件夹',pending:0,conflicts:waiting?[{key:'["project","document","page"]',reason:'关联成果版本尚未到达',waiting:true}]:[]}],unavailable:[]});
     };

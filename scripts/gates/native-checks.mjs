@@ -5,7 +5,7 @@
 // there is no baseline. The tools are the ones the language ships with.
 //
 //   node scripts/gates/native-checks.mjs rust     rustfmt --check on every tracked .rs file; cargo clippy --all-targets
-//                                                 -D warnings for apps/desktop/src-tauri (macOS) and cloud/sync
+//                                                 -D warnings for apps/desktop/src-tauri (macOS) and apps/sync-worker
 //                                                 (--target wasm32-unknown-unknown); each crate uses its own edition
 //   node scripts/gates/native-checks.mjs swift    swiftc -typecheck of the standalone Swift file, and of the computer
 //                                                 helper's sources together (one executable, same frameworks as its build.sh);
@@ -32,7 +32,7 @@ export const RUST_ROOT = "apps/desktop";
 export const RUST_MANIFEST = "apps/desktop/src-tauri/Cargo.toml";
 export const RUST_CRATES = [
   { root: RUST_ROOT, manifest: RUST_MANIFEST },
-  { root: "cloud/sync", manifest: "cloud/sync/Cargo.toml", target: "wasm32-unknown-unknown" },
+  { root: "apps/sync-worker", manifest: "apps/sync-worker/Cargo.toml", target: "wasm32-unknown-unknown" },
 ];
 /** The Swift files and what checks them: `typecheck` (a standalone file), `executable` (sources typechecked together), or `package` (compiled by a SwiftPM package). */
 export const SWIFT_UNITS = [

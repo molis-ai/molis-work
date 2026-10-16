@@ -1,3 +1,4 @@
+import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type {
@@ -283,7 +284,7 @@ export class DatasetStore {
  * The dataset store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version. Columns keep the order existing stores have them in.
  */
-export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE TABLE datasets (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -307,7 +308,7 @@ export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
     created_at TEXT NOT NULL
   );
   CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
-` };
+`)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
 
 export function openDatasetStore(homeDirectory: string): DatasetStore {
   const db = openBaselineHomeSqlite(homeDirectory, DATASET_HOME_STORE.path, DATASET_STORE_BASELINE);

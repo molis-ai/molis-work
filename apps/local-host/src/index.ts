@@ -263,3 +263,9 @@ export {
   type ComputerRoundHolder,
 } from "./computer/computer-policy.js";
 export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
+
+export {PersonalAuth,personalCloudConfig} from './personal-auth.js';
+export {personalReturnPath} from './personal-http.js';
+export {PersonalWebSessions} from './personal-web-sessions.js';
+export {createPersonalNativeSession,NATIVE_SESSION_FILE,NATIVE_SESSION_HEADER} from './personal-native-session.js';
+export {artifactSyncSelection,createPersonalArtifactRegistration} from './personal-artifact-sync.js';

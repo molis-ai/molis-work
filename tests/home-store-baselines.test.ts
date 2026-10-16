@@ -10,7 +10,7 @@ import { ALCHEMIST_SEARCH_BASELINE, MolisWorkLocalHost, homeStores } from "@moli
 
 /** Stores past their first baseline: the memory ledger without its first facts table, the assistant without its memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id), Form answers that always keep their questions. */
-const STORE_VERSIONS: Record<string, number> = { pages: 2, memory: 2, assistant: 2, functions: 3, form: 2 };
+const STORE_VERSIONS: Record<string, number> = { pages: 3, memory: 2, assistant: 2, functions: 3, form: 3, dataset:2,ppt:2,lingguang:2,workflows:2,jelly:2,todo:2,characters:2 };
 /** Baseline tables a real Home had not created yet (made on first use); the one-time stamping run created them empty. */
 const LAZY_TABLES: Record<string, string[]> = { connectors: ["connector_authorization_results"] };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
@@ -72,11 +72,11 @@ test("the Characters store refuses tables without a version and a newer version,
   const unversioned = store("unversioned", "CREATE TABLE character_drafts (id TEXT PRIMARY KEY, body TEXT); INSERT INTO character_drafts VALUES ('old', '旧草稿');");
   assert.throws(() => openCharacters(unversioned, "actor"), mismatch);
   assert.deepEqual(state(unversioned), { version: 0, rows: 1 }, "the unversioned store keeps its row and is not stamped");
-  const newer = store("newer", `${CHARACTERS_STORE_BASELINE.schema} PRAGMA user_version = 2;`);
+  const newer = store("newer", `${CHARACTERS_STORE_BASELINE.schema} PRAGMA user_version = ${CHARACTERS_STORE_BASELINE.version+1};`);
   assert.throws(() => openCharacters(newer, "actor"), mismatch);
-  assert.deepEqual(state(newer), { version: 2, rows: 0 });
+  assert.deepEqual(state(newer), { version: CHARACTERS_STORE_BASELINE.version+1, rows: 0 });
   const fresh = openCharacters(join(home, "fresh"), "actor");
   try { assert.deepEqual(fresh.service.list(), []); } finally { fresh.close(); }
-  assert.deepEqual(state(join(home, "fresh")), { version: 1, rows: 0 });
+  assert.deepEqual(state(join(home, "fresh")), { version: CHARACTERS_STORE_BASELINE.version, rows: 0 });
   openCharacters(join(home, "fresh"), "actor").close();
 });

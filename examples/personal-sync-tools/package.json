@@ -1,0 +1,10 @@
+{
+  "name":"molis-work-personal-sync-tools", "private":true, "type":"module",
+  "scripts":{
+    "build":"node ../../apps/sync-worker/build.mjs",
+    "dev":"wrangler dev --config ../../apps/sync-worker/wrangler.jsonc --local --ip 127.0.0.1 --port 8788",
+    "db:migrate":"wrangler d1 migrations apply molis-work-sync-local --config ../../apps/sync-worker/wrangler.jsonc --local",
+    "test":"node --test --import ./environment.mjs ../../apps/sync-worker/test.mjs"
+  },
+  "devDependencies":{"wrangler":"4.135.0","miniflare":"5.20260918.0-alpha"}
+}

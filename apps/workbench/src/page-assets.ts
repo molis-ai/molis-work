@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import { FUNCTIONS_STYLES } from "./functions/styles.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { SIDE_PANEL_STYLES, SIDE_PANEL_SCRIPT, SIDE_LINKS_SCRIPT } from "./side-panel.js";
@@ -93,6 +94,10 @@ export function renderMolisWorkSettingsStylesheet(): string {
 }
 
 /** Shared workbench behavior. Locale strings and project facts remain page-local. */
-export function renderMolisWorkWorkbenchClientScript(): string {
+export function workbenchClientSource(): string {
   return `${UI_REQUEST_CLIENT_SCRIPT}${MODEL_SETTINGS_CLIENT_SCRIPT}${PROMPT_SETTINGS_CLIENT_SCRIPT}${ASSISTANT_SETTINGS_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${AGENT_DIAGNOSTICS_CLIENT_SCRIPT}${CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${RUNTIME_PLAN_CLIENT_SCRIPT}${WEB_SERVICE_SETTINGS_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${PROJECT_OPERATIONS_CLIENT_SCRIPT}${SIDE_PANEL_SCRIPT}${SIDE_BROWSER_SCRIPT}${SIDE_COMPUTER_SCRIPT}${SIDE_LINKS_SCRIPT}`;
+}
+let compiledClient:string|undefined;
+export function renderMolisWorkWorkbenchClientScript():string {
+  return compiledClient??=readFileSync(new URL('./workbench-client.js',import.meta.url),'utf8');
 }

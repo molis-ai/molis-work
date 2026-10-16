@@ -17,6 +17,11 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     const result=await globalThis.__TAURI__.core.invoke("personal_account_request",{path,method:options.method||"GET"});
     return new Response(JSON.stringify(result.body),{status:result.status,headers:{"Content-Type":"application/json"}});
   };
+  globalThis.molisWorkUiTransport=(input,options)=>{
+    const url=new URL(input,location.href);
+    if(url.origin!==location.origin||!url.pathname.startsWith('/api/personal/')||url.pathname.endsWith('/native-attach')||url.searchParams.has('browser'))return null;
+    return globalThis.molisWorkPersonalAccountFetch(url.pathname+url.search,options);
+  };
   globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
   globalThis.molisWorkOpenShelf=()=>{
     const button=document.querySelector&&document.querySelector('[data-plugin-strip] [data-plugin-id="shelf"]');

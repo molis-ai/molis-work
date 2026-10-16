@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createMolisWorkWebServer } from '../apps/desktop/launchers/web/server.js';
 import { createServer } from 'node:http';
-import { personalReturnPath } from '../apps/local-host/src/personal-http.js';
-import { PERSONAL_ACCOUNT_CLIENT_SCRIPT } from '../apps/workbench/src/scripts/personal-account.js';
-import { PersonalWebSessions } from '../apps/local-host/src/personal-web-sessions.js';
-import { createPersonalNativeSession, NATIVE_SESSION_FILE, NATIVE_SESSION_HEADER } from '../apps/local-host/src/personal-native-session.js';
+import { personalReturnPath } from '@molis-ai/molis-work-app-local-host';
+import { PERSONAL_ACCOUNT_CLIENT_SCRIPT } from '@molis-ai/molis-work-app-workbench';
+import { PersonalWebSessions } from '@molis-ai/molis-work-app-local-host';
+import { createPersonalNativeSession, NATIVE_SESSION_FILE, NATIVE_SESSION_HEADER } from '@molis-ai/molis-work-app-local-host';
 
 test('native identity requires an owner-only header capability, never a cookie or desktop hint',()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-native-proof-'));
@@ -16,7 +16,7 @@ test('native identity requires an owner-only header capability, never a cookie o
     const verify=createPersonalNativeSession(home);
     const token=readFileSync(join(home,NATIVE_SESSION_FILE),'utf8');
     if(process.platform!=='win32')assert.equal(statSync(join(home,NATIVE_SESSION_FILE)).mode&0o777,0o600);
-    const request=(headers:Record<string,string|string[]>)=>({headers}) as any;
+    const request=(headers:Record<string,string|string[]>)=>({headers}) as import("node:http").IncomingMessage;
     assert.equal(verify(request({[NATIVE_SESSION_HEADER]:token})),true);
     assert.equal(createPersonalNativeSession(home)(request({[NATIVE_SESSION_HEADER]:token})),true);
     for(const headers of [{},{'x-molis-work-desktop':'1'},{cookie:'molis-work-native-session='+token},
@@ -28,7 +28,7 @@ test('native identity requires an owner-only header capability, never a cookie o
 
 test('native login and restart remain isolated from ordinary browser sessions and UI hints',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-native-login-'));
-  let transaction:any, remote='';
+  let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean}, remote='';
   const upstream=createServer(async(req,res)=>{
     let raw='';for await(const chunk of req)raw+=chunk;
     res.setHeader('content-type','application/json');
@@ -113,7 +113,7 @@ test('account scripts parse and return destinations reject external and auth rou
 
 test('web login is cookie-bound, isolated and never opens the local credential store',async()=>{
   const home=mkdtempSync(join(tmpdir(),'molis-personal-flow-'));
-  let transaction:any, user='alice';
+  let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean}, user='alice';
   const upstream=createServer(async(req,res)=>{
     let raw='';for await(const chunk of req)raw+=chunk;
     res.setHeader('content-type','application/json');

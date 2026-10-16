@@ -26,7 +26,7 @@ export const PERSONAL_ACCOUNT_CLIENT_SCRIPT = `
       };
       document.addEventListener('visibilitychange', showToast);
       addEventListener('focus', showToast);
-      try { pendingToast = sessionStorage.getItem('molis-work-account-toast') || ''; sessionStorage.removeItem('molis-work-account-toast'); showToast(); } catch {}
+      try { pendingToast = sessionStorage.getItem('molis-work-account-toast') || ''; sessionStorage.removeItem('molis-work-account-toast'); showToast(); } catch { /* Storage may be unavailable; a toast is presentation only. */ }
       style.textContent += '[data-account-compact-label]{display:none}body.immersive-workbench .plugin-rail .personal-account{height:50px;flex-direction:column;gap:2px}body.immersive-workbench .plugin-rail [data-account-compact-label]{display:block;font-size:10px;line-height:14px;color:var(--muted)}@media(max-width:480px){.project-directory-topbar [data-personal-status]{display:none}.project-directory-topbar [data-account-link]{flex-shrink:0;max-width:120px}.project-directory-topbar .brand{white-space:nowrap}}';
       const menu = document.createElement('div');
       menu.className = 'mw-account-popover'; menu.hidden = true; menu.id = 'mw-account-menu';
@@ -94,10 +94,7 @@ export const PERSONAL_ACCOUNT_CLIENT_SCRIPT = `
         try {
           if (action === 'local' || action === 'space') {
             const kind = action === 'space' ? 'personal' : 'local';
-            const response = await (globalThis.molisWorkPersonalAccountFetch || fetch)('/api/personal/space?kind=' + kind,
-              {method:'POST', headers:globalThis.molisWorkControlHeaders(), body:'{}'});
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || L('无法切换空间'));
+            await molisWorkRequest('/api/personal/space?kind=' + kind,{method:'POST',body:{},fallback:L('无法切换空间')});
             location.assign(desktop ? '/?desktop=1' : '/'); return;
           }
           if (action === 'login' || action === 'switch') {
@@ -110,9 +107,7 @@ export const PERSONAL_ACCOUNT_CLIENT_SCRIPT = `
               loginWindow.opener = null;
             }
           }
-          const response = await (globalThis.molisWorkPersonalAccountFetch || fetch)('/api/personal/' + action + '?' + query, {method:'POST', headers:globalThis.molisWorkControlHeaders(), body:'{}'});
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || '请求失败，请重试。');
+          const result = await molisWorkRequest('/api/personal/' + action + '?' + query,{method:'POST',body:{}});
           if (result.loginUrl) {
             if (globalThis.molisWorkOpenExternalUrl) {
               await globalThis.molisWorkOpenExternalUrl(result.loginUrl);
@@ -135,22 +130,18 @@ export const PERSONAL_ACCOUNT_CLIENT_SCRIPT = `
           const statusQuery = new URLSearchParams();
           if (desktop) statusQuery.set('desktop','1');
           if (attempt) { statusQuery.set('pending','1'); statusQuery.set('attempt',attempt); }
-          const response = await (globalThis.molisWorkPersonalAccountFetch || fetch)('/api/personal/status?' + statusQuery);
-          const state = await response.json();
-          if (!response.ok) throw new Error(state.error || '暂时无法读取账号状态。');
+          const state = await molisWorkRequest('/api/personal/status?' + statusQuery);
           if (desktop && state.browserSessionTicket) {
-            const browserState = await (await fetch('/api/personal/status')).json();
+            const browserState = await molisWorkRequest('/api/personal/status?browser=1');
             if (browserState.identity?.userId !== state.identity?.userId || browserState.identity?.applicationId !== state.identity?.applicationId) {
-              const attached = await fetch('/api/personal/native-attach?ticket=' + encodeURIComponent(state.browserSessionTicket),
-                {method:'POST',headers:globalThis.molisWorkControlHeaders(),body:'{}'});
-              if (!attached.ok) throw new Error(L('无法连接账号空间'));
+              await molisWorkRequest('/api/personal/native-attach?ticket=' + encodeURIComponent(state.browserSessionTicket),{method:'POST',body:{},fallback:L('无法连接账号空间')});
             }
           }
           const pageToken = document.querySelector('meta[name="molis-work-control-token"]')?.content;
           const changed = (state.viewToken && pageToken && state.viewToken !== pageToken) || (loaded && space !== (state.space || 'local'));
           identity = state.identity; space = state.space || 'local'; configured = state.configured; loaded = true; paint();
           if (changed) {
-            if (attempt && state.loginCompleted) { try { sessionStorage.setItem('molis-work-account-toast', '登录成功'); } catch {} }
+            if (attempt && state.loginCompleted) { try { sessionStorage.setItem('molis-work-account-toast', '登录成功'); } catch { /* Storage may be unavailable; a toast is presentation only. */ } }
             loginWindow?.close(); location.assign(desktop ? '/?desktop=1' : '/'); return;
           }
           if (menu.querySelector('[role=status]').textContent === '正在读取账号状态…') feedback('');

@@ -1,8 +1,9 @@
-import { PluginSyncError, type PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { syncError } from './sync-errors.js';
+import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import {
   createSqliteReplica, initializeReplica, namespacedReplicaDatabase, readDatabaseSpace,
-  replicaMarkSql, replicaTransaction, type ReplicaDatabase,
+  replicaMarkSql, replicaTransaction, queueReplicaChange, type ReplicaDatabase,
 } from "@molis-ai/molis-work-storage";
 import { FEED_OUT_RULES_SCHEMA_SQL } from "./out-rules.js";
 
@@ -14,8 +15,8 @@ export const feedSync: PluginSyncDeclaration = {
 const COLUMNS = ["project_id", "rule_id", "name", "enabled", "match_json", "created_at", "updated_at", "admission", "judgment_json", "revision"] as const;
 type Row = Record<string, unknown>;
 
-function invalid(message = "Feed 捕捉规则同步数据不合法", code: ConstructorParameters<typeof PluginSyncError>[0] = "sync.invalid"): never {
-  throw new PluginSyncError(code, message);
+function invalid(message = "Feed 捕捉规则同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never {
+  throw syncError(code, message);
 }
 function object(value: unknown): Row {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
@@ -26,7 +27,7 @@ function exact(value: Row, columns: readonly string[]): void {
 }
 function timestamp(value: unknown): boolean { return typeof value === "string" && Number.isFinite(Date.parse(value)); }
 function size(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > 512 * 1024) invalid("捕捉规则超过当前同步上限（512 KiB）", "sync.limit");
+  if (Buffer.byteLength(JSON.stringify(value)) > 512 * 1024) invalid("捕捉规则超过当前同步上限（512 KiB）", "limit");
 }
 function validateRule(value: unknown, projectId: string, ruleId: string): Row {
   const row = object(value);
@@ -63,7 +64,7 @@ export function installFeedReplication(db: ReplicaDatabase, projectId: string): 
   replicaTransaction(db, () => {
     initializeReplica(ledger);
     if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='feed_rule_sync_insert'").get()) return;
-    db.exec(`INSERT INTO feed_replica_changes(key) SELECT json_array('${projectId}','feed_rule',rule_id) FROM feed_out_rules WHERE project_id='${projectId}' ORDER BY rule_id`);
+    for(const row of db.prepare('SELECT rule_id FROM feed_out_rules WHERE project_id=? ORDER BY rule_id').all(projectId))queueReplicaChange(ledger,JSON.stringify([projectId,'feed_rule',row.rule_id]));
     for (const [event, row] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]]) {
       db.exec(`CREATE TRIGGER feed_rule_sync_${event.toLowerCase()} AFTER ${event} ON feed_out_rules
         WHEN ${row}.project_id='${projectId}' BEGIN ${mark(`json_array('${projectId}','feed_rule',${row}.rule_id)`)} END`);
@@ -75,7 +76,7 @@ export function createFeedRuleReplica(db: ReplicaDatabase, context: {
   spaceId: string; projectId: string; title: string; authorize(): void;
 }): SyncReplicaAdapter {
   const binding = readDatabaseSpace(db);
-  if (binding?.kind !== "personal" || binding.spaceId !== context.spaceId) invalid("只允许同步当前个人空间的捕捉规则", "sync.scope");
+  if (binding?.kind !== "personal" || binding.spaceId !== context.spaceId) invalid("只允许同步当前个人空间的捕捉规则", "scope");
   const keyId = (key: string): string => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
@@ -98,7 +99,7 @@ export function createFeedRuleReplica(db: ReplicaDatabase, context: {
       const id = keyId(key);
       const active = db.prepare("SELECT enabled FROM feed_out_rules WHERE project_id=? AND rule_id=?")
         .get(context.projectId, id) as { enabled: number } | undefined;
-      if (active?.enabled === 1) throw new PluginSyncError("sync.busy", "本机捕捉规则正在启用，不能被远端记录覆盖");
+      if (active?.enabled === 1) throw syncError("busy", "本机捕捉规则正在启用，不能被远端记录覆盖");
       if (value === null) {
         db.prepare("DELETE FROM feed_out_rules WHERE project_id=? AND rule_id=?").run(context.projectId, id);
         return;
@@ -112,7 +113,7 @@ export function createFeedRuleReplica(db: ReplicaDatabase, context: {
         typeof project.title !== "string" || !project.title.trim() || project.title.length > 120) invalid();
       const rule = validateRule(wire.rule, context.projectId, id);
       // Restored rules are intentionally disabled until explicitly enabled on this device.
-      const values = COLUMNS.map(column => column === "enabled" ? 0 : rule[column]);
+      const values = COLUMNS.map(column => column === "enabled" ? 0 : rule[column] as string|number|null);
       db.prepare(`INSERT INTO feed_out_rules (${COLUMNS.join(",")}) VALUES (${COLUMNS.map(() => "?").join(",")})
         ON CONFLICT(project_id,rule_id) DO UPDATE SET ${COLUMNS.filter(column => column !== "project_id" && column !== "rule_id").map(column => `${column}=excluded.${column}`).join(",")}`)
         .run(...values);

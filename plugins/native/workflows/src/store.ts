@@ -1,3 +1,4 @@
+import { replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
@@ -206,7 +207,7 @@ export function recordStoppedDelivery(store: WorkflowsStore, expected: WorkflowI
  * The workflow store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
  * ones must already be at its version.
  */
-export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE TABLE workflows (
     workflow_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
@@ -232,7 +233,7 @@ export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
   );
   CREATE INDEX instances_workflow ON instances (workflow_id, created_at);
 
-` };
+`)+replicaSchemaSql()+"CREATE TABLE workflow_editor_versions(workflow_id TEXT PRIMARY KEY, revision INTEGER NOT NULL);CREATE TABLE workflow_imported_instances(instance_id TEXT PRIMARY KEY);" };
 
 export function openWorkflowsStore(homeDirectory: string): WorkflowsStore {
   const db = openHomeSqliteDatabase(homeDirectory, WORKFLOWS_HOME_STORE.path);

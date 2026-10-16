@@ -598,6 +598,9 @@ importers:
       '@molis-ai/molis-work-integration-rss':
         specifier: workspace:*
         version: link:../../plugins/official-integrations/rss
+      '@molis-ai/molis-work-module-characters':
+        specifier: workspace:*
+        version: link:../../modules/characters
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
@@ -679,6 +682,9 @@ importers:
       '@molis-ai/molis-work-plugin-workflows':
         specifier: workspace:*
         version: link:../../plugins/native/workflows
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@molis-ai/molis-work-ui-host':
         specifier: workspace:*
         version: link:../../packages/ui-host

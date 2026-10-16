@@ -1,6 +1,8 @@
+import {queueReplicaChange} from "@molis-ai/molis-work-storage";
+import { syncError } from './sync-errors.js';
 import type { DatabaseSync } from "node:sqlite";
 import type { JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
-import { PluginSyncError, type PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import {
   createSqliteReplica, initializeReplica, readDatabaseSpace, replicaMarkSql, replicaTransaction,
@@ -25,7 +27,7 @@ export function initializeJellyReplication(db: DatabaseSync): void {
     initializeReplica(db);
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='jelly_replica_update'").get()) {
       const current = db.prepare("SELECT revision FROM jelly_workspace WHERE singleton=1").get() as { revision: number };
-      if (current.revision > 0) db.prepare("INSERT INTO replica_changes(key) VALUES (?)").run(KEY);
+      if (current.revision > 0) queueReplicaChange(db,KEY);
       db.exec("CREATE TRIGGER jelly_replica_update AFTER UPDATE ON jelly_workspace BEGIN " +
         replicaMarkSql("'" + KEY + "'") + " END");
     }
@@ -34,7 +36,7 @@ export function initializeJellyReplication(db: DatabaseSync): void {
 
 export function createJellyReplica(db: DatabaseSync, context: AggregateReplicaContext): SyncReplicaAdapter {
   const space = readDatabaseSpace(db);
-  if (space?.kind !== "personal" || space.spaceId !== context.spaceId) invalid("同步空间不匹配", "sync.scope");
+  if (space?.kind !== "personal" || space.spaceId !== context.spaceId) invalid("同步空间不匹配", "scope");
   const key = (value: string) => {
     if (value !== KEY) invalid();
   };
@@ -58,7 +60,7 @@ export function createJellyReplica(db: DatabaseSync, context: AggregateReplicaCo
       size(value);
       const envelope = object(value);
       exact(envelope, ["format", "spaceId", "workspace"]);
-      if (envelope.format !== 1 || envelope.spaceId !== context.spaceId) invalid("同步空间不匹配", "sync.scope");
+      if (envelope.format !== 1 || envelope.spaceId !== context.spaceId) invalid("同步空间不匹配", "scope");
       const wire = object(envelope.workspace);
       const allowed = ["schema_version", "revision", "categories", "items", "series", "notes", "relations", "relation_overrides", "task_links", "applied_plan_ids"];
       if (Object.keys(wire).some(field => !allowed.includes(field)) || Object.hasOwn(wire, "imported_sources")) invalid();
@@ -89,7 +91,7 @@ function validate(workspace: JellyWorkspace): void {
   catch { invalid("Jelly 工作区数据无效"); }
 }
 function size(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Jelly 工作区超过当前同步上限（512 KiB），原数据仍保留在本机", "sync.limit");
+  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Jelly 工作区超过当前同步上限（512 KiB），原数据仍保留在本机", "limit");
 }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
@@ -98,6 +100,6 @@ function object(value: unknown): Record<string, unknown> {
 function exact(row: Record<string, unknown>, columns: readonly string[]): void {
   if (Object.keys(row).length !== columns.length || columns.some(column => !Object.hasOwn(row, column))) invalid();
 }
-function invalid(message = "Jelly 同步数据不合法", code: ConstructorParameters<typeof PluginSyncError>[0] = "sync.invalid"): never {
-  throw new PluginSyncError(code, message);
+function invalid(message = "Jelly 同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never {
+  throw syncError(code, message);
 }

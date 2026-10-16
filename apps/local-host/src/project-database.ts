@@ -1,3 +1,5 @@
+import type {ReplicaInputValue,ReplicaOutputValue} from "@molis-ai/molis-work-storage";
+import type {ReplicaDatabase} from "@molis-ai/molis-work-storage";
 import { catalogErrors } from "./project-catalog-contract.js";
 import { applySqliteBaseline, LocalSqliteStorage, ensureStorageSpace, bindDatabaseSpace, namespacedReplicaDatabase, initializeReplica, replicaMarkSql, queueReplicaChange } from "@molis-ai/molis-work-storage";
 import { installArtifactReplicationJournal } from '@molis-ai/molis-work-module-artifacts';
@@ -15,11 +17,13 @@ import { PROJECT_DATABASE_BASELINE, installPersonalProjectPluginReplication } fr
 
 /** One local connection at the project database baseline, and public read services for a Project. */
 export class LocalProjectDatabase extends LocalSqliteStorage {
+  readonly replicationDatabase:ReplicaDatabase;
   readonly goalsQuery: GoalsQueryApi;
   private readonly snapshotQueries: MolisWorkSnapshotPorts;
 
   constructor(path: string, options: { existingOnly?: boolean } = {}) {
     super(options.existingOnly ? inspectExistingDatabase(path) : path, { fileMustExist: options.existingOnly });
+    this.replicationDatabase={exec:sql=>this.db.exec(sql),prepare:sql=>this.db.prepare<ReplicaInputValue[],Record<string,ReplicaOutputValue>>(sql)};
     try {
       if (!options.existingOnly) applySqliteBaseline(this.db, path, PROJECT_DATABASE_BASELINE);
       // Managed projects inherit their Home even when opened by CLI/background code.
@@ -29,11 +33,11 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
       if (pathUtil.basename(pathUtil.dirname(pathUtil.dirname(path)))==='projects' && fs.existsSync(pathUtil.join(candidate,'storage-space.json'))) {
         const space=ensureStorageSpace(candidate);bindDatabaseSpace(this.db,space);
         if(space.kind==='personal'){
-          installProjectGoalReplication(this.db);
+          installProjectGoalReplication(this.replicationDatabase);
           const managedProjectId=pathUtil.basename(pathUtil.dirname(path));
           // Newly created projects use a temporary staging directory before their final ID path exists.
-          if(!managedProjectId.startsWith('.staging-'))installPersonalProjectPluginReplication(this.db, managedProjectId);
-          const ledger=namespacedReplicaDatabase(this.db,'artifacts');initializeReplica(ledger);
+          if(!managedProjectId.startsWith('.staging-'))installPersonalProjectPluginReplication(this.replicationDatabase, managedProjectId);
+          const ledger=namespacedReplicaDatabase(this.replicationDatabase,'artifacts');initializeReplica(ledger);
           installArtifactReplicationJournal(this.db,key=>replicaMarkSql(key).replace(/\breplica_/g,'artifacts_replica_'),(project,id)=>queueReplicaChange(ledger,JSON.stringify([project,'artifact',id])));
         }
       }

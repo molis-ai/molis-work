@@ -3,7 +3,8 @@ import {createSqliteReplica,namespacedReplicaDatabase,ensureStorageSpace,readDat
 import {partitionedReplica,type SyncRegistration,syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
 import {availableProjectPluginIds} from '@molis-ai/molis-work-app-workbench';
 import {LocalProjectDatabase} from './project-database.js';
-import {artifactsManifest} from '@molis-ai/molis-work-plugin-artifacts';
+import {manifestFor} from '@molis-ai/molis-work-app-workbench';
+const artifactsManifest=manifestFor('artifacts')!;
 import type {LocalWebCatalogRunner} from './web-project-settings.js';
 
 export const artifactSyncSelection={plugin_id:artifactsManifest.plugin_id,publisher_id:artifactsManifest.publisher.publisher_id,publisher_signature:artifactsManifest.publisher.signature,collection_id:artifactsManifest.sync!.collections[0].id,schema_version:artifactsManifest.sync!.collections[0].schema_version};
@@ -28,7 +29,7 @@ export function createPersonalArtifactRegistration(home:string,spaceId:string,us
     withReplica(run){return run(partitionedReplica({home,namespace:syncNamespace(artifactSyncSelection),authorize:check,partitions:()=>[...projects].filter(([,p])=>p.enabled).map(([id])=>id),partition:key=>decode(key)[0],
       withPartition(id,operation){return withProject(id,(store,project)=>{
         const owner=createArtifactReplication(store.db,{spaceId,projectId:id,authorize:check},{appendEvent:event=>store.appendEvent(event),eventCursor:projectId=>store.eventCursor(projectId)});
-        return operation(createSqliteReplica(namespacedReplicaDatabase(store.db,'artifacts'),{authorize:check,
+        return operation(createSqliteReplica(namespacedReplicaDatabase(store.replicationDatabase,'artifacts'),{authorize:check,
           read(key){const [projectId,,artifactId]=decode(key);if(projectId!==id)throw new Error('SYNC_WRONG_PROJECT');const artifact=owner.read(artifactId);return artifact?{project:{id,title:project.title},artifact}:null;},
           apply(key,value){const [projectId,,artifactId]=decode(key);const payload=value as {project?:{id:string};artifact?:{identity?:{artifact_id:string}}}|null;
             if(projectId!==id||payload?.project?.id!==id||payload.artifact?.identity?.artifact_id!==artifactId)throw new Error('SYNC_INVALID_ARTIFACT');owner.apply(payload.artifact);

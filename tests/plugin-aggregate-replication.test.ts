@@ -1,3 +1,5 @@
+interface TestEnvelope {spaceId:string;record:Record<string,unknown>;children:Record<string,Record<string,unknown>[]>}
+import type {TestContext} from "node:test";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtempSync,rmSync} from 'node:fs';
@@ -11,7 +13,7 @@ import {openDatasetStore} from '@molis-ai/molis-work-plugin-dataset';
 import {openPptStore} from '@molis-ai/molis-work-plugin-ppt';
 import {openLingguangStore} from '@molis-ai/molis-work-plugin-lingguang';
 
-function fixture(t:any){
+function fixture(t:TestContext){
   const root=mkdtempSync(join(tmpdir(),'plugin-replication-')),homes=[join(root,'a'),join(root,'b')];
   const space=personalStorageSpace('http://127.0.0.1:8787','work','alice');homes.forEach(h=>ensureStorageSpace(h,space));
   let active=true,enabled=true,ready=true,revision=0;
@@ -97,7 +99,7 @@ test('Publication is never transferred or overwritten, and missing fixed artifac
 test('Invalid fields, wrong space, cross-project collisions and oversized payloads do not partially apply',t=>{
   const f=fixture(t),a=f.open(openPptStore,0),b=f.open(openPptStore,1),ra=a.replica(f.context),rb=b.replica(f.context);
   const p=a.create({project_id:'project',title:'safe'});f.send(ra,rb);const source=f.events[0]!;
-  for(const change of [(v:any)=>v.spaceId='other',(v:any)=>v.record.secret='oops',(v:any)=>v.record.slides_json='[]',(v:any)=>v.record.title='x'.repeat(600000)]){
+  for(const change of [(v:TestEnvelope)=>v.spaceId='other',(v:TestEnvelope)=>v.record.secret='oops',(v:TestEnvelope)=>v.record.slides_json='[]',(v:TestEnvelope)=>v.record.title='x'.repeat(600000)]){
     const v=structuredClone(source.value);change(v);rb.receive({...source,operationId:crypto.randomUUID(),value:v,revision:f.nextRevision()});assert.equal(b.get(p.id).title,'safe');assert.equal(rb.counts().conflicts,1);
   }
   assert.throws(()=>b.replica({...f.context,spaceId:'other'}),/空间/);
@@ -152,8 +154,8 @@ test('Dataset historical publication status is preserved as history, never resum
 test('Form rejects a tampered captured answer and a child ID owned by another form atomically',t=>{
   const f=fixture(t),a=f.open(openFormStore,0),b=f.open(openFormStore,1),ra=a.replica(f.context),rb=b.replica(f.context);
   const d=a.create({project_id:'project'});a.update(d.id,{questions:[{id:'rating',title:'评分',type:'rating',required:true}]});a.submit(d.id,{rating:'5'});f.send(ra,rb);
-  const source=f.events[0]!,bad=structuredClone(source.value) as any;bad.children.submissions[0].answers_json=JSON.stringify({rating:'99'});
+  const source=f.events[0]!,bad=structuredClone(source.value) as TestEnvelope;bad.children.submissions[0].answers_json=JSON.stringify({rating:'99'});
   rb.receive({...source,operationId:'invalid-answer',value:bad,revision:f.nextRevision()});assert.equal(rb.counts().conflicts,1);assert.equal(b.listSubmissions(d.id)[0]!.answers.rating,'5');
-  const other=b.create({project_id:'project'}),row=b.submit(other.id,{});const collision=structuredClone(source.value) as any;collision.children.submissions[0].id=row.id;
+  const other=b.create({project_id:'project'}),row=b.submit(other.id,{});const collision=structuredClone(source.value) as TestEnvelope;collision.children.submissions[0].id=row.id;
   rb.receive({...source,operationId:'wrong-child-owner',value:collision,revision:f.nextRevision()});assert.equal(b.listSubmissions(other.id)[0]!.id,row.id);assert.equal(b.listSubmissions(d.id)[0]!.answers.rating,'5');
 });

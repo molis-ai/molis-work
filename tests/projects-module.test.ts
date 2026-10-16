@@ -18,6 +18,7 @@ function createModule(db: Database.Database): ProjectsModule {
     db,
     now: () => `2026-09-02T00:00:${String(sequence).padStart(2, "0")}.000Z`,
     id: (prefix) => `${prefix}-${++sequence}`,
+    plugins: { has: id => id === "pages", companions: () => [] },
   });
 }
 
@@ -43,6 +44,12 @@ test("Projects Module owns canonical project identity and workspace membership",
     projects.lifecycle.register(second, "project.created", "user-1");
 
     assert.equal(projects.query.listProjects().length, 2, "duplicate display names do not change identity");
+    // PERSAF-05: a never-installed plugin and an explicit user removal are different facts.
+    assert.equal(projects.query.wasProjectPluginRemoved(first.project_id, "pages"), false);
+    projects.commands.addProjectPlugin({ project_id: first.project_id, plugin_id: "pages", actor_id: "user-1" });
+    projects.commands.removeProjectPlugin({ project_id: first.project_id, plugin_id: "pages", actor_id: "user-1" });
+    assert.equal(projects.query.wasProjectPluginRemoved(first.project_id, "pages"), true);
+    assert.equal(projects.query.wasProjectPluginRemoved(second.project_id, "pages"), false);
     assert.deepEqual(projects.query.selections().map((project) => project.project_id), [first.project_id, second.project_id]);
     // I4-01: the Host's existing missing-project classification is preserved by the owner.
     assert.throws(() => projects.query.getProject("absent-project"), (error: unknown) => {

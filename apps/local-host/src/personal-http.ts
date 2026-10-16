@@ -64,7 +64,7 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
       const current=desktop&&auth?nativeSession(auth):webSessions.get(request.headers.cookie);if(current)current.space='local';
       setMode('local');sendLocalWebJson(response,200,{redirectTo:home});return true;
     }
-    let config;try{config=personalCloudConfig();}catch{}
+    let config;try{config=personalCloudConfig();}catch{ /* Session cleanup is best effort; no authenticated response is returned. */ }
     const configured=!!config;
     let session=desktop?null:webSessions.get(request.headers.cookie);
     const setSessionCookie=()=>response.setHeader('Set-Cookie',webSessions.cookie(session,origin.startsWith('https:')));

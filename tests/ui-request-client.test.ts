@@ -18,6 +18,20 @@ import {
 const ORIGIN = "http://127.0.0.1:4173";
 const CALL_ID = "3f9a2c1d-8b47-4e0a-9c55-0d1f6a7b2e90";
 
+test('PERSAF-04 scoped reads and native transport share UiRequest without replacing global fetch',async()=>{
+  const original=globalThis.fetch,seen:UiFetchInit[]=[];let browserCalls=0;
+  const request=createUiRequest({origin:ORIGIN,token:()=> 'page-owner',readHeaders:()=>({'x-molis-work-control-token':'page-owner'}),newKey:()=> 'one-key',translate:text=>text,
+    fetch:async()=>{browserCalls++;return Response.json({browser:true});},
+    intercept:(input,init)=>{if(new URL(input).pathname!=='/api/personal/status')return null;seen.push(init);return Promise.resolve(Response.json({native:true}));},
+  });
+  assert.deepEqual(await request('/api/personal/status'),{native:true});
+  assert.equal(seen[0]?.headers['x-molis-work-control-token'],'page-owner');
+  assert.deepEqual(await request('/api/projects'),{browser:true});assert.equal(browserCalls,1);
+  await assert.rejects(request('https://other.invalid/api/personal/status'));
+  assert.equal(seen.length,1,'foreign requests never reach the native bridge');
+  assert.equal(globalThis.fetch,original);
+});
+
 interface Seen { readonly input: string; readonly init: UiFetchInit }
 const headersOf = (seen: Seen) => seen.init.headers;
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });

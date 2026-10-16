@@ -1,5 +1,7 @@
+import {queueReplicaChange} from "@molis-ai/molis-work-storage";
+import { syncError } from './sync-errors.js';
 import type { DatabaseSync } from "node:sqlite";
-import { PluginSyncError, type PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import {
   createSqliteReplica, initializeReplica, openBaselineHomeSqlite, readDatabaseSpace,
@@ -36,14 +38,13 @@ export function initializeIssuesReplication(db: DatabaseSync, owner: string): vo
   if (space?.kind !== "personal" || space.ownerUserId !== owner) return;
   replicaTransaction(db, () => {
     initializeReplica(db);
-    db.exec("CREATE TABLE IF NOT EXISTS issue_sync_owner(id INTEGER PRIMARY KEY CHECK(id=1),owner_id TEXT NOT NULL)");
     db.prepare("INSERT OR IGNORE INTO issue_sync_owner(id,owner_id) VALUES (1,?)").run(owner);
     const saved = db.prepare("SELECT owner_id FROM issue_sync_owner WHERE id=1").get() as { owner_id: string };
-    if (saved.owner_id !== owner) invalid("Issue 同步所有者不匹配", "sync.scope");
-    db.exec("CREATE TABLE IF NOT EXISTS issue_editor_versions(id TEXT PRIMARY KEY,version INTEGER NOT NULL)");
+    if (saved.owner_id !== owner) invalid("Issue 同步所有者不匹配", "scope");
+    db.prepare("SELECT id,version FROM issue_editor_versions LIMIT 0").all();
     db.exec("INSERT INTO issue_editor_versions SELECT id,version FROM issues WHERE 1 ON CONFLICT(id) DO UPDATE SET version=MAX(version,excluded.version)");
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='issues_replica_insert'").get()) {
-      db.prepare("INSERT INTO replica_changes(key) SELECT json_array('issue',id) FROM issues WHERE submitter_id=? ORDER BY id").run(owner);
+      for(const row of db.prepare("SELECT id FROM issues WHERE submitter_id=? ORDER BY id").all(owner))queueReplicaChange(db,JSON.stringify(["issue",row.id]));
       for (const event of ["INSERT", "UPDATE", "DELETE"] as const) {
         const row = event === "DELETE" ? "OLD" : "NEW";
         db.exec("CREATE TRIGGER issues_replica_" + event.toLowerCase() + " AFTER " + event + " ON issues BEGIN " +
@@ -57,7 +58,7 @@ export function initializeIssuesReplication(db: DatabaseSync, owner: string): vo
 
 export function createIssuesReplica(db: DatabaseSync, owner: string, context: AggregateReplicaContext): SyncReplicaAdapter {
   const space = readDatabaseSpace(db);
-  if (space?.kind !== "personal" || space.spaceId !== context.spaceId || space.ownerUserId !== owner) invalid("Issue 同步空间不匹配", "sync.scope");
+  if (space?.kind !== "personal" || space.spaceId !== context.spaceId || space.ownerUserId !== owner) invalid("Issue 同步空间不匹配", "scope");
   const decode = (key: string): string => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
@@ -85,7 +86,7 @@ export function createIssuesReplica(db: DatabaseSync, owner: string, context: Ag
       size(value);
       const row = validate(value, id, owner, context.spaceId);
       const current = db.prepare("SELECT submitter_id,version FROM issues WHERE id=?").get(id) as { submitter_id: string; version: number } | undefined;
-      if (current && current.submitter_id !== owner) invalid("Issue 标识属于其他用户", "sync.scope");
+      if (current && current.submitter_id !== owner) invalid("Issue 标识属于其他用户", "scope");
       const high = db.prepare("SELECT version FROM issue_editor_versions WHERE id=?").get(id) as { version: number } | undefined;
       row.version = Math.max(Number(row.version), current?.version ?? 0, high?.version ?? 0) + 1;
       db.prepare("INSERT INTO issues (" + columns.join(",") + ") VALUES (" + columns.map(() => "?").join(",") +
@@ -98,7 +99,7 @@ export function createIssuesReplica(db: DatabaseSync, owner: string, context: Ag
 function validate(value: unknown, id: string, owner: string, spaceId: string): Row {
   const envelope = object(value);
   exact(envelope, ["format", "spaceId", "record"]);
-  if (envelope.format !== 1 || envelope.spaceId !== spaceId) invalid("Issue 同步空间不匹配", "sync.scope");
+  if (envelope.format !== 1 || envelope.spaceId !== spaceId) invalid("Issue 同步空间不匹配", "scope");
   const row = object(envelope.record) as Row;
   exact(row, columns);
   if (row.id !== id || row.submitter_id !== owner || typeof row.title !== "string" ||
@@ -138,8 +139,8 @@ function parse(value: unknown): unknown {
 }
 function stamp(value: unknown): boolean { return typeof value === "string" && Number.isFinite(Date.parse(value)); }
 function size(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Issue 记录超过当前同步上限（512 KiB），原数据仍保留在本机", "sync.limit");
+  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Issue 记录超过当前同步上限（512 KiB），原数据仍保留在本机", "limit");
 }
-function invalid(message = "Issue 同步数据不合法", code: ConstructorParameters<typeof PluginSyncError>[0] = "sync.invalid"): never {
-  throw new PluginSyncError(code, message);
+function invalid(message = "Issue 同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never {
+  throw syncError(code, message);
 }

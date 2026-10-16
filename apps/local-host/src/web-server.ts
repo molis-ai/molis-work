@@ -208,10 +208,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     })));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    let closing = false;
-    awaitWebServerShutdown(server, () => { closing = true; void projectSchedulers.stop().catch(() => undefined); im.stop(); void browserHost.current()?.close(); }, async () => {
-      await server.spaceDisposed;
-      await projectSchedulers.stop();
+    const lifecycle={closing:false};
+    awaitWebServerShutdown(server, () => { lifecycle.closing = true; void projectSchedulers.stop().catch(() => undefined); im.stop(); void browserHost.current()?.close(); }, async () => {
+      await waitForSpace(server,()=>projectSchedulers.stop());
       if (ownsLocalHost) { try { await localHost.close(); } finally { await catalogAccess?.close(); } }
     });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
@@ -239,8 +238,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // process releasing it): keep trying for a while.
     void runWithMolisWorkHome(storageHome, async () => {
       if (!assistant().hasTimedWork()) await agents.started;
-      for (let attempt = 0; attempt < 40 && !closing; attempt++) {
-        try { await agents.ready; if (closing || await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) console.warn("[assistant] 定时队列暂时没有接上，稍后重试", error); }
+      for (let attempt = 0; attempt < 40 && !lifecycle.closing; attempt++) {
+        try { await agents.ready; if (lifecycle.closing || await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) console.warn("[assistant] 定时队列暂时没有接上，稍后重试", error); }
         await new Promise(resolve => setTimeout(resolve, 15_000).unref());
       }
     });
@@ -258,5 +257,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
     return server;
   }
-  return (options:WebServerOptions={})=>createSpaceWebServer(options,createMolisWorkWebServer,platform.withCatalog);
+  return scopedWebFactory(createMolisWorkWebServer,platform.withCatalog);
 }
+
+function scopedWebFactory(createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog:LocalWebPlatform["withCatalog"]){return (options:WebServerOptions={})=>createSpaceWebServer(options,createCore,withCatalog);}
+
+async function waitForSpace(server:SpaceWebSurface,stop:()=>Promise<void>){await server.spaceDisposed;await stop();}

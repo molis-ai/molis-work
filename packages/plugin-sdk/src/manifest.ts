@@ -1,5 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { SURFACE_BROWSER_PERMISSION, parsePluginSyncDeclaration, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { parsePluginSyncDeclaration } from "./plugin-sync.js";
+import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations } from "./action-declarations.js";

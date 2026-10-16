@@ -174,3 +174,5 @@ export type { PagesActionPorts } from "./actions.js";
 export { pagesCommentActions, createPagesCommentHandlers } from "./comment-actions.js";
 export { pageAnnotations } from "./comments-store.js";
 export type { PagesReplicationContext } from './replication.js';
+
+export {openPagesReplicationBinding} from "./store.js";

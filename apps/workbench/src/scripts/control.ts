@@ -2,26 +2,7 @@ import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { PERSONAL_ACCOUNT_CLIENT_SCRIPT } from "./personal-account.js";
 
 // Compose the shared request client with account/space isolation for every workbench page.
-export const CONTROL_CLIENT_SCRIPT = `
-  ${UI_REQUEST_CLIENT_SCRIPT}
-  // Bind even read-only API requests to the page's original space. A cookie may
-  // change in another tab; an old page must not quietly load the new account.
-  if (!globalThis.molisWorkScopedFetch) {
-    globalThis.molisWorkScopedFetch = true;
-    const originalFetch = globalThis.fetch.bind(globalThis);
-    globalThis.fetch = (input, init) => {
-      const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-      if (url.origin === location.origin && /(?:^|\\/)api\\//.test(url.pathname) && !url.pathname.startsWith('/api/personal/')) {
-        const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
-        const token = document.querySelector('meta[name="molis-work-control-token"]')?.content;
-        if (token && !headers.has('x-molis-work-control-token')) headers.set('x-molis-work-control-token', token);
-        return originalFetch(input, {...init, headers});
-      }
-      return originalFetch(input, init);
-    };
-  }
-  ${PERSONAL_ACCOUNT_CLIENT_SCRIPT}
-`;
+export const CONTROL_CLIENT_SCRIPT = UI_REQUEST_CLIENT_SCRIPT + PERSONAL_ACCOUNT_CLIENT_SCRIPT;
 
 /**
  * The update page's only program: the button that records the update notice as seen. The first-run and new-project

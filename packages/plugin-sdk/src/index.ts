@@ -5,7 +5,7 @@ export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetime
 import { parsePluginManifest } from "./manifest.js";
 
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
-export { parsePluginSyncDeclaration, expandPluginSyncSelection, PluginSyncError } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
 export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { inspectActionDeclarations } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";

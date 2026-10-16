@@ -77,7 +77,7 @@ test("rust: a Rust file outside registered crates is refused, however clean", ()
   assert.equal(run.code, 1, run.out);
   assert.match(run.out, /tooling\/other\/lib\.rs is Rust code outside apps\/desktop\//);
 });
-const WORKER_ROOT = "cloud/sync";
+const WORKER_ROOT = "apps/sync-worker";
 const WORKER_MANIFEST = `[package]\nname = "scratch-worker"\nversion = "0.0.0"\nedition = "2024"\n\n[lib]\ncrate-type = ["cdylib", "rlib"]\n`;
 const WORKER_LOCK = RUST_LOCK.replaceAll("scratch-desktop", "scratch-worker");
 const workerFiles = (source = "pub fn one() -> i32 {\n    1\n}\n") => ({
@@ -99,7 +99,7 @@ test("rust: unformatted Worker code fails", rust, () => {
   const run = gate(repoWith(workerFiles("pub fn one()->i32{1}\n")), ["rust"]);
   assert.equal(run.code, 1, run.out);
   assert.match(run.out, /rustfmt --check found unformatted code/);
-  assert.match(run.out, /cloud\/sync\/Cargo.toml/);
+  assert.match(run.out, /apps\/sync-worker\/Cargo.toml/);
 });
 test("rust: a Worker clippy warning fails on its WASM target", rust, () => {
   const run = gate(repoWith(workerFiles("pub fn one() -> i32 {\n    return 1;\n}\n")), ["rust"]);
@@ -148,7 +148,7 @@ test("rust: a missing Worker manifest is exit 2, never a pass", () => {
   const dir = repoWith({ [`${WORKER_ROOT}/src/lib.rs`]: "pub fn f() {}\n" });
   const run = gate(dir, ["rust"], { PATH: `${stub.dir}${path.delimiter}${process.env.PATH}` });
   assert.equal(run.code, 2, run.out);
-  assert.match(run.out, /cloud\/sync\/Cargo.toml is missing/);
+  assert.match(run.out, /apps\/sync-worker\/Cargo.toml is missing/);
 });
 test("rust: an unavailable WASM target fails, never falls back to the native target", () => {
   const stub = rustStub();
@@ -157,16 +157,16 @@ test("rust: an unavailable WASM target fails, never falls back to the native tar
   assert.match(run.out, /WASM target is not installed/);
 });
 test("rust: a similarly named directory is not a registered Worker", () => {
-  const run = gate(repoWith({ "cloud/sync-other/src/lib.rs": "pub fn f() {}\n" }), ["rust"]);
+  const run = gate(repoWith({ "apps/sync-worker-other/src/lib.rs": "pub fn f() {}\n" }), ["rust"]);
   assert.equal(run.code, 1, run.out);
-  assert.match(run.out, /cloud\/sync-other\/src\/lib.rs is Rust code outside/);
+  assert.match(run.out, /apps\/sync-worker-other\/src\/lib.rs is Rust code outside/);
 });
 test("rust: CI installs the pinned WASM toolchain and caches both crates", () => {
   const workflow = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
   const job = workflow.split("\n  native-checks:\n")[1].split("\n  shell-checks:\n")[0];
   assert.match(job, /RUSTUP_TOOLCHAIN: 1\.96\.0/);
   assert.match(job, /rustup toolchain install 1\.96\.0 .*--target wasm32-unknown-unknown/);
-  assert.match(job, /workspaces: \|\n\s+apps\/desktop\/src-tauri\n\s+cloud\/sync/);
+  assert.match(job, /workspaces: \|\n\s+apps\/desktop\/src-tauri\n\s+apps\/sync-worker/);
   assert.match(job, /node scripts\/gates\/native-checks.mjs rust/);
 });
 test("rust: a repository without Rust files has nothing to check", () => {

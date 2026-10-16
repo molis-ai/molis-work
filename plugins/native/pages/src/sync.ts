@@ -1,6 +1,7 @@
+import { syncError } from './sync-errors.js';
 import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { PluginSyncError, type PluginSyncSnapshot, type PluginSyncSnapshotAdapter } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { type PluginSyncSnapshot, type PluginSyncSnapshotAdapter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { StorageSpace } from "@molis-ai/molis-work-contracts/platform/storage";
 import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
@@ -55,7 +56,7 @@ export function initializePagesSyncRevision(db: DatabaseSync): void {
 /** Owner implementation; not exported as a SQL-taking API from the package entrypoint. */
 export function createPagesSyncAdapter(db: DatabaseSync, storedSpace: StorageSpace | undefined, caller: PagesSyncContext): PluginSyncSnapshotAdapter {
   if (!storedSpace || storedSpace.kind !== "personal" || storedSpace.spaceId !== caller.spaceId) {
-    throw new PluginSyncError("sync.scope", "仅支持已绑定的个人空间，不迁移本地空间数据");
+    throw syncError("scope", "仅支持已绑定的个人空间，不迁移本地空间数据");
   }
   // Capture immutable identity and trusted functions; later mutation of caller cannot switch scope.
   const { spaceId, projectId, authorize, hasReference } = caller;
@@ -67,7 +68,7 @@ export function createPagesSyncAdapter(db: DatabaseSync, storedSpace: StorageSpa
   };
   const revision = () => {
     const value = (db.prepare("SELECT revision FROM pages_sync_revisions WHERE project_id = ?").get(projectId) as { revision: number } | undefined)?.revision ?? 0;
-    if (!Number.isSafeInteger(value) || value < 0) throw new PluginSyncError("sync.limit", "本地修订计数无效");
+    if (!Number.isSafeInteger(value) || value < 0) throw syncError("limit", "本地修订计数无效");
     return String(value);
   };
   const snapshot = (): PluginSyncSnapshot => ({ protocol_version: 1, ...identity, spaceId, projectId,
@@ -75,23 +76,23 @@ export function createPagesSyncAdapter(db: DatabaseSync, storedSpace: StorageSpa
   const idle = () => {
     if (db.prepare("SELECT 1 FROM pages WHERE project_id = ? AND publication_pending_json IS NOT NULL LIMIT 1").get(projectId)
       || db.prepare("SELECT 1 FROM page_generations WHERE project_id = ? AND json_extract(record_json, '$.status') = 'running' LIMIT 1").get(projectId)) {
-      throw new PluginSyncError("sync.busy", "请先完成或恢复文档生成、成果发布");
+      throw syncError("busy", "请先完成或恢复文档生成、成果发布");
     }
   };
   return Object.freeze({
     declaration: pagesSyncDeclaration,
     read(collectionId: string): PluginSyncSnapshot {
       check("read");
-      if (collectionId !== "documents") throw new PluginSyncError("sync.unsupported", "不支持这个同步集合");
+      if (collectionId !== "documents") throw syncError("unsupported", "不支持这个同步集合");
       return transaction(db, () => { idle(); const result = snapshot(); check("read"); return result; });
     },
     apply(input: PluginSyncSnapshot, expectedRevision: string) {
       check("apply");
       if (!input || input.spaceId !== spaceId || input.projectId !== projectId
         || input.plugin_id !== identity.plugin_id || input.publisher_id !== identity.publisher_id
-        || input.publisher_signature !== identity.publisher_signature) throw new PluginSyncError("sync.scope", "快照不属于当前空间、项目或插件身份");
+        || input.publisher_signature !== identity.publisher_signature) throw syncError("scope", "快照不属于当前空间、项目或插件身份");
       if (input.protocol_version !== 1 || input.collection_id !== "documents" || input.schema_version !== 1) {
-        throw new PluginSyncError("sync.unsupported", "快照数据格式不兼容，原数据已保留");
+        throw syncError("unsupported", "快照数据格式不兼容，原数据已保留");
       }
       text(input.source_revision, 100);
       if (typeof expectedRevision !== "string" || !/^(0|[1-9]\d*)$/.test(expectedRevision)) invalid("缺少目标设备的修订前提");
@@ -105,12 +106,12 @@ export function createPagesSyncAdapter(db: DatabaseSync, storedSpace: StorageSpa
         const current = readPayload(db, projectId);
         check("apply");
         if (digest(current) === digest(payload)) return { status: "unchanged" as const, revision: revision() };
-        if (revision() !== expectedRevision) throw new PluginSyncError("sync.conflict", "本地文档已改变，原内容已保留");
+        if (revision() !== expectedRevision) throw syncError("conflict", "本地文档已改变，原内容已保留");
         // IDs are global within this owner Store; never steal another project's record.
         for (const [table, records] of [["folders", payload.folders], ["pages", payload.documents]] as const) {
           for (const record of records) {
             const existing = db.prepare(`SELECT project_id FROM ${table} WHERE id = ?`).get(record.id) as { project_id: string } | undefined;
-            if (existing && existing.project_id !== projectId) throw new PluginSyncError("sync.scope", "资产标识与其他项目冲突");
+            if (existing && existing.project_id !== projectId) throw syncError("scope", "资产标识与其他项目冲突");
           }
         }
         const documents = new Set(payload.documents.map(row => row.id));
@@ -145,10 +146,10 @@ export function createPagesSyncAdapter(db: DatabaseSync, storedSpace: StorageSpa
 function readPayload(db: DatabaseSync, projectId: string): Payload {
   for (const table of ["pages", "folders"]) {
     const count = db.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE project_id = ?`).get(projectId) as { total: number };
-    if (count.total > MAX_RECORDS) throw new PluginSyncError("sync.limit", "集合过大，需等待分页增量同步支持");
+    if (count.total > MAX_RECORDS) throw syncError("limit", "集合过大，需等待分页增量同步支持");
   }
   const size = db.prepare("SELECT COALESCE(SUM(length(CAST(body_json AS BLOB))), 0) AS bytes FROM pages WHERE project_id = ?").get(projectId) as { bytes: number };
-  if (size.bytes > MAX_BYTES) throw new PluginSyncError("sync.limit", "快照过大，需等待分页增量同步支持");
+  if (size.bytes > MAX_BYTES) throw syncError("limit", "快照过大，需等待分页增量同步支持");
   const folders = db.prepare("SELECT id, title, created_at, updated_at FROM folders WHERE project_id = ? ORDER BY id").all(projectId);
   const documents = db.prepare(`SELECT id, title, body_json, folder_id, starred, goal_id, artifact_id, artifact_version, created_at, updated_at
     FROM pages WHERE project_id = ? ORDER BY id`).all(projectId).map(row => {
@@ -158,11 +159,11 @@ function readPayload(db: DatabaseSync, projectId: string): Payload {
   return parsePayload({ folders, documents });
 }
 
-function parsePayload(input: unknown): Payload {
+export function parsePayload(input: unknown): Payload {
   let encoded: string;
   try { encoded = JSON.stringify(input); } catch { invalid("快照不是 JSON 数据"); }
   if (!encoded) invalid("缺少快照内容");
-  if (Buffer.byteLength(encoded, "utf8") > MAX_BYTES) throw new PluginSyncError("sync.limit", "快照过大");
+  if (Buffer.byteLength(encoded, "utf8") > MAX_BYTES) throw syncError("limit", "快照过大");
   const object = record(JSON.parse(encoded), ["folders", "documents"]);
   if (!Array.isArray(object.folders) || !Array.isArray(object.documents)
     || object.folders.length > MAX_RECORDS || object.documents.length > MAX_RECORDS) invalid("快照集合不合法");
@@ -194,7 +195,7 @@ function portable(value: unknown, depth: number): void {
   for (const [key, child] of Object.entries(value)) {
     if ((key === "src" || key === "href") && typeof child === "string" && child
       && !/^(https?:\/\/|mailto:|#|data:image\/(png|jpeg|gif|webp);base64,)/i.test(child)) {
-      throw new PluginSyncError("sync.dependencies", "文档包含本机或相对链接，需先转换为可同步资源引用");
+      throw syncError("dependencies", "文档包含本机或相对链接，需先转换为可同步资源引用");
     }
     portable(child, depth + 1);
   }
@@ -223,5 +224,5 @@ function digest(value: unknown): string {
 function transaction<T>(db: DatabaseSync, work: () => T): T {
   return replicaTransaction(db, work);
 }
-function invalid(message: string): never { throw new PluginSyncError("sync.invalid", message); }
-function missing(message: string): never { throw new PluginSyncError("sync.dependencies", message); }
+function invalid(message: string): never { throw syncError("invalid", message); }
+function missing(message: string): never { throw syncError("dependencies", message); }

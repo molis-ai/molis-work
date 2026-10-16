@@ -14,6 +14,8 @@ import { PLACEMENT_HOME_STORE } from "./placement-actions.js";
 const owned = (owner: string, ...stores: readonly HomeStoreDeclaration[]): HomeStore[] => stores.map(store => ({ ...store, owner }));
 const at = (...paths: string[]): HomeStoreDeclaration[] => paths.map(path => ({ path }));
 
+import {SYNC_HOME_STORE} from '@molis-ai/molis-work-module-sync-replication';
+
 /**
  * Every store of a Home (W4-11, docs/system/HOME-DATA.md): the Host's own, those of the modules and services it composes,
  * and the shipped plugins' (each declared by its plugin and carried by its catalog entry, or the database its Home entry
@@ -22,7 +24,8 @@ const at = (...paths: string[]): HomeStoreDeclaration[] => paths.map(path => ({ 
  */
 export function homeStores(): HomeStoreRegistry {
   return registry ??= homeStoreRegistry([
-    ...owned("apps/local-host", ...at("projects", "logs", "sync", "spaces", "storage-space.json", "config/native-session-token")),
+    ...owned("apps/local-host", ...at("projects", "logs", "spaces", "storage-space.json", "config/native-session-token")),
+    ...owned("modules/sync-replication", SYNC_HOME_STORE),
     ...owned("apps/local-host/src/installer", ...at("backups")),
     ...owned("modules/private-work-context", ...at("sessions")),
     ...owned("modules/shelf", ...at("shelf")),

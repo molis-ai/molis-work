@@ -3105,11 +3105,6 @@ export interface PluginSyncDeclaration {
     readonly collections: readonly PluginSyncCollection[];
 }
 
-export declare class PluginSyncError extends Error {
-    readonly code: "sync.invalid" | "sync.unsupported" | "sync.scope" | "sync.conflict" | "sync.dependencies" | "sync.busy" | "sync.limit";
-    constructor(code: "sync.invalid" | "sync.unsupported" | "sync.scope" | "sync.conflict" | "sync.dependencies" | "sync.busy" | "sync.limit", message: string);
-}
-
 export interface PluginSyncIdentity {
     readonly plugin_id: string;
     readonly publisher_id: string;
@@ -3794,6 +3789,8 @@ export interface SyncActionClient {
     invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown): unknown;
 }
 
+export type SyncFailureReason = "invalid" | "unsupported" | "scope" | "conflict" | "dependencies" | "busy" | "limit";
+
 export declare const WORKFLOW_CONTENT_SCHEMAS: {
     readonly list: {
         readonly input: Readonly<Record<string, unknown>>;
@@ -4011,8 +4008,6 @@ export declare function defineWorkflowContentActions(station: WorkflowStationSpe
 
 export declare function eventTypeKey(eventTypeId: string, typeVersion: number): string;
 
-export declare function expandPluginSyncSelection(declaration: PluginSyncDeclaration, selected: readonly string[]): readonly string[];
-
 export declare function fileContentOf(input: {
     subject: ActionSubject;
     revision: string;
@@ -4105,8 +4100,6 @@ export declare function orderPromptsByLayer<T extends {
 export declare function ownsEventType(pluginId: string, eventTypeId: string): boolean;
 
 export declare function parseExactActionReferences(value: unknown): ExactActionReference[];
-
-export declare function parsePluginSyncDeclaration(value: unknown): PluginSyncDeclaration;
 
 export declare function pinActionSubject(client: ActionClient, caller: ActionExecutionContext, subject: ActionSubject): Promise<ArtifactPinResult>;
 

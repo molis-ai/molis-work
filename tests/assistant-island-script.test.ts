@@ -52,8 +52,9 @@ test("a plugin's name in the bottom bar comes from the catalog, not from the plu
   assert.match(body, /host\.pluginTitle/);
   assert.doesNotMatch(body, /plugin-rail-items|querySelector/);
   const { renderMolisWorkWorkbenchClientScript } = await import("./workbench-renderer-fixture.js");
-  assert.match(renderMolisWorkWorkbenchClientScript(), /pluginTitle: \(plugin\) => tabWorkspace\?\.pluginTitle\(plugin\)/);
-  assert.match(renderMolisWorkWorkbenchClientScript(), /pluginTitle: ops\.pluginTitle/);
+  // The served build shortens local bindings; the forwarding relation must remain unchanged.
+  assert.match(renderMolisWorkWorkbenchClientScript(), /pluginTitle:\s*\(?([\w$]+)\)?\s*=>\s*[\w$]+\?\.pluginTitle\(\1\)/);
+  assert.match(renderMolisWorkWorkbenchClientScript(), /pluginTitle:\s*[\w$]+\.pluginTitle/);
 });
 
 // The line is measured with its chips on it, whether or not the phone's typing rule is hiding them, so a tap into the input and away

@@ -1,4 +1,4 @@
-import { PluginSyncError } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { syncError } from './sync-errors.js';
 import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import {
   createSqliteReplica,
@@ -7,6 +7,7 @@ import {
   readDatabaseSpace,
   replicaMarkSql,
   replicaTransaction,
+  queueReplicaChange,
   type ReplicaDatabase,
 } from "@molis-ai/molis-work-storage";
 import { SCHEDULE_TASKS_SCHEMA_SQL } from "./tasks.js";
@@ -19,7 +20,7 @@ const TURN_COLUMNS = ["turn_id", "task_id", "kind", "text", "important", "create
 type Row = Record<string, unknown>;
 
 function invalid(): never {
-  throw new PluginSyncError("sync.invalid", "定时任务同步数据不合法");
+  throw syncError("invalid", "定时任务同步数据不合法");
 }
 function record(value: unknown): Row {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
@@ -36,7 +37,7 @@ function date(value: unknown, nullable = false): boolean {
 }
 function size(value: unknown): void {
   if (Buffer.byteLength(JSON.stringify(value)) > 512 * 1024) {
-    throw new PluginSyncError("sync.limit", "定时任务超过当前同步上限（512 KiB）");
+    throw syncError("limit", "定时任务超过当前同步上限（512 KiB）");
   }
 }
 function validateTask(value: unknown, taskId: string): Row {
@@ -76,7 +77,7 @@ export function installScheduleReplication(db: ReplicaDatabase, projectId: strin
   replicaTransaction(db, () => {
     initializeReplica(ledger);
     if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='schedule_task_sync_insert'").get()) return;
-    db.exec(`INSERT INTO schedule_replica_changes(key) SELECT json_array('${projectId}','schedule_task',task_id) FROM schedule_conversation_tasks ORDER BY task_id`);
+    for(const row of db.prepare('SELECT task_id FROM schedule_conversation_tasks ORDER BY task_id').all())queueReplicaChange(ledger,JSON.stringify([projectId,'schedule_task',row.task_id]));
     for (const [event, row] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]]) {
       db.exec(`CREATE TRIGGER schedule_task_sync_${event.toLowerCase()} AFTER ${event} ON schedule_conversation_tasks BEGIN ${mark(key(row))} END`);
     }
@@ -93,7 +94,7 @@ export function createScheduleTaskReplica(db: ReplicaDatabase, context: {
 }): SyncReplicaAdapter {
   const binding = readDatabaseSpace(db);
   if (binding?.kind !== "personal" || binding.spaceId !== context.spaceId) {
-    throw new PluginSyncError("sync.scope", "只允许同步当前个人空间的定时任务");
+    throw syncError("scope", "只允许同步当前个人空间的定时任务");
   }
   const keyId = (key: string): string => {
     const parts: unknown = JSON.parse(key);
@@ -121,7 +122,7 @@ export function createScheduleTaskReplica(db: ReplicaDatabase, context: {
       const id = keyId(key);
       const current = db.prepare("SELECT enabled,job_id FROM schedule_conversation_tasks WHERE task_id=?").get(id) as Row | undefined;
       if (current?.enabled === 1 && current.job_id) {
-        throw new PluginSyncError("sync.busy", "本机定时任务正在启用，不能被远端记录覆盖");
+        throw syncError("busy", "本机定时任务正在启用，不能被远端记录覆盖");
       }
       if (value === null) {
         db.prepare("DELETE FROM schedule_conversation_turns WHERE task_id=?").run(id);
@@ -138,16 +139,16 @@ export function createScheduleTaskReplica(db: ReplicaDatabase, context: {
       const task = validateTask(wire.task, id);
       const turns = validateTurns(wire.turns, id);
       const foreign = db.prepare(`SELECT turn_id FROM schedule_conversation_turns WHERE turn_id IN (${turns.map(() => "?").join(",") || "NULL"}) AND task_id<>?`)
-        .all(...turns.map(turn => turn.turn_id), id);
-      if (foreign.length) throw new PluginSyncError("sync.scope", "对话记录标识已属于其他任务");
+        .all(...turns.map(turn => String(turn.turn_id)), id);
+      if (foreign.length) throw syncError("scope", "对话记录标识已属于其他任务");
       const columns = [...TASK_COLUMNS, "job_id"];
-      const values = [...TASK_COLUMNS.map(column => column === "enabled" ? 0 : task[column]), null];
+      const values = [...TASK_COLUMNS.map(column => column === "enabled" ? 0 : task[column] as string|number|null), null];
       db.prepare(`INSERT INTO schedule_conversation_tasks (${columns.join(",")}) VALUES (${columns.map(() => "?").join(",")})
         ON CONFLICT(task_id) DO UPDATE SET ${columns.filter(column => column !== "task_id").map(column => `${column}=excluded.${column}`).join(",")}`)
         .run(...values);
       db.prepare("DELETE FROM schedule_conversation_turns WHERE task_id=?").run(id);
       for (const turn of turns) db.prepare(`INSERT INTO schedule_conversation_turns (${TURN_COLUMNS.join(",")})
-        VALUES (${TURN_COLUMNS.map(() => "?").join(",")})`).run(...TURN_COLUMNS.map(column => turn[column]));
+        VALUES (${TURN_COLUMNS.map(() => "?").join(",")})`).run(...TURN_COLUMNS.map(column => turn[column] as string|number|null));
       context.authorize();
     },
   });

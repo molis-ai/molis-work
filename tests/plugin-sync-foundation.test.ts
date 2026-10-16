@@ -1,15 +1,16 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { parsePluginManifest, parsePluginSyncDeclaration, expandPluginSyncSelection, PluginSyncError } from "../packages/plugin-sdk/src/index.js";
-import { parseSpaceSyncPolicy } from "@molis-ai/molis-work-contracts/modules/sync-replication";
+import { parsePluginManifest, parsePluginSyncDeclaration, expandPluginSyncSelection } from "@molis-ai/molis-work-plugin-sdk";
+import {parseSpaceSyncPolicy} from "@molis-ai/molis-work-module-sync-replication";
 import { ensureStorageSpace, personalStorageSpace, homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { openPagesStore, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 
-const hasCode = (code: string) => (error: unknown) => error instanceof PluginSyncError && error.code === code;
+const hasCode = (code: string) => (error: unknown) => error instanceof ActionError && error.code.endsWith(".sync_"+code.split(".")[1]);
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 function fixture(t: { after(fn: () => void): void }) {
   const root = mkdtempSync(join(tmpdir(), "plugin-sync-"));

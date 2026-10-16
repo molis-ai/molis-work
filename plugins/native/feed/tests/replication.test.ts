@@ -1,3 +1,4 @@
+import {replicaSchemaSql} from "@molis-ai/molis-work-storage";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
@@ -13,7 +14,7 @@ function fixture() {
   const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE boards(project_id TEXT PRIMARY KEY)");
   db.prepare("INSERT INTO boards(project_id) VALUES (?)").run(projectId);
-  bindDatabaseSpace(db, space);
+  db.exec(replicaSchemaSql('feed'));bindDatabaseSpace(db, space);
   installFeedReplication(db, projectId);
   const rules = new FeedOutRuleStore(db);
   const replica = createFeedRuleReplica(db, context);
@@ -94,7 +95,7 @@ test("first Feed sync installation seeds rules created before the journal existe
   try {
     db.exec("CREATE TABLE boards(project_id TEXT PRIMARY KEY)");
     db.prepare("INSERT INTO boards(project_id) VALUES (?)").run(projectId);
-    bindDatabaseSpace(db, space);
+    db.exec(replicaSchemaSql('feed'));bindDatabaseSpace(db, space);
     const rule = new FeedOutRuleStore(db).create(projectId, { name: "旧设备上的规则", match: { contains: "消息" } });
     installFeedReplication(db, projectId);
     const replica = createFeedRuleReplica(db, context);

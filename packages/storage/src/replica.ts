@@ -1,10 +1,13 @@
+import type {SQLInputValue,SQLOutputValue} from "node:sqlite";
+export type ReplicaInputValue=SQLInputValue;
+export type ReplicaOutputValue=SQLOutputValue;
 import { randomUUID } from 'node:crypto';
 import type { SyncMutation, SyncEvent, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 
 /** Common borrowed connection surface for node:sqlite and better-sqlite3 owners. */
 export interface ReplicaDatabase {
   exec(sql:string):unknown;
-  prepare(sql:string):{get(...params:any[]):any;all(...params:any[]):any[];run(...params:any[]):unknown};
+  prepare(sql:string):{get(...params:SQLInputValue[]):Record<string,SQLOutputValue>|undefined;all(...params:SQLInputValue[]):Record<string,SQLOutputValue>[];run(...params:SQLInputValue[]):unknown};
 }
 /** Only trusted composition code supplies this namespace, never wire data. */
 export function namespacedReplicaDatabase(db:ReplicaDatabase,namespace:string):ReplicaDatabase {
@@ -13,9 +16,7 @@ export function namespacedReplicaDatabase(db:ReplicaDatabase,namespace:string):R
   return {exec:text=>db.exec(sql(text)),prepare:text=>db.prepare(sql(text))};
 }
 
-/** Technical ledger borrowed by an owner. Triggers and owner writes share one transaction. */
-export function initializeReplica(db: ReplicaDatabase): void {
-  db.exec(`
+const REPLICA_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS replica_changes_key ON replica_changes(key);
@@ -23,8 +24,16 @@ export function initializeReplica(db: ReplicaDatabase): void {
     CREATE TABLE IF NOT EXISTS replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
-  `);
-  if(!db.prepare('PRAGMA table_info(replica_conflicts)').all().some(row=>row.name==='waiting'))db.exec('ALTER TABLE replica_conflicts ADD COLUMN waiting INTEGER NOT NULL DEFAULT 0');
+  `;
+/** Complete journal fragment, included in its owner's versioned baseline. */
+export function replicaSchemaSql(namespace?:string):string {
+ if(namespace&&!/^[a-z][a-z0-9_]{0,40}$/.test(namespace))throw new Error('INVALID_REPLICA_NAMESPACE');
+ return namespace?REPLICA_SCHEMA_SQL.replace(/\breplica_/g,namespace+'_replica_'):REPLICA_SCHEMA_SQL;
+}
+
+/** Technical ledger borrowed by an owner. Triggers and owner writes share one transaction. */
+export function initializeReplica(db: ReplicaDatabase): void {
+  db.prepare("SELECT waiting FROM replica_conflicts LIMIT 0").all();
   db.prepare('INSERT OR IGNORE INTO replica_state(id,device) VALUES (1,?)').run(randomUUID());
 }
 
@@ -58,7 +67,7 @@ export function createSqliteReplica(db: ReplicaDatabase, owner: {
     owner.apply(event.key,event.value);
     db.exec('UPDATE replica_state SET applying=0 WHERE id=1');
   };
-  const missingDependency=(error:unknown)=>!!error&&typeof error==='object'&&'code' in error&&error.code==='sync.dependencies';
+  const missingDependency=(error:unknown)=>!!error&&typeof error==='object'&&'details' in error&&!!error.details&&typeof error.details==='object'&&'sync_waiting' in error.details&&error.details.sync_waiting===true;
   const conflict=(event:SyncEvent,reason:string,waiting=false)=>db.prepare('INSERT INTO replica_conflicts(key,event,reason,waiting) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET event=excluded.event,reason=excluded.reason,waiting=excluded.waiting').run(event.key,JSON.stringify(event),reason,waiting?1:0);
   return {
     cursor,
@@ -132,3 +141,6 @@ function canonical(value:unknown):string {
   const sort=(v:unknown):unknown=>Array.isArray(v)?v.map(sort):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([k,x])=>[k,sort(x)])):v;
   return JSON.stringify(sort(value));
 }
+
+/** SQL fragment for owner triggers; the technical table remains owned here. */
+export function replicaApplyingSql():string {return "(SELECT applying FROM replica_state WHERE id=1)";}

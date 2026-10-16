@@ -165,6 +165,7 @@ export class MolisWorkProjectCatalog {
 
   readonly commit: CatalogCommit;
   private readonly personalProjects: PersonalProjectProvisioner;
+  readonly wasProjectPluginRemoved:(projectId:string,pluginId:string)=>boolean;
   readonly ensureSyncedProject: PersonalProjectProvisioner['ensureSyncedProject'];
 
   private constructor(
@@ -200,6 +201,7 @@ export class MolisWorkProjectCatalog {
     );
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.personalProjects = new PersonalProjectProvisioner(homeDirectory, this.projectFiles, this.projects);
+    this.wasProjectPluginRemoved=this.projects.query.wasProjectPluginRemoved;
     this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.workContexts.removeProjectFacts(projectId, actorId, at),

@@ -1,5 +1,5 @@
 import type { ArtifactVersionRecord, ArtifactIdentityRecord } from '@molis-ai/molis-work-contracts/modules/artifacts';
-import { canonicalArtifactJson, artifactContentDigest, artifactContentSize, normalizeArtifactMetadata } from './content.js';
+import { canonicalArtifactJson, artifactContentDigest, artifactContentSize, normalizeArtifactMetadata, normalizeArtifactPayload } from './content.js';
 import { ARTIFACT_TABLES, ArtifactsRepository, type ArtifactsSqliteDatabase } from './repository.js';
 import { ArtifactsService, type ArtifactsServiceOptions } from './service.js';
 
@@ -19,10 +19,10 @@ export interface PortableArtifact {
 
 const IDENTITY_FIELDS=['artifact_id','owner_actor_id','producer_plugin_id','producer_binding_signature','created_at'];
 const VERSION_FIELDS=['artifact_id','version','artifact_type_id','schema_version','producer_plugin_id','producer_plugin_version','producer_binding_signature','owner_actor_id','content_kind','payload','content_ref','content_digest','size_bytes','metadata','scope','availability','unavailable_reason','lifecycle_state','supersedes_version','created_by','created_at','archived_at','archived_by','origin','title','media_type','trace'];
-const fail=(message:string):never=>{throw new Error('ARTIFACT_SYNC: '+message);};
-function object(value:unknown,fields:string[]):Record<string,any>{
+function fail(message:string):never {throw new Error('ARTIFACT_SYNC: '+message);}
+function object(value:unknown,fields:string[]):Record<string,unknown>{
   if(!value||typeof value!=='object'||Array.isArray(value))return fail('格式错误');
-  const row=value as Record<string,any>;
+  const row=value as Record<string,unknown>;
   if(Object.keys(row).length!==fields.length||fields.some(k=>!Object.hasOwn(row,k)))return fail('字段不匹配');
   return row;
 }
@@ -49,23 +49,23 @@ export function createArtifactReplication(db:ArtifactsSqliteDatabase,context:Art
       const record=object(raw,VERSION_FIELDS);
       for(const field of ['artifact_id','owner_actor_id','producer_plugin_id','producer_binding_signature'])if(record[field]!==identity[field])fail('成果身份不一致');
       for(const field of ['artifact_type_id','producer_plugin_version','created_by'])text(record[field]);
-      if(!Number.isSafeInteger(record.version)||record.version<=previous||!Number.isSafeInteger(record.schema_version)||record.schema_version<1)fail('版本顺序不合法');
-      if(record.supersedes_version!==null&&!versions.has(record.supersedes_version))fail('被替代版本缺失');
+      if(typeof record.version!=="number"||!Number.isSafeInteger(record.version)||record.version<=previous||typeof record.schema_version!=="number"||!Number.isSafeInteger(record.schema_version)||record.schema_version<1)fail('版本顺序不合法');
+      if(record.supersedes_version!==null&&(typeof record.supersedes_version!=="number"||!versions.has(record.supersedes_version)))fail('被替代版本缺失');
       previous=record.version;versions.add(record.version);
       if(record.scope!=='personal')fail('团队成果尚不支持');
       if(record.content_kind!=='inline'||record.content_ref!==null)fail('附件本体尚未同步');
       portableStrings(record.payload);portableStrings(record.metadata);
-      const serialized=canonicalArtifactJson(record.payload);
+      const serialized=canonicalArtifactJson(normalizeArtifactPayload(record.payload));
       if(record.content_digest!==artifactContentDigest(serialized)||record.size_bytes!==artifactContentSize(serialized))fail('正文校验失败');
       normalizeArtifactMetadata(record.metadata);
       timestamp(record.created_at);
-      if(!['available','unavailable'].includes(record.availability)||!['active','archived'].includes(record.lifecycle_state))fail('状态不合法');
+      if(typeof record.availability!=='string'||typeof record.lifecycle_state!=='string'||!['available','unavailable'].includes(record.availability)||!['active','archived'].includes(record.lifecycle_state))fail('状态不合法');
       if(record.availability==='available'?record.unavailable_reason!==null:typeof record.unavailable_reason!=='string'||!record.unavailable_reason.trim())fail('可用性不合法');
       if(record.lifecycle_state==='archived'){timestamp(record.archived_at);if(record.archived_by!==identity.owner_actor_id)fail('归档作者与 owner 不一致');}
       else if(record.archived_at!==null||record.archived_by!==null)fail('归档状态不一致');
     }
     if(Buffer.byteLength(JSON.stringify(row),'utf8')>512*1024)fail('成果超过当前传输上限');
-    return row as PortableArtifact;
+    return input as PortableArtifact;
   };
   return {
     read(artifactId:string):PortableArtifact|null {

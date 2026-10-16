@@ -4,22 +4,22 @@ import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {personalStorageSpace,ensureStorageSpace} from '../../packages/storage/dist/index.js';
-import {openPagesStore} from '../../plugins/native/pages/dist/index.js';
-import {PersonalSync} from '../../modules/sync-replication/dist/index.js';
+import {personalStorageSpace,ensureStorageSpace} from '@molis-ai/molis-work-storage';
+import {openPagesStore} from '@molis-ai/molis-work-plugin-pages';
+import {PersonalSync} from '@molis-ai/molis-work-module-sync-replication';
 import Database from 'better-sqlite3';
-import {ArtifactsModule,createArtifactsSchema,createArtifactReplication} from '../../modules/artifacts/dist/index.js';
-import {openFormStore,formManifest} from '../../plugins/native/form/dist/index.js';
-import {openDatasetStore,datasetManifest} from '../../plugins/native/dataset/dist/index.js';
-import {openPptStore,pptManifest} from '../../plugins/native/ppt/dist/index.js';
-import {openLingguangStore,lingguangManifest} from '../../plugins/native/lingguang/dist/index.js';
+import {ArtifactsModule,createArtifactsSchema,createArtifactReplication} from '@molis-ai/molis-work-module-artifacts';
+import {openFormStore,formManifest} from '@molis-ai/molis-work-plugin-form';
+import {openDatasetStore,datasetManifest} from '@molis-ai/molis-work-plugin-dataset';
+import {openPptStore,pptManifest} from '@molis-ai/molis-work-plugin-ppt';
+import {openLingguangStore,lingguangManifest} from '@molis-ai/molis-work-plugin-lingguang';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {LocalProjectDatabase,GoalProjectApplication,createPersonalGoalRegistration} from '@molis-ai/molis-work-app-local-host';
 
 test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and isolation',{timeout:120000},async()=>{
   const {Miniflare,Response:RuntimeResponse,convertV4MiniflareOptions}=await import(process.env.MOLIS_SYNC_MINIFLARE_MODULE||'miniflare');
   const root=mkdtempSync(join(tmpdir(),'molis-rust-sync-'));
-  const mf=new Miniflare(convertV4MiniflareOptions({modulesRoot:fileURLToPath(new URL('./build/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./build/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./build/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,d1Databases:{DB:'rust-isolated-test'},bindings:{AUTH_ORIGIN:'http://127.0.0.1:8787',APPLICATION_ID:'work'},outboundService:async request=>{
+  const mf=new Miniflare(convertV4MiniflareOptions({modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,d1Databases:{DB:'rust-isolated-test'},bindings:{AUTH_ORIGIN:'http://127.0.0.1:8787',APPLICATION_ID:'work'},outboundService:async request=>{
     assert.equal(new URL(request.url).origin,'http://127.0.0.1:8787');
     const token=request.headers.get('Authorization')?.replace('Bearer ','');
     if(!['alice','bob','wrong-app'].includes(token))return RuntimeResponse.json({error:'UNAUTHORIZED'},{status:401});

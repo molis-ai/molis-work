@@ -126,7 +126,6 @@ export type { PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plu
 export type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncCollection } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-export { PluginSyncError } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncIdentity } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncSnapshot } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncSnapshotAdapter } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -235,7 +234,9 @@ export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platfo
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
-export { expandPluginSyncSelection } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export declare function expandPluginSyncSelection(declaration: PluginSyncDeclaration, selected: readonly string[]): readonly string[];
+
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -265,7 +266,7 @@ export declare const packageDescriptor: {
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
-export { parsePluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+export declare function parsePluginSyncDeclaration(value: unknown): PluginSyncDeclaration;
 
 export declare function questionAnswer(values: unknown): {
     answers: Array<{

@@ -1,9 +1,10 @@
-import { PluginSyncError } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { syncError } from './project-replica-sync-errors.js';
 import type { SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { createSqliteReplica, initializeReplica, replicaMarkSql, replicaTransaction, type ReplicaDatabase } from './replica.js';
 
 export type PortableRow = Record<string, string | number | null>;
 export interface AggregateRecords { record: PortableRow; children: Record<string, PortableRow[]> }
+export const AGGREGATE_REPLICA_SCHEMA_SQL='CREATE TABLE IF NOT EXISTS aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL);';
 export interface AggregateDefinition {
   /** All SQL identifiers are trusted owner constants, never wire data. */
   kind: string;
@@ -21,6 +22,7 @@ export interface AggregateReplicaContext {
   authorize(): void;
   canUploadProject(projectId: string): boolean;
   project(projectId: string): { title: string };
+  hasReference?(projectId:string,reference:{owner:'goals'|'artifacts';assetId:string;version?:number}):boolean;
   hasArtifact(projectId: string, id: string, version: number): boolean;
 }
 
@@ -30,7 +32,7 @@ export function initializeAggregateReplication(db: ReplicaDatabase, definitions:
   if(!binding||JSON.parse(String(binding.descriptor)).kind!=='personal')return;
   replicaTransaction(db, () => {
     initializeReplica(db);
-    db.exec('CREATE TABLE IF NOT EXISTS aggregate_editor_versions (key TEXT PRIMARY KEY, version INTEGER NOT NULL)');
+    db.prepare('SELECT key,version FROM aggregate_editor_versions LIMIT 0').all();
     for (const d of definitions) {
       for (const id of [d.kind, d.table, ...d.columns, ...d.children.flatMap(c => [c.table,c.parent,...c.columns])]) {
         if (!/^[a-z][a-z0-9_]*$/.test(id)) throw new Error('INVALID_AGGREGATE_IDENTIFIER');
@@ -57,7 +59,7 @@ export function initializeAggregateReplication(db: ReplicaDatabase, definitions:
 
 export function createAggregateReplica(db: ReplicaDatabase, definitions: readonly AggregateDefinition[], context: AggregateReplicaContext): SyncReplicaAdapter {
   const binding=db.prepare('SELECT space_id,descriptor FROM molis_storage_space WHERE singleton=1').get();
-  if(!binding||JSON.parse(String(binding.descriptor)).kind!=='personal'||binding.space_id!==context.spaceId)throw new PluginSyncError('sync.scope','同步空间不匹配');
+  if(!binding||JSON.parse(String(binding.descriptor)).kind!=='personal'||binding.space_id!==context.spaceId)throw syncError("scope",'同步空间不匹配');
   const decode=(key:string) => {
     const parts:unknown=JSON.parse(key);
     if(!Array.isArray(parts)||parts.length!==3||!parts.every(v=>typeof v==='string'&&v.length>0&&v.length<=80))invalid();
@@ -67,8 +69,8 @@ export function createAggregateReplica(db: ReplicaDatabase, definitions: readonl
   };
   const local=(d:AggregateDefinition,id:string,projectId:string) => {
     const row=db.prepare(`SELECT * FROM ${d.table} WHERE id=?`).get(id);
-    if(row&&row.project_id!==projectId)throw new PluginSyncError('sync.scope','资产标识已属于其他项目');
-    if(row&&d.busyColumn&&row[d.busyColumn])throw new PluginSyncError('sync.busy','请先恢复本机尚未完成的发布');
+    if(row&&row.project_id!==projectId)throw syncError("scope",'资产标识已属于其他项目');
+    if(row&&d.busyColumn&&row[d.busyColumn])throw syncError("busy",'请先恢复本机尚未完成的发布');
     return row;
   };
   return createSqliteReplica(db,{
@@ -77,7 +79,7 @@ export function createAggregateReplica(db: ReplicaDatabase, definitions: readonl
     read(key) {
       const {projectId,id,definition:d}=decode(key),project=context.project(projectId),row=local(d,id,projectId);
       if(!row)return null;
-      const value:AggregateRecords={record:pick(row,d.columns),children:Object.fromEntries(d.children.map(c=>[c.table,db.prepare(`SELECT ${c.columns.join(',')} FROM ${c.table} WHERE ${c.parent}=? ORDER BY ${c.orderBy}`).all(id)]))};
+      const value:AggregateRecords={record:pick(row,d.columns),children:Object.fromEntries(d.children.map(c=>[c.table,db.prepare(`SELECT ${c.columns.join(',')} FROM ${c.table} WHERE ${c.parent}=? ORDER BY ${c.orderBy}`).all(id).map(row=>portableRow(row,c.columns))]))};
       d.validate(value);
       const envelope={format:1,spaceId:context.spaceId,project:{id:projectId,title:project.title},...value};
       size(envelope);return envelope;
@@ -104,7 +106,7 @@ export function createAggregateReplica(db: ReplicaDatabase, definitions: readonl
           if(result[c.parent]!==id||values.some(v=>typeof v!=='string'||!v||v.length>200)||seen.has(JSON.stringify(values)))invalid();
           seen.add(JSON.stringify(values));
           const existing=db.prepare(`SELECT ${c.parent} FROM ${c.table} WHERE ${identity.map(k=>`${k}=?`).join(' AND ')}`).get(...values);
-          if(existing&&existing[c.parent]!==id)throw new PluginSyncError('sync.scope','子记录标识已属于其他资产');
+          if(existing&&existing[c.parent]!==id)throw syncError("scope",'子记录标识已属于其他资产');
           return result;
         });
       }
@@ -123,9 +125,9 @@ export function createAggregateReplica(db: ReplicaDatabase, definitions: readonl
   });
 }
 
-function pick(row:PortableRow,columns:readonly string[]):PortableRow{return Object.fromEntries(columns.map(k=>[k,row[k]!]));}
+function pick(row:Readonly<Record<string,unknown>>,columns:readonly string[]):PortableRow{return portableRow(Object.fromEntries(columns.map(k=>[k,row[k]!])),columns);}
 function object(value:unknown):Record<string,unknown>{if(!value||typeof value!=='object'||Array.isArray(value))invalid();return value as Record<string,unknown>;}
 function exact(row:Record<string,unknown>,columns:readonly string[]){if(Object.keys(row).length!==columns.length||columns.some(k=>!Object.hasOwn(row,k)))invalid();}
 function portableRow(value:unknown,columns:readonly string[]):PortableRow{const row=object(value);exact(row,columns);if(Object.values(row).some(v=>v!==null&&typeof v!=='string'&&(typeof v!=='number'||!Number.isFinite(v))))invalid();return row as PortableRow;}
-function size(value:unknown){if(Buffer.byteLength(JSON.stringify(value))>512*1024)throw new PluginSyncError('sync.limit','此资产超过当前同步上限（512 KiB），原数据仍保留在本机');}
-function invalid():never{throw new PluginSyncError('sync.invalid','同步资产格式不合法');}
+function size(value:unknown){if(Buffer.byteLength(JSON.stringify(value))>512*1024)throw syncError("limit",'此资产超过当前同步上限（512 KiB），原数据仍保留在本机');}
+function invalid():never{throw syncError("invalid",'同步资产格式不合法');}

@@ -12,4 +12,4 @@ Workflows 已注册流程定义与运行历史；从其他设备恢复的实例�
 
 **不负责：** 不解释插件资产字段、不直接写 Goals/Artifacts Store，不同步密钥、运行任务或未声明的私有缓存。持久队列由 storage 提供，资产语义由 owner 适配器验证；Blob 传输尚未接入。
 
-**当前状态：** `modules/sync-replication` 已提供个人空间配置缓存、协调收发、重试和冲突入口；Rust Worker/D1 负责 Auth 身份校验、空间隔离、远端日志、幂等和 CAS。以上集合默认关闭、仅显式启用 localhost 联调。项目分区先提交业务与回执，再推进集合游标；缺少关联资产持久等待，下轮重试。Goal 同一项目两端编辑时保留双方供选择，不自动合并关系和决定；项目 Goal 聚合仍受 512 KiB 上限约束。还没有公网部署、完整项目生命周期、附件或第三方 Runtime 私有状态同步。见 [Goal 同步阶段](../../specs/personal-goals-sync/spec.md) 和 [启动说明](../../cloud/sync/README.md)。
+**当前状态：** `modules/sync-replication` 已提供个人空间配置缓存、协调收发、重试和冲突入口；Rust Worker/D1 负责 Auth 身份校验、空间隔离、远端日志、幂等和 CAS。以上集合默认关闭、仅显式启用 localhost 联调。项目分区先提交业务与回执，再推进集合游标；缺少关联资产持久等待，下轮重试。Goal 同一项目两端编辑时保留双方供选择，不自动合并关系和决定；项目 Goal 聚合仍受 512 KiB 上限约束。还没有公网部署、完整项目生命周期、附件或第三方 Runtime 私有状态同步。见 [Goal 同步阶段](../../specs/personal-goals-sync/spec.md) 和 [启动说明](../../apps/sync-worker/README.md)。

@@ -1,3 +1,4 @@
+import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { createHash } from "node:crypto";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
@@ -276,7 +277,7 @@ export class LingguangStore {
  * The 灵光 store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const LINGGUANG_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const LINGGUANG_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE TABLE sparks (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL,
@@ -309,7 +310,7 @@ export const LINGGUANG_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
     body TEXT NOT NULL,
     created_at TEXT NOT NULL
   );
-` };
+`)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
 
 export function openLingguangStore(homeDirectory: string): LingguangStore {
   const db = openBaselineHomeSqlite(homeDirectory, LINGGUANG_HOME_STORE.path, LINGGUANG_STORE_BASELINE);

@@ -1,7 +1,8 @@
-import { openHomeSqliteDatabase } from '@molis-ai/molis-work-storage';
-import { parseSpaceSyncPolicy, type SpaceSyncPolicy } from '@molis-ai/molis-work-contracts/modules/sync-replication';
+import { openSyncDatabase } from './database.js';
+import type { SpaceSyncPolicy } from '@molis-ai/molis-work-contracts/modules/sync-replication';
 import type { SyncEvent, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 export {partitionedReplica} from './partitioned-replica.js';
+export {SYNC_HOME_STORE,SYNC_STORE_BASELINE} from './database.js';
 
 export const packageDescriptor = {
   packageName:'@molis-ai/molis-work-module-sync-replication',packagePath:'modules/sync-replication',kind:'module',maturity: "partial",
@@ -18,6 +19,9 @@ export interface SyncRegistration {
 }
 export interface SyncAuthority { signal:AbortSignal; assertCurrent():void; accessToken():Promise<string> }
 
+export { parseSpaceSyncPolicy } from "./policy.js";
+import { parseSpaceSyncPolicy } from "./policy.js";
+
 export class PersonalSync {
   private running:Promise<void>|null=null;
   private timer:ReturnType<typeof setInterval>|null=null;
@@ -28,10 +32,10 @@ export class PersonalSync {
     const url=new URL(options.endpoint);
     // This delivery is local integration only. Opening a production destination requires explicit deployment approval.
     if(url.origin!=='http://127.0.0.1:8788'||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw new Error('SYNC_LOCAL_ENDPOINT_REQUIRED');
-    this.db(db=>db.exec('CREATE TABLE IF NOT EXISTS sync_policy(id INTEGER PRIMARY KEY CHECK(id=1), json TEXT NOT NULL)'));
+    this.db(()=>{});
   }
-  private db<T>(run:(db:ReturnType<typeof openHomeSqliteDatabase>)=>T):T {
-    const db=openHomeSqliteDatabase(this.options.home,'sync');try{return run(db);}finally{db.close();}
+  private db<T>(run:(db:ReturnType<typeof openSyncDatabase>)=>T):T {
+    const db=openSyncDatabase(this.options.home);try{return run(db);}finally{db.close();}
   }
   private assert(){this.options.authority.assertCurrent();if(this.controller.signal.aborted)throw new Error('SYNC_CLOSED');}
   policy():SpaceSyncPolicy {
@@ -43,7 +47,7 @@ export class PersonalSync {
     const policy=parseSpaceSyncPolicy(value,this.options.spaceId);this.assert();
     this.db(db=>db.prepare('INSERT INTO sync_policy VALUES (1,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json').run(JSON.stringify(policy)));return policy;
   }
-  private async request(route:string,body?:unknown,method=body===undefined?'GET':'POST'):Promise<any> {
+  private async request<T=unknown>(route:string,body?:unknown,method=body===undefined?'GET':'POST'):Promise<T> {
     this.assert();const token=await this.options.authority.accessToken();this.assert();
     const signal=AbortSignal.any([this.options.authority.signal,this.controller.signal,AbortSignal.timeout(15000)]);
     const response=await (this.options.fetch??fetch)(new URL(route,this.options.endpoint),{method,signal,redirect:'error',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
@@ -51,7 +55,7 @@ export class PersonalSync {
     if(text.length>4*1024*1024)throw new Error('SYNC_RESPONSE_TOO_LARGE');
     const result=JSON.parse(text);
     if(!response.ok)throw new Error(response.status===409?'同步版本已变化，请重试':response.status===401?'登录已失效，请重新登录':result.error??'同步服务暂时不可用');
-    return result;
+    return result as T;
   }
   async save(policy:unknown){
     if(this.running)await this.running;
@@ -82,7 +86,7 @@ export class PersonalSync {
       registration.withReplica(r=>r.retryWaiting?.());
       for(let turn=0;turn<40;turn++){
         const after=registration.withReplica(r=>r.cursor());
-        const result=await this.request(`/v1/changes?namespace=${encodeURIComponent(namespace)}&after=${after}`);
+        const result=await this.request<{events:SyncEvent[];more:boolean}>(`/v1/changes?namespace=${encodeURIComponent(namespace)}&after=${after}`);
         if(!Array.isArray(result.events)||result.events.length>20)throw new Error('SYNC_INVALID_BATCH');
         let previous=after;
         for(const event of result.events as SyncEvent[]){

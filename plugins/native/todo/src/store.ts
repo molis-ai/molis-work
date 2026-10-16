@@ -1,3 +1,4 @@
+import { replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
@@ -479,7 +480,7 @@ function assertLocalUndo(db: DatabaseSync, changes: readonly TodoChange[]): void
  * The Todo store's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
  * created from it, existing ones must already be at its version.
  */
-export const TODO_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const TODO_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE TABLE todo_items (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -534,7 +535,7 @@ export const TODO_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
     source_key TEXT NOT NULL, fingerprint TEXT NOT NULL, decision TEXT NOT NULL, item_id TEXT, reason TEXT NOT NULL, at TEXT NOT NULL,
     PRIMARY KEY (source_key, fingerprint)
   );
-` };
+`)+replicaSchemaSql()+"CREATE TABLE todo_editor_versions(id TEXT PRIMARY KEY,revision INTEGER NOT NULL);CREATE TABLE todo_imported_changes(change_id TEXT PRIMARY KEY);" };
 
 export function openTodoStore(homeDirectory: string, now?: () => Date): TodoStore {
   const db = openHomeSqliteDatabase(homeDirectory, TODO_HOME_STORE.path);

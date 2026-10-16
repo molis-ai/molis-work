@@ -20,5 +20,3 @@ export declare const modulesSyncReplicationContract: {
     readonly maturity: "partial";
     readonly ssot: "docs/modules/sync-replication.md";
 };
-
-export declare function parseSpaceSyncPolicy(input: unknown, expectedSpaceId: string): SpaceSyncPolicy;

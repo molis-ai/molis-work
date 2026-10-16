@@ -26,14 +26,14 @@ Auth 负责身份，云端不接受请求内自报的用户归属。Host 持有�
 - sync-replication：按空间配置协调拉取、上传、重试。
 - local-host：账号租约、插件可用性、项目最小信息与 owner 装配；下载返回后重查授权。
 - workbench：设置 → 同步，保存失败保留勾选、重试、进度及显式冲突处置。
-- cloud/sync：Rust WASM + D1，Auth 校验、应用/用户空间隔离、版本 CAS 和幂等。
+- apps/sync-worker：Rust WASM + D1，Auth 校验、应用/用户空间隔离、版本 CAS 和幂等。
 
 ## 验证证据
 
 - `pnpm build`：通过；只有既有 xterm 导入警告。
 - `pnpm workspace:check`、`pnpm boundary:check`：通过。
 - `tests/personal-sync.test.ts`、`tests/plugin-sync-foundation.test.ts`、`tests/personal-sync.e2e.test.ts`：最新一轮 22/22 通过，无跳过。包括真实 Host 在新 Home 建立项目、文档接收、下载中退出登录、离线/重复回执/冲突/删除及 Chrome 设置页。
-- Rust `cloud/sync/test.mjs`：真实 WASM + 隔离 D1 集成通过。合成 Auth 测试验证两设备编辑/删除、错误应用/账号隔离、无效策略和版本冲突。
+- Rust `apps/sync-worker/test.mjs`：真实 WASM + 隔离 D1 集成通过。合成 Auth 测试验证两设备编辑/删除、错误应用/账号隔离、无效策略和版本冲突。
 - 额外 Host、Storage、搜索、恢复及安全凭据回归 56/56；前一轮登录、Pages、项目与 UI 合同回归 135/135。各批次有重叠，不相加宣称独立测试总量。
 - Chrome 桌面/390px 截图已检查；个人表单保存失败后勾选不丢，重试成功。
 
@@ -41,6 +41,6 @@ Auth 负责身份，云端不接受请求内自报的用户归属。Host 持有�
 
 默认不联网。需要显式 `MOLIS_WORK_SYNC_LOCAL=1`，并在个人空间保存配置或点立即同步。客户端只接受 `http://127.0.0.1:8788`，重启后需再次手动启动循环。没有向任意公网 endpoint 发凭据/资产的配置入口。
 
-启动及数据限制见 [Worker README](../../cloud/sync/README.md)。本轮未启动/重启真实用户服务，也未修改真实账号的同步配置。
+启动及数据限制见 [Worker README](../../apps/sync-worker/README.md)。本轮未启动/重启真实用户服务，也未修改真实账号的同步配置。
 
 本阶段最初只迁移最小项目定位信息和 Pages 文档/文件夹。后续 [关联资产阶段](../personal-linked-assets-sync/spec.md) 已增加 Artifact 内嵌固定版本，并将缺依赖与编辑冲突分开、持久等待并重试。Goal 完整事实、第三方插件私有数据、附件对象、完整项目重命名/删除、团队同步、生产限流/配额/日志保留及公网验收仍未完成。隐藏个人插件工具栏入口不是停用插件；可用性复用现有 Host 规则。

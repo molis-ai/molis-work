@@ -28,7 +28,7 @@
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 289,
+      "lines": 283,
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
@@ -54,7 +54,7 @@
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2384,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 1003,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2019,
-    "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
+    "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 161,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
@@ -146,7 +146,7 @@
       "methods": 29
     },
     "class modules/projects/src/repository.ts#ProjectsRepository": {
-      "lines": 287,
+      "lines": 272,
       "methods": 29
     },
     "file modules/shelf/src/store.ts": 1139,

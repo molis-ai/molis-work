@@ -1,3 +1,4 @@
+import { replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import {
   GOAL_BOARDS_SCHEMA_SQL,
@@ -35,8 +36,8 @@ import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-setting
  * when they open (`IF NOT EXISTS`), which is a no-op here; changing any of them means a new version.
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
-  version: 7,
-  schema: [
+  version: 8,
+  schema: ([
     GOAL_BOARDS_SCHEMA_SQL,
     GOALS_SCHEMA_SQL,
     GOAL_INPUT_BINDINGS_SCHEMA_SQL,
@@ -65,7 +66,7 @@ export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
     SCHEDULED_OPERATIONS_SCHEMA_SQL,
     CODING_SCHEMA_SQL,
     PROJECT_BROWSING_SETTINGS_SCHEMA_SQL,
-  ].join("\n"),
+  ].join("\n"))+replicaSchemaSql('goals')+replicaSchemaSql('artifacts')+replicaSchemaSql('schedule')+replicaSchemaSql('feed'),
 };
 
 /** Owner-provided journals for project-local plugin data, installed before mutations. */

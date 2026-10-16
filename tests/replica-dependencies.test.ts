@@ -4,16 +4,16 @@ import {DatabaseSync} from 'node:sqlite';
 import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {partitionedReplica} from '../modules/sync-replication/src/index.js';
-import {createSqliteReplica,initializeReplica,namespacedReplicaDatabase,replicaMarkSql} from '@molis-ai/molis-work-storage';
+import {partitionedReplica} from '@molis-ai/molis-work-module-sync-replication';
+import {createSqliteReplica,replicaSchemaSql,initializeReplica,namespacedReplicaDatabase,replicaMarkSql} from '@molis-ai/molis-work-storage';
 
 test('missing dependencies persist, retry atomically, and never echo or overwrite a local edit',t=>{
-  const db=new DatabaseSync(':memory:');t.after(()=>db.close());initializeReplica(db);
+  const db=new DatabaseSync(':memory:');t.after(()=>db.close());db.exec(replicaSchemaSql());initializeReplica(db);
   db.exec('CREATE TABLE content(key TEXT PRIMARY KEY,value TEXT);CREATE TRIGGER content_change AFTER INSERT ON content BEGIN '+replicaMarkSql('NEW.key')+' END;');
   let ready=false;
-  const owner={authorize(){},read(key:string){return db.prepare('SELECT value FROM content WHERE key=?').get(key)?.value??null;},apply(key:string,value:any){
+  const owner={authorize(){},read(key:string){return db.prepare('SELECT value FROM content WHERE key=?').get(key)?.value??null;},apply(key:string,value:unknown){
     db.prepare('INSERT OR REPLACE INTO content VALUES (?,?)').run(key,value);
-    if(!ready)throw Object.assign(new Error('关联成果版本尚未到达'),{code:'sync.dependencies'});
+    if(!ready)throw Object.assign(new Error('关联成果版本尚未到达'),{code:'example.sync_dependencies',details:{sync_waiting:true}});
   }};
   let r=createSqliteReplica(db,owner);
   r.receive({key:'doc',operationId:'a:1',base:0,revision:1,value:'old'});
@@ -26,10 +26,10 @@ test('missing dependencies persist, retry atomically, and never echo or overwrit
   assert.equal(owner.read('second'),'local');assert.equal(r.conflicts()[0].waiting,false);assert.equal(r.next(),null);
 });
 
-test('namespaced replica migration keeps existing receipts and independent cursors',t=>{
+test('namespaced current replicas keep independent receipts and cursors',t=>{
   const db=new DatabaseSync(':memory:');t.after(()=>db.close());
   const a=namespacedReplicaDatabase(db,'artifacts'),b=namespacedReplicaDatabase(db,'pages');
-  a.exec('CREATE TABLE replica_conflicts(key TEXT PRIMARY KEY,event TEXT NOT NULL,reason TEXT NOT NULL)');
+  a.exec(replicaSchemaSql());b.exec(replicaSchemaSql());
   initializeReplica(a);initializeReplica(a);initializeReplica(b);
   const owner={authorize(){},read(){return null;},apply(){}};
   const ra=createSqliteReplica(a,owner),rb=createSqliteReplica(b,owner);
@@ -40,11 +40,20 @@ test('namespaced replica migration keeps existing receipts and independent curso
 
 test('partition receipt survives a crash before shared cursor advancement without applying twice',t=>{
   const home=mkdtempSync(join(tmpdir(),'partition-sync-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
-  const db=new DatabaseSync(':memory:');t.after(()=>db.close());initializeReplica(db);let applied=0,fail=false;
+  const db=new DatabaseSync(':memory:');t.after(()=>db.close());db.exec(replicaSchemaSql());initializeReplica(db);let applied=0,fail=false;
   const local=createSqliteReplica(db,{authorize(){},read(){return null;},apply(){applied++;}});
   const options={home,namespace:'artifacts',authorize(){if(fail)throw new Error('CRASH_AFTER_RECEIPT');},partitions:()=>['project'],partition:()=> 'project',withPartition<T>(_id:string,run:(adapter:typeof local)=>T){const result=run(local);if(local.cursor()===4)fail=true;return result;}};
   const event={key:'version',operationId:'remote:1',base:0,revision:4,value:{text:'fixed'}};
   assert.throws(()=>partitionedReplica(options).receive(event),/CRASH/);assert.equal(local.cursor(),4);assert.equal(applied,1);
   fail=false;const restored=partitionedReplica({...options,withPartition<T>(_id:string,run:(adapter:typeof local)=>T){return run(local);}});
   assert.equal(restored.cursor(),0);restored.receive(event);assert.equal(restored.cursor(),4);assert.equal(applied,1);
+});
+
+test('PERSAF-03 old journal shapes are refused untouched, never patched at runtime',t=>{
+ const db=new DatabaseSync(':memory:');t.after(()=>db.close());
+ db.exec("CREATE TABLE replica_conflicts(key TEXT PRIMARY KEY,event TEXT NOT NULL,reason TEXT NOT NULL); INSERT INTO replica_conflicts VALUES ('key','{}','preserve');");
+ const before=db.prepare('SELECT sql FROM sqlite_master ORDER BY name').all();
+ assert.throws(()=>initializeReplica(db));
+ assert.deepEqual(db.prepare('SELECT sql FROM sqlite_master ORDER BY name').all(),before);
+ assert.equal(db.prepare('SELECT reason FROM replica_conflicts').get()?.reason,'preserve');
 });

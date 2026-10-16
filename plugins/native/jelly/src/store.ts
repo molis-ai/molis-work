@@ -1,3 +1,4 @@
+import { replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
@@ -89,12 +90,12 @@ export class JellyStore {
  * The Jelly store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const JELLY_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const JELLY_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE TABLE jelly_workspace (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), revision INTEGER NOT NULL, body TEXT NOT NULL, checksum TEXT NOT NULL);
   CREATE TABLE jelly_note_versions (id TEXT PRIMARY KEY, revision INTEGER NOT NULL);
   CREATE TABLE jelly_history (id INTEGER PRIMARY KEY AUTOINCREMENT, command TEXT NOT NULL, before_body TEXT NOT NULL, after_body TEXT NOT NULL, before_checksum TEXT NOT NULL, after_checksum TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE jelly_previews (token TEXT PRIMARY KEY, type TEXT NOT NULL, fingerprint TEXT NOT NULL, revision INTEGER NOT NULL, expires_at INTEGER NOT NULL);
-` };
+`)+replicaSchemaSql() };
 
 export function openJellyStore(home: string): JellyStore {
   const db = openHomeSqliteDatabase(home, JELLY_HOME_STORE.path);

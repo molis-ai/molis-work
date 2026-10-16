@@ -1,9 +1,11 @@
+import {createCharactersReplicationBinding} from "@molis-ai/molis-work-module-characters";
+import type {AggregateReplicaContext,ReplicaDatabase} from "@molis-ai/molis-work-storage";
 import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js";
 import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, COGNIA_HOME_STORE } from "@molis-ai/molis-work-plugin-cognia";
 import { BUILDER_CHOICE_INSTRUCTIONS, builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
 import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData, IMAGES_HOME_STORE } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, JELLY_HOME_STORE } from "@molis-ai/molis-work-plugin-jelly";
+import { openJellyStore, JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, JELLY_HOME_STORE } from "@molis-ai/molis-work-plugin-jelly";
 import { type ProjectDataDeclaration, type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type PluginManifest, type PluginDefinition, type PluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT, openIssuesSyncStore } from "@molis-ai/molis-work-plugin-issues";
@@ -15,20 +17,20 @@ import { FILES_PROJECT_PLUGIN_ID, filesManifest } from "@molis-ai/molis-work-plu
 import { GIT_PROJECT_PLUGIN_ID, gitManifest } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest } from "@molis-ai/molis-work-plugin-text-stats";
 import { type AgentPromptText, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { FEED_PROJECT_PLUGIN_ID, feedManifest, feedUiContribution, FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedRuleReplica, FEED_PROJECT_PLUGIN_ID, feedManifest, feedUiContribution, FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPlanningUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsSettingsUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "@molis-ai/molis-work-plugin-goals";
 import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "@molis-ai/molis-work-plugin-inbox";
-import { SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "@molis-ai/molis-work-plugin-schedule";
+import { createScheduleTaskReplica, SCHEDULE_PROJECT_PLUGIN_ID, scheduleManifest, schedulePrompts, SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_STYLES, scheduleUiContribution } from "@molis-ai/molis-work-plugin-schedule";
 import { SHELF_INSTRUCTIONS, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest, charactersSettingsUiContribution, CHARACTERS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-characters";
-import { PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, pagesProjectData, PAGES_HOME_STORE } from "@molis-ai/molis-work-plugin-pages";
-import { FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, formProjectData, FORM_HOME_STORE } from "@molis-ai/molis-work-plugin-form";
-import { DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, datasetProjectData, DATASET_HOME_STORE } from "@molis-ai/molis-work-plugin-dataset";
-import { PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, pptProjectData, PPT_HOME_STORE } from "@molis-ai/molis-work-plugin-ppt";
-import { LINGGUANG_INSTRUCTIONS, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution, lingguangProjectData, LINGGUANG_HOME_STORE } from "@molis-ai/molis-work-plugin-lingguang";
-import { TODO_INSTRUCTIONS, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution, todoProjectData, TODO_HOME_STORE } from "@molis-ai/molis-work-plugin-todo";
+import { openPagesReplicationBinding, PAGES_INSTRUCTIONS, PAGES_PROJECT_PLUGIN_ID, pagesManifest, pagesMethods, PAGES_CLIENT_FACTORY_SCRIPT, PAGES_STYLES, pagesUiContribution, pagesProjectData, PAGES_HOME_STORE } from "@molis-ai/molis-work-plugin-pages";
+import { openFormStore, FORM_INSTRUCTIONS, FORM_PROJECT_PLUGIN_ID, formManifest, FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formUiContribution, formProjectData, FORM_HOME_STORE } from "@molis-ai/molis-work-plugin-form";
+import { openDatasetStore, DATASET_INSTRUCTIONS, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution, datasetProjectData, DATASET_HOME_STORE } from "@molis-ai/molis-work-plugin-dataset";
+import { openPptStore, PPT_INSTRUCTIONS, PPT_PROJECT_PLUGIN_ID, pptManifest, PPT_CLIENT_FACTORY_SCRIPT, PPT_STYLES, pptUiContribution, pptProjectData, PPT_HOME_STORE } from "@molis-ai/molis-work-plugin-ppt";
+import { openLingguangStore, LINGGUANG_INSTRUCTIONS, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest, LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_STYLES, lingguangUiContribution, lingguangProjectData, LINGGUANG_HOME_STORE } from "@molis-ai/molis-work-plugin-lingguang";
+import { openTodoSyncStore, TODO_INSTRUCTIONS, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, todoPrompts, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution, todoProjectData, TODO_HOME_STORE } from "@molis-ai/molis-work-plugin-todo";
 import { ALCHEMIST_PROJECT_PLUGIN_ID, ALCHEMIST_INSTRUCTIONS, alchemistManifest, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
-import { WORKFLOWS_INSTRUCTIONS, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution, workflowsProjectData, WORKFLOWS_HOME_STORE } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore, WORKFLOWS_INSTRUCTIONS, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution, workflowsProjectData, WORKFLOWS_HOME_STORE } from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_PROJECT_PLUGIN_ID, workManifest, workTerminalUiContribution, workUiContribution } from "@molis-ai/molis-work-plugin-work";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 
@@ -72,12 +74,8 @@ export interface BuiltinPluginEntry {
     /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
     readonly keys?: string };
   /** Optional owner-provided personal-sync adapter; the Host only composes it, never interprets its records. */
-  readonly sync?: { readonly scope: "home"; open(home: string, ownerId: string): {
-    close(): void; replica(context: {
-      spaceId: string; authorize(): void; canUploadProject(projectId: string): boolean;
-      project(projectId: string): { title: string }; hasArtifact(projectId: string, id: string, version: number): boolean;
-    }): SyncReplicaAdapter;
-  } };
+  readonly sync?: { readonly scope:'home'|'home-with-projects'|'projects'; open(home:string,ownerId:string):{close():void;replica(context:AggregateReplicaContext):SyncReplicaAdapter} }
+    | {readonly scope:'project-database';readonly kind:string;create(db:ReplicaDatabase,context:{spaceId:string;projectId:string;title:string;authorize():void}):SyncReplicaAdapter};
   readonly summary?: string;
   /** Fixed model-call instructions, exported by this plugin and registered by the Host. */
   readonly instructions?: readonly InstructionPrompt[];
@@ -150,6 +148,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: JELLY_PROJECT_PLUGIN_ID,
+    sync:{scope:'home',open:openJellyStore},
     home_store: JELLY_HOME_STORE,
     manifest: jellyManifest,
     instructions: JELLY_INSTRUCTIONS,
@@ -206,6 +205,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID,
+    sync:{scope:'project-database',kind:'schedule_task',create:createScheduleTaskReplica},
     manifest: scheduleManifest,
     summary: "定时跑对话任务，也替插件准时提醒。",
     agent: { prompts: schedulePrompts },
@@ -219,6 +219,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: FEED_PROJECT_PLUGIN_ID,
+    sync:{scope:'project-database',kind:'feed_rule',create:createFeedRuleReplica},
     manifest: feedManifest,
     summary: "订阅来源，读消息，留下值得留的。",
     workbench: {
@@ -243,6 +244,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID,
+    sync:{scope:'projects',open:openLingguangStore},
     home_store: LINGGUANG_HOME_STORE,
     manifest: lingguangManifest,
     project_data: lingguangProjectData,
@@ -259,6 +261,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: TODO_PROJECT_PLUGIN_ID,
+    sync:{scope:'home-with-projects',open:openTodoSyncStore},
     home_store: TODO_HOME_STORE,
     manifest: todoManifest,
     project_data: todoProjectData,
@@ -277,6 +280,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: CHARACTERS_PROJECT_PLUGIN_ID,
+    sync:{scope:'home',open:createCharactersReplicationBinding},
     manifest: charactersManifest,
     personal: true,
     summary: "定义 AI 做事方式，供任务选用。",
@@ -289,6 +293,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: PAGES_PROJECT_PLUGIN_ID,
+    sync:{scope:'projects',open:openPagesReplicationBinding},
     home_store: PAGES_HOME_STORE,
     manifest: pagesManifest,
     project_data: pagesProjectData,
@@ -307,6 +312,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: FORM_PROJECT_PLUGIN_ID,
+    sync:{scope:'projects',open:openFormStore},
     home_store: FORM_HOME_STORE,
     manifest: formManifest,
     project_data: formProjectData,
@@ -323,6 +329,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: DATASET_PROJECT_PLUGIN_ID,
+    sync:{scope:'projects',open:openDatasetStore},
     home_store: DATASET_HOME_STORE,
     manifest: datasetManifest,
     project_data: datasetProjectData,
@@ -339,6 +346,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: PPT_PROJECT_PLUGIN_ID,
+    sync:{scope:'projects',open:openPptStore},
     home_store: PPT_HOME_STORE,
     manifest: pptManifest,
     project_data: pptProjectData,
@@ -369,6 +377,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: WORKFLOWS_PROJECT_PLUGIN_ID,
+    sync:{scope:'projects',open:openWorkflowsStore},
     home_store: WORKFLOWS_HOME_STORE,
     manifest: workflowsManifest,
     project_data: workflowsProjectData,

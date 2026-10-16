@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
-import { PersonalAuth, personalCloudConfig } from "../apps/local-host/src/personal-auth.js";
+import { PersonalAuth, personalCloudConfig } from "@molis-ai/molis-work-app-local-host";
 import type { SecretStore } from "@molis-ai/molis-work-storage";
 
 const config={authOrigin:'https://auth.example',clientId:'molis-work-desktop'};
@@ -22,8 +22,8 @@ test('Auth profiles for another login client are rejected without saving tokens'
 });
 function fixture(desktop = false) {
   const activeConfig={...config,...(desktop?{desktopClientId:'molis-work-desktop-local'}:{})};
-  const values=new Map<string,string>();let transaction:any;let tokenCalls=0;let now=1000;let failRefresh=false;let identityFailure='';let logoutFailure=false;
-  const store={get:(key:string)=>values.get(key)??null,put:(key:string,value:string)=>values.set(key,value),delete:(key:string)=>values.delete(key)} as unknown as SecretStore;
+  const values=new Map<string,string>();let transaction!:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean};let tokenCalls=0;let now=1000;let failRefresh=false;let identityFailure='';let logoutFailure=false;
+  const store={get:(key:string)=>values.get(key)??null,put:(key:string,value:string)=>values.set(key,value),delete:(key:string)=>values.delete(key)};
   const http:typeof fetch=async(url,init)=>{
     if(String(url).endsWith('/transactions')){transaction=JSON.parse(String(init?.body));return Response.json({data:{loginUrl:'https://auth.example/login#transaction=synthetic'}});}
     if(String(url).endsWith('/oauth2/token')){
@@ -108,7 +108,8 @@ test('refresh is single-flight and rotates; unknown outcome never replays old re
   const f=fixture();await f.auth.begin('http://127.0.0.1:4173/account/callback');await f.auth.complete('code',f.transaction.state);
   f.advance();const values=await Promise.all([f.auth.accessToken(),f.auth.accessToken(),f.auth.accessToken()]);
   assert.equal(new Set(values).size,1);assert.equal(f.tokenCalls,2);
-  f.advance();f.fail();await assert.rejects(f.auth.accessToken());assert.equal(f.values.size,0);
+  f.advance();f.fail();await assert.rejects(f.auth.accessToken());assert.equal(f.auth.identity()?.userId,"alice");
+  assert.ok([...f.values.values()].every(value=>!value.includes("synthetic-refresh")));
   await assert.rejects(f.auth.accessToken(),/LOGIN_REQUIRED/);assert.equal(f.tokenCalls,3);
 });
 
@@ -137,6 +138,21 @@ test('status preserves offline identity but clears revoked credentials',async()=
   lease.assertCurrent();assert.equal(lease.signal.aborted,false);
   f.failIdentity('revoked');assert.equal(await f.auth.currentIdentity(),null);assert.equal(f.values.size,0);
   assert.equal(lease.signal.aborted,true);
+});
+
+test('PERSAF-01 uncertain refresh preserves offline ownership across restart without replaying the burned token',async()=>{
+  const f=fixture();await f.auth.begin('http://127.0.0.1:4173/account/callback');
+  await f.auth.complete('code',f.transaction.state);
+  const lease=f.auth.accountLease();f.advance();f.fail();
+  await assert.rejects(f.auth.currentIdentity(),/response lost/);
+  assert.equal(f.auth.identity()?.userId,'alice');assert.equal(lease.signal.aborted,false);lease.assertCurrent();
+  const requests=f.tokenCalls;
+  const restarted=new PersonalAuth(config,f.store,f.http);
+  assert.equal((await restarted.currentIdentity())?.userId,'alice');
+  await assert.rejects(restarted.accessToken(),/LOGIN_REQUIRED/);
+  assert.equal(f.tokenCalls,requests,'offline status never replays an uncertain refresh');
+  assert.ok([...f.values.values()].every(value=>!value.includes('synthetic-refresh')&&!value.includes('synthetic-access')));
+  await restarted.logout();assert.equal(restarted.identity(),null);assert.equal(f.values.size,0);
 });
 
 test('cancellation validates state and offline logout still clears local credentials',async()=>{

@@ -330,7 +330,7 @@ jobs:
         with:
           workspaces: |
             apps/desktop/src-tauri
-            cloud/sync
+            apps/sync-worker
 
       # Each check is broken once on a scratch repository and must go red (the shell cases use a stand-in for shellcheck here).
       - name: Native check rules reject what they claim to

@@ -1,5 +1,5 @@
+import { syncError } from './sync-errors.js';
 import type { DatabaseSync } from "node:sqlite";
-import { PluginSyncError } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { CharacterDraft } from "@molis-ai/molis-work-contracts/modules/characters";
 import { parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
@@ -10,11 +10,12 @@ import {
   readDatabaseSpace,
   replicaMarkSql,
   replicaTransaction,
+  queueReplicaChange,
 } from "@molis-ai/molis-work-storage";
 
-function invalid(): never { throw new PluginSyncError("sync.invalid", "角色草稿同步数据不合法"); }
+function invalid(): never { throw syncError("invalid", "角色草稿同步数据不合法"); }
 function limit(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > 512 * 1024) throw new PluginSyncError("sync.limit", "角色草稿超过当前同步上限（512 KiB）");
+  if (Buffer.byteLength(JSON.stringify(value)) > 512 * 1024) throw syncError("limit", "角色草稿超过当前同步上限（512 KiB）");
 }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
@@ -58,7 +59,7 @@ export function installCharactersReplication(db: DatabaseSync): void {
   replicaTransaction(db, () => {
     initializeReplica(ledger);
     if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='characters_sync_insert'").get()) return;
-    db.exec("INSERT INTO characters_replica_changes(key) SELECT json_array(owner_actor_id,'character',character_id) FROM character_drafts ORDER BY character_id");
+    for(const row of db.prepare('SELECT owner_actor_id,character_id FROM character_drafts ORDER BY character_id').all())queueReplicaChange(ledger,JSON.stringify([row.owner_actor_id,'character',row.character_id]));
     for (const [event, row] of [["INSERT", "NEW"], ["UPDATE", "NEW"], ["DELETE", "OLD"]]) {
       const mark = replicaMarkSql(`json_array(${row}.owner_actor_id,'character',${row}.character_id)`)
         .replace(/\breplica_/gu, "characters_replica_");
@@ -71,7 +72,7 @@ export function createCharactersReplica(db: DatabaseSync, actorId: string, conte
   spaceId: string; authorize(): void;
 }): SyncReplicaAdapter {
   const binding = readDatabaseSpace(db);
-  if (binding?.kind !== "personal" || binding.spaceId !== context.spaceId) throw new PluginSyncError("sync.scope", "角色草稿不属于当前个人空间");
+  if (binding?.kind !== "personal" || binding.spaceId !== context.spaceId) throw syncError("scope", "角色草稿不属于当前个人空间");
   const idFromKey = (key: string): string => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { invalid(); }
@@ -90,7 +91,7 @@ export function createCharactersReplica(db: DatabaseSync, actorId: string, conte
         owner_actor_id: string; record: string;
       } | undefined;
       if (!row) return null;
-      if (row.owner_actor_id !== actorId) throw new PluginSyncError("sync.scope", "角色标识已属于另一位用户");
+      if (row.owner_actor_id !== actorId) throw syncError("scope", "角色标识已属于另一位用户");
       const record = parseDraft(JSON.parse(row.record), id, actorId);
       const value = { format: 1, spaceId: context.spaceId, record };
       limit(value);
@@ -101,7 +102,7 @@ export function createCharactersReplica(db: DatabaseSync, actorId: string, conte
       const current = db.prepare("SELECT owner_actor_id,revision,updated_at FROM character_drafts WHERE character_id=?").get(id) as {
         owner_actor_id: string; revision: number; updated_at: string;
       } | undefined;
-      if (current && current.owner_actor_id !== actorId) throw new PluginSyncError("sync.scope", "角色标识已属于另一位用户");
+      if (current && current.owner_actor_id !== actorId) throw syncError("scope", "角色标识已属于另一位用户");
       if (value === null) {
         db.prepare("DELETE FROM character_drafts WHERE character_id=? AND owner_actor_id=?").run(id, actorId);
         return;

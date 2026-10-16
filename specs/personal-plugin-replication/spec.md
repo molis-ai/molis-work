@@ -111,3 +111,16 @@ These results validate the implemented rows above; they are not evidence that th
 
 - Each project capture rule now has an owner journal and one collection. The receiving device restores a rule disabled; an active local rule cannot be overwritten by remote restore. No connector credentials, polling leases or automatic capture runs are copied.
 - Full build and 4 direct tests plus 13 Host sync tests passed. Feed behavior regression: 57 passed. Source, Signal, Feed Item and Attention business data remain separate owner work; this rule collection alone is not complete Feed/Inbox sync.
+
+## Anti-corruption corrections — 2026-10-16
+
+The review corrections and their authoritative evidence are recorded in [repository-anti-corruption](../repository-anti-corruption/spec.md), PERSAF-01–05. The earlier dated health-gate explanations above are historical results, not a waiver: the current tracked tree passes the merge-base health gate. This does not mark remaining owner integrations or public deployment complete.
+
+- Offline identity survives an uncertain refresh across Host restart; the burned credential is not replayed and cannot authorize cloud operations. Explicit sign-out still revokes account leases.
+- Pages incremental paths read/apply one owner-validated record, not a hidden whole-project snapshot; the regression transfers 170 documents exceeding 16 MiB and proves unrelated editor revisions stay unchanged.
+- Current Store baselines now own their journal/editor-version tables and the sync policy store. No runtime ALTER or repair CREATE is used to upgrade an old sync schema. Versioned test fixtures were maintained without changing historical business facts; real Home data was not touched.
+- Owner code uses Storage's journal ports. Built-in sync factories live in the existing plugin catalog, not a parallel Host plugin list. Explicit project-plugin removal remains a local choice; personal toolbar hiding is still not plugin disablement.
+- Contracts retain types/schema, SDK owns declaration parsing/dependency expansion, sync-replication owns policy parsing, and errors use each owner's common ActionError. Account and sync UI use UiRequest without overriding global fetch.
+- Rust source is in `apps/sync-worker`; its generated runtime is `dist`, while locked Node tools live in `examples/personal-sync-tools`. Actual rebuilt WASM plus isolated D1 tests passed, without changing the Rust business protocol or deploying resources.
+
+Current build, boundary/API/version/health/resource gates, focused owner/security/contracts/install regression, desktop/narrow Chrome interaction and actual WASM/D1 integration have local evidence in the authoritative record. Full repository CI, real-data maintenance and production acceptance remain separate steps. The existing 512 KiB per-record bound, missing binary transport and outstanding owner rows are unchanged.

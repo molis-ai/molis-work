@@ -12,7 +12,7 @@ export function createProjectReplicaJournal(db: ReplicaDatabase, projectId: stri
   const fields = [...new Set(definitions.flatMap(d => d.sequenceFields))];
   const condition = types.map(() => 'type LIKE ?').join(' OR ');
   const receiptCondition = `operation IN (${operations.map(() => '?').join(',')})`;
-  const source = (): ProjectReplicaRow[] => db.prepare(`SELECT seq,${eventColumns.join(',')} FROM events WHERE project_id=? AND (${condition}) ORDER BY seq`).all(projectId, ...types);
+  const source = (): ProjectReplicaRow[] => db.prepare(`SELECT seq,${eventColumns.join(',')} FROM events WHERE project_id=? AND (${condition}) ORDER BY seq`).all(projectId, ...types).map(portableJournalRow);
   const read = () => {
     const events = source();
     const encode = (value: unknown): string => {
@@ -60,7 +60,7 @@ export function createProjectReplicaJournal(db: ReplicaDatabase, projectId: stri
       // Fresh target sequences preserve source order even when old copies had interleaved local histories.
       for (const row of events) {
         db.prepare(`INSERT INTO events (${eventColumns.join(',')}) VALUES (${eventColumns.map(() => '?').join(',')})`).run(...eventColumns.map(c => row[c]));
-        ids.set(String(row.event_id), Number(db.prepare('SELECT seq FROM events WHERE event_id=?').get(row.event_id).seq));
+        ids.set(String(row.event_id), Number(db.prepare('SELECT seq FROM events WHERE event_id=?').get(row.event_id)!.seq));
       }
       const decode = (value: unknown): number => {
         if (value === '@start') return 0;
@@ -92,3 +92,7 @@ function parseList(value: unknown, columns: readonly string[], projectId: string
 }
 function like(value: string, pattern: string): boolean { return new RegExp('^' + pattern.replaceAll('.', '\\.').replaceAll('%', '.*') + '$').test(value); }
 function invalid(): never { throw replicaError('replica_journal_invalid'); }
+function portableJournalRow(row:Record<string,unknown>):ProjectReplicaRow {
+ if(Object.values(row).some(value=>value!==null&&typeof value!=='string'&&typeof value!=='number'))invalid();
+ return row as ProjectReplicaRow;
+}

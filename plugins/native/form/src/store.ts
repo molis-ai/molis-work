@@ -1,3 +1,4 @@
+import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
@@ -350,7 +351,7 @@ export class FormStore {
  * list gives the running plugin (`services.database`), read with `form:read` and written with `form:write`; the store's
  * own connection (deletion, tests) opens the same file at the same baseline.
  */
-export const FORM_DATABASE: PluginDatabaseDeclaration = { store_name: "form", version: 2, read_permission: "form:read", write_permission: "form:write", schema: `
+export const FORM_DATABASE: PluginDatabaseDeclaration = { store_name: "form", version: 3, read_permission: "form:read", write_permission: "form:write", schema: (`
   CREATE TABLE forms (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -378,7 +379,7 @@ export const FORM_DATABASE: PluginDatabaseDeclaration = { store_name: "form", ve
   );
   CREATE UNIQUE INDEX submissions_request ON submissions (form_id, request_id) WHERE request_id IS NOT NULL;
   CREATE TABLE form_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
-` };
+`)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
 
 /** A store on its own connection, for the project's deletion and for tests; the running plugin uses the library the Runtime gives it. */
 export function openFormStore(homeDirectory: string): FormStore & { replica(context: AggregateReplicaContext): ReturnType<typeof createAggregateReplica> } {

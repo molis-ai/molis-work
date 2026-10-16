@@ -25,10 +25,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
     let state=null,busy=false,dirty=false;
     const node=(tag,cls,text)=>{const el=document.createElement(tag);el.className=cls;if(text)el.textContent=text;return el;};
     const namespace=(s)=>JSON.stringify([s.plugin_id,s.publisher_id,s.publisher_signature,s.collection_id,s.schema_version]);
-    const request=async(path,body,method)=>{
-      const response=await fetch('/api/sync'+path,{method:method||'GET',headers:molisWorkControlHeaders(),...(body===undefined?{}:{body:JSON.stringify(body)})});
-      const data=await response.json();if(!response.ok)throw new Error(L(data.error||'同步暂时不可用'));return data;
-    };
+    const request=(path,body,method)=>molisWorkRequest('/api/sync'+path,{method:method||'GET',...(body===undefined?{}:{body}),fallback:L('同步暂时不可用')});
     const render=(data)=>{
       state=data;form.hidden=!data.available;status.classList.remove('mw-loading');
       if(!data.available){status.textContent=L(data.reason);return;}

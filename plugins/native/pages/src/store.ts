@@ -1,9 +1,10 @@
+import { replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { PagesComments } from "./comments-store.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
 import { ensureStorageSpace, homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { StorageSpace } from "@molis-ai/molis-work-contracts/platform/storage";
 import { createPagesSyncAdapter, initializePagesSyncRevision, type PagesSyncContext } from "./sync.js";
-import { initializePagesReplication, createPagesReplica, type PagesReplicationContext } from './replication.js';
+import { initializePagesReplication, createPagesReplica, bindPagesReplication, type PagesReplicationContext } from './replication.js';
 
 import { realpathSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
@@ -443,7 +444,7 @@ function keepPagesChange(db: DatabaseSync, before: PagesRecord, after: PagesReco
  * The Pages store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version. Columns keep the order existing stores have them in.
  */
-export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
+export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 3, schema: (`
   CREATE TABLE pages (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL DEFAULT '',
@@ -471,7 +472,7 @@ export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
   -- What an edit by an agent or a workflow replaced, kept a while so the person can take that edit back (single use).
   CREATE TABLE page_changes (change_id TEXT PRIMARY KEY, page_id TEXT NOT NULL, to_version INTEGER NOT NULL, before_json TEXT NOT NULL, created_at TEXT NOT NULL);
   CREATE TABLE page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id));
-` };
+`)+replicaSchemaSql()+"CREATE TABLE pages_sync_revisions(project_id TEXT PRIMARY KEY,revision INTEGER NOT NULL);" };
 
 export function openPagesStore(homeDirectory: string): PagesStore & PagesSynchronization {
   const db = openBaselineHomeSqlite(homeDirectory, PAGES_HOME_STORE.path, PAGES_STORE_BASELINE);
@@ -562,3 +563,5 @@ function pagesSynchronization(db: DatabaseSync, space: StorageSpace): PagesSynch
     replica: context => createPagesReplica(db, space, context),
   };
 }
+
+export function openPagesReplicationBinding(home:string){return bindPagesReplication(openPagesStore(home));}

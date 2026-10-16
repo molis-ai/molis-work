@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node tooling/build-client.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -57,7 +57,9 @@
     "@molis-ai/molis-work-plugin-cognia": "workspace:*",
     "@molis-ai/molis-work-im-ui": "workspace:*",
     "@molis-ai/molis-work-plugin-issues": "workspace:*",
-    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
+    "@molis-ai/molis-work-module-characters": "workspace:*",
+    "@molis-ai/molis-work-storage": "workspace:*"
   },
   "molis-work": {
     "path": "apps/workbench",

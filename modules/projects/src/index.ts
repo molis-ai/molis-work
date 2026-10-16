@@ -1,3 +1,4 @@
+import {wasProjectPluginRemoved} from "./plugin-removal.js";
 import { randomUUID } from "node:crypto";
 
 import type { ProjectDeletionRecord, ProjectDeletionStep, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -106,6 +107,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);
     const withSteps = (receipt: StoredProjectDeletion): ProjectDeletionRecord => ({ ...this.records.deletionRecord(receipt), owner_steps: this.deletionSteps.list(receipt.deletion_id) });
     this.query = {
+      wasProjectPluginRemoved:(projectId,pluginId)=>{this.records.get(projectId);return wasProjectPluginRemoved(options.db,projectId,pluginId);},
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
       listHiddenPlugins: (projectId) => this.records.listHidden(projectId),
       listProjects: () => this.records.list(),

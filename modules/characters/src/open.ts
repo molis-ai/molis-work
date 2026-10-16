@@ -1,3 +1,4 @@
+import { replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { chmodSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -10,13 +11,13 @@ import { createCharactersReplica, installCharactersReplication } from "./replica
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** The one current schema of `characters/characters.sqlite`; any other version, or tables without one, is refused (repository-anti-corruption §4.1). */
-export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `CREATE TABLE character_drafts (
+export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`CREATE TABLE character_drafts (
   character_id TEXT PRIMARY KEY,
   owner_actor_id TEXT NOT NULL,
   revision INTEGER NOT NULL,
   updated_at TEXT NOT NULL,
   record TEXT NOT NULL
-);` };
+);`)+replicaSchemaSql('characters') };
 
 /** The Characters store in the Home's store registry (W4-11): `characters/characters.sqlite`. */
 export const CHARACTERS_HOME_STORE = { path: "characters", library: { baseline: CHARACTERS_STORE_BASELINE, file: "characters.sqlite" } } as const satisfies HomeStoreDeclaration;

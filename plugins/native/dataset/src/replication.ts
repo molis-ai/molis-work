@@ -1,5 +1,6 @@
+import { syncError } from './sync-errors.js';
 import type { AggregateDefinition, PortableRow } from '@molis-ai/molis-work-storage';
-import { PluginSyncError, type PluginSyncDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export const datasetSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'datasets',title:'数据表与保存版本',schema_version:1,requires:[]}]};
 export const datasetAggregates:readonly AggregateDefinition[]=[{
@@ -17,7 +18,7 @@ export const datasetAggregates:readonly AggregateDefinition[]=[{
       check(s.id===r.id&&s.project_id===r.project_id&&Number.isSafeInteger(s.version)&&s.version>0);base(s);table(s.columns,s.rows);
     }
   },
-  dependencies({record:r},context,projectId){if(r.artifact_id&&!context.hasArtifact(projectId,String(r.artifact_id),Number(r.artifact_version)))throw new PluginSyncError('sync.dependencies','等待数据表关联的成果版本');},
+  dependencies({record:r},context,projectId){if(r.artifact_id&&!context.hasArtifact(projectId,String(r.artifact_id),Number(r.artifact_version)))throw syncError("dependencies",'等待数据表关联的成果版本');},
 }];
 function base(r:PortableRow){
   for(const k of ['id','project_id','title','description','artifact_id'])check(typeof r[k]==='string');
@@ -30,4 +31,4 @@ function table(columns:unknown,rows:unknown){
   columns.forEach((c,i)=>{check(c&&Object.keys(c).sort().join(',')==='id,name,order,type'&&typeof c.id==='string'&&c.id.length>0&&!ids.has(c.id)&&typeof c.name==='string'&&c.order===i+1&&['text','number','date'].includes(c.type));ids.add(c.id);});
   for(const r of rows){check(r&&Object.keys(r).sort().join(',')==='cells,id'&&typeof r.id==='string'&&r.id.length>0&&!rowIds.has(r.id));rowIds.add(r.id);check(r.cells&&typeof r.cells==='object'&&!Array.isArray(r.cells)&&Object.keys(r.cells).length===ids.size&&Object.entries(r.cells).every(([k,v])=>ids.has(k)&&typeof v==='string'));}
 }
-function check(value:unknown):asserts value{if(!value)throw new PluginSyncError('sync.invalid','数据表同步数据不合法');}
+function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'数据表同步数据不合法');}

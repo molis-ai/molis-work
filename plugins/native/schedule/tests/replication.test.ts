@@ -1,3 +1,4 @@
+import {replicaSchemaSql} from "@molis-ai/molis-work-storage";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
@@ -17,7 +18,7 @@ function fixture() {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys=ON");
   db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
-  bindDatabaseSpace(db, space);
+  db.exec(replicaSchemaSql('schedule'));bindDatabaseSpace(db, space);
   installScheduleReplication(db, projectId);
   const replica = createScheduleTaskReplica(db, context);
   return { db, replica, close: () => db.close() };

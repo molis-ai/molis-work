@@ -1,3 +1,4 @@
+import type {TestContext} from "node:test";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtempSync,rmSync,readFileSync } from 'node:fs';
@@ -6,13 +7,13 @@ import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
 import {ensureStorageSpace,personalStorageSpace,homeSqlitePath} from '@molis-ai/molis-work-storage';
 import {openPagesStore} from '@molis-ai/molis-work-plugin-pages';
-import {PersonalSync,syncNamespace,type SyncRegistration} from '../modules/sync-replication/src/index.js';
+import {PersonalSync,syncNamespace,type SyncRegistration} from '@molis-ai/molis-work-module-sync-replication';
 import type {SyncEvent,SyncMutation} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {availableProjectPluginIds} from '@molis-ai/molis-work-app-workbench';
-import {createPersonalSync} from '../apps/local-host/src/personal-sync.js';
-import {artifactSyncSelection,createPersonalArtifactRegistration} from '../apps/local-host/src/personal-artifact-sync.js';
-import {LocalProjectDatabase} from '../apps/local-host/src/project-database.js';
+import {createPersonalSync} from '@molis-ai/molis-work-app-local-host';
+import {artifactSyncSelection,createPersonalArtifactRegistration} from '@molis-ai/molis-work-app-local-host';
+import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
 import {ArtifactsModule} from '@molis-ai/molis-work-module-artifacts';
 import {openFormStore,formManifest} from '@molis-ai/molis-work-plugin-form';
 import {openDatasetStore,datasetManifest} from '@molis-ai/molis-work-plugin-dataset';
@@ -83,7 +84,33 @@ test('Host exposes and transfers all registered creative collections through the
   }finally{receivedSchedule.close();}
   const before=f.events.length;await a.run();await b.run();assert.equal(f.events.length,before,'no replication echo');
 });
-function fixture(t:any){
+test('PERSAF-05 incoming content does not silently re-enable an explicitly removed plugin',async t=>{
+  const f=fixture(t),previous=process.env.MOLIS_WORK_SYNC_LOCAL;process.env.MOLIS_WORK_SYNC_LOCAL='1';
+  t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_LOCAL;else process.env.MOLIS_WORK_SYNC_LOCAL=previous;});t.mock.method(globalThis,'fetch',f.transport);
+  const p=await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},async c=>{const p=await c.createProject({display_name:'Explicit choice',actor_id:'alice'});c.addProjectPlugin({project_id:p.project_id,plugin_id:'feed',actor_id:'alice'});return p;});
+  await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},async c=>{await c.ensureSyncedProject({project_id:p.project_id,display_name:p.display_name,actor_id:'alice'},()=>{});c.addProjectPlugin({project_id:p.project_id,plugin_id:'feed',actor_id:'alice'});c.removeProjectPlugin({project_id:p.project_id,plugin_id:'feed',actor_id:'alice'});});
+  const store=new LocalProjectDatabase(p.database_path);let id:string;try{id=new FeedOutRuleStore(store.db).create(p.project_id,{name:'User choice is retained',match:{contains:'fact'},enabled:false}).rule_id;}finally{store.close();}
+  const check=()=>{},lease={userId:'alice',applicationId:'work',authOrigin:'http://127.0.0.1:8787',signal:new AbortController().signal,assertCurrent:check,accessToken:async()=>'synthetic-only'};
+  const a=(await createPersonalSync(f.homes[0],f.space,lease,withMolisWorkProjectCatalog,check))!,b=(await createPersonalSync(f.homes[1],f.space,lease,withMolisWorkProjectCatalog,check))!;t.after(()=>{a.close();b.close();});
+  const m=feedManifest;await a.save({...a.policy(),selections:[{plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:m.sync!.collections[0]!.id,schema_version:1}]});await b.run();
+  await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},c=>{assert.equal(availableProjectPluginIds(c.listProjectPlugins(p.project_id)).has('feed'),false);c.addProjectPlugin({project_id:p.project_id,plugin_id:'feed',actor_id:'alice'});});
+  await b.run();assert.equal(b.status().error,null);
+  const target=await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},c=>c.listProjects().find(row=>row.project_id===p.project_id)!);const received=new LocalProjectDatabase(target.database_path);try{assert.equal(new FeedOutRuleStore(received.db).get(p.project_id,id).name,'User choice is retained');}finally{received.close();}
+});
+
+test('PERSAF-02 per-document replication works beyond the project snapshot limit and leaves unrelated editor versions untouched',async t=>{
+  const f=fixture(t);const ids=f.withStore(0,s=>Array.from({length:170},(_,i)=>s.create({project_id:'project',title:'Document '+i,body:body('x'.repeat(100000))}).id));
+  await f.enable();
+  for(let i=0;i<6;i++){await f.clients[0].run();await f.clients[1].run();}
+  assert.equal(f.clients[0].status().error,null);assert.equal(f.clients[1].status().error,null);
+  assert.equal(f.withStore(1,s=>s.list('project').length),170);
+  const unchanged=f.withStore(1,s=>s.get(ids[1]!).version);
+  f.withStore(0,s=>s.update(ids[0]!,{title:'Changed only one'}));await f.clients[0].run();await f.clients[1].run();
+  assert.equal(f.withStore(1,s=>s.get(ids[0]!).title),'Changed only one');
+  assert.equal(f.withStore(1,s=>s.get(ids[1]!).version),unchanged);
+});
+
+function fixture(t:TestContext){
   const root=mkdtempSync(join(tmpdir(),'personal-sync-'));
   const space=personalStorageSpace('http://127.0.0.1:8787','work','alice');
   const homes=['a','b'].map(name=>join(root,name));homes.forEach(h=>ensureStorageSpace(h,space));
@@ -271,7 +298,7 @@ test('business SQL rollback rolls back the outbox too',async t=>{
 test('D1 schema: atomic CAS, owner isolation, idempotency constraint, disabled policy',()=>{
   const db=new DatabaseSync(':memory:');
   try{
-    db.exec(readFileSync('cloud/sync/migrations/0001_sync.sql','utf8'));
+    db.exec(readFileSync('apps/sync-worker/migrations/0001_sync.sql','utf8'));
     const ns=syncNamespace(selection);
     db.prepare('INSERT INTO sync_policy VALUES (?,1,?,?)').run('alice','{}',JSON.stringify([ns]));
     const insert=db.prepare('INSERT INTO sync_events(space,namespace,operation,key,base,value,policy_revision) VALUES (?,?,?,?,?,?,?)');

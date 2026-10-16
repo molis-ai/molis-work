@@ -1,6 +1,8 @@
+import {queueReplicaChange} from "@molis-ai/molis-work-storage";
+import { syncError } from './sync-errors.js';
 import type { DatabaseSync } from "node:sqlite";
 import { TODO_STATUSES } from "@molis-ai/molis-work-contracts/modules/todo";
-import { PluginSyncError, type PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import {
   createSqliteReplica, initializeReplica, readDatabaseSpace, replicaMarkSql, replicaTransaction,
@@ -32,11 +34,11 @@ export function initializeTodoReplication(db: DatabaseSync): void {
   if (readDatabaseSpace(db)?.kind !== "personal") return;
   replicaTransaction(db, () => {
     initializeReplica(db);
-    db.exec("CREATE TABLE IF NOT EXISTS todo_editor_versions(id TEXT PRIMARY KEY,revision INTEGER NOT NULL)");
-    db.exec("CREATE TABLE IF NOT EXISTS todo_imported_changes(change_id TEXT PRIMARY KEY)");
+    db.prepare("SELECT id,revision FROM todo_editor_versions LIMIT 0").all();
+    db.prepare("SELECT change_id FROM todo_imported_changes LIMIT 0").all();
     db.exec("INSERT INTO todo_editor_versions SELECT id,revision FROM todo_items WHERE 1 ON CONFLICT(id) DO UPDATE SET revision=MAX(revision,excluded.revision)");
     if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name='todo_replica_insert'").get()) {
-      db.exec("INSERT INTO replica_changes(key) SELECT json_array('todo',id) FROM todo_items ORDER BY id");
+      for(const row of db.prepare("SELECT id FROM todo_items ORDER BY id").all())queueReplicaChange(db,JSON.stringify(["todo",row.id]));
       for (const event of ["INSERT", "UPDATE", "DELETE"] as const) {
         const row = event === "DELETE" ? "OLD" : "NEW";
         db.exec("CREATE TRIGGER todo_replica_" + event.toLowerCase() + " AFTER " + event + " ON todo_items BEGIN " +
@@ -55,7 +57,7 @@ export function isImportedTodoChange(db: DatabaseSync, id: string): boolean {
 
 export function createTodoReplica(db: DatabaseSync, context: AggregateReplicaContext): SyncReplicaAdapter {
   const space = readDatabaseSpace(db);
-  if (space?.kind !== "personal" || space.spaceId !== context.spaceId) invalid("同步空间不匹配", "sync.scope");
+  if (space?.kind !== "personal" || space.spaceId !== context.spaceId) invalid("同步空间不匹配", "scope");
   const decode = (key: string): string => {
     let parts: unknown;
     try { parts = JSON.parse(key); } catch { return invalid(); }
@@ -110,7 +112,7 @@ function validate(value: unknown, id: string, spaceId: string): {
 } {
   const wire = object(value);
   exact(wire, ["format", "spaceId", "project", "item", "changes", "requests"]);
-  if (wire.format !== 1 || wire.spaceId !== spaceId) invalid("同步空间不匹配", "sync.scope");
+  if (wire.format !== 1 || wire.spaceId !== spaceId) invalid("同步空间不匹配", "scope");
   const project = wire.project === null ? null : object(wire.project);
   if (project) {
     exact(project, ["id", "title"]);
@@ -191,8 +193,8 @@ function optionalInstant(value: unknown): boolean { return value === null || typ
 function optionalDate(value: unknown): boolean { return value === null || typeof value === "string" && isTodoDate(value); }
 function optionalTime(value: unknown): boolean { return value === null || typeof value === "string" && isTodoTime(value); }
 function size(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("待办及历史超过当前同步上限（512 KiB），原数据仍保留在本机", "sync.limit");
+  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("待办及历史超过当前同步上限（512 KiB），原数据仍保留在本机", "limit");
 }
-function invalid(message = "待办同步数据不合法", code: ConstructorParameters<typeof PluginSyncError>[0] = "sync.invalid"): never {
-  throw new PluginSyncError(code, message);
+function invalid(message = "待办同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never {
+  throw syncError(code, message);
 }

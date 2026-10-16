@@ -141,3 +141,5 @@ export { pluginWorkbenchClientAsset } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";
+
+export {PERSONAL_ACCOUNT_CLIENT_SCRIPT} from './scripts/personal-account.js';

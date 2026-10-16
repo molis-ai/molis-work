@@ -10,7 +10,7 @@ test('Auth entry works by keyboard inside the new project menu at desktop and ph
   // Only mock identity presentation. The HTTP suite tests the real PKCE/session flow.
   await command('Page.addScriptToEvaluateOnNewDocument', { source: `{
     const originalFetch = window.fetch.bind(window);
-    window.fetch = (input, init) => String(input).startsWith('/api/personal/status')
+    window.fetch = (input, init) => new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
       ? Promise.resolve(Response.json({configured:true,identity:null,syncEnabled:false}))
       : originalFetch(input, init);
   }` }, sessionId);
@@ -37,7 +37,7 @@ test('signed-in account menu offers explicit local/personal choices without auto
   const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
     const original=window.fetch.bind(window);
-    window.fetch=(input,init)=>String(input).startsWith('/api/personal/status')
+    window.fetch=(input,init)=>new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
       ? Promise.resolve(Response.json({configured:true,identity:{userId:'test-alice',displayName:'测试用户',emails:['alice@example.test']},space:'local',syncEnabled:false}))
       : original(input,init);
   }`},sessionId);

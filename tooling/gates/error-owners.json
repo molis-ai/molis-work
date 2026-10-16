@@ -11,7 +11,9 @@
   },
   "owners": {
     "storage": {
-      "paths": ["packages/storage/src/project-replica*.ts"],
+      "paths": [
+        "packages/storage/src/project-replica*.ts"
+      ],
       "reason": "Project replication validates portable rows and journal sequence references within Storage's technical persistence boundary."
     },
     "agent": {
@@ -376,6 +378,12 @@
         "apps/local-host/src/workflows-*"
       ],
       "reason": "The Workflows plugin and the Host files that serve it; its codes already start with workflows."
+    },
+    "sync_replication": {
+      "paths": [
+        "modules/sync-replication/"
+      ],
+      "reason": "The personal sync coordinator owns policy validation and transport coordination failures; asset semantics remain with each owner."
     }
   }
 }

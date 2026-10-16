@@ -28,7 +28,8 @@ const ORIGIN_PATTERN = /^http:\/\/(?:127\.0\.0\.1|localhost):4173\/(?:[A-Za-z0-9
 const PERMISSIONS = new Map<string, string[]>([
   ["default", ["allow-capsule-window", "allow-pty-kill", "allow-pty-resize", "allow-pty-spawn", "allow-pty-write", "allow-shelf-desktop", "core:app:default", "core:event:default", "core:webview:default", "core:window:allow-start-dragging", "core:window:default", "core:default"].sort()],
   ["context-directories", ["allow-context-directories"]],
-  ["main-external-links", ["allow-open-external-url"]],
+  // Personal login was added by this branch: fixed loopback account routes only, not a general HTTP bridge.
+  ["main-external-links", ["allow-open-external-url", "allow-personal-account-request"]],
 ]);
 
 test("S-14 every capability reaches only the local web host's own origin, on named windows, with the pinned permissions", () => {

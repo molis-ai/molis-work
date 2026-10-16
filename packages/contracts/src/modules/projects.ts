@@ -215,6 +215,7 @@ export interface ProjectDeletionResult {
 }
 
 export interface ProjectsQueryApi {
+  wasProjectPluginRemoved(projectId:string,pluginId:ProjectPluginId):boolean;
   listProjectPlugins(projectId: string): ProjectPluginId[];
   listHiddenPlugins(projectId: string): ProjectPluginId[];
   listProjects(): ProjectRecord[];

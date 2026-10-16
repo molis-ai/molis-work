@@ -1,5 +1,6 @@
+import { syncError } from './sync-errors.js';
 import type { AggregateDefinition } from '@molis-ai/molis-work-storage';
-import { PluginSyncError, type PluginSyncDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export const pptSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'presentations',title:'演示稿',schema_version:1,requires:[]}]};
 export const pptAggregates:readonly AggregateDefinition[]=[{
@@ -19,6 +20,6 @@ export const pptAggregates:readonly AggregateDefinition[]=[{
       check(Array.isArray(s.bullets)&&s.bullets.length<=12&&s.bullets.every((v:unknown)=>typeof v==='string'&&v.length<=200));
     });
   },
-  dependencies({record:r},context,projectId){if(r.artifact_id&&!context.hasArtifact(projectId,String(r.artifact_id),Number(r.artifact_version)))throw new PluginSyncError('sync.dependencies','等待演示稿关联的成果版本');},
+  dependencies({record:r},context,projectId){if(r.artifact_id&&!context.hasArtifact(projectId,String(r.artifact_id),Number(r.artifact_version)))throw syncError("dependencies",'等待演示稿关联的成果版本');},
 }];
-function check(value:unknown):asserts value{if(!value)throw new PluginSyncError('sync.invalid','演示稿同步数据不合法');}
+function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'演示稿同步数据不合法');}

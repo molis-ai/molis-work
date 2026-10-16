@@ -13,6 +13,7 @@ export interface PersonalAccountLease {
   accessToken(): Promise<string>;
 }
 interface Credentials { identity: PersonalIdentity; clientId?: string; access: string; refresh: string; expires: number }
+type SavedAccount = Credentials | { identity: PersonalIdentity; clientId?: string; offline: true };
 type HttpFetch = typeof fetch;
 const random = () => randomBytes(32).toString("base64url");
 
@@ -43,7 +44,7 @@ export class PersonalAuth {
     private readonly http: HttpFetch=fetch, private readonly now=()=>Date.now()) {
     this.key=`personal-auth:${createHash("sha256").update(JSON.stringify(config)).digest("hex")}`;
   }
-  private saved(): Credentials|null {
+  private saved(): SavedAccount|null {
     const raw=this.secrets.get(this.key); return raw?JSON.parse(raw):null;
   }
   identity(): PersonalIdentity|null { return this.saved()?.identity ?? this.refreshingIdentity; }
@@ -87,7 +88,9 @@ export class PersonalAuth {
     const epoch=this.epoch;
     try {
       if(this.refreshing)await this.refreshing;
-      if(!this.saved()||epoch!==this.epoch)return null;
+      const account=this.saved();
+      if(!account||epoch!==this.epoch)return null;
+      if('offline' in account)return account.identity;
       const access=await this.accessToken();
       const identity=await this.readIdentity(access, this.saved()?.clientId ?? this.config.clientId);
       const saved=this.saved();
@@ -169,13 +172,13 @@ export class PersonalAuth {
   }
   async accessToken(): Promise<string> {
     if (this.refreshing) return (await this.refreshing).access;
-    const saved=this.saved(); if (!saved) throw new Error("LOGIN_REQUIRED");
+    const saved=this.saved(); if (!saved || 'offline' in saved) throw new Error("LOGIN_REQUIRED");
     if (saved.expires>this.now()+60000) return saved.access;
     const epoch=this.epoch;
     // Rotation is single-flight. Burn the old refresh BEFORE sending; never replay
     // after a lost response or process restart (Auth revokes replayed families).
     this.refreshingIdentity=saved.identity;
-    this.secrets.delete(this.key);
+    this.secrets.put(this.key,JSON.stringify({identity:saved.identity,clientId:saved.clientId,offline:true}));
     const refreshing=(async()=>{
       const tokens=await this.token({grant_type:"refresh_token",refresh_token:saved.refresh},saved.clientId??this.config.clientId);
       if (epoch!==this.epoch) throw new Error("LOGIN_CANCELLED");
@@ -187,14 +190,16 @@ export class PersonalAuth {
     catch(error) {
       // An uncertain refresh is no longer safe for background tasks. A newer
       // successful login must not be invalidated by this old request's failure.
-      if(epoch===this.epoch)this.invalidateAccount();
+      if(epoch===this.epoch && error instanceof Error && error.message==='LOGIN_REQUIRED'){
+        this.invalidateAccount();this.secrets.delete(this.key);
+      }
       throw error;
     } finally { if(this.refreshing===refreshing){this.refreshing=null;this.refreshingIdentity=null;} }
   }
   async logout(): Promise<boolean> {
     const saved=this.saved(); this.invalidateAccount(); this.pending=null; this.secrets.delete(this.key);
     // Best-effort remote revocation. Offline sign-out always clears local credentials.
-    if (saved) return this.request(`${this.config.authOrigin}/api/v1/sessions/current/logout`,{
+    if (saved && !('offline' in saved)) return this.request(`${this.config.authOrigin}/api/v1/sessions/current/logout`,{
       method:"POST",headers:{Authorization:`Bearer ${saved.access}`,"content-type":"application/json"},body:"{}",
     }).then(()=>true,()=>false);
     return true;

@@ -12,12 +12,12 @@ import {
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { createMolisWorkWebServer } from '../apps/desktop/launchers/web/server.js';
-import { LocalActionGatewayClient } from '../apps/local-host/src/action-gateway.js';
-import { attachMolisWorkPtySocket } from '../apps/local-host/src/pty-socket.js';
+import { LocalActionGatewayClient } from '@molis-ai/molis-work-app-local-host';
+import { attachMolisWorkPtySocket } from '@molis-ai/molis-work-app-local-host';
 import { MolisWorkPtyHost } from '@molis-ai/molis-work-service-runtime-host';
 
 test('terminal jobs receive the Host space, not a caller-selected Home', async t => {
-  let received:any;
+  let received:Record<string,unknown>|undefined;
   t.mock.method(MolisWorkPtyHost.prototype,'spawn',request=>{received=request;return {attached:false,started:true,replay:''};});
   const server=createServer();
   const host=attachMolisWorkPtySocket(server,'synthetic-control-token',{environment:{MOLIS_WORK_HOME:'/trusted/space'}});
@@ -95,7 +95,7 @@ async function close(server:Server) {await new Promise<void>(resolve=>server.clo
 
 test('real Web routing isolates local/A/B, keeps login local, rejects stale pages and restores the same account', async () => {
   const home=mkdtempSync(join(tmpdir(),'space-web-'));
-  let transaction:any,remote='', user='alice';
+  let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean},remote='', user='alice';
   const upstream=createServer(async(req,res)=>{
     let raw='';for await(const chunk of req)raw+=chunk;
     res.setHeader('content-type','application/json');
@@ -147,7 +147,7 @@ test('real Web routing isolates local/A/B, keeps login local, rejects stale page
     assert.doesNotMatch(await(await request('/')).text(),/Local retained project/);
     assert.equal((await request('/api/personal/not-an-api')).status,404);
     await login('bob');const b=(await scopes()).current;assert.equal(b.ownerUserId,'bob');assert.notEqual(b.spaceId,a.spaceId);
-    await assert.rejects(gateway.discover(caller),{code:'actions.home_mismatch'},'old account MCP cannot reopen its Home after sign-out');
+    await assert.rejects(gateway.discover(caller),{code:'host.request_refused'},'old account MCP cannot reopen its Home after sign-out; unknown/closed Homes share the opaque control refusal');
     assert.equal((await request('/',{headers:{'x-molis-work-control-token':aToken}})).status,409);
     assert.notEqual((await request('/projects/'+aProject.project_id)).status,200);
     assert.doesNotMatch(await(await request('/')).text(),/Alice private project/);

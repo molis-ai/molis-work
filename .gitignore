@@ -48,7 +48,6 @@ coverage/
 # decision 2026-10-08): product material lives under docs/, never in a root outputs/ folder.
 /outputs/
 /.zcode/
-cloud/sync/target/
-cloud/sync/build/
-cloud/sync/.wrangler/
-cloud/sync/.dev.vars
+apps/sync-worker/target/
+apps/sync-worker/.wrangler/
+apps/sync-worker/.dev.vars

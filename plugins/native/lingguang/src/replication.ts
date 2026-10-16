@@ -1,5 +1,6 @@
+import { syncError } from './sync-errors.js';
 import type { AggregateDefinition, PortableRow, ReplicaDatabase } from '@molis-ai/molis-work-storage';
-import { PluginSyncError, type PluginSyncDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export const lingguangSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'ideas',title:'灵光与对话',schema_version:1,requires:[]}]};
 export function lingguangAggregates(db:ReplicaDatabase):readonly AggregateDefinition[]{return [
@@ -17,12 +18,12 @@ export function lingguangAggregates(db:ReplicaDatabase):readonly AggregateDefini
       for(const m of children.messages!)check(['user','assistant','stub'].includes(String(m.role))&&typeof m.body==='string'&&typeof m.created_at==='string'&&Number.isFinite(Date.parse(m.created_at)));
     },
     dependencies({record:r},_context,projectId){
-      for(const id of sparkIds(r)){const row=db.prepare('SELECT project_id FROM sparks WHERE id=?').get(id);if(!row)throw new PluginSyncError('sync.dependencies','等待对话关联的灵光');if(row.project_id!==projectId)throw new PluginSyncError('sync.scope','对话关联的灵光属于其他项目');}
+      for(const id of sparkIds(r)){const row=db.prepare('SELECT project_id FROM sparks WHERE id=?').get(id);if(!row)throw syncError("dependencies",'等待对话关联的灵光');if(row.project_id!==projectId)throw syncError("scope",'对话关联的灵光属于其他项目');}
       const prior=db.prepare('SELECT id FROM conversations WHERE project_id=? AND spark_key=?').get(projectId,r.spark_key);
-      if(prior&&prior.id!==r.id)throw new PluginSyncError('sync.conflict','相同灵光在另一台设备已有独立对话，双方记录已保留');
+      if(prior&&prior.id!==r.id)throw syncError("conflict",'相同灵光在另一台设备已有独立对话，双方记录已保留');
     },
   },
 ];}
 function base(r:PortableRow){for(const k of ['id','project_id'])check(typeof r[k]==='string'&&r[k].length>0);for(const k of ['created_at','updated_at'])check(typeof r[k]==='string'&&Number.isFinite(Date.parse(r[k])));}
 function sparkIds(r:PortableRow):string[]{check(typeof r.spark_ids_json==='string');const ids:unknown=JSON.parse(r.spark_ids_json);check(Array.isArray(ids)&&ids.length>0&&ids.length<=1000&&ids.every(id=>typeof id==='string'&&id.length>0&&id.length<=80)&&new Set(ids).size===ids.length);return ids;}
-function check(value:unknown):asserts value{if(!value)throw new PluginSyncError('sync.invalid','灵光同步数据不合法');}
+function check(value:unknown):asserts value{if(!value)throw syncError("invalid",'灵光同步数据不合法');}

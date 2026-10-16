@@ -74,8 +74,29 @@ test("RING-06 served compaction keeps template text, return newlines and side-ef
       text: "first one\n      second nested two\n    ", matches: true, stopped: undefined,
     });
   }
-  assert.match(sent.text, /function step\(/u, "binding names remain inspectable");
   assert.ok(sent.bytes < Buffer.byteLength(source));
+});
+
+// Top-level and global names are what other scripts and pages read, so they stay; names local to a function may shorten
+// (user decision 2026-10-15, which replaced 「binding names remain inspectable」).
+test("RING-06 served compaction keeps top-level and global names and may shorten local ones", async () => {
+  const source = `var MolisWorkPagesEditor = (() => {
+    function mountSomething(longParameterName) { const localResult = longParameterName + 1; return localResult; }
+    return { mountSomething };
+  })();
+  function sharedHelper(firstArgument) { return firstArgument * 2; }
+  const topSetting = 3;`;
+  const sent = await served("/assets/molis-work-workbench.js", source);
+  const scope = Function(`${sent.text}; return { MolisWorkPagesEditor, sharedHelper, topSetting };`)();
+  assert.equal(scope.MolisWorkPagesEditor.mountSomething(1), 2, "a property keeps its name");
+  assert.equal(scope.sharedHelper(4), 8);
+  assert.equal(scope.topSetting, 3);
+  assert.match(sent.text, /var MolisWorkPagesEditor=/u);
+  assert.match(sent.text, /function sharedHelper\(/u);
+  assert.doesNotMatch(sent.text, /longParameterName|localResult|firstArgument/u, "local names are shortened");
+
+  const editor = await served("/assets/molis-work-pages-editor.js");
+  assert.match(editor.text, /^(?:"use strict";)?var MolisWorkPagesEditor=/u, "the Pages editor's global, as the Pages client reads it");
 });
 
 test("RING-06 an unparseable served script keeps its exact content", async () => {

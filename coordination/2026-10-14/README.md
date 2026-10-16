@@ -508,6 +508,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #620（交互线：数字题单位 D35，`acefbac35`）审过：单位只经合同 `AgentQuestion.unit` 来，不从题干猜；`aria-describedby` 先指单位、再指报错行；interaction-components 的断言改动是 AC-27-6 收紧，不是放宽。全量链已挂，等空位。
     - #618（情境线 W3-B2，`8b17d9416`）审过，退回两处小修再挂全量：①`checkLanding` 用 `in` 判位置，会放过原型键（如 `constructor`），改成 `Object.hasOwn`；②L-1（对象没加入就不带落点）只有页面在守，宿主的 `checkLanding` 要在 `context.object` 与 `landing.object` 的 kind、id 不一致时丢掉落点。其余（`readReferences` 只走 H3 那一份、材料只写事实、删掉的十个属性源码里都没人画）通过。
     - #621（采用线子会话：网关删纠正，用户「做，全删」，`47b63d477`）审过：`normalizedInput`、`coerced`、`soleTextField` 全删，写在身份旁边的字段以 `actions.input_invalid` 拒并点名；派发、`gatewayProblem`、审查、建议同一个 `gatewayInput`，审查看到的就是要跑的；只留「整个没给 input、合同要对象」时给 `{}`（工具登记 input 可省）。六条用例改成断言拒绝带合同或出错位置，不是放宽。评测 11/12（§6.0g，逐条按 §11 归类）。全量链挂在 #620 之后；若 `issue-assistant-repair-page` 红，先看它（采用线本机见过一次、单独重跑 2/2）。
+    - #614 合入（`ea396a276`，没动页面资源，在途 PR 都仍可合）。已通知回执线开 3c：合 main、设字节放行；APPROVED_CEILINGS 按 #611 是否已合二选一（已合就重加对象只放 3c 的条目，没合就留在现有对象里、#611 合后再变基）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

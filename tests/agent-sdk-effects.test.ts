@@ -248,3 +248,62 @@ for (const stage of ["configuration", "credential", "sdk-acceptance"] as const) 
     assert.deepEqual(models, ["START", "B"], "the actual SDK's later model call matches its accepted display");
     assert.equal((await adapter.readSession(session)).runs.length, 1, "control created no new run");
   });
+
+// PA-24 (§5.6a gap 3): a switch the round has accepted is still only a request; the next model call is checked again before it
+// leaves. When the plugin instance stops or the round's Character is disabled in between, nothing reaches the new endpoint.
+for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
+  test(`PA-24: ${invalidation} after a switch is accepted stops the next model call before it reaches the new endpoint`, { timeout: 60_000 }, async t => {
+    const home = await mkdtemp(join(tmpdir(), "switch-then-revoke-")); await writeFile(join(home, "note.txt"), "A real bounded read before finishing.");
+    const network = Promise.withResolvers<void>(), response = Promise.withResolvers<void>();
+    const requests: Array<{ endpoint: string; model: string }> = [];
+    let active = true, characterAvailable = true;
+    const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.switch-revoke-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
+      modelConfiguration: async selection => selection?.model_id === "peer"
+        ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.2/v1/messages", model: "B", credential_ref: "B" }
+        : { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "START", credential_ref: "START" },
+      resolveCredential: async () => "fixture-only" });
+    const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "person" }, directory = { canonical_path: home, realpath_verified: true };
+    const character = { reference: { artifact_id: "character:project:verifier", version: 1 }, character_id: "verifier", title: "Verifier", instructions: "Verify before answering.",
+      host_tools: null, source: { owner_actor_id: "person", draft_revision: 1 }, project_id: "project", content_digest: "verifier-digest",
+      producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "fixture" }, published_at: "2026-10-15T00:00:00Z" };
+    const resolveCharacter = () => {
+      if (!characterAvailable) throw new Error("所选 Character 版本不可用，请明确选择其他版本或移除角色后再执行");
+      return structuredClone(character);
+    };
+    const host = new AgentHost(); host.register(adapter);
+    const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } });
+    registerAgentHostCapabilities<null>({ register: (definition, handler) => local.register(definition, handler) }, { agentHost: () => host, projectId: () => "project",
+      authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], resolveCharacter }) });
+    const client = local.client({ project_id: "project", storage_key: join(home, "project.db") });
+    // The plugin instance that started the round; the real one throws this once the instance stops (plugin-host-services.ts).
+    const plugin_caller = { ...owner, declaration: { manifest: codingAgentManifest }, assertActive: () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); } };
+    t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init: RequestInit) => {
+      const payload = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
+      requests.push({ endpoint: new Request(url).url, model: JSON.parse(payload).model });
+      if (requests.length === 1) { network.resolve(); await response.promise; return switchReadResponse(); }
+      return cogniaModelResponse("Finished with B, which must not happen.");
+    });
+    t.after(async () => { response.resolve(); await local.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
+    const session = await client.invoke(agent.createSession, ["prologue", { ...owner, directory, title: "Switch then revoke" }], { plugin_caller });
+    const handle = await client.invoke(agent.startRun, ["prologue", { ...owner, session, directory, role_id: "reader", task: "Read note.txt, then answer.",
+      ...(invalidation === "character-disabled" ? { character: character.reference } : {}) }], { plugin_caller });
+    await network.promise;
+    await client.invoke(agent.controlRun, [session, handle.ref, { kind: "switch-model", provider_id: "fixture", model_id: "peer" }], { plugin_caller });
+    assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B", "the SDK accepted the switch for the next model call");
+    if (invalidation === "plugin-stopped") active = false; else characterAvailable = false;
+    response.resolve();
+    const deadline = Date.now() + 20_000;
+    let view;
+    for (;;) { view = await adapter.read(handle.ref); if (["completed", "failed", "stopped", "cancelled"].includes(view.phase)) break;
+      assert.ok(Date.now() < deadline, "the round did not end"); await new Promise(resolve => setTimeout(resolve, 10)); }
+    assert.deepEqual(requests, [{ endpoint: "https://1.1.1.1/v1/messages", model: "START" }], "the new endpoint received nothing");
+    const reason = invalidation === "plugin-stopped" ? "此插件实例已停止，请重新打开" : "所选 Character 版本不可用，请明确选择其他版本或移除角色后再执行";
+    assert.equal(view.phase, "failed");
+    assert.equal(view.stop_reason, `EFFECT_NOT_AUTHORIZED: The App refused this network dispatch before sending: ${reason}`, "the round says why it ended");
+    // The switch took effect at that call boundary (the SDK's model-switched), and the call it took effect for was refused before
+    // sending: the view shows the switch, no request left over, and usage from the first model only.
+    assert.deepEqual(view.model_switch, { now: "B" });
+    assert.deepEqual(view.usage.tokens, { input: 20, output: 10 }, "only START's call is counted");
+    assert.equal(view.frozen.model_id, "START");
+    assert.equal((await adapter.readSession(session)).runs.length, 1, "nothing started another round");
+  });

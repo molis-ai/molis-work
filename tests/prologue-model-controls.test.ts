@@ -32,11 +32,11 @@ type ModelRequestBody = { model?: string; output_config?: { effort?: string }; m
 async function fixture(t: import("node:test").TestContext, models: Record<string, PrologueModelConfiguration>, reply: (body: ModelRequestBody, nth: number) => Promise<Response> | Response) {
   const root = await mkdtemp(join(tmpdir(), "molis-model-controls-"));
   await writeFile(join(root, "notes.md"), "release notes go in CHANGELOG.md\n");
-  const requests: Array<{ body: ModelRequestBody; key: string | null }> = [];
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  const requests: Array<{ body: ModelRequestBody; key: string | null; endpoint: string }> = [];
+  t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const headers = new Headers(init.headers);
-    requests.push({ body, key: headers.get("x-api-key") ?? headers.get("authorization") });
+    requests.push({ body, key: headers.get("x-api-key") ?? headers.get("authorization"), endpoint: url instanceof Request ? url.url : String(url) });
     return reply(body, requests.length);
   });
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.model-controls-test", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: new AgentReviewQueue(),
@@ -47,16 +47,17 @@ async function fixture(t: import("node:test").TestContext, models: Record<string
   const directory = { canonical_path: root, realpath_verified: true };
   const session = await adapter.createSession({ ...owner, directory, title: "Model controls" });
   const role = { role_id: "reader", version: 1, execution: "read-only" as const, host_tools: ["read-file"], prompts: [] };
-  const start = (extra: object = {}) => adapter.start({ ...owner, session, directory, role_id: "reader", task: "Where do release notes go?", role, model_selection: { provider_id: "p", model_id: "small" }, ...extra } as never);
-  const settle = async (ref: { session_id: string; run_id: string }) => {
+  const startOn = (target: typeof adapter, extra: object = {}) => target.start({ ...owner, session, directory, role_id: "reader", task: "Where do release notes go?", role, model_selection: { provider_id: "p", model_id: "small" }, ...extra } as never);
+  const start = (extra: object = {}) => startOn(adapter, extra);
+  const settle = async (ref: { session_id: string; run_id: string }, on = adapter) => {
     for (const until = Date.now() + 20_000; ; await new Promise(resolve => setTimeout(resolve, 10))) {
-      const view = await adapter.read(ref);
+      const view = await on.read(ref);
       if (["completed", "failed", "stopped", "cancelled"].includes(view.phase)) return view;
       if (Date.now() > until) throw new Error("run did not finish");
     }
   };
   t.after(async () => { await adapter.close(); await rm(root, { recursive: true, force: true }); });
-  return { adapter, requests, start, settle, reopen: open };
+  return { adapter, session, requests, start, startOn, settle, reopen: open };
 }
 
 const model = (name: string, extra: Partial<PrologueModelConfiguration> = {}): PrologueModelConfiguration =>
@@ -189,3 +190,48 @@ test("PA-24: after a restart the ended round still shows the model it switched t
   } finally { await reopened.close(); }
 });
 
+test("PA-24 (§4.3): a round continued after a switched one resolves the model the person picks against the current settings — no carried-over switch, the current key, and no stand-in for a model that is gone", { timeout: 30_000 }, async t => {
+  const answered = Promise.withResolvers<void>();
+  const models: Record<string, PrologueModelConfiguration> = { small: model("small"), large: model("large", { endpoint: "https://1.1.1.2/v1/messages" }) };
+  const f = await fixture(t, models, async (_body, nth) => {
+    if (nth === 1) { await answered.promise; return sse("", { name: "read", input: { path: "notes.md" } }); }
+    return sse("Release notes go in CHANGELOG.md.");
+  });
+  const first = await f.start();
+  for (let i = 0; i < 200 && f.requests.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 10));
+  await f.adapter.control(first.ref, { kind: "switch-model", provider_id: "p", model_id: "large" });
+  answered.resolve();
+  assert.deepEqual((await f.settle(first.ref)).model_switch, { now: "large" });
+  assert.deepEqual(f.requests.map(request => request.body.model), ["small", "large"]);
+  // Continued right away in the same live session: the model the person picks, not the one the session last switched to.
+  const again = await f.settle((await f.start()).ref);
+  assert.equal(again.model_switch, undefined);
+  assert.deepEqual(f.requests.slice(2).map(request => [request.body.model, request.endpoint]), [["small", "https://1.1.1.1/v1/messages"]]);
+  assert.match(String(f.requests.at(-1)!.key), /secret-of-key-small$/);
+
+  // Interrupted: the Host goes down; meanwhile the settings move small to another endpoint with a new key, and large is removed.
+  await f.adapter.close();
+  models.small = model("small", { endpoint: "https://1.1.1.4/v1/messages", credential_ref: "key-small-rotated" });
+  delete models.large;
+  const reopened = await f.reopen();
+  t.after(() => reopened.close());
+  const sent = f.requests.length;
+
+  // Continuing on the model the person picks (small): the current endpoint and key, not the switch of the round before.
+  const next = await f.settle((await f.startOn(reopened)).ref, reopened);
+  assert.equal(next.phase, "completed");
+  assert.deepEqual(f.requests.slice(sent).map(request => request.body.model), ["small"]);
+  assert.equal(f.requests.at(-1)!.endpoint, "https://1.1.1.4/v1/messages", "the endpoint from the current settings");
+  assert.match(String(f.requests.at(-1)!.key), /secret-of-key-small-rotated/, "the key the current settings name, not the one the earlier round used");
+  assert.equal(next.frozen.model_id, "small");
+  assert.equal(next.model_switch, undefined, "the earlier round's switch is not carried over");
+  assert.match(JSON.stringify(f.requests.at(-1)!.body.messages), /CHANGELOG\.md/, "the session's history is still there");
+
+  // Continuing on the model the earlier round switched to, now gone: refused before anything is sent, with no other model standing in.
+  const before = f.requests.length;
+  const rounds = (await reopened.readSession(f.session)).runs.length;
+  assert.equal(rounds, 3, "every round is in the one session");
+  await assert.rejects(f.startOn(reopened, { model_selection: { provider_id: "p", model_id: "large" } }), /还没有配置可用的模型/);
+  assert.equal(f.requests.length, before, "nothing was sent to any model");
+  assert.equal((await reopened.readSession(f.session)).runs.length, rounds, "and no round was started");
+});

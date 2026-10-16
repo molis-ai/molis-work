@@ -126,8 +126,6 @@ export interface StoredRound {
   memory_receipt?: string;
 }
 
-/** What the person typed in these rounds, in order: a round the Host, the Assistant or a page wrote is not their words. */
-export const typedTexts = (rounds: readonly StoredRound[]): string[] => rounds.filter(round => !round.written_by).map(round => round.text);
 
 /** A card as stored: the public view's facts plus the exact reference and input it runs. */
 export interface StoredCard {

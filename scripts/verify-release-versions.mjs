@@ -108,6 +108,17 @@ function checkWorkspacePackages(directories) {
   }
 }
 
+// Native plugins ship with the product; integrations and external plugin packages keep their own versions.
+function checkBuiltinVersions(directories, version) {
+  for (const directory of directories.filter(item => item.startsWith("plugins/native/"))) {
+    const file = `${directory}/src/manifest.ts`;
+    const source = readNeeded(file);
+    if (source === null) continue;
+    const found = source.match(/\bversion\s*:\s*["']([^"']+)["']/)?.[1];
+    if (found !== version) problem(`${file}: bundled Manifest version ${found ?? "not found"}, but package.json is ${version}`);
+  }
+}
+
 function checkReleaseFiles(version) {
   if (readOptional(`docs/releases/v${version}.md`) === null) problem(`docs/releases/v${version}.md: release notes for ${version} are missing`);
   const changelog = readNeeded(CHANGELOG);
@@ -313,7 +324,7 @@ function checkDatabaseTable(directories) {
 const version = checkProductVersion();
 const directories = workspaceDirectories();
 checkWorkspacePackages(directories);
-if (version !== null) checkReleaseFiles(version);
+if (version !== null) { checkBuiltinVersions(directories, version); checkReleaseFiles(version); }
 const stores = checkDatabaseTable(directories);
 
 if (problems.length > 0) {

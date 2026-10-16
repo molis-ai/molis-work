@@ -39,7 +39,7 @@
     ],
     "packedOn": "2026-10-16",
     "reproducedFrom": "e4afd1a718bd8a8629d52526b953bbe75149baa6",
-    "reproducedByteIdentical": false,
-    "note": "Packed once from a clean git archive of the merge commit, whose tree is the reviewed head af7be966's (9dbe15b1). The SDK full suite ran on that tree (354 files: 3931 passed, 21 skipped, 0 failed; desktop-computer-use.live not run: it drives the real desktop); the Molis side is recorded in the adoption spec §6.0e."
+    "reproducedByteIdentical": true,
+    "note": "Packed once from a clean git archive of the merge commit, whose tree is the reviewed head af7be966's (9dbe15b1). The SDK full suite ran on that tree (354 files: 3931 passed, 21 skipped, 0 failed; desktop-computer-use.live not run: it drives the real desktop); the Molis side is recorded in the adoption spec §6.0e. Packed a second time the same way on 2026-10-16: the same 1,186,918 bytes and SHA-256."
   }
 }

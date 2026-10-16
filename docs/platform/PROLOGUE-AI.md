@@ -456,7 +456,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 删掉右列那句话，左列照样拒绝；右列只让模型少走弯路。
 
-**暂不可用要给原因和可行路径。** 动作的 `availability` 带 `code` 与 `reason`（如 `actions.connection_required`「请先配置文字模型」）。**现状缺口**：助理的能力目录与 `find-capabilities` 只列此刻可用的动作，不可用的连同原因一起看不到（两处都按 `availability.available` 过滤），模型只能说「缺少哪类能力」，说不出「去设置里配置模型」。这是存量欠账，不是要照抄的做法；不要以泛化的限制遮住尚未接好的能力，也不要把错误吞掉留给 AI 猜。
+**暂不可用要给原因和可行路径。** 动作的 `availability` 带 `code` 与 `reason`（如 `actions.connection_required`「请先配置文字模型」）。助理的能力目录在可用能力之后另列「现在用不了的能力」，按提供方和原因分组，原因照提供方给的原样写（`apps/local-host/src/assistant/assistant-directory.ts`）；`find-capabilities` 也找得到它们，排在可用的后面，带原因，不带调用方式和参数格式，真去调用仍由动作服务拒绝。原因是写给人看的，要说缺什么、去哪里补（如「连接「Gmail」已断开，请在服务连接中重新授权」）：模型照着原因说，原因里没有地方，它也说不出地方（需求书 §9.5 A2 的评测）。不要以泛化的限制遮住尚未接好的能力，也不要把错误吞掉留给 AI 猜。
 
 ## 14. 基础实现索引
 
@@ -474,7 +474,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 助理的方法目录 | 方法按需读取 | 「可用的方法」→ 动作 `assistant.methods.read`（`apps/local-host/src/assistant/assistant-rule-actions.ts`） | 摘要常驻、正文按需 | 一轮最多列 20 个 | 确定性：`tests/assistant-methods.test.ts` |
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
-| 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附 | 格式纠正时追加的那段文字写死在代码里，未登记 | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
+| 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
 | 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v1` | 三种时机；同键同文只算一次；回执说去向 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
 | 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理） | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来 | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条） |

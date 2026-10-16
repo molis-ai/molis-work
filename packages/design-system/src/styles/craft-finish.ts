@@ -929,7 +929,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-rich pre { margin: 0 0 8px; padding: 8px 12px; border-radius: 8px; background: var(--wash); overflow: auto; font-size: 12px; }
   ${ASSIST} .assistant-rich code { padding: 0 4px; border-radius: 4px; background: var(--wash); font-size: 12px; }
   ${ASSIST} .assistant-rich pre code { padding: 0; background: none; }
-  ${ASSIST} :is(.assistant-activity, .assistant-round-status, .assistant-materials, .assistant-muted) { margin: 0; font-size: 12px; color: var(--muted); }
+  ${ASSIST} :is(.assistant-activity, .assistant-round-status, .assistant-receipt, .assistant-muted) { margin: 0; font-size: 12px; color: var(--muted); } ${ASSIST} .assistant-receipt { align-self: flex-end; margin-top: -8px; }
   ${ASSIST} .assistant-activity[data-state="failed"] { color: var(--danger); }
   ${ASSIST} .assistant-round-status[hidden] { display: none; }
   ${ASSIST} .assistant-round-status[data-phase="failed"] { color: var(--danger); }

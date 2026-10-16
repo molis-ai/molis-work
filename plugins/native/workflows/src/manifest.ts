@@ -9,7 +9,7 @@ export const workflowsManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: WORKFLOWS_PLUGIN_ID,
-  version: "1.0.0",
+  version: "0.3.0",
   name: "工作流程",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-workflows-binding" },

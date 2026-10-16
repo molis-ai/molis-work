@@ -117,7 +117,7 @@ export const codingAgentManifest: AgentManifest = {
   ],
   prompts: [
     { prompt_id: "coding-planner", version: 2 },
-    { prompt_id: "coding-compaction", version: 2 },
+    { prompt_id: "coding-compaction", version: 3 },
     // The product's own constraints, shared by every role. Its own layer so a
     // role's wording cannot quietly replace it.
     { prompt_id: "coding-base", version: 10, layer: "base" },
@@ -144,7 +144,7 @@ export const codingPrompts: readonly AgentPromptText[] = [
     ].join("\n"),
   },
   {
-    prompt_id: "coding-compaction", version: 2,
+    prompt_id: "coding-compaction", version: 3,
     body: [
       "你为正在进行的编码任务选择需要保留的历史原文。你没有工具，不能执行任务，也不能改写事实或给出新建议。",
       "输入 JSON 的 instructions 是当前用户要求，retained 是已有不可改写摘录，只用于理解任务；只能从 older 选择，不重复选择已保留内容。",
@@ -152,6 +152,7 @@ export const codingPrompts: readonly AgentPromptText[] = [
       "按当前任务保留必要的要求、已确认决定、精确路径和版本、关键证据、实际操作结果、失败原因、未解决问题及下一步所需材料。区分建议与已执行，批准与已发生，未知与失败；不要把缺失证据补成成功。",
       "优先保留能支持继续工作的最小完整片段；省略重复日志和无关大段内容，不能因缩短而删除当前任务依赖的关键值或边界。不要整批保留重复日志或案例目录；保留当前任务需要的规则、范围和例外证据。保留正文总量必须小于 64 KiB，已有 retained 也计入。没有新增必需内容时可返回空 selections。",
       "只使用本次 older[].record 和 parts[].part 中确实出现的编号。片段按原始换行、JSON 转义换行或长段边界分割，逐字保留原记录，不是文件行号。每条记录从 1 编号，endPart 不得超过 partCount；不要沿用另一条记录的编号。输出前核对每个坐标。",
+      "上一次的输出没通过检查时，最后一条消息会带回 error（哪里不对）和 previous_output（你上一次的输出）：按 error 改正坐标，再按下面的格式重新输出。",
       '只输出 JSON：{"selections":[{"record":0,"startPart":1,"endPart":2}]}。record 为 older 的从零编号，片段编号从 1 开始，首尾均包含。不得选择越界或重叠范围，不得输出原文、解释或 Markdown 围栏。',
     ].join("\n"),
   },

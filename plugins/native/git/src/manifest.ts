@@ -45,7 +45,7 @@ export const gitManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: GIT_PLUGIN_ID,
-  version: "1.8.0",
+  version: "0.3.0",
   name: "Git",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-git-binding" },

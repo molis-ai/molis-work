@@ -44,7 +44,7 @@ export const filesManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: FILES_PLUGIN_ID,
-  version: "1.5.0",
+  version: "0.3.0",
   name: "Files",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-files-binding" },

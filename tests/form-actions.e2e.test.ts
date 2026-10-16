@@ -63,7 +63,7 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   // Real save responses are delayed; subsequent typing must survive and be committed after the first acknowledgement.
   await evaluate(`(()=>{const original=window.fetch;window.formSaveRequests=0;window.fetch=async(url,init)=>{
     const response=await original(url,init);
-    if(init?.method==='POST' && new URL(url,location.href).pathname==='/api/plugins/form/${id}'){
+    if(init?.method==='POST' && new URL(url,location.href).pathname==='/projects/${projectId}/api/plugins/io.molis.work.form/forms/${id}'){
       window.formSaveRequests++;if(window.formSaveRequests===1)await new Promise(resolve=>window.releaseFormSave=resolve);
     }return response;
   };window.restoreFormFetch=()=>window.fetch=original;})()`);
@@ -153,7 +153,7 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   assert.equal(await evaluate("document.querySelector('[data-form-publication-note]').hidden"),false);
   await click('[data-form-artifact-bar]');await idle();assert.equal(read().forms[0]!.artifact_version,1);assert.equal(read().forms[0]!.publication_pending,undefined);
   assert.equal(read().forms[0]!.description,'发布后继续编辑');assert.equal(read().forms[0]!.share_id,share);
-  const denied=await evaluate<number>(`fetch('/api/plugins/form?project_id=${projectId}',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'wrong',title:'denied'})}).then(r=>r.status)`);
+  const denied=await evaluate<number>(`fetch('/projects/${projectId}/api/plugins/io.molis.work.form/forms?project_id=${projectId}',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'wrong',title:'denied'})}).then(r=>r.status)`);
   assert.equal(denied,403);assert.equal(read().forms.length,1);
   // The form being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
   await reloadPage();await open();await waitFor("document.querySelector('[data-form-title]')?.getClientRects().length > 0");await idle();

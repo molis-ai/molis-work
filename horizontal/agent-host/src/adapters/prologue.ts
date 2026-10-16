@@ -1,9 +1,8 @@
 import { agentErrors } from "../errors.js";
-import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { BUSINESS_HOST_TOOLS, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parseAgentRunBudget, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
-import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
   AgentSkillLibrary,
   AgentMcpLibrary,
@@ -32,6 +31,7 @@ import { emptyCapabilityMatrix } from "../capabilities.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
 import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
+import { inputsPort, type QueueInput, type SteerInput } from "./prologue-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
   applyPrologueEvent,
@@ -100,7 +100,7 @@ export interface PrologueControlPort {
   stop(reason: "stopped" | "cancelled"): void | Promise<void>;
   pause(): void;
   resume(): void;
-  steer(input: { text: string; source?: "person" | "app"; key?: string }): void | Promise<void>;
+  steer(input: SteerInput): Promise<{ steerId: string; replayed: boolean }>;
   /** Revalidate the original invocation after model-selection waits. */ beforeModelSwitch?(): Promise<void>;
   /** Later model calls of this Run go to this target, from its next model boundary. Absent where the runtime cannot. */
   switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">, beforeAccept: () => void): Promise<void>;
@@ -148,6 +148,7 @@ export interface PrologueStartInput {
   history?: "digest";
   /** The project work item this round waited as; it takes that item over. */
   queued_work_id?: string;
+  /** The supplements waiting in the session that this round takes (agent-inputs). */ queued?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInputs;
   /** The session's name as the person sees it. */
   session_title?: string;
   /** `false`: no side panel browser for this round. */
@@ -175,6 +176,7 @@ export interface PrologueRuntimePort {
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
+  /** The session's queue for the next round; absent where the runtime keeps none. */ queueInput?(sessionId: string, input: Parameters<QueueInput>[0]): ReturnType<QueueInput>;
   background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   /** The runtime's durable local queue for timed work. */
@@ -301,6 +303,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   readonly collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
+  readonly inputs = inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), steer: one => record.control.steer(one) }; }, () => this.#runtime.queueInput?.bind(this.#runtime), runId => this.#publish(runId));
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -586,7 +589,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(role.action_gateway ? { action_gateway: role.action_gateway } : {}),
       mode,
       ...(request.history === "digest" ? { history: "digest" as const } : {}),
-      ...(request.queued_work_id ? { queued_work_id: request.queued_work_id } : {}),
+      ...(request.queued_work_id ? { queued_work_id: request.queued_work_id } : {}), ...(request.queued ? { queued: request.queued } : {}),
       ...(request.session_title ? { session_title: request.session_title.slice(0, 120) } : {}),
       ...(request.browser === false ? { browser: false as const } : {}),
     });
@@ -718,9 +721,6 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         break;
       case "resume":
         record.control.resume();
-        break;
-      case "steer":
-        await record.control.steer({ text: control.text, ...(control.source === "host" ? { source: "app" as const } : {}), ...(control.key ? { key: control.key } : {}) });
         break;
       case "switch-model":
         await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,

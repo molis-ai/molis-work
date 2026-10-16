@@ -16,8 +16,7 @@ import {
 } from "@molis-ai/molis-work-plugin-dataset";
 import {
   FORM_CLIENT_FACTORY_SCRIPT,
-  FormPluginRouteTable,
-  createFormRouteHandlers,
+  formActions,
   openFormStore,
   renderFormWorkbench,
 } from "@molis-ai/molis-work-plugin-form";
@@ -67,18 +66,17 @@ test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑�
 
   const forms = openFormStore(home);
   try {
-    const formRoutes = new FormPluginRouteTable(createFormRouteHandlers(formTestPorts(forms, project_id, {
+    // Form's routes are its Runtime plugin's now (tests/form-runtime-routes.test.ts); this is the same pair of pins through its actions.
+    const { actions } = formTestPorts(forms, project_id, {
       publishArtifact: (input) => ({ artifact_id: "form-" + input.record_id, version: input.version }),
-    })));
-    const created = await formRoutes.handle({ method: "POST", pathname: "/api/form", query, body: { title: "报名" } });
-    const id = (created?.body as { form: { id: string } }).form.id;
-    const first = await formRoutes.handle({ method: "POST", pathname: `/api/form/${id}/promote`, query, body: {} });
-    const second = await formRoutes.handle({ method: "POST", pathname: `/api/form/${id}/promote`, query, body: {} });
-    const form = (second?.body as { form: { title: string; artifact_id: string; artifact_version: number } }).form;
+    });
+    const id = (await actions.invoke(formActions.create, { title: "报名" })).form.id;
+    const first = await actions.invoke(formActions.promote, { id });
+    const { form } = await actions.invoke(formActions.promote, { id });
     assert.equal(form.title, "报名");
     assert.equal(form.artifact_id, "form-" + id);
     assert.equal(form.artifact_version, 2);
-    assert.equal((first?.body as { artifact: { version: number } }).artifact.version, 1);
+    assert.equal(first.artifact.version, 1);
   } finally {
     forms.close();
   }

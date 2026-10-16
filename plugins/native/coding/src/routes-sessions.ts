@@ -3,6 +3,7 @@ import { characterSelection, characterSkillSelection } from "./characters.js";
 import { materialSelection } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
 import { type Capabilities, type CodingActivation, selected, sessionState, priorityOf } from "./route-activation.js";
+import { codingActionControl } from "./route-entry.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
 import { nextConfiguration, runControl, text } from "./run-inputs.js";
@@ -14,6 +15,7 @@ import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/mol
 import { parseExactActionReferences, searchEntriesPage, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSessionStatus } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 /** Coding routes for sessions and their rounds: the directory, creating and changing a session, starting, queueing and steering a round. */
 
@@ -304,8 +306,8 @@ const ROUTES: RouteMaker[] = [
     });
   },
   (a) => {
-    const { route } = a;
-    return route("coding.control-run", async (request, api, execution) => {
+    const { context, route } = a;
+    return route("coding.control-run", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -313,9 +315,9 @@ const ROUTES: RouteMaker[] = [
       const body = bodyOf(request);
       const run = snapshot.runs.find((entry) => entry.run_id === body.run_id);
       if (!run) throw new Error("找不到属于这个会话的执行");
-      const current = await api!.invoke(agent.readRun, [session, run]);
-      if (isTerminalAgentPhase(current.phase)) throw new Error("这一轮已经结束，请开始新一轮");
       const control = await runControl(body, () => execution.models());
+      if (control.kind === "steer") return { accepted: true, receipt: await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: run.run_id, ...control.send }, codingActionControl(beforeWrite)) };
+      if (isTerminalAgentPhase((await api!.invoke(agent.readRun, [session, run])).phase)) throw new Error("这一轮已经结束，请开始新一轮");
       await api!.invoke(agent.controlRun, [session, run, control]);
       return { accepted: true };
     });

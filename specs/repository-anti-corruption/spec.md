@@ -22,6 +22,22 @@ W4-04 第二片（2026-10-15，插件读回自己固定的版本，#547）：For
 - `W4-04-02` 在 `tests/plugin-host-services.test.ts`。变异检查：去掉「必须是自己固定的」，`W4-04-02` 失败。
 - 动作快照：每个安装多一条 `sdk.artifacts.<安装>.own@1`。`createPluginArtifactClient` 加上这一条后到了 153 行，超过函数行数上限，把 SDK 动作的定义拆到同文件的 `sdkArtifactActions`。
 
+W4-04 第三片（2026-10-15，Form 经 Plugin Runtime 装配，#551）：按 `docs/system/RUNTIME-MIGRATION.md` 5.1 删 Host 的 Form 适配，Form 成为每个项目一个的 Runtime 插件。
+- 删：`apps/local-host/src/form-actions.ts`、`form-native-plugin-http.ts`，`index.ts` 的 `handleFormNativePluginHttp`，`project-host.ts` 的 `formActionProvider` 一行，`web-request.ts`、`web-catalog.ts` 的 Form 段，`creative-artifacts.ts` 的三个 Form 端口；包里的 `routes.ts`、`route-handlers.ts`。`tests/builtin-plugin-assembly-gate.test.ts` 的冻结名单把 Form 从 `BUILD_TIME_ASSEMBLED`、`NATIVE_PLUGIN_HTTP_FILES` 移到 `RUNTIME_ASSEMBLED`；`tooling/gates/error-owners.json` 删掉只剩已删文件的 `form` 条目。
+- 加：`plugins/native/form/src/plugin.ts` 的 `createFormPlugin`；`project-plugins.ts` 的监督器条目（`bundled: true`，`database: FORM_DATABASE`，即 W4-11 登记的 `form` 库，位置与结构不变）。问卷库的读写改走 `services.database`：`FormStore` 只认 `get`/`all`/`run` 三个调用，写入在 `database.transaction(() => caller.beforeEffect(), …)` 里，`ownFormStores` 给不经 Runtime 的测试与夹具同样的读写形状。成果走 `services.artifacts`：`publish`、自己的线头 `head`（第一片）、读回自己固定的版本 `readOwn`（第二片），别的生产者的线仍答 `form.publication_conflict`（原来宿主就这样答）。
+- 路由：Manifest 声明 15 条（项目下的 `/api/plugins/io.molis.work.form/forms…`，`route_id` 沿用原来的），每条只把请求转成同名动作；页面送来的 `project_id` 必须是本项目，否则 `actions.scope_mismatch`，什么也不写。项目分发要求插件 id 后面有路径，所以根是 `/forms`。客户端改用 `host.route(…)`（带项目前缀）；`native-plugin-api.ts` 的短名改写保留到 W6-01，Form 已用不到。
+- 舞台页仍走目录的渲染路径（与 Shelf 相同，5.1「舞台页怎么渲染」：过渡期沿用，通用挂载器是 W5-06）；客户端改 TypeScript 与 esbuild 打包是下一片。「项目已删」步骤仍由目录条目上的 `project_data` 送达：它只调用包里的 `purgeFormProject`、按 Home 文件清除、不要求实例在运行，满足 5.1 列的 (a)–(e)。
+- Manifest 加 `artifact:read`（必需）：固定下一版、恢复没存完的固定要读回自己的问卷，`readOwn` 要这个权限。少了它第二次固定会失败（原因被 `publication_conflict` 盖住，测试里第二次固定抓到了）。
+- 迁移中发现、按原行为补上的两处平台缺口：
+  - **谁固定的。** Runtime 的成果客户端把每个版本的 `created_by` 记成安装者，原来 Form 记的是调用方（Agent、流程、MCP 客户端、人）。现在宿主从 Runtime 的动作范围（`currentPluginAction`，插件说不了自己是谁）取调用方：在本安装的动作里固定的版本记调用方，动作之外仍记安装者。Characters 的发布也在动作里，所以它今后同样记调用方，与 `RecordFixedVersionInput.actor_id` 的合同说明一致。`tests/document-pin-after-move.test.ts` 与 `tests/form-actions.test.ts` 迁移前就断言这一点，迁移后、补上前两处失败。
+  - **请求体上限。** Runtime 的项目路由读 256 000 字节，原来 Form 的边界读 1 000 000（答卷文件每份可到 400 000 字）。路由声明加 `max_body_bytes`（至多 12 MiB，SDK 的 Manifest 检查拒绝越界），Form 的 POST 路由都声明 1 000 000。变异检查：把 Form 的上限改回 256 000，新加的 Runtime 边界用例失败。
+- 测试：
+  - 新增 `tests/form-runtime-routes.test.ts`：`W4-04-03` 经项目的 Runtime 路由走一遍建题、收集、结果、CSV、填写页、两次固定、列表，旧的 `/api/form` 404；`W4-04-04` 别的项目的 `project_id` 被拒、什么也没写，停止收集后经页面导入答卷仍收（原来在 `form-actions.test.ts` 的路由里，搬到这里）。
+  - `tests/form-mcp.test.ts` 原来给每个 MCP 客户端起一个自己的 Host 进程；Form 在 Runtime 上之后，一个进程关掉会把共用库里的安装记成「已停」，另一个进程就答 `actions.plugin_unavailable`，这正是「一个 Home 只有一个执行进程」要防的。改成一个常驻 Host，各个工具经网关调它（与 `tests/images-concurrency.test.ts` 相同），「跨进程」改成工具进程和 Host 重启；授权按人在访问设置里给的，断言都在。删掉 `tests/fixtures/form-mcp-server.ts`。
+  - `tests/document-plugins-error-model.test.ts`：Form 的码到状态改问 SDK 的 `actionErrorResponse`（Form 每条路由是 `bindPluginActionRoute`，失败都由它回答）；真实路由的 404、409 与请求体上限改走测试 Home 的 Runtime 边界；没有发布方时的 409 `form.unavailable` 改直接调动作（Runtime 总给 Form 成果服务）。`tests/plugin-declaration-rules.test.ts` 加三条 `max_body_bytes` 规则。
+  - 其余改了调用方式的：`creative-artifact-promote`、`creative-tools-plugins` 里 Form 的部分改经动作；`tests/personal-plugins-review-fixes.test.ts` 断言 Form 客户端请求 Runtime 路由；夹具与五个用例里的 `withStore` 换成 `ownFormStores`。
+- 证据：相关 38 个文件全过（含 `tests/action-contract-snapshot.test.ts`），Runtime 路由、成果客户端、Characters 与 Coding 的发布 8 个文件全过，浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e` 全过；health（`--base origin/main`）、boundary、page-assets 通过（`form.js` 小了 288 字节，预算同步降下）。公开 API：`PluginRouteDeclaration.max_body_bytes`（可选，旧 Manifest 不受影响）。动作快照：Form 的安装多 5 条 `sdk.artifacts.<安装>.*`。
+
 W4-09（2026-10-15，两个 PR 开着）：#539 把 Web 服务的五个周期任务登记在一处（`apps/local-host/src/periodic-tasks.ts`），「设置 › 诊断」列出「后台任务」；`W4-09-01`、`W4-09-02`（反复启停不留计时器）在 `tests/host-periodic-tasks.test.ts`。#540 让成果游标改为进程内通知加 30 秒兜底（`W4-09-03`，`tests/plugin-platform-composition.test.ts`），炼金术士工作室空闲 10 分钟且手上没事就关（`W4-09-04`，`tests/alchemist-studio-idle.test.ts`）。三处都做了变异检查。
 
 W4-11（2026-10-15，Home 存储统一登记，#542）：
@@ -32,10 +48,15 @@ W4-11（2026-10-15，Home 存储统一登记，#542）：
 - 删掉 `PERSONAL_HOME_SQLITE_STORES`；`docs/system/HOME-DATA.md` 第 9、11 节改成登记的说明。
 - `W4-11-03`（夹具不能占用别人的库）在 `tests/plugin-project-database.test.ts`。变异检查：去掉主人检查，「声明错的启动名单」用例失败；再去掉夹具登记，`W4-11-03` 失败。
 
-W4-07（2026-10-15，拆 Coding 的路由绑定，PR 待开）：
+W4-07（2026-10-15，拆 Coding 的路由绑定，#549 已合入 main）：
 - 范围：`plugins/native/coding/src/routes.ts`（门禁量出文件 1,440 行、`codingRouteBindings` 一个函数 1,262 行）是两个巨大单元。只搬代码、不改行为：激活共享的状态（忙碌集合、摘要缓存、文件索引、跟随者、目录读取队列、等待循环与重启后的恢复）进 `route-activation.ts`，开一轮与跟随进 `start-round.ts`，选择与 MCP 来源的读取进 `route-selections.ts`，会话标题进 `session-title.ts`；路由按资源分成七组（写入者、变更集、Goal、设置、会话、时间线、委派，各一个 `routes-*.ts`，每组都在 800 行以下、每个函数都在 150 行以下）；`routes.ts` 只剩组合（51 行），错误到状态码的对应（`failure`）留在原文件，交给激活用。
 - 不变的：路由 id 与顺序和拆前一样（67 条，逐条比对过）；`codingSurface`、`stopCodingSurface`、`planContinuesAfterTalk`、`codingSessionTitleFrom`、`DEFAULT_SESSION_TITLE` 仍从 `routes.ts` 导出；动作合同快照没变。
 - 证据：巨大单元 146 → 144；`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check` 通过；Coding README 必跑与 `affected-tests` 选出的 43 个非浏览器文件、2 个浏览器文件（`coding-client-lifecycle`、`companion-client-lifecycle`）全部通过。`docs/system/HUGE-CLASS-MIGRATION.md` 的 W4-07 行改为已做，两个单元从清单删去。
+
+W4-12（2026-10-15，视觉比对工具，#550）：
+- 拍：`tests/visual-surfaces.e2e.test.ts` 在隔离 Home 的示例项目里拍 8 个关键界面（项目首页、插件切换器、Goals 列表、Todo、Pages、助理面板、侧栏文件、设置·界面与语言），各按 1440、1024、390 三个宽度，浅色、深色各一张，共 48 张。页面时钟钉在 2026-10-15 14:00（上海时区，之后照常走，计时器不受影响），页面上显示的时间与光标隐去；每张要连拍两次一模一样才算定下来，一直在变的界面直接失败（它本身就没法比）。
+- 比：`pnpm visual:compare`（`scripts/visual-compare.mjs`）在 HEAD 与 `--base`（默认 `origin/main`）的合并基点上各拍一遍：基点工作树在本机建一次、离线安装并构建（占构建槽位），留着下次用；两边都用本分支的拍摄用例，画面由各自的产品代码出。逐像素比（`scripts/visual/png.mjs`，只用 `node:zlib`，读不了的格式按名字拒绝），默认任何一个像素变了就算变了；报告在 `.impeccable/qa/review/visual/compare/`（`report.html` 三栏对照、`diff/` 红色标出变化），有变化退出 1。W5-05 删旧皮肤用它判定。
+- 证据：`pnpm visual:compare` 对 main（合并基点 `65df2709`）完整跑一遍：基点树建好、两边各拍 48 张，0 张有变化。同一棵树拍三次，48 张两两一像素不差；把钉住的日期改到 10-20，首页、侧栏、助理三类 16 张被点出、差异落在周条与问候语上（变异检查）；`tests/visual-compare.test.ts` 4 条（PNG 读写与五种行过滤、拒绝 16 位、单像素与尺寸变化、`--compare` 的退出码与报告），去掉均值过滤的移位或让脚本恒退 0 都会失败。`docs/system/PARALLEL-DEVELOPMENT.md` §6「界面」一行写明何时跑。
 
 ## 0. 现场与范围
 
@@ -825,7 +846,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 已审 |
 | `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/form` | 内置插件 | 17 | 2,545 | `client.ts` 930 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/form` | 内置插件 | 19 | 2,783 | `client.ts` 900 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 已审 |
 | `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
@@ -1753,7 +1774,7 @@ Prologue（10-14 复查到 #22 为止，这次看 #24～#27）：
 | R-12 | 部分：I6 `as unknown as` 193，AST/lint 只降门禁已生效。全量清零不是用户已定目标；必要重构归 W2-10/11、W5-08 |
 | R-13 | 未解决主检出工作状态：本次看到 main `9da180833` 与未提交他人成果，不 reset/clean；当前隔离复查与受测树不依赖它。主检出整理遵循独立归属与授权 |
 | R-14 | 数量已显著缩小：I6 门禁 318 个入库 `.impeccable` 文件且只降，历史 1,085 不能当现状；保留文件仍按引用规则审查，W1-23/W6-06 |
-| 皮肤 | 未完成：旧皮肤叠加仍在，预算不增长不能证明视觉正确。W4-12、W5-05 |
+| 皮肤 | 未完成：旧皮肤叠加仍在，预算不增长不能证明视觉正确。W4-12 的比对工具已有（`pnpm visual:compare`），删皮肤待 W5-05 |
 | Goals UI | 部分：旧转接仍有，通用挂载器和外壳 renderer 改名仍 W5-06；不能把外壳错移进业务插件 |
 | Server | 按用户决定保留 IM/讨论；表归属与 Home 登记已有修复。实验的独立启动器不包装成生产入口，不删产品讨论 |
 | N-01 | 已确认遗留第二铃铛/占位已清，真实事件恢复用例消费现行唯一注意力入口；后续新 UI 以现行产品决定为准 |

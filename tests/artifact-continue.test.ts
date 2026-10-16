@@ -45,11 +45,11 @@ test("a pinned document, form, deck and table each continue as a new object of t
   assert.match(JSON.stringify(copiedPage.body), /第一稿/);
 
   // Forms: the questions come along; answers never do.
-  let form = (await post("/api/form", { title: "满意度" })).form as { id: string; version: number };
-  form = (await post(`/api/form/${form.id}`, { description: "季度回访", questions: [{ type: "text", title: "哪里可以更好？", required: true }], expected_version: form.version })).form;
-  const pinnedForm = (await post(`/api/form/${form.id}/promote`, { expected_version: form.version })).artifact as { artifact_id: string; version: number };
+  let form = (await post("/api/plugins/io.molis.work.form/forms", { title: "满意度" })).form as { id: string; version: number };
+  form = (await post(`/api/plugins/io.molis.work.form/forms/${form.id}`, { description: "季度回访", questions: [{ type: "text", title: "哪里可以更好？", required: true }], expected_version: form.version })).form;
+  const pinnedForm = (await post(`/api/plugins/io.molis.work.form/forms/${form.id}/promote`, { expected_version: form.version })).artifact as { artifact_id: string; version: number };
   const formOpen = await continueFrom(pinnedForm, "io.molis.work.form");
-  const copiedForm = (await get(`/api/form/${formOpen.id}`)).form as { title: string; description: string; questions: Array<{ title: string }> };
+  const copiedForm = (await get(`/api/plugins/io.molis.work.form/forms/${formOpen.id}`)).form as { title: string; description: string; questions: Array<{ title: string }> };
   assert.deepEqual([copiedForm.title, copiedForm.description, copiedForm.questions.map(question => question.title)], ["满意度", "季度回访", ["哪里可以更好？"]]);
 
   // PPT: slides and colours.

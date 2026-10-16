@@ -7,6 +7,7 @@ capability_id	version	provider	operation	kind	scope	effect	scheduling	audiences	
 actions.usages.read	1	system.action-usages	query	query	home	read	concurrent	agent,mcp,user	-	-	-	-	8fc50332e9ea	d71b99ccedeb	-
 agent.collaboration.control.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	c68b8987c37d	b16327ef33ed	-
 agent.collaboration.read.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	d0bfd70f551b	7cfc6db4ee5d	-
+agent.inputs.send.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	5947f2ff726b	fcdd65c576a7	-
 connectors.account.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:account:read	connector	-	-	7d42269d0825	e14fa014b7b4	-
 functions.authoring.catalog	1	system.functions	query	query	home	read	-	agent,mcp,user,workflow	functions:manage	-	-	-	d746974fa9af	80d5bc6ba3f2	-
 functions.authoring.configure	1	system.functions	command	operation	home	write	-	agent,mcp,user,workflow	functions:manage	-	-	-	edd82b576d7e	c4c6715b3c37	-
@@ -104,6 +105,11 @@ sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685.own	1	sdk.artifact
 sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685.publish	1	sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	fac293a9dca6	1085d413a442	-
 sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685.read	1	sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	2859b2436279	-
 sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685.record	1	sdk.artifacts.plugin-install-4790d5958896dce594cbd88abc496685	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	4b70788eb322	594bfb4904e7	-
+sdk.artifacts.plugin-install-4fdfcfd6d1db70e62f4224fae088eb1f.head	1	sdk.artifacts.plugin-install-4fdfcfd6d1db70e62f4224fae088eb1f	query	query	project	read	-	plugin	artifact:read	artifact	-	-	dcd94c8d4806	de63eacfccec	-
+sdk.artifacts.plugin-install-4fdfcfd6d1db70e62f4224fae088eb1f.own	1	sdk.artifacts.plugin-install-4fdfcfd6d1db70e62f4224fae088eb1f	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	151cd0f968d2	-
+sdk.artifacts.plugin-install-4fdfcfd6d1db70e62f4224fae088eb1f.publish	1	sdk.artifacts.plugin-install-4fdfcfd6d1db70e62f4224fae088eb1f	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	fac293a9dca6	1085d413a442	-
+sdk.artifacts.plugin-install-4fdfcfd6d1db70e62f4224fae088eb1f.read	1	sdk.artifacts.plugin-install-4fdfcfd6d1db70e62f4224fae088eb1f	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	2859b2436279	-
+sdk.artifacts.plugin-install-4fdfcfd6d1db70e62f4224fae088eb1f.record	1	sdk.artifacts.plugin-install-4fdfcfd6d1db70e62f4224fae088eb1f	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	4b70788eb322	594bfb4904e7	-
 sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678.head	1	sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678	query	query	project	read	-	plugin	artifact:read	artifact	-	-	dcd94c8d4806	de63eacfccec	-
 sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678.own	1	sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678	query	query	project	read	-	plugin	artifact:read	artifact	-	-	71df1b1a1513	151cd0f968d2	-
 sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678.publish	1	sdk.artifacts.plugin-install-7d7b3314323c66d2f0199158cb692678	command	operation	project	write	-	plugin	artifact:write	artifact	-	-	fac293a9dca6	1085d413a442	-

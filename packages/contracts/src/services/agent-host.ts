@@ -598,6 +598,7 @@ interface AgentStartRequestFields {
   continue_step_board_of?: string;
   /** The project work item this round waited as (see queueProjectRound); the round takes it over when it starts. */
   queued_work_id?: string;
+  /** The supplements waiting in this session that the round takes (agent-inputs); none when absent, unless the session says `auto`. */ queued?: import("./agent-inputs.js").AgentQueuedInputs;
   /** The session's name as the person sees it, for the project's list of work under way. */
   session_title?: string;
   /**
@@ -652,8 +653,6 @@ export type AgentRunControl =
   | { kind: "resume" }
   | { kind: "stop" }
   | { kind: "cancel" }
-  /** Append an instruction to the running task. Never a new Run. */
-  | import("./agent-inputs.js").AgentSteerControl
   /**
    * Send this Run's later model calls to another configured model, from its next model call. History, tools,
    * permissions and budget stay as they are; refused when the model cannot carry what the Run was started with.
@@ -1218,6 +1217,7 @@ export interface AgentRuntimeAdapter {
   readonly messages?: AgentSessionMessagesCapability;
   /** What the project's sessions wait for and how they go on, when this Runtime keeps a task graph. */
   readonly collaboration?: AgentCollaborationPort;
+  /** Supplements to a round, with what became of each (agent-inputs). */ readonly inputs?: import("./agent-inputs.js").AgentInputsPort;
   /** Background commands of the project's sessions. */
   readonly background?: AgentBackgroundCapability;
   start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;

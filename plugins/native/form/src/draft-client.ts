@@ -13,7 +13,7 @@ export const FORM_DRAFT_CLIENT_SCRIPT = `({ host, request, L, ask, prompt, butto
     const record = form();
     if (!record) return;
     button.disabled = ask.inert = true;
-    const sent = request("POST", "/api/plugins/form/" + encodeURIComponent(record.id) + "/draft-questions", { prompt: prompt.value, expected_version: record.version, ...extra })
+    const sent = request("POST", "/" + encodeURIComponent(record.id) + "/draft-questions", { prompt: prompt.value, expected_version: record.version, ...extra })
       .finally(() => { button.disabled = ask.inert = false; });
     try {
       const payload = await sent;

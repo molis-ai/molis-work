@@ -1,7 +1,7 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
-import { completeMcpAuthorization, inspectMcpConnection, startMcpConnection } from "./connector-mcp.js";
+import { completeMcpAuthorization, inspectMcpConnection, startMcpConnection, type StartMcpConnectionInput } from "./connector-mcp.js";
 import { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
 import { connectorAuthorizationFailed } from "./connector-authorization-return.js";
 import { ActionError, type ActionCallContext, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -47,6 +47,8 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
         serviceId: typeof body.service_id === "string" ? body.service_id : "",
         displayName: typeof body.display_name === "string" ? body.display_name : "",
         endpoint: typeof body.endpoint === "string" ? body.endpoint : undefined,
+        authentication: body.authentication as StartMcpConnectionInput["authentication"],
+        transport: body.transport as StartMcpConnectionInput["transport"],
         clientId: typeof body.client_id === "string" ? body.client_id : undefined,
         clientSecret: typeof body.client_secret === "string" ? body.client_secret : undefined,
         token: typeof body.token === "string" ? body.token : undefined,

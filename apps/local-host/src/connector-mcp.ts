@@ -1,6 +1,7 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
 import { assertMcpAuthorizationPending, commitMcpConnection } from "./connector-mcp-commit.js";
+import { CUSTOM_MCP_SERVICE, mcpAuthentication, mcpEndpointFor } from "./connector-mcp-endpoint.js";
 import { randomUUID } from "node:crypto";
 import { connectorProductAuth } from "./connector-product-auth.js";
 import { resolve } from "node:path";
@@ -89,6 +90,8 @@ export interface McpConfiguration extends ConnectorProtocolConfiguration {
 export interface StartMcpConnectionInput {
   serviceId: string; displayName: string; endpoint?: string; clientId?: string; clientSecret?: string;
   token?: string; origin: string; connectionId?: string; redirectUri?: string;
+  authentication?: "none" | "bearer" | "oauth";
+  transport?: "http" | "sse";
 }
 type Tools = Awaited<ReturnType<Client["listTools"]>>["tools"];
 type Resources = Awaited<ReturnType<Client["listResources"]>>["resources"];
@@ -164,7 +167,7 @@ async function runLarkMcpChild<T>(credentials: LarkMcpLaunchInput, use: Pick<Con
   } finally { use.signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); launch.cleanup(); }
 }
 
-/** Test-only endpoint injection keeps production HTTP input behind the official allowlist. */
+/** Preset addresses stay pinned; the generic MCP entry validates the address the person explicitly supplied. */
 export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   if ((options.testServers || options.stdioTransport) && process.env.NODE_ENV !== "test") throw new Error("MCP test endpoints require NODE_ENV=test");
   const servers = options.testServers ?? MCP_SERVERS;
@@ -178,16 +181,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     try { return await next; } catch (error) { throw safeError(error); }
     finally { if (queues.get(key) === next) queues.delete(key); }
   };
-  function endpointFor(serviceId: string, requested?: string): string {
-    const server = servers[serviceId];
-    if (!server) throw connectorErrors["connector.mcp.configuration"]("这个服务尚未配置官方 MCP 地址");
-    const expected = new URL(server.endpoint);
-    const endpoint = new URL(requested || server.endpoint);
-    if ((server.endpointPattern ? !server.endpointPattern.test(endpoint.href) : endpoint.href !== expected.href) || endpoint.username || endpoint.password || endpoint.hash) throw connectorErrors["connector.mcp.configuration"]("MCP 地址必须匹配所选服务的官方地址；租户 ID 和 server name 需替换成实际值");
-    const local = isLoopbackHttpUrl(endpoint);
-    if (endpoint.protocol !== "https:" && !(local && (options.testServers || serviceId === "figma"))) throw connectorErrors["connector.mcp.configuration"]("远程 MCP 必须使用 HTTPS");
-    return endpoint.href;
-  }
+  const endpointFor = (serviceId: string, requested?: string) => mcpEndpointFor(servers, serviceId, requested, Boolean(options.testServers));
   function active(home: string, id: string): McpConfiguration {
     const connection = withConnectorConnections(home, store => store.require(id));
     if (connection.auth_method !== "mcp" || connection.disconnected_at) throw connectorErrors["connector.mcp.disconnected"]("MCP 连接已断开，请重新连接");
@@ -201,7 +195,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
       checkActive?.();
       const url = new URL(input instanceof Request ? input.url : String(input));
       const configured = new URL(config.endpoint);
-      const permittedLocal = url.origin === configured.origin && (options.testServers || config.serviceId === "figma");
+      const permittedLocal = url.origin === configured.origin && (options.testServers || config.serviceId === "figma" || config.serviceId === CUSTOM_MCP_SERVICE && isLoopbackHttpUrl(configured));
       if (url.username || url.password || (url.protocol !== "https:" && !(url.protocol === "http:" && permittedLocal))) throw connectorErrors["connector.mcp.configuration"]("MCP 授权服务返回了不安全的地址");
       await beforeDispatch?.();
       checkActive?.();
@@ -240,8 +234,8 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
       codeVerifier: () => { const verifier = secrets.get("verifier"); if (!verifier) throw connectorErrors["connector.mcp.authorization"]("授权校验信息缺失，请重新连接"); return verifier; },
       redirectToAuthorization: url => {
         if (!state) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权");
-        const localTest = options.testServers && url.origin === new URL(config.endpoint).origin;
-        if (url.username || url.password || (url.protocol !== "https:" && !localTest)) throw connectorErrors["connector.mcp.authorization"]("MCP 返回的授权地址无效");
+        const local = url.origin === new URL(config.endpoint).origin && (options.testServers || config.serviceId === CUSTOM_MCP_SERVICE && isLoopbackHttpUrl(url));
+        if (url.username || url.password || (url.protocol !== "https:" && !local)) throw connectorErrors["connector.mcp.authorization"]("MCP 返回的授权地址无效");
         authorizationUrl = url.href;
       },
       discoveryState: () => config.discovery,
@@ -324,7 +318,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
       if (product) input = { ...input, clientId: product.clientId, clientSecret: product.clientSecret };
     }
     const endpoint = endpointFor(input.serviceId, input.endpoint);
-    const base = servers[input.serviceId]!;
+    const base = servers[input.serviceId] ?? { endpoint, auth: "either" as const };
     const server = input.serviceId === "figma" && endpoint.startsWith("https:") ? { ...base, auth: "oauth" as const, registration: "manual" as const } : base;
     const origin = callbackOrigin(input.origin);
     const redirectUri = input.redirectUri?.trim() || origin + CALLBACK;
@@ -334,15 +328,15 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     if (!displayName || displayName.length > 100) throw connectorErrors["connector.mcp.configuration"]("连接名称不能为空且最多 100 个字符");
     const token = input.token?.trim();
     if (token && (token.length < 8 || token.length > 16_384 || /[\r\n]/u.test(token))) throw connectorErrors["connector.mcp.configuration"]("MCP 令牌格式无效");
-    if (token && (server.auth === "oauth" || server.auth === "none")) throw connectorErrors["connector.mcp.configuration"]("此 MCP 服务不支持粘贴令牌，请使用其官方授权方式");
-    const mode = server.stdio ? (token ? "bearer" : "none") : server.auth === "none" ? "none" : token ? "bearer" : "oauth";
+    const mode = mcpAuthentication(input, server);
+    if (input.transport !== undefined && !["http", "sse"].includes(input.transport)) throw connectorErrors["connector.mcp.configuration"]("MCP 传输方式无效");
     if (mode === "oauth" && server.registration === "manual" && !input.clientId?.trim()) throw connectorErrors["connector.mcp.configuration"]("此 MCP 服务需要预先注册的 OAuth Client ID；请先配置官方应用");
     // MCP does not define a stable account identity. An explicit new authorization
     // gets a new connection so it cannot silently switch consumers to another account.
     if (input.connectionId) throw connectorErrors["connector.mcp.configuration"]("MCP 新授权请新建连接，避免替换原账号；已有授权会自动刷新");
     const connectionId = randomUUID();
     const config: McpConfiguration = { connectionId, serviceId: input.serviceId, protocol: "mcp", displayName, endpoint, redirectUri,
-      sessionId: randomUUID(), mode, transport: "http" };
+      sessionId: randomUUID(), mode, transport: input.transport ?? "http" };
     const secrets = connectorProtocolSecrets(home, config.sessionId);
     if (token) secrets.put("access", token);
     if (input.clientId?.trim()) secrets.put("client", JSON.stringify({ client_id: input.clientId.trim(), ...(input.clientSecret?.trim() ? { client_secret: input.clientSecret.trim() } : {}) }));

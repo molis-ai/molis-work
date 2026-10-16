@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/dist/connector-connection-store.js";
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
 import { ImagesHostService } from "../apps/local-host/dist/images-service-host.js";
 import { refreshFeedConnectionState } from "../apps/local-host/dist/web-connector-connections.js";
@@ -326,6 +326,67 @@ test("MCP settings keep authorization at 401 and missing connections as safe pro
     assert.deepEqual(withConnectorConnections(home, store => store.list()), before);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve())); resetSecretStoreCache();
+    if (prior.home === undefined) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = prior.home;
+    if (prior.backend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior.backend;
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+for (const service of ["gmail", "notion"] as const) test(`S-30 ASC-35 ${service} cancellation during token exchange preserves existing credentials`, { timeout: 30_000 }, async t => {
+  const home = mkdtempSync(join(tmpdir(), `molis-${service}-cancel-`));
+  const prior = { home: process.env.MOLIS_WORK_HOME, backend: process.env.MOLIS_WORK_SECRET_BACKEND };
+  process.env.MOLIS_WORK_HOME = home; process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
+  const controlToken = randomUUID();
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const origin = `http://127.0.0.1:${address.port}`;
+  const actualFetch = globalThis.fetch;
+  let hold = false, generation = 0, reached!: () => void, release!: () => void;
+  let entered: Promise<void>, waiting: Promise<void>;
+  function block() { hold = true; entered = new Promise<void>(resolve => { reached = resolve; }); waiting = new Promise<void>(resolve => { release = resolve; }); }
+  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url === "https://oauth2.googleapis.com/token" || url === "https://api.notion.com/v1/oauth/token") {
+      generation++; if (hold) { reached(); await waiting; }
+      return Response.json({ access_token: `fixture-access-${generation}`, refresh_token: `fixture-refresh-${generation}`, expires_in: 3600,
+        workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
+    }
+    if (url === "https://gmail.googleapis.com/gmail/v1/users/me/profile") return Response.json({ emailAddress: "work@example.test" });
+    return actualFetch(input, init);
+  });
+  const headers = () => ({ origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
+  async function start(connectionId?: string) {
+    const response = await fetch(`${origin}/api/settings/connectors/${service}/oauth/start`, { method: "POST", headers: headers(), body: JSON.stringify({
+      client_id: "fixture-app", client_secret: "fixture-secret", display_name: "Work", manage_connection: true,
+      redirect_uri: `${origin}/api/feed/connectors/gmail/oauth/callback`, ...(connectionId ? { connection_id: connectionId } : {}) }) });
+    assert.equal(response.status, 200);
+    const result = await response.json() as { authorizationUrl: string; authorization_id: string; connection_id: string };
+    const consent = new URL(result.authorizationUrl), redirect = new URL(consent.searchParams.get("redirect_uri")!);
+    return { ...result, callback: redirect.href + `?state=${consent.searchParams.get("state")}&code=fixture-code` };
+  }
+  const complete = (attempt: Awaited<ReturnType<typeof start>>) => fetch(attempt.callback, { redirect: "manual" });
+  const cancel = async (attempt: Awaited<ReturnType<typeof start>>) => {
+    const response = await fetch(`${origin}/api/settings/connectors/authorizations/${attempt.authorization_id}`, { method: "DELETE", headers: headers() });
+    assert.equal(response.status, 200); return response.json() as Promise<{ status: string }>;
+  };
+  try {
+    const first = await start(); const connected = await complete(first);
+    assert.match(connected.headers.get("location") ?? "", new RegExp(`connection=${first.connection_id}`));
+    assert.equal(withConnectorConnections(home, store => store.resolveToken(first.connection_id, service)), "fixture-access-1");
+    assert.equal((await cancel(first)).status, "connected", "a committed connection is not reported as rolled back");
+    const reauth = await start(first.connection_id); block();
+    const response = complete(reauth); await entered!;
+    assert.equal((await cancel(reauth)).status, "cancelled"); release(); await response;
+    assert.equal(withConnectorConnections(home, store => store.resolveToken(first.connection_id, service)), "fixture-access-1");
+    assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${first.connection_id}:refresh`)), "fixture-refresh-1");
+    const beforeReplay = generation; await complete(reauth); assert.equal(generation, beforeReplay);
+    const fresh = await start(); block();
+    const freshResponse = complete(fresh); await entered!; await cancel(fresh); release(); await freshResponse;
+    assert.equal(withConnectorConnections(home, store => store.get(fresh.connection_id)), null);
+    assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${fresh.connection_id}:access`)), null);
+  } finally {
+    release?.(); await new Promise<void>(resolve => server.close(() => resolve())); resetSecretStoreCache();
     if (prior.home === undefined) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = prior.home;
     if (prior.backend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior.backend;
     rmSync(home, { recursive: true, force: true });

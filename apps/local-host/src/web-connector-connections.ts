@@ -1,7 +1,7 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentMcpEndpoint } from "./agent-connector-ports.js";
-import { connectorAuthorizationStatus } from "./connector-authorization-status.js";
+import { listConnectorConnectionViews } from "./connector-connection-views.js";
+import { cancelConnectorAuthorization, cancelConnectorAuthorizationsForConnection, connectorAuthorizationStatus } from "./connector-authorization-status.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -13,24 +13,14 @@ export { refreshFeedConnectionState } from "./connector-source-state.js";
 
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
 
-export function listConnectorConnectionViews(homeDirectory: string, serviceId?: string) {
-  return withConnectorConnections(homeDirectory, (store) => store.list(serviceId).map((row) => {
-    const endpoint = row.auth_method === "mcp" ? agentMcpEndpoint(homeDirectory, row.connection_id) : null;
-    const view = { ...store.view(row), ...(row.auth_method === "mcp" ? { agent_available: Boolean(endpoint), ...(endpoint ? { mcp_endpoint: endpoint } : {}) } : {}) };
-    if (row.source !== "external" || row.disconnected_at) return view;
-    // A CLI account stays usable while the CLI configuration that verified it is still there.
-    const configuration = withConnectorProtocols(homeDirectory, protocols => protocols.get(row.connection_id));
-    return configuration?.protocol === "cli" && configuration.serviceId === row.service_id ? view : { ...view, state: "reauth_required" as const };
-  }));
-}
 
 export async function handleConnectorConnectionsHttp(
   request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory?: string,
 ): Promise<boolean> {
   if (!homeDirectory) return false;
   const authorization = /^\/api\/settings\/connectors\/authorizations\/([0-9a-f-]{36})$/u.exec(url.pathname);
-  if (authorization && request.method === "GET") {
-    const result = connectorAuthorizationStatus(homeDirectory, authorization[1]!);
+  if (authorization && ["GET", "DELETE"].includes(request.method ?? "")) {
+    const result = request.method === "DELETE" ? cancelConnectorAuthorization(homeDirectory, authorization[1]!) : connectorAuthorizationStatus(homeDirectory, authorization[1]!);
     sendJson(response, result ? 200 : 404, result ?? { error: "授权记录已失效，请重新登录" });
     return true;
   }
@@ -80,6 +70,7 @@ export async function handleConnectorConnectionsHttp(
       return true;
     }
     if (item && request.method === "DELETE") {
+      cancelConnectorAuthorizationsForConnection(homeDirectory, item[1]!);
       const connection = withConnectorConnections(homeDirectory, (store) => store.view(store.disconnect(item[1]!)));
       refreshFeedConnectionState(homeDirectory, item[1]!);
       sendJson(response, 200, { connection });

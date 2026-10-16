@@ -8,7 +8,7 @@ export type { JellyModelSelection, JellyModelSettings, JellyModelInput } from "@
 
 import { openConfiguredModels as openProviders, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl as validBaseUrl } from "./configured-models.js";
 import { hostCompleteText, type HostCompleteText } from "./host-complete-text.js";
-import { listConnectorConnectionViews } from "./web-connector-connections.js";
+import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 
 const CUSTOM_PROVIDER_ID = "jelly-text";

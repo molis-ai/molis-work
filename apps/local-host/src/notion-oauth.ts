@@ -116,7 +116,7 @@ export async function completeNotionOAuth(input: {
   callbackUrl: URL;
   nowMs?: number;
   fetchImpl?: typeof fetch;
-  validateAccount?: (tokens: NotionOAuthTokens, connectionId: string) => void;
+  resolveRefs?: (tokens: NotionOAuthTokens, connectionId: string) => TokenRefs;
 }): Promise<NotionOAuthTokens & { connectionId: string; displayName?: string }> {
   const pending = readPending(input.state, input.nowMs ?? Date.now());
   if (input.callbackUrl.origin + input.callbackUrl.pathname !== pending.redirectUri) throw new Error("Notion 回调地址不匹配");
@@ -129,8 +129,7 @@ export async function completeNotionOAuth(input: {
     grant: { type: "authorization_code", code: input.code.trim(), redirectUri: pending.redirectUri },
     fetchImpl: input.fetchImpl,
   });
-  input.validateAccount?.(tokens, pending.connectionId);
-  const refs = scopedRefs(pending.connectionId);
+  const refs = input.resolveRefs?.(tokens, pending.connectionId) ?? scopedRefs(pending.connectionId);
   saveTokens(tokens, refs);
   store.put(`${refs.access}:client`, JSON.stringify({ clientId: pending.clientId, clientSecret }));
   return { ...tokens, connectionId: pending.connectionId, ...(pending.displayName ? { displayName: pending.displayName } : {}) };

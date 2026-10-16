@@ -11,6 +11,11 @@ agent.collaboration.revise.v1	1	platform	command	operation	project	write	concurr
 agent.inputs.send.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	5947f2ff726b	fcdd65c576a7	-
 agent.offers.run.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	6fe14e4fdb6a	3f7d96ddf0df	-
 connectors.account.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:account:read	connector	-	-	7d42269d0825	e14fa014b7b4	-
+connectors.authorization.cancel	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	-
+connectors.authorization.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	f204a0118ca6	a2c799262a3c	-
+connectors.connection.check	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:management:read	connector	-	-	319b056c62cd	a2c799262a3c	-
+connectors.connections.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	df77d647cdc2	a2c799262a3c	-
+connectors.methods.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	df77d647cdc2	a2c799262a3c	-
 functions.authoring.catalog	1	system.functions	query	query	home	read	-	agent,mcp,user,workflow	functions:manage	-	-	-	d746974fa9af	80d5bc6ba3f2	-
 functions.authoring.configure	1	system.functions	command	operation	home	write	-	agent,mcp,user,workflow	functions:manage	-	-	-	edd82b576d7e	c4c6715b3c37	-
 functions.authoring.create	1	system.functions	command	operation	home	write	-	agent,mcp,user,workflow	functions:manage	-	-	-	5c778898fba7	d0e7a29830c7	-

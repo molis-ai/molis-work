@@ -696,3 +696,33 @@ test("a server that lists another tool while one tool is being called does not f
     assert.ok(!(await actions.discover(caller)).some(row => row.capability_id === connectorMcpCapabilityId(started.connectionId, "search")));
   } finally { directory.close(); await localHost.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
+
+for (const configuration of [{ authentication: "none", transport: "http" }, { authentication: "bearer", transport: "http" }, { authentication: "oauth", transport: "http" }, { authentication: "none", transport: "sse" }] as const) {
+  test(`ASC-05 custom MCP ${configuration.transport}/${configuration.authentication} discovers and calls without a preset`, async () => {
+    const temp = home(), remote = await fixture({ oauth: configuration.authentication === "oauth", sse: configuration.transport === "sse",
+      ...(configuration.authentication === "bearer" ? { token: "fixture-custom-bearer" } : {}) });
+    const host = createConnectorMcpHost();
+    try {
+      const started = await host.startMcpConnection(temp, { serviceId: "mcp-bearer", displayName: "Company knowledge", endpoint: remote.endpoint, origin: callbackOrigin,
+        ...configuration, ...(configuration.authentication === "bearer" ? { token: "fixture-custom-bearer" } : {}) });
+      const connected = started.authorizationUrl ? await host.completeMcpAuthorization(temp, { state: remote.authorize(started.authorizationUrl), code: "valid-code", origin: callbackOrigin }) : started;
+      assert.equal(connected.tools?.[0]?.name, "echo");
+      const restarted = createConnectorMcpHost();
+      const answer = await restarted.callMcpConnectionTool(temp, started.connectionId, "echo", { message: "custom-result" });
+      assert.deepEqual(answer.content, [{ type: "text", text: "custom-result" }]);
+      assert.equal(remote.stats().callCount, 1);
+      await assert.rejects(restarted.resolveMcpConnectionToken(temp, started.connectionId, remote.endpoint + "?other=1"), /完整服务地址/);
+    } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+  });
+}
+
+test("ASC-22 custom MCP rejects credentials in URLs, nonlocal HTTP and substituted preset endpoints", async () => {
+  const temp = home(), host = createConnectorMcpHost();
+  try {
+    for (const endpoint of ["http://192.168.1.5/mcp", "file:///private/mcp", "https://user:secret@example.test/mcp", "https://example.test/mcp?token=private", "https://example.test/mcp#private"]) {
+      await assert.rejects(host.startMcpConnection(temp, { serviceId: "mcp-bearer", displayName: "Rejected", endpoint, authentication: "none", origin: callbackOrigin }), { code: "connector.mcp.configuration" });
+    }
+    await assert.rejects(host.startMcpConnection(temp, { serviceId: "notion", displayName: "Rejected", endpoint: "https://example.test/mcp", origin: callbackOrigin }), /官方地址/);
+    assert.deepEqual(withConnectorConnections(temp, store => store.list()), []);
+  } finally { rmSync(temp, { recursive: true, force: true }); }
+});

@@ -3,6 +3,8 @@ import { githubWhoami } from "@molis-ai/molis-work-integration-github";
 import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 
 import { resolveApiConnection } from "./connector-access.js";
+import { connectorManagementActions, connectorManagementHandlers } from "./connector-management-actions.js";
+import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
 export interface ConnectorAccount { connection_id: string; service_id: string; login: string; scopes?: string[]; account_id?: string }
 const text = { type: "string" };
@@ -52,11 +54,11 @@ export async function readConnectorAccount(home: string, connectionId: string): 
 }
 
 /** The connector owner registers account identity as a system action; connecting an account grants no other capability. */
-export function connectorAccountActionProvider(home: string): ActionProviderRegistration {
+export function connectorAccountActionProvider(home: string, remember: ConnectorMcpDirectory["remember"]): ActionProviderRegistration {
   return {
     provider: { provider_id: "system.connectors", title: "服务连接", kind: "system" },
-    definitions: Object.values(connectorAccountActions),
+    definitions: [...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions)],
     handlers: [{ capability_id: connectorAccountActions.read.capability_id, version: 1,
-      handle: (_caller, input) => readConnectorAccount(home, (input as { connection_id: string }).connection_id) }],
+      handle: (_caller, input) => readConnectorAccount(home, (input as { connection_id: string }).connection_id) }, ...connectorManagementHandlers(home, remember)],
   };
 }

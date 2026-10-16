@@ -1,4 +1,4 @@
-import { beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
+import { assertConnectorAuthorizationPending, beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
 import { refreshFeedConnectionState } from "./connector-source-state.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
@@ -254,11 +254,13 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
     const code = returned?.searchParams.get("code") || input.code;
     if (!code || code.length > (config.brokerOrigin ? 16000 : 4096)) throw new ApiOAuthError("缺少有效的授权码");
     return await serialized(home, config.connectionId, async () => {
+      assertConnectorAuthorizationPending(home, state);
       const tokens = await exchange(home, config, { code }, fetchImpl);
       const token = text(tokens.access_token);
       if (!token) throw new ApiOAuthError("服务未返回 access_token，请检查应用权限");
       await enrichContext(config, tokens, fetchImpl);
       const label = await apiOAuthIdentity(config.serviceId, token, config.context, fetchImpl);
+      assertConnectorAuthorizationPending(home, state);
       if (config.previousRevision) {
         const previous = withConnectorConnections(home, store => store.require(config.connectionId, config.serviceId));
         if (previous.updated_at !== config.previousRevision) throw new ApiOAuthError("此连接在授权期间已变更，请重新开始");

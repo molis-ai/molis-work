@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { openConnectorsStore } from "./connectors-store.js";
+import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 export type ConnectorAuthorizationState = "pending" | "connected" | "cancelled" | "failed" | "expired";
 const TTL = 10 * 60_000;
@@ -23,6 +24,18 @@ export function finishConnectorAuthorization(home: string, state: string, status
 /** Checked again at each staged credential write and immediately before activation. */
 export function connectorAuthorizationPending(home: string, state: string, now = Date.now()): boolean {
   return withAttempts(home, db => Boolean(db.prepare("SELECT 1 FROM connector_authorization_results WHERE state_hash=? AND status='pending' AND expires_at>=?").get(hash(state), now)));
+}
+export function assertConnectorAuthorizationPending(home: string, state: string): void {
+  if (!connectorAuthorizationPending(home, state)) throw connectorErrors["connector.connection.invalid"]("授权已取消、过期或结束，请重新连接");
+}
+/** A cancellation is accepted only while the owner has not committed. Never undo an established connection. */
+export function cancelConnectorAuthorization(home: string, id: string) {
+  withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='cancelled' WHERE id=? AND status='pending' AND expires_at>=?").run(id, Date.now()));
+  return connectorAuthorizationStatus(home, id);
+}
+/** Disconnect/remove withdraw every outstanding attempt for this exact connection, including consumed callbacks. */
+export function cancelConnectorAuthorizationsForConnection(home: string, connectionId: string): void {
+  withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='cancelled' WHERE connection_id=? AND status='pending'").run(connectionId));
 }
 export function connectorAuthorizationStatus(home: string, id: string, now = Date.now()) {
   return withAttempts(home, db => {

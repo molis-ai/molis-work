@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { connectorAccountActions, CONNECTOR_ACCOUNT_PERMISSIONS } from "../apps/local-host/dist/connector-account-actions.js";
 
 test("a connected account is read through one registered connector action; connecting grants nothing else", { timeout: 60_000 }, async () => {
@@ -33,4 +33,25 @@ test("a connected account is read through one registered connector action; conne
     resetSecretStoreCache();
     await rm(home, { recursive: true, force: true });
   }
+});
+
+test("ASC-37 the assistant discovers connection management before any project, model or service exists", async () => {
+  const home = await mkdtemp(join(tmpdir(), "connector-management-empty-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const caller: ActionCallContext = { actor_id: "assistant-test", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_READ] };
+  try {
+    const client = host.homeActionClient();
+    const available = await client.discover(caller);
+    assert.ok(available.some(row => row.capability_id === connectorManagementActions.catalog.capability_id && row.availability.available));
+    const catalog = await client.invoke(caller, connectorManagementActions.catalog, { service_id: "asana" }) as { services: Array<{ connector_id: string; method_options: Array<{ kind: string; support: string }> }> };
+    assert.equal(catalog.services.length, 1); assert.equal(catalog.services[0]!.connector_id, "asana");
+    assert.ok(catalog.services[0]!.method_options.some(method => method.kind === "oauth" && method.support === "in_app"));
+    assert.deepEqual(await client.invoke(caller, connectorManagementActions.list, {}), { connections: [] });
+    await assert.rejects(client.invoke({ ...caller, permissions: [] }, connectorManagementActions.list, {}), { code: "actions.forbidden" });
+    await assert.rejects(client.invoke(caller, connectorManagementActions.list, { project_id: "another-project" }), { code: "actions.input_invalid" });
+    const account = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "Work", token: "fixture-private-token" }));
+    const rows = await client.invoke(caller, connectorManagementActions.list, { service_id: "github" }) as { connections: Array<{ connection_id: string; display_name: string }> };
+    assert.equal(rows.connections[0]!.connection_id, account.connection_id); assert.equal(rows.connections[0]!.display_name, "Work");
+    assert.doesNotMatch(JSON.stringify(rows), /fixture-private-token|credential_ref|refresh_ref/);
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

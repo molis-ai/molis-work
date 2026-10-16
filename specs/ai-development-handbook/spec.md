@@ -174,6 +174,48 @@ Skill 可以包含适用的确定步骤和脚本，但必须说明哪些是业�
 
 清单与顺序在统筹会话的共享笔记（`ai-handbook-inventory.md`、`ai-handbook-agent-design.md`），每片一个 PR。评测脚本与自编材料是一次性的，没有入库；记录按手册 16.3 的格式写在这里。
 
+#### A2 暂不可用的能力（2026-10-16）
+
+```text
+改动：助理的能力目录在可用能力之后另列「现在用不了的能力」：按提供方和原因分组，原因照提供方给的 availability.reason 原样写，
+  最多列 12 项，其余只计数（apps/local-host/src/assistant/assistant-directory.ts，从 assistant-service.ts 搬出）；
+  find-capabilities 也找得到它们，排在可用的后面，只带提供方、名称、available:false 与原因，没有 use 和 input_schema；调用
+  照旧由动作服务拒绝（「code: reason」）。用户自己停用的动作仍在 assistant-authority 里滤掉，不列出。注册的提示词不改：
+  assistant-base 已经要求「如实说明缺少什么、可以去哪里补」；find-capabilities 的工具说明加半句「用不了的排在最后，带提供方
+  的原因、没有调用方式」。
+要解决的问题：目录与 find-capabilities 都按 availability.available 过滤，暂不可用的能力连同原因一起看不到（手册 13.4 记的
+  现状缺口）。模型只能说「没有这类能力」，说不出「Gmail 连接断了，去服务连接里重新授权」；有时转而建议用别的提供方代替。
+环境：隔离 Home、MiniMax / MiniMax-M3、anthropic-messages、环境密钥只在那一条命令上读取（2026-10-16）。单次文字调用近似助理
+  第一轮：系统文字是注册的 assistant-base 正文；用户消息是这句话，后面接「本轮情况」「可用能力目录」两份材料，按 Prologue
+  展示文字资源的形状包好（contextItemMessageText + agentTextMaterialContent）。不带工具，不是 Agent 轮次：find-capabilities
+  返回的新条目这里没有走到（由确定性用例管）。改前的目录由 main 的写法生成（用不了的那几项不出现），改后由本分支的
+  capabilityDirectory 生成；两边其余材料一样。
+任务：两个，每个都有待办（新建待办、查看待办）和 Pages（新建页面、读取页面）可用。organize：「帮我把这周收件箱里的邮件整理
+  成待办」，待办的「从材料整理待办」用不了：请先配置可用的文字模型（待办、数据集、PPT 与宿主的插件模型服务里的原话）。
+  gmail：「看看 Gmail 里今天有没有客户发来的新邮件」，Gmail 的搜索邮件、读取邮件用不了：连接「Gmail」已断开，请在服务
+  连接中重新授权（connector-mcp-actions 的原话）。判断标准在跑之前写下。
+次数：每个任务改前改后各 3 次，共 12 次。
+结果：
+  说出真实原因：gmail 改前 0/3、改后 3/3；organize 改前 0/3、改后 2/3（「需要先配置可用的文字模型」）。
+  说出去哪里补：gmail 改前 0/3、改后 3/3（「服务连接」）。organize 两版 0/3：提供方的原因里只说「请先配置可用的文字模型」，
+    没说在哪里配，模型也就没说（见下面的「没变好」）。
+  内部标识（actions.*、能力 id、工具名）：改前 1 份（把 find-capabilities 调用写成了文字），改后 0 份。
+  拿别的提供方代替：改前 gmail 1 份提议去 Pages 里找客户邮件记录、1 份让用户报邮箱账号；改后 0 份。
+  编造：把「工具调用和返回」写成正文的，改前 1 份（gmail）、改后 1 份（organize，编了 find_capabilities 的返回）；都没有说
+    已整理或已读到邮件。
+成本与时延（每任务平均，输入含缓存读取）：输入 organize 2,601→2,642、gmail 2,597→2,644 token（多出那一节）；输出
+  organize 77→242（改后那份编了工具返回，495）、gmail 81→89 token；耗时 organize 3.3→21.9 秒（改后那份 54 秒，中位 2.9→9.2）、
+  gmail 2.6→2.3 秒。
+没变好或变差的：
+  organize 说不出去哪里配：原因的文字只说缺什么 → 设计问题，在提供方的原因上（四处原话一样），不在目录的写法；不在本片改，
+    列为后续（原因改成说出地方，如「请先在设置里配置可用的文字模型」，要各提供方自己改、自己验）。
+  不带工具的单次调用里，MiniMax 两版都各有一份把工具调用和返回写成正文 → 模型能力，加上这个近似本身没给工具；不加规则。
+  organize 改后有 1 份只回一句「我来看一下」：没有工具可调时的开场白，两版都有（改前 2 份）→ 拿不准，近似造成的成分大。
+结论与未验证：采用。只在这两个任务、这一个模型、单次调用的近似上成立。没跑：真实 Agent 轮次（模型调 find-capabilities 拿到
+  available:false 之后怎么说；需要把密钥写进隔离 Home 的密钥库，要用户同意）；用不了的超过 12 项时的计数行；同一提供方
+  几种原因并存。目录与 find-capabilities 的形状、调用被拒，由 tests/assistant-business-gateway.test.ts 的两条用例证明。
+```
+
 #### B1 项目上手（2026-10-16）
 
 ```text

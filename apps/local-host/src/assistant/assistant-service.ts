@@ -5,7 +5,7 @@ import { AssistantFollowUps } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, requireSynchronous, actionEffect, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
@@ -21,7 +21,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
-import { directEligible } from "./assistant-authority.js";
+import { agentActions, capabilityDirectory } from "./assistant-directory.js";
 import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from "./assistant-material-scan.js";
 import { identity } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
@@ -1510,14 +1510,14 @@ export class AssistantService {
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
     if (writtenBy) this.starting.delete(work.work_id); else this.starting.set(work.work_id, text);
-    const offered = await this.actionTools(authority);
+    const { offered, unavailable } = await this.actionTools(authority);
     this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     // The memories this round is given, chosen now so the round's materials can say how many did not fit.
     this.chosenMemory.delete(work.work_id); this.recalled.delete(work.work_id);
     let prepared: RoundMaterials, handle: Awaited<ReturnType<AgentHost["start"]>>;
     try {
       if (!work.reply_target) await this.memoryForRound(work, text, context);
-      prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered);
+      prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered, unavailable);
       assertSendCurrent(stillCurrent);
       handle = await host.start(RUNTIME, {
         project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
@@ -1559,33 +1559,13 @@ export class AssistantService {
     return { work: this.publicWork(updated, await this.stateSafely(updated)), outcome, run_id: runId };
   }
 
-  /** Every action this scope offers to agents and can run now. The Host re-checks each one at start and at dispatch. */
-  private async actionTools(authority: AgentStartAuthority): Promise<ActionView[]> {
-    if (!authority.actions) return [];
-    const client = await authority.actions(RUNTIME);
-    const views = await client.discover();
-    return views.filter(view => view.action.audiences.includes("agent") && view.availability.available && view.provider.provider_id)
-      .slice(0, MAX_ACTION_TOOLS);
-  }
-
-  /** What exists, grouped by who provides it, so the round knows what to search for; schemas stay deferred until needed. */
-  private directory(views: readonly ActionView[]): string {
-    const groups = new Map<string, string[]>();
-    const confirm = this.store.confirmAlways(this.actorId);
-    for (const view of views) {
-      const effect = actionEffect(view.action, view.capability_id);
-      const direct = directEligible(view, views, confirm);
-      const mark = effect === "read" ? "" : effect === "irreversible" ? "（不可撤回）" : direct ? "（可撤销）" : "（修改）";
-      const list = groups.get(view.provider.title) ?? [];
-      list.push(view.action.title + mark);
-      groups.set(view.provider.title, list);
-    }
-    return ["本轮可用的业务能力（按提供方分组）。用 find-capabilities 按“提供方 名称”搜索取得准确标识与参数；读取类用 read-capability；标“可撤销”的，用户明确要求这个效果时用 change-reversible 直接做（事后告诉用户可以在工作面板撤销）；标“修改”“不可撤回”的用 change-capability，执行前会请用户确认：",
-      ...[...groups].map(([provider, titles]) => `- ${provider}：${titles.join("、")}`)].join("\n");
+  /** Every action this scope offers to agents, by whether it can run now. The Host re-checks each one at start and at dispatch. */
+  private async actionTools(authority: AgentStartAuthority): Promise<ReturnType<typeof agentActions>> {
+    return authority.actions ? agentActions(await (await authority.actions(RUNTIME)).discover(), MAX_ACTION_TOOLS) : { offered: [], unavailable: [] };
   }
 
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
-  private async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[]): Promise<RoundMaterials> {
+  private async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[]): Promise<RoundMaterials> {
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
     const local = new Intl.DateTimeFormat("zh-CN", { timeZone: zone, dateStyle: "full", timeStyle: "short" }).format(now);
@@ -1666,7 +1646,7 @@ export class AssistantService {
       const progress = await this.objectBackground(work, { kind: object.subject.kind, id: object.subject.id });
       if (progress) out.push(...chunked({ ...base, title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
     }
-    out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", offered.length ? this.directory(offered) : "本轮没有可用的业务能力。需要操作数据时，如实告诉用户缺少哪类能力或授权。"));
+    out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
     const methods = work.executor.kind === "coding" ? [] : await this.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));

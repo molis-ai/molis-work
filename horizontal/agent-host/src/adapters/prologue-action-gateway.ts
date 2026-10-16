@@ -22,6 +22,9 @@ type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
 interface CapabilityArgs { capability_id: string; version: number; provider_id: string; input?: unknown }
 
 const describe = (view: ActionView, direct = false) => {
+  // There but not usable now: its owner's reason, and nothing to call it with (the call would be refused).
+  if (!view.availability.available) return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider: view.provider.title,
+    title: view.action.title, available: false, reason: view.availability.reason };
   const effect = actionEffect(view.action, view.capability_id);
   return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider: view.provider.title,
     title: view.action.title, effect: effect === "read" ? "read" : effect === "irreversible" ? "irreversible-change" : direct ? "reversible-change" : "change",
@@ -168,13 +171,13 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     [GATEWAY_TOOLS.find]: guarded(async args => {
       const query = typeof args.query === "string" ? args.query.trim().toLowerCase() : "";
       const terms = query.split(/\s+/).filter(Boolean);
-      const views = (await gateway.client.discover()).filter(view => view.action.audiences.includes("agent") && view.availability.available);
+      const views = (await gateway.client.discover()).filter(view => view.action.audiences.includes("agent"));
       const scored = views.map(view => {
         const hay = `${view.provider.title} ${view.action.title} ${view.capability_id} ${view.action.description}`.toLowerCase();
         const head = `${view.provider.title} ${view.action.title}`.toLowerCase();
         const hits = terms.filter(term => hay.includes(term)).length;
         return { view, score: hits * 10 + terms.filter(term => head.includes(term)).length * 5 };
-      }).filter(row => terms.length === 0 || row.score > 0).sort((a, b) => b.score - a.score);
+      }).filter(row => terms.length === 0 || row.score > 0).sort((a, b) => Number(b.view.availability.available) - Number(a.view.availability.available) || b.score - a.score);
       if (!scored.length) return JSON.stringify({ found: 0, note: "Nothing matches; try the provider's name or a shorter word from the capability directory." });
       for (const row of scored.slice(0, FIND_LIMIT)) known.add(row.view.capability_id);
       return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view, Boolean(gateway.client.direct?.(row.view)))) });
@@ -227,7 +230,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     missing: { type: "array", items: { type: "object", properties: { field: { type: "string" }, question: { type: "string" } }, required: ["field", "question"] }, description: "Required fields you could not fill, each with the question to ask." },
   }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"] };
   const tools = [
-    tool(GATEWAY_TOOLS.find, "Search the business capabilities available in this work's scope by provider and name (e.g. \"Pages 新建\"). Returns each match's exact identity, whether it reads or changes data, and its input schema.",
+    tool(GATEWAY_TOOLS.find, "Search the business capabilities available in this work's scope by provider and name (e.g. \"Pages 新建\"). Returns each match's exact identity, whether it reads or changes data, and its input schema; one that cannot run now comes last, with its provider's reason and nothing to call it with.",
       { type: "object", properties: { query: { type: "string", description: "Words from the provider or capability name, separated by spaces." } }, required: ["query"], additionalProperties: false }, "safe-read"),
     tool(GATEWAY_TOOLS.read, "Run a capability that only reads data, with the exact identity from find-capabilities.", capability, "safe-read"),
     tool(GATEWAY_TOOLS.change, "Run a capability that changes data, with the exact identity from find-capabilities. The person reviews the exact capability and input before it runs; do not ask them separately.", capability, "mutate-external"),

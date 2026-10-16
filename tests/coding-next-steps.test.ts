@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CODING_NEXT_STEP, NEXT_STEP, codingNextSteps, codingStepRow, type CodingNextStepRun } from "@molis-ai/molis-work-app-local-host";
+import { NEXT_STEP, interactionNextSteps } from "@molis-ai/molis-work-app-local-host";
+import { CODING_NEXT_STEP, codingFollowUps, type CodingFollowUpRun } from "@molis-ai/molis-work-plugin-coding";
+import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 
 // specs/ai-interaction-experience AC-25 (first part): Coding's next steps beside its composer are its round's questions and
@@ -8,9 +10,13 @@ import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/servic
 const say = (text: string, values: Record<string, string | number> = {}) => text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
 const ids = (steps: { id: string }[]) => steps.map(step => step.id);
 const wrote = (target: string, state = "completed") => ({ name: "edit", state, target });
-const run = (phase: string, extra: Partial<CodingNextStepRun> = {}): CodingNextStepRun => ({ ref: { run_id: "run-1" }, phase, awaiting_input: [], activity: [], ...extra });
+type Run = CodingFollowUpRun & { awaiting_input: AgentPendingQuestion[] };
+const run = (phase: string, extra: Partial<Run> = {}): Run => ({ ref: { run_id: "run-1" }, phase, awaiting_input: [], activity: [], ...extra });
 const question = (questions: AgentPendingQuestion["questions"]): AgentPendingQuestion =>
   ({ pending_id: "p1", pending_revision: 2, kind: "questionnaire", prompt: "先修哪一个？", options: [], allows_free_text: false, questions });
+// As the Host composes them for Coding's page (apps/local-host/src/coding-surface.ts).
+const codingNextSteps = (round: Run, words: typeof say) => interactionNextSteps(round.awaiting_input, [], [], codingFollowUps(round, words), words);
+const codingStepRow = (round: Run, words: typeof say) => { const steps = codingNextSteps(round, words); return steps.length ? renderInteractionNextSteps(steps, words("下一步"), { max: steps.length }) : ""; };
 const pick = { index: 0, prompt: "先修哪一个？", type: "choice" as const, required: true, multiple: false, allow_other: false,
   options: [{ index: 0, label: "登录", recommended: true }, { index: 1, label: "导出" }] };
 

@@ -91,7 +91,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   // apps/local-host/src/artifact-native-plugin-http.ts
   "这一版不能在这个插件里继续": "This version can't be continued in this plugin",
   "这个版本没有可取回的文件": "This version has no file to retrieve",
-  // apps/local-host/src/coding-next-steps.ts (H4)
+  // plugins/native/coding/src/next-steps.ts (H4)
   "核对并继续": "Check and continue",
   "这一轮需要核对结果": "This round's result needs checking",
   "查看变更": "View changes",

@@ -58,6 +58,36 @@ const SURFACES: Surface[] = [
     },
     ready: `${visible("[data-work-surface=settings] [data-settings-panel=appearance]")} && !document.querySelector('[data-settings-loading]')`,
   },
+  // W5-05: what the old skin layers still style beyond the surfaces above — a Goal's Frame and its work, and the
+  // project settings — so deleting a layer is compared where it lands.
+  {
+    id: "project-settings-general",
+    // The project's settings opener sits in a menu; the picture is of the panel, so it is opened directly.
+    open: async ({ click, evaluate }) => {
+      await evaluate("document.querySelector('[data-directory-open=project-settings]').click()");
+      await click("[data-directory-panel=project-settings] [data-settings-section=general]");
+    },
+    ready: `${visible("[data-work-surface=project-settings] [data-settings-panel=general]")} && !document.querySelector('[data-settings-loading]')`,
+  },
+  {
+    id: "goal-frame",
+    open: async ({ click, waitFor, openGoalFrame }) => {
+      await click('[data-plugin-strip] [data-plugin-id="goals"]');
+      await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'", 15_000);
+      await openGoalFrame('.tree-node[data-select-goal="CORE"]');
+    },
+    ready: `Boolean(document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=CORE]')) && ${visible("[data-frame-goal-work]")}`,
+  },
+  {
+    id: "goal-work",
+    open: async ({ click, waitFor, openGoalFrame, openGoalWork }) => {
+      await click('[data-plugin-strip] [data-plugin-id="goals"]');
+      await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'", 15_000);
+      await openGoalFrame('.tree-node[data-select-goal="CORE"]');
+      await openGoalWork();
+    },
+    ready: visible("[data-goal-node-workspace]"),
+  },
 ];
 
 const CLOCK = `(() => { const Real = Date, offset = Real.UTC(2026, 9, 15, 6) - Real.now();

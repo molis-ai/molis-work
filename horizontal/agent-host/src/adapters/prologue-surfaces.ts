@@ -89,6 +89,8 @@ export interface SurfaceAttachment {
   readonly note: string | null;
   /** Which surfaces are attached this round, so the guidance can name the browser, the desktop, or both. */
   readonly surfaces: readonly ("browser" | "desktop")[];
+  /** The desk's target id when the desktop is attached, so the round's record knows its calls are desktop steps. */
+  readonly desktop_target?: string;
 }
 
 export interface PrologueSurfaces {
@@ -209,16 +211,16 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
   };
 
   const attachDesktop = async (session: { readonly ref: ExactRef<"session"> }, sessionId: string,
-    context: { readonly goal?: string; readonly projectId?: string | null }): Promise<boolean> => {
+    context: { readonly goal?: string; readonly projectId?: string | null }): Promise<string | null> => {
     const held = desktopAttached.get(session.ref.id);
     const driver = ports.desktop?.() ?? null;
     if (!driver) {
       if (held) { await runtime().surfaces.close(held.target).catch(() => undefined); desktopAttached.delete(session.ref.id); }
-      return false;
+      return null;
     }
     // Name this round so the record the desk starts on first look names it; only takes effect until the lease is taken.
     driver.describeRound?.(sessionId, { run_id: null, project_id: context.projectId ?? null, goal: context.goal ?? "" });
-    if (held && held.driver === driver && runtime().surfaces.get(held.target)?.open) return true;
+    if (held && held.driver === driver && runtime().surfaces.get(held.target)?.open) return held.target.id;
     drivers.add(driver);
     const surface: UiSurface = {
       kind: "desktop",
@@ -232,7 +234,7 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
     };
     const target = runtime().surfaces.attach(surface, { owner: session.ref });
     desktopAttached.set(session.ref.id, { target: target.ref, driver });
-    return true;
+    return target.ref.id;
   };
 
   return {
@@ -249,6 +251,7 @@ export function createPrologueSurfaces(runtime: () => Runtime, ports: PrologueSu
         tools: options.readOnly ? SURFACE_TOOL_NAMES.filter(name => name !== "surface-act") : SURFACE_TOOL_NAMES,
         note: notes.length ? notes.join(" ") : null,
         surfaces: present,
+        ...(desktop ? { desktop_target: desktop } : {}),
       };
     },
     describe: (sessionRefId, action, summary, typed) => describeBrowserAction(attached.get(sessionRefId)?.driver, action, summary, typed),

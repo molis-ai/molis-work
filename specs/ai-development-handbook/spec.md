@@ -431,6 +431,15 @@ Skill 可以包含适用的确定步骤和脚本，但必须说明哪些是业�
   代码读的格式，不写判断规则；它在这里的理由是上面的对照。
 ```
 
+#### D2 按错误文字判断错误种类（2026-10-16）
+
+不改任何提示词，没有模型评测；证明是确定性用例。清单里的三处，操作卡那处（「数据变了」按错误信息匹配）已由 #569 / #561 改成按码与种类，本片做剩下两处。
+
+- 「没配模型」（`apps/local-host/src/assistant/assistant-error.ts`）：只认 `agent.model_not_configured`，删掉按「没有配置可用的模型」匹配信息的那一支。这句话唯一的来处（agent-host 开新一轮时没有模型）一直带着这个码；`tests/assistant-business-gateway.test.ts`「without a model the work and its text are kept」走真实的适配器，证明码这条路。
+- 桌面步骤（`apps/local-host/src/assistant/desktop-activity.ts`）：删掉 `DESKTOP_TEXT`（按回执里「应用：」「用户已接手电脑」等十种说法认桌面步骤）。原来 agent-host 只在这一轮自己列出过界面时，才知道哪个目标是桌面；桌面在同一会话的各轮之间一直挂着，后一轮不再列出、直接用上一轮的 id 时，只能靠这串说法补认。现在挂上桌面时把它的 id 带回来（`SurfaceAttachment.desktop_target`），记进这一轮的 attempt，开跑时和重启后恢复时，活动流都从同一个 `runStreamState` 开始、先记下这台桌面，对它的每次调用都标成桌面步骤，不看回执写了什么。
+- 证明：`tests/side-panel-assistant-surface.test.ts`「a later round's look at the desk it holds is a desktop step without listing, live and after a restart」。第二轮不列出、直接看桌面，面板上是「看应用」、不露 id；重启适配器后读回这一轮，活动仍标为桌面步骤。两处各去掉一处登记（开跑时、恢复时）分别做过变异，用例各自失败。`tests/assistant-tool-words.test.ts` 的列出后操作用例不变、仍过。
+- 没做的：Prologue 的 `surface-list` 结果仍按它的固定格式（`id — desktop, open`）读出桌面 id。那是 SDK 的输出格式，不是模型或回执的措辞；SDK 给出结构化的界面种类后可以换掉。
+
 #### D4 模型路径上悄悄吞掉的失败（2026-10-16）
 
 不改任何提示词，没有模型评测；证明是确定性用例。按手册 16.4，先问用户或后面的步骤要不要知道：

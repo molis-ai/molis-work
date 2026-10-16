@@ -1011,7 +1011,11 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-next-row .mw-ix-step:not(:hover){background:var(--paper)}
   ${ASSIST} .bar-center:has(>.assistant-next-row:not([hidden])){--next-row:48px}
   /* What the next Send carries, above the next steps: a chip each; the object on show, not added, is dashed with + to add it. */
-  ${ASSIST} .assistant-context-strip{position:absolute;z-index:55;inset:auto auto calc(100% + 6px + var(--next-row,0px)) 0;display:flex;gap:6px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+  ${ASSIST} .assistant-context-strip{position:absolute;z-index:55;inset:auto auto calc(100% + 6px + var(--next-row,0px)) 0;max-width:100%}
+  ${ASSIST} .assistant-strip-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;scroll-padding-inline:28px}
+  ${ASSIST} .assistant-strip-row[data-more=end]{mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
+  ${ASSIST} .assistant-strip-row[data-more=start]{mask-image:linear-gradient(to left,#000 calc(100% - 28px),transparent)}
+  ${ASSIST} .assistant-strip-row[data-more=both]{mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
   ${ASSIST} .assistant-context-strip[hidden]{display:none}
   ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])){--context-row:38px}
   ${ASSIST} .assistant-strip-chip{display:inline-flex;flex:none;align-items:center;gap:4px;max-width:240px;height:32px;padding:0 0 0 8px;border:0;border-radius:8px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font:inherit;font-size:12px}

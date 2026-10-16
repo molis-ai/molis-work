@@ -76,7 +76,8 @@ const showChips = (selectors: string[]) => `(() => {
   }
   for (const [selector, text] of Object.entries(words)) { const span = document.querySelector(selector); if (span && !span.closest("[hidden]")) span.textContent = text; }
 })()`;
-/** A page object on show: the strip above the line offers it as a dashed chip with + while the input has focus. */
+/** A page object on show, with a passage of it selected: the strip above the line offers the object as a dashed chip with + and
+ * carries the passage as a chip with ×, so both of its buttons are measured. */
 const PAGE_TITLE = "本周需求说明文档";
 const lookAtPage = (on: boolean) => `(() => {
   document.querySelectorAll("[data-test-page-object]").forEach(el => el.remove());
@@ -86,6 +87,9 @@ const lookAtPage = (on: boolean) => `(() => {
   page.style.cssText = "position:fixed;top:60px;left:10px;width:50px;height:20px";
   document.body.append(page);
   page.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "todo", object: { kind: "todo_item", id: "touch-targets-page", title: ${JSON.stringify(PAGE_TITLE)} } }));
+  page.textContent = "本周需求";
+  const range = document.createRange(); range.selectNodeContents(page);
+  getSelection().removeAllRanges(); getSelection().addRange(range);
 })()`;
 const chipsShown = (selectors: string[]) => `${JSON.stringify(selectors)}.every(selector => document.querySelector(selector)?.hidden === false)`;
 
@@ -170,7 +174,7 @@ const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
   ["who does it", "[data-assistant-executor]", "[data-assistant-executors]", [".assistant-starter"]],
   ["the mode", "[data-assistant-mode]", "[data-assistant-modes]", [".assistant-starter"]],
   ["the Character", "[data-assistant-character]", "[data-assistant-characters]", [".assistant-starter"]],
-  ["the strip", "[data-assistant-input]", "[data-assistant-context-strip]", [".assistant-strip-act"]],
+  ["the strip", "[data-assistant-input]", "[data-assistant-context-strip]", [".assistant-strip-act[aria-label^='加入']", ".assistant-strip-act[aria-label^='不带上']"]],
   ["the notices", "[data-assistant-attention]", "[data-assistant-notices]", ["[data-notice-action=open]", "[data-notice-action=dismiss]", "summary"]],
   ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-dock-choice]", "[data-plugin-toggle]"]],
   ["the project menu", ".navigator-project-selector", ".navigator-project-menu-popover", [".navigator-project-option", ".navigator-project-manage"]],

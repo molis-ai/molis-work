@@ -80,3 +80,29 @@ test("STRIP-02: ✦助理 puts what is in hand in the strip with the object it i
   for (let tries = 0; tries < 50 && !(await related()).length; tries++) await new Promise(resolve => setTimeout(resolve, 100));
   assert.deepEqual((await related()).map(work => work.relation), ["material"], "and the work is linked under the document the passage came from");
 });
+
+test("STRIP-03: more chips than fit scroll sideways: the side with more fades, the last chip is reached by keyboard and by the wheel", { timeout: 120_000 }, async t => {
+  const b = await openNotes(t);
+  if (!b) return;
+  const { command, sessionId, evaluate, waitFor } = b;
+  const ROW = "[data-assistant-context-strip]:not([hidden]) .assistant-strip-row";
+  const materials = Array.from({ length: 7 }, (_, index) => ({ title: `会议纪要第 ${index + 1} 份：秋季发布`, text: `要点 ${index + 1}` }));
+  await evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { new: true, materials: ${JSON.stringify(materials)} } }))`);
+  for (const [width, height, mobile] of [[1440, 950, false], [390, 844, true]] as const) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+    await evaluate("document.querySelector('[data-assistant-input]').focus()");
+    await evaluate(`(() => { const row = document.querySelector(${JSON.stringify(ROW)}); if (row) row.scrollLeft = 0; })()`);
+    await waitFor(`document.querySelector(${JSON.stringify(ROW)})?.dataset.more === 'end'`, 10_000);
+    // The cue is drawn: the row fades out on the side that has more.
+    assert.notEqual(await evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(ROW)})).maskImage`), "none", `${width}: the side with more fades out`);
+    // The keyboard reaches the last chip: it scrolls into view, inside the row's box.
+    await evaluate(`[...document.querySelectorAll(${JSON.stringify(ROW + " .assistant-strip-act")})].at(-1).focus()`);
+    await waitFor(`(() => { const row = document.querySelector(${JSON.stringify(ROW)}), last = [...row.querySelectorAll('[data-strip-key]')].at(-1);
+      const r = row.getBoundingClientRect(), box = last.getBoundingClientRect(); return box.left >= r.left - 1 && box.right <= r.right + 1 && row.dataset.more === 'start'; })()`, 10_000);
+    // The wheel scrolls the row sideways, back towards the start.
+    const box = await evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector(${JSON.stringify(ROW)}).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    const before = await evaluate<number>(`document.querySelector(${JSON.stringify(ROW)}).scrollLeft`);
+    await command("Input.dispatchMouseEvent", { type: "mouseWheel", x: box.x, y: box.y, deltaX: 0, deltaY: -200 }, sessionId);
+    await waitFor(`document.querySelector(${JSON.stringify(ROW)}).scrollLeft < ${before} - 50`, 5000);
+  }
+});

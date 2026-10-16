@@ -6,11 +6,27 @@
  * neither (§21.5). A work that already holds that object is one click away. It replaces the 「材料」 button and list.
  *
  * Shown while the panel is open, the input or the strip has focus, or the person put something in; a page's object or
- * selection alone does not raise it over the page.
+ * selection alone does not raise it over the page. More chips than fit scroll sideways: the side with more fades out, a
+ * chip reached by keyboard scrolls into view, and a vertical wheel scrolls the row (§21.5).
  */
 export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
   const { strip, L, el } = input;
   let signature = "";
+  const row = el("div", "assistant-strip-row");
+  strip.append(row);
+  /** Which side has more than the row shows; the stylesheet fades that side. */
+  const edges = () => {
+    const room = row.scrollWidth - row.clientWidth, at = Math.abs(row.scrollLeft);
+    if (room <= 1) delete row.dataset.more;
+    else row.dataset.more = at < 1 ? "end" : at >= room - 1 ? "start" : "both";
+  };
+  row.addEventListener("scroll", edges, { passive: true });
+  row.addEventListener("focusin", (event) => event.target.scrollIntoView({ block: "nearest", inline: "nearest" }));
+  row.addEventListener("wheel", (event) => {
+    if (row.scrollWidth <= row.clientWidth || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+    row.scrollLeft += event.deltaY; event.preventDefault();
+  }, { passive: false });
+  if (typeof ResizeObserver === "function") new ResizeObserver(edges).observe(row);
   const act = (text, label, run) => {
     const button = el("button", "assistant-strip-act", text); button.type = "button";
     button.setAttribute("aria-label", label);
@@ -38,12 +54,13 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
     strip.hidden = !shown;
     if (!shown) return;
     const next = JSON.stringify(items.map((item) => [item.key, item.label, item.optional, item.note, Boolean(item.thumb)]));
-    if (next === signature) return;
+    if (next === signature) { edges(); return; }
     signature = next;
     // Rebuilt, focus stays on the same chip's button (or the first one when that chip went away).
     const had = strip.contains(document.activeElement) ? document.activeElement.closest("[data-strip-key]")?.dataset.stripKey : null;
-    strip.replaceChildren(...items.map((item) => { const node = chip(item); node.dataset.stripKey = item.key; return node; }));
-    if (had) { const same = strip.querySelector('[data-strip-key="' + CSS.escape(had) + '"]'); ((same && (same.matches("button") ? same : same.querySelector("button"))) || strip.querySelector("button"))?.focus(); }
+    row.replaceChildren(...items.map((item) => { const node = chip(item); node.dataset.stripKey = item.key; return node; }));
+    if (had) { const same = row.querySelector('[data-strip-key="' + CSS.escape(had) + '"]'); ((same && (same.matches("button") ? same : same.querySelector("button"))) || row.querySelector("button"))?.focus(); }
+    edges();
   };
   strip.setAttribute("aria-label", L("这次发送带上的"));
   return { paint };

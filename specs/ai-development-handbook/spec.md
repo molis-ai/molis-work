@@ -218,6 +218,7 @@ Skill 可以包含适用的确定步骤和脚本，但必须说明哪些是业�
 结论与未验证：采用。只在这四组自编材料、这一个模型上成立。没跑真实邮箱与 Gmail 来源、中途失败与重试、用户改过指令的 Home；
   改后不带系统角色，抗注入靠指令里的证据规则与宿主的引用校验：只评了一种写法（明文的「系统指令」）3 次，没跑改前对照，
   也没试藏得更深的写法（夹在正文里、伪装成用户本人的话）。
+  抗注入的工程边界由 S-13 用例证明（tests/security-invariants-injection.test.ts 的项目上手一条）；评测只说明模型在这一种写法下的表现。
 ```
 
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。

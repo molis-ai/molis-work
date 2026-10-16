@@ -221,8 +221,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "assistant";
     readonly on: "document";
-    readonly detail: "{ work_id?, new?, source?, materials?, text? }";
-    readonly summary: "Open the Assistant panel on a Work, or a new one, with words and materials put in and nothing sent.";
+    readonly detail: "{ work_id?, new?, source?, materials?, object? }";
+    readonly summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent.";
 }, {
     readonly name: "molis:assistant-starter-choose";
     readonly kind: "request";

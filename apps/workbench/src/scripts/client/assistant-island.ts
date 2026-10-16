@@ -3,6 +3,7 @@ import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
 import { ASSISTANT_SEND_CLIENT_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
+import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
 
@@ -934,14 +935,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     });
   };
 
-  /* 材料: a place to drop what the next Send carries, then what this work has used, as tiles. */
+  /* 材料: a place to drop what the next Send carries (named in the strip above the input), then what this work has used. */
   const MATERIAL_KIND = { image: "图片", file: "文件", method: "方法", capability: "能力", text: "文字", selection: "选中的内容", object: "引用" };
   const MATERIAL_GLYPH = { image: "image", file: "file", method: "zap", capability: "zap", text: "note", selection: "text", object: "file" };
   function renderMaterialsBlock() {
     const node = blocks.materials;
     if (!node) return;
     const work = view && view.work.work_id === curId ? view.work : null;
-    const items = materialsNow();
     const objects = work && view.objects ? view.objects.filter((o) => o.relation === "material") : [];
     const used = [];
     (work ? view.rounds : []).forEach((round, index) => (round.materials || []).forEach((material) => {
@@ -949,34 +949,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const key = material.kind + ":" + material.title;
       if (!used.some((one) => one.key === key)) used.push({ key, material, round: index + 1 });
     }));
-    const signature = JSON.stringify([work && work.work_id, sidePanelHere(), items.map((item) => [item.key, item.label, item.optional, item.auto, item.note, Boolean(item.thumb)]),
+    const signature = JSON.stringify([work && work.work_id, sidePanelHere(),
       objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision]), used.map((one) => one.key)]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
-      // The next Send's materials sit in a place things can be dropped on; each one is named and can be left out.
+      // The next Send's materials go where things can be dropped; the strip above the input names each one.
       const zone = el("div", "assistant-drop");
       zone.append(el("p", "assistant-drop-label", L("下次发送带上")));
-      if (items.length) {
-        const chips = el("div", "assistant-chips");
-        items.forEach((item) => {
-          const chip = el("span", "assistant-chip" + (item.optional ? " is-optional" : ""));
-          const looked = item.thumb && sidePanelHere();
-          const label = el(looked ? "button" : "span", "assistant-chip-label", item.label);
-          if (looked) {
-            label.type = "button"; label.setAttribute("aria-label", L("预览") + "：" + item.label);
-            label.addEventListener("click", () => { sidePreview({ preview: { title: item.label, media_type: (/^data:([^;,]+)/.exec(item.thumb) || [])[1] || "image/png", url: item.thumb } }); });
-          }
-          chip.append(glyph(item.thumb ? "image" : item.key === "selection" ? "text" : item.key === "draft" ? "edit" : item.work ? "workflow" : "file"), label);
-          if (item.work) chip.append(sideAct(L("切换过去"), item.label, async () => { await switchTo(item.work.work_id); input.focus(); }));
-          // Browsing is not working on it: the person decides whether this round takes it.
-          else if (item.optional) chip.append(sideAct(L("加入本轮"), item.label, async () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMats(); }));
-          else chip.append(sideAct("×", L("不带上") + " " + item.label, async () => { dropMaterial(item); paintMats(); }));
-          chip.title = item.note || (item.optional ? L("与这项工作无关，不会带上") : item.auto ? L("来自当前页面") : L("你添加的"));
-          chips.append(chip);
-        });
-        zone.append(chips);
-      }
       const hint = el("div", "assistant-drop-hint");
       const pick = sideAct(L("添加文件"), L("下次发送带上"), async () => { fileInput?.click(); }, false, "secondary");
       hint.append(glyph("upload"), el("span", "", L("拖到这里，或 @ 引用、/ 用能力")), pick);
@@ -1674,10 +1654,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
 
   /* ─── Sending ──────────────────────────────────────────────────────────── */
   /* ─── What the person is looking at, and what goes with this Send ──────── */
-  const matsBtn = island.querySelector("[data-assistant-materials]");
-  const materialsCount = island.querySelector("[data-assistant-materials-count]");
-  const materialsLabel = island.querySelector("[data-assistant-materials-label]");
-  const matsList = island.querySelector("[data-assistant-materials-list]");
+  let contextStrip = null;
   const startPop = island.querySelector("[data-assistant-starters]");
   const attach = island.querySelector("[data-assistant-attach]");
   const fileInput = island.querySelector("[data-assistant-file]");
@@ -1727,8 +1704,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const title = tab.getAttribute("title") || "";
     return { plugin_id: tab.dataset.plugin, surface_title: title, ...(kind ? { object: { kind, id: tab.dataset.itemId, title } } : {}) };
   };
-  /* What the person looks at is not what they work on. A page object joins the current work only when it already
-     belongs to it (opened from it, produced by it) or when the person adds it; a new work starts from it. */
+  /* What the person looks at is not what they work on. A page object goes with a Send only when it already belongs to
+     the current work (opened from it, produced by it) or the person adds it with +; then the model sees it and the work
+     is linked under it, otherwise neither (spec §21.5). What a page hands over brings its object along. */
   const joined = new Set();
   const objectKey = (object) => object.kind + ":" + object.id;
   const belongsToWork = (object) => Boolean(view && view.work.work_id === curId && (view.objects || []).some((item) => item.subject.kind === object.kind && item.subject.id === object.id));
@@ -1747,7 +1725,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const ctx = pageCtx();
     if (!ctx || !ctx.object || removed.has("object")) return null;
     const object = ctx.object;
-    const related = !curId || belongsToWork(object);
+    const related = Boolean(curId) && belongsToWork(object);
     return { object, context:ctx, related, included: related || joined.has(objectKey(object)) };
   };
   const clip = (text, size) => text.length > size ? text.slice(0, size - 1) + "…" : text;
@@ -1756,17 +1734,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const ctx = pageCtx();
     const items = [];
     const page = pageObject();
-    if (page) {
-      // The page's object is named once; the sentence around it is the translation's own, so it keeps its own colon.
-      const name = page.object.title || page.object.id, label = L("正在看：{title}", { title: name });
-      if (page.included) items.push({ key: "object", label, name, auto: !joined.has(objectKey(page.object)), note: curId && page.related ? L("这项工作的对象") : "" });
-      else items.push({ key: "object", label, name, optional: true });
-    }
+    // The page's object is named once; the sentence around it is the translation's own, so it keeps its own colon.
+    // Not added, it is offered — unless something handed over from it already brings it along.
+    const name = page && (page.object.title || page.object.id), label = page && L("正在看：{title}", { title: name });
+    if (page && page.included) items.push({ key: "object", label, auto: !joined.has(objectKey(page.object)), note: page.related ? L("这项工作的对象") : "" });
+    else if (page && !files.some((file) => file.object && objectKey(file.object) === objectKey(page.object))) items.push({ key: "object", label, optional: true });
     if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== curId).slice(0, 2)
       .forEach((row) => items.push({ key: "work:" + row.work_id, label: L("这个对象属于工作") + "「" + row.title + "」", optional: true, work: row }));
     if (sel && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(sel.text.replace(/\s+/g, " "), 28), auto: true });
-    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.kind === "image" ? L("图片") + "：" : file.reference ? L("引用") + "：" : "") + file.title, auto: false, thumb: file.preview }));
+    files.forEach((file) => items.push({ key: "file:" + file.material_id, label: (file.kind === "image" ? L("图片") + "：" : file.reference ? L("引用") + "：" : "") + file.title, auto: false, put: true, thumb: file.preview }));
     return items;
   };
   /** Leaves an item out of this Send: a page object the person added goes back to optional; the rest are removed. */
@@ -1775,52 +1752,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (page && joined.has(objectKey(page.object))) joined.delete(objectKey(page.object));
     else if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
   }
-  function paintMats() {
-    renderMaterialsBlock(); paintEmpty();
-    if (!matsBtn) return;
-    const items = materialsNow();
-    const carried = items.filter((item) => !item.optional);
-    matsBtn.hidden = !items.length;
-    // Named, not counted: the first thing this message carries (what the page shows), and how many more.
-    const lead = carried[0] || items[0];
-    if (materialsLabel) materialsLabel.textContent = lead ? clip(lead.name || lead.label, 16) : "";
-    if (materialsCount) materialsCount.textContent = carried.length > 1 ? "+" + (carried.length - 1) : "";
-    matsBtn.toggleAttribute("data-optional", !carried.length);
-    matsBtn.setAttribute("aria-label", L("本次发送带上的材料") + "：" + (carried.length ? carried.map((item) => item.label).join("、") : L("无")) + (carried.length < items.length ? "；" + L("另有正在看的对象未加入") : ""));
-    if (!matsList || matsList.hidden) return;
-    matsList.replaceChildren(el("p", "assistant-popover-title", L("本次发送带上的材料")));
-    if (!items.length) matsList.append(el("p", "assistant-muted", L("没有材料。可以在页面上选中内容，或添加文件。")));
-    items.forEach((item) => {
-      const row = el("div", "assistant-material" + (item.optional ? " assistant-material--optional" : ""));
-      if (item.work) {
-        // Another work already holds this object: continuing it there is one click, never automatic.
-        row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", stateLabel(item.work.state)));
-        const go = el("button", "assistant-material-add", L("切换过去")); go.type = "button";
-        go.addEventListener("click", () => { setMats(false); switchTo(item.work.work_id); input.focus(); });
-        row.append(go); matsList.append(row); return;
-      }
-      if (item.optional) {
-        // Browsing is not working on it: the person decides whether this round takes it.
-        row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", L("与这项工作无关，不会带上")));
-        const add = el("button", "assistant-material-add", L("加入本轮")); add.type = "button";
-        add.addEventListener("click", () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMats(); matsList.querySelector("button")?.focus(); });
-        row.append(add); matsList.append(row); return;
-      }
-      if (item.thumb) { row.classList.add("assistant-material--image"); const thumb = el("img", "assistant-material-thumb"); thumb.src = item.thumb; thumb.alt = ""; row.append(thumb); }
-      row.append(el("span", "assistant-material-label", item.label), el("span", "assistant-material-origin", item.note || (item.auto ? L("来自当前页面") : L("你添加的"))));
-      const drop = el("button", "assistant-material-remove", "×"); drop.type = "button";
-      drop.setAttribute("aria-label", L("不带上") + "：" + item.label);
-      drop.addEventListener("click", () => { dropMaterial(item); paintMats(); (matsList.querySelector("button") || matsBtn).focus(); });
-      row.append(drop); matsList.append(row);
-    });
-  }
-  const setMats = (open) => {
-    if (!matsList) return;
-    matsList.hidden = !open;
-    matsBtn?.setAttribute("aria-expanded", String(open));
-    if (open) { setStarts(false); paintMats(); matsList.querySelector("button")?.focus(); }
-  };
-  matsBtn?.addEventListener("click", () => setMats(matsList.hidden));
+  const stripNode = island.querySelector("[data-assistant-context-strip]");
+  contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, L, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,
+    add: () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMats(); },
+    drop: (item) => { dropMaterial(item); paintMats(); },
+    go: (work) => { void switchTo(work.work_id); input.focus(); } });
+  function paintMats() { renderMaterialsBlock(); paintEmpty(); contextStrip?.paint(); }
+  island.addEventListener("focusin", () => contextStrip?.paint());
+  island.addEventListener("focusout", () => setTimeout(() => contextStrip?.paint(), 0));
   /* Starting points for what is open (specs/archive/contextual-interaction §6.4.2): what the action directory offers for it,
      through the context row's controller — the row's own plan while something is in hand. Choosing one of those runs
      it as a click on the row would. With nothing offered, three plain questions that only fill the input. Pages do not
@@ -1852,11 +1791,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const changed = !this.answer || JSON.stringify([this.answer.object_key, this.answer.items]) !== JSON.stringify([objectKey, items]);
       this.answer = { object_key: objectKey, items, at: Date.now() };
       if (!changed) return;
-      // Answered while being read (the row's plan is at hand): the reader shows it; otherwise repaint what is open.
-      queueMicrotask(() => {
-        if (startPop && !startPop.hidden && !startPop.dataset.mode) setStarts(true);
-        paintEmpty();
-      });
+      // Answered while being read (the row's plan is at hand): the reader shows it; otherwise repaint the empty work.
+      queueMicrotask(paintEmpty);
     },
   };
   document.addEventListener("molis:assistant-starters", (event) => {
@@ -1994,60 +1930,22 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (!(res.hits || []).length) startPop.append(el("p", "assistant-material-origin", res.status === "indexing" ? L("内容还在建立索引，稍后再试") : L("没有找到；换个词试试")));
     }, 180);
   }
-  function setStarts(open) {
-    if (!startPop) return;
-    delete startPop.dataset.mode;
-    const list = open ? startersFor() : [];
-    // With no work chosen, the works done lately are one click away too: the way back to them from the input itself.
-    const recent = open && !curId ? works.filter((work) => !work.archived && !work.delegated_by)
-      .slice().sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || ""))).slice(0, 3) : [];
-    // A new work also says, at the foot, where the message goes and who carries it, with the way to change that.
-    const target = open && !curId;
-    startPop.hidden = !list.length && !recent.length && !target;
-    if (startPop.hidden) return;
-    startPop.replaceChildren();
-    if (list.length) startPop.append(el("p", "assistant-popover-title", L("可以这样开始")));
-    list.forEach((starter) => {
-      const btnEl = el("button", "assistant-starter", starterLabel(starter)); btnEl.type = "button";
-      if (starter.hint) btnEl.title = starter.hint;
-      btnEl.addEventListener("mousedown", (event) => event.preventDefault());
-      btnEl.addEventListener("click", () => { setStarts(false); if (useStarter(starter)) input.focus(); });
-      startPop.append(btnEl);
-    });
-    if (recent.length) startPop.append(el("p", "assistant-popover-title", L("继续最近的工作")));
-    recent.forEach((work) => {
-      const btnEl = el("button", "assistant-starter assistant-starter--work"); btnEl.type = "button";
-      btnEl.append(el("span", "assistant-starter-title", work.title), el("span", "assistant-starter-state", stateLabel(work.state)));
-      btnEl.addEventListener("mousedown", (event) => event.preventDefault());
-      btnEl.addEventListener("click", async () => { setStarts(false); await switchTo(work.work_id); setPanel(true); reload().then(poll); input.focus(); });
-      startPop.append(btnEl);
-    });
-    if (target) {
-      const who = nextExec === "coding" ? "Coding Agent" : nextChar ? nextChar.title : L("助理");
-      const where = nextExec === "coding" || !project ? "" : nextScope === "project" ? (project.title || L("本项目")) : L("个人");
-      const row = el("button", "assistant-starter assistant-starter--target"); row.type = "button";
-      row.append(el("span", "assistant-starter-title", L("发给") + "：" + [who, L("新工作"), where].filter(Boolean).join(" · ")), el("span", "assistant-starter-state", L("更改")));
-      row.addEventListener("mousedown", (event) => event.preventDefault());
-      row.addEventListener("click", openNewWorkChoices);
-      startPop.append(row);
-    }
-  }
-  input.addEventListener("focus", () => { paintMats(); if (!String(input.value || "").trim() && !busy) setStarts(true); });
-  input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; setStarts(false); }, 0));
+  function closeStarts() { if (startPop) { delete startPop.dataset.mode; startPop.hidden = true; } }
+  input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; closeStarts(); }, 0));
   // What opens from the island, and the button focus returns to.
-  const popovers = () => [[workNav, setWorks, worksToggle], [morePop, setMore, attach], [matsList, setMats, matsBtn], [execsPop, setExecs, execBtn], [modesPop, setModes, modeButton], [charsPop, setChars, charBtn], [noticePop, setNotices, noticeBtn]];
+  const popovers = () => [[workNav, setWorks, worksToggle], [morePop, setMore, attach], [execsPop, setExecs, execBtn], [modesPop, setModes, modeButton], [charsPop, setChars, charBtn], [noticePop, setNotices, noticeBtn]];
   document.addEventListener("pointerdown", (event) => {
     if (event.target?.nodeType !== 1 || island.contains(event.target)) return;
-    setStarts(false); for (const [pop, close] of popovers()) if (pop && !pop.hidden) close(false);
+    closeStarts(); for (const [pop, close] of popovers()) if (pop && !pop.hidden) close(false);
   });
   island.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     const stop = () => { event.preventDefault(); event.stopPropagation(); }, put = ([pop, close, btnEl]) => pop && !pop.hidden && (stop(), close(false), (visible(btnEl) ? btnEl : attach)?.focus(), true);
-    const [worksOpen, moreOpen, materialsOpen, ...choosers] = popovers();
+    const [worksOpen, moreOpen, ...choosers] = popovers();
     if (put(worksOpen)) return;
     if (panel && !panel.hidden && !spacious() && drawerOpen) { stop(); drawerOpen = false; paintLayout(); sideToggle?.focus(); return; }
-    if (put(moreOpen) || put(materialsOpen)) return;
-    if (startPop && !startPop.hidden) { stop(); setStarts(false); }
+    if (put(moreOpen)) return;
+    if (startPop && !startPop.hidden) { stop(); closeStarts(); }
     choosers.forEach(put);
   }, true);
   /* Files the person adds: text is read here and sent as their own material; what cannot be read is said plainly. */
@@ -2106,24 +2004,17 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const paintMore = () => {
     if (!morePop) return;
-    const rows = [...(compose.dataset.crowded === "chips" ? [matsBtn, noticeBtn] : []).filter((btnEl) => btnEl && !btnEl.hidden).map((btnEl) => moreItem(btnEl.title, btnEl.textContent.trim(), () => { setMore(false); btnEl.click(); })),
+    const rows = [...(compose.dataset.crowded === "chips" ? [noticeBtn] : []).filter((btnEl) => btnEl && !btnEl.hidden).map((btnEl) => moreItem(btnEl.title, btnEl.textContent.trim(), () => { setMore(false); btnEl.click(); })),
       moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }),
       moreItem(L("引用项目里的内容"), "@", () => { setMore(false); insertTrigger("@"); }),
       moreItem(L("用一个能力或方法"), "/", () => { setMore(false); insertTrigger("/"); })];
     morePop.replaceChildren(...rows);
   };
-  // Who carries a new work and where it lives are chosen in its tab's side pane: the old “+” rows point there.
-  const openNewWorkChoices = () => {
-    setStarts(false); setMore(false); setPanel(true);
-    if (spacious()) store.set(SIDE_KEY, null); else drawerOpen = true;
-    paintLayout(); paintSum();
-    requestAnimationFrame(() => metaEl?.querySelector("button, select")?.focus());
-  };
   function setMore(open) {
     if (!morePop) return;
     morePop.hidden = !open;
     attach?.setAttribute("aria-expanded", String(open));
-    if (open) { setStarts(false); paintMore(); morePop.querySelector("button")?.focus(); }
+    if (open) { closeStarts(); paintMore(); morePop.querySelector("button")?.focus(); }
   }
   attach?.addEventListener("click", () => setMore(Boolean(morePop && morePop.hidden)));
   fileInput?.addEventListener("change", () => {
@@ -2203,7 +2094,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null, executor: raw.executor === "coding" ? "coding" : null };
   };
   const bring = (message) => {
-    message.materials.forEach((item, index) => files.push(Object.assign({ material_id: "msg-" + message.message_id.slice(0, 40) + "-" + index, kind: "text", title: item.title, text: item.text,
+    (message.materials.length || !message.object ? message.materials : [{ kind: "object", title: message.object.title || message.object.id }]).forEach((item, index) => files.some((file) => file.title === item.title && file.text === item.text) || files.push(Object.assign({ material_id: "msg-" + message.message_id.slice(0, 40) + "-" + index, kind: item.kind || "text", title: item.title, text: item.text,
       explicit: true, source: { surface: message.source.surface, title: message.source.title } }, message.object ? { object: message.object } : {})));
     if (message.text) input.value = message.text;
     syncSend(); paintMats();
@@ -2227,10 +2118,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     else if (detail.new === true || named) await switchTo(null);
     const source = detail.source && typeof detail.source.surface === "string" && detail.source.surface
       ? { surface: detail.source.surface.slice(0, 80), title: typeof detail.source.title === "string" && detail.source.title ? detail.source.title.slice(0, 80) : detail.source.surface.slice(0, 80) } : null;
+    // What was in hand goes in the strip with the object it came from, so the work is linked under it; no words are
+    // written for the person (spec §21.2 point 4). It stands for the page's selection, which is not carried twice.
+    const object = tidyMessage({ message_id: "open", purpose: "delegate", source: { surface: "page" }, object: detail.object })?.object;
     const brought = Array.isArray(detail.materials) ? detail.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text).slice(0, 4) : [];
     brought.forEach((item, index) => files.push(Object.assign({ material_id: "open-" + Date.now().toString(36) + "-" + index, kind: "text", title: item.title.slice(0, 200),
-      text: item.text.slice(0, 20000), explicit: true }, source ? { source } : {})));
-    if (typeof detail.text === "string" && detail.text.trim()) { input.value = detail.text.trim().slice(0, 8000); typed = true; saveDraft(false); }
+      text: item.text.slice(0, 20000), explicit: true }, source ? { source } : {}, object ? { object } : {})));
+    if (brought.length) sel = null;
     syncSend(); paintMats(); setPanel(true); input.focus();
   });
   window.addEventListener("molis:assistant-message", (event) => {
@@ -2268,7 +2162,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const mention = mentionAt();
     if (mention) { setMention(mention); return; }
     closeMention();
-    if (value.trim()) setStarts(false);
   });
   input.addEventListener("keydown", (event) => {
     if (slashOpen() && event.key === "ArrowDown") { event.preventDefault(); startPop.querySelector("button")?.focus(); return; }

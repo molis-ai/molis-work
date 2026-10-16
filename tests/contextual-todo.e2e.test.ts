@@ -65,13 +65,8 @@ test("S1 contextual Todo: real selection → prepared card → refused request �
   const cardSelector = `[data-card="${card.card_id}"]`;
   await waitFor(`document.querySelector(${JSON.stringify(cardSelector + " [data-ix-action=\"run\"]")})`);
   const draft = await evaluate<string[]>(`[...document.querySelector(${JSON.stringify(cardSelector)}).querySelectorAll('input,textarea')].map(control => control.value)`);
-  const closeStarters = async () => {
-    if (!await evaluate("!document.querySelector('[data-assistant-starters]').hidden")) return;
-    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
-    await waitFor("document.querySelector('[data-assistant-starters]').hidden");
-  };
-  await closeStarters();
+  // No popover of starting points opens over the card when the input takes focus (context-program §21.2 point 3).
+  assert.equal(await evaluate("document.querySelector('[data-assistant-starters]').hidden"), true);
   await evaluate("window.refuseTodoRun = true");
   await click(cardSelector + " [data-ix-action=\"run\"]");
   await waitFor(`window.todoRefusals === 1 && !document.querySelector(${JSON.stringify(cardSelector + " [data-ix-action=\"run\"]")}).disabled`);
@@ -79,7 +74,6 @@ test("S1 contextual Todo: real selection → prepared card → refused request �
   const refusedOwner = openTodoStore(homeDirectory);
   try { assert.equal(refusedOwner.list({ actor: "user", actorId: "web-user", projectId: projectId!, everything: true }).length, 0); } finally { refusedOwner.close(); }
   await evaluate("window.refuseTodoRun = false");
-  await closeStarters();
   await click(cardSelector + " [data-ix-action=\"run\"]");
   await waitFor(`document.querySelector(${JSON.stringify(cardSelector)})?.dataset.status === 'done'`, 10_000);
   const owner = openTodoStore(homeDirectory);

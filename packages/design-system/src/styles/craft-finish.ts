@@ -544,7 +544,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-panel {
     --assistant-side-w: 272px;
     /* --assistant-room: space left before the platform side panel, set only while it is open. */
-    position: absolute; z-index: 50; left: -40px; right: calc(-1 * min(40px, var(--assistant-room, 40px))); bottom: calc(100% + 8px + var(--next-row, 0px)); display: flex; flex-direction: column; overflow: hidden;
+    position: absolute; z-index: 50; left: -40px; right: calc(-1 * min(40px, var(--assistant-room, 40px))); bottom: calc(100% + 8px + var(--next-row, 0px) + var(--context-row, 0px)); display: flex; flex-direction: column; overflow: hidden;
     height: min(620px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h, 76px) - 32px));
     border-radius: 16px; background: var(--paper); box-shadow: var(--lift-3); transform-origin: bottom center; animation: craft-dock-rise var(--dur-move) var(--ease-quint) both;
   }
@@ -673,16 +673,12 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-usage[open] > summary::before { transform: rotate(90deg); }
   ${ASSIST} .assistant-usage > summary:hover { color: var(--ink); }
   ${ASSIST} .assistant-usage > summary:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
-  ${ASSIST} .assistant-material-add { padding: 1px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--accent, var(--ink)); font: inherit; font-size: 12px; cursor: pointer; }
-  ${ASSIST} .assistant-material-add:hover { background: var(--nav-hover); }
-  ${ASSIST} .assistant-material-add:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-material--optional .assistant-material-label { color: var(--muted); }
   ${ASSIST} .assistant-usage-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0 2px; }
   ${ASSIST} .assistant-usage-input { width: 9em; min-width: 0; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface, transparent); color: var(--ink); font: inherit; font-size: 12px; }
   ${ASSIST} .assistant-round-executor { margin: 0 0 4px; font-size: 11px; color: var(--muted); }
   /* With the panel open, its tab says where the next message goes; with the side pane shown, it lists what goes with it and who carries it. */
   ${ASSIST} [data-assistant-island]:has(> .assistant-panel:not([hidden])) .assistant-target { display: none; }
-  ${ASSIST} [data-assistant-island][data-side-shown] :is(.assistant-materials-button, [data-assistant-executor], [data-assistant-character], [data-assistant-mode]) { display: none; }
+  ${ASSIST} [data-assistant-island][data-side-shown] :is([data-assistant-executor], [data-assistant-character], [data-assistant-mode]) { display: none; }
   /* The side pane speaks in shapes, not only lines: the overview is a card toned by the state; what waits on you are
      cards with their buttons; the path is a line with markers; materials drop into a zone and sit as tiles; results are
      cards you open or take back. Colour only says state: amber waits on you, green is done, copper is a suggestion. */
@@ -784,13 +780,6 @@ const CRAFT_BASE_STYLES = `
     transition: border-color var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint); }
   ${ASSIST} .assistant-drop[data-dropping] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
   ${ASSIST} .assistant-drop-label { margin: 0; color: var(--faint); font-size: 11px; }
-  ${ASSIST} .assistant-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  ${ASSIST} .assistant-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 26px; padding: 2px 2px 2px 8px; border-radius: 8px; background: var(--wash); color: var(--ink); font-size: 12px; }
-  ${ASSIST} .assistant-chip.is-optional { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
-  ${ASSIST} .assistant-chip .assistant-glyph-icon svg { width: 13px; height: 13px; }
-  ${ASSIST} .assistant-chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  ${ASSIST} button.assistant-chip-label { padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: start; cursor: pointer; }
-  ${ASSIST} button.assistant-chip-label:hover { text-decoration: underline; text-underline-offset: 2px; }
   ${ASSIST} .assistant-drop-hint { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
   ${ASSIST} .assistant-drop-hint > span:not(.assistant-glyph-icon) { flex: 1; min-width: 0; }
   ${ASSIST} .assistant-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
@@ -979,15 +968,13 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-executor:hover { background: var(--nav-hover); color: var(--ink); }
   ${ASSIST} .assistant-executor:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-starter[aria-current] { background: var(--nav-active); color: var(--ink); }
-  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach) {
+  ${ASSIST} .bar-composer-attach {
     display: inline-flex; flex: none; align-items: center; gap: 4px; height: 28px; padding: 0 8px; border: 0; border-radius: 7px;
     background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
   }
-  ${ASSIST} .assistant-materials-button { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-materials-button[hidden] { display: none; }
-  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach) svg { width: 14px; height: 14px; }
-  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach):hover { background: var(--nav-active); color: var(--ink); }
-  ${ASSIST} :is(.assistant-materials-button, .bar-composer-attach):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .bar-composer-attach svg { width: 14px; height: 14px; }
+  ${ASSIST} .bar-composer-attach:hover { background: var(--nav-active); color: var(--ink); }
+  ${ASSIST} .bar-composer-attach:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-popover {
     position: absolute; z-index: 60; left: 0; bottom: calc(100% + 8px); display: flex; flex-direction: column; gap: 4px; width: min(420px, 100%);
     max-height: 50dvh; overflow: auto; padding: 8px; border-radius: 10px; background: var(--paper); box-shadow: var(--lift-3); font-size: 13px;
@@ -999,14 +986,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-more-item:hover { background: var(--nav-hover); }
   ${ASSIST} .assistant-more-item:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-more-value { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
-  /* What this message carries, named — the page's own object first — rather than counted. */
-  ${ASSIST} .assistant-materials-button { flex: 0 1 auto; min-width: 0; max-width: 188px; }
-  ${ASSIST} .assistant-materials-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  ${ASSIST} .assistant-materials-button [data-assistant-materials-count]:empty { display: none; }
-  ${ASSIST} .assistant-materials-button[data-optional] { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--muted); }
-  /* A phone, or a crowded bar, keeps the pill's mark and count; its name is in its list and its label. */
-  @media (max-width: 600px) { ${ASSIST} .assistant-materials-label { display: none; } }
-  ${SHELL} .bar-composer[data-fit="narrow"] .assistant-materials-label { display: none; }
   /* News alone is a quiet bell; a number means something waits for the person. */
   /* The work's own menu: where it belongs, who carries it, handing over, usage. */
   /* The steps between two messages: one quiet line that opens to each step. */
@@ -1031,6 +1010,19 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-next-row .mw-ix-steps{--mw-ix-step-h:32px;overflow-x:auto;scrollbar-width:none}
   ${ASSIST} .assistant-next-row .mw-ix-step:not(:hover){background:var(--paper)}
   ${ASSIST} .bar-center:has(>.assistant-next-row:not([hidden])){--next-row:48px}
+  /* What the next Send carries, above the next steps: a chip each; the object on show, not added, is dashed with + to add it. */
+  ${ASSIST} .assistant-context-strip{position:absolute;z-index:55;inset:auto auto calc(100% + 6px + var(--next-row,0px)) 0;display:flex;gap:6px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+  ${ASSIST} .assistant-context-strip[hidden]{display:none}
+  ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])){--context-row:38px}
+  ${ASSIST} .assistant-strip-chip{display:inline-flex;flex:none;align-items:center;gap:4px;max-width:240px;height:32px;padding:0 0 0 8px;border:0;border-radius:8px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font:inherit;font-size:12px}
+  ${ASSIST} .assistant-strip-chip.is-optional{box-shadow:none;outline:1px dashed var(--line-strong);outline-offset:-1px;color:var(--muted)}
+  ${ASSIST} .assistant-strip-chip.is-work{padding:0 8px;color:var(--muted);cursor:pointer}
+  ${ASSIST} .assistant-strip-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  ${ASSIST} .assistant-strip-note{color:var(--faint);white-space:nowrap}
+  ${ASSIST} .assistant-strip-thumb{width:20px;height:20px;border-radius:4px;object-fit:cover}
+  ${ASSIST} .assistant-strip-act{flex:none;width:32px;height:32px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;cursor:pointer}
+  ${ASSIST} :is(.assistant-strip-act,.assistant-strip-chip.is-work):hover{background:var(--nav-hover);color:var(--ink)}
+  ${ASSIST} :is(.assistant-strip-act,.assistant-strip-chip.is-work):focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}
   ${ASSIST} .assistant-notice-actions{display:flex;gap:6px;justify-content:flex-end}
   /* Attention: a count only for what the person's rules let through here; the list says what waits and why. */
   ${ASSIST} .assistant-attention {
@@ -1046,24 +1038,14 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 7px 2px; }
   ${ASSIST} .assistant-notices-held > .assistant-notice { margin-top: 6px; }
   ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 8px; font-size: 11px; color: var(--faint); }
-  ${ASSIST} .assistant-material { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 7px; }
-  ${ASSIST} .assistant-material:hover { background: var(--nav-hover); }
-  ${ASSIST} .assistant-material-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-  ${ASSIST} .assistant-material--image { grid-template-columns: 28px minmax(0, 1fr) auto auto; }
   ${ASSIST} .assistant-mention { display: grid; gap: 2px; text-align: left; }
   ${ASSIST} .assistant-mention-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   ${ASSIST} .assistant-mention-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
-  ${ASSIST} .assistant-material-thumb { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; background: var(--nav-hover); }
   ${ASSIST} .assistant-composer[data-dropping] { outline: 2px dashed var(--accent, var(--ink)); outline-offset: 2px; }
   ${ASSIST} .assistant-material-origin { font-size: 11px; color: var(--faint); white-space: nowrap; }
-  ${ASSIST} .assistant-material-remove { width: var(--control-h, 32px); height: var(--control-h, 32px); padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; }
-  ${ASSIST} .assistant-material-remove:hover { background: var(--nav-active); color: var(--ink); }
   ${ASSIST} .assistant-starter { width: 100%; padding: 8px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer; }
   ${ASSIST} .assistant-starter:hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-starter--work { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; }
-  ${ASSIST} .assistant-starter-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  ${ASSIST} .assistant-starter-state { color: var(--muted); font-size: 12px; white-space: nowrap; }
-  ${ASSIST} :is(.assistant-starter, .assistant-material-remove):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  ${ASSIST} .assistant-starter:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   ${ASSIST} .assistant-exact summary { cursor: pointer; font-size: 12px; color: var(--muted); }
   ${ASSIST} .assistant-exact pre { margin: 4px 0 0; max-height: 200px; overflow: auto; padding: 8px 12px; border-radius: 8px; background: var(--wash); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
   /* The input always keeps room to type; the Assistant's choosers give way first and end in an ellipsis. */
@@ -1182,7 +1164,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .bar-composer { gap: 4px; }
     ${SHELL} .bar-composer .assistant-composer-input { flex: 1 1 40px; min-width: 40px; }
     /* While typing the input takes the column; focusing a chip keeps that chip on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-attention) { display: none; }
   }
   /* A crowded composer at any width takes the same steps, as far as the island measures it needs (data-fit): the chips
      present — a work, its materials, what needs a look, who does it — would otherwise leave the input no room at all. */
@@ -1233,9 +1215,10 @@ const CRAFT_BASE_STYLES = `
     html ${SHELL} .workbench-bar .plugin-picker-head .plugin-picker-search { flex-basis: 100%; height: 44px; }
     html ${SHELL} .workbench-bar .plugin-picker-extend { flex: 1 1 100%; }
     html ${SHELL} .workbench-bar .plugin-picker-extend .plugin-picker-extend-btn { flex: 1 1 0; justify-content: center; }
-    ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px + var(--next-row, 0px)); width: auto; height: min(70dvh, 560px); }
+    ${SHELL} .assistant-panel { position: fixed; left: 10px; right: 10px; bottom: calc(var(--dock-h) + 6px + var(--next-row, 0px) + var(--context-row, 0px)); width: auto; height: min(70dvh, 560px); }
     /* The next steps' band, from the panel's edge down to the input, is the bar's own ground: the page does not show between the steps. */
     ${ASSIST} .bar-center > .assistant-next-row { inset: auto -8px 100%; max-width: none; padding: 8px 8px 6px; background: var(--desk); }
+    ${ASSIST} .bar-center > .assistant-context-strip { inset: auto -8px calc(100% + var(--next-row, 0px)); max-width: none; padding: 6px 8px 0; background: var(--desk); }
     ${SHELL} .account-global-popover { position: fixed; left: 10px; bottom: calc(var(--dock-h) + 6px); width: min(300px, calc(100vw - 20px)); }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-menu-popover { position: fixed; right: 10px; left: auto; bottom: calc(var(--dock-h) + 6px); }
     /* The composer row carries the Assistant's own choosers; on a phone they stay compact, and typing gives the input the row. */
@@ -1258,7 +1241,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} [data-assistant-island]:has(.assistant-panel[hidden]) :is([data-assistant-character], [data-assistant-executor]):not([data-chosen]) { display: none; }
     ${SHELL} .bar-composer:has([data-assistant-character][data-chosen]) [data-assistant-executor] { display: none; }
     /* Only while typing: focusing the switcher or a chip must keep it on screen. */
-    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention) { display: none; }
+    ${SHELL} .bar-composer:has(.assistant-composer-input:focus):not([data-measuring]) :is(.assistant-target, .assistant-executor, .assistant-attention) { display: none; }
   }
 
   /* Prompt 与 Character settings: grouped by source, each prompt expandable to edit, the default beside the person's version. */

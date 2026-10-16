@@ -40,9 +40,10 @@ test("what the bottom bar is looking at is one translated sentence, with the obj
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看：\{title\}", \{ title: name \}\)/);
   assert.equal(L("正在看：{title}", { title: "需求说明" }), "正在看：需求说明");
   assert.equal(runWithLocale("en", () => L("正在看：{title}", { title: "Notes" })), "Viewing: Notes", "English keeps its own colon");
-  // The short label on the materials button is the object's name, not the sentence with its prefix cut off by a pattern.
+  // The strip names it with that sentence, never with its prefix cut off by a pattern. (The 「材料」 button's short name is gone with
+  // the button: the strip took its place, context-program §21.2 point 1.)
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /replace\(\/\^正在看/);
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /clip\(lead\.name \|\| lead\.label, 16\)/);
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /el\("span", "assistant-strip-label", item\.label\)/);
 });
 
 // Where an object lives is named by the plugin catalog (the host passes the tab workspace's names, which hold the catalog and

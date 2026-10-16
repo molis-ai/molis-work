@@ -1107,12 +1107,12 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       // Handing over or continuing: the same work whether started here or from the bottom bar, so an unfinished one goes on.
       if (button.matches("[data-todo-delegate]") && selected) {
         const going = works.find((work) => !["completed", "failed", "stopped"].includes(work.state));
-        tellAssistant("delegate", selected, { text: L("帮我推进「{title}」").replace("{title}", selected.title), materials: [todoMaterial(selected)], ...(going ? { work_id: going.work_id } : {}) });
+        tellAssistant("delegate", selected, { materials: [todoMaterial(selected)], ...(going ? { work_id: going.work_id } : {}) });
         watchWorks();
         return;
       }
       if (button.matches("[data-todo-continue-work]") && selected) {
-        tellAssistant("delegate", selected, { text: L("继续推进「{title}」").replace("{title}", selected.title), materials: [todoMaterial(selected)], work_id: button.dataset.todoContinueWork });
+        tellAssistant("delegate", selected, { materials: [todoMaterial(selected)], work_id: button.dataset.todoContinueWork });
         watchWorks();
         return;
       }

@@ -380,9 +380,10 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   assert.ok(await evaluate("!document.querySelector('[data-assistant-composer] [data-plugin-picker], [data-assistant-composer] [data-global-search-open]')"), "the composer holds neither the switcher nor search"); 
   await evaluate("document.querySelector('[data-assistant-more] button').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("document.querySelector('[data-assistant-more]').hidden");
-  // However many chips stand beside it, the input keeps room to type: a long work, its materials, what needs a look.
+  // However many chips stand beside it, the input keeps room to type: a long work and what needs a look (what the Send carries
+  // is the strip above the line now, context-program §21.2 point 1).
   const crowd = `(()=>{
-    for (const [chip, count] of [['[data-assistant-attention]', '23'], ['[data-assistant-materials]', '1']]) { const button = document.querySelector(chip); button.hidden = false; button.querySelector('span').textContent = count; }
+    for (const [chip, count] of [['[data-assistant-attention]', '23']]) { const button = document.querySelector(chip); button.hidden = false; button.querySelector('span').textContent = count; }
     for (const chooser of document.querySelectorAll('[data-assistant-executor], [data-assistant-character]')) chooser.hidden = false;
     document.querySelector('[data-assistant-target-label]').textContent = '继续：给我一个按钮，在待办里记下准备复盘会的数据看板';
   })()`;

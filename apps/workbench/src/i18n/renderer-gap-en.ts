@@ -436,4 +436,8 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "不知道这次操作有没有完成，请刷新后核对": "We can't tell whether this finished. Refresh the page to check.",
   "诊断编号 {id}": "Diagnostic ID {id}",
   "复制诊断编号 {id}": "Copy diagnostic ID {id}",
+  "切换到这项工作": "Switch to this work",
+  "没加入：助理看不到它，这项工作也不会记在它下面": "Not added: the Assistant can't see it, and this work won't be filed under it",
+  "没加入": "not added",
+  "这次发送带上的": "Going with this send",
 };

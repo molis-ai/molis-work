@@ -1,5 +1,49 @@
 /** AP3 visual layer: source-feed. */
-export const SOURCE_FEED_STYLES = `  /* Source → Feed → Inbox high-fidelity slice. Sources use the same single
+export const SOURCE_FEED_STYLES = `  /* Feed and Source directory controls, filter panel, empty states and connector cards (from the retired personal-workbench-v3 layer). */
+  @media (min-width: 761px) {
+    body[data-desktop-shell="true"] .feed-directory-toolbar { grid-template-columns: minmax(0, 1fr) 30px; }
+    body[data-desktop-shell="true"] .feed-filter-trigger { position: relative; }
+    body[data-desktop-shell="true"] .feed-filter-trigger > span { min-width: 14px; height: 14px; padding: 0 4px; border-radius: 7px; color: var(--action-ink); background: var(--action); place-items: center; position: absolute; top: -4px; right: -4px; font-size: 11px; font-variant-numeric: tabular-nums; line-height: 1; box-shadow: var(--lift-1); }
+    body[data-desktop-shell="true"] .feed-filter-panel { overscroll-behavior: contain; }
+    body[data-desktop-shell="true"] .feed-filter-panel > header { min-height: 28px; display: flex; align-items: center; gap: 8px; }
+    body[data-desktop-shell="true"] .feed-filter-panel > header strong { font-size: 12px; }
+    body[data-desktop-shell="true"] .feed-filter-panel > header .mw-btn { margin-left: auto; }
+    body[data-desktop-shell="true"] .feed-filter-section { padding-top: 8px; border-top: 1px solid var(--line); display: grid; gap: 4px; }
+    body[data-desktop-shell="true"] .feed-filter-section + .feed-filter-section { margin-top: 8px; }
+    body[data-desktop-shell="true"] .feed-filter-section > span { color: var(--faint); font-size: 11px; letter-spacing: .03em; }
+    body[data-desktop-shell="true"] .feed-filter-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+    body[data-desktop-shell="true"] .feed-filter-option { min-height: 30px; padding: 0 8px; border: 0; border-radius: 7px; color: var(--muted); background: transparent; display: grid; grid-template-columns: minmax(0, 1fr) 12px; align-items: center; gap: 4px; font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
+    body[data-desktop-shell="true"] .feed-filter-option:hover { color: var(--ink); background: var(--nav-hover); }
+    body[data-desktop-shell="true"] .feed-filter-option[aria-checked="true"] { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, transparent); }
+    body[data-desktop-shell="true"] .feed-filter-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    body[data-desktop-shell="true"] .feed-filter-option svg { width: 12px; height: 12px; opacity: 0; }
+    body[data-desktop-shell="true"] .feed-filter-option[aria-checked="true"] svg { opacity: 1; }
+    body[data-desktop-shell="true"] .feed-list-empty { border-radius: 12px; }
+    body[data-desktop-shell="true"] .feed-list-empty svg { width: 20px; height: 20px; stroke-width: 1.6; }
+    body[data-desktop-shell="true"] .feed-list-empty .mw-btn { justify-self: center; }
+    body[data-desktop-shell="true"] .feed-directory-footer { min-height: 38px; padding: 4px 8px; border-top: 1px solid color-mix(in srgb, var(--line) 62%, transparent); align-items: center; justify-content: space-between; gap: 8px; }
+    body[data-desktop-shell="true"] .feed-workbench { width: 100%; }
+    body[data-desktop-shell="true"] .feed-detail-empty { padding: 48px; color: var(--faint); display: grid; place-items: center; align-content: center; gap: 8px; text-align: center; }
+    body[data-desktop-shell="true"] .feed-detail-empty svg { width: 20px; height: 20px; stroke-width: 1.6; }
+    body[data-desktop-shell="true"] .feed-detail-empty h1 { margin: 0; color: var(--ink-soft); font-size: 17px; }
+    body[data-desktop-shell="true"] .feed-detail-empty p { max-width: 46ch; font-size: 11px; line-height: 1.55; }
+  }
+  body[data-desktop-shell="true"] .feed-connector-card { padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--rail) 52%, var(--paper)); align-content: start; gap: 8px; }
+  body[data-desktop-shell="true"] .feed-connector-card > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  body[data-desktop-shell="true"] .feed-connector-card strong { font-size: 12px; }
+  body[data-desktop-shell="true"] .feed-connector-card em { color: var(--blue-dark); font-size: 11px; font-style: normal; }
+  body[data-desktop-shell="true"] .feed-connector-card > p,
+  body[data-desktop-shell="true"] .feed-connector-card details p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+  body[data-desktop-shell="true"] .feed-source-progress,
+  body[data-desktop-shell="true"] .feed-source-dialog .form-error { position: sticky; bottom: 0; margin: 0; padding: 8px 12px; border-radius: 8px; font-size: 11px; }
+  body[data-desktop-shell="true"] .feed-source-progress { color: var(--blue-dark); background: color-mix(in srgb, var(--blue) 10%, var(--paper)); }
+  @media (max-width: 760px) {
+    body[data-desktop-shell="true"] .feed-directory-footer { min-height: 42px; padding: 8px 12px; border-top: 1px solid var(--line); align-items: center; justify-content: space-between; gap: 8px; }
+    body[data-desktop-shell="true"] .feed-directory-footer span,
+    body[data-desktop-shell="true"] .feed-directory-footer small { color: var(--faint); font-size: 11px; }
+  }
+
+  /* Source → Feed → Inbox high-fidelity slice. Sources use the same single
      directory ledger as Goals and Items; configuration stays in the workface. */
   body[data-desktop-shell="true"] .source-directory {
     min-height: 0;

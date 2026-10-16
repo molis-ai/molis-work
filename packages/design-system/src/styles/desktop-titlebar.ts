@@ -1,5 +1,27 @@
 /** AP3 visual layer: desktop-titlebar. */
-export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar contract. The native controls and work
+export const DESKTOP_TITLEBAR_STYLES = `  /* Desktop shell frame: safe-area variables, the app grid, project menu, drag regions and work surface (from the retired personal-workbench-v3 layer). */
+  @media (min-width: 761px) {
+    body[data-desktop-shell="true"] { --desktop-project-control-center-y: calc(var(--desktop-titlebar-height) / 2); --desktop-native-control-row-height: var(--desktop-titlebar-height); --desktop-project-safe-inline-start: var(--desktop-native-project-safe-inline-start, 2px); --desktop-settings-safe-inline-start: var(--desktop-native-settings-safe-inline-start, 2px); }
+    body[data-desktop-shell="true"] .app { gap: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); background: var(--page); }
+    body[data-desktop-shell="true"] .navigator-project-selector > svg:last-child { color: var(--faint); }
+    body[data-desktop-shell="true"] .navigator-project-menu-popover > span { min-height: 24px; align-items: center; }
+    body[data-desktop-shell="true"] .navigator-project-option,
+    body[data-desktop-shell="true"] .navigator-project-manage { min-width: 0; min-height: 34px; padding: 0 8px; border-radius: 8px; color: inherit; display: flex; align-items: center; gap: 8px; text-decoration: none; }
+    body[data-desktop-shell="true"] .navigator-project-option > span { flex: 1 1 auto; }
+    body[data-desktop-shell="true"] .navigator-project-option strong { min-width: 0; }
+    body[data-desktop-shell="true"] .navigator-project-settings { grid-template-columns: minmax(0, 1fr); }
+    body[data-desktop-shell="true"] .personal-account { grid-template-columns: 32px minmax(0, 1fr) 30px; }
+    body[data-desktop-shell="true"] .desktop-titlebar-drag { -webkit-app-region: drag; user-select: none; }
+    body[data-desktop-shell="true"] .navigator-project-selector,
+    body[data-desktop-shell="true"] .navigator-project-settings,
+    body[data-desktop-shell="true"] .desktop-work-tabs { -webkit-app-region: no-drag; }
+    body[data-desktop-shell="true"] .document-pane { --focus-canvas-inset: 0px; padding-inline: 4px 12px; padding-bottom: 12px; grid-column: 3; grid-row: 2; background: var(--page); }
+    body[data-desktop-shell="true"] .desktop-work-surface:has(> .goal-event-document) { display: flex; }
+    body[data-desktop-shell="true"][data-desktop-surface]:not([data-desktop-surface="goal"]) .tui-resizer,
+    body[data-desktop-shell="true"][data-desktop-surface]:not([data-desktop-surface="goal"]) .tui-pane { display: none !important; }
+  }
+
+  /* One Codex-style desktop titlebar contract. The native controls and work
      tabs live on row one; project selection gets the full second row. */
   @media (min-width: 761px) {
     body[data-desktop-shell="true"] {

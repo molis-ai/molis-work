@@ -13,7 +13,7 @@ import { draftPorts } from "../drafting/draft-wiring.js";
 import { resolvePrologueInference } from "../prologue-inference-host.js";
 import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connection.js";
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
-import { prepareAttach, runAttach } from "./contextual-attach.js";
+import { prepareAttach, runAttach, type ConfirmReferences } from "./contextual-attach.js";
 import { chosenCandidate } from "./contextual-choice.js";
 import { draftRequest } from "./contextual-draft.js";
 import { contextualErrors, invalid, readJudgeRequest, readString } from "./contextual-request.js";
@@ -38,6 +38,8 @@ export interface ContextualHttpPorts {
   readonly scope: string;
   /** The local person's authority in this project, bound for this request. */
   actions(): ContextualActions;
+  /** Whether each object is still one the person may use in this project, read from its owner now (H3); absent refuses 「放进左边」. */
+  readonly confirmReferences?: ConfirmReferences;
 }
 
 type Caller = { readonly scope: string; readonly actions: ContextualActions };
@@ -194,7 +196,7 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
       return true;
     }
     // A confirmed 「放进左边」: the owner showed the preview and the person confirmed it there.
-    if (route === "attach") { sendJson(response, 200, await runAttach(caller.actions, judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80))); return true; }
+    if (route === "attach") { sendJson(response, 200, await runAttach(caller.actions, ports.confirmReferences, judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80))); return true; }
     sendJson(response, 200, await prepare(judgeRequest.focus, judgeRequest.landing, readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), caller));
   } catch (error) {
     const failure = actionErrorResponse(error);

@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { pagesActions as actions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { handleContextualHttp, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
 // specs/context-program §21.8 step 4 (W3-B1): Pages' three 「放进左边」 writes at the landing the page reported.
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
@@ -80,5 +82,61 @@ test("a landing that went stale, a position outside the document or a cancelled 
     const cancelled: ActionCallContext = { ...caller, validate_authority: async () => { throw new Error("revoked"); } };
     await assert.rejects(client.invoke(cancelled, landing("insert"), fresh), /revoked/);
     assert.deepEqual((await bound.invoke(actions.get, { id: document.id })).document, current);
+  });
+});
+
+// §21.8 step 6 (W3-B1): the Host reads the landing object again from its owner right before it runs the confirmed attach
+// (H3's confirmReferences). Gone or not the person's to use now, and nothing is written; a Host without the check writes
+// nothing either. The version is still Pages' own to compare.
+test("W3-B1 step 6: /api/contextual/attach writes only once the landing object is confirmed with its owner", async () => {
+  await fixture(async ({ client, caller, bound }) => {
+    const { document } = await bound.invoke(actions.create, { title: "Notes", body: doc("Hello world") });
+    const views = await client.discover(caller);
+    const insert = views.find(view => view.capability_id === "pages.landing.insert")!;
+    const focus = { context_id: "side:1", plugin_id: "io.molis.work.files", activity: "selecting", granularity: "range", place: "side",
+      object: { kind: "file", id: "f1", title: "Interview" }, targets: [{ kind: "text_range", role: "paragraph", text: " brave" }] };
+    const at = { pane_id: "p", plugin_id: insert.provider.plugin_id ?? insert.provider.provider_id, position: "cursor", version: document.version,
+      object: { kind: "pages_document", id: document.id, title: "Notes" }, targets: [{ kind: "text_range", role: "paragraph", text: "", anchor: 6, head: 6 }] };
+    const asked: unknown[] = [];
+    const serve = async (confirm: ((picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => Promise<boolean[]>) | undefined) => {
+      const ports = { scope: "a", actions: () => ({ discover: () => client.discover(caller), invoke: (reference: ActionReference, input: unknown) => client.invoke(caller, reference, input) }),
+        ...(confirm ? { confirmReferences: async (picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => { asked.push([picked, kinds]); return confirm(picked, kinds); } } : {}) };
+      const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), ports); });
+      await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+      const post = async (path: string, body: unknown) => {
+        const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+        return { status: response.status, body: await response.json() as { code?: string; plan?: { candidates: { key: string; origin?: string; title: string }[] } } };
+      };
+      return { post, close: () => server.close() };
+    };
+    const stored = async () => texts((await bound.invoke(actions.get, { id: document.id })).document.body);
+
+    const refusing = await serve(async picked => picked.map(() => false));
+    try {
+      const { body } = await refusing.post("/api/contextual/candidates", { pane_id: "p", focus, landing: at, request_id: "r1" });
+      const key = body.plan!.candidates.find(item => item.origin === "attach" && item.title === "插入到光标处")!.key;
+      const refused = await refusing.post("/api/contextual/attach", { pane_id: "p", focus, landing: at, key, request_id: "r2" });
+      assert.deepEqual([refused.status, refused.body.code], [409, "contextual.reference_unavailable"]);
+      assert.deepEqual(asked, [[[{ kind: "pages_document", id: document.id }], ["pages_document"]]], "the landing object, of the kind the attach declares");
+      assert.deepEqual(await stored(), ["Hello world"], "nothing written");
+    } finally { refusing.close(); }
+
+    const unchecked = await serve(undefined);
+    try {
+      const { body } = await unchecked.post("/api/contextual/candidates", { pane_id: "p", focus, landing: at, request_id: "r3" });
+      const key = body.plan!.candidates.find(item => item.origin === "attach" && item.title === "插入到光标处")!.key;
+      assert.equal((await unchecked.post("/api/contextual/attach", { pane_id: "p", focus, landing: at, key, request_id: "r4" })).body.code, "contextual.reference_unavailable", "no check, no write");
+      assert.deepEqual(await stored(), ["Hello world"]);
+    } finally { unchecked.close(); }
+
+    const confirming = await serve(async picked => picked.map(() => true));
+    try {
+      const { body } = await confirming.post("/api/contextual/candidates", { pane_id: "p", focus, landing: at, request_id: "r5" });
+      const key = body.plan!.candidates.find(item => item.origin === "attach" && item.title === "插入到光标处")!.key;
+      assert.equal((await confirming.post("/api/contextual/attach", { pane_id: "p", focus, landing: at, key, request_id: "r6" })).status, 200);
+      assert.deepEqual(await stored(), ["Hello brave world"]);
+      // The landing is now a version behind: Pages refuses, after the owner check passed.
+      assert.equal((await confirming.post("/api/contextual/attach", { pane_id: "p", focus, landing: at, key, request_id: "r7" })).body.code, "pages.conflict");
+    } finally { confirming.close(); }
   });
 });

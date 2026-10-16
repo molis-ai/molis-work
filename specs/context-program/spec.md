@@ -1373,5 +1373,6 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - **只有保存了的文字有落点**：Pages 有未保存的输入时报 `null`，保存后再报，所以落点的位置总属于它带的版本；确认时文档若已不同于报告时，不写，请人重新选位置。`run` 因此不用带版本（B-4）。
 - **宿主不信页面给的位置**：Pages 的动作先按 `expected_version` 读当前文档，版本不符拒绝（`pages.conflict`），越界、插入带了范围、替换没有范围都拒绝（`pages.invalid`），写入走 `PagesStore.update`。备好输入是确定性的，不调模型，所以动作不声明 `scheduling: "concurrent"`；以后要调模型就得声明，返回后再 `beforeEffect()`。
 - **分屏窗格**（iframe 里的落点）不在 W3-B1，见 B-6。
+- **执行前重读落点对象（第 6 步）**：`/api/contextual/attach` 调动作之前，宿主用 H3 的 `confirmReferences`（经 `localHost.search`，本人在这个项目里的权限）读一次落点对象，种类限定为 `attach.item_kind`；不在、不能用，或宿主没有这道检查，都拒绝（`contextual.reference_unavailable`），什么也不写。之后版本仍由 Pages 的动作自己比对。证据：`tests/pages-landing-actions.test.ts`「W3-B1 step 6」。
 - **待用户定**：页面资源的抵消方式（统筹在问；`served-page-text.ts` 保留绑定名是有测试钉住的决定，没定之前不动）。
 - **证据**：`tests/pages-landing-actions.test.ts`（三个动作、版本冲突、撤销、撤权不写），`tests/context-landing.e2e.test.ts`（右栏选一句 → 「插入到光标处」→ 落点处预览 → 放进去）。

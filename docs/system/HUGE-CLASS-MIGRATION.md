@@ -44,7 +44,7 @@
 
 - **例外**（4 个）已登记在 `tooling/gates/giant-exceptions.json`：样式表 3 份（动量、基础控件、Coding）、连接器声明表 1 份。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
 - **归线**（21 个）：浏览器脚本模板、旧皮肤和英文词典 `en.ts`（决定 #16，W5-03）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 一项挂在 W5-01 下：路线 W5-01 原有“Shelf 和 Characters 混合插件”一项，决定 #26 把其中 Characters 的部分提到第 4 波，那个切片在路线里还没有自己的片号（见下）。
-- **拆**（131 个，101 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 123 个里），其余 8 个归 W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个已拆完）。
+- **拆**（131 个，101 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 123 个里），其余 8 个归 W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个已拆完）。
 - 全部单元里，45 个只超出阈值不到 20%（9 个文件、27 个函数、9 个类；类按行数与方法数里超得多的那一项算），其中 37 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
 
 ### W5-10 怎么做
@@ -131,7 +131,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W5-05 | 逐个删旧皮肤，并降低页面预算和巨大单元基线 | 2 | `calm-desktop.ts`、`personal-workbench-v3.ts` |
 | W5-06 | 声明式贡献挂载器代替 15 个 Goals 挂载适配器；`goals-page-renderer.ts` 改名，留在工作台 | — | 不拆那两个函数（适配器是别的文件） |
 | W5-07 | `handleMolisWorkWebRequest` 改成注册表，每个 `*-http` 模块导出 `{match, handle}` | 2 | `web-request.ts` |
-| W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同 |
+| W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同；已拆完：入口留描述符、错误码、`AgentHostApi` 与 `agentHostCapabilities`，其余按领域放进旁边的 `agent-host-*.ts`（运行时、启动、会话、运行视图、审查、端口、创作台），子路径与 API 快照不变 |
 | W5-10 | 其余巨大单元拆分（范围见上） | 123 | 123 个，含助理协作者、Pages 编辑器与命令 |
 | W5-11 | 宿主瘦身：连接器提供方设置与 OAuth 移进官方连接器插件，或按决定 #7 作为宿主管理接口留下 | 1 | `web-connectors-settings.ts` |
 | W2-08、W3-07 | 删 Goals 无生产调用方的类型化桥；管理入口改走动作并删剩余桥（工作区读取只留一个 id 已由 W2-09 做完，函数仍 270 行：删了两处登记，补了整份文件只给宿主运行的插件的判断） | 1 | `project-capabilities.ts` |
@@ -255,11 +255,10 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 ### 平台包 `packages/*`
 
-24 个单元（拆 20、归线 2、例外 2），20 个文件、7 个包。路径前缀 `packages/`。
+23 个单元（拆 19、归线 2、例外 2），19 个文件、6 个包。路径前缀 `packages/`。
 
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
-| `contracts` | `src/services/agent-host.ts` | 文件 1,734 行 | 拆 · W5-09 | 按领域拆合同文件（运行能力、冻结的启动字段、运行视图、记忆能力、错误码、`agentHostCapabilities` 等），纯搬移，由 API 快照守着。 | 13 |
 | `design-system` | `src/plugin-component-client.ts` | `createPluginComponentClient` 函数 754 行 | 拆 · W5-04 | 生成插件的宿主渲染器，按部件种类画；类型化函数，用 `toString` 序列化进浏览器（754 行、73 条语句：`createPart` 142、`output` 137、`figures` 36、`showDetail` 32、`control` 32）。W5-04 改成打包的类型检查模块时，各部件成各自的模块，同一个 PR 拆到阈值以下。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 3 |
 | `design-system` | `src/primitives/catalog.ts` | 文件 947 行<br>`renderPrimitiveCatalog` 函数 648 行 | 拆 · W5-04、W5-10 | `/__ui/catalog` 规格板。页尾 `<script>` 175 行（第 771–945 行，带分支的演示脚本）是浏览器代码，归 W5-04，移出后文件 772 行、不再超限。剩下的 `renderPrimitiveCatalog` 约 470 行是样例标记，除 `.map` 拼接外没有分支和 IO，但不登记例外：它已经有 `arrivalSection`、`craftSection`、`paletteSection` 等章节函数，其余章节（`sections` 数组 116 行，`catalogDirRows` 36、`catalogShellDirectory` 35、`catalogCompact` 27 行等）照此各成章节函数，W5-10 完成。 | 3 |
 | `design-system` | `src/styles/calm-desktop.ts` | 文件 1,392 行 | 归线 · §4.8 · W5-05 | 旧皮肤，整份删除（逐个过视觉比对）。 | 3 |

@@ -1,11 +1,11 @@
 {
-  "giantUnits": 143,
+  "giantUnits": 142,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2081,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2061,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1663,
-      "methods": 99
+      "lines": 1643,
+      "methods": 98
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -64,9 +64,9 @@
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 202,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 969,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 968,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 604,
+      "lines": 603,
       "methods": 18
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 372,
@@ -155,7 +155,6 @@
       "methods": 35
     },
     "function modules/shelf/src/store.ts#runJob": 199,
-    "file packages/contracts/src/services/agent-host.ts": 1567,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,

@@ -876,7 +876,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               summary.innerHTML='<svg aria-hidden="true"><use href="#icon-play"></use></svg>';summary.append(document.createTextNode('从断点继续 · '+line));
               facts.className='coding-continuation-facts';facts.innerHTML=body;details.append(summary,facts);node.append(details);
             }
-            const receipt=inputReceipts.receipt(turn);if(receipt)node.append(receipt);
+            const receipt=inputReceipts.receipt(turn,run.ref.run_id);if(receipt)node.append(receipt);
             renderedText.set(node,renderKey); enrichCode(node);
           }
           ordered.push(node);

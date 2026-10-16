@@ -1,6 +1,7 @@
 import { actionFieldInput, actionFieldLabel, actionFieldOptions, actionFieldValue } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
 import { renderInteractionOperation, type InteractionField } from "@molis-ai/molis-work-design-system";
+import { wallClockIn } from "@molis-ai/molis-work-plugin-sdk";
 import type { StoredCard } from "./assistant-store.js";
 
 /**
@@ -20,12 +21,6 @@ const choices = (declared: unknown, value: unknown) => {
   if (options) return { options, ...raw };
   const input = actionFieldInput(declared);
   return input ? { input, ...raw } : {};
-};
-export const allowsNull = (declared: unknown): boolean => {
-  if (!declared || typeof declared !== "object") return false;
-  const schema = declared as { type?: unknown; oneOf?: unknown; anyOf?: unknown };
-  if (schema.type === "null" || Array.isArray(schema.type) && schema.type.includes("null")) return true;
-  return ([schema.oneOf, schema.anyOf].find(Array.isArray) as unknown[] | undefined)?.some(allowsNull) ?? false;
 };
 export const plainObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value) && (value as { type?: unknown }).type !== "doc";
 
@@ -63,42 +58,6 @@ const CARD_RING = { ready: "ready", running: "running", done: "done", failed: "f
 const STATUS: Partial<Record<AssistantCard["status"], string>> = { running: "正在执行…", done: "已完成", failed: "没有完成", unknown: "结果未确认，请到原处核对，不会自动重试",
   stale: "已失效", dismissed: "已忽略", "needs-input": "还需要你填写" };
 
-/** A moment's wall clock in a zone (the Host's own when none is set): its day, its time and the zone's offset. */
-function wallClock(at: number, zone: string | undefined): { day: string; time: string; offset: string; utc: number } {
-  const part = Object.fromEntries(new Intl.DateTimeFormat("en-US", { ...(zone ? { timeZone: zone } : {}), hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", timeZoneName: "shortOffset" }).formatToParts(at).map(item => [item.type, item.value]));
-  return { day: `${part.year}-${part.month}-${part.day}`, time: `${part.hour}:${part.minute}`, offset: String(part.timeZoneName ?? ""),
-    utc: Date.UTC(Number(part.year), Number(part.month) - 1, Number(part.day), Number(part.hour), Number(part.minute)) };
-}
-
-/** The instant a day and a time name in a zone, or null when they name none (a malformed value, or a time the clock skips). */
-export function instantIn(day: string, time: string, zone: string | undefined): string | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day.trim()), clock = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
-  if (!match || !clock) return null;
-  const wanted = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(clock[1]), Number(clock[2]));
-  // Date.UTC rolls a 25th hour or a 32nd day over into the next one: a value that does not read back as written names nothing.
-  if (new Date(wanted).toISOString().slice(0, 16) !== `${match[1]}-${match[2]}-${match[3]}T${clock[1]!.padStart(2, "0")}:${clock[2]}`) return null;
-  let at = wanted;
-  for (let step = 0; step < 2; step += 1) at += wanted - wallClock(at, zone).utc;
-  return Number.isFinite(at) && wallClock(at, zone).utc === wanted ? new Date(at).toISOString() : null;
-}
-
-/**
- * What a card's controls hold, as the strings its input takes: a pick by its value, a day as it is, a moment as the exact
- * instant it names in the person's zone. A moment that names none is sent as written, so the input's check says what is wrong.
- */
-export function cardInputValues(values: unknown, zone: string | undefined): Record<string, string> {
-  if (!values || typeof values !== "object" || Array.isArray(values)) return {};
-  return Object.fromEntries(Object.entries(values as Record<string, unknown>).map(([key, value]) => {
-    if (typeof value === "string") return [key, value];
-    if (Array.isArray(value)) return [key, String(value[0] ?? "")];
-    const held = (value ?? {}) as { date?: unknown; time?: unknown; picked?: unknown };
-    if (typeof held.date === "string" && typeof held.time === "string") {
-      return [key, held.date.trim() || held.time.trim() ? instantIn(held.date, held.time, zone) ?? `${held.date} ${held.time}`.trim() : ""];
-    }
-    return [key, Array.isArray(held.picked) ? String(held.picked[0] ?? "") : ""];
-  }));
-}
 
 /** The weekday beside a day, as the page's client writes it while the person types. */
 const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"] as const;
@@ -111,7 +70,7 @@ function cardField(field: AssistantCard["fields"][number], question: string | un
   if (field.options) return { id: field.key, label, control: { kind: "choice", options: field.options.map(option => ({ value: option.value, label: option.label, selected: option.value === field.raw })) } };
   if (field.input === "date") return { id: field.key, label, control: { kind: "date", value: field.raw ?? "", weekday: weekdayOf(field.raw ?? "", say) } };
   if (field.input === "datetime") {
-    const at = Date.parse(field.raw ?? ""), clock = wallClock(Number.isFinite(at) ? at : Date.now(), zone);
+    const at = Date.parse(field.raw ?? ""), clock = wallClockIn(Number.isFinite(at) ? at : Date.now(), zone);
     return { id: field.key, label, control: { kind: "datetime", date: Number.isFinite(at) ? clock.day : "", time: Number.isFinite(at) ? clock.time : "", zone: clock.offset,
       weekday: Number.isFinite(at) ? weekdayOf(clock.day, say) : "",
       dateLabel: say("日期"), timeLabel: say("时刻（24 小时制）") } };

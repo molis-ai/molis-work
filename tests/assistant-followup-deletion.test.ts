@@ -53,7 +53,7 @@ for (const stage of ["state", "materials", "runtime", "enqueue"] as const) {
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed");
     assert.equal(requests, 1);
     const due = new Date(Date.now() + 1200);
-    const standing = await service.saveFollowUp({ work_id: sent.work.work_id, text: "The scheduled round", at: due.toISOString(),
+    const standing = await service.followUps.save({ work_id: sent.work.work_id, text: "The scheduled round", at: due.toISOString(),
       repeat: "daily", label: "Daily round", time_zone: "UTC" });
     key = `fu-${standing.followup_id}-${due.getTime()}`;
     if (stage === "state") {
@@ -68,13 +68,13 @@ for (const stage of ["state", "materials", "runtime", "enqueue"] as const) {
       });
     }
     await entered.promise;
-    assert.equal(await service.removeFollowUp(standing.followup_id), true);
-    assert.deepEqual(service.followUps(sent.work.work_id), []);
+    assert.equal(await service.followUps.remove(standing.followup_id), true);
+    assert.deepEqual(service.followUps.list(sent.work.work_id), []);
     release.resolve();
     await until(() => schedule.find(key)?.state !== "running");
     if (stage === "enqueue") await until(() => requests === 2);
     assert.equal(requests, stage === "enqueue" ? 2 : 1, "only a round dispatched before deletion may finish");
-    assert.deepEqual(service.followUps(sent.work.work_id), [], "no UPDATE may insert the removed standing request");
+    assert.deepEqual(service.followUps.list(sent.work.work_id), [], "no UPDATE may insert the removed standing request");
     const next = schedule.find(`fu-${standing.followup_id}-${due.getTime() + 86_400_000}`);
     assert.ok(!next || next.state === "cancelled", "a next task enqueued concurrently with deletion is withdrawn");
     assert.equal(store.rounds(sent.work.work_id).length, stage === "enqueue" ? 2 : 1);
@@ -86,14 +86,14 @@ test("W2-18-FOLLOWUP-DELETE-02 the store refuses a stale callback after deletion
   try {
     const original = { followup_id: "followup", work_id: "work", label: "daily", text: "do it", repeat: "daily" as const,
       next_at: "2026-10-13T12:00:00Z", time_zone: "UTC", enabled: true, created_at: "2026-10-12T12:00:00Z" };
-    store.saveFollowUp("web-user", original);
+    store.followUps.save("web-user", original);
     const edited = { ...original, text: "new instructions" };
-    store.saveFollowUp("web-user", edited);
-    assert.equal(store.saveFollowUp("web-user", { ...original, enabled: false }, original), false);
-    assert.deepEqual(store.followUps("web-user"), [edited]);
-    store.removeFollowUp("web-user", original.followup_id);
-    assert.equal(store.saveFollowUp("web-user", { ...original, enabled: false }, original), false);
-    assert.deepEqual(store.followUps("web-user"), []);
+    store.followUps.save("web-user", edited);
+    assert.equal(store.followUps.save("web-user", { ...original, enabled: false }, original), false);
+    assert.deepEqual(store.followUps.list("web-user"), [edited]);
+    store.followUps.remove("web-user", original.followup_id);
+    assert.equal(store.followUps.save("web-user", { ...original, enabled: false }, original), false);
+    assert.deepEqual(store.followUps.list("web-user"), []);
   } finally { db.close(); }
 });
 
@@ -148,14 +148,14 @@ for (const stage of ["state", "sessions.update", "runs.start"] as const) {
     await service.handover(sent.work.work_id, { to: "coding" });
     assert.ok(store.get("web-user", sent.work.work_id).session_id, "the original Assistant session survives the handover");
     coding.prepare("UPDATE sessions SET configuration=NULL").run();
-    const standing = await service.saveFollowUp({ work_id: sent.work.work_id, text: "Timed Coding round", at: new Date(Date.now() + 1200).toISOString(),
+    const standing = await service.followUps.save({ work_id: sent.work.work_id, text: "Timed Coding round", at: new Date(Date.now() + 1200).toISOString(),
       repeat: "daily", label: "Coding daily", time_zone: "UTC" });
     key = `fu-${standing.followup_id}-${Date.parse(standing.next_at!)}`;
     await entered.promise;
-    await service.removeFollowUp(standing.followup_id); release.resolve();
+    await service.followUps.remove(standing.followup_id); release.resolve();
     await until(() => schedule.find(key)?.state !== "running");
     assert.equal(coding.prepare("SELECT COUNT(*) AS count FROM runs").get()!.count, 0, "the Coding owner started no new round");
-    assert.deepEqual(service.followUps(sent.work.work_id), []);
+    assert.deepEqual(service.followUps.list(sent.work.work_id), []);
     assert.equal(store.rounds(sent.work.work_id).length, 1, "the already completed Assistant round remains");
   });
 }

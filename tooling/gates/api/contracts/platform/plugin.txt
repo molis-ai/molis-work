@@ -2423,6 +2423,7 @@ export interface PluginDefinition {
     agent_prompts?: readonly AgentPromptText[];
     agent_skills?: readonly AgentSkillDefinition[];
     instructions?: readonly InstructionPrompt[];
+    methods?: readonly AgentSkillDefinition[];
     start(context: PluginStartContext): Promise<PluginContribution>;
     stop?(context: PluginStartContext): Promise<void>;
     health?(context: PluginStartContext): Promise<{
@@ -2663,6 +2664,7 @@ export interface PluginInputGroupDeclaration {
     group_id: string;
     title: string;
     ports: string[];
+    default?: boolean;
 }
 
 export interface PluginInputGroupSelectionRecord {
@@ -2674,6 +2676,7 @@ export interface PluginInputGroupSelectionRecord {
 
 export interface PluginInputPortDeclaration extends PluginPortDeclaration {
     optional?: boolean;
+    default_source?: PluginPortSourceDeclaration;
 }
 
 export type PluginInputPortState = "selected" | "ambiguous" | "missing" | "unavailable" | "unrestored";
@@ -2965,6 +2968,11 @@ export interface PluginPortOutputRecord {
     invalidated_reason: string | null;
     scope_key: string | null;
     updated_at: string;
+}
+
+export interface PluginPortSourceDeclaration {
+    plugin_id: string;
+    port: string;
 }
 
 export interface PluginPortsDeclaration {

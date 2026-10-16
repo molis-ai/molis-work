@@ -133,7 +133,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
   - 只装配和做 IO（连接、事务、文件、HTTP、进程），不复制 Module 的业务规则；能力注册不启动 SDK、CLI 或请求模型。
   - 项目选择页的简介（`GET /api/projects/:id/brief`，`project-arrival-http.ts`）只经公开读口按所选项目逐个读：Goals 目录与状态、Home 事项、长期背景；读一个项目就要打开它，所以页面在选中停住约 160 毫秒后才来读、服务端同时最多读两个（`createReadLimiter`），不批量预取、不写任何记录，读不到的部分在简介里缺席而不是被猜；缓存按请求语言区分、只留几秒。「最近打开」与采用时保存的一句话描述（`config/project-arrival.json`，`project-arrival.ts`）只是展示记忆：项目自己的页面被打开时写入，选择页渲染时对照目录清理，写失败不挡路，不存任何项目事实。
   - 有 Artifact 输入的 PluginPlatform 观察同一项目连接的领域 journal，每秒核对已提交的 Artifact 游标；其他连接的提交也能触发既有输入图重算，不读取未提交的外层事务。启动读取当前固定事实，关闭先调用 `closeCoordination()` 停止观察、输入处理与事件，再停插件和关数据库。此路径刷新投影，不重放业务操作。
-  - 默认接线（`bindWorkspaceCompanions`，每次项目插件启动及放回某个输入口时都会跑）只给什么也没读的输入口装默认来源：已读着另一个插件输出或人给它的固定成果版本的口保持原样（装默认来源会连带清掉固定版本）。放回输入口只在它仍读着那一版时生效，过期页面的点击不撤销后来的选择。
+  - 默认接线（`plugin-default-bindings.ts` 的 `bindDeclaredDefaults`，每次项目插件启动及放回某个输入口时都会跑）按运行中插件 Manifest 的声明（输入口的 `default_source`、输入组的 `default`，W4-03）只给什么也没读的输入口装默认来源，而且只在随 Host 发布的插件之间（两端都是启动名单标了 `bundled` 的定义，`platform.shipsWithHost`）：已安装或生成的插件的声明当作没写，它的默认组也是；来源插件没在跑、没有那个输出口或类型不同就不接：已读着另一个插件输出或人给它的固定成果版本的口保持原样（装默认来源会连带清掉固定版本）。放回输入口只在它仍读着那一版时生效，过期页面的点击不撤销后来的选择。
   - 安装器准备 npm 与 Desktop 资产但不自动发布；vendored 依赖的传递依赖必须能从标准 ancestor 解析。
   - 宿主自己打开的个人库（炼金术士每个项目的 `search.sqlite`，`alchemist-search.ts` 的 `ALCHEMIST_SEARCH_BASELINE`）也和别的库一样只认一份当前基线、版本不符拒绝：版本 1，有表没有版本的旧文件拒绝打开；改它的表结构要换版本并加新夹具（`tests/home-store-baselines.test.ts`）。
   - 系统搜索只在这里装配：`system.search` 注册一次；建索引用本机用户上下文，调用者按自己的项目或 Home 客户端访问；成功的命令与提供方注册/撤下都通知搜索，不另建能力名单或权限。

@@ -5,7 +5,7 @@ import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import { pluginHomeFor } from "./home-side.js";
-import { registerPluginInstructions } from "./plugin-instructions.js";
+import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
@@ -45,12 +45,12 @@ export class HomePluginExecutor implements PluginExecutor {
     };
     const ui = createPluginUiClient(new UiHost(), context, manifest);
     let database: ReturnType<typeof openPluginDatabase> | undefined;
-    let withdrawInstructions: (() => void) | undefined;
+    let withdrawAgentDefinitions: (() => void) | undefined;
     let withdrawCaller: (() => void) | undefined;
     const dispose = () => {
       active = false; withdrawCaller?.();
       const failures: unknown[] = [];
-      for (const release of [() => database?.close(), () => withdrawInstructions?.(), () => ui.dispose()]) {
+      for (const release of [() => database?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
@@ -59,7 +59,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const home = pluginHomeFor(this.options.home);
       const declaration = this.options.database(definition);
       if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize);
-      withdrawInstructions = registerPluginInstructions(home, definition, context.install_id);
+      withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
       withdrawCaller = this.options.qualifyCaller(definition, caller);

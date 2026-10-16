@@ -1534,11 +1534,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const attentionCount = island.querySelector("[data-assistant-attention-count]");
   const noticePop = island.querySelector("[data-assistant-notices]");
   let notices = [];
-  // Plugin notifications waiting for a decision in the market (plugin-notifications.ts reads them for this project).
-  let pluginWaiting = Number(document.body.dataset.pluginEventsPending) || 0;
+  // Plugin notifications waiting for a decision in the market: counted by the attention read, and by the market's list,
+  // which is newer than a read that started before it.
+  let pluginWaiting = 0, pluginHeldSince = -1;
   const URGENT = new Set(["needs-decision", "failed", "reminder"]);
   let lastUrgent = 0;
-  const shownSurface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
   const paintNotices = (force) => {
     if (!noticePop) return;
     // Polling repaints only what changed, and keeps focus on the same button: a list rebuilt under the person's
@@ -1632,25 +1632,25 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     noticeBtn?.setAttribute("aria-expanded", String(open));
     if (open) { paintNotices(true); noticePop.querySelector("button")?.focus(); }
   };
-  const loadNotices = async () => {
-    try { notices = (await api("/notices?surface=" + encodeURIComponent(shownSurface()))).notices || []; }
-    catch { return; }
-    // A work the person has open in front of them is being seen: its notices need no badge.
-    if (panel && !panel.hidden && curId && notices.some((notice) => notice.work_id === curId && !notice.held)) { void settleNotice({ work_id: curId }, "seen"); return; }
+  // Notices come with the page's attention read (attention.ts).
+  const loadNotices = () => document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
+  document.addEventListener("molis-work:attention", (event) => {
+    const detail = event.detail || {};
+    if (typeof detail.plugin_events_pending === "number" && detail.started > pluginHeldSince) pluginWaiting = detail.plugin_events_pending;
+    if (Array.isArray(detail.notices)) {
+      notices = detail.notices;
+      // A work the person has open in front of them is being seen: its notices need no badge.
+      if (panel && !panel.hidden && curId && notices.some((notice) => notice.work_id === curId && !notice.held)) { void settleNotice({ work_id: curId }, "seen"); return; }
+    }
     paintAttention();
-  };
+  });
   const settleNotice = async (target, state) => {
     try { await api("/notices", "POST", Object.assign({ state }, target)); } catch { /* the next read shows it again */ }
-    await loadNotices();
+    loadNotices();
   };
   noticeBtn?.addEventListener("click", () => setNotices(noticePop.hidden));
   document.addEventListener("molis-work:model-ready", () => { if (problem && /模型/.test(problem.action || "")) { problem = null; render(); } });
-  document.addEventListener("molis-work:plugin-events-waiting", (event) => { pluginWaiting = Number(event.detail?.pending) || 0; paintAttention(); });
-  setInterval(() => { if (!document.hidden) void loadNotices(); }, 20000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) void loadNotices(); });
-  // The rules depend on where the person is: moving to another plugin reads them again.
-  document.querySelector(".plugin-rail-items")?.addEventListener("click", () => setTimeout(() => void loadNotices(), 300));
-  void loadNotices();
+  document.addEventListener("molis-work:plugin-events", (event) => { pluginHeldSince = performance.now(); pluginWaiting = Number(event.detail?.pending) || 0; paintAttention(); });
 
   /* ─── Sending ──────────────────────────────────────────────────────────── */
   /* ─── What the person is looking at, and what goes with this Send ──────── */

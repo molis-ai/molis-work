@@ -62,7 +62,7 @@
 
 ## Text stats：最小完整 app
 
-人盯着绑来的一份文本快照。`kind: "app"`，一个 `navigator` 入口加一个 `stage` 视图，一个必选输入口，无存储、无事件、无输出口，也不声明搜索来源（没有自己拥有的内容）。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状。默认连线把它接到 Files 的 `before` 快照（`workspace-plugin-bindings.ts`）；新插件照抄它的声明不会进那份默认名单。
+人盯着绑来的一份文本快照。`kind: "app"`，一个 `navigator` 入口加一个 `stage` 视图，一个必选输入口，无存储、无事件、无输出口，也不声明搜索来源（没有自己拥有的内容）。消费绑定 Artifact 若比这还重，平台就过重了。新端口消费者从这里抄声明形状。默认连线把它接到 Files 的 `before` 快照（它的输入口声明 `default_source`）；新插件照抄时把 `default_source` 改成自己要读的来源，不写就不会自动接上。
 
 ## Diff / Files / Git
 
@@ -73,7 +73,7 @@
 
 ## Coding：Runtime 托管的 app
 
-`kind: "app"`。有 Artifact 输出口；6 个可选输入口（Shelf 材料、Files 快照与选区、Git 变更与结果），默认连线见 `workspace-plugin-bindings.ts`；还有事件、`agent` 角色和 commands（写清 `input_kinds`）。`start()` 必须兑现 views。Goal 目录、约定、状态、进展与回执使用共用合同 `@molis-ai/molis-work-contracts/modules/goal-actions` 的 `goalPluginActions`；Manifest 声明消费与 `goals:read`、`goals:write`，实际提供方由动作目录解析。约定、状态、进展和回执要求宿主当前运行的内置插件实例身份；生成插件即使声明同名消费也会被拒绝。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`（Characters 用 `bindOwnerPluginAction`，同理）。
+`kind: "app"`。有 Artifact 输出口；6 个可选输入口（Shelf 材料、Files 快照与选区、Git 变更与结果），默认来源写在各输入口的 `default_source`；还有事件、`agent` 角色和 commands（写清 `input_kinds`）。`start()` 必须兑现 views。Goal 目录、约定、状态、进展与回执使用共用合同 `@molis-ai/molis-work-contracts/modules/goal-actions` 的 `goalPluginActions`；Manifest 声明消费与 `goals:read`、`goals:write`，实际提供方由动作目录解析。约定、状态、进展和回执要求宿主当前运行的内置插件实例身份；生成插件即使声明同名消费也会被拒绝。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`（Characters 用 `bindOwnerPluginAction`，同理）。
 
 ## GitHub / Gmail 等接入
 

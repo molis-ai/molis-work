@@ -65,6 +65,9 @@ import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 /** One per Host, so the few-second answer a brief is good for is shared by every look at the chooser. */
 const projectArrivalHttps = new WeakMap<MolisWorkLocalHost, ReturnType<typeof createProjectArrivalHttp>>();
 
+/** Coding sessions running or waiting on the person in any project: the title bar's background tasks, read with the page's attention (W4-10). */
+export const homeBackgroundTasks = (projects: readonly WebProjectNavigation[]) => codingBackgroundTasks(projects, listCodingBackgroundSessions);
+
 export async function handleLocalCatalogWebRequest(
   request: IncomingMessage, response: ServerResponse, url: URL, serverOptions: WebServerOptions,
   runtimeIntegrations: RuntimeIntegrationService, webService: MolisWorkWebServiceManager, controlToken: string,
@@ -331,11 +334,6 @@ export async function handleLocalCatalogWebRequest(
   if (await projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts)) return;
   if (request.method === "GET" && url.pathname === "/desktop/pty-client.js") {
     servePtyClient(request, response);
-    return;
-  }
-  // Coding sessions running or waiting on the person in any project, for the project directory and the title bar.
-  if (request.method === "GET" && url.pathname === "/api/background-tasks") {
-    sendJson(response, 200, { tasks: codingBackgroundTasks(projects, listCodingBackgroundSessions) });
     return;
   }
   if (request.method === "GET" && url.pathname === "/health") {

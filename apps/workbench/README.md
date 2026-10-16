@@ -158,7 +158,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 当前项目的目录关联与 Files/Git 浏览选择由项目设置的「工作目录」页统一维护，Workspace 不再作为导航插件。页面与嵌入工作台共用 `project-settings-pages.ts` / `scripts/project-settings.ts`；协议和设置归属见 [PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)。
 
-工作台从现有内置目录派生独立客户端资源，首次打开时装入惯有 surface DOM 并准备 `clientAssets` 后挂载。原 surface 根节点和已挂载实例持续保留；隐藏时使用原 UI Host 生命周期暂停读取。独立侧栏文档同样在执行工厂前加载插件声明的 `clientAssets`，不依赖主区先打开。Pages 编辑器由 Pages 的登记声明依赖，Coding 与伴随视图的原装配由相同目录登记。失败保留内容并提供仅重载 UI 资源的按钮，不自动重试业务动作。分屏省略其他独立客户端 surface 的正文，通用 Goals/Feed/Inbox 与设置绑定保留；CSS 为保持现有全局层叠仍由 shell 按原顺序提供。回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/workbench-hidden-refresh.e2e.test.ts`。
+工作台从现有内置目录派生独立客户端资源，首次打开时装入惯有 surface DOM 并准备 `clientAssets` 后挂载。原 surface 根节点和已挂载实例持续保留；隐藏时使用原 UI Host 生命周期暂停读取。独立侧栏文档同样在执行工厂前加载插件声明的 `clientAssets`，不依赖主区先打开。Pages 编辑器由 Pages 的登记声明依赖，Coding 与伴随视图的原装配由相同目录登记：Files、Git、Diff、Text Stats 用 `clientFrom` 借 Coding 的客户端，宿主只发一份 `coding.js`，打开几个伴随面都只下载这一份（`pluginSurfaceClients()` 是主区、侧栏文档和按需加载共用的一份名单）。失败保留内容并提供仅重载 UI 资源的按钮，不自动重试业务动作。分屏省略其他独立客户端 surface 的正文，通用 Goals/Feed/Inbox 与设置绑定保留；CSS 为保持现有全局层叠仍由 shell 按原顺序提供。回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/workbench-hidden-refresh.e2e.test.ts`。
 
 
 引导、项目选择、Functions与MCP授权/连接页面共用`globalThis.molisWorkRequest`：Host请求保留code/status/callId/body，错误位置用同一failure view提供可查询的诊断编号。Functions的项目feed adapter仍以有没有project决定是否提供；未保存字段、选择序号、取消与旧DOM检查保留。原已授权但刷新失败的连接恢复入口继续只重载信息，不重新授权。定向验证：`tests/workbench-request-pages.e2e.test.ts`、`tests/workbench-functions-late.e2e.test.ts`、`tests/functions-draft-retention.test.ts`、`tests/context-onboarding-blank.e2e.test.ts`、`tests/request-failure-call-id.e2e.test.ts`。

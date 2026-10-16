@@ -52,6 +52,11 @@ export interface BuiltinPluginWorkbench {
   readonly contributions: readonly UiContribution[];
   readonly stylesheet?: string;
   readonly clientFactory?: string;
+  /**
+   * The plugin whose client also serves this surface: its bundle is loaded once and its factory mounts this surface's root,
+   * so a companion does not ship a second copy of the same client (W4-03).
+   */
+  readonly clientFrom?: string;
   /** Browser dependencies prepared before this factory mounts. */
   readonly clientAssets?: readonly string[];
   readonly settingsClient?: string;
@@ -397,26 +402,26 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: FILES_PROJECT_PLUGIN_ID,
     manifest: filesManifest,
-    workbench: { order: 21, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
+    workbench: { order: 21, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "查看工作区文件与保留的内容。",
   },
   {
     project_plugin_id: GIT_PROJECT_PLUGIN_ID,
     manifest: gitManifest,
-    workbench: { order: 22, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
+    workbench: { order: 22, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "查看工作区的版本与变更。",
   },
   {
     project_plugin_id: DIFF_PROJECT_PLUGIN_ID,
     manifest: diffManifest,
-    workbench: { order: 23, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
+    workbench: { order: 23, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "比较固定版本，逐项阅读差异。",
   },
   {
     project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID,
     manifest: textStatsManifest,
     developer: true,
-    workbench: { order: 24, contributions: [], clientFactory: CODING_WORKBENCH_SETUP_SCRIPT },
+    workbench: { order: 24, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "统计文件快照的字数、字节与行数。",
   },
 ];

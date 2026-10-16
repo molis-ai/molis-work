@@ -80,7 +80,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 **目标：1（外加 2）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，外加门禁名单一行和 SSOT 一行。其余由声明产生，下面五项都做到才是 1：
 
 - W3-06：模型服务、Home 库服务、Home 级 Runtime 实例（2026-10-07 已定：个人插件装在一个 Home 级实例，按项目启用照旧，数据留在 `{home}/<id>/<id>.db`）。Home 级实例已经有了：Issue 插件（#396）在工作台目录条目上声明 `runtime: { scope: "home" }`，宿主的 `home-plugins.ts` 装配它；W3-06-F 复用这个实例（spec §1 2026-10-12），登记位置按用户 2026-10-14 的决定写进 `AGENTS.md`。
-- W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts` 和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件能不能声明默认连线，产品上还没定。
+- W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts` 和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。
 - W5-02：目录、监督器列表、设计系统名单、搜索标签面、分组与常驻提示都由各包的声明生成。
 - W5-06：声明式贡献挂载，取代每个插件一套的渲染接线。
 - **X-1（4.3）**：应用的 `package.json` 依赖和根包依赖由脚本生成。路线图第 4.6 节的普查已经把「应用的 package.json 依赖」列进声明式注册该生成的东西（`specs/repository-anti-corruption/roadmap-2026-10-07.md` 第 607 行），W5-02 的切片描述却没有写它。没有 X-1，目标是 4（`scripts/workspace-packages.mjs` 加三个 `package.json`），不是 1。

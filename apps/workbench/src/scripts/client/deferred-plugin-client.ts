@@ -1,9 +1,13 @@
-import { BUILTIN_PLUGIN_WORKBENCH } from "../../plugin-workbench.js";
+import { pluginSurfaceClients } from "../../plugin-workbench.js";
 
-/** Loading is UI-only. Visible surfaces keep their original client and Host lifetime. */
+/**
+ * Loading is UI-only. Visible surfaces keep their original client and Host lifetime. A companion that borrows another plugin's
+ * client (`clientFrom`) loads that one bundle, once for all of them, and mounts its own root with it (W4-03).
+ */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
-  const packs = ${JSON.stringify(BUILTIN_PLUGIN_WORKBENCH.filter(pack => pack.clientFactory).map(pack => pack.clientAssets?.length ? [pack.project_plugin_id, pack.clientAssets] : [pack.project_plugin_id]))}.map(([id, assets = []]) => ({ id, assets }));
+  const failure = () => L('无法加载界面，请重试');
+  const packs = ${JSON.stringify(pluginSurfaceClients().map(({ id, bundle, assets }) => assets.length ? [id, bundle, assets] : bundle === id ? [id] : [id, bundle]))}.map(([id, bundle = id, assets = []]) => ({ id, bundle, assets }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
   const scope = host.scope;
   const load = url => {
@@ -18,14 +22,15 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (error) { script.remove(); scripts.delete(url); reject(error); } else resolve();
       };
       const abort = () => finish(scope.signal.reason);
-      const timer = scope.timeout(() => finish(new Error(L('无法加载界面，请重试'))), 10_000);
+      const timer = scope.timeout(() => finish(new Error(failure())), 10_000);
       scope.signal.addEventListener('abort', abort, { once: true });
       script.onload = () => finish();
-      script.onerror = () => finish(new Error(L('无法加载界面，请重试')));
+      script.onerror = () => finish(new Error(failure()));
       document.head.append(script);
     });
     scripts.set(url, waiting); return waiting;
   };
+  const settle = (root, state) => { root.inert = false; root.removeAttribute('aria-busy'); root.dataset.uiClientState = state; };
   const prepare = root => {
     if (!root || !root.hasAttribute('data-deferred-surface')) return Promise.resolve();
     if (mounting.has(root)) return mounting.get(root);
@@ -37,21 +42,20 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
     const pending = (async () => {
       try {
         for (const asset of pack.assets) await load(asset);
-        await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.id) + '.js');
+        await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.bundle) + '.js');
         if (!root.isConnected || scope.signal.aborted) return;
-        const factory = globalThis.molisWorkbenchPluginFactories?.[pack.id];
-        if (!factory) throw new Error(L('无法加载界面，请重试'));
+        const factory = globalThis.molisWorkbenchPluginFactories?.[pack.bundle];
+        if (!factory) throw new Error(failure());
         factory({ ...host, root });
-        root.removeAttribute('data-deferred-surface'); root.dataset.uiClientState = 'ready';
-        root.inert = false; root.removeAttribute('aria-busy');
+        root.removeAttribute('data-deferred-surface'); settle(root, 'ready');
         const selection = selections.get(root);
         if (selection) { selections.delete(root); root.dispatchEvent(new CustomEvent('molis-work:select-item', { detail: selection })); }
       } catch (error) {
         if (!root.isConnected || scope.signal.aborted) return;
-        root.inert = false; root.removeAttribute('aria-busy'); root.dataset.uiClientState = 'failed'; mounting.delete(root);
+        settle(root, 'failed'); mounting.delete(root);
         const notice = document.createElement('div'); notice.style.cssText = 'position:absolute;right:12px;top:12px;z-index:30';
         const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'mw-btn mw-btn--ghost';
-        retry.textContent = L('无法加载界面，请重试'); retry.dataset.uiClientRetry = 'true';
+        retry.textContent = failure(); retry.dataset.uiClientRetry = 'true';
         retry.onclick = () => { notice.remove(); void prepare(root); }; notice.append(retry); root.prepend(notice);
         host.showToast?.(error.message, true);
       }

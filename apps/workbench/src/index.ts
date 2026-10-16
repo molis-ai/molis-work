@@ -137,7 +137,7 @@ export {
 } from "./settings-models.js";
 export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer } from "./plugin-catalog.js";
 
-export { pluginWorkbenchClientAsset } from "./plugin-workbench.js";
+export { pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";

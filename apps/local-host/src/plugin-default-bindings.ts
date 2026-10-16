@@ -10,8 +10,8 @@ import type { PluginPlatform } from "./plugin-platform.js";
  *
  * For now a default applies only between plugins that ship with the Host (`shipsWithHost`), as the table it replaces did: an
  * installed or generated plugin that names Coding's changesets or Shelf's material as its default would otherwise receive them
- * with nobody choosing to give them. Its declaration is read as if it were absent, its default group as well. Whether installed
- * plugins may declare defaults is a product decision not yet made.
+ * with nobody choosing to give them. Its declaration is read as if it were absent, its default group as well. Installed plugins may
+ * not declare defaults (用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议).
  */
 export function bindDeclaredDefaults(platform: PluginPlatform, projectId: string, actorId: string): void {
   const running = platform.wiring.view().plugins;

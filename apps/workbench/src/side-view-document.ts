@@ -2,7 +2,7 @@ import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/pro
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { renderWorkbenchDocument, WORKBENCH_UI_SLOTS } from "./document-shell.js";
-import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
+import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { sideEntries } from "./plugin-catalog.js";
 import { createWorkbenchUiHost } from "./ui-composition.js";
 import { SIDE_LINKS_SCRIPT } from "./side-panel.js";
@@ -46,10 +46,10 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
   const model: SideViewModel = { project_id: input.projectId, route_prefix: input.routePrefix, view_id: view.view_id, primitives: { escape, text: input.translate } };
   const html = uiHost.mount({ slot: WORKBENCH_UI_SLOTS.side, contribution: { contribution_id: view.contribution_id, surface: surface.surface_id, model } }).html;
-  const pack = BUILTIN_PLUGIN_WORKBENCH.find(entry => entry.project_plugin_id === input.projectPluginId);
   const route = JSON.stringify(input.routePrefix);
-  const client = pack?.clientFactory
-    ? `(${pack.clientFactory})({ mountPluginClient, translate: L, projectId: () => ${JSON.stringify(input.projectId)}, projectTitle: () => "", route: path => ${route} + path, side: true });`
+  const surfaceClient = pluginSurfaceClients().find(entry => entry.id === input.projectPluginId);
+  const client = surfaceClient
+    ? `(${surfaceClient.factory})({ mountPluginClient, translate: L, projectId: () => ${JSON.stringify(input.projectId)}, projectTitle: () => "", route: path => ${route} + path, side: true });`
     : "";
   return renderWorkbenchDocument({
     lang: input.lang,
@@ -58,7 +58,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>${SIDE_VIEW_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}` },
     body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${html}</main>
-    ${(pack?.clientAssets ?? []).map(path => `<script src="${escape(path)}"></script>`).join("")}
+    ${(surfaceClient?.assets ?? []).map(path => `<script src="${escape(path)}"></script>`).join("")}
     <script>${input.clientI18nScript}${UI_REQUEST_CLIENT_SCRIPT}${SIDE_LINKS_SCRIPT}${homeToolKeysScript()}
       const L = globalThis.L;
       // This document is the view's host: the work surface a plugin reuses here waits, hidden, for its host to show it

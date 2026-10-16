@@ -16,7 +16,15 @@ export type ModelReply = { text: string } | { tool: string; input: unknown };
 /** A real provider instead of scripted replies (the live eval): its key is read only through `key`, never written anywhere. */
 export interface LiveModel { readonly endpoint: string; readonly model: string; readonly key: () => string }
 export interface ToolUse { readonly name: string; readonly input: unknown }
+/** A tool as the model was offered it. */
+export interface OfferedTool { readonly name: string; readonly description: string }
+/** The name of the offered action tool with this title: what the model sees and calls, never a hash built here. */
+export const toolTitled = (tools: readonly OfferedTool[], title: string) => tools.find(tool => tool.name.startsWith("molis-action-") && tool.description.includes(` · ${title}`))?.name ?? `no tool titled ${title}`;
 
+/** What a streamed Anthropic-compatible reply said, as text. */
+const textOf = (stream: string) => stream.split("\n").filter(line => line.startsWith("data:")).map(line => {
+  try { const event = JSON.parse(line.slice(5)); return event.type === "content_block_delta" && event.delta?.type === "text_delta" ? String(event.delta.text ?? "") : ""; } catch { return ""; }
+}).join("");
 /** The tool calls in a streamed Anthropic-compatible reply, in order. */
 const toolUses = (stream: string): ToolUse[] => {
   const blocks = new Map<number, { name: string; json: string }>();
@@ -60,18 +68,25 @@ const definition = (capability_id: string, operation: "query" | "command", kind:
     output_schema: { type: "object", properties: { state: { type: "string" } }, required: ["state"] } },
 });
 
-export async function externalChecks(t: TestContext, script: (turn: number, messages: string) => ModelReply, live?: LiveModel) {
+export async function externalChecks(t: TestContext, script: (turn: number, messages: string, tools: readonly OfferedTool[]) => ModelReply, live?: LiveModel) {
   const root = await mkdtemp(join(tmpdir(), "molis-external-checks-"));
   await writeFile(join(root, "README.md"), "sandbox\n");
-  const requests: string[] = [], replies: ToolUse[][] = [], real = globalThis.fetch;
+  const requests: string[] = [], replies: ToolUse[][] = [], said: string[] = [], real = globalThis.fetch;
   t.mock.method(globalThis, "fetch", async (url: Parameters<typeof fetch>[0], init: RequestInit) => {
+    // With a real model, only its endpoint is the model: anything else (the resolver's DNS over HTTPS) goes out as it is.
+    if (live && String(url instanceof Request ? url.url : url) !== live.endpoint) return real(url, init);
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const messages = JSON.stringify(body.messages);
     requests.push(messages);
-    if (!live) return sse(script(requests.length, messages));
+    const tools: { name: string; description?: string }[] = body.tools ?? [];
+    // Tools whose shapes were left out are listed by name in find-tools' description: "- <name>: <provider> · <effect> · <title> …".
+    const deferred = [...(tools.find(tool => tool.name === "find-tools")?.description ?? "").matchAll(/^- (molis-action-[\w-]+): (.*)$/gm)];
+    const offered: OfferedTool[] = [...tools.map(tool => ({ name: tool.name, description: tool.description ?? "" })), ...deferred.map(row => ({ name: row[1]!, description: row[2]! }))];
+    if (!live) return sse(script(requests.length, messages, offered));
     // Only the request's messages and the reply's tool calls are kept; headers (the key) are not.
     const response = await real(url, init);
-    replies.push(toolUses(await response.clone().text()));
+    const stream = await response.clone().text();
+    replies.push(toolUses(stream)); said.push(textOf(stream));
     return response;
   });
   const switches = { pluginActive: true, actionsGranted: true, directoryAuthorized: true, state: "running" as string | Error };
@@ -103,11 +118,13 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
         invoke: async (reference, input) => { await current(); return client.invoke(caller, reference, input); } };
     } };
   const queue = new AgentReviewQueue(), reviewed: { kind: string; approved: boolean; what: string }[] = [];
-  // With a real model: a file it writes in the sandbox is approved, any command is turned down (nothing runs on this machine).
+  // With a real model: a file it writes in the sandbox and a call of one of the round's action tools are approved (the eval counts which
+  // actions ran); any command and any other tool operation is turned down (nothing runs on this machine).
   if (live) queue.observe(request => {
-    if (request.document.kind !== "text-edit" && request.document.kind !== "command") return;
-    const approved = request.document.kind === "text-edit";
-    reviewed.push({ kind: request.document.kind, approved, what: request.document.kind === "text-edit" ? request.document.target_path : [request.document.command, ...request.document.args].join(" ") });
+    const document = request.document;
+    if (document.kind !== "text-edit" && document.kind !== "command" && document.kind !== "tool-operation") return;
+    const approved = document.kind === "text-edit" || document.kind === "tool-operation" && document.tool.startsWith("molis-action-");
+    reviewed.push({ kind: document.kind, approved, what: document.kind === "text-edit" ? document.target_path : document.kind === "command" ? [document.command, ...document.args].join(" ") : document.tool });
     queueMicrotask(() => void queue.respond({ review_id: request.review_id, decision: approved ? "approve" : "reject", actor_id: "user" }).catch(() => undefined));
   });
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.external-checks-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
@@ -119,14 +136,14 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
   t.after(async () => { await adapter.close(); await local.close(); await rm(root, { recursive: true, force: true }); });
   const owner = { project_id: "p", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const session = await adapter.createSession({ ...owner, directory, title: "Waits outside" });
-  const start = async (task: string, extra: object = {}) => {
+  const start = async (task: string, extra: object = {}, roundMs = live ? 300_000 : 30_000) => {
     const started = await host.start("prologue", { ...owner, session, directory, role_id: "builder", task, session_title: "Waits outside", ...extra } as never, authority);
-    await until("the round ends", async () => ["completed", "failed", "cancelled", "stopped"].includes((await adapter.read(started.ref)).phase), live ? 300_000 : 30_000);
+    await until("the round ends", async () => ["completed", "failed", "cancelled", "stopped"].includes((await adapter.read(started.ref)).phase), roundMs);
     return started;
   };
   const wait = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.wait;
   const continuation = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.continuation;
-  return { root, requests, replies, reviewed, switches, calls, adapter, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary) }, reopen: open };
+  return { root, requests, replies, said, reviewed, switches, calls, adapter, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary) }, reopen: open };
 }
 
 /** The model's call that registers the wait, as `board-wait` takes it. */

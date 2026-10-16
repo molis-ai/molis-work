@@ -1,4 +1,4 @@
-import { realpath, stat } from "node:fs/promises";
+import { lstat, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { CheckRequest, CheckerResult, ConditionCheckers, HeldWait, Runtime } from "@prologue/sdk";
 import { actionEffect, platformErrorKind, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -22,8 +22,10 @@ export interface RoundCheckAuthority {
   readonly session_id: string;
   /** The round's own check before anything leaves for it (its plugin instance, its Character); none for a trusted Host start. */
   readonly beforeDispatch?: () => void | Promise<void>;
-  /** The round's actions: the frozen ones only, or what the business gateway finds. */
-  readonly actions?: { readonly client: AgentActionClient; readonly tools?: readonly ActionView[] };
+  /** The round's action client: every look finds and calls the action through it, with the round's grant. */
+  readonly actions?: { readonly client: AgentActionClient };
+  /** The round's action tools by the name the model calls them (`actionToolRefs`, prologue-action-tools.ts); a name outside it is refused. */
+  readonly tools?: Promise<ReadonlyMap<string, ExactActionReference>>;
   /** The round's authorized directory. */
   readonly root_path?: string;
 }
@@ -50,21 +52,21 @@ const notAllowed = (error: unknown) => {
 };
 const object = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const onlyKeys = (value: Record<string, unknown>, keys: readonly string[]) => Object.keys(value).every(key => keys.includes(key));
-const words = (value: unknown, min: number, max: number) => Array.isArray(value) && value.length >= min && value.length <= max
-  && value.every(item => typeof item === "string" && item.length >= 1 && item.length <= 100);
+/** One name, or a list of them: a single field or state may be written as a plain string. */
+const list = (value: unknown): unknown[] | undefined => typeof value === "string" ? [value] : Array.isArray(value) ? value : undefined;
+const words = (value: unknown, min: number, max: number) => { const items = list(value);
+  return !!items && items.length >= min && items.length <= max && items.every(item => typeof item === "string" && item.length >= 1 && item.length <= 100); };
 
-/** `molis.action-query@1`: an exact action, its input, where its answer says the state, and which states count as what. */
+/** `molis.action-query@1`: one of the round's action tools by its name, its input, where its answer says the state, and which states count as what. */
 function actionQueryProblem(params: unknown): string | undefined {
-  if (!object(params) || !onlyKeys(params, ["action", "input", "status"])) return "takes { action, input?, status }";
-  const action = params.action;
-  if (!object(action) || !onlyKeys(action, ["capability_id", "version", "provider_id"]) || typeof action.capability_id !== "string" || !action.capability_id
-    || action.capability_id.length > 200 || !Number.isSafeInteger(action.version) || (action.version as number) < 1
-    || typeof action.provider_id !== "string" || !action.provider_id || action.provider_id.length > 200) return "action is { capability_id, version, provider_id }";
+  if (!object(params) || !onlyKeys(params, ["tool", "input", "status"])) return "takes { tool, input?, status }";
+  if (typeof params.tool !== "string" || !params.tool || params.tool.length > 200) return "tool is the name of one of this round's action tools, as you call it";
   const status = params.status;
   if (!object(status) || !onlyKeys(status, ["path", "satisfied", "failed", "pending"])) return "status is { path, satisfied, failed?, pending? }";
-  if (!Array.isArray(status.path) || status.path.length > 8 || !status.path.every(part => typeof part === "string" && part.length >= 1 && part.length <= 64)) return "status.path is at most 8 field names";
-  if (!words(status.satisfied, 1, 20) || status.failed !== undefined && !words(status.failed, 0, 20) || status.pending !== undefined && !words(status.pending, 0, 20)) return "status lists at most 20 states each, satisfied at least one";
-  const all = [...status.satisfied as string[], ...(status.failed as string[] | undefined ?? []), ...(status.pending as string[] | undefined ?? [])];
+  const path = list(status.path);
+  if (!path || path.length < 1 || path.length > 8 || !path.every(part => typeof part === "string" && part.length >= 1 && part.length <= 64)) return "status.path is a field name, like \"state\", or a JSON array of them (at most 8)";
+  if (!words(status.satisfied, 1, 20) || status.failed !== undefined && !words(status.failed, 0, 20) || status.pending !== undefined && !words(status.pending, 0, 20)) return "status.satisfied, failed and pending are each a state, like \"done\", or a JSON array of states (satisfied has at least one; at most 20 each)";
+  const all = [...list(status.satisfied) as string[], ...(list(status.failed) as string[] | undefined ?? []), ...(list(status.pending) as string[] | undefined ?? [])];
   return new Set(all).size === all.length ? undefined : "a state is in one list only";
 }
 
@@ -83,10 +85,11 @@ function filePresentProblem(params: unknown): string | undefined {
 const sameRef = (view: Pick<ActionView, "capability_id" | "version" | "provider">, ref: ExactActionReference) =>
   view.capability_id === ref.capability_id && view.version === ref.version && view.provider.provider_id === ref.provider_id;
 
-/** The action, as the round may call it now: granted to the round, found through the action service, a read-only query. */
-async function readableAction(round: Remembered, ref: ExactActionReference): Promise<{ view: ActionView } | { refused: CheckerResult } | { unknown: CheckerResult }> {
+/** The action behind one of the round's tool names, as the round may call it now: found through the action service, a read-only query. */
+async function readableAction(round: Remembered, tool: string): Promise<{ view: ActionView; ref: ExactActionReference } | { refused: CheckerResult } | { unknown: CheckerResult }> {
   if (!round.actions) return { refused: refused(REFUSED, "这一轮没有可调用的动作") };
-  if (round.actions.tools && !round.actions.tools.some(view => sameRef(view, ref))) return { refused: refused(REFUSED, "这个动作不在这一轮可调用的动作里") };
+  const ref = (await round.tools?.catch(() => undefined))?.get(tool);
+  if (!ref) return { refused: refused(REFUSED, "这个动作不在这一轮可调用的动作里：tool 写这一轮动作工具的名字本身（molis-action- 开头，find-tools 的说明里列着），不是标题") };
   let views: readonly ActionView[];
   try { views = await round.actions.client.discover(); }
   catch (error) { if (notAllowed(error)) return { refused: refused(codeOf(error, REFUSED), "这一轮现在不能再查动作") }; throw error; }
@@ -99,24 +102,25 @@ async function readableAction(round: Remembered, ref: ExactActionReference): Pro
   // Looked at again and again, a query that asks a model (it declares model:invoke) would spend on every look (coordinator 2026-10-16).
   if (view.action.permissions.includes("model:invoke")) return { refused: refused(NOT_READ, "要调用模型的查询不能这样等") };
   if (!view.availability.available) return { unknown: { status: "unknown", note: `动作暂不可用：${view.availability.reason}` } };
-  return { view };
+  return { view, ref };
 }
 
 const answerAt = (value: unknown, path: readonly string[]) => path.reduce<unknown>((at, key) => object(at) ? at[key] : undefined, value);
 
 const lookAtAction: Look = async (round, params, signal) => {
-  const query = params as { action: ExactActionReference; input?: unknown; status: { path: string[]; satisfied: string[]; failed?: string[]; pending?: string[] } };
-  const found = await readableAction(round, query.action);
+  const query = params as { tool: string; input?: unknown; status: Record<"path" | "satisfied" | "failed" | "pending", string | string[] | undefined> };
+  const among = (key: "satisfied" | "failed" | "pending", state: string) => (list(query.status[key]) as string[] | undefined ?? []).includes(state);
+  const found = await readableAction(round, query.tool);
   if ("refused" in found) return found.refused;
   if ("unknown" in found) return found.unknown;
   signal.throwIfAborted();
   let output: unknown;
-  try { output = await round.actions!.client.invoke(query.action, query.input ?? {}, signal); }
+  try { output = await round.actions!.client.invoke(found.ref, query.input ?? {}, signal); }
   catch (error) { if (notAllowed(error)) return refused(codeOf(error, REFUSED), "这一轮现在不能调用这个动作"); throw error; }
-  const said = answerAt(output, query.status.path), source = { ref: `${query.action.capability_id}@${query.action.version}` };
+  const said = answerAt(output, list(query.status.path) as string[]), source = { ref: `${found.ref.capability_id}@${found.ref.version}` };
   if (typeof said !== "string" && typeof said !== "number" && typeof said !== "boolean") return { status: "unknown", source, note: "动作的回答里没有这个状态" };
   const state = String(said);
-  const status = query.status.satisfied.includes(state) ? "satisfied" : query.status.failed?.includes(state) ? "failed" : query.status.pending?.includes(state) ? "pending" : undefined;
+  const status = among("satisfied", state) ? "satisfied" : among("failed", state) ? "failed" : among("pending", state) ? "pending" : undefined;
   return status ? { status, source, note: `「${found.view.action.title}」回答 ${state}` } : { status: "unknown", source, note: `「${found.view.action.title}」回答 ${state}，不在给定的状态里` };
 };
 
@@ -127,7 +131,8 @@ async function freshFile(root: string, path: string, since: number, nonEmpty: bo
   try { real = await realpath(resolve(base, path)); } catch { return "absent"; }
   const inside = relative(base, real);
   if (!inside || inside.startsWith(`..${sep}`) || inside === ".." || isAbsolute(inside)) return "outside";
-  const seen = await stat(real);
+  // Not followed again: a path swapped for a link after it was resolved is not the file.
+  const seen = await lstat(real);
   if (!seen.isFile()) return "absent";
   if (seen.mtimeMs < since) return "old";
   return nonEmpty && seen.size === 0 ? "empty" : "here";
@@ -140,7 +145,9 @@ function filePresentLook(ports: PrologueCheckPorts, project: (sessionId: string)
     if (!root || !projectId) return refused(REFUSED, "这一轮没有授权目录");
     if (!ports.directoryAuthorized || !await ports.directoryAuthorized(projectId, root)) return refused(REFUSED, "这一轮的目录已不再授权");
     const since = round.started_at_ms;
-    if (file.failed_marker && await freshFile(root, file.failed_marker, since, false) === "here") return { status: "failed", source: { ref: file.failed_marker }, note: `出现了失败标记 ${file.failed_marker}` };
+    const failed = file.failed_marker ? await freshFile(root, file.failed_marker, since, false) : undefined;
+    if (failed === "outside") return refused(REFUSED, "路径指向授权目录之外");
+    if (failed === "here") return { status: "failed", source: { ref: file.failed_marker! }, note: `出现了失败标记 ${file.failed_marker}` };
     const main = await freshFile(root, file.path, since, file.non_empty === true);
     if (main === "outside") return refused(REFUSED, "路径指向授权目录之外");
     if (main !== "here") return { status: "pending", note: main === "old" ? `${file.path} 比登记它的那一轮还旧，不算` : main === "empty" ? `${file.path} 还是空的` : `还没有 ${file.path}` };
@@ -180,7 +187,7 @@ export function createPrologueConditionCheckers(deps: { readonly runtime: () => 
     const stop = await roundRefusal(round, sessionId);
     if (stop) return stop.note;
     if (checker === ACTION_QUERY_CHECKER.id) {
-      const found = await readableAction(round!, (params as { action: ExactActionReference }).action).catch(() => undefined);
+      const found = await readableAction(round!, (params as { tool: string }).tool).catch(() => undefined);
       return found && "refused" in found ? found.refused.note : undefined;
     }
     const projectId = await deps.project(sessionId);

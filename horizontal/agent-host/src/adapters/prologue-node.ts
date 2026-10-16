@@ -4,6 +4,7 @@ import { createNodeHost } from "@prologue/sdk/node";
 import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { announcesWithoutActing } from "./announce-guard.js";
 import type { createPluginBuilderAgent, PluginBuilderAgentOptions } from "./plugin-builder.js";
+import { actionToolRefs } from "./prologue-action-tools.js";
 import { createPrologueConditionCheckers } from "./prologue-checkers.js";
 import { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { PrologueCredentialBridge } from "./prologue-credentials.js";
@@ -175,8 +176,12 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     runtime: { ...port, startAgentRun: input => effects.start(input, async () => {
       const started = await port.startAgentRun(input);
       // What the waits this round registers are checked against, look after look.
+      const client = input.actions?.client ?? input.action_gateway?.client;
       checks.remember(started.run.ref.id, { session_id: input.session_id, ...(input.beforeDispatch ? { beforeDispatch: input.beforeDispatch } : {}), ...(input.root_path ? { root_path: input.root_path } : {}),
-        ...(input.actions ? { actions: input.actions } : input.action_gateway ? { actions: { client: input.action_gateway.client } } : {}) }, started.run);
+        ...(client ? { actions: { client } } : {}), tools: index.read(input.session_id).then(saved => {
+          const attempt = saved?.attempts.find(item => item.run_id === started.run.ref.id);
+          return attempt?.action_tool_scope ? actionToolRefs(attempt.frozen.action_tools ?? [], attempt.action_tool_scope) : new Map();
+        }) }, started.run);
       return started;
     }) },
     modelConfiguration: options.modelConfiguration,

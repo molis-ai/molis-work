@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { boardWait, externalChecks, pause, until } from "./fixtures/external-checks.js";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { boardWait, externalChecks, pause, toolTitled, until } from "./fixtures/external-checks.js";
 
 /**
  * S-27 (docs/system/SECURITY-INVARIANTS.md): a step's wait on something outside only looks. A query is one the round may
@@ -8,17 +11,19 @@ import { boardWait, externalChecks, pause, until } from "./fixtures/external-che
  * a write, a judgment, an action the round was not given, or authority taken back is refused, and nothing goes on.
  */
 
-const statusParams = (action: unknown) => ({ action, input: { job: "j-1" }, status: { path: ["state"], satisfied: ["done"], pending: ["running"] } });
+// The action tool by the name the model was offered and calls; the Host maps it back with its own naming (prologue-action-tools.ts).
+const statusParams = (tool: string) => ({ tool, input: { job: "j-1" }, status: { path: ["state"], satisfied: ["done"], pending: ["running"] } });
 
 test("S-27 PA-16 a wait may not rest on a write, a judgment, an action the round was not given, an unknown checker or a path outside", { timeout: 60_000 }, async t => {
   // A round stops after five calls in a row fail (prologue-run.ts), so the action the round was not given is a second round.
-  const f = await externalChecks(t, turn => [
+  const f = await externalChecks(t, (turn, _messages, tools) => [
     boardWait("molis.shell@1", { command: "ls" }),
     boardWait("molis.file-present@1", { path: "../outside.txt" }),
-    boardWait("molis.action-query@1", statusParams(f.refs.cancel)),
-    boardWait("molis.action-query@1", statusParams(f.refs.judge)),
+    boardWait("molis.action-query@1", statusParams(toolTitled(tools, "Cancel job"))),
+    boardWait("molis.action-query@1", statusParams(toolTitled(tools, "Judge job"))),
     { text: "没有可以等的。" },
-    boardWait("molis.action-query@1", statusParams(f.refs.status)),
+    // Not a tool of this round: the status query was not given to it.
+    boardWait("molis.action-query@1", statusParams("molis-action-not-in-this-round")),
   ][turn - 1] ?? { text: "没有可以等的。" });
   await f.start("等作业 j-1", { action_tools: [f.refs.cancel, f.refs.judge] });
   assert.equal(f.requests.length, 5);
@@ -36,7 +41,7 @@ test("S-27 PA-16 a wait may not rest on a write, a judgment, an action the round
 
 // Coordinator 2026-10-16: a checker looks again and again, so a query that asks a model would spend on every look.
 test("S-27 PA-16 a wait may not rest on a read-only query that asks a model (model:invoke), even one the round holds", { timeout: 60_000 }, async t => {
-  const f = await externalChecks(t, turn => turn === 1 ? boardWait("molis.action-query@1", statusParams(f.refs.summary)) : { text: "没有可以等的。" });
+  const f = await externalChecks(t, (turn, _messages, tools) => turn === 1 ? boardWait("molis.action-query@1", statusParams(toolTitled(tools, "Summarize job"))) : { text: "没有可以等的。" });
   await f.start("等作业 j-1 的总结", { action_tools: [f.refs.summary] });
   assert.equal(f.requests.length, 2);
   assert.match(f.requests[1]!, /要调用模型的查询不能这样等/, "a query that declares model:invoke is refused");
@@ -45,11 +50,26 @@ test("S-27 PA-16 a wait may not rest on a read-only query that asks a model (mod
   assert.equal(f.calls.summary, 0, "registering called nothing");
 });
 
+test("S-27 PA-16 a failure marker that leads outside the directory through a link is refused, like the path and its marker", { timeout: 60_000 }, async t => {
+  const f = await externalChecks(t, turn => turn === 1 ? boardWait("molis.file-present@1", { path: "out/result.json", failed_marker: "out/failed" }) : { text: "在等。" });
+  const outside = await mkdtemp(join(tmpdir(), "molis-outside-"));
+  t.after(() => rm(outside, { recursive: true, force: true }));
+  await f.start("等 out/result.json");
+  await writeFile(join(outside, "failed"), "exit 1");
+  await mkdir(join(f.root, "out"), { recursive: true });
+  await symlink(join(outside, "failed"), join(f.root, "out/failed"));
+  const last = async () => (await f.wait())?.conditions[0]?.last;
+  await until("the look is refused", async () => (await last())?.checker_error !== undefined);
+  assert.equal((await last())!.checker_error, "agent.collaboration_check_refused");
+  assert.equal((await last())!.status, "unknown", "not read as the step's failure");
+  assert.notEqual((await f.continuation())?.state, "eligible", "nothing goes on");
+});
+
 for (const taken of ["actions-revoked", "plugin-stopped", "directory-revoked", "host-restarted"] as const)
   test(`S-27 PA-19 every look checks the round again: ${taken} stops the looking and nothing goes on`, { timeout: 60_000 }, async t => {
     const file = taken === "directory-revoked";
-    const f = await externalChecks(t, turn => turn === 1
-      ? file ? boardWait("molis.file-present@1", { path: "out/result.json" }) : boardWait("molis.action-query@1", statusParams(f.refs.status))
+    const f = await externalChecks(t, (turn, _messages, tools) => turn === 1
+      ? file ? boardWait("molis.file-present@1", { path: "out/result.json" }) : boardWait("molis.action-query@1", statusParams(toolTitled(tools, "Job status")))
       : { text: "在等。" });
     await f.start("等作业 j-1", file ? {} : { action_tools: [f.refs.status] });
     const checks = f.calls.roundChecks;

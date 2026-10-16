@@ -24,7 +24,7 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, port
   const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
     document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` }, TypeError,
   }) as (ports: object) => {
-    receipt(turn: object): Node | undefined; steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string): Node | null;
+    receipt(turn: object, run?: string): Node | undefined; steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string): Node | null;
   };
   const api = (_path: string, _method: string, body: Record<string, unknown>) => { sent.push(body); return reply(body); };
   return { ui: factory({ api, refresh: () => {}, say: () => {}, q: () => null, ...ports }), sent };
@@ -99,17 +99,22 @@ test("RC-15: a receipt that moves on is said once on the status line; the first 
   assert.deepEqual(said, ["你的补充：AI 已读到"]);
 });
 
-test("RC-15: a receipt is known by its input, not its turn id, which repeats in every round of the session", () => {
+test("RC-15: a receipt is known by its round and input: turn ids repeat in every round, and an unread supplement is carried under the same input id", () => {
   const said: string[] = [];
   const { ui } = receipts(() => taken(), { say: text => said.push(text) });
-  const turn = (input: string, state: string) => ({ kind: "user", turn_id: "user-4", steer: { id: input, state } });
-  // One repaint draws the old round, then the new one, whose supplement has the same turn id.
-  const paint = (state: string) => { ui.receipt(turn("steer-1", "read")); ui.receipt(turn("steer-9", state)); };
-  paint("received");
-  assert.deepEqual(said, [], "a new supplement's first receipt is not a change");
-  paint("received");
-  paint("read");
-  assert.deepEqual(said, ["你的补充：AI 已读到"], "the new supplement moving on is said once");
+  const turn = (input: string, state: string) => ({ kind: "user", turn_id: "user-2", steer: { id: input, state } });
+  // One repaint draws every round: the old round's supplement it did not read, then the new round, which carried that
+  // same input in (same input id, same turn id here) and holds a supplement of its own.
+  const paint = (carried: string, own: string) => {
+    ui.receipt(turn("steer-1", "unread"), "run-1"); ui.receipt(turn("steer-1", carried), "run-2"); ui.receipt(turn("steer-9", own), "run-2");
+  };
+  paint("applied", "received");
+  assert.deepEqual(said, [], "the first paint is not news");
+  paint("applied", "received");
+  assert.deepEqual(said, [], "an old round's receipt and the round that carried it never take turns announcing");
+  paint("read", "received");
+  paint("read", "read");
+  assert.deepEqual(said, ["你的补充：AI 已读到", "你的补充：AI 已读到"], "each move is said once, by the round it happened in");
 });
 
 test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {

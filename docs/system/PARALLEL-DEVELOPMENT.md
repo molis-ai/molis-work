@@ -106,7 +106,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 一个包的源码 | 该包 README「开发要求」里的「改动后必跑」，加读它、调它的用例（`git grep -l <名字> tests`） |
 | 带 `L()` 文案 | 再加 `tests/i18n.test.ts` |
 | 路由 | 再加所有读这条路由的用例 |
-| 界面 | 受影响的浏览器用例（排时段、串行）；PR 模板里的浅深色与三个宽度的截图 |
+| 界面 | 受影响的浏览器用例（排时段、串行）；PR 模板里的浅深色与三个宽度的截图。动了共用样式、皮肤、外壳或底栏的，再跑 `pnpm visual:compare`：在本机 Chrome 里把关键界面按 1440、1024、390 三个宽度、浅深色各拍一张，与 main 逐像素比对（同一棵树拍两次一像素不差，所以有差就是分支的；报告在 `.impeccable/qa/review/visual/compare/report.html`，用法见 `scripts/visual-compare.mjs` 开头） |
 | 共享核心（contracts、kernel、plugin-sdk、modules、local-host 的装配、workbench 外壳）、迁移或存储、改动跨三个以上包、删除整块旧代码、或合入后相关用例意外失败 | 全量：`node scripts/run-tests.mjs`。不带参数时含 `tests/*.test.mjs`（跑全量约 76–78 分钟，spec §9.5 各批记录） |
 | 每个阶段收尾 | 全量一次，作为阶段证据 |
 

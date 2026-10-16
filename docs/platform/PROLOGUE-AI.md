@@ -202,6 +202,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 
 - **角色执行等级**（`packages/contracts/src/platform/plugin-agent.ts`）：`read-only`（缺省）、`text-edit`、`workspace-write`（要求 Runtime 支持 text-edit 与 command）。角色不能在启动时自行加宽；`workspace: "none"` 的纯推理角色不能带目录、工具或子任务。
 - **宿主工具**：角色声明 `host_tools`（如 `read-file`、`search`），实现和效果分类归 Host。
+- **用途的方法**（用户 2026-10-16 定）：同一个插件里不同用途（如规划、执行、讨论）是不同的角色，每个角色可以用 `skills: { allowed, default }` 声明这个用途能挑的方法和一开始就选上的方法。`allowed` 点名 agent 块 `skills` 里的方法，`default` 必须在 `allowed` 里，每个可选方法要的 `tools` 都得在这个角色的 `host_tools` 里。解析 Manifest 时这些都由 SDK 检查（`packages/plugin-sdk/src/agent-declarations.ts`），不合就拒绝安装，免得开新一轮时才被宿主拒绝。不写 `skills` 的角色照旧。
 - **动作工具**：`action_tools` 只接受精确引用（capability_id + version + provider_id），调用仍走统一动作服务与逐客户端授权；动作的 `effect`（read/write/irreversible）决定是否要审查、是否对生成插件开放。
 - **审查**：写文件、跑命令、调用写入动作都进 `AgentReviewQueue`，由人批准；批准不等于已发生，执行前再复查授权。
 - **预算**：`AgentRunBudget`（`max_turns`、`max_output_tokens`、`max_total_tokens`、`max_duration_ms`），在 SDK 里真实执行（`tests/agent-budget-prologue.test.ts`）。

@@ -131,12 +131,34 @@ test("RC-06: an answer to a Coding question names the question's own revision, a
   const round = coding.sessions.get((first.work.executor as { session_id: string }).session_id)!.runs.at(-1)!;
   round.phase = "awaiting-input";
   round.awaiting_input = [{ pending_id: "q1", pending_revision: 4, kind: "text", prompt: "用哪个名字？", options: [], allows_free_text: true }];
-  assert.equal((await service.send({ work_id: first.work.work_id, text: "minus", request_id: randomUUID() }, caller)).outcome, "answered");
+  assert.equal((await service.send({ work_id: first.work.work_id, text: "minus", request_id: randomUUID(), target: "answer" }, caller)).outcome, "answered");
   assert.equal(coding.calls.filter(call => call.name === "runs.control").at(-1)!.input.pending_revision, 4);
   round.awaiting_input = [{ pending_id: "q2", kind: "text", prompt: "还要别的吗？", options: [], allows_free_text: true }];
   const before = coding.calls.length;
-  await assert.rejects(service.send({ work_id: first.work.work_id, text: "不用了", request_id: randomUUID() }, caller), (error: unknown) => (error as { code?: string }).code === "assistant.stale");
+  await assert.rejects(service.send({ work_id: first.work.work_id, text: "不用了", request_id: randomUUID(), target: "answer" }, caller), (error: unknown) => (error as { code?: string }).code === "assistant.stale");
   assert.equal(coding.calls.filter(call => call.name === "runs.control").length, coding.calls.slice(0, before).filter(call => call.name === "runs.control").length, "no default revision is made up");
+});
+
+test("RC-14: while a question waits, the person's choice decides where the words go; the Host never guesses an answer", async () => {
+  const { coding, service, caller } = fixture();
+  const first = await service.send({ executor: "coding", scope: { kind: "project", project_id: "project" }, text: "加一个 subtract 函数", request_id: randomUUID() }, caller);
+  const round = coding.sessions.get((first.work.executor as { session_id: string }).session_id)!.runs.at(-1)!;
+  round.phase = "awaiting-input";
+  round.awaiting_input = [{ pending_id: "q1", pending_revision: 4, kind: "text", prompt: "用哪个名字？", options: [], allows_free_text: true }];
+  const controls = () => coding.calls.filter(call => call.name === "runs.control");
+  // Without a choice the words are a supplement, even though they could have answered the one free-text question.
+  assert.equal((await service.send({ work_id: first.work.work_id, text: "顺便补上测试", request_id: randomUUID() }, caller)).outcome, "steered");
+  assert.equal(controls().at(-1)!.input.kind, "steer");
+  // Answering with materials is refused, never quietly sent as a supplement.
+  const material = { material_id: "m1", kind: "text", title: "笔记", explicit: true, text: "minus" } as const;
+  const before = controls().length;
+  await assert.rejects(service.send({ work_id: first.work.work_id, text: "minus", request_id: randomUUID(), target: "answer", materials: [material] }, caller),
+    (error: unknown) => (error as { code?: string }).code === "assistant.invalid");
+  // A question no longer waiting is a stale choice: nothing is sent.
+  round.phase = "running"; round.awaiting_input = [];
+  await assert.rejects(service.send({ work_id: first.work.work_id, text: "minus", request_id: randomUUID(), target: "answer" }, caller),
+    (error: unknown) => (error as { code?: string }).code === "assistant.stale");
+  assert.equal(controls().length, before, "a refused choice sends nothing");
 });
 
 test("only a Coding work has a mode, and only a mode Coding knows", async () => {

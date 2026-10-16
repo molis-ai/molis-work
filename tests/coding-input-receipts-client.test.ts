@@ -7,7 +7,7 @@ import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-wor
 // under way. The shipped script runs here against a small DOM port.
 class Node {
   className = ""; textContent = ""; title = ""; type = ""; onclick: (() => unknown) | null = null;
-  dataset: Record<string, string> = {};
+  dataset: Record<string, string> = {}; classes = new Set<string>(); classList = { add: (name: string) => this.classes.add(name) };
   children: Array<Node | string> = [];
   append(...nodes: Array<Node | string>) { this.children.push(...nodes); }
   get text(): string { return this.textContent + this.children.map(child => typeof child === "string" ? child : child.text).join(""); }
@@ -18,7 +18,7 @@ class Node {
 }
 
 type Reply = { receipt: { input_id: string; replayed: boolean; delivered: "run" | "queued" } };
-function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>) {
+function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { say?: (text: string) => void; q?: (selector: string) => Node | null } = {}) {
   const sent: Array<Record<string, unknown>> = [];
   let uuid = 0;
   const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
@@ -27,7 +27,7 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>) {
     receipt(turn: object): Node | undefined; steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string): Node | null;
   };
   const api = (_path: string, _method: string, body: Record<string, unknown>) => { sent.push(body); return reply(body); };
-  return { ui: factory({ api, refresh: () => {} }), sent };
+  return { ui: factory({ api, refresh: () => {}, say: () => {}, q: () => null, ...ports }), sent };
 }
 const taken = (delivered: "run" | "queued" = "run", replayed = false): Promise<Reply> => Promise.resolve({ receipt: { input_id: "steer-1", replayed, delivered } });
 
@@ -85,4 +85,29 @@ test("RC-12: the receipt line says only what the run's ledger says, and a note t
   assert.equal(ui.receipt({ kind: "user" }), undefined, "the person's own task has no receipt");
   assert.equal(ui.receipt({ kind: "notice", steer: { id: "steer-2", state: "read" } })!.textContent, "Molis 的说明，不是你发的话");
   assert.ok(!ui.receipt({ kind: "notice" }), "other Host notices stay as they are");
+});
+
+test("RC-15: a receipt that moves on is said once on the status line; the first paint and a redraw say nothing", () => {
+  const said: string[] = [];
+  const { ui } = receipts(() => taken(), { say: text => said.push(text) });
+  const turn = (state: string) => ({ kind: "user", turn_id: "t1", steer: { id: "steer-1", state } });
+  ui.receipt(turn("applied"));
+  ui.receipt(turn("applied"));
+  assert.deepEqual(said, [], "drawing the page is not news");
+  ui.receipt(turn("read"));
+  ui.receipt({ kind: "notice", turn_id: "t2", steer: { id: "steer-2", state: "read" } });
+  assert.deepEqual(said, ["你的补充：AI 已读到"]);
+});
+
+test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {
+  const marked = async (mode: string, delivered: "run" | "queued" = "run", replayed = false) => {
+    const node = new Node();
+    await receipts(() => taken(delivered, replayed), { q: selector => selector === ".coding-turn.is-writing" ? node : null }).ui.steer("s", "r", "改用新接口", mode);
+    return node.classes.has("is-dropped") && /这段回复已丢掉（你打断了它）/u.test(node.text);
+  };
+  assert.equal(await marked("interrupt"), true);
+  assert.equal(await marked("next-boundary"), false, "a supplement read at the next boundary drops nothing");
+  assert.equal(await marked("interrupt", "queued"), false, "words that missed the round dropped nothing in it");
+  assert.equal(await marked("interrupt", "run", true), false, "a repeat that the runtime already had marks nothing again");
+  assert.equal(await receipts(() => taken()).ui.steer("s", "r", "改用新接口", "interrupt"), "已送达：正在写的回复已丢掉，按你的话接着做；已执行的操作不撤销。", "with no reply being written, nothing is marked");
 });

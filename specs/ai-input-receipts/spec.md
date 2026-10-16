@@ -220,7 +220,7 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
   - 「写进问卷：补充要求」：只改问卷草稿，不交回、不发给 AI；只在问卷有自由文本题时出现（交互线做）；
   - 「补充这一轮」：一条 steer，排在回答之后，带回执（本线 1e 做）；
   - 有自由文本题时默认第一种，没有时默认第二种。没有问题等回答时芯片不出现，回车照常发送。
-  不再按固定规则自动判断（改掉助理现行规则）。
+  不再按固定规则自动判断（改掉助理现行规则）。「写进问卷」落地之前，1e 的芯片是「回答上面的问题 ↔ 补充这一轮」两态，默认回答（D14a）；没有芯片的发送一律是补充（D14b）。
 - 有待审批的操作时，提示「这条会在你决定上面那一步之后读到」。
 
 ### 4.2 每条输入下的回执条
@@ -375,6 +375,8 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
    - `update-todo` 接受模型给的 id，整批替换时同一 id 保留原状态；换批结果逐条回编号。
    - `acknowledge-inputs` 的目标多 `board-node`（带 `board`）、`todo`、`pending`，引擎核存在。
 8. **pending。** 加 `about?`（`{ session, input }`）；问它的那一跑账上记 `pending-settled`、`pending-expired`，以及本线补的 `pending-cancelled`（被取消的问题不能在回执上永远是「待答」）；回执投影多 `questions`，账说不清的记 `unresolved`。
+
+9. **被打断的回复标成已丢弃。**（2026-10-16，回执线 1e 提出。）现在 `interrupt` 生效后，丢掉的那段部分回复在记录里仍是一段普通的 assistant 回合，没有任何事件或字段说它被丢弃（只有 `text-delta`、`steer-applied`、`steer-read`；`steer-read` 不算被打断的回复）。需要：投影里那段回复带「被哪一条补充打断、已丢弃」的标记，事件带账内序号。在那之前 Molis 只在发起打断的那个页面上标（RC-16），不按回合顺序猜。
 
 每一项都按 Prologue 规则：落点在已有模块（agent、session、tool、context、orchestration、effect-policy），不新增第 30 个模块。系统工具闭集的增项登记在 `modules/tool/system.md`；完成门要过真实 Node Host 回归与变异验证。
 
@@ -699,6 +701,13 @@ interface AgentInputView {
 - RC-12：回执条只说运行账里的事实（已送达 / 已放进上下文，等 AI 回应 / AI 已读到 / 这一轮结束时 AI 没读到，留给下一轮 / 已撤回），悬停说明读到不代表已遵循；宿主代写的说明（`notice` 且带补充编号）写「Molis 的说明，不是你发的话」、换样式、没有回执条。
 - RC-13：输入框里按 Esc 不再停止这一轮（D3），停止要按「停止」按钮。
 
+1e 的验收编号（助理，含统筹 2026-10-15 从 1d 交来的两项）：
+
+- RC-14：一轮等着回答唯一一道自由文本题时，助理输入框旁出现目标芯片，默认值写在芯片上（「回答上面的问题」），点一下换成「补充这一轮」，悬停说明点了会变成什么；新的问题回到默认值，问卷题（有选项的）不出芯片，没有问题等回答时芯片不出现。页面把选择作为 `target` 交给宿主，宿主不再自己判断：不带 `target` 的一律是补充；`target: "answer"` 时问题已不在等的以 `assistant.stale` 拒绝，带材料的以 `assistant.invalid` 拒绝，都什么也不发。补充下面有回执条，措辞与 RC-12 相同；问题还在等时发的补充写「已补充到这一轮；上面的问题仍在等你」。删掉「已补充到正在进行的这一轮」提示（事实已在对话里）。
+- RC-15：回执状态前进时屏幕阅读器读到，不抢焦点：助理换掉那一行（对话区本来是 `role=log`、`aria-live=polite`、只播新增），状态没变的重画不换行；Coding 在已有的状态行（`role=status`、`aria-live=polite`）说「你的补充：…」，第一次画页面不说。
+- RC-16：没确认送到的那一次发送（`ui_host.outcome_unknown`）把键、原文、工作存进页面的本地存储（`molis.assistant.unsent`），刷新后同一工作、同一句话再发沿用这个键，宿主只收一次；宿主回包或拒绝后删掉。本地存储读写都包在 try/catch 里，没有本地存储时照常发送，只是刷新后保不住键。Coding 里「打断」生效时，把页面上正在写的那段回复变淡并写「这段回复已丢掉（你打断了它）」；这是页面自己的状态，刷新后没有（SDK 的记录不标，见 §6.1 第 9 项）。
+- G13（「你说过」）：运行中补充的原话算本人说过的：记忆的「原话」与一轮结束交给学习的话，都从运行视图读（SDK 的输入记录，`kind: "user"` 且带 `steer` 的回合，截掉宿主加的选区与材料），Molis 不另存。只覆盖助理自己的运行时；交给 Coding 执行的工作里的补充不在内（读 Coding 会话要另走 Coding 的动作，留待以后）。
+
 ### 阶段 2：Prologue 通用能力
 
 可与阶段 1 并行。依赖 Prologue 负责人认可，以及推送上游的授权。
@@ -866,6 +875,9 @@ interface AgentInputView {
 | --- | --- | --- | --- |
 | D13 | 回答（选项点选、卡片按下）作为输入的身份 | 回答也是输入：身份类型与格式由本线 `services/agent-inputs` 定义，交互线只引用。回答的 `key` 与 steer 的 `key` 同一规则（steer 必填就都必填，可选就都可选；SDK S1 里 steer 的 `key` 是可选的，所以回答的也是可选）。回答的「读到」回执在本线 S4 做，S4 要覆盖 pending 的 `about` 与「已回答 / 已过期」事件；在那之前，交互线只在 Molis 侧做幂等 | 单一事实主人：输入合同只在一处定义。注意回答走 pending 的结算、不走 steer 账，所以 SDK 现在没有它的「读到」事实，不能由 Molis 猜；这也是 S4 仍等采用线 P1 的原因之一 |
 | D14 | D5 修订：问题待回答时输入框怎么选目标 | 目标芯片三种状态、默认值显示在芯片上（见 §4.1）：「写进问卷：补充要求」（交互线）、「补充这一轮」（本线 1e，一条 steer，排在回答之后，带回执）。有自由文本题默认第一种，没有默认第二种；无问题时芯片不出现 | 比 D5 原来的每次点选少一次点击，默认值一直看得见，也不会把补充误当成回答。SDK 侧「补充排在回答之后」已是现行行为（S1：补充与回答分开，等人时补充排着队，回答后的下一个模型边界才放进上下文） |
+| D14a | 1e 的芯片先做哪两态（统筹 2026-10-15） | 「回答上面的问题 ↔ 补充这一轮」两态，默认回答；或只做「补充这一轮」一态，等交互线 | 两态：今天宿主「一道自由文本题、没带材料就当回答」的自动判断马上去掉，默认值摆到明处。交互线的「写进问卷」落地时，由那个 PR 把「回答」这一态换掉（问题合同归交互线）；1e 只留一个可替换的地方：`assistant-send.ts` 回执工厂里的 `CHOICES` 与 `target()`，宿主侧是 `assistant-inputs.ts` 的 `deliver` 里 `target === "answer"` 一支 |
+| D14b | 没有芯片的发送（统筹 2026-10-15） | 一律按补充发；或照旧自动判断 | 一律按补充发，不让它悄悄变成回答：回执条写「已补充到这一轮；上面的问题仍在等你」。注意：助理唯一的输入框就在底栏里（`assistant-dock.ts` 的 composer），芯片就放在它上面；没有芯片的是页面代写的发送（交还浏览器的说明、插件交来的请求）与定时轮次，它们都不带 `target`。底栏以后要不要再分别处理，由情境线定 |
+| D14c | 页面代写的补充交给 Coding 时的来源 | 已知缺口，不在 1e 修 | Coding 的 `runs.control` 补充 schema 没有 `source`，助理转给 Coding 的端口把 `source` 去掉，所以页面代写、交给 Coding 一轮的补充在 Coding 那边记成人的话（助理自己的运行时按 `host` 记）。要修就得给 `coding.runs.control` 升版加 `source`，归 Coding 的下一次控制合同改动 |
 | D15 | `AgentRunControl` 的搬迁先后 | 交互线 C1 搬出 `answer` 分支，本线搬出 `steer` 分支（见 §6.2「改现有控制合同」）；先就绪的一方先合，后合的一方在同一个 PR 里改完所有消费者 | 两边改同一个联合类型，API 快照与调用方都会动；不并行抢改 |
 
 **待办（归本线，D7 之后接 S3 时定；2026-10-12 统筹交来）：**
@@ -981,6 +993,14 @@ interface AgentInputView {
   - 页面资源：`coding.js`（diff、files、git、text-stats 四个包与它逐字节相同）比 main 多 1751 字节、两份样式表各多 33 字节（删了确证没人用的 `cooperation-client` 两个字段、`subagent-cards-client` 的 `svg`、死规则 `.coding-composer-sep`，合并 h2–h4 规则之后的数字；多出的主要是中文文案）。统筹按用户 10-15 的口径（小而必需的增长按先例一次性放行）定 A，用户 10-15 在回执线会话里批准改门禁：`page-assets.mjs` 的 `APPROVED_CEILINGS` 在 #553 的三条后面加七条（键是 merge-base `2897ae04` 的确切字节，值是实测新大小，只用一次），`page-assets-budget` 补用例；合入后由防腐线删掉。
   - 验证：整体 `pnpm build` 后，`affected-tests` 选出的非浏览器文件加 `coding-input-receipts-client`、`prologue-recovery`、`page-assets-budget`，变基后 155 个全过；浏览器用例 `coding-input-receipts.e2e`（RC-10、RC-11、RC-13）过，截图三张在 `.impeccable/qa/review/ai-input-receipts/`（不入库）。`api:update` 刷新 `agent-host`、`agent-inputs` 两份快照；`actions:update` 无变化（`coding.runs.control` 仍是第 3 版，形状没变）。没做：隔离 Home 实走；被打断的那段回复仍留在页面上，没有标成已丢弃（另记）。
   - 防腐复查：2026-10-15 · main `2897ae04`（含 H4-1 #554、W3-B1 #553）· merge-base `2897ae04` · **通过**。机器项 M1、M2、M4、M5、M8–M10、M13 过；M6（第 19 条）按统筹定的 A 与用户批准的一次性放行过；M11、M12、M14、M16 不适用。人看 27 条：第 20 条按 Coding 页面脚本的现行写法（没有词典，`client.ts` 的回执文字原本就是中文字面量），没新建词典；第 21 条沿用页面已有的 `api`；第 25 条 `agent-host.ts` 只加一行；其余适用的都符合，逐条写在 PR 的「防腐复查」一节。
+
+- 2026-10-16（回执线会话，1e，基于 main `cca71e02`，W3-A2 #573 已合）：统筹 10-15 批准方案（笔记夹 `receipts-1e-plan.md`），照做：
+  - 宿主：`AssistantSendInput` 加 `target?: "answer" | "steer"`；`assistant-inputs.ts` 的 `deliver` 按它走，不带的一律是补充，去掉「一道自由文本题、没带材料就当回答」的自动判断；`target: "answer"` 而问题已不在等的以 `assistant.stale`（类别 `conflict`）拒绝，带材料的以 `assistant.invalid` 拒绝；HTTP 先拒 `answer`、`steer` 之外的值。G13：`typedWords` 从运行视图读本人的补充原话，记忆的「原话」与一轮结束交给学习的话都用它，`assistant-store.ts` 的 `typedTexts` 删掉；记忆工具读运行视图时取存储里最新的工作（第一轮开始前工具拿到的工作还没有会话编号，读不到）。`assistant-service.ts` 只就地改，行数不变（2080）。
+  - 助理页面：回执工厂放在 `assistant-send.ts`（不新开文件，岛脚本少一行 import），`assistant-island.ts` 只就地接线（2276 行不变）。补充下面一行回执；问题还在等时写「已补充到这一轮；上面的问题仍在等你」；目标芯片在底栏输入框里（复用 `assistant-executor` 的样式）；删掉「已补充到正在进行的这一轮」提示；重发键存 `molis.assistant.unsent`，读写都经页面已有的 `store`（try/catch）。
+  - Coding：回执状态前进时在状态行说「你的补充：…」（第一次画不说）；打断生效时把正在写的那段回复变淡并写「这段回复已丢掉（你打断了它）」，只是页面状态；`client.ts` 只改一行（1641 行不变）。完整的标记作为 Prologue 需求记在 §6.1 第 9 项。没动 agent-host 的运行视图投影（SDK 没有这项事实，与 2a、P3c 不重叠）。
+  - 验证：整体 `pnpm build`；`affected-tests` 的 204 个非浏览器文件加 `assistant-island-script`、`page-assets-budget`：204 过，`page-assets-budget` 因下面的字节增长失败；浏览器用例 `assistant-input-receipts.e2e`（RC-14–RC-16，新）、`coding-input-receipts.e2e`（加 RC-16）、`assistant-send-intent`、`assistant-stale-refresh`、`assistant-error-recovery`、`assistant-dock-ime`、`assistant-page-written`、`issue-clarification-page`、`coding-timeline`、`touch-targets` 全过。`check-health-gates --base origin/main` 通过；`api:update` 刷新 `services/assistant`；`actions:update` 无变化。截图三张在 `.impeccable/qa/review/ai-input-receipts/`（不入库）。
+  - 页面资源（先抵后报）：抵掉的是删去的提示与它的英文、没人用的 `.assistant-materials` 选择器（回执条复用那条规则）。还多：`workbench.js` +2148、`workbench.css` 与 `settings.css` 各 +136、`arrival.css` +112、`coding.js`（与 diff、files、git、text-stats 逐字节相同）+411，主要是新中文文案和它们的英文。已带数字报统筹，等定。
+  - 没做：隔离 Home 实走（统筹在 W3-A2/1e 合入后一起走）；刷新后输入框里还是同一句时，状态行不另提示「上次没确认送到」（键照样沿用）；交给 Coding 执行的工作里的补充不算进「你说过」（D14c、RC-16 G13 说明）。
 
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）
 

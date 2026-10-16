@@ -485,6 +485,11 @@ export interface AssistantSendInput {
    * rounds the Host writes (a timed one) and the Assistant writes (a sub-task's brief) are marked by Host code, never claimed from outside.
    */
   written_by?: "page";
+  /**
+   * While the round under way waits on a question, the person chooses (specs/ai-input-receipts D14): `answer` answers its
+   * one free-text question, `steer` adds the words to the round. Absent is `steer`: the Host never decides it is an answer.
+   */
+  target?: "answer" | "steer";
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;
 }

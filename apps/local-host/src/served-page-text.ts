@@ -77,14 +77,10 @@ export function dedentServedCss(source: string): string {
   return out;
 }
 
-/**
- * Compact the original program with its literal text intact; parse failure leaves it unchanged. Names at the top of the
- * script (the globals a page reads, such as `MolisWorkPagesEditor`) stay as written: with no module format the top level is
- * the page's own scope. Names inside a function may shorten (user decision 2026-10-15), which the browser never reads.
- */
+/** Compact the original program with its binding names and literal text intact; parse failure leaves it unchanged. */
 export function tightenServedJs(source: string): string {
   try {
-    const minified = transformSync(source, { loader: "js", minifyWhitespace: true, minifySyntax: true, minifyIdentifiers: true, legalComments: "none", charset: "utf8" }).code;
+    const minified = transformSync(source, { loader: "js", minifyWhitespace: true, minifySyntax: true, legalComments: "none", charset: "utf8" }).code;
     return Buffer.byteLength(minified) < Buffer.byteLength(source) ? minified : source;
   } catch {
     // Non-program asset fixtures keep their exact content, as does any script the parser cannot handle.

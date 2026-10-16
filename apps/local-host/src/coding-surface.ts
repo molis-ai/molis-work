@@ -160,6 +160,13 @@ function readsFilesOutputs(platform: { supervisor: { manifest(pluginId: string):
     outputs.some(output => output.artifact_type_id === input.artifact_type_id && output.schema_version === input.schema_version));
 }
 
+/** How many plugin deliveries wait on the person in this project; the market resolves them (the page's attention read). */
+export async function pluginEventsPending(ports: CodingSurfacePorts): Promise<number> {
+  const record = await ensureStarted(ports);
+  if (!record.platform) throw new Error(record.error ?? "插件运行平台未能启动");
+  return record.platform.events.recoveries(ports.projectId).length;
+}
+
 export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
   const runtimeUpdates = url.pathname === "/api/plugins/runtime/updates" && request.method === "GET";
   const runtimeEvents = isPluginEventManagementPath(url.pathname);

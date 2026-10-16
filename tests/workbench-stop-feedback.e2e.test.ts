@@ -76,8 +76,8 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   assert.equal(command.ended(), true, "the actual accepted stop occurred even though its HTTP reply was lost");
   assert.equal(command.attempts(), 2, "the unknown operation was not retried");
   await command.sync();
-  const afterUnknown = await (await fetch(browser.origin + "/api/background-tasks")).json() as { tasks: Array<{ session_id: string; commands?: unknown[] }> };
-  assert.equal(afterUnknown.tasks.find(task => task.session_id === command.sessionId)?.commands?.length ?? 0, 0);
+  const afterUnknown = await (await fetch(browser.origin + "/api/attention")).json() as { background_tasks: Array<{ session_id: string; commands?: unknown[] }> };
+  assert.equal(afterUnknown.background_tasks.find(task => task.session_id === command.sessionId)?.commands?.length ?? 0, 0);
   await command.start();
   await browser.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await browser.waitFor("document.querySelector('.background-task-command code')?.textContent.includes('audit-command-2')");
@@ -87,6 +87,6 @@ test("W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its di
   // Coding owns this persistent projection; its normal state read reconciles the actual Runtime result.
   await command.sync(); await releaseResponse(browser, "stop-success");
   await browser.waitFor("!document.querySelector('.background-task-command')");
-  const final = await (await fetch(browser.origin + "/api/background-tasks")).json() as typeof afterUnknown;
-  assert.equal(final.tasks.find(task => task.session_id === command.sessionId)?.commands?.length ?? 0, 0);
+  const final = await (await fetch(browser.origin + "/api/attention")).json() as typeof afterUnknown;
+  assert.equal(final.background_tasks.find(task => task.session_id === command.sessionId)?.commands?.length ?? 0, 0);
 });

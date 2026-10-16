@@ -1,6 +1,6 @@
 # Molis Work AI 能力开发手册
 
-状态：需求与手册内容设计已整理（2026-10-15），尚未编入正式开发手册或应用到功能实现。本轮仅提交需求与交接，不开发。负责人：Codex（需求整理），手册实施负责人待分配；现有 AI 平台、各业务插件与相关 Skill 的 owner 保留原归属。
+状态：手册正文已写入（2026-10-16）：`docs/platform/PROLOGUE-AI.md` 第二部分（第 12–17 节）与 `skills/molis-prologue-ai/SKILL.md` 的入口，ADH-01 至 ADH-11 的工程侧核对记在 §9；真实模型前后对比的第一份记录随第一片存量清理补上，用户验收未做。负责人：AI 能力开发手册线（Claude，由统筹会话排期与评审）；需求整理为 Codex；现有 AI 平台、各业务插件与相关 Skill 的 owner 保留原归属。
 
 ## 1. 要解决的问题
 
@@ -133,6 +133,40 @@ Skill 可以包含适用的确定步骤和脚本，但必须说明哪些是业�
 
 ## 9. 当前证据与后续验证
 
-本轮完成需求和内容设计；已阅读现有手册/Skill、灵光 prompt、Coding 角色声明及上述第一方资料。尚未编写正式手册新章节、运行参考例子或进行真实模型评测；以上验收均待正式交付，不把文档格式检查当作行为质量验证。
+### 9.1 2026-10-16 手册交付（基于 main `0ed2de23`）
+
+交付在 `docs/platform/PROLOGUE-AI.md` 第二部分与 `skills/molis-prologue-ai/SKILL.md`；没有另起手册，第一部分的接入合同只改了第 2 节表里过时的一行（Characters 不声明角色、Schedule 进程内直接 `agentHost.start`，即 `specs/ai-input-receipts/spec.md` §15 记的两处不符）。没有改产品代码、SDK、门禁或挂载给创作台的 Skill 章节。
+
+| 编号 | 做了什么 | 怎样核对的 | 未验证 |
+| --- | --- | --- | --- |
+| ADH-01 | 手册开头加「两部分」导航与阅读顺序；Skill 的描述、「什么时候读」「先读」指向第 12–16 节，新增「交给 AI 的那部分怎样设计」一节；`AGENTS.md` 的入口不变 | 文档引用与断链门禁（见 9.2）；作者按 9.3 的三个开发情境走读 | 独立开发者的走读 |
+| ADH-02 | 第 12 节：两层职责表、动手前的七个问题、按不确定性与风险选固定步骤还是交给 AI、「好的样子」八条 | 每条都对应到 main 上的代码位置 | 同上 |
+| ADH-03 | 13.1：内容放在哪一层（表）、写什么、输出合同、示例、长度与语气、带理由的「不要」、一段改写示意（标明未评测）、改了之后的版本与回放规则 | 引用的符号、层次与校验逐个对照源码（`plugin-agent.ts`、`model-prompts.ts`、`plans.ts`、`agent-declarations.ts`、`agent-definitions.ts`） | 改写示意的效果（未评测，已在正文写明） |
+| ADH-04 | 13.2：Molis 里五种「Skill」的区分（含场景 Skill 是需求）、写法、必须与可调整、版本与工具边界、不要这样做 | `prologue-methods.ts`、`assistant-service.ts`、`builtin-agents.ts`、`skill.ts` 对照 | — |
+| ADH-05 | 13.3：组成、事实与推断、按需取用、省略要说、压缩与交接与中途补充、资料不足时补什么（表）；15.5 有纠正、压缩、交接的案例 | `roundMaterials`、`prologue-compaction.ts`、`agent-inputs.ts` 对照 | 案例未用真实模型跑 |
+| ADH-06 | 13.4 的边界表：每条边界谁执行、prompt 里可以怎样说，「删掉右列那句话，左列照样拒绝」；未声称 prompt 能替代拒绝合同 | 对照第一部分第 6–8 节与 `docs/system/SECURITY-INVARIANTS.md` 的 S-13 | — |
+| ADH-07 | 第 14 节索引 15 行：用途、位置与调用链、可复用部分、适用边界、证据等级；需求与在途分开列 | 每个路径与符号用 `git grep` 核对；点名的用例按 9.2 实际运行 | 不具备「真实模型」等级的质量证据（索引开头已写明） |
+| ADH-08 | 第 15 节：有界调用（15.1）、场景 Skill（15.2，标为需求）、多步 Agent（15.3）、服务失败（15.4）、纠正与压缩（15.5）、识别与替换表（15.6）；每个写了证明用的不同任务 | 正反做法对照源码；需求示例标明未实现 | 开发者按正文复现 |
+| ADH-09 | 第 16 节：证据各证明什么（表）、选任务、前后对比的做法与记录格式、现成实例（创作台回放与冒烟） | 记录格式对照 `docs/platform/STUDIO-SKILL-REPLAY.md` 的实际做法 | **还没有按此格式写的真实模型前后对比**：第一份随第一片存量清理补上 |
+| ADH-10 | 16.4：先看 AI 当时拿到了什么（冻结记录、提示词使用记录），症状到原因到改哪里的表；16.5 与 12.3 写明不新增硬编码场景、评分、审批或重构 | 冻结字段对照 `prologue-frozen.ts`，使用记录对照 `agent-definitions.ts` 的 `last_used`；本次改动只有文档 | — |
+| ADH-11 | 第 17 节：三篇一手资料，写明日期、取用范围与对应章节，并写明不覆盖用户决定与本仓约束 | 两篇 Anthropic 文章 2026-10-16 读过原文核对日期与要点 | OpenAI「Harness engineering」页面要求人机验证，本次未读到原文，只沿用需求书 2026-10-15 的核对，不作引申 |
+
+### 9.2 运行过的检查
+
+- 文档断链与引用：`scripts/gates/doc-links.mjs` 与 `scripts/gates/doc-citations.mjs` 对工作树各跑一次，均为 0。
+- `node scripts/check-health-gates.mjs --base origin/main`：对照 merge-base `0ed2de23` 通过。
+- `node scripts/check-spec-coverage.mjs`：本项 11 条验收都是「只能人工核对」，没有用例点名，符合本项只改文档的性质。
+- 第 14 节点名的用例，整体 `pnpm build` 后用 `node scripts/run-tests.mjs` 跑了 18 个文件、172 个用例，全部通过：`lingguang-actions`、`contextual-draft`、`agent-prompt-layers`、`coding-product-http`、`coding-method-install`、`assistant-material`、`assistant-business-gateway`、`assistant-methods`、`assistant-delegation`、`assistant-memory`、`prologue-compaction`、`prologue-compaction-continue`、`agent-input-delivery`、`security-invariants-injection`、`generated-plugin-prompts`、`plugin-model-generation`、`plugin-model-service`、`prompt-registration`（都在 `tests/` 下，后缀 `.test.ts`）。它们证明索引指向的机制在 main 上存在并按说的那样工作，不证明手册写法让 AI 表现变好（那要第 16 节的前后对比）。
+
+### 9.3 开发情境走读（作者自己，非独立）
+
+1. 给 Todo 加「把一条待办拆成步骤」：第 2 节选有界调用 → 13.1 指令登记、材料作数据、输出合同由代码校验 → 13.3 材料给待办正文与项目 → 第 4 节接线 → 16.3 前后对比。能找到每一步的依据。
+2. 助理在写入超时后又提交了一次：16.4 先看冻结记录与回执 → 13.4 的 `actions.outcome_unknown` 与「上一轮停止时仍在执行的修改」→ 属于运行时或材料问题，不加禁令。能定位。
+3. 给 Coding 加一个方法「写迁移脚本」：13.2 写摘要与正文、版本、工具上限 → 第 14 节「Coding 的方法」→ 16.3。能找到；发现手册没有通用的真实模型评测命令，目前只有创作台的冒烟，这是已知缺口，按 §2 不在本项新建评测平台。
+
+### 9.4 后续
+
+- 用户 2026-10-16 追加：按手册对存量的提示词、Skill、上下文组装、工具描述和调模型的路径做盘点与清理。清单先交统筹会话排序，再逐片做，每片一个 PR；改提示词升版本，有回放的跑回放，没有的在隔离 Home 做真实模型小评测，记录按 16.3 写进对应插件的 spec。具体欠账归原功能 spec 与主人，本项不借机扩成全仓重构。
+- 第 14 节随在途 PR（#560、#561）合入后更新。
 
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。

@@ -393,6 +393,12 @@ export interface PluginDefinition {
    * registers anything for (instructions, Agent prompts, roles or methods) does not start, because an owner's definitions are in one place.
    */
   instructions?: readonly InstructionPrompt[];
+  /**
+   * Bodies of the Manifest's `methods`, matched by id and version, for a plugin the Host runs itself and the catalog registers
+   * nothing for: registered while it runs, as the catalog's are when the Host starts, and withdrawn when it stops (disabled,
+   * uninstalled, upgraded). A declared method without a body here is not registered; the developer diagnostics say so.
+   */
+  methods?: readonly AgentSkillDefinition[];
   start(context: PluginStartContext): Promise<PluginContribution>;
   stop?(context: PluginStartContext): Promise<void>;
   health?(context: PluginStartContext): Promise<{ ok: boolean; message: string }>;

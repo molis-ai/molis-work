@@ -1,11 +1,11 @@
 ---
 name: molis-prologue-ai
-description: How to add or change an AI capability in Molis Work — anything that calls a model (text, structured output, images, TypeSafe judgments) or runs an Agent (tools, workspace, review) — through the Home's Prologue Runtime. Use when a change touches model calls, prompts, Agent roles or runs, model settings or credentials, AI budgets or usage, review of Agent side effects, or code in horizontal/agent-host. Not needed for plugin work that never calls a model.
+description: How to add or change an AI capability in Molis Work — anything that calls a model (text, structured output, images, TypeSafe judgments) or runs an Agent (tools, workspace, review) — through the Home's Prologue Runtime, and how to design what the model is given (prompts, methods/Skills, context, tool descriptions) and prove it works on real tasks. Use when a change touches model calls, prompts, Agent roles or runs, methods, the materials a model reads, tool descriptions, model settings or credentials, AI budgets or usage, review of Agent side effects, or code in horizontal/agent-host, or when AI behaviour falls short. Not needed for plugin work that never calls a model.
 ---
 
 # Molis Work 里的 AI 能力怎么做
 
-架构与示例在仓库手册 [`docs/platform/PROLOGUE-AI.md`](../../docs/platform/PROLOGUE-AI.md)（只在源码仓库里，不随安装包发布）；本文是执行清单，单独也够用。插件本身怎么写仍按 [`molis-plugin-dev`](../molis-plugin-dev/SKILL.md)。
+架构与示例在仓库手册 [`docs/platform/PROLOGUE-AI.md`](../../docs/platform/PROLOGUE-AI.md)（只在源码仓库里，不随安装包发布）：第一部分（第 1–11 节）是接入合同，第二部分（第 12–17 节）是 AI 行为设计与质量。本文是执行清单，单独也够用。插件本身怎么写仍按 [`molis-plugin-dev`](../molis-plugin-dev/SKILL.md)。
 
 生成插件沙箱使用 [generated-ai.md](../molis-plugin-dev/generated-ai.md)：通过 `model.generate` 进入同一 Home Runtime；创作台设计与代码阶段都直接挂载该章。不要给沙箱套 Native 的 `caller.beforeEffect()` 接口。
 
@@ -14,12 +14,13 @@ description: How to add or change an AI capability in Molis Work — anything th
 - 动作或页面要调模型、生成图片、做 TypeSafe 判断。
 - 插件要跑 Agent（Manifest 的 `agent` 块、角色、提示词、宿主工具、动作工具）。
 - 改模型设置、凭据解析、预算、用量、审查队列，或 `horizontal/agent-host` 的任何代码。
+- 写或改提示词、角色、方法（Skill）、给模型的材料、工具描述，或 AI 的表现不如预期。
 
 纯界面、纯存储、不碰模型的插件功能不用读。
 
 ## 先读
 
-1. 手册第 1–3 节（分工与调用链）。
+1. 手册第 1–3 节（分工与调用链）；要写提示词、方法、材料或工具时再读第 12–16 节。
 2. `specs/action-architecture/spec.md` §3「基本合同」与 F1–F4（身份、副作用前检查、预算、交接）。
 3. 你要仿照的现有实现：单次调用看灵光对话（`plugins/native/lingguang/src/actions.ts` + `apps/local-host/src/lingguang-actions.ts`）；Agent 看 Schedule（`plugins/native/schedule/src/roles.ts` + `apps/local-host/src/schedule-task-runner.ts`），复杂的再看 Coding。
 
@@ -31,6 +32,19 @@ description: How to add or change an AI capability in Molis Work — anything th
 | 模型选择、凭据、身份、授权、调用记录 | Local Host |
 | 推理、Agent 轮次、角色冻结、审查、预算、MCP、任务板 | `horizontal/agent-host` |
 | 与业务无关、多个产品都需要、契约稳定 | 下沉 Prologue（先和 SDK 负责人确认，改 vendored 包按 `vendor/prologue-sdk/README.md`） |
+
+## 交给 AI 的那部分怎样设计（context over control）
+
+先把目标、事实、能力和反馈给够，让模型在授权范围内自己判断；只有真实的确定性约束才写成代码。细则、正反案例与源码索引在手册第 12–16 节，这里只列动手时对照的几条：
+
+- **先分清谁管什么**：理解与选择归模型；做法归方法（Skill）；这一次的事实归材料；发生了什么归工具回执；身份、权限、版本、幂等、取消、预算、恢复归代码（手册 12.1）。固定步骤只给出错代价高、又能事先写清的部分（12.3）。
+- **每样东西放在它的层里**：产品约束放 base 层，角色目的放角色提示词，有界调用的要求放登记的指令，会变的事实放每一轮的材料，用户这一次的话不由插件代写；同一条规则只写一层（13.1）。机器要读的输出写清形状并由代码校验，给人看的回复不套固定标题和条数。
+- **规则要有来由**：每句话给出一个事实或一个理由；说不出理由的「不要」，要么交给代码，要么删掉（13.1、15.6）。不为一次交付加关键词路由、固定子任务数、固定轮数判完成，也不在每次失败后追加一条禁令。
+- **方法（Skill）**：摘要说清适合什么，正文写做法、判断线索、资料、工具用法和什么算好；必须的过程写出理由；正文改了发新版本；方法不放大工具权限（13.2）。
+- **上下文**：给来源、版本和状态；按需取用，不预载；省略了要说出来；压缩、交接和中途补充复用已有机制（13.3）。
+- **工具**：描述写清用途、影响和常见失败；回执说真实状态和下一步，「成功」不只是收下请求；不可用要给原因和去处（13.4）。
+- **照着基础实现写**：手册第 14 节列了经源码核对的参考和证据等级；需求里的设计（场景 Skill、工作简报、子代理交互）还没实现，不当成现成代码。
+- **用真实任务证明**：用例证明机制，替身不证明 AI 理解了场景；改了提示词或方法，按手册 16.3 做前后对比并写清证据等级；表现不好先按 16.4 看它当时实际拿到了什么，再决定补上下文、改工具、调提示还是修运行时。
 
 ## 步骤
 
@@ -58,7 +72,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 7. **取消与恢复**：被取消/撤权/停用的调用不再写任何业务记录（处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容）；长任务用持久记录 + `request_id` 幂等，重试不重复调模型。
    - **等待与接续**（会话的一步等回信、后台命令或别的会话那一步，`specs/prologue-adoption/spec.md` §4.6.10）：等待和接续归 SDK 的任务图，插件不存副本。合同在 `packages/contracts/src/services/agent-collaboration.ts`：读与控制是宿主登记的动作 `agent.collaboration.read.v1`、`agent.collaboration.control.v1`，等到有接续可走用 `agentHostCapabilities.awaitContinuations`。接续由插件起会话的下一轮来接（宿主按接续的请求键开跑，开跑前的复核照旧）；开跑被拒（撤权、取消、停用）时不留言、不动接续，留给之后的 activation。写法看 `plugins/native/coding/src/wake-loop.ts`。
    - **等外面的结果**（一步等作业跑完、结果文件写好）：角色的 `host_tools` 带 `board-wait`，提示词教模型登记 `{ kind: "external", checker, params }`。检查器只有宿主的两个：`molis.action-query@1`（只读查询动作的状态，要在这一轮的 `action_tools` 里，`params.tool` 写模型看到的动作工具名）和 `molis.file-present@1`（授权目录里的相对路径与完成标记）。要判断好坏的条件不能这样等：判断是命令，会被拒；声明了 `model:invoke` 的查询也会被拒（每看一次就调一次模型）。规则见 `docs/system/SECURITY-INVARIANTS.md` S-27，提示词的写法看 `plugins/native/coding/src/roles.ts` 的 `coding-background`。
-8. **文档**：新能力写进对应插件 spec；改了本清单涉及的契约，同一任务更新手册与本 Skill。
+8. **文档**：新能力写进对应插件 spec；改了本清单涉及的契约，同一任务更新手册与本 Skill；改了手册第 14 节点名的代码，同一改动更新那一行。
 
 ## 验证与验收
 
@@ -69,6 +83,7 @@ description: How to add or change an AI capability in Molis Work — anything th
 - 模型替身放在生产接缝：`new MolisWorkLocalHost({ homeDirectory, completeText })` 或 `bindPrologueInference(home, client)`；不要 mock 全局 `fetch`。
 - 改了 `horizontal/agent-host`：跑 `tests/agent-*.test.ts` 与 `tests/prologue-*.test.ts`；动到真实 SDK 路径时用本机替身模型服务跑一次（见 `tests/agent-budget-prologue.test.ts`）。
 - 真实模型实测用用户配置的 MiniMax（anthropic-messages）；图片、TypeSafe 需要各自服务，做不到就写「未验证」。
+- 改了提示词或方法：先征得用户同意，在隔离 Home 里对同一批真实任务改前改后各跑几次，按手册 16.3 的格式记进 spec 或 PR；创作台挂载的章节和提示词先跑 `pnpm studio:replay`。
 - 界面有变：浏览器里把主路径点一遍（加载、成功、失败、取消、未配置模型）。
 - 交付时分清：源码审查、替身、真实 SDK、真实模型、产品实操、用户验收。
 

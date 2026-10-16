@@ -2423,6 +2423,7 @@ export interface PluginDefinition {
     agent_prompts?: readonly AgentPromptText[];
     agent_skills?: readonly AgentSkillDefinition[];
     instructions?: readonly InstructionPrompt[];
+    methods?: readonly AgentSkillDefinition[];
     start(context: PluginStartContext): Promise<PluginContribution>;
     stop?(context: PluginStartContext): Promise<void>;
     health?(context: PluginStartContext): Promise<{

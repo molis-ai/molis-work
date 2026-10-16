@@ -11,7 +11,7 @@ import {
 } from "@molis-ai/molis-work-design-system";
 import { renderAssistantDock } from "../assistant-dock.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../scripts/client/assistant-island.js";
-import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "../scripts/client/background-tasks.js";
+import { ATTENTION_FACTORY_SCRIPT } from "../scripts/client/attention.js";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { createArrivalShell, type ArrivalPrimitives } from "./shell.js";
 import { createBriefTime, createWorkbenchProjectBriefRenderer } from "./project-brief.js";
@@ -119,11 +119,10 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
     const data = JSON.stringify({ selected, projects: ordered.map(project => project.project_id), personalTitle: personal.display_name, firstName: last?.display_name ?? null, loadError: Boolean(arrival.load_error) })
       .replaceAll("<", "\\u003c");
     const scripts = `${p.clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${p.visualFoundationClientScript}${ARRIVAL_MOTION_CLIENT_SCRIPT}
-(${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: globalThis.L, projectId: null, openItem: () => {} });
-globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: path => {
-  const id = document.querySelector('.chooser')?.dataset.selected;
-  return id && id !== 'personal' ? '/projects/' + encodeURIComponent(id) + path : path;
-}, headers: () => molisWorkControlHeaders(), project: null, interaction: (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES}),
+// The Assistant and what waits on the person speak for the project chosen here, or for the person outside any project.
+const chosenRoute = path => { const id = document.querySelector('.chooser')?.dataset.selected; return id && id !== 'personal' ? '/projects/' + encodeURIComponent(id) + path : path; };
+(${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, projectId: null, openItem: () => {} });
+globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES}),
   placeholder: project => project && project.title ? globalThis.L("问问「{name}」的进展，或交给助理一项工作…", { name: project.title }) : globalThis.L("在个人空间里，让助理做点什么…") });
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({

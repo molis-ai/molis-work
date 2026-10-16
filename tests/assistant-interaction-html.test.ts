@@ -3,9 +3,9 @@ import test from "node:test";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import {
-  agentQuestionHtml, assistantCardHtml, assistantNextSteps, assistantStepRow, cardInputValues, drawAssistantReply, instantIn, questionErrors,
+  agentQuestionHtml, assistantCardHtml, assistantNextSteps, assistantStepRow, drawAssistantReply, questionErrors,
 } from "@molis-ai/molis-work-app-local-host";
-import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
+import { cardInputValues, instantIn, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 
 // The Assistant's questions, action cards and next steps are drawn on the Host with the design system's shared parts
 // (specs/ai-interaction-experience A1, H2); the page only binds them. `say` stands in for the request's translation.

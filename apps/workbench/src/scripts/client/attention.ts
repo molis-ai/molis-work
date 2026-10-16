@@ -1,18 +1,26 @@
 /**
- * Title bar list of Coding sessions running or waiting on the person, in this project and every other one, with the
- * background commands they left running (each can be stopped here). Reads the service's cross-project list; a session
- * here opens in place, one elsewhere opens its project on it.
+ * What waits on the person, read once for the whole page (W4-10): `/api/attention` answers the background tasks, the
+ * Assistant's notices for the plugin in front and the plugin deliveries waiting in the market in one request. It is read
+ * every 15 seconds while the page is visible, at once when the person comes back or moves to another plugin, and when a
+ * reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
+ * notification count, paints from `molis-work:attention`; this module paints the title bar's list of Coding sessions
+ * running or waiting on the person, in this project and every other one, with the background commands they left running
+ * (each can be stopped here). A session here opens in place, one elsewhere opens its project on it.
+ *
+ * The notices asked for are those of the plugin in front (the person's rules hold some while it matches). Each read
+ * carries when it started: a count the market reports later than that is newer than its answer (assistant-island.ts).
+ * A failed read leaves what the page last showed: each part is a convenience.
  */
-export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
-  const { translate: L, projectId, openItem } = host;
+export const ATTENTION_FACTORY_SCRIPT = `(host) => {
+  const { translate: L, projectId, openItem, route } = host;
+  if (document.body.dataset.paneEmbedded === "true") return;
   const button = document.querySelector("[data-background-tasks]");
-  if (!button || document.body.dataset.paneEmbedded === "true") return;
-  const count = button.querySelector("[data-background-tasks-count]");
+  const count = button?.querySelector("[data-background-tasks-count]");
   const menu = document.createElement("div");
   menu.className = "background-tasks-menu mw-menu"; menu.setAttribute("popover", "auto"); menu.setAttribute("aria-label", L("后台任务"));
-  document.body.append(menu);
+  if (button) document.body.append(menu);
   const LABEL = { running: L("进行中"), paused: L("已暂停"), "waiting-answer": L("等你回答"), "waiting-approval": L("等你审查"), "reconcile-required": L("需要核对"), queued: L("挂起等待") };
-  let tasks = [], key = "", reading = false;
+  let tasks = [], key = "", reading = false, again = false;
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };
   const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
   const hrefFor = (task) => {
@@ -22,6 +30,7 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
     return url.pathname + url.search;
   };
   const render = () => {
+    if (!button) return;
     button.hidden = !tasks.length;
     count.textContent = String(tasks.length);
     // A session listed only for the commands it left running does not wait on the person.
@@ -58,7 +67,7 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
           try {
             const url = "/projects/" + encodeURIComponent(task.project_id) + "/api/plugins/io.molis.work.coding/sessions/" + encodeURIComponent(task.session_id) + "/background/" + encodeURIComponent(command.task_id) + "/stop";
             await molisWorkRequest(url, { body: {} });
-            line.remove(); key = ""; void refresh();
+            line.remove(); key = ""; void read();
           } catch (error) { if (!menu.contains(feedback)) menu.append(feedback); molisWorkRequest.show(feedback, error); stop.disabled = false; }
         });
         line.append(node("span", L("后台命令"), "background-task-command-label"), node("code", command.summary), stop);
@@ -66,20 +75,28 @@ export const BACKGROUND_TASKS_FACTORY_SCRIPT = `(host) => {
       }
     }
   };
-  const refresh = async () => {
-    if (reading || document.hidden) return; reading = true;
+  const surface = () => { const shown = document.querySelector(".plugin-rail-items [aria-current][data-plugin-id]"); return shown ? shown.dataset.pluginId : ""; };
+  const read = async () => {
+    if (document.hidden) return;
+    if (reading) { again = true; return; }
+    reading = true; again = false;
+    const started = performance.now();
     try {
-      const data = await molisWorkRequest("/api/background-tasks"), next = JSON.stringify(data.tasks || []);
-      if (next !== key) { key = next; tasks = data.tasks || []; render(); }
-    } catch { /* The list is a convenience; a failed read leaves the last one shown. */ }
-    finally { reading = false; }
+      const data = await molisWorkRequest(route("/api/attention?surface=" + encodeURIComponent(surface())));
+      const list = data.background_tasks, next = JSON.stringify(list);
+      if (Array.isArray(list) && next !== key) { key = next; tasks = list; render(); }
+      document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started }) }));
+    } catch { /* keeps what it showed */ }
+    finally { reading = false; if (again) void read(); }
   };
-  button.addEventListener("click", () => {
+  button?.addEventListener("click", () => {
     const box = button.getBoundingClientRect();
     menu.style.top = Math.round(box.bottom + 6) + "px"; menu.style.right = Math.max(8, Math.round(innerWidth - box.right)) + "px"; menu.style.left = "auto";
     menu.togglePopover?.();
   });
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) void refresh(); });
-  void refresh();
-  setInterval(() => void refresh(), 10000);
+  document.addEventListener("molis-work:attention-refresh", read);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) void read(); });
+  document.querySelector(".plugin-rail-items")?.addEventListener("click", () => setTimeout(read, 300));
+  void read();
+  setInterval(read, 15000);
 }`;

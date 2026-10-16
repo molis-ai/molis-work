@@ -7,7 +7,7 @@ import { PLUGIN_MEMBERSHIP_FACTORY_SCRIPT } from "./plugin-membership.js";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { NAVIGATION_PRESENTATION_SCRIPT, DOCK_SCRIPT } from "./navigation-presentation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT, SEARCH_ITEM_TAB_SURFACES } from "./global-search.js";
-import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./background-tasks.js";
+import { ATTENTION_FACTORY_SCRIPT } from "./attention.js";
 import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "./plugin-notifications.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
@@ -65,9 +65,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
-    (${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: L, projectId: state.project?.project_id,
+    (${ATTENTION_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
-    (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id });
+    (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });
     // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3).
     // A surface that opens its items as tabs (the 成果库 opens a version) gets the item; the rest choose the record in their list.
     (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])}.includes(plugin) ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
@@ -378,10 +378,16 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     updateRelationPreviews();
     updateAllRelationFormPreviews();
+    // Off the Goal stage the board cursor comes with the attention read (W4-10).
+    const goalStageShown = () => (document.body.dataset.desktopSurface || "goal") === "goal";
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
-      await refreshBoard(false, signal);
+      if (goalStageShown()) await refreshBoard(false, signal);
     }, 4000);
+    document.addEventListener("molis-work:attention", event => {
+      const cursor = event.detail?.board_cursor;
+      if (typeof cursor === "number" && !goalStageShown() && cursor !== Number(state.snapshot.cursor)) void refreshBoard();
+    });
     boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
   })();
 `;

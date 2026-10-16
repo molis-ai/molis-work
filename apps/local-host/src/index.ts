@@ -141,7 +141,7 @@ export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
 export { developerMode } from "./developer-mode.js";
 export { rewriteNativePluginApiPath, withRewrittenPluginApi } from "./native-plugin-api.js";
-export { hostCompleteText, hostTextGeneration, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
+export { hostCompleteText, hostTextGeneration, textModelAvailability, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
 // Context-driven interaction: the judgment service and the readers of what a page claims, for the tests that drive them (new tests import the entry).
 export { createContextualJudgmentService, type ContextualJudgmentPorts, type ContextualJudgmentService } from "./contextual/judgment-service.js";
 export { readJudgeRequest, readLanding } from "./contextual/contextual-request.js";

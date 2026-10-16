@@ -58,6 +58,36 @@ const SURFACES: Surface[] = [
     },
     ready: `${visible("[data-work-surface=settings] [data-settings-panel=appearance]")} && !document.querySelector('[data-settings-loading]')`,
   },
+  // W5-05: what the old skin layers still style beyond the surfaces above — a Goal's Frame and its work, and the
+  // project settings — so deleting a layer is compared where it lands.
+  {
+    id: "project-settings-general",
+    // The project's settings opener sits in a menu; the picture is of the panel, so it is opened directly.
+    open: async ({ click, evaluate }) => {
+      await evaluate("document.querySelector('[data-directory-open=project-settings]').click()");
+      await click("[data-directory-panel=project-settings] [data-settings-section=general]");
+    },
+    ready: `${visible("[data-work-surface=project-settings] [data-settings-panel=general]")} && !document.querySelector('[data-settings-loading]')`,
+  },
+  {
+    id: "goal-frame",
+    open: async ({ click, waitFor, openGoalFrame }) => {
+      await click('[data-plugin-strip] [data-plugin-id="goals"]');
+      await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'", 15_000);
+      await openGoalFrame('.tree-node[data-select-goal="CORE"]');
+    },
+    ready: `Boolean(document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=CORE]')) && ${visible("[data-frame-goal-work]")}`,
+  },
+  {
+    id: "goal-work",
+    open: async ({ click, waitFor, openGoalFrame, openGoalWork }) => {
+      await click('[data-plugin-strip] [data-plugin-id="goals"]');
+      await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'", 15_000);
+      await openGoalFrame('.tree-node[data-select-goal="CORE"]');
+      await openGoalWork();
+    },
+    ready: visible("[data-goal-node-workspace]"),
+  },
 ];
 
 const CLOCK = `(() => { const Real = Date, offset = Real.UTC(2026, 9, 15, 6) - Real.now();
@@ -83,6 +113,55 @@ async function stablePicture(browser: Browser, label: string): Promise<Buffer> {
   assert.fail(`${label} kept changing: twelve pictures in a row, no two the same`);
 }
 
+/**
+ * Every element's computed style (and its ::before and ::after when they draw), for the comparison's style mode (W5-05):
+ * a rule can change what a surface would look like in a state the picture does not show, or by less than a pixel.
+ * Taken once per surface and scheme at STYLE_WIDTH, after both of its pictures. Endless animations are read at their start (and
+ * put back after), so a running one reads the same on every run; the caret is masked like in the pictures. Identical style vectors are stored
+ * once. An element is named by its child indices from <html> (the DOM is the same on both trees when only CSS changes)
+ * and labelled for people by tag, id, classes and its first data- attribute.
+ */
+const STYLE_WIDTH = 1440;
+const STYLES = `(() => {
+  const running = document.getAnimations().filter(animation => animation.effect?.getTiming().iterations === Infinity)
+    .map(animation => ({ animation, time: animation.currentTime, playing: animation.playState === "running" }));
+  for (const { animation } of running) { animation.pause(); animation.currentTime = 0; }
+  const skip = new Set(["caret-color"]);
+  const props = [], index = new Map(), vectors = [], keys = new Map(), elements = [];
+  const values = style => {
+    const out = new Map();
+    for (let i = 0; i < style.length; i++) { const name = style.item(i); if (!skip.has(name)) out.set(name, style.getPropertyValue(name)); }
+    return out;
+  };
+  // Only what differs from the parent's (or, for a pseudo-element, its element's) computed values; the comparison rebuilds the rest.
+  const vector = (own, parent) => {
+    const delta = [];
+    for (const [name, value] of own) {
+      if (parent && parent.get(name) === value) continue;
+      if (!index.has(name)) { index.set(name, props.length); props.push(name); }
+      delta.push(index.get(name), value);
+    }
+    const key = JSON.stringify(delta);
+    if (!keys.has(key)) { keys.set(key, vectors.length); vectors.push(delta); }
+    return keys.get(key);
+  };
+  const label = node => node.localName + (node.id ? "#" + node.id : "") + [...node.classList].slice(0, 3).map(name => "." + name).join("")
+    + ([...node.attributes].filter(attribute => attribute.name.startsWith("data-")).slice(0, 1).map(attribute => "[" + attribute.name + "]").join(""));
+  const walk = (node, path, parent) => {
+    if (node.localName === "head" || node.localName === "script" || node.localName === "style") return;
+    const own = values(getComputedStyle(node));
+    elements.push([path, label(node), vector(own, parent)]);
+    for (const pseudo of ["::before", "::after"]) {
+      const style = getComputedStyle(node, pseudo);
+      if (style.content && style.content !== "none" && style.content !== "normal") elements.push([path + pseudo, label(node) + pseudo, vector(values(style), own)]);
+    }
+    [...node.children].forEach((child, i) => walk(child, path + "/" + i, own));
+  };
+  walk(document.documentElement, "0", null);
+  for (const { animation, time, playing } of running) { animation.currentTime = time; if (playing) animation.play(); }
+  return { props, vectors, elements };
+})()`;
+
 test("key surfaces settle to the same picture at every width, light and dark (W4-12)", { timeout: 600_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const { origin, projectId, command, sessionId, navigate, waitFor, evaluate } = browser;
@@ -91,7 +170,7 @@ test("key surfaces settle to the same picture at every width, light and dark (W4
   await command("Emulation.setTimezoneOverride", { timezoneId: "Asia/Shanghai" }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: CLOCK }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `addEventListener('DOMContentLoaded', () => { const style = document.createElement('style'); style.dataset.visualMask = ''; style.textContent = ${JSON.stringify(MASK)}; document.head.append(style); });` }, sessionId);
-  const pictures: string[] = [];
+  const pictures: string[] = [], styles: string[] = [];
   for (const surface of SURFACES) {
     for (const size of WIDTHS) {
       await command("Emulation.setDeviceMetricsOverride", { ...size, deviceScaleFactor: 1 }, sessionId);
@@ -107,8 +186,20 @@ test("key surfaces settle to the same picture at every width, light and dark (W4
         await writeFile(join(out, `${name}.png`), await stablePicture(browser, name));
         pictures.push(name);
       }
+      // After both pictures, so reading the styles never touches a picture still to be taken.
+      if (size.width !== STYLE_WIDTH) continue;
+      for (const scheme of SCHEMES) {
+        await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+        const name = `${surface.id}@${size.width}-${scheme}`;
+        await stablePicture(browser, name);
+        const snapshot = await evaluate<{ elements: unknown[] }>(STYLES);
+        assert.ok(snapshot.elements.length > 50, `${name}: the page has its elements`);
+        await writeFile(join(out, `${name}.styles.json`), JSON.stringify(snapshot));
+        styles.push(name);
+      }
     }
   }
-  await writeFile(join(out, "manifest.json"), JSON.stringify({ pictures, widths: WIDTHS, schemes: SCHEMES }, null, 2) + "\n");
+  await writeFile(join(out, "manifest.json"), JSON.stringify({ pictures, styles, widths: WIDTHS, schemes: SCHEMES }, null, 2) + "\n");
   assert.equal(pictures.length, SURFACES.length * WIDTHS.length * SCHEMES.length);
+  assert.equal(styles.length, SURFACES.length * SCHEMES.length);
 });

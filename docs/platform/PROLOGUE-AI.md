@@ -473,7 +473,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 助理的方法目录 | 方法按需读取 | 「可用的方法」→ 动作 `assistant.methods.read`（`apps/local-host/src/assistant/assistant-rule-actions.ts`） | 摘要常驻、正文按需 | 一轮最多列 20 个 | 确定性：`tests/assistant-methods.test.ts` |
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
-| 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附 | 格式纠正时追加的那段文字写死在代码里，未登记 | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
+| 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
 | 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v1` | 三种时机；同键同文只算一次；回执说去向 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
 | 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理） | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来 | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条） |
@@ -594,6 +594,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 - **Agent 一轮**：冻结记录 `AgentRunView.frozen`（`horizontal/agent-host/src/adapters/prologue-frozen.ts` 的 `freezeRunStart`）记着角色与版本、每段提示词的版本与用户修订号、方法、工具、材料的标题与来源、模型和调用编号；按调用编号能在调用记录里找到这一轮走过的每一步（第 3 节）。工具活动与回执在运行视图和审查队列里。
 - **有界调用**：没有运行记录；看它所在动作的调用记录行、`hostTextGeneration` 返回的 `run_ref` 与用量，以及这段指令的使用记录（`resolveModelPrompt` 每次记下实际用的版本和用户修订号）。
 - 回看时先确认这一轮用的是默认正文还是用户改过的（修订号），再看材料里有没有、有没有被截掉。
+- **调不到模型时**：要模型的动作，可用性都由 `apps/local-host/src/host-complete-text.ts` 的 `textModelAvailability` 给。没配模型是 `actions.connection_required`（界面据此带人去设置），模型设置读不了带它自己的码（没有就是 `actions.configuration_unavailable`），两者不混成「尚未配置」。可选的判断（首页建议、送达后的判断）失败了不打扰用户，但在宿主日志里留一行（`apps/local-host/src/host-log.ts` 的 `hostLog`，只记码与能力，不记内容），不再悄悄吞掉。
 
 | 看到的 | 先查 | 多半是 | 改哪里 |
 | --- | --- | --- | --- |

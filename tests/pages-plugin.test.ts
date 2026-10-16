@@ -552,7 +552,7 @@ test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
   assert.match(html, /data-pages-confirm/);
   // The editor kernel loads with Pages' own client when its surface opens, not with every page (#150).
   assert.doesNotMatch(html, /molis-work-pages-editor\.js/);
-  assert.match(renderMolisWorkWorkbenchClientScript(), /\["pages",\["\/assets\/molis-work-pages-editor\.js"\]\]/);
+  assert.match(renderMolisWorkWorkbenchClientScript(), /\["pages","pages",\["\/assets\/molis-work-pages-editor\.js"\]\]/);
   assert.ok(pluginWorkbenchClientAsset("pages"), "Pages' client is served on its own");
   const pages = html.slice(html.indexOf('data-pages="workbench"'), html.indexOf("data-pages-confirm"));
   assert.match(pages, /还没有文档/);

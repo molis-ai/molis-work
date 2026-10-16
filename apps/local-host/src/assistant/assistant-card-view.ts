@@ -80,9 +80,10 @@ function cardField(field: AssistantCard["fields"][number], question: string | un
 
 /**
  * The card drawn: what it does and to what, the fields the person may change while it can run, the rest as the exact
- * values that would run, and once it ran (or could not), how it stands. A stale card offers only a fresh preparation.
+ * values that would run, and once it ran (or could not), how it stands. A stale card offers only a fresh preparation, where
+ * its keeper can make one (`redo`; the Assistant can, a plugin's round card cannot).
  */
-export function assistantCardHtml(card: AssistantCard, say: (text: string, values?: Record<string, string | number>) => string, zone?: string): string {
+export function assistantCardHtml(card: AssistantCard, say: (text: string, values?: Record<string, string | number>) => string, zone?: string, redo = true): string {
   const open = card.status === "ready" || card.status === "needs-input" || card.status === "failed";
   const asked = (key: string) => card.missing.find(item => item.field === key)?.question;
   const editable = open ? card.fields.filter(field => field.editable) : [];
@@ -101,6 +102,6 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
       : actions.length ? { actions } : {}),
     ...((state && !open) || card.outcome ? { status: { text: (state ? say(state) : "") + (card.outcome ? `${state ? "：" : ""}${card.outcome}` : ""), busy: card.status === "running",
       ...(card.status === "failed" ? { tone: "failed" as const } : ["unknown", "stale", "needs-input"].includes(card.status) ? { tone: "waiting" as const } : {}) } } : {}),
-    ...(card.status === "stale" ? { recovery: [{ id: "redo", label: say("请助理按最新状态重新准备") }] } : {}),
+    ...(card.status === "stale" && redo ? { recovery: [{ id: "redo", label: say("请助理按最新状态重新准备") }] } : {}),
   });
 }

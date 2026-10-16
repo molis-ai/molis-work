@@ -73,7 +73,8 @@ async function rejectStoppedGoalProgress(host: MolisWorkLocalHost, ref: ReturnTy
     await releaseCodingSurface(owner, DEMO_PROJECT_ID);
     barrier.release();
     const refused = await pending;
-    const stopStatuses: Record<string, number> = { "actions.expired": 400, "actions.forbidden": 403, "goals.builtin_plugin_required": 400 };
+    // D26: a stopped instance's call is expired, a conflict by its platform kind, so Coding's edge answers 409 (was 400).
+    const stopStatuses: Record<string, number> = { "actions.expired": 409, "actions.forbidden": 403, "goals.builtin_plugin_required": 400 };
     const expectedStatus = stopStatuses[String(refused.body.code)];
     assert.ok(expectedStatus, JSON.stringify(refused.body)); assert.equal(refused.status, expectedStatus, JSON.stringify(refused.body));
     assert.deepEqual(owner.readEventsDescending(DEMO_PROJECT_ID), before, "revocation writes no progress, receipt or Goal event");
@@ -186,11 +187,14 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
     const progressInput = (view: any) => ({ expected_goal_cursor: view.current.state.goal_event_cursor, summary: "已完成只读评审，数量边界仍待用户确认。",
       next_step: "由用户阅读固定报告后决定下一步。", goal_id: "next", actor_id: "intruder", source: { artifact_id: "forged", version: 99 } });
     await note("original", "after-progress-preview");
-    assert.equal((await request(progressPath, "POST", progressInput(progressPreview))).status, 400, "a change after preview requires a fresh review");
+    // D26: the Goal moved on since the preview, a conflict its owner declares; Coding's edge answers it by kind (409, was 400).
+    const stale = await request(progressPath, "POST", progressInput(progressPreview));
+    assert.deepEqual([stale.status, stale.body.code], [409, "goals.event_progress.stale_goal"], "a change after preview requires a fresh review");
     const freshProgress = (await request(progressPath)).body;
     await rejectStoppedGoalProgress(host, ref, request, progressPath, progressInput(freshProgress), holdProgress, builtinCaller());
     const confirmed = progressInput((await request(progressPath)).body);
-    assert.equal((await request(progressPath, "POST", { ...confirmed, expected_goal_cursor: confirmed.expected_goal_cursor + 1 })).status, 400, "the Goal version is checked in the original write transaction");
+    const ahead = await request(progressPath, "POST", { ...confirmed, expected_goal_cursor: confirmed.expected_goal_cursor + 1 });
+    assert.deepEqual([ahead.status, ahead.body.code], [409, "goals.event_progress.stale_goal"], "the Goal version is checked in the original write transaction (D26: by kind, was 400)");
     const results = await Promise.all([request(progressPath, "POST", confirmed), request(progressPath, "POST", confirmed)]);
     for (const result of results) assert.equal(result.status, 200, JSON.stringify(result.body));
     assert.equal(results[0].body.event_id, results[1].body.event_id, "concurrent confirmations share the original Goal receipt");

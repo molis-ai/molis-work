@@ -2,6 +2,7 @@
 // view, exactly as made, runs nothing, and keeps the record when the Run is read back after a restart.
 import assert from "node:assert/strict";
 import test from "node:test";
+import { actionDigest } from "@molis-ai/molis-work-service-agent-host";
 import { NOTES_WRITE, refOf, reply, suggestRound, suggestTools } from "./fixtures/agent-suggest-round.js";
 
 test("D25 a round's suggestion is in its Run view with the exact frozen reference and input, runs nothing, and survives a restart", { timeout: 60_000 }, async t => {
@@ -21,7 +22,7 @@ test("D25 a round's suggestion is in its Run view with the exact frozen referenc
     assert.equal(run.offers?.length, 1, JSON.stringify(run));
     const offer = run.offers![0]!;
     assert.deepEqual({ ...offer, offer_id: undefined, offered_at: undefined }, { offer_id: undefined, offered_at: undefined, title: "保存这条笔记",
-      summary: "把“会后发纪要”存进项目笔记", reference: refOf(NOTES_WRITE), input: { text: "会后发纪要" }, editable: ["text"] });
+      summary: "把“会后发纪要”存进项目笔记", reference: refOf(NOTES_WRITE), input: { text: "会后发纪要" }, editable: ["text"], action_digest: actionDigest(NOTES_WRITE) });
     assert.match(offer.offer_id, /^[0-9a-f-]{36}$/);
     assert.ok(!Number.isNaN(Date.parse(offer.offered_at)));
     assert.equal(round.counts.invoked, 0, "a suggestion runs nothing");

@@ -10,6 +10,8 @@ export const agentErrors = defineErrorCodes("agent", {
   collaboration_unknown: "invalid",
   directory_unauthorized: "invalid",
   model_not_configured: "invalid",
+  offer_mismatch: "forbidden",
+  offer_unknown: "not_found",
   pending_not_open: "invalid",
   pending_unknown: "invalid",
   review_already_decided: "invalid",

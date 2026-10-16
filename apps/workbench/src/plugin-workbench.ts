@@ -39,7 +39,20 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
   }).join("\n    ");
 }
 
-/** Fixed-build client assets derived from the same registration as styles and UI. */
+/** A surface's client: the bundle that carries its factory (its own, or the one `clientFrom` names) and what it prepares first. */
+export interface PluginSurfaceClient { readonly id: string; readonly bundle: string; readonly assets: readonly string[]; readonly factory: string }
+
+/** Every surface with a client, each pointing at the one bundle that serves it. */
+export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): PluginSurfaceClient[] {
+  return packs.flatMap((pack) => {
+    const source = pack.clientFrom ? packs.find(candidate => candidate.project_plugin_id === pack.clientFrom) : pack;
+    return source?.clientFactory
+      ? [{ id: pack.project_plugin_id, bundle: source.project_plugin_id, assets: source.clientAssets ?? [], factory: source.clientFactory }]
+      : [];
+  });
+}
+
+/** Fixed-build client assets derived from the same registration as styles and UI: one per bundle, none for a borrowed client. */
 export function pluginWorkbenchClientAsset(id: string): string | null {
   const pack = BUILTIN_PLUGIN_WORKBENCH.find(pack => pack.project_plugin_id === id);
   return pack?.clientFactory ? `globalThis.molisWorkbenchPluginFactories ||= {}; globalThis.molisWorkbenchPluginFactories[${JSON.stringify(id)}] = ${pack.clientFactory};` : null;

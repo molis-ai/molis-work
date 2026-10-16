@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/dist/plugin-workbench.js";
+import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 
 test("a hung UI asset times out, retries and ignores the late first response without remounting or losing the last selection", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
@@ -55,8 +55,10 @@ test("registered clients mount on demand, retry resources and retain their origi
   await click('[data-work-surface=pages] [data-ui-client-retry]');
   await waitFor("document.querySelector('[data-work-surface=pages]').dataset.uiClientState === 'ready'");
   assert.equal(await evaluate("typeof window.MolisWorkPagesEditor.mount"), "function");
-  for (const pack of BUILTIN_PLUGIN_WORKBENCH.filter(pack => pack.clientFactory)) {
-    const id = pack.project_plugin_id;
+  // W4-03-05: a companion (Files, Git, Diff, Text Stats) mounts with Coding's client: opening it loads no bundle of its own,
+  // and Coding's bundle is loaded once however many of them open.
+  const companions: string[] = [];
+  for (const { id, bundle } of pluginSurfaceClients()) {
     const link = `[data-plugin-strip] [data-plugin-id="${id}"]`;
     // Characters is a settings page; its existing dedicated browser test exercises that entry.
     if (!await evaluate(`!!document.querySelector(${JSON.stringify(link)})`)) continue;
@@ -68,6 +70,11 @@ test("registered clients mount on demand, retry resources and retain their origi
     await click('[data-plugin-strip] [data-plugin-id="home"]');
     await click(link);
     assert.equal(await evaluate(`document.querySelector(${JSON.stringify(root)}).retainedClientRoot`), true, id);
-    assert.equal(await evaluate(`performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('/assets/molis-work-plugins/${id}.js')).length`), 1, id);
+    assert.equal(await evaluate(`performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('/assets/molis-work-plugins/${bundle}.js')).length`), 1, id);
+    if (bundle !== id) {
+      companions.push(id);
+      assert.equal(await evaluate(`performance.getEntriesByType('resource').filter(entry => entry.name.endsWith('/assets/molis-work-plugins/${id}.js')).length`), 0, id);
+    }
   }
+  assert.ok(companions.length > 0, "at least one companion surface was opened");
 });

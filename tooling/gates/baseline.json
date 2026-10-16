@@ -262,7 +262,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 930,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 495,
+  "testInternalImports": 494,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -498,7 +498,6 @@
     "tests/work-session-actions.test.ts": 1,
     "tests/work-session-mcp.test.ts": 3,
     "tests/workbench-asset-cache.test.ts": 1,
-    "tests/workbench-deferred-clients.e2e.test.ts": 1,
     "tests/workflow-content-actions.test.ts": 1,
     "tests/workflows-action-steps.e2e.test.ts": 1,
     "tests/workflows-action-steps.test.ts": 1,

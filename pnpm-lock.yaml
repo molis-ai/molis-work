@@ -683,8 +683,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-find-tools-deferral.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-find-tools-deferral.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parameter-branches.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parameter-branches.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -1736,8 +1736,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-find-tools-deferral.tgz':
-    resolution: {integrity: sha512-jbWmosNPZEuuCGHX31KRwxji1Z/b+Ygxi33OIfdaYd8PctjlP3sqjGbHEnZyedjDBph8Qp+6YdciDKgbJc0BeQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-find-tools-deferral.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parameter-branches.tgz':
+    resolution: {integrity: sha512-8See6ic/XqHnDfzvLAB4+xM3PyGU73x0lo4wVjyZ1A40e/UD2kwI6abUR+m+ateSAFn1fz/ozPEiezrM8ZVuZA==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parameter-branches.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':
@@ -3459,7 +3459,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-find-tools-deferral.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-parameter-branches.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

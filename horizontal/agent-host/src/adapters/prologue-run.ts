@@ -137,12 +137,12 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
     } } : {}),
     ...(offer ? { offer: async (proposal: Parameters<typeof offer>[0]) => { const made = await offer(proposal); offersDone.offered += 1; return made; } } : {}),
   } } : input.action_gateway;
-  const actionTools = none ? undefined : gatewayForRun
-    ? { ...prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
+  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
+  const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
     : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL));
   if (input.action_gateway) {
     state.gatewayRuns.set(input.session_id, input.action_gateway);
-    if (actionTools && "known" in actionTools) state.gatewayKnown.set(input.session_id, actionTools.known as Set<string>);
+    if (gatewayTools) state.gatewayKnown.set(input.session_id, gatewayTools.known);
     // Refused before any review: a call to a capability that is gone, switched off or asked through the wrong tool.
     if (!state.gatewayHooks.has(input.session_id)) {
       state.gatewayHooks.add(input.session_id);
@@ -155,7 +155,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
       } });
     }
   }
-  return { actionController, actionTools, memoryDone };
+  return { actionController, actionTools, memoryDone, parameterBranches: gatewayTools?.parameterBranches };
 }
 
 /**
@@ -593,10 +593,12 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const index = await deps.index.read(input.session_id);
   assertWorkspace(input, index, state, mode);
   const ref = state.sessions.get(input.session_id);
-  const { actionController, actionTools, memoryDone } = roundGateway(deps, input, mode.none);
+  const { actionController, actionTools, memoryDone, parameterBranches } = roundGateway(deps, input, mode.none);
   ensureStopGuard(deps, input, mode.business);
   const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id));
-  const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack, executors: actionTools!.executors } : undefined);
+  // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
+  const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack, executors: actionTools!.executors,
+    ...(parameterBranches ? { parameterBranches } : {}) } : undefined);
   if (bindActions && session) state.actionToolSessions.add(input.session_id);
   if (session === undefined) throw new Error("agent.session_unknown");
   const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });

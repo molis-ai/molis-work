@@ -37,7 +37,7 @@ test("the panel shows a work going on by itself when the sub-task it handed out 
   const model = createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
-    if (raw.includes("委托给你的子任务")) { childAsked.resolve(); await childDone.promise; res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn("纪要草稿：三条决定、两条待办。")); return; }
+    if (raw.includes("委托的子任务")) { childAsked.resolve(); await childDone.promise; res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn("纪要草稿：三条决定、两条待办。")); return; }
     res.writeHead(200, { "content-type": "text/event-stream" });
     res.end(parentScript[parentTurns++] ?? turn("好的。"));
   });

@@ -40,7 +40,7 @@ async function fixture(t: TestContext, name: string, children: string[], options
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const raw = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     const body = JSON.parse(raw), said = JSON.stringify(body.messages);
-    if (said.includes("委托给你的子任务")) {
+    if (said.includes("委托的子任务")) {
       const title = children.find(item => said.includes(`起草「${item}」`))!;
       await Promise.race([releases.get(title)!.promise, new Promise((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true }))]);
       return reply(undefined, `「${title}」的草稿：三句话。`);

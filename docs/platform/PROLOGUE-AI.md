@@ -349,7 +349,8 @@ prompt 和执行机制「好」，是看得见的：
 | 内容 | 位置 | 机制 |
 | --- | --- | --- |
 | 产品对所有角色都成立的约束 | `layer: "base"` 的提示词 | `AGENT_PROMPT_LAYERS` 依次是 base、role、project、task，`orderPromptsByLayer` 按层排（`packages/contracts/src/platform/plugin-agent.ts`）；Coding 的 `coding-base` 单独一层，角色的措辞不能悄悄换掉它 |
-| 角色的目的与做法 | 角色提示词（`layer` 缺省为 role） | `codingPrompts`、`ASSISTANT_PROMPTS` |
+| 角色的目的与做法 | 角色提示词（`layer` 缺省为 role） | `codingPrompts`、`ASSISTANT_PROMPTS`；用途不同就是不同的角色：助理委派出去的子任务是角色 `assistant-delegated`（base 加一层「你在做另一项工作委托出来的一部分」），不在任务消息里另写一段说明 |
+| 某个工具怎样用、它的结果是什么意思 | 工具描述与参数说明 | 只在这一轮提供那个工具时出现（`prologue-action-gateway.ts`）。助理的委派与记忆：什么时候用，写在主工作角色自己的一层 `assistant-work`；怎样调用，写在 `delegate-work`、`remember` 等的描述里；委派出去的子任务两样都没有，base 里也没有；提问卡的选项、推荐与选填写在 Prologue `ask-user` 的参数说明里，base 只留什么时候问（需求书 §9.5 A3①）。工具结果只说发生了什么，不再写「回复里说……」 |
 | 一次有界调用的固定要求 | 用 `defineInstructionPrompt` 登记的指令 | 调用传 `instructed(指令, 数据)`；`composeInstructedPrompt` 是指令与数据合成模型正文的唯一写法（`packages/contracts/src/platform/model-prompts.ts`） |
 | 用户这一次的话 | task 层、用户输入 | 包里不能声明 task 层提示词，`inspectAgentDeclaration`（`packages/plugin-sdk/src/agent-declarations.ts`）拒绝：替用户说话不是插件的事 |
 | 会变的事实（时间、范围、页面、对象、目录） | 每一轮的材料 | 助理的 `roundMaterials`，源码注释写着「Changing facts travel here, not in the role」 |
@@ -451,7 +452,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 幂等 | `request_id`、输入键 `AGENT_INPUT_KEY_PATTERN`、委派的幂等键 | 不必写 |
 | 取消、撤权、停用 | `caller.signal`、`beforeEffect`、F2（第 8 节） | 不必写 |
 | 预算 | `AgentRunBudget`、委派与追加的上限 | 「追加次数有限」 |
-| 记忆里的「他说的」 | 写入门对照宿主保存的原话判断，不信模型给的引用（`apps/local-host/src/assistant/assistant-memory-tools.ts`） | 助理基础指令解释原样照抄的要求 |
+| 记忆里的「他说的」 | 写入门对照宿主保存的原话判断，不信模型给的引用（`apps/local-host/src/assistant/assistant-memory-tools.ts`） | `remember` 的参数说明解释原样照抄的要求（只在提供它的轮次出现） |
 
 删掉右列那句话，左列照样拒绝；右列只让模型少走弯路。
 

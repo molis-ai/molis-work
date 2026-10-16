@@ -232,12 +232,25 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
+// One-time allowance for receipts 1e (specs/ai-input-receipts RC-14–RC-16: the Assistant's receipt lines, the answer or
+// supplement chip, the resend key kept across a refresh; Coding's receipt announcements and the dropped-reply mark), under
+// the user's 2026-10-15 rule that small, necessary growth passes once; the user approved it on 2026-10-16 (after #584), in
+// the receipts session. Each is for exactly one merge-base budget (main cf954a0a) and used once: the next baseline freezes
+// again. Delete it in the next change to this gate (as #541 and #584 did).
+const APPROVED_CEILINGS = {
+  "/assets/molis-work-arrival.css": [821387, 821499],
+  "/assets/molis-work-plugins/coding.js": [434028, 434439],
+  "/assets/molis-work-settings.css": [1113186, 1113322],
+  "/assets/molis-work-workbench.css": [1699659, 1699795],
+  "/assets/molis-work-workbench.js": [1095606, 1097751],
+};
+const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {
   const errors = [];
   for (const [asset, allowed] of Object.entries(budget)) {
     if (base[asset] === undefined) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
-    else if (allowed > base[asset]) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
+    else if (allowed > approvedCeiling(asset, base[asset])) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
   }
   return errors;
 };
@@ -250,7 +263,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
   if (reference[asset] === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
-  return bytes > reference[asset] ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
+  return bytes > approvedCeiling(asset, reference[asset]) ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
 });
 
 // ---- the merge-base's budget -----------------------------------------------------------------------------------------

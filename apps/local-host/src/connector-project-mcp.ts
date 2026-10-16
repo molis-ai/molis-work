@@ -28,7 +28,7 @@ export async function manageProjectMcp(port: ProjectMcpManagementPort, caller: P
   await caller.beforeEffect();
   if (input.action === "remove") await library.control(owner, server.id, "remove", { expected_version: server.version, signal: caller.signal, beforeDispatch: caller.beforeEffect });
   else if (input.action === "check") {
-    if (server.health !== "connected") await library.control(owner, server.id, "connect", { expected_version: server.version, signal: caller.signal, beforeDispatch: caller.beforeEffect });
+    await library.control(owner, server.id, server.health === "connected" ? "refresh" : "connect", { expected_version: server.version, signal: caller.signal, beforeDispatch: caller.beforeEffect });
   } else await library.save(owner, {
     id: server.id, expected_version: server.version, label: server.label, enabled: input.action === "enable", timeout_ms: server.timeout_ms,
     transport: server.transport, ...(server.transport === "stdio" ? { directory: server.directory, executable: server.executable, argv: server.argv }

@@ -62,6 +62,19 @@ function callAbort(signal: AbortSignal, deadline?: ToolAbort): ToolAbort {
   };
 }
 
+async function listMcpConfigurations(runtime: Runtime, view: (saved: Saved, version: number) => AgentMcpServerView) {
+  const rows: Array<{ owner: AgentSkillOwner; server: AgentMcpServerView }> = [];let cursor: string | undefined;
+  for (let page = 0; page < 100; page++) {
+    const listed = await runtime.store.list({ kind: KIND, limit: 100, ...(cursor ? { cursor } : {}) });
+    for (const record of listed.records) {
+      const saved = record.metadata as unknown as Saved;
+      if (!record.tombstoned && !saved.removed) rows.push({ owner: { project_id: saved.project_id, plugin_id: saved.plugin_id }, server: view(saved, record.version) });
+    }
+    if (!listed.cursor) return rows;cursor = listed.cursor;
+  }
+  throw new Error("MCP 配置目录过大，无法完整读取");
+}
+
 /** Configuration belongs to the project; connection, tools and effects belong to SDK. */
 export function createPrologueMcpLibrary(runtime: Runtime, options: {
   withDispatchGuard<T>(guard: () => Promise<void>, operation: () => Promise<T>): Promise<T>;
@@ -110,7 +123,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
     const credentialRef = ref ? await options.credentialRefFor!(ref) : undefined;
     return { credentialRef, revision: typeof resolved === "string" ? undefined : resolved.revision };
   };
-  const refreshSelected = async (saved: Saved) => {
+  const refreshSelected = async (saved: Saved, callOptions?: Parameters<AgentMcpLibrary["control"]>[3]) => {
     if (!saved.auth_connection_id) return;
     try {
       if (invalidated.has(saved.id)) throw new Error("MCP 账号已改变，请重新连接");
@@ -119,7 +132,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
       if (!previous || previous.revision !== current.revision) throw new Error("MCP 账号已改变，请重新连接");
       if (previous.credential !== JSON.stringify(current.credentialRef)) {
         await close(saved.id);
-        await library.control(saved, saved.id, "connect");
+        await library.control(saved, saved.id, "connect", callOptions);
       }
     } catch (error) { await close(saved.id); throw error; }
   };
@@ -149,18 +162,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
     await callOptions.beforeDispatch?.(); await assertDirectory(saved);
   };
   const library: AgentMcpLibrary = {
-    async catalog() {
-      const rows: Array<{ owner: AgentSkillOwner; server: AgentMcpServerView }> = [];let cursor: string | undefined;
-      for (let page = 0; page < 100; page++) {
-        const listed = await runtime.store.list({ kind: KIND, limit: 100, ...(cursor ? { cursor } : {}) });
-        for (const record of listed.records) {
-          const saved = record.metadata as unknown as Saved;
-          if (!record.tombstoned && !saved.removed) rows.push({ owner: { project_id: saved.project_id, plugin_id: saved.plugin_id }, server: view(saved, record.version) });
-        }
-        if (!listed.cursor) return rows;cursor = listed.cursor;
-      }
-      throw new Error("MCP 配置目录过大，无法完整读取");
-    },
+    catalog: () => listMcpConfigurations(runtime, view),
     async list(owner) { return (await library.catalog!()).filter(entry => sameOwner(entry.owner, owner)).map(entry => entry.server); },
     async save(owner, input) {
       const id = input.id ?? `mcp-${randomUUID()}`;
@@ -190,7 +192,8 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
       });
     },
     async control(owner, id, action, callOptions = {}) {
-      if (action === "cancel") { await held(owner, id);if (busy.get(id)?.action === "connect") busy.get(id)!.abort.abort();return; }
+      if (action === "cancel") { await held(owner, id);if (["connect", "refresh"].includes(busy.get(id)?.action ?? "")) busy.get(id)!.abort.abort();return; }
+      if (action === "refresh") { await callOptions.beforeDispatch?.(); callOptions.signal?.throwIfAborted(); await refreshSelected((await held(owner, id)).saved, callOptions); }
       await locked(id, action, async abort => {
         const cancelled = () => abort.abort();
         callOptions.signal?.addEventListener("abort", cancelled, { once: true });
@@ -227,6 +230,14 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
           }
           if (invalidated.has(id)) { await close(id); throw new Error("MCP 账号已改变，请重新连接"); }
           if (abort.signal.aborted) { await close(id);throw new Error("连接已取消"); }
+          runtime.adoptMcpTools(conn.ref);
+        } else if (action === "refresh") {
+          if (!record.saved.enabled) throw new Error("请先启用这个 MCP 服务");
+          await assertDirectory(record.saved);
+          const conn = connection(connectionId);
+          if (conn?.health !== "connected") throw new Error("这个 MCP 已断开，请重新连接");
+          await runtime.refreshMcp({ ref: conn.ref, signal: abort.signal });
+          await dispatch(); await assertDirectory(record.saved);
           runtime.adoptMcpTools(conn.ref);
         } else if (action === "disconnect") await close(id);
         else if (action === "remove") {

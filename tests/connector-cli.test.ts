@@ -4,10 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { connectCli, inspectCliConnection, startCliLogin, cliLoginJob } from "../apps/local-host/dist/connector-cli.js";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections, connectorRecordActions, CONNECTOR_RECORDS_READ, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { inspectSourceAuthorization } from "../apps/local-host/dist/connector-access.js";
 
-test("official CLI fixed commands bind separate account identities and reject a later account switch", async () => {
+test("ASC-03 ASC-04: official CLI fixed commands bind separate account identities and reject a later account switch", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-cli-"));
   const prior = process.env.PATH;
   const identityFile = join(home, "identity.json"), calls = join(home, "calls.jsonl");
@@ -23,7 +23,12 @@ test("official CLI fixed commands bind separate account identities and reject a 
     assert.notEqual(a.connection.connection_id, b.connection.connection_id);
     await assert.rejects(inspectCliConnection(home, a.connection.connection_id), /账号已改变/u);
     setIdentity(1, "New display name");
-    await inspectCliConnection(home, a.connection.connection_id, true);
+    const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+    try {
+      const records = await host.homeActionClient().invoke({ actor_id: "assistant:cli", audience: "agent", project_id: null, permissions: [CONNECTOR_RECORDS_READ] },
+        connectorRecordActions.read, { connection_id: a.connection.connection_id });
+      assert.doesNotMatch(JSON.stringify(records), /must-stay-private/);
+    } finally { await host.close(); }
     const requests = readFileSync(calls, "utf8").trim().split("\n").map(row => JSON.parse(row));
     assert.ok(requests.some(row => JSON.stringify(row) === '["api","notifications"]'));
     assert.ok(requests.every(row => row.length === 2 && row[0] === "api" && ["user", "notifications"].includes(row[1])));

@@ -95,6 +95,7 @@ export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput,
 
 export { withConnectorConnections } from "./connector-connection-store.js";
 export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
+export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { alchemistPulseGithub } from "./alchemist-pulse-github.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export * from "./github-oauth.js";

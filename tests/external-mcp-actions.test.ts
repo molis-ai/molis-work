@@ -155,7 +155,7 @@ test("listing the servers again while an external tool is being called replaces 
   const place = { project_id: "p1", storage_key: "memory:p1" };
   const tool = (name: string, description = name) => ({ server: "srv", server_label: "Srv", configuration_version: 1, tool: name, version: `shape-${name}`, description, input_schema: { type: "object", properties: { m: { type: "string" } } } });
   let tools = [tool("echo")], dispatched = 0, resync: (() => Promise<void>) | undefined;
-  const library = { list: async () => [{ id: "srv", enabled: true, version: 1 }], tools: async () => tools, live: () => true,
+  const library = { list: async () => [{ id: "srv", enabled: true, version: 1, health: "connected" }], tools: async () => tools, live: () => true,
     call: async (_owner: unknown, _tool: unknown, _args: unknown, options: { beforeDispatch?: () => Promise<void> }) => {
       // Between the handler's start and its dispatch (validation, workspace authority, clock) the settings page lists the servers.
       await resync?.();

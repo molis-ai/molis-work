@@ -86,7 +86,7 @@ export interface AgentMcpLibrary {
   catalog?(): Promise<Array<{ owner: AgentSkillOwner; server: AgentMcpServerView }>>;
   list(owner: AgentSkillOwner): Promise<AgentMcpServerView[]>;
   save(owner: AgentSkillOwner, input: AgentMcpServerInput): Promise<AgentMcpServerView>;
-  control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove", options?: { expected_version?: number; signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }): Promise<void>;
+  control(owner: AgentSkillOwner, id: string, action: "connect" | "refresh" | "disconnect" | "cancel" | "remove", options?: { expected_version?: number; signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }): Promise<void>;
   validateSources(owner: AgentSkillOwner, selected: readonly AgentMcpSourceRef[]): Promise<AgentMcpSourceRef[]>;
   validate(owner: AgentSkillOwner, selected: readonly AgentMcpToolRef[]): Promise<AgentMcpToolRef[]>;
   /** Connected tools with the input shape the server declared, for the shared action directory. */

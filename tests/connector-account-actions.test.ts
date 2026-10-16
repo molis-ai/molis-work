@@ -123,19 +123,33 @@ test("ASC-25: cancelling the common connection check reaches the API request", a
 });
 
 
-test("ASC-01 ASC-13 ASC-32: Home management checks a saved project MCP without Coding and publishes actions only in its project", async t => {
+test("ASC-01 ASC-12 ASC-13 ASC-14 ASC-32: Home management checks a saved project MCP without Coding and publishes actions only in its project", async t => {
   const home = await openTestHome(t);
   const project = await home.createProject("MCP project");
   const writes: string[] = [];
+  let discovery = 0, initializes = 0, phase = 0;
+  let release!: () => void, entered!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  const noteTool = { name: "write_note", inputSchema: { type: "object", properties: { note: { type: "string" } }, required: ["note"] } };
   const server = createServer(async (request, response) => {
     if (request.method === "DELETE") { response.writeHead(204).end(); return; }
     const parts: Buffer[] = []; for await (const part of request) parts.push(Buffer.from(part));
     const message = JSON.parse(Buffer.concat(parts).toString());
     if (message.id === undefined) { response.writeHead(202).end(); return; }
     let result: unknown;
-    if (message.method === "initialize") result = { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "inventory", version: "1" } };
-    else if (message.method === "tools/list") result = { tools: [{ name: "write_note", inputSchema: { type: "object", properties: { note: { type: "string" } }, required: ["note"] } }] };
-    else if (message.method === "tools/call") { writes.push(message.params.arguments.note); result = { content: [{ type: "text", text: "saved" }] }; }
+    if (message.method === "initialize") { initializes++; result = { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "inventory", version: "1" } }; }
+    else if (message.method === "tools/list") {
+      discovery++;
+      result = { tools: phase === 2 ? [] : [noteTool,
+        { name: phase === 0 ? "old_tool" : "new_tool", inputSchema: { type: "object", properties: {} } },
+        { name: "shape_tool", inputSchema: { type: "object", properties: { value: { type: phase === 0 ? "string" : "number" } }, required: ["value"] } }] };
+    }
+    else if (message.method === "tools/call") {
+      writes.push(message.params.arguments.note);
+      if (message.params.arguments.note === "held task") { entered(); await held; }
+      result = { content: [{ type: "text", text: "saved" }] };
+    }
     else { response.writeHead(400).end(); return; }
     response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
   });
@@ -161,14 +175,37 @@ test("ASC-01 ASC-13 ASC-32: Home management checks a saved project MCP without C
   await assert.rejects(homeClient.invoke(caller, ref, { note: "Home cannot borrow project access" }));
   await client.invoke(scoped, ref, { note: "project task" });
   assert.deepEqual(writes, ["project task"]);
+  const prior = await client.discover(scoped);
+  const removedTool = prior.find(row => row.action.title === "old_tool")!;
+  const changedTool = prior.find(row => row.action.title === "shape_tool")!;
+  const reference = (row: typeof removedTool) => ({ capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id });
+  const active = client.invoke(scoped, ref, { note: "held task" });
+  await started; phase = 1;
+  try {
+    await homeClient.invoke(caller, connectorManagementActions.check, { connection_id: saved.id });
+    assert.equal(initializes, 1, "a check reuses the live protocol session");
+    assert.equal(discovery, 2, "a check asks the server again instead of reading a cached snapshot");
+    const refreshed = await client.discover(scoped);
+    assert.ok(refreshed.some(row => row.action.title === "new_tool"));
+    assert.ok(!refreshed.some(row => row.action.title === "old_tool"));
+    await assert.rejects(client.invoke(scoped, reference(removedTool), {}));
+    await assert.rejects(client.invoke(scoped, reference(changedTool), { value: "old shape" }));
+    assert.deepEqual(writes, ["project task", "held task"]);
+  } finally { release(); }
+  await active;
+  phase = 2;
+  await homeClient.invoke(caller, connectorManagementActions.check, { connection_id: saved.id });
+  assert.ok(!(await client.discover(scoped)).some(row => row.provider.provider_id === action.provider.provider_id), "an empty current list removes all previously seen tools");
+  await assert.rejects(client.invoke(scoped, ref, { note: "removed" }));
+  phase = 0;
   await homeClient.invoke(caller, connectorManagementActions.control, { connection_id: saved.id, expected_revision: "1", action: "disable" });
   await assert.rejects(client.invoke(scoped, ref, { note: "disabled" }));
-  assert.deepEqual(writes, ["project task"]);
+  assert.deepEqual(writes, ["project task", "held task"]);
   await homeClient.invoke(caller, connectorManagementActions.control, { connection_id: saved.id, expected_revision: "2", action: "enable" });
   const enabled = (await client.discover(scoped)).find(row => row.action.title === "write_note")!;
   assert.ok(enabled.availability.available, "enable refreshes the actual connection and capabilities");
   await client.invoke(scoped, { capability_id: enabled.capability_id, version: enabled.version, provider_id: enabled.provider.provider_id }, { note: "enabled again" });
-  assert.deepEqual(writes, ["project task", "enabled again"]);
+  assert.deepEqual(writes, ["project task", "held task", "enabled again"]);
   await homeClient.invoke(caller, connectorManagementActions.control, { connection_id: saved.id, expected_revision: "3", action: "remove" });
   assert.deepEqual(await library.list(owner), []);
 });

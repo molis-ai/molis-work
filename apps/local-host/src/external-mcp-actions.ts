@@ -46,7 +46,7 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
     // A server still configured but not connected keeps what it offered, so references and the directory say why it cannot run.
     const servers = new Map((await library.list(owner)).map(server => [server.id, server]));
     const configured = new Set(servers.keys());
-    const connected = new Set(live.map(tool => tool.server));
+    const connected = new Set([...servers.values()].filter(server => server.health === "connected").map(server => server.id));
     const tools = [...live, ...(lastSeen.get(key) ?? []).filter(tool => configured.has(tool.server) && !connected.has(tool.server))];
     lastSeen.set(key, tools);
     remember(key, { ...place, plugin_id: pluginId, runtime_id: runtimeId, tools });

@@ -513,6 +513,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #611 合入（`958946e22`，删 APPROVED_CEILINGS 整个对象、三份样式表各降约 11 KB）。#616、#618、#619 因 page-assets.json 冲突：取消 #616 在旧合并上跑的全量并去标签、停掉 #618 的链；已让防腐线给 #616 合 main 重量并变基 #619，情境线给 #618 合 main 重量，回执线 3c 重加只含 3c 条目的对象。#620 全量在跑，#621 链在它后面。
     - 防腐线新 head：#616 `eccd9522d`（合 main，自身 diff 除预算外与审过的一致，全量链等空位）；#619 `d44296e37`（单提交放到 main 上，删 personal-shell.ts 与引用，三份样式表各少 10,020 B）。**page-assets.json 串行**：#616、#619、#618、3c 改的是同几行，两两 `git merge-tree` 冲突，先合的之后，下一个才合 main 重量、挂全量。顺序：#616 → #618 → #619 → 3c（以谁的 head 先就绪为准）。
     - #618 合 main 958946e22 后 `8afb521f0`（除预算外自身 diff 不变），停着等。#622（回执 3c，`fc3931994`）审过：设计系统里一份共享回执 `createInputReceipts`（Coding 与助理同用，Coding 自己那份删掉）；事实行与「AI 说」分开（虚线、「AI 自己说的，Molis 没有核对」）；一处 status 区、回执 `aria-live=off`；RC-12/RC-15 的断言搬进 `input-receipts-client.test.ts`、没丢；APPROVED_CEILINGS 只放 3c 三条，在用户批准的 +4,113 / +2,062 之内，带有界用例。**顺序改为 #616 → #622 → #618 → #619**：3c 的放行钉在 merge-base 的确切数字上，排在前面的每合一个都要手工重钉，放第二只钉一次，B/C1/D1 也早些开。
+    - #623（防腐线，只改文档：§10.21 接手以来复查总表与在途 6 个的组合效果）审过，直接入队（与 #619 无冲突）。它确认 #620/#621/#622 删的断言都有更严或对应的新断言、没有新违规；#618 在 #622 之后合，它的全量就是在合并结果上重跑助理面板与情境条用例。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

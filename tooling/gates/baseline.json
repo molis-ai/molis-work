@@ -97,9 +97,9 @@
       "lines": 501,
       "methods": 16
     },
-    "file modules/functions/src/store.ts": 939,
+    "file modules/functions/src/store.ts": 937,
     "class modules/functions/src/store.ts#FunctionsStore": {
-      "lines": 336,
+      "lines": 331,
       "methods": 22
     },
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {

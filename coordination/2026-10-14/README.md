@@ -368,6 +368,11 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 回执 1d 的资源增长（coding.js 与四份同样的包、样式表 +33 字节）按用户 10-15 的「规则要合理」走一次性例外（选项 A），写法同 #553；回执线会话的权限检查若拦下门禁改动，由用户在那个会话里批准。
   - 情境 W3-A2 只等 #553：1d 不再碰 assistant-island，所以不用等 1d。W4-10（#555）排在 W3-A2 与 1d 之前。W3-A2 的链接语义定为：用 + 加入的，同时进模型上下文和链接；没加的两样都不进；从对象发起的条目必须把对象放进手里。
   - 防腐 W4-04c #558（Form 页面改为打包的 TypeScript，form.js 37,472 → 30,300 字节，新计数 scriptConstants 130 → 129）已审、加了 full-suite。#557（子代理直接对话与 AI 开发手册需求）不是四线的，统筹不经手。
+  - #556（P3b）已合（`5948c56d`），#554（H4 第一部分）以只合并的新 head 入队后已合（`bdcf6920`）。交互开 2b；#553 并 main 重算后只合并入队。W4-05 #559 已审，等全量空位。#555 并 main 后重新加标签，全量在跑。
+  - 回执 1d 的一次性资源例外被回执线会话自己的权限检查拦下，用户在那个会话里批准。
+  - P3c（采用，`adoption/p3c-external-checks`）与 1d 撞四个文件（`agent-host-composition.ts`、`prologue-node.ts`、`prologue-node-port.ts`、`errors.ts`，量都小）：**P3c 先合**，1d 在 #553 与 P3c 之后只变基一次。
+  - P3c 统筹定（技术口径）：检查器可查的动作在「query + read + 本会话此刻有权」之外，**声明了 `model:invoke` 的也拒绝**。仍是按权限判，不是名单，不违背用户「按权限管」；理由是检查器反复轮询，每次都调模型就花费无界、结果不确定，且 §4.6.9 已写明检查器不调模型。要有断言拒绝本身的用例，spec §4.6.9 与 §6.0e 写成一致。
+  - P3c 的 Coding 提示词没有离线回放；弹窗问用户要不要先跑小评测，用户「无偏好」，随后明确「按推荐做」：合入前在隔离 Home 用 MiniMax 跑 3–5 个需要等外部结果的 Coding 任务，看模型是否用外部等待而不是自己轮询或提前收尾；密钥只给引用，结果写进 PR 与 WORDING_HISTORY。评测结果出来后统筹才加 full-suite。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

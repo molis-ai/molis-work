@@ -97,7 +97,7 @@ test("AC-22: Coding answers a typed questionnaire through the shared question ca
   assert.equal(await evaluate<boolean>(`Boolean(document.querySelector(${JSON.stringify(card)}).querySelector('[aria-checked="true"], [aria-pressed="true"]'))`), false,
     "nothing is picked for the person, not even the recommendation");
   // AC-25: beside the composer, a set of two questions is only a way to the card.
-  assert.deepEqual(await evaluate<string[]>(`[...document.querySelectorAll('${coding} [data-coding-steps]:not([hidden]) [data-ix-step-id]')].map(step => step.textContent.trim())`), ["去回答（2 题）"]);
+  assert.deepEqual(await evaluate<string[]>(`[...document.querySelectorAll('${coding} [data-coding-steps]:not([hidden]) [data-ix-step-label]')].map(step => step.textContent)`), ["去回答（2 题）"]);
 
   const evidence = reviewEvidenceUrl("ai-interaction/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("coding-question-card.png", evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
@@ -124,7 +124,7 @@ test("AC-25: Coding's next step answers a single choice through the card's own c
   await click(`${coding} [data-coding-send]`);
   const steps = `${coding} [data-coding-steps]:not([hidden]) [data-ix-step-id]`;
   await waitFor(`document.querySelectorAll(${JSON.stringify(steps)}).length === 2`, 30_000);
-  assert.deepEqual(await evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(steps)})].map(step => step.textContent.trim())`), ["登录（推荐）", "导出"]);
+  assert.deepEqual(await evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(steps)})].map(step => step.querySelector('[data-ix-step-label]').textContent)`), ["登录（推荐）", "导出"]);
   // What the card sends when its own submit is pressed.
   await evaluate(`(() => { window.__answers = []; const original = window.fetch; window.fetch = async (...args) => {
     if (args[1] && typeof args[1].body === 'string' && args[1].body.includes('"kind":"answer"')) window.__answers.push(JSON.parse(args[1].body)); return original(...args); }; })()`);

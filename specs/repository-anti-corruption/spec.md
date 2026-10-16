@@ -8,7 +8,7 @@
 
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
-W4-02（2026-10-15，Runtime 与已安装插件的 Manifest `methods` 生效，PR 待开；决定 #18「和内置插件一样注册：启动时注册，停用、卸载、升级时收回」）：
+W4-02（2026-10-15，Runtime 与已安装插件的 Manifest `methods` 生效，#562；决定 #18「和内置插件一样注册：启动时注册，停用、卸载、升级时收回」）：
 - 原来只有目录条目的 `methods` 在 Host 启动时登记（`builtinRegistrations`）；没有目录条目的插件在 Manifest 里声明方法能通过检查，却没有任何代码登记，别的 Agent 看不到。
 - 合同：`PluginDefinition.methods`（可选，`AgentSkillDefinition[]`）放方法正文，与 `agent_skills`（插件自己 Agent 的）分开。公开 API 快照 `tooling/gates/api/contracts/platform/plugin.txt` 只多这一个可选字段，现有插件不受影响。
 - 登记：`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`（原 `registerPluginInstructions`）在同一处登记指令和方法，项目与 Home 两个执行器都经它；按安装计数，最后一个实例停下时收回；升级后的版本在别的项目还跑旧版时启动，按新版本重新登记。声明与正文的配对与目录同一个函数（`declaredMethods`）：只登记声明了且有同标识、同版本正文的，缺正文的记进开发者诊断。定义带着指令或方法正文、而目录已为该主人登记了任何定义时拒绝启动（与指令的规则相同）；只带 Manifest 声明、不带正文的定义什么也不登记（目录插件自己的定义就是这样，如 Home Runtime 上的 Issues）；沙箱执行的定义不登记方法，因为方法正文会进别的 Agent 的轮次。

@@ -233,7 +233,7 @@ export { AssistantFollowUps, AssistantFollowUpRecords, FOLLOW_UP_KIND, type Assi
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
 export { interactionNextSteps, NEXT_STEP, type NextStepCard, type NextStepReview } from "./agent-next-steps.js";
 export { withPluginInteraction } from "./plugin-interaction-answer.js";
-export { assistantCardHtml, cardInputValues, instantIn } from "./assistant/assistant-card-view.js";
+export { assistantCardHtml } from "./assistant/assistant-card-view.js";
 export { assistantNextSteps, assistantStepRow, drawAssistantReply } from "./assistant/assistant-view-html.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";

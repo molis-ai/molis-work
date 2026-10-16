@@ -4,6 +4,53 @@
 
 export type { ActionAttach } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export interface ActionCard {
+    card_id: string;
+    revision: number;
+    title: string;
+    summary: string;
+    provider: string;
+    capability_title: string;
+    effect: "read" | "write" | "irreversible";
+    reference: ExactActionReference;
+    input: unknown;
+    input_schema: Record<string, unknown>;
+    editable: string[];
+    missing: Array<{
+        field: string;
+        question: string;
+    }>;
+    status: ActionCardStatus;
+    outcome?: string;
+    request_id?: string;
+    target?: {
+        kind: string;
+        id: string;
+        revision: string;
+        title: string;
+    };
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ActionCardPorts<Card extends ActionCard = ActionCard> {
+    readonly store: CardStore<Card>;
+    authority(): Promise<CardAuthority>;
+    readSubject(subject: {
+        kind: string;
+        id: string;
+    }): Promise<ActionSubjectContext | "missing" | null>;
+    now(): Date;
+    readonly timeZone?: string;
+    refuse(reason: ActionCardRefusal, message: string): Error;
+    started?(view: ActionView, output: unknown, card: Card): Promise<boolean>;
+}
+
+export type ActionCardRefusal = "revoked" | "invalid" | "conflict";
+
+export type ActionCardStatus = "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
+
 export type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 export { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -52,6 +99,16 @@ export type { ArtifactReferrer } from "@molis-ai/molis-work-contracts/platform/a
 export type { ArtifactReferrersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ArtifactReferrersResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+
+export interface CardAuthority {
+    discover(): Promise<readonly ActionView[]>;
+    check(view: ActionView, input: unknown): void | Promise<void>;
+    invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
+}
+
+export interface CardStore<Card extends ActionCard = ActionCard> {
+    update(card: Card, expected: number, patch: Partial<ActionCard>): Card;
+}
 
 export declare const DIFF_STEP_BUDGET = 200000;
 
@@ -187,6 +244,13 @@ export declare function bindPluginActionRoute<Input, Output>(context: PluginStar
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare function cardInputValues(values: unknown, zone: string | undefined): Record<string, string>;
+
+export declare function cardSubject(view: Pick<ActionView, "action" | "operation">, input: unknown): {
+    kind: string;
+    id: string;
+} | null;
+
 export declare function comparePluginVersions(left: string, right: string): number;
 
 export declare function compareTexts(before: string, after: string): TextDiff;
@@ -226,12 +290,19 @@ export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platfo
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function dismissActionCard<Card extends ActionCard>(card: Card, store: CardStore<Card>): Card;
+
+export declare function draftActionCard(cardId: string, offer: AgentActionOffer, views: readonly ActionView[], ports: Pick<ActionCardPorts, "readSubject" | "now" | "refuse"> & Pick<CardAuthority, "check">): Promise<ActionCard>;
+
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function inspectActionCrossReferences(definitions: unknown): string[];
 
 export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
+
+export declare function instantIn(day: string, time: string, zone: string | undefined): string | null;
 
 export { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
@@ -276,6 +347,12 @@ export declare function reconstructSides(ops: readonly DiffOp[]): {
 
 export { referencesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function runActionCard<Card extends ActionCard>(card: Card, input: {
+    revision: number;
+    values: Record<string, string>;
+}, ports: ActionCardPorts<Card>): Promise<Card>;
+
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -286,7 +363,16 @@ export declare function splitLines(text: string): DiffLine[];
 
 export { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare function sweepActionCard<Card extends ActionCard>(card: Card, ports: Pick<ActionCardPorts<Card>, "store" | "readSubject" | "now" | "timeZone">): Promise<Card>;
+
 export declare function textDiffRow(op: DiffOp): TextDiffRow;
+
+export declare function wallClockIn(at: number, zone: string | undefined): {
+    day: string;
+    time: string;
+    offset: string;
+    utc: number;
+};
 
 export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";

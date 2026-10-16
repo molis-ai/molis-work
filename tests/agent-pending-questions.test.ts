@@ -23,7 +23,7 @@ function runtimeDouble() {
         },
         control: {
           state: "running",
-          stop() {}, pause() {}, resume() {}, steer() {},
+          stop() {}, pause() {}, resume() {}, async steer() { return { steerId: "steer-1", replayed: false }; },
           subscribe() { return () => {}; },
         },
       };
@@ -108,7 +108,7 @@ test("没接回答通道时如实报不可用，而不是悄悄吞掉回答", as
 test("回答和 steer 是两回事：steer 不会关掉问题", async () => {
   const item = await adapterFor(async () => {});
   item.emit(question);
-  await item.adapter.control(item.ref, { kind: "steer", text: "顺便看看日志" });
+  await item.adapter.inputs.send(item.ref, { text: "顺便看看日志" });
   assert.equal((await item.adapter.read(item.ref)).awaiting_input.length, 1,
     "追加指令不等于回答了那条问题");
 });

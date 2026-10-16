@@ -17,6 +17,8 @@ import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-c
 function fakeCoding() {
   const sessions = new Map<string, { configuration: Record<string, string> | null; runs: AgentRunView[] }>();
   const calls: Array<{ name: string; input: any }> = [];
+  // What Coding's control says became of a supplement: the round took it, unless a test says it had just ended.
+  const receipt = { delivered: "run" as "run" | "queued" };
   const names = ["state", "sessions.create", "sessions.read", "sessions.update", "runs.start", "runs.control"];
   // Each at the version Coding publishes now, so the executor is checked against Coding's real contract.
   const version = (name: string) => Object.values(codingRouteActions).find(entry => entry.definition.capability_id === `coding.${name}`)!.definition.version;
@@ -36,11 +38,12 @@ function fakeCoding() {
         case "sessions.read": return { session: { session_id: input.session_id, runtime_session_id: null }, runs: session!.runs, configuration: session!.configuration };
         case "sessions.update": session!.configuration = structuredClone(input.configuration); return { session: { session_id: input.session_id } };
         case "runs.start": session!.runs.push(run(`run-${session!.runs.length + 1}`, input.task)); return {};
+        case "runs.control": return input.kind === "steer" ? { accepted: true, receipt: { input_id: "steer-1", replayed: false, delivered: receipt.delivered } } : { accepted: true };
         default: return {};
       }
     },
   };
-  return { sessions, calls, actions };
+  return { sessions, calls, actions, receipt };
 }
 
 function fixture() {
@@ -104,11 +107,36 @@ test("words sent to a Coding round under way reach it through Coding's current c
   const first = await service.send({ executor: "coding", scope: { kind: "project", project_id: "project" }, text: "加一个 subtract 函数", request_id: randomUUID() }, caller);
   const sessionId = (first.work.executor as { session_id: string }).session_id;
   (coding.sessions.get(sessionId)!.runs.at(-1) as { phase: string }).phase = "running";
-  const steered = await service.send({ work_id: first.work.work_id, text: "顺便补上测试", request_id: randomUUID() }, caller);
+  const requestId = randomUUID();
+  const steered = await service.send({ work_id: first.work.work_id, text: "顺便补上测试", request_id: requestId }, caller);
   assert.equal(steered.outcome, "steered");
   const control = coding.calls.filter(call => call.name === "runs.control").at(-1)!;
   assert.equal(control.input.kind, "steer");
   assert.equal(control.input.text, "顺便补上测试");
+  assert.equal(control.input.key, `send.${requestId}`, "RC-06: the press of Send is the supplement's key, so a repeat after a lost answer is the same supplement");
+});
+
+test("RC-06: words that reach a Coding round as it ends are said to wait for the next round, never to have reached this one", async () => {
+  const { coding, service, caller } = fixture();
+  const first = await service.send({ executor: "coding", scope: { kind: "project", project_id: "project" }, text: "加一个 subtract 函数", request_id: randomUUID() }, caller);
+  (coding.sessions.get((first.work.executor as { session_id: string }).session_id)!.runs.at(-1) as { phase: string }).phase = "running";
+  coding.receipt.delivered = "queued";
+  const late = await service.send({ work_id: first.work.work_id, text: "再把文档改了", request_id: randomUUID() }, caller);
+  assert.equal(late.outcome, "queued");
+});
+
+test("RC-06: an answer to a Coding question names the question's own revision, and one without a revision is not sent", async () => {
+  const { coding, service, caller } = fixture();
+  const first = await service.send({ executor: "coding", scope: { kind: "project", project_id: "project" }, text: "加一个 subtract 函数", request_id: randomUUID() }, caller);
+  const round = coding.sessions.get((first.work.executor as { session_id: string }).session_id)!.runs.at(-1)!;
+  round.phase = "awaiting-input";
+  round.awaiting_input = [{ pending_id: "q1", pending_revision: 4, kind: "text", prompt: "用哪个名字？", options: [], allows_free_text: true }];
+  assert.equal((await service.send({ work_id: first.work.work_id, text: "minus", request_id: randomUUID() }, caller)).outcome, "answered");
+  assert.equal(coding.calls.filter(call => call.name === "runs.control").at(-1)!.input.pending_revision, 4);
+  round.awaiting_input = [{ pending_id: "q2", kind: "text", prompt: "还要别的吗？", options: [], allows_free_text: true }];
+  const before = coding.calls.length;
+  await assert.rejects(service.send({ work_id: first.work.work_id, text: "不用了", request_id: randomUUID() }, caller), (error: unknown) => (error as { code?: string }).code === "assistant.stale");
+  assert.equal(coding.calls.filter(call => call.name === "runs.control").length, coding.calls.slice(0, before).filter(call => call.name === "runs.control").length, "no default revision is made up");
 });
 
 test("only a Coding work has a mode, and only a mode Coding knows", async () => {

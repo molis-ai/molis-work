@@ -33,7 +33,7 @@ import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
-import { AssistantInputs } from "./assistant-inputs.js";
+import { AssistantInputs, exactRevision, inputsOf } from "./assistant-inputs.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 
 const RUNTIME = "prologue";
@@ -889,7 +889,7 @@ export class AssistantService {
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
       assertSendCurrent(stillCurrent);
       this.linkSent(work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart);
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, input.request_id);
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {
@@ -944,7 +944,7 @@ export class AssistantService {
       const run = work.executor.session_id ? (await coding.read(work.executor.session_id, 6)).runs.find(item => item.ref.run_id === input.run_id) : undefined;
       const question = run?.awaiting_input.find(item => item.pending_id === input.pending_id);
       if (!run || !question || run.phase !== "awaiting-input") throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
-      await coding.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: input.pending_revision ?? question.pending_revision ?? 1,
+      await coding.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: exactRevision(input.pending_revision, question.pending_revision),
         ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
       return this.read(workId);
     }
@@ -976,7 +976,7 @@ export class AssistantService {
       const latest = await this.latestRun(host, work).catch(() => null);
       if (latest && latest.ref.run_id === review.run.run_id && !isTerminalAgentPhase(latest.phase)) {
         const why = input.note ? `，理由：${String(input.note).slice(0, 500)}` : "";
-        await host.adapter(RUNTIME).control(latest.ref, { kind: "steer", source: "host", text: `（Molis 转告）用户拒绝了这次修改「${describeReview(review.document).summary}」${why}。它没有执行。不要换别的能力做同一件事；需要时问用户想怎么做。` }).catch(() => undefined);
+        await host.adapter(RUNTIME).inputs?.send(latest.ref, { source: "host", text: `（Molis 转告）用户拒绝了这次修改「${describeReview(review.document).summary}」${why}。它没有执行。不要换别的能力做同一件事；需要时问用户想怎么做。` }).catch(() => undefined);
       }
     }
     return this.read(workId);
@@ -1584,7 +1584,7 @@ export class AssistantService {
   }
 
   /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
-  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
+  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, requestId?: string): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
     const coding = await this.coding(work, stillCurrent ? () => assertSendCurrent(stillCurrent) : undefined);
     let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
@@ -1600,9 +1600,9 @@ export class AssistantService {
     if (read.recovery_required) throw assistantErrors.needs_check(read.error ?? "Coding 会话有需要核对的中断操作", { action: "打开 Coding 核对" });
     const latest = read.runs.at(-1);
     if (latest && !isTerminalAgentPhase(latest.phase)) {
-      // Coding's own control asks every answer for the revision it answers.
-      const outcome = await this.inputs.deliver(latest, text, materials, context, { control: control => coding.control(sessionId, latest.ref.run_id,
-        control.kind === "answer" ? { ...control, pending_revision: control.pending_revision ?? 1 } : control) });
+      // Coding's own control carries both: every answer with the revision it answers, every supplement with its receipt.
+      const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => coding.control(sessionId, latest.ref.run_id, control),
+        send: input => coding.send(sessionId, latest.ref.run_id, input) }, requestId);
       return this.result(work, outcome, latest.ref.run_id);
     }
     const task = work.handover_brief ? `${work.handover_brief}\n\n用户现在的要求：${text}` : text;
@@ -1614,8 +1614,8 @@ export class AssistantService {
     return this.result(work, "started", run?.ref.run_id ?? "");
   }
 
-  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void): Promise<AssistantSendResult> {
-    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy, stillCurrent);
+  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, requestId?: string): Promise<AssistantSendResult> {
+    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy, stillCurrent, requestId);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const base = await this.ports.authority(work);
@@ -1638,9 +1638,9 @@ export class AssistantService {
     const latest = session.latest_run;
     if (latest && !isTerminalAgentPhase(latest.phase)) {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
-      const outcome = await this.inputs.deliver(latest, text, materials, context, { control: control => adapter.control(latest.ref, control),
+      const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: input => inputsOf(adapter).send(latest.ref, input, () => assertSendCurrent(stillCurrent)),
         // A running round cannot be shown a picture any more; it goes with the next round.
-        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } });
+        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, requestId);
       return this.result(work, outcome, latest.ref.run_id);
     }
     await this.assertBudget();
@@ -1668,7 +1668,7 @@ export class AssistantService {
         // Pictures the person added: the runtime shows them to the model in this round (refused if the model cannot see).
         ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
           .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
-        history: "session", budget: { max_turns: ROUND_TURNS, ...(left === undefined ? {} : { max_total_tokens: left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
+        history: "session", queued: "carry", budget: { max_turns: ROUND_TURNS, ...(left === undefined ? {} : { max_total_tokens: left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
         // The project's side panel browser is the person's work surface: a work delegated in the background never drives it.
         ...(work.delegated_by || work.reply_target ? { browser: false as const } : {}),
         // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.

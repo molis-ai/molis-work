@@ -54,7 +54,7 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
       ["artifact:read", "storage:private"], LOCAL, { cost: "metered" }, "concurrent"),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.control-run": { definition: { ...define("runs.control", "控制编码轮次", "回答提问、补充要求、暂停、继续或停止正在进行的一轮，或把它从下一次模型调用起换到另一个已配置的模型", "command",
-      codingRunControlInput, [], LOCAL), version: 2 },
+      codingRunControlInput, [], LOCAL), version: 3 },
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.read-report": { definition: define("reports.read", "读取执行报告", "读取一轮的固定报告；没有固定版本时按这一轮的记录生成预览", "query",
       closed({ ...round, fixed: { type: "boolean" } }, ["session_id", "run_id"]), ["artifact:read"], READS),

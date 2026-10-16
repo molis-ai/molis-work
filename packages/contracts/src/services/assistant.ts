@@ -489,10 +489,10 @@ export interface AssistantSendInput {
   request_id: string;
 }
 
-/** What one Send did: which work, and whether it started a round, reached a running one, or answered its question. */
+/** What one Send did: started a round, reached a running one, waits for the next (its round had just ended), or answered its question. */
 export interface AssistantSendResult {
   work: AssistantWork;
-  outcome: "started" | "steered" | "answered" | "repeated";
+  outcome: "started" | "steered" | "queued" | "answered" | "repeated";
   run_id?: string;
 }
 

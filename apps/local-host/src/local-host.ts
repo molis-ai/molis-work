@@ -103,6 +103,17 @@ function assertSameIdentity(current: LocalHostProjectReference, next: LocalHostP
   }
 }
 
+/**
+ * Closes a project's runtime once it has opened. An open that failed (the Host closing under it, say) has already told
+ * its own caller why; there is nothing to close, and the Host's close goes on (HOST-CLOSE-01).
+ */
+async function closeOpened<Runtime>(runtime: Promise<Runtime>, close: (runtime: Runtime) => void | Promise<void>): Promise<boolean> {
+  const opened = await runtime.then(value => ({ value }), () => null);
+  if (!opened) return false;
+  await close(opened.value);
+  return true;
+}
+
 export class LocalHost<Runtime> {
   readonly instanceId: string;
   readonly capabilities = new CapabilityRegistry<ActionCallContext>();
@@ -593,8 +604,7 @@ export class LocalHost<Runtime> {
       if (entry.activeUses > 0) {
         await new Promise<void>((resolve) => { entry.idleWaiters.push(resolve); });
       }
-      await this.options.runtimeFactory.close(await entry.runtime, entry.reference);
-      return true;
+      return await closeOpened(entry.runtime, runtime => this.options.runtimeFactory.close(runtime, entry.reference));
     } finally {
       for (const dispose of entry.actionDisposers) dispose();
       if (this.entries.get(storageKey) === entry) this.entries.delete(storageKey);

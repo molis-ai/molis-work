@@ -123,7 +123,7 @@ if (options.json) {
   if (result.full.length) {
     out.push("", "FULL REGRESSION RECOMMENDED (the related tests below are not enough):");
     for (const reason of result.full) out.push(`  - ${reason.detail}`);
-    out.push("  node scripts/run-tests.mjs takes about 77 minutes, one run per machine; PARALLEL-DEVELOPMENT.md section 7 says where it runs (an integration branch for several PRs).");
+    out.push("  node scripts/run-tests.mjs takes about an hour, one run per machine; PARALLEL-DEVELOPMENT.md section 7 says where it runs (an integration branch for several PRs).");
   }
   const reasonLines = (test) => {
     const byCode = new Map();

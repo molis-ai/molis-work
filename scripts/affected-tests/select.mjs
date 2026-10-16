@@ -9,7 +9,7 @@
 //                             a changed hunk is inside), unless more than the symbol limit read it
 //   the UI                    plus the browser tests (the README's "界面改动加跑"), run in a serial slot
 //   shared core, the assembly of the host or the shell, storage or migration, three or more packages, deleting a block of old code
-//                             the full suite is recommended (`node scripts/run-tests.mjs`, about 77 minutes)
+//                             the full suite is recommended (`node scripts/run-tests.mjs`, about an hour)
 // "Reads or calls it" is read from the tests, tier by tier, narrowest first; each selected test carries the reasons.
 import { devRequirementsSection } from "../package-dev-requirements.mjs";
 import {

@@ -1108,15 +1108,14 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 | 用 `any` 同时等成功文件和失败文件 | 第 5 轮 T4 | 模型能力 | 措辞已写明失败信号写成 `failed_marker`；只有一次，不成模式 | 第 6～8 轮曾加「不要另写一个等它的条件」，这是针对一种写法的禁令，已撤回 |
 | 完成标记是空文件，却写了 `non_empty: true`，一直等 | 第 10 轮 T1 | 模型能力 | 任务原文说标记是空文件，措辞写明 `non_empty` 的意思；3 次里 1 次 | 不改。第 6～8 轮曾去掉 `non_empty` 的介绍，已恢复 |
 | 接着做的那一轮读了文件，没写结果就停 | 第 3、5 轮 T1 | 模型能力 | 文件和回执都在；之后 5 轮里没再出现 | 不改 |
-| 动作工具被延后，改用 `run-command` 去调 | 第 7、8 轮 T3 接着做时，第 9 轮 T3 | 拿不准 | `builder` 有 19 个宿主工具，加上动作工具超过 `deferToolSchemasBeyond: 20`，全被延后；`find-tools` 之后，下一次请求的 `tools` 里仍没有它（SDK `agent-run-recipe.js` 的 `toolSpecs`）。没有换模型对照 | 不改。第 8 轮加过一句「按名字调用，不经 run-command」，没有用，已撤回 |
+| 动作工具被延后，改用 `run-command` 去调 | 第 7、8 轮 T3 接着做时，第 9 轮 T3 | 设计问题（SDK，2026-10-16 查明） | `builder` 的工具超过 `deferToolSchemasBeyond: 20`，动作工具全被延后。SDK 只把延后的工具名列在 `find-tools` 的说明里，之后的请求也不声明它们（`agent-run-recipe.js` 的 `toolSpecs` 只发没延后的），而执行工具时拒绝请求里没声明的工具。探针：替身模型按名字直接调用延后的「Job status」，先调不调 `find-tools` 都一样，动作调用 0 次，SDK 回「requested a tool not declared for that request」。换哪个模型都调不到 | 第 8 轮加过一句「按名字调用，不经 run-command」，没有用，已撤回。现在暂时不延后，上游修好再恢复，见下 |
 | 夹具缺陷，不算模型 | 第 1 轮 fetch 替身拦了 DNS-over-HTTPS；第 6 轮接着做的那一轮没给动作工具；第 7 轮动作工具的审查没人回答 | — | — | 修了夹具 |
 
 未验证：
 
-- `{"item": …}` 与 `"true"` 是供应商按 schema 转换时丢了类型，还是模型能力。两种验证办法：
-  - 让 `board-wait` 的 `params` 按检查器带上参数 schema（Prologue SDK 改动）后再跑；
-  - 用户同意后换模型对照。
-- 延后的动作工具在别的模型上能不能按名字调用。
+- `{"item": …}` 与 `"true"` 是供应商按 schema 转换时丢了类型，还是模型能力。用户 2026-10-16 定：不换模型。上游让 `board-wait` 的 `params` 按检查器带上 schema，换包后用同一个模型、同样的任务重跑。第 9～11 轮（不带类型）与重跑（带类型）就是对照，不另跑一轮。预计 `{"item": …}` 和字符串布尔值都降到 0 次；重跑后照实核对。
+- 不延后以后 T3 能不能过：没有重跑，等上游换包后一起重跑（见下）。
+- 业务网关的能力输入在工具 schema 里也是宽松的并集，`type` 是六种类型都行（`prologue-action-gateway.ts`：`read-capability`、`change-capability`、`change-reversible` 共用的参数，和 `suggest-action`）。和 `board-wait` 的 `params` 是同一类问题，算设计问题，有待验证。现在不改：重跑如果证明带上类型有用，再另开一片，让网关按每个能力自己的输入 schema 声明。
 
 之前各版（v2 没有发布，指纹都在同一行上改）：
 
@@ -1142,12 +1141,22 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
   - 第 6 轮后：接着做的那一轮带上同样的动作工具（夹具缺陷）。
   - 第 7 轮后：夹具批准动作工具的调用（夹具缺陷）。
 
+**2026-10-16 补：延后的工具调不到。** 统筹转达用户的决定：先在这边去掉延后，上游改好、换包后再恢复。
+
+- 不只评测里的 `builder`。按 main 上各角色的工具数，超过 20 个就全部延后，延后的谁都调不到：
+  - Coding：`builder` 给 2 个以上动作工具时；`coordinator` 6 个以上；`writer` 10 个以上；`planner`、`reader`、`reviewer` 13 个以上；
+  - `writers` 给 10 个以上，而且它没有 `find-tools`，连名字都看不到；
+  - 业务一轮（助理、Todo）正好 20 个，再多一个，网关、委派、记忆这 13 个工具就全被延后。
+- 暂时的做法：`prologue-node-port.ts` 不再设 `deferToolSchemasBeyond`（SDK 默认一个都不延后）。每次请求都带上全部工具的 schema，请求变长，大约多多少记在 PR 正文里。
+- 证据：`tests/prologue-tool-declaration.test.ts`（PA-12）：`builder` 一轮给 4 个动作工具、超过 20 个工具时，每个工具都在请求里声明，没有只列名字的；替身模型按名字调用两个只读动作，各执行一次。先在 main 上看它红（延后时动作调用 0 次）。
+
 **留到后面的**：
 
 - `molis.file-present` 只证明文件在（S-27 开放项）。
-- 评测里两项拿不准的，要先验证再定：
-  - `board-wait` 的 `params` 在工具 schema 里没有类型（按检查器声明参数 schema 要改 Prologue SDK）；
-  - 延后的动作工具在 `find-tools` 之后不进下一次请求的 `tools`。
+- 上游（Prologue）一个改动里做两件事：
+  - `find-tools` 找到的工具，这一轮之后的请求里声明，并记进 Run，续跑和回放照样声明；
+  - `board-wait` 的 `params` 按检查器带上参数 schema。
+- 照 `vendor/prologue-sdk/README.md` 换包（删旧包，`.sha256` 与来源记录相符）以后：删掉上面暂时的做法，在隔离 Home 里重跑这次小评测（每个任务 3 次），按结果重新分类。评测里拿不准的 `{"item": …}` 与 `"true"` 到那时再定。
 
 ### 6.1 当前记录
 

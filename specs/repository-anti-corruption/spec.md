@@ -24,6 +24,14 @@ W4-04 第二片（2026-10-15，插件读回自己固定的版本，#547）：For
 
 W4-09（2026-10-15，两个 PR 开着）：#539 把 Web 服务的五个周期任务登记在一处（`apps/local-host/src/periodic-tasks.ts`），「设置 › 诊断」列出「后台任务」；`W4-09-01`、`W4-09-02`（反复启停不留计时器）在 `tests/host-periodic-tasks.test.ts`。#540 让成果游标改为进程内通知加 30 秒兜底（`W4-09-03`，`tests/plugin-platform-composition.test.ts`），炼金术士工作室空闲 10 分钟且手上没事就关（`W4-09-04`，`tests/alchemist-studio-idle.test.ts`）。三处都做了变异检查。
 
+W4-10（2026-10-15，空闲轮询合并，PR 待开；用户 10-15 拍板「一个接口、每 15 秒」）：
+- 一个读：宿主加 `GET /api/attention`（`apps/local-host/src/attention-http.ts`），Home 页和项目页各一份，一次答出等着人的事：后台任务（Coding 会话）、助理对当前插件的提醒、插件投递待处理数，项目页另带 Board 的事件游标。每一部分仍由它的主人读（`homeBackgroundTasks`、`assistantNotices`、`pluginEventsPending`、`store.eventCursor`）；某一部分读失败就答 `null`，页面保留上次显示的，其余照答。原来的 `/api/background-tasks` 删掉。
+- 一个订阅：工作台的 `attention.ts`（由 `background-tasks.ts` 改名而来）每 15 秒读一次，只在页面可见时读；回到标签页、切换插件、本地动作之后（`molis-work:attention-refresh`）立刻再读。读完发 `molis-work:attention`：助理的铃铛（`assistant-island.ts` 去掉 20 秒轮询和它自己的可见性、侧栏点击重读）从这一份画，插件通知数也由铃铛直接从这一份和插件市场的列表（`molis-work:plugin-events`，比它之前开始的读新）计，`plugin-notifications.ts` 去掉 30 秒轮询和转发事件 `molis-work:plugin-events-waiting`，只剩打开插件市场，不再发任何请求。后台任务从 10 秒变 15 秒。两个新事件登记在 `dom-events.ts`（新主人 `attention`），转发事件删去。`/assets/molis-work-workbench.js` 不变大（`page-assets` 门禁）。
+- Board 游标：4 秒一次的游标检查只在 Goals 是当前面时跑；别的面靠 attention 带回的游标，变了才刷新 Board。放置的「这里用到的别处内容」只在首页进入视野、或放置变了（`invalidate`）时读，不再随每次重画读。
+- 预算：`tests/idle-request-budget.e2e.test.ts`（`W4-10-02`）在示例项目的首页空闲一分钟，请求数不超过 6（attention 4 次、首页自己的 30 秒刷新 2 次），旧的三个接口不再单独轮询。改前实测同一分钟 25 次（`board/cursor` 15、`attention` 4、`placement/related` 4、`home/events` 2；再往前没有合并时约 36 次，BL-116）。`tests/attention-route.test.ts`（`W4-10-01`）钉住两个页面的回答；`tests/settings-requests-through-helper.test.ts` 改为断言插件通知数不发请求（比原来「经请求助手发」更严）。
+- 改了的用例：`tests/workbench-hidden-refresh.e2e.test.ts` 原来在 Coding 窗格上看游标读取「隐藏就停、回来就读」，现在游标检查只在 Goals 面，改到 Goals 窗格上看同一件事，另加一条「Coding 窗格 4.5 秒内不读游标」；`tests/plugin-notification-bell.test.ts` 改为断言铃铛从 attention 和插件市场列表计数；`tests/dom-events-contract.test.ts` 里拿 `plugin-events-waiting` 当例子的几处换成同一主人的 `plugin-events-reveal`，断言不变。
+- 证据：`affected-tests` 选出的 137 个非浏览器文件全过；29 个浏览器文件（选出的 24 个加 `goal-event-review`、助理提醒与插件投递相关的）全过，`workbench-hidden-refresh` 按上条改后通过。健康门禁、边界、页面事件、`page-assets`（`/assets/molis-work-workbench.js` 与 main 同为 1,097,494 字节以内）通过。动了合同里的页面事件表（`pnpm api:update` 刷新了 `contracts/platform/dom-events` 快照），插件不受影响：这几个事件只在工作台里收发。改动命中全量条件（共享核心与外壳装配），全量在 CI。
+
 W4-11（2026-10-15，Home 存储统一登记，#542）：
 - 登记：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里 43 项有数据的条目和它们的 owner，库另带基线。
 - 声明：各 owner 在打开它的代码旁声明。插件的 `*_HOME_STORE` 经目录条目 `home_store` 带进；Issues 的经 `runtime.database` 带进；模块、存储层和宿主的各在自己的文件里。类型 `HomeStoreDeclaration` 放在 `contracts/platform/plugin`，形状与检查 `homeStoreRegistry` 放在 `packages/storage`；storage 不认识任何插件或模块。
@@ -488,7 +496,7 @@ W4-12（2026-10-15，视觉比对工具，#550）：
 | --- | --- | --- | --- |
 | 19 个构建期装配的内置插件（BL-080，含 BL-088） | 仍然成立 [已确认] | 见 R-01 | W4-04、W5-01、W5-02、W6-01；BL-088 随 W5-01 |
 | 首屏渲染全部插件的隐藏界面（PMR-07） | 未验证 [未验证] | #150 加了部分按需加载（`lifetime.whenVisible` 用在 `coding-companions.ts`、`plugin-event-recovery.ts`）；当时的 293 KB HTML、6041 个节点没有重量 | W1-07（页面资源预算门禁给出数字）、W5-05 |
-| 空闲轮询 | 部分 [已确认] | 工作台与插件里工作台前端、插件和炼金术士工作进程里共 10 个轮询（助理工作列表、通知 20 秒、后台任务 10 秒、插件通知 30 秒、context-actions、项目首页、Todo 提醒 60 秒、PPT、Coding 的 MCP 设置、炼金术士工作进程；五个目录里的 `setInterval(` 共 20 处，其余是桌面壳、宿主服务计时器和沙箱看门狗）；Board 游标轮询受可见性控制（`refresh-decisions.ts:117`）；没有合并成按可见面订阅 | W4-09、W4-10；BL-116 |
+| 空闲轮询 | 已做（W4-09 #539、#540，W4-10） | 宿主的周期任务登记在 `periodic-tasks.ts`（W4-09）；页面上等着人的事并成一个读 `/api/attention`、每 15 秒且只在可见时读，Board 游标检查只在 Goals 面跑，空闲首页每分钟请求数由 `tests/idle-request-budget.e2e.test.ts` 守住不超过 6（W4-10，见上方记录）；BL-116 已删 | W4-09、W4-10 |
 | 渲染后改写 HTML 里的链接（`prefixLocalLinks`） | 仍然成立 [已确认] | 定义在 `apps/workbench/src/renderer.ts:407`，`renderer.ts:299/309/313` 与 `goals-page-renderer.ts:138/330` 在渲染后改写 HTML 串 | 补记：并入 W5-06 |
 | Home 级插件的数据分项目时的搜索来源模式 | 仍然成立 [已确认] | `skills/molis-plugin-dev/search.md`（63 行）没有写这种模式 | 补记：并入 W6-03（Skill 与手册统一更新） |
 | 147 个被三条以上线改过的热点文件 | 仍然成立 [引用] | roadmap §4.7：`apps/workbench/src/i18n/en.ts` 23 次、`web-request.ts` 21 次、`web-catalog.ts` 14 次、`project-host.ts` 12 次等；`tooling/gates/baseline.json` 自身也成了冲突热点 | W1-13 已做（枢纽文件与排时段，`PARALLEL-DEVELOPMENT.md` 第 2、5 节；归属见 `.github/CODEOWNERS`，#314）；W5-02（声明式登记）、W6-04（重量） |

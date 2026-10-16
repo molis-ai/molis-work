@@ -39,6 +39,20 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ href }";
     readonly summary: "An import into the Artifacts library finished in the form that dispatched it; the dialog that hosts the form closes on it.";
 }, {
+    readonly name: "molis-work:attention";
+    readonly kind: "announcement";
+    readonly owner: "attention";
+    readonly on: "document";
+    readonly detail: "the /api/attention answer ({ background_tasks, notices, plugin_events_pending, board_cursor }) and started; a part that could not be read is null, started is the read's performance.now()";
+    readonly summary: "The page read what waits on the person; the Assistant's bell (with the plugin notification count) paints from it, and the board refreshes when its cursor moved.";
+}, {
+    readonly name: "molis-work:attention-refresh";
+    readonly kind: "request";
+    readonly owner: "attention";
+    readonly on: "document";
+    readonly detail: "none";
+    readonly summary: "Read what waits on the person again now: the person acted on a notice.";
+}, {
     readonly name: "molis-work:character-coding";
     readonly kind: "request";
     readonly owner: "coding";
@@ -130,13 +144,6 @@ export declare const DOM_EVENTS: readonly [{
     readonly on: "document";
     readonly detail: "none";
     readonly summary: "The market is being opened on the waiting deliveries; the recovery list shows them for a few seconds.";
-}, {
-    readonly name: "molis-work:plugin-events-waiting";
-    readonly kind: "announcement";
-    readonly owner: "plugin-notifications";
-    readonly on: "document";
-    readonly detail: "{ pending }";
-    readonly summary: "The number of plugin deliveries that wait on the person changed; the Assistant's bell repaints.";
 }, {
     readonly name: "molis-work:plugins-changed";
     readonly kind: "announcement";
@@ -433,9 +440,13 @@ export declare const PAGE_STATE_OWNERS: {
         readonly files: readonly ["apps/workbench/src/scripts/client/settings-directory.ts"];
         readonly state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it.";
     };
+    readonly attention: {
+        readonly files: readonly ["apps/workbench/src/scripts/client/attention.ts"];
+        readonly state: "What waits on the person, read once for the whole page (W4-10): the background tasks the title bar lists, the Assistant's notices for the plugin in front, the plugin deliveries waiting in the market and, on a project page, the board's event cursor.";
+    };
     readonly "plugin-notifications": {
         readonly files: readonly ["apps/workbench/src/scripts/client/plugin-notifications.ts"];
-        readonly state: "How many plugin deliveries wait on the person, and opening the market's recovery list on them.";
+        readonly state: "Opening the market's recovery list on the plugin deliveries that wait.";
     };
     readonly "plugin-event-recovery": {
         readonly files: readonly ["apps/workbench/src/scripts/client/plugin-event-recovery.ts"];

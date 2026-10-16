@@ -40,6 +40,7 @@ import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
 import { bindGoalsWebActions } from "./goals-actions.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
@@ -61,7 +62,9 @@ import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { handleAssistantHttp } from "./assistant/assistant-http.js";
+import { assistantNotices, handleAssistantHttp, type AssistantHttpPorts } from "./assistant/assistant-http.js";
+import { handleAttentionHttp } from "./attention-http.js";
+import { projectNavigation } from "./web-project-presentation.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
@@ -74,14 +77,14 @@ import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@mol
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
-import { handleLocalCatalogWebRequest } from "./web-catalog.js";
+import { handleLocalCatalogWebRequest, homeBackgroundTasks } from "./web-catalog.js";
 import { webProjectDeletionPorts } from "./project-deletion-service.js";
 import { handleAgentReviewHttp, handleUnscopedAgentReviews } from "./agent-review-http.js";
 import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { handleUnscopedComputerFiles } from "./computer/computer-record-source.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
-import { handleCodingPluginHttp, type CodingSurfacePorts } from "./coding-surface.js";
+import { handleCodingPluginHttp, pluginEventsPending, type CodingSurfacePorts } from "./coding-surface.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
 
 /** Review HTTP, including a confirm for the round that holds the computer while another project is open. */
@@ -153,10 +156,9 @@ export async function handleMolisWorkWebRequest(
   if (resolved.kind === "catalog_index") {
     // Personal memories are managed from the global settings, outside any project.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost })) return;
-    if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
-      localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady, projectReference: async projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
-      projectTitle: async projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
-    })) return;
+    const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
+    if (assistant && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, assistant)) return;
+    if (assistant && await handleAttentionHttp(request, response, url, { backgroundTasks: () => homeBackgroundTasks(resolved.projects), notices: surface => assistantNotices(assistant, surface) })) return;
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/side/files/") && await handleUnscopedComputerFiles(request, response, url, serverOptions.homeDirectory)) return;
     if (await handleUnscopedAgentReviews(request, response, url, { agentHost, actorId: LOCAL_PERSON_ACTOR_ID, computerHolder: () => computerHolderFor(localHost)?.() ?? null, ready: agentReady })) return;
     await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, resolved.projects, composition,
@@ -260,6 +262,8 @@ export async function handleMolisWorkWebRequest(
             await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID })));
           } } : {}),
           ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }, controlToken)) return;
+        const pluginPorts: CodingSurfacePorts = { ...codingServices, store, projectId: options.projectId, routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
+          actorId: LOCAL_PERSON_ACTOR_ID, goalTitle: (id) => coordinator.goalQueries.getGoal(options.projectId, id)?.title, escapeHtml: (value) => String(value), translate: (value) => value };
         const runtimePluginRoute = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\//u.exec(url.pathname);
         const runtimeUpdatesRoute = url.pathname === "/api/plugins/runtime/updates" || isPluginEventManagementPath(url.pathname);
         const runtimeEntry = runtimePluginRoute
@@ -272,10 +276,7 @@ export async function handleMolisWorkWebRequest(
             : runtimeEntry?.personal || (options.project && (!runtimeEntry || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
                 catalog => availableProjectPluginIds(catalog.listProjectPlugins(options.project!.project_id)).has(runtimeEntry.project_plugin_id))));
           if (!enabled) { const refusal = actionErrorResponse(new ActionError("actions.plugin_disabled", "此项目未启用该插件")); sendJson(response, refusal.status, refusal.body); return; }
-          if (await handleCodingPluginHttp(request, response, url, { ...codingServices, store, projectId: options.projectId,
-            routePrefix: options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "",
-            actorId: LOCAL_PERSON_ACTOR_ID, goalTitle: (id) => coordinator.goalQueries.getGoal(options.projectId, id)?.title,
-            escapeHtml: (value) => String(value), translate: (value) => value })) return;
+          if (await handleCodingPluginHttp(request, response, url, pluginPorts)) return;
         }
       const readWebView = async (): Promise<MolisWorkWebView> => {
         coordinator.goalDecisionAttention.reconcile(options.projectId);
@@ -413,11 +414,10 @@ export async function handleMolisWorkWebRequest(
         )) return;
         // This project's memories (and the person's own) from the project's settings and work panel.
         if (serverOptions.homeDirectory && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost, projectRef: hostReference })) return;
-        if (serverOptions.homeDirectory && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, {
-          localHost, homeDirectory: serverOptions.homeDirectory, agentHost, agentReady, projectRef: hostReference, projectReference: async projectId => projectId === hostReference.project_id ? hostReference : composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
-          projectTitle: async projectId => projectId === options.project?.project_id ? options.project.display_name
-            : composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
-        })) return;
+        const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady, { reference: hostReference, title: options.project?.display_name }) : null;
+        if (assistant && url.pathname.startsWith("/api/assistant/") && await handleAssistantHttp(request, response, url, assistant)) return;
+        if (assistant && await handleAttentionHttp(request, response, url, { backgroundTasks: async () => homeBackgroundTasks(await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listProjects().map(projectNavigation))),
+          notices: surface => assistantNotices(assistant, surface), boardCursor: () => store.eventCursor(options.projectId), ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) })) return;
         if (serverOptions.homeDirectory && await handleWorkflowsNativePluginHttp(request, response, url, {
           // A workflow may use every action the person may run here, and nothing more: native plugins from their manifests, Runtime plugins by their installed grants.
           actions: bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS),
@@ -505,4 +505,16 @@ function sendNotFound(request: IncomingMessage, response: ServerResponse, url: U
     return;
   }
   sendJson(response, 404, { error: L("页面或接口不存在") });
+}
+
+/** The Assistant's ports for a page: a project page scopes new works to its project; a work started elsewhere looks its own project up. */
+function assistantPortsFor(homeDirectory: string, composition: LocalWebComposition, localHost: MolisWorkLocalHost, agentHost: AgentHost, agentReady: () => Promise<void>,
+  page?: { reference: LocalHostProjectReference; title: string | undefined }): AssistantHttpPorts & { projectRef?: LocalHostProjectReference } {
+  const home = { homeDirectory };
+  return { localHost, homeDirectory, agentHost, agentReady, ...(page ? { projectRef: page.reference } : {}),
+    projectReference: async projectId => projectId === page?.reference.project_id ? page.reference : composition.withCatalog(home, catalog => {
+      const project = catalog.getProject(projectId); return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
+    projectTitle: async projectId => projectId === page?.reference.project_id && page.title !== undefined ? page.title
+      : composition.withCatalog(home, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
+  };
 }

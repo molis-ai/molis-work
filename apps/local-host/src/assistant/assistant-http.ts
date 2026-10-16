@@ -148,6 +148,16 @@ async function projectCharacters(ports: AssistantHttpPorts, project: LocalHostPr
   return codingCharacterPorts(ports.homeDirectory, WEB_ACTOR, board, artifacts);
 }
 
+/** What deserves the person's attention now, and on which surface (their rules hold some while it matches). */
+export async function assistantNotices(ports: AssistantHttpPorts, surface: string | null) {
+  const { service } = assistantServiceFor(ports);
+  // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
+  await service.list();
+  // What the person already acted on in its plugin is not news any more.
+  await service.settleHandledNotices().catch(() => 0);
+  return service.notices(surface);
+}
+
 /**
  * `/api/assistant/*`, served under whichever project page the person is on. The page's project only decides the
  * scope of a *new* work; an existing work keeps the scope it was started with.
@@ -213,14 +223,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         if (typeof body.confirm_always === "boolean") store.setConfirmAlways(WEB_ACTOR, key, body.confirm_always);
         return { status: 200, body: { ok: true } };
       }
-      // What deserves the person's attention now, and on which surface (their rules hold some while it matches).
-      if (method === "GET" && parts.length === 1 && parts[0] === "notices") {
-        // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
-        await service.list();
-        // What the person already acted on in its plugin is not news any more.
-        await service.settleHandledNotices().catch(() => 0);
-        return { status: 200, body: { notices: service.notices(url.searchParams.get("surface") || null) } };
-      }
+      if (method === "GET" && parts.length === 1 && parts[0] === "notices") return { status: 200, body: { notices: await assistantNotices(ports, url.searchParams.get("surface") || null) } };
       if (method === "POST" && parts.length === 1 && parts[0] === "notices") {
         const target = { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) };
         return { status: 200, body: { settled: service.settleNotices(target, body.state === "dismissed" ? "dismissed" : "seen") } };

@@ -622,7 +622,7 @@ test("W3-B1's landing code has one bounded allowance on three assets; other asse
   const allowed = {
     "/assets/molis-work-pages-editor.js": [703633, 707045],
     "/assets/molis-work-plugins/pages.js": [48441, 48727],
-    "/assets/molis-work-workbench.js": [1097494, 1099397],
+    "/assets/molis-work-workbench.js": [1097484, 1099387],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("w3b1-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

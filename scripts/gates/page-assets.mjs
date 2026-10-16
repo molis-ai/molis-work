@@ -238,7 +238,7 @@ const headErrors = (measured, budget, base) => {
 const APPROVED_CEILINGS = {
   "/assets/molis-work-pages-editor.js": [703633, 707045],
   "/assets/molis-work-plugins/pages.js": [48441, 48727],
-  "/assets/molis-work-workbench.js": [1097494, 1099397],
+  "/assets/molis-work-workbench.js": [1097484, 1099387],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

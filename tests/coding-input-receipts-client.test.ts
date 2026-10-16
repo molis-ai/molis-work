@@ -99,6 +99,19 @@ test("RC-15: a receipt that moves on is said once on the status line; the first 
   assert.deepEqual(said, ["你的补充：AI 已读到"]);
 });
 
+test("RC-15: a receipt is known by its input, not its turn id, which repeats in every round of the session", () => {
+  const said: string[] = [];
+  const { ui } = receipts(() => taken(), { say: text => said.push(text) });
+  const turn = (input: string, state: string) => ({ kind: "user", turn_id: "user-4", steer: { id: input, state } });
+  // One repaint draws the old round, then the new one, whose supplement has the same turn id.
+  const paint = (state: string) => { ui.receipt(turn("steer-1", "read")); ui.receipt(turn("steer-9", state)); };
+  paint("received");
+  assert.deepEqual(said, [], "a new supplement's first receipt is not a change");
+  paint("received");
+  paint("read");
+  assert.deepEqual(said, ["你的补充：AI 已读到"], "the new supplement moving on is said once");
+});
+
 test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {
   const marked = async (mode: string, delivered: "run" | "queued" = "run", replayed = false) => {
     const node = new Node();

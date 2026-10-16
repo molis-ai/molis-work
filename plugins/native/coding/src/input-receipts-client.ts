@@ -9,7 +9,8 @@
  * the same mode go under the same key, so the runtime returns the first one instead of taking it twice (§7). Changed
  * words are a new supplement. An answer the Host refused clears the bubble.
  *
- * A changed receipt is said on the status line (polite, never moving focus); the first paint says nothing. Interrupting
+ * A changed receipt is said on the status line (polite, never moving focus); the first paint says nothing. It is known
+ * by its input id: a turn id only counts within one round, and the page draws every round of the session. Interrupting
  * drops the reply the model was writing: the page dims the one it was showing being written and says so. The runtime's
  * record does not mark that reply (a Prologue need in the spec), so the mark is the page's own and a reload loses it.
  */
@@ -31,7 +32,7 @@ export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,say,q}
     receipt(turn){
       if(!turn.steer)return;
       if(turn.kind=='notice')return small('Molis 的说明，不是你发的话');
-      const words=WORDS[turn.steer.state]||'已送达',was=seen.get(turn.turn_id);seen.set(turn.turn_id,words);
+      const{id,state}=turn.steer,words=WORDS[state]||'已送达',was=seen.get(id);seen.set(id,words);
       if(was&&was!=words)say('你的补充：'+words);
       return Object.assign(small(words),{title:'读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。'});
     },

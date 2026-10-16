@@ -53,8 +53,8 @@ test("AC-21: what the card sends becomes the Runtime's answer: every question on
   assert.deepEqual(questionAnswer({ pick: ["team"], text: " 只发给我 " }), { text: "只发给我" });
   assert.equal(questionAnswer({ pick: [], text: "  " }), null);
   assert.equal(questionAnswer("q0"), null);
-  assert.deepEqual(questionErrors([{ question: 0, reason: "required" }, { question: 1, reason: "too-early" }], say),
-    { q0: "这一题需要回答", q1: "这一题的回答不能提交，请改一下" }, "each refused question gets a line beside its own field");
+  assert.deepEqual(questionErrors([{ question: 0, reason: "required" }, { question: 1, reason: "kind-not-allowed" }], say),
+    { q0: "这一题需要回答", q1: "这一题的回答不能提交，请改一下" }, "each refused question gets a line beside its own field; a reason without its own words gets the general one");
 });
 
 const card = (status: AssistantCard["status"], fields: AssistantCard["fields"] = []): AssistantCard => ({
@@ -162,6 +162,23 @@ test("AC-21, AC-23: a reply's views and cards are drawn wherever it carries them
   const single = { work_id: "w1", card: card("done") };
   drawAssistantReply(single, { say, drafts: () => ({}), card: () => "<drawn>" });
   assert.equal((single.card as AssistantCard & { html?: string }).html, "<drawn>", "a reply that carries one card gets it drawn");
+});
+
+// specs/ai-interaction-experience D34: the Host says once which waiting question words from the composer answer; the page only reads the mark.
+test("AC-27-5, D34: a question in words, or a questionnaire's one text question, is marked from_composer; anything else is not", () => {
+  const text = (index: number) => ({ index, prompt: "标题", type: "text" as const, required: true, options: [], multiple: false, allow_other: false });
+  const marked = (awaiting: AgentPendingQuestion[]) => {
+    const waiting = view("awaiting-input"); waiting.rounds[0]!.awaiting_input = structuredClone(awaiting);
+    drawAssistantReply(waiting, { say, drafts: () => ({}), card: () => "" });
+    return waiting.rounds[0]!.awaiting_input.map(item => (item as { from_composer?: boolean }).from_composer === true);
+  };
+  const words: AgentPendingQuestion = { pending_id: "w", kind: "question", prompt: "哪里坏了？", options: [], allows_free_text: true };
+  const oneText: AgentPendingQuestion = { ...questionnaire, pending_id: "t", questions: [text(0)] };
+  assert.deepEqual(marked([words]), [true], "a question in words");
+  assert.deepEqual(marked([oneText]), [true], "a questionnaire whose one question asks for words");
+  assert.deepEqual(marked([questionnaire]), [false], "choice questions stay on the card");
+  assert.deepEqual(marked([{ ...oneText, questions: [text(0), { ...text(1), type: "number" }] }]), [false], "two questions stay on the card");
+  assert.deepEqual(marked([words, oneText]), [false, false], "with two waiting, the composer cannot tell which one it answers");
 });
 
 

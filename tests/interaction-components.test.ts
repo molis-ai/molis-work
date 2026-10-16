@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  CRAFT_FINISH_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES,
+  CRAFT_FINISH_STYLES, INTERACTION_CALENDAR_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES,
   INTERACTION_STEP_STYLES, INTERACTION_STYLES, INTERACTION_TRACE_STYLES, PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES,
   renderInteractionNextSteps, renderInteractionOperation, renderInteractionOptions, renderInteractionQuestion, renderPrimitiveCatalog,
   type InteractionField,
@@ -102,14 +102,14 @@ test("AC-17, AC-21: the component board shows the parts; a product sheet takes o
   assert.ok(board.includes(INTERACTION_STYLES), "the board inlines the interaction sheet");
   for (const sheet of [PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES, CRAFT_FINISH_STYLES]) assert.ok(!sheet.includes(".mw-ix-card"), "not part of the shared page sheets");
   assert.doesNotMatch(INTERACTION_STYLES, /#[0-9a-fA-F]{3,8}\b|!important/, "tokens only, no overrides");
-  // Adopted by the Assistant (A1+H2): the pages it lives on (the workbench and the project chooser) take what it draws, and no more.
-  const drawn = [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_STEP_STYLES];
+  // Adopted by the Assistant (A1+H2, T1's number steppers): the pages it lives on (the workbench and the project chooser) take what it draws, and no more.
+  const drawn = [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_STEP_STYLES];
   for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkArrivalStylesheet()]) {
     for (const segment of drawn) assert.ok(sheet.includes(segment), "a segment the Assistant draws is in its pages' sheet");
-    for (const segment of [INTERACTION_NUMBER_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_TRACE_STYLES]) assert.ok(!sheet.includes(segment), "a segment it does not draw stays out");
+    for (const segment of [INTERACTION_CALENDAR_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_TRACE_STYLES]) assert.ok(!sheet.includes(segment), "a segment it does not draw stays out");
   }
   assert.ok(!renderMolisWorkSettingsStylesheet().includes(".mw-ix-card"), "settings pages have no Assistant");
-  assert.equal(INTERACTION_STYLES, [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_OPERATION_STYLES,
+  assert.equal(INTERACTION_STYLES, [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_CALENDAR_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_OPERATION_STYLES,
     INTERACTION_STEP_STYLES, INTERACTION_TRACE_STYLES].join(""), "the segments add up to the whole sheet");
 });
 test("AC-17: ids and scopes are escaped exactly once, so references match the elements they name", () => {

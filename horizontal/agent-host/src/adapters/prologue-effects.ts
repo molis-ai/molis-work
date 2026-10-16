@@ -49,9 +49,10 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
     return call({ beforeEffect: () => execution.beforeStart?.(), assert_current: () => execution.assertBeforeStart?.() }, work);
   };
   const session = (target: Session): Session => new Proxy(target, { get(object, key) {
-    if (key === "startRun") return (input: Parameters<Session["startRun"]>[0], drive?: Parameters<Session["startRun"]>[1]) => {
+    // Everything after `drive` goes through as given: `carry` there names the session's waiting supplements the run takes (specs/ai-input-receipts D29).
+    if (key === "startRun") return (input: Parameters<Session["startRun"]>[0], drive?: Parameters<Session["startRun"]>[1], options?: Parameters<Session["startRun"]>[2]) => {
       const frame = calls.getStore(), accepted = () => { if (frame) { frame.accepted = true; frame.active = false; } };
-      const run = object.startRun(input, drive ? context => { accepted(); return calls.exit(() => drive(context)); } : undefined);
+      const run = object.startRun(input, drive ? context => { accepted(); return calls.exit(() => drive(context)); } : undefined, options);
       return run.then(result => { accepted(); return result; });
     };
     const value: unknown = Reflect.get(object, key); return typeof value === "function" ? value.bind(object) : value;

@@ -18,6 +18,7 @@ import { AssistantService, presentActivity } from "../apps/local-host/dist/assis
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { HOST_GOVERNED_TOOLS, gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -354,7 +355,13 @@ test("a change stopped while its owner is still running: shown as not known, the
   const gate = new Promise<void>(resolve => { finish = resolve; }), reached = new Promise<void>(resolve => { entered = resolve; });
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.slow.write", version: 1, provider_id: "fixture.slow", input: { text: "slow" } } }),
-    body => { assert.match(JSON.stringify(body), /上一轮停止时仍在执行的修改/); assert.match(JSON.stringify(body), /Slow · Save slowly」：停止后已完成：不要再次提交/); return reply(undefined, "上次停止时那条保存后来已完成，不再重复。"); },
+    body => {
+      // ADH-12: the round hears how the change ended, as a fact; not sending it again is the role's to say.
+      const { data, role } = roundParts(body);
+      assert.match(data, /上一轮停止时仍在执行的修改/); assert.match(data, /「Slow · Save slowly」：停止后已完成/); assert.doesNotMatch(data, /不要再次提交/);
+      assert.match(role, /先核对已经做了什么，不要重做/);
+      return reply(undefined, "上次停止时那条保存后来已完成，不再重复。");
+    },
   ]);
   f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.slow", kind: "plugin", title: "Slow" }, definitions: [slow],
     handlers: [{ ...slow, async handle(context, input) {
@@ -1028,4 +1035,62 @@ test("PA-22: gateway tools say they read only when they change nothing; the Host
   for (const name of ["suggest-action", "delegate-work", "follow-up-delegated-work", "stop-delegated-work", "remember", "forget-memory", "suggest-memory",
     "change-capability", "change-reversible"]) assert.equal(kinds[name], "mutate-external", name);
   assert.deepEqual([...HOST_GOVERNED_TOOLS].sort(), ["delegate-work", "follow-up-delegated-work", "forget-memory", "remember", "stop-delegated-work", "suggest-action", "suggest-memory"]);
+});
+
+// Adoption §6.0f: the gateway's tools stay the same few (BL-145), and the capabilities a round found ride on their `input`:
+// one branch each, the directory's own input_schema under the capability's identity, beside the generic value.
+test("after find-capabilities the next request types each found capability's input on the tools that call it, with the directory's own schema", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "Notes" } }),
+    // Not shaped like the branch (a string, not an object): the registration takes it, and the gateway reads it as `{}`.
+    () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: "" } }),
+    () => reply(undefined, "There are no notes yet."),
+  ]);
+  try {
+    const sent = await f.service.send({ text: "How many notes are there?", request_id: "req-00000601", context: { source: { surface: "pages", title: "Pages" }, captured_at: new Date().toISOString() } }, { project_ref: f.project });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "completion");
+    type Sent = { tools: Array<{ name: string; input_schema?: { properties?: { input?: { anyOf?: Array<{ title?: string }> } } } }> };
+    const input = (body: Sent, tool: string) => body.tools.find(one => one.name === tool)?.input_schema?.properties?.input;
+    const generic = input(f.requests[0], "change-capability");
+    assert.equal(generic?.anyOf, undefined, "nothing found yet: the generic input only");
+    const titles = (body: Sent, tool: string) => (input(body, tool)?.anyOf ?? []).map(one => one.title ?? "generic");
+    assert.deepEqual(titles(f.requests[1], "read-capability"), ["fixture.notes.count@1", "generic"]);
+    assert.deepEqual(titles(f.requests[1], "change-capability"), ["fixture.notes.write@1", "generic"]);
+    assert.deepEqual(titles(f.requests[1], "suggest-action"), ["fixture.notes.count@1", "fixture.notes.write@1", "generic"], "a suggestion may name either, in the order find-capabilities listed them");
+    assert.deepEqual(input(f.requests[1], "change-capability")?.anyOf?.[0], { title: "fixture.notes.write@1", description: "Notes · Save a note", ...write.action.input_schema });
+    assert.deepEqual(input(f.requests[1], "change-capability")?.anyOf?.at(-1), generic, "the registered input stays one of the branches");
+    const done = await f.service.read(sent.work.work_id);
+    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["lookup:completed", "read:completed"]);
+  } finally { await f.close(); }
+});
+
+test("a round declares at most 12 found capabilities per tool and 24 KiB in all, keeps the newest, leaves an oversized schema out yet callable, and a new round starts with none", async () => {
+  const reader = (name: string, size = 0): ActionView => ({ capability_id: `fixture.notes.${name}`, version: 1, operation: "query", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: { ...count.action, title: `Read ${name}`, input_schema: { type: "object", properties: { pad: { type: "string", description: "x".repeat(size) } }, additionalProperties: false } },
+    availability: { available: true } });
+  // Two digits, so no name is a prefix of another and each search finds exactly one.
+  const small = Array.from({ length: 14 }, (_, i) => reader(`small-${String(i).padStart(2, "0")}`));
+  const wide = Array.from({ length: 12 }, (_, i) => reader(`wide-${String(i).padStart(2, "0")}`, 3_000));
+  const huge = reader("huge", 9_000);
+  const ran: string[] = [];
+  const client = { discover: async () => [...small, ...wide, huge], invoke: async (ref: { capability_id: string }) => { ran.push(ref.capability_id); return 0; } };
+  const round = prologueActionGateway({ client, operate: true } as never);
+  const find = (query: string) => round.executors["find-capabilities"]!({ args: { query } } as never);
+  const declared = () => ((round.parameterBranches("read-capability")?.input ?? []) as Array<{ title: string }>).map(one => one.title);
+  assert.deepEqual(declared(), [], "nothing found yet");
+  for (const one of small) await find(one.capability_id);
+  assert.equal(declared().length, 12, "12 per tool");
+  assert.deepEqual(declared(), small.slice(2).map(one => `${one.capability_id}@1`), "the newest found, in the order they were found");
+  assert.equal(round.parameterBranches("change-capability"), undefined, "a read is not typed on the change tools");
+  for (const one of wide) await find(one.capability_id);
+  const bytes = JSON.stringify(round.parameterBranches("read-capability")?.input).length;
+  assert.ok(bytes <= 24 * 1024, `${bytes} bytes`);
+  assert.equal(declared().at(-1), "fixture.notes.wide-11@1", "the newest stays");
+  assert.ok(declared().length < 12 && declared().every(title => title.includes("wide")), "the oldest found go first");
+  await find("fixture.notes.huge");
+  assert.ok(!declared().includes("fixture.notes.huge@1"), "a schema over 8 KiB is not declared");
+  await round.executors["read-capability"]!({ args: { capability_id: "fixture.notes.huge", version: 1, provider_id: "fixture.notes", input: {} } } as never);
+  assert.deepEqual(ran, ["fixture.notes.huge"], "and still runs");
+  const next = prologueActionGateway({ client, operate: true } as never);
+  assert.equal(next.parameterBranches("read-capability"), undefined, "a new round (or the Host after a restart) starts with none");
 });

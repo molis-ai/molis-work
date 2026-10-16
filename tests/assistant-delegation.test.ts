@@ -12,6 +12,7 @@ const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node")
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalHost, AssistantStore, AssistantService, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -207,14 +208,17 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
     assert.equal(after.work.work_id, sent.work.work_id, "the board shown is the delegating work's");
     assert.equal(after.delegated![0]!.taken_back, true);
     const checked = await service.delegation(store.get("web-user", sent.work.work_id))!.status({ work_ids: [childId] });
-    assert.match(checked[0]!.note ?? "", /由你在这项工作里完成/, "a round still checking on it reads what taking it back means");
+    assert.match(checked[0]!.note ?? "", /用户把这个子任务收回到这项工作：它已停下，已产出的保留。/, "a round still checking on it reads that it was taken back");
     await until(async () => ["stopped", "failed"].includes((await service.read(childId)).work.state), "child stopped");
     await assert.rejects(service.takeBack(childId), /已经收回/);
     // The delegating work's next round hears it, and a follow-up to the sub-task is refused.
     await service.send({ work_id: sent.work.work_id, text: "结论那部分你自己接着写完", request_id: "req-delegation-takeback-2" }, {});
     await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed"; }, "second round");
-    const told = parentBodies.find(body => body.includes("用户收回的子任务"));
-    assert.ok(told && told.includes("起草结论") && told.includes("不要再委托出去"), "the round is told the part is back");
+    const told = parentBodies.find(body => roundParts(body).data.includes("用户收回的子任务"));
+    assert.ok(told && roundParts(told).data.includes("起草结论"), "the round is told the part is back");
+    // ADH-12: that it is back is the data; finishing it here, not delegating it again, is the work layer's, said once.
+    assert.doesNotMatch(roundParts(told).data, /不要再委托出去/);
+    assert.match(roundParts(told).role, /用户收回的子任务由这项工作接着做完（可以读取它们已产出的对象），不再委托出去，也不再对它们追加要求。/);
     const last = parentBodies.at(-1)!;
     assert.match(last, /用户已把这个子任务收回到这项工作/, "the follow-up was refused");
     assert.equal((await service.read(childId)).work.follow_ups ?? 0, 0);

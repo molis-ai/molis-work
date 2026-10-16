@@ -66,6 +66,7 @@ tests/agent-host.test.ts
 tests/agent-pending-questions.test.ts
 tests/agent-plugin-identity.test.ts
 tests/agent-prompt-layers.test.ts
+tests/agent-question-types.test.ts
 tests/agent-review-http.test.ts
 tests/agent-review-surface.test.ts
 tests/agent-run-wait.test.ts

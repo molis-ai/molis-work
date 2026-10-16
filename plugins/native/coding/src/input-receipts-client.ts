@@ -23,7 +23,7 @@ export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q})=>{
       const {receipt}=await api('/sessions/'+encodeURIComponent(sent.id)+'/control','POST',{kind:'steer',run_id:sent.run,text:sent.text,key:sent.key,mode:sent.mode});
       if(item==sent)item=null;
       if(writing&&receipt.delivered=='run'&&!receipt.replayed){writing.classList.add('is-dropped');writing.append(small('这段回复已丢掉（你打断了它）'));}
-      return receipt.replayed?'之前已送到，没有重复发送。':receipt.delivered=='queued'&&sent.mode!='after-run'?'这一轮刚结束，已存好，下一轮开始时带上。':SENT[sent.mode];
+      return receipt.replayed?'之前已送到，没有重复发送。':receipt.delivered=='queued'&&sent.mode!='after-run'?'这一轮刚结束，'+SENT['after-run']:SENT[sent.mode];
     }catch(error){if(error instanceof TypeError||error.name=='SyntaxError'){sent.lost=1;throw Error('没确认送到：连接断了，或回复读不出。')}if(item==sent)item=null;throw error;}
     finally{refresh();}
   };

@@ -14,7 +14,7 @@ const questions: Sdk[] = [
   { index: 0, id: "format", prompt: "方式", options: [{ index: 0, label: "一起" }, { index: 1, label: "异步" }], allowOther: true },
   { index: 1, prompt: "渠道", options: [{ index: 0, label: "邮件" }, { index: 1, label: "群聊" }, { index: 2, label: "电话" }], multiple: true, required: false },
   { index: 2, id: "notes", prompt: "要求", options: [], type: "text", maxLength: 10 },
-  { index: 3, prompt: "人数", options: [], type: "number", min: 1, max: 10, integer: true },
+  { index: 3, prompt: "人数", options: [], type: "number", min: 1, max: 10, integer: true, unit: "人" },
   { index: 4, prompt: "截止", options: [], type: "date", min: "2026-01-01", max: "2026-12-31" },
   { index: 5, prompt: "开始", options: [], type: "datetime", min: "2026-10-01T00:00:00+08:00" },
   { index: 6, prompt: "关联", options: [], type: "reference", refKinds: ["goal"], multiple: true, maxCount: 2 },
@@ -88,6 +88,10 @@ test("S1 a question set a plugin's model wrote is checked before anyone is asked
   assert.match(questionSetFlaw([shown[0]!, shown[0]!]) ?? "", /appears twice/);
   assert.match(one({ type: "rating" }) ?? "", /unknown type/);
   assert.match(one({ max_length: 4 }) ?? "", /does not apply/);
+  // A unit is for showing beside a number field: one short line, on number questions only (Prologue's rule too).
+  assert.equal(shown[3]?.unit, "人");
+  for (const unit of ["", "  ", "分\n钟", "x".repeat(25)]) assert.match(one({ unit }) ?? "", /unit must be one line/);
+  assert.match(questionSetFlaw([{ ...shown[2]!, unit: "字" }]) ?? "", /"unit" does not apply/);
   assert.match(one({ min: 9, max: 2 }) ?? "", /min is above its max/);
   assert.match(one({ default: 50 }) ?? "", /default does not fit/);
   assert.match(questionSetFlaw([{ ...shown[6]!, default: [0] }]) ?? "", /nothing is prefilled/);

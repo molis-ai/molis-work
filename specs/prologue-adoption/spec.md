@@ -1033,6 +1033,49 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 - 宿主代人发的「优先」只告诉此刻正在跑的那几轮（§4.6.10 表里已写）。
 - `following`、2 小时认领过期，留到 P4。
 
+### 6.0e P3c 记录（2026-10-15）：Coding 的执行角色等外面的结果
+
+统筹 2026-10-15 转达用户的两项决定：
+
+1. 这一片只教 Coding 的执行角色（`builder`）用外部等待；提示词照规矩升版本、`WORDING_HISTORY` 加一行；Coding 的提示词有离线回放或评估就跑，要真实模型评测先弹窗问用户；PR 正文把「提示词改动」和「安全改动」分成两节。
+2. `molis.action-query` 按权限管，不另写名单：`operation` 为 `query`、effect 为 `read`、本会话此刻有权调用的动作都可以查；每次检查都经统一动作服务、用这一轮的授权重新核对；`SECURITY-INVARIANTS` 那一条写清只读、每次复核、写类或没有权限的一律 refused，拒绝用例里有「拿写类动作来查」。
+
+**做了什么**（PA-16～PA-19，§4.6.8 的语义）：
+
+- `horizontal/agent-host/src/adapters/prologue-checkers.ts`：SDK `conditionCheckers` 的实现。
+  - 两个检查器：`molis.action-query@1` 与 `molis.file-present@1`。
+  - 一个登记钩子（`tool-before`，只拦 `board-wait`）：登记时就拒绝写类、判断、导航、这一轮没给的动作，这时什么动作都不调。
+  - 每次看（`check`）先复核：等待仍在、范围一致、轮次仍被记得；再问这一轮自己的 `beforeDispatch`；然后才经这一轮的动作客户端重新发现、调用。文件检查器要宿主说目录此刻仍授权给这个项目（`checks.directoryAuthorized`，由 `apps/local-host/src/agent-host-composition.ts` 给）。
+  - 收回了就回 `refused`：SDK 把它记成 `checker_error`，等待停下，不再看。
+- `prologue-node-port.ts`：`conditionCheckers` 交给 `createRuntime`；`board-wait` 进自动放行名单。它自己不做事，等的东西由上面的钩子把关。
+- `prologue-node.ts`：`startAgentRun` 之后记下这一轮的授权（会话、`beforeDispatch`、目录、动作客户端与冻结的动作）；轮次结束且没有在等的等待时丢掉。宿主重启后不认旧轮次（S-27 的 host-restarted 用例）。
+- 错误码 `agent.collaboration_check_refused`、`agent.collaboration_check_not_read`（`horizontal/agent-host/src/errors.ts`）。
+- Coding：`builder` 角色 13 → 14，`host_tools` 加 `board-wait`；提示词 `coding-background` 1 → 2，教两种检查器和「要判断好坏的不能这样等」。
+
+**和 §4.6.8 设计不同的地方**：
+
+- 检查器登记表放在 `horizontal/agent-host`，不在 `apps/local-host` 的装配里（§4.6.9 表里写的位置）。每次看要用这一轮自己的授权（`beforeDispatch`、动作客户端），那是适配器在开跑时拿到的；宿主只经端口回答「目录此刻是否授权」。动作的授权仍由宿主的统一动作服务每次核对（`authorizeMcpActions` 那一条链），没有在 agent-host 里另写一份。
+- 助理的 `watchJob` / `checkJob` 没有迁到这里：用户定的范围只是 Coding 的执行角色。
+- `board-wait` 自动放行后，`builder` 也能用它等 `node`、`envelope`、`command`、`pending` 四类。这几类只等、不做；提示词只教 `external`。
+
+**证据**：
+
+- `tests/prologue-external-checks.test.ts`（PA-17、PA-18）：真实 Node SDK、真实宿主动作服务、受控的供应商回复。
+  - 结果文件：旧的不算，缺完成标记不算，失败标记就是失败。
+  - 只读查询：四个状态照给定的对上；没列出的状态、查询出错都是 unknown。
+  - 等的时候没有模型请求，满足后接续可走一次。
+- `tests/security-invariants-external-checks.test.ts`（S-27，PA-16、PA-19）：
+  - 登记时拒绝：没有的检查器、目录外的路径、命令、判断、这一轮没给的动作。
+  - 动作授权收回、插件实例停了、目录不再授权、宿主重启，这四种之后的那一次看都是 refused，不调动作，之后不再看，也没有接续和模型请求。
+  - 一轮连续 5 次调用失败就停（`prologue-run.ts`），所以「这一轮没给的动作」放在第二轮。
+- Coding 的提示词没有离线回放或评估用例（`pnpm studio:replay` 只管创作台），这次没跑；真实模型评测要先弹窗问用户，没做。
+
+**留到后面的**：
+
+- `molis.file-present` 只证明文件在（S-27 开放项）。
+- §4.6.9 表里写过「检查器不得调用模型、AI 动作」。按用户的决定，现在只看 query + read + 有权：判断（要问模型）因为是命令被拒，但一个声明了 `model:invoke` 的只读查询现在能被查。要不要再拒，待定（已报统筹）。
+- 状态句等 #556（P3b）合入后再改，避免两个 PR 改同一行。
+
 ### 6.1 当前记录
 
 A0 执行记录（下列历史方案记录之后继续）：

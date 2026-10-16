@@ -96,13 +96,14 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_BUILDER_ROLE,
-      version: 13,
+      version: 14,
       name: "构建者",
       // Edits and runs commands. Needs a Runtime that supports both under Host
       // approval, so it stays unavailable until one does.
       execution: "workspace-write",
       prompts: ["coding-base", "coding-builder", "coding-background"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "run-command", "start-command", "command-output", "command-stop", "await-commands", "board-read", "board-report", "session-send"],
+      // board-wait: the step waits on something outside (a result file, a read-only query's state) with the round over; a wait is a read.
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "run-command", "start-command", "command-output", "command-stop", "await-commands", "board-read", "board-report", "board-wait", "session-send"],
     },
     {
       role_id: CODING_WRITER_ROLE,
@@ -124,7 +125,7 @@ export const codingAgentManifest: AgentManifest = {
     { prompt_id: "coding-writer", version: 3 },
     { prompt_id: "coding-reviewer", version: 4 },
     { prompt_id: "coding-builder", version: 5 },
-    { prompt_id: "coding-background", version: 1 },
+    { prompt_id: "coding-background", version: 2 },
     { prompt_id: "coding-coordinator", version: 5 },
     { prompt_id: "coding-writers", version: 5 },
   ],
@@ -213,8 +214,14 @@ export const codingPrompts: readonly AgentPromptText[] = [
   {
     // Only for a role that holds the background command tools; the builder prompt is shared with a child that does not.
     prompt_id: "coding-background",
-    version: 1,
-    body: "耗时长的命令（完整测试、构建、起服务）用 start-command 放到后台，同样要用户批准；要结果时用 await-commands 等它，等待期间不调模型。预计很快的就地等；可能很久、手头又没别的事时用 park: true 挂起并结束这一轮，命令结束后会带着结果自动接着做。不要反复调用 command-output 查进度。不再需要的后台命令用 command-stop 停掉。",
+    version: 2,
+    body: [
+      "耗时长的命令（完整测试、构建、起服务）用 start-command 放到后台，同样要用户批准；要结果时用 await-commands 等它，等待期间不调模型。预计很快的就地等；可能很久、手头又没别的事时用 park: true 挂起并结束这一轮，命令结束后会带着结果自动接着做。不要反复调用 command-output 查进度。不再需要的后台命令用 command-stop 停掉。",
+      "要等的不是自己的后台命令、而是外面的事（别的程序写出的结果文件，或某个查询动作报告的状态），手头又没别的可做时，用 board-wait 登记外部条件（kind 写 external），说一句在等什么，然后结束这一轮。等待期间由宿主按时去看，不调模型；满足后自动接着做，确实失败或一直看不清时交给用户。只有两个检查器：",
+      "- molis.file-present@1：看本轮授权目录里的文件。params 写 path（目录内的相对路径），可加 marker（写完才出现的完成标记）、failed_marker（失败标记）、non_empty: true。只认这一轮开始之后写出的文件。文件在只说明它在，不证明内容对，也不证明生成成功，接着做时要自己核对。",
+      "- molis.action-query@1：反复调用一个这一轮能调用的只读查询动作。params 写 action（capability_id、version、provider_id 的精确引用）、input，以及 status：path 是回答里状态所在的字段名列表，satisfied、failed、pending 各列它可能的取值；没列到的取值算看不清。会修改东西的动作、判断类动作都会被拒绝。",
+      "需要判断好坏的条件（比如设计好不好）不能这样等，要等一个确定的完成信号，接着做时再判断。",
+    ].join("\n"),
   },
   {
     prompt_id: "coding-coordinator", version: 5,

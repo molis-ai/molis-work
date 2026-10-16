@@ -153,6 +153,8 @@ const WORDING_HISTORY: Readonly<Record<string, ReadonlyArray<readonly [number, s
   "system:contextual/contextual.draft": [[1, "4b887167a46f0e24"]],
   "io.molis.work.plugin-builder/choose.capability": [[1, "9d814fb0b2f16a3b"]],
   "io.molis.work.plugin-builder/choose.component": [[1, "30528fb1319325ba"]],
+  // Coding's executing role learns to wait on something outside (P3c, specs/prologue-adoption §4.6.8).
+  "io.molis.work.coding/coding-background": [[1, "ffceea0d45170e35"], [2, "372381392a3c1ad2"]],
 };
 const fingerprint = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 
@@ -167,7 +169,7 @@ test("a registered judgment wording's version moves with its default text", () =
     history.forEach((row, index) => { if (index) assert.ok(row[0] > history[index - 1]![0], `${key}: versions rise from row to row`); });
     assert.equal(new Set(history.map(row => row[1])).size, history.length, `${key}: a version that does not change the text`);
   }
-  const everyWording = [...bodies.keys()].filter(key => key.startsWith("system:contextual/") || key.startsWith("io.molis.work.plugin-builder/choose."));
+  const everyWording = [...bodies.keys()].filter(key => key.startsWith("system:contextual/") || key.startsWith("io.molis.work.plugin-builder/choose.") || key.startsWith("io.molis.work.coding/coding-background"));
   assert.deepEqual(everyWording.sort(), Object.keys(WORDING_HISTORY).sort(), "a new judgment wording starts its own history");
 });
 

@@ -283,6 +283,8 @@ test("STRIP-05: the Host keeps a landing only in the object the Send carries and
   const f = await fixture(t, []);
   try {
     f.notes.set("bg", { text: "background", version: 4 });
+    // Another note its owner can read: only the object match keeps a landing in it out of the round.
+    f.notes.set("other", { text: "other note", version: 1 });
     const landing = (id: string, position: string) => ({ plugin_id: "fixture.notes", object: { kind: "note", id }, position, heading_path: ["步骤"], before: "第二步，" });
     const asked = async (text: string, context: Record<string, unknown>) => {
       await f.service.send({ text, request_id: `req-${text}`, context: { source: { surface: "notes", title: "Notes" }, captured_at: new Date().toISOString(), ...context } } as never, { project_ref: f.project });

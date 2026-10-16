@@ -1322,7 +1322,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 浮条：`context-bar.ts` 的命中测试与面板收起后回来（`MutationObserver` 看两种面板的 `hidden`）。
   - 页面资源（只减不增，同一个 PR 里删代码抵消）：`molis-work-workbench.js` −30 B，`molis-work-pages-editor.js` −27 B，三份样式表各 −9 B。删掉的是已经没有元素的旧代码（仓库里没有任何地方再产出这些属性，几处测试本就断言它们不在页面上）：Goals 目录里的搜索框（`[data-tree-search]`、`[data-personal-search]`）的监听与状态、刷新时替换「归档」「回收站」链接（`[data-archive-link]`、`[data-trash-link]`）、`[data-close-work-planning]`、`[data-open-goal-tui]`、`[data-immersive-theme]`、`[data-feed-directory-title]` 的处理，以及选择器里的 `[data-risk-*]`、`[data-artifact-select]`；情境条的 `[hidden]` 规则（元素没有别的 `display`，浏览器自带的规则已经藏起它）；Pages 的落点改用 `focus.ts` 已有的 `headingPath`，不另写一份。
   - 验收编号：STRIP-04（没加入时没有落点；加入后出现，名字是标题加位置词；× 只去掉落点，对象照旧、模型不再看到落点）、STRIP-05（模型看到落点的事实；对象被主人删掉后，这一行没有）、CTX-COVER-01（390 与 1440 下，面板盖住选区时浮条不出、收起后回来），都在 `tests/assistant-context-strip.e2e.test.ts`。
-  - 顺带看到、不在本片：助理回复里的选区还不算手上的东西（DOM 选区读取排除了 `[data-assistant-island]`），所以「从回复里选一段放进左边光标处」没有接上，记在 BACKLOG BL-149（排在 W3-B3 之后，统筹 10-16 定）。
+  - 顺带看到、不在本片：助理回复里的选区还不算手上的东西（DOM 选区读取排除了 `[data-assistant-island]`），所以「从回复里选一段放进左边光标处」没有接上，记在 BACKLOG BL-150（排在 W3-B3 之后，统筹 10-16 定）。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

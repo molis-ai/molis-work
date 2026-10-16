@@ -48,8 +48,20 @@ export interface AgentRoleDeclaration {
   prompts?: string[];
   /** Host tool names this role may call. Implementation and effect class stay with the Host. */
   host_tools?: string[];
+  /** The methods that go with this role's purpose. Omitted: the role names none of its own. */
+  skills?: AgentRoleSkillsDeclaration;
   /** Read-only parent roles that must hand each child its own directory. */
   subagent_workspaces?: "required";
+}
+
+/**
+ * One purpose's methods. `allowed` are the block's `skills` a person may pick for this role; `default` are already picked
+ * when a round of this role starts, and the person may take them off. Every allowed method's tools are among the role's
+ * `host_tools`, so a method never asks for what the role cannot give.
+ */
+export interface AgentRoleSkillsDeclaration {
+  allowed: string[];
+  default?: string[];
 }
 
 export interface AgentSubagentRoleDeclaration {

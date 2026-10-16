@@ -79,6 +79,50 @@ function filePresentProblem(params: unknown): string | undefined {
   return params.non_empty === undefined || typeof params.non_empty === "boolean" ? undefined : "non_empty is true or false";
 }
 
+const states = (min: number, description: string) => ({ type: "array", items: { type: "string", minLength: 1, maxLength: 100 }, minItems: min, maxItems: 20, description }) as const;
+const insidePath = (description: string) => ({ type: "string", minLength: 1, maxLength: 400, description }) as const;
+
+/**
+ * Each checker's parameters as a JSON schema, in the subset the SDK checks: the model sees them on `board-wait`, and the SDK
+ * refuses parameters that do not match before the checker's own rules above look (specs/prologue-adoption §6.0e).
+ */
+const PARAMS = new Map<string, Readonly<Record<string, unknown>>>([
+  [ACTION_QUERY_CHECKER.id, {
+    type: "object",
+    description: "One of this round's read-only query action tools, asked again until its answer says a state.",
+    properties: {
+      tool: { type: "string", minLength: 1, maxLength: 200, description: "The action tool's name itself, as you call it (molis-action-…)." },
+      input: { type: "object", description: "The tool's input, as you would call it." },
+      status: {
+        type: "object",
+        description: "Where the answer says its state, and which states count as what. A state is in one list only.",
+        properties: {
+          path: { type: "array", items: { type: "string", minLength: 1, maxLength: 64 }, maxItems: 8, description: "Field names leading to the state in the answer, like [\"state\"]." },
+          satisfied: states(1, "States that mean the wait is over."),
+          failed: states(0, "States that mean it failed."),
+          pending: states(0, "States that mean not yet."),
+        },
+        required: ["path", "satisfied"],
+        additionalProperties: false,
+      },
+    },
+    required: ["tool", "status"],
+    additionalProperties: false,
+  }],
+  [FILE_PRESENT_CHECKER.id, {
+    type: "object",
+    description: "A file under the round's directory, written after the round started.",
+    properties: {
+      path: insidePath("The file, relative to the round's directory."),
+      marker: insidePath("A file that says it is complete, relative to the round's directory."),
+      failed_marker: insidePath("A file that says it failed, relative to the round's directory."),
+      non_empty: { type: "boolean", description: "Whether an empty file does not count yet." },
+    },
+    required: ["path"],
+    additionalProperties: false,
+  }],
+]);
+
 const sameRef = (view: Pick<ActionView, "capability_id" | "version" | "provider">, ref: ExactActionReference) =>
   view.capability_id === ref.capability_id && view.version === ref.version && view.provider.provider_id === ref.provider_id;
 
@@ -191,9 +235,10 @@ export function createPrologueConditionCheckers(deps: { readonly runtime: () => 
     return undefined;
   };
   const checkers: ConditionCheckers = {
+    list: () => [ACTION_QUERY_CHECKER, FILE_PRESENT_CHECKER],
     describe(id, version) {
       const problem = version === "1" ? problems.get(id) : undefined;
-      return problem && { readOnly: true, checkParams: params => problem(params as unknown) };
+      return problem && { readOnly: true, params: PARAMS.get(id), checkParams: params => problem(params as unknown) };
     },
     async check(request, signal) {
       const wait = deps.runtime().waits.get(request.wait.ref.id);

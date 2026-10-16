@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-15",
-    "mainHead": "e51233699c1463e3c8f0a8b08658c5860c962769",
-    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。 2026-10-15 对上游 main e51233699c1463e3c8f0a8b08658c5860c962769（collaboration 包的来源）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。",
+    "checkedOn": "2026-10-16",
+    "mainHead": "e4afd1a718bd8a8629d52526b953bbe75149baa6",
+    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。 2026-10-15 对上游 main e51233699c1463e3c8f0a8b08658c5860c962769（collaboration 包的来源）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main e4afd1a718bd8a8629d52526b953bbe75149baa6（found-tools 包的来源，#28 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -38,6 +38,7 @@
       "c63ea1a16eec8d8217223db1624b2409a1a33d14",
       "d2f5a05df6459440a253787e94ee6520f12d754d",
       "d4908c118f7899d44e3d1975806797a05f0094b9",
+      "e4afd1a718bd8a8629d52526b953bbe75149baa6",
       "e51233699c1463e3c8f0a8b08658c5860c962769",
       "f5ef12e6085c2865133b732ebc8ec235142685e1"
     ]
@@ -648,6 +649,14 @@
       "gitBlob": "f633a41a491d70b69b4325aa0d386812562c93f3",
       "commit": "4007a93c8901f090994bff8d847009982958bdef",
       "description": "提交 `4007a93c`（分支 `feature/model-switch-acceptance-cu-image`：CU-image 过渡线加上换模型的同步 beforeAccept 复查，即 Prologue #20，同样的改动在上游 main 是 #24；它自己不在 Prologue main）。2026-10-15 起是 main 的依赖（防腐线 I8，#523）；同日随 Molis P3a 换成从上游 main `e5123369` 打的 collaboration 包；旧包和其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-collaboration.tgz",
+      "bytes": 1182902,
+      "sha256": "9f001edeec1d6832ab1ca2e6443398ab2ab376f9cb15fc92e6393fce0c35ca62",
+      "gitBlob": "28d370d5b5ee5a870d98a6227e973cb9cb23330d",
+      "commit": "e51233699c1463e3c8f0a8b08658c5860c962769",
+      "description": "上游 main `e5123369`（Prologue #27 的合并：P2a–P2k、S4、窗口图、换模型的同步 beforeAccept 复查、撤销资源不逐块写墓碑）。2026-10-15 随 Molis P3a（#534）成为 main 的依赖；2026-10-16 换成从上游 main `e4afd1a7`（#28 的合并）打的 found-tools 包；旧包和其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, utimes, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { boardWait, externalChecks, toolTitled, until } from "./fixtures/external-checks.js";
+import { boardWait, externalChecks, toolTitled, until, type OfferedTool } from "./fixtures/external-checks.js";
 
 /**
  * A step's wait on something outside (specs/prologue-adoption §4.6.8, P3c): the round registers it with `board-wait` and
@@ -12,6 +12,8 @@ import { boardWait, externalChecks, toolTitled, until } from "./fixtures/externa
  */
 
 const note = async (f: Awaited<ReturnType<typeof externalChecks>>) => (await f.wait())?.conditions[0]?.last.note ?? "";
+/** What is at these keys of a JSON value, if anything. */
+const at = (value: unknown, ...keys: readonly (string | number)[]) => keys.reduce<unknown>((one, key) => typeof one === "object" && one !== null ? (one as Record<string, unknown>)[key] : undefined, value);
 
 test("PA-17 PA-18: a step waits on a result file — an old file, one without its completion marker or none at all is not it; no model call while it waits; once it is there the step may go on", { timeout: 60_000 }, async t => {
   const f = await externalChecks(t, turn => turn === 1 ? boardWait("molis.file-present@1", { path: "out/result.json", marker: "out/done" }) : { text: "在等结果文件。" });
@@ -69,4 +71,22 @@ test("PA-17 PA-18: a step waits on a read-only query — its states map as given
   assert.equal((await f.continuation())?.state, "eligible");
   assert.equal(f.calls.status, 4, "one query per look");
   assert.equal(f.requests.length, 2, "no model call while the step waited");
+});
+
+test("PA-17: board-wait shows each checker's parameters, and ones that do not match are refused when the wait is registered, naming the field", { timeout: 60_000 }, async t => {
+  let first: readonly OfferedTool[] = [];
+  // An array written as an object, the way MiniMax-M3 wrote them while params had no type (specs/prologue-adoption §6.0e).
+  const f = await externalChecks(t, (turn, _messages, tools) => {
+    if (turn === 1) first = tools;
+    return turn === 1 ? boardWait("molis.action-query@1", { tool: toolTitled(tools, "Job status"), input: { job: "j-1" }, status: { path: ["state"], satisfied: { item: "done" } } })
+      : { text: "这个等待没登记上。" };
+  });
+  await f.start("等作业 j-1 做完", { action_tools: [f.refs.status] });
+  const params = at(first.find(tool => tool.name === "board-wait")?.schema, "properties", "on", "items", "properties", "params");
+  assert.deepEqual((at(params, "anyOf") as { title?: string }[] | undefined)?.map(one => one.title), ["molis.action-query@1", "molis.file-present@1"], "one shape per checker");
+  assert.equal(at(params, "anyOf", 0, "properties", "status", "properties", "satisfied", "type"), "array");
+  assert.equal(at(params, "anyOf", 1, "properties", "non_empty", "type"), "boolean");
+  assert.match(f.requests[1] ?? "", /\$\.status\.satisfied: must be array, got object/, "the refusal names the field");
+  assert.equal(await f.wait(), undefined, "nothing waits");
+  assert.equal(f.calls.status, 0, "nothing was looked at");
 });

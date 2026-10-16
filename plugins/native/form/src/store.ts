@@ -1,5 +1,5 @@
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
@@ -343,9 +343,11 @@ export class FormStore {
 
 /**
  * The form store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
- * must already be at its version. Columns keep the order existing stores have them in.
+ * must already be at its version. Columns keep the order existing stores have them in. It is the library the Host's start
+ * list gives the running plugin (`services.database`), read with `form:read` and written with `form:write`; the store's
+ * own connection (deletion, tests) opens the same file at the same baseline.
  */
-export const FORM_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
+export const FORM_DATABASE: PluginDatabaseDeclaration = { store_name: "form", version: 2, read_permission: "form:read", write_permission: "form:write", schema: `
   CREATE TABLE forms (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -377,7 +379,7 @@ export const FORM_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
 
 /** A store on its own connection, for the project's deletion and for tests; the running plugin uses the library the Runtime gives it. */
 export function openFormStore(homeDirectory: string): FormStore {
-  const db = openBaselineHomeSqlite(homeDirectory, FORM_HOME_STORE.path, FORM_STORE_BASELINE);
+  const db = openBaselineHomeSqlite(homeDirectory, FORM_HOME_STORE.path, FORM_DATABASE);
   const sql: FormSql = {
     get: (text, parameters = []) => db.prepare(text).get(...parameters),
     all: (text, parameters = []) => db.prepare(text).all(...parameters),
@@ -514,8 +516,4 @@ function normalizeAnswers(
 export type { FormOption };
 
 /** This plugin's store in the Home's store registry (W4-11): `form/form.db` at its one baseline. */
-export const FORM_HOME_STORE: HomeStoreDeclaration = { path: "form", library: { baseline: FORM_STORE_BASELINE } };
-
-/** The library the Host's start list gives the running plugin (`services.database`): the same store, read with `form:read`, written with `form:write`. */
-export const FORM_DATABASE: PluginDatabaseDeclaration = { store_name: FORM_HOME_STORE.path, version: FORM_STORE_BASELINE.version, schema: FORM_STORE_BASELINE.schema,
-  read_permission: "form:read", write_permission: "form:write" };
+export const FORM_HOME_STORE: HomeStoreDeclaration = { path: FORM_DATABASE.store_name, library: { baseline: FORM_DATABASE } };

@@ -487,6 +487,9 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - 顺序：A → 3a → B → C1（可以并进 3c）→ D1。
     - 10-16 16:20 UTC：#598、#591 的全量都只挂 visual-surfaces（Linux 上 CDP 取样式超时，#604 修的那条），按「时间类失败可入队」手动入队。门禁脚本 `gate-and-queue.sh` 加了 `EXTRA_KNOWN`（空格分隔，本次运行额外视为已知的文件）；#605 的链带着它。#604 自己不带：它的全量里 visual-surfaces 必须过。
     - prologue#31（会话给自己包里工具的参数加分支，网关输入 schema 的上游一刀，head `94ef428bc`）：统筹审过，用户批准，统筹 squash 合入（prologue main `0793a837a`）。只改模型看到的声明（`anyOf: [...分支, 登记那份]`），参数名、必填项与调用核对不变，只作用于本会话包里的工具，写错属性报 `SCENARIO_PACK_INVALID`。该仓库没有 CI，依据是本机全库 349 文件全过。unit 那一刀是 #32，开好后审、再弹窗问用户；两刀都合入后采用线打包换包，Molis 换包 PR 带 AgentQuestion.unit 三处（含 plugin-sdk，共享核心，全量由统筹跑）。
+    - prologue#32（数字题可选 unit，head `acf7efdb8`）：统筹审过、用户批准，统筹 squash 合入（prologue main `4e8468ddb`）。已告诉采用线：从 prologue main 打包换包、开 Molis PR（带网关细化与 AgentQuestion.unit 三处），旧包删掉，记录要对上，快照一起提交。
+    - 防腐线 §10.18 复查：#606（`agent.offers.run` 把点击的 signal 交给动作，S-29 加拒绝用例；`6942d50d2`）审过，带 EXTRA_KNOWN 排全量（chain-606.log）；#607（只改 spec：原样恢复 #589 误删的 §10.17，已逐行核对与 `aadce77ac` 相同，加 §10.18）审过，直接入队。
+    - #595 版本问题（main 与 26 份清单已是 0.3.0，v0.3.0 只有草稿没有 tag）：用户 10-16 定「留 0.3.0，切版时补记录」。不退回 0.2.0；v0.3.0 按最终切版提交生成，发布 PR 把 CHANGELOG「汇集至」、v0.3.0.md 状态句与清单摘要表刷新到那个提交。统筹开文档 PR 把这条例外写进 POLICY 第 3 节（分支 `docs/policy-0.3.0-interval`）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

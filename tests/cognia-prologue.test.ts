@@ -50,7 +50,7 @@ test("Cognia discovery never decrypts or starts Prologue; actual packed SDK rece
     requests++; const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     assert.equal(body.model, "fixture-model"); assert.equal(body.tools?.length ?? 0, 0);
     assert.match(JSON.stringify(body.system), /COGNIA_ROLE_OVERRIDE/, "shared inference preserves the editable Cognia role instructions");
-    assert.match(JSON.stringify(body.messages), /ORIGINAL_FIXED_EVIDENCE/); assert.match(JSON.stringify(body.messages), /不可信资料/);
+    assert.match(JSON.stringify(body.messages), /ORIGINAL_FIXED_EVIDENCE/); assert.match(JSON.stringify(body.messages), /不可信数据/);
     assert.doesNotMatch(JSON.stringify(body), /UNSELECTED_EVIDENCE/);
     return response("# SDK 知识草稿\n已读取固定证据 [S1]");
   });

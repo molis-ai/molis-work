@@ -504,6 +504,9 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - visual-surfaces：防腐线更正，#604 之后的合并结果不再超时（#606 那次的合并结果早于 #604）。之后的链不再带 EXTRA_KNOWN。
     - #611、#616 在 #613 合入后与 main 冲突（page-assets.json），已让防腐线合 main 重量；#611 排着的旧全量已取消。#612（`911dc61b9`）、#614（`de05709cc`）合 main 后重挂全量。
     - 用户问「底下个人助理变丑」：不是 main，是 jingxusandra-gif 的分支 `feat/unified-input-voice`（`84d49a656`，基于旧 main #579，没开 PR），在单独克隆 `~/code/molis-work-uiv-accept`、端口 4319、临时 Home 跑的验收环境；新组件 unified-input 的样式没进样式表（三份样式表字节未变），所以原生按钮、裸「Empty」、英文报错。她开 PR 时按 DESIGN.md 审，不过不放行。
+    - #612 合入（`efe156edd`）。#614 全量全绿、已入队。#611（`2bd9d5dd7`）、#616（`8a54e3d8b`）全量在跑。
+    - #620（交互线：数字题单位 D35，`acefbac35`）审过：单位只经合同 `AgentQuestion.unit` 来，不从题干猜；`aria-describedby` 先指单位、再指报错行；interaction-components 的断言改动是 AC-27-6 收紧，不是放宽。全量链已挂，等空位。
+    - #618（情境线 W3-B2，`8b17d9416`）审过，退回两处小修再挂全量：①`checkLanding` 用 `in` 判位置，会放过原型键（如 `constructor`），改成 `Object.hasOwn`；②L-1（对象没加入就不带落点）只有页面在守，宿主的 `checkLanding` 要在 `context.object` 与 `landing.object` 的 kind、id 不一致时丢掉落点。其余（`readReferences` 只走 H3 那一份、材料只写事实、删掉的十个属性源码里都没人画）通过。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

@@ -42,7 +42,9 @@ export function webOnboardingInitializationInput(body: Record<string, unknown>, 
     let directoryExists = false;
     try {
       directoryExists = fs.statSync(workspacePath).isDirectory();
-    } catch {}
+    } catch {
+      // Missing or not readable by this service: either way not a directory the project can use, refused just below.
+    }
     if (!directoryExists) throw new Error("工作目录不存在或当前不可访问");
   }
   if (runtimeKind) {

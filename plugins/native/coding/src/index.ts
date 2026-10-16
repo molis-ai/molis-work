@@ -96,6 +96,7 @@ export {
   CodingSessionStore,
   CODING_ACTIVE_STATES,
   CODING_SCHEMA_SQL,
+  holdsCodingSessions,
   listCodingBackgroundSessions,
   toDirectoryEntries,
   type CodingBackgroundSession,

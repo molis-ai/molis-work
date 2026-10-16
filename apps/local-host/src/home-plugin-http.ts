@@ -95,7 +95,7 @@ function homePageContext(request: IncomingMessage, url: URL) {
     if (page.protocol !== url.protocol || page.host !== requestHost(request)) return undefined;
     const plugin = BUILTIN_PLUGIN_CATALOG.find(entry => page.pathname === `/plugins/${entry.project_plugin_id}` || page.searchParams.get("openPlugin") === entry.project_plugin_id);
     return { url: page.pathname, title: plugin?.manifest.name ?? null, provenance: "client_reported" as const };
-  } catch { return undefined; }
+  } catch { return undefined; /* A Referer that is not a URL names no page. */ }
 }
 
 /** A fresh Runtime view for every page render; the catalog does not grant activation or render a stopped instance. */

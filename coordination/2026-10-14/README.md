@@ -496,6 +496,10 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #613（交互 T1，`3ace136a4`）审过：D34 宿主一处判、页面读 `from_composer`；`coding.runs.control` v3→v4（只给 user，唯一钉住的调用方同改）；plugin-sdk `questionAnswer` 变宽（共享核心）。全量链在 #610 之后（chain-613.log）。用户批了 T1 真实模型试用「跑 12 轮（推荐）」（助理 6 + Coding 6，一次性隔离 Home，跑完即删；钥匙串读取仍由交互线会话里用户确认）。
       - 后续：交互线会话的自动模式拦了钥匙串读取（转告的批准不算它自己的权限），用户随后在交互线会话里说 T1 实测先不跑；脚本已删，#613 不变。用户另在统筹会话说「使用minimax不用与我确认，尽管用」（记忆 minimax-use-without-asking），已转告五条线；但各会话读钥匙串仍受各自的权限设置约束。
     - #614（回执 3a，`60b176bdb`）审过：回执只用 SDK `projectInputReceipts` 投影一次，宿主只补「记录没走到结尾」；合同落在 #591 拆出的文件。全量链在 #612 之后（chain-614.log）。
+    - 合入：#604、#605（`f9989ea51`）、#607、#609。#605 的全量分片 13 装 node-pty 时网络超时、一个用例都没跑，门禁却放行了：已补门禁（失败的分片在日志里找不到重试过的文件就不入队），重跑分片 13 后 63/63 过。#610 全量只挂 visual-surfaces，已入队。#606 全量挂 product-interaction（Feed 详情重试按钮「Hidden click target」，与改动无关），分片 12 在重跑。#613 与 main 冲突（page-assets.json，#605 让 coding.js 少了 2 字节），起不了全量，已让交互线合 main 重新量。
+    - 回执 C1 单独一片（D33，排在 3c 后，可与 B 并行，字节先抵后报）。3c 的放行条目替换 APPROVED_CEILINGS 里 #589 用完的那几条；防腐 W5-05 第 1 片也删这几条，谁后合谁变基，机制本身不动。
+    - #615（采用线换包：prologue main `4e8468dd` 的 parameter-branches 包、网关按找到的能力声明 input 分支、AgentQuestion.unit 三处，`504a86aae`）审过，全量链在 #614 之后（chain-615.log）。评测：带类型 12/12、30 次调用 1 次要纠正；通用 11/12、38 次 20 次要纠正。
+    - 用户 10-16 定「删网关纠正：做，全删」：normalizedInput 的 JSON 字符串解码、coerced、parseCapability 身份旁字段全删；find 之前写错的由合同拒、模型重发。采用线的子会话 remove-the-gateway-s-mod 做，等 #615 合入开 PR。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentFrozenRole, AgentRunOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { normalizedInput, offerWords } from "./prologue-action-gateway.js";
+import { GATEWAY_TOOLS, normalizedInput, offerWords } from "./prologue-action-gateway.js";
 
 export const agentActionToolName = (ref: ExactActionReference, scope: string) => "molis-action-" + scope + "-" + createHash("sha256")
   .update(JSON.stringify([ref.capability_id, ref.version, ref.provider_id])).digest("hex").slice(0, 24);
@@ -12,7 +12,7 @@ export const actionToolRefs = (refs: readonly ExactActionReference[], scope: str
   new Map(refs.map(ref => [agentActionToolName(ref, scope), { capability_id: ref.capability_id, version: ref.version, provider_id: ref.provider_id }]));
 
 /** The host tool a role grants to suggest: its tool is the round's own (below), not a Prologue system tool. */
-export const SUGGEST_HOST_TOOL = "suggest-action";
+export const SUGGEST_HOST_TOOL = GATEWAY_TOOLS.suggest;
 /**
  * The name of a round's own suggest tool, one per pack: it records, runs nothing, and is let through without a review
  * (prologue-taskboard.ts), so it must never share the `molis-action-` prefix every action asks under.

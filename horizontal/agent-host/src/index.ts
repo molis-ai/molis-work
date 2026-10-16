@@ -30,6 +30,7 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 
 import { AgentReviewQueue } from "./reviews.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "./execution-plan.js";
+import { SUGGEST_HOST_TOOL } from "./adapters/prologue-action-tools.js";
 
 export { AgentReviewQueue } from "./reviews.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
@@ -261,7 +262,7 @@ export interface AgentPromptResolver {
 
 /** Suggesting offers the person one of the round's own actions as a button: only a role that may change things may do it. */
 function assertMaySuggest(hostTools: readonly string[], execution: string | undefined): void {
-  if (hostTools.includes("suggest-action") && execution !== "workspace-write" && execution !== "operate") {
+  if (hostTools.includes(SUGGEST_HOST_TOOL) && execution !== "workspace-write" && execution !== "operate") {
     throw agentErrors.role_execution_exceeded("当前执行方式只读，不能向人建议操作，请更换执行方式");
   }
 }

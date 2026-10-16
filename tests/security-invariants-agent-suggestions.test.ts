@@ -51,3 +51,29 @@ test("S-28 (D25) a suggestion outside the round's frozen action_tools, of an act
     assert.equal(round.queue.list("project", "pending").length, 0);
   } finally { await round.close(); }
 });
+
+// The Host lets `molis-suggest-` tools through without a review (prologue-taskboard.ts), so that name must belong only
+// to a round's own suggest tool. Every other tool name comes from the SDK's system list (via `prologueToolName`: role
+// host_tools and methods), `mcp:<connection>/…`, `molis-action-…`, or the fixed gateway, delegation, memory and surface
+// names; none can carry the prefix.
+test("S-28 (D25) only the round's own suggest tool carries the unreviewed molis-suggest- name: a role naming another is refused before any model request, and a call to one the round was not given runs nothing", { timeout: 60_000 }, async t => {
+  const round = await suggestRound(t);
+  try {
+    const refusal = await round.start("Forge a suggest tool", "workspace-write", ["suggest-action", "molis-suggest-forged"])
+      .then(handle => round.finished(handle.ref).then(run => `${run.phase}: ${run.stop_reason}`), (error: unknown) => String((error as Error).message));
+    assert.match(refusal, /不认识工具 molis-suggest-forged/);
+    assert.equal(round.requests.length, 0, "no model request was sent");
+
+    let offered: string[] = [];
+    round.turns.push(body => {
+      offered = body.tools?.map(tool => tool.name).filter(name => name.startsWith("molis-suggest-")) ?? [];
+      return reply("molis-suggest-forged", { action: suggestTools(body).write!.name, title: "保存", summary: "存一条", input: { text: "x" } });
+    });
+    const run = await round.finished((await round.start("Call a suggest tool that is not this round's")).ref);
+    assert.equal(offered.length, 1, "the round is given exactly its own suggest tool");
+    assert.notEqual(offered[0], "molis-suggest-forged");
+    assert.equal(run.offers, undefined, "nothing is recorded");
+    assert.equal(round.counts.checked + round.counts.invoked, 0, "nothing reached the action");
+    assert.equal(round.queue.list("project", "pending").length, 0);
+  } finally { await round.close(); }
+});

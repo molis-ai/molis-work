@@ -1,5 +1,6 @@
 import { actionEffect, actionFieldInput, actionFieldValue, type ActionSubjectContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { actionErrorKind } from "./errors.js";
 
 /**
  * Action cards (specs/ai-interaction-experience H2, D26): a suggestion the person runs with one click, exactly as shown,
@@ -174,15 +175,19 @@ function preparedInput(card: ActionCard, values: Record<string, string>, refuse:
 }
 
 /** How a failed run reads: an unknown outcome is never offered again as a plain retry; data that moved on is stale, not failed. */
+/**
+ * Platform codes after which the call may have landed: delivery was not confirmed, or the Host was replaced mid-call (it
+ * does not resend), or the owner failed after its effect, or its output was invalid after it (W2-18-CARD-UNKNOWN-01).
+ */
+const OUTCOME_UNKNOWN: ReadonlySet<string> = new Set(["actions.outcome_unknown", "actions.output_invalid_after_effect", "actions.delivery_unknown", "actions.host_replaced"]);
+
+/** How a run that threw reads, by the failure's code and kind alone, never by its wording (specs/ai-interaction-experience D26). */
 function settled(error: unknown): Partial<ActionCard> {
-  const code = (error as { code?: string }).code ?? "";
   const message = error instanceof Error ? error.message : String(error);
-  // That includes a failure the owner raised after its effect, or an invalid output after it (W2-18-CARD-UNKNOWN-01).
-  const unknown = ["actions.outcome_unknown", "actions.output_invalid_after_effect"].includes(code) || /delivery_unknown|host_replaced/.test(code);
+  if (OUTCOME_UNKNOWN.has(String((error as { code?: unknown } | null)?.code ?? ""))) return { status: "unknown", outcome: `结果未确认：${message}。请到原处核对，不会自动重试` };
   // The data moved on since the suggestion: say so, and let the person ask for a fresh one; never re-aim it quietly.
-  const moved = !unknown && (/conflict|stale|revision|version/i.test(code) || /已在其他窗口修改|版本|已变化|已更新|revision|version/i.test(message));
-  return unknown ? { status: "unknown", outcome: `结果未确认：${message}。请到原处核对，不会自动重试` }
-    : moved ? { status: "stale", outcome: `数据在建议之后变化了，这张卡没有执行（${message}）` } : { status: "failed", outcome: message };
+  if (actionErrorKind(error) === "conflict") return { status: "stale", outcome: `数据在建议之后变化了，这张卡没有执行（${message}）` };
+  return { status: "failed", outcome: message };
 }
 
 /**

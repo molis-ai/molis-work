@@ -1,6 +1,6 @@
 import { bindCharacterLaunch } from "./launch-action.js";
 import type { ArtifactJsonValue, ArtifactReference, ArtifactVersionRecord, ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, parseCharacterContent, type CharacterContent, type CharactersCommand, type CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
+import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, characterErrors, parseCharacterContent, type CharacterContent, type CharactersCommand, type CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { PluginDefinition, PluginRouteBinding, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { charactersManifest } from "./manifest.js";
 import { charactersSettingsUiContribution, charactersUiContribution } from "./ui.js";
@@ -98,7 +98,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       }),
       bindOwnerPluginAction(context, a.publish, async (input, beforeWrite) => {
         const draft = ports.drafts.get(input.id);
-        if (!draft || draft.revision !== input.expected_revision) throw Object.assign(new Error("草稿已变化，请重新读取后发布"), { code: "characters.conflict" });
+        if (!draft || draft.revision !== input.expected_revision) throw characterErrors.conflict("草稿已变化，请重新读取后发布");
         await validateActions(draft.action_tools);
         await beforeWrite();
         const result = ports.publish(input.id, input.expected_revision, content => {

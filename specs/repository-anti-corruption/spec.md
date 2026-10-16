@@ -101,6 +101,16 @@ W4-08（2026-10-16，平台产品服务的边界，不新增规则，统筹 10-1
 - 能力：它们以系统动作登记；新的 typed 宿主能力由 `pnpm health:check` 的结构数字拦着（只许减少）。情境排序的 HTTP 例外与删除条件写在架构文档同一节。
 - 拆 `MemoryService`（`horizontal/memory/src/service.ts` 现 1,262 行）不在本项：按 `docs/system/HUGE-CLASS-MIGRATION.md` 的决定在包内由 W5-10 拆，路线图 W4-08 一行同步删去了「再拆 MemoryService」。
 
+W5-13 第一片（2026-10-16，Host 日志，PR #570；统筹 10-16 认可盘点与分片）：路线图「最小的结构化日志替换 Host 里的 console.*」与任务书 §4.8「结构化日志与调用标识贯穿主链路」。
+- 加：`apps/local-host/src/host-log.ts` 的 `hostLog.warn/error/debug(区域, 事件, 错误?, 字段?)`，Host 侧唯一的实现。每条是 stderr 上的一行 JSON（常驻服务的 LaunchAgent 写进 Home 的日志文件），用稳定的区域加事件名（如 `search` / `index_update_failed`）和错误码定位，带 `call_id`（内核调用范围里的编号，就是页面失败提示里可复制的诊断编号）。
+- 只记键（`docs/system/SECURITY-INVARIANTS.md` 的「密钥只给引用」）：错误只留名字和码，不留消息和调用栈（会带人写的字、路径或密钥）；字段只留数字、布尔、null 和像键的字符串（字母数字与 `._:@-`，至多 120 字，没有空格和路径分隔符），其余写成 `"[omitted]"`；不是键的区域或事件名也写成 `"[omitted]"`，不在 catch 里抛错。
+- `debug` 只在 `MOLIS_WORK_DEBUG` 列出区域时写（逗号分隔，`*` 为全部），直接取代 `MOLIS_WORK_MEMORY_DEBUG`、`MOLIS_WORK_SEARCH_DEBUG`，不留旧开关（仓库里没有别处读或写它们）。
+- 改：Host 里 14 处后台 `console.warn/error`（Web 重启、助理的定时队列与两项周期扫描、记忆提炼与整理、删除收尾、操作队列占用、创作台读目录、CDP 事件、搜索索引）改写 `hostLog`；`assistant/assistant-http.ts` 的 2 处等回执 1e 合入后再改（统筹：assistant/ 在途）。`cli-install-service.ts`、`cli-project-maintenance.ts` 的 46 处命令行输出改走 apps/cli 的 `printCliLine`、`printCliJson`（输出逐字不变；apps/cli 是 biome.jsonc 里已经关掉 `noConsole` 的命令行程序）。
+- 行为变化：搜索索引的后台更新（对账、刷新、同步）失败原来只在开关打开时打印，等于吞掉；现在总是记一条 warn（`logSearchIndexFailure`）。记忆提炼的 debug 原来打印整个结果对象（含提炼出的记忆正文），现在只记跑没跑、记了几条（`logMemoryLearning`）。删除收尾按错误的名字和码去重（原来按消息）。
+- 数字：`console` 88 → 28（剩下的是 `assistant-http.ts` 2 处、`apps/server` 的命令行入口 7 处、测试与示例）。
+- 测试：`tests/host-log.test.ts`：`W5-13-01`（一条记录的区域、事件、调用编号、错误名与码、字段；调用之外没有编号）、`W5-13-02`（debug 只为列出的区域写，`*` 为全部；warn 不看开关）、`W5-13-03`（搜索索引失败与记忆提炼经 Host 实际用的两个函数，错误消息、字段、嵌套对象、数组、名字里的人写的字、路径和密钥都进不了日志）。变异检查：错误留消息（01、03 失败）、字段留任意字符串（03 失败）、去掉 `call_id`（01 失败）、去掉 debug 的开关判断（02 失败）。
+- 吞错的盘点（下一片起按区域修，每片开工前把文件清单给统筹）：TypeScript 代码（不含浏览器模板字符串）里 1,631 个 `catch` 与 `.catch(…)`，按处理方式分：重抛或包装 345、有记录 180、空且带注释 123、空 26、只返回默认值 354、其他处理 603。空的、只带注释的、只返回默认值的三类共 503 处：`apps/local-host/src` 247（顶层 102、`assistant/` 63、`browser/` 35、`installer/` 15、`computer/` 14、`plugin-builder/` 9、`memory/` 7）、`horizontal/agent-host` 61（几乎都在 `adapters/prologue-*.ts`，是模型调用路径，只列给 AI 开发手册线，不在本项改）、Pages 21、Coding 18、`packages/storage` 17、gmail 13、Work 11、runtime-host 10、memory 9，其余每包 7 处以下。逐处判：确是「没有就是答案」（解析失败返回空、可选文件不存在）或尽力清理（关闭时删临时文件）的，留下并在注释里写明真实原因（不写「忽略」）；把失败当成功的，改为记 `hostLog` 或向调用方报错。分片：2 顶层（不含 `coding-surface.ts`）；3 `browser/`、`installer/`、`computer/`、`plugin-builder/`、`memory/`；4 storage、runtime-host、memory、search、plugin-runtime、contracts；5 插件（不含 Coding）；最后 `assistant/`、Coding（相关 PR 合入后）。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。
@@ -1758,6 +1768,22 @@ Prologue（10-14 复查到 #22 为止，这次看 #24～#27）：
 - #538（CI）：限流并只在加标签时跑，是用户 10-15 的弹窗决定（第 1 节）。
 
 Prologue：#10～#22 在 10-14 复查过，#24～#27 在 10.13，这一轮没有新合入的。
+
+### 10.15 2026-10-16 合入 PR 的独立复查（#553、#557、#561、#564、#566、#567，及在途的 #560、#568、#569）
+
+范围：§10.14 之后合入、不是本线的 PR（本线的 #555、#559、#562、#563 由统筹审）；在途的三个只做机械核对，入队前统筹按清单再审。查法同 10.14（门禁数字、兼容或读取兜底、删改断言、调大时限、从输入读可信身份），另读改到宿主、合同、Agent Host 与 SDK 的部分。
+
+结论：代码没有需要修的；一处活文档过时，本 PR 已改。
+- 门禁数字：没有调大。#553 与 #564 各用一次用户 10-15 批准的资源放行（`APPROVED_CEILINGS`），两者合入后都已用完；W4-03 第二片按原注释提议删去（待统筹定）。`limits.json`、`giant-exceptions.json`、`biome.jsonc`、隔离清单都没动。
+- 断言：#564 改的一条是计划里「规划时补充的意见」的措辞，从「已体现在确认的计划里」改成「没有逐条核对是否已写进计划；以确认的计划为准」，依据是 specs/ai-input-receipts RC-07、G14（没有核对就不说已体现），属于有依据的预期变化；其余只增不删。#569（在途）改的一条只改了失败说明，用例从 3 种扩到 11 种。
+- 时限、兼容、身份：新用例自带时限，没有调大现有的；命中的「compatible」都是 `Anthropic-compatible` 一类供应商名；没有从输入读 actor、项目或安装的新路径。
+- #553（W3-B1，放进左边）：新路由 `/api/contextual/attach` 走现有的情境请求读取与动作服务，用的是本人的权限；输入由落点和选中的文字算出，不经模型，所以预览就是要写的内容；执行前经 H3 的 `confirmReferences` 从主人那里重读落点对象，缺这个端口时拒绝；版本由主人比较。
+- #561（H4 2b）：卡片规则从 `assistant-offers.ts` 整段搬进 `packages/plugin-sdk/src/action-cards.ts`（`cardSubject`、结果摘要、相对日期判断都随之搬走，宿主不留第二份）；SDK 仍只依赖合同包，拒绝原因以端口给出，由助理映射回自己的 `assistant.*` 码，错误码与文字不变；API 快照随 PR 更新。
+- #564（回执 1d）：恢复报告的 `inputs` 读自运行时自己的输入队列，没有另存一份；会话打不开时不写这一项（未知，不当成空）；开轮时 `queued: "carry"` 是 D4 的「人开的那一轮带上」。
+- #557、#566、#567：文档与 Skill，门禁里的引用检查通过。
+- 过时：`specs/coding-plugin/spec.md` 第 6 条仍写旧措辞，本 PR 改成现行措辞并注明依据。`specs/ai-input-receipts/spec.md` 的现状核对表（「1d 计划轮次不写已体现：未做」等）是那条线写的时点快照，转给统筹，由回执线在 1e 时一并更新，这里不改。
+
+Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

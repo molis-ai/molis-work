@@ -731,8 +731,11 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
         idempotency_key: "http-stale-approve",
       }),
     });
-    assert.equal(staleApproval.status, 400, await staleApproval.clone().text());
-    const staleBody = await staleApproval.json() as { error?: string };
+    // D26: an approval of a decision the Goal has moved past is "the data moved on" — goals.event_decision.stale_commitment
+    // is declared conflict, so it answers 409 (it was 400 while the code was declared invalid).
+    assert.equal(staleApproval.status, 409, await staleApproval.clone().text());
+    const staleBody = await staleApproval.json() as { error?: string; code?: string };
+    assert.equal(staleBody.code, "goals.event_decision.stale_commitment");
     assert.match(String(staleBody.error), /变化|变更|匹配|过期|基线|版本/);
     const afterStale = app.goalEvents.readState(BOARD, goalId);
     assert.equal(afterStale.goal_event_cursor, beforeStale.goal_event_cursor);

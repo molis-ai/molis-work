@@ -65,6 +65,7 @@ import { assertFixtureScopes } from "./plugin-scope-entries.js";
 import { withPreparedActions } from "./plugin-actions-client.js";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+import { logSearchIndexFailure } from "./host-log.js";
 
 export interface MolisWorkProjectRuntime {
   store: LocalProjectDatabase;
@@ -261,7 +262,7 @@ export class MolisWorkLocalHost {
           await this.withProject(value, () => undefined);
           return value;
         },
-        onError: (error, where) => { if (process.env.MOLIS_WORK_SEARCH_DEBUG) console.warn(`[search] ${where}:`, error); } });
+        onError: logSearchIndexFailure });
       const reference = (project: PlacementProjectRecord) => molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       this.placement = createPlacementHost({ homeDirectory: home, registry: this.host.actionRegistry(),
         projects: async () => this.catalogRunner ? this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects()) : null,

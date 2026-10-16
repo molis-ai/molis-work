@@ -2,6 +2,7 @@ export {
   cliFlagValue,
   readCliJsonPayload,
   printCliJson,
+  printCliLine,
   cliGoalUrl,
   printV1Help,
 } from "./protocol.js";

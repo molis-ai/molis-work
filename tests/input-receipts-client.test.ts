@@ -87,14 +87,27 @@ test("RCPT-312, RC-15: a change is made in place and said once on the page's sta
   assert.deepEqual(await said(), ["你的补充「顺便把注册接口也覆盖一下」：AI 已读到；AI 说你的补充「顺便把注册接口也覆盖一下」：留到后面某一步 · 影响范围、验收条件"]);
 });
 
-test("RCPT-312, RC-15: a receipt is known by its input, not its turn id, which repeats in every round of the session", async () => {
+test("RCPT-312, RC-15, D28: a receipt is known by its round and input; turn ids repeat in every round", async () => {
   const { ui, said } = receipts();
   const turn = (input: string, state: string): Turn => ({ turn_id: "user-4", kind: "user", text: "补一条回归测试", steer: { id: input, state } });
   // One repaint draws the old round, then the new one, whose supplement has the same turn id.
-  const paint = (state: string) => [ui.line(turn("steer-1", "read")), ui.line(turn("steer-9", state))];
+  const paint = (state: string) => [ui.line(turn("steer-1", "read"), { ref: { run_id: "run-1" } }), ui.line(turn("steer-9", state), { ref: { run_id: "run-2" } })];
   const [old, fresh] = paint("received");
   assert.notEqual(old, fresh, "two supplements, two receipts");
   assert.deepEqual(await said(), [], "a new supplement's first receipt is not a change");
   paint("received"); paint("read");
-  assert.deepEqual(await said(), ["你的补充「补一条回归测试」：AI 已读到"], "the new supplement moving on is said once");
+  assert.deepEqual(await said(), ["你的补充「补一条回归测试」：AI 已读到"], "the new supplement moving on is said once, and 已送达 is never said");
+});
+
+test("RCPT-312, D28: a supplement carried into the next round under the same input id has a receipt in each round, and they never take turns being said", async () => {
+  const { ui, said } = receipts();
+  const turn = (state: string): Turn => ({ turn_id: "user-2", kind: "user", text: "改完补一条回归测试", steer: { id: "steer-6", state } });
+  // The Assistant's rounds carry their run id directly.
+  const paint = (carried: string) => [ui.line(turn("unread"), { run_id: "run-1" }), ui.line(turn(carried), { run_id: "run-2" })];
+  const [old, carried] = paint("applied");
+  assert.notEqual(old, carried, "the round that did not read it and the round that carried it each keep their own receipt");
+  paint("applied");
+  assert.deepEqual(await said(), [], "repaints say nothing");
+  paint("read");
+  assert.deepEqual(await said(), ["你的补充「改完补一条回归测试」：AI 已读到"], "only the carrying round's move is said");
 });

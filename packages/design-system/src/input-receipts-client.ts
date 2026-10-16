@@ -2,9 +2,9 @@
 import type { AgentInputModelClaim, AgentInputQuestion, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { compactScript } from "./compact-script.js";
 
-/** What the receipt reads of a run-view turn and its round (`AgentTurnView`, `AgentRunView`). */
+/** What the receipt reads of a run-view turn and its round: a run view (`AgentRunView`, with `ref`) or the Assistant's round (with `run_id`). */
 export interface InputReceiptTurn { turn_id: string; kind: string; text: string; steer?: AgentTurnSteer }
-export interface InputReceiptRound { awaiting_input?: readonly unknown[] }
+export interface InputReceiptRound { run_id?: string; ref?: { run_id: string }; awaiting_input?: readonly unknown[] }
 export interface InputReceipts {
   /**
    * The receipt under one of the person's supplements, or the Host's mark on a note it wrote for them; null for anything
@@ -79,8 +79,9 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
       const waits = (round?.awaiting_input ?? []).length > 0 && (steer.state === "received" || steer.state === "applied");
       const fact = L(waits ? "已补充到这一轮；问题仍在等你回答" : FACT[steer.state] ?? FACT.received);
       const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
-      // A turn id only counts within one round and the page draws every round, so the input id is part of the key.
-      const id = steer.id + "@" + turn.turn_id, key = JSON.stringify([fact, claim, ask, steer]), was = shown.get(id);
+      // Known by its round and input id: a turn id only counts within one round, the page draws every round, and a supplement
+      // a round did not read is carried into the next under the same input id (decision D28).
+      const id = (round?.run_id ?? round?.ref?.run_id ?? "") + " " + steer.id, key = JSON.stringify([fact, claim, ask, steer]), was = shown.get(id);
       if (was && was.said === key) return was.root;
       const root = was?.root ?? make("details", "mw-receipt");
       const summary = make("summary", ""), head = make("span", "mw-receipt__fact", fact);

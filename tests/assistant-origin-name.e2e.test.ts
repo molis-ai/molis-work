@@ -45,7 +45,7 @@ test("a work's starting point names the page it started on, never its id", { tim
 
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "看看今天的待办" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await waitFor("Boolean(document.querySelector('[data-assistant-side-toggle]')?.getClientRects().length)", 30_000);
   if (await evaluate("document.querySelector('[data-assistant-side-toggle]').getAttribute('aria-expanded')") !== "true") await click("[data-assistant-side-toggle]");

@@ -38,7 +38,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       unsettled.delete(intent.work);
       const visible = here();
       retainSent(res.work);
-      if (visible) {
+      if (visible) { compose.dataset.uivPhase="succeeded";
         takeMaterials(intent);
         if (sameInput()) {
           clearTimeout(draftTimer); input.value = "";
@@ -57,7 +57,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const unknown=error.code==="ui_host.outcome_unknown";if(!unknown)unsettled.delete(intent.work);
       const data=error.body?.details||{},visible=here();
       if (data.work) retainSent(data.work);
-      if (visible) {
+      if (visible) { compose.dataset.uivPhase=unknown?"uncertain":"failed";
         if (data.work) {
           if (sameInput() && store.get(NEW_DRAFT_KEY) === text) store.set(NEW_DRAFT_KEY, null);
           chooseSent(data.work);

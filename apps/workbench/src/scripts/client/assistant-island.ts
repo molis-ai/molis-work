@@ -352,7 +352,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const loadDraft = () => {
     const work = getWork();
-    input.value = work ? (work.draft || "") : (store.get(NEW_DRAFT_KEY) || "");
+    input.value = work ? (work.draft || "") : (store.get(NEW_DRAFT_KEY) || ""); compose.dataset.uivKey = curId || "";
     syncSend();
   };
   const switchTo = async (id) => {
@@ -2276,12 +2276,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (mentionOpen() && event.key === "ArrowDown") { event.preventDefault(); startPop.querySelector("button")?.focus(); return; }
     if (mentionOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeMention(); return; }
     if (mentionOpen() && event.key === "Enter" && !event.isComposing && event.keyCode !== 229 && startPop.querySelector("button")) { event.preventDefault(); startPop.querySelector("button").click(); return; }
-    if (event.key !== "Enter" || event.shiftKey || event.isComposing || event.keyCode === 229) return;
+    if (event.key !== "Enter" || event.isComposing || event.keyCode === 229 || (!(event.metaKey || event.ctrlKey) && !(slashOpen() && String(input.value || "").startsWith("/")))) return;
     event.preventDefault();
-    if (String(input.value || "").startsWith("/")) { if (slashOpen()) startPop.querySelector("button")?.click(); return; }
-    if (!String(input.value || "").trim()) { if (getWork()) { setPanel(true); reload().then(poll); } else if (works.length) { setPanel(true); setWorks(true); } return; }
-    syncSend();
-    if (!send.disabled) compose.requestSubmit(send);
+    if (slashOpen()) startPop.querySelector("button")?.click();
   });
   ${ASSISTANT_SEND_CLIENT_SCRIPT}
   const nextRow = island.querySelector("[data-assistant-next-row]");

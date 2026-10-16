@@ -48,7 +48,7 @@ test("the chooser sends from the selected project and switches back to personal 
   assert.equal((await works()).length, 2, "both works persist and the refused request creates nothing");
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click("[data-assistant-input]");
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden");
   await click("[data-assistant-panel-close]");

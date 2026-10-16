@@ -84,6 +84,7 @@ import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
 import { handleCodingPluginHttp, pluginEventsPending, type CodingSurfacePorts } from "./coding-surface.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
+import { handleLocalVoiceHttp } from "./local-voice-http.js";
 
 /** Review HTTP, including a confirm for the round that holds the computer while another project is open. */
 async function agentReviews(
@@ -132,7 +133,7 @@ export async function handleMolisWorkWebRequest(
   agentReady: () => Promise<void>,
 ): Promise<void> {
   const { PAGE_CSP, handleSessions, handleDesktopPanelApi, goalsReadHttp, planningHttp, desktopRuntimeAvailability, servePtyClient, workbenchRenderer, buildCapsuleSnapshot, handleArtifactNativePluginHttp, isDesktopShellRequest } = composition;
-  if (await handleHomePluginHttp(request, response, url, localHost, controlToken, PAGE_CSP)) return;
+  if (await handleLocalVoiceHttp(request, response, url, serverOptions.homeDirectory) || await handleHomePluginHttp(request, response, url, localHost, controlToken, PAGE_CSP)) return;
   // The personal space always exists for the person; it is made the first time anyone opens it.
   if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
     await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
@@ -182,7 +183,7 @@ export async function handleMolisWorkWebRequest(
         return;
       }
       // The prefix locates an existing project, but Home plugin HTTP keeps its Home caller and the same instance.
-      if (await handleHomePluginHttp(request, response, url, localHost, controlToken, PAGE_CSP)) return;
+      if (await handleLocalVoiceHttp(request, response, url, serverOptions.homeDirectory) || await handleHomePluginHttp(request, response, url, localHost, controlToken, PAGE_CSP)) return;
       const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
       // A web user's call into one surface's own actions, with whatever transport (cancellation) the surface adds.
       const userActions = (permissions: readonly string[], transport: Partial<ActionCallContext> = {}) => bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user" as const, permissions: [...permissions], ...transport }));

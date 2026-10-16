@@ -51,7 +51,7 @@ test("the Assistant's panel follows a running work by waiting for it to change, 
     return fetch0(input, init); }; })()`);
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "整理一下今天的会议纪要" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await asked.promise;
   await waitFor("window.__workRequests.some(request => request.wait)", 10_000);

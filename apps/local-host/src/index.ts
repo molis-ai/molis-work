@@ -264,3 +264,7 @@ export {
 } from "./computer/computer-policy.js";
 export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
 export { hostLog, captureHostLog, logSearchIndexFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
+export { jellyModelCacheDirectory } from "./jelly-native-material.js";
+export { extractNativeMaterial } from "./material-native.js";
+export { handleLocalVoiceHttp } from "./local-voice-http.js";
+export { localVoiceHelper, probeLocalVoice, silentVoiceWav, transcribeLocalVoice } from "./local-voice.js";

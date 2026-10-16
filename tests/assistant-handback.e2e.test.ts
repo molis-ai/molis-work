@@ -55,7 +55,7 @@ test("the panel shows a work going on by itself when the sub-task it handed out 
   await waitFor("Boolean(document.querySelector('[data-assistant-input]'))");
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "把今天的会议整理成纪要，分给子任务起草" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await childAsked.promise;
   const panel = "document.querySelector('[data-assistant-panel]').textContent";

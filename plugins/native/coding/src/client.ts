@@ -1174,7 +1174,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
     void showReviews(q('[data-coding-host-reviews]'), []);
     recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
-    resetWindow();cooperationUi.reset();current=id; draftOwner=''; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
+    resetWindow();cooperationUi.reset();current=id; input.form.dataset.uivKey=id||''; draftOwner=''; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
     taskboard.loading(id);
     q('[data-coding-checkpoints-list]').replaceChildren();q('[data-coding-checkpoints-status]').textContent='正在读取检查点…';
     q('[data-coding-commands]').querySelectorAll(':scope > .coding-command').forEach(node=>node.remove());q('[data-coding-commands]').hidden=true;
@@ -1508,7 +1508,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     sessions:()=>state.sessions.map(session=>({...session,state_label:SESSION_STATE[session.state] || ''})),
     openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);}});
   lifetime.listen(input,'input',()=>turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());}));
-  lifetime.listen(input,'keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
   // One way to start a round, shared by the composer and by continuing from a breakpoint.
   /** A round waiting for another session: what it waits for, and starting it now or giving the wait up. */
   let queuedKey='';
@@ -1609,15 +1608,15 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         // Another session already working on the same files in this directory: the person decides who goes first.
         const {overlaps}=await api('/sessions/'+encodeURIComponent(id)+'/scope-check','POST',{task,workspace_id});
         const choice=overlaps.length?await askOverlap(overlaps):'parallel';
-        if(choice==='cancel'){status('没有发送；可以修改任务后再发。');return;}
+        if(choice==='cancel'){status('没有发送；可以修改任务后再发。');input.form.dataset.uivPhase='idle';return;}
         if(choice==='wait'){
           await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments},{wait_for:overlaps[0].work_id});
           status('这一轮会在「'+overlaps[0].title+'」那一轮结束后自动开始。');
         } else await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments});
       }
       if(current===id && input.value===task) input.value='';
-      if(localDraft(id)===task) await saveDraft(id,''); surfaceChanged(id); await refreshState();await readCurrent();
-    } catch(error) {if(!lifetime.alive)return; status(error.message,true); }
+      if(localDraft(id)===task) await saveDraft(id,''); surfaceChanged(id); await refreshState();await readCurrent(); input.form.dataset.uivPhase='succeeded';
+    } catch(error) {if(!lifetime.alive)return; status(error.message,true); input.form.dataset.uivPhase=error instanceof TypeError?'uncertain':'failed'; }
     finally { sending=false;controls(); }
   });
   let pollingTicks=0;

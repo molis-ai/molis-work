@@ -24,7 +24,7 @@ function page() {
   return { ui, chip, thread, put };
 }
 const steer = (state: string) => ({ turn_id: "t1", kind: "user", text: "顺便看一下截图", steer: { id: "steer-1", state } });
-const asking = (revision = 1) => ({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q1", pending_revision: revision, allows_free_text: true }] });
+const asking = (revision = 1) => ({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q1", pending_revision: revision, allows_free_text: true, from_composer: true }] });
 const running = { phase: "running", awaiting_input: [] };
 
 test("RC-14: the line under a supplement says only what the runtime's record says, and a supplement sent to a waiting question says it still waits", () => {
@@ -64,8 +64,8 @@ test("RC-14: the chip shows only while the round waits on its one free-text ques
   assert.equal(ui.target(), "steer", "a redraw keeps the person's choice");
   ui.paint(asking(2));
   assert.equal(ui.target(), "answer", "a new question starts again at answering it");
-  ui.paint({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q2", pending_revision: 1, allows_free_text: true, questions: [{ prompt: "选哪个？" }] }] });
-  assert.equal(chip.hidden, true, "a questionnaire is answered on its own card, not from the composer");
+  ui.paint({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q2", pending_revision: 1, allows_free_text: true, questions: [{ prompt: "选哪个？", type: "choice" }] }] });
+  assert.equal(chip.hidden, true, "a question the Host does not mark from_composer is answered on its own card (D34)");
   ui.paint(undefined);
   assert.equal(ui.target(), undefined);
 });

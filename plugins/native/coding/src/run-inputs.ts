@@ -1,6 +1,7 @@
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort, type AgentRunControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AGENT_INPUT_KEY_PATTERN, AGENT_STEER_MODES, type AgentInputSend, type AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import { questionAnswer as cardAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { codingWriterAssignments } from "./writers.js";
 import type { CodingModelChoice } from "./routes.js";
 
@@ -10,13 +11,16 @@ const identity = {
 };
 /** A string the handler's text() accepts: present, within the cap, and not only spaces. */
 const words = (maximum: number) => ({ type: "string", minLength: 1, maxLength: maximum, pattern: "\\S" });
-const answerItem = {
+/** A choice question's picks, or the value of any other question: words, a date or a moment as text, a number, or nothing. */
+const answerItem = { oneOf: [{
   type: "object", additionalProperties: false, required: ["question", "indexes"],
   properties: {
     question: { type: "integer" },
     indexes: { type: "array", maxItems: 20, items: { type: "integer" } },
     other: { type: "string", maxLength: 500 },
   },
+}, { type: "object", additionalProperties: false, required: ["question", "value"],
+  properties: { question: { type: "integer" }, value: { oneOf: [{ type: "string", maxLength: 2000 }, { type: "number" }, { type: "null" }] } } }],
 };
 function controlBranch(kind: string, extra: Record<string, unknown>, required: readonly string[]): ActionSchema {
   return {
@@ -24,6 +28,17 @@ function controlBranch(kind: string, extra: Record<string, unknown>, required: r
     properties: { ...identity, kind: { const: kind }, ...extra },
     required: ["session_id", "run_id", "kind", ...required],
   };
+}
+
+/**
+ * The page answers with the question card's fields as they hold them (`values`); they become the run's answer here, on the
+ * way to the action, read the same way the Host reads the Assistant's card. Anything else passes as it is.
+ */
+export function controlInput(input: Record<string, unknown>): Record<string, unknown> {
+  if (input.kind !== "answer" || input.values === undefined) return input;
+  const { values, ...rest } = input, answer = cardAnswer(values);
+  if (!answer) throw new Error("请回答每一道问题后再提交");
+  return { ...rest, ...answer };
 }
 
 /**
@@ -82,7 +97,12 @@ export function questionAnswer(body: Record<string, unknown>): Extract<AgentRunC
   if (body.text !== undefined || !Array.isArray(body.answers) || body.answers.length < 1 || body.answers.length > 10) throw new Error("问卷回答格式无效");
   const answers = body.answers.map(value => {
     if (!value || typeof value !== "object") throw new Error("问卷回答格式无效");
-    const { question, indexes, other } = value as Record<string, unknown>;
+    const { question, indexes, other, value: given } = value as Record<string, unknown>;
+    // A question that is not a choice is answered with a value: words, a date or a moment as text, a number, or nothing.
+    if (indexes === undefined && typeof question === "number" && Number.isInteger(question)) {
+      if (!(given === null || typeof given === "string" && given.length <= 2000 || typeof given === "number" && Number.isFinite(given)) || other !== undefined) throw new Error("问题的回答格式无效");
+      return { question, value: given as string | number | null };
+    }
     if (typeof question !== "number" || !Number.isInteger(question) || !Array.isArray(indexes) || indexes.length > 20
       || !indexes.every(index => typeof index === "number" && Number.isInteger(index))
       || other !== undefined && (typeof other !== "string" || other.length > 500)) throw new Error("问题或选项编号无效");

@@ -61,9 +61,11 @@ test("AC-17: the contract's closed sets are the SDK's (19 reasons, six types)", 
 
 test("AC-17: the Runtime is offered only the types every surface that draws questions can draw", () => {
   // Offering even "choice" puts the model on the typed form. The Assistant (A1) and Coding (A2) both draw typed choice questions with the
-  // Host's shared card, so "choice" is offered (the model-facing contract is guarded by issue-clarification-page ISSUE-34).
-  assert.deepEqual(hostQuestionTypes(), ["choice"], "AC-22: what both surfaces draw is offered, and nothing else");
-  assert.deepEqual(ASSISTANT_QUESTION_TYPES, ["choice"], "AC-21: the Assistant declares what it draws"); assert.deepEqual(CODING_QUESTION_TYPES, ["choice"], "AC-22: so does Coding");
+  // Host's shared card (the model-facing contract is guarded by issue-clarification-page ISSUE-34), and words, numbers, dates and a date
+  // and time too (T1; what the provider receives is guarded by agent-question-types AC-27-1). References wait for T2.
+  const drawn = ["choice", "text", "number", "date", "datetime"];
+  assert.deepEqual(hostQuestionTypes(), drawn, "AC-22 AC-27-1: what both surfaces draw is offered, and nothing else");
+  assert.deepEqual(ASSISTANT_QUESTION_TYPES, drawn, "AC-21: the Assistant declares what it draws"); assert.deepEqual(CODING_QUESTION_TYPES, drawn, "AC-22: so does Coding");
   assert.deepEqual(hostQuestionTypes([["choice", "text", "date"], ["choice", "date"]]), ["choice", "date"]);
   assert.deepEqual(hostQuestionTypes([["choice", "text"], []]), [], "a surface that draws nothing leaves nothing to offer");
   assert.deepEqual(hostQuestionTypes([["choice", "text"]]), ["choice", "text"]);

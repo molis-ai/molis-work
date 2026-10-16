@@ -494,6 +494,8 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #610（回执片 A，carry 修复 + RC-09 + D29–D32 + BL-148，`3f35e0d14`）审过，全量链在 #606 之后（chain-610.log）。
     - #612（手册 A3②，`cbeaa1df8`）内容审过：材料只写事实、判断各写一处，没有新禁令；评测 48 轮。BL 号与 #610 撞（都用 BL-148），已让手册线改成 BL-149，新 head 来了再挂全量。
     - #613（交互 T1，`3ace136a4`）审过：D34 宿主一处判、页面读 `from_composer`；`coding.runs.control` v3→v4（只给 user，唯一钉住的调用方同改）；plugin-sdk `questionAnswer` 变宽（共享核心）。全量链在 #610 之后（chain-613.log）。用户批了 T1 真实模型试用「跑 12 轮（推荐）」（助理 6 + Coding 6，一次性隔离 Home，跑完即删；钥匙串读取仍由交互线会话里用户确认）。
+      - 后续：交互线会话的自动模式拦了钥匙串读取（转告的批准不算它自己的权限），用户随后在交互线会话里说 T1 实测先不跑；脚本已删，#613 不变。用户另在统筹会话说「使用minimax不用与我确认，尽管用」（记忆 minimax-use-without-asking），已转告五条线；但各会话读钥匙串仍受各自的权限设置约束。
+    - #614（回执 3a，`60b176bdb`）审过：回执只用 SDK `projectInputReceipts` 投影一次，宿主只补「记录没走到结尾」；合同落在 #591 拆出的文件。全量链在 #612 之后（chain-614.log）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

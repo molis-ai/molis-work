@@ -244,7 +244,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().scanNewMaterial())), onError: error => warnBackground("[assistant] 新资料没有读到", error) });
     // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
     periodic.every({ id: "assistant.reminders", title: "到期提醒", owner: "assistant", intervalMs: 60_000,
-      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().sweepReminders())), onError: error => warnBackground("[assistant] 到期提醒没有读到", error) });
+      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().followUps.sweepReminders())), onError: error => warnBackground("[assistant] 到期提醒没有读到", error) });
     server.once("close", () => {
       void periodic.stop();
       im.close();

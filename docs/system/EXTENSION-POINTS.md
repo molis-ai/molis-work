@@ -117,7 +117,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 新的 Runtime 插件要调模型 | 0 | Manifest 声明 `model:invoke`，在动作处理器里用 `context.services.model`（W3-06 E，`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`，只对宿主自己运行的非沙箱插件）；没有目录条目的插件在 `PluginDefinition.instructions` 里声明指令，不新建宿主端口文件。构建期插件的 5 个适配文件随各自迁移删掉（W5-11） |
 | 宿主自己的模型调用（不属于任何插件） | 2 | `apps/local-host/src/agent-definitions/system-prompts.ts`（定义）、`builtin-instructions.ts`（`BUILTIN_INSTRUCTIONS`、`SYSTEM_INSTRUCTION_SOURCES` 登记）；调用方是功能本身，不计 |
 | 内置 Agent 的角色提示词与方法 | 0 | 目录条目的 `agent`、`methods`（`BUILTIN_PLUGIN_AGENTS` 派生）；系统内联角色在 `builtin-instructions.ts` 的 `BUILTIN_INLINE_AGENT_*` |
-| Runtime 与已安装插件的 `methods` | 不会被登记 | 只有目录条目里的 `methods` 在 Host 启动时登记（`apps/local-host/src/agent-definitions/builtin-agents.ts` 的 `builtinRegistrations`）；`packages/plugin-runtime`、`apps/local-host/src/installed-plugin-host.ts` 和 `plugin-builder/` 里没有任何登记 `methods` 的代码。2026-10-08 已定：和内置插件一样登记，启动时登记，停用、卸载、升级时收回（切片 W4-02） |
+| Runtime 与已安装插件的 `methods` | 0 | Manifest `methods` 加 `PluginDefinition.methods` 的正文；插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02，`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，与指令同一处；用例 `tests/plugin-methods-runtime.test.ts`）。目录已登记该主人时拒绝启动；沙箱执行的生成插件不登记 |
 | 用户自定义角色 | 0 | 运行时数据（Characters），不改代码 |
 
 宿主里还有 5 个按插件写的 AI 适配文件：`alchemist-prologue.ts`、`cognia-prologue.ts`、`jelly-model.ts`、`shelf-ai.ts`、`typesafe-prologue.ts`。

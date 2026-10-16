@@ -1,12 +1,12 @@
 import type { AssistantThreadRound } from "./assistant-thread-types.js";
 import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
-import { saveFollowUpRecord } from "./assistant-followups.js";
+import { AssistantFollowUpRecords } from "./assistant-followups.js";
 import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
-import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantFollowUp, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -164,6 +164,8 @@ export class AssistantStore {
   readonly relations: AssistantRelations;
   /** Each finished round's reported usage. */
   readonly usage: AssistantUsageLedger;
+  /** The person's timed rounds on their works (the follow-ups collaborator's table). */
+  readonly followUps: AssistantFollowUpRecords;
 
   /** Who hears that a work's stored facts changed (record, rounds, cards, follow-ups, jobs, undos, usage): the page's wait. */
   readonly #changes = new Set<(workId: string) => void>();
@@ -172,6 +174,7 @@ export class AssistantStore {
     applySqliteBaseline(db, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE);
     this.relations = new AssistantRelations(db, now);
     this.usage = new AssistantUsageLedger(db);
+    this.followUps = new AssistantFollowUpRecords(db, workId => this.#changed(workId));
   }
 
   onChange(listener: (workId: string) => void): () => void {
@@ -323,18 +326,6 @@ export class AssistantStore {
     this.db.prepare("INSERT INTO assistant_observed(actor_id,work_id,state) VALUES (?,?,?) ON CONFLICT(actor_id,work_id) DO UPDATE SET state=excluded.state").run(actorId, workId, state);
   }
 
-  followUps(actorId: string, workId?: string): AssistantFollowUp[] {
-    const rows = workId ? this.db.prepare("SELECT body FROM assistant_followups WHERE actor_id=? AND work_id=?").all(actorId, workId)
-      : this.db.prepare("SELECT body FROM assistant_followups WHERE actor_id=?").all(actorId);
-    return rows.map(row => JSON.parse(String(row.body)) as AssistantFollowUp).sort((a, b) => a.created_at.localeCompare(b.created_at));
-  }
-
-  saveFollowUp(actorId: string, followUp: AssistantFollowUp, expected?: AssistantFollowUp): boolean {
-    const changed = saveFollowUpRecord(this.db, actorId, followUp, expected);
-    if (changed) this.#changed(followUp.work_id);
-    return changed;
-  }
-
   /** Changes left running when a round ended, newest last; `untold` only those the next round has not been told of. */
   unsettled(actorId: string, workId: string, untold = false): AssistantUnsettledChange[] {
     return this.db.prepare(`SELECT body FROM assistant_unsettled WHERE actor_id=? AND work_id=?${untold ? " AND told=0" : ""} ORDER BY rowid`).all(actorId, workId)
@@ -345,10 +336,6 @@ export class AssistantStore {
     this.db.prepare("INSERT INTO assistant_unsettled(change_id,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(change_id) DO UPDATE SET body=excluded.body")
       .run(change.change_id, actorId, change.work_id, JSON.stringify(change));
     this.#changed(change.work_id);
-  }
-
-  removeFollowUp(actorId: string, followupId: string): boolean {
-    return Number(this.db.prepare("DELETE FROM assistant_followups WHERE actor_id=? AND followup_id=?").run(actorId, followupId).changes) > 0;
   }
 
   /** A plain per-person value the Assistant keeps for itself (e.g. how far it has looked for new material). */

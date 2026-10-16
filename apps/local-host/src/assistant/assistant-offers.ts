@@ -1,15 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { actionEffect, actionFieldInput, actionFieldValue, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionSubjectContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AssistantCard, AssistantContextSnapshot, AssistantPageCardInput, AssistantPreparedCard, AssistantScope } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { allowsNull, assistantCardHtml, cardInputValues, cardView, plainObject, type SchemaProperties } from "./assistant-card-view.js";
+import { cardInputValues, dismissActionCard, draftActionCard, runActionCard, sweepActionCard, type ActionCardPorts, type ActionCardRefusal } from "@molis-ai/molis-work-plugin-sdk";
+import { assistantCardHtml, cardView } from "./assistant-card-view.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredCard, StoredJob, StoredWork } from "./assistant-store.js";
 
 const RUNTIME = "prologue";
+/** The Assistant's codes for the shared card rules' refusals. */
+const REFUSALS: Record<ActionCardRefusal, string> = { revoked: "assistant.action_revoked", invalid: "assistant.invalid", conflict: "assistant.conflict" };
 
 /** Who placed a page's card: the project it was placed from, when there is one. */
 export interface OfferCaller {
@@ -33,22 +36,6 @@ export interface OfferPorts {
   fail(code: string, message: string): Error;
 }
 
-/** A result in a line the person can read: what was made or changed, by its name; never the whole payload. */
-function summarizeResult(result: unknown): string {
-  const named = (value: unknown): string | null => {
-    if (!value || typeof value !== "object") return null;
-    const row = value as Record<string, unknown>;
-    for (const key of ["title", "name", "display_name"]) if (typeof row[key] === "string" && row[key]) return row[key] as string;
-    for (const key of ["item", "document", "record", "result", "created", "updated"]) { const inner = named(row[key]); if (inner) return inner; }
-    return null;
-  };
-  if (typeof result === "string") return result.length > 200 ? `${result.slice(0, 199)}…` : result || "已完成";
-  const name = named(result);
-  return name ? `「${name.slice(0, 120)}」` : "";
-}
-
-/** Words that count days from the day they were said. */
-const RELATIVE_DAYS = /今天|明天|后天|今晚|今早|明早|明晚|今日|明日|本周|这周|下周|周末|昨天|大后天/;
 /** A page's prepared card, bounded and shaped as the contract says; anything else is refused before any check runs. */
 function checkPreparedCard(card: AssistantPreparedCard | undefined, fail: (code: string, message: string) => Error): AssistantPreparedCard {
   const text = (value: unknown, what: string, max: number) => {
@@ -80,20 +67,6 @@ function checkPreparedCard(card: AssistantPreparedCard | undefined, fail: (code:
 }
 
 /**
- * The one object a suggested change is about, when its action names a single kind and its input points at one:
- * `<kind>_id`, `subject_id` or `id` (the convention for change actions on an existing object).
- */
-export function cardSubject(view: Pick<ActionView, "action" | "operation">, input: unknown): { kind: string; id: string } | null {
-  if (view.operation !== "command" || view.action.subject_kinds.length !== 1 || !input || typeof input !== "object" || Array.isArray(input)) return null;
-  const kind = view.action.subject_kinds[0]!, record = input as Record<string, unknown>;
-  for (const key of [`${kind.replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase()}_id`, "subject_id", "id"]) {
-    const value = record[key];
-    if (typeof value === "string" && value) return { kind, id: value };
-  }
-  return null;
-}
-
-/**
  * The Assistant's action cards (specs/ai-interaction-experience H2, the W5-10 collaborator shape): a round's suggestion or a
  * page's prepared card is checked against what the work may use and kept as a card; the person runs it, as shown, or
  * dismisses it. It depends on the Assistant only through its ports.
@@ -103,21 +76,9 @@ export class AssistantOffers {
 
   async recordOffer(work: StoredWork, offer: AgentActionOffer, views: readonly ActionView[],
     page?: Pick<StoredCard, "from" | "source_object" | "materials">): Promise<{ offer_id: string }> {
-    const ref = offer.reference;
-    const view = views.find(row => row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
-    if (!view || !view.availability.available) throw this.ports.fail("assistant.action_revoked", "That capability is not available here; nothing was suggested.");
-    const missing = (offer.missing ?? []).filter(item => item.field && item.question);
-    if (!missing.length) assertActionInput(view.action.input_schema, offer.input);
-    const at = this.ports.now().toISOString();
+    const drafted = await draftActionCard(`card-${randomUUID()}`, offer, views, { ...this.rules(work), check: (view, input) => assertActionInput(view.action.input_schema, input) });
     // A round's suggestion belongs to that round; a card a page placed belongs to no round (it shows as coming from that page).
-    const card: StoredCard = { card_id: `card-${randomUUID()}`, work_id: work.work_id, revision: 1, run_id: page ? null : this.ports.store.rounds(work.work_id).at(-1)?.run_id ?? null,
-      title: offer.title, summary: offer.summary, provider: view.provider.title, capability_title: view.action.title, effect: actionEffect(view.action, view.capability_id),
-      reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: structuredClone(offer.input),
-      input_schema: view.action.input_schema as Record<string, unknown>, editable: [...new Set(offer.editable ?? [])], missing,
-      status: missing.length ? "needs-input" : "ready", created_at: at, updated_at: at, ...(page ?? {}) };
-    const subject = cardSubject(view, offer.input);
-    const read = subject ? await this.ports.readSubject(work, subject) : null;
-    if (subject && read && read !== "missing") card.target = { ...subject, revision: read.revision, title: read.title || subject.id };
+    const card: StoredCard = { ...drafted, work_id: work.work_id, run_id: page ? null : this.ports.store.rounds(work.work_id).at(-1)?.run_id ?? null, ...(page ?? {}) };
     this.ports.store.addCard(card);
     return { offer_id: card.card_id };
   }
@@ -171,64 +132,17 @@ export class AssistantOffers {
    */
   async runCard(workId: string, cardId: string, input: { revision: number; values?: unknown }): Promise<AssistantCard> {
     const work = this.ports.store.get(this.ports.actorId, workId);
-    let card = this.ports.store.card(work.work_id, cardId);
-    if (!["ready", "needs-input", "failed"].includes(card.status)) return cardView(card);
-    if (card.revision !== Number(input.revision)) throw this.ports.fail("assistant.conflict", "这个建议已经变化，请查看最新内容后再点");
+    const card = this.ports.store.card(work.work_id, cardId);
     // What the card's controls hold (a pick, a day, a moment in the person's zone), as the strings the input takes.
     const values = cardInputValues(input.values, this.ports.timeZone);
-    const allowed = new Set([...card.editable, ...card.missing.map(item => item.field)]);
-    const permitted = (key: string) => allowed.has(key) || key.includes(".") && allowed.has(key.split(".")[0]!);
-    let prepared = structuredClone(card.input);
-    if (Object.keys(values).length) {
-      if (!prepared || typeof prepared !== "object" || Array.isArray(prepared)) throw this.ports.fail("assistant.invalid", "这个建议没有可调整的字段");
-      for (const [key, raw] of Object.entries(values)) {
-        if (!permitted(key)) throw this.ports.fail("assistant.invalid", `字段「${key}」不能在这里修改`);
-        const [head, child] = key.split(".") as [string, string | undefined];
-        const properties = card.input_schema.properties as SchemaProperties | undefined;
-        const schema = child ? properties?.[head]?.properties?.[child] : properties?.[head];
-        let value: unknown = raw;
-        // A day or a moment the person cleared, on a field that may be empty, is "none".
-        if (raw === "" && actionFieldInput(schema) && allowsNull(schema)) value = null;
-        else if (schema?.type !== "string" && typeof raw === "string") { try { value = JSON.parse(raw); } catch { value = raw; } }
-        if (child) {
-          const parent = (prepared as Record<string, unknown>)[head];
-          if (!plainObject(parent)) throw this.ports.fail("assistant.invalid", `字段「${key}」不能在这里修改`);
-          parent[child] = value;
-        } else (prepared as Record<string, unknown>)[key] = value;
-      }
-    }
-    // The dates the person set on the card count; days spoken of relative to another day do not decide once they did.
-    const moved = this.outdated(card, prepared, Object.keys(values).length > 0) ?? await this.targetMoved(work, card);
-    if (moved) return cardView(this.ports.store.updateCard(card, card.revision, { status: "stale", outcome: moved }));
-    const stillMissing = card.missing.filter(item => { const value = (prepared as Record<string, unknown> | null)?.[item.field]; return value === undefined || value === null || value === ""; });
-    if (stillMissing.length) throw this.ports.fail("assistant.invalid", `还需要填写：${stillMissing.map(item => item.question).join("；")}`);
-    const authority = await this.ports.authority(work);
-    if (!authority.actions) throw this.ports.fail("assistant.unsupported", "当前没有可用的业务能力");
-    const client = await authority.actions(RUNTIME);
-    const view = (await client.discover()).find(row => row.capability_id === card.reference.capability_id && row.version === card.reference.version && row.provider.provider_id === card.reference.provider_id);
-    // The card runs what it shows or not at all: never another capability, version or provider.
-    if (!view || !view.availability.available) return cardView(this.ports.store.updateCard(card, card.revision, { status: "stale", outcome: view && !view.availability.available ? view.availability.reason : "这项能力已不可用或已对助理关闭" }));
-    try { assertActionInput(view.action.input_schema, prepared); }
-    catch (error) { throw this.ports.fail("assistant.invalid", `填写的内容不符合要求：${error instanceof Error ? error.message : String(error)}`); }
-    card = this.ports.store.updateCard(card, card.revision, { status: "running", request_id: randomUUID(), input: prepared, missing: [], outcome: undefined });
-    try {
-      const result = await client.invoke(card.reference, prepared);
-      const outcome = summarizeResult(result);
-      // Background work it started: the card shows it running, then how it ended.
-      const job = await this.ports.watchJob(work, view, result, card.card_id).catch(() => null);
-      if (job) return cardView(this.ports.store.updateCard(card, card.revision, { status: "running", outcome: "已开始，后台进行中" }));
-      return cardView(this.ports.store.updateCard(card, card.revision, { status: "done", ...(outcome ? { outcome } : {}) }));
-    } catch (error) {
-      const code = (error as { code?: string }).code ?? "";
-      const message = error instanceof Error ? error.message : String(error);
-      // An unknown outcome is never offered again as a plain retry: it may already have happened.
-      // That includes a failure the owner raised after its effect, or an invalid output after it (W2-18-CARD-UNKNOWN-01).
-      const unknown = ["actions.outcome_unknown", "actions.output_invalid_after_effect"].includes(code) || /delivery_unknown|host_replaced/.test(code);
-      // The data moved on since the suggestion: say so, and let the person ask for a fresh one; never re-aim it quietly.
-      const moved = !unknown && (/conflict|stale|revision|version/i.test(code) || /已在其他窗口修改|版本|已变化|已更新|revision|version/i.test(message));
-      return cardView(this.ports.store.updateCard(card, card.revision, unknown ? { status: "unknown", outcome: `结果未确认：${message}。请到原处核对，不会自动重试` }
-        : moved ? { status: "stale", outcome: `数据在建议之后变化了，这张卡没有执行（${message}）` } : { status: "failed", outcome: message }));
-    }
+    return cardView(await runActionCard(card, { revision: input.revision, values }, { ...this.rules(work),
+      authority: async () => {
+        const authority = await this.ports.authority(work);
+        if (!authority.actions) throw this.ports.fail("assistant.unsupported", "当前没有可用的业务能力");
+        const client = await authority.actions(RUNTIME);
+        return { discover: () => client.discover(), check: (view, prepared) => assertActionInput(view.action.input_schema, prepared), invoke: (reference, prepared) => client.invoke(reference, prepared) };
+      },
+      started: async (view, output, claimed) => Boolean(await this.ports.watchJob(work, view, output, claimed.card_id)) }));
   }
 
   /** One card of a work, as the person sees it. */
@@ -243,39 +157,20 @@ export class AssistantOffers {
 
   dismissCard(workId: string, cardId: string): AssistantCard {
     const work = this.ports.store.get(this.ports.actorId, workId);
-    const card = this.ports.store.card(work.work_id, cardId);
-    if (!["ready", "needs-input", "failed", "stale"].includes(card.status)) return cardView(card);
-    return cardView(this.ports.store.updateCard(card, card.revision, { status: "dismissed" }));
+    return cardView(dismissActionCard(this.ports.store.card(work.work_id, cardId), this.store));
   }
 
   /** A suggestion whose moment has passed, or about an object changed by hand since, is not offered any more. */
   async sweep(work: StoredWork): Promise<void> {
-    for (const card of this.ports.store.cards(work.work_id).filter(item => item.status === "ready" || item.status === "needs-input")) {
-      const moved = this.outdated(card, card.input, false) ?? (card.target ? await this.targetMoved(work, card) : null);
-      if (moved) { try { this.ports.store.updateCard(card, card.revision, { status: "stale", outcome: moved }); } catch { /* Clicked meanwhile: that click decides. */ } }
-    }
+    for (const card of this.ports.store.cards(work.work_id)) await sweepActionCard(card, this.rules(work));
   }
 
-  private outdated(card: StoredCard, input: unknown, edited: boolean): string | null {
-    const zone = this.ports.timeZone;
-    const day = (at: Date) => new Intl.DateTimeFormat("en-CA", { ...(zone ? { timeZone: zone } : {}), year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
-    const now = this.ports.now(), today = day(now), prepared = day(new Date(card.created_at));
-    const properties = (card.input_schema.properties ?? {}) as SchemaProperties;
-    for (const [key, value] of Object.entries(plainObject(input) ? input : {})) {
-      if (typeof value !== "string" || !value) continue;
-      const kind = actionFieldInput(properties[key]);
-      if (kind === "datetime" && Date.parse(value) < now.getTime()) return `卡里的时间（${actionFieldValue(key, value, properties[key])}）已经过去，这张建议没有执行；需要时让助理按现在重新准备`;
-      if (kind === "date" && value < today && value >= prepared) return `卡里的日期（${value}）已经过去，这张建议没有执行；需要时让助理按今天重新准备`;
-    }
-    if (!edited && prepared !== today && RELATIVE_DAYS.test(`${card.title} ${card.summary}`)) return `这张建议是 ${prepared} 准备的，里面说的“今天、明天”按那天算，没有执行；需要时让助理按今天重新准备`;
-    return null;
-  }
+  /** The cards' own store, in the shape the shared rules write through: only when the card is still at the revision read. */
+  private readonly store = { update: (card: StoredCard, expected: number, patch: Partial<StoredCard>) => this.ports.store.updateCard(card, expected, patch) };
 
-  private async targetMoved(work: StoredWork, card: StoredCard): Promise<string | null> {
-    if (!card.target) return null;
-    const now = await this.ports.readSubject(work, card.target);
-    if (now === "missing") return `「${card.target.title}」已在原处删除，这张建议不再执行`;
-    if (now && now.revision !== card.target.revision) return `你在原处改过「${card.target.title}」，这张建议基于改之前的内容，不再执行；需要时让助理按现在的内容重新准备`;
-    return null;
+  /** What the shared card rules read for a work's cards: its objects, the person's clock and zone, and the Assistant's own refusals. */
+  private rules(work: StoredWork): Omit<ActionCardPorts<StoredCard>, "authority"> {
+    return { store: this.store, readSubject: subject => this.ports.readSubject(work, subject), now: () => this.ports.now(),
+      ...(this.ports.timeZone ? { timeZone: this.ports.timeZone } : {}), refuse: (reason, message) => this.ports.fail(REFUSALS[reason], message) };
   }
 }

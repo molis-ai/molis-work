@@ -124,10 +124,11 @@ bind(lingguangActions.message, async (input, caller) => {
 ```ts
 const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
 completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
-  const complete = model(); if (!complete) throw ...;
+  const complete = model(); if (!complete) throw textModelRequired(L("继续对话"));
   return complete(resolveModelPrompt(home, prompt, "io.molis.work.lingguang"), options);
 }),
-modelAvailability: () => model() ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置文字模型…" },
+// 「请先在「模型设置」里连接文字模型，再继续对话」：地方名只由宿主的 textModelMissing 写，调用方只说拿来做什么。
+modelAvailability: () => textModelAvailability(model, L("继续对话")),
 ```
 
 **提示词登记与用户修改**：插件在 `src/prompts.ts` 用 `defineInstructionPrompt` 声明 owner、稳定 id、版本、用途、使用位置和默认正文，从包入口导出指令列表，在 `apps/workbench/src/builtin-plugins.ts` 的同一插件项声明 `instructions`；Host 从共同目录派生登记。插件端口接收 `InstructedPrompt`，调用传 `instructed(LINGGUANG_CONVERSATION, JSON.stringify(materials))`；Host 经 `resolveModelPrompt` 读取有效正文并记使用版本，之后才交给共享推理入口。用户材料与本次参数属于 data，不拼入可编辑的默认指令。材料中的指令不授予任何权限；超长先拒绝（灵光 18 万字符、Pages 10 万）。

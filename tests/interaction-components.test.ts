@@ -28,7 +28,8 @@ test("AC-17: the questionnaire renders mixed fields with reasons, per-field erro
   assert.match(html, /<span class="mw-ix-tag">推荐<\/span>/);
   assert.match(html, /data-ix-field="minutes"[\s\S]*?value="two"[\s\S]*?<p class="mw-ix-error" id="q-minutes-error" data-ix-error>请输入/, "a wrong draft stays as typed beside its error");
   assert.match(html, /<p class="mw-ix-error" id="q-format-error" data-ix-error hidden><\/p>/, "every field keeps an error slot its control points at");
-  assert.match(html, /data-ix-value="minutes"[^>]*aria-describedby="q-minutes-error"/, "a field without a hint points only at its error slot");
+  // AC-27-6: a number's unit is read with it, before its error slot; without a hint there is nothing else.
+  assert.match(html, /data-ix-value="minutes"[^>]*aria-describedby="q-minutes-unit q-minutes-error"[\s\S]*?<span class="mw-ix-unit" id="q-minutes-unit">分钟</, "a field without a hint points at its unit and its error slot");
   assert.doesNotMatch(html, /q-minutes-hint/, "nothing points at a missing id");
   assert.match(html, /aria-describedby="q-format-hint q-format-error"/);
   assert.match(html, /<span class="mw-ix-optional">选填<\/span>/);

@@ -398,6 +398,10 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 手册 B2（Cognia）获准，用 contracts `model-prompts.ts` 的纯函数 `fencedMaterials(data, boundary)` 统一三处「材料不可信」围栏（项目上手、Cognia、Todo 整理器），删项目上手本地副本。
   - 采用线上游计划获准（用户 10-16 弹窗已覆盖）：molis-ai/prologue 分支 `fix/found-tools-declared`，(a) 延后名册上的名字按真 schema 放行，(b) find-tools 找到的工具在后续请求声明、记 `tools-found` 事件以便恢复与回放，另一提交给 board-wait params 按检查器带 schema；**上游 PR 合并前统筹先问用户**；之后 molis-work 换包 PR 恢复 `deferToolSchemasBeyond`、删止血、重跑 P3c 评测。止血 PR（`adoption/no-tool-deferral`）安静时段后构建测量再开。
   - 会话消息上限：用户不发言时统筹最多给其他会话发 10 条，到了就停；安静时段结束的通知要等用户发一句话。
+  - 10-16 上午（PDT）：#570（W5-13 第 1 片，`b4044c33e`，GitHub TLS 超时出队一次后重入队）、#569（settled()，`19dc13d41`）已合。W5-12 完成：16 分片全量 58.2 分钟（串行 76–78）、无争用；main 上真失败 4 个文件，issue-capture 是新近回归（基线过），防腐在 #565/#560/#558/#568 间二分；onboarding-journey、project-arrival、issue-clarification 基线也红，记入 W5-12 文档 PR。安静时段结束，已通知各线。
+  - **用户 10-16 同意合并上游 molis-ai/prologue#28**（头 af7be966：tools-found 声明、listedTools 放行、检查器 params schema）。采用线合并后开换包 PR（干净 git archive 重打包、删旧 tgz 与记录、patch-history 加条目、恢复 `deferToolSchemasBeyond: 20`、删止血、止血测试改成「超 20 先找后调与按名直调都能用」并先在旧包上红），合入后隔离 Home 重跑 P3c 小评测（每任务 3 次）重新归类。
+  - 止血 #575（`0e256445`）与手册用途组 PR A #576（`e1508f07`）审过、加 full-suite；#575 先合，保证换包前工具都能调。PR B（Host 启动拒绝）等 2a。
+  - #571（2a，`d3dac2b2e`）与 main 冲突（SECURITY-INVARIANTS、agent-host README、ai-interaction spec，只文档），交互线并 main 后发头；2c 文件单加 Coding HTTP 边缘按 kind 给状态。#573 新头只是并 main，溢出修补未到。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

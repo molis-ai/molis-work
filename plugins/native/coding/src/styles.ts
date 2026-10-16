@@ -325,10 +325,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 /* A run's waiting question is the shared question card (A2); in the thread it keeps the reading width. */
 [data-coding-question] { max-width:76ch; margin:16px auto 24px; }
 .coding-composer { flex:none; display:flex; flex-direction:column; align-items:center; gap:8px; border:0; background:transparent; }
-.coding-composer > .coding-context,
-.coding-composer-shell,
-.coding-composer-footnote,
-.coding-composer .coding-model-setup { width:min(100%, 76ch); }
+.coding-composer > * { width:min(100%, 76ch); }
 .coding-composer > .coding-context { justify-content:flex-start; }
 .coding-composer-shell {
   display:flex; flex-direction:column; min-width:0;

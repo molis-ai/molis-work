@@ -1,5 +1,6 @@
 import { ensureProjectPlugins as ensureStarted, type ProjectPluginPorts, type ProjectPluginState as Started } from "./project-plugins.js";
 import { agentQuestionHtml } from "./agent-question-card.js";
+import { codingStepRow, type CodingNextStepRun } from "./coding-next-steps.js";
 import { L } from "./web-locale.js";
 import { CHARACTERS_UI_CONTRIBUTION_ID, type CharactersUiModel } from "@molis-ai/molis-work-plugin-characters";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -227,7 +228,7 @@ function decorateRuntimeResult(result: PluginRouteResponse, pluginId: string, re
 function decorateCodingResult(result: PluginRouteResponse, request: IncomingMessage, url: URL, ports: CodingSurfacePorts): void {
   // The existing sanitized rich-text renderer is supplied by the composition;
   // Coding neither imports another plugin nor trusts model-produced HTML.
-  const body = result.body as { runs?: Array<{ turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[] }> } | undefined;
+  const body = result.body as { runs?: Array<CodingNextStepRun & { turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[] }> } | undefined;
   if (body?.runs) for (const run of body.runs) {
     // Recovery reports also list runs, but carry receipt facts rather than turns.
     if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
@@ -239,6 +240,8 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
       html: renderFeedRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
     // The same question card the Assistant shows, in the person's language; Coding's page restores its own drafts into it.
     for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L) });
+    // Drawn on every round the page receives in full, so a round it keeps unchanged keeps its row; it shows the latest one's.
+    Object.assign(run, { next_html: codingStepRow(run, L) });
   }
   const childBody = result.body as { subagents?: Array<{ children: Array<{ result: string | null }> }> } | undefined;
   if (childBody?.subagents) for (const group of childBody.subagents) for (const child of group.children) {

@@ -13,7 +13,7 @@ export const scheduleManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: SCHEDULE_PLUGIN_ID,
-  version: "1.0.0",
+  version: "0.3.0",
   name: "Schedule",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-schedule-binding" },

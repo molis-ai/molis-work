@@ -766,6 +766,42 @@ test("a capability identity the round never found is answered as unknown, not as
     (error: any) => /No capability with that exact identity/.test(error.message) && /find-capabilities/.test(error.message));
 });
 
+// AI handbook §9.5 A2: a capability that is there but cannot run now is found with its owner's reason and nothing to call
+// it with, after the usable ones; calling it anyway is refused with that same reason.
+test("a capability that cannot run now is found with its owner's reason, after the usable ones, and calling it is refused", async () => {
+  const usable = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: write.action, availability: { available: true } } as ActionView;
+  const waiting = { ...usable, capability_id: "fixture.notes.draft", action: { ...write.action, title: "Draft a note" },
+    availability: { available: false, code: "actions.connection_required", reason: "请先在设置里配置文字模型" } } as ActionView;
+  const ran: unknown[] = [];
+  const { executors } = prologueActionGateway({ client: { discover: async () => [waiting, usable], invoke: async (...call: unknown[]) => { ran.push(call); return {}; } }, operate: true } as never);
+  const found = JSON.parse(await executors["find-capabilities"]!({ args: { query: "Notes" } } as never));
+  assert.deepEqual(found.capabilities.map((row: { capability_id: string }) => row.capability_id), ["fixture.notes.write", "fixture.notes.draft"], "the usable one first");
+  assert.deepEqual(found.capabilities[1], { capability_id: "fixture.notes.draft", version: 1, provider_id: "fixture.notes", provider: "Notes", title: "Draft a note",
+    available: false, reason: "请先在设置里配置文字模型" }, "no tool to use and no input schema for one that cannot run");
+  await assert.rejects(executors["change-capability"]!({ args: { capability_id: "fixture.notes.draft", version: 1, provider_id: "fixture.notes", input: { text: "x" } } } as never),
+    (error: unknown) => error instanceof Error && /^actions\.connection_required: 请先在设置里配置文字模型$/.test(error.message));
+  assert.deepEqual(ran, [], "nothing ran");
+});
+
+// AI handbook §9.5 A2: the round's directory names what cannot run now, by provider, with the owner's reason; it is not
+// listed among the usable ones.
+test("the round's capability directory names what cannot run now with its owner's reason", { timeout: 60_000 }, async t => {
+  const draft: ActionDefinition = { ...write, capability_id: "fixture.writer.draft", action: { ...write.action, title: "Draft a page", permissions: ["writer:write"] } };
+  const f = await fixture(t, [() => reply(undefined, "Writer 现在用不了：要先在设置里配置文字模型。")]);
+  const off = f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.writer", kind: "plugin", title: "Writer" }, definitions: [draft],
+    handlers: [{ ...draft, availability: () => ({ available: false, code: "actions.connection_required", reason: "请先在设置里配置文字模型" }), handle() { throw new Error("must not run"); } }] });
+  try {
+    const sent = await f.service.send({ text: "把会议纪要写成一页", request_id: "req-00000071" }, { project_ref: f.project });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "completion");
+    const directory = JSON.stringify(f.requests[0]);
+    assert.match(directory, /现在用不了的能力/);
+    assert.match(directory, /- Writer：Draft a page——请先在设置里配置文字模型/);
+    // The directory is JSON inside the request's JSON, so its line break reads as an escaped backslash before "n".
+    assert.match(directory, /- Notes：(Count notes、Save a note（修改）|Save a note（修改）、Count notes)\\\\n/, "the usable ones are listed as before, and only they");
+  } finally { off(); await f.close(); }
+});
+
 test("a suggestion whose fields are partly beside its input still becomes the card it meant (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     // The model put one field beside `input`, as it did with a to-do's placement: the tool used to reject it four times.

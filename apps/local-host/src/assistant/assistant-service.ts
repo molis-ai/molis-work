@@ -5,7 +5,7 @@ import { AssistantFollowUps } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, requireSynchronous, actionEffect, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
@@ -21,18 +21,18 @@ import {
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
-import { directEligible } from "./assistant-authority.js";
+import { agentActions, capabilityDirectory } from "./assistant-directory.js";
 import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from "./assistant-material-scan.js";
 import { identity } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { typedTexts, type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
-import { AssistantInputs, exactRevision, inputsOf } from "./assistant-inputs.js";
+import { AssistantInputs, exactRevision, inputsOf, typedWords, type SendIntent } from "./assistant-inputs.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 
 const RUNTIME = "prologue";
@@ -432,7 +432,7 @@ export class AssistantService {
       dispatch: async (work, text, materials, writtenBy, request, stillCurrent) => {
         assertSendCurrent(stillCurrent);
         if (request && !store.claimRequest(actorId, request).claimed) return;
-        try { const result = await this.dispatch(work, text, materials, null, undefined, writtenBy, stillCurrent); if (request) store.finishRequest(actorId, request, result); return result; }
+        try { const result = await this.dispatch(work, text, materials, null, undefined, writtenBy, stillCurrent, undefined, undefined, { byHost: Boolean(writtenBy) }); if (request) store.finishRequest(actorId, request, result); return result; }
         catch (error) { if (request) store.releaseRequest(actorId, request); throw error; }
       } });
   }
@@ -471,7 +471,7 @@ export class AssistantService {
     // What the person said in this work may hold a standing wish worth keeping: the platform memory decides (a sub-task's
     // words are the delegating work's, not the person's, so it never learns from those).
     if (state === "completed" && before !== "completed" && !work.delegated_by && round !== "none")
-      this.ports.learnFromRound?.({ work, said: typedTexts(this.store.rounds(work.work_id)).slice(-6), run_id: round });
+      void this.assistantPart(work).then(part => part.rounds, () => []).then(views => this.ports.learnFromRound?.({ work, said: typedWords(this.store.rounds(work.work_id), views).slice(-6), run_id: round }));
   }
 
   /** Open notices, each saying whether one of the person's rules holds it here and now (on this surface). */
@@ -752,7 +752,7 @@ export class AssistantService {
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
       assertSendCurrent(stillCurrent);
       this.linkSent(work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, input.request_id);
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by) });
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {
@@ -1443,7 +1443,7 @@ export class AssistantService {
   }
 
   /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
-  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, requestId?: string): Promise<AssistantSendResult> {
+  private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
     const coding = await this.coding(work, stillCurrent ? () => assertSendCurrent(stillCurrent) : undefined);
     let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
@@ -1459,9 +1459,9 @@ export class AssistantService {
     if (read.recovery_required) throw assistantErrors.needs_check(read.error ?? "Coding 会话有需要核对的中断操作", { action: "打开 Coding 核对" });
     const latest = read.runs.at(-1);
     if (latest && !isTerminalAgentPhase(latest.phase)) {
-      // Coding's own control carries both: every answer with the revision it answers, every supplement with its receipt.
+      // Coding's own control carries both: every answer with the revision it answers, every supplement with its receipt (it takes no source: words a page wrote reach Coding as the person's).
       const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => coding.control(sessionId, latest.ref.run_id, control),
-        send: input => coding.send(sessionId, latest.ref.run_id, input) }, requestId);
+        send: ({ source: _source, ...input }) => coding.send(sessionId, latest.ref.run_id, input) }, intent);
       return this.result(work, outcome, latest.ref.run_id);
     }
     const task = work.handover_brief ? `${work.handover_brief}\n\n用户现在的要求：${text}` : text;
@@ -1473,8 +1473,8 @@ export class AssistantService {
     return this.result(work, "started", run?.ref.run_id ?? "");
   }
 
-  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, requestId?: string): Promise<AssistantSendResult> {
-    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy, stillCurrent, requestId);
+  private async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, intent?: SendIntent): Promise<AssistantSendResult> {
+    if (work.executor.kind === "coding") return this.codingDispatch(work, text, materials, context, mode, writtenBy, stillCurrent, intent);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const base = await this.ports.authority(work);
@@ -1499,7 +1499,7 @@ export class AssistantService {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
       const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: input => inputsOf(adapter).send(latest.ref, input, () => assertSendCurrent(stillCurrent)),
         // A running round cannot be shown a picture any more; it goes with the next round.
-        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, requestId);
+        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, intent);
       return this.result(work, outcome, latest.ref.run_id);
     }
     await this.assertBudget();
@@ -1510,14 +1510,14 @@ export class AssistantService {
     }
     const left = spent.budget_tokens === null ? undefined : spent.budget_tokens - spent.tokens;
     if (writtenBy) this.starting.delete(work.work_id); else this.starting.set(work.work_id, text);
-    const offered = await this.actionTools(authority);
+    const { offered, unavailable } = await this.actionTools(authority);
     this.titles.set(ownerOf(work), new Map(offered.map(view => [view.capability_id, { title: view.action.title, provider: view.provider.title }])));
     // The memories this round is given, chosen now so the round's materials can say how many did not fit.
     this.chosenMemory.delete(work.work_id); this.recalled.delete(work.work_id);
     let prepared: RoundMaterials, handle: Awaited<ReturnType<AgentHost["start"]>>;
     try {
       if (!work.reply_target) await this.memoryForRound(work, text, context);
-      prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered);
+      prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered, unavailable);
       assertSendCurrent(stillCurrent);
       handle = await host.start(RUNTIME, {
         project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
@@ -1559,33 +1559,13 @@ export class AssistantService {
     return { work: this.publicWork(updated, await this.stateSafely(updated)), outcome, run_id: runId };
   }
 
-  /** Every action this scope offers to agents and can run now. The Host re-checks each one at start and at dispatch. */
-  private async actionTools(authority: AgentStartAuthority): Promise<ActionView[]> {
-    if (!authority.actions) return [];
-    const client = await authority.actions(RUNTIME);
-    const views = await client.discover();
-    return views.filter(view => view.action.audiences.includes("agent") && view.availability.available && view.provider.provider_id)
-      .slice(0, MAX_ACTION_TOOLS);
-  }
-
-  /** What exists, grouped by who provides it, so the round knows what to search for; schemas stay deferred until needed. */
-  private directory(views: readonly ActionView[]): string {
-    const groups = new Map<string, string[]>();
-    const confirm = this.store.confirmAlways(this.actorId);
-    for (const view of views) {
-      const effect = actionEffect(view.action, view.capability_id);
-      const direct = directEligible(view, views, confirm);
-      const mark = effect === "read" ? "" : effect === "irreversible" ? "（不可撤回）" : direct ? "（可撤销）" : "（修改）";
-      const list = groups.get(view.provider.title) ?? [];
-      list.push(view.action.title + mark);
-      groups.set(view.provider.title, list);
-    }
-    return ["本轮可用的业务能力（按提供方分组）。用 find-capabilities 按“提供方 名称”搜索取得准确标识与参数；读取类用 read-capability；标“可撤销”的，用户明确要求这个效果时用 change-reversible 直接做（事后告诉用户可以在工作面板撤销）；标“修改”“不可撤回”的用 change-capability，执行前会请用户确认：",
-      ...[...groups].map(([provider, titles]) => `- ${provider}：${titles.join("、")}`)].join("\n");
+  /** Every action this scope offers to agents, by whether it can run now. The Host re-checks each one at start and at dispatch. */
+  private async actionTools(authority: AgentStartAuthority): Promise<ReturnType<typeof agentActions>> {
+    return authority.actions ? agentActions(await (await authority.actions(RUNTIME)).discover(), MAX_ACTION_TOOLS) : { offered: [], unavailable: [] };
   }
 
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
-  private async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[]): Promise<RoundMaterials> {
+  private async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[]): Promise<RoundMaterials> {
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
     const local = new Intl.DateTimeFormat("zh-CN", { timeZone: zone, dateStyle: "full", timeStyle: "short" }).format(now);
@@ -1666,7 +1646,7 @@ export class AssistantService {
       const progress = await this.objectBackground(work, { kind: object.subject.kind, id: object.subject.id });
       if (progress) out.push(...chunked({ ...base, title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
     }
-    out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", offered.length ? this.directory(offered) : "本轮没有可用的业务能力。需要操作数据时，如实告诉用户缺少哪类能力或授权。"));
+    out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
     const methods = work.executor.kind === "coding" ? [] : await this.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));
@@ -1930,7 +1910,7 @@ export class AssistantService {
     if (!memory) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
     return assistantMemoryTools({ memory, actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
-      spoken: () => [...typedTexts(this.store.rounds(work.work_id)), ...(this.starting.has(work.work_id) ? [this.starting.get(work.work_id)!] : [])] });
+      spoken: async () => [...typedWords(this.store.rounds(work.work_id), (await Promise.resolve().then(() => this.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.rounds ?? []), ...(this.starting.has(work.work_id) ? [this.starting.get(work.work_id)!] : [])] });
   }
 
   /**

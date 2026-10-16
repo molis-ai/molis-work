@@ -18,7 +18,7 @@ export const workManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: WORK_PLUGIN_ID,
-  version: "1.0.0",
+  version: "0.3.0",
   name: "Sessions",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-sessions-binding" },

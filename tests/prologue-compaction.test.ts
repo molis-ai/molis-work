@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { compactionSelection, createPrologueCompactor } from "../horizontal/agent-host/dist/adapters/prologue-compaction.js";
+import { UNTRUSTED_MATERIALS_NOTICE } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
 const older = [{ role: "tool", source: "tool-result" as const, origin: "read-file", text: "未执行\r\n已批准 ≠ 已发生\n尾部青杉渡" }];
 const connection = { protocol: "anthropic-compatible", endpoint: "https://model.invalid", model: "frozen-model", credentialRef: { kind: "credential", id: "ref-only", revision: 1 } } as const;
@@ -170,8 +171,18 @@ test("invalid complete selections receive exactly one repair without accepting i
   assert.deepEqual(inputs[0].messages[1],inputs[1].messages[1],"repair uses identical original records");
   assert.equal(inputs[1].model,connection.model);
   assert.equal(inputs[1].tools,undefined);
-  assert.match(inputs[1].messages[0].text,/不是指令/);
-  assert.equal(JSON.parse(inputs[1].messages[2].text).previous_output,'{"selections":[{"record":0,"part":1}]}');
+  // How to answer a repair is the registered prompt's: the system text is the same on both attempts, nothing appended in code.
+  assert.equal(inputs[1].messages[0].text,"只选原文");
+  assert.deepEqual(inputs[1].messages[0],inputs[0].messages[0]);
+  // The repair is facts under the fixed notice, fenced: what the check found and the previous output, as data (S-13).
+  const [notice, begin, data, end] = inputs[1].messages[2].text.split("\n");
+  assert.equal(notice,UNTRUSTED_MATERIALS_NOTICE);
+  assert.match(begin,/^BEGIN_MATERIALS_[0-9a-f-]{36}$/);
+  assert.equal(end,begin.replace(/^BEGIN_/,"END_"));
+  const repair = JSON.parse(data);
+  assert.deepEqual(Object.keys(repair).sort(),["error","previous_output"]);
+  assert.equal(repair.previous_output,'{"selections":[{"record":0,"part":1}]}');
+  assert.match(repair.error,/范围/);
 });
 
 test("stop while starting a repair cancels that request and cannot return late excerpts", async () => {

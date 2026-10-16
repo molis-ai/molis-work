@@ -625,3 +625,38 @@ for (const [asset, old] of [
     assert.equal(gate("--base", `${name}-old`).code, 1);
   });
 }
+
+// RC-14–RC-16 (specs/ai-input-receipts, receipts 1e): under the user's 2026-10-15 rule, and approved on 2026-10-16 after
+// #584 in the receipts session, the Assistant's and Coding's input receipts may grow the workbench script, the three
+// stylesheets that carry the Assistant's styles, and the Coding bundle once, from exactly the current baselines to the
+// measured sizes. One byte more, another asset, or growth from the new baseline still fails.
+test("receipts 1e has one bounded allowance on the workbench script, the stylesheets and the Coding bundle; other assets and later growth still fail", () => {
+  const allowed = {
+    "/assets/molis-work-arrival.css": [821387, 821499],
+    "/assets/molis-work-plugins/coding.js": [434028, 434439],
+    "/assets/molis-work-settings.css": [1113186, 1113322],
+    "/assets/molis-work-workbench.css": [1699659, 1699795],
+    "/assets/molis-work-workbench.js": [1095606, 1097751],
+  } as const;
+  const assets = Object.keys(allowed) as (keyof typeof allowed)[];
+  branch("receipts-1e-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "receipts-1e-change");
+  for (const asset of assets) sizes[asset] = allowed[asset][1];
+  assert.equal(gate("--update", "--base", "receipts-1e-base").code, 0);
+  assert.equal(gate("--base", "receipts-1e-base").code, 0);
+  for (const asset of assets) {
+    sizes[asset]++;
+    assert.equal(gate("--update", "--base", "receipts-1e-base").code, 1, `${asset}: one byte over its allowance`);
+    sizes[asset]--;
+  }
+  sizes["/assets/a.css"]++;
+  assert.equal(gate("--update", "--base", "receipts-1e-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "receipts-1e-base").code, 0);
+  commit("freeze the measured receipts 1e sizes"); git("branch", "-f", "receipts-1e-frozen");
+  for (const asset of assets) {
+    sizes[asset]++; putBudget(sizes);
+    assert.equal(gate("--base", "receipts-1e-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "receipts-1e-frozen").code, 1);
+    sizes[asset]--; putBudget(sizes);
+  }
+});

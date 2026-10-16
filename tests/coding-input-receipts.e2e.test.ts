@@ -15,7 +15,7 @@ const reply = (text: string) => start + sse("content_block_delta", { index: 0, d
 
 // specs/ai-input-receipts §4.1, §4.2, §7, D3 (stage 1d): on the real Coding page, a round under way offers the three send modes,
 // a supplement shows as sending, the same words sent again after a lost answer go under the same key, and Esc in the composer no longer stops the round.
-test("RC-10/RC-11/RC-13: Coding sends a supplement with its mode, sends a lost supplement again under the same key, and Esc does not stop the round", { timeout: 180_000 }, async t => {
+test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a lost supplement again under the same key, and Esc does not stop the round", { timeout: 180_000 }, async t => {
   const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
   const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
@@ -116,5 +116,7 @@ test("RC-10/RC-11/RC-13: Coding sends a supplement with its mode, sends a lost s
   for (let i = 0; i < 600 && bodies.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.match(JSON.stringify(bodies[1]?.messages ?? ""), /v2\/login/u);
   await waitFor(`[...document.querySelectorAll('${coding} .coding-turn[data-kind=user]')].some(node => node.textContent.includes('/v2/login') && node.querySelector('.coding-turn-receipt')) && !document.querySelector('${coding} .coding-turn.is-sending')`, 20_000);
+  // RC-16: the page marks the reply it showed being written as dropped; the runtime's record does not (a Prologue need).
+  assert.equal(await evaluate<boolean>(`[...document.querySelectorAll('${coding} .coding-turn.is-dropped')].some(node => node.textContent.includes('正在看登录流程') && node.textContent.includes('这段回复已丢掉（你打断了它）'))`), true);
   await shot("coding-send-receipt.png");
 });

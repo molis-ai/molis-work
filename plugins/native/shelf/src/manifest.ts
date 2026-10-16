@@ -20,7 +20,7 @@ export const shelfManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: SHELF_PLUGIN_ID,
-  version: "1.6.0",
+  version: "0.3.0",
   name: "Shelf",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-shelf-binding" },

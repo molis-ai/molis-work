@@ -73,6 +73,7 @@
 | BL-104 | 带清单的一轮：模型更新步骤时用序号「1」「2」「3」，实际编号是 todo-4/5/6，三次都失败，回答仍写「清单已更新为全部完成」（PMR-32） | [post-merge-review §3 PMR-32](archive/post-merge-review/spec.md#3-问题表) | 已知缺口 | 要么在说明里要求照抄编号，要么让工具认序号（后者在 Prologue）；「声称已更新」是否纳入防护要先看误判 | 无 | 中 | 未分配 |
 | BL-145 | 助理主工作带全部工具的一轮正好 20 个工具（业务 4、网关 5、委派 4、记忆 4、侧栏 3）。Prologue 超过 20 个就把所有非系统工具的描述延后（`horizontal/agent-host/src/adapters/prologue-node-port.ts` 的 `deferToolSchemasBeyond: 20`），模型只看到每个描述的第一句；A3① 起委派与记忆怎样调用只写在各自的工具描述里，再多一个工具，这些用法就都看不见了。现成的缓解：#599（prologue#30）合入后，延后时 find-tools 一定调得到，模型能按需取回完整描述；但「用法放在工具描述里、每轮都看得见」这个前提就不再成立 | [ai-development-handbook §9.5 A3①](ai-development-handbook/spec.md) | 已知缺口 | 今天正好 20 个，没有触发；要定的是延后以后用法放在哪里（描述的第一句、角色层，还是靠 find-tools 取回） | #599 | 中 | AI 手册线 |
 | BL-146 | 「记住」一类的事实有几个主人：助理记忆（`remember`，个人与项目两个范围）、Goals 的「新增项目长期说明」（`goals.guidance.add`）、Alchemist 的「添加个人偏好」（`alchemist.memory.taste.create`）。A3① 评测里用户说「以后周报都按三段写」，三样模型都选过（Goals、Alchemist 各一次），选哪个都说得通，结果却落在不同的地方、按不同的规则生效 | [ai-development-handbook §9.5 A3①](ai-development-handbook/spec.md) | 已知缺口 | 要先定这几样事实各归谁、怎样分工（产品语义，先问用户），再改动作的标题与用途说明；不在提示词里加「不要用」 | 无 | 中 | AI 手册线（先问用户） |
+| BL-149 | 助理回复里选中一段还不算「手上的东西」：页面的 DOM 选区读取排除了 `[data-assistant-island]`，所以「从回复里选一段放进左边光标处」（§21.2 第 6 条、R23、AC-S15）没有接上，浮条不出、`attach.` 去处也不出。要让助理面板像别的位置一样报告手上的东西（`SurfaceFocus.place = "assistant"`），再由情境总线把左边的落点配上 | [context-program §21.6 W3-B2 一条](context-program/spec.md) | 未实现 | 不在 W3-B2 的范围；统筹 10-16 定排在 W3-B3（分屏窗格里的落点）之后 | W3-B3 | 中 | 情境线 |
 
 ## 4. 搜索、放置与工作流
 

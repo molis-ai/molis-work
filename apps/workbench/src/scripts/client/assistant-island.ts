@@ -1737,7 +1737,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     // The page's object is named once; the sentence around it is the translation's own, so it keeps its own colon.
     // Not added, it is offered — unless something handed over from it already brings it along.
     const name = page && (page.object.title || page.object.id), label = page && L("正在看：{title}", { title: name });
-    if (page && page.included) items.push({ key: "object", label, auto: !joined.has(objectKey(page.object)), note: page.related ? L("这项工作的对象") : "" });
+    if (page && page.included) items.push({ key: "object", label, object: page.object, auto: !joined.has(objectKey(page.object)), note: page.related ? L("这项工作的对象") : "" });
     else if (page && !files.some((file) => file.object && objectKey(file.object) === objectKey(page.object))) items.push({ key: "object", label, optional: true });
     if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== curId).slice(0, 2)
@@ -2055,7 +2055,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (page && page.included) res.object = page.object;
     if (ctx && ctx.unsaved && page && page.included) res.unsaved = true;
     if (sel && !removed.has("selection")) res.selection = { text: sel.text, truncated: sel.truncated };
-    return res;
+    return Object.assign(res, contextStrip ? contextStrip.carried() : {});
   };
   const sendMaterials = () => {
     const ctx = pageCtx();

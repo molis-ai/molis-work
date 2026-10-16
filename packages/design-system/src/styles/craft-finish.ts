@@ -1016,17 +1016,17 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-strip-row[data-more=end]{mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
   ${ASSIST} .assistant-strip-row[data-more=start]{mask-image:linear-gradient(to left,#000 calc(100% - 28px),transparent)}
   ${ASSIST} .assistant-strip-row[data-more=both]{mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
-  ${ASSIST} .assistant-context-strip[hidden]{display:none}
   ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])){--context-row:38px}
   ${ASSIST} .assistant-strip-chip{display:inline-flex;flex:none;align-items:center;gap:4px;max-width:240px;height:32px;padding:0 0 0 8px;border:0;border-radius:8px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font:inherit;font-size:12px}
   ${ASSIST} .assistant-strip-chip.is-optional{box-shadow:none;outline:1px dashed var(--line-strong);outline-offset:-1px;color:var(--muted)}
   ${ASSIST} .assistant-strip-chip.is-work{padding:0 8px;color:var(--muted);cursor:pointer}
+  ${ASSIST} .assistant-strip-chip.is-landing{background:var(--accent-soft);box-shadow:none}
   ${ASSIST} .assistant-strip-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   ${ASSIST} .assistant-strip-note{color:var(--faint);white-space:nowrap}
   ${ASSIST} .assistant-strip-thumb{width:20px;height:20px;border-radius:4px;object-fit:cover}
   ${ASSIST} .assistant-strip-act{flex:none;width:32px;height:32px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;cursor:pointer}
-  ${ASSIST} :is(.assistant-strip-act,.assistant-strip-chip.is-work):hover{background:var(--nav-hover);color:var(--ink)}
-  ${ASSIST} :is(.assistant-strip-act,.assistant-strip-chip.is-work):focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}
+  ${ASSIST} :is(.assistant-strip-act,.is-work):hover{background:var(--nav-hover);color:var(--ink)}
+  ${ASSIST} :is(.assistant-strip-act,.is-work):focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}
   ${ASSIST} .assistant-notice-actions{display:flex;gap:6px;justify-content:flex-end}
   /* Attention: a count only for what the person's rules let through here; the list says what waits and why. */
   ${ASSIST} .assistant-attention {

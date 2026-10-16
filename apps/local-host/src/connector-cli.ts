@@ -144,7 +144,7 @@ export async function connectCli(home: string, input: { serviceId: string; displ
 }
 export async function inspectCliConnection(home: string, id: string, read = false) {
   const connection = withConnectorConnections(home, store => store.require(id));
-  if (connection.disconnected_at || connection.auth_method !== "cli") throw new ConnectorCliError("CLI 连接已断开");
+  if (!connection.enabled || connection.disconnected_at || connection.auth_method !== "cli") throw new ConnectorCliError("CLI 连接已断开");
   const config = withConnectorProtocols(home, store => store.get<CliConfiguration>(id));
   if (!config || config.protocol !== "cli") throw new ConnectorCliError("请重新连接此 CLI");
   const spec = definition(connection.service_id);
@@ -152,7 +152,7 @@ export async function inspectCliConnection(home: string, id: string, read = fals
   if (identity(connection.service_id, result).fingerprint !== config.fingerprint) throw new ConnectorCliError("CLI 当前账号已改变，请在设置中重新连接，避免读取另一账号");
   const output = read && spec.read ? await run(connection.service_id, spec.read) : result;
   if (read && spec.read && identity(connection.service_id, await readIdentity(connection.service_id)).fingerprint !== config.fingerprint) throw new ConnectorCliError("读取期间 CLI 账号已改变，请重新连接");
-  if (withConnectorConnections(home, store => store.require(id)).disconnected_at) throw new ConnectorCliError("CLI 连接已断开");
+  if (withConnectorConnections(home, store => store.state(store.require(id))) !== "connected") throw new ConnectorCliError("CLI 连接已断开");
   return { account: connection.account_label, result: output };
 }
 type LoginJob = { home: string; service: string; status: "running" | "succeeded" | "failed"; output: string; submitted: string[]; input: (value: string) => void; kill: () => void; timer: ReturnType<typeof setTimeout> };

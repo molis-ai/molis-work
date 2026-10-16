@@ -6,6 +6,7 @@ import type { AgentMcpSourceRef, AgentMcpLibrary, AgentMcpServerInput, AgentMcpS
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export type HostMcpConnection = string | { credentialRef?: string; revision: string } | null;
+export type SaveMcpConnection = (input: { label: string; endpoint: string; secret: string }) => Promise<{ connection_id: string; discard(): void | Promise<void> }>;
 const KIND = "molis-mcp";
 /** Each configuration has a distinct SDK connection identity; old calls cannot target a replacement. */
 export const mcpConnectionId = (ref: AgentMcpSourceRef) => ref.configuration_version === undefined ? ref.server : `${ref.server}@${ref.configuration_version}`;
@@ -22,6 +23,25 @@ function endpoint(value: unknown) {
   if (url.username || url.password || url.hash || [...url.searchParams.keys()].some(key => /^(auth|authorization|password|secret|token|access_token|refresh_token|api[_-]?key)$/i.test(key))) throw new Error("地址不能包含凭据；请使用独立认证字段");
   if (url.protocol !== "https:" && !isLoopbackHttpUrl(url)) throw new Error("外部 MCP 使用 HTTPS；HTTP 仅用于本机回环地址");
   return url.toString();
+}
+
+async function prepareMcpAuthentication(input: AgentMcpServerInput, previous: Saved | undefined, address: string,
+  options: { resolveConnection?: (id: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>; saveConnection?: SaveMcpConnection }): Promise<{ connection_id?: string; discard?: () => void | Promise<void> }> {
+  if (input.auth?.kind === "none") return {};
+  if (input.auth?.kind === "keep-existing") {
+    if (previous?.endpoint !== address || !previous.auth_connection_id) throw new Error("地址变化或没有可恢复的旧凭据，请重新输入认证信息");
+    return { connection_id: previous.auth_connection_id };
+  }
+  if (input.auth?.kind === "replace-secret") {
+    if (!options.saveConnection) throw new Error("Host 凭据保存服务未装配，请从服务连接入口添加认证");
+    return options.saveConnection({ label: input.label, endpoint: address, secret: text(input.auth.secret, "认证信息", 16384) });
+  }
+  if (input.auth?.kind === "connection") {
+    const connection_id = text(input.auth.connection_id, "账号连接", 128);
+    if (!options.resolveConnection || !await options.resolveConnection(connection_id, address)) throw new Error("所选 MCP 连接不可用");
+    return { connection_id };
+  }
+  throw new Error("请明确选择认证方式");
 }
 
 /** An HTTP server's tools touch no files; the runner still needs an authorized root, so it gets the system temporary directory. */
@@ -47,6 +67,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
   withDispatchGuard<T>(guard: () => Promise<void>, operation: () => Promise<T>): Promise<T>;
   resolveConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
   subscribeConnections?: (listener: (connectionId: string) => void) => () => void;
+  saveConnection?: SaveMcpConnection;
   directoryAuthorized?: (projectId: string, directory: string) => Promise<boolean>;
   credentialRefFor?: (ref: string) => Promise<ExactRef<"credential">>;
 }): AgentMcpLibrary & { dispose(): void } {
@@ -149,31 +170,23 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
         if (typeof input.enabled !== "boolean" || !Number.isInteger(input.timeout_ms) || input.timeout_ms < 1000 || input.timeout_ms > 600_000) throw new Error("启用状态或超时无效（1000–600000 毫秒）");
         const base = { ...owner, id, label: text(input.label, "名称", 128), enabled: input.enabled, timeout_ms: input.timeout_ms };
         let saved: Saved;
+        let discard: (() => void | Promise<void>) | undefined;
         if (input.transport === "stdio") {
           if (!input.directory?.realpath_verified || !input.directory.canonical_path) throw new Error("请指定已授权工作区");
           if (!Array.isArray(input.argv) || input.argv.length > 64 || input.argv.some(arg => typeof arg !== "string" || arg.length > 4096 || arg.includes("\0"))) throw new Error("参数必须是最多 64 项的文本数组");
           saved = { ...base, transport: "stdio", directory: { ...input.directory }, executable: text(input.executable, "可执行文件"), argv: [...input.argv] };
         } else if (input.transport === "http") {
-          const address = endpoint(input.endpoint);let credential_ref: ExactRef<"credential"> | undefined;
-          let auth_connection_id: string | undefined;
-          if (input.auth?.kind === "keep-existing") {
-            if (previous?.saved.endpoint !== address || (!previous.saved.credential_ref && !previous.saved.auth_connection_id)) throw new Error("地址变化或没有旧凭据，请重新输入认证信息");
-            credential_ref = previous.saved.credential_ref;
-            auth_connection_id = previous.saved.auth_connection_id;
-          } else if (input.auth?.kind === "replace-secret") {
-            const secret = text(input.auth.secret, "认证信息", 16384);
-            credential_ref = (await runtime.credentials.write({ label: `mcp:${id}`, secret: { plaintext: new TextEncoder().encode(secret) } })).ref;
-          } else if (input.auth?.kind === "connection") {
-            auth_connection_id = text(input.auth.connection_id, "账号连接", 128);
-            if (!options.resolveConnection || !await options.resolveConnection(auth_connection_id, address)) throw new Error("所选 MCP 连接不可用");
-          } else if (input.auth?.kind !== "none") throw new Error("请明确选择认证方式");
-          saved = { ...base, transport: "http", endpoint: address,
-            ...(credential_ref ? { credential_ref } : {}), ...(auth_connection_id ? { auth_connection_id } : {}) };
+          const address = endpoint(input.endpoint);
+          const prepared = await prepareMcpAuthentication(input, previous?.saved, address, options);
+          discard = prepared.discard;
+          saved = { ...base, transport: "http", endpoint: address, ...(prepared.connection_id ? { auth_connection_id: prepared.connection_id } : {}) };
         } else throw new Error("不支持这个 MCP 传输方式");
         // Changing configuration first closes the old transport; a failed save never implies it is still connected.
-        await close(id);
-        const committed = await runtime.store.commit({ kind: KIND, id, expectedVersion: input.expected_version, metadata: { ...saved } });
-        return view(saved, committed.version);
+        try {
+          await close(id);
+          const committed = await runtime.store.commit({ kind: KIND, id, expectedVersion: input.expected_version, metadata: { ...saved } });
+          return view(saved, committed.version);
+        } catch (error) { await discard?.(); throw error; }
       });
     },
     async control(owner, id, action, callOptions = {}) {
@@ -184,6 +197,8 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
         const dispatch = async () => { await callOptions.beforeDispatch?.(); if (callOptions.signal?.aborted || abort.signal.aborted) throw createPrologueError("CANCELLED", "MCP connection cancelled before dispatch."); };
         try {
         const record = await held(owner, id);
+        if (callOptions.expected_version !== undefined && record.version !== callOptions.expected_version) throw new Error("MCP 配置已变化，请重新读取后操作");
+        if (action !== "connect") await dispatch();
         const connectionId = mcpConnectionId({server:id,configuration_version:record.version});
         if (action === "connect") {
           if (!record.saved.enabled) throw new Error("请先启用这个 MCP 服务");
@@ -198,7 +213,8 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
             await dispatch(); await assertDirectory(saved);
             await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref, executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms, envAllowlist: [] } });
           } else {
-            let credentialRef = saved.credential_ref;
+            if (saved.credential_ref) throw new Error("这个 MCP 的凭据没有持久保存，请重新填写认证信息或选择已有连接");
+            let credentialRef: ExactRef<"credential"> | undefined;
             if (saved.auth_connection_id) {
               linked.set(saved.id, { account: saved.auth_connection_id });
               const host = await resolveHost(saved);

@@ -50,7 +50,7 @@ function connectionState(state: ConnectorConnectionView["state"], L: ConnectorsS
 
 function renderConnectionRow(connection: ConnectorConnectionView, card: ConnectorSettingsCardView | undefined, p: ConnectorsSettingsPrimitives, inDetail = false): string {
   const { L, escapeHtml } = p;
-  const state = connectionState(connection.state, L);
+  const state = connection.enabled === false ? { label: L("已停用"), tone: "neutral" } : connectionState(connection.state, L);
   const name = escapeHtml(connection.display_name);
   const serviceTitle = escapeHtml(card?.title || connection.service_id);
   const canManage = connection.source !== "external" || connection.auth_method === "cli";

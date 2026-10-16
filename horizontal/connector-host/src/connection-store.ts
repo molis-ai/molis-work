@@ -31,6 +31,7 @@ function connectionFromRow(row: Row): ConnectorConnectionRecord {
     refresh_ref: row.refresh_ref === null ? null : String(row.refresh_ref),
     expires_ref: row.expires_ref === null ? null : String(row.expires_ref),
     source: row.source as ConnectorConnectionRecord["source"],
+    enabled: row.enabled === 1,
     disconnected_at: row.disconnected_at === null ? null : String(row.disconnected_at),
     created_at: String(row.created_at), updated_at: String(row.updated_at),
   };
@@ -55,6 +56,8 @@ export const CONNECTOR_CONNECTIONS_SCHEMA = `
     refresh_ref TEXT,
     expires_ref TEXT,
     source TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+    removed_at TEXT,
     disconnected_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -86,15 +89,15 @@ export class ConnectorConnectionStore {
 
   list(serviceId?: string): ConnectorConnectionRecord[] {
     const sql = serviceId
-      ? "SELECT * FROM connector_connections WHERE service_id = ? ORDER BY created_at, connection_id"
-      : "SELECT * FROM connector_connections ORDER BY service_id, created_at, connection_id";
+      ? "SELECT * FROM connector_connections WHERE removed_at IS NULL AND service_id = ? ORDER BY created_at, connection_id"
+      : "SELECT * FROM connector_connections WHERE removed_at IS NULL ORDER BY service_id, created_at, connection_id";
     return (serviceId ? this.db.prepare(sql).all(serviceId) : this.db.prepare(sql).all())
       .map((row) => connectionFromRow(row as Row));
   }
 
   get(connectionId: string): ConnectorConnectionRecord | null {
     if (!CONNECTION_ID.test(connectionId)) return null;
-    const row = this.db.prepare("SELECT * FROM connector_connections WHERE connection_id = ?").get(connectionId) as Row | undefined;
+    const row = this.db.prepare("SELECT * FROM connector_connections WHERE connection_id = ? AND removed_at IS NULL").get(connectionId) as Row | undefined;
     return row ? connectionFromRow(row) : null;
   }
 
@@ -106,6 +109,7 @@ export class ConnectorConnectionStore {
   }
 
   state(connection: ConnectorConnectionRecord): ConnectorConnectionState {
+    if (!connection.enabled) return "disconnected";
     if (connection.disconnected_at) return "disconnected";
     if (connection.auth_method === "none") return "connected";
     if (connection.auth_method === "mcp" && !connection.credential_ref) return "connected";
@@ -122,7 +126,7 @@ export class ConnectorConnectionStore {
     return {
       connection_id: connection.connection_id, service_id: connection.service_id,
       display_name: connection.display_name, account_label: connection.account_label,
-      auth_method: connection.auth_method, source: connection.source, state: this.state(connection),
+      auth_method: connection.auth_method, source: connection.source, enabled: connection.enabled, state: this.state(connection),
       ...(targetOrigin ? { target_origin: targetOrigin } : {}),
     };
   }
@@ -267,6 +271,20 @@ export class ConnectorConnectionStore {
     return this.require(connectionId);
   }
 
+  setEnabled(connectionId: string, enabled: boolean): ConnectorConnectionRecord {
+    this.require(connectionId);
+    this.db.prepare("UPDATE connector_connections SET enabled = ?, updated_at = ? WHERE connection_id = ?")
+      .run(enabled ? 1 : 0, this.now().toISOString(), connectionId);
+    this.onChange?.(connectionId);
+    return this.require(connectionId);
+  }
+
+  remove(connectionId: string): void {
+    this.disconnect(connectionId);
+    this.db.prepare("UPDATE connector_connections SET removed_at = ? WHERE connection_id = ?").run(this.now().toISOString(), connectionId);
+    this.onChange?.(connectionId);
+  }
+
   disconnect(connectionId: string): ConnectorConnectionRecord {
     const connection = this.require(connectionId);
     // Leave the row in place so plugin bindings can show the missing account.
@@ -283,7 +301,7 @@ export class ConnectorConnectionStore {
 
   resolveToken(connectionId: string, serviceId: string): string {
     const connection = this.require(connectionId, serviceId);
-    if (connection.disconnected_at || !connection.credential_ref) throw connectorErrors["connector.connection.disconnected"]("所选连接已断开，请重新选择或授权");
+    if (!connection.enabled || connection.disconnected_at || !connection.credential_ref) throw connectorErrors["connector.connection.disconnected"]("所选连接已断开，请重新选择或授权");
     const token = this.secrets.get(connection.credential_ref)?.trim();
     if (!token) throw connectorErrors["connector.connection.disconnected"]("所选连接需要重新授权");
     return token;

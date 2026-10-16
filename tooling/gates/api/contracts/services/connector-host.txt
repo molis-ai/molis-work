@@ -23,6 +23,7 @@ export interface ConnectorConnectionRecord {
     readonly refresh_ref: string | null;
     readonly expires_ref: string | null;
     readonly source: "managed" | "external";
+    readonly enabled: boolean;
     readonly disconnected_at: string | null;
     readonly created_at: string;
     readonly updated_at: string;
@@ -30,7 +31,7 @@ export interface ConnectorConnectionRecord {
 
 export type ConnectorConnectionState = "connected" | "reauth_required" | "disconnected";
 
-export type ConnectorConnectionView = Pick<ConnectorConnectionRecord, "connection_id" | "service_id" | "display_name" | "account_label" | "auth_method" | "source"> & {
+export type ConnectorConnectionView = Pick<ConnectorConnectionRecord, "connection_id" | "service_id" | "display_name" | "account_label" | "auth_method" | "source" | "enabled"> & {
     readonly state: ConnectorConnectionState;
     readonly target_origin?: string;
     readonly mcp_endpoint?: string;

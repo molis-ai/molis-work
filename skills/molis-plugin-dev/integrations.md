@@ -34,6 +34,8 @@ export function createGithubIntegrationPlugin(input: { provider: IntegrationProv
 
 GitHub、Gmail 有独立的 oauth 模块：配置、pending、token 生命周期、按账号隔离。账号检查（whoami）用连接器动作 `connectors.account.read`（GitHub 1.2.0 起，Catalog 连接器 1.1.0 起），不是插件自己登记的 behavior；连接 / 断开是设置页动作。这些都**不进** `feed.capture`。
 
+项目 MCP 的来源插件是来历，不能作为连接运行寿命或其他消费者授权。Host 共用目录保留项目范围，每次调用核对当前调用者与工作区权限；项目配置只引用 Home 凭据 owner，不能把 SDK 进程内的 credential ref 当成持久密钥。停用连接保留凭据，但所有消费者都须拒绝调用；移除不删除已有业务成果。
+
 ## Catalog 连接器
 
 `plugins/official-integrations/catalog` 按 `connectorId` 生成 `plugin_id: io.molis.work.integration.<id>`、权限主机和标题。新目录连接器先看 catalog spec，不要复制一份 GitHub 插件。

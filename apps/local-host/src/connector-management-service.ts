@@ -1,0 +1,20 @@
+import { withConnectorConnections } from "./connector-connection-store.js";
+import { withConnectorProtocols } from "./connector-protocol-store.js";
+import { cancelConnectorAuthorizationsForConnection } from "./connector-authorization-status.js";
+import { refreshFeedConnectionState } from "./connector-source-state.js";
+
+/** Shared by the protected settings routes and authorized management actions. No service-side logout is implied. */
+export function controlConnectorConnection(home: string, id: string, action: "enable" | "disable" | "remove" | "disconnect") {
+  withConnectorConnections(home, store => store.require(id));
+  if (action !== "enable") {
+    cancelConnectorAuthorizationsForConnection(home, id);
+    withConnectorProtocols(home, store => store.discardConnectionSessions(id));
+  }
+  const connection = withConnectorConnections(home, store => {
+    if (action === "remove") { store.remove(id); return null; }
+    return store.view(action === "disconnect" ? store.disconnect(id) : store.setEnabled(id, action === "enable"));
+  });
+  if (action === "remove") withConnectorProtocols(home, store => store.remove(id));
+  refreshFeedConnectionState(home, id);
+  return { connection_id: id, connection, removed: action === "remove", service_authorization_revoked: false };
+}

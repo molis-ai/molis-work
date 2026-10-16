@@ -322,7 +322,7 @@ goals.tree.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	re
 goals.tree.submit	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	142c25e7d19c	ec42af7be833	9a20bdba744a
 goals.work.resume	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	f67091d4e5d0	d4193c249847	9a20bdba744a
 images.connections.delete	1	io.molis.work.images	io.molis.work.images	command	operation	home	irreversible	-	agent,mcp,user,workflow	images:connections:write	image	-	-	61f64d4ce922	07a9ad95ba37	-
-images.connections.list	1	io.molis.work.images	io.molis.work.images	query	query	home	read	-	agent,mcp,user,workflow	images:connections:read	image	-	-	d746974fa9af	9a95a2af9aef	-
+images.connections.list	2	io.molis.work.images	io.molis.work.images	query	query	home	read	-	agent,mcp,user,workflow	images:connections:read	image	-	-	d746974fa9af	4fae8819083d	-
 images.connections.save	1	io.molis.work.images	io.molis.work.images	command	operation	home	write	-	agent,mcp,user,workflow	images:connections:write	image	-	-	8756692d9699	107b2acf64bf	-
 images.files.content	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	user	images:read	generated_image	molis.files.content.request.v1	molis.files.content.v1	99b557e4a48f	3197f1792222	a1d9a472a44c
 images.files.entries	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	user	images:read	generated_image	molis.files.entries.window.v1	molis.files.entries.page.v1	09d161bb4729	fef9b910b93e	23b2fbd33d62

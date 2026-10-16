@@ -136,6 +136,14 @@ test("Jelly model actions reuse the original provider and preference owners and 
     providerStore(home, store => { assert.equal(JSON.stringify(store.get("shared")), sharedBefore); });
     assert.doesNotMatch(JSON.stringify(saved), /fixture-key/);
     assert.equal((await actions.discover()).find(row => row.capability_id === jellyActions.modelPlan.capability_id)!.availability.available, true);
+    // ASC-16 ASC-20: disabling a shared credential blocks its model consumers without changing their selection.
+    withConnectorConnections(home, store => store.setEnabled(shared.connection_id, false));
+    const disabled = await actions.invoke(jellyServiceActions.modelSettings, {});
+    assert.equal(disabled.connections.find(row => row.connection_id === shared.connection_id)!.state, "disconnected");
+    assert.deepEqual(disabled.selection, saved.selection);
+    await assert.rejects(actions.invoke(jellyActions.modelPlan, { source_type: "text", text: "已停用账号不能调用" }), { code: "actions.connection_required" });
+    withConnectorConnections(home, store => store.setEnabled(shared.connection_id, true));
+    assert.equal((await actions.discover()).find(row => row.capability_id === jellyActions.modelPlan.capability_id)!.availability.available, true);
     providerStore(home, store => { const existing = store.get("shared")!; store.upsert({ ...existing, enabled: false }); });
     assert.equal((await actions.discover()).find(row => row.capability_id === jellyActions.modelPlan.capability_id)!.availability.available, false);
     await assert.rejects(actions.invoke(jellyActions.modelPlan, { source_type: "text", text: "不可使用已停用模型" }), { code: "actions.connection_required" });

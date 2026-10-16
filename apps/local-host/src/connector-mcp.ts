@@ -184,7 +184,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   const endpointFor = (serviceId: string, requested?: string) => mcpEndpointFor(servers, serviceId, requested, Boolean(options.testServers));
   function active(home: string, id: string): McpConfiguration {
     const connection = withConnectorConnections(home, store => store.require(id));
-    if (connection.auth_method !== "mcp" || connection.disconnected_at) throw connectorErrors["connector.mcp.disconnected"]("MCP 连接已断开，请重新连接");
+    if (connection.auth_method !== "mcp" || !connection.enabled || connection.disconnected_at) throw connectorErrors["connector.mcp.disconnected"]("MCP 连接已断开，请重新连接");
     const config = withConnectorProtocols(home, store => store.get<McpConfiguration>(id));
     if (!config || config.protocol !== "mcp" || config.serviceId !== connection.service_id) throw connectorErrors["connector.mcp.configuration"]("MCP 连接配置缺失，请重新连接");
     endpointFor(config.serviceId, config.endpoint);

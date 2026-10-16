@@ -87,6 +87,7 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
     }
   }
   return {
+    refresh(reference: Place, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) { return sync(reference, owner.plugin_id, runtimeId, library, owner); },
     sync(runtime: MolisWorkProjectRuntime, pluginId: string, runtimeId: string, library: AgentMcpLibrary, owner: AgentSkillOwner) {
       return sync({ project_id: runtime.project_id, storage_key: runtime.store.path }, pluginId, runtimeId, library, owner);
     },

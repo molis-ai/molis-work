@@ -50,7 +50,7 @@ async function serialized<T>(home: string, id: string, run: () => Promise<T>): P
 }
 function configured(home: string, id: string): OAuthConfiguration {
   const connection = withConnectorConnections(home, store => store.require(id));
-  if (connection.disconnected_at) throw new ApiOAuthError("连接已断开，请重新授权");
+  if (!connection.enabled || connection.disconnected_at) throw new ApiOAuthError("连接已断开，请重新授权");
   const config = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(id));
   if (!config || config.protocol !== "oauth" || config.serviceId !== connection.service_id) throw new ApiOAuthError("找不到此连接的 OAuth 配置");
   return config;

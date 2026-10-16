@@ -27,6 +27,8 @@ CREATE TABLE connector_connections (
         refresh_ref TEXT,
         expires_ref TEXT,
         source TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+        removed_at TEXT,
         disconnected_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL

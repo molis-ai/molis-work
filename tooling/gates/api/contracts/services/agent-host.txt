@@ -349,6 +349,7 @@ export interface AgentMcpLibrary {
     list(owner: AgentSkillOwner): Promise<AgentMcpServerView[]>;
     save(owner: AgentSkillOwner, input: AgentMcpServerInput): Promise<AgentMcpServerView>;
     control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove", options?: {
+        expected_version?: number;
         signal?: AbortSignal;
         beforeDispatch?(): void | Promise<void>;
     }): Promise<void>;

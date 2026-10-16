@@ -81,7 +81,7 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
       availability: () => {
         const present = connection(connectionId);
         if (!present) return { available: false, code: "actions.connection_unavailable", reason: `连接「${label}」已删除` };
-        if (present.disconnected_at) return { available: false, code: "actions.connection_unavailable", reason: `连接「${label}」已断开，请在服务连接中重新授权` };
+        if (!present.enabled || present.disconnected_at) return { available: false, code: "actions.connection_unavailable", reason: !present.enabled ? `连接「${label}」已停用，请启用后再使用` : `连接「${label}」已断开，请在服务连接中重新授权` };
         return { available: true };
       },
       definitions: [definition], handlers: [handler] }));

@@ -37,6 +37,15 @@ export class ConnectorProtocolStore {
     this.db.prepare("INSERT INTO connector_protocols(connection_id,configuration_json) VALUES (?,?) ON CONFLICT(connection_id) DO UPDATE SET configuration_json=excluded.configuration_json")
       .run(configuration.connectionId, JSON.stringify(configuration));
   }
+  discardConnectionSessions(connectionId: string): void {
+    const rows = this.db.prepare("DELETE FROM connector_authorization_sessions WHERE json_extract(configuration_json, '$.connectionId')=? RETURNING configuration_json")
+      .all(connectionId) as Array<{ configuration_json: string }>;
+    for (const row of rows) this.clearStage(row.configuration_json);
+  }
+  remove(connectionId: string): void {
+    this.discardConnectionSessions(connectionId);
+    this.db.prepare("DELETE FROM connector_protocols WHERE connection_id=?").run(connectionId);
+  }
   begin<T extends ConnectorProtocolConfiguration>(origin: string, configuration: T, now = Date.now()): string {
     const expired = this.db.prepare("DELETE FROM connector_authorization_sessions WHERE created_at<? OR created_at>? RETURNING configuration_json")
       .all(now - CONNECTOR_AUTH_TTL_MS, now) as Array<{ configuration_json: string }>;

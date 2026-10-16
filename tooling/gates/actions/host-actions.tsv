@@ -14,6 +14,7 @@ connectors.account.read	1	system.connectors	query	query	home	read	concurrent	age
 connectors.authorization.cancel	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	-
 connectors.authorization.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	f204a0118ca6	a2c799262a3c	-
 connectors.connection.check	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:management:read	connector	-	-	319b056c62cd	a2c799262a3c	-
+connectors.connection.control	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	7880a29ba600	a2c799262a3c	-
 connectors.connections.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	df77d647cdc2	a2c799262a3c	-
 connectors.methods.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	df77d647cdc2	a2c799262a3c	-
 functions.authoring.catalog	1	system.functions	query	query	home	read	-	agent,mcp,user,workflow	functions:manage	-	-	-	d746974fa9af	80d5bc6ba3f2	-

@@ -31,7 +31,7 @@ export function functionsCredentialConfigured(home: string, options: FunctionsHo
   const selected = selectedTypeSafeConnection(home);
   const ref = selected ? withConnectorConnections(home, store => {
     const connection = store.get(selected.connection_id);
-    return connection && connection.service_id === "typesafe" && !connection.disconnected_at ? connection.credential_ref : null;
+    return connection && connection.service_id === "typesafe" && connection.enabled && !connection.disconnected_at ? connection.credential_ref : null;
   }) : null;
   return !!ref && runWithMolisWorkHome(home, () => peekSealedEntry(ref) !== null);
 }

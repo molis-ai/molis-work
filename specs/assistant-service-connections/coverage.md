@@ -63,9 +63,9 @@ API 列中除特殊 owner 外，账号检查归连接管理，列表读取沿用
 | 类别 | 现有基础 | 本次缺口 / 证据 |
 | --- | --- | --- |
 | 官方远程 MCP · HTTP/SSE | 预置地址、OAuth DCR/已注册客户端、Bearer、匿名 | 回调自动登记首片已验证；助理自动接续未接入 |
-| 自定义远程 MCP | Coding 的通用 HTTP 配置 | 移到共同管理，保留精确目标与项目范围；待实现 |
-| 已有本机 HTTP | 预置 Figma；Coding 通用配置 | 共同管理及“不拥有进程”状态；待实现 |
-| 已有可执行文件 | Prologue stdio 运行 | 连接生命周期与目录授权独立于入口；待实现 |
+| 自定义远程 MCP | Home 通用 HTTP/SSE 与项目 HTTP 配置 | 协议集成已覆盖匿名、Bearer、OAuth；共同管理已能读取/检查/启停/移除；对话准备入口待完成 |
+| 已有本机 HTTP | 预置 Figma；Home 与项目通用配置 | 真实回环 HTTP 连接、调用与凭据重启回归通过；由用户拥有的进程不被管理操作终止 |
+| 已有可执行文件 | Prologue stdio 运行 | 原项目与目录授权仍检查；Host 重启后由获准调用按需重连已覆盖；对话安装入口待完成 |
 | Node/npm | 现有 stdio 能运行已备好程序 | 固定版本用户级安装、运行时检查、更新回滚；待实现 |
 | Python | 现有 stdio 能运行已备好程序 | 隔离环境安装、依赖与版本生命周期；待实现 |
 | Connector O/T/C | 设置页已有对应处理器与受限用户操作 | 对话管理、本人表单、接续与 CLI 安装；待实现 |
@@ -85,4 +85,4 @@ API 列中除特殊 owner 外，账号检查归连接管理，列表读取沿用
 | MCP 发现缓存与动作版本 | Home 的 connector/external MCP 工具缓存与版本簿 | Kernel action reference：provider/capability/version | 可重建投影；不能复制成新配置或当成连通证明 |
 | 助理任务与等待 | Assistant + Prologue task graph | work/round、continuation/checker | 恢复当前任务且每次等待只续接一次；不新建通用任务引擎 |
 
-维护执行尚未开始。当前首片不改数据库 schema，不动真实 Home。统一 project MCP owner 时须在同一需求书列出每种消费引用的切换顺序、备份、隔离演练与回滚，再处理真实数据。
+Connector 库基线 2 的隔离维护演练已覆盖原连接、协议、绑定、凭据引用与授权结果；真实 Home 未维护。项目 MCP 配置仍由 SDK 保存，Host 共同目录保留其项目范围与来源，直接填写的凭据现在持久保存到 Home SecretStore。正式接入界面、任务接续、受管安装与真实服务验收尚未完成。

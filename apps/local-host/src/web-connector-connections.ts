@@ -1,10 +1,11 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
-import { cancelConnectorAuthorization, cancelConnectorAuthorizationsForConnection, connectorAuthorizationStatus } from "./connector-authorization-status.js";
+import { cancelConnectorAuthorization, connectorAuthorizationStatus } from "./connector-authorization-status.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
+import { controlConnectorConnection } from "./connector-management-service.js";
 import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
 
@@ -65,15 +66,16 @@ export async function handleConnectorConnectionsHttp(
         if (typeof body.token === "string") updated = store.replaceToken(updated.connection_id, body.token);
         return store.view(updated);
       });
+      if (typeof body.enabled === "boolean") {
+        const result = controlConnectorConnection(homeDirectory, item[1]!, body.enabled ? "enable" : "disable");
+        sendJson(response, 200, result); return true;
+      }
       if (typeof body.token === "string") refreshFeedConnectionState(homeDirectory, item[1]!);
       sendJson(response, 200, { connection });
       return true;
     }
     if (item && request.method === "DELETE") {
-      cancelConnectorAuthorizationsForConnection(homeDirectory, item[1]!);
-      const connection = withConnectorConnections(homeDirectory, (store) => store.view(store.disconnect(item[1]!)));
-      refreshFeedConnectionState(homeDirectory, item[1]!);
-      sendJson(response, 200, { connection });
+      sendJson(response, 200, controlConnectorConnection(homeDirectory, item[1]!, "disconnect"));
       return true;
     }
     sendJson(response, 405, { error: "不支持的连接操作" });

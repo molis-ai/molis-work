@@ -5,7 +5,7 @@ import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/
 import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
 import { agentErrors } from "../errors.js";
-import type { HostMcpConnection } from "./prologue-mcp.js";
+import type { HostMcpConnection, SaveMcpConnection } from "./prologue-mcp.js";
 import type { PrologueSurfacePorts } from "./prologue-surfaces.js";
 import type { AgentReviewQueue } from "../reviews.js";
 
@@ -44,6 +44,7 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
    */
   resolveCredential?: (credentialRef: string) => string | null | Promise<string | null>;
   resolveMcpConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
+  saveMcpConnection?: SaveMcpConnection;
   subscribeMcpConnections?: (listener: (connectionId: string) => void) => () => void;
 }
 

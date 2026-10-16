@@ -53,7 +53,7 @@ Home 里有 30 种 SQLite 文件：权威库 26 种（Home 级 23 种，按项�
 | `memory/memory.db` | `packages/storage/src/adapters/memory-ledger.ts:62-64`，基线 `:22` | SQLite 带版本 · WAL · 2 | 必备份。记忆的正文在 Prologue 条目里（即 `agent-runtime/`），账本只存修订、候选、使用回执等（`packages/storage/src/adapters/memory-ledger.ts:13-17`），两者取同一时点 | purge（`memory` 已登记） |
 | `placement/placement.db` | 宿主；`apps/local-host/src/placement-actions.ts:63-64` 打开，`:58` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `agent-definitions/agent-definitions.db` | 宿主；`apps/local-host/src/agent-definitions/agent-definitions.ts:316` 打开，`:20` 基线、`:57` 套用 | SQLite 带版本 · 1 | 必备份（用户改过的提示词与历史） | purge |
-| `connectors/connectors.db` | 5 张表的结构归 `horizontal/connector-host`（`src/connection-store.ts:51`、`src/protocol-store.ts:19`）；第 6 张 `connector_authorization_results`（授权回执）由宿主自己定义（`apps/local-host/src/connectors-store.ts:9-12`）；宿主 `:8` 组装、`:15` 打开 | SQLite 带版本 · 1 | 必备份。只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge |
+| `connectors/connectors.db` | 5 张表的结构归 `horizontal/connector-host`（`src/connection-store.ts:51`、`src/protocol-store.ts:19`）；第 6 张 `connector_authorization_results`（授权回执）由宿主自己定义（`apps/local-host/src/connectors-store.ts:9-12`）；宿主 `:8` 组装、`:15` 打开 | SQLite 带版本 · 2 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge |
 | `context-onboarding/context-onboarding.db` | 宿主；`apps/local-host/src/context-onboarding-store.ts:46` 打开、`:51` 套用，`:44` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `functions/functions.db` | `modules/functions/src/store.ts:452`，基线 `:399` | SQLite 带版本 · 3 | 必备份 | purge |
 | `characters/characters.sqlite` | `modules/characters/src/open.ts`，由 `apps/local-host/src/characters-host.ts:19` 打开 | SQLite 带版本 · 1，`CHARACTERS_STORE_BASELINE` 经 `applySqliteBaseline` 套用（无版本的表、别的版本都拒绝，原库不动） | 必备份 | purge |

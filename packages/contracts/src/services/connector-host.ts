@@ -152,6 +152,7 @@ export interface ConnectorConnectionRecord {
   readonly expires_ref: string | null;
   /** Managed: the key is in the Home's secret store. External: the account lives in an official CLI. */
   readonly source: "managed" | "external";
+  readonly enabled: boolean;
   readonly disconnected_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
@@ -159,7 +160,7 @@ export interface ConnectorConnectionRecord {
 
 /** Safe for settings and plugin selectors. */
 export type ConnectorConnectionView = Pick<ConnectorConnectionRecord,
-  "connection_id" | "service_id" | "display_name" | "account_label" | "auth_method" | "source"> & {
+  "connection_id" | "service_id" | "display_name" | "account_label" | "auth_method" | "source" | "enabled"> & {
     readonly state: ConnectorConnectionState;
     readonly target_origin?: string;
     readonly mcp_endpoint?: string;

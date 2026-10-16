@@ -25,7 +25,7 @@ import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { prepareGitOperation } from "./git-operations.js";
 import { draftText } from "./model-draft.js";
-import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import { prepareGitIndex } from "./workspace-git-index.js";
@@ -53,6 +53,7 @@ export interface AgentHostCompositionOptions {
   authorizeWriterDirectory?(projectId: string, canonicalPath: string): Promise<void>;
   localHost: MolisWorkLocalHost;
   homeDirectory?: string;
+  projectReference?(projectId: string): Promise<LocalHostProjectReference>;
   /** Resolves the workspace a project is bound to, for directory authority. */
   workspacesFor?(projectId: string): readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
@@ -62,6 +63,8 @@ export interface AgentHostCompositionOptions {
 
 export interface AgentHostComposition {
   readonly inference: PrologueInferenceClient;
+  mcpLibrary(): Promise<AgentMcpLibrary | undefined>;
+  refreshExternalMcp(owner: AgentSkillOwner): Promise<void>;
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
   /** Starts the runtime when it has not started yet. */
@@ -297,12 +300,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return { review_id: request.review_id };
   });
 
-  const inference: PrologueInferenceClient = {
-    async completeText(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.completeText(input); },
-    async completeTextResult(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.completeTextResult(input); },
-    async generateImages(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.generateImages(input); },
-    async evaluateTypeSafe(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.evaluateTypeSafe(input); },
-  };
+  const inference = inferenceClient(initialize, () => prologue);
   const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
   const restoreExternalMcp = (reference: LocalHostProjectReference) => disposed ? Promise.resolve()
     : externalMcp.restore(reference, async runtimeId => { await initialize(); return agentHost.adapter(runtimeId).mcpLibrary; });
@@ -310,7 +308,12 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     // A block also withdraws any standing approval there; the driver refuses the site from now on.
     prologue?.surfaces?.decide(decision.decision === "block" ? { scope: decision.scope, decision: "forget" } : decision);
   };
-  return { agentHost, inference, createBuilderAgent, restoreExternalMcp, decideSurfaceSite, get ready() { return initialize(); }, started, dispose() {
+  const refreshExternalMcp = async (owner: AgentSkillOwner) => {
+    if (!options.projectReference) throw new Error("项目连接目录尚未装配");
+    const reference = await options.projectReference(owner.project_id); await initialize();
+    if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
+  };
+  return { agentHost, inference, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();
@@ -457,4 +460,14 @@ export function workspaceRefFor(
     return bound.find((entry) => entry.canonical_path === preferred) ?? null;
   }
   return bound.length === 1 ? bound[0]! : null;
+}
+
+function inferenceClient(initialize: () => Promise<void>, current: () => Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined): PrologueInferenceClient {
+  const get = async () => { await initialize(); const adapter = current(); if (!adapter) throw new Error("Prologue 推理服务未装配"); return adapter.inference; };
+  return {
+    completeText: async input => (await get()).completeText(input),
+    completeTextResult: async input => (await get()).completeTextResult(input),
+    generateImages: async input => (await get()).generateImages(input),
+    evaluateTypeSafe: async input => (await get()).evaluateTypeSafe(input),
+  };
 }

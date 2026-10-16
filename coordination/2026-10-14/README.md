@@ -451,6 +451,21 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 10-16 夜：#599（3870004d6）、#592（ba64f24a3）已合。用户要求清理已合并的远端分支：67 个「PR 已合且分支末端就是合入的 head」的分支已删（各 PR 页面可「Restore branch」）；用户弹窗另定删掉回执 10-14 的两个 WIP 草稿 receipts/1c-agent-host（34777083e）、receipts/1d-coding（fe80cfe90），保留 jingxusandra-gif 的 codex/cgs-formal-integration-20261013（无 PR、未合）；gh-readonly-queue/main/pr-546-… 是 GitHub 受保护的队列分支，删不掉也不用删。用户同意打开仓库的 delete_branch_on_merge：以后合并即删 head 分支，叠在上面的 PR 自动改基到 main。
   - 用户 10-16 夜「继续需求开发」：六线都空闲，各发下一片。情境 W3-B2 全范围（先发 UI 方案）；交互 2c 之后的下一片方案（S1 单次接续或题型）；采用网关输入 schema 方案；回执 3c UI 方案（叠在 3a 本地）；手册 A3② 方案；防腐 quiet-paper。合同 services/agent-host.ts 的先后定为 #597 → #591（脚本重生成）→ 回执 3a → 采用网关 schema。
   - **main 被 #600 带坏**：visual-surfaces.e2e 在 Linux 全量里冻结动画那步 CDP 超时，凡含 #600 的头都挂（#597/#598/#602），#601（早于 #600）不挂。#600 改了浏览器用例却被我按只合并入队、没跑 Linux 全量——教训：改了 e2e 用例的 PR 不算「只测试」，要跑全量。已请防腐线先修根因（不加长超时），修好前按已知失败放行无关 PR：#601（另挂 immersive-directory，#594 已修）、#597、#602 已入合并队列。#598 另挂 home-offers 第 109 行旧原因「请先配置文字模型」，是 #598 的预期变化，已退回手册线改断言。
+  - 10-16 夜，统筹实走回执 14 项。环境：隔离 Home、MiniMax-M3、main 5ba635c8c；密钥按用户本会话两次批准只存在临时 Home 里，走查完 Home、仓库、启动项与工作树都已删。
+    - 通过：1、2、3、7、9、10、11、14，以及 5 的断点继续部分。
+    - **6 是缺陷**：`input-receipts-client.ts` 的 seen 以 turn_id 为键，而 turn_id 是每轮内的序号，跨轮会撞。结果是「已送达」被误播，「AI 已读到」反而不播。修法：以 `steer.id` 为键。
+    - 8 不可达：模型只问问卷，纯文本的 ask-user 被拒，所以 D14a 芯片永远出不来，已转交互线（T1 二选一）。
+    - 发现 A：「下一轮再做」的话发出后看不见，带上之后新一轮里也没有它的行。
+    - 发现 B：丢回复之后，同一句话两种说法并存。
+    - 发现 C：对话里的「核对并继续」看不到排着几条补充。
+    - 发现 D：「请记住：X」永远算建议，卡片还把门槛原文讲给人听。
+    - A–D 请回执线先给方案，6 直接修。12 与改计划说明（5）未测；小问题两条：工作区入口藏得深、390px 下会话头盖住标题。
+  - 10-16 夜续：
+    - #603（ui 文档）已由他人合入。
+    - #598 新头 `baf7459bc` 只改 home-offers 断言原文，属于预期变化，核过，已重新打标跑全量。
+    - #591（W5-09）重做在 5ba635c8c 上，`1611d4e37`：我用 TS 解析器比过，顶层语句 124 对 124、文本相同；API 快照不变；baseline 只降；CI 全绿。已排全量（label-chain，在 #598 之后），全量过后入队。
+    - 两条全量都把 visual-surfaces 记作已知失败（EXTRA_KNOWN），等防腐线修 #600 的 PR。
+    - #591 合入后通知回执线开 3a PR。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

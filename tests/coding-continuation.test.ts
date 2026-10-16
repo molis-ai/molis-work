@@ -70,12 +70,12 @@ test("规划轮次继续时仍只返回计划本身，不在计划后附报告",
   assert.doesNotMatch(next.task, /完成后说明这一轮实际做了什么/);
 });
 
-test("计划的原任务是开始规划的那句话；续上的规划轮不算，后来的规划要求作为已体现的补充", () => {
+test("RC-07: 计划的原任务是开始规划的那句话；续上的规划轮不算，后来的规划要求作为补充、不说已体现（G14）", () => {
   const planner = { frozen: { role_id: "planner" } as never };
   const root = run({ ...planner, task: "让 @ 引用支持无扩展名文件", phase: "failed", stop_reason: "本轮因中断结束。" });
   const resumed = run({ ...planner, task: codingContinuation({ number: 1, run: root, reviews: [], commands: [] }).task, phase: "completed" });
   const followUp = run({ ...planner, task: "计划后面多了说明，只返回计划 JSON", phase: "completed" });
-  assert.equal(planTask([root, resumed, followUp]), "让 @ 引用支持无扩展名文件\n\n规划时补充的意见（已体现在确认的计划里）：\n- 计划后面多了说明，只返回计划 JSON");
+  assert.equal(planTask([root, resumed, followUp]), "让 @ 引用支持无扩展名文件\n\n规划时补充的意见（没有逐条核对是否已写进计划；以确认的计划为准）：\n- 计划后面多了说明，只返回计划 JSON");
   assert.equal(planTask([resumed]), "让 @ 引用支持无扩展名文件", "a resumed round alone still names the user's own task");
   assert.equal(planTask([root]), "让 @ 引用支持无扩展名文件");
 });

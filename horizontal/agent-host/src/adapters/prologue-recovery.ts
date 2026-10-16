@@ -1,5 +1,6 @@
-import type { Runtime } from "@prologue/sdk";
+import type { QueuedInput, Runtime } from "@prologue/sdk";
 import type { AgentRecoveryReport, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentQueuedInput } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { PrologueRestoredSession, PrologueRuntimePort } from "./prologue.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import type { RoundState } from "./prologue-node-kit.js";
@@ -22,6 +23,11 @@ type OpenWork = Awaited<ReturnType<Runtime["listOpenWork"]>>;
 const unclaimedWork = (index: SessionIndex, terminal: readonly { id: string }[], open: OpenWork) =>
   terminal.some(ref => !index.attempts.some(attempt => attempt.run_id === ref.id))
   || open.items.some(item => item.origin.session === index.ref.id && !index.attempts.some(attempt => attempt.run_id === item.origin.run || attempt.run_id === item.id));
+
+/** A supplement still waiting in the session, in the Host's words; the runtime's record stays its only owner. */
+const queuedInput = (input: QueuedInput): AgentQueuedInput => ({ input_id: input.inputId, text: input.text,
+  source: input.source === "app" ? "host" : input.source, ...(input.key ? { key: input.key } : {}),
+  ...(input.from ? { left_by: { run_id: input.from.run, applied: input.from.applied } } : {}) });
 
 export function createPrologueRecovery(deps: RecoveryDeps) {
   const { runtime, index: sessionIndex } = deps;
@@ -62,7 +68,10 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       if (!own.runs.length) blockers.push("有子任务的结果需要核对，但找不到它可以结束的中断轮次。");
       children.push(...own.runs.map(run => view(run, { subagent_id: child.ref.id })));
     }
-    return { session_id: sessionId, blockers, runs: [...report.runs.map(run => view(run)), ...children] };
+    // What waits for the next round; a session that cannot be opened leaves it unknown, never empty.
+    const queue = await (await runtime.sessions.open(index.ref))?.inputQueue();
+    return { session_id: sessionId, blockers, ...(queue ? { inputs: queue.queued.map(queuedInput) } : {}),
+      runs: [...report.runs.map(run => view(run)), ...children] };
   };
 
   /** Why a restored session needs checking before a new round, if it does. */

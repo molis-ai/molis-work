@@ -435,6 +435,8 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **回执说真实状态，让 AI 能决定下一步。** 写入已经发出却没结束时，网关返回 `actions.outcome_unknown`，并写明它可能已经生效、不要再次提交、先用 `read-capability` 读回对象；`suggest-action` 的回执写明「nothing has run」；委派追加到上限时，错误写明「仍达不到验收时停止它，并把实际情况告诉用户」（`apps/local-host/src/assistant/assistant-delegation.ts` 的 `MAX_FOLLOW_UPS`）。「成功」不能只代表请求已经收下。
 
+**工具多了会被延后：在途修复。** Prologue SDK 在一轮的工具超过 20 个时，只给多出来的那些一行名册，说明要模型用 `find-tools` 去取（`deferToolSchemasBeyond: 20`）。现在的结论是这是 SDK 的设计缺陷，不是模型能力：`find-tools` 之后，下一次请求的 `tools` 里仍然没有被延后的工具，模型按名字调不到，只能绕道（比如拿 `run-command` 去调），见 `specs/prologue-adoption/spec.md` 的评测记录。修复在上游 Prologue，采用线先放一个不延后的临时做法（用户 2026-10-16 定）。修好之前：不要在提示词里教模型怎样调被延后的工具，那治不了；角色的工具加上动作工具接近 20 个时，要知道多出的会调不到。
+
 **少一些同义工具和要猜的参数。** 助理只有一组网关工具（查、读、改、可撤销地改、建议），能力的确切身份从 `find-capabilities` 来，不让模型拼标识。
 
 **可用性来自当前事实。** 能力目录每一轮从 `discover()` 读当前的声明、授权与可用性（`assistant-service.ts` 的 `actionTools`），不在开发时写一份名单。
@@ -466,6 +468,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | Coding 的方法 | 用户选的做法，冻结版本内联 | `plugins/native/coding/src/methods.ts` → `prologue-methods.ts` 的 `inlineMethods` | 摘要加正文；同版本正文变了就拒绝；工具以父角色为上限 | 由用户选，不由模型发现 | 确定性：`tests/coding-product-http.test.ts`、`tests/coding-method-install.test.ts` |
 | 助理每一轮的材料 | 会变的事实随轮次走，并标为数据 | `assistant-service.ts` 的 `roundMaterials`；角色正文 `assistant-agent.ts` | 有内容才出现的分节；省略要说；对象从所有者重读 | — | 确定性：`tests/assistant-material.test.ts` |
 | 助理的能力网关 | 一组工具覆盖全部业务动作 | `prologue-action-gateway.ts` 的 `GATEWAY_TOOLS`；目录文字在 `assistant-service.ts` 的 `directory` | 参数格式按需取；回执说下一步；写入进审查 | 只列可用的动作（第 13.4 节的缺口） | 确定性：`tests/assistant-business-gateway.test.ts` |
+| 工具说明延后加载 | 工具很多时先给名册，需要时用 `find-tools` 取说明 | Prologue SDK 的 `deferToolSchemasBeyond: 20`；Coding 角色开放 `find-tools`（`specs/coding-plugin/spec.md`「工具面」） | 现在不要照着用 | 在途修复（用户 2026-10-16 定）：被延后的工具在 `find-tools` 之后仍不在下一次请求的 `tools` 里，调不到；上游 Prologue 修，采用线先放不延后的临时做法（13.4） | 真实模型：`specs/prologue-adoption/spec.md` 的评测记录（当时记为「拿不准」，之后的探查定为 SDK 设计缺陷） |
 | 助理的方法目录 | 方法按需读取 | 「可用的方法」→ 动作 `assistant.methods.read`（`apps/local-host/src/assistant/assistant-rule-actions.ts`） | 摘要常驻、正文按需 | 一轮最多列 20 个 | 确定性：`tests/assistant-methods.test.ts` |
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
@@ -581,7 +584,8 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 - 比同一模型、同一批任务的前后差：改后不比改前差，又更短更清楚，就算改好了。两版都失败的任务记「两版都失败」，不算回归，也不拿来当加规则的理由。
 - 一次失败不改，多数次里反复出现的才算模式。
 - 兜不兜底看后果：会误导用户、重复写入或越权的，不管模型强弱，都由工程层用与模型无关的事实核对兜住（有没有成功的回执、版本前置、审查）；只是答得不够好的，记为模型限制，不加约束。
-- 记录里「没变好或变差的」逐条标「设计问题 / 模型能力 / 拿不准」并写依据，拿不准的写进「未验证」。没有可用的更强模型时，不去推断强模型会怎样。
+- 记录里「没变好或变差的」逐条标「设计问题 / 模型能力 / 拿不准」并写依据，拿不准的写进「未验证」。
+- 现在不换别的模型做对照（用户 2026-10-16 定）。分不开是设计还是模型的，就留作「拿不准」写进「未验证」，不去推断别的模型会怎样。
 
 ### 16.4 诊断：先看 AI 当时实际拿到了什么
 

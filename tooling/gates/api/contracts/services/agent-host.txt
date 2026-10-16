@@ -739,6 +739,7 @@ export interface AgentRecoveryCapability {
 export interface AgentRecoveryReport {
     session_id: string;
     blockers: string[];
+    inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[];
     runs: Array<{
         run_id: string;
         version: number;

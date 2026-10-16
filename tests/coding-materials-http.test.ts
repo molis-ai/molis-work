@@ -72,6 +72,7 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
     assert.ok((await request("/materials")).body.materials[0].error);
     assert.equal((await request("", "PATCH", { materials: [], draft: "不用材料也能继续" })).status, 200);
     assert.equal((await start([])).status, 200); assert.deepEqual(starts[1].text_materials, []);
+    assert.deepEqual(starts.map(request => request.queued), ["carry", "carry"], "RC-09: every round takes the supplements waiting in its session (§4.8)");
     assert.equal((await request("", "PATCH", { materials: [...refs, ...refs] })).status, 400);
     const registerGitMaterial = (id: string, version: number, type: string, payload: Record<string, unknown>, board = DEMO_PROJECT_ID) => artifacts().commands.registerVersion({
       project_id: board, actor_id: "web-user", artifact_id: id, version, artifact_type_id: type, schema_version: 1,

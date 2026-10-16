@@ -24,6 +24,7 @@ import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-cl
 import { createCodingTimeline } from "./timeline.js";
 import { codingTimelineWords } from "./timeline-words.js";
 import { createCodingTurnChanges } from "./turn-changes-client.js";
+import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";
 
 /** Host supplies navigation; this client only handles Coding's own surface. */
 export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
@@ -139,6 +140,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     prefill:(text)=>{if(input.value.trim()!==text.trim()){input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));}input.focus();},
     // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.
     materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
+  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent()});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
   // The TaskBoard takes the conversation's place in the main area; the session list stays beside it.
   const ROLE_NAMES={planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'};
@@ -345,7 +347,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const active = lastRun && !terminal(lastRun.phase);
     input.disabled = !current || sending;
     q('[data-coding-send]').disabled = !current || sending || recovery || checkpointBusy || (!active && (!state.models.some(model=>JSON.stringify([model.provider_id,model.model_id])===q('[data-coding-model]').value) || !state.workspaces?.some(workspace=>workspace.workspace_id===workspaceId)));
-    q('[data-coding-send]').textContent = sending ? '正在提交…' : active ? '补充要求' : '发送';
+    q('[data-coding-send]').textContent = sending ? '正在提交…' : '发送';q('[data-coding-mode]').hidden=!active;
     q('[data-coding-stop]').hidden = !active;
     q('[data-coding-stop]').disabled = sending;
     // Pausing lets the current step finish; a paused round resumes with its context intact.
@@ -877,12 +879,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               summary.innerHTML='<svg aria-hidden="true"><use href="#icon-play"></use></svg>';summary.append(document.createTextNode('从断点继续 · '+line));
               facts.className='coding-continuation-facts';facts.innerHTML=body;details.append(summary,facts);node.append(details);
             }
-            if(turn.steer) {
-              const receipt=document.createElement('small'); receipt.className='coding-turn-receipt';
-              receipt.textContent=({applied:'已放进上下文，等 AI 回应',read:'AI 已读到',unread:'这一轮结束时 AI 没读到',withdrawn:'已撤回'})[turn.steer.state]||'已送达';
-              receipt.title='读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。';
-              node.append(receipt);
-            }
+            const receipt=inputReceipts.receipt(turn);if(receipt)node.append(receipt);
             renderedText.set(node,renderKey); enrichCode(node);
           }
           ordered.push(node);
@@ -915,6 +912,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const writing=run===all.at(-1) && ['starting','running'].includes(run.phase) && groups.at(-1)?.kind==='turn' && groups.at(-1).value.kind==='assistant';
       ordered.forEach((node,at)=>{if(node.classList?.contains('coding-turn'))node.classList.toggle('is-writing',writing && at===ordered.length-1);});
       for(const detail of block.querySelectorAll(':scope > [data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
+      // The supplement on its way shows after the round it goes to, until the round's own record has it.
+      const sending=run===all.at(-1)&&inputReceipts.bubble(current);if(sending)ordered.push(sending);for(const node of block.querySelectorAll(':scope > .is-sending'))if(node!==sending)node.remove();
       // Insert only missing/misplaced entries: polling keeps open tools and a
       // focused question form intact. Live and replay use the same ordering.
       let cursor=block.firstElementChild;
@@ -1010,6 +1009,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const button=document.createElement('button');button.type='button';button.className='mw-btn';button.textContent='结束中断轮次';
         button.dataset.codingRecover=run.run_id;button.dataset.version=String(run.version);button.disabled=!run.can_close;section.append(button);list.append(section);
       });
+      // What waits in the session goes with the next round; the runtime's input record says what it is.
+      if(report.inputs?.length){const row=document.createElement('p');row.textContent='下一轮开始时带上 '+report.inputs.length+' 条排着的补充：'+report.inputs.map(input=>input.text).join('；');list.append(row);}
       q('[data-coding-recovery-status]').textContent=report.blockers.length?report.blockers.join('；'):report.runs.length?'核对完成。操作结果明确的轮次可以结束；之后由你发送下一轮要求。':'没有可关闭的中断轮次。如仍显示待核对，请检查下方审查或运行记录。';
     } catch(error) {if(!lifetime.alive)return;if(current===id && ticket===generation){recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery-status]').textContent='核对失败：'+error.message;}}
     finally {if(ticket===generation){recoveryLoading=false;q('[data-coding-recovery-refresh]').disabled=false;}}
@@ -1506,8 +1507,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     symbols:(key,path)=>api('/sessions/'+encodeURIComponent(current)+'/symbols?workspace_id='+encodeURIComponent(key)+'&path='+encodeURIComponent(path)),
     sessions:()=>state.sessions.map(session=>({...session,state_label:SESSION_STATE[session.state] || ''})),
     openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);}});
-  // Esc in the composer stops a live round, as in terminal agents — never mid-IME, never while the + menu is open.
-  lifetime.listen(input,'keydown',event=>{if(event.key!=='Escape' || event.isComposing || event.keyCode===229 || !attachMenu.hidden)return;const stop=q('[data-coding-stop]');if(stop.hidden || stop.disabled)return;event.preventDefault();stop.click();});
   lifetime.listen(input,'input',()=>turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());}));
   lifetime.listen(input,'keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
   // One way to start a round, shared by the composer and by continuing from a breakpoint.
@@ -1605,8 +1604,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       rememberConfiguration();await flushDraft();
       if(activeRun && !terminal(activeRun.phase)) {
-        await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'steer',run_id:activeRun.ref.run_id,text:task});
-        status('补充要求已交给执行引擎，等待后续处理。');
+        const mode=q('[data-coding-send-mode]');status(await inputReceipts.steer(id,activeRun.ref.run_id,task,mode.value));mode.value='next-boundary';
       } else {
         // Another session already working on the same files in this directory: the person decides who goes first.
         const {overlaps}=await api('/sessions/'+encodeURIComponent(id)+'/scope-check','POST',{task,workspace_id});

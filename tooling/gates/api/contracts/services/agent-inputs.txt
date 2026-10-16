@@ -25,6 +25,17 @@ export interface AgentInputsPort {
     send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
 }
 
+export interface AgentQueuedInput {
+    input_id: string;
+    text: string;
+    source: AgentInputSource | "peer";
+    key?: string;
+    left_by?: {
+        run_id: string;
+        applied: boolean;
+    };
+}
+
 export type AgentQueuedInputs = "carry" | "leave" | readonly string[];
 
 export type AgentSteerMode = "next-boundary" | "interrupt" | "after-run";

@@ -51,6 +51,7 @@ export const FOUNDATION_STYLES = `  :root {
     background: var(--page);
     color: var(--ink);
     font: 13px/1.5 var(--font);
+    text-rendering: optimizeLegibility;
   }
 
   body[data-navigation-pending="true"] { cursor: progress; }

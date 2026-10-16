@@ -338,6 +338,16 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - B-2：W3-B 只用 `confirmReferences`；「attach 的 find 取候选」改到 W4 的 F2「追加到已有」。
   - B-3：拆成 W3-B1（第 1–6 步，H3 合入后开工）和 W3-B2（第 7 步，情境条显示落点，排在 W3-A2 之后）。
   - 提醒过的约束：Pages 与工作台的资源字节在同一个 PR 里自己抵消；`client.ts` 只许缩；新事件 `molis:surface-landing` 要登记，并跑 `api:update`；预览挂在主人页面的面板槽，不出整页；先并 #542（W4-11，改 Pages 的 store）；开工前把文件清单发统筹。
+- 交互 H3 #546 已合（`3fd4d0bd`）。第一次全量里 plugin-market-upgrade 失败：用例重新加载页面后没等加载完就开始查，是测试缺陷；修好后重跑，全绿合入。之后交互线开 H4。
+- **用户 10-15：「有些要求和规定要合理，不一定要严格遵循，适时适当调整」**。起因是 W3-B1 的页面资源多了约 5.7 KB，我推荐打开 esbuild 压缩局部变量名来抵消；用户的意思是不压缩，直接放行。
+  - 做法照 #522：W3-B1 在 `scripts/gates/page-assets.mjs` 加一次性的 `APPROVED_CEILINGS`，以 merge-base 的确切字节为键，注释写批准人和日期；合入后由防腐线像 #541 那样删掉。
+  - 以后的口径：功能必需、增长小、说得清的，按先例一次性放行，不为凑数字改基础设施或把代码压到难读。安全边界、断言语义、真实 Home、发布仍照原规则。
+  - W3-B1 的合同改动：`ContextActionChosen` 加 `landing?` 与 `run?()`。`run` 不带参数，由总线绑定落点。
+- 防腐 W4-07 #549（拆 Coding routes.ts）与 W4-12 #550（视觉比对工具）已审、加了 full-suite，在跑。回执 1c 在 #549 合入后变基开 PR。
+- 防腐 W4-05（从 AssistantService 抽出提醒与跟进协作者）可以开工：
+  - 回执 1c 改了 `assistant-service.ts`，所以 1c 先合，W4-05 在它之后变基。
+  - W4-05 不碰 `assistant-inputs.ts` 与发送、回执的路径。
+- main 上 PAGES-TRANSIENT-01 失败是逻辑问题，已由 #548 修好。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

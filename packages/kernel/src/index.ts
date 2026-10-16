@@ -58,6 +58,15 @@ function normalizedDescriptor<Input, Output>(
   };
 }
 
+/** All the way down: a registered descriptor is shared by every read instead of copied for each. */
+function frozen<T>(value: T): T {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) frozen(child);
+  }
+  return value;
+}
+
 type RegistryReference = Pick<HostCapabilityDescriptor, "capability_id" | "version" | "action_provider">;
 function capabilityKey(descriptor: RegistryReference): string {
   return JSON.stringify([descriptor.capability_id, descriptor.version, descriptor.action_provider?.project_id ?? null]);
@@ -74,7 +83,7 @@ export class CapabilityRegistry<Context> {
     handler: CapabilityHandler<Context, Input, Output>,
     options: { availability?: (context: Context) => ActionAvailability; synchronous?: boolean } = {},
   ): () => void {
-    const descriptor = normalizedDescriptor(definition);
+    const descriptor = frozen(normalizedDescriptor(definition));
     const key = capabilityKey(descriptor);
     const overlapping = [...this.entries.values()].some(({ descriptor: current }) =>
       current.capability_id === descriptor.capability_id && current.version === descriptor.version
@@ -98,19 +107,19 @@ export class CapabilityRegistry<Context> {
   }
 
   /**
-   * Copies of the registered descriptors, in key order. `match` narrows before copying: finding one capability must
-   * not clone the whole registry, which grows with every project's Plugin actions and is consulted on every call.
+   * The registered descriptors, in key order, in a new array. Each is the registration's own snapshot, deeply frozen, so
+   * a reader shares it instead of copying it (the directory is read on every page and call, and Goals alone is about
+   * 350 KB of schema) and no reader can change it: a write to it throws. A reader that needs to change one copies it.
    */
   descriptors(match?: (descriptor: Readonly<HostCapabilityDescriptor>) => boolean): HostCapabilityDescriptor[] {
     this.ordered ??= [...this.entries.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([, entry]) => entry.descriptor);
-    return (match ? this.ordered.filter(match) : this.ordered).map(descriptor => structuredClone(descriptor));
+    return match ? this.ordered.filter(match) : [...this.ordered];
   }
 
-  /** Resolve one visible identity without cloning the complete directory. Returned metadata stays isolated. */
+  /** Resolve one visible identity without reading the complete directory. The descriptor is frozen, as in `descriptors`. */
   descriptor(reference: Pick<HostCapabilityDescriptor, "capability_id" | "version">, projectId?: string | null): HostCapabilityDescriptor | undefined {
     const local = projectId ? this.entries.get(JSON.stringify([reference.capability_id, reference.version, projectId])) : undefined;
-    const entry = local ?? this.entries.get(capabilityKey({ capability_id: reference.capability_id, version: reference.version }));
-    return entry ? structuredClone(entry.descriptor) : undefined;
+    return (local ?? this.entries.get(capabilityKey({ capability_id: reference.capability_id, version: reference.version })))?.descriptor;
   }
 
   availability(context: Context, reference: RegistryReference): ActionAvailability {

@@ -1,5 +1,5 @@
 {
-  "giantUnits": 146,
+  "giantUnits": 144,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
     "file apps/local-host/src/assistant/assistant-service.ts": 2222,
@@ -202,9 +202,7 @@
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
     "file plugins/native/coding/src/client.ts": 1644,
-    "file plugins/native/coding/src/routes.ts": 1440,
-    "function plugins/native/coding/src/routes.ts#codingRouteBindings": 1262,
-    "file plugins/native/coding/src/styles.ts": 829,
+    "file plugins/native/coding/src/styles.ts": 832,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {

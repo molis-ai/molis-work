@@ -45,7 +45,8 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
     const effect = actionEffect(view.action, view.capability_id);
     const label = `${view.provider.title} · ${effect === "read" ? "读取" : effect === "irreversible" ? "不可撤回" : "修改"} · ${view.action.title}`;
     return { executor: name, registration: { name, version: String(view.version), description: label + "\n" + view.action.description,
-      parameters: wrapped ? { type: "object", properties: { input: view.action.input_schema }, required: ["input"], additionalProperties: false } : view.action.input_schema,
+      // A copy: the directory's declarations are frozen, and the runtime owns what it is handed.
+      parameters: wrapped ? { type: "object", properties: { input: structuredClone(view.action.input_schema) }, required: ["input"], additionalProperties: false } : structuredClone(view.action.input_schema),
       // A read only when both say so: the runtime may start a read before the model has finished speaking.
       effectKind: view.operation === "query" && effect === "read" ? "safe-read" as const : "mutate-external" as const,
       gate: "broker" as const, timeoutMs: Math.min(timeoutMs, view.action.execution?.timeout_ms ?? timeoutMs), idempotency: "none" as const } };

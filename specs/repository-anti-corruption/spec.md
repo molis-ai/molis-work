@@ -58,6 +58,13 @@ W4-12（2026-10-15，视觉比对工具，#550）：
 - 比：`pnpm visual:compare`（`scripts/visual-compare.mjs`）在 HEAD 与 `--base`（默认 `origin/main`）的合并基点上各拍一遍：基点工作树在本机建一次、离线安装并构建（占构建槽位），留着下次用；两边都用本分支的拍摄用例，画面由各自的产品代码出。逐像素比（`scripts/visual/png.mjs`，只用 `node:zlib`，读不了的格式按名字拒绝），默认任何一个像素变了就算变了；报告在 `.impeccable/qa/review/visual/compare/`（`report.html` 三栏对照、`diff/` 红色标出变化），有变化退出 1。W5-05 删旧皮肤用它判定。
 - 证据：`pnpm visual:compare` 对 main（合并基点 `65df2709`）完整跑一遍：基点树建好、两边各拍 48 张，0 张有变化。同一棵树拍三次，48 张两两一像素不差；把钉住的日期改到 10-20，首页、侧栏、助理三类 16 张被点出、差异落在周条与问候语上（变异检查）；`tests/visual-compare.test.ts` 4 条（PNG 读写与五种行过滤、拒绝 16 位、单像素与尺寸变化、`--compare` 的退出码与报告），去掉均值过滤的移位或让脚本恒退 0 都会失败。`docs/system/PARALLEL-DEVELOPMENT.md` §6「界面」一行写明何时跑。
 
+W4-08（2026-10-16，平台产品服务的边界，不新增规则，统筹 10-15 认可）：决定 N-03 之后这一项只剩「层与 owner、依赖规则写全」。逐条核对，现有的都已经守着：
+- 层与 owner：`docs/system/ARCHITECTURE.md`「平台产品服务」写明四项（记忆、放置、搜索、情境排序）可以持有跨插件策略和自己的机制记录，不拥有业务事实；`docs/SSOT-MATRIX.md` §6 与 `docs/horizontal/memory.md`、`placement.md` 各写了 owner。
+- 依赖：三项在 `horizontal/` 下，`pnpm boundary:check` 的 `horizontal-reverse-dependency` 拒绝它们 import App、Module 实现或插件实现（`packages/test-kit/src/boundaries.ts`）；情境排序在内核里，`scripts/gates/kernel-contextual.mjs`（`docs/system/PACKAGE-BOUNDARIES.md` §6 的 K1 起）不许核心碰它。
+- 表：`tooling/gates/table-owners.json` 里没有记忆、放置、搜索的共写表，门禁 `scripts/gates/table-owners.mjs` 让别的包写不了它们的表。
+- 能力：它们以系统动作登记；新的 typed 宿主能力由 `pnpm health:check` 的结构数字拦着（只许减少）。情境排序的 HTTP 例外与删除条件写在架构文档同一节。
+- 拆 `MemoryService`（`horizontal/memory/src/service.ts` 现 1,262 行）不在本项：按 `docs/system/HUGE-CLASS-MIGRATION.md` 的决定在包内由 W5-10 拆，路线图 W4-08 一行同步删去了「再拆 MemoryService」。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。
@@ -1699,6 +1706,22 @@ Prologue（10-14 复查到 #22 为止，这次看 #24～#27）：
   - 两者共有的是 `tests/agent-action-selection.e2e.test.ts`。它在 #535 合入前的各分支全量里都红（`context/assistant-flow`、`adoption/p3-collaboration`、`feature/ai-interaction-s1`），#535 修了这处 Characters 偶发，而这两个分支的基点早于 #535。
   - #540 另有 `W2-18-PAGES-TRANSIENT-01`（插入的文字落在段尾）：失败片重跑全过，本机在该分支上 9/9 通过；之前没有记录。只出现一次，没有进隔离名单，再出现就按 `tests/quarantine.json` 登记。
     - 原因是测试自己：它用脚本设 DOM 选区再按方向键，编辑器会把只经 DOM 设的光标放回自己状态里的位置，两者赛跑，Linux 上编辑器赢了，「Prefix 」就落到段尾。改成像人一样在段首、段尾点一下，再等光标确实到那里；断言不变（#548）。本机 13 次全过（其中 10 次与构建或另一批浏览器用例同时跑）；更早有两次在构建期间失败，没留下失败细节。
+
+### 10.14 2026-10-15～16 合入 PR 的独立复查（#534～#556 中不是本线的）
+
+范围：#534、#535、#536、#537、#538、#543、#546、#548、#552、#554、#556（本线自己的 #539～#542、#544、#545、#547、#549～#551、#555 由统筹审）。逐个看 diff，按清单查五件事：门禁数字有没有调大、有没有新增兼容或读取兜底、有没有删或放宽断言、有没有调大现有用例的时限、可信身份是否从输入读。
+
+结论：没有发现需要修的。
+- 门禁数字：没有一处调大；`baseline.json`、`page-assets.json`、`limits.json` 的改动都是降数或随 merge-base 重算。
+- 兼容标记：命中的都是 `anthropic-compatible` 一类的供应商名，不是兼容逻辑。
+- 删掉的断言：#552（1c）把 `control-run` 的断言改写到 v3 形状，按 `docs/system/CONTRACT-CHANGES.md` 升了版本，新断言更严；#536（W3-A1）删掉的是旧的下一步卡片布局，是 context-program §21 已定的设计。
+- 时限：没有调大现有用例的时限；#548 把 `W2-18-PAGES-TRANSIENT-01` 的光标改为点击放置（原因见 10.13），断言没变。
+- 身份：没有从输入读 actor、项目或安装的新路径。
+- #534（P3a）改到的 typed 宿主能力都是就地替换：队列 v1 → v2，`waits.await` → `collaboration.await`（文档里写成一种等待），另删了 4 条；结构数字没有变大。
+- #537（CI）：全量里侧栏自己的浏览器也走 `--no-sandbox` 的 Chrome。runner 的沙箱下崩溃的渲染进程退不干净，Chrome 不发崩溃事件；用例没改，`ci.yml` 没动。
+- #538（CI）：限流并只在加标签时跑，是用户 10-15 的弹窗决定（第 1 节）。
+
+Prologue：#10～#22 在 10-14 复查过，#24～#27 在 10.13，这一轮没有新合入的。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

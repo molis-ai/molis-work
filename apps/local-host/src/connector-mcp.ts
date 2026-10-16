@@ -148,6 +148,7 @@ async function runLarkMcpChild<T>(credentials: LarkMcpLaunchInput, use: Pick<Con
   run: (client: Client) => Promise<T>): Promise<{ result: T }> {
   const launch = larkMcpLaunch(credentials);
   const client = new Client({ name: "molis-work", version: PRODUCT_VERSION }, { capabilities: {} });
+  // Aborting closes the connection; a connection that is already closed has nothing left to close.
   const abort = () => { void client.close().catch(() => {}); };
   try {
     const parameters: StdioServerParameters = { command: launch.command, args: launch.args, env: launch.env, cwd: launch.cwd, stderr: "pipe" };
@@ -158,6 +159,7 @@ async function runLarkMcpChild<T>(credentials: LarkMcpLaunchInput, use: Pick<Con
     const result = await run(client);
     use.checkActive?.(); use.signal?.throwIfAborted();
     return { result };
+  // The result (or the error) is already in hand; a connection that is already closed has nothing left to close.
   } finally { use.signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); launch.cleanup(); }
 }
 
@@ -170,7 +172,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   const serialized = async <T>(home: string, id: string, operation: () => Promise<T>): Promise<T> => {
     const key = `${resolve(home)}:${id}`;
     const previous = queues.get(key) ?? Promise.resolve();
-    const next = previous.catch(() => {}).then(operation);
+    const next = previous.catch(() => {}).then(operation); // Only the order is chained: the previous operation's failure was already answered to its own caller.
     queues.set(key, next);
     try { return await next; } catch (error) { throw safeError(error); }
     finally { if (queues.get(key) === next) queues.delete(key); }
@@ -275,7 +277,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     const connect = async (kind: "http" | "sse") => {
       const client = new Client({ name: "molis-work", version: PRODUCT_VERSION }, { capabilities: {} });
       const transport = kind === "http" ? new StreamableHTTPClientTransport(new URL(config.endpoint), transportOptions) : new SSEClientTransport(new URL(config.endpoint), transportOptions);
-      const abort = () => { void client.close().catch(() => {}); };
+      const abort = () => { void client.close().catch(() => {}); }; // Aborting closes the connection; a connection that is already closed has nothing left to close.
       signal?.addEventListener("abort", abort, { once: true });
       try {
         await client.connect(transport, { timeout: REQUEST_TIMEOUT, signal });
@@ -284,7 +286,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
         const result = await run(client);
         session.checkActive?.(); signal?.throwIfAborted();
         return { result };
-      } finally { signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); }
+      } finally { signal?.removeEventListener("abort", abort); await client.close().catch(() => {}); } // The result (or the error) is already in hand; a connection that is already closed has nothing left to close.
     };
     try { return await connect(config.transport); }
     catch (error) {

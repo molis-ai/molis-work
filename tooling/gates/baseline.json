@@ -58,7 +58,7 @@
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
-    "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": 162,
+    "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": 157,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
@@ -71,10 +71,10 @@
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 372,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
-      "lines": 384,
+      "lines": 382,
       "methods": 12
     },
-    "function horizontal/agent-host/src/index.ts#start": 255,
+    "function horizontal/agent-host/src/index.ts#start": 253,
     "class horizontal/listener-host/src/index.ts#ListenerHost": {
       "lines": 361,
       "methods": 18
@@ -155,7 +155,7 @@
       "methods": 35
     },
     "function modules/shelf/src/store.ts#runJob": 199,
-    "file packages/contracts/src/services/agent-host.ts": 1576,
+    "file packages/contracts/src/services/agent-host.ts": 1567,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
@@ -262,7 +262,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 930,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 495,
+  "testInternalImports": 494,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -498,7 +498,6 @@
     "tests/work-session-actions.test.ts": 1,
     "tests/work-session-mcp.test.ts": 3,
     "tests/workbench-asset-cache.test.ts": 1,
-    "tests/workbench-deferred-clients.e2e.test.ts": 1,
     "tests/workflow-content-actions.test.ts": 1,
     "tests/workflows-action-steps.e2e.test.ts": 1,
     "tests/workflows-action-steps.test.ts": 1,
@@ -1127,9 +1126,8 @@
     "docs/design/soft-workbench/.impeccable": 1,
     "plugins/native/plugin-builder/.impeccable": 1
   },
-  "emptyCatchesTotal": 4,
+  "emptyCatchesTotal": 3,
   "emptyCatches": {
-    "apps/local-host/src/web-onboarding-input.ts": 1,
     "packages/im-ui/src/browser/controller.ts": 1,
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1

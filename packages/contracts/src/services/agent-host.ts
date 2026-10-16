@@ -1,5 +1,7 @@
 import type { AgentStartExecution } from "./agent-host-start.js";
 export type { AgentStartExecution } from "./agent-host-start.js";
+import type { AgentActionOffer, AgentRunOffer } from "./agent-host-offers.js";
+export type { AgentActionOffer, AgentRunOffer } from "./agent-host-offers.js";
 import type { ActionCallOrigin, ActionView, ExactActionReference } from "../platform/actions.js";
 import type {
   AgentPromptLayer,
@@ -474,23 +476,6 @@ export interface AgentSubagentWorkspace {
 }
 
 /**
- * An action the model proposes for the person to run with one click: the exact capability and prepared input, what
- * it does in plain words, and which fields the person may adjust or must still supply. A proposal runs nothing.
- */
-export interface AgentActionOffer {
-  /** The button's words, verb first ("加入计划（3 项）"). */
-  title: string;
-  /** What clicking does: to which object, with which key values, in the person's words. */
-  summary: string;
-  reference: ExactActionReference;
-  input: unknown;
-  /** Top-level input fields the person may change before running it. */
-  editable?: string[];
-  /** Fields still needed, each with the question to ask; the card cannot run until they are given. */
-  missing?: Array<{ field: string; question: string }>;
-}
-
-/**
  * Sub-tasks a business round hands to separate works of the same person and scope (the Host's delegation, where the
  * runtime has no sub-agents of its own). Each delegated work is a real work with its own session: its changes still
  * wait for the person's confirmation, and it cannot delegate further.
@@ -793,6 +778,12 @@ export interface AgentRunView {
    * `requested` one asked for that takes effect at the next model call. Context tidying keeps the start model.
    */
   model_switch?: { now?: string; requested?: string };
+  /**
+   * What this Run suggested to the person from its own frozen actions (`role.host_tools` grants `suggest-action`), in
+   * the order it suggested them. Each is the Host's record, checked against the action as it was then; nothing ran.
+   * The caller that shows them owns what becomes of each (specs/ai-interaction-experience D25). Absent: none.
+   */
+  offers?: readonly AgentRunOffer[];
   started_at: string;
   ended_at: string | null;
 }

@@ -1,4 +1,5 @@
 import { observeGitOperations } from "./git-operation-notifications.js";
+import { projectOrNull } from "./catalog-lookup.js";
 import { feedRuleActions } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
@@ -502,7 +503,7 @@ function assistantPortsFor(homeDirectory: string, composition: LocalWebCompositi
     projectReference: async projectId => projectId === page?.reference.project_id ? page.reference : composition.withCatalog(home, catalog => {
       const project = catalog.getProject(projectId); return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
     projectTitle: async projectId => projectId === page?.reference.project_id && page.title !== undefined ? page.title
-      : composition.withCatalog(home, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
+      : composition.withCatalog(home, catalog => projectOrNull(catalog, projectId)?.display_name ?? null),
   };
 }
 

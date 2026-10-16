@@ -138,7 +138,7 @@ modelAvailability: () => model() ? { available: true } : { available: false, cod
 
 生成插件声明 `export const prompts = [...]`，调用 `model.generate` 能力时传 `{ prompt: id, input }` 指定一段正文。Host 的 `plugin-builder/model.ts` 解析当前指令/用户覆盖，继续调用同一 `hostTextGeneration`；不接受写在代码里的 instructions。安装、停用、启用、版本切换、卸载与恢复的登记属于 `installed-plugin-host.ts`，不依赖打开创作台。设计与编码阶段则由 Builder 的 prompt 端口取有效正文，运行版本包含用户修订号。
 
-Cognia 同时保留已登记的知识角色与回答指令：角色作为共享单次推理的 system 输入，回答指令与固定资料作为正文。可编辑的提示词必须真实进入调用，不能只有登记页面。`tests/cognia-prologue.test.ts` 与 `tests/plugin-model-generation.test.ts` 经真实 SDK 和本地 HTTP 核对用户覆盖、工具边界、取消和撤权；`tests/installed-plugin-host.test.ts` 核对真实安装生命周期。
+Cognia 同时保留已登记的知识角色与回答指令：角色作为共享单次推理的 system 输入，回答指令、用户任务和资料作为正文；资料是一行 JSON，围在代码里固定的「不可信」声明之后（`fencedMaterials`，见第 14 节「材料的不可信声明」）。可编辑的提示词必须真实进入调用，不能只有登记页面。`tests/cognia-prologue.test.ts` 与 `tests/plugin-model-generation.test.ts` 经真实 SDK 和本地 HTTP 核对用户覆盖、工具边界、取消和撤权；`tests/installed-plugin-host.test.ts` 核对真实安装生命周期。
 
 **Runtime 插件（宿主自己运行的 Home 与项目实例）：`services.model`**（W3-06 E/F；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke`、定义不是沙箱执行、平台有 Home，`context.services.model` 才存在；它不是 typed 能力，沙箱插件（生成插件）仍走 `model.generate`。 HomePluginExecutor 与项目执行器复用 `pluginModelFor` / `registerPluginAgentDefinitions`（同时登记 Manifest `methods`，W4-02），Home 的模型注入仍在每次调用时读取；停止开始撤执行权，最后一个持有该安装的实例退出时撤指令，不能新增 Home 推理进程。Home 组合用例见 `tests/home-plugin-model-lifecycle.test.ts`，替身覆盖不等于真实账号验收。
 
@@ -202,6 +202,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 
 - **角色执行等级**（`packages/contracts/src/platform/plugin-agent.ts`）：`read-only`（缺省）、`text-edit`、`workspace-write`（要求 Runtime 支持 text-edit 与 command）。角色不能在启动时自行加宽；`workspace: "none"` 的纯推理角色不能带目录、工具或子任务。
 - **宿主工具**：角色声明 `host_tools`（如 `read-file`、`search`），实现和效果分类归 Host。
+- **用途的方法**（用户 2026-10-16 定）：同一个插件里不同用途（如规划、执行、讨论）是不同的角色，每个角色可以用 `skills: { allowed, default }` 声明这个用途能挑的方法和一开始就选上的方法。`allowed` 点名 agent 块 `skills` 里的方法，`default` 必须在 `allowed` 里，每个可选方法要的 `tools` 都得在这个角色的 `host_tools` 里。解析 Manifest 时这些都由 SDK 检查（`packages/plugin-sdk/src/agent-declarations.ts`），不合就拒绝安装，免得开新一轮时才被宿主拒绝。不写 `skills` 的角色照旧。
 - **动作工具**：`action_tools` 只接受精确引用（capability_id + version + provider_id），调用仍走统一动作服务与逐客户端授权；动作的 `effect`（read/write/irreversible）决定是否要审查、是否对生成插件开放。
 - **审查**：写文件、跑命令、调用写入动作都进 `AgentReviewQueue`，由人批准；批准不等于已发生，执行前再复查授权。
 - **预算**：`AgentRunBudget`（`max_turns`、`max_output_tokens`、`max_total_tokens`、`max_duration_ms`），在 SDK 里真实执行（`tests/agent-budget-prologue.test.ts`）。
@@ -475,6 +476,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附 | 格式纠正时追加的那段文字写死在代码里，未登记 | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
 | 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v1` | 三种时机；同键同文只算一次；回执说去向 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
+| 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia） | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法；Todo 整理的围栏前还没有声明（清理 B3） | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手与 Cognia 两条） |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |
 | 生成插件的 `prompts` | 作者写业务意图，平台负责模型 | `skills/molis-plugin-dev/generated-ai.md`；宿主 `apps/local-host/src/plugin-builder/model.ts` | 声明 prompts、按 id 调用、会变的内容放 `input` | 只承诺一次文字生成 | 确定性：`tests/generated-plugin-prompts.test.ts`、`tests/plugin-model-generation.test.ts` |
 | Runtime 插件的 `services.model` | 宿主自己运行的插件调模型 | 第 4 节 | 只收自己登记的指令 | 见第 4 节「不在这一片里」 | 确定性：`tests/plugin-model-service.test.ts` |

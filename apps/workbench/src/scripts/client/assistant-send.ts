@@ -30,7 +30,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     const sameInput = () => (intent.work ? intent.draft === undefined : inputRev === intent.inputRevision) && String(input.value || "").trim() === text;
     const chooseSent = (work) => { curId = work.work_id; remember(); openTab(curId); };
     busy = true; activeSend = intent; syncSend(); problem = null; setPanel(true);
-    setStarts(false); if (matsList) setMats(false); clearTimeout(draftTimer);
+    closeStarts(); clearTimeout(draftTimer);
     unsettled.set(intent.work, intent);
     try {
       await draftWrite;

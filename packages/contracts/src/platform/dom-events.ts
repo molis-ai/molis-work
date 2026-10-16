@@ -331,8 +331,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis:assistant-open", kind: "request", owner: "assistant", on: "document",
-    detail: "{ work_id?, new?, source?, materials?, text? }",
-    summary: "Open the Assistant panel on a Work, or a new one, with words and materials put in and nothing sent.",
+    detail: "{ work_id?, new?, source?, materials?, object? }",
+    summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent.",
   },
   {
     name: "molis:assistant-starter-choose", kind: "request", owner: "context-actions", on: "document",

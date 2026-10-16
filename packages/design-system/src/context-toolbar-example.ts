@@ -24,7 +24,7 @@ const DEMO_SCRIPT = String.raw`(() => {
   const text = document.querySelector("[data-ctx-demo-text]"), log = document.querySelector("[data-ctx-demo-log]");
   if (!text || !log) return;
   const say = (message) => { log.textContent = message; };
-  const bar = factory({ choose: (key) => say("选了推荐动作：" + key + "（样例，没有真的执行）"), assistant: (kind) => say("交给助理：" + kind + "（样例）"), dismiss: () => say("按 Esc 收起了浮条") });
+  const bar = factory({ choose: (key) => say("选了推荐动作：" + key + "（样例，没有真的执行）"), assistant: () => say("交给助理（样例）"), dismiss: () => say("按 Esc 收起了浮条") });
   const pressed = { strong: false, em: false };
   let context = "";
   const publish = () => text.dispatchEvent(new CustomEvent("molis:context-tools", { bubbles: true, detail: { context_id: context, groups: [

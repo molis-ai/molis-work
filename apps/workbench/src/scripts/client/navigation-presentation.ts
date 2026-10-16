@@ -86,6 +86,17 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
       return { plugin: mark?.dataset.plugin || mark?.dataset.tabView || '', focused: pane.classList.contains('is-focused') };
     }).filter((entry) => entry.plugin);
   };
+  const chipOf = (kind, glyph, words) => {
+    const chip = document.createElement('span'), name = document.createElement('span');
+    chip.className = 'plugin-picker-chip' + kind;
+    if (glyph) chip.append(glyph);
+    name.textContent = words;
+    chip.append(name);
+    return chip;
+  };
+  // The label is rebuilt only when what it shows changed: a press that lands on it while the Dock refits still ends on the
+  // node it started on, so it is a click.
+  const put = (...chips) => { const next = current.cloneNode(); next.append(...chips); if (!next.isEqualNode(current)) current.replaceChildren(...chips); };
   let paintQueued = false;
   const paintCurrent = () => {
     if (paintQueued || !current) return;
@@ -97,30 +108,14 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
       const cover = document.querySelector('[data-tab-workspace]')?.dataset.exclusive;
       if (cover) {
         const source = document.querySelector('[data-cover-chip]');
-        const chip = document.createElement('span');
-        chip.className = 'plugin-picker-chip is-focused is-cover';
-        const glyph = source?.querySelector('svg')?.cloneNode(true);
-        if (glyph) chip.append(glyph);
-        const name = document.createElement('span');
-        name.textContent = source?.querySelector(':scope > span')?.textContent || '';
-        chip.append(name);
-        current.replaceChildren(chip);
+        put(chipOf(' is-focused is-cover', source?.querySelector('svg')?.cloneNode(true), source?.querySelector(':scope > span')?.textContent || ''));
         current.parentElement?.classList.remove('is-split');
         dock.querySelectorAll('[data-dock-pin][aria-current], [data-bar-resident][aria-current]').forEach((button) => button.removeAttribute('aria-current'));
         more?.classList.remove('has-current');
         return;
       }
       const entries = shown();
-      current.replaceChildren(...entries.map((entry) => {
-        const chip = document.createElement('span');
-        chip.className = 'plugin-picker-chip' + (entry.focused ? ' is-focused' : '');
-        const glyph = glyphOf(entry.plugin);
-        if (glyph) chip.append(glyph);
-        const name = document.createElement('span');
-        name.textContent = railItem(entry.plugin) ? labelOf(railItem(entry.plugin)) : entry.plugin;
-        chip.append(name);
-        return chip;
-      }));
+      put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), railItem(entry.plugin) ? labelOf(railItem(entry.plugin)) : entry.plugin)));
       current.parentElement?.classList.toggle('is-split', entries.length > 1);
       dock.querySelectorAll('[data-dock-pin], [data-bar-resident]').forEach((button) => {
         const id = button.dataset.dockPin || button.dataset.barResident;

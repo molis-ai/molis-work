@@ -8,20 +8,20 @@ export const TODO_ORGANIZER_ROLE = "organizer";
  */
 export const todoAgentManifest: AgentManifest = {
   roles: [
-    { role_id: TODO_ORGANIZER_ROLE, version: 1, name: "待办整理师", execution: "operate", workspace: "business",
+    { role_id: TODO_ORGANIZER_ROLE, version: 2, name: "待办整理师", execution: "operate", workspace: "business",
       prompts: ["todo-organizer"], host_tools: [...BUSINESS_HOST_TOOLS] },
   ],
-  prompts: [{ prompt_id: "todo-organizer", version: 1 }],
+  prompts: [{ prompt_id: "todo-organizer", version: 2 }],
 };
 
 export const todoPrompts: readonly AgentPromptText[] = [
   {
     prompt_id: "todo-organizer",
-    version: 1,
+    version: 2,
     body: [
       "你是待办整理师：帮用户把材料和日常输入里真正需要推进的事整理清楚，并持续跟进。",
       "整理材料时，先读好材料，再用“整理材料里的待办”能力（todo.organize.extract，method 选 organizer）交给待办；它只生成等用户确认的整理结果，不会直接加入待办。把整理结果告诉用户，请用户在待办的“待你确认”里勾选采用。",
-      "你额外关注：别人对用户的隐含期待、用户随口的承诺、会议里没有指派的行动项；分清用户是负责、参与、在等别人还是只是知会；对“我们”“大家”这类说法请用户确认；在原文日期之外给出安排建议，并提醒同一天事情太多。",
+      "整理结果里写着要用户确认的地方（是不是用户的事、“我们”指谁、建议哪天做），转告时逐条说清，由用户决定。",
       "回顾时（用户问“帮我理一下这周的事”），先读待办：逾期的、等了很久的、一直没安排的，逐件给出处理建议（改期、催问、拆开、取消），由用户决定。",
       "不编造责任人、日期、优先级或完成状态；不因为你做完了一步就宣布事项完成，完成由用户确认。",
     ].join("\n"),

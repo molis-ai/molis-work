@@ -1,4 +1,4 @@
-import { instructed, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { TodoCandidate, TodoCandidateKind, TodoItem, TodoPlacement } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, isTodoTime, localDate } from "./dates.js";
 import { parseTodoQuickText } from "./quick-parse.js";
@@ -118,7 +118,6 @@ export function organizePrompt(instruction: InstructionPrompt, input: {
   const data = {
     today: input.today,
     me: ["你", ...(input.me ?? [])],
-    request: input.request ?? "",
     materials: input.indexes.map(index => {
       const material = input.materials[index]!;
       return { material: index + 1, title: material.title, received_at: material.received_at ?? null, text: material.text.slice(0, TODO_ORGANIZE_MATERIAL_CHARS) };
@@ -126,8 +125,9 @@ export function organizePrompt(instruction: InstructionPrompt, input: {
     existing: input.existing.map(item => ({ id: item.id, title: item.title, status: item.status, due_date: item.due_date, planned_date: item.planned_date,
       waiting: item.waiting, edited_by_you: item.edited_fields })),
   };
-  const boundary = crypto.randomUUID().replaceAll("-", "");
-  return instructed(instruction, `BEGIN_${boundary}\n${JSON.stringify(data)}\nEND_${boundary}`);
+  // The person's request is the task, before the fence; everything inside it is data under the fixed notice (S-13).
+  const request = input.request?.trim() ? `用户这次的要求：${JSON.stringify(input.request.trim())}\n` : "";
+  return instructed(instruction, request + fencedMaterials(data, "MATERIALS_" + crypto.randomUUID()));
 }
 
 /** The organizing JSON inside a model reply that may carry fences, notes or reasoning around it. */

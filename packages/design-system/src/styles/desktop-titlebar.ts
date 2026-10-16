@@ -1,5 +1,5 @@
 /** AP3 visual layer: desktop-titlebar. */
-export const DESKTOP_TITLEBAR_STYLES = `  /* Desktop shell frame: safe-area variables, the app grid, project menu, drag regions and work surface (from the retired personal-workbench-v3 layer). */
+export const DESKTOP_TITLEBAR_STYLES = `  /* Desktop shell frame: safe-area variables, the app grid, project menu, drag regions and work surface. */
   @media (min-width: 761px) {
     body[data-desktop-shell="true"] { --desktop-project-control-center-y: calc(var(--desktop-titlebar-height) / 2); --desktop-native-control-row-height: var(--desktop-titlebar-height); --desktop-project-safe-inline-start: var(--desktop-native-project-safe-inline-start, 2px); --desktop-settings-safe-inline-start: var(--desktop-native-settings-safe-inline-start, 2px); }
     body[data-desktop-shell="true"] .app { gap: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); background: var(--page); }

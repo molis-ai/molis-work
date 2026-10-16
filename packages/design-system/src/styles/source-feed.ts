@@ -1,5 +1,5 @@
 /** AP3 visual layer: source-feed. */
-export const SOURCE_FEED_STYLES = `  /* Feed and Source directory controls, filter panel, empty states and connector cards (from the retired personal-workbench-v3 layer). */
+export const SOURCE_FEED_STYLES = `  /* Feed and Source directory controls, filter panel, empty states and connector cards. */
   @media (min-width: 761px) {
     body[data-desktop-shell="true"] .feed-directory-toolbar { grid-template-columns: minmax(0, 1fr) 30px; }
     body[data-desktop-shell="true"] .feed-filter-trigger { position: relative; }

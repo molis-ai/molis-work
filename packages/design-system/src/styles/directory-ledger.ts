@@ -1,5 +1,5 @@
 /** AP3 visual layer: directory-ledger. */
-export const DIRECTORY_LEDGER_STYLES = `  /* Directory rail: the tree pane, its resizer and heading (from the retired personal-workbench-v3 layer). */
+export const DIRECTORY_LEDGER_STYLES = `  /* Directory rail: the tree pane, its resizer and heading. */
   @media (min-width: 761px) {
     body[data-desktop-shell="true"] .tree-pane,
     body[data-desktop-shell="true"] .workspace.is-desktop-tui[data-navigator-view="graph"] .tree-pane { min-width: 0; min-height: 0; padding: 0 8px; border: 0; grid-column: 1; grid-row: 1 / -1; grid-template-rows: auto minmax(0, 1fr) auto !important; color: var(--ink-soft); background: color-mix(in srgb, var(--rail) 78%, var(--page)); box-shadow: none; overflow: visible; z-index: 2; }

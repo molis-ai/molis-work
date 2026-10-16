@@ -18,10 +18,10 @@ function rejected(value: unknown): void {
   assert.throws(() => assertActionInput(schema, value), (error: unknown) => error instanceof ActionError && error.code === "actions.input_invalid");
 }
 
-// ADOPT-CONTROL-V2-01, RC-01: current schema and callers use a new shape under a new action version (3: a supplement's key and mode).
-test("coding.runs.control uses version 3 and remains exclusive to the person at this computer", () => {
+// ADOPT-CONTROL-V2-01, RC-01: current schema and callers use a new shape under a new action version (3: a supplement's key and mode; 4: a non-choice question's answer is a value, specs/ai-interaction-experience AC-27).
+test("coding.runs.control uses version 4 and remains exclusive to the person at this computer", () => {
   assert.equal(control.definition.capability_id, "coding.runs.control");
-  assert.equal(control.definition.version, 3);
+  assert.equal(control.definition.version, 4);
   assert.deepEqual(control.definition.action.audiences, ["user"]);
 });
 
@@ -83,4 +83,19 @@ test("the page still posts the provider and model, and the switch takes effect o
   assert.match(CODING_CLIENT_FACTORY_SCRIPT, /kind:'switch-model',run_id:run\.ref\.run_id,\.\.\.model/);
   assert.match(CODING_CLIENT_FACTORY_SCRIPT, /provider_id:model\.provider_id,model_id:model\.model_id/);
   assert.match(CODING_CLIENT_FACTORY_SCRIPT, /从下一次模型调用起生效/);
+});
+
+test("AC-27-4: the page answers with the card's fields; the route reads them into values the published schema checks", async () => {
+  const asked = { kind: "answer", run_id: "run-1", pending_id: "question-1", pending_revision: 3 };
+  const input = control.toInput(request({ ...asked, values: { q0: ["1"], t1: " 复盘 ", n2: "45", d3: "", w4: { date: "", time: "" } } }));
+  assertActionInput(schema, input);
+  assert.deepEqual(await runControl(input, async () => []), { kind: "answer", pending_id: "question-1", pending_revision: 3,
+    answers: [{ question: 0, indexes: [1] }, { question: 1, value: "复盘" }, { question: 2, value: 45 }, { question: 3, value: null }, { question: 4, value: null }] });
+  // A value is words, a number or nothing, and never beside picks; the rest is the Runtime's to judge against the question.
+  rejected({ ...base, ...asked, answers: [{ question: 0, value: { at: "now" } }] });
+  rejected({ ...base, ...asked, answers: [{ question: 0, value: "x".repeat(2001) }] });
+  rejected({ ...base, ...asked, answers: [{ question: 0, indexes: [1], value: 1 }] });
+  assert.throws(() => control.toInput(request({ ...asked, values: {} })), /请回答每一道问题后再提交/, "a card with nothing in it is not sent");
+  assert.match(CODING_CLIENT_FACTORY_SCRIPT, /pending_revision:question\.pending_revision,values:client\.read\(\)/, "the page sends the card's fields as they are");
+  assert.doesNotMatch(CODING_CLIENT_FACTORY_SCRIPT, /function questionAnswer/, "the page no longer carries its own copy of the reading");
 });

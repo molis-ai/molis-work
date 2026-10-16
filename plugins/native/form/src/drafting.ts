@@ -76,8 +76,9 @@ function asked(value: unknown): AgentQuestion[] {
 }
 
 /** The answer in the model's words: each question with the options picked and what the person wrote. */
-function heard(questions: readonly AgentQuestion[], answers: ReadonlyArray<{ question: number; indexes: number[]; other?: string }>) {
-  return answers.map(answer => {
+function heard(questions: readonly AgentQuestion[], answers: ReadonlyArray<{ question: number; indexes: number[]; other?: string } | { question: number; value: unknown }>) {
+  // Only choice questions are asked here, and the answer passed their rules, so each answer is a pick.
+  return answers.flatMap(answer => "indexes" in answer ? [answer] : []).map(answer => {
     const question = questions.find(item => item.index === answer.question)!;
     return { question: question.prompt, picked: answer.indexes.map(index => question.options.find(option => option.index === index)?.label ?? ""), ...(answer.other ? { other: answer.other } : {}) };
   });

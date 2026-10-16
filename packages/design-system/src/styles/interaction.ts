@@ -96,32 +96,37 @@ export const INTERACTION_QUESTION_STYLES = `
 /** Days and times typed into a field, with the weekday and the zone beside them. */
 export const INTERACTION_DATE_STYLES = `
 .mw-ix-date { position: relative; display: inline-flex; align-items: center; gap: 4px; }
-.mw-ix-date__input { width: 118px; }
+.mw-ix-date__input { width: 9em; }
 .mw-ix-time { width: 72px; }
 .mw-ix-weekday { min-width: 2.5em; color: var(--muted); font-size: 12px; }
 .mw-ix-when { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.mw-ix-clock { display: inline-flex; align-items: center; gap: 8px; }
 .mw-ix-unit, .mw-ix-zone { color: var(--muted); font-size: 12px; white-space: nowrap; }
 @media (max-width: 760px), (pointer: coarse) {
-  :is(.mw-ix-date__input, .mw-ix-time) { font-size: 16px; }
+  :is(.mw-ix-date__input, .mw-ix-time, input.mw-ix-text, .mw-ix-number .mw-input) { font-size: 16px; min-height: 44px; }
 }
 `;
 
-/** Steppers for numbers and the calendar popover (with INTERACTION_CLIENT_SCRIPT, not the typed-dates variant). */
+/** Steppers for numbers: as tall as a date field, red when refused, a 44px target on touch. */
 export const INTERACTION_NUMBER_STYLES = `
-.mw-ix-row:has(.mw-ix-calendar:not([hidden])) { z-index: 5; }
-/* Number, date and time are typed or stepped; the calendar is the design system's, never an OS picker. */
 .mw-ix-number-row { display: inline-flex; align-items: center; gap: 8px; }
+.mw-ix-number { min-height: var(--control-h, 32px); }
+.mw-ix-number:has([aria-invalid="true"]) { border-color: var(--red); }
 .mw-ix-number .mw-input { width: 56px; min-width: 56px; }
-.mw-ix-number .mw-btn svg { width: 14px; height: 14px; }
+@media (max-width: 760px), (pointer: coarse) {
+  .mw-ix-number { min-height: 44px; }
+  .mw-ix-number .mw-btn { align-self: stretch; height: auto; width: 44px; min-width: 44px; }
+}
+`;
+
+/** The calendar popover (with INTERACTION_CLIENT_SCRIPT, not the typed-dates variant). */
+export const INTERACTION_CALENDAR_STYLES = `
+.mw-ix-row:has(.mw-ix-calendar:not([hidden])) { z-index: 5; }
+/* Dates are typed or picked; the calendar is the design system's, never an OS picker. */
 .mw-ix-calendar { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; padding: 12px; border-radius: var(--r-card, 12px); background: var(--popover); box-shadow: var(--lift-3); transform-origin: top left; animation: mw-ix-grow var(--dur-move) var(--ease-quint); }
 .mw-ix-calendar[data-place="top"] { top: auto; bottom: calc(100% + 6px); transform-origin: bottom left; }
 .mw-ix-calendar .mw-calendar__day[aria-pressed="true"] { background: var(--action); color: var(--action-ink); }
 @keyframes mw-ix-grow { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
-@media (max-width: 760px), (pointer: coarse) {
-  .mw-ix-number .mw-btn { width: 44px; min-width: 44px; }
-  .mw-ix-number .mw-input { font-size: 16px; }
-  .mw-ix-number .mw-input { min-height: 42px; }
-}
 @media (prefers-reduced-motion: reduce) {
   .mw-ix-calendar { animation: none; transition: none; }
 }
@@ -242,4 +247,4 @@ export const INTERACTION_TRACE_STYLES = `
 }
 `;
 /** Every segment: the component board, and a page that draws all of them. */
-export const INTERACTION_STYLES = `${INTERACTION_QUESTION_STYLES}${INTERACTION_DATE_STYLES}${INTERACTION_NUMBER_STYLES}${INTERACTION_REFERENCE_STYLES}${INTERACTION_OPERATION_STYLES}${INTERACTION_STEP_STYLES}${INTERACTION_TRACE_STYLES}`;
+export const INTERACTION_STYLES = `${INTERACTION_QUESTION_STYLES}${INTERACTION_DATE_STYLES}${INTERACTION_NUMBER_STYLES}${INTERACTION_CALENDAR_STYLES}${INTERACTION_REFERENCE_STYLES}${INTERACTION_OPERATION_STYLES}${INTERACTION_STEP_STYLES}${INTERACTION_TRACE_STYLES}`;

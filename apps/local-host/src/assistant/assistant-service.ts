@@ -800,7 +800,7 @@ export class AssistantService {
   }
 
   async answer(workId: string, input: { run_id: string; pending_id: string; pending_revision?: number; text?: string;
-    answers?: ReadonlyArray<{ question: number; indexes: readonly number[]; other?: string }> }): Promise<AssistantWorkView> {
+    answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     if (work.executor.kind === "coding") {
       const coding = await this.coding(work);
@@ -1497,7 +1497,7 @@ export class AssistantService {
     const latest = session.latest_run;
     if (latest && !isTerminalAgentPhase(latest.phase)) {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
-      const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: input => inputsOf(adapter).send(latest.ref, input, () => assertSendCurrent(stillCurrent)),
+      const outcome = await this.inputs.deliver(intent?.target === "answer" ? await adapter.read(latest.ref) : latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: input => inputsOf(adapter).send(latest.ref, input, () => assertSendCurrent(stillCurrent)),
         // A running round cannot be shown a picture any more; it goes with the next round.
         beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, intent);
       return this.result(work, outcome, latest.ref.run_id);

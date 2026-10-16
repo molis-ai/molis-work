@@ -109,7 +109,7 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, el, chip }) =>
       const key = "receipt:" + turn.turn_id, old = [...node.children].find((child) => child.dataset.entry === key);
       if (turn.kind !== "user" || !turn.steer) { old?.remove(); return; }
       const state = turn.steer.state, waits = (round.awaiting_input || []).length && (state === "received" || state === "applied");
-      const words = L(waits ? "已补充到这一轮；上面的问题仍在等你" : WORDS[state] || WORDS.received);
+      const words = L(waits ? "已补充到这一轮；问题仍在等你回答" : WORDS[state] || WORDS.received);
       if (old && old.textContent === words) { put(old); return; }
       old?.remove();
       const small = el("small", "assistant-receipt", words);

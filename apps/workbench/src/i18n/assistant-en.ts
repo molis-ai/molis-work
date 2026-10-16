@@ -89,7 +89,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "AI 已读到": "Read by the AI",
   "这一轮结束时 AI 没读到，留给下一轮": "Not read by the end of this round; kept for the next",
   "已撤回": "Withdrawn",
-  "已补充到这一轮；上面的问题仍在等你": "Added to this round; the question above still waits for you",
+  "已补充到这一轮；问题仍在等你回答": "Added to this round; the question still waits for your answer",
   "读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。": "Read does not mean followed, and it does not undo earlier steps. A supplement does not answer a question.",
   "补充这一轮": "Add to this round",
   "点一下改成：补充这一轮": "Click to switch to: add to this round",

@@ -32,7 +32,7 @@ test("RC-14: the line under a supplement says only what the runtime's record say
   const words = (state: string, round: object = running) => { ui.line(thread, put, steer(state), round); return thread.children.map(node => node.textContent); };
   assert.deepEqual(["received", "applied", "read", "unread", "withdrawn"].map(state => words(state)[0]),
     ["已送达", "已放进上下文，等 AI 回应", "AI 已读到", "这一轮结束时 AI 没读到，留给下一轮", "已撤回"]);
-  assert.deepEqual(words("received", asking()), ["已补充到这一轮；上面的问题仍在等你"], "one line per supplement, never a second");
+  assert.deepEqual(words("received", asking()), ["已补充到这一轮；问题仍在等你回答"], "one line per supplement, never a second");
   assert.deepEqual(words("read", asking()), ["AI 已读到"], "once read, the line says so even while the question waits");
   assert.match(thread.children[0]!.title, /读到不代表已遵循.*补充要求不代替回答问题/u);
   const { ui: other, thread: own, put: place } = page();

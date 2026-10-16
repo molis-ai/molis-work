@@ -54,7 +54,7 @@ test("RC-14/RC-15: while a question waits the chip says what Send does, a supple
   assert.equal(await chip(browser), "补充这一轮");
   const steered = await sendSeen(browser, "顺便看一下截图");
   assert.equal(steered.target, "steer", "the page sends the choice; the Host never guesses");
-  await browser.waitFor("[...document.querySelectorAll('.assistant-receipt')].some(node => node.textContent === '已补充到这一轮；上面的问题仍在等你')");
+  await browser.waitFor("[...document.querySelectorAll('.assistant-receipt')].some(node => node.textContent === '已补充到这一轮；问题仍在等你回答')");
   assert.equal((await readWork(browser, id)).rounds.at(-1)!.awaiting_input.length, 1, "a supplement does not answer the question");
   assert.match(await browser.evaluate<string>("document.querySelector('.assistant-receipt').title"), /读到不代表已遵循/u);
   await shot(browser, "assistant-receipt-waiting.png");

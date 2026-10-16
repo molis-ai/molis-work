@@ -120,6 +120,6 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 
 等待与接续的视图在 `services/agent-collaboration`，读与控制是两个动作，等到能接着做是一个宿主等待（`agent.collaboration.await.v1`）。
 
-等外面的结果（P3c）：`board-wait` 的 `external` 条件由 `prologue-checkers.ts` 里的两个检查器去看，不经模型。`molis.action-query@1` 只查这一轮此刻能调用的只读查询（`operation` 与 `kind` 都是 `query`、effect 是 `read`），`molis.file-present@1` 只看这一轮授权目录里的相对路径。登记时一个 `tool-before` 钩子先拒掉写类、判断、导航和这一轮没给的动作；之后每次看都重新复核：轮次还被记得、这一轮自己的 `beforeDispatch` 通过、动作经统一动作服务用这一轮的授权重新发现，目录经宿主的 `checks.directoryAuthorized` 端口确认仍授权。不过就回 `refused`，等待停下（`docs/system/SECURITY-INVARIANTS.md` S-27，`tests/prologue-external-checks.test.ts`、`tests/security-invariants-external-checks.test.ts`）。
+等外面的结果（P3c）：`board-wait` 的 `external` 条件由 `prologue-checkers.ts` 里的两个检查器去看，不经模型。`molis.action-query@1` 只查这一轮此刻能调用的只读查询（`operation` 与 `kind` 都是 `query`、effect 是 `read`），`molis.file-present@1` 只看这一轮授权目录里的相对路径。登记时一个 `tool-before` 钩子先拒掉写类、判断、声明了 `model:invoke` 的查询、导航和这一轮没给的动作；之后每次看都重新复核：轮次还被记得、这一轮自己的 `beforeDispatch` 通过、动作经统一动作服务用这一轮的授权重新发现，目录经宿主的 `checks.directoryAuthorized` 端口确认仍授权。不过就回 `refused`，等待停下（`docs/system/SECURITY-INVARIANTS.md` S-27，`tests/prologue-external-checks.test.ts`、`tests/security-invariants-external-checks.test.ts`）。
 
 信的规则：agents 受众的信只在同一张板相邻的步骤之间走，宿主负责把信交给收件人正在跑的那一轮。同一项目的会话可以互相请求、答复、通知、交接计划步骤；跨项目的会话不在同一张板上，照旧拒绝。几个会话同写一张板靠 SDK 按节点判冲突（P2k）：只有要改的那一步在模型读过之后被人改过，才报冲突。

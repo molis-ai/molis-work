@@ -361,7 +361,7 @@ Coding 步骤板和助理工作/委派视图都读同一图，仍挂在现有工
 | 板（常驻） | `AgentCollaborationView`：`board_id`、`version`、`work: { kind: "coding-session" \| "assistant-work"; id }`、`nodes`、`terminal` | 板跟着工作走（X5）：人直接开的 Coding 会话一块、一个助理 Work 一块，Host 在建工作时（第一跑之前）admit 常驻板与根节点；助理把工作交给编码角色时，那个 Coding 会话的跑绑在助理 Work 那块板的子节点上，不另开一块。业务对象只存 `board_id`；视图里的 `work` 由业务主人按 `board_id` 反查（Coding 插件存储 / 助理存储），SDK 板上不放 App 引用 |
 | `WaitArrangement` + 每条件 `ConditionObservation` | `AgentCollaborationWait`：`wait_id`、`version`、`mode`、`until`、`on_failure`、`deadline_at`、`conditions[]`（`kind`、可定位的 `ref` 与 `label`、`last?: { status, at, note?, checker_error? }`、`next_check_at?`）、`state`、`waited_without_model: boolean`（由 Run 账推出：从 armed 到 started 之间，这个会话没有任何尝试 / Run；不另设 Host 计数器。PA-17 用可计数的 Provider 接缝证明，界面据此回显「等待期间未调用模型」） | Coding 与助理的「在等什么」都读它；`AgentWait` 与 `agent.waits.*.v1` 在 P4 删 |
 | `Continuation` | `AgentContinuationView`：`state`、`auto`、`run_id?`、`reason?: { code, note? }` | 「准备继续 / 已继续 / 被拒原因 / 需核对」只读它 |
-| `conditionCheckers`（注入，`describe` + 每次带 scope 的 `check`） | 不暴露 | Host 检查器登记表（`apps/local-host` 的 Agent Host 装配），每次检查按 scope（板 → 工作 → actor / 项目 / 安装）复核授权，收回了就回 `refused`（界面「需要授权」）：内置 `molis.action-query`（经声明为 `operation: query` 且 `actionEffect: read` 的动作查原作业状态，映射四态，未声明状态 → unknown）、`molis.file-present`（授权根引用 + 相对路径 + 明确谓词，不越界）；后台命令走 SDK 内置 `command` 条件，不用检查器。检查器不得调用模型、AI 动作或模型 CLI |
+| `conditionCheckers`（注入，`describe` + 每次带 scope 的 `check`） | 不暴露 | Host 检查器登记表（`apps/local-host` 的 Agent Host 装配），每次检查按 scope（板 → 工作 → actor / 项目 / 安装）复核授权，收回了就回 `refused`（界面「需要授权」）：内置 `molis.action-query`（经声明为 `operation: query` 且 `actionEffect: read` 的动作查原作业状态，映射四态，未声明状态 → unknown）、`molis.file-present`（授权根引用 + 相对路径 + 明确谓词，不越界）；后台命令走 SDK 内置 `command` 条件，不用检查器。检查器不得调用模型、AI 动作或模型 CLI：`molis.action-query` 按动作声明的权限判断，判断类（按合同是命令）与声明了 `model:invoke` 的只读查询都拒（统筹 2026-10-16） |
 | `collaborationHost`（注入，`admitDispatch` + `startContinuation`） | 不暴露 | Host 协作口：两个方法按 §4.6.5 同一顺序复核 actor、范围、安装、角色、工具 / 目录、预算、模型、审查接线。`admitDispatch` 在子任务首个模型请求前做，并建共享用量账的预留（不透明引用记在尝试上；结果未知的用量不按零释放）；`startContinuation` 用接续的请求键作开跑幂等键。恢复查 SDK 自己的开跑记录（`findAgentStart`），Host 不另记一份 |
 | `boards.attemptOf(run)` | 视图投影用，不另暴露 | 操作卡、待答问题、动作调用编号挂回节点都经它推出（跨线 X2、X3） |
 | 错误码 `TASKBOARD_NOT_BOUND`、`TASKBOARD_STALE_GENERATION`、`TASKBOARD_CONTINUATION_CONFLICT`、`WAIT_ALREADY_ARMED`、`WAIT_CHECKER_UNKNOWN`、`WAIT_CONDITION_INVALID` | `agent.collaboration_not_bound`、`agent.collaboration_stale`、`agent.collaboration_conflict`、`agent.collaboration_wait_armed`、`agent.collaboration_checker_unknown`、`agent.collaboration_condition_invalid`（以主人名开头，W3-02；在 `tooling/gates/error-owners.json` 的 `agent` 名下登记） | 给人的原因文字由 Host 写 |
@@ -1050,6 +1050,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 - `prologue-node-port.ts`：`conditionCheckers` 交给 `createRuntime`；`board-wait` 进自动放行名单。它自己不做事，等的东西由上面的钩子把关。
 - `prologue-node.ts`：`startAgentRun` 之后记下这一轮的授权（会话、`beforeDispatch`、目录、动作客户端与冻结的动作）；轮次结束且没有在等的等待时丢掉。宿主重启后不认旧轮次（S-27 的 host-restarted 用例）。
 - 错误码 `agent.collaboration_check_refused`、`agent.collaboration_check_not_read`（`horizontal/agent-host/src/errors.ts`）。
+- 统筹 2026-10-16 定：声明了 `model:invoke` 的只读查询也拒（`agent.collaboration_check_not_read`，和判断同一个码）。检查器一次次地看，每看一次就调一次模型，花费没有上限、答案也不确定；§4.6.9 本来就写了检查器不得调用模型。仍然按权限管：看的是动作声明的权限，不是名单。
 - Coding：`builder` 角色 13 → 14，`host_tools` 加 `board-wait`；提示词 `coding-background` 1 → 2，教两种检查器和「要判断好坏的不能这样等」。
 
 **和 §4.6.8 设计不同的地方**：
@@ -1068,12 +1069,12 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
   - 登记时拒绝：没有的检查器、目录外的路径、命令、判断、这一轮没给的动作。
   - 动作授权收回、插件实例停了、目录不再授权、宿主重启，这四种之后的那一次看都是 refused，不调动作，之后不再看，也没有接续和模型请求。
   - 一轮连续 5 次调用失败就停（`prologue-run.ts`），所以「这一轮没给的动作」放在第二轮。
+  - 声明了 `model:invoke` 的只读查询，这一轮持有这个权限也拒，什么都不调（先在没有这条拒绝的代码上看它红）。
 - Coding 的提示词没有离线回放或评估用例（`pnpm studio:replay` 只管创作台），这次没跑；真实模型评测要先弹窗问用户，没做。
 
 **留到后面的**：
 
 - `molis.file-present` 只证明文件在（S-27 开放项）。
-- §4.6.9 表里写过「检查器不得调用模型、AI 动作」。按用户的决定，现在只看 query + read + 有权：判断（要问模型）因为是命令被拒，但一个声明了 `model:invoke` 的只读查询现在能被查。要不要再拒，待定（已报统筹）。
 
 ### 6.1 当前记录
 
@@ -1343,6 +1344,7 @@ A0 执行记录（下列历史方案记录之后继续）：
 | H16（统筹，2026-10-13） | 换包前在 Prologue 修：名单里没有 `acknowledge-inputs` 的一轮不写编号说明（#17） | 提醒早已按名单关掉，编号说明没有；Molis 的角色还没列这个工具，每条补充都会带一句指向不存在工具的话 |
 | PA-23 改述 | SDK 的 `yield` 仍被拒（`subagentYieldGuard`，S-23，`prologue-adoption-guard` 用例）；main 上的第 14 项是已知的私有接续，属 X6 欠账，由 P4 助理那一半还 | #472 已把第 14 项带进 main，P4 之前不回退已上线的行为 |
 | 第 14 项留到 P4 | 对账时不动 main 上的助理交回与续做，改造清单在 §7.5 | 改它要有统一协作合同（P3），现在动只能写兼容 |
+| 统筹 10-16 | 外部等待的 `molis.action-query` 也拒声明了 `model:invoke` 的只读查询，码同判断（`agent.collaboration_check_not_read`）；按动作声明的权限判断，不另写名单 | 检查器反复去看，每看一次调一次模型，花费无界、结果不确定；§4.6.9 已写检查器不得调用模型，spec 不自相矛盾；拒绝要有自己的用例（S-27） |
 
 ### 7.8 工作规则
 

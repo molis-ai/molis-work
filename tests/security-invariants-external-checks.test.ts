@@ -34,6 +34,17 @@ test("S-27 PA-16 a wait may not rest on a write, a judgment, an action the round
   assert.deepEqual([f.calls.status, f.calls.cancel, f.calls.judge], [0, 0, 0], "registering called no action");
 });
 
+// Coordinator 2026-10-16: a checker looks again and again, so a query that asks a model would spend on every look.
+test("S-27 PA-16 a wait may not rest on a read-only query that asks a model (model:invoke), even one the round holds", { timeout: 60_000 }, async t => {
+  const f = await externalChecks(t, turn => turn === 1 ? boardWait("molis.action-query@1", statusParams(f.refs.summary)) : { text: "没有可以等的。" });
+  await f.start("等作业 j-1 的总结", { action_tools: [f.refs.summary] });
+  assert.equal(f.requests.length, 2);
+  assert.match(f.requests[1]!, /要调用模型的查询不能这样等/, "a query that declares model:invoke is refused");
+  assert.match(f.requests[1]!, /Nothing was executed/);
+  assert.equal(await f.wait(), undefined, "no wait was registered");
+  assert.equal(f.calls.summary, 0, "registering called nothing");
+});
+
 for (const taken of ["actions-revoked", "plugin-stopped", "directory-revoked", "host-restarted"] as const)
   test(`S-27 PA-19 every look checks the round again: ${taken} stops the looking and nothing goes on`, { timeout: 60_000 }, async t => {
     const file = taken === "directory-revoked";

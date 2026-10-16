@@ -9,8 +9,8 @@ import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-
 
 /**
  * A Coding builder round on the real Node adapter that registers a step's wait on something outside (specs/prologue-adoption
- * §4.6.8), with the Host's action service behind it: a read-only status query, a command and a judgment, and switches for
- * the round's plugin instance, its action grant and its directory.
+ * §4.6.8), with the Host's action service behind it: a read-only status query, a command, a judgment and a read-only query
+ * that asks a model, and switches for the round's plugin instance, its action grant and its directory.
  */
 export type ModelReply = { text: string } | { tool: string; input: unknown };
 
@@ -38,8 +38,8 @@ export const until = async (what: string, check: () => Promise<boolean> | boolea
 };
 export const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const definition = (capability_id: string, operation: "query" | "command", kind: "query" | "operation" | "judgment", title: string, effect?: "read"): ActionDefinition => ({
-  capability_id, version: 1, operation, action: { title, description: title, kind, ...(effect ? { effect } : {}), scope: "project", audiences: ["agent"], permissions: [], subject_kinds: [],
+const definition = (capability_id: string, operation: "query" | "command", kind: "query" | "operation" | "judgment", title: string, effect?: "read", permissions: string[] = []): ActionDefinition => ({
+  capability_id, version: 1, operation, action: { title, description: title, kind, ...(effect ? { effect } : {}), ...(permissions.length ? { scheduling: "concurrent" as const } : {}), scope: "project", audiences: ["agent"], permissions, subject_kinds: [],
     input_schema: { type: "object", properties: { job: { type: "string" } }, required: ["job"], additionalProperties: false },
     output_schema: { type: "object", properties: { state: { type: "string" } }, required: ["state"] } },
 });
@@ -55,20 +55,24 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
     return sse(script(requests.length, messages));
   });
   const switches = { pluginActive: true, actionsGranted: true, directoryAuthorized: true, state: "running" as string | Error };
-  const calls = { status: 0, cancel: 0, judge: 0, roundChecks: 0, discovers: 0 };
+  const calls = { status: 0, cancel: 0, judge: 0, summary: 0, roundChecks: 0, discovers: 0 };
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "p", storage_key: "memory:p" };
   const provider = { provider_id: "fixture.jobs", kind: "plugin" as const, title: "Jobs" };
   const status = definition("fixture.jobs.status", "query", "query", "Job status"), cancel = definition("fixture.jobs.cancel", "command", "operation", "Cancel job"),
     // A judgment asks a model; it is declared a command, even one that only reads.
-    judge = definition("fixture.jobs.judge", "command", "judgment", "Judge job", "read");
-  local.actionRegistry(project).registerProvider({ provider, definitions: [status, cancel, judge], handlers: [
+    judge = definition("fixture.jobs.judge", "command", "judgment", "Judge job", "read"),
+    // A query that only reads but asks a model for its answer: it declares model:invoke.
+    summary = definition("fixture.jobs.summary", "query", "query", "Summarize job", "read", ["model:invoke"]);
+  local.actionRegistry(project).registerProvider({ provider, definitions: [status, cancel, judge, summary], handlers: [
     { ...status, handle() { calls.status++; if (switches.state instanceof Error) throw switches.state; return { state: switches.state }; } },
     { ...cancel, handle() { calls.cancel++; return { state: "cancelled" }; } },
     { ...judge, handle() { calls.judge++; return { state: "good" }; } },
+    { ...summary, handle() { calls.summary++; return { state: "done" }; } },
   ] });
   const ref = (definition: ActionDefinition): ExactActionReference => ({ capability_id: definition.capability_id, version: 1, provider_id: provider.provider_id });
-  const caller = { actor_id: "agent:prologue", actor_kind: "runtime" as const, audience: "agent" as const, project_id: project.project_id, permissions: [] };
+  // The round holds model:invoke, so only the checker's own rule keeps the model-backed query out.
+  const caller = { actor_id: "agent:prologue", actor_kind: "runtime" as const, audience: "agent" as const, project_id: project.project_id, permissions: ["model:invoke"] };
   const authority: AgentStartAuthority = { manifest: codingAgentManifest, prompts: [...codingPrompts], authorizedDirectories: [root],
     // The plugin instance that started the round: the real one throws this once the instance stops (plugin-host-services.ts).
     beforeDispatch: async () => { calls.roundChecks++; if (!switches.pluginActive) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); },
@@ -94,7 +98,7 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
   };
   const wait = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.wait;
   const continuation = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.continuation;
-  return { root, requests, switches, calls, adapter, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge) }, reopen: open };
+  return { root, requests, switches, calls, adapter, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary) }, reopen: open };
 }
 
 /** The model's call that registers the wait, as `board-wait` takes it. */

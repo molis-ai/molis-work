@@ -96,6 +96,8 @@ async function readableAction(round: Remembered, ref: ExactActionReference): Pro
   if (view.operation !== "query" || view.action.kind !== "query" || actionEffect(view.action, view.capability_id) !== "read") {
     return { refused: refused(NOT_READ, "只能查只读的查询动作") };
   }
+  // Looked at again and again, a query that asks a model (it declares model:invoke) would spend on every look (coordinator 2026-10-16).
+  if (view.action.permissions.includes("model:invoke")) return { refused: refused(NOT_READ, "要调用模型的查询不能这样等") };
   if (!view.availability.available) return { unknown: { status: "unknown", note: `动作暂不可用：${view.availability.reason}` } };
   return { view };
 }

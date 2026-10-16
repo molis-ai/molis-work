@@ -2,9 +2,9 @@
 import type { AgentInputModelClaim, AgentInputQuestion, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { compactScript } from "./compact-script.js";
 
-/** What the receipt reads of a run-view turn and its round: a run view (`AgentRunView`, with `ref`) or the Assistant's round (with `run_id`). */
+/** What the receipt reads of a run-view turn (`AgentTurnView`) and its round: the round's run id and the questions it waits on. */
 export interface InputReceiptTurn { turn_id: string; kind: string; text: string; steer?: AgentTurnSteer }
-export interface InputReceiptRound { run_id?: string; ref?: { run_id: string }; awaiting_input?: readonly unknown[] }
+export interface InputReceiptRound { run_id?: string; awaiting_input?: readonly unknown[] }
 export interface InputReceipts {
   /**
    * The receipt under one of the person's supplements, or the Host's mark on a note it wrote for them; null for anything
@@ -48,7 +48,9 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
     pending.push(words);
   };
   const row = (list: HTMLElement, term: string, value: string) => { list.append(make("dt", "", L(term)), make("dd", "", value)); };
-  const claimLine = (claim: AgentInputModelClaim) => L(TREATMENT[claim.treatment] ?? claim.treatment) + (claim.impacts.length ? L(" · 影响") + claim.impacts.map(one => L(IMPACT[one] ?? one)).join(L("、")) : "");
+  const treatment = (claim: AgentInputModelClaim) => L(TREATMENT[claim.treatment] ?? claim.treatment);
+  const impacts = (claim: AgentInputModelClaim) => claim.impacts.map(one => L(IMPACT[one] ?? one)).join(L("、"));
+  const claimLine = (claim: AgentInputModelClaim) => treatment(claim) + (claim.impacts.length ? L(" · 影响") + impacts(claim) : "");
   const asking = (questions: readonly AgentInputQuestion[]) => {
     const open = questions.filter(one => one.state === "open").length;
     return open ? L("为这条问了你问题，等你回答") : questions.some(one => one.state === "unresolved") ? L("为这条问的问题没等到回答") : "";
@@ -62,9 +64,9 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
     if (!claim) return part;
     const group = make("div", "mw-receipt__claimed"), said = make("dl", "");
     group.append(make("p", "mw-receipt__who", L("AI 自己说的，Molis 没有核对")), said);
-    row(said, "怎么处理", (claim.kind ? L(KIND[claim.kind] ?? claim.kind) + L(" · ") : "") + L(TREATMENT[claim.treatment] ?? claim.treatment));
+    row(said, "怎么处理", (claim.kind ? L(KIND[claim.kind] ?? claim.kind) + L(" · ") : "") + treatment(claim));
     if (claim.targets.length) row(said, "指向", claim.targets.map(target => L(TARGET[target.kind] ?? target.kind) + " " + target.id).join(L("、")));
-    if (claim.impacts.length) row(said, "说会改变", claim.impacts.map(one => L(IMPACT[one] ?? one)).join(L("、")));
+    if (claim.impacts.length) row(said, "说会改变", impacts(claim));
     if (claim.note) row(said, "AI 的原话", L("“") + claim.note + L("”"));
     row(said, "出处", (claim.revisions > 1 ? L("说明过 ") + claim.revisions + L(" 次，以最新一次为准") : L("说明过 1 次")) + (claim.tool_call_id ? L(" · 工具调用 ") + claim.tool_call_id : ""));
     part.append(group);
@@ -81,7 +83,7 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
       const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
       // Known by its round and input id: a turn id only counts within one round, the page draws every round, and a supplement
       // a round did not read is carried into the next under the same input id (decision D28).
-      const id = (round?.run_id ?? round?.ref?.run_id ?? "") + " " + steer.id, key = JSON.stringify([fact, claim, ask, steer]), was = shown.get(id);
+      const id = round?.run_id + " " + steer.id, key = JSON.stringify([fact, claim, ask, steer]), was = shown.get(id);
       if (was && was.said === key) return was.root;
       const root = was?.root ?? make("details", "mw-receipt");
       const summary = make("summary", ""), head = make("span", "mw-receipt__fact", fact);

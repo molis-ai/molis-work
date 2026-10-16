@@ -91,7 +91,7 @@ test("RCPT-312, RC-15, D28: a receipt is known by its round and input; turn ids 
   const { ui, said } = receipts();
   const turn = (input: string, state: string): Turn => ({ turn_id: "user-4", kind: "user", text: "补一条回归测试", steer: { id: input, state } });
   // One repaint draws the old round, then the new one, whose supplement has the same turn id.
-  const paint = (state: string) => [ui.line(turn("steer-1", "read"), { ref: { run_id: "run-1" } }), ui.line(turn("steer-9", state), { ref: { run_id: "run-2" } })];
+  const paint = (state: string) => [ui.line(turn("steer-1", "read"), { run_id: "run-1" }), ui.line(turn("steer-9", state), { run_id: "run-2" })];
   const [old, fresh] = paint("received");
   assert.notEqual(old, fresh, "two supplements, two receipts");
   assert.deepEqual(await said(), [], "a new supplement's first receipt is not a change");
@@ -102,7 +102,6 @@ test("RCPT-312, RC-15, D28: a receipt is known by its round and input; turn ids 
 test("RCPT-312, D28: a supplement carried into the next round under the same input id has a receipt in each round, and they never take turns being said", async () => {
   const { ui, said } = receipts();
   const turn = (state: string): Turn => ({ turn_id: "user-2", kind: "user", text: "改完补一条回归测试", steer: { id: "steer-6", state } });
-  // The Assistant's rounds carry their run id directly.
   const paint = (carried: string) => [ui.line(turn("unread"), { run_id: "run-1" }), ui.line(turn(carried), { run_id: "run-2" })];
   const [old, carried] = paint("applied");
   assert.notEqual(old, carried, "the round that did not read it and the round that carried it each keep their own receipt");

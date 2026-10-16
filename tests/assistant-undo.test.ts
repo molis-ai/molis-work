@@ -11,6 +11,7 @@ import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { actionKey, assistantAuthority } from "../apps/local-host/dist/assistant/assistant-authority.js";
+import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -203,8 +204,13 @@ test("a round that could not start has told the next one nothing: undone changes
     await f.service.send({ text: "继续", request_id: "undo-told-3", work_id: workId }, {});
     await until(async () => { const v = await f.service.read(workId); return v.rounds.length === 2 && v.work.state === "completed"; }, "second round");
     // The role's own text names these sections, so what counts is the data line each puts in the round.
-    const told = (body: string) => ({ undo: body.includes("用户已经撤销；除非用户再次要求"), job: body.includes("（任务 job-1）"), unsettled: body.includes("停止后已完成：不要再次提交") });
+    const told = (body: string) => { const { data } = roundParts(body);
+      return { undo: data.includes("下面这些你做过的修改，用户已经撤销："), job: data.includes("（任务 job-1）"), unsettled: data.includes("「Notes · Add a note」：停止后已完成") }; };
     assert.deepEqual(told(f.requests.at(-1)!), { undo: true, job: true, unsettled: true }, "the round that started was told all three");
+    // ADH-12: the data says what happened; what follows from it (not redoing, not re-sending) is the role's, said once.
+    const round = roundParts(f.requests.at(-1)!);
+    assert.doesNotMatch(round.data, /除非用户再次要求|不要重新做|不要再次提交/);
+    assert.ok(round.role.includes("用户撤销过的修改，除非用户再次要求，不再做") && round.role.includes("不要再次提交同一修改"), "the role says it");
     assert.deepEqual(untold(), { undos: 0, jobs: 0, unsettled: 0 }, "told once the round has started");
     await f.service.send({ text: "再继续", request_id: "undo-told-4", work_id: workId }, {});
     await until(async () => { const v = await f.service.read(workId); return v.rounds.length === 3 && v.work.state === "completed"; }, "third round");

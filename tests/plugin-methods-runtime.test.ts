@@ -121,11 +121,11 @@ test("W4-02-04 a definition's methods for an owner the catalog registers for are
   withHome(async home => {
     // A catalog plugin's own definition (Issues on the Home Runtime) shares the Manifest that declares the methods and carries no
     // bodies: the catalog registers them, and the plugin starts as before.
-    const catalogOwn = platformIn(home), own = probe({ pluginId: "io.molis.work.pages", methods: [declared("meeting-notes")], bodies: [] });
+    const catalogOwn = platformIn(home), own = probe({ pluginId: "io.molis.work.pages", methods: [declared("meeting-notes", 2)], bodies: [] });
     try {
       assert.deepEqual((await catalogOwn.platform.start([{ definition: own.definition }])).running, ["io.molis.work.pages"]);
       assert.equal(own.started(), 1);
-      assert.match(homeAgentDefinitions(home).method("io.molis.work.pages", "meeting-notes", 1).body, /待定问题/, "the catalog's body, not replaced");
+      assert.match(homeAgentDefinitions(home).method("io.molis.work.pages", "meeting-notes", 2).body, /待定问题/, "the catalog's body, not replaced");
     } finally { catalogOwn.store.close(); }
     // Pages' methods are the catalog's: a second source for the same owner would replace them in the register, so it does not start.
     const project = platformIn(home), shadow = probe({ pluginId: "io.molis.work.pages" });

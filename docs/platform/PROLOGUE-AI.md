@@ -59,7 +59,7 @@ Coding 的 `agent.draft-text.v1` 经 `agent-host-composition.ts` → `model-draf
 
 Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompts.ts`，共同目录登记 `CODING_INSTRUCTIONS`。请求传 `{ purpose, prompt: CODING_COMMIT_DRAFT.prompt_id, material, model_selection }`；Host 从原 invocation 的插件身份确定 owner，再读取用户修改后的有效正文，材料仍单独传递。输入不能冒充 owner；未知引用或缺失身份拒绝派出。请求必须带已登记的 `prompt`，不再接受 `instructions` 字符串。Prompt 使用记录在初次授权复查之后写入，原授权等待与模型执行共用两分钟生命周期；取消或撤权后的迟到检查不登记使用、不启动模型。
 
-Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
+Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只经 `apps/local-host/src/configured-text-port.ts` 固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime（项目上手用同一个 helper，但用它自己的主人、不带 Cognia 的角色）；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
 
 Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGeneration`，不另行解密或复制配置比对逻辑；首次授权等待与模型执行复用 Plugin SDK 的 `createExecutionLifetime`（`@molis-ai/molis-work-plugin-sdk`，Kernel 不转出它）取三分钟生命周期，固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。
 
@@ -573,7 +573,15 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 结论与未验证：<只在这批任务上成立；没跑的情形>
 ```
 
-现成的完整实例是创作台的回放与冒烟（`docs/platform/STUDIO-SKILL-REPLAY.md` 第 1 节与第 4 节：先离线回放，再在隔离 Home 里改前改后各跑 2–3 次冒烟、附两份报告）。按本格式写的第一份真实模型前后对比，随第一个按本手册清理的提示词补上（见需求书 §9）。
+现成的完整实例是创作台的回放与冒烟（`docs/platform/STUDIO-SKILL-REPLAY.md` 第 1 节与第 4 节：先离线回放，再在隔离 Home 里改前改后各跑 2–3 次冒烟、附两份报告）。按本格式写的第一份真实模型前后对比是项目上手的两段指令（需求书 §9.5）。
+
+**模型能力造成的坏效果，不按症状打补丁**（用户 2026-10-16）。开发和评测现在用的 MiniMax 能力较弱，评测里会有与设计无关的失败。坏效果来自模型自身的能力时，不头疼医头、脚疼医脚：不在提示词里为某一次的说法加一条禁令，也不在代码里为某一种失败加正则、特例分支或场景开关。这类补丁治不了能力，只会让指令和代码越来越脏——换个说法又漏掉，换个更强的模型又成了多余的限制。`horizontal/agent-host/src/adapters/announce-guard.ts` 里注明「Seen from MiniMax-M3」的措辞清单就是这样来的。判断时：
+
+- 先按 16.4 看冻结记录：需要的事实、工具和回执都在，答案还是错，记为模型能力；缺了就改上下文或工具。
+- 比同一模型、同一批任务的前后差：改后不比改前差，又更短更清楚，就算改好了。两版都失败的任务记「两版都失败」，不算回归，也不拿来当加规则的理由。
+- 一次失败不改，多数次里反复出现的才算模式。
+- 兜不兜底看后果：会误导用户、重复写入或越权的，不管模型强弱，都由工程层用与模型无关的事实核对兜住（有没有成功的回执、版本前置、审查）；只是答得不够好的，记为模型限制，不加约束。
+- 记录里「没变好或变差的」逐条标「设计问题 / 模型能力 / 拿不准」并写依据，拿不准的写进「未验证」。没有可用的更强模型时，不去推断强模型会怎样。
 
 ### 16.4 诊断：先看 AI 当时实际拿到了什么
 

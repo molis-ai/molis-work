@@ -443,6 +443,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 回执 R1 方案（笔记 `receipts-r1-plan.md`）认可：`standingSupplements(runs)` 从 run view 推出带 steer、状态 applied/read 的 user 行（排除撤回、未读/已收到——它们由 SDK carry 带、notice 行、无 steer 的 user 行），同时放进模型摘要材料（替换 `slice(-5)`）、Host 核实事实与备用摘要（纯代码）；超预算写明截掉的条数与 id。统筹补：写成本人原话引用不写成指令；页面代写的补充按 BL-144 照实写明；先看 history-digest 离巨大单元阈值多远。
   - 10-16 晚：#600、#594 在合并队列（只合并）。#580 squash 合入后 #592（全量 30 项全绿于 4d27e78d）只在手册 spec 上冲突、#598（叠在 #580 原始提交上）十来个文件冲突，已请手册线各合 main 报新 head：#592 核对改动一致后只合并入队；#598 新 head 再排全量。全量队列改为 #596（已标）→ #597 → #599 → #601（after-597b），#598 等新 head 再接。
   - 回执 R1 = #601（`fb28d29f3`，从 main 5b6a07054）审过：仍然有效的补充由 run view 的 steer 状态（applied/read）推出，三处共用一节，16 000 字预算让位写明条数与 id；RCPT-101/102 断言在第二轮真实 provider 请求上，请求数恰为一次摘要加一轮；BL-144 缺口记在 §20.5。已告诉回执线别推，3a 可设计，动 prologue*.ts 前看 #597 重叠。
+  - 回执 3a 方案（笔记 `receipts-3a-plan.md`，RCPT-301～304）认可：S3 inputs-acknowledged 投到补充的 steer.handling（标为 AI 自称、不改 state），S4 问题引用与板节点 origins 投影，一致性测试比 SDK projectInputReceipts。两项按推荐：观察到的影响挪 3d、完整 AgentInputView 放 3c（记进决策记录）。附带条件：SDK 有增量投影入口就直接用，否则写明为什么保留宿主那份；自称在类型上可分；applyPrologueEvent（基线 202 行巨大单元）不加行；#597 合入后合 main 重跑 api:update 再开 PR。与 #597 只在合同 agent-host.ts 与快照上重合。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

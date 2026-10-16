@@ -403,7 +403,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 止血 #575（`0e256445`）与手册用途组 PR A #576（`e1508f07`）审过、加 full-suite；#575 先合，保证换包前工具都能调。PR B（Host 启动拒绝）等 2a。
   - 采用线合并上游 prologue#28 被它自己的权限检查拦下（用户同意经统筹转达，不算该会话的授权），连 vendor/prologue-sdk 的读取也被拦；**要用户在采用线会话里亲自同意**，统筹不代办。#575 由统筹的合并队列合，不需采用线动手。
   - 手册 B2 #577（`3057ba36e`，Cognia 用 contracts `fencedMaterials`、两段提示词升 v2、S-13 加 Cognia 一条、评测 30 次）审过，等空档加 full-suite。
-  - #571（2a）并 main 后新头 `819a4e4ca` 审过（S-28 写明免审前缀只属这一轮的建议工具、伪造前缀用例、单一名字），排在 #577 后加 full-suite（after-577 脚本）；2c 文件单加 Coding HTTP 边缘按 kind 给状态。#573 新头只是并 main，溢出修补未到。
+  - #571（2a）并 main 后新头 `819a4e4ca` 审过（S-28 写明免审前缀只属这一轮的建议工具、伪造前缀用例、单一名字），排在 #577 后加 full-suite（after-577 脚本）；2c 文件单加 Coding HTTP 边缘按 kind 给状态。#573（W3-A2）新头 `acbd2becc` 审过（横向滚动+有更多的一侧淡出、键盘滚进视野、竖滚轮横滚，STRIP-03；touch-targets 量 ＋ 与 ×；截图看过），排在 #571 后加 full-suite（after-571 脚本）。标签顺序：#575、#576 在跑 → #577 → #571 → #573。消息上限将到：已让交互线在 #571 合入后、回执线在 #573 合入后自行开工 2c、1e，不等统筹通知。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

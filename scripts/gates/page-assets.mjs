@@ -262,7 +262,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
   if (reference[asset] === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
-  return bytes > approvedCeiling(asset, reference[asset]) ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
+  return bytes > reference[asset] ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
 });
 
 // ---- the merge-base's budget -----------------------------------------------------------------------------------------

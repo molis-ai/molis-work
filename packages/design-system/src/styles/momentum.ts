@@ -140,7 +140,7 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   .tui-mode-label {
     height: 100%;
     padding: 0 8px;
-    border-bottom: 1px solid var(--blue);
+    border-bottom: 1px solid var(--ink-soft);
     color: var(--ink);
     display: inline-flex;
     align-items: center;

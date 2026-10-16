@@ -609,8 +609,8 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // every asset. ISSUE-48 took issues.js from 24,378 (#521) and the I8 fixes the Pages editor from 698,574 (#522). W3-B1 (#553,
 // context-program §21.8) took the Pages editor, the Pages client and the workbench script, and receipts 1d (#564,
 // specs/ai-input-receipts) the Coding bundle and both stylesheets, from the sizes below; W4-03 removed those allowances with
-// the companions' copies of Coding's bundle. Receipts 1e (#589, approved 2026-10-16) took the workbench script, three
-// stylesheets and the Coding bundle; receipts 3c replaced its entries.
+// the companions' copies of Coding's bundle. Receipts 1e (#589, specs/ai-input-receipts RC-14–RC-16) took the workbench script,
+// the three stylesheets and the Coding bundle from the last five sizes; W5-05 slice 1 removed that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],

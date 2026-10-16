@@ -435,6 +435,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 手册三头并 main 6ee6fe21d：#580 `7a59a3260`（只合并入队）、#592 `4d27e78d5`、#588 `1115cc3f1`（S-13 行 = main + B4 一处插入，统筹核过）。label-chain：#592 → #588 → #596 → #597（#589、#594 全量在跑）。「去哪里配」评测：说出「模型设置」0/6→4/6，编错地方 2/6→0/6，PR 待开。
   - 「去哪里配」= #598（`baa233d7e`，自己的提交 c60600102，叠在 #580 上）：宿主只在 `textModelMissing(purpose?)` 一处写「请先在「模型设置」里连接文字模型」，九个调用方改走它，执行时 `textModelRequired`；名字用例钉 settings-sections，英文 Settings › Models。工作流程页的设置链接比对的是页面自己的原因，不受影响（改按事实判断列为后续）。审过，排 label-chain 第五（after-597），#580 之后合。下一片 A3（真实 Agent 轮次，一次性隔离 Home，用户在手册会话已同意）。
   - 采用线：prologue#30 经用户在采用线会话批准合并（`be78f726`）；换包 #599（`745fd81e7`，包 find-tools-deferral 两次打包逐字节相同，旧包与记录删、patch-history 补条目，PA-12 两条 writers + 10 个查询在旧包上红）审过，排 label-chain 第六（after-598）。#589 全量 30 过、已在合并队列；合入后通知 #594、#597 并 main 重量（只合并入队）。#580 等产品子集跑完入队。#592 已标、全量在跑。main 上 #595（他人 0.3.0 发版草稿）已合。
+  - 防腐 W5-05 第 0 片 #600（`5233d4346`，只测试与脚本：多三处视觉面共 66 张，每处每配色一份计算样式快照共 22 份，样式差也退出 1；三次同树样式全同、第 3 次 goal-work@1440-dark 有 4 像素字形抖动、容差仍 0）审过，只合并入队。像素差但样式全同只在 PR 里由人写明并附对照图，不做成自动放行。下一片 quiet-paper 在 #600 合入后开。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

@@ -16,7 +16,7 @@ import { watchSettlements } from "./fixtures/settlements.js";
 import { AssistantStore, type StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
 import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
-import { HOST_GOVERNED_TOOLS, gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
+import { HOST_GOVERNED_TOOLS, capabilityInput, gatewayProblem, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -240,7 +240,8 @@ test("business roles are declared narrowly and the Host keeps directories, MCP a
   } finally { await f.close(); }
 });
 
-test("the gateway takes a JSON-string input as the value it means, and a contract error shows the shape to send", { timeout: 60_000 }, async t => {
+// Adoption §6.0g: the gateway no longer reads a wrong shape as what it might mean; the contract refuses it, with the shape.
+test("a JSON-string input is refused like any input that does not match the contract, and a contract error shows the shape to send", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: "{}" } }),
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "a", extra: true } } }),
@@ -248,10 +249,11 @@ test("the gateway takes a JSON-string input as the value it means, and a contrac
   ]);
   try {
     const sent = await f.service.send({ text: "count, then save", request_id: "req-00000007" }, { project_ref: f.project });
-    // The invalid change never reaches the person: it is refused before any review, with the schema to send.
+    // Neither reaches its owner or the person: each is refused before any review, with the schema to send.
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
-    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["read:completed", "change:failed"]);
-    assert.match(done.rounds[0]!.activity[1]!.detail ?? "", /must be a JSON value matching this schema/);
+    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["read:failed", "change:failed"]);
+    assert.match(done.rounds[0]!.activity[0]!.detail ?? "", /you sent string: "\{\}"/);
+    for (const item of done.rounds[0]!.activity) assert.match(item.detail ?? "", /must be a JSON value matching this schema/);
     assert.equal(done.reviews.length, 0);
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
   } finally { await f.close(); }
@@ -713,14 +715,21 @@ test("a reply that says something was saved when no change went through is held 
   } finally { await f.close(); }
 });
 
-test("the gateway takes a capability's fields put beside its identity as the input they meant, and still reviews the exact value", { timeout: 60_000 }, async t => {
+// Adoption §6.0g: fields written beside the identity are not read as the input; the call is refused with the contract.
+test("a capability's fields put beside its identity are refused with its contract before any review; the same fields inside input are reviewed exactly", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", text: "flattened" } }),
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "flattened" } } }),
     () => reply(undefined, "Saved."),
   ]);
   try {
     const sent = await f.service.send({ text: "Save a note saying flattened", request_id: "req-00000041" }, { project_ref: f.project });
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    assert.equal(view.reviews.length, 1, "only the call with its input inside input is held for the person");
+    const refused = view.rounds[0]!.activity[0]!;
+    assert.equal(`${refused.verb}:${refused.state}`, "change:failed");
+    assert.match(refused.detail ?? "", /text written beside the capability's identity, not inside input/);
+    assert.match(refused.detail ?? "", /must be a JSON value matching this schema/);
     assert.deepEqual(view.reviews[0]!.fields.find(field => field.label === "内容"), { label: "内容", value: "flattened" });
     await f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
@@ -742,19 +751,23 @@ test("a change its owner has not answered by the gateway's own deadline ends in 
   assert.equal(seen?.aborted, true, "the owner is told to stop");
 });
 
-test("plain text or twice-encoded JSON for a capability whose one required field is text is that field; a mismatch shows what arrived (seen with MiniMax-M3)", async () => {
+test("plain text or JSON text for an object contract is passed on as written and refused with what arrived; only an input left out is {} (adoption §6.0g)", async () => {
   const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
     action: write.action, availability: { available: true } } as unknown as ActionView;
-  // A generated plugin's extract action was sent its meeting notes as text four times, until the runtime stopped the round.
-  assert.deepEqual(normalizedInput(view, "周五复盘会：老李负责联系活动场地"), { text: "周五复盘会：老李负责联系活动场地" });
-  assert.deepEqual(normalizedInput(view, JSON.stringify(JSON.stringify({ text: "会后发纪要" }))), { text: "会后发纪要" });
-  assert.deepEqual(normalizedInput(view, "{\"text\":\"x\"}"), { text: "x" });
-  // Text that could mean more than one field is left as sent, and the contract says why.
-  const two = { ...view, action: { ...view.action, input_schema: { type: "object", properties: { title: { type: "string" }, body: { type: "string" } }, required: ["title", "body"] } } } as ActionView;
-  assert.equal(normalizedInput(two, "会后发纪要"), "会后发纪要");
-  const client = { discover: async () => [two], check: async (_ref: unknown, input: unknown) => { if (typeof input !== "object") throw new Error("输入不符合能力合同：/ type"); } };
+  // Once read as the one text field or decoded; now the contract judges exactly what the model wrote.
+  assert.equal(capabilityInput(view, "周五复盘会：老李负责联系活动场地"), "周五复盘会：老李负责联系活动场地");
+  assert.equal(capabilityInput(view, "{\"text\":\"x\"}"), "{\"text\":\"x\"}");
+  assert.deepEqual(capabilityInput(view, undefined), {}, "the tools declare input optional");
+  assert.equal(capabilityInput(view, null), null);
+  const client = { discover: async () => [view], check: async (_ref: unknown, input: unknown) => { if (typeof input !== "object") throw new Error("输入不符合能力合同：/ type"); } };
   const problem = await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: "会后发纪要" });
   assert.match(problem ?? "", /you sent string: "会后发纪要"/);
+  // A suggestion with a field beside its identity records nothing and gets the contract back.
+  let offered = 0;
+  const { executors } = prologueActionGateway({ client: { ...client, offer: async () => { offered++; return { offer_id: "o1" }; } }, operate: true } as never);
+  await assert.rejects(executors["suggest-action"]!({ args: { title: "记下", summary: "记一条笔记", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", text: "会后发纪要", input: {} } } as never),
+    (error: { code?: string; message: string }) => error.code === "TOOL_ARGUMENTS_INVALID" && /matching this schema/.test(error.message));
+  assert.equal(offered, 0);
 });
 
 test("a capability identity the round never found is answered as unknown, not as taken away", async () => {
@@ -802,16 +815,19 @@ test("the round's capability directory names what cannot run now with its owner'
   } finally { off(); await f.close(); }
 });
 
-test("a suggestion whose fields are partly beside its input still becomes the card it meant (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
+// Adoption §6.0g: a field beside the input is no longer merged into it; the suggestion is refused with the contract.
+test("a suggestion whose fields are partly beside its input records no card and gets the contract back; the same fields inside input become the card", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
-    // The model put one field beside `input`, as it did with a to-do's placement: the tool used to reject it four times.
+    // The model put one field beside `input`, as MiniMax-M3 did with a to-do's placement before found capabilities were typed (§6.0f).
     () => reply({ name: "suggest-action", input: { title: "保存这条笔记", summary: "把“会后发纪要”存进项目笔记", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: {}, text: "会后发纪要" } }),
+    () => reply({ name: "suggest-action", input: { title: "保存这条笔记", summary: "把“会后发纪要”存进项目笔记", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "会后发纪要" } } }),
     () => reply(undefined, "Here it is."),
   ]);
   try {
     const sent = await f.service.send({ text: "suggest a note", request_id: "req-00000061" }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
-    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["suggest:completed"]);
+    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["suggest:failed", "suggest:completed"]);
+    assert.match(done.rounds[0]!.activity[0]!.detail ?? "", /matching this schema/);
     assert.equal(done.cards.length, 1);
     assert.ok(done.cards[0]!.fields.some(field => field.label === "内容" && field.value === "会后发纪要"), JSON.stringify(done.cards[0]!.fields));
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "suggesting runs nothing");
@@ -931,27 +947,24 @@ test("the developer diagnostics trace a round by its exact identities and frozen
   } finally { await f.close(); }
 });
 
-test("a revision or other number written as text where the contract wants the number is that number; text fields stay text (seen with MiniMax-M3)", async () => {
+test("a revision or other number written as text is passed on as written, and the refusal names the place and what was there (adoption §6.0g)", async () => {
   const schema = { type: "object", properties: { id: { type: "string" }, expected_revision: { type: "integer" }, due_date: { type: "string" },
     priority: { anyOf: [{ type: "number" }, { type: "null" }] }, done: { type: "boolean" }, code: { type: "string" },
     patch: { type: "object", properties: { expected_version: { type: ["integer", "null"] } } }, tags: { type: "array", items: { type: "integer" } } }, required: ["id", "expected_revision"] };
   const view = { capability_id: "fixture.todo.update", version: 1, operation: "command", provider: { provider_id: "fixture.todo", kind: "plugin", title: "Todo" },
     action: { ...write.action, input_schema: schema }, availability: { available: true } } as unknown as ActionView;
-  // Every edit of a to-do and a page was refused: the model copied the revision as the text it read ("1").
-  assert.deepEqual(normalizedInput(view, { id: "t1", expected_revision: "1", due_date: "2026-10-06", priority: "2.5", done: "false", code: "007",
-    patch: { expected_version: "3" }, tags: ["4", "x"] }),
-  { id: "t1", expected_revision: 1, due_date: "2026-10-06", priority: 2.5, done: false, code: "007", patch: { expected_version: 3 }, tags: [4, "x"] });
-  // Nothing given for an object: an empty object, which a capability taking no fields accepts.
+  // Once turned into the numbers and yes/no they meant; with each found capability's input typed, the model writes them as such (§6.0f).
+  const written = { id: "t1", expected_revision: "1", due_date: "2026-10-06", priority: "2.5", done: "false", code: "007", patch: { expected_version: "3" }, tags: ["4", "x"] };
+  assert.deepEqual(capabilityInput(view, written), written);
+  // Blank text is not "nothing given": only an input left out is {}.
   const none = { ...view, action: { ...view.action, input_schema: { type: "object", properties: {}, additionalProperties: false } } } as ActionView;
-  assert.deepEqual(normalizedInput(none, ""), {});
-  assert.deepEqual(normalizedInput(none, "  "), {});
-  // Not a plain number: left as sent for the contract to judge.
-  assert.deepEqual(normalizedInput(view, { id: "t1", expected_revision: "v1" }), { id: "t1", expected_revision: "v1" });
+  assert.equal(capabilityInput(none, ""), "");
+  assert.deepEqual(capabilityInput(none, undefined), {});
   // The refusal names the place and what was there, so the next attempt fixes that value instead of blaming the transport.
   const client = { discover: async () => [view], check: async () => { throw new Error("输入不符合能力合同：/expected_revision type"); } };
   const problem = await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.todo.update", version: 1, provider_id: "fixture.todo",
-    input: { id: "t1", expected_revision: "v1" } });
-  assert.match(problem ?? "", /At \/expected_revision you sent the text "v1"\./);
+    input: { id: "t1", expected_revision: "1" } });
+  assert.match(problem ?? "", /At \/expected_revision you sent the text "1"\./);
 });
 
 test("a change held for review names the object this work knows by its title, not its identifier (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
@@ -1035,8 +1048,9 @@ test("PA-22: gateway tools say they read only when they change nothing; the Host
 test("after find-capabilities the next request types each found capability's input on the tools that call it, with the directory's own schema", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "find-capabilities", input: { query: "Notes" } }),
-    // Not shaped like the branch (a string, not an object): the registration takes it, and the gateway reads it as `{}`.
+    // Not shaped like the branch (a string, not an object): the registration still takes it; the capability's contract refuses it (§6.0g).
     () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: "" } }),
+    () => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }),
     () => reply(undefined, "There are no notes yet."),
   ]);
   try {
@@ -1053,7 +1067,8 @@ test("after find-capabilities the next request types each found capability's inp
     assert.deepEqual(input(f.requests[1], "change-capability")?.anyOf?.[0], { title: "fixture.notes.write@1", description: "Notes · Save a note", ...write.action.input_schema });
     assert.deepEqual(input(f.requests[1], "change-capability")?.anyOf?.at(-1), generic, "the registered input stays one of the branches");
     const done = await f.service.read(sent.work.work_id);
-    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["lookup:completed", "read:completed"]);
+    assert.deepEqual(done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`), ["lookup:completed", "read:failed", "read:completed"]);
+    assert.match(done.rounds[0]!.activity[1]!.detail ?? "", /you sent string: ""/);
   } finally { await f.close(); }
 });
 

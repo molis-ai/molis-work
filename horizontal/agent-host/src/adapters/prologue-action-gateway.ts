@@ -20,7 +20,8 @@ export const HOST_GOVERNED_TOOLS: readonly string[] = [GATEWAY_TOOLS.suggest, DE
 const FIND_LIMIT = 8;
 
 type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
-interface CapabilityArgs { capability_id: string; version: number; provider_id: string; input?: unknown }
+/** `beside`: any other fields written next to the identity, which are not the capability's input. */
+interface CapabilityArgs { capability_id: string; version: number; provider_id: string; input?: unknown; beside: string[] }
 
 const describe = (view: ActionView, direct = false) => {
   // There but not usable now: its owner's reason, and nothing to call it with (the call would be refused).
@@ -82,12 +83,17 @@ const abortedBy = (signal: AbortSignal) => new Promise<never>((_resolve, reject)
 function parseCapability(args: Record<string, unknown>): CapabilityArgs {
   if (typeof args.capability_id !== "string" || !args.capability_id || typeof args.provider_id !== "string" || !args.provider_id
     || !Number.isSafeInteger(args.version)) throw new ActionError("actions.reference_invalid", "Name the capability exactly: capability_id, version and provider_id as find-capabilities returned them.");
-  // Models sometimes put the capability's fields beside its identity instead of inside `input` (all or some of them):
-  // that is the input they meant. A field given inside `input` wins over the same one beside it.
   const { capability_id: _id, version: _version, provider_id: _provider, input, ...beside } = args;
-  const nested = input !== null && typeof input === "object" && !Array.isArray(input);
-  return { capability_id: args.capability_id, version: args.version as number, provider_id: args.provider_id,
-    input: input === undefined ? (Object.keys(beside).length ? beside : undefined) : nested && Object.keys(beside).length ? { ...beside, ...input as Record<string, unknown> } : input };
+  return { capability_id: args.capability_id, version: args.version as number, provider_id: args.provider_id, input, beside: Object.keys(beside) };
+}
+
+/**
+ * What a gateway call gives the capability: its `input` as written. Fields written beside the identity are not read
+ * into it; the call is refused with the capability's contract instead, as any other input that does not match it.
+ */
+function gatewayInput(view: ActionView, args: CapabilityArgs): unknown {
+  if (args.beside.length) throw new ActionError("actions.input_invalid", `输入不符合能力合同：${args.beside.join(", ")} written beside the capability's identity, not inside input`);
+  return capabilityInput(view, args.input);
 }
 
 /** Invalid arguments need the same current contract for a suggestion as for a dispatched capability. */
@@ -153,7 +159,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     const deadline = write && timeoutMs > 10_000 ? setTimeout(() => local.abort(new ActionError("actions.timeout", "ran out of time")), timeoutMs - 5_000) : undefined;
     try {
       const call = gateway.client.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
-        normalizedInput(view, args.input), local.signal);
+        gatewayInput(view, args), local.signal);
       call.catch(() => undefined);
       // A change is not waited on past a stop or deadline: its owner may still finish it, so it ends as "not known".
       const result = write ? await Promise.race([call, abortedBy(local.signal)]) : await call;
@@ -188,14 +194,14 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     // A proposal for the person: recorded by the caller, checked against the capability as it is now; runs nothing.
     [GATEWAY_TOOLS.suggest]: guarded(async args => {
       if (!gateway.client.offer) throw new ActionError("actions.forbidden", "This round cannot offer actions.");
-      // The button's own words are not the capability's input; anything else beside the identity is.
+      // The button's own words sit beside the identity; anything else there is refused with the capability's contract.
       const { title: _title, summary: _summary, editable: _editable, missing: _missing, ...call } = args;
       const parsed = parseCapability(call);
       const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
       if (!view || !view.action.audiences.includes("agent") || !view.availability.available) throw new ActionError("actions.missing", "That capability is not available here; nothing was suggested. Search again with find-capabilities.");
       try {
         const recorded = await gateway.client.offer!({ ...offerWords(args),
-          reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: normalizedInput(view, parsed.input) });
+          reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: gatewayInput(view, parsed) });
         return JSON.stringify({ offered: recorded.offer_id, note: "Shown to the person as a button; nothing has run. Do not call change-capability for the same thing unless they ask you to." });
       } catch (error) { inputSchemaError(error, view.action.input_schema); }
     }),
@@ -312,57 +318,13 @@ export function offerWords(args: Record<string, unknown>): Pick<AgentActionOffer
 }
 
 /**
- * The input a capability receives. Models often send it as a JSON string (sometimes encoded twice); a capability that
- * does not take a string gets the value it meant. Plain text for an object whose one required field is text is that
- * field's value. An object capability given nothing gets `{}`. The person still reviews exactly this before a change.
+ * The input a capability receives: exactly the value the model wrote, which the capability's contract judges (a string
+ * of JSON, a number written as text or plain text for an object is refused, with the contract, not read as what it might
+ * mean). Only an input left out entirely is `{}` for an object contract: the tools declare `input` optional. The person
+ * still reviews exactly this before a change.
  */
-export function normalizedInput(view: ActionView, input: unknown): unknown {
-  const schema = view.action.input_schema;
-  let value = input;
-  for (let depth = 0; depth < 2 && typeof value === "string" && schema.type !== "string"; depth++) {
-    try { value = JSON.parse(value); } catch { break; /* left as given; the contract says why */ }
-  }
-  // Nothing given where the contract wants an object: an empty object (seen: `""` for a read that takes no fields).
-  if (typeof value === "string" && !value.trim() && schema.type === "object") value = {};
-  if (typeof value === "string" && value.trim() && schema.type === "object") {
-    const field = soleTextField(schema);
-    if (field) value = { [field]: value };
-  }
-  return coerced(schema, schema.type === "object" ? value ?? {} : value);
-}
-
-/**
- * A number or yes/no written as text where the contract wants the number itself: the value it plainly means. Seen from
- * MiniMax-M3: objects' revisions reach it as text ("1"), it sends `expected_revision: "1"`, and every edit was refused.
- * Only where the schema takes no text at that place; anything else is left for the contract to judge.
- */
-function coerced(schema: unknown, value: unknown): unknown {
-  if (!schema || typeof schema !== "object") return value;
-  const node = schema as { type?: unknown; properties?: Record<string, unknown>; items?: unknown; anyOf?: unknown[]; oneOf?: unknown[] };
-  const branches = [node, ...(Array.isArray(node.anyOf) ? node.anyOf : []), ...(Array.isArray(node.oneOf) ? node.oneOf : [])];
-  const types = new Set(branches.flatMap(branch => { const type = (branch as { type?: unknown } | null)?.type; return Array.isArray(type) ? type : type === undefined ? [] : [type]; }));
-  if (typeof value === "string" && !types.has("string")) {
-    const text = value.trim();
-    if (types.has("integer") && /^-?\d+$/.test(text) && Number.isSafeInteger(Number(text))) return Number(text);
-    if (types.has("number") && /^-?\d+(\.\d+)?$/.test(text)) return Number(text);
-    if (types.has("boolean") && (text === "true" || text === "false")) return text === "true";
-    return value;
-  }
-  if (Array.isArray(value)) return node.items ? value.map(item => coerced(node.items, item)) : value;
-  if (value && typeof value === "object") {
-    const properties = branches.reduce<Record<string, unknown>>((all, branch) => ({ ...all, ...((branch as { properties?: Record<string, unknown> } | null)?.properties ?? {}) }), {});
-    if (!Object.keys(properties).length) return value;
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, inner]) => [key, key in properties ? coerced(properties[key], inner) : inner]));
-  }
-  return value;
-}
-
-/** The one required field of an object schema, when it takes text; null when the text could mean more than one field. */
-function soleTextField(schema: Record<string, unknown>): string | null {
-  const required = Array.isArray(schema.required) ? schema.required.filter((name): name is string => typeof name === "string") : [];
-  const properties = (schema.properties && typeof schema.properties === "object" ? schema.properties : {}) as Record<string, { type?: unknown }>;
-  if (required.length !== 1) return null;
-  return properties[required[0]!]?.type === "string" ? required[0]! : null;
+export function capabilityInput(view: ActionView, input: unknown): unknown {
+  return input === undefined && view.action.input_schema.type === "object" ? {} : input;
 }
 
 /**
@@ -384,9 +346,9 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   if (toolName === GATEWAY_TOOLS.direct && !gateway.client.direct?.(view)) return `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`;
   if (toolName === GATEWAY_TOOLS.read && !reads) return `This capability changes data; call it with ${GATEWAY_TOOLS.change}, which asks the person first.`;
   // The same validation dispatch will do, before anyone is asked to approve an input that cannot run.
-  try { await gateway.client.check?.({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, normalizedInput(view, parsed.input)); }
+  const sent = capabilityInput(view, parsed.input);
+  try { await gateway.client.check?.({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, gatewayInput(view, parsed)); }
   catch (error) {
-    const sent = normalizedInput(view, parsed.input);
     const kind = sent === null ? "null" : Array.isArray(sent) ? "array" : typeof sent;
     // What arrived, briefly, so the next attempt corrects the shape instead of repeating it.
     const excerpt = JSON.stringify(sent)?.slice(0, 160) ?? "undefined";
@@ -423,10 +385,11 @@ export async function gatewayReview(gateway: Gateway, input: string): Promise<{ 
   const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
   if (!view) throw new Error("所请求的能力已不可用，不能批准");
   const effect = actionEffect(view.action, view.capability_id);
+  const sent = gatewayInput(view, parsed);
   return { summary: `${view.provider.title} · ${view.action.title}`, fields: [
     { label: "效果", value: effect === "irreversible" ? "修改数据，不可撤回" : "修改数据，可在原处修改或撤回" },
-    ...readableInput(view.action.input_schema, normalizedInput(view, parsed.input)),
-    { label: "完整参数", value: JSON.stringify(normalizedInput(view, parsed.input), null, 2) },
+    ...readableInput(view.action.input_schema, sent),
+    { label: "完整参数", value: JSON.stringify(sent, null, 2) },
     { label: "能力", value: `${view.action.description}（${view.capability_id}@${view.version}，${view.provider.provider_id}）` },
   ] };
 }

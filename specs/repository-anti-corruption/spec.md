@@ -86,7 +86,7 @@ W4-08（2026-10-16，平台产品服务的边界，不新增规则，统筹 10-1
 - 能力：它们以系统动作登记；新的 typed 宿主能力由 `pnpm health:check` 的结构数字拦着（只许减少）。情境排序的 HTTP 例外与删除条件写在架构文档同一节。
 - 拆 `MemoryService`（`horizontal/memory/src/service.ts` 现 1,262 行）不在本项：按 `docs/system/HUGE-CLASS-MIGRATION.md` 的决定在包内由 W5-10 拆，路线图 W4-08 一行同步删去了「再拆 MemoryService」。
 
-W5-13 第一片（2026-10-16，Host 日志，PR 待开；统筹 10-16 认可盘点与分片）：路线图「最小的结构化日志替换 Host 里的 console.*」与任务书 §4.8「结构化日志与调用标识贯穿主链路」。
+W5-13 第一片（2026-10-16，Host 日志，PR #570；统筹 10-16 认可盘点与分片）：路线图「最小的结构化日志替换 Host 里的 console.*」与任务书 §4.8「结构化日志与调用标识贯穿主链路」。
 - 加：`apps/local-host/src/host-log.ts` 的 `hostLog.warn/error/debug(区域, 事件, 错误?, 字段?)`，Host 侧唯一的实现。每条是 stderr 上的一行 JSON（常驻服务的 LaunchAgent 写进 Home 的日志文件），用稳定的区域加事件名（如 `search` / `index_update_failed`）和错误码定位，带 `call_id`（内核调用范围里的编号，就是页面失败提示里可复制的诊断编号）。
 - 只记键（`docs/system/SECURITY-INVARIANTS.md` 的「密钥只给引用」）：错误只留名字和码，不留消息和调用栈（会带人写的字、路径或密钥）；字段只留数字、布尔、null 和像键的字符串（字母数字与 `._:@-`，至多 120 字，没有空格和路径分隔符），其余写成 `"[omitted]"`；不是键的区域或事件名也写成 `"[omitted]"`，不在 catch 里抛错。
 - `debug` 只在 `MOLIS_WORK_DEBUG` 列出区域时写（逗号分隔，`*` 为全部），直接取代 `MOLIS_WORK_MEMORY_DEBUG`、`MOLIS_WORK_SEARCH_DEBUG`，不留旧开关（仓库里没有别处读或写它们）。

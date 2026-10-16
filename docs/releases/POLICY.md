@@ -38,6 +38,8 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 发布 PR 一次做完：改全部载体 → 把 CHANGELOG 的 `[Unreleased]` 改成 `[<版本>] - <日期>` 并另起一个空的 `[Unreleased]` → 写 `docs/releases/v<版本>.md` → 过检查清单 → 合并后在合并提交上打 tag `v<版本>`，再在这个 tag 上手动运行发布工作流（`release-macos.yml` 只有 `workflow_dispatch`；选 tag 运行才会做 `--tag` 核对并发布 GitHub Release，选分支只构建并上传构建产物）。
 
+**0.3.0 的例外（用户 2026-10-16 定）。** 准备 0.3.0 草稿的 #595 在发布之前就合进了 main，所以从 2026-10-16 12:31 UTC 起，main 与内置清单已是 0.3.0，而最近一次发布仍是 v0.2.0，与本节第一段不符。用户定：不退回 0.2.0；v0.3.0 按最终切版提交生成，切版前的发布 PR 把 `CHANGELOG.md`「汇集至」的提交、`v0.3.0.md` 的状态句与清单摘要表刷新到那个提交，再打 tag。打了 v0.3.0 的 tag 之后，这条例外失效。
+
 **同一个版本号会对应不同的构建。** main 上每个提交都叫最近一次发布的版本；安装器遇到版本相同、内容不同时会原子刷新（`docs/installation.md`「安装边界」），每次安装的 `release.json` 记下 `content_digest`（`apps/local-host/src/installer/home-release.ts`）。0.2.0 已经因此既指 2026-09-11 的 tag，也指之后装进开发机 Home 的两个差别很大的构建（2026-09-23 的安装版，和 2026-10-07 维护三时用 e1cd4906 的构建重装的那个，见 `specs/repository-anti-corruption/spec.md` §4.1「真实 Home 维护三已做」第 1、3 步）。所以：不是从 tag 构建的安装，只说「某提交的构建」，在维护记录里写提交与 `content_digest`，不说成某个版本。
 
 ## 4. 每次发布的材料

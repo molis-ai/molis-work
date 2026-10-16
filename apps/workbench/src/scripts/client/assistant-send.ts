@@ -89,7 +89,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * waits on a question says the question still waits. A changed state replaces the line, so the thread's live region
  * (`role=log`, additions) reads it out. Words the Host wrote are the Host's notice and have no line.
  *
- * While the round waits on its one free-text question, the composer shows what the next Send does, with the default on
+ * While the round waits on its one free-text question (the Host marks it `from_composer`: specs/ai-interaction-experience D34), the composer shows what the next Send does, with the default on
  * the chip: answer the question, or add to the round. One click switches it; the Host never decides it. The interaction
  * line's 「写进问卷」 replaces the answer state here, and only here (D14).
  */
@@ -99,7 +99,7 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, el, chip }) =>
   let asked = "", choice = "answer";
   const question = (round) => {
     const waiting = round && round.phase === "awaiting-input" ? round.awaiting_input || [] : [];
-    return waiting.length === 1 && waiting[0].allows_free_text && !(waiting[0].questions || []).length ? waiting[0] : null;
+    return waiting.find((item) => item.from_composer) || null;
   };
   const label = () => { chip.textContent = L(CHOICES[choice][0]); chip.title = L(CHOICES[choice][1]); };
   chip.addEventListener("click", () => { choice = choice === "answer" ? "steer" : "answer"; label(); });

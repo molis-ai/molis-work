@@ -331,6 +331,9 @@ export declare function questionAnswer(values: unknown): {
         question: number;
         indexes: number[];
         other?: string;
+    } | {
+        question: number;
+        value: string | number | null;
     }>;
 } | {
     text: string;

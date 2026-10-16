@@ -31,7 +31,7 @@ async function openCoding(t: TestContext, ask: object) {
   const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
-  const bodies: Array<{ tools?: Array<{ name: string; input_schema: { properties: { questions: { items: { properties: { options: { items: { type: string } } } } } } } }>; messages?: unknown }> = [];
+  const bodies: Array<{ tools?: Array<{ name: string; input_schema: { properties: { questions: { items: { properties: { options: { items: { type: string } }; type: { enum: string[] } } } } } } }>; messages?: unknown }> = [];
   const model = createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
@@ -130,8 +130,63 @@ test("AC-25: Coding's next step answers a single choice through the card's own c
     if (args[1] && typeof args[1].body === 'string' && args[1].body.includes('"kind":"answer"')) window.__answers.push(JSON.parse(args[1].body)); return original(...args); }; })()`);
   await click(`${steps}:nth-child(2)`);
   await waitFor(`window.__answers.length === 1`, 10_000);
-  assert.equal(await evaluate<string>(`JSON.stringify(window.__answers[0].answers)`), JSON.stringify([{ question: 0, indexes: [1] }]), "the card's own answer, with the option pressed");
+  assert.equal(await evaluate<string>(`JSON.stringify(window.__answers[0].values)`), JSON.stringify({ q0: ["1"] }), "the card's own fields, with the option pressed");
   for (let i = 0; i < 600 && bodies.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.match(JSON.stringify(bodies[1]?.messages ?? ""), /导出/, "the model hears the option pressed in the row");
   await waitFor(`!document.querySelector('${coding} [data-coding-question]') && document.querySelector('${coding} [data-coding-steps]').hidden`, 15_000);
+});
+
+// specs/ai-interaction-experience T1 (AC-27-5): words, a number, a date and a date and time on Coding's card; a value past its limit is
+// refused beside its own field with the limit named, the field marked and focused, and the corrected answer goes on to the model.
+test("AC-27-5: Coding answers words, a number, a date and a date and time, and a refused field says its limit", { timeout: 240_000 }, async t => {
+  const opened = await openCoding(t, { why: "约下周的复盘会，先确认几件事。", questions: [
+    { id: "title", type: "text", prompt: "会议标题" },
+    { id: "minutes", type: "number", prompt: "时长（分钟）", min: 15, max: 120, integer: true },
+    { id: "due", type: "date", prompt: "截止日期", required: false },
+    { id: "at", type: "datetime", prompt: "开会时间" },
+  ] });
+  if (!opened) return;
+  const { click, evaluate, waitFor, command, sessionId, coding, bodies, fill } = opened;
+  await click(`${coding} [data-coding-send]`);
+  const card = `${coding} [data-coding-question][data-ix-question]`;
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
+  assert.deepEqual(bodies[0]?.tools?.find(tool => tool.name === "ask-user")?.input_schema.properties.questions.items.properties.type.enum, ["choice", "text", "number", "date", "datetime"], "AC-27-1: the model is offered what the card draws");
+  const shown = await evaluate<{ fields: string[]; weekday: string; zone: string; placeholder: string }>(`(() => { const node = document.querySelector(${JSON.stringify(card)});
+    return { fields: [...node.querySelectorAll('[data-ix-field]')].map(field => field.dataset.ixField), weekday: node.querySelector('[data-ix-field="d2"] [data-ix-weekday]').textContent,
+      zone: node.querySelector('[data-ix-field="w3"] .mw-ix-clock .mw-ix-zone')?.textContent || '', placeholder: node.querySelector('[data-ix-field="d2"] input').placeholder }; })()`);
+  assert.deepEqual({ ...shown, zone: /UTC[+-]\d/.test(shown.zone) }, { fields: ["t0", "n1", "d2", "w3"], weekday: "", zone: true, placeholder: "YYYY-MM-DD" }, "an empty date shows its format, no weekday");
+
+  const evidence = reviewEvidenceUrl("ai-interaction/"); await mkdir(evidence, { recursive: true });
+  const shot = async (name: string, width: number, scheme: "light" | "dark") => {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 }, sessionId);
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] }, sessionId);
+    await evaluate(`document.querySelector(${JSON.stringify(card)}).scrollIntoView({ block: 'center' })`);
+    await waitFor(`document.getAnimations().every(animation => animation.playState !== 'running' || animation.effect?.getTiming().iterations === Infinity)`, 5_000);
+    await writeFile(new URL(`coding-typed-question-${name}.png`, evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  };
+  const views = async (state: string) => { await shot(`${state}-light`, 1360, "light"); await shot(`${state}-dark`, 1360, "dark"); await shot(`${state}-390`, 390, "light");
+    await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId); };
+  await fill(`${card} [data-ix-field="t0"] input`, "Q4 发布复盘");
+  await fill(`${card} [data-ix-field="n1"] input`, "240");
+  await fill(`${card} [data-ix-field="w3"] [data-ix-part="date"]`, "2026-10-23");
+  await fill(`${card} [data-ix-field="w3"] [data-ix-part="time"]`, "15:00");
+  await views("filled");
+  assert.equal(await evaluate<string>(`document.querySelector(${JSON.stringify(card)}).querySelector('[data-ix-field="w3"] [data-ix-weekday]').textContent`), "周五", "a typed date shows its weekday");
+
+  await click(`${card} [data-ix-action="answer"]`);
+  await waitFor(`document.querySelector(${JSON.stringify(card)})?.querySelector('[data-ix-field="n1"] [data-ix-error]')?.textContent === '不能超过 120'`, 15_000);
+  const refused = await evaluate<{ invalid: string | null; described: boolean; focused: boolean; others: string[] }>(`(() => { const node = document.querySelector(${JSON.stringify(card)}), field = node.querySelector('[data-ix-field="n1"]'), input = field.querySelector('input');
+    return { invalid: input.getAttribute('aria-invalid'), described: (input.getAttribute('aria-describedby') || '').split(' ').includes(field.querySelector('[data-ix-error]').id),
+      focused: field.contains(document.activeElement), others: [...node.querySelectorAll('[data-ix-error]:not([hidden])')].map(line => line.closest('[data-ix-field]').dataset.ixField) }; })()`);
+  assert.deepEqual(refused, { invalid: "true", described: true, focused: true, others: ["n1"] }, "the refused field is marked, described by its line and focused; the others stay quiet");
+  assert.equal(bodies.length, 1, "a refused answer does not go on to the model");
+  await views("refused");
+
+  await fill(`${card} [data-ix-field="n1"] input`, "45");
+  await click(`${card} [data-ix-action="answer"]`);
+  for (let i = 0; i < 600 && bodies.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 50));
+  const next = JSON.stringify(bodies[1]?.messages ?? "");
+  for (const part of ["Q4 发布复盘", "45", "2026-10-23T15:00"]) assert.ok(next.includes(part), `the model hears ${part}`);
+  await waitFor(`!document.querySelector('${coding} [data-coding-question]')`, 15_000);
 });

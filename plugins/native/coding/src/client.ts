@@ -17,7 +17,6 @@ import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.j
 import { CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT } from "./composer-model-client.js";
 import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
 import { codeLanguage, codeTokens, diffRowTokens } from "./highlight.js";
-import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";
@@ -100,7 +99,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let methodChoices = [], methodDocumentTicket = 0;
   const answeredQuestions = new Set();
   const draftKey = (id) => 'molis-coding-draft:' + root.dataset.codingPrefix + ':' + id;
-  const questionAnswer = ${questionAnswer.toString()};
   const terminal = (phase) => ['completed','failed','stopped','cancelled','reconcile-required'].includes(phase);
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
   let runtimeSessionId = null;
@@ -118,7 +116,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const response = await lifetime.fetch(prefix + path, { method, cache:'no-store', signal,
       ...(method === 'GET' ? {} : { headers:molisWorkControlHeaders(), body:JSON.stringify(body ?? {}) }) });
     const result = await response.json();lifetime.assertCurrent(signal);
-    if (!response.ok) throw new Error(result.error || '无法完成 Coding 操作');
+    if (!response.ok) throw Object.assign(new Error(result.error || '无法完成 Coding 操作'),{details:result.details});
     return result;
   };
   const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,host,status});
@@ -684,11 +682,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
             draftTimer=lifetime.timeout(()=>{void saveDraft(id,localDraft(id) || '').catch(error=>{note.textContent='答案暂未写入服务，当前窗口仍保留：'+error.message;});},400);},
           onSubmit:async()=>{
             if(card.dataset.busy==='true' || card.dataset.answerable!=='true') return;
-            remember();const answer=questionAnswer(client.read());
-            if(!answer) {note.textContent='请回答每一道问题后再提交。';return;}
+            remember();
             card.dataset.busy='true';card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=true);note.textContent='正在提交原问题的回答…';
             try {
-              await api(sessionPath(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,...answer});
+              await api(sessionPath(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,values:client.read()});
               answeredQuestions.add(key);
               const drafts=questionDrafts.get(id);if(drafts)delete drafts[key];
               try{sessionStorage.setItem(draftKey(id)+':questions',JSON.stringify(drafts || {}));}catch{}
@@ -696,7 +693,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               void saveDraft(id,localDraft(id) || '').catch(()=>{});
               if(current===id) {void readCurrent();void refreshState().catch(()=>{});}
             } catch(error) {if(!lifetime.alive)return;
-              note.textContent=error.message;card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=card.dataset.answerable!=='true');
+              note.textContent=error.message;card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=card.dataset.answerable!=='true');if(error.details?.errors)client.showErrors(error.details.errors,{focus:true});
             } finally {delete card.dataset.busy;}
           },
         });
@@ -879,7 +876,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               summary.innerHTML='<svg aria-hidden="true"><use href="#icon-play"></use></svg>';summary.append(document.createTextNode('从断点继续 · '+line));
               facts.className='coding-continuation-facts';facts.innerHTML=body;details.append(summary,facts);node.append(details);
             }
-            const receipt=inputReceipts.receipt(turn);if(receipt)node.append(receipt);
+            const receipt=inputReceipts.receipt(turn,run.ref.run_id);if(receipt)node.append(receipt);
             renderedText.set(node,renderKey); enrichCode(node);
           }
           ordered.push(node);

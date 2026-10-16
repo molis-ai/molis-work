@@ -42,3 +42,23 @@ export function answerProblems(questions: readonly PendingQuestion[], answers: Q
   return validateQuestionnaireAnswer(questions, answers).map(problem => ({
     question: problem.question, ...(problem.id === undefined ? {} : { id: problem.id }), reason: problem.reason }));
 }
+
+/** Reads each picked object again from its owner, as the session's owner (the Host's; S-26): true while it is still theirs to use. */
+export type ReferenceConfirmer = (owner: { project_id: string; actor_id: string }, picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => Promise<readonly boolean[]>;
+
+/**
+ * The questions whose picked objects the Host will not let through (specs/ai-interaction-experience H3): each reference is
+ * read again from its owner right before the answer goes on. Without a Host to ask, or without the run's owner, none passes.
+ */
+export async function refusedReferences(confirm: ReferenceConfirmer | undefined, owner: { project_id: string; actor_id: string } | undefined,
+  questions: readonly PendingQuestion[], answers: QuestionnaireAnswer["answers"]): Promise<AgentQuestionProblem[]> {
+  const refused: AgentQuestionProblem[] = [];
+  for (const answer of answers) {
+    const question = questions.find(each => each.index === answer.question);
+    const picked = question?.type === "reference" && Array.isArray(answer.value) ? answer.value.map(({ kind, id }) => ({ kind, id })) : [];
+    if (!question || !picked.length) continue;
+    const kept = confirm && owner ? await confirm(owner, picked, question.refKinds ?? []) : [];
+    if (picked.some((_, index) => kept[index] !== true)) refused.push({ question: question.index, ...(question.id === undefined ? {} : { id: question.id }), reason: "reference-unavailable" });
+  }
+  return refused;
+}

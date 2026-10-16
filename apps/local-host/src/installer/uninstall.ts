@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "../product-home.js";
-import { PERSONAL_HOME_SQLITE_STORES } from "@molis-ai/molis-work-storage";
+import { homeStores } from "../home-stores.js";
 import { RuntimeIntegrationService } from "./runtime-integration.js";
 import { SUPPORTED_RUNTIME_IDS } from "./runtime-integration-contract.js";
 import { MolisWorkWebServiceManager } from "./web-service.js";
@@ -43,26 +43,8 @@ export class MolisWorkUninstallService {
     const demos = catalog.projects.filter((project) => project.data_class === "regenerable_demo");
     const userProjects = catalog.projects.filter((project) => project.data_class !== "regenerable_demo");
     const purgeDataPaths = purgeUserData
-      ? await existingPaths([
-        path.join(this.homeDirectory, "projects"),
-        path.join(this.homeDirectory, "backups"),
-        path.join(this.homeDirectory, "logs"),
-        // Session content and Shelf files are user data living beside the
-        // project databases; leaving them behind made "purged" untrue.
-        path.join(this.homeDirectory, "sessions"),
-        path.join(this.homeDirectory, "shelf"),
-        ...PERSONAL_HOME_SQLITE_STORES.map((storeName) => path.join(this.homeDirectory, storeName)),
-        path.join(this.homeDirectory, "runtime-config-backups"),
-        path.join(this.homeDirectory, "runtime-integrations"),
-        path.join(this.homeDirectory, "runtime-integration-attempts"),
-        // The rest of what docs/system/HOME-DATA.md registers in the Home: Agent run records and their key, the encrypted
-        // credentials and Feed evidence, the side browser's profile and site choices, Plugin Studio work, caches, the desktop
-        // shell's folder bookmarks, Git review details, and the person's settings beside the installer's own config files.
-        ...["agent-runtime", "feed", "browser", "plugin-builder", "cache", "directory-access", "git-operation-details.json"]
-          .map((entry) => path.join(this.homeDirectory, entry)),
-        ...["onboarding.json", "project-arrival.json", "mcp-tools.json", "external-mcp-tools.json", "connector-mcp-tools.json"]
-          .map((file) => path.join(this.homeDirectory, "config", file)),
-      ])
+      // Every store the Home's registry lists (W4-11): its owners declare them, so a new store is purged without a list here.
+      ? await existingPaths(homeStores().paths(this.homeDirectory))
       : [];
     const changes: MolisWorkUninstallChange[] = [
       ...runtimePlans.flatMap((plan) => plan.status === "ready"

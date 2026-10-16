@@ -23,7 +23,7 @@ export { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 export { pptContentActions, pptMarkdown, slidesFromMarkdown, createPptContentHandlers } from "./content-actions.js";
 export type { PptLineHeadPort, PptPublishArtifactPort, PptReadArtifactPort, PptPublicationSnapshot } from "./promote.js";
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, pptManifest } from "./manifest.js";
-export { openPptStore, PptStore, PPT_STORE_BASELINE } from "./store.js";
+export { openPptStore, PptStore, PPT_STORE_BASELINE, PPT_HOME_STORE } from "./store.js";
 export { purgePptProject, pptProjectData } from "./project-data.js";
 export { pptErrors } from "./error.js";
 

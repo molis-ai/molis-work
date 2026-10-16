@@ -86,10 +86,9 @@ export class HomePluginHost {
     if (failures.length) throw new AggregateError(failures, "Home 插件关闭失败");
   }
   private async start(): Promise<HomePluginPlatform> {
-    const identity = pluginEntryIdentity(), owned = new WeakMap<PluginDefinition, PluginDatabaseDeclaration>();
+    const identity = pluginEntryIdentity();
     const shipped = this.options.entries.map(entry => {
       const definition = entry.create();
-      if (entry.database) owned.set(definition, entry.database);
       return { definition, bundled: true, database: entry.database,
         releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => {
           const released = factory();
@@ -103,7 +102,7 @@ export class HomePluginHost {
       if (ids.has(entry.definition.manifest.plugin_id)) throw new Error("Home 插件标识重复");
       ids.add(entry.definition.manifest.plugin_id);
     }
-    assertDatabaseEntries(entries, pluginHomeFor(this.options.home), owned);
+    assertDatabaseEntries(entries, pluginHomeFor(this.options.home));
     identity.remember(entries);
     const { db, storage } = openHomePluginStore(this.options.home);
     this.db = db;

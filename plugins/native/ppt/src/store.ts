@@ -1,4 +1,4 @@
-import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type { PptRecord, PptSlide, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { PptPublicationIntent, PptPublicationSnapshot } from "./promote.js";
@@ -236,7 +236,7 @@ export const PPT_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openPptStore(homeDirectory: string): PptStore {
-  const db = openBaselineHomeSqlite(homeDirectory, "ppt", PPT_STORE_BASELINE);
+  const db = openBaselineHomeSqlite(homeDirectory, PPT_HOME_STORE.path, PPT_STORE_BASELINE);
   return new PptStore(db);
 }
 
@@ -307,3 +307,6 @@ function normalizeBullets(value: unknown): string[] {
   if (value.length > 12) throw pptErrors.invalid("每页最多 12 条要点");
   return value.map((item) => String(item ?? "").trim().slice(0, 200)).filter((item) => item.length > 0);
 }
+
+/** This plugin's store in the Home's store registry (W4-11): `ppt/ppt.db` at its one baseline. */
+export const PPT_HOME_STORE: HomeStoreDeclaration = { path: "ppt", library: { baseline: PPT_STORE_BASELINE } };

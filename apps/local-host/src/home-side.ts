@@ -1,6 +1,9 @@
 import path from "node:path";
 import type { PluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
 import type { HostCompleteText } from "./host-complete-text.js";
+import { homeStores } from "./home-stores.js";
+import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
 import type { PluginPlatformEntry } from "./plugin-platform.js";
 import type { MolisWorkLocalHost, MolisWorkLocalHostOptions } from "./project-host.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
@@ -17,6 +20,8 @@ export interface PluginPlatformHome {
    * Host or from the web path, whichever comes first, and both read the same injection here.
    */
   completeText(): HostCompleteText | null | undefined;
+  /** The Home's stores (W4-11): a plugin is given a library only when the library is registered here as its own. */
+  readonly stores: HomeStoreRegistry;
 }
 
 type HomeSideOptions = Pick<MolisWorkLocalHostOptions, "completeText" | "pluginFixtures" | "workspaceFor" | "workspacesFor">;
@@ -45,7 +50,23 @@ export function releaseHomeSide(host: MolisWorkLocalHost): void {
 /** The Home for a platform to be given: what it reads of the Host is looked up on each call. */
 export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
   const directory = path.resolve(homeDirectory);
-  return { directory, completeText: () => sides.get(directory)?.options.completeText };
+  return { directory, completeText: () => sides.get(directory)?.options.completeText, stores: storesWithFixtures(sides.get(directory)?.options.pluginFixtures) };
+}
+
+/**
+ * The Home's stores, and the library each test fixture of this Host is given registered as that fixture's own. Only a plain
+ * name no one has registered is: one the Host, a module, a shipped plugin or an earlier fixture has stays theirs, and the
+ * start list's check (`assertDatabaseEntries`) refuses the fixture with the reason.
+ */
+function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]): HomeStoreRegistry {
+  const registry = homeStores(), own = new Map<string, HomeStore>();
+  for (const fixture of [...fixtures?.project ?? [], ...fixtures?.home ?? []]) {
+    if ("manifest" in fixture) continue;
+    const name = fixture.database.store_name;
+    if (registry.get(name) || own.has(name) || !PLUGIN_LIBRARY_NAME.test(name)) continue;
+    own.set(name, { path: name, owner: fixture.definition.manifest.plugin_id, library: { baseline: fixture.database } });
+  }
+  return own.size ? homeStoreRegistry([...registry.stores, ...own.values()]) : registry;
 }
 
 /**

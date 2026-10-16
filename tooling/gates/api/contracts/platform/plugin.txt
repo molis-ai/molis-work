@@ -2142,6 +2142,17 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomeStoreDeclaration {
+    readonly path: string;
+    readonly library?: {
+        readonly baseline: {
+            readonly version: number;
+            readonly schema: string;
+        };
+        readonly file?: string;
+    };
+}
+
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
 
 export declare const ITEM_DECLARATION_LIMITS: {
@@ -2357,6 +2368,7 @@ export interface PluginArtifactClient {
     publish(input: PluginArtifactPublishInput): ArtifactVersionResult;
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
     head(artifactId: string): ArtifactLineHead | null;
+    readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
 }
 
 export interface PluginArtifactPublishInput extends PluginProcessItemInput {
@@ -3777,14 +3789,14 @@ export interface WorkflowContentBinding {
 }
 
 export interface WorkflowContentHandlers {
-    list(caller: ActionCallContext): readonly WorkflowStartItem[] | Promise<readonly WorkflowStartItem[]>;
+    list(caller: ActionExecutionContext): readonly WorkflowStartItem[] | Promise<readonly WorkflowStartItem[]>;
     read(input: {
         item_id: string;
-    }, caller: ActionCallContext): WorkflowPayload | Promise<WorkflowPayload>;
-    receive?(input: WorkflowReceiveInput, caller: ActionCallContext): WorkflowItemRef | Promise<WorkflowItemRef>;
+    }, caller: ActionExecutionContext): WorkflowPayload | Promise<WorkflowPayload>;
+    receive?(input: WorkflowReceiveInput, caller: ActionExecutionContext): WorkflowItemRef | Promise<WorkflowItemRef>;
     create?(input: {
         title: string;
-    }, caller: ActionCallContext): WorkflowItemRef | Promise<WorkflowItemRef>;
+    }, caller: ActionExecutionContext): WorkflowItemRef | Promise<WorkflowItemRef>;
 }
 
 export type WorkflowContentRole = "list" | "read" | "receive" | "create";
@@ -3885,15 +3897,15 @@ export declare function bindArtifactPreview(definition: ActionDefinition<Artifac
 
 export declare function bindFileEntriesHandler(definition: ActionDefinition<FileEntriesInput, FileEntriesPage>, list: (caller: ActionCallContext) => readonly FileEntry[] | Promise<readonly FileEntry[]>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding;
 
-export declare function bindHomeObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>, move: (input: PlacementMoveInput, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
+export declare function bindHomeObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>, move: (input: PlacementMoveInput, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
 
 export declare function bindObjectCopyHandler(definition: ActionDefinition<PlacementCopyInput, PlacementResult>, copy: (input: PlacementCopyInput & {
     from_project_id: string;
-}, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
+}, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
 
 export declare function bindObjectMoveHandler(definition: ActionDefinition<PlacementMoveInput, PlacementResult>, move: (input: PlacementMoveInput & {
     from_project_id: string;
-}, caller: ActionCallContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
+}, caller: ActionExecutionContext) => PlacementResult | Promise<PlacementResult>): ActionHandlerBinding;
 
 export declare function bindSearchEntriesHandler(definition: ActionDefinition<SearchEntriesInput, SearchEntriesPage>, list: (caller: ActionCallContext) => readonly SearchEntry[] | Promise<readonly SearchEntry[]>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding;
 

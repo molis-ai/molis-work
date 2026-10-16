@@ -23,7 +23,7 @@ export type { PagesPluginRouteHandler, PagesPluginRouteRequest, PagesPluginRoute
 export { createPagesRouteHandlers } from "./route-handlers.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
 export { pagesMethods } from "./methods.js";
-export { openPagesStore, PagesStore, PAGES_STORE_BASELINE } from "./store.js";
+export { openPagesStore, PagesStore, PAGES_STORE_BASELINE, PAGES_HOME_STORE } from "./store.js";
 export { purgePagesProject, pagesProjectData } from "./project-data.js";
 export type { PagesImportDocumentsInput } from "./store.js";
 export { generatePagesFromMaterials } from "./generate.js";

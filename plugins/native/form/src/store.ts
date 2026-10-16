@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   FormOption,
@@ -379,7 +379,7 @@ export const FORM_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
 ` };
 
 export function openFormStore(homeDirectory: string): FormStore {
-  const db = openBaselineHomeSqlite(homeDirectory, "form", FORM_STORE_BASELINE);
+  const db = openBaselineHomeSqlite(homeDirectory, FORM_HOME_STORE.path, FORM_STORE_BASELINE);
   return new FormStore(db);
 }
 
@@ -503,3 +503,6 @@ function normalizeAnswers(
 }
 
 export type { FormOption };
+
+/** This plugin's store in the Home's store registry (W4-11): `form/form.db` at its one baseline. */
+export const FORM_HOME_STORE: HomeStoreDeclaration = { path: "form", library: { baseline: FORM_STORE_BASELINE } };

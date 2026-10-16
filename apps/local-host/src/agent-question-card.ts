@@ -43,6 +43,7 @@ export function agentQuestionHtml(question: AgentPendingQuestion, say: (text: st
 const REASONS: Partial<Record<AgentQuestionProblemReason, string>> = {
   required: "这一题需要回答", unanswered: "这一题需要回答", "single-select": "这一题只能选一项", "unknown-option": "选项已经变化，请重新选择",
   duplicate: "同一项选了两次", "other-not-allowed": "这一题不能写其他答案", "too-long": "回答太长了",
+  "reference-unavailable": "选的对象已不存在或现在不能用，请重新选择",
 };
 
 /** The Runtime's reasons a questionnaire answer was refused, as a line beside each question's field. */

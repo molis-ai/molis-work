@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { JellyCommand, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { emptyJellyWorkspace, applyJellyCalendarCommand, validateJellyWorkspace } from "./calendar.js";
 import { applyJellyContentCommand, jellyHash, validateJellyContent } from "./content.js";
@@ -94,13 +94,16 @@ export const JELLY_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openJellyStore(home: string): JellyStore {
-  const db = openHomeSqliteDatabase(home, "jelly");
+  const db = openHomeSqliteDatabase(home, JELLY_HOME_STORE.path);
   try {
     db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-    applySqliteBaseline(db, homeSqlitePath(home, "jelly"), JELLY_STORE_BASELINE);
+    applySqliteBaseline(db, homeSqlitePath(home, JELLY_HOME_STORE.path), JELLY_STORE_BASELINE);
     const existing = db.prepare("SELECT singleton FROM jelly_workspace WHERE singleton = 1").get();
     jellyAssert(existing || Number(db.prepare("SELECT count(*) AS count FROM jelly_history").get()?.count ?? 0) === 0, "Jelly 工作区记录缺失，历史数据已保留，未创建空白覆盖。", jellyErrors.corrupt);
     const initial = emptyJellyWorkspace(), body = JSON.stringify(initial); db.prepare("INSERT OR IGNORE INTO jelly_workspace (singleton, revision, body, checksum) VALUES (1, 0, ?, ?)").run(body, jellyHash(body));
     const store = new JellyStore(db); const saved = store.read(); for (const note of saved.notes) db.prepare("INSERT INTO jelly_note_versions (id, revision) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET revision = MAX(revision, excluded.revision)").run(note.id, note.revision); return store;
   } catch (error) { db.close(); throw error; }
 }
+
+/** This plugin's store in the Home's store registry (W4-11): `jelly/jelly.db` at its one baseline. */
+export const JELLY_HOME_STORE: HomeStoreDeclaration = { path: "jelly", library: { baseline: JELLY_STORE_BASELINE } };

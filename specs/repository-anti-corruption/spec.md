@@ -8,13 +8,29 @@
 
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
-W4-04 第一片（2026-10-15，插件读自己成果线的最新版本，PR 待开）：
+W4-04 第一片（2026-10-15，插件读自己成果线的最新版本，#545 已合入 main）：
 - 范围：Form 迁到 Runtime 前要先补的平台服务（RUNTIME-MIGRATION「迁移要用到时先补服务，不在迁移 PR 里补」）。Form、Dataset、PPT、Pages 固定成果时，要知道这条成果线在项目里的最新版本，才能给下一版编号；现在这一步由宿主的 `artifactLineHead` 端口给。
 - 新增 `services.artifacts.head(artifact_id)`：返回 `{ version, source_revision }`，项目里还没有就是 `null`。只读得到这个插件自己开的成果线，要有 `artifact:read`。
 - 宿主的 `artifactLineHead` 改用合同里的同一个推导 `artifactLineHeadOf`，不再另写一份。
 - `W4-04-01` 在 `tests/plugin-host-services.test.ts`。变异检查：去掉「成果线必须是自己的」，`W4-04-01` 失败。
 - `tests/plugin-artifact-client.test.ts` 原来按「唯一的查询动作」找 SDK 的读取动作，现在有两个查询动作，改成按动作 id 找 `.read`，断言不变。
 - 动作快照：每个安装多一条 `sdk.artifacts.<安装>.head@1`。
+
+W4-04 第二片（2026-10-15，插件读回自己固定的版本，#547）：Form 迁到 Runtime 还缺的两处平台能力，按同一规则先补。
+- 新增 `services.artifacts.readOwn(reference)`：读这个插件自己固定的一个版本，不看它 `consumes` 里有没有这种类型，也不管是否已归档；别的生产者固定的版本拒绝（`artifacts.plugin_denied`）。原因：宿主今天替 Form 读回自己的成果（`readFormArtifactVersion`）时不看归档状态，问卷固定前要读回已写的最新版本、恢复中断的固定也要读回那一版；`read` 只答插件消费且仍可用的版本，迁过去用 `read` 会让「归档了上一版再固定」从成功变成失败。`read` 本身不变，所以 Coding 读自己报告时归档即拒的行为不变。
+- 放置（`bindObjectMoveHandler`、`bindHomeObjectMoveHandler`、`bindObjectCopyHandler`）与工作流内容（`WorkflowContentHandlers`）的处理函数收到的调用方，类型从 `ActionCallContext` 改成执行时真实传入的 `ActionExecutionContext`。Runtime 插件的写入要先等 `beforeEffect()`（插件库的事务要它），这几处原来拿不到。只是把类型写成实际传的值：已有的实现收到的对象不变，照样编译。
+- `W4-04-02` 在 `tests/plugin-host-services.test.ts`。变异检查：去掉「必须是自己固定的」，`W4-04-02` 失败。
+- 动作快照：每个安装多一条 `sdk.artifacts.<安装>.own@1`。`createPluginArtifactClient` 加上这一条后到了 153 行，超过函数行数上限，把 SDK 动作的定义拆到同文件的 `sdkArtifactActions`。
+
+W4-09（2026-10-15，两个 PR 开着）：#539 把 Web 服务的五个周期任务登记在一处（`apps/local-host/src/periodic-tasks.ts`），「设置 › 诊断」列出「后台任务」；`W4-09-01`、`W4-09-02`（反复启停不留计时器）在 `tests/host-periodic-tasks.test.ts`。#540 让成果游标改为进程内通知加 30 秒兜底（`W4-09-03`，`tests/plugin-platform-composition.test.ts`），炼金术士工作室空闲 10 分钟且手上没事就关（`W4-09-04`，`tests/alchemist-studio-idle.test.ts`）。三处都做了变异检查。
+
+W4-11（2026-10-15，Home 存储统一登记，#542）：
+- 登记：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里 43 项有数据的条目和它们的 owner，库另带基线。
+- 声明：各 owner 在打开它的代码旁声明。插件的 `*_HOME_STORE` 经目录条目 `home_store` 带进；Issues 的经 `runtime.database` 带进；模块、存储层和宿主的各在自己的文件里。类型 `HomeStoreDeclaration` 放在 `contracts/platform/plugin`，形状与检查 `homeStoreRegistry` 放在 `packages/storage`；storage 不认识任何插件或模块。
+- 读登记的：卸载清除（决定 #20：清除覆盖所有登记的库），不再手列；插件库的发放（`plugin-database-entries.ts`）；基线用例（`tests/home-store-baselines.test.ts` 按登记逐个检查，新库要带结构样本或写进无样本名单）。路线图里的「维护」在仓库里没有代码（真实 Home 的维护脚本在交接目录，不入库），所以没有接。
+- 行为变化：原来的临时宿主名单（`HOST_LIBRARY_NAMES`）删掉，改为「库必须登记为这个插件自己的、基线相同」。所以个人插件的库不再对任意插件开放，只对登记的主人（及以同一 id 替换它的 Runtime 插件）开放；`alchemist/` 由宿主决定目录，登记给宿主，不再是可发给插件的库。测试夹具的库：名字没人登记的，按夹具自己的 id 登记；已登记给别人的（Issues 的 `issues`、宿主的 `plugin-runtime`、Dataset 的 `dataset`、存储层的 `feed`）不替它登记，启动名单检查按原因拒绝（`tests/home-plugin-platform.test.ts` 的用例相应改成这几种原因；原来「不在清除清单」那一条对夹具不再成立，未登记库的拒绝留在 `tests/plugin-project-database.test.ts`）。
+- 删掉 `PERSONAL_HOME_SQLITE_STORES`；`docs/system/HOME-DATA.md` 第 9、11 节改成登记的说明。
+- `W4-11-03`（夹具不能占用别人的库）在 `tests/plugin-project-database.test.ts`。变异检查：去掉主人检查，「声明错的启动名单」用例失败；再去掉夹具登记，`W4-11-03` 失败。
 
 ## 0. 现场与范围
 
@@ -1656,6 +1672,7 @@ Prologue（10-14 复查到 #22 为止，这次看 #24～#27）：
 - #539、#540（W4-09）的 CI 全量各有红片，查过不是它们引入的：
   - 两者共有的是 `tests/agent-action-selection.e2e.test.ts`。它在 #535 合入前的各分支全量里都红（`context/assistant-flow`、`adoption/p3-collaboration`、`feature/ai-interaction-s1`），#535 修了这处 Characters 偶发，而这两个分支的基点早于 #535。
   - #540 另有 `W2-18-PAGES-TRANSIENT-01`（插入的文字落在段尾）：失败片重跑全过，本机在该分支上 9/9 通过；之前没有记录。只出现一次，没有进隔离名单，再出现就按 `tests/quarantine.json` 登记。
+    - 原因是测试自己：它用脚本设 DOM 选区再按方向键，编辑器会把只经 DOM 设的光标放回自己状态里的位置，两者赛跑，Linux 上编辑器赢了，「Prefix 」就落到段尾。改成像人一样在段首、段尾点一下，再等光标确实到那里；断言不变（#548）。本机 13 次全过（其中 10 次与构建或另一批浏览器用例同时跑）；更早有两次在构建期间失败，没留下失败细节。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

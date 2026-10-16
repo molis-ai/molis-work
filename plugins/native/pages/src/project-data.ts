@@ -1,6 +1,6 @@
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
-import { PAGES_STORE_BASELINE } from "./store.js";
+import { PAGES_HOME_STORE, PAGES_STORE_BASELINE } from "./store.js";
 
 /**
  * The project is deleted: its documents and folders go, with the generation and import receipts and the edits that
@@ -8,7 +8,7 @@ import { PAGES_STORE_BASELINE } from "./store.js";
  * finds nothing.
  */
 export function purgePagesProject(homeDirectory: string, projectId: string): void {
-  clearInExistingHomeSqlite(homeDirectory, "pages", PAGES_STORE_BASELINE, (db) => {
+  clearInExistingHomeSqlite(homeDirectory, PAGES_HOME_STORE.path, PAGES_STORE_BASELINE, (db) => {
     db.prepare("DELETE FROM page_changes WHERE page_id IN (SELECT id FROM pages WHERE project_id = ?)").run(projectId);
     db.prepare("DELETE FROM pages WHERE project_id = ?").run(projectId);
     db.prepare("DELETE FROM folders WHERE project_id = ?").run(projectId);

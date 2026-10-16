@@ -9,6 +9,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import {
+  homeStores,
   DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, createPluginPlatform, molisWorkHostProjectReference, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -86,7 +87,7 @@ test("a plugin platform takes a position on its Home: a Home it reaches or null;
 
     let asked = 0;
     const homes: Array<[string, Parameters<typeof createPluginPlatform>[0]["home"]]> = [
-      ["null", null], ["a Home", { directory, completeText: () => { asked += 1; return undefined; } }]];
+      ["null", null], ["a Home", { directory, completeText: () => { asked += 1; return undefined; }, stores: homeStores() }]];
     for (const [name, home] of homes) {
       const item = platformParts(directory);
       try {

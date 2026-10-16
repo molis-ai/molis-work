@@ -23,7 +23,7 @@ export type { DatasetLineHeadPort, DatasetPublishArtifactPort, DatasetReadArtifa
 export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID, datasetManifest } from "./manifest.js";
 export { datasetActions, datasetContentActions, DATASET_ACTION_PERMISSIONS, createDatasetActionHandlers, createDatasetContentHandlers } from "./actions.js";
 export type { DatasetActionPorts } from "./actions.js";
-export { openDatasetStore, DatasetStore, DATASET_STORE_BASELINE, parseCsv, toCsv } from "./store.js";
+export { openDatasetStore, DatasetStore, DATASET_STORE_BASELINE, DATASET_HOME_STORE, parseCsv, toCsv } from "./store.js";
 export { purgeDatasetProject, datasetProjectData } from "./project-data.js";
 export { mergeDatasetDraftRows } from "./row-merge.js";
 export type { DatasetDraftColumn, DatasetDraftRow } from "./row-merge.js";

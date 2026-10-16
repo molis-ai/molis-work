@@ -21,7 +21,7 @@ export type { FormRoutePorts } from "./route-handlers.js";
 export { promoteForm } from "./promote.js";
 export type { FormLineHeadPort, FormPublishArtifactPort, FormReadArtifactPort, FormPublicationSnapshot } from "./promote.js";
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID, formManifest } from "./manifest.js";
-export { openFormStore, FormStore, FORM_STORE_BASELINE } from "./store.js";
+export { openFormStore, FormStore, FORM_STORE_BASELINE, FORM_HOME_STORE } from "./store.js";
 export { purgeFormProject, formProjectData } from "./project-data.js";
 export { formErrors } from "./error.js";
 

@@ -1,4 +1,4 @@
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   type Workflow,
@@ -223,9 +223,9 @@ export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openWorkflowsStore(homeDirectory: string): WorkflowsStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "workflows");
+  const db = openHomeSqliteDatabase(homeDirectory, WORKFLOWS_HOME_STORE.path);
   db.exec("PRAGMA journal_mode = WAL;");
-  applySqliteBaseline(db, homeSqlitePath(homeDirectory, "workflows"), WORKFLOWS_STORE_BASELINE);
+  applySqliteBaseline(db, homeSqlitePath(homeDirectory, WORKFLOWS_HOME_STORE.path), WORKFLOWS_STORE_BASELINE);
   return new WorkflowsStore(db);
 }
 
@@ -270,3 +270,6 @@ function fromInstanceRow(row: InstanceRow): WorkflowInstance {
     updated_at: row.updated_at,
   };
 }
+
+/** This plugin's store in the Home's store registry (W4-11): `workflows/workflows.db` at its one baseline. */
+export const WORKFLOWS_HOME_STORE: HomeStoreDeclaration = { path: "workflows", library: { baseline: WORKFLOWS_STORE_BASELINE } };

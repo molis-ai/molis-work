@@ -1,13 +1,13 @@
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import { clearInExistingHomeSqlite } from "@molis-ai/molis-work-storage";
-import { PPT_STORE_BASELINE } from "./store.js";
+import { PPT_HOME_STORE, PPT_STORE_BASELINE } from "./store.js";
 
 /**
  * The project is deleted: its presentations go with the receipts of copies made into it. Works on the library's file,
  * so any process on the Home can run it; running it again finds nothing.
  */
 export function purgePptProject(homeDirectory: string, projectId: string): void {
-  clearInExistingHomeSqlite(homeDirectory, "ppt", PPT_STORE_BASELINE, (db) => {
+  clearInExistingHomeSqlite(homeDirectory, PPT_HOME_STORE.path, PPT_STORE_BASELINE, (db) => {
     db.prepare("DELETE FROM presentations WHERE project_id = ?").run(projectId);
     db.prepare("DELETE FROM presentation_copies WHERE project_id = ?").run(projectId);
   });

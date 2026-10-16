@@ -1,6 +1,6 @@
 # Prologue 采用：能力接入与 TaskBoard 统一协作
 
-状态：执行中（2026-10-15：P3a 已恢复——已并 main `f74e29d8`（#523）、换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 剩换模型后撤权（就是 P3b，接 SDK 的 `beforeAccept`）与「从断点继续」（§5.6a）；P3b、P3c（外部条件检查器）在 P3a 合入后各一个 PR；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
+状态：执行中（2026-10-15：P3a 已合 main（#534，`7fe8ee65`）——换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 的最后两个缺口（换模型后撤权、「从断点继续」）由 P3b 补了用例，没有改源码，SDK 的 `beforeAccept` 早由 #523 接好（§5.6a）；P3c（外部条件检查器）一个 PR；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
 
 > **2026-10-15 P3a 恢复：接续入口是 §6.0d「P3a 恢复记录」。** §6.0c 的暂停点已解除（防腐线 I8 第二个 PR #523 已合入），其中「恢复时按这个顺序」第 1、2、3 步已做完。
 
@@ -397,7 +397,7 @@ P1 冻结的是语义（§4.6.9）。这一节写 P3 在 Molis 一侧具体怎�
 - 删 `onWake` / `onYieldSettled`；
 - 把 `dispatch-subagent`、`board-plan` / `board-revise` / `board-report` / `board-wait`、`session-send` / `session-inject`、`await-commands` 的 `park` 简写都收成只有绑定的跑能用。
 
-只换包不改接线，类型检查和 Coding 的派子任务、确认计划、等答复、等后台命令、人排队这几条主路径会同时坏。所以 P3a 一个 PR，默认路径验证也在这个 PR 里做。P3b（换模型的 `beforeAccept`）与 P3c（外部条件检查器）各自另成一刀。
+只换包不改接线，类型检查和 Coding 的派子任务、确认计划、等答复、等后台命令、人排队这几条主路径会同时坏。所以 P3a 一个 PR，默认路径验证也在这个 PR 里做。P3b（换模型之后撤权与「从断点继续」的用例；`beforeAccept` 已由 #523 接好，见 §5.6a）与 P3c（外部条件检查器）各自另成一刀。
 
 **P3a 的接法**：
 
@@ -651,6 +651,15 @@ main 已满足（证据是 main 的用例，在对账后的树上重跑，结果
 - 缺口 5 已补：申请换模型、下一次模型调用换成新模型之后结束这一轮，关掉适配器再重开，结束的视图仍显示 `model_switch: { now }`、开跑模型与那一条换模型活动。（更正：第一次写这条用例时让第一次调用直接收尾，这一轮只调了一次模型，换模型根本没生效，看起来像冷读丢了；用例改成第一次调用要一个工具、逼出第二次调用之后，冷读是对的。不是产品缺陷。）
 - 缺口 3（申请换模型后撤权）、缺口 6（从断点继续之后的模型与凭据）没做。
 
+**2026-10-15 P3b（分支 `adoption/p3b-model-switch`）：缺口 3、6 补了用例，没有改源码。**
+
+- 更正：前文和 §6.0b 表第 7 项说 P3b 要「接 SDK 的 `beforeAccept`」。这一步早在 main 上：防腐线 I8（#523）换 acceptance 包时接的，`horizontal/agent-host/src/adapters/prologue-run.ts` 的 `switchModel` 把 `beforeAccept` 交给 SDK（先 `deps.effects.assertCurrent()` 再 SDK 自己的检查），用例是 `tests/agent-sdk-effects.test.ts` 的 W2-18-MODEL-SWITCH-01/02（配置、凭据、SDK 接受三个阶段 × 取消、撤权）。P3b 剩下的只是两个缺口的用例。
+- 缺口 3：`tests/agent-sdk-effects.test.ts`「PA-24: plugin-stopped / character-disabled after a switch is accepted …」。真实 Node 适配器经 LocalHost 与 `registerAgentHostCapabilities` 开跑，带插件实例（`plugin_caller`）；第一次模型调用要一个工具，逼出第二次调用；中间申请换到 B（端点 `1.1.1.2`），SDK 接受（`requested: B`），然后让插件实例停止（真实的 `actions.forbidden`「此插件实例已停止，请重新打开」），或让 Character 停用（真实的「所选 Character 版本不可用…」）。断言：B 的端点零请求；这一轮 `failed`，`stop_reason` 是「EFFECT_NOT_AUTHORIZED: The App refused this network dispatch before sending: <原因>」（Coding 时间线把它译成「这一轮的授权已失效」）；用量只算 START 那一次；会话里没有多出一轮。
+  - 挡住它的是现有的逐次出网检查：这一轮的 `dispatchGuard` 经 `beforeNetworkDispatch` 在每次出网前跑（SDK 的 model 通道也走它），其中 `capability-registration.ts` 的 `caller?.assertActive()` 管插件实例，`index.ts` 的 `validateCharacter()` 管 Character。SDK 另有 `beforeModelDispatch`，Molis 不用：`beforeNetworkDispatch` 已经覆盖模型调用，再接一个是同一件事查两遍。
+  - 反证：在构建产物里临时去掉这两处检查（备份后改 `dist`，跑完还原并逐字节比对），两条用例都失败，B 收到了请求。
+  - 视图里 `model_switch` 是 `{ now: "B" }`：切换在那次调用的边界上生效了（SDK 发了 `model-switched`），而它生效的那次调用在发出前被拒。用量与 `stop_reason` 说明 B 没有收到任何东西。用例把这一点钉住；要不要在「换过去的那次调用被拒」时不显示 `now`，是 Prologue 侧的语义，没有在这里改。
+- 缺口 6：`tests/prologue-model-controls.test.ts`「PA-24 (§4.3): a round continued after a switched one …」。Molis 的「从断点继续」是同一会话里的新一轮：Coding 的 `coding.continuation` 只起草任务与意图，模型是人当时选的，开跑时按现行设置解析（`plugins/native/coding/src/start-round.ts`）。用例：第一轮从 small 换到 large 并结束；马上在同一个活着的会话里再开一轮，选 small，就是 small、small 的端点和密钥，`model_switch` 为空；关掉适配器，把 small 挪到新端点、换一把新密钥、删掉 large，重开后再开一轮，用的是新端点和新密钥，会话历史还在；再选 large，在发出前拒绝（适配器的原话「还没有配置可用的模型」），零请求，也不多出一轮。
+
 PA-12 仍未完成：写后诊断（第 9 项，A2）与 Alchemist 的结构化生成（第 11 项，A3）都还没有实现。另记：`prologue-frozen.ts` 的 `throw new Error("思考力度只能是快速、平衡或深入")` 是普通 Error，归错误模型 W3-02-G。
 
 ## 6. 进度、证据等级与待定项
@@ -824,7 +833,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 | 4 | 工具副作用分类 | 已实现 | `prologue-action-gateway.ts`：`suggest`、委派 start/follow/stop、记忆 remember/forget/propose 都是 `mutate-external`；`prologue-action-tools.ts` 只在 `operation=query` 且 `actionEffect=read` 时给 `safe-read`；`tests/assistant-business-gateway.test.ts`、`tests/agent-action-tools-prologue.test.ts`（PA-22） | — |
 | 5 | 修改回执与微压缩 | 已实现（Molis 侧只有间接证据） | SDK `agent/core/loop-tools.ts` 由工具登记的 `effectKind` 推出 `rereadable`，只有 `safe-read` 能被换成「需要就再调」，`rereadable: false` 的不收（`c4b9fde3`，在过渡包里）；配合第 4 项，Molis 改东西的工具回执都不收；SDK `context-micro-compaction` 用例 | **文中 §6.0 写「`prologue-stream` 证明修改回执不被压」不准**：`tests/prologue-stream.test.ts` 不测压缩。Molis 侧没有「真实网关 + 压缩后的请求里回执还在」的用例；A5 补一条请求级断言 |
 | 6 | 推理力度 | 已实现 | `prologue-frozen.ts` 每轮冻结、不支持就发出前拒绝；`tests/prologue-model-controls.test.ts`、`tests/coding-model-controls.e2e.test.ts`（PA-24）；#472、#491 | — |
-| 7 | 运行中换模型 | 部分 | `prologue-model-switch.ts`；拒绝分支（提示缓存跨格式、目标没标力度、模型不可用、思考切到无思考）、停止时零请求、冷读都有用例（#491） | §5.6a 缺口 3（申请换模型后撤权）：SDK 的 `switchModel` 已有同步 `beforeAccept`（Prologue #24，在 `b01067b4`），过渡包没有，**P3 换包时在 `prologue-model-switch.ts` 接上并补用例**；缺口 6（从断点继续后重新解析模型与凭据）未做；视觉、Runtime 不支持切换两个分支无用例（造不出来，见 §5.6a） |
+| 7 | 运行中换模型 | 部分 | `prologue-model-switch.ts`；拒绝分支（提示缓存跨格式、目标没标力度、模型不可用、思考切到无思考）、停止时零请求、冷读都有用例（#491） | §5.6a 缺口 3（申请换模型后撤权）：更正——SDK 的同步 `beforeAccept` 早由 #523 在 `prologue-run.ts` 接好（W2-18-MODEL-SWITCH-01/02），不是 P3 才接；接受之后的撤权与缺口 6（从断点继续后重新解析模型与凭据）由 P3b 补了用例（§5.6a 末尾）；视觉、Runtime 不支持切换两个分支无用例（造不出来，见 §5.6a） |
 | 8 | 逐轮变更 | 已实现 | `prologue-stream.ts` 的 `turn-changes` 投影、重放不重复；Coding `turn-changes-client.ts`；`tests/coding-timeline.e2e.test.ts`（PA-24） | — |
 | 9 | 写后诊断 | **未做** | main 上没有按文件的检查器接入（`diagnose` 只出现在 Coding 方法名与开发者诊断页） | A2：检查器输入 / 输出与用例先写进本文，再实现 |
 | 10 | 文字增量、停止与错误 | 已实现 | 灵光 `client.ts` 的 `?stream=1` 逐行读、`reply-stream.ts`；阶段名已从宿主挪回插件（采用合同闭环）；`tests/lingguang-plugin.e2e.test.ts` 的「边写边出、Stop 不保存、字留在框里」 | — |
@@ -852,7 +861,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 2. §6.0 与 §6.0a 把「修改回执不被压成可重做观察」的证据记成 `context-micro-compaction` + `prologue-stream`；后者不测压缩。实现是对的（第 5 项），Molis 侧的请求级证据是缺的。
 3. §2 第 2 项写「核对 Host 侧转发与撤权零派出的测试证据」；PPT 没有这条证据（第 2 项）。
 4. §0.2 第 13 项与 §4.6.6 提到 Coding 的 `yield-wait.ts`、`round-report.ts`：main 上没有这两个文件（10-13 已作废的在途改动）。P4 要退出的是 Coding 的 `waits.ts` 与 `last-start:*` / `wake-note:*` 存储（§4.6.9）。
-5. §5.6a 缺口 3 原写「没有用例」；现在 SDK 一侧已有 `beforeAccept`，缺的是 Molis 接线，放进 P3。
+5. §5.6a 缺口 3 原写「没有用例」；现在 SDK 一侧已有 `beforeAccept`，缺的是 Molis 接线，放进 P3。（2026-10-15 更正：接线早由 #523 做了，缺的只是「接受之后撤权」的用例，P3b 补上，见 §5.6a 末尾。）
 6. §3.1 表里的 `onYieldSettled`、`SubagentRequest.yield`、`SubagentWake` 在 P2i 已从 SDK 删掉；P3 的 Molis 一侧不能再引用它们。
 
 **Prologue main 合入后的补跑**（§7.4 第 3 条、合同 P2i / P2j「验证」行）：对 `b01067b4`（P2j 之后又合了 #24）跑 `prologue-verify.sh`（build dist → `tsc` → SDK 全量，两个 worker，不跑 `desktop-computer-use.live` → 干净 `git archive` 打包 → 空目录跑全部 `*-consumer.mjs` → 对 P2h 的包再跑一遍）。P2h 的包取自 P2h 合并前的验证目录（`4416fc09` 打出，1,163,878 字节，SHA-256 `7e728f4a…`；与 #19 的 head `0bfb0e47` 比，`packages/sdk/src` 与 `package.json` 没有差别）。结果记在合同的 P2i、P2j「验证」行，经 Prologue docs PR 进 main。
@@ -911,7 +920,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
    5. 加并发用例：两个会话同时汇报，都成功；同一步被别人改过的那一方得到明确的冲突。
    6. `pnpm api:update`、`pnpm actions:update`；`page-assets` 量两个新状态词（只许变小，超了就在同一个文件里省字节）；`check-health-gates --base`。
    7. 写验证证据，开 PR。
-4. 之后是 P3b（换模型的 `beforeAccept`）、P3c（外部条件检查器），再往后 P4。
+4. 之后是 P3b（换模型之后撤权与「从断点继续」的用例，见 §5.6a 末尾）、P3c（外部条件检查器），再往后 P4。
 
 ### 6.0d P3a 恢复记录（2026-10-15，当前接续入口）
 

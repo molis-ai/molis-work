@@ -3,7 +3,7 @@ import { bindActionClient, type ActionClient, type ActionProviderRegistration } 
 import { createWorkflowContentPorts, createWorkflowsActionHandlers, openWorkflowsStore, workflowsErrors, workflowsManifest } from "@molis-ai/molis-work-plugin-workflows";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { hostCompleteText, textModelAvailability, type HostCompleteText } from "./host-complete-text.js";
+import { hostCompleteText, textModelAvailability, textModelMissing, type HostCompleteText } from "./host-complete-text.js";
 
 /** Workflows are stored in the Home but belong to one project; each station is reached through that project's action client. */
 export function workflowsActionProvider(home: string, projectId: string, actions: ActionClient, completion?: HostCompleteText | null): ActionProviderRegistration {
@@ -16,11 +16,11 @@ export function workflowsActionProvider(home: string, projectId: string, actions
       content: caller => createWorkflowContentPorts(bindActionClient(actions, () => caller)),
       actions: caller => ({ discover: async () => actions.discover(caller), invoke: (reference, input) => actions.invoke(caller, reference, input) }),
       assertInput: assertActionInput,
-      textModel: () => textModelAvailability(model, "还没有可用的文字模型"),
+      textModel: () => textModelAvailability(model),
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model();
         // The model can go away between `textModel()` and this call: the same refusal the link's readiness gives, 400 with its message.
-        if (!complete) throw workflowsErrors.not_ready("这一段还没接上：还没有可用的文字模型");
+        if (!complete) throw workflowsErrors.not_ready("这一段还没接上：" + textModelMissing());
         return complete(resolveModelPrompt(home, prompt, "io.molis.work.native.workflows"), options);
       }),
     }),

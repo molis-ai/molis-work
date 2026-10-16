@@ -381,7 +381,7 @@ test("availability is the model's: with no model set up it says so and complete 
         await item.platform.start([{ definition: plugin.definition, ...GRANTED }]);
         const client = plugin.model();
         // null says the Host was given no model.
-        assert.deepEqual(client.availability(), { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" });
+        assert.deepEqual(client.availability(), { available: false, code: "actions.connection_required", reason: "请先在「模型设置」里连接文字模型" });
         await assert.rejects(item.invoke(plugin.ask), { code: "actions.connection_required" });
         // Nothing injected, nothing configured in this Home, no environment key: the Host's own check finds no model either.
         injection.current = undefined;

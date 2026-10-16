@@ -17,6 +17,7 @@ import { settleTyped } from "./typed-call-settlement.js";
 import { typedCapabilityInvocation } from "./typed-capability-invocation.js";
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
   type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { hostLog } from "./host-log.js";
 
 export interface LocalHostRuntimeFactory<Runtime> {
   open(reference: LocalHostProjectReference): Runtime | Promise<Runtime>;
@@ -525,7 +526,7 @@ export class LocalHost<Runtime> {
     // in the log (only its capability, never its input): a page that stops answering is otherwise a mystery.
     const heldInLine = async () => {
       const started = Date.now();
-      const watch = setInterval(() => console.warn(`[local-host] ${capability.capability_id}@${capability.version} 已占用项目 ${reference.project_id} 的操作队列 ${Math.round((Date.now() - started) / 1000)} 秒`), HELD_IN_LINE_WARN_MS);
+      const watch = setInterval(() => hostLog.warn("actions", "project_queue_held", undefined, { capability: `${capability.capability_id}@${capability.version}`, project_id: reference.project_id, seconds: Math.round((Date.now() - started) / 1000) }), HELD_IN_LINE_WARN_MS);
       watch.unref?.();
       try { return await run(true); } finally { clearInterval(watch); }
     };

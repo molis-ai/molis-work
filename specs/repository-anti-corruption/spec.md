@@ -52,6 +52,14 @@ W4-04 第三片（2026-10-15，Form 经 Plugin Runtime 装配，#551）：按 `d
   - 其余改了调用方式的：`creative-artifact-promote`、`creative-tools-plugins` 里 Form 的部分改经动作；`tests/personal-plugins-review-fixes.test.ts` 断言 Form 客户端请求 Runtime 路由；夹具与五个用例里的 `withStore` 换成 `ownFormStores`。
 - 证据：相关 38 个文件全过（含 `tests/action-contract-snapshot.test.ts`），Runtime 路由、成果客户端、Characters 与 Coding 的发布 8 个文件全过，浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e` 全过；health（`--base origin/main`）、boundary、page-assets 通过（`form.js` 小了 288 字节，预算同步降下）。公开 API：`PluginRouteDeclaration.max_body_bytes`（可选，旧 Manifest 不受影响）。动作快照：Form 的安装多 5 条 `sdk.artifacts.<安装>.*`。
 
+W4-04 第四片（2026-10-15，Form 客户端改成打包的 TypeScript，PR #558）：路线图 W4-04 的「bundle its client as type-checked TS (esbuild IIFE) … and a *_SCRIPT template-constant metric is added」。
+- 客户端：原来 900 行的模板字符串 `FORM_CLIENT_FACTORY_SCRIPT` 和 `src/draft-client.ts` 的 `FORM_DRAFT_CLIENT_SCRIPT` 改成 `plugins/native/form/src/browser/` 下 14 个 TypeScript 文件，`tsconfig.browser.json` 做类型检查（`typecheck` 与 `build` 都跑），esbuild 从 `factory.ts` 打成 `dist/form-client.js`，banner/footer 直接包成 `(host) => {…}` 工厂；`src/client.ts` 只读这个包。页面状态集中在 `FormPage`（`page.ts`），原来 200 行的点击处理拆成 `commands.ts` 里按原顺序匹配的 21 条命令，每个函数都在函数行数上限以下（巨大单元门禁把类型源码当代码数，第一次拆前是 924 行的文件、904 行的函数）。行为按原样：匹配顺序、哪些命令要打开的问卷、离开前先存再问、失败的 note 范围都与原来相同。
+- 大小：`--minify`（与 `--minify-whitespace` 比，名字也压短）后宿主发的 `form.js` 从 37 472 字节降到 30 300，`tooling/gates/page-assets.json` 同步降低。
+- 门禁：`scripts/gates/source-counts.mjs` 加 `scriptConstants`：名字以 `_SCRIPT` 结尾、值是字符串或模板字符串的变量按文件计数，只许减少，新文件从 0 开始（普查 130 个、100 个文件，这一片后 129）。`rawFetchInScripts` 认得打包生成的程序：常量读 `dist/<名>.js`、所在包 build 里有 `esbuild <入口> … --outfile=dist/<名>.js` 时，入口和它 import 的文件按类型源码数，对不上构建步骤的读取直接失败（`scripts/gates/browser-programs.mjs` 的 `bundleEntry`）。口径写在 `tooling/gates/README.md`。
+- 测试：`tests/health-gates-source-counts.test.ts` 加定义、两条违规与一条减少用例；`tests/health-gates-browser-fetch.test.ts` 加打包源码里的裸 fetch 被数、读不存在的构建产物失败两条（基线里预先放一个 `clean.ts`，原来那条「不算的写法」用例改为编辑已有程序，否则它会被新计数当成新增）；变异：在 Form 的打包源码里加一个裸 fetch，`rawFetchInScripts` 记 1。`tests/creative-tools-plugins.test.ts` 与 `tests/personal-plugins-review-fixes.test.ts` 里按名字查代码形状的 Form 断言改读 `src/browser/` 的源码（同样的性质：结果请求只认最新且仍打开的问卷、换问卷先清保存计时器、保存不重画编辑器、列表行的状态格、请求走 Runtime 路由），字面量断言仍查打包结果；`tests/document-plugins-error-model.test.ts` 的浏览器入口除 `tsconfig.editor.json` 外也读 `tsconfig.browser.json`（服务端能到达的文件仍按服务端查）。
+- 证据：门禁 `--base origin/main`、`boundary:check`、`page-assets`（`--update` 后）通过；相关 18 个非浏览器文件全过；浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e`、`model-ready-surfaces.e2e` 共 19 条全过。全量由统筹在 CI 跑。
+- 变基到 #551 合入后的 main（`19823a62`）后重跑：门禁 `--base origin/main`、`boundary:check`、`page-assets`、页面事件通过；Form 与门禁相关的 11 个非浏览器文件、7 个浏览器文件（另加 `goal-form-viewport`、`policy-form-binding`、`remaining-forms-viewport`）全过。Runtime 停 Form 时库先关（`home-plugin-executor.ts`、`plugin-host-services.ts` 的 `dispose`），#551 第 7 片那次原生崩溃统筹重跑已过，判为跑机环境。
+
 W4-05（2026-10-15，助理服务拆分样板，PR #559；决定 #3）：
 - 抽出：提醒与跟进协作者 `AssistantFollowUps`（`apps/local-host/src/assistant/assistant-followups.ts`）：Plugin 的到期提醒（`sweepReminders`）、工作上的定时轮次（保存、取消、到点运行、归档时停用、宿主启动时重新排队）、关注规则（`saveRule`、`removeRule`）。它只经 `AssistantFollowUpPorts` 依赖宿主（工作、通知、设置、规则、Home 动作、Agent Host、发送、队列），不 import 助理其他模块的实现（只用共同的错误表 `assistant-errors.ts`），带走自己的表：`assistant_followups` 的读写从 `AssistantStore` 搬到 `AssistantFollowUpRecords`（`store.followUps`）。服务上的 `followUps` 现在是这个协作者，HTTP、动作（`assistant-rule-actions.ts`）、`web-server.ts` 的定时任务改为经它调用。
 - 不变的：行为与文字一字不改（逐段搬，旧的 `runDueFollowUp`、`enqueueCurrentFollowUp` 并进类里）；到期提醒对 Home 动作的每一步仍有 20 秒限时，由服务包在端口里（`withinTime`）。没有动 `assistant-inputs.ts`，没有动发送与回执的路径；没有往 contracts 加 typed 能力。
@@ -92,6 +100,16 @@ W4-08（2026-10-16，平台产品服务的边界，不新增规则，统筹 10-1
 - 表：`tooling/gates/table-owners.json` 里没有记忆、放置、搜索的共写表，门禁 `scripts/gates/table-owners.mjs` 让别的包写不了它们的表。
 - 能力：它们以系统动作登记；新的 typed 宿主能力由 `pnpm health:check` 的结构数字拦着（只许减少）。情境排序的 HTTP 例外与删除条件写在架构文档同一节。
 - 拆 `MemoryService`（`horizontal/memory/src/service.ts` 现 1,262 行）不在本项：按 `docs/system/HUGE-CLASS-MIGRATION.md` 的决定在包内由 W5-10 拆，路线图 W4-08 一行同步删去了「再拆 MemoryService」。
+
+W5-13 第一片（2026-10-16，Host 日志，PR #570；统筹 10-16 认可盘点与分片）：路线图「最小的结构化日志替换 Host 里的 console.*」与任务书 §4.8「结构化日志与调用标识贯穿主链路」。
+- 加：`apps/local-host/src/host-log.ts` 的 `hostLog.warn/error/debug(区域, 事件, 错误?, 字段?)`，Host 侧唯一的实现。每条是 stderr 上的一行 JSON（常驻服务的 LaunchAgent 写进 Home 的日志文件），用稳定的区域加事件名（如 `search` / `index_update_failed`）和错误码定位，带 `call_id`（内核调用范围里的编号，就是页面失败提示里可复制的诊断编号）。
+- 只记键（`docs/system/SECURITY-INVARIANTS.md` 的「密钥只给引用」）：错误只留名字和码，不留消息和调用栈（会带人写的字、路径或密钥）；字段只留数字、布尔、null 和像键的字符串（字母数字与 `._:@-`，至多 120 字，没有空格和路径分隔符），其余写成 `"[omitted]"`；不是键的区域或事件名也写成 `"[omitted]"`，不在 catch 里抛错。
+- `debug` 只在 `MOLIS_WORK_DEBUG` 列出区域时写（逗号分隔，`*` 为全部），直接取代 `MOLIS_WORK_MEMORY_DEBUG`、`MOLIS_WORK_SEARCH_DEBUG`，不留旧开关（仓库里没有别处读或写它们）。
+- 改：Host 里 14 处后台 `console.warn/error`（Web 重启、助理的定时队列与两项周期扫描、记忆提炼与整理、删除收尾、操作队列占用、创作台读目录、CDP 事件、搜索索引）改写 `hostLog`；`assistant/assistant-http.ts` 的 2 处等回执 1e 合入后再改（统筹：assistant/ 在途）。`cli-install-service.ts`、`cli-project-maintenance.ts` 的 46 处命令行输出改走 apps/cli 的 `printCliLine`、`printCliJson`（输出逐字不变；apps/cli 是 biome.jsonc 里已经关掉 `noConsole` 的命令行程序）。
+- 行为变化：搜索索引的后台更新（对账、刷新、同步）失败原来只在开关打开时打印，等于吞掉；现在总是记一条 warn（`logSearchIndexFailure`）。记忆提炼的 debug 原来打印整个结果对象（含提炼出的记忆正文），现在只记跑没跑、记了几条（`logMemoryLearning`）。删除收尾按错误的名字和码去重（原来按消息）。
+- 数字：`console` 88 → 28（剩下的是 `assistant-http.ts` 2 处、`apps/server` 的命令行入口 7 处、测试与示例）。
+- 测试：`tests/host-log.test.ts`：`W5-13-01`（一条记录的区域、事件、调用编号、错误名与码、字段；调用之外没有编号）、`W5-13-02`（debug 只为列出的区域写，`*` 为全部；warn 不看开关）、`W5-13-03`（搜索索引失败与记忆提炼经 Host 实际用的两个函数，错误消息、字段、嵌套对象、数组、名字里的人写的字、路径和密钥都进不了日志）。变异检查：错误留消息（01、03 失败）、字段留任意字符串（03 失败）、去掉 `call_id`（01 失败）、去掉 debug 的开关判断（02 失败）。
+- 吞错的盘点（下一片起按区域修，每片开工前把文件清单给统筹）：TypeScript 代码（不含浏览器模板字符串）里 1,631 个 `catch` 与 `.catch(…)`，按处理方式分：重抛或包装 345、有记录 180、空且带注释 123、空 26、只返回默认值 354、其他处理 603。空的、只带注释的、只返回默认值的三类共 503 处：`apps/local-host/src` 247（顶层 102、`assistant/` 63、`browser/` 35、`installer/` 15、`computer/` 14、`plugin-builder/` 9、`memory/` 7）、`horizontal/agent-host` 61（几乎都在 `adapters/prologue-*.ts`，是模型调用路径，只列给 AI 开发手册线，不在本项改）、Pages 21、Coding 18、`packages/storage` 17、gmail 13、Work 11、runtime-host 10、memory 9，其余每包 7 处以下。逐处判：确是「没有就是答案」（解析失败返回空、可选文件不存在）或尽力清理（关闭时删临时文件）的，留下并在注释里写明真实原因（不写「忽略」）；把失败当成功的，改为记 `hostLog` 或向调用方报错。分片：2 顶层（不含 `coding-surface.ts`）；3 `browser/`、`installer/`、`computer/`、`plugin-builder/`、`memory/`；4 storage、runtime-host、memory、search、plugin-runtime、contracts；5 插件（不含 Coding）；最后 `assistant/`、Coding（相关 PR 合入后）。
 
 ## 0. 现场与范围
 
@@ -881,7 +899,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 已审 |
 | `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/form` | 内置插件 | 19 | 2,783 | `client.ts` 900 | 1 | 4 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/form` | 内置插件 | 33 | 3,163 | `store.ts` 522 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 已审 |
 | `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
@@ -1750,6 +1768,22 @@ Prologue（10-14 复查到 #22 为止，这次看 #24～#27）：
 - #538（CI）：限流并只在加标签时跑，是用户 10-15 的弹窗决定（第 1 节）。
 
 Prologue：#10～#22 在 10-14 复查过，#24～#27 在 10.13，这一轮没有新合入的。
+
+### 10.15 2026-10-16 合入 PR 的独立复查（#553、#557、#561、#564、#566、#567，及在途的 #560、#568、#569）
+
+范围：§10.14 之后合入、不是本线的 PR（本线的 #555、#559、#562、#563 由统筹审）；在途的三个只做机械核对，入队前统筹按清单再审。查法同 10.14（门禁数字、兼容或读取兜底、删改断言、调大时限、从输入读可信身份），另读改到宿主、合同、Agent Host 与 SDK 的部分。
+
+结论：代码没有需要修的；一处活文档过时，本 PR 已改。
+- 门禁数字：没有调大。#553 与 #564 各用一次用户 10-15 批准的资源放行（`APPROVED_CEILINGS`），两者合入后都已用完；W4-03 第二片按原注释提议删去（待统筹定）。`limits.json`、`giant-exceptions.json`、`biome.jsonc`、隔离清单都没动。
+- 断言：#564 改的一条是计划里「规划时补充的意见」的措辞，从「已体现在确认的计划里」改成「没有逐条核对是否已写进计划；以确认的计划为准」，依据是 specs/ai-input-receipts RC-07、G14（没有核对就不说已体现），属于有依据的预期变化；其余只增不删。#569（在途）改的一条只改了失败说明，用例从 3 种扩到 11 种。
+- 时限、兼容、身份：新用例自带时限，没有调大现有的；命中的「compatible」都是 `Anthropic-compatible` 一类供应商名；没有从输入读 actor、项目或安装的新路径。
+- #553（W3-B1，放进左边）：新路由 `/api/contextual/attach` 走现有的情境请求读取与动作服务，用的是本人的权限；输入由落点和选中的文字算出，不经模型，所以预览就是要写的内容；执行前经 H3 的 `confirmReferences` 从主人那里重读落点对象，缺这个端口时拒绝；版本由主人比较。
+- #561（H4 2b）：卡片规则从 `assistant-offers.ts` 整段搬进 `packages/plugin-sdk/src/action-cards.ts`（`cardSubject`、结果摘要、相对日期判断都随之搬走，宿主不留第二份）；SDK 仍只依赖合同包，拒绝原因以端口给出，由助理映射回自己的 `assistant.*` 码，错误码与文字不变；API 快照随 PR 更新。
+- #564（回执 1d）：恢复报告的 `inputs` 读自运行时自己的输入队列，没有另存一份；会话打不开时不写这一项（未知，不当成空）；开轮时 `queued: "carry"` 是 D4 的「人开的那一轮带上」。
+- #557、#566、#567：文档与 Skill，门禁里的引用检查通过。
+- 过时：`specs/coding-plugin/spec.md` 第 6 条仍写旧措辞，本 PR 改成现行措辞并注明依据。`specs/ai-input-receipts/spec.md` 的现状核对表（「1d 计划轮次不写已体现：未做」等）是那条线写的时点快照，转给统筹，由回执线在 1e 时一并更新，这里不改。
+
+Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

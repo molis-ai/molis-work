@@ -124,5 +124,5 @@ export function createBrowserGraph(snapshot, isSource) {
     }
     return null;
   };
-  return { entries, lookup, resolveModule, properties, isFunction: fn };
+  return { entries, lookup, resolveModule, properties, packages, isFunction: fn };
 }

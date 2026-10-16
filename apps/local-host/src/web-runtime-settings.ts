@@ -5,6 +5,7 @@ import type { RuntimeIntegrationService } from "./installer/runtime-integration.
 import { isSupportedRuntimeId, type SupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { MolisWorkWebServiceAction } from "./installer/web-service-contract.js";
+import { hostLog } from "./host-log.js";
 
 export function serviceProcessId(): number {
   const inherited = Number(readProductEnv("WEB_SERVICE_PROCESS_ID"));
@@ -53,7 +54,7 @@ export async function handleLocalRuntimeSettingsHttp(request: IncomingMessage, r
       const confirmation = await webService.confirmFromWeb({ plan_id: planId, decision }, serviceProcessId());
       if (confirmation.afterResponse) {
         response.once("finish", () => {
-          void confirmation.afterResponse!().catch((error) => console.error("Molis Work Web restart failed:", error));
+          void confirmation.afterResponse!().catch((error) => hostLog.error("web", "restart_failed", error));
         });
       }
       sendJson(response, confirmation.result.status === "restarting" ? 202 : 200, confirmation.result);

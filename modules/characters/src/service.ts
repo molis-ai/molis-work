@@ -2,7 +2,7 @@ import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platf
 import type { CharacterImportSnapshot, CharacterImportSelection, CharacterContent, CharacterDraft, CharacterDraftPatch, CharacterState, CharactersCommand, CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
 import { parseCharacterContent, parseCharacterTools, selectCharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { CharactersRepository } from "./repository.js";
-import { characterErrors } from "./errors.js";
+import { characterErrors } from "@molis-ai/molis-work-contracts/modules/characters";
 
 export class CharactersService implements CharactersQuery, CharactersCommand {
   constructor(private readonly repository: CharactersRepository, private readonly actorId: string,

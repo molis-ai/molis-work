@@ -87,7 +87,8 @@
       "paths": [
         "modules/characters/",
         "apps/local-host/src/character-*",
-        "apps/local-host/src/characters-host.ts"
+        "apps/local-host/src/characters-host.ts",
+        "packages/contracts/src/modules/characters-errors.ts"
       ],
       "reason": "The Characters module, plugin and the Host files that import and run them; character.* becomes characters.* (spec W3-02 R4c)."
     },

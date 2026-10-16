@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { dismissActionCard, draftActionCard, runActionCard, sweepActionCard, type ActionCard, type ActionCardPorts, type CardAuthority } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorFromResponse, dismissActionCard, draftActionCard, runActionCard, sweepActionCard, type ActionCard, type ActionCardPorts, type CardAuthority } from "@molis-ai/molis-work-plugin-sdk";
 
 // specs/ai-interaction-experience D26: the action card rules live once, in the plugin SDK, behind two ports; any keeper of
 // cards (the Assistant now, Coding next) runs by them. These pin the rules with a keeper of nothing but memory.
@@ -82,12 +82,25 @@ test("D27: a card whose object moved on, whose moment passed, or whose action is
   for (const k of [moved, changedSince, late, off]) assert.equal(k.invoked.length, 0, "nothing ran");
 });
 
-test("D26: how a run that threw reads — unknown is never a plain retry, data that moved on is stale, the rest failed", async () => {
-  for (const [error, status] of [[Object.assign(new Error("送达未确认"), { code: "actions.outcome_unknown" }), "unknown"], [Object.assign(new Error("版本已变化"), { code: "todo.conflict" }), "stale"], [new Error("磁盘满"), "failed"]] as const) {
+test("D26: how a run that threw reads — by its code and kind, never its wording: unknown is never a plain retry, data that moved on is stale, the rest failed", async () => {
+  const cases = [
+    [new ActionError("actions.outcome_unknown", "送达未确认"), "unknown"],
+    [new ActionError("actions.output_invalid_after_effect", "结果格式不对"), "unknown"],
+    [new ActionError("actions.delivery_unknown", "连接中断"), "unknown"],
+    [new ActionError("actions.host_replaced", "系统服务已更换，不会重发原调用"), "unknown", "a conflict-kind code that may have landed is still unknown"],
+    [new ActionError("todo.conflict", "版本已变化", { kind: "conflict" }), "stale"],
+    [new ActionError("actions.subject_changed", "对象已变化"), "stale", "a platform code of kind conflict"],
+    [actionErrorFromResponse(409, { error: "已在其他窗口修改", code: "pages.conflict" }), "stale", "an owner's conflict that crossed HTTP keeps its kind"],
+    [new Error("版本已变化"), "failed", "wording alone says nothing: no code, no kind"],
+    [Object.assign(new Error("草稿已变化"), { code: "notes.conflict" }), "failed", "nor does a code's name"],
+    [new ActionError("actions.version_required", "需要版本"), "failed", "an input mistake about a version is not data that moved on"],
+    [new Error("磁盘满"), "failed"],
+  ] as const;
+  for (const [error, status, why] of cases) {
     const k = keeper();
     const card = await k.draft({ todo_item_id: "t1", title: "写周报" });
     k.reply = async () => { throw error; };
-    assert.equal((await runActionCard(card, { revision: 1, values: {} }, k.ports)).status, status, error.message);
+    assert.equal((await runActionCard(card, { revision: 1, values: {} }, k.ports)).status, status, `${error.message}${why ? ` — ${why}` : ""}`);
   }
 });
 

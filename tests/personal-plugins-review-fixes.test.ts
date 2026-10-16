@@ -13,6 +13,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile, stat } from "node:fs/promises"
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
@@ -193,7 +194,8 @@ test("客户端走 /api/plugins/<id>/，Host 改写到现有短路径", () => {
   assert.equal(rewriteNativePluginApiPath("/api/plugins/unknown/x"), "/api/plugins/unknown/x");
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/pages/);
   // Forms runs on the Plugin Runtime (W4-04): its page calls the routes its Manifest declares, under the project, with no short path to rewrite to.
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /host\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
+  assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
+  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/dataset/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/ppt/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/lingguang/);

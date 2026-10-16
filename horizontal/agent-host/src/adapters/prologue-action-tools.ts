@@ -6,6 +6,9 @@ import type { AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/ag
 
 export const agentActionToolName = (ref: ExactActionReference, scope: string) => "molis-action-" + scope + "-" + createHash("sha256")
   .update(JSON.stringify([ref.capability_id, ref.version, ref.provider_id])).digest("hex").slice(0, 24);
+/** A run's action tools by the name the model calls them: the naming above, for the actions it froze under its scope. */
+export const actionToolRefs = (refs: readonly ExactActionReference[], scope: string): ReadonlyMap<string, ExactActionReference> =>
+  new Map(refs.map(ref => [agentActionToolName(ref, scope), { capability_id: ref.capability_id, version: ref.version, provider_id: ref.provider_id }]));
 
 /** SDK session-scoped callbacks; declarations are a projection of the authorized action directory. */
 export function prologueActionTools(actions: AgentFrozenRole["actions"], timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal) {

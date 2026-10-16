@@ -59,7 +59,7 @@ Coding 的 `agent.draft-text.v1` 经 `agent-host-composition.ts` → `model-draf
 
 Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompts.ts`，共同目录登记 `CODING_INSTRUCTIONS`。请求传 `{ purpose, prompt: CODING_COMMIT_DRAFT.prompt_id, material, model_selection }`；Host 从原 invocation 的插件身份确定 owner，再读取用户修改后的有效正文，材料仍单独传递。输入不能冒充 owner；未知引用或缺失身份拒绝派出。请求必须带已登记的 `prompt`，不再接受 `instructions` 字符串。Prompt 使用记录在初次授权复查之后写入，原授权等待与模型执行共用两分钟生命周期；取消或撤权后的迟到检查不登记使用、不启动模型。
 
-Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
+Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只经 `apps/local-host/src/configured-text-port.ts` 固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime（项目上手用同一个 helper，但用它自己的主人、不带 Cognia 的角色）；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
 
 Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGeneration`，不另行解密或复制配置比对逻辑；首次授权等待与模型执行复用 Plugin SDK 的 `createExecutionLifetime`（`@molis-ai/molis-work-plugin-sdk`，Kernel 不转出它）取三分钟生命周期，固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。
 
@@ -217,6 +217,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 
 - **流式**：Agent 轮次用 `agent.run.wait.v1`（最长 25 秒的长轮询，按版本返回变化）；有界推理可用 `onProgress` 观察原 Run 的文本、模型和用量事件，最终结果仍需等待终态与领域校验。
 - **等待与接续**（Coding 的协作轮次）：模型等答复、等后台命令、等另一个会话的那一步，人排队等另一轮，都挂在 Prologue 任务图的步骤上；等待与接续的事实只在任务图里，插件不另存一份。读与控制走 `@molis-ai/molis-work-contracts/services/agent-collaboration` 的两个动作：`agent.collaboration.read.v1`（每个会话一条视图）、`agent.collaboration.control.v1`（`cancel-wait`、`continue-now`）。等到有接续可以走，用 typed 等待 `agentHostCapabilities.awaitContinuations`（最长 25 秒；动作不能是等待）。接续由插件用它的请求键起下一轮，照常经过宿主开跑前的全部复核；被重启截断、结果未知的等待留给人核对，不自动起跑（`specs/prologue-adoption/spec.md` §4.6.4、§4.6.10）。
+- **等外面的结果**（Coding 的执行角色，P3c）：一步要等的东西在宿主之外（一个作业跑完、一个结果文件写好），模型用 `board-wait` 登记 `{ kind: "external", checker, params }` 后这一轮结束；之后由宿主的检查器按 SDK 的节奏去看（第一次约 1 秒后，间隔逐次加倍，至多 1 小时），不经模型、不花 token。现有两个检查器，都在 `horizontal/agent-host/src/adapters/prologue-checkers.ts`：`molis.action-query@1` 调一个只读查询动作（`params.tool` 写这一轮的动作工具名，宿主按这一轮冻结的动作换回精确引用），把回答里 `status.path` 那一项按给定的 `satisfied`、`failed`、`pending` 对上，对不上、查询出错都算 unknown，不算结果；`molis.file-present@1` 看授权目录里的一个相对路径，比登记那一轮旧的、空的（`non_empty`）、缺完成标记（`marker`）的都还在等，有失败标记（`failed_marker`）就是失败，「在」只说明文件在，不证明内容对。要判断好坏的条件（「测试都过了」「结果合理」）不能这样等：判断要问模型，是命令；声明了 `model:invoke` 的查询也拒，因为每看一次就调一次模型。能等什么、每次看都怎样复核、什么一律拒绝，见 `docs/system/SECURITY-INVARIANTS.md` 的 S-27；等完之后照常是一条接续，由插件起下一轮。
 - **结构化输出**：SDK `structured` 执行明确支持的 schema；`decodeJsonOutput` 只处理格式，不能替代领域验证。Alchemist 默认不纠正，仅在原业务预算明确允许时增加一次；Jelly 不自动重试。判断类用 TypeSafe（`evaluateTypeSafe`），返回 Choice/Score/Noul。
 - **错误**：推理层抛 `PrologueInferenceError`（保留 `code`，文字统一为安全文案）。消费方先用 `inferenceServiceUnavailableReason(error)` 识别「执行服务被本机另一进程占用 / 未就绪」，如实告诉用户，不要改写成网络或厂商问题；宿主自己的派出前复核（`beforeDispatch`、凭据是否变了）拒绝时，SDK 报 `EFFECT_NOT_AUTHORIZED`，推理层把复核自己抛的错误原样交回，消费方用 `isDispatchRefusal(error)` 识别并说明「没有发出」；Agent 轮次的 `stop_reason` 同样以 `EFFECT_NOT_AUTHORIZED` 开头；HTTP 4xx/5xx 按状态给可操作提示。
 - **取消**：`caller.signal` 一路传到 SDK（`run.cancel()`）；被取消、撤权、停用的调用**不再写任何业务记录**，包括失败记账（action-architecture F2，`tests/action-before-effect.test.ts`）；其中处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记），不算业务数据（用户 2026-10-10 决定）。需要让用户能立刻重试的，用「发起者已结束即可接管」的设计，而不是在被拒绝后写记录。
@@ -434,6 +435,8 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **回执说真实状态，让 AI 能决定下一步。** 写入已经发出却没结束时，网关返回 `actions.outcome_unknown`，并写明它可能已经生效、不要再次提交、先用 `read-capability` 读回对象；`suggest-action` 的回执写明「nothing has run」；委派追加到上限时，错误写明「仍达不到验收时停止它，并把实际情况告诉用户」（`apps/local-host/src/assistant/assistant-delegation.ts` 的 `MAX_FOLLOW_UPS`）。「成功」不能只代表请求已经收下。
 
+**工具多了会被延后：在途修复。** Prologue SDK 在一轮的工具超过 20 个时，只给多出来的那些一行名册，说明要模型用 `find-tools` 去取（`deferToolSchemasBeyond: 20`）。现在的结论是这是 SDK 的设计缺陷，不是模型能力：`find-tools` 之后，下一次请求的 `tools` 里仍然没有被延后的工具，模型按名字调不到，只能绕道（比如拿 `run-command` 去调），见 `specs/prologue-adoption/spec.md` 的评测记录。修复在上游 Prologue，采用线先放一个不延后的临时做法（用户 2026-10-16 定）。修好之前：不要在提示词里教模型怎样调被延后的工具，那治不了；角色的工具加上动作工具接近 20 个时，要知道多出的会调不到。
+
 **少一些同义工具和要猜的参数。** 助理只有一组网关工具（查、读、改、可撤销地改、建议），能力的确切身份从 `find-capabilities` 来，不让模型拼标识。
 
 **可用性来自当前事实。** 能力目录每一轮从 `discover()` 读当前的声明、授权与可用性（`assistant-service.ts` 的 `actionTools`），不在开发时写一份名单。
@@ -465,6 +468,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | Coding 的方法 | 用户选的做法，冻结版本内联 | `plugins/native/coding/src/methods.ts` → `prologue-methods.ts` 的 `inlineMethods` | 摘要加正文；同版本正文变了就拒绝；工具以父角色为上限 | 由用户选，不由模型发现 | 确定性：`tests/coding-product-http.test.ts`、`tests/coding-method-install.test.ts` |
 | 助理每一轮的材料 | 会变的事实随轮次走，并标为数据 | `assistant-service.ts` 的 `roundMaterials`；角色正文 `assistant-agent.ts` | 有内容才出现的分节；省略要说；对象从所有者重读 | — | 确定性：`tests/assistant-material.test.ts` |
 | 助理的能力网关 | 一组工具覆盖全部业务动作 | `prologue-action-gateway.ts` 的 `GATEWAY_TOOLS`；目录文字在 `assistant-service.ts` 的 `directory` | 参数格式按需取；回执说下一步；写入进审查 | 只列可用的动作（第 13.4 节的缺口） | 确定性：`tests/assistant-business-gateway.test.ts` |
+| 工具说明延后加载 | 工具很多时先给名册，需要时用 `find-tools` 取说明 | Prologue SDK 的 `deferToolSchemasBeyond: 20`；Coding 角色开放 `find-tools`（`specs/coding-plugin/spec.md`「工具面」） | 现在不要照着用 | 在途修复（用户 2026-10-16 定）：被延后的工具在 `find-tools` 之后仍不在下一次请求的 `tools` 里，调不到；上游 Prologue 修，采用线先放不延后的临时做法（13.4） | 真实模型：`specs/prologue-adoption/spec.md` 的评测记录（当时记为「拿不准」，之后的探查定为 SDK 设计缺陷） |
 | 助理的方法目录 | 方法按需读取 | 「可用的方法」→ 动作 `assistant.methods.read`（`apps/local-host/src/assistant/assistant-rule-actions.ts`） | 摘要常驻、正文按需 | 一轮最多列 20 个 | 确定性：`tests/assistant-methods.test.ts` |
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
@@ -572,7 +576,16 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 结论与未验证：<只在这批任务上成立；没跑的情形>
 ```
 
-现成的完整实例是创作台的回放与冒烟（`docs/platform/STUDIO-SKILL-REPLAY.md` 第 1 节与第 4 节：先离线回放，再在隔离 Home 里改前改后各跑 2–3 次冒烟、附两份报告）。按本格式写的第一份真实模型前后对比，随第一个按本手册清理的提示词补上（见需求书 §9）。
+现成的完整实例是创作台的回放与冒烟（`docs/platform/STUDIO-SKILL-REPLAY.md` 第 1 节与第 4 节：先离线回放，再在隔离 Home 里改前改后各跑 2–3 次冒烟、附两份报告）。按本格式写的第一份真实模型前后对比是项目上手的两段指令（需求书 §9.5）。
+
+**模型能力造成的坏效果，不按症状打补丁**（用户 2026-10-16）。开发和评测现在用的 MiniMax 能力较弱，评测里会有与设计无关的失败。坏效果来自模型自身的能力时，不头疼医头、脚疼医脚：不在提示词里为某一次的说法加一条禁令，也不在代码里为某一种失败加正则、特例分支或场景开关。这类补丁治不了能力，只会让指令和代码越来越脏——换个说法又漏掉，换个更强的模型又成了多余的限制。`horizontal/agent-host/src/adapters/announce-guard.ts` 里注明「Seen from MiniMax-M3」的措辞清单就是这样来的。判断时：
+
+- 先按 16.4 看冻结记录：需要的事实、工具和回执都在，答案还是错，记为模型能力；缺了就改上下文或工具。
+- 比同一模型、同一批任务的前后差：改后不比改前差，又更短更清楚，就算改好了。两版都失败的任务记「两版都失败」，不算回归，也不拿来当加规则的理由。
+- 一次失败不改，多数次里反复出现的才算模式。
+- 兜不兜底看后果：会误导用户、重复写入或越权的，不管模型强弱，都由工程层用与模型无关的事实核对兜住（有没有成功的回执、版本前置、审查）；只是答得不够好的，记为模型限制，不加约束。
+- 记录里「没变好或变差的」逐条标「设计问题 / 模型能力 / 拿不准」并写依据，拿不准的写进「未验证」。
+- 现在不换别的模型做对照（用户 2026-10-16 定）。分不开是设计还是模型的，就留作「拿不准」写进「未验证」，不去推断别的模型会怎样。
 
 ### 16.4 诊断：先看 AI 当时实际拿到了什么
 

@@ -1,7 +1,7 @@
 import { bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormQuestionInput, FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { formErrors } from "./error.js";
-import { FORM_QUESTION_LIMIT, FORM_TITLE_LIMIT, type FormStore } from "./store.js";
+import { FORM_QUESTION_LIMIT, FORM_TITLE_LIMIT, type FormStores } from "./store.js";
 
 /** A form is a workflow content station: it hands its questions on as a list, and turns a list it receives into questions. */
 export const formContentActions = defineWorkflowContentActions({ id: "form", title: "问卷", icon: "clipboard", create: true, subject_kind: "form",
@@ -28,16 +28,16 @@ export function questionsFromText(text: string): FormQuestionInput[] {
   return questions;
 }
 
-export function createFormContentHandlers(withStore: <T>(run: (store: FormStore) => T) => T): ActionHandlerBinding[] {
+export function createFormContentHandlers({ read, write }: FormStores): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw formErrors.invalid("缺少项目"); return caller.project_id; };
   return bindWorkflowContentHandlers(formContentActions, {
-    list: caller => withStore(store => store.list(project(caller)).map(form => ({ item_id: form.id, title: form.title, caption: form.questions.length + " 题", at: form.updated_at }))),
-    read: ({ item_id }, caller) => withStore(store => { const form = store.get(item_id, project(caller)); return { title: form.title, body: formMarkdown(form), source: "问卷" }; }),
-    receive: ({ payload, context }, caller) => withStore(store => {
+    list: caller => read(store => store.list(project(caller)).map(form => ({ item_id: form.id, title: form.title, caption: form.questions.length + " 题", at: form.updated_at }))),
+    read: ({ item_id }, caller) => read(store => { const form = store.get(item_id, project(caller)); return { title: form.title, body: formMarkdown(form), source: "问卷" }; }),
+    receive: ({ payload, context }, caller) => write(caller, store => {
       // A hand-over is shaped to what a form holds (a long headline, a long list): refused, it could never be delivered.
       const form = store.receive(project(caller), workflowDeliveryKey(context), payload.title.trim().slice(0, FORM_TITLE_LIMIT), questionsFromText(payload.body));
       return { plugin: "form", item_id: form.id, title: form.title };
     }),
-    create: ({ title }, caller) => withStore(store => { const form = store.create({ title, project_id: project(caller) }); return { plugin: "form", item_id: form.id, title: form.title }; }),
+    create: ({ title }, caller) => write(caller, store => { const form = store.create({ title, project_id: project(caller) }); return { plugin: "form", item_id: form.id, title: form.title }; }),
   });
 }

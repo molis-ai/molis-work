@@ -7,7 +7,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
-import { createFormActionHandlers, formActions, formManifest, FORM_ACTION_PERMISSIONS, formResultsCsv, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { createFormActionHandlers, formActions, formManifest, FORM_ACTION_PERMISSIONS, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, openPagesStore, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
 import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { createCogniaActionHandlers, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
@@ -27,7 +27,7 @@ async function owners(t: TestContext, completion?: PagesActionPorts["completeTex
     ...createPagesContentHandlers(service),
   ] });
   service.registerProvider({ provider: provider(formManifest), definitions: Object.values(formActions),
-    handlers: createFormActionHandlers({ withStore: run => run(forms), modelAvailability }) });
+    handlers: createFormActionHandlers({ ...ownFormStores(run => run(forms)), modelAvailability }) });
   service.registerProvider({ provider: provider(datasetManifest), definitions: datasetManifest.actions!, handlers: [
     ...createDatasetActionHandlers({ withStore: run => run(datasets), modelAvailability }), ...createDatasetContentHandlers(run => run(datasets)),
   ] });

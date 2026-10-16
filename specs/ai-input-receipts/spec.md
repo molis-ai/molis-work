@@ -680,6 +680,15 @@ interface AgentInputView {
 
 验收：四问的前半段在 Coding 与助理上真实——送达没有、读到没有、没读到的去哪了；§12 的强杀与竞态用例通过。
 
+1c 的通道（统筹 2026-10-15 定，方案 A）：补充不再走 typed 能力 `agent.run.control.v1`，改为统一动作 `agent.inputs.send.v1`（系统提供方，只给插件调用；合同在 `services/agent-inputs`），回执 `AgentSteerReceipt`；`AgentRunControl` 去掉 steer 分支，不留兼容。助理在宿主内经运行时端口 `AgentRuntimeAdapter.inputs` 发。验收编号：
+
+- RC-01：Coding `coding.runs.control` 第 3 版：补充带页面的键（`AGENT_INPUT_KEY_PATTERN`）与发送方式（`next-boundary` / `interrupt` / `after-run`），由动作 schema 先拒；回执随回包给页面。
+- RC-02：补充以键、来源、方式交给运行时；同键同文回原编号（`replayed`），不落第二笔；宿主代写的说明以 SDK `app` 交，不打断。
+- RC-03：一轮已结束、要求留到下一轮、或读后到交之间结束（`RUN_NOT_RUNNING`）的补充，用同一个键进会话排队，回执 `delivered: queued`，不开新轮；运行时没有会话排队时拒绝；写入排队前再复查一次授权，被撤权的什么都不留。
+- RC-04：`runViewVersion` 含每条补充的状态，回执前进时页面马上重画。
+- RC-05：`agent.inputs.send` 的受众只有插件；schema 拒绝错误的键、方式、来源、空文本与多余字段；调用被取消或撤权时不交给这一轮、不写会话排队；别的会话的一轮够不着。
+- RC-06：助理以 `send.<request_id>` 为键；排进下一轮的结果是 `queued`，页面说「已保存，下一轮开始生效」，不说已补充到这一轮；助理开下一轮带上会话里排着的补充（`queued: "carry"`）；回答问题用问题自己的版本号，没有版本号的不发，不再默认 1。
+
 ### 阶段 2：Prologue 通用能力
 
 可与阶段 1 并行。依赖 Prologue 负责人认可，以及推送上游的授权。
@@ -943,6 +952,17 @@ interface AgentInputView {
   - 验证：`pnpm build` 后跑 `node scripts/affected-tests.mjs` 选出的 82 个非浏览器文件，加 `coding-run-control-contract`、`assistant-image-restart-http`、`assistant-memory-error-model`、`assistant-undo`、`assistant-delegation`、`prologue-input-receipts`，全部通过（`install.test.ts` 第一次因只重建了 Coding 包、构建指纹落后而失败，整体重建后 22/22）。Coding 页面脚本与 main 相同，不选浏览器用例。`check-health-gates --base origin/main` 通过（`AssistantService` 1814 → 1796 行、112 → 110 个方法），`page-assets --base origin/main` 通过。
   - 隔离 Home 实走（临时 `MOLIS_WORK_HOME`、端口 4391、慢速替身模型 4392，每次回复流 20 秒）：① 助理自己的一轮进行中再发一句 → `outcome: steered`，替身模型下一次调用的最后一条 user 正是这句；助理页面仍没有回执条（1e）。② 把同一项工作「交给 Coding 继续」，Coding 一轮进行中从助理再发一句 → `outcome: steered`（main 上这条路报「这个项目还没有可用的 Coding 插件」），替身模型下一次调用收到这句；Coding 页面的这句下面先显示「已放进上下文，等 AI 回应」，这一轮结束后变「AI 已读到」。③ 一轮已经结束后再发的话开了新的一轮（`outcome: started`），与现行规则一致。
   - 防腐复查（统筹 10-15 起每个 PR 都要过，清单 `coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md`）：2026-10-15 · main `e8218714` · merge-base `e8218714` · **通过**。机器项 M1、M2、M4–M10、M15 全过，M14 不适用。人看 27 条里适用的都符合，逐条结论与依据写在 PR #531 的「防腐复查」一节。已修一项（第 1 条）：助理找 Coding 动作的版本改成逐个写明现行版本（`runs.control` 为 2，其余为 1），去掉「没写就当第 1 版」的默认值。暂缓一项：`codingDispatch` 回答 Coding 问题时的 `pending_revision ?? 1` 是 main 上已有的行为，1a 原样保留，归 1c（1c 本来就要改这条控制的合同）。
+
+- 2026-10-15（回执线会话，1c 按 P3a 之后的 main 重做，本地未推送）：统筹看过对照清单（P3a 后要改的点）后定下：通道选 A；P3a 后的 1–8 条照做；助理下一轮带上排着的补充（Coding 的放 1d）；新底栏提示挪 1e，但 1c 不许把排队的说成「已补充」。新分支 `receipts/1c-send`（基于 main `7fe8ee65`，旧草稿 `receipts/1c-agent-host` 只作参考）：
+  - 合同 `services/agent-inputs`：`AgentInputSend`、`AgentSteerReceipt`、`AgentInputsPort`、`AgentQueuedInputs`、`AGENT_STEER_MODES`、`AGENT_INPUT_KEY_PATTERN`、动作 `agentInputActions.send`；`agent-host.ts` 去掉 `AgentRunControl` 的 steer 分支，加 `AgentRuntimeAdapter.inputs` 与开始参数 `queued`，行数不变。
+  - agent-host：`prologue-inputs.ts` 的 `deliverSteer` / `inputsPort`（已结束、`after-run`、`RUN_NOT_RUNNING` 进会话排队，排队前调 `beforeQueue` 复查授权）；`prologue.ts` 的 `case "steer"` 换成 `inputs` 字段，文件行数不变（968）；新文件 `session-actions.ts` 收等待与接续的两个动作和 `agent.inputs.send`，巨大函数 `registerAgentHostCapabilities` 变小；`prologue-node-port.ts` 的 `queueInput`、`prologue-run.ts` 交回 SDK 回执并把 `queued` 交给 SDK（这两处在交互线 H3 改的文件里，H3 合入后按它的形状再落）。
+  - Coding：`runs.control` 第 3 版；补充经 `agent.inputs.send`，已结束的轮次也放行补充；改计划的说明同样经它（`routes.ts` 行数不变，W4-07 拆完后按新位置落）。
+  - 助理：`RunningRoundPort` 拆成 `answer` 与 `send`；键 `send.<request_id>`；`queued` 结果；下一轮 `queued: "carry"`；`exactRevision` 去掉 `pending_revision ?? 1`（两处）。页面：三句提示合成一张表，`queued` 复用已有的「已保存，下一轮开始生效」；删掉没人用的 `cardHint`，工作台脚本比 main 小 28 字节（`page-assets.json` 已降）。
+  - 验证：`pnpm build` 后定向 11 个文件全过（含新的 `agent-input-delivery` RC-02–RC-05、`coding-run-control-contract` RC-01、`assistant-coding-executor` 与 `assistant-delegation` RC-06）；健康门禁对照 merge-base 通过（巨大单元与 typed 能力位置变少，`baseline.json` 已更新）；`api:update`、`actions:update` 已刷新（`coding.runs.control` 2→3，新增 `agent.inputs.send.v1@1`，受众 plugin）；页面资源、边界、页面事件、测试引用检查通过。
+  - 变基到 ac47ed78（#536，W3-A1）：只有 `baseline.json`、`page-assets.json` 两个生成文件冲突，取 main 的再整体构建、`--update`。#536 已删掉 `cardHint`，第三句提示的字节改由 `assistant-send.ts` 里三处 `a && a.b` 写成 `a?.b`（结果相同）抵掉，工作台脚本比 main 小 10 字节。`affected-tests` 选出的 218 个非浏览器文件：216 过，2 个是本片的预期变化——`coding-actions` 断言 `runs.control` 第 2 版（改为第 3 版，并断言第 1、2 版都已不在），`coding-plan-amend-http` 的替身拦的是旧的 `controlRun` 补充（改为登记 `agent.inputs.send`，并断言说明以 `host` 来源发出）；改后两个都过。
+  - 还没做：恢复报告列出输入（读 SDK `inputQueue()`）；会话条目记录收下的输入——SDK 的输入记录已带键、来源，按一个事实一个主人不在 Molis 另存，待统筹确认后从 1c 清单删去；隔离 Home 实走。
+  - 变基到 424256ef（H3 #546、W4-07 #549 合入后）：Coding `routes.ts` 已按资源拆开，原来的改动只搬到新位置——`coding.control-run` 在 `routes-sessions.ts`，`coding.plan-amendments` 在 `routes-timeline.ts`，别的不动。H3 改的是 `prologue-node-port.ts` 的 `answerPending`（缺版本的答案直接拒），本片加的 `queueInput` 在 `createNodePort`，文本不冲突，语义与助理这边删掉 `?? 1` 一致。门禁数字先取 main 的再整体构建、`--update --base origin/main` 重新生成，结果与变基前相同（工作台脚本比 main 小 10 字节；`PrologueAgentAdapter` 606 → 604 行，`registerAgentHostCapabilities` 385 → 372 行，typed 能力 192 → 190）。
+  - 防腐复查：2026-10-15 · main `424256ef` · merge-base `424256ef` · **通过**（变基后 `affected-tests` 的 218 个非浏览器文件加 `security-invariants-object-references`，219 个全过）。机器项 M1–M10、M13–M15 已跑，M11、M12、M16 不适用；人看 27 条逐条结论与依据写在 PR 的「防腐复查」一节。各项决定照统筹 10-15 定的做：`agent.inputs.send@1`、不留兼容、`beforeEffect` → `assertAuthorityCurrent` → 排队前再查一次、措辞说真话。
 
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）
 

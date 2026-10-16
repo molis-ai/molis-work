@@ -69,7 +69,7 @@ Host catalog（`apps/workbench/src/builtin-plugins.ts`）的 `personal: true`：
 
 两条路径，不要抄错：
 
-1. **Manifest `routes`（第三方插件与新的内置插件）**：`routes[]`（`route_id`、method、`path` 带 `:name`）。Host 挂 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。未声明路径到不了插件。经 Plugin Runtime 启动的插件必须兑现每条 `routes[].handle`。
+1. **Manifest `routes`（第三方插件与新的内置插件）**：`routes[]`（`route_id`、method、`path` 带 `:name`）。Host 挂 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。未声明路径到不了插件。经 Plugin Runtime 启动的插件必须兑现每条 `routes[].handle`；请求体默认最多读 256 000 字节，某条路由要收更大的内容（如导入文件）就声明 `max_body_bytes`（至多 12 MiB）。
 2. **构建期 Native（冻结，只许减少）**：Host 文件把短名接到产品 API（`/api/feed/`、`/api/inbox/`、`/api/pages/`…），由 `*-native-plugin-http.ts` 调用。新的内置插件不走这条，走第 1 条。`project_id` 由 Host 从当前项目注入，不要从 body / MCP schema 收。
 
 写操作要 revision / 幂等；冲突可恢复。handler 用注入的 Module/端口，不 import 别的插件实现。

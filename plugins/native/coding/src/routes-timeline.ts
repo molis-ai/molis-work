@@ -3,12 +3,14 @@ import { codingContinuation } from "./continuation.js";
 import { nextHistoryMode } from "./history-digest.js";
 import { savedMaterials } from "./materials.js";
 import { type Capabilities, type CodingActivation, selected, sessionState, savedBudget, savedDigestUsage, priorityOf } from "./route-activation.js";
+import { codingActionControl } from "./route-entry.js";
 import { bodyOf, savedActions, methodSelection, mcpSelection, mcpSources } from "./route-selections.js";
 import { nextConfiguration, text } from "./run-inputs.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint } from "./session-window.js";
 import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunView, type AgentStepAmendment, type AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 /** Coding routes for a session's timeline: its rounds as they run and as recorded, the TaskBoard, recovery and rewind, messages and background commands. */
 
@@ -209,8 +211,8 @@ const ROUTES: RouteMaker[] = [
     });
   },
   (a) => {
-    const { route } = a;
-    return route("coding.plan-amendments", async (request, api, execution) => {
+    const { context, route } = a;
+    return route("coding.plan-amendments", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -223,7 +225,7 @@ const ROUTES: RouteMaker[] = [
       const board = await api!.invoke(agent.amendStepBoard, [session, ref, amendment, version]);
       // The live round learns of the change through the same supplemental channel a person already uses.
       const note = amendmentNote(amendment, before ?? board);
-      try { await api!.invoke(agent.controlRun, [session, ref, { kind: "steer", source: "host", text: note }]); return { board, steered: true }; }
+      try { await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: ref.run_id, source: "host", text: note }, codingActionControl(beforeWrite)); return { board, steered: true }; }
       catch (error) { return { board, steered: false, steer_error: error instanceof Error ? error.message : String(error) }; }
     });
   },

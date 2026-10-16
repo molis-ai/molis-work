@@ -3,16 +3,11 @@ import {
   DATASET_ARTIFACT_TYPE_ID,
 } from "@molis-ai/molis-work-contracts/modules/dataset";
 import {
-  FORM_ARTIFACT_SCHEMA_VERSION,
-  FORM_ARTIFACT_TYPE_ID,
-} from "@molis-ai/molis-work-contracts/modules/form";
-import {
   PPT_ARTIFACT_SCHEMA_VERSION,
   PPT_ARTIFACT_TYPE_ID,
   PPT_SUBJECT_KIND,
 } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { datasetErrors, datasetManifest, type DatasetLineHeadPort, type DatasetPublishArtifactPort, type DatasetReadArtifactPort, type DatasetPublicationSnapshot } from "@molis-ai/molis-work-plugin-dataset";
-import { formErrors, formManifest, type FormLineHeadPort, type FormPublishArtifactPort, type FormReadArtifactPort, type FormPublicationSnapshot } from "@molis-ai/molis-work-plugin-form";
 import { pptErrors, pptManifest, type PptLineHeadPort, type PptPublishArtifactPort, type PptReadArtifactPort, type PptPublicationSnapshot } from "@molis-ai/molis-work-plugin-ppt";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalProjectApplication } from "./goal-project-application.js";
@@ -28,14 +23,6 @@ function producerOf(manifest: { plugin_id: string; version: string; publisher: {
   };
 }
 
-/** What the project's 成果库 holds of this record's line, for numbering its next pin. */
-export function formArtifactLineHead(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string): FormLineHeadPort {
-  return input => {
-    if (input.project_id !== expectedProjectId) throw formErrors.invalid("问卷项目与当前项目不一致");
-    return artifactLineHead(coordinator, projectId, "form-" + input.record_id);
-  };
-}
-
 export function datasetArtifactLineHead(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string): DatasetLineHeadPort {
   return input => {
     if (input.project_id !== expectedProjectId) throw datasetErrors.invalid("数据表项目与当前项目不一致");
@@ -47,50 +34,6 @@ export function pptArtifactLineHead(coordinator: GoalProjectApplication, project
   return input => {
     if (input.project_id !== expectedProjectId) throw pptErrors.invalid("演示稿项目与当前项目不一致");
     return artifactLineHead(coordinator, projectId, "ppt-" + input.record_id);
-  };
-}
-
-export function registerFormArtifactVersion(
-  coordinator: GoalProjectApplication,
-  projectId: string,
-  expectedProjectId: string,
-  actorId: string,
-): FormPublishArtifactPort {
-  return (input) => {
-    if (input.project_id !== expectedProjectId) throw formErrors.invalid("问卷项目与当前项目不一致");
-    const result = coordinator.artifacts.commands.registerVersion({
-      project_id: projectId,
-      actor_id: actorId,
-      owner_actor_id: LOCAL_PERSON_ACTOR_ID,
-      artifact_id: "form-" + input.record_id,
-      version: input.version,
-      artifact_type_id: FORM_ARTIFACT_TYPE_ID,
-      schema_version: FORM_ARTIFACT_SCHEMA_VERSION,
-      producer: producerOf(formManifest),
-      content: { kind: "inline", payload: JSON.parse(JSON.stringify(input.content)) },
-      metadata: { form_id: input.record_id, title: input.title },
-      // A pinned revision of the form (artifact-positioning A1); the content is the form's JSON snapshot.
-      origin: { kind: "pinned", subject: { kind: "form", id: input.record_id }, revision: String(input.source_version) },
-      title: input.title, media_type: "application/json",
-      scope: "personal",
-      supersedes_version: input.version > 1 ? input.version - 1 : null,
-    });
-    return { artifact_id: result.artifact.artifact_id, version: result.artifact.version };
-  };
-}
-
-export function readFormArtifactVersion(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string): FormReadArtifactPort {
-  return input => {
-    if (input.project_id !== expectedProjectId) throw formErrors.invalid("问卷项目与当前项目不一致");
-    const artifact = coordinator.artifacts.query.getArtifactVersion(projectId, { artifact_id: "form-" + input.record_id, version: input.version });
-    if (!artifact) return null;
-    if (artifact.artifact_type_id !== FORM_ARTIFACT_TYPE_ID || artifact.schema_version !== FORM_ARTIFACT_SCHEMA_VERSION
-      || artifact.producer_plugin_id !== formManifest.plugin_id || artifact.producer_binding_signature !== formManifest.publisher.signature || artifact.content_kind !== "inline")
-      throw formErrors.publication_conflict("成果来源或类型不一致，原记录已保留");
-    const payload = artifact.payload as FormPublicationSnapshot | null;
-    if (!payload || typeof payload.title !== "string" || typeof payload.description !== "string" || !Array.isArray(payload.questions) || !["draft", "published"].includes(payload.status))
-      throw formErrors.publication_conflict("成果问卷内容不完整，原记录已保留");
-    return payload;
   };
 }
 

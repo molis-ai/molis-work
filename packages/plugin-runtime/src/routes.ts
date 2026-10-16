@@ -19,6 +19,8 @@ export interface PluginRouteMatch {
   method: PluginRouteMethod;
   params: Record<string, string>;
   permission: string | null;
+  /** The body limit the route declares; null leaves it to the Host. */
+  max_body_bytes: number | null;
 }
 
 interface CompiledRoute {
@@ -27,6 +29,7 @@ interface CompiledRoute {
   method: PluginRouteMethod;
   segments: string[];
   permission: string | null;
+  max_body_bytes: number | null;
 }
 
 function compile(manifest: PluginManifest): CompiledRoute[] {
@@ -36,6 +39,7 @@ function compile(manifest: PluginManifest): CompiledRoute[] {
     method: route.method,
     segments: route.path.split("/").filter((segment) => segment !== ""),
     permission: route.permission ?? null,
+    max_body_bytes: route.max_body_bytes ?? null,
   }));
 }
 
@@ -103,6 +107,7 @@ export class PluginRouteRouter {
         method: route.method,
         params,
         permission: route.permission,
+        max_body_bytes: route.max_body_bytes,
       };
     }
     return null;

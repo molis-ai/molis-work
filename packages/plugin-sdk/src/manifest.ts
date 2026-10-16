@@ -286,6 +286,9 @@ function inspectCommandDeclarations(parsed: PluginManifest): string[] {
   return problems;
 }
 
+/** The most a route may ask the Host to read: the Home edge's own bound for image-bearing actions. */
+const MAX_ROUTE_BODY_BYTES = 12 * 1024 * 1024;
+
 function inspectRouteDeclarations(parsed: PluginManifest): string[] {
   const routes = parsed.routes;
   if (routes === undefined) return [];
@@ -315,6 +318,9 @@ function inspectRouteDeclarations(parsed: PluginManifest): string[] {
     seenPaths.add(key);
     if (route.permission !== undefined && !permissions.has(route.permission)) {
       problems.push(`路由 ${route.route_id} 要求未声明的权限 ${route.permission}`);
+    }
+    if (route.max_body_bytes !== undefined && !(Number.isSafeInteger(route.max_body_bytes) && route.max_body_bytes > 0 && route.max_body_bytes <= MAX_ROUTE_BODY_BYTES)) {
+      problems.push(`路由 ${route.route_id} 的请求体上限不合法（1 到 ${MAX_ROUTE_BODY_BYTES} 字节）`);
     }
   }
   return problems;

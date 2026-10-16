@@ -77,9 +77,9 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!id) throw new Error(L("缺少项目"));
     return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
   };
-  const request = async (method, path, body) => {
+  const request = async (method, path, body) => { // \`path\` follows \`/forms\`, the Manifest's routes in this project's Runtime
     const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
-    const response = await fetch(withProject(path), {
+    const response = await fetch(withProject(host.route("/api/plugins/io.molis.work.form/forms" + path)), {
       method,
       headers: headers(),
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
@@ -167,8 +167,8 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         attempt ||= crypto.randomUUID();
         submit.disabled = true; error.textContent = "";
         try {
-          await request("POST", "/api/plugins/form/" + encodeURIComponent(record.id) + "/submit", { answers, expected_version: record.version, request_id: attempt, source: "fill" });
-          const results = await request("GET", "/api/plugins/form/" + encodeURIComponent(record.id) + "/results");
+          await request("POST", "/" + encodeURIComponent(record.id) + "/submit", { answers, expected_version: record.version, request_id: attempt, source: "fill" });
+          const results = await request("GET", "/" + encodeURIComponent(record.id) + "/results");
           sheet.replaceChildren();
           const done = make("h1", "", L("已提交，谢谢"));
           const count = make("p", "form-fill-lede"); count.textContent = L("这是第 {count} 份答卷。可以把电脑交给下一位。", { count: results.analysis?.submission_count || 0 });
@@ -511,7 +511,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const loadList = async () => {
     const seq = ++listSeq;
-    const payload = await request("GET", "/api/plugins/form");
+    const payload = await request("GET", "");
     if (seq !== listSeq) return;
     records = payload.forms || [];
     renderList();
@@ -538,7 +538,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         const revision = editRev;
         const draft = draftFromDom();
         try {
-          const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(sel.id), {
+          const payload = await request("POST", "/" + encodeURIComponent(sel.id), {
             ...draft, expected_version: sel.version,
           });
           // Preserve edits made while the previous request was in flight.
@@ -588,7 +588,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         clearTimeout(saveTimer);
         if (savePromise) await savePromise.catch(() => {});
         if ((saveError || editRev > savedRevision || dirty) && !await ask(L("重新读取会丢弃未保存的编辑和填写内容。继续吗？"), L("重新读取"))) return;
-        const payload = await request("GET", "/api/plugins/form/" + encodeURIComponent(sel.id));
+        const payload = await request("GET", "/" + encodeURIComponent(sel.id));
         fillEditor(payload.form);
         await loadList();
         if (tab === "results") await loadResults();
@@ -598,7 +598,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (create) {
         await save();
         if (dirty && !await ask(L("离开会丢弃未提交的填写内容。继续吗？"), L("继续"))) return;
-        const payload = await request("POST", "/api/plugins/form", {});
+        const payload = await request("POST", "", {});
         await loadList();
         setTab("editor");
         fillEditor(payload.form);
@@ -615,11 +615,11 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
         const record = sel?.id === id ? sel : records.find((item) => item.id === id);
         let payload;
         try {
-          payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(id) + "/promote", { expected_version: record.version });
+          payload = await request("POST", "/" + encodeURIComponent(id) + "/promote", { expected_version: record.version });
         } catch (error) {
           if (error.code !== "form.conflict") {
             // Publication may have reached Artifact storage before association failed.
-            const fresh = await request("GET", "/api/plugins/form/" + encodeURIComponent(id)).catch(() => null);
+            const fresh = await request("GET", "/" + encodeURIComponent(id)).catch(() => null);
             if (fresh && sel?.id === id) remember(fresh.form, false);
             await loadList().catch(() => {});
           }
@@ -635,7 +635,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (row) {
         await save();
         if (dirty && !await ask(L("离开会丢弃未提交的填写内容。继续吗？"), L("继续"))) return;
-        const payload = await request("GET", "/api/plugins/form/" + encodeURIComponent(row.dataset.formId));
+        const payload = await request("GET", "/" + encodeURIComponent(row.dataset.formId));
         setTab("editor"); fillEditor(payload.form);
         return;
       }
@@ -708,13 +708,13 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-form-generate-ai]") && sel) { await save(); await draft.start(); return; }
       if (event.target.closest("[data-form-generate]") && sel) {
         await save();
-        await generated((await request("POST", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/generate-questions", { prompt: aiPrompt.value, expected_version: sel.version })).form);
+        await generated((await request("POST", "/" + encodeURIComponent(sel.id) + "/generate-questions", { prompt: aiPrompt.value, expected_version: sel.version })).form);
         return;
       }
       if (event.target.closest("[data-form-publish]") && sel) {
         await save();
         if (!(sel.questions || []).length) { showNote(L("还没有题目，先加题再开始收集"), true); return; }
-        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/publish", { expected_version: sel.version });
+        const payload = await request("POST", "/" + encodeURIComponent(sel.id) + "/publish", { expected_version: sel.version });
         remember(payload.form, false);
         await loadList();
         showNote(L("正在收集答卷：可以在这台电脑上打开填写页，或导出填写页文件发给别人。不会生成外网链接。"), false);
@@ -723,7 +723,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-form-close]") && sel) {
         event.target.closest("details")?.removeAttribute("open");
         await save();
-        const payload = await request("POST", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/close", { expected_version: sel.version });
+        const payload = await request("POST", "/" + encodeURIComponent(sel.id) + "/close", { expected_version: sel.version });
         remember(payload.form, false);
         await loadList();
         showNote(L("已停止收集。已有答卷都保留；填写页不再接受提交，导入答卷文件仍然可以。"), false);
@@ -737,7 +737,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-form-export-fill]") && sel) {
         event.target.closest("details")?.removeAttribute("open");
         await save();
-        const page = await request("GET", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/fill-page");
+        const page = await request("GET", "/" + encodeURIComponent(sel.id) + "/fill-page");
         download(page.filename, new Blob([page.content], { type: "text/html;charset=utf-8" }));
         placed({ verb: "exported", title: sel.title, file: { name: page.filename, format: L("填写页 · 发给对方在自己的浏览器里填，填完得到答卷文件发回，在“结果”里导入") } });
         return;
@@ -745,7 +745,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-form-export-csv]") && sel) {
         event.target.closest("details")?.removeAttribute("open");
         await save();
-        const table = await request("GET", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/results.csv");
+        const table = await request("GET", "/" + encodeURIComponent(sel.id) + "/results.csv");
         download(table.filename, new Blob([table.content], { type: "text/csv;charset=utf-8" }));
         placed({ verb: "exported", title: sel.title, file: { name: table.filename, format: L("{count} 份答卷 · Excel、Numbers 可以打开", { count: table.count }) } });
         return;
@@ -757,7 +757,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if (event.target.closest("[data-form-to-dataset]") && sel) {
         await save();
-        const table = await request("GET", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/results.csv");
+        const table = await request("GET", "/" + encodeURIComponent(sel.id) + "/results.csv");
         if (!table.count) { showNote(L("还没有答卷，收到答卷后再存成数据表"), true); return; }
         window.dispatchEvent(new CustomEvent("molis:placement-convert", { detail: { source: { kind: "form", id: sel.id }, station: "dataset",
           title: sel.title + " · " + L("答卷"), payload: { title: sel.title + " · " + L("答卷"), body: table.content.replace(/^\ufeff/, "") },
@@ -767,7 +767,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-form-delete]") && sel) {
         if (!await ask(L("删除这份问卷？答卷也会一起删掉。"), L("删除"))) return;
         await save();
-        await request("POST", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/delete", { expected_version: sel.version });
+        await request("POST", "/" + encodeURIComponent(sel.id) + "/delete", { expected_version: sel.version });
         closeEditor();
         await loadList();
       }
@@ -809,7 +809,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     summaryEl.textContent = L("载入中…");
     resultListEl.replaceChildren();
     statsEl.replaceChildren();
-    const payload = await request("GET", "/api/plugins/form/" + encodeURIComponent(id) + "/results");
+    const payload = await request("GET", "/" + encodeURIComponent(id) + "/results");
     if (seq !== resultsSeq || sel?.id !== id) return;
     const count = payload.analysis?.submission_count || 0;
     summaryEl.textContent = count ? count + " " + L("份答卷") : L("还没有答卷");
@@ -846,7 +846,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
       const input = { id: sel.id, expected_version: previewVersion, answers };
       const fingerprint = JSON.stringify(input);
       if (!submitCall || submitCall.fingerprint !== fingerprint) submitCall = { fingerprint, request_id: crypto.randomUUID() };
-      await request("POST", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/submit", { answers, expected_version: previewVersion, request_id: submitCall.request_id, source: "preview" });
+      await request("POST", "/" + encodeURIComponent(sel.id) + "/submit", { answers, expected_version: previewVersion, request_id: submitCall.request_id, source: "preview" });
       dirty = false;
       await loadResults();
       setTab("results");
@@ -860,7 +860,7 @@ export const FORM_CLIENT_FACTORY_SCRIPT = `(host) => {
     setBusy(true);
     try {
       const contents = await Promise.all(files.map(async (file) => ({ name: file.name, content: file.size > 400000 ? "" : await file.text() })));
-      const result = await request("POST", "/api/plugins/form/" + encodeURIComponent(sel.id) + "/answers", { files: contents });
+      const result = await request("POST", "/" + encodeURIComponent(sel.id) + "/answers", { files: contents });
       const parts = [L("导入 {count} 份", { count: result.imported })];
       if (result.skipped) parts.push(L("{count} 份已导入过，跳过", { count: result.skipped }));
       if (result.rejected.length) parts.push(L("{count} 份没有导入", { count: result.rejected.length }) + "：" + result.rejected.map((item) => item.name + "（" + item.reason + "）").join("；"));

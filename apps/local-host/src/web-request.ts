@@ -14,8 +14,6 @@ import { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
 import { IMAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-images";
 import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
 import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
-import { handleFormNativePluginHttp } from "./form-native-plugin-http.js";
-import { FORM_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-form";
 import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
 import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
@@ -376,10 +374,6 @@ export async function handleMolisWorkWebRequest(
         if (serverOptions.homeDirectory && await handleDatasetNativePluginHttp(request, response, url, (_input, transport) => ({
           projectId: hostReference.project_id,
           actions: userActions(DATASET_ACTION_PERMISSIONS, transport),
-        }))) return;
-        if (serverOptions.homeDirectory && await handleFormNativePluginHttp(request, response, url, (_input, transport) => ({
-          projectId: hostReference.project_id,
-          actions: userActions(FORM_ACTION_PERMISSIONS, transport),
         }))) return;
         if (serverOptions.homeDirectory && await handleImagesNativePluginHttp(request, response, url, (_input) => ({
           projectId: hostReference.project_id,

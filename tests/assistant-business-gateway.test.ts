@@ -1109,3 +1109,36 @@ test("a round declares at most 12 found capabilities per tool and 24 KiB in all,
   const next = prologueActionGateway({ client, operate: true } as never);
   assert.equal(next.parameterBranches("read-capability"), undefined, "a new round (or the Host after a restart) starts with none");
 });
+
+test("a change's receipt survives micro-compaction in the next request; an older read's result is compacted (§6.0b item 5)", { timeout: 60_000 }, async t => {
+  const post: ActionDefinition = { capability_id: "fixture.ledger.post", version: 1, operation: "command", action: {
+    title: "Post an entry", description: "Post an entry to the ledger", kind: "operation", scope: "project", audiences: ["agent"],
+    permissions: ["notes:write"], subject_kinds: [], input_schema: { type: "object", properties: { text: { type: "string" } }, required: ["text"], additionalProperties: false } } };
+  const page: ActionDefinition = { capability_id: "fixture.ledger.page", version: 1, operation: "query", action: {
+    title: "Read a page", description: "Read a page of the ledger", kind: "query", scope: "project", audiences: ["agent"],
+    permissions: ["notes:read"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
+  // Both well over the SDK's 512-byte floor, so only the effect kind decides which one is compacted.
+  const receipt = `RECEIPT-${"r".repeat(800)}`;
+  let pages = 0;
+  const read = { name: "read-capability", input: { capability_id: "fixture.ledger.page", version: 1, provider_id: "fixture.ledger", input: {} } };
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "Ledger" } }),
+    () => reply({ name: "change-capability", input: { capability_id: "fixture.ledger.post", version: 1, provider_id: "fixture.ledger", input: { text: "posted" } } }),
+    // Five reads after the change: the SDK keeps the last four tool turns whole, so the change and the first read fall behind them.
+    () => reply(read), () => reply(read), () => reply(read), () => reply(read), () => reply(read),
+    () => reply(undefined, "Posted, then read five pages."),
+  ]);
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.ledger", kind: "plugin", title: "Ledger" }, definitions: [post, page],
+    handlers: [{ ...post, handle: () => ({ receipt }) }, { ...page, handle: () => ({ page: `PAGE-${++pages}-${"p".repeat(800)}` }) }] });
+  try {
+    const sent = await f.service.send({ text: "Post an entry, then read the ledger", request_id: "req-00000611" }, { project_ref: f.project });
+    const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
+    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.equal(pages, 5);
+    const last = JSON.stringify(f.requests.at(-1));
+    assert.ok(last.includes("[observation compacted: read-capability"), "the first read, behind the last four tool turns, was compacted: compaction ran");
+    assert.ok(!last.includes(`PAGE-1-${"p".repeat(800)}`), "and its text is gone from the request");
+    assert.ok(last.includes(receipt), "the change's receipt is still there in full: it cannot be fetched again, calling again would do it again");
+  } finally { await f.close(); }
+});

@@ -111,7 +111,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let goalRows=[],goalCursor=null,goalChoice=null,goalTicket=0,goalReading=0,goalSaving=false;
   /** The header names the folder; the full path stays one hover away. */
   const showWorkspace=(path,fallback)=>{const label=q('[data-coding-workspace-label]'),name=path?path.split('/').filter(Boolean).at(-1):fallback;label.innerHTML=(path?'<svg aria-hidden="true"><use href="#icon-folder"></use></svg>':'')+'<span></span>';label.lastChild.textContent=name;label.title=path||'';label.dataset.empty=String(!path);root.dataset.codingWorkspaceName=path?name:'';turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=path?name:'当前工作区';node.parentElement.title=path||'';});};
-  const status = (message, error = false) => { if(!lifetime.alive)return; q('[data-coding-status]').textContent = message; q('[data-coding-status]').dataset.error = String(error); };
+  const status=(message,error=false)=>{if(!lifetime.alive)return;const node=q('[data-coding-status]');node.textContent=message;node.dataset.error=String(error);},sessionPath=(id,run)=>'/sessions/'+encodeURIComponent(id)+(run===undefined?'':'/runs/'+encodeURIComponent(run));
   const api = async (path, method = 'GET', body, requestSignal) => {
     const signal=requestSignal || (method==='GET' && lifetime.visible && !viewSignal?.aborted ? viewSignal : undefined);
     const response = await lifetime.fetch(prefix + path, { method, cache:'no-store', signal,
@@ -131,7 +131,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     showReviews:(container,refs,sid)=>showReviews(container,refs,sid),sessionId:()=>runtimeSessionId,
     parentLive:(run)=>!terminal(run.phase),prefill:(text)=>{const next=input.value.trim()?input.value+'\\n\\n'+text:text;input.value=next;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();},
     openInPanel:(childId)=>{root.dataset.codingResults='true';const row=q('[data-coding-subagents] details[data-child="'+CSS.escape(childId)+'"]');if(row){row.open=true;row.scrollIntoView({block:'center'});row.querySelector('textarea')?.focus({preventScroll:true});}}});
-  const usageMeter = (${CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent()}), composerModels = (${CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT})({q,lifetime,status,switchModel:(run,model)=>api('/sessions/'+encodeURIComponent(current)+'/control','POST',{kind:'switch-model',run_id:run.ref.run_id,...model}).then(()=>readCurrent())});
+  const usageMeter = (${CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent()}), composerModels = (${CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT})({q,lifetime,status,switchModel:(run,model)=>api(sessionPath(current)+'/control','POST',{kind:'switch-model',run_id:run.ref.run_id,...model}).then(()=>readCurrent())});
   const cooperationUi = (${CODING_COOPERATION_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,status,
     openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);},refreshSessions:()=>refreshState(),
     openArtifact:(reference,title)=>host.openItem('coding',reference.artifact_id,title || reference.artifact_id),
@@ -157,7 +157,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     taskboard.update(id,merged());
     const key=id+':'+(data.run_count??allRuns.length);
     if((root.dataset.codingBoardOpen==='true'||directory.dataset.codingCurrentFace==='taskboard')&&boardAll.key!==key){boardAll.key=key;
-      void api('/sessions/'+encodeURIComponent(id)+'/taskboard').then(value=>{if(current!==id)return;boardAll={key,id,value};taskboard.update(id,merged());}).catch(()=>{boardAll.key='';});}
+      void api(sessionPath(id)+'/taskboard').then(value=>{if(current!==id)return;boardAll={key,id,value};taskboard.update(id,merged());}).catch(()=>{boardAll.key='';});}
   };
   // The main area shows the conversation or the TaskBoard; the header's switch and the board's "回到对话" both set it.
   const showBoard=(open)=>{root.dataset.codingBoardOpen=String(open);
@@ -171,7 +171,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     progress:text=>{const count=q('[data-coding-view-board-count]');count.textContent=text?' '+text:'';count.hidden=!text;},
     amend:async(runId,version,amendment,live=true)=>{
       const id=current;
-      try{const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/plan-amendments','POST',{amendment,expected_version:version});
+      try{const result=await api(sessionPath(id,runId)+'/plan-amendments','POST',{amendment,expected_version:version});
         if(!live)status(result.board?.terminal?'已记在任务图上。计划的每一步都已结束。':'已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
         else status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);}
       catch(error){if(!lifetime.alive)return;status(error.message,true);}
@@ -218,7 +218,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     sending=true;controls();
     try{
       await flushDraft();
-      await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',request);
+      await api(sessionPath(id)+'/runs','POST',request);
       await refreshState();if(id===current)await readCurrent();
     }finally{sending=false;controls();}
   }});
@@ -287,7 +287,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!current){status('请先选择或新建编码会话。');return;}
     const id=current,ticket=++goalTicket;goalReading++;goalChoice=null;goalRows=[];goalCursor=null;
     q('[data-coding-goal-dialog]').showModal();q('[data-coding-goal-save]').disabled=true;q('[data-coding-goal-error]').textContent='';q('[data-coding-goal-search]').value='';q('[data-coding-goal-list]').textContent='正在读取本项目目标…';q('[data-coding-goal-preview]').textContent='正在读取已选版本…';
-    try{const saved=await api('/sessions/'+encodeURIComponent(id)+'/goal');if(ticket!==goalTicket || current!==id)return;goalChoice=saved.selected;renderGoalPreview();
+    try{const saved=await api(sessionPath(id)+'/goal');if(ticket!==goalTicket || current!==id)return;goalChoice=saved.selected;renderGoalPreview();
       if(saved.error || saved.goal_id && !saved.selected)q('[data-coding-goal-error]').textContent=saved.error || '原关联尚未固定版本，请重新选择后确认。';
       q('[data-coding-goal-save]').disabled=Boolean(saved.goal_id && !saved.selected);await loadGoals(ticket);
     }catch(error){if(!lifetime.alive)return;if(ticket===goalTicket)q('[data-coding-goal-error]').textContent=error.message;}
@@ -321,7 +321,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-material-dialog]').showModal();
     try {
       await flushDraft();
-      const data=await api('/sessions/'+encodeURIComponent(id)+'/materials');
+      const data=await api(sessionPath(id)+'/materials');
       if(current!==id || ticket!==materialTicket) return;
       materialRows=data.materials;
       const selected=new Set((materialSelections.get(id) || []).map(materialKey));
@@ -471,7 +471,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     for(const [goalKey,group] of directoryGroups) {
       const rows=visible.filter(session=>(session.goal_id || '')===goalKey).map(session=>directoryRows.get(session.session_id));
       rows.forEach((row,index)=>{if(group.children[index+1]!==row) group.insertBefore(row,group.children[index+1] || null);});
-
     }
   };
   const canonical=value=>JSON.stringify(value,(key,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(name=>[name,item[name]])) : item);
@@ -641,7 +640,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(loaded || busy) return;busy=true;body.textContent='正在读取执行回执…';
         const id=current,ticket=generation;
         try {
-          const receipt=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(ref.run_id)+'/commands/'+encodeURIComponent(ref.call_id));
+          const receipt=await api(sessionPath(id,ref.run_id)+'/commands/'+encodeURIComponent(ref.call_id));
           if(id!==current || ticket!==generation) return;
           loaded=true;body.replaceChildren();
           const condition=receipt.stop_reason==='timed-out' || receipt.timed_out ? '超时' : receipt.stop_reason==='cancelled' || receipt.cancelled ? '已取消' : receipt.exit_code===null ? '退出码未知' : '退出码 '+receipt.exit_code;
@@ -687,7 +686,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
             if(!answer) {note.textContent='请回答每一道问题后再提交。';return;}
             card.dataset.busy='true';card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=true);note.textContent='正在提交原问题的回答…';
             try {
-              await api('/sessions/'+encodeURIComponent(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,...answer});
+              await api(sessionPath(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,...answer});
               answeredQuestions.add(key);
               const drafts=questionDrafts.get(id);if(drafts)delete drafts[key];
               try{sessionStorage.setItem(draftKey(id)+':questions',JSON.stringify(drafts || {}));}catch{}
@@ -751,7 +750,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     let draft;try{draft=JSON.parse(sessionStorage.getItem(progressDraftKey(view.id,view.runId)) || 'null');}catch{}
     q('[data-coding-progress-summary]').value=draft?.summary || '';q('[data-coding-progress-next]').value=draft?.next_step || '';
     q('[data-coding-progress-source]').textContent='';q('[data-coding-progress-status]').textContent='正在读取原目标与记录回执…';renderProgress();
-    try{const preview=await api('/sessions/'+encodeURIComponent(view.id)+'/runs/'+encodeURIComponent(view.runId)+'/report/progress');
+    try{const preview=await api(sessionPath(view.id,view.runId)+'/report/progress');
       if(progressView!==view || view.ticket!==progressTicket)return;view.preview=preview;q('[data-coding-progress-status]').textContent='请核对原目标、固定成果和拟记录的内容。';renderProgress();
     }catch(error){if(!lifetime.alive)return;if(progressView===view)q('[data-coding-progress-status]').textContent=error.message;}
   };
@@ -767,7 +766,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(ticket!==reportTicket || id!==current)return;
     const button=q('[data-coding-report-output]'),message=q('[data-coding-report-output-status]');button.disabled=true;reportOutput=null;
     try {
-      const value=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/report/output');
+      const value=await api(sessionPath(id,runId)+'/report/output');
       if(ticket!==reportTicket || id!==current)return;
       reportOutput=value;button.textContent=value.selected?'已作为报告输出':'设为报告输出';button.disabled=value.selected;
       message.hidden=false;message.textContent=value.selected?'连接到 Coding 报告端口的插件可读取这一固定版本；报告正文、原目标与历史不变。':'选择后，连接到 Coding 报告端口的插件将读取这一固定版本；不会复制报告、运行模型或记录 Goal 进展。';
@@ -783,7 +782,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-report-status]').textContent=save?'正在保存固定报告…':'正在读取执行报告…';
     if(!save) q('[data-coding-report-body]').replaceChildren();
     try {
-      const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/report'+(reportItem && !save?'?fixed=1':''),save?'POST':'GET');
+      const result=await api(sessionPath(id,runId)+'/report'+(reportItem && !save?'?fixed=1':''),save?'POST':'GET');
       if(current!==id || generation!==generationAtStart || ticket!==reportTicket) return;
       q('[data-coding-report-body]').innerHTML=result.html;enrichCode(q('[data-coding-report-body]'));
       q('[data-coding-report-status]').textContent=result.reference?'已保存固定版本 v'+result.reference.version+' · '+result.saved_at:'尚未保存；保存后保留这轮证据，不代表任务验收。';
@@ -931,7 +930,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       } else inline?.remove();
       timeline.renderFooter(block,run,all.indexOf(run),run===all.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy),run!==all.at(-1) && graphLatest && !recovery && !checkpointBusy);
     }
-    renderCommands(all);
+    renderCommands(all);const row=q('[data-coding-steps]'),next=all.at(-1)?.next_html || '';if(row.dataset.html!==next){row.innerHTML=next;row.dataset.html=next;row.hidden=!next;}
     // One row per finished round: its changes and its report, newest first.
     const ended=all.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase)),outcomeList=q('[data-coding-outcome-list]');
     q('[data-coding-outcomes]').hidden=!ended.length;
@@ -992,7 +991,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-recovery-status]').textContent='正在读取执行记录与宿主回执…';
     q('[data-coding-recovery-refresh]').disabled=true;
     try {
-      const report=await api('/sessions/'+encodeURIComponent(id)+'/recovery');
+      const report=await api(sessionPath(id)+'/recovery');
       if(current!==id || ticket!==generation) return;
       const list=q('[data-coding-recovery-list]');list.replaceChildren();
       const labels={completed:'已执行',failed:'执行失败（可能部分生效）','not-dispatched':'未执行',unknown:'结果未知'};
@@ -1019,7 +1018,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!current || checkpointLoading) return;
     const id=current, ticket=generation;checkpointLoading=true;controls();
     try {
-      const data=await api('/sessions/'+encodeURIComponent(id)+'/checkpoints');
+      const data=await api(sessionPath(id)+'/checkpoints');
       if(current!==id || generation!==ticket)return;
       const list=q('[data-coding-checkpoints-list]');list.replaceChildren();
       data.checkpoints.forEach(item=>{
@@ -1044,7 +1043,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!lifetime.visible||liveRun===runId)return;liveRun=runId;const ticket=++liveTicket,signal=viewSignal;let since=null,failures=0;
     while(lifetime.visible && !signal?.aborted && current===id && liveRun===runId && ticket===liveTicket){
       try{
-        const data=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/live?timeout=20000'+(since?'&since='+encodeURIComponent(since):''),'GET',undefined,signal);
+        const data=await api(sessionPath(id,runId)+'/live?timeout=20000'+(since?'&since='+encodeURIComponent(since):''),'GET',undefined,signal);
         if(current!==id || liveRun!==runId || ticket!==liveTicket)break;failures=0;since=data.version;
         const run=data.runs[0],at=windowRuns.findIndex(held=>held.ref.run_id===runId);if(at<0)break;
         windowRuns[at]=run;allRuns=allRuns.map(held=>held.ref.run_id===runId?run:held);
@@ -1060,7 +1059,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(pageLoading || !current || start<=0)return;
     const id=current,ticket=generation;pageLoading=true;renderEarlier();
     try{
-      const page=await api('/sessions/'+encodeURIComponent(id)+'/runs?before='+start+'&limit='+SESSION_PAGE);
+      const page=await api(sessionPath(id)+'/runs?before='+start+'&limit='+SESSION_PAGE);
       if(current!==id || ticket!==generation)return;
       page.runs.forEach(run=>olderViews.set(run.ref.run_id,run));olderPlanEntries.push(...(page.taskboard_plans || []));olderSubagents.push(...(page.subagents || []));
       allRuns=allRuns.map(run=>run.light && olderViews.get(run.ref.run_id) || run);
@@ -1092,7 +1091,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!current || loading && !fresh) return;
     const id=current, ticket=generation; loading=true;
     try {
-      const read=(known)=>api('/sessions/'+encodeURIComponent(id)+'?window='+SESSION_WINDOW+(earlierFingerprint?'&earlier='+earlierFingerprint:'')+(known.length?'&known='+known.join(','):''));
+      const read=(known)=>api(sessionPath(id)+'?window='+SESSION_WINDOW+(earlierFingerprint?'&earlier='+earlierFingerprint:'')+(known.length?'&known='+known.join(','):''));
       let data=await read(fresh?[]:windowRuns.map(run=>run.fingerprint).filter(Boolean));
       if(current!==id || ticket!==generation) return;
       // An unchanged round keeps the very view already drawn, so nothing about it is redrawn either.
@@ -1201,7 +1200,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const untouched = async() => {
     for(const session of state.sessions.filter(item=>item.state==='idle' && item.title==='新编码会话' && !item.goal_id)) {
       if(localDraft(session.session_id)) continue;
-      try{const data=await api('/sessions/'+encodeURIComponent(session.session_id)+'?window=1');if(!data.runs.length && !(data.draft || '').trim() && !data.character && !(data.materials || []).length)return session;}catch{}
+      try{const data=await api(sessionPath(session.session_id)+'?window=1');if(!data.runs.length && !(data.draft || '').trim() && !data.character && !(data.materials || []).length)return session;}catch{}
     }
     return null;
   };
@@ -1219,7 +1218,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const detail=event.detail || {};
     if(typeof detail.capability_id!=='string' || detail.capability_id.indexOf('coding.')!==0 || !current || detail.session_id!==current)return;
     const id=current;
-    void api('/sessions/'+encodeURIComponent(id)+'?window=1').then(data=>{
+    void api(sessionPath(id)+'?window=1').then(data=>{
       if(current!==id || !data.configuration)return;
       const before=configurations.get(id)?.intent;
       configurations.set(id,{...configurations.get(id),...data.configuration});applyConfiguration();controls();
@@ -1235,21 +1234,22 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     void (async()=>{
       const result=await api('/sessions','POST',{title:selected.title});const id=result.session.session_id;
       // Persist the exact publication and task before navigation; never start a paid run automatically.
-      await api('/sessions/'+encodeURIComponent(id),'PATCH',{draft:selected.task || '',character:selected.reference,character_skill_ids:selected.skill_ids || []});
+      await api(sessionPath(id),'PATCH',{draft:selected.task || '',character:selected.reference,character_skill_ids:selected.skill_ids || []});
       await refreshState();host.openItem('coding',id,selected.title);await select(id);
       if(selected.workspace_id){workspaceId=selected.workspace_id;rememberConfiguration();await flushDraft();await refreshState();}
       input.focus();status('已带入角色固定版本。选择模型和执行方式后开始任务。');
     })().catch(error=>{status(error.message,true);window.alert('创建 Character 编码会话失败：'+error.message);}).finally(()=>{creatingCharacterSession=false;});
   });
   /** The composer keeps rarely used context behind one "+" so the bar stays about the task. */
-  const attachMenu=q('[data-coding-attach-menu]'),attachToggle=q('[data-coding-attach-toggle]');
-  const setAttach=open=>{attachMenu.hidden=!open;attachToggle.setAttribute('aria-expanded',String(open));};
-  lifetime.listen(document,'click',event=>{if(attachMenu.hidden)return;if(event.target.closest('[data-coding-attach-toggle]'))return;setAttach(false);});
+  const attachMenu=q('[data-coding-attach-menu]'),attachToggle=q('[data-coding-attach-toggle]'),setAttach=open=>{attachMenu.hidden=!open;attachToggle.setAttribute('aria-expanded',String(open));};
+  lifetime.listen(document,'click',event=>{if(!attachMenu.hidden && !event.target.closest('[data-coding-attach-toggle]'))setAttach(false);});
   lifetime.listen(root,'keydown',event=>{if(event.key==='Escape' && !attachMenu.hidden){setAttach(false);attachToggle.focus();}});
   lifetime.listen(attachToggle,'click',()=>setAttach(attachMenu.hidden));
   const click = async(event) => {
     const target=event.target.closest('button,a'); if(!target) return;
     try {
+      // A next step presses the control it names on screen (FLOW-01): an option and its question's submit, or a round card's button.
+      if(target.dataset.ixStepId){const id=target.dataset.ixStepId,form=[...turns.querySelectorAll('[data-coding-question]')].find(node=>(id+':').startsWith('question:'+JSON.parse(node.dataset.questionKey)[1]+':')),rest=form?id.slice(10+JSON.parse(form.dataset.questionKey)[1].length):'',cut=rest.indexOf(':'),option=cut>0 && form.querySelector('[data-ix-field="'+rest.slice(0,cut)+'"] [data-ix-option="'+CSS.escape(rest.slice(cut+1))+'"]'),control=form?option && !option.disabled && form.querySelector('[type=submit]'):id.startsWith('[') && turns.querySelector(id);form?.scrollIntoView({block:'nearest'});if(control && !control.disabled){option?.click();control.click();}return;}
       if(target.matches('[data-coding-artifact-refresh]')) await loadArtifacts();
       if(target.matches('[data-coding-artifact]')) {event.preventDefault();host.openItem('coding',target.dataset.codingArtifact,target.querySelector('strong').textContent);}
       if(target.matches('[data-coding-report-open]')) {reportItem='';changeItem='';renderArtifacts();reportTrigger=target;await showReport(target.dataset.codingReportOpen);}
@@ -1270,7 +1270,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const id=current,runId=reportRun,ticket=reportTicket;
         if(!reportOutput) {await loadReportOutput(id,runId,ticket);return;}
         target.disabled=true;
-        try {await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/report/output','POST',{expected_reference:reportOutput.current});await loadReportOutput(id,runId,ticket);}
+        try {await api(sessionPath(id,runId)+'/report/output','POST',{expected_reference:reportOutput.current});await loadReportOutput(id,runId,ticket);}
         catch(error) {if(!lifetime.alive)return;if(ticket===reportTicket && id===current){await loadReportOutput(id,runId,ticket);if(ticket===reportTicket)q('[data-coding-report-output-status]').textContent=error.message+'；已重新读取当前输出，请核对后再选择。';}}
       }
       if(target.matches('[data-coding-report-save]') && reportRun && !reportSaving) await showReport(reportRun,true);
@@ -1280,7 +1280,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const id=current,ticket=generation;recoveryBusy=true;
         q('[data-coding-recovery]').querySelectorAll('button').forEach(button=>button.disabled=true);
         try {
-          await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(target.dataset.codingRecover)+'/recover','POST',{expected_version:Number(target.dataset.version)});
+          await api(sessionPath(id,target.dataset.codingRecover)+'/recover','POST',{expected_version:Number(target.dataset.version)});
           if(current===id && generation===ticket){status('中断轮次已结束，原任务和核实结果已保留。请输入下一轮要求继续。');await readCurrent();}
         } catch(error) {if(!lifetime.alive)return;if(current===id && generation===ticket) status('未能结束中断轮次：'+error.message,true);}
         finally {if(current===id && generation===ticket){recoveryBusy=false;if(recovery)await readRecovery();controls();}}
@@ -1291,7 +1291,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         try {
           // A rewind is the person's own reviewed file change, not a round: it does not depend on the composer's mode.
           const chosen=q('[data-coding-intent]').value,intent=['edit','execute'].includes(chosen)?chosen:'edit';
-          await api('/sessions/'+encodeURIComponent(id)+'/checkpoints/'+encodeURIComponent(target.dataset.codingRewind)+'/rewind','POST',{intent});
+          await api(sessionPath(id)+'/checkpoints/'+encodeURIComponent(target.dataset.codingRewind)+'/rewind','POST',{intent});
           if(current===id && generation===ticket){status('回退预览已准备，请在右侧审查当前内容与回退后的内容。');await readCurrent();}
         } catch(error) {if(!lifetime.alive)return;if(current===id && generation===ticket){checkpointBusy=false;throw error;}}
         finally {controls();}
@@ -1326,7 +1326,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         // The model drafts from every recent round that changed files (a call that costs a little); the rule draft above stays as the fallback.
         const id=current;target.disabled=true;status('正在请模型起草提交说明…');
         try{const [provider_id,model_id]=JSON.parse(q('[data-coding-model]').value || '[]');
-          const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(run.ref.run_id)+'/commit-draft','POST',{provider_id,model_id});
+          const result=await api(sessionPath(id,run.ref.run_id)+'/commit-draft','POST',{provider_id,model_id});
           draft=result.message;note='提交说明由模型根据第 '+result.rounds.join('、')+' 轮的改动起草'+(result.usage?'（用了 '+(result.usage.input+result.usage.output).toLocaleString()+' tokens）':'')+'，已放进 Git 面板：先暂存这些文件，读一遍说明再提交，每一步都经过宿主审查。';}
         catch(error){if(!lifetime.alive)return;failed=true;note='模型起草没有成功（'+error.message+'），已放入按规则拼出的草稿：先暂存这些文件，改好说明再提交。';}
         finally{target.disabled=false;}
@@ -1384,16 +1384,16 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-recover-continue]')) { target.disabled=true; await recoverAndContinue(target.dataset.codingRecoverContinue); target.disabled=false; }
       if(target.matches('[data-coding-pause]') && lastRun) {
         const action=target.dataset.action==='resume'?'resume':'pause';target.disabled=true;
-        try { await api('/sessions/'+encodeURIComponent(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:action});status(action==='pause'?'暂停请求已收到：当前这一步做完后停下，已开始的操作不会中断。':'已恢复，这一轮从暂停处接着执行。');await readCurrent(); }
+        try { await api(sessionPath(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:action});status(action==='pause'?'暂停请求已收到：当前这一步做完后停下，已开始的操作不会中断。':'已恢复，这一轮从暂停处接着执行。');await readCurrent(); }
         catch(error) {if(!lifetime.alive)return; status(error.message,true); } finally { controls(); }
       }
-      if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api('/sessions/'+encodeURIComponent(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status('停止请求已收到，正在确认执行结果。');await readCurrent(); }
+      if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api(sessionPath(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status('停止请求已收到，正在确认执行结果。');await readCurrent(); }
       if(target.matches('[data-coding-archive]') && current) {
         if(!confirm('归档这条 Coding 会话？它会从活动列表移出，执行记录和固定成果仍会保留。'))return;
         target.disabled=true;
         const id=current;
         try {
-          await api('/sessions/'+encodeURIComponent(id),'PATCH',{archive:true});
+          await api(sessionPath(id),'PATCH',{archive:true});
           generation++;current='';lastRun=null;root.dataset.codingDetail='false';sessionOnShow=false;taskboard.loading('');renderGoalFace();
           await refreshState();status('会话已归档。');
         } finally {target.disabled=false;}
@@ -1401,7 +1401,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-rename]') && current) {
         const title=q('[data-coding-title]'); if(title.querySelector('input')) return;
         const field=document.createElement('input');field.className='mw-input';field.value=title.textContent;field.setAttribute('aria-label','会话名称');title.replaceChildren(field);field.focus();field.select();
-        const save=async()=>{const id=current;const result=await api('/sessions/'+encodeURIComponent(id),'PATCH',{title:field.value});title.textContent=result.session.title;await refreshState();host.openItem('coding',id,result.session.title);status('会话名称已保存。');};
+        const save=async()=>{const id=current;const result=await api(sessionPath(id),'PATCH',{title:field.value});title.textContent=result.session.title;await refreshState();host.openItem('coding',id,result.session.title);status('会话名称已保存。');};
         lifetime.listen(field,'keydown',(event)=>{if(event.key==='Enter'){event.preventDefault();void save().catch(error=>status(error.message,true));}if(event.key==='Escape') title.textContent=state.sessions.find(item=>item.session_id===current)?.title || '';});
         status('输入名称后按 Enter 保存，Esc 取消。');
       }
@@ -1426,7 +1426,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.listen(q('[data-coding-goal-form]'),'submit',async event=>{
     event.preventDefault();const button=q('[data-coding-goal-save]');if(button.disabled || goalSaving)return;
     const id=current,ticket=goalTicket,choice=goalChoice;goalSaving=true;button.disabled=true;
-    try{await api('/sessions/'+encodeURIComponent(id)+'/goal','PUT',{goal_id:choice?.snapshot.goal.goal_id ?? null,expected_artifact_id:choice?.reference.artifact_id});
+    try{await api(sessionPath(id)+'/goal','PUT',{goal_id:choice?.snapshot.goal.goal_id ?? null,expected_artifact_id:choice?.reference.artifact_id});
       if(ticket===goalTicket && current===id){q('[data-coding-goal-dialog]').close();await readCurrent();status('下一轮目标已保存；已开始的任务和历史成果保持原目标。');}
     }catch(error){if(!lifetime.alive)return;if(ticket===goalTicket)q('[data-coding-goal-error]').textContent=error.message;}
     finally{goalSaving=false;if(ticket===goalTicket)button.disabled=false;}
@@ -1438,7 +1438,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     rememberProgressDraft();const currentGoal=view.preview.current;
     const body={summary:q('[data-coding-progress-summary]').value,next_step:q('[data-coding-progress-next]').value,expected_goal_cursor:currentGoal.state.goal_event_cursor};
     progressSaving=true;renderProgress();q('[data-coding-progress-status]').textContent='正在记录到原目标…';
-    try{const recorded=await api('/sessions/'+encodeURIComponent(view.id)+'/runs/'+encodeURIComponent(view.runId)+'/report/progress','POST',body);
+    try{const recorded=await api(sessionPath(view.id,view.runId)+'/report/progress','POST',body);
       if(progressView===view){view.preview.recorded=recorded;view.preview.current=null;try{sessionStorage.removeItem(progressDraftKey(view.id,view.runId));}catch{}}
     }catch(error){if(!lifetime.alive)return;if(progressView===view)q('[data-coding-progress-status]').textContent=error.message+'。内容已保留；可重新读取目标和原回执后确认。';}
     finally{progressSaving=false;if(progressView===view)renderProgress();}
@@ -1488,7 +1488,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       run:()=>{const select=q('[data-coding-intent]');select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));status('下一轮方式：'+option.textContent+'。');input.focus();}}));
     return [...intents,
       {slash:'compact',label:'下一轮整理上下文',hint:'把前面的对话整理成摘要带入',keywords:['摘要','整理','context'],enabled:Boolean(current && runtimeSessionId),
-        run:async()=>{const id=current;await api('/sessions/'+encodeURIComponent(id)+'/compact','POST',{on:true});status('下一轮会把前面的对话整理成摘要带入。');if(id===current)await readCurrent();}},
+        run:async()=>{const id=current;await api(sessionPath(id)+'/compact','POST',{on:true});status('下一轮会把前面的对话整理成摘要带入。');if(id===current)await readCurrent();}},
       {slash:'usage',label:'上下文与用量',hint:'窗口占比、会话用量、预算',keywords:['cost','费用','预算','context'],enabled:!q('[data-coding-meter]').hidden,run:()=>q('[data-coding-meter-toggle]').click()},
       {slash:'materials',label:'固定材料',hint:'引用文件、差异或其他会话的成果',keywords:['引用','材料','reference'],enabled:Boolean(current) && !sending,run:()=>openMaterials()},
       {slash:'methods',label:'方法',hint:'选择这一轮使用的方法',keywords:['skill','技能'],enabled:Boolean(current) && !sending,run:()=>openMethods()},
@@ -1520,7 +1520,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   lifetime.listen(q('[data-coding-priority]'),'click',async event=>{
     const button=event.currentTarget,id=button.dataset.session;if(!id)return;const on=button.getAttribute('aria-pressed')!=='true';button.disabled=true;
-    try{const result=await api('/sessions/'+encodeURIComponent(id)+'/priority','POST',{on});renderPriority(id,result.priority);
+    try{const result=await api(sessionPath(id)+'/priority','POST',{on});renderPriority(id,result.priority);
       status(!on?'已取消优先。':result.notified.length?'已标为优先，并通知「'+result.notified.join('」「')+'」让出 '+result.paths.join('、')+'；不会自动暂停它们。':'已标为优先。现在没有和它范围重叠、还在进行的会话，没有通知谁。');await refreshState();}
     catch(error){if(!lifetime.alive)return;status(error.message,true);}finally{button.disabled=false;}
   });
@@ -1530,7 +1530,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const text=document.createElement('p');text.textContent=queued.note||(queued.waiting_for==='reply'?'这个会话挂起在等'+queued.after_title+'；答复到了（或对方那一轮结束）会自动继续。'
       :queued.waiting_for==='command'?'这个会话挂起在等'+queued.after_title+'；命令在后台继续运行，有结果后会自动继续。':'下一轮在等'+queued.after_title+'结束，结束后自动开始。');
     const act=(label,action,primary)=>{const b=document.createElement('button');b.type='button';b.className='mw-btn'+(primary?' mw-btn--primary':' mw-btn--ghost');b.textContent=label;
-      lifetime.listen(b,'click',async()=>{b.disabled=true;try{await api('/sessions/'+encodeURIComponent(id)+'/queued','POST',{action});status(action==='start'?'已开始这一轮；新的写入和命令仍需你审查。':queued.waiting_for==='reply'?'已不再等答复，请求已撤回。':queued.waiting_for==='command'?'已不再等待；后台命令还在运行，可以在「后台命令」里停掉。':'已取消等待，这一轮没有开始。');queuedKey='';await refreshState();await readCurrent();}
+      lifetime.listen(b,'click',async()=>{b.disabled=true;try{await api(sessionPath(id)+'/queued','POST',{action});status(action==='start'?'已开始这一轮；新的写入和命令仍需你审查。':queued.waiting_for==='reply'?'已不再等答复，请求已撤回。':queued.waiting_for==='command'?'已不再等待；后台命令还在运行，可以在「后台命令」里停掉。':'已取消等待，这一轮没有开始。');queuedKey='';await refreshState();await readCurrent();}
         catch(error){if(!lifetime.alive)return;status(error.message,true);}finally{b.disabled=false;}});return b;};
     const actions=document.createElement('div');actions.className='coding-queued-actions';actions.append(act('取消等待','cancel'),act('现在开始','start',true));
     box.append(text,actions);
@@ -1555,7 +1555,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const [provider_id,model_id]=JSON.parse(modelValue);
     // A round that carries a digest waits for the model to write it first; say so rather than look stuck.
     if(id===current && lastData?.next_history?.history==='digest')status('正在请模型把前面的对话整理成摘要，写好后开始这一轮…');
-    const started=await api('/sessions/'+encodeURIComponent(id)+'/runs','POST',{...extra,task,intent,provider_id,model_id,...composerModels.effort(),workspace_id:selection.workspace_id,methods:selection.methods,...(selection.action_tools===undefined?{}:{action_tools:selection.action_tools}),mcp_tools:selection.mcp_tools,mcp_sources:selection.mcp_sources,materials:selection.materials,character:selection.character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments:selection.writer_assignments}:{})});
+    const started=await api(sessionPath(id)+'/runs','POST',{...extra,task,intent,provider_id,model_id,...composerModels.effort(),workspace_id:selection.workspace_id,methods:selection.methods,...(selection.action_tools===undefined?{}:{action_tools:selection.action_tools}),mcp_tools:selection.mcp_tools,mcp_sources:selection.mcp_sources,materials:selection.materials,character:selection.character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments:selection.writer_assignments}:{})});
     const digest=started?.digest;
     if(digest && id===current)status(digest.source==='model'?'前面的对话已由模型整理成摘要带入'+(digest.usage?'（用了 '+(digest.usage.input+digest.usage.output).toLocaleString()+' tokens）':'')+'，展开这一轮开头的摘要可以看全文。'
       :'模型没能写出摘要（'+digest.problem+'），这一轮带入的是宿主按执行记录整理的摘要。',digest.source!=='model');
@@ -1567,7 +1567,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const id=current,modelValue=q('[data-coding-model]').value;sending=true;controls();
     try {
       if(!state.models.some(model=>JSON.stringify([model.provider_id,model.model_id])===modelValue))throw new Error('请先选择可用的模型');
-      const next=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(runId)+'/continuation');
+      const next=await api(sessionPath(id,runId)+'/continuation');
       if(current!==id)return;
       // A plan round continues on its own graph; everything else starts a fresh round with the Host's facts.
       // The rest of a plan runs the way the person picks now: steps left after subtasks (such as running the tests) may
@@ -1586,7 +1586,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(sending || !current)return;
     const id=current;
     try {
-      const report=await api('/sessions/'+encodeURIComponent(id)+'/recovery');
+      const report=await api(sessionPath(id)+'/recovery');
       const entry=report.runs.find(run=>run.run_id===runId);
       // The round's subtasks were cut off with it; they are settled together, or a new round would be refused.
       const blocked=report.runs.find(run=>!run.can_close);
@@ -1594,7 +1594,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         root.dataset.codingResults='true';recoveryKey='';void readRecovery();
         status((report.blockers.length?report.blockers.join('；'):(blocked||entry)?.blockers?.join('；') || '这一轮还有结果未知的操作')+'。请在右侧核对后再继续。',true);return;
       }
-      for(const run of [...report.runs.filter(run=>run.subagent),entry])await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(run.run_id)+'/recover','POST',{expected_version:run.version});
+      for(const run of [...report.runs.filter(run=>run.subagent),entry])await api(sessionPath(id,run.run_id)+'/recover','POST',{expected_version:run.version});
       if(current!==id)return;
       await continueRound(runId);
     } catch(error) {if(!lifetime.alive)return;if(current===id)status(error.message,true);}

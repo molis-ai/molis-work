@@ -38,6 +38,12 @@ W4-04 第三片（2026-10-15，Form 经 Plugin Runtime 装配，#551）：按 `d
   - 其余改了调用方式的：`creative-artifact-promote`、`creative-tools-plugins` 里 Form 的部分改经动作；`tests/personal-plugins-review-fixes.test.ts` 断言 Form 客户端请求 Runtime 路由；夹具与五个用例里的 `withStore` 换成 `ownFormStores`。
 - 证据：相关 38 个文件全过（含 `tests/action-contract-snapshot.test.ts`），Runtime 路由、成果客户端、Characters 与 Coding 的发布 8 个文件全过，浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e` 全过；health（`--base origin/main`）、boundary、page-assets 通过（`form.js` 小了 288 字节，预算同步降下）。公开 API：`PluginRouteDeclaration.max_body_bytes`（可选，旧 Manifest 不受影响）。动作快照：Form 的安装多 5 条 `sdk.artifacts.<安装>.*`。
 
+W4-05（2026-10-15，助理服务拆分样板，PR 待开；决定 #3）：
+- 抽出：提醒与跟进协作者 `AssistantFollowUps`（`apps/local-host/src/assistant/assistant-followups.ts`）：Plugin 的到期提醒（`sweepReminders`）、工作上的定时轮次（保存、取消、到点运行、归档时停用、宿主启动时重新排队）、关注规则（`saveRule`、`removeRule`）。它只经 `AssistantFollowUpPorts` 依赖宿主（工作、通知、设置、规则、Home 动作、Agent Host、发送、队列），不 import 助理其他模块的实现（只用共同的错误表 `assistant-errors.ts`），带走自己的表：`assistant_followups` 的读写从 `AssistantStore` 搬到 `AssistantFollowUpRecords`（`store.followUps`）。服务上的 `followUps` 现在是这个协作者，HTTP、动作（`assistant-rule-actions.ts`）、`web-server.ts` 的定时任务改为经它调用。
+- 不变的：行为与文字一字不改（逐段搬，旧的 `runDueFollowUp`、`enqueueCurrentFollowUp` 并进类里）；到期提醒对 Home 动作的每一步仍有 20 秒限时，由服务包在端口里（`withinTime`）。没有动 `assistant-inputs.ts`，没有动发送与回执的路径；没有往 contracts 加 typed 能力。
+- 大小：`AssistantService` 1,796 行 / 110 方法 → 1,663 / 99，文件 2,222 → 2,081 行；`AssistantStore` 280 行 / 42 方法 → 267 / 39。两者仍超限，其余协作者归 W5-10。新文件 311 行、类 16 个方法，在阈值以下。
+- 测试：`tests/assistant-followups-collaborator.test.ts` 只拿协作者和测试自己的队列、时钟跑，不起服务与 Agent Host：`W4-05-01`（每天的定时排进队列、到点只跑一次并排下一天；取消与归档）、`W4-05-02`（到期提醒各告诉一次，没答的 Plugin 下次同一段时间再问；规则严格检查）、`W4-05-03`（只 import 自己的端口与共同错误表）。变异检查：让提醒扫描不论有没有 Plugin 没答都记下进度，`W4-05-02` 失败。原有的助理用例（定时、定时删除、提醒、关注规则、记忆、材料、项目删除、委派交回）只把调用改成经 `followUps`，断言不变。
+
 W4-09（2026-10-15，两个 PR 开着）：#539 把 Web 服务的五个周期任务登记在一处（`apps/local-host/src/periodic-tasks.ts`），「设置 › 诊断」列出「后台任务」；`W4-09-01`、`W4-09-02`（反复启停不留计时器）在 `tests/host-periodic-tasks.test.ts`。#540 让成果游标改为进程内通知加 30 秒兜底（`W4-09-03`，`tests/plugin-platform-composition.test.ts`），炼金术士工作室空闲 10 分钟且手上没事就关（`W4-09-04`，`tests/alchemist-studio-idle.test.ts`）。三处都做了变异检查。
 
 W4-11（2026-10-15，Home 存储统一登记，#542）：

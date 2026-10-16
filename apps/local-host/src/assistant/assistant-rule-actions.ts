@@ -75,16 +75,16 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
   const records = computerRecordFileSource(homeDirectory);
   const handlers: ActionHandlerBinding[] = [
     ...records.handlers, ...extra.handlers,
-    { capability_id: "assistant.rules.list", version: 1, handle: async () => ({ rules: service().rules() }) },
-    { capability_id: "assistant.rules.add", version: 1, handle: async (_context, input) => ({ rules: service().saveRule(input as AssistantRuleInput) }) },
-    { capability_id: "assistant.rules.remove", version: 1, handle: async (_context, input) => ({ rules: service().removeRule(String((input as { rule_id?: unknown }).rule_id ?? "")) }) },
-    { capability_id: "assistant.followups.list", version: 1, handle: async context => ({ followups: service().followUps(callingWork(context) ?? undefined) }) },
+    { capability_id: "assistant.rules.list", version: 1, handle: async () => ({ rules: service().followUps.rules() }) },
+    { capability_id: "assistant.rules.add", version: 1, handle: async (_context, input) => ({ rules: service().followUps.saveRule(input as AssistantRuleInput) }) },
+    { capability_id: "assistant.rules.remove", version: 1, handle: async (_context, input) => ({ rules: service().followUps.removeRule(String((input as { rule_id?: unknown }).rule_id ?? "")) }) },
+    { capability_id: "assistant.followups.list", version: 1, handle: async context => ({ followups: service().followUps.list(callingWork(context) ?? undefined) }) },
     { capability_id: "assistant.followups.add", version: 1, handle: async (context, input) => {
       const work = callingWork(context);
       if (!work) throw new Error("定时要在一项助理工作里添加");
       const value = input as { text: string; at: string; repeat?: "none" | "daily" | "weekly"; label: string };
-      await service().saveFollowUp({ work_id: work, text: value.text, at: value.at, label: value.label, ...(value.repeat ? { repeat: value.repeat } : {}) });
-      return { followups: service().followUps(work) };
+      await service().followUps.save({ work_id: work, text: value.text, at: value.at, label: value.label, ...(value.repeat ? { repeat: value.repeat } : {}) });
+      return { followups: service().followUps.list(work) };
     } },
     { capability_id: "assistant.methods.read", version: 1, handle: async (context, input) => {
       const work = callingWork(context);
@@ -93,9 +93,9 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
     } },
     { capability_id: "assistant.followups.remove", version: 1, handle: async (context, input) => {
       const id = String((input as { followup_id?: unknown }).followup_id ?? ""), work = callingWork(context);
-      if (work && !service().followUps(work).some(item => item.followup_id === id)) throw new Error("这项工作没有这个定时");
-      await service().removeFollowUp(id);
-      return { followups: service().followUps(work ?? undefined) };
+      if (work && !service().followUps.list(work).some(item => item.followup_id === id)) throw new Error("这项工作没有这个定时");
+      await service().followUps.remove(id);
+      return { followups: service().followUps.list(work ?? undefined) };
     } },
   ];
   return registry.registerProvider({ provider: { provider_id: ASSISTANT_RULES_PROVIDER, title: "助理", kind: "system" },

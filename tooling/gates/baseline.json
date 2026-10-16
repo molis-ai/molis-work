@@ -2,14 +2,14 @@
   "giantUnits": 144,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2222,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2081,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1796,
-      "methods": 110
+      "lines": 1663,
+      "methods": 99
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
-      "lines": 280,
-      "methods": 42
+      "lines": 267,
+      "methods": 39
     },
     "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
       "lines": 443,

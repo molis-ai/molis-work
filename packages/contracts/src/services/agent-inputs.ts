@@ -62,6 +62,20 @@ export interface AgentSteerReceipt {
 export type AgentQueuedInputs = "carry" | "leave" | readonly string[];
 
 /**
+ * A supplement waiting in the session for a round to take it (specs/ai-input-receipts §4.8): sent for the next round, or
+ * left unread when its round ended. The runtime's input record is its only owner; this is that record as the Host reads it.
+ */
+export interface AgentQueuedInput {
+  input_id: string;
+  text: string;
+  /** `peer`: another session's Agent said it. */
+  source: AgentInputSource | "peer";
+  key?: string;
+  /** The round that ended without reading it; `applied`: it was in the context, but no reply came. Absent when it was sent straight to the session. */
+  left_by?: { run_id: string; applied: boolean };
+}
+
+/**
  * The runtime's side. `beforeQueue` runs right before a supplement is kept in the session, once the round turned out to
  * have ended: the caller checks there that it may still write.
  */

@@ -670,13 +670,13 @@ interface AgentInputView {
 
 1c agent-host 的内容：
 
-- 会话条目记录收下的输入：键、来源、方式，并给调用编号预留位置。
+- ~~会话条目记录收下的输入~~：删去（统筹 2026-10-15）。收下的输入（键、来源、方式）只有一个主人：Prologue 会话的输入记录（补充的账与会话排队）。Molis 不在会话条目里另存一份；回执从 SDK 读——补充回执（`agent.inputs.send`）、运行视图里每条补充的状态、恢复报告里排着的输入。
 - 每个 Run 的补充串行处理，按落账顺序把键对应到 steerId。阶段 2 改为由 SDK 直接返回。
 - 6 处宿主代写的 steer 标上来源。
 - 「读到」从账内顺序推出：applied 之后，同一 Run 内的第一条模型产出。合同里注明这是推导。
 - `RUN_NOT_RUNNING` 竞态改成排队或保留。
 - `runViewVersion` 纳入输入状态。
-- 恢复报告列出输入。
+- 恢复报告列出输入：挪到 1d（统筹 2026-10-15；1c 已审定在跑全量，不再加提交）。
 
 验收：四问的前半段在 Coding 与助理上真实——送达没有、读到没有、没读到的去哪了；§12 的强杀与竞态用例通过。
 
@@ -688,6 +688,16 @@ interface AgentInputView {
 - RC-04：`runViewVersion` 含每条补充的状态，回执前进时页面马上重画。
 - RC-05：`agent.inputs.send` 的受众只有插件；schema 拒绝错误的键、方式、来源、空文本与多余字段；调用被取消或撤权时不交给这一轮、不写会话排队；别的会话的一轮够不着。
 - RC-06：助理以 `send.<request_id>` 为键；排进下一轮的结果是 `queued`，页面说「已保存，下一轮开始生效」，不说已补充到这一轮；助理开下一轮带上会话里排着的补充（`queued: "carry"`）；回答问题用问题自己的版本号，没有版本号的不发，不再默认 1。
+
+1d 的验收编号（Coding，含从 1c 挪来的恢复报告）：
+
+- RC-07：计划的原任务之后列出规划时补充的意见，写明「没有逐条核对是否已写进计划；以确认的计划为准」，不说「已体现」（G14）。
+- RC-08：恢复报告列出会话里排着的输入（`AgentRecoveryReport.inputs`，读 SDK 的输入记录）：编号、原文、来源（`person` / `host` / `peer`）、键，以及没读到它就结束的那一轮；没有就是空列表，会话打不开时不给这一项（不知道不是空）。Coding 的中断核对面板列出它们，并说下一轮开始时带上。
+- RC-09：Coding 的每一轮开跑都带上会话里排着的补充（`queued: "carry"`）：选了「下一轮再做」的、一轮刚结束才到的、以及一轮结束时没读到的（SDK 在一轮结束时把没读到的补充放回会话排队，编号不变）。所以「核对并继续」也带上没读到的输入。D4 的「询问」指的是不自动开下一轮；人开的下一轮带上排着的补充。
+- RC-10：一轮进行中，发送按钮旁是发送方式菜单（共用的 `mw-select`），三项各自说清后果：「补充：这步做完后读」「打断：丢弃当前回复」「下一轮再做」；补充带页面的键（`send.<uuid>`）与方式交给 `coding.runs.control`；回包后状态行按回执说「已送达…」「正在写的回复已丢掉…已执行的操作不撤销」「已存好，下一轮开始时带上」，一轮刚结束才到的说「这一轮刚结束，已存好…」，同键重发的说「之前已送到，没有重复发送」；每次发送后方式回到默认。
+- RC-11：发出后到宿主回包之前，这一轮下面显示「发送中…」气泡；回包丢了（断网或回包读不出）时气泡写「没确认送到 · 再按发送，同一条不会重复」，原文与方式留在输入框，同文同方式再发用同一个键；宿主拒绝时气泡消失；宿主收下后由这一轮自己的记录显示这句。
+- RC-12：回执条只说运行账里的事实（已送达 / 已放进上下文，等 AI 回应 / AI 已读到 / 这一轮结束时 AI 没读到，留给下一轮 / 已撤回），悬停说明读到不代表已遵循；宿主代写的说明（`notice` 且带补充编号）写「Molis 的说明，不是你发的话」、换样式、没有回执条。
+- RC-13：输入框里按 Esc 不再停止这一轮（D3），停止要按「停止」按钮。
 
 ### 阶段 2：Prologue 通用能力
 
@@ -963,6 +973,14 @@ interface AgentInputView {
   - 还没做：恢复报告列出输入（读 SDK `inputQueue()`）；会话条目记录收下的输入——SDK 的输入记录已带键、来源，按一个事实一个主人不在 Molis 另存，待统筹确认后从 1c 清单删去；隔离 Home 实走。
   - 变基到 424256ef（H3 #546、W4-07 #549 合入后）：Coding `routes.ts` 已按资源拆开，原来的改动只搬到新位置——`coding.control-run` 在 `routes-sessions.ts`，`coding.plan-amendments` 在 `routes-timeline.ts`，别的不动。H3 改的是 `prologue-node-port.ts` 的 `answerPending`（缺版本的答案直接拒），本片加的 `queueInput` 在 `createNodePort`，文本不冲突，语义与助理这边删掉 `?? 1` 一致。门禁数字先取 main 的再整体构建、`--update --base origin/main` 重新生成，结果与变基前相同（工作台脚本比 main 小 10 字节；`PrologueAgentAdapter` 606 → 604 行，`registerAgentHostCapabilities` 385 → 372 行，typed 能力 192 → 190）。
   - 防腐复查：2026-10-15 · main `424256ef` · merge-base `424256ef` · **通过**（变基后 `affected-tests` 的 218 个非浏览器文件加 `security-invariants-object-references`，219 个全过）。机器项 M1–M10、M13–M15 已跑，M11、M12、M16 不适用；人看 27 条逐条结论与依据写在 PR 的「防腐复查」一节。各项决定照统筹 10-15 定的做：`agent.inputs.send@1`、不留兼容、`beforeEffect` → `assertAuthorityCurrent` → 排队前再查一次、措辞说真话。
+
+- 2026-10-15（回执线会话，1d，变基到 #553 合入后的 main `2897ae04`）：1c #552 合入（main `2c91cd36`）后从最新 main 开 `receipts/1d`，照统筹 10-15 的几点做：
+  - 恢复报告列出排着的输入（从 1c 挪来）：合同 `services/agent-inputs` 加 `AgentQueuedInput`（键、来源、哪一轮结束时没读到），`AgentRecoveryReport` 只加一行 `inputs?`；`prologue-recovery.ts` 读 SDK 会话的 `inputQueue()`，Molis 不另存（事实归 SDK 的输入记录）。Coding 恢复面板列出「下一轮开始时带上 N 条排着的补充」。
+  - Coding 开新一轮带上排着的补充：`start-round.ts` 给 `agent.run.start` 传 `queued: "carry"`（D4：不自己开轮，人开的那一轮带上）。计划里补充的意见改说「没有逐条核对是否已写进计划」，不说已体现（G14）。
+  - 发送方式与发送中气泡：Coding 的补充逻辑抽到 `input-receipts-client.ts`（发送方式、键、回执条、发送中气泡、同键重发），`client.ts` 变短（1643 → 1641 行）。一轮进行中输入框旁出现发送方式菜单（补充：这步做完后读 / 打断：丢弃当前回复 / 下一轮再做），用共同的 `mw-select`；每次发送后回到「补充」。没确认送到时字和方式留在输入框，气泡说「再按发送，同一条不会重复」，同字同方式沿用同一个键；宿主拒绝的清掉气泡。宿主发的说明显示为「Molis 的说明，不是你发的话」，不带回执。D3：输入框里按 Esc 不再停止这一轮，停止只用按钮。
+  - 页面资源：`coding.js`（diff、files、git、text-stats 四个包与它逐字节相同）比 main 多 1751 字节、两份样式表各多 33 字节（删了确证没人用的 `cooperation-client` 两个字段、`subagent-cards-client` 的 `svg`、死规则 `.coding-composer-sep`，合并 h2–h4 规则之后的数字；多出的主要是中文文案）。统筹按用户 10-15 的口径（小而必需的增长按先例一次性放行）定 A，用户 10-15 在回执线会话里批准改门禁：`page-assets.mjs` 的 `APPROVED_CEILINGS` 在 #553 的三条后面加七条（键是 merge-base `2897ae04` 的确切字节，值是实测新大小，只用一次），`page-assets-budget` 补用例；合入后由防腐线删掉。
+  - 验证：整体 `pnpm build` 后，`affected-tests` 选出的非浏览器文件加 `coding-input-receipts-client`、`prologue-recovery`、`page-assets-budget`，变基后 155 个全过；浏览器用例 `coding-input-receipts.e2e`（RC-10、RC-11、RC-13）过，截图三张在 `.impeccable/qa/review/ai-input-receipts/`（不入库）。`api:update` 刷新 `agent-host`、`agent-inputs` 两份快照；`actions:update` 无变化（`coding.runs.control` 仍是第 3 版，形状没变）。没做：隔离 Home 实走；被打断的那段回复仍留在页面上，没有标成已丢弃（另记）。
+  - 防腐复查：2026-10-15 · main `2897ae04`（含 H4-1 #554、W3-B1 #553）· merge-base `2897ae04` · **通过**。机器项 M1、M2、M4、M5、M8–M10、M13 过；M6（第 19 条）按统筹定的 A 与用户批准的一次性放行过；M11、M12、M14、M16 不适用。人看 27 条：第 20 条按 Coding 页面脚本的现行写法（没有词典，`client.ts` 的回执文字原本就是中文字面量），没新建词典；第 21 条沿用页面已有的 `api`；第 25 条 `agent-host.ts` 只加一行；其余适用的都符合，逐条写在 PR 的「防腐复查」一节。
 
 ## 17. 远端交接（2026-10-11，已被 §19 取代，只作历史）
 

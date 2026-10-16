@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { NOTES_DELETE, NOTES_WRITE, refOf, reply, suggestRound, suggestTools } from "./fixtures/agent-suggest-round.js";
 
-test("S-27 (D25) a read-only role that grants suggest-action is refused before the round starts", { timeout: 40_000 }, async t => {
+test("S-28 (D25) a read-only role that grants suggest-action is refused before the round starts", { timeout: 40_000 }, async t => {
   const round = await suggestRound(t);
   try {
     await assert.rejects(round.start("Suggest something", "read-only", ["suggest-action"]), (error: unknown) => {
@@ -14,7 +14,7 @@ test("S-27 (D25) a read-only role that grants suggest-action is refused before t
   } finally { await round.close(); }
 });
 
-test("S-27 (D25) a suggestion outside the round's frozen action_tools, of an action switched off or changed since, too large, or with input the action refuses, records nothing", { timeout: 90_000 }, async t => {
+test("S-28 (D25) a suggestion outside the round's frozen action_tools, of an action switched off or changed since, too large, or with input the action refuses, records nothing", { timeout: 90_000 }, async t => {
   const round = await suggestRound(t);
   try {
     const cases: Array<{ name: string; args: (write: string) => Record<string, unknown>; before?: () => void; refused: RegExp }> = [

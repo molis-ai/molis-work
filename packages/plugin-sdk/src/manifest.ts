@@ -7,10 +7,10 @@ import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-decl
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
+import { PLUGIN_ID } from "./plugin-id.js";
 
 
 
-const PLUGIN_ID = /^io\.molis\.work\.[a-z0-9][a-z0-9.-]*$/u;
 const ROUTE_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
 const NUMERIC = "(?:0|[1-9]\\d*)";
 const PRERELEASE_IDENTIFIER = "(?:0|[1-9]\\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)";
@@ -204,7 +204,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
       if (!declaredPermissions.has(permission)) problems.push(`场景 ${scene.scene_id} 使用未声明权限 ${permission}`);
     }
   }
-  problems.push(...inspectPortDeclarations(parsed.ports));
+  problems.push(...inspectPortDeclarations(parsed.ports, parsed.plugin_id));
   problems.push(...inspectEventDeclarations(parsed.plugin_id, parsed.events));
   problems.push(...inspectAgentDeclaration(
     parsed.agent,

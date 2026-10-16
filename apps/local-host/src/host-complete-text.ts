@@ -2,7 +2,7 @@ import { createFileSecretStore, resolveMolisWorkHome, runWithMolisWorkHome } fro
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MINIMAX_ANTHROPIC_BASE_URL } from "./model-provider-templates.js";
 import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 
@@ -22,6 +22,16 @@ export type HostTextGeneration = (prompt: string, options?: HostTextRequestOptio
 export interface HostTextOptions { homeDirectory?: string; selection?: TextModelSelection; resolveInference?: typeof resolvePrologueInference; env?: NodeJS.ProcessEnv }
 interface TextConfiguration { base_url: string; api_format: ModelApiFormat; model_id: string; prompt_cache?: ModelPromptCacheMode }
 const unavailable = () => new ActionError("actions.connection_required", "所选文字模型或连接已不可用，请检查模型设置和服务连接");
+
+/**
+ * Whether an action that needs the text model can run now. No model is `actions.connection_required` in the action's own words,
+ * so the person sets one up. Model settings that cannot be read are another fact, with the failure's own code
+ * (`actions.configuration_unavailable` when it has none), so nobody is sent to set up a model they already have.
+ */
+export function textModelAvailability(model: () => unknown, notConfigured: string): ActionAvailability {
+  try { return model() ? { available: true } : { available: false, code: "actions.connection_required", reason: notConfigured }; }
+  catch (error) { return { available: false, code: error instanceof ActionError ? error.code : "actions.configuration_unavailable", reason: "文字模型的设置读不了，请检查模型设置" }; }
+}
 
 /** Discovery uses metadata; a returned completion rechecks its fixed selection before every request. */
 export function hostCompleteText(options: HostTextOptions = {}): HostCompleteText | undefined {

@@ -26,6 +26,7 @@ import {
 import { deliverHostReminder } from "./schedule-reminders.js";
 import { runHostScheduledOperation } from "./schedule-operations.js";
 import { createLocalFeedApplication, type LocalFeedApplicationOptions } from "./feed-application.js";
+import { hostLog } from "./host-log.js";
 
 const wakeupIndex = new PluginWakeupIndex();
 const tickContext = new AsyncLocalStorage<{
@@ -89,7 +90,9 @@ function deliveryFeed(db: ScheduleSqliteDatabase) {
  */
 async function judgeDelivered(feed: ReturnType<typeof deliveryFeed>, control: ScheduleWakeupControl): Promise<void> {
   if (control.signal.aborted) return;
-  try { await feed.flushPendingJudgments(); } catch { /* The judgment is recorded or can be asked for again from the Inbox entry. */ }
+  // A judgment's own model failure is recorded by its scene. Anything else that stops one is logged by code here; Feed still
+  // judges the rest of what was queued, and the Inbox entry can be judged again from Inbox.
+  try { await feed.flushPendingJudgments(); } catch (error) { hostLog.warn("schedule", "delivery_judgment_failed", error); }
 }
 
 /**

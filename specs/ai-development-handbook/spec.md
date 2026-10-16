@@ -221,4 +221,12 @@ Skill 可以包含适用的确定步骤和脚本，但必须说明哪些是业�
   抗注入的工程边界由 S-13 用例证明（tests/security-invariants-injection.test.ts 的项目上手一条）；评测只说明模型在这一种写法下的表现。
 ```
 
+#### D4 模型路径上悄悄吞掉的失败（2026-10-16）
+
+不改任何提示词，没有模型评测；证明是确定性用例。按手册 16.4，先问用户或后面的步骤要不要知道：
+
+- 首页建议读不出来（`home-event-actions.ts`）：用户不必看到，事项照常显示；宿主日志留一行 `home / recommendations_failed`（错误名、码、能力），不进给用户看的 `issues`。用例：`tests/home-event-actions.test.ts`「D4-a」。
+- 「没配模型」和「模型设置读不了」（信息助手、工作流程，加上 Todo、Dataset、Pages、PPT、灵光、插件 `services.model` 六处同样的复制）：收成一个 `textModelAvailability`。没配模型仍是 `actions.connection_required`、各自原来的话；读不了带它自己的码（如 `catalog.unknown_database`）和「文字模型的设置读不了」，不再让用户去设置里找一个不存在的问题。信息助手和工作流程不再 `catch { return undefined }`；工作流程的端口从 `aiAvailable(): boolean` 改成 `textModel(): ActionAvailability`，衔接未接上的原因照实说。用例：`tests/text-model-availability.test.ts`、`tests/workflows-plugin.test.ts`。
+- 送达后的 Feed 判断（`schedule-runtime.ts`）：核实了原注释。判断本身的模型失败由场景的 `failed` 记成待复核，这一半属实；但别的失败（记录写不进去、权限复核）会抛出，而 Feed 的 `JudgmentQueue` 在判断前已把整批取出，第一处失败就把后面的判断全丢了。现在每个取出的判断都试一遍，最后再抛第一处失败（Feed 是主人）；送达那一侧仍不因判断失败撤回，失败在宿主日志留 `schedule / delivery_judgment_failed`。用例：`tests/schedule-operations.test.ts`「D4-d」。来源同步那几处（`source-sync.ts`、`connector-sync.ts`、`source-scheduler.ts`、`research-library-source.ts`）本来就不吞：判断失败会让那次同步失败，用户看得到，口径不同但都不悄悄丢。
+
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。

@@ -15,7 +15,7 @@ import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { bindScheduleDeliveryFeed, scheduleServiceFor } from '../apps/local-host/dist/schedule-runtime.js';
 import { bindInstalledOperationCaller, hostScheduledOperationManagement } from '../apps/local-host/dist/schedule-operations.js';
-import { createLocalFeedApplication } from '@molis-ai/molis-work-app-local-host';
+import { captureHostLog, createLocalFeedApplication, type HostLogEntry } from '@molis-ai/molis-work-app-local-host';
 
 const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
 const identity = { projectId: 'p', pluginId: 'io.molis.work.test.operations', installationId: 'installed' };
@@ -79,6 +79,28 @@ test('a scheduled result delivered to the Inbox starts the same judgments as any
   assert.ok(seen.includes('inbox:' + entry.entry_id), 'its Inbox entry got the next-step judgment');
   assert.ok(seen.includes('capture:' + item.item_id) && seen.includes('home:feed_item'), 'its Feed item went through capture rules and the Home dock');
   assert.equal(h.occurrences(scheduleId)[0]?.state, 'succeeded', 'a failing judgment never un-delivers the result');
+});
+
+test('a judgment that fails after a delivery never drops the judgments queued behind it, and leaves its code in the Host log (D4-d)', async t => {
+  const h = await harness(t), seen: string[] = [];
+  bindScheduleDeliveryFeed(h.store.db, {
+    captureJudgment: async event => { seen.push('capture:' + event.item_id); throw Object.assign(new Error('rule store: 用户的笔记正文'), { code: 'feed.rule_store_down' }); },
+    homeJudgment: async subject => { seen.push('home:' + subject.kind); },
+    inboxJudgment: async entry => { seen.push('inbox:' + entry.entry_id); },
+  });
+  const { scheduleId } = h.operations.add(identity, { at, operation: 'summarize', inbox: true });
+  const stop = bindInstalledOperationCaller(h.store.db, identity.projectId, { describe: () => descriptor(), async call() { return { state: 'succeeded', value: { text: '今天的汇总' } }; } });
+  t.after(stop);
+  const log: HostLogEntry[] = [], restore = captureHostLog(log);
+  try { await h.schedule.tick(); } finally { restore(); }
+  const [item] = h.inbox(); assert.ok(item);
+  const entry = createLocalFeedApplication(h.store.db).listInboxEntries(identity.projectId).find(row => row.subject_id === item.item_id);
+  assert.ok(entry);
+  assert.deepEqual(seen, ['capture:' + item.item_id, 'home:feed_item', 'inbox:' + entry.entry_id, 'home:inbox_entry'], 'the Home dock and the Inbox entry are still judged');
+  assert.equal(h.occurrences(scheduleId)[0]?.state, 'succeeded', 'the delivery stands');
+  const failed = log.filter(line => line.event === 'delivery_judgment_failed');
+  assert.deepEqual(failed.map(line => [line.level, line.area, line.error]), [['warn', 'schedule', { name: 'Error', code: 'feed.rule_store_down' }]]);
+  assert.ok(!JSON.stringify(log).includes('笔记正文'), 'the failure is logged by code, not by its message');
 });
 
 test('an explicit failure is failed, and an unknown outcome stops future cadence without an automatic replay', async t => {

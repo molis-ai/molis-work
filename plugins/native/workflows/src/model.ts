@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { WORKFLOWS_AI_HANDOFF } from "./prompts.js";
-import type { ActionResultPresentation, WorkflowContentBinding, WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionAvailability, ActionResultPresentation, WorkflowContentBinding, WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workflowsErrors } from "./error.js";
 export type { WorkflowItemRef, WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 /** Workflows: pure data rules. No storage, no network, no plugin internals. */
@@ -188,8 +188,8 @@ export function newStation(plugin: string): WorkflowStation {
   return { station_id: crypto.randomUUID(), plugin };
 }
 
-/** Whether a link can actually hand over. `aiAvailable` is the Host's answer about a configured text model. */
-export function linkReadiness(link: WorkflowLink, aiAvailable: boolean): { ready: boolean; reason: string } {
+/** Whether a link can actually hand over. `textModel` is the Host's answer about the text model, with its reason when there is none. */
+export function linkReadiness(link: WorkflowLink, textModel: ActionAvailability): { ready: boolean; reason: string } {
   if (link.kind === "manual") return { ready: true, reason: "" };
   if (link.kind === "judgment") {
     if (!link.judgment) return { ready: false, reason: "还没选判断规则" };
@@ -201,7 +201,7 @@ export function linkReadiness(link: WorkflowLink, aiAvailable: boolean): { ready
       : { ready: false, reason: "还没写交接规则" };
   }
   if (!link.instructions.trim()) return { ready: false, reason: "还没写 AI 要整理成什么" };
-  if (!aiAvailable) return { ready: false, reason: "还没有可用的文字模型" };
+  if (!textModel.available) return { ready: false, reason: textModel.reason };
   return { ready: true, reason: "" };
 }
 

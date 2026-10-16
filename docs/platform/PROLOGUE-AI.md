@@ -592,6 +592,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 - **Agent 一轮**：冻结记录 `AgentRunView.frozen`（`horizontal/agent-host/src/adapters/prologue-frozen.ts` 的 `freezeRunStart`）记着角色与版本、每段提示词的版本与用户修订号、方法、工具、材料的标题与来源、模型和调用编号；按调用编号能在调用记录里找到这一轮走过的每一步（第 3 节）。工具活动与回执在运行视图和审查队列里。
 - **有界调用**：没有运行记录；看它所在动作的调用记录行、`hostTextGeneration` 返回的 `run_ref` 与用量，以及这段指令的使用记录（`resolveModelPrompt` 每次记下实际用的版本和用户修订号）。
 - 回看时先确认这一轮用的是默认正文还是用户改过的（修订号），再看材料里有没有、有没有被截掉。
+- **调不到模型时**：要模型的动作，可用性都由 `apps/local-host/src/host-complete-text.ts` 的 `textModelAvailability` 给。没配模型是 `actions.connection_required`（界面据此带人去设置），模型设置读不了带它自己的码（没有就是 `actions.configuration_unavailable`），两者不混成「尚未配置」。可选的判断（首页建议、送达后的判断）失败了不打扰用户，但在宿主日志里留一行（`apps/local-host/src/host-log.ts` 的 `hostLog`，只记码与能力，不记内容），不再悄悄吞掉。
 
 | 看到的 | 先查 | 多半是 | 改哪里 |
 | --- | --- | --- | --- |

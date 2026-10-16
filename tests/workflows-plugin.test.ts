@@ -74,12 +74,17 @@ test("链的编辑：加站、拿掉、调顺序时，每段衔接跟着它连�
 });
 
 test("没配好的衔接不算接上：Function 要有规则，AI 要有要求且有模型", () => {
-  assert.deepEqual(linkReadiness(manualLink(), false), { ready: true, reason: "" });
-  assert.equal(linkReadiness(fn(" "), true).ready, false);
-  assert.equal(linkReadiness(fn("{正文}"), false).ready, true);
-  assert.equal(linkReadiness(ai(""), true).reason, "还没写 AI 要整理成什么");
-  assert.equal(linkReadiness(ai("整理"), false).reason, "还没有可用的文字模型");
-  assert.equal(linkReadiness(ai("整理"), true).ready, true);
+  // The Host's answer about the text model; when there is none, its reason is what the link says (D4-c).
+  const model = { available: true } as const;
+  const none = { available: false, code: "actions.connection_required", reason: "还没有可用的文字模型" } as const;
+  const unreadable = { available: false, code: "catalog.unknown_database", reason: "文字模型的设置读不了，请检查模型设置" } as const;
+  assert.deepEqual(linkReadiness(manualLink(), none), { ready: true, reason: "" });
+  assert.equal(linkReadiness(fn(" "), model).ready, false);
+  assert.equal(linkReadiness(fn("{正文}"), none).ready, true);
+  assert.equal(linkReadiness(ai(""), model).reason, "还没写 AI 要整理成什么");
+  assert.equal(linkReadiness(ai("整理"), none).reason, "还没有可用的文字模型");
+  assert.deepEqual(linkReadiness(ai("整理"), unreadable), { ready: false, reason: "文字模型的设置读不了，请检查模型设置" }, "unreadable settings are not called no model");
+  assert.equal(linkReadiness(ai("整理"), model).ready, true);
 });
 
 test("Function 按规则填占位，AI 的第一行当标题", () => {

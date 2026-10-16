@@ -1,5 +1,5 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { presentActionResult, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
+import { presentActionResult, type ActionAvailability, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   aiHandoffPrompt, applyFunctionRule, handoffKey, holdInstance, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
   isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS, WORKFLOWS_PLUGIN_ID,
@@ -128,7 +128,8 @@ export interface WorkflowsActionPorts {
   actions(caller: ActionCallContext): WorkflowActionReach;
   /** The Host's full schema validator, also used by actual action dispatch. */
   assertInput(schema: ActionSchema, input: unknown): void;
-  aiAvailable(): boolean;
+  /** Whether the text model can be used now, and why not in the person's words. */
+  textModel(): ActionAvailability;
   completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch(): void | Promise<void> }): Promise<string>;
   changed?(): void;
 }
@@ -292,7 +293,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     input: ContinueInput): Promise<{ stopped: WorkflowInstance } | { instance: WorkflowInstance; pending: Pending }> => {
     const resolved = { ...current.chain, stations: await Promise.all(current.chain.stations.map((station, index) => index < from ? station : resolveStation(reach, content, station))) };
     const link = current.chain.links[from]!;
-    const readiness = linkReadiness(link, ports.aiAvailable());
+    const readiness = linkReadiness(link, ports.textModel());
     if (!readiness.ready) throw workflowsErrors.not_ready(`这一段还没接上：${readiness.reason}`);
     const handed = await readStep(content, current, from);
     let output: WorkflowPayload, actor: WorkflowHandoff["actor"], rule: string | undefined, judged: WorkflowVerdict | undefined;
@@ -366,10 +367,10 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
   return [
     bind(workflowsActions.list, async (_input, content, _caller, reach) => ({
       workflows: await Promise.all((await ports.withStore(store => store.list(projectId))).map(row => describe(content, row, reach))),
-      stations: await content.stations(), ai_available: ports.aiAvailable() })),
+      stations: await content.stations(), ai_available: ports.textModel().available })),
     bind(workflowsActions.get, async (input, content, _caller, reach) => {
       const { workflow: row, instances } = await ports.withStore(store => ({ workflow: store.get(input.id, projectId), instances: store.instances(input.id, projectId) }));
-      return { workflow: await describe(content, row, reach), instances, ai_available: ports.aiAvailable() };
+      return { workflow: await describe(content, row, reach), instances, ai_available: ports.textModel().available };
     }),
     bind(workflowsActions.create, async (input, content, caller, reach) => {
       const chainValue = await validChain(content, input.chain, reach);
@@ -407,13 +408,13 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     }),
     bind(workflowsActions.instance, async (input, content, _caller, reach) => {
       const { current, title } = await ports.withStore(store => { const current = live(store, input.id); return { current, title: workflowTitle(store, current) }; });
-      return { instance: { ...current, chain: await describe(content, current.chain, reach) }, workflow_title: title, ai_available: ports.aiAvailable() };
+      return { instance: { ...current, chain: await describe(content, current.chain, reach) }, workflow_title: title, ai_available: ports.textModel().available };
     }),
     bind(workflowsActions.preview, async (input, content) => {
       const current = await ports.withStore(store => live(store, input.id));
       const from = handoffIndex(current, input.from);
       const link = current.chain.links[from]!;
-      const readiness = linkReadiness(link, ports.aiAvailable());
+      const readiness = linkReadiness(link, ports.textModel());
       const handed = await readStep(content, current, from);
       return { from, link, readiness, input: handed, output: link.kind === "function" && readiness.ready ? applyFunctionRule(link, handed) : null };
     }),

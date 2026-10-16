@@ -218,3 +218,5 @@ export function createGoalReadServices(db: GoalsSqliteDatabase): {
 }
 
 export { DEFAULT_GOAL_POLICY } from "./query.js";
+/** The module's refusals as declared, each with its kind (specs/repository-anti-corruption W3-02). */
+export { goalErrors } from "./errors.js";

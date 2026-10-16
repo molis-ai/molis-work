@@ -393,7 +393,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 采用线探针：main 上任何被延后的工具（超过 `deferToolSchemasBeyond: 20`）对任何模型都调不到——find-tools 之后下一次请求仍不声明它（SDK `agent-run-recipe.js` 的 `toolSpecs`）。受影响：Coding builder（≥3 个目录工具）、coordinator（≥6）、writer（≥10）、planner/reader/reviewer（≥13）；助理 operate 正好 20，再加一个就全失。
   - **用户 10-16 弹窗（四项全按推荐）**：① 延后工具上游 Prologue 修（find-tools 返回的工具在该运行后续请求里声明、记进运行以便恢复与回放），同时现在由采用线在 agent-host 去掉 `deferToolSchemasBeyond` 止血，新包换入后撤止血；② `board-wait` 的 params 按检查器带 schema，并进同一上游改动，换包后重跑 P3c 小评测；③ 已安装插件暂不许声明默认来源，只在随宿主发的插件之间，装插件时的同意流程有了再议（W4-03 第 2 片改文档措辞）；④ 暂不换更强模型对照，分不开的记「拿不准」。
   - W5-12 安静时段 23:56 开始（防腐线跑本机全量、全量构建、增量构建），期间各线不起构建、浏览器批次与评测。
-  - 10-17 凌晨：#572（防腐 §10.15 复查，只文档）、#574（手册记用户 10-16 两项决定，只文档）只合并入队。#569 重标（a746e529，goal-event-http 改 409）；Coding 自己的 HTTP 边缘把未点名的码回 400 归交互 2c 按 kind 改。#570 全量在跑。
+  - 10-16 凌晨（PDT）：#572（防腐 §10.15 复查，只文档）、#574（手册记用户 10-16 两项决定，只文档）只合并入队。#569 重标（a746e529，goal-event-http 改 409）；Coding 自己的 HTTP 边缘把未点名的码回 400 归交互 2c 按 kind 改。#570 全量在跑。
   - #573（W3-A2）逻辑与决策记录通过；要补情境条溢出（已选横向滚动+边缘渐隐，STRIP-03）与 touch-targets 覆盖 ＋/×；390px 浮条盖住面板归情境线自己的待办。#571（2a）结构通过；要并 main、改 S-28、证明 `molis-suggest-` 前缀不可伪造、用常量。
   - 手册 B2（Cognia）获准，用 contracts `model-prompts.ts` 的纯函数 `fencedMaterials(data, boundary)` 统一三处「材料不可信」围栏（项目上手、Cognia、Todo 整理器），删项目上手本地副本。
   - 采用线上游计划获准（用户 10-16 弹窗已覆盖）：molis-ai/prologue 分支 `fix/found-tools-declared`，(a) 延后名册上的名字按真 schema 放行，(b) find-tools 找到的工具在后续请求声明、记 `tools-found` 事件以便恢复与回放，另一提交给 board-wait params 按检查器带 schema；**上游 PR 合并前统筹先问用户**；之后 molis-work 换包 PR 恢复 `deferToolSchemasBeyond`、删止血、重跑 P3c 评测。止血 PR（`adoption/no-tool-deferral`）安静时段后构建测量再开。

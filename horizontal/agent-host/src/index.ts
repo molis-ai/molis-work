@@ -48,6 +48,7 @@ export {
   type ResolvedModelSelection,
 } from "./model-configuration.js";
 export { registerAgentHostCapabilities, runViewVersion } from "./capability-registration.js";
+export { actionDigest } from "./action-digest.js";
 export type {
   AgentCapabilityPorts,
   AgentCapabilityRegistrar,

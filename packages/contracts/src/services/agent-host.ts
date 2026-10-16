@@ -1,7 +1,7 @@
 import type { AgentStartExecution } from "./agent-host-start.js";
 export type { AgentStartExecution } from "./agent-host-start.js";
 import type { AgentActionOffer, AgentRunOffer } from "./agent-host-offers.js";
-export type { AgentActionOffer, AgentRunOffer } from "./agent-host-offers.js";
+export { agentOfferActions, type AgentActionOffer, type AgentOfferRunRequest, type AgentRunOffer } from "./agent-host-offers.js";
 import type { ActionCallOrigin, ActionView, ExactActionReference } from "../platform/actions.js";
 import type {
   AgentPromptLayer,

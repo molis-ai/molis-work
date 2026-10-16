@@ -1116,7 +1116,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 
 - `{"item": …}` 与 `"true"` 是丢了类型还是模型能力：已由第 12～14 轮查明是设计问题（见下面的重跑记录），不再是未验证项。
 - T3 接着做时说了要调「Judge job」却没调就结束（第 12～14 轮 3 次里 2 次）：是模型能力，还是和它的形状被延后有关。要分开得有一组不延后的对照；统筹 2026-10-16 定不另跑对照，先记下。
-- 业务网关的能力输入在工具 schema 里也是宽松的并集，`type` 是六种类型都行（`prologue-action-gateway.ts`：`read-capability`、`change-capability`、`change-reversible` 共用的参数，和 `suggest-action`）。和 `board-wait` 的 `params` 是同一类问题，算设计问题，有待验证。现在不改。第 12～14 轮说明给检查器的参数带上类型有用（`{"item": …}` 从 5 次到 0 次）；网关是不是同样受益，要另开一片，让网关按每个能力自己的输入 schema 声明，再照样对照。
+- 业务网关的能力输入在工具 schema 里也是宽松的并集，`type` 是六种类型都行（`prologue-action-gateway.ts`：`read-capability`、`change-capability`、`change-reversible` 共用的参数，和 `suggest-action`）。和 `board-wait` 的 `params` 是同一类问题，算设计问题。第 12～14 轮说明给检查器的参数带上类型有用（`{"item": …}` 从 5 次到 0 次）；网关按每个能力自己的输入 schema 声明，见 §6.0f。
 
 之前各版（v2 没有发布，指纹都在同一行上改）：
 
@@ -1200,7 +1200,61 @@ Molis 这边：
 **留到后面的**：
 
 - `molis.file-present` 只证明文件在（S-27 开放项）。
-- 网关能力输入的类型（见「未验证」）：另开一片，按每个能力的输入 schema 声明，再照这一节的做法对照。
+- 网关能力输入的类型：见 §6.0f。
+
+### 6.0f 网关的能力输入带上类型（2026-10-16）
+
+§6.0e「未验证」第 3 条：助理网关的 `read-capability`、`change-capability`、`change-reversible`、`suggest-action` 共用一份参数，`input` 六种 JSON 类型都收，能力真正的形状只在 `find-capabilities` 的结果文字里。和 `board-wait` 的 `params` 是同一类设计问题。方案经统筹排期、用户弹窗批准上游与评测（2026-10-16）。
+
+- **做法**：工具个数、名字、调用形状都不变（BL-145：助理主轮正好 20 个，再多一个就整批延后）。这一轮找到的能力，下一次请求起在这几个工具的 `input` 上各有一支：标题是 `<capability_id>@<version>`，说明是「提供方 · 名称」，内容是目录里那份 `input_schema`；登记时那份通用的仍是其中一支。读的只在 `read-capability`，改的在 `change-capability`（可撤销的也在 `change-reversible`），`suggest-action` 两种都有。没有 `operate` 的角色不在改的工具上带。
+- **上游**：[Prologue #31](https://github.com/molis-ai/prologue/pull/31)，会话给自己包里的工具参数加分支（`sessions.open` 的 `parameterBranches`，每次组请求时现问）。目录一个名字只登记一份形状，网关是一个固定的包，所以 Molis 自己做不到。Tool 那道门照旧按登记核，分支不放宽也不收紧能调什么。
+- **Molis**：`horizontal/agent-host/src/adapters/prologue-gateway-declared.ts` 记下 `find-capabilities` 找到的、现在用得了的能力，按效果分给各工具；两份参数（`CAPABILITY_PARAMETERS`、`SUGGEST_PARAMETERS`）也搬到这里，`prologueActionGateway` 因此短了 11 行。`prologue-run.ts` 开会话时把回调交给 SDK。
+- **上限**：每个工具最多 12 支，一支最多 8 KiB，一次请求所有分支合计最多 24 KiB；超出就从最早找到的去掉。依据：内置 479 个给 Agent 的动作，`input_schema` 的 p50 182 字节、p90 626、p99 2.3 KB、最大 5.3 KB（`goals.tree.submit@1`）、合计 155 KB，所以只能声明找过的。超出的照样调得动，`find-capabilities` 的结果里照样有它的 schema。
+- **找过的属于这一轮**：新的一轮、宿主重启之后都从零开始，回到通用的那一份；调用不受影响。
+- **数字题的单位**（同一个包，统筹 2026-10-16 转达、用户批准）：[Prologue #32](https://github.com/molis-ai/prologue/pull/32) 让 `ask-user` 的数字题可以带 `unit`，写成模型自己会说的话（如「分钟」）：一行、1 到 24 个字，只用来显示，答案仍是不带单位的数，存盘读回都带着。Molis 这边 `AgentQuestion` 加可选的 `unit`（改合同，`pnpm api:update`），`prologue-questions.ts` 投影时带上；插件 SDK 的题目规则（`question-rules.ts`）照同一条核，`tests/question-rules-consistency.test.ts` 两边对照。交互线 T1 用它在输入框旁显示单位，和「不能超过 240 分钟」一起；这个包合入之前，T1 只写界限。
+- **不在这一片**：`normalizedInput`、`coerced`、`parseCapability` 里为模型写的纠正（字符串数字、字符串布尔、二次编码 JSON、写在身份旁边的字段）先不删。看评测：带上类型之后不再用到，另开一片由用户定。
+- 证据：`tests/assistant-business-gateway.test.ts` 末尾两条（§6.0f），在新包配 main 的代码上先红；`tests/agent-typed-questions.test.ts`（AC-17）、`tests/question-rules-consistency.test.ts`（S1）带上单位后同样先红。
+- **换包**：照 `vendor/prologue-sdk/README.md` 换成从上游 main `4e8468dd`（#32 的合并，含 #31）打的 `prologue-sdk-0.0.0-rc.1-parameter-branches.tgz`，同样的步骤打两次逐字节相同；删了 find-tools-deferral 包，`patch-history.json` 记一笔。同一棵树上 SDK 全量 355 个文件 0 失败（`desktop-computer-use.live` 没跑），13 个消费者脚本在这个包上全过。
+
+**真实模型小评测**（统筹 2026-10-16 转达、用户弹窗批准）。记录按手册 16.3 的格式，没变好的按 §11 分类。
+
+```text
+改动：助理网关的四个能力工具，在这一轮找到的能力上给 input 带上类型（Prologue #31 + 本片）
+要解决的问题：input 只有一份通用参数，模型把数组写成 {"item": […]}、数和布尔写成字符串，靠网关纠正或被合同拒
+环境：每轮一个临时 Home；MiniMax / MiniMax-M3，接口 anthropic-messages（api.minimax.cn/anthropic）；2026-10-16
+任务：真实 Todo 动作（定义与处理器都是 Todo 插件自己的），种好的待办都在当前项目里，审查一律批准
+  G1 改一件待办的截止日期（expected_revision 是整数）；G2 今天计划的三件都推后两天（ids 数组、oneOf 的 change、整数修订号的映射）；
+  G3 把已完成的一件归档（布尔加整数）；G4 先别直接记，给一个点了才加的按钮（完整的 create 输入，日期加嵌套的 waiting）
+次数：每个任务每组 3 次。对照组是当前 main（76758783）的通用参数，同一份夹具、同一模型
+结果：带类型 12/12；通用 11/12（G4 有一次没出卡片）
+网关调用：带类型 30 次，29 次发在已声明类型的请求里，要纠正的 1 次（在 find-capabilities 之前，见下表）、被合同拒 0 次；
+  通用 38 次，要纠正的 20 次（{"item"} 10 次、字符串数或布尔 16 次，一次调用可有两种），被合同拒 9 次
+成本与时延：12 轮合计，带类型 148 秒、未缓存输入 226,822 token、缓存读 436,999、输出 6,707；
+  通用 224 秒、126,094、330,325、9,507。带类型的未缓存输入多八成：找到能力后工具的声明变了，提示缓存从工具那里断开（MiniMax 没报缓存写入）
+没变好的：见下面的分类表
+结论与未验证：只在这四个任务、这一个模型上成立。找过的能力带上类型之后，数组、整数、布尔都按类型写；通用参数下同样的任务在 G2 每轮都先被拒
+```
+
+- 夹具的做法：
+  - 密钥只在那一条命令上从钥匙串内联读取，不写文件、不进日志。
+  - 夹具只留请求里的 messages 与 tools、回复里的工具调用（模型写的原样）、文字与用量，不留请求头。
+  - 每次调用的「要纠正」按网关自己的 `normalizedInput` 判：纠正前后不同，或写在身份旁边、`input` 写成字符串、带 `{"item": …}`。
+  - 评测文件引用包内部（`apps/local-host/dist/assistant/*`），按 `pnpm health:check` 不能作为新测试文件入库，留在统筹共享笔记里（`adoption-gateway-eval.live.test.ts`），两个工作树各拷一份跑。
+  - 跑第一遍时有两处夹具缺陷，那一遍作废、全部重跑：
+    1. 种待办用的「今天」和模型看到的不是同一天（过了上海的零点），种的待办也不在当前项目，模型按项目筛就看不到；
+    2. G3 判过的读法不带 `archived: true`，归档后的待办读不到。G3 两组都用修好的判法另跑了 3 次。
+
+| 失误 | 出现在 | 分类 | 依据 | 处理 |
+| --- | --- | --- | --- | --- |
+| 数组写成 `{"item": […]}` | 通用：G2 3 次都有（8 次调用），G4 一次（2 次调用）；带类型 0 | 设计问题 | 通用参数下 `input` 没有形状，能力的 schema 只在结果文字里；同一模型、同一任务，声明了类型之后 6 次批量与卡片调用（G2、G4 各 3 次）都写成数组 | 本片 |
+| 数和布尔写成字符串（`"1"`、`"2"`、`"true"`） | 通用：G1 一次、G2 两轮、G3 3 次都有；带类型 0 | 设计问题 | 同上；`coerced` 能改回大部分，改不了 `expected_revisions` 这种映射里的值，G2 的批量处理因此被拒 | 本片；纠正代码先不删（见上「不在这一片」） |
+| 批量被拒后改成三次单件修改 | 通用 G2 的第 2、3 轮 | 设计问题（同上两行的后果） | 结果对，但不再是一批，撤销要三次 | 本片 |
+| 卡片被拒后说「调整一下再试」，却没再调就结束 | 通用 G4 第 2 轮 | 拿不准 | 被拒的原因是 `{"item"}`（设计问题）；被拒之后说了要再试却以文字结束，和 §6.0e 那条「说了要调却没调」同类，没有对照分不开 | 不改。按 §11 不加「说了要调就要调」一类的措辞 |
+| 没找就猜了一个能力身份，`input` 写成 `"{}"` | 带类型 G2 第 3 轮 | 模型能力 | 第一次调用在 `find-capabilities` 之前，这时还没有可声明的能力；目录里也没有这个身份，这次调用不会成；之后它先找再做，结果对 | 不改 |
+
+- 未验证：
+  - 只量了 Todo 的动作和这四种写法。别的插件 schema 更大，一轮找到很多能力时会碰到 24 KiB 的上限，最早找到的就不再声明，那时的写法没有量过。
+  - 缓存断开的花费是这一个模型、这一种提示结构上的数。要省它，得让声明在一轮里少变（比如找到后一次给齐），那是另一片，要先看真实的轮次分布。
 
 ### 6.1 当前记录
 

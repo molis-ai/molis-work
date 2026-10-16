@@ -490,6 +490,10 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - prologue#32（数字题可选 unit，head `acf7efdb8`）：统筹审过、用户批准，统筹 squash 合入（prologue main `4e8468ddb`）。已告诉采用线：从 prologue main 打包换包、开 Molis PR（带网关细化与 AgentQuestion.unit 三处），旧包删掉，记录要对上，快照一起提交。
     - 防腐线 §10.18 复查：#606（`agent.offers.run` 把点击的 signal 交给动作，S-29 加拒绝用例；`6942d50d2`）审过，带 EXTRA_KNOWN 排全量（chain-606.log）；#607（只改 spec：原样恢复 #589 误删的 §10.17，已逐行核对与 `aadce77ac` 相同，加 §10.18）审过，直接入队。
     - #595 版本问题（main 与 26 份清单已是 0.3.0，v0.3.0 只有草稿没有 tag）：用户 10-16 定「留 0.3.0，切版时补记录」。不退回 0.2.0；v0.3.0 按最终切版提交生成，发布 PR 把 CHANGELOG「汇集至」、v0.3.0.md 状态句与清单摘要表刷新到那个提交。统筹开文档 PR 把这条例外写进 POLICY 第 3 节（分支 `docs/policy-0.3.0-interval`）。
+    - #609（统筹的 POLICY 第 3 节例外）已入队。#591 合入（`76758783a`），已通知回执线开 3a；#598 合入；#604 全量全绿、入队（visual-surfaces 在 Linux 过了）。
+    - #610（回执片 A，carry 修复 + RC-09 + D29–D32 + BL-148，`3f35e0d14`）审过，全量链在 #606 之后（chain-610.log）。
+    - #612（手册 A3②，`cbeaa1df8`）内容审过：材料只写事实、判断各写一处，没有新禁令；评测 48 轮。BL 号与 #610 撞（都用 BL-148），已让手册线改成 BL-149，新 head 来了再挂全量。
+    - #613（交互 T1，`3ace136a4`）审过：D34 宿主一处判、页面读 `from_composer`；`coding.runs.control` v3→v4（只给 user，唯一钉住的调用方同改）；plugin-sdk `questionAnswer` 变宽（共享核心）。全量链在 #610 之后（chain-613.log）。用户批了 T1 真实模型试用「跑 12 轮（推荐）」（助理 6 + Coding 6，一次性隔离 Home，跑完即删；钥匙串读取仍由交互线会话里用户确认）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

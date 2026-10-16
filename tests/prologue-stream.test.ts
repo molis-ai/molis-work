@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  applyPrologueEvent,
+  applyRunEvent,
   emptyPrologueStreamState,
   prologuePhaseOf,
   settleProloguePending,
@@ -27,7 +27,7 @@ test("supplements retain user wording and distinguish receipt, context inclusion
 });
 
 function apply(state: PrologueStreamState, ...events: PrologueEvent[]): void {
-  for (const event of events) applyPrologueEvent(state, event, AT);
+  for (const event of events) applyRunEvent(state, event, AT);
 }
 
 function receipt(source: "reported" | "estimated"): PrologueUsageReceipt {
@@ -97,7 +97,7 @@ test("a tool result completes exactly its own call", () => {
     ["call-2", "completed"],
   ]);
   assert.equal(
-    applyPrologueEvent(state, { type: "tool-result", callId: "unknown", name: "x", text: "" }, AT),
+    applyRunEvent(state, { type: "tool-result", callId: "unknown", name: "x", text: "" }, AT),
     false,
     "对不上任何调用的结果不应改动投影",
   );
@@ -248,7 +248,7 @@ test("PA-24: the runtime's newer frames are read, not counted as unknown: sleepi
     { path: "src/b.ts", byteLength: 40, digest: "d2", checkpointId: "cp-1" }] });
   assert.equal(state.turn_changes.length, 1);
   assert.deepEqual(state.turn_changes[0]!.files.map(file => [file.path, file.byte_length, file.checkpoint_id]), [["src/a.ts", 120, "cp-1"], ["src/b.ts", 40, "cp-1"]]);
-  assert.equal(applyPrologueEvent(state, { type: "turn-changes", turn: 2, changes: [{ path: "src/a.ts", byteLength: 1, digest: "x", checkpointId: "cp-9" }] }, AT), false,
+  assert.equal(applyRunEvent(state, { type: "turn-changes", turn: 2, changes: [{ path: "src/a.ts", byteLength: 1, digest: "x", checkpointId: "cp-9" }] }, AT), false,
     "a turn is reported once; a replayed copy does not add a second entry");
   apply(state, { type: "model-switched", from: { protocol: "anthropic-compatible", model: "small" }, to: { protocol: "anthropic-compatible", model: "large" } });
   assert.equal(state.activity.at(-1)?.name, "model-switch");
@@ -333,8 +333,8 @@ test("text, tool calls and original questions keep their first visible order thr
   const live = emptyPrologueStreamState();
   const replay = emptyPrologueStreamState();
   for (const event of events) {
-    applyPrologueEvent(live, event, AT);
-    applyPrologueEvent(replay, event, null);
+    applyRunEvent(live, event, AT);
+    applyRunEvent(replay, event, null);
   }
   const order = (state: typeof live) => [
     ...state.turns.map(turn => [turn.sequence, turn.text]),
@@ -350,11 +350,11 @@ test("text, tool calls and original questions keep their first visible order thr
 
 test("streaming text retains its first observed time and position when a later event closes it", () => {
   const state = emptyPrologueStreamState();
-  applyPrologueEvent(state, { type: "text-delta", text: "保留已读内容" }, AT);
+  applyRunEvent(state, { type: "text-delta", text: "保留已读内容" }, AT);
   const sequence = state.streaming_sequence;
-  applyPrologueEvent(state, { type: "text-delta", text: "，随后停止" }, "2026-09-20T01:00:00Z");
+  applyRunEvent(state, { type: "text-delta", text: "，随后停止" }, "2026-09-20T01:00:00Z");
   assert.equal(state.streaming_sequence, sequence);
-  applyPrologueEvent(state, { type: "cancelled" }, "2026-09-20T02:00:00Z");
+  applyRunEvent(state, { type: "cancelled" }, "2026-09-20T02:00:00Z");
   assert.equal(state.turns[0]?.sequence, sequence);
   assert.equal(state.turns[0]?.at, AT);
 });
@@ -366,7 +366,7 @@ test("compaction evidence survives event replay and does not replace task or com
     { type: "compaction-started" }, { type: "compaction-cancelled" }, { type: "cancelled" },
   ];
   const live = emptyPrologueStreamState(), replay = emptyPrologueStreamState();
-  for (const event of events) { applyPrologueEvent(live, event, null); applyPrologueEvent(replay, event, null); }
+  for (const event of events) { applyRunEvent(live, event, null); applyRunEvent(replay, event, null); }
   assert.deepEqual(live, replay);
   assert.equal(live.turns[0]?.text, "原建议不是已修改");
   assert.equal(live.activity[0]?.state, "completed"); assert.match(live.activity[0]?.output ?? "", /7 条/);

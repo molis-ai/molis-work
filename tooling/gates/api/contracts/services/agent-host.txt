@@ -1215,6 +1215,7 @@ export interface AgentStepBoard {
             at_ms: number;
             by?: string;
             handover?: true;
+            inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef[];
         }>;
         owner?: AgentStepOwner;
         title?: string;
@@ -1341,10 +1342,7 @@ export interface AgentTurnView {
     text: string;
     at: string | null;
     sequence?: number;
-    steer?: {
-        id: string;
-        state: "received" | "applied" | "read" | "unread" | "withdrawn";
-    };
+    steer?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentTurnSteer;
 }
 
 export type AgentUsageCoverage = "unknown" | "reported" | "estimated" | "partial" | "partial-estimated";

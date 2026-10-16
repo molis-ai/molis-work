@@ -34,7 +34,7 @@ import { switchRunModel } from "./prologue-model-switch.js";
 import { inputsPort, type QueueInput, type SteerInput } from "./prologue-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
-  applyPrologueEvent,
+  applyRunEvent,
   closeInterruptedPrologueStream,
   runStreamState,
   type RoundDesk,
@@ -630,7 +630,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         if (event.text === request.task) return;
       }
       const at = this.#now().toISOString();
-      if (!applyPrologueEvent(record.state, event, at)) return;
+      if (!applyRunEvent(record.state, event, at)) return;
       // A held ending reads as what was wrong with it; one that ended still only announcing says nothing was done.
       if (event.type === "model-response-repair" && event.reason === "stop-held") {
         const label = this.#ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));
@@ -931,7 +931,7 @@ function restorePrologueRun(saved: PrologueRestoredSession["runs"][number]) {
     }
     const atMs = (event as { atMs?: unknown }).atMs;
     const at = typeof atMs === "number" && Number.isFinite(atMs) ? new Date(atMs).toISOString() : null;
-    applyPrologueEvent(state, event, at);
+    applyRunEvent(state, event, at);
     if (isEnded(state.phase) && typeof atMs === "number") endedAt = at;
   }
   if (saved.timing) {

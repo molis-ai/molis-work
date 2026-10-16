@@ -40,8 +40,8 @@ export interface AgentTurnView {
   at: string | null;
   /** Relative presentation order within this Run, reconstructed from its events. */
   sequence?: number;
-  /** Run-owned supplemental input, from the run's ledger: applied is context inclusion; read is a kept reply made with it, not compliance; unread is the round ending before that. */
-  steer?: { id: string; state: "received" | "applied" | "read" | "unread" | "withdrawn" };
+  /** Run-owned supplemental input and its receipt, from the run's ledger. */
+  steer?: import("./agent-inputs.js").AgentTurnSteer;
 }
 
 export type AgentToolActivityState = "started" | "completed" | "failed" | "unknown";

@@ -1127,9 +1127,8 @@
     "docs/design/soft-workbench/.impeccable": 1,
     "plugins/native/plugin-builder/.impeccable": 1
   },
-  "emptyCatchesTotal": 4,
+  "emptyCatchesTotal": 3,
   "emptyCatches": {
-    "apps/local-host/src/web-onboarding-input.ts": 1,
     "packages/im-ui/src/browser/controller.ts": 1,
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1

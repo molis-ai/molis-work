@@ -55,6 +55,7 @@ export function homeContentReferences(db: SqliteDatabase): Set<string> | null {
       }
     }
   } catch {
+    // Not "nothing points at it": a database that cannot be read means nothing can be proven unreferenced (see above).
     return null;
   }
   return refs;

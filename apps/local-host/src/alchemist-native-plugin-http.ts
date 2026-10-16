@@ -37,6 +37,7 @@ export async function handleAlchemistNativePluginHttp(
             const next = await reader.read(); if (next.done) break;
             if (!response.write(next.value)) await once(response, "drain", { signal: abort.signal });
           }
+        // Releasing the upstream stream after the page went away or the reply ended; a stream that already closed has nothing to release.
         } finally { await reader.cancel().catch(() => undefined); }
       }
       response.end(); return true;

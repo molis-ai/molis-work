@@ -1,4 +1,5 @@
 import os from "node:os";
+import { projectOrNull } from "./catalog-lookup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "@molis-ai/molis-work-app-workbench";
@@ -95,13 +96,10 @@ export function createProjectArrivalHttp(ports: ProjectArrivalHttpPorts) {
 
   async function readBrief(homeDirectory: string | undefined, projectId: string): Promise<ProjectBriefResponse | null> {
     const found = await ports.withCatalog({ homeDirectory }, catalog => {
-      try {
-        const project = catalog.getProject(projectId);
-        const workspace = catalog.listWorkspaceDirectory(project.project_id)[0] ?? null;
-        return { project, workspace_path: workspace?.canonical_path ?? null };
-      } catch {
-        return null;
-      }
+      const project = projectOrNull(catalog, projectId);
+      if (!project) return null;
+      const workspace = catalog.listWorkspaceDirectory(project.project_id)[0] ?? null;
+      return { project, workspace_path: workspace?.canonical_path ?? null };
     });
     if (!found) {
       // The personal space is made the first time it is opened; until then it has nothing to read.

@@ -151,6 +151,7 @@ export async function prepareGitIndex(intent: GitIndexIntent, workspaces: () => 
       if (renamed) throw Object.assign(new Error("暂存结果尚未确认，请核对后再继续"), { code: "EFFECT_RECONCILE_REQUIRED" });
       throw error;
     } finally {
+      // Cleaning up after the write: the outcome (or the error) is already decided, and a lock or temporary copy already gone needs nothing.
       if (lock) { await lock.close().catch(() => {}); if (!renamed) await fs.unlink(lockPath).catch(() => {}); }
       await fs.rm(temp, { recursive: true, force: true }).catch(() => {});
     }

@@ -1,3 +1,4 @@
+import { platformErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 
 /**
@@ -72,5 +73,31 @@ export const hostLog = {
   debug: (area: string, event: string, fields?: Record<string, unknown>) => write("debug", area, event, undefined, fields),
 };
 
+/**
+ * Something that runs again and again (a timer's round, a poll) and fails the same way each time: written when it starts failing,
+ * and again only once it has worked since. `key` names what failed (a project's store, one schedule), never text of its own.
+ */
+export function repeatingFailure(area: string, event: string) {
+  const failing = new Set<string>();
+  return {
+    worked: (key: string): void => { failing.delete(key); },
+    failed: (key: string, error: unknown, fields?: Record<string, unknown>): void => {
+      if (failing.has(key)) return;
+      failing.add(key); hostLog.warn(area, event, error, fields);
+    },
+  };
+}
+
 /** The search index's background passes (reconcile, refresh, sync) that failed past the source's own report. */
 export const logSearchIndexFailure = (error: unknown, where: string): void => hostLog.warn("search", "index_update_failed", error, { where });
+
+/**
+ * An owner's preview of a version that failed. The caller still shows no preview; "you may not read it" and "it is not there"
+ * are answers, and anything else (the owner broke, timed out, is unavailable) is written.
+ */
+export function logPreviewFailure(error: unknown, artifactTypeId: string): void {
+  const { kind, code } = (error ?? {}) as { kind?: unknown; code?: unknown };
+  const sort = kind ?? (typeof code === "string" ? platformErrorKind(code) : undefined);
+  if (sort === "forbidden" || sort === "not_found") return;
+  hostLog.warn("artifacts", "preview_failed", error, { artifact_type_id: artifactTypeId });
+}

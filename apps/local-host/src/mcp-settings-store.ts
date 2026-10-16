@@ -91,6 +91,7 @@ const writes = new Map<string, Promise<unknown>>();
 /** Management is the writer; all MCP processes re-read the same atomic file. */
 export async function updateMcpToolPreference(homeDirectory: string, change: (current: McpToolPreference) => McpToolPreference): Promise<McpToolPreference> {
   const filePath = mcpToolPreferencePath(homeDirectory);
+  // Only the order is chained: the previous write's failure was already answered to its own caller.
   const pending = (writes.get(filePath) ?? Promise.resolve()).catch(() => undefined).then(async () => {
     const current = await readMcpToolPreference(homeDirectory);
     assertUniqueGrants(current);

@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { logPreviewFailure } from "./host-log.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   FILE_ENTRIES_PAGE_LIMIT, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, isFileContentSource, isFileEntriesSource,
@@ -39,7 +40,7 @@ async function ownerPreview(subjectId: string, views: readonly ActionView[], inv
   if (!artifact || artifact.availability !== "available" || !declaration?.preview || artifact.producer_plugin_id !== declaration.plugin_id) return null;
   const view = views.find(item => item.capability_id === declaration.preview!.capability_id && item.version === declaration.preview!.version && item.availability.available);
   if (!view) return null;
-  try { return await invoke(view, { artifact }) as FileContent; } catch { return null; }
+  try { return await invoke(view, { artifact }) as FileContent; } catch (error) { logPreviewFailure(error, artifact.artifact_type_id); return null; }
 }
 
 export async function handleSideFilesHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: SideFilesPorts): Promise<boolean> {

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { hostLog } from "./host-log.js";
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { callMcpConnectionTool, readMcpConnectionResource } from "./connector-mcp.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -102,7 +103,8 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
       const seen = readJsonFile<Seen>(seenFile, {});
       for (const id of [...registered.keys()]) if (!(id in seen)) withdraw(id);
       for (const [id, entry] of Object.entries(seen)) {
-        try { register(id, entry.tools, entry.resources); } catch { /* One unreadable connection must not hide the others. */ }
+        // One unreadable connection must not hide the others; it is written, by its id, so it is not missing without a word.
+        try { register(id, entry.tools, entry.resources); } catch (error) { hostLog.warn("connections", "mcp_register_failed", error, { connection_id: id }); }
       }
     },
     /** Called after the person lists a connection's tools: the directory follows what the server offers now. */

@@ -402,8 +402,10 @@ export async function resolveConflict(root: string, reviewed: ConflictSnapshot, 
       if ((await readHeld(root, reviewed.name, file)).fingerprint !== after.fingerprint) throw new Error("冲突正文在写入期间又被修改，请核对");
       await lock.close(); await fs.rename(lockPath, indexPath); published = true;
     } finally {
+      // The outcome is already decided; a lock file handle that is already closed needs nothing.
       await lock.close().catch(() => undefined);
       if (!published) {
+        // A lock file that is already gone is not ours to remove.
         const named = await fs.lstat(lockPath).catch(() => null);
         if (named?.dev === lockIdentity.dev && named.ino === lockIdentity.ino) await fs.rm(lockPath, { force: true });
       }

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { repeatingFailure } from "./host-log.js";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { workspaceRefFor } from "./agent-host-composition.js";
@@ -34,11 +35,15 @@ export function startWebProjectSchedulers(options: {
         databasePath: project.database_path, projectId: project.project_id }), () => undefined);
     }
   }).catch(error => { if (!stopped) options.onError(error); });
+  // A round that throws throws again every 30 seconds: written when it starts failing, and again once it has run since.
+  const rounds = repeatingFailure("schedule", "round_failed");
+  const ran = (key: string) => rounds.worked(key);
+  const failed = (key: string, schedule: "feed" | "tasks") => (error: unknown) => rounds.failed(key, error, { schedule });
   const round = () => runWithMolisWorkHome(homeDirectory, () => {
     for (const [databasePath, runtime] of runtimes) {
-      void runtime.scheduler.tick().then(result => { if (result.completed || result.failed) changed(databasePath); }).catch(() => undefined);
+      void runtime.scheduler.tick().then(result => { ran(`feed:${databasePath}`); if (result.completed || result.failed) changed(databasePath); }).catch(failed(`feed:${databasePath}`, "feed"));
       void withCallId(newCallId(), () => runtime.schedule.tick())
-        .then(result => { if (result.invoked) changed(databasePath); }).catch(() => undefined);
+        .then(result => { ran(`tasks:${databasePath}`); if (result.invoked) changed(databasePath); }).catch(failed(`tasks:${databasePath}`, "tasks"));
     }
   });
   const cancel = options.periodic.every({ id: "projects.schedules", title: "项目里的定时任务", owner: "local-host", intervalMs: 30_000,

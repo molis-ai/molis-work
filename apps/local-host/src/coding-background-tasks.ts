@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { repeatingFailure } from "./host-log.js";
 import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 
@@ -37,6 +38,9 @@ const SERVICE_STARTED_AT = new Date(Date.now() - process.uptime() * 1000).toISOS
  * nothing here opens a project or asks a runtime. A project that never used Coding, or whose store cannot be read, lists
  * nothing rather than a guess.
  */
+// Read on every attention poll: a store that cannot be read is written when it starts failing, and again once it has been read.
+const unreadable = repeatingFailure("coding", "background_tasks_unreadable");
+
 export function codingBackgroundTasks(projects: readonly WebProjectNavigation[], readSessions: CodingSessionReader, startedAt = SERVICE_STARTED_AT): CodingBackgroundTask[] {
   const tasks: CodingBackgroundTask[] = [];
   for (const project of projects) {
@@ -51,8 +55,11 @@ export function codingBackgroundTasks(projects: readonly WebProjectNavigation[],
           // A queued round has not started, so a restart did not cut it off.
           before_restart: session.active && !["reconcile-required", "queued"].includes(session.state) && session.updated_at < startedAt });
       }
-    } catch {
-      // No Coding table yet, or a store this service cannot read: nothing is listed for that project.
+      unreadable.worked(project.project_id);
+    } catch (error) {
+      // A store this service cannot read lists nothing for that project, and is written (a project without Coding lists nothing
+      // without failing).
+      unreadable.failed(project.project_id, error, { project_id: project.project_id });
     } finally { store?.close(); }
   }
   return tasks.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || a.project_id.localeCompare(b.project_id));

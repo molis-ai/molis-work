@@ -43,6 +43,7 @@ export const readMaterialWebsite: MaterialWebsiteReader = async (input, options 
         if (bytes > MAX_BYTES) throw materialErrors.too_large("网页正文超过 4 MiB，未保存正文");
         chunks.push(chunk.value);
       }
+    // The body is read (or refused) already; a stream that already ended has nothing left to cancel.
     } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
     const result = await extractMaterial({ file_name: type === "text/plain" ? "page.txt" : "page.html", bytes: Buffer.concat(chunks, bytes) },
       { signal, textFormat: "markdown", limits: { maxBytes: MAX_BYTES, maxCharacters: 2_000_000, maxTextBytes: 4 * 1024 * 1024 } });
@@ -50,6 +51,7 @@ export const readMaterialWebsite: MaterialWebsiteReader = async (input, options 
     return result;
   } finally {
     lifetime.dispose();
+    // The body is read (or refused) already; a stream that already ended has nothing left to cancel.
     await response?.body?.cancel().catch(() => {});
   }
 };

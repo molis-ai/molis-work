@@ -1,0 +1,79 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
+import { captureHostLog, codingBackgroundTasks, logPreviewFailure, projectOrNull, repeatingFailure, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
+
+/**
+ * W5-13 second slice: a catch in the Host that answered every failure as "absent" now tells the answer it means (the project
+ * is not there, you may not read it, Coding never ran here) from a failure, and writes the failure to the Host log.
+ */
+
+function captured<T>(run: () => T): { value: T; entries: HostLogEntry[] } {
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try { return { value: run(), entries }; } finally { restore(); }
+}
+
+test("W5-13-04 a project looked up by id is null only when the catalog says it is not there; a catalog that fails says so", () => {
+  const found = { project_id: "p1", display_name: "One" };
+  const catalog = (failure?: unknown) => ({ getProject: (id: string) => { if (failure) throw failure; return { ...found, project_id: id }; } });
+  assert.deepEqual(projectOrNull(catalog(), "p1"), found);
+  assert.equal(projectOrNull(catalog(projectCatalogErrors.project_not_found("找不到")), "p1"), null);
+  const broken = Object.assign(new Error("database disk image is malformed"), { code: "ERR_SQLITE_ERROR" });
+  assert.throws(() => projectOrNull(catalog(broken), "p1"), error => error === broken, "a catalog that cannot be read is not a deleted project");
+  const other = projectCatalogErrors.project_storage_invalid("坏了");
+  assert.throws(() => projectOrNull(catalog(other), "p1"), error => error === other);
+});
+
+test("W5-13-05 an owner's failed preview is written by its type; \"you may not read it\" and \"it is not there\" are answers, not failures", () => {
+  const { entries } = captured(() => {
+    logPreviewFailure(new ActionError("actions.forbidden", "不能读"), "pages.document.v1");
+    logPreviewFailure(new ActionError("files.missing", "没有了", { kind: "not_found" }), "pages.document.v1");
+    logPreviewFailure(new ActionError("pages.timeout", "超时", { kind: "timeout" }), "pages.document.v1");
+    logPreviewFailure(new Error("/Users/someone/notes.md 读不了"), "files.snapshot.v1");
+  });
+  assert.deepEqual(entries.map(({ at: _at, ...rest }) => rest), [
+    { level: "warn", area: "artifacts", event: "preview_failed", error: { name: "ActionError", code: "pages.timeout" }, fields: { artifact_type_id: "pages.document.v1" } },
+    { level: "warn", area: "artifacts", event: "preview_failed", error: { name: "Error" }, fields: { artifact_type_id: "files.snapshot.v1" } },
+  ]);
+});
+
+test("W5-13-06 Coding's background list: a project without Coding lists nothing quietly; one it cannot read is written once until it reads again", () => {
+  const root = mkdtempSync(join(tmpdir(), "host-log-catches-"));
+  try {
+    const plain = join(root, "plain.db"); seedDemoBoard(plain);
+    const broken = join(root, "broken.db"); writeFileSync(broken, "not a database");
+    const projects = [{ project_id: "p-plain", display_name: "Plain", database_path: plain }, { project_id: "p-broken", display_name: "Broken", database_path: broken }];
+    const first = captured(() => codingBackgroundTasks(projects, listCodingBackgroundSessions));
+    assert.deepEqual(first.value, []);
+    assert.deepEqual(first.entries.map(entry => [entry.area, entry.event, entry.fields]), [["coding", "background_tasks_unreadable", { project_id: "p-broken" }]]);
+    // Read on every attention poll: the same failure is not written again ...
+    assert.deepEqual(captured(() => codingBackgroundTasks(projects, listCodingBackgroundSessions)).entries, []);
+    // ... until the store has been read since.
+    rmSync(broken); seedDemoBoard(broken);
+    assert.deepEqual(captured(() => codingBackgroundTasks(projects, listCodingBackgroundSessions)).entries, []);
+    writeFileSync(broken, "not a database");
+    assert.equal(captured(() => codingBackgroundTasks(projects, listCodingBackgroundSessions)).entries.length, 1);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("W5-13-08 a failure that repeats every round (the schedules' 30-second round, an attention poll) is written when it starts, and again only after it worked", () => {
+  const { entries } = captured(() => {
+    const rounds = repeatingFailure("schedule", "round_failed");
+    const failure = Object.assign(new Error("database is locked"), { code: "storage_busy" });
+    rounds.failed("feed:a", failure, { schedule: "feed" });
+    rounds.failed("feed:a", failure, { schedule: "feed" });
+    rounds.failed("tasks:a", failure, { schedule: "tasks" });
+    rounds.worked("feed:a");
+    rounds.failed("feed:a", failure, { schedule: "feed" });
+    // Another round's book is its own.
+    repeatingFailure("schedule", "round_failed").failed("feed:a", failure, { schedule: "feed" });
+  });
+  assert.deepEqual(entries.map(entry => entry.fields?.schedule), ["feed", "tasks", "feed", "feed"]);
+  assert.ok(entries.every(entry => entry.event === "round_failed" && entry.error?.code === "storage_busy"));
+});

@@ -8,6 +8,13 @@
 
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
+W4-03 第一片（2026-10-15，端口的默认来源由 Manifest 声明，#565；BL-087、D-04 的 A）：任务书要求「当时选择短期维持的项（例如 D-04 端口默认连线）重新判断是否到了该做的时候」，路线图把它排进 W4-03；新增一个端口插件只改自己的包和声明（§4.6），名单挡着这条，所以现在做。
+- 合同：输入口加可选的 `default_source: { plugin_id, port }`（另一个插件的输出口），输入组加可选的 `default`（至多一个）。SDK 的 Manifest 检查拒绝指向自己、不像插件 id、端口名不合法、不是对象的默认来源，以及两个默认组、不是布尔值的 `default`（`packages/plugin-sdk/src/wiring-declarations.ts`；插件 id 的写法挪到 `plugin-id.ts`，与 Manifest 自己的 id 共用）。公开 API 快照多出这两个可选字段，现有 Manifest 不受影响。
+- 宿主：`workspace-plugin-bindings.ts` 的 13 行名单删掉，换成 `plugin-default-bindings.ts` 的 `bindDeclaredDefaults`：按项目里运行中的插件读声明，只给什么也没读的口接，人选过的来源、固定成果版本、选过的组都不动；来源插件不在、没有那个口或类型不同就不接（原来名单靠类型恰好一致，第三方插件的声明可能不一致，不接比让项目启动失败对）。13 行搬进 Coding（6）、Shelf（2）、Diff（4 加默认组「两份快照」）、Text Stats（1）各自的 Manifest。
+- 测试：新增 `tests/plugin-default-bindings.test.ts`：`W4-03-01`（Coding 家族接出的默认连线与原名单逐行相同、Diff 默认组；名单外的插件按自己的声明接上、默认组生效）、`W4-03-02`（人选的来源与组不被覆盖；来源不在、口不存在、类型不同都不接）；`tests/plugin-declaration-rules.test.ts` 加 8 条 `W4-03-03`。变异检查：去掉类型比对、去掉「已有来源就跳过」、去掉默认组，各有一条失败。`tests/workspace-plugin-graph.test.ts` 改从包入口取 `bindDeclaredDefaults`（新的具名导出），少一处包内部引用。
+- 文档：`docs/system/EXTENSION-POINTS.md`（Text Stats 包外点名从 12 个文件降到 11 个，按第 1 节的复核命令重数）、`apps/local-host/README.md`、`skills/molis-plugin-dev/elements.md`、`examples.md`、`host.md`。
+- 剩下的两项（Diff 与 Text Stats 自己渲染视图、伙伴舞台由 Manifest 视图生成而不是 `coding-surface.ts` 的名单）要改 `coding-surface.ts`，在途的 H4（#554）也改它，排在它合入之后做第二片。
+
 W4-04 第一片（2026-10-15，插件读自己成果线的最新版本，#545 已合入 main）：
 - 范围：Form 迁到 Runtime 前要先补的平台服务（RUNTIME-MIGRATION「迁移要用到时先补服务，不在迁移 PR 里补」）。Form、Dataset、PPT、Pages 固定成果时，要知道这条成果线在项目里的最新版本，才能给下一版编号；现在这一步由宿主的 `artifactLineHead` 端口给。
 - 新增 `services.artifacts.head(artifact_id)`：返回 `{ version, source_revision }`，项目里还没有就是 `null`。只读得到这个插件自己开的成果线，要有 `artifact:read`。

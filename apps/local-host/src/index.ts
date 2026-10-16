@@ -17,6 +17,7 @@ export { PluginHostExecutor } from "./plugin-executor.js";
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
 export { openPluginDatabase } from "./plugin-database.js";
 export { createPluginPlatform } from "./plugin-platform.js";
+export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";
 export type { PluginHostExecutorOptions } from "./plugin-executor.js";

@@ -11,11 +11,11 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import {
   DEMO_PROJECT_ID,
   LocalProjectDatabase,
+  bindDeclaredDefaults,
   createPluginPlatform,
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { bindWorkspaceCompanions } from "../apps/local-host/dist/workspace-plugin-bindings.js";
 import { DIFF_PLUGIN_ID, createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git";
@@ -163,7 +163,7 @@ test("Coding fixed output reaches Diff through the production default binding wi
       { definition: createFilesPlugin() }, { definition: createGitPlugin() },
       { definition: createTextStatsPlugin() }, { definition: createDiffPlugin() },
     ]);
-    bindWorkspaceCompanions(platform, DEMO_PROJECT_ID, "tester");
+    bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
     assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
     // Coding records its change set as a process item (artifact-positioning A2), then selects it into the port.
     const saved = coding!.services!.processItems!.record({ artifact_id: "fixed-coding", version: 1, artifact_type_id: "coding.changeset.v1", schema_version: 1,
@@ -190,7 +190,7 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
       { definition: createFilesPlugin() }, { definition: createGitPlugin() }, { definition: createTextStatsPlugin() }, { definition: createDiffPlugin() },
     ]);
     const shelfReport = () => platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.shelf")!.ports.find(port => port.port === "coding-report")!;
-    bindWorkspaceCompanions(platform, DEMO_PROJECT_ID, "tester");
+    bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
     assert.equal(shelfReport().source?.source_plugin_id, "io.molis.work.coding", "an input that reads nothing follows the default source");
     artifacts.commands.registerVersion({ ...pinnedArtifact("固定的执行报告"), project_id: DEMO_PROJECT_ID, actor_id: "tester", artifact_id: "report-1", version: 2,
       artifact_type_id: "coding.report.v1", schema_version: 1, producer: { plugin_id: "io.molis.work.coding", plugin_version: "1.50.0", binding_signature: "official-coding-binding" },
@@ -199,13 +199,13 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
     const pinned = { artifact_id: "report-1", version: 2 };
     assert.deepEqual(shelfReport().artifact, pinned);
 
-    bindWorkspaceCompanions(platform, DEMO_PROJECT_ID, "tester");                       // the project is opened again
+    bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");                       // the project is opened again
     assert.deepEqual(shelfReport().artifact, pinned, "opening the project does not replace the given version");
     assert.equal(shelfReport().source, undefined);
     assert.equal(shelfReport().origin, "user");
 
     platform.wiring.unbind("io.molis.work.coding", "materials");                         // another port is put back to its default
-    bindWorkspaceCompanions(platform, DEMO_PROJECT_ID, "tester");
+    bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
     assert.deepEqual(shelfReport().artifact, pinned, "putting back another port does not replace the given version");
     assert.equal(platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.coding")!.ports.find(port => port.port === "materials")!.source?.source_plugin_id,
       "io.molis.work.shelf", "the port that was put back follows its default source again");

@@ -43,9 +43,21 @@ export interface PluginPortDeclaration {
   schema_version: number;
 }
 
+/** Another plugin's output port, named by plugin id and port. */
+export interface PluginPortSourceDeclaration {
+  plugin_id: string;
+  port: string;
+}
+
 export interface PluginInputPortDeclaration extends PluginPortDeclaration {
   /** Omitted means required. An optional port never blocks activation. */
   optional?: boolean;
+  /**
+   * The output this port reads in a project where nobody chose one for it (BL-087, W4-03): the Host binds it when both plugins
+   * run there and the port reads nothing yet, never over another plugin's output or a fixed 成果 version the person gave it.
+   * The types must match, as for any binding.
+   */
+  default_source?: PluginPortSourceDeclaration;
 }
 
 /**
@@ -56,6 +68,8 @@ export interface PluginInputGroupDeclaration {
   group_id: string;
   title: string;
   ports: string[];
+  /** The group selected in a project where nobody selected one. At most one group is the default. */
+  default?: boolean;
 }
 
 export interface PluginPortsDeclaration {

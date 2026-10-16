@@ -159,6 +159,8 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const openFile=async(sourceId,kind,id,fallback)=>{
     const source=sources.find(item=>item.id===sourceId),item=find(sourceId,kind,id)||fallback||null;
     const request=current={source:sourceId,kind,id};paint();show(true);
+    // The file shown is the object a selection in it is about: what is in hand on the right (context-landing.ts).
+    if(source?.plugin_id)body.dataset.assistantContext=JSON.stringify({plugin_id:source.plugin_id,object:{kind,id,title:item?.title||''}});else delete body.dataset.assistantContext;
     title.textContent=item?.title||L('文件');
     meta.textContent=[source?.title,item?.updated_at?new Date(item.updated_at).toLocaleString():'',sizeText(item?.size)].filter(Boolean).join(' · ');
     setOpen(item?.open||null);body.innerHTML='<p class="side-files-note">'+esc(L('正在读取…'))+'</p>';body.scrollTop=0;
@@ -174,7 +176,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   // Only same-origin paths and inline images: a preview never loads another site or a script-bearing data URL.
   const safeUrl=(url)=>typeof url==='string'&&(/^\/(?!\/)/.test(url)||/^data:image\/(png|jpeg|gif|webp);base64,/.test(url))?url:'';
   const openGiven=(given)=>{
-    current={source:'',kind:'',id:given.id||given.title||''};paint();show(true);
+    current={source:'',kind:'',id:given.id||given.title||''};paint();show(true);delete body.dataset.assistantContext;
     title.textContent=given.title||L('文件');meta.textContent=given.meta||'';setOpen(given.open||null);body.scrollTop=0;
     render({title:given.title||'',media_type:given.media_type||'text/plain',encoding:'utf8',data:given.text||'',url:safeUrl(given.url),truncated:!!given.truncated,source_url:given.source_url||''},given.problem||'');
   };

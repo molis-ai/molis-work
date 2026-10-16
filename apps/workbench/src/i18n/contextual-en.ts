@@ -44,4 +44,6 @@ export const CONTEXTUAL_EN: Record<string, string> = {
   "帮我看看这段内容，": "Take a look at this, ",
   "先从「": "starting with “",
   "」开始。": "”.",
+  "左边没有可以放进去的位置": "There is no place on the left to put it.",
+  "左边的内容已经换了，请重新选择要放进去的位置": "What is open on the left has changed. Choose where to put it again.",
 };

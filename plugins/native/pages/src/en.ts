@@ -295,4 +295,7 @@ export const PAGES_EN: Record<string, string> = {
   "在文中查找": "Find in the text",
   "替换为": "Replace with",
   "这段内容在等待期间被改动，没有写入。请重新选择后再试。": "This content changed while waiting, so nothing was written. Select it again and retry.",
+  "正在准备…": "Preparing…",
+  "放进去": "Put it here",
+  "位置已经变了，请重新选择要放进去的位置": "The place has changed. Choose where to put it again.",
 };

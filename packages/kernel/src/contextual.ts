@@ -143,7 +143,13 @@ export function intentPriors(focus: SurfaceFocus): Record<FragmentIntent, number
 export function ruleScores(candidates: readonly ContextualCandidate[], focus: SurfaceFocus): Record<string, number> {
   const priors = intentPriors(focus);
   const seen = new Map<string, number>();
+  // Something in hand off the left, with a place on the left that takes it (an attach is only derived then): putting it
+  // there leads, in declared order (context-program §21.8). Just above every other rule, so under a judgment it weighs a
+  // hundredth of a point like any rule.
+  const top = Math.max(...Object.values(priors)) + candidates.filter(candidate => candidate.origin === "attach").length;
+  let attaches = 0;
   return Object.fromEntries(candidates.map(candidate => {
+    if (candidate.origin === "attach") return [candidate.key, top - attaches++];
     const index = seen.get(candidate.intent) ?? 0;
     seen.set(candidate.intent, index + 1);
     return [candidate.key, priors[candidate.intent] / (1 + index)];

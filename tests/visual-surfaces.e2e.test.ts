@@ -120,9 +120,13 @@ async function stablePicture(browser: Browser, label: string): Promise<Buffer> {
  * put back after), so a running one reads the same on every run; the caret is masked like in the pictures. Identical style vectors are stored
  * once. An element is named by its child indices from <html> (the DOM is the same on both trees when only CSS changes)
  * and labelled for people by tag, id, classes and its first data- attribute.
+ *
+ * The page has thousands of elements (every plugin's hidden surface among them), and reading all their values takes
+ * seconds on a fast Mac and longer on a CI runner. So the walk is begun once (STYLES_BEGIN) and then resumed in slices of
+ * about a second (STYLES_STEP) until it hands back the snapshot: no single CDP call grows with the machine's speed.
  */
 const STYLE_WIDTH = 1440;
-const STYLES = `(() => {
+const STYLES_BEGIN = `(() => {
   const running = document.getAnimations().filter(animation => animation.effect?.getTiming().iterations === Infinity)
     .map(animation => ({ animation, time: animation.currentTime, playing: animation.playState === "running" }));
   for (const { animation } of running) { animation.pause(); animation.currentTime = 0; }
@@ -147,20 +151,29 @@ const STYLES = `(() => {
   };
   const label = node => node.localName + (node.id ? "#" + node.id : "") + [...node.classList].slice(0, 3).map(name => "." + name).join("")
     + ([...node.attributes].filter(attribute => attribute.name.startsWith("data-")).slice(0, 1).map(attribute => "[" + attribute.name + "]").join(""));
-  const walk = (node, path, parent) => {
-    if (node.localName === "head" || node.localName === "script" || node.localName === "style") return;
-    const own = values(getComputedStyle(node));
-    elements.push([path, label(node), vector(own, parent)]);
-    for (const pseudo of ["::before", "::after"]) {
-      const style = getComputedStyle(node, pseudo);
-      if (style.content && style.content !== "none" && style.content !== "normal") elements.push([path + pseudo, label(node) + pseudo, vector(values(style), own)]);
+  // Depth first, children in document order, as a recursive walk would go.
+  const pending = [[document.documentElement, "0", null]];
+  window.__visualStyles = budget => {
+    const until = performance.now() + budget;
+    while (pending.length && performance.now() < until) {
+      const [node, path, parent] = pending.pop();
+      if (node.localName === "head" || node.localName === "script" || node.localName === "style") continue;
+      const own = values(getComputedStyle(node));
+      elements.push([path, label(node), vector(own, parent)]);
+      for (const pseudo of ["::before", "::after"]) {
+        const style = getComputedStyle(node, pseudo);
+        if (style.content && style.content !== "none" && style.content !== "normal") elements.push([path + pseudo, label(node) + pseudo, vector(values(style), own)]);
+      }
+      for (let i = node.children.length - 1; i >= 0; i--) pending.push([node.children[i], path + "/" + i, own]);
     }
-    [...node.children].forEach((child, i) => walk(child, path + "/" + i, own));
+    if (pending.length) return null;
+    delete window.__visualStyles;
+    for (const { animation, time, playing } of running) { animation.currentTime = time; if (playing) animation.play(); }
+    return { props, vectors, elements };
   };
-  walk(document.documentElement, "0", null);
-  for (const { animation, time, playing } of running) { animation.currentTime = time; if (playing) animation.play(); }
-  return { props, vectors, elements };
+  return true;
 })()`;
+const STYLES_STEP = "window.__visualStyles(1000)";
 
 test("key surfaces settle to the same picture at every width, light and dark (W4-12)", { timeout: 600_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
@@ -192,7 +205,9 @@ test("key surfaces settle to the same picture at every width, light and dark (W4
         await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
         const name = `${surface.id}@${size.width}-${scheme}`;
         await stablePicture(browser, name);
-        const snapshot = await evaluate<{ elements: unknown[] }>(STYLES);
+        await evaluate(STYLES_BEGIN);
+        let snapshot: { elements: unknown[] } | null = null;
+        while (!snapshot) snapshot = await evaluate<{ elements: unknown[] } | null>(STYLES_STEP);
         assert.ok(snapshot.elements.length > 50, `${name}: the page has its elements`);
         await writeFile(join(out, `${name}.styles.json`), JSON.stringify(snapshot));
         styles.push(name);

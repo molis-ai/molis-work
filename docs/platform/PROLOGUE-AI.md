@@ -440,6 +440,8 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **工具多了会被延后：只列名字，照样调得动。** Prologue SDK 在一轮的工具超过 20 个时，只给多出来的那些一行名册（`deferToolSchemasBeyond: 20`）。模型照名册上的名字直接调，调用照样进工具链；用 `find-tools` 取过形状的，这一跑之后的请求照常声明（[Prologue #28](https://github.com/molis-ai/prologue/pull/28)，2026-10-16 换包，见 `specs/prologue-adoption/spec.md` §6.0e）。延后了工具，`find-tools` 就带着名册在请求里，不看角色和这一轮的名单点没点它（[Prologue #30](https://github.com/molis-ai/prologue/pull/30)，同日换包）：角色不必为延后去点它。之前两样都不行，是 SDK 的设计缺陷，不是模型能力；那段时间用过一个不延后的临时做法，已删。不要在提示词里另教模型怎样调被延后的工具。
 
+**参数带上类型，不靠措辞纠正。** 一个通用入口的参数登记时只能写「什么都收」，模型就会写出 `{"item": …}`、字符串布尔这一类东西。办法是把真正的形状放进声明里，不是加一句「必须是数组」。能力网关的 `read-capability`、`change-capability`、`change-reversible`、`suggest-action`：这一轮 `find-capabilities` 找到的能力，下一次请求起在它们的 `input` 上各有一支，标题是能力的标识，内容就是目录里那份 `input_schema`，登记时那份通用的仍是其中一支（`prologue-gateway-declared.ts`，经 Prologue 的会话参数分支，[Prologue #31](https://github.com/molis-ai/prologue/pull/31)）。工具个数和名字不变，所以不碰延后的界限；调用照旧按登记核，没找过的照样调得动；每个工具最多 12 支、一次请求最多 24 KiB，超出的照样调得动。MiniMax-M3 上四个 Todo 任务各跑 3 次：带类型时 30 次网关调用里要纠正的 1 次（在找能力之前），通用参数时 38 次里 20 次、被合同拒 9 次。代价是找到能力后工具的声明变了，提示缓存从那里断开，未缓存的输入多了约八成。见 `specs/prologue-adoption/spec.md` §6.0f。
+
 **少一些同义工具和要猜的参数。** 助理只有一组网关工具（查、读、改、可撤销地改、建议），能力的确切身份从 `find-capabilities` 来，不让模型拼标识。
 
 **可用性来自当前事实。** 能力目录每一轮从 `discover()` 读当前的声明、授权与可用性（`assistant-service.ts` 的 `actionTools`），不在开发时写一份名单。

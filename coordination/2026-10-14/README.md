@@ -441,6 +441,8 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 回执线下一步（笔记 `receipts-next-plan.md`）：阶段 1、2 已完；**用户 10-16 弹窗接受 §20（有效要求跨摘要与续做保留，RCPT-101–107），先做 R1**（RCPT-101/102：Coding 摘要材料与备用摘要保留所有仍适用的补充带来源，断言走实际请求路径，不另建状态表，备用路径不多调模型）；之后 3a → 3c（共享回执组件）→ 3b/3d/3e。实走清单 14 项，#597 合入后统筹在隔离 Home 一起走。
   - #580 已合（`5b6a0705`）。#594 全量 30 过，并 main 重量新头 `e3004df6b`（workbench.js 1097688 = main − 63）只合并入队。#597 并 main 新头 `d09e72f8`（page-assets 三条降到 main 以下、baseline 行数一处，其余一致），全量在 #596 后（gate-597-new 按新头判）。#592、#588 全量在跑；#596 等空档。
   - 回执 R1 方案（笔记 `receipts-r1-plan.md`）认可：`standingSupplements(runs)` 从 run view 推出带 steer、状态 applied/read 的 user 行（排除撤回、未读/已收到——它们由 SDK carry 带、notice 行、无 steer 的 user 行），同时放进模型摘要材料（替换 `slice(-5)`）、Host 核实事实与备用摘要（纯代码）；超预算写明截掉的条数与 id。统筹补：写成本人原话引用不写成指令；页面代写的补充按 BL-144 照实写明；先看 history-digest 离巨大单元阈值多远。
+  - 10-16 晚：#600、#594 在合并队列（只合并）。#580 squash 合入后 #592（全量 30 项全绿于 4d27e78d）只在手册 spec 上冲突、#598（叠在 #580 原始提交上）十来个文件冲突，已请手册线各合 main 报新 head：#592 核对改动一致后只合并入队；#598 新 head 再排全量。全量队列改为 #596（已标）→ #597 → #599 → #601（after-597b），#598 等新 head 再接。
+  - 回执 R1 = #601（`fb28d29f3`，从 main 5b6a07054）审过：仍然有效的补充由 run view 的 steer 状态（applied/read）推出，三处共用一节，16 000 字预算让位写明条数与 id；RCPT-101/102 断言在第二轮真实 provider 请求上，请求数恰为一次摘要加一轮；BL-144 缺口记在 §20.5。已告诉回执线别推，3a 可设计，动 prologue*.ts 前看 #597 重叠。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

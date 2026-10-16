@@ -362,6 +362,12 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - P3b 只加用例，现在开工，可与 1d、2a 并行。
   - P3c 用户 10-16 弹窗定了两件：这一片就教 Coding 的执行角色用外部等待（提示词升版本、WORDING_HISTORY）；`molis.action-query` 按权限管、不另写名单（只读查询，且本会话此刻有权调用）。
   - P3c 与 1d 撞不撞，等回执线给 1d 的清单再定。
+- 10-16 早（UTC）：
+  - #551（W4-04b，Form 走 Plugin Runtime）已合（`19823a62`），#552（回执 1c）已合（`2c91cd36`）。防腐线回复：Runtime 停插件时 `dispose` 先关库（`plugin-host-services.ts`、`home-plugin-executor.ts`），#551 第 7 片的原生崩溃仍判为跑机环境。
+  - 这两个合入让在途三个 PR 只在生成的门禁数字上冲突：#554 被踢出队列（`page-assets.json`），#553（`baseline.json`、`page-assets.json`），#555（`baseline.json`）。**有冲突的 PR 加标签不触发 full-suite**（GitHub 对有冲突的 PR 不发 pull_request 事件），#555 因此两次加标签都没跑。合入顺序 #554 → #553 → #555，各自并 main 后重算数字；#554、#553 的新 head 算只合并，不重跑全量；#555 还没跑过全量，并 main 后重新加标签。#553 并 main 时 `APPROVED_CEILINGS` 的键要改成新的 merge-base 字节数。
+  - 回执 1d 的资源增长（coding.js 与四份同样的包、样式表 +33 字节）按用户 10-15 的「规则要合理」走一次性例外（选项 A），写法同 #553；回执线会话的权限检查若拦下门禁改动，由用户在那个会话里批准。
+  - 情境 W3-A2 只等 #553：1d 不再碰 assistant-island，所以不用等 1d。W4-10（#555）排在 W3-A2 与 1d 之前。W3-A2 的链接语义定为：用 + 加入的，同时进模型上下文和链接；没加的两样都不进；从对象发起的条目必须把对象放进手里。
+  - 防腐 W4-04c #558（Form 页面改为打包的 TypeScript，form.js 37,472 → 30,300 字节，新计数 scriptConstants 130 → 129）已审、加了 full-suite。#557（子代理直接对话与 AI 开发手册需求）不是四线的，统筹不经手。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

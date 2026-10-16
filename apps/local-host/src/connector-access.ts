@@ -72,8 +72,8 @@ export async function inspectSourceAuthorization(home: string, source: {
   } catch { return denied("账号需要重新授权或 CLI 当前账号已改变"); }
 }
 
-export async function inspectApiConnection(home: string, id: string, preview = false) {
-  return withConnectorRequest(home, id, undefined, async signal => {
+export async function inspectApiConnection(home: string, id: string, preview = false, signal?: AbortSignal) {
+  return withConnectorRequest(home, id, signal, async signal => {
   let access = await resolveApiConnection(home, id);
   const fetchImpl: typeof fetch = (input, init) => (access.fetchImpl ?? globalThis.fetch)(input, { ...init,
     signal: AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])]) });

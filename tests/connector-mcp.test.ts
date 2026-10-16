@@ -20,7 +20,7 @@ import { connectorAuthorizationStatus, finishConnectorAuthorization } from "../a
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
 import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/dist/connector-mcp-actions.js";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
 import { isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -725,4 +725,30 @@ test("ASC-22 custom MCP rejects credentials in URLs, nonlocal HTTP and substitut
     await assert.rejects(host.startMcpConnection(temp, { serviceId: "notion", displayName: "Rejected", endpoint: "https://example.test/mcp", origin: callbackOrigin }), /官方地址/);
     assert.deepEqual(withConnectorConnections(temp, store => store.list()), []);
   } finally { rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("ASC-12 ASC-14: enabling a Home MCP checks the server and refreshes changed capabilities without running a tool", async () => {
+  const temp = home(); let extra = false;
+  const remote = await fixture({ tools: () => [
+    { name: "echo", inputSchema: { type: "object", properties: { message: { type: "string" } } } },
+    ...(extra ? [{ name: "new_tool", inputSchema: { type: "object" as const, properties: {} } }] : []),
+  ] });
+  const localHost = new MolisWorkLocalHost({ homeDirectory: temp, completeText: null });
+  const caller: ActionCallContext = { actor_id: "assistant:check", audience: "agent", project_id: null,
+    permissions: [CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, "mcp:external"] };
+  try {
+    const started = await createConnectorMcpHost().startMcpConnection(temp, { serviceId: "mcp-bearer", displayName: "Refresh fixture",
+      endpoint: remote.endpoint, authentication: "none", origin: callbackOrigin });
+    const client = localHost.homeActionClient();
+    await client.invoke(caller, connectorManagementActions.check, { connection_id: started.connectionId });
+    const revision = () => withConnectorConnections(temp, store => store.require(started.connectionId).updated_at);
+    await client.invoke(caller, connectorManagementActions.control, { connection_id: started.connectionId, expected_revision: revision(), action: "disable" });
+    const before = remote.stats().initializationCount;
+    extra = true;
+    const enabled = await client.invoke(caller, connectorManagementActions.control, { connection_id: started.connectionId, expected_revision: revision(), action: "enable" }) as { verification: { available: boolean } };
+    assert.equal(enabled.verification.available, true);
+    assert.ok(remote.stats().initializationCount > before, "enable made a fresh connection check");
+    assert.ok((await client.discover(caller)).some(row => row.action.title === "new_tool" && row.availability.available));
+    assert.equal(remote.stats().callCount, 0, "refresh does not run business tools");
+  } finally { await localHost.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });

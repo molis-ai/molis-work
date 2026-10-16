@@ -24,7 +24,7 @@ test("one service keeps two independent credentials and bindings never cross ser
     get: (ref) => values.get(ref) ?? null,
     put: (ref, value) => { values.set(ref, value); },
     delete: (ref) => { values.delete(ref); },
-  });
+  }, () => new Date("2026-10-16T09:00:00.000Z"));
   try {
     const first = store.createToken({ serviceId: "gmail", displayName: "工作邮箱", token: "gmail-work-token" });
     const second = store.createToken({ serviceId: "gmail", displayName: "个人邮箱", token: "gmail-home-token" });
@@ -35,7 +35,12 @@ test("one service keeps two independent credentials and bindings never cross ser
     assert.throws(() => store.resolveToken(first.connection_id, "github"), { code: "connector.connection.service_mismatch", message: /不属于这个服务/ });
     store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "inbox", serviceId: "gmail", connectionId: second.connection_id });
     assert.equal(store.binding("project-a", "feed", "inbox")?.connection_id, second.connection_id);
+    // ASC-19: every mutation invalidates a captured revision even under a frozen clock.
+    const paused = store.setEnabled(first.connection_id, false);
+    const enabled = store.setEnabled(first.connection_id, true);
+    assert.ok(paused.updated_at > first.updated_at); assert.ok(enabled.updated_at > paused.updated_at);
     store.disconnect(first.connection_id);
+    assert.ok(store.require(first.connection_id).updated_at > enabled.updated_at);
     assert.equal(store.state(store.require(first.connection_id)), "disconnected");
     // J2B-01: connection state stays a business value; the refusal carries its owner's current code.
     assert.throws(() => store.resolveToken(first.connection_id, "gmail"), { code: "connector.connection.disconnected", message: /断开/ });

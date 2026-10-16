@@ -8,6 +8,8 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { controlConnectorConnection } from "./connector-management-service.js";
 import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
+import { verifyEnabledConnection } from "./connector-check-service.js";
+import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
 import { refreshFeedConnectionState } from "./connector-source-state.js";
 export { refreshFeedConnectionState } from "./connector-source-state.js";
@@ -17,6 +19,7 @@ const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
 
 export async function handleConnectorConnectionsHttp(
   request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory?: string,
+  remember?: ConnectorMcpDirectory["remember"],
 ): Promise<boolean> {
   if (!homeDirectory) return false;
   const authorization = /^\/api\/settings\/connectors\/authorizations\/([0-9a-f-]{36})$/u.exec(url.pathname);
@@ -68,7 +71,8 @@ export async function handleConnectorConnectionsHttp(
       });
       if (typeof body.enabled === "boolean") {
         const result = controlConnectorConnection(homeDirectory, item[1]!, body.enabled ? "enable" : "disable");
-        sendJson(response, 200, result); return true;
+        const verification = body.enabled && remember ? await verifyEnabledConnection(homeDirectory, item[1]!, remember) : undefined;
+        sendJson(response, 200, { ...result, ...(verification ? { verification } : {}) }); return true;
       }
       if (typeof body.token === "string") refreshFeedConnectionState(homeDirectory, item[1]!);
       sendJson(response, 200, { connection });

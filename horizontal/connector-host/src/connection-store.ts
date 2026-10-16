@@ -44,6 +44,12 @@ function requiredText(value: unknown, label: string, max: number): string {
   return value.trim();
 }
 
+/** Consumers use updated_at as a revision: two writes in one clock tick must still differ. */
+function nextChange(db: DatabaseSync, id: string, now: Date): string {
+  const row = db.prepare("SELECT updated_at FROM connector_connections WHERE connection_id=?").get(id) as { updated_at: string } | undefined;
+  return new Date(Math.max(now.getTime(), row ? Date.parse(row.updated_at) + 1 : 0)).toISOString();
+}
+
 /** The connection tables, for the Home connectors store's baseline to include (repository-anti-corruption §4.1). */
 export const CONNECTOR_CONNECTIONS_SCHEMA = `
   CREATE TABLE connector_connections (
@@ -189,7 +195,7 @@ export class ConnectorConnectionStore {
       if (ref && !ref.startsWith(`connector-protocol:${input.connectionId}:`)) throw connectorErrors["connector.connection.invalid"]("MCP 凭据引用无效");
     }
     if (input.credentialRef && !this.secrets.get(input.credentialRef)?.trim()) throw connectorErrors["connector.connection.disconnected"]("MCP 凭据尚未保存");
-    const now = this.now().toISOString();
+    const now = nextChange(this.db, input.connectionId, this.now());
     this.db.prepare(`INSERT INTO connector_connections
       (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(connection_id) DO UPDATE SET
@@ -222,7 +228,7 @@ export class ConnectorConnectionStore {
     if (!this.secrets.get(input.accessRef)?.trim() || (input.refreshRef && !this.secrets.get(input.refreshRef)?.trim())) {
       throw connectorErrors["connector.connection.disconnected"]("OAuth 凭据尚未保存完整");
     }
-    const now = this.now().toISOString();
+    const now = nextChange(this.db, input.connectionId, this.now());
     this.db.prepare(`INSERT INTO connector_connections
       (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
@@ -239,23 +245,31 @@ export class ConnectorConnectionStore {
   }
 
   /** CLI secrets stay in the official CLI; this records its verified current account under one stable id per CLI account. */
-  saveCli(input: { serviceId: string; displayName: string; externalId: string; accountLabel: string }): ConnectorConnectionRecord {
+  cliRevisions(serviceId: string): ReadonlyMap<string, string> {
+    const rows = this.db.prepare("SELECT connection_id,updated_at FROM connector_connections WHERE service_id=? AND auth_method='cli'").all(serviceId) as Array<{ connection_id: string; updated_at: string }>;
+    return new Map(rows.map(row => [row.connection_id, row.updated_at]));
+  }
+
+  saveCli(input: { serviceId: string; displayName: string; externalId: string; accountLabel: string; expectedRevisions?: ReadonlyMap<string, string> }): ConnectorConnectionRecord {
     if (!SERVICE_ID.test(input.serviceId) || !input.externalId.trim()) throw connectorErrors["connector.connection.invalid"]("外部连接标识无效");
     const connectionId = `external-${createHash("sha256").update(input.serviceId).update("\0external\0").update(input.externalId).digest("hex").slice(0, 24)}`;
-    const now = this.now().toISOString();
+    const existing = this.db.prepare("SELECT updated_at,removed_at FROM connector_connections WHERE connection_id=?").get(connectionId) as { updated_at: string; removed_at: string | null } | undefined;
+    if (input.expectedRevisions ? input.expectedRevisions.get(connectionId) !== existing?.updated_at : existing) throw connectorErrors["connector.connection.invalid"]("CLI 检查期间连接已变化，请重新读取后连接");
+    const now = nextChange(this.db, connectionId, this.now());
     this.db.prepare(`INSERT INTO connector_connections
       (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
       VALUES (?,?,?,?,'cli',NULL,NULL,NULL,'external',NULL,?,?)
       ON CONFLICT(connection_id) DO UPDATE SET display_name=excluded.display_name,account_label=excluded.account_label,
-        disconnected_at=NULL,updated_at=excluded.updated_at`)
+        disconnected_at=NULL,removed_at=NULL,enabled=1,updated_at=excluded.updated_at`)
       .run(connectionId, input.serviceId, requiredText(input.displayName, "连接名称", 100), input.accountLabel, now, now);
+    if (existing) this.onChange?.(connectionId);
     return this.require(connectionId);
   }
 
   rename(connectionId: string, displayName: string): ConnectorConnectionRecord {
     this.require(connectionId);
     this.db.prepare("UPDATE connector_connections SET display_name = ?, updated_at = ? WHERE connection_id = ?")
-      .run(requiredText(displayName, "连接名称", 100), this.now().toISOString(), connectionId);
+      .run(requiredText(displayName, "连接名称", 100), nextChange(this.db, connectionId, this.now()), connectionId);
     return this.require(connectionId);
   }
 
@@ -266,7 +280,7 @@ export class ConnectorConnectionStore {
     if (value.length < 8 || /[\r\n]/u.test(value)) throw connectorErrors["connector.connection.invalid"]("凭据格式无效");
     this.secrets.put(connection.credential_ref, value);
     this.db.prepare("UPDATE connector_connections SET disconnected_at = NULL, updated_at = ? WHERE connection_id = ?")
-      .run(this.now().toISOString(), connectionId);
+      .run(nextChange(this.db, connectionId, this.now()), connectionId);
     this.onChange?.(connectionId);
     return this.require(connectionId);
   }
@@ -274,7 +288,7 @@ export class ConnectorConnectionStore {
   setEnabled(connectionId: string, enabled: boolean): ConnectorConnectionRecord {
     this.require(connectionId);
     this.db.prepare("UPDATE connector_connections SET enabled = ?, updated_at = ? WHERE connection_id = ?")
-      .run(enabled ? 1 : 0, this.now().toISOString(), connectionId);
+      .run(enabled ? 1 : 0, nextChange(this.db, connectionId, this.now()), connectionId);
     this.onChange?.(connectionId);
     return this.require(connectionId);
   }
@@ -292,7 +306,7 @@ export class ConnectorConnectionStore {
     if (connection.refresh_ref && connection.source !== "external") this.secrets.delete(connection.refresh_ref);
     if (connection.expires_ref && connection.source !== "external") this.secrets.delete(connection.expires_ref);
     if (/^[0-9a-f-]{36}$/u.test(connectionId)) for (const name of ["access", "oauth", "expires", "client", "verifier"]) this.secrets.delete(`connector-protocol:${connectionId}:${name}`);
-    const now = this.now().toISOString();
+    const now = nextChange(this.db, connectionId, this.now());
     this.db.prepare("UPDATE connector_connections SET disconnected_at = ?, updated_at = ? WHERE connection_id = ?")
       .run(now, now, connectionId);
     this.onChange?.(connectionId);

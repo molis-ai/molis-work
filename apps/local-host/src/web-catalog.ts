@@ -328,7 +328,7 @@ export async function handleLocalCatalogWebRequest(
     return;
   }
   if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost)) return;
-  if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory)) return;
+  if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory, localHost.connectorMcp?.remember)) return;
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;

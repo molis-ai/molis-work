@@ -4,9 +4,7 @@ import { controlConnectorConnection } from "./connector-management-service.js";
 import { listConnectorSettingsCards } from "./connector-directory.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { cancelConnectorAuthorization, connectorAuthorizationStatus } from "./connector-authorization-status.js";
-import { inspectMcpConnection } from "./connector-mcp.js";
-import { inspectApiConnection } from "./connector-access.js";
-import { inspectCliConnection } from "./connector-cli.js";
+import { checkConnectorConnection, verifyEnabledConnection } from "./connector-check-service.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
@@ -64,17 +62,7 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
     binding(connectorManagementActions.check, async (caller, input) => {
       const id = (input as { connection_id: string }).connection_id;
       if (id.startsWith("mcp-")) return manageProjectMcp(projectMcp, caller, { connection_id: id, action: "check" });
-      const row = withConnectorConnections(home, store => store.require(id));
-      await caller.beforeEffect();
-      if (row.auth_method === "mcp") {
-        const result = await inspectMcpConnection(home, id, { signal: caller.signal });
-        await caller.beforeEffect();
-        remember(id, result.tools, result.resources);
-        return { connection_id: id, checked_at: new Date().toISOString(), ...result };
-      }
-      const result = row.auth_method === "cli" ? await inspectCliConnection(home, id) : await inspectApiConnection(home, id);
-      await caller.beforeEffect();
-      return { connection_id: id, checked_at: new Date().toISOString(), ...result };
+      return checkConnectorConnection(home, id, remember, caller);
     }),
     binding(connectorManagementActions.control, async (caller, input) => {
       const command = input as { connection_id: string; expected_revision: string; action: "enable" | "disable" | "remove" };
@@ -82,7 +70,8 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
       await caller.beforeEffect();
       const current = withConnectorConnections(home, store => store.require(command.connection_id));
       if (current.updated_at !== command.expected_revision) throw managementErrors.changed("连接已变化，请重新读取后操作");
-      return controlConnectorConnection(home, command.connection_id, command.action);
+      const result = controlConnectorConnection(home, command.connection_id, command.action);
+      return command.action === "enable" ? { ...result, verification: await verifyEnabledConnection(home, command.connection_id, remember, caller) } : result;
     }),
     binding(connectorManagementActions.authorization, (_caller, input) => authorization((input as { authorization_id: string }).authorization_id)),
     binding(connectorManagementActions.cancel, async (caller, input) => {

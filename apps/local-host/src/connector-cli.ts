@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { accessSync, constants } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { withConnectorRequest } from "./connector-lifecycle.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 
@@ -65,13 +66,13 @@ function parse(raw: string): unknown { try { return safeValue(JSON.parse(raw)); 
 function cliEnvironment(service: string): NodeJS.ProcessEnv {
   return { ...process.env, NO_COLOR: "1", ...(service === "sentry" ? { SENTRY_HOST: "https://sentry.io", SENTRY_URL: "https://sentry.io" } : {}) };
 }
-async function run(service: string, args: readonly string[]): Promise<unknown> {
+async function run(service: string, args: readonly string[], signal?: AbortSignal): Promise<unknown> {
   const spec = definition(service), binary = cliExecutable(spec.binary);
   if (!binary) throw new ConnectorCliError(`尚未安装 ${spec.binary}；请按官方安装入口完成安装后重试`);
   try {
-    const result = await execute(binary, [...args], { timeout: 30_000, maxBuffer: 512_000, env: cliEnvironment(service) });
+    const result = await execute(binary, [...args], { timeout: 30_000, signal, maxBuffer: 512_000, env: cliEnvironment(service) });
     return parse(result.stdout);
-  } catch { throw new ConnectorCliError(`${spec.binary} 读取失败，请完成登录并检查当前账号权限`); }
+  } catch { signal?.throwIfAborted(); throw new ConnectorCliError(`${spec.binary} 读取失败，请完成登录并检查当前账号权限`); }
 }
 function record(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function identity(service: string, value: unknown): { label: string; fingerprint: string } {
@@ -120,41 +121,53 @@ function identity(service: string, value: unknown): { label: string; fingerprint
   if (!stable || !label || (typeof stable === "string" && !stable.trim())) throw new ConnectorCliError("官方 CLI 未返回可确认的账号身份；请升级 CLI、登录后重试");
   return { label: String(label).slice(0, 120), fingerprint: createHash("sha256").update(JSON.stringify([service, stable])).digest("hex") };
 }
-async function readIdentity(service: string) {
-  const result = await run(service, definition(service).identity);
+async function readIdentity(service: string, signal?: AbortSignal) {
+  const result = await run(service, definition(service).identity, signal);
   const obj = record(result);
   if (service === "sentry" && obj.type === "org-auth-token") {
-    const organizations = await run(service, ["org", "list", "--json", "--fresh"]);
+    const organizations = await run(service, ["org", "list", "--json", "--fresh"], signal);
     const found = Array.isArray(organizations) ? organizations.map(record).find(row => row.slug === obj.organization) : undefined;
     if (!found?.id) throw new ConnectorCliError("Sentry 未确认组织权限，请检查凭据");
     obj.organization_id = found.id;
   }
   return result;
 }
-export async function connectCli(home: string, input: { serviceId: string; displayName: string }) {
+export async function connectCli(home: string, input: { serviceId: string; displayName: string }, signal?: AbortSignal) {
   const spec = definition(input.serviceId);
-  const result = await readIdentity(input.serviceId);
+  const expectedRevisions = withConnectorConnections(home, store => store.cliRevisions(input.serviceId));
+  const result = await readIdentity(input.serviceId, signal);
   // Status-only CLIs must also complete a genuine read before registration.
-  if (["feishu", "lark", "jira"].includes(input.serviceId)) await run(input.serviceId, spec.read!);
+  if (["feishu", "lark", "jira"].includes(input.serviceId)) await run(input.serviceId, spec.read!, signal);
+  signal?.throwIfAborted();
   const account = identity(input.serviceId, result);
   const connection = withConnectorConnections(home, store => store.saveCli({ serviceId: input.serviceId, displayName: input.displayName,
-    externalId: `${spec.binary}:${account.fingerprint}`, accountLabel: account.label }));
+    externalId: `${spec.binary}:${account.fingerprint}`, accountLabel: account.label, expectedRevisions }));
   withConnectorProtocols(home, store => store.save({ connectionId: connection.connection_id, serviceId: input.serviceId, protocol: "cli", binary: spec.binary, fingerprint: account.fingerprint } as CliConfiguration));
   return { connection: withConnectorConnections(home, store => store.view(connection)), result };
 }
-export async function inspectCliConnection(home: string, id: string, read = false) {
-  const connection = withConnectorConnections(home, store => store.require(id));
-  if (!connection.enabled || connection.disconnected_at || connection.auth_method !== "cli") throw new ConnectorCliError("CLI 连接已断开");
-  const config = withConnectorProtocols(home, store => store.get<CliConfiguration>(id));
-  if (!config || config.protocol !== "cli") throw new ConnectorCliError("请重新连接此 CLI");
-  const spec = definition(connection.service_id);
-  const result = await readIdentity(connection.service_id);
-  if (identity(connection.service_id, result).fingerprint !== config.fingerprint) throw new ConnectorCliError("CLI 当前账号已改变，请在设置中重新连接，避免读取另一账号");
-  const output = read && spec.read ? await run(connection.service_id, spec.read) : result;
-  if (read && spec.read && identity(connection.service_id, await readIdentity(connection.service_id)).fingerprint !== config.fingerprint) throw new ConnectorCliError("读取期间 CLI 账号已改变，请重新连接");
-  if (withConnectorConnections(home, store => store.state(store.require(id))) !== "connected") throw new ConnectorCliError("CLI 连接已断开");
-  return { account: connection.account_label, result: output };
+export async function inspectCliConnection(home: string, id: string, read = false, signal?: AbortSignal) {
+  return withConnectorRequest(home, id, signal, async activeSignal => {
+    const connection = withConnectorConnections(home, store => store.require(id));
+    if (!connection.enabled || connection.disconnected_at || connection.auth_method !== "cli") throw new ConnectorCliError("CLI 连接已断开");
+    const config = withConnectorProtocols(home, store => store.get<CliConfiguration>(id));
+    if (!config || config.protocol !== "cli") throw new ConnectorCliError("请重新连接此 CLI");
+    const assertCurrent = () => {
+      activeSignal.throwIfAborted();
+      const current = withConnectorConnections(home, store => store.require(id));
+      if (!current.enabled || current.disconnected_at || current.updated_at !== connection.updated_at) throw new ConnectorCliError("检查期间 CLI 连接已变化，请重新检查");
+    };
+    const spec = definition(connection.service_id);
+    const result = await readIdentity(connection.service_id, activeSignal);
+    assertCurrent();
+    if (identity(connection.service_id, result).fingerprint !== config.fingerprint) throw new ConnectorCliError("CLI 当前账号已改变，请在设置中重新连接，避免读取另一账号");
+    const output = read && spec.read ? await run(connection.service_id, spec.read, activeSignal) : result;
+    assertCurrent();
+    if (read && spec.read && identity(connection.service_id, await readIdentity(connection.service_id, activeSignal)).fingerprint !== config.fingerprint) throw new ConnectorCliError("读取期间 CLI 账号已改变，请重新连接");
+    assertCurrent();
+    return { account: connection.account_label, result: output };
+  });
 }
+
 type LoginJob = { home: string; service: string; status: "running" | "succeeded" | "failed"; output: string; submitted: string[]; input: (value: string) => void; kill: () => void; timer: ReturnType<typeof setTimeout> };
 const jobs = new Map<string, LoginJob>();
 /** Only fixed, official login commands run in the terminal; no submitted shell or arguments. */

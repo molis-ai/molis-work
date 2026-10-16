@@ -59,11 +59,16 @@ test("ASC-37 the assistant discovers connection management before any project, m
 });
 
 
-test("ASC-14 ASC-20 ASC-24: connection controls persist disable without deleting credentials and remove only the selected account", async () => {
+test("ASC-14 ASC-20 ASC-24: connection controls persist disable without deleting credentials and remove only the selected account", async t => {
   const home = await mkdtemp(join(tmpdir(), "connector-lifecycle-"));
   let host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "assistant-test", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE] };
   const token = "fixture-lifecycle-private-value";
+  let checks = 0;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    assert.equal(String(input), "https://api.github.com/user"); checks++;
+    return new Response(JSON.stringify({ login: "work-account", id: 1 }), { status: 200, headers: { "content-type": "application/json" } });
+  });
   try {
     const [one, two] = withConnectorConnections(home, store => [store.createToken({ serviceId: "github", displayName: "Work", token }),
       store.createToken({ serviceId: "github", displayName: "Personal", token: "fixture-other-account" })]);
@@ -81,7 +86,8 @@ test("ASC-14 ASC-20 ASC-24: connection controls persist disable without deleting
     await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     const paused = withConnectorConnections(home, store => store.require(one!.connection_id));
     assert.equal(paused.enabled, false);
-    await change("enable", paused.updated_at);
+    const enabled = await change("enable", paused.updated_at) as { verification: { available: boolean } };
+    assert.equal(enabled.verification.available, true); assert.equal(checks, 1);
     assert.equal(withConnectorConnections(home, store => store.resolveToken(one!.connection_id, "github")), token, "enable uses the same retained secret");
     const revision = withConnectorConnections(home, store => store.require(one!.connection_id).updated_at);
     const removed = await change("remove", revision) as { removed: boolean; service_authorization_revoked: boolean };
@@ -94,6 +100,26 @@ test("ASC-14 ASC-20 ASC-24: connection controls persist disable without deleting
       assert.equal(store.resolveToken(two!.connection_id, "github"), "fixture-other-account");
     });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+
+test("ASC-25: cancelling the common connection check reaches the API request", async t => {
+  const home = await openTestHome(t);
+  const saved = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Work", token: "fixture-check-cancel" }));
+  const controller = new AbortController();
+  let reached!: () => void;
+  const started = new Promise<void>(resolve => { reached = resolve; });
+  let requestAborted = false;
+  t.mock.method(globalThis, "fetch", (_input: unknown, init: RequestInit) => new Promise<Response>((_resolve, reject) => {
+    init.signal!.addEventListener("abort", () => { requestAborted = true; reject(init.signal!.reason); }, { once: true });
+    reached();
+  }));
+  const caller: ActionCallContext = { actor_id: "assistant:check", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_READ], signal: controller.signal };
+  const pending = home.host.homeActionClient().invoke(caller, connectorManagementActions.check, { connection_id: saved.connection_id });
+  const rejected = assert.rejects(pending);
+  await started; controller.abort(new Error("stop-check")); await rejected;
+  assert.equal(requestAborted, true);
+  assert.equal(withConnectorConnections(home.home, store => store.require(saved.connection_id)).enabled, true);
 });
 
 

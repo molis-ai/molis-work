@@ -11,8 +11,9 @@
 import { compactScript, CONTEXT_TOOLBAR_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { CONTEXT_BAR_SCRIPT } from "./context-bar.js";
 import { CONTEXT_BUS_SCRIPT } from "./context-bus.js";
+import { CONTEXT_LANDING_SCRIPT } from "./context-landing.js";
 
-// The factory is one closure, so the three files are joined into one script, in the order of the original text.
+// The factory is one closure, so the four files are joined into one script, in the order of the original text.
 export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) => {
   const L = host.translate;
   const embedded = window.parent !== window && document.body.hasAttribute("data-pane-embedded");
@@ -186,5 +187,6 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
 ${CONTEXT_BAR_SCRIPT}
 
 ${CONTEXT_BUS_SCRIPT}
+${CONTEXT_LANDING_SCRIPT}
   return { current: () => bus.focus, plan: () => bar.plan };
 }`);

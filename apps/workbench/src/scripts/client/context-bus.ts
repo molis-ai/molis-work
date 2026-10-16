@@ -37,7 +37,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     recent: [],
     request(focus) {
       return { pane_id: this.source.pane, focus, recent: this.recent.slice(0, 3), pinned: bar.pinned(),
-        ...(bar.shown ? { previous: bar.shown } : {}), dismissed: [...(this.dismissed.get(focus.context_id) || [])] };
+        ...(bar.shown ? { previous: bar.shown } : {}), dismissed: [...(this.dismissed.get(focus.context_id) || [])], ...landing.with(focus) };
     },
     report(source, focus) {
       // “Nothing in hand” only clears what that same surface put there, not what another surface reported since.
@@ -116,6 +116,8 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       prepared().then((offer) => host.openSearch(offer.input && offer.input.query)).catch((error) => bar.error(error));
       return;
     }
+    // Into the object open on the left: its owner previews it at the landing (context-landing.ts).
+    if (candidate.origin === "attach") { landing.choose(focus, candidate); return; }
     // A write goes to the Assistant as a prepared card: the person sees what it will do, and confirms it there.
     if (candidate.apply === "record") {
       prepared().then((offer) => suggestCard(focus, candidate, offer)).catch((error) => bar.error(error));
@@ -223,10 +225,6 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     if (typeof detail.object_key === "string" && typeof detail.key === "string") starters.choose(detail.object_key, detail.key);
   });
 
-  document.addEventListener("molis:surface-focus", (event) => {
-    const focus = event.detail && typeof event.detail === "object" ? event.detail : null;
-    bus.report({ pane: ownPane, element: event.target instanceof Element ? event.target : null, frame: null }, focus);
-  });
   window.addEventListener("message", (event) => {
     if (event.origin !== location.origin || !event.data || typeof event.data.type !== "string") return;
     const frame = [...document.querySelectorAll("iframe[data-pane-owner]")].find((node) => node.contentWindow === event.source);

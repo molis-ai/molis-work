@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createPagesCommentHandlers, pagesCommentActions } from "./comment-actions.js";
+import { createPagesLandingHandlers, definePagesLandingActions } from "./landing-actions.js";
 import { parsePagesBody } from "./document.js";
 import { pagesErrors } from "./error.js";
 import { PAGES_ARTIFACT_TYPE_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
@@ -27,6 +28,7 @@ const pageProperties = { id, project_id: id, title: text, body, folder_id: text,
   artifact_id: text, artifact_version: { type: "integer", minimum: 0 }, created_at: text, updated_at: text, version: { type: "integer", minimum: 1 } };
 const page = object({ ...pageProperties, publication_pending: object({ version: { type: "integer", minimum: 1 }, source_version: { type: "integer", minimum: 1 }, goal_id: text }) }, Object.keys(pageProperties));
 const folder = object({ id, project_id: id, title: text, created_at: text, updated_at: text });
+const pagesLandingActions = definePagesLandingActions(page);
 const fields = { title: { type: "string", maxLength: 80 }, body, folder_id: text, starred: { type: "boolean" }, goal_id: { type: "string", maxLength: 80 } };
 // What an agent or a workflow writes: Markdown that Pages converts, or a body in Pages' own structure (checked before saving).
 const writeFields = { ...fields,
@@ -111,7 +113,7 @@ export const pagesActions = {
   promote: define<{ id: string; goal_id?: string; expected_version?: number }, { document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布文档成果", "将文档保存为成果；有未完成发布时恢复原快照，后续编辑可另存一版。可提供读取时的 version 避免过期发布", "command", object({ id, goal_id: fields.goal_id, expected_version: version }, ["id"]), object({ document: page, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...read, ...write, "artifact:write"]),
   extract: define<{ id: string }, { document: PagesRecord; cards: number; created: PagesRecord[] }>("extract", "提取任务与知识", "从文档提取任务卡和知识页，一次事务保存全部结果", "command", object({ id }), object({ document: page, cards: { type: "integer", minimum: 0 }, created: array(page) }), [...read, ...write]),
 };
-export const PAGES_ACTIONS: readonly ActionDefinition[] = [...Object.values(pagesCommentActions), ...Object.values(pagesActions)];
+export const PAGES_ACTIONS: readonly ActionDefinition[] = [...Object.values(pagesCommentActions), ...Object.values(pagesLandingActions), ...Object.values(pagesActions)];
 export const PAGES_ACTION_PERMISSIONS = [...new Set(PAGES_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface PagesActionPorts {
   withStore<T>(run: (store: PagesStore) => T): T;
@@ -139,7 +141,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
   const promote = (id: string, caller: ActionCallContext, goalId?: string, expectedVersion?: number) => ports.withStore(store => promotePagesDocument(store, id, project(caller),
     value => ports.publishArtifact!(value, caller), goalId, { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "pages.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
-  return [...createPagesCommentHandlers(ports.withStore),
+  return [...createPagesCommentHandlers(ports.withStore), ...createPagesLandingHandlers(pagesLandingActions, ports.withStore),
     // The whole document (整篇) is prepared from its stored text; preparing never writes.
     bind(pagesActions.fragmentOffers, (input, caller) => ({ offers: preparePagesFragmentOffers(input, PAGES_SUBJECT_KIND, undefined, id => ports.withStore(store => {
       try { return String(actionFieldValue("body", store.get(id, project(caller)).body) ?? ""); } catch { return null; }

@@ -294,7 +294,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>${p.icon("chevron-down")}<span>回到最新</span></button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>
         <div class="coding-queued" data-coding-queued role="status" hidden></div>
-        <form class="coding-composer mw-frame__footer" data-coding-composer>
+        <form class="coding-composer mw-frame__footer" data-coding-composer><div data-coding-steps hidden></div>
           <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="会话上下文">
           ${renderButton({label:"工作区",icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
           ${renderButton({label:"关联目标",icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}

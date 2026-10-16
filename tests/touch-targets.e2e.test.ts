@@ -189,8 +189,10 @@ const popoversScript = (floor: number) => `(async () => {
     { notice_id: "t4", kind: "finished", text: "一条被规则压下的结果", work_id: "w4", held: { reason: "安静时段" } },
   ];
   const real = window.fetch;
-  window.fetch = (input, init) => /\\/api\\/assistant\\/notices/.test(String(input?.url ?? input)) && !(init && init.method && init.method !== "GET")
-    ? Promise.resolve(new Response(JSON.stringify({ notices }), { status: 200, headers: { "content-type": "application/json" } })) : real(input, init);
+  // The notices come with the page's one attention read (W4-10): the test's notices replace the Assistant's in its answer.
+  window.fetch = (input, init) => /\\/api\\/attention\\b/.test(String(input?.url ?? input)) && !(init && init.method && init.method !== "GET")
+    ? real(input, init).then(response => response.json()).then(body => new Response(JSON.stringify({ ...body, notices }), { status: 200, headers: { "content-type": "application/json" } }))
+    : real(input, init);
   document.dispatchEvent(new Event("visibilitychange"));
   await wait(400);
   const out = {};

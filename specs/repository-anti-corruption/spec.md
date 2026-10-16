@@ -22,7 +22,7 @@ W4-04 第二片（2026-10-15，插件读回自己固定的版本，#547）：For
 - `W4-04-02` 在 `tests/plugin-host-services.test.ts`。变异检查：去掉「必须是自己固定的」，`W4-04-02` 失败。
 - 动作快照：每个安装多一条 `sdk.artifacts.<安装>.own@1`。`createPluginArtifactClient` 加上这一条后到了 153 行，超过函数行数上限，把 SDK 动作的定义拆到同文件的 `sdkArtifactActions`。
 
-W4-04 第三片（2026-10-15，Form 经 Plugin Runtime 装配，PR 待开）：按 `docs/system/RUNTIME-MIGRATION.md` 5.1 删 Host 的 Form 适配，Form 成为每个项目一个的 Runtime 插件。
+W4-04 第三片（2026-10-15，Form 经 Plugin Runtime 装配，#551）：按 `docs/system/RUNTIME-MIGRATION.md` 5.1 删 Host 的 Form 适配，Form 成为每个项目一个的 Runtime 插件。
 - 删：`apps/local-host/src/form-actions.ts`、`form-native-plugin-http.ts`，`index.ts` 的 `handleFormNativePluginHttp`，`project-host.ts` 的 `formActionProvider` 一行，`web-request.ts`、`web-catalog.ts` 的 Form 段，`creative-artifacts.ts` 的三个 Form 端口；包里的 `routes.ts`、`route-handlers.ts`。`tests/builtin-plugin-assembly-gate.test.ts` 的冻结名单把 Form 从 `BUILD_TIME_ASSEMBLED`、`NATIVE_PLUGIN_HTTP_FILES` 移到 `RUNTIME_ASSEMBLED`；`tooling/gates/error-owners.json` 删掉只剩已删文件的 `form` 条目。
 - 加：`plugins/native/form/src/plugin.ts` 的 `createFormPlugin`；`project-plugins.ts` 的监督器条目（`bundled: true`，`database: FORM_DATABASE`，即 W4-11 登记的 `form` 库，位置与结构不变）。问卷库的读写改走 `services.database`：`FormStore` 只认 `get`/`all`/`run` 三个调用，写入在 `database.transaction(() => caller.beforeEffect(), …)` 里，`ownFormStores` 给不经 Runtime 的测试与夹具同样的读写形状。成果走 `services.artifacts`：`publish`、自己的线头 `head`（第一片）、读回自己固定的版本 `readOwn`（第二片），别的生产者的线仍答 `form.publication_conflict`（原来宿主就这样答）。
 - 路由：Manifest 声明 15 条（项目下的 `/api/plugins/io.molis.work.form/forms…`，`route_id` 沿用原来的），每条只把请求转成同名动作；页面送来的 `project_id` 必须是本项目，否则 `actions.scope_mismatch`，什么也不写。项目分发要求插件 id 后面有路径，所以根是 `/forms`。客户端改用 `host.route(…)`（带项目前缀）；`native-plugin-api.ts` 的短名改写保留到 W6-01，Form 已用不到。

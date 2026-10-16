@@ -5,9 +5,9 @@
 需求来源：
 
 - 仓库：https://github.com/molis-ai/molis-work
-- 分支：feature/subagent-interaction-spec-20261015
-- 版本：以本分支最新提交为准
-- 远端入口：https://github.com/molis-ai/molis-work/tree/feature/subagent-interaction-spec-20261015/specs
+- 分支：main
+- 版本：以 origin/main 最新提交为准
+- 远端入口：https://github.com/molis-ai/molis-work/tree/main/specs
 - 交接文件：docs/prompts/requirements-handoff-2026-10-15.md
 
 九份独立需求书（路径相对于 Molis Work 仓库根目录）：
@@ -31,7 +31,7 @@
 9. specs/ai-development-handbook/spec.md
    Molis Work AI 能力开发手册（内部开发要求与参考实现）
 
-先拉取需求分支，完整阅读这些需求书及适用的 AGENTS.md，核对最新主线、已有实现和在途任务，避免重复开发。实现工作按仓库规则基于最新 main 建立工作树，并带入尚未合入的需求文档；如果需求已经合入 main，不重复带入。不要依赖原作者的本机路径。
+先更新 origin/main，从 main 完整阅读这些需求书及适用的 AGENTS.md，核对已有实现和在途任务，避免重复开发。九份需求书均已合入 main，无需拉取旧需求分支或另行带入需求文档。实现工作按仓库规则基于最新 main 建立工作树。不要依赖原作者的本机路径。
 
 以各自 spec 为唯一需求来源，保留已确认要求，合理设计功能、不删减范围或把第一批切片当作整项完成。配套技术方案、历史基线和测量材料只提供对应范围的参考与证据，不代表新功能已经通过验收。
 

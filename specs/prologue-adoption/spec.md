@@ -1185,6 +1185,18 @@ Molis 这边：
 - 延后的工具在用：第一轮先调 `find-tools` 取形状的，T2 3 次里 2 次、T3 3 次都是；接着做的那一轮，第一轮找过的直接调（`tools-found` 接上了），没找过的先 `find-tools` 再调（第 13 轮 T3 的「Judge job」）。
 - 日志在跑的机器上，不入库；夹具不留请求头，日志里没有 key。
 
+**2026-10-16 再换包：没点 `find-tools` 的角色也看得到延后的工具。** 上面「延后的工具调不到」那一节写过：`writers` 给 10 个以上动作工具，它没有 `find-tools`，名册跟着它一起没了，连名字都看不到。#28 只修了「看得到也调不到」，没修这一条。统筹转达用户的决定：在上游修，不在开跑时拒，也不要求每个角色都点 `find-tools`。上游 [Prologue #30](https://github.com/molis-ai/prologue/pull/30) 经用户在本会话同意合入（合并提交 `be78f726`）：一轮只要延后了工具，`find-tools` 就带着名册在请求里、调得动，不看这一轮的工具名单和 Character 点没点它；一条都没延后时照旧摘掉。理由和没选的两条写在 Prologue 的需求分册（`modules/tool/deferral.md`「搜索入口跟着延后走」）与短合同 `find-tools-with-deferral.md`。
+
+Molis 这边：
+
+- 照 `vendor/prologue-sdk/README.md` 换成从 `be78f726` 打的 `prologue-sdk-0.0.0-rc.1-find-tools-deferral.tgz`（同样的步骤打两次，逐字节相同），删了 found-tools 包，`patch-history.json` 记一笔。同一棵树上 SDK 全量 0 失败（`desktop-computer-use.live` 没跑），13 个消费者脚本在这个包上全过。
+- 不改 Molis 源码：`writers` 的工具名单不变，角色不必为延后去点 `find-tools`。
+- 证据：`tests/prologue-tool-declaration.test.ts`（PA-12）加两条。`writers` 一轮给 10 个只读查询，一共超过 20 个工具：
+  - 请求里声明了 `find-tools`，名册上 10 个都在；先找再调，下一次请求带着找到的那个的形状，只有它执行了一次；
+  - 照名册上的名字直接调，它的形状不在请求里，调用执行一次。
+  - 两条都先在旧包（found-tools）上看它红，见 PR 正文。
+- 不跑真实模型评测（统筹定）。
+
 **留到后面的**：
 
 - `molis.file-present` 只证明文件在（S-27 开放项）。

@@ -111,6 +111,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
         started_at: attempt.started_at, task: attempt.task,
         ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
         ...(attempt.timing ? { timing: attempt.timing } : {}),
+        ...(attempt.desktop_target ? { desktop_target: attempt.desktop_target } : {}),
         ...(ref ? { terminal: true } : {}),
         ...(!ref ? { original_questions: pendingQuestions.filter(pending => pending.origin?.run === attempt.run_id).map(pending => ({ pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind, why: pending.why })) } : {}),
         events: ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }) });

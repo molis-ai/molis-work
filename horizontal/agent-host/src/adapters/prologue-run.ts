@@ -23,7 +23,7 @@ import { runModelParams } from "./prologue-run-params.js";
 import { blockId, collaborates, eligibleContinuation, planPrefix, readyStep, sessionBlock } from "./prologue-collaboration.js";
 import type { PlanPlace } from "./prologue-plan-steps.js";
 import { exactCharacterKey, verifySubagentStart, type PrologueSubagentRoot } from "./prologue-subagents.js";
-import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, type PrologueSurfaces } from "./prologue-surfaces.js";
+import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, type PrologueSurfaces, type SurfaceAttachment } from "./prologue-surfaces.js";
 import { placeOf, type createPrologueTaskBoards } from "./prologue-taskboard.js";
 import type { createPrologueWaits } from "./prologue-waits.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
@@ -297,7 +297,7 @@ async function roundBinding(deps: RunDeps, input: PrologueStartInput, index: Ses
  * The project's side panel browser, for this session only: its tools join the round and the round is told how to use
  * them. Read-only rounds only look; a page another live round holds is not shared, and the round is told why.
  */
-async function roundSurface(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, business: boolean) {
+async function roundSurface(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, business: boolean): Promise<SurfaceAttachment> {
   const surfaceHost = deps.surfaces();
   if (!(business && surfaceHost && input.browser !== false)) return { tools: [] as readonly string[], note: null, surfaces: [] as readonly ("browser" | "desktop")[] };
   return surfaceHost.attach(session, index.owner.project_id, input.session_id, { readOnly: input.provenance.frozen.execution === "read-only",
@@ -613,7 +613,8 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
   const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
     ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
-    ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) });
+    ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
+    ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });
   const dispatchGuard = async () => {
     await input.beforeDispatch?.();
     if (!mode.none && !mode.business) {
@@ -640,5 +641,6 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   state.dispatchChecks.set(started.run.ref.id, dispatchGuard);
   await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,
     project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
-  return roundHandle(deps, input, { started, session, attemptIndex, actionController, memoryDone, stepBoard: materials.stepBoard, stopping });
+  return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, memoryDone, stepBoard: materials.stepBoard, stopping }),
+    ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) };
 }

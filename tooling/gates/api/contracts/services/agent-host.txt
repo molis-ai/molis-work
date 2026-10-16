@@ -666,6 +666,15 @@ export interface AgentMessageAttachment {
     title?: string;
 }
 
+export interface AgentOfferRunRequest {
+    runtime_id: string;
+    session_id: string;
+    run_id: string;
+    offer_id: string;
+    reference: ExactActionReference;
+    input: unknown;
+}
+
 export type AgentPeopleMessageAction = "deliver" | "accept" | "reject" | "complete" | "cancel" | "record";
 
 export interface AgentPeopleMessageInput {
@@ -880,6 +889,7 @@ export interface AgentRunHandle {
 export interface AgentRunOffer extends AgentActionOffer {
     offer_id: string;
     offered_at: string;
+    action_digest: string;
 }
 
 export type AgentRunPhase = "starting" | "running" | "awaiting-review" | "awaiting-input" | "paused" | "compacting" | "completed" | "failed" | "cancelled" | "stopped" | "reconcile-required";
@@ -1507,6 +1517,12 @@ export declare const agentHostCapabilities: {
         receipt: AgentReviewReceipt | null;
     }>>;
     readonly listReviews: HostCapabilityDefinition<[projectId: string, status?: AgentReviewStatus], AgentReviewRequest[]>;
+};
+
+export declare const agentOfferActions: {
+    readonly run: ActionDefinition<AgentOfferRunRequest, {
+        output: unknown;
+    }>;
 };
 
 export declare function agentTextMaterialContent(material: AgentTextMaterial): string;

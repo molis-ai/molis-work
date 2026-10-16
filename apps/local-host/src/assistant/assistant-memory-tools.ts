@@ -32,7 +32,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
   const propose: AgentMemoryTools["propose"] = async request => {
     await memory.propose(caller, { scope: request.scope, text: request.text, kind: request.scope === "project" ? "convention" : "preference", applies: request.applies.trim() ? { task: request.applies.trim().slice(0, 200) } : {},
       basis: "inferred", why: request.why, from: "work" });
-    return { candidate_id: "", note: "已作为建议放在工作面板，等用户认可；在他认可前不会生效。回复里说“建议记住……，需要你认可”，不要说已经记住。" };
+    return { candidate_id: "", note: "已作为建议放在工作面板，等用户认可；在他认可前不会生效。" };
   };
   return {
     ...(mayPropose ? { propose: async request => { const made = await propose(request); const latest = (await memory.candidates(caller, { work_id: work.work_id })).at(-1); return { ...made, candidate_id: latest?.candidate_id ?? "" }; } } : {}),
@@ -51,7 +51,7 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
       text: item.state === "active" ? item.text : `（已停用）${item.text}`, origin: item.origin })),
     ...(work.delegated_by ? {} : { forget: async (memoryId: string) => {
       // Forgetting is switching off, in the Assistant's name: it is no longer used, stays the person's to switch back on or delete in settings.
-      try { await memory.change(caller, { memory_id: memoryId, action: "disable" }); return { forgotten: true, note: "已停用：以后不会再用到这条；它还在用户的记忆设置里，用户可以重新启用或彻底删除。回复里说“已停用”，不要说已删除。" }; }
+      try { await memory.change(caller, { memory_id: memoryId, action: "disable" }); return { forgotten: true, note: "已停用：以后不会再用到这条；它还在用户的记忆设置里，用户可以重新启用或彻底删除。" }; }
       catch (error) { if (error instanceof ActionError && error.code === "memory.not_found") return { forgotten: false }; throw error; }
     } }),
   };

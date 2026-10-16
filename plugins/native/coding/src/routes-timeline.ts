@@ -1,3 +1,4 @@
+import { runsWithCards } from "./action-cards.js";
 import { characterTitle, savedCharacter, savedCharacterSkills } from "./characters.js";
 import { codingContinuation } from "./continuation.js";
 import { nextHistoryMode } from "./history-digest.js";
@@ -103,7 +104,7 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, projectId, summaries, route } = a;
-    return route("coding.read-session", async (request, api, execution) => {
+    return route("coding.read-session", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       const character = savedCharacter(context, record.session_id), character_title = characterTitle(context, character);
       const plan = execution.sessions.plan(projectId, record.session_id);
@@ -130,7 +131,7 @@ const ROUTES: RouteMaker[] = [
         const size = request.query?.window === undefined ? undefined : Number(request.query.window);
         if (size !== undefined && (!Number.isSafeInteger(size) || size < 1 || size > 50)) throw new Error("一次读取的轮次必须为 1–50");
         const offset = size === undefined ? 0 : Math.max(0, snapshot.runs.length - size);
-        const runs = await Promise.all(snapshot.runs.slice(offset).map((run) => api!.invoke(agent.readRun, [session, run])));
+        const runs = await runsWithCards(context, api!, record, await Promise.all(snapshot.runs.slice(offset).map((run) => api!.invoke(agent.readRun, [session, run]))), beforeWrite);
         // A round the page already holds unchanged travels as its fingerprint alone.
         const known = new Set(String(request.query?.known ?? "").split(",").filter(Boolean));
         const shown = size === undefined ? runs : runs.map(run => { const display = codingRunForDisplay(run); return known.has(display.fingerprint) ? { ref: display.ref, fingerprint: display.fingerprint, unchanged: true } : display; });
@@ -160,20 +161,20 @@ const ROUTES: RouteMaker[] = [
   // A live round, as it happens: answers as soon as it changes from what the page holds (or after the wait).
   (a) => {
     const { route } = a;
-    return route("coding.live", async (request, api, execution) => {
+    return route("coding.live", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const since = typeof request.query?.since === "string" && request.query.since ? request.query.since : null;
       const wait = Math.min(Math.max(Number(request.query?.timeout ?? 20_000) || 0, 0), 25_000);
       const result = await api!.invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "执行引用", 200) }, since, wait]);
-      return { version: result.version, runs: [codingRunForDisplay(result.view)] };
+      return { version: result.version, runs: (await runsWithCards(a.context, api!, record, [result.view], beforeWrite)).map(codingRunForDisplay) };
     });
   },
   // Scrolling back reads earlier rounds a page at a time, with what the timeline shows beside them.
   (a) => {
     const { context, route } = a;
-    return route("coding.read-runs", async (request, api, execution) => {
+    return route("coding.read-runs", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) return { runs: [], runs_offset: 0, subagents: [], taskboard_plans: [] };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -181,7 +182,7 @@ const ROUTES: RouteMaker[] = [
       const before = Number(request.query?.before ?? snapshot.runs.length), limit = Number(request.query?.limit ?? SESSION_PAGE);
       if (!Number.isSafeInteger(before) || before < 0 || before > snapshot.runs.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error("读取范围无效");
       const offset = Math.max(0, before - limit);
-      const runs = await Promise.all(snapshot.runs.slice(offset, before).map(ref => api!.invoke(agent.readRun, [session, ref])));
+      const runs = await runsWithCards(context, api!, record, await Promise.all(snapshot.runs.slice(offset, before).map(ref => api!.invoke(agent.readRun, [session, ref]))), beforeWrite);
       return { runs: runs.map(codingRunForDisplay), runs_offset: offset, run_count: snapshot.runs.length, subagents: await subagentGroups(a, api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs) };
     });
   },

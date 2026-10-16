@@ -1,8 +1,9 @@
 import { preparePagesFileImport } from "./pages-import.js";
-import { ActionError, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionClient, ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pagesManifest, createPagesActionHandlers, createPagesContentHandlers, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { hostCompleteText, textModelAvailability, type HostCompleteText } from "./host-complete-text.js";
+import { hostCompleteText, textModelAvailability, textModelRequired, type HostCompleteText } from "./host-complete-text.js";
+import { L } from "./web-locale.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { registerPagesArtifactVersion, readPagesArtifactVersion, pagesArtifactLineHead } from "./pages-artifact.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
@@ -26,10 +27,10 @@ export function pagesActionProvider(home: string, runtime: MolisWorkProjectRunti
       publishArtifact: (input, caller) => registerPagesArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id, caller.actor_id)(input),
       readArtifact: input => readPagesArtifactVersion(runtime.coordinator, runtime.project_id, runtime.project_id)(input),
       lineHead: input => pagesArtifactLineHead(runtime.coordinator, runtime.project_id, runtime.project_id)(input),
-      modelAvailability: () => textModelAvailability(model, "请先配置文字模型，再使用写作助手"),
+      modelAvailability: () => textModelAvailability(model, L("使用写作助手")),
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model();
-        if (!complete) throw new ActionError("actions.connection_required", "请先配置文字模型，再使用写作助手");
+        if (!complete) throw textModelRequired(L("使用写作助手"));
         return complete(resolveModelPrompt(home, prompt, "io.molis.work.pages"), options);
       }),
     }), ...createPagesContentHandlers(actions)],

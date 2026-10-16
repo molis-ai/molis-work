@@ -2,7 +2,7 @@ import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -65,6 +65,7 @@ export const codingManifest: PluginManifest = {
       ...Object.values(agentHostCapabilities).map((entry) => entry.capability_id),
       ...Object.values(agentCollaborationActions).map((entry) => entry.capability_id),
       ...Object.values(agentInputActions).map((entry) => entry.capability_id),
+      ...Object.values(agentOfferActions).map((entry) => entry.capability_id),
       ...Object.values(goalPluginActions).map(entry => entry.capability_id),
       projectsCapabilities.readWorkspace.capability_id,
       workspaceReadActions.file.capability_id,
@@ -180,6 +181,8 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.priority", method: "POST", path: "/sessions/:sessionId/priority" },
     { route_id: "coding.background-stop", method: "POST", path: "/sessions/:sessionId/background/:taskId/stop" },
     { route_id: "coding.control-run", method: "POST", path: "/sessions/:sessionId/control" },
+    { route_id: "coding.card-run", method: "POST", path: "/sessions/:sessionId/cards/:cardId/run" },
+    { route_id: "coding.card-dismiss", method: "POST", path: "/sessions/:sessionId/cards/:cardId/dismiss" },
   ],
   ui: {
     embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],

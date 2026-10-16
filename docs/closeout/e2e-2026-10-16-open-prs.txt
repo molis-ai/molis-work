@@ -1,0 +1,31 @@
+HEAD=origin/main=28948c9fd4530f82847f1a5a0ff34dba1ab43f9c
+Characters fix 404ba289f is an ancestor of origin/main.
+
+Full-suite-red SHAs do not contain 404ba289f:
+#536 d4d0303e1b does not contain 404ba289f. Full-suite red was tests/agent-action-selection.e2e.test.ts. Behind origin/main.
+#534 96186a1eb3 does not contain 404ba289f. Full-suite red was tests/agent-action-selection.e2e.test.ts. Behind origin/main.
+#530 69e2e686a5 does not contain 404ba289f. Full suite run 38758311566 shard 4/16 failed three files: tests/content-editing-regressions.e2e.test.ts (W2-18-PAGES-TRANSIENT-01, 8/9; retry 1 passed), tests/local-host.test.ts (6/7, capability-descriptor copy; retry 1 failed), tests/side-panel-browser.e2e.test.ts (2/4, R5B-01/03 and the side-panel driver; retry 1 failed).
+
+Merged, and this close-out did not rebase or push them or main:
+#536 merged as ac47ed788.
+#534 merged as 7fe8ee658.
+#530 merged as a675dc8d1.
+#542 merged as 2c48fa864.
+#569 merged 2026-10-16T07:34:07Z.
+#573 merged 2026-10-16T10:26:44Z.
+#571 merged 2026-10-16T11:04:57Z. Before merge, its check "Security invariants (not required yet) (1/2)" failed. This run did not rebase or push that branch.
+#585 merged as 6ee6fe21de981f00bc93248f259334b2bdfa06b9.
+#595 merged as 28948c9fd4530f82847f1a5a0ff34dba1ab43f9c. This run did not rebase or push that branch.
+
+Still open, not rebased or pushed by this run:
+#599 yijunw0212 feat(agent-host): take Prologue main be78f726 (#30); a role that does not name find-tools still sees its deferred tools
+#598 yijunw0212 fix(local-host): with no text model, the reason says where to connect one, written once by the Host (A2 follow-up)
+#597 yijunw0212 feat: H4 2c — a Coding round's suggestions are cards the person runs once
+#596 yijunw0212 feat(assistant): what cannot run now stays in the round's directory
+#594 yijunw0212 fix(workbench): rebuild the switcher's label only when it changed
+#592 yijunw0212 fix(assistant): a desktop step and a missing model are known by fact
+#591 yijunw0212 refactor(contracts): W5-09 — split services/agent-host.ts by domain
+#589 yijunw0212 feat(receipts): 1e — Assistant receipts
+#588 yijunw0212 fix(agent-host): a compaction repair sends back facts only
+#580 yijunw0212 fix(ai): model-path failures say what happened instead of being swallowed
+#156 jingxusandra-gif docs: 新建 docs/experience/

@@ -56,6 +56,7 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
   - 一个 Home 一个执行 owner；另一个进程得到 `agent.inference.home_in_use` 或 `agent.storage_busy`，经 `inferenceServiceUnavailableReason` 转成给人看的原因。
   - 派出前复核（`beforeDispatch`、凭据核对）拒绝时，调用方拿到复核自己抛的错误（`isDispatchRefusal` 为真），不得改写成模型或网络失败；SDK 侧对应 `EFFECT_NOT_AUTHORIZED`。
   - 角色必须是 Manifest 声明过的，能力必须 Runtime 真支持，目录必须宿主授权且 realpath 已核；`unsupported` 就是不能用，不降级不伪装。
+  - 项目 MCP 配置由 SDK 保管；来源插件是来历，Host 共同动作允许助理在自己的授权下复用。启用的断线连接只在获准调用时重连，目录查询不启动进程；准备和实际派出都复核原工作区授权、配置版本及工具形状。`catalog()` 仅供 Host 管理列出项目归属，不赋予调用权限。回归：`tests/external-mcp-actions.test.ts`、`tests/external-mcp-dispatch.test.ts`、`tests/coding-mcp.test.ts`。
   - Runtime 不能自己扩权：批准一次性，拒绝与过期不能换个入口变成许可。
   - 插件 caller 的项目身份只取 Host；`HostPluginCaller.project_id` 为 `null` 的 Home caller 在原归属检查处以 `agent.session_unknown` 拒绝，不补造项目。通过检查后才窄化成项目 caller；回归见 `tests/home-plugin-platform.test.ts` 的 Home 消费身份与 Agent 拒绝用例。
   - 逐项能力回合（冻结的 `action_tools`）的角色 `host_tools` 带 `suggest-action` 时，这一轮多一个建议工具（`molis-suggest-<范围>`，与动作工具同一个包）：只能点名这一轮的动作工具，按动作此刻的状态与它自己的输入检查核过才记下，什么都不执行、不排审查；记下的建议原样进运行视图的 `offers`（`AgentRunView.offers`，从保存的事件回放，不重新生成），落成什么由调用方决定（D25）。只读角色带 `suggest-action` 开跑前就拒（`agent.role_execution_exceeded`）。`suggest-action` 不是 Prologue 的系统工具，不经 `prologueToolName`。建议工具按名字前缀免审查放行，所以别的工具来源都不能产生这个前缀（MCP 是 `mcp:…`、动作是 `molis-action-…`、其余是固定名字或 SDK 系统工具）；新增工具来源时要守住这一点。安全不变量 S-28，回归：`tests/security-invariants-agent-suggestions.test.ts`、`tests/agent-host-offers.test.ts`。

@@ -82,9 +82,11 @@ export interface AgentMcpServerView {
 }
 
 export interface AgentMcpLibrary {
+  /** Host management only: configuration provenance and safe views across projects; this grants no invocation authority. */
+  catalog?(): Promise<Array<{ owner: AgentSkillOwner; server: AgentMcpServerView }>>;
   list(owner: AgentSkillOwner): Promise<AgentMcpServerView[]>;
   save(owner: AgentSkillOwner, input: AgentMcpServerInput): Promise<AgentMcpServerView>;
-  control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove"): Promise<void>;
+  control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove", options?: { signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }): Promise<void>;
   validateSources(owner: AgentSkillOwner, selected: readonly AgentMcpSourceRef[]): Promise<AgentMcpSourceRef[]>;
   validate(owner: AgentSkillOwner, selected: readonly AgentMcpToolRef[]): Promise<AgentMcpToolRef[]>;
   /** Connected tools with the input shape the server declared, for the shared action directory. */

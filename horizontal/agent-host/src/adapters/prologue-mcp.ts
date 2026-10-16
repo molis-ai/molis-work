@@ -47,6 +47,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
   withDispatchGuard<T>(guard: () => Promise<void>, operation: () => Promise<T>): Promise<T>;
   resolveConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
   subscribeConnections?: (listener: (connectionId: string) => void) => () => void;
+  directoryAuthorized?: (projectId: string, directory: string) => Promise<boolean>;
   credentialRefFor?: (ref: string) => Promise<ExactRef<"credential">>;
 }): AgentMcpLibrary & { dispose(): void } {
   const linked = new Map<string, { account: string; credential?: string; revision?: string }>();
@@ -108,19 +109,38 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
     catch (error) { const safe = redactMcpError(error);errors.set(id, safe);throw new Error(safe); }
     finally { busy.delete(id); }
   };
+  const assertDirectory = async (saved: Saved) => {
+    if (saved.transport === "stdio" && options.directoryAuthorized && !await options.directoryAuthorized(saved.project_id, saved.directory!.canonical_path)) throw new Error("MCP 的原工作区已取消授权，请重新配置");
+  };
+  const reconnecting = new Map<string, Promise<void>>();
+  const prepare = async (owner: AgentSkillOwner, ref: AgentMcpSourceRef, callOptions: NonNullable<Parameters<NonNullable<AgentMcpLibrary["call"]>>[3]>) => {
+    const { saved, version } = await held(owner, ref.server);
+    if (ref.configuration_version !== version || !saved.enabled) throw new Error("MCP 配置已变化或已停用，请重新选择");
+    await assertDirectory(saved);
+    if (connection(mcpConnectionId(ref))?.health !== "connected") {
+      let pending = reconnecting.get(saved.id);
+      if (!pending) {
+        pending = library.control(owner, saved.id, "connect", callOptions).finally(() => reconnecting.delete(saved.id));
+        reconnecting.set(saved.id, pending);
+      }
+      await pending;
+    }
+    await callOptions.beforeDispatch?.(); await assertDirectory(saved);
+  };
   const library: AgentMcpLibrary = {
-    async list(owner) {
-      const rows: AgentMcpServerView[] = [];let cursor: string | undefined;
+    async catalog() {
+      const rows: Array<{ owner: AgentSkillOwner; server: AgentMcpServerView }> = [];let cursor: string | undefined;
       for (let page = 0; page < 100; page++) {
         const listed = await runtime.store.list({ kind: KIND, limit: 100, ...(cursor ? { cursor } : {}) });
         for (const record of listed.records) {
           const saved = record.metadata as unknown as Saved;
-          if (!record.tombstoned && !saved.removed && sameOwner(saved, owner)) rows.push(view(saved, record.version));
+          if (!record.tombstoned && !saved.removed) rows.push({ owner: { project_id: saved.project_id, plugin_id: saved.plugin_id }, server: view(saved, record.version) });
         }
         if (!listed.cursor) return rows;cursor = listed.cursor;
       }
       throw new Error("MCP 配置目录过大，无法完整读取");
     },
+    async list(owner) { return (await library.catalog!()).filter(entry => sameOwner(entry.owner, owner)).map(entry => entry.server); },
     async save(owner, input) {
       const id = input.id ?? `mcp-${randomUUID()}`;
       return locked(id, "save", async () => {
@@ -156,9 +176,13 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
         return view(saved, committed.version);
       });
     },
-    async control(owner, id, action) {
+    async control(owner, id, action, callOptions = {}) {
       if (action === "cancel") { await held(owner, id);if (busy.get(id)?.action === "connect") busy.get(id)!.abort.abort();return; }
       await locked(id, action, async abort => {
+        const cancelled = () => abort.abort();
+        callOptions.signal?.addEventListener("abort", cancelled, { once: true });
+        const dispatch = async () => { await callOptions.beforeDispatch?.(); if (callOptions.signal?.aborted || abort.signal.aborted) throw createPrologueError("CANCELLED", "MCP connection cancelled before dispatch."); };
+        try {
         const record = await held(owner, id);
         const connectionId = mcpConnectionId({server:id,configuration_version:record.version});
         if (action === "connect") {
@@ -169,7 +193,9 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
           const saved = record.saved;
           const conn = connection(connectionId) ?? runtime.mcp.add({ id: connectionId, label: saved.label, transport: saved.transport, enabled: true, protocolMajor: 1 });
           if (saved.transport === "stdio") {
+            await assertDirectory(saved);
             const root = await runtime.workspace.authorize({ path: saved.directory!.canonical_path });
+            await dispatch(); await assertDirectory(saved);
             await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "stdio", rootRef: root.ref, executable: saved.executable!, argv: saved.argv!, cwd: ".", requestTimeoutMs: saved.timeout_ms, envAllowlist: [] } });
           } else {
             let credentialRef = saved.credential_ref;
@@ -180,6 +206,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
               linked.set(saved.id, { account: saved.auth_connection_id, credential: JSON.stringify(credentialRef), revision: host.revision });
             }
             if (invalidated.has(id)) throw new Error("MCP 账号已改变，请重新连接");
+            await dispatch();
             await runtime.connectMcp({ ref: conn.ref, signal: abort.signal, transport: { kind: "http", endpoint: saved.endpoint!, requestTimeoutMs: saved.timeout_ms, ...(credentialRef ? { credentialRef } : {}) } });
           }
           if (invalidated.has(id)) { await close(id); throw new Error("MCP 账号已改变，请重新连接"); }
@@ -190,6 +217,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
           await close(id);
           await runtime.store.commit({ kind: KIND, id, expectedVersion: record.version, metadata: { ...record.saved, enabled: false, removed: true } });
         } else throw new Error("不支持这个 MCP 操作");
+        } finally { callOptions.signal?.removeEventListener("abort", cancelled); }
       });
     },
     async validateSources(owner, selected) {
@@ -217,45 +245,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
       const conn = connection(mcpConnectionId(ref));
       return conn?.health === "connected" && runtime.mcp.snapshotOf(conn.ref).tools.some(tool => tool.name === ref.tool && tool.shapeFingerprint === ref.version);
     },
-    async call(owner, ref, args, callOptions = {}) {
-      const assertActive = () => {
-        // This guard runs before dispatch. Preserve cancellation through the SDK's
-        // public error contract; an arbitrary DOM AbortError is otherwise an App denial.
-        if (callOptions.signal?.aborted) throw createPrologueError("CANCELLED", "MCP call cancelled before dispatch.");
-      };
-      const beforeDispatch = async () => {
-        assertActive();
-        try { await callOptions.beforeDispatch?.(); }
-        finally { assertActive(); }
-      };
-      return options.withDispatchGuard(beforeDispatch, async () => {
-        const [checked] = await library.validate(owner, [ref]);
-        const { saved } = await held(owner, checked!.server);
-        const name = `mcp:${mcpConnectionId(checked!)}/${checked!.tool}`;
-        // Adopted on connect; adopting again after a reconnect keeps the catalog on the live shape.
-        const conn = connection(mcpConnectionId(checked!));
-        if (!conn || !runtime.tools.get(name)) runtime.adoptMcpTools(conn!.ref);
-        const root = await runtime.workspace.authorize({ path: saved.transport === "stdio" ? saved.directory!.canonical_path : await callRoot() });
-        const run = runtime.createSystemToolRunner(root.ref);
-        const observation = await runtime.createToolInvoker().invoke({
-          request: { name, version: checked!.version!, args: { ...args } },
-          run: async request => {
-            await beforeDispatch();
-            return run(callOptions.signal ? { ...request, abort: callAbort(callOptions.signal, request.abort) } : request);
-          },
-          recheck: async () => { await beforeDispatch(); return library.live!(checked!); },
-          now: await runtime.readClock(),
-          ...(callOptions.signal ? { signal: callOptions.signal } : {}),
-          // This call was already authorized by the Molis action directory for its caller (local user, workflow or granted client);
-          // the SDK still records it as an external write and runs it through its own chain.
-          onAwaiting: effect => {
-            if (!effect.pending) return;
-            void runtime.readClock().then(clock => runtime.effects.pendings.answer(effect.pending!.ref, { kind: "effect-approval", answer: "allow" }, clock));
-          },
-        });
-        return { text: observation.text, truncated: observation.truncated };
-      });
-    },
+    call: (...args) => callMcpTool(runtime, library, held, prepare, assertDirectory, options.withDispatchGuard, ...args),
     async validate(owner, selected) {
       const resolved = [];
       for (const ref of selected) {
@@ -263,6 +253,7 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
         if (ref.configuration_version !== version) throw new Error("MCP 服务配置版本已变化或未固定，请重新选择");
         const conn = connection(mcpConnectionId(ref));
         if (!saved.enabled || conn?.health !== "connected") throw new Error("选中的 MCP 服务已停用或断开，请重新连接或取消选择");
+        await assertDirectory(saved);
         await refreshSelected(saved);
         const refreshed = connection(mcpConnectionId(ref));
         if (!refreshed || refreshed.health !== "connected") throw new Error("MCP 连接已改变，请重新连接");
@@ -274,4 +265,53 @@ export function createPrologueMcpLibrary(runtime: Runtime, options: {
     },
   };
   return Object.assign(library, { dispose: () => { unsubscribe?.(); linked.clear(); } });
+}
+
+async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
+  held: (owner: AgentSkillOwner, id: string) => Promise<{ saved: Saved; version: number }>,
+  prepare: (owner: AgentSkillOwner, ref: AgentMcpSourceRef, options: NonNullable<Parameters<NonNullable<AgentMcpLibrary["call"]>>[3]>) => Promise<void>,
+  assertDirectory: (saved: Saved) => Promise<void>,
+  withDispatchGuard: <T>(guard: () => Promise<void>, operation: () => Promise<T>) => Promise<T>,
+  ...[owner, ref, args, callOptions = {}]: Parameters<NonNullable<AgentMcpLibrary["call"]>>
+) {
+  const connection = (id: string) => runtime.mcp.list().find(item => item.id === id);
+  const assertActive = () => {
+    // This guard runs before dispatch. Preserve cancellation through the SDK's
+    // public error contract; an arbitrary DOM AbortError is otherwise an App denial.
+    if (callOptions.signal?.aborted) throw createPrologueError("CANCELLED", "MCP call cancelled before dispatch.");
+  };
+  const beforeDispatch = async () => {
+    assertActive();
+    try { await callOptions.beforeDispatch?.(); await assertDirectory((await held(owner, ref.server)).saved); }
+    finally { assertActive(); }
+  };
+  return withDispatchGuard(beforeDispatch, async () => {
+    await beforeDispatch();
+    await prepare(owner, ref, callOptions);
+    const [checked] = await library.validate(owner, [ref]);
+    const { saved } = await held(owner, checked!.server);
+    const name = `mcp:${mcpConnectionId(checked!)}/${checked!.tool}`;
+    // Adopted on connect; adopting again after a reconnect keeps the catalog on the live shape.
+    const conn = connection(mcpConnectionId(checked!));
+    if (!conn || !runtime.tools.get(name)) runtime.adoptMcpTools(conn!.ref);
+    const root = await runtime.workspace.authorize({ path: saved.transport === "stdio" ? saved.directory!.canonical_path : await callRoot() });
+    const run = runtime.createSystemToolRunner(root.ref);
+    const observation = await runtime.createToolInvoker().invoke({
+      request: { name, version: checked!.version!, args: { ...args } },
+      run: async request => {
+        await beforeDispatch();
+        return run(callOptions.signal ? { ...request, abort: callAbort(callOptions.signal, request.abort) } : request);
+      },
+      recheck: async () => { await beforeDispatch(); return library.live!(checked!); },
+      now: await runtime.readClock(),
+      ...(callOptions.signal ? { signal: callOptions.signal } : {}),
+      // This call was already authorized by the Molis action directory for its caller (local user, workflow or granted client);
+      // the SDK still records it as an external write and runs it through its own chain.
+      onAwaiting: effect => {
+        if (!effect.pending) return;
+        void runtime.readClock().then(clock => runtime.effects.pendings.answer(effect.pending!.ref, { kind: "effect-approval", answer: "allow" }, clock));
+      },
+    });
+    return { text: observation.text, truncated: observation.truncated };
+  });
 }

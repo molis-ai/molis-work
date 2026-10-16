@@ -137,6 +137,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const inherited = dispatchGuards.getStore();
       return dispatchGuards.run(async () => { await inherited?.(); await guard(); }, operation);
     },
+    directoryAuthorized: options.checks?.directoryAuthorized,
     resolveConnection: options.resolveMcpConnection,
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),

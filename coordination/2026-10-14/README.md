@@ -348,6 +348,20 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 回执 1c 改了 `assistant-service.ts`，所以 1c 先合，W4-05 在它之后变基。
   - W4-05 不碰 `assistant-inputs.ts` 与发送、回执的路径。
 - main 上 PAGES-TRANSIENT-01 失败是逻辑问题，已由 #548 修好。
+- 10-16 凌晨（UTC）：
+  - #549（W4-07）已合（`424256ef`），#550（W4-12）已合（`2af9dfc6`）。
+  - 回执 1c #552 在跑全量。交互 H4 第一部分 #554、情境 W3-B1 #553 已审，等全量空位。
+  - #553 的一次性资源例外由用户在情境线会话里直接批准（情境线会话自己的权限检查拦下了门禁改动，同级转达不算数）。压缩的提交已撤回，PR 正文已改正。
+  - #551 第 7 片有 26 个文件在 Node 24.21 退出时于 better-sqlite3 `Statement::~Statement` 原生断言崩溃，只出现在这一片；已重跑这一片，并请防腐线查 Form 的 store 在 Runtime 停止时有没有先关库。
+- H4 第二部分（Coding 的操作卡）定为 D25–D28：
+  - 建议进运行视图，由 Coding 落成自己的卡；
+  - 判断逻辑放进插件 SDK；
+  - 点卡算确认，口径同助理 H2；
+  - 顺序：2b（SDK 抽出）在 #554 之后先做；2a 在 1d 之后；2c 最后，碰 roles.ts 就排在 P3c 之后。
+- 采用线：
+  - P3b 只加用例，现在开工，可与 1d、2a 并行。
+  - P3c 用户 10-16 弹窗定了两件：这一片就教 Coding 的执行角色用外部等待（提示词升版本、WORDING_HISTORY）；`molis.action-query` 按权限管、不另写名单（只读查询，且本会话此刻有权调用）。
+  - P3c 与 1d 撞不撞，等回执线给 1d 的清单再定。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

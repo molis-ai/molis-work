@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 // specs/context-program §21.8 (W3-B1): a passage in hand on the right goes into the Pages document open on the left, at the
 // place the person left in it. Pages reports the landing; the row offers 「插入到光标处」; Pages previews it at that place;
@@ -17,6 +20,8 @@ test("W3-B1: a passage selected in the right panel is put at the cursor of the P
   const left = store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } });
   const right = store.create({ project_id: projectId!, title: "访谈记录", body: { type: "doc", content: [paragraph("用户说：离线也要能记下想法。")] } });
   store.close();
+  const capture = async (name: string) => { const directory = join(process.cwd(), `${REVIEW_EVIDENCE}/context-landing`); await mkdir(directory, { recursive: true });
+    const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(join(directory, name + ".png"), Buffer.from(shot.data, "base64")); };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; });" }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
@@ -50,14 +55,17 @@ test("W3-B1: a passage selected in the right panel is put at the cursor of the P
   await waitFor(`document.querySelector(".mw-ctx:not(.mw-ctx--static):not([hidden]) [data-key]") !== null`, 15_000);
   if (!await evaluate<boolean>(`document.querySelector(${JSON.stringify(attach)}) !== null`)) await evaluate(`document.querySelector('.mw-ctx:not(.mw-ctx--static) [data-more]')?.click()`);
   await waitFor(`[...document.querySelectorAll(${JSON.stringify(attach)})].some(node => node.textContent.includes('插入到光标处'))`, 10_000);
+  await capture("1-row-offers-attach");
   await evaluate(`[...document.querySelectorAll(${JSON.stringify(attach)})].find(node => node.textContent.includes('插入到光标处')).click()`);
 
   // The preview stands at the landing, in Pages; nothing is written before the person confirms.
   await waitFor("document.querySelector('.pages-landing-preview')?.textContent === '离线也要能记下想法'", 10_000);
   assert.equal(await evaluate<string>(editorText), "先完成核心体验。再安排发布。", "the document is unchanged under the preview");
+  await capture("2-preview-at-landing");
   await evaluate(`[...document.querySelectorAll('.pages-pop .mw-btn--primary')].find(node => node.textContent === '放进去').click()`);
   await waitFor(`${editorText} === '先完成离线也要能记下想法核心体验。再安排发布。'`, 10_000);
   assert.equal(await evaluate<boolean>("document.querySelector('.pages-landing-preview') === null"), true, "the preview is gone");
+  await capture("3-written");
   const saved = openPagesStore(homeDirectory);
   try { assert.match(JSON.stringify(saved.get(left.id, projectId!).body), /先完成离线也要能记下想法核心体验。/u); } finally { saved.close(); }
 });

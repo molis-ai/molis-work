@@ -466,6 +466,17 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #591（W5-09）重做在 5ba635c8c 上，`1611d4e37`：我用 TS 解析器比过，顶层语句 124 对 124、文本相同；API 快照不变；baseline 只降；CI 全绿。已排全量（label-chain，在 #598 之后），全量过后入队。
     - 两条全量都把 visual-surfaces 记作已知失败（EXTRA_KNOWN），等防腐线修 #600 的 PR。
     - #591 合入后通知回执线开 3a PR。
+  - 10-16 深夜，各线方案的回复（决策都已写进各自 spec 的决策记录）：
+    - **用户弹窗三项，全按推荐**：
+      - 采用线网关输入 schema：Prologue `sessions.open` 加 `declare` → Molis 换包与细化 → MiniMax 评测（每项 3 轮，对照组 3 轮，先打冒烟）。上游 PR 由用户本人批准合并。
+      - number 题加可选的 `unit`，在上游加，投影进 AgentQuestion。
+      - 回执 3c 页面资源一次性放行：workbench.js +4,113，两份 css 各 +2,062，coding.js −558。
+    - 统筹定：
+      - 情境 W3-B2：L-1 落点只在对象已加入时出现；L-2 选 a，合同加可选的 landing，宿主用 confirmReferences 重读，assistant-service.ts 只加一行调用，逻辑放单独的文件；L-3 用「标题 + 位置词 + 原文片段」；「从回复里放进光标处」进 BACKLOG，排在 W3-B3 之后。
+      - 手册 A3②：「记一下」改成一句判断依据；Pages 方法 v2（BL-147）并进这一片；Issues 方法另记 BL；现在开工。
+      - 回执 3c：先做回执条和原地详情，390 也原地展开，助理里宿主代写的说明也标「Molis 的说明」。实走第 6 条在 3c 里修（键用 steer.id，补跨轮用例）。
+      - 交互 T1：已从 main 开工；D14a 芯片二选一写进 T1 的 spec 决策记录。
+    - #604（防腐修 visual-surfaces，只改测试，`a4b5bb4af`）审过，排在 #598、#591 之后跑全量；它的门禁不把 visual-surfaces 记作已知失败。quiet-paper 等 #604 合入再推。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

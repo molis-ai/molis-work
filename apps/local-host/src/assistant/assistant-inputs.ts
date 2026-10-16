@@ -51,7 +51,8 @@ export function exactRevision(...revisions: Array<number | undefined>): number {
 }
 
 /**
- * The person's words to a round under way (specs/ai-input-receipts §4.1): an answer to its one open free-text question,
+ * The person's words to a round under way (specs/ai-input-receipts §4.1): an answer to its one open free-text question
+ * (a question in words, or a questionnaire whose one question asks for words: specs/ai-interaction-experience D34),
  * or a supplement it reads at its next boundary. One place decides, for the Assistant's own rounds and for the Coding
  * sessions it carries, so the two never disagree on where the same words go.
  */
@@ -61,13 +62,15 @@ export class AssistantInputs {
   /**
    * The person chooses (D14): words go to the round as a supplement unless they chose to answer its question. Answering
    * takes its one free-text question, without materials; anything else is refused, never quietly sent as a supplement.
+   * To answer, `round` is the run as read (a session's summary has not read a questionnaire's questions yet).
    */
   async deliver(round: AgentRunView, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, port: RunningRoundPort, intent: SendIntent = {}): Promise<RoundInputOutcome> {
     if (intent.target === "answer") {
-      const question = this.freeTextQuestion(round.awaiting_input);
+      const question = freeTextQuestion(round.awaiting_input);
       if (round.phase !== "awaiting-input" || !question) throw assistantErrors.stale("这一轮已经不在等你回答问题；这句话没有发送");
       if (materials.length) throw assistantErrors.invalid("回答不能带材料；要带上材料，请改选「补充这一轮」");
-      await port.answer({ kind: "answer", pending_id: question.pending_id, pending_revision: exactRevision(question.pending_revision), text });
+      const words = question.questions?.length ? { answers: [{ question: question.questions[0]!.index, value: text }] } : { text };
+      await port.answer({ kind: "answer", pending_id: question.pending_id, pending_revision: exactRevision(question.pending_revision), ...words });
       return "answered";
     }
     port.beforeSteer?.();
@@ -84,8 +87,14 @@ export class AssistantInputs {
     for (const material of materials) parts.push(`【附带材料「${material.title}」，数据】${(material.text ?? "").slice(0, 4000)}`);
     return parts.join("\n\n").slice(0, this.maxText);
   }
+}
 
-  private freeTextQuestion(questions: AgentRunView["awaiting_input"]): AgentRunView["awaiting_input"][number] | undefined {
-    return questions.length === 1 && questions[0]!.allows_free_text && !questions[0]!.questions?.length ? questions[0] : undefined;
-  }
+/**
+ * The round's one free-text question, the one words from the composer can answer: a question in words, or a questionnaire
+ * whose one question asks for words (specs/ai-interaction-experience D34). The page shows its chip by the same answer
+ * (`from_composer` on the drawn view), so the two never disagree.
+ */
+export function freeTextQuestion(questions: AgentRunView["awaiting_input"]): AgentRunView["awaiting_input"][number] | undefined {
+  const [only, ...more] = questions, asked = only?.questions ?? [];
+  return only && !more.length && (asked.length ? asked.length === 1 && asked[0]!.type === "text" : only.allows_free_text) ? only : undefined;
 }

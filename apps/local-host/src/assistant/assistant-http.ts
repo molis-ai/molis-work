@@ -338,10 +338,12 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
     if (!answer) throw assistantErrors.invalid("请先回答再提交");
     const view = await service.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
       ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
-      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }).catch((error: { code?: string; message?: string; problems?: unknown }) => {
+      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
       // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
       if (error?.code !== "agent.answer_invalid") throw error;
-      throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L) } : undefined);
+      // Read back with the questions it answered, so each line can name the limit it crossed.
+      const asked = (await service.read(workId).catch(() => undefined))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
+      throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L, asked) } : undefined);
     });
     drafts.drop(workId, String(body.pending_id ?? ""));
     return { status: 200, body: view };

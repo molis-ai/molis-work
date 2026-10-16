@@ -30,5 +30,7 @@ export function withPluginInteraction(body: unknown): unknown {
   }
   const details = body.details;
   if (!isRecord(details) || details.errors !== undefined || !Array.isArray(details.problems) || !details.problems.length || !details.problems.every(isProblem)) return body;
-  return { ...body, details: { ...details, errors: questionErrors(details.problems, L) } };
+  // The questions refused, when the plugin sends them back, let each line name the limit it crossed.
+  const asked = Array.isArray(details.questions) && details.questions.every(isQuestion) ? details.questions : [];
+  return { ...body, details: { ...details, errors: questionErrors(details.problems, L, asked) } };
 }

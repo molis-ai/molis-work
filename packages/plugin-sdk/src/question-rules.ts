@@ -9,7 +9,7 @@ import { AGENT_QUESTION_TYPES, type AgentQuestion, type AgentQuestionAnswer, typ
  */
 export const QUESTION_LIMITS = Object.freeze({
   maxQuestions: 10, maxOptionsPerQuestion: 20, maxOtherChars: 500, maxTextChars: 2000, maxHelpChars: 500, maxOptionDescriptionChars: 300,
-  maxRefKinds: 10, maxRefKindChars: 64, maxReferences: 20, maxReferenceChars: 200,
+  maxRefKinds: 10, maxRefKindChars: 64, maxReferences: 20, maxReferenceChars: 200, maxUnitChars: 24,
 });
 
 type Flaw = AgentQuestionProblemReason | undefined;
@@ -120,7 +120,7 @@ export function questionProblems(questions: readonly AgentQuestion[], answers: r
 
 /** Fields that belong to some types only: on another type the question was written wrong, so it is refused, not trimmed. */
 const OWN_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  max_length: ["text"], multiline: ["text"], integer: ["number"], min: ["number", "date", "datetime"], max: ["number", "date", "datetime"],
+  max_length: ["text"], multiline: ["text"], integer: ["number"], unit: ["number"], min: ["number", "date", "datetime"], max: ["number", "date", "datetime"],
   ref_kinds: ["reference"], max_count: ["reference"],
 };
 
@@ -136,6 +136,9 @@ function constraintFlaw(question: AgentQuestion): string | null {
     return `Question ${index}: max_length must be from 1 to ${QUESTION_LIMITS.maxTextChars}.`;
   }
   if (type === "number" && [question.min, question.max].some(bound => bound !== undefined && (typeof bound !== "number" || !Number.isFinite(bound)))) return `Question ${index}: its bounds must be numbers.`;
+  if (type === "number" && question.unit !== undefined && (typeof question.unit !== "string" || !question.unit.trim() || question.unit.length > QUESTION_LIMITS.maxUnitChars || /[\r\n]/.test(question.unit))) {
+    return `Question ${index}: its unit must be one line of 1 to ${QUESTION_LIMITS.maxUnitChars} characters.`;
+  }
   if ((type === "date" || type === "datetime") && [question.min, question.max].some(bound => bound !== undefined && momentKey(type, bound) === undefined)) {
     return `Question ${index}: its bounds must be written like its answers.`;
   }
@@ -183,7 +186,7 @@ export function questionSetFlaw(questions: readonly AgentQuestion[]): string | n
       ids.add(question.id);
     }
     if ((question.help?.length ?? 0) > QUESTION_LIMITS.maxHelpChars) return `Question ${question.index}: its help is too long.`;
-    const present: Record<string, unknown> = { max_length: question.max_length, multiline: question.multiline, integer: question.integer, min: question.min,
+    const present: Record<string, unknown> = { max_length: question.max_length, multiline: question.multiline, integer: question.integer, unit: question.unit, min: question.min,
       max: question.max, ref_kinds: question.ref_kinds, max_count: question.max_count };
     for (const [field, types] of Object.entries(OWN_FIELDS)) {
       if (present[field] !== undefined && !types.includes(question.type)) return `Question ${question.index}: "${field}" does not apply to a ${question.type} question.`;

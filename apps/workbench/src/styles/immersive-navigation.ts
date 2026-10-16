@@ -93,11 +93,6 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
   body.immersive-workbench .assistant-composer .mw-btn {
     flex: none; width: 28px; min-width: 28px; height: 28px; min-height: 28px;
   }
-  body.immersive-workbench .assistant-plan { width: 100%; font-size: 13px; line-height: 1.6; }
-  body.immersive-workbench .assistant-plan p { margin: 8px 0 12px; }
-  body.immersive-workbench .assistant-plan blockquote { margin: 12px 0; padding: 12px; background: var(--wash); border-left: 2px solid var(--line); white-space: pre-wrap; }
-  body.immersive-workbench .assistant-plan pre { max-height: 180px; overflow: auto; font-size: 12px; }
-  body.immersive-workbench .assistant-plan .mw-btn { width: auto; height: auto; min-height: 32px; padding: 8px 12px; margin: 4px 8px 4px 0; white-space: normal; }
   body.immersive-workbench .plugin-rail .personal-sidebar-footer {
     flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; margin: 0; min-height: 0;
   }

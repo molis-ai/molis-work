@@ -373,6 +373,10 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - P3c（采用，`adoption/p3c-external-checks`）与 1d：起初按 1d 的计划清单以为撞四个 agent-host 文件，回执线核对已提交的 diff 后更正为源码不重叠（恢复输入在 `adapters/prologue-recovery.ts`），最多撞 contracts `services/agent-host.ts` 的一行和生成的数字文件。所以 **1d 只在 #553 之后变基一次，不等 P3c**；两者谁后合谁重算生成文件，算只合并。
   - P3c 统筹定（技术口径）：检查器可查的动作在「query + read + 本会话此刻有权」之外，**声明了 `model:invoke` 的也拒绝**。仍是按权限判，不是名单，不违背用户「按权限管」；理由是检查器反复轮询，每次都调模型就花费无界、结果不确定，且 §4.6.9 已写明检查器不调模型。要有断言拒绝本身的用例，spec §4.6.9 与 §6.0e 写成一致。
   - P3c 的 Coding 提示词没有离线回放；弹窗问用户要不要先跑小评测，用户「无偏好」，随后明确「按推荐做」：合入前在隔离 Home 用 MiniMax 跑 3–5 个需要等外部结果的 Coding 任务，看模型是否用外部等待而不是自己轮询或提前收尾；密钥只给引用，结果写进 PR 与 WORDING_HISTORY。评测结果出来后统筹才加 full-suite。
+  - 用户 10-16 新增第五条线「AI 能力开发手册」（会话 local_31cd133b，名 line-ai-handbook，工作树分支前缀 ai-handbook）：需求书 specs/ai-development-handbook/spec.md（#557 在合并队列）。分三步：① 只改文档的手册 PR（PROLOGUE-AI.md 与 skills/molis-prologue-ai/SKILL.md 唯一入口）；② 按手册盘点存量 AI 逻辑（提示词、Skill、上下文组装、工具描述、调模型路径），清单先发统筹、不改代码；③ 统筹按价值与风险排进各线串行顺序后逐片清理，提示词改动升版本记 WORDING_HISTORY，有回放跑回放、没有的问用户后做真实模型小评测。动 P3c、2c、W3-A2、1d、W4-03 在改的文件前先问统筹。
+  - 防腐线报：files、git、diff、text-stats 四个伴随面各发一份 432 KB 的 Coding 安装脚本。拆两片：W4-03 第 2 片只去重（指向 Coding 的包，界面不变，排在 1d 之后，同 PR 删 1d 那四份的一次性例外）；伴随面各自出 Manifest 视图是界面改动，单开一片，排在交互 2c 之后、与交互线一起定。
+  - W3-A2 文件清单已认可：与 #555 同碰 touch-targets 用例和 assistant-island.ts（不同段），#555 合入后 W3-A2 变基一次再开 PR；去掉「说出要做什么」、Todo 委派不再预填「帮我推进…」写进 context-program 决策记录。
+  - MiniMax 密钥由用户存进钥匙串（服务名 minimax-api-key），评测只在命令上内联读，不落文件；各会话读它的权限由用户在那个会话批准。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

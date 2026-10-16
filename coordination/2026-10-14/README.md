@@ -370,7 +370,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 防腐 W4-04c #558（Form 页面改为打包的 TypeScript，form.js 37,472 → 30,300 字节，新计数 scriptConstants 130 → 129）已审、加了 full-suite。#557（子代理直接对话与 AI 开发手册需求）不是四线的，统筹不经手。
   - #556（P3b）已合（`5948c56d`），#554（H4 第一部分）以只合并的新 head 入队后已合（`bdcf6920`）。交互开 2b；#553 并 main 重算后只合并入队。W4-05 #559 已审，等全量空位。#555 并 main 后重新加标签，全量在跑。
   - 回执 1d 的一次性资源例外被回执线会话自己的权限检查拦下，用户在那个会话里批准。
-  - P3c（采用，`adoption/p3c-external-checks`）与 1d 撞四个文件（`agent-host-composition.ts`、`prologue-node.ts`、`prologue-node-port.ts`、`errors.ts`，量都小）：**P3c 先合**，1d 在 #553 与 P3c 之后只变基一次。
+  - P3c（采用，`adoption/p3c-external-checks`）与 1d：起初按 1d 的计划清单以为撞四个 agent-host 文件，回执线核对已提交的 diff 后更正为源码不重叠（恢复输入在 `adapters/prologue-recovery.ts`），最多撞 contracts `services/agent-host.ts` 的一行和生成的数字文件。所以 **1d 只在 #553 之后变基一次，不等 P3c**；两者谁后合谁重算生成文件，算只合并。
   - P3c 统筹定（技术口径）：检查器可查的动作在「query + read + 本会话此刻有权」之外，**声明了 `model:invoke` 的也拒绝**。仍是按权限判，不是名单，不违背用户「按权限管」；理由是检查器反复轮询，每次都调模型就花费无界、结果不确定，且 §4.6.9 已写明检查器不调模型。要有断言拒绝本身的用例，spec §4.6.9 与 §6.0e 写成一致。
   - P3c 的 Coding 提示词没有离线回放；弹窗问用户要不要先跑小评测，用户「无偏好」，随后明确「按推荐做」：合入前在隔离 Home 用 MiniMax 跑 3–5 个需要等外部结果的 Coding 任务，看模型是否用外部等待而不是自己轮询或提前收尾；密钥只给引用，结果写进 PR 与 WORDING_HISTORY。评测结果出来后统筹才加 full-suite。
 

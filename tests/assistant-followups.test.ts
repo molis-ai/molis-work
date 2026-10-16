@@ -54,14 +54,14 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     const due = new Date(Date.now() + 700);
     await actions.invoke({ actor_id: "web-user", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [], audit_actor_id: `assistant:${sent.work.work_id}` },
       ASSISTANT_FOLLOW_UP_ACTIONS.add, { text: "汇总今天的进展", at: due.toISOString(), repeat: "daily", label: "每天六点汇总" });
-    const [followUp] = service.followUps(sent.work.work_id);
+    const [followUp] = service.followUps.list(sent.work.work_id);
     const key = `fu-${followUp!.followup_id}-${due.getTime()}`;
     assert.deepEqual([schedule.find(key)?.kind, schedule.find(key)?.state], ["assistant.follow-up", "queued"], "the time lives in the runtime's queue");
 
     const second = await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "timed round");
     assert.match(second.rounds[1]!.text, /每天六点汇总.*汇总今天的进展/);
     assert.deepEqual(store.rounds(sent.work.work_id).map(round => round.written_by ?? "person"), ["person", "host"], "a timed round is marked as the Host's words when it is written");
-    const after = service.followUps(sent.work.work_id)[0]!;
+    const after = service.followUps.list(sent.work.work_id)[0]!;
     assert.equal(after.last?.outcome, "started");
     assert.equal(after.next_at, new Date(due.getTime() + 86_400_000).toISOString(), "tomorrow at the same time");
     assert.equal(schedule.find(`fu-${after.followup_id}-${due.getTime() + 86_400_000}`)?.state, "queued", "and that time is queued");
@@ -73,23 +73,23 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
 
     // The Host was not running at a due time: when the queue hands it over hours late, it is reported, not replayed.
     const late = new Date(Date.now() - 2 * 3600_000);
-    store.saveFollowUp("web-user", { ...after, next_at: late.toISOString() });
+    store.followUps.save("web-user", { ...after, next_at: late.toISOString() });
     const before = requests.length;
     await service.attachSchedule();
-    const missed = await until(() => service.followUps(sent.work.work_id)[0]!.last?.outcome === "missed" ? service.followUps(sent.work.work_id)[0] : undefined, "missed");
+    const missed = await until(() => service.followUps.list(sent.work.work_id)[0]!.last?.outcome === "missed" ? service.followUps.list(sent.work.work_id)[0] : undefined, "missed");
     assert.equal(requests.length, before, "a missed time starts nothing late");
     assert.equal((await service.read(sent.work.work_id)).rounds.length, 2);
     assert.match(service.notices(null).find(notice => notice.work_id === sent.work.work_id && /错过/.test(notice.text))!.text, /错过了「每天六点汇总」/);
     assert.ok(Date.parse(missed!.next_at!) > Date.now(), "the next time is in the future");
-    await assert.rejects(service.saveFollowUp({ work_id: sent.work.work_id, text: "x", at: "2026-09-01T00:00:00.000Z", label: "过去" }), /之后/);
+    await assert.rejects(service.followUps.save({ work_id: sent.work.work_id, text: "x", at: "2026-09-01T00:00:00.000Z", label: "过去" }), /之后/);
 
     // The person is still in a round of this work when a time comes: this time is skipped, not queued behind it.
     let release!: () => void;
     hold = new Promise(resolve => { release = resolve; });
     await service.send({ work_id: sent.work.work_id, text: "再补一句", request_id: "req-followups-2" }, {});
     await until(async () => (await service.read(sent.work.work_id)).work.state === "running", "the person's round");
-    const soon = await service.saveFollowUp({ work_id: sent.work.work_id, text: "看一眼", at: new Date(Date.now() + 400).toISOString(), label: "一会儿看一眼" });
-    const skipped = await until(() => service.followUps(sent.work.work_id).find(item => item.followup_id === soon.followup_id && item.last) , "skipped");
+    const soon = await service.followUps.save({ work_id: sent.work.work_id, text: "看一眼", at: new Date(Date.now() + 400).toISOString(), label: "一会儿看一眼" });
+    const skipped = await until(() => service.followUps.list(sent.work.work_id).find(item => item.followup_id === soon.followup_id && item.last) , "skipped");
     assert.deepEqual([skipped.last!.outcome, skipped.last!.detail, skipped.enabled], ["skipped", "上一轮还没结束，这一次没有开始", false]);
     hold = null; release();
     const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "the person's round ends");
@@ -97,11 +97,11 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
 
     // A time that came while no runner was attached (the Host still starting) is decided when it attaches: on time
     // enough it runs, otherwise it is reported as missed — never left silently undone.
-    const orphan = await service.saveFollowUp({ work_id: sent.work.work_id, text: "迟到的一次", at: new Date(Date.now() + 60_000).toISOString(), label: "没接上的一次" });
+    const orphan = await service.followUps.save({ work_id: sent.work.work_id, text: "迟到的一次", at: new Date(Date.now() + 60_000).toISOString(), label: "没接上的一次" });
     const orphanKey = `fu-${orphan.followup_id}-${Date.parse(orphan.next_at!)}`;
     await schedule.cancel(orphanKey);
-    store.saveFollowUp("web-user", { ...orphan, next_at: new Date(Date.now() - 3 * 3600_000).toISOString() });
-    const staleKey = `fu-${orphan.followup_id}-${Date.parse(service.followUps(sent.work.work_id).find(item => item.followup_id === orphan.followup_id)!.next_at!)}`;
+    store.followUps.save("web-user", { ...orphan, next_at: new Date(Date.now() - 3 * 3600_000).toISOString() });
+    const staleKey = `fu-${orphan.followup_id}-${Date.parse(service.followUps.list(sent.work.work_id).find(item => item.followup_id === orphan.followup_id)!.next_at!)}`;
     // Simulate the queue having given up on it: a task under that key that already failed.
     const unhandled = schedule.handle("assistant.follow-up", async () => { throw new Error("没有处理者"); });
     await schedule.enqueue({ key: staleKey, session_id: sent.work.session_id!, kind: "assistant.follow-up", payload: { followup_id: orphan.followup_id }, due_at: new Date(Date.now() - 3 * 3600_000).toISOString(), max_attempts: 1 });
@@ -109,13 +109,13 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     unhandled();
     const service2 = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
     await service2.attachSchedule();
-    assert.equal(service2.followUps(sent.work.work_id).find(item => item.followup_id === orphan.followup_id)!.last?.outcome, "missed");
+    assert.equal(service2.followUps.list(sent.work.work_id).find(item => item.followup_id === orphan.followup_id)!.last?.outcome, "missed");
 
     // Cancelling takes it out of the queue.
-    const standing = service.followUps(sent.work.work_id).find(item => item.followup_id === after.followup_id)!;
-    await service.removeFollowUp(standing.followup_id);
+    const standing = service.followUps.list(sent.work.work_id).find(item => item.followup_id === after.followup_id)!;
+    await service.followUps.remove(standing.followup_id);
     assert.equal(schedule.find(`fu-${standing.followup_id}-${Date.parse(standing.next_at!)}`)?.state, "cancelled");
-    assert.equal(service.followUps(sent.work.work_id).some(item => item.followup_id === standing.followup_id), false);
+    assert.equal(service.followUps.list(sent.work.work_id).some(item => item.followup_id === standing.followup_id), false);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -147,7 +147,7 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
     const workId = sent.work.work_id;
     await until(async () => (await service.read(workId)).work.state === "completed", "first round");
     const due = new Date(Date.now() + 1500);
-    const standing = await service.saveFollowUp({ work_id: workId, text: "汇总今天的进展", at: due.toISOString(), repeat: "daily", label: "每天汇总" });
+    const standing = await service.followUps.save({ work_id: workId, text: "汇总今天的进展", at: due.toISOString(), repeat: "daily", label: "每天汇总" });
     const key = `fu-${standing.followup_id}-${due.getTime()}`;
     assert.equal(schedule.find(key)?.state, "queued");
 
@@ -163,18 +163,18 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
     // Archived: its timed rounds are put away with it — the queued time is cancelled and the follow-up says why.
     const archived = await service.archive(workId, true);
     assert.equal(archived.archived, true);
-    const away = service.followUps(workId)[0]!;
+    const away = service.followUps.list(workId)[0]!;
     assert.deepEqual([away.enabled, away.next_at ?? null, away.last?.outcome, away.last?.detail], [false, null, "skipped", "这项工作已归档，定时已停用"]);
     assert.equal(schedule.find(key)?.state, "cancelled");
-    await assert.rejects(service.saveFollowUp({ work_id: workId, text: "x", at: new Date(Date.now() + 60_000).toISOString(), label: "归档后" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.state" && error.kind === "conflict");
+    await assert.rejects(service.followUps.save({ work_id: workId, text: "x", at: new Date(Date.now() + 60_000).toISOString(), label: "归档后" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.state" && error.kind === "conflict");
 
     // A time that still reaches a work archived since (it was queued before the Host last started) starts nothing and is not repeated.
     const straggler: AssistantFollowUp = { followup_id: "fu-straggler-1", work_id: workId, label: "漏网的一次", text: "不该运行", repeat: "daily", next_at: new Date(Date.now() + 300).toISOString(),
       time_zone: "Asia/Shanghai", enabled: true, created_at: new Date().toISOString() };
-    store.saveFollowUp("web-user", straggler);
+    store.followUps.save("web-user", straggler);
     await schedule.enqueue({ key: `fu-${straggler.followup_id}-${Date.parse(straggler.next_at!)}`, session_id: sent.work.session_id ?? store.get("web-user", workId).session_id!, kind: "assistant.follow-up",
       payload: { followup_id: straggler.followup_id }, due_at: straggler.next_at!, max_attempts: 1 });
-    const settled = await until(() => service.followUps(workId).find(item => item.followup_id === straggler.followup_id && item.last), "the straggler is decided");
+    const settled = await until(() => service.followUps.list(workId).find(item => item.followup_id === straggler.followup_id && item.last), "the straggler is decided");
     assert.deepEqual([settled.last!.outcome, settled.enabled, settled.next_at ?? null], ["skipped", false, null]);
     await new Promise(resolve => setTimeout(resolve, 1800));
     assert.equal((await service.read(workId)).rounds.length, 2, "no timed round ran for the archived work");

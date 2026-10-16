@@ -47,21 +47,21 @@ test("a reminder the person set is told once when it comes due, where to open it
     timeZone: "Asia/Shanghai" }, "web-user", () => clock);
   try {
     // Nothing is due yet; the first look reaches back only a few minutes.
-    assert.equal(await service.sweepReminders(), 0);
+    assert.equal(await service.followUps.sweepReminders(), 0);
     assert.equal(asked[0]!.from, "2026-09-29T08:50:00.000Z");
     clock = new Date("2026-09-29T09:04:00Z");
-    assert.equal(await service.sweepReminders(), 1);
+    assert.equal(await service.followUps.sweepReminders(), 1);
     assert.equal(asked[1]!.from, "2026-09-29T09:00:00.000Z", "each look starts where the last stopped");
     let notices = service.notices("pages");
     assert.deepEqual(notices.map(notice => [notice.kind, notice.work_id, notice.text, notice.open]), [["reminder", "", "提醒（待办 · 17:03）：给王总回电话", { surface: "todo", id: "t1", title: "给王总回电话", project_id: "project-a" }]]);
     // Told once, however often it is looked at.
-    assert.equal(await service.sweepReminders(), 0);
+    assert.equal(await service.followUps.sweepReminders(), 0);
 
     // The person's quiet rule holds it on that page unless reminders are an exception.
-    service.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "写文档时不要提醒" });
+    service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "写文档时不要提醒" });
     assert.equal(service.notices("pages")[0]!.held?.reason, "写文档时不要提醒");
     assert.equal(service.notices("goals")[0]!.held, undefined);
-    service.saveRule({ kind: "quiet", surfaces: ["goals"], except: ["reminder"], label: "看目标时不要提醒，我设的提醒除外" });
+    service.followUps.saveRule({ kind: "quiet", surfaces: ["goals"], except: ["reminder"], label: "看目标时不要提醒，我设的提醒除外" });
     assert.equal(service.notices("goals")[0]!.held, undefined);
 
     // Settling a reminder settles only it: it belongs to no work.
@@ -71,10 +71,10 @@ test("a reminder the person set is told once when it comes due, where to open it
     // A Plugin that cannot answer is asked again for the same stretch; once it answers, a reminder missed meanwhile says so.
     failing = true;
     clock = new Date("2026-09-29T09:50:00Z");
-    assert.equal(await service.sweepReminders(), 0);
+    assert.equal(await service.followUps.sweepReminders(), 0);
     failing = false;
     clock = new Date("2026-09-29T09:51:00Z");
-    assert.equal(await service.sweepReminders(), 1);
+    assert.equal(await service.followUps.sweepReminders(), 1);
     assert.equal(asked.at(-1)!.from, "2026-09-29T09:04:00.000Z");
     notices = service.notices("goals");
     assert.deepEqual(notices.map(notice => [notice.text, notice.open?.project_id]), [["错过的提醒（待办 · 17:30）：交报销单", null]]);

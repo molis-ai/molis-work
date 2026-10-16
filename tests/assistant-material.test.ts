@@ -76,7 +76,7 @@ test("new material that shares a Goal with a live work raises one merged notice;
     // Settling the merged notice settles all of that work's; a rule can keep new material quiet.
     assert.equal(service.settleNotices({ notice_id: merged[0]!.notice_id }, "seen"), 2);
     assert.deepEqual(service.notices(null), []);
-    service.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "写文档时不要提醒" });
+    service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "写文档时不要提醒" });
     feed.push(item("f", "Q4 客户反馈", "2026-09-29T09:21:00.000Z", ["g-q4"]));
     clock = new Date("2026-09-29T09:25:00.000Z");
     await service.scanNewMaterial();

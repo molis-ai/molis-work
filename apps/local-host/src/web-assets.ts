@@ -108,6 +108,7 @@ function pagesEditorAsset(): { body: Buffer; contentType: string } | null {
     if (!fs.existsSync(filePath)) return null;
     return { body: fs.readFileSync(filePath), contentType: "text/javascript; charset=utf-8" };
   } catch {
+    // A build without the Pages editor serves no editor (a 404), as when the file is missing.
     return null;
   }
 }

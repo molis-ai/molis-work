@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
+import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 
 // specs/repository-anti-corruption §4.8/§4.13 (W1-07, decision #17): the page assets the host sends are frozen at their
 // current size and may only fall. Each rule is mutation-verified here on a small scratch repository: one violation added
@@ -567,7 +568,11 @@ test("this repository's build is within the committed page asset budget, which h
   for (const asset of ["/assets/molis-work-workbench.css", "/assets/molis-work-workbench.js", "/assets/molis-work-arrival.css", "/assets/molis-work-settings.css", "/assets/molis-work-pages-editor.js"]) {
     assert.ok(report.measured[asset] > 0, `${asset} is measured`);
   }
-  assert.ok(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).length >= 20, "the plugin client packs are measured");
+  // Exactly the client bundles the workbench serves: one per plugin with its own client, none for a surface that borrows
+  // another's (W4-03: Files, Git, Diff and Text Stats load Coding's).
+  const bundles = [...new Set(pluginSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`))].sort();
+  assert.ok(bundles.length > 0);
+  assert.deepEqual(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).sort(), bundles, "the plugin client packs are measured");
 });
 
 // ISSUE-06: the Issue client's first ceiling (24,000 bytes, user-approved) was a one-time admission for a path the merge-base did not
@@ -600,12 +605,18 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
   assert.equal(gate("--base", "issue-draft-old").code, 1, "other assets remain frozen");
 });
 
-// ISSUE-48 and I8-PAGES-01 spent their one approved increase each (user, 2026-10-15): saved-Issue reorganization took
-// issues.js from 24,378 to 26,331 measured bytes (#521), and the I8 fixes took the Pages editor from 698,574 to 703,633 (#522).
-// Back at either old size, the asset grows under the same rule as every asset.
-for (const [asset, old] of [["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574]] as const) {
-  test(`the spent increase of ${asset} leaves no allowance, even at its old size`, () => {
-    const name = asset.replace(/\W+/g, "-").replace(/^-/, "");
+// Each one-time increase the user approved on 2026-10-15 is spent; back at the old size, the asset grows under the same rule as
+// every asset. ISSUE-48 took issues.js from 24,378 (#521) and the I8 fixes the Pages editor from 698,574 (#522). W3-B1 (#553,
+// context-program §21.8) took the Pages editor, the Pages client and the workbench script, and receipts 1d (#564,
+// specs/ai-input-receipts) the Coding bundle and both stylesheets, from the sizes below; W4-03 removed those allowances with
+// the companions' copies of Coding's bundle.
+for (const [asset, old] of [
+  ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
+  ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
+  ["/assets/molis-work-plugins/coding.js", 432277], ["/assets/molis-work-settings.css", 1115127], ["/assets/molis-work-workbench.css", 1701600],
+] as const) {
+  test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
+    const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
     branch(`${name}-old`, () => { sizes[asset] = old; putBudget(sizes); });
     git("checkout", "-q", "-B", `${name}-regrow`);
     sizes[asset]++;
@@ -614,72 +625,3 @@ for (const [asset, old] of [["/assets/molis-work-plugins/issues.js", 24378], ["/
     assert.equal(gate("--base", `${name}-old`).code, 1);
   });
 }
-
-// W3-B1 (context-program §21.8): the user approved on 2026-10-15 that the landing code may grow the Pages editor, the
-// Pages client and the workbench script once, from exactly the current baselines to the measured sizes. One byte more,
-// another asset, or growth from the new baseline still fails.
-test("W3-B1's landing code has one bounded allowance on three assets; other assets and later growth still fail", () => {
-  const allowed = {
-    "/assets/molis-work-pages-editor.js": [703633, 707045],
-    "/assets/molis-work-plugins/pages.js": [48441, 48727],
-    "/assets/molis-work-workbench.js": [1097484, 1099387],
-  } as const;
-  const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("w3b1-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "w3b1-change");
-  for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "w3b1-base").code, 0);
-  assert.equal(gate("--base", "w3b1-base").code, 0);
-  for (const asset of assets) {
-    sizes[asset]++;
-    assert.equal(gate("--update", "--base", "w3b1-base").code, 1, `${asset}: one byte over its allowance`);
-    sizes[asset]--;
-  }
-  sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "w3b1-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "w3b1-base").code, 0);
-  commit("freeze the measured W3-B1 sizes"); git("branch", "-f", "w3b1-frozen");
-  for (const asset of assets) {
-    sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "w3b1-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "w3b1-frozen").code, 1);
-    sizes[asset]--; putBudget(sizes);
-  }
-});
-
-// RC-10/RC-11 (specs/ai-input-receipts, receipts 1d): under the user's 2026-10-15 rule, and approved for this gate change in
-// the receipts session that day, Coding's input receipts may grow the Coding bundle (which diff, files, git and text-stats
-// serve byte for byte) and both stylesheets once, from exactly the current baselines to the measured sizes. One byte more,
-// another asset, or growth from the new baseline still fails.
-test("receipts 1d has one bounded allowance on the Coding bundle and the stylesheets; other assets and later growth still fail", () => {
-  const allowed = {
-    "/assets/molis-work-plugins/coding.js": [432277, 434028],
-    "/assets/molis-work-plugins/diff.js": [432275, 434026],
-    "/assets/molis-work-plugins/files.js": [432276, 434027],
-    "/assets/molis-work-plugins/git.js": [432274, 434025],
-    "/assets/molis-work-plugins/text-stats.js": [432284, 434035],
-    "/assets/molis-work-settings.css": [1115127, 1115160],
-    "/assets/molis-work-workbench.css": [1701600, 1701633],
-  } as const;
-  const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("receipts-1d-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "receipts-1d-change");
-  for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "receipts-1d-base").code, 0);
-  assert.equal(gate("--base", "receipts-1d-base").code, 0);
-  for (const asset of assets) {
-    sizes[asset]++;
-    assert.equal(gate("--update", "--base", "receipts-1d-base").code, 1, `${asset}: one byte over its allowance`);
-    sizes[asset]--;
-  }
-  sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "receipts-1d-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "receipts-1d-base").code, 0);
-  commit("freeze the measured receipts 1d sizes"); git("branch", "-f", "receipts-1d-frozen");
-  for (const asset of assets) {
-    sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "receipts-1d-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "receipts-1d-frozen").code, 1);
-    sizes[asset]--; putBudget(sizes);
-  }
-});

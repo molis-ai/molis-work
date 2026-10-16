@@ -1,6 +1,6 @@
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentActionClient, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionClient, AgentActionOffer, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action", direct: "change-reversible" } as const;
 /** Tools for handing sub-tasks to separate works, present only where the caller offers delegation. */
@@ -188,14 +188,9 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       const parsed = parseCapability(call);
       const view = (await gateway.client.discover()).find(row => row.capability_id === parsed.capability_id && row.version === parsed.version && row.provider.provider_id === parsed.provider_id);
       if (!view || !view.action.audiences.includes("agent") || !view.availability.available) throw new ActionError("actions.missing", "That capability is not available here; nothing was suggested. Search again with find-capabilities.");
-      const text = (value: unknown, field: string, max: number) => { if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`); return value.trim(); };
-      const editable = Array.isArray(args.editable) ? args.editable.filter((item): item is string => typeof item === "string").slice(0, 20) : undefined;
-      const missing = Array.isArray(args.missing) ? args.missing.flatMap(item => item && typeof item === "object" && typeof (item as { field?: unknown }).field === "string" && typeof (item as { question?: unknown }).question === "string"
-        ? [{ field: (item as { field: string }).field, question: (item as { question: string }).question.slice(0, 300) }] : []).slice(0, 10) : undefined;
       try {
-        const recorded = await gateway.client.offer!({ title: text(args.title, "title", 40), summary: text(args.summary, "summary", 600),
-          reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: normalizedInput(view, parsed.input),
-          ...(editable?.length ? { editable } : {}), ...(missing?.length ? { missing } : {}) });
+        const recorded = await gateway.client.offer!({ ...offerWords(args),
+          reference: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input: normalizedInput(view, parsed.input) });
         return JSON.stringify({ offered: recorded.offer_id, note: "Shown to the person as a button; nothing has run. Do not call change-capability for the same thing unless they ask you to." });
       } catch (error) { inputSchemaError(error, view.action.input_schema); }
     }),
@@ -312,6 +307,15 @@ function delegationExecutors(given: Gateway["client"]["delegate"], guarded: (run
     [DELEGATION_TOOLS.follow]: guarded(async args => JSON.stringify({ work: await delegate.follow_up(text(args.work_id, "work_id", 200), text(args.text, "text", 8000)) })),
     [DELEGATION_TOOLS.stop]: guarded(async args => JSON.stringify({ work: await delegate.stop(text(args.work_id, "work_id", 200)) })),
   };
+}
+
+/** A suggestion's own words beside its action: the button, what clicking does, what the person may adjust and what is still missing. */
+export function offerWords(args: Record<string, unknown>): Pick<AgentActionOffer, "title" | "summary" | "editable" | "missing"> {
+  const text = (value: unknown, field: string, max: number) => { if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`); return value.trim(); };
+  const editable = Array.isArray(args.editable) ? args.editable.filter((item): item is string => typeof item === "string").slice(0, 20) : undefined;
+  const missing = Array.isArray(args.missing) ? args.missing.flatMap(item => item && typeof item === "object" && typeof (item as { field?: unknown }).field === "string" && typeof (item as { question?: unknown }).question === "string"
+    ? [{ field: (item as { field: string }).field, question: (item as { question: string }).question.slice(0, 300) }] : []).slice(0, 10) : undefined;
+  return { title: text(args.title, "title", 40), summary: text(args.summary, "summary", 600), ...(editable?.length ? { editable } : {}), ...(missing?.length ? { missing } : {}) };
 }
 
 /**

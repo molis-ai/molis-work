@@ -107,7 +107,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 带 `L()` 文案 | 再加 `tests/i18n.test.ts` |
 | 路由 | 再加所有读这条路由的用例 |
 | 界面 | 受影响的浏览器用例（排时段、串行）；PR 模板里的浅深色与三个宽度的截图。动了共用样式、皮肤、外壳或底栏的，再跑 `pnpm visual:compare`：在本机 Chrome 里把关键界面按 1440、1024、390 三个宽度、浅深色各拍一张，与 main 逐像素比对（同一棵树拍两次一像素不差，所以有差就是分支的；报告在 `.impeccable/qa/review/visual/compare/report.html`，用法见 `scripts/visual-compare.mjs` 开头） |
-| 共享核心（contracts、kernel、plugin-sdk、modules、local-host 的装配、workbench 外壳）、迁移或存储、改动跨三个以上包、删除整块旧代码、或合入后相关用例意外失败 | 全量：`node scripts/run-tests.mjs`。不带参数时含 `tests/*.test.mjs`（跑全量约 76–78 分钟，spec §9.5 各批记录） |
+| 共享核心（contracts、kernel、plugin-sdk、modules、local-host 的装配、workbench 外壳）、迁移或存储、改动跨三个以上包、删除整块旧代码、或合入后相关用例意外失败 | 全量：`node scripts/run-tests.mjs`。不带参数时含 `tests/*.test.mjs`（跑全量约 58 分钟：2026-10-16 在 1,017 个文件上测，W5-12；之前串行 76–78 分钟） |
 | 每个阶段收尾 | 全量一次，作为阶段证据 |
 
 测试与包的引用：一个测试进程既读包的 `src` 又读它的构建（包名、`dist`）就加载了两份，`instanceof`、模块级缓存和 `AsyncLocalStorage` 会对不上。改了包的出口、搬了名字或 rebase 之后，`node scripts/test-imports.mjs --check` 列出这样的测试，`--report` 按规则出重写计划（公开的名字走包入口，其余走 `dist` 里的同一个模块），`--write` 落地；`pnpm health:check` 对每个测试文件及独立子进程夹具要求这个数为零；改旧基线或 `--update` 也不能放过混用（`tooling/gates/README.md`）。
@@ -126,7 +126,7 @@ node scripts/affected-tests.mjs --run           # 跑相关的非浏览器用例
 node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列文件名，给人看或给别的工具
 ```
 
-不要写 `node scripts/run-tests.mjs $(node scripts/affected-tests.mjs --list …)`：列表为空（只改了文档，或相关用例都是另一类）时 `run-tests.mjs` 收到零个参数，会把 700 多个用例全跑一遍（约 77 分钟），绕过排时段的规矩。要交给别的命令就先判空；`--list` 在列表为空时会往 stderr 写一句提醒。
+不要写 `node scripts/run-tests.mjs $(node scripts/affected-tests.mjs --list …)`：列表为空（只改了文档，或相关用例都是另一类）时 `run-tests.mjs` 收到零个参数，会把 1,000 多个文件全跑一遍（约一小时），绕过排时段的规矩。要交给别的命令就先判空；`--list` 在列表为空时会往 stderr 写一句提醒。
 
 `pnpm test:affected` 等于 `node scripts/affected-tests.mjs`。基点是本地的 `origin/main`（没有就退到 `main`，`--base <ref>` 另指），所以先 `git fetch -q origin main`。输出四块：改动的文件；「FULL REGRESSION RECOMMENDED」及原因（有才出现）；相关用例，分非浏览器与浏览器（浏览器 = Linux 探针标记里的 browser，要本机 Chrome，排时段，见第 5 节）；陪着跑的检查（`pnpm build`、`pnpm boundary:check`、健康门禁、页面资源、版本一致性、密钥扫描，按改动内容出现）。`--json` 给机器读，`--list` 只列文件名。
 

@@ -1,0 +1,45 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "e4afd1a718bd8a8629d52526b953bbe75149baa6",
+    "mergedUpstream": {
+      "pullRequest": 28,
+      "head": "af7be966d006436b1e66c3734eb1c3d5ae34da99",
+      "mergedAt": "2026-10-16T08:45:48Z",
+      "note": "The tip of upstream main when it was packed: the collaboration package's e5123369 plus #28 (tools find-tools found are declared on later requests and recorded as tools-found; deferred tools listed by name pass the Model gate; checkers give board-wait a params schema). Molis takes it to restore tool deferral (specs/prologue-adoption §6.0e)."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-found-tools.tgz",
+    "bytes": 1186918,
+    "sha256": "cfed7ff4653289c67ee0dd2801e1b6d9a287d6c8873f477b4927e12dbf510705",
+    "integrity": "sha512-+MQ7IXahEQx0zqsGxlKr6ENfSqI5iKwDyfVRwwSeHtqCbxo1zaezfZkcVrZ+0kLub802x335l04+Y0sE4QfLng=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive e4afd1a718bd8a8629d52526b953bbe75149baa6 | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --offline",
+      "pnpm --filter @prologue/sdk run build",
+      "cd packages/sdk && pnpm pack --pack-destination <dir>   # writes prologue-sdk-0.0.0-rc.1.tgz; renamed to prologue-sdk-0.0.0-rc.1-found-tools.tgz"
+    ],
+    "packedOn": "2026-10-16",
+    "reproducedFrom": "e4afd1a718bd8a8629d52526b953bbe75149baa6",
+    "reproducedByteIdentical": false,
+    "note": "Packed once from a clean git archive of the merge commit, whose tree is the reviewed head af7be966's (9dbe15b1). The SDK full suite ran on that tree (354 files: 3931 passed, 21 skipped, 0 failed; desktop-computer-use.live not run: it drives the real desktop); the Molis side is recorded in the adoption spec §6.0e."
+  }
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -14,7 +14,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ListToolsRequestSchema, CallToolRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { createConnectorMcpHost, MCP_SERVERS } from "../apps/local-host/dist/connector-mcp.js";
-import { larkMcpLaunch } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, larkMcpLaunch, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createAgentConnectorPorts } from "../apps/local-host/dist/agent-connector-ports.js";
 import { connectorAuthorizationStatus } from "../apps/local-host/dist/connector-authorization-status.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -447,6 +447,40 @@ test("tools of a connection in 服务连接 are Home actions: listed once, then 
     again.close();
   } finally {
     directory.close();
+    await localHost.close();
+    await remote.close(); rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("W5-13-07 a connection the directory cannot register after a restart is written by its id; the others are still registered", { timeout: 60_000 }, async () => {
+  const temp = home(); const remote = await fixture();
+  const client = createConnectorMcpHost({ testServers: { figma: { endpoint: remote.endpoint, auth: "none" } } });
+  const localHost = new MolisWorkLocalHost({ homeDirectory: temp, completeText: null });
+  const open = () => createConnectorMcpDirectory({ localHost, homeDirectory: temp, call: client.callMcpConnectionTool, read: client.readMcpConnectionResource });
+  const directory = open();
+  const user: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["mcp:external"] };
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  let again: ReturnType<typeof open> | undefined;
+  try {
+    const good = await client.startMcpConnection(temp, { serviceId: "figma", displayName: "Good", origin: callbackOrigin });
+    const bad = await client.startMcpConnection(temp, { serviceId: "figma", displayName: "Bad", origin: callbackOrigin });
+    directory.remember(good.connectionId, good.tools as ConnectorMcpTool[], good.resources);
+    directory.remember(bad.connectionId, bad.tools as ConnectorMcpTool[], bad.resources);
+    directory.close();
+    // The copy a restart reads, with one connection's entry torn.
+    const file = join(temp, "config", "connector-mcp-tools.json");
+    const seen = JSON.parse(readFileSync(file, "utf8")) as Record<string, { tools: unknown }>;
+    seen[bad.connectionId]!.tools = { length: 1 };
+    writeFileSync(file, JSON.stringify(seen));
+    again = open(); again.sync();
+    const listed = (await localHost.homeActionClient().discover(user)).map(view => view.capability_id);
+    assert.ok(listed.includes(connectorMcpCapabilityId(good.connectionId, "echo")), "the readable connection is registered");
+    assert.ok(!listed.includes(connectorMcpCapabilityId(bad.connectionId, "echo")));
+    assert.deepEqual(entries.filter(entry => entry.event === "mcp_register_failed").map(entry => [entry.area, entry.fields]),
+      [["connections", { connection_id: bad.connectionId }]], "the one that failed is named, not silently missing");
+  } finally {
+    restore(); again?.close(); directory.close();
     await localHost.close();
     await remote.close(); rmSync(temp, { recursive: true, force: true });
   }

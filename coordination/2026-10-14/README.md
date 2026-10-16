@@ -477,6 +477,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - 回执 3c：先做回执条和原地详情，390 也原地展开，助理里宿主代写的说明也标「Molis 的说明」。实走第 6 条在 3c 里修（键用 steer.id，补跨轮用例）。
       - 交互 T1：已从 main 开工；D14a 芯片二选一写进 T1 的 spec 决策记录。
     - #604（防腐修 visual-surfaces，只改测试，`a4b5bb4af`）审过，排在 #598、#591 之后跑全量；它的门禁不把 visual-surfaces 记作已知失败。quiet-paper 等 #604 合入再推。
+    - 回执线 #605（`1358e4b42`）：修实走第 6 条，键改用 steer.id，补跨轮的 RC-15 用例；审过，全量排在 #604 之后（after-604.zsh）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

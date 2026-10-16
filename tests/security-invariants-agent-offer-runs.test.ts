@@ -32,7 +32,8 @@ function registered(options: { views?: ActionView[]; sessionOwner?: typeof owner
       actions: async () => ({
         discover: async () => options.views ?? [WRITE, DELETE],
         check: async (_reference, input) => { counts.checked++; if (typeof (input as { text?: unknown }).text !== "string") throw new ActionError("actions.input_invalid", "text must be a string"); },
-        invoke: async (reference, input) => { counts.invoked.push({ reference, input }); return { saved: "ran" }; },
+        // As the composition's client does: the call's signal is checked again right before the action's effect.
+        invoke: async (reference, input, signal) => { signal?.throwIfAborted(); counts.invoked.push({ reference, input }); return { saved: "ran" }; },
       }) }) });
   const call = (input: Record<string, unknown>, invocation: Record<string, unknown>) => handlers.get(agentOfferActions.run.capability_id)!({}, input, invocation);
   return { call, counts };
@@ -97,6 +98,16 @@ test("S-29 (D25) revoked access, an action switched off, gone or changed since t
   const refused = registered();
   await assert.rejects(refused.call({ ...input, input: { text: 42 } }, live()), refusedWith("actions.input_invalid"));
   for (const item of [off, gone, notForAgents, changed, refused]) assert.equal(item.counts.invoked.length, 0);
+});
+
+test("S-29 (D25) a click cancelled after the checks, right before the action would run, runs nothing", async () => {
+  const { call, counts } = registered();
+  const controller = new AbortController();
+  // Cancelled once the Host has found the action and checked the input: only the action's own last check is left.
+  const invocation = { ...live(), signal: controller.signal, beforeEffect: async () => { controller.abort(new ActionError("actions.cancelled", "the click was cancelled")); } };
+  await assert.rejects(call(input, invocation), refusedWith("actions.cancelled"));
+  assert.equal(counts.checked, 1, "it got as far as the check");
+  assert.equal(counts.invoked.length, 0);
 });
 
 test("S-29 (D25) the offer's own action runs once with the person's input, under the round's grant", async () => {

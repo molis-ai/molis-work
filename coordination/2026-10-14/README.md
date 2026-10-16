@@ -439,6 +439,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 手册 A3① 方案（笔记 `ai-handbook-a3-plan.md`）认可：base 删「分工」「记忆」两节（约 40%），没覆盖的五句各移到对应工具描述或「依据与信任」；工具结果只留事实（删「回复里说……不要说……」）；拆出 `assistant-delegated` 角色（role 层 v1），第一条消息只剩事实；三条代码条件（只委派一层、子任务不能 remember/forget、不开侧栏）保留，改判写进 spec 决策记录；`assistant-service.ts:1487` 没有在途 PR 改动（#589 在 1473–1480、1499，#596 在 1510 以后）；#588、#589 合入后开分支；48 轮真实模型评测；旧子任务换新角色要有确定性用例。
   - **回执 1e #589 已合（`ca36cb959`）**。#594（全量 27/30 过、2 项在跑）与 #597 因 page-assets 冲突，已请两线并 main 重量：#594 新头只合并入队；#597 没跑过全量，新头换进 label-chain（#596 之后）。回执线收尾、报下一步与隔离 Home 实走清单（统筹在 #597 合入后一起走）。
   - 回执线下一步（笔记 `receipts-next-plan.md`）：阶段 1、2 已完；**用户 10-16 弹窗接受 §20（有效要求跨摘要与续做保留，RCPT-101–107），先做 R1**（RCPT-101/102：Coding 摘要材料与备用摘要保留所有仍适用的补充带来源，断言走实际请求路径，不另建状态表，备用路径不多调模型）；之后 3a → 3c（共享回执组件）→ 3b/3d/3e。实走清单 14 项，#597 合入后统筹在隔离 Home 一起走。
+  - #580 已合（`5b6a0705`）。#594 全量 30 过，并 main 重量新头 `e3004df6b`（workbench.js 1097688 = main − 63）只合并入队。#597 并 main 新头 `d09e72f8`（page-assets 三条降到 main 以下、baseline 行数一处，其余一致），全量在 #596 后（gate-597-new 按新头判）。#592、#588 全量在跑；#596 等空档。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

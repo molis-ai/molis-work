@@ -478,6 +478,13 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - 交互 T1：已从 main 开工；D14a 芯片二选一写进 T1 的 spec 决策记录。
     - #604（防腐修 visual-surfaces，只改测试，`a4b5bb4af`）审过，排在 #598、#591 之后跑全量；它的门禁不把 visual-surfaces 记作已知失败。quiet-paper 等 #604 合入再推。
     - 回执线 #605（`1358e4b42`）：修实走第 6 条，键改用 steer.id，补跨轮的 RC-15 用例；审过，全量排在 #604 之后（after-604.zsh）。
+    - #605 新 head `398914813`：键改为「轮 + 输入 id」，因为没读到的补充会以同一个输入 id 带进下一轮。审过，全量链改到新 head（after-604.zsh）。小问题：拼接没有分隔符，在片 A 或 3c 里补上。
+    - 回执 A–D 方案（笔记 receipts-AD-plan.md），统筹定：
+      - **A 是真缺陷**：`prologue-effects.ts` 的 Proxy 包 `session.startRun` 时丢了 `{carry}`，带上的补充永远留在排队里，Coding 和 Assistant 都受影响。片 A 是一行修复加真 SDK 用例，现在开；开发机上的旧补充不处理（不写兼容代码，修好也就止住了每轮重复带入）。实走第 3 轮又提 README，就是这个原因。
+      - B：steer 加可选的 key，排在 3a 后。
+      - C 选 C1：对话末尾常驻「排着 N 条」；C2 记 BL。
+      - D 选 D1：门槛不动，工具不再念规则，卡片一下就能记住。
+      - 顺序：A → 3a → B → C1（可以并进 3c）→ D1。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

@@ -155,6 +155,7 @@ tests/coding-writers.test.ts
 tests/connector-api-oauth.test.ts
 tests/connector-authorization-recovery.test.ts
 tests/connector-cli.test.ts
+tests/connector-setup.test.ts
 tests/connector-record-actions.test.ts
 tests/connector-document-import.test.ts
 tests/connector-method-directory.test.ts

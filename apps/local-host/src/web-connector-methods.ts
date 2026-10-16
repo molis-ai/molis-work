@@ -53,6 +53,7 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
         clientSecret: typeof body.client_secret === "string" ? body.client_secret : undefined,
         token: typeof body.token === "string" ? body.token : undefined,
         connectionId: typeof body.connection_id === "string" ? body.connection_id : undefined,
+        setupId: typeof body.setup_id === "string" ? body.setup_id : undefined,
         redirectUri: typeof body.redirect_uri === "string" ? body.redirect_uri : undefined,
         origin,
       });

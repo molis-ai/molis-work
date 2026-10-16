@@ -132,13 +132,15 @@ async function readIdentity(service: string, signal?: AbortSignal) {
   }
   return result;
 }
-export async function connectCli(home: string, input: { serviceId: string; displayName: string }, signal?: AbortSignal) {
+export async function connectCli(home: string, input: { serviceId: string; displayName: string }, signal?: AbortSignal, beforeCommit?: () => void) {
   const spec = definition(input.serviceId);
   const expectedRevisions = withConnectorConnections(home, store => store.cliRevisions(input.serviceId));
   const result = await readIdentity(input.serviceId, signal);
+  beforeCommit?.();
   // Status-only CLIs must also complete a genuine read before registration.
   if (["feishu", "lark", "jira"].includes(input.serviceId)) await run(input.serviceId, spec.read!, signal);
   signal?.throwIfAborted();
+  beforeCommit?.();
   const account = identity(input.serviceId, result);
   const connection = withConnectorConnections(home, store => store.saveCli({ serviceId: input.serviceId, displayName: input.displayName,
     externalId: `${spec.binary}:${account.fingerprint}`, accountLabel: account.label, expectedRevisions }));

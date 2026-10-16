@@ -8,6 +8,7 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { controlConnectorConnection } from "./connector-management-service.js";
 import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
+import { startConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { verifyEnabledConnection } from "./connector-check-service.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
@@ -52,23 +53,32 @@ export async function handleConnectorConnectionsHttp(
       const body = await readLocalWebBody(request);
       const service = HOST_CONNECTOR_DIRECTORY.find(entry => entry.connector_id === body.service_id);
       if (!service?.method_options?.some(method => method.kind === "token" && method.support === "paste")) throw connectorErrors["connector.connection.invalid"]("此服务不提供可粘贴的 API 凭据，请使用列出的连接方式");
-      const connection = withConnectorConnections(homeDirectory, (store) => store.createToken({
-        serviceId: body.service_id as string, displayName: body.display_name as string,
-        token: body.token as string,
-        accountLabel: typeof body.account_label === "string" ? body.account_label : null,
-      }));
+      const setup = startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined, { service_id: body.service_id as string, method: "token" });
+      let connection;
+      try {
+        setup?.assertCurrent();
+        connection = withConnectorConnections(homeDirectory, (store) => store.createToken({
+          serviceId: body.service_id as string, displayName: body.display_name as string,
+          token: body.token as string, accountLabel: typeof body.account_label === "string" ? body.account_label : null,
+        }));
+        setup?.finish(connection.connection_id);
+      } catch (error) { setup?.fail(); throw error; }
       const view = withConnectorConnections(homeDirectory, (store) => store.view(connection));
       sendJson(response, 201, { connection: view });
       return true;
     }
     if (item && request.method === "PATCH") {
       const body = await readLocalWebBody(request);
+      const setup = typeof body.token === "string" ? startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined,
+        { service_id: withConnectorConnections(homeDirectory, store => store.require(item[1]!).service_id), method: "token", connection_id: item[1]! }) : undefined;
       const connection = withConnectorConnections(homeDirectory, (store) => {
+        setup?.assertCurrent();
         let updated = store.require(item[1]!);
         if (typeof body.display_name === "string") updated = store.rename(updated.connection_id, body.display_name);
         if (typeof body.token === "string") updated = store.replaceToken(updated.connection_id, body.token);
         return store.view(updated);
       });
+      setup?.finish(item[1]!);
       if (typeof body.enabled === "boolean") {
         const result = controlConnectorConnection(homeDirectory, item[1]!, body.enabled ? "enable" : "disable");
         const verification = body.enabled && remember ? await verifyEnabledConnection(homeDirectory, item[1]!, remember) : undefined;

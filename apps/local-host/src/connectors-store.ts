@@ -8,7 +8,8 @@ import { openBaselineHomeSqlite, type SqliteBaseline, type HomeStoreDeclaration 
 export const CONNECTORS_BASELINE: SqliteBaseline = { version: 2, schema: `${CONNECTOR_CONNECTIONS_SCHEMA}${CONNECTOR_PROTOCOLS_SCHEMA}
   CREATE TABLE connector_authorization_results (
     id TEXT PRIMARY KEY, state_hash TEXT UNIQUE NOT NULL, connection_id TEXT NOT NULL,
-    service_id TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER NOT NULL);
+    service_id TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER NOT NULL,
+    setup_json TEXT, initiator_json TEXT);
 ` };
 
 export function openConnectorsStore(home: string) {

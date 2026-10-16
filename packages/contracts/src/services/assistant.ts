@@ -1,3 +1,4 @@
+import type { ActionResultPresentation } from "../platform/action-result.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion } from "./agent-interaction.js";
@@ -368,6 +369,8 @@ export interface AssistantCard {
   status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
   /** What happened, or why not, in the owner's words. */
   outcome?: string;
+  /** The original successful action's bounded result view, kept with this card. */
+  presentation?: ActionResultPresentation;
   /** A card a page prepared (not the Assistant's own suggestion): which page, and what the selection came from. */
   from?: { surface: string; title?: string };
   source_object?: { kind: string; id: string; version?: number | string | null; title?: string };

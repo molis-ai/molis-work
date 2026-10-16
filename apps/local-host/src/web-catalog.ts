@@ -1,4 +1,6 @@
 import { handleSearchHttp } from "./search-http.js";
+import { connectorAuthorizationStatus } from "./connector-authorization-status.js";
+import { readConnectorAuthorizationPresentation } from "./connector-authorization-presentation.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -239,9 +241,7 @@ export async function handleLocalCatalogWebRequest(
       hidden_plugins: membership.hidden,
       runtimes,
       mcp_access,
-      connectors: section === "connectors" ? listConnectorSettingsCards() : [],
-      connector_connections: section === "connectors" && serverOptions.homeDirectory
-        ? listConnectorConnectionViews(serverOptions.homeDirectory) : [],
+      ...(section === "connectors" ? connectorSettingsView(serverOptions.homeDirectory, url) : {}),
       projects,
       web_service: await webService.detect(),
       diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
@@ -409,4 +409,12 @@ async function renderCatalogPluginSettings(contributionId: string, host: MolisWo
     });
   }
   return null;
+}
+
+/** The existing settings surface and a conversation's protected request read the same connection owner. */
+function connectorSettingsView(home: string | undefined, url: URL) {
+  const request = home && url.searchParams.has("setup") ? connectorAuthorizationStatus(home, url.searchParams.get("setup")!) : null;
+  return { connectors: listConnectorSettingsCards(), connector_connections: home ? listConnectorConnectionViews(home) : [],
+    ...(url.searchParams.has("setup") ? { connector_setup: request ? { ...request,
+      ...(request.status === "pending" ? { presentation: readConnectorAuthorizationPresentation(home!, request.id) } : {}) } : null } : {}) };
 }

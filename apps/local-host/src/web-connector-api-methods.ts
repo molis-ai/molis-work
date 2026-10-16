@@ -7,6 +7,7 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { inspectMcpConnection } from "./connector-mcp.js";
 import { connectorAuthorizationFailed } from "./connector-authorization-return.js";
 import type { ConnectorMcpDirectory, ConnectorMcpTool } from "./connector-mcp-actions.js";
+import { startConnectorSetupSubmission } from "./connector-setup-submission.js";
 
 const ROOT = "/api/settings/connectors/methods";
 const ITEM = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/(verify|preview)$/u;
@@ -28,12 +29,18 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
     if (url.pathname === `${ROOT}/oauth/start`) {
       const settings: Record<string, string> = {};
       if (body.settings && typeof body.settings === "object" && !Array.isArray(body.settings)) for (const [key, value] of Object.entries(body.settings)) if (typeof value === "string" && value.length < 2048) settings[key] = value;
-      json(response, 200, await startApiOAuth(home, { serviceId: str("service_id"), displayName: str("display_name"), clientId: str("client_id"), clientSecret: str("client_secret"), settings, origin, redirectUri: str("redirect_uri"), connectionId: str("connection_id") || undefined }));
+      json(response, 200, await startApiOAuth(home, { serviceId: str("service_id"), displayName: str("display_name"), clientId: str("client_id"), clientSecret: str("client_secret"), settings, origin, redirectUri: str("redirect_uri"), connectionId: str("connection_id") || undefined, setupId: str("setup_id") || undefined }));
     } else if (url.pathname === `${ROOT}/oauth/complete`) json(response, 200, await completeApiOAuth(home, { origin, returnedUrl: str("returned_url") }));
     else if (url.pathname === `${ROOT}/cli/status`) json(response, 200, cliAvailability(str("service_id")));
     else if (url.pathname === `${ROOT}/cli/login`) json(response, 200, await startCliLogin(home, str("service_id")));
     else if (url.pathname === `${ROOT}/cli/job`) json(response, 200, cliLoginJob(home, str("job_id"), typeof body.input === "string" ? body.input : undefined, body.cancel === true));
-    else if (url.pathname === `${ROOT}/cli/connect`) json(response, 200, await connectCli(home, { serviceId: str("service_id"), displayName: str("display_name") }));
+    else if (url.pathname === `${ROOT}/cli/connect`) {
+      const setup = startConnectorSetupSubmission(home, str("setup_id") || undefined, { service_id: str("service_id"), method: "cli" });
+      try {
+        const result = await connectCli(home, { serviceId: str("service_id"), displayName: str("display_name") }, undefined, setup?.assertCurrent);
+        setup?.finish(result.connection.connection_id); json(response, 200, result);
+      } catch (error) { setup?.fail(); throw error; }
+    }
     else if (item) {
       const row = withConnectorConnections(home, store => store.require(item[1]!));
       json(response, 200, row.auth_method === "mcp" ? await inspectMcpConnection(home, row.connection_id).then(result => { mcpTools(row.connection_id, result.tools as ConnectorMcpTool[], result.resources); return result; })

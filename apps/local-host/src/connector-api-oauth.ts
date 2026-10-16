@@ -1,4 +1,6 @@
 import { assertConnectorAuthorizationPending, beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
+import { checkConnectorSetupSubmission } from "./connector-setup-submission.js";
+import { saveConnectorAuthorizationPresentation } from "./connector-authorization-presentation.js";
 import { refreshFeedConnectionState } from "./connector-source-state.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
@@ -64,9 +66,10 @@ export function apiOAuthConnectionId(ref?: string): string | undefined {
 }
 export async function startApiOAuth(home: string, input: {
   serviceId: string; displayName: string; clientId: string; clientSecret?: string; settings?: Record<string, string>;
-  origin: string; redirectUri?: string; connectionId?: string;
+  origin: string; redirectUri?: string; connectionId?: string; setupId?: string;
 }, fetchImpl: typeof fetch = fetch) {
   const origin = localOrigin(input.origin);
+  checkConnectorSetupSubmission(home, input.setupId, { service_id: input.serviceId, method: "oauth", connection_id: input.connectionId });
   let brokerOrigin: string | undefined;
   let clientSource: "product" | "custom" = "custom";
   // Reauthorization keeps this account's app settings on the host. Never send a
@@ -125,7 +128,7 @@ export async function startApiOAuth(home: string, input: {
   const verifier = randomBytes(32).toString("base64url");
   secrets.put("verifier", verifier);
   const state = withConnectorProtocols(home, store => store.begin(origin, configuration));
-  const authorizationId = beginConnectorAuthorization(home, state, connectionId, input.serviceId);
+  const authorizationId = beginConnectorAuthorization(home, state, connectionId, input.serviceId, Date.now(), input.setupId);
   if (brokerOrigin) {
     try {
       const result = await jsonRequest(fetchImpl, `${brokerOrigin}/start`, { method: "POST", headers: { "content-type": "application/json" },
@@ -137,6 +140,7 @@ export async function startApiOAuth(home: string, input: {
       configuration.settings = Object.fromEntries(Object.entries(object(result.settings)).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
       apiOAuthProvider(input.serviceId, configuration.settings);
       withConnectorProtocols(home, store => store.update(state, configuration));
+      saveConnectorAuthorizationPresentation(home, authorizationId, { authorization_url: authorize.href });
       return { authorization_id: authorizationId, connection_id: connectionId, authorization_url: authorize.href, redirect_uri: redirectUri, manual_callback: false };
     } catch (error) { finishConnectorAuthorization(home, state, "failed"); withConnectorProtocols(home, store => store.discard(state)); secrets.clear(); throw error; }
   }
@@ -151,6 +155,7 @@ export async function startApiOAuth(home: string, input: {
     url.searchParams.set("code_challenge", createHash("sha256").update(verifier).digest("base64url"));
     url.searchParams.set("code_challenge_method", "S256");
   }
+  saveConnectorAuthorizationPresentation(home, authorizationId, { authorization_url: url.href });
   return { authorization_id: authorizationId, connection_id: connectionId, authorization_url: url.href, redirect_uri: redirectUri, manual_callback: redirectUri !== `${origin}${CALLBACK}` };
 }
 async function exchange(home: string, config: OAuthConfiguration, input: { code?: string; refreshToken?: string }, fetchImpl: typeof fetch): Promise<Json> {

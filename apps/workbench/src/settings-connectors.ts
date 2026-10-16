@@ -4,6 +4,7 @@ import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-
 import { connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";
 import { connectorMark } from "./connector-marks.js";
 import type { ConnectorSettingsCardView, MolisWorkSettingsView } from "./settings-view.js";
+import { renderConnectorRequest } from "./settings-connector-request.js";
 
 function groupTitle(groupId: ConnectorDirectoryGroupId, L: ConnectorsSettingsPrimitives["L"]): string {
   if (groupId === "mail") return L("邮件与日历");
@@ -112,11 +113,12 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
 }
 
 export function renderConnectorsSettings(
-  view: Pick<MolisWorkSettingsView, "connectors" | "connector_connections" | "capabilities" | "functions_settings">,
+  view: Pick<MolisWorkSettingsView, "connectors" | "connector_connections" | "connector_setup" | "capabilities" | "functions_settings">,
   primitives: ConnectorsSettingsPrimitives,
 ): string {
   const { L, escapeHtml, icon } = primitives;
   const cards = view.connectors ?? [];
+  if (view.connector_setup !== undefined) return renderConnectorRequest(view.connector_setup, cards, primitives);
   const connections = view.connector_connections ?? [];
   const live = cards.filter((card) => card.availability !== "placeholder");
   const placeholders = cards.filter((card) => card.availability === "placeholder");

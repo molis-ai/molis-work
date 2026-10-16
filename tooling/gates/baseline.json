@@ -18,7 +18,7 @@
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
     "function apps/local-host/src/character-import-discovery.ts#createCharacterDiscovery": 205,
     "function apps/local-host/src/character-import-discovery.ts#discover": 176,
-    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 259,
+    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 260,
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 539,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
@@ -35,7 +35,7 @@
       "lines": 308,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 318,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 316,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 368,
@@ -59,7 +59,7 @@
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
-    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 219,
+    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
     "file horizontal/agent-host/src/adapters/prologue.ts": 967,

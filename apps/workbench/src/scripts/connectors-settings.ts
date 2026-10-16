@@ -1,6 +1,9 @@
 import { createConnectorAuthorizationMonitor } from "./connector-authorization-monitor.js";
+import { isLoopbackHostname, isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
   (() => {
+    const isLoopbackHostname = ${isLoopbackHostname.toString()};
+    const isLoopbackHttpUrl = ${isLoopbackHttpUrl.toString()};
     const createAuthorizationMonitor = ${createConnectorAuthorizationMonitor.toString()};
     // \`page\` is the address the connections were opened at: their own page, or the settings section in the workbench.
     const ownPage = { address: () => new URL(location.href), replace: (next) => history.replaceState(null, '', next), own: true };
@@ -38,6 +41,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         const next = new URL('/capabilities/connections', location.origin);
         for (const key of ['desktop', 'project']) { const value = page.address().searchParams.get(key); if (value) next.searchParams.set(key, value); }
         if (id) next.searchParams.set('connector', id);
+        if (box.dataset.setupId) next.searchParams.set('setup', box.dataset.setupId);
         return next.pathname + next.search;
       };
       const showDetail = (id, focus = true) => {
@@ -65,7 +69,8 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const nameFor = panel => panel.querySelector('[data-connector-new-name]')?.value.trim() || panel.querySelector('h2')?.textContent.trim() || panel.dataset.connectorDetail;
       const protocolBody = area => {
         const body = { service_id: area.dataset.protocolService, display_name: nameFor(area.closest('[data-connector-detail]')), settings: {} };
-        if (area.dataset.connectionId) body.connection_id = area.dataset.connectionId;
+        if (area.dataset.connectionId || box.dataset.setupConnection) body.connection_id = area.dataset.connectionId || box.dataset.setupConnection;
+        if (box.dataset.setupId) body.setup_id = box.dataset.setupId;
         area.querySelectorAll('[data-protocol-field]').forEach(input => {
           const key = input.dataset.protocolField;
           if (key.startsWith('setting:')) body.settings[key.slice(8)] = input.value.trim(); else body[key] = input.value.trim();
@@ -82,7 +87,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       };
       const openAuthorization = async (url, popup) => {
         const target = new URL(url);
-        if (target.protocol !== 'https:' || target.username || target.password) throw new Error(L('服务返回的授权地址无效，请重试。'));
+        if ((target.protocol !== 'https:' && !isLoopbackHttpUrl(target)) || target.username || target.password) throw new Error(L('服务返回的授权地址无效，请重试。'));
         if (globalThis.molisWorkOpenExternalUrl) { await globalThis.molisWorkOpenExternalUrl(target.href); return true; }
         if (popup && !popup.closed) { popup.location.replace(target.href); return true; }
         return false;
@@ -94,14 +99,14 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         if (url) { const link = document.createElement('a'); link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = L('重新打开官方授权页'); link.className = 'mw-btn mw-btn--secondary'; actions.append(link); }
         const check = document.createElement('button'); check.type = 'button'; check.className = 'mw-btn mw-btn--secondary'; check.textContent = L('我已授权，检查结果');
         check.addEventListener('click', () => { clearTimeout(session.timer); poll(); });
-        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'mw-btn mw-btn--ghost'; cancel.textContent = L('停止等待');
-        cancel.addEventListener('click', () => { stopWaiting(); delete area.dataset.connectionId; output(result, L('已停止等待。已有账号不受影响；如果还需要连接，可以重新开始授权。')); });
+        const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'mw-btn mw-btn--ghost'; cancel.textContent = L('取消这次接入');
+        cancel.addEventListener('click', async () => { try { if(session.authorizationId) await api('/api/settings/connectors/authorizations/' + session.authorizationId, undefined, 'DELETE'); stopWaiting(); await reload(area.dataset.protocolService); } catch(error) { fail(result, error); } });
         actions.append(check, cancel); result.append(actions);
       };
-      const watchConnection = (area, id, revision, url, expires = Date.now() + 600000, authorizationId) => {
+      const watchConnection = (area, id, url, expires = Date.now() + 600000, authorizationId) => {
         stopWaiting();
         const service = area.dataset.protocolService;
-        remember(stateKey, { service, method: area.dataset.protocol, id, revision, expires, authorizationId, url });
+        remember(stateKey, { service, method: area.dataset.protocol, id, expires, authorizationId, url });
         const start = area.querySelector('[data-protocol-start]'); busy(start, true);
         const finish = () => { stopWaiting(); busy(start, false); };
         const notice = { id, message: L('账号授权已完成。你可以检查连接，或继续设置使用范围。') };
@@ -116,42 +121,21 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         };
         const monitor = createAuthorizationMonitor({
           read: async () => {
-            if (authorizationId) { try { return (await api('/api/settings/connectors/authorizations/' + encodeURIComponent(authorizationId), undefined, 'GET')).status; } catch (error) { if (error.status === 404) return 'expired'; throw error; } }
-            const state = await api(connectionPath(id), undefined, 'GET');
-            return state.connection.state === 'connected' && (!revision || state.revision !== revision) ? 'connected' : 'pending';
+            try { return (await api('/api/settings/connectors/authorizations/' + encodeURIComponent(authorizationId), undefined, 'GET')).status; } catch (error) { if (error.status === 404) return 'expired'; throw error; }
           },
           connected: async () => { busy(start, false); await reload(service, notice); },
-          ended: status => { finish(); output(resultFor(area), L(status === 'cancelled' ? '授权已取消。可以重新登录，已有连接不受影响。' : status === 'expired' ? '等待授权已超时。请重新登录，已有连接不受影响。' : '授权未完成。请重新登录；如果仍然失败，请检查服务权限或联系支持。'), true); },
+          ended: status => { finish(); if (box.dataset.setupId) { reload(service).catch(refreshFailed); return; } output(resultFor(area), L(status === 'cancelled' ? '授权已取消。可以重新登录，已有连接不受影响。' : status === 'expired' ? '等待授权已超时。请重新登录，已有连接不受影响。' : '授权未完成。请重新登录；如果仍然失败，请检查服务权限或联系支持。'), true); },
           refreshFailed, alive: () => box.isConnected, expires, now: Date.now,
           schedule: (run, delay) => setTimeout(run, delay), unschedule: timer => clearTimeout(timer),
         });
-        waiting = { stop: () => { monitor.stop(); busy(start, false); } };
+        waiting = { authorizationId, stop: () => { monitor.stop(); busy(start, false); } };
         waitControls(area, url, waiting, monitor.check);
       };
       const deviceFlow = async (area, body, popup) => {
-        const started = await api('/api/settings/connectors/github/device/start', { client_id: body.client_id || undefined });
-        stopWaiting();
-        const session = { stopped: false, timer: null, checking: false }; waiting = session;
-        const expires = Date.now() + started.expires_in * 1000;
-        let interval = Math.max(5, started.interval || 5) * 1000;
-        const poll = async () => {
-          if (session.stopped || session.checking || !box.isConnected) return;
-          if (Date.now() > expires) { stopWaiting(); output(resultFor(area), L('GitHub 授权码已过期，请重新开始。'), true); return; }
-          session.checking = true;
-          try {
-            const result = await api('/api/settings/connectors/github/device/poll', { device_code: started.device_code, client_id: body.client_id || undefined, manage_connection: true, connection_id: body.connection_id, display_name: body.display_name });
-            if (session.stopped) return;
-            if (result.status === 'authorized') { await reload('github', { id: result.connection_id, message: L('GitHub 账号已连接。') }); return; }
-            if (result.status === 'slow_down') interval += 5000;
-            else if (!['pending', 'authorization_pending'].includes(result.status)) { stopWaiting(); output(resultFor(area), result.message || L('授权未完成，请重新开始。'), true); return; }
-          } catch (error) { if (!session.stopped) { stopWaiting(); fail(resultFor(area), error); } return; }
-          finally { session.checking = false; }
-          if (!session.stopped) session.timer = setTimeout(poll, interval);
-        };
-        waitControls(area, started.verification_uri, session, poll);
+        const started = await api('/api/settings/connectors/github/device/start', body);
+        watchConnection(area, undefined, started.verification_uri, Date.now() + started.expires_in * 1000, started.authorization_id);
         const code = document.createElement('p'); code.textContent = L('在 GitHub 输入设备码：{code}', { code: started.user_code }); resultFor(area).prepend(code);
         await openAuthorization(started.verification_uri, popup);
-        session.timer = setTimeout(poll, interval);
       };
       box.querySelectorAll('[data-protocol-start]').forEach(button => button.addEventListener('click', async () => {
         const area = button.closest('[data-protocol]'); const body = protocolBody(area);
@@ -159,23 +143,23 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         const popup = reserveBrowser(); busy(button, true);
         output(resultFor(area), L('正在准备官方授权…'));
         try {
-          let revision, authorizationFlow;
+          let authorizationFlow;
           if (body.connection_id) {
             const existing = await api(connectionPath(body.connection_id), undefined, 'GET');
-            revision = existing.revision; authorizationFlow = existing.authorization_flow;
+            authorizationFlow = existing.authorization_flow;
             if (!area.closest('[data-connector-detail]').querySelector('[data-connector-new-name]')?.value.trim()) body.display_name = existing.connection.display_name;
           }
           if (button.dataset.accountLogin === 'github' && !body.client_id && authorizationFlow !== 'oauth') { await deviceFlow(area, body, popup); return; }
           const service = button.dataset.accountLogin;
           const dedicated = service && !body.redirect_uri && !body.client_id && authorizationFlow !== 'oauth';
           const path = dedicated ? '/api/settings/connectors/' + service + '/oauth/start' : '/api/settings/connectors/methods/' + button.dataset.protocolStart + '/start';
-          const payload = await api(path, dedicated ? { manage_connection: true, connection_id: body.connection_id, display_name: body.display_name, ...(service === 'gmail' ? { redirect_uri: location.origin + '/api/feed/connectors/gmail/oauth/callback' } : {}) } : body);
+          const payload = await api(path, dedicated ? { setup_id: body.setup_id, connection_id: body.connection_id, display_name: body.display_name, ...(service === 'gmail' ? { redirect_uri: location.origin + '/api/feed/connectors/gmail/oauth/callback' } : {}) } : body);
           const url = payload.authorization_url || payload.authorizationUrl;
           const id = payload.connection_id || payload.connection?.connection_id;
           area.querySelectorAll('input[type=password]').forEach(input => { input.value = ''; });
           if (url) {
             const opened = await openAuthorization(url, popup);
-            watchConnection(area, id, revision, url, undefined, payload.authorization_id);
+            watchConnection(area, id, url, undefined, payload.authorization_id);
             if (!opened) resultFor(area).querySelector('p').textContent = L('浏览器拦截了新窗口。点击“重新打开官方授权页”继续登录。');
             const manual = area.querySelector('[data-oauth-return]');
             if (manual) manual.hidden = !(payload.manual_callback || body.redirect_uri);
@@ -222,16 +206,17 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         try {
           const token = credentialValue(form);
           output(result, L('正在保存连接…'));
-          const saved = form.dataset.savedConnection
-            ? await api(connectionPath(form.dataset.savedConnection), { token }, 'PATCH')
-            : await api('/api/settings/connectors/connections', { service_id: service, display_name: nameFor(form.closest('[data-connector-detail]')), token });
+          const target = form.dataset.savedConnection || box.dataset.setupConnection;
+          const saved = target
+            ? await api(connectionPath(target), { token, setup_id: box.dataset.setupId }, 'PATCH')
+            : await api('/api/settings/connectors/connections', { service_id: service, display_name: nameFor(form.closest('[data-connector-detail]')), token, setup_id: box.dataset.setupId });
           form.dataset.savedConnection = saved.connection.connection_id;
+          form.querySelectorAll('input').forEach(input => { input.value = ''; });
           if (!pluginKeys.has(service)) {
             output(result, L('凭据已保存，正在检查账号与权限…'));
             try { await api(connectionPath(saved.connection.connection_id) + '/verify', {}); }
-            catch (error) { output(result, L('凭据已保存，但检查未通过。请核对凭据和权限后重试；再次保存会更新这条连接。'), true, error.message); return; }
+            catch { await reload(service, { id: saved.connection.connection_id, message: L('凭据已保存，但检查未通过。请在连接管理中检查或更新凭据。') }); return; }
           }
-          form.querySelectorAll('input').forEach(input => { input.value = ''; });
           await reload(service, { id: saved.connection.connection_id, message: L(pluginKeys.has(service) ? '密钥已保存。请按下方提示，在使用它的功能中完成配置和验证。' : '连接检查通过。请按下方提示设置使用范围。') });
         } catch (error) { fail(result, error); } finally { busy(button, false); }
       }));
@@ -295,8 +280,8 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         });
         box.querySelector('[data-connectors-no-results]').hidden = total > 0;
       };
-      search.addEventListener('input', filter); category.addEventListener('change', filter);
-      box.querySelector('[data-connectors-reset]').addEventListener('click', () => { search.value = ''; category.value = ''; filter(); search.focus(); });
+      search?.addEventListener('input', filter); category?.addEventListener('change', filter);
+      box.querySelector('[data-connectors-reset]')?.addEventListener('click', () => { search.value = ''; category.value = ''; filter(); search.focus(); });
       box.querySelectorAll('[data-connector-open]').forEach(button => button.addEventListener('click', () => {
         lastTrigger = button; showDetail(button.dataset.connectorOpen);
         if (button.dataset.connectorDirect) {
@@ -307,17 +292,18 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       }));
       box.querySelectorAll('[data-connectors-back]').forEach(button => button.addEventListener('click', () => showDetail('')));
       box.querySelector('[data-connectors-add]')?.addEventListener('click', () => { search.scrollIntoView({ block: 'center', behavior: 'smooth' }); search.focus(); });
-      box.addEventListener('keydown', event => { if (event.key === 'Escape' && list.hidden && !['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) { event.preventDefault(); showDetail(''); } });
+      box.addEventListener('keydown', event => { if (!box.dataset.setupId && event.key === 'Escape' && list.hidden && !['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) { event.preventDefault(); showDetail(''); } });
       const params = page.address().searchParams;
       const errorCode = params.get('connection_error');
       const connected = params.get('connected');
       const id = box.dataset.openConnector || params.get('connector') || connected || '';
       const notice = recalled(noticeKey);
       showDetail(id, false);
+      box.querySelector('[data-setup-cancel]')?.addEventListener('click', async event => { busy(event.currentTarget, true); try { await api('/api/settings/connectors/authorizations/' + box.dataset.setupId, undefined, 'DELETE'); await reload(id); } catch(error) { fail(box.querySelector('[data-connector-feedback]'), error); busy(event.currentTarget, false); } });
       if (errorCode) {
         output(box.querySelector('[data-connectors-error]'), L(errorCode === 'cancelled' ? '授权已取消。已有连接不受影响，可以选择服务重新登录。' : '授权未完成。请检查应用的回调地址、权限和授权是否过期，然后重新登录。'), true);
       }
-      if (notice && panelFor(notice.service)) { output(panelFor(notice.service).querySelector('[data-connector-feedback]'), notice.message); remember(noticeKey, null); }
+      if (notice && panelFor(notice.service)) { const feedback = panelFor(notice.service).querySelector('[data-connector-feedback]'); output(feedback, (box.dataset.setupId ? feedback.textContent + ' ' : '') + notice.message); remember(noticeKey, null); }
       if (connected && panelFor(connected)) output(panelFor(connected).querySelector('[data-connector-feedback]'), L('官方授权已完成。请回到原来的应用窗口继续，或在这里设置使用范围。'));
       box.querySelectorAll('[data-connector-next-link]').forEach(link => {
         const project = params.get('project') || /^\\/projects\\/([^/]+)/.exec(location.pathname)?.[1];
@@ -327,10 +313,12 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         if (params.get('desktop')) next.searchParams.set('desktop', params.get('desktop'));
         link.href = next.pathname + next.search;
       });
+      const preparedWait = box.querySelector('[data-pending-setup]');
+      if (preparedWait) { watchConnection(preparedWait, undefined, null, Number(preparedWait.dataset.setupExpires), preparedWait.dataset.pendingSetup); return; }
       const pending = recalled(stateKey);
-      if (pending && pending.expires > Date.now() && !connected && !errorCode) {
+      if (pending?.authorizationId && pending.expires > Date.now() && !connected && !errorCode) {
         const area = panelFor(pending.service)?.querySelector('[data-protocol="' + pending.method + '"]');
-        if (area) { showDetail(pending.service, false); expand(area); watchConnection(area, pending.id, pending.revision, pending.url || null, pending.expires, pending.authorizationId); }
+        if (area) { showDetail(pending.service, false); expand(area); watchConnection(area, pending.id, pending.url || null, pending.expires, pending.authorizationId); }
       } else if (pending) remember(stateKey, null);
     };
     globalThis.molisWorkBindConnectorsSettings = bind;

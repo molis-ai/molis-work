@@ -40,7 +40,8 @@ const HOST_METHODS: Readonly<Record<string, readonly ConnectorMethodOption[]>> =
     },
     {
       kind: "mcp", support: "in_app",
-      note: "在 Coding 中填写远程 MCP 服务器 URL，再选择这里保存的账号连接。此入口不执行服务商的 OAuth。",
+      note: "填写远程 MCP 地址，选择免登录、Bearer 或 OAuth；连接后自动发现服务提供的工具。密钥只在受保护表单填写。",
+      mcp: { endpoint: "", client_registration: "dynamic" },
       links: [link("了解 MCP 客户端与服务器", "https://modelcontextprotocol.io/docs/learn/client-concepts")],
     },
   ],

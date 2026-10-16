@@ -18,7 +18,7 @@ function pendingIndex(): Array<{ state: string; at: number }> {
   // No pending sign-ins, or an index a crash left torn: either way no sign-in is waiting to be finished.
   try { return JSON.parse(createFileSecretStore().get(PENDING_INDEX) || "[]"); } catch { return []; }
 }
-function removePending(state: string): void {
+export function cancelNotionOAuthFlow(state: string): void {
   const store = createFileSecretStore();
   store.delete(`${PENDING_REF}:${state}`);
   store.put(PENDING_INDEX, JSON.stringify(pendingIndex().filter(row => row.state !== state)));
@@ -82,7 +82,7 @@ export function startNotionOAuth(input: {
   const redirectUri = callback.toString();
   const state = randomBytes(24).toString("base64url");
   const now = input.nowMs ?? Date.now();
-  for (const entry of pendingIndex()) if (entry.at > now || now - entry.at > PENDING_TTL_MS) removePending(entry.state);
+  for (const entry of pendingIndex()) if (entry.at > now || now - entry.at > PENDING_TTL_MS) cancelNotionOAuthFlow(entry.state);
   store.put(PENDING_INDEX, JSON.stringify([...pendingIndex(), { state, at: now }]));
   const pendingValue = JSON.stringify({ state, clientId, clientSecret, redirectUri, createdAt: input.nowMs ?? Date.now(),
     connectionId: input.connectionId, ...(input.displayName ? { displayName: input.displayName } : {}) } satisfies Pending);
@@ -101,7 +101,7 @@ function readPending(state: string, nowMs: number): Pending {
   const actual = Buffer.from(state);
   if (!state || actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new Error("Notion 授权状态不匹配");
   if (!Number.isFinite(pending.createdAt) || nowMs < pending.createdAt || nowMs - pending.createdAt > PENDING_TTL_MS) {
-    removePending(state);
+    cancelNotionOAuthFlow(state);
     throw new Error("Notion 授权已过期，请重新开始");
   }
   assertLoopback(new URL(pending.redirectUri));
@@ -123,7 +123,7 @@ export async function completeNotionOAuth(input: {
   if (!input.code.trim()) throw new Error("Notion 未返回授权码");
   const clientSecret = pending.clientSecret ?? credentials().clientSecret;
   const store = createFileSecretStore();
-  removePending(input.state);
+  cancelNotionOAuthFlow(input.state);
   const tokens = await notionOAuthToken({
     clientId: pending.clientId, clientSecret,
     grant: { type: "authorization_code", code: input.code.trim(), redirectUri: pending.redirectUri },

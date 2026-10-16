@@ -49,6 +49,7 @@ export interface MolisWorkSettingsView {
   mcp_access?: import("./mcp-access.js").McpAccessModel;
   connectors?: readonly ConnectorSettingsCardView[];
   connector_connections?: readonly ConnectorConnectionView[];
+  connector_setup?: import("./settings-connector-request.js").ConnectorSetupView | null;
   projects: WebSettingsProject[];
   web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;

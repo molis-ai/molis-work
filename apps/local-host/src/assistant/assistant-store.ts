@@ -1,3 +1,4 @@
+import type { ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadRound } from "./assistant-thread-types.js";
 import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
@@ -150,6 +151,7 @@ export interface StoredCard {
   missing: Array<{ field: string; question: string }>;
   status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
   outcome?: string;
+  presentation?: ActionResultPresentation;
   /** Set when the person clicked; the one execution this card may have. */
   request_id?: string;
   /** The object the card would change, as it was when suggested; a card whose object moved on is no longer offered. */

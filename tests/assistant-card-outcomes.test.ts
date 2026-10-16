@@ -13,6 +13,34 @@ const definition: ActionDefinition = { capability_id: "fixture.receipt.write", v
   permissions: ["receipts:write"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false },
   output_schema: { type: "object", properties: { saved: { type: "boolean" } }, required: ["saved"], additionalProperties: false } } };
 
+test("ASC-08 ASC-24: the Assistant preserves the original result link across a database restart without dispatching again", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-card-result-")), file = join(directory, "assistant.sqlite");
+  let db = new DatabaseSync(file);
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const host = new AgentHost(), project = { project_id: "trusted-project", storage_key: "memory:card-result" };
+  t.after(async () => { await local.close(); db.close(); await rm(directory, { recursive: true, force: true }); });
+  let calls = 0;
+  const resultDefinition: ActionDefinition = { ...definition, action: { ...definition.action,
+    output_schema: { type: "object", properties: { saved: { type: "boolean" }, id: { type: "string" }, project_id: { type: "string" }, unselected: { type: "string" } }, required: ["saved", "id"], additionalProperties: false },
+    result_view: { summary: "Request prepared", link: { label: "Open request", href_template: "/projects/{project_id}/requests/{/id}" } } } };
+  local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.receipts", kind: "plugin", title: "Receipts" }, definitions: [resultDefinition],
+    handlers: [{ ...resultDefinition, async handle(context) { await context.beforeEffect(); calls++; return { saved: true, id: "request/1", project_id: "untrusted-project", unselected: "PRIVATE-FIXTURE" }; } }] });
+  const service = () => new AssistantService(new AssistantStore(db), { host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "Project" }, "web-user");
+  let assistant = service();
+  const placed = await assistant.offers.offerFromPage({ message_id: "result-page-0001", source: { surface: "fixture", title: "Receipts" },
+    card: { title: "Prepare request", summary: "Prepare one request", reference: { capability_id: definition.capability_id, version: 1, provider_id: "fixture.receipts" }, input: {} } }, { project_ref: project });
+  const first = await assistant.offers.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision });
+  assert.equal(first.status, "done");
+  assert.equal(first.presentation?.link?.href, "/projects/trusted-project/requests/request%2F1");
+  assert.doesNotMatch(JSON.stringify(first), /PRIVATE-FIXTURE|untrusted-project/);
+  db.close(); db = new DatabaseSync(file); assistant = service();
+  const second = await assistant.offers.runCard(placed.work_id, first.card_id, { revision: first.revision });
+  assert.deepEqual(second, first);
+  assert.equal(calls, 1);
+  assert.match(assistant.offers.html(second, text => text), /href="\/projects\/trusted-project\/requests\/request%2F1"/);
+});
+
 for (const outcome of ["invalid-output", "unknown", "before-effect"] as const) {
   test(`W2-18-CARD-UNKNOWN-01 a real action ${outcome} is kept across restart with no duplicate effect`, async t => {
     const directory = await mkdtemp(join(tmpdir(), "molis-card-outcome-"));

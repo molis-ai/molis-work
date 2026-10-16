@@ -5,6 +5,7 @@ import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integr
 import { resolveApiConnection } from "./connector-access.js";
 import { connectorManagementActions, connectorManagementHandlers } from "./connector-management-actions.js";
 import { connectorRecordActions, connectorRecordHandlers } from "./connector-record-actions.js";
+import { connectorSetupAction, connectorSetupHandler } from "./connector-setup.js";
 import { noProjectMcp, type ProjectMcpManagementPort } from "./connector-project-mcp.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
@@ -59,8 +60,8 @@ export async function readConnectorAccount(home: string, connectionId: string): 
 export function connectorAccountActionProvider(home: string, remember: ConnectorMcpDirectory["remember"], projectMcp: ProjectMcpManagementPort = noProjectMcp): ActionProviderRegistration {
   return {
     provider: { provider_id: "system.connectors", title: "服务连接", kind: "system" },
-    definitions: [...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions)],
+    definitions: [...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction],
     handlers: [{ capability_id: connectorAccountActions.read.capability_id, version: 1,
-      handle: (_caller, input) => readConnectorAccount(home, (input as { connection_id: string }).connection_id) }, ...connectorManagementHandlers(home, remember, projectMcp), ...connectorRecordHandlers(home)],
+      handle: (_caller, input) => readConnectorAccount(home, (input as { connection_id: string }).connection_id) }, ...connectorManagementHandlers(home, remember, projectMcp), ...connectorRecordHandlers(home), connectorSetupHandler(home)],
   };
 }

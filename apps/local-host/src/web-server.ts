@@ -59,7 +59,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       ? options.localHost.ensureWebCatalog(storageHome, platform.openCatalog)
       : createWebCatalogAccess(storageHome, platform.openCatalog) : undefined;
     const withCatalog = catalogAccess?.withCatalog ?? platform.withCatalog;
-    const composition = createLocalWebComposition({ ...platform, withCatalog });
+    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome);
     const { serveWorkbenchAsset } = composition;
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);

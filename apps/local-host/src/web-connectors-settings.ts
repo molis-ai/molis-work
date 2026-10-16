@@ -1,18 +1,20 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { beginConnectorAuthorization } from "./connector-authorization-status.js";
+import { checkConnectorSetupSubmission } from "./connector-setup-submission.js";
+import { saveConnectorAuthorizationPresentation } from "./connector-authorization-presentation.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { githubWhoami } from "@molis-ai/molis-work-integration-github";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHost } from "./web-http.js";
 import { L } from "./web-locale.js";
 import { listConnectorSettingsCards } from "./connector-directory.js";
 import { feishuCliStatus, startFeishuCliLogin, startFeishuCliSetup } from "./feishu-cli.js";
 import { startNotionOAuth } from "./notion-oauth.js";
-import { pollGithubDeviceFlow, startGithubDeviceFlow, storeGithubClientId } from "./github-oauth.js";
+import { storeGithubClientId } from "./github-oauth.js";
+import { startGithubConnection, pollGithubConnection } from "./connector-github-device.js";
 import {
   startGmailOAuthFlow,
   storeGmailOAuthClient,
 } from "./gmail-oauth.js";
 import { prepareOAuthConnectionId, saveOAuthConnectionTarget } from "./connector-oauth-targets.js";
-import { withConnectorConnections } from "./connector-connection-store.js";
 import { withContextJourneys, contextJourneyId } from "./context-onboarding-store.js";
 import { handleConnectorOAuthCallback } from "./connector-oauth-callbacks.js";
 
@@ -32,6 +34,8 @@ export async function handleLocalConnectorsSettingsHttp(
   if (method === "POST" && url.pathname === "/api/settings/connectors/notion/oauth/start") {
     try {
       const body = await readBody(request);
+      checkConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined,
+        { service_id: "notion", method: "oauth", connection_id: typeof body.connection_id === "string" ? body.connection_id : undefined });
       const targetId = prepareOAuthConnectionId(homeDirectory, "notion", typeof body.connection_id === "string" ? body.connection_id : undefined);
       const host = requestHost(request);
       if (!host) throw new Error("无法确认本机回调地址");
@@ -42,7 +46,9 @@ export async function handleLocalConnectorsSettingsHttp(
         connectionId: targetId,
         displayName: typeof body.display_name === "string" ? body.display_name.trim().slice(0, 100) : undefined,
       });
-      sendJson(response, 200, { ...started, connection_id: targetId, authorization_id: beginConnectorAuthorization(homeDirectory, new URL(started.authorizationUrl).searchParams.get("state")!, targetId, "notion") });
+      const authorizationId = beginConnectorAuthorization(homeDirectory, new URL(started.authorizationUrl).searchParams.get("state")!, targetId, "notion", Date.now(), typeof body.setup_id === "string" ? body.setup_id : undefined);
+      saveConnectorAuthorizationPresentation(homeDirectory, authorizationId, { authorization_url: started.authorizationUrl });
+      sendJson(response, 200, { ...started, connection_id: targetId, authorization_id: authorizationId });
     } catch (error) { sendJson(response, 400, { error: error instanceof Error ? error.message : L("Notion 授权启动失败") }); }
     return true;
   }
@@ -71,44 +77,17 @@ export async function handleLocalConnectorsSettingsHttp(
     sendJson(response, 200, { connectors: listConnectorSettingsCards() });
     return true;
   }
-  if (method === "POST" && url.pathname === "/api/settings/connectors/github/device/start") {
-    const body = await readBody(request);
-    const started = await startGithubDeviceFlow({
-      clientId: typeof body.client_id === "string" ? body.client_id : undefined,
-    });
-    sendJson(response, 200, {
-      device_code: started.deviceCode,
-      user_code: started.userCode,
-      verification_uri: started.verificationUri,
-      expires_in: started.expiresIn,
-      interval: started.interval,
-    });
-    return true;
-  }
-  if (method === "POST" && url.pathname === "/api/settings/connectors/github/device/poll") {
-    const body = await readBody(request);
-    const result = await pollGithubDeviceFlow({
-      deviceCode: typeof body.device_code === "string" ? body.device_code : "",
-      clientId: typeof body.client_id === "string" ? body.client_id : undefined,
-    });
-    // The authorized token becomes a GitHub connection (or renews the one being reauthorized).
-    if (result.status === "authorized" && result.accessToken) {
-      const existingId = typeof body.connection_id === "string" ? body.connection_id : null;
-      const identity = await githubWhoami({ token: result.accessToken });
-      if (!identity.ok) { sendJson(response, 401, { error: identity.message || "无法验证 GitHub 账号" }); return true; }
-      const connection = withConnectorConnections(homeDirectory, (store) => {
-        if (existingId) {
-          const existing = store.require(existingId, "github");
-          if (existing.account_label && existing.account_label !== identity.login) throw new Error("授权账号与原连接不同，请新增 GitHub 连接");
-          return store.replaceToken(existingId, result.accessToken!);
-        }
-        return store.createToken({ serviceId: "github", displayName: `GitHub · ${identity.login}`,
-          token: result.accessToken!, accountLabel: identity.login, authMethod: "oauth" });
-      });
-      sendJson(response, 200, { status: "authorized", connection_id: connection.connection_id });
-      return true;
-    }
-    sendJson(response, 200, { status: result.status, message: result.message });
+  if (method === "POST" && ["/api/settings/connectors/github/device/start", "/api/settings/connectors/github/device/poll"].includes(url.pathname)) {
+    try {
+      const body = await readBody(request), origin = `http://${requestHost(request)}`;
+      const result = url.pathname.endsWith("/start") ? await startGithubConnection(homeDirectory, { origin,
+        clientId: typeof body.client_id === "string" ? body.client_id : undefined,
+        connectionId: typeof body.connection_id === "string" ? body.connection_id : undefined,
+        displayName: typeof body.display_name === "string" ? body.display_name : undefined,
+        setupId: typeof body.setup_id === "string" ? body.setup_id : undefined,
+      }) : await pollGithubConnection(homeDirectory, { origin, state: typeof body.state === "string" ? body.state : "" });
+      sendJson(response, 200, result);
+    } catch (error) { sendJson(response, 400, { error: error instanceof ActionError && error.code === "connector.connection.invalid" ? error.message : L("设备授权未完成，请重新准备接入") }); }
     return true;
   }
   if (method === "POST" && url.pathname === "/api/settings/connectors/gmail/client") {
@@ -127,6 +106,8 @@ export async function handleLocalConnectorsSettingsHttp(
   }
   if (method === "POST" && url.pathname === "/api/settings/connectors/gmail/oauth/start") {
     const body = await readBody(request);
+    checkConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined,
+      { service_id: "gmail", method: "oauth", connection_id: typeof body.connection_id === "string" ? body.connection_id : undefined });
     const onboarding = typeof body.onboarding_id === "string" ? { id: contextJourneyId(body.onboarding_id), desktop: body.desktop === true } : undefined;
     if (onboarding) withContextJourneys(homeDirectory, store => { if (store.get(onboarding.id).phase !== "selecting") throw new Error("请从来源清单重新发起连接"); });
     const targetId = prepareOAuthConnectionId(homeDirectory, "gmail", typeof body.connection_id === "string" ? body.connection_id : undefined);
@@ -138,11 +119,13 @@ export async function handleLocalConnectorsSettingsHttp(
     if (onboarding) withContextJourneys(homeDirectory, store => { const journey = store.get(onboarding.id); journey.oauth_status = "pending"; journey.oauth_state = started.state; journey.oauth_expires_at = Date.now() + 10 * 60_000; journey.error = null; store.save(journey); });
     saveOAuthConnectionTarget("gmail", started.state, targetId,
       typeof body.display_name === "string" ? body.display_name.trim().slice(0, 100) || undefined : undefined, onboarding);
+    const authorizationId = beginConnectorAuthorization(homeDirectory, started.state, targetId, "gmail", Date.now(), typeof body.setup_id === "string" ? body.setup_id : undefined);
+    saveConnectorAuthorizationPresentation(homeDirectory, authorizationId, { authorization_url: started.authorizationUrl });
     sendJson(response, 200, {
       authorizationUrl: started.authorizationUrl,
       state: started.state,
       redirectUri: started.redirectUri,
-      connection_id: targetId, authorization_id: beginConnectorAuthorization(homeDirectory, started.state, targetId, "gmail"),
+      connection_id: targetId, authorization_id: authorizationId,
     });
     return true;
   }

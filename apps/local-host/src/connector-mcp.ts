@@ -1,5 +1,7 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
+import { checkConnectorSetupSubmission } from "./connector-setup-submission.js";
+import { saveConnectorAuthorizationPresentation } from "./connector-authorization-presentation.js";
 import { assertMcpAuthorizationPending, commitMcpConnection } from "./connector-mcp-commit.js";
 import { CUSTOM_MCP_SERVICE, mcpAuthentication, mcpEndpointFor } from "./connector-mcp-endpoint.js";
 import { randomUUID } from "node:crypto";
@@ -89,7 +91,7 @@ export interface McpConfiguration extends ConnectorProtocolConfiguration {
 
 export interface StartMcpConnectionInput {
   serviceId: string; displayName: string; endpoint?: string; clientId?: string; clientSecret?: string;
-  token?: string; origin: string; connectionId?: string; redirectUri?: string;
+  token?: string; origin: string; connectionId?: string; redirectUri?: string; setupId?: string;
   authentication?: "none" | "bearer" | "oauth";
   transport?: "http" | "sse";
 }
@@ -329,6 +331,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     const token = input.token?.trim();
     if (token && (token.length < 8 || token.length > 16_384 || /[\r\n]/u.test(token))) throw connectorErrors["connector.mcp.configuration"]("MCP 令牌格式无效");
     const mode = mcpAuthentication(input, server);
+    checkConnectorSetupSubmission(home, input.setupId, { service_id: input.serviceId, method: "mcp", endpoint, authentication: mode, transport: input.transport ?? "http", connection_id: input.connectionId });
     if (input.transport !== undefined && !["http", "sse"].includes(input.transport)) throw connectorErrors["connector.mcp.configuration"]("MCP 传输方式无效");
     if (mode === "oauth" && server.registration === "manual" && !input.clientId?.trim()) throw connectorErrors["connector.mcp.configuration"]("此 MCP 服务需要预先注册的 OAuth Client ID；请先配置官方应用");
     // MCP does not define a stable account identity. An explicit new authorization
@@ -341,10 +344,10 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     if (token) secrets.put("access", token);
     if (input.clientId?.trim()) secrets.put("client", JSON.stringify({ client_id: input.clientId.trim(), ...(input.clientSecret?.trim() ? { client_secret: input.clientSecret.trim() } : {}) }));
     const state = withConnectorProtocols(home, store => store.begin(origin, config, now()));
-    const authorizationId = beginConnectorAuthorization(home, state, connectionId, input.serviceId, now());
+    const authorizationId = beginConnectorAuthorization(home, state, connectionId, input.serviceId, now(), input.setupId);
     try {
       const connected = await useClient(home, config, inspect, state);
-      if (connected.authorizationUrl) { withConnectorProtocols(home, store => store.update(state, config)); return { connectionId, authorizationId, authorizationUrl: connected.authorizationUrl }; }
+      if (connected.authorizationUrl) { withConnectorProtocols(home, store => store.update(state, config)); saveConnectorAuthorizationPresentation(home, authorizationId, { authorization_url: connected.authorizationUrl }); return { connectionId, authorizationId, authorizationUrl: connected.authorizationUrl }; }
       if (!connected.result) throw connectorErrors["connector.mcp.provider"]("MCP 未完成初始化");
       if (config.mode === "oauth" && !secrets.get("access")) throw connectorErrors["connector.mcp.authorization"]("MCP 未取得访问令牌，请检查 OAuth 应用配置");
       commitMcpConnection(home, config, state, now());
@@ -360,7 +363,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     let config: McpConfiguration;
     try {
       config = withConnectorProtocols(home, store => store.consume<McpConfiguration>(state, callbackOrigin(input.origin), now())).configuration;
-    } catch { throw connectorErrors["connector.mcp.authorization"]("MCP 授权会话无效、已过期或已使用，请重新连接"); }
+    } catch { throw connectorErrors["connector.mcp.authorization"]("MCP 授权会话无效、已取消、已过期或已使用，请重新连接"); }
     return serialized(home, config.connectionId, async () => {
       const session = provider(home, config, state);
       try {

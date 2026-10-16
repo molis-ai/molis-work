@@ -20,13 +20,15 @@ import { connectorAuthorizationStatus, finishConnectorAuthorization } from "../a
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
 import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/dist/connector-mcp-actions.js";
-import { MolisWorkLocalHost, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, connectorSetupAction, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
 import { isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
 import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
+
+import { openTestHome } from "./fixtures/test-home.js";
 
 async function body(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -751,4 +753,40 @@ test("ASC-12 ASC-14: enabling a Home MCP checks the server and refreshes changed
     assert.ok((await client.discover(caller)).some(row => row.action.title === "new_tool" && row.availability.available));
     assert.equal(remote.stats().callCount, 0, "refresh does not run business tools");
   } finally { await localHost.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
+
+test("ASC-05 ASC-08 ASC-09: protected prepared MCP requests preserve authentication and discover callable tools", async t => {
+  for (const authentication of ["none", "bearer", "oauth"] as const) {
+    await t.test(authentication, async t => {
+      const local = await openTestHome(t), remote = await fixture({ oauth: authentication === "oauth", ...(authentication === "bearer" ? { token: "fixture-private-mcp" } : {}) });
+      try {
+        const caller: ActionCallContext = { actor_id: "assistant:setup", runtime_session_id: "setup-mcp", audience: "agent", project_id: null, permissions: [CONNECTOR_MANAGEMENT_WRITE, CONNECTOR_MANAGEMENT_READ, "mcp:external"] };
+        const input = { service_id: "mcp-bearer", method: "mcp", display_name: "Custom knowledge", expected_revision: null, endpoint: remote.endpoint, authentication, transport: "http" };
+        const prepared = await local.host.homeActionClient().invoke(caller, connectorSetupAction, input) as { authorization_id: string; url: string };
+        const html = await (await fetch(local.origin + prepared.url)).text();
+        assert.match(html, new RegExp(`value="${authentication}" selected`));
+        assert.doesNotMatch(html, /fixture-private-mcp/);
+        await assert.rejects(local.web.post("/api/settings/connectors/methods/mcp/start", { ...input, endpoint: remote.endpoint + "/changed", setup_id: prepared.authorization_id }), { status: 400 });
+        const started = await local.web.post<{ connection_id: string; authorization_id: string; authorization_url?: string }>("/api/settings/connectors/methods/mcp/start", { ...input, setup_id: prepared.authorization_id, ...(authentication === "bearer" ? { token: "fixture-private-mcp" } : {}) });
+        assert.equal(started.authorization_id, prepared.authorization_id);
+        if (authentication === "oauth") {
+          const pendingPage = await (await fetch(local.origin + prepared.url)).text();
+          assert.ok(pendingPage.includes(remote.localOrigin + "/authorize"));
+          const state = remote.authorize(started.authorization_url!);
+          const returned = `${local.origin}/api/settings/connectors/methods/mcp/callback?state=${state}&code=valid-code`;
+          await local.web.post("/api/settings/connectors/methods/mcp/complete", { returned_url: returned });
+          await assert.rejects(local.web.post("/api/settings/connectors/methods/mcp/complete", { returned_url: returned }), { status: 401 });
+        }
+        const result = await local.host.homeActionClient().invoke(caller, connectorManagementActions.authorization, { authorization_id: prepared.authorization_id }) as { status: string; connection_id: string };
+        assert.equal(result.status, "connected");
+        const reference = local.host.connectorMcp!.reference(result.connection_id, connectorMcpCapabilityId(result.connection_id, "echo"));
+        assert.ok(reference);
+        const called = await local.host.homeActionClient().invoke(caller, reference, { message: "Prepared and actually called" });
+        assert.deepEqual(called, { content: [{ type: "text", text: "Prepared and actually called" }] });
+        assert.equal(remote.stats().callCount, 1);
+        assert.equal(withConnectorConnections(local.home, store => store.list()).length, 1);
+      } finally { await remote.close(); }
+    });
+  }
 });

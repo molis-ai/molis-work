@@ -74,6 +74,7 @@ export interface AssistantCard {
     }>;
     status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
     outcome?: string;
+    presentation?: ActionResultPresentation;
     from?: {
         surface: string;
         title?: string;

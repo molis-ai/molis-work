@@ -3,7 +3,7 @@ import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modul
 import { PluginWiringError, portTypeKey } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ArtifactPluginInput } from "@molis-ai/molis-work-plugin-artifacts";
 import type { PluginPlatform } from "./plugin-platform.js";
-import { bindWorkspaceCompanions } from "./workspace-plugin-bindings.js";
+import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 
 /** The enabled plugins' input ports that take this version's type, and what each reads now (artifact-positioning, 2026-10-04). */
 export function artifactPluginInputs(platform: PluginPlatform | null, artifact: ArtifactVersionRecord): ArtifactPluginInput[] {
@@ -36,7 +36,7 @@ export function bindArtifactPluginInput(platform: PluginPlatform | null, artifac
       const reading = platform.wiring.view().plugins.find(plugin => plugin.plugin_id === input.plugin_id)?.ports.find(port => port.port === input.port)?.artifact;
       if (reading?.artifact_id === artifact.artifact_id && reading.version === artifact.version) {
         platform.wiring.unbind(input.plugin_id, input.port);
-        bindWorkspaceCompanions(platform, projectId, actorId);
+        bindDeclaredDefaults(platform, projectId, actorId);
       }
     } else {
       platform.wiring.bindArtifact({ target_plugin_id: input.plugin_id, target_port: input.port, artifact_id: artifact.artifact_id, version: artifact.version, actor_id: actorId });

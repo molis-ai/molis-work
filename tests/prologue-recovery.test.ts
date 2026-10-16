@@ -88,6 +88,32 @@ test("packed SDK: failed terminal ledger and frozen ownership survive restart wi
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
 
+test("RC-08: the recovery report lists the supplements waiting in the session for its next round, from the runtime's own record", { timeout: 30_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "molis-sdk-inputs-"));
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.recovery-test", appVersion: "0.1.0" },
+    storageRoot: join(root, "runtime"), modelConfiguration: async () => model, resolveCredential: () => "fixture-not-a-real-provider-key" });
+  try {
+    const directory = { canonical_path: root, realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, actor_id: "local-user", title: "排着的补充", directory });
+    assert.deepEqual((await adapter.recovery!.inspect(session)).inputs, [], "nothing waits yet: empty is empty");
+    const handle = await adapter.start({ ...owner, actor_id: "local-user", session, directory, task: "看看测试", role_id: "reader",
+      role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } });
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("SDK failed to settle rejected network request")), 10_000);
+      let off = () => {};
+      off = adapter.observe(handle.ref, view => { if (["failed", "completed", "cancelled"].includes(view.phase)) { clearTimeout(timer); queueMicrotask(() => off()); resolve(); } });
+    });
+    const person = await adapter.inputs!.send(handle.ref, { text: "下一轮顺便看注册接口", key: "send.r1", mode: "after-run" });
+    const note = await adapter.inputs!.send(handle.ref, { text: "计划已调整", source: "host" });
+    assert.equal(person.delivered, "queued");
+    assert.equal(note.delivered, "queued", "the round had ended, so the Host's note waits too");
+    assert.deepEqual((await adapter.recovery!.inspect(session)).inputs, [
+      { input_id: person.input_id, text: "下一轮顺便看注册接口", source: "person", key: "send.r1" },
+      { input_id: note.input_id, text: "计划已调整", source: "host" },
+    ]);
+  } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});
+
 test("incomplete SDK recovery remains readable but refuses a blind restart or stale control", async () => {
   let starts = 0;
   const ref = { run_id: "interrupted-run", session_id: "interrupted-session" };

@@ -42,6 +42,7 @@ export const textStatsManifest: PluginManifest = {
         port: TEXT_STATS_INPUT_PORT,
         artifact_type_id: FILE_SNAPSHOT_TYPE,
         schema_version: FILE_SNAPSHOT_SCHEMA_VERSION,
+        default_source: { plugin_id: "io.molis.work.files", port: "before" },
       },
     ],
     outputs: [],

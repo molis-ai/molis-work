@@ -6,6 +6,8 @@
 
 插件在 `src/actions.ts` 声明列表、读取、新建、编辑、删除、本地加题、AI 生成题目、标记已发布、停止收集、提交与导入答卷、读取与导出结果、导出填写页、存成成果等能力。插件经 Plugin Runtime 运行，每个项目一个实例（`src/plugin.ts` 的 `createFormPlugin`，宿主在 `apps/local-host/src/project-plugins.ts` 的监督器条目里启动它，问卷库是条目声明的 `form` 库）；页面走 Manifest 声明的路由（项目下的 `/api/plugins/io.molis.work.form/forms…`，每条只把请求转成同名动作，带内容的路由读到 1 MB），MCP 只经授权的动作工具，项目、调用者及权限由 Host 注入。
 
+页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/form-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `FORM_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `FormPage` 对象里（`page.ts`），按钮是 `commands.ts` 里按顺序匹配的命令表；请求只经工作台的 `molisWorkRequest`（`request.ts`）。
+
 “按题目加题”只做本地追加；“AI 生成题目”（`form.questions.draft`）显式使用系统文字模型和连接，另需 `model:invoke`：要求说得不够时先返回 `needs_input` 和几道选择题（宿主把它画成共享问卷卡），回答按问过的题检查后再拟题，只追问一次；问过的题只存在插件进程里（至多 32 组、一天）。缺模型禁用 AI，保留本地操作。模型等待期间问卷被编辑、删除，或调用取消、连接撤销时不追加过期结果。
 
 “标记已发布”只保存本机状态和稳定 `share_id`，不产生外网填写链接。“存成 Artifact”保存问卷内容，不包含答卷；固定下来的版本归本机的人，固定它的行为者记在 `created_by`。发布中断后恢复上次固定快照；后续编辑保留，可另存一版。问卷移走又移回后，下一次固定接着项目成果库里已有的最高版号，不把旧版当作中断记录交回。
@@ -37,5 +39,6 @@
   - 项目被删除时宿主按目录条目上的 `project_data`（`formProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeFormProject`）调用清掉问卷与收到的全部回答，连同复制回执；只读库文件，库不存在时不创建，重复运行没有副作用。
 - 改动后必跑：`node scripts/run-tests.mjs tests/form-actions.test.ts tests/form-runtime-routes.test.ts tests/form-mcp.test.ts tests/creative-tools-plugins.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts`
 - 答卷边界、离线文件与 Form → Dataset 的定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-portable-regressions.e2e.test.ts tests/work-placement-plugins.e2e.test.ts`（浏览器文件需要本机 Chrome；CSV 沿既有合同把回答中的换行显示为分号，源答卷保留换行）。
+- 客户端（`src/browser/`）或它的打包改动加跑：`node scripts/run-tests.mjs tests/form-actions.e2e.test.ts tests/personal-plugins-review-fixes.test.ts tests/health-gates-browser-fetch.test.ts tests/health-gates-source-counts.test.ts`，再 `pnpm workspace:build` 后 `node scripts/gates/page-assets.mjs --base origin/main`（打包大小冻结在 `tooling/gates/page-assets.json`）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

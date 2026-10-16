@@ -1128,8 +1128,8 @@ export interface AgentSubagentsCapability {
  * never owns approval, business meaning or durable product state.
  */
 export interface AgentRecoveryReport {
-  session_id: string;
-  blockers: string[];
+  session_id: string; blockers: string[];
+  inputs?: import("./agent-inputs.js").AgentQueuedInput[];
   runs: Array<{
     run_id: string;
     version: number;

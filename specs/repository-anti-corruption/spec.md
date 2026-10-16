@@ -8,6 +8,13 @@
 
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
+W4-03 第一片（2026-10-15，端口的默认来源由 Manifest 声明，#565；BL-087、D-04 的 A）：任务书要求「当时选择短期维持的项（例如 D-04 端口默认连线）重新判断是否到了该做的时候」，路线图把它排进 W4-03；新增一个端口插件只改自己的包和声明（§4.6），名单挡着这条，所以现在做。
+- 合同：输入口加可选的 `default_source: { plugin_id, port }`（另一个插件的输出口），输入组加可选的 `default`（至多一个）。SDK 的 Manifest 检查拒绝指向自己、不像插件 id、端口名不合法、不是对象的默认来源，以及两个默认组、不是布尔值的 `default`（`packages/plugin-sdk/src/wiring-declarations.ts`；插件 id 的写法挪到 `plugin-id.ts`，与 Manifest 自己的 id 共用）。公开 API 快照多出这两个可选字段，现有 Manifest 不受影响。
+- 宿主：`workspace-plugin-bindings.ts` 的 13 行名单删掉，换成 `plugin-default-bindings.ts` 的 `bindDeclaredDefaults`：按项目里运行中的插件读声明，只给什么也没读的口接，人选过的来源、固定成果版本、选过的组都不动；来源插件不在、没有那个口或类型不同就不接（原来名单靠类型恰好一致，第三方插件的声明可能不一致，不接比让项目启动失败对）。默认连线只在随 Host 发布的插件之间生效（统筹 10-16 复查要求，保持重构前的行为）：两端都要是 Host 启动名单标了 `bundled` 的定义（`platform.shipsWithHost`，与动作提供方用的是同一个判断，不是名单，也不读插件自己的声明），已安装或生成的插件写了 `default_source` 或默认组都当作没写；否则已安装的插件写一行 `default_source` 就能自动收到 Coding 的变更集或 Shelf 的材料，是这一片不该开的新数据通路。已安装的插件能不能声明默认连线是产品决定，由统筹弹窗问用户。13 行搬进 Coding（6）、Shelf（2）、Diff（4 加默认组「两份快照」）、Text Stats（1）各自的 Manifest。
+- 测试：新增 `tests/plugin-default-bindings.test.ts`：`W4-03-01`（Coding 家族接出的默认连线与原名单逐行相同、Diff 默认组；名单外的插件按自己的声明接上、默认组生效）、`W4-03-02`（人选的来源与组不被覆盖；来源不在、口不存在、类型不同都不接）、`W4-03-04`（不随 Host 发布的插件拿不到 Coding 的变更集、默认组不生效，用内置插件的 id 也不行；内置插件不按默认读它的输出；先在旧构建上看它失败）；`tests/plugin-declaration-rules.test.ts` 加 8 条 `W4-03-03`。变异检查：去掉类型比对、去掉「已有来源就跳过」、去掉默认组，各有一条失败。`tests/workspace-plugin-graph.test.ts` 改从包入口取 `bindDeclaredDefaults`（新的具名导出），少一处包内部引用。
+- 文档：`docs/system/EXTENSION-POINTS.md`（Text Stats 包外点名从 12 个文件降到 11 个，按第 1 节的复核命令重数）、`apps/local-host/README.md`、`skills/molis-plugin-dev/elements.md`、`examples.md`、`host.md`。
+- 剩下的两项（Diff 与 Text Stats 自己渲染视图、伙伴舞台由 Manifest 视图生成而不是 `coding-surface.ts` 的名单）要改 `coding-surface.ts`，在途的 H4（#554）也改它，排在它合入之后做第二片。
+
 W4-02（2026-10-15，Runtime 与已安装插件的 Manifest `methods` 生效，#562；决定 #18「和内置插件一样注册：启动时注册，停用、卸载、升级时收回」）：
 - 原来只有目录条目的 `methods` 在 Host 启动时登记（`builtinRegistrations`）；没有目录条目的插件在 Manifest 里声明方法能通过检查，却没有任何代码登记，别的 Agent 看不到。
 - 合同：`PluginDefinition.methods`（可选，`AgentSkillDefinition[]`）放方法正文，与 `agent_skills`（插件自己 Agent 的）分开。公开 API 快照 `tooling/gates/api/contracts/platform/plugin.txt` 只多这一个可选字段，现有插件不受影响。
@@ -44,6 +51,14 @@ W4-04 第三片（2026-10-15，Form 经 Plugin Runtime 装配，#551）：按 `d
   - `tests/document-plugins-error-model.test.ts`：Form 的码到状态改问 SDK 的 `actionErrorResponse`（Form 每条路由是 `bindPluginActionRoute`，失败都由它回答）；真实路由的 404、409 与请求体上限改走测试 Home 的 Runtime 边界；没有发布方时的 409 `form.unavailable` 改直接调动作（Runtime 总给 Form 成果服务）。`tests/plugin-declaration-rules.test.ts` 加三条 `max_body_bytes` 规则。
   - 其余改了调用方式的：`creative-artifact-promote`、`creative-tools-plugins` 里 Form 的部分改经动作；`tests/personal-plugins-review-fixes.test.ts` 断言 Form 客户端请求 Runtime 路由；夹具与五个用例里的 `withStore` 换成 `ownFormStores`。
 - 证据：相关 38 个文件全过（含 `tests/action-contract-snapshot.test.ts`），Runtime 路由、成果客户端、Characters 与 Coding 的发布 8 个文件全过，浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e` 全过；health（`--base origin/main`）、boundary、page-assets 通过（`form.js` 小了 288 字节，预算同步降下）。公开 API：`PluginRouteDeclaration.max_body_bytes`（可选，旧 Manifest 不受影响）。动作快照：Form 的安装多 5 条 `sdk.artifacts.<安装>.*`。
+
+W4-04 第四片（2026-10-15，Form 客户端改成打包的 TypeScript，PR #558）：路线图 W4-04 的「bundle its client as type-checked TS (esbuild IIFE) … and a *_SCRIPT template-constant metric is added」。
+- 客户端：原来 900 行的模板字符串 `FORM_CLIENT_FACTORY_SCRIPT` 和 `src/draft-client.ts` 的 `FORM_DRAFT_CLIENT_SCRIPT` 改成 `plugins/native/form/src/browser/` 下 14 个 TypeScript 文件，`tsconfig.browser.json` 做类型检查（`typecheck` 与 `build` 都跑），esbuild 从 `factory.ts` 打成 `dist/form-client.js`，banner/footer 直接包成 `(host) => {…}` 工厂；`src/client.ts` 只读这个包。页面状态集中在 `FormPage`（`page.ts`），原来 200 行的点击处理拆成 `commands.ts` 里按原顺序匹配的 21 条命令，每个函数都在函数行数上限以下（巨大单元门禁把类型源码当代码数，第一次拆前是 924 行的文件、904 行的函数）。行为按原样：匹配顺序、哪些命令要打开的问卷、离开前先存再问、失败的 note 范围都与原来相同。
+- 大小：`--minify`（与 `--minify-whitespace` 比，名字也压短）后宿主发的 `form.js` 从 37 472 字节降到 30 300，`tooling/gates/page-assets.json` 同步降低。
+- 门禁：`scripts/gates/source-counts.mjs` 加 `scriptConstants`：名字以 `_SCRIPT` 结尾、值是字符串或模板字符串的变量按文件计数，只许减少，新文件从 0 开始（普查 130 个、100 个文件，这一片后 129）。`rawFetchInScripts` 认得打包生成的程序：常量读 `dist/<名>.js`、所在包 build 里有 `esbuild <入口> … --outfile=dist/<名>.js` 时，入口和它 import 的文件按类型源码数，对不上构建步骤的读取直接失败（`scripts/gates/browser-programs.mjs` 的 `bundleEntry`）。口径写在 `tooling/gates/README.md`。
+- 测试：`tests/health-gates-source-counts.test.ts` 加定义、两条违规与一条减少用例；`tests/health-gates-browser-fetch.test.ts` 加打包源码里的裸 fetch 被数、读不存在的构建产物失败两条（基线里预先放一个 `clean.ts`，原来那条「不算的写法」用例改为编辑已有程序，否则它会被新计数当成新增）；变异：在 Form 的打包源码里加一个裸 fetch，`rawFetchInScripts` 记 1。`tests/creative-tools-plugins.test.ts` 与 `tests/personal-plugins-review-fixes.test.ts` 里按名字查代码形状的 Form 断言改读 `src/browser/` 的源码（同样的性质：结果请求只认最新且仍打开的问卷、换问卷先清保存计时器、保存不重画编辑器、列表行的状态格、请求走 Runtime 路由），字面量断言仍查打包结果；`tests/document-plugins-error-model.test.ts` 的浏览器入口除 `tsconfig.editor.json` 外也读 `tsconfig.browser.json`（服务端能到达的文件仍按服务端查）。
+- 证据：门禁 `--base origin/main`、`boundary:check`、`page-assets`（`--update` 后）通过；相关 18 个非浏览器文件全过；浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e`、`model-ready-surfaces.e2e` 共 19 条全过。全量由统筹在 CI 跑。
+- 变基到 #551 合入后的 main（`19823a62`）后重跑：门禁 `--base origin/main`、`boundary:check`、`page-assets`、页面事件通过；Form 与门禁相关的 11 个非浏览器文件、7 个浏览器文件（另加 `goal-form-viewport`、`policy-form-binding`、`remaining-forms-viewport`）全过。Runtime 停 Form 时库先关（`home-plugin-executor.ts`、`plugin-host-services.ts` 的 `dispose`），#551 第 7 片那次原生崩溃统筹重跑已过，判为跑机环境。
 
 W4-05（2026-10-15，助理服务拆分样板，PR #559；决定 #3）：
 - 抽出：提醒与跟进协作者 `AssistantFollowUps`（`apps/local-host/src/assistant/assistant-followups.ts`）：Plugin 的到期提醒（`sweepReminders`）、工作上的定时轮次（保存、取消、到点运行、归档时停用、宿主启动时重新排队）、关注规则（`saveRule`、`removeRule`）。它只经 `AssistantFollowUpPorts` 依赖宿主（工作、通知、设置、规则、Home 动作、Agent Host、发送、队列），不 import 助理其他模块的实现（只用共同的错误表 `assistant-errors.ts`），带走自己的表：`assistant_followups` 的读写从 `AssistantStore` 搬到 `AssistantFollowUpRecords`（`store.followUps`）。服务上的 `followUps` 现在是这个协作者，HTTP、动作（`assistant-rule-actions.ts`）、`web-server.ts` 的定时任务改为经它调用。
@@ -874,7 +889,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 已审 |
 | `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/form` | 内置插件 | 19 | 2,783 | `client.ts` 900 | 1 | 4 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/form` | 内置插件 | 33 | 3,163 | `store.ts` 522 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 已审 |
 | `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 已审 |

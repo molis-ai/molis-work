@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
+import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 
 // specs/repository-anti-corruption §4.8/§4.13 (W1-07, decision #17): the page assets the host sends are frozen at their
 // current size and may only fall. Each rule is mutation-verified here on a small scratch repository: one violation added
@@ -567,7 +568,11 @@ test("this repository's build is within the committed page asset budget, which h
   for (const asset of ["/assets/molis-work-workbench.css", "/assets/molis-work-workbench.js", "/assets/molis-work-arrival.css", "/assets/molis-work-settings.css", "/assets/molis-work-pages-editor.js"]) {
     assert.ok(report.measured[asset] > 0, `${asset} is measured`);
   }
-  assert.ok(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).length >= 20, "the plugin client packs are measured");
+  // Exactly the client bundles the workbench serves: one per plugin with its own client, none for a surface that borrows
+  // another's (W4-03: Files, Git, Diff and Text Stats load Coding's).
+  const bundles = [...new Set(pluginSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`))].sort();
+  assert.ok(bundles.length > 0);
+  assert.deepEqual(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).sort(), bundles, "the plugin client packs are measured");
 });
 
 // ISSUE-06: the Issue client's first ceiling (24,000 bytes, user-approved) was a one-time admission for a path the merge-base did not
@@ -600,12 +605,18 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
   assert.equal(gate("--base", "issue-draft-old").code, 1, "other assets remain frozen");
 });
 
-// ISSUE-48 and I8-PAGES-01 spent their one approved increase each (user, 2026-10-15): saved-Issue reorganization took
-// issues.js from 24,378 to 26,331 measured bytes (#521), and the I8 fixes took the Pages editor from 698,574 to 703,633 (#522).
-// Back at either old size, the asset grows under the same rule as every asset.
-for (const [asset, old] of [["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574]] as const) {
-  test(`the spent increase of ${asset} leaves no allowance, even at its old size`, () => {
-    const name = asset.replace(/\W+/g, "-").replace(/^-/, "");
+// Each one-time increase the user approved on 2026-10-15 is spent; back at the old size, the asset grows under the same rule as
+// every asset. ISSUE-48 took issues.js from 24,378 (#521) and the I8 fixes the Pages editor from 698,574 (#522). W3-B1 (#553,
+// context-program §21.8) took the Pages editor, the Pages client and the workbench script, and receipts 1d (#564,
+// specs/ai-input-receipts) the Coding bundle and both stylesheets, from the sizes below; W4-03 removed those allowances with
+// the companions' copies of Coding's bundle.
+for (const [asset, old] of [
+  ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
+  ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
+  ["/assets/molis-work-plugins/coding.js", 432277], ["/assets/molis-work-settings.css", 1115127], ["/assets/molis-work-workbench.css", 1701600],
+] as const) {
+  test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
+    const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
     branch(`${name}-old`, () => { sizes[asset] = old; putBudget(sizes); });
     git("checkout", "-q", "-B", `${name}-regrow`);
     sizes[asset]++;
@@ -615,22 +626,17 @@ for (const [asset, old] of [["/assets/molis-work-plugins/issues.js", 24378], ["/
   });
 }
 
-// RC-14–RC-16 (specs/ai-input-receipts, receipts 1e): under the user's 2026-10-15 rule, and approved for this gate change in
-// the receipts session on 2026-10-16, the Assistant's and Coding's input receipts may grow the workbench script, the three
-// stylesheets that carry the Assistant's styles, and the Coding bundle (which diff, files, git and text-stats serve byte
-// for byte) once, from exactly the current baselines to the measured sizes. One byte more, another asset, or growth from
-// the new baseline still fails.
+// RC-14–RC-16 (specs/ai-input-receipts, receipts 1e): under the user's 2026-10-15 rule, and approved on 2026-10-16 after
+// #584 in the receipts session, the Assistant's and Coding's input receipts may grow the workbench script, the three
+// stylesheets that carry the Assistant's styles, and the Coding bundle once, from exactly the current baselines to the
+// measured sizes. One byte more, another asset, or growth from the new baseline still fails.
 test("receipts 1e has one bounded allowance on the workbench script, the stylesheets and the Coding bundle; other assets and later growth still fail", () => {
   const allowed = {
     "/assets/molis-work-arrival.css": [821387, 821499],
     "/assets/molis-work-plugins/coding.js": [434028, 434439],
-    "/assets/molis-work-plugins/diff.js": [434026, 434437],
-    "/assets/molis-work-plugins/files.js": [434027, 434438],
-    "/assets/molis-work-plugins/git.js": [434025, 434436],
-    "/assets/molis-work-plugins/text-stats.js": [434035, 434446],
     "/assets/molis-work-settings.css": [1113186, 1113322],
     "/assets/molis-work-workbench.css": [1699659, 1699795],
-    "/assets/molis-work-workbench.js": [1095614, 1097762],
+    "/assets/molis-work-workbench.js": [1095606, 1097751],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("receipts-1e-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

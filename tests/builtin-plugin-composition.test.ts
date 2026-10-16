@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
-import { createWorkbenchUiHost, pluginWorkbenchPacks, WORKBENCH_UI_SLOTS, type BuiltinPluginEntry } from '@molis-ai/molis-work-app-workbench';
+import { createWorkbenchUiHost, pluginSurfaceClients, pluginWorkbenchClientAsset, pluginWorkbenchPacks, WORKBENCH_UI_SLOTS, type BuiltinPluginEntry } from '@molis-ai/molis-work-app-workbench';
 import { pluginWorkbenchClientBootstrap, pluginWorkbenchStyles, pluginWorkbenchSettingsStyles, pluginSearchRows } from '../apps/workbench/dist/plugin-workbench.js';
 
 const action: ActionDefinition = { capability_id: 'fixture.future.read', version: 1, operation: 'query',
@@ -46,4 +46,17 @@ test('composition preserves Native UI identities', () => {
   const ui = createWorkbenchUiHost().list();
   assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.goals.proposal')?.plugin_id, 'io.molis.work.native.goals');
   assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.work.terminal.v1')?.plugin_id, 'io.molis.work.native.work');
+});
+
+test('W4-03-05 the Coding companions borrow Coding\'s client: one bundle is served, none of them ships a copy', () => {
+  const clients = new Map(pluginSurfaceClients().map(client => [client.id, client]));
+  const coding = pluginWorkbenchClientAsset('coding');
+  assert.ok(coding && clients.get('coding')?.bundle === 'coding');
+  for (const id of ['files', 'git', 'diff', 'text-stats']) {
+    assert.equal(clients.get(id)?.bundle, 'coding', `${id} mounts with Coding's client`);
+    assert.equal(clients.get(id)?.factory, clients.get('coding')?.factory, id);
+    assert.equal(pluginWorkbenchClientAsset(id), null, `the Host serves no ${id}.js`);
+  }
+  // Every other client is its own bundle.
+  for (const client of clients.values()) if (!['files', 'git', 'diff', 'text-stats'].includes(client.id)) assert.equal(client.bundle, client.id, client.id);
 });

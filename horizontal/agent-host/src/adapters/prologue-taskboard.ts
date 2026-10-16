@@ -2,6 +2,7 @@ import { APP_MODE_SURFACE_TOOLS, SYSTEM_TOOL_NAMES, type ExactRef, type Runtime,
 import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { blockId, isBlock, isPlanStep, PROJECT_STEP } from "./prologue-collaboration.js";
 import { amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace } from "./prologue-plan-steps.js";
+import { SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
 
 type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
 
@@ -30,6 +31,8 @@ export const codingExecutionRules: readonly PolicyRule[] = [
   ...SYSTEM_TOOL_NAMES.filter(name => !["board-report", "board-wait", "session-send", "command-output", "await-commands", ...APP_MODE_SURFACE_TOOLS].includes(name)).map(name => ({ source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name } })),
   { source: "runtime", effect: "ask", match: { what: "tool", namePrefix: "mcp:" } },
   { source: "runtime", effect: "ask", match: { what: "tool", namePrefix: "molis-action-" } },
+  // A round's suggestion to the person records a button and runs nothing; clicking it is the person's confirmation (D27).
+  { source: "runtime", effect: "allow", match: { what: "tool", namePrefix: SUGGEST_TOOL_PREFIX } },
   // The side panel's browser has its own rules (prologue-surfaces.ts): looking is allowed and each action asks. A blanket
   // ask here would also stop looking, which raises no approval; without those rules a surface action is denied anyway.
   ...(["path", "command", "network"] as const).map(what => ({ source: "runtime" as const, effect: "ask" as const, match: { what } })),

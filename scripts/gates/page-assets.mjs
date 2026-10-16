@@ -234,20 +234,15 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time allowance for receipts 1e (specs/ai-input-receipts RC-14–RC-16: the Assistant's receipt lines, the answer or
 // supplement chip, the resend key kept across a refresh; Coding's receipt announcements and the dropped-reply mark), under
-// the user's 2026-10-15 rule that small, necessary growth passes once; the user approved this gate change in the receipts
-// session on 2026-10-16. Each is for exactly one merge-base budget (main cca71e02) and used once: the next baseline freezes
-// again. diff, files, git and text-stats serve the Coding bundle byte for byte. This change deleted the spent allowances of
-// W3-B1 and receipts 1d; delete these in the next change to this gate (as #541 did for #522's).
+// the user's 2026-10-15 rule that small, necessary growth passes once; the user approved it on 2026-10-16 (after #584), in
+// the receipts session. Each is for exactly one merge-base budget (main cf954a0a) and used once: the next baseline freezes
+// again. Delete it in the next change to this gate (as #541 and #584 did).
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [821387, 821499],
   "/assets/molis-work-plugins/coding.js": [434028, 434439],
-  "/assets/molis-work-plugins/diff.js": [434026, 434437],
-  "/assets/molis-work-plugins/files.js": [434027, 434438],
-  "/assets/molis-work-plugins/git.js": [434025, 434436],
-  "/assets/molis-work-plugins/text-stats.js": [434035, 434446],
   "/assets/molis-work-settings.css": [1113186, 1113322],
   "/assets/molis-work-workbench.css": [1699659, 1699795],
-  "/assets/molis-work-workbench.js": [1095614, 1097762],
+  "/assets/molis-work-workbench.js": [1095606, 1097751],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

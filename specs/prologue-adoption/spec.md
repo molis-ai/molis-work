@@ -1114,7 +1114,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 未验证：
 
 - `{"item": …}` 与 `"true"` 是供应商按 schema 转换时丢了类型，还是模型能力。用户 2026-10-16 定：不换模型。上游让 `board-wait` 的 `params` 按检查器带上 schema，换包后用同一个模型、同样的任务重跑。第 9～11 轮（不带类型）与重跑（带类型）就是对照，不另跑一轮。预计 `{"item": …}` 和字符串布尔值都降到 0 次；重跑后照实核对。
-- 不延后以后 T3 能不能过：没有重跑，等上游换包后一起重跑（见下）。
+- 延后的工具调得动以后 T3 能不能过：没有重跑，换包合入后一起重跑（见下）。
 - 业务网关的能力输入在工具 schema 里也是宽松的并集，`type` 是六种类型都行（`prologue-action-gateway.ts`：`read-capability`、`change-capability`、`change-reversible` 共用的参数，和 `suggest-action`）。和 `board-wait` 的 `params` 是同一类问题，算设计问题，有待验证。现在不改：重跑如果证明带上类型有用，再另开一片，让网关按每个能力自己的输入 schema 声明。
 
 之前各版（v2 没有发布，指纹都在同一行上改）：
@@ -1148,15 +1148,27 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
   - `writers` 给 10 个以上，而且它没有 `find-tools`，连名字都看不到；
   - 业务一轮（助理、Todo）正好 20 个，再多一个，网关、委派、记忆这 13 个工具就全被延后。
 - 暂时的做法：`prologue-node-port.ts` 不再设 `deferToolSchemasBeyond`（SDK 默认一个都不延后）。每次请求都带上全部工具的 schema，请求变长，大约多多少记在 PR 正文里。
-- 证据：`tests/prologue-tool-declaration.test.ts`（PA-12）：`builder` 一轮给 4 个动作工具、超过 20 个工具时，每个工具都在请求里声明，没有只列名字的；替身模型按名字调用两个只读动作，各执行一次。先在 main 上看它红（延后时动作调用 0 次）。
+- 证据：`tests/prologue-tool-declaration.test.ts`（PA-12）：`builder` 一轮给 4 个动作工具、超过 20 个工具时，每个工具都在请求里声明，没有只列名字的；替身模型按名字调用两个只读动作，各执行一次。先在 main 上看它红（延后时动作调用 0 次）。换包时这条改写成下面两条。
+
+**2026-10-16 换包：恢复延后，检查器说出参数形状。** 上游 [Prologue #28](https://github.com/molis-ai/prologue/pull/28) 经用户同意合入（合并提交 `e4afd1a7`），一个改动里修了两处：
+
+- 延后的工具：只列了名字的，Model 那道门也照收；`find-tools` 交出过形状的，这一跑之后的请求照常声明，记成 Run 事件 `tools-found`，接着历史的下一跑照它接上。
+- `board-wait` 的 `params`：检查器经 `ConditionCheckers.list()` 与 `CheckerDescriptor.params` 说出参数 schema，`board-wait` 照它写成各检查器的 `anyOf`，登记时先按点名的那一个核，再轮到检查器自己的规则。
+
+Molis 这边：
+
+- 照 `vendor/prologue-sdk/README.md` 换成从 `e4afd1a7` 打的 `prologue-sdk-0.0.0-rc.1-found-tools.tgz`，删了 collaboration 包，`patch-history.json` 记一笔。同一棵树上 SDK 全量 0 失败（`desktop-computer-use.live` 没跑），13 个消费者脚本在这个包上全过。
+- `prologue-node-port.ts` 恢复 `deferToolSchemasBeyond: 20`，删掉上面暂时的做法。
+- `prologue-checkers.ts` 给两个检查器写参数 schema（structured 子集）：数组、布尔值都带类型；检查器自己的规则（一个状态只在一张表里、路径不出目录）照旧在后面核。
+- 证据：
+  - `tests/prologue-tool-declaration.test.ts`（PA-12）两条：`builder` 一轮超过 20 个工具、动作工具都只列名字时，替身模型按名字直接调，调用执行；先 `find-tools` 再调，下一次请求带着它的形状、名册上不再有它，没找的仍只列名字，调用执行。
+  - `tests/prologue-external-checks.test.ts`（PA-17）：`board-wait` 的 `params` 每个检查器一份形状；`satisfied` 写成 `{"item": …}` 在登记时被拒，说出 `$.status.satisfied`，不登记等待，什么都不看。
+  - 三条都先在旧包上看它红，见 PR 正文。
 
 **留到后面的**：
 
 - `molis.file-present` 只证明文件在（S-27 开放项）。
-- 上游（Prologue）一个改动里做两件事：
-  - `find-tools` 找到的工具，这一轮之后的请求里声明，并记进 Run，续跑和回放照样声明；
-  - `board-wait` 的 `params` 按检查器带上参数 schema。
-- 照 `vendor/prologue-sdk/README.md` 换包（删旧包，`.sha256` 与来源记录相符）以后：删掉上面暂时的做法，在隔离 Home 里重跑这次小评测（每个任务 3 次），按结果重新分类。评测里拿不准的 `{"item": …}` 与 `"true"` 到那时再定。
+- 这个换包合入以后：在隔离 Home 里重跑这次小评测（每个任务 3 次，同一个模型、同样的任务），和第 9～11 轮对照，按结果重新分类。评测里拿不准的 `{"item": …}` 与 `"true"` 到那时再定，结果也回填进 Prologue 的短合同 `docs/slices/found-tools-declared.md`。
 
 ### 6.1 当前记录
 

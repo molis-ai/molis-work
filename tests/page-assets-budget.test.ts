@@ -615,71 +615,42 @@ for (const [asset, old] of [["/assets/molis-work-plugins/issues.js", 24378], ["/
   });
 }
 
-// W3-B1 (context-program §21.8): the user approved on 2026-10-15 that the landing code may grow the Pages editor, the
-// Pages client and the workbench script once, from exactly the current baselines to the measured sizes. One byte more,
-// another asset, or growth from the new baseline still fails.
-test("W3-B1's landing code has one bounded allowance on three assets; other assets and later growth still fail", () => {
+// RC-14–RC-16 (specs/ai-input-receipts, receipts 1e): under the user's 2026-10-15 rule, and approved for this gate change in
+// the receipts session on 2026-10-16, the Assistant's and Coding's input receipts may grow the workbench script, the three
+// stylesheets that carry the Assistant's styles, and the Coding bundle (which diff, files, git and text-stats serve byte
+// for byte) once, from exactly the current baselines to the measured sizes. One byte more, another asset, or growth from
+// the new baseline still fails.
+test("receipts 1e has one bounded allowance on the workbench script, the stylesheets and the Coding bundle; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-pages-editor.js": [703633, 707045],
-    "/assets/molis-work-plugins/pages.js": [48441, 48727],
-    "/assets/molis-work-workbench.js": [1097484, 1099387],
+    "/assets/molis-work-arrival.css": [821387, 821499],
+    "/assets/molis-work-plugins/coding.js": [434028, 434439],
+    "/assets/molis-work-plugins/diff.js": [434026, 434437],
+    "/assets/molis-work-plugins/files.js": [434027, 434438],
+    "/assets/molis-work-plugins/git.js": [434025, 434436],
+    "/assets/molis-work-plugins/text-stats.js": [434035, 434446],
+    "/assets/molis-work-settings.css": [1113186, 1113322],
+    "/assets/molis-work-workbench.css": [1699659, 1699795],
+    "/assets/molis-work-workbench.js": [1095614, 1097762],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("w3b1-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "w3b1-change");
+  branch("receipts-1e-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "receipts-1e-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "w3b1-base").code, 0);
-  assert.equal(gate("--base", "w3b1-base").code, 0);
+  assert.equal(gate("--update", "--base", "receipts-1e-base").code, 0);
+  assert.equal(gate("--base", "receipts-1e-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "w3b1-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "receipts-1e-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "w3b1-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "w3b1-base").code, 0);
-  commit("freeze the measured W3-B1 sizes"); git("branch", "-f", "w3b1-frozen");
+  assert.equal(gate("--update", "--base", "receipts-1e-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "receipts-1e-base").code, 0);
+  commit("freeze the measured receipts 1e sizes"); git("branch", "-f", "receipts-1e-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "w3b1-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "w3b1-frozen").code, 1);
-    sizes[asset]--; putBudget(sizes);
-  }
-});
-
-// RC-10/RC-11 (specs/ai-input-receipts, receipts 1d): under the user's 2026-10-15 rule, and approved for this gate change in
-// the receipts session that day, Coding's input receipts may grow the Coding bundle (which diff, files, git and text-stats
-// serve byte for byte) and both stylesheets once, from exactly the current baselines to the measured sizes. One byte more,
-// another asset, or growth from the new baseline still fails.
-test("receipts 1d has one bounded allowance on the Coding bundle and the stylesheets; other assets and later growth still fail", () => {
-  const allowed = {
-    "/assets/molis-work-plugins/coding.js": [432277, 434028],
-    "/assets/molis-work-plugins/diff.js": [432275, 434026],
-    "/assets/molis-work-plugins/files.js": [432276, 434027],
-    "/assets/molis-work-plugins/git.js": [432274, 434025],
-    "/assets/molis-work-plugins/text-stats.js": [432284, 434035],
-    "/assets/molis-work-settings.css": [1115127, 1115160],
-    "/assets/molis-work-workbench.css": [1701600, 1701633],
-  } as const;
-  const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("receipts-1d-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "receipts-1d-change");
-  for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "receipts-1d-base").code, 0);
-  assert.equal(gate("--base", "receipts-1d-base").code, 0);
-  for (const asset of assets) {
-    sizes[asset]++;
-    assert.equal(gate("--update", "--base", "receipts-1d-base").code, 1, `${asset}: one byte over its allowance`);
-    sizes[asset]--;
-  }
-  sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "receipts-1d-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "receipts-1d-base").code, 0);
-  commit("freeze the measured receipts 1d sizes"); git("branch", "-f", "receipts-1d-frozen");
-  for (const asset of assets) {
-    sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "receipts-1d-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "receipts-1d-frozen").code, 1);
+    assert.equal(gate("--base", "receipts-1e-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "receipts-1e-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
 });

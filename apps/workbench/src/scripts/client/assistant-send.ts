@@ -84,17 +84,15 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
 /**
  * The person's words to a round under way, in the Assistant (specs/ai-input-receipts §3.3, §4.1, §4.2; D14).
  *
- * Under each supplement, one line says only what the runtime's own input record says (sent, in the model's context, read,
- * not read by the end of the round, taken back), never that the model followed it. A supplement sent while the round
- * waits on a question says the question still waits. A changed state replaces the line, so the thread's live region
- * (`role=log`, additions) reads it out. Words the Host wrote are the Host's notice and have no line.
+ * Under each supplement is the shared receipt (`host.receipts`, the design system's `createInputReceipts`, the same one
+ * Coding shows): what the runtime's record says, and apart from it what the AI says. It changes in place and says each
+ * change once on the page's status region. Words the Host wrote are the Host's notice.
  *
  * While the round waits on its one free-text question, the composer shows what the next Send does, with the default on
  * the chip: answer the question, or add to the round. One click switches it; the Host never decides it. The interaction
  * line's 「写进问卷」 replaces the answer state here, and only here (D14).
  */
-export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, el, chip }) => {
-  const WORDS = { received: "已送达", applied: "已放进上下文，等 AI 回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" };
+export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip }) => {
   const CHOICES = { answer: ["回答上面的问题", "点一下改成：补充这一轮"], steer: ["补充这一轮", "点一下改成：回答上面的问题"] };
   let asked = "", choice = "answer";
   const question = (round) => {
@@ -104,17 +102,11 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, el, chip }) =>
   const label = () => { chip.textContent = L(CHOICES[choice][0]); chip.title = L(CHOICES[choice][1]); };
   chip.addEventListener("click", () => { choice = choice === "answer" ? "steer" : "answer"; label(); });
   return {
-    /** The line under one of the person's supplements, placed after it; none for anything else. */
+    /** The receipt under one of the person's supplements, placed after it; none for anything else. */
     line(node, put, turn, round) {
-      const key = "receipt:" + turn.turn_id, old = [...node.children].find((child) => child.dataset.entry === key);
-      if (turn.kind !== "user" || !turn.steer) { old?.remove(); return; }
-      const state = turn.steer.state, waits = (round.awaiting_input || []).length && (state === "received" || state === "applied");
-      const words = L(waits ? "已补充到这一轮；问题仍在等你回答" : WORDS[state] || WORDS.received);
-      if (old && old.textContent === words) { put(old); return; }
-      old?.remove();
-      const small = el("small", "assistant-receipt", words);
-      small.dataset.entry = key; small.title = L("读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。");
-      put(small);
+      const key = "receipt:" + turn.turn_id, line = shared.line(turn, round);
+      if (!line) { [...node.children].find((child) => child.dataset.entry === key)?.remove(); return; }
+      line.dataset.entry = key; put(line);
     },
     /** Shows the chip while the round waits on its one free-text question; a new question starts at answering it. */
     paint(round) {

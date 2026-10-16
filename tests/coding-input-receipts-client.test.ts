@@ -4,7 +4,8 @@ import vm from "node:vm";
 import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 
 // specs/ai-input-receipts §3.3, §4.1, §4.2, §7 (stage 1d): what the Coding page shows for a supplement it sends to a round
-// under way. The shipped script runs here against a small DOM port.
+// under way. The receipt under it is the shared one (tests/input-receipts-client.test.ts, RC-12, RC-15). The shipped script
+// runs here against a small DOM port.
 class Node {
   className = ""; textContent = ""; title = ""; type = ""; onclick: (() => unknown) | null = null;
   dataset: Record<string, string> = {}; classes = new Set<string>(); classList = { add: (name: string) => this.classes.add(name) };
@@ -18,16 +19,16 @@ class Node {
 }
 
 type Reply = { receipt: { input_id: string; replayed: boolean; delivered: "run" | "queued" } };
-function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { say?: (text: string) => void; q?: (selector: string) => Node | null } = {}) {
+function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { q?: (selector: string) => Node | null } = {}) {
   const sent: Array<Record<string, unknown>> = [];
   let uuid = 0;
   const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
     document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` }, TypeError,
   }) as (ports: object) => {
-    receipt(turn: object): Node | undefined; steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string): Node | null;
+    steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string): Node | null;
   };
   const api = (_path: string, _method: string, body: Record<string, unknown>) => { sent.push(body); return reply(body); };
-  return { ui: factory({ api, refresh: () => {}, say: () => {}, q: () => null, ...ports }), sent };
+  return { ui: factory({ api, refresh: () => {}, q: () => null, ...ports }), sent };
 }
 const taken = (delivered: "run" | "queued" = "run", replayed = false): Promise<Reply> => Promise.resolve({ receipt: { input_id: "steer-1", replayed, delivered } });
 
@@ -74,29 +75,6 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   assert.equal(refused.ui.bubble("s"), null, "a refusal clears the bubble; the words stay in the composer");
   await refused.ui.steer("s", "r", "看日志", "next-boundary");
   assert.equal(refused.sent[1]!.key, "send.u2");
-});
-
-test("RC-12: the receipt line says only what the run's ledger says, and a note the Host sent reads as the Host's, without a receipt", () => {
-  const { ui } = receipts(() => taken());
-  const line = (state: string) => ui.receipt({ kind: "user", steer: { id: "steer-1", state } })!;
-  assert.deepEqual(["received", "applied", "read", "unread", "withdrawn"].map(state => line(state).textContent),
-    ["已送达", "已放进上下文，等 AI 回应", "AI 已读到", "这一轮结束时 AI 没读到，留给下一轮", "已撤回"]);
-  assert.match(line("read").title, /读到不代表已遵循/u);
-  assert.equal(ui.receipt({ kind: "user" }), undefined, "the person's own task has no receipt");
-  assert.equal(ui.receipt({ kind: "notice", steer: { id: "steer-2", state: "read" } })!.textContent, "Molis 的说明，不是你发的话");
-  assert.ok(!ui.receipt({ kind: "notice" }), "other Host notices stay as they are");
-});
-
-test("RC-15: a receipt that moves on is said once on the status line; the first paint and a redraw say nothing", () => {
-  const said: string[] = [];
-  const { ui } = receipts(() => taken(), { say: text => said.push(text) });
-  const turn = (state: string) => ({ kind: "user", turn_id: "t1", steer: { id: "steer-1", state } });
-  ui.receipt(turn("applied"));
-  ui.receipt(turn("applied"));
-  assert.deepEqual(said, [], "drawing the page is not news");
-  ui.receipt(turn("read"));
-  ui.receipt({ kind: "notice", turn_id: "t2", steer: { id: "steer-2", state: "read" } });
-  assert.deepEqual(said, ["你的补充：AI 已读到"]);
 });
 
 test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {

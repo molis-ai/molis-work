@@ -39,9 +39,9 @@ async function shot(browser: SendBrowser, name: string) {
   await writeFile(new URL(name, evidence), Buffer.from((await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId)).data, "base64"));
 }
 const chip = (browser: SendBrowser) => browser.evaluate<string | null>("(() => { const chip = document.querySelector('[data-assistant-answer]'); return chip.hidden ? null : chip.textContent; })()");
-const receipts = (browser: SendBrowser) => browser.evaluate<string[]>("[...document.querySelectorAll('[data-assistant-thread] .assistant-receipt')].map(node => node.textContent)");
+const receipts = (browser: SendBrowser) => browser.evaluate<string[]>("[...document.querySelectorAll('[data-assistant-thread] .mw-receipt__fact')].map(node => node.textContent)");
 
-test("RC-14/RC-15: while a question waits the chip says what Send does, a supplement's receipt says the question still waits, and a changed receipt is a new line in the live thread", { timeout: 120_000 }, async t => {
+test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does, a supplement's receipt says the question still waits, and a changed receipt is said once on the status region", { timeout: 120_000 }, async t => {
   const browser = await assistantPage(t, { question: "free-text" }); if (!browser) return;
   await send(browser, "帮我记一个问题");
   const id = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
@@ -54,20 +54,21 @@ test("RC-14/RC-15: while a question waits the chip says what Send does, a supple
   assert.equal(await chip(browser), "补充这一轮");
   const steered = await sendSeen(browser, "顺便看一下截图");
   assert.equal(steered.target, "steer", "the page sends the choice; the Host never guesses");
-  await browser.waitFor("[...document.querySelectorAll('.assistant-receipt')].some(node => node.textContent === '已补充到这一轮；问题仍在等你回答')");
+  await browser.waitFor("[...document.querySelectorAll('[data-assistant-thread] .mw-receipt__fact')].some(node => node.textContent === '已补充到这一轮；问题仍在等你回答')");
   assert.equal((await readWork(browser, id)).rounds.at(-1)!.awaiting_input.length, 1, "a supplement does not answer the question");
-  assert.match(await browser.evaluate<string>("document.querySelector('.assistant-receipt').title"), /读到不代表已遵循/u);
+  assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-thread] .mw-receipt__note').textContent"), /读到不代表已遵循/u);
   await shot(browser, "assistant-receipt-waiting.png");
 
   await browser.click("[data-assistant-answer]");
-  await browser.evaluate("window.__waiting = document.querySelector('.assistant-receipt')");
+  await browser.evaluate("window.__waiting = document.querySelector('[data-assistant-thread] .mw-receipt')");
   const answered = await sendSeen(browser, "首页点保存没有反应");
   assert.equal(answered.target, "answer");
   await waitWork(browser, id, view => view.work.state === "completed");
   const ended = ["AI 已读到", "这一轮结束时 AI 没读到，留给下一轮"];
-  await browser.waitFor(`${JSON.stringify(ended)}.includes(document.querySelector('.assistant-receipt')?.textContent)`, 15_000)
+  await browser.waitFor(`${JSON.stringify(ended)}.includes(document.querySelector('[data-assistant-thread] .mw-receipt__fact')?.textContent)`, 15_000)
     .catch(async error => assert.fail(`${error}; lines: ${JSON.stringify(await receipts(browser))}; turns: ${JSON.stringify((await readWork(browser, id)).rounds.at(-1)!.turns)}`));
-  assert.equal(await browser.evaluate("document.contains(window.__waiting)"), false, "a changed receipt replaces its line, so the thread's live region reads it");
+  assert.equal(await browser.evaluate("document.contains(window.__waiting) && window.__waiting.getAttribute('aria-live')"), "off", "a changed receipt changes in place and does not speak through the thread");
+  await browser.waitFor("[...document.querySelectorAll('body > p.mw-sr-only[role=status]')].some(node => /^你的补充「顺便看一下截图」：(AI 已读到|这一轮结束时 AI 没读到，留给下一轮)/u.test(node.textContent))", 5_000);
   assert.deepEqual(await browser.evaluate("(() => { const thread = document.querySelector('[data-assistant-thread]'); return [thread.getAttribute('role'), thread.getAttribute('aria-live'), thread.getAttribute('aria-relevant')]; })()"), ["log", "polite", "additions"]);
   assert.equal(await chip(browser), null, "with no question waiting there is no choice to make");
   await shot(browser, "assistant-receipt-read.png");

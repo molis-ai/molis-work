@@ -135,6 +135,7 @@ tests/coding-project-work.test.ts
 tests/coding-projection.test.ts
 tests/coding-question-card.test.ts
 tests/coding-next-steps.test.ts
+tests/action-cards.test.ts
 tests/coding-reading.test.ts
 tests/coding-recovery.test.ts
 tests/coding-report-usage.test.ts

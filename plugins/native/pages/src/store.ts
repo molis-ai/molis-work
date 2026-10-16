@@ -1,5 +1,8 @@
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
-import { homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { ensureStorageSpace, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import type { StorageSpace } from "@molis-ai/molis-work-contracts/platform/storage";
+import { createPagesSyncAdapter, initializePagesSyncRevision, type PagesSyncContext } from "./sync.js";
+import { initializePagesReplication, createPagesReplica, type PagesReplicationContext } from './replication.js';
 import { realpathSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -460,12 +463,14 @@ export const PAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
   CREATE TABLE page_imports (project_id TEXT NOT NULL, request_id TEXT NOT NULL, request_hash TEXT NOT NULL, document_ids_json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(project_id, request_id));
 ` };
 
-export function openPagesStore(homeDirectory: string): PagesStore {
+export function openPagesStore(homeDirectory: string): PagesStore & PagesSynchronization {
   const db = openBaselineHomeSqlite(homeDirectory, "pages", PAGES_STORE_BASELINE);
   const database = realpathSync(homeSqlitePath(homeDirectory, "pages"));
   let attempts = attemptsByDatabase.get(database);
   if (!attempts) attemptsByDatabase.set(database, attempts = new Map());
-  return new PagesStore(db, attempts);
+  initializePagesSyncRevision(db);
+  if (ensureStorageSpace(homeDirectory).kind === 'personal') initializePagesReplication(db);
+  return Object.assign(new PagesStore(db, attempts), pagesSynchronization(db, ensureStorageSpace(homeDirectory)));
 }
 
 function fromPageRow(row: PagesRow): PagesRecord {
@@ -531,4 +536,16 @@ function normalizeFolderId(value: string | undefined, store: PagesStore, project
   if (!id) return "";
   store.getFolder(id, projectId);
   return id;
+}
+
+/** Sync ports are composed beside the document store, not mixed into its editing implementation. */
+interface PagesSynchronization {
+  syncAdapter(context: PagesSyncContext): ReturnType<typeof createPagesSyncAdapter>;
+  replica(context: PagesReplicationContext): ReturnType<typeof createPagesReplica>;
+}
+function pagesSynchronization(db: DatabaseSync, space: StorageSpace): PagesSynchronization {
+  return {
+    syncAdapter: context => createPagesSyncAdapter(db, space, context),
+    replica: context => createPagesReplica(db, space, context),
+  };
 }

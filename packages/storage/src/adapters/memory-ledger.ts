@@ -7,8 +7,8 @@ import type {
   MemoryScope,
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
-import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
-import { applySqliteBaseline, type SqliteBaseline } from "../sqlite-baseline.js";
+import { homeSqlitePath } from "../home-sqlite.js";
+import { applySqliteBaseline, openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.js";
 
 /**
  * The Host's memory ledger (specs/archive/memory-system §5.1): what the platform knows around Prologue memory entries —
@@ -59,7 +59,7 @@ CREATE TABLE memory_markers (
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
 
 export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedgerPort {
-  const db = openHomeSqliteDatabase(options.homeDirectory, MEMORY_LEDGER_STORE);
+  const db = openBaselineHomeSqlite(options.homeDirectory, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE);
   db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
   try { applySqliteBaseline(db, homeSqlitePath(options.homeDirectory, MEMORY_LEDGER_STORE), MEMORY_LEDGER_BASELINE); } catch (error) { db.close(); throw error; }
   let depth = 0;

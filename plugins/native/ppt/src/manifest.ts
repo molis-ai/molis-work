@@ -8,6 +8,7 @@ import {
 import { PPT_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pptActions, PPT_ACTION_PERMISSIONS } from "./actions.js";
 import { pptContentActions } from "./content-actions.js";
+import { pptSync } from "./replication.js";
 
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 
@@ -15,7 +16,8 @@ export const pptManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: PPT_PLUGIN_ID,
-  version: "1.1.0",
+  sync: pptSync,
+  version: "1.2.0",
   name: "PPT",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },

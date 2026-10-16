@@ -11,6 +11,7 @@ export interface SettingsDirectoryPrimitives {
   withDesktopQuery?(path: string): string;
 }
 
+
 const PROJECT_SETTINGS_SECTIONS = [
   { id: "general", label: "常规", icon: "tune" },
   { id: "workspaces", label: "工作目录", icon: "folder" },
@@ -35,15 +36,14 @@ export function renderPluginRailAccountFooter(primitives: SettingsDirectoryPrimi
   </footer>`;
 }
 
-/** What belongs to the person rather than the project, under the project button: who you are and where (shown, not
- * offered as a control until there is an account page), then capabilities and settings, both opening in the workbench. */
+/** Personal identity and login entry stay inside main's project menu, followed by capabilities and settings. */
 export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives): string {
   const { L, icon } = primitives;
   return `<div class="navigator-personal" data-personal-menu>
-    <div class="personal-account" data-account-link>
+    <button class="personal-account" type="button" data-account-link aria-label="${L("账号管理")}">
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>
-      <span class="personal-account-copy"><strong>${L("一骏")}</strong><small>${L("本地空间")}</small></span>
-    </div>
+      <span class="personal-account-copy"><strong data-personal-name>${L("未登录")}</strong><small data-personal-status>${L("本地空间")}</small></span>
+    </button>
     <a class="immersive-plugin-link account-global-item" href="__SYSTEM_CAPABILITIES__" data-capabilities-open aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
     <button class="immersive-plugin-link account-global-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
   </div>`;

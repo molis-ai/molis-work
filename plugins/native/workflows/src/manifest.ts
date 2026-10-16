@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { WORKFLOWS_PLUGIN_ID, WORKFLOWS_PROJECT_PLUGIN_ID } from "./model.js";
 import { WORKFLOWS_UI_CONTRIBUTION_ID } from "./ui.js";
 import { WORKFLOWS_ACTIONS } from "./actions.js";
+import { workflowsSync } from "./replication.js";
 
 export { WORKFLOWS_PLUGIN_ID, WORKFLOWS_PROJECT_PLUGIN_ID };
 
@@ -9,7 +10,8 @@ export const workflowsManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: WORKFLOWS_PLUGIN_ID,
-  version: "1.0.0",
+  sync: workflowsSync,
+  version: "1.1.0",
   name: "工作流程",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-workflows-binding" },

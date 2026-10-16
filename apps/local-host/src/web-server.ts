@@ -1,4 +1,6 @@
 import { createLocalImServer } from "./im-server.js";
+import { createSpaceWebServer, type SpaceWebSurface } from './space-web-server.js';
+import { spaceDisposal } from './space-disposal.js';
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
@@ -45,7 +47,7 @@ function loopbackWebOrigin(server: http.Server): string {
 }
 
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
-  return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
+  function createMolisWorkWebServer(options: WebServerOptions = {}): SpaceWebSurface {
     const storageHome = path.resolve(options.homeDirectory ?? resolveMolisWorkHome());
     const catalogAccess = platform.openCatalog ? options.localHost
       ? options.localHost.ensureWebCatalog(storageHome, platform.openCatalog)
@@ -131,7 +133,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     const projectExists = async (projectId: string) => (fixture && projectId === fixture.projectId)
       || await withCatalog({ homeDirectory: storageHome }, catalog => { try { catalog.getProject(projectId); return true; } catch { return false; } });
-    const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
+    const server:SpaceWebSurface = http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
@@ -204,12 +206,15 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     })));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    awaitWebServerShutdown(server, () => { im.stop(); void browserHost.current()?.close(); }, async () => {
+    let closing = false;
+    awaitWebServerShutdown(server, () => { closing = true; im.stop(); void browserHost.current()?.close(); }, async () => {
+      await server.spaceDisposed;
       if (ownsLocalHost) { try { await localHost.close(); } finally { await catalogAccess?.close(); } }
     });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     computer.attach(server, controlToken);
     pty.host = attachMolisWorkPtySocket(server, controlToken, {
+      environment: { MOLIS_WORK_HOME: storageHome },
       onData(panelId, sessionId, data) {
         void sessionResources
           .then((resources) => resources.recorder.recordOutput(panelId, sessionId, data))
@@ -246,8 +251,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // process releasing it): keep trying for a while.
     void runWithMolisWorkHome(storageHome, async () => {
       if (!assistant().hasTimedWork()) await agents.started;
-      for (let attempt = 0; attempt < 40; attempt++) {
-        try { await agents.ready; if (await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) console.warn("[assistant] 定时队列暂时没有接上，稍后重试", error); }
+      for (let attempt = 0; attempt < 40 && !closing; attempt++) {
+        try { await agents.ready; if (closing || await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) console.warn("[assistant] 定时队列暂时没有接上，稍后重试", error); }
         await new Promise(resolve => setTimeout(resolve, 15_000).unref());
       }
     });
@@ -259,17 +264,12 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const reminderTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().sweepReminders(); }))
       .catch(error => console.warn("[assistant] 到期提醒没有读到", error)), 60_000);
     reminderTimer.unref();
-    server.once("close", () => {
-      clearInterval(assistantTimer);
-      clearInterval(reminderTimer);
-      im.close();
-      void browserHost.current()?.close();
-      unregisterSurfaces();
-      clearInterval(schedulerTimer);
-      feedSchedulers.clear();
-    });
+    server.spaceDisposed = spaceDisposal(server, [assistantTimer, reminderTimer, schedulerTimer], [
+      () => im.close(), unregisterSurfaces, () => feedSchedulers.clear(),
+      () => browserHost.current()?.close(),
+    ]);
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, serverOptions.deletionSweepMs);
     return server;
   }
-
+  return (options:WebServerOptions={})=>createSpaceWebServer(options,createMolisWorkWebServer,platform.withCatalog);
 }

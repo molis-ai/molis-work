@@ -92,6 +92,7 @@ export interface ProjectPluginRegistry {
 }
 
 export interface ProjectRecord {
+    spaceId?: string;
     project_id: string;
     display_name: string;
     database_path: string;

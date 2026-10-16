@@ -5,7 +5,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/placement";
 import { PlacementService, PLACEMENT_LEDGER_ACCESS } from "@molis-ai/molis-work-service-placement";
 import { CONTEXT_LEDGER_SCHEMA, createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { L } from "./web-locale.js";
 
@@ -60,7 +60,7 @@ export const PLACEMENT_BASELINE: SqliteBaseline = { version: 1, schema: `${CONTE
 ` };
 
 export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
-  const db = openHomeSqliteDatabase(ports.homeDirectory, "placement");
+  const db = openBaselineHomeSqlite(ports.homeDirectory, "placement", PLACEMENT_BASELINE);
   try { applySqliteBaseline(db, homeSqlitePath(ports.homeDirectory, "placement"), PLACEMENT_BASELINE); } catch (error) { db.close(); throw error; }
   const ledger = createContextLedger(ledgerDatabase(db), { initializeSchema: false,
     authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id && access.scope.kind === "personal" && access.scope.id === PLACEMENT_LEDGER_ACCESS.scope.id,

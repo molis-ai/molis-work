@@ -3,6 +3,8 @@ export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetime
 import { parsePluginManifest, PluginManifestError } from "./manifest.js";
 
 export { parsePluginManifest, PluginManifestError, comparePluginVersions } from "./manifest.js";
+export { parsePluginSyncDeclaration, expandPluginSyncSelection, PluginSyncError } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { inspectActionDeclarations } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
@@ -229,3 +231,4 @@ export type {
 
 /** Say what an action really does where its id would be misread (a `delete_preview` deletes nothing); `plugin: false` keeps it from generated plugins. */
 export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { SyncMutation, SyncEvent, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';

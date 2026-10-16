@@ -10,6 +10,10 @@
     "reason": "actions.* is the platform's own family; placement.same_location, search.entry_duplicate, files.entry_duplicate and files.too_large are the protocol codes the contracts' helpers raise. Every one of them has a row in ACTION_ERROR_KINDS and may be raised by anyone."
   },
   "owners": {
+    "storage": {
+      "paths": ["packages/storage/src/project-replica*.ts"],
+      "reason": "Project replication validates portable rows and journal sequence references within Storage's technical persistence boundary."
+    },
     "agent": {
       "paths": [
         "horizontal/agent-host/",

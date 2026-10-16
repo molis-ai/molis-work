@@ -1,5 +1,7 @@
 # Dataset 数据表入口
 
+个人空间同步：`replica(context)` 同步表结构、单元格、保存版本与固定成果引用。以一份表及其历史为冲突单元；目标设备编辑版本独立递增，不采用源设备 CAS。待恢复发布不会被覆盖；超出当前 512 KiB 聚合上限会报错并保留原数据。当前仅显式启用的本机联调。回归：`tests/plugin-aggregate-replication.test.ts`。
+
 本机表格：改列改行、粘贴与导出 CSV、保存快照及回滚、发布 Artifact。业务数据仍在 `{home}/dataset/dataset.db`，按 Host 注入的 canonical project_id 分区，保留原表、快照和 Artifact 身份。
 
 包名：`@molis-ai/molis-work-plugin-dataset`。

@@ -10,6 +10,7 @@ mod drop_wheel;
 #[cfg(target_os = "macos")]
 mod drop_wheel_macos;
 mod external_links;
+mod personal_session;
 mod pty;
 mod runtime_env;
 #[cfg(target_os = "macos")]
@@ -847,6 +848,7 @@ fn main() {
       context_directories::context_directory_forget,
       context_directories::context_directory_preview,
       context_directories::context_directory_read,
+      personal_session::personal_account_request,
       shelf_surface_changed,
       shelf_drag_out,
       shelf_copy_files,

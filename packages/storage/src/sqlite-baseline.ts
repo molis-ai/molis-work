@@ -33,7 +33,9 @@ export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, ba
   if (!Number.isInteger(baseline.version) || baseline.version < 1) throw new Error("基线版本必须是正整数");
   const found = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
   if (found === baseline.version) return;
-  const empty = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' LIMIT 1").get();
+  // Opening a Home connection can bind its immutable owner before a business store is first used.
+  // This platform metadata is not a business schema; any other unversioned table still refuses initialization.
+  const empty = !db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'molis_storage_space' LIMIT 1").get();
   if (found !== 0 || !empty) throw new SqliteSchemaVersionError(path, found, baseline.version);
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -48,14 +50,8 @@ export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, ba
 
 /** `openHomeSqliteDatabase` with one current schema: the store is created at, or must already be at, `baseline.version`. */
 export function openBaselineHomeSqlite(homeDirectory: string, storeName: string, baseline: SqliteBaseline): DatabaseSync {
-  const db = openHomeSqliteDatabase(homeDirectory, storeName);
-  try {
-    applySqliteBaseline(db, homeSqlitePath(homeDirectory, storeName), baseline);
-    return db;
-  } catch (error) {
-    db.close();
-    throw error;
-  }
+  return openHomeSqliteDatabase(homeDirectory, storeName, db =>
+    applySqliteBaseline(db, homeSqlitePath(homeDirectory, storeName), baseline));
 }
 
 /** What makes two schemas the same: tables, their columns in order, indexes, foreign keys and CHECK clauses. */

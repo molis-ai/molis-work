@@ -3,6 +3,7 @@ import { lingguangContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import { LINGGUANG_UI_CONTRIBUTION_ID } from "./ui.js";
+import { lingguangSync } from './replication.js';
 
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID };
 
@@ -10,7 +11,8 @@ export const lingguangManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: LINGGUANG_PLUGIN_ID,
-  version: "1.0.0",
+  sync: lingguangSync,
+  version: "1.1.0",
   name: "灵光",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-lingguang-binding" },

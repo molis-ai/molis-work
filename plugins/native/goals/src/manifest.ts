@@ -20,7 +20,7 @@ export const goalsManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: GOALS_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.0.1",
   name: "Goals",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },
@@ -29,6 +29,7 @@ export const goalsManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS],
   artifacts: { produces: [], consumes: [] },
+  sync: { protocol_version: 1, collections: [{ id: 'project_goals', title: '目标、关系与工作记录', schema_version: 1, requires: [] }] },
   ui: {
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID],
     views: [

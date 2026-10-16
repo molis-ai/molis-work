@@ -29,7 +29,11 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 ## 接入与边界
 
-借用连接的 Journal 不负责关闭连接；连接拥有者负责释放。Secret/body 存储跟随创建时的 Home，不能靠切换全局变量混用用户目录。这里没有实现 Outbox 或 Exchange。
+`ensureStorageSpace(home)` 持久化不可变的 Home 归属；`personalStorageSpace(issuer, applicationId, userId)` 生成稳定个人空间标识。`bindDatabaseSpace` 为 Store 绑定归属并拒绝重标记，`spaceAssetRef` 生成带空间的资产引用。业务记录和附件继承其 Store/Home，不由 storage 解释插件 payload；独立夹具数据库不自动归入进程默认 Home。详见 [空间归属](../../docs/platform/STORAGE-AND-EXCHANGE.md#12-空间归属2026-09-30)。
+
+借用连接的 Journal 不负责关闭连接；连接拥有者负责释放。Secret/body 存储跟随创建时的 Home，不能靠切换全局变量混用用户目录。`replica.ts` 提供借用 owner 连接的事务变更日志、持久 Outbox、游标和冲突备份，不解释业务字段或调用网络；业务写入须在同事务内记录变更。
+
+`aggregate-replica.ts` 为 owner 明确声明的业务聚合提供事务触发器、子记录原子恢复、编辑版本高水位及冲突日志；表/字段白名单和语义验证由插件给出，不遍历或上传整个数据库。仅个人空间初始化；可信 Host 提供项目可用性和关联资产检查。公开入口为 `initializeAggregateReplication`、`createAggregateReplica` 与 `AggregateReplicaContext`。
 
 已有钥匙串加密凭据的主密钥读取失败（拒绝、取消、超时或无效返回）后，同一进程、Home 和凭据配置停止自动重试，避免页面刷新或状态轮询反复触发授权。错误为 `KeychainUnavailableError`；恢复本机钥匙串访问后重启应用或对应 MCP 连接再试。此失败只保留在进程内，不改现有密文、密钥、后端或钥匙串权限，不自动降级文件存储。不同进程的首次读取仍分别发生；这不是跨进程授权合并机制。
 
@@ -72,6 +76,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 正文由读取器提供的条目，只对能读该种类的调用来源返回。
   - 项目被删除时清掉它在个人库里的行：`clearInExistingHomeSqlite` 对已存在的库在一个写事务里运行删除（库不存在就不创建、版本不符照常拒绝）；`deleteSecretEntriesWithPrefix` 按引用前缀删密封的密钥，不解密；记忆账本的 `forgetScopes` 一并忘掉已不存在的范围。
 - 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts`
+- 空间归属改动另跑：`node scripts/run-tests.mjs tests/space-ownership.test.ts tests/web-home-isolation.test.ts`。
 - 相关手册：[docs/platform/STORAGE-AND-EXCHANGE.md](../../docs/platform/STORAGE-AND-EXCHANGE.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

@@ -1860,6 +1860,7 @@ dependencies = [
  "objc2-foundation",
  "objc2-quartz-core",
  "portable-pty",
+ "reqwest",
  "semver",
  "serde",
  "serde_json",

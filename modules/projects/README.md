@@ -23,6 +23,8 @@ ProjectsModule 用注入数据库建立 repository 与 service，公开 query、
 
 ## 接入与边界
 
+Host 可通过 `ProjectsModuleOptions.spaceId` 注入目录 Store 的固定归属；项目记录查询及创建返回同一个 `spaceId`，注册记录不得声明另一个空间。模块不读取其他 owner 的技术元数据表，也不决定登录身份、空间切换或云同步。
+
 项目身份和关联规则属于此处；Session 事实、Panel UI 和 Runtime 进程不属于此处。卸载检查只提供项目目录事实，不自行删除用户文件。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。

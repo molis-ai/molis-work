@@ -57,7 +57,7 @@ export class LocalActionGatewayClient implements ActionClient {
     let answer: ResidentHostAnswer | null;
     try {
       answer = await postToResidentHost({ origin: this.origin, homeDirectory: this.options.homeDirectory, controlToken: this.options.controlToken,
-        path: ACTION_GATEWAY_PATH, signal: caller.signal, retryHint: "请核对原结果，不会自动重试",
+        path: ACTION_GATEWAY_PATH, homeId: actionGatewayHomeId(this.options.homeDirectory), signal: caller.signal, retryHint: "请核对原结果，不会自动重试",
         body: { ...body, home_id: actionGatewayHomeId(this.options.homeDirectory), client_id: this.options.clientId,
           project_id: this.options.projectId, ...(this.options.runtimeSessionId === undefined ? {} : { runtime_session_id: this.options.runtimeSessionId }) } });
     } catch (error) {

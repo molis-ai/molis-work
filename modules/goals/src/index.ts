@@ -219,3 +219,4 @@ export function createGoalReadServices(db: GoalsSqliteDatabase): {
 }
 
 export { DEFAULT_GOAL_POLICY } from "./query.js";
+export { goalReplicationDefinition } from './replication.js';

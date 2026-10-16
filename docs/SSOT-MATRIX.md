@@ -2,6 +2,8 @@
 
 2026-09-08 Cutover 后，现有产品实现已退出旧混合目录；正式调用链位于实际 workspace 包，当前清单以 [`scripts/workspace-packages.mjs`](../scripts/workspace-packages.mjs) 为准，数量由 `pnpm boundary:check` 的 `packageCount` 输出。产品启动器已归 apps/desktop/launchers；0.1.x 的根 SDK 已于 2026-10-04 删除（用户决定），根包不导出代码。历史验收证据见 [Cutover 验证](../specs/molis-work-architecture-reorganization/cutover-validation.md)，不能替代后续变更的验收。本文描述当前 owner；各阶段历史数字保留在对应验证报告，不再作为当前实现位置。
 
+2026-09-30 空间归属：`packages/storage` 拥有不可变空间元数据和 Store 绑定，`apps/local-host` 按验证后的账号选择独立 Home/Host，项目模块接收 `spaceId` 而不读取登录会话。项目与插件内容继承所在 Store/Home；本地/个人空间可选，团队只预留，未实现云同步。规则与限制见 [Storage](platform/STORAGE-AND-EXCHANGE.md)，验证见 [空间归属切片](../specs/archive/personal-space-ownership/spec.md)。
+
 权威需求书：[架构需求书](../specs/molis-work-architecture-reorganization/spec.md)。每项事实只有一个 owner，详细规则在下列链接维护。
 
 Molis Work 是本地优先的插件基座加多插件。平台是一个 Home 的常驻宿主、统一动作目录与授权、Plugin Runtime、工作台外壳和同一个 Prologue AI 运行时；内容与事实归 Module 或插件，每项事实只有一个 owner，下列各表逐包写明。Goals 是每个项目都带的内置插件，拥有 Goal 的事实。
@@ -87,7 +89,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `modules/identity-team-access` | User、Team、membership、Access Decision | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `modules/projects` | Project 身份、Catalog、workspace membership | 正式 Project/Catalog 事实；Host 编排文件生命周期，Desktop 提供平台 | `partial` | AP1/AP2/Cutover；旧 Catalog 已删除 | Module：@yijunw0212 |
 | `modules/context-ledger` | ObjectRef、跨模块关系、publication、materialization | Feed / Session / Handoff / Runtime 关联、输入来源、临时重建与 Coordinator 归属审计已通过；未来 publication / 异步 materialization 未实现 | `partial` | AR2 已验收；[验收记录](../specs/molis-work-architecture-reorganization/ar2-validation.md) | Module：@yijunw0212 |
-| `modules/sync-replication` | 发布意图、replica、冲突和用户可见同步状态 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
+| `modules/sync-replication` | 空间同步策略、增量协调、冲突与同步状态 | 个人空间本机联调；复用 owner 适配器与持久队列，默认关闭 | `partial` | F2；`specs/personal-plugin-replication/spec.md` | Module：@yijunw0212 |
 | `modules/sources` | “监听哪里”与用户期望的 Source 配置 | Source 配置、schedule 与同步策略事实；应用由 Native Feed 编排 | `partial` | FD1–FD4/Cutover；旧 service caller 清零 | Module：@yijunw0212 |
 | `modules/signals` | 已观察到的外部事件与去重 provenance | Signal/Revision、去重与来源事实；Host 装配 Provider 投递 | `partial` | FD1–FD3/Cutover | Module：@yijunw0212 |
 | `modules/feed` | Feed Item、Signal reference、material、read/archive/disposition 与 promotion provenance | Feed Item/Material/Disposition 与保留正文；旧 FeedStore 已删除 | `partial` | FD2/FD4/Cutover；Sources/Inbox/Feed 真实用户链路 | Module：@yijunw0212 |

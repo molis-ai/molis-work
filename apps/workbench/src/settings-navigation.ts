@@ -10,7 +10,7 @@ export interface WebProjectNavigation {
 }
 
 
-export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics";
+export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "sync";
 type SettingsNavigationActive = string;
 type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "rules" | "planning";
 

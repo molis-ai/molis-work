@@ -740,7 +740,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop, /class="desktop-workbench-bar" data-tauri-drag-region/);
     assert.match(desktop, /data-plugin-id="settings"[^>]*data-directory-open="settings"[^>]*aria-label="打开全局设置"/);
     // Who you are is shown, not offered as a control that does nothing.
-    assert.match(desktop, /<div class="personal-account" data-account-link>/);
+    assert.match(desktop, /<button class="personal-account" type="button" data-account-link aria-label="账号管理">/);
     // 能力 is part of settings (specs/artifact-positioning S6b): its entry opens the settings at the library, not a framed page.
     assert.doesNotMatch(desktop, /data-capabilities-frame|data-work-surface="capabilities"/);
     assert.match(desktop, /href="\/capabilities\/library(?:\?[^"]*)?"[^>]*data-capabilities-open/);
@@ -758,7 +758,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(settingsDirectory, /mw-dir-row--compact/);
     assert.match(settingsDirectory, /mw-dir-row__icon/);
     assert.doesNotMatch(settingsDirectory, /data-theme-option/);
-    assert.match(desktop, />一骏<\/strong><small>本地空间<\/small>/);
+    assert.match(desktop, /<strong data-personal-name>未登录<\/strong><small data-personal-status>本地空间<\/small>/);
     assert.match(desktop, /class="container-tabs" data-container-tabs/);
     assert.match(desktop, /data-titlebar-chrome/);
     assert.match(desktop, /data-titlebar-tabs/);

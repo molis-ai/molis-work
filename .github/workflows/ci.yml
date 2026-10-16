@@ -274,11 +274,13 @@ jobs:
           node-version: 24
 
       - name: Install the pinned Rust toolchain
-        run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt
+        run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt --target wasm32-unknown-unknown
 
       - uses: swatinem/rust-cache@v2
         with:
-          workspaces: apps/desktop/src-tauri
+          workspaces: |
+            apps/desktop/src-tauri
+            cloud/sync
 
       # Each check is broken once on a scratch repository and must go red (the shell cases use a stand-in for shellcheck here).
       - name: Native check rules reject what they claim to

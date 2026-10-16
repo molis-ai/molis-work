@@ -1,5 +1,5 @@
 import { FUNCTIONS_STYLES } from "./functions/styles.js";
-import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { SIDE_PANEL_STYLES, SIDE_PANEL_SCRIPT, SIDE_LINKS_SCRIPT } from "./side-panel.js";
 import { SIDE_BROWSER_STYLES, SIDE_BROWSER_SCRIPT } from "./side-panel-browser.js";
 import { SIDE_COMPUTER_STYLES, SIDE_COMPUTER_SCRIPT } from "./side-panel-computer.js";

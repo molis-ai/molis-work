@@ -10,6 +10,8 @@ import type {
   DatasetVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { datasetErrors } from "./error.js";
+import { createAggregateReplica, initializeAggregateReplication, type AggregateReplicaContext } from '@molis-ai/molis-work-storage';
+import { datasetAggregates } from './replication.js';
 import type { DatasetPublicationIntent, DatasetPublicationSnapshot } from "./promote.js";
 
 interface DatasetRowDb {
@@ -32,6 +34,7 @@ const COLUMN_TYPES: readonly DatasetColumnType[] = ["text", "number", "date"];
 
 export class DatasetStore {
   constructor(private readonly db: DatabaseSync) {}
+  replica(context:AggregateReplicaContext){return createAggregateReplica(this.db,datasetAggregates,context);}
 
   close(): void {
     this.db.close();
@@ -308,6 +311,7 @@ export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 
 export function openDatasetStore(homeDirectory: string): DatasetStore {
   const db = openBaselineHomeSqlite(homeDirectory, "dataset", DATASET_STORE_BASELINE);
+  initializeAggregateReplication(db,datasetAggregates);
   return new DatasetStore(db);
 }
 

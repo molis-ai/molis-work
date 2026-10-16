@@ -32,6 +32,8 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 
 ## 开发要求
 
+同步试点：`store.syncAdapter(trustedContext)` 提供项目快照验证，`store.replica(trustedContext)` 提供逐文档/文件夹增量，复用 storage 队列。未发布草稿保留，缺关联依赖、待完成发布、撤权时不覆盖；并发编辑进入冲突处理。正文内嵌图片可携带，HTTP 图片仅保留引用，本机/相对链接拒绝。Host 已接个人空间同步配置页与 Rust/D1 本机联调，默认关闭，未部署公网。生成历史、Goal/Artifact、附件对象不在本轮集合里。说明见[规范](../../../skills/molis-plugin-dev/sync.md)。
+
 - 负责：文档目录、ProseMirror 编辑器、导入、按材料生成与发布。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管文档服务、ZIP/DOCX 系统解析。
 - 公开入口：`@molis-ai/molis-work-plugin-pages`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
@@ -49,4 +51,5 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-pages run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/pages-actions.test.ts tests/pages-cross-module.test.ts tests/pages-generation-lease.test.ts tests/pages-conversion.test.ts tests/action-before-effect.test.ts tests/pages-publication.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/pages-blank-discard.test.ts tests/pages-draft-race.test.ts tests/plugin-client-served.test.ts tests/document-plugins-error-model.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-small-ux.e2e.test.ts`
+- 同步回归：`node scripts/run-tests.mjs tests/plugin-sync-foundation.test.ts`。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

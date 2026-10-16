@@ -136,6 +136,12 @@ export type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platfo
 export type { PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSyncCollection } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PluginSyncError } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSyncIdentity } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSyncSnapshot } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSyncSnapshotAdapter } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginUiClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -146,6 +152,9 @@ export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/a
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { SyncEvent } from "@molis-ai/molis-work-contracts/platform/sync-transport";
+export type { SyncMutation } from "@molis-ai/molis-work-contracts/platform/sync-transport";
+export type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -224,6 +233,7 @@ export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platfo
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
+export { expandPluginSyncSelection } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { fileContentOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -252,6 +262,8 @@ export declare const packageDescriptor: {
 };
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
+
+export { parsePluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export declare function reconstructSides(ops: readonly DiffOp[]): {
     before: string;

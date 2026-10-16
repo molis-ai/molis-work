@@ -22,8 +22,9 @@ import {
   PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL,
   PLUGIN_WIRING_SCHEMA_SQL,
 } from "@molis-ai/molis-work-plugin-runtime";
-import { FEED_OUT_RULES_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-feed";
-import { SCHEDULE_REMINDERS_SCHEMA_SQL, SCHEDULE_TASKS_SCHEMA_SQL, SCHEDULED_OPERATIONS_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-schedule";
+import { FEED_OUT_RULES_SCHEMA_SQL, installFeedReplication } from "@molis-ai/molis-work-plugin-feed";
+import { SCHEDULE_REMINDERS_SCHEMA_SQL, SCHEDULE_TASKS_SCHEMA_SQL, SCHEDULED_OPERATIONS_SCHEMA_SQL, installScheduleReplication } from "@molis-ai/molis-work-plugin-schedule";
+import type { ReplicaDatabase } from "@molis-ai/molis-work-storage";
 import { CODING_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-coding";
 import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-settings.js";
 
@@ -66,3 +67,9 @@ export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
     PROJECT_BROWSING_SETTINGS_SCHEMA_SQL,
   ].join("\n"),
 };
+
+/** Owner-provided journals for project-local plugin data, installed before mutations. */
+export function installPersonalProjectPluginReplication(db: ReplicaDatabase, projectId: string): void {
+  installScheduleReplication(db, projectId);
+  installFeedReplication(db, projectId);
+}

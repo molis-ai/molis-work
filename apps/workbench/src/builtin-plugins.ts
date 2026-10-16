@@ -6,7 +6,8 @@ import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_
 import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution } from "@molis-ai/molis-work-plugin-jelly";
 import { type ProjectDataDeclaration, type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type PluginManifest, type PluginDefinition, type PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-issues";
+import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT, openIssuesSyncStore } from "@molis-ai/molis-work-plugin-issues";
+import type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "@molis-ai/molis-work-plugin-diff";
@@ -70,6 +71,13 @@ export interface BuiltinPluginEntry {
     readonly package_name: string; readonly factory_export: string;
     /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
     readonly keys?: string };
+  /** Optional owner-provided personal-sync adapter; the Host only composes it, never interprets its records. */
+  readonly sync?: { readonly scope: "home"; open(home: string, ownerId: string): {
+    close(): void; replica(context: {
+      spaceId: string; authorize(): void; canUploadProject(projectId: string): boolean;
+      project(projectId: string): { title: string }; hasArtifact(projectId: string, id: string, version: number): boolean;
+    }): SyncReplicaAdapter;
+  } };
   readonly summary?: string;
   /** Fixed model-call instructions, exported by this plugin and registered by the Host. */
   readonly instructions?: readonly InstructionPrompt[];
@@ -90,6 +98,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
     project_plugin_id: "issues", manifest: issuesManifest, methods: issuesMethods, personal: true, summary: "记录、查看和整理自己的问题。",
     runtime: { scope: "home", create: createIssuesPlugin, database: ISSUES_DATABASE, package_name: "@molis-ai/molis-work-plugin-issues", factory_export: "createIssuesPlugin", keys: "Mod+Shift+I" },
+    sync: { scope: "home", open: openIssuesSyncStore },
     workbench: { order: 5, contributions: [issuesUiContribution], clientFactory: ISSUES_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-issue-id]", idDataset: "issueId" } },
   },

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { adopted, adoptedFrom, adoptedMaterial, KNOWLEDGE_SOURCE, viewDrafts, type StoredDraft } from "./drafts.js";
 import { contentHash, decodeFile, ignoredPath, linksFor, materialRole, metadata, safeRelativePath } from "./content.js";
 import { COGNIA_LIMITS, cogniaErrors, requireCognia, stringField, type Domain, type Draft, type ImportEntry, type ImportFile, type Material, type Preview, type Receipt, type Source } from "./types.js";
@@ -143,7 +143,7 @@ export const COGNIA_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openCogniaStore(home: string): CogniaStore {
-  const db = openHomeSqliteDatabase(home, "cognia");
+  const db = openBaselineHomeSqlite(home, "cognia", COGNIA_STORE_BASELINE);
   try { db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
     applySqliteBaseline(db, homeSqlitePath(home, "cognia"), COGNIA_STORE_BASELINE);
     return new CogniaStore(db); } catch(error) { db.close(); throw error; }

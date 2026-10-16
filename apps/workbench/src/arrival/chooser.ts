@@ -11,7 +11,7 @@ import {
 import { renderAssistantDock } from "../assistant-dock.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../scripts/client/assistant-island.js";
 import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "../scripts/client/background-tasks.js";
-import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "../scripts/control.js";
 import { createArrivalShell, type ArrivalPrimitives } from "./shell.js";
 import { createBriefTime, createWorkbenchProjectBriefRenderer } from "./project-brief.js";
 import { CHOOSER_CLIENT_SCRIPT } from "./chooser-client.js";
@@ -127,7 +127,7 @@ globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ transl
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({
       title: L("选择项目 · Molis Work"), screen: "chooser", desktopShell, controlToken,
-      titlebar: shell.titlebar(desktopShell, { caption: true }), stage, bar,
+      titlebar: shell.titlebar(desktopShell, { caption: true, account: true }), stage, bar,
       after: `${templates}<script type="application/json" id="arrival-data">${data}</script><div class="arrival-toasts" id="toasts" aria-live="polite"></div>`,
       scripts,
     });

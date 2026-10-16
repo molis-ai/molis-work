@@ -11,6 +11,8 @@ export const modulesProjectsContract = {
 
 /** One project, one database: `project_id` names both the catalog entry and the Goals board inside it. */
 export interface ProjectRecord {
+  /** Inherited from the owning Catalog, never accepted from project creation input. */
+  spaceId?: string;
   project_id: string;
   display_name: string;
   database_path: string;

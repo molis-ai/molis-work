@@ -2,8 +2,9 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { JELLY_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { JELLY_UI_CONTRIBUTION_ID } from "./ui.js";
 import { JELLY_ACTIONS, JELLY_ACTION_PERMISSIONS } from "./actions.js";
+import { jellySync } from "./replication.js";
 export const jellyManifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: JELLY_PLUGIN_ID, version: "1.0.0", name: "Jelly", kind: "native",
+  schema_version: 2, host_api_version: 2, plugin_id: JELLY_PLUGIN_ID, version: "1.1.0", name: "Jelly", kind: "native",
   publisher: { publisher_id: "molis", signature: "official-jelly-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
@@ -12,5 +13,6 @@ export const jellyManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
   actions: [...JELLY_ACTIONS],
+  sync: jellySync,
   ui: { contributions: [JELLY_UI_CONTRIBUTION_ID], views: [{ view_id: "jelly", slot: "navigator", title: "Jelly", contribution_id: JELLY_UI_CONTRIBUTION_ID, icon: "calendar", order: 35 }] },
 };

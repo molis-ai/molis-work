@@ -18,7 +18,7 @@ export const artifactsManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: ARTIFACTS_PLUGIN_ID,
-  version: "1.1.0",
+  version: "1.2.0",
   name: "成果",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-artifacts-binding" },
@@ -26,6 +26,7 @@ export const artifactsManifest: PluginManifest = {
   permissions: actionPermissionDeclarations(ARTIFACT_ACTIONS, "按调用者授权浏览、导入和引用成果"),
   capabilities: { provides: [], consumes: [] },
   actions: ARTIFACT_ACTIONS,
+  sync: {protocol_version: 1,collections: [{id: 'versions',title: '成果及固定版本',schema_version: 1,requires: []}]},
   artifacts: {
     produces: [{ artifact_type_id: "io.molis.work.document", schema_version: 1, title: "导入的文件", preview: { capability_id: "artifacts.documents.preview", version: 1 } }],
     consumes: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],

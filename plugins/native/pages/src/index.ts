@@ -25,6 +25,8 @@ export { pagesMethods } from "./methods.js";
 export { openPagesStore, PagesStore, PAGES_STORE_BASELINE } from "./store.js";
 export { purgePagesProject, pagesProjectData } from "./project-data.js";
 export type { PagesImportDocumentsInput } from "./store.js";
+export { pagesSyncDeclaration } from "./sync-declaration.js";
+export type { PagesSyncContext } from "./sync.js";
 export { generatePagesFromMaterials } from "./generate.js";
 export { preparePagesImport } from "./import-files.js";
 export type { PagesImportFile, PreparedPagesImportDocument, PreparedPagesImport } from "./import-files.js";
@@ -167,3 +169,4 @@ export { pagesContentActions, createPagesContentHandlers } from "./content-actio
 
 export { pagesActions, PAGES_ACTIONS, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND, PAGES_READABLE_FILE, createPagesActionHandlers } from "./actions.js";
 export type { PagesActionPorts } from "./actions.js";
+export type { PagesReplicationContext } from './replication.js';

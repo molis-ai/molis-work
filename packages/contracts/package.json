@@ -10,6 +10,14 @@
   },
   "sideEffects": false,
   "exports": {
+    "./modules/sync-replication": {
+      "types": "./dist/modules/sync-replication.d.ts",
+      "import": "./dist/modules/sync-replication.js"
+    },
+    "./platform/sync-transport": {
+      "types": "./dist/platform/sync-transport.d.ts",
+      "import": "./dist/platform/sync-transport.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"

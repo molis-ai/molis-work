@@ -1,4 +1,4 @@
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   type Workflow,
@@ -12,6 +12,8 @@ import {
   stoppedOf,
 } from "./model.js";
 import { workflowsErrors } from "./error.js";
+import type { AggregateReplicaContext } from "@molis-ai/molis-work-storage";
+import { createWorkflowsReplica, initializeWorkflowsReplication, isImportedWorkflowInstance } from "./replication.js";
 
 interface WorkflowRow {
   workflow_id: string;
@@ -44,6 +46,14 @@ export interface WorkflowSummary extends Workflow {
 
 export class WorkflowsStore {
   constructor(private readonly db: DatabaseSync) {}
+
+  replica(context: AggregateReplicaContext) { return createWorkflowsReplica(this.db, context); }
+
+  assertExecutableInstance(instanceId: string): void {
+    if (isImportedWorkflowInstance(this.db, instanceId)) {
+      throw workflowsErrors.invalid("这次运行由另一台设备创建，在本机仅可查看历史；请在原设备继续");
+    }
+  }
 
   close(): void {
     this.db.close();
@@ -151,6 +161,7 @@ export class WorkflowsStore {
    * reload gives: the stop reason is read from the held step, not taken from `next.stopped`.
    */
   saveInstance(previous: WorkflowInstance, next: WorkflowInstance): WorkflowInstance {
+    this.assertExecutableInstance(previous.instance_id);
     const updatedAt = nextUpdatedAt(previous.updated_at, next.updated_at);
     const result = this.db.prepare(
       "UPDATE instances SET title = ?, status = ?, current = ?, chain_json = ?, steps_json = ?, updated_at = ? WHERE instance_id = ? AND updated_at = ?",
@@ -162,6 +173,7 @@ export class WorkflowsStore {
   }
 
   stopInstance(instanceId: string, projectId: string): WorkflowInstance {
+    this.assertExecutableInstance(instanceId);
     const current = this.instance(instanceId, projectId);
     if (current.status !== "active") return current;
     return this.saveInstance(current, { ...current, status: "stopped", updated_at: new Date().toISOString() });
@@ -201,9 +213,10 @@ export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openWorkflowsStore(homeDirectory: string): WorkflowsStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "workflows");
+  const db = openBaselineHomeSqlite(homeDirectory, "workflows", WORKFLOWS_STORE_BASELINE);
   db.exec("PRAGMA journal_mode = WAL;");
   applySqliteBaseline(db, homeSqlitePath(homeDirectory, "workflows"), WORKFLOWS_STORE_BASELINE);
+  initializeWorkflowsReplication(db);
   return new WorkflowsStore(db);
 }
 

@@ -2821,6 +2821,7 @@ export interface PluginManifest {
     agent?: AgentManifest;
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
+    sync?: import("platform/plugin-sync").PluginSyncDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
 }
@@ -3072,6 +3073,48 @@ export interface PluginStartContext {
     input_group?: string;
     readonly services?: PluginHostServices;
     requireGrant(permission: string): void;
+}
+
+export interface PluginSyncCollection {
+    readonly id: string;
+    readonly title: string;
+    readonly schema_version: number;
+    readonly requires: readonly string[];
+}
+
+export interface PluginSyncDeclaration {
+    readonly protocol_version: 1;
+    readonly collections: readonly PluginSyncCollection[];
+}
+
+export declare class PluginSyncError extends Error {
+    readonly code: "sync.invalid" | "sync.unsupported" | "sync.scope" | "sync.conflict" | "sync.dependencies" | "sync.busy" | "sync.limit";
+    constructor(code: "sync.invalid" | "sync.unsupported" | "sync.scope" | "sync.conflict" | "sync.dependencies" | "sync.busy" | "sync.limit", message: string);
+}
+
+export interface PluginSyncIdentity {
+    readonly plugin_id: string;
+    readonly publisher_id: string;
+    readonly publisher_signature: string;
+}
+
+export interface PluginSyncSnapshot extends PluginSyncIdentity {
+    readonly protocol_version: 1;
+    readonly spaceId: string;
+    readonly projectId: string;
+    readonly collection_id: string;
+    readonly schema_version: number;
+    readonly source_revision: string;
+    readonly payload: unknown;
+}
+
+export interface PluginSyncSnapshotAdapter {
+    readonly declaration: PluginSyncDeclaration;
+    read(collectionId: string): PluginSyncSnapshot;
+    apply(snapshot: PluginSyncSnapshot, expectedRevision: string): {
+        status: "applied" | "unchanged";
+        revision: string;
+    };
 }
 
 export interface PluginUiClient {
@@ -3940,6 +3983,8 @@ export declare function defineWorkflowContentActions(station: WorkflowStationSpe
 
 export declare function eventTypeKey(eventTypeId: string, typeVersion: number): string;
 
+export declare function expandPluginSyncSelection(declaration: PluginSyncDeclaration, selected: readonly string[]): readonly string[];
+
 export declare function fileContentOf(input: {
     subject: ActionSubject;
     revision: string;
@@ -4032,6 +4077,8 @@ export declare function orderPromptsByLayer<T extends {
 export declare function ownsEventType(pluginId: string, eventTypeId: string): boolean;
 
 export declare function parseExactActionReferences(value: unknown): ExactActionReference[];
+
+export declare function parsePluginSyncDeclaration(value: unknown): PluginSyncDeclaration;
 
 export declare function pinActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<ArtifactPinResult>;
 

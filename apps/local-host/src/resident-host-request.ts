@@ -38,7 +38,7 @@ export interface ResidentHostAnswer {
  * a BigInt, a throwing `toJSON`) throws that error as it is: nothing left, so there is nothing to check afterwards.
  */
 export async function postToResidentHost(options: {
-  origin: string; homeDirectory: string; controlToken?: string; path: string; body: Record<string, unknown>; retryHint: string; signal?: AbortSignal;
+  origin: string; homeDirectory: string; controlToken?: string; homeId?: string; path: string; body: Record<string, unknown>; retryHint: string; signal?: AbortSignal;
 }): Promise<ResidentHostAnswer | null> {
   let token: string;
   try { token = options.controlToken ?? (await readFile(path.join(options.homeDirectory, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8")).trim(); }
@@ -47,7 +47,8 @@ export async function postToResidentHost(options: {
   let response: Response;
   try {
     response = await fetch(options.origin + options.path, { method: "POST", redirect: "error", signal: options.signal,
-      headers: { origin: options.origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() },
+      headers: { origin: options.origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID(),
+        ...(options.homeId === undefined ? {} : { "x-molis-work-home-id": options.homeId }) },
       body: payload });
   } catch (error) {
     if (options.signal?.aborted) throw options.signal.reason;

@@ -1,5 +1,6 @@
 import { escapeHtml, renderIconSprite, SELECT_MENU_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderWorkbenchDocument } from "./document-shell.js";
 import type { BuiltinPluginEntry } from "./builtin-plugins.js";
 import { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";

@@ -3,6 +3,8 @@ import type { DatabaseSync } from "node:sqlite";
 import type { PptRecord, PptSlide, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { PptPublicationIntent, PptPublicationSnapshot } from "./promote.js";
 import { pptErrors } from "./error.js";
+import { createAggregateReplica, initializeAggregateReplication, type AggregateReplicaContext } from '@molis-ai/molis-work-storage';
+import { pptAggregates } from './replication.js';
 
 interface PptRow {
   id: string;
@@ -27,6 +29,7 @@ const DEFAULT_TEXT = "#292A2E";
 
 export class PptStore {
   constructor(private readonly db: DatabaseSync) {}
+  replica(context:AggregateReplicaContext){return createAggregateReplica(this.db,pptAggregates,context);}
 
   close(): void {
     this.db.close();
@@ -237,6 +240,7 @@ export const PPT_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 
 export function openPptStore(homeDirectory: string): PptStore {
   const db = openBaselineHomeSqlite(homeDirectory, "ppt", PPT_STORE_BASELINE);
+  initializeAggregateReplication(db,pptAggregates);
   return new PptStore(db);
 }
 

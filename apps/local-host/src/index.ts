@@ -47,6 +47,9 @@ export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js"
 
 
 export { LocalProjectDatabase } from "./project-database.js";
+export { createProjectGoalReplica } from './project-replication.js';
+export { createPersonalGoalRegistration } from './personal-project-sync.js';
+export { createPersonalSync } from './personal-sync.js';
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export * from "./goal-project-application.js";

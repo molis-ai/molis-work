@@ -42,6 +42,8 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export interface ProjectsModuleOptions {
   db: ProjectsSqliteDatabase;
+  /** Immutable store ownership, supplied by the Host rather than project input. */
+  spaceId?: string;
   errorFactory: ProjectsErrorFactory;
   now?: () => string;
   id?: (prefix: string) => string;
@@ -100,7 +102,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
   constructor(options: ProjectsModuleOptions) {
     const now = options.now ?? (() => new Date().toISOString());
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
-    this.repository = new ProjectsRepository(options.db);
+    this.repository = new ProjectsRepository(options.db, options.spaceId);
     this.records = new ProjectService(this.repository, options.errorFactory, now, id, options.plugins);
     this.workspaces = new ProjectWorkspaceService(this.repository, options.errorFactory, now, id);
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);

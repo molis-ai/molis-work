@@ -18,6 +18,7 @@ export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
 export { LocalCatalogMetadata } from "./catalog-metadata.js";
 
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
+export { ensureStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef, type StorageSpace, type SpaceAssetRef } from './space.js';
 
 export {
   PERSONAL_HOME_SQLITE_STORES,
@@ -54,3 +55,8 @@ export * from "./adapters/search-storage.js";
 export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
 export { openMemoryLedger, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE } from "./adapters/memory-ledger.js";
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";
+export { initializeReplica, replicaMarkSql, queueReplicaChange, replicaTransaction, createSqliteReplica, namespacedReplicaDatabase, type ReplicaDatabase } from './replica.js';
+export { initializeAggregateReplication, createAggregateReplica, type AggregateDefinition, type AggregateRecords, type AggregateReplicaContext, type PortableRow } from './aggregate-replica.js';
+export { createProjectReplicaSection, installProjectReplicaJournal } from './project-replica.js';
+export { createProjectReplicaJournal } from './project-replica-journal.js';
+export { mapReplicaSequences } from './replica-sequences.js';

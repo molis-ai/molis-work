@@ -1,5 +1,5 @@
 import path from "node:path";
-import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, openBaselineHomeSqlite, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -313,7 +313,7 @@ export function agentDefinitionsFor(homeDirectory: string, registrations: () => 
   const home = path.resolve(homeDirectory);
   let registry = registries.get(home);
   if (!registry) {
-    registry = new AgentDefinitions(openHomeSqliteDatabase(home, AGENT_DEFINITIONS_STORE));
+    registry = new AgentDefinitions(openBaselineHomeSqlite(home, AGENT_DEFINITIONS_STORE, AGENT_DEFINITIONS_BASELINE));
     registries.set(home, registry);
     for (const registration of registrations()) registry.register(registration);
   }

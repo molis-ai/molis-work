@@ -1,4 +1,5 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { formSync } from './replication.js';
 import {
   FORM_ARTIFACT_SCHEMA_VERSION,
   FORM_ARTIFACT_TYPE_ID,
@@ -15,7 +16,8 @@ export const formManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: FORM_PLUGIN_ID,
-  version: "1.1.0",
+  sync: formSync,
+  version: "1.2.0",
   name: "Forms",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-form-binding" },

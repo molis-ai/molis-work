@@ -40,6 +40,7 @@ export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
+export * from "./plugin-sync.js";
 export * from "./plugin-database.js";
 export * from "./plugin-model.js";
 
@@ -240,6 +241,8 @@ export interface PluginManifest {
   methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
+  /** Portable collection catalog; requires an authorized Host adapter. */
+  sync?: import("./plugin-sync.js").PluginSyncDeclaration;
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */

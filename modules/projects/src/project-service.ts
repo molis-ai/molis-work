@@ -57,6 +57,7 @@ export class ProjectService {
     const at = this.now();
     return {
       project_id: projectId,
+      ...(this.repository.spaceId?{spaceId:this.repository.spaceId}:{}),
       display_name: displayName,
       database_path: path.join(input.projects_directory, projectId, "molis-work.db"),
       source: "created",

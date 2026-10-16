@@ -13,6 +13,10 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     }catch{return input}
   };
   if(!native)return;
+  globalThis.molisWorkPersonalAccountFetch=async(path,options={})=>{
+    const result=await globalThis.__TAURI__.core.invoke("personal_account_request",{path,method:options.method||"GET"});
+    return new Response(JSON.stringify(result.body),{status:result.status,headers:{"Content-Type":"application/json"}});
+  };
   globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
   globalThis.molisWorkOpenShelf=()=>{
     const button=document.querySelector&&document.querySelector('[data-plugin-strip] [data-plugin-id="shelf"]');

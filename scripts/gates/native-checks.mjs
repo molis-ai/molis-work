@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Static checks for the code that is not TypeScript (specs/repository-anti-corruption §4.16, slice W1-09): the Rust of the
-// desktop shell, the Swift of the native material extractors, the shell scripts and any Python file. The TypeScript is checked by the health
+// desktop shell and sync Worker, the Swift of the native material extractors, the shell scripts and any Python file. The TypeScript is checked by the health
 // gates (scripts/gates/lint.mjs). These checks are not numbers: they pass or they fail, and every warning is an error, so
 // there is no baseline. The tools are the ones the language ships with.
 //
 //   node scripts/gates/native-checks.mjs rust     rustfmt --check on every tracked .rs file; cargo clippy --all-targets
-//                                                 -D warnings for apps/desktop/src-tauri (compiles the crate, so it needs the
-//                                                 platform the crate is for: macOS)
+//                                                 -D warnings for apps/desktop/src-tauri (macOS) and cloud/sync
+//                                                 (--target wasm32-unknown-unknown); each crate uses its own edition
 //   node scripts/gates/native-checks.mjs swift    swiftc -typecheck of the standalone Swift file, and of the computer
 //                                                 helper's sources together (one executable, same frameworks as its build.sh);
 //                                                 with --package also `swift build` of the SwiftPM package (needs the network on
@@ -16,7 +16,7 @@
 //   node scripts/gates/native-checks.mjs python  every tracked .py file parses (python3 -I, nothing is written)
 //   --root <dir>                                  check another repository root (tests/native-checks.test.mjs)
 //
-// Every file of these languages has to be one the checks know: a tracked .rs file outside apps/desktop, or a .swift file that is
+// Every file of these languages has to be one the checks know: a tracked .rs file outside RUST_CRATES, or a .swift file that is
 // not in SWIFT_UNITS, fails the run, so adding a file cannot step around the checks. CI runs rust and swift on macOS and shell
 // on Linux (.github/workflows/ci.yml); the Rust toolchain is pinned there (RUSTUP_TOOLCHAIN), because clippy gains lints
 // with every release and `-D warnings` would turn each release into a red build. Locally, whatever toolchain is installed is
@@ -30,6 +30,10 @@ import { fileURLToPath } from "node:url";
 
 export const RUST_ROOT = "apps/desktop";
 export const RUST_MANIFEST = "apps/desktop/src-tauri/Cargo.toml";
+export const RUST_CRATES = [
+  { root: RUST_ROOT, manifest: RUST_MANIFEST },
+  { root: "cloud/sync", manifest: "cloud/sync/Cargo.toml", target: "wasm32-unknown-unknown" },
+];
 /** The Swift files and what checks them: `typecheck` (a standalone file), `executable` (sources typechecked together), or `package` (compiled by a SwiftPM package). */
 export const SWIFT_UNITS = [
   { file: "apps/local-host/native/materials/JellyMaterial.swift", check: "typecheck", target: "macosx14.0" },
@@ -71,18 +75,24 @@ const trackedFiles = (root) => {
 export const checkRust = (root, files = trackedFiles(root)) => {
   const sources = files.filter((file) => file.endsWith(".rs"));
   if (!sources.length) return { problems: [], summary: "no Rust files" };
-  const problems = sources.filter((file) => !file.startsWith(`${RUST_ROOT}/`)).map((file) => `${file} is Rust code outside ${RUST_ROOT}/, which these checks do not reach; put it in the crate or extend scripts/gates/native-checks.mjs`);
+  const problems = sources.filter((file) => !RUST_CRATES.some((crate) => file.startsWith(`${crate.root}/`)))
+    .map((file) => `${file} is Rust code outside ${RUST_CRATES.map((crate) => `${crate.root}/`).join(" and ")}, which these checks do not reach; put it in a registered crate or extend scripts/gates/native-checks.mjs`);
   if (problems.length) return { problems, summary: "" };
   need("cargo", ["--version"], "install the Rust toolchain (https://rustup.rs)");
   need("cargo", ["clippy", "--version"], "add the component: rustup component add clippy");
   need("rustfmt", ["--version"], "add the component: rustup component add rustfmt");
-  let manifest;
-  try { manifest = readFileSync(path.join(root, RUST_MANIFEST), "utf8"); } catch { unusable(`${RUST_MANIFEST} is missing: it is the crate the Rust files belong to`); }
-  const edition = /^edition\s*=\s*"(\d+)"/m.exec(manifest)?.[1] ?? "2021";
-  const format = run("rustfmt", ["--check", "--edition", edition, ...sources], { cwd: root });
-  if (format.status !== 0) problems.push(`rustfmt --check found unformatted code; run \`cargo fmt --manifest-path ${RUST_MANIFEST}\`:\n${tail(format.stdout + format.stderr, 40)}`);
-  const clippy = run("cargo", ["clippy", "--manifest-path", RUST_MANIFEST, "--all-targets", "--locked", "--", "-D", "warnings"], { cwd: root });
-  if (clippy.status !== 0) problems.push(`cargo clippy -D warnings failed:\n${tail(clippy.stderr + clippy.stdout)}`);
+  for (const crate of RUST_CRATES) {
+    const owned = sources.filter((file) => file.startsWith(`${crate.root}/`));
+    if (!owned.length) continue;
+    let manifest;
+    try { manifest = readFileSync(path.join(root, crate.manifest), "utf8"); } catch { unusable(`${crate.manifest} is missing: it is the crate the Rust files belong to`); }
+    const edition = /^edition\s*=\s*"(\d+)"/m.exec(manifest)?.[1] ?? "2021";
+    const format = run("rustfmt", ["--check", "--edition", edition, ...owned], { cwd: root });
+    if (format.status !== 0) problems.push(`rustfmt --check found unformatted code; run \`cargo fmt --manifest-path ${crate.manifest}\`:\n${tail(format.stdout + format.stderr, 40)}`);
+    const target = crate.target ? ["--target", crate.target] : [];
+    const clippy = run("cargo", ["clippy", "--manifest-path", crate.manifest, ...target, "--all-targets", "--locked", "--", "-D", "warnings"], { cwd: root });
+    if (clippy.status !== 0) problems.push(`cargo clippy -D warnings failed (${crate.manifest}):\n${tail(clippy.stderr + clippy.stdout)}`);
+  }
   return { problems, summary: `${sources.length} Rust files formatted, clippy clean` };
 };
 

@@ -3,6 +3,7 @@ import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-con
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
 import { TODO_UI_CONTRIBUTION_ID } from "./ui.js";
 import { todoAgentManifest, todoMethods } from "./roles.js";
+import { todoSync } from "./replication.js";
 
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID };
 
@@ -10,7 +11,7 @@ export const todoManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: TODO_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.1.0",
   name: "待办",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-todo-binding" },
@@ -22,6 +23,7 @@ export const todoManifest: PluginManifest = {
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
   actions: [...TODO_ACTIONS],
+  sync: todoSync,
   agent: todoAgentManifest,
   // Offered to other Agents for business work; bodies in ./roles.ts.
   methods: todoMethods.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),

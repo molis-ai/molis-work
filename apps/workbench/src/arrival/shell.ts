@@ -28,6 +28,8 @@ export interface ArrivalPrimitives extends ArrivalShellPrimitives {
 export type ArrivalScreen = "chooser" | "opening" | "welcome" | "onboard" | "update";
 
 export interface ArrivalTitlebarOptions {
+  /** The chooser keeps the account/space switcher available before opening a project. */
+  account?: boolean;
   /** The AI caption sits beside the wordmark on the chooser only. */
   caption?: boolean;
   /** Background tasks, capabilities and settings; the opening has none of them. */
@@ -66,7 +68,8 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     const theme = options.theme
       ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${L("切换主题")}">${icon("switch")}<span data-slot="button-label">${L("切换主题")}</span></button></span>` : "";
     const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path))}${background}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
-    return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${global}</nav>`;
+    const account = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" data-account-link aria-label="${L("账号管理")}">${icon("user")}<span data-slot="button-label" data-personal-name>${L("未登录")}</span></button>` : "";
+    return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${account}${global}</nav>`;
   }
 
   /** The titlebar: the mark and its wordmark, the caption on the chooser, and what is within reach on the right. */

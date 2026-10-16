@@ -1,5 +1,7 @@
 # 灵光
 
+个人空间同步：`replica(context)` 按灵光/对话记录增量同步，保留灵光丢弃状态、已完成轮次的消息 ID 与顺序、工作流交接幂等 ID。不运行模型、不传输半轮生成；对话先等关联灵光到达。相同灵光在两台设备分别新建了不同 ID 的对话时保留冲突，不自行拼接。当前仅显式启用的本机联调，单聚合上限 512 KiB。回归：`tests/plugin-aggregate-replication.test.ts`。
+
 本机临时灵感池：先记下还没想清楚的想法，再决定留下或丢掉。数据在 `{home}/lingguang/lingguang.db`。
 
 包名：`@molis-ai/molis-work-plugin-lingguang`。

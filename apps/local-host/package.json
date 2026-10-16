@@ -32,6 +32,7 @@
     "computer:build": "bash native/computer/build.sh"
   },
   "dependencies": {
+    "@molis-ai/molis-work-module-sync-replication": "workspace:*",
     "node-pty": "^1.1.0",
     "@adeptify/intelligence-client": "file:../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
     "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",

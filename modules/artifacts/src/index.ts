@@ -34,6 +34,8 @@ export const packageDescriptor = {
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
+export { createArtifactReplication, type ArtifactReplicationContext, type PortableArtifact } from './replication.js';
+export { installArtifactReplicationJournal } from './replication-journal.js';
 
 export interface ArtifactsModuleOptions extends ArtifactsServiceOptions {
   db: ArtifactsSqliteDatabase;

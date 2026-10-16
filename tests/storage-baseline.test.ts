@@ -4,7 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { describeSqliteSchema, homeSqlitePath, openBaselineHomeSqlite, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
+
+test('binding a new Home store before first use does not masquerade as an old business schema', t => {
+  const home = mkdtempSync(join(tmpdir(), 'molis-bound-baseline-'));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const raw = openHomeSqliteDatabase(home, 'notes');
+  const owner = raw.prepare('SELECT descriptor FROM molis_storage_space').get();
+  const db = openBaselineHomeSqlite(home, 'notes', {version: 1, schema: 'CREATE TABLE notes(id TEXT PRIMARY KEY)'});
+  assert.deepEqual(db.prepare('SELECT descriptor FROM molis_storage_space').get(), owner);
+  db.close(); raw.close();
+});
 
 // One current schema per store (repository-anti-corruption §4.1): created at the baseline, opened as is at the same
 // version, refused at any other version or without one, and never upgraded in place.

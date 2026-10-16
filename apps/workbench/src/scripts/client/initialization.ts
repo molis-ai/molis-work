@@ -11,6 +11,7 @@ import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./background-tasks.js";
 import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "./plugin-notifications.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
+import { SYNC_SETTINGS_CLIENT_SCRIPT } from '../../settings-sync.js';
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
 import { PLACEMENT_FACTORY_SCRIPT } from "./placement.js";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./context-actions.js";
@@ -128,6 +129,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openGoalWork: () => tabWorkspace?.openGoalWork(), closeItem: (plugin, id) => tabWorkspace?.closeItem(plugin, id), projectTitle: state.project?.display_name || "" });
     ${CONNECTORS_SETTINGS_CLIENT_SCRIPT}
+    ${SYNC_SETTINGS_CLIENT_SCRIPT}
     requestAnimationFrame(() => {
       const entryId = new URL(location.href).searchParams.get("inbox_entry");
       if (!entryId) return;

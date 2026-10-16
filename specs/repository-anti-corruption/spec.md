@@ -791,6 +791,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `server` | 模块 | 18 | 1,062 | `continuity/service.ts` 161 | 1 | 2 | 2 | 在用 | 中 | 已审 |
 | `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 已审 |
+| `modules/sync-replication` | 模块 | 2 | 145 | `index.ts` 119 | 1 | 2 | 1 | 在用 | 浅 | 待审 |
 
 ### 5.2 状态、计划深度与审查
 

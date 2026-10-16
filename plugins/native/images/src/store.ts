@@ -1,4 +1,4 @@
-import { applySqliteBaseline, clearInExistingHomeSqlite, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, clearInExistingHomeSqlite, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
@@ -52,7 +52,7 @@ export class ImagesStore {
       mkdirSync(this.runnerDirectory, { recursive: true, mode: 0o700 });
       this.runnerLock = runnerLock = new DatabaseSync(join(this.runnerDirectory, this.runnerId + ".db"));
       this.runnerLock.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
-      this.db = openHomeSqliteDatabase(homeDirectory, "images");
+      this.db = openBaselineHomeSqlite(homeDirectory, "images", IMAGES_STORE_BASELINE);
     } catch (error) {
       runnerLock?.close();
       throw error;

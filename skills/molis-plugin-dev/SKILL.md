@@ -26,6 +26,7 @@ description: The single standard for building Molis Work plugins, hand-written o
 | 画面、槽、客户端 | [ui.md](ui.md) |
 | 接到本仓库产品 | [host.md](host.md) |
 | SDK / CLI / 存储 / 测试 | [authoring.md](authoring.md) |
+| 个人空间同步集合、快照试点与后续增量边界 | [sync.md](sync.md) |
 | 调模型、跑 Agent、改提示词或模型设置 | [molis-prologue-ai](../molis-prologue-ai/SKILL.md)（纯非 AI 功能不用读） |
 | 外部世界、OAuth、secret | [integrations.md](integrations.md) |
 | 同一件工作在助理、插件页面和手动操作之间连续：对象读取、版本前提、页面声明、通知 | [continuity.md](continuity.md) |

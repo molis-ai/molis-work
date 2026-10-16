@@ -1,8 +1,9 @@
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
 import { ModelProviderStore } from "./model-provider-store.js";
-import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { createFileSecretStore, runWithMolisWorkHome, ensureStorageSpace, bindDatabaseSpace } from "@molis-ai/molis-work-storage";
 import { ManagedProjectFiles } from "./managed-project-files.js";
-import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID, PERSONAL_SPACE_TITLE } from "./personal-space.js";
+import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
+import { PersonalProjectProvisioner } from './personal-project-provisioner.js';
 import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
@@ -163,6 +164,8 @@ export class MolisWorkProjectCatalog {
   readonly models: ModelProviderStore;
 
   readonly commit: CatalogCommit;
+  private readonly personalProjects: PersonalProjectProvisioner;
+  readonly ensureSyncedProject: PersonalProjectProvisioner['ensureSyncedProject'];
 
   private constructor(
     private readonly storage: LocalSqliteStorage,
@@ -172,6 +175,7 @@ export class MolisWorkProjectCatalog {
   ) {
     const db = storage.db;
     this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
+    bindDatabaseSpace(db, ensureStorageSpace(homeDirectory));
     this.personalPlanningMethods = new PersonalPlanningMethods(db);
     this.models = new ModelProviderStore({ db, secrets: {
       get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
@@ -180,6 +184,7 @@ export class MolisWorkProjectCatalog {
     this.projectsDirectory = path.join(homeDirectory, "projects");
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
     this.projects = new ProjectsModule({
+      spaceId: ensureStorageSpace(homeDirectory).spaceId,
       db,
       errorFactory: catalogFailure,
       // Which Plugins a project may enable comes from what this build ships, not
@@ -196,6 +201,8 @@ export class MolisWorkProjectCatalog {
       operation => db.transaction(operation)(),
     );
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
+    this.personalProjects = new PersonalProjectProvisioner(homeDirectory, this.projectFiles, this.projects);
+    this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.workContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
@@ -399,21 +406,7 @@ export class MolisWorkProjectCatalog {
   }
   async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return this.projectFiles.createProject(input); }
   /** The personal space exists once it is first used; creating it again returns the same one. */
-  async ensurePersonalSpace(actorId = LOCAL_PERSON_ACTOR_ID): Promise<MolisWorkProjectRecord> {
-    const existing = this.listProjects().find(isPersonalSpace);
-    if (existing) return existing;
-    try {
-      return await this.projectFiles.provisionCreatedProject({ displayName: PERSONAL_SPACE_TITLE, actorId, projectId: PERSONAL_SPACE_PROJECT_ID }, (record) => {
-        this.projects.lifecycle.register(record, "project.created", actorId);
-        return record;
-      });
-    } catch (error) {
-      // Another request made it first.
-      const made = this.listProjects().find(isPersonalSpace);
-      if (made) return made;
-      throw error;
-    }
-  }
+  async ensurePersonalSpace(actorId = LOCAL_PERSON_ACTOR_ID): Promise<MolisWorkProjectRecord> { return this.personalProjects.ensurePersonalSpace(actorId); }
   async ensureDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return this.demoProjects.ensureDemoProject(input); }
   async resetDemoProject(input: ManageMolisWorkDemoProjectInput): Promise<MolisWorkDemoProjectResult> { return this.demoProjects.resetDemoProject(input); }
   async removeDemoProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> { return this.demoProjects.removeDemoProject(input); }

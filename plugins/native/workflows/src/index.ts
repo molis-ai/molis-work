@@ -24,6 +24,7 @@ export { WORKFLOWS_ACTIONS, WORKFLOWS_ACTION_PERMISSIONS, createWorkflowsActionH
   type WorkflowContentPorts, type WorkflowStationInfo, type WorkflowsActionPorts } from "./actions.js";
 export { workflowsManifest } from "./manifest.js";
 export { openWorkflowsStore, WorkflowsStore, WORKFLOWS_STORE_BASELINE } from "./store.js";
+export { workflowsSync } from "./replication.js";
 export { purgeWorkflowsProject, workflowsProjectData } from "./project-data.js";
 export type { WorkflowSummary } from "./store.js";
 

@@ -1,5 +1,5 @@
 import { ARRIVAL_MOTION_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
-import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { CONTEXT_ONBOARDING_CLIENT } from "./scripts/context-onboarding.js";
 import { createArrivalShell } from "./arrival/shell.js";
 import type { MolisWorkOnboardingRenderOptions, OnboardingRenderPrimitives } from "./onboarding-renderer.js";

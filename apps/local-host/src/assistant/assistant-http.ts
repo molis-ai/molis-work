@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantPageCardInput, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -11,7 +11,7 @@ import { actionEffect, type ActionCallContext, type ActionView, LOCAL_PERSON_ACT
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { AssistantError, AssistantService } from "./assistant-service.js";
 import type { PersonActions } from "./assistant-coding.js";
-import { ASSISTANT_STORE_NAME, AssistantStore, AssistantStoreError } from "./assistant-store.js";
+import { ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE, AssistantStore, AssistantStoreError } from "./assistant-store.js";
 import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
 import { registerAssistantRuleActions } from "./assistant-rule-actions.js";
@@ -40,7 +40,7 @@ const services = new WeakMap<MolisWorkLocalHost, { home: string; service: Assist
 export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore } {
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
-  const store = new AssistantStore(openHomeSqliteDatabase(ports.homeDirectory, ASSISTANT_STORE_NAME));
+  const store = new AssistantStore(openBaselineHomeSqlite(ports.homeDirectory, ASSISTANT_STORE_NAME, ASSISTANT_STORE_BASELINE));
   // The person's grants in a project (or the Home), shared by the calls one list or one round makes in quick succession:
   // working them out inspects every capability, so a list of works re-did it several times per work. Each call is still
   // checked against its current definition, availability and grant owner when it is dispatched.

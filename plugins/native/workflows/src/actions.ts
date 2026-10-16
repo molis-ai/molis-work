@@ -415,7 +415,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       return { from, link, readiness, input: handed, output: link.kind === "function" && readiness.ready ? applyFunctionRule(link, handed) : null };
     }),
     bind(workflowsActions.continue, async (input, content, caller, reach) => {
-      let current = await ports.withStore(store => live(store, input.id));
+      let current = await ports.withStore(store => { store.assertExecutableInstance(input.id); return live(store, input.id); });
       if (input.updated_at !== undefined && input.updated_at !== current.updated_at) {
         throw workflowsErrors.conflict("这一次刚被推进过，已载入最新进度");
       }

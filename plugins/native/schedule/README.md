@@ -33,7 +33,9 @@ Host 把任务和 job 记录交给 UI contribution；HTTP 路由表拥有 `/api/
 
 通用提醒由 Host 以 `schedule.reminders` 系统提供方注册，保持已有安装不依赖启用可选对话页面的行为；公开声明见 `REMINDER_ACTIONS`。对话任务仍由本插件 Manifest 注册，并遵循项目启停规则。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。
+
+个人空间本机同步可选传输对话任务和历史回复。接收设备的任务默认暂停，不复制 job ID、Scheduler lease 或安装级提醒；要在接收设备运行，用户需明确重新启用。插件通用提醒与定时 operation 仍是本机运行状态，不参与此集合。
 
 ## 本地开发
 
@@ -55,7 +57,7 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 - 负责：对话式定时任务、安装级通用提醒和定时操作、单次执行状态、其他插件登记的闹钟列表、收据与暂停。
 - 不负责：Feed 与 Goal 事实、cron 表达式、闹钟主人的执行实现。
 - 公开入口：`@molis-ai/molis-work-plugin-schedule`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 失败都是 `ActionError`：码是 `schedule.<原因>`（`scheduleErrors`）；状态只由 kind 推出，本插件没有错误类和状态表。Scheduler 服务的 `ScheduleError` 在本插件的动作边界（`scheduleFailure`）换成 `schedule.job_not_found` 或 `schedule.job_invalid`，不带着 Scheduler 的码出去；`actions.ts` 的 `bind`、`reminder-actions.ts`、`operation-actions.ts` 的五处包装各由 `tests/feed-inbox-schedule-error-model.test.ts` 用真实的 `ScheduleError` 和真实的 Scheduler 驱动，去掉任何一处都会失败。宿主为提醒做的安装检查（`apps/local-host/src/schedule-reminders.ts`）在插件安装不存在、不是运行态或属于别的插件时，同样抛 `schedule.job_invalid`（400），由 `tests/schedule-reminder-recovery.test.ts` 的真实 Host 用例钉住。
   - 其他插件自有业务闹钟由 Scheduler 叫醒它们自己的能力；通用提醒由本插件拥有，使用 `reminders.add/cancel`，同一插件重装不能接管旧安装的提醒。

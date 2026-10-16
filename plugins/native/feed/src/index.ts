@@ -77,6 +77,7 @@ export { promoteFeedItemToGoal, type FeedGoalPromotionPorts, type FeedGoalPromot
 export { createFeedRouteHandlers } from "./route-handlers.js";
 export type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
 export { FEED_PLUGIN_ID, FEED_PROJECT_PLUGIN_ID, feedManifest } from "./manifest.js";
+export { feedSync, installFeedReplication, createFeedRuleReplica } from "./replication.js";
 
 export { FEED_STYLES } from "./styles.js";
 

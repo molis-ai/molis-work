@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { JellyCommand, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { emptyJellyWorkspace, applyJellyCalendarCommand, validateJellyWorkspace } from "./calendar.js";
 import { applyJellyContentCommand, jellyHash, validateJellyContent } from "./content.js";
 import { decodeJellyImport, mergeJellyImport } from "./import.js";
 import { isJellyFailure, jellyAssert, jellyErrors } from "./error.js";
+import { createJellyReplica, initializeJellyReplication } from "./replication.js";
+import type { AggregateReplicaContext } from "@molis-ai/molis-work-storage";
 
 interface Row { revision: number; body: string; checksum: string }
 export interface JellyPreview { confirmation_token: string; revision: number; counts: Record<string, number>; warnings: string[] }
@@ -19,6 +21,7 @@ function decode(row: Row): JellyWorkspace {
 
 export class JellyStore {
   constructor(private readonly db: DatabaseSync) {}
+  replica(context: AggregateReplicaContext) { return createJellyReplica(this.db, context); }
   read(): JellyWorkspace { const row = this.db.prepare("SELECT revision, body, checksum FROM jelly_workspace WHERE singleton = 1").get() as unknown as Row; return decode(row); }
   export(): JellyWorkspace { return this.read(); }
   close(): void { this.db.close(); }
@@ -94,13 +97,15 @@ export const JELLY_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openJellyStore(home: string): JellyStore {
-  const db = openHomeSqliteDatabase(home, "jelly");
+  const db = openBaselineHomeSqlite(home, "jelly", JELLY_STORE_BASELINE);
   try {
     db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
     applySqliteBaseline(db, homeSqlitePath(home, "jelly"), JELLY_STORE_BASELINE);
     const existing = db.prepare("SELECT singleton FROM jelly_workspace WHERE singleton = 1").get();
     jellyAssert(existing || Number(db.prepare("SELECT count(*) AS count FROM jelly_history").get()?.count ?? 0) === 0, "Jelly 工作区记录缺失，历史数据已保留，未创建空白覆盖。", jellyErrors.corrupt);
     const initial = emptyJellyWorkspace(), body = JSON.stringify(initial); db.prepare("INSERT OR IGNORE INTO jelly_workspace (singleton, revision, body, checksum) VALUES (1, 0, ?, ?)").run(body, jellyHash(body));
-    const store = new JellyStore(db); const saved = store.read(); for (const note of saved.notes) db.prepare("INSERT INTO jelly_note_versions (id, revision) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET revision = MAX(revision, excluded.revision)").run(note.id, note.revision); return store;
+    const store = new JellyStore(db); const saved = store.read(); for (const note of saved.notes) db.prepare("INSERT INTO jelly_note_versions (id, revision) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET revision = MAX(revision, excluded.revision)").run(note.id, note.revision);
+    initializeJellyReplication(db);
+    return store;
   } catch (error) { db.close(); throw error; }
 }

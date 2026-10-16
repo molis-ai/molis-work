@@ -32,7 +32,7 @@ export interface StoredProjectDeletion extends ProjectDeletionReceipt {
 }
 
 export class ProjectsRepository {
-  constructor(readonly db: ProjectsSqliteDatabase) {}
+  constructor(readonly db: ProjectsSqliteDatabase, readonly spaceId?:string) {}
 
   transaction<T>(operation: () => T): T {
     return this.db.transaction(operation)();
@@ -41,30 +41,15 @@ export class ProjectsRepository {
   listProjects(): ProjectRecord[] {
     return (this.db.prepare(
       "SELECT * FROM projects ORDER BY display_name COLLATE NOCASE, created_at, project_id",
-    ).all() as Row[]).map(mapProject);
+    ).all() as Row[]).map(row=>ownedProject(row,this.spaceId));
   }
 
   getProject(projectId: string): ProjectRecord | null {
     const row = this.db.prepare("SELECT * FROM projects WHERE project_id = ?").get(projectId) as Row | undefined;
-    return row ? mapProject(row) : null;
+    return row ? ownedProject(row,this.spaceId) : null;
   }
 
-  insertProject(record: ProjectRecord): void {
-    this.db.prepare(`
-      INSERT INTO projects (
-        project_id, display_name, database_path, source,
-        data_class, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      record.project_id,
-      record.display_name,
-      record.database_path,
-      "created",
-      record.data_class,
-      record.created_at,
-      record.updated_at,
-    );
-  }
+  insertProject(record: ProjectRecord): void { insertOwnedProject(this.db, record, this.spaceId); }
 
   removeProject(projectId: string): number {
     return Number(this.db.prepare("DELETE FROM projects WHERE project_id = ?").run(projectId).changes);
@@ -467,3 +452,27 @@ const text = (value: unknown) => String(value);
 const nullableText = (value: unknown) => value == null ? null : String(value);
 const booleanInt = (value: unknown) => Number(value) === 1;
 const numeric = (value: unknown) => Number(value);
+
+/** Project rows inherit the store owner; callers never supply a replacement scope. */
+function ownedProject(row: Row, spaceId?: string): ProjectRecord {
+  return { ...mapProject(row), ...(spaceId ? { spaceId } : {}) };
+}
+
+/** Writes enforce the same immutable owner as project reads. */
+function insertOwnedProject(db: ProjectsSqliteDatabase, record: ProjectRecord, spaceId?: string): void {
+    if(record.spaceId && record.spaceId!==spaceId)throw new Error('SPACE_OWNERSHIP_MISMATCH');
+    db.prepare(`
+      INSERT INTO projects (
+        project_id, display_name, database_path, source,
+        data_class, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      record.project_id,
+      record.display_name,
+      record.database_path,
+      "created",
+      record.data_class,
+      record.created_at,
+      record.updated_at,
+    );
+  }

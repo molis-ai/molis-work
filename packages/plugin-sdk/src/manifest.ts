@@ -1,4 +1,4 @@
-import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SURFACE_BROWSER_PERMISSION, parsePluginSyncDeclaration, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations } from "./action-declarations.js";
@@ -47,7 +47,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   if (manifest.kind === "app" && schemaVersion !== 2) {
     throw new PluginManifestError("plugin_manifest_invalid", "app Plugin 必须使用 schema_version 2");
   }
-  inspectUpgradeCompatibility(manifest);
+  inspectOptionalDeclarations(manifest);
   if (!Array.isArray(manifest.entrypoints) || manifest.entrypoints.length === 0) {
     throw new PluginManifestError("plugin_entrypoint_missing", "Plugin 至少需要一个 entrypoint");
   }
@@ -117,6 +117,13 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
 
   return parsed;
+}
+
+function inspectOptionalDeclarations(manifest: Record<string, unknown>): void {
+  inspectUpgradeCompatibility(manifest);
+  if (manifest.sync === undefined) return;
+  try { parsePluginSyncDeclaration(manifest.sync); }
+  catch (error) { invalid(error instanceof Error ? error.message : "同步声明不合法"); }
 }
 
 function inspectUpgradeCompatibility(manifest: Record<string, unknown>): void {

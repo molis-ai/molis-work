@@ -1,4 +1,4 @@
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   TODO_STATUSES,
@@ -18,6 +18,8 @@ import {
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { addDays, isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
 import { todoErrors } from "./error.js";
+import { createTodoReplica, initializeTodoReplication, isImportedTodoChange } from "./replication.js";
+import type { AggregateReplicaContext } from "@molis-ai/molis-work-storage";
 
 /**
  * Who is asking and what they may see. A caller inside a project sees personal, unplaced and that
@@ -329,7 +331,7 @@ export class TodoStore {
       ? this.db.prepare("SELECT * FROM todo_changes WHERE batch_id = ? ORDER BY rowid").all(target.batch_id) as unknown as ChangeRow[]
       : this.db.prepare("SELECT * FROM todo_changes WHERE change_id = ?").all(target.change_id ?? "") as unknown as ChangeRow[];
     if (!rows.length) throw todoErrors.not_found("找不到要撤销的修改");
-    const changes = rows.map(changeFromRow);
+    const changes = rows.map(changeFromRow); assertLocalUndo(this.db, changes);
     if (changes.some(change => change.reverted_by)) throw todoErrors.conflict("这次修改已经撤销过了");
     if (changes.some(change => change.kind === "revert")) throw invalid("撤销本身不能再撤销，请直接修改");
     // One todo may have several changes in a batch (created, then linked); they are undone together, newest first.
@@ -468,6 +470,11 @@ export class TodoStore {
   }
 }
 
+function assertLocalUndo(db: DatabaseSync, changes: readonly TodoChange[]): void {
+  if (changes.some(change => isImportedTodoChange(db, change.change_id)))
+    throw todoErrors.conflict("其他设备的历史修改仅供查看，不能在本机撤销");
+}
+
 /**
  * The Todo store's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
  * created from it, existing ones must already be at its version.
@@ -530,10 +537,24 @@ export const TODO_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openTodoStore(homeDirectory: string, now?: () => Date): TodoStore {
-  const db = openHomeSqliteDatabase(homeDirectory, "todo");
+  const db = openBaselineHomeSqlite(homeDirectory, "todo", TODO_STORE_BASELINE);
   db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
   applySqliteBaseline(db, homeSqlitePath(homeDirectory, "todo"), TODO_STORE_BASELINE);
+  initializeTodoReplication(db);
   return new TodoStore(db, now);
+}
+
+/** A separate connection for the Host's replica loop; no business Store method or permission surface is expanded. */
+export function openTodoSyncStore(homeDirectory: string): {
+  close(): void; replica(context: AggregateReplicaContext): ReturnType<typeof createTodoReplica>;
+} {
+  const db = openBaselineHomeSqlite(homeDirectory, "todo", TODO_STORE_BASELINE);
+  try {
+    db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
+    applySqliteBaseline(db, homeSqlitePath(homeDirectory, "todo"), TODO_STORE_BASELINE);
+    initializeTodoReplication(db);
+    return { close: () => db.close(), replica: context => createTodoReplica(db, context) };
+  } catch (error) { db.close(); throw error; }
 }
 
 function visible(item: TodoItem, access: TodoAccess): boolean {

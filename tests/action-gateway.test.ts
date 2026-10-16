@@ -196,6 +196,7 @@ test("gateway sends every call as the one request to the resident Host: its orig
       assert.equal(request.headers.origin, origin, "the request is the Host's own origin");
       assert.equal(request.headers["x-molis-work-control-token"], "fixture-token");
       assert.equal(request.headers["content-type"], "application/json");
+      assert.equal(request.headers["x-molis-work-home-id"], actionGatewayHomeId("/fixture"), "personal-space routing retains the exact Home identity");
       assert.equal(request.body.home_id, actionGatewayHomeId("/fixture"));
     }
     assert.equal(new Set(seen.map(request => request.headers["x-molis-work-idempotency-key"])).size, 3, "a fresh one-time key for every request");

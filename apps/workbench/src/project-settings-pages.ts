@@ -7,7 +7,7 @@ import { type WebProjectNavigation, type createWorkbenchSettingsNavigation } fro
 import { createProjectSettingsFolds, type ProjectSettingsFoldId } from "./project-settings-folds.js";
 import { createWorkbenchGoalsPlanningRenderer } from "./ui-composition.js";
 import { PROJECT_RULES_CLIENT_SCRIPT, PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
-import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./scripts/project-settings.js";
 import { MEMORY_SETTINGS_CLIENT_SCRIPT, renderMemorySettings } from "./settings-memory.js";
 

@@ -1,0 +1,10 @@
+{
+  "name":"molis-work-sync-worker", "private":true, "type":"module",
+  "scripts":{
+    "build":"node build.mjs",
+    "dev":"wrangler dev --local --ip 127.0.0.1 --port 8788",
+    "db:migrate":"wrangler d1 migrations apply molis-work-sync-local --local",
+    "test":"node --test test.mjs"
+  },
+  "devDependencies":{"wrangler":"4.135.0","miniflare":"5.20260918.0-alpha"}
+}

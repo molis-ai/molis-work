@@ -1,5 +1,7 @@
 # 本地 Plugin 开发
 
+个人同步接入详见 [同步作者规范](../../skills/molis-plugin-dev/sync.md)。Form、Dataset、PPT、Lingguang 使用 owner 声明的 `AggregateDefinition` 与原 Store 事务日志，Host 注册实际适配器后才显示可选集合；不通过扫描数据库或只加 Manifest 来宣称支持同步。该链路仍是本机联调，不含公网发布、附件或运行中任务迁移。
+
 写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 走完整路径：对象与时刻 → Manifest → UI/客户端 → HTTP → 现场动作 → 判断场景 → MCP → Artifact / 事件 / ports → 按 kind 接到 Host 或 CLI。本文件是命令、MCP 登记、动作录取和打包的手册，不替代那份顺序。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
 新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：在 `apps/local-host/src/project-plugins.ts` 加监督器条目，不再手接 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 里要有它的目录条目（Manifest、`summary`、`workbench` 次序与客户端资源），并把它的 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（门禁要求每个 Runtime 装配的 id 都有目录条目）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
@@ -9,6 +11,8 @@
 内置插件的共同目录是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`：每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；Runtime 装配的插件在同一目录里也有条目，目录会随之增长。目录、Workbench UI 注册/样式/客户端从同一条目派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
 
 ## 安装 Skill
+
+插件的 `sync` 集合声明、SDK 快照/增量合同、空间配置身份与未实现边界见 [同步接入规范](../../skills/molis-plugin-dev/sync.md)。当前 Pages 已有显式启用的本机 Rust/D1 同步试点，未部署公网，也不代表其他插件已接入。新增插件按同一合同提供 owner 适配并由可信 Host 注册，不向 Server 添加业务 payload 分支。
 
 正文在 `skills/molis-plugin-dev/`（`SKILL.md` 加 `elements.md` / `ui.md` / `host.md` / `authoring.md` / `integrations.md` / `examples.md`），随 npm 包和 `molis-work install` 的 Home release 一起发布。它**不会**在「设置 → AI 与执行工具」里自动挂到 Codex / Claude；那条链路只接 Runtime 工作协议 `goal-advance`。
 

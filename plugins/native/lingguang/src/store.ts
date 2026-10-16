@@ -10,6 +10,8 @@ import type {
   LingguangStatus,
 } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import { lingguangErrors } from "./error.js";
+import { createAggregateReplica, initializeAggregateReplication, type AggregateReplicaContext } from '@molis-ai/molis-work-storage';
+import { lingguangAggregates } from './replication.js';
 
 interface SparkRow {
   id: string;
@@ -47,6 +49,7 @@ export interface LingguangConversationState {
 
 export class LingguangStore {
   constructor(private readonly db: DatabaseSync) {}
+  replica(context:AggregateReplicaContext){return createAggregateReplica(this.db,lingguangAggregates(this.db),context);}
 
   close(): void {
     this.db.close();
@@ -310,6 +313,7 @@ export const LINGGUANG_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 
 export function openLingguangStore(homeDirectory: string): LingguangStore {
   const db = openBaselineHomeSqlite(homeDirectory, "lingguang", LINGGUANG_STORE_BASELINE);
+  initializeAggregateReplication(db,lingguangAggregates(db));
   return new LingguangStore(db);
 }
 

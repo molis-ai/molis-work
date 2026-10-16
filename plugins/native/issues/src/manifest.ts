@@ -1,18 +1,19 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ISSUES_ACTIONS } from "./actions.js";
 import { issuesMethods } from "./methods.js";
+import { issuesSync } from "./replication.js";
 
 export const ISSUES_PLUGIN_ID = "io.molis.work.issues";
 export const ISSUES_UI_CONTRIBUTION_ID = "io.molis.work.native.issues.ui.v1";
 export const issuesManifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: ISSUES_PLUGIN_ID, version: "1.0.0", name: "Issue", kind: "app",
+  schema_version: 2, host_api_version: 2, plugin_id: ISSUES_PLUGIN_ID, version: "1.1.0", name: "Issue", kind: "app",
   publisher: { publisher_id: "molis", signature: "official-issues-binding" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "issues:read", required: true, reason: "查看个人问题记录" },
     { permission: "issues:write", required: true, reason: "记录、编辑和删除个人问题" },
     { permission: "storage:private", required: true, reason: "在个人 Home 保存问题" },
   ],
-  capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: ISSUES_ACTIONS,
+  capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: ISSUES_ACTIONS, sync: issuesSync,
   methods: issuesMethods.map(({ body: _body, ...method }) => ({ ...method, tools: [...method.tools] })),
   routes: [
     { route_id: "issues.prepare", method: "POST", path: "/prepare", permission: "issues:write" },

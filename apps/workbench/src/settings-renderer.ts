@@ -1,7 +1,7 @@
 import { renderModelSettingsDocument } from "./settings-models.js";
 import { renderHint, icon as modelIcon } from "@molis-ai/molis-work-design-system";
 import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
-import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { MolisWorkSettingsView, WebSettingsProject } from "./settings-view.js";
 import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
@@ -14,6 +14,7 @@ import { renderAssistantSettings } from "./settings-assistant.js";
 import { renderMemorySettings } from "./settings-memory.js";
 import { renderDiagnosticsSettings } from "./settings-call-diagnostics.js";
 import { settingRow } from "./settings-row.js";
+import { renderSyncSettings } from './settings-sync.js';
 import { createCapabilitiesRenderer } from "./capabilities.js";
 import { renderMcpAccess } from "./mcp-access.js";
 import { renderFunctionsWorkbench } from "./functions/ui.js";
@@ -153,27 +154,7 @@ function renderProjectSettings(view: MolisWorkSettingsView, desktopShell: boolea
 
 function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "", desktopShell = false): string {
   const capabilities = view.capabilities ? createCapabilitiesRenderer(primitives, view.capabilities, view.context_project ?? null, view.projects, desktopShell) : undefined;
-  const pluginPage = findPluginSettingsNavItem(view.section);
-  const title = capabilities ? L("能力") : view.section === "appearance"
-    ? L("界面与语言")
-    : view.section === "models" ? L("模型设置")
-    : view.section === "runtimes"
-      ? L("AI 与执行工具")
-    : view.section === "assistant"
-      ? L("助理")
-    : view.section === "prompts"
-      ? L("提示词")
-    : view.section === "memory"
-      ? L("记忆")
-    : view.section === "mcp"
-      ? L("MCP")
-      : view.section === "connectors"
-        ? L("Connectors")
-        : view.section === "projects"
-        ? L("项目设置")
-        : view.section === "diagnostics"
-          ? L("诊断")
-          : L(pluginPage?.label ?? view.section);
+  const title = settingsPageTitle(view, L);
   const contextProject = view.context_project ?? null;
   const settingsPath = settingsContextHref(`/settings/${view.section}`, contextProject, desktopShell);
   const rawReturnHref = contextProject ? `/projects/${encodeURIComponent(contextProject.project_id)}/` : "/";
@@ -182,7 +163,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   const content = (view.capabilities?.rules ? renderFunctionsWorkbench({ primitives: { escape: escapeHtml, text: L } }) : view.capabilities?.section === "library" ? capabilities!.library() : view.capabilities?.section === "history" ? capabilities!.history() : undefined) || (view.section === "models" && view.model_settings ? renderModelSettingsDocument({
     ...view.model_settings, primitives: { L, escape: escapeHtml, icon: modelIcon },
   }) : view.plugin_settings_html)
-    || (view.section === "appearance"
+    || (view.section === "sync" ? renderSyncSettings(L) : view.section === "appearance"
       ? renderAppearanceSettings(settingsPath)
       : view.section === "runtimes"
         ? renderRuntimeSettings(view)
@@ -219,4 +200,29 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
 
 
   return renderMolisWorkSettings;
+}
+
+function settingsPageTitle(view: MolisWorkSettingsView, L: SettingsRenderPrimitives["L"]): string {
+  const pluginPage = findPluginSettingsNavItem(view.section);
+  return view.capabilities ? L("能力") : view.section === "appearance"
+    ? L("界面与语言")
+    : view.section === "sync" ? L("同步")
+    : view.section === "models" ? L("模型设置")
+    : view.section === "runtimes"
+      ? L("AI 与执行工具")
+    : view.section === "assistant"
+      ? L("助理")
+    : view.section === "prompts"
+      ? L("提示词")
+    : view.section === "memory"
+      ? L("记忆")
+    : view.section === "mcp"
+      ? L("MCP")
+      : view.section === "connectors"
+        ? L("Connectors")
+        : view.section === "projects"
+        ? L("项目设置")
+        : view.section === "diagnostics"
+          ? L("诊断")
+          : L(pluginPage?.label ?? view.section);
 }

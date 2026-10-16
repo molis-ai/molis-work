@@ -5,6 +5,7 @@ export const packageDescriptor = {
 } as const;
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export * from "./store.js";
+export * from "./replication.js";
 export * from "./actions.js";
 export * from "./manifest.js";
 export * from "./plugin.js";

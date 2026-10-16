@@ -42,6 +42,8 @@ function refuse(response: ServerResponse): false {
   return false;
 }
 
+export { refuse as refuseLocalWebRequest };
+
 function isEventCommandReplayPath(pathname: string): boolean {
   return /(?:^|\/)api\/goals\/[^/]+\/event-(?:configure|report|progress|concern|decision-request|decision|agree|close|resume|continue|note)$/.test(pathname)
     || /(?:^|\/)api\/goals\/[^/]+\/relations$/.test(pathname)

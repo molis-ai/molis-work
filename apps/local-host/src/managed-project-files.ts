@@ -13,10 +13,11 @@ export class ManagedProjectFiles {
   constructor(private readonly projects: Pick<ProjectsModule, "query" | "lifecycle">,
     private readonly projectsDirectory: string,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId">, private readonly commit: CatalogCommit) {}
-async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> {
+async createProject(input: CreateMolisWorkProjectInput, synced=false, beforeEffect=()=>{}): Promise<MolisWorkProjectRecord> {
+    beforeEffect();
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (input.project_id) {
-      if (!/^project-onboarding-[0-9a-f]{8}-[0-9a-f-]{27}$/u.test(input.project_id)) throw new Error("无效的恢复项目标识");
+      if (!(synced ? /^project-(?:onboarding-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u : /^project-onboarding-[0-9a-f]{8}-[0-9a-f-]{27}$/u).test(input.project_id)) throw new Error("无效的恢复项目标识");
       const existing = this.projects.query.listProjects().find(p => p.project_id === input.project_id);
       if (existing) return existing;
     }
@@ -24,6 +25,7 @@ async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjec
       // Another connection may have recovered the promoted database while this one waited for its write lock.
       const existing = this.projects.query.listProjects().find(p => p.project_id === record.project_id);
       if (existing) return existing;
+      beforeEffect();
       this.projects.lifecycle.register(record, "project.created", actorId);
       return record;
     });

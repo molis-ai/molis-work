@@ -1,4 +1,5 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { datasetSync } from './replication.js';
 import {
   DATASET_ARTIFACT_SCHEMA_VERSION,
   DATASET_ARTIFACT_TYPE_ID,
@@ -14,7 +15,8 @@ export const datasetManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: DATASET_PLUGIN_ID,
-  version: "1.1.0",
+  sync: datasetSync,
+  version: "1.2.0",
   name: "Dataset",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-dataset-binding" },

@@ -10,6 +10,7 @@ import { FEED_UI_CONTRIBUTION_ID } from "./ui.js";
 
 import { FEED_PLUGIN_ID, FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
 import { feedArtifactPreview } from "./artifact-preview.js";
+import { feedSync } from "./replication.js";
 export { FEED_PLUGIN_ID } from "./identity.js";
 /** What the project database stores for this Plugin. */
 export const FEED_PROJECT_PLUGIN_ID = "feed";
@@ -36,6 +37,7 @@ export const feedManifest: PluginManifest = {
   artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息",
     preview: { capability_id: "feed.artifacts.preview", version: 1 } }], consumes: [] },
   requires: [],
+  sync: feedSync,
   action_scenes: [feedCaptureScene],
   ui: {
     contributions: [FEED_UI_CONTRIBUTION_ID],

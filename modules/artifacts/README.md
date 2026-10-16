@@ -18,12 +18,16 @@ ArtifactsModule（成果库）与 ProcessItemsModule（过程项）通过 query/
 | [src/service.ts](src/service.ts) | 身份与版本写入规则 |
 | [src/content.ts](src/content.ts) | opaque 内容处理 |
 | [src/repository.ts](src/repository.ts) | 记录与查询 |
+| [src/replication.ts](src/replication.ts) | 个人空间内嵌固定版本的可移植协议、校验与原子恢复 |
+| [src/replication-journal.ts](src/replication-journal.ts) | owner 选择业务表与稳定标识，Host 注入通用事务队列操作 |
 
 可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
 
 ## 接入与边界
 
 平台不解释 Plugin 自定义 payload，也不凭旧字符串虚构 Artifact。个人范围是默认路径，Team 共享需要授权；缺少兼容消费者时仍可作为 opaque 数据读取。
+
+本机个人同步试点支持按 Artifact 身份打包固定 inline 版本；同版本正文不可覆盖，归档/不可用变更经过 owner 命令并记录事件。外部内容引用、设备 file/blob 链接及超限包会拒绝，不冒充已经同步的附件。数据库收发游标与队列仍归通用同步层；本 Module 不发网络请求，也不解释其他插件的私有状态。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 

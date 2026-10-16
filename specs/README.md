@@ -9,6 +9,12 @@
 - [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
 - [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。
 - [side-shelf](side-shelf/spec.md)：右栏、Shelf、落点、拖放与助理接入；完整需求保留。
+- [personal-goals-sync](personal-goals-sync/spec.md)：Goal、关系、工作记录与可信决定的项目一致性同步。
+- [personal-linked-assets-sync](personal-linked-assets-sync/spec.md)：关联成果的个人空间同步。
+- [personal-pages-sync](personal-pages-sync/spec.md)：Pages 增量同步与冲突处理。
+- [personal-plugin-replication](personal-plugin-replication/spec.md)：个人插件 owner 同步适配。
+- [plugin-sync-foundation](plugin-sync-foundation/spec.md)：插件集合声明与空间同步配置。
+
 - [issue-home-v0](issue-home-v0/spec.md)：个人 Home 的 Issue 插件；补齐 Home Runtime 与插件 SQLite 服务，接通页面、助理和 MCP。
 - [goal-closure-identity](goal-closure-identity/spec.md)：完成前的「必须你点头」接到真实检查（授权和接受要求都只对当时的约定和那一轮工作有效）；管理入口固定记本机这个人；决策工具 schema 不再要求 `actor_id`；这些 typed 入口插件够不到（`host_only`）。
 - [repository-anti-corruption](repository-anti-corruption/spec.md)：系统性代码与架构防腐整理（防腐收尾第二步）。

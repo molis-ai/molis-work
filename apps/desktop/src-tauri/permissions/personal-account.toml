@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-personal-account-request"
+description = "Call fixed local account endpoints through the native credential boundary."
+commands.allow = ["personal_account_request"]

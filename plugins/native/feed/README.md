@@ -38,7 +38,9 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 
 `feed.capture` 自己实现 prepare/consume/failed：用原消息准备内容，结果落地前复核规则 revision、消息内容、提供方和授权。只有 admission=inbox 时，inbox.admit 或 needs_review 才进入 Inbox。原判断历史增加绑定和消息版本依据，`feed.rules.recommendations` 只返回当前仍有效的建议；停用、改绑、内容变化或撤权后撤下建议，历史保留。系统“已用在哪”链接可直接打开来源内的具体捕捉规则。
 
-工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
+工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`。其他运行依赖见 [package.json](package.json)。
+
+个人空间可选择同步项目捕捉规则。每条规则独立传输；接收端默认停用，用户确认后才能在该设备执行。来源连接凭据、拉取游标和运行租约不随规则传输，Feed 消息及 Inbox 事项仍分别由其业务 owner 管理。
 
 定时拉取失败也花掉当次计划：同步在失败时自己会把中断记在来源上（状态、错误码、更新时间），调度器随后只确认授权、来源未删除未暂停、配置与人改过的名称/说明/计划没有变化，再记录需要处理的故障并推进下次拉取；已被拒绝的执行仍然保持拒绝。删除来源并保留历史时，该来源未关闭的故障 Inbox 条目一并标为已忽略（来源再也无法同步），保留下来的消息各自的 Inbox 引用不动。插件提醒和定时操作结果由 Scheduler 的 wakeup 送进 Feed，项目装配时绑定与其他事件相同的判断触发器，投递提交后才执行；判断失败不撤销已投递的提醒。
 
@@ -70,7 +72,7 @@ node --import tsx --test --test-concurrency=1 tests/feed-native-plugin.test.ts t
 - 负责：Feed 导航、来源工作台、界面、处置与模块组合。
 - 不负责：Source/Signal/Feed/Attention 事实、Provider 实现。
 - 公开入口：`@molis-ai/molis-work-plugin-feed`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不拥有 Source、Signal、Feed 的表，不直接实现 GitHub 或 Gmail 协议。
   - 失败都是 `ActionError`：码是 `feed.<原因>`（`feedErrors`，声明在合同 `modules/feed`，因为 RSS、YouTube 集成和 Host 的同步文件也要用），Inbox 事项找不到是 `inbox.entry_not_found`（`inboxErrors`，合同 `modules/attention-resumption`）；状态只由 kind 推出，本插件没有错误类和状态表。提供方报告的失败是 `feed.connector_failed`，提供方自己的码（`connector_rate_limited` 等，运行与来源故障里存的就是它）放在 `details.error_code`。模块自己的 `FeedError`、`AttentionError` 在 `callFeed`、`callAttention` 处换成上面的码。

@@ -30,6 +30,7 @@ export const scheduleManifest: PluginManifest = {
   actions: SCHEDULE_ACTIONS,
   artifacts: { produces: [], consumes: [] },
   agent: scheduleAgentManifest,
+  sync: { protocol_version: 1, collections: [{ id: "conversation_tasks", title: "定时对话任务", schema_version: 1, requires: [] }] },
   ui: {
     contributions: [SCHEDULE_UI_CONTRIBUTION_ID],
     views: [

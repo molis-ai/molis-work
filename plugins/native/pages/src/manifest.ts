@@ -5,6 +5,7 @@ import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/a
 import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pagesMethods } from "./methods.js";
+import { pagesSyncDeclaration } from "./sync-declaration.js";
 
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID };
 
@@ -12,7 +13,9 @@ export const pagesManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: PAGES_PLUGIN_ID,
-  version: "1.0.0",
+  version: "1.1.0",
+  upgrade_compatibility: { compatible_from_versions: ["1.0.0"] },
+  sync: pagesSyncDeclaration,
   name: "Pages",
   // Offered to other Agents for business work; bodies in ./methods.ts.
   methods: pagesMethods.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),

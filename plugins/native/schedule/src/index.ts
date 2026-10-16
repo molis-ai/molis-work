@@ -48,6 +48,7 @@ export {
   formatClockTime,
 } from "./calendar.js";
 export { scheduleErrors } from "./error.js";
+export { installScheduleReplication, createScheduleTaskReplica } from "./replication.js";
 export {
   parseScheduledAgentReply,
   composeScheduledTaskPrompt,

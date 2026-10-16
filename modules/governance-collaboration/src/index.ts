@@ -100,3 +100,4 @@ function governanceQueries(repository: GovernanceRepository): GovernanceQueryApi
 export function createGovernanceReadServices(db: GovernanceSqliteDatabase): { query: GovernanceQueryApi } {
   return { query: governanceQueries(new GovernanceRepository(db)) };
 }
+export { governanceReplicationDefinition } from './replication.js';

@@ -13,6 +13,8 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/form";
 import { formErrors } from "./error.js";
 import { FORM_ANSWER_FORMAT } from "./fillpage.js";
+import { createAggregateReplica, initializeAggregateReplication, type AggregateReplicaContext } from '@molis-ai/molis-work-storage';
+import { formAggregates } from './replication.js';
 import type { FormPublicationIntent, FormPublicationSnapshot } from "./promote.js";
 
 interface FormRow {
@@ -52,6 +54,7 @@ const QUESTION_TYPES: readonly FormQuestionType[] = [
 
 export class FormStore {
   constructor(private readonly db: DatabaseSync) {}
+  replica(context:AggregateReplicaContext){return createAggregateReplica(this.db,formAggregates,context);}
 
   close(): void {
     this.db.close();
@@ -380,6 +383,7 @@ export const FORM_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
 
 export function openFormStore(homeDirectory: string): FormStore {
   const db = openBaselineHomeSqlite(homeDirectory, "form", FORM_STORE_BASELINE);
+  initializeAggregateReplication(db,formAggregates);
   return new FormStore(db);
 }
 

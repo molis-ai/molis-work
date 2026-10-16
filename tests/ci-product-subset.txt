@@ -382,6 +382,7 @@ tests/schedule-task-runner.test.ts
 tests/scheduler.test.ts
 tests/search-evidence-runtime.test.ts
 tests/secret-store-format.test.ts
+tests/personal-goals-sync.test.ts
 tests/server-database-baseline.test.ts
 tests/shelf-cli-probe.test.ts
 tests/shelf-job-runner.test.ts

@@ -427,6 +427,7 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
   const routes: Array<[string, string, Record<string, string | undefined>]> = [
     ["GET", "/", {}], ["GET", "/onboarding", {}], ["GET", "/health", {}], ["GET", "/__ui/catalog", {}], ["GET", "/api/settings/projects", {}], ["GET", "/assets/missing.css", {}],
     ["GET", "/no/such/page", {}], ["GET", "/locale?lang=en", {}],
+    ["GET", "/api/spaces", {}], ["GET", "/api/sync", {}],
     // Refusals carry it as well: the header is made before any route decides.
     ["GET", "/", { host: "evil.example" }], ["POST", "/api/settings/projects", {}],
   ];
@@ -439,5 +440,7 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
       assert.match(String(answer.headers["content-security-policy"]), /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, `${method} ${path}: the page's policy lets another site frame it`);
     }
   }
+  const account = await send(host, "GET", "/api/personal/status");
+  assert.equal(account.headers["x-frame-options"], "DENY", "account responses retain their stricter no-framing policy");
   assert.ok(pages >= 2, `the sweep looked at pages with a policy (${pages})`);
 });

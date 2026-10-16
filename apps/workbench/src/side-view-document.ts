@@ -1,5 +1,6 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
-import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { renderWorkbenchDocument, WORKBENCH_UI_SLOTS } from "./document-shell.js";
 import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
@@ -79,4 +80,3 @@ html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}
 export function sideViewKeys(enabled: readonly ProjectPluginId[]): string[] {
   return sideEntries(enabled).map(entry => `${entry.project_plugin_id}/${entry.view_id}`);
 }
-

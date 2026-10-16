@@ -14,6 +14,8 @@ type ClientMessage =
   | { type: "kill"; panelId: string };
 
 export interface MolisWorkPtySocketHandlers {
+  /** Trusted Host scope overrides caller-supplied environment variables. */
+  environment?: Record<string,string>;
   onData?: (panelId: string, sessionId: string, data: string) => void;
   onExit?: (panelId: string, sessionId: string, exit: { exitCode: number; signal: number }) => void;
 }
@@ -60,7 +62,7 @@ export function attachMolisWorkPtySocket(
   class RecordedPtyHost extends MolisWorkPtyHost {
     override spawn(request: PtySpawnRequest) {
       if (request.sessionId) panelSessionIds.set(request.panelId, request.sessionId);
-      return super.spawn(request);
+      return super.spawn({...request,env:{...request.env,...handlers.environment}});
     }
     override kill(panelId: string) {
       const wasAlive = this.alive(panelId);

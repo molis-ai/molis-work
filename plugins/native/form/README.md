@@ -1,5 +1,7 @@
 # Forms 问卷入口
 
+个人空间同步：`replica(context)` 通过共同引擎同步问卷、稳定题号、答卷和提交时题目快照、提交幂等 ID。以整份问卷为冲突单元；两端同时修改不自动合并答卷。待恢复发布会阻止同步覆盖，固定成果引用等待对应版本。仅显式启用的本机联调可用，单份聚合上限 512 KiB，超限报错不截断。回归：`tests/plugin-aggregate-replication.test.ts`。
+
 本机问卷：建题、预览填写、看结果。数据在 `{home}/form/form.db`。
 
 包名：`@molis-ai/molis-work-plugin-form`。

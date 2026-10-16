@@ -73,9 +73,10 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
     if (pop !== box) return;
     if (typeof input?.text !== "string" || Math.min(input.anchor!, input.head!) !== base.from || Math.max(input.anchor!, input.head!) !== base.to) return fail(moved);
     lead.textContent = chosen.title;
-    // A quote looks as Pages draws one, with where it came from under it.
+    // Each paragraph as it will be written; a quote looks as Pages draws one, with where it came from under it.
     if (input.source) text.classList.add("pages-quote");
-    text.textContent = input.text + (input.source?.title ? "\n— " + input.source.title : "");
+    const lines = [...input.text.split(/\n+/u).filter(Boolean), ...(input.source?.title ? ["— " + input.source.title] : [])];
+    text.replaceChildren(...lines.map(line => Object.assign(document.createElement("p"), { textContent: line })));
     ok.textContent = L("放进去");
     text.hidden = ok.hidden = false;
     ok.onclick = () => {

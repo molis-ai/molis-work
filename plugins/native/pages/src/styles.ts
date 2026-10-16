@@ -567,7 +567,6 @@ export const PAGES_STYLES = `
   .pages-pop textarea, .pages-pop input, .pages-pop select { width: 100%; }
   .pages-pop-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .pages-pop .pages-pop-error { color: var(--red); }
-  .pages-landing-preview { margin: 0 4px; max-height: 200px; overflow: auto; white-space: pre-wrap; }
   .pages-pop [hidden] { display: none; }
   .pages-pop.is-docked { position: static; min-width: 0; max-width: none; max-height: none; padding: 0; overflow: visible; background: none; box-shadow: none; animation: none; }
   .pages-comment {

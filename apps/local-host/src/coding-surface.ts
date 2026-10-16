@@ -1,6 +1,8 @@
 import { ensureProjectPlugins as ensureStarted, type ProjectPluginPorts, type ProjectPluginState as Started } from "./project-plugins.js";
 import { agentQuestionHtml } from "./agent-question-card.js";
 import { interactionNextSteps } from "./agent-next-steps.js";
+import { assistantCardHtml, cardView } from "./assistant/assistant-card-view.js";
+import type { StoredCard } from "./assistant/assistant-store.js";
 import { L } from "./web-locale.js";
 import { CHARACTERS_UI_CONTRIBUTION_ID, type CharactersUiModel } from "@molis-ai/molis-work-plugin-characters";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -234,10 +236,13 @@ function decorateRuntimeResult(result: PluginRouteResponse, pluginId: string, re
   if (pluginId === CODING_PLUGIN_ID) decorateCodingResult(result, request, url, ports);
 }
 
+/** A card of a Coding session as Coding keeps it: the SDK's card, with no work of the Assistant's around it. */
+type CodingCard = Omit<StoredCard, "work_id">;
+
 function decorateCodingResult(result: PluginRouteResponse, request: IncomingMessage, url: URL, ports: CodingSurfacePorts): void {
   // The existing sanitized rich-text renderer is supplied by the composition;
   // Coding neither imports another plugin nor trusts model-produced HTML.
-  const body = result.body as { runs?: Array<CodingFollowUpRun & { turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[] }> } | undefined;
+  const body = result.body as { runs?: Array<CodingFollowUpRun & { turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[]; cards?: CodingCard[] }> } | undefined;
   if (body?.runs) for (const run of body.runs) {
     // Recovery reports also list runs, but carry receipt facts rather than turns.
     if (!Array.isArray(run.turns) || !Array.isArray(run.awaiting_input)) continue;
@@ -251,7 +256,10 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L) });
     // The row beside the composer: the round's questions as the Assistant's are, then what its card offers next (AC-25).
     // Drawn on every round the page receives in full, so a round it keeps unchanged keeps its row; it shows the latest one's.
-    const steps = interactionNextSteps(run.awaiting_input, [], [], codingFollowUps(run, L), L);
+    // The round's suggestions as the Assistant's cards are drawn; Coding keeps them and runs them (D25).
+    const cards = (run.cards ?? []).map(card => cardView({ ...card, work_id: "" }));
+    run.cards?.forEach((card, index) => Object.assign(card, { html: assistantCardHtml(cards[index]!, L, undefined, false) }));
+    const steps = interactionNextSteps(run.awaiting_input, cards, [], codingFollowUps(run, L), L);
     Object.assign(run, { next_html: steps.length ? renderInteractionNextSteps(steps, L("下一步"), { max: steps.length }) : "" });
   }
   const childBody = result.body as { subagents?: Array<{ children: Array<{ result: string | null }> }> } | undefined;

@@ -4,6 +4,7 @@ import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prolog
 import { ActionError, actionEffect, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentFrozenRole, AgentRunOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, normalizedInput, offerWords } from "./prologue-action-gateway.js";
+import { actionDigest } from "../action-digest.js";
 
 export const agentActionToolName = (ref: ExactActionReference, scope: string) => "molis-action-" + scope + "-" + createHash("sha256")
   .update(JSON.stringify([ref.capability_id, ref.version, ref.provider_id])).digest("hex").slice(0, 24);
@@ -98,7 +99,7 @@ function suggestTool(actions: NonNullable<AgentFrozenRole["actions"]>, byName: R
     const input = normalizedInput(current, args.input);
     await actions.client.check?.(reference, input);
     if (runSignal?.aborted || call.signal?.aborted) throw new ActionError("actions.cancelled", "Agent action cancelled");
-    const offer: AgentRunOffer = { offer_id: randomUUID(), offered_at: new Date().toISOString(), ...offerWords(args), reference, input };
+    const offer: AgentRunOffer = { offer_id: randomUUID(), offered_at: new Date().toISOString(), ...offerWords(args), reference, input, action_digest: actionDigest(current) };
     const result = JSON.stringify({ offered: offer.offer_id, offer, note: "Shown to the person as a button; nothing has run. Do not run the same action for this unless they ask you to." });
     // The record travels in this result (prologue-stream.ts reads it back): one the SDK would cut short is refused, never told "shown".
     if (Buffer.byteLength(result) > SUGGEST_RESULT_BYTES) throw new ActionError("actions.input_too_large", `The suggestion is over ${SUGGEST_RESULT_BYTES / 1024} KiB; nothing was suggested.`);

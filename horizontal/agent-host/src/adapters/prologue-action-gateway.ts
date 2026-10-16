@@ -22,6 +22,9 @@ type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
 interface CapabilityArgs { capability_id: string; version: number; provider_id: string; input?: unknown }
 
 const describe = (view: ActionView, direct = false) => {
+  // There but not usable now: its owner's reason, and nothing to call it with (the call would be refused).
+  if (!view.availability.available) return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider: view.provider.title,
+    title: view.action.title, available: false, reason: view.availability.reason };
   const effect = actionEffect(view.action, view.capability_id);
   return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id, provider: view.provider.title,
     title: view.action.title, effect: effect === "read" ? "read" : effect === "irreversible" ? "irreversible-change" : direct ? "reversible-change" : "change",
@@ -168,13 +171,13 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     [GATEWAY_TOOLS.find]: guarded(async args => {
       const query = typeof args.query === "string" ? args.query.trim().toLowerCase() : "";
       const terms = query.split(/\s+/).filter(Boolean);
-      const views = (await gateway.client.discover()).filter(view => view.action.audiences.includes("agent") && view.availability.available);
+      const views = (await gateway.client.discover()).filter(view => view.action.audiences.includes("agent"));
       const scored = views.map(view => {
         const hay = `${view.provider.title} ${view.action.title} ${view.capability_id} ${view.action.description}`.toLowerCase();
         const head = `${view.provider.title} ${view.action.title}`.toLowerCase();
         const hits = terms.filter(term => hay.includes(term)).length;
         return { view, score: hits * 10 + terms.filter(term => head.includes(term)).length * 5 };
-      }).filter(row => terms.length === 0 || row.score > 0).sort((a, b) => b.score - a.score);
+      }).filter(row => terms.length === 0 || row.score > 0).sort((a, b) => Number(b.view.availability.available) - Number(a.view.availability.available) || b.score - a.score);
       if (!scored.length) return JSON.stringify({ found: 0, note: "Nothing matches; try the provider's name or a shorter word from the capability directory." });
       for (const row of scored.slice(0, FIND_LIMIT)) known.add(row.view.capability_id);
       return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view, Boolean(gateway.client.direct?.(row.view)))) });
@@ -227,7 +230,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     missing: { type: "array", items: { type: "object", properties: { field: { type: "string" }, question: { type: "string" } }, required: ["field", "question"] }, description: "Required fields you could not fill, each with the question to ask." },
   }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"] };
   const tools = [
-    tool(GATEWAY_TOOLS.find, "Search the business capabilities available in this work's scope by provider and name (e.g. \"Pages 新建\"). Returns each match's exact identity, whether it reads or changes data, and its input schema.",
+    tool(GATEWAY_TOOLS.find, "Search the business capabilities available in this work's scope by provider and name (e.g. \"Pages 新建\"). Returns each match's exact identity, whether it reads or changes data, and its input schema; one that cannot run now comes last, with its provider's reason and nothing to call it with.",
       { type: "object", properties: { query: { type: "string", description: "Words from the provider or capability name, separated by spaces." } }, required: ["query"], additionalProperties: false }, "safe-read"),
     tool(GATEWAY_TOOLS.read, "Run a capability that only reads data, with the exact identity from find-capabilities.", capability, "safe-read"),
     tool(GATEWAY_TOOLS.change, "Run a capability that changes data, with the exact identity from find-capabilities. The person reviews the exact capability and input before it runs; do not ask them separately.", capability, "mutate-external"),
@@ -240,7 +243,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
           brief: { type: "string", description: "What to do, with the context it needs. It does not see this conversation." },
           acceptance: { type: "string", description: "How to tell it is done and right: what must exist and hold." },
           materials: { type: "array", items: { type: "object", properties: { title: { type: "string" }, text: { type: "string" } }, required: ["title", "text"] }, description: "Only the text it needs (at most 4)." },
-          character: { type: "string", description: "Optional: the id of one professional role from \"可委托的专业角色\" when this part needs that role; the sub-task then runs as exactly that role. Leave it out otherwise." },
+          character: { type: "string", description: "Optional: the id of one professional role from \"可委托的专业角色\" when this part needs that role; the sub-task then runs as exactly that role. Leave it out when none fits: the sub-task then runs as the Assistant." },
         } }, "mutate-external"),
       tool(DELEGATION_TOOLS.check, "Read the delegated works (all, or given work_ids): state, latest reply, objects they produced. With wait_seconds (≤50) it waits for them to finish or to need the person. A work's own report is not proof: check its results against the acceptance bar before relying on them.",
         { type: "object", additionalProperties: false, properties: { work_ids: { type: "array", items: { type: "string" } }, wait_seconds: { type: "integer", minimum: 0, maximum: 50 } } }, "safe-read"),
@@ -263,7 +266,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       { type: "object", additionalProperties: false, properties: {} }, "safe-read"),
     tool(MEMORY_TOOLS.forget, "Switch off one remembered item when the person asks you to forget it or it is no longer true (find its id with list-memories). It is no longer used anywhere, but it is not deleted: it stays in their memory settings, where they can switch it back on or delete it for good. Say it was switched off, not deleted. A newer explicit request corrects an older one with remember and replaces, not with this.",
       { type: "object", additionalProperties: false, required: ["memory_id"], properties: { memory_id: { type: "string" } } }, "mutate-external"),
-    tool(MEMORY_TOOLS.propose, "Suggest keeping something the person did NOT ask you to remember: a preference they showed more than once, a project convention, or a lesson from how this work went (a method that worked, why something failed). It only becomes a suggestion the person accepts or declines; until then nothing is kept. Never for a one-off choice, something they skipped once, or secrets. Say in your reply that you suggested it and it needs their approval.",
+    tool(MEMORY_TOOLS.propose, "Suggest keeping something the person did NOT ask you to remember: a preference they showed more than once, a project convention, or a lesson from how this work went (a method that worked, why something failed). It only becomes a suggestion the person accepts or declines; until then nothing is kept. Never for a one-off choice, something they skipped once, or secrets; nor for something already kept, already waiting for their approval, or that they declined. At most one per round. Say in your reply that you suggested it and it needs their approval.",
       { type: "object", additionalProperties: false, required: ["text", "scope", "why", "applies"], properties: {
         text: { type: "string", description: "What would be kept, one short self-contained sentence in the person's language." },
         scope: { type: "string", enum: ["personal", "project"], description: "personal: all their work; project: only this project's work." },

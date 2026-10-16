@@ -3,7 +3,7 @@ import { pdfDocumentParser } from "./pdf-document-parser.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
-import { currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
+import { assertActionInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import {
   AgentHost,
   createPrologueNodeAdapter,
@@ -19,7 +19,7 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { readProjectGuidance } from "./goals-actions.js";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -381,6 +381,7 @@ async function startAuthority(
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
         invoke: async (action, input, signal) => { const authorized = await current(signal); return authorized.service.invoke(authorized.context, action, input); },
+        check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },
     ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.project_id, runtime.coordinator.artifacts.query, reference) } : {}),
@@ -389,6 +390,13 @@ async function startAuthority(
     memory: (task, context) => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId, ...(context?.character ? { character: context.character } : {}),
       used_for: `${manifest?.name ?? pluginId} · ${task.replace(/\s+/g, " ").trim().slice(0, 40)}` }),
   };
+}
+
+/** An input checked as dispatch will check it, against the action as this grant discovers it now; runs nothing. */
+async function checkActionInput(authorized: { context: ActionCallContext; service: { discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]> } }, reference: ExactActionReference, input: unknown): Promise<void> {
+  const view = (await authorized.service.discover(authorized.context)).find(row => row.capability_id === reference.capability_id && row.version === reference.version && row.provider.provider_id === reference.provider_id);
+  if (!view) throw new ActionError("actions.missing", "The original Agent action is no longer accessible");
+  assertActionInput(view.action.input_schema, input);
 }
 
 /**

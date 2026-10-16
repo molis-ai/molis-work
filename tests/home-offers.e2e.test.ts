@@ -106,7 +106,7 @@ test("Home renders and executes unknown plugin offers and Inbox status through t
     await waitFor("document.querySelectorAll('[data-home-offer]').length===3 && !document.querySelector('[data-home-offer]').disabled");
     assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-home-offer]')].map(e=>e.textContent)"), ["做完了", "忽略", "整理成文稿"]);
     // Inbox's own drafting offer is listed with the real reason it cannot run here (this fixture has no text model).
-    assert.equal(await evaluate("document.querySelector('[data-home-offer=\"2\"]').disabled && document.querySelector('[data-home-offers]').textContent.includes('整理成文稿：请先配置文字模型')"), true);
+    assert.equal(await evaluate("document.querySelector('[data-home-offer=\"2\"]').disabled && document.querySelector('[data-home-offers]').textContent.includes('整理成文稿：请先在「模型设置」里连接文字模型，再使用写作助手')"), true);
     assert.equal(await evaluate("!!document.querySelector('[data-home-done], [data-home-dismiss]')"), false);
     assert.equal(await evaluate("[...document.querySelectorAll('[data-home-offer]')].every(button=>button.getBoundingClientRect().height>=44)"), true);
     await capture("mobile-inbox-actions");

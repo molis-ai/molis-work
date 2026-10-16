@@ -1,8 +1,8 @@
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
-import { ActionError, bindActionClient, retainActionAuthority, type ActionClient, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, retainActionAuthority, type ActionClient, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedQueryActions, FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions, INBOX_PLUGIN_ID } from "@molis-ai/molis-work-plugin-inbox";
-import { hostCompleteText, textModelAvailability, type HostCompleteText } from "./host-complete-text.js";
+import { hostCompleteText, textModelAvailability, textModelRequired, type HostCompleteText } from "./host-complete-text.js";
 import { planInformationWork } from "./information-planner.js";
 
 const text = { type: "string" };
@@ -25,10 +25,10 @@ export function informationActionProvider(home: string, projectId: string, clien
   const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
   return { provider: { provider_id: "system.information", kind: "system", title: "信息助手", project_id: projectId },
     definitions: [informationActions.plan], handlers: [{ ...informationActions.plan,
-      availability: () => textModelAvailability(model, "尚未配置助手模型"),
+      availability: () => textModelAvailability(model),
       handle: async (caller, input) => {
         const complete = model();
-        if (!complete) throw new ActionError("actions.connection_required", "尚未配置助手模型");
+        if (!complete) throw textModelRequired();
         const nested = retainActionAuthority(caller, { ...informationActions.plan, provider_id: "system.information" });
         const actions = bindActionClient(client, () => nested);
         const snapshot = await actions.invoke(feedQueryActions.snapshot, {});

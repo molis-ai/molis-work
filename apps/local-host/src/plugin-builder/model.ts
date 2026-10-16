@@ -1,5 +1,5 @@
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import { hostTextGeneration, type HostTextOptions } from '../host-complete-text.js';
+import { hostTextGeneration, textModelRequired, type HostTextOptions } from '../host-complete-text.js';
 import type { TextModelSelection } from '../configured-models.js';
 import type { CapabilityImplementations, PluginModelCaller } from './capabilities.js';
 import { PROMPT_ID, resolvePluginPrompt, type PluginPromptSource } from './prompts.js';
@@ -20,7 +20,7 @@ export function createPluginModelGeneration(options: Pick<HostTextOptions, 'reso
     const instruction = resolvePluginPrompt(options.homeDirectory, pluginId, input.prompt, source).body;
     signal.throwIfAborted();
     const selection = options.selection();
-    if (!selection) throw new ActionError('actions.connection_required', '插件要调用模型，但还没有配置可用的文字模型');
+    if (!selection) throw textModelRequired();
     const generate = hostTextGeneration({ ...options, selection });
     if (!generate) throw new ActionError('actions.connection_required', '所选文字模型已不可用，请重新检查模型设置');
     const result = await generate(input.input || '（没有输入内容）', { system: instruction, signal, beforeDispatch,

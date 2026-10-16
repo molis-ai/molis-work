@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codingHistoryDigest, nextHistoryMode, digestTask, originalTask, codingContinuation, HISTORY_DIGEST_MARKER, CONTINUATION_MARKER,
+import { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistoryMode, digestTask, originalTask, codingContinuation, HISTORY_DIGEST_MARKER, CONTINUATION_MARKER,
   codingRunForDisplay, codingSessionUsage, summaryCache, summariesFingerprint } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
@@ -40,6 +40,35 @@ test("摘要有上限：最旧的轮次先缩成一行，再整体从略并写�
   assert.ok(left > 0, "rounds that no longer fit are counted, never silently dropped");
   assert.match(omitted, new RegExp(`\\n\\n第 ${left + 1} 轮（已完成）要求`), "the digest resumes right after the omitted rounds");
   assert.match(omitted, /第 1500 轮（已完成）\n- 要求/);
+});
+
+// Spec ai-input-receipts §20 (RCPT-101/102): which supplements are still in force comes from the runs' own input records.
+test("RCPT-101/102 仍然有效的补充：读到或已放进上下文的才算，撤回、没读到、宿主说明和没有输入记录的不算；跨轮按最新状态", () => {
+  const user = (id: string, text: string, state?: string) => ({ turn_id: id, kind: "user", text, at: null, ...(state ? { steer: { id, state } } : {}) });
+  const first = run(1, { turns: [user("t", "第 1 个问题"), user("in-a", "第一条补充", "read"), user("in-b", "撤回的补充", "withdrawn"),
+    user("in-c", "没读到的补充", "unread"), { turn_id: "n", kind: "notice", text: "宿主说明：计划已调整", at: null }, user("wrap", "材料包装"),
+    { turn_id: "a", kind: "assistant", text: "好", at: null }] } as never);
+  const second = run(2, { turns: [user("t2", "第 2 个问题"), user("in-c", "没读到的补充", "read"), user("in-d", "放进上下文的补充", "applied")] } as never);
+  for (const digest of [codingHistoryDigest([first, second], "下一步"), summaryDigest([first, second], "模型的摘要", "下一步"), historySummaryMaterial([first, second])]) {
+    const section = digest.slice(digest.indexOf("用户在执行中补充过、仍然有效的话"));
+    assert.match(section, /^用户在执行中补充过、仍然有效的话（原话，按发送顺序；后面说的与前面冲突时以后说的为准）：\n- 用户在第 1 轮补充（输入 in-a）：“第一条补充”\n- 用户在第 2 轮补充（输入 in-c）：“没读到的补充”\n- 用户在第 2 轮补充（输入 in-d）：“放进上下文的补充”/);
+    for (const left of ["撤回的补充", "宿主说明", "材料包装"]) assert.ok(!section.includes(left), `${left} is not a standing supplement`);
+  }
+  assert.ok(!historySummaryMaterial([first, second]).includes("执行中用户补充："), "no second, trimmed list of supplements");
+  assert.ok(!codingHistoryDigest([run(1)], "下一步").includes("仍然有效的话"), "no section without supplements");
+});
+
+test("RCPT-101/102 补充太多放不下时，最早的让位并写明条数和输入，从不悄悄丢；轮次先缩", () => {
+  const many = run(1, { turns: [{ turn_id: "t", kind: "user", text: "问题", at: null },
+    ...Array.from({ length: 40 }, (_, i) => ({ turn_id: `in-${i}`, kind: "user", text: `补充 ${i} ` + "很长".repeat(300), at: null, steer: { id: `in-${i}`, state: "read" } }))] } as never);
+  const digest = codingHistoryDigest([many], "下一步");
+  const left = /- 更早的 (\d+) 条因篇幅没有带入：输入 ([^\n]+)/.exec(digest);
+  assert.ok(left, "the cut is said");
+  const count = Number(left[1]);
+  assert.deepEqual(left[2]!.split("、"), Array.from({ length: count }, (_, i) => `in-${i}`), "named, oldest first");
+  assert.match(digest, /用户在第 1 轮补充（输入 in-39）/, "the latest stays");
+  assert.ok(!digest.includes(`（输入 in-${count - 1}）：`), "a cut entry is not also quoted");
+  assert.match(digest, new RegExp(`（输入 in-${count}）：`), "the next one is quoted");
 });
 
 test("摘要轮次和继续轮次互相嵌套时，原任务仍是用户说的那句", () => {

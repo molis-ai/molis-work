@@ -410,6 +410,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - **prologue#28 已由用户在采用线会话里同意并合并**（08:45 UTC）；采用线换包分支在跑门禁，#575 合入后变基。#575 全量过、已入合并队列。#576 全量只挂 `immersive-directory.e2e`（插件选择器弹层收起超时，重试也红），与改动无关（未声明 `skills` 的角色不检查），已重跑失败分片，过了就入队。手册 D4 #580（`34d81e88`，`textModelAvailability` 统一 8 个动作、两处吞错改 hostLog、Feed 判断队列逐个试）审过，排在 #578 后加 full-suite（after-578 脚本）；非阻塞建议：首个失败是调用方取消时可停。手册下一片 B3。#579 改正后（`eef55b2d8`，S-28、跟进改写、BL-142 进待办）审过，只合并入队。
   - #575 已合（`dfa19486b`）。采用换包 #581（`4b2dd481`，found-tools 包来自上游 #28 合并 `e4afd1a7`，删旧包与记录、恢复 `deferToolSchemasBeyond: 20`、PA-12 两条与 PA-17 先在旧包上红）审过；标签顺序改为 577 → 571 → 573 → 581 → 578 → 580（scratchpad after-* 脚本）。#581 合入且用户在采用线会话同意读密钥后，采用线在隔离 Home 跑 P3c 小评测 12 次；Prologue 文档 PR 只开不合。
   - #576 重跑分片过、已合（`9136fa99a`）；#579 在合并队列。防腐 W5-13 第 2 片 #582（`165bc410`，`projectOrNull`、`repeatingFailure`、`holdsCodingSessions` 归 Coding）审过，排在 #580 后（after-580）。标签现序：571（已标）→ 573 → 581 → 578 → 580 → 582。
+  - #577 全量只挂第 2 片 product-interaction（Feed 详情重试，与 B2 无关），已重跑失败分片，过了自动入队。手册 B3 #583（叠在 #577 上，自己的提交 `ef5b6d05`：Todo 整理器用 `fencedMaterials`、用户要求作任务放围栏前一行、整理师角色去掉与方法重复的一句、S-13 加 Todo）审过；#577 合入后并 main 发新头再加标签。571、573 已标。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

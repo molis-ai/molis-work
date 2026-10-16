@@ -63,8 +63,8 @@ export const PAGE_STATE_OWNERS = {
     state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.",
   },
   "context-actions": {
-    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts"],
-    state: "What the person has in hand on the focused surface, the ranked actions offered for it, and the starters offered for the open Work.",
+    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-landing.ts"],
+    state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.",
   },
   "context-toolbar": {
     files: ["packages/design-system/src/context-toolbar.ts"],
@@ -317,7 +317,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:assistant-context-action-chosen", kind: "announcement", owner: "context-actions", on: "window", cancelable: true,
     detail: "ContextActionChosen (services/contextual); CONTEXT_ACTION_CHOSEN_EVENT",
-    summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent.",
+    summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent. An attach choice carries landing and run: the landing's owner takes it, previews there and confirms with run.",
   },
   {
     name: "molis:assistant-effect", kind: "announcement", owner: "assistant", on: "window",
@@ -433,6 +433,11 @@ export const DOM_EVENTS = [
     name: "molis:surface-focus", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "SurfaceFocus | null (services/contextual); SURFACE_FOCUS_EVENT",
     summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.",
+  },
+  {
+    name: "molis:surface-landing", kind: "request", owner: "context-actions", on: "element", bubbles: true,
+    detail: "SurfaceLanding | null (services/contextual)",
+    summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; the row keeps one landing and sends it with the requests for a thing in hand elsewhere.",
   },
   {
     name: "workbench-feed-task", kind: "request", owner: "tab-workspace", on: "document",

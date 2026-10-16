@@ -67,7 +67,7 @@ import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
-import { handleContextualHttp } from "./contextual/contextual-http.js";
+import { handleContextualHttp, type ContextualHttpPorts } from "./contextual/contextual-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
@@ -352,14 +352,7 @@ export async function handleMolisWorkWebRequest(
         if (await handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS))) return;
         if (await handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS))) return;
         // What the person has in hand, ranked from the same directory under their own authority (specs/archive/contextual-interaction).
-        if (url.pathname.startsWith("/api/contextual/") && await handleContextualHttp(request, response, url, {
-          ...(serverOptions.homeDirectory ? { homeDirectory: serverOptions.homeDirectory } : {}), scope: hostReference.project_id,
-          actions: () => {
-            const client = localHost.actionClient(hostReference);
-            const context = () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
-            return { discover: async () => client.discover(await context()), invoke: async (reference, input) => client.invoke(await context(), reference, input) };
-          },
-        })) return;
+        if (url.pathname.startsWith("/api/contextual/") && await handleContextualHttp(request, response, url, contextualPorts(localHost, hostReference, serverOptions.homeDirectory))) return;
         if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
           actions: bindLocalWebActions(localHost, hostReference, [...HOME_ACTION_PERMISSIONS, "inbox:write", "functions:manage"]),
         })) return;
@@ -510,5 +503,18 @@ function assistantPortsFor(homeDirectory: string, composition: LocalWebCompositi
       const project = catalog.getProject(projectId); return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
     projectTitle: async projectId => projectId === page?.reference.project_id && page.title !== undefined ? page.title
       : composition.withCatalog(home, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }),
+  };
+}
+
+/** The context row's ports for one project: the local person's own authority there, and H3's owner check for 「放进左边」. */
+function contextualPorts(localHost: MolisWorkLocalHost, hostReference: LocalHostProjectReference, homeDirectory: string | undefined): ContextualHttpPorts {
+  const context = () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
+  return {
+    ...(homeDirectory ? { homeDirectory } : {}), scope: hostReference.project_id,
+    actions: () => {
+      const client = localHost.actionClient(hostReference);
+      return { discover: async () => client.discover(await context()), invoke: async (reference, input) => client.invoke(await context(), reference, input) };
+    },
+    confirmReferences: async (picked, kinds) => localHost.search ? localHost.search.confirmReferences(hostReference.project_id, picked, kinds) : picked.map(() => false),
   };
 }

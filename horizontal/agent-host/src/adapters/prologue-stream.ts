@@ -4,6 +4,7 @@ import { applySteerApplied, applySteerRead, applySteerWithdrawn, closeUnreadStee
 export type { PrologueUsageReceipt } from "../inference.js";
 export type { TokenCount as PrologueTokenCount } from "@prologue/sdk";
 import type {
+  AgentRunOffer,
   AgentRunPhase,
   AgentRunUsage,
   AgentRunView,
@@ -13,6 +14,7 @@ import type {
   AgentTurnChanges,
   AgentTurnView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
 
 /**
  * Projects Prologue's model event stream into contract shapes.
@@ -110,6 +112,8 @@ export interface PrologueStreamState {
   todo?: AgentTodoItem[];
   /** Files each writing turn really changed, from the runtime's `turn-changes` (receipts, not the model's account). */
   turn_changes: AgentTurnChanges[];
+  /** What the round suggested, each as its own suggest tool recorded it in its result (never the model's account of it). */
+  offers: AgentRunOffer[];
   /** While the Run sleeps on its own: when it wakes. */
   sleeping_until?: string;
   /** The model the person switched this Run to (since its last `model-switched`), and one asked for but not yet in effect. */
@@ -135,6 +139,7 @@ export function emptyPrologueStreamState(): PrologueStreamState {
     streaming: "",
     streaming_at: null,
     turn_changes: [],
+    offers: [],
   };
 }
 
@@ -336,6 +341,7 @@ function noteToolResult(state: PrologueStreamState, event: Extract<PrologueEvent
   const prior = state.activity[index]!;
   const listed = event.name === "surface-list" && rememberDesktopSurfaces(state, event.text);
   if (event.name === "surface-observe" && prior.target === DESKTOP_STEP) rememberDesktopObservation(state, event.text);
+  if (event.name.startsWith(SUGGEST_TOOL_PREFIX) && event.outcome === "returned") rememberOffer(state, event.text);
   state.activity[index] = {
     ...prior,
     state: event.outcome === "failed" ? "failed" : event.outcome === "returned" ? "completed" : "unknown",
@@ -346,6 +352,14 @@ function noteToolResult(state: PrologueStreamState, event: Extract<PrologueEvent
     ...(listed ? { target: DESKTOP_STEP } : {}),
   };
   return true;
+}
+
+/** A suggestion the round's own suggest tool recorded: its result carries the offer exactly as checked, once per id. */
+function rememberOffer(state: PrologueStreamState, text: string): void {
+  let offer: AgentRunOffer | undefined;
+  try { offer = (JSON.parse(text) as { offer?: AgentRunOffer }).offer; } catch { return; /* not a record the tool wrote */ }
+  if (!offer || typeof offer.offer_id !== "string" || state.offers.some(held => held.offer_id === offer!.offer_id)) return;
+  state.offers.push(offer);
 }
 
 function applyResponseRepair(state: PrologueStreamState, frame: PrologueEvent, at: string | null): boolean {
@@ -697,13 +711,14 @@ export function applyPrologueEvent(
  * step list, the files each turn wrote, a wait it sleeps in. A fact that no longer holds is not carried forward.
  */
 export function withRunFacts(state: PrologueStreamState, ended: boolean, view: AgentRunView): AgentRunView {
-  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, model_switch: _switch, ...rest } = view;
+  const { memory_recalled: _memory, todo: _todo, turn_changes: _changes, sleeping_until: _asleep, model_switch: _switch, offers: _offers, ...rest } = view;
   const requested = ended ? undefined : state.model_requested;
   return {
     ...rest,
     ...(state.memory_recalled ? { memory_recalled: structuredClone(state.memory_recalled) } : {}),
     ...(state.todo?.length ? { todo: state.todo.map(item => ({ ...item })) } : {}),
     ...(state.turn_changes.length ? { turn_changes: structuredClone(state.turn_changes) } : {}),
+    ...(state.offers.length ? { offers: structuredClone(state.offers) } : {}),
     ...(state.sleeping_until !== undefined && !ended ? { sleeping_until: state.sleeping_until } : {}),
     ...(state.model_now || requested ? { model_switch: { ...(state.model_now ? { now: state.model_now } : {}), ...(requested ? { requested } : {}) } } : {}),
   };

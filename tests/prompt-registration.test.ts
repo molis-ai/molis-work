@@ -153,8 +153,10 @@ const WORDING_HISTORY: Readonly<Record<string, ReadonlyArray<readonly [number, s
   "system:contextual/contextual.draft": [[1, "4b887167a46f0e24"]],
   "io.molis.work.plugin-builder/choose.capability": [[1, "9d814fb0b2f16a3b"]],
   "io.molis.work.plugin-builder/choose.component": [[1, "30528fb1319325ba"]],
-  // Coding's executing role learns to wait on something outside (P3c, specs/prologue-adoption §4.6.8).
-  "io.molis.work.coding/coding-background": [[1, "ffceea0d45170e35"], [2, "372381392a3c1ad2"]],
+  // Coding's executing role learns to wait on something outside (P3c, specs/prologue-adoption §4.6.8). v2 was tried on MiniMax-M3 with
+  // tests/coding-external-wait-live.test.ts (4 tasks): 3 of 4 pass; the one that fails waits correctly but, going on, cannot call a
+  // deferred action tool (it tries run-command). Every run and its failures: specs/prologue-adoption §6.0e.
+  "io.molis.work.coding/coding-background": [[1, "ffceea0d45170e35"], [2, "e5cee0679b10d667"]],
 };
 const fingerprint = (text: string) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 

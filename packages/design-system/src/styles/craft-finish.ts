@@ -1140,7 +1140,7 @@ const CRAFT_BASE_STYLES = `
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar {
     display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--nav-active); color: var(--ink-soft);
   }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar svg { width: 12px; height: 12px; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar svg { width: 12px; height: 12px; } @media (min-width: 761px) { html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar { box-shadow: inset 0 0 0 1px var(--line-strong); } }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 1; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy strong { font-size: 13px; font-weight: 500; color: var(--ink); }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy small { font-size: 12px; color: var(--muted); }

@@ -58,13 +58,13 @@ export class SqliteSettingsRepository {
         settings.updatedAt,
         settings.workspaceId,
       );
-    if (result.changes !== 1) throw new Error("RUNTIME_SETTINGS_NOT_FOUND");
+    if (result.changes !== 1) throw new Error("alchemist.runtime_settings_not_found");
     return this.require(settings.workspaceId);
   }
 
   private require(workspaceId: string): RuntimeSettings {
     const settings = this.get(workspaceId);
-    if (!settings) throw new Error("RUNTIME_SETTINGS_NOT_FOUND");
+    if (!settings) throw new Error("alchemist.runtime_settings_not_found");
     return settings;
   }
 }

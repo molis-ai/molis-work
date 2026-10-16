@@ -1,4 +1,4 @@
-import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 
 /** The glyphs the side pane draws for kinds of things and states, rendered once from the shared icon set. */
 const ASSISTANT_GLYPHS: readonly MolisWorkIcon[] = ["file", "note", "image", "zap", "check", "circle", "clock", "flag", "undo", "edit", "alert", "circle-alert", "sparkles", "package",
@@ -11,13 +11,15 @@ const ASSISTANT_GLYPHS: readonly MolisWorkIcon[] = ["file", "note", "image", "za
  */
 export function renderAssistantDock(primitives: { L(value: string): string; icon(name: MolisWorkIcon): string }): string {
   const { L, icon } = primitives;
-  return `<div class="bar-center" data-assistant-island>
+  return `<div class="bar-center" data-assistant-island data-system-view-owner="assistant">
       <section class="assistant-panel" data-assistant-panel aria-label="${L("助理")}" hidden>
         <template data-assistant-glyphs>${ASSISTANT_GLYPHS.map((name) => `<span data-glyph="${name}">${icon(name)}</span>`).join("")}</template>
         <header class="assistant-tabbar">
           <div class="assistant-tabs" data-assistant-tabs role="tablist" aria-label="${L("打开的工作")}"></div>
           <button class="assistant-tab-new" type="button" data-assistant-new aria-label="${L("开始一项新工作")}" title="${L("开始一项新工作")}">${icon("plus")}</button>
           <span class="assistant-tabbar-actions">
+            <button class="dock-window-action" type="button" data-assistant-expand aria-label="${L("在主区展开")}" title="${L("在主区展开")}" disabled>${icon("external")}</button>
+            ${renderButton({ variant: "ghost", size: "sm", icon: "chevron-down", label: L("收回底部"), attrs: { "data-assistant-retract": true, hidden: true } })}
             <button class="dock-window-action" type="button" data-assistant-works-toggle aria-expanded="false" aria-controls="assistant-works" aria-label="${L("全部工作")}" title="${L("全部工作")}">${icon("list")}</button>
             <button class="dock-window-action assistant-side-toggle" type="button" data-assistant-side-toggle aria-expanded="true" aria-controls="assistant-side" aria-label="${L("这项工作的详情")}" title="${L("这项工作的详情")}">${icon("sidebar")}<span class="assistant-side-dot" data-assistant-side-dot hidden></span></button>
             <button class="dock-window-action" type="button" data-assistant-panel-close aria-label="${L("最小化")}" title="${L("最小化")}">${icon("chevron-down")}</button>
@@ -37,7 +39,6 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
               </div>
               <p class="assistant-summary-title" data-assistant-work-title>${L("新工作")}</p>
               <p class="assistant-summary-now" data-assistant-now hidden></p>
-              <button class="mw-btn mw-btn--primary mw-btn--sm assistant-next" type="button" data-assistant-next hidden></button>
               <dl class="assistant-summary-meta" data-assistant-meta></dl>
             </section>
             <section class="assistant-block assistant-block--attention" data-assistant-block="attention" aria-label="${L("还等你处理")}" hidden></section>
@@ -51,7 +52,6 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
               <span class="assistant-state" data-assistant-strip-state></span>
               <span class="assistant-strip-now" data-assistant-strip-now></span>
               <span class="assistant-strip-actions">
-                <button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-assistant-strip-next hidden></button>
                 <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
                 <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
                 <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button>
@@ -69,7 +69,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
       <div class="assistant-popover" id="assistant-modes" data-assistant-modes role="group" aria-label="${L("下一轮的方式")}" hidden></div>
       <div class="assistant-popover" id="assistant-characters" data-assistant-characters role="group" aria-label="${L("由哪个角色负责")}" hidden></div>
       <div class="assistant-popover" data-assistant-starters role="group" aria-label="${L("可以这样开始")}" hidden></div>
-      <div class="assistant-offer" data-assistant-offer role="status" aria-live="polite" hidden></div>
+      <div class="assistant-next-row" data-assistant-next-row hidden></div>
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${L("需要你看看")}" hidden></div>
       <div class="assistant-popover assistant-more" id="assistant-more" data-assistant-more role="group" aria-label="${L("添加")}" hidden></div>
       <form class="assistant-composer bar-composer" id="assistant-composer" data-assistant-composer aria-label="Molis Work Assistant">

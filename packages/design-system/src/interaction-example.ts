@@ -39,7 +39,7 @@ export function renderInteractionExample(): string {
     fields: fields({ minutes: '请输入 15–120 之间的整数分钟。', materials: '请选择 1–2 份材料。' }, '已按最新材料更新'), footer: footer('还有 2 项要修正，填写都在。', true) });
   const answered = renderInteractionQuestion({ id: 'ix-q-done', kicker: '已交回 · 7 项回答', title: '把这次复盘安排好', badge: { label: '已交回', tone: 'done' }, fields: [],
     answered: { rows: answeredRows, actions: [{ id: 'revise', label: '调整回答', variant: 'ghost' }] }, footer: footer('') });
-  const expired = renderInteractionQuestion({ id: 'ix-q-expired', kicker: '需要你补充 · 7 项', title: '把这次复盘安排好', badge: { label: '已过期', tone: 'quiet' },
+  const expired = renderInteractionQuestion({ id: 'ix-q-expired', kicker: '需要你补充 · 7 项', title: '把这次复盘安排好', badge: { label: '已过期', tone: 'quiet', state: 'stale' },
     target: { prefix: '针对', label: '秋季工作台 · 内部试用', version: '版本 2', changed: true },
     banner: { text: '问题针对的对象已改到版本 2，旧回答不会再交回。草稿还在，可以请助理带着它重新问。', tone: 'waiting', actions: [{ id: 'reopen', label: '按新版本重新准备' }] },
     fields: fields().slice(2, 4), footer: { note: '草稿只在本页保留', actions: [{ id: 'submit', label: '提交回答', variant: 'primary', type: 'submit', disabled: true }] } });
@@ -49,6 +49,13 @@ export function renderInteractionExample(): string {
     ['执行中', renderInteractionNextSteps([{ id: 'card', label: '执行中…', source: '来自复盘安排操作卡', busy: true }])],
     ['完成后：一主一次', renderInteractionNextSteps([{ id: 'result', label: '打开结果', source: '来自复盘安排操作卡' }, { id: 'continue', label: '继续调整', source: '来自复盘安排操作卡', primary: false }])],
     ['记录变了：原位禁用', renderInteractionNextSteps([{ id: 'card', label: '预览参数', source: '来自复盘安排操作卡', disabled: true }])],
+    ['助理的下一步：三个加「还有 2 项」', renderInteractionNextSteps([
+      { id: 'card:run', label: '记成待办', source: '来自操作卡「记成待办：第二阶段定负责人」', primary: false, waiting: true, waitingLabel: '等你确认：' },
+      { id: 'question:choose:team', label: '团队', source: '来自问卷「跟进发给谁？」', primary: false },
+      { id: 'question:choose:boss', label: '只给经理', source: '来自问卷「跟进发给谁？」', primary: false },
+      { id: 'open', label: '打开「第二阶段定负责人」', source: '这一轮做出的结果', primary: false },
+      { id: 'retry', label: '用同样的话再试一次', source: '上一轮没做完', primary: false },
+    ], '下一步', { max: 3, more: count => `还有 ${count} 项` })],
   ].map(([label, body]) => card(label!, `<div class="mw-ix-composer-specimen">${body}<div class="mw-ix-composer-specimen__pill">${label === '问题收起时' ? renderInteractionComposerTarget('补充到问卷') : ''}<span>继续说…</span></div></div>`)).join('');
   return `<style>${INTERACTION_STYLES}
     .mw-ix-specimen { width: min(620px, 100%); }
@@ -65,9 +72,9 @@ export function renderInteractionExample(): string {
     ${card('选项组 · 短选项多选', renderInteractionOptions([{ value: 'a', label: '首次使用', selected: true }, { value: 'b', label: '失败与恢复' }, { value: 'c', label: '交互细节', disabled: true }], { id: 'ix-choices-demo', multiple: true }))}
     ${card('操作卡 · 待预览', renderInteractionOperation(operation('ix-op-ready', { actions: [{ id: 'revise', label: '调整回答', variant: 'ghost' }, { id: 'preview', label: '预览参数' }] })))}
     ${card('操作卡 · 参数预览', renderInteractionOperation(operation('ix-op-preview', { badge: { label: '待你执行', tone: 'waiting' }, preview: { ...preview, actions: [{ id: 'revise', label: '返回调整', variant: 'ghost' }, { id: 'execute', label: '执行', variant: 'primary' }] } })))}
-    ${card('操作卡 · 结果未知，只能核对', renderInteractionOperation(operation('ix-op-unknown', { badge: { label: '结果未知', tone: 'waiting' }, preview, status: { text: '连接在执行途中断开，结果未知。先核对，不会自动再执行一次。', tone: 'waiting' }, recovery: [{ id: 'reconcile', label: '核对结果' }] })))}
+    ${card('操作卡 · 结果未知，只能核对', renderInteractionOperation(operation('ix-op-unknown', { badge: { label: '结果未知', tone: 'waiting', state: 'verify' }, preview, status: { text: '连接在执行途中断开，结果未知。先核对，不会自动再执行一次。', tone: 'waiting' }, recovery: [{ id: 'reconcile', label: '核对结果' }] })))}
     ${card('操作卡 · 已完成', renderInteractionOperation(operation('ix-op-done', { badge: { label: '已完成', tone: 'done' }, result: { title: '复盘安排已准备好', body: '日程已创建；参数与回执在摘要里。', actions: [{ id: 'open', label: '打开摘要' }, { id: 'continue', label: '继续调整', variant: 'ghost' }] } })))}
-    ${card('操作卡 · 对象改版后失效', renderInteractionOperation(operation('ix-op-stale', { badge: { label: '已失效', tone: 'quiet' }, target: { prefix: '作用于', label: '秋季工作台 · 内部试用', version: '版本 2', changed: true }, status: { text: '作用对象已改版，这组参数不能再执行。按新版本重新准备上面的问题。' } })))}
+    ${card('操作卡 · 对象改版后失效', renderInteractionOperation(operation('ix-op-stale', { badge: { label: '已失效', tone: 'quiet', state: 'stale' }, target: { prefix: '作用于', label: '秋季工作台 · 内部试用', version: '版本 2', changed: true }, status: { text: '作用对象已改版，这组参数不能再执行。按新版本重新准备上面的问题。' } })))}
     ${steps}
   </div>
   <script>(()=>{const card=document.querySelector('[data-ix-question="ix-q-open"]');if(!card)return;

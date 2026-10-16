@@ -1,3 +1,4 @@
+import { assistantErrors } from "./assistant-errors.js";
 import { createHash } from "node:crypto";
 import { isTerminalAgentPhase, type AgentDelegatedWork, type AgentDelegation, type AgentRunRef, type AgentRunView, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
@@ -25,11 +26,10 @@ export interface DelegationPorts {
   lastReply(work: StoredWork): Promise<string | undefined>;
   chooseCharacter(work: StoredWork, choice: AssistantCharacterRef): Promise<StoredWork>;
   /** Start (or add to) a round of this work; `host` marks words the Host wrote. `request` makes the start happen once. */
-  dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], writtenBy: "assistant" | "host", request?: string): Promise<unknown>;
+  dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], writtenBy: "assistant" | "host", request?: string, stillCurrent?: () => boolean): Promise<unknown>;
   read(workId: string): Promise<AssistantWorkView>;
   /** Tell the person, once per key. */
   notify(work: StoredWork, text: string, key: string): void;
-  fail(code: string, message: string): Error;
 }
 
 /**
@@ -53,7 +53,7 @@ export class AssistantDelegations {
     const { store, actorId } = this.ports;
     const own = (workId: string) => {
       const work = store.get(actorId, workId);
-      if (work.delegated_by?.work_id !== parent.work_id) throw this.ports.fail("assistant.scope", "这不是这项工作委托出去的子任务");
+      if (work.delegated_by?.work_id !== parent.work_id) throw assistantErrors.scope("这不是这项工作委托出去的子任务");
       return work;
     };
     const view = async (work: StoredWork, host?: AgentHost): Promise<AgentDelegatedWork> => {
@@ -74,13 +74,13 @@ export class AssistantDelegations {
           const named = choices.filter(item => item.reference.artifact_id === input.character || item.title === input.character)
             .sort((a, b) => Number(b.available) - Number(a.available) || b.reference.version - a.reference.version);
           role = named[0];
-          if (!role) throw this.ports.fail("assistant.not_found", `没有叫「${input.character}」的专业角色（只能用「可委托的专业角色」里列出的）；没有换成别的角色`);
-          if (!role.available) throw this.ports.fail("assistant.character_unavailable", `角色「${role.title}」现在不能用：${role.reason ?? "不可用"}；没有换成别的角色`);
+          if (!role) throw assistantErrors.not_found(`没有叫「${input.character}」的专业角色（只能用「可委托的专业角色」里列出的）；没有换成别的角色`);
+          if (!role.available) throw assistantErrors.character_unavailable(`角色「${role.title}」现在不能用：${role.reason ?? "不可用"}；没有换成别的角色`);
         }
         const children = store.delegatedBy(actorId, parent.work_id, "any");
         const active = (await Promise.all(children.map(child => this.ports.stateOf(host, child)))).filter(state => !["completed", "failed", "stopped", "idle"].includes(state)).length;
-        if (children.length >= MAX_DELEGATED) throw this.ports.fail("assistant.limit", `这项工作已经委托了 ${MAX_DELEGATED} 个子任务，不能再多；请自己完成剩下的部分或告诉用户`);
-        if (active >= MAX_ACTIVE_DELEGATED) throw this.ports.fail("assistant.limit", `已有 ${MAX_ACTIVE_DELEGATED} 个子任务在进行，等其中一个结束再委托`);
+        if (children.length >= MAX_DELEGATED) throw assistantErrors.limit(`这项工作已经委托了 ${MAX_DELEGATED} 个子任务，不能再多；请自己完成剩下的部分或告诉用户`);
+        if (active >= MAX_ACTIVE_DELEGATED) throw assistantErrors.limit(`已有 ${MAX_ACTIVE_DELEGATED} 个子任务在进行，等其中一个结束再委托`);
         const child = store.create({ actor_id: actorId, title: input.title.slice(0, 80), scope: parent.scope, ...(parent.scope_title ? { scope_title: parent.scope_title } : {}),
           origin: { surface: "assistant", title: `「${parent.title}」委托` }, ...(parent.project_ref ? { project_ref: parent.project_ref } : {}),
           delegated_by: { work_id: parent.work_id, title: parent.title, acceptance: input.acceptance.slice(0, 2000) } });
@@ -112,8 +112,8 @@ export class AssistantDelegations {
       },
       follow_up: async (workId, text) => {
         const child = own(workId);
-        if (child.delegated_by?.taken_back_at) throw this.ports.fail("assistant.invalid", "用户已把这个子任务收回到这项工作，这部分由你在这里继续，不要再对它追加");
-        if ((child.follow_ups ?? 0) >= MAX_FOLLOW_UPS) throw this.ports.fail("assistant.limit", `已经追加过 ${MAX_FOLLOW_UPS} 次；仍达不到验收时停止它，并把实际情况告诉用户`);
+        if (child.delegated_by?.taken_back_at) throw assistantErrors.invalid("用户已把这个子任务收回到这项工作，这部分由你在这里继续，不要再对它追加");
+        if ((child.follow_ups ?? 0) >= MAX_FOLLOW_UPS) throw assistantErrors.limit(`已经追加过 ${MAX_FOLLOW_UPS} 次；仍达不到验收时停止它，并把实际情况告诉用户`);
         const updated = store.update(actorId, child.work_id, null, { follow_ups: (child.follow_ups ?? 0) + 1 }, false);
         await this.ports.dispatch(updated, text, [], "assistant");
         return view(store.get(actorId, child.work_id));
@@ -138,8 +138,8 @@ export class AssistantDelegations {
   async takeBack(childId: string): Promise<AssistantWorkView> {
     const { store, actorId } = this.ports;
     const child = store.get(actorId, childId);
-    if (!child.delegated_by) throw this.ports.fail("assistant.invalid", "这不是一个子任务");
-    if (child.delegated_by.taken_back_at) throw this.ports.fail("assistant.invalid", "这个子任务已经收回了");
+    if (!child.delegated_by) throw assistantErrors.invalid("这不是一个子任务");
+    if (child.delegated_by.taken_back_at) throw assistantErrors.invalid("这个子任务已经收回了");
     const host = await this.ports.host();
     const latest = await this.ports.latestRun(host, child);
     if (latest && !isTerminalAgentPhase(latest.phase)) {
@@ -202,6 +202,9 @@ export class AssistantDelegations {
   }
 
   /** Settle the hand-back of one delegating work, one at a time per work. */
+  /** A stop may withdraw a hand-back still preparing its next round. */
+  isHandingBack(parentId: string): boolean { return this.#settling.has(parentId); }
+
   settle(parentId: string): Promise<void> {
     const next = (this.#settling.get(parentId) ?? Promise.resolve()).then(() => this.#settle(parentId)).catch(() => undefined);
     this.#settling.set(parentId, next);
@@ -229,11 +232,20 @@ export class AssistantDelegations {
     if (!owed.some(item => item.state !== "stopped")) return;
     const latest = await this.ports.latestRun(host, parent);
     if (!latest || latest.phase !== "completed" || parent.hand_back_held === latest.ref.run_id) return;
+    const stillCurrent = () => {
+      try {
+        const current = store.get(actorId, parentId);
+        return !current.archived && !current.delegated_by && current.executor.kind !== "coding"
+          && current.session_id === parent.session_id && current.hand_back_held !== latest.ref.run_id
+          && store.rounds(parentId).at(-1)?.run_id === latest.ref.run_id;
+      } catch { return false; }
+    };
+    if (!stillCurrent()) return;
     const names = owed.map(item => `「${item.child.title}」`).join("");
     // The same results never move it on twice, whatever happens to the marks: the start is keyed by them.
     const key = `hand-back-${createHash("sha256").update(owed.map(item => store.rounds(item.child.work_id).at(-1)?.run_id).sort().join(",")).digest("hex").slice(0, 24)}`;
     try {
-      await this.ports.dispatch(parent, `（子任务都已交回）请核对${names}的结果，把这项工作接着做完。`, [], "host", key);
+      await this.ports.dispatch(parent, `（子任务都已交回）请核对${names}的结果，把这项工作接着做完。`, [], "host", key, stillCurrent);
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
       this.ports.notify(parent, `「${parent.title}」的子任务都已交回，但没有自动接着做：${why}`, key);

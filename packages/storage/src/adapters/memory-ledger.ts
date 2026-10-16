@@ -8,6 +8,7 @@ import type {
   MemoryUseRecord,
 } from "@molis-ai/molis-work-contracts/services/memory";
 import { homeSqlitePath } from "../home-sqlite.js";
+import type { HomeStoreDeclaration } from "../home-stores.js";
 import { applySqliteBaseline, openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.js";
 
 /**
@@ -176,8 +177,8 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
     },
     transaction: <T>(work: () => T): T => {
       if (depth > 0) return work();
-      depth += 1;
       db.exec("BEGIN IMMEDIATE");
+      depth += 1;
       try { const result = work(); db.exec("COMMIT"); return result; }
       catch (error) { db.exec("ROLLBACK"); throw error; }
       finally { depth -= 1; }
@@ -186,3 +187,6 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
   };
   return ledger;
 }
+
+/** The memory ledger in the Home's store registry (W4-11). */
+export const MEMORY_LEDGER_HOME_STORE: HomeStoreDeclaration = { path: MEMORY_LEDGER_STORE, library: { baseline: MEMORY_LEDGER_BASELINE } };

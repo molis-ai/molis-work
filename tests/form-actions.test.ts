@@ -121,14 +121,14 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
     if (mode === "failure") throw new Error("Fixture model failure");
     if (mode === "empty") return " ";
     if (mode !== "success") { entered.resolve(); await release.promise; }
-    return "你最常用的工具是什么？";
+    return JSON.stringify({ status: "done", questions: [{ title: "你最常用的工具是什么？", type: "text" }] });
   });
   const { form } = await f.bound.invoke(actions.create, {});
   await f.bound.invoke(actions.generate, { id: form.id, prompt: "Local question" }); assert.equal(calls, 0);
-  await assert.rejects(f.client.invoke({ ...f.caller, permissions: ["form:read", "form:write"] }, actions.generateAi, { id: form.id, prompt: "deny" }), { code: "actions.forbidden" });
+  await assert.rejects(f.client.invoke({ ...f.caller, permissions: ["form:read", "form:write"] }, actions.draft, { id: form.id, prompt: "deny" }), { code: "actions.forbidden" });
   const controller = new AbortController();
-  const promise = f.client.invoke({ ...f.caller, signal: controller.signal }, actions.generateAi, { id: form.id, prompt: "最常用的工具" });
-  if (mode === "success") { assert.equal((await promise).form.questions.length, 2); return; }
+  const promise = f.client.invoke({ ...f.caller, signal: controller.signal }, actions.draft, { id: form.id, prompt: "最常用的工具" });
+  if (mode === "success") { assert.equal((await promise as { form: { questions: unknown[] } }).form.questions.length, 2); return; }
   const rejected = assert.rejects(promise);
   if (["cancel", "edit", "delete"].includes(mode)) {
     await entered.promise;
@@ -156,7 +156,7 @@ test("a form that is not collecting takes no answer from an agent, MCP, a workfl
   const refuse = async (reason: RegExp, remedy: RegExp) => {
     for (const audience of outside) for (const claimed of [undefined, "preview", "fill"] as const) {
       const label = `${audience} claiming ${claimed ?? "nothing"}`;
-      await assert.rejects(as(audience).invoke(actions.submit, { id, answers: { q: label }, ...(claimed ? { source: claimed } : {}) }), error => {
+      await assert.rejects(as(audience).invoke(actions.submit, { id, expected_version: form.version, answers: { q: label }, ...(claimed ? { source: claimed } : {}) }), error => {
         assert.ok(error instanceof ActionError, `${label}: an MCP client is told the code and reason of an ActionError only`);
         assert.equal((error as { code?: string }).code, "form.closed", label);
         assert.match((error as Error).message, reason, label);
@@ -177,7 +177,7 @@ test("a form that is not collecting takes no answer from an agent, MCP, a workfl
 
   // Collecting: every source is taken, and recorded as the call's own.
   form = (await f.bound.invoke(actions.publish, { id, expected_version: form.version })).form;
-  for (const audience of outside) assert.equal((await as(audience).invoke(actions.submit, { id, answers: { q: `收集中 ${audience}` } })).submission.source, audience);
+  for (const audience of outside) assert.equal((await as(audience).invoke(actions.submit, { id, expected_version: form.version, answers: { q: `收集中 ${audience}` } })).submission.source, audience);
   assert.equal((await f.bound.invoke(actions.submit, { id, answers: { q: "收集中 填写页" }, source: "fill" })).submission.source, "fill");
 
   // Collection stopped: the same refusal, with the way back; the answers already in stay.
@@ -187,8 +187,8 @@ test("a form that is not collecting takes no answer from an agent, MCP, a workfl
   await assert.rejects(f.bound.invoke(actions.submit, { id, answers: { q: "填写页" }, source: "fill" }), { code: "form.closed", message: /已停止收集答卷/u });
 
   // Starting again opens the form to every source again.
-  await f.bound.invoke(actions.publish, { id, expected_version: form.version });
-  for (const audience of outside) assert.equal((await as(audience).invoke(actions.submit, { id, answers: { q: `重新收集 ${audience}` } })).submission.source, audience);
+  form = (await f.bound.invoke(actions.publish, { id, expected_version: form.version })).form;
+  for (const audience of outside) assert.equal((await as(audience).invoke(actions.submit, { id, expected_version: form.version, answers: { q: `重新收集 ${audience}` } })).submission.source, audience);
 
   assert.deepEqual(await stored(), [
     "agent:收集中 agent", "agent:重新收集 agent", "fill:收集中 填写页", "mcp:收集中 mcp", "mcp:重新收集 mcp",

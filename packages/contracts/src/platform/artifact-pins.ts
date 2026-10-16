@@ -1,6 +1,6 @@
-import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference } from "./actions.js";
+import { ActionError, retainActionAuthority, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "./actions.js";
 import type { ActionSubject } from "./action-subjects.js";
-import type { ArtifactReference, ArtifactVersionRecord } from "../modules/artifacts.js";
+import type { ArtifactOrigin, ArtifactReference, ArtifactVersionRecord } from "../modules/artifacts.js";
 
 /**
  * How a work object is pinned into the 成果库 on the spot (specs/artifact-positioning A5): the owner fixes its current
@@ -32,23 +32,26 @@ export function isArtifactPinAction(action: { input_type?: string; output_type?:
 
 /**
  * What a project's 成果库 holds of one work object's line of pinned versions: its newest version, and the revision of the
- * object that version pinned (null when it names none, as a version written before pins kept their snapshot first).
+ * object that version pinned (null when the owner has no numeric source revision).
  */
 export interface ArtifactLineHead { version: number; source_revision: number | null }
+
+/** The head a line's newest version gives: a pinned origin whose revision is a number names the source revision. */
+export function artifactLineHeadOf(latest: { version: number; origin: ArtifactOrigin }): ArtifactLineHead {
+  const revision = latest.origin.kind === "pinned" && /^\d+$/u.test(latest.origin.revision) ? Number(latest.origin.revision) : null;
+  return { version: latest.version, source_revision: revision };
+}
 
 /**
  * The version number an object's next pin gets. The object's own record counts the versions it has seen written
  * (`recorded`); the line in the 成果库 can hold more, because a move lets the record go of its count while the old
- * project keeps its versions. A pin that was started keeps its number. A written version the record never saw and that
- * names no source revision is an interrupted pin from before snapshots: it is finished, not repeated. Any other version
- * beyond the record's count was written and recorded once (the object left and came back, or its record was restored from
- * an older copy), so numbering goes on after it; it is never handed back as the result of a pin of what the object says now.
+ * project keeps its versions. An unfinished pin keeps its persisted pending number. Without a pending pin,
+ * numbering continues after both the object's own count and the newest version in this project's line.
  */
 export function nextPinnedVersion(input: { recorded: number; pending: number | null; head: ArtifactLineHead | null }): number {
   if (input.pending !== null) return input.pending;
   const { recorded, head } = input;
-  if (!head || head.version <= recorded) return recorded + 1;
-  return head.version === recorded + 1 && head.source_revision === null ? recorded + 1 : head.version + 1;
+  return Math.max(recorded, head?.version ?? 0) + 1;
 }
 
 /** The kinds of work object the caller can pin right now: one owner each. */
@@ -58,8 +61,10 @@ export async function pinnableSubjectKinds(client: ActionClient, caller: ActionC
 }
 
 /** Pins one object through its owner, with the original caller's authority. Discovery confers no authority. */
-export async function pinActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<ArtifactPinResult> {
+export async function pinActionSubject(client: ActionClient, caller: ActionExecutionContext, subject: ActionSubject): Promise<ArtifactPinResult> {
+  await caller.beforeEffect();
   const matches = (await client.discover(caller)).filter(view => isArtifactPinAction(view.action) && view.action.subject_kinds.includes(subject.kind));
+  await caller.beforeEffect();
   const available = matches.filter(view => view.availability.available);
   if (available.length > 1) throw new ActionError("actions.subject_ambiguous", "有多个插件能固定这类对象，不能任意选择");
   const selected = available[0];
@@ -67,8 +72,8 @@ export async function pinActionSubject(client: ActionClient, caller: ActionCallC
     const state = matches[0]?.availability;
     throw new ActionError(state && !state.available ? state.code : "actions.subject_unavailable", state && !state.available ? state.reason : "没有插件能把这类对象固定为成果");
   }
-  const owner: ActionReference = { capability_id: selected.capability_id, version: selected.version, provider_id: selected.provider.provider_id };
-  return await client.invoke(caller, owner, { subject_id: subject.id }) as ArtifactPinResult;
+  const owner = { capability_id: selected.capability_id, version: selected.version, provider_id: selected.provider.provider_id };
+  return await client.invoke(retainActionAuthority(caller, owner, caller.beforeEffect), owner, { subject_id: subject.id }) as ArtifactPinResult;
 }
 
 /**

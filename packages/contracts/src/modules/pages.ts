@@ -69,3 +69,28 @@ export interface PagesGenerationRecord {
   readonly error: string | null;
   readonly updated_at: string;
 }
+
+/** A text anchor follows its stable comment mark through ProseMirror transactions. */
+export interface PagesCommentAnchor {
+  readonly kind: "document" | "text";
+  readonly mark_id?: string;
+  readonly excerpt: string;
+}
+export interface PagesCommentMessage {
+  readonly message_id: string;
+  readonly author: "user" | "assistant" | "annotation";
+  readonly body: string;
+  readonly reply_to?: string;
+  readonly created_at: string;
+  readonly request_id: string;
+  readonly work_id?: string;
+  readonly run_id?: string;
+}
+export interface PagesCommentThread {
+  readonly thread_id: string;
+  readonly page_id: string;
+  readonly revision: number;
+  readonly anchor: PagesCommentAnchor;
+  readonly detached: boolean;
+  readonly messages: readonly PagesCommentMessage[];
+}

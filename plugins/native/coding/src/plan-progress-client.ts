@@ -8,8 +8,8 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const {api,current,status,refresh,openStep}=ports;
   const svg=(name)=>'<svg aria-hidden="true"><use href="#icon-'+name+'"></use></svg>';
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
-  const MARK={succeeded:'check','running':'','failed':'x',blocked:'circle-alert',cancelled:'minus',ready:'circle','not-started':'circle'};
-  const LABEL={succeeded:'模型报告完成',running:'进行中',failed:'模型报告失败',blocked:'受阻，等你决定',cancelled:'已取消',ready:'可以开始','not-started':'等待前一步'};
+  const MARK={succeeded:'done',running:'running',failed:'failed',blocked:'blocked',cancelled:'cancelled',ready:'ready','not-started':'waiting'};
+  const LABEL={succeeded:'模型报告完成',running:'进行中',failed:'模型报告失败',blocked:'受阻，等你决定',waiting:'在等别的步骤','needs-reconciliation':'重启后需要核对',cancelled:'已取消',ready:'可以开始','not-started':'等待前一步'};
   const skipped=(node)=>node.state==='cancelled'&&node.reports.some(report=>report.note.startsWith('用户跳过'));
   const stepOf=(plan,node)=>node.inserted?{title:node.title||node.id,acceptance:(node.reports.find(report=>report.note.startsWith('用户插入'))?.note.split('完成条件：')[1])||''}
     :plan?.content.steps[Number(node.id.replace('step-',''))-1]||{title:node.title||node.id,acceptance:''};
@@ -55,6 +55,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const who=run.frozen?.character?.title||({builder:'构建者',writer:'改写者',writers:'并行写入',coordinator:'协作',reader:'阅读者',planner:'规划者',reviewer:'评审者'})[run.frozen?.role_id]||'Agent';
     let hueValue=0;for(const char of who)hueValue=(hueValue*31+char.codePointAt(0))%360;
     const settledNode=(other)=>other.state==='succeeded'||skipped(other);
+    const change=(amendment)=>amend(card,run.ref.run_id,board.version,amendment);
     board.nodes.forEach((node,index)=>{
       const step=stepOf(entry.plan,node),row=el('li','coding-board-item coding-plan-step');row.dataset.state=skipped(node)?'skipped':node.state;row.dataset.step=node.id;if(node.inserted)row.dataset.inserted='true';
       const line=el('div','coding-board-entry'),lead=el('span','coding-board-lead'),main=el('button','coding-board-node coding-plan-title');main.type='button';
@@ -63,7 +64,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       lead.append(el('span','coding-board-guide'),main);
       const verdict=entry.verdicts?.[node.id],decided=verdict&&verdict.board_version===board.version?verdict.status:null;
       const state=el('span','coding-board-state coding-plan-state');state.dataset.tone=decided==='accepted'?'accepted':decided==='needs-work'?'attention':skipped(node)?'quiet':TONE[node.state]||'idle';
-      state.innerHTML=node.state==='running'&&!decided?'<span class="coding-board-pulse" aria-hidden="true"></span>':svg(decided==='accepted'?'check':decided==='needs-work'?'circle-alert':skipped(node)?'minus':MARK[node.state]||'circle');
+      state.dataset.mwState=decided==='accepted'?'done':decided==='needs-work'?'blocked':skipped(node)?'cancelled':node.state==='running'?(node.owner?.kind==='person'?'doing':['starting','running','compacting'].includes(run.phase)?'running':({paused:'paused',pausing:'paused','awaiting-input':'answer','awaiting-review':'approval'})[run.phase]||'doing'):MARK[node.state]||'idle';
       const yours=node.owner?.kind==='person'&&['succeeded','failed'].includes(node.state);
       state.append(el('span','',decided==='accepted'?'你已验收':decided==='needs-work'?'要求返工':skipped(node)?'你跳过了':yours?(node.state==='succeeded'?'你标记完成':'你标记失败'):LABEL[node.state]||node.state));if(decided)state.dataset.verdict=decided;
       const deps=(node.depends_on||[]).map(id=>board.nodes.find(other=>other.id===id)).filter(Boolean),waiting=deps.filter(dep=>!settledNode(dep)),stuck=waiting.filter(dep=>['failed','blocked'].includes(dep.state));
@@ -78,17 +79,17 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(editable){
         const tools=el('span','coding-board-tools coding-plan-tools'),tool=(label,icon,action)=>{const button=el('button','mw-btn mw-btn--ghost mw-btn--icon-only');button.type='button';button.title=label;button.setAttribute('aria-label',label+'：'+step.title);button.innerHTML=svg(icon);lifetime.listen(button,'click',action);tools.append(button);};
         const waiting=node.state==='not-started'||node.state==='ready';
-        if(waiting&&index>0&&['not-started','ready'].includes(board.nodes[index-1].state))tool('提前一步','chevron-up',()=>void amend(card,run.ref.run_id,board.version,{kind:'move',node:node.id,direction:'up'}));
-        if(waiting&&['not-started','ready'].includes(board.nodes[index+1]?.state))tool('推后一步','chevron-down',()=>void amend(card,run.ref.run_id,board.version,{kind:'move',node:node.id,direction:'down'}));
-        if(node.state==='blocked')tool('给出决定','edit',()=>form(card,row,[['note','你的决定，例如：用方案 B，接受行号变化',500]],([note])=>amend(card,run.ref.run_id,board.version,{kind:'unblock',node:node.id,note}),'继续'));
-        if(waiting||node.state==='blocked'||node.state==='failed')tool(node.state==='failed'?'越过这一步':'跳过','minus',()=>form(card,row,[['reason','跳过原因',300]],([reason])=>amend(card,run.ref.run_id,board.version,{kind:'skip',node:node.id,reason}),'跳过'));
-        if(!['cancelled'].includes(node.state))tool('在后面插入一步','plus',()=>form(card,row,[['title','新步骤要做什么',120],['acceptance','完成条件',300]],([title,acceptance])=>amend(card,run.ref.run_id,board.version,{kind:'insert',after:node.id,title,acceptance}),'插入'));
+        if(waiting&&index>0&&['not-started','ready'].includes(board.nodes[index-1].state))tool('提前一步','chevron-up',()=>void change({kind:'move',node:node.id,direction:'up'}));
+        if(waiting&&['not-started','ready'].includes(board.nodes[index+1]?.state))tool('推后一步','chevron-down',()=>void change({kind:'move',node:node.id,direction:'down'}));
+        if(node.state==='blocked')tool('给出决定','edit',()=>form(card,row,[['note','你的决定，例如：用方案 B，接受行号变化',500]],([note])=>change({kind:'unblock',node:node.id,note}),'继续'));
+        if(waiting||node.state==='blocked'||node.state==='failed')tool(node.state==='failed'?'越过这一步':'跳过','minus',()=>form(card,row,[['reason','跳过原因',300]],([reason])=>change({kind:'skip',node:node.id,reason}),'跳过'));
+        if(!['cancelled'].includes(node.state))tool('在后面插入一步','plus',()=>form(card,row,[['title','新步骤要做什么',120],['acceptance','完成条件',300]],([title,acceptance])=>change({kind:'insert',after:node.id,title,acceptance}),'插入'));
         const open=!['succeeded','failed','cancelled'].includes(node.state),kind=node.owner?.kind;
-        if(open&&kind!=='person')tool('由我处理','user',()=>void amend(card,run.ref.run_id,board.version,{kind:'assign',node:node.id,to:'me'}));
-        if(open&&kind&&kind!=='session')tool(kind==='none'?'交给本会话':'交回本会话','undo',()=>void amend(card,run.ref.run_id,board.version,{kind:'assign',node:node.id,to:'session'}));
+        if(open&&kind!=='person')tool('由我处理','user',()=>void change({kind:'assign',node:node.id,to:'me'}));
+        if(open&&kind&&kind!=='session')tool(kind==='none'?'交给本会话':'交回本会话','undo',()=>void change({kind:'assign',node:node.id,to:'session'}));
         if(open&&kind==='person'&&node.state!=='not-started'){
-          tool('标记完成','check',()=>form(card,row,[['note','做了什么、怎么核对的',500]],([note])=>amend(card,run.ref.run_id,board.version,{kind:'resolve',node:node.id,state:'succeeded',note}),'完成'));
-          tool('标记失败','x',()=>form(card,row,[['note','失败原因',500]],([note])=>amend(card,run.ref.run_id,board.version,{kind:'resolve',node:node.id,state:'failed',note}),'标记失败'));
+          tool('标记完成','check',()=>form(card,row,[['note','做了什么、怎么核对的',500]],([note])=>change({kind:'resolve',node:node.id,state:'succeeded',note}),'完成'));
+          tool('标记失败','x',()=>form(card,row,[['note','失败原因',500]],([note])=>change({kind:'resolve',node:node.id,state:'failed',note}),'标记失败'));
         }
         line.append(tools);
       }

@@ -31,7 +31,7 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
     let reloadOnClose = false;
     const showToast = (text) => {
       if (!toast) return;
-      toast.textContent = text;
+      toast.textContent = text; toast.dataset.mwState = "done"; toast.classList.remove("is-error");
       toast.classList.add("is-visible");
       setTimeout(() => toast.classList.remove("is-visible"), 2600);
     };

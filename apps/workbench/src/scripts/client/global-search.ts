@@ -149,7 +149,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       ? '<button class="mw-btn mw-btn--ghost global-search-ask" type="button" data-global-search-ask>' + escapeHtml(L("问助理：") + "“" + query.trim() + "”") + "</button>" : "";
     hits = ordered.flatMap((group) => group.items);
     if (hits.length && (selected < 0 || selected >= hits.length)) selected = explicit ? hits.length - 1 : 0;
-    if (statusLine) { const text = statusText(); statusLine.textContent = text; statusLine.hidden = !text; }
+    if(statusLine){const text=statusText();if(typeof text==="string")statusLine.textContent=text;else molisWorkRequest.show(statusLine,text);statusLine.hidden=!text;if (notice) statusLine.removeAttribute("data-mw-state"); else if (remote.status === "error") statusLine.dataset.mwState = "failed"; else if (!input.value.trim()) statusLine.removeAttribute("data-mw-state"); else if (remote.status === "loading" && !remote.hits.length) statusLine.dataset.mwState = "running"; else if (remote.sources.some(source => source.state === "indexing")) statusLine.dataset.mwState = "indexing"; else if (remote.sources.some(source => ["failed", "stale", "unavailable"].includes(source.state))) statusLine.dataset.mwState = "partial"; else statusLine.removeAttribute("data-mw-state"); }
     paintScopes();
     if (!ordered.length) {
       const waiting = query.trim() && remote.status !== "done" && remote.status !== "error";
@@ -175,12 +175,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       + (ask ? '<p class="global-search-empty">' + escapeHtml(L("内容里没有找到")) + "</p>" + ask : "");
     paintSelection();
   };
-  const request = async (path, body) => {
-    const response = await fetch(route(path), { method: "POST", cache: "no-store", headers: { "content-type": "application/json", ...(headers?.() || {}) }, body: JSON.stringify(body) });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw Object.assign(new Error(result.error || L("搜索暂时不可用，请稍后重试")), { code: result.code });
-    return result;
-  };
+  const request=(path,body)=>molisWorkRequest(route(path),{body,fallback:L("搜索暂时不可用，请稍后重试")});
   const search = async (append = false) => {
     const query = input.value.trim();
     clearTimeout(retry);
@@ -201,7 +196,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       }
     } catch (error) {
       if (seq !== requestSeq) return;
-      remote = { ...remote, status: "error", error: error instanceof Error ? error.message : String(error) };
+      remote = { ...remote, status: "error", error };
       render();
     }
   };
@@ -297,7 +292,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
         locate(target.surface, hit.locator?.field !== "title" ? hit.locator?.text : "");
       });
     } catch (error) {
-      notice = error instanceof Error ? error.message : String(error);
+      notice=error;
       render();
     }
   };

@@ -1,5 +1,5 @@
 import type { WorkSessionHttpContext } from "./types.js";
-import { MolisWorkSessionError } from "@molis-ai/molis-work-contracts/modules/private-work-context";
+
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workActions } from "../actions.js";
 
@@ -90,7 +90,7 @@ export async function handleSessionCreateHttp(context: WorkSessionHttpContext): 
         current_goal_id: currentGoalId, workspace_id: workspaceId, workspace_path: workspacePath, title });
       respond(201, created);
     } catch (error) {
-      respond(error instanceof MolisWorkSessionError || error instanceof ActionError ? 400 : 503, {
+      respond(error instanceof ActionError ? 400 : 503, {
         error: error instanceof Error ? error.message : String(error),
       });
     }

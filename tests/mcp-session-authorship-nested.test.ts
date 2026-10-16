@@ -1,3 +1,4 @@
+// R-KERNEL-OWNER-01: this refusal comes from session authorship in the Kernel; missing Runtime identity remains an MCP refusal.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -66,7 +67,7 @@ test("a Runtime without a stable Session cannot start a workflow whose first sta
   const mcp = f.server();
   try {
     await assert.rejects(mcp.callTool(START, { id: f.workflow.workflow_id }),
-      (error: unknown) => error instanceof ActionError && error.code === "mcp.runtime_identity_missing" && /稳定 Session/.test(error.message));
+      (error: unknown) => error instanceof ActionError && error.code === "kernel.runtime_identity_missing" && error.kind === "invalid" && /稳定 Session/.test(error.message));
     assert.deepEqual(f.authors, [], "the station's create never ran");
     assert.equal((await f.person.invoke(w.get, { id: f.workflow.workflow_id })).instances.length, 0, "no run was started");
   } finally { await mcp.close(); await f.done(); }

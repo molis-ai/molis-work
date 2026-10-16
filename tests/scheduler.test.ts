@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
@@ -8,7 +10,6 @@ import { join } from "node:path";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   MIN_SCHEDULE_INTERVAL_MS,
-  ScheduleError,
   scheduleCapabilities,
 } from "@molis-ai/molis-work-contracts/services/scheduler";
 import {
@@ -195,8 +196,17 @@ test("未注册 handler 不能登记；tick 时缺失写下 plugin_unavailable",
       title: "没有人接",
       due_at: "2026-09-20T03:00:00.000Z",
     }),
-    (error: unknown) => error instanceof ScheduleError && error.code === "schedule_handler_missing",
+    (error: unknown) => {
+      // I7-01: missing handler remains the Scheduler's current 400 and creates no job.
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "scheduler.handler_missing");
+      assert.equal(error.message, "叫醒对象还没有提供执行接口");
+      assert.equal(error.kind, "invalid");
+      assert.equal(actionHttpStatus(error), 400);
+      return true;
+    },
   );
+  assert.deepEqual(schedule.list(), [], "I7-01: rejected registration persists no job");
   const job = schedule.register({
     plugin_id: "io.molis.work.test.owner",
     capability_id: "test.wakeup",
@@ -224,7 +234,7 @@ test("绝对路径和 .. 的 object_ref 被拒", () => {
         title: "路径",
         due_at: "2026-09-20T03:00:00.000Z",
       }),
-      (error: unknown) => error instanceof ScheduleError && error.code === "schedule_path_refused",
+      (error: unknown) => error instanceof ActionError && error.code === "scheduler.path_refused",
       object_ref,
     );
   }
@@ -285,7 +295,7 @@ function scheduleChannel(clock: { now: Date }, plugins: string[] = ["io.molis.wo
     return () => { handlers.delete(definition.capability_id); };
   } }, () => schedule);
   const as = (pluginId: string, active: () => void = () => {}): HostCapabilityInvocation => ({
-    consumer: "plugin", beforeEffect: async () => {},
+    consumer: "plugin", beforeEffect: async () => {}, assertAuthorityCurrent: () => {},
     plugin: { plugin_id: pluginId, install_id: `install-${pluginId}`, actor_id: "web-user", project_id: "board", declaration: {} as never, assertActive: active },
   });
   const call = (definition: { capability_id: string }, input: unknown, invocation?: HostCapabilityInvocation) =>
@@ -307,7 +317,7 @@ test("schedule.cancel, setEnabled and list reach only the invocation's plugin's 
   const mine = call(scheduleCapabilities.register, registration, as("io.molis.work.caller")) as { job_id: string };
   const theirs = call(scheduleCapabilities.register, { ...registration, object_ref: "theirs" }, as("io.molis.work.other")) as { job_id: string };
   const intruder = as("io.molis.work.other");
-  const refused = { code: "schedule_job_not_found" };
+  const refused = { code: "scheduler.job_not_found" };
   assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id, plugin_id: "io.molis.work.caller" }, intruder), refused);
   assert.throws(() => call(scheduleCapabilities.setEnabled, { job_id: mine.job_id, plugin_id: "io.molis.work.caller", enabled: false }, intruder), refused);
   assert.equal(schedule.get(mine.job_id)?.enabled, true);
@@ -326,7 +336,7 @@ test("no input shape moves a schedule.* call off the invocation's plugin", async
   for (const input of [[], "x", 7, null, undefined, asArray, asFunction]) {
     assert.deepEqual((call(scheduleCapabilities.list, input, intruder) as { jobs: unknown[] }).jobs, [], `list ${String(input)}`);
     for (const definition of [scheduleCapabilities.cancel, scheduleCapabilities.setEnabled, scheduleCapabilities.register]) {
-      assert.throws(() => call(definition, input, intruder), { code: "schedule_job_invalid" }, `${definition.capability_id} ${String(input)}`);
+      assert.throws(() => call(definition, input, intruder), { code: "scheduler.job_invalid" }, `${definition.capability_id} ${String(input)}`);
     }
   }
   assert.equal(schedule.get(mine.job_id)?.enabled, true);
@@ -337,12 +347,12 @@ test("a schedule.* call with no plugin identity, or from a stopped installation,
   const { schedule, call, as } = scheduleChannel({ now: new Date("2026-09-20T03:00:00.000Z") });
   const mine = call(scheduleCapabilities.register, registration, as("io.molis.work.caller")) as { job_id: string };
   const stopped = as("io.molis.work.caller", () => { throw new Error("此插件实例已停止"); });
-  const hostOnly: Array<HostCapabilityInvocation | undefined> = [undefined, { beforeEffect: async () => {} }, { consumer: "plugin", beforeEffect: async () => {} }];
+  const hostOnly: Array<HostCapabilityInvocation | undefined> = [undefined, { beforeEffect: async () => {}, assertAuthorityCurrent: () => {} }, { consumer: "plugin", beforeEffect: async () => {}, assertAuthorityCurrent: () => {} }];
   for (const invocation of hostOnly) {
-    assert.throws(() => call(scheduleCapabilities.register, { ...registration, plugin_id: "io.molis.work.caller", object_ref: "second" }, invocation), { code: "schedule_job_invalid" });
-    assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id, plugin_id: "io.molis.work.caller" }, invocation), { code: "schedule_job_invalid" });
-    assert.throws(() => call(scheduleCapabilities.setEnabled, { job_id: mine.job_id, plugin_id: "io.molis.work.caller", enabled: false }, invocation), { code: "schedule_job_invalid" });
-    assert.throws(() => call(scheduleCapabilities.list, { plugin_id: "io.molis.work.caller" }, invocation), { code: "schedule_job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.register, { ...registration, plugin_id: "io.molis.work.caller", object_ref: "second" }, invocation), { code: "scheduler.job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id, plugin_id: "io.molis.work.caller" }, invocation), { code: "scheduler.job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.setEnabled, { job_id: mine.job_id, plugin_id: "io.molis.work.caller", enabled: false }, invocation), { code: "scheduler.job_invalid" });
+    assert.throws(() => call(scheduleCapabilities.list, { plugin_id: "io.molis.work.caller" }, invocation), { code: "scheduler.job_invalid" });
   }
   assert.throws(() => call(scheduleCapabilities.register, { ...registration, object_ref: "second" }, stopped), /已停止/);
   assert.throws(() => call(scheduleCapabilities.cancel, { job_id: mine.job_id }, stopped), /已停止/);
@@ -539,4 +549,37 @@ test("超长执行仍不重叠", async () => {
   assert.equal(started, 1);
   release();
   await first;
+});
+
+
+// W2-18-SCHEDULE-02: a dispatched one-shot may have committed an owner effect before its response is lost.
+test("W2-18-SCHEDULE-02: close revokes waits before SQLite release and never automatically replays a dispatched one-shot", async () => {
+  const home = mkdtempSync(join(tmpdir(), "schedule-close-")), file = join(home, "project.sqlite");
+  const db = new Database(file), wakeups = new PluginWakeupIndex(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  db.exec("CREATE TABLE owner_results (job_id TEXT PRIMARY KEY, value TEXT NOT NULL)");
+  let lateRejected = false;
+  wakeups.register("io.molis.work.test.owner", "test.wakeup", async (input, control) => {
+    control.beforeEffect(); db.prepare("INSERT INTO owner_results VALUES (?, ?)").run(input.job_id, "accepted owner result"); entered.resolve();
+    await release.promise;
+    try { control.beforeEffect(); db.prepare("INSERT INTO owner_results VALUES (?, ?)").run("late", "must not happen"); }
+    catch { lateRejected = true; }
+  });
+  const service = createScheduleService(db, { wakeupIndex: wakeups, leaseMs: 300 });
+  const job = service.register({ plugin_id: "io.molis.work.test.owner", capability_id: "test.wakeup", object_ref: "once", title: "Once",
+    due_at: new Date(Date.now() - 1000).toISOString(), recurrence: { kind: "once" } });
+  const running = service.tick(); await entered.promise;
+  try {
+    await service.close(); await running;
+    const stopped = db.prepare("SELECT enabled, lease_token, lease_until, next_due_at FROM schedule_jobs WHERE job_id=?").get(job.job_id);
+    assert.deepEqual(stopped, { enabled: 0, lease_token: null, lease_until: null, next_due_at: job.next_due_at });
+    db.close(); release.resolve(); await new Promise<void>(resolve => setImmediate(resolve)); assert.equal(lateRejected, true);
+    const reopened = new Database(file);
+    try {
+      const next = createScheduleService(reopened, { wakeupIndex: wakeups });
+      assert.deepEqual(await next.tick(), { invoked: 0, failed: 0, skipped: 0 });
+      assert.deepEqual(reopened.prepare("SELECT * FROM owner_results").all(), [{ job_id: job.job_id, value: "accepted owner result" }]);
+      assert.equal(next.get(job.job_id)?.last_wakeup, null, "a lost response does not become a false success receipt");
+      await next.close();
+    } finally { reopened.close(); }
+  } finally { release.resolve(); await service.close(); if (db.open) db.close(); rmSync(home, { recursive: true, force: true }); }
 });

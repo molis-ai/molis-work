@@ -11,7 +11,6 @@ import { fileURLToPath } from "node:url";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import * as hostModule from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkV1Error } from "@molis-ai/molis-work-contracts/platform/errors";
 import * as functionsModule from "@molis-ai/molis-work-module-functions";
 import * as integrationCatalog from "@molis-ai/molis-work-integration-catalog";
 import * as artifactsPlugin from "@molis-ai/molis-work-plugin-artifacts";
@@ -153,7 +152,7 @@ test("the catalog's failures are ActionErrors with a code and the kind each answ
   expect(capture(() => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "no-such-plugin", actor_id: "user" })), "catalog.plugin_not_found", 400);
   // The codes of the runtime-context entries the catalog serves are its callers' mistakes: 400, as the class answered them.
   expect(capture(() => catalog.bindRuntimeContext({ context: { runtime_id: "codex", stable_work_context_id: "entry-1", host_declares_stable: true }, project_id: project.project_id, actor_id: "runtime", user_confirmed: false })),
-    "context.user_confirmation_required", 400);
+    "work.context.user_confirmation_required", 400);
   // A live terminal is a conflict the person can resolve.
   const panel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "goal-1", runtime_kind: "generic", launch_command: "/bin/cat", cwd: directory, actor_id: "user", user_confirmed: true });
   const service = new hostModule.ProjectDeletionService(withMolisWorkProjectCatalog, { isPanelAlive: id => id === panel.panel_id, releaseProject: async () => undefined });
@@ -184,9 +183,10 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
   const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_context_resolve", arguments: {} } }) as
     { result: { isError: boolean; content: Array<{ text: string }> } };
   assert.equal(reply.result.isError, true);
-  const line = JSON.parse(reply.result.content[0]!.text.split("\n").at(-1)!) as Record<string, unknown>;
-  assert.deepEqual(line, { actual_schema_version: supported + 1, supported_schema_min: 1, supported_schema_max: supported,
-    recovery: "new_or_fork_session_then_context_resolve", code: "catalog.reader_too_old" });
+  const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
+  assert.deepEqual(line, { error: `Molis Work catalog schema=${supported + 1}，当前 reader 支持 1..${supported}。当前 Session 不会热刷新 MCP；请新建或 Fork 一个 Session，先确认当前任务焦点，再只读调用 context_resolve。解析成功后再继续写入；不要回滚 catalog.db，也不要用 SQLite、CLI 或 Web 绕过。`, code: "catalog.reader_too_old",
+    details: { actual_schema_version: supported + 1, supported_schema_min: 1, supported_schema_max: supported,
+      recovery: "new_or_fork_session_then_context_resolve" } });
   const preserved = new Database(databasePath, { readonly: true });
   try {
     assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(supported + 1));
@@ -194,16 +194,14 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
   } finally { preserved.close(); }
 });
 
-for (const errorType of ["ActionError", "MolisWorkV1Error"] as const) for (const leavesRow of [false, true]) {
-  test(`W3-02-G2 MCP ${errorType} details cannot replace the code or forge a call number (${leavesRow ? "recorded" : "unrecorded"})`, async t => {
+for (const leavesRow of [false, true]) {
+  test(`W3-02-G2 MCP ActionError details cannot replace the code or forge a call number (${leavesRow ? "recorded" : "unrecorded"})`, async t => {
     const home = await mkdtemp(join(tmpdir(), "host-pages-error-model-mcp-details-"));
     const host = new hostModule.MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     const ordinary = { actual_schema_version: 9, supported_schema_min: 1, supported_schema_max: 8, recovery: "new_or_fork_session_then_context_resolve" };
     const forgedId = "11111111-1111-1111-1111-111111111111";
     const details = { ...ordinary, code: "forged.code", call_id: forgedId };
-    const failure = errorType === "ActionError"
-      ? new ActionError("catalog.reader_too_old", "目录读取器版本过旧", { details })
-      : new MolisWorkV1Error("catalog.reader_too_old", "目录读取器版本过旧", details);
+    const failure = new ActionError("catalog.reader_too_old", "目录读取器版本过旧", { details });
     // The public catalog port fails inside the real MCP message scope. A failed Home read is a real Host settlement,
     // so the recorded case proves that its displayed number finds a row, without manufacturing a call-id marker.
     const mcp = new hostModule.LocalMcpServer(async () => {
@@ -215,9 +213,9 @@ for (const errorType of ["ActionError", "MolisWorkV1Error"] as const) for (const
     const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_context_resolve", arguments: {} } }) as
       { result: { isError: boolean; content: Array<{ text: string }> } };
     assert.equal(reply.result.isError, true);
-    const line = JSON.parse(reply.result.content[0]!.text.split("\n").at(-1)!) as Record<string, unknown>;
+    const line = JSON.parse(reply.result.content[0]!.text) as Record<string, unknown>;
     const { call_id: id, ...fields } = line;
-    assert.deepEqual(fields, { ...ordinary, code: "catalog.reader_too_old" }, "ordinary details survive, and the error owns its code");
+    assert.deepEqual(fields, { error: "目录读取器版本过旧", code: "catalog.reader_too_old", details: ordinary }, "ordinary details survive, and the error owns its code");
     if (leavesRow) {
       assert.equal(typeof id, "string");
       assert.notEqual(id, forgedId);
@@ -301,9 +299,9 @@ test("the 成果 browser's route failures carry a code and the status of their k
   const badId = await edge.send("GET", "/artifacts/%E0%A4%A/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench" } });
   assert.deepEqual([badId.status, badId.body], [400, { error: "成果 ID 编码无效", code: "artifacts.reference_invalid" }]);
   const artifactsErrors = declared(artifactsPlugin, "artifactsErrors");
-  assert.deepEqual(Object.keys(artifactsErrors).sort(), ["continue_unavailable", "file_missing", "reference_invalid", "version_not_found", "workspace_unconfirmed"]);
+  assert.deepEqual(Object.keys(artifactsErrors).sort(), ["continue_unavailable", "file_missing", "plugin_denied", "plugin_incompatible", "reference_invalid", "version_not_found", "workspace_unconfirmed"]);
   const status = (reason: string) => actionHttpStatus(artifactsErrors[reason]!("x"));
-  assert.deepEqual(["reference_invalid", "version_not_found", "file_missing", "continue_unavailable", "workspace_unconfirmed"].map(status), [400, 404, 404, 400, 409]);
+  assert.deepEqual(["reference_invalid", "version_not_found", "file_missing", "continue_unavailable", "workspace_unconfirmed", "plugin_denied", "plugin_incompatible"].map(status), [400, 404, 404, 400, 409, 403, 400]);
 });
 
 /**
@@ -321,13 +319,13 @@ test("the import's failures are declared, each with the status of its kind: 415 
   assert.deepEqual(Object.keys(documentErrors).sort(), Object.keys(DOCUMENT_STATUS).sort(), "documentErrors declares exactly the codes the import itself raises");
   for (const [reason, status] of Object.entries(DOCUMENT_STATUS)) {
     const error = documentErrors[reason]!(`document ${reason}`);
-    assert.deepEqual([error.code, actionHttpStatus(error)], [`document.${reason}`, status], reason);
+    assert.deepEqual([error.code, actionHttpStatus(error)], [`artifacts.document.${reason}`, status], reason);
   }
   const edge = await artifactEdge(t, { current: undefined });
   const notJson = await edge.send("POST", "/api/artifacts/import", { headers: { "content-type": "application/json" }, body: "{broken" });
-  assert.deepEqual([notJson.status, notJson.body.code], [400, "document.request_invalid"]);
+  assert.deepEqual([notJson.status, notJson.body.code], [400, "artifacts.document.request_invalid"]);
   const tooLarge = await edge.send("POST", "/api/artifacts/import", { headers: { "content-type": "application/json" }, body: JSON.stringify({ source: "file", padding: " ".repeat(13_000_000) }) });
-  assert.deepEqual([tooLarge.status, tooLarge.body.code], [413, "document.too_large"]);
+  assert.deepEqual([tooLarge.status, tooLarge.body.code], [413, "artifacts.document.too_large"]);
 });
 
 /** What `ExternalDocumentImportError` answered on the merge-base, by reason (its own `status`); needs_auth was 401 and the three 422s are 400 now. */

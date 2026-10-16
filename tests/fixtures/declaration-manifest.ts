@@ -1,4 +1,5 @@
-import { parsePluginManifest, PluginManifestError } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 
 export const DECLARATION_PLUGIN_ID = "io.molis.work.declaration-rules";
 
@@ -35,7 +36,7 @@ export function manifestProblems(input: unknown): string {
     parsePluginManifest(input);
     return "";
   } catch (error) {
-    if (error instanceof PluginManifestError) return error.message;
+    if ((error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid")) return error.message;
     throw error;
   }
 }

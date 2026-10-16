@@ -115,20 +115,8 @@ export type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/p
 export type { PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-
-export declare class PluginDefinitionError extends Error {
-    readonly code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid";
-    constructor(code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid", message: string);
-}
-
 export type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-
-export declare class PluginManifestError extends Error {
-    readonly code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid";
-    constructor(code: "plugin_manifest_invalid" | "plugin_entrypoint_missing" | "plugin_permission_invalid" | "plugin_declaration_invalid", message: string);
-}
-
 export type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -143,6 +131,20 @@ export type { PluginSyncIdentity } from "@molis-ai/molis-work-contracts/platform
 export type { PluginSyncSnapshot } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncSnapshotAdapter } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginUiClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export declare const QUESTION_LIMITS: Readonly<{
+    maxQuestions: 10;
+    maxOptionsPerQuestion: 20;
+    maxOtherChars: 500;
+    maxTextChars: 2000;
+    maxHelpChars: 500;
+    maxOptionDescriptionChars: 300;
+    maxRefKinds: 10;
+    maxRefKindChars: 64;
+    maxReferences: 20;
+    maxReferenceChars: 200;
+}>;
+
 export { SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -264,6 +266,20 @@ export declare const packageDescriptor: {
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
 export { parsePluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export declare function questionAnswer(values: unknown): {
+    answers: Array<{
+        question: number;
+        indexes: number[];
+        other?: string;
+    }>;
+} | {
+    text: string;
+} | null;
+
+export declare function questionProblems(questions: readonly AgentQuestion[], answers: readonly AgentQuestionAnswer[]): AgentQuestionProblem[];
+
+export declare function questionSetFlaw(questions: readonly AgentQuestion[]): string | null;
 
 export declare function reconstructSides(ops: readonly DiffOp[]): {
     before: string;

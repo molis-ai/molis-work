@@ -5,10 +5,9 @@ import {mkdtemp,readdir,rm,stat} from 'node:fs/promises';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {randomUUID} from 'node:crypto';
-import {PERSONAL_HOME_SQLITE_STORES} from '@molis-ai/molis-work-storage';
 import {openServerDatabase} from '@molis-ai/molis-work-server';
 import {createLocalImServer} from '../apps/local-host/dist/im-server.js';
-import {authorizeLocalWebRequest} from '@molis-ai/molis-work-app-local-host';
+import {authorizeLocalWebRequest, homeStores} from '@molis-ai/molis-work-app-local-host';
 
 test('local project connection requires operator token and catalog identity without granting existing projects to another session',async()=>{
   const home=await mkdtemp(join(tmpdir(),'molis-im-project-'));
@@ -82,6 +81,6 @@ test('the local discussion mount writes only server/server.sqlite into a Home, a
     assert.equal((await stat(join(home,'server','server.sqlite'))).isFile(),true);
     const created=await readdir(home);
     assert.deepEqual(created,['server']);
-    for(const directory of created)assert.ok((PERSONAL_HOME_SQLITE_STORES as readonly string[]).includes(directory),`${directory}/ is written by the discussion mount but not listed for uninstall --purge-user-data`);
+    for(const directory of created)assert.ok(homeStores().get(directory),`${directory}/ is written by the discussion mount but not registered for uninstall --purge-user-data`);
   }finally{im.stop();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));im.close();await rm(home,{recursive:true,force:true});}
 });

@@ -1,11 +1,11 @@
 import { FEED_RULE_AUTHORING_SCRIPT } from "./feed-rule-authoring.js";
-import { OWN_DIRECTORY_SURFACES, pluginTabTitles } from "../../plugin-catalog.js";
+import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
 
 /** AP3 Workbench client segment: navigation-feed. */
 export const CLIENT_NAVIGATION_FEED_SCRIPT = `
 ${FEED_RULE_AUTHORING_SCRIPT}
     const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
-    const PLUGIN_TAB_TITLES = ${JSON.stringify({ goal: "Goals", sources: "Feed", ...pluginTabTitles() })};
+    const PLUGIN_TAB_TITLES = { goal: "Goals", sources: "Feed", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
     const directoryPanelFor = (directory) => directory;
 
     const restoreLastGoal = (openGoalsDirectory = false) => {
@@ -269,7 +269,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       const status = control.closest("[data-source-detail-panel]")?.querySelector("[data-source-action-status]") ||
         control.closest("[data-source-detail]")?.querySelector("[data-source-action-status]");
       if (!status) return;
-      status.textContent = message;
+      if(typeof message==="string")status.textContent=message;else molisWorkRequest.show(status,message);
       status.hidden = false;
     };
 
@@ -311,9 +311,8 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       const selected = select.value;
       region.dataset.loading = "true"; select.disabled = true;
       try {
-        const response = await fetch("/api/settings/connectors/connections?service_id=" + encodeURIComponent(region.dataset.feedConnectionService));
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || L("无法读取账号连接，请重试。"));
+        const result = await molisWorkRequest("/api/settings/connectors/connections?service_id=" + encodeURIComponent(region.dataset.feedConnectionService), {fallback:L("无法读取账号连接，请重试。")});
+        if(!region.isConnected)return;
         const options = result.connections.map(connection => {
           const option = document.createElement("option");
           option.value = connection.connection_id;
@@ -331,7 +330,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         select.disabled = !result.connections.length;
         status.textContent = L(result.connections.length ? "更换账号会创建独立来源并暂停旧来源，原消息会保留。" : "还没有账号连接，请先在 Connectors 添加。" );
         select.dispatchEvent(new Event("change", { bubbles: true }));
-      } catch (error) { status.textContent = error.message || L("无法读取账号连接，请重试。"); }
+      } catch (error) { molisWorkRequest.show(status,error,L("无法读取账号连接，请重试。")); }
       finally { delete region.dataset.loading; }
     };
 
@@ -453,13 +452,9 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       feedWorkbench.setAttribute("aria-busy", "true");
       feedWorkbenchRequest = (async () => {
         try {
-          const response = await fetch(
-            route("/api/feed/workbench?preset=" + encodeURIComponent(activeFeedPreset)),
-            { cache: "no-store" },
-          );
-          if (!response.ok) throw new Error(L("无法打开 Item 工作区"));
+          const html = await molisWorkRequest(route("/api/feed/workbench?preset=" + encodeURIComponent(activeFeedPreset)), {as:"text",fallback:L("无法打开 Item 工作区" )});
           const template = document.createElement("template");
-          template.innerHTML = (await response.text()).trim();
+          template.innerHTML = html.trim();
           if (requestedPreset !== activeFeedPreset) return false;
           for (const detail of [...template.content.querySelectorAll("[data-feed-detail]")]) {
             feedWorkbench.insertBefore(detail, feedDetailEmpty);
@@ -469,8 +464,8 @@ ${FEED_RULE_AUTHORING_SCRIPT}
           filterFeedItems(true);
           return true;
         } catch (error) {
-          const message = error instanceof Error ? error.message : L("无法打开 Item 工作区");
-          setFeedDetailPlaceholder(message, L("目录仍然可用，点击重试即可。"), true);
+          setFeedDetailPlaceholder(molisWorkRequest.text(error,L("无法打开 Item 工作区")),L("目录仍然可用，点击重试即可。"),true);
+          const title=feedDetailEmpty?.querySelector("[data-feed-detail-empty-title]");if(title)molisWorkRequest.show(title,error);
           return false;
         } finally {
           feedWorkbench.removeAttribute("aria-busy");
@@ -489,13 +484,9 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       try {
         const scrollTop = list?.scrollTop || 0;
         const selectedId = selectedFeedItem;
-        const response = await fetch(
-          route("/api/feed/workbench?preset=" + encodeURIComponent(activeFeedPreset)),
-          { cache: "no-store" },
-        );
-        if (!response.ok) throw new Error(L("无法更新 Feed 列表"));
+        const html = await molisWorkRequest(route("/api/feed/workbench?preset=" + encodeURIComponent(activeFeedPreset)), {as:"text",fallback:L("无法更新 Feed 列表" )});
         const template = document.createElement("template");
-        template.innerHTML = (await response.text()).trim();
+        template.innerHTML = html.trim();
         if (seq !== feedStageRefreshSeq) return false;
         const nextList = template.content.querySelector("[data-feed-list]");
         const nextWorkspace = template.content.querySelector("[data-feed-stage-workspace]");
@@ -542,8 +533,8 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         if (selectedId) selectFeedItem(selectedId, false, false, false);
         list.scrollTop = scrollTop;
         return true;
-      } catch {
-        if (seq === feedStageRefreshSeq) showToast(L("列表更新失败，当前输入已保留，请重试。"), true);
+      } catch(error) {
+        if(seq===feedStageRefreshSeq)showToast(error,true);
         return false;
       }
     };
@@ -576,6 +567,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
           loading.textContent = L("正在载入 Item…");
           slot.replaceChildren(loading);
         }
+        if (feedDetailEmpty) feedDetailEmpty.hidden = true;
       } else {
         setFeedDetailPlaceholder(L("正在载入 Item…"), "");
       }
@@ -583,20 +575,16 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         const inboxEntryQuery = row.dataset.inboxEntryId
           ? "&entry=" + encodeURIComponent(row.dataset.inboxEntryId)
           : "";
-        const response = await fetch(
-          route("/api/feed/items/" + encodeURIComponent(itemId) + "/detail?preset=" + encodeURIComponent(activeFeedPreset) + inboxEntryQuery),
-          { cache: "no-store", signal: controller.signal },
-        );
-        if (!response.ok) throw new Error(L("无法读取这条 Item"));
+        const html = await molisWorkRequest(route("/api/feed/items/" + encodeURIComponent(itemId) + "/detail?preset=" + encodeURIComponent(activeFeedPreset) + inboxEntryQuery), {as:"text",signal:controller.signal,fallback:L("无法读取这条 Item")});
         const template = document.createElement("template");
-        template.innerHTML = (await response.text()).trim();
+        template.innerHTML = html.trim();
         const detail = template.content.querySelector('[data-feed-detail="' + CSS.escape(entryId) + '"]');
         if (!detail) throw new Error(L("Item 详情响应不完整"));
         if (feedDetailRequest !== controller || !feedWorkbench.isConnected) return;
         detail.hidden = selectedFeedItem !== entryId;
         if (row.dataset.feedEntryRead === "read") {
           detail.dataset.feedDetailRead = "read";
-          detail.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); });
+          detail.querySelectorAll("[data-feed-read-state]").forEach((label) => { label.textContent = L("已读"); label.dataset.mwState = "read"; });
         }
         if (slot) {
           slot.replaceChildren(detail);
@@ -610,16 +598,11 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       } catch (error) {
         if (isAbortError(error) || feedDetailRequest !== controller) return;
         if (selectedFeedItem !== entryId) return;
-        const message = error instanceof Error ? error.message : L("无法读取这条 Item");
-        if (slot) {
-          const failed = document.createElement("p");
-          failed.className = "feed-stage-loading";
-          failed.textContent = message;
-          const retry = document.createElement("button"); retry.type = "button"; retry.dataset.retryFeedDetail = ""; retry.textContent = L("重试");
-          slot.replaceChildren(failed, retry);
-          slot.hidden = false;
-        }
+        const message=molisWorkRequest.text(error,L("无法读取这条 Item"));
+        // The placeholder under the reader bar says what failed and holds the one retry.
+        if (slot) { slot.replaceChildren(); slot.hidden = true; }
         setFeedDetailPlaceholder(message, L("这条 Item 仍然保留，点击重试即可。"), true);
+        const title=feedDetailEmpty?.querySelector("[data-feed-detail-empty-title]");if(title)molisWorkRequest.show(title,error);
       } finally {
         if (feedDetailRequest === controller) {
           feedDetailRequest = null;

@@ -212,5 +212,6 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   importsView = (${CHARACTER_IMPORT_CLIENT_FACTORY})({root,q,request,current,load,select,act,save,dirty,note});
   actionsView = (${CHARACTER_ACTION_CLIENT})({q,request,changed:remember});
   void actionsView.refresh();
+  // The page renders 新建 and 导入 disabled; the first load's controls() enables them, so a click never lands before anything listens.
   void act(load);
 }`;

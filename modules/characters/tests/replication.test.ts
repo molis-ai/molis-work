@@ -32,7 +32,7 @@ test("personal Character draft transfers with target-local revision, without pub
         assert.equal(draft?.revision, saved.revision);
         assert.throws(() => received.service.update(saved.character_id, initial.revision, {
           title: "旧窗口", instructions: "旧版本", host_tools: null,
-        }), { code: "character.conflict" });
+        }), { code: "characters.conflict" });
       } finally { received.close(); }
       assert.equal(b.replica(context).next(), null);
     } finally { a.close(); b.close(); }

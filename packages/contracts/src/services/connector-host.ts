@@ -1,3 +1,4 @@
+import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const servicesConnectorHostContract = {
@@ -164,3 +165,40 @@ export type ConnectorConnectionView = Pick<ConnectorConnectionRecord,
     readonly mcp_endpoint?: string;
     readonly agent_available?: boolean;
   };
+
+const connectionFailures = defineErrorCodes("connector.connection", {
+  disconnected: "invalid",
+  invalid: "invalid",
+  not_found: "invalid",
+  service_mismatch: "invalid",
+});
+const hostFailures = defineErrorCodes("connector", {
+  connection_missing: "invalid",
+  driver_duplicate: "invalid",
+  driver_missing: "invalid",
+  invocation_failed: "invalid",
+  timeout: "invalid",
+});
+const mcpFailures = defineErrorCodes("connector.mcp", {
+  authorization: "invalid",
+  configuration: "invalid",
+  disconnected: "invalid",
+  provider: "invalid",
+});
+
+/** One current refusal declaration shared by the Connector service and the Host's MCP edge. */
+export const connectorErrors = {
+  "connector.connection.disconnected": connectionFailures.disconnected,
+  "connector.connection.invalid": connectionFailures.invalid,
+  "connector.connection.not_found": connectionFailures.not_found,
+  "connector.connection.service_mismatch": connectionFailures.service_mismatch,
+  "connector.connection_missing": hostFailures.connection_missing,
+  "connector.driver_duplicate": hostFailures.driver_duplicate,
+  "connector.driver_missing": hostFailures.driver_missing,
+  "connector.invocation_failed": hostFailures.invocation_failed,
+  "connector.timeout": hostFailures.timeout,
+  "connector.mcp.authorization": mcpFailures.authorization,
+  "connector.mcp.configuration": mcpFailures.configuration,
+  "connector.mcp.disconnected": mcpFailures.disconnected,
+  "connector.mcp.provider": mcpFailures.provider,
+};

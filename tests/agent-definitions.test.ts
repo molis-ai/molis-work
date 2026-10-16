@@ -170,8 +170,8 @@ test("the person's edit is kept apart from the default: saved, conflict-checked,
 
   // A newer default does not replace the person's version; it is flagged for them to look at.
   const [assistant] = builtinAgents();
-  definitions.register(agentRegistration(assistant!.owner_id, assistant!.source, { ...assistant!.manifest, prompts: [{ prompt_id: "assistant-base", version: BASE_VERSION + 1, layer: "base" }] },
-    [{ ...assistant!.prompts[0]!, version: BASE_VERSION + 1, body: "新的默认" }]));
+  definitions.register(agentRegistration(assistant!.owner_id, assistant!.source, { ...assistant!.manifest, prompts: assistant!.manifest.prompts!.map(prompt => prompt.prompt_id === "assistant-base" ? { ...prompt, version: BASE_VERSION + 1 } : prompt) },
+    assistant!.prompts.map(prompt => prompt.prompt_id === "assistant-base" ? { ...prompt, version: BASE_VERSION + 1, body: "新的默认" } : prompt)));
   assert.deepEqual([definitions.prompt(key).effective, definitions.prompt(key).default_updated, definitions.prompt(key).default_body], ["user", true, "新的默认"]);
 
   const reset = definitions.reset(key, 2, "web-user");

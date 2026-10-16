@@ -23,6 +23,8 @@ createGithubIntegrationPlugin 通过 SDK 注册 Driver/Adapter，createGithubPro
 
 ## 接入与边界
 
+通知按当前官方 API 的 next 页逐页读取，每次最多 20 页。只读取页号并重建固定 `https://api.github.com/notifications` 请求，不携带凭据跟随任意 Link 地址或重定向。只有整批读完才提交 Last-Modified、更新时间与下一轮时间；次页失败、限流或仍有第 21 页均返回失败并保留旧游标。超过当前工作上限的积压会明确失败，不能宣称已全部接入。条件请求仅用于第一页，304 不重复创建信息条目。
+
 Manifest 声明权限并不等于已经获得授权；实际 grant 与凭据由 Host 管理。本包不拥有 Feed 状态，也不以导入测试的通过声称真实 GitHub 账号已连通。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
@@ -39,7 +41,7 @@ pnpm --filter @molis-ai/molis-work-integration-github build
 已有行为示例与回归：[github-device-flow.test.ts](../../../tests/github-device-flow.test.ts)、[feed-connectors.test.ts](../../../tests/feed-connectors.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/github-device-flow.test.ts tests/feed-connectors.test.ts
+node scripts/run-tests.mjs tests/github-device-flow.test.ts tests/feed-connectors.test.ts
 ```
 
 这些测试使用隔离数据或注入端口；Provider/桌面相关测试的通过不等于真实账户连接、安装或发布验收。
@@ -54,7 +56,7 @@ node --import tsx --test --test-concurrency=1 tests/github-device-flow.test.ts t
   - 外部更新交给统一的监听与 Signal 链路，不拥有 Feed 状态。
   - 凭据不写进 Source 或 Signal 正文。
   - 测试用隔离数据或注入端口，通过不代表真实账号已连通。
-- 改动后必跑：`node scripts/run-tests.mjs tests/github-device-flow.test.ts tests/plugin-runtime-integration.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/github-device-flow.test.ts tests/plugin-runtime-integration.test.ts tests/feed-connectors.test.ts tests/integration-pagination.test.ts`
 - 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

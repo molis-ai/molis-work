@@ -1,9 +1,9 @@
+import { governanceErrors } from "./errors.js";
 import type {
   GoalTreeProposalItemRecord,
   GoalTreeProposalRecord,
 } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 
-import { GovernanceError } from "./errors.js";
 
 type GovernanceState =
   | GoalTreeProposalRecord["state"]
@@ -36,9 +36,7 @@ export function assertGovernanceTransition(
   to: GovernanceState,
 ): void {
   if (transitions[kind][from]?.includes(to)) return;
-  throw new GovernanceError(
-    "governance.transition_invalid",
-    `不允许把 ${kind} 从 ${from} 改成 ${to}`,
+  throw governanceErrors.transition_invalid(`不允许把 ${kind} 从 ${from} 改成 ${to}`,
     { kind, from, to },
   );
 }

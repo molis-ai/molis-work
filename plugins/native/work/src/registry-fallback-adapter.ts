@@ -68,7 +68,7 @@ export class RegistryFallbackSessionAdapter implements RuntimeSessionAdapter {
       return {
         status: "failed",
         capability,
-        code: "runtime.operation_failed",
+        code: "runtime_host.operation_failed",
         message: error instanceof Error ? error.message : String(error),
       };
     }

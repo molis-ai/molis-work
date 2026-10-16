@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type {
@@ -312,7 +312,7 @@ export const LINGGUANG_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openLingguangStore(homeDirectory: string): LingguangStore {
-  const db = openBaselineHomeSqlite(homeDirectory, "lingguang", LINGGUANG_STORE_BASELINE);
+  const db = openBaselineHomeSqlite(homeDirectory, LINGGUANG_HOME_STORE.path, LINGGUANG_STORE_BASELINE);
   initializeAggregateReplication(db,lingguangAggregates(db));
   return new LingguangStore(db);
 }
@@ -408,3 +408,6 @@ function normalizeChat(value: string): string {
   if (text.length > 2000) throw lingguangErrors.invalid("这句话须为 1 到 2000 个字");
   return text;
 }
+
+/** This plugin's store in the Home's store registry (W4-11): `lingguang/lingguang.db` at its one baseline. */
+export const LINGGUANG_HOME_STORE: HomeStoreDeclaration = { path: "lingguang", library: { baseline: LINGGUANG_STORE_BASELINE } };

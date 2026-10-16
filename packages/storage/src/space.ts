@@ -5,6 +5,7 @@ import type { StorageSpace, SpaceAssetRef } from '@molis-ai/molis-work-contracts
 
 export type { StorageSpace, SpaceAssetRef };
 const FILE = 'storage-space.json';
+export const STORAGE_SPACE_SCHEMA_SQL = 'CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);';
 
 function validate(value: StorageSpace): StorageSpace {
   if (!value || typeof value.spaceId!=='string' || !/^space_[a-zA-Z0-9_-]+$/.test(value.spaceId)) throw new Error('SPACE_METADATA_INVALID');
@@ -67,7 +68,7 @@ export function bindDatabaseSpace(db:SpaceDatabase,space:StorageSpace):void {
     const existing=db.prepare('SELECT descriptor FROM molis_storage_space WHERE singleton=1').get() as {descriptor:string}|undefined;
     if(existing){if(existing.descriptor!==descriptor)throw new Error('SPACE_OWNERSHIP_MISMATCH');return;}
   }
-  db.exec('CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL)');
+  db.exec(STORAGE_SPACE_SCHEMA_SQL);
   db.prepare('INSERT INTO molis_storage_space VALUES (1,?,?) ON CONFLICT(singleton) DO NOTHING').run(space.spaceId,descriptor);
   const row=db.prepare('SELECT descriptor FROM molis_storage_space WHERE singleton=1').get() as {descriptor:string};
   if(row.descriptor!==descriptor)throw new Error('SPACE_OWNERSHIP_MISMATCH');

@@ -1,4 +1,5 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { SIDE_CONTEXT_FACTORY } from "./side-panel-context.js";
 import { renderSideBrowser } from "./side-panel-browser.js";
 import { renderSideComputer } from "./side-panel-computer.js";
 import { renderSideFiles } from "./side-panel-files.js";
@@ -26,6 +27,8 @@ export interface SidePanelPluginTab {
   readonly src: string;
   /** A Home tool's summon chord (`Mod+Shift+I`): opens and focuses the tab from anywhere, again closes it. */
   readonly keys?: string;
+  readonly contextOwner?: string;
+  readonly contextSurface?: string;
 }
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], projectTools = true): string {
@@ -34,11 +37,12 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
     `<button class="side-panel-tab" type="button" role="tab" id="side-tab-${escapeHtml(id)}" aria-controls="side-body-${escapeHtml(id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(id)}" title="${escapeHtml(label)}"${extra}>${icon(glyph)}<span>${escapeHtml(label)}</span></button>`;
   const body = (id: string, label: string, inner: string, extra = "") =>
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;
-  const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, ...entry }));
+  // A plugin's side view names itself in its Manifest; the panel shows that name in the interface language.
+  const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, ...entry, title: L(entry.title) }));
   return `<section class="side-panel" id="dock-window-im" role="region" aria-label="${L("侧栏")}" data-side-panel data-dock-window="im" hidden>
         <header class="side-panel-head">
           <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs>
-            ${projectTools ? tab("discussion", L("讨论"), "message") + tab("browser", L("浏览器"), "globe") + tab("computer", L("电脑"), "system") + tab("files", L("文件"), "folder") : ""}${plugins.map(entry => tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}`)).join("")}
+            ${projectTools ? tab("discussion", L("讨论"), "message") + tab("browser", L("浏览器"), "globe") + tab("computer", L("电脑"), "system") + tab("files", L("文件"), "folder") : ""}${plugins.map(entry => tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"${entry.contextOwner ? ` data-side-context-owner="${escapeHtml(entry.contextOwner)}" data-side-context-surface="${escapeHtml(entry.contextSurface)}" hidden` : ""}${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}`)).join("")}
           </div>
           <button class="side-panel-close" type="button" data-side-close aria-label="${L("收起侧栏")}" title="${L("收起侧栏")}">${icon("x")}</button>
         </header>
@@ -60,11 +64,12 @@ html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transfo
 .side-panel-tabs{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
 .side-panel-tab{display:inline-flex;align-items:center;gap:6px;flex:none;height:30px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:var(--muted);font:inherit;font-size:13px;cursor:pointer}
 :is(.side-panel-tab,.side-panel-close){transition:background-color var(--dur-hover) var(--ease-quint),color var(--dur-hover) var(--ease-quint)}
+.side-panel-tab[hidden]{display:none}
 .side-panel-tab svg{width:15px;height:15px;flex:none}
 :is(.side-panel-tab,.side-panel-close):hover{background:var(--nav-hover);color:var(--ink)}
 .side-panel-tab[aria-selected=true]{background:var(--nav-active);color:var(--ink)}
 .side-panel-tab:focus-visible,.side-panel-close:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:-2px}
-:is(.side-panel-tab,[data-side-plugin-open])[data-side-busy]::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}[data-side-busy=attention]::after{background:var(--amber)}
+.side-busy-mark{display:inline-flex;flex:none;width:16px;height:16px}
 .side-panel-close{display:inline-grid;place-items:center;flex:none;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
 .side-panel-close svg{width:16px;height:16px}
 .side-panel-body{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;animation:side-panel-body-in var(--dur-move) var(--ease-quint)}
@@ -95,7 +100,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * A Home tool (`data-side-plugin-open`, a tab with `data-side-keys`) is a switch: its button or chord, here or handed up
  * by a frame as `{ type: "molis:side-key", keys }`, opens it with the keyboard inside its document; pressed again from
  * inside, it closes. Tools with a chord load while the page is idle, so the first press shows a ready tool. A tab's own
- * document may report `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab and button carry a dot.
+ * document may report `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab and button carry a shared state ring.
  * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-close` · `molis:side-toggle`. Same-origin frames post the same
  * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows.
  */
@@ -106,16 +111,16 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   stage.setAttribute('data-plugin-stage','');
   document.querySelector('[data-workspace]').append(panel);
   const frame=panel.querySelector('[data-dock-frame="im"]'),projectId=document.body.dataset.projectId;
-  const tabs=()=>[...panel.querySelectorAll('[data-side-tab]')];
+  const tabs=()=>[...panel.querySelectorAll('[data-side-tab]')].filter(tab=>!tab.hidden);
   const divider=document.createElement('div');divider.className='side-panel-divider';divider.tabIndex=0;
-  divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label','调整侧栏宽度');divider.setAttribute('aria-controls',panel.id);
+  divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',globalThis.L('调整侧栏宽度'));divider.setAttribute('aria-controls',panel.id);
   panel.after(divider);
   const read=(key)=>{try{return localStorage.getItem(key);}catch{return null;}};
   const write=(key,value)=>{try{localStorage.setItem(key,value);}catch{}};
   let open=false,closing=null,trigger=null,ratio=.35,current=null;
   const storedRatio=Number(read('molis:side-ratio')??read('molis:discussion-ratio'));if(storedRatio>=.25&&storedRatio<=.55)ratio=storedRatio;
   const size=()=>Math.min(Math.max(innerWidth*ratio,360),innerWidth*.55);
-  const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));};
+  const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});};
   const imVisible=()=>frame?.contentWindow?.postMessage({type:'molis:im-visibility',visible:open&&current==='discussion',theme:document.documentElement.dataset.resolvedTheme},location.origin);
   const known=(id)=>!!id&&tabs().some(button=>button.dataset.sideTab===id);
   const load=(body)=>{
@@ -126,10 +131,10 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   const select=(id,target)=>{
     if(!known(id))id=tabs()[0]?.dataset.sideTab;
     current=id;write('molis:side-tab',id);
-    for(const button of tabs()){const on=button.dataset.sideTab===id;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
+    for(const button of panel.querySelectorAll('[data-side-tab]')){const on=button.dataset.sideTab===id;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
     for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open)load(body);}
     document.querySelectorAll('[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&id==='plugin:'+button.dataset.sidePluginOpen)));
-    imVisible();
+    imVisible();if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:id,target:target??null,open}}));
   };
   const setOpen=(next,options={})=>{
@@ -183,7 +188,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(event.data?.type==='molis:side-close'&&event.source&&event.source!==window){setOpen(false);return;}
     if(event.data?.type==='molis:side-key'&&event.source!==window){keyed(event.data.keys);return;}
     if(event.data?.type==='molis:side-status'){const body=[...panel.querySelectorAll('[data-side-body]')].find(body=>body.querySelector('iframe')?.contentWindow===event.source);
-      if(body)for(const mark of document.querySelectorAll('[data-side-tab="'+body.dataset.sideBody+'"],[data-side-plugin-open="'+body.dataset.sideBody.slice(7)+'"]'))event.data.status?mark.dataset.sideBusy=event.data.status:delete mark.dataset.sideBusy;return;}
+      if(body)for(const mark of document.querySelectorAll('[data-side-tab="'+body.dataset.sideBody+'"],[data-side-plugin-open="'+body.dataset.sideBody.slice(7)+'"]')){let ring=mark.querySelector('.side-busy-mark');if(event.data.status){mark.dataset.sideBusy=event.data.status;if(!ring){ring=document.createElement('i');ring.className='side-busy-mark';mark.append(ring);}ring.dataset.mwState=event.data.status==='attention'?'answer':'running';}else{delete mark.dataset.sideBusy;ring?.remove();}}return;}
     if(!frame||event.source!==frame.contentWindow)return;
     if(event.data?.type==='molis:im-close')setOpen(false);
     if(event.data?.type==='molis:im-ready')imVisible();
@@ -203,6 +208,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   divider.addEventListener('dblclick',()=>{ratio=.35;paint();keep();});
   addEventListener('resize',paint);paint();
   document.body.dataset.sideOpen='false';
+  (${SIDE_CONTEXT_FACTORY})({panel,select,current:()=>current});
   select(read('molis:side-tab'));
   (window.requestIdleCallback||setTimeout)(()=>panel.querySelectorAll('[data-side-keys]').forEach(tab=>load(panel.querySelector('[data-side-body="'+tab.dataset.sideTab+'"]'))),{timeout:4000});
 })();`.replace(/^[ \t]*\/\/.*\n/gm, "");

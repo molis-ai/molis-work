@@ -101,12 +101,13 @@ test("a command turned away before its handler ran leaves a 「未执行」 row,
   assert.ok(lines(home).every(line => !/"input"|"result"/.test(line)), "a diagnostic row names who, what, how it ended and the error code, never content");
 }));
 
-test("a command cancelled, revoked or disabled before its handler started leaves a 「未执行」 row under the number of its operation, and a handler that ran and failed leaves one without the mark", { timeout: 60_000 }, async () => {
+test("PREP-108-01/03: a command cancelled, revoked or disabled before its handler started leaves a 「未执行」 row under the number of its operation, and a handler that ran and failed leaves one without the mark", { timeout: 60_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "action-call-log-before-handler-"));
   const dbPath = join(home, "project.db");
   seedDemoBoard(dbPath, PROJECT);
   let availability: ActionAvailability = { available: true };
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: () => availability });
+  let opened = 0;
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: () => availability, onRuntimeOpen: () => { opened++; } });
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: NATIVE_CONTENT_PERMISSIONS };
   const client = host.actionClient(reference);
@@ -118,7 +119,18 @@ test("a command cancelled, revoked or disabled before its handler started leaves
   });
   try {
     const [aborted, revoked, disabled] = [idOf(9001), idOf(9002), idOf(9003)];
-    await operation(aborted, () => client.invoke({ ...caller, signal: AbortSignal.abort() }, s.register, register));
+    const stopped = new Error("private preparation reason"), signal = AbortSignal.abort(stopped);
+    await withCallId(aborted, async () => {
+      await assert.rejects(client.invoke({ ...caller, signal }, s.register, register), error => error === stopped);
+      assert.equal(recordedCallId(), aborted, "the actual original rejection has one findable diagnostic");
+    });
+    assert.equal(opened, 0, "a command already cancelled does not open its project or prepare its plugins");
+    const homeId = idOf(9005);
+    await operation(homeId, () => host.homeActionClient().invoke({ ...caller, actor_id: "home-person", project_id: null, signal }, s.register, register));
+    const homeRefusal = host.callLog!.list(null).find(row => row.call_id === homeId)!;
+    assert.deepEqual([homeRefusal.actor_id, homeRefusal.project_id, homeRefusal.capability_id, homeRefusal.code, homeRefusal.refused], ["home-person", null, s.register.capability_id, undefined, true]);
+    assert.equal(opened, 0);
+    assert.ok(!lines(home).some(line => line.includes("private preparation reason") || line.includes(register.query)), "a preparation refusal records no reason or input content");
     await operation(revoked, () => client.invoke({ ...caller, validate_authority: () => { throw new ActionError("actions.revoked", "授权已撤销"); } }, s.register, register));
     availability = { available: false, code: "actions.plugin_disabled", reason: "插件已停用" };
     await operation(disabled, () => client.invoke(caller, s.register, register));
@@ -139,6 +151,61 @@ test("a command cancelled, revoked or disabled before its handler started leaves
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+test("PREP-108-02/04: registered metadata does not start a Runtime or await Host policy, and an early scoped refusal is settled once", () => logOf("registered-metadata", async (_home, log) => {
+  let opened = 0, policies = 0, providerPolicies = 0, snapshots = 0, effects = 0;
+  const policy = Object.assign(() => { policies++; return { available: false, code: "actions.forbidden", reason: "Host policy" } as const; },
+    { snapshotForDiscovery: () => { snapshots++; return () => ({ available: true } as const); } });
+  const host = new LocalHost({ runtimeFactory: { open: () => { opened++; return {}; }, close: () => {} }, actionAvailability: policy,
+    actionSettled: (caller, definition, outcome) => log.record(caller, definition, outcome) });
+  const definition = areaAction("fixture.prepare.change");
+  host.actionRegistry().registerProvider({ provider: { provider_id: "fixture.prepare", title: "Visible metadata", kind: "system" }, definitions: [definition],
+    availability: () => { providerPolicies++; return { available: true }; },
+    handlers: [{ ...definition, handle: () => { effects++; return "done"; } }] });
+  const reference = { project_id: PROJECT, storage_key: "memory:prepare" }, caller = callBy(PROJECT, { actor_id: "prepare-person" });
+  try {
+    const rows = host.inspectActionMetadata(caller, reference);
+    assert.equal(rows.find(row => row.capability_id === definition.capability_id)?.provider.title, "Visible metadata");
+    assert.equal("availability" in rows[0]!, false, "registered declarations do not pretend to be an execution availability check");
+    assert.deepEqual([opened, policies, providerPolicies, snapshots, effects], [0, 0, 0, 0, 0]);
+    assert.throws(() => host.inspectActionMetadata({ ...caller, project_id: "another-project" }, reference), { code: "actions.scope_mismatch" });
+    const client = host.actionClient(reference), other = { ...caller, actor_id: "another-person", project_id: "another-project", call_id: idOf(9006) };
+    await withCallId(other.call_id, () => assert.rejects(client.invoke(other, definition, { privateInput: "never recorded" }), { code: "actions.scope_mismatch" }));
+    const recorded = log.list("another-project");
+    assert.equal(recorded.length, 1);
+    assert.deepEqual([recorded[0]!.call_id, recorded[0]!.actor_id, recorded[0]!.project_id, recorded[0]!.title, recorded[0]!.refused],
+      [other.call_id, "another-person", "another-project", definition.capability_id, true], "the unknown descriptor contains only the requested reference, not another project's definition");
+    assert.deepEqual([opened, policies, providerPolicies, snapshots, effects], [0, 0, 0, 0, 0]);
+  } finally { await host.close(); }
+}));
+
+test("PREP-108-01/02: cancellation, open failure or Host close during Runtime preparation retains one original refusal and starts no handler", { timeout: 60_000 }, () => logOf("preparation-wait", async (_home, log) => {
+  for (const stage of ["cancel", "close", "failure"] as const) {
+    let release!: (runtime: { opened: true }) => void, fail!: (error: unknown) => void, entered!: () => void, effects = 0;
+    const ready = new Promise<void>(resolve => { entered = resolve; });
+    const opening = new Promise<{ opened: true }>((resolve, reject) => { release = resolve; fail = reject; });
+    const host = new LocalHost({ runtimeFactory: { open: () => { entered(); return opening; }, close: () => {} },
+      actionSettled: (caller, definition, outcome) => log.record(caller, definition, outcome) });
+    const definition = areaAction("fixture.preparation." + stage);
+    host.actionRegistry().registerProvider({ provider: { provider_id: "fixture.preparation", title: "Preparation", kind: "system" }, definitions: [definition],
+      handlers: [{ ...definition, handle: () => { effects++; return "done"; } }] });
+    const signal = new AbortController(), reason = stage === "cancel" ? new ActionError("actions.cancelled", "stopped while opening") : new Error("private startup failure");
+    const caller = callBy(PROJECT, { actor_id: stage + "-person", call_id: idOf(stage === "cancel" ? 9007 : stage === "close" ? 9008 : 9009), signal: signal.signal });
+    let closing: Promise<void> | undefined;
+    try {
+      const pending = withCallId(caller.call_id, () => host.actionClient({ project_id: PROJECT, storage_key: "memory:" + stage }).invoke(caller, definition, {}));
+      const refused = assert.rejects(pending, error => stage !== "close" ? error === reason : error instanceof ActionError && error.code === "host.closed");
+      await ready;
+      if (stage === "cancel") signal.abort(reason); else if (stage === "close") closing = host.close(); else fail(reason);
+      if (stage !== "failure") release({ opened: true });
+      await refused;
+      const rows = log.list(PROJECT).filter(row => row.call_id === caller.call_id);
+      assert.equal(rows.length, 1);
+      assert.deepEqual([rows[0]!.actor_id, rows[0]!.project_id, rows[0]!.refused], [caller.actor_id, PROJECT, true]);
+      assert.equal(effects, 0);
+    } finally { release({ opened: true }); await (closing ?? host.close()); }
+  }
+}));
 
 test("a 「未执行」 row keeps who, what, the outcome and the error code and no content: not the reason the provider gave, not what was asked with", { timeout: 60_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "action-call-log-reason-"));

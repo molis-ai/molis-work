@@ -19,7 +19,7 @@ import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import * as attentionContracts from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import * as feedContracts from "@molis-ai/molis-work-contracts/modules/feed";
 import { ActionError, type ActionExecutionContext, type ActionHandlerBinding, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ScheduleError } from "@molis-ai/molis-work-contracts/services/scheduler";
+import { schedulerErrors } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { PluginWakeupIndex, createScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import { actionErrorResponse, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import * as feedPlugin from "@molis-ai/molis-work-plugin-feed";
@@ -39,8 +39,8 @@ import * as schedulePlugin from "@molis-ai/molis-work-plugin-schedule";
 //   4. the Feed connector failure keeps the provider's own code in details, and the codes the Feed classifies a failure by are the new ones;
 //   5. nothing of the old shape is left: no error class, no mapper, no bare `new Error(` for a caller's mistake, no owner code raised without its declaration,
 //      no old code name in the sources.
-//   6. the scheduler's own refusals (its `ScheduleError`) leave every Schedule action as Schedule's declared failures: the five wrappers of the three action files
-//      (actions.ts `bind`, reminder-actions.ts, operation-actions.ts) are driven with the scheduler's real class and with the real scheduler, so deleting one of them,
+//   6. the scheduler's own declared refusals leave every Schedule action as Schedule's declared failures: the five wrappers of the three action files
+//      (actions.ts `bind`, reminder-actions.ts, operation-actions.ts) are driven with the scheduler's public raisers and with the real scheduler, so deleting one of them,
 //      which no static scan can see, turns a stale-job toggle into a 500 here.
 
 const REPOSITORY = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -54,6 +54,7 @@ type Raiser = (message: string, details?: Record<string, unknown>) => ActionErro
 type Declarations = Readonly<Record<string, Raiser>>;
 
 const FEED: OwnerCodes = { prefix: "feed", status: {
+  contract_source_history_decision_required: 500,
   item_not_found: 404, source_not_found: 404, out_rule_not_found: 404,
   revision_conflict: 409, source_paused: 409, source_use_catalog: 409,
   invalid_transition: 400, request_invalid: 400, out_rule_invalid: 400,
@@ -192,8 +193,8 @@ test("owner details travel in details and nowhere else", async () => {
   try {
     const declared = declarationsOf("feed");
     assert.ok(declared, "feedErrors is exported");
-    const answer = await edge.fail(declared.connector_failed!("授权已失效", { error_code: "connector_needs_auth" }));
-    assert.deepEqual(answer, { status: 400, body: { error: "授权已失效", code: "feed.connector_failed", details: { error_code: "connector_needs_auth" } } });
+    const answer = await edge.fail(declared.connector_failed!("授权已失效", { error_code: "connector.needs_auth" }));
+    assert.deepEqual(answer, { status: 400, body: { error: "授权已失效", code: "feed.connector_failed", details: { error_code: "connector.needs_auth" } } });
   } finally { await edge.close(); }
 });
 
@@ -208,10 +209,23 @@ test("the Feed classifies a thrown failure by its new code, and a connector fail
   assert.deepEqual(publicError(feed.source_configuration_changed!("来源配置已变化")), { code: "feed.source_configuration_changed", category: "configuration", retryable: false, user_action: "fix_configuration" });
   assert.deepEqual(publicError(feed.source_sync_interrupted!("同步没有终态")), { code: "feed.source_sync_interrupted", category: "interrupted", retryable: true, user_action: "retry" });
   // The failure a provider reported keeps the provider's own code: that code is what a run and a source fault have always stored.
-  assert.deepEqual(publicError(feed.connector_failed!("授权失效", { error_code: "connector_needs_auth" })), { code: "connector_needs_auth", category: "auth", retryable: false, user_action: "reconnect" });
-  assert.deepEqual(publicError(feed.connector_failed!("稍后再试", { error_code: "connector_rate_limited" })), { code: "connector_rate_limited", category: "rate_limit", retryable: true, user_action: "retry" });
+  assert.deepEqual(publicError(feed.connector_failed!("授权失效", { error_code: "connector.needs_auth" })), { code: "connector.needs_auth", category: "auth", retryable: false, user_action: "reconnect" });
+  assert.deepEqual(publicError(feed.connector_failed!("稍后再试", { error_code: "connector.rate_limited" })), { code: "connector.rate_limited", category: "rate_limit", retryable: true, user_action: "retry" });
   // Stored codes are still read as they were written.
-  assert.equal(feedPlugin.toFeedPublicError({ code: "connector_rate_limited", message: "Retry later" }).category, "rate_limit");
+  assert.equal(feedPlugin.toFeedPublicError({ code: "connector.rate_limited", message: "Retry later" }).category, "rate_limit");
+});
+
+test("FAS-01: Attention maps only its current declared refusals at the Feed edge", () => {
+  const cases = [
+    [attentionContracts.attentionErrors.revision_conflict("版本已变化"), "feed.revision_conflict", 409],
+    [attentionContracts.attentionErrors.invalid_reference("无效引用"), "feed.invalid_transition", 400],
+    [attentionContracts.attentionErrors.invalid_transition("无效状态"), "feed.invalid_transition", 400],
+  ] as const;
+  for (const [failure, code, status] of cases) assert.throws(() => feedPlugin.callAttention(() => { throw failure; }), (error: unknown) =>
+    error instanceof ActionError && error.code === code && error.message === failure.message && actionHttpStatus(error) === status);
+  for (const failure of [new ActionError("attention.unlisted", "外部原因"), new ActionError("actions.forbidden", "外部拒绝")]) {
+    assert.throws(() => feedPlugin.callAttention(() => { throw failure; }), (error: unknown) => error === failure);
+  }
 });
 
 test("the old error classes, the mappers and the old exports are gone", () => {
@@ -222,9 +236,9 @@ test("the old error classes, the mappers and the old exports are gone", () => {
     ["@molis-ai/molis-work-contracts/modules/feed", feedContracts as Record<string, unknown>, ["FeedDomainError"]],
   ];
   for (const [name, module, removed] of gone) for (const exported of removed) assert.equal(exported in module, false, `${name} no longer exports ${exported}`);
-  // The module errors stay what they were (their owners' slices rename them); the plugin turns them into its own declared codes where it calls the module.
-  assert.equal(typeof feedContracts.FeedError, "function");
-  assert.equal(typeof attentionContracts.AttentionError, "function");
+  // FAS-02: callers use the shared model and current owner declarations.
+  assert.equal("FeedError" in feedContracts, false);
+  assert.equal("AttentionError" in attentionContracts, false);
 });
 
 // ---- 5. nothing of the old shape is left --------------------------------------------------------------------------------------------------------------------
@@ -255,9 +269,9 @@ const BROWSER_SCRIPT = /[\\/]client\.ts$/u;
 //   - a wiring mistake in the code (a route without its Host binding, a UI surface the plugin does not render): nobody can cause it by a request;
 //   - the failures of a run that already started (a due task, reminder or timed operation that cannot be carried out, a pull of the research library or a
 //     public feed that fails): they are recorded on the task, the job or the source run and never answered to a caller as they are;
-//   - a contract check the action's input schema has already passed (the history decision of a deletion).
+// The internal deletion contract is declared as internal, rather than exempted here.
 const STAYS_BARE: readonly RegExp[] = [
-  /^`(?:Feed|Inbox|Schedule) route \$\{[^`]*没有 Host binding`/u, /^`(?:Feed|Inbox|Schedule) UI surface /u, /^"feed_contract_source_history_decision_required"\)/u,
+  /^`(?:Feed|Inbox|Schedule) route \$\{[^`]*没有 Host binding`/u, /^`(?:Feed|Inbox|Schedule) UI surface /u,
   /^"定时执行尚未登记本次持久记录"/u, /^"本次执行结果未知，不能自动重跑"/u, /^"定时操作已暂停、取消或改变"/u, /^"定时操作的安装身份已改变"/u, /^"本次定时执行已被处理"/u,
   /^"提醒的原安装身份已不可用，记录已保留/u, /^"定时任务已暂停或改变，本轮结果未保存"/u, /^"定时操作的安装执行入口已改变"/u,
   /^"(?:还没有配置到点执行的 Agent|闹钟叫醒没有项目现场|提醒没有项目现场|定时操作没有项目现场)"/u,
@@ -324,17 +338,17 @@ async function refusalOf(run: () => unknown): Promise<{ status: number; code: st
   return assert.fail("the action was expected to refuse");
 }
 
-const SCHEDULER_REFUSALS: ReadonlyArray<readonly [ScheduleError["code"], string, string, number]> = [
-  ["schedule_job_not_found", "定时任务不存在", "schedule.job_not_found", 404],
-  ["schedule_job_invalid", "时间无效", "schedule.job_invalid", 400],
-  ["schedule_interval_too_short", "间隔不能短于 5 秒", "schedule.job_invalid", 400],
-  ["schedule_path_refused", "对象钥匙不能是文件路径", "schedule.job_invalid", 400],
-  ["schedule_handler_missing", "叫醒对象还没有提供执行接口", "schedule.job_invalid", 400],
+const SCHEDULER_REFUSALS: ReadonlyArray<readonly [`scheduler.${keyof typeof schedulerErrors}`, string, string, number]> = [
+  ["scheduler.job_not_found", "定时任务不存在", "schedule.job_not_found", 404],
+  ["scheduler.job_invalid", "时间无效", "schedule.job_invalid", 400],
+  ["scheduler.interval_too_short", "间隔不能短于 5 秒", "schedule.job_invalid", 400],
+  ["scheduler.path_refused", "对象钥匙不能是文件路径", "schedule.job_invalid", 400],
+  ["scheduler.handler_missing", "叫醒对象还没有提供执行接口", "schedule.job_invalid", 400],
 ];
 
 test("the scheduler's refusals leave the Schedule, reminder and timed-operation actions as Schedule's own codes with the scheduler's message, at every wrapper", async () => {
   for (const [schedulerCode, message, code, status] of SCHEDULER_REFUSALS) {
-    const refuse = (): never => { throw new ScheduleError(schedulerCode, message); };
+    const refuse = (): never => { throw schedulerErrors[schedulerCode.slice("scheduler.".length) as keyof typeof schedulerErrors](message); };
     const jobs = schedulePlugin.createScheduleActionHandlers(SCHEDULE_PROJECT, schedulePorts({ setEnabled: refuse }));
     const reminders = schedulePlugin.createReminderActionHandlers(SCHEDULE_PROJECT, { add: refuse, cancel: refuse });
     const operations = schedulePlugin.createScheduledOperationActionHandlers(SCHEDULE_PROJECT, { add: refuse, cancel: refuse });

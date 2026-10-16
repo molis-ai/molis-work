@@ -36,10 +36,10 @@ export interface DecisionMaterials {
 
 export function inspectDecisionGate(materials: DecisionMaterials): DecisionGate {
   if (!materials.marketReport || !materials.costReport) {
-    return { ready: false, code: "DECISION_REPORTS_INCOMPLETE", message: "两条研究材料尚未齐全" };
+    return { ready: false, code: "alchemist.decision_reports_incomplete", message: "两条研究材料尚未齐全" };
   }
   if (materials.marketReport.status !== "completed" || materials.costReport.status !== "completed") {
-    return { ready: false, code: "DECISION_REPORTS_PARTIAL", message: "部分研究还不足以形成正式决策" };
+    return { ready: false, code: "alchemist.decision_reports_partial", message: "部分研究还不足以形成正式决策" };
   }
   const marketKey = marketLensCompatibilityKey(materials.ideaId, materials.ideaVersion);
   const costKey = buildLensCompatibilityKey(
@@ -51,7 +51,7 @@ export function inspectDecisionGate(materials: DecisionMaterials): DecisionGate 
     !lensKeysMatch(materials.marketReport.key, marketKey) ||
     !lensKeysMatch(materials.costReport.key, costKey)
   ) {
-    return { ready: false, code: "DECISION_REPORTS_STALE", message: "研究材料与当前 Idea 版本不一致" };
+    return { ready: false, code: "alchemist.decision_reports_stale", message: "研究材料与当前 Idea 版本不一致" };
   }
   return { ready: true };
 }
@@ -69,7 +69,7 @@ export function createDecision(
 ): Decision {
   const gate = inspectDecisionGate(input);
   if (!gate.ready) throw new Error(gate.code);
-  if (input.reason.trim().length === 0) throw new Error("DECISION_REASON_REQUIRED");
+  if (input.reason.trim().length === 0) throw new Error("alchemist.decision_reason_required");
   const marketReport = input.marketReport as LensReport;
   const costReport = input.costReport as LensReport;
   return {

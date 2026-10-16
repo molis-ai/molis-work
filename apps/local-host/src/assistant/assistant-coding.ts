@@ -1,10 +1,19 @@
-import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunControl, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** The person's own action client in a project: what the Coding page itself can do, nothing more. */
 export interface PersonActions {
   discover(): Promise<readonly ActionView[]>;
-  invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
+  invoke(reference: ExactActionReference, input: unknown, beforeDispatch?: () => void): Promise<unknown>;
+}
+
+/** The page client retains its own authority checks and adds the standing request's liveness at the common final boundary. */
+export function withPersonDispatchGuard(caller: ActionCallContext, beforeDispatch?: () => void): ActionCallContext {
+  if (!beforeDispatch) return caller;
+  return { ...caller, validate_authority: async selected => { await caller.validate_authority?.(selected); beforeDispatch(); },
+    assert_authority_current: (reference, requiredPermissions) => {
+      caller.assert_authority_current?.(reference, requiredPermissions); beforeDispatch();
+    } };
 }
 
 export interface CodingSessionRead {
@@ -14,6 +23,10 @@ export interface CodingSessionRead {
   recovery_required?: boolean;
   error?: string;
 }
+
+/** Each Coding action this executor calls, at the version Coding publishes now: a new shape there is a new version here, in the same change. */
+const VERSIONS = { state: 1, "sessions.create": 1, "sessions.read": 1, "sessions.update": 1, "runs.start": 1, "runs.control": 2 } as const;
+type CodingActionName = keyof typeof VERSIONS;
 
 export class CodingUnavailable extends Error {
   constructor(message: string, readonly action?: string) { super(message); this.name = "CodingUnavailable"; }
@@ -28,18 +41,20 @@ export class CodingExecutor {
   // dispatcher still checks each call's current definition and availability).
   private offered: Promise<readonly ActionView[]> | null = null;
 
-  constructor(private readonly actions: PersonActions) {}
+  constructor(private readonly actions: PersonActions, private readonly beforeDispatch?: () => void) {}
 
-  private async reference(name: string): Promise<ExactActionReference> {
+  private async reference(name: CodingActionName): Promise<ExactActionReference> {
     this.offered ??= this.actions.discover();
-    const view = (await this.offered).find(row => row.capability_id === `coding.${name}` && row.version === 1);
+    const view = (await this.offered).find(row => row.capability_id === `coding.${name}` && row.version === VERSIONS[name]);
     if (!view) throw new CodingUnavailable("这个项目还没有可用的 Coding 插件", "在插件市场添加 Coding");
     if (!view.availability.available) throw new CodingUnavailable(view.availability.reason);
     return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
   }
 
-  private async call<T>(name: string, input: Record<string, unknown>): Promise<T> {
-    return await this.actions.invoke(await this.reference(name), input) as T;
+  private async call<T>(name: CodingActionName, input: Record<string, unknown>): Promise<T> {
+    const reference = await this.reference(name);
+    this.beforeDispatch?.();
+    return await this.actions.invoke(reference, input, this.beforeDispatch) as T;
   }
 
   async createSession(title: string): Promise<string> {

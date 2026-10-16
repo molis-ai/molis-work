@@ -7,19 +7,36 @@ on:
   push:
     branches:
       - main
+  # The merge queue of main (docs/system/PARALLEL-DEVELOPMENT.md §3): GitHub builds each queued pull request on top of main and the
+  # pull requests ahead of it, and merges it when `Verify` passes on that commit. A pull request no longer has to be brought up to date
+  # with main by hand before it merges.
+  merge_group:
   workflow_dispatch:
+  # Nightly on main, for the Linux probe (it runs only on this and on a manual run, see the job); the other jobs run too.
+  schedule:
+    - cron: "0 19 * * *"
 
 permissions:
   contents: read
 
+# The nightly run has its own group, so a merge to main at night does not cancel it.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'schedule' && 'nightly' || github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  architecture-boundaries:
-    name: Package boundaries
+  # The blocking checks are jobs that run side by side and all feed `verify`, each about five minutes: `gates` and
+  # `health-gate-rules` need no build (the contracts package alone, for one gate test), `architecture-boundaries` and
+  # `action-contracts` each build the workspace and run what needs the build. Each `node scripts/run-tests.mjs` with several files runs them a few at a time, each
+  # file with its own MOLIS_WORK_HOME (scripts/run-tests/pool.mjs, docs/system/PARALLEL-DEVELOPMENT.md §5); MOLIS_WORK_TEST_JOBS
+  # sets how many on these 4-core runners. The runner starts the files that took longest last time first, from the durations it
+  # keeps in node_modules/.cache/molis-work-tests; the "Test durations" step carries that file from run to run (a job of main's
+  # runs seeds a pull request's), so a four-minute file does not start last.
+  gates:
+    name: Gates
     runs-on: ubuntu-latest
+    env:
+      MOLIS_WORK_TEST_JOBS: 4
     steps:
       - uses: actions/checkout@v6
         with:
@@ -39,6 +56,130 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Numbers that may only go down (giant units, tests reaching into package internals, vendored SDK packages, in-place schema
+      # patches, compatibility markers, empty catch blocks, `as unknown as` casts, old names, conflicting translations, the
+      # structure numbers of scripts/gates/ and docs/system/PACKAGE-BOUNDARIES.md §6, the Biome static checks), a status line on
+      # every spec, the document and repository-shape rules (scripts/gates/README.md), and a list that never changes silently: the
+      # public API of the contracts package and the plugin SDK against tooling/gates/api (specs/repository-anti-corruption §5a).
+      # The head and the merge-base are both measured here by the same script and compared, so rewriting
+      # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the gate
+      # itself (script, limits.json, this step), which is reviewed. tooling/gates/giant-exceptions.json admits nothing new.
+      # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
+      # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip; in the merge
+      # queue it is the queue's base (merge_group.base_sha, passed as PUSH_BEFORE).
+      # scripts/ci-health-base.mjs picks it and fetches it when the shallow checkout lacks it. Nothing here needs the build.
+      - name: Health gates (against the merge-base)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before || github.event.merge_group.base_sha }}
+        run: |
+          base="$(node scripts/ci-health-base.mjs)"
+          node scripts/check-health-gates.mjs --base "$base"
+
+      # One product version (docs/releases/POLICY.md): the root package, the Tauri shell and the two version strings in
+      # code agree, workspace packages stay private 0.0.0, the current version has release notes and a CHANGELOG
+      # section, and the per-database version table in docs/releases/CHECKLIST.md is the one the code has.
+      - name: Release versions agree
+        run: node scripts/verify-release-versions.mjs
+
+      # Spec acceptance ids (specs/README.md 「验收编号」, specs/repository-anti-corruption §4.8, W2-14): which criteria of the
+      # specs in progress carry an id, and which of those ids a test cites. Report only: the script exits 0 whatever it finds,
+      # and `continue-on-error` keeps this step from turning the build red even if the script were to crash (a crash on this
+      # repository's own content is still caught by tests/health-gates-spec-coverage.test.ts in the next step, which runs the
+      # case "on this repository the report prints and exits 0"). Once the specs in progress are numbered and the report lists
+      # no problem, add `--strict` and drop `continue-on-error`.
+      - name: Spec acceptance ids (report only)
+        continue-on-error: true
+        run: node scripts/check-spec-coverage.mjs
+
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
+
+      # Every gate above, and the runners and scanners of this workflow, is mutation-verified on a scratch repository: one
+      # violation added on a branch fails, and so does the same branch after `--update` rewrote the baseline (the package
+      # inventory; translations; release versions; the document and repository-shape rules; vendored package records; the numeric
+      # health gates are in `health-gate-rules`); a planted key is caught by the secret scan (the secret-scan job has no
+      # dependencies installed, so its rules are tested here); the Linux probe and the product subset runners keep their rules
+      # (they only report, or do not block yet: their own jobs below), and so does the parallel test runner every step here uses
+      # (scripts/run-tests/pool.mjs: caps, one Home per file, a failing file shown); the Cursor Skill links hold.
+      - name: Gate rules reject what they claim to
+        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts tests/translation-check.test.ts tests/package-inventory-gate.test.ts tests/vendor-provenance.test.ts tests/verify-release-versions.test.ts tests/secret-scan.test.ts tests/ci-linux-probe.test.ts tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts tests/run-tests-pool.test.ts tests/cursor-skill-links.test.ts
+
+  # The health gates' own rules (scripts/check-health-gates.mjs and scripts/gates/): each one is broken once on a scratch repository
+  # and must go red, and so must the same branch after `--update` rewrote the baseline. The glob takes every
+  # tests/health-gates-*.test.ts, so a new gate's test needs no edit here. Together they are the longest set, and each file already
+  # keeps more than one core busy (Biome, the TypeScript program of the API snapshot), so they are spread over two runners: each leg
+  # takes every second file of the same list (`--shard`), which gives every file to exactly one leg.
+  health-gate-rules:
+    name: Health gate rules (${{ matrix.shard }}/2)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    env:
+      MOLIS_WORK_TEST_JOBS: 4
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # tests/health-gates-errors.test.ts reads the error codes of the built contracts package; nothing else here needs a build.
+      - name: Build the contracts package
+        run: pnpm --filter @molis-ai/molis-work-contracts run build
+
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
+
+      - name: Health gates reject what they claim to
+        run: node scripts/run-tests.mjs --shard ${{ matrix.shard }}/2 tests/health-gates-*.test.ts
+
+  architecture-boundaries:
+    name: Package boundaries
+    runs-on: ubuntu-latest
+    env:
+      MOLIS_WORK_TEST_JOBS: 4
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # The page asset budgets and the studio replay compare with the merge-base, as the health gates do (see `gates`).
+          fetch-depth: 2
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
+
+      # Boundary rules, then every workspace package built (`tsc` of each package also type-checks it, so a type error fails here).
       - name: Verify package contracts and boundaries
         run: pnpm workspace:verify
 
@@ -53,158 +194,26 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
-          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_BEFORE: ${{ github.event.before || github.event.merge_group.base_sha }}
         run: |
           base="$(node scripts/ci-health-base.mjs)"
           node scripts/gates/page-assets.mjs --base "$base"
 
-      # The budget rules are mutation-verified on a scratch repository and on a fake host build: a grown asset, a new asset,
-      # a raised budget, a slack left unlowered and a missing build each fail, and so does the laundering move after
-      # `--update` or after the budget file was raised by hand, and a route rewritten out of the gate's reading together
-      # with its deleted entry; a route spelled as a regular expression (other than the plugin pack pattern) or with escaped
-      # slashes is refused outright wherever the word `assets` sits in it (`[\/]assets`, `(assets)`), except that a regex
-      # which splits the word itself (`asset[s]`) is not seen: the header of the script and spec §5a list that limit.
-      # The last case runs the real gate on this build.
-      - name: Page asset budget rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts
-
-      # Numbers that may only go down: giant units (class lines and methods apart), tests reaching into package
-      # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers, empty catch
-      # blocks, `as unknown as` casts and old names (all per file), and a status line on every spec in specs/
-      # (specs/repository-anti-corruption §5a). And a list that never changes silently: the public API of the contracts
-      # package and the plugin SDK against the snapshots in tooling/gates/api (refreshed on purpose with `pnpm api:update`).
-      # internals (per test file), vendored SDK packages, in-place schema patches, compatibility markers (per source
-      # file), and a status line on every spec in specs/ (specs/repository-anti-corruption §5a). The structure numbers
-      # (scripts/gates/, docs/system/PACKAGE-BOUNDARIES.md §6) fall too: contracts purity, the Host entry's `export *`, Module
-      # Repository/Store exports, typed HostCapabilityDefinition sites, plugin-named Host files, registerProvider lines,
-      # hybrid plugins, and the files that name a built-in plugin outside its package.
-      # file), conflicting translations (per Chinese key), and a status line on every spec in specs/
-      # (specs/repository-anti-corruption §5a). A translator call with no English fails outright, and so does a `*_EN` dictionary
-      # that the catalog built in apps/workbench/src/i18n/en.ts never reaches (scripts/gates/translations.mjs).
-      # The head and the merge-base are both measured here by the same script and compared, so rewriting
-      # tooling/gates/baseline.json in a PR cannot hide growth, and nothing in a PR can raise a number except changing the
-      # gate itself (script, limits.json, this step), which is reviewed. tooling/gates/giant-exceptions.json is no way around
-      # it: an entry only records why a unit that is already giant at the merge-base has to stay long, and admits nothing
-      # new. The committed baseline.json is not read.
-      # The comparison commit: on a pull request, HEAD is the merge commit GitHub builds (refs/pull/N/merge), so it is the
-      # merged result against the base branch as it was merged (HEAD^1); on a push to main it is the previous tip.
-      # scripts/ci-health-base.mjs picks it and fetches it when the shallow checkout lacks it.
-      # The static checks (Biome: empty catch, `as unknown as`, floating promises, explicit `any`, console, debugger) are counted in
-      # the same run (scripts/gates/lint.mjs, W1-09), and the shape of biome.jsonc may only get stricter. They need Biome from the
-      # install above and nothing from the build.
-      - name: Health gates (against the merge-base)
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
-          PUSH_BEFORE: ${{ github.event.before }}
-        run: |
-          base="$(node scripts/ci-health-base.mjs)"
-          node scripts/check-health-gates.mjs --base "$base"
-
-      # Each gate rule is mutation-verified on a scratch repository: one violation added on a branch fails, and so does
-      # the same branch after `--update` rewrote the baseline. The glob takes every tests/health-gates-*.test.ts, so a
-      # new gate's test needs no edit here.
-      # The translation check (missing English fails, conflicts are frozen, stable keys are checked) is one of the gates
-      # above; its rules are verified the same way.
-      - name: Health gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/health-gates-*.test.ts tests/package-inventory-gate.test.ts tests/translation-check.test.ts
-
-      # One product version (docs/releases/POLICY.md): the root package, the Tauri shell and the two version strings in
-      # code agree, workspace packages stay private 0.0.0, the current version has release notes and a CHANGELOG
-      # section, and the per-database version table in docs/releases/CHECKLIST.md is the one the code has. The test
-      # mutation-verifies each rule on a scratch tree.
-      - name: Release versions agree
-        run: |
-          node scripts/verify-release-versions.mjs
-          node scripts/run-tests.mjs tests/verify-release-versions.test.ts
-
-      # The document and repository-shape rules run inside the health gates above (links, cited paths and ids, spec index,
-      # BACKLOG rows, root allow-list, .impeccable files, placeholder contract subpaths); scripts/gates/README.md lists them.
-      # Each one is broken once on a scratch repository here, and the gate must go red.
-      - name: Document gates reject what they claim to
-        run: node scripts/run-tests.mjs tests/doc-reference-gates.test.ts
-
-      # The page-event rule (scripts/gates/dom-events.mjs, also run inside the health gates above on the real tree): its own
-      # mutation cases. A CustomEvent or listener under an unregistered name, in any constructor spelling (including
-      # TypeScript type arguments), an unreadable name, a stale entry, an owner that holds nothing, and every field of the
-      # registry in packages/contracts/src/platform/dom-events.ts each fail it; the registry is also checked against the event
-      # constants the other contracts name. It imports the built contracts, so it runs after the build in workspace:verify.
-      - name: Page event gate rejects what it claims to
-        run: node scripts/run-tests.mjs tests/dom-events-contract.test.ts
-
-      # Spec acceptance ids (specs/README.md 「验收编号」, specs/repository-anti-corruption §4.8, W2-14): which criteria of the
-      # specs in progress carry an id, and which of those ids a test cites. Report only: the script exits 0 whatever it finds,
-      # and `continue-on-error` keeps this step from turning the build red even if the script were to crash (a crash on this
-      # repository's own content is still caught by the blocking `tests/health-gates-*.test.ts` step above, which runs
-      # the case "on this repository the report prints and exits 0"). Once the specs in
-      # progress are numbered and the report lists no problem, add `--strict` and drop `continue-on-error`. Each problem
-      # kind and each rule for reading the files (what is a test file, where an exemption counts, what is a citation, what an
-      # archived spec keeps) has a case in tests/health-gates-spec-coverage.test.ts that fails without it; the
-      # `tests/health-gates-*.test.ts` glob above already runs that file.
-      - name: Spec acceptance ids (report only)
-        continue-on-error: true
-        run: node scripts/check-spec-coverage.mjs
-
-      # The tracked-.impeccable-files rule (scripts/gates/impeccable-files.mjs), mutation-verified the same way.
-      - name: Health gate for tracked .impeccable files rejects growth
-        run: node scripts/run-tests.mjs tests/health-gates-impeccable.test.ts
-
-      # The vendored-package records rule (scripts/gates/vendored-provenance.mjs): a tgz without matching .sha256 and
-      # .provenance.json, or a patch-history.json that does not hold, fails; mutation-verified the same way.
-      - name: Health gate for vendored package records rejects mismatches
-        run: node scripts/run-tests.mjs tests/vendor-provenance.test.ts
-
-      - name: Verify Goal boundaries, storage baselines and release assets
-        run: |
-          node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
-          node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts
-
       - name: Typecheck product launchers
         run: pnpm exec tsc --noEmit -p tsconfig.json
 
-      # Action directory, Manifest and MCP grant contracts, and undeclared names in the assembled Workbench client;
-      # runs on the packages built above.
-      # The full product suite still runs locally (see the PR template).
-      - name: Action and plugin contracts
-        run: pnpm test:contracts
+      - name: Verify Goal boundaries
+        run: node --test tests/goals-query-boundaries.test.mjs tests/goals-storage-boundaries.test.mjs
 
-      # Security invariants (docs/system/SECURITY-INVARIANTS.md; specs/repository-anti-corruption §4.18): each one has a test that asserts the
-      # refusal itself: a foreign Host, Origin, token or key; a socket without the token; an
-      # address that is not public; a path that leaves its directory; a secret that comes back out; a hostile text that is not data; a desktop
-      # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
-      # run locally (the document lists which). The table's own rule (every row names tests that exist) runs in the health gates above.
-      # Not blocking yet (decision #14: product tests do not block a merge until about two weeks of linux-probe runs and quarantine, W2-16):
-      # the set includes product tests, and the six security-invariants-* files had never run on Linux when they were added. A red step shows
-      # on the step; the job, and so Verify, stays green. Drop `continue-on-error` when the probe has shown these files green for two weeks.
-      - name: Security invariants
-        continue-on-error: true
-        run: pnpm test:security
-
-      - name: One workbench shell (no standalone pages)
-        run: node scripts/run-tests.mjs tests/shell-page-gate.test.ts
-
-      - name: 成果 types have owner previews; writes match Manifests; process items stay out of user lists
-        run: node scripts/run-tests.mjs tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts
-
-      # The secret scan's own rules (the scan job above has no dependencies installed): a planted key is caught, files whose
-      # names git quotes are read, a type annotation or a secretKey name does not hide a literal, fixtures stay allow-listed.
-      # If the scanner ever passed everything, this is the step that goes red. About a second.
-      - name: Secret scan rules
-        run: node scripts/run-tests.mjs tests/secret-scan.test.ts
-
-      # The Linux probe's own rules (the linux-probe job below only reports): browser files are left out and the rest marked
-      # darwin or live from their own source, every result is recorded as what it is, a process a test leaves behind is stopped,
-      # and a run that is cancelled or killed still leaves a report of what it had. Runs fake test files in a scratch directory;
-      # under a minute.
-      - name: Linux probe rules
-        run: node scripts/run-tests.mjs tests/ci-linux-probe.test.ts
-
-      # The product subset's own rules (the product-subset job below runs the list): the list and the quarantine file are judged by
-      # the same module the health gates use, a quarantine that has run out counts the file again, a file whose tests all skip fails,
-      # a file that is not reached before the time budget fails, a flaky pass is told apart from a pass, and a run that is cancelled
-      # or killed still leaves a report. Runs fake test files in a scratch directory; under two minutes.
-      - name: Product subset rules
-        run: node scripts/run-tests.mjs tests/ci-product-subset.test.ts tests/ci-product-subset-plan.test.ts
+      # Rules that read the build, each mutation-verified or asserted on the built host: the page asset budget rules (a grown
+      # asset, a new asset, a raised budget, a slack left unlowered, a missing build and the laundering moves each fail; a route
+      # spelled as a regular expression other than the plugin pack pattern is refused, except one that splits the word `assets`
+      # itself, which the header of the script and spec §5a list as a limit); the page-event registry
+      # (packages/contracts/src/platform/dom-events.ts, scripts/gates/dom-events.mjs); storage baselines and release assets; one
+      # workbench shell (no standalone pages); 成果 types have owner previews, writes match Manifests, process items stay out of
+      # user lists.
+      - name: Build rules reject what they claim to
+        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts
 
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
@@ -216,17 +225,57 @@ jobs:
       # accepted or refused, is still in the corpus with the answer it had. Also against the baseline at the merge-base of HEAD and the commit scripts/ci-health-base.mjs prints
       # (the base branch as merged, on a pull request), so rewriting the baseline file, or rewriting or deleting corpus entries,
       # cannot hide a regression; every baseline row carries the digest of its answer, and `live` is accepted for the prompt
-      # example alone. Then the replay's own rules and the Cursor Skill links, each failing on a scratch copy that
-      # breaks it. The generation smoke needs a model and is run by hand on an isolated Home.
+      # example alone. Then the replay's own rules, failing on a scratch copy that breaks them. The generation smoke needs a model
+      # and is run by hand on an isolated Home.
       - name: Studio Skill replay
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
-          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_BEFORE: ${{ github.event.before || github.event.merge_group.base_sha }}
         run: |
           base="$(node scripts/ci-health-base.mjs)"
           pnpm studio:replay --base "$base"
-          node scripts/run-tests.mjs tests/studio-replay.test.ts tests/cursor-skill-links.test.ts
+          node scripts/run-tests.mjs tests/studio-replay.test.ts
+
+  # Action directory, Manifest and MCP grant contracts, and undeclared names in the assembled Workbench client, on a workspace build
+  # of their own (the same packages `pnpm workspace:verify` builds), beside `architecture-boundaries` so neither waits for the other.
+  # Several of these files start real hosts and MCP servers under a per-test time limit (tests/action-mcp-stdio.test.ts: three servers
+  # in 20 seconds, 5.5 s alone), and four at a time on one 4-core runner pushed that past its limit. So two legs, two files at a time
+  # each: every second file of the list (`--shard`), each file in exactly one leg. The full product suite still runs locally.
+  action-contracts:
+    name: Action and plugin contracts (${{ matrix.shard }}/2)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    env:
+      MOLIS_WORK_TEST_JOBS: 2
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
+
+      - name: Build
+        run: pnpm workspace:build
+
+      - name: Action and plugin contracts
+        run: pnpm test:contracts --shard ${{ matrix.shard }}/2
 
   # No dependencies and no build: it reads git history only, so it starts at once and is cheap to keep on every change.
   secret-scan:
@@ -245,10 +294,11 @@ jobs:
 
       # API keys, GitHub/Slack tokens, AWS keys, private keys, JWTs and `api_key|secret|password|token = "…"` literals in
       # the lines this change adds. Known test fixtures are listed in tooling/gates/secret-allowlist.txt, each with a reason.
-      # Pull request: since its base branch tip. Push to main: since the tip before the push. Manual run: the whole tree.
+      # Pull request: since its base branch tip. Merge queue: since the queue's base. Push to main: since the tip before the push.
+      # Manual run: the whole tree.
       - name: No credentials in the commits this change adds
         env:
-          SECRET_SCAN_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          SECRET_SCAN_BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             node scripts/check-secrets.mjs --all
@@ -323,24 +373,82 @@ jobs:
 
   verify:
     name: Verify
-    needs: [architecture-boundaries, secret-scan, native-checks, shell-checks]
+    needs: [gates, health-gate-rules, architecture-boundaries, action-contracts, secret-scan, native-checks, shell-checks]
     if: ${{ always() }}
-    # Keep this job name while `Verify` is required by main branch protection.
-    # The full product suite runs locally; package boundaries, the contract subset, the secret scan and the Rust, Swift and shell checks run here.
+    # Keep this job name while `Verify` is required by main branch protection and the merge queue.
+    # The full product suite runs in .github/workflows/full-suite.yml (sharded, on demand and nightly) and locally; the gates, package boundaries, the contract subset, the secret scan and the Rust, Swift and shell checks run here.
     runs-on: ubuntu-latest
     steps:
       - name: Required package gate passed
         env:
+          GATES_RESULT: ${{ needs.gates.result }}
+          HEALTH_GATE_RULES_RESULT: ${{ needs.health-gate-rules.result }}
           PACKAGE_BOUNDARIES_RESULT: ${{ needs.architecture-boundaries.result }}
+          ACTION_CONTRACTS_RESULT: ${{ needs.action-contracts.result }}
           SECRET_SCAN_RESULT: ${{ needs.secret-scan.result }}
           NATIVE_CHECKS_RESULT: ${{ needs.native-checks.result }}
           SHELL_CHECKS_RESULT: ${{ needs.shell-checks.result }}
         run: |
+          test "$GATES_RESULT" = "success"
+          test "$HEALTH_GATE_RULES_RESULT" = "success"
           test "$PACKAGE_BOUNDARIES_RESULT" = "success"
+          test "$ACTION_CONTRACTS_RESULT" = "success"
           test "$SECRET_SCAN_RESULT" = "success"
           test "$NATIVE_CHECKS_RESULT" = "success"
           test "$SHELL_CHECKS_RESULT" = "success"
-          echo "Package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift and shell verification passed."
+          echo "Gates, health gate rules, package boundary, Contract, typecheck, build, action contract, secret scan, Rust, Swift and shell verification passed."
+
+  # Security invariants (docs/system/SECURITY-INVARIANTS.md; specs/repository-anti-corruption §4.18): each one has a test that asserts the
+  # refusal itself: a foreign Host, Origin, token or key; a socket without the token; an
+  # address that is not public; a path that leaves its directory; a secret that comes back out; a hostile text that is not data; a desktop
+  # capability that widens. The real web host and the real launcher are started on loopback; the Seatbelt sandbox cases need macOS and
+  # run locally (the document lists which). The table's own rule (every row names tests that exist) runs in the health gates.
+  # Not blocking yet (decision #14: product tests do not block a merge until about two weeks of linux-probe runs and quarantine, W2-16):
+  # the set includes product tests, and the six security-invariants-* files had never run on Linux when they were added. Its own job, so
+  # it never lengthens the blocking ones: NOT in `verify`'s needs, and `continue-on-error` keeps a red run from marking the workflow red.
+  # To make it block: add `security-invariants` to `verify`'s needs (and its result to the final step), drop `continue-on-error` and
+  # "(not required yet)" from the name, when the probe has shown these files green for two weeks.
+  # Two legs, two files at a time each, as `action-contracts`: several files start a served Home and MCP callers under a per-test time
+  # limit, and four at a time on one 4-core runner pushed tests/mcp-scene-effect-authority.test.ts from about 20 s to 22-36 s against
+  # its 30 s limit (half the runs on main failed). Every second file of the list (`--shard`), each file in exactly one leg.
+  security-invariants:
+    name: Security invariants (not required yet) (${{ matrix.shard }}/2)
+    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`.
+    if: ${{ github.event_name != 'merge_group' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    env:
+      MOLIS_WORK_TEST_JOBS: 2
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test durations
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/molis-work-tests
+          key: test-durations-${{ github.job }}-${{ strategy.job-index }}-${{ github.run_id }}
+          restore-keys: test-durations-${{ github.job }}-${{ strategy.job-index }}-
+
+      # The same packages the step had when it ran after `pnpm workspace:verify`.
+      - name: Build
+        run: pnpm workspace:build
+
+      - name: Security invariants
+        run: pnpm test:security --shard ${{ matrix.shard }}/2
 
   # Decision #14 (specs/repository-anti-corruption): which test files pass on Linux is not known yet (some touch macOS-only
   # paths: Seatbelt, Keychain, launchctl, Swift helpers), so the non-browser suite runs here as an information job and does
@@ -355,8 +463,11 @@ jobs:
   # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
   # The probe stays an information job (about 50 minutes for every non-browser file is too long to wait for). What its first run
   # showed became tests/ci-product-subset.txt (W2-16), run by the `product-subset` job below, which is the one that joins Verify.
+  # It runs nightly on main and when started by hand (workflow_dispatch), not on every push (user 2026-10-14): an hour of runner
+  # on each push decided nothing, and on main the next merge usually cancelled it.
   linux-probe:
     name: Linux probe (not required)
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     continue-on-error: true
     # The probe stops starting files after 85 minutes and still writes its report; this is the hard stop around it. Reaching it
@@ -402,8 +513,9 @@ jobs:
   # `continue-on-error`, take "(not required yet)" out of the name, and change the one test in tests/ci-product-subset.test.ts that
   # pins this state (the first of its two ci.yml cases). Joining Verify keeps the required check `Verify` as it is, so the repository
   # settings are not touched.
-  # Time: the job is meant to stay about as long as `architecture-boundaries` (about 20 minutes), so it never lengthens the check:
-  # install and build about 2 minutes, the browser smokes within 8, the other files within 15, and the job is stopped at 35. No attempt
+  # Time: the job was meant to stay about as long as the blocking check (then about 20 minutes, now about 10 since it was split into
+  # parallel jobs), so it never lengthens the check. Four non-browser files at a time on these 4-core runners (user 2026-10-14, raised
+  # from 2 while the job does not block yet, to see whether the load makes any file flaky before it joins). Install and build about 2 minutes, the browser smokes within 8, the other files within 15, and the job is stopped at 35. No attempt
   # (a first run or a retry) starts after its budget, so the worst case is 2 + 8 + a 4 minute smoke attempt + 15 + a 4 minute attempt = 33
   # minutes, inside the 35 (tests/ci-product-subset.test.ts works this out from the arguments below).
   # The runner stops starting files when a budget is used up and fails the run for the files it did not reach; the summary shows how
@@ -411,6 +523,8 @@ jobs:
   # writes its report on that signal, and the upload below is `if: always()`.
   product-subset:
     name: Product subset (not required yet)
+    # Not in the merge queue: it decides nothing there, and the queue waits only for `Verify`.
+    if: ${{ github.event_name != 'merge_group' }}
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 35
@@ -446,7 +560,7 @@ jobs:
 
       # `exec` makes the runner the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
       - name: Run the product subset
-        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --out "$RUNNER_TEMP/product-subset" --jobs 2 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
+        run: exec node scripts/ci-product-subset.mjs --expect-platform linux --out "$RUNNER_TEMP/product-subset" --jobs 4 --timeout-seconds 180 --browser-timeout-seconds 240 --retries 1 --budget-minutes 15 --browser-budget-minutes 8
 
       - name: Keep the report
         if: ${{ always() }}

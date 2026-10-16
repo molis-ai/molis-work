@@ -301,7 +301,7 @@ export interface PluginRouteRequest {
   execution?: PluginExecutionControl;
 }
 
-export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context">;
+export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">;
 
 export interface PluginRouteResponse {
   status: number;
@@ -507,3 +507,5 @@ export interface IntegrationProviderPort {
     mode?: "normal" | "rebuild_cursor";
   }): Promise<IntegrationProviderSyncResult>;
 }
+
+export { pluginErrors } from "./plugin-errors.js";

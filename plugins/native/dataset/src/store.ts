@@ -1,4 +1,4 @@
-import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   DatasetColumn,
@@ -310,7 +310,7 @@ export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openDatasetStore(homeDirectory: string): DatasetStore {
-  const db = openBaselineHomeSqlite(homeDirectory, "dataset", DATASET_STORE_BASELINE);
+  const db = openBaselineHomeSqlite(homeDirectory, DATASET_HOME_STORE.path, DATASET_STORE_BASELINE);
   initializeAggregateReplication(db,datasetAggregates);
   return new DatasetStore(db);
 }
@@ -429,10 +429,16 @@ function normalizeColumns(value: readonly DatasetColumnInput[]): DatasetColumn[]
   if (value.length > 40) throw datasetErrors.invalid("最多 40 列");
   return value.map((column, index) => ({
     id: column.id || crypto.randomUUID(),
-    name: String(column.name ?? "").trim() || `列 ${index + 1}`,
+    name: normalizeColumnName(column.name, index),
     type: column.type && COLUMN_TYPES.includes(column.type) ? column.type : "text",
     order: index + 1,
   }));
+}
+
+function normalizeColumnName(value: string, index: number): string {
+  const name = String(value ?? "").trim() || `列 ${index + 1}`;
+  if ([...name].length > 80) throw datasetErrors.invalid("列名最多 80 个字，请保留原 CSV 并缩短表头后再导入");
+  return name;
 }
 
 function normalizeRows(rows: readonly DatasetRowInput[], columns: readonly DatasetColumn[]): DatasetRow[] {
@@ -443,3 +449,6 @@ function normalizeRows(rows: readonly DatasetRowInput[], columns: readonly Datas
     cells: Object.fromEntries(columns.map((column) => [column.id, String(row.cells?.[column.id] ?? "")])),
   }));
 }
+
+/** This plugin's store in the Home's store registry (W4-11): `dataset/dataset.db` at its one baseline. */
+export const DATASET_HOME_STORE: HomeStoreDeclaration = { path: "dataset", library: { baseline: DATASET_STORE_BASELINE } };

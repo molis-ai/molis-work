@@ -1,3 +1,5 @@
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -5,8 +7,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createPluginArtifactClient, PluginArtifactAccessError } from "@molis-ai/molis-work-plugin-artifacts";
-import { PluginRuntime, PluginRuntimeError } from "@molis-ai/molis-work-plugin-runtime";
+import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
+import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
@@ -68,11 +70,17 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
     const actions = pluginActions(store, DEMO_PROJECT_ID);
     const caller = { actor_id: "author", project_id: DEMO_PROJECT_ID, audience: "plugin" as const,
       plugin_install_id: consumer.installId, permissions: ["artifact:read", "artifact:write"] };
-    const read = actions.registry.discover(caller).find(action => action.provider.provider_id === `sdk.artifacts.${consumer.installId}` && action.operation === "query")!;
+    const read = actions.registry.discover(caller).find(action => action.capability_id === `sdk.artifacts.${consumer.installId}.read`)!;
     assert.ok(read, "the SDK operation must exist in the same Kernel directory");
     assert.deepEqual(await actions.client.invoke(caller, { ...read, provider_id: read.provider.provider_id }, { artifact_id: value.artifact_id, version: 1 }), first.artifact);
     assert.deepEqual(actions.registry.discover({ ...caller, audience: "mcp" }), [], "producer-bound SDK calls are not public MCP tools");
-    await assert.rejects(actions.client.invoke({ ...caller, plugin_install_id: producer.installId }, read, { artifact_id: value.artifact_id, version: 1 }));
+    // ARTACC-01/ARTACC-02: the real Kernel carries the declared forbidden kind through provider availability.
+    const wrongInstall = actions.registry.discover({ ...caller, plugin_install_id: producer.installId }).find(action => action.capability_id === read.capability_id)?.availability;
+    assert.ok(wrongInstall && !wrongInstall.available);
+    assert.equal(wrongInstall.code, "artifacts.plugin_denied");
+    assert.equal(wrongInstall.kind, "forbidden");
+    await assert.rejects(actions.client.invoke({ ...caller, plugin_install_id: producer.installId }, read, { artifact_id: value.artifact_id, version: 1 }),
+      (error: unknown) => error instanceof ActionError && error.code === "artifacts.plugin_denied" && error.kind === "forbidden" && actionHttpStatus(error) === 403);
     await assert.rejects(actions.client.invoke(caller, read, { artifact_id: value.artifact_id, version: 1, actor_id: "forged" }));
     assert.equal(producer.client.publish(value).replayed, true);
     producer.client.publish({ ...value, version: 2, content: { kind: "inline", payload: { title: "Second" } } });
@@ -81,36 +89,39 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
 
     const oldConsumerClient = consumer.client;
     await runtime.reportCrash(consumer.installId);
-    assert.throws(() => oldConsumerClient.read(value), (error: unknown) => error instanceof PluginRuntimeError
-      && error.code === "plugin_grant_denied");
+    assert.throws(() => oldConsumerClient.read(value), (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
+      && error.code === "plugin.grant_denied");
     await runtime.recover(consumer.installId);
     assert.deepEqual(consumer.client.read(value), first.artifact);
-    assert.throws(() => oldConsumerClient.read(value), PluginRuntimeError,
+    assert.throws(() => oldConsumerClient.read(value), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.definition_missing","plugin.definition_conflict","plugin.entrypoint_missing","plugin.grant_denied","plugin.state_invalid","plugin.install_replaced","plugin.executor_failed","plugin.contribution_kind_invalid","plugin.contribution_unredeemed","plugin.quarantined","plugin.upgrade_required","plugin.kept_data_incompatible","plugin.upgrade_validation_missing","plugin.upgrade_validation_failed","plugin.upgrade_rollback_failed"].includes(error.code) && error.kind === "invalid"),
       "recovery must not restore authority to stale pre-crash clients");
 
     const noRead = await author("denied", { read: false });
     const denied = actions.registry.discover({ ...caller, plugin_install_id: noRead.installId })
-      .find(action => action.provider.provider_id === `sdk.artifacts.${noRead.installId}` && action.operation === "query");
+      .find(action => action.capability_id === `sdk.artifacts.${noRead.installId}.read`);
     assert.equal(denied?.availability.available, false, "directory reflects the actual Runtime grant");
+    assert.ok(denied && !denied.availability.available);
+    assert.equal(denied.availability.code, "artifacts.plugin_denied");
+    assert.equal(denied.availability.kind, "forbidden");
     const wrongSchema = await author("wrong-schema", { schema: 2 });
     const otherUser = await author("other-user", { actor: "other" });
     const before = store.snapshot(DEMO_PROJECT_ID);
     const versions = api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id);
-    assert.throws(() => noRead.client.read(value), (error: unknown) => error instanceof PluginRuntimeError
-      && error.code === "plugin_grant_denied");
-    assert.throws(() => wrongSchema.client.read(value), (error: unknown) => error instanceof PluginArtifactAccessError
-      && error.code === "plugin_artifact_incompatible");
-    // A personal 成果 belongs to the Home's person whoever produced it: another actor's installation reads it by type, not by being its producer.
+    assert.throws(() => noRead.client.read(value), (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
+      && error.code === "plugin.grant_denied");
+    assert.throws(() => wrongSchema.client.read(value), (error: unknown) => error instanceof ActionError
+      && error.code === "artifacts.plugin_incompatible" && error.kind === "invalid");
+    // ARTACC-01/ARTACC-03: A personal 成果 belongs to the Home's person whoever produced it: another actor's installation reads it by type, not by being its producer.
     assert.deepEqual(otherUser.client.read(value), first.artifact);
     assert.throws(() => producer.client.publish({ ...value, artifact_id: "not-created", schema_version: 2 }),
-      PluginArtifactAccessError);
+      { code: "artifacts.plugin_incompatible", kind: "invalid", message: "Manifest 未声明生产此成果 type/schema" });
     assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), before);
     assert.deepEqual(api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id), versions);
     assert.equal(api.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "not-created", version: 1 }), null);
     await runtime.uninstall(producer.installId);
     assert.deepEqual(consumer.client.read(value), first.artifact, "uninstall preserves exchanged content");
     assert.throws(() => producer.client.publish({ ...value, version: 3 }),
-      (error: unknown) => error instanceof PluginRuntimeError && error.code === "plugin_grant_denied");
+      (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.grant_denied");
     assert.deepEqual(api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id), versions,
       "a retained client cannot keep writing after uninstall");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
@@ -151,13 +162,13 @@ test("an installation reads a process item only for the actor it was recorded fo
     }
     const producer = await install("producer", "author"), sameActor = await install("same-actor", "author"), otherActor = await install("other-actor", "other");
 
-    // A process item belongs to the actor whose installation recorded it: the ownership decision (2026-10-07) is about personal 成果 only.
+    // ARTACC-01/ARTACC-02: A process item belongs to the actor whose installation recorded it: the ownership decision (2026-10-07) is about personal 成果 only.
     const item = { artifact_id: "item-1", version: 1, artifact_type_id: "example.item", schema_version: 1,
       content: { kind: "inline" as const, payload: { step: "draft" } } };
     const recorded = producer.process.record(item);
     assert.equal(recorded.artifact.owner_actor_id, "author");
     assert.deepEqual(sameActor.client.read(item), recorded.artifact);
-    assert.throws(() => otherActor.client.read(item), (error: unknown) => error instanceof PluginArtifactAccessError && error.code === "plugin_artifact_denied");
+    assert.throws(() => otherActor.client.read(item), (error: unknown) => error instanceof ActionError && error.code === "artifacts.plugin_denied" && error.kind === "forbidden");
 
     // A personal 成果 is the person's whoever produced it, so any installation of the Home reads it by type.
     const note = { ...pinnedArtifact("Note", { kind: "note", id: "n-1" }), artifact_id: "note-1", version: 1, artifact_type_id: "example.note", schema_version: 1,

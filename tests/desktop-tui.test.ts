@@ -600,7 +600,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     // No rail: one bar at the foot. At its left the switcher, which holds, under search and the two buttons that get more
     // plugins (the market, the studio), every plugin (each with its own Dock button), then the Dock; the Assistant is only an
     // input; Shelf and 灵光; then the project, whose menu opens group chat and holds the person.
-    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island>[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">[\s\S]*data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*class="bar-chat"[^>]*data-dock-toggle="im"[\s\S]*data-dock-window="im"[\s\S]*data-project-menu/);
+    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island data-system-view-owner="assistant">[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">[\s\S]*data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*class="bar-chat"[^>]*data-dock-toggle="im"[\s\S]*data-dock-window="im"[\s\S]*data-project-menu/);
     assert.doesNotMatch(browser, /class="plugin-stack"|class="workbench-dock"|data-navigation-labels-toggle/);
     assert.doesNotMatch(pluginStrip, /返回项目目录/);
     assert.doesNotMatch(pluginStrip, /data-plugin-section=|data-plugin-expand=/);

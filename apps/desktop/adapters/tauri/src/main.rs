@@ -14,6 +14,8 @@ mod personal_session;
 mod pty;
 mod runtime_env;
 #[cfg(target_os = "macos")]
+mod shelf_clipboard_macos;
+#[cfg(target_os = "macos")]
 mod shelf_drag_macos;
 mod shelf_hotkeys;
 #[cfg(target_os = "macos")]

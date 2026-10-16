@@ -104,15 +104,15 @@ async function body(context: Context, params: Record<string, unknown> = {}, allo
   let value: unknown;
   try { value = allowEmpty && raw.length === 0 ? {} : JSON.parse(raw); } catch { return undefined; }
   if (value === null || typeof value !== "object" || Array.isArray(value)) return value;
-  if (Object.keys(params).some(key => key in value)) throw new AlchemistOperationError("ALCHEMIST_INPUT_INVALID", "请求正文不能覆盖路径参数。", 400);
+  if (Object.keys(params).some(key => key in value)) throw new AlchemistOperationError("alchemist.alchemist_input_invalid", "请求正文不能覆盖路径参数。", 400);
   return { ...value, ...params };
 }
 
 function problem(context: Context, error: unknown): Response {
   if (error instanceof AlchemistOperationError) return context.json({ ...error.details, code: error.code, message: error.message }, error.status);
   if (error instanceof ActionError) {
-    const status = error.code === "actions.not_found" ? 404 : error.code === "actions.forbidden" ? 403 : error.code === "actions.input_invalid" ? 400 : 409;
+    const status = error.code === "actions.missing" ? 404 : error.code === "actions.forbidden" ? 403 : error.code === "actions.input_invalid" ? 400 : 409;
     return context.json({ code: error.code, message: error.message }, status);
   }
-  return context.json({ code: "ALCHEMIST_OPERATION_FAILED", message: "操作暂时失败，请刷新后重试。" }, 500);
+  return context.json({ code: "alchemist.alchemist_operation_failed", message: "操作暂时失败，请刷新后重试。" }, 500);
 }

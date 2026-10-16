@@ -2,6 +2,7 @@ import { createLocalImServer } from "./im-server.js";
 import { createSpaceWebServer, type SpaceWebSurface } from './space-web-server.js';
 import { spaceDisposal } from './space-disposal.js';
 import { projectActionAvailability } from "./project-action-availability.js";
+import { handleManagementActionHttp } from "./management-action-gateway.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { handleProjectDeletionGatewayHttp } from "./project-deletion-gateway.js";
 import { webProjectDeletion } from "./project-deletion-service.js";
@@ -13,7 +14,7 @@ import path from "node:path";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import { workspaceRefFor } from "./agent-host-composition.js";
 import { ensureSystemAgentService } from "./system-agent-service.js";
-import { createMolisWorkLocalHost } from "./project-host.js";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "./project-host.js";
 import { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { resolveWebControlToken } from "./web-control-token.js";
@@ -24,7 +25,7 @@ import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
 import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
-import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
+import type { WebServerOptions } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
 import { assistantServiceFor } from "./assistant/assistant-http.js";
 import { lazyBrowserHost } from "./browser/browser-host.js";
@@ -39,6 +40,7 @@ import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { awaitWebServerShutdown } from "./web-server-close.js";
+import { startWebProjectSchedulers } from "./web-project-schedulers.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -97,11 +99,15 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const controlToken = resolveWebControlToken(serverOptions);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
-    const feedSchedulers = new Map<string, FeedSchedulerRuntime>();
     localHost.configureSessionRuntime(storageHome, serverOptions.runtimeSessionTransport);
     const sessionResources = localHost.sessionResources();
     void sessionResources.catch(() => undefined);
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
+    const warnBackground = (message: string, error: unknown) => console.warn(message, error);
+    const { periodicTasks: periodic } = composition;
+    const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, agents, periodic,
+      changed: databasePath => webViewCache.delete(databasePath), onError: error => warnBackground("[schedule] 项目后台调度没有启动", error) });
+    const feedSchedulers = projectSchedulers.runtimes;
     const pty = { host: null as MolisWorkPtyHost | null };
     const im = createLocalImServer(storageHome, async id => {
       if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
@@ -117,7 +123,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // found by the project its round works on; sites the person allowed or blocked are kept beside the browser profile.
     const sites = new BrowserSiteDecisions(storageHome);
     const drivers = new Map<string, HostSurfaceDriver>();
-    const computer = installComputerDesk(localHost, storageHome); // the Assistant's desktop: desk, helper, providers, sweep, HTTP, socket (specs/computer-use)
+    const computer = installComputerDesk(localHost, storageHome, periodic); // the Assistant's desktop: desk, helper, providers, sweep, HTTP, socket (specs/computer-use)
     const unregisterSurfaces = registerBrowserSurfaces(localHost, {
       siteDecisions: () => sites.list(),
       driverFor: async projectId => {
@@ -174,7 +180,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (await handleBrowserHttp(request, response, url, { browsers: browserHost, projectExists, sites, decideSite: decision => agents.decideSurfaceSite(decision) })) return;
           if (await computer.handleHttp(request, response, url)) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
-          if (await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
+          if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog) || await handleProjectDeletionGatewayHttp(request, response, url, storageHome, webProjectDeletion(withCatalog, { isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }))) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(
@@ -194,10 +200,6 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             composition,
             agents.agentHost,
             () => agents.ready,
-            (projectId) => withCatalog(
-              { homeDirectory: serverOptions.homeDirectory },
-              (catalog) => workspaceRefFor(catalog, projectId),
-            ),
           );
         });
       } catch (error) {
@@ -207,8 +209,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
     let closing = false;
-    awaitWebServerShutdown(server, () => { closing = true; im.stop(); void browserHost.current()?.close(); }, async () => {
+    awaitWebServerShutdown(server, () => { closing = true; void projectSchedulers.stop().catch(() => undefined); im.stop(); void browserHost.current()?.close(); }, async () => {
       await server.spaceDisposed;
+      await projectSchedulers.stop();
       if (ownsLocalHost) { try { await localHost.close(); } finally { await catalogAccess?.close(); } }
     });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
@@ -226,24 +229,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           .catch(() => undefined);
       },
     });
-    const schedulerTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => {
-      for (const [databasePath, runtime] of feedSchedulers) {
-        void runtime.scheduler.tick()
-          .then((result) => {
-            if (result.completed || result.failed) webViewCache.delete(databasePath);
-          })
-          .catch(() => undefined);
-        void withCallId(newCallId(), () => runtime.schedule.tick())
-          .then((result) => {
-            if (result.invoked) webViewCache.delete(databasePath);
-          })
-          .catch(() => undefined);
-      }
-    }), 30_000);
-    schedulerTimer.unref();
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
-    const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready,
+    const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
       projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) }).service;
     // Timed rounds live in Prologue's durable queue: the Assistant becomes their runner as soon as the runtime is up.
     // With timed work waiting the runtime is started for it; otherwise the runner joins whenever something starts the
@@ -257,18 +245,17 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       }
     });
     // New material that shares a Goal with a live work: looked for every five minutes.
-    const assistantTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().scanNewMaterial(); }))
-      .catch(error => console.warn("[assistant] 新资料没有读到", error)), 300_000);
-    assistantTimer.unref();
+    periodic.every({ id: "assistant.material", title: "为进行中的工作找新资料", owner: "assistant", intervalMs: 300_000,
+      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().scanNewMaterial())), onError: error => warnBackground("[assistant] 新资料没有读到", error) });
     // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
-    const reminderTimer = setInterval(() => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => { await assistant().sweepReminders(); }))
-      .catch(error => console.warn("[assistant] 到期提醒没有读到", error)), 60_000);
-    reminderTimer.unref();
-    server.spaceDisposed = spaceDisposal(server, [assistantTimer, reminderTimer, schedulerTimer], [
+    periodic.every({ id: "assistant.reminders", title: "到期提醒", owner: "assistant", intervalMs: 60_000,
+      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().sweepReminders())), onError: error => warnBackground("[assistant] 到期提醒没有读到", error) });
+    server.spaceDisposed = spaceDisposal(server, [], [
+      () => periodic.stop(), () => projectSchedulers.stop(),
       () => im.close(), unregisterSurfaces, () => feedSchedulers.clear(),
       () => browserHost.current()?.close(),
     ]);
-    if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, serverOptions.deletionSweepMs);
+    if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
     return server;
   }
   return (options:WebServerOptions={})=>createSpaceWebServer(options,createMolisWorkWebServer,platform.withCatalog);

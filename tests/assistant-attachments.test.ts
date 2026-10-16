@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -7,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
-import { AssistantError, AssistantService } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { pdfDocumentParser } from "../apps/local-host/dist/pdf-document-parser.js";
 import { deflateSync, crc32 } from "node:zlib";
@@ -118,7 +119,7 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     const restarted = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
     assert.equal((await restarted.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, true);
     assert.equal((await service.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, undefined);
-    await assert.rejects(restarted.materialImage(sent.work.work_id, material.material_id), (error: unknown) => error instanceof AssistantError && error.code === "assistant.expired" && /重新添加/.test(error.message));
+    await assert.rejects(restarted.materialImage(sent.work.work_id, material.material_id), (error: unknown) => error instanceof ActionError && error.code === "assistant.expired" && error.kind === "not_found" && /重新添加/.test(error.message));
 
     // The next round of the same work does not carry it again.
     await service.send({ text: "继续说说颜色的含义", request_id: "image-send-2", work_id: sent.work.work_id }, {});

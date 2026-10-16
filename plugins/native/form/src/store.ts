@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type {
   FormOption,
@@ -12,9 +12,10 @@ import type {
   FormSubmissionSource,
 } from "@molis-ai/molis-work-contracts/modules/form";
 import { formErrors } from "./error.js";
-import { FORM_ANSWER_FORMAT } from "./fillpage.js";
+import { FORM_ANSWER_FORMAT, FORM_ANSWER_LIMIT } from "./fillpage.js";
 import { createAggregateReplica, initializeAggregateReplication, type AggregateReplicaContext } from '@molis-ai/molis-work-storage';
 import { formAggregates } from './replication.js';
+
 import type { FormPublicationIntent, FormPublicationSnapshot } from "./promote.js";
 
 interface FormRow {
@@ -382,7 +383,7 @@ export const FORM_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
 ` };
 
 export function openFormStore(homeDirectory: string): FormStore {
-  const db = openBaselineHomeSqlite(homeDirectory, "form", FORM_STORE_BASELINE);
+  const db = openBaselineHomeSqlite(homeDirectory, FORM_HOME_STORE.path, FORM_STORE_BASELINE);
   initializeAggregateReplication(db,formAggregates);
   return new FormStore(db);
 }
@@ -488,11 +489,11 @@ function normalizeAnswers(
   const ids = new Set(questions.map(question => question.id));
   if (Object.keys(answers).some(key => !ids.has(key))) throw formErrors.invalid("答卷含有不存在的题目，请重新读取问卷");
   for (const question of questions) {
-    const value = String(answers[question.id] ?? "").trim();
+    const value = Object.hasOwn(answers, question.id) ? String(answers[question.id] ?? "").trim() : "";
     if (question.required && !value) {
       throw formErrors.invalid(`请回答：${question.title}`);
     }
-    if (value.length > 4000) throw formErrors.invalid("回答过长");
+    if (value.length > FORM_ANSWER_LIMIT) throw formErrors.invalid("回答过长");
     if (value && usesOptions(question.type)) {
       const allowed = new Set((question.options ?? []).map(option => option.label));
       const values = question.type === "multiChoice" ? value.split("\n") : [value];
@@ -507,3 +508,6 @@ function normalizeAnswers(
 }
 
 export type { FormOption };
+
+/** This plugin's store in the Home's store registry (W4-11): `form/form.db` at its one baseline. */
+export const FORM_HOME_STORE: HomeStoreDeclaration = { path: "form", library: { baseline: FORM_STORE_BASELINE } };

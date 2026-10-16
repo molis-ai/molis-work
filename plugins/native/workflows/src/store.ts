@@ -1,4 +1,4 @@
-import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   type Workflow,
@@ -7,6 +7,8 @@ import {
   type WorkflowInstanceStatus,
   type WorkflowItemRef,
   type WorkflowStep,
+  advanceInstance,
+  holdInstance,
   nextUpdatedAt,
   startInstanceSteps,
   stoppedOf,
@@ -176,8 +178,28 @@ export class WorkflowsStore {
     this.assertExecutableInstance(instanceId);
     const current = this.instance(instanceId, projectId);
     if (current.status !== "active") return current;
-    return this.saveInstance(current, { ...current, status: "stopped", updated_at: new Date().toISOString() });
+    const at = new Date().toISOString();
+    const pending = current.steps[current.current]?.pending;
+    const next = pending?.attempted_at ? holdInstance(current, current.current, { at,
+      reason: "流程已停止；已派出步骤的结果尚未确认，请到目标核对，不会自动重派。" }) : { ...current, status: "stopped" as const, updated_at: at };
+    return this.saveInstance(current, next);
   }
+}
+
+/** A real returned delivery can settle its original stopped attempt; cancellation never invents a receipt. */
+export function recordStoppedDelivery(store: WorkflowsStore, expected: WorkflowInstance, from: number,
+  arrived: WorkflowItemRef, arrival: NonNullable<Parameters<typeof advanceInstance>[5]>): WorkflowInstance | null {
+  const latest = store.instance(expected.instance_id, expected.project_id);
+  const pending = expected.steps[from]?.pending;
+  const recorded = latest.steps[from]?.pending;
+  if (latest.status !== "stopped" || latest.current !== from || !pending || recorded?.key !== pending.key
+    || recorded.attempted_at !== pending.attempted_at) return null;
+  const { attempted_at: _attempted, attempt_error: _error, ...handoff } = pending;
+  // The arrival and the run's token are the same moment: taken past the attempt mark written in the same millisecond.
+  const at = nextUpdatedAt(latest.updated_at);
+  const next = advanceInstance({ ...latest, status: "active" }, from, handoff, arrived, at, arrival);
+  return store.saveInstance(latest, { ...next, status: "stopped", steps: next.steps.map((step, index) => index === from
+    ? { ...step, held: { at, reason: "流程已停止；这一项已经返回真实结果，内容保留，不会继续下一站。" } } : step) });
 }
 
 /**
@@ -213,9 +235,9 @@ export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openWorkflowsStore(homeDirectory: string): WorkflowsStore {
-  const db = openBaselineHomeSqlite(homeDirectory, "workflows", WORKFLOWS_STORE_BASELINE);
+  const db = openHomeSqliteDatabase(homeDirectory, WORKFLOWS_HOME_STORE.path);
   db.exec("PRAGMA journal_mode = WAL;");
-  applySqliteBaseline(db, homeSqlitePath(homeDirectory, "workflows"), WORKFLOWS_STORE_BASELINE);
+  applySqliteBaseline(db, homeSqlitePath(homeDirectory, WORKFLOWS_HOME_STORE.path), WORKFLOWS_STORE_BASELINE);
   initializeWorkflowsReplication(db);
   return new WorkflowsStore(db);
 }
@@ -261,3 +283,6 @@ function fromInstanceRow(row: InstanceRow): WorkflowInstance {
     updated_at: row.updated_at,
   };
 }
+
+/** This plugin's store in the Home's store registry (W4-11): `workflows/workflows.db` at its one baseline. */
+export const WORKFLOWS_HOME_STORE: HomeStoreDeclaration = { path: "workflows", library: { baseline: WORKFLOWS_STORE_BASELINE } };

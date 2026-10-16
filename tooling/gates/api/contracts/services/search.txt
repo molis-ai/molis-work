@@ -169,6 +169,26 @@ export interface SearchRebuildResponse {
     sources: SearchSourceStatus[];
 }
 
+export interface SearchReferenceCandidate {
+    kind: string;
+    id: string;
+    label: string;
+    revision: string;
+    plugin_title: string;
+    snippet: string;
+}
+
+export interface SearchReferencesRequest {
+    kinds: string[];
+    query: string;
+    limit?: number;
+}
+
+export interface SearchReferencesResponse {
+    status: SearchQueryStatus;
+    candidates: SearchReferenceCandidate[];
+}
+
 export type SearchScope = "project" | "personal" | "all";
 
 export type SearchSourceState = "ready" | "indexing" | "stale" | "failed" | "unavailable" | "disabled";
@@ -195,6 +215,7 @@ export declare const searchActions: {
     }>;
     query: ActionDefinition<SearchQueryRequest, SearchQueryResponse>;
     open: ActionDefinition<SearchOpenRequest, SearchOpenResponse>;
+    references: ActionDefinition<SearchReferencesRequest, SearchReferencesResponse>;
     status: ActionDefinition<{
         scope?: SearchScope;
     }, SearchStatusResponse>;

@@ -11,7 +11,7 @@ export type HostSurfaceKind = "browser" | "desktop";
 export type HostSurfaceObservationKind = "dom" | "accessibility-tree" | "screenshot" | "window-metadata";
 
 export type HostSurfaceAction =
-  | { readonly what: "pointer"; readonly x: number; readonly y: number; readonly button: "left" | "right" | "middle"; readonly clicks: number }
+  | { readonly what: "pointer"; readonly x: number; readonly y: number; readonly button: "left" | "right" | "middle"; readonly clicks: number; readonly node?: string }
   | { readonly what: "key"; readonly keys: readonly string[] }
   | { readonly what: "text"; readonly text: string }
   | { readonly what: "navigate"; readonly url: string }
@@ -36,6 +36,16 @@ export type HostSurfaceAction =
  */
 export type HostSurfaceRefusal = "driver-unavailable" | "person-present" | "screen-locked" | "outside-target";
 
+/**
+ * What a desktop step leaves behind. The tree is the window after the step. A picture is attached only when that tree
+ * was cut off or had nothing to click, and only for the person who will decide whether a model may see it.
+ */
+export interface HostSurfaceActReceipt {
+  readonly tree: string;
+  readonly model_image?: Uint8Array;
+  readonly image_reason?: "truncated" | "no-clickable";
+}
+
 /** An error a driver throws to refuse with one of those reasons; the Agent Host maps it onto Prologue's refusal. */
 export interface HostSurfaceRefusalError extends Error {
   readonly refusal: HostSurfaceRefusal;
@@ -48,6 +58,9 @@ export function isHostSurfaceRefusal(error: unknown): error is HostSurfaceRefusa
   return refusal === "driver-unavailable" || refusal === "person-present" || refusal === "screen-locked" || refusal === "outside-target";
 }
 
+/** How the round that used a surface ended, as its run settled: a person or the Host stopping it is `stopped`. */
+export type HostSurfaceRoundEnd = "completed" | "failed" | "stopped";
+
 export interface HostSurfaceDriver {
   readonly kind: HostSurfaceKind;
   /** The project whose page this is: a surface serves only works in that project. The desktop serves every project: null. */
@@ -58,10 +71,13 @@ export interface HostSurfaceDriver {
   scope(): Promise<string>;
   /** Looks at the page; the session looking, when known, is shown as the one using the page. */
   observe(kind: HostSurfaceObservationKind, context?: { readonly session_id: string | null }): Promise<Uint8Array>;
-  /** Performs one action. Refuses while the person has taken the page over. */
-  perform(action: HostSurfaceAction, context: { readonly session_id: string | null }): Promise<void>;
-  /** The round using the page ended — finished, failed or stopped: the page is the person's again at once. */
-  release?(): Promise<void>;
+  /**
+   * Performs one action. Refuses while the person has taken the page over.
+   * A desktop step returns the accessibility tree from after it; a browser step returns nothing.
+   */
+  perform(action: HostSurfaceAction, context: { readonly session_id: string | null }): Promise<HostSurfaceActReceipt | void>;
+  /** The round using the page ended — finished, failed or stopped (`ended`, when the Host knows it): the page is the person's again at once. */
+  release?(ended?: HostSurfaceRoundEnd): Promise<void>;
   close(): Promise<void>;
   /** The name of what sits at a point of the page now (for the person's approval card); empty when nothing readable. */
   describePoint?(x: number, y: number): Promise<string>;

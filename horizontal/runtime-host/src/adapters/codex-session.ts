@@ -161,16 +161,16 @@ function failed(
   capability: RuntimeSessionCapability,
   message: string,
   recovery?: Extract<RuntimeSessionAdapterResult, { status: "failed" }>["recovery"],
-  code: Extract<RuntimeSessionAdapterResult, { status: "failed" }>["code"] = "runtime.operation_failed",
+  code: Extract<RuntimeSessionAdapterResult, { status: "failed" }>["code"] = "runtime_host.operation_failed",
 ): RuntimeSessionAdapterResult {
   return { status: "failed", capability, code, message, ...(recovery ? { recovery } : {}) };
 }
 
 function runtimeErrorCode(error: unknown): Extract<RuntimeSessionAdapterResult, { status: "failed" }>["code"] {
-  if (!error || typeof error !== "object") return "runtime.operation_failed";
-  return (error as { code?: unknown }).code === "runtime.response_too_large"
-    ? "runtime.response_too_large"
-    : "runtime.operation_failed";
+  if (!error || typeof error !== "object") return "runtime_host.operation_failed";
+  return (error as { code?: unknown }).code === "runtime_host.response_too_large"
+    ? "runtime_host.response_too_large"
+    : "runtime_host.operation_failed";
 }
 
 function optionalString(value: unknown): string | null {

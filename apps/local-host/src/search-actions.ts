@@ -1,7 +1,7 @@
-import { ActionError, type ActionCallContext, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionSubject, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { SEARCH_PROVIDER_ID, prepareSearchFragmentOffers, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
-import { SearchService, type SearchAccess } from "@molis-ai/molis-work-service-search";
+import { SEARCH_PROVIDER_ID, prepareSearchFragmentOffers, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchReferencesRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
+import { SearchService, confirmReferences, findReferenceCandidates, type SearchAccess } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
@@ -35,6 +35,11 @@ export interface SearchHost {
   /** A provider was registered or withdrawn: install, enable, upgrade, disable, uninstall. */
   providerChanged(provider: Pick<ActionProvider, "provider_id" | "project_id">): void;
   projectDeleted(projectId: string): void;
+  /**
+   * Whether each object a person picked for a reference answer is still one they may use in that project (of an allowed
+   * kind, read from its owner with their authority just now), in order. False for a project that is not open.
+   */
+  confirmReferences(projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<boolean[]>;
   close(): Promise<void>;
 }
 
@@ -62,6 +67,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
   const handlers: ActionHandlerBinding[] = [
     { ...searchActions.fragmentOffers, handle: (_caller, input) => ({ offers: prepareSearchFragmentOffers(input as FragmentOffersInput) }) },
     { ...searchActions.query, handle: (caller, input) => service.query(access(caller), input as SearchQueryRequest) },
+    { ...searchActions.references, handle: (caller, input) => findReferenceCandidates(service, access(caller), input as SearchReferencesRequest) },
     { ...searchActions.open, handle: (caller, input) => service.open(access(caller), input as SearchOpenRequest) },
     { ...searchActions.status, handle: (caller, input) => service.status(access(caller), input as { scope?: SearchScope }) },
     { ...searchActions.rebuild, handle: (caller, input) => service.rebuild(access(caller), input as SearchRebuildRequest) },
@@ -76,6 +82,11 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     changed: (providerId, projectId) => service.markChanged(providerId, projectId),
     providerChanged: provider => service.markRegistration(provider.provider_id, provider.project_id ?? null),
     projectDeleted: projectId => { service.removeProject(projectId); },
+    confirmReferences: async (projectId, picked, kinds) => {
+      const reference = ports.project(projectId);
+      if (!reference) return picked.map(() => false);
+      return confirmReferences({ client: ports.projectClient(reference), caller: await ports.ownerContext(reference) }, picked, kinds);
+    },
     close: async () => { closed = true; dispose(); await service.close(); index.close(); },
   };
 }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { assistantCardHtml, agentQuestionHtml, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
 /** One streamed model turn: a tool call, or plain text. */
 function turn(tool?: { name: string; input: unknown }, text = "好的。"): string {
@@ -60,12 +60,34 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   const strip = "[data-assistant-strip]";
 
   await say("记一下：整理周报");
-  await waitFor(`${shown(strip)} && ${shown(`${strip} [data-assistant-strip-next]`)} && document.querySelector('${strip} [data-assistant-strip-next]').textContent === '去确认'`, 30_000);
+  // FLOW-01: the strip says the state; what to press is the next step just above the input, the same as the card's own control.
+  const review = `[data-assistant-next-row] [data-ix-step-id^="review:"]`;
+  await waitFor(`${shown(strip)} && ${shown(review)} && document.querySelector('${review} [data-ix-step-label]').textContent === '去确认'`, 30_000);
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').dataset.side"), "closed", "at this width the side pane is a closed drawer");
-  await click(`${strip} [data-assistant-strip-next]`);
+  await waitFor("document.querySelector('.assistant-tab[data-current] .assistant-tab-mark .mw-state-ring')?.dataset.mwState === 'approval'"); // RING-07
+  // The opened panel ends at least 8px above the row of next steps, and the row ends above the input, here and at a phone's width
+  // (touch steps are 44px tall), so neither covers the panel's last line.
+  const clear = `(() => { const box = selector => document.querySelector(selector).getBoundingClientRect(), panel = box('[data-assistant-panel]'), row = box('[data-assistant-next-row]'), input = box('[data-assistant-composer]');
+    // At a phone's width the band from the panel's edge to the input is the bar's own ground: the page does not show in the gap or between the steps.
+    const band = [[4, panel.bottom + 4], [innerWidth - 4, row.bottom - 2]].every(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-assistant-next-row]'));
+    return { gap: Math.round(row.top - panel.bottom), under: Math.round(input.top - row.bottom), band }; })()`;
+  for (const width of [800, 390]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+    await waitFor(`!document.querySelector('[data-assistant-panel]').hidden && ${shown(review)}`, 10_000);
+    const { gap, under, band } = await evaluate<{ gap: number; under: number; band: boolean }>(clear);
+    if (width === 390) assert.ok(band && gap >= 0 && under >= 0, `at 390px the next steps sit on a solid band from the panel (${gap}px) down to the input (${under}px)`);
+    else assert.ok(gap >= 8 && under >= 0, `at ${width}px the panel ends ${gap}px above the next steps, which end ${under}px above the input`);
+  }
+  await command("Emulation.setDeviceMetricsOverride", { width: 800, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await click(review);
   // It lands on the card's own decision, not on a copy button inside the code it shows.
   await waitFor("Boolean(document.activeElement?.closest('[data-review]')) && !document.activeElement.classList.contains('assistant-code-copy')", 10_000);
 
+  await waitFor("document.querySelector('[data-review] .assistant-card-kicker .mw-state-ring')?.dataset.mwState === 'approval'"); // RING-07
+  // RING-08: common status sizes survive the compact tab and card styles.
+  for (const selector of [".assistant-tab[data-current] .mw-state-ring", "[data-review] .assistant-card-kicker .mw-state-ring"]) {
+    assert.ok(await evaluate(`document.querySelector('${selector}').getBoundingClientRect().width >= 20`));
+  }
   await click("[data-assistant-new]");
   await say("写一份周报草稿");
   await waitFor(`${shown(`${strip} [data-assistant-control=pause]`)}`, 30_000);
@@ -73,5 +95,46 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   release?.();
   await waitFor(`${shown(`${strip} [data-assistant-control=resume]`)} && ${shown(`${strip} [data-assistant-control=stop]`)}`, 30_000);
   assert.equal(await evaluate(`document.querySelector('${strip} [data-assistant-control=pause]').hidden`), true);
+  await waitFor("document.querySelector('.assistant-round-status[data-phase=paused] .mw-state-ring')?.dataset.mwState === 'paused'"); // RING-07
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+
+  // RING-07 RING-08: actual Host markup under the live Assistant's styles; model-driven question submission is covered separately.
+  const html = agentQuestionHtml({ pending_id: "ring-question", kind: "clarify", prompt: "继续整理？", options: [], allows_free_text: true }, text => text)
+    + assistantCardHtml({ card_id: "ring-action", revision: 1, run_id: "ring-run", title: "新建待办", summary: "保存结果", provider: "待办", capability_title: "新建待办", capability_id: "todo.items.create",
+      effect: "irreversible", fields: [], missing: [], status: "unknown", created_at: "", updated_at: "" }, text => text);
+  await evaluate(`(() => { const sample = document.createElement('section'); sample.id = 'ring-host-sample'; sample.innerHTML = ${JSON.stringify(html)};
+    document.querySelector('[data-assistant-thread]').append(sample); })()`);
+  for (const width of [800, 390]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+    for (const state of ["answer", "verify"]) {
+      const selector = `#ring-host-sample .mw-ix-kicker .mw-state-ring[data-mw-state="${state}"]`;
+      await evaluate(`document.querySelector(${JSON.stringify(selector)}).scrollIntoView({ block: 'center' })`);
+      assert.ok(await evaluate(`(() => { const ring = document.querySelector(${JSON.stringify(selector)}), box = ring.getBoundingClientRect();
+        return box.width >= 20 && box.height >= 20 && box.left >= 0 && box.right <= innerWidth && getComputedStyle(ring).display !== 'none'; })()`), `${state} at ${width}px`);
+    }
+  }
+  assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+  await evaluate("document.getElementById('ring-host-sample').remove()");
+});
+
+// FLOW-03 (A7): a page's suggestion is one step above the input and the only one while the panel is closed. It keeps its one button
+// while it stands: the island repaints the row when the window crosses the Assistant's layout widths (1240px, 560px), and a new button
+// each time played its entrance again from transparent, so the suggestion could be caught invisible (§21.6).
+test("a page's suggestion stays one visible button above the input across the Assistant's width changes", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1300, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("Boolean(document.querySelector('[data-assistant-next-row]'))");
+  await evaluate(`window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: { message_id: "strip-offer", purpose: "suggest", source: { surface: "browser", title: "侧栏浏览器" }, text: "把这一页整理成要点" } }))`);
+  const offer = "[data-assistant-next-row] [data-step-offer]";
+  await waitFor(`Boolean(document.querySelector('${offer}'))`);
+  await evaluate(`document.querySelector('${offer}').dataset.testFirst = ""`);
+  for (const width of [1200, 1300, 600, 520, 390, 1300]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+    await new Promise(resolve => setTimeout(resolve, 600));
+    assert.deepEqual(await evaluate(`(() => { const node = document.querySelector('${offer}'); if (!node) return null; const box = node.getBoundingClientRect();
+      return { same: node.hasAttribute("data-test-first"), opacity: getComputedStyle(node).opacity, inside: box.width > 0 && box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight }; })()`),
+      { same: true, opacity: "1", inside: true }, `the suggestion at ${width}px`);
+  }
 });

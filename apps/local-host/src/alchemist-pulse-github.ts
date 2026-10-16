@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resolveApiConnection } from "./connector-access.js";
-import { ConnectorConnectionError, withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
+import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
 
 /** The one binding the market pulse has: a Home-level choice, kept in the connection registry like Images' and TypeSafe's. */
 const SCOPE = "home", CONSUMER = "alchemist", SLOT = "pulse-github";
@@ -51,7 +51,7 @@ function select(home: string, connectionId: string | null): void {
       store.bind({ scopeId: SCOPE, pluginId: CONSUMER, slotId: SLOT, serviceId: "github", connectionId });
     });
   } catch (error) {
-    if (error instanceof ConnectorConnectionError) throw new ActionError("alchemist.pulse_github_unusable", error.message);
+    if ((error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code))) throw new ActionError("alchemist.pulse_github_unusable", error.message);
     throw error;
   }
 }

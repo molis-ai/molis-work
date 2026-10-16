@@ -22,7 +22,8 @@ import { sceneConfigurationActions, type ActionSceneTarget } from "@molis-ai/mol
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { serveTestHost } from "./fixtures/test-home.js";
 
-test("formal MCP Home judgment and subject actions share Web facts and revocable authority", { timeout: 90_000 }, async t => {
+// Several MCP clients, each its own Host process: about 88 s on the Linux CI runner. The budget only stops a hang.
+test("formal MCP Home judgment and subject actions share Web facts and revocable authority", { timeout: 180_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "home-formal-mcp-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => {
     const project = catalog.createProject({ display_name: "Home MCP", actor_id: "owner" });

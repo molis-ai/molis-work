@@ -1,3 +1,4 @@
+import { catalogErrors } from "./project-catalog-contract.js";
 import { applySqliteBaseline, LocalSqliteStorage, ensureStorageSpace, bindDatabaseSpace, namespacedReplicaDatabase, initializeReplica, replicaMarkSql, queueReplicaChange } from "@molis-ai/molis-work-storage";
 import { installArtifactReplicationJournal } from '@molis-ai/molis-work-module-artifacts';
 import { installProjectGoalReplication } from './project-replication.js';
@@ -10,9 +11,7 @@ import { readMolisWorkSnapshot, type BoardSnapshot, type MolisWorkSnapshotPorts 
 import { PROJECT_DATABASE_BASELINE, installPersonalProjectPluginReplication } from "./project-database-schema.js";
 
 /** A project database recovery cannot open: gone, or at another schema version than this build's baseline. */
-export class ProjectRecoveryError extends Error {
-  constructor(readonly code: string) { super(code); }
-}
+
 
 /** One local connection at the project database baseline, and public read services for a Project. */
 export class LocalProjectDatabase extends LocalSqliteStorage {
@@ -55,7 +54,7 @@ function inspectExistingDatabase(path: string): string {
   const inspection = new LocalSqliteStorage(path, { readonly: true });
   try {
     const { user_version: version } = inspection.db.prepare("PRAGMA user_version").get() as { user_version: number };
-    if (version !== PROJECT_DATABASE_BASELINE.version) throw new ProjectRecoveryError("project_recovery_unsupported_schema");
+    if (version !== PROJECT_DATABASE_BASELINE.version) throw catalogErrors.project_recovery_unsupported_schema("catalog.project_recovery_unsupported_schema");
     return path;
   } finally { inspection.close(); }
 }

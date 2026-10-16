@@ -22,9 +22,6 @@ resolveRuntimeContext(
       return boundResolution(normalized, this.projects.getProject(binding.project_id));
     }
     const workspaceSuggestions = this.workspaceMemberSuggestions(normalized.workspace);
-    if (normalized.workspace?.realpath_verified && workspaceSuggestions.length === 1) {
-      return boundResolution(normalized, this.projects.getProject(workspaceSuggestions[0]!.project_id));
-    }
     if (workspaceSuggestions.length > 0) {
       return suggestedResolution(normalized, workspaceSuggestions, availableProjects);
     }

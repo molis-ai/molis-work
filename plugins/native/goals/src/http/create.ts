@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { respondGoalsFailure } from "./failure.js";
 import { randomUUID } from "node:crypto";
 import type { GoalsHttpContext } from "./types.js";
 import { goalsActions } from "../actions.js";
@@ -7,13 +9,13 @@ export async function handleGoalCreateHttp(context: GoalsHttpContext): Promise<b
     const body = await context.readBody();
     const unexpected = Object.keys(body).filter((key) => !CREATE_KEYS.has(key));
     if (unexpected.length) {
-      context.respond(400, { error: `不能使用未许可字段：${unexpected.join("、")}` });
+      respondGoalsFailure(context, new ActionError("actions.input_invalid", `不能使用未许可字段：${unexpected.join("、")}`));
       return true;
     }
     const requiredText = (name: string, maximum = 4_000): string => {
       const result = typeof body[name] === "string" ? body[name].trim() : "";
-      if (!result) throw new Error(`${name} 不能为空`);
-      if (result.length > maximum) throw new Error(`${name} 内容过长`);
+      if (!result) throw new ActionError("actions.input_invalid", `${name} 不能为空`);
+      if (result.length > maximum) throw new ActionError("actions.input_invalid", `${name} 内容过长`);
       return result;
     };
     const optionalText = (name: string): string | undefined => {
@@ -22,12 +24,12 @@ export async function handleGoalCreateHttp(context: GoalsHttpContext): Promise<b
     };
     const draftText = (name: string, maximum = 4_000): string => {
       const result = typeof body[name] === "string" ? body[name].trim() : "";
-      if (result.length > maximum) throw new Error(`${name} 内容过长`);
+      if (result.length > maximum) throw new ActionError("actions.input_invalid", `${name} 内容过长`);
       return result;
     };
     const priority = body.priority == null ? undefined : Number(body.priority);
     if (priority != null && (!Number.isFinite(priority) || priority < 0 || priority > 100)) {
-      context.respond(400, { error: "priority 必须是 0 到 100 的数字" });
+      respondGoalsFailure(context, new ActionError("actions.input_invalid", "priority 必须是 0 到 100 的数字"));
       return true;
     }
     const acceptanceStatements = [
@@ -66,11 +68,7 @@ export async function handleGoalCreateHttp(context: GoalsHttpContext): Promise<b
         observed_event_cursor: created.observed_event_cursor,
         replayed: created.replayed,
       });
-    } catch (error) {
-      context.respond(400, {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    } catch (error) { return respondGoalsFailure(context, error); }
     return true;
   }
   return false;

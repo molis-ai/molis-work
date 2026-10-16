@@ -10,13 +10,21 @@ import { renderGitBrowserDirectory, renderGitBrowserResult } from "@molis-ai/mol
 import { CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/coding-companions.js";
 import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/agent-review.js";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { CodingSessionStore, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
+import { createDiffPlugin, renderDiff, type DiffView } from "@molis-ai/molis-work-plugin-diff";
+import { icon } from "@molis-ai/molis-work-design-system";
+import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { pluginActions } from "./fixtures/plugin-actions.js";
 
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate: () => boolean) {
   for (let n = 0; n < 150; n++) { if (predicate()) return; await pause(20); }
   assert.ok(predicate(), "expected server-side request or cancellation");
 }
-async function fixture(t: TestContext, markup: string, script: string, reply: (path: string) => unknown) {
+async function fixture(t: TestContext, markup: string, script: string, reply: (path: string, url: URL) => unknown | Promise<unknown>) {
   const directory = await mkdtemp(join(tmpdir(), "companion-lifecycle-"));
   let browser: Awaited<ReturnType<typeof openStudioChrome>> = null;
   let server: ReturnType<typeof createServer> | undefined;
@@ -29,11 +37,12 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
   if (!browser) { t.skip("Chrome is unavailable"); return null; }
   const requests: string[] = [], aborted: string[] = [], blocked = new Set<string>(), pending = new Map<string, ServerResponse[]>();
   server = createServer((request, response) => {
-    const path = new URL(request.url!, "http://fixture").pathname, key = request.method + " " + path;
+    const url = new URL(request.url!, "http://fixture"), path = url.pathname, key = request.method + " " + path;
     if (path === "/") {
       response.setHeader("content-type", "text/html; charset=utf-8");
       response.end(`<!doctype html><section id="parent" hidden>${markup}</section><script>
         window.errors=[];addEventListener('error',event=>errors.push(event.message));addEventListener('unhandledrejection',event=>errors.push(String(event.reason)));
+        ${UI_REQUEST_CLIENT_SCRIPT}
         window.mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.parentView=document.querySelector('#parent');
         ${script}
       </script>`);return;
@@ -43,7 +52,7 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
     if (blocked.has(key)) {
       pending.set(key, [...pending.get(key) ?? [], response]);
       response.on("close", () => { if (!response.writableEnded) aborted.push(key); });
-    } else response.end(JSON.stringify(reply(path)));
+    } else void Promise.resolve(reply(path, url)).then(value => response.end(JSON.stringify(value))).catch(error => { response.writeHead(500); response.end(JSON.stringify({ error: String(error) })); });
   });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
@@ -57,6 +66,79 @@ const fixedMarkup = '<button data-companion-refresh><span class="mw-spinner" hid
 const state = (name: string) => name === "files" ? { workspace: { workspace_id: "ws" } }
   : name === "git" ? { workspace: { workspace_id: "ws" }, selected: null, view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [] } }
   : { html: '<p data-current>current fixed content</p>' };
+
+test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and repeated paths; refresh, reopen and late responses keep the chosen index", { timeout: 60_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), "coding-fixed-diff-")), path = join(directory, "project.db");
+  seedDemoBoard(path);
+  const store = new LocalProjectDatabase(path), sessions = new CodingSessionStore(store.db);
+  const at = "2026-09-28T10:00:00.000Z", ref = { session_id: "runtime-session", run_id: "run-one" };
+  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "coding-one", title: "Fixed changes", runtime_id: "prologue", at });
+  sessions.setRuntimeSession(DEMO_PROJECT_ID, "coding-one", ref.session_id, at);
+  let readable = true, reads = 0;
+  const rows = [["empty.txt", "", ""], ["cart.mjs", "old\n", "new\n"], ["cart.mjs", "new\n", "latest <script>\n"]].map(([target, before, after], index) => ({
+    request: { review_id: "review-" + index, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
+      document: { kind: "text-edit", target_path: target, exists: true, before_text: before, after_text: after } },
+    receipt: { review_id: "review-" + index, status: "approved", effect_settled: true, effect_error: null },
+  }));
+  const privateValues = new Map<string, string>();
+  const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, actions: pluginActions(store, DEMO_PROJECT_ID),
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }),
+    processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }), ui: new UiHost(), home: null,
+    privateStorageFor: () => ({ get: key => privateValues.get(key) ?? null, set: (key, value) => { privateValues.set(key, value); }, delete: key => privateValues.delete(key) }),
+    capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
+      reads++; if (!readable) throw new Error("runtime unavailable after capture");
+      if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
+      if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;
+      if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;
+      throw new Error("Unexpected capability " + definition.capability_id);
+    } },
+  });
+  const started = await platform.start([{ definition: createCodingPlugin({ execution: { sessions, ready: async () => {}, models: async () => [], goalTitle: () => undefined } }), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
+  t.after(async () => { await platform.closeCoordination(); store.close(); await rm(directory, { recursive: true, force: true }); });
+  assert.deepEqual(started.failed, []); assert.deepEqual(started.blocked, []);
+  const dispatch = async (pathname: string, method: "GET" | "POST" = "GET", body?: unknown, query: Record<string, string> = {}) => {
+    const result = await platform.router().dispatch({ actor_id: "tester", method, pathname, body, query });
+    assert.equal(result?.status, 200, JSON.stringify(result?.body)); return result!.body;
+  };
+  const producer = "/api/plugins/io.molis.work.coding/sessions/coding-one/runs/run-one/changeset";
+  const saved = await dispatch(producer, "POST") as { reference: { artifact_id: string; version: number } };
+  assert.ok(saved.reference);
+  await dispatch(producer + "/output", "POST", { expected_reference: null });
+  platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: "io.molis.work.diff", target_port: "changeset",
+    source_plugin_id: "io.molis.work.coding", source_port: "changeset", origin: "user" });
+  platform.wiring.selectInputGroup("io.molis.work.diff", "change-set"); await platform.wiring.drain();
+  readable = false; const capturedReads = reads, indices: number[] = [];
+  const fixedState = async (index: number) => {
+    const state = await dispatch("/api/plugins/io.molis.work.diff/state", "GET", undefined, { change_index: String(index) }) as { view: DiffView };
+    // The Host's presentation seam: the owner's genuine view is rendered by the public Diff renderer.
+    return { ...state, html: renderDiff({ view: state.view, route_prefix: "", primitives: {
+      escape: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"),
+      icon: name => icon(name as Parameters<typeof icon>[0]),
+    } }) };
+  };
+  const previous = await fixedState(1);
+  const f = await fixture(t, `<section data-companion="diff">${fixedMarkup}</section>`, `
+    const host={mountPluginClient:mount,openPlugin:()=>{},request:async(plugin,path,method='GET',body,signal)=>{
+      const response=await fetch('/'+plugin+path,{method,signal});if(!response.ok)throw new Error('read failed');return response.json();}};
+    window.root=document.querySelector('[data-companion]');window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
+  `, (_path, url) => { const index = Number(url.searchParams.get("change_index") ?? 0); indices.push(index); return fixedState(index); });
+  if (!f) return;
+  const { page, blocked, pending } = f;
+  await page.evaluate("parentView.hidden=false");
+  await page.wait("document.querySelectorAll('[data-action=\"diff.show-file\"]').length === 3 && !document.querySelector('[data-companion-refresh]').disabled");
+  assert.deepEqual(await page.evaluate("[...document.querySelectorAll('[data-action=\"diff.show-file\"]')].map(button=>button.textContent.trim())"), ["1. empty.txt", "2. cart.mjs", "3. cart.mjs"]);
+  await page.click('[data-change-index="1"]');
+  await page.wait("document.querySelector('[data-companion-content]').textContent.includes('old') && !document.querySelector('[data-companion-refresh]').disabled");
+  blocked.add("GET /diff/state"); await page.click("[data-companion-refresh]"); await until(() => pending.has("GET /diff/state"));
+  blocked.delete("GET /diff/state"); await page.click('[data-change-index="2"]');
+  const ready = "document.querySelector('[data-change-index=\"2\"]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[data-companion-content]').textContent.includes('latest <script>') && !document.querySelector('[data-companion-refresh]').disabled";
+  await page.wait(ready);
+  pending.get("GET /diff/state")![0]!.end(JSON.stringify(previous)); await pause(80); await page.wait(ready);
+  await page.click("[data-companion-refresh]"); await page.wait(ready);
+  await page.evaluate("parentView.hidden=true"); await pause(80); await page.evaluate("parentView.hidden=false"); await page.wait(ready);
+  assert.equal(indices.at(-1), 2); assert.equal(reads, capturedReads, "all file selection reads the fixed Coding output without the unavailable Agent runtime");
+  assert.deepEqual(await page.evaluate("errors"), []);
+});
 
 for (const name of ["files", "git", "diff", "text-stats"]) {
   test(`${name} owns visible queries and listeners across hide, detach and remount`, { timeout: 30_000 }, async t => {

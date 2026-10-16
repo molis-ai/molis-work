@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
-import { openServerDatabase, Identity, ServerEvents, ContinuityService, createServerRequestHandler, createImDomain } from "@molis-ai/molis-work-server";
+import { openServerDatabase, SERVER_DATABASE_BASELINE, Identity, ServerEvents, ContinuityService, createServerRequestHandler, createImDomain } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { homeToolKeysScript } from "@molis-ai/molis-work-app-workbench";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 /** Only the IM surface is mounted here; the shared server owns identity and transport. */
 export function createLocalImServer(homeDirectory: string, projectFor?: (id: string) => Promise<{ id: string; title: string } | null>) {
@@ -12,7 +13,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
 
   function initialize() {
     // The standalone launcher takes an explicit --state; use this directory to share state.
-    const storage = openServerDatabase(join(homeDirectory, "server"));
+    const storage = openServerDatabase(join(homeDirectory, DISCUSSION_HOME_STORE.path));
     try {
       const identity = new Identity(storage.db), events = new ServerEvents(storage.db);
       const continuity = new ContinuityService(storage.db, identity, events, () => {
@@ -44,7 +45,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
         origin = address.origin;
       } catch {
         response.writeHead(403, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        response.end(JSON.stringify({ code: "server.host_denied", error: "群聊服务地址不匹配" }));
+        response.end(JSON.stringify({ code: "im.server.host_denied", error: "群聊服务地址不匹配" }));
         return true;
       }
       const current = resources ??= initialize();
@@ -92,3 +93,6 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
     },
   };
 }
+
+/** The discussion store (right panel 「讨论」) in the Home's store registry (W4-11): `server/server.sqlite`. */
+export const DISCUSSION_HOME_STORE: HomeStoreDeclaration = { path: "server", library: { baseline: SERVER_DATABASE_BASELINE, file: "server.sqlite" } };

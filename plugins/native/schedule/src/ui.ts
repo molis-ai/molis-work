@@ -116,7 +116,7 @@ function renderTaskRow(task: ScheduleConversationTaskView, p: ScheduleUiPrimitiv
     <button class="feed-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="task" data-schedule-task-id="${p.escape(task.task_id)}" data-schedule-enabled="${task.enabled ? "true" : "false"}">
       <span class="feed-stage-leading"><strong title="${p.escape(task.title)}">${p.escape(task.title)}</strong></span>
       <span class="feed-entry-source">${p.text("每天 {time}", { time: task.clock_label })} · ${next}</span>
-      <span class="mw-status mw-status--${tone} mw-status--plain feed-entry-status" data-schedule-row-status>${p.escape(status)}</span>
+      <span class="mw-status mw-status--${tone} mw-status--plain feed-entry-status" data-mw-state="${task.unread ? "unread" : task.enabled ? "ready" : "paused"}" data-schedule-row-status>${p.escape(status)}</span>
     </button>
   </article>`;
 }
@@ -134,7 +134,7 @@ function renderTaskDetail(task: ScheduleConversationTaskView, p: ScheduleUiPrimi
     return `<article class="schedule-turn schedule-turn--${p.escape(turn.kind)}"><header><small>${p.escape(who)}</small>${important}<time>${p.escape(p.formatDate(turn.created_at))}</time></header><p>${p.escape(turn.text)}</p></article>`;
   }).join("");
   return `<article class="feed-detail inbox-reference-detail schedule-task-detail" data-schedule-detail="${p.escape(task.task_id)}" hidden>
-    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${p.text("返回定时任务列表")}" title="${p.text("返回定时任务列表")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.text("每天 {time}", { time: task.clock_label })}</span><span class="mw-status mw-status--${task.unread ? "attention" : enabled ? "progress" : "quiet"}" data-schedule-detail-status>${p.escape(status)}</span></div><button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-edit="${p.escape(task.task_id)}">${p.text("编辑")}</button>${toggle}<button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-archive="${p.escape(task.task_id)}">${p.text("归档")}</button></header>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${p.text("返回定时任务列表")}" title="${p.text("返回定时任务列表")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.text("每天 {time}", { time: task.clock_label })}</span><span class="mw-status mw-status--${task.unread ? "attention" : enabled ? "progress" : "quiet"}" data-mw-state="${task.unread ? "unread" : enabled ? "ready" : "paused"}" data-schedule-detail-status>${p.escape(status)}</span></div><button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-edit="${p.escape(task.task_id)}">${p.text("编辑")}</button>${toggle}<button class="mw-btn mw-btn--ghost" type="button" data-schedule-task-archive="${p.escape(task.task_id)}">${p.text("归档")}</button></header>
     <textarea data-schedule-task-instructions hidden>${p.escape(task.instructions)}</textarea><input data-schedule-task-time type="hidden" value="${p.escape(task.clock_label)}"><input data-schedule-task-notify type="hidden" value="${task.notify_important ? "true" : "false"}">
     <header class="feed-detail-header"><h1>${p.escape(task.title)}</h1><p>${p.text("下次")} ${p.escape(next)}</p></header>
     <div class="schedule-thread" data-schedule-thread>${turns}</div>
@@ -149,7 +149,7 @@ function renderScheduleRow(job: ScheduleJobView, p: ScheduleUiPrimitives): strin
     <button class="feed-stage-entry directory-list-row" type="button" role="option" aria-selected="false" tabindex="-1" data-schedule-row data-schedule-kind="job" data-schedule-job-id="${p.escape(job.job_id)}" data-schedule-enabled="${job.enabled ? "true" : "false"}">
       <span class="feed-stage-leading"><strong title="${p.escape(job.title)}">${p.escape(job.title)}</strong></span>
       <span class="feed-entry-source">${p.text("下次")} ${p.escape(p.formatDate(job.next_due_at))}</span>
-      <span class="mw-status mw-status--${tone} mw-status--plain feed-entry-status" data-schedule-row-status>${p.escape(status)}</span>
+      <span class="mw-status mw-status--${tone} mw-status--plain feed-entry-status" data-mw-state="${job.reminder?.needs_confirmation ? "approval" : job.enabled ? "ready" : "paused"}" data-schedule-row-status>${p.escape(status)}</span>
     </button>
   </article>`;
 }
@@ -169,7 +169,7 @@ function renderScheduleDetail(job: ScheduleJobView, p: ScheduleUiPrimitives): st
     ? `<button class="mw-btn mw-btn--ghost" type="button" data-schedule-enabled-action="false" data-schedule-job-id="${p.escape(job.job_id)}">${p.text("暂停")}</button>`
     : reminder?.needs_confirmation ? "" : `<button class="mw-btn mw-btn--secondary" type="button" data-schedule-enabled-action="true" data-schedule-job-id="${p.escape(job.job_id)}">${p.text("恢复")}</button>`;
   return `<article class="feed-detail inbox-reference-detail" data-schedule-detail="${p.escape(job.job_id)}" hidden>
-    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${p.text("返回定时任务列表")}" title="${p.text("返回定时任务列表")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.escape(reminder?.plugin_title ?? job.plugin_id)}</span><span class="mw-status mw-status--${reminder?.needs_confirmation ? "attention" : enabled ? "progress" : "quiet"}" data-schedule-detail-status>${p.escape(status)}</span></div></header>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-schedule-collapse aria-label="${p.text("返回定时任务列表")}" title="${p.text("返回定时任务列表")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--quiet">${p.escape(reminder?.plugin_title ?? job.plugin_id)}</span><span class="mw-status mw-status--${reminder?.needs_confirmation ? "attention" : enabled ? "progress" : "quiet"}" data-schedule-detail-status data-mw-state="${reminder?.needs_confirmation ? "approval" : enabled ? "ready" : "paused"}">${p.escape(status)}</span></div></header>
     <header class="feed-detail-header"><h1>${p.escape(job.title)}</h1></header>
     ${reminder ? `<div class="inbox-reference-body"><p data-schedule-reminder-text>${p.escape(reminder.text)}</p>${reminder.needs_confirmation ? `<p>${p.text("原安装身份无法确认。请核对提醒内容与当前插件后再恢复。")}</p><p data-schedule-reminder-target>${target ? p.escape(`${target.title} · ${target.version} · ${target.publisher}`) : p.text("请先安装并启用对应插件，再刷新查看当前安装。")}</p>` : ""}</div>` : ""}
     <div class="inbox-reference-footer"><div class="feed-detail-actions">${recovery}${toggle}</div><p class="feed-action-status" data-schedule-action-status role="status" hidden></p></div>

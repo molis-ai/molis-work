@@ -95,7 +95,12 @@ export const AGENT_QUESTION_PROBLEM_REASONS = [
   "duplicate", "other-not-allowed", "too-long", "not-a-number", "not-an-integer", "too-small", "too-large",
   "bad-date", "too-early", "too-late", "kind-not-allowed", "too-many",
 ] as const;
-export type AgentQuestionProblemReason = (typeof AGENT_QUESTION_PROBLEM_REASONS)[number];
+/**
+ * The Host's own reason beside the SDK's (specs/ai-interaction-experience H3): a picked object is gone, is not the person's
+ * to use now, or is of a kind the question does not allow, as its owner says right before the answer would go on.
+ */
+export const AGENT_QUESTION_HOST_REASONS = ["reference-unavailable"] as const;
+export type AgentQuestionProblemReason = (typeof AGENT_QUESTION_PROBLEM_REASONS)[number] | (typeof AGENT_QUESTION_HOST_REASONS)[number];
 
 /** One problem, tied to its question so the interface can mark that field and leave the others as they are. */
 export interface AgentQuestionProblem {
@@ -138,3 +143,22 @@ export interface AgentPendingQuestion {
   answerable?: boolean;
   unavailable_reason?: string;
 }
+
+/**
+ * What a plugin action that asks the person first, without an Agent run, answers instead of its result
+ * (specs/ai-interaction-experience S1): `{ status: "needs_input", interaction }`; it is called again with the answer. The plugin
+ * keeps what it asked and checks the answer against it. On any plugin route the Host draws the questions as the shared question
+ * card (`html`), and a refusal whose `details.problems` are `AgentQuestionProblem`s gets each field's line in the reader's
+ * language (`details.errors`, keyed `q<index>`). Choice questions only, until every card draws the other types.
+ */
+export interface InteractionRequest {
+  interaction_id: string;
+  /** Why it asks, in one sentence: the card's title. */
+  why: string;
+  questions: AgentQuestion[];
+  /** What answering leads to, in the plugin's words: the card's footer line. */
+  note?: string;
+  /** Added by the Host on the way out: the shared question card. */
+  html?: string;
+}
+export interface InteractionRequestResult { status: "needs_input"; interaction: InteractionRequest }

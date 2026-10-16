@@ -186,7 +186,6 @@ export class MolisWorkProjectCatalog {
     this.projects = new ProjectsModule({
       spaceId: ensureStorageSpace(homeDirectory).spaceId,
       db,
-      errorFactory: catalogFailure,
       // Which Plugins a project may enable comes from what this build ships, not
       // from a list compiled into Projects.
       plugins: BUILTIN_PLUGIN_REGISTRY,
@@ -197,7 +196,6 @@ export class MolisWorkProjectCatalog {
     this.contextResolution = new RuntimeProjectResolution(this.projects.query, this.workContexts);
     this.contextBindings = new RuntimeProjectBindingCommands(
       this.workContexts, this.contextResolution, this.projects, contextBindingValidation,
-      catalogFailure,
       operation => db.transaction(operation)(),
     );
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
@@ -327,7 +325,6 @@ export class MolisWorkProjectCatalog {
   async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput): Promise<MolisWorkRuntimeContextResolution> {
     return createRuntimeProjectSetup({
       bindings: this.contextBindings, validation: contextBindingValidation,
-      error: catalogFailure,
       getProject: projectId => this.getProject(projectId),
       registerProject: (record, eventType, actorId) => this.insertProjectInTransaction(record, eventType, actorId),
       insertSetupRequest: input => this.workContexts.insertSetupRequest(input),
@@ -434,7 +431,6 @@ export class MolisWorkProjectCatalog {
 }
 
 const contextBindingValidation = createRuntimeProjectBindingValidation({
-  error: catalogFailure,
   normalizeProjectWorkspace,
 });
 export const { normalizeRuntimeWorkContext } = contextBindingValidation;

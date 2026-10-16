@@ -11,7 +11,6 @@ import type {
 import {
   ProjectService,
   type ProjectRecordDraftInput,
-  type ProjectsErrorFactory,
 } from "./project-service.js";
 import {
   createProjectsSchema,
@@ -44,7 +43,6 @@ export interface ProjectsModuleOptions {
   db: ProjectsSqliteDatabase;
   /** Immutable store ownership, supplied by the Host rather than project input. */
   spaceId?: string;
-  errorFactory: ProjectsErrorFactory;
   now?: () => string;
   id?: (prefix: string) => string;
   /** Installed Plugins. Defaults to the ids this build bundles. */
@@ -103,8 +101,8 @@ export class ProjectsModule implements ProjectsApplicationApi {
     const now = options.now ?? (() => new Date().toISOString());
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
     this.repository = new ProjectsRepository(options.db, options.spaceId);
-    this.records = new ProjectService(this.repository, options.errorFactory, now, id, options.plugins);
-    this.workspaces = new ProjectWorkspaceService(this.repository, options.errorFactory, now, id);
+    this.records = new ProjectService(this.repository, now, id, options.plugins);
+    this.workspaces = new ProjectWorkspaceService(this.repository, now, id);
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);
     const withSteps = (receipt: StoredProjectDeletion): ProjectDeletionRecord => ({ ...this.records.deletionRecord(receipt), owner_steps: this.deletionSteps.list(receipt.deletion_id) });
     this.query = {
@@ -170,7 +168,6 @@ export {
 };
 export type {
   ProjectRecordDraftInput,
-  ProjectsErrorFactory,
   ProjectsSqliteDatabase,
   StoredProjectDeletion,
 };

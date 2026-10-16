@@ -76,7 +76,8 @@ test("Home planning actions use the original Catalog, require trusted users and 
   try {
     assert.ok((await actions.invoke(personalPlanningActions.list, {})).methods.some(m => m.scope === "built_in"));
     assert.equal(existsSync(join(home, "projects/catalog.db")), false, "a read never provisions or migrates Catalog");
-    await assert.rejects(actions.invoke(personalPlanningActions.save, input), { code: "planning.catalog_unavailable" });
+    // HOSTOWN-01/HOSTOWN-02: the original unavailable Host catalog remains a refusal before writes.
+    await assert.rejects(actions.invoke(personalPlanningActions.save, input), { code: "host.catalog_unavailable", kind: "invalid", message: "个人规划的 Catalog 写入服务尚未装配" });
     host.configurePersonalPlanning(home, withCatalog);
     other.configurePersonalPlanning(otherHome, withCatalog);
     assert.throws(() => host.configurePersonalPlanning(otherHome, withCatalog), { code: "actions.scope_mismatch" });
@@ -85,8 +86,8 @@ test("Home planning actions use the original Catalog, require trusted users and 
       assert.equal((await client.discover({ ...user, audience })).some(v => v.capability_id === personalPlanningActions.save.capability_id), false);
       await assert.rejects(client.invoke({ ...user, audience }, personalPlanningActions.save, input), { code: "actions.forbidden" });
     }
-    await assert.rejects(client.invoke({ ...user, user_action: undefined }, personalPlanningActions.save, input), { code: "planning.user_required" });
-    await assert.rejects(client.invoke({ ...user, actor_kind: "runtime" }, personalPlanningActions.save, input), { code: "planning.user_required" });
+    await assert.rejects(client.invoke({ ...user, user_action: undefined }, personalPlanningActions.save, input), { code: "goals.planning.user_required" });
+    await assert.rejects(client.invoke({ ...user, actor_kind: "runtime" }, personalPlanningActions.save, input), { code: "goals.planning.user_required" });
     await assert.rejects(actions.invoke(personalPlanningActions.save, { ...input, actor_id: "forged" } as never), { code: "actions.input_invalid" });
     await assert.rejects(client.invoke({ ...user, project_id: "forged" }, personalPlanningActions.list, {}), { code: "actions.scope_mismatch" });
     const saved = await actions.invoke(personalPlanningActions.save, input);

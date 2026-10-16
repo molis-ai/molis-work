@@ -2,6 +2,7 @@ import type {
   ArtifactContentInput, ArtifactMetadata, ArtifactOrigin, ArtifactReference, ArtifactVersionRecord, ArtifactVersionResult,
   ProcessItemRecord, ProcessItemResult,
 } from "../modules/artifacts.js";
+import type { ArtifactLineHead } from "./artifact-pins.js";
 
 /** What a Plugin writes for one version, in either store; identity, owner and producer come from the Host. */
 export interface PluginProcessItemInput extends ArtifactReference {
@@ -27,6 +28,18 @@ export interface PluginArtifactClient {
   publish(input: PluginArtifactPublishInput): ArtifactVersionResult;
   /** Read one fixed version by reference, whether it is a 成果 or a process item (only a 成果 has an `origin`). */
   read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
+  /**
+   * The newest version of one of this Plugin's own lines of 成果 in the project, and the revision of the object it pinned
+   * (null when the project holds none), so the next pin asks for a version the 成果库 does not have yet. A line another
+   * producer started is refused.
+   */
+  head(artifactId: string): ArtifactLineHead | null;
+  /**
+   * One version this Plugin pinned itself, whatever it consumes and archived or not (null when the project does not hold it),
+   * so it can recover or check its own pin; `read` answers only what the Plugin consumes and can still use. A version
+   * another producer pinned is refused.
+   */
+  readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
 }
 
 /**

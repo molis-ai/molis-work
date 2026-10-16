@@ -55,19 +55,19 @@ export class SafePublicHttpClient implements SourceHttpClient {
         });
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
-          throw new SourceHttpError("SOURCE_TIMEOUT");
+          throw new SourceHttpError("alchemist.source_timeout");
         }
-        throw new SourceHttpError("SOURCE_NETWORK_ERROR");
+        throw new SourceHttpError("alchemist.source_network_error");
       }
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get("location");
-        if (!location || redirect === 3) throw new SourceHttpError("SOURCE_REDIRECT_INVALID");
+        if (!location || redirect === 3) throw new SourceHttpError("alchemist.source_redirect_invalid");
         current = this.assertAllowed(new URL(location, current).toString());
         continue;
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.byteLength > (this.options.maxBytes ?? 8_000_000)) {
-        throw new SourceHttpError("SOURCE_RESPONSE_TOO_LARGE");
+        throw new SourceHttpError("alchemist.source_response_too_large");
       }
       return {
         body: new TextDecoder().decode(bytes),
@@ -77,13 +77,13 @@ export class SafePublicHttpClient implements SourceHttpClient {
         fetchedAt: new Date().toISOString(),
       };
     }
-    throw new SourceHttpError("SOURCE_REDIRECT_INVALID");
+    throw new SourceHttpError("alchemist.source_redirect_invalid");
   }
 
   private assertAllowed(url: string): string {
     const parsed = new URL(url);
     if (parsed.protocol !== "https:" || !this.allowedHosts.includes(parsed.hostname)) {
-      throw new SourceHttpError("SOURCE_URL_NOT_ALLOWED");
+      throw new SourceHttpError("alchemist.source_url_not_allowed");
     }
     parsed.username = "";
     parsed.password = "";

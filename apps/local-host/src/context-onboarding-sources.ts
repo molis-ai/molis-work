@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
-import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { resolveUsableGmailAccessToken } from "./gmail-oauth.js";
+import { resolveApiConnection } from "./connector-access.js";
+import { withConnectorRequest } from "./connector-lifecycle.js";
 import type { ContextSource, ContextSourceKind, ImportFile, ContextFileMetadata } from "./context-onboarding-store.js";
 
 export const CONTEXT_DIRECTORY_KINDS = ["downloads", "documents", "desktop", "custom"] as const;
@@ -92,31 +92,51 @@ function messageText(part: GmailPart, depth = 0): string {
 }
 export async function readOnboardingGmail(home: string, source: ContextSource, fetcher: typeof fetch = fetch): Promise<{ name: string; locator: string; files: ImportFile[] }> {
   if (!source.connection_id) throw new Error("请先连接 Google，或跳过 Gmail");
-  const connection = withConnectorConnections(home, store => store.require(source.connection_id!, "gmail"));
-  if (connection.disconnected_at || !connection.credential_ref) throw new Error("Gmail 已断开，请重新连接");
-  const resolved = await resolveUsableGmailAccessToken({ tokenRefs: { access: connection.credential_ref, refresh: connection.refresh_ref ?? "", expiresAt: connection.expires_ref ?? "" } });
-  const token = resolved.ok ? resolved.accessToken : connection.auth_method === "token" ? createFileSecretStore().get(connection.credential_ref) : null;
-  if (!token) throw new Error("Google 授权已失效，请重新连接");
-  const get = async (suffix: string): Promise<Record<string, unknown>> => {
-    const response = await fetcher("https://gmail.googleapis.com/gmail/v1/users/me/" + suffix, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000), redirect: "error" });
-    if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "Gmail 无读取权限，请重新连接 Google" : `Gmail 暂时无法读取（${response.status}），请重试`);
-    const text = await response.text(); if (text.length > 4_000_000) throw new Error("邮件内容过大，请缩小范围");
-    return JSON.parse(text) as Record<string, unknown>;
-  };
-  const query = `newer_than:${source.days === 7 ? 7 : 30}d -in:spam -in:trash`;
-  const listed = await get(`messages?maxResults=20&q=${encodeURIComponent(query)}`);
-  const messages = Array.isArray(listed.messages) ? listed.messages.slice(0, 20) : [];
-  const files: ImportFile[] = [];
-  for (const item of messages) {
-    if (!item || typeof item.id !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/u.test(item.id)) continue;
-    const mail = await get(`messages/${encodeURIComponent(item.id)}?format=full`);
-    const payload = mail.payload as GmailPart | undefined;
-    if (!payload) continue;
-    const header = (name: string) => payload.headers?.find(h => h.name.toLowerCase() === name)?.value ?? "";
-    const body = messageText(payload).trim();
-    if (!body) { files.push({ path: `${item.id}.md`, reason: "没有可读取的邮件正文，附件未读取" }); continue; }
-    const origin = `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(connection.account_label ?? "")}#all/${item.id}`;
-    files.push({ path: `${item.id}.md`, data: Buffer.from(`# ${header("subject") || "无主题邮件"}\n\n发件人：${header("from")}\n时间：${header("date")}\n原邮件：${origin}\n\n${body}`).toString("base64") });
-  }
-  return { name: `Gmail · ${connection.account_label ?? connection.display_name}`, locator: "upload", files };
+  const id = source.connection_id;
+  return withConnectorRequest(home, id, undefined, async signal => {
+    let access = await resolveApiConnection(home, id, "gmail");
+    const connection = access.connection;
+    const assertConnection = () => {
+      signal.throwIfAborted();
+      const latest = withConnectorConnections(home, store => store.require(id, "gmail"));
+      if (latest.disconnected_at || latest.updated_at !== connection.updated_at) throw new Error("Gmail 连接已改变，请重新执行");
+    };
+    let refreshed = false;
+    const get = async (suffix: string): Promise<Record<string, unknown>> => {
+      const dispatch = async () => {
+        assertConnection();
+        const response = await fetcher("https://gmail.googleapis.com/gmail/v1/users/me/" + suffix, {
+          headers: { Authorization: `Bearer ${access.token}` }, signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]), redirect: "error" });
+        assertConnection();
+        return response;
+      };
+      let response = await dispatch();
+      if (response.status === 401 && connection.auth_method === "oauth" && !refreshed) {
+        refreshed = true; assertConnection();
+        access = await resolveApiConnection(home, id, "gmail", true);
+        assertConnection(); response = await dispatch();
+      }
+      if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? "Gmail 无读取权限，请重新连接 Google" : `Gmail 暂时无法读取（${response.status}），请重试`);
+      const text = await response.text(); assertConnection();
+      if (text.length > 4_000_000) throw new Error("邮件内容过大，请缩小范围");
+      return JSON.parse(text) as Record<string, unknown>;
+    };
+    const query = `newer_than:${source.days === 7 ? 7 : 30}d -in:spam -in:trash`;
+    const listed = await get(`messages?maxResults=20&q=${encodeURIComponent(query)}`);
+    const messages = Array.isArray(listed.messages) ? listed.messages.slice(0, 20) : [];
+    const files: ImportFile[] = [];
+    for (const item of messages) {
+      if (!item || typeof item.id !== "string" || !/^[a-zA-Z0-9_-]{1,128}$/u.test(item.id)) continue;
+      const mail = await get(`messages/${encodeURIComponent(item.id)}?format=full`);
+      const payload = mail.payload as GmailPart | undefined;
+      if (!payload) continue;
+      const header = (name: string) => payload.headers?.find(h => h.name.toLowerCase() === name)?.value ?? "";
+      const body = messageText(payload).trim();
+      if (!body) { files.push({ path: `${item.id}.md`, reason: "没有可读取的邮件正文，附件未读取" }); continue; }
+      const origin = `https://mail.google.com/mail/u/?authuser=${encodeURIComponent(connection.account_label ?? "")}#all/${item.id}`;
+      files.push({ path: `${item.id}.md`, data: Buffer.from(`# ${header("subject") || "无主题邮件"}\n\n发件人：${header("from")}\n时间：${header("date")}\n原邮件：${origin}\n\n${body}`).toString("base64") });
+    }
+    assertConnection();
+    return { name: `Gmail · ${connection.account_label ?? connection.display_name}`, locator: "upload", files };
+  });
 }

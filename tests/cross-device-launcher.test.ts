@@ -8,8 +8,8 @@ import { randomUUID } from 'node:crypto';
 import { openServerDatabase, Identity, ServerEvents, ContinuityService } from '@molis-ai/molis-work-server';
 
 const launcher=new URL('../apps/server/dist/main.js',import.meta.url).pathname;
-function launch(args:string[]){
-  const child=spawn(process.execPath,[launcher,...args],{stdio:['ignore','pipe','pipe']});
+function launch(args:string[],entry=launcher,nodeArgs:string[]=[]){
+  const child=spawn(process.execPath,[...nodeArgs,entry,...args],{stdio:['ignore','pipe','pipe']});
   let output='',errors='';child.stdout.on('data',chunk=>output+=chunk);child.stderr.on('data',chunk=>errors+=chunk);
   const exited=new Promise<number|null>((resolve,reject)=>{child.once('error',reject);child.once('exit',code=>resolve(code));});
   return {child,exited,output:()=>output,errors:()=>errors};
@@ -22,7 +22,7 @@ async function command(args:string[]){
 async function listening(server:ReturnType<typeof launch>){
   return new Promise<string>((resolve,reject)=>{
     const timer=setTimeout(()=>reject(Error('standalone did not start: '+server.errors())),45000);
-    server.child.stdout.on('data',()=>{const match=server.output().match(/Molis Work Server: (http:\/\/127\.0\.0\.1:\d+)\/continuity/);if(match){clearTimeout(timer);resolve(match[1]!);}});
+    server.child.stdout.on('data',()=>{const match=server.output().match(/Molis Work (?:Server|QA): (http:\/\/127\.0\.0\.1:\d+)\/continuity/);if(match){clearTimeout(timer);resolve(match[1]!);}});
     server.exited.then(code=>{clearTimeout(timer);reject(Error('standalone exited before listen: '+code+' '+server.errors()));});
   });
 }
@@ -71,6 +71,41 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
     const restored=await command(['restore','--bundle',bundleFile,'--destination',destination]);assert.equal(restored.restored,1);assert.match(restored.project_id,/^project-onboarding-/);assert.ok(restored.warnings.some((warning:string)=>warning.includes('io.test.writer@1.0.0')));
     const read=await command(['read-assets','--destination',destination,'--project','headless-source']);
     assert.equal(read.artifacts[0].project_id,restored.project_id);assert.equal(read.artifacts[0].payload.content,'CLI restored body');
+  } finally {
+    if(server){server.child.kill('SIGKILL');await server.exited;}
+    await rm(directory,{recursive:true,force:true});
+  }
+});
+
+test('W2-18-CONTINUITY-QA-01: the documented QA command starts, restores its owner and reconciles a lost real receipt',{timeout:120000},async()=>{
+  const directory=await mkdtemp(join(tmpdir(),'continuity-demo-'));
+  const entry=new URL('../server/tooling/continuity-demo.mts',import.meta.url).pathname;
+  let server:ReturnType<typeof launch>|undefined;
+  try {
+    server=launch([directory,'--port','0'],entry,['--import','tsx']);
+    let origin=await listening(server);
+    const code=JSON.parse(await readFile(join(directory,'connect.json'),'utf8')).code;
+    const connected=await fetch(origin+'/continuity/api/connect',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({code,display_name:'QA owner',device_label:'isolated fixture'})});
+    assert.equal(connected.status,200);
+    const cookie=connected.headers.get('set-cookie')!.split(';')[0]!;
+    const get=async()=>{const response=await fetch(origin+'/continuity/api/projects/continuity-qa',{headers:{cookie}});assert.equal(response.status,200);return response.json();};
+    const before=await get();
+    assert.equal(before.goals[0].goal_id,'mobile-handoff');
+    assert.equal(before.artifacts.length,1);assert.equal(before.artifacts[0].version,2);
+    assert.match(before.artifacts[0].content,/跨设备接续操作说明/);
+    const command={command_id:randomUUID(),project_id:'continuity-qa',goal_id:'mobile-handoff',cursor:before.goals[0].cursor,summary:'QA confirmed',next_step:'continue on desktop',next_actor:'QA owner'};
+    const post=()=>fetch(origin+'/continuity/api/projects/continuity-qa/progress',{method:'POST',headers:{origin,cookie,'content-type':'application/json'},body:JSON.stringify(command)});
+    await writeFile(join(directory,'lose-next-response'),'');
+    assert.equal((await post()).status,503,'the QA hook loses the response after the owner has committed');
+    const committed=await get();assert.equal(committed.goals[0].summary,command.summary);
+    const replay=await post();assert.equal(replay.status,200);assert.equal((await replay.json()).replayed,true);
+    assert.equal((await get()).goals[0].cursor,committed.goals[0].cursor,'reconciliation adds no second progress fact');
+    server.child.kill('SIGTERM');assert.equal(await server.exited,0,server.errors());server=undefined;
+    server=launch([directory,'--port','0'],entry,['--import','tsx']);origin=await listening(server);
+    const restarted=await get();assert.equal(restarted.goals[0].cursor,committed.goals[0].cursor);
+    assert.equal(restarted.artifacts.length,1,'QA restart reuses the fixed version');
+    assert.equal((await post()).status,200,'the original member/session and receipt survive QA restart');
+    server.child.kill('SIGTERM');assert.equal(await server.exited,0,server.errors());server=undefined;
   } finally {
     if(server){server.child.kill('SIGKILL');await server.exited;}
     await rm(directory,{recursive:true,force:true});

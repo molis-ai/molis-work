@@ -8,7 +8,10 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440,390]) test(`Form ${width}px: author, preview, historical answers, conflicts and fixed Artifact recovery`, {timeout:100_000}, async t => {
   let modelCalls=0;
-  const browser=await openGoalBrowser(t,true,undefined,async prompt=>{modelCalls++;assert.match(prompt,/常用工具/);return "你最常用的工具是什么？";});if(!browser)return;
+  // specs/ai-interaction-experience AC-26: 「AI 生成题目」 asks first in the shared question card, then drafts with the answer.
+  const browser=await openGoalBrowser(t,true,undefined,async prompt=>{modelCalls++;assert.match(prompt,/常用工具/);return JSON.stringify(/内部同事/.test(prompt)
+    ?{status:"done",questions:[{title:"你最常用的工具是什么？",type:"text"}]}
+    :{status:"needs_input",why:"先确认问卷给谁填",questions:[{id:"audience",prompt:"给谁填？",options:[{label:"内部同事",recommended:true},{label:"外部客户"}]}]});});if(!browser)return;
   const {command,sessionId,evaluate,waitFor,navigate,click,reloadPage,origin,projectId,homeDirectory}=browser;
   const read=()=>{const store=openFormStore(homeDirectory);try{const forms=store.list(projectId!);return {forms,submissions:forms[0]?store.listSubmissions(forms[0].id,projectId!):[]};}finally{store.close();}};
   const idle=()=>waitFor("document.querySelector('[data-form=workbench]').getAttribute('aria-busy') === 'false'");
@@ -94,6 +97,14 @@ for (const width of [1440,390]) test(`Form ${width}px: author, preview, historic
   await click('[data-form-tab=editor]');await idle();
   await input('[data-form-ai-prompt]','本地问题');await click('[data-form-generate]');await idle();assert.equal(modelCalls,0);
   await input('[data-form-ai-prompt]','常用工具');await click('[data-form-generate-ai]');await idle();assert.equal(modelCalls,1);
+  await waitFor("document.querySelector('[data-form-draft-ask] [data-ix-question]') && !document.querySelector('[data-form-draft-ask]').hidden");
+  assert.match(await evaluate<string>("document.querySelector('[data-form-draft-ask]').textContent"),/给谁填？[\s\S]*回答后接着生成题目/);
+  await waitFor("document.activeElement?.closest('[data-form-draft-ask]')");
+  await screenshot('draft-ask');
+  await click('[data-form-draft-ask] [data-ix-action=answer]');
+  await waitFor("/这一题需要回答/.test(document.querySelector('[data-form-draft-ask]').textContent)");assert.equal(modelCalls,1,'an unanswered card does not reach the model');
+  await click('[data-form-draft-ask] [data-ix-option="0"]');await click('[data-form-draft-ask] [data-ix-action=answer]');
+  await waitFor("document.querySelector('[data-form-draft-ask]').hidden");await idle();assert.equal(modelCalls,2);
   assert.equal(read().forms[0]!.questions.at(-1)!.title,'你最常用的工具是什么？');
   await click('[data-form-publish]');await idle();const share=read().forms[0]!.share_id;assert.ok(share);
   // Saving a stale editor keeps local input and cannot publish or navigate away.

@@ -45,10 +45,11 @@ test("a round leaves a long command running in the background and parks on it: n
       BLOCK: n => n === 1 ? response("", { name: "start-command", input: { executable: "sh", argv: ["-c", "sleep 0.5; echo built"] } })
         : n === 2 ? response("", { name: "await-commands", input: { handles: [handleIn(messages)], timeoutMs: 10_000 } })
         : response("构建好了。"),
-      // Parks, but is still in its round when the command ends: the round hears it.
+      // Parks, but is still in its round when the command ends: the round hears it with its next tool's result (the SDK
+      // hands what a wait brought to a run under way that way).
       LIVE: async n => n === 1 ? response("", { name: "start-command", input: { executable: "sh", argv: ["-c", "sleep 1; echo live-done"] } })
         : n === 2 ? response("", { name: "await-commands", input: { handles: [handleIn(messages)], park: true, reason: "等 live" } })
-        : n === 3 ? (await holdLive, response("先说一句。"))
+        : n === 3 ? (await holdLive, response("", { name: "list", input: {} }))
         : response("收到结果，接着做。"),
       // One round leaves a long command running; a later round of the same session stops it.
       LEAVE: n => n === 1 ? response("", { name: "start-command", input: { executable: "sh", argv: ["-c", "sleep 30"] } }) : response("留着它跑。"),
@@ -73,8 +74,8 @@ test("a round leaves a long command running in the background and parks on it: n
   let { adapter, host, queue } = await open();
   // The person approves each command; what the card says is kept to check.
   const approve = async () => { for (const review of queue.list("b", "pending")) { reviews.push(review.document); await queue.respond({ review_id: review.review_id, decision: "approve", actor_id: "user" }); } };
-  const run = async (title: string, task: string, hold?: () => Promise<boolean>) => {
-    const session = await adapter.createSession({ ...owner, directory, title });
+  const run = async (title: string, task: string, hold?: () => Promise<boolean>, again?: Awaited<ReturnType<typeof adapter.createSession>>) => {
+    const session = again ?? await adapter.createSession({ ...owner, directory, title });
     const started = await host.start("prologue", { ...owner, session, directory, role_id: "builder", task, session_title: title } as never, authority);
     for (const deadline = Date.now() + 30_000; ;) {
       await approve();
@@ -90,34 +91,38 @@ test("a round leaves a long command running in the background and parks on it: n
     const park = await run("跑测试", "PARK_TASK 跑完整测试，失败再修");
     assert.equal(park.view.phase, "completed");
     assert.deepEqual([reviews[0].kind, reviews[0].command, reviews[0].background, reviews[0].outlives_run], ["command", "sh", true, true]);
-    assert.match(seen.PARK![2]!, /parked \(wait /);
-    let waits = await adapter.waits!.read("b", park.session.session_id);
-    assert.deepEqual(waits.map(wait => [wait.by, wait.state, wait.reason, wait.waiting_on]), [["agent", "waiting", "等完整测试跑完再修", "后台命令 sh -c sleep 1; echo tests-done结束"]]);
+    // Parking is the SDK's wait on the session's step (specs/prologue-adoption §4.6.10): the step waits, the run is over.
+    assert.match(seen.PARK![2]!, /the step waits \(wait /);
+    const waits = await adapter.collaboration!.read("b", park.session.session_id);
+    assert.deepEqual(waits.map(view => [view.wait?.by, view.wait?.state, view.wait?.reason, view.wait?.conditions.map(one => one.label), view.continuation?.state]),
+      [["agent", "waiting", "等完整测试跑完再修", ["后台命令 sh -c sleep 1; echo tests-done结束"], "armed"]]);
     assert.equal((await adapter.background!.read("b", park.session.session_id))[0]!.state, "running");
     assert.equal(seen.PARK!.length, 3, "no model call while it runs");
-    // Its end fires the wait: the App picks it up (without polling) and takes it up.
-    const fired = await adapter.waits!.awaitFired("b", 10_000);
-    assert.deepEqual(fired.map(wait => [wait.session_id, wait.fired?.outcome]), [[park.session.session_id, "succeeded"]]);
-    assert.match(fired[0]!.fired!.text, /tests-done/);
+    // Its end ends the wait: the step's continuation may go on, and the App learns it without polling.
+    const fired = await adapter.collaboration!.awaitReady("b", 10_000);
+    assert.deepEqual(fired.map(view => [view.session_id, view.wait?.state, view.wait?.conditions[0]?.last.status, view.continuation?.state]),
+      [[park.session.session_id, "satisfied", "satisfied", "eligible"]]);
     assert.equal((await adapter.background!.read("b", park.session.session_id))[0]!.exit_code, 0);
-    assert.equal((await adapter.waits!.resume("b", fired[0]!.wait_id, "woken")).state, "resumed");
-    assert.equal(seen.PARK!.length, 3);
+    assert.equal(seen.PARK!.length, 3, "nothing starts by itself");
+    // The session's next round takes it up, told what the wait came to.
+    await run("跑测试", "PARK_TASK 测试跑完了，接着修", undefined, park.session);
+    assert.match(seen.PARK![3]!, /the wait on your step is over; go on from here\.(?:\\+n)+You were waiting for: 等完整测试跑完再修/);
+    assert.deepEqual(await adapter.collaboration!.read("b", park.session.session_id), [{ session_id: park.session.session_id }], "taken up, nothing is left to go on");
     // Already ended when it would park: told so, nothing parked.
     const quick = await run("快速命令", "QUICK_TASK 跑一下");
-    assert.match(seen.QUICK![2]!, /already happened, nothing to wait for/);
-    assert.deepEqual(await adapter.waits!.read("b", quick.session.session_id), []);
+    assert.match(seen.QUICK![2]!, /already decided, nothing to wait for; go on/);
+    assert.deepEqual(await adapter.collaboration!.read("b", quick.session.session_id), [{ session_id: quick.session.session_id }]);
     // Waiting in place: one model call before and one after, none in between.
     await run("就地等", "BLOCK_TASK 构建一下");
     assert.match(seen.BLOCK![2]!, /succeeded exit 0/);
     assert.equal(seen.BLOCK!.length, 3);
     // Still in its round when the command ends: that round hears it, and nothing else is started for it.
-    const live = await run("还在这一轮", "LIVE_TASK 等一下", async () => (await adapter.waits!.read("b")).some(wait => wait.reason === "等 live" && wait.state === "resumed"));
+    const live = await run("还在这一轮", "LIVE_TASK 等一下", async () => (await adapter.collaboration!.read("b")).some(view => view.wait?.reason === "等 live" && view.wait.state === "satisfied"));
     releaseLive();
     await until("the live round goes on", () => (seen.LIVE?.length ?? 0) >= 4);
-    assert.match(seen.LIVE![3]!, /你之前挂起等待：等 live/);
-    assert.match(seen.LIVE![3]!, /live-done/);
-    assert.deepEqual((await adapter.waits!.read("b", live.session.session_id)).map(wait => [wait.state, wait.note]), [["resumed", "告诉了当时正在进行的一轮"]]);
-    assert.equal((await adapter.waits!.awaitFired("b", 0)).length, 0);
+    assert.match(seen.LIVE![3]!, /the wait on your step is over; go on from here\.(?:\\+n)+You were waiting for: 等 live/);
+    assert.deepEqual(await adapter.collaboration!.read("b", live.session.session_id), [{ session_id: live.session.session_id }], "the round under way took it up");
+    assert.deepEqual(await adapter.collaboration!.awaitReady("b", 0), []);
     // A later round stops what an earlier one left running: the card names the command, and it stops.
     const left = await run("留着跑", "LEAVE_TASK 起一条长命令");
     const stopping = await host.start("prologue", { ...owner, session: left.session, directory, role_id: "builder", task: "STOP_TASK 停掉上一轮留下的命令", session_title: "留着跑" } as never, authority);
@@ -133,8 +138,14 @@ test("a round leaves a long command running in the background and parks on it: n
     await adapter.close();
     ({ adapter, host, queue } = await open());
     assert.deepEqual((await adapter.background!.read("b", cut.session.session_id)).map(task => task.state), ["interrupted"]);
-    const afterRestart = await adapter.waits!.awaitFired("b", 5_000);
-    assert.deepEqual(afterRestart.map(wait => [wait.reason, wait.fired?.outcome]), [["等长任务", "interrupted"]]);
+    // An interrupted command will say nothing again: the wait is the person's to reconcile, not an outcome made up.
+    const afterRestart = await adapter.collaboration!.awaitReady("b", 5_000);
+    assert.deepEqual(afterRestart.map(view => [view.session_id, view.wait?.reason, view.wait?.state, view.wait?.conditions[0]?.last.note]),
+      [[cut.session.session_id, "等长任务", "needs-reconciliation", "interrupted"]]);
+    // The person gives it up: the step is given back and nothing is left to go on; it cannot be given up twice.
+    const reconcile = afterRestart[0]!.wait!.wait_id;
+    assert.deepEqual(await adapter.collaboration!.control("b", { kind: "cancel-wait", wait_id: reconcile }, "user"), { session_id: cut.session.session_id });
+    await assert.rejects(adapter.collaboration!.control("b", { kind: "cancel-wait", wait_id: reconcile }, "user"), /这个等待已经结束/);
     // Every command and wait of the project is kept, and still known after the restart.
     assert.deepEqual((await adapter.background!.read("b")).map(task => task.state).sort(), ["interrupted", "stopped", "succeeded", "succeeded", "succeeded", "succeeded"]);
     assert.equal((await adapter.background!.read("another")).length, 0);

@@ -34,8 +34,8 @@ export const ONBOARDING_DISMISS_CLIENT_SCRIPT = `
     const dismissButtons = [...document.querySelectorAll("[data-onboarding-dismiss]")];
     const setGlobalError = (message) => {
       if (!globalError) return;
-      globalError.textContent = message || "";
-      globalError.hidden = !message;
+      if(message && typeof message === "object") molisWorkRequest.show(globalError,message); else globalError.textContent = message || "";
+      globalError.hidden = !globalError.textContent;
     };
     const dismiss = async (kind) => {
       const mode = document.body.dataset.onboardingMode || "update";
@@ -48,16 +48,10 @@ export const ONBOARDING_DISMISS_CLIENT_SCRIPT = `
       dismissButtons.forEach((button) => { button.disabled = true; });
       setGlobalError("");
       try {
-        const response = await fetch("/api/onboarding/dismiss", {
-          method: "POST",
-          headers: globalThis.molisWorkControlHeaders(),
-          body: JSON.stringify({ kind, user_confirmed: true }),
-        });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || L("无法保存引导状态"));
+        await molisWorkRequest("/api/onboarding/dismiss", {body:{kind,user_confirmed:true},fallback:L("无法保存引导状态")});
         location.assign(returnHref);
       } catch (error) {
-        setGlobalError(error instanceof Error ? error.message : String(error));
+        setGlobalError(error);
         dismissButtons.forEach((button) => { button.disabled = false; });
       }
     };

@@ -21,3 +21,5 @@ CREATE TABLE pages (
       updated_at TEXT NOT NULL,
       version INTEGER NOT NULL
     , folder_id TEXT NOT NULL DEFAULT '', starred INTEGER NOT NULL DEFAULT 0, goal_id TEXT NOT NULL DEFAULT '', artifact_id TEXT NOT NULL DEFAULT '', artifact_version INTEGER NOT NULL DEFAULT 0, publication_pending_json TEXT);
+
+CREATE TABLE page_comments (page_id TEXT NOT NULL REFERENCES pages(id) ON DELETE CASCADE, thread_id TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(page_id, thread_id));

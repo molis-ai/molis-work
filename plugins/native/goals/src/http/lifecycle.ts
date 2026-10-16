@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { respondGoalsFailure } from "./failure.js";
 import { randomUUID } from "node:crypto";
 import type { GoalsHttpContext } from "./types.js";
 import { goalsActions } from "../actions.js";
@@ -9,25 +11,21 @@ export async function handleGoalLifecycleHttp(context: GoalsHttpContext): Promis
     const goalId = decodeURIComponent(activeGoalMatch[1]);
     const reason = String(body.reason ?? "用户从 Molis Work 设为当前 Goal").trim();
     if (!reason) {
-      context.respond( 400, { error: "设为当前 Goal 时必须说明原因" });
+      respondGoalsFailure(context, new ActionError("actions.input_invalid", "设为当前 Goal 时必须说明原因"));
       return true;
     }
     try {
       const result = await context.actions.invoke(goalsActions.active, { goal_id: goalId, reason,
         idempotency_key: String(body.idempotency_key ?? `web-active-goal-${randomUUID()}`) });
       context.respond( 200, result);
-    } catch (error) {
-      context.respond( 400, {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    } catch (error) { return respondGoalsFailure(context, error); }
     return true;
   }
   const goalArchiveMatch = context.pathname.match(/^\/api\/goals\/([^/]+)\/archive$/);
   if (context.method === "POST" && goalArchiveMatch) {
     const body = await context.readBody();
     if (typeof body.archived !== "boolean") {
-      context.respond( 400, { error: "archived 必须是 boolean" });
+      respondGoalsFailure(context, new ActionError("actions.input_invalid", "archived 必须是 boolean"));
       return true;
     }
     const goalId = decodeURIComponent(goalArchiveMatch[1]);
@@ -42,22 +40,18 @@ export async function handleGoalLifecycleHttp(context: GoalsHttpContext): Promis
           idempotency_key: String(body.idempotency_key ?? `web-archive-${randomUUID()}`),
       });
       context.respond( 200, result);
-    } catch (error) {
-      context.respond( 400, {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    } catch (error) { return respondGoalsFailure(context, error); }
     return true;
   }
   const goalTrashMatch = context.pathname.match(/^\/api\/goals\/([^/]+)\/trash$/);
   if (context.method === "POST" && goalTrashMatch) {
     const body = await context.readBody();
     if (typeof body.trashed !== "boolean") {
-      context.respond( 400, { error: "trashed 必须是 boolean" });
+      respondGoalsFailure(context, new ActionError("actions.input_invalid", "trashed 必须是 boolean"));
       return true;
     }
     if (body.user_confirmed !== true) {
-      context.respond( 400, { error: "请先在 Molis Work 中确认此操作" });
+      respondGoalsFailure(context, new ActionError("actions.input_invalid", "请先在 Molis Work 中确认此操作"));
       return true;
     }
     const goalId = decodeURIComponent(goalTrashMatch[1]);
@@ -70,11 +64,7 @@ export async function handleGoalLifecycleHttp(context: GoalsHttpContext): Promis
           idempotency_key: String(body.idempotency_key ?? `web-trash-${randomUUID()}`),
       });
       context.respond( 200, result);
-    } catch (error) {
-      context.respond( 400, {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    } catch (error) { return respondGoalsFailure(context, error); }
     return true;
   }
   return false;

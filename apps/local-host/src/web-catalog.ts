@@ -93,7 +93,7 @@ export async function handleLocalCatalogWebRequest(
   if (await handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (await handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
-    actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: ["functions:invoke", "functions:manage"] })),
+    actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
   })) return;
   if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, async input => {
     const projectId = input.query.get("project_id") ?? input.body.project_id;
@@ -251,7 +251,7 @@ export async function handleLocalCatalogWebRequest(
         ? listConnectorConnectionViews(serverOptions.homeDirectory) : [],
       projects,
       web_service: await webService.detect(),
-      diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? callDiagnosticsView(localHost.callLog, url) : {}),
+      diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }

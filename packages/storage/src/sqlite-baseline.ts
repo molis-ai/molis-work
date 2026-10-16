@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import type { DatabaseSync } from "node:sqlite";
+import { DatabaseSync } from "node:sqlite";
 
 /** What a baseline needs from a connection: `node:sqlite` and better-sqlite3 both fit. */
 export interface SqliteBaselineDatabase {
@@ -108,6 +108,15 @@ export function describeSqliteSchema(db: SqliteBaselineDatabase): SqliteSchemaSh
     shape.tables[table.name] = { columns, checks: checkClauses(table.sql ?? ""), foreign_keys: foreignKeys, indexes };
   }
   return shape;
+}
+
+/** Describe the current creation statements with SQLite itself, without opening or changing a Home library. */
+export function describeSqliteBaseline(baseline: SqliteBaseline): SqliteSchemaShape {
+  const reference = new DatabaseSync(":memory:");
+  try {
+    reference.exec(baseline.schema);
+    return describeSqliteSchema(reference);
+  } finally { reference.close(); }
 }
 
 /**

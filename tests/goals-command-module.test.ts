@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -5,7 +7,6 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
-  GoalsCommandError,
   GoalsModule,
 } from "@molis-ai/molis-work-module-goals";
 
@@ -87,9 +88,35 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
         type: "part_of",
         reason: "重复关系",
       }, { actor_id: "user-1", idempotency_key: "duplicate-relation" }),
-      (error: unknown) =>
-        error instanceof GoalsCommandError && error.code === "relation.already_exists",
+      (error: unknown) => {
+        // I3-01: the common error preserves the owner's rejection and HTTP classification.
+        assert.ok(error instanceof ActionError);
+        assert.equal(error.code, "goals.relation.already_exists");
+        assert.equal(error.message, "这条关系已经生效");
+        assert.equal(error.kind, "invalid");
+        assert.equal(actionHttpStatus(error), 400);
+        assert.equal(Object.hasOwn(error, "details"), false);
+        return true;
+      },
     );
+
+    const eventsBeforeHook = store.db.prepare("SELECT COUNT(*) AS count FROM events").get()?.count;
+    const relationsBeforeHook = store.db.prepare("SELECT COUNT(*) AS count FROM goal_relations").get()?.count;
+    for (const [code, status] of [["actions.conflict", 409], ["actions.forbidden", 403]] as const) {
+      const guarded = new GoalsModule(store.db, { validateRelationGraph: () => ({ code, message: "关系图拒绝当前变更" }) });
+      // I3-02: a public graph hook still accepts platform codes without an owner-kind override.
+      assert.throws(() => guarded.commands.addRelation("board-module", {
+        from_goal_id: "goal-parent", to_goal_id: "goal-child", type: "part_of", reason: "被图校验拒绝",
+      }, { actor_id: "user-1", idempotency_key: `hook-${code}` }), (error: unknown) => {
+        assert.ok(error instanceof ActionError);
+        assert.equal(error.code, code);
+        assert.equal(error.message, "关系图拒绝当前变更");
+        assert.equal(actionHttpStatus(error), status);
+        return true;
+      });
+    }
+    assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM events").get()?.count, eventsBeforeHook);
+    assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM goal_relations").get()?.count, relationsBeforeHook);
   } finally {
     store.close();
     rmSync(directory, { recursive: true, force: true });
@@ -111,7 +138,7 @@ test("Goals public Lifecycle API owns archive and trash", () => {
     assert.equal(initialized.replayed, false);
     assert.deepEqual(goals.commands.initializeBoard(initialize), { ...initialized, replayed: true });
     assert.throws(() => goals.commands.initializeBoard({ ...initialize, title: "Changed" }),
-      (error: unknown) => error instanceof GoalsCommandError && error.code === "request.idempotency_key_reused");
+      (error: unknown) => error instanceof ActionError && error.code === "goals.request.idempotency_key_reused");
     assert.equal(goals.query.getBoard("board-lifecycle")?.title, "Goals Lifecycle");
     assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE project_id = ? AND type = 'board.created'")
       .get("board-lifecycle")?.count, 1, "retry does not duplicate the Board event");

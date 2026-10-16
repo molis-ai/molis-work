@@ -13,7 +13,6 @@ function openProjects(directory: string, plugins?: ProjectPluginRegistry) {
   createProjectsSchema(db);
   const projects = new ProjectsModule({
     db,
-    errorFactory: (code, message) => Object.assign(new Error(message), { code }),
     plugins,
   });
   return { db, projects };

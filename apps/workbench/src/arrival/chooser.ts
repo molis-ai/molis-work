@@ -1,5 +1,6 @@
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
+  INTERACTION_CLIENT_SCRIPT_TYPED_DATES,
   renderBarContext,
   renderDirectoryHeading,
   renderDirectoryRow,
@@ -122,7 +123,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
 globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: path => {
   const id = document.querySelector('.chooser')?.dataset.selected;
   return id && id !== 'personal' ? '/projects/' + encodeURIComponent(id) + path : path;
-}, headers: () => molisWorkControlHeaders(), project: null,
+}, headers: () => molisWorkControlHeaders(), project: null, interaction: (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES}),
   placeholder: project => project && project.title ? globalThis.L("问问「{name}」的进展，或交给助理一项工作…", { name: project.title }) : globalThis.L("在个人空间里，让助理做点什么…") });
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({

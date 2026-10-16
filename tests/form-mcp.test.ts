@@ -10,7 +10,9 @@ import { FORM_ANSWER_FORMAT, openFormStore } from "@molis-ai/molis-work-plugin-f
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
-test("Form standard MCP preserves submissions and publications across processes and project grants", {timeout:45_000}, async () => {
+// Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
+// whole test at two files at once): the budget only stops a hang, it is not a speed check.
+test("Form standard MCP preserves submissions and publications across processes and project grants", {timeout:120_000}, async () => {
   const home = await mkdtemp(join(tmpdir(), "form-mcp-")), clients: Client[] = [];
   const connect = async (project: string, access = "write") => {
     const client = new Client({ name: "external-form", version: "1" }); clients.push(client);
@@ -26,12 +28,12 @@ test("Form standard MCP preserves submissions and publications across processes 
   // A form that is not collecting refuses an external tool with its own code and reason, not a generic failure.
   const refused = async (client: Client, name: string, args: Record<string, unknown>, reason: RegExp) => {
     const result = await client.callTool({name:`form.${name}__v1`, arguments:args}); assert.equal(result.isError, true);
-    const error = JSON.parse((result.content as {text:string}[])[0]!.text); assert.equal(error.code, "form.closed"); assert.match(error.message, reason);
+    const error = JSON.parse((result.content as {text:string}[])[0]!.text); assert.equal(error.code, "form.closed"); assert.match(error.error, reason);
   };
   try {
     const writer = await connect("a"), reader = await connect("a", "read"), other = await connect("b");
     assert.deepEqual((await writer.listTools()).tools.map(t => t.name).filter(n => n.startsWith("form.")).sort(),
-      ["list","get","create","update","publish","close","promote","artifacts.pin","delete","questions.add","questions.ai","submit","results","results.csv","answers.import","fillpage","search.entries","subject.read",
+      ["list","get","create","update","publish","close","promote","artifacts.pin","delete","questions.add","questions.draft","submit","results","results.csv","answers.import","fillpage","search.entries","subject.read",
         "content.list","content.read","content.receive","content.create"].map(n=>`form.${n}__v1`).sort());
     assert.equal((await call(reader,"list")).ai_available, false);
     let {form} = await call(writer,"create",{title:"MCP 问卷"}); const id = form.id;
@@ -42,7 +44,7 @@ test("Form standard MCP preserves submissions and publications across processes 
       assert.equal((await client.callTool({name:`form.${name}__v1`,arguments:args})).isError,true);
     }
     // An external tool's answer is taken only while the form is collecting: a draft refuses it and saves nothing.
-    await refused(writer,"submit",{id,answers:{[form.questions[0].id]:"草稿阶段"},request_id:"draft-submission"},/还没有开始收集答卷/u);
+    await refused(writer,"submit",{id,expected_version:form.version,answers:{[form.questions[0].id]:"草稿阶段"},request_id:"draft-submission"},/还没有开始收集答卷/u);
     assert.equal((await call(reader,"results",{id})).analysis.submission_count,0);
     form = (await call(writer,"publish",{id,expected_version:form.version})).form;
     const input = {id,answers:{[form.questions[0].id]:"保留原答案"},expected_version:form.version,request_id:"stable-submission"};
@@ -54,7 +56,7 @@ test("Form standard MCP preserves submissions and publications across processes 
     await secondWriter.close();
     form = (await call(writer,"update",{id,questions:[],expected_version:form.version})).form;
     assert.equal((await call(reader,"results",{id})).submissions[0].questions[0].title,"原始题目");
-    form = (await call(writer,"questions.ai",{id,prompt:"拟一道题",expected_version:form.version})).form;
+    form = (await call(writer,"questions.draft",{id,prompt:"拟一道题",expected_version:form.version})).form;
     assert.equal(form.questions[0].title,"MCP 题目");
     form = (await call(writer,"publish",{id,expected_version:form.version})).form;
     const share = form.share_id; assert.ok(share);
@@ -63,7 +65,7 @@ test("Form standard MCP preserves submissions and publications across processes 
       db.exec("CREATE TRIGGER fail_form_mcp BEFORE UPDATE OF artifact_version ON forms WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
       assert.equal((await writer.callTool({name:"form.promote__v1",arguments:{id,expected_version:form.version}})).isError,true);
       assert.equal((await call(reader,"get",{id})).form.publication_pending.version,1);
-      form = (await call(writer,"update",{id,title:"Later edit"})).form;
+      form = (await call(writer,"update",{id,title:"Later edit",expected_version:form.version})).form;
       db.exec("DROP TRIGGER fail_form_mcp");
     } finally {db.close();}
     await writer.close(); const restarted = await connect("a");
@@ -84,7 +86,7 @@ test("Form standard MCP preserves submissions and publications across processes 
     try {assert.deepEqual(store.get(id,"a"),recovered.form);assert.deepEqual(store.listSubmissions(id,"a"),[submission]);} finally {store.close();}
     // Collection stopped: an external tool's answer is refused again, and the one already in stays.
     const stopped = (await call(restarted,"close",{id,expected_version:recovered.form.version})).form;
-    await refused(restarted,"submit",{id,answers:{[stopped.questions[0].id]:"停止后"},request_id:"stopped-submission"},/已停止收集答卷/u);
+    await refused(restarted,"submit",{id,expected_version:stopped.version,answers:{[stopped.questions[0].id]:"停止后"},request_id:"stopped-submission"},/已停止收集答卷/u);
     assert.equal((await call(reader,"results",{id})).analysis.submission_count,1);
     // Answer files obey the same gate for an external tool: refused while the form is not collecting, taken once it is.
     let filed = (await call(restarted,"create",{title:"MCP 答卷文件"})).form; const fileForm = filed.id;

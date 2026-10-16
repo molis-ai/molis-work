@@ -1,6 +1,6 @@
 # 巨大单元清单与判定
 
-当前所有超过阈值的文件、类和函数，各自的 owner（包）、判定和计划。快照取自 main `4d59cd4d`（2026-10-08），之后 W1-05 把 `evaluateImportBoundary` 拆到阈值以下、从清单删去，W3-03 的 B2 把 `inspectActionDeclarations` 与 `inspectAgentDeclaration` 拆成按声明段的小函数、搬进 `packages/plugin-sdk` 并从清单删去，共 161 个单元，分布在 37 个包的 127 个文件里；实时数字以 `node scripts/check-health-gates.mjs --report` 为准，本表只在判定或计划变化时改。每个单元都有判定（拆、归线或例外），没有“待排期”。2026-09 的迁移记录（列的是已不存在的 `src/v1/coordinator.ts` 等）已移到 [归档](../archive/huge-class-migration-2026-09.md)。
+当前所有超过阈值的文件、类和函数，各自的 owner（包）、判定和计划。快照取自 main `4d59cd4d`（2026-10-08），之后 W1-05 把 `evaluateImportBoundary` 拆到阈值以下、从清单删去，W3-03 的 B2 把 `inspectActionDeclarations` 与 `inspectAgentDeclaration` 拆成按声明段的小函数、搬进 `packages/plugin-sdk` 并从清单删去，W4-06 把 `prologue-node.ts` 的文件与两个函数拆成九个模块、从清单删去，W4-07 把 Coding 的 `routes.ts` 文件与 `codingRouteBindings` 按资源拆成路由组、从清单删去，共 156 个单元，分布在 37 个包的 125 个文件里；实时数字以 `node scripts/check-health-gates.mjs --report` 为准，本表只在判定或计划变化时改。每个单元都有判定（拆、归线或例外），没有“待排期”。2026-09 的迁移记录（列的是已不存在的 `src/v1/coordinator.ts` 等）已移到 [归档](../archive/huge-class-migration-2026-09.md)。
 
 ## 1. 规则
 
@@ -33,18 +33,18 @@
 
 ## 2. 现状
 
-161 个单元：35 个文件、40 个类、86 个函数。判定分布：
+156 个单元：33 个文件、40 个类、83 个函数。判定分布：
 
 | 判定 | 文件 | 类 | 函数 | 合计 |
 | --- | ---: | ---: | ---: | ---: |
-| 拆 | 16 | 39 | 81 | 136 |
+| 拆 | 14 | 39 | 78 | 131 |
 | 归线 | 15 | 1 | 5 | 21 |
 | 例外 | 4 | 0 | 0 | 4 |
-| 合计 | 35 | 40 | 86 | 161 |
+| 合计 | 33 | 40 | 83 | 156 |
 
 - **例外**（4 个）已登记在 `tooling/gates/giant-exceptions.json`：样式表 3 份（动量、基础控件、Coding）、连接器声明表 1 份。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
 - **归线**（21 个）：浏览器脚本模板、旧皮肤和英文词典 `en.ts`（决定 #16，W5-03）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 一项挂在 W5-01 下：路线 W5-01 原有“Shelf 和 Characters 混合插件”一项，决定 #26 把其中 Characters 的部分提到第 4 波，那个切片在路线里还没有自己的片号（见下）。
-- **拆**（136 个，103 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元由 W4-05 先抽样板，也在这 123 个里），其余 13 个归 W4-06、W4-07、W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK）。
+- **拆**（131 个，101 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元由 W4-05 先抽样板，也在这 123 个里），其余 8 个归 W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个已拆完）。
 - 全部单元里，45 个只超出阈值不到 20%（9 个文件、27 个函数、9 个类；类按行数与方法数里超得多的那一项算），其中 37 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
 
 ### W5-10 怎么做
@@ -58,7 +58,7 @@
 | 3 | `plugins/native/pages` | 4 | 10 | 12 | 任务书点名“Pages 编辑器的挂载函数”；路线原文点名的 `mount`、`hoverHandlePlugin`、`commands.ts` 都在这里 |
 | 4 | `apps/local-host` | 16 | 20 | 41 | 不含助理目录；web-* 路由文件的形态与 W5-07 的注册表一致 |
 | 5 | `apps/workbench` | 5 | 6 | 30 |  |
-| 6 | `horizontal/agent-host` | 11 | 15 | 18 | `prologue-node.ts` 由 W4-06 先拆 |
+| 6 | `horizontal/agent-host` | 11 | 15 | 18 | `prologue-node.ts` 已由 W4-06 拆完 |
 | 7 | `plugins/native/goals` | 7 | 8 | 10 |  |
 | 8 | `packages/plugin-runtime` | 4 | 5 | 9 | W3-06、W4-02 之前或同一 PR 先拆被它们碰到的类 |
 | 9 | `plugins/native/feed` | 1 | 1 | 7 | 不依赖 Feed 迁 Runtime 的专项计划 |
@@ -122,8 +122,8 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W3-03 | 把运行时 helper 移出 contracts，其中声明校验器放进 plugin-sdk（路线写移到 plugin-runtime，做不到，见 spec §1）；B2 已把 `inspectActionDeclarations`、`inspectAgentDeclaration` 按声明段拆开搬入 SDK | 0 | 已做（B2），清单里不再有 |
 | W4-04 | Form 样板：迁到 Runtime，浏览器代码改成打包并类型检查的 TS；删宿主里 Form 的 `registerProvider` 站点 | 2 | `form/src/client.ts`、`project-host.ts` |
 | W4-05 | 助理服务拆分样板：在原处按包形边界抽出提醒与跟进协作者，带自己的测试（决定 #3 已定） | 3 | `AssistantService`、`AssistantStore` |
-| W4-06 | 拆 `initializePrologueNodeAdapter`：`startAgentRun` 进 `prologue-run.ts`，memory、documents、sessions、schedule、recovery 端口各成模块 | 3 | `prologue-node.ts` |
-| W4-07 | `codingRouteBindings` 按资源拆（会话与轮次、变更集、写入者、Goal 上下文、时间线） | 2 | `coding/src/routes.ts` |
+| W4-06 | 拆 `initializePrologueNodeAdapter`：`startAgentRun` 按阶段进 `prologue-run.ts`；轮次状态与资源读写进 `prologue-node-kit.ts`，会话索引、定时、待批与审查卡、恢复、Runtime 端口、项目工作与推理各成模块（`prologue-session-index.ts`、`prologue-schedule.ts`、`prologue-review-documents.ts`、`prologue-recovery.ts`、`prologue-node-port.ts`、`prologue-node-parts.ts`），`prologue-node.ts` 只剩组合（199 行） | 0 | 已做，清单里不再有 |
+| W4-07 | 拆 `codingRouteBindings`：激活的共享状态与恢复进 `route-activation.ts`，开一轮进 `start-round.ts`，路由按资源分成七组（`routes-writers.ts`、`routes-changesets.ts`、`routes-goals.ts`、`routes-setup.ts`、`routes-sessions.ts`、`routes-timeline.ts`、`routes-delegations.ts`），`routes.ts` 只剩组合（51 行） | 0 | 已做，清单里不再有 |
 | W5-01 | 插件族逐个迁到 Runtime，每迁一族就删宿主里它的文件和 `registerProvider` 站点；Feed 另有专项计划（尚未写出） | 4 | `project-host.ts`、Feed 投影的页面渲染、Characters 的 `createCharactersPlugin` 与内嵌的 `start`（决定 #26 把这一项提到第 4 波） |
 | W5-02 | 声明式登记：目录和监督器名单由各包声明生成 | 1 | `project-host.ts`（与 W5-01 同） |
 | W5-03 | 翻译按主人分词典（决定 #16 改成稳定键），删无引用的键 | 1 | `en.ts` 变小，降到 800 行以下时删这一行 |
@@ -203,7 +203,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 ### Agent Host `horizontal/agent-host`（唯一直接依赖 `@prologue/sdk` 的包）
 
-18 个单元（拆 18），12 个文件。路径前缀 `horizontal/agent-host/src/`。
+15 个单元（拆 15），11 个文件。路径前缀 `horizontal/agent-host/src/`。
 
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
@@ -213,7 +213,6 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `adapters/prologue-git.ts` | `createPrologueGitReviews` 函数 188 行 | 拆 · W5-10 | 返回的对象 72 行、`bindRecovery` 50 行、`restore` 23 行；操作各成函数，恢复绑定独立成文件。 | 2 |
 | `adapters/prologue-mcp.ts` | `createPrologueMcpLibrary` 函数 232 行 | 拆 · W5-10 | `library` 对象 165 行：`list`、`save` 等方法各成函数，`save` 里按传输方式（stdio、http）的分支各成校验函数；`refreshSelected`（13）、`view`（10）随各自的操作。 | 2 |
 | `adapters/prologue-messages.ts` | `createSessionMessages` 函数 170 行 | 拆 · W5-10 | 只超 20 行。返回对象 85 行、钩子注册 33 行、`unsubscribe` 21 行；把钩子注册与返回对象分成两个函数。 | 0 |
-| `adapters/prologue-node.ts` | 文件 1,764 行<br>`initializePrologueNodeAdapter` 函数 1,436 行<br>`startAgentRun` 函数 418 行 | 拆 · W4-06 | `startAgentRun` 移到 `prologue-run.ts`，memory、documents、sessions、schedule、recovery 端口各成模块，`initializePrologueNodeAdapter` 只剩组合；`startAgentRun` 内嵌在它里面。 | 15 |
 | `adapters/prologue-stream.ts` | `applyPrologueEvent` 函数 304 行 | 拆 · W5-10 | `applyPrologueEvent` 是一个 298 行的 `switch`；每种事件一个处理函数，`switch` 只分发。 | 6 |
 | `adapters/prologue-taskboard.ts` | `createPrologueTaskBoards` 函数 220 行 | 拆 · W5-10 | 返回对象 147 行、钩子 31 行、`unsubscribe` 17 行：钩子注册、跟随（`following`/`stopFollowing`）、返回的任务板操作各成函数。 | 2 |
 | `adapters/prologue.ts` | 文件 1,026 行<br>`PrologueAgentAdapter` 类 658 行 / 18 方法<br>`(module) callback 1` 函数 187 行 | 拆 · W5-10 | 文件、类、私有方法三个单元互相包含：文件 1,026 行 > `PrologueAgentAdapter` 658 行/18 方法 > 私有方法 `#start` 187 行（门禁里记作 `(module) callback 1`，见 §1）。`#start` 按阶段拆；类里还有 `constructor`（81）、`#publish`（63）；会话读写（`createSession`、`readSession`、`#loadSession`、`#restoreSession`）与运行控制（`start`、`control`、`observe`）分成两个协作者；类型与端口声明另放文件，文件回到 800 行以下。W4-06 不含它。 | 8 |
@@ -290,7 +289,6 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `alchemist` | `src/studio/server/db/research-repository.ts` | `SqliteResearchRepository` 类 343 行 / 19 方法 | 拆 · W5-10 | 19 个方法按表分组：计划、运行、报告与证据（`saveReport` 85、`mapReport` 26、`linkClaimEvidence`）、MVP 范围（`ensureMvpScope` 35）。 | 0 |
 | `characters` | `src/plugin.ts` | `createCharactersPlugin` 函数 161 行<br>`start` 函数 159 行 | 归线 · §4.6 · W5-01（Characters 一项，决定 #26 提到第 4 波） | 决定 #26：Characters 不再是 Runtime 插件，代码并进宿主或一个 Module，界面仍是设置里的一节，安装记录与 Runtime 条目一起删。这个插件定义函数随之消失，不用拆；第 4 波的承接切片取代 W5-01 里“Shelf 和 Characters 混合插件”一项中 Characters 的部分，片号待 W1-01 写进路线。`start` 内嵌在 `createCharactersPlugin` 里（同一段计两次）。 | 5 |
 | `coding` | `src/client.ts` | 文件 1,656 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（1,631/1,656 行）。 | 8 |
-| `coding` | `src/routes.ts` | 文件 1,556 行<br>`codingRouteBindings` 函数 1,348 行 | 拆 · W4-07 | `codingRouteBindings` 按资源拆（会话与轮次、变更集、写入者、Goal 上下文、时间线）。 | 10 |
 | `coding` | `src/styles.ts` | 文件 851 行 | 例外 · 样式表 | `CODING_STYLES` 一个模板字符串，纯 CSS。 | 2 |
 | `coding` | `src/timeline.ts` | `createCodingTimeline` 函数 263 行 | 拆 · W5-04 | 对话时间线：`toString()` 注入浏览器，必须自包含（263 行，`renderFooter` 65、`renderGroup` 27、`KIND` 26、`FAILURES` 21）。W5-04 打包 Coding 的浏览器代码时，各块成模块并拆到阈值以下。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 1 |
 | `coding` | `src/ui.ts` | `renderCodingWorkbench` 函数 214 行 | 拆 · W5-10 | `renderCodingWorkbench` 的返回里有一段 205 行的 HTML 模板。文件里已有 `renderCodingDirectory`、`renderCodingSettings`、`renderPendingQuestionCard`、`renderCodingIdentity` 这样的区块函数，工作台主体的其余区块照此各成函数。 | 2 |

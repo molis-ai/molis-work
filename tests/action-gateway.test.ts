@@ -407,7 +407,7 @@ test("W3-01 D the gateway answers with the number of the row it wrote, in the he
 });
 
 test("W3-01 D the gateway takes a number only on an invocation and only as the UUID the MCP process made, and refuses the request otherwise", { timeout: 30_000 }, async () => {
-  const { host, caller, gateway, send, envelope, ran, stop } = await residentCallIdFixture();
+  const { host, caller, gateway, saveView, lookView, send, envelope, ran, stop } = await residentCallIdFixture();
   try {
     await gateway.discover(caller);
     const instance = (await (await send({ ...envelope, operation: "discover" })).json() as { instance_id: string }).instance_id;
@@ -421,6 +421,6 @@ test("W3-01 D the gateway takes a number only on an invocation and only as the U
     for (const call_id of ["", "not-a-uuid", "ABCDEF12-0000-4000-8000-000000000000", `${randomUUID()}x`, 7, null, [randomUUID()], { id: randomUUID() }]) await refusedBody({ ...invoke, call_id });
     await refusedBody({ ...envelope, operation: "discover", call_id: randomUUID() });
     assert.equal(ran(), 0, "no handler ran for a refused request");
-    assert.deepEqual(host.callLog!.recent(10), [], "and no row was written");
+    assert.deepEqual(host.callLog!.recent(100).filter(row => row.capability_id === saveView.capability_id || row.capability_id === lookView.capability_id), [], "no fixture invocation row was written");
   } finally { await stop(); }
 });

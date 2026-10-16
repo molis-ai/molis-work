@@ -82,11 +82,42 @@ action: { /* 写入动作的声明，入参里有 expected_version */
 - 仅本人可见的东西（个人范围的对象，如 Shelf 的材料）：内容**不进判断**，判断只知道形状和种类；用户点了具体的去处之后，才把内容用于起草。
 - 不要在 `describe` 里写营销话：它是判断分清「待办」和「灵光」的唯一依据，写清装什么、不装什么。
 
-## 六、还没有的
+## 六、浮条上的工具
 
-浮条上的**工具**（加粗、标题这类只作用于当前打开内容的命令）：数据形状（`ContextTools`）已定，浮条随后上线，到时插件用页面端辅助函数发布，不用自己写事件。**插件开发包的页面端**（报告手上的东西与落点、接收放进来的选择）也随后加入。这两项上线时同一任务更新本章。
+浮条贴在用户手上的东西旁边：右边是系统排出的下一步（上面几节的声明），左边可以放**你的工具**——只作用于当前打开内容的命令（加粗、标题、列表、链接、评论）。工具不是动作：不进目录、Agent 调不到、撤销是你自己的。它们是纯数据，浮条只负责画和把点击交回给你。样例：Pages `plugins/native/pages/src/client.ts`（14 个工具分 4 组）。
+
+**1. 报告焦点时带上浮条画在哪。** 自己有编辑器的页面派发 `molis:surface-focus` 时，在 `SurfaceFocus` 里加 `screen: { rect }`：本文档视口坐标的矩形（选区或光标的外框），`placement` 可写 `below`（默认在上方，放不下自动翻到下方）。它是纯数据，不要交元素；滚动或排版变了，用**同一个 `context_id`** 再报一次，浮条跟着移动，不重新排序。`screen` 只在本文档里有意义，不会发给宿主，也不会跨窗格。
+
+**2. 发布工具。** 焦点报出去之后，在同一个根元素上派发 `molis:context-tools`，`detail` 是 `ContextTools`（契约 `@molis-ai/molis-work-contracts/services/contextual`）：
+
+```js
+root.dispatchEvent(new CustomEvent("molis:context-tools", { bubbles: true, detail: { context_id, groups: [
+  { id: "inline", items: [{ id: "bold", label: L("加粗"), glyph: "B", pressed: true, shortcut: "⌘B" }, { id: "link", label: L("链接"), icon: "link", opens: "panel" }] },
+  { id: "blocks", collapse: "overflow", items: [{ id: "h2", label: L("二级标题"), glyph: "H2" }] },
+] } }));
+```
+
+- `context_id` 必须是你刚报出的焦点的那个：别的上下文的工具，浮条直接丢掉。
+- 上限见 `CONTEXT_TOOL_LIMITS`（6 组、24 项、标签 24 字），超出的被丢掉；`label` 是已经翻译好的可读名字，也是悬停提示。外观用设计系统的图标名（`icon`）或几个字母（`glyph`：`B`、`I`、`U`、`S`、`H1`–`H3`、`A`）。
+- `pressed` 表示当前状态（光标处已加粗），`disabled` 表示现在不能用；`collapse: "overflow"` 的组在浮条窄时可以收进一个菜单。
+- 状态变了（加粗切换、光标移进标题）就再发一次；内容没变时不要重复发（Pages 用 `context_id` 加分组内容做键）。
+
+**3. 接收点击。** 用户点了一个工具，浮条在发布工具的那个元素上派发 `molis:context-tool-invoke`，`detail` 是 `ContextToolInvoke`（`{ context_id, group, id }`）。核对 `context_id` 仍是你当前的焦点，执行命令，再发布一次工具（状态可能变了）。
+
+**4. 需要一小块表单时（链接地址、评论），请浮条托管。** 派发可取消的 `molis:context-panel-open`，`detail` 为 `{ context_id, node, label, onClose?, keep? }`：
+
+- 浮条接住就 `preventDefault()`，把你的 `node` 放在浮条下面，一次只放一块；Esc、点别处或换了上下文时收起，并调用 `onClose`。
+- **没人接**（`defaultPrevented` 为 false，比如这一处没有浮条）：你自己把表单放在原处，别丢掉用户的操作。
+- `node: null` 让浮条收起面板；表单里在等模型的结果（候选文字）带 `keep: true`，上下文变了也留在原处，等用户处理。
+
+**不要做的**：不要自己再画一条格式条或悬浮工具栏（Pages 的格式条已经并进浮条）；不要把工具做成动作（一个动作要能被目录发现和授权，工具不要）；不要在 `label` 里放用户内容。
+
+## 七、还没有的
+
+**插件开发包的页面端辅助函数**：报告手上的东西与落点、发布工具、接收放进来的选择。现在按上面的事件直接写，辅助函数加进插件开发包时同一任务更新本章。**落点**（`SurfaceLanding`）还没有插件报告，`attach` 的去处因此暂不出现。
 
 ## 验证
 
 - 声明：`tests/plugin-context-declarations.test.ts`（每条规则的报错原文与先后顺序）、`tests/plugin-declaration-rules.test.ts`。
+- 浮条与工具：`tests/context-toolbar.test.ts`（工具的清洗与上限）、`tests/context-toolbar.e2e.test.ts`（1440 与 390 宽）。
 - 候选与判断：`tests/contextual-destinations.test.ts`（去处从声明派生、`places`、只进推荐位、个人空间不进判断）、`tests/contextual-landing.test.ts`、`tests/contextual-interaction.test.ts`。

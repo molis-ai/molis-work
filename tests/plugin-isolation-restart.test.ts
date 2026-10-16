@@ -102,7 +102,7 @@ test("one Plugin's start failure leaves its siblings running and names a reason"
   assert.deepEqual(report.running, ["io.molis.work.healthy"]);
   assert.equal(report.failed.length, 1);
   assert.equal(report.failed[0]?.plugin_id, "io.molis.work.broken");
-  assert.equal(report.failed[0]?.code, "plugin_executor_failed");
+  assert.equal(report.failed[0]?.code, "plugin.executor_failed");
   assert.equal(supervisor.contribution("io.molis.work.healthy")?.kind, "app");
   assert.equal(supervisor.contribution("io.molis.work.broken"), null);
 });
@@ -171,7 +171,7 @@ test("a Plugin blocked by an unsatisfied dependency never starts and is not repo
   assert.deepEqual(report.failed, []);
   assert.equal(report.blocked.length, 1);
   assert.equal(report.blocked[0]?.plugin_id, "io.molis.work.dependent");
-  assert.equal(report.blocked[0]?.code, "capability_missing");
+  assert.equal(report.blocked[0]?.code, "plugin.capability_missing");
   assert.equal(dependent.starts(), 0, "被阻塞的插件不应被执行");
 });
 
@@ -184,7 +184,7 @@ test("a Plugin that does not deliver its declared views fails to start", async (
   const report = await supervisor.start([{ definition: unredeemed.definition }]);
 
   assert.deepEqual(report.running, []);
-  assert.equal(report.failed[0]?.code, "plugin_contribution_unredeemed");
+  assert.equal(report.failed[0]?.code, "plugin.contribution_unredeemed");
   assert.match(report.failed[0]?.message ?? "", /没有兑现/u);
 });
 

@@ -1,4 +1,4 @@
-import { applySqliteBaseline, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   TODO_STATUSES,
@@ -537,9 +537,9 @@ export const TODO_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openTodoStore(homeDirectory: string, now?: () => Date): TodoStore {
-  const db = openBaselineHomeSqlite(homeDirectory, "todo", TODO_STORE_BASELINE);
+  const db = openHomeSqliteDatabase(homeDirectory, TODO_HOME_STORE.path);
   db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-  applySqliteBaseline(db, homeSqlitePath(homeDirectory, "todo"), TODO_STORE_BASELINE);
+  applySqliteBaseline(db, homeSqlitePath(homeDirectory, TODO_HOME_STORE.path), TODO_STORE_BASELINE);
   initializeTodoReplication(db);
   return new TodoStore(db, now);
 }
@@ -708,3 +708,6 @@ function changeFromRow(row: ChangeRow): TodoChange {
   return { change_id: row.change_id, item_id: row.item_id, batch_id: row.batch_id, kind: row.kind as TodoChange["kind"], actor: row.actor as TodoActorKind,
     at: row.at, before: row.before_json ? JSON.parse(row.before_json) : null, after: JSON.parse(row.after_json), revision_after: row.revision_after, reverted_by: row.reverted_by };
 }
+
+/** This plugin's store in the Home's store registry (W4-11): `todo/todo.db` at its one baseline. */
+export const TODO_HOME_STORE: HomeStoreDeclaration = { path: "todo", library: { baseline: TODO_STORE_BASELINE } };

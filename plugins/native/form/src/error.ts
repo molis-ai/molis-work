@@ -15,6 +15,8 @@ export const formErrors = defineErrorCodes("form", {
   publication_owner: "forbidden",
   /** The form is not collecting answers; the refusal says why and how to open it again. */
   closed: "conflict",
+  /** An answer to the questions 「AI 生成题目」 asked first does not fit them; `details.problems` names each field and why. */
+  answer_invalid: "invalid",
   /** A submission's request id was already used for different answers. */
   request_conflict: "conflict",
 });

@@ -1,7 +1,8 @@
+import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
 import { pluginSearchRows } from "../../plugin-workbench.js";
 import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
-import { pluginTabGlyphs, pluginTabTitles } from "../../plugin-catalog.js";
-import { createTabWorkspaceOps } from "../../tab-workspace-ops.js";
+import { pluginTabGlyphs } from "../../plugin-catalog.js";
+import { createTabWorkspaceOps, isCurrentTabWorkspace } from "../../tab-workspace-ops.js";
 import { tabIdsAfterMove, TAB_REORDER_EASE, TAB_REORDER_MS } from "../../tab-reorder.js";
 import { tabShareWidth, tabShareMin, tabScrollAllotment, TAB_SHARE_MAX, TAB_SHARE_MIN, TAB_SHARE_MIN_TOUCH } from "../../tab-strip-share.js";
 import { clampSplitRatio, focusedPaneBoxAfterDrop, layoutPaneBoxes, splitDropEdge, TAB_SASH_HALF, TAB_SASH_INSET, TAB_SPLIT_EDGE_X, TAB_SPLIT_EDGE_Y, TAB_SPLIT_RATIO } from "../../tab-split-drop.js";
@@ -42,11 +43,12 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_COLOR = ${JSON.stringify(Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, `var(--plugin-${plugin.id})`])))};
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())};
-  const PLUGIN_TAB_TITLES = ${JSON.stringify({ home: "项目首页", ...pluginTabTitles() })};
+  const PLUGIN_TAB_TITLES = { home: "项目首页", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   // Plugins installed at run time (built in the studio) name their own stage.
   document.querySelectorAll("[data-work-surface][data-installed-plugin]").forEach((surface) => { PLUGIN_TAB_TITLES[surface.dataset.workSurface] = surface.dataset.workSurfaceLabel; PLUGIN_TAB_ICON[surface.dataset.workSurface] = "package"; });
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
   const ops = (${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES);
+  const isCurrent = (${isCurrentTabWorkspace.toString()});
   const TAB_SPLIT_EDGE_X = ${TAB_SPLIT_EDGE_X};
   const TAB_SPLIT_EDGE_Y = ${TAB_SPLIT_EDGE_Y};
   const TAB_SPLIT_RATIO = ${TAB_SPLIT_RATIO};
@@ -112,9 +114,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
-      if (stored?.panes?.length) {
-        state = stored;
-        ops.ensureHome(state);
+      const plugins = { ...PLUGIN_TAB_ICON };
+      document.querySelectorAll("[data-settings-page]").forEach(node => { plugins[node.dataset.settingsPage] = true; });
+      if (isCurrent(stored, plugins)) {
+        state = ops.ensureHome(stored);
         persist();
       }
     } catch {}
@@ -157,34 +160,17 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       ops.openItem(state, "goals", requestedGoalId, titleForItem("goals", requestedGoalId));
       setDirectory("goals", false, false);
     }
-    rewriteRetiredTabs();
+    removeSettingsPages();
     apply();
     persist();
   };
   // A plugin whose page lives in settings (it marks the page it renders here) is not a place a pane can show.
   const settingsPageOf = (plugin) => plugin && !embedded && !Object.hasOwn(PLUGIN_TAB_ICON, plugin) && document.querySelector('[data-settings-page="' + CSS.escape(plugin) + '"]') ? plugin : "";
-  const rewriteRetiredTabs = () => {
+  const removeSettingsPages = () => {
     for (const pane of state.panes || []) {
       if (settingsPageOf(pane.viewPlugin)) { pane.viewPlugin = null; if (!pane.activeTabId) pane.activeTabId = pane.tabs.find((tab) => tab.kind === "home")?.id || null; }
       pane.tabs = (pane.tabs || []).filter((tab) => !settingsPageOf(tab.plugin));
       if (pane.activeTabId && !pane.tabs.some((tab) => tab.id === pane.activeTabId)) pane.activeTabId = pane.tabs[0]?.id || null;
-      // Only obsolete view state is removed. Rules live in the system editor;
-      // saved public links are redirected by the Host with their record ID.
-      if (pane.viewPlugin === "functions" || pane.tabs?.some(tab => tab.plugin === "functions" && tab.id === pane.activeTabId)) {
-        pane.viewPlugin = "home";
-        pane.activeTabId = null;
-      }
-      pane.tabs = (pane.tabs || []).filter((tab) => {
-        if (tab.plugin === "functions") return false;
-        if (tab.plugin !== "task") return true;
-        if (tab.kind !== "item" || !tab.goalId) return false;
-        tab.plugin = "goals";
-        tab.itemId = tab.goalId;
-        delete tab.goalId;
-        delete tab.goalView;
-        return true;
-      });
-      if (pane.activeTabId && !pane.tabs.some((tab) => tab.id === pane.activeTabId) && !pane.viewPlugin) pane.activeTabId = pane.tabs[0]?.id;
     }
     ops.ensureHome(state);
   };
@@ -202,7 +188,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const topLevelSurface = plugin => {
     const surface = findTopLevelSurface(plugin); host.prepareSurface?.(surface); return surface;
   };
-  const rootForTab = (tab) => supportsGoalFrames() && tab?.plugin === "goals" && tab.kind === "item" && tab.goalView !== "work"
+  const systemTabs = (${SYSTEM_TABS_FACTORY})({getState:()=>state,ops,apply:()=>apply(),persist,close:(pane,id)=>closeTabBack(pane,id),embedded});
+  const rootForTab = (tab) => tab?.kind === "system" ? systemTabs.root(tab) : supportsGoalFrames() && tab?.plugin === "goals" && tab.kind === "item" && tab.goalView !== "work"
     ? document.querySelector("[data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
   const titleForItem = (plugin, itemId, fallback) => {
     if (plugin === "goals") return visibleGoals()?.find((item) => item.goal.goal_id === itemId)?.goal.title || fallback || itemId;
@@ -295,7 +282,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (had) notePlace();
   };
   const applyTabContent = (tab, keepFrame) => {
-    if (!tab) return;
+    if (!tab || tab.kind === "system") return;
     declareGoal(tab.plugin === "goals" && tab.kind === "item" ? tab.itemId : null, tab.title);
     selectItem(topLevelSurface(tab.plugin), tab.kind === "item" ? tab.itemId : null);
     if (tab.plugin === "goals" && tab.kind === "item" && tab.itemId) {
@@ -356,28 +343,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   /* What each plugin's surface last showed: its own page ("page") or one of its tabs ("tab:<id>"). Returning to the
      same thing keeps it as it was, down to where it was scrolled. */
   const surfaceShows = new Map();
-  const scrollMemory = new WeakMap();
-  const rememberScroll = (node) => {
-    const offsets = [];
-    for (const element of [node, ...node.querySelectorAll("*")]) {
-      if (element.scrollTop > 0 || element.scrollLeft > 0) offsets.push([element, element.scrollTop, element.scrollLeft]);
-    }
-    if (offsets.length) scrollMemory.set(node, offsets); else scrollMemory.delete(node);
-  };
-  const restoreScroll = (node) => {
-    const offsets = scrollMemory.get(node);
-    if (!offsets) return;
-    scrollMemory.delete(node);
-    requestAnimationFrame(() => offsets.forEach(([element, top, left]) => {
-      if (!node.contains(element)) return;
-      element.scrollTop = top;
-      element.scrollLeft = left;
-    }));
-  };
+  const {rememberScroll,restoreScroll} = (${SCROLL_MEMORY_FACTORY})();
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
   const tabLabel = (tab) => {
     if (tab.plugin === "home") return document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页");
-    if (tab.kind === "mother") return tab.plugin === "goals" ? L("画布") : ops.pluginTitle(tab.plugin);
     return tab.title;
   };
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
@@ -431,7 +400,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     close.title = L("关闭标签") + " · " + tabLabel(tab);
     close.tabIndex = selected ? 0 : -1;
     close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
-    trigger.innerHTML = iconMarkup(tab.plugin);
+    trigger.innerHTML = tab.kind === "system" ? '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg>' : iconMarkup(tab.plugin);
     name.className = "tab-item-name";
     trigger.append(name);
     button.append(trigger);
@@ -691,6 +660,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const collectMounted = () => [
     ...pool.querySelectorAll(":scope > [data-work-surface], :scope > [data-goal-canvas-shell], :scope > [data-goal-frame-surface], :scope > [data-document-pane]"),
     ...panesEl.querySelectorAll("[data-tab-pane-body] > [data-work-surface], [data-tab-pane-body] > [data-goal-canvas-shell], [data-tab-pane-body] > [data-goal-frame-surface], [data-tab-pane-body] > [data-document-pane]"),
+    ...document.querySelectorAll("[data-system-tab]"),
     ...(exclusiveEl ? [...exclusiveEl.children] : []),
   ];
   const findSplit = (node, id) => !node || node.paneId ? null : node.id === id ? node : findSplit(node.children[0], id) || findSplit(node.children[1], id);
@@ -953,7 +923,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const KEPT_PANE_FRAMES = 4;
   const paneFrameKey = (pane) => {
     const tab = pane.tabs.find((item) => item.id === pane.activeTabId);
-    if (tab) return tab.id;
+    if (tab) return tab.kind === "system" ? null : tab.id;
     return pane.viewPlugin ? pane.id + ":view" : null;
   };
   const apply = () => {
@@ -1013,7 +983,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     const focusedTab = ops.activeTab(state);
     const focusedView = ops.focused(state)?.viewPlugin;
-    if (focusedTab) {
+    if (focusedTab && focusedTab.kind !== "system") {
       const surface = pluginSurface(focusedTab.plugin);
       if (getSurface() !== surface) setWorkSurface(surface, false, false);
       if (!["settings", "project-settings"].includes(document.querySelector("#goal-tree-pane")?.dataset.desktopDirectory)) {
@@ -1150,7 +1120,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     } finally {
       applying = false;
       rememberTab(ops.focused(state));
-      announcePlace();
+      announcePlace(); systemTabs.sync();
       persistHistory();
       syncHistoryButtons();
       markCoverOpeners();

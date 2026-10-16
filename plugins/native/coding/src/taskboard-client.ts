@@ -30,14 +30,14 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const text=date.toDateString()===now.toDateString()?pad(date.getHours())+':'+pad(date.getMinutes()):(date.getMonth()+1)+'月'+date.getDate()+'日';return {text,title:date.toLocaleString()};};
   // Status words and marks follow the Goal list: an icon and a short label, coloured by tone.
   const STATE={
-    'not-started':['等待前置','circle','idle'],ready:['可以开始','circle','ready'],running:['进行中','','progress'],succeeded:['模型报告完成','check','done'],
-    failed:['模型报告失败','x','blocked'],blocked:['受阻，等你决定','circle-alert','blocked'],cancelled:['已取消','minus','quiet'],skipped:['已跳过','minus','quiet'],
-    accepted:['你已验收','check','accepted'],'needs-work':['要求返工','circle-alert','attention'],pending:['待执行','circle','idle'],
+    'not-started':['等待前置','waiting','idle'],ready:['可以开始','ready','ready'],running:['进行中','running','progress'],succeeded:['模型报告完成','done','done'],
+    failed:['模型报告失败','failed','blocked'],blocked:['受阻，等你决定','blocked','blocked'],waiting:['在等别的步骤','waiting','progress'],'needs-reconciliation':['重启后需要核对','verify','attention'],cancelled:['已取消','cancelled','quiet'],skipped:['已跳过','cancelled','quiet'],
+    accepted:['你已验收','done','accepted'],'needs-work':['要求返工','blocked','attention'],pending:['待执行','idle','idle'],
   };
-  const PHASE={starting:['准备中','','progress'],running:['进行中','','progress'],compacting:['整理上下文','','progress'],pausing:['正在暂停','pause','attention'],paused:['已暂停','pause','attention'],
-    'awaiting-input':['等你回答','circle-alert','attention'],'awaiting-review':['等你审查','circle-alert','attention'],completed:['已结束','check','done'],failed:['失败','x','blocked'],
-    stopped:['已停止','minus','quiet'],cancelled:['已取消','minus','quiet'],'reconcile-required':['待核对','circle-alert','attention']};
-  const CHILD={running:['进行中','','progress'],completed:['已结束 · 待核对','check','done'],failed:['失败','x','blocked'],cancelled:['已取消','minus','quiet'],stopped:['已停止','minus','quiet']};
+  const PHASE={starting:['准备中','starting','progress'],running:['进行中','running','progress'],compacting:['整理上下文','running','progress'],pausing:['正在暂停','paused','attention'],paused:['已暂停','paused','attention'],
+    'awaiting-input':['等你回答','answer','attention'],'awaiting-review':['等你审查','approval','attention'],completed:['已结束','round-ended','done'],failed:['失败','failed','blocked'],
+    stopped:['已停止','stopped','quiet'],cancelled:['已取消','cancelled','quiet'],'reconcile-required':['待核对','verify','attention']};
+  const CHILD={running:['进行中','running','progress'],completed:['已结束 · 待核对','verify','done'],failed:['失败','failed','blocked'],cancelled:['已取消','cancelled','quiet'],stopped:['已停止','stopped','quiet']};
   const skipped=(node)=>node.state==='cancelled'&&node.reports.some(report=>report.note.startsWith('用户跳过'));
   const stepOf=(plan,node)=>node.inserted?{title:node.title||node.id,acceptance:(node.reports.find(report=>report.note.startsWith('用户插入'))?.note.split('完成条件：')[1])||''}
     :plan?.content.steps[Number(node.id.replace('step-',''))-1]||{title:node.title||node.id,acceptance:''};
@@ -64,7 +64,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(plan&&!plans.some(entry=>entry.revision===plan.revision&&entry.board)){
       const steps=plan.content.steps.map((step,index)=>({key:'plan-'+index,label:'S'+(index+1),title:step.title,hint:'完成条件：'+step.acceptance,state:STATE.pending,progress:{done:0,total:1},executor:null,target:{kind:'plan'},children:[]}));
       groups.push({id:'plan',label:'当前计划',mark:'list',count:'修订 '+plan.revision,items:[{key:'plan',label:'计划',title:plan.content.title,hint:plan.content.change_reason||'',
-        state:plan.content.blockers?['有阻塞','circle-alert','blocked']:plan.confirmed?['已确认','check','ready']:['待确认','circle','attention'],
+        state:plan.content.blockers?['有阻塞','blocked','blocked']:plan.confirmed?['已确认','ready','ready']:['待确认','approval','attention'],
         progress:{done:0,total:steps.length},executor:null,target:{kind:'plan'},children:steps}]});
     }
     // Each round that ran a plan or dispatched subagents; newest first. Rounds that continued one step graph are one
@@ -81,7 +81,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         const verdict=child.verdict?.status,role=child.role_name||roleName(child.role_id),at=startedAt(child);
         const own=child.workspace_path&&run.frozen?.directory?.canonical_path&&child.workspace_path!==run.frozen.directory.canonical_path?child.workspace_path.split('/').filter(Boolean).at(-1):'';
         return {key:'child-'+child.subagent_id,label:'子任务',title:oneLine(child.task),hint:child.task,
-          state:verdict==='accepted'?STATE.accepted:verdict==='needs-work'?STATE['needs-work']:CHILD[child.state]||['状态未知','circle','idle'],
+          state:verdict==='accepted'?STATE.accepted:verdict==='needs-work'?STATE['needs-work']:CHILD[child.state]||['状态未知','verify','idle'],
           progress:null,note:own?'独立目录 '+own:'',executor:{name:role,detail:'子代理 · '+role+(child.error?' · '+child.error:'')},time:Number.isFinite(at)?when(at):null,
           target:{kind:'child',run_id,child_id:child.subagent_id},children:[]};
       };
@@ -96,8 +96,8 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const steps=nodes.map((node,position)=>{
         const step=stepOf(entry.plan,node),verdict=entry.verdicts?.[node.id],decided=verdict&&verdict.board_version===entry.board.version?verdict.status:null;
         // A step you hold ends by your own mark, not by a model's report.
-        const yours=node.owner?.kind==='person'&&['succeeded','failed'].includes(node.state)?(node.state==='succeeded'?['你标记完成','check','done']:['你标记失败','x','blocked']):null;
-        const state=decided==='accepted'?STATE.accepted:decided==='needs-work'?STATE['needs-work']:skipped(node)?STATE.skipped:yours||STATE[node.state]||STATE.pending;
+        const yours=node.owner?.kind==='person'&&['succeeded','failed'].includes(node.state)?(node.state==='succeeded'?['你标记完成','done','done']:['你标记失败','failed','blocked']):null;
+        const state=decided==='accepted'?STATE.accepted:decided==='needs-work'?STATE['needs-work']:skipped(node)?STATE.skipped:yours||STATE[node.state]||STATE.pending; const shownState=node.state==='running'&&!decided?[state[0],node.owner?.kind==='person'?'doing':(['starting','running','compacting'].includes(run.phase)?'running':['paused','pausing','awaiting-input','awaiting-review'].includes(run.phase)?PHASE[run.phase][1]:'doing'),state[2]]:state;
         const deps=(node.depends_on||[]).map(dep=>nodes.find(other=>other.id===dep)).filter(Boolean).map(dep=>({title:stepOf(entry.plan,dep).title,ready:settled(dep),blocked:['failed','blocked'].includes(dep.state)}));
         const mine=(placed.get(node.id)||[]).map(childRow),last=node.reports.at(-1);
         const holder=node.owner,held=holder?.kind==='subtask'?children.find(item=>item.child.subagent_id===holder.subagent_id)?.child:null;
@@ -111,7 +111,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         const done=mine.length?mine.filter(row=>['done','accepted'].includes(row.state[2])).length:settled(node)||decided==='accepted'?1:0;
         return {key:'step-'+id+'-'+node.id,label:node.inserted?'插入':'S'+(Number(node.id.replace('step-',''))||position+1),title:step.title,
           hint:(step.acceptance?'完成条件：'+step.acceptance:'')+(holder?'\\n负责：'+(holder.kind==='person'?'你':holder.label):'')+(last?'\\n最近回报：'+(last.by?last.by+'：':'')+last.note:''),
-          state,progress:{done,total:mine.length||1},deps,executor:doer,time:last?when(last.at_ms):null,target:{kind:'step',run_id:id,step_id:node.id},children:mine,
+          state:shownState,progress:{done,total:mine.length||1},deps,executor:doer,time:last?when(last.at_ms):null,target:{kind:'step',run_id:id,step_id:node.id},children:mine,
           node,live,editable,board:entry.board,runId:id,position};
       });
       // A skipped step leaves the count altogether: it is neither done nor still to do.
@@ -119,7 +119,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const name=entry?.plan?.content.title||clip(firstLine(run.task??ownTask(run.turns?.find(turn=>turn.kind==='user'&&!turn.steer)?.text||'')),90)||'第 '+(index+1)+' 轮';
       const first=runs[span[0]];
       rounds.unshift({key:'run-'+id,label:span.length>1?'#'+(span[0]+1)+'–'+(index+1):'#'+(index+1),title:name,
-        hint:[entry?'计划修订 '+(entry.revision??'?'):'',span.length>1?'接续的轮次：'+span.map(at=>'#'+(at+1)).join('、'):''].filter(Boolean).join('\\n'),state:PHASE[run.phase]||['状态未知','circle','idle'],
+        hint:[entry?'计划修订 '+(entry.revision??'?'):'',span.length>1?'接续的轮次：'+span.map(at=>'#'+(at+1)).join('、'):''].filter(Boolean).join('\\n'),state:PHASE[run.phase]||['状态未知','verify','idle'],
         progress:nodes.length?{done:doneSteps,total:counted||nodes.length}:children.length?{done:children.filter(item=>item.child.state==='completed').length,total:children.length}:null,
         executor,time:when(first.started_at),target:{kind:'run',run_id:id},children:[...steps,...loose.map(childRow)],note:entry?.error||group?.error||''});
     });
@@ -127,7 +127,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     return groups;
   };
   const renderState=(state)=>{const [label,mark,tone]=state,node=el('span','coding-board-state');node.dataset.tone=tone;
-    node.innerHTML=tone==='progress'?'<span class="coding-board-pulse" aria-hidden="true"></span>':svg(mark||'circle');node.append(el('span','',label));node.title=label;return node;};
+    node.dataset.mwState=mark;node.append(el('span','',label));node.title=label;return node;};
   const renderProgress=(progress)=>{const node=el('span','coding-board-progress');if(!progress){node.classList.add('is-empty');return node;}
     const percent=Math.round(progress.done/Math.max(1,progress.total)*100);node.innerHTML='<span></span><i aria-hidden="true"><b></b></i>';node.firstChild.textContent=progress.done+'/'+progress.total;
     node.querySelector('b').style.setProperty('--board-progress',percent+'%');node.setAttribute('aria-label',progress.done+'/'+progress.total+' 完成');return node;};
@@ -215,7 +215,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const outlineRow=(row,depth)=>{
     const item=el('li','coding-outline-item');item.style.setProperty('--board-depth',String(depth));
     const node=el('button','coding-outline-row');node.type='button';node.dataset.boardKey=row.key;if(row.hint)node.title=row.hint;
-    const [label,mark,tone]=row.state,state=el('span','coding-outline-mark');state.dataset.tone=tone;state.innerHTML=tone==='progress'?'<span class="coding-board-pulse" aria-hidden="true"></span>':svg(mark||'circle');state.title=label;
+    const [label,mark,tone]=row.state,state=el('span','coding-outline-mark');state.dataset.tone=tone;state.dataset.mwState=mark;state.title=label;
     node.append(state);if(row.label)node.append(el('span','coding-board-key',row.label));
     node.append(el('strong','',row.title));node.setAttribute('aria-label',row.label?row.label+' '+row.title+'：'+label:row.title+'：'+label);
     if(row.progress&&row.children.length)node.append(el('span','coding-outline-count',row.progress.done+'/'+row.progress.total));

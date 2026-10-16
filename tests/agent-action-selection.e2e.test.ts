@@ -47,7 +47,8 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
     const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId); await writeFile(join(directory, name + ".png"), Buffer.from(shot.data, "base64")); };
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/` }, sessionId));
-  await open("characters"); await click('[data-character-new]');
+  // The list buttons are enabled once the page script has read the list; a click before that would do nothing.
+  await open("characters"); await waitFor("!document.querySelector('[data-character-new]').disabled"); await click('[data-character-new]');
   await waitFor("!document.querySelector('[data-character-workspace]').hidden && !document.querySelector('[data-character-title]').disabled");
   await fill('[data-character-title]', "仅查询笔记"); await fill('[data-character-instructions]', "只依据实际读取结果回答。");
   await click('[data-character-actions-inherit]');

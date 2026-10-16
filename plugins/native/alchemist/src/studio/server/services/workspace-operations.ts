@@ -3,6 +3,7 @@ import type { ApiDependencies } from "../api/dependencies.js";
 import type { AlchemistOperationInput } from "../../shared/contracts/actions.js";
 import { AlchemistOperationError } from "./action-error.js";
 import { sendConversationMessage } from "./conversation-message.js";
+import type { AlchemistEffectControl } from "./action-operations.js";
 
 /** Discussion, decisions, calibration and Pulse operate on the same original Studio repositories. */
 export function createWorkspaceOperations(d: ApiDependencies) {
@@ -11,7 +12,7 @@ export function createWorkspaceOperations(d: ApiDependencies) {
     // A direction reads as its description plus the Ideas kept under it, in the words the page shows.
     directionContext: (input: AlchemistOperationInput<"directionContext">) => {
       const direction = d.directions.get(input.subject_id);
-      if (!direction || direction.workspaceId !== d.workspaceId) throw new AlchemistOperationError("DIRECTION_NOT_FOUND", "没有找到这个方向。", 404);
+      if (!direction || direction.workspaceId !== d.workspaceId) throw new AlchemistOperationError("alchemist.direction_not_found", "没有找到这个方向。", 404);
       const ideas = d.ideas.listIdeas().filter(idea => idea.directionId === direction.id)
         .map(idea => d.ideas.getVersion(idea.id, idea.currentVersion)?.content.title || "未命名 Idea");
       const content = [direction.description, direction.status === "archived" ? "状态：已归档" : "", ...lines("已保留的 Idea", ideas)].filter(Boolean).join("\n");
@@ -22,7 +23,7 @@ export function createWorkspaceOperations(d: ApiDependencies) {
     ideaContext: (input: AlchemistOperationInput<"ideaContext">) => {
       const idea = d.ideas.listIdeas().find(item => item.id === input.subject_id);
       const version = idea ? d.ideas.getVersion(idea.id, idea.currentVersion) : undefined;
-      if (!idea || !version) throw new AlchemistOperationError("IDEA_NOT_FOUND", "没有找到这个 Idea。", 404);
+      if (!idea || !version) throw new AlchemistOperationError("alchemist.idea_not_found", "没有找到这个 Idea。", 404);
       const c = version.content;
       const content = [
         c.highlight, c.targetUser && `目标用户：${c.targetUser}`, c.scenario && `场景：${c.scenario}`, c.coreProblem && `核心问题：${c.coreProblem}`,
@@ -35,14 +36,14 @@ export function createWorkspaceOperations(d: ApiDependencies) {
     },
     playbookContext: (input: AlchemistOperationInput<"playbookContext">) => {
       const rule = d.memory.getPlaybookRule(input.subject_id);
-      if (!rule || rule.workspaceId !== d.workspaceId) throw new AlchemistOperationError("PLAYBOOK_RULE_NOT_FOUND", "没有找到这条已确认方法。", 404);
+      if (!rule || rule.workspaceId !== d.workspaceId) throw new AlchemistOperationError("alchemist.playbook_rule_not_found", "没有找到这条已确认方法。", 404);
       return subjectContext({ subject: { kind: "alchemist-playbook", id: rule.id }, revision: String(rule.version) + ":" + rule.status,
         title: rule.methodChange.slice(0, 120), content: JSON.stringify({ version: rule.version, status: rule.status, method: rule.methodChange,
           applicableExamples: rule.positiveExamples, invalidExamples: rule.negativeExamples, scope: rule.scope, source: rule.source,
           originalFeedback: rule.originalFeedback, limitation: "仅在明确确认后沿用；停用方法不可用于新任务。" }), goal_ids: [], session_id: null });
     },
     conversationList: () => ({ messages: d.conversations.list(d.workspaceId) }),
-    conversationSend: (input: AlchemistOperationInput<"conversationSend">, signal?: AbortSignal) => sendConversationMessage(d, input, signal),
+    conversationSend: (input: AlchemistOperationInput<"conversationSend">, signal?: AbortSignal, control?: AlchemistEffectControl) => sendConversationMessage(d, input, signal, control),
     decisionsList: () => {
       const persisted = d.activity.list(d.workspaceId);
       const jobs = d.jobs.listRecent().map(job => ({ id: `job_activity:${job.id}`, workspaceId: d.workspaceId, kind: `run.${job.status}`, targetKind: "job", targetId: job.id,
@@ -57,7 +58,7 @@ export function createWorkspaceOperations(d: ApiDependencies) {
       const exists = target.kind === "idea_brief" ? Boolean(d.ideas.getVersion(target.objectId, target.revision))
         : target.kind === "lens_report" ? d.research.getReport(target.objectId)?.revision === target.revision
         : d.pulse.getReport(target.objectId)?.revision === target.revision;
-      if (!exists) throw new AlchemistOperationError("ANNOTATION_TARGET_NOT_FOUND", "这个报告版本已经不存在或无法定位。", 404);
+      if (!exists) throw new AlchemistOperationError("alchemist.annotation_target_not_found", "这个报告版本已经不存在或无法定位。", 404);
       const now = d.clock.now();
       const annotation = d.calibration.createAnnotation({ id: d.idFactory.next("annotation"), workspaceId: d.workspaceId, actorId: d.actorId, ...input, status: "open", createdAt: now });
       d.activity.create({ id: d.idFactory.next("activity"), workspaceId: d.workspaceId, kind: "annotation.created", targetKind: annotation.target.kind, targetId: annotation.target.objectId,

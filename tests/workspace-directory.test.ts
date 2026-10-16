@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
@@ -8,7 +10,6 @@ import test from "node:test";
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 import { PROJECT_OPERATIONS_STYLES } from "@molis-ai/molis-work-plugin-work";
 import {
-  MolisWorkWorkspaceActionError,
   repairProjectWorkspace,
   unlinkProjectWorkspace,
 } from "@molis-ai/molis-work-plugin-work";
@@ -36,13 +37,15 @@ test("workspace repair and unlink restore Catalog membership when Session Regist
       actor_id: "user",
       user_confirmed: true,
     });
+    const cause = new Error("SESSION-REGISTRY-FAILURE");
     const failingRegistry = {
       reassignWorkspaceSessions(): never {
-        throw new Error("SESSION-REGISTRY-FAILURE");
+        throw cause;
       },
     };
     const current = { id: workspace.workspace_id, path: workspace.canonical_path, projectLinked: true };
 
+    // WSERR-02 / R4A3-01: real rollback preserves the directory and original non-enumerable cause.
     assert.throws(() => repairProjectWorkspace({
       catalog,
       registry: failingRegistry,
@@ -50,9 +53,10 @@ test("workspace repair and unlink restore Catalog membership when Session Regist
       canonicalPath: next,
       projectId: project.project_id,
       actorId: "user",
-    }), (error) => error instanceof MolisWorkWorkspaceActionError
-      && error.code === "workspace.change_rolled_back"
-      && /已自动恢复/.test(error.message));
+    }), (error) => error instanceof ActionError
+      && error.code === "work.workspace.change_rolled_back"
+      && /已自动恢复/.test(error.message) && actionHttpStatus(error) === 400
+      && error.cause === cause && Object.getOwnPropertyDescriptor(error, "cause")?.enumerable === false);
     assert.deepEqual(
       catalog.listWorkspaceDirectory(project.project_id).map((record) => record.canonical_path),
       [workspace.canonical_path],
@@ -64,9 +68,10 @@ test("workspace repair and unlink restore Catalog membership when Session Regist
       current,
       projectId: project.project_id,
       actorId: "user",
-    }), (error) => error instanceof MolisWorkWorkspaceActionError
-      && error.code === "workspace.change_rolled_back"
-      && /已自动恢复/.test(error.message));
+    }), (error) => error instanceof ActionError
+      && error.code === "work.workspace.change_rolled_back"
+      && /已自动恢复/.test(error.message) && actionHttpStatus(error) === 400
+      && error.cause === cause && Object.getOwnPropertyDescriptor(error, "cause")?.enumerable === false);
     assert.deepEqual(
       catalog.listWorkspaceDirectory(project.project_id).map((record) => record.canonical_path),
       [workspace.canonical_path],

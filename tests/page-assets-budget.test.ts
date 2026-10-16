@@ -570,13 +570,11 @@ test("this repository's build is within the committed page asset budget, which h
   assert.ok(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).length >= 20, "the plugin client packs are measured");
 });
 
-// ISSUE-06: admitting one measured plugin resource must not become a general new-resource or growth exemption.
-test("Issue first asset has its own exact ceiling; increases and other plugin paths still fail", () => {
+// ISSUE-06: the Issue client's first ceiling (24,000 bytes, user-approved) was a one-time admission for a path the merge-base did not
+// budget. It is in the base now, so the gate has no exception left: adding it again, growing it, or adding any other path all fail.
+test("no new asset path is admitted, the Issue client included, and an established asset may only fall", () => {
   const asset = "/assets/molis-work-plugins/issues.js";
   branch("issue-first-asset", () => { sizes[asset] = 24000; putBudget(sizes); });
-  assert.equal(gate("--base", "main").code, 0);
-  assert.equal(gate("--update", "--base", "main").code, 0);
-  sizes[asset]++; putBudget(sizes);
   assert.equal(gate("--base", "main").code, 1);
   assert.equal(gate("--update", "--base", "main").code, 1);
   branch("issue-established", () => { sizes[asset] = 9000; putBudget(sizes); });
@@ -586,6 +584,33 @@ test("Issue first asset has its own exact ceiling; increases and other plugin pa
   assert.equal(gate("--update", "--base", "issue-established").code, 1);
   branch("another-new-plugin", () => { sizes["/assets/molis-work-plugins/unreviewed.js"] = 10; putBudget(sizes); });
   assert.equal(gate("--base", "main").code, 1);
-  branch("existing-asset-still-frozen", () => { sizes[asset] = 24000; sizes["/assets/a.css"]++; putBudget(sizes); });
-  assert.equal(gate("--base", "main").code, 1);
 });
+
+// ISSUE-45/46 spent their one approved increase (23,451 → 24,379 measured, under the 24 KiB the user allowed on 2026-10-15,
+// specs/issue-home-v0): the Issue client, even back at its old size, grows under the same rule as every asset.
+test("the spent Issue draft/preview increase leaves no allowance, even at the Issue client's old size", () => {
+  const asset = "/assets/molis-work-plugins/issues.js";
+  branch("issue-draft-old", () => { sizes[asset] = 23451; putBudget(sizes); });
+  git("checkout", "-q", "-b", "issue-draft-regrow");
+  sizes[asset]++;
+  assert.equal(gate("--update", "--base", "issue-draft-old").code, 1);
+  putBudget(sizes); commit("attempt to regrow from the old Issue size");
+  assert.equal(gate("--base", "issue-draft-old").code, 1);
+  sizes[asset] = 23451; sizes["/assets/a.css"]++; putBudget(sizes);
+  assert.equal(gate("--base", "issue-draft-old").code, 1, "other assets remain frozen");
+});
+
+// ISSUE-48 and I8-PAGES-01 spent their one approved increase each (user, 2026-10-15): saved-Issue reorganization took
+// issues.js from 24,378 to 26,331 measured bytes (#521), and the I8 fixes took the Pages editor from 698,574 to 703,633 (#522).
+// Back at either old size, the asset grows under the same rule as every asset.
+for (const [asset, old] of [["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574]] as const) {
+  test(`the spent increase of ${asset} leaves no allowance, even at its old size`, () => {
+    const name = asset.replace(/\W+/g, "-").replace(/^-/, "");
+    branch(`${name}-old`, () => { sizes[asset] = old; putBudget(sizes); });
+    git("checkout", "-q", "-B", `${name}-regrow`);
+    sizes[asset]++;
+    assert.equal(gate("--update", "--base", `${name}-old`).code, 1);
+    putBudget(sizes); commit("attempt to regrow from the old size");
+    assert.equal(gate("--base", `${name}-old`).code, 1);
+  });
+}

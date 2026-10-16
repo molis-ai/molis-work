@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { respondGoalsFailure } from "./failure.js";
 import type { GoalsHttpContext } from "./types.js";
 import { goalsActions } from "../actions.js";
 
@@ -16,7 +18,7 @@ export async function handleGoalDeliverablesHttp(context: GoalsHttpContext): Pro
     }
     if (context.method !== "POST") return false;
     const body = await context.readBody();
-    if (typeof body.delivered !== "boolean") { context.respond(400, { error: "delivered 必须是 boolean" }); return true; }
+    if (typeof body.delivered !== "boolean") { respondGoalsFailure(context, new ActionError("actions.input_invalid", "delivered 必须是 boolean")); return true; }
     // A work object is pinned on the spot and its new version handed in; a version already in the 成果库 is recorded as is.
     const subject = body.subject as { kind?: unknown; id?: unknown } | undefined;
     const value = body.reference as { artifact_id?: unknown; version?: unknown } | undefined;
@@ -28,9 +30,7 @@ export async function handleGoalDeliverablesHttp(context: GoalsHttpContext): Pro
         : await context.actions.invoke(goalsActions.deliverablesRemove, { goal_id: goalId, reference });
     context.changed();
     context.respond(200, result);
-  } catch (error) {
-    context.respond(400, { error: error instanceof Error ? error.message : String(error), code: (error as { code?: string }).code });
-  }
+  } catch (error) { return respondGoalsFailure(context, error); }
   return true;
 }
 
@@ -50,7 +50,7 @@ async function handleGoalArtifactInputsHttp(context: GoalsHttpContext): Promise<
     if (context.method === "GET") { context.respond(200, await context.actions.invoke(goalsActions.artifactInputsList, { goal_id: goalId })); return true; }
     if (context.method !== "POST") return false;
     const body = await context.readBody();
-    if (typeof body.used !== "boolean") { context.respond(400, { error: "used 必须是 boolean" }); return true; }
+    if (typeof body.used !== "boolean") { respondGoalsFailure(context, new ActionError("actions.input_invalid", "used 必须是 boolean")); return true; }
     const value = body.reference as { artifact_id?: unknown; version?: unknown } | undefined;
     const reference = { artifact_id: String(value?.artifact_id ?? ""), version: Number(value?.version) };
     // A work object (not yet a version) taken as 「固定这一版」 is pinned through its owner first.
@@ -61,8 +61,6 @@ async function handleGoalArtifactInputsHttp(context: GoalsHttpContext): Promise<
         : await context.actions.invoke(goalsActions.artifactInputsRemove, { goal_id: goalId, reference });
     context.changed();
     context.respond(200, result);
-  } catch (error) {
-    context.respond(400, { error: error instanceof Error ? error.message : String(error), code: (error as { code?: string }).code });
-  }
+  } catch (error) { return respondGoalsFailure(context, error); }
   return true;
 }

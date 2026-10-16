@@ -23,6 +23,18 @@ export interface WebInstallationDiagnostics {
   }>;
 }
 
+/** One periodic task of the Host (W4-09): its Chinese title, how often it runs and how its last run went. */
+export interface WebPeriodicTask {
+  readonly id: string;
+  readonly title: string;
+  readonly owner: string;
+  readonly interval_ms: number;
+  readonly runs: number;
+  readonly running: boolean;
+  readonly last_finished_at: string | null;
+  readonly last_error: string | null;
+}
+
 export interface MolisWorkSettingsView {
   section: WebSettingsSection | string;
   capabilities?: import("./capabilities.js").CapabilitiesView;
@@ -40,6 +52,8 @@ export interface MolisWorkSettingsView {
   projects: WebSettingsProject[];
   web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;
+  /** 设置 › 诊断: what this server does on a timer, from its one registry of periodic tasks. */
+  periodic_tasks?: readonly WebPeriodicTask[];
   /** 设置 › 诊断: what was typed into the lookup by 诊断编号, the fewest characters it takes, and the rows it found (none when the text is too short to look for). */
   call_query?: { text: string; min_length: number; matches?: readonly CallRowView[] };
   /** 设置 › 诊断: with no id asked for, the newest calls of any project that failed or were turned away. */

@@ -1,3 +1,4 @@
+import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { renderStatusMark, renderToggleGroup } from "@molis-ai/molis-work-design-system";
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectSessionRecord, ProjectWorkspaceRecord, WorkUiIconName, WorkUiModel, WorkUiSurface } from "./types.js";
 
@@ -9,14 +10,7 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
     if (vars) for (const [key, next] of Object.entries(vars)) text = text.replaceAll(`{${key}}`, String(next));
     return text;
   });
-  function escapeHtml(value: string | null | undefined): string {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
-  }
+
 
   function sessionStateLabel(state: ProjectSessionRecord["state"]): string {
     return { idle: L("可查看"), archived: L("已归档") }[state];
@@ -47,7 +41,7 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
     const status = renderStatusMark({
       label: sessionStateLabel(item.state),
       tone: item.state === "archived" ? "quiet" : "idle",
-      icon: item.state === "archived" ? "archive" : "ready",
+      state: item.state === "archived" ? "archived" : "ready",
       plain: true,
       className: "mw-dir-row__status",
     });
@@ -340,7 +334,6 @@ export function renderWorkSessionSurface(surface: WorkUiSurface, model: WorkUiMo
   </section><footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-dialog-close>${L("稍后继续")}</button><button class="mw-btn mw-btn--secondary" type="button" data-handoff-save disabled>${L("保存草稿")}</button><button class="mw-btn mw-btn--primary" type="submit" data-handoff-send disabled>${L("创建并发送")}</button></footer></form></dialog>
   <dialog class="project-operation-dialog project-operation-confirm-dialog mw-dialog mw-dialog--alert" data-session-archive-dialog><form method="dialog" class="mw-form" data-session-archive-form><header class="mw-form__header"><div><h2 data-session-archive-title>${L("归档 Session 记录")}</h2><p>${L("只整理 Molis Work 记录，不删除或关闭 Runtime 原生内容。")}</p></div><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-dialog-close aria-label="${L("关闭")}">${icon("x")}</button></header><section class="mw-form__body"><dl class="operation-confirm-facts"><div><dt>Session</dt><dd data-session-archive-name></dd></div><div><dt>${L("影响")}</dt><dd data-session-archive-impact></dd></div></dl><label class="operation-confirm-check"><input type="checkbox" data-session-archive-confirm><span data-session-archive-confirm-copy></span></label><p class="operation-dialog-status" data-session-archive-status role="status" hidden></p></section><footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-dialog-close>${L("取消")}</button><button class="mw-btn mw-btn--primary" type="submit" data-session-archive-submit disabled>${L("确认")}</button></footer></form></dialog>`;
   }
-
 
   const { project, data } = model;
   const records = data?.sessions ?? [];

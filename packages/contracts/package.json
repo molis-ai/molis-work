@@ -114,10 +114,6 @@
       "types": "./dist/platform/dom-events.d.ts",
       "import": "./dist/platform/dom-events.js"
     },
-    "./platform/errors": {
-      "types": "./dist/platform/errors.d.ts",
-      "import": "./dist/platform/errors.js"
-    },
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
@@ -174,6 +170,10 @@
       "types": "./dist/services/agent-host.d.ts",
       "import": "./dist/services/agent-host.js"
     },
+    "./services/agent-inputs": {
+      "types": "./dist/services/agent-inputs.d.ts",
+      "import": "./dist/services/agent-inputs.js"
+    },
     "./services/assistant": {
       "types": "./dist/services/assistant.d.ts",
       "import": "./dist/services/assistant.js"
@@ -185,6 +185,10 @@
     "./services/agent-definitions": {
       "types": "./dist/services/agent-definitions.d.ts",
       "import": "./dist/services/agent-definitions.js"
+    },
+    "./services/agent-collaboration": {
+      "types": "./dist/services/agent-collaboration.d.ts",
+      "import": "./dist/services/agent-collaboration.js"
     },
     "./services/agent-interaction": {
       "types": "./dist/services/agent-interaction.d.ts",
@@ -261,6 +265,10 @@
     "./services/materials": {
       "types": "./dist/services/materials.d.ts",
       "import": "./dist/services/materials.js"
+    },
+    "./modules/goal-actions": {
+      "types": "./dist/modules/goal-actions.d.ts",
+      "import": "./dist/modules/goal-actions.js"
     }
   },
   "files": [

@@ -18,7 +18,7 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 公开业务能力放入 Manifest `actions`，从 `start` 返回对应 `actions` 处理器。已有 HTTP 入口可用 `bindPluginActionRoute(context, definition, request => input, routeId?)` 转发；仍需声明原 `routes`。这个适配器只转换参数/HTTP 结果，实际执行经过同一 Kernel 的 schema、项目策略和权限检查，禁止缺少动作服务时直调业务兜底。`context.services.actions` 调本插件声明的公开动作时绑定当前本地入口用户；另外，Manifest 在 `capabilities.consumes` 里写了宿主自己登记的动作 id 时（现在是工作区的两个读 `projects.workspace.files.read` 与 `projects.workspace.git.inspect`），它也能调这一个动作：按插件受众、用插件自己的 grant（要在 Manifest 里声明并持有该动作的权限，这两个是 `workspace:read`）、只放行写明的那个动作，受众、可用性与入参 schema 照常检查；别的插件的动作、没写进 `consumes` 的动作一律拒绝。`consumes` 非空的插件就有这个客户端，自己没有动作的插件也一样；`consumes` 为空而又没有自己的动作时没有。整份文件（`kind: "bytes"`，图片与 PDF 预览）只给宿主运行的这类插件：宿主按调用里由它确认的插件身份判断，生成（沙箱）插件以插件受众调用也没有这个身份，会被拒绝。它在停止、崩溃或启动失败后失效；外部 MCP 使用自己的逐客户端授权，不能借用此客户端冒充本地用户。私有同步成果 SDK 不通过这个异步入口递归调用。
 
-存量处理器仍依赖固定用户的私人存储/成果 SDK 时，可用 `bindOwnerPluginAction` 明确限制真实调用者与 owner 一致。它返回可解释的不可用原因，不把 MCP/Agent 身份改为启动用户。处理器拿到 `beforeWrite()`，必须在外部等待后、保存之前调用；它重查原授权、项目启停、Runtime grant 和取消。此适配用于渐进迁移，不能据此宣称跨调用者接线完成；新业务处理器应直接以可信 `ActionCallContext` 处理归属。
+存量处理器仍依赖固定用户的私人存储/成果 SDK 时，可用 `bindOwnerPluginAction` 明确限制真实调用者与 owner 一致。它返回可解释的不可用原因，不把 MCP/Agent 身份改为启动用户。处理器拿到 `beforeWrite()`，必须在外部等待后、保存之前调用；它重查原授权、项目启停、Runtime grant 和取消，并复用原 invocation 的 `beforeEffect` 与同步尾检，目录中的新登记不能替旧调用授权。此适配用于渐进迁移，不能据此宣称跨调用者接线完成；新业务处理器应直接以可信 `ActionCallContext` 处理归属。
 
 调用旧 Host Capability 后仍要创建审阅等副作用时，将 `before_effect` 放在 `capabilities.invoke(definition, input, { before_effect })` 的第三个参数中。Host 为服务处理器提供 `invocation.beforeEffect()`，服务在实际副作用前调用；它检查原授权、注册实例和调用是否仍有效。回调不是业务 input，不能接收自 HTTP/MCP JSON、序列化或保存在审阅记录中。审批后的实际执行继续由 Review owner 自己校验，不能复用已经结束的调用上下文。
 
@@ -29,6 +29,8 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 ## 错误：一个模型
 
 一个错误是一个码、一句消息，可选一个 kind 和 details。码说明它是谁的：`<主人>.<原因>`，主人的名字开头（`actions.` 是平台自己的，插件不能用）；kind 说明它是哪一种失败（`invalid`、`forbidden`、`not_found`、`conflict`、`too_large`、`rate_limited`、`cancelled`、`internal`、`upstream`、`unavailable`、`timeout`）；HTTP 状态只由 kind 推出，插件不自带状态表。插件用 `defineErrorCodes("notes", { not_found: "not_found", stale: "conflict" })` 把自己的码一次声明好，抛 `notesErrors.not_found("找不到这条笔记")`；平台自己的码（`actions.missing`、`actions.plugin_disabled` 等）在合同的 `ACTION_ERROR_KINDS` 里一码一行，已经有 kind。`actionHttpStatus`、`actionErrorBody`、`actionErrorResponse` 给出状态和统一的响应体 `{ error, code, details? }`（Host 的 Native 插件 HTTP 分发器不传 `mapError` 时，Functions、成果入口与 Host 的几个入口（W3-02 G2）、本包的 `bindPluginActionRoute`（`src/routes.ts`）和 Plugin Runtime 路由器自己的拒绝都这样答；还没换的是仍带 `mapError` 的 Native 入口，见 [Plugin 开发 · 错误](../../docs/platform/PLUGIN-DEVELOPMENT.md#错误码kind-与状态)）；`actionErrorFromResponse` 把响应还原成同样的错误。错误一律按形状读（有 `code` 和 `message`），不用 `instanceof`：Runtime 包和创作台页面里可能有另一份 `ActionError`。有码但没人给 kind 的错误按调用者的错误处理（400），没有我们的码的错误（没有码、码不是 `<主人>.<原因>` 的写法如 `ENOENT`、不是 Error）按内部失败处理（500），响应体的码是 `actions.execution_failed`，原来的码与 details 不带出去。
+
+可用性拒绝可以给 `kind`。`bindOwnerPluginAction` 在开始时的依赖检查、以及命令写入前重读自己登记的可用性时，都把这个分类与原码、原因一起抛出；无 kind 的拒绝仍按共同规则处理。
 
 ## 从哪里读代码
 
@@ -42,7 +44,9 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 ## 接入与边界
 
-SDK 不包含 Runtime 或业务 Store。Manifest 解析与版本比较、动作与 Agent 与方法的声明检查都是 SDK 自己的规则：`parsePluginManifest`、`PluginManifestError`、`comparePluginVersions`（`src/manifest.ts`）和 `inspectActionDeclarations`（`src/action-declarations.ts`；`defineAction` 当场用它检查，内核注册动作时用的也是它），SDK、内核、Plugin Runtime 和命令行共用这一份，不另写第二套。四种来源协议（搜索、片段动作、文件、放置）的细则在 `src/source-declarations.ts`，Agent 与方法的检查在 `src/agent-declarations.ts`，端口与事件的检查在 `src/wiring-declarations.ts`，都只有 `parsePluginManifest` 与 `inspectActionDeclarations` 调用，不对外导出；成果类型的声明规则在 `src/artifact-declarations.ts`（写法见 [成果类型声明](../../docs/platform/PLUGIN-DEVELOPMENT.md#成果类型声明)），也由 `parsePluginManifest` 在同一次解析里检查，所以 `definePlugin`、命令行 `validate`/`create`、Runtime 安装和本地开发加载都会拒绝没有显示名或预览的成果类型；这些检查的文案与先后顺序是作者读到的内容的一部分，`tests/plugin-declaration-rules.test.ts` 把它们逐条锁住。授权的实际执行由 Host/Runtime 控制。把动作挂到 HTTP 路由上的 `bindPluginActionRoute`、把动作限定在本机所有者名下的 `bindOwnerPluginAction`（`src/routes.ts`）也是 SDK 自己的实现：路由按失败的 kind 给状态（状态数字只在 `src/errors.ts` 一处），不再带合同包里的那张状态表。有界的逐行文本比较（`compareTexts`、`splitLines`、`textDiffRow`、`alignSplitRows` 等，`src/text-diff.ts`）也在这里：工作台的 Agent 审查界面、Coding 和 Diff 取同一份，比较结果与行的类型（`TextDiff`、`TextDiffRow` 等）留在合同包的 `modules/workspace-artifacts`。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。插件对外的能力就是它声明的动作，MCP 名称与授权都在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
+SDK 不包含 Runtime 或业务 Store。Manifest 解析与版本比较、动作与 Agent 与方法的声明检查都是 SDK 自己的规则：`parsePluginManifest`、`comparePluginVersions`（`src/manifest.ts`）和 `inspectActionDeclarations`（`src/action-declarations.ts`；`defineAction` 当场用它检查，内核注册动作时用的也是它），SDK、内核、Plugin Runtime 和命令行共用这一份，不另写第二套。四种来源协议（搜索、片段动作、文件、放置）的细则在 `src/source-declarations.ts`，Agent 与方法的检查在 `src/agent-declarations.ts`，端口与事件的检查在 `src/wiring-declarations.ts`，都只有 `parsePluginManifest` 与 `inspectActionDeclarations` 调用，不对外导出；成果类型的声明规则在 `src/artifact-declarations.ts`（写法见 [成果类型声明](../../docs/platform/PLUGIN-DEVELOPMENT.md#成果类型声明)），也由 `parsePluginManifest` 在同一次解析里检查，所以 `definePlugin`、命令行 `validate`/`create`、Runtime 安装和本地开发加载都会拒绝没有显示名或预览的成果类型；这些检查的文案与先后顺序是作者读到的内容的一部分，`tests/plugin-declaration-rules.test.ts` 把它们逐条锁住。授权的实际执行由 Host/Runtime 控制。把动作挂到 HTTP 路由上的 `bindPluginActionRoute`、把动作限定在本机所有者名下的 `bindOwnerPluginAction`（`src/routes.ts`）也是 SDK 自己的实现：路由按失败的 kind 给状态（状态数字只在 `src/errors.ts` 一处），不再带合同包里的那张状态表。有界的逐行文本比较（`compareTexts`、`splitLines`、`textDiffRow`、`alignSplitRows` 等，`src/text-diff.ts`）也在这里：工作台的 Agent 审查界面、Coding 和 Diff 取同一份，比较结果与行的类型（`TextDiff`、`TextDiffRow` 等）留在合同包的 `modules/workspace-artifacts`。当前工作区包是 private，不能把包名当作已经发布到 npm 的承诺。插件对外的能力就是它声明的动作，MCP 名称与授权都在 Host。步骤见 [Plugin 开发 · 对外 MCP](../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
+
+Manifest、定义与 Runtime 拒绝共用 `ActionError`；作者捕获 SDK 导出的 `ActionError` 并检查现行 `plugin.*` 码。原因声明 `pluginErrors` 在 contracts 的 `platform/plugin` 公开子路径，SDK 与 Runtime 读取同一份；不再导出 Manifest、Definition 或 Runtime 专有错误类。
 
 工作区依赖：只有 `@molis-ai/molis-work-contracts`。Plugin SDK 属于公共发布面（外部作者装的只有 contracts 与 SDK），不依赖任何私有包：边界规则 `public-sdk-private-dependency` 在 `pnpm boundary:check` 里拦住（源码 import 与 `package.json` 声明的依赖都查），`tests/plugin-sample.e2e.test.ts` 只用打包后的 contracts 与 SDK 离线安装，在本机再兜一层。`createExecutionLifetime`（及 `ExecutionLifetime`、`ExecutionLifetimeOptions`）是 SDK 自己的实现（`src/execution-lifetime.ts`），不是转出；SDK 同时是平台自己的公共运行时底座：内核、宿主、调度服务、Shelf 模块和沙箱都直接从这里取，所以改它按共享核心对待（要跑全量）。其他运行依赖见 [package.json](package.json)。
 
@@ -86,7 +90,7 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 组合能力触发嵌套动作或场景时，可使用 contracts 的 `retainActionAuthority(caller, { capability_id, version, provider_id })` 保留发起动作的精确授权校验。它原样保留项目、调用者、权限和取消信号，不授予权限。等待后的副作用边界仍需调用该上下文的 `validate_authority`；共同场景在消费结果前执行此校验。事件队列必须只消费本次操作拥有的事件，不能拿当前调用者去排空其他来源的待处理事件。
 
-`user_action` 由受保护 Host 渠道注入，表示真实用户操作的出处，不能由插件或模型根据文本构造。它不单独授予操作权限。旧 typed 接口若声明 `host_only`，Manifest 的 consumes 也不能使其可调用；SDK 的依赖检查和调用都保留 plugin 消费者身份，传入另一个描述或调用选项不能解除限制。用户决定应交给产品的受保护入口处理。
+`user_action` 由受保护 Host 渠道注入，表示真实用户操作的出处，不能由插件或模型根据文本构造。它不单独授予操作权限。Goals 决定只走现行动作与独立用户权限，插件开发不提供 typed 入口。SDK 的依赖检查与调用始终保留真实插件身份；Manifest consumes、复制的描述符或调用选项不能恢复已删除入口，用户决定交给产品的受保护入口。
 
 生产 MCP 的动作由用户在「能力 → 对外接入」按客户端与范围授权。界面从同一注册表读取名称、合同、权限和状态，新插件不需修改该页白名单。版本、提供方或权限变化不能继承旧授权；移除插件后保留原记录供撤销。默认开放的系统查询可以被单独撤销。目录注册不等于授权，也不自动授予组合动作的依赖。
 
@@ -134,30 +138,30 @@ pnpm --filter @molis-ai/molis-work-plugin-sdk build
 已有行为示例与回归：[plugin-authoring.test.ts](../../tests/plugin-authoring.test.ts)。完成上述构建后运行：
 
 ```bash
-node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
+node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 ```
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
 ## 开发要求
 
-同步基础：SDK 重新导出公共集合/快照合同及声明校验、依赖展开工具，不拥有插件数据或云传输。Pages 提供本地试点，正式 Host/Runtime 同步接线尚未实现，见[同步接入规范](../../skills/molis-plugin-dev/sync.md)。
-
-- 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口，以及作者和平台共用的运行时工具：执行生命周期（`createExecutionLifetime`）、Manifest 解析与版本比较（`parsePluginManifest`、`comparePluginVersions`）、动作声明检查（`inspectActionDeclarations`，逐个动作的形状）和同一次注册里的交叉引用检查（`inspectActionCrossReferences`，撤销、后台任务、片段与事项选项、结果对象，见 `src/action-cross-references.ts`；查 schema 里的路径用不对外导出的 `src/schema-paths.ts`）；端口与事件、Agent 与方法、四种来源协议、成果类型的检查（每个产出类型有显示名和本插件的预览查询，固定要配比较，继续指向本插件的命令；v1 不能产出成果类型）分别在 `src/wiring-declarations.ts`、`src/agent-declarations.ts`、`src/source-declarations.ts`、`src/artifact-declarations.ts`，不对外导出；动作的两个绑定函数（`bindPluginActionRoute`：HTTP 路由兑现动作，失败按 kind 答；`bindOwnerPluginAction`：动作只对本机所有者开放，`src/routes.ts`）；有界逐行文本比较（`compareTexts`、`splitLines`、`joinLines`、`reconstructSides`、`textDiffRow`、`alignSplitRows`、`DIFF_STEP_BUDGET`，`src/text-diff.ts`；CRLF 与 LF 是不同的行，超过步数预算时退化为整块删加整块插入，结果仍然完整）。
+- 负责：面向插件作者的稳定 API、UI 扩展类型与测试入口，以及作者和平台共用的运行时工具：执行生命周期（`createExecutionLifetime`）、Manifest 解析与版本比较（`parsePluginManifest`、`comparePluginVersions`）、动作声明检查（`inspectActionDeclarations`，逐个动作的形状）和同一次注册里的交叉引用检查（`inspectActionCrossReferences`，撤销、后台任务、片段与事项选项、结果对象，见 `src/action-cross-references.ts`；查 schema 里的路径用不对外导出的 `src/schema-paths.ts`）；端口与事件、Agent 与方法、四种来源协议、成果类型的检查（每个产出类型有显示名和本插件的预览查询，固定要配比较，继续指向本插件的命令；v1 不能产出成果类型）分别在 `src/wiring-declarations.ts`、`src/agent-declarations.ts`、`src/source-declarations.ts`、`src/artifact-declarations.ts`，不对外导出；动作的两个绑定函数（`bindPluginActionRoute`：HTTP 路由兑现动作，失败按 kind 答；`bindOwnerPluginAction`：动作只对本机所有者开放，`src/routes.ts`）；有界逐行文本比较（`compareTexts`、`splitLines`、`joinLines`、`reconstructSides`、`textDiffRow`、`alignSplitRows`、`DIFF_STEP_BUDGET`，`src/text-diff.ts`；CRLF 与 LF 是不同的行，超过步数预算时退化为整块删加整块插入，结果仍然完整）；问卷的读答与检查（`questionAnswer` 把共享问卷卡的字段值读成答案，`questionProblems` 按问过的题逐题给出原因，`questionSetFlaw` 检查一组题本身，`QUESTION_LIMITS`，`src/question-answers.ts`、`src/question-rules.ts`）：不经 Agent 运行、自己先问人的插件（结果形状是合同的 `InteractionRequest`）用它，规则与 Prologue 的 `validateQuestionnaireAnswer` 同结论，由 `tests/question-rules-consistency.test.ts` 锁住。
 - 不负责：Host 内部实现、自动发布的市场。
 - 公开入口：`@molis-ai/molis-work-plugin-sdk`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`（公共发布面，只依赖它，不依赖任何私有包，规则 `public-sdk-private-dependency`）。方向：公开发布面（contracts、plugin-sdk）在最下层，其余各层都可以用它的运行时工具（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 版本比较按 SemVer precedence，预发布标识内的连字符完整保留（如 `alpha-a` 早于 `alpha-b`），build metadata 不改变先后。回归见 [plugin-semver.test.ts](../../tests/plugin-semver.test.ts)。
   - 项目、用户、生产者签名与安装身份由 Host 绑定，参数不能覆盖；停止或崩溃后的旧客户端不能继续操作。
   - `ActionExecutionPolicy` 描述提供方的时限、费用与频率；在 `action.execution` 声明，由 Kernel 执行，插件内不另写同一限额。
   - 动作适配只转换参数与结果，执行仍经同一 Kernel 的 schema、项目策略与权限；缺少动作服务时不直调业务兜底。
-  - 处理器在外部等待之后、保存之前调用 `beforeWrite()`。
+  - 处理器在外部等待之后、保存之前调用 `beforeWrite()`；owner binder 保留 owner、依赖、安装和 Runtime grant，最终复用原 execution fence，不能借新目录登记继续旧调用。
   - `availability()` 只读检查声明过的宿主能力，不代表给定参数一定能执行。
   - 包是 private，包名不等于已发布到 npm 的承诺。
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。没有“查询时再搜”的来源（`defineSearchQueryAction` 已按决定 19 删除）。
   - 宿主自己运行的插件调模型用 `context.services.model`（类型 `PluginModelClient`、`PluginModelRequest`、`PluginModelResult`，限额 `PLUGIN_MODEL_LIMITS`），指令用 SDK 导出的 `defineInstructionPrompt`、`instructed`（W3-06 E）；`PluginDefinition.instructions` 是没有目录条目的插件登记自己指令的地方。规则和错误码在 `packages/plugin-runtime` 与 `docs/platform/PROLOGUE-AI.md` 第 4 节，这里只导出类型和两个帮手。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/builtin-manifests-contract.test.ts tests/side-panel-platform.test.ts tests/contextual-interaction.test.ts tests/work-placement.test.ts tests/action-error-model.test.ts tests/plugin-action-route.test.ts tests/plugin-sample.e2e.test.ts tests/action-cross-references.test.ts tests/action-artifact-references.test.ts tests/diff-plugin.test.ts tests/plugin-model-service.test.ts tests/plugin-sync-foundation.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/builtin-manifests-contract.test.ts tests/side-panel-platform.test.ts tests/contextual-interaction.test.ts tests/work-placement.test.ts tests/action-error-model.test.ts tests/plugin-action-route.test.ts tests/plugin-sample.e2e.test.ts tests/action-cross-references.test.ts tests/action-artifact-references.test.ts tests/diff-plugin.test.ts tests/plugin-model-service.test.ts tests/action-availability-kind.test.ts tests/question-rules-consistency.test.ts tests/form-draft-questions.test.ts`
+- 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
@@ -184,7 +188,7 @@ node --import tsx --test --test-concurrency=1 tests/plugin-authoring.test.ts
 
 插件若保存了对其他能力的引用（例如自己的配置、角色或规则），用 `defineActionUsagesAction(capabilityId, title, permissions)` 声明一个只读查询：接收 `{ action: { capability_id, version, provider_id } }`，用 `referencesAction(saved, action)` 比较，返回 `{ usages: [{ usage_id, title, detail?, enabled, href? }] }`。能力库的「已用在哪」、Agent 与 MCP 共用的 `actions.usages.read` 会按合同类型自动发现这些查询，不需要 Host 名单；工作流程（动作步骤、判断交接、内容站）、角色范围和对外 MCP 授权都已这样上报。`title` 用使用方自己的说法，`enabled` 表示那里现在会不会调用；读不到的来源在结果的 `issues` 中列出，而不是当作没有使用。
 
-可信动作上下文可携带 `runtime_session_id`，用于保留由 Host 识别的原会话来源；它不属于插件业务输入，也不授予权限。`user_action` 的整组确认与主体引用由受保护用户入口提供，不能从模型自报的确认字段生成。目标树审批与事件用户决定都走 host_only 兼容桥，普通插件通过目录只发现获准调用的能力。
+可信动作上下文可携带 `runtime_session_id`，用于保留由 Host 识别的原会话来源；它不属于插件业务输入，也不授予权限。`user_action` 的整组确认与主体引用由受保护用户入口提供，不能从模型自报的确认字段生成。目标树审批与事件用户决定都走 Goals 的现行动作合同，普通插件通过目录只发现获准调用的能力，独立用户权限仍由 Host 强制。
 
 ### 首页事项
 

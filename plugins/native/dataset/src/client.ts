@@ -2,45 +2,58 @@
 import { mergeDatasetDraftRows } from "./row-merge.js";
 
 // Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `fixedCell`: A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name. `molis:placement-changed`: Moved or copied from the placement bar: this list changed; a table moved away is no longer here to edit.
+// placed: Tell the workbench what happened and where the result is.
+// publishContext: The table on screen, for the placement bar and the Assistant.
+// rowsFromDom: Textareas normalize line endings; preserve unchanged CSV bytes.
+// renderTable: Existing cells are strings, including values a date/number input cannot represent.
+// renderTable: Grow from the table edge, with a "+" after the last column and below the last row.
+// renderTable: Offer filtering once there is something to filter through.
+// loadList: A directory refresh must not advance the editor's acknowledged version.
+// save: Preserve edits made while the previous request was in flight.
+// setBusy: Keep confirmation dialogs usable while preventing competing editor commands.
+// Promote: Publication may have reached Artifact storage before association failed.
+// Add column: The first column starts a grid with three empty rows.
+// listFailed: Report unreadable lists in place, with retry; the normal note lives in the editor.
+// File import holds the same command lock as pasted CSV. editorSeq invalidates pending reads/results when placement closes the editor.
 export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   const mergeDatasetDraftRows = ${mergeDatasetDraftRows.toString()};
   const { translate: L } = host;
-  const workbench = document.querySelector("[data-dataset=workbench]");
-  if (!workbench) return;
-  const list = workbench.querySelector("[data-dataset=directory]");
-  const rowsEl = workbench.querySelector("[data-dataset-rows]");
-  const empty = workbench.querySelector("[data-dataset-empty]");
-  const workspace = workbench.querySelector("[data-dataset-stage-workspace]");
-  const titleEl = workbench.querySelector("[data-dataset-editor-title]");
-  const statusEl = workbench.querySelector("[data-dataset-editor-status]");
-  const titleInput = workbench.querySelector("[data-dataset-title]");
-  const descriptionInput = workbench.querySelector("[data-dataset-description]");
-  const tableEl = workbench.querySelector("[data-dataset-table]");
-  const tableEmpty = workbench.querySelector("[data-dataset-table-empty]");
-  const filterEmpty = workbench.querySelector("[data-dataset-filter-empty]");
-  const filterInput = workbench.querySelector("[data-dataset-filter]");
-  const toolbar = workbench.querySelector("[data-dataset-toolbar]");
-  const columnName = workbench.querySelector("[data-dataset-column-name]");
-  const columnType = workbench.querySelector("[data-dataset-column-type]");
-  const aiPrompt = workbench.querySelector("[data-dataset-ai-prompt]");
-  const csvInput = workbench.querySelector("[data-dataset-csv]");
-  const note = workbench.querySelector("[data-dataset-note]");
-  const versionsEl = workbench.querySelector("[data-dataset-versions]");
-  const versionNote = workbench.querySelector("[data-dataset-version-note]");
-  const confirmDialog = workbench.querySelector("[data-dataset-confirm]");
+  const bench = document.querySelector("[data-dataset=workbench]");
+  if (!bench) return;
+  const list = bench.querySelector("[data-dataset=directory]");
+  const rowsEl = bench.querySelector("[data-dataset-rows]");
+  const empty = bench.querySelector("[data-dataset-empty]");
+  const workspace = bench.querySelector("[data-dataset-stage-workspace]");
+  const titleEl = bench.querySelector("[data-dataset-editor-title]");
+  const statusEl = bench.querySelector("[data-dataset-editor-status]");
+  const titleInput = bench.querySelector("[data-dataset-title]");
+  const descInput = bench.querySelector("[data-dataset-description]");
+  const tableEl = bench.querySelector("[data-dataset-table]");
+  const tableEmpty = bench.querySelector("[data-dataset-table-empty]");
+  const filterEmpty = bench.querySelector("[data-dataset-filter-empty]");
+  const filterInput = bench.querySelector("[data-dataset-filter]");
+  const toolbar = bench.querySelector("[data-dataset-toolbar]");
+  const columnName = bench.querySelector("[data-dataset-column-name]");
+  const columnType = bench.querySelector("[data-dataset-column-type]");
+  const aiPrompt = bench.querySelector("[data-dataset-ai-prompt]");
+  const csvInput = bench.querySelector("[data-dataset-csv]");
+  const note = bench.querySelector("[data-dataset-note]");
+  const versionsEl = bench.querySelector("[data-dataset-versions]");
+  const versionNote = bench.querySelector("[data-dataset-version-note]");
+  const confirmBox = bench.querySelector("[data-dataset-confirm]");
   let records = [];
   let selected = null;
   let saveTimer = 0;
-  let editRevision = 0;
-  let savedRevision = 0;
-  let savePromise = null;
+  let editRev = 0;
+  let savedRev = 0;
+  let saveRun = null;
   let saveError = null;
   let busy = false;
   let aiAvailable = false;
   let aiUnavailableReason = "";
   let editorSeq = 0;
   let listSeq = 0;
-  let renderedFilter = "";
+  let filterSeen = "";
   const keepListScroll = (paint) => {
     const top = list?.scrollTop || 0;
     paint();
@@ -60,8 +73,8 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   const fixedCell = (record) => {
     const node = document.createElement("span");
     node.className = "mw-status mw-status--plain feed-entry-status";
-    if (record.publication_pending) { node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
-    else if (record.artifact_version > 0) { node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
+    if (record.publication_pending) { node.dataset.mwState = "unsaved"; node.classList.add("mw-status--attention"); node.textContent = L("固定版本未存完"); }
+    else if (record.artifact_version > 0) { node.dataset.mwState = "saved"; node.classList.add("mw-status--done"); node.textContent = L("固定版本") + " v" + record.artifact_version; }
     else node.setAttribute("aria-hidden", "true");
     return node;
   };
@@ -111,37 +124,35 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     node.classList.add("is-arriving");
     return node;
   };
-  /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
   const placed = (detail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
-  /** The table on screen, for the placement bar and the Assistant. */
   const publishContext = () => {
     const context = { plugin_id: "io.molis.work.dataset", surface_title: "Dataset" };
     if (selected) {
       context.object = { kind: "dataset", id: selected.id, version: selected.version, title: titleInput.value || selected.title };
-      if (editRevision > savedRevision || saveError) context.unsaved = true;
+      if (editRev > savedRev || saveError) context.unsaved = true;
     }
-    workbench.setAttribute("data-assistant-context", JSON.stringify(context));
+    bench.setAttribute("data-assistant-context", JSON.stringify(context));
   };
   const paintStatus = (record) => {
     if (selected && selected.id === record.id) publishContext();
     const ready = record.status === "ready";
-    statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : ready ? "done" : "quiet");
-    statusEl.textContent = saveError ? L("保存失败") : savePromise ? L("保存中") : editRevision > savedRevision ? L("尚未保存") : busy ? L("处理中") : L("已保存");
-    const pending = workbench.querySelector("[data-dataset-publication-note]");
+    statusEl.className = "mw-status mw-status--" + (saveError ? "blocked" : ready ? "done" : "quiet"); statusEl.dataset.mwState = saveError ? "failed" : saveRun ? "saving" : editRev > savedRev ? "unsaved" : busy ? "running" : "saved";
+    statusEl.textContent = saveError ? L("保存失败") : saveRun ? L("保存中") : editRev > savedRev ? L("尚未保存") : busy ? L("处理中") : L("已保存");
+    const pending = bench.querySelector("[data-dataset-publication-note]");
     pending.hidden = !record.publication_pending;
     pending.textContent = record.publication_pending ? L("上次固定版本还没存完。恢复会使用上次的固定内容，之后的修改可以再存一版。") : "";
   };
   const ask = (message, okLabel) => new Promise((resolve) => {
-    if (!confirmDialog) { resolve(false); return; }
-    confirmDialog.querySelector("[data-confirm-text]").textContent = message;
-    confirmDialog.querySelector("[data-confirm-ok]").textContent = okLabel;
-    confirmDialog.returnValue = "cancel";
+    if (!confirmBox) { resolve(false); return; }
+    confirmBox.querySelector("[data-confirm-text]").textContent = message;
+    confirmBox.querySelector("[data-confirm-ok]").textContent = okLabel;
+    confirmBox.returnValue = "cancel";
     const onClose = () => {
-      confirmDialog.removeEventListener("close", onClose);
-      resolve(confirmDialog.returnValue === "ok");
+      confirmBox.removeEventListener("close", onClose);
+      resolve(confirmBox.returnValue === "ok");
     };
-    confirmDialog.addEventListener("close", onClose);
-    confirmDialog.showModal();
+    confirmBox.addEventListener("close", onClose);
+    confirmBox.showModal();
   });
   const download = (filename, text, type) => {
     const blob = new Blob([text], { type });
@@ -162,7 +173,6 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     id: row.dataset.rowId,
     cells: Object.fromEntries([...row.querySelectorAll("[data-cell]")].map((input) => {
       const previous = selected?.rows.find((item) => item.id === row.dataset.rowId)?.cells[input.dataset.columnId];
-      // Textareas normalize line endings; preserve unchanged CSV bytes.
       const value = typeof previous === "string" && previous.replace(/\\r\\n?/g, "\\n") === input.value ? previous : input.value;
       return [input.dataset.columnId, value];
     })),
@@ -175,7 +185,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (toolbar) toolbar.hidden = !filterInput.value;
       if (tableEmpty) tableEmpty.hidden = false;
       if (filterEmpty) filterEmpty.hidden = true;
-      renderedFilter = filterInput.value;
+      filterSeen = filterInput.value;
       return;
     }
     tableEl.hidden = false;
@@ -216,7 +226,6 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (input.tagName === "INPUT") {
           input.type = column.type === "number" ? "number" : "date";
           input.value = value;
-          // Existing cells are strings, including values a date/number input cannot represent.
           if (input.value !== value) input = document.createElement("textarea");
         }
         input.className = "mw-input";
@@ -234,7 +243,6 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
     const noMatch = Boolean(query && !tbody.childElementCount);
     if (!query) {
-      // The table grows from its own edge: a "+" after the last column, a row of "+" under the last row.
       const addRow = document.createElement("tr");
       addRow.className = "dataset-add-row";
       const cell = document.createElement("td");
@@ -244,11 +252,10 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       tbody.append(addRow);
     }
     tableEl.replaceChildren(thead, tbody);
-    // Filtering earns its place once there is something to filter through.
     if (toolbar) toolbar.hidden = !((record.rows || []).length >= 8 || query);
     tableEl.hidden = noMatch;
     if (filterEmpty) filterEmpty.hidden = !noMatch;
-    renderedFilter = filterInput.value;
+    filterSeen = filterInput.value;
   };
   const renderVersions = (versions) => {
     versionsEl.replaceChildren();
@@ -285,22 +292,22 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     markSelected(record.id);
     if (redraw) {
       if (document.activeElement !== titleInput) titleInput.value = record.title;
-      if (document.activeElement !== descriptionInput) descriptionInput.value = record.description || "";
+      if (document.activeElement !== descInput) descInput.value = record.description || "";
       renderTable(record);
     }
   };
   const fillEditor = async (record) => {
     clearTimeout(saveTimer);
-    editRevision = savedRevision = 0;
+    editRev = savedRev = 0;
     saveError = null;
     showNote("", false);
     const seq = ++editorSeq;
     const opening = workspace.hidden;
-    workbench.setAttribute("data-expanded", "true");
+    bench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
     if (opening) arrive(workspace);
     titleInput.value = record.title;
-    descriptionInput.value = record.description || "";
+    descInput.value = record.description || "";
     remember(record, true);
     const payload = await request("GET", "/api/plugins/dataset/" + encodeURIComponent(record.id) + "/versions");
     if (seq !== editorSeq) return;
@@ -308,11 +315,11 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const closeEditor = () => {
     clearTimeout(saveTimer);
-    editRevision = savedRevision = 0;
+    editRev = savedRev = 0;
     saveError = null;
     editorSeq += 1;
     selected = null;
-    workbench.setAttribute("data-expanded", "false");
+    bench.setAttribute("data-expanded", "false");
     workspace.hidden = true;
     publishContext();
   };
@@ -347,7 +354,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       item.append(row);
       rowsEl.append(item);
     });
-    const bar = workbench.querySelector("[data-dataset-artifact-bar]");
+    const bar = bench.querySelector("[data-dataset-artifact-bar]");
     if (bar) bar.textContent = artifactLabel(selected);
   };
   const loadList = async () => {
@@ -359,12 +366,11 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
     aiAvailable = payload.ai_available === true;
     aiUnavailableReason = payload.ai_unavailable_reason || "";
     paintAiAvailability();
-    // A directory refresh must not advance the editor's acknowledged version.
   };
   const paintAiAvailability = () => {
-    const button = workbench.querySelector("[data-dataset-generate-ai]");
+    const button = bench.querySelector("[data-dataset-generate-ai]");
     button.disabled = !aiAvailable;
-    const reason = workbench.querySelector("[data-dataset-ai-reason]");
+    const reason = bench.querySelector("[data-dataset-ai-reason]");
     reason.hidden = aiAvailable;
     reason.replaceChildren(document.createTextNode(aiUnavailableReason || L("当前没有可用的文字模型，请检查模型设置和服务连接。")));
     if (!aiAvailable) {
@@ -374,26 +380,25 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       reason.append(document.createTextNode(" "), link);
     }
   };
-  const draftFromDom = () => {
+  const readDraft = () => {
     const columns = columnsFromDom();
-    const rows = mergeDatasetDraftRows(selected?.rows || [], rowsFromDom(), columns, renderedFilter);
-    return { title: titleInput.value, description: descriptionInput.value, columns, rows };
+    const rows = mergeDatasetDraftRows(selected?.rows || [], rowsFromDom(), columns, filterSeen);
+    return { title: titleInput.value, description: descInput.value, columns, rows };
   };
   const save = () => {
     clearTimeout(saveTimer);
-    if (savePromise) return savePromise;
+    if (saveRun) return saveRun;
     const drain = async () => {
       if (saveError) throw saveError;
-      while (selected && savedRevision < editRevision) {
-        const revision = editRevision;
-        const draft = draftFromDom();
+      while (selected && savedRev < editRev) {
+        const revision = editRev;
+        const draft = readDraft();
         try {
           const payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(selected.id), {
             ...draft, expected_version: selected.version,
           });
-          // Preserve edits made while the previous request was in flight.
-          const laterDraft = editRevision > revision ? draftFromDom() : null;
-          savedRevision = revision;
+          const laterDraft = editRev > revision ? readDraft() : null;
+          savedRev = revision;
           remember(laterDraft ? { ...payload.dataset, ...laterDraft } : payload.dataset, false);
         } catch (error) {
           saveError = error;
@@ -402,37 +407,36 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       return selected;
     };
-    savePromise = drain().finally(() => {
-      savePromise = null;
+    saveRun = drain().finally(() => {
+      saveRun = null;
       if (selected) paintStatus(selected);
     });
     if (selected) paintStatus(selected);
-    return savePromise;
+    return saveRun;
   };
   const queueSave = () => {
-    editRevision += 1;
+    editRev += 1;
     if (selected) paintStatus(selected);
     clearTimeout(saveTimer);
     if (!saveError) saveTimer = setTimeout(() => { void save().catch((error) => showNote(error.message || L("保存失败"), true)); }, 400);
   };
   const setBusy = (value) => {
     busy = value;
-    // Keep confirmation dialogs usable while preventing competing editor commands.
     workspace.inert = value;
     list.inert = value;
-    workbench.setAttribute("aria-busy", String(value));
+    bench.setAttribute("aria-busy", String(value));
     if (selected) paintStatus(selected);
   };
 
-  workbench.addEventListener("click", async (event) => {
+  bench.addEventListener("click", async (event) => {
     const button = event.target.closest("button");
     if (!button || button.closest("dialog") || button.disabled || busy) return;
     setBusy(true);
     try {
       if (button.closest("[data-dataset-reload]") && selected) {
         clearTimeout(saveTimer);
-        if (savePromise) await savePromise.catch(() => {});
-        if ((saveError || editRevision > savedRevision) && !await ask(L("重新读取会丢弃当前未保存的输入。继续吗？"), L("重新读取"))) return;
+        if (saveRun) await saveRun.catch(() => {});
+        if ((saveError || editRev > savedRev) && !await ask(L("重新读取会丢弃当前未保存的输入。继续吗？"), L("重新读取"))) return;
         const payload = await request("GET", "/api/plugins/dataset/" + encodeURIComponent(selected.id));
         await fillEditor(payload.dataset);
         await loadList();
@@ -460,7 +464,6 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
           payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(id) + "/promote", { expected_version: record.version });
         } catch (error) {
           if (error.code !== "dataset.conflict") {
-            // Publication may have reached Artifact storage before association failed.
             const fresh = await request("GET", "/api/plugins/dataset/" + encodeURIComponent(id)).catch(() => null);
             if (fresh && selected?.id === id) remember(fresh.dataset, false);
             await loadList().catch(() => {});
@@ -487,7 +490,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-dataset-add-column]") && selected) {
-        const draft = draftFromDom();
+        const draft = readDraft();
         const firstColumn = draft.columns.length === 0;
         draft.columns.push({
           id: "col-" + crypto.randomUUID(),
@@ -496,7 +499,6 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
           order: draft.columns.length + 1,
         });
         if (columnName) columnName.value = "";
-        // The first column turns the starter into a grid the person can type into: three empty rows come with it.
         if (firstColumn && draft.rows.length === 0) {
           for (let index = 0; index < 3; index += 1) draft.rows.push({ id: "row-" + crypto.randomUUID(), cells: Object.fromEntries(draft.columns.map((column) => [column.id, ""])) });
         }
@@ -509,7 +511,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-dataset-add-row]") && selected) {
-        const draft = draftFromDom();
+        const draft = readDraft();
         draft.rows.push({ id: "row-" + crypto.randomUUID(), cells: Object.fromEntries(draft.columns.map((column) => [column.id, ""])) });
         selected = { ...selected, ...draft };
         renderTable(selected);
@@ -520,14 +522,14 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-dataset-paste-open]") && selected) {
-        const panel = workbench.querySelector(".dataset-panel");
+        const panel = bench.querySelector(".dataset-panel");
         if (panel) panel.open = true;
-        workbench.querySelector("[data-dataset-csv]")?.focus();
+        bench.querySelector("[data-dataset-csv]")?.focus();
         return;
       }
       if (event.target.closest("[data-column-remove]") && selected) {
         event.target.closest("[data-dataset-column]").remove();
-        const draft = draftFromDom();
+        const draft = readDraft();
         selected = { ...selected, ...draft };
         renderTable(selected);
         queueSave();
@@ -543,7 +545,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
             (selected.rows || []).filter((item) => item.id !== id),
             rowsFromDom(),
             columnsFromDom(),
-            renderedFilter,
+            filterSeen,
           ),
         };
         if (filterEmpty) {
@@ -577,7 +579,7 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (event.target.closest("[data-dataset-import-file]") && selected) {
-        const input = workbench.querySelector("[data-dataset-import-input]");
+        const input = bench.querySelector("[data-dataset-import-input]");
         input.value = ""; input.click();
         return;
       }
@@ -630,36 +632,51 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
       setBusy(false);
     }
   });
-  workbench.addEventListener("input", (event) => {
+  bench.addEventListener("input", (event) => {
     if (busy) return;
     if (event.target === filterInput && selected) {
-      selected = { ...selected, ...draftFromDom() };
+      selected = { ...selected, ...readDraft() };
       renderTable(selected);
       return;
     }
     if (event.target.closest("[data-dataset-csv], [data-dataset-ai-prompt], [data-dataset-version-note], [data-dataset-filter], [data-dataset-column-name], [data-dataset-column-type]")) return;
     if (event.target.closest(".dataset-workspace")) queueSave();
   });
-  workbench.addEventListener("change", (event) => {
+  bench.addEventListener("change", (event) => {
     if (busy || !selected || !event.target.closest("[data-column-type]")) return;
-    selected = { ...selected, ...draftFromDom() };
+    selected = { ...selected, ...readDraft() };
     renderTable(selected);
     queueSave();
   });
-  workbench.querySelector("[data-dataset-import-input]")?.addEventListener("change", async (event) => {
+  bench.querySelector("[data-dataset-import-input]")?.addEventListener("change", async (event) => {
     const file = event.target.files && event.target.files[0];
-    if (!file || !selected) return;
+    if (!file || !selected || busy) return;
+    setBusy(true);
+    let seq = editorSeq;
+    const current = () => seq === editorSeq && bench.isConnected;
     try {
       if (file.size > 2_000_000) throw new Error(L("CSV 文件超过 2 MB，请拆分后再导入"));
       if (!await ask(L("导入会覆盖当前表格的列和行。确定吗？"), L("导入"))) return;
-      await save();
+      if (!current()) return;
+      const target = await save();
+      if (!current()) return;
       const text = (await file.text()).replace(/^\ufeff/, "");
-      const payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(selected.id) + "/import-csv", { csv: text, expected_version: selected.version });
-      await fillEditor(payload.dataset);
+      if (!current()) return;
+      const payload = await request("POST", "/api/plugins/dataset/" + encodeURIComponent(target.id) + "/import-csv", { csv: text, expected_version: target.version });
+      if (!current()) return;
+      const filling = fillEditor(payload.dataset);
+      seq = editorSeq;
+      await filling;
       await loadList();
+      if (selected?.id !== target.id || !bench.isConnected) return;
+      event.target.value = "";
       showNote(L("已从文件导入 {count} 行", { count: (payload.dataset.rows || []).length }), false);
-    } catch (error) { showNote(error.message || L("导入失败"), true); }
-    finally { event.target.value = ""; }
+    } catch (error) {
+      if (current()) {
+        if (error.code === "dataset.conflict") saveError = error;
+        showNote(error.message || L("导入失败"), true);
+      }
+    } finally { setBusy(false); }
   });
   window.addEventListener("molis:placement-changed", (event) => {
     const detail = event.detail || {};
@@ -669,12 +686,11 @@ export const DATASET_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   document.addEventListener("molis-work:model-ready", () => void loadList().catch((error) => showNote(error.message, true)));
   window.addEventListener("beforeunload", (event) => {
-    if (selected && (saveError || editRevision > savedRevision)) {
+    if (selected && (saveError || editRev > savedRev)) {
       event.preventDefault();
       event.returnValue = "";
     }
   });
-  // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
   const listFailed = (error) => {
     if (empty) empty.hidden = true;
     const box = document.createElement("div");

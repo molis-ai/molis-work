@@ -1,5 +1,6 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginInstanceRecord, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PluginRuntimeError } from "./errors.js";
+
 
 /** Every activation owns a fresh grant snapshot and revocation cell, including Home activations. */
 export function createActivationContext(record: PluginInstanceRecord, definition: PluginDefinition, providerId: string) {
@@ -15,7 +16,7 @@ export function createActivationContext(record: PluginInstanceRecord, definition
     grants,
     requireGrant(permission: string) {
       if (!active || !grants.includes(permission)) {
-        throw new PluginRuntimeError("plugin_grant_denied", `Plugin 没有 ${permission} grant`);
+        throw pluginErrors.grant_denied(`Plugin 没有 ${permission} grant`);
       }
     },
   });

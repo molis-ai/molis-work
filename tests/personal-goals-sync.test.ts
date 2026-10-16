@@ -160,7 +160,7 @@ test('GSYNC-06 policy is opt-in, disabling retains data, foreign accounts and lo
   f.edit(0, app => app.goalEvents.createIntent({ project_id: p, goal_id: 'offline-only', title: '暂停后修改', actor_id: 'runtime-1', actor_kind: 'runtime', idempotency_key: 'pause' }));
   await f.run(); assert.equal(f.events.length, n);
   assert.ok(f.edit(1, app => app.goalQueries.getGoal(p, 'goal-main')));
-  assert.throws(() => f.edit(1, app => app.goalQueries.getGoal(p, 'offline-only')), { code: 'goal.not_found' });
+  assert.throws(() => f.edit(1, app => app.goalQueries.getGoal(p, 'offline-only')), { code: 'goals.not_found' });
   assert.throws(() => createPersonalGoalRegistration(f.homes[0]!, f.space.spaceId, 'bob', () => {}, withMolisWorkProjectCatalog, selection));
   const local = join(f.homes[0]!, 'local-test'); ensureStorageSpace(local);
   assert.throws(() => createPersonalGoalRegistration(local, f.space.spaceId, 'alice', () => {}, withMolisWorkProjectCatalog, selection));

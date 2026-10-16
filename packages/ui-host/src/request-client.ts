@@ -227,7 +227,7 @@ export const UI_REQUEST_CLIENT_SCRIPT = `
     setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: (id) => clearTimeout(id),
   });
   view.install(document);
-  globalThis.molisWorkRequest = Object.assign(call, { text: view.text, show: view.show, toast: view.toast });
+  globalThis.molisWorkRequest = Object.assign(call, { text: view.text, show: view.show, toast: (target, error, fallback, options) => { view.toast(target, error, fallback, options); if (target instanceof Element) target.setAttribute("data-mw-state", "failed"); } });
   globalThis.molisWorkControlHeaders ??= call.headers;
 })();
 `;

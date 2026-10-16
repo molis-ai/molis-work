@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -12,16 +13,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
-import {
-  MemoryPluginEventsRepository,
-  MemoryPluginWiringRepository,
-  PluginCapabilityAccessError,
-  PluginEventBus,
-  PluginInputGraph,
-  PluginRuntime,
-  PluginSupervisor,
-  portArtifactId,
-} from "@molis-ai/molis-work-plugin-runtime";
+import { MemoryPluginEventsRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRuntime, PluginSupervisor, portArtifactId } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -288,7 +280,7 @@ test("a Capability the Manifest never listed is refused before the Host is asked
 
     await assert.rejects(
       () => capabilities.invoke(FORBIDDEN, ["x"]),
-      (error: unknown) => error instanceof PluginCapabilityAccessError,
+      (error: unknown) => (error instanceof ActionError && ["plugin.capability_denied"].includes(error.code) && error.kind === "invalid"),
     );
     assert.deepEqual(rig.invoked, [], "被拒绝的调用不该到达宿主");
 
@@ -435,7 +427,60 @@ test("a 成果 port carries a pinned version by selection: exact identity, no co
     const wrong = services.artifacts.publish({ artifact_id: "other-kind", version: 1, artifact_type_id: "other.type", schema_version: 1, content: { kind: "inline", payload: {} }, ...pinnedArtifact("另一种成果") }).artifact;
     assert.throws(() => outputs.select({ port: "report", reference: wrong, expected_reference: fixed }), /类型/);
     rig.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "tester", ...fixed });
-    assert.throws(() => outputs.select({ port: "report", reference: fixed, expected_reference: null }), /artifact_archived/);
+    // The person reads why in words; the reason stays machine-readable in the details.
+    assert.throws(() => outputs.select({ port: "report", reference: fixed, expected_reference: null }),
+      (error: { code?: string; message?: string; details?: { reason?: string } }) => error.code === "artifacts.plugin_incompatible"
+        && error.details?.reason === "artifact_archived" && /已归档/u.test(error.message ?? ""));
+  } finally { rig.close(); }
+});
+
+test("W4-04-01 a plugin reads the head of its own line of 成果; another producer's line and a plugin without artifact:read are refused", async () => {
+  const rig = harness(() => []);
+  try {
+    const REPORT = "demo.report";
+    const reader = manifestFor({ id: CONSUMER, inputs: ["payload"] }), writer = manifestFor({ id: PRODUCER, outputs: ["payload"] });
+    reader.permissions.push({ permission: "artifact:write", required: true, reason: "固定自己的成果" });
+    const readerPreview = artifactPreview(CONSUMER, REPORT), writerPreview = artifactPreview(PRODUCER, REPORT);
+    reader.actions = [readerPreview.definition]; reader.artifacts.produces.push(readerPreview.type);
+    writer.actions = [writerPreview.definition]; writer.artifacts.produces.push(writerPreview.type);
+    await rig.supervisor.start([{ definition: definitionFor(rig, writer, [writerPreview.handler]) }, { definition: definitionFor(rig, reader, [readerPreview.handler]) }]);
+    const own = rig.services[CONSUMER]!.artifacts, other = rig.services[PRODUCER]!.artifacts;
+    const pin = (artifacts: typeof own, artifact_id: string, version: number, revision: string) => artifacts.publish({ artifact_id, version,
+      artifact_type_id: REPORT, schema_version: 1, content: { kind: "inline", payload: { version } }, supersedes_version: version > 1 ? version - 1 : null,
+      ...pinnedArtifact("报告", { kind: "report", id: artifact_id }, revision) });
+    assert.equal(own.head("report-a"), null, "a line the project does not hold yet");
+    pin(own, "report-a", 1, "3"); pin(own, "report-a", 2, "7");
+    assert.deepEqual(own.head("report-a"), { version: 2, source_revision: 7 });
+    pin(other, "report-b", 1, "1");
+    assert.throws(() => own.head("report-b"), (error: { code?: string }) => error.code === "artifacts.plugin_denied", "another producer's line");
+    assert.throws(() => other.head("report-b"), /未声明/u, "a plugin that does not declare artifact:read");
+  } finally { rig.close(); }
+});
+
+test("W4-04-02 a plugin reads back a version it pinned itself, archived and not consumed; read still refuses it, and another producer's version is refused", async () => {
+  const rig = harness(() => []);
+  try {
+    const REPORT = "demo.report";
+    const reader = manifestFor({ id: CONSUMER, inputs: ["payload"] }), writer = manifestFor({ id: PRODUCER, outputs: ["payload"] });
+    reader.permissions.push({ permission: "artifact:write", required: true, reason: "固定自己的成果" });
+    const readerPreview = artifactPreview(CONSUMER, REPORT), writerPreview = artifactPreview(PRODUCER, REPORT);
+    reader.actions = [readerPreview.definition]; reader.artifacts.produces.push(readerPreview.type);
+    writer.actions = [writerPreview.definition]; writer.artifacts.produces.push(writerPreview.type);
+    await rig.supervisor.start([{ definition: definitionFor(rig, writer, [writerPreview.handler]) }, { definition: definitionFor(rig, reader, [readerPreview.handler]) }]);
+    const own = rig.services[CONSUMER]!.artifacts, other = rig.services[PRODUCER]!.artifacts;
+    const pin = (artifacts: typeof own, artifact_id: string) => artifacts.publish({ artifact_id, version: 1,
+      artifact_type_id: REPORT, schema_version: 1, content: { kind: "inline", payload: { note: artifact_id } }, supersedes_version: null,
+      ...pinnedArtifact("报告", { kind: "report", id: artifact_id }, "1") });
+    assert.equal(own.readOwn({ artifact_id: "report-a", version: 1 }), null, "a version the project does not hold");
+    pin(own, "report-a"); pin(other, "report-b");
+    rig.artifacts.commands.archiveVersion({ project_id: DEMO_PROJECT_ID, artifact_id: "report-a", version: 1, actor_id: "tester" });
+    const back = own.readOwn({ artifact_id: "report-a", version: 1 });
+    assert.equal(back?.lifecycle_state, "archived");
+    assert.deepEqual(back?.payload, { note: "report-a" });
+    assert.throws(() => own.read({ artifact_id: "report-a", version: 1 }), (error: { code?: string }) => error.code === "artifacts.plugin_incompatible",
+      "read answers only what the plugin consumes and can still use");
+    assert.throws(() => own.readOwn({ artifact_id: "report-b", version: 1 }), (error: { code?: string }) => error.code === "artifacts.plugin_denied", "another producer's version");
+    assert.throws(() => other.readOwn({ artifact_id: "report-b", version: 1 }), /未声明/u, "a plugin that does not declare artifact:read");
   } finally { rig.close(); }
 });
 

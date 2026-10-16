@@ -1,4 +1,3 @@
-import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import {
   portTypeKey,
   requiredPorts,
@@ -10,11 +9,7 @@ import {
 
 import type { PluginHostLifecycle } from "./lifecycle.js";
 import type { PluginArtifactReaderPort } from "./wiring.js";
-
-/** A version a port can hand on: still readable and not archived. */
-export function usableVersion(record: FixedVersionRecord | null): boolean {
-  return Boolean(record && record.availability === "available" && record.lifecycle_state === "active");
-}
+import { resolvePortInput } from "./wiring-input.js";
 
 /** Every enabled plugin's output port that offers this type, except the consumer's own. */
 function candidatesFor(
@@ -66,8 +61,9 @@ export function buildWiringView(input: {
         const candidates = candidatesFor(input, port.artifact_type_id, port.schema_version, pluginId);
         const optional = port.optional === true || !required.has(port.port);
         const fixed = repository.getArtifactBinding(projectId, pluginId, port.port);
+        const resolved = resolvePortInput({ projectId, manifest, port: port.port, repository, artifacts: input.artifacts });
         if (fixed) {
-          const readable = usableVersion(input.artifacts.library?.(fixed) ?? null);
+          const readable = resolved.record !== null;
           return {
             port: port.port, artifact_type_id: port.artifact_type_id, schema_version: port.schema_version, optional,
             state: readable ? "selected" : "unavailable", origin: "user",
@@ -83,7 +79,7 @@ export function buildWiringView(input: {
           ? (candidates.length > 1 ? "ambiguous" : "missing")
           : output === null || output.artifact_id === null
             ? "missing"
-            : output.invalidated_reason !== null
+            : output.invalidated_reason !== null || resolved.record === null
               ? "unavailable"
               : "selected";
         return {
@@ -101,7 +97,7 @@ export function buildWiringView(input: {
               },
             }
             : {}),
-          ...(output?.invalidated_reason ? { reason: output.invalidated_reason } : {}),
+          ...(resolved.reason ? { reason: resolved.reason.message } : {}),
           candidates,
         };
       });

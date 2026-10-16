@@ -135,7 +135,7 @@ export function findHistoryIndexItem(
       });
     } catch (error) {
       const code = error && typeof error === "object" && "code" in error ? String((error as { code: unknown }).code) : "";
-      if (code && code !== "event.not_found") throw error;
+      if (code && code !== "goals.event.not_found") throw error;
     }
   }
   const event = journal.find((row) => row.event_id === (journalId ?? itemId));

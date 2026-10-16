@@ -1,13 +1,11 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { alchemistStateErrors } from "../../errors.js";
 import type { Direction } from "../../domain/discovery/direction.js";
-import type { Opportunity } from "../../domain/discovery/pulse.js";
+import { type Opportunity } from "../../domain/discovery/pulse.js";
 import type { Clock, IdFactory } from "../../domain/kernel/identity.js";
 import type { SqliteDirectionRepository } from "../db/direction-repository.js";
 import type { SqliteDatabase } from "../db/open-database.js";
 import type { SqlitePulseRepository } from "../db/pulse-repository.js";
-
-export class OpportunityActionError extends Error {
-  readonly name = "OpportunityActionError";
-}
 
 interface Dependencies {
   database: SqliteDatabase;
@@ -34,14 +32,14 @@ export function createOpportunityActions(dependencies: Dependencies): Opportunit
     },
     convert(id) {
       const opportunity = dependencies.pulse.getOpportunity(id);
-      if (!opportunity) throw new OpportunityActionError("OPPORTUNITY_NOT_FOUND");
+      if (!opportunity) throw alchemistStateErrors.opportunity_not_found("alchemist.opportunity_not_found");
       if (opportunity.convertedDirectionId) {
         const direction = dependencies.directions.get(opportunity.convertedDirectionId);
-        if (!direction) throw new OpportunityActionError("OPPORTUNITY_DIRECTION_NOT_FOUND");
+        if (!direction) throw alchemistStateErrors.opportunity_direction_not_found("alchemist.opportunity_direction_not_found");
         return { opportunity, direction, created: false };
       }
       const report = dependencies.pulse.getReport(opportunity.reportId);
-      if (!report) throw new OpportunityActionError("PULSE_REPORT_NOT_FOUND");
+      if (!report) throw alchemistStateErrors.pulse_report_not_found("alchemist.pulse_report_not_found");
       try {
         return dependencies.database.transaction(() => {
           const now = dependencies.clock.now();
@@ -73,10 +71,17 @@ export function createOpportunityActions(dependencies: Dependencies): Opportunit
   };
 }
 
-function mapError(error: unknown): OpportunityActionError {
-  if (error instanceof OpportunityActionError) return error;
-  if (error instanceof Error && error.message.startsWith("OPPORTUNITY_")) {
-    return new OpportunityActionError(error.message);
+function mapError(error: unknown): ActionError {
+  if (error instanceof ActionError && [
+    "alchemist.opportunity_not_found", "alchemist.opportunity_direction_not_found", "alchemist.pulse_report_not_found", "alchemist.opportunity_action_failed",
+    "alchemist.opportunity_already_converted", "alchemist.opportunity_cannot_be_saved", "alchemist.opportunity_cannot_be_dismissed", "alchemist.opportunity_cannot_be_converted",
+  ].includes(error.code)) return error;
+  if (error instanceof Error) {
+    switch (error.message) {
+      case "alchemist.opportunity_not_found": return alchemistStateErrors.opportunity_not_found(error.message);
+      case "alchemist.opportunity_direction_not_found": return alchemistStateErrors.opportunity_direction_not_found(error.message);
+      case "alchemist.opportunity_action_failed": return alchemistStateErrors.opportunity_action_failed(error.message);
+    }
   }
-  return new OpportunityActionError("OPPORTUNITY_ACTION_FAILED");
+  return alchemistStateErrors.opportunity_action_failed("alchemist.opportunity_action_failed");
 }

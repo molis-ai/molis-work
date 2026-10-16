@@ -1,3 +1,4 @@
+import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -6,14 +7,14 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import type { ActionView, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
 import { watchSettlements } from "./fixtures/settlements.js";
 import { AssistantStore, type StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
-import { AssistantError, AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { HOST_GOVERNED_TOOLS, gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -24,17 +25,7 @@ async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<Non
 }
 
 /** One Anthropic-style streamed reply: a tool call, or text. */
-function reply(tool?: { name: string; input: unknown }, text = "Done."): Response {
-  const events: string[] = [];
-  const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
-  emit("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
-  emit("content_block_start", { index: 0, content_block: tool ? { type: "tool_use", id: `call-${Math.random().toString(36).slice(2)}`, name: tool.name, input: {} } : { type: "text", text: "" } });
-  emit("content_block_delta", { index: 0, delta: tool ? { type: "input_json_delta", partial_json: JSON.stringify(tool.input) } : { type: "text_delta", text } });
-  emit("content_block_stop", { index: 0 });
-  emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
-  emit("message_stop", {});
-  return new Response(events.join(""), { headers: { "content-type": "text/event-stream" } });
-}
+
 
 const write: ActionDefinition = { capability_id: "fixture.notes.write", version: 1, operation: "command", action: {
   title: "Save a note", description: "Store a note in the project", kind: "operation", scope: "project", audiences: ["agent"],
@@ -71,7 +62,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views),
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user", options.now);
@@ -187,15 +178,21 @@ test("a repeated Send starts nothing twice; a new Send while running reaches the
 test("without a model the work and its text are kept, with a next step", { timeout: 30_000 }, async t => {
   const f = await fixture(t, [], { model: false });
   try {
+    let retainedId: unknown; // W3-02-G3-03: the same work and original draft travel in owner details.
     await assert.rejects(f.service.send({ text: "Plan my week", request_id: "req-00000005" }, {}), (error: unknown) => {
-      assert.ok(error instanceof AssistantError);
+      assert.ok(error instanceof ActionError);
       assert.equal(error.code, "assistant.model_missing");
-      assert.equal(error.action, "打开模型设置");
-      assert.equal(error.work?.draft, "Plan my week");
+      assert.equal(error.kind, "invalid");
+      assert.equal(error.details?.action, "打开模型设置");
+      const kept = error.details?.work;
+      assert.ok(kept && typeof kept === "object" && "draft" in kept && "work_id" in kept);
+      assert.equal(kept.draft, "Plan my week");
+      retainedId = kept.work_id;
       return true;
     });
     const [work] = await f.service.list();
     assert.equal(work!.draft, "Plan my week");
+    assert.equal(work!.work_id, retainedId);
     // The failed Send released its id: trying again is a new attempt, not a replay of the failure.
     await assert.rejects(f.service.send({ work_id: work!.work_id, text: "Plan my week", request_id: "req-00000005" }, {}), /模型/);
   } finally { await f.close(); }
@@ -333,7 +330,7 @@ test("an object no reader can read keeps the name its page gave it, not its iden
   } finally { await f.close(); }
 });
 
-test("a change the stop reaches before it is sent never runs, and the work says it did not run", { timeout: 60_000 }, async t => {
+test("PREP-108-04: a change the stop reaches before it is sent never runs, and the work says it did not run", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [() => reply(undefined, "好的。")]);
   try {
     const sent = await f.service.send({ text: "准备一下", request_id: "req-00000041" }, { project_ref: f.project });
@@ -449,7 +446,7 @@ test("today's usage comes from the runtime's own receipts; once the person's dai
     // A cap below what was already used today (set directly, as if the rounds had been long ones).
     f.store.setSetting("web-user", "daily_tokens", String(usage.today.input + usage.today.output));
     await assert.rejects(f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000032" }, {}),
-      (error: unknown) => error instanceof AssistantError && error.code === "assistant.budget" && /达到你设的每日上限/.test(error.message));
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.budget" && error.kind === "invalid" && /达到你设的每日上限/.test(error.message));
     assert.equal((await f.service.read(sent.work.work_id)).rounds.length, 1, "nothing started; what ran stays");
     assert.equal(f.service.saveBudget(null), null);
     const again = await f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000033" }, {});
@@ -500,7 +497,7 @@ test("background work a round or a card starts is followed through the plugin's 
     state = "running";
     await f.service.send({ work_id: sent.work.work_id, text: "给我一个再研究一次的按钮", request_id: "req-00000036" }, {});
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
-    const ran = await f.service.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
+    const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
     assert.deepEqual([ran.status, ran.outcome], ["running", "已开始，后台进行中"]);
     const cardJob = f.store.jobs("web-user", sent.work.work_id).find(item => item.card_id === ran.card_id)!;
     state = "failed";
@@ -531,7 +528,7 @@ test("running a card whose action starts a background job follows that job once,
   try {
     const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000037" }, { project_ref: f.project });
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
-    const ran = await f.service.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
+    const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
     assert.deepEqual([ran.status, ran.outcome, next], ["running", "已开始，后台进行中", 1]);
     // One start, one followed job: it belongs to the card, and the work lists it once.
     const jobs = f.store.jobs("web-user", sent.work.work_id);
@@ -583,17 +580,17 @@ test("a suggested action becomes a card that runs exactly what it shows, once, a
     assert.deepEqual(ready.fields, [{ key: "text", label: "内容", value: "会后发纪要", editable: true }]);
     assert.equal(asking.status, "needs-input");
     // The person adjusts the editable field and clicks: exactly that runs, once.
-    const ran = await f.service.runCard(sent.work.work_id, ready.card_id, { revision: ready.revision, values: { text: "会后 24 小时内发纪要" } });
+    const ran = await f.service.offers.runCard(sent.work.work_id, ready.card_id, { revision: ready.revision, values: { text: "会后 24 小时内发纪要" } });
     assert.equal(ran.status, "done");
-    const again = await f.service.runCard(sent.work.work_id, ready.card_id, { revision: ready.revision, values: { text: "twice" } });
+    const again = await f.service.offers.runCard(sent.work.work_id, ready.card_id, { revision: ready.revision, values: { text: "twice" } });
     assert.equal(again.status, "done", "a second click reports the first outcome");
     assert.deepEqual(JSON.parse(JSON.stringify(f.notes.prepare("SELECT body FROM notes").all())), [{ body: "会后 24 小时内发纪要" }]);
     // Only the declared fields can change, and a missing one must be given.
-    await assert.rejects(f.service.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision }), /笔记写什么/);
-    await assert.rejects(f.service.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { other: "x" } }), /不能在这里修改/);
+    await assert.rejects(f.service.offers.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision }), /笔记写什么/);
+    await assert.rejects(f.service.offers.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { other: "x" } }), /不能在这里修改/);
     // Switched off after it was suggested: the card says so and runs nothing else in its place.
     f.store.setActionEnabled("web-user", actionKey({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }), false);
-    const stale = await f.service.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { text: "late" } });
+    const stale = await f.service.offers.runCard(sent.work.work_id, asking.card_id, { revision: asking.revision, values: { text: "late" } });
     assert.equal(stale.status, "stale");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1);
   } finally { await f.close(); }
@@ -612,8 +609,8 @@ test("a moment on a card is picked, not typed: the field says so, the exact inst
     const card = done.cards[0]!;
     assert.equal(card.status, "needs-input");
     assert.deepEqual(card.fields.find(field => field.key === "remind_at"), { key: "remind_at", label: "提醒时间", value: "", editable: true, input: "datetime" });
-    await assert.rejects(f.service.runCard(sent.work.work_id, card.card_id, { revision: card.revision, values: { remind_at: "" } }), /什么时候提醒你/);
-    const ran = await f.service.runCard(sent.work.work_id, card.card_id, { revision: card.revision, values: { remind_at: "2026-10-01T01:00:00.000Z" } });
+    await assert.rejects(f.service.offers.runCard(sent.work.work_id, card.card_id, { revision: card.revision, values: { remind_at: "" } }), /什么时候提醒你/);
+    const ran = await f.service.offers.runCard(sent.work.work_id, card.card_id, { revision: card.revision, values: { remind_at: "2026-10-01T01:00:00.000Z" } });
     assert.equal(ran.status, "done");
     assert.deepEqual(f.seen, [{ text: "给财务回邮件", remind_at: "2026-10-01T01:00:00.000Z" }], "the exact instant runs");
     const shown = ran.fields.find(field => field.key === "remind_at");
@@ -645,7 +642,7 @@ test("a suggestion whose moment has passed, or that counted days from another da
     view = await f.service.read(sent.work.work_id);
     assert.equal(view.cards[1]!.status, "stale");
     assert.match(view.cards[1]!.outcome ?? "", /2026-10-01 准备的/);
-    const clicked = await f.service.runCard(sent.work.work_id, view.cards[1]!.card_id, { revision: view.cards[1]!.revision });
+    const clicked = await f.service.offers.runCard(sent.work.work_id, view.cards[1]!.card_id, { revision: view.cards[1]!.revision });
     assert.equal(clicked.status, "stale");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "neither ran");
   } finally { await f.close(); }
@@ -739,7 +736,8 @@ test("a change its owner has not answered by the gateway's own deadline ends in 
   const { executors } = prologueActionGateway({ client, operate: true } as never, 10_500);
   const started = Date.now();
   await assert.rejects((executors["change-capability"] as any)({ args: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "x" } } }),
-    (error: any) => error.code === "actions.outcome_unknown" && /may or may not have taken effect/.test(error.message));
+    // What the model sees (GATEWAY-MODEL-CODE-01): the SDK's tool error, carrying the owner's code and words at its start.
+    (error: any) => error.code === "HOST_RESPONSE_INVALID" && /^actions\.outcome_unknown: /.test(error.message) && /may or may not have taken effect/.test(error.message));
   assert.ok(Date.now() - started < 7_000, "well before the runtime's own limit");
   assert.equal(seen?.aborted, true, "the owner is told to stop");
 });
@@ -810,7 +808,7 @@ test("a card a page prepared from the person's selection is checked like the Ass
   const source = { surface: "pages", title: "Pages" };
   try {
     const before = f.requests.length;
-    const placed = await f.service.offerFromPage({ message_id: "page-message-0001", source, card }, { project_ref: f.project });
+    const placed = await f.service.offers.offerFromPage({ message_id: "page-message-0001", source, card }, { project_ref: f.project });
     assert.equal(f.requests.length, before, "no model round starts");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "nothing runs before the click");
     assert.deepEqual([placed.card.status, placed.card.effect, placed.card.from, placed.card.source_object?.id], ["ready", "write", source, "doc-7"]);
@@ -818,24 +816,24 @@ test("a card a page prepared from the person's selection is checked like the Ass
     assert.equal(view.work.title, "记到笔记");
     assert.deepEqual(view.objects.map(object => [object.relation, object.subject.kind, object.subject.id, object.recorded_revision]), [["origin", "pages_document", "doc-7", "3"]]);
     // The same message delivered again shows the same card; nothing new is placed.
-    const again = await f.service.offerFromPage({ message_id: "page-message-0001", source, card }, { project_ref: f.project });
+    const again = await f.service.offers.offerFromPage({ message_id: "page-message-0001", source, card }, { project_ref: f.project });
     assert.deepEqual([again.work_id, again.card.card_id], [placed.work_id, placed.card.card_id]);
     assert.equal((await f.service.read(placed.work_id)).cards.length, 1);
     // A page cannot place what the Assistant may not do, nor an input the capability would refuse.
-    await assert.rejects(f.service.offerFromPage({ message_id: "page-message-0002", source, card: { ...card, input: { text: 42 } } }, { project_ref: f.project }));
+    await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-message-0002", source, card: { ...card, input: { text: 42 } } }, { project_ref: f.project }));
     f.store.setActionEnabled("web-user", actionKey(card.reference), false);
-    await assert.rejects(f.service.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof AssistantError && error.code === "assistant.action_revoked");
+    await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-message-0003", source, card }, { project_ref: f.project }), (error: unknown) => error instanceof ActionError && error.code === "assistant.action_revoked" && error.kind === "invalid");
     f.store.setActionEnabled("web-user", actionKey(card.reference), true);
-    await assert.rejects(f.service.offerFromPage({ message_id: "x", source, card }, { project_ref: f.project }), /页面消息标识无效/);
+    await assert.rejects(f.service.offers.offerFromPage({ message_id: "x", source, card }, { project_ref: f.project }), /页面消息标识无效/);
     // The click runs exactly what the card shows, once.
-    const ran = await f.service.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision });
+    const ran = await f.service.offers.runCard(placed.work_id, placed.card.card_id, { revision: placed.card.revision });
     assert.equal(ran.status, "done");
     assert.deepEqual(JSON.parse(JSON.stringify(f.notes.prepare("SELECT body FROM notes").all())), [{ body: "会后 24 小时内发纪要" }]);
     // Continuing the work, the round hears the selection.
     await f.service.send({ work_id: placed.work_id, text: "再帮我想两条类似的", request_id: "req-00000071" }, {});
     await until(async () => (await f.service.read(placed.work_id)).work.state === "completed", "round");
     // Placed into a work that already has rounds, a page's card still belongs to no round: it came from the page.
-    const second = await f.service.offerFromPage({ message_id: "page-message-0004", source, card, work_id: placed.work_id }, { project_ref: f.project });
+    const second = await f.service.offers.offerFromPage({ message_id: "page-message-0004", source, card, work_id: placed.work_id }, { project_ref: f.project });
     assert.equal(second.card.run_id, null);
     assert.equal(placed.card.run_id, null);
   } finally { await f.close(); }

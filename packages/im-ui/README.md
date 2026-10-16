@@ -37,7 +37,7 @@ SSE 触发查询刷新，消息按 ID 复用 DOM；阅读历史时保留位置�
 ```sh
 pnpm --filter @molis-ai/molis-work-im-ui build
 pnpm --filter @molis-ai/molis-work-im-ui typecheck
-node --import tsx --test --test-concurrency=1 tests/im-browser-state.test.ts tests/im-domain.test.ts tests/im-local-project.test.ts
+node scripts/run-tests.mjs tests/im-browser-state.test.ts tests/im-domain.test.ts tests/im-local-project.test.ts
 ```
 
 复查发现的 5 项缺陷及模块边界调整已修复；14 项定向状态/领域/HTTP 回归通过。真实源码工作台复跑跨页缓存、延迟发布、搜索锚点、清除 Cookie 后恢复和实际发送、390×400 短屏与桌面/常规窄屏。范围仍仅为功能可用切片；修复证据见 spec 和 `review/e2e-audit/fixes.md`。

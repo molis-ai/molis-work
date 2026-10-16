@@ -3,7 +3,7 @@ import test from "node:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { COSS_CONTROL_STYLES, PRIMITIVE_STYLES } from "@molis-ai/molis-work-design-system";
+import { COSS_CONTROL_STYLES, INTERACTION_QUESTION_STYLES, PRIMITIVE_STYLES } from "@molis-ai/molis-work-design-system";
 import { FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import {
   renderMolisWorkArrivalStylesheet,
@@ -213,9 +213,11 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   assert.match(touch, /\.bar-composer:is\(\[data-crowded="mark"\], \[data-crowded="chips"\]\) \.assistant-target-clear \{ display: none; \}/, "a line still over its edge then lets the work chip's mark go");
   assert.match(touch, /\.bar-composer:is\(\[data-crowded="mark"\], \[data-crowded="chips"\]\) \.assistant-target\[data-mode="work"\] \{ min-width: 44px; \}/, "and the work chip then needs room for one button");
   assert.match(touch, /\.bar-composer\[data-crowded="chips"\] :is\(\.assistant-materials-button, \.assistant-attention\) \{ display: none; \}/, "and last the materials and the notice, which the \"+\" menu then lists");
-  assert.match(touch, /\) :is\(\.assistant-popover, \.assistant-offer, \.plugin-picker-popover, \.dock-overflow, \.navigator-project-menu-popover, \.assistant-panel\) :is\(button:not\(\.assistant-inline-object\), summary, a\[href\]:not\(\.assistant-link\), input:not\(\[type=checkbox\], \[type=radio\]\), select, textarea\) \{ min-width: 44px; min-height: 44px; \}/, "what the bar opens (the \"+\" menu's rows, the choosers, the notices, the switcher's buttons, the Dock's list, the project menu, the whole opened panel: its tab bar, the list of works, the details and the conversation) is 44px on touch, and only what sits inside a sentence is left to the two rules below");
+  assert.match(touch, /\) :is\(\.assistant-popover, \.assistant-next-row, \.plugin-picker-popover, \.dock-overflow, \.navigator-project-menu-popover, \.assistant-panel\) :is\(button:not\(\.assistant-inline-object\), summary, a\[href\]:not\(\.assistant-link\), input:not\(\[type=checkbox\], \[type=radio\]\), select, textarea\) \{ min-width: 44px; min-height: 44px; \}/, "what the bar opens (the \"+\" menu's rows, the choosers, the notices, the switcher's buttons, the Dock's list, the project menu, the whole opened panel: its tab bar, the list of works, the details and the conversation) is 44px on touch, and only what sits inside a sentence is left to the two rules below");
   assert.match(touch, /\.assistant-works \{ top: 52px; \}/, "the list of all works hangs below the panel's 50px tab bar");
-  assert.match(touch, /:is\(\.assistant-choice-row, \.assistant-code-head\) \{ min-height: 44px; \}/, "a question's option rows and a code block's head are 44px");
+  assert.match(touch, /\.assistant-code-head \{ min-height: 44px; \}/, "a code block's head is 44px");
+  // A question's options and a card's buttons are the shared interaction parts now (A1+H2): 44px on touch in their own sheet.
+  assert.match(INTERACTION_QUESTION_STYLES, /@media \(max-width: 760px\), \(pointer: coarse\) \{\s*:is\(\.mw-ix-option, \.mw-ix-choices \.mw-choice\) \{ min-height: 44px; \}\s*\.mw-ix-card \.mw-btn \{ min-height: 44px; \}/, "a question's options and a card's buttons are 44px");
   assert.match(touch, /\.assistant-link \{ padding-block: 15px; \}/, "a link inside a sentence is 44px tall by padding, which takes no line room");
   assert.match(touch, /\.assistant-inline-object \{ position: relative; min-width: 44px; justify-content: center; \}[\s\S]*?\.assistant-inline-object::after \{ content: ""; position: absolute; inset: -12px -2px; \}/, "and an object chip inside a sentence is answered for by an invisible area around it");
   assert.match(touch, /\.plugin-picker-popover \{ --ops-btn: 44px; \}/, "and the switcher's pin and add buttons are 44px, with the room for two of them in the row");

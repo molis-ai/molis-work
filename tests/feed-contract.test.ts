@@ -80,6 +80,10 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
 
       const github = PROVIDER_CONTRACT_FIXTURES[0]!;
       const githubSource = feed.getSource(DEMO_PROJECT_ID, github.source.source_id);
+      // J3D-01/J3D-03: the internal deletion contract refuses before any facts change.
+      const beforeBadDelete = feed.snapshot(DEMO_PROJECT_ID);
+      assert.throws(() => feed.retireSource(DEMO_PROJECT_ID, githubSource.source_id, "invalid-history" as never), { code: "feed.contract_source_history_decision_required", kind: "internal" });
+      assert.deepEqual(feed.snapshot(DEMO_PROJECT_ID), beforeBadDelete);
       const replay = feed.ingestItem({
         source: githubSource,
         externalId: github.source.external_id,
@@ -126,23 +130,25 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
   }
 });
 
+// J3D-01/J3D-03: an unknown thrown failure retains the safe fallback and category.
 test("public errors expose only stable category, retryability and user action", () => {
-  assert.deepEqual(toFeedPublicError({ code: "connector_needs_auth", message: "Reconnect GitHub" }), {
-    code: "connector_needs_auth",
+  assert.deepEqual(toFeedPublicError(new Error("Unclassified failure")), { code: "feed.unknown", category: "unknown", retryable: false, user_action: "contact_support", safe_message: "Unclassified failure" });
+  assert.deepEqual(toFeedPublicError({ code: "connector.needs_auth", message: "Reconnect GitHub" }), {
+    code: "connector.needs_auth",
     category: "auth",
     retryable: false,
     user_action: "reconnect",
     safe_message: "Reconnect GitHub",
   });
-  assert.deepEqual(toFeedPublicError({ code: "connector_network", message: "Network unavailable" }), {
-    code: "connector_network",
+  assert.deepEqual(toFeedPublicError({ code: "connector.network", message: "Network unavailable" }), {
+    code: "connector.network",
     category: "network",
     retryable: true,
     user_action: "retry",
     safe_message: "Network unavailable",
   });
-  assert.deepEqual(toFeedPublicError({ code: "connector_rate_limited", message: "Retry later" }), {
-    code: "connector_rate_limited",
+  assert.deepEqual(toFeedPublicError({ code: "connector.rate_limited", message: "Retry later" }), {
+    code: "connector.rate_limited",
     category: "rate_limit",
     retryable: true,
     user_action: "retry",

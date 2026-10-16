@@ -1,11 +1,25 @@
 import { chmodSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { CharacterError, CharactersService } from "./service.js";
+import { applySqliteBaseline, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { CharactersService } from "./service.js";
+import { characterErrors } from "./errors.js";
 import { CharactersRepository } from "./repository.js";
 import { bindDatabaseSpace, ensureStorageSpace, type AggregateReplicaContext } from "@molis-ai/molis-work-storage";
 import { createCharactersReplica, installCharactersReplication } from "./replication.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+
+/** The one current schema of `characters/characters.sqlite`; any other version, or tables without one, is refused (repository-anti-corruption §4.1). */
+export const CHARACTERS_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `CREATE TABLE character_drafts (
+  character_id TEXT PRIMARY KEY,
+  owner_actor_id TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  updated_at TEXT NOT NULL,
+  record TEXT NOT NULL
+);` };
+
+/** The Characters store in the Home's store registry (W4-11): `characters/characters.sqlite`. */
+export const CHARACTERS_HOME_STORE = { path: "characters", library: { baseline: CHARACTERS_STORE_BASELINE, file: "characters.sqlite" } } as const satisfies HomeStoreDeclaration;
 
 /** Installation-level personal drafts. No production credential store is opened. */
 export function openCharacters(homeDirectory: string, actorId: string): { service: CharactersService; close(): void } {
@@ -28,25 +42,17 @@ export function createCharactersReplicationBinding(homeDirectory: string, userId
 }
 
 function openDatabase(homeDirectory: string, actorId: string): DatabaseSync {
-  if (!actorId.trim() || actorId.length > 200) throw new CharacterError("character.invalid", "角色库缺少有效所有者");
-  const directory = join(homeDirectory, "characters");
+  if (!actorId.trim() || actorId.length > 200) throw characterErrors.invalid("角色库缺少有效所有者");
+  const directory = join(homeDirectory, CHARACTERS_HOME_STORE.path);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const filename = join(directory, "characters.sqlite"), db = new DatabaseSync(filename);
+  const filename = join(directory, CHARACTERS_HOME_STORE.library.file), db = new DatabaseSync(filename);
   try {
-    chmodSync(filename, 0o600);
     db.exec("PRAGMA busy_timeout = 3000");
-    const version = (db.prepare("PRAGMA user_version").get() as { user_version: number }).user_version;
-    if (version > 1) throw new CharacterError("character.invalid", "角色库由更新版本创建，请使用更新的应用");
-    db.exec(`CREATE TABLE IF NOT EXISTS character_drafts (
-      character_id TEXT PRIMARY KEY,
-      owner_actor_id TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      updated_at TEXT NOT NULL,
-      record TEXT NOT NULL
-    ); PRAGMA user_version = 1;`);
+    applySqliteBaseline(db, filename, CHARACTERS_STORE_BASELINE);
     const space = ensureStorageSpace(homeDirectory);
     bindDatabaseSpace(db, space);
     if (space.kind === "personal") installCharactersReplication(db);
+    chmodSync(filename, 0o600);
     return db;
   } catch (error) { db.close(); throw error; }
 }

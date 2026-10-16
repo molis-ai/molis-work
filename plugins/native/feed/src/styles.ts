@@ -102,7 +102,6 @@ ${F} .plugin-stage-list .feed-stage-entry .feed-entry-copy strong {
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal;
   font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.55; color: var(--ink); text-wrap: pretty;
 }
-${F} .feed-stage-entry[data-feed-entry-read="unread"] .feed-entry-copy strong::before { content: ""; display: inline-block; width: 6px; height: 6px; margin: 0 8px 4px 0; border-radius: 50%; background: var(--accent); vertical-align: middle; }
 ${F} .feed-stage-entry[data-feed-entry-read="read"] .feed-entry-copy strong { color: var(--ink-soft); }
 ${F} .plugin-stage-list .feed-stage-entry .feed-entry-preview { display: block; margin-top: 4px; font-size: 12px; line-height: 1.6; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 ${F} .feed-entry-foot { display: flex; align-items: center; min-height: 0; margin-top: 8px; }
@@ -187,6 +186,7 @@ ${F} .feed-stage-item-detail .feed-destination-strip > strong { font-size: 13px;
 ${F} .feed-stage-item-detail .feed-destination-strip > small { grid-column: 1 / -1; font-size: 12px; line-height: 1.6; color: var(--muted); }
 ${F} .feed-stage-item-detail .feed-detail-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 0; padding: 0; border: 0; }
 ${F} .feed-stage-item-detail .feed-action-status { flex-basis: 100%; margin: 0; font-size: 12px; color: var(--muted); }
+${F} .feed-stage-detail:has(> [data-feed-item-slot][hidden]) { flex: none; }
 ${F} .feed-stage-workspace > .feed-detail-empty { flex: 1; display: grid; place-content: center; justify-items: center; gap: 12px; padding: 32px; text-align: center; }
 
 /* Adding a source, a source's settings and its capture rules take the reading side. */
@@ -204,7 +204,6 @@ ${F}:is([data-feed-view="settings"], [data-feed-view="rules"], [data-feed-view="
 .feed-setup-panel input[readonly] { background:var(--rail); color:var(--muted); }
 /* Same box as the text fields beside it; only background-color, so the trigger keeps its chevron image. */
 .feed-setup-panel .mw-select-picker__trigger { box-sizing:border-box; width:100%; min-height:36px; padding:8px 32px 8px 12px; background-color:var(--paper); background-position:right 10px center; border:1px solid var(--line-strong); border-radius:6px; color:var(--ink); font:inherit; font-size:13px; }
-.feed-setup-hint { color:var(--muted); font-size:12px; line-height:1.6; }
 .feed-setup-panel textarea { resize:vertical; line-height:1.65; }
 .feed-setup-panel :is(label small,p) { color:var(--muted); line-height:1.65; font-size:12px; }
 .feed-setup-panel .check-row { flex-direction:row; align-items:center; }
@@ -212,7 +211,7 @@ ${F}:is([data-feed-view="settings"], [data-feed-view="rules"], [data-feed-view="
 .feed-setup-panel .feed-task-health strong { color:var(--ink-soft); font-weight: var(--weight-control, 500); }
 .feed-setup-panel .feed-task-extra { padding:16px 0; border-top:1px solid var(--line); margin:16px 0 0; }
 .feed-setup-panel .feed-task-extra summary { cursor:pointer; font-size:13px; color:var(--ink); padding:4px 0; }
-.feed-setup-panel :is(.feed-plan-actions,.feed-task-controls,.feed-config-actions,.feed-rule-actions) { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+.feed-setup-panel :is(.feed-plan-actions,.feed-task-controls,.feed-rule-actions) { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
 .feed-setup-panel .feed-source-choice { display:grid; grid-template-columns:28px 1fr auto; align-items:center; gap:12px; width:100%; padding:16px 8px; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; color:var(--ink); text-align:left; cursor:pointer; }
 .feed-setup-panel .feed-source-choice:hover { background:var(--nav-hover); }
 .feed-setup-panel .feed-source-choice strong { font-size:15px; font-weight: var(--weight-control, 500); }

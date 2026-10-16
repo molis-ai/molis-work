@@ -9,6 +9,6 @@
  * wait (another process is using the runtime right now), so a retry here can succeed.
  */
 export class ProjectDeletedDeferred extends Error {
-  readonly code = "project_deleted.deferred";
+  readonly code = "host.project_deleted_deferred";
   constructor(message: string, readonly elsewhere = false) { super(message); this.name = "ProjectDeletedDeferred"; }
 }

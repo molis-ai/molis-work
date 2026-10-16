@@ -101,7 +101,7 @@ export class SqliteExplorationRepository {
 
   markRunning(id: string, updatedAt: string): ExplorationRun {
     const current = this.get(id);
-    if (!current) throw new Error("EXPLORATION_NOT_FOUND");
+    if (!current) throw new Error("alchemist.exploration_not_found");
     if (current.status === "completed") return current;
     const update = this.database
       .prepare(
@@ -110,9 +110,9 @@ export class SqliteExplorationRepository {
          WHERE id = ? AND status IN ('queued', 'interrupted', 'running')`,
       )
       .run(updatedAt, id);
-    if (update.changes !== 1) throw new Error("EXPLORATION_NOT_RUNNABLE");
+    if (update.changes !== 1) throw new Error("alchemist.exploration_not_runnable");
     const running = this.get(id);
-    if (!running) throw new Error("EXPLORATION_NOT_FOUND");
+    if (!running) throw new Error("alchemist.exploration_not_found");
     return running;
   }
 
@@ -124,12 +124,12 @@ export class SqliteExplorationRepository {
     runtimeLabel?: string,
   ): ExplorationRun {
     const existing = this.get(id);
-    if (!existing) throw new Error("EXPLORATION_NOT_FOUND");
+    if (!existing) throw new Error("alchemist.exploration_not_found");
     if (existing.status === "completed") {
       const existingIds = existing.cards.map((card) => card.id);
       const incomingIds = cards.map((card) => card.id);
       if (JSON.stringify(existingIds) !== JSON.stringify(incomingIds)) {
-        throw new Error("EXPLORATION_RESULT_CONFLICT");
+        throw new Error("alchemist.exploration_result_conflict");
       }
       return existing;
     }
@@ -147,7 +147,7 @@ export class SqliteExplorationRepository {
           completedAt ?? latestTimestamp(cards, existing.updatedAt),
           id,
         );
-      if (update.changes !== 1) throw new Error("EXPLORATION_NOT_FOUND");
+      if (update.changes !== 1) throw new Error("alchemist.exploration_not_found");
 
       const insertCard = this.database.prepare(
         `INSERT INTO idea_cards (
@@ -182,7 +182,7 @@ export class SqliteExplorationRepository {
       }
     })();
     const saved = this.get(id);
-    if (!saved) throw new Error("EXPLORATION_NOT_FOUND");
+    if (!saved) throw new Error("alchemist.exploration_not_found");
     return saved;
   }
 
@@ -190,9 +190,9 @@ export class SqliteExplorationRepository {
     const update = this.database
       .prepare("UPDATE exploration_runs SET status = 'failed', error_code = ?, updated_at = ? WHERE id = ?")
       .run(errorCode, updatedAt, id);
-    if (update.changes !== 1) throw new Error("EXPLORATION_NOT_FOUND");
+    if (update.changes !== 1) throw new Error("alchemist.exploration_not_found");
     const failed = this.get(id);
-    if (!failed) throw new Error("EXPLORATION_NOT_FOUND");
+    if (!failed) throw new Error("alchemist.exploration_not_found");
     return failed;
   }
 }

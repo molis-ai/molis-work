@@ -184,7 +184,7 @@ test('stopped activation event clients remain revoked after restart and bus clos
     assert.throws(() => clients[0]!.publish(input), { code: 'actions.forbidden' });
     clients.at(-1)!.publish(input); await entered.promise;
     await platform.events.close();
-    assert.throws(() => clients.at(-1)!.publish(input), { code: 'event_identity_invalid' });
+    assert.throws(() => clients.at(-1)!.publish(input), { code: 'plugin.event_identity_invalid' });
     finish.resolve(); await new Promise(resolve => setImmediate(resolve));
     assert.equal(writes, 0);
     assert.equal(platform.events.cursors(DEMO_PROJECT_ID, CONSUMER)[0]!.state, 'quarantined');
@@ -340,11 +340,17 @@ test('committed changes to a port\'s process item refresh existing inputs across
     onUpstreamReady: (_inputs, delivery) => { delivery.beforeEffect(); contexts.push(delivery); },
     onUpstreamUnavailable: () => { unavailable++; onUnavailable.resolve(); } }; } };
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  // W4-09-03: the watcher is told about writes in this process; its only timer is the slow fallback for other processes.
+  const intervals: number[] = [], setIntervalBefore = globalThis.setInterval;
+  globalThis.setInterval = ((handler: Parameters<typeof setInterval>[0], ms?: number, ...rest: unknown[]) => { intervals.push(ms ?? 0); return setIntervalBefore(handler, ms, ...rest); }) as typeof setInterval;
   try {
-    await platform.start([
-      { definition: definitionFor(manifestFor({ id: PRODUCER, outputs: ['payload'] }), recorder, services => { outputs = (services as { outputs: PluginOutputsClient }).outputs; }) },
-      { definition: consumer },
-    ]);
+    try {
+      await platform.start([
+        { definition: definitionFor(manifestFor({ id: PRODUCER, outputs: ['payload'] }), recorder, services => { outputs = (services as { outputs: PluginOutputsClient }).outputs; }) },
+        { definition: consumer },
+      ]);
+    } finally { globalThis.setInterval = setIntervalBefore; }
+    assert.ok(intervals.every(ms => ms >= 30_000), `W4-09-03: no interval shorter than the fallback (${intervals.join(', ')})`);
     platform.wiring.bind({ project_id: DEMO_PROJECT_ID, target_plugin_id: CONSUMER, target_port: 'payload',
       source_plugin_id: PRODUCER, source_port: 'payload', origin: 'user', actor_id: 'tester' });
     const first = outputs.publish({ port: 'payload', content: { kind: 'inline', payload: 'first' } }).artifact;
@@ -372,7 +378,9 @@ test('committed changes to a port\'s process item refresh existing inputs across
     other.db.exec('BEGIN IMMEDIATE');
     remote.commands.markUnavailable({ project_id: DEMO_PROJECT_ID, actor_id: 'tester', ...first, reason: 'removed remotely' });
     await delay(1100); assert.equal(unavailable, 0, 'uncommitted work on another connection is invisible');
-    other.db.exec('COMMIT'); await onUnavailable.promise;
+    // W4-09-03: the commit on another connection is announced, not found by the 30-second fallback (this test stops at 18 s).
+    const committedAt = Date.now(); other.db.exec('COMMIT'); await onUnavailable.promise;
+    assert.ok(Date.now() - committedAt < 1000, 'the input learns of the commit within a second');
     assert.equal(unavailable, 1); assert.equal(contexts[0]!.signal.aborted, true);
     assert.equal(platform.wiring.status(CONSUMER).status, 'missing');
 

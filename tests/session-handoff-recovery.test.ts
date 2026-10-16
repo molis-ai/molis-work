@@ -528,7 +528,8 @@ test("an interrupted sending state keeps its known target and becomes retryable 
   try {
     const recovered = registry.getHandoff(draft.package_id);
     assert.equal(recovered.state, "failed");
-    assert.equal(recovered.error_code, "handoff.interrupted");
+    // R4A1-01: lease recovery produces the current owner code in the stored receipt.
+    assert.equal(recovered.error_code, "work.handoff.interrupted");
     assert.equal(recovered.retryable, true);
     assert.equal(recovered.destination_session_id, destination.session_id);
     assert.equal(recovered.delivery_mode, "native");

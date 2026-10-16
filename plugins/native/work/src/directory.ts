@@ -1,10 +1,8 @@
+import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { RuntimeHostApi } from "@molis-ai/molis-work-contracts/services/runtime-host";
-import {
-  MolisWorkSessionError,
-  type MolisWorkSessionRecord,
-  type RuntimeSessionAdapterResult,
-} from "./types.js";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { type MolisWorkSessionRecord, type RuntimeSessionAdapterResult } from "./types.js";
 
 export interface SessionDirectoryCreateInput {
   runtime_id: string;
@@ -37,13 +35,15 @@ export class SessionDirectoryService {
     private readonly router: RuntimeHostApi,
   ) {}
 
-  async discover(runtimeId: string): Promise<SessionDirectoryDiscoveryResult> {
+  async discover(runtimeId: string, control?: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">): Promise<SessionDirectoryDiscoveryResult> {
     const normalizedRuntimeId = requiredText(runtimeId, "Runtime 标识不能为空");
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     const result = await this.router.invoke(normalizedRuntimeId, "discover", {
       limit: 100,
       includeTurns: false,
       sortKey: "updated_at",
     });
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     if (result.status !== "ok") {
       return {
         runtime_id: normalizedRuntimeId,
@@ -78,14 +78,15 @@ export class SessionDirectoryService {
     };
   }
 
-  async create(input: SessionDirectoryCreateInput): Promise<MolisWorkSessionRecord> {
+  async create(input: SessionDirectoryCreateInput, control?: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">): Promise<MolisWorkSessionRecord> {
     if (!input.user_confirmed) {
-      throw new MolisWorkSessionError("session.confirmation_required", "Session 写入必须由用户明确确认");
+      throw sessionErrors.confirmation_required("Session 写入必须由用户明确确认");
     }
     const runtimeId = requiredText(input.runtime_id, "Runtime 标识不能为空");
     const projectId = requiredText(input.project_id, "新 Session 必须关联 Project");
     const actorId = requiredText(input.actor_id, "Session 写入必须记录执行者");
     const capability = this.router.capabilities(runtimeId).create;
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     if (capability === "registry") {
       const result = await this.router.invoke(runtimeId, "create", {
         actor_id: actorId,
@@ -96,20 +97,22 @@ export class SessionDirectoryService {
         workspace_path: optionalText(input.workspace_path),
         title: optionalText(input.title),
       });
+      await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
       return resultRecord(result, "Runtime fallback 无法创建 Session 记录");
     }
     if (capability !== "native") {
-      throw new MolisWorkSessionError("session.invalid_input", `${runtimeId} 不支持创建 Session`);
+      throw sessionErrors.invalid_input(`${runtimeId} 不支持创建 Session`);
     }
     const result = await this.router.invoke(runtimeId, "create", {
       ...(optionalText(input.workspace_path) ? { cwd: optionalText(input.workspace_path) } : {}),
     });
+    await control?.beforeEffect(); control?.assert_authority_current?.(); control?.signal?.throwIfAborted();
     if (result.status !== "ok") {
-      throw new MolisWorkSessionError("session.invalid_input", result.message);
+      throw sessionErrors.invalid_input(result.message);
     }
     const nativeId = nativeSessionId(result.value);
     if (!nativeId) {
-      throw new MolisWorkSessionError("session.invalid_input", "Runtime 已响应，但没有返回可识别的原生 Session ID");
+      throw sessionErrors.invalid_input("Runtime 已响应，但没有返回可识别的原生 Session ID");
     }
     return this.registry.explicitlyLinkSession({
       runtime_id: runtimeId,
@@ -127,10 +130,7 @@ export class SessionDirectoryService {
 
 function resultRecord(result: RuntimeSessionAdapterResult, message: string): MolisWorkSessionRecord {
   if (result.status !== "ok" || !isRecord(result.value) || typeof result.value.session_id !== "string") {
-    throw new MolisWorkSessionError(
-      "session.invalid_input",
-      result.status === "ok" ? message : result.message,
-    );
+    throw sessionErrors.invalid_input(result.status === "ok" ? message : result.message);
   }
   return result.value as unknown as MolisWorkSessionRecord;
 }
@@ -205,6 +205,6 @@ function optionalText(value: unknown): string | null {
 
 function requiredText(value: unknown, message: string): string {
   const text = optionalText(value);
-  if (!text) throw new MolisWorkSessionError("session.invalid_input", message);
+  if (!text) throw sessionErrors.invalid_input(message);
   return text;
 }

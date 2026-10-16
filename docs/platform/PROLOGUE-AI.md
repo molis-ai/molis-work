@@ -75,7 +75,7 @@ Coding 页面 → plugins/native/coding/src/routes.ts
   → agent.run.start.v1 → AgentHost.start（horizontal/agent-host/src/index.ts）
       冻结角色（Manifest + BUILTIN_PLUGIN_AGENTS 的提示词正文）→ 核对目录授权 → 核对原会话归属（project/plugin/install/actor）
       → 解析 Character 固定版本 → 组装宿主工具与动作工具（精确引用）
-  → Prologue 适配器（adapters/prologue-node.ts）运行工具循环
+  → Prologue 适配器（adapters/prologue-node.ts 组合，adapters/prologue-run.ts 起跑）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准
   → 报告、变更集作为 Artifact 发布
   ← agent.run.wait.v1 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
@@ -131,7 +131,7 @@ modelAvailability: () => model() ? { available: true } : { available: false, cod
 
 Cognia 同时保留已登记的知识角色与回答指令：角色作为共享单次推理的 system 输入，回答指令与固定资料作为正文。可编辑的提示词必须真实进入调用，不能只有登记页面。`tests/cognia-prologue.test.ts` 与 `tests/plugin-model-generation.test.ts` 经真实 SDK 和本地 HTTP 核对用户覆盖、工具边界、取消和撤权；`tests/installed-plugin-host.test.ts` 核对真实安装生命周期。
 
-**Runtime 插件（宿主自己运行的）：`services.model`**（W3-06 E；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke`、定义不是沙箱执行、平台有 Home，`context.services.model` 才存在；它不是 typed 能力，沙箱插件（生成插件）仍走 `model.generate`。
+**Runtime 插件（宿主自己运行的 Home 与项目实例）：`services.model`**（W3-06 E/F；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke`、定义不是沙箱执行、平台有 Home，`context.services.model` 才存在；它不是 typed 能力，沙箱插件（生成插件）仍走 `model.generate`。 HomePluginExecutor 与项目执行器复用 `pluginModelFor` / `registerPluginInstructions`，Home 的模型注入仍在每次调用时读取；停止开始撤执行权，最后一个持有该安装的实例退出时撤指令，不能新增 Home 推理进程。Home 组合用例见 `tests/home-plugin-model-lifecycle.test.ts`，替身覆盖不等于真实账号验收。
 
 - **只在插件自己的动作里**：处理器所在的动作要在 `action.permissions` 里写 `model:invoke`，并且 `scheduling: "concurrent"`。Runtime 给每个动作处理器包一层（`action-scope.ts`，`AsyncLocalStorage`），记下正在执行的动作和这次调用的 `beforeEffect`；插件不传、也伪造不了。`start()`、路由、定时器、别的插件的动作、串行动作、没声明权限的动作里调用，在发出之前就以 `plugin.model_action_required`、`plugin.model_action_not_concurrent`、`plugin.model_permission_undeclared` 拒绝。
 - **发出前和返回后各问一次**：实例仍在运行、安装仍持有 `model:invoke`、这次调用的 `beforeEffect()` 通过，才发出；模型返回后再问一遍，才把结果交给插件。动作已经返回的调用得到 `actions.expired`（定时器里迟到的调用就是这样被挡下的），取消、撤权、停用的调用拿不到结果。插件写入前仍要自己 `await caller.beforeEffect()`，按读取时的版本提交。
@@ -206,6 +206,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 ## 8. 流式、结构化输出、错误、取消、超时、恢复
 
 - **流式**：Agent 轮次用 `agent.run.wait.v1`（最长 25 秒的长轮询，按版本返回变化）；有界推理可用 `onProgress` 观察原 Run 的文本、模型和用量事件，最终结果仍需等待终态与领域校验。
+- **等待与接续**（Coding 的协作轮次）：模型等答复、等后台命令、等另一个会话的那一步，人排队等另一轮，都挂在 Prologue 任务图的步骤上；等待与接续的事实只在任务图里，插件不另存一份。读与控制走 `@molis-ai/molis-work-contracts/services/agent-collaboration` 的两个动作：`agent.collaboration.read.v1`（每个会话一条视图）、`agent.collaboration.control.v1`（`cancel-wait`、`continue-now`）。等到有接续可以走，用 typed 等待 `agentHostCapabilities.awaitContinuations`（最长 25 秒；动作不能是等待）。接续由插件用它的请求键起下一轮，照常经过宿主开跑前的全部复核；被重启截断、结果未知的等待留给人核对，不自动起跑（`specs/prologue-adoption/spec.md` §4.6.4、§4.6.10）。
 - **结构化输出**：SDK `structured` 执行明确支持的 schema；`decodeJsonOutput` 只处理格式，不能替代领域验证。Alchemist 默认不纠正，仅在原业务预算明确允许时增加一次；Jelly 不自动重试。判断类用 TypeSafe（`evaluateTypeSafe`），返回 Choice/Score/Noul。
 - **错误**：推理层抛 `PrologueInferenceError`（保留 `code`，文字统一为安全文案）。消费方先用 `inferenceServiceUnavailableReason(error)` 识别「执行服务被本机另一进程占用 / 未就绪」，如实告诉用户，不要改写成网络或厂商问题；宿主自己的派出前复核（`beforeDispatch`、凭据是否变了）拒绝时，SDK 报 `EFFECT_NOT_AUTHORIZED`，推理层把复核自己抛的错误原样交回，消费方用 `isDispatchRefusal(error)` 识别并说明「没有发出」；Agent 轮次的 `stop_reason` 同样以 `EFFECT_NOT_AUTHORIZED` 开头；HTTP 4xx/5xx 按状态给可操作提示。
 - **取消**：`caller.signal` 一路传到 SDK（`run.cancel()`）；被取消、撤权、停用的调用**不再写任何业务记录**，包括失败记账（action-architecture F2，`tests/action-before-effect.test.ts`）；其中处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记），不算业务数据（用户 2026-10-10 决定）。需要让用户能立刻重试的，用「发起者已结束即可接管」的设计，而不是在被拒绝后写记录。
@@ -219,7 +220,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
   | Shelf 的自动处理 | 600 秒、12000 个输出 token | `apps/local-host/src/shelf-ai.ts` |
   | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `apps/local-host/src/cognia-prologue.ts`、`apps/local-host/src/alchemist-prologue.ts` |
   | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |
-  | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-node.ts`（`MODEL_CALL_TIMEOUT_MS`） |
+  | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-run.ts`（`MODEL_CALL_TIMEOUT_MS`） |
   | 创作台的角色 | designer 600 秒、coder 300 秒 | `horizontal/agent-host/src/adapters/plugin-builder.ts`（`MODEL_CALL_LIMIT_MS`） |
 - **恢复**：Agent 会话用 `agent.session.recovery.v1` / `agent.session.recover.v1`；长任务靠持久记录与幂等键（`request_id`），重试不重复调用模型、不重复写入。
 
@@ -228,7 +229,7 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 | 错误 | 后果 | 正确做法 |
 | --- | --- | --- |
 | 等模型的动作没声明并发 | 一次对话把整个项目的操作卡住数分钟 | `scheduling: "concurrent"` + 返回后按快照提交 |
-| 在同一 Home 再起一个执行进程/宿主 | `inference.home_in_use` 或 `agent.storage_busy` | 一个 Home 一个执行归属；MCP 等入口转发给常驻 Web 宿主 |
+| 在同一 Home 再起一个执行进程/宿主 | `agent.inference.home_in_use` 或 `agent.storage_busy` | 一个 Home 一个执行归属；MCP 等入口转发给常驻 Web 宿主 |
 | 在 Prologue 上登记全局钩子并对别人的会话回 `later` | 并发构建互相挂起 | 钩子一律 `forSession` |
 | 被拒绝后仍写失败记录 | 违反 F2，撤权后仍改数据 | 被拒绝就不写；可重试性另行设计 |
 | 把执行服务不可用报成网络问题 | 用户去查网络 | `inferenceServiceUnavailableReason` |
@@ -266,3 +267,6 @@ Builder `images` 是宿主持有的 PNG 字节（最多 9 张、总共 12 MiB）
 UI 复查只使用隔离验收数据，不截整个工作台；只使用当前选定且声明 `vision: true` 的模型，缺失或失败时不宣称视觉通过。
 
 Work 助理的 Agent 图文材料路径当前最多 6 张图，与 Issue 图文草稿上限一致，入口和适配器均独立检查；直接 inference 的原图上限仍是 30 张。图片不静默截断，不支持视觉的模型拒绝这轮请求。
+
+
+AI通过共同动作服务修改已有对象时，必须带schema声明的读取版本；版本表需覆盖全部ids。Kernel与助理preflight共用检查，缺前提为`actions.version_required`，错类型等schema错误仍为`actions.input_invalid`。本人页面、非AI工作流与可信插件自调保留现行合同，活跃handler的真实嵌套调用只豁免额外版本规则，仍受原权限、安装、signal与beforeEffect约束；取消或超时后旧promise不能延长豁免。独立创建无版本字段时不新增前提。

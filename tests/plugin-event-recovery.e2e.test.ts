@@ -34,7 +34,7 @@ test("event recovery uses real project HTTP and SQLite, preserves failed confirm
     subscriber_install_id: subscriber.install_id, subscriber_generation: subscriber.installation_generation!,
     source_plugin_id: source.plugin_id, event_type_id: CODING_FILE_CHANGED_EVENT, type_version: 1,
     delivered_sequence: event.sequence - 1, state: "quarantined" as const, retry_at: null,
-    last_error_code: "subscriber_outcome_unknown", updated_at: new Date().toISOString() };
+    last_error_code: "plugin.subscriber_outcome_unknown", updated_at: new Date().toISOString() };
   repository.saveCursor(cursor);
   const denied = await fetch(origin + endpoint + "/recover", { method: "POST", headers: { origin, "content-type": "application/json" }, body: "{}" });
   assert.equal(denied.status, 403, "Runtime management requires the local control token");

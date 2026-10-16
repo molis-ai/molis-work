@@ -217,3 +217,26 @@ test("plugin dev runs a developed plugin under its installation id, even when it
     assert.notEqual(seen[0]!.provider_id, seen[0]!.plugin_id);
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+test("W3-07-8-01 plugin dependencies resolve their actual provider and retain declared identity, refusal and stopped-session authority", withDirectory(async directory => {
+  const host = hostProcess(directory);
+  let client: import("@molis-ai/molis-work-contracts/platform/actions").BoundActionClient | undefined;
+  const definition = plugin();
+  const originalStart = definition.start;
+  definition.start = async context => { client = context.services!.actions; return originalStart(context); };
+  try {
+    assert.deepEqual((await host.platform.start([{ definition, bundled: true }])).running, [BUILT_IN]);
+    assert.ok(client);
+    assert.equal(await client.invoke(DEPENDENCY, {}), "dependency", "a real non-host provider owns this declared dependency");
+    assert.equal(await client.invoke({ ...DEPENDENCY, provider_id: DEPENDENCY_PROVIDER }, {}), "dependency", "an exact owner pin stays usable");
+    await assert.rejects(client.invoke({ ...DEPENDENCY, provider_id: "forged-provider" }, {}), { code: "actions.dependency_missing" });
+    await assert.rejects(client.invoke({ ...DEPENDENCY, version: 2 }, {}), { code: "actions.dependency_missing" });
+    await assert.rejects(client.invoke({ ...DEPENDENCY, capability_id: "undeclared.dependency" }, {}), { code: "actions.forbidden" });
+    assert.throws(() => host.actions.registry.registerProvider({ provider: { provider_id: "second-owner", title: "Duplicate", kind: "system", project_id: DEMO_PROJECT_ID },
+      definitions: [DEPENDENCY], handlers: [{ ...DEPENDENCY, handle: () => "incorrect second owner" }] }), { code: "kernel.capability_duplicate" }, "a real overlapping provider cannot be registered");
+    host.platform.supervisor.revoke(BUILT_IN);
+    await assert.rejects(client.invoke(DEPENDENCY, {}), { code: "actions.forbidden" });
+    await host.platform.runtime.stop(host.installOf(BUILT_IN).install_id);
+    await assert.rejects(client.invoke(DEPENDENCY, {}), { code: "actions.forbidden" });
+  } finally { host.store.close(); }
+}));

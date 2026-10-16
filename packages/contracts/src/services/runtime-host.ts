@@ -33,7 +33,7 @@ export type RuntimeSessionAdapterResult<T = unknown> =
   | {
       status: "failed";
       capability: RuntimeSessionCapability;
-      code: "runtime.operation_failed" | "runtime.response_too_large";
+      code: "runtime_host.operation_failed" | "runtime_host.response_too_large";
       message: string;
       recovery?: {
         phase: "create" | "deliver";

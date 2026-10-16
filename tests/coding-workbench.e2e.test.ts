@@ -68,7 +68,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await command("Network.enable", {}, sessionId);
   await command("Network.setBlockedURLs", { urls: [prefix + "/api/plugins/io.molis.work.files/open"] }, sessionId);
   await click(`${files} [data-files-tree] [title="note.txt"]`);
-  await waitFor(`document.querySelector('${files} [data-files-notice]').textContent.includes('fetch')`);
+  // The shared request helper says the failure in words (W3-10; no browser English such as "Failed to fetch").
+  await waitFor(`/连不上|不知道这次操作有没有完成/.test(document.querySelector('${files} [data-files-notice]').textContent) && !/fetch/i.test(document.querySelector('${files} [data-files-notice]').textContent)`);
   assert.equal(await evaluate(`document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-copy]').disabled`), true);
   assert.equal(await evaluate(`document.querySelector('${files} [data-files-reload]').disabled`), false, 'failed reads expose a working retry');
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
@@ -98,7 +99,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await writeFile(join(workspace, "note.txt"), "second\n中文🙂\n");
   await command("Network.setBlockedURLs", { urls: [prefix + "/api/plugins/io.molis.work.git/state"] }, sessionId);
   await open("git");
-  await waitFor("document.querySelector('[data-companion=git] [data-git-status]').textContent.includes('fetch')");
+  await waitFor("/连不上/.test(document.querySelector('[data-companion=git] [data-git-status]').textContent) && !/fetch/i.test(document.querySelector('[data-companion=git] [data-git-status]').textContent)");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click('[data-companion="git"] [data-git-refresh]');
   await waitFor("document.querySelector('[data-companion=" + '"git"' + "] [data-git-list] button')");

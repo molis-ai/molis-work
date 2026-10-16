@@ -1,18 +1,11 @@
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   eventTypeKey,
   type PluginDefinition,
   type PluginEventType,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export class PluginEventContractError extends Error {
-  constructor(
-    readonly code: "plugin_event_type_missing" | "plugin_event_type_undeclared",
-    message: string,
-  ) {
-    super(message);
-    this.name = "PluginEventContractError";
-  }
-}
+
 
 export interface PluginEventSubscription {
   event_type_id: string;
@@ -44,19 +37,13 @@ export function buildEventContract(definition: PluginDefinition): PluginEventCon
     const key = eventTypeKey(declared.event_type_id, declared.type_version);
     const validator = validators.get(key);
     if (!validator) {
-      throw new PluginEventContractError(
-        "plugin_event_type_missing",
-        `发布事件 ${key} 没有对应的类型校验器`,
-      );
+      throw pluginErrors.event_type_missing(`发布事件 ${key} 没有对应的类型校验器`);
     }
     publishes.set(key, validator);
   }
   for (const key of validators.keys()) {
     if (!publishes.has(key)) {
-      throw new PluginEventContractError(
-        "plugin_event_type_undeclared",
-        `事件类型 ${key} 没有在 Manifest 的 publishes 里声明`,
-      );
+      throw pluginErrors.event_type_undeclared(`事件类型 ${key} 没有在 Manifest 的 publishes 里声明`);
     }
   }
 

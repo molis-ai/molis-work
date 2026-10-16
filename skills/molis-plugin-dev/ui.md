@@ -36,6 +36,8 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 
 ### 侧栏标签（`side`）
 
+需要随当前文档变化的侧栏，在 view 上声明 `context_binding: "focused-object"`。复用工作台给出的对象上下文，不自行追踪全局选中项：接收 `molis:side-context` 和递增的 `context_epoch`，启动时发 `molis:side-ready`，发回编辑器的请求携带所收 epoch。只信任宿主父窗口、同源和当前绑定对象；业务读写仍走对象所有者的动作授权。收起保持收起，选中的普通工具不因换文档被抢走。Pages 评论与备注使用这条协议，详情见 [统一规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
+
 - 声明：`ui.views` 里写 `{ view_id, slot: "side", title, contribution_id, icon }`；contribution 的 surface 目标是 `workbench.side`（格式 `declarative-html`）。插件在项目里启用才出现，停用或卸载就撤下，不留空标签。
 - Host 在 `/projects/<id>/side/<project_plugin_id>/<view_id>` 用独立文档渲染它，侧栏用同源 iframe 装载：引用工作台同一份样式表（随页面缓存，插件在舞台上怎样显示，这里就怎样显示），并运行插件的 `clientFactory`（多一个 `side: true`）。contribution 收到的 model 只有位置：`{ project_id, route_prefix, view_id }`，数据仍经插件自己的动作与路由读取。
 - 复用舞台外壳（`renderPluginStageShell`）没问题：外壳默认 `hidden`，侧栏文档作为宿主会在挂载客户端前显示它。个人插件（不按项目存的，如灵光）同样出现。
@@ -94,6 +96,14 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 自动保存不得重挂正在编辑的 DOM、不得丢掉光标。`save()` 不要调用 `fillEditor`。增删改查成功后重新 GET 列表、保住滚动和当前选中（对照 `specs/archive/list-silent-refresh/spec.md`）。不要 `location.reload()`。
 
 重编辑器（Pages 的 ProseMirror）打成浏览器 IIFE，不要塞进 factory 字符串。还要在 `apps/local-host/src/web-assets.ts` 挂 `/assets/…`，HTML 再 `<script src="…">`。
+
+### 动作先问几个问题再接着做
+
+不经 Agent 运行、自己调模型的动作，信息不够时不要猜，也不要自己画问卷：
+- 动作返回 `{ status: "needs_input", interaction }`（合同 `InteractionRequest`，`@molis-ai/molis-work-contracts/services/agent-interaction`）：`interaction_id`、`why`（一句话，卡片标题）、`questions`（现在只用选择题）、`note`（回答后会发生什么，本插件的话，英文写进本插件词典）。输出 schema 写成一个对象，MCP 工具才不会把结果包一层。
+- 动作自己记住问过的题。人回答后，页面带着 `interaction: { interaction_id, values }` 再调一次动作；动作用 SDK 的 `questionAnswer` 读答案，用 `questionProblems` 对照问过的题检查。有问题就抛本插件的错误码，`details.problems` 放这些原因。
+- 宿主对任何插件路由的回答都会做两件事：给 `needs_input` 加上共享问卷卡的 `interaction.html`；给 `details.problems` 加上逐字段的 `details.errors`。页面只要把 html 放进去，用 `host.interaction(card, { onSubmit })` 绑定，出错时调 `showErrors(details.errors)`。
+- 样例：Form 的「AI 生成题目」（`plugins/native/form/src/drafting.ts`、`draft-client.ts`）。
 
 ## 控件与视觉
 

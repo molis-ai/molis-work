@@ -15,6 +15,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | [src/index.ts](src/index.ts) | `SearchService`：来源发现、同步、失败恢复、查询聚合、打开核对 |
+| [src/references.ts](src/references.ts) | 可引用的对象：`findReferenceCandidates`（`search.references` 动作，按种类在调用者的项目里找、每个都向对象主人重读）与 `confirmReferences`（宿主在带引用的回答交给运行之前逐个再读，安全不变量 S-26）。上下文条的落点取候选也走这一对 |
 
 合同在 `@molis-ai/molis-work-contracts/services/search`（消费合同与索引端口）和 `@molis-ai/molis-work-contracts/platform/actions`（插件实现的搜索来源协议）。索引持久化由 `@molis-ai/molis-work-storage` 的 `openTextSearchIndex` 实现，Host 装配在 [apps/local-host/src/search-actions.ts](../../apps/local-host/src/search-actions.ts)。
 
@@ -46,7 +47,8 @@ pnpm --filter @molis-ai/molis-work-service-search build
   - 一次同步失败不删除已有条目；删除只在完整列出之后发生。
   - 打开时对象读取器报任何错（已加密锁定、只有文件引用、暂时不可读，或插件自己抛的普通错误）都只说明“现在读不到”：随后一律再问来源自己的完整列出，列出里仍有就返回 `unavailable` 并保留索引条目，没有才返回 `missing` 并移出索引。读取器报错的错误码与措辞都不作判断依据。
   - 索引可以整个删掉重建，重建后结果与删前一致。
-- 改动后必跑：`node scripts/run-tests.mjs tests/system-search.test.ts`
+  - 可引用的候选与提交前的复核用同一次读取：调用者的权限、对象主人的读取器（`resolveActionSubject`），索引里的条目、页面或模型给的标题都不算数；只给调用者自己项目里的与 Home 范围的对象。
+- 改动后必跑：`node scripts/run-tests.mjs tests/system-search.test.ts tests/search-references.test.ts tests/security-invariants-object-references.test.ts`
 - 相关手册：[docs/horizontal/search.md](../../docs/horizontal/search.md)、[specs/archive/system-search/spec.md](../../specs/archive/system-search/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

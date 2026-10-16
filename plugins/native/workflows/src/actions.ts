@@ -1,13 +1,15 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { presentActionResult, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
-  advanceInstance, aiHandoffPrompt, applyFunctionRule, handoffKey, holdInstance, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
+  aiHandoffPrompt, applyFunctionRule, handoffKey, holdInstance, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
   isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS, WORKFLOWS_PLUGIN_ID,
   type Workflow, type WorkflowActionStep, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowStation, type WorkflowVerdict,
 } from "./model.js";
 import type { WorkflowSummary, WorkflowsStore } from "./store.js";
 import { createWorkflowsSearchHandlers, workflowsSearchActions } from "./search.js";
 import { workflowsErrors } from "./error.js";
+import { createWorkflowRunControls } from "./run-control.js";
+import { createWorkflowContinuation, handoffIndex, withPending } from "./continuation.js";
 
 /** One input field of a candidate action, as the mapping editor shows it. */
 export interface WorkflowActionField { readonly name: string; readonly type: string; readonly required: boolean; readonly title?: string; readonly enum?: readonly (string | number | boolean)[] }
@@ -181,7 +183,7 @@ export const workflowsActions = {
     "列出可以放在一段交接上的已发布 Choice 判断规则及其可选结果", "query", object({}), object({ judgments: { type: "array" } }), read),
   /** Saved references to a capability: action steps, judgment links and pinned content stations. */
   usages: defineActionUsagesAction("workflows.usages", "流程里的使用位置", read),
-  stop: define<{ id: string }, { instance: WorkflowInstance }>("instances.stop", "结束一次运行", "结束还在进行的一次运行，已交接的内容保留", "command",
+  stop: define<{ id: string }, { instance: WorkflowInstance }>("instances.stop", "结束一次运行", "取消当前尚未提交的步骤；已发生的外部结果保留，未知结果不自动重派", "command",
     object({ id }), object({ instance }), write),
   searchEntries: workflowsSearchActions.entries,
   subject: workflowsSearchActions.subject,
@@ -190,6 +192,7 @@ export const WORKFLOWS_ACTIONS: readonly ActionDefinition[] = Object.values(work
 export const WORKFLOWS_ACTION_PERMISSIONS = [...new Set(WORKFLOWS_ACTIONS.flatMap(definition => definition.action.permissions))];
 
 export function createWorkflowsActionHandlers(projectId: string, ports: WorkflowsActionPorts): ActionHandlerBinding[] {
+  const runs = createWorkflowRunControls(projectId, ports.withStore);
   type Pending = NonNullable<WorkflowInstance["steps"][number]["pending"]>;
   type ContinueInput = (typeof workflowsActions.continue) extends ActionDefinition<infer I, unknown> ? I : never;
   const scoped = (caller: ActionCallContext) => {
@@ -209,10 +212,14 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     };
   };
   type Reach = ReturnType<typeof reachFor>;
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, content: WorkflowContentPorts, caller: ActionExecutionContext, reach: Reach) => Promise<O>): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => {
-      const authority = retainActionAuthority(caller, { ...definition, provider_id: WORKFLOWS_PLUGIN_ID }, caller.beforeEffect);
-      return handle(input as I, scoped(authority), caller, reachFor(authority));
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, content: WorkflowContentPorts, caller: ActionExecutionContext, reach: Reach, original: ActionExecutionContext) => Promise<O>): ActionHandlerBinding => ({
+    capability_id: definition.capability_id, version: definition.version, handle: async (caller, input) => {
+      const run = definition === workflowsActions.continue ? runs.acquire((input as ContinueInput).id, caller) : null;
+      try {
+        const execution = run?.caller ?? caller;
+        const authority = retainActionAuthority(execution, { ...definition, provider_id: WORKFLOWS_PLUGIN_ID }, execution.beforeEffect);
+        return await handle(input as I, scoped(authority), execution, reachFor(authority), caller);
+      } finally { run?.release(); }
     },
   });
   /** An action step resolves against the caller's own directory; its mapping must still fit the action's contract. */
@@ -260,9 +267,10 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     }
   };
   const changed = <T>(value: T) => { ports.changed?.(); return value; };
-  /** The run with this step's handoff fixed (or its attempt recorded), ready to be saved against the version it was read at. */
-  const withPending = (instance: WorkflowInstance, from: number, pending: Pending): WorkflowInstance => ({ ...instance,
-    steps: instance.steps.map((step, index) => index === from ? { ...step, pending } : step), updated_at: new Date().toISOString() });
+  const commit = async <T>(caller: ActionExecutionContext, run: (store: WorkflowsStore) => T): Promise<T> => {
+    await caller.beforeEffect();
+    return ports.withStore(store => { caller.assert_authority_current?.(); caller.signal?.throwIfAborted(); return run(store); });
+  };
   /** Runs the link's exact rule on the step's content, with the caller's own authority; a changed or revoked rule stops here. */
   const judge = async (reach: Reach, link: WorkflowLink, handed: WorkflowPayload): Promise<WorkflowVerdict> => {
     const ref = link.judgment!;
@@ -298,10 +306,9 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       // The rule only decides whether this content goes on; what goes on is the step's own content.
       const verdict = await judge(reach, link, handed);
       if (!verdict.passed) {
-        await caller.beforeEffect();
         const at = new Date().toISOString();
         const reason = verdict.status === "needs_review" ? "判断需要人确认，这一次没有交过去" : `判断结果是「${verdict.choice ?? "无"}」，不在可以交过去的结果里`;
-        return { stopped: await ports.withStore(store => store.saveInstance(current, holdInstance(current, from, { at, reason, verdict }))) };
+        return { stopped: await commit(caller, store => store.saveInstance(current, holdInstance(current, from, { at, reason, verdict }))) };
       }
       output = handed; actor = "judgment"; judged = verdict;
       rule = link.judgment!.title ?? link.judgment!.capability_id;
@@ -320,9 +327,8 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     if (!output.body.trim()) throw workflowsErrors.invalid("交接后的正文是空的，没有交过去");
     const pending: Pending = { key: handoffKey(current, from), kind: link.kind, actor, at: new Date().toISOString(), input: handed, output,
       ...(rule ? { rule } : {}), ...(judged ? { verdict: judged } : {}) };
-    await caller.beforeEffect();
     // Losing a race here delivers nothing: the other call's fixed handoff wins.
-    return { pending, instance: await ports.withStore(store => store.saveInstance(current, { ...withPending(current, from, pending), chain: resolved })) };
+    return { pending, instance: await commit(caller, store => store.saveInstance(current, { ...withPending(current, from, pending), chain: resolved })) };
   };
   /**
    * Runs an action step with the fixed handoff mapped into its fields. Actions carry no delivery key, so a run whose result
@@ -338,8 +344,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     const definition = (await reach.find(choice.ref))!.action;
     ports.assertInput(definition.input_schema, mapped);
     const attempt: Pending = { ...pending, attempted_at: new Date().toISOString() };
-    await caller.beforeEffect();
-    const instance = await ports.withStore(store => store.saveInstance(current, withPending(current, from, attempt)));
+    const instance = await commit(caller, store => store.saveInstance(current, withPending(current, from, attempt)));
     let result: unknown;
     try { result = await reach.invoke(choice.ref, mapped); }
     catch (error) {
@@ -347,7 +352,9 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       // Once invoked, no error code proves that nothing happened: only an explicit retry may resend.
       const settled = { ...attempt, attempt_error: (error instanceof Error ? error.message : String(error)).slice(0, 400) };
       await caller.beforeEffect();
+      caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       await ports.withStore(store => store.saveInstance(instance, withPending(instance, from, settled))).catch(() => undefined);
+      caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       throw error;
     }
     const presentation = presentActionResult(definition.result_view, result, projectId);
@@ -366,17 +373,14 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     }),
     bind(workflowsActions.create, async (input, content, caller, reach) => {
       const chainValue = await validChain(content, input.chain, reach);
-      await caller.beforeEffect();
-      return changed({ workflow: await ports.withStore(store => store.create({ project_id: projectId, title: input.title ?? "", chain: chainValue })) });
+      return changed({ workflow: await commit(caller, store => store.create({ project_id: projectId, title: input.title ?? "", chain: chainValue })) });
     }),
     bind(workflowsActions.update, async (input, content, caller, reach) => {
       const chainValue = input.chain === undefined ? undefined : await validChain(content, input.chain, reach);
-      await caller.beforeEffect();
-      return changed({ workflow: await ports.withStore(store => store.update(input.id, projectId, { revision: input.revision, title: input.title, chain: chainValue })) });
+      return changed({ workflow: await commit(caller, store => store.update(input.id, projectId, { revision: input.revision, title: input.title, chain: chainValue })) });
     }),
     bind(workflowsActions.delete, async (input, _content, caller) => {
-      await caller.beforeEffect();
-      await ports.withStore(store => store.delete(input.id, projectId));
+      await commit(caller, store => store.delete(input.id, projectId));
       return changed({ ok: true as const });
     }),
     bind(workflowsActions.stationItems, async (input, content) => {
@@ -399,8 +403,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
         await caller.beforeEffect();
         item = await content.createBlank(first.plugin, input.title?.trim() || `${current.title} · 新的一次`, first.content);
       }
-      await caller.beforeEffect();
-      return changed({ instance: await ports.withStore(store => store.startInstance(current, item)) });
+      return changed({ instance: await commit(caller, store => store.startInstance(current, item)) });
     }),
     bind(workflowsActions.instance, async (input, content, _caller, reach) => {
       const { current, title } = await ports.withStore(store => { const current = live(store, input.id); return { current, title: workflowTitle(store, current) }; });
@@ -414,43 +417,11 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       const handed = await readStep(content, current, from);
       return { from, link, readiness, input: handed, output: link.kind === "function" && readiness.ready ? applyFunctionRule(link, handed) : null };
     }),
-    bind(workflowsActions.continue, async (input, content, caller, reach) => {
-      let current = await ports.withStore(store => { store.assertExecutableInstance(input.id); return live(store, input.id); });
-      if (input.updated_at !== undefined && input.updated_at !== current.updated_at) {
-        throw workflowsErrors.conflict("这一次刚被推进过，已载入最新进度");
-      }
-      const from = handoffIndex(current, input.from);
-      let pending = current.steps[from]!.pending;
-      if (!pending) {
-        const prepared = await prepareHandoff(caller, content, reach, current, from, input);
-        if ("stopped" in prepared) return changed({ instance: prepared.stopped });
-        ({ instance: current, pending } = prepared);
-      } else if (current.chain.links[from]!.kind === "manual" && input.body !== undefined
-        && ((input.title ?? "").trim().slice(0, 200) !== pending.output.title || (input.body ?? "").trim() !== pending.output.body)) {
-        throw workflowsErrors.conflict("这一步已经在交接另一份内容，已载入最新进度");
-      }
-      await caller.beforeEffect();
-      const target = current.chain.stations[from + 1]!;
-      let arrived: WorkflowItemRef;
-      let arrival: { payload?: WorkflowPayload; result?: unknown; result_presentation?: ActionResultPresentation; result_truncated?: true } = {};
-      if (isActionStation(target)) ({ instance: current, arrived, arrival } = await runActionStep(caller, reach, current, from, pending, target, input.retry_action === true));
-      else arrived = await content.receive(target.plugin, pending.output, { instance_id: current.instance_id, step: from + 1, title: current.title }, target.content);
-      await caller.beforeEffect();
-      const { attempted_at: _attempted, attempt_error: _error, ...recorded } = pending;
-      try {
-        const base = current;
-        return changed({ instance: await ports.withStore(store => store.saveInstance(base, advanceInstance(base, from, recorded, arrived, new Date().toISOString(), arrival))) });
-      } catch (error) {
-        // Another call already recorded this exact delivery: reuse it rather than report a failure that did not happen.
-        const latest = await ports.withStore(store => store.instance(current.instance_id, projectId));
-        if (latest.steps[from]?.handoff?.key === recorded.key) return { instance: latest };
-        throw error;
-      }
-    }),
+    bind(workflowsActions.continue, createWorkflowContinuation({ projectId, withStore: ports.withStore, commit, live, changed, prepareHandoff, runActionStep })),
     bind(workflowsActions.usages, async input => ({ usages: await ports.withStore(store => store.list(projectId)).then(rows => rows.flatMap(flow => workflowUsages(flow, input.action))) })),
     bind(workflowsActions.stop, async (input, _content, caller) => {
-      await caller.beforeEffect();
-      return changed({ instance: await ports.withStore(store => store.stopInstance(input.id, projectId)) });
+      const instance = await commit(caller, store => { const stopped = store.stopInstance(input.id, projectId); runs.stop(input.id); return stopped; });
+      return changed({ instance });
     }),
     bind(workflowsActions.actionSteps, async (_input, _content, _caller, reach) => ({ actions: workflowActionChoices(await reach.all()), fields: WORKFLOW_PAYLOAD_FIELDS })),
     bind(workflowsActions.judgments, async (_input, _content, _caller, reach) => ({ judgments: workflowJudgmentChoices(await reach.all()) })),
@@ -488,14 +459,6 @@ export function workflowUsages(flow: Pick<Workflow, "workflow_id" | "title" | "s
       detail: pass.length ? `判断结果为 ${pass.join("、")} 时交给下一站` : "还没选哪些结果可以交过去" });
   });
   return usages;
-}
-
-function handoffIndex(current: WorkflowInstance, raw: unknown): number {
-  const from = Number(raw ?? current.current);
-  if (!Number.isInteger(from) || from < 0 || from >= current.chain.links.length) throw workflowsErrors.invalid("这一步后面没有下一站");
-  if (current.status !== "active") throw workflowsErrors.invalid(current.status === "done" ? "这一次已经走完" : "这一次已经结束");
-  if (from !== current.current) throw workflowsErrors.conflict("这一步已经交过了");
-  return from;
 }
 
 function workflowTitle(store: WorkflowsStore, current: WorkflowInstance): string {

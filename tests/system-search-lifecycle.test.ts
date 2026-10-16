@@ -37,7 +37,16 @@ test("a plugin disabled in the project leaves the results and comes back when en
   try {
     const call = async <I, O>(definition: ActionDefinition<I, O>, input: I) =>
       await host.actionClient(reference).invoke(await localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS), definition, input) as O;
-    const search = (query: string) => call(searchActions.query, { query });
+    // A query waits a short budget for its sources to catch up, then answers what is indexed with `indexing` (on a loaded Linux
+    // runner the first listing takes longer): ask again until the sources have caught up.
+    const search = async (query: string) => {
+      const deadline = Date.now() + 30_000;
+      for (;;) {
+        const response = await call(searchActions.query, { query });
+        if (response.status !== "indexing" || Date.now() > deadline) return response;
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    };
     await call(goalsActions.create, { title: "季度复盘会议", outcome: "复盘结论写进文档", idempotency_key: randomUUID() });
     const first = await search("复盘");
     assert.deepEqual(titles(first), ["季度复盘会议"]);

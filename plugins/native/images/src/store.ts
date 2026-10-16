@@ -1,4 +1,4 @@
-import { applySqliteBaseline, clearInExistingHomeSqlite, homeSqlitePath, openBaselineHomeSqlite, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, clearInExistingHomeSqlite, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
@@ -44,7 +44,7 @@ export class ImagesStore {
   private readonly runnerDirectory: string;
 
   constructor(homeDirectory: string) {
-    const directory = join(homeDirectory, "images");
+    const directory = join(homeDirectory, IMAGES_HOME_STORE.path);
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.runnerDirectory = join(directory, "runners");
     let runnerLock: DatabaseSync | undefined;
@@ -52,14 +52,14 @@ export class ImagesStore {
       mkdirSync(this.runnerDirectory, { recursive: true, mode: 0o700 });
       this.runnerLock = runnerLock = new DatabaseSync(join(this.runnerDirectory, this.runnerId + ".db"));
       this.runnerLock.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE");
-      this.db = openBaselineHomeSqlite(homeDirectory, "images", IMAGES_STORE_BASELINE);
+      this.db = openHomeSqliteDatabase(homeDirectory, IMAGES_HOME_STORE.path);
     } catch (error) {
       runnerLock?.close();
       throw error;
     }
     try {
     this.db.exec("PRAGMA busy_timeout = 5000;");
-    applySqliteBaseline(this.db, homeSqlitePath(homeDirectory, "images"), IMAGES_STORE_BASELINE);
+    applySqliteBaseline(this.db, homeSqlitePath(homeDirectory, IMAGES_HOME_STORE.path), IMAGES_STORE_BASELINE);
     this.recoverInterrupted();
     this.reclaimRunnerFiles();
     } catch (error) {
@@ -265,8 +265,8 @@ const ASSET_FILE = /^[a-f0-9-]+\.(png|jpg|webp)$/u;
  * process loses its record; its result is dropped when it finishes.
  */
 export function purgeImagesProject(homeDirectory: string, projectId: string): void {
-  const files = clearInExistingHomeSqlite(homeDirectory, "images", IMAGES_STORE_BASELINE, db => deleteProjectJobs(db, projectId));
-  if (files) removeAssetFiles(join(homeDirectory, "images", "assets"), files);
+  const files = clearInExistingHomeSqlite(homeDirectory, IMAGES_HOME_STORE.path, IMAGES_STORE_BASELINE, db => deleteProjectJobs(db, projectId));
+  if (files) removeAssetFiles(join(homeDirectory, IMAGES_HOME_STORE.path, "assets"), files);
 }
 
 export function removeAssetFiles(directory: string, filenames: readonly string[]): void {
@@ -283,3 +283,6 @@ function jobFromRow(row: Row): ImageJob {
     created_at: String(row.created_at), finished_at: row.finished_at === null ? null : String(row.finished_at),
   };
 }
+
+/** This plugin's store in the Home's store registry (W4-11): `images/images.db` at its one baseline. */
+export const IMAGES_HOME_STORE: HomeStoreDeclaration = { path: "images", library: { baseline: IMAGES_STORE_BASELINE } };

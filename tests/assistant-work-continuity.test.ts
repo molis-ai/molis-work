@@ -80,7 +80,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const person: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:read", "notes:write"] };
   const service: AssistantService = new AssistantService(store, { host: async () => host,
-    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.recordOffer(work, offer, views), (view, input, output) => service.recordResult(work, view, input, output)),
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views), (view, input, output) => service.recordResult(work, view, input, output)),
     scopeActions: async () => ({ discover: () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }),
     projectTitle: async () => "Fixture project" }, "web-user");
   return { service, store, notes, requests, project, local, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
@@ -181,7 +181,7 @@ test("what the person does in the plugin settles what it made redundant: a sugge
     view = await f.service.read(sent.work.work_id);
     assert.equal(view.cards[0]!.status, "stale");
     assert.match(view.cards[0]!.outcome ?? "", /你在原处改过「a long note」/);
-    const clicked = await f.service.runCard(sent.work.work_id, view.cards[0]!.card_id, { revision: view.cards[0]!.revision });
+    const clicked = await f.service.offers.runCard(sent.work.work_id, view.cards[0]!.card_id, { revision: view.cards[0]!.revision });
     assert.equal(clicked.status, "stale");
     assert.deepEqual(f.notes.get("n7"), { text: "short by hand", version: 2 }, "the suggestion never ran over their edit");
 

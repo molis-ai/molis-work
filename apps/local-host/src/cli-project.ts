@@ -1,4 +1,8 @@
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import { readProductEnv, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { catalogManagementProject, residentManagementActions } from "./management-action-client.js";
+import { DEFAULT_RESIDENT_HOST_URL } from "./resident-host-request.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import { bindGoalsManagementActions } from "./goals-actions.js";
@@ -7,6 +11,9 @@ import { dispatchCliProjectCommand, cliFlagValue as value,
 
 export interface V1CliOptions {
   localHost?: MolisWorkLocalHost;
+  homeDirectory?: string;
+  actionServiceUrl?: string;
+  signal?: AbortSignal;
 }
 
 export async function runV1Cli(args: string[], options: V1CliOptions = {}): Promise<number> {
@@ -25,18 +32,22 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
     throw new Error(`Molis Work 数据库不存在: ${databasePath}`);
   }
   const input = payload(args);
-  const localHost = options.localHost ?? createMolisWorkLocalHost();
+  let localHost = options.localHost;
   const ownsLocalHost = !options.localHost;
-  const reference = molisWorkHostProjectReference({
+  let reference = molisWorkHostProjectReference({
     databasePath,
     projectId: String(input.project_id ?? value(args, "--project-id") ?? `database:${databasePath}`),
   });
-  // A command calls Goals' actions as the person on this machine; Goals is registered when the project opens, so no plugin is prepared first.
-  const actions = bindGoalsManagementActions(localHost.actionClient(reference, false), reference);
+  const fallback = () => bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference, false), reference, { signal: options.signal });
   try {
-    // One command is one operation: everything it calls shares a call number.
-    return await withCallId(newCallId(), () => dispatchCliProjectCommand(actions, args, input));
-  } finally {
-    if (ownsLocalHost) await localHost.close();
-  }
+    return await withCallId(newCallId(), async () => {
+      const home = options.homeDirectory ?? resolveMolisWorkHome();
+      const project = options.localHost && !options.actionServiceUrl ? undefined : catalogManagementProject(home, databasePath);
+      if (project && project.project_id !== reference.project_id) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
+      if (project) reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+      const actions = project ? residentManagementActions({ home, databasePath: project.database_path, projectId: project.project_id,
+        origin: options.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL, signal: options.signal, fallback }) : fallback();
+      return dispatchCliProjectCommand(actions, args, input);
+    });
+  } finally { if (ownsLocalHost) await localHost?.close(); }
 }

@@ -168,7 +168,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
     const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
     const message = typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599
       ? `模型返回 ${status}，请检查模型配置后重试` : "模型请求失败或超时，材料已保留，可重试";
-    if (error instanceof PrologueInferenceError && error.code.startsWith("inference.image_")) throw error;
+    if (error instanceof PrologueInferenceError && error.code.startsWith("agent.inference.image_")) throw error;
     if (error instanceof PrologueInferenceError) throw new PrologueInferenceError(error.code,
       error.code === "MODEL_STRUCTURED_INVALID" ? "模型返回的结构不符合要求，材料已保留" : message, error.status, error.execution);
     throw new Error(message);

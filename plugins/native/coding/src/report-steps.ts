@@ -22,8 +22,8 @@ export function codingReportSteps(context: PluginStartContext, sessionId: string
   }
   if (entry.board_error || !entry.board) return unavailable(entry.board_error || "原步骤回报暂不可读，不能判断完成情况。");
   const ids = entry.board.nodes.map(node => node.id);
-  if (new Set(ids).size !== plan.steps.length || ids.length !== plan.steps.length
-    || plan.steps.some(step => !ids.includes(step.id))) return unavailable("步骤回报与原计划不一致，不能判断完成情况。");
+  if (new Set(ids).size !== ids.length || plan.steps.some(step => !ids.includes(step.id))
+    || entry.board.nodes.some(node => !plan.steps.some(step => step.id === node.id) && !node.inserted)) return unavailable("步骤回报与原计划不一致，不能判断完成情况。");
   return structuredClone({ board: entry.board, verdicts: entry.verdicts ?? {} });
 }
 
@@ -32,6 +32,7 @@ export function codingReportStepsMarkdown(run: AgentRunView, evidence: CodingRep
   const states: Record<AgentStepBoard["nodes"][number]["state"], string> = {
     "not-started": "等待前置步骤", ready: "待执行", running: "模型报告执行中",
     succeeded: "模型报告成功", failed: "模型报告失败", cancelled: "模型报告取消", blocked: "模型报告阻塞",
+    waiting: "在等别的步骤", "needs-reconciliation": "重启后需要核对",
   };
   const board = evidence.board;
   const sections = ["## 计划步骤与用户评价",
@@ -39,7 +40,11 @@ export function codingReportStepsMarkdown(run: AgentRunView, evidence: CodingRep
   if (plan) sections.push(literal(`${plan.title}\n原计划：${plan.source.artifact_id} v${plan.source.version}`));
   if (evidence.unavailable_reason) sections.push(literal(evidence.unavailable_reason));
   if (board) sections.push(literal(`原步骤图：${board.project_id} v${board.version}\n图状态：${board.terminal ? "已结束" : "尚未结束"}（不代表用户验收）`));
-  for (const [index, step] of (plan?.steps ?? []).entries()) {
+  const steps = board ? board.nodes.map(node => plan?.steps.find(step => step.id === node.id) ?? {
+    id: node.id, title: node.title || node.id,
+    acceptance: node.reports.find(report => report.note.startsWith("用户插入"))?.note.split("完成条件：")[1] || "见插入说明",
+  }) : plan?.steps ?? [];
+  for (const [index, step] of steps.entries()) {
     const node = board?.nodes.find(node => node.id === step.id);
     const verdict = evidence.verdicts[step.id];
     const lines = [`步骤 ${index + 1}：${step.title}`, `完成条件：${step.acceptance}`,

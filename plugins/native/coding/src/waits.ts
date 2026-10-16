@@ -1,46 +1,46 @@
 /**
- * A parked session waits on the Host (a background command, a reply, another round); these read one wait and decide
- * what the page shows and what the next round is told. They touch no storage: the caller passes what was saved.
+ * A session's step waits on the Host's task graph (a background command, a reply, another session's round); these read
+ * one session's wait and decide what the page shows and what the next round is told. They touch no storage: the caller
+ * passes what was saved.
  */
-import type { AgentWait } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentCollaborationSessionView, AgentCollaborationWait } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 
-export const OPEN_WAIT = ["waiting", "fired"];
+/** A session view with its wait. */
+export type CodingWaitView = AgentCollaborationSessionView & { wait: AgentCollaborationWait };
 
-/** An "app" wait carries the round the person sent and the project work item it waits as. */
-export const appData = (wait: AgentWait) => {
-  const data = (wait.data ?? {}) as { app?: { body?: Record<string, unknown>; actor_id?: string } | null; work_id?: string };
-  return { body: data.app?.body ?? {}, actor: data.app?.actor_id ?? LOCAL_PERSON_ACTOR_ID, work_id: data.work_id };
+/** The wait still holds the session: it is going on, or it is over and its continuation was not taken up yet. */
+export const openWait = (view: AgentCollaborationSessionView | undefined): CodingWaitView | undefined => {
+  if (!view?.wait) return undefined;
+  const going = view.continuation && ["armed", "eligible", "claimed", "blocked", "needs-reconciliation"].includes(view.continuation.state);
+  return view.wait.state === "waiting" || going ? view as CodingWaitView : undefined;
 };
-export const waitingFor = (wait: AgentWait) => wait.by === "app" ? "work" : wait.on.some(one => one.kind === "envelope") ? "reply" : "command";
-/** What the page shows about a parked session; `note` is what was kept when the wait was held for the person. */
-export const waitViewOf = (wait: AgentWait, note: string | undefined) => ({ wait_id: wait.wait_id, after_title: wait.waiting_on, waiting_for: waitingFor(wait), reason: wait.reason,
-  at: new Date(wait.created_at_ms).toISOString(), ...(note ? { note } : {}) });
-/** Whether a fired wait starts the next round on its own, or waits for the person (and why). */
-export const holdReason = (wait: AgentWait): string | undefined => {
-  const fired = wait.fired;
-  if (!fired) return undefined;
-  if (wait.by === "app" && fired.outcome === "not-done") return `${wait.waiting_on}没有完成，这一轮还在等你决定：现在开始，或取消等待。`;
-  if (fired.kind === "envelope" && fired.outcome === "withdrawn") return `${wait.waiting_on}：请求已撤回或过期，这一轮还在等你决定：现在开始，或取消等待。`;
+/** What it waits on, for a person: "会话「A」的答复", "后台命令 npm test", "「A」那一步". */
+export const waitingOn = (wait: AgentCollaborationWait) => wait.conditions.map(one => one.label).join(wait.mode === "any" ? "，或" : "，以及");
+export const waitingFor = (wait: AgentCollaborationWait) => wait.by === "app" ? "work" : wait.conditions.some(one => one.kind === "envelope") ? "reply" : "command";
+/** What the page shows about a waiting session; `note` is what was kept when the wait was held for the person. */
+export const waitViewOf = (view: CodingWaitView, note: string | undefined) => ({ wait_id: view.wait.wait_id, after_title: waitingOn(view.wait), waiting_for: waitingFor(view.wait),
+  reason: view.wait.reason, at: view.wait.created_at, ...(note ? { note } : {}) });
+/** Whether a wait that is over starts the next round on its own, or waits for the person (and why). */
+export const holdReason = (view: CodingWaitView): string | undefined => {
+  const continuation = view.continuation, on = waitingOn(view.wait);
+  if (continuation?.state === "blocked") return `${on}${view.wait.state === "expired" ? "等到期限也没有结果" : "没有完成"}，这一轮还在等你决定：现在开始，或取消等待。`;
+  if (continuation?.state === "needs-reconciliation") return `${on}：服务重启后结果需要核对，这一轮还在等你决定：现在开始，或取消等待。`;
+  if (continuation?.state === "eligible" && !continuation.auto) return `${on}已经有结果，这一轮等你决定：现在开始，或取消等待。`;
   return undefined;
 };
+const SEEN: Record<AgentCollaborationWait["conditions"][number]["last"]["status"], string> = { pending: "还没有结果", satisfied: "已经有了结果", failed: "失败了", unknown: "结果未知，不要当成成功" };
 /**
- * The round a wait wakes to: what it waited for, what happened, and the task it had been doing. `last` is the body
- * of the round that parked (saved as `last-start:<session>`); `person` means the person chose to go on without it.
+ * The round a wait goes on to: what it waited for, how each thing stands, and the task it had been doing. What the wait
+ * brought (a reply, a command's output) is put into the session's next turn by the Runtime; this only says where things
+ * stand. `last` is the body of the round that waited (saved as `last-start:<session>`); `queued` is the round the person
+ * queued behind another; `person` means the person chose to go on without it.
  */
-export const wakeBodyOf = (wait: AgentWait, last: Record<string, unknown>, person = false) => {
-  if (wait.by === "app") { const { body, work_id } = appData(wait); return { ...body, ...(work_id ? { queued_work_id: work_id } : {}) }; }
+export const wakeBodyOf = (view: CodingWaitView, last: Record<string, unknown>, person = false, queued?: { body: Record<string, unknown>; work_id: string }) => {
+  if (view.wait.by === "app" && queued) return { ...queued.body, queued_work_id: queued.work_id };
   const { actor_id: _actor, origin_task, ...how } = last;
-  const fired = wait.fired;
-  const what = person ? `你决定不再等${wait.waiting_on}，直接接着做。`
-    : !fired ? ""
-    : fired.outcome === "answered" ? `它的答复：${fired.text}`
-    : fired.outcome === "settled" ? `${wait.waiting_on.replace(/的答复$/, "")}那一轮已经结束，没有专门答复；它可能已经做了你请求的事，先读一下相关文件确认。`
-    : fired.outcome === "failed" && fired.kind === "envelope" ? `${wait.waiting_on}不会来了：${fired.text}。先读一下相关文件，确认对方做到了哪里，再决定自己接着做，还是改做别的。`
-    : fired.outcome === "interrupted" ? `你等的${fired.kind === "command" ? "后台命令" : "那件事"}被服务重启打断了，结果未知，不要当成成功；需要的话重新运行。\n${fired.text}`
-    : fired.outcome === "output" ? `你等的后台命令输出了你在等的内容（命令还在运行）。\n${fired.text}`
-    : `${fired.kind === "command" ? "后台命令" : ""}结束了（${({ succeeded: "成功", failed: "失败", stopped: "被停止" } as Record<string, string>)[fired.outcome] ?? fired.outcome}），结束于 ${new Date(fired.at_ms).toISOString()}（宿主记录的时间）。\n${fired.text}`;
+  const what = person ? `你决定不再等${waitingOn(view.wait)}，直接接着做。`
+    : view.wait.conditions.map(one => `${one.label}${SEEN[one.last.status]}${one.last.note ? `（${one.last.note}）` : ""}。`).join("\n");
   // The original task travels on, so a round woken again still knows what it was for.
-  return { ...how, ...(typeof origin_task === "string" ? { origin_task } : {}), task: [`（接着之前的任务）你之前挂起等待：${wait.reason.slice(0, 400)}`, what,
+  return { ...how, ...(typeof origin_task === "string" ? { origin_task } : {}), task: [`（接着之前的任务）你之前在等：${view.wait.reason.slice(0, 400)}`, what,
     `请接着完成原来的任务：${typeof origin_task === "string" ? origin_task : ""}`].filter(Boolean).join("\n") };
 };

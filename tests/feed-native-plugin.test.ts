@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -11,7 +12,7 @@ import {
   type FeedUiModel,
   type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
-import { UiContributionError, UiHost } from "@molis-ai/molis-work-ui-host";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { createWorkbenchFeedProjectionRenderer, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 
@@ -203,7 +204,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
   assert.deepEqual(host.list().map((item) => item.contribution_id), [FEED_UI_CONTRIBUTION_ID]);
   assert.throws(
     () => host.register(feedUiContribution),
-    (error) => error instanceof UiContributionError && error.code === "ui_contribution_conflict",
+    (error) => error instanceof ActionError && error.code === "ui_host.contribution_conflict",
   );
 
   const directory = host.render({
@@ -402,7 +403,7 @@ test("Gmail source detail opens Connectors with the current project", () => {
     account_label: "owner@example.com",
     status: "error",
     status_kind: "attention",
-    last_error_code: "connector_needs_auth",
+    last_error_code: "connector.needs_auth",
   });
   const html = host.render({
     contribution_id: FEED_UI_CONTRIBUTION_ID,
@@ -411,6 +412,33 @@ test("Gmail source detail opens Connectors with the current project", () => {
   });
   assert.match(html, /href="\/settings\/connectors\?connector=gmail&amp;project=project-test"/);
   assert.match(html, /管理账号连接/);
+});
+
+test("RING-05 Feed pull history separates running, interrupted, failed and completed receipts", () => {
+  const host = new UiHost();
+  host.register(feedUiContribution);
+  const receipt = { outcome: null, error_code: null, created_count: 2, deduped_count: 1, started_at: "2026-10-13T00:00:00Z", completed_at: null };
+  const html = host.render({ contribution_id: FEED_UI_CONTRIBUTION_ID, surface: "source-workbench", model: model({ sources: [source({ runs: [
+    { ...receipt, phase: "running" },
+    { ...receipt, phase: "interrupted" },
+    { ...receipt, phase: "terminal", error_code: "connector_rate_limited" },
+    { ...receipt, phase: "terminal", completed_at: "2026-10-13T00:00:01Z" },
+  ] })] }) });
+  const rows = [...html.matchAll(/<li data-run-state="([^"]+)">([\s\S]*?)<\/li>/g)];
+  assert.equal(rows.length, 4);
+  const expected = [
+    ["running", "syncing", "正在拉取", "已开始，等待来源返回"],
+    ["error", "interrupted", "拉取已中断", "新增 2 · 去重 1"],
+    ["error", "failed", "拉取失败", "错误：connector_rate_limited · 可安全重试"],
+    ["complete", "done", "拉取完成", "新增 2 · 去重 1"],
+  ];
+  for (const [index, row] of rows.entries()) {
+    const [phase, ring, title, summary] = expected[index]!;
+    assert.equal(row[1], phase);
+    assert.ok(row[2]!.includes(`data-mw-state="${ring}"`));
+    assert.ok(row[2]!.includes(`<strong>${title}</strong><p>${summary}</p>`));
+  }
+  assert.ok(rows[3]![2]!.includes("2026-10-13T00:00:01Z"));
 });
 
 // Soft Workbench (specs/archive/soft-workbench-rollout): the Feed column is one timeline, as in the approved prototype; the
@@ -446,11 +474,12 @@ test("Feed stage list is one timeline and the source menu keeps each source's co
   assert.match(github, /<strong>GitHub · adeptify<\/strong>/);
   assert.match(github, /<em>1<\/em>/);
   assert.match(github, /class="is-ready"/);
-  assert.match(github, /data-icon="check"|href="#icon-check"/);
+  // RING-05: the menu keeps each source's distinct state in the shared presentation.
+  assert.match(github, /<svg[^>]*data-mw-state="connected"/);
   assert.match(sourceMenuRow(workbench, "source-empty"), /<em>0<\/em>/);
   const paused = sourceMenuRow(workbench, "source-paused");
   assert.match(paused, /class="is-attention"/);
-  assert.match(paused, /data-icon="alert"|href="#icon-alert"/);
+  assert.match(paused, /<svg[^>]*data-mw-state="paused"/);
   assert.match(sourceMenuRow(workbench, "other"), /<strong>其他<\/strong>/);
   assert.ok(
     workbench.indexOf('data-feed-task="source-a"') < workbench.indexOf('data-feed-task="source-b"'),

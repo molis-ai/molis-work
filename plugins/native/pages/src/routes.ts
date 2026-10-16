@@ -29,6 +29,8 @@ export interface PagesPluginRouteDefinition {
 }
 
 export const PAGES_NATIVE_PLUGIN_ROUTES = [
+  route("pages.comments.list", "GET", /^\/api\/pages\/([^/]+)\/comments$/u, ["id"]),
+  route("pages.comments.append", "POST", /^\/api\/pages\/([^/]+)\/comments$/u, ["id"]),
   route("pages.list", "GET", /^\/api\/pages$/u),
   route("pages.templates", "GET", /^\/api\/pages\/templates$/u),
   route("pages.create", "POST", /^\/api\/pages$/u),

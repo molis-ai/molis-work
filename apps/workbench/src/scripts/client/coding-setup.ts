@@ -11,13 +11,7 @@ export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
   const molisWorkControlHeaders = host.headers;
   const tabWorkspace = { openItem: host.openItem, openBeside: host.openBeside, openPlugin: host.openPlugin };
   const immersiveNavigation = { hideDirectory: host.hideDirectory };
-    const companionRequest = async (plugin, path, method = "GET", body, signal) => {
-        const response = await fetch(route('/api/plugins/io.molis.work.' + plugin + path), {method,cache:'no-store',signal,
-          ...(method==='GET'?{}:{headers:molisWorkControlHeaders(),body:JSON.stringify(body ?? {})})});
-        const result = await response.json();signal?.throwIfAborted();
-        if(!response.ok)throw new Error(result.error || '无法读取文件工作区');
-        return result;
-      };
+    const companionRequest = (plugin,path,method="GET",body,signal) => molisWorkRequest(route('/api/plugins/io.molis.work.'+plugin+path),{method,body:method==='GET'?undefined:body??{},signal,fallback:'无法读取文件工作区'});
     const codingRoot = host.root.matches("[data-coding-workbench]") ? host.root : null;
     const openCompanionResult = (name) => {
       if(codingRoot){codingRoot.dataset.codingDetail="true";codingRoot.dataset.codingResults="true";}
@@ -37,14 +31,12 @@ export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
       openResult: () => openCompanionResult('files'),
       closeResult: closeCompanionResult,
     }) : null;
-    (${CODING_CLIENT_FACTORY_SCRIPT})({ mountPluginClient,
+    (${CODING_CLIENT_FACTORY_SCRIPT})({ mountPluginClient, interaction: host.interaction,
       revealTask: () => { if(matchMedia("(max-width: 600px)").matches) immersiveNavigation?.hideDirectory(); closeCompanionResult(); },
       onDirectoryFace: face => { const handled=filesBrowser?.show(face) ?? false; gitBrowser?.show(face); return handled; },
       showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient,route,headers:()=>molisWorkControlHeaders()}),
       addWorkspace: async (workspace_path) => {
-        const response = await fetch(route("/api/workspaces"), { method:"POST", headers:molisWorkControlHeaders(), body:JSON.stringify({workspace_path,user_confirmed:true}) });
-        const result = await response.json();
-        if(!response.ok) throw new Error(result.error || "无法关联工作区");
+        const result=await molisWorkRequest(route("/api/workspaces"),{body:{workspace_path,user_confirmed:true},fallback:"无法关联工作区"});
         return result.workspace;
       },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),

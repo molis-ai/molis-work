@@ -3,7 +3,7 @@
 //   S-01  the launcher listens on loopback only
 //   S-02  a foreign Host header (DNS rebinding) is refused, for every method and every route
 //   S-03  a mutation needs a same-origin Origin, the control token and a one-time operation key; a non-API mutation is refused
-//   S-04  the PTY and side-panel browser sockets refuse a foreign Origin, a foreign Host and an unauthenticated first message
+//   S-04  the PTY, side-panel browser and computer sockets refuse a foreign Origin, a foreign Host and an unauthenticated first message
 //   S-05  no channel answers before the control token (the self-guarded /im mount aside, S-03): the retired Casebook path is refused like any other, and a leftover Casebook configuration is not read
 //   S-06  the control token is long, random and owner-only
 //   S-21  no answer of the host can be shown in another origin's frame (clickjacking)
@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
 import { BROWSER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/browser";
+import { COMPUTER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/computer";
 import { createMolisWorkWebServer, resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "security-invariants-control-token-0123456789abcdef";
@@ -331,6 +332,11 @@ test("S-04 the side-panel browser socket refuses a foreign Origin, a foreign Hos
   await refusesUntilAuthenticated(t, BROWSER_SOCKET_PATH, { type: "attach", project_id: "p1" });
 });
 
+test("S-04 the computer socket refuses a foreign Origin, a foreign Host and an unauthenticated or wrongly authenticated first message", { timeout: 60_000 }, async t => {
+  // The third socket (the Assistant's desktop, specs/computer-use) answers to the same loopback rule and the same first message.
+  await refusesUntilAuthenticated(t, COMPUTER_SOCKET_PATH, { type: "pause" });
+});
+
 test("S-04 the browser socket serves a project only after authenticating, and only a project that exists", { timeout: 60_000 }, async t => {
   const host = await startHost(t);
   const inside = await open(host, BROWSER_SOCKET_PATH, { origin: host.origin });
@@ -343,11 +349,11 @@ test("S-04 the browser socket serves a project only after authenticating, and on
   assert.ok(reply !== "closed" && reply.type === "error", JSON.stringify(reply));
 });
 
-test("S-04 the names a browser may use for this machine (localhost, [::1]) reach both sockets as well, and the token is still what lets a client in", { timeout: 60_000 }, async t => {
+test("S-04 the names a browser may use for this machine (localhost, [::1]) reach all three sockets as well, and the token is still what lets a client in", { timeout: 60_000 }, async t => {
   // The refusals above are about foreign names; this is the other side of the same rule: the spellings of loopback that a person's own browser sends
   // are not refused. `[::1]` is the one the terminal socket used to refuse (it compared the bracket-less spelling).
   const host = await startHost(t);
-  for (const path of ["/pty", BROWSER_SOCKET_PATH]) {
+  for (const path of ["/pty", BROWSER_SOCKET_PATH, COMPUTER_SOCKET_PATH]) {
     for (const name of ["localhost", "[::1]"]) {
       const authority = `${name}:${host.port}`;
       const wrong = await open(host, path, { host: authority, origin: `http://${authority}` });

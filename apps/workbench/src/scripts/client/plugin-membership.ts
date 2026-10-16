@@ -120,9 +120,8 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     });
   };
   const fetchPage = async () => {
-    const response = await fetch(route('/') + (document.body.dataset.desktopShell === 'true' ? '?desktop=1' : ''), { cache: 'no-store', headers: { accept: 'text/html' } });
-    if (!response.ok) throw new Error('page');
-    return new DOMParser().parseFromString(await response.text(), 'text/html');
+    const html=await molisWorkRequest(route('/')+(document.body.dataset.desktopShell==='true'?'?desktop=1':''),{as:'text',headers:{accept:'text/html'}});
+    return new DOMParser().parseFromString(html,'text/html');
   };
 
   const follow = async (pluginId, adding, before) => {
@@ -160,17 +159,13 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     // The tile answers at once; the server confirms, or the tile goes back.
     tile?.classList.toggle('is-available', !adding);
     try {
-      const response = await fetch('/api/settings/projects/' + encodeURIComponent(projectId) + '/plugins', {
-        method: adding ? 'POST' : 'DELETE', headers: globalThis.molisWorkControlHeaders(), body: JSON.stringify({ plugin_id: pluginId }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || L(adding ? '无法添加插件' : '无法移除插件'));
+      const result=await molisWorkRequest('/api/settings/projects/'+encodeURIComponent(projectId)+'/plugins',{method:adding?'POST':'DELETE',body:{plugin_id:pluginId},fallback:L(adding?'无法添加插件':'无法移除插件')});
       await follow(pluginId, adding, before);
       return { ok: true, result };
     } catch (error) {
       tile?.classList.toggle('is-available', adding);
-      if (!quiet) showToast?.(error.message, true);
-      return { ok: false, error: error.message };
+      if (!quiet) showToast?.(error,true);
+      return {ok:false,error};
     } finally { tile?.classList.remove('is-busy'); }
   };
   // One change at a time: the next starts from what the last one left. The market asks to report a failure itself.

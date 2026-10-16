@@ -263,7 +263,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 930,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 496,
+  "testInternalImports": 495,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -509,7 +509,6 @@
     "tests/workspace-directory-picker.test.ts": 2,
     "tests/workspace-git-index.test.ts": 2,
     "tests/workspace-git-read.test.ts": 1,
-    "tests/workspace-plugin-graph.test.ts": 1,
     "tests/workspace-production-events.test.ts": 3
   },
   "vendoredPrologueSdk": 1,

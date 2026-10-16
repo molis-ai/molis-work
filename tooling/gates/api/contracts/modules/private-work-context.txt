@@ -490,10 +490,10 @@ export declare const modulesPrivateWorkContextContract: {
 export declare const sessionErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly message_content_unavailable: "invalid";
     readonly message_conflict: "invalid";
-    readonly message_target_changed: "invalid";
+    readonly message_target_changed: "conflict";
     readonly message_unavailable: "invalid";
     readonly message_not_found: "invalid";
-    readonly message_attempt_changed: "invalid";
+    readonly message_attempt_changed: "conflict";
     readonly not_found: "invalid";
     readonly confirmation_required: "invalid";
     readonly identity_conflict: "invalid";

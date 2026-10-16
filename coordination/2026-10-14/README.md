@@ -405,7 +405,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 手册 B2 #577（`3057ba36e`，Cognia 用 contracts `fencedMaterials`、两段提示词升 v2、S-13 加 Cognia 一条、评测 30 次）审过，等空档加 full-suite。
   - #571（2a）并 main 后新头 `819a4e4ca` 审过（S-28 写明免审前缀只属这一轮的建议工具、伪造前缀用例、单一名字），排在 #577 后加 full-suite（after-577 脚本）；2c 文件单加 Coding HTTP 边缘按 kind 给状态。#573（W3-A2）新头 `acbd2becc` 审过（横向滚动+有更多的一侧淡出、键盘滚进视野、竖滚轮横滚，STRIP-03；touch-targets 量 ＋ 与 ×；截图看过），排在 #571 后加 full-suite（after-571 脚本）。标签顺序：#575、#576 在跑 → #577 → #571 → #573。消息上限将到：已让交互线在 #571 合入后、回执线在 #573 合入后自行开工 2c、1e，不等统筹通知。
 
-  - 2c 合同统筹定 B：宿主注册动作 `agent.offers.run@1`（owner agent-host、受众 plugin、项目范围、concurrent），只执行该建议自己点名的确切引用，输入过动作自己的检查，用回合的授权来源重新发现后 `beforeEffect()` 再调；S-28 下加一条并逐条断言拒绝；动作快照加一行；重复执行由 Coding 自己的认领与修订号兜住。A（typed 能力加返回值）、C（插件自己的授权）不取。详见共享笔记 h4-2a-2c-file-lists.md 末节。回执 1e 预查：SDK 没有被打断丢弃回复的公开事件，打断标记只在页面上按回执做，完整标记记为 Prologue 需求（与已批方案一致）。
+  - 2c 合同统筹定 B：宿主注册动作 `agent.offers.run@1`（owner agent-host、受众 plugin、项目范围、concurrent），只执行该建议自己点名的确切引用，输入过动作自己的检查，用回合的授权来源重新发现后 `beforeEffect()` 再调；S-28 下加一条并逐条断言拒绝；动作快照加一行；重复执行由 Coding 自己的认领与修订号兜住。A（typed 能力加返回值）、C（插件自己的授权）不取。详见共享笔记 h4-2a-2c-file-lists.md 末节。卡存 Coding 私有存储 `cards:<session_id>`（compareAndSet，不新建表、不升库结构版本），宿主动作的拒绝记为新行 S-29；同一会话两张卡并发点要都记对。回执 1e 预查：SDK 没有被打断丢弃回复的公开事件，打断标记只在页面上按回执做，完整标记记为 Prologue 需求（与已批方案一致）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

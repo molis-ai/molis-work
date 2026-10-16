@@ -389,6 +389,10 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 手册 B1 = #568：项目上手用自己的端口（`configured-text-port.ts`）、不再借 Cognia 角色；评测改前改后各 10 次。要补 S-13 用例与表行（不带系统角色后抗注入靠围栏 JSON）和使用记录归属断言，再加标签。用途组合同在 #562 后开工、先报清单。
   - W5-12（本机全量前后计时）：统筹发「安静时段」才跑，条件是防腐本机批次完、1d 合（已满足）、其他线当前批次完；时段内其他线不起构建与浏览器批次，约 75 分钟。
   - 待攒批弹窗：已安装插件能否声明默认来源；延后工具声明的改法若碰 vendored/上游。
+  - 10-16 深夜合入：#565（`dfc81998a`）、#560 P3c（`9c75ff8e7`）、#558（`0367ad33a`）、#568 B1（`cbf2341c5`）。#569（settled()）全量只挂 goal-event-http 把 stale_commitment 钉在 400，是预期变化，交互改 409 后重标；#570（W5-13 第 1 片）全量在跑。
+  - 采用线探针：main 上任何被延后的工具（超过 `deferToolSchemasBeyond: 20`）对任何模型都调不到——find-tools 之后下一次请求仍不声明它（SDK `agent-run-recipe.js` 的 `toolSpecs`）。受影响：Coding builder（≥3 个目录工具）、coordinator（≥6）、writer（≥10）、planner/reader/reviewer（≥13）；助理 operate 正好 20，再加一个就全失。
+  - **用户 10-16 弹窗（四项全按推荐）**：① 延后工具上游 Prologue 修（find-tools 返回的工具在该运行后续请求里声明、记进运行以便恢复与回放），同时现在由采用线在 agent-host 去掉 `deferToolSchemasBeyond` 止血，新包换入后撤止血；② `board-wait` 的 params 按检查器带 schema，并进同一上游改动，换包后重跑 P3c 小评测；③ 已安装插件暂不许声明默认来源，只在随宿主发的插件之间，装插件时的同意流程有了再议（W4-03 第 2 片改文档措辞）；④ 暂不换更强模型对照，分不开的记「拿不准」。
+  - W5-12 安静时段 23:56 开始（防腐线跑本机全量、全量构建、增量构建），期间各线不起构建、浏览器批次与评测。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

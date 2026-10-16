@@ -2,7 +2,7 @@ import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { ActionError, bindActionClient, retainActionAuthority, type ActionClient, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedQueryActions, FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions, INBOX_PLUGIN_ID } from "@molis-ai/molis-work-plugin-inbox";
-import { hostCompleteText, type HostCompleteText } from "./host-complete-text.js";
+import { hostCompleteText, textModelAvailability, type HostCompleteText } from "./host-complete-text.js";
 import { planInformationWork } from "./information-planner.js";
 
 const text = { type: "string" };
@@ -22,13 +22,10 @@ export const informationActions = {
 };
 
 export function informationActionProvider(home: string, projectId: string, client: ActionClient, completion?: HostCompleteText | null): ActionProviderRegistration {
-  const model = () => {
-    if (completion !== undefined) return completion ?? undefined;
-    try { return hostCompleteText({ homeDirectory: home }); } catch { return undefined; }
-  };
+  const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
   return { provider: { provider_id: "system.information", kind: "system", title: "信息助手", project_id: projectId },
     definitions: [informationActions.plan], handlers: [{ ...informationActions.plan,
-      availability: () => model() ? { available: true } : { available: false, code: "actions.connection_required", reason: "尚未配置助手模型" },
+      availability: () => textModelAvailability(model, "尚未配置助手模型"),
       handle: async (caller, input) => {
         const complete = model();
         if (!complete) throw new ActionError("actions.connection_required", "尚未配置助手模型");

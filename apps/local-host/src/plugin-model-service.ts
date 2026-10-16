@@ -6,7 +6,7 @@ import { decodePrologueJsonOutput, reportedTokenTotal } from "@molis-ai/molis-wo
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { registeredInstructionBody, resolveModelPrompt } from "./agent-definitions/instructions.js";
-import { hostTextGeneration, type HostTextGeneration, type HostTextRequestOptions } from "./host-complete-text.js";
+import { hostTextGeneration, textModelAvailability, type HostTextRequestOptions } from "./host-complete-text.js";
 import type { PluginPlatformHome } from "./home-side.js";
 
 /**
@@ -30,18 +30,12 @@ const unavailable = (reason: string): ActionAvailability => ({ available: false,
  * stands in for the model (tests), `null` says there is none; otherwise the Home's own configuration, as for every other caller.
  */
 export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort {
-  const configured = (): { generate: HostTextGeneration } | { reason: string } => {
-    try {
-      const generate = hostTextGeneration({ homeDirectory: home.directory });
-      return generate ? { generate } : { reason: NOT_SET_UP };
-    } catch { return { reason: "文字模型配置无效，请检查服务连接" }; }
-  };
+  const configured = () => hostTextGeneration({ homeDirectory: home.directory });
   return {
     availability() {
       const injected = home.completeText();
       if (injected !== undefined) return injected === null ? unavailable(NOT_SET_UP) : { available: true };
-      const model = configured();
-      return "generate" in model ? { available: true } : unavailable(model.reason);
+      return textModelAvailability(configured, NOT_SET_UP);
     },
     complete: (owner, prompt, dispatch) => runWithMolisWorkHome(home.directory, async () => {
       const injected = home.completeText();
@@ -50,9 +44,9 @@ export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort
       const options: HostTextRequestOptions = { signal: dispatch.signal, beforeDispatch: dispatch.beforeDispatch,
         timeoutMs: dispatch.timeout_ms, maxOutputTokens: dispatch.max_output_tokens, ...(system === undefined ? {} : { system }) };
       if (injected) return { text: await injected(text, options) };
-      const model = configured();
-      if (!("generate" in model)) throw new ActionError("actions.connection_required", model.reason);
-      const result = await model.generate(text, options);
+      const generate = configured();
+      if (!generate) throw new ActionError("actions.connection_required", NOT_SET_UP);
+      const result = await generate(text, options);
       const input = reportedTokenTotal(result.usage, "input"), output = reportedTokenTotal(result.usage, "output");
       return { text: result.value, ...(input !== undefined && output !== undefined ? { usage: { input_tokens: input, output_tokens: output } } : {}) };
     }),

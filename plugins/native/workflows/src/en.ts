@@ -124,6 +124,7 @@ export const WORKFLOWS_EN: Record<string, string> = {
   "还没写交接规则": "no handoff rule yet",
   "还没写 AI 要整理成什么": "no instruction for AI yet",
   "还没有可用的文字模型": "no text model available",
+  "文字模型的设置读不了，请检查模型设置": "Can't read the text model settings; check them",
   "暂不能串进流程": "Can't join a workflow yet",
   "按定好的规则，把上一步的结果变成下一步能直接用的内容，中间不再问人。": "Turns the previous result into what the next step can use, by a fixed rule, without asking anyone.",
   "AI 读上一步的结果，整理成下一步能接着用的内容。整理出的内容会留在这一次的记录里。": "AI reads the previous result and organises it for the next step. What it produced stays in this run's record.",

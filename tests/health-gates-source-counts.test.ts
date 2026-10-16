@@ -30,7 +30,7 @@ const gate = (...args: string[]) => {
 };
 
 // The definitions, one snippet each. Everything the header of source-counts.mjs says is counted, and what it says is not.
-type Counts = { emptyCatchesInScripts?: number; oldNames?: number };
+type Counts = { emptyCatchesInScripts?: number; oldNames?: number; scriptConstants?: number };
 // The fourth element says whether the snippet is a source file (default: a test file).
 const definitions: Array<[string, string, Counts, boolean?]> = [
   ["an empty catch inside a template-literal browser script", "export const SCRIPT = `try { f(); } catch (e) {}\\n`;", { emptyCatchesInScripts: 1 }, true],
@@ -45,11 +45,15 @@ const definitions: Array<[string, string, Counts, boolean?]> = [
   ["goal-board (the kanban class) and GOAL_BOARDS_SCHEMA_SQL are neither of the two counted spellings", "const css = '.goal-board-switch'; export const GOAL_BOARDS_SCHEMA_SQL = 1;", {}, true],
   ["old names are not read in tests", "const a = 'goalboard'; const b = board_id;", {}, false],
   ["a catch in a string is not a script in a test file (a fixture)", "export const fixture = 'try { f(); } catch {}';", {}, false],
+  // W4-04: browser programs kept as text in *_SCRIPT constants.
+  ["*_SCRIPT constants written as a template, a string, a joined or a wrapped literal", "export const A_SCRIPT = `go();`; const B_SCRIPT = 'go();'; const C_SCRIPT = \"a\" + `b${x}`; const D_SCRIPT = (`go();`) as const;", { scriptConstants: 4 }, true],
+  ["a *_SCRIPT read from a bundle, built by a call, or a name without the suffix is not text here", "export const A_SCRIPT = readFileSync(new URL('./a.js', import.meta.url), 'utf8').trim(); const B_SCRIPT = build(); const SCRIPT = `go();`; const A_SCRIPTS = `go();`;", {}, true],
+  ["*_SCRIPT constants are not read in tests", "export const A_SCRIPT = `go();`;", {}, false],
 ];
 for (const [name, text, expected, inSource] of definitions) {
   test(`definition: ${name}`, () => {
     const found = countFile("snippet.ts", text, { inSource: inSource ?? false });
-    assert.deepEqual(found, { emptyCatchesInScripts: 0, oldNames: 0, ...expected });
+    assert.deepEqual(found, { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0, ...expected });
   });
 }
 
@@ -61,6 +65,7 @@ before(() => {
   // One of everything already exists in the base, so growth in a file that has a record is tested as well as in a new file.
   put("packages/alpha/src/script.ts", "export const SCRIPT = `try { send(); } catch (e) {}`;\n");
   put("packages/alpha/src/named.ts", "export const old = 'GoalBoard';\n");
+  put("packages/alpha/src/kept.ts", "export const KEPT_SCRIPT = `keep();`;\n");
   // Not violations: look-alike names (and code the static checks, not these counts, look at).
   put("packages/alpha/src/clean.ts", [
     "export const a = () => { try { run(); } catch { /* the file may not exist yet */ } };",
@@ -92,6 +97,10 @@ const violations: Scenario[] = [
   { name: "the old product name once more in a file that has it", mutate: () => put("packages/alpha/src/named.ts", read("packages/alpha/src/named.ts") + "export const more = 'goalboard';\n"), expect: [/in packages\/alpha\/src\/named\.ts 1 → 2/] },
   { name: "board_id in new code", mutate: () => put("packages/alpha/src/row.ts", "export interface Row { board_id: string }\n"), expect: [/in packages\/alpha\/src\/row\.ts 0 → 1/] },
   { name: "boardId as a parameter name", mutate: () => put("packages/alpha/src/param.ts", "export const f = (boardId: string) => boardId;\n"), expect: [/in packages\/alpha\/src\/param\.ts 0 → 2/] },
+  { name: "a browser program kept as text in a new file", mutate: () => put("packages/alpha/src/page.ts", "export const PAGE_SCRIPT = `render();`;\n"),
+    expect: [/browser programs kept as text in a \*_SCRIPT constant in packages\/alpha\/src\/page\.ts 0 → 1/] },
+  { name: "a second browser program kept as text in a file that has one", mutate: () => put("packages/alpha/src/kept.ts", read("packages/alpha/src/kept.ts") + "export const MORE_SCRIPT = 'more();';\n"),
+    expect: [/browser programs kept as text in a \*_SCRIPT constant in packages\/alpha\/src\/kept\.ts 1 → 2/] },
   { name: "BoardId as the tail of a longer name", mutate: () => put("packages/alpha/src/tail.ts", "export type ExistingBoardId = string;\n"), expect: [/in packages\/alpha\/src\/tail\.ts 0 → 1/] },
 ];
 
@@ -139,10 +148,14 @@ test("changes that lower the counts, or only move them, pass against the merge-b
     git("mv", "packages/alpha/src/script.ts", "packages/alpha/src/script-renamed.ts"); // a moved file keeps its record
     put("packages/alpha/src/script-renamed.ts", "export const SCRIPT = `try { send(); } catch (e) { console.warn(e); }`;\n"); // one fewer
     put("packages/alpha/src/named.ts", "export const old = 'Molis Work';\n"); // one fewer
+    // The program moves into TypeScript that a bundle is built from; the constant reads the bundle.
+    put("packages/alpha/package.json", JSON.stringify({ name: "@test/alpha", scripts: { build: "tsc && esbuild src/browser/kept.ts --bundle --outfile=dist/kept-client.js" } }));
+    put("packages/alpha/src/browser/kept.ts", "declare const keep: () => void;\nkeep();\n");
+    put("packages/alpha/src/kept.ts", "import { readFileSync } from 'node:fs';\nexport const KEPT_SCRIPT = readFileSync(new URL('./kept-client.js', import.meta.url), 'utf8');\n");
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
-  assert.match(run.out, /Lower than the merge-base: emptyCatchesInScripts, oldNames/);
+  assert.match(run.out, /Lower than the merge-base: emptyCatchesInScripts, oldNames, scriptConstants/);
   assert.equal(gate("--update", "--base", "main").code, 0, "lowering the baseline with the merge-base given is accepted");
 });
 
@@ -154,5 +167,6 @@ test("the report lists each count per file, next to the merge-base's", () => {
   const json = JSON.parse(gate("--report", "--json", "--base", "main").out);
   assert.deepEqual(json.head.emptyCatchesInScripts, { "packages/alpha/src/script.ts": 1 });
   assert.deepEqual(json.head.oldNames, { "packages/alpha/src/named.ts": 1 });
+  assert.deepEqual(json.head.scriptConstants, { "packages/alpha/src/kept.ts": 1 });
   assert.deepEqual(json.head, json.base);
 });

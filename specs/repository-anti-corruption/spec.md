@@ -52,6 +52,14 @@ W4-04 第三片（2026-10-15，Form 经 Plugin Runtime 装配，#551）：按 `d
   - 其余改了调用方式的：`creative-artifact-promote`、`creative-tools-plugins` 里 Form 的部分改经动作；`tests/personal-plugins-review-fixes.test.ts` 断言 Form 客户端请求 Runtime 路由；夹具与五个用例里的 `withStore` 换成 `ownFormStores`。
 - 证据：相关 38 个文件全过（含 `tests/action-contract-snapshot.test.ts`），Runtime 路由、成果客户端、Characters 与 Coding 的发布 8 个文件全过，浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e` 全过；health（`--base origin/main`）、boundary、page-assets 通过（`form.js` 小了 288 字节，预算同步降下）。公开 API：`PluginRouteDeclaration.max_body_bytes`（可选，旧 Manifest 不受影响）。动作快照：Form 的安装多 5 条 `sdk.artifacts.<安装>.*`。
 
+W4-04 第四片（2026-10-15，Form 客户端改成打包的 TypeScript，PR #558）：路线图 W4-04 的「bundle its client as type-checked TS (esbuild IIFE) … and a *_SCRIPT template-constant metric is added」。
+- 客户端：原来 900 行的模板字符串 `FORM_CLIENT_FACTORY_SCRIPT` 和 `src/draft-client.ts` 的 `FORM_DRAFT_CLIENT_SCRIPT` 改成 `plugins/native/form/src/browser/` 下 14 个 TypeScript 文件，`tsconfig.browser.json` 做类型检查（`typecheck` 与 `build` 都跑），esbuild 从 `factory.ts` 打成 `dist/form-client.js`，banner/footer 直接包成 `(host) => {…}` 工厂；`src/client.ts` 只读这个包。页面状态集中在 `FormPage`（`page.ts`），原来 200 行的点击处理拆成 `commands.ts` 里按原顺序匹配的 21 条命令，每个函数都在函数行数上限以下（巨大单元门禁把类型源码当代码数，第一次拆前是 924 行的文件、904 行的函数）。行为按原样：匹配顺序、哪些命令要打开的问卷、离开前先存再问、失败的 note 范围都与原来相同。
+- 大小：`--minify`（与 `--minify-whitespace` 比，名字也压短）后宿主发的 `form.js` 从 37 472 字节降到 30 300，`tooling/gates/page-assets.json` 同步降低。
+- 门禁：`scripts/gates/source-counts.mjs` 加 `scriptConstants`：名字以 `_SCRIPT` 结尾、值是字符串或模板字符串的变量按文件计数，只许减少，新文件从 0 开始（普查 130 个、100 个文件，这一片后 129）。`rawFetchInScripts` 认得打包生成的程序：常量读 `dist/<名>.js`、所在包 build 里有 `esbuild <入口> … --outfile=dist/<名>.js` 时，入口和它 import 的文件按类型源码数，对不上构建步骤的读取直接失败（`scripts/gates/browser-programs.mjs` 的 `bundleEntry`）。口径写在 `tooling/gates/README.md`。
+- 测试：`tests/health-gates-source-counts.test.ts` 加定义、两条违规与一条减少用例；`tests/health-gates-browser-fetch.test.ts` 加打包源码里的裸 fetch 被数、读不存在的构建产物失败两条（基线里预先放一个 `clean.ts`，原来那条「不算的写法」用例改为编辑已有程序，否则它会被新计数当成新增）；变异：在 Form 的打包源码里加一个裸 fetch，`rawFetchInScripts` 记 1。`tests/creative-tools-plugins.test.ts` 与 `tests/personal-plugins-review-fixes.test.ts` 里按名字查代码形状的 Form 断言改读 `src/browser/` 的源码（同样的性质：结果请求只认最新且仍打开的问卷、换问卷先清保存计时器、保存不重画编辑器、列表行的状态格、请求走 Runtime 路由），字面量断言仍查打包结果；`tests/document-plugins-error-model.test.ts` 的浏览器入口除 `tsconfig.editor.json` 外也读 `tsconfig.browser.json`（服务端能到达的文件仍按服务端查）。
+- 证据：门禁 `--base origin/main`、`boundary:check`、`page-assets`（`--update` 后）通过；相关 18 个非浏览器文件全过；浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e`、`model-ready-surfaces.e2e` 共 19 条全过。全量由统筹在 CI 跑。
+- 变基到 #551 合入后的 main（`19823a62`）后重跑：门禁 `--base origin/main`、`boundary:check`、`page-assets`、页面事件通过；Form 与门禁相关的 11 个非浏览器文件、7 个浏览器文件（另加 `goal-form-viewport`、`policy-form-binding`、`remaining-forms-viewport`）全过。Runtime 停 Form 时库先关（`home-plugin-executor.ts`、`plugin-host-services.ts` 的 `dispose`），#551 第 7 片那次原生崩溃统筹重跑已过，判为跑机环境。
+
 W4-05（2026-10-15，助理服务拆分样板，PR #559；决定 #3）：
 - 抽出：提醒与跟进协作者 `AssistantFollowUps`（`apps/local-host/src/assistant/assistant-followups.ts`）：Plugin 的到期提醒（`sweepReminders`）、工作上的定时轮次（保存、取消、到点运行、归档时停用、宿主启动时重新排队）、关注规则（`saveRule`、`removeRule`）。它只经 `AssistantFollowUpPorts` 依赖宿主（工作、通知、设置、规则、Home 动作、Agent Host、发送、队列），不 import 助理其他模块的实现（只用共同的错误表 `assistant-errors.ts`），带走自己的表：`assistant_followups` 的读写从 `AssistantStore` 搬到 `AssistantFollowUpRecords`（`store.followUps`）。服务上的 `followUps` 现在是这个协作者，HTTP、动作（`assistant-rule-actions.ts`）、`web-server.ts` 的定时任务改为经它调用。
 - 不变的：行为与文字一字不改（逐段搬，旧的 `runDueFollowUp`、`enqueueCurrentFollowUp` 并进类里）；到期提醒对 Home 动作的每一步仍有 20 秒限时，由服务包在端口里（`withinTime`）。没有动 `assistant-inputs.ts`，没有动发送与回执的路径；没有往 contracts 加 typed 能力。
@@ -881,7 +889,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 已审 |
 | `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/form` | 内置插件 | 19 | 2,783 | `client.ts` 900 | 1 | 4 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/form` | 内置插件 | 33 | 3,163 | `store.ts` 522 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 已审 |
 | `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 已审 |

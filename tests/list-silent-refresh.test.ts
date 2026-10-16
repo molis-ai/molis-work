@@ -1,9 +1,10 @@
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { DATASET_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-dataset";
-import { FORM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-form";
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
 import {
   INBOX_NATIVE_PLUGIN_ROUTES,
@@ -27,8 +28,10 @@ import { CLIENT_NAVIGATION_FEED_SCRIPT } from "../apps/workbench/dist/scripts/cl
 import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-inbox.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 
+// Forms' page is TypeScript bundled and minified into its client pack (W4-04): what its code does is read in the sources.
+const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
+
 const csrClients = {
-  form: FORM_CLIENT_FACTORY_SCRIPT,
   dataset: DATASET_CLIENT_FACTORY_SCRIPT,
   ppt: PPT_CLIENT_FACTORY_SCRIPT,
   functions: FUNCTIONS_CLIENT_FACTORY_SCRIPT,
@@ -55,7 +58,14 @@ test("个人插件列表在创建、删除、返回后重新 GET，并保住滚�
       assert.match(script, /\/delete[\s\S]{0,500}loadList\((\{ preserveForm: true \})?\)/, `${name} 删除后要重新拉列表`);
     }
   }
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /data-form-back[\s\S]{0,400}await loadList\(\)/);
+  // Forms: the list keeps its scroll on every repaint (read before the rows are replaced, written back after), and creating,
+  // deleting and going back each load the list again.
+  const formList = sliceFn(formSource("list.ts"), "export const renderList", "export const markSelected");
+  assert.match(formList, /const top = page\.list\?\.scrollTop[\s\S]*page\.rowsEl\.replaceChildren\(\)[\s\S]*page\.list\.scrollTop = top/, "form 要保住列表滚动，画完写回 scrollTop");
+  const formCommands = formSource("commands.ts");
+  assert.match(sliceFn(formCommands, "const create", "};"), /await loadList\(page\)/, "form 新建后要重新拉列表");
+  assert.match(formCommands, /\/delete[\s\S]{0,500}await loadList\(page\)/, "form 删除后要重新拉列表");
+  assert.match(formCommands, /data-form-back[\s\S]{0,400}await loadList\(page\)/, "form 返回后要重新拉列表");
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /data-dataset-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /data-ppt-back[\s\S]{0,400}await loadList\(\)/);
   assert.match(PAGES_CLIENT_FACTORY_SCRIPT, /data-pages-back[\s\S]{0,400}await loadList\(\)/);

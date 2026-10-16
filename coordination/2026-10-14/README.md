@@ -437,6 +437,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 采用线：prologue#30 经用户在采用线会话批准合并（`be78f726`）；换包 #599（`745fd81e7`，包 find-tools-deferral 两次打包逐字节相同，旧包与记录删、patch-history 补条目，PA-12 两条 writers + 10 个查询在旧包上红）审过，排 label-chain 第六（after-598）。#589 全量 30 过、已在合并队列；合入后通知 #594、#597 并 main 重量（只合并入队）。#580 等产品子集跑完入队。#592 已标、全量在跑。main 上 #595（他人 0.3.0 发版草稿）已合。
   - 防腐 W5-05 第 0 片 #600（`5233d4346`，只测试与脚本：多三处视觉面共 66 张，每处每配色一份计算样式快照共 22 份，样式差也退出 1；三次同树样式全同、第 3 次 goal-work@1440-dark 有 4 像素字形抖动、容差仍 0）审过，只合并入队。像素差但样式全同只在 PR 里由人写明并附对照图，不做成自动放行。下一片 quiet-paper 在 #600 合入后开。
   - 手册 A3① 方案（笔记 `ai-handbook-a3-plan.md`）认可：base 删「分工」「记忆」两节（约 40%），没覆盖的五句各移到对应工具描述或「依据与信任」；工具结果只留事实（删「回复里说……不要说……」）；拆出 `assistant-delegated` 角色（role 层 v1），第一条消息只剩事实；三条代码条件（只委派一层、子任务不能 remember/forget、不开侧栏）保留，改判写进 spec 决策记录；`assistant-service.ts:1487` 没有在途 PR 改动（#589 在 1473–1480、1499，#596 在 1510 以后）；#588、#589 合入后开分支；48 轮真实模型评测；旧子任务换新角色要有确定性用例。
+  - **回执 1e #589 已合（`ca36cb959`）**。#594（全量 27/30 过、2 项在跑）与 #597 因 page-assets 冲突，已请两线并 main 重量：#594 新头只合并入队；#597 没跑过全量，新头换进 label-chain（#596 之后）。回执线收尾、报下一步与隔离 Home 实走清单（统筹在 #597 合入后一起走）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

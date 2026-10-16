@@ -8,7 +8,7 @@ function withAttempts<T>(home: string, run: (db: ReturnType<typeof openConnector
   const db = openConnectorsStore(home);
   try { return run(db); } finally { db.close(); }
 }
-/** A read-only UI receipt, separate from the one-use OAuth state and credentials. */
+/** Public status and cancellation authority, separate from the one-use OAuth state and credentials. */
 export function beginConnectorAuthorization(home: string, state: string, connectionId: string, serviceId: string, now = Date.now()) {
   return withAttempts(home, db => {
     db.prepare("DELETE FROM connector_authorization_results WHERE expires_at < ?").run(now - TTL);
@@ -19,6 +19,10 @@ export function beginConnectorAuthorization(home: string, state: string, connect
 }
 export function finishConnectorAuthorization(home: string, state: string, status: Exclude<ConnectorAuthorizationState, "pending" | "expired">) {
   withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status=? WHERE state_hash=? AND status='pending' AND expires_at>=?").run(status, hash(state), Date.now()));
+}
+/** Checked again at each staged credential write and immediately before activation. */
+export function connectorAuthorizationPending(home: string, state: string, now = Date.now()): boolean {
+  return withAttempts(home, db => Boolean(db.prepare("SELECT 1 FROM connector_authorization_results WHERE state_hash=? AND status='pending' AND expires_at>=?").get(hash(state), now)));
 }
 export function connectorAuthorizationStatus(home: string, id: string, now = Date.now()) {
   return withAttempts(home, db => {

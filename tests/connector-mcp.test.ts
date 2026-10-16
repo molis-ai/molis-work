@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage } from "node:http";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,11 +16,12 @@ import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-wor
 import { createConnectorMcpHost, MCP_SERVERS } from "../apps/local-host/dist/connector-mcp.js";
 import { captureHostLog, larkMcpLaunch, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { createAgentConnectorPorts } from "../apps/local-host/dist/agent-connector-ports.js";
-import { connectorAuthorizationStatus } from "../apps/local-host/dist/connector-authorization-status.js";
+import { connectorAuthorizationStatus, finishConnectorAuthorization } from "../apps/local-host/dist/connector-authorization-status.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
 import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/dist/connector-mcp-actions.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
 import { isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
@@ -36,7 +37,7 @@ function home() { return mkdtempSync(join(tmpdir(), "molis-mcp-test-")); }
 const callbackOrigin = "http://localhost:19357";
 
 type FixtureTool = { name: string; description?: string; inputSchema: { type: "object"; [key: string]: unknown } };
-async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean; fail?: boolean; slow?: boolean;
+async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean; fail?: boolean; slow?: boolean; publicOrigin?: string; beforeToken?(): void | Promise<void>;
   beforeList?(): void | Promise<void>; beforeInitialize?(): void | Promise<void>; tools?(): FixtureTool[] } = {}) {
   let enterCall!: () => void, releaseCall!: () => void;
   const called = new Promise<void>(resolve => { enterCall = resolve; });
@@ -74,6 +75,7 @@ async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean
       if (url.pathname === "/register") { const metadata = JSON.parse(await body(request)); return json(201, { ...metadata, client_id: "dynamic-test-client" }); }
       if (url.pathname === "/token") {
         tokenRequestCount++;
+        await options.beforeToken?.();
         const params = new URLSearchParams(await body(request));
         authClient = params.get("client_id") ?? "";
         if (params.get("grant_type") === "authorization_code") {
@@ -119,9 +121,10 @@ async function fixture(options: { token?: string; oauth?: boolean; sse?: boolean
   await once(server, "listening");
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("missing fixture address");
-  origin = `http://127.0.0.1:${address.port}`;
+  const localOrigin = `http://127.0.0.1:${address.port}`;
+  origin = options.publicOrigin ?? localOrigin;
   return {
-    endpoint: `${origin}/mcp`, called, releaseCall,
+    endpoint: `${origin}/mcp`, localOrigin, called, releaseCall,
     authorize(url: string) { const params = new URL(url).searchParams; challenge = params.get("code_challenge") ?? ""; assert.equal(params.get("code_challenge_method"), "S256"); return params.get("state")!; },
     rejectCurrentToken() { expectedToken = "server-invalidated-token"; },
     stats: () => ({ refreshCount, tokenRequestCount, callCount, readCount, initializationCount, authClient, authorizationHeaders }),
@@ -216,6 +219,84 @@ test("MCP OAuth DCR and PKCE survive a new host instance; refresh and 401 recove
     assert.equal(connectorProtocolSecrets(temp, complete.connectionId).get("oauth"), null);
     await assert.rejects(restarted.inspectMcpConnection(temp, complete.connectionId), /已断开/);
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
+for (const stage of ["before_callback", "token", "discovery"] as const) test(`S-30 ASC-35 cancelled MCP authorization cannot activate after ${stage}`, { timeout: 30_000 }, async () => {
+  const temp = home();
+  let reached!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { reached = resolve; });
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  const pause = async () => { reached(); await blocked; };
+  const remote = await fixture({ oauth: true, ...(stage === "token" ? { beforeToken: pause } : stage === "discovery" ? { beforeList: pause } : {}) });
+  const options = { testServers: { notion: { endpoint: remote.endpoint, auth: "oauth" as const } } };
+  try {
+    const started = await createConnectorMcpHost(options).startMcpConnection(temp, { serviceId: "notion", displayName: "Cancelled", origin: callbackOrigin });
+    const state = remote.authorize(started.authorizationUrl!);
+    if (stage === "before_callback") finishConnectorAuthorization(temp, state, "cancelled");
+    // A replacement Host reads the persisted cancellation, rather than an in-memory flag.
+    const completion = createConnectorMcpHost(options).completeMcpAuthorization(temp, { state, code: "valid-code", origin: callbackOrigin });
+    const rejected = assert.rejects(completion, { code: "connector.mcp.authorization", message: /取消/ });
+    if (stage !== "before_callback") { await entered; finishConnectorAuthorization(temp, state, "cancelled"); release(); }
+    await rejected;
+    assert.equal(connectorAuthorizationStatus(temp, started.authorizationId)?.status, "cancelled");
+    assert.equal(withConnectorConnections(temp, store => store.get(started.connectionId)), null);
+    assert.equal(withConnectorProtocols(temp, store => store.get(started.connectionId)), null);
+    for (const name of ["access", "oauth", "client"]) assert.equal(connectorProtocolSecrets(temp, started.connectionId).get(name), null);
+    assert.equal(remote.stats().callCount, 0);
+    if (stage === "before_callback") assert.equal(remote.stats().tokenRequestCount, 0, "a cancelled request never exchanges its code");
+    await assert.rejects(createConnectorMcpHost(options).completeMcpAuthorization(temp, { state, code: "valid-code", origin: callbackOrigin }), /已使用/);
+  } finally { release(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
+for (const mode of ["callback", "manual"] as const) test(`ASC-09 MCP ${mode} publishes tools and resources before the assistant continues`, { timeout: 30_000 }, async t => {
+  const temp = home(), publicOrigin = "https://mcp.notion.com";
+  const remote = await fixture({ oauth: true, publicOrigin });
+  const originalFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (url.origin === publicOrigin) {
+      const forwarded = new URL(url.pathname + url.search, remote.localOrigin);
+      return originalFetch(input instanceof Request ? new Request(forwarded, input) : forwarded, init);
+    }
+    if (url.protocol !== "http:" || url.hostname !== "127.0.0.1") throw new Error("Unexpected external request in isolated MCP test");
+    return originalFetch(input, init);
+  });
+  const localHost = new MolisWorkLocalHost({ homeDirectory: temp, completeText: null });
+  const controlToken = randomUUID();
+  const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: temp, localHost, controlToken });
+  try {
+    server.listen(0, "127.0.0.1"); await once(server, "listening");
+    const address = server.address(); assert.ok(address && typeof address !== "string");
+    const origin = `http://127.0.0.1:${address.port}`, prefix = `${origin}/api/settings/connectors/methods/mcp`;
+    const post = (url: string, data: Record<string, unknown>) => originalFetch(url, { method: "POST", headers: { origin, "content-type": "application/json",
+      "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(data) });
+    const startedResponse = await post(`${prefix}/start`, { service_id: "notion", display_name: "Team knowledge" });
+    assert.equal(startedResponse.status, 200);
+    const started = await startedResponse.json() as { connection_id: string; authorization_id: string; authorization_url: string };
+    const state = remote.authorize(started.authorization_url);
+    const returnedUrl = `${prefix}/callback?state=${encodeURIComponent(state)}&code=valid-code`;
+    const response = mode === "callback" ? await originalFetch(returnedUrl, { redirect: "manual" }) : await post(`${prefix}/complete`, { returned_url: returnedUrl });
+    assert.equal(response.status, mode === "callback" ? 302 : 200);
+    assert.equal(connectorAuthorizationStatus(temp, started.authorization_id)?.status, "connected");
+    const caller: ActionCallContext = { actor_id: "assistant:asc", project_id: null, audience: "agent", permissions: ["mcp:external"] };
+    const actions = localHost.homeActionClient(), discovered = await actions.discover(caller);
+    const echo = discovered.find(row => row.capability_id === connectorMcpCapabilityId(started.connection_id, "echo"));
+    const resource = discovered.find(row => row.capability_id === connectorMcpResourceCapabilityId(started.connection_id));
+    assert.ok(echo); assert.ok(resource);
+    assert.equal(remote.stats().callCount, 0, "authorization never invokes a business tool");
+    const result = await actions.invoke(caller, echo, { message: "assistant uses newly authorized service" });
+    assert.deepEqual(result, { content: [{ type: "text", text: "assistant uses newly authorized service" }] });
+    assert.equal(remote.stats().callCount, 1);
+    const contents = await actions.invoke(caller, resource, { uri: "fixture://readme" });
+    assert.deepEqual(contents, { contents: [{ uri: "fixture://readme", text: "Actual MCP resource", mimeType: "text/plain" }] });
+    const replay = await post(`${prefix}/complete`, { returned_url: returnedUrl });
+    assert.equal(replay.status, 401);
+    assert.equal(remote.stats().tokenRequestCount, 1);
+    assert.equal(remote.stats().callCount, 1);
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve())); await localHost.close();
+    t.mock.restoreAll(); await remote.close(); rmSync(temp, { recursive: true, force: true });
+  }
 });
 
 test("MCP authorization expires after ten minutes and rejected grants reveal no remote error body", async () => {

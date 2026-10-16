@@ -1,5 +1,6 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
+import { assertMcpAuthorizationPending, commitMcpConnection } from "./connector-mcp-commit.js";
 import { randomUUID } from "node:crypto";
 import { connectorProductAuth } from "./connector-product-auth.js";
 import { resolve } from "node:path";
@@ -72,7 +73,7 @@ export const MCP_SERVERS: Readonly<Record<string, McpServerConfiguration>> = {
 
 const CALLBACK = "/api/settings/connectors/methods/mcp/callback";
 const REQUEST_TIMEOUT = 30_000;
-interface McpConfiguration extends ConnectorProtocolConfiguration {
+export interface McpConfiguration extends ConnectorProtocolConfiguration {
   protocol: "mcp";
   endpoint: string;
   displayName: string;
@@ -211,10 +212,11 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   }
   function provider(home: string, config: McpConfiguration, state?: string, signal?: AbortSignal, beforeDispatch?: McpRequestOptions["beforeDispatch"]) {
     const secrets = connectorProtocolSecrets(home, config.sessionId);
-    const checkActive = config.sessionId === config.connectionId ? () => { active(home, config.connectionId); } : undefined;
+    const checkActive = state ? () => assertMcpAuthorizationPending(home, state, now())
+      : config.sessionId === config.connectionId ? () => { active(home, config.connectionId); } : undefined;
     let authorizationUrl: string | undefined;
     const saveConfig = () => {
-      if (state) withConnectorProtocols(home, store => store.update(state, config));
+      if (state) { checkActive?.(); withConnectorProtocols(home, store => store.update(state, config)); }
       else if (config.sessionId === config.connectionId) { checkActive?.(); withConnectorProtocols(home, store => store.save(config)); }
     };
     const oauth: OAuthClientProvider = {
@@ -234,7 +236,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
         if (tokens.expires_in !== undefined) secrets.put("expires", String(now() + tokens.expires_in * 1000));
         else secrets.delete("expires");
       },
-      saveCodeVerifier: verifier => { if (!state) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权"); secrets.put("verifier", verifier); },
+      saveCodeVerifier: verifier => { if (!state) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权"); checkActive?.(); secrets.put("verifier", verifier); },
       codeVerifier: () => { const verifier = secrets.get("verifier"); if (!verifier) throw connectorErrors["connector.mcp.authorization"]("授权校验信息缺失，请重新连接"); return verifier; },
       redirectToAuthorization: url => {
         if (!state) throw connectorErrors["connector.mcp.authorization"]("MCP 需要重新授权");
@@ -243,7 +245,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
         authorizationUrl = url.href;
       },
       discoveryState: () => config.discovery,
-      saveDiscoveryState: discovery => { bindStagedOAuthClient(secrets, discovery.authorizationServerUrl, Boolean(state)); config.discovery = discovery; saveConfig(); },
+      saveDiscoveryState: discovery => { checkActive?.(); bindStagedOAuthClient(secrets, discovery.authorizationServerUrl, Boolean(state)); config.discovery = discovery; saveConfig(); },
       invalidateCredentials: scope => {
         checkActive?.();
         if (scope === "all" || scope === "tokens") for (const name of ["oauth", "access", "expires"]) secrets.delete(name);
@@ -314,24 +316,6 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     }
     return { tools, resources };
   }
-  function commit(home: string, config: McpConfiguration): void {
-    const previous = withConnectorConnections(home, store => store.get(config.connectionId));
-    if (previous && (previous.updated_at !== config.previousRevision || previous.disconnected_at !== config.previousDisconnectedAt)) throw connectorErrors["connector.mcp.configuration"]("连接已改变，请重新开始授权");
-    const staged = connectorProtocolSecrets(home, config.sessionId);
-    const final = connectorProtocolSecrets(home, config.connectionId);
-    for (const name of ["oauth", "access", "expires", "client"]) {
-      const value = staged.get(name);
-      if (value) final.put(name, value); else final.delete(name);
-    }
-    const saved = { ...config, sessionId: config.connectionId };
-    delete saved.previousRevision;
-    delete saved.previousDisconnectedAt;
-    withConnectorProtocols(home, store => store.save(saved));
-    withConnectorConnections(home, store => store.saveProtocol({ connectionId: config.connectionId, serviceId: config.serviceId, displayName: config.displayName,
-      endpoint: config.endpoint, credentialRef: config.mode === "none" ? null : final.reference("access"),
-      refreshRef: config.mode === "oauth" ? final.reference("oauth") : null, expiresRef: config.mode === "oauth" ? final.reference("expires") : null }));
-    staged.clear();
-  }
   const startMcpConnection = async (home: string, input: StartMcpConnectionInput) => serialized(home, input.connectionId ?? "new", async () => {
     // Deployment credentials are bound to the default official resource only.
     if (!input.clientId?.trim() && !input.clientSecret?.trim() && !input.token?.trim() &&
@@ -369,7 +353,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
       if (connected.authorizationUrl) { withConnectorProtocols(home, store => store.update(state, config)); return { connectionId, authorizationId, authorizationUrl: connected.authorizationUrl }; }
       if (!connected.result) throw connectorErrors["connector.mcp.provider"]("MCP 未完成初始化");
       if (config.mode === "oauth" && !secrets.get("access")) throw connectorErrors["connector.mcp.authorization"]("MCP 未取得访问令牌，请检查 OAuth 应用配置");
-      commit(home, config);
+      commitMcpConnection(home, config, state, now());
       withConnectorProtocols(home, store => store.discard(state));
       finishConnectorAuthorization(home, state, "connected");
       return { connectionId, authorizationId, ...connected.result };
@@ -384,17 +368,18 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
       config = withConnectorProtocols(home, store => store.consume<McpConfiguration>(state, callbackOrigin(input.origin), now())).configuration;
     } catch { throw connectorErrors["connector.mcp.authorization"]("MCP 授权会话无效、已过期或已使用，请重新连接"); }
     return serialized(home, config.connectionId, async () => {
-      const session = provider(home, config);
+      const session = provider(home, config, state);
       try {
+        session.checkActive?.();
         if (config.protocol !== "mcp") throw connectorErrors["connector.mcp.authorization"]("授权方式不匹配");
         if (returned && returned.origin + returned.pathname !== config.redirectUri) throw connectorErrors["connector.mcp.authorization"]("返回地址不匹配本次授权");
         if (input.error || returned?.searchParams.get("error")) throw connectorErrors["connector.mcp.authorization"]("授权被取消或拒绝");
         endpointFor(config.serviceId, config.endpoint);
         if (!code.trim()) throw connectorErrors["connector.mcp.authorization"]("MCP 未返回授权码，请重新连接");
         await auth(session.oauth, { serverUrl: config.endpoint, authorizationCode: code, fetchFn: session.fetch });
-        const connected = await useClient(home, config, inspect);
+        const connected = await useClient(home, config, inspect, state);
         if (!connected.result) throw connectorErrors["connector.mcp.authorization"]("MCP 授权未完成，请重新连接");
-        commit(home, config);
+        commitMcpConnection(home, config, state, now());
         finishConnectorAuthorization(home, state, "connected");
         return { connectionId: config.connectionId, serviceId: config.serviceId, ...connected.result };
       } catch (error) {

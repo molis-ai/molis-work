@@ -29,6 +29,7 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
     const origin = `http://${host}`;
     if (url.pathname === `${PREFIX}/callback` && request.method === "GET") {
       const result = await completeMcpAuthorization(home, { state: url.searchParams.get("state") ?? "", code: url.searchParams.get("code") ?? "", error: url.searchParams.get("error") ?? undefined, origin });
+      remember(result.connectionId, result.tools, result.resources);
       response.writeHead(302, { location: `/settings/connectors?connected=${encodeURIComponent(result.serviceId)}&connection=${encodeURIComponent(result.connectionId)}`, "cache-control": "no-store" });
       response.end();
       return true;
@@ -36,7 +37,9 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "不支持的 MCP 连接操作" }); return true; }
     const body = await readLocalWebBody(request);
     if (url.pathname === `${PREFIX}/complete` && typeof body.returned_url === "string") {
-      sendLocalWebJson(response, 200, await completeMcpAuthorization(home, { origin, returnedUrl: body.returned_url }));
+      const result = await completeMcpAuthorization(home, { origin, returnedUrl: body.returned_url });
+      remember(result.connectionId, result.tools, result.resources);
+      sendLocalWebJson(response, 200, result);
       return true;
     }
     if (url.pathname === `${PREFIX}/start`) {

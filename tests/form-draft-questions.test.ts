@@ -7,7 +7,7 @@ import test from "node:test";
 import type { ActionExecutionContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import type { AgentQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
-import { formActions, createFormActionHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { formActions, createFormActionHandlers, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
 // specs/ai-interaction-experience S1 (AC-26): 「AI 生成题目」 first asks what it needs to know when the request does not say,
@@ -31,7 +31,7 @@ async function fixture(t: import("node:test").TestContext, replies: unknown[]) {
   const forms = openFormStore(home);
   t.after(async () => { forms.close(); await rm(home, { recursive: true, force: true }); });
   const heard: string[] = [];
-  const handlers: ActionHandlerBinding[] = createFormActionHandlers({ withStore: run => run(forms), modelAvailability: () => ({ available: true }),
+  const handlers: ActionHandlerBinding[] = createFormActionHandlers({ ...ownFormStores(run => run(forms)), modelAvailability: () => ({ available: true }),
     completeText: async prompt => { heard.push(JSON.stringify(prompt)); const next = replies.shift(); return typeof next === "string" ? next : JSON.stringify(next); } });
   const draft = handlers.find(handler => handler.capability_id === formActions.draft.capability_id)!;
   const caller: ActionExecutionContext = { actor_id: "web-user", project_id: "p", audience: "user", permissions: [], beforeEffect: async () => {} };

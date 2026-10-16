@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/storage';
+import { PluginSyncError } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { initializeReplica, replicaMarkSql, queueReplicaChange, replicaTransaction, createSqliteReplica } from '@molis-ai/molis-work-storage';
 import { createPagesSyncAdapter, type PagesSyncContext } from './sync.js';
 
@@ -32,10 +33,10 @@ export function initializePagesReplication(db: DatabaseSync): void {
 }
 
 export function createPagesReplica(db: DatabaseSync, space: StorageSpace | undefined, caller: PagesReplicationContext) {
-  if(space?.kind!=='personal')throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');
+  if(space?.kind!=='personal')throw new PluginSyncError('sync.scope','仅支持已绑定的个人空间');
   const decode=(key:string):[string,'folder'|'document',string]=>{
     const parts=JSON.parse(key);
-    if(!Array.isArray(parts)||parts.length!==3||!parts.every(p=>typeof p==='string'&&p.length>0&&p.length<=80)||!['folder','document'].includes(parts[1]))throw new Error('SYNC_INVALID_KEY');
+    if(!Array.isArray(parts)||parts.length!==3||!parts.every(p=>typeof p==='string'&&p.length>0&&p.length<=80)||!['folder','document'].includes(parts[1]))throw new PluginSyncError('sync.invalid','文档同步标识无效');
     return parts as [string,'folder'|'document',string];
   };
   return createSqliteReplica(db,{
@@ -56,7 +57,7 @@ export function createPagesReplica(db: DatabaseSync, space: StorageSpace | undef
       payload[field]=payload[field].filter(row=>row.id!==id);
       if(value!==null){
         const envelope=value as {project?:{id:string;title:string};record?:{id:string}};
-        if(!envelope||envelope.project?.id!==projectId||envelope.record?.id!==id)throw new Error('SYNC_INVALID_RECORD');
+        if(!envelope||envelope.project?.id!==projectId||envelope.record?.id!==id)throw new PluginSyncError('sync.invalid','文档同步记录与项目或资产标识不一致');
         payload[field].push(envelope.record);
       }
       adapter.apply({...snapshot,payload},snapshot.source_revision);

@@ -8,6 +8,7 @@ import {
   createPluginCapabilityClient,
   createPluginInputsClient,
   createPluginOutputsClient,
+  currentPluginAction,
   type PluginCapabilityPort,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
@@ -47,7 +48,9 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     withdrawCaller = options.qualifyCaller?.(definition, pluginCaller);
     const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
     const artifactService = createPluginArtifactClient({ api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions,
-      project_id: options.project_id, actor_id: options.actor_id });
+      project_id: options.project_id, actor_id: options.actor_id,
+      // A version pinned inside one of this installation's actions is the caller's (an Agent, a workflow, an MCP client, the person).
+      author: () => { const scope = currentPluginAction(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
     withdrawInstructions = registerPluginInstructions(options.home, definition, context.install_id);

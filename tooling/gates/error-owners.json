@@ -150,12 +150,6 @@
       ],
       "reason": "The Feed module, plugin and the Host files that sync and promote; the feed_* snake codes become feed.* (spec W3-02 E)."
     },
-    "form": {
-      "paths": [
-        "apps/local-host/src/form-*"
-      ],
-      "reason": "The Form plugin and the Host files that serve it; its codes already start with form."
-    },
     "functions": {
       "paths": [
         "modules/functions/",

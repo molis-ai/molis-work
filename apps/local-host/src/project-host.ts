@@ -23,7 +23,6 @@ import { imagesActionProvider } from "./images-actions.js";
 import { pptActionProvider } from "./ppt-actions.js";
 import { cogniaActionProvider } from "./cognia-actions.js";
 import { pagesActionProvider } from "./pages-actions.js";
-import { formActionProvider } from "./form-actions.js";
 import { datasetActionProvider } from "./dataset-actions.js";
 import { jellyActionProvider } from "./jelly-actions.js";
 import { todoActionProvider } from "./todo-actions.js";
@@ -185,7 +184,6 @@ export class MolisWorkLocalHost {
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
             if (options.homeDirectory) add(pagesActionProvider(options.homeDirectory, runtime, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(pptActionProvider(options.homeDirectory, runtime, options.completeText, this.actionClient(reference)));
-            if (options.homeDirectory) add(formActionProvider(options.homeDirectory, runtime, options.completeText));
             if (options.homeDirectory) add(datasetActionProvider(options.homeDirectory, runtime, options.completeText));
             if (options.homeDirectory) add(lingguangActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));

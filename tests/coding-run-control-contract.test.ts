@@ -18,10 +18,10 @@ function rejected(value: unknown): void {
   assert.throws(() => assertActionInput(schema, value), (error: unknown) => error instanceof ActionError && error.code === "actions.input_invalid");
 }
 
-// ADOPT-CONTROL-V2-01: current schema and callers use a new shape under a new action version.
-test("coding.runs.control uses version 2 and remains exclusive to the person at this computer", () => {
+// ADOPT-CONTROL-V2-01, RC-01: current schema and callers use a new shape under a new action version (3: a supplement's key and mode).
+test("coding.runs.control uses version 3 and remains exclusive to the person at this computer", () => {
   assert.equal(control.definition.capability_id, "coding.runs.control");
-  assert.equal(control.definition.version, 2);
+  assert.equal(control.definition.version, 3);
   assert.deepEqual(control.definition.action.audiences, ["user"]);
 });
 
@@ -41,6 +41,14 @@ test("an answer without its question fields, or a steer without text, is rejecte
   rejected(control.toInput(request({ kind: "steer", run_id: "run-1", text: " " })));
 });
 
+test("RC-01: a supplement's key and send mode are checked by the published schema, before any handler", () => {
+  rejected({ ...base, kind: "steer", text: "先看测试", key: "has space" });
+  rejected({ ...base, kind: "steer", text: "先看测试", key: "-leading" });
+  rejected({ ...base, kind: "steer", text: "先看测试", mode: "later" });
+  rejected({ ...base, kind: "stop", key: "send.1" });
+  assertActionInput(schema, { ...base, kind: "steer", text: "先看测试", key: "send.1", mode: "after-run" });
+});
+
 test("a complete control passes the published schema and the handler does not fail for a missing field", async () => {
   const switched = { ...base, kind: "switch-model", provider_id: "anthropic", model_id: "claude" };
   assertActionInput(schema, switched);
@@ -58,7 +66,10 @@ test("a complete control passes the published schema and the handler does not fa
 
   const steered = { ...base, kind: "steer", text: "先看测试" };
   assertActionInput(schema, steered);
-  assert.deepEqual(await runControl(steered, async () => []), { kind: "steer", text: "先看测试" });
+  assert.deepEqual(await runControl(steered, async () => []), { kind: "steer", send: { text: "先看测试" } });
+  const keyed = { ...base, kind: "steer", text: "先看测试", key: "send.1", mode: "interrupt" };
+  assertActionInput(schema, keyed);
+  assert.deepEqual(await runControl(keyed, async () => []), { kind: "steer", send: { text: "先看测试", key: "send.1", mode: "interrupt" } }, "RC-01: the page's key and mode reach agent.inputs.send");
 
   for (const kind of ["stop", "pause", "resume"] as const) {
     const input = { ...base, kind };

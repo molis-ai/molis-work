@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {DatabaseSync} from 'node:sqlite';
 import {ensureStorageSpace,personalStorageSpace,homeSqlitePath,type AggregateReplicaContext} from '@molis-ai/molis-work-storage';
 import type {SyncEvent,SyncReplicaAdapter} from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import {openFormStore} from '@molis-ai/molis-work-plugin-form';
+import {openFormStore,FormStore} from '@molis-ai/molis-work-plugin-form';
 import {openDatasetStore} from '@molis-ai/molis-work-plugin-dataset';
 import {openPptStore} from '@molis-ai/molis-work-plugin-ppt';
 import {openLingguangStore} from '@molis-ai/molis-work-plugin-lingguang';
@@ -35,6 +35,28 @@ test('Form transfers captured questions, idempotent submissions and tombstones; 
   assert.throws(()=>b.update(form.id,{title:'过期写入',expected_version:saved.version}),/改变|修改/);
   assert.equal(rb.next(),null);a.delete(form.id);f.send(ra,rb);assert.throws(()=>b.get(form.id),/找不到/);
   assert.ok(edited.questions.length===1);
+});
+
+test('Form SQL writers share the durable sync journal across connections and restart',t=>{
+  const f=fixture(t),a=f.open(openFormStore,0),b=f.open(openFormStore,1);
+  const writer=f.open(home=>new DatabaseSync(homeSqlitePath(home,'form')),0);
+  const store=new FormStore({
+    get:(sql,params=[])=>writer.prepare(sql).get(...params),
+    all:(sql,params=[])=>writer.prepare(sql).all(...params),
+    run:(sql,params=[])=>writer.prepare(sql).run(...params),
+  });
+  const form=store.create({project_id:'project',title:'Runtime 写入'});
+  store.update(form.id,{questions:[{id:'q',title:'反馈',type:'text'}]});
+  store.publish(form.id);
+  store.submit(form.id,{q:'另一连接写入的答卷'},'project',{requestId:'runtime-answer'});
+  const reopened=f.open(openFormStore,0);
+  f.send(reopened.replica(f.context),b.replica(f.context));
+  assert.equal(b.get(form.id).title,'Runtime 写入');
+  assert.equal(b.listSubmissions(form.id)[0]?.answers.q,'另一连接写入的答卷');
+  store.delete(form.id);
+  f.send(a.replica(f.context),b.replica(f.context));
+  assert.throws(()=>b.get(form.id),{code:'form.not_found'});
+  assert.equal(b.replica(f.context).next(),null);
 });
 
 test('Dataset transfers saved immutable snapshots and permits owner rollback on another device',t=>{

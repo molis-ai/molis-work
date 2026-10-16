@@ -322,6 +322,10 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a route path that climbs out", manifest: declarationManifest({ routes: [route({ path: "/../items" })] }), expected: "路由 example.list 的路径不合法" },
   { rule: "a route path twice under another id", manifest: declarationManifest({ routes: [route(), route({ route_id: "example.again" })] }), expected: "路由路径重复：GET /items" },
   { rule: "a route permission the Manifest never declared", manifest: declarationManifest({ routes: [route({ permission: "storage:private" })] }), expected: "路由 example.list 要求未声明的权限 storage:private" },
+  // W4-04: a route may ask the Host to read a larger body, up to the Home edge's 12 MiB.
+  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 12 * 1024 * 1024 })] }), expected: "" },
+  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 12 * 1024 * 1024 + 1 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 12582912 字节）" },
+  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 12582912 字节）" },
   // required capabilities
   { rule: "a conforming requirement", manifest: declarationManifest({ capabilities: { provides: [], consumes: ["projects.read.v1"] }, requires: [requirement()] }), expected: "" },
   { rule: "a requirement without a capability id", manifest: declarationManifest({ requires: [requirement({ capability_id: undefined })] }), expected: "依赖缺少 Capability ID" },

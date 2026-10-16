@@ -22,6 +22,22 @@ W4-04 第二片（2026-10-15，插件读回自己固定的版本，#547）：For
 - `W4-04-02` 在 `tests/plugin-host-services.test.ts`。变异检查：去掉「必须是自己固定的」，`W4-04-02` 失败。
 - 动作快照：每个安装多一条 `sdk.artifacts.<安装>.own@1`。`createPluginArtifactClient` 加上这一条后到了 153 行，超过函数行数上限，把 SDK 动作的定义拆到同文件的 `sdkArtifactActions`。
 
+W4-04 第三片（2026-10-15，Form 经 Plugin Runtime 装配，#551）：按 `docs/system/RUNTIME-MIGRATION.md` 5.1 删 Host 的 Form 适配，Form 成为每个项目一个的 Runtime 插件。
+- 删：`apps/local-host/src/form-actions.ts`、`form-native-plugin-http.ts`，`index.ts` 的 `handleFormNativePluginHttp`，`project-host.ts` 的 `formActionProvider` 一行，`web-request.ts`、`web-catalog.ts` 的 Form 段，`creative-artifacts.ts` 的三个 Form 端口；包里的 `routes.ts`、`route-handlers.ts`。`tests/builtin-plugin-assembly-gate.test.ts` 的冻结名单把 Form 从 `BUILD_TIME_ASSEMBLED`、`NATIVE_PLUGIN_HTTP_FILES` 移到 `RUNTIME_ASSEMBLED`；`tooling/gates/error-owners.json` 删掉只剩已删文件的 `form` 条目。
+- 加：`plugins/native/form/src/plugin.ts` 的 `createFormPlugin`；`project-plugins.ts` 的监督器条目（`bundled: true`，`database: FORM_DATABASE`，即 W4-11 登记的 `form` 库，位置与结构不变）。问卷库的读写改走 `services.database`：`FormStore` 只认 `get`/`all`/`run` 三个调用，写入在 `database.transaction(() => caller.beforeEffect(), …)` 里，`ownFormStores` 给不经 Runtime 的测试与夹具同样的读写形状。成果走 `services.artifacts`：`publish`、自己的线头 `head`（第一片）、读回自己固定的版本 `readOwn`（第二片），别的生产者的线仍答 `form.publication_conflict`（原来宿主就这样答）。
+- 路由：Manifest 声明 15 条（项目下的 `/api/plugins/io.molis.work.form/forms…`，`route_id` 沿用原来的），每条只把请求转成同名动作；页面送来的 `project_id` 必须是本项目，否则 `actions.scope_mismatch`，什么也不写。项目分发要求插件 id 后面有路径，所以根是 `/forms`。客户端改用 `host.route(…)`（带项目前缀）；`native-plugin-api.ts` 的短名改写保留到 W6-01，Form 已用不到。
+- 舞台页仍走目录的渲染路径（与 Shelf 相同，5.1「舞台页怎么渲染」：过渡期沿用，通用挂载器是 W5-06）；客户端改 TypeScript 与 esbuild 打包是下一片。「项目已删」步骤仍由目录条目上的 `project_data` 送达：它只调用包里的 `purgeFormProject`、按 Home 文件清除、不要求实例在运行，满足 5.1 列的 (a)–(e)。
+- Manifest 加 `artifact:read`（必需）：固定下一版、恢复没存完的固定要读回自己的问卷，`readOwn` 要这个权限。少了它第二次固定会失败（原因被 `publication_conflict` 盖住，测试里第二次固定抓到了）。
+- 迁移中发现、按原行为补上的两处平台缺口：
+  - **谁固定的。** Runtime 的成果客户端把每个版本的 `created_by` 记成安装者，原来 Form 记的是调用方（Agent、流程、MCP 客户端、人）。现在宿主从 Runtime 的动作范围（`currentPluginAction`，插件说不了自己是谁）取调用方：在本安装的动作里固定的版本记调用方，动作之外仍记安装者。Characters 的发布也在动作里，所以它今后同样记调用方，与 `RecordFixedVersionInput.actor_id` 的合同说明一致。`tests/document-pin-after-move.test.ts` 与 `tests/form-actions.test.ts` 迁移前就断言这一点，迁移后、补上前两处失败。
+  - **请求体上限。** Runtime 的项目路由读 256 000 字节，原来 Form 的边界读 1 000 000（答卷文件每份可到 400 000 字）。路由声明加 `max_body_bytes`（至多 12 MiB，SDK 的 Manifest 检查拒绝越界），Form 的 POST 路由都声明 1 000 000。变异检查：把 Form 的上限改回 256 000，新加的 Runtime 边界用例失败。
+- 测试：
+  - 新增 `tests/form-runtime-routes.test.ts`：`W4-04-03` 经项目的 Runtime 路由走一遍建题、收集、结果、CSV、填写页、两次固定、列表，旧的 `/api/form` 404；`W4-04-04` 别的项目的 `project_id` 被拒、什么也没写，停止收集后经页面导入答卷仍收（原来在 `form-actions.test.ts` 的路由里，搬到这里）。
+  - `tests/form-mcp.test.ts` 原来给每个 MCP 客户端起一个自己的 Host 进程；Form 在 Runtime 上之后，一个进程关掉会把共用库里的安装记成「已停」，另一个进程就答 `actions.plugin_unavailable`，这正是「一个 Home 只有一个执行进程」要防的。改成一个常驻 Host，各个工具经网关调它（与 `tests/images-concurrency.test.ts` 相同），「跨进程」改成工具进程和 Host 重启；授权按人在访问设置里给的，断言都在。删掉 `tests/fixtures/form-mcp-server.ts`。
+  - `tests/document-plugins-error-model.test.ts`：Form 的码到状态改问 SDK 的 `actionErrorResponse`（Form 每条路由是 `bindPluginActionRoute`，失败都由它回答）；真实路由的 404、409 与请求体上限改走测试 Home 的 Runtime 边界；没有发布方时的 409 `form.unavailable` 改直接调动作（Runtime 总给 Form 成果服务）。`tests/plugin-declaration-rules.test.ts` 加三条 `max_body_bytes` 规则。
+  - 其余改了调用方式的：`creative-artifact-promote`、`creative-tools-plugins` 里 Form 的部分改经动作；`tests/personal-plugins-review-fixes.test.ts` 断言 Form 客户端请求 Runtime 路由；夹具与五个用例里的 `withStore` 换成 `ownFormStores`。
+- 证据：相关 38 个文件全过（含 `tests/action-contract-snapshot.test.ts`），Runtime 路由、成果客户端、Characters 与 Coding 的发布 8 个文件全过，浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e` 全过；health（`--base origin/main`）、boundary、page-assets 通过（`form.js` 小了 288 字节，预算同步降下）。公开 API：`PluginRouteDeclaration.max_body_bytes`（可选，旧 Manifest 不受影响）。动作快照：Form 的安装多 5 条 `sdk.artifacts.<安装>.*`。
+
 W4-09（2026-10-15，两个 PR 开着）：#539 把 Web 服务的五个周期任务登记在一处（`apps/local-host/src/periodic-tasks.ts`），「设置 › 诊断」列出「后台任务」；`W4-09-01`、`W4-09-02`（反复启停不留计时器）在 `tests/host-periodic-tasks.test.ts`。#540 让成果游标改为进程内通知加 30 秒兜底（`W4-09-03`，`tests/plugin-platform-composition.test.ts`），炼金术士工作室空闲 10 分钟且手上没事就关（`W4-09-04`，`tests/alchemist-studio-idle.test.ts`）。三处都做了变异检查。
 
 W4-11（2026-10-15，Home 存储统一登记，#542）：
@@ -830,7 +846,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 已审 |
 | `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/form` | 内置插件 | 17 | 2,545 | `client.ts` 930 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/form` | 内置插件 | 19 | 2,783 | `client.ts` 900 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 已审 |
 | `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 已审 |

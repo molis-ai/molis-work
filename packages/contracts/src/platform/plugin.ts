@@ -174,6 +174,8 @@ export interface PluginRouteDeclaration {
   path: string;
   /** Permission the caller's session must hold. Omitted means the Plugin's own grants suffice. */
   permission?: string;
+  /** The largest request body, in bytes, the Host reads for this route (at most 12 MiB); omitted, the Host's own default (256 000 bytes). */
+  max_body_bytes?: number;
 }
 
 export interface PluginManifest {

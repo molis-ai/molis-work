@@ -79,7 +79,8 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
       const waits = (round?.awaiting_input ?? []).length > 0 && (steer.state === "received" || steer.state === "applied");
       const fact = L(waits ? "已补充到这一轮；问题仍在等你回答" : FACT[steer.state] ?? FACT.received);
       const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
-      const key = JSON.stringify([fact, claim, ask, steer]), was = shown.get(turn.turn_id);
+      // A turn id only counts within one round and the page draws every round, so the input id is part of the key.
+      const id = steer.id + "@" + turn.turn_id, key = JSON.stringify([fact, claim, ask, steer]), was = shown.get(id);
       if (was && was.said === key) return was.root;
       const root = was?.root ?? make("details", "mw-receipt");
       const summary = make("summary", ""), head = make("span", "mw-receipt__fact", fact);
@@ -94,7 +95,7 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
         if (claim && before[1] !== claim) say(L("AI 说你的补充「") + quote + L("」：") + claim);
         if (ask && before[2] !== ask) say(ask);
       }
-      shown.set(turn.turn_id, { root, said: key });
+      shown.set(id, { root, said: key });
       return root;
     },
   };

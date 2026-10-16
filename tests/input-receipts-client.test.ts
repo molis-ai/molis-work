@@ -86,3 +86,15 @@ test("RCPT-312, RC-15: a change is made in place and said once on the page's sta
   assert.equal(first.getAttribute("open"), "");
   assert.deepEqual(await said(), ["你的补充「顺便把注册接口也覆盖一下」：AI 已读到；AI 说你的补充「顺便把注册接口也覆盖一下」：留到后面某一步 · 影响范围、验收条件"]);
 });
+
+test("RCPT-312, RC-15: a receipt is known by its input, not its turn id, which repeats in every round of the session", async () => {
+  const { ui, said } = receipts();
+  const turn = (input: string, state: string): Turn => ({ turn_id: "user-4", kind: "user", text: "补一条回归测试", steer: { id: input, state } });
+  // One repaint draws the old round, then the new one, whose supplement has the same turn id.
+  const paint = (state: string) => [ui.line(turn("steer-1", "read")), ui.line(turn("steer-9", state))];
+  const [old, fresh] = paint("received");
+  assert.notEqual(old, fresh, "two supplements, two receipts");
+  assert.deepEqual(await said(), [], "a new supplement's first receipt is not a change");
+  paint("received"); paint("read");
+  assert.deepEqual(await said(), ["你的补充「补一条回归测试」：AI 已读到"], "the new supplement moving on is said once");
+});

@@ -86,6 +86,16 @@ W4-08（2026-10-16，平台产品服务的边界，不新增规则，统筹 10-1
 - 能力：它们以系统动作登记；新的 typed 宿主能力由 `pnpm health:check` 的结构数字拦着（只许减少）。情境排序的 HTTP 例外与删除条件写在架构文档同一节。
 - 拆 `MemoryService`（`horizontal/memory/src/service.ts` 现 1,262 行）不在本项：按 `docs/system/HUGE-CLASS-MIGRATION.md` 的决定在包内由 W5-10 拆，路线图 W4-08 一行同步删去了「再拆 MemoryService」。
 
+W5-13 第一片（2026-10-16，Host 日志，PR 待开；统筹 10-16 认可盘点与分片）：路线图「最小的结构化日志替换 Host 里的 console.*」与任务书 §4.8「结构化日志与调用标识贯穿主链路」。
+- 加：`apps/local-host/src/host-log.ts` 的 `hostLog.warn/error/debug(区域, 事件, 错误?, 字段?)`，Host 侧唯一的实现。每条是 stderr 上的一行 JSON（常驻服务的 LaunchAgent 写进 Home 的日志文件），用稳定的区域加事件名（如 `search` / `index_update_failed`）和错误码定位，带 `call_id`（内核调用范围里的编号，就是页面失败提示里可复制的诊断编号）。
+- 只记键（`docs/system/SECURITY-INVARIANTS.md` 的「密钥只给引用」）：错误只留名字和码，不留消息和调用栈（会带人写的字、路径或密钥）；字段只留数字、布尔、null 和像键的字符串（字母数字与 `._:@-`，至多 120 字，没有空格和路径分隔符），其余写成 `"[omitted]"`；不是键的区域或事件名也写成 `"[omitted]"`，不在 catch 里抛错。
+- `debug` 只在 `MOLIS_WORK_DEBUG` 列出区域时写（逗号分隔，`*` 为全部），直接取代 `MOLIS_WORK_MEMORY_DEBUG`、`MOLIS_WORK_SEARCH_DEBUG`，不留旧开关（仓库里没有别处读或写它们）。
+- 改：Host 里 14 处后台 `console.warn/error`（Web 重启、助理的定时队列与两项周期扫描、记忆提炼与整理、删除收尾、操作队列占用、创作台读目录、CDP 事件、搜索索引）改写 `hostLog`；`assistant/assistant-http.ts` 的 2 处等回执 1e 合入后再改（统筹：assistant/ 在途）。`cli-install-service.ts`、`cli-project-maintenance.ts` 的 46 处命令行输出改走 apps/cli 的 `printCliLine`、`printCliJson`（输出逐字不变；apps/cli 是 biome.jsonc 里已经关掉 `noConsole` 的命令行程序）。
+- 行为变化：搜索索引的后台更新（对账、刷新、同步）失败原来只在开关打开时打印，等于吞掉；现在总是记一条 warn（`logSearchIndexFailure`）。记忆提炼的 debug 原来打印整个结果对象（含提炼出的记忆正文），现在只记跑没跑、记了几条（`logMemoryLearning`）。删除收尾按错误的名字和码去重（原来按消息）。
+- 数字：`console` 88 → 28（剩下的是 `assistant-http.ts` 2 处、`apps/server` 的命令行入口 7 处、测试与示例）。
+- 测试：`tests/host-log.test.ts`：`W5-13-01`（一条记录的区域、事件、调用编号、错误名与码、字段；调用之外没有编号）、`W5-13-02`（debug 只为列出的区域写，`*` 为全部；warn 不看开关）、`W5-13-03`（搜索索引失败与记忆提炼经 Host 实际用的两个函数，错误消息、字段、嵌套对象、数组、名字里的人写的字、路径和密钥都进不了日志）。变异检查：错误留消息（01、03 失败）、字段留任意字符串（03 失败）、去掉 `call_id`（01 失败）、去掉 debug 的开关判断（02 失败）。
+- 吞错的盘点（下一片起按区域修，每片开工前把文件清单给统筹）：TypeScript 代码（不含浏览器模板字符串）里 1,631 个 `catch` 与 `.catch(…)`，按处理方式分：重抛或包装 345、有记录 180、空且带注释 123、空 26、只返回默认值 354、其他处理 603。空的、只带注释的、只返回默认值的三类共 503 处：`apps/local-host/src` 247（顶层 102、`assistant/` 63、`browser/` 35、`installer/` 15、`computer/` 14、`plugin-builder/` 9、`memory/` 7）、`horizontal/agent-host` 61（几乎都在 `adapters/prologue-*.ts`，是模型调用路径，只列给 AI 开发手册线，不在本项改）、Pages 21、Coding 18、`packages/storage` 17、gmail 13、Work 11、runtime-host 10、memory 9，其余每包 7 处以下。逐处判：确是「没有就是答案」（解析失败返回空、可选文件不存在）或尽力清理（关闭时删临时文件）的，留下并在注释里写明真实原因（不写「忽略」）；把失败当成功的，改为记 `hostLog` 或向调用方报错。分片：2 顶层（不含 `coding-surface.ts`）；3 `browser/`、`installer/`、`computer/`、`plugin-builder/`、`memory/`；4 storage、runtime-host、memory、search、plugin-runtime、contracts；5 插件（不含 Coding）；最后 `assistant/`、Coding（相关 PR 合入后）。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。

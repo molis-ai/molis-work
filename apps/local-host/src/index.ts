@@ -238,7 +238,7 @@ export { assistantCardHtml } from "./assistant/assistant-card-view.js";
 export { assistantNextSteps, assistantStepRow, drawAssistantReply } from "./assistant/assistant-view-html.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
-export { prologueMemoryBackend } from "./memory/memory-host.js";
+export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
 export { ComputerRecords } from "./computer/computer-records.js";
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";
@@ -262,3 +262,4 @@ export {
   type ComputerRoundHolder,
 } from "./computer/computer-policy.js";
 export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
+export { hostLog, captureHostLog, logSearchIndexFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";

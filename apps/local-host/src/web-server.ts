@@ -39,6 +39,7 @@ import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { awaitWebServerShutdown } from "./web-server-close.js";
 import { startWebProjectSchedulers } from "./web-project-schedulers.js";
+import { hostLog } from "./host-log.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -101,10 +102,9 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const sessionResources = localHost.sessionResources();
     void sessionResources.catch(() => undefined);
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
-    const warnBackground = (message: string, error: unknown) => console.warn(message, error);
     const { periodicTasks: periodic } = composition;
     const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, agents, periodic,
-      changed: databasePath => webViewCache.delete(databasePath), onError: error => warnBackground("[schedule] 项目后台调度没有启动", error) });
+      changed: databasePath => webViewCache.delete(databasePath), onError: error => hostLog.warn("schedule", "project_schedulers_not_started", error) });
     const feedSchedulers = projectSchedulers.runtimes;
     const pty = { host: null as MolisWorkPtyHost | null };
     const im = createLocalImServer(storageHome, async id => {
@@ -235,16 +235,16 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     void runWithMolisWorkHome(storageHome, async () => {
       if (!assistant().hasTimedWork()) await agents.started;
       for (let attempt = 0; attempt < 40; attempt++) {
-        try { await agents.ready; if (await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) console.warn("[assistant] 定时队列暂时没有接上，稍后重试", error); }
+        try { await agents.ready; if (await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) hostLog.warn("assistant", "schedule_not_attached", error); }
         await new Promise(resolve => setTimeout(resolve, 15_000).unref());
       }
     });
     // New material that shares a Goal with a live work: looked for every five minutes.
     periodic.every({ id: "assistant.material", title: "为进行中的工作找新资料", owner: "assistant", intervalMs: 300_000,
-      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().scanNewMaterial())), onError: error => warnBackground("[assistant] 新资料没有读到", error) });
+      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().scanNewMaterial())), onError: error => hostLog.warn("assistant", "new_material_scan_failed", error) });
     // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
     periodic.every({ id: "assistant.reminders", title: "到期提醒", owner: "assistant", intervalMs: 60_000,
-      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().followUps.sweepReminders())), onError: error => warnBackground("[assistant] 到期提醒没有读到", error) });
+      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().followUps.sweepReminders())), onError: error => hostLog.warn("assistant", "reminder_sweep_failed", error) });
     server.once("close", () => {
       void periodic.stop();
       im.close();

@@ -1,3 +1,4 @@
+import { platformErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 
 /**
@@ -8,6 +9,8 @@ import { currentCallId } from "@molis-ai/molis-work-kernel";
  * Keys only (docs/system/SECURITY-INVARIANTS.md, secrets by reference only): an error keeps its name and code, never its
  * message or stack, which can carry a person's text, a path or a secret; a field keeps a number, a boolean, null or a
  * key-like string (letters, digits and `._:@-`, at most 120 characters: no spaces, no path separators), and anything else is written as `"[omitted]"`.
+ * The key filter is a shape check, not a secret detector: an email or an `sk-…` token has a key's shape and would be written.
+ * So a call site gives only ids, enums and counts it chose itself, never a value it read from a person, a file or a provider.
  * `debug` lines are written only for the areas listed in `MOLIS_WORK_DEBUG` (comma separated, e.g. `memory,search`; `*` for
  * all).
  */
@@ -72,5 +75,36 @@ export const hostLog = {
   debug: (area: string, event: string, fields?: Record<string, unknown>) => write("debug", area, event, undefined, fields),
 };
 
-/** The search index's background passes (reconcile, refresh, sync) that failed past the source's own report. */
-export const logSearchIndexFailure = (error: unknown, where: string): void => hostLog.warn("search", "index_update_failed", error, { where });
+/**
+ * Something that runs again and again (a timer's round, a poll) and fails the same way each time: written when it starts failing,
+ * and again only once it has worked since. `key` names what failed (a project's store, one schedule), never text of its own.
+ */
+export function repeatingFailure(area: string, event: string) {
+  const failing = new Set<string>();
+  return {
+    worked: (key: string): void => { failing.delete(key); },
+    failed: (key: string, error: unknown, fields?: Record<string, unknown>): void => {
+      if (failing.has(key)) return;
+      failing.add(key); hostLog.warn(area, event, error, fields);
+    },
+  };
+}
+
+/**
+ * The search index's background passes (reconcile, refresh, sync) that failed past the source's own report. They run after
+ * every write, so one failure is written once per pass and error code for the life of the process.
+ */
+const searchIndexFailures = repeatingFailure("search", "index_update_failed");
+export const logSearchIndexFailure = (error: unknown, where: string): void =>
+  searchIndexFailures.failed(`${where}:${String((error as { code?: unknown } | null)?.code ?? "")}`, error, { where });
+
+/**
+ * An owner's preview of a version that failed. The caller still shows no preview; "you may not read it" and "it is not there"
+ * are answers, and anything else (the owner broke, timed out, is unavailable) is written.
+ */
+export function logPreviewFailure(error: unknown, artifactTypeId: string): void {
+  const { kind, code } = (error ?? {}) as { kind?: unknown; code?: unknown };
+  const sort = kind ?? (typeof code === "string" ? platformErrorKind(code) : undefined);
+  if (sort === "forbidden" || sort === "not_found") return;
+  hostLog.warn("artifacts", "preview_failed", error, { artifact_type_id: artifactTypeId });
+}

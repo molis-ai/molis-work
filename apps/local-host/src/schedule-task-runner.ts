@@ -1,4 +1,5 @@
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { hostLog } from "./host-log.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PROLOGUE_RUNTIME_ID, type AgentHost, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { BUILTIN_PLUGIN_AGENTS } from "@molis-ai/molis-work-app-workbench";
@@ -98,7 +99,7 @@ export function createHostScheduledTaskRunner(options: {
       }, authority);
       const deadline = Date.now() + RUN_TIMEOUT_MS;
       let ended = false, cancelling: Promise<unknown> | undefined;
-      const cancel = () => { cancelling ??= adapter.control(handle.ref, { kind: "cancel" }).catch(() => undefined); return cancelling; };
+      const cancel = () => { cancelling ??= adapter.control(handle.ref, { kind: "cancel" }).catch(error => { hostLog.warn("schedule", "run_cancel_failed", error); }); return cancelling; };
       const onAbort = () => { void cancel(); };
       control?.signal.addEventListener("abort", onAbort, { once: true });
       try {

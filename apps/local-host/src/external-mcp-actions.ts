@@ -1,4 +1,5 @@
 import path from "node:path";
+import { hostLog } from "./host-log.js";
 import type { ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpLibrary, AgentMcpToolDescriptor, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { createMcpVersionBook, createRegistrationSet, EXTERNAL_MCP_CAPABILITY_PREFIX, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputContract, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
@@ -32,7 +33,8 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
     if (!seenFile) return;
     const all = readSeen();
     if (entry.tools.length) all[key] = entry; else if (key in all) delete all[key]; else return;
-    try { writeJsonFile(seenFile, all); } catch { /* The live directory is right; only the restart copy is behind. */ }
+    // The live directory is right; only the copy a restart reads is behind, which the log says.
+    try { writeJsonFile(seenFile, all); } catch (error) { hostLog.warn("connections", "mcp_restart_copy_unwritten", error); }
   };
   const restoring = new Map<string, Promise<void>>();
 
@@ -97,7 +99,10 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
           try {
             const library = await libraryFor(entry.runtime_id);
             if (library && !registered.has(key)) await sync(entry, entry.plugin_id, entry.runtime_id, library, { project_id: entry.project_id, plugin_id: entry.plugin_id });
-          } catch { /* The directory stays as it is; the next list of the servers catches up. */ }
+          } catch (error) {
+            // The directory stays as it is and the next list of the servers catches up; the failed restore is written.
+            hostLog.warn("connections", "mcp_restore_failed", error, { runtime_id: entry.runtime_id });
+          }
           finally { restoring.delete(key); }
         })();
         restoring.set(key, run);

@@ -1,5 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { resolveApiConnection } from "./connector-access.js";
+import { hostLog } from "./host-log.js";
 import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
 
 /** The one binding the market pulse has: a Home-level choice, kept in the connection registry like Images' and TypeSafe's. */
@@ -21,15 +22,19 @@ function toGithubApi(url: string): boolean {
  * not get a 401 from GitHub. A renewed, replaced or disconnected token applies to the next request. Only a connection the
  * person explicitly bound counts: a GitHub account connected for Coding or Feed is not used until it is chosen here. When
  * nothing is bound, the bound account is disconnected, its secret cannot be read or renewed, or the registry cannot be
- * read, the pulse searches anonymously (a lower rate limit) rather than failing or trying another account. The process
- * environment is never consulted.
+ * read, the pulse searches anonymously (a lower rate limit) rather than failing or trying another account; a failure to read
+ * it is written to the Host log. The process environment is never consulted.
  */
 async function boundToken(home: string): Promise<string | undefined> {
   try {
     const bound = withConnectorConnections(home, store => store.binding(SCOPE, CONSUMER, SLOT));
     if (!bound || !lendsToken(bound)) return undefined;
     return (await resolveApiConnection(home, bound.connection_id, "github")).token || undefined;
-  } catch { return undefined; }
+  } catch (error) {
+    // Searching anonymously is the answer here, but a bound account whose token cannot be read is written, not passed off as none.
+    hostLog.warn("alchemist", "pulse_token_unavailable", error);
+    return undefined;
+  }
 }
 
 function read(home: string) {

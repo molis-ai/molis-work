@@ -79,7 +79,7 @@ Directory candidates and browsing preferences come from the [current-project set
   - 目标变化拒绝旧确认，同一确认的重试读取原回执；不替换下一轮关联、不自动发起任务或验收目标。
   - 提示词与方法正文随目录条目声明，Manifest 只写声明。
   - 路由只做装配：委派信件的视图（`delegation-view.ts`）与等待/唤醒的判断和文本（`waits.ts`）是纯函数，不读存储、不调宿主。
-  - `coding_sessions`、`coding_plan_drafts` 只由本包读写；宿主的跨项目后台任务列表用 `listCodingBackgroundSessions`（只读，不建表，库里没有 Coding 的表就抛错）。
+  - `coding_sessions`、`coding_plan_drafts` 只由本包读写；宿主的跨项目后台任务列表用 `listCodingBackgroundSessions`（只读，不建表，库里没有 Coding 的表就抛错），先用 `holdsCodingSessions` 问这个库有没有用过 Coding：没用过的项目安静地什么也不列，读不了的才记一条日志（W5-13）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/coding-effect-control.test.ts tests/coding-runtime-regressions.test.ts tests/coding-material-consumption.test.ts tests/coding-background-wait.test.ts tests/coding-background-tasks.test.ts tests/coding-message-wait.test.ts tests/coding-session-messages.test.ts tests/coding-client-lifecycle.e2e.test.ts tests/coding-actions.test.ts tests/coding-artifacts.test.ts tests/coding-capabilities.test.ts tests/coding-commands.test.ts tests/coding-companion-inputs.test.ts tests/coding-delegation-waits.test.ts tests/coding-history-summary-http.test.ts tests/coding-mcp-settings-client.test.ts tests/coding-product-http.test.ts tests/coding-companion-http.test.ts tests/builtin-plugin-agent-texts.test.ts`
 - 相关手册：[docs/platform/PROLOGUE-AI.md](../../../docs/platform/PROLOGUE-AI.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[specs/coding-plugin/spec.md](../../../specs/coding-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

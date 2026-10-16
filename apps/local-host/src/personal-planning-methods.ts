@@ -7,6 +7,7 @@ import { resolveConfiguredHome } from "./product-home.js";
 /** Read a personal library without provisioning or upgrading a catalog. */
 export function readPersonalPlanningMethodPacks(homeDirectory?: string): PlanningMethodPack[] {
   const databasePath = path.join(resolveConfiguredHome(homeDirectory), "projects", "catalog.db");
+  // No catalog yet means no personal library yet; this read never creates one.
   try { realpathSync(databasePath); }
   catch { return []; }
   return readPersonalPlanningMethods(databasePath);

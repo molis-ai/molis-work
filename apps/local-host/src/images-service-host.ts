@@ -1,4 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { hostLog } from "./host-log.js";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { inferenceServiceUnavailableReason, isDispatchRefusal } from "@molis-ai/molis-work-service-agent-host";
 import { resolve } from "node:path";
@@ -65,7 +66,8 @@ export class ImagesHostService {
           const selected = store.binding("home", "images", id);
           if (!selected) return undefined;
           try { store.assertTarget(selected.connection_id, "image-api", baseUrl); return store.resolveToken(selected.connection_id, "image-api"); }
-          catch { return null; }
+          // No key is sent; a bound connection refused for this address, or whose key cannot be read, is written, not passed off as none.
+          catch (error) { hostLog.warn("images", "connection_key_unavailable", error); return null; }
         }),
         selectedConnectionId: id => withConnectorConnections(home, store => store.binding("home", "images", id)?.connection_id ?? null),
         selectConnection: (id, connectionId) => withConnectorConnections(home, store => store.bind({scopeId:"home",pluginId:"images",slotId:id,serviceId:"image-api",connectionId})),

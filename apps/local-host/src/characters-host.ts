@@ -1,4 +1,5 @@
 import { openCharacters, type CharactersService } from "@molis-ai/molis-work-module-characters";
+import { hostLog } from "./host-log.js";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { ArtifactsQueryApi, ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentFrozenCharacter } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -72,7 +73,8 @@ export function codingCharacterPorts(homeDirectory: string | undefined, actorId:
       if (record.owner_actor_id !== actorId || record.producer_plugin_id !== CHARACTER_PLUGIN_ID || record.producer_binding_signature !== CHARACTER_PUBLISHER_SIGNATURE) return [];
       const reference = { artifact_id: record.artifact_id, version: record.version };
       let content;
-      try { content = parseCharacterContent(record.payload); } catch { return []; }
+      // A record that does not parse is not offered; it is written by its id, so a character does not vanish without a word.
+      try { content = parseCharacterContent(record.payload); } catch (error) { hostLog.warn("characters", "record_unreadable", error, { artifact_id: record.artifact_id }); return []; }
       if (content.source.owner_actor_id !== actorId || record.artifact_id !== `character:${projectId}:${content.character_id}`) return [];
       const summary = { reference, title: content.title, instructions: content.instructions, host_tools: content.host_tools,
         ...(content.action_tools === undefined ? {} : { action_tools: content.action_tools }),

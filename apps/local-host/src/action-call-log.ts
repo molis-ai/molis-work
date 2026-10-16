@@ -72,6 +72,7 @@ function recordedOperation(operation: string, outcome: CallOutcome): ActionCallR
 
 function parseRow(line: string): ActionCallRecord | undefined {
   let row: Partial<ActionCallRecord> | undefined;
+  // A line that is not JSON is a torn write from a crash mid-append: not a row of this log.
   try { row = JSON.parse(line) as Partial<ActionCallRecord>; } catch { return undefined; }
   // A row from before calls had a number (or a torn one) is not a row of this log: it is not shown, and the next tidy drops it.
   return typeof row?.call_id === "string" && row.call_id && OPERATIONS.includes(row.operation ?? "") && typeof row.capability_id === "string" && typeof row.at === "string"
@@ -169,6 +170,7 @@ export class ActionCallLog {
   }
 
   private size(): number {
+    // No file yet is an empty log (the first call creates it).
     try { return statSync(this.file).size; } catch { return 0; }
   }
 
@@ -184,6 +186,7 @@ export class ActionCallLog {
   /** The rows of the current shape, oldest first, and how many lines the file has (what counts towards its limit). */
   private read(): { rows: ActionCallRecord[]; lines: number } {
     let text = "";
+    // No file yet is an empty log (the first call creates it).
     try { text = readFileSync(this.file, "utf8"); } catch { return { rows: [], lines: 0 }; }
     const lines = text.split("\n").filter(line => line.trim());
     return { rows: lines.flatMap(line => parseRow(line) ?? []), lines: lines.length };

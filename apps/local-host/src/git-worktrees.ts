@@ -136,6 +136,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
   return {
     preview,
     async supported() {
+      // The question is whether worktrees work here: a context that cannot be read is the answer "no", shown as such.
       try { await context(); return true; } catch { return false; }
     },
     async create(slotId, expectedBase) {

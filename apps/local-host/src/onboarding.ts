@@ -82,6 +82,7 @@ export function readInstalledMolisWorkVersion(homeDirectory?: string): string | 
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
     return optionalString(manifest.version);
   } catch {
+    // A checkout run from source has no installation record: no installed version.
     return null;
   }
 }

@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { logPreviewFailure } from "./host-log.js";
 import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_READABLE_FILE } from "@molis-ai/molis-work-plugin-pages";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -44,7 +45,7 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     || artifact.producer_plugin_id !== declaration.plugin_id) return undefined;
   let content: FileContent;
   try { content = await context.ownerActions(declaration.preview.action.permissions).invoke(declaration.preview, { artifact }) as FileContent; }
-  catch { return undefined; }
+  catch (error) { logPreviewFailure(error, artifact.artifact_type_id); return undefined; }
   const pinned = artifact.origin.kind === "pinned" ? artifact.origin.subject : null;
   // 「原文已改」 (A4b): the owner compares the version with its work object as it is now.
   let compared: ArtifactCompareResult["state"] | null = null;

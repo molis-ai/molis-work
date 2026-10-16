@@ -3,11 +3,11 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
-import { captureHostLog, codingBackgroundTasks, createProjectArrivalHttp, handleBrowserHttp, logPreviewFailure, projectOrNull, repeatingFailure, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
-import { listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
+import { captureHostLog, homeBackgroundTasks, createProjectArrivalHttp, handleBrowserHttp, logPreviewFailure, projectOrNull, repeatingFailure, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * W5-13 second slice: a catch in the Host that answered every failure as "absent" now tells the answer it means (the project
@@ -47,19 +47,20 @@ test("W5-13-05 an owner's failed preview is written by its type; \"you may not r
 test("W5-13-06 Coding's background list: a project without Coding lists nothing quietly; one it cannot read is written once until it reads again", () => {
   const root = mkdtempSync(join(tmpdir(), "host-log-catches-"));
   try {
-    const plain = join(root, "plain.db"); seedDemoBoard(plain);
+    // A project database that never held Coding (the demo board seeds Coding's tables, so it would not do).
+    const plain = join(root, "plain.db"); new DatabaseSync(plain).exec("CREATE TABLE other (id TEXT)");
     const broken = join(root, "broken.db"); writeFileSync(broken, "not a database");
     const projects = [{ project_id: "p-plain", display_name: "Plain", database_path: plain }, { project_id: "p-broken", display_name: "Broken", database_path: broken }];
-    const first = captured(() => codingBackgroundTasks(projects, listCodingBackgroundSessions));
+    const first = captured(() => homeBackgroundTasks(projects));
     assert.deepEqual(first.value, []);
     assert.deepEqual(first.entries.map(entry => [entry.area, entry.event, entry.fields]), [["coding", "background_tasks_unreadable", { project_id: "p-broken" }]]);
     // Read on every attention poll: the same failure is not written again ...
-    assert.deepEqual(captured(() => codingBackgroundTasks(projects, listCodingBackgroundSessions)).entries, []);
+    assert.deepEqual(captured(() => homeBackgroundTasks(projects)).entries, []);
     // ... until the store has been read since.
     rmSync(broken); seedDemoBoard(broken);
-    assert.deepEqual(captured(() => codingBackgroundTasks(projects, listCodingBackgroundSessions)).entries, []);
+    assert.deepEqual(captured(() => homeBackgroundTasks(projects)).entries, []);
     writeFileSync(broken, "not a database");
-    assert.equal(captured(() => codingBackgroundTasks(projects, listCodingBackgroundSessions)).entries.length, 1);
+    assert.equal(captured(() => homeBackgroundTasks(projects)).entries.length, 1);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

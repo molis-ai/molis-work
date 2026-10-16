@@ -44,7 +44,7 @@ import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js
 import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-characters";
-import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, holdsCodingSessions, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
@@ -66,7 +66,8 @@ import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 const projectArrivalHttps = new WeakMap<MolisWorkLocalHost, ReturnType<typeof createProjectArrivalHttp>>();
 
 /** Coding sessions running or waiting on the person in any project: the title bar's background tasks, read with the page's attention (W4-10). */
-export const homeBackgroundTasks = (projects: readonly WebProjectNavigation[]) => codingBackgroundTasks(projects, listCodingBackgroundSessions);
+// A project that never held Coding lists nothing quietly; one whose store cannot be read is written (W5-13).
+export const homeBackgroundTasks = (projects: readonly WebProjectNavigation[]) => codingBackgroundTasks(projects, db => holdsCodingSessions(db) ? listCodingBackgroundSessions(db) : []);
 
 export async function handleLocalCatalogWebRequest(
   request: IncomingMessage, response: ServerResponse, url: URL, serverOptions: WebServerOptions,

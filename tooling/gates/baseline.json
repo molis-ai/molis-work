@@ -867,13 +867,13 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 419,
+  "pluginOutsideMentionsTotal": 418,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
     "characters#outside-files": 11,
     "coding#outside-files": 17,
-    "cognia#outside-files": 14,
+    "cognia#outside-files": 13,
     "dataset#outside-files": 12,
     "diff#outside-files": 8,
     "feed#outside-files": 41,

@@ -1,6 +1,7 @@
 import type { PrologueUsageReceipt } from "../inference.js";
 import type { TokenCount as PrologueTokenCount } from "@prologue/sdk";
-import { applySteerApplied, applySteerRead, applySteerWithdrawn, closeUnreadSteers, steerOf, type InputEvent } from "./prologue-inputs.js";
+import { closeInputs, noteInputEvent, steerOf } from "./prologue-inputs.js";
+import type { ModelEvent } from "@prologue/sdk";
 export type { PrologueUsageReceipt } from "../inference.js";
 export type { TokenCount as PrologueTokenCount } from "@prologue/sdk";
 import type {
@@ -40,7 +41,6 @@ export type PrologueControlState =
 /** The event shapes this projection reads. Anything else is left alone. */
 export type PrologueEvent =
   | { type: "prompt"; role: "system" | "user"; text: string; steerId?: string; source?: "person" | "app" | "peer" }
-  | InputEvent
   | { type: "text-delta"; text: string }
   | { type: "reasoning-delta"; text: string }
   | { type: "tool-call"; call: { id: string; name: string; input?: Record<string, unknown> } }
@@ -94,6 +94,9 @@ export interface PrologueStreamState {
   stop_reason?: string;
   /** Approvals the Run is stopped on. The bridge mirrors these to the Host queue. */
   awaiting_approval: PrologueApprovalWaiting[];
+  /** The ledger events its supplements' receipts are projected from (prologue-inputs.ts). */
+  input_events: ModelEvent[];
+  inputs_closed?: true;
   /** Questions the Run is stopped on, other than approvals. */
   awaiting_input: Array<{ pending_id: string; pending_revision?: number; kind: string; why: string; sequence: number }>;
   /** Frames the contract does not recognize. Kept, never counted as progress. */
@@ -135,6 +138,7 @@ export function emptyPrologueStreamState(): PrologueStreamState {
     usage_preview: undefined,
     awaiting_approval: [],
     awaiting_input: [],
+    input_events: [],
     unknown_frames: 0,
     streaming: "",
     streaming_at: null,
@@ -265,7 +269,7 @@ function closeStreamingText(state: PrologueStreamState): void {
 /** A restored prefix is readable history, not a live stream or a tool receipt. */
 export function closeInterruptedPrologueStream(state: PrologueStreamState): void {
   closeStreaming(state);
-  closeUnreadSteers(state);
+  closeInputs(state);
   closeSleep(state);
   for (const activity of state.activity) {
     if (activity.state === "started") {
@@ -429,7 +433,6 @@ function applyTodoChanged(state: PrologueStreamState, event: PrologueEvent, _at:
 function applyCircuitTripped(state: PrologueStreamState, event: PrologueEvent, _at: string | null): boolean {
   const tripped = event as Extract<PrologueEvent, { type: "circuit-tripped" }>;
   closeStreaming(state);
-  closeUnreadSteers(state);
   closeSleep(state);
   state.phase = "stopped";
   const count = tripped.count ?? "几";
@@ -512,13 +515,21 @@ const HANDLERS: Readonly<Record<string, (state: PrologueStreamState, event: Prol
   "turn-changes": applyTurnChanges,
   "model-switched": applyModelSwitched,
   "run-recovered": applyRunRecovered,
-  "steer-applied": (state, event) => applySteerApplied(state, event as Extract<PrologueEvent, { type: "steer-applied" }>),
-  "steer-read": (state, event) => applySteerRead(state, event as Extract<PrologueEvent, { type: "steer-read" }>),
-  "steer-withdrawn": (state, event) => applySteerWithdrawn(state, event as Extract<PrologueEvent, { type: "steer-withdrawn" }>),
+  // Facts about supplements: applyRunEvent projects them into the receipts; the stream itself has nothing to show.
+  ...Object.fromEntries(["steer-applied", "steer-read", "steer-withdrawn", "inputs-acknowledged"].map(type => [type, () => false])),
 };
 
-/** Apply one event. Returns true when the projection changed. */
-export function applyPrologueEvent(
+/**
+ * Apply one event of a round to its view: the stream itself, then its supplements' receipts, which the runtime projects
+ * from the same events. Returns true when the view changed.
+ */
+export function applyRunEvent(state: PrologueStreamState, event: PrologueEvent, at: string | null): boolean {
+  const changed = applyPrologueEvent(state, event, at);
+  return noteInputEvent(state, event) || changed;
+}
+
+/** The stream part of one event. Returns true when the projection changed. */
+function applyPrologueEvent(
   state: PrologueStreamState,
   event: PrologueEvent,
   at: string | null,
@@ -665,7 +676,6 @@ export function applyPrologueEvent(
     case "tripped": {
       const tripped = event as Extract<PrologueEvent, { type: "tripped" }>;
       closeStreaming(state);
-      closeUnreadSteers(state);
       closeSleep(state);
       // A guardrail stop is terminal but is not a failure of the work.
       state.phase = "stopped";
@@ -683,7 +693,6 @@ export function applyPrologueEvent(
 
     case "completed": {
       closeStreaming(state);
-      closeUnreadSteers(state);
       closeSleep(state);
       state.phase = "completed";
       return true;
@@ -692,7 +701,6 @@ export function applyPrologueEvent(
     case "failed": {
       const failed = event as Extract<PrologueEvent, { type: "failed"; why?: string }>;
       closeStreaming(state);
-      closeUnreadSteers(state);
       closeSleep(state);
       state.phase = "failed";
       state.stop_reason = failed.error?.code === "RUN_INTERRUPTED" ? "本轮因中断结束。已核实的操作已保留，可输入新要求继续。"
@@ -705,7 +713,6 @@ export function applyPrologueEvent(
 
     case "cancelled": {
       closeStreaming(state);
-      closeUnreadSteers(state);
       closeSleep(state);
       state.phase = "cancelled";
       state.stop_reason = "已取消";

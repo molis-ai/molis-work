@@ -422,6 +422,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - #573 全量只挂 `immersive-directory.e2e`（插件选择器弹层等收起超时，重试也红）；同一失败上午在无关的 #576 出现过、重跑过了。已重跑分片（过了自动入队），并请情境线在合并后的构建与 19dc13d4 基线上各跑 3 次比对。若两边都偶发，记 flaky 交主人。
   - 10-16 04:10（PDT）：#571、#578、#581、#582 已合；#584（1828437e，全量 30 过）、#586、#587 在合并队列。#583 全量在跑（第 3 片红，等重试）；#585 已标、全量排队；#580 排在其后（label-chain 580 单独起，after-583 里重复的 585 已停掉）。#588 等 #583/#585 合入后并 main。
   - 回执 1e（本地 `ec5f1016d`，基于 cca71e02）审过：四张截图与 D14a（芯片两态、默认回答，留一个可替换点给交互线的「写进问卷」）、D14b（没有芯片的页面代写与定时发送一律是补充）、D14c（交给 Coding 的补充丢 source，已知缺口）都认可。要求：①「已补充到这一轮；上面的问题仍在等你」改成不带方向的「…；问题仍在等你回答」（问卷卡画在补充下方，「上面」指反）；② D14c 进 BACKLOG（owner Coding，`coding.runs.control` 升版加 source）。不挡：回执在 Coding 画在气泡内、助理画在气泡下，以后统一。**用户 10-16 弹窗定页面资源：#584 合入后变基，再按实测给 workbench.js、workbench.css、settings.css、arrival.css、coding.js 一次性 APPROVED_CEILINGS（1d 先例）；门禁改动由用户在回执会话批准。** 推送后统筹加 full-suite；W3-B2 排在 1e 后。
+  - 回执 1e 已开 #589（`10adfd908`，功能 ec5f1016d + 门禁一提交，用户在回执会话批准放行），但基于 cca71e02、含四个 companion 包的条目，与队列里的 #584 同改 page-assets 三个文件。已请回执线：#584 合入后变基、去掉四个 companion 条目、其余五条按新 merge-base 重测，同时改文案、加 D14c 待办；发新头后统筹审完再标。采用线 P3c 隔离 Home 评测在跑（第 12 轮：T1/T2 首次就注册等待、params 无 `{'item'}` 与字符串布尔）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

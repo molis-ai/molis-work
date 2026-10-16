@@ -6,9 +6,10 @@ import { join } from "node:path";
 import test from "node:test";
 import { deflateSync } from "node:zlib";
 import { decodePng, diffImages, encodePng } from "../scripts/visual/png.mjs";
+import { diffStyles, readStyles } from "../scripts/visual/styles.mjs";
 
-// The comparison behind W4-12 (scripts/visual-compare.mjs): reading Chrome's PNGs, the pixel diff and the verdict. The
-// browser capture itself is tests/visual-surfaces.e2e.test.ts.
+// The comparison behind W4-12 (scripts/visual-compare.mjs): reading Chrome's PNGs, the pixel diff and the verdict; and the
+// computed-style diff W5-05 added. The browser capture itself is tests/visual-surfaces.e2e.test.ts.
 
 const image = (width: number, height: number, pixel: (x: number, y: number) => number[]) => {
   const data = new Uint8Array(width * height * 4);
@@ -97,4 +98,60 @@ test("W4-12: --compare reports each changed or missing picture and exits 1; iden
   const unfinished = spawnSync(process.execPath, ["scripts/visual-compare.mjs", "--compare", join(root, "base"), root, "--out", join(root, "out-unfinished")], { encoding: "utf8" });
   assert.equal(unfinished.status, 2);
   assert.match(unfinished.stderr, /no manifest\.json/);
+});
+
+/** A style snapshot the way the capture writes one: per element, only the values that differ from its parent. */
+function snapshot(elements: Array<[string, string, Record<string, string>]>) {
+  const props: string[] = [], vectors: string[] = [];
+  const index = (name: string) => { if (!props.includes(name)) props.push(name); return props.indexOf(name); };
+  const rows = elements.map(([path, label, own]) => {
+    const vector = JSON.stringify(Object.entries(own).flatMap(([name, value]) => [index(name), value]));
+    if (!vectors.includes(vector)) vectors.push(vector);
+    return [path, label, vectors.indexOf(vector)];
+  });
+  return JSON.stringify({ props, vectors: vectors.map(vector => JSON.parse(vector)), elements: rows });
+}
+
+test("W5-05: a style change is reported once, where it starts; inherited and restated values are not changes", t => {
+  const root = mkdtempSync(join(tmpdir(), "visual-styles-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const base = snapshot([
+    ["0", "html", { color: "red", "font-size": "16px" }],
+    ["0/0", "p", {}],
+    ["0/1", "a.link", { color: "blue" }],
+    ["0/1::before", "a.link::before", { content: '"a"' }],
+    ["0/2", "aside", {}],
+  ]);
+  const head = snapshot([
+    ["0", "html", { color: "green", "font-size": "16px" }],
+    ["0/0", "p", { "font-size": "16px" }],
+    ["0/1", "a.link", { color: "blue" }],
+    ["0/1::before", "a.link::before", { content: '"b"' }],
+    ["0/3", "nav", {}],
+  ]);
+  writeFileSync(join(root, "base.json"), base); writeFileSync(join(root, "head.json"), head);
+  const diff = diffStyles(readStyles(join(root, "base.json")), readStyles(join(root, "head.json")));
+  assert.deepEqual(diff.changes.map(change => [change.path, change.prop, change.before, change.after]),
+    [["0", "color", "red", "green"], ["0/1::before", "content", '"a"', '"b"']], "the paragraph only inherits the colour, the link sets its own");
+  assert.deepEqual(diff.onlyBase.map(entry => entry.path), ["0/2"]);
+  assert.deepEqual(diff.onlyHead.map(entry => entry.path), ["0/3"]);
+  assert.deepEqual(diffStyles(readStyles(join(root, "base.json")), readStyles(join(root, "base.json"))).changes, []);
+
+  const picture = encodePng(image(2, 2, () => [200, 200, 200, 255]));
+  const capture = (side: string, styles: string) => {
+    mkdirSync(join(root, side));
+    writeFileSync(join(root, side, "home@1440-light.png"), picture);
+    writeFileSync(join(root, side, "home@1440-light.styles.json"), styles);
+    writeFileSync(join(root, side, "manifest.json"), JSON.stringify({ pictures: ["home@1440-light"], styles: ["home@1440-light"] }));
+  };
+  capture("a", base); capture("b", head); capture("c", base);
+  const compare = (head: string) => spawnSync(process.execPath, ["scripts/visual-compare.mjs", "--compare", join(root, "a"), join(root, head), "--out", join(root, `out-${head}`)], { encoding: "utf8" });
+  const styled = compare("b");
+  assert.equal(styled.status, 1, "the pictures are the same; the styles alone fail the comparison");
+  assert.match(styled.stdout, /0 of 1 pictures changed, 1 of 1 style snapshots changed/);
+  const report = JSON.parse(readFileSync(join(root, "out-b", "report.json"), "utf8")) as { styles: Array<{ changes: unknown[] }> };
+  assert.equal(report.styles[0].changes.length, 2);
+  const same = compare("c");
+  assert.equal(same.status, 0, same.stdout + same.stderr);
+  assert.match(same.stdout, /0 of 1 pictures changed, 0 of 1 style snapshots changed/);
 });

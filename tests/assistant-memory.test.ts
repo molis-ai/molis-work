@@ -609,7 +609,7 @@ test("a delegated sub-task is given neither remember nor forget: its words are t
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const names = (body.tools ?? []).map((tool: { name: string }) => tool.name);
-    if (JSON.stringify(body.messages).includes("委托给你的子任务")) { childTools.push(names); return (childScript.shift() ?? (() => reply(undefined, "完成。")))(body); }
+    if (JSON.stringify(body.messages).includes("委托的子任务")) { childTools.push(names); return (childScript.shift() ?? (() => reply(undefined, "完成。")))(body); }
     parentTools.push(names);
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   });

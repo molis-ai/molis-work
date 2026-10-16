@@ -19,7 +19,7 @@ import {
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantMaterialText,
   type AssistantDiagnostics, type AssistantRoundDiagnostics,
 } from "@molis-ai/molis-work-contracts/services/assistant";
-import { ASSISTANT_ROLE_ID } from "./assistant-agent.js";
+import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
 import { agentActions, capabilityDirectory } from "./assistant-directory.js";
 import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from "./assistant-material-scan.js";
@@ -1484,7 +1484,7 @@ export class AssistantService {
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
       requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent);
     } } : base;
-    const role = work.reply_target ? "thread-reply" : ASSISTANT_ROLE_ID;
+    const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
       const session = await host.createSession(RUNTIME, { project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID,
         actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);

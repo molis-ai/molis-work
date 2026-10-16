@@ -33,7 +33,8 @@ test("every built-in Agent is registered: its prompts named for the roles that u
   const assistant = prompts.find(prompt => prompt.key === `${ASSISTANT_PLUGIN_ID}/assistant-base`)!;
   assert.equal(assistant.source.kind, "system");
   assert.equal(assistant.layer, "base");
-  assert.deepEqual(assistant.used_by, ["个人工作助理"]);
+  assert.deepEqual(assistant.used_by, ["个人工作助理", "委派的子任务"], "a delegated work runs on the same base");
+  assert.deepEqual(prompts.find(prompt => prompt.key === `${ASSISTANT_PLUGIN_ID}/assistant-delegated`)!.used_by, ["委派的子任务"], "being delegated is that role's own layer");
   assert.equal(assistant.effective, "default");
   const coding = prompts.filter(prompt => prompt.owner_id === "io.molis.work.coding");
   assert.ok(coding.length >= 5, "Coding's base, role and compaction prompts");

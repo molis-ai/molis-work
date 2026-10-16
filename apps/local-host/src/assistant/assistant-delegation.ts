@@ -88,8 +88,8 @@ export class AssistantDelegations {
           text: material.text.slice(0, 20_000), explicit: true, source: { surface: "assistant", title: parent.title } }));
         try {
           const assigned = role ? await this.ports.chooseCharacter(child, role.reference) : child;
-          await this.ports.dispatch(assigned, [`这是「${parent.title}」委托给你的子任务，只做这一部分。`, input.brief, `验收标准：${input.acceptance}`,
-            "完成时说明结果在哪里（对象名称）、是否满足验收；做不到的部分如实说明，不要声称已完成。"].join("\n\n"), materials, "assistant");
+          // What being delegated means is the delegated role's own layer; the message is only this part's brief and its bar.
+          await this.ports.dispatch(assigned, [`「${parent.title}」委托的子任务`, input.brief, `验收标准：${input.acceptance}`].join("\n\n"), materials, "assistant");
         } catch (error) { store.discard(actorId, child.work_id); throw error; }
         return view(store.get(actorId, child.work_id), host);
       },

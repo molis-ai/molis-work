@@ -78,8 +78,8 @@ test("S-28 (D25) only the round's own suggest tool carries the unreviewed molis-
   } finally { await round.close(); }
 });
 
-// With more than 20 tools the Node adapter may defer their shapes (`deferToolSchemasBeyond`): the model then finds the
-// suggest tool with `find-tools`. Whether or not it was deferred, it names only this round's actions and its input is checked.
+// With more than 20 tools the Node adapter defers their shapes (`deferToolSchemasBeyond`): the model then finds the
+// suggest tool with `find-tools`, which the role grants as Coding's roles do. Found that way, it names only this round's actions and its input is checked.
 test("S-28 (D25) in a round of more than 20 action tools the suggest tool still names only the round's own actions and checks the input", { timeout: 90_000 }, async t => {
   const round = await suggestRound(t);
   try {
@@ -101,9 +101,10 @@ test("S-28 (D25) in a round of more than 20 action tools the suggest tool still 
       return next ? reply(suggest.name, next(named![0]!)) : undefined;
     };
     for (let i = 0; i < 6; i++) round.turns.push(turn);
-    const run = await round.finished((await round.start("Suggest among many", "workspace-write", ["suggest-action"], [refOf(NOTES_WRITE), ...extras.map(refOf)])).ref);
+    const run = await round.finished((await round.start("Suggest among many", "workspace-write", ["suggest-action", "find-tools"], [refOf(NOTES_WRITE), ...extras.map(refOf)])).ref);
     assert.equal(run.phase, "completed", run.stop_reason);
     assert.ok(named, "the round's suggest tool was reached");
+    assert.equal(suggestTools(round.requests[0]!).suggest, undefined, "past 20 tools the suggest tool was deferred and found with find-tools");
     assert.equal(named!.length, 22, "it names exactly the round's 22 action tools");
     assert.equal(new Set(named).size, 22);
     const answered = JSON.stringify(round.requests.at(-1)!.messages);

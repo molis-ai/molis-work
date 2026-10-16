@@ -31,15 +31,18 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
   const bodies: Body[] = [];
+  let suggested = false;
   const model = createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
     const body = JSON.parse(raw) as Body; bodies.push(body);
-    // The round's first call suggests creating a Goal with the one action it was given; the next one ends the round.
+    // The round's tool shapes are deferred past 20 tools: its first call finds the suggest tool, the next suggests creating
+    // a Goal with the one action it was given, and the last one ends the round.
     const suggest = body.tools?.find(tool => tool.name.startsWith("molis-suggest-"));
     res.writeHead(200, { "content-type": "text/event-stream" });
-    res.end(bodies.length === 1 && suggest ? turn("", { name: suggest.name, input: { action: suggest.input_schema?.properties?.action?.enum?.[0],
-      title: "新建目标：写发布说明", summary: "在这个项目里新建目标「写发布说明」", input: { title: "写发布说明", idempotency_key: "coding-card-e2e" }, editable: ["title"] } })
+    res.end(!suggest && !suggested ? turn("", { name: "find-tools", input: { query: "button" } })
+      : suggest && !suggested ? (suggested = true, turn("", { name: suggest.name, input: { action: suggest.input_schema?.properties?.action?.enum?.[0],
+        title: "新建目标：写发布说明", summary: "在这个项目里新建目标「写发布说明」", input: { title: "写发布说明", idempotency_key: "coding-card-e2e" }, editable: ["title"] } }))
       : turn("我放了一张卡，点了才会新建目标。"));
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));

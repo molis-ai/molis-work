@@ -78,16 +78,17 @@ test('large materials keep their ending and resume completed model batches after
   const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
   const original='# Long material\n\n'+('Ordinary work context.\n'.repeat(9000))+'FINAL FACT: launch is postponed to October 10.\n';
   selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[{path:'long.md',data:Buffer.from(original).toString('base64')}]}]});
-  const prompts:string[]=[];let readCalls=0,failed=false;
+  const prompts:string[]=[],notePrompts:string[]=[];let readCalls=0,failed=false;
   const ports={...pagesPorts(dir),readSource:async(h:string,s:Parameters<typeof readContextSource>[1])=>{readCalls++;return readContextSource(h,s);},model:async()=>({runtimeLabel:'batch fixture',completeText:async(input:ModelPromptInput)=>{const prompt=modelPromptText(input);
     assert.ok(prompt.length<82_000,'each model call has a bounded serialized prompt');prompts.push(prompt);
+    const note=typeof input!=='string'&&input.instruction.prompt_id==='onboarding.notes';if(note)notePrompts.push(prompt);
     if(prompts.length===2&&!failed){failed=true;throw Error('Temporary batch failure');}
-    return prompt.includes('这是完整材料的一部分')?'# Evidence\nWork facts retained [S1]':'# Work\nLaunch is postponed to October 10 [S1]';
+    return note?'# Evidence\nWork facts retained [S1]':'# Work\nLaunch is postponed to October 10 [S1]';
   }})};
   startContextJourney(dir,id,ports);let j=await waitContextJourney(dir,id);assert.equal(j.phase,'failed');assert.equal(j.synthesis!.completed,1);assert.equal(Object.keys(j.synthesis!.notes).length,1);
   const firstBatch=prompts[0]!.split('\n').at(-2)!;
   startContextJourney(dir,id,ports);j=await waitContextJourney(dir,id);assert.equal(j.phase,'review');assert.equal(readCalls,1);assert.equal(prompts.filter(p=>p.split('\n').at(-2)===firstBatch).length,1);
-  const uniqueBatches=[...new Set(prompts.filter(p=>p.includes('这是完整材料的一部分')).map(p=>p.split('\n').at(-2)!))];
+  const uniqueBatches=[...new Set(notePrompts.map(p=>p.split('\n').at(-2)!))];
   const processed=uniqueBatches.flatMap(p=>JSON.parse(p) as {body:string}[]).map(p=>p.body).join('');
   assert.equal(processed,j.summary!.references[0]!.body);assert.match(processed,/FINAL FACT: launch is postponed to October 10/);
   assert.match(j.summary!.body,/October 10/);assert.equal(j.summary!.references.length,1);

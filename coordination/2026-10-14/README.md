@@ -511,6 +511,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #614 合入（`ea396a276`，没动页面资源，在途 PR 都仍可合）。已通知回执线开 3c：合 main、设字节放行；APPROVED_CEILINGS 按 #611 是否已合二选一（已合就重加对象只放 3c 的条目，没合就留在现有对象里、#611 合后再变基）。
     - #618 两处修好（`cef5c5569`）：`Object.hasOwn` 判位置、宿主在 `context.object` 与落点对象不一致或缺失时丢掉落点；STRIP-05 单元用例覆盖三种丢弃与保留；顺手删了 `[data-artifact-select]` 死读。全量链挂在 #621 之后。待办号改为 BL-150。
     - #611 合入（`958946e22`，删 APPROVED_CEILINGS 整个对象、三份样式表各降约 11 KB）。#616、#618、#619 因 page-assets.json 冲突：取消 #616 在旧合并上跑的全量并去标签、停掉 #618 的链；已让防腐线给 #616 合 main 重量并变基 #619，情境线给 #618 合 main 重量，回执线 3c 重加只含 3c 条目的对象。#620 全量在跑，#621 链在它后面。
+    - 防腐线新 head：#616 `eccd9522d`（合 main，自身 diff 除预算外与审过的一致，全量链等空位）；#619 `d44296e37`（单提交放到 main 上，删 personal-shell.ts 与引用，三份样式表各少 10,020 B）。**page-assets.json 串行**：#616、#619、#618、3c 改的是同几行，两两 `git merge-tree` 冲突，先合的之后，下一个才合 main 重量、挂全量。顺序：#616 → #618 → #619 → 3c（以谁的 head 先就绪为准）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

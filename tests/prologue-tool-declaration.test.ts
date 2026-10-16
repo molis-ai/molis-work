@@ -42,3 +42,42 @@ test("PA-12: a tool find-tools hands over is declared from the next request on a
   assert.equal(f.calls.status, 1, "the call of the found tool ran");
   assert.equal(f.calls.cancel + f.calls.judge + f.calls.summary, 0, "nothing else ran");
 });
+
+/*
+ * A role that does not name find-tools: Coding's `writers` holds 11 Host tools and no find-tools, so with 10 action tools a
+ * round passes 20 and defers them. Before Prologue #30 the roster went with find-tools: the model was offered the 11 and never
+ * saw the 10. Now find-tools is offered with the roster whenever a round defers, whatever the role names.
+ */
+const LOOKUPS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet"].map(word => `Lookup ${word}`);
+const ranOnly = (lookups: Record<string, number>, title: string) => assert.deepEqual(lookups, { [title]: 1 }, `only ${title} ran, once`);
+
+test("PA-12: a writers round given 10 lookups is offered find-tools with all 10 on its roster though the role does not name it; found, a lookup is declared next and the call runs", { timeout: 60_000 }, async t => {
+  let first: readonly OfferedTool[] = [], second: readonly OfferedTool[] = [];
+  const f = await externalChecks(t, (turn, _messages, tools) => {
+    if (turn === 1) first = tools;
+    if (turn === 2) second = tools;
+    return turn === 1 ? { tool: "find-tools", input: { query: "Lookup charlie" } }
+      : turn === 2 ? { tool: toolTitled(tools, "Lookup charlie"), input: { job: "j-1" } }
+      : { text: "查到了。" };
+  }, undefined, { lookups: 10 });
+  await f.start("查一下 j-1", { role_id: "writers", action_tools: f.refs.lookups, subagent_workspaces: f.writerWorkspaces });
+  assert.ok(first.length > 20, `the round has more than 20 tools (${first.length})`);
+  assert.ok(first.some(tool => tool.name === "find-tools" && tool.schema), "find-tools is declared though writers does not name it");
+  for (const title of LOOKUPS) assert.ok(listedOnly(first).includes(toolTitled(first, title)), `${title} is on the roster`);
+  const charlie = toolTitled(second, "Lookup charlie");
+  assert.ok(second.find(tool => tool.name === charlie)?.schema, "the next request declares the found lookup's shape");
+  ranOnly(f.calls.lookups, "Lookup charlie");
+});
+
+test("PA-12: a writers round given 10 lookups lists them on find-tools' roster, and the model's call of one by that name runs without finding it first", { timeout: 60_000 }, async t => {
+  let first: readonly OfferedTool[] = [];
+  const f = await externalChecks(t, (turn, _messages, tools) => {
+    if (turn === 1) first = tools;
+    return turn === 1 ? { tool: toolTitled(tools, "Lookup delta"), input: { job: "j-1" } } : { text: "查到了。" };
+  }, undefined, { lookups: 10 });
+  await f.start("查一下 j-1", { role_id: "writers", action_tools: f.refs.lookups, subagent_workspaces: f.writerWorkspaces });
+  const delta = toolTitled(first, "Lookup delta");
+  assert.ok(listedOnly(first).includes(delta), "Lookup delta is only listed by name");
+  assert.equal(first.find(tool => tool.name === delta)?.schema, undefined, "its shape is not in the request");
+  ranOnly(f.calls.lookups, "Lookup delta");
+});

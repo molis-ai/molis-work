@@ -10,8 +10,8 @@
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
     "checkedOn": "2026-10-16",
-    "mainHead": "e4afd1a718bd8a8629d52526b953bbe75149baa6",
-    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。 2026-10-15 对上游 main e51233699c1463e3c8f0a8b08658c5860c962769（collaboration 包的来源）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main e4afd1a718bd8a8629d52526b953bbe75149baa6（found-tools 包的来源，#28 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。",
+    "mainHead": "be78f726df55d76e7ab7bd5889d4eeb89b049173",
+    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。 2026-10-15 对上游 main e51233699c1463e3c8f0a8b08658c5860c962769（collaboration 包的来源）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main e4afd1a718bd8a8629d52526b953bbe75149baa6（found-tools 包的来源，#28 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main be78f726df55d76e7ab7bd5889d4eeb89b049173（find-tools-deferral 包的来源，#30 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -34,6 +34,7 @@
       "a8ac8e1eb7362a2189973cbe7aaa4f4624649ee0",
       "ac4d11350ab3b6848460d140230081a58cbb215f",
       "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "be78f726df55d76e7ab7bd5889d4eeb89b049173",
       "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
       "c63ea1a16eec8d8217223db1624b2409a1a33d14",
       "d2f5a05df6459440a253787e94ee6520f12d754d",
@@ -657,6 +658,14 @@
       "gitBlob": "28d370d5b5ee5a870d98a6227e973cb9cb23330d",
       "commit": "e51233699c1463e3c8f0a8b08658c5860c962769",
       "description": "上游 main `e5123369`（Prologue #27 的合并：P2a–P2k、S4、窗口图、换模型的同步 beforeAccept 复查、撤销资源不逐块写墓碑）。2026-10-15 随 Molis P3a（#534）成为 main 的依赖；2026-10-16 换成从上游 main `e4afd1a7`（#28 的合并）打的 found-tools 包；旧包和其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-found-tools.tgz",
+      "bytes": 1186918,
+      "sha256": "cfed7ff4653289c67ee0dd2801e1b6d9a287d6c8873f477b4927e12dbf510705",
+      "gitBlob": "bb31b2a20e5714cc7ce2b45170b732e5b2b5e0ac",
+      "commit": "e4afd1a718bd8a8629d52526b953bbe75149baa6",
+      "description": "上游 main `e4afd1a7`（Prologue #28 的合并：`find-tools` 交出过形状的之后照常声明、只列了名字的延后工具 Model 那道门也照收、检查器说出参数形状）。2026-10-16 随 Molis #581 成为 main 的依赖；同日换成从上游 main `be78f726`（#30 的合并）打的 find-tools-deferral 包；旧包和其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

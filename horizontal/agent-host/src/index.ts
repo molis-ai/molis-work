@@ -63,7 +63,7 @@ export type { PluginBuilderAgentOptions, BuilderAgentRequest, BuilderAgentRecord
 export { resolveModelHostname } from "./adapters/node-model-dns.js";
 export { PrologueApprovalBridge } from "./adapters/prologue-approvals.js";
 export {
-  applyPrologueEvent,
+  applyRunEvent,
   emptyPrologueStreamState,
   prologuePhaseOf,
   settleProloguePending,

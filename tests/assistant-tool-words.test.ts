@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyPrologueEvent, emptyPrologueStreamState, type PrologueEvent } from "@molis-ai/molis-work-service-agent-host";
+import { applyRunEvent, emptyPrologueStreamState, type PrologueEvent } from "@molis-ai/molis-work-service-agent-host";
 import { GUARDED_TOOL_NAMES } from "../horizontal/agent-host/dist/adapters/announce-guard.js";
 import { presentActivity } from "../apps/local-host/src/assistant/assistant-service.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
@@ -18,7 +18,7 @@ test("every tool a business round can be given reads in the person's words in th
 
 function played(events: PrologueEvent[]) {
   const state = emptyPrologueStreamState();
-  for (const event of events) applyPrologueEvent(state, event, "2026-10-10T00:00:00.000Z");
+  for (const event of events) applyRunEvent(state, event, "2026-10-10T00:00:00.000Z");
   return presentActivity(state.activity, undefined);
 }
 

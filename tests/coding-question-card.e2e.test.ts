@@ -136,12 +136,12 @@ test("AC-25: Coding's next step answers a single choice through the card's own c
   await waitFor(`!document.querySelector('${coding} [data-coding-question]') && document.querySelector('${coding} [data-coding-steps]').hidden`, 15_000);
 });
 
-// specs/ai-interaction-experience T1 (AC-27-5): words, a number, a date and a date and time on Coding's card; a value past its limit is
+// specs/ai-interaction-experience T1 (AC-27-5, AC-27-6): words, a number, a date and a date and time on Coding's card; a value past its limit is
 // refused beside its own field with the limit named, the field marked and focused, and the corrected answer goes on to the model.
 test("AC-27-5: Coding answers words, a number, a date and a date and time, and a refused field says its limit", { timeout: 240_000 }, async t => {
   const opened = await openCoding(t, { why: "约下周的复盘会，先确认几件事。", questions: [
     { id: "title", type: "text", prompt: "会议标题" },
-    { id: "minutes", type: "number", prompt: "时长（分钟）", min: 15, max: 120, integer: true },
+    { id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true, unit: "分钟" },
     { id: "due", type: "date", prompt: "截止日期", required: false },
     { id: "at", type: "datetime", prompt: "开会时间" },
   ] });
@@ -172,10 +172,11 @@ test("AC-27-5: Coding answers words, a number, a date and a date and time, and a
   await fill(`${card} [data-ix-field="w3"] [data-ix-part="date"]`, "2026-10-23");
   await fill(`${card} [data-ix-field="w3"] [data-ix-part="time"]`, "15:00");
   await views("filled");
+  assert.equal(await evaluate<string>(`document.querySelector(${JSON.stringify(card)}).querySelector('[data-ix-field="n1"] .mw-ix-unit')?.textContent`), "分钟", "AC-27-6: the unit is beside the number");
   assert.equal(await evaluate<string>(`document.querySelector(${JSON.stringify(card)}).querySelector('[data-ix-field="w3"] [data-ix-weekday]').textContent`), "周五", "a typed date shows its weekday");
 
   await click(`${card} [data-ix-action="answer"]`);
-  await waitFor(`document.querySelector(${JSON.stringify(card)})?.querySelector('[data-ix-field="n1"] [data-ix-error]')?.textContent === '不能超过 120'`, 15_000);
+  await waitFor(`document.querySelector(${JSON.stringify(card)})?.querySelector('[data-ix-field="n1"] [data-ix-error]')?.textContent === '不能超过 120 分钟'`, 15_000);
   const refused = await evaluate<{ invalid: string | null; described: boolean; focused: boolean; others: string[] }>(`(() => { const node = document.querySelector(${JSON.stringify(card)}), field = node.querySelector('[data-ix-field="n1"]'), input = field.querySelector('input');
     return { invalid: input.getAttribute('aria-invalid'), described: (input.getAttribute('aria-describedby') || '').split(' ').includes(field.querySelector('[data-ix-error]').id),
       focused: field.contains(document.activeElement), others: [...node.querySelectorAll('[data-ix-error]:not([hidden])')].map(line => line.closest('[data-ix-field]').dataset.ixField) }; })()`);

@@ -48,6 +48,7 @@ export interface AgentQuestion {
     min?: number | string;
     max?: number | string;
     integer?: boolean;
+    unit?: string;
     ref_kinds?: string[];
     max_count?: number;
 }

@@ -1,0 +1,45 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "4e8468ddb6eb8fd0ca48110adb77a316c7048332",
+    "mergedUpstream": {
+      "pullRequest": 32,
+      "head": "acf7efdb8626b4c3668fddd62d465715054d3e36",
+      "mergedAt": "2026-10-16T16:24:41Z",
+      "note": "The tip of upstream main when it was packed: the find-tools-deferral package's be78f726, #31 (a session may add parameter branches to its own pack tools; asked on every request build, the registration stays one of them and calls are still checked by it) and #32 (a number question may say its unit, shown only). Molis takes it so the Assistant's gateway declares, on its capability tools, the capabilities a round found, and a number question carries its unit (specs/prologue-adoption §6.0f)."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-parameter-branches.tgz",
+    "bytes": 1189325,
+    "sha256": "c6f421292cfcdbadb1dd7db5e8a3175766d9515ae4d25205b732e318c434590f",
+    "integrity": "sha512-8See6ic/XqHnDfzvLAB4+xM3PyGU73x0lo4wVjyZ1A40e/UD2kwI6abUR+m+ateSAFn1fz/ozPEiezrM8ZVuZA=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive 4e8468ddb6eb8fd0ca48110adb77a316c7048332 | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --offline",
+      "pnpm --filter @prologue/sdk run build",
+      "cd packages/sdk && pnpm pack --pack-destination <dir>   # writes prologue-sdk-0.0.0-rc.1.tgz; renamed to prologue-sdk-0.0.0-rc.1-parameter-branches.tgz"
+    ],
+    "packedOn": "2026-10-16",
+    "reproducedFrom": "4e8468ddb6eb8fd0ca48110adb77a316c7048332",
+    "reproducedByteIdentical": true,
+    "note": "Packed from a clean git archive of the squash merge of #32, whose tree is the reviewed head acf7efdb's. The SDK full suite ran on that tree (355 files: 3946 passed, 21 skipped, 0 failed; desktop-computer-use.live not run: it drives the real desktop), and the 13 consumer scripts passed on this package; the Molis side is recorded in the adoption spec §6.0f. Packed a second time the same way on 2026-10-16: the same 1,189,325 bytes and SHA-256."
+  }
+}

@@ -500,6 +500,10 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - 回执 C1 单独一片（D33，排在 3c 后，可与 B 并行，字节先抵后报）。3c 的放行条目替换 APPROVED_CEILINGS 里 #589 用完的那几条；防腐 W5-05 第 1 片也删这几条，谁后合谁变基，机制本身不动。
     - #615（采用线换包：prologue main `4e8468dd` 的 parameter-branches 包、网关按找到的能力声明 input 分支、AgentQuestion.unit 三处，`504a86aae`）审过，全量链在 #614 之后（chain-615.log）。评测：带类型 12/12、30 次调用 1 次要纠正；通用 11/12、38 次 20 次要纠正。
     - 用户 10-16 定「删网关纠正：做，全删」：normalizedInput 的 JSON 字符串解码、coerced、parseCapability 身份旁字段全删；find 之前写错的由合同拒、模型重发。采用线的子会话 remove-the-gateway-s-mod 做，等 #615 合入开 PR。
+    - 10-16 晚合入：#606（分片 12 的 product-interaction 重跑 63/63，判偶发）、#610（`4ffa88cc3`）、#613（`c762a6400`）、#615（`cee899c4d`）、#617。已通知交互线开「加单位」一片、采用线子会话开「删网关纠正」PR。
+    - visual-surfaces：防腐线更正，#604 之后的合并结果不再超时（#606 那次的合并结果早于 #604）。之后的链不再带 EXTRA_KNOWN。
+    - #611、#616 在 #613 合入后与 main 冲突（page-assets.json），已让防腐线合 main 重量；#611 排着的旧全量已取消。#612（`911dc61b9`）、#614（`de05709cc`）合 main 后重挂全量。
+    - 用户问「底下个人助理变丑」：不是 main，是 jingxusandra-gif 的分支 `feat/unified-input-voice`（`84d49a656`，基于旧 main #579，没开 PR），在单独克隆 `~/code/molis-work-uiv-accept`、端口 4319、临时 Home 跑的验收环境；新组件 unified-input 的样式没进样式表（三份样式表字节未变），所以原生按钮、裸「Empty」、英文报错。她开 PR 时按 DESIGN.md 审，不过不放行。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

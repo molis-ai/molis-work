@@ -357,7 +357,7 @@ prompt 和执行机制「好」，是看得见的：
 
 **写什么。** 角色目的、结果要求、重要的判断依据、能力与真实限制、和用户怎样协作。好的句子给判断依据而不是命令：助理的「只在答案会改变结果或授权时提问」让模型自己权衡，比「不要提问」或「每次都先确认」都准；Coding 写入者的「工具返回 wrote/edited 和检查点回执，表示宿主批准后已实际落盘，此时应如实说已修改」把工具回执的含义讲清，模型就不会在已落盘之后还说「等待批准」。
 
-**输出合同。** 机器要读的，prompt 写清形状，代码负责校验：Coding 规划者的提示词写明「1–20 步，正文总量小于 12,000 字符」，`plugins/native/coding/src/plans.ts` 照样检查，超了就拒绝并说明原因。能用 SDK 的 `structured` 就用；只要 JSON 解码时用 `decodePrologueJsonOutput`，再由业务主人校验含义（第 8 节）。给人看的回复按任务表达，不规定固定标题、固定条数或每次都要的状态段落。
+**输出合同。** 机器要读的，prompt 写清形状，代码负责校验：Coding 规划者的提示词写明「1–20 步，正文总量小于 12,000 字符」，`plugins/native/coding/src/plans.ts` 照样检查，超了就拒绝并说明原因。能用 SDK 的 `structured` 就用；只要 JSON 解码时用 `decodePrologueJsonOutput`，再由业务主人校验含义（第 8 节）。给人看的回复按任务表达，不规定固定标题、固定条数或每次都要的状态段落。Agent 回复里夹着给代码读的一行时（Schedule 每轮回复的第一行 `IMPORTANT: yes|no`），这一行的格式写在这一轮任务的末尾，什么时候写 yes 只写在角色里：只写在角色里时，MiniMax 常常照内容判断对了却把这一行写成 no（`specs/ai-development-handbook/spec.md` §9.5 B5）。
 
 **示例。** 给几条有代表性、彼此不同的示例，说明哪些地方可以变；示例是帮模型理解质量的，不是唯一答案。示例要能被检查：创作台设计者提示词里的完整示例在每次回放时被取出来过宿主检查（`docs/platform/STUDIO-SKILL-REPLAY.md` 2.2），改坏它回放就红。
 
@@ -476,7 +476,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附 | 格式纠正时追加的那段文字写死在代码里，未登记 | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
 | 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v1` | 三种时机；同键同文只算一次；回执说去向 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
-| 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia） | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法；Todo 整理的围栏前还没有声明（清理 B3） | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手与 Cognia 两条） |
+| 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理） | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来 | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条） |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |
 | 生成插件的 `prompts` | 作者写业务意图，平台负责模型 | `skills/molis-plugin-dev/generated-ai.md`；宿主 `apps/local-host/src/plugin-builder/model.ts` | 声明 prompts、按 id 调用、会变的内容放 `input` | 只承诺一次文字生成 | 确定性：`tests/generated-plugin-prompts.test.ts`、`tests/plugin-model-generation.test.ts` |
 | Runtime 插件的 `services.model` | 宿主自己运行的插件调模型 | 第 4 节 | 只收自己登记的指令 | 见第 4 节「不在这一片里」 | 确定性：`tests/plugin-model-service.test.ts` |

@@ -21,7 +21,7 @@ export const textStatsManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: TEXT_STATS_PLUGIN_ID,
-  version: "1.2.0",
+  version: "0.3.0",
   name: "Text stats",
   kind: "app",
   publisher: { publisher_id: "molis", signature: "official-text-stats-binding" },

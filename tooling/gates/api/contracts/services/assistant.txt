@@ -546,7 +546,7 @@ export interface AssistantSendInput {
 
 export interface AssistantSendResult {
     work: AssistantWork;
-    outcome: "started" | "steered" | "answered" | "repeated";
+    outcome: "started" | "steered" | "queued" | "answered" | "repeated";
     run_id?: string;
 }
 

@@ -134,6 +134,7 @@ tests/coding-plugin-activation.test.ts
 tests/coding-project-work.test.ts
 tests/coding-projection.test.ts
 tests/coding-question-card.test.ts
+tests/coding-next-steps.test.ts
 tests/coding-reading.test.ts
 tests/coding-recovery.test.ts
 tests/coding-report-usage.test.ts
@@ -282,6 +283,7 @@ tests/prologue-git.test.ts
 tests/prologue-inference-images.test.ts
 tests/prologue-inference-native.test.ts
 tests/prologue-materials.test.ts
+tests/prologue-model-controls.test.ts
 tests/prologue-model-retry.test.ts
 tests/prologue-node-start-order.test.ts
 tests/prologue-project-board.test.ts

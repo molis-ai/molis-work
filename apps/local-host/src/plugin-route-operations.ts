@@ -71,11 +71,12 @@ export async function dispatchRuntimePluginRoute(
     sendLocalWebJson(response, 200, { revision: platform.viewRevision(pluginId) });
     return true;
   }
-  if (!router.match(request.method ?? "GET", url.pathname)) return false;
+  const match = router.match(request.method ?? "GET", url.pathname);
+  if (!match) return false;
   await hooks.beforeDispatch?.(router);
   let body: unknown;
   if (!["GET", "HEAD"].includes(request.method ?? "GET")) {
-    try { body = await (controls.readBody ?? readLocalWebBody)(request); }
+    try { body = await (controls.readBody ?? (request => readLocalWebBody(request, match.max_body_bytes ?? undefined)))(request); }
     catch (error) {
       if (!(error instanceof ActionError)) throw error;
       const refusal = actionErrorResponse(error);

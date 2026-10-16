@@ -1,8 +1,8 @@
 import { agentErrors } from "./errors.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withAgentEffect } from "./invocation-effects.js";
+import { registerSessionActions } from "./session-actions.js";
 import type { HostCapabilityDefinition, HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentRunView, type AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 import { type AgentHost, type AgentStartAuthority } from "./index.js";
@@ -47,14 +47,15 @@ export interface AgentCapabilityPorts<Context> {
 
 /**
  * A cheap, stable mark of what a surface would draw differently: phase, text growth, tool progress, questions, usage,
- * the files each turn wrote, a wait the Run sleeps in, a model switch asked for or taken.
+ * the files each turn wrote, a wait the Run sleeps in, a model switch asked for or taken, how far each supplement got.
  */
 export function runViewVersion(view: AgentRunView): string {
   const last = view.turns[view.turns.length - 1];
   return [view.phase, view.turns.length, last?.text.length ?? 0, view.activity.length,
     view.activity.map(item => item.state[0] + (item.output?.length ?? 0)).join(""), view.awaiting_input.length,
     view.usage.tokens.input + view.usage.tokens.output, view.step_board?.version ?? 0,
-    view.turn_changes?.length ?? 0, view.sleeping_until ?? "", view.model_switch?.now ?? "", view.model_switch?.requested ?? ""].join(":");
+    view.turn_changes?.length ?? 0, view.sleeping_until ?? "", view.model_switch?.now ?? "", view.model_switch?.requested ?? "",
+    view.turns.map(turn => turn.steer?.state ?? "").join(",")].join(":");
 }
 
 export function registerAgentHostCapabilities<Context>(
@@ -297,26 +298,13 @@ export function registerAgentHostCapabilities<Context>(
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       await adapter.messages.cancel(ports.projectId(context), messageId);
     }),
-    // What this project's sessions wait for and how they go on: read, waited on until one may go on, given up or gone on
-    // with by the person. The task graph keeps them; these only read and ask it.
-    register(agentCollaborationActions.read, async (context, input) => {
-      pluginFor(context);
-      const adapter = ports.agentHost(context).adapter(input.runtime_id);
-      return { sessions: adapter.collaboration ? await adapter.collaboration.read(ports.projectId(context), input.session_id) : [] };
-    }),
+    // What this project's sessions wait for and how they go on, and what a plugin tells one of their rounds (session-actions).
+    ...registerSessionActions(register, { pluginFor, adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun }),
     register(agentHostCapabilities.awaitContinuations, async (context, [runtimeId, timeoutMs, exclude]) => {
       pluginFor(context);
       const adapter = ports.agentHost(context).adapter(runtimeId);
       if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时没有等待与接续");
       return adapter.collaboration.awaitReady(ports.projectId(context), Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : []);
-    }),
-    register(agentCollaborationActions.control, async (context, input) => {
-      const caller = pluginFor(context);
-      const adapter = ports.agentHost(context).adapter(input.runtime_id);
-      if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时没有等待与接续");
-      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      const { runtime_id: _runtime, ...control } = input;
-      return { session: await adapter.collaboration.control(ports.projectId(context), control, caller?.actor_id ?? "user") };
     }),
     register(agentHostCapabilities.readBackground, async (context, [runtimeId, sessionId]) => {
       pluginFor(context);

@@ -32,15 +32,15 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 309,
+      "lines": 308,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 332,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 323,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 375,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 277,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 378,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 280,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 211,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 208,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
@@ -66,10 +66,10 @@
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 202,
     "file horizontal/agent-host/src/adapters/prologue.ts": 969,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 606,
+      "lines": 604,
       "methods": 18
     },
-    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 385,
+    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 372,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
       "lines": 384,
       "methods": 12
@@ -202,7 +202,7 @@
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
     "file plugins/native/coding/src/client.ts": 1644,
-    "file plugins/native/coding/src/styles.ts": 832,
+    "file plugins/native/coding/src/styles.ts": 829,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
@@ -224,7 +224,7 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1117,
+    "file plugins/native/pages/src/client.ts": 1136,
     "file plugins/native/pages/src/commands.ts": 2241,
     "file plugins/native/pages/src/editor-browser.ts": 3854,
     "function plugins/native/pages/src/editor-browser.ts#slashPlugin": 158,
@@ -683,7 +683,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 192,
+  "typedCapabilitiesTotal": 190,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 10,
     "apps/local-host/src/local-host.ts#type-refs": 5,
@@ -693,7 +693,7 @@
     "apps/local-host/src/project-host.ts#type-refs": 1,
     "apps/local-host/src/project-host.ts#register-calls": 1,
     "horizontal/agent-host/src/capability-registration.ts#type-refs": 2,
-    "horizontal/agent-host/src/capability-registration.ts#register-calls": 41,
+    "horizontal/agent-host/src/capability-registration.ts#register-calls": 39,
     "horizontal/scheduler/src/index.ts#type-refs": 1,
     "horizontal/scheduler/src/index.ts#register-calls": 4,
     "packages/contracts/src/modules/workspace-artifacts.ts#type-refs": 8,
@@ -710,7 +710,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 32,
+  "hostPluginFilesTotal": 30,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -720,8 +720,6 @@
     "apps/local-host/src/dataset-actions.ts#actions": 1,
     "apps/local-host/src/dataset-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/feed-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/form-actions.ts#actions": 1,
-    "apps/local-host/src/form-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/goals-actions.ts#actions": 1,
     "apps/local-host/src/images-actions.ts#actions": 1,
     "apps/local-host/src/images-native-plugin-http.ts#native-plugin-http": 1,
@@ -769,7 +767,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 423,
+  "pluginOutsideMentionsTotal": 419,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -780,7 +778,7 @@
     "diff#outside-files": 8,
     "feed#outside-files": 41,
     "files#outside-files": 11,
-    "form#outside-files": 12,
+    "form#outside-files": 8,
     "git#outside-files": 14,
     "goals#outside-files": 58,
     "images#outside-files": 12,
@@ -1160,7 +1158,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 518,
+  "explicitAnyTotal": 515,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1245,7 +1243,7 @@
     "tests/files-product-http.test.ts": 4,
     "tests/fixtures/alchemist-actions.ts": 1,
     "tests/form-actions.test.ts": 4,
-    "tests/form-mcp.test.ts": 4,
+    "tests/form-mcp.test.ts": 1,
     "tests/function-agent-authoring.e2e.test.ts": 1,
     "tests/functions-draft-retention.test.ts": 4,
     "tests/git-product-http.test.ts": 12,

@@ -10,6 +10,7 @@ import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -206,7 +207,11 @@ test("an object the person moved to another project is named where it went, not 
     body => {
       const text = JSON.stringify(body);
       assert.match(text, /已被用户移到项目「Other project」/);
-      assert.match(text, /被移走的对象不要在这里重新创建/);
+      // ADH-12: where it went and what the person can do there are facts; not recreating it here is the role's to say.
+      const { data, role } = roundParts(body);
+      assert.match(data, /被移走的对象还在它现在的地方：用户可以到那里继续，或把它放回这个项目。/);
+      assert.doesNotMatch(data, /不要在这里重新创建/);
+      assert.match(role, /这项工作的对象已不存在或被移走时，先告诉用户它的现状；除非用户明确要求，不在这里重新创建，也不按旧内容改写。/);
       assert.match(text, /「background」已被移到项目「Other project」。这项工作的范围读不到它现在的正文/);
       assert.doesNotMatch(text, /secret plan of the other project/, "a Home object of another project is not read from here");
       return reply(undefined, "它已移到 Other project。");

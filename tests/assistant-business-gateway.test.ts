@@ -18,6 +18,7 @@ import { AssistantService, presentActivity } from "../apps/local-host/dist/assis
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { HOST_GOVERNED_TOOLS, gatewayProblem, normalizedInput, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -354,7 +355,13 @@ test("a change stopped while its owner is still running: shown as not known, the
   const gate = new Promise<void>(resolve => { finish = resolve; }), reached = new Promise<void>(resolve => { entered = resolve; });
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.slow.write", version: 1, provider_id: "fixture.slow", input: { text: "slow" } } }),
-    body => { assert.match(JSON.stringify(body), /上一轮停止时仍在执行的修改/); assert.match(JSON.stringify(body), /Slow · Save slowly」：停止后已完成：不要再次提交/); return reply(undefined, "上次停止时那条保存后来已完成，不再重复。"); },
+    body => {
+      // ADH-12: the round hears how the change ended, as a fact; not sending it again is the role's to say.
+      const { data, role } = roundParts(body);
+      assert.match(data, /上一轮停止时仍在执行的修改/); assert.match(data, /「Slow · Save slowly」：停止后已完成/); assert.doesNotMatch(data, /不要再次提交/);
+      assert.match(role, /先核对已经做了什么，不要重做/);
+      return reply(undefined, "上次停止时那条保存后来已完成，不再重复。");
+    },
   ]);
   f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.slow", kind: "plugin", title: "Slow" }, definitions: [slow],
     handlers: [{ ...slow, async handle(context, input) {

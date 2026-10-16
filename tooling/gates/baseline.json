@@ -2,7 +2,7 @@
   "giantUnits": 141,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2061,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2058,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
       "lines": 1643,
       "methods": 98
@@ -62,7 +62,7 @@
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
-    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 202,
+    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
     "file horizontal/agent-host/src/adapters/prologue.ts": 968,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
       "lines": 603,

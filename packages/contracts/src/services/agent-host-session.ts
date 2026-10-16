@@ -138,7 +138,7 @@ export interface AgentStepBoard {
     id: string;
     state: "not-started" | "ready" | "running" | "waiting" | "succeeded" | "failed" | "cancelled" | "blocked" | "needs-reconciliation";
     /** Who reported (本会话, 子任务「…」, 用户); a handover says so. */
-    reports: Array<{ note: string; at_ms: number; by?: string; handover?: true }>;
+    reports: Array<{ note: string; at_ms: number; by?: string; handover?: true; /** Inputs the report is about. */ inputs?: import("./agent-inputs.js").AgentInputRef[] }>;
     owner?: AgentStepOwner;
     /** The SDK node title; a person's inserted step carries its own. */
     title?: string;

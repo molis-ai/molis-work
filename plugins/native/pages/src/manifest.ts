@@ -12,7 +12,7 @@ export const pagesManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: PAGES_PLUGIN_ID,
-  version: "1.0.0",
+  version: "0.3.0",
   name: "Pages",
   // Offered to other Agents for business work; bodies in ./methods.ts.
   methods: pagesMethods.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),

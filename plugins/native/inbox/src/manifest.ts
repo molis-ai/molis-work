@@ -21,7 +21,7 @@ export const inboxManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: INBOX_PLUGIN_ID,
-  version: "1.0.0",
+  version: "0.3.0",
   name: "Inbox",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-inbox-binding" },

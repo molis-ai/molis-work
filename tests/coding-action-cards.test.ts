@@ -21,7 +21,7 @@ const run = (offers: AgentRunOffer[]) => ({ ref: { session_id: "sdk", run_id: "r
   usage: { tokens: { input: 0, output: 0 } }, frozen: { role_id: "builder", action_tools: [reference], text_materials: [] }, offers });
 
 /** Coding's routes over a session with one ended round, private storage that compares and sets, and a recorded Agent Host. */
-function codingCards(options: { offers?: AgentRunOffer[]; views?: () => ActionView[]; run?: (input: unknown) => Promise<unknown> } = {}) {
+function codingCards(options: { offers?: AgentRunOffer[]; views?: () => ActionView[]; run?: (input: unknown) => Promise<unknown>; beforeCompare?: (stored: Map<string, string>) => void } = {}) {
   const db = new DatabaseSync(":memory:");
   db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
   const sessions = new CodingSessionStore(db), at = "2026-10-16T08:00:00Z";
@@ -29,7 +29,7 @@ function codingCards(options: { offers?: AgentRunOffer[]; views?: () => ActionVi
   sessions.setRuntimeSession("board", "app", "sdk", at);
   const stored = new Map<string, string>(), ran: unknown[] = [];
   const storage = { get: (key: string) => stored.get(key) ?? null, set: (key: string, value: string) => { stored.set(key, value); }, delete: (key: string) => stored.delete(key),
-    compareAndSet: (key: string, expected: string | null, value: string) => { if ((stored.get(key) ?? null) !== expected) return false; stored.set(key, value); return true; } };
+    compareAndSet: (key: string, expected: string | null, value: string) => { options.beforeCompare?.(stored); if ((stored.get(key) ?? null) !== expected) return false; stored.set(key, value); return true; } };
   const capabilities = { invoke: async (definition: { capability_id: string }) => {
     if (definition.capability_id === agent.readSession.capability_id) return { runs: [{ session_id: "sdk", run_id: "r1" }] };
     if (definition.capability_id === agent.readRun.capability_id) return run(options.offers ?? [offer]);
@@ -135,4 +135,38 @@ test("D25 (D26) how a card's run ended reads by the Host's refusal kind: a chang
       assert.equal(g.ran.length, 1);
     } finally { g.close(); }
   }
+});
+
+test("D25 (D26) two cards of one session clicked at once both run and are both recorded; a lost compare reads again, never overwrites the other card", async () => {
+  const second: AgentRunOffer = { ...offer, offer_id: "offer-2", title: "再存一条", input: { text: "周五前交" } };
+  type Card = { card_id: string; status: string; revision: number };
+  const statuses = (cards: Array<Record<string, unknown>>) => Object.fromEntries(cards.map(card => [card.card_id, [card.status, card.revision]]));
+  const f = codingCards({ offers: [offer, second], run: async input => { await new Promise(resolve => setTimeout(resolve, 10)); return { saved: (input as { offer_id: string }).offer_id }; } });
+  try {
+    await f.call("coding.read-runs", { sessionId: "app" });
+    const [one, two] = await Promise.all(["card-offer-1", "card-offer-2"].map(cardId => f.call("coding.card-run", { sessionId: "app", cardId }, { body: { revision: 1, values: {} } })));
+    assert.deepEqual([one.status, two.status], [200, 200], JSON.stringify([one.body, two.body]));
+    assert.deepEqual([(one.body as { card: Card }).card.status, (two.body as { card: Card }).card.status], ["done", "done"]);
+    assert.deepEqual(f.ran.map(input => (input as { offer_id: string }).offer_id).sort(), ["offer-1", "offer-2"], "each card ran once");
+    assert.deepEqual(statuses(f.cards()), { "card-offer-1": ["done", 3], "card-offer-2": ["done", 3] }, "neither card's write was lost");
+  } finally { f.close(); }
+  // The other card is changed between this card's read and its compare: the write reads again and keeps that change.
+  let raced = false;
+  const g = codingCards({ offers: [offer, second], beforeCompare: stored => {
+    const raw = stored.get("cards:app"); if (raced || !raw) return;
+    const held = JSON.parse(raw) as { cards: Array<Record<string, unknown>> };
+    if (held.cards.length < 2 || held.cards[0]!.status !== "ready") return;
+    raced = true;
+    stored.set("cards:app", JSON.stringify({ cards: held.cards.map(card => card.card_id === "card-offer-2" ? { ...card, status: "dismissed", revision: 2 } : card) }));
+  } });
+  try {
+    await g.call("coding.read-runs", { sessionId: "app" });
+    const ran = await g.call("coding.card-run", { sessionId: "app", cardId: "card-offer-1" }, { body: { revision: 1, values: {} } });
+    assert.equal(raced, true, "the compare lost once");
+    assert.equal((ran.body as { card: Card }).card.status, "done", JSON.stringify(ran.body));
+    assert.deepEqual(statuses(g.cards()), { "card-offer-1": ["done", 3], "card-offer-2": ["dismissed", 2] }, "the other card's change was kept");
+    // Only the same card's own revision moving is a conflict.
+    const stale = await g.call("coding.card-dismiss", { sessionId: "app", cardId: "card-offer-2" });
+    assert.equal((stale.body as { card: Card }).card.status, "dismissed");
+  } finally { g.close(); }
 });

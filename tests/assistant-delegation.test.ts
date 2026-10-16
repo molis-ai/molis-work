@@ -107,6 +107,7 @@ test("a sub-task whose session opened under the Assistant's own role carries its
     const parent = await service.send({ text: "主工作", request_id: "req-delegated-role-1" }, { project_ref: project });
     await until(async () => (await service.read(parent.work.work_id)).work.state === "completed", "parent completion");
     assert.doesNotMatch(requests[0]!.system, delegatedLayer, "the person's own work runs as the Assistant");
+    assert.match(requests[0]!.system, /## 分工[\s\S]*## 记忆/, "with its own layer on delegating and memory");
     // A sub-task as works were handed out before the delegated role existed: its session was opened under the Assistant's role.
     const child = store.create({ actor_id: "web-user", title: "早先的子任务", scope: parent.work.scope, origin: { surface: "assistant", title: `「${parent.work.title}」委托` }, project_ref: project,
       delegated_by: { work_id: parent.work.work_id, title: parent.work.title, acceptance: "一段话" } });
@@ -116,12 +117,13 @@ test("a sub-task whose session opened under the Assistant's own role carries its
     await service.delegation(store.get("web-user", parent.work.work_id))!.follow_up(child.work_id, "接着把这一部分做完");
     await until(async () => (await service.read(child.work_id)).work.state === "completed", "sub-task completion");
     assert.equal(store.get("web-user", child.work_id).session_id, session.session_id, "it keeps the session it had");
-    const run = (await host.adapter("prologue").readSession({ session_id: session.session_id }) as any).latest_run;
+    const run = (await host.adapter("prologue").readSession({ session_id: session.session_id })).latest_run!;
     assert.equal(run.frozen.role_id, "assistant-delegated");
-    assert.deepEqual(run.frozen.prompts.map((prompt: { prompt_id: string }) => prompt.prompt_id).filter((id: string) => id.startsWith("assistant-") && id !== "assistant-compaction"), ["assistant-base", "assistant-delegated"]);
+    assert.deepEqual(run.frozen.prompts.map(prompt => prompt.prompt_id).filter(id => id.startsWith("assistant-") && id !== "assistant-compaction"), ["assistant-base", "assistant-delegated"]);
     // The sub-task's own round (the delegating work then goes on by itself once it is handed back, as the Assistant).
     const own = requests.filter(request => request.messages.includes("接着把这一部分做完") && !request.messages.includes("子任务都已交回"));
     assert.ok(own.length > 0 && own.every(request => delegatedLayer.test(request.system)), "the sub-task's round carries the delegated layer");
+    assert.ok(own.every(request => !/## 分工|## 记忆/.test(request.system)), "and not the delegating work's layer: it neither delegates nor keeps memories");
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 

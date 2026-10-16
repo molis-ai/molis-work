@@ -1,9 +1,9 @@
 import { threadReplyMaterials } from "./assistant-thread-types.js";
 import { assistantFailure } from "./assistant-error.js";
 import { isDeepStrictEqual } from "node:util";
-import { FOLLOW_UP_KIND, followUpTask, enqueueCurrentFollowUp, runDueFollowUp } from "./assistant-followups.js";
+import { AssistantFollowUps } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentScheduledTask, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError, requireSynchronous, actionEffect, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
@@ -14,7 +14,7 @@ import { AssistantOffers } from "./assistant-offers.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
   ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
-  type AssistantActivity, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantFollowUp, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantRuleInput, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
+  type AssistantActivity, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantMaterialText,
   type AssistantDiagnostics, type AssistantRoundDiagnostics,
@@ -25,7 +25,6 @@ import { directEligible } from "./assistant-authority.js";
 import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from "./assistant-material-scan.js";
 import { identity } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type DueReminderCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { typedTexts, type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
@@ -81,14 +80,7 @@ export interface AssistantCaller {
   assertBeforeStart?: () => void;
 }
 
-const MAX_FOLLOW_UPS_PER_WORK = 5;
-
 /** Delegation bounds: works one work may hand out in all, at once, and follow-ups to each. */
-
-/** Reminders are asked for from where the last look stopped, but never further back than this (Molis Work was off). */
-const REMINDER_LOOKBACK_MS = 12 * 60 * 60 * 1000;
-/** A reminder told later than this after its time is said to be missed. */
-const REMINDER_LATE_MS = 10 * 60 * 1000;
 
 /** The rule that holds a notice of this kind on this surface now, if any. Rules apply exactly as written. */
 export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoticeKind, surface: string | null): AssistantRule | undefined {
@@ -414,12 +406,23 @@ export class AssistantService {
   /** Sub-tasks this person's works hand out, and what they hand back. */
   private readonly delegations: AssistantDelegations;
   readonly offers: AssistantOffers;
+  /** The reminders, timed rounds and attention rules of this person. */
+  readonly followUps: AssistantFollowUps<StoredWork>;
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
     private readonly now = () => new Date()) {
     this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
       readSubject: (work, subject) => this.readSubject(work, subject), authority: work => ports.authority(work),
       watchJob: (work, view, output, cardId) => this.watchJob(work, view, output, cardId),
       createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
+    this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
+      work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
+      setting: key => store.setting(actorId, key), setSetting: (key, value) => store.setSetting(actorId, key, value),
+      rules: () => store.rules(actorId), setRules: rules => store.setRules(actorId, rules),
+      // Each look at the Plugins is bounded in time, so one that does not answer cannot hold the sweep.
+      ...(ports.homeActions ? { homeActions: async () => { const actions = await withinTime(ports.homeActions!());
+        return { discover: () => withinTime(actions.discover()), invoke: (reference, input) => withinTime(actions.invoke(reference, input)) }; } } : {}),
+      host: () => ports.host(), state: (host, work) => this.stateFor(host, work), schedule: () => this.schedule(),
+      send: (work, text, request_id, stillCurrent) => this.send({ work_id: work.work_id, text, request_id }, {}, "host", stillCurrent) });
     this.delegations = new AssistantDelegations({ store, actorId, host: () => ports.host(), ...(ports.characters ? { characters: project => ports.characters!(project) } : {}),
       stateOf: (host, work) => this.stateFor(host, work), latestRun: (host, work) => this.latestRun(host, work), chooseCharacter: (work, choice) => this.chooseCharacter(work, choice),
       lastReply: async work => [...((await this.assistantPart(work)).rounds.at(-1)?.turns ?? [])].reverse().find(turn => turn.kind === "assistant" && turn.text?.trim())?.text?.trim(),
@@ -530,173 +533,33 @@ export class AssistantService {
   /** What the last look saw in each project, kept with its record (for diagnostics). */
   private scanLooks: ScanLook[] = [];
 
-  /**
-   * Reminders the person set in Plugins that came due since the last look: each told once, as a notice subject to the
-   * person's rules like any other. Asked of the Plugins that declare due reminders; nothing is started or changed.
-   */
-  async sweepReminders(): Promise<number> {
-    if (this.#sweeping || !this.ports.homeActions) return 0;
-    this.#sweeping = true;
-    try {
-      const now = this.now(), last = this.store.setting(this.actorId, "reminder_sweep");
-      // The first look starts a few minutes back; later ones from where the last stopped (bounded when Molis Work was off).
-      const from = new Date(Math.max(last ? Date.parse(last) : now.getTime() - REMINDER_LATE_MS, now.getTime() - REMINDER_LOOKBACK_MS));
-      const window = { from: from.toISOString(), to: new Date(now.getTime() + 1).toISOString() };
-      const actions = await withinTime(this.ports.homeActions());
-      const providers = (await withinTime(actions.discover())).filter(view => view.action.input_type === DUE_REMINDERS_INPUT_TYPE && view.action.output_type === DUE_REMINDERS_OUTPUT_TYPE && view.availability.available);
-      let raised = 0, missed = false;
-      for (const provider of providers) {
-        let collection: DueReminderCollection;
-        try { collection = await withinTime(actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window)) as DueReminderCollection; }
-        catch { missed = true; continue; }
-        for (const reminder of collection.reminders) {
-          const due = Date.parse(reminder.due_at);
-          if (!(due >= from.getTime() && due <= now.getTime())) continue;
-          const late = now.getTime() - due > REMINDER_LATE_MS;
-          const at = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false, ...(this.ports.timeZone ? { timeZone: this.ports.timeZone } : {}) }).format(new Date(due));
-          const stored = this.store.raiseNotice(this.actorId, { kind: "reminder", work_id: "", work_title: collection.source.title,
-            text: `${late ? "错过的提醒" : "提醒"}（${collection.source.title} · ${at}）：${reminder.title.slice(0, 120)}`,
-            ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title: reminder.title.slice(0, 120), project_id: reminder.project_id } } : {}) },
-            `reminder:${provider.provider.provider_id}:${reminder.reminder_id}`);
-          if (stored) raised += 1;
-        }
-      }
-      // A Plugin that could not answer is asked again for the same stretch next time (each reminder is still told once).
-      if (!missed) this.store.setSetting(this.actorId, "reminder_sweep", now.toISOString());
-      return raised;
-    } finally { this.#sweeping = false; }
-  }
-
-  #sweeping = false;
-
-  rules(): AssistantRule[] { return this.store.rules(this.actorId); }
-
-  followUps(workId?: string): AssistantFollowUp[] { return this.store.followUps(this.actorId, workId); }
-
-  /**
-   * A standing request on a work: at `at` (and then daily or weekly), start a round of it with these words. The time is
-   * kept by Prologue's durable local queue (it survives a restart), not by a timer of the Host's own.
-   */
-  async saveFollowUp(input: { work_id: string; text: string; at: string; repeat?: AssistantFollowUp["repeat"]; label: string; time_zone?: string }): Promise<AssistantFollowUp> {
-    const work = this.store.get(this.actorId, String(input?.work_id ?? ""));
-    if (work.reply_target || work.archived) throw assistantErrors.state("评论回复或已归档工作不能添加定时");
-    const text = typeof input.text === "string" ? input.text.trim().slice(0, 4000) : "";
-    const label = typeof input.label === "string" ? input.label.trim().slice(0, 120) : "";
-    if (!text || !label) throw assistantErrors.invalid("定时要写明到时让助理做什么，以及一句说法");
-    const at = new Date(String(input.at));
-    if (Number.isNaN(at.getTime()) || at.getTime() <= this.now().getTime()) throw assistantErrors.invalid("时间要在现在之后，并写明日期和时间");
-    const repeat = input.repeat ?? "none";
-    if (!["none", "daily", "weekly"].includes(repeat)) throw assistantErrors.invalid("重复只能是一次、每天或每周");
-    if (this.store.followUps(this.actorId, work.work_id).filter(item => item.enabled).length >= MAX_FOLLOW_UPS_PER_WORK) throw assistantErrors.limit(`一项工作最多 ${MAX_FOLLOW_UPS_PER_WORK} 个定时`);
-    if (!work.session_id) throw assistantErrors.state("这项工作还没有开始过：先让助理做一轮，再给它加定时");
-    const schedule = await this.schedule();
-    const followUp: AssistantFollowUp = { followup_id: randomUUID(), work_id: work.work_id, label, text, repeat, next_at: at.toISOString(),
-      time_zone: input.time_zone || this.ports.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone, enabled: true, created_at: this.now().toISOString() };
-    this.store.saveFollowUp(this.actorId, followUp);
-    this.#runnerFor(schedule);
-    await enqueueCurrentFollowUp(this.store, this.actorId, followUp, work.session_id, schedule);
-    return followUp;
-  }
-
-  async removeFollowUp(followupId: string): Promise<boolean> {
-    const followUp = this.store.followUps(this.actorId).find(item => item.followup_id === followupId);
-    const removed = this.store.removeFollowUp(this.actorId, followupId);
-    if (followUp?.next_at) await (await this.schedule().catch(() => null))?.cancel(followUpTask(followUp, "").key).catch(() => null);
-    return removed;
-  }
-
-  #detachSchedule: (() => void) | null = null;
-  /**
-   * Become the runner for timed rounds, and make sure each standing one has its queued task (idempotent by key: one
-   * per follow-up and due time). Called when the Host starts; tasks that fell due meanwhile run as soon as it attaches.
-   */
   /** Whether anything timed is waiting: an enabled follow-up with a next time, or background work still followed. */
   hasTimedWork(): boolean {
-    return this.store.followUps(this.actorId).some(item => item.enabled && item.next_at) || this.store.jobs(this.actorId).some(job => job.state === "running");
+    return this.followUps.pending() || this.store.jobs(this.actorId).some(job => job.state === "running");
   }
 
+  /**
+   * Become the runner for timed rounds and background jobs, and make sure each standing one is queued again. Called when
+   * the Host starts.
+   */
   async attachSchedule(): Promise<boolean> {
     const schedule = await this.schedule().catch(() => null);
     if (!schedule) return false;
-    this.#runnerFor(schedule);
     this.#jobRunnerFor(schedule);
     // Jobs still followed when the Host went away: look again soon.
     for (const job of this.store.jobs(this.actorId).filter(item => item.state === "running")) {
       try { await this.scheduleJobCheck({ ...job, checks: 0 }, this.store.get(this.actorId, job.work_id)); } catch { /* its work is gone */ }
     }
-    for (const followUp of this.store.followUps(this.actorId).filter(item => item.enabled && item.next_at)) {
-      let work: StoredWork;
-      try { work = this.store.get(this.actorId, followUp.work_id); } catch { continue; }
-      if (!work.session_id) continue;
-      const task = followUpTask(followUp, work.session_id), held = schedule.find(task.key);
-      // Its time came with no runner attached (the Host was still starting): decided now by the same rule — on time
-      // enough it runs, too late it is reported as missed — never left silently undone.
-      if (held && (held.state === "failed" || held.state === "reconcile-required")) { await this.runFollowUp(followUp).catch(() => undefined); continue; }
-      await enqueueCurrentFollowUp(this.store, this.actorId, followUp, work.session_id, schedule).catch(() => undefined);
-    }
+    await this.followUps.attach(schedule);
     // Sub-tasks that settled while nobody took up what they hand back (the Host went away in between): taken up now.
     void this.delegations.resume();
     return true;
-  }
-
-  #runnerFor(schedule: AgentScheduleCapability): void {
-    if (!this.#detachSchedule) this.#detachSchedule = schedule.handle(FOLLOW_UP_KIND, task => this.runFollowUpTask(task));
-  }
-
-  /** What the queue says about running with the window closed, for the person to read beside their timed rounds. */
-  async scheduleClaim(): Promise<{ survives_window_close: boolean; why: string } | null> {
-    return (await this.schedule().catch(() => null))?.claim() ?? null;
   }
 
   private async schedule(): Promise<AgentScheduleCapability> {
     const schedule = (await this.ports.host()).adapter(RUNTIME).schedule;
     if (!schedule) throw assistantErrors.unsupported("当前运行时不能安排定时");
     return schedule;
-  }
-
-  /** One due time of one follow-up, handed back by the queue. A task for a time since changed or removed does nothing. */
-  private async runFollowUpTask(task: AgentScheduledTask): Promise<void> {
-    const followUp = this.store.followUps(this.actorId).find(item => item.followup_id === String(task.payload.followup_id ?? ""));
-    if (!followUp || !followUp.enabled || !followUp.next_at || Date.parse(followUp.next_at) !== Date.parse(task.due_at)) return;
-    await this.runFollowUp(followUp);
-  }
-
-  /**
-   * A due time came. Too late (Molis Work was not running) is reported and moved on, never replayed; a work still busy
-   * is skipped; otherwise one round starts (its request id is the due time, so it cannot start twice). Then the next
-   * time is queued.
-   */
-  private async runFollowUp(followUp: AssistantFollowUp): Promise<void> {
-    await runDueFollowUp(followUp, { store: this.store, actorId: this.actorId, now: this.now,
-      host: () => this.ports.host(), state: (host, work) => this.stateFor(host, work), schedule: () => this.schedule(),
-      send: (work, text, request_id, stillCurrent) => this.send({ work_id: work.work_id, text, request_id }, {}, "host", stillCurrent) });
-  }
-
-  /** Add or change one of the person's attention rules; checked strictly, since the Host applies them exactly as written. */
-  saveRule(input: AssistantRuleInput, ruleId?: string): AssistantRule[] {
-    const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result", "material", "reminder"];
-    if (!input || !["quiet", "pause"].includes(input.kind)) throw assistantErrors.invalid("规则只能是“在某处不提醒”或“暂停提醒”");
-    const surfaces = Array.isArray(input.surfaces) ? [...new Set(input.surfaces.filter(value => typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,80}$/.test(value)))].slice(0, 20) : [];
-    const except = Array.isArray(input.except) ? [...new Set(input.except.filter(kind => kinds.includes(kind)))] : [];
-    const label = typeof input.label === "string" ? input.label.trim().slice(0, 200) : "";
-    if (!label) throw assistantErrors.invalid("写一句这条规则的说法，方便以后认出它");
-    const until = input.until === undefined || input.until === null || input.until === "" ? undefined : new Date(String(input.until));
-    if (until && (Number.isNaN(until.getTime()) || until.getTime() <= this.now().getTime())) throw assistantErrors.invalid("结束时间要在现在之后");
-    if (input.kind === "pause" && !until) throw assistantErrors.invalid("暂停提醒要有结束时间");
-    const rules = this.store.rules(this.actorId);
-    const existing = ruleId ? rules.find(rule => rule.rule_id === ruleId) : undefined;
-    if (ruleId && !existing) throw assistantErrors.not_found("没有这条规则");
-    const rule: AssistantRule = { rule_id: existing?.rule_id ?? randomUUID(), kind: input.kind, surfaces: input.kind === "pause" ? [] : surfaces, except, label,
-      ...(until ? { until: until.toISOString() } : {}), enabled: input.enabled ?? true, created_at: existing?.created_at ?? this.now().toISOString() };
-    const next = existing ? rules.map(item => item.rule_id === rule.rule_id ? rule : item) : [...rules, rule].slice(-50);
-    this.store.setRules(this.actorId, next);
-    return next;
-  }
-
-  removeRule(ruleId: string): AssistantRule[] {
-    const next = this.store.rules(this.actorId).filter(rule => rule.rule_id !== ruleId);
-    this.store.setRules(this.actorId, next);
-    return next;
   }
 
   /** Works started before scope titles were kept still show their project's name. */
@@ -730,8 +593,8 @@ export class AssistantService {
     const host = children.length ? await this.ports.host() : null;
     const delegated = host ? await Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.stateFor(host, child), follow_ups: child.follow_ups ?? 0,
       ...(child.delegated_by?.taken_back_at ? { taken_back: true } : {}) }))) : [];
-    const scheduled = this.store.followUps(this.actorId, work.work_id);
-    const claim = scheduled.length ? await this.scheduleClaim() : null;
+    const scheduled = this.followUps.list(work.work_id);
+    const claim = scheduled.length ? await this.followUps.claim() : null;
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
     const jobs = this.store.jobs(this.actorId, work.work_id).map(({ key: _key, status: _status, input: _input, path: _path, done: _done, failed: _failed, checks: _checks, told: _told, ...view }) => view);
     const undoable = this.store.undos(this.actorId, work.work_id).slice(-10).map(({ work_id: _work, reference, input: _input, told: _told, ...view }) => ({ ...view, capability_id: reference.capability_id }));
@@ -1554,11 +1417,7 @@ export class AssistantService {
       if ((await Promise.all(group.map(item => this.stateFor(host, item)))).some(state => ["running", "paused", "waiting-input", "waiting-review"].includes(state))) {
         throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
       }
-      const schedule = await this.schedule().catch(() => null), at = this.now().toISOString();
-      for (const { next_at, ...rest } of this.store.followUps(this.actorId, workId).filter(item => item.enabled)) {
-        if (next_at) await schedule?.cancel(followUpTask({ ...rest, next_at }, "").key).catch(() => null);
-        this.store.saveFollowUp(this.actorId, { ...rest, enabled: false, last: { due_at: next_at ?? at, at, outcome: "skipped", detail: "这项工作已归档，定时已停用" } });
-      }
+      await this.followUps.stopForArchive(workId);
     }
     const work = this.store.update(this.actorId, workId, null, { archived });
     return this.publicWork(work, await this.stateSafely(work));

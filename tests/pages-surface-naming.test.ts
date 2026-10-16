@@ -25,6 +25,7 @@ class FakeElement {
   dispatchEvent(event: { type: string }) { return dispatch(this, event); }
   querySelector: (selector: string) => unknown = () => null;
   querySelectorAll() { return []; }
+  closest() { return null; }
 }
 
 // A plain stand-in for every other node the Pages client touches.
@@ -114,7 +115,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
   }) as typeof fetch;
   const windowStub: Record<string, unknown> = {
     addEventListener() {}, dispatchEvent() { return true; },
-    MolisWorkPagesEditor: { bindComments: () => async () => {}, emptyDoc: () => ({ type: "doc", content: [] }), mount: () => ({}), setDoc() {}, getDoc: () => DOC.body },
+    MolisWorkPagesEditor: { bindComments: () => async () => {}, mountPagesLanding: () => ({ report() {} }), emptyDoc: () => ({ type: "doc", content: [] }), mount: () => ({}), setDoc() {}, getDoc: () => DOC.body },
   };
   windowStub.parent = windowStub;
   Object.assign(globalThis, {

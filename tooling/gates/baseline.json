@@ -2,14 +2,14 @@
   "giantUnits": 144,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2222,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2081,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1796,
-      "methods": 110
+      "lines": 1663,
+      "methods": 99
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
-      "lines": 280,
-      "methods": 42
+      "lines": 267,
+      "methods": 39
     },
     "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
       "lines": 443,
@@ -35,12 +35,12 @@
       "lines": 308,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 323,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 318,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 378,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 280,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 368,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 271,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 211,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 208,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
@@ -224,7 +224,7 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1136,
+    "file plugins/native/pages/src/client.ts": 1117,
     "file plugins/native/pages/src/commands.ts": 2241,
     "file plugins/native/pages/src/editor-browser.ts": 3854,
     "function plugins/native/pages/src/editor-browser.ts#slashPlugin": 158,

@@ -1254,7 +1254,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | W3-A1 | 下一步与输入框同一行：宿主派生全部下一步（卡、题、结果、重试、页面建议），岛只画；删 A10「接下来」、A11 两个「去…」、A7 建议条；窄时移到输入框上方；FLOW-01…05 | #489 先合（交互线已同意，D24） |
 | W3-A2 | 情境条：取代「材料」按钮与弹层；删聚焦弹出的开场建议（A5）；✦助理等交接只带手上的东西、不替人写话 | W3-A1 |
 | W3-A3 | 写动作留在当前工作（`work_id`）；助理回复与结果可以拿起（`place: assistant`），浮条画在岛里 | W3-A2 |
-| W3-B | Pages 报告落点、三个确定性的 `attach`、落点处预览；落点事件登记；情境条显示落点。`attach` 的 `find` 取候选直接调交互线 H3 的 `search.references@1`（`system.search` 提供方：索引出候选、对象主人的读取器重读，只返回当前有权限的），提交前用同一个函数逐个再读；对象不在或没权限用合同里的 `reference-unavailable`，不另写一套（统筹 2026-10-14 转告） | W3-A3；H3 的候选动作合入 |
+| W3-B | Pages 报告落点、三个确定性的 `attach`、落点处预览；落点事件登记；情境条显示落点。执行前宿主用 H3 的 `confirmReferences` 按调用者的权限重读落点对象，不在或没权限用合同里的 `reference-unavailable`，不另写一套；`attach` 的 `find` 取候选（`search.references@1`）改到 W4 的 F2（统筹 2026-10-15 定，见 21.8）。拆成 W3-B1（落点、动作、预览、执行）与 W3-B2（情境条显示落点） | W3-B1：H3 合入；W3-B2：W3-A2 |
 | W3-C | 右栏各格报告手上的东西（中枢接右栏） | W2'（右栏改版） |
 
 每片：`assistant-island.ts` 只减不增，新东西写新文件；页面资源每个文件只减（删掉的旧渲染抵新增）；`pnpm build`、`affected-tests.mjs` 选出的用例、`check-health-gates --base origin/main`、`page-assets --base origin/main`、1440/1024/800/390 与深色截图。
@@ -1318,3 +1318,61 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 3. 隔离 Home 实走：`node --import tsx walk-serve.mts 4296`（脚本放回 scratchpad 并把 `node_modules` 链到工作树；它起隔离 Home 与脚本模型，「问我…」出问卷卡、「待办 / 建议」出操作卡），1440/1024/800/390 与深色截图，结果补进 21.6。
 4. 等 #489 合入后接执行：岛外新文件画输入框旁的下一步（`renderInteractionNextSteps` 带 `max: 3`），按 `NEXT_STEP` id 点卡自己的控件（选项像人点一样、卡上有没交的改动就只滚到卡上）；删 A10「接下来」、A11 两个「去…」、A7 建议条（连同 #489 页脚名单里的 `.assistant-offer`），页面资源每个文件只减。
 5. 定向用例、门禁、截图齐了开 W3-A1 的 PR（本分支的文档与部件一起），PR 号与证据发统筹。
+
+### 21.8 W3-B 设计（2026-10-15 统筹已定 B-1～B-3；W3-B1 本地开工，H3 #546 合入后开 PR）
+
+**现状（main `ac47ed78`）**：
+
+- 合同已有：`SurfaceLanding`（`contracts/services/contextual.ts`）、`ActionAttach.positions`（`contracts/platform/item-intake.ts`）。
+- 内核已能派生：`destinationCandidates` 在手上的东西不在左边（`place !== "main"`）、左边落点是提供方自己的对象种类、位置合声明时，出 `attach.` 候选。
+- 宿主的判断请求已能带 `landing`（`contextual-request.ts` 有界读取）。
+- **缺的是页面这一半**：没有页面报告落点，情境总线不持有落点，没有插件声明 `attach`，落点处没有预览，执行也没有接上。所以今天 `attach.` 候选永远不出现。
+
+**要做的（按依赖顺序）**：
+
+1. **落点事件**：登记 `molis:surface-landing`（`dom-events.ts`，主人 `context-actions`，发在元素上、冒泡，载荷 `SurfaceLanding | null`），与发它的 Pages 代码同一个改动。`molis:landing-at`（拖放）不在 W3-B，随 W6 拖放做。
+2. **总线持有落点**：`context-bus.ts` 收左边焦点窗格的落点，窗格失焦或报 `null` 时清掉自己的；手上的东西在右栏或助理时，判断与准备请求带上落点（宿主已能读）。窗格转发沿用现有的窗格消息。
+3. **Pages 报告落点**：光标、选区，没有光标时是文末，带 `version` 与有界的 `surroundings`。写在 Pages 的新文件里（`client.ts` 已 1135 行，只许变小）。
+4. **三个确定性的 `attach`**（§14 已定）：插入到光标处（`cursor`、`end`）、替换选中的文字（`selection`）、作为引用插入（`cursor`、`end`，带出处）。
+   - 一个动作只能挂一份 `attach`（`ActionView.action.attach` 是单个），所以是 Pages 自己的三个写入动作，共用一个处理器。
+   - 输入：`id`、`expected_version`、位置（`anchor`、`head`）、文字、出处（仅引用）。
+   - 每个动作带 `undo: pages.revert`（沿用 `update` 的 `change_id`）。
+   - 版本不符就拒绝。
+5. **落点处预览**（§3.6「放进落点，一律预览确认」）：选了 `attach.` 候选后，由落点的主人页面（Pages）在落点处开面板槽（`molis:context-panel-open`，W1-6 已登记），画出将写入的内容。确认后经动作服务调第 4 步的动作；不在页面里直接改文档，保证与助理、MCP 同一个入口。
+6. **H3 那一对函数**：执行前宿主用 `confirmReferences`（`horizontal/search/src/references.ts`）按调用者的权限重读落点对象。不在或没权限时，用合同里的 `reference-unavailable` 拒绝，不另写读取。版本由 Pages 的动作自己比对。
+7. **情境条显示落点**：「→ Pages · 第 3 段光标处」。依赖 W3-A2 的情境条，排在 W3-A2 之后。
+
+**决策（统筹 2026-10-15 按推荐定）**：
+
+- **B-1**：三个动作，共用一个处理器，不改合同。三个是不同的操作，各占一个 `capability_id`，都是 version 1；提交时带上 `tooling/gates/actions/` 的快照。处理器在 `beforeEffect()` 之后按读取时的版本（`expected_version`）提交，被取消或撤权就不写。
+- **B-2**：W3-B 只用 `confirmReferences`；「`attach` 的 `find` 取候选」（`search.references@1`）改到 W4 的 F2「追加到已有」。
+- **B-3**：拆开。W3-B1 = 第 1–6 步，H3（#546）合入后开 PR；W3-B2 = 第 7 步，排在 W3-A2 之后。
+- **B-4（统筹 2026-10-15）**：选中事件 `ContextActionChosen` 加两个可选字段 `landing?: SurfaceLanding` 与 `run?(): Promise<unknown>`，`run` 不收参数。`run` 由总线在派发时绑死总线手上的落点和这一次选择，只发 `/api/contextual/attach`；页面拿 `landing` 只定位预览，执行时换不了落点。宿主照旧两道检查：先 `confirmReferences`，再按 `expected_version` 提交。不选「复用现有字段」：插件代码要点名平台路由，`object` 的含义也被挪用；不选「另起一个事件」：多一对发和听，换来的一样。只增字段，现有页面不用改，不留兼容。
+- **B-5（本线按体验定，统筹同意）**：只按规则排序时，派生出的 `attach.` 去处排在其他规则之上（内核 `ruleScores`，按声明顺序）。不这样它们永远进不了主行的前三，而版面从不把去处放进「更多」。只在手上的东西不在左边、左边又真有落点时才派生，平常的选区不受影响。
+- **B-6**：分屏窗格（iframe）里的落点不在 W3-B1，由情境线在 W3-B2 之后补（W3-B3）：沿用 `workbench-surface-*` 窗格消息，来源照现有写法核对 origin 与来源窗口；若新加消息类型，按 `SECURITY-INVARIANTS.md` 对应条补「别的来源发来的落点被丢掉」的拒绝用例。
+
+**开工须知（统筹 2026-10-15）**：页面资源只许变小，第 3、5 步加的字节在同一个 PR 里自己抵消，不借别的 PR 省下的；第 1 步改合同，同一个 PR 跑 `pnpm api:update`，事件要有人发、有人听；第 5 步的预览挂在主人页面的面板槽里，不开整页、不开第二个标签页（shell-page-gate）；开工先并最新 main（防腐 #542 改 Pages 的 `index.ts`、`store.ts`、`project-data.ts`）；开工前把要改的文件清单发统筹核对。
+
+**防腐预检**：
+
+- 新动作：注册一次，要跑 `actions:update`。
+- 新事件：同一改动里登记。
+- `assistant-island.ts`、`client.ts`、`context-bus.ts` 只减或持平，新东西写新文件。
+- 页面资源靠删掉的代码抵消。
+- 不新增 typed 能力。
+- 写入从一开始就带读取版本（W3-09-3）。
+- 页面请求用 `request-client.ts`（W3-10）。
+
+**实现记录（W3-B1，本地 `c623a9eb`，未推送）**：
+
+- **焦点在哪里**：以前没有谁设 `focus.place`，`attach.` 候选因此永远派生不出来。现在由总线按报告焦点的元素推出：在右栏格子里（`[data-side-panel] [data-side-body]`）是 `side`（带 `side_tab`），在助理岛里是 `assistant`，其余不设（即 `main`）。写在新文件 `context-landing.ts`，`molis:surface-focus` 的监听从 `context-bus.ts` 移过去（`context-bus.ts` 变小）。
+- **右栏手上的东西**：右栏的文件预览（`side-panel-files.ts`）打开插件文件时声明它的对象（`data-assistant-context`），在里面选的文字就是手上的东西。插件自己的右栏格子是 iframe，焦点到不了总线，不在 W3-B1。
+- **排序**：版面只把前三个里的落点类候选放进主行，从不放进「更多」；只按规则时它们从来排不进前三。内核 `ruleScores` 让派生出的 `attach.` 候选按声明顺序排在其他规则之上（判断时权重和其他规则一样，只占百分之一分）。只在左边真有落点、手上的东西不在左边时才派生，所以不影响平常的选区。
+- **输入怎样拼**：宿主 `contextual-attach.ts` 确定性地拼：`id` 取落点对象，`expected_version` 取落点版本，`anchor`/`head` 取落点第一个带位置的目标，`material_field` 取手上各段文字（空行相接，至多 20000 字），动作有 `source` 时取手上对象的标题。手上没有文字就拒绝（`contextual.empty`），没有落点就是 `contextual.stale`。
+- **预览**：画在 Pages 编辑器自己的浮层里、落点下方（`placeOverlay`，在 `[data-pages-stage-workspace]` 内），不是 `molis:context-panel-open`（那个槽停在情境条下，离落点远）；仍在主人页面里，不开整页、不开标签页。准备好的输入位置与报告的不同，或确认时文档已改，就不写，请人重新选位置。确认先保存未存的输入，用保存后的版本经 `/api/contextual/attach` 调动作，再按存储重载文档。
+- **只有保存了的文字有落点**：Pages 有未保存的输入时报 `null`，保存后再报，所以落点的位置总属于它带的版本；确认时文档若已不同于报告时，不写，请人重新选位置。`run` 因此不用带版本（B-4）。
+- **宿主不信页面给的位置**：Pages 的动作先按 `expected_version` 读当前文档，版本不符拒绝（`pages.conflict`），越界、插入带了范围、替换没有范围都拒绝（`pages.invalid`），写入走 `PagesStore.update`。备好输入是确定性的，不调模型，所以动作不声明 `scheduling: "concurrent"`；以后要调模型就得声明，返回后再 `beforeEffect()`。
+- **分屏窗格**（iframe 里的落点）不在 W3-B1，见 B-6。
+- **执行前重读落点对象（第 6 步）**：`/api/contextual/attach` 调动作之前，宿主用 H3 的 `confirmReferences`（经 `localHost.search`，本人在这个项目里的权限）读一次落点对象，种类限定为 `attach.item_kind`；不在、不能用，或宿主没有这道检查，都拒绝（`contextual.reference_unavailable`），什么也不写。之后版本仍由 Pages 的动作自己比对。证据：`tests/pages-landing-actions.test.ts`「W3-B1 step 6」。
+- **待用户定**：页面资源的抵消方式（统筹在问；`served-page-text.ts` 保留绑定名是有测试钉住的决定，没定之前不动）。
+- **证据**：`tests/pages-landing-actions.test.ts`（三个动作、版本冲突、撤销、撤权不写），`tests/context-landing.e2e.test.ts`（右栏选一句 → 「插入到光标处」→ 落点处预览 → 放进去）。

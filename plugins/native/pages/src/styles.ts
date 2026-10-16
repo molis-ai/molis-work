@@ -562,12 +562,12 @@ export const PAGES_STYLES = `
   .pages-slash-item .pages-slash-hint { color: var(--faint); font-size: 12px; font-style: normal; font-weight: 400; }
   .pages-slash-item.is-on, .pages-slash-item:hover { background: var(--nav-hover); }
   .pages-slash > p, .pages-pop > p { margin: 8px 12px; font-size: 12px; color: var(--muted); }
-  .pages-pop { display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+  .pages-pop { display: flex; flex-direction: column; gap: 8px; }
   .pages-pop label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
   .pages-pop textarea, .pages-pop input, .pages-pop select { width: 100%; }
   .pages-pop-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .pages-pop .pages-pop-error { color: var(--red); }
-  .pages-pop [hidden] { display: none; }
+  .pages-landing-preview p { margin: 0 12px; }
   .pages-pop.is-docked { position: static; min-width: 0; max-width: none; max-height: none; padding: 0; overflow: visible; background: none; box-shadow: none; animation: none; }
   .pages-comment {
     background: color-mix(in srgb, var(--hue-cyan, var(--ink)) 14%, transparent);

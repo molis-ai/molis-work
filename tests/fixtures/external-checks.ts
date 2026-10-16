@@ -25,6 +25,14 @@ export const toolTitled = (tools: readonly OfferedTool[], title: string) => tool
 const textOf = (stream: string) => stream.split("\n").filter(line => line.startsWith("data:")).map(line => {
   try { const event = JSON.parse(line.slice(5)); return event.type === "content_block_delta" && event.delta?.type === "text_delta" ? String(event.delta.text ?? "") : ""; } catch { return ""; }
 }).join("");
+/** The tokens a streamed Anthropic-compatible reply reports it used; a reply that reports none adds nothing (and is counted apart). */
+const usageOf = (stream: string) => stream.split("\n").filter(line => line.startsWith("data:")).reduce((sum, line) => {
+  try {
+    const event = JSON.parse(line.slice(5)), usage = event.type === "message_start" ? event.message?.usage : event.type === "message_delta" ? event.usage : undefined;
+    return usage ? { input: sum.input + (usage.input_tokens ?? 0), cached: sum.cached + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0),
+      output: sum.output + (usage.output_tokens ?? 0), reported: true } : sum;
+  } catch { return sum; }
+}, { input: 0, cached: 0, output: 0, reported: false });
 /** The tool calls in a streamed Anthropic-compatible reply, in order. */
 const toolUses = (stream: string): ToolUse[] => {
   const blocks = new Map<number, { name: string; json: string }>();
@@ -72,6 +80,8 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
   const root = await mkdtemp(join(tmpdir(), "molis-external-checks-"));
   await writeFile(join(root, "README.md"), "sandbox\n");
   const requests: string[] = [], replies: ToolUse[][] = [], said: string[] = [], real = globalThis.fetch;
+  // What the provider reported spending, over every reply; `unreported` counts replies that said nothing (left unknown, not 0).
+  const usage = { input_tokens: 0, cache_tokens: 0, output_tokens: 0, unreported: 0 };
   t.mock.method(globalThis, "fetch", async (url: Parameters<typeof fetch>[0], init: RequestInit) => {
     // With a real model, only its endpoint is the model: anything else (the resolver's DNS over HTTPS) goes out as it is.
     if (live && String(url instanceof Request ? url.url : url) !== live.endpoint) return real(url, init);
@@ -87,6 +97,8 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
     const response = await real(url, init);
     const stream = await response.clone().text();
     replies.push(toolUses(stream)); said.push(textOf(stream));
+    const spent = usageOf(stream);
+    if (spent.reported) { usage.input_tokens += spent.input; usage.cache_tokens += spent.cached; usage.output_tokens += spent.output; } else usage.unreported++;
     return response;
   });
   const switches = { pluginActive: true, actionsGranted: true, directoryAuthorized: true, state: "running" as string | Error };
@@ -143,7 +155,7 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
   };
   const wait = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.wait;
   const continuation = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.continuation;
-  return { root, requests, replies, said, reviewed, switches, calls, adapter, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary) }, reopen: open };
+  return { root, requests, replies, said, usage, reviewed, switches, calls, adapter, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary) }, reopen: open };
 }
 
 /** The model's call that registers the wait, as `board-wait` takes it. */

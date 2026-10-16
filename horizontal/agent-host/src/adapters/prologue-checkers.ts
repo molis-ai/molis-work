@@ -52,10 +52,8 @@ const notAllowed = (error: unknown) => {
 };
 const object = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const onlyKeys = (value: Record<string, unknown>, keys: readonly string[]) => Object.keys(value).every(key => keys.includes(key));
-/** One name, or a list of them: a single field or state may be written as a plain string. */
-const list = (value: unknown): unknown[] | undefined => typeof value === "string" ? [value] : Array.isArray(value) ? value : undefined;
-const words = (value: unknown, min: number, max: number) => { const items = list(value);
-  return !!items && items.length >= min && items.length <= max && items.every(item => typeof item === "string" && item.length >= 1 && item.length <= 100); };
+const words = (value: unknown, min: number, max: number) => Array.isArray(value) && value.length >= min && value.length <= max
+  && value.every(item => typeof item === "string" && item.length >= 1 && item.length <= 100);
 
 /** `molis.action-query@1`: one of the round's action tools by its name, its input, where its answer says the state, and which states count as what. */
 function actionQueryProblem(params: unknown): string | undefined {
@@ -63,10 +61,9 @@ function actionQueryProblem(params: unknown): string | undefined {
   if (typeof params.tool !== "string" || !params.tool || params.tool.length > 200) return "tool is the name of one of this round's action tools, as you call it";
   const status = params.status;
   if (!object(status) || !onlyKeys(status, ["path", "satisfied", "failed", "pending"])) return "status is { path, satisfied, failed?, pending? }";
-  const path = list(status.path);
-  if (!path || path.length < 1 || path.length > 8 || !path.every(part => typeof part === "string" && part.length >= 1 && part.length <= 64)) return "status.path is a field name, like \"state\", or a JSON array of them (at most 8)";
-  if (!words(status.satisfied, 1, 20) || status.failed !== undefined && !words(status.failed, 0, 20) || status.pending !== undefined && !words(status.pending, 0, 20)) return "status.satisfied, failed and pending are each a state, like \"done\", or a JSON array of states (satisfied has at least one; at most 20 each)";
-  const all = [...list(status.satisfied) as string[], ...(list(status.failed) as string[] | undefined ?? []), ...(list(status.pending) as string[] | undefined ?? [])];
+  if (!Array.isArray(status.path) || status.path.length > 8 || !status.path.every(part => typeof part === "string" && part.length >= 1 && part.length <= 64)) return "status.path is a JSON array of field names, like [\"state\"] (at most 8)";
+  if (!words(status.satisfied, 1, 20) || status.failed !== undefined && !words(status.failed, 0, 20) || status.pending !== undefined && !words(status.pending, 0, 20)) return "status.satisfied, failed and pending are JSON arrays of states, like [\"done\"] (satisfied has at least one; at most 20 each)";
+  const all = [...status.satisfied as string[], ...(status.failed as string[] | undefined ?? []), ...(status.pending as string[] | undefined ?? [])];
   return new Set(all).size === all.length ? undefined : "a state is in one list only";
 }
 
@@ -89,7 +86,7 @@ const sameRef = (view: Pick<ActionView, "capability_id" | "version" | "provider"
 async function readableAction(round: Remembered, tool: string): Promise<{ view: ActionView; ref: ExactActionReference } | { refused: CheckerResult } | { unknown: CheckerResult }> {
   if (!round.actions) return { refused: refused(REFUSED, "这一轮没有可调用的动作") };
   const ref = (await round.tools?.catch(() => undefined))?.get(tool);
-  if (!ref) return { refused: refused(REFUSED, "这个动作不在这一轮可调用的动作里：tool 写这一轮动作工具的名字本身（molis-action- 开头，find-tools 的说明里列着），不是标题") };
+  if (!ref) return { refused: refused(REFUSED, "这个动作不在这一轮可调用的动作里：tool 写这一轮动作工具的名字本身（molis-action- 开头，find-tools 的说明里列着）") };
   let views: readonly ActionView[];
   try { views = await round.actions.client.discover(); }
   catch (error) { if (notAllowed(error)) return { refused: refused(codeOf(error, REFUSED), "这一轮现在不能再查动作") }; throw error; }
@@ -108,8 +105,7 @@ async function readableAction(round: Remembered, tool: string): Promise<{ view: 
 const answerAt = (value: unknown, path: readonly string[]) => path.reduce<unknown>((at, key) => object(at) ? at[key] : undefined, value);
 
 const lookAtAction: Look = async (round, params, signal) => {
-  const query = params as { tool: string; input?: unknown; status: Record<"path" | "satisfied" | "failed" | "pending", string | string[] | undefined> };
-  const among = (key: "satisfied" | "failed" | "pending", state: string) => (list(query.status[key]) as string[] | undefined ?? []).includes(state);
+  const query = params as { tool: string; input?: unknown; status: { path: string[]; satisfied: string[]; failed?: string[]; pending?: string[] } };
   const found = await readableAction(round, query.tool);
   if ("refused" in found) return found.refused;
   if ("unknown" in found) return found.unknown;
@@ -117,10 +113,10 @@ const lookAtAction: Look = async (round, params, signal) => {
   let output: unknown;
   try { output = await round.actions!.client.invoke(found.ref, query.input ?? {}, signal); }
   catch (error) { if (notAllowed(error)) return refused(codeOf(error, REFUSED), "这一轮现在不能调用这个动作"); throw error; }
-  const said = answerAt(output, list(query.status.path) as string[]), source = { ref: `${found.ref.capability_id}@${found.ref.version}` };
+  const said = answerAt(output, query.status.path), source = { ref: `${found.ref.capability_id}@${found.ref.version}` };
   if (typeof said !== "string" && typeof said !== "number" && typeof said !== "boolean") return { status: "unknown", source, note: "动作的回答里没有这个状态" };
   const state = String(said);
-  const status = among("satisfied", state) ? "satisfied" : among("failed", state) ? "failed" : among("pending", state) ? "pending" : undefined;
+  const status = query.status.satisfied.includes(state) ? "satisfied" : query.status.failed?.includes(state) ? "failed" : query.status.pending?.includes(state) ? "pending" : undefined;
   return status ? { status, source, note: `「${found.view.action.title}」回答 ${state}` } : { status: "unknown", source, note: `「${found.view.action.title}」回答 ${state}，不在给定的状态里` };
 };
 

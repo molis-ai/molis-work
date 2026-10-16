@@ -37,7 +37,7 @@ async function firstRound(t: TestContext, f: Eval, task: string, extra: object =
   const seen = uses.filter(use => ["read", "read-file", "list", "search"].includes(use.name) || use.name.startsWith("molis-action-")).map(use => JSON.stringify([use.name, use.input]));
   const looks = seen.length, repeated = seen.length - new Set(seen).size;
   const wait = await f.wait();
-  const summary = { tools: uses.map(use => use.name), waits: tried.map(use => use.input), refused, invalid, looks, repeated, commands: f.reviewed.filter(row => row.kind === "command").map(row => row.what), wait: wait && { state: wait.state, conditions: wait.conditions.map(condition => ({ kind: condition.kind, ref: condition.ref, label: condition.label })) } };
+  const summary = { tools: uses.map(use => use.name), waits: tried.map(use => use.input), refused, invalid, looks, repeated, commands: f.reviewed.filter(row => row.kind === "command").map(row => row.what), wait: wait && { state: wait.state, conditions: wait.conditions.map(condition => ({ kind: condition.kind, ref: condition.ref, label: condition.label })) }, usage: { ...f.usage } };
   t.diagnostic(`EVAL round-one ${JSON.stringify(summary)}`);
   return { ...summary, registered: wait?.state === "waiting" && wait.conditions.some(condition => condition.kind === "external") };
 }
@@ -47,7 +47,7 @@ async function goOn(t: TestContext, f: Eval, extra: object = {}) {
   const before = f.replies.length;
   const started = await f.start("继续", extra), run = await f.adapter.read(started.ref);
   const said = f.said.slice(before).join("\n");
-  t.diagnostic(`EVAL round-two ${JSON.stringify({ phase: run.phase, tools: f.replies.slice(before).flat().map(use => use.name), said: said.slice(-400) })}`);
+  t.diagnostic(`EVAL round-two ${JSON.stringify({ phase: run.phase, tools: f.replies.slice(before).flat().map(use => use.name), said: said.slice(-400), usage: f.usage })}`);
   return said;
 }
 
@@ -105,7 +105,7 @@ test("P3c eval 4: an outside CI that fails; the step does not go on by itself", 
   await writeFile(join(f.root, "out/ci.failed"), "exit 1");
   await until("the wait is over", async () => (await f.wait())?.state !== "waiting", 120_000).catch(() => undefined);
   const wait = await f.wait();
-  t.diagnostic(`EVAL failure ${JSON.stringify({ state: wait?.state, continuation: (await f.continuation())?.state })}`);
+  t.diagnostic(`EVAL failure ${JSON.stringify({ state: wait?.state, continuation: (await f.continuation())?.state, usage: f.usage })}`);
   assert.equal(wait?.state, "failed", "the failure ends the wait as failed (a failed_marker), not a wait that never sees it or one that takes it for done");
   assert.notEqual((await f.continuation())?.state, "eligible", "a failure does not go on by itself");
   assert.doesNotMatch(await readFile(join(f.root, "RESULT.md"), "utf8").catch(() => ""), /ok/i, "a failure is not written up as ok");

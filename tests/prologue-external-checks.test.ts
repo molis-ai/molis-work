@@ -70,15 +70,3 @@ test("PA-17 PA-18: a step waits on a read-only query — its states map as given
   assert.equal(f.calls.status, 4, "one query per look");
   assert.equal(f.requests.length, 2, "no model call while the step waited");
 });
-
-test("PA-17: a single field or state may be written as a plain string, and maps the same as a one-item list", { timeout: 60_000 }, async t => {
-  const f = await externalChecks(t, (turn, _messages, tools) => turn === 1
-    ? boardWait("molis.action-query@1", { tool: toolTitled(tools, "Job status"), input: { job: "j-1" }, status: { path: "state", satisfied: "done", failed: "error", pending: ["running"] } })
-    : { text: "在等那个作业。" });
-  await f.start("等作业 j-1 做完", { action_tools: [f.refs.status] });
-  await until("the first look", async () => /回答 running/.test(await note(f)));
-  assert.equal((await f.wait())!.conditions[0]!.last.status, "pending");
-  f.switches.state = "done";
-  await until("the wait is over", async () => (await f.wait())?.state !== "waiting");
-  assert.equal((await f.wait())!.state, "satisfied");
-});

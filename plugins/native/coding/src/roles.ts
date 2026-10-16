@@ -218,8 +218,8 @@ export const codingPrompts: readonly AgentPromptText[] = [
     body: [
       "耗时长的命令（完整测试、构建、起服务）用 start-command 放到后台，同样要用户批准；要结果时用 await-commands 等它，等待期间不调模型。预计很快的就地等；可能很久、手头又没别的事时用 park: true 挂起并结束这一轮，命令结束后会带着结果自动接着做。不要反复调用 command-output 查进度。不再需要的后台命令用 command-stop 停掉。",
       "要等的不是自己的后台命令、而是外面的事（别的程序写出的结果文件，或某个查询动作报告的状态），手头又没别的可做时，用 board-wait 登记外部条件（kind 写 external），说一句在等什么，然后结束这一轮。等待期间由宿主按时去看，不调模型；满足后自动接着做，确实失败或一直看不清时交给用户。只有两个检查器：",
-      "- molis.file-present@1：看本轮授权目录里的文件。params 写 path（要等的那个文件，目录内的相对路径），可加 marker（写完才出现的完成标记）、failed_marker（失败时会出现的文件）。例：{\"path\": \"out/report.json\", \"marker\": \"out/report.done\"}。外面的事失败时会留下信号的，把它写成 failed_marker，不要另写一个等它的条件；没写的话，失败了这一步会一直等。只认这一轮开始之后写出的文件。文件在只说明它在，不证明内容对，也不证明生成成功，接着做时要自己核对。",
-      "- molis.action-query@1：反复调用一个这一轮能调用的只读查询动作。params 写 tool：那个动作工具的名字本身（以 molis-action- 开头的那一串；没展开的工具，名字列在 find-tools 的说明里），不是它的标题；input 是调用它的输入；status 写回答里的状态在哪个字段、哪些取值算什么，一个就写字符串，几个写成数组。例：{\"tool\": \"molis-action-…\", \"input\": {\"job\": \"j-1\"}, \"status\": {\"path\": \"state\", \"satisfied\": \"done\", \"failed\": \"error\", \"pending\": \"running\"}}。没列到的取值算看不清。会修改东西的动作、判断类动作、要调用模型的查询不能拿来等，登记时会被拒；等完以后要用它们，照常直接调用那个动作工具。",
+      "- molis.file-present@1：看本轮授权目录里的文件。params 写 path（要等的那个文件，目录内的相对路径），可加 marker（写完才出现的完成标记）、failed_marker（失败时会出现的文件）、non_empty（布尔值 true：文件不能是空的）。例：{\"path\": \"out/report.json\", \"marker\": \"out/report.done\"}。外面的事失败时会留下信号的，一定写上 failed_marker，否则失败了这一步会一直等。只认这一轮开始之后写出的文件。文件在只说明它在，不证明内容对，也不证明生成成功，接着做时要自己核对。",
+      "- molis.action-query@1：反复调用一个这一轮能调用的只读查询动作。params 写 tool：那个动作工具的名字本身（以 molis-action- 开头的那一串；没展开的工具，名字列在 find-tools 的说明里）；input 是调用它的输入；status 写回答里的状态在哪个字段、哪些取值算什么。例：{\"tool\": \"molis-action-…\", \"input\": {\"job\": \"j-1\"}, \"status\": {\"path\": [\"state\"], \"satisfied\": [\"done\"], \"failed\": [\"error\"], \"pending\": [\"running\"]}}。没列到的取值算看不清。会修改东西的动作、判断类动作、要调用模型的查询不能拿来等，登记时会被拒；等完以后要用它们，照常直接调用那个动作工具。",
       "需要判断好坏的条件（比如设计好不好）不能这样等，要等一个确定的完成信号，接着做时再判断。",
     ].join("\n"),
   },

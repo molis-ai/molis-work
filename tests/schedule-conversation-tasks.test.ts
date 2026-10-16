@@ -11,6 +11,7 @@ import {
   SCHEDULE_TASK_WAKEUP_CAPABILITY,
   SchedulePluginRouteTable,
   bindScheduleConversationJob,
+  composeScheduledTaskPrompt,
   createScheduleConversationTask,
   createScheduleActionPorts,
   createScheduleRouteHandlers,
@@ -22,6 +23,7 @@ import {
   pauseOrResumeConversationTask,
   registerConversationJob,
   rescheduleEnabledConversationTasks,
+  schedulePrompts,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { directScheduleActions } from "./schedule-direct-actions.js";
@@ -111,6 +113,20 @@ test("Agent 回复第一行 IMPORTANT 决定是否标重要，并切掉这一行
     marked: false,
   });
   assert.equal(parseScheduledAgentReply("正文里写了 IMPORTANT: yes").marked, false);
+});
+
+// Handbook 12.4-3: one rule, one layer. The task is the person's words plus the one line the code reads back; when to say yes is the reader role's.
+test("a scheduled round's task is the person's title, instructions and history, ending with the output line the parser reads; when to say yes is only in the reader prompt", () => {
+  const message = composeScheduledTaskPrompt({ title: "周报汇总", instructions: "汇总本周进展", history: [{ kind: "user", text: "汇总本周进展" }] });
+  const contract = "输出格式：回复第一行单独写 IMPORTANT: yes 或 IMPORTANT: no，第二行起是正文。";
+  assert.equal(message, `任务标题：周报汇总\n任务说明：\n汇总本周进展\n历史对话：\nuser: 汇总本周进展\n\n${contract}`);
+  for (const answer of ["yes", "no"]) {
+    assert.ok(contract.includes(`IMPORTANT: ${answer}`));
+    assert.deepEqual(parseScheduledAgentReply(`IMPORTANT: ${answer}\n正文`), { text: "正文", important: answer === "yes", marked: true });
+  }
+  const reader = schedulePrompts.find((prompt) => prompt.prompt_id === "schedule-reader");
+  assert.ok(reader?.body.includes("写 yes"), "when to say yes is the reader role's");
+  assert.ok(!message.includes("写 yes"), "and is not repeated in the task");
 });
 
 test("创建任务会留下说明回合，到点 runner 写入助手回复并标有更新", async () => {

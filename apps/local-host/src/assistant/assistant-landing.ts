@@ -18,11 +18,15 @@ export interface AssistantLandingPorts {
 const WHERE: Record<AssistantLanding["position"], string> = { cursor: "光标处", selection: "选中的文字", end: "文末", object: "整个对象" };
 const text = (value: unknown, max: number) => typeof value === "string" && value ? { value: value.slice(0, max) } : null;
 
-/** The landing a Send carried, bounded; anything not in this shape is left out rather than refused. */
+/**
+ * The landing a Send carried, bounded; anything not in this shape is left out rather than refused. It goes only with the
+ * object the Send carries (§21.5 L-1): a landing in any other object, or with none, is dropped here, whatever the page did.
+ */
 export function checkLanding(context: AssistantContextSnapshot): { landing?: AssistantLanding } {
-  const value = context.landing;
+  const value = context.landing, object = context.object;
   if (!value || typeof value !== "object" || !value.object || typeof value.object.kind !== "string" || typeof value.object.id !== "string"
-    || typeof value.plugin_id !== "string" || !(value.position in WHERE)) return {};
+    || typeof value.plugin_id !== "string" || typeof value.position !== "string" || !Object.hasOwn(WHERE, value.position)
+    || !object || object.kind !== value.object.kind || object.id !== value.object.id) return {};
   const headings = Array.isArray(value.heading_path) ? value.heading_path.filter((item): item is string => typeof item === "string").slice(-6).map(item => item.slice(0, 120)) : [];
   const [before, after, selected] = [text(value.before, 400), text(value.after, 400), text(value.selected, 4000)];
   return { landing: { plugin_id: value.plugin_id.slice(0, 120), position: value.position,

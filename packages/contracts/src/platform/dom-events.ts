@@ -82,9 +82,13 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/scripts/client/settings-directory.ts"],
     state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it.",
   },
+  attention: {
+    files: ["apps/workbench/src/scripts/client/attention.ts"],
+    state: "What waits on the person, read once for the whole page (W4-10): the background tasks the title bar lists, the Assistant's notices for the plugin in front, the plugin deliveries waiting in the market and, on a project page, the board's event cursor.",
+  },
   "plugin-notifications": {
     files: ["apps/workbench/src/scripts/client/plugin-notifications.ts"],
-    state: "How many plugin deliveries wait on the person, and opening the market's recovery list on them.",
+    state: "Opening the market's recovery list on the plugin deliveries that wait.",
   },
   "plugin-event-recovery": {
     files: ["apps/workbench/src/scripts/client/plugin-event-recovery.ts"],
@@ -198,6 +202,16 @@ export const DOM_EVENTS = [
     summary: "An import into the Artifacts library finished in the form that dispatched it; the dialog that hosts the form closes on it.",
   },
   {
+    name: "molis-work:attention", kind: "announcement", owner: "attention", on: "document",
+    detail: "the /api/attention answer ({ background_tasks, notices, plugin_events_pending, board_cursor }) and started; a part that could not be read is null, started is the read's performance.now()",
+    summary: "The page read what waits on the person; the Assistant's bell (with the plugin notification count) paints from it, and the board refreshes when its cursor moved.",
+  },
+  {
+    name: "molis-work:attention-refresh", kind: "request", owner: "attention", on: "document",
+    detail: "none",
+    summary: "Read what waits on the person again now: the person acted on a notice.",
+  },
+  {
     name: "molis-work:character-coding", kind: "request", owner: "coding", on: "window",
     detail: "{ reference, title, task, workspace_id, skill_ids }",
     summary: "Open a new Coding session prepared from a Character run (the fixed role package and the task). Sent by the Characters page.",
@@ -261,11 +275,6 @@ export const DOM_EVENTS = [
     name: "molis-work:plugin-events-reveal", kind: "announcement", owner: "plugin-notifications", on: "document",
     detail: "none",
     summary: "The market is being opened on the waiting deliveries; the recovery list shows them for a few seconds.",
-  },
-  {
-    name: "molis-work:plugin-events-waiting", kind: "announcement", owner: "plugin-notifications", on: "document",
-    detail: "{ pending }",
-    summary: "The number of plugin deliveries that wait on the person changed; the Assistant's bell repaints.",
   },
   {
     name: "molis-work:plugins-changed", kind: "announcement", owner: "plugin-membership", on: "document",

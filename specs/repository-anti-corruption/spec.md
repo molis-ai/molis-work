@@ -8,6 +8,13 @@
 
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
+W4-02（2026-10-15，Runtime 与已安装插件的 Manifest `methods` 生效，#562；决定 #18「和内置插件一样注册：启动时注册，停用、卸载、升级时收回」）：
+- 原来只有目录条目的 `methods` 在 Host 启动时登记（`builtinRegistrations`）；没有目录条目的插件在 Manifest 里声明方法能通过检查，却没有任何代码登记，别的 Agent 看不到。
+- 合同：`PluginDefinition.methods`（可选，`AgentSkillDefinition[]`）放方法正文，与 `agent_skills`（插件自己 Agent 的）分开。公开 API 快照 `tooling/gates/api/contracts/platform/plugin.txt` 只多这一个可选字段，现有插件不受影响。
+- 登记：`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`（原 `registerPluginInstructions`）在同一处登记指令和方法，项目与 Home 两个执行器都经它；按安装计数，最后一个实例停下时收回；升级后的版本在别的项目还跑旧版时启动，按新版本重新登记。声明与正文的配对与目录同一个函数（`declaredMethods`）：只登记声明了且有同标识、同版本正文的，缺正文的记进开发者诊断。定义带着指令或方法正文、而目录已为该主人登记了任何定义时拒绝启动（与指令的规则相同）；只带 Manifest 声明、不带正文的定义什么也不登记（目录插件自己的定义就是这样，如 Home Runtime 上的 Issues）；沙箱执行的定义不登记方法，因为方法正文会进别的 Agent 的轮次。
+- 测试只经包的公开入口（`homeAgentDefinitions` 新导出）：`tests/plugin-methods-runtime.test.ts` 的 `W4-02-01`（启动时登记、只登记声明且有正文的、诊断说明缺的、两个项目共用一份、最后一个停下收回）、`W4-02-02`（停用收回、启用恢复、升级换成新版本的、卸载收回）、`W4-02-03`（别的项目还跑旧版时升级，换成新版本，最后一个停下收回）、`W4-02-04`（目录已登记的主人带正文被拒、目录的方法仍在；目录插件自己的定义不带正文照常启动；沙箱定义能跑但不登记）。第一版按 Manifest 的声明触发，Issues 在 Home Runtime 上被当成第二来源拒绝启动（`issue-home-runtime`、`issue-assistant`、`home-plugin-platform`、`builtin-plugin-assembly-gate` 失败），改为按定义带的正文触发并补了这条。变异检查：去掉「版本变了就重新登记」，`W4-02-03` 失败；去掉沙箱判断，`W4-02-04` 失败。
+- 文档：`docs/platform/PLUGIN-DEVELOPMENT.md`「给其他 Agent 的方法」、`docs/system/EXTENSION-POINTS.md` §3.4 的那一行（原「不会被登记」）、`docs/platform/PROLOGUE-AI.md`。
+
 W4-04 第一片（2026-10-15，插件读自己成果线的最新版本，#545 已合入 main）：
 - 范围：Form 迁到 Runtime 前要先补的平台服务（RUNTIME-MIGRATION「迁移要用到时先补服务，不在迁移 PR 里补」）。Form、Dataset、PPT、Pages 固定成果时，要知道这条成果线在项目里的最新版本，才能给下一版编号；现在这一步由宿主的 `artifactLineHead` 端口给。
 - 新增 `services.artifacts.head(artifact_id)`：返回 `{ version, source_revision }`，项目里还没有就是 `null`。只读得到这个插件自己开的成果线，要有 `artifact:read`。
@@ -46,7 +53,21 @@ W4-04 第四片（2026-10-15，Form 客户端改成打包的 TypeScript，PR #55
 - 证据：门禁 `--base origin/main`、`boundary:check`、`page-assets`（`--update` 后）通过；相关 18 个非浏览器文件全过；浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e`、`model-ready-surfaces.e2e` 共 19 条全过。全量由统筹在 CI 跑。
 - 变基到 #551 合入后的 main（`19823a62`）后重跑：门禁 `--base origin/main`、`boundary:check`、`page-assets`、页面事件通过；Form 与门禁相关的 11 个非浏览器文件、7 个浏览器文件（另加 `goal-form-viewport`、`policy-form-binding`、`remaining-forms-viewport`）全过。Runtime 停 Form 时库先关（`home-plugin-executor.ts`、`plugin-host-services.ts` 的 `dispose`），#551 第 7 片那次原生崩溃统筹重跑已过，判为跑机环境。
 
+W4-05（2026-10-15，助理服务拆分样板，PR #559；决定 #3）：
+- 抽出：提醒与跟进协作者 `AssistantFollowUps`（`apps/local-host/src/assistant/assistant-followups.ts`）：Plugin 的到期提醒（`sweepReminders`）、工作上的定时轮次（保存、取消、到点运行、归档时停用、宿主启动时重新排队）、关注规则（`saveRule`、`removeRule`）。它只经 `AssistantFollowUpPorts` 依赖宿主（工作、通知、设置、规则、Home 动作、Agent Host、发送、队列），不 import 助理其他模块的实现（只用共同的错误表 `assistant-errors.ts`），带走自己的表：`assistant_followups` 的读写从 `AssistantStore` 搬到 `AssistantFollowUpRecords`（`store.followUps`）。服务上的 `followUps` 现在是这个协作者，HTTP、动作（`assistant-rule-actions.ts`）、`web-server.ts` 的定时任务改为经它调用。
+- 不变的：行为与文字一字不改（逐段搬，旧的 `runDueFollowUp`、`enqueueCurrentFollowUp` 并进类里）；到期提醒对 Home 动作的每一步仍有 20 秒限时，由服务包在端口里（`withinTime`）。没有动 `assistant-inputs.ts`，没有动发送与回执的路径；没有往 contracts 加 typed 能力。
+- 大小：`AssistantService` 1,796 行 / 110 方法 → 1,663 / 99，文件 2,222 → 2,081 行；`AssistantStore` 280 行 / 42 方法 → 267 / 39。两者仍超限，其余协作者归 W5-10。新文件 311 行、类 16 个方法，在阈值以下。
+- 测试：`tests/assistant-followups-collaborator.test.ts` 只拿协作者和测试自己的队列、时钟跑，不起服务与 Agent Host：`W4-05-01`（每天的定时排进队列、到点只跑一次并排下一天；取消与归档）、`W4-05-02`（到期提醒各告诉一次，没答的 Plugin 下次同一段时间再问；规则严格检查）、`W4-05-03`（只 import 自己的端口与共同错误表）。变异检查：让提醒扫描不论有没有 Plugin 没答都记下进度，`W4-05-02` 失败。原有的助理用例（定时、定时删除、提醒、关注规则、记忆、材料、项目删除、委派交回）只把调用改成经 `followUps`，断言不变。
+
 W4-09（2026-10-15，两个 PR 开着）：#539 把 Web 服务的五个周期任务登记在一处（`apps/local-host/src/periodic-tasks.ts`），「设置 › 诊断」列出「后台任务」；`W4-09-01`、`W4-09-02`（反复启停不留计时器）在 `tests/host-periodic-tasks.test.ts`。#540 让成果游标改为进程内通知加 30 秒兜底（`W4-09-03`，`tests/plugin-platform-composition.test.ts`），炼金术士工作室空闲 10 分钟且手上没事就关（`W4-09-04`，`tests/alchemist-studio-idle.test.ts`）。三处都做了变异检查。
+
+W4-10（2026-10-15，空闲轮询合并，PR 待开；用户 10-15 拍板「一个接口、每 15 秒」）：
+- 一个读：宿主加 `GET /api/attention`（`apps/local-host/src/attention-http.ts`），Home 页和项目页各一份，一次答出等着人的事：后台任务（Coding 会话）、助理对当前插件的提醒、插件投递待处理数，项目页另带 Board 的事件游标。每一部分仍由它的主人读（`homeBackgroundTasks`、`assistantNotices`、`pluginEventsPending`、`store.eventCursor`）；某一部分读失败就答 `null`，页面保留上次显示的，其余照答。原来的 `/api/background-tasks` 删掉。
+- 一个订阅：工作台的 `attention.ts`（由 `background-tasks.ts` 改名而来）每 15 秒读一次，只在页面可见时读；回到标签页、切换插件、本地动作之后（`molis-work:attention-refresh`）立刻再读。读完发 `molis-work:attention`：助理的铃铛（`assistant-island.ts` 去掉 20 秒轮询和它自己的可见性、侧栏点击重读）从这一份画，插件通知数也由铃铛直接从这一份和插件市场的列表（`molis-work:plugin-events`，比它之前开始的读新）计，`plugin-notifications.ts` 去掉 30 秒轮询和转发事件 `molis-work:plugin-events-waiting`，只剩打开插件市场，不再发任何请求。后台任务从 10 秒变 15 秒。两个新事件登记在 `dom-events.ts`（新主人 `attention`），转发事件删去。`/assets/molis-work-workbench.js` 不变大（`page-assets` 门禁）。
+- Board 游标：4 秒一次的游标检查只在 Goals 是当前面时跑；别的面靠 attention 带回的游标，变了才刷新 Board。放置的「这里用到的别处内容」只在首页进入视野、或放置变了（`invalidate`）时读，不再随每次重画读。
+- 预算：`tests/idle-request-budget.e2e.test.ts`（`W4-10-02`）在示例项目的首页空闲一分钟，请求数不超过 6（attention 4 次、首页自己的 30 秒刷新 2 次），旧的三个接口不再单独轮询。改前实测同一分钟 25 次（`board/cursor` 15、`attention` 4、`placement/related` 4、`home/events` 2；再往前没有合并时约 36 次，BL-116）。`tests/attention-route.test.ts`（`W4-10-01`）钉住两个页面的回答；`tests/settings-requests-through-helper.test.ts` 改为断言插件通知数不发请求（比原来「经请求助手发」更严）。
+- 改了的用例：`tests/workbench-hidden-refresh.e2e.test.ts` 原来在 Coding 窗格上看游标读取「隐藏就停、回来就读」，现在游标检查只在 Goals 面，改到 Goals 窗格上看同一件事，另加一条「Coding 窗格 4.5 秒内不读游标」；`tests/plugin-notification-bell.test.ts` 改为断言铃铛从 attention 和插件市场列表计数；`tests/dom-events-contract.test.ts` 里拿 `plugin-events-waiting` 当例子的几处换成同一主人的 `plugin-events-reveal`，断言不变。
+- 证据：`affected-tests` 选出的 137 个非浏览器文件全过；29 个浏览器文件（选出的 24 个加 `goal-event-review`、助理提醒与插件投递相关的）全过，`workbench-hidden-refresh` 按上条改后通过。健康门禁、边界、页面事件、`page-assets`（`/assets/molis-work-workbench.js` 与 main 同为 1,097,494 字节以内）通过。动了合同里的页面事件表（`pnpm api:update` 刷新了 `contracts/platform/dom-events` 快照），插件不受影响：这几个事件只在工作台里收发。改动命中全量条件（共享核心与外壳装配），全量在 CI。
 
 W4-11（2026-10-15，Home 存储统一登记，#542）：
 - 登记：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里 43 项有数据的条目和它们的 owner，库另带基线。
@@ -65,6 +86,13 @@ W4-12（2026-10-15，视觉比对工具，#550）：
 - 拍：`tests/visual-surfaces.e2e.test.ts` 在隔离 Home 的示例项目里拍 8 个关键界面（项目首页、插件切换器、Goals 列表、Todo、Pages、助理面板、侧栏文件、设置·界面与语言），各按 1440、1024、390 三个宽度，浅色、深色各一张，共 48 张。页面时钟钉在 2026-10-15 14:00（上海时区，之后照常走，计时器不受影响），页面上显示的时间与光标隐去；每张要连拍两次一模一样才算定下来，一直在变的界面直接失败（它本身就没法比）。
 - 比：`pnpm visual:compare`（`scripts/visual-compare.mjs`）在 HEAD 与 `--base`（默认 `origin/main`）的合并基点上各拍一遍：基点工作树在本机建一次、离线安装并构建（占构建槽位），留着下次用；两边都用本分支的拍摄用例，画面由各自的产品代码出。逐像素比（`scripts/visual/png.mjs`，只用 `node:zlib`，读不了的格式按名字拒绝），默认任何一个像素变了就算变了；报告在 `.impeccable/qa/review/visual/compare/`（`report.html` 三栏对照、`diff/` 红色标出变化），有变化退出 1。W5-05 删旧皮肤用它判定。
 - 证据：`pnpm visual:compare` 对 main（合并基点 `65df2709`）完整跑一遍：基点树建好、两边各拍 48 张，0 张有变化。同一棵树拍三次，48 张两两一像素不差；把钉住的日期改到 10-20，首页、侧栏、助理三类 16 张被点出、差异落在周条与问候语上（变异检查）；`tests/visual-compare.test.ts` 4 条（PNG 读写与五种行过滤、拒绝 16 位、单像素与尺寸变化、`--compare` 的退出码与报告），去掉均值过滤的移位或让脚本恒退 0 都会失败。`docs/system/PARALLEL-DEVELOPMENT.md` §6「界面」一行写明何时跑。
+
+W4-08（2026-10-16，平台产品服务的边界，不新增规则，统筹 10-15 认可）：决定 N-03 之后这一项只剩「层与 owner、依赖规则写全」。逐条核对，现有的都已经守着：
+- 层与 owner：`docs/system/ARCHITECTURE.md`「平台产品服务」写明四项（记忆、放置、搜索、情境排序）可以持有跨插件策略和自己的机制记录，不拥有业务事实；`docs/SSOT-MATRIX.md` §6 与 `docs/horizontal/memory.md`、`placement.md` 各写了 owner。
+- 依赖：三项在 `horizontal/` 下，`pnpm boundary:check` 的 `horizontal-reverse-dependency` 拒绝它们 import App、Module 实现或插件实现（`packages/test-kit/src/boundaries.ts`）；情境排序在内核里，`scripts/gates/kernel-contextual.mjs`（`docs/system/PACKAGE-BOUNDARIES.md` §6 的 K1 起）不许核心碰它。
+- 表：`tooling/gates/table-owners.json` 里没有记忆、放置、搜索的共写表，门禁 `scripts/gates/table-owners.mjs` 让别的包写不了它们的表。
+- 能力：它们以系统动作登记；新的 typed 宿主能力由 `pnpm health:check` 的结构数字拦着（只许减少）。情境排序的 HTTP 例外与删除条件写在架构文档同一节。
+- 拆 `MemoryService`（`horizontal/memory/src/service.ts` 现 1,262 行）不在本项：按 `docs/system/HUGE-CLASS-MIGRATION.md` 的决定在包内由 W5-10 拆，路线图 W4-08 一行同步删去了「再拆 MemoryService」。
 
 ## 0. 现场与范围
 
@@ -512,7 +540,7 @@ W4-12（2026-10-15，视觉比对工具，#550）：
 | --- | --- | --- | --- |
 | 19 个构建期装配的内置插件（BL-080，含 BL-088） | 仍然成立 [已确认] | 见 R-01 | W4-04、W5-01、W5-02、W6-01；BL-088 随 W5-01 |
 | 首屏渲染全部插件的隐藏界面（PMR-07） | 未验证 [未验证] | #150 加了部分按需加载（`lifetime.whenVisible` 用在 `coding-companions.ts`、`plugin-event-recovery.ts`）；当时的 293 KB HTML、6041 个节点没有重量 | W1-07（页面资源预算门禁给出数字）、W5-05 |
-| 空闲轮询 | 部分 [已确认] | 工作台与插件里工作台前端、插件和炼金术士工作进程里共 10 个轮询（助理工作列表、通知 20 秒、后台任务 10 秒、插件通知 30 秒、context-actions、项目首页、Todo 提醒 60 秒、PPT、Coding 的 MCP 设置、炼金术士工作进程；五个目录里的 `setInterval(` 共 20 处，其余是桌面壳、宿主服务计时器和沙箱看门狗）；Board 游标轮询受可见性控制（`refresh-decisions.ts:117`）；没有合并成按可见面订阅 | W4-09、W4-10；BL-116 |
+| 空闲轮询 | 已做（W4-09 #539、#540，W4-10） | 宿主的周期任务登记在 `periodic-tasks.ts`（W4-09）；页面上等着人的事并成一个读 `/api/attention`、每 15 秒且只在可见时读，Board 游标检查只在 Goals 面跑，空闲首页每分钟请求数由 `tests/idle-request-budget.e2e.test.ts` 守住不超过 6（W4-10，见上方记录）；BL-116 已删 | W4-09、W4-10 |
 | 渲染后改写 HTML 里的链接（`prefixLocalLinks`） | 仍然成立 [已确认] | 定义在 `apps/workbench/src/renderer.ts:407`，`renderer.ts:299/309/313` 与 `goals-page-renderer.ts:138/330` 在渲染后改写 HTML 串 | 补记：并入 W5-06 |
 | Home 级插件的数据分项目时的搜索来源模式 | 仍然成立 [已确认] | `skills/molis-plugin-dev/search.md`（63 行）没有写这种模式 | 补记：并入 W6-03（Skill 与手册统一更新） |
 | 147 个被三条以上线改过的热点文件 | 仍然成立 [引用] | roadmap §4.7：`apps/workbench/src/i18n/en.ts` 23 次、`web-request.ts` 21 次、`web-catalog.ts` 14 次、`project-host.ts` 12 次等；`tooling/gates/baseline.json` 自身也成了冲突热点 | W1-13 已做（枢纽文件与排时段，`PARALLEL-DEVELOPMENT.md` 第 2、5 节；归属见 `.github/CODEOWNERS`，#314）；W5-02（声明式登记）、W6-04（重量） |
@@ -1116,7 +1144,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | §4.7 多人并行 | 部分（W1-13 已做，#314；健康门禁对照合并基点 #293、密钥扫描进 CI #294 更早合入）：`docs/system/PARALLEL-DEVELOPMENT.md`（枢纽文件、排时段、集成分支、基线比对、Agent 锁、清理、PR 体量）、`docs/system/CONTRACT-CHANGES.md`（现在不留兼容期；读取兼容从第一个装到开发机之外的版本开始，日期未到）、`.github/CODEOWNERS` 与 SSOT 各表「归属」列（由 `scripts/package-owners.mjs` 生成，`pnpm boundary:check` 校验）、PR 模板新栏目、`AGENTS.md` 指针。待做：公开 API 快照 W1-04、动作合同快照 W2-15、挑相关用例脚本 W2-17、CI 产品子集 W1-11/W2-16、插件回放工具 W4-01、测试并发隔离 W5-12、Prologue SDK 合成负责人（W1-20 提名）、固定记录 main 最新全量数字的位置（`PARALLEL-DEVELOPMENT.md` 没有定义，归 W6-05）；CODEOWNERS 现在只路由包根目录，Coding、Jelly、Shelf 在宿主与外壳里的代码未路由 | §1、`docs/system/PARALLEL-DEVELOPMENT.md` |
 | §4.8 改需求的便利 | 待做：页面资源预算 W1-07，翻译检查 W1-08（决定 #16），浏览器代码打包 W4-04、W5-04 | §3 R-07 |
 | §4.9 体检报告逐项闭环 | 已闭环（10-08）：附录 A 39 行、报告 §5 的 6 步、§7.5 的 5 条、交接清单 25 项，各有结论、证据、归属 | §3 |
-| §4.10 新合同全链路 | 部分：搜索来源与对象读取器、侧栏文件来源、成果库的预览固定比较继续、工作流内容站、插件通知（只对 Runtime 插件）、撤销声明在使用端的授权，都已走通并有用例（roadmap §4.10）；Manifest `methods` 对 Runtime 与已安装插件不生效，按决定 #18 改为和内置一样注册（W4-02）；无使用者的接口按决定 #19 处理（W2-03）；注册时交叉校验 W3-05；八类新合同按基本合同逐条复核已做（`specs/action-architecture/spec.md` §3 末尾，#319），缺口 G1–G9 各有去向 | roadmap §4.10 |
+| §4.10 新合同全链路 | 部分：搜索来源与对象读取器、侧栏文件来源、成果库的预览固定比较继续、工作流内容站、插件通知（只对 Runtime 插件）、撤销声明在使用端的授权，都已走通并有用例（roadmap §4.10）；Manifest `methods` 对 Runtime 与已安装插件按决定 #18 和内置一样注册（W4-02，`tests/plugin-methods-runtime.test.ts`）；无使用者的接口按决定 #19 处理（W2-03）；注册时交叉校验 W3-05；八类新合同按基本合同逐条复核已做（`specs/action-architecture/spec.md` §3 末尾，#319），缺口 G1–G9 各有去向 | roadmap §4.10 |
 | §4.11 数据与可靠性 | 部分：`docs/system/HOME-DATA.md`（#295）是库的 owner 表（第 11 项交付物）；跨 owner 直接 SQL 已由 W2-06 清零并加了门禁（`scripts/gates/table-owners.mjs`；`tooling/gates/table-owners.json` 的 `shared` 登记两张共享日志表，`same_name` 登记 `workspaces`、`jobs` 两个不同库里的同名表；清掉的是普查列的 4 处加门禁量到的 `feed-history-release.ts` 与 `apps/server/src/main.ts`，说明见 `docs/system/HOME-DATA.md` §4.5）。共享日志表留着的原因是依赖方向（`modules/goals`、`modules/governance-collaboration` 只依赖 contracts，不能 import storage 的日志函数），不是事务：Artifacts 已改成宿主注入 `appendEvent`、`eventCursor`；后续：Goals 与 Governance 也改成宿主注入的日志端口，然后删掉两条 `shared` 登记；两个无版本库（W2-05）已加版本 1，真实 Home 的盖章在维护五里待做；统一登记（W4-11）、快照命令（W5-16）待做 | §3 R-09 |
 | §4.12 卫生与文档 | 部分：vendored 已收到 1 份（#170），`MIGRATION.md` 已退场（#251），文档对齐经 #295–#298 做掉大半；版本与发布策略已写（W1-22，#321：`docs/releases/POLICY.md`、`CHANGELOG.md`、`CHECKLIST.md`，`scripts/verify-release-versions.mjs` 进 CI），发布 0.3.0、内置插件清单版本改成 0.3.0 与 Runtime 跟随当前构建在 W5-15（细则和清单跟随的做法用户 10-08 已确认，#323）；余下见 W1-02（文档收尾）、W1-23（根目录、`.impeccable`、工作树）；合同包的 6 个占位 subpath 已由 W2-01 删除 | §3 |
 | §4.13 门禁 | 部分：已接健康门禁（对照合并基点；含巨大单元例外校验 #320、包清单表校验 #322）、整页门禁、成果类型与声明门禁、密钥扫描、版本核对（#321）；API 快照、页面资源预算、结构门禁、文档引用门禁、静态检查待做（W1-04～W1-09） | §5a |
@@ -1707,6 +1735,22 @@ Prologue（10-14 复查到 #22 为止，这次看 #24～#27）：
   - 两者共有的是 `tests/agent-action-selection.e2e.test.ts`。它在 #535 合入前的各分支全量里都红（`context/assistant-flow`、`adoption/p3-collaboration`、`feature/ai-interaction-s1`），#535 修了这处 Characters 偶发，而这两个分支的基点早于 #535。
   - #540 另有 `W2-18-PAGES-TRANSIENT-01`（插入的文字落在段尾）：失败片重跑全过，本机在该分支上 9/9 通过；之前没有记录。只出现一次，没有进隔离名单，再出现就按 `tests/quarantine.json` 登记。
     - 原因是测试自己：它用脚本设 DOM 选区再按方向键，编辑器会把只经 DOM 设的光标放回自己状态里的位置，两者赛跑，Linux 上编辑器赢了，「Prefix 」就落到段尾。改成像人一样在段首、段尾点一下，再等光标确实到那里；断言不变（#548）。本机 13 次全过（其中 10 次与构建或另一批浏览器用例同时跑）；更早有两次在构建期间失败，没留下失败细节。
+
+### 10.14 2026-10-15～16 合入 PR 的独立复查（#534～#556 中不是本线的）
+
+范围：#534、#535、#536、#537、#538、#543、#546、#548、#552、#554、#556（本线自己的 #539～#542、#544、#545、#547、#549～#551、#555 由统筹审）。逐个看 diff，按清单查五件事：门禁数字有没有调大、有没有新增兼容或读取兜底、有没有删或放宽断言、有没有调大现有用例的时限、可信身份是否从输入读。
+
+结论：没有发现需要修的。
+- 门禁数字：没有一处调大；`baseline.json`、`page-assets.json`、`limits.json` 的改动都是降数或随 merge-base 重算。
+- 兼容标记：命中的都是 `anthropic-compatible` 一类的供应商名，不是兼容逻辑。
+- 删掉的断言：#552（1c）把 `control-run` 的断言改写到 v3 形状，按 `docs/system/CONTRACT-CHANGES.md` 升了版本，新断言更严；#536（W3-A1）删掉的是旧的下一步卡片布局，是 context-program §21 已定的设计。
+- 时限：没有调大现有用例的时限；#548 把 `W2-18-PAGES-TRANSIENT-01` 的光标改为点击放置（原因见 10.13），断言没变。
+- 身份：没有从输入读 actor、项目或安装的新路径。
+- #534（P3a）改到的 typed 宿主能力都是就地替换：队列 v1 → v2，`waits.await` → `collaboration.await`（文档里写成一种等待），另删了 4 条；结构数字没有变大。
+- #537（CI）：全量里侧栏自己的浏览器也走 `--no-sandbox` 的 Chrome。runner 的沙箱下崩溃的渲染进程退不干净，Chrome 不发崩溃事件；用例没改，`ci.yml` 没动。
+- #538（CI）：限流并只在加标签时跑，是用户 10-15 的弹窗决定（第 1 节）。
+
+Prologue：#10～#22 在 10-14 复查过，#24～#27 在 10.13，这一轮没有新合入的。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

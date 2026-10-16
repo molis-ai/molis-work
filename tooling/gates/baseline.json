@@ -2,14 +2,14 @@
   "giantUnits": 143,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 249,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2222,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2081,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1796,
-      "methods": 110
+      "lines": 1663,
+      "methods": 99
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
-      "lines": 280,
-      "methods": 42
+      "lines": 267,
+      "methods": 39
     },
     "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
       "lines": 443,
@@ -35,12 +35,12 @@
       "lines": 308,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 323,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 318,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 371,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 273,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 368,
+    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 271,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 211,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 208,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
@@ -201,8 +201,8 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1644,
-    "file plugins/native/coding/src/styles.ts": 829,
+    "file plugins/native/coding/src/client.ts": 1642,
+    "file plugins/native/coding/src/styles.ts": 828,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {

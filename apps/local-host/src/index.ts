@@ -225,14 +225,16 @@ export { createSearchEvidenceRuntime, type SearchEvidenceRuntime } from "./searc
 export { CONNECTORS_BASELINE } from "./connectors-store.js";
 export { CONTEXT_ONBOARDING_BASELINE } from "./context-onboarding-store.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
+export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";
 export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { AssistantService } from "./assistant/assistant-service.js";
+export { AssistantFollowUps, AssistantFollowUpRecords, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "./assistant/assistant-followups.js";
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
 export { interactionNextSteps, NEXT_STEP, type NextStepCard, type NextStepReview } from "./agent-next-steps.js";
 export { withPluginInteraction } from "./plugin-interaction-answer.js";
-export { assistantCardHtml, cardInputValues, instantIn } from "./assistant/assistant-card-view.js";
+export { assistantCardHtml } from "./assistant/assistant-card-view.js";
 export { assistantNextSteps, assistantStepRow, drawAssistantReply } from "./assistant/assistant-view-html.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";

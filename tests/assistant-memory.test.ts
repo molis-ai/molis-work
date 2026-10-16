@@ -663,7 +663,7 @@ test("a timed round is written by the Host: it is marked, it is not among the pe
     await until(async () => (await service.read(workId)).work.state === "completed", "first round");
     // The person asks for a standing request; when its time comes the Host starts a round with its own wrapper around those words.
     const standing = "以后周报都先写风险";
-    await service.saveFollowUp({ work_id: workId, text: standing, at: new Date(Date.now() + 700).toISOString(), label: "每天汇总" });
+    await service.followUps.save({ work_id: workId, text: standing, at: new Date(Date.now() + 700).toISOString(), label: "每天汇总" });
     await until(async () => { const view = await service.read(workId); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "timed round");
     const rounds = store.rounds(workId);
     assert.deepEqual(rounds.map(round => round.written_by ?? "person"), ["person", "host"], "the timed round is marked as the Host's when it is written");

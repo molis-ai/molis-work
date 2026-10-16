@@ -118,7 +118,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "准备操作卡": "prepare an action card",
   "整理上下文": "compact the context",
   "收尾": "wrap up",
-  // apps/workbench/src/scripts/client/background-tasks.ts
+  // apps/workbench/src/scripts/client/attention.ts
   "等你审查": "Needs your review",
   "挂起等待": "Queued",
   "个等你处理": "waiting for you",

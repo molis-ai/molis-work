@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
@@ -314,6 +314,19 @@ export function agentDefinitionsFor(homeDirectory: string, registrations: () => 
     for (const registration of registrations()) registry.register(registration);
   }
   return registry;
+}
+
+/**
+ * A Plugin's Manifest methods with the bodies its package ships, exactly as declared: a declared method is registered only with
+ * the body of its id and version, and one without a body is left out with a note for the developer diagnostics.
+ */
+export function declaredMethods(declared: readonly AgentSkillDeclaration[], bodies: readonly AgentSkillDefinition[] = []): { methods: AgentMethodRegistration[]; notes: string[] } {
+  const methods = declared.flatMap(method => {
+    const body = bodies.find(item => item.skill_id === method.skill_id && item.version === method.version)?.body;
+    return body ? [{ skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools], body }] : [];
+  });
+  const notes = declared.filter(method => !methods.some(item => item.skill_id === method.skill_id)).map(method => `方法 ${method.skill_id} 声明了但包里没有正文，未登记`);
+  return { methods, notes };
 }
 
 /** Instruction prompts as registrations, grouped under their owners and merged into any Agent registration of the same owner. */

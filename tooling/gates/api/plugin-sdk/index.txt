@@ -194,6 +194,7 @@ export declare const QUESTION_LIMITS: Readonly<{
     maxRefKindChars: 64;
     maxReferences: 20;
     maxReferenceChars: 200;
+    maxUnitChars: 24;
 }>;
 
 export { SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -331,6 +332,9 @@ export declare function questionAnswer(values: unknown): {
         question: number;
         indexes: number[];
         other?: string;
+    } | {
+        question: number;
+        value: string | number | null;
     }>;
 } | {
     text: string;

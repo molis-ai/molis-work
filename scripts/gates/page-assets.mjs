@@ -232,17 +232,16 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for receipts 1e (specs/ai-input-receipts RC-14–RC-16: the Assistant's receipt lines, the answer or
-// supplement chip, the resend key kept across a refresh; Coding's receipt announcements and the dropped-reply mark), under
-// the user's 2026-10-15 rule that small, necessary growth passes once; the user approved it on 2026-10-16 (after #584), in
-// the receipts session. Each is for exactly one merge-base budget (main cf954a0a) and used once: the next baseline freezes
-// again. Delete it in the next change to this gate (as #541 and #584 did).
+// One-time allowance for receipts 3c (specs/ai-input-receipts D24–D28, RCPT-311–313: one shared supplement receipt for
+// Coding and the Assistant, with the model's claim apart from the run's fact, the in-place detail and the status-region
+// announcements). The user approved it on 2026-10-16 (D25, relayed by the coordinator): workbench.js +4,113, workbench.css and
+// arrival.css +2,062 each; coding.js falls. Each entry is for exactly one merge-base budget (main 958946e2), capped at the
+// measured size, and used once: the next baseline freezes again. W5-05 slice 1 (#611) deleted 1e's spent entries; this brings the
+// object back with 3c's three only. Delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [821387, 821499],
-  "/assets/molis-work-plugins/coding.js": [434028, 434439],
-  "/assets/molis-work-settings.css": [1113186, 1113322],
-  "/assets/molis-work-workbench.css": [1699659, 1699795],
-  "/assets/molis-work-workbench.js": [1095606, 1097751],
+  "/assets/molis-work-arrival.css": [810350, 812412],
+  "/assets/molis-work-workbench.css": [1688608, 1690670],
+  "/assets/molis-work-workbench.js": [1097604, 1101714],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

@@ -47,9 +47,14 @@ test("a method a Plugin offers for business work is declared with business tools
     const listed = registry.methods().find(method => method.key === PAGES_METHOD);
     assert.ok(listed, "Pages' method is registered with the Host");
     assert.equal(listed.source.kind, "plugin");
-    assert.deepEqual([listed.name, listed.version], ["会议纪要整理", 1]);
-    assert.match(registry.method("io.molis.work.pages", "meeting-notes", 1).body, /待定问题/);
-    assert.throws(() => registry.method("io.molis.work.pages", "meeting-notes", 2), /没有登记这个方法版本/);
+    assert.deepEqual([listed.name, listed.version], ["会议纪要整理", 2]);
+    // ADH-14: whether writing the page asks first is the Host's, by the action's effect; the method no longer stops for it.
+    assert.equal(listed.summary, "把一段会议记录或一篇会议文档整理成结论、待办（谁、做什么、何时）和待定问题，每条注明依据；用户要时写成 Pages 文档。");
+    const method = registry.method("io.molis.work.pages", "meeting-notes", 2);
+    assert.match(method.body, /待定问题/);
+    assert.match(method.body, /\n5\. 用户要写成 Pages 文档时，新建文档写入；不覆盖已有文档，除非用户明确要求。$/);
+    assert.doesNotMatch(method.body, /确认/);
+    assert.throws(() => registry.method("io.molis.work.pages", "meeting-notes", 1), /没有登记这个方法版本/);
     assert.equal(registry.diagnostics().owners.find(owner => owner.owner_id === "io.molis.work.pages")?.methods, 1);
   } finally { await rm(home, { recursive: true, force: true }); }
 });

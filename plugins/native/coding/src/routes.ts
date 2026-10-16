@@ -33,13 +33,19 @@ export interface CodingExecutionPorts {
   models(): Promise<readonly CodingModelChoice[]>;
 }
 
+// A refused answer's problems, with the questions they are about, for the Host to word beside each field.
+const problemsOf = (error: unknown) => {
+  const { problems, questions } = error as { problems?: unknown; questions?: unknown };
+  return Array.isArray(problems) ? { details: { problems, ...(Array.isArray(questions) ? { questions } : {}) } } : {};
+};
+
 // The few codes Coding names keep their status; any other failure with a code of ours answers by its kind (D26), as the
 // SDK's edge does. A plain error (Coding's own checks of what the page sent) stays a caller's mistake.
 const failure = (error: unknown) => {
   const code = (error as { code?: string }).code;
   return { status: code === "coding.session_unknown" || code === "actions.missing" ? 404 : code === "agent.session_busy" ? 409
     : code === "actions.forbidden" || code === "actions.owner_mismatch" ? 403 : code === "actions.unredeemed" ? 503 : ACTION_ERROR_CODE.test(code ?? "") ? actionHttpStatus(error) : 400,
-    body: { error: error instanceof Error ? error.message : "Coding 操作失败", ...(code ? { code } : {}) } };
+    body: { error: error instanceof Error ? error.message : "Coding 操作失败", ...(code ? { code } : {}), ...problemsOf(error) } };
 };
 
 /**

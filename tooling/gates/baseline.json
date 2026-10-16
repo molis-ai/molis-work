@@ -1,8 +1,8 @@
 {
-  "giantUnits": 142,
+  "giantUnits": 141,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2061,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2058,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
       "lines": 1643,
       "methods": 98
@@ -58,7 +58,6 @@
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
-    "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": 157,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
@@ -200,7 +199,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1642,
+    "file plugins/native/coding/src/client.ts": 1638,
     "file plugins/native/coding/src/styles.ts": 828,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,

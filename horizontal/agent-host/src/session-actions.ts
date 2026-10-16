@@ -73,7 +73,8 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       if (actionDigest(current) !== offer.action_digest) throw new ActionError("actions.definition_changed", "这项能力的合同在建议之后变了；请让它按现在的版本重新建议");
       await client.check?.(offer.reference, input.input);
       await fresh(call);
-      return { output: await client.invoke(offer.reference, input.input) };
+      // The click's own cancellation reaches the action it runs: a click cancelled after these checks still writes nothing.
+      return { output: await client.invoke(offer.reference, input.input, call.invocation.signal) };
     }),
   ];
 }

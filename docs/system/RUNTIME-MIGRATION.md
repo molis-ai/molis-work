@@ -1,6 +1,6 @@
 # 内置插件迁到 Plugin Runtime：计划
 
-状态：计划，2026-10-08 按 origin/main `31c357df` 核实（行号与计数都在这个提交上重量过；2026-10-10 删除实验插件后，目录条目、名单与手写接线的计数按删掉的部分扣减，行号只改了下面标明的几处）。还没有合入的迁移样板：第一个样板 Form 是路线图 W4-04，依赖 W3-06 的平台服务，Form 与 Todo 迁移尚未开始；Home 现有 Issue 与 F 的通用服务接线不代表这些业务插件已迁移。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进宿主（第 5.4 节）。
+状态：计划，2026-10-08 按 origin/main `31c357df` 核实（行号与计数都在这个提交上重量过；2026-10-10 删除实验插件后，目录条目、名单与手写接线的计数按删掉的部分扣减，行号只改了下面标明的几处）。2026-10-16 按 origin/main `76758783` 重核名单（只改了下面目录条数、三份名单与这一句）：第一个样板 Form 已由项目监督器启动（W4-04），Issues 是 Home 监督器启动的 Home 级插件；第二个样板 Todo 仍在构建期名单上，尚未开始。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进宿主（第 5.4 节）。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
 
@@ -34,10 +34,11 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 ### 2.1 25 个目录条目
 
-`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 25 条，在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
+`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条，在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
-- `RUNTIME_ASSEMBLED`（7）：characters、shelf、coding、files、git、diff、text-stats，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 6。
-- `BUILD_TIME_ASSEMBLED`（18）：alchemist、artifacts、cognia、dataset、feed、form、goals、images、inbox、jelly、lingguang、pages、plugin-builder、ppt、schedule、sessions、workflows、todo。
+- `RUNTIME_ASSEMBLED`（8）：characters、shelf、coding、files、git、diff、text-stats、form，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 7。
+- Home 级（1）：issues，目录条目带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
+- `BUILD_TIME_ASSEMBLED`（17）：alchemist、artifacts、cognia、dataset、feed、goals、images、inbox、jelly、lingguang、pages、plugin-builder、ppt、schedule、sessions、workflows、todo。
 
 宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
 

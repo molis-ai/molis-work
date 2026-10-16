@@ -1,6 +1,7 @@
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient, AgentActionOffer, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { CAPABILITY_PARAMETERS, declaredCapabilities, SUGGEST_PARAMETERS } from "./prologue-gateway-declared.js";
 
 export const GATEWAY_TOOLS = { find: "find-capabilities", read: "read-capability", change: "change-capability", suggest: "suggest-action", direct: "change-reversible" } as const;
 /** Tools for handing sub-tasks to separate works, present only where the caller offers delegation. */
@@ -130,6 +131,7 @@ function guardGatewayTool(run: (args: Record<string, unknown>, signal: AbortSign
 export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL_LIMITS.maxTimeoutMs, runSignal?: AbortSignal) {
   // Capabilities this round has seen offered (found or used): one missing later was taken away, not guessed.
   const known = new Set<string>();
+  const declared = declaredCapabilities(gateway);
   const guarded = (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => guardGatewayTool(run, runSignal);
   const current = async (args: CapabilityArgs, write: boolean): Promise<ActionView> => {
     const views = await gateway.client.discover();
@@ -179,7 +181,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
         return { view, score: hits * 10 + terms.filter(term => head.includes(term)).length * 5 };
       }).filter(row => terms.length === 0 || row.score > 0).sort((a, b) => Number(b.view.availability.available) - Number(a.view.availability.available) || b.score - a.score);
       if (!scored.length) return JSON.stringify({ found: 0, note: "Nothing matches; try the provider's name or a shorter word from the capability directory." });
-      for (const row of scored.slice(0, FIND_LIMIT)) known.add(row.view.capability_id);
+      for (const row of scored.slice(0, FIND_LIMIT)) { known.add(row.view.capability_id); declared.note(row.view); }
       return JSON.stringify({ found: scored.length, shown: Math.min(scored.length, FIND_LIMIT), capabilities: scored.slice(0, FIND_LIMIT).map(row => describe(row.view, Boolean(gateway.client.direct?.(row.view)))) });
     }),
     [GATEWAY_TOOLS.read]: guarded(async (args, signal) => { const parsed = parseCapability(args); return invoke(parsed, await current(parsed, false), signal); }),
@@ -215,27 +217,15 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
       return JSON.stringify({ result: JSON.parse(output), note: "It ran without a confirmation because it can be undone. Tell the person what changed and that they can undo it from this work's panel." });
     }),
   };
-  const capability = { type: "object", properties: {
-    capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-    input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The capability's input as a JSON value (an object, not a string of JSON), shaped exactly by the input_schema find-capabilities returned; {} when that schema declares no properties." },
-  }, required: ["capability_id", "version", "provider_id"] };
   const tool = (name: string, description: string, parameters: Record<string, unknown>, effectKind: "safe-read" | "mutate-external") => ({ executor: name,
     registration: { name, version: "1", description, parameters, effectKind, gate: "broker" as const, timeoutMs, idempotency: "none" as const } });
-  const suggest = { type: "object", properties: {
-    title: { type: "string", description: "The button's words, verb first, at most 40 characters, e.g. \"加入计划（3 项）\"." },
-    summary: { type: "string", description: "What clicking does in the person's words: which object, which key values, dates with their day and time zone." },
-    capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" },
-    input: { type: ["object", "array", "string", "number", "boolean", "null"], description: "The full prepared JSON value matching input_schema from find-capabilities. For an object schema, put every required capability field INSIDE this object, including any field named title; the button title and summary do not supply business fields. Never send an empty string in place of an object." },
-    editable: { type: "array", items: { type: "string" }, description: "Top-level input fields the person may adjust before running it." },
-    missing: { type: "array", items: { type: "object", properties: { field: { type: "string" }, question: { type: "string" } }, required: ["field", "question"] }, description: "Required fields you could not fill, each with the question to ask." },
-  }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"] };
   const tools = [
     tool(GATEWAY_TOOLS.find, "Search the business capabilities available in this work's scope by provider and name (e.g. \"Pages 新建\"). Returns each match's exact identity, whether it reads or changes data, and its input schema; one that cannot run now comes last, with its provider's reason and nothing to call it with.",
       { type: "object", properties: { query: { type: "string", description: "Words from the provider or capability name, separated by spaces." } }, required: ["query"], additionalProperties: false }, "safe-read"),
-    tool(GATEWAY_TOOLS.read, "Run a capability that only reads data, with the exact identity from find-capabilities.", capability, "safe-read"),
-    tool(GATEWAY_TOOLS.change, "Run a capability that changes data, with the exact identity from find-capabilities. The person reviews the exact capability and input before it runs; do not ask them separately.", capability, "mutate-external"),
-    tool(GATEWAY_TOOLS.direct, "Run a change the capability directory marks 可撤销 (find-capabilities says use: change-reversible) directly, when the person has asked for exactly this effect. It runs without a confirmation and can be undone from the work; any other change goes through change-capability.", capability, "mutate-external"),
-    tool(GATEWAY_TOOLS.suggest, "Offer the person a ready-to-run action as a button, with its exact capability and prepared input, when you are suggesting something they may want done but have not asked you to do. Nothing runs until they click it.", suggest, "mutate-external"),
+    tool(GATEWAY_TOOLS.read, "Run a capability that only reads data, with the exact identity from find-capabilities.", CAPABILITY_PARAMETERS, "safe-read"),
+    tool(GATEWAY_TOOLS.change, "Run a capability that changes data, with the exact identity from find-capabilities. The person reviews the exact capability and input before it runs; do not ask them separately.", CAPABILITY_PARAMETERS, "mutate-external"),
+    tool(GATEWAY_TOOLS.direct, "Run a change the capability directory marks 可撤销 (find-capabilities says use: change-reversible) directly, when the person has asked for exactly this effect. It runs without a confirmation and can be undone from the work; any other change goes through change-capability.", CAPABILITY_PARAMETERS, "mutate-external"),
+    tool(GATEWAY_TOOLS.suggest, "Offer the person a ready-to-run action as a button, with its exact capability and prepared input, when you are suggesting something they may want done but have not asked you to do. Nothing runs until they click it.", SUGGEST_PARAMETERS, "mutate-external"),
     ...[
       tool(DELEGATION_TOOLS.start, "Hand one independent sub-task to a separate work that runs on its own (same person and scope, its own session). Give it a clear brief, the acceptance bar, and only the material it needs. Its changes still wait for the person's confirmation; it cannot delegate further. Use it for parts that can proceed independently; do small things yourself.",
         { type: "object", additionalProperties: false, required: ["title", "brief", "acceptance"], properties: {
@@ -282,7 +272,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const pack: ScenarioPack = { id: PACK_ID, version: "2.4.8", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
-  return { pack, executors, names, known };
+  return { pack, executors, names, known, parameterBranches: declared.parameterBranches };
 }
 
 /** The delegation tools, each a thin call into the caller's delegation (which owns limits and the works themselves). */

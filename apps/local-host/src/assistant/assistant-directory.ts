@@ -23,9 +23,9 @@ export function capabilityDirectory(offered: readonly ActionView[], unavailable:
     groups.set(view.provider.title, [...groups.get(view.provider.title) ?? [], view.action.title + mark]);
   }
   const usable = offered.length
-    ? ["本轮可用的业务能力（按提供方分组）。用 find-capabilities 按“提供方 名称”搜索取得准确标识与参数；读取类用 read-capability；标“可撤销”的，用户明确要求这个效果时用 change-reversible 直接做（事后告诉用户可以在工作面板撤销）；标“修改”“不可撤回”的用 change-capability，执行前会请用户确认：",
+    ? ["本轮可用的业务能力（按提供方分组）。没有标记的只读取；标“可撤销”的执行时不经确认，事后可以在工作面板撤销；标“修改”的执行前会请用户确认；标“不可撤回”的执行前会请用户确认，执行后撤不回来：",
       ...[...groups].map(([provider, titles]) => `- ${provider}：${titles.join("、")}`)]
-    : ["本轮没有可用的业务能力。需要操作数据时，如实告诉用户缺少哪类能力或授权。"];
+    : ["本轮没有可用的业务能力。"];
   return [...usable, ...unavailableLines(unavailable)].join("\n");
 }
 

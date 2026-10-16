@@ -78,7 +78,7 @@ export * from './plugin-presentation.js';
 export { renderPluginPresentationExample } from './plugin-presentation-example.js';
 export * from './interaction.js';
 export * from './interaction-client.js';
-export { INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_STEP_STYLES, INTERACTION_STYLES, INTERACTION_TRACE_STYLES } from './styles/interaction.js';
+export { INTERACTION_CALENDAR_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_STEP_STYLES, INTERACTION_STYLES, INTERACTION_TRACE_STYLES } from './styles/interaction.js';
 export { compactScript } from './compact-script.js';
 export * from './input-receipts-client.js';
 export { INPUT_RECEIPTS_STYLES } from './styles/input-receipts.js';

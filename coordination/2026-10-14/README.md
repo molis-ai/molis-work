@@ -510,6 +510,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #621（采用线子会话：网关删纠正，用户「做，全删」，`47b63d477`）审过：`normalizedInput`、`coerced`、`soleTextField` 全删，写在身份旁边的字段以 `actions.input_invalid` 拒并点名；派发、`gatewayProblem`、审查、建议同一个 `gatewayInput`，审查看到的就是要跑的；只留「整个没给 input、合同要对象」时给 `{}`（工具登记 input 可省）。六条用例改成断言拒绝带合同或出错位置，不是放宽。评测 11/12（§6.0g，逐条按 §11 归类）。全量链挂在 #620 之后；若 `issue-assistant-repair-page` 红，先看它（采用线本机见过一次、单独重跑 2/2）。
     - #614 合入（`ea396a276`，没动页面资源，在途 PR 都仍可合）。已通知回执线开 3c：合 main、设字节放行；APPROVED_CEILINGS 按 #611 是否已合二选一（已合就重加对象只放 3c 的条目，没合就留在现有对象里、#611 合后再变基）。
     - #618 两处修好（`cef5c5569`）：`Object.hasOwn` 判位置、宿主在 `context.object` 与落点对象不一致或缺失时丢掉落点；STRIP-05 单元用例覆盖三种丢弃与保留；顺手删了 `[data-artifact-select]` 死读。全量链挂在 #621 之后。待办号改为 BL-150。
+    - #611 合入（`958946e22`，删 APPROVED_CEILINGS 整个对象、三份样式表各降约 11 KB）。#616、#618、#619 因 page-assets.json 冲突：取消 #616 在旧合并上跑的全量并去标签、停掉 #618 的链；已让防腐线给 #616 合 main 重量并变基 #619，情境线给 #618 合 main 重量，回执线 3c 重加只含 3c 条目的对象。#620 全量在跑，#621 链在它后面。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

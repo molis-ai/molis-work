@@ -290,6 +290,21 @@ function remember(map: WeakMap<PrologueStreamState, Set<string>>, state: Prologu
   map.set(state, ids);
 }
 
+/** The desk a round was given, when the desktop is attached: the round's start returns it and its attempt keeps it. */
+export interface RoundDesk { readonly desktop_target?: string }
+
+/**
+ * A run's stream state before its first event, the same for a run just started and one restored. A call to the round's
+ * desk is a desktop step whether or not the round listed the surfaces: the desk is held across a session's rounds, so a
+ * later round can use its id without listing again.
+ */
+export function runStreamState(promptIncludesCache: boolean, desk: RoundDesk): PrologueStreamState {
+  const state = emptyPrologueStreamState();
+  state.prompt_includes_cache = promptIncludesCache;
+  if (desk.desktop_target) remember(desktopSurfaces, state, desk.desktop_target);
+  return state;
+}
+
 /** Surface ids from a surface-list result (`id — desktop, open`). Returns whether any desktop was listed. */
 function rememberDesktopSurfaces(state: PrologueStreamState, text: string): boolean {
   const pattern = /^(\S+) — desktop,/gm;

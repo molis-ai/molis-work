@@ -264,5 +264,7 @@ export {
 } from "./computer/computer-policy.js";
 export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
 export { projectOrNull } from "./catalog-lookup.js";
+export { createProjectArrivalHttp } from "./project-arrival-http.js";
+export { handleBrowserHttp } from "./browser/browser-http.js";
 export { codingBackgroundTasks } from "./coding-background-tasks.js";
 export { hostLog, captureHostLog, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";

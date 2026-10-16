@@ -54,7 +54,10 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
       if (connect) {
         try {
           if (request.method !== 'POST' || !projectFor) throw new Error('不支持此项目连接');
-          const project = await projectFor(decodeURIComponent(connect[1]!));
+          let project: { id: string; title: string } | null;
+          // A catalog that cannot be read is the service's failure (written where it was read), not a project the caller may not join.
+          try { project = await projectFor(decodeURIComponent(connect[1]!)); }
+          catch { response.writeHead(500, { 'content-type': 'application/json', 'cache-control': 'no-store' }); response.end(JSON.stringify({ code: 'im.server.catalog_unavailable', error: '项目目录暂时读不到，请稍后再试' })); return true; }
           if (!project) throw new Error('找不到此项目');
           let session = current.identity.session(request);
           const stored = current.continuity.projectOwner(project.id);

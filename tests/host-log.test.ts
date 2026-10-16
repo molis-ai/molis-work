@@ -79,3 +79,19 @@ test("W5-13-03 no text a person wrote, path or secret reaches the log: not from 
     if (before === undefined) delete process.env.MOLIS_WORK_DEBUG; else process.env.MOLIS_WORK_DEBUG = before;
   }
 });
+
+test("W5-13-09 the key filter is a shape check, not a secret detector: a key-shaped value is written, so call sites give only ids, enums and counts", async () => {
+  // This is why every call site passes values it chose itself (an id, an enum, a count), never one read from a person or a provider.
+  const entries = await captured(() => { hostLog.warn("connections", "example", undefined, { token: "sk-live-0123456789abcdef", email: "someone@example.com" }); });
+  assert.deepEqual(entries[0]?.fields, { token: "sk-live-0123456789abcdef", email: "someone@example.com" });
+});
+
+test("W5-13-10 a search index pass that keeps failing the same way is written once per pass and code", async () => {
+  const busy = () => Object.assign(new Error("busy"), { code: "storage_busy" });
+  const entries = await captured(() => {
+    logSearchIndexFailure(busy(), "search.refresh"); logSearchIndexFailure(busy(), "search.refresh");
+    logSearchIndexFailure(busy(), "search.reconcile");
+    logSearchIndexFailure(Object.assign(new Error("gone"), { code: "notes.missing" }), "search.refresh");
+  });
+  assert.deepEqual(entries.map(entry => [entry.fields?.where, entry.error?.code]), [["search.refresh", "storage_busy"], ["search.reconcile", "storage_busy"], ["search.refresh", "notes.missing"]]);
+});

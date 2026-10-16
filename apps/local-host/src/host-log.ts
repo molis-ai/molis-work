@@ -9,6 +9,8 @@ import { currentCallId } from "@molis-ai/molis-work-kernel";
  * Keys only (docs/system/SECURITY-INVARIANTS.md, secrets by reference only): an error keeps its name and code, never its
  * message or stack, which can carry a person's text, a path or a secret; a field keeps a number, a boolean, null or a
  * key-like string (letters, digits and `._:@-`, at most 120 characters: no spaces, no path separators), and anything else is written as `"[omitted]"`.
+ * The key filter is a shape check, not a secret detector: an email or an `sk-…` token has a key's shape and would be written.
+ * So a call site gives only ids, enums and counts it chose itself, never a value it read from a person, a file or a provider.
  * `debug` lines are written only for the areas listed in `MOLIS_WORK_DEBUG` (comma separated, e.g. `memory,search`; `*` for
  * all).
  */
@@ -88,8 +90,13 @@ export function repeatingFailure(area: string, event: string) {
   };
 }
 
-/** The search index's background passes (reconcile, refresh, sync) that failed past the source's own report. */
-export const logSearchIndexFailure = (error: unknown, where: string): void => hostLog.warn("search", "index_update_failed", error, { where });
+/**
+ * The search index's background passes (reconcile, refresh, sync) that failed past the source's own report. They run after
+ * every write, so one failure is written once per pass and error code for the life of the process.
+ */
+const searchIndexFailures = repeatingFailure("search", "index_update_failed");
+export const logSearchIndexFailure = (error: unknown, where: string): void =>
+  searchIndexFailures.failed(`${where}:${String((error as { code?: unknown } | null)?.code ?? "")}`, error, { where });
 
 /**
  * An owner's preview of a version that failed. The caller still shows no preview; "you may not read it" and "it is not there"

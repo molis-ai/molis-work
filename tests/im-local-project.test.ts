@@ -61,6 +61,14 @@ test('local project connection requires operator token and catalog identity with
     const sameName=await person('Alice');
     assert.equal((await connect(sameName,'actual-project',token)).status,403,'display name does not authorize recovery');
     assert.equal((await fetch(origin+'/im/api/projects/actual-project/room',{method:'POST',headers:{cookie:sameName,origin,'Content-Type':'application/json'},body:'{}'})).status,403);
+    // W5-13-11: a catalog that cannot be read is the service's failure (500), not a project the caller may not join (403);
+    // a project it does not have stays a 403, and the next connection is served.
+    im.stop();im.close();im=createLocalImServer(home,async id=>{if(id==='broken-project')throw Object.assign(new Error('database disk image is malformed'),{code:'ERR_SQLITE_CORRUPT'});return id==='actual-project'?{id,title:'Actual project'}:null;});
+    const broken=await connect(nextCookie,'broken-project',token);
+    assert.equal(broken.status,500);
+    assert.equal(((await broken.json()) as {code:string}).code,'im.server.catalog_unavailable');
+    assert.equal((await connect(nextCookie,'forged-project',token)).status,403);
+    assert.equal((await connect(nextCookie,'actual-project',token)).status,200);
 
   }finally{im.stop();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));im.close();await rm(home,{recursive:true,force:true});}
 });

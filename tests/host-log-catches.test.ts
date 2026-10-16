@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import http from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
-import { captureHostLog, codingBackgroundTasks, logPreviewFailure, projectOrNull, repeatingFailure, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, codingBackgroundTasks, createProjectArrivalHttp, handleBrowserHttp, logPreviewFailure, projectOrNull, repeatingFailure, seedDemoBoard, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
 
 /**
@@ -76,4 +77,51 @@ test("W5-13-08 a failure that repeats every round (the schedules' 30-second roun
   });
   assert.deepEqual(entries.map(entry => entry.fields?.schedule), ["feed", "tasks", "feed", "feed"]);
   assert.ok(entries.every(entry => entry.event === "round_failed" && entry.error?.code === "storage_busy"));
+});
+
+/** A catalog whose every lookup answers with `failure` (or finds nothing). */
+const failingCatalog = (failure: unknown) => ({ getProject: () => { throw failure; } });
+const unreadable = () => Object.assign(new Error("database disk image is malformed"), { code: "ERR_SQLITE_CORRUPT" });
+
+/** Serves one handler on a loopback port; a handler that throws is answered as the Web server's own last catch does (500). */
+async function serve(handle: (request: http.IncomingMessage, response: http.ServerResponse, url: URL) => Promise<boolean>) {
+  const server = http.createServer(async (request, response) => {
+    try { if (!await handle(request, response, new URL(request.url ?? "/", "http://localhost"))) { response.writeHead(404); response.end(); } }
+    catch (error) { response.writeHead(500, { "content-type": "application/json" }); response.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) })); }
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  return { origin, close: () => new Promise<void>(resolve => server.close(() => resolve())) };
+}
+
+test("W5-13-11 the project brief: a project the catalog does not have is still a 404; a catalog that cannot be read is a 500 and one record, and the next request is served", async () => {
+  let catalog: { getProject(id: string): never } = failingCatalog(projectCatalogErrors.project_not_found("找不到"));
+  const handle = createProjectArrivalHttp({ localHost: {} as never, renderBrief: () => "", withCatalog: (async (_options: unknown, operation: (c: never) => unknown) => operation(catalog as never)) as never });
+  const site = await serve((request, response, url) => handle(request, response, url, undefined));
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try {
+    assert.equal((await fetch(`${site.origin}/api/projects/p-gone/brief`)).status, 404);
+    assert.deepEqual(entries, [], "absent is an answer, not a failure");
+    catalog = failingCatalog(unreadable());
+    assert.equal((await fetch(`${site.origin}/api/projects/p-broken/brief`)).status, 500);
+    assert.deepEqual(entries.map(entry => [entry.level, entry.area, entry.event, entry.error]), [["error", "projects", "catalog_lookup_failed", { name: "Error", code: "ERR_SQLITE_CORRUPT" }]]);
+    catalog = failingCatalog(projectCatalogErrors.project_not_found("找不到"));
+    assert.equal((await fetch(`${site.origin}/api/projects/p-other/brief`)).status, 404, "the service still answers");
+  } finally { restore(); await site.close(); }
+});
+
+test("W5-13-11 the side panel browser's project check: absent is a 404; a catalog that cannot be read reaches the server's 500 with one record, not a 404", async () => {
+  let catalog: { getProject(id: string): never } = failingCatalog(projectCatalogErrors.project_not_found("找不到"));
+  // As the Web server wires it (web-server.ts `projectExists`).
+  const projectExists = async (projectId: string) => projectOrNull(catalog, projectId) !== null;
+  const site = await serve((request, response, url) => handleBrowserHttp(request, response, url, { browsers: () => { throw new Error("not reached"); }, projectExists }));
+  const entries: HostLogEntry[] = [];
+  const restore = captureHostLog(entries);
+  try {
+    assert.equal((await fetch(`${site.origin}/projects/p-gone/api/browser/capture`, { method: "POST" })).status, 404);
+    catalog = failingCatalog(unreadable());
+    assert.equal((await fetch(`${site.origin}/projects/p-broken/api/browser/capture`, { method: "POST" })).status, 500);
+    assert.deepEqual(entries.map(entry => entry.event), ["catalog_lookup_failed"]);
+  } finally { restore(); await site.close(); }
 });

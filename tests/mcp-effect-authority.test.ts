@@ -47,7 +47,7 @@ for (const nested of [false, true]) test(nested
   } });
   t.signal.addEventListener("abort", () => release.resolve(), { once: true });
   const project = await home.createProject("Exact effect authority", ["form"]);
-  const { form } = await home.web.post<{ form: FormRecord }>(`/projects/${project.project_id}/api/form`, { title: "Original facts" });
+  const { form } = await home.web.post<{ form: FormRecord }>(`/projects/${project.project_id}/api/plugins/io.molis.work.form/forms`, { title: "Original facts" });
   const input = { id: form.id, prompt: "One question", expected_version: form.version };
   const dispose = home.host.actionRegistry(project.reference).registerProvider({
     provider: { provider_id: "fixture.form-authority", title: "Grantable fixture actions", kind: "system", project_id: project.project_id },

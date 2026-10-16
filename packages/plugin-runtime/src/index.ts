@@ -28,6 +28,7 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
+export { currentPluginAction } from "./action-scope.js";
 export { createPluginModelClient, pluginModelErrors } from "./model-service.js";
 export type { PluginModelDispatch, PluginModelGate, PluginModelPort } from "./model-service.js";
 export { MemoryPluginRuntimeRepository } from "./memory-repository.js";

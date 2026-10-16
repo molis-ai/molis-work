@@ -25,6 +25,8 @@ export function createPluginArtifactClient(input: {
   context: PluginStartContext;
   project_id: string;
   actor_id: string;
+  /** Who is running the call that pins, as the Runtime knows it (never the Plugin): kept as the version's `created_by`; the installation's actor outside every action. */
+  author?: () => string | undefined;
 }): { client: PluginArtifactClient; process: PluginProcessItemClient; dispose(): void } {
   const { api, process, context, project_id, actor_id } = input;
   const manifest = structuredClone(input.manifest);
@@ -53,7 +55,7 @@ export function createPluginArtifactClient(input: {
   };
   // Pick fields explicitly: runtime JavaScript must not override bound identity or share authority.
   const fixed = (value: PluginProcessItemInput) => ({
-    project_id, actor_id, artifact_id: value.artifact_id, version: value.version,
+    project_id, actor_id: input.author?.() ?? actor_id, artifact_id: value.artifact_id, version: value.version,
     artifact_type_id: value.artifact_type_id, schema_version: value.schema_version,
     content: value.content, metadata: value.metadata, supersedes_version: value.supersedes_version,
     producer: { plugin_id: manifest.plugin_id, plugin_version: manifest.version,

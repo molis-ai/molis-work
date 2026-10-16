@@ -14,14 +14,12 @@ export { FORM_STYLES } from "./styles.js";
 export { FORM_EN } from "./en.js";
 export { FORM_INSTRUCTIONS } from "./prompts.js";
 export { FORM_CLIENT_FACTORY_SCRIPT } from "./client.js";
-export { FORM_NATIVE_PLUGIN_ROUTES, FormPluginRouteTable } from "./routes.js";
-export type { FormPluginRouteHandler, FormPluginRouteRequest, FormPluginRouteResponse } from "./routes.js";
-export { createFormRouteHandlers } from "./route-handlers.js";
-export type { FormRoutePorts } from "./route-handlers.js";
+export { createFormPlugin } from "./plugin.js";
 export { promoteForm } from "./promote.js";
 export type { FormLineHeadPort, FormPublishArtifactPort, FormReadArtifactPort, FormPublicationSnapshot } from "./promote.js";
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID, formManifest } from "./manifest.js";
-export { openFormStore, FormStore, FORM_STORE_BASELINE, FORM_HOME_STORE } from "./store.js";
+export { openFormStore, ownFormStores, FormStore, FORM_HOME_STORE, FORM_DATABASE } from "./store.js";
+export type { FormSql, FormSqlValue, FormStores } from "./store.js";
 export { purgeFormProject, formProjectData } from "./project-data.js";
 export { formErrors } from "./error.js";
 

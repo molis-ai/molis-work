@@ -8,7 +8,7 @@ import { FORM_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/fo
 import { DATASET_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { PPT_ARTIFACT_TYPE_ID, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { pagesActions, createPagesActionHandlers, openPagesStore, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
-import { formActions, createFormActionHandlers, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { formActions, createFormActionHandlers, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, createDatasetActionHandlers, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { pptActions, createPptActionHandlers, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 
@@ -19,7 +19,7 @@ const owners = [
   { name: "Pages", type: PAGES_ARTIFACT_TYPE_ID, kind: PAGES_SUBJECT_KIND, definition: pagesActions.artifactCompare,
     open: openPagesStore, handlers: (withStore: any) => createPagesActionHandlers({ withStore, modelAvailability: unavailable, prepareImport: async () => { throw new Error("n/a"); } }) },
   { name: "Form", type: FORM_ARTIFACT_TYPE_ID, kind: "form", definition: formActions.artifactCompare,
-    open: openFormStore, handlers: (withStore: any) => createFormActionHandlers({ withStore, modelAvailability: unavailable }) },
+    open: openFormStore, handlers: (withStore: any) => createFormActionHandlers({ ...ownFormStores(withStore), modelAvailability: unavailable }) },
   { name: "Dataset", type: DATASET_ARTIFACT_TYPE_ID, kind: "dataset", definition: datasetActions.artifactCompare,
     open: openDatasetStore, handlers: (withStore: any) => createDatasetActionHandlers({ withStore, modelAvailability: unavailable }) },
   { name: "PPT", type: PPT_ARTIFACT_TYPE_ID, kind: PPT_SUBJECT_KIND, definition: pptActions.artifactCompare,

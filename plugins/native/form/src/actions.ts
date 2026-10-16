@@ -4,7 +4,7 @@ import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defi
 import { FORM_ARTIFACT_TYPE_ID, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormLineHeadPort, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import { formErrors } from "./error.js";
-import type { FormStore } from "./store.js";
+import type { FormStores } from "./store.js";
 import { createFormSearchHandlers, formSearchActions } from "./search.js";
 import { FORM_ANSWER_LIMIT, formFillPageFilename, formFillPageHtml, formResultsCsv, formResultsCsvFilename } from "./fillpage.js";
 import { formArtifactPreview, formArtifactPreviewHandler } from "./artifact-preview.js";
@@ -65,8 +65,7 @@ export const formActions = {
   subject: formSearchActions.subject,
 };
 export const FORM_ACTION_PERMISSIONS = [...new Set(Object.values(formActions).flatMap(d => d.action.permissions))];
-export interface FormActionPorts {
-  withStore<T>(run: (store: FormStore) => T): T;
+export interface FormActionPorts extends FormStores {
   modelAvailability(): ActionAvailability;
   completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
   publishArtifact?: (input: Parameters<FormPublishArtifactPort>[0], caller: ActionCallContext) => ReturnType<FormPublishArtifactPort>;
@@ -84,60 +83,60 @@ function submissionSource(caller: ActionCallContext, claimed: "preview" | "fill"
 export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
-  const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promoteForm(store, id, project(caller), value => ports.publishArtifact!(value, caller),
-    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
+  const { read, write } = ports;
+  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => promoteForm(ports, caller, id, project(caller), value => ports.publishArtifact!(value, caller),
+    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead });
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "form.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   const drafting = ports.completeText ? createFormDrafting({ completeText: ports.completeText }) : null;
   return [
     formArtifactPreviewHandler,
-    bind(formActions.list, (_, caller) => ports.withStore(store => {
+    bind(formActions.list, (_, caller) => read(store => {
       const ai = ports.modelAvailability(), permitted = formActions.draft.action.permissions.every(p => caller.permissions.includes(p))
         && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(formActions.draft.capability_id));
       return { forms: store.list(project(caller)), ai_available: ai.available && permitted, ai_unavailable_reason: !permitted ? "当前调用方未获 AI 加题权限" : !ai.available ? ai.reason : null };
     })),
-    bind(formActions.get, (input, caller) => ports.withStore(store => ({ form: store.get(input.id, project(caller)) }))),
-    bind(formActions.create, (input, caller) => ports.withStore(store => ({ form: store.create({ ...input, project_id: project(caller) }) }))),
-    bind(formActions.update, (input, caller) => ports.withStore(store => ({ form: store.update(input.id, input, project(caller)) }))),
-    bind(formActions.publish, (input, caller) => ports.withStore(store => ({ form: store.publish(input.id, project(caller), input.expected_version) }))),
-    bind(formActions.delete, (input, caller) => ports.withStore(store => { store.delete(input.id, project(caller), input.expected_version); return { ok: true }; })),
-    bind(formActions.generate, (input, caller) => ports.withStore(store => ({ form: store.generateQuestions(input.id, input.prompt, project(caller), input.expected_version) }))),
+    bind(formActions.get, (input, caller) => read(store => ({ form: store.get(input.id, project(caller)) }))),
+    bind(formActions.create, (input, caller) => write(caller, store => ({ form: store.create({ ...input, project_id: project(caller) }) }))),
+    bind(formActions.update, (input, caller) => write(caller, store => ({ form: store.update(input.id, input, project(caller)) }))),
+    bind(formActions.publish, (input, caller) => write(caller, store => ({ form: store.publish(input.id, project(caller), input.expected_version) }))),
+    bind(formActions.delete, (input, caller) => write(caller, store => { store.delete(input.id, project(caller), input.expected_version); return { ok: true }; })),
+    bind(formActions.generate, (input, caller) => write(caller, store => ({ form: store.generateQuestions(input.id, input.prompt, project(caller), input.expected_version) }))),
     bind(formActions.draft, async (input, caller) => {
-      const current = ports.withStore(store => store.get(input.id, project(caller)));
+      const current = read(store => store.get(input.id, project(caller)));
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw formErrors.conflict("问卷已改变，请重新读取后生成");
       if (!drafting) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
       const result = await drafting.draft(input, current, caller);
       if (result.status !== "drafted") return result;
-      await caller.beforeEffect();
-      return { status: "done" as const, form: ports.withStore(store => store.update(input.id, { questions: [...current.questions, ...result.questions], expected_version: current.version }, project(caller))) };
+      return { status: "done" as const, form: await write(caller, store => store.update(input.id, { questions: [...current.questions, ...result.questions], expected_version: current.version }, project(caller))) };
     }, () => ports.modelAvailability()),
-    bind(formActions.submit, (input, caller) => ports.withStore(store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: submissionSource(caller, input.source) }) }))),
-    bind(formActions.close, (input, caller) => ports.withStore(store => ({ form: store.closeCollection(input.id, project(caller), input.expected_version) }))),
-    bind(formActions.importAnswers, (input, caller) => ports.withStore(store => store.importAnswers(input.id, input.files, project(caller), { source: submissionSource(caller) }))),
-    bind(formActions.csv, (input, caller) => ports.withStore(store => {
+    bind(formActions.submit, (input, caller) => write(caller, store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: submissionSource(caller, input.source) }) }))),
+    bind(formActions.close, (input, caller) => write(caller, store => ({ form: store.closeCollection(input.id, project(caller), input.expected_version) }))),
+    bind(formActions.importAnswers, (input, caller) => write(caller, store => store.importAnswers(input.id, input.files, project(caller), { source: submissionSource(caller) }))),
+    bind(formActions.csv, (input, caller) => read(store => {
       const form = store.get(input.id, project(caller));
       const submissions = store.listSubmissions(input.id, project(caller));
       return { filename: formResultsCsvFilename(form.title), mime_type: "text/csv" as const, content: formResultsCsv(form, submissions), count: submissions.length };
     })),
-    bind(formActions.fillPage, (input, caller) => ports.withStore(store => {
+    bind(formActions.fillPage, (input, caller) => read(store => {
       const form = store.get(input.id, project(caller));
       if (!form.questions.length) throw formErrors.invalid("还没有题目，先加题再导出填写页");
       return { filename: formFillPageFilename(form.title), mime_type: "text/html" as const, content: formFillPageHtml(form) };
     })),
-    bindObjectMoveHandler(formActions.move, input => ports.withStore(store => {
+    bindObjectMoveHandler(formActions.move, (input, caller) => write(caller, store => {
       const form = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
       return { subject: { kind: "form", id: form.id }, project_id: form.project_id, revision: String(form.version) };
     })),
-    bindObjectCopyHandler(formActions.copy, input => ports.withStore(store => {
+    bindObjectCopyHandler(formActions.copy, (input, caller) => write(caller, store => {
       const form = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
       return { subject: { kind: "form", id: form.id }, project_id: form.project_id, revision: String(form.version) };
     })),
-    bind(formActions.results, (input, caller) => ports.withStore(store => {
+    bind(formActions.results, (input, caller) => read(store => {
       const submissions = store.listSubmissions(input.id, project(caller));
       return { analysis: { form_id: input.id, submission_count: submissions.length }, submissions };
     })),
     bind(formActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
-    bind(formActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
-    bindArtifactContinue(formActions.artifactContinue, [FORM_ARTIFACT_TYPE_ID], (artifact, caller) => ports.withStore(store => {
+    bind(formActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactContinue(formActions.artifactContinue, [FORM_ARTIFACT_TYPE_ID], (artifact, caller) => write(caller, store => {
       const payload = (artifact.payload ?? {}) as Record<string, unknown>, at = project(caller);
       const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title, project_id: at });
       // A version the editor cannot take leaves no empty 问卷 behind.
@@ -145,10 +144,10 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       catch (error) { store.delete(created.id, at); throw error; }
       return { surface: FORM_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
     })),
-    bindArtifactCompare(formActions.artifactCompare, FORM_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
+    bindArtifactCompare(formActions.artifactCompare, FORM_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => read(store => store.get(id, project(caller)))),
       (payload, object) => sameArtifactFields(payload, object, ["title", "description", "questions"]),
       // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
-      id => ports.withStore(store => objectOrMissing(() => store.get(id)) !== null)),
-    ...createFormSearchHandlers(ports.withStore),
+      id => read(store => objectOrMissing(() => store.get(id)) !== null)),
+    ...createFormSearchHandlers(read),
   ];
 }

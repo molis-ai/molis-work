@@ -148,20 +148,17 @@ export class AssistantDelegations {
     };
   }
 
-  /** Before a round of `work` starts: its graph (from its first round on), or for a part, the step this round stands on. */
-  async place(work: StoredWork): Promise<StoredWork> {
-    if (!work.session_id || !work.delegated_by && work.graph_id) return work;
-    const graphs = await this.#graphs();
-    if (!work.delegated_by) {
-      const { graph_id } = await graphs.open({ key: `assistant-work:${work.work_id}`, session_id: work.session_id, title: work.title });
-      return this.ports.store.update(this.ports.actorId, work.work_id, null, { graph_id }, false);
+  /**
+   * Start a round of `work` where it stands (`placeOn`). A step added for this round is ended again when the round does
+   * not start (a later send replaced it, its Character or model was refused): left open, the part would stay "still
+   * working" for its delegating work.
+   */
+  async startPlaced<T>(work: StoredWork, start: (work: StoredWork) => Promise<T>): Promise<T> {
+    const placed = await placeOn(() => this.#graphs(), this.ports, work);
+    try { return await start(placed.work); } catch (error) {
+      if (placed.added) await (await this.#graphs()).end({ ...placed.added, note: "这一轮没有开始" }).catch(() => undefined);
+      throw error;
     }
-    const { graph_id, node_id } = work.delegated_by, steps = partSteps(await graphs.read(graph_id), work);
-    if (open(steps).some(step => step.session_id === work.session_id)) return work;
-    // Its first round stands on the step it was handed out as; one the person starts later, on a step under it.
-    await graphs.add(steps.length ? { graph_id, node_id: `${node_id}.r${steps.filter(step => /\.r\d+$/.test(step.node_id)).length + 1}`, under: node_id, session_id: work.session_id, title: "用户接着做" }
-      : { graph_id, node_id, session_id: work.session_id, title: work.title });
-    return work;
   }
 
   /** The work that delegated `work` (the one whose graph its step is on), if it still exists. */
@@ -342,4 +339,21 @@ export class AssistantDelegations {
       this.ports.notify(parent, `「${parent.title}」的子任务都已交回，但没有自动接着做：${why}`, key);
     }
   }
+}
+
+/** Where a round of `work` stands: its graph (from its first round on), or for a part, the step it stands on, if added for it. */
+async function placeOn(graphsOf: () => Promise<AgentWorkGraphPort>, ports: DelegationPorts, work: StoredWork): Promise<{ work: StoredWork; added?: { graph_id: string; node_id: string } }> {
+  if (!work.session_id || !work.delegated_by && work.graph_id) return { work };
+  const graphs = await graphsOf();
+  if (!work.delegated_by) {
+    const { graph_id } = await graphs.open({ key: `assistant-work:${work.work_id}`, session_id: work.session_id, title: work.title });
+    return { work: ports.store.update(ports.actorId, work.work_id, null, { graph_id }, false) };
+  }
+  const { graph_id, node_id } = work.delegated_by, steps = partSteps(await graphs.read(graph_id), work);
+  if (open(steps).some(step => step.session_id === work.session_id)) return { work };
+  // Its first round stands on the step it was handed out as; one the person starts later, on a step under it.
+  const added = steps.length ? { graph_id, node_id: `${node_id}.r${steps.filter(step => /\.r\d+$/.test(step.node_id)).length + 1}`, under: node_id, session_id: work.session_id, title: "用户接着做" }
+    : { graph_id, node_id, session_id: work.session_id, title: work.title };
+  await graphs.add(added);
+  return { work, added: { graph_id, node_id: added.node_id } };
 }

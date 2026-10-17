@@ -16,6 +16,7 @@ import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 25)); }
@@ -45,11 +46,11 @@ test("an object picked with “@” is checked with its owner and read by it bef
   await client.invoke(owner, formActions.update, { id: form.id, expected_version: form.version, description: "准入前需要核对营业执照与银行账户，逾期不补齐的暂停合作" });
 
   const requests: string[] = [];
-  t.mock.method(globalThis, "fetch", async (url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (url: unknown, init: RequestInit) => {
     if (!String(url).startsWith("https://1.1.1.1/")) throw new Error("unexpected network request in fixture: " + String(url));
     requests.push(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     return reply();
-  });
+  }));
   const queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-mentions-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),

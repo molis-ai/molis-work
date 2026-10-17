@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { endingReviewReply } from "./fixtures/ending-review.js";
 
 /** One streamed model turn: plain text, or one tool call. */
 function turn(text: string, tool?: { name: string; input: unknown }): string {
@@ -37,6 +38,9 @@ test("the panel shows a work going on by itself when the sub-task it handed out 
   const model = createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    const review = endingReviewReply(raw);
+    if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }
     if (raw.includes("委托的子任务")) { childAsked.resolve(); await childDone.promise; res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn("纪要草稿：三条决定、两条待办。")); return; }
     res.writeHead(200, { "content-type": "text/event-stream" });
     res.end(parentScript[parentTurns++] ?? turn("好的。"));

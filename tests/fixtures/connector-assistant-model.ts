@@ -5,6 +5,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { cogniaScriptedResponse } from "./cognia-model-response.js";
+import { endingReviewReply } from "./ending-review.js";
 
 export type ScriptedCall = { name: string; input: unknown };
 /** A real loopback model transport with deterministic replies; no external account or model is used. */
@@ -12,8 +13,10 @@ export async function scriptedModelServer(t: TestContext, script: (body: Record<
   const requests: Record<string, unknown>[] = [];
   const server = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>; requests.push(body);
-    const next = script(body, requests.length);
+    const raw = Buffer.concat(chunks).toString("utf8"), review = endingReviewReply(raw);
+    const body = JSON.parse(raw) as Record<string, unknown>;
+    if (review === undefined) requests.push(body);
+    const next = review ?? script(body, requests.length);
     response.writeHead(200, { "content-type": "text/event-stream" });
     response.end(await cogniaScriptedResponse(typeof next === "string" ? undefined : next, typeof next === "string" ? next : "").text());
   });

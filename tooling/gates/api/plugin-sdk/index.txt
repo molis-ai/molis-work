@@ -336,7 +336,11 @@ export declare function questionAnswer(values: unknown): {
         other?: string;
     } | {
         question: number;
-        value: string | number | null;
+        value: string | number | null | Array<{
+            kind: string;
+            id: string;
+            label: string;
+        }>;
     }>;
 } | {
     text: string;

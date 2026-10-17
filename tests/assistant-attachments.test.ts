@@ -12,6 +12,7 @@ import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { pdfDocumentParser } from "../apps/local-host/dist/pdf-document-parser.js";
 import { deflateSync, crc32 } from "node:zlib";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -86,10 +87,10 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-images-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const requests: string[] = [];
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (_url: unknown, init: RequestInit) => {
     requests.push(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     return reply();
-  });
+  }));
   let vision: boolean | undefined;
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-images-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,

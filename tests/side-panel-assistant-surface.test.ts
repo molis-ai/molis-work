@@ -12,6 +12,7 @@ import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { createBrowserSurfaceDriver } from "../apps/local-host/dist/browser/surface-driver.js";
 import type { BrowserPage } from "../apps/local-host/dist/browser/browser-host.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 /*
  * The Assistant drives the side panel's browser through Molis's own wiring (specs/archive/side-panel P5): a business round gets
@@ -78,11 +79,11 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const browser = { on: true };
   const requests: any[] = [];
   let turn = 0;
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     requests.push(body);
     return (script[turn++] ?? (() => reply()))(body);
-  });
+  }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.side-surface-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),

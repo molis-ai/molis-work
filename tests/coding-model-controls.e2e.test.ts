@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { endingReviewReply } from "./fixtures/ending-review.js";
 
 /** One streamed Anthropic-format model turn: text, or one tool call. */
 function turn(text: string, tool?: { name: string; input: object }): string {
@@ -32,6 +33,9 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   const model = createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    const review = endingReviewReply(raw);
+    if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }
     const body = JSON.parse(raw); bodies.push(body);
     // The first call of the round waits until the person has switched; it asks to read a file, so a second call follows.
     if (bodies.length === 1) await answered.promise;

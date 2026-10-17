@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 function reply(): Response {
   const events: string[] = [];
@@ -32,7 +33,8 @@ for (const stage of ["state", "materials", "runtime", "enqueue"] as const) {
     const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
     const project = { project_id: "project", storage_key: "memory:followup-project" };
     let requests = 0;
-    t.mock.method(globalThis, "fetch", async () => { requests++; return reply(); });
+    // Each round ends on "Done." having changed nothing, so its ending is reviewed; only the rounds are counted.
+    t.mock.method(globalThis, "fetch", answeringEndingReviews(() => reply(), async () => { requests++; return reply(); }));
     const reviews = new AgentReviewQueue(), host = new AgentHost({ reviews });
     const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.followup-delete-test", appVersion: "1.0.0" },
       storageRoot: join(directory, "sdk"), reviewQueue: reviews,

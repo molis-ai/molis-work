@@ -634,7 +634,7 @@ test("online MCP contract changes replace the directory snapshot and require a n
   } finally { directory.close(); await localHost.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 
-test("ASC-03 ASC-13 ASC-31: MCP header annotations keep value constraints and unsupported contracts never dispatch", { timeout: 30_000 }, async () => {
+test("ASC-03 ASC-13 ASC-31 PA-MCP-01: MCP header annotations keep value constraints and unsupported contracts never dispatch", { timeout: 30_000 }, async () => {
   const declared: FixtureTool["inputSchema"] = { type: "object", properties: {
     owner: { type: "string", enum: ["molis-ai"], "x-mcp-header": "owner" },
     repo: { type: "string", "x-mcp-header": "repo" }, message: { type: "string", minLength: 1 },

@@ -9,12 +9,17 @@ export interface AgentCompactionDeclaration {
     above_tokens: number;
 }
 
+export interface AgentEndingReviewDeclaration {
+    prompt_id: string;
+}
+
 export interface AgentManifest {
     directory_input_port?: string;
     text_sources?: AgentTextSourceDeclaration[];
     roles: AgentRoleDeclaration[];
     prompts: AgentPromptDeclaration[];
     compaction?: AgentCompactionDeclaration;
+    ending_review?: AgentEndingReviewDeclaration;
     skills?: AgentSkillDeclaration[];
     mcp?: boolean;
     characters?: {

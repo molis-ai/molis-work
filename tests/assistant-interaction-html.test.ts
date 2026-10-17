@@ -53,7 +53,7 @@ test("AC-21: what the card sends becomes the Runtime's answer: every question on
   assert.deepEqual(questionAnswer({ pick: ["team"], text: " 只发给我 " }), { text: "只发给我" });
   assert.equal(questionAnswer({ pick: [], text: "  " }), null);
   assert.equal(questionAnswer("q0"), null);
-  assert.deepEqual(questionErrors([{ question: 0, reason: "required" }, { question: 1, reason: "kind-not-allowed" }], say),
+  assert.deepEqual(questionErrors([{ question: 0, reason: "required" }, { question: 1, reason: "wrong-shape" }], say),
     { q0: "这一题需要回答", q1: "这一题的回答不能提交，请改一下" }, "each refused question gets a line beside its own field; a reason without its own words gets the general one");
 });
 

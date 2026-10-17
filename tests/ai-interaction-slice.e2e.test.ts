@@ -11,7 +11,12 @@ const assistant = '[data-scene="assistant"]';
 const coding = '[data-scene="coding"]';
 const action = (name: string, scope = assistant) => `${scope} :is([data-ix-action="${name}"], [data-action="${name}"])`;
 const field = (name: string, scope = assistant) => `${scope} [data-ix-value="${name}"]`;
-const ref = (id: string, scope = assistant) => `${scope} [data-ix-reference="${id}"]`;
+/** A material is found by name and picked from what the search offers (T2): the card lists no candidates of its own. */
+async function pickRef(page: ChromePage, query: string, id: string, scope = assistant): Promise<void> {
+  await page.fill(`${scope} [data-ix-field="references"] [data-ix-ref-query]`, query);
+  await page.wait(`document.querySelector('${scope} [data-ix-ref-option="${id}"]') !== null`);
+  await page.click(`${scope} [data-ix-ref-option="${id}"]`);
+}
 const submitButton = (scope = assistant) => `${scope} [data-ix-action="submit"]`;
 const read = <T = string>(page: ChromePage, expression: string) => page.evaluate<T>(expression);
 const value = (page: ChromePage, selector: string) => read(page, `document.querySelector(${JSON.stringify(selector)}).value`);
@@ -23,7 +28,7 @@ async function waitState(page: ChromePage, question: string, execution?: string,
 }
 async function fillValid(page: ChromePage, scope = assistant): Promise<void> {
   await page.fill(field("notes", scope), "只讨论首次使用，给失败恢复留出时间。");
-  await page.click(ref("sample-review", scope));
+  await pickRef(page, "内部试用", "sample-review", scope);
 }
 async function demo(page: ChromePage, name: string): Promise<void> {
   if (!(await read<boolean>(page, "document.querySelector('.demo-controls').open"))) await page.click(".demo-controls summary");
@@ -47,7 +52,7 @@ async function questionnairePath(page: ChromePage): Promise<void> {
   assert.equal(await value(page, field("minutes")), "45");
   await page.fill(field("minutes"), "two");
   await page.fill(field("date"), "2026-02-30");
-  await page.click(ref("sample-review"));
+  await pickRef(page, "内部试用", "sample-review");
   await page.click(submitButton());
   assert.equal(await read(page, "document.activeElement?.id"), "assistant-minutes");
   assert.match(await read(page, `document.querySelector('${assistant} [data-ix-field="date"] [data-ix-error]').textContent`), /真实日期/);
@@ -77,12 +82,12 @@ async function composerPath(page: ChromePage): Promise<void> {
   assert.equal(await read(page, `document.querySelector('${assistant}').dataset.questionState`), "open", "sending a supplement does not answer");
   // Enter in a single-line field moves on; only ⌘/Ctrl+Enter answers.
   await page.click(action("keep"));
-  await page.click(ref("sample-notes"));
+  await pickRef(page, "反馈", "sample-notes");
   await page.fill(`${assistant} [data-ix-part="time"]`, "9:30");
   await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r" });
   // The shared client (I1) lands on a group's pick or first control, not on the group: a group is not itself a control.
-  assert.equal(await read(page, "document.activeElement?.tagName === 'BUTTON' && document.activeElement.closest('#assistant-references') !== null"), true,
-    "Enter moves on into the references group, onto its first control");
+  assert.equal(await read(page, "document.activeElement?.tagName === 'INPUT' && document.activeElement.id === 'assistant-references'"), true,
+    "Enter moves on into the references field, onto its search");
   assert.equal(await read(page, `document.querySelector('${assistant}').dataset.questionState`), "open");
   await page.click(`${assistant} [data-ix-field="date"] [data-ix-calendar-open]`);
   assert.equal(await read(page, "document.activeElement?.getAttribute('aria-label')"), "10月15日");
@@ -175,7 +180,7 @@ async function gallery(page: ChromePage, evidence: string, fresh: (width?: numbe
   await fresh(1440, 900); await page.click(submitButton()); await shot("assistant-1440-field-errors");
   await page.fill(`${assistant} [data-composer]`, "时长改为 45 分钟"); await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r" });
   await page.evaluate(`document.querySelector('${assistant} [data-ix-notice]').scrollIntoView({block:'center'})`); await shot("assistant-1440-conflict");
-  await page.click(action("adopt")); await page.click(ref("sample-review")); await submit(page); await shot("assistant-1440-received");
+  await page.click(action("adopt")); await pickRef(page, "内部试用", "sample-review"); await submit(page); await shot("assistant-1440-received");
   await page.click(step()); await shot("assistant-1440-preview");
   await demo(page, "outcome-unknown"); await page.click(step()); await waitState(page, "received", "unknown"); await shot("assistant-1440-unknown");
   await page.click(step()); await waitState(page, "received", "done"); await shot("assistant-1440-done");

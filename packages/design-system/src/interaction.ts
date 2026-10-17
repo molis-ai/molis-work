@@ -32,7 +32,10 @@ export interface InteractionAction {
   attrs?: Record<string, AttrValue>;
 }
 export interface InteractionOption { value: string; label: string; description?: string; recommended?: boolean; selected?: boolean; disabled?: boolean }
-export interface InteractionReference { id: string; label: string; meta?: string; icon?: MolisWorkIcon; selected?: boolean; disabled?: boolean }
+/** An object a reference field holds or offers: `value` is the caller's own name for it, read back as the answer. */
+export interface InteractionReference { value: string; label: string; meta?: string }
+/** What the person reads around a reference search; each has a default. `found` takes `{n}`, `remove` is followed by the label. */
+export interface InteractionReferenceLabels { remove?: string; empty?: string; failed?: string; full?: string; found?: string }
 /** Months the date control's calendar may show, rendered with the design system's own calendar. */
 export interface InteractionCalendar { months: Array<{ year: number; month: number }>; today?: string; label?: string }
 export type InteractionControl =
@@ -43,7 +46,9 @@ export type InteractionControl =
   | { kind: "number"; value: string; unit?: string; step?: number; min?: number; max?: number; integer?: boolean; placeholder?: string; stepLabels?: [string, string] }
   | { kind: "date"; value: string; weekday?: string; placeholder?: string; calendar?: InteractionCalendar; calendarLabel?: string }
   | { kind: "datetime"; date: string; time: string; zone: string; weekday?: string; calendar?: InteractionCalendar; calendarLabel?: string; dateLabel?: string; timeLabel?: string }
-  | { kind: "reference"; candidates: InteractionReference[] };
+  /** Objects found by name as the person types: the shared client asks the host's `references(source, query)`, so the card never
+   * lists candidates of its own. `source` is the caller's, handed back untouched; `max` caps a multiple pick. */
+  | { kind: "reference"; source: string; picked: InteractionReference[]; multiple?: boolean; max?: number; placeholder?: string; labels?: InteractionReferenceLabels };
 export interface InteractionField {
   /** The question's stable name; ids and hooks derive from it. */
   id: string;
@@ -181,13 +186,24 @@ function control(scope: string, field: InteractionField): string {
     case "date": return dateControl(c, { id, ...value });
     case "datetime": return `<span class="mw-ix-when">${dateControl({ ...c, value: c.date }, { id: `${id}-date`, "data-ix-part": "date", "data-ix-focus": true, "aria-label": c.dateLabel ?? "日期", "aria-describedby": describedBy })}<span class="mw-ix-clock"><input class="mw-input mw-ix-time" data-slot="input"${
       renderAttrs({ id, type: "text", value: c.time, placeholder: "10:00", inputmode: "numeric", autocomplete: "off", "data-ix-part": "time", "aria-label": c.timeLabel ?? "时刻（24 小时制）", "aria-describedby": describedBy })}><span class="mw-ix-zone">${esc(c.zone)}</span></span></span>`;
-    case "reference": return `<div class="mw-ix-refs" role="group" tabindex="-1" id="${esc(id)}" data-ix-references data-ix-focus aria-labelledby="${esc(fieldId(scope, field.id, "label"))}" aria-describedby="${esc(describedBy)}">${c.candidates.map(ref =>
-      `<button type="button" class="mw-ix-ref" data-ix-reference="${esc(ref.id)}" aria-pressed="${ref.selected ? "true" : "false"}"${ref.disabled ? " disabled" : ""}><span class="mw-ix-ref__glyph">${icon(ref.icon ?? "file")}</span><span class="mw-ix-ref__text"><span class="mw-ix-ref__title">${esc(ref.label)}</span>${
-        ref.meta ? `<span class="mw-ix-ref__meta">${esc(ref.meta)}</span>` : ""}</span><span class="mw-ix-ref__check" aria-hidden="true">${icon("check")}</span></button>`).join("")}</div>`;
+    case "reference": return referenceControl(id, c, describedBy);
   }
 }
+const REFERENCE_LABELS: Required<InteractionReferenceLabels> = { remove: "去掉", empty: "没有找到", failed: "暂时搜不了，稍后再试", full: "已经选够了", found: "{n} 个结果" };
+/** One picked object; the shared client draws the same when the person picks one. */
+export const renderInteractionReferenceChip = (ref: InteractionReference, remove = REFERENCE_LABELS.remove): string =>
+  `<li class="mw-ix-chip" data-ix-reference="${esc(ref.value)}"><span>${esc(ref.label)}</span><button type="button" data-ix-unpick aria-label="${esc(`${remove} ${ref.label}`)}">${icon("x")}</button></li>`;
+/** The picked objects, then a search box whose results (a listbox the client fills) are offered as the person types. */
+function referenceControl(id: string, c: Extract<InteractionControl, { kind: "reference" }>, describedBy: string): string {
+  const labels = { ...REFERENCE_LABELS, ...c.labels };
+  return `<div class="mw-ix-refs"${renderAttrs({ "data-ix-references": true, "data-ix-ref-source": c.source, "data-ix-multiple": c.multiple === true, "data-ix-ref-max": c.multiple ? c.max : 1, "data-ix-ref-labels": JSON.stringify(labels) })}>
+    <ul class="mw-ix-picked" data-ix-picked>${c.picked.map(ref => renderInteractionReferenceChip(ref, labels.remove)).join("")}</ul><template data-ix-chip>${renderInteractionReferenceChip({ value: "", label: "" }, labels.remove)}</template>
+    <span class="mw-input-group mw-ix-ref-search" data-slot="input-group">${icon("search")}<input class="mw-input" data-slot="input"${renderAttrs({ id, type: "text", role: "combobox", "aria-autocomplete": "list", "aria-expanded": "false",
+      "aria-controls": `${id}-results`, autocomplete: "off", placeholder: c.placeholder, "data-ix-ref-query": true, "data-ix-focus": true, "aria-describedby": `${id}-status ${describedBy}` })}></span>
+    <ul class="mw-menu mw-ix-ref-results" role="listbox" id="${esc(`${id}-results`)}" hidden></ul><template data-ix-ref-row><li class="mw-menu__item mw-ix-ref" role="option" tabindex="-1" aria-selected="false"><span></span><span class="mw-ix-ref__meta"></span></li></template><p class="mw-ix-ref-status" id="${esc(`${id}-status`)}" data-ix-ref-status aria-live="polite"></p></div>`;
+}
 export function renderInteractionField(scope: string, field: InteractionField, optionalLabel = "选填"): string {
-  const group = field.control.kind === "choice" || field.control.kind === "reference";
+  const group = field.control.kind === "choice";
   const labelId = fieldId(scope, field.id, "label");
   const label = group ? `<span id="${esc(labelId)}">${esc(field.label)}</span>` : `<label id="${esc(labelId)}" for="${esc(fieldId(scope, field.id))}">${esc(field.label)}</label>`;
   return `<div class="mw-ix-row" data-ix-field="${esc(field.id)}">

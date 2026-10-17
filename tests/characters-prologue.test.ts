@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentFrozenCharacter, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 function completionResponse(text = "Fixture complete."): Response {
   const events: string[] = [];
@@ -21,10 +22,10 @@ function completionResponse(text = "Fixture complete."): Response {
 
 test("packed SDK consumes the Host-frozen Character instructions and narrowed tools, and restores the exact source after restart", { timeout: 30_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-character-sdk-")), requests: any[] = [];
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => completionResponse(text), async (_url: unknown, init: RequestInit) => {
     requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)));
     return completionResponse();
-  });
+  }));
   const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.character-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture-model", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   let adapter: Awaited<ReturnType<typeof make>> | undefined;
@@ -70,12 +71,12 @@ test("packed SDK consumes the Host-frozen Character instructions and narrowed to
 test("packed SDK sends full Coding prompts and the current Character on consecutive runs", { timeout: 30_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-coding-character-wire-"));
   const requests: any[] = [];
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => completionResponse(text), async (_url: unknown, init: RequestInit) => {
     const request = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     if (JSON.stringify(request.system).includes(codingPrompts.find(prompt => prompt.prompt_id === "coding-compaction")!.body.split("\n")[0]!)) return completionResponse(JSON.stringify({ selections: [] }));
     requests.push(request);
     return completionResponse();
-  });
+  }));
   const host = new AgentHost({ reviews: new AgentReviewQueue() });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.character-wire", appVersion: "1.0.0" },
     storageRoot: join(root, "runtime"), reviewQueue: host.reviews,

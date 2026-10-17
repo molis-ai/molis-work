@@ -238,3 +238,40 @@ test("a run starts with the person's version of a registered prompt, and its rec
     assert.deepEqual([frozen.version, frozen.user_revision], [BASE_VERSION, 1]);
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
+
+// ADH-16: the ending review is a registered prompt of the round's owner: listed for the person, run in their version, frozen with its version.
+test("the ending review runs with the person's version of its instructions, and the run's record says which (D1②)", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-definitions-"));
+  const requests: { system?: unknown; tools?: unknown }[] = [];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)));
+    return reply(requests.length === 1 ? "我先查一下有哪些待办。" : '{"last":"answer","changed":"","kept":"","forgot":"","button":""}');
+  });
+  // The shipped instructions ask for the one JSON line the Host reads back (announce-guard.ts, endingClaims).
+  const shipped = ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === "assistant-ending-review")!;
+  for (const name of ["next_step", "changed", "kept", "forgot", "button"]) assert.match(shipped.body, new RegExp(`- ${name}：`));
+  const definitions = registry(), key = `${ASSISTANT_PLUGIN_ID}/assistant-ending-review`;
+  assert.deepEqual([definitions.prompt(key).title, definitions.prompt(key).used_by], ["收尾核对", ["收尾核对"]], "the person finds it among the prompts");
+  definitions.save(key, "测试用的收尾核对：对照事实读这段话，只输出一行 JSON。", null, "web-user");
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue, prompts: definitions });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.definitions-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")) }, "web-user");
+  try {
+    const sent = await service.send({ text: "看看有哪些待办", request_id: "req-00000202" }, {});
+    for (let i = 0; i < 400 && (await service.read(sent.work.work_id)).work.state !== "completed"; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    // The round called nothing and ended on what it would do: its ending is checked once, with the person's text.
+    const reviews = requests.filter(request => JSON.stringify(request.system ?? "").includes("测试用的收尾核对"));
+    assert.equal(reviews.length, 1, JSON.stringify(requests.map(request => request.system)));
+    assert.equal(reviews[0].tools, undefined, "the review has no tools");
+    assert.ok(!requests.some(request => JSON.stringify(request.system ?? "").includes("你读一段 AI 助理在这一轮结束时")), "the shipped text did not run");
+    assert.doesNotMatch(JSON.stringify(requests[0].system), /测试用的收尾核对/, "it is never composed into the round's own role");
+    const session = await host.adapter("prologue").readSession({ session_id: store.get("web-user", sent.work.work_id).session_id! });
+    assert.deepEqual(session.latest_run?.frozen.ending_review, { prompt_id: "assistant-ending-review", version: 1, user_revision: 1 });
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});

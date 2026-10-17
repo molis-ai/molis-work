@@ -29,10 +29,12 @@ test("ASC-08 ASC-14 ASC-22: local setup shows the fixed plan, protects input and
   assert.match(await evaluate<string>("document.querySelector('.settings-heading').textContent"), /本地 MCP/);
   await navigate(() => command("Page.navigate", { url: "about:blank" }, sessionId)); await open();
   const shots = reviewEvidenceUrl("assistant-service-connections/"); await mkdir(shots, { recursive: true });
-  for (const width of [1440, 390]) {
+  for (const theme of ["light", "dark"]) for (const width of [1440, 1024, 390]) {
+    await evaluate(`localStorage.setItem("molis-work:theme", "${theme}"); dispatchEvent(new StorageEvent("storage", { key: "molis-work:theme", newValue: "${theme}" }))`);
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await command("Emulation.setDeviceMetricsOverride", { width, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, `local setup fits ${width}px`);
-    await writeFile(new URL(`local-form-${width}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+    await writeFile(new URL(`local-form-${width}${theme === "dark" ? "-dark" : ""}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   }
   await click("[data-local-secret]"); await command("Input.insertText", { text: "fixture-local-page-secret" }, sessionId);
   await click("[data-connector-local] button[type=submit]");
@@ -62,10 +64,12 @@ test("ASC-07 ASC-14 ASC-19 ASC-22: closing and reopening the CLI page resumes in
   const shots = reviewEvidenceUrl("assistant-service-connections/"); await mkdir(shots, { recursive: true });
   await open();
   assert.match(await evaluate<string>("document.querySelector('[data-connector-local]').textContent"), /vercel.*1.2.3/);
-  for (const width of [1440, 390]) {
+  for (const theme of ["light", "dark"]) for (const width of [1440, 1024, 390]) {
+    await evaluate(`localStorage.setItem("molis-work:theme", "${theme}"); dispatchEvent(new StorageEvent("storage", { key: "molis-work:theme", newValue: "${theme}" }))`);
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await command("Emulation.setDeviceMetricsOverride", { width, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, `CLI plan fits ${width}px`);
-    await writeFile(new URL(`cli-plan-${width}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+    await writeFile(new URL(`cli-plan-${width}${theme === "dark" ? "-dark" : ""}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   }
   await click("[data-connector-local] button[type=submit]");
   const deadline = Date.now() + 15_000;
@@ -79,11 +83,13 @@ test("ASC-07 ASC-14 ASC-19 ASC-22: closing and reopening the CLI page resumes in
   await waitFor("/Enter fixture login:/.test(document.querySelector('[data-cli-output]')?.textContent || '')");
   assert.equal(await evaluate("document.querySelector('[data-cli-job]').dataset.cliJob"), job);
   assert.equal(await evaluate("document.querySelector('[data-cli-login]').disabled"), true);
-  for (const width of [1440, 390]) {
+  for (const theme of ["light", "dark"]) for (const width of [1440, 1024, 390]) {
+    await evaluate(`localStorage.setItem("molis-work:theme", "${theme}"); dispatchEvent(new StorageEvent("storage", { key: "molis-work:theme", newValue: "${theme}" }))`);
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await command("Emulation.setDeviceMetricsOverride", { width, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
     await evaluate("document.querySelector('[data-cli-job]').scrollIntoView({ block: 'center' })");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, `CLI login fits ${width}px`);
-    await writeFile(new URL(`cli-login-${width}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+    await writeFile(new URL(`cli-login-${width}${theme === "dark" ? "-dark" : ""}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   }
   await click('[data-protocol-field="cli_input"]'); await command("Input.insertText", { text: "private-browser-cli-input" }, sessionId);
   await click("[data-cli-input]"); await waitFor(`!document.querySelector('[data-protocol-field="cli_input"]')?.value`);

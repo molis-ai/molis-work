@@ -265,6 +265,7 @@ export interface AssistantMemoryCandidate {
     state: "pending" | "accepted" | "discarded" | "expired";
     created_at: string;
     memory_id?: string;
+    held?: string;
 }
 
 export interface AssistantMemoryPrefs {

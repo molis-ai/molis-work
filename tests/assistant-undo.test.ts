@@ -12,6 +12,7 @@ import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { actionKey, assistantAuthority } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { roundParts } from "./fixtures/round-parts.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -71,11 +72,11 @@ test("a change that can be undone runs when asked without a confirmation, and th
   ];
   const requests: string[] = [];
   let turn = 0;
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => {
     const body = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     requests.push(body);
     return (script[turn++] ?? (() => reply()))(JSON.parse(body));
-  });
+  }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-undo-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
@@ -155,11 +156,11 @@ async function undoFixture(t: import("node:test").TestContext, script: Array<(bo
       } }] });
   const requests: string[] = [];
   let turn = 0;
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => {
     const body = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     requests.push(body);
     return (script[turn++] ?? (() => reply()))(JSON.parse(body));
-  });
+  }));
   const flags = { model: true };
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-undo-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,

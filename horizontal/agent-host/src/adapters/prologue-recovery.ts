@@ -35,6 +35,9 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
   const childrenToReconcile = (sessionId: string) => runtime.subagents.list()
     .filter(child => child.parentSession.id === sessionId && child.state === "reconcile-required");
 
+  /** What waits for the next round; a session that cannot be opened leaves it unknown (undefined), never empty. */
+  const queued = async (ref: SessionIndex["ref"]) => (await (await runtime.sessions.open(ref))?.inputQueue())?.queued.map(queuedInput);
+
   const inspect = async (sessionId: string): Promise<AgentRecoveryReport> => {
     const index = await sessionIndex.read(sessionId);
     if (!index) throw new Error("会话执行索引不可用");
@@ -68,9 +71,8 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       if (!own.runs.length) blockers.push("有子任务的结果需要核对，但找不到它可以结束的中断轮次。");
       children.push(...own.runs.map(run => view(run, { subagent_id: child.ref.id })));
     }
-    // What waits for the next round; a session that cannot be opened leaves it unknown, never empty.
-    const queue = await (await runtime.sessions.open(index.ref))?.inputQueue();
-    return { session_id: sessionId, blockers, ...(queue ? { inputs: queue.queued.map(queuedInput) } : {}),
+    const queue = await queued(index.ref);
+    return { session_id: sessionId, blockers, ...(queue ? { inputs: queue } : {}),
       runs: [...report.runs.map(run => view(run)), ...children] };
   };
 
@@ -136,5 +138,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       return inspect(session.session_id);
     },
   };
-  return { inspect, restore, port };
+  /** The session's waiting supplements, read on their own: no recovery check (specs/ai-input-receipts D31). */
+  const queuedOf = async (sessionId: string) => { const index = await sessionIndex.read(sessionId); return index ? queued(index.ref) : undefined; };
+  return { inspect, restore, port, queued: queuedOf };
 }

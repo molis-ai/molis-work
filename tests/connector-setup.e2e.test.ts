@@ -56,11 +56,13 @@ test("ASC-08 ASC-23 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protec
   assert.deepEqual(withConnectorConnections(homeDirectory, store => store.list()), []);
   await open(request.url);
   const shots = reviewEvidenceUrl("assistant-service-connections/"); await mkdir(shots, { recursive: true });
-  for (const width of [1440, 390]) {
+  for (const theme of ["light", "dark"]) for (const width of [1440, 1024, 390]) {
+    await evaluate(`localStorage.setItem("molis-work:theme", "${theme}"); dispatchEvent(new StorageEvent("storage", { key: "molis-work:theme", newValue: "${theme}" }))`);
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await command("Emulation.setDeviceMetricsOverride", { width, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, `form fits ${width}px`);
     // Capture before filling; even a password field's value is excluded from review evidence.
-    await writeFile(new URL(`protected-form-${width}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+    await writeFile(new URL(`protected-form-${width}${theme === "dark" ? "-dark" : ""}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   }
   const fixtureValue = "fixture-protected-form-value";
   await click("[data-connector-token]");
@@ -81,13 +83,15 @@ test("ASC-08 ASC-23 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protec
   const statusSelector = `[data-connection-row="${completed.connection_id}"] [data-connection-status]`;
   await click(statusSelector + " summary");
   assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(statusSelector)}).textContent`), /配置完整[\s\S]*未检查[\s\S]*服务端授权范围未知[\s\S]*尚无调用记录/);
-  for (const width of [1440, 390]) {
+  for (const theme of ["light", "dark"]) for (const width of [1440, 1024, 390]) {
+    await evaluate(`localStorage.setItem("molis-work:theme", "${theme}"); dispatchEvent(new StorageEvent("storage", { key: "molis-work:theme", newValue: "${theme}" }))`);
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     await command("Emulation.setDeviceMetricsOverride", { width, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, `status fits ${width}px`);
     const bounds = await evaluate<{ width: number; rowWidth: number; top: number; identityBottom: number }>(`(() => { const element = document.querySelector(${JSON.stringify(statusSelector)}), row = element.closest('[data-connection-row]'), box = element.getBoundingClientRect(); return { width: box.width, rowWidth: row.getBoundingClientRect().width, top: box.top, identityBottom: row.querySelector('.settings-connection-row__identity').getBoundingClientRect().bottom }; })()`);
     assert.ok(bounds.width > bounds.rowWidth * .9, `status occupies its own full row at ${width}px`);
     assert.ok(bounds.top >= bounds.identityBottom, `status appears below the account identity at ${width}px`);
-    await writeFile(new URL(`connection-status-${width}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+    await writeFile(new URL(`connection-status-${width}${theme === "dark" ? "-dark" : ""}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   }
   // Returning from the connection view at the narrow size still reaches the original work and its request.
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));

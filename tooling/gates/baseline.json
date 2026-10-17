@@ -2,9 +2,9 @@
   "giantUnits": 140,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2054,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2041,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1632,
+      "lines": 1629,
       "methods": 98
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -18,7 +18,7 @@
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
     "function apps/local-host/src/character-import-discovery.ts#createCharacterDiscovery": 205,
     "function apps/local-host/src/character-import-discovery.ts#discover": 176,
-    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 243,
+    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 284,
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 539,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
@@ -35,13 +35,14 @@
       "lines": 308,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 316,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 318,
+    "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 368,
     "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 271,
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 210,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 207,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
@@ -52,27 +53,27 @@
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2277,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 1001,
-    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2019,
+    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2015,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
-    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
+    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
     "file horizontal/agent-host/src/adapters/prologue.ts": 967,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 603,
+      "lines": 602,
       "methods": 18
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 363,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
-      "lines": 382,
+      "lines": 381,
       "methods": 12
     },
-    "function horizontal/agent-host/src/index.ts#start": 253,
+    "function horizontal/agent-host/src/index.ts#start": 252,
     "class horizontal/listener-host/src/index.ts#ListenerHost": {
       "lines": 361,
       "methods": 18
@@ -159,7 +160,6 @@
     "file packages/design-system/src/styles/calm-desktop.ts": 1392,
     "file packages/design-system/src/styles/craft-finish.ts": 2160,
     "file packages/design-system/src/styles/momentum.ts": 856,
-    "file packages/design-system/src/styles/personal-workbench-v3.ts": 1300,
     "file packages/design-system/src/styles/primitives.ts": 1268,
     "file packages/im-ui/src/browser/controller.ts": 966,
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
@@ -256,8 +256,8 @@
     "function plugins/official-integrations/gmail/src/oauth-pending.ts#createGmailPendingSessions": 178,
     "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 170,
     "function plugins/official-integrations/gmail/src/oauth.ts#createGmailOAuth": 177,
-    "file plugins/official-integrations/gmail/src/provider.ts": 910,
-    "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
+    "file plugins/official-integrations/gmail/src/provider.ts": 930,
+    "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
   "testInternalImports": 494,
   "testImports": {
@@ -863,7 +863,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 418,
+  "pluginOutsideMentionsTotal": 416,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -873,9 +873,9 @@
     "dataset#outside-files": 12,
     "diff#outside-files": 8,
     "feed#outside-files": 41,
-    "files#outside-files": 11,
+    "files#outside-files": 10,
     "form#outside-files": 8,
-    "git#outside-files": 14,
+    "git#outside-files": 13,
     "goals#outside-files": 58,
     "images#outside-files": 12,
     "inbox#outside-files": 17,

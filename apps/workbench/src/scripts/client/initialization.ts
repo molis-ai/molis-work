@@ -110,8 +110,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       },
     });
     // The question and action cards' shared client: one copy for the Assistant and every plugin that shows them (A1, A2).
+    // A reference field searches this project through search.references (T2); a pick is <kind> <id> for the SDK's questionAnswer.
     // The receipt under a supplement, the same way: one copy for the Assistant and every plugin that takes supplements (receipts 3c).
-    const interaction = (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES}), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
+    const interaction = (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(route("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: L("暂时搜不了，稍后再试") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
       mountPluginClient, interaction, receipts, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
       projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),

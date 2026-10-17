@@ -60,7 +60,7 @@ test("a round the runtime refuses while packing its context leaves the session u
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
 
-// Prologue e0f99ea2 (prologue#40, BL-156's upstream half): a normal shutdown parks a round whose only wait is the person's
+// prologue#40 (e0f99ea2, swapped in with b541a8e6; BL-156's upstream half): a normal shutdown parks a round whose only wait is the person's
 // answer instead of cancelling it. Until the Host answers a parked round (answerInterrupted, BL-156's Molis half), it comes
 // back like a round a crash cut off: listed with its question, to check and close; nothing else waits on it. A new round
 // before that is refused by the Host's own check of the restored session, so the runtime's SESSION_RUN_PARKED is not reached.

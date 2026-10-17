@@ -99,7 +99,7 @@ test("D5: an expired question is asked again by a new round that carries the per
   await reasked(fixture, workId, runId, pending.pending_id);
 });
 
-// A temporary path, from the swap to Prologue e0f99ea2 until BL-156's Molis half: a restart no longer ends a round that
+// A temporary path, from the swap to Prologue b541a8e6 until BL-156's Molis half: a restart no longer ends a round that
 // waits for the person's answer; it is parked, comes back as a round to check, and its question is asked again once the
 // person has closed it. BL-156's Molis half replaces this with answering the parked question itself.
 test("D5: a question a restart cut off shows for checking, and is asked again with the draft once its round is closed", { timeout: 60_000 }, async t => {

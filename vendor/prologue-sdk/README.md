@@ -202,7 +202,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
 - `packagesWithoutPatch`：26 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 app-wait-ends-step、之前的 mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：36 个 Prologue 提交于 2026-10-17 对 main `e0f99ea2082d8e2d41776d971212cff1d2acdad0` 逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
+- `upstream`：36 个 Prologue 提交于 2026-10-17 对 main `b541a8e62752fce23c83f959d55e549b3086557f` 逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
 
 怎么取回并核对：
 

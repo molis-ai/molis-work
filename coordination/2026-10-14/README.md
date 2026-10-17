@@ -827,3 +827,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #673 → bfe96662d：merge main（e49f6a558），重新测量。除去 page-assets 和 baseline，和审过的 8a59b07a1 逐行一致；五项资源都只降（workbench.js −65，pages-editor −11，三份 CSS −993/−1,329/−734）。
 - **标签链合并时踩了一脚**：本想把 chain4（等 #679）和 chain6（等 #671）合成一条，按 pid 停掉两条，起了 chain7（679→671→673）。可 #679 在那一刻刚好加上了标签，chain7 一开头的 `--remove-label` 又把它撤了。马上停了 chain7，重新加上标签。full-suite 的 concurrency 会取消同组里旧的那次，所以 #679 只剩一次全量在排队；chain4 给 679 分出去的 gate 子进程还在。脚本改了：label-chain2 不再一开头就撤标签，改成由 label-when-free2 等到有空位、轮到自己时，才先撤再加。#671 和 #673 现在在 chain8 上。#631 自己手动（workflow_dispatch）起的全量也在排队，所以现在排着 3 个全量。
 - #675 → 9663ea85e：merge main（e49f6a558）。除去 baseline 和 page-assets，和审过的 fc2f7538d 逐行一致。门禁文件里只有 A3 自己的降幅：AssistantService 1619→1546 行、96→92 个方法，explicitAny 降 4，workbench.js 降 55。标签链改成 chain9：671→673→675（停 chain8 时 #671 还没加标签）。
+- **防腐线 10-17 深夜交给别的 Agent 暂管（用户告知）**：交接文档是防腐线自己写的，在主检出的 `.claude/handoff/anti-corruption-handoff-2026-10-17.md`（不入库），统筹只管配合。
+  - 本地已备好、未推的：Todo（wt-todo 06b63dfd6），#679 合入后开；§10.26（wt-docs1026 a5d77fe4c），#677 合入后开；(a) 流式路由做了一半（wt-stream 4034ac8b8）。
+  - (a) 要补的必做项：项目一侧 coding-surface 调 `dispatchRuntimePluginRoute` 时不传 execution/stop，项目里的流式路由停用后断不了连接，要修好并配拒绝用例。
+  - #677、#679 合入后由统筹通知接手的会话；它收不到消息，就请用户转达。

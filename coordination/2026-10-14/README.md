@@ -1016,3 +1016,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #695 新 head 0179b100e：下一轮改用 request.actor_id、删存档 actor 与本机人退回，AC-07 用例钉住；排在 chain32（等 #693/#688 让出全量槽）。
 
 - 10-18 prologue#44（采用线 PATH 收紧，b1145377）审过：Node 与 Tauri 共用一处、无绝对项时不给 PATH、拒绝用例与变异齐；退回补同类的洞：指进授权根的绝对项（如 pnpm 起 Host 时自动加的 `<root>/node_modules/.bin`）也要丢，规范化 + 真实路径比较、用例与变异两台各加，切片与 sandbox.md 改成「只留授权根之外的绝对项」。
+
+- 10-18 #694 新 head c7c71eadc：三处死代码与 R4 行都改了，workbench.js 再降 132（1107807），排在 chain33。#696（交互 AC-05，845c47d2f）审过：Coding 只核引用答案的形状、限额取 SDK QUESTION_LIMITS，合不合题交运行时、归属交宿主（S-26）；e2e 只引包入口、跨项目伪造的 Goal 被拒且运行时文件不变；排在 chain34。全量槽：#693、#688 在跑，之后依次 #695、#694、#696。

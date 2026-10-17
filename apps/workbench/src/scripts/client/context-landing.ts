@@ -25,12 +25,17 @@ export const CONTEXT_LANDING_SCRIPT = String.raw`  const landing = {
       return cell ? { place: "side", side_tab: cell.dataset.sideBody } : element && element.closest("[data-assistant-island]") ? { place: "assistant" } : {};
     },
     with(focus) { return focus.place && focus.place !== "main" && this.value && visible(this.element) ? { landing: this.value } : {}; },
-    // A way to put the thing here, hovered or focused on the bar, shows where it would go: the page flashes its landing once each
-    // time one comes into hand. Only a landing this document's page reported and still has; a split pane's is not asked (§21.6).
+    // A way to put the thing here, hovered or focused on the bar or in its menu, shows where it would go: the page flashes its
+    // landing once each time one comes into hand. A landing a split pane reported is asked of that pane's frame, which raises it
+    // on its own landing (§21.4 W3-A3c); a landing whose element is gone is not asked. The element is always in this document:
+    // it is the target of an event heard on this document.
     hinted: [],
     hint(keys, plan) {
       const now = plan ? keys.filter((key) => plan.candidates.some((item) => item.key === key && item.origin === "attach")) : [], element = this.element;
-      if (now.some((key) => !this.hinted.includes(key)) && this.value?.pane_id === ownPane && element?.isConnected && element.ownerDocument === document) element.dispatchEvent(new CustomEvent("molis:surface-landing-flash"));
+      if (now.some((key) => !this.hinted.includes(key)) && this.value && element?.isConnected) {
+        if (element instanceof HTMLIFrameElement) element.contentWindow.postMessage({ type: "workbench-surface-landing-flash" }, location.origin);
+        else element.dispatchEvent(new CustomEvent("molis:surface-landing-flash"));
+      }
       this.hinted = now;
     },
     choose(focus, candidate) {
@@ -82,18 +87,23 @@ export const CONTEXT_LANDING_SCRIPT = String.raw`  const landing = {
 /**
  * The same, in a split pane's own document (joined into the factory's embedded branch): its page's landing goes up to the
  * top document without where it is on screen, and a choice the top document hands down is offered to the page here as if
- * chosen in this document. Confirming asks the top document to run it and waits for its answer.
+ * chosen in this document. Confirming asks the top document to run it and waits for its answer. Asked to show the landing
+ * (`workbench-surface-landing-flash`, from the top document only), it raises the flash on the element that reported it.
  */
 export const CONTEXT_LANDING_PANE_SCRIPT = String.raw`    const attaching = new Map();
     const up = (message) => parent.postMessage(message, location.origin);
+    let reported = null;
     document.addEventListener("molis:surface-landing", (event) => {
       const { screen, ...value } = event.detail && typeof event.detail === "object" ? event.detail : {};
+      reported = value.object ? event.target : null;
       up({ type: "workbench-surface-landing", landing: value.object ? value : null });
     });
     window.addEventListener("pagehide", () => up({ type: "workbench-surface-landing", landing: null }));
     window.addEventListener("message", (event) => {
       const data = event.data;
       if (!panes.fromParent(event)) return;
+      // The top document asks this pane's landing to show itself: raised on the element that reported it, while it is still here.
+      if (data.type === "workbench-surface-landing-flash" && reported?.isConnected) reported.dispatchEvent(new CustomEvent("molis:surface-landing-flash"));
       const wait = attaching.get(data.token);
       if (data.type === "workbench-context-attach-done" && wait) { attaching.delete(data.token); if (data.error) wait.reject(new Error(data.error)); else wait.resolve(data.result); }
       if (data.type !== "workbench-context-attach-chosen" || !data.chosen) return;

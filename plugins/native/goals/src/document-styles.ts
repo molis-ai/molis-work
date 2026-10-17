@@ -16,7 +16,7 @@ export const GOALS_DOCUMENT_STYLES = `
   }
   @media (max-width: 760px) {
     body[data-desktop-shell="true"] .goal-title-row h1,
-    .goal-title-row h1 { max-width: none; }
+    .goal-title-row h1 { max-width: none; font-size: 24px; }
   }
   @container (max-width: 380px) {
     .tree-node .goal-status { max-width: 112px; }
@@ -24,9 +24,12 @@ export const GOALS_DOCUMENT_STYLES = `
   }
   body[data-desktop-shell="true"] .goal-document,
   .goal-document { min-height: calc(100% - (var(--focus-canvas-inset) * 2)); padding: 0; background: transparent; display: grid; align-content: start; }
+  body[data-desktop-shell="true"] .goal-header,
+  .goal-header { padding-bottom: 24px; }
   .goal-hero,
   .goal-workspace-panels { min-width: 0; border: 1px solid var(--line); background: var(--paper); overflow: clip; }
   @media (min-width: 761px) {
+    html[data-density="compact"] body[data-board-view] .goal-document { width: min(100%, 960px); }
     html[data-density="compact"] body[data-board-view] .goal-hero { padding: 24px 32px 0; }
     html[data-density="compact"] body[data-board-view] .goal-workspace-panels { padding: 24px 32px 56px; }
   }
@@ -99,7 +102,7 @@ export const GOALS_DOCUMENT_STYLES = `
     .focus-section-card-reveal .relation-record { grid-template-columns: minmax(0, 1fr); }
     .focus-section-card-reveal .relation-row { padding-right: 4px; grid-template-columns: 48px minmax(0, 1fr) auto; }
     .focus-section-card-reveal .relation-row > svg { display: none; }
-    .focus-section-card-reveal .relation-deactivate-open { min-height: 34px; border-top: 1px solid var(--line); justify-content: flex-end; }
+    .focus-section-card-reveal .relation-deactivate-open { min-height: 34px; border-top: 1px solid var(--line); border-left: 0; justify-content: flex-end; }
   }
   @media (max-width: 760px) {
     body[data-desktop-shell="true"] .goal-document,

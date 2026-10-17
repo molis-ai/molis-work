@@ -587,6 +587,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #645 已合入 main（f63f9945f，08:58Z）。#639 的全量跑完了，只红 memory-upkeep。已通知交互线把 main 并进 #638、回执线把 main 并进 #639，各推一次、把 head 发给统筹，Verify 绿了就按先例入队。#643 的全量还在跑，跑完再并 main。
     - T2 #638 现在的 head 是 86b77ad25，等于原来的 head 并上 main，只多了 #645 的测试，统筹已核对；merge-only 门禁在等 Verify，绿了就自动入队。#643 的全量（run 39018142086）只红 memory-upkeep。统筹 10-17 定：#643 等 T2 合入后再并 main，因为两者改的是 page-assets.json 里 workbench.js 的同一行；并完在合并结果上重新量，写入实测的数（约为 T2 的数减 324），有任何文件变大就停下来报统筹。#639 只改 coding.js 那一行，跟 T2 不冲突，现在就并 main。
     - #646（ci-linux-probe 竞态，只改测试）统筹审过直接入队，09:12Z 合入 b3c549aa8。T2 #638 09:13Z 合入 c2ad593f2。#639 head 7b3fd68a6（原 head 并上 main，只多 #645 的测试），merge-only 门禁在等 Verify。已通知回执线：#643 现在并 main，在合并结果上重新量 page-assets（main 上 workbench.js 是 1105163）。page-assets 剩下的顺序：D1 #643，然后 W3-B3、#634、第 5 片，谁先就绪谁先。
+    - #639 入队。#643 现在的 head 是 c4b08187a：原 head ccee51ee8 并上 main c2ad593f2，PR 自己的改动跟审过的那版只差实测的 workbench.js（1105163 → 1104839，−324），BACKLOG 冲突的解法是 BL-152、BL-153 都保留；merge-only 门禁在等 Verify。T2 的一次性额度（`scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS`，四条，挂在 aabf597d 的字节数上）在 main 上已经不起作用，下一个改这份门禁的 PR 要删掉它们，和 #541、#584、#611 一样。审 W3-B3、#634、第 5 片时要查这一条。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

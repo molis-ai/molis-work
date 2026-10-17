@@ -808,3 +808,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 两片都改 SDK，都跑全量；两片都改合同，都跑 `pnpm api:update`。
   - 排在 W5-01 和 §10.26 之后。
   - 防腐线补充的细节，统筹已认可：超限用 `actions.output_invalid`；单行 64 KiB、最多 10,000 行；是否同意下载只看 `caller.audience === "user"`；plugin-runtime 新增 `observeDeactivation`（撤权、停止、隔离、失败时通知；流开着时宿主订阅它，收到就中止）。统筹再补了三条：进度行另设总字节上限，约 1 MiB；`result` 行按动作现有的输出上限算；换代时也要通知，流结束后取消订阅，并补一个用例确认取消。
+- #667（3b-2a）合入 e49f6a558，已通知以下几条线：
+  - 回执线：#671 merge main，同一次写字节放行的提交；
+  - 交互线：#669 merge main，解 spec 冲突，重新定键，走 merge-only；
+  - 防腐线：W5-01 开 PR 时按新的 merge-base 定键。

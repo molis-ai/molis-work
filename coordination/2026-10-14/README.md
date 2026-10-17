@@ -949,3 +949,6 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - D5 用例改成空档期的路径（待核对 → 关掉前 needs_check → 关掉后能重新问），属于预期变化，在正文和 D5 记录里写明。
   - 空档期 Molis 开跑前就拒了（agent.session_busy 或 assistant.needs_check），页面不会出现 controlFailure 的通用文字。
   - inspectRecovery 不在动作目录里，它的写盘属于运行时自己的维护。
+- #675 的全量（run 39063550387）红了，只有 product-interaction.e2e 里 Feed reader 的重试按钮一处（Hidden click target），重跑一次还是红，所以门禁没有放它入队。
+  - #675 没碰 Feed；main 自 19:00 全量通过之后只多了 #671（样式）和 #686（只改文档）。
+  - 已请采用线用干净的基线工作树（4b063bf98）对比，分清是 main 回归、#675 引入的，还是时序问题。

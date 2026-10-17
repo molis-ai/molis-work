@@ -80,11 +80,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         }
         return;
       }
-      const inboxFilter = target.closest("[data-inbox-filter]");
-      if (inboxFilter) {
-        setInboxFilter(inboxFilter.dataset.inboxFilter, true);
-        return;
-      }
       const inboxOpenFeed = target.closest("[data-inbox-open-feed]");
       if (inboxOpenFeed) {
         const itemId = inboxOpenFeed.dataset.inboxOpenFeed;
@@ -312,11 +307,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
       }
       if (handleTreeDisclosureClick(target)) return;
       if (handleMomentumNavigationClick(target)) return;
-      const workbenchViewButton = target.closest("button[data-workbench-view]");
-      if (workbenchViewButton) {
-        setWorkspaceMode(workbenchViewButton.dataset.workbenchView);
-        return;
-      }
       if (target.closest("[data-tui-focus-return]")) {
         setWorkspaceMode("focus");
         return;

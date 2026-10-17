@@ -12,7 +12,6 @@ import { VISUAL_FOUNDATION_CLIENT_SCRIPT as PREFERENCE_CLIENT_SCRIPT } from "./p
 import { SELECT_MENU_CLIENT_SCRIPT } from "./select-menu-client.js";
 import { MICRO_INTERACTION_CLIENT_SCRIPT } from "./styles/micro-interactions.js";
 import { CRAFT_FINISH_CLIENT_SCRIPT } from "./styles/craft-finish.js";
-import { CALM_DESKTOP_STYLES } from "./styles/calm-desktop.js";
 import { DESKTOP_TITLEBAR_STYLES } from "./styles/desktop-titlebar.js";
 import { DIRECTORY_LEDGER_STYLES } from "./styles/directory-ledger.js";
 import { FOUNDATION_STYLES } from "./styles/foundation.js";
@@ -29,7 +28,6 @@ const FOUNDATION_LAYERS = [
   "\n",
   FOUNDATION_STYLES,
   MOMENTUM_STYLES,
-  CALM_DESKTOP_STYLES,
   DIRECTORY_LEDGER_STYLES,
   NAVIGATION_OWNERSHIP_STYLES,
   SOURCE_FEED_STYLES,

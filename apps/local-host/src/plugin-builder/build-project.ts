@@ -62,12 +62,14 @@ The clock is real: use new Date() for today or this month, never a fixed date; t
 
 Platform capabilities: only the ids in the operation's effects.capabilities, and only after installation approval.
 model.generate — declare what the model is asked in the operation file that calls it:
-export const prompts = [{ id: 'summary', title: '要点提炼', purpose: '把笔记提炼成三条要点', body: '只输出三条要点…' }];
+export const prompts = [{ id: 'summary', title: '要点提炼', purpose: '把笔记提炼成事后回看用的要点', body: '提炼出事后回看时最需要的结论、决定和待办…' }];
 then const { text } = await sdk.capability.call('model.generate', { prompt: 'summary', input }) as { text: string };
 (the prompt id is a literal). The person's configured text model, one answer, no tools; the person can read and edit
 the prompt. In tests, examples, checks and acceptance a fixed stand-in answers: text = '［模型替身］' + the first 40
 characters of input. Assert on that prefix or on what you save, never on a real answer. Say the format you need in the
-prompt body and parse tolerantly; keep the raw text if parsing fails.
+prompt body and parse tolerantly; keep the raw text if parsing fails. Write in the body who the step is for and what a
+good answer is, not counts or lengths the product does not need; when a count or length is a product limit (a card
+shows three lines), say why in the body and check the returned text in code, failing when it does not fit.
 
 Example operation (src/operations/1.ts):
 

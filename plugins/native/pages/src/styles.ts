@@ -568,6 +568,9 @@ export const PAGES_STYLES = `
   .pages-pop-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .pages-pop .pages-pop-error { color: var(--red); }
   .pages-landing-preview p { margin: 0 12px; }
+  .pages-landing-flash { position: fixed; z-index: 40; width: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; animation: pages-landing-flash 700ms ease-out both; }
+  @keyframes pages-landing-flash { 0%, 100% { opacity: 0; } 25%, 60% { opacity: 1; } }
+  ::highlight(pages-landing) { background: var(--accent-soft); }
   .pages-pop.is-docked { position: static; min-width: 0; max-width: none; max-height: none; padding: 0; overflow: visible; background: none; box-shadow: none; animation: none; }
   .pages-comment {
     background: color-mix(in srgb, var(--hue-cyan, var(--ink)) 14%, transparent);

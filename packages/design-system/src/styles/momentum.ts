@@ -335,7 +335,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
   html[data-resolved-theme="dark"] .relation-live-preview { border-color: color-mix(in srgb, var(--blue), var(--line) 68%); background: color-mix(in srgb, var(--blue-soft) 72%, var(--paper)); }
   html[data-resolved-theme="dark"] .tree-node:hover,
   html[data-resolved-theme="dark"] .tree-dep:hover { background: color-mix(in srgb, var(--blue-soft) 64%, transparent); }
-  html[data-resolved-theme="dark"] .mobile-switch button.is-active { color: var(--blue-dark); background: transparent; box-shadow: none; }
 
   @media (max-width: 1120px) {
     .topbar .project-context > strong { display: none; }
@@ -546,38 +545,6 @@ export const MOMENTUM_STYLES = `  /* Momentum is an evidence-led workbench: cade
     .top-action span, .theme-picker > summary span { display: none; }
     .theme-picker > summary .theme-caret { display: none; }
     .theme-menu { right: 0; }
-    .mobile-switch {
-      padding: 0 8px;
-      gap: 4px;
-      min-height: 44px;
-      border-bottom-color: var(--line);
-      background: var(--rail);
-    }
-    .mobile-switch button {
-      position: relative;
-      min-height: 44px;
-      border-radius: 0;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 400;
-    }
-    .mobile-switch button:focus-visible {
-      outline: var(--focus-stroke);
-      outline-offset: var(--focus-stroke-inset);
-      box-shadow: none;
-    }
-    .mobile-switch button::after {
-      content: "";
-      position: absolute;
-      left: 28%;
-      right: 28%;
-      bottom: 0;
-      height: 2px;
-      border-radius: 1px;
-      background: transparent;
-    }
-    .mobile-switch button.is-active { color: var(--blue-dark); background: transparent; box-shadow: none; }
-    .mobile-switch button.is-active::after { background: var(--blue); }
     .workspace, .workspace.is-desktop-tui { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
     .workspace.is-graph-view, .workspace.is-desktop-tui.is-graph-view { grid-template-columns: minmax(0, 1fr); }
     .tree-pane { border-right: 0; }

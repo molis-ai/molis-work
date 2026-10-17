@@ -1002,3 +1002,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 02:10 UTC：#691 合入 df00646d8（workbench.js 1108502）。#680 的全量在跑，但 #692 改了 prologue-adoption spec 的状态句，所以冲突了：全量出结果后请采用线只解 spec 冲突，再走 merge-only。已通知情境线（W2'-1 merge 新 main）、回执线（#688 从 1108502 起定键），#684 的 PR 评论改成 [1108502, 1108530]。#693 和 main 合并干净，在 chain30 里等全量。
 - 10-18 02:20 UTC：#680 的全量（457bdc6b4）全绿，已请采用线 merge main、只解 spec 冲突，新 head 走 merge-only。
 - 10-18 02:35 UTC：采用 A2 的 Prologue 一刀（本地 diff，基于 Prologue 68545af6）统筹看过，认可开 PR。七处决定：执行器回 JSON 文本；开关看包声明且有人答；模型直接调只拿到命令（Molis 不把它绑进角色）；检查经 afterDispatch 跑、不算进写入的期限；写入那一层的加严不往下传，但 limits 模式照查（补一条用例）；不记 noteCheck；截断只留 SDK 一道（Molis §6.0p.3 跟着改）。还要补：PR 正文写清 Host 起命令时 PATH 从哪来，会不会找到模型刚写的文件。允许在本机单跑 coding-diagnose-after-write.live 这一个文件。#680 全量绿，等它只解 spec 冲突后的新 head。
+- 10-18 02:45 UTC：#680 新 head d30e42666（merge 了 df00646d8）：spec 冲突是两边都新加了 §6.0p，A2 留 §6.0p，A4 改成 §6.0q；spec 和门禁之外 121 行逐行一致。457bdc6b4 的全量是绿的，所以走 merge-only（gate-680）。

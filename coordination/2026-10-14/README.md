@@ -982,3 +982,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-17 23:05 UTC：#689 合入 bee59ffdd。已通知采用线开换包 PR（adoption/sdk-b541a8e6，先 merge main）。
 - 10-17 23:15 UTC：#673 新 head 96c4feec2（merge 了 main 1483a9f2c）：门禁之外 571 行逐行一致，五项资源只降；5e27b7520 的全量是绿的，所以走 merge-only（第一次开的 gate 网络超时，拿到空 head，按 pid 停掉后重开）。#680：chain25 因为合并引用过期而跳过，本地和 bee59ffdd 合并干净，换成 chain26 重新加标签。
 - 10-17 23:25 UTC：prologue#42（67098790）合入 3766ed52，#43（c4b1652b）合入 68545af6，Prologue main 现在是 68545af6。#43 的用例经过 list/search 工具本身断言 "(no matches)"，改掉那串字就变红。下一次换包带进来，这次的 b541a8e6 换包不变。
+- 10-17 23:40 UTC：换包 #690（采用线，c61496e94，Prologue b541a8e6 parked-run）统筹审过：三个码、D5 缺口路径、停放用例（宿主先拒，没问到运行时）、vendored 只留一份、patch-history 第 26 条都对。全量排在 chain27。还有三处写着 e0f99ea2，应为 b541a8e6：README 的 upstream 行、spec 的换包片一行、interaction-reask 的注释。改成只动文档和注释的新 head，全量出结果后走 merge-only。

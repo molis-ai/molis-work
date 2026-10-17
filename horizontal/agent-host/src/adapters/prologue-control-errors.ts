@@ -15,14 +15,13 @@ const SDK_CONTROL_CODES: Partial<Record<PrologueErrorCode, () => ActionError>> =
 /**
  * The one place a run control's failure is turned into what the caller sees (stop, cancel, pause, resume, switch-model, answer).
  * A Molis `ActionError` (`agent.*` and the platform's own) passes through unchanged; an SDK error takes its Agent code from the
- * table above, and anything else is `agent.control_failed` with the original as `cause` (a plain error keeps its message). `details.runtime_code` carries the SDK
+ * table above, and anything else is `agent.control_failed` with the original as `cause`. A plain error's words are not for the person
+ * (a Node or internal failure; Molis code that means to tell the person throws `agentErrors.*`), so it gets the generic sentence. `details.runtime_code` carries the SDK
  * code for diagnostics only: callers branch on `code` and `kind`, never on `runtime_code`.
  */
 export function controlFailure(error: unknown): ActionError {
   if (error instanceof ActionError) return error;
   const runtimeCode = isPrologueError(error) ? error.code : undefined;
-  // A plain failure keeps its own words (Molis code writes them for the person); an unlisted SDK one gets the generic sentence.
-  const words = !runtimeCode && error instanceof Error && error.message ? error.message : "执行器没能完成这次操作，请刷新后按当前状态再试";
-  const raised = (runtimeCode && SDK_CONTROL_CODES[runtimeCode]?.()) || agentErrors.control_failed(words);
+  const raised = (runtimeCode && SDK_CONTROL_CODES[runtimeCode]?.()) || agentErrors.control_failed("执行器没能完成这次操作，请刷新后按当前状态再试");
   return new ActionError(raised.code, raised.message, { kind: raised.kind, cause: error, ...(runtimeCode ? { details: { runtime_code: runtimeCode } } : {}) });
 }

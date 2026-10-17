@@ -77,7 +77,7 @@ test("an SDK error the table does not list, or a plain failure, reaches the call
   const item = await adapterFor({ stop: () => { throw plain; } });
   const stopped = await refusal(item.adapter.control(item.ref, { kind: "stop" }));
   assert.equal(stopped.code, "agent.control_failed", "every control maps once, not only the answer");
-  assert.equal(stopped.message, "socket closed", "a plain failure keeps its own words");
+  assert.equal(stopped.message, "执行器没能完成这次操作，请刷新后按当前状态再试", "a plain failure's words are not shown to the person");
   assert.equal(stopped.cause, plain);
   assert.equal(stopped.details, undefined, "a failure that is not the SDK's carries no runtime code");
 });

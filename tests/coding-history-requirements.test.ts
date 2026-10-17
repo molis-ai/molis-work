@@ -6,12 +6,15 @@ import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/s
 import { codingProductHost, type CodingProviderRequest } from "./fixtures/coding-product-host.js";
 import { codingToolResponse } from "./fixtures/coding-sdk-runtime.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
+import { endingReviewAnswer } from "./fixtures/ending-review.js";
 
 // Spec ai-input-receipts §20: what the person added while a round ran, and is still in force, reaches the next round
 // that starts from a digest — checked on the request the installed SDK actually sends to the provider.
 const SUPPLEMENTS = ["登录要兼容旧的 session cookie", "错误提示用中文", "不要改公开接口的名字", "超时改成 30 秒", "日志里不要写令牌", "改完补一条回归测试"];
 const SUMMARY_PROMPT = "接续摘要」：下一轮的模型";
 const textOf = (request: CodingProviderRequest) => JSON.stringify(request);
+// A round that ends having called nothing has its last words reviewed once (D1②); that call is the review's, not the round's.
+const isReview = (request: CodingProviderRequest) => endingReviewAnswer(request, () => []) !== undefined;
 
 type Summary = "model" | "error" | "empty";
 
@@ -20,6 +23,8 @@ async function twoRounds(t: TestContext, summary: Summary) {
   const held = new Promise<void>(resolve => { release = resolve; });
   let round = 1;
   const f = await codingProductHost(t, async (request, turn) => {
+    const review = endingReviewAnswer(request, () => []);
+    if (review !== undefined) return cogniaModelResponse(review);
     if (textOf(request).includes(SUMMARY_PROMPT)) {
       if (summary === "error") return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "fixture refuses the summary" } }), { status: 400, headers: { "content-type": "application/json" } });
       // The model's summary keeps only the last supplement: the Host's own section must still carry all six.
@@ -55,9 +60,10 @@ async function twoRounds(t: TestContext, summary: Summary) {
   assert.equal(second.status, 200, JSON.stringify(second.body));
   const next = await f.ended(second.body.run.ref);
   assert.equal(next.phase, "completed", next.stop_reason ?? "");
-  const later = f.requests.slice(roundOne), summaries = later.filter(request => textOf(request).includes(SUMMARY_PROMPT));
+  const reviews = f.requests.slice(roundOne).filter(isReview), later = f.requests.slice(roundOne).filter(request => !isReview(request));
+  const summaries = later.filter(request => textOf(request).includes(SUMMARY_PROMPT));
   const roundTwo = later.filter(request => !textOf(request).includes(SUMMARY_PROMPT));
-  return { steers, later, summaries, roundTwo };
+  return { steers, later, summaries, roundTwo, reviews };
 }
 
 function assertCarried(request: CodingProviderRequest, steers: AgentRunView["turns"]) {
@@ -83,9 +89,10 @@ test("RCPT-101 a model summary that keeps one supplement still sends all six, qu
 
 for (const summary of ["error", "empty"] as const) {
   test(`RCPT-102 when the summary call ${summary === "error" ? "fails" : "comes back empty"}, the next request carries the same six and no model call is added`, { timeout: 60_000 }, async t => {
-    const { steers, later, summaries, roundTwo } = await twoRounds(t, summary);
+    const { steers, later, summaries, roundTwo, reviews } = await twoRounds(t, summary);
     assert.equal(summaries.length, 1, "exactly one summary attempt, no second one");
     assert.equal(later.length, 2, "one summary attempt plus the round's own call, nothing more");
+    assert.equal(reviews.length, 1, "round two called nothing: its ending is reviewed once, and nothing more");
     if (summary === "error") assert.match(textOf(roundTwo[0]!), /的记录由宿主根据执行记录整理/, "the record-based digest stood in");
     assertCarried(roundTwo[0]!, steers);
   });

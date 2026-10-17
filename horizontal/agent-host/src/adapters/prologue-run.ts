@@ -3,9 +3,8 @@ import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ExactRef, Runtime } from "@prologue/sdk";
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { requireSynchronous, actionEffect, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentTextMaterialContent, type AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, memoryHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
+import { requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
 import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
@@ -28,8 +27,9 @@ import { placeOf, type createPrologueTaskBoards } from "./prologue-taskboard.js"
 import type { createPrologueWaits } from "./prologue-waits.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
 import type { PrologueRuntimePort, PrologueStartInput } from "./prologue.js";
-import { prologueToolName, sameRef, stageInstructions, stageTextResource, type DispatchGuards, type HeldKind, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
+import { prologueToolName, sameRef, stageInstructions, stageTextResource, type DispatchGuards, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
+import { ensureStopGuard, guardRound, watchRoundFacts } from "./prologue-stop-guard.js";
 
 /**
  * Starting one round on the Prologue runtime (W4-06 moved `startAgentRun` here from the Node composition, in stages):
@@ -44,16 +44,6 @@ const ROUND_DEFAULT_TURNS = 8;
 export const MODEL_CALL_TIMEOUT_MS = 180_000;
 // Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal.
 const REFUSED_BEFORE_RUN = new Set(["AGENT_START_INVALID", "CONTEXT_BUDGET_EXCEEDED", "CONTEXT_SOURCE_MISSING", "CONTEXT_INBOUND_HELD", "EFFECT_RECONCILE_REQUIRED"]);
-
-/** How a held ending reads in the round: what was wrong with it, and that the round was let go on to correct it. */
-export const HELD_LABELS: Record<HeldKind, { target: string; summary: string }> = {
-  announce: { target: "上一段只说了要做什么，没有实际执行", summary: "这一轮只说明了接下来要做什么、没有调用工具，已让它接着实际去做（每轮最多一次）" },
-  memory: { target: "上一段说记住或删掉了，但这一轮没有做到", summary: "回答说已经记住或删掉，可这一轮没有成功的记忆调用，已让它真正去做或如实更正" },
-  written: { target: "上一段把调用写成了文字，并没有执行", summary: "回答里写的是调用的文字而不是调用本身，已让它真正去调用或改用平常的话回答" },
-  button: { target: "上一段说按钮准备好了，但这一轮没有做出按钮", summary: "回答说按钮已经准备好，可这一轮没有成功准备操作卡，已让它真正去准备或如实更正" },
-  ids: { target: "上一段写出了内部标识，已让它改用名称重写", summary: "回答里出现了工具名、能力标识或编号，已让它改用标题和名称重写" },
-  saved: { target: "上一段说已经保存或建好，但这一轮没有成功的改动", summary: "回答说已经保存或建好，可这一轮没有成功的改动，已让它真正去做或如实更正" },
-};
 
 export interface RunDeps {
   readonly runtime: Runtime;
@@ -81,17 +71,6 @@ type ChildRole = NonNullable<PrologueStartInput["subagents"]>[number];
 type Memory = RoundState["memoryRounds"] extends Map<string, infer M> ? M : never;
 type Mode = { readonly none: boolean; readonly business: boolean };
 
-/** Whether any call this round finished was a change (a capability no longer offered counts as one: nothing is held then). */
-async function changedThisRound(done: { client: AgentActionClient; invoked: ExactActionReference[] }): Promise<boolean> {
-  if (!done.invoked.length) return false;
-  const views = await done.client.discover().catch(() => null);
-  if (!views) return true;
-  return done.invoked.some(reference => {
-    const view = views.find(row => row.capability_id === reference.capability_id && row.version === reference.version && row.provider.provider_id === reference.provider_id);
-    return !view || actionEffect(view.action, view.capability_id) !== "read";
-  });
-}
-
 /** The session's workspace mode fixes what the round may hold: none holds no tools; business holds only root-free ones. */
 function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefined, state: RoundState, mode: Mode): asserts index is SessionIndex {
   const { none, business } = mode;
@@ -111,19 +90,15 @@ const systemTools = (input: PrologueStartInput) => input.character.tools.filter(
 
 /**
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
- * forgets, offers and changes is counted for the stop check; a call to a capability that is gone is refused before review.
+ * forgets and changes is counted for the stop check; a call to a capability that is gone is refused before review.
  */
 function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   const { state, runtime } = deps;
   const actionController = new AbortController();
   // A business round the person gave no memory (switched off) keeps nothing, so any claim of keeping is held too.
   const memory = input.action_gateway?.client.memory;
-  // What the round has said so far: a claim made before the call that then failed counts as much as one at the end.
-  const memoryDone: Memory = { keep: 0, forget: 0, off: !memory, spoken: "", without: { keep: !!memory && !memory.remember, forget: !!memory && !memory.forget } };
+  const memoryDone: Memory = { keep: 0, forget: 0, off: !memory, without: { keep: !!memory && !memory.remember, forget: !!memory && !memory.forget } };
   if (input.action_gateway) state.memoryRounds.set(input.session_id, memoryDone); else state.memoryRounds.delete(input.session_id);
-  const offer = input.action_gateway?.client.offer;
-  const offersDone = { offered: 0 };
-  if (offer) state.offerRounds.set(input.session_id, offersDone); else state.offerRounds.delete(input.session_id);
   const client = input.action_gateway?.client;
   const changesDone = client ? { client, invoked: [] as ExactActionReference[] } : undefined;
   if (changesDone) state.changeRounds.set(input.session_id, changesDone); else state.changeRounds.delete(input.session_id);
@@ -135,7 +110,6 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
       ...(memory.forget ? { forget: async (id: string) => { const result = await memory.forget!(id); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
       ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
     } } : {}),
-    ...(offer ? { offer: async (proposal: Parameters<typeof offer>[0]) => { const made = await offer(proposal); offersDone.offered += 1; return made; } } : {}),
   } } : input.action_gateway;
   const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
   const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
@@ -155,45 +129,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
       } });
     }
   }
-  return { actionController, actionTools, memoryDone, parameterBranches: gatewayTools?.parameterBranches };
-}
-
-/**
- * The session's stop check, registered once: an ending that only announces, claims a change no call made, writes a call
- * as text or names internal ids is held once per kind per round. A session may alternate discussing and executing rounds,
- * so the check follows the round now starting.
- */
-function ensureStopGuard(deps: RunDeps, input: PrologueStartInput, business: boolean): void {
-  const { state, runtime } = deps;
-  const guard = state.stopGuards.get(input.session_id);
-  if (guard) { guard.writing = input.provenance.frozen.execution !== "read-only"; return; }
-  const sessionId = input.session_id, created = { writing: input.provenance.frozen.execution !== "read-only", held: new Map<string, Set<HeldKind>>() };
-  state.stopGuards.set(sessionId, created);
-  runtime.hooks.register({ id: `molis-announce-guard-${sessionId}`, event: "session-stop", forSession: sessionId, handler: async context => {
-    const run = context.origin?.run, text = (context.input as { text?: unknown } | undefined)?.text;
-    if (!run || typeof text !== "string") return { kind: "allow" as const };
-    // Each kind of ending is held at most once per round: a second, different slip is still caught, the same one is not
-    // held again (the person chose one automatic continuation per round for an ending that only announces).
-    const held = created.held.get(run) ?? new Set<HeldKind>();
-    const hold = (kind: HeldKind, why: string) => { held.add(kind); created.held.set(run, held); state.heldLabels.set(run, [...(state.heldLabels.get(run) ?? []), HELD_LABELS[kind]]); return { kind: "deny" as const, why }; };
-    // A claim of keeping or forgetting that no call made this round is held, whatever the round's execution.
-    const tracked = state.memoryRounds.get(sessionId);
-    const claim = tracked && !held.has("memory") ? claimsMemoryChange(tracked.spoken.trim() ? tracked.spoken.slice(-1200) : text) : null;
-    if (claim && state.memoryRounds.get(sessionId)![claim] === 0) return hold("memory", memoryHeld(state.memoryRounds.get(sessionId)!, claim));
-    if (business && !held.has("written") && writesToolCallAsText(text)) return hold("written", WRITTEN_CALL_HELD);
-    if (!held.has("button") && state.offerRounds.get(sessionId)?.offered === 0 && claimsButton(text)) return hold("button", BUTTON_CLAIM_HELD);
-    // Tool names, capability ids this round found, UUIDs and error codes are ours, not the person's words.
-    const ids = business && !held.has("ids") ? mentionsInternalIds(text, state.gatewayKnown.get(sessionId) ?? []) : [];
-    if (ids.length) return hold("ids", internalIdsHeld(ids));
-    // A claim of having saved or created something, from a round where no change went through. Memory has its own check.
-    const done = state.changeRounds.get(sessionId), kept = state.memoryRounds.get(sessionId);
-    if (business && created.writing && done && !held.has("saved") && !claim && !(kept && kept.keep + kept.forget) && claimsSavedChange(text)
-      && !(await changedThisRound(done))) return hold("saved", SAVED_CLAIM_HELD);
-    if (!created.writing || !announcesWithoutActing(text)) return { kind: "allow" as const };
-    // Continued once and still only announcing: it ends (the round then says plainly that nothing was done, see endedOnPromise).
-    if (held.has("announce")) return { kind: "allow" as const };
-    return hold("announce", ANNOUNCE_HELD);
-  } });
+  return { actionController, actionTools, parameterBranches: gatewayTools?.parameterBranches };
 }
 
 /** The round's child directories and fixed child roles, each a published Character, and what the round is told of them. */
@@ -538,16 +474,15 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
 /** The run and its controls as the adapter sees them; stopping saves the person's intent before the SDK stops the run. */
 function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
   readonly started: Started; readonly session: Session; readonly attemptIndex: number; readonly actionController: AbortController;
-  readonly memoryDone: Memory; readonly stepBoard: { ref: { id: string } } | undefined; readonly stopping: { current: Promise<void> | undefined };
+  readonly stepBoard: { ref: { id: string } } | undefined; readonly stopping: { current: Promise<void> | undefined };
 }): Awaited<ReturnType<PrologueRuntimePort["startAgentRun"]>> {
-  const { started, actionController, memoryDone } = at;
+  const { started, actionController } = at;
   const control = started.control;
   return {
     run: {
       ref: { id: started.run.ref.id },
       subscribe: (listener: (event: PrologueEvent) => void) =>
         started.run.subscribe(withInteractionRepairLimit(control, (event) => {
-          if (event.type === "text-delta" && typeof (event as { text?: unknown }).text === "string") memoryDone.spoken = (memoryDone.spoken + (event as { text: string }).text).slice(-4000);
           if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController);
           if (event.type === "command-receipt") {
             const events = deps.state.commandEvents.get(started.run.ref.id) ?? [];
@@ -593,8 +528,8 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const index = await deps.index.read(input.session_id);
   assertWorkspace(input, index, state, mode);
   const ref = state.sessions.get(input.session_id);
-  const { actionController, actionTools, memoryDone, parameterBranches } = roundGateway(deps, input, mode.none);
-  ensureStopGuard(deps, input, mode.business);
+  const { actionController, actionTools, parameterBranches } = roundGateway(deps, input, mode.none);
+  ensureStopGuard(runtime, state, input.session_id);
   const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id));
   // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
   const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack, executors: actionTools!.executors,
@@ -624,6 +559,9 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
       await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
     }
   };
+  // The stop check follows this round; its ending review runs on the round's own model, behind the same pre-dispatch check.
+  guardRound(state, input, mode.business, deps.options.endingReview ? { protocol: input.model.protocol, endpoint: input.model.endpoint, model: input.model.model, credentialRef,
+    dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
   const started = await deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
     session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding,
   }))).catch(async (error: unknown) => {
@@ -638,11 +576,12 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
     }
     throw error;
   });
+  watchRoundFacts(state, started.run);
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
   // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
   state.dispatchChecks.set(started.run.ref.id, dispatchGuard);
   await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,
     project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
-  return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, memoryDone, stepBoard: materials.stepBoard, stopping }),
+  return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, stepBoard: materials.stepBoard, stopping }),
     ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) };
 }

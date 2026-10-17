@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { BUILT_IN_ADAPTERS, createAdapterRegistry } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { announcesWithoutActing } from "./announce-guard.js";
+import { endedOnPromise } from "./prologue-stop-guard.js";
 import type { createPluginBuilderAgent, PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { actionToolRefs } from "./prologue-action-tools.js";
 import { createPrologueConditionCheckers } from "./prologue-checkers.js";
@@ -186,12 +186,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     }) },
     modelConfiguration: options.modelConfiguration,
     stopHeld: runId => { const queue = state.heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) state.heldLabels.delete(runId); return next; },
-    // Judged when the run ends, from its last words: the runtime stops consulting the hook after it has held twice.
-    endedOnPromise: (runId, sessionId, text) => {
-      const guard = state.stopGuards.get(sessionId), held = guard?.held.get(runId);
-      guard?.held.delete(runId);
-      return Boolean(guard?.writing && held?.has("announce") && announcesWithoutActing(text));
-    },
+    // Judged when the run ends, from its facts: held for only announcing, and nothing called after that.
+    endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),
     approvals,
     answerPending: answerPending({ runtime, host, state, readQuestion, index, options }),
   }), { inference, createBuilderAgent, gitReviews, diagnostics: () => runtimeDiagnostics(runtime),

@@ -13,6 +13,7 @@ import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
+import { endingReviewAnswer } from "./fixtures/ending-review.js";
 
 /** The platform memory over the test's own runtime (Prologue Memory) and a ledger in its Home, as the Host wires it (the projects' names included: a project memory may carry its project's name). */
 function platformMemory(host: AgentHost, home: string, t: { after(fn: () => void): void }): MemoryService {
@@ -47,12 +48,15 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
   const script: Array<(body: any) => Response> = [];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    // The ending review finds the one false claim of keeping below; everything else it reads as true to the facts.
+    const review = endingReviewAnswer(body, given => given.includes("以后在本项目里都按这个来") ? ["kept"] : []);
+    if (review) return reply(undefined, review);
     requests.push(body);
     return (script.shift() ?? (() => reply()))(body);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only", endingReview: true });
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
@@ -130,7 +134,7 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.equal(refused?.state, "failed");
     assert.equal((await service.memories(null)).length, 1);
 
-    // A reply that claims it kept something no call kept is held once; the round then really keeps it.
+    // ADH-16: A reply that claims it kept something no call kept is held once; the round then really keeps it.
     script.push(
       () => reply({ name: "list-memories", input: {} }),
       () => reply(undefined, "记下了：周会在周三下午两点，以后在本项目里都按这个来。"),
@@ -229,12 +233,14 @@ test("memory switches hold the same when a Character carries the round; turning 
   const script: Array<(body: any) => Response> = [];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    const review = endingReviewAnswer(body, given => given.includes("我用 remember 记到项目") ? ["kept"] : []);
+    if (review) return reply(undefined, review);
     requests.push(body);
     return (script.shift() ?? (() => reply()))(body);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-character-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only", endingReview: true });
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const editor = { character_id: "editor", title: "严格的编辑", instructions: "你是严格的编辑：每次回答先列出三处可改进的地方。", host_tools: null,
@@ -320,14 +326,18 @@ test("a claim of keeping made before the call that then failed is held at the en
     () => reply(undefined, "好的。"),
     body => { assert.match(JSON.stringify(body.messages), /no remember call succeeded/); return reply(undefined, "刚才没有记下：这是个人工作，只能记为个人偏好。"); },
   ];
+  let reviewed = "";
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    // The review is given what the round said before its last answer too: the claim is there, not in “好的。”.
+    const review = endingReviewAnswer(body, given => { reviewed = given; return given.includes("记下了：以后周报都用表格") ? ["kept"] : []; });
+    if (review) return reply(undefined, review);
     requests.push(body);
     return (script.shift() ?? (() => reply()))(body);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-said-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only", endingReview: true });
   host.register(adapter);
   // Memory is the platform memory service, as in the tests above: the remember tool goes through its write gate.
   const memory = platformMemory(host, home, t);
@@ -340,6 +350,7 @@ test("a claim of keeping made before the call that then failed is held at the en
     const sent = await service.send({ text: "以后周报都用表格，记住", request_id: "req-memory-said-1" }, {});
     const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "round");
     assert.equal(requests.length, 3, "held once after the round would have ended with the claim standing");
+    assert.match(reviewed, /earlier[^}]*记下了：以后周报都用表格/, "what was said before the last answer is given as earlier");
     assert.match(done.rounds[0]!.turns.filter(turn => turn.kind === "assistant").at(-1)!.text ?? "", /没有记下/);
     assert.deepEqual(await service.memories(null), [], "nothing was kept");
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
@@ -609,13 +620,15 @@ test("a delegated sub-task is given neither remember nor forget: its words are t
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const names = (body.tools ?? []).map((tool: { name: string }) => tool.name);
+    const review = endingReviewAnswer(body, given => given.includes("已记住你的偏好") ? ["kept"] : []);
+    if (review) return reply(undefined, review);
     if (JSON.stringify(body.messages).includes("委托的子任务")) { childTools.push(names); return (childScript.shift() ?? (() => reply(undefined, "完成。")))(body); }
     parentTools.push(names);
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-delegated-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only", endingReview: true });
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));

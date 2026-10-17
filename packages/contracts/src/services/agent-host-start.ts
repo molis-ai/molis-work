@@ -261,6 +261,8 @@ export interface AgentMemoryTools {
 
 export interface AgentActionClient {
   discover(): Promise<readonly ActionView[]>;
+  /** Who reads this round's replies: absent, the person; `work`, the work that handed this one over (a delegated work reports to it). */
+  reader?: "work";
   /** Delegate sub-tasks to separate works (see AgentDelegation). Absent: this round cannot delegate. */
   delegate?: AgentDelegation;
   /** Remember, list and forget for the person (see AgentMemoryTools). Absent: this round forms no memories. */

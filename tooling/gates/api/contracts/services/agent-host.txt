@@ -8,6 +8,7 @@ export declare const AGENT_RUNTIME_CAPABILITIES: readonly ["session.create", "se
 
 export interface AgentActionClient {
     discover(): Promise<readonly ActionView[]>;
+    reader?: "work";
     delegate?: AgentDelegation;
     memory?: AgentMemoryTools;
     offer?(offer: AgentActionOffer): Promise<{

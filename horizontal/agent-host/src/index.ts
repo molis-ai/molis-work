@@ -543,7 +543,7 @@ export class AgentHost implements AgentHostApi {
         ...(source.check ? { check: (ref: ExactActionReference, input: unknown) => source.check!(ref, input) } : {}),
         ...(source.offer ? { offer: (offer: import("@molis-ai/molis-work-contracts/services/agent-host").AgentActionOffer) => { validateCharacter?.(); return source.offer!(offer); } } : {}),
         ...(source.delegate ? { delegate: source.delegate } : {}),
-        ...(source.memory ? { memory: source.memory } : {}),
+        ...(source.memory ? { memory: source.memory } : {}), ...(source.reader ? { reader: source.reader } : {}),
         // Which changes may run without a confirmation stays the caller's call (a declared undo, the person's setting).
         ...(source.direct ? { direct: (view: import("@molis-ai/molis-work-contracts/platform/actions").ActionView) => source.direct!(view) } : {}),
         invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },

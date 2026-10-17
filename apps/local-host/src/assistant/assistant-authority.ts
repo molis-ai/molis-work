@@ -94,6 +94,8 @@ export function assistantAuthority(localHost: Pick<MolisWorkLocalHost, "inspectA
       ...(offer ? { offer: async (proposal: AgentActionOffer) => offer(proposal, await service().discover(await context(validate))) } : {}),
       ...(delegation ? { delegate: delegation } : {}),
       ...(memory ? { memory } : {}),
+      // A delegated work reports to the work that handed it over, which reads it with the identifiers it needs.
+      ...(work.delegated_by ? { reader: "work" as const } : {}),
       // A change that can be undone runs without a confirmation unless the person asked to confirm it each time.
       direct: view => directEligible(view, discovered, confirmAlways?.() ?? new Set()),
       // Exactly the validation dispatch performs, so a bad input is refused before the person is asked.

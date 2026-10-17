@@ -53,7 +53,8 @@ export const codingRunControlInput: ActionSchema = {
       pending_id: words(200), pending_revision: { type: "integer", minimum: 1 },
       answers: { type: "array", minItems: 1, maxItems: 10, items: answerItem },
     }, ["pending_id", "pending_revision", "answers"]),
-    controlBranch("steer", { text: words(100_000), key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN }, mode: { enum: [...AGENT_STEER_MODES] } }, ["text"]),
+    controlBranch("steer", { text: words(100_000), key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN }, mode: { enum: [...AGENT_STEER_MODES] }, about: words(200) }, ["text"]),
+    controlBranch("withdraw", { input_id: words(200) }, ["input_id"]),
     controlBranch("stop", {}, []),
     controlBranch("pause", {}, []),
     controlBranch("resume", {}, []),
@@ -119,18 +120,21 @@ export function chosenEffort(body: Record<string, unknown>, model: CodingModelCh
   return effort as AgentReasoningEffort | undefined;
 }
 
-/** A supplement goes to the Agent Host's `agent.inputs.send`; every other control to the round's own control. */
-export type CodingRunControl = AgentRunControl | { kind: "steer"; send: AgentInputSend };
+/** A supplement goes to the Agent Host's `agent.inputs.send`, taking one back to `agent.inputs.withdraw`; every other control to the round's own control. */
+export type CodingRunControl = AgentRunControl | { kind: "steer"; send: AgentInputSend } | { kind: "withdraw"; input_id: string };
 
 /**
  * A control the person sends to the round. A switch names only a model the Host offers this plugin; whether the round
- * can carry it is the Host's check. A supplement's key and mode were checked against the action's schema; its key is
- * the page's, so one sent again after a lost answer is the same supplement to the runtime.
+ * can carry it is the Host's check. A supplement's key, mode and `about` were checked against the action's schema; its
+ * key is the page's, so one sent again after a lost answer is the same supplement to the runtime. A correction names the
+ * input it is about; what changes is in its words (specs/ai-input-receipts D34).
  */
 export async function runControl(body: Record<string, unknown>, models: () => Promise<readonly CodingModelChoice[]>): Promise<CodingRunControl> {
   if (body.kind === "answer") return questionAnswer(body);
   if (body.kind === "steer") return { kind: "steer", send: { text: text(body.text, "补充要求", 100_000),
-    ...(typeof body.key === "string" ? { key: body.key } : {}), ...(typeof body.mode === "string" ? { mode: body.mode as AgentSteerMode } : {}) } };
+    ...(typeof body.key === "string" ? { key: body.key } : {}), ...(typeof body.mode === "string" ? { mode: body.mode as AgentSteerMode } : {}),
+    ...(typeof body.about === "string" ? { about: body.about } : {}) } };
+  if (body.kind === "withdraw") return { kind: "withdraw", input_id: text(body.input_id, "补充引用") };
   if (body.kind === "stop" || body.kind === "pause" || body.kind === "resume") return { kind: body.kind };
   if (body.kind === "switch-model") {
     const model = (await models()).find(entry => entry.provider_id === body.provider_id && entry.model_id === body.model_id);

@@ -11,6 +11,9 @@
  * that key, the lost one did arrive: the bubble goes, so the same words are not shown twice with opposite claims, and the
  * page says once that it had arrived, as it does for a resend the runtime recognises (`landed`).
  *
+ * From a receipt (`act`, stage 3b-2a) the person takes back a supplement the round has not put in the context, or sends a
+ * correction naming it (`about`); both go through the round's control, and the receipt keeps the words until they arrive.
+ *
  * Interrupting drops the reply the model was writing: the page dims the one it was showing being written and says so. The runtime's
  * record does not mark that reply (a Prologue need in the spec), so the mark is the page's own and a reload loses it.
  */
@@ -31,6 +34,13 @@ export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,land
   return {
     steer(id,run,text,mode){
       return send({id,run,text,mode,key:item?.lost&&item.id==id&&item.text==text&&item.mode==mode?item.key:'send.'+crypto.randomUUID()});
+    },
+    act(id,run){
+      const path='/sessions/'+encodeURIComponent(id)+'/control',lost=error=>{throw error instanceof TypeError||error.name=='SyntaxError'?Error('没确认送到：再按一次，同一条不会重复。'):error;};
+      return {
+        withdraw:input_id=>api(path,'POST',{kind:'withdraw',run_id:run,input_id}).then(({withdrawn})=>withdrawn.from=='queued'?'已撤回，下一轮不会带上它。':'',lost).finally(refresh),
+        correct:(about,text,key)=>api(path,'POST',{kind:'steer',run_id:run,text,about,key:'send.'+key}).then(({receipt})=>receipt.replayed?AGAIN:receipt.delivered=='queued'?SENT['after-run']:'更正已送达。',lost).finally(refresh),
+      };
     },
     bubble(id,run){
       if(item?.id!=id)return null;

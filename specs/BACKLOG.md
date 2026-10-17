@@ -74,6 +74,7 @@
 | BL-145 | 助理主工作带全部工具的一轮正好 20 个工具（业务 4、网关 5、委派 4、记忆 4、侧栏 3）。Prologue 超过 20 个就把所有非系统工具的描述延后（`horizontal/agent-host/src/adapters/prologue-node-port.ts` 的 `deferToolSchemasBeyond: 20`），模型只看到每个描述的第一句；A3① 起委派与记忆怎样调用只写在各自的工具描述里，再多一个工具，这些用法就都看不见了。现成的缓解：#599（prologue#30）合入后，延后时 find-tools 一定调得到，模型能按需取回完整描述；但「用法放在工具描述里、每轮都看得见」这个前提就不再成立 | [ai-development-handbook §9.5 A3①](ai-development-handbook/spec.md) | 已知缺口 | 今天正好 20 个，没有触发；要定的是延后以后用法放在哪里（描述的第一句、角色层，还是靠 find-tools 取回） | #599 | 中 | AI 手册线 |
 | BL-146 | 「记住」一类的事实有几个主人：助理记忆（`remember`，个人与项目两个范围）、Goals 的「新增项目长期说明」（`goals.guidance.add`）、Alchemist 的「添加个人偏好」（`alchemist.memory.taste.create`）。A3① 评测里用户说「以后周报都按三段写」，三样模型都选过（Goals、Alchemist 各一次），选哪个都说得通，结果却落在不同的地方、按不同的规则生效 | [ai-development-handbook §9.5 A3①](ai-development-handbook/spec.md) | 已知缺口 | 要先定这几样事实各归谁、怎样分工（产品语义，先问用户），再改动作的标题与用途说明；不在提示词里加「不要用」 | 无 | 中 | AI 手册线（先问用户） |
 | BL-150 | 助理回复里选中一段还不算「手上的东西」：页面的 DOM 选区读取排除了 `[data-assistant-island]`，所以「从回复里选一段放进左边光标处」（§21.2 第 6 条、R23、AC-S15）没有接上，浮条不出、`attach.` 去处也不出。要让助理面板像别的位置一样报告手上的东西（`SurfaceFocus.place = "assistant"`），再由情境总线把左边的落点配上 | [context-program §21.6 W3-B2 一条](context-program/spec.md) | 未实现 | 不在 W3-B2 的范围；统筹 10-16 定排在 W3-B3（分屏窗格里的落点）之后 | W3-B3 | 中 | 情境线 |
+| BL-154 | 子任务里一轮没开起来时结束的那一步，可能已被同一会话的另一轮接着用（#648 的余项）：`AssistantDelegations.startPlaced` 在开始失败时结束它为这一轮加的 `<part>.rN`；若这一轮加上 `.rN` 之后、失败之前，同一会话的另一轮读图，见到它开着就沿用（不另加），那么前一轮失败时会把后一轮正在用的这一步结束掉，后一轮跑着时图上这个子任务不算「还在做」（父工作可能被交回，名额与 `follow_up` 的判断跟着错）。触发条件（以后写成用例）：同一个已交回的子任务上同时来一条定时发送和一条人发的消息，定时那条因定时被删或改而作废（`assertSendCurrent`）；或两轮同时发，只有前一轮的 `host.start` 临时出错。修法（统筹 10-17 定）：失败分支结束这一步之前再读一次图或 Host，只在这一步上还没有开始过任何一轮时才结束；不把结束的责任交给沿用的一轮 | [防腐 §10.24](repository-anti-corruption/spec.md)、#648、`apps/local-host/src/assistant/assistant-delegation.ts` | 已知缺口 | 窗口很窄，且比 #648 之前（这一步一直开着）好，统筹 10-17 定为不必修 | 无 | 低 | 采用线 |
 
 ## 4. 搜索、放置与工作流
 
@@ -147,6 +148,7 @@
 | BL-137 | Prologue SDK 释放一个 8 MiB 资源（`runtime.resources.revoke`）要约 0.8 秒，比暂存加发布还慢；Molis 的文档解析每次释放两份，大附件的解析因此多等约 0.8 秒 | [防腐 §10.11 F-15](repository-anti-corruption/spec.md) | 已知缺口 | Prologue #27 已修（main `e5123369`，8 MiB 从 753 ms 到 31 ms）；P3a 换成这个包后，在 Molis 复测大附件解析，再删行 | Prologue | 低 | 防腐线（随 P3a） |
 | BL-138 | 共享问卷卡在窄宽（约 300px）时，标题行右侧的状态签与收起按钮把标题挤成四字一行；窄卡片时让状态签换到标题下面（容器查询），生产里助理主区的实际宽度先核对 | [防腐 §10.11 F-19](repository-anti-corruption/spec.md) | 已知缺口 | 规格板里看到，生产宽度下未核对 | 无 | 低 | 未分配 |
 | BL-139 | 英文界面里「开始」显示成「Started」（欢迎页主按钮、新建引导的步骤名）：同一中文在状态与动作两种语境下译法不同。要让运行时的 `L()` 认稳定键（W5-03），再给这两处用各自的键 | [防腐 §10.11 F-23](repository-anti-corruption/spec.md) | 已知缺口 | 稳定键的运行时支持还没做 | W5-03 | 低 | 未分配 |
+| BL-155 | 「校验用的参数合同去掉 `x-mcp-header`」这条规则有两份：SDK 的 `mcpToolInputSchema`（Prologue #36）与 Molis 的 `mcpActionInputSchema`（`apps/local-host/src/mcp-tool-actions.ts`，#650）。Molis 另写一份，是因为只有 `horizontal/agent-host` 依赖 SDK，local-host 用不到 SDK 的那一份；同一条规则写两遍，上游改了这边不会知道。要么由 agent-host 导出 SDK 的校验副本给 local-host 用，要么写明两份怎样保持一致（例如一条用例拿同一批带标注的 schema 比两边的结果） | [防腐 §10.24](repository-anti-corruption/spec.md)、#650、Prologue #36 | 已知缺口 | 合入后复查时发现 | 无 | 低 | 采用线 |
 
 ## 8. 交给第二步（防腐整理）
 

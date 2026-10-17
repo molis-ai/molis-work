@@ -978,4 +978,45 @@ Coding 的指令单测（同 A 的做法，10 条自编的 Coding 结尾 × 3，
   自己没有某个工具时子任务也拿不到，由确定性用例 tests/prologue-subagents.test.ts「(A1)」证明，没有用真实模型跑。
 ```
 
+#### BL-151 协调者不再教怎样等子任务和后台命令（2026-10-18）
+
+判定规则在第一次调用之前写下并经统筹确认（10-18），单独作为一笔提交；结果在下面另记。
+
+```text
+改动：plugins/native/coding/src/roles.ts 的 coding-coordinator 升 v7，只删不加：
+  删「可后台分派后用 await-subagents 收取结果；超时不是失败。」——只教了后台加收取这一条路；await-subagents 的说明里写着
+  "Timing out is not a failure"。
+  删「你自己要等时也用 await-commands，等待期间不调模型，不要反复读输出。」——await-commands 的说明里写着
+  "instead of reading their output again and again" 和 "nothing is spent while it waits"。
+  同一 PR 做掉 BL-159：horizontal/agent-host/src/adapters/prologue-run.ts 的子角色说明删去「，本轮没有的除外」（Prologue 对
+  这种派出整次拒绝，CHARACTER_ESCALATION；Molis 的 runTools 总带着每个子角色的全部工具，碰不到），注释同步。这段宿主文字
+  没有自己的版本。
+要解决的问题：BL-151。P4-C1（prologue-adoption §6.0i）里人说了「这一轮就收工、把这一步交给它」，MiniMax 7 次只让出 2 次。
+  统筹 10-17 定：不往角色里加「何时让出」——dispatch-subagent 的 yield 说明已经写了 "Use it when nothing useful can happen
+  until it is done"，再写一遍是把工具用法抄进角色（手册 13.1）；T1 里被明说要收工仍只让出 2/7 是模型能力，不打补丁。
+  但 v6 只教了后台加收取一条路，是偏向一边的教法：删掉，让工具说明自己讲怎样选。
+比什么：改前 v6（main bee59ffdd），改后 v7（ai/bl151-coordinator-await b82df3ab2）。同一个工作树、同一份 vendored SDK
+  （24e69083）；v6 的 agent-host 与 coding 两个包构建进被忽略的 node_modules/.eval-v6，其余一样。
+环境：MiniMax / MiniMax-M3，anthropic-messages。每次一个进程，构建出来的 AgentHost + createPrologueNodeAdapter，用 Coding 的
+  codingAgentManifest 与 codingPrompts 起一轮；不建 Home，密钥只在命令上内联读取、只交给 resolveCredential。让出之后照 Coding
+  的唤醒循环（openWait / wakeBodyOf）开下一轮，最多 4 轮，整次 8 分钟封顶。审查自动批准（三题都只读）。
+任务（每次一个新的临时项目，coordinator）：
+  T1 P4-C1 原题一字不改：「派一个代码调查子任务去读 README.md，数一下它有几个二级标题。派出去以后你这一轮就收工、把这一步
+    交给它，不要自己去读；等它做完再接着告诉我结果。」README 有 3 个二级标题（Install、Use、License）和 1 个三级标题。
+    答对＝最后一轮的回复写「3 个」或「三个」，且没写别的数「个二级标题」。
+  T2 A1 的 T1：a/、b/ 两个互不相关的模块各自读哪个环境变量，要求各派一个代码调查子任务并行查。答对＝最后一轮同时写出
+    ALPHA_SERVICE_URL 和 BETA_ACCESS_TOKEN；派全＝两个 coding-reader 都起来并完成。
+  T3 只派一个子任务、不提收工：「请派一个代码调查子任务看看 src/parse.js 导出了哪些函数，告诉我函数名。」答对＝同时写出
+    parseDate 和 parseAmount。
+次数：三题各 8 次 × 两版，共 48 次；第 r 轮按 T1、T2、T3 跑，r 为偶数先改前、奇数先改后。
+判定（两条都满足就采用 v7）：
+  1. T2「派全且答对」改后 ≥ 改前 − 1；
+  2. T1、T2、T3 各自「答对」改后 ≥ 改前 − 1。
+  照实记录、不作为条件：各题让出（有一次派出带 yield）、后台、前台的运行数；T1 里协调者自己读文件的运行数；派出被拒、运行
+  出错、轮数、模型调用数、用时、协调者系统文字长度。T1 让出仍低就按「模型能力」记在这里，附 P4-C1 的 2/7 与这一次的数，
+  BL-151 删行时引用这条记录。
+出错的运行：Provider 5xx/429、网络、超时都算没答对，照实列出，不重跑；任一版出错超过 2 次，先交统筹再判。没答对的逐条标
+  设计问题 / 模型能力 / 拿不准。
+```
+
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。

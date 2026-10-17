@@ -815,3 +815,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 防腐线又补了几处，统筹已认可：所有 progress 行合计不超过 1 MiB；`observeDeactivation` 在升级、重装、回滚时也通知；进度经 `BoundActionClient.invoke` 新加的第四个参数 `transport?: { on_progress? }` 传给动作，不把 control 展开成新对象。#679 是按对象身份认宿主签发的 control 的，展开以后项目就丢了。
 - **标签脚本误判，已修（10-17 夜）**：#669 已经 DIRTY，但 label-when-free2 没有取到合并预览的 base：`git rev-parse` 原样吐回了字符串，接下来的 `git diff` 出错，结果算出「无重叠」，就给它加了 full-suite。CI 没有起全量。已经撤掉标签，按 pid 停了它的 gate 子进程，把 PR 上那条留言改成了更正。脚本改了三处：遇到 CONFLICTING 直接不加；base 用 `--verify -q` 取；`git diff` 出错就不加。
 - #677 在 #667 合入后和 main 冲突（page-assets.json），已请防腐线 merge main 后重新测量；它还没跑过全量，新 head 来了要重新排进标签链。
+- #667 合入后，有四个 PR 在 page-assets.json 上和 main 冲突：#673、#675（另有 baseline.json）、#669、#671（另有 receipts 的源码）。chain4 跳过了 #677、#673、#675，现在在等 #679（它没改 page-assets，可以合并）。#673 和 #675 已请各自的线 merge main、重新测量。
+- #677 → 1e9055a38：除去 page-assets 和 baseline，和审过的 68c4d0a5d 逐行一致；三份 CSS 的降幅不变。挂上 chain5。W5-01 本地已经并了 #667，+28 改成以 [1104882, 1104910] 定键。

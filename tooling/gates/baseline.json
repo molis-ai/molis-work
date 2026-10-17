@@ -2,10 +2,10 @@
   "giantUnits": 137,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2040,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2032,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1628,
-      "methods": 98
+      "lines": 1619,
+      "methods": 96
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,

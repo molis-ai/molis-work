@@ -33,7 +33,8 @@ const STATIC_STYLES = `
 /**
  * The component board's specimen of the supplement receipt: every state in Coding's bubble and under the Assistant's, from
  * the same program and the same turns. 「推进一步」 moves the second supplement on, so the board shows a change in place and
- * what the page's status region says about it.
+ * what the page's status region says about it. 撤回 and 更正… work on the board: a correction is added as a new supplement
+ * naming the one it corrects, so both ends of the link show.
  */
 export function renderInputReceiptsExample(): string {
   return `<style>${INPUT_RECEIPTS_STYLES}${STATIC_STYLES}</style>
@@ -45,9 +46,11 @@ export function renderInputReceiptsExample(): string {
   <script>(()=>{const coding=document.querySelector('[data-rc-coding]'),assistant=document.querySelector('[data-rc-assistant]');if(!coding||!assistant)return;
     const L=globalThis.L||(text=>text),one=(${INPUT_RECEIPTS_CLIENT_SCRIPT})(L),two=(${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
     const turns=${JSON.stringify(TURNS)};
+    const act={withdraw:async id=>{turns.find(turn=>turn.steer.id===id).steer.state='withdrawn';setTimeout(paint);},
+      correct:async(about,text)=>{const n=turns.length+1;turns.push({turn_id:'t'+n,kind:'user',text,steer:{id:'steer-'+n,state:'received',about}});setTimeout(paint);}};
     const paint=()=>{coding.replaceChildren();assistant.replaceChildren();for(const turn of turns){
-      const node=document.createElement('article');node.dataset.kind=turn.kind;node.textContent=turn.text;const a=one.line(turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[]});if(a)node.append(a);coding.append(node);
-      const bubble=document.createElement('p');bubble.className='msg';bubble.dataset.kind=turn.kind;bubble.textContent=turn.text;assistant.append(bubble);const b=two.line(turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[]});if(b)assistant.append(b);
+      const node=document.createElement('article');node.dataset.kind=turn.kind;node.textContent=turn.text;const a=one.line(turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[]},act);if(a)node.append(a);coding.append(node);
+      const bubble=document.createElement('p');bubble.className='msg';bubble.dataset.kind=turn.kind;bubble.textContent=turn.text;assistant.append(bubble);const b=two.line(turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[]},act);if(b)assistant.append(b);
       if(turn.open){a?.setAttribute('open','');b?.setAttribute('open','');delete turn.open;}}};
     paint();
     const steps=[{state:'read'},{state:'read',model_claim:{treatment:'apply-now',kind:'constraint',targets:[],impacts:['constraint'],revisions:1}}];

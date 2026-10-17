@@ -1491,6 +1491,17 @@ Molis 这边：
 
 原有断言照留：边界、上限、停止、归档后仍算数、交回、W2-18 的几条竞态。
 
+- 验证（变基到 main `5239a371` 之后）：
+  - `pnpm build` 通过。`pnpm api:update` 没有再改快照：`contracts/services/agent-collaboration` 只多 `works?`、`AgentWorkGraphPort`、`AgentWorkNode`，和 §6.0j 的 `revise` 并存。
+  - 助理的全部非浏览器用例，加上 §6.0j 的修订用例（`agent-collaboration-revise`、`prologue-step-amend`、`prologue-project-board`、`coding-step-claims`、`coding-plan-amend-http`、`coding-runtime-regressions`）和 `prologue-taskboard`，共 40 个文件，39 个一次过。
+    - 第 40 个是 `system-search-lifecycle`：在机器满载（负载 16～21）的批次里红了三次，都是刚建的目标还没进索引，搜索就先回答了。
+    - 单独跑时，这条分支和干净基线（main `446c0521`）同时各跑三次，都是 3/3 过。判为负载下的时序，不是这一片引入的。
+  - 变基前跑过 `affected-tests` 选的 193 个文件，满载下 13 个红。单独重跑后过了 10 个。
+    - 剩下的 `installed-plugin-host`、`prologue-documents` 是超时（30 秒、120 秒）；`system-search-lifecycle` 同上。
+    - 这三个在基线上一次都过。
+  - 变异：去掉 `ended()` 那一行，`assistant-delegation` 的 11 条里 7 条红。
+  - `check-health-gates --base origin/main`、`boundary:check` 都过；`pnpm test:security` 58/58，`pnpm test:contracts` 44/44。
+    - `AssistantService` 1643→1640 行，方法数 98 不变；`AssistantStore` 不变；`assistant-delegation.ts` 的类 293 行，在 300 以下。
 - 未验证：
   - 两个浏览器用例（`assistant-handback.e2e`、`assistant-follow-live.e2e`）留给统筹排的全量。
   - 真实模型没走：这一片不改提示词，也不改工具说明。

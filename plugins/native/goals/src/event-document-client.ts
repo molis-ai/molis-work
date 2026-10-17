@@ -586,13 +586,6 @@ ${GOALS_DELIVERABLES_SCRIPT}
         })();
         return;
       }
-      const locateReq = event.target.closest("[data-locate-requirement]");
-      if (locateReq) {
-        if (locateReq.dataset.reportEvent) { void locateHistory(locateReq.dataset.reportEvent); return; }
-        if (locateReq.dataset.boundType) { showForm("report", locateReq.dataset.boundType); return; }
-        showForm("requirements");
-        return;
-      }
       const locate = event.target.closest("[data-locate-event]");
       if (locate) {
         if (locate.dataset.locateEvent) { void locateHistory(locate.dataset.locateEvent); return; }

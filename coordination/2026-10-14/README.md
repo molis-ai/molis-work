@@ -763,3 +763,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **合并预览卡在旧的 base 上**：10-17 #654 的 `refs/pull/654/merge` 停在 106d6163a，main 已经到了 26ff046cb；查了 10 分钟 mergeable，GitHub 一直没重算，label-when-free 退出（MERGE REF STALE），这是对的，不该拿旧 main 去跑全量。处理：请分支的主人 merge main 再推，用新 head 重新挂 label-chain。不用 close/reopen，也不替别人更新分支。注意：label-chain 的这一步失败时 `|| exit 1`，后面没有任何通知；要单独起一个后台进程，等它结束再报。
 - **标签链遇到合并预览不更新会整条停下**：10-17 夜，#670 的预览 10 分钟都没有重算，旧的 label-chain 直接 `exit 1`，排在后面的 #669、#672 没有加上标签。现在改用 `label-chain2.zsh` 和 `label-when-free2.zsh`（统筹 scratchpad）：预览不更新时，自动比对「预览的 base 到 origin/main 之间改了哪些文件」和 PR 自己的文件；不重叠就照常加标签，并在 PR 上留言说明；有重叠就跳过这个 PR，接着处理下一个，不再整条停下。
 - #673 → 8a59b07a1：base 改成 main、merge main，对 main 的改动行和审过的 d364b4c6c 逐行一致。新的标签链是 670→669→672→677→673；#667 由旧链单独处理。
+- #675 → fc2f7538d：base 改成 main、merge main，对 main 的改动和审过的 89e8b143b 逐行一致；排在标签链 673 之后（chain2-675）。#670 已加标签，全量在排队。
+- **A4（采用线，助理那一半的收尾）**：
+  - Q1，统筹定：6/3/2 的上限放在 `AssistantDelegations` 的 `DELEGATION_LIMITS`，只在这一处定义。
+  - **Q2，用户 10-17 弹窗定**：旧的子工作去掉 `delegated_by`，成为独立工作。
+  - **Q3，用户 10-17 弹窗同意**：可以在真实 Home 助理库和 Prologue 库的只读拷贝上演练，只看数量、不读密钥，跑完删掉；真实的库在下一次安装时和维护八同一步写，那时再问用户。
+  - Q4，统筹定：A4 不是 3 号基线那一片。
+- #679（防腐，Home 插件路由带上页面所在的项目；aaa4fe966）统筹审过，做法认可，退回两处：
+  - ① 路由里的调用要是先等再写，`beforeEffect` 每次写之前都要再查一次项目还在、还显示这个插件；
+  - ② 请求结束后，宿主发出的项目控制要失效：拒绝，不能退回成「没有项目」。

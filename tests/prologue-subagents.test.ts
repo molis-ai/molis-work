@@ -116,3 +116,54 @@ for (const outcome of ['rejected','cancelled','failed','unknown-role'] as const)
     assert.equal(decided.size,outcome==='unknown-role'?0:1);
   }finally{await adapter.close();await rm(root,{recursive:true,force:true});}
 });
+
+test('a named child role brings its own tools: an empty tools list still gives them, and nothing past them or the parent is given (A1)', {timeout:40_000}, async t=>{
+  const root=await mkdtemp(join(tmpdir(),'molis-child-tools-'));let parentCalls=0;const childTools:Record<string,string[]>={};let parentTools:string[]=[];
+  const firstText=(body:any)=>{const message=body.messages[0];return typeof message.content==='string'?message.content:message.content.find((block:any)=>block.type==='text')?.text??'';};
+  t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
+    const body=JSON.parse(typeof init.body==='string'?init.body:new TextDecoder().decode(init.body as Uint8Array));
+    const names=(body.tools??[]).map((tool:any)=>tool.name).sort(),child=/^TOOLS_CHILD_[AB]/.exec(firstText(body))?.[0];
+    if(child){childTools[child]=names;return response(`${child} done`);}
+    parentCalls++;
+    if(parentCalls===1){
+      const system=JSON.stringify(body.system);parentTools=names;
+      assert.doesNotMatch(system,/完整 tools 清单|显式提供/,'the host no longer asks the model to restate the role\'s tools');
+      const character=/(molis-child-[a-z0-9-]+@\d+): 代码调查/.exec(system)?.[1];assert.ok(character,system);
+      return response('',{name:'dispatch-subagent',input:{instruction:'TOOLS_CHILD_A: report done.',tools:[],character,idempotencyKey:'tools-a',maxTurns:2}});
+    }
+    if(parentCalls===2){
+      const character=/(molis-child-[a-z0-9-]+@\d+): 代码调查/.exec(JSON.stringify(body.system))![1];
+      // write and edit: the coordinator does not hold them. run-command: it does (for the reviewer), but this role does not declare it.
+      return response('',{name:'dispatch-subagent',input:{instruction:'TOOLS_CHILD_B: report done.',tools:['read','write','edit','run-command'],character,idempotencyKey:'tools-b',maxTurns:2}});
+    }
+    return response('Both children reported.');
+  });
+  const queue=new AgentReviewQueue();
+  const adapter=await createPrologueNodeAdapter({app:{appId:'io.molis.work.subagent-test',appVersion:'1.0.0'},storageRoot:join(root,'runtime'),reviewQueue:queue,
+    modelConfiguration:async()=>({protocol:'anthropic-compatible',endpoint:'https://1.1.1.1/v1/messages',model:'fixture',credential_ref:'fixture'}),resolveCredential:()=> 'test-only'});
+  try{
+    const host=new AgentHost({reviews:queue});host.register(adapter);
+    const owner={project_id:'b',plugin_id:'io.molis.work.coding',install_id:'i',actor_id:'user'},directory={canonical_path:root,realpath_verified:true};
+    const session=await adapter.createSession({...owner,directory,title:'Parent'});
+    const handle=await host.start('prologue',{...owner,session,directory,role_id:'coordinator',task:'Delegate two inspections.'},
+      {manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root]});
+    const deadline=Date.now()+20_000;let view:AgentRunView;
+    for(;;){
+      view=await adapter.read(handle.ref);
+      if(['completed','failed','cancelled'].includes(view.phase))break;
+      if(Date.now()>deadline)throw new Error('Timed out: '+JSON.stringify({view,childTools}));
+      for(const review of queue.list('b','pending'))await queue.respond({review_id:review.review_id,decision:'approve',actor_id:'user'});
+      await new Promise(resolve=>setTimeout(resolve,10));
+    }
+    assert.equal(view.phase,'completed',view.stop_reason);
+    const declared=['list','read','search'];
+    for(const child of ['TOOLS_CHILD_A','TOOLS_CHILD_B']){
+      const tools=childTools[child];assert.ok(tools,`${child} never asked the model`);
+      for(const name of declared)assert.ok(tools.includes(name),`${child} lacks its role's ${name}: ${tools}`);
+      for(const name of ['write','edit','run-command'])assert.equal(tools.includes(name),false,`${child} was given ${name}: ${tools}`);
+      for(const name of tools)assert.ok(parentTools.includes(name),`${child} holds ${name}, which its parent does not: ${tools}`);
+    }
+    assert.ok(!parentTools.includes('write')&&parentTools.includes('run-command'),parentTools.join());
+    assert.deepEqual(childTools.TOOLS_CHILD_A,childTools.TOOLS_CHILD_B,'what the model put in tools changed nothing');
+  }finally{await adapter.close();await rm(root,{recursive:true,force:true});}
+});

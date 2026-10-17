@@ -918,4 +918,36 @@ Coding 的指令单测（同 A 的做法，10 条自编的 Coding 结尾 × 3，
   验收步骤之后的画面和详情状态（只截了首屏），复查以后的视觉修正一轮（compose 带 reviewSuggestions）。
 ```
 
+#### A1 Coding 子任务不再要求模型重抄角色的 tools 清单（2026-10-17）
+
+```text
+改动：horizontal/agent-host/src/adapters/prologue-run.ts 的 childSetup 去掉「必须选择上述精确 character，并显式提供该角色列出的
+  完整 tools 清单；不能遗漏角色需要的工具或增加其他工具。」，只留事实：可分派的子角色与各自的工具（character 用列出的引用，
+  别的会被拒绝），子任务带着所选角色列出的工具、本轮没有的除外，dispatch-subagent 的 tools 不会让它多一个或少一个、可以写 []。
+  plugins/native/coding/src/roles.ts 的 coding-coordinator、coding-writers 升 v6（Manifest 与正文）：去掉「显式工具」和
+  「tools 按宿主给出的该角色完整清单传入」两类说法，其余不动。
+要解决的问题：清单 A1。2026-09-26 起 SDK 派出时把点名角色声明、且父任务本身有的工具补进名单（用户拍板「就给工具」）；当前包
+  app-wait-ends-step 的 composition/core/surfaces.js 仍是这样。多写的工具在角色冻结时丢掉（character/core/profile.js），
+  父任务没有的在 intersectPermissions 里滤掉。这句要求已经没有来由（手册 12.4-2），还让模型多猜一个参数（13.4）。
+环境：MiniMax / MiniMax-M3，anthropic-messages，2026-10-17。一次性隔离 Home（文件密钥库），跑完即删；密钥只在命令上内联读取。
+  探针照用例的做法：构建出来的 AgentHost + createPrologueNodeAdapter，用 Coding 的 codingAgentManifest 与 codingPrompts 起一轮，
+  走真实的派出、子任务与宿主审查。改前用 main 的构建（另一个工作树），改后用本分支的构建；两边只差上面的文字。审查由脚本代答：
+  派出与读写在本轮的临时目录里一律批准；命令只批准 node 与只读的 ls、cat、pwd，其余拒绝并记下。
+任务（每次一个新的临时项目）：
+  T1 两处可并行的只读调查（coordinator）：a/、b/ 两个模块各自从哪个环境变量读配置，要求各派一个代码调查子任务。
+  T2 要评审跑测试（coordinator）：一个带 node --test 用例的小项目，其中一条故意失败；要独立评审子任务跑测试、说出哪条失败。
+  T3 小修（writers，一个子目录 writer-0）：分工是把 src/greet.js 里拼错的 Helo 改成 Hello。
+判定规则（第一次调用之前写下）：
+  每次派出（模型的每个 dispatch-subagent 调用）归一类：与 tools 有关的失败（参数不合、越权、角色工具超出，按返回的错误码与原文
+  判）；别的失败（错误码与原文照记）；成功开出子任务。
+  判定：与 tools 有关的派出失败，改后 ≤ 改前（各 9 次运行）。
+  守卫一：派出成功的运行（任务要的子任务都开出并结束：T1 两个代码调查、T2 一个独立评审、T3 writer-0 的独立实现）改后 ≥ 改前 − 1。
+  守卫二：任务完成的运行（T1 最终回答说出两个变量名，T2 说出失败那条用例的名字，T3 writer-0 里的文件已改对）改后 ≥ 改前 − 1。
+  守卫出界算拿不准：三个任务各再跑一次、两版交替，合起来判；仍出界就不采用。
+  只报告、不判定：模型在 tools 里写了什么（空、恰好是角色清单、少了、多了，多了的列出名字），每次运行的派出次数、模型调用次数、
+  耗时；被拒的命令。每项失败分开记，标明设计问题、模型能力还是拿不准。
+次数：3 个任务 × 3 次 × 两版，共 18 次运行，改前改后交替。
+结果：（评测后填写）
+```
+
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。

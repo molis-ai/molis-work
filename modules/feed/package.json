@@ -4,7 +4,7 @@
   "private": true,
   "description": "Feed Item visibility, read/archive state, disposition, and promotion provenance.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

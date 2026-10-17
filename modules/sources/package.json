@@ -4,7 +4,7 @@
   "private": true,
   "description": "Source identity, desired listening state, scope, schedule intent, and provider binding references.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

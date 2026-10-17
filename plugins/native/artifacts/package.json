@@ -4,7 +4,7 @@
   "private": true,
   "description": "Protected first-party Artifact browsing, embedding, and composition.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

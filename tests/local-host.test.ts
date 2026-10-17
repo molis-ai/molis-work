@@ -229,7 +229,8 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
 
 test("legacy entrypoints no longer construct independent business stores", async () => {
   const { readFile } = await import("node:fs/promises");
-  for (const relativePath of ["../apps/local-host/src/web-request.ts", "../apps/local-host/src/mcp-server.ts", "../apps/local-host/src/cli-project.ts"]) {
+  for (const relativePath of ["../apps/local-host/src/web-request.ts", "../apps/local-host/src/web-catalog-index-routes.ts", "../apps/local-host/src/web-project-context.ts",
+    "../apps/local-host/src/web-project-platform-routes.ts", "../apps/local-host/src/web-route-table.ts", "../apps/local-host/src/mcp-server.ts", "../apps/local-host/src/cli-project.ts"]) {
     const source = await readFile(new URL(relativePath, import.meta.url), "utf8");
     assert.doesNotMatch(source, /new\s+(?:SqliteMolisWorkStore|LocalProjectDatabase|MolisWorkCoordinator|GoalProjectApplication)\s*\(/u, relativePath);
     assert.match(source, /MolisWorkLocalHost|localHost/u, relativePath);

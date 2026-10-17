@@ -422,6 +422,7 @@ tests/uninstall-catalog.test.ts
 tests/v1.test.ts
 tests/visual-foundation.test.ts
 tests/web-mutation-key-settle.test.ts
+tests/web-route-table.test.ts
 tests/web-service-settings-client.test.ts
 tests/work-placement.test.ts
 tests/work-session-ui.test.ts

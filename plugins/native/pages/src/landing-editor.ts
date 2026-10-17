@@ -122,7 +122,7 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
       CSS.highlights.set("pages-landing", new Highlight(range));
       clear = () => CSS.highlights.delete("pages-landing");
     }
-    setTimeout(() => { clear(); flashing = false; }, 700);
+    setTimeout(() => { clear(); flashing = false; }, 640);
   });
   return { report };
 }

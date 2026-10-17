@@ -115,7 +115,7 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   // Interrupting dropped the reply under way; the round goes on with the person's words, and its record shows them with a receipt.
   for (let i = 0; i < 600 && bodies.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.match(JSON.stringify(bodies[1]?.messages ?? ""), /v2\/login/u);
-  await waitFor(`[...document.querySelectorAll('${coding} .coding-turn[data-kind=user]')].some(node => node.textContent.includes('/v2/login') && node.querySelector('.coding-turn-receipt')) && !document.querySelector('${coding} .coding-turn.is-sending')`, 20_000);
+  await waitFor(`[...document.querySelectorAll('${coding} .coding-turn[data-kind=user]')].some(node => node.textContent.includes('/v2/login') && node.querySelector('.mw-receipt')) && !document.querySelector('${coding} .coding-turn.is-sending')`, 20_000);
   // RC-16: the page marks the reply it showed being written as dropped; the runtime's record does not (a Prologue need).
   assert.equal(await evaluate<boolean>(`[...document.querySelectorAll('${coding} .coding-turn.is-dropped')].some(node => node.textContent.includes('正在看登录流程') && node.textContent.includes('这段回复已丢掉（你打断了它）'))`), true);
   await shot("coding-send-receipt.png");

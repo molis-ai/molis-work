@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentFrozenRole, AgentRunOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { GATEWAY_TOOLS, normalizedInput, offerWords } from "./prologue-action-gateway.js";
+import { capabilityInput, GATEWAY_TOOLS, offerWords } from "./prologue-action-gateway.js";
 import { actionDigest } from "../action-digest.js";
 
 export const agentActionToolName = (ref: ExactActionReference, scope: string) => "molis-action-" + scope + "-" + createHash("sha256")
@@ -96,7 +96,7 @@ function suggestTool(actions: NonNullable<AgentFrozenRole["actions"]>, byName: R
     if (!view) throw new ActionError("actions.forbidden", "Only one of this round's own action tools can be suggested; nothing was suggested.");
     const current = await currentAction(actions, view);
     const reference = { capability_id: current.capability_id, version: current.version, provider_id: current.provider.provider_id };
-    const input = normalizedInput(current, args.input);
+    const input = capabilityInput(current, args.input);
     await actions.client.check?.(reference, input);
     if (runSignal?.aborted || call.signal?.aborted) throw new ActionError("actions.cancelled", "Agent action cancelled");
     const offer: AgentRunOffer = { offer_id: randomUUID(), offered_at: new Date().toISOString(), ...offerWords(args), reference, input, action_digest: actionDigest(current) };

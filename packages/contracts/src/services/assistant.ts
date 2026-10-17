@@ -191,7 +191,26 @@ export interface AssistantContextSnapshot {
   selection?: { text: string; truncated?: boolean };
   /** The object has edits not yet saved: a selection or excerpt from it is a draft, not the saved version. */
   unsaved?: boolean;
+  /**
+   * Where something would be put in the object open on the left, as its owner page reported it (`SurfaceLanding` in
+   * services/contextual), bounded. Sent only while that object goes with the Send and the person kept it on the strip. A
+   * claim like the rest: the Host reads the object again from its owner first and drops the landing when it cannot.
+   */
+  landing?: AssistantLanding;
   captured_at: string;
+}
+
+/** The part of a landing a round is told: which object, where in it, and the text around that place. */
+export interface AssistantLanding {
+  plugin_id: string;
+  object: { kind: string; id: string; title?: string };
+  position: "cursor" | "selection" | "end" | "object";
+  /** The headings above the place, outermost first. */
+  heading_path?: string[];
+  /** Bounded text just before and after the place; for `selection`, the text that is selected. */
+  before?: string;
+  after?: string;
+  selected?: string;
 }
 
 /** A material the person put into this message, or one the page offered and they kept. */

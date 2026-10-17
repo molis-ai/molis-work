@@ -546,6 +546,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - 情境线 W3-B3（分屏落点 B-6）改 page-assets.json（workbench.js 约 +1.3 KB，用死代码抵到只降），排在 T2 之后。统筹 10-17 定：窗格 postMessage 算本机安全边界，同一个 PR 里在 SECURITY-INVARIANTS 加 S-30（同源、来源窗口是 `iframe[data-pane-owner]`、令牌只认自己的框且只能用一次，覆盖全部窗格消息类型），首选不开浏览器的拒绝用例；已有窗格消息缺拒绝用例的，按安全缺陷先补。
     - #619 merge main 后是 `a793f53df`：除 page-assets 外，diff 和审过的 head 逐行相同，已挂全量。P4-C2 是 #632（`8086f81d4`），统筹审过：revise 只给插件、schema 按种类严格、actor 从调用上下文取、先 fresh 再按版本提交，取消、撤权、跨会话的拒绝用例齐全；typed amend 删干净了；换包 reference-kinds（SHA 585909b1，patch-history 第 21 条）。已挂全量，排在 #631（jing xu 自己跑的）和 #619 之后。C2 合入后通知交互线推 T2。
     - 采用线 P4 助理一半分四片：A1 常驻板与子节点 → A2 交回与接着做（删 handed_back_run 等） → A3 后台作业（external 条件，删 assistant.job-check 排程） → A4 收尾（上限进协作配置，存量数据用一次性脚本处理）。**用户弹窗定**：①每个 Work 一块板（不同 Work 之间不交接）；④A4 合入前先在真实 Home 的只读拷贝上试跑脚本，结果给用户看，用户同意后再备份、停服务、跑脚本；没交回的子任务记成需人工核对、不自动续跑；之前谁都不碰真实 Home。统筹定：交回后照旧自动接着做（请求键）；一次跟进一个节点、不重开已结束的；A1 先做；A3 开工前先在 SDK 里核实收尾。每片照 W5-10 形状做，AssistantService/AssistantStore 只降。
+    - #628 修好后是 `d894fc01a`（并了 main 0a931c978）。统筹核对：相对 merge-tree(main, 15941159f) 只多了 RC-09 的期望值（完整比较，带上 key）和一条 RC-17 断言（key 是发送时的那个）。回执线判定 key 本来就该在重放视图里，是预期变化。已挂全量。漏跑的原因是 affected-tests 没把合同字段的改动和读这个字段的用例连起来，回执线在 BACKLOG 记一行，归防腐线。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

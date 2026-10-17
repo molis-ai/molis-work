@@ -4,6 +4,7 @@ import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from 
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
+import { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./assistant-work-objects.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
 
@@ -1708,25 +1709,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
      the current work (opened from it, produced by it) or the person adds it with +; then the model sees it and the work
      is linked under it, otherwise neither (spec §21.5). What a page hands over brings its object along. */
   const joined = new Set();
-  const objectKey = (object) => object.kind + ":" + object.id;
-  const belongsToWork = (object) => Boolean(view && view.work.work_id === curId && (view.objects || []).some((item) => item.subject.kind === object.kind && item.subject.id === object.id));
+  const { objectKey, belongsToWork, holds, relatedWorks, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: () => Boolean(panel && !panel.hidden),
+    current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats() });
   /** The Coding session open on the page, which a new Coding work continues instead of starting another. */
   const codingSession = () => { const ctx = pageCtx(); return ctx && ctx.object && ctx.object.kind === "coding_session" ? ctx.object.id : null; };
-  const relatedCache = new Map();
-  const relatedWorks = (object) => {
-    const key = objectKey(object), held = relatedCache.get(key);
-    if (held && Date.now() - held.at < 10000) return held.works;
-    relatedCache.set(key, { at: Date.now(), works: held ? held.works : [] });
-    api("/related?kind=" + encodeURIComponent(object.kind) + "&id=" + encodeURIComponent(object.id))
-      .then((res) => { relatedCache.set(key, { at: Date.now(), works: res.works || [] }); paintMats(); }).catch(() => {});
-    return held ? held.works : [];
-  };
   const pageObject = () => {
     const ctx = pageCtx();
     if (!ctx || !ctx.object || removed.has("object")) return null;
     const object = ctx.object;
-    const related = Boolean(curId) && belongsToWork(object);
-    return { object, context:ctx, related, included: related || joined.has(objectKey(object)) };
+    return { object, context:ctx, related: belongsToWork(object), included: holds(object) };
   };
   const clip = (text, size) => text.length > size ? text.slice(0, size - 1) + "…" : text;
   /** The materials this Send would carry, each named and removable; page items are marked as coming from the page. */
@@ -2114,7 +2105,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
     const named = typeof detail.work_id === "string" && detail.work_id ? detail.work_id : "";
     if (named && !works.some((work) => work.work_id === named)) await loadWorks();
-    if (named && works.some((work) => work.work_id === named)) await switchTo(named);
+    // The work on show reads itself again, so a card just placed in it shows now.
+    if (named && works.some((work) => work.work_id === named)) await (named === curId ? reload().then(poll) : switchTo(named));
     else if (detail.new === true || named) await switchTo(null);
     const source = detail.source && typeof detail.source.surface === "string" && detail.source.surface
       ? { surface: detail.source.surface.slice(0, 80), title: typeof detail.source.title === "string" && detail.source.title ? detail.source.title.slice(0, 80) : detail.source.surface.slice(0, 80) } : null;
@@ -2136,7 +2128,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     if (message.purpose === "change") {
       if (!message.object) return;
-      relatedCache.delete(objectKey(message.object));
+      forgetRelated(message.object);
       if (view && belongsToWork(message.object)) void reload().then(poll).catch(() => {});
       return;
     }

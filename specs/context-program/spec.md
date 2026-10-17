@@ -1330,6 +1330,12 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 窗格消息的检查只写一份（S-30，统筹 10-17 定加行）：新文件 `pane-messages.ts`（`PANE_MESSAGES_SCRIPT`）给出「是哪个窗格发来的」「是不是外面那一页发来的」与「记号只给那个框、只用一次」，`context-bus.ts`、`context-landing.ts`、`context-actions.ts` 的窗格一侧与 `tab-workspace.ts` 的窗格消息监听都先过它。顺带收紧：「打开设置」（`workbench-open-settings`）以前收任何同源窗口发来的，现在只收窗格发来的（只有窗格发它）。`tab-workspace.ts` 窗格一侧原来有两个 `message` 监听（Goal 视图；Feed 任务与新增），并成一个，各自的来源检查只写一次，这个巨大单元的行数与 main 持平。拒绝用例是不开浏览器的 `tests/security-invariants-pane-messages.test.ts`，进 `pnpm test:security`。
   - 写在 `context-landing.ts`（顶层与窗格各一段）；`context-bus.ts` 只变短（窗格检查换成一行），`assistant-island.ts`、`client.ts` 不动。
   - 验收编号：PANE-LAND-01（窗格里留下光标 → 顶层收到带窗格名、不带 `screen` 的落点 → 右栏选一句「插入到光标处」→ 预览在窗格里、顶层没有 → 放进去、存下）、PANE-LAND-02（不是窗格的窗口发来的落点被丢掉），在 `tests/context-landing-panes.e2e.test.ts`。
+- 2026-10-17 W3-A3a 实现（分支 `context/w3a3a-card-in-work`；方案与两条条件统筹 10-17 定）：§21.2 第 5 条，浮条或开场建议选的写动作，卡片放进你正在做的工作。
+  - 判断：页面准备好卡后发登记过的请求 `molis:assistant-card-target`（`context-card-target.ts`，同步派发，只认第一次回答，只收字符串或 null）。助理在 `assistant-work-objects.ts` 里回答：面板开着、当前工作是助理自己的（不是 Coding）、且这项工作「拿着」这个对象时，回当前工作的 id。「拿着」只有一条规则，就是情境条用的那条：工作自己的对象（助理的 relation 行，随工作视图读来），或人在情境条里按 + 加入的。没人回答（没有助理、面板关着、对象不属于它），照旧新开一项。
+  - `work_id` 只是指针：宿主 `offerFromPage` 本来就只认本人的工作（按服务自己的 actor 查，不从输入取身份），已归档、Coding 的、别的项目的都拒；这次补上这四种拒绝的测试（`tests/assistant-business-gateway.test.ts`「W3-A3a」）。
+  - 放进当前工作后，`molis:assistant-open` 让正在显示的工作重读，卡片马上出现，不用等轮询。
+  - 不变大：岛把对象与工作的几样（`objectKey`、`belongsToWork`、相关工作的缓存）搬到新文件，净减 8 行；`context-bus.ts` 把行与开场建议两处一样的选择处理合成 `settle`，净减 1 行。`molis-work-workbench.js` 比 main 小 3,210 B：删掉没有任何渲染方的客户端代码（`.mobile-switch` 与 `[data-mobile-target]`、`[data-mobile-directory-root]`、`[data-timeline-filter]`，渲染方自 `bc79f8a49` 起就没了；证据表在 PR 里），留下的 `.mobile-switch` 样式交给样式表切片。
+  - 验收：`tests/assistant-card-target.test.ts`（没人回答、只认一次、助理何时回答）；`tests/context-card-in-work.e2e.test.ts`（面板关着新开；面板开着且工作拿着文档时放进同一项并马上显示；再关上又新开）。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

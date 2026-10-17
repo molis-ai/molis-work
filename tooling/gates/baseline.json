@@ -2,14 +2,14 @@
   "giantUnits": 139,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2040,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1956,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1628,
-      "methods": 98
+      "lines": 1555,
+      "methods": 94
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
-      "lines": 267,
-      "methods": 39
+      "lines": 262,
+      "methods": 38
     },
     "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
       "lines": 443,
@@ -1251,7 +1251,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 514,
+  "explicitAnyTotal": 510,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1285,7 +1285,7 @@
     "tests/artifacts-actions-browser.test.ts": 1,
     "tests/artifacts-actions.test.ts": 1,
     "tests/assistant-answers.test.ts": 2,
-    "tests/assistant-business-gateway.test.ts": 12,
+    "tests/assistant-business-gateway.test.ts": 8,
     "tests/assistant-character.test.ts": 4,
     "tests/assistant-coding-executor.test.ts": 5,
     "tests/assistant-delegation.test.ts": 1,

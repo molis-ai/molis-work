@@ -40,6 +40,35 @@ test("S-27 PA-16 a wait may not rest on a write, a judgment, an action the round
 });
 
 // Coordinator 2026-10-16: a checker looks again and again, so a query that asks a model would spend on every look.
+// specs/prologue-adoption §6.0o: the Host names a followed job's query by its exact reference, in a form a round's tool table never has.
+test("S-27 JOB-01 a round's wait may not name the query of a job a work follows", { timeout: 60_000 }, async t => {
+  const tool = `molis-job-query:${JSON.stringify(["fixture.jobs", "fixture.jobs.status", 1])}`;
+  const f = await externalChecks(t, turn => turn === 1 ? boardWait("molis.action-query@1", statusParams(tool)) : { text: "没有可以等的。" });
+  await f.start("等作业 j-1", { action_tools: [f.refs.status] });
+  assert.equal(f.requests.length, 2);
+  assert.match(f.requests[1]!, /这个动作不在这一轮可调用的动作里/, "the Host's name for a job query is not a tool of the round");
+  assert.equal(await f.wait(), undefined, "no wait was registered");
+  assert.equal(f.calls.status, 0, "registering called nothing");
+});
+
+test("S-27 JOB-02 a Host wait on a job a work follows is checked against the work's authority at every look: taken back, nothing is asked and the job is no longer followed", { timeout: 60_000 }, async t => {
+  const f = await externalChecks(t, () => ({ text: "好的。" }));
+  const works = f.adapter.collaboration!.works!;
+  const { graph_id } = await works.open({ key: "job-authority", session_id: f.session.session_id, title: "Work" });
+  await works.follow({ graph_id, key: "k1", job_id: "j-1", title: "Jobs · Start", deadline_ms: 3_600_000, every: { first_ms: 1000, max_ms: 1000 },
+    query: { action: f.refs.status, input: { job: "j-1" }, path: ["state"], done: ["done"], failed: ["failed"] } });
+  const job = async () => (await works.read(graph_id)).find(node => node.node_id === "job.k1");
+  await until("the first look", async () => (await job())?.job?.said === "running");
+  assert.equal(f.calls.status, 1);
+  f.switches.actionsGranted = false;
+  f.switches.state = "done";
+  await until("the next look is refused", async () => (await job())?.state === "needs-reconciliation");
+  assert.deepEqual([(await job())?.job?.ended, f.calls.status], ["unchecked", 1], "the refused look called nothing, and the job is no longer followed");
+  await pause(2_500);
+  assert.equal(f.calls.status, 1, "no look after the refusal");
+  assert.equal(f.requests.length, 0, "and no model call");
+});
+
 test("S-27 PA-16 a wait may not rest on a read-only query that asks a model (model:invoke), even one the round holds", { timeout: 60_000 }, async t => {
   const f = await externalChecks(t, (turn, _messages, tools) => turn === 1 ? boardWait("molis.action-query@1", statusParams(toolTitled(tools, "Summarize job"))) : { text: "没有可以等的。" });
   await f.start("等作业 j-1 的总结", { action_tools: [f.refs.summary] });

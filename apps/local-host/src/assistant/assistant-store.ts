@@ -6,7 +6,7 @@ import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline, 
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
-import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -18,6 +18,10 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * The Assistant's own facts: its works, the rounds the person started in them, and each Send's outcome. Conversation
  * content and run state stay in the Prologue session; business results stay with their owners. One current schema
  * (repository-anti-corruption §4.1), the relations the Assistant keeps in the context ledger included.
+ *
+ * `assistant_jobs` is no longer written: a job a work follows is a step on its graph (specs/prologue-adoption §6.0o).
+ * It stays in version 2 so every Home has the same schema, and a work's rows in it still go with the work. Dropping
+ * it is version 3 with a maintenance step on existing Homes, which is not done here.
  */
 export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
 CREATE TABLE assistant_works (
@@ -94,18 +98,6 @@ export interface StoredUndo extends AssistantUndoable {
   told?: boolean;
 }
 
-/** A background job being followed: the public view plus how to read its state. */
-export interface StoredJob extends AssistantBackgroundJob {
-  key: string;
-  status: { capability_id: string; version: number; provider_id: string };
-  input: string;
-  path: string;
-  done: string[];
-  failed: string[];
-  checks: number;
-  told?: boolean;
-}
-
 /** A notice as stored: the public facts plus whether the person still has to see it. */
 export interface StoredNotice extends Omit<AssistantNotice, "held"> { state: "new" | "seen" | "dismissed" | "resolved" }
 
@@ -154,6 +146,8 @@ export interface StoredCard {
   from?: { surface: string; title?: string };
   source_object?: { kind: string; id: string; version?: number | string | null; title?: string };
   materials?: Array<{ title: string; text: string }>;
+  /** The step of the background job it started (specs/prologue-adoption §6.0o): it stays running until that job ends. */
+  job_step?: { graph_id: string; node_id: string };
   created_at: string;
   updated_at: string;
 }
@@ -356,17 +350,13 @@ export class AssistantStore {
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
   }
 
-  jobs(actorId: string, workId?: string): StoredJob[] {
-    const rows = workId ? this.db.prepare("SELECT body, told FROM assistant_jobs WHERE actor_id=? AND work_id=? ORDER BY rowid").all(actorId, workId)
-      : this.db.prepare("SELECT body, told FROM assistant_jobs WHERE actor_id=? ORDER BY rowid").all(actorId);
-    return rows.map(row => ({ ...JSON.parse(String(row.body)) as StoredJob, told: Number(row.told) === 1 }));
-  }
-
-  saveJob(actorId: string, job: StoredJob): void {
-    const { told: _told, ...body } = job;
-    this.db.prepare("INSERT INTO assistant_jobs(key,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET body=excluded.body")
-      .run(job.key, actorId, job.work_id, JSON.stringify(body));
-    this.#changed(job.work_id);
+  /**
+   * Whether any of the person's works changed, or a card of theirs was run or settled, since `at`: a job one of them
+   * started may still be followed only then (it is followed for a bounded time).
+   */
+  activeSince(actorId: string, at: string): boolean {
+    return Boolean(this.db.prepare("SELECT 1 FROM assistant_works WHERE actor_id=? AND updated_at>? LIMIT 1").get(actorId, at)
+      ?? this.db.prepare("SELECT 1 FROM assistant_cards c JOIN assistant_works w ON w.work_id=c.work_id WHERE w.actor_id=? AND json_extract(c.body,'$.updated_at')>? LIMIT 1").get(actorId, at));
   }
 
   undos(actorId: string, workId: string): StoredUndo[] {
@@ -389,10 +379,9 @@ export class AssistantStore {
     this.setSetting(actorId, "confirm_always", JSON.stringify([...keys]));
   }
 
-  /** What a round that has started was told: those undone changes, ended jobs and settled changes are not told again. */
-  markTold(actorId: string, told: { undos?: readonly string[]; jobs?: readonly string[]; unsettled?: readonly string[] }): void {
+  /** What a round that has started was told: those undone changes and settled changes are not told again. */
+  markTold(actorId: string, told: { undos?: readonly string[]; unsettled?: readonly string[] }): void {
     for (const id of told.undos ?? []) this.db.prepare("UPDATE assistant_undos SET body=json_set(body,'$.told',json('true')) WHERE actor_id=? AND undo_id=? AND json_extract(body,'$.state')='undone'").run(actorId, id);
-    for (const key of told.jobs ?? []) this.db.prepare("UPDATE assistant_jobs SET told=1 WHERE actor_id=? AND key=?").run(actorId, key);
     for (const id of told.unsettled ?? []) this.db.prepare("UPDATE assistant_unsettled SET told=1 WHERE actor_id=? AND change_id=?").run(actorId, id);
   }
 

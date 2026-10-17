@@ -63,15 +63,17 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => options.model === false ? null : ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
-    resolveCredential: () => "fixture-only" });
+    // The background jobs the works follow are looked at with the work's authority, as the Host wires it (agent-work-authority.ts).
+    resolveCredential: () => "fixture-only", checks: { workAuthority: at => service.jobs.authority(at) } });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const ports: ConstructorParameters<typeof AssistantService>[1] = { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
-    projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user", options.now);
-  return { service, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+    projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" };
+  const service: AssistantService = new AssistantService(store, ports, "web-user", options.now);
+  return { service, ports, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a project work finds, reads and — after the person approves the exact input — changes through the gateway, with no directory", { timeout: 60_000 }, async t => {
@@ -467,8 +469,8 @@ test("today's usage comes from the runtime's own receipts; once the person's dai
   } finally { await f.close(); }
 });
 
-test("background work a round or a card starts is followed through the plugin's status query to its end; the person is told and the next round hears it once", { timeout: 60_000 }, async t => {
-  let state = "running";
+/** The fixture's job actions: a command that starts a research run in the background, and the status query it declares. */
+function jobActions(state: { value: string }) {
   const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
     audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
     output_schema: { type: "object", properties: { run: { type: "object", properties: { jobId: { type: "string" } } } } },
@@ -476,85 +478,92 @@ test("background work a round or a card starts is followed through the plugin's 
   const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
     audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
     output_schema: { type: "object", properties: { status: { type: "string" } } } } };
+  let next = 0;
+  return { started: () => next, provider: { provider: { provider_id: "fixture.jobs", kind: "plugin" as const, title: "Research" }, definitions: [start, status],
+    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state.value }) }] } };
+}
+
+/** The work's graph looks at its jobs every second here (the Assistant asks after 15 s, at most every 5 minutes). */
+function lookOften(f: Awaited<ReturnType<typeof fixture>>) {
+  const works = f.host.adapter("prologue").collaboration!.works!, follow = works.follow.bind(works);
+  works.follow = input => follow({ ...input, every: { first_ms: 1000, max_ms: 1000 } });
+}
+
+test("W2-18-JOB-01: background work a round or a card starts is followed on the work's graph to its end; the person is told once, the card says how it ended, and the next round hears it exactly once", { timeout: 90_000 }, async t => {
+  const state = { value: "running" };
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "市场" } } }),
     () => reply(undefined, "已开始研究，后台进行中。"),
-    body => { assert.match(JSON.stringify(body.messages), /后台任务[\s\S]*Research · Start research」（任务 job-1）：已完成/); return reply(undefined, "研究已完成。"); },
+    body => { assert.match(JSON.stringify(body.messages), /后台任务[\s\S]*Research · Start research」（任务 job-1）：已完成（completed）/); return reply(undefined, "研究已完成。"); },
     body => { assert.doesNotMatch(JSON.stringify(body.messages), /Research · Start research」（任务 job-1）/, "told once"); return reply({ name: "suggest-action", input: { title: "再研究一次", summary: "再开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }); },
     () => reply(undefined, "给了一个按钮。"),
   ]);
-  let next = 0;
-  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.jobs", kind: "plugin", title: "Research" }, definitions: [start, status],
-    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state }) }] });
-  (f.service as any).ports.scopeActions = async () => ({ discover: () => f.local.actionClient(f.project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }),
-    invoke: (action: any, input: unknown) => f.local.actionClient(f.project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }, action, input) });
+  const jobs = jobActions(state);
+  f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+  lookOften(f);
   try {
+    assert.equal(await f.service.attachSchedule(), true);
     const sent = await f.service.send({ text: "开始一轮市场研究", request_id: "req-00000034" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    // The work was new when the job started: its graph, opened for its first round, follows it all the same.
     let view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.jobs?.length ? v : undefined; }, "job followed");
     assert.deepEqual(view.jobs!.map(job => [job.title, job.job_id, job.state]), [["Research · Start research", "job-1", "running"]]);
-    const [job] = f.store.jobs("web-user", sent.work.work_id);
-    // The work was new when the job started: its first look is on the queue all the same.
-    assert.ok(f.host.adapter("prologue").schedule?.find(`${job!.key}-0`), "the first look at the job is queued");
-    assert.equal((await f.service.checkJob(job!.key))!.state, "running", "still running: looked again later");
-    state = "completed";
-    assert.equal((await f.service.checkJob(job!.key))!.state, "completed");
-    view = await f.service.read(sent.work.work_id);
-    assert.deepEqual([view.jobs![0]!.state, view.jobs![0]!.last_state], ["completed", "completed"]);
+    const graph = await f.host.adapter("prologue").collaboration!.works!.read(f.store.get("web-user", sent.work.work_id).graph_id!);
+    assert.deepEqual(graph.filter(node => node.job).map(node => [node.parent, node.session_id, node.state]), [["work", undefined, "running"]], "one step under the root that no session holds");
+    await until(async () => (await f.service.read(sent.work.work_id)).jobs?.[0]?.last_state === "running", "the owner's word is shown");
+    state.value = "completed";
+    view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.jobs?.[0]?.state === "completed" ? v : undefined; }, "job ended");
+    assert.deepEqual([view.jobs![0]!.last_state, typeof view.jobs![0]!.ended_at], ["completed", "string"]);
+    await until(() => f.service.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
     assert.match(f.service.notices(null).find(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text))!.text, /「Research · Start research」在后台完成了/);
     await f.service.send({ work_id: sent.work.work_id, text: "研究怎么样了", request_id: "req-00000035" }, {});
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 2 && v.work.state === "completed" ? v : undefined; }, "second round");
 
     // A card that starts a job stays running until the job ends, then says how it ended.
-    state = "running";
+    state.value = "running";
     await f.service.send({ work_id: sent.work.work_id, text: "给我一个再研究一次的按钮", request_id: "req-00000036" }, {});
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
     assert.deepEqual([ran.status, ran.outcome], ["running", "已开始，后台进行中"]);
-    const cardJob = f.store.jobs("web-user", sent.work.work_id).find(item => item.card_id === ran.card_id)!;
-    state = "failed";
-    await f.service.checkJob(cardJob.key);
-    const after = (await f.service.read(sent.work.work_id)).cards.find(card => card.card_id === ran.card_id)!;
+    assert.equal((await f.service.read(sent.work.work_id)).jobs!.find(job => job.job_id === "job-2")?.card_id, ran.card_id);
+    state.value = "failed";
+    const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
     assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成（failed）"]);
+    assert.equal(f.service.notices(null).filter(notice => /后台/.test(notice.text)).length, 2, "one notice for each job's end");
   } finally { await f.close(); }
 });
 
-test("running a card whose action starts a background job follows that job once, as the card's own: one entry, one notice", { timeout: 60_000 }, async t => {
-  let state = "running";
-  const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
-    audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
-    output_schema: { type: "object", properties: { run: { type: "object", properties: { jobId: { type: "string" } } } } },
-    background_job: { status: { capability_id: "fixture.jobs.status", version: 1 }, id: "run.jobId", input: "id", state: "status", done: ["completed"], failed: ["failed"] } } };
-  const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
-    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
-    output_schema: { type: "object", properties: { status: { type: "string" } } } } };
+test("W2-18-JOB-02: running a card whose action starts a background job follows that job once, as the card's own: one step, one notice", { timeout: 60_000 }, async t => {
+  const state = { value: "running" };
   const f = await fixture(t, [
     () => reply({ name: "suggest-action", input: { title: "研究一次", summary: "开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }),
     () => reply(undefined, "给了一个按钮。"),
   ]);
-  let next = 0;
-  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.jobs", kind: "plugin", title: "Research" }, definitions: [start, status],
-    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state }) }] });
-  (f.service as any).ports.scopeActions = async () => ({ discover: () => f.local.actionClient(f.project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }),
-    invoke: (action: any, input: unknown) => f.local.actionClient(f.project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }, action, input) });
+  const jobs = jobActions(state);
+  f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+  lookOften(f);
   try {
+    assert.equal(await f.service.attachSchedule(), true);
     const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000037" }, { project_ref: f.project });
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
-    assert.deepEqual([ran.status, ran.outcome, next], ["running", "已开始，后台进行中", 1]);
-    // One start, one followed job: it belongs to the card, and the work lists it once.
-    const jobs = f.store.jobs("web-user", sent.work.work_id);
-    assert.deepEqual(jobs.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
-    assert.equal((await f.service.read(sent.work.work_id)).jobs!.length, 1);
-    state = "completed";
-    for (const job of f.store.jobs("web-user", sent.work.work_id)) await f.service.checkJob(job.key);
-    assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
-    const after = (await f.service.read(sent.work.work_id)).cards.find(card => card.card_id === ran.card_id)!;
+    assert.deepEqual([ran.status, ran.outcome, jobs.started()], ["running", "已开始，后台进行中", 1]);
+    // One start, one followed job: the change's own report and the card name it at once, and it is the card's.
+    const graph = await f.host.adapter("prologue").collaboration!.works!.read(f.store.get("web-user", sent.work.work_id).graph_id!);
+    assert.equal(graph.filter(node => node.job).length, 1);
+    assert.deepEqual((await f.service.read(sent.work.work_id)).jobs!.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
+    state.value = "completed";
+    const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
     assert.deepEqual([after.status, after.outcome], ["done", "后台已完成（completed）"]);
+    await until(() => f.service.notices(null).some(notice => /后台完成了/.test(notice.text)), "the person is told");
+    // The Assistant built again on the same Home (as after a restart) hears every job that has ended at once: still one notice.
+    const again = new AssistantService(f.store, f.ports, "web-user");
+    assert.equal(await again.attachSchedule(), true);
+    await new Promise(resolve => setTimeout(resolve, 300));
+    assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
   } finally { await f.close(); }
 });
-
 test("stopping a round withdraws its held change: nothing runs and nothing is left to approve", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "never" } } }),

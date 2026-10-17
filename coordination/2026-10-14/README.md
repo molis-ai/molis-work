@@ -541,6 +541,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - **用户弹窗批了 T2 的 settings.css +19 B**：T2 顺手修了分组输入框获焦时画两圈的问题，修法是 craft-finish 聚焦规则里的 `:not(…)`，每张表 +19 B。这 +19 B 作为 T2 那次 APPROVED_CEILINGS 的第四个条目。其余三项实测 +1,326 / +1,326 / +4,037，都在上限之内。
     - #627 合入（`04ab02166`）。已通知采用线变基 C2 并开 PR（新动作 `agent.collaboration.revise.v1`、删 typed amend、换包 reference-kinds；不动 page-assets；要跑全量，排在 #629 一起）。
     - 10-17 04:30Z 用户重启了 Claude：统筹的监视改成 scratchpad 里的 `monitor.zsh`，跑法 `Monitor zsh monitor.zsh`，30 分钟到期后重开。用 nohup 起的 label-chain 和 gate 进程（#618、#628）都还在。各线会话已恢复，在跑：手册线改 #629，采用线跑 C2 的用例，交互线跑 T2 的浏览器用例。新出现的 #631（`feat/unified-input-voice`，jing xu 的草稿，+5,196 −534，57 个文件，含 page-assets 降数）不归统筹，不碰；它自己用 workflow_dispatch 起的全量已经取消。它要是在我们的 page-assets 串行（#619→#624→#630→T2）期间合入，后面的 PR 都要重量。
+    - #618 全量全绿、入队。#628 全量红在 RC-09（`tests/prologue-recovery.test.ts:142`），product subset 也是这一处红：B 加了 `steer.key`，重放出来的轮次视图里多了 `key: 'send.c1'`。这是真失败，不是时间问题，已交回执线判断 key 该不该进这份视图；改期望值的话要加断言、不许放宽。防腐线复查 #631，有两条要改：产品行为写进了 design-system；DESIGN.md 366–374 的触控与密度合同被测试改了，文档却没改。**用户弹窗同意**由统筹把复查意见贴成 PR 评论（issuecomment-6229709400）。第 2 条的定法：作者二选一，由用户确认。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

@@ -384,6 +384,7 @@ test("RCPT-345, 3d-2: link opens a receipt this page drew, after the caller's ow
   assert.equal(root.open, true, "RCPT-345 the receipt opens");
   assert.equal(focus.on, root.find(node => node.tag === "summary"), "RCPT-345 focus lands on its summary");
   assert.ok(ui.link(here, "steer-1"), "without a step of its own it still opens");
+  assert.equal(ui.link(here, "steer-1", undefined, "来自补充「")!.text, "来自补充「顺便把注册接口也覆盖一下」", "RCPT-353, 3d-3: a step added for it says where it came from");
   focus.on = null;
 });
 

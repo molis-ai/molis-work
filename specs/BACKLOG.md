@@ -118,6 +118,7 @@
 | BL-148 | 回执跨轮接上：一轮没读到、带进下一轮的补充，旧一轮仍写「这一轮结束时 AI 没读到，留给下一轮」，新一轮那句不说从哪一轮带来。片 A 修好带上之后看实际会不会让人困惑，再定要不要在旧一轮写「已带进第 N 轮」、新一轮写「从第 M 轮带来」（要在 `AgentTurnView.steer` 加 `carried_from`，SDK 的 prompt 事件有 `carried`） | [ai-input-receipts D31](ai-input-receipts/spec.md) | 片 A | 低 | 回执线 |
 | BL-149 | Issues 的方法（`plugins/native/issues/src/methods.ts:17–19`、`:24`）写着宿主的用法：「不要 find-capabilities，不要 read-capability」「直接用 change-reversible 调用」「change-reversible 被拒绝（用户设置了每次确认）就改用 suggest-action」「不要调用 capture、create、change-capability 或 change-reversible」。怎样找能力、哪些动作不经确认、被拒之后怎么办，是网关和宿主的规则，写死在插件方法里，规则一改方法就和宿主说的不一样。A3② 把助理每轮的材料和 Pages 的方法改成不带宿主用法，这几处没动 | [ai-development-handbook §9.5 A3②](ai-development-handbook/spec.md) | 已知缺口 | 统筹 10-16 定只记后续、不并进 A3②。Issues 录入现在靠这几句做到一次调用存好，改之前要先量录入的一次成功率，换成什么写法和 Issues 的主人一起定 | 无 | 低 | AI 手册线 |
 | BL-151 | 协调者提示词要不要讲何时让出；评测 2/7 让出（P4-C1 §6.0i） | [prologue-adoption](prologue-adoption/spec.md) §6.0i | 明确后续做 | 人说了「这一轮就收工、把这一步交给它」，MiniMax 7 次里 5 次仍前台派出；`coding-coordinator` 提示词没讲何时让出，拿不准是提示词没写还是模型能力，P4-C1 按 §11 不改提示词（统筹 10-17） | 由评测决定写不写进分层提示词（#602 的分层） | 中 | AI 手册线 |
+| BL-161 | Coding 的 TaskBoard 和计划卡给同一步编号不一样：TaskBoard 按 `node.id` 编（`plugins/native/coding/src/taskboard-client.ts` 里的 `'S'+Number(node.id.replace('step-',''))`），计划卡和回执按它在板上的位置编（`S` 加序号）。在 step-3 前插一步后，TaskBoard 显示 S3，计划卡显示 S4 | [ai-input-receipts](ai-input-receipts/spec.md) 3d-3（统筹 10-18 定） | 已知缺口 | 回执线 3d-2 复查时发现，按统筹要求不在那一片里改；改哪一边要先定：按位置编与计划卡、回执、服务端报告一致 | 无 | 中 | 回执线 |
 
 ## 6. 连接、来源与 Onboarding
 

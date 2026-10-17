@@ -1537,6 +1537,109 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 
 首次 Molis 回归发现 SDK 已保留带注解的工具，但主线动作 schema 编译器仍拒绝 `x-mcp-header`，生产派出用例在可用性断言失败。沿用连接功能分支已有的 `mcpInputContract` 处理：仅从动作参数副本移除合法一级 header 注解，保留原始快照、字段值约束、重复/嵌套/畸形和未知关键字拒绝；Home MCP 与项目 MCP 共用这一处，模型 schema 不变。`tests/connector-mcp.test.ts` 验证实际业务派出为零的拒绝与成功调用；前述派出用例验证 SDK 消费路径。包边界另检出工作区登记仍指向旧包，一并更新同一依赖记录。初轮相关 58 个非浏览器文件中 57 个通过，301 项通过、1 项失败；保留首次派出用例失败。补齐动作 schema 处理后整体重建，相关三文件 29 项通过（含新增拒绝路径），工作区登记修正后的包边界及 merge-base 健康门禁通过。页面资源仍为 25 项、7,598,359 字节，版本核对通过。浏览器 MCP 冒烟及完整集成交由 CI；没有在本机启动全量。
 
+### 6.0n P4 助理一半 A2：交回改用 SDK 的等待与接续（2026-10-17）
+
+§7.5 第 5 条的第 2、3 项：子任务交回、交回后自动接着做。A1 之后，「子任务都结束了没有」读图；这一片把「等它们」和「接着做」也交给 SDK：父 Work 的根挂一个等待，等根下所有没结束的步骤，SDK 管等待和根上唯一的接续。助理自己记的那份交回状态全删：
+
+- 存储字段 `handed_back_run`、`hand_back_held`；
+- `AssistantDelegations` 的 `watch`、`settle`、`#settling`、`owed`、`resume`；
+- `AssistantService` 调的 `markHandedBack`。
+
+交回的材料和几句通知照旧。统筹审 #637 时的两条建议（10-17）也在这一片：`ended()` 只吞 `TASKBOARD_CONFLICT` 与 `TASKBOARD_STALE_GENERATION`；补一条宿主重启的用例。
+
+**合同**（`services/agent-collaboration`）：
+
+- `AgentWorkNode` 多两项：`ended_at`（步骤结束的时刻）和 `continuation`（根上的接续：请求键、SDK 的状态）。
+- `AgentWorkGraphPort.add` 多一个可选的 `wait_reason`：带上它，交出这一步的同时，根重挂等待，等它下面现在没结束的步骤。被拒（`agent.collaboration_conflict`）时什么都不加，见第 9 条。
+- `AgentWorkGraphPort` 多两个方法：
+  - `hold`：取消宿主挂在根上、还开着的等待；那个等待的接续已经 `eligible` 的，挂起给人（`blocked`）；
+  - `onReady`：根的接续变成 `eligible` 时通知；订阅时先把当下已经 `eligible` 的报一遍。
+
+**宿主**：
+
+- 新文件 `prologue-work-waits.ts`：`handOut`（带 `wait_reason` 的 `add` 走它）、`hold`、`onReady`。同一块图上的改动逐个串行：两个子任务同时交出，各自会取消对方刚挂的等待。
+  - `handOut` 先查、再加步骤、再取消宿主自己开着的等待、再挂新的。下面三种情况拒绝（`agent.collaboration_conflict`），这时还什么都没写：
+    - 根的接续正被一轮收下（`claimed`）：那一轮在下一个模型边界先收到交回的结果；
+    - 根上开着这一轮自己登记的等待（`by` 不是 `app`）；
+    - 根上没有在做的一轮。
+  - 等待的写法：`mode: all`、`until: settled`、`onFailure: continue`、`onEarlyContinue: keep`、`by: app`、`autoContinue: true`、一周期限。
+- `prologue-work-graphs.ts`：
+  - `binding()`：根的接续 `eligible`、目标是这个会话时，这一轮带上接续的请求键起跑，SDK 由此把接续交给这一轮；
+  - `ended()`：只吞上面两种错误，别的记进诊断页的 `ledger_failures`（`work-graph-step-end-failed`）；
+  - 新的 `reconcile()`：宿主打开时，工作图上一步没结束、没有活着的尝试、最后一次尝试的 Run 已经有终态（子那一轮结束了，报告没落盘），就按那一轮的结果把这一步结束。
+- `prologue-collaboration.ts` 加三个函数，Coding 的项目工作板也用：
+  - `holdContinuation`：把 `eligible` 的接续挂起给人；
+  - `canTakeUp`：一个请求键已经被一次被拒的开跑用过（SDK 记下了它当时解析成什么），就不能再起别的。这个接续挂起给人，这一轮不带键起跑；
+  - `releaseStartClaim`：开跑被拒时，SDK 自己会把它占用的接续放回 `eligible`，但调用方已经被撤权时，那一笔连同别的一起被拒，接续会停在 `claimed`，直到下次重启。`prologue-run.ts` 在这时于调用框之外把它放回，做法和 SDK 重启恢复一样，只放「这个键下、没有 Run 收下的开跑占用」。
+- `prologue-node.ts`：打开时调 `reconcile()`；诊断页把工作图记下的失败并进 `ledger_failures`。
+
+**助理**（`assistant-delegation.ts`）：
+
+- 交出一步时挂等待（`add` 带 `wait_reason`）：新子任务的第一步（`placeOn`）、跟进的 `.f<n>`。人在子 Work 里自己开的一轮（`.r<n>`）不挂。
+- `onReady` 来了，就起「（子任务都已交回）…」那一轮，助理请求号是 `hand-back-<请求键>`。只在父的上一轮 completed、至少有一个子任务不是被停掉的时候起。
+- 被拒的交回告诉人原因，在这个宿主进程里不再自己重试（`#refused`，按请求键记）；接续留给这项工作的下一轮。
+- 人停止父 Work：先 `hold`，再停子任务，所以子任务被停不会让接续变成 `eligible`。正在准备的交回被撤回。
+- 交回材料：上一轮开始之后结束的子任务步骤（看节点的 `ended_at`）。
+
+**定下的几件事**（记进 §7.7）：
+
+1. **交出时挂等待，不在父那一轮结束时挂。** 子任务若在父那一轮结束前就做完，结束时才挂，登记时结果已经先到，SDK 会把接续取消（`RESULT_FIRST`），没人接着做。交出时步骤刚加上，子那一轮还没开始，所以不会先到。
+2. **接续被收下时，拒绝交出新的一步。** 再挂一个等待，会把还没送到的那份结果丢掉。
+3. **一次被拒的开跑用过的请求键不再用**（`canTakeUp`）：接续挂起给人，下一轮不带键起跑。SDK 对同一个键只认同一次开跑，换了内容就冲突（`RUNTIME_IDEMPOTENCY_CONFLICT`）。结果已经在会话里，这一轮的材料里也有。
+4. **被撤权的开跑留下的占用，在调用框之外放回。** 动作网关撤权以后拒绝这次调用的一切写入，SDK 自己放回占用的那一笔也在其中；不放回，以后每次交出都被第 2 条拒，直到重启。这一笔只是撤销这次调用自己的占用，不是新的业务记录。
+5. **被拒的交回在本进程里不自动重试。** SDK 放回接续时会再发一次 `eligible`，如果再自动起一次，人刚看到「没有自动接着做」，接着又做了。重启后 `onReady` 再报一次，所以重启后会试一次，和以前一样。
+6. **重启后不另扫助理的记录**：SDK 恢复等待与接续，`onReady` 订阅时把当下 `eligible` 的报出来；子那一轮结束、报告没落盘的，由 `reconcile()` 补上。
+7. **已知的两处副作用**：
+   - 上一轮里用 `status` 看过的结果，下一轮的材料里还会再出现一次。
+   - 宿主在子那一轮结束和报告之间停掉时，SDK 先把那一步交还父会话，`reconcile()` 再按 succeeded 结束它。所以 SDK 写进父会话的那句提示可能说等待「失败、交回了没做完的」；Molis 自己的材料写的是对的（「开头」：已完成）。
+8. **存量**：老 Home 里存的 Work 正文还带 `handed_back_run`、`hand_back_held` 两个键，`publicWork` 不再剥它们。A4 的一次性脚本要把它们删掉。在那之前，这两个键会出现在助理的 Work 视图里，没有代码读它们。
+9. **一个步骤只有一个接续**（统筹 10-17 定）。宿主只改自己挂的等待（`by: app`）：重挂前取消的、`hold` 取消的都只有它，`hold` 挂起给人的也只是它的接续。模型自己登记的等待（`board-wait`），宿主一概不碰。
+   - 根上开着这一轮自己登记的等待时，交出新的子任务被拒（可重试），图上什么都不变：不加步骤，也不碰那个等待。等那件事有了结果、这项工作的下一轮跑起来，再交出就能成。
+   - 反过来，宿主的等待开着时，模型的 `board-wait` 由 SDK 拒绝（`WAIT_ALREADY_ARMED`），宿主的等待照旧。
+   - 检查都在加步骤之前。先加步骤、再挂等待被 SDK 拒，会多出一步没人等的子任务（变异 O1 实测：`p-2` 留在图上，调用方拿到 SDK 的原始错误）。
+
+**验收**（夹具模型，真实 Prologue 节点适配器）：
+
+| 编号 | 证明 |
+| --- | --- |
+| （`assistant-delegation-handback` 原四条） | 父那一轮结束时根 `waiting`、接续 `armed`；交回后 `started`。人停止后，开着的等待被取消（接续 `cancelled`）。被停掉的子任务让接续 `eligible`，但不自动接着做，人的下一轮收下它，材料里有「被停止了」。被拒时接续留在 `eligible`，重启后收下一次 |
+| W2-18-HANDBACK-RESTART-01 | 子进程宿主在子那一轮回答之后、写图的第一笔时被 SIGKILL。重启后那一步 `succeeded`、带 `ended_at`；交回那一轮由宿主写、材料里有子任务的结果，接续 `started`；再调一次 `attachSchedule` 不再起第二轮 |
+| W2-18-HANDBACK-STEP-END-01 | 写图失败（`EIO`）时，诊断页的 `ledger_failures` 里有 `work-graph-step-end-failed`；那一步保持 `running`，根仍在等 |
+| W2-18-HANDBACK-CURRENT-01 | 三个阶段的归档都挡住了自动那一轮。被拒后接续回到 `eligible`。之后人的下一轮：在前两个阶段收下接续（`started`）；在 SDK 已经提交开跑的那一阶段，请求键已用过，接续挂起（`blocked`），这一轮照样跑完 |
+| W2-18-HANDBACK-CURRENT-02 | 停止：接续 `blocked`。新的一轮：`started` |
+| W2-18-HANDBACK-CURRENT-03 | 开跑在占用接续之后被当前调用方拒一次：通知一次，不自己再起；接续 `eligible`，人的下一轮收下它（`started`） |
+| W2-18-HANDBACK-ONE-CONTINUATION-01 | 这一轮用 `board-wait` 登记了自己的等待：这一轮还在跑时、结束以后，交出都被拒（`agent.collaboration_conflict`），图一点没变；`hold` 不取消它，它结束后也不把它的 `eligible` 接续挂起；下一轮收下接续后，交出成功，根改等新的一步 |
+| W2-18-HANDBACK-ONE-CONTINUATION-02 | 宿主的等待开着时，模型的 `board-wait` 拿到 `WAIT_ALREADY_ARMED`；根上的接续仍是宿主那个 |
+
+**变异**（每条改回去重建、单跑对应的用例）：
+
+| 去掉 | 红的用例 |
+| --- | --- |
+| `ended()` 改回全吞 | STEP-END-01 |
+| `reconcile()` | RESTART-01 |
+| `releaseStartClaim` | CURRENT-01（SDK 已提交开跑的那一阶段） |
+| work graph `binding()` 里的 `canTakeUp` | 同上（`RUNTIME_IDEMPOTENCY_CONFLICT`） |
+| `placeOn` 交出第一步时带的 `wait_reason` | `assistant-delegation-handback` 6 条全红 |
+| `#refused` | 没有用例红：放回发出的 `eligible` 通常在 `#continuing` 还占着时就到了，比赛的另一种结果测试造不出来。CURRENT-03 证明行为，不证明这一行 |
+| O1 `handOut` 里「这一轮自己的等待开着」那条检查 | ONE-CONTINUATION-01（拒绝的不是协作冲突：步骤先加上了，SDK 再拒挂等待） |
+| O2 只取消宿主自己的等待（改成全取消） | ONE-CONTINUATION-01（`hold` 取消了模型的等待） |
+| O3 `hold` 只挂起宿主等待的接续（改成都挂） | ONE-CONTINUATION-01（模型的接续成了 `blocked`） |
+| O4 先查再加（把加步骤挪到检查前） | ONE-CONTINUATION-01（被拒后图上多了 `p-2`） |
+| O5 `handOut` 里挂等待 | ONE-CONTINUATION-02 |
+
+- 验证（基于 main `c276ab9c`，含 #648 与 #650 换上的 `mcp-schema-annotations` 包）：
+  - `pnpm build` 通过；`pnpm api:update` 刷新了 `contracts/services/agent-collaboration` 的快照（只有上面合同里的两项、`add` 的 `wait_reason`、两个方法）。
+  - `affected-tests` 选的非浏览器文件，加上全部 `prologue-*`、`coding-*`、`agent-collab*` 非浏览器用例和助理逻辑另跑的几个（undo、business-gateway、followups、memory、work-wait），连同新的 `prologue-work-waits`，共 217 个文件，一次全过。
+  - `pnpm test:security` 58/58，`pnpm test:contracts` 44/44。
+  - `check-health-gates --base origin/main`、`boundary:check`、`secrets:check` 都过。
+    - `AssistantService` 1629→1628 行，方法数 98 不变；`AssistantStore` 不变。
+    - `AssistantDelegations` 290→254 行；`createWorkGraphs` 140 行；`createWorkWaits` 53 行。
+- 未验证：
+  - 浏览器用例（`assistant-handback.e2e`、`assistant-follow-live.e2e`、`alchemist-client-boundaries.e2e`）和全量：`affected-tests` 判为要全量（改了共同合同，动了三个包），由统筹排。
+  - 真实模型没走：这一片不改提示词，也不改工具说明。
+  - 被撤权的开跑在根上留下的那一次 `dispatching` 尝试没有修。A1 起就有，SDK 重启恢复时把它关成 `refused`，不挡后面的轮。
+
+
 ### 6.1 当前记录
 
 A0 执行记录（下列历史方案记录之后继续）：
@@ -1814,6 +1917,11 @@ A0 执行记录（下列历史方案记录之后继续）：
 | 统筹 10-17 · 助理一半五条（§6.0k） | 每个 Work 一块图、子任务共用（用户弹窗）；交回后自动接着做，用请求键起跑；一次跟进一个步骤；A1 先做，A3 之前先核实 SDK 的接续收尾；存量用一次性脚本，先在真实 Home 的只读拷贝上试跑给用户看（用户弹窗） | 助理的 Work 可以不属于项目，也不跨 Work 发信；W5-10 的形状 |
 | A1 · 收回不交接（§6.0k 第 1 条） | 收回时由人结束这一部分还没结束的步骤（代次 +1）；「由父工作做完」记在子 Work 上，不把步骤交给父会话 | 交给父会话的那一步没有轮站在上面，永远不结束，A2 的等待会等不到；已结束的子任务没有步骤可交 |
 | A1 · 跟进要等这一部分结束（§6.0k 第 2 条） | 子任务还有没结束的步骤时，拒绝跟进 | 一次跟进一个步骤；送进正在跑的一轮就记不成步骤，上限也就数不准 |
+| A2 · 交出时挂等待（§6.0n 第 1 条） | 父 Work 每交出一步（新子任务的第一步、跟进），根就重挂一个等待，等根下所有没结束的步骤；人在子 Work 里自己开的一轮不挂 | 在父那一轮结束时才挂，子任务先做完时登记即「结果先到」，SDK 取消接续，没人接着做 |
+| A2 · 用过的请求键不再用（§6.0n 第 3、4 条） | 被撤权的开跑留下的占用，在调用框之外放回；一次被拒的开跑用过的请求键，接续挂起给人，下一轮不带键起跑。Coding 的项目工作板同样处理 | SDK 同一个键只认同一次开跑；占用停在 `claimed` 时，以后每次交出都被拒，直到重启 |
+| A2 · 被拒的交回本进程不重试（§6.0n 第 5 条） | 告诉人原因后不自动再起，重启后试一次 | 人刚看到「没有自动接着做」，接着又做了，说法和行为对不上 |
+| A2 · 存量的两个旧键（§6.0n 第 8 条） | `handed_back_run`、`hand_back_held` 由 A4 的一次性脚本从存量 Work 里删掉；代码不读、不兜底 | 合同只认现行形状（AGENTS.md） |
+| 统筹 10-17 · 一个步骤只有一个接续（§6.0n 第 9 条） | 宿主只取消、重挂、挂起自己挂的等待（`by: app`），不碰模型的；根上开着模型的等待时，交出子任务被拒、可重试，图上什么都不变；挂等待并进 `add`（`wait_reason`），先查再写 | 根只有一个接续：取消模型的等待，它登记的事就没人接着做；单独的 `wait` 在 `add` 之后才会被拒，留下一步没人等的子任务 |
 
 ### 7.8 工作规则
 

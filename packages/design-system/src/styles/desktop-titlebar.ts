@@ -1,5 +1,19 @@
 /** AP3 visual layer: desktop-titlebar. */
-export const DESKTOP_TITLEBAR_STYLES = `  /* Desktop shell frame: safe-area variables, the app grid, project menu, drag regions and work surface. */
+export const DESKTOP_TITLEBAR_STYLES = `  /* The Goal document pane. It comes before the desktop shell's rule for the pane below, which overrides it at the same
+     specificity. */
+  body[data-board-view] .document-pane,
+  .document-pane { padding: var(--focus-canvas-inset); scroll-padding-top: var(--focus-canvas-inset); background: color-mix(in srgb, var(--page) 78%, var(--rail)); }
+  @media (max-width: 760px) {
+    body[data-board-view] .document-pane,
+    .document-pane { --focus-canvas-inset: 8px; }
+  }
+  /* Project name in the titlebar and the narrow app grid. */
+  .navigator-project-primary > strong { min-width: 0; overflow: hidden; font-size: 15px; font-weight: var(--weight-control, 500); letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 760px) {
+    body[data-desktop-shell="true"] .app,
+    .app { grid-template-rows: 48px 44px minmax(0, 1fr); }
+  }
+  /* Desktop shell frame: safe-area variables, the app grid, project menu, drag regions and work surface. */
   @media (min-width: 761px) {
     body[data-desktop-shell="true"] { --desktop-project-control-center-y: calc(var(--desktop-titlebar-height) / 2); --desktop-native-control-row-height: var(--desktop-titlebar-height); --desktop-project-safe-inline-start: var(--desktop-native-project-safe-inline-start, 2px); --desktop-settings-safe-inline-start: var(--desktop-native-settings-safe-inline-start, 2px); }
     body[data-desktop-shell="true"][data-native-desktop="true"],
@@ -15,8 +29,7 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* Desktop shell frame: safe-area vari
     body[data-desktop-shell="true"] .personal-account { grid-template-columns: 32px minmax(0, 1fr) 30px; }
     body[data-desktop-shell="true"] .desktop-titlebar-drag { -webkit-app-region: drag; user-select: none; }
     body[data-desktop-shell="true"] .navigator-project-selector,
-    body[data-desktop-shell="true"] .navigator-project-settings,
-    body[data-desktop-shell="true"] .desktop-work-tabs { -webkit-app-region: no-drag; }
+    body[data-desktop-shell="true"] .navigator-project-settings { -webkit-app-region: no-drag; }
     body[data-desktop-shell="true"] .document-pane { --focus-canvas-inset: 0px; padding-inline: 4px 12px; padding-bottom: 12px; grid-column: 3; grid-row: 2; background: var(--page); }
     body[data-desktop-shell="true"] .desktop-work-surface:has(> .goal-event-document) { display: flex; }
     body[data-desktop-shell="true"][data-desktop-surface]:not([data-desktop-surface="goal"]) .tui-resizer,
@@ -108,13 +121,6 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* Desktop shell frame: safe-area vari
       height: var(--desktop-titlebar-height);
       min-height: var(--desktop-titlebar-height);
       align-items: center;
-    }
-    body[data-desktop-shell="true"] .desktop-work-tabs,
-    body[data-desktop-shell="true"] .desktop-work-tab,
-    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] {
-      height: var(--desktop-titlebar-control-height);
-      min-height: var(--desktop-titlebar-control-height);
-      align-self: center;
     }
     body.settings-page[data-desktop-shell="true"] .settings-desktop-project {
       height: var(--desktop-project-header-height);
@@ -273,8 +279,7 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* Desktop shell frame: safe-area vari
     .personal-new-goal { transition: none; }
     body[data-desktop-shell="true"] .navigator-project-selector,
     body[data-desktop-shell="true"] .desktop-module-item,
-    body[data-desktop-shell="true"] .tree-row,
-    body[data-desktop-shell="true"] .desktop-work-tab { transition: none; transform: none; }
+    body[data-desktop-shell="true"] .tree-row { transition: none; transform: none; }
     .theme-picker > summary .theme-caret { transition: none; }
     .focus-section-card,
     .focus-section-card-caret,

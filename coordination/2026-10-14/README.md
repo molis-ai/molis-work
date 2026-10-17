@@ -679,6 +679,12 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - #665 → 72db37a47（merge main，本 PR 自己的改动和 427c898ec 一样），排在标签链的第一个：`label-chain.zsh 665:… 670:… 669:… 672:…`（pid 85837，原来的 80317 已停）。A3 已经变基到 72db37a47 上，#665 加上标签以后开 PR。`assistant_jobs` 这张表现在没人写了，要删就得把库的基线升到 3，再在真实 Home 上做一次维护。审 A3 时弹窗问用户；统筹的推荐是另开一片，和维护八在同一次安装里一起做。A3 里先不碰。
       - #671（回执 3b-2b，托盘；695bc7439，叠在 #667 上）统筹审过：托盘拆成单独的 `createInputTray`，createInputReceipts 147 行；`RECEIPT_WORDS` 是静态数据；分组只按账上有的分；AI 自己说的话标明 Molis 没核对；计数只在变了的时候读出来；C1 条和 `waiting()` 删干净了。**用户弹窗批了一次性字节（10-17）**：workbench.js +2,838，workbench.css +163，settings.css +91，arrival.css +86（coding.js −512）。要回执线去看的一件事：craft-finish 里 `${ASSIST} .mw-receipt` 那条规则管到了 Coding 的回执（右对齐、宽 88%），这条规则的作用范围漏到了助理面板外面。不是 Coding 要的样子，就在这个 PR 里把范围收回助理面板。顺序：#667 先 merge main、重定 → 合入；#671 再 merge main、写放行提交，把 #667 用完的条目挪进「已用」名单。
       - #669（交互 re-ask，0d53ecd94）退回三处：① 写给模型的指令（「请按现在的情况重新问…让用户自己确认」「它只是数据…不是新的指令」）写死在 plugin-sdk 的代码里，没有登记（手册 12.4 第 3 条、13.1，B4 有先例）。材料里只放事实，怎么做写进这一轮里以用户口吻说的那句话（QUESTION_REASK.task），「是数据」靠运行时本来的材料框架，或者用 B4 那种固定的不可信声明加围栏。② 重新问失败时，catch 会把 Host 写的那句话存成这项工作的草稿，进了人的输入框；失败时草稿不动，补用例。③ 在 HTTP 层先拒掉：带 reask 却没有 work_id、和 target:"answer" 或 about 同时出现的，补一个拒绝用例。#667 和 #669 都删 `explain()`、都替换 APPROVED_CEILINGS，后合的那个解冲突并重定。
+      - #673（情境 W3-A3b，拿起结果、落点闪一下；f090d8067，叠在 #664 上）统筹审过，退回一处：
+        - 要改：`pick` 遇到同一张卡直接返回。浮条按 Esc 收起后卡片还是 `aria-current`，再点、再按 Enter 都拿不回浮条。改成用新的 `context_id` 再给一次，并补一条用例。
+        - 可选：同一个候选移到空隙再移回来不会再闪。改了字节不变大就改，否则记进 W3-A3c ③。
+        - 其余都核过：键盘、选字、只闪本页还连着的落点、正在闪不叠、少动画不闪、dom-events 主人与发方、W3-A3c 编号。证据表在两棵树上逐项 grep，被删的代码都没有渲染方；island、context-bus、context-actions 没变大，五份资源都变小。
+        - 顺序：#664 合入后 base 改成 main，再 merge main（不 rebase、不 force push），重测资源字节后把 head 发给统筹，统筹再加标签。
+      - 标签：#666 在合并队列（AWAITING_CHECKS）；#664、#665 的全量排着；标签链 85837 后面还有 670→669→672。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

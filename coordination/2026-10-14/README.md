@@ -632,6 +632,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - #660 新 head 4829741fb：已 merge #651，workbench.js 是 1,103,049 B（比 main 少 529 B），和当前 main 不冲突。统筹认可，挂 label-chain，排在 #654 后面。
       - 交互线「请 AI 重新问」的文件清单统筹认可：不加路由，也不加动作。助理走现有的发送（和「重新准备」一样），草稿材料由页面拿卡片上的字段拼好。Coding 的 start-run 加一个可选的 `reask:{run_id,pending_id}`，材料由宿主用存着的问题和草稿去拼。宿主要核对：这个 pending 属于调用者自己会话里的一轮，而且已经关闭；不是的话用 Coding 自己的错误码拒绝，并补上拒绝用例。两边草稿材料的写法要一致。和 BL-152 的 Prologue PR 并行做。
       - #662 新 head c9da64838：已 merge main 4fd585da5，重建后三份样式表和第一次合并时逐字节相同，arrival 与 settings 各 −40,370 B，workbench.css −28,820 B。统筹认可，挂 label-chain。排全量的顺序：#654 → #660 → #662（#657/#658 正在跑）。
+      - 情境线下一片 W3-A3a（§21.2 第 5 条：写动作留在你正在做的工作里）统筹认可：开卡时带上当前的 `work_id`，用现有的 offerFromPage 参数，不改合同、不加动作。PR 要写清两件事：一是 `work_id` 是页面传来的指针，Host 要核对这项工作属于调用者、没归档、不是 Coding，没核对的就补上拒绝和用例；二是「对象属于这项工作」只有助理的关联行说了算，页面用的是现有哪个读接口要点名，不在新文件里另写一份规则。下一片 W3-A3b。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

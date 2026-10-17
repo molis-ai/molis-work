@@ -4,8 +4,6 @@
 
 ## 在做的
 
-- [commercial-source-license](commercial-source-license/spec.md)：合作源码与商业授权；Codex 负责，许可声明与分发材料已完成切换及定向验证，本分支完成，待合入。
-
 - [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。
 - [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。
 - [work-brief](work-brief/spec.md)：工作简报内容插件；用户已确认纳入，需求已整理，尚未实现。
@@ -76,6 +74,7 @@
 
 ## 梳理记录
 
+- 2026-10-17：[合作源码与商业授权](archive/commercial-source-license/spec.md)归档（已实现，负责人 Codex）；#636 已合入 main，许可、分发材料及安装器许可传递通过定向验证、PR CI 和合并队列检查。
 - 2026-10-01：全量梳理根目录 193 份 spec。7 份确认为现行规范；186 份归档（已实现 104、已被取代 70、部分实现 8、已作废 4），剩余事项抽进 BACKLOG。逐份判定与依据见 [合入后审查 §8](archive/post-merge-review/spec.md#8-spec-梳理)。
 - 2026-10-02：`home-one-screen` 归档（已实现，只差用户试用，BL-111；负责会话确认）。#150 带进根目录的两份归档：`performance-preserving-fixes`（部分实现，BL-109）、`project-management-freeze`（诊断记录，BL-110）。同时把仓库里 109 处指向本机路径（`/tmp`、`/Users/…`、`node_modules`）的链接改成仓库内相对链接；仓库外的只写成路径文本。
 - 2026-10-10：`casebook-plugin` 归档（已作废；用户决定删除 Casebook，插件以后重做，防腐整理 §1）。

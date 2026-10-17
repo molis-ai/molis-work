@@ -18,6 +18,7 @@ import type { createPrologueMemory } from "./prologue-memory.js";
 import type { createSessionMessages } from "./prologue-messages.js";
 import { inlineMethods } from "./prologue-methods.js";
 import { projectWorkDigest, workPaths, type createProjectWork } from "./prologue-project-work.js";
+import type { createWorkGraphs } from "./prologue-work-graphs.js";
 import { withInteractionRepairLimit } from "./prologue-questions.js";
 import { runModelParams } from "./prologue-run-params.js";
 import { blockId, collaborates, eligibleContinuation, planPrefix, readyStep, sessionBlock } from "./prologue-collaboration.js";
@@ -69,6 +70,7 @@ export interface RunDeps {
   readonly credentials: PrologueCredentialBridge;
   readonly stepBoards: ReturnType<typeof createPrologueTaskBoards>;
   readonly projectWork: ReturnType<typeof createProjectWork>;
+  readonly workGraphs: ReturnType<typeof createWorkGraphs>;
   readonly messages: ReturnType<typeof createSessionMessages>;
   readonly waitsPort: ReturnType<typeof createPrologueWaits>;
   readonly checkpoints: ReturnType<typeof createPrologueCheckpoints> | undefined;
@@ -280,10 +282,12 @@ async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: S
 /**
  * Where a round that works with others stands (specs/prologue-adoption §4.6.10, the user's B): on its session's block
  * on the project's work board — under the continuation's request key when one of this session's may go on now, so the
- * round takes it up. A subtask session and a round that does not collaborate stand nowhere.
+ * round takes it up. A round of a session on a work's own graph stands on the step it holds there (§6.0k). A subtask
+ * session and a round that does not collaborate stand nowhere.
  */
 async function roundBinding(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, stepBoard: PlanPlace | undefined) {
   const { runtime } = deps;
+  if (index.work_graph) return deps.workGraphs.binding({ ...index, work_graph: index.work_graph }, session.ref, index.owner.actor_id ?? "user");
   if (index.parent_run || !collaborates(systemTools(input), Boolean(stepBoard))) return undefined;
   const board = stepBoard?.ref ?? await projectBoardOf(deps, index);
   const block = stepBoard?.block ?? await sessionBlock(runtime, board, session.ref, input.session_title ?? index.title);
@@ -524,6 +528,7 @@ function roundEnded(deps: RunDeps, started: Started, session: Session, stepBoard
   const surfaceHost = deps.surfaces();
   actionController.abort(); state.actionControllers.delete(started.run.ref.id); state.dispatchChecks.delete(started.run.ref.id);
   if (stepBoard) deps.stepBoards.unfollow(started.run.ref.id);
+  deps.workGraphs.ended(started.run.ref, session.ref, type);
   if (state.liveSessions.get(session.ref.id) === started.run.ref.id) state.liveSessions.delete(session.ref.id);
   // The side panel stops saying the Assistant is using the page the moment its round is over, and this run's app approvals are dropped.
   if (surfaceHost) { void surfaceHost.release(session.ref.id, type === "cancelled" ? "stopped" : type).catch(() => undefined); surfaceHost.releaseRun(started.run.ref); } state.runRefs.delete(started.run.ref.id);

@@ -35,6 +35,7 @@ export interface AgentCollaborationPort {
     awaitReady(project: string, timeoutMs: number, exclude?: string[], signal?: AbortSignal): Promise<AgentCollaborationSessionView[]>;
     control(project: string, control: AgentCollaborationControl, actorId: string): Promise<AgentCollaborationSessionView>;
     revise(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
+    works?: AgentWorkGraphPort;
 }
 
 export interface AgentCollaborationReadInput {
@@ -91,6 +92,43 @@ export interface AgentContinuationView {
     reason?: {
         code: string;
         note?: string;
+    };
+}
+
+export interface AgentWorkGraphPort {
+    open(input: {
+        key: string;
+        session_id: string;
+        title: string;
+    }): Promise<{
+        graph_id: string;
+    }>;
+    add(input: {
+        graph_id: string;
+        node_id: string;
+        under?: string;
+        session_id: string;
+        title: string;
+    }): Promise<void>;
+    read(graph_id: string): Promise<AgentWorkNode[]>;
+    watch(graph_id: string, listener: () => void): () => void;
+    end(input: {
+        graph_id: string;
+        node_id: string;
+        note: string;
+        actor_id?: string;
+    }): Promise<void>;
+}
+
+export interface AgentWorkNode {
+    node_id: string;
+    parent?: string;
+    title: string;
+    state: "not-started" | "ready" | "running" | "waiting" | "blocked" | "needs-reconciliation" | "succeeded" | "failed" | "cancelled";
+    session_id?: string;
+    ended_by_person?: {
+        at: string;
+        note: string;
     };
 }
 

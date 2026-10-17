@@ -906,3 +906,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 下一步：采用线在本地准备换包，#675 合入后开 PR，带上 REFUSED_BEFORE_RUN 和 inspect 会写盘这两项的核对；之后交互线做 BL-156 的 Molis 半边。
 - #675 → 55ff1100f：merge 了 main f4d18c37a。除去 page-assets 和 baseline，和 0414c3c02 逐行一致，workbench.js −55。还没跑过全量。chain16（停在等 681 标签，还没加）按 pid 停掉，换成 chain17：675→681→683→685。
 - 回执 3b-2c 在本地准备好了，head 5105cf2c2，放行提交是 +325，键 1107991。等 #671 合入后，回执线 merge main 再开 PR。
+- BL-156 Molis 半边计划已批（统筹 10-17 定），等换包合入后再开：
+  - 撤权和停用的复核与网关读同一个来源；
+  - 答完由宿主开下一轮：开跑被拒时答案留在排队里，卡片上写明「已回答、下一轮没能开始」；收到 BUSY 时先查看一次再开跑，只做一次；
+  - 复用现有的题卡组件；
+  - 合同只认现行取值；
+  - 新文字中英文都要有；SESSION_HISTORY_UNAVAILABLE 怎么处理，由采用线在换包时定。

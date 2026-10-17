@@ -6,12 +6,14 @@ import { RECEIPT_WORDS } from "@molis-ai/molis-work-design-system";
  * runtime projects from its ledger (`projectInputReceipts`); Coding keeps no copy. The ledger's fact, the AI's own words and
  * the person's words are kept apart, said in the shared receipt's words (`RECEIPT_WORDS`, BL-158). Whatever the person or the
  * model wrote goes in a fenced block, so it reads as quoted material on the page and to a later model, never as the report's
- * own words. "Took effect" needs an observed result and is not written here (D21).
+ * own words. "Took effect" needs an observed result and is not written here (D21). A step's report that names a supplement
+ * is quoted under it the same way, with the step's key on the plan card (S1, S2…, 插入; stage 3d-2).
  */
 export function codingReportInputsMarkdown(run: AgentRunView, literal: (value: string) => string): string {
   const steers = run.turns.filter(turn => turn.kind === "user" && turn.steer);
   if (!steers.length) return "";
   const number = new Map(steers.map((turn, index) => [turn.steer!.id, index + 1]));
+  const reports = (run.step_board?.nodes ?? []).flatMap((node, index) => node.reports.map(report => ({ step: node.inserted ? "插入" : `S${index + 1}`, report })));
   const entries = steers.map((turn, index) => {
     const steer = turn.steer!, claim = steer.model_claim;
     const lines = [`补充 ${index + 1}：${RECEIPT_WORDS.FACT[steer.state]}`];
@@ -26,6 +28,7 @@ export function codingReportInputsMarkdown(run: AgentRunView, literal: (value: s
     if (open) lines.push(`为它问的问题有 ${open} 个还没回答`);
     lines.push("原话", literal(turn.text));
     if (claim?.note) lines.push("AI 的说明", literal(claim.note));
+    for (const { step, report } of reports.filter(each => each.report.inputs?.some(one => one.input_id === steer.id))) lines.push(`步骤报告提到它（${step}，AI 的说法）`, literal(report.note));
     return lines.join("\n");
   });
   return ["## 补充要求",

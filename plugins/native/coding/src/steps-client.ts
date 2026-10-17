@@ -1,7 +1,7 @@
 /** User assessments stay separate from original SDK reports and never mutate the graph. */
 export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const lifetime=ports.lifetime;
-  const {q,api,current,status,refresh,prepareRework}=ports,dialog=q('[data-coding-step-dialog]'),detail=q('[data-coding-step-detail]'),notes=q('[data-coding-step-notes]'),message=q('[data-coding-step-status]');
+  const {q,api,current,status,refresh,prepareRework,receipts}=ports,dialog=q('[data-coding-step-dialog]'),detail=q('[data-coding-step-detail]'),notes=q('[data-coding-step-notes]'),message=q('[data-coding-step-status]');
   const accept=q('[data-coding-step-accept]'),reject=q('[data-coding-step-reject]'),rework=q('[data-coding-step-rework]'),reload=q('[data-coding-step-refresh]');
   let owner='',runId='',stepId='',data=null,entry=null,node=null,verdict=null,busy=false,ticket=0;
   const states={'not-started':'等待前置步骤',ready:'待执行',running:'模型报告执行中',succeeded:'模型报告成功，待用户核对',failed:'模型报告失败',cancelled:'模型报告取消',blocked:'模型报告阻塞'};
@@ -25,7 +25,10 @@ export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       detail.append(el('p','原执行 '+runId+' · 固定计划修订 '+entry.revision),el('h3',step.title),el('p','完成条件：'+step.acceptance),el('p',states[node.state]||'状态暂不可读'));
       // Who holds the step now, and who made each report (a handover says so).
       if(node.owner)detail.append(el('p','负责：'+(node.owner.kind==='person'?'你':node.owner.label)));
-      const reports=el('ol','');for(const report of node.reports)reports.append(el('li',(report.by?report.by+'：':'')+report.note));detail.append(reports);
+      const reports=el('ol','');
+      // A report naming a supplement opens its receipt in the conversation, when this page drew one.
+      for(const report of node.reports){const li=el('li',(report.by?report.by+'：':'')+report.note);for(const one of report.inputs||[]){const link=receipts.link(one.input_id,()=>dialog.close());if(link)li.append(' ',link);}reports.append(li);}
+      detail.append(reports);
       if(!node.reports.length)detail.append(el('p','尚无模型步骤回报。'));
       if(verdict){detail.append(el('p',verdict.status==='accepted'?'用户已验收通过':'用户要求返工'),el('p',verdict.notes));if(verdict.project_id!==entry.board.project_id||verdict.board_version!==entry.board.version)detail.append(el('p','这条评价对应较早回报，请重新核对当前版本。'));}
       else detail.append(el('p','用户尚未评价。'));

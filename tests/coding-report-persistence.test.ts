@@ -132,6 +132,12 @@ const steerRun = (): AgentRunView => ({
     { turn_id: "s5", kind: "user", text: "不要动数据库", at: null, steer: { id: "s5", state: "withdrawn" } },
     { turn_id: "answer", kind: "assistant", text: "改好了", at: null }],
   activity: [], command_outputs: [], usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [], stop_reason: null,
+  // Stage 3d-2: step reports naming supplements; one quotes the smuggled words.
+  step_board: { project_id: "plan", version: 3, terminal: true, nodes: [
+    { id: "step-1", state: "succeeded", reports: [{ note: "建好 fixture", at_ms: 1 }] },
+    { id: "step-2", state: "succeeded", reports: [{ note: "已改用新 fixture", at_ms: 2, inputs: [{ session_id: "sdk", input_id: "s1" }] }] },
+    { id: "added", state: "failed", inserted: true, reports: [{ note: inject, at_ms: 3, inputs: [{ session_id: "sdk", input_id: "s1" }, { session_id: "sdk", input_id: "s2" }] }] },
+  ] },
 });
 /** Lines the report says in its own voice: everything outside its fenced quotes. */
 const ownLines = (markdown: string) => {
@@ -179,6 +185,11 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
       "补充 5：已撤回",
     ]);
     assert.match(section, /「AI 说」是 AI 自己的说法，Molis 没有核对/u, "RCPT-341 the AI's words are marked as its own");
+    // RCPT-346 (3d-2): each step report naming a supplement is quoted under it as the AI's words, keyed as on the plan card.
+    assert.deepEqual(ownLines(section).filter(line => line.includes("步骤报告")), ["步骤报告提到它（S2，AI 的说法）", "步骤报告提到它（插入，AI 的说法）", "步骤报告提到它（插入，AI 的说法）"],
+      "RCPT-346 two reports name 补充 1 and one names 补充 2; the report that names none is not listed");
+    assert.match(section, /步骤报告提到它（S2，AI 的说法）\n`{3,}\n已改用新 fixture\n`{3,}/u, "RCPT-346 its words in a fenced quote");
+    assert.doesNotMatch(section, /建好 fixture/u);
     assert.doesNotMatch(section, /已生效|部分生效/u, "RCPT-341 nothing observed, so nothing is said to have taken effect (D21)");
     // RCPT-342: what the person or the model wrote stays inside its quote, so it cannot speak as the report.
     assert.deepEqual(ownLines(body).filter(line => line.startsWith("## 执行状态")), ["## 执行状态"], "RCPT-342 an injected heading stays quoted");

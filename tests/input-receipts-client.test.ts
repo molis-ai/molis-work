@@ -55,7 +55,8 @@ function receipts() {
   let keys = 0;
   const program = vm.runInNewContext(`(${INPUT_RECEIPTS_CLIENT_SCRIPT})`, {
     document: { createElement: (tag: string) => new Node(tag), body, get activeElement() { return focus.on; } }, queueMicrotask, crypto: { randomUUID: () => `key-${++keys}` },
-  }) as (L: (text: string) => string) => { line(turn: Turn, round?: object, act?: Actions): Node | null; tray(queued: object[] | undefined, round?: object, act?: Pick<Actions, "withdraw">): Node | null };
+  }) as (L: (text: string) => string) => { line(turn: Turn, round?: object, act?: Actions): Node | null; tray(owner: object, queued: object[] | undefined, round?: object, act?: Pick<Actions, "withdraw">): Node | null;
+    link(inputId: string, first?: () => void): Node | null };
   const ui = program(text => text);
   const said = () => new Promise<string[]>(resolve => setTimeout(() => resolve(body.children.map(node => node.textContent)), 0));
   return { ui, body, said };
@@ -345,4 +346,43 @@ test("RCPT-337, 3b-2c: one tray per surface that draws it, so the Assistant and 
   assert.equal(ui.tray(here, [{ input_id: "q-1", text: "补一条" }], { run_id: "run-2" }), mine, "each keeps its own element across repaints");
   assert.equal(ui.tray(beside, undefined, { run_id: "run-2" }), theirs);
   assert.deepEqual(await said(), [], "RCPT-337 the other surface's paint is no change in this one's count, so nothing is said twice");
+});
+
+// Stage 3d-2 (§4.5): a step's report that names a supplement, seen from both ends; the report is the AI's words.
+const board = (inputId: string) => ({ nodes: [
+  { reports: [{ note: "建好 fixture", inputs: [] }] },
+  { reports: [{ note: "已按补充改用新 fixture", inputs: [{ session_id: "s", input_id: inputId }] }] },
+  { inserted: true, reports: [{ note: "补了注册接口的用例", inputs: [{ session_id: "s", input_id: inputId }] }] },
+] });
+
+test("RCPT-344, 3d-2: the receipt quotes each step report that names it, under the AI's own heading, keyed as on the plan card", () => {
+  const { ui } = receipts();
+  const root = ui.line(supplement({ state: "read" }), { run_id: "run-1", step_board: board("steer-1") })!;
+  const claimed = root.all("mw-receipt__claimed")[0]!;
+  assert.match(claimed.text, /^AI 自己说的，Molis 没有核对步骤报告提到它S2 “已按补充改用新 fixture”插入 “补了注册接口的用例”$/u, "RCPT-344 quoted next to the AI's note heading, S2 and 插入 as the plan card keys them");
+  assert.doesNotMatch(root.text, /建好 fixture|已生效/u, "a report that does not name it is not shown, and nothing is said to have taken effect (D21)");
+  assert.equal(root.all("mw-receipt__fact")[0]!.text, "AI 已读到", "RCPT-344 a report moves no fact");
+  assert.equal(ui.line(supplement({ state: "read" }), { run_id: "run-1", step_board: board("steer-1") }), root);
+  assert.equal(ui.line({ ...supplement({ state: "read" }), turn_id: "t2", steer: { id: "steer-2", state: "read" } }, { run_id: "run-1", step_board: board("steer-1") })!.all("mw-receipt__claimed").length, 0, "no report names it: no AI heading at all");
+  const unread = ui.line({ ...supplement({ state: "read" }), turn_id: "t3", steer: { id: "steer-3", state: "read" } }, { run_id: "run-2" })!;
+  assert.equal(unread.all("mw-receipt__claimed").length, 0, "RCPT-344 a board not read this time is not a board with no reports: nothing is drawn");
+  const later = ui.line(supplement({ state: "read" }), { run_id: "run-1", step_board: { nodes: [...board("steer-1").nodes, { reports: [{ note: "又跑了一遍", inputs: [{ session_id: "s", input_id: "steer-1" }] }] }] } })!;
+  assert.equal(later, root, "the same element");
+  assert.match(later.all("mw-receipt__claimed")[0]!.text, /S4 “又跑了一遍”$/u, "RCPT-344 a new report redraws it");
+});
+
+test("RCPT-345, 3d-2: link opens a receipt this page drew, after the caller's own step, and is null when it drew none", () => {
+  const { ui } = receipts();
+  const root = ui.line(supplement({ state: "read" }), { run_id: "run-1" })!;
+  assert.equal(ui.link("steer-9"), null, "RCPT-345 not drawn on this page (an earlier round): no button that does nothing");
+  const order: string[] = [];
+  const link = ui.link("steer-1", () => order.push(`first, focus ${focus.on === root.find(node => node.tag === "summary") ? "there" : "elsewhere"}`))!;
+  assert.equal(link.text, "关于补充「顺便把注册接口也覆盖一下」");
+  focus.on = null;
+  link.click();
+  assert.deepEqual(order, ["first, focus elsewhere"], "the caller's step runs before the receipt opens (a dialog closes first)");
+  assert.equal(root.open, true, "RCPT-345 the receipt opens");
+  assert.equal(focus.on, root.find(node => node.tag === "summary"), "RCPT-345 focus lands on its summary");
+  assert.ok(ui.link("steer-1"), "without a step of its own it still opens");
+  focus.on = null;
 });

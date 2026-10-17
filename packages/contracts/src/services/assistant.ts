@@ -536,7 +536,7 @@ export interface AssistantHandover {
 export type AssistantControl =
   | { kind: "pause" }
   | { kind: "resume" }
-  | { kind: "stop" };
+  | { kind: "stop"; keep_connections?: boolean };
 
 /** What one provider contributes for the Assistant (read from the action directory), and the gaps that limit it. */
 export interface AssistantContribution {

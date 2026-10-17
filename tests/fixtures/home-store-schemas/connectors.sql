@@ -41,3 +41,10 @@ CREATE UNIQUE INDEX connector_connections_credential_idx
 
 CREATE INDEX connector_connections_service_idx
         ON connector_connections(service_id, created_at);
+
+-- ASC-10: latest technical observations in the unreleased connectors v2 baseline.
+CREATE TABLE connector_observations (
+  connection_id TEXT PRIMARY KEY,
+  check_json TEXT,
+  call_json TEXT
+);

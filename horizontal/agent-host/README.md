@@ -56,7 +56,7 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
   - 一个 Home 一个执行 owner；另一个进程得到 `agent.inference.home_in_use` 或 `agent.storage_busy`，经 `inferenceServiceUnavailableReason` 转成给人看的原因。
   - 派出前复核（`beforeDispatch`、凭据核对）拒绝时，调用方拿到复核自己抛的错误（`isDispatchRefusal` 为真），不得改写成模型或网络失败；SDK 侧对应 `EFFECT_NOT_AUTHORIZED`。
   - 角色必须是 Manifest 声明过的，能力必须 Runtime 真支持，目录必须宿主授权且 realpath 已核；`unsupported` 就是不能用，不降级不伪装。
-  - 项目 MCP 配置由 SDK 保管；来源插件是来历，Host 共同动作允许助理在自己的授权下复用。启用的断线连接只在获准调用时重连，目录查询不启动进程；准备和实际派出都复核原工作区授权、配置版本及工具形状。`catalog()` 仅供 Host 管理列出项目归属，不赋予调用权限。回归：`tests/external-mcp-actions.test.ts`、`tests/external-mcp-dispatch.test.ts`、`tests/coding-mcp.test.ts`。
+  - 项目 MCP 配置由 SDK 保管；来源插件是来历，Host 共同动作允许助理在自己的授权下复用。启用的断线连接只在获准调用时重连，目录查询不启动进程；准备和实际派出都复核原工作区授权、配置版本及工具形状。`catalog()` 仅供 Host 管理列出项目归属，不赋予调用权限。`call` 的 Host 观察回调区分业务派出和结果，连接准备不算业务调用；SDK 的明确工具失败与结果未确认分别通知，原错误合同保留。回归：`tests/external-mcp-actions.test.ts`、`tests/external-mcp-dispatch.test.ts`、`tests/coding-mcp.test.ts`。
   - Runtime 不能自己扩权：批准一次性，拒绝与过期不能换个入口变成许可。
   - 插件 caller 的项目身份只取 Host；`HostPluginCaller.project_id` 为 `null` 的 Home caller 在原归属检查处以 `agent.session_unknown` 拒绝，不补造项目。通过检查后才窄化成项目 caller；回归见 `tests/home-plugin-platform.test.ts` 的 Home 消费身份与 Agent 拒绝用例。
   - 逐项能力回合（冻结的 `action_tools`）的角色 `host_tools` 带 `suggest-action` 时，这一轮多一个建议工具（`molis-suggest-<范围>`，与动作工具同一个包）：只能点名这一轮的动作工具，按动作此刻的状态与它自己的输入检查核过才记下，什么都不执行、不排审查；记下的建议原样进运行视图的 `offers`（`AgentRunView.offers`，从保存的事件回放，不重新生成），落成什么由调用方决定（D25）。只读角色带 `suggest-action` 开跑前就拒（`agent.role_execution_exceeded`）。`suggest-action` 不是 Prologue 的系统工具，不经 `prologueToolName`。建议工具按名字前缀免审查放行，所以别的工具来源都不能产生这个前缀（MCP 是 `mcp:…`、动作是 `molis-action-…`、其余是固定名字或 SDK 系统工具）；新增工具来源时要守住这一点。安全不变量 S-28，回归：`tests/security-invariants-agent-suggestions.test.ts`、`tests/agent-host-offers.test.ts`。
@@ -124,5 +124,7 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 等待与接续的视图在 `services/agent-collaboration`，读与控制是两个动作，等到能接着做是一个宿主等待（`agent.collaboration.await.v1`）。
 
 等外面的结果（P3c）：`board-wait` 的 `external` 条件由 `prologue-checkers.ts` 里的两个检查器去看，不经模型。`molis.action-query@1` 只查这一轮此刻能调用的只读查询（`operation` 与 `kind` 都是 `query`、effect 是 `read`）；模型给的是动作工具名，`remember()` 时用 `prologue-action-tools.ts` 的 `actionToolRefs` 按这一轮的冻结动作建好名字到引用的表，检查器不自己算名字；`molis.file-present@1` 只看这一轮授权目录里的相对路径。登记时一个 `tool-before` 钩子先拒掉写类、判断、声明了 `model:invoke` 的查询、导航和这一轮没给的动作；之后每次看都重新复核：轮次还被记得、这一轮自己的 `beforeDispatch` 通过、动作经统一动作服务用这一轮的授权重新发现，目录经宿主的 `checks.directoryAuthorized` 端口确认仍授权。不过就回 `refused`，等待停下（`docs/system/SECURITY-INVARIANTS.md` S-27，`tests/prologue-external-checks.test.ts`、`tests/security-invariants-external-checks.test.ts`）。
+
+宿主还可通过 `checks.owned` 登记领域 owner 的只读检查；模型与插件没有登记入口。每次读取前后都用当前会话身份向 owner 重新证明权限，允许仅该窄读取在重启后恢复；通用动作和文件检查仍按 S-27 拒绝重启后的旧授权。读取暂时失败保留 unknown；撤权或归属不符是 refused，不展示原始错误正文。个人助理的 `molis.connector-setup@1` 只查看同一会话准备的接入请求，不能借它安装、调用业务工具或判断任务成功。回归见 `tests/security-invariants-owned-checks.test.ts`。
 
 信的规则：agents 受众的信只在同一张板相邻的步骤之间走，宿主负责把信交给收件人正在跑的那一轮。同一项目的会话可以互相请求、答复、通知、交接计划步骤；跨项目的会话不在同一张板上，照旧拒绝。几个会话同写一张板靠 SDK 按节点判冲突（P2k）：只有要改的那一步在模型读过之后被人改过，才报冲突。

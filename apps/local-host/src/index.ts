@@ -94,9 +94,15 @@ export { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-sour
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
 export { withConnectorConnections } from "./connector-connection-store.js";
+export { connectLocalMcp } from "./connector-local-mcp-setup.js";
+export { installManagedConnectorTool, removeManagedConnectorTool } from "./connector-tool-install.js";
+export { retainConnectorSetupsForSession } from "./connector-setup-retain.js";
 export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
+export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";
+export { connectorSetupIntentAction } from "./connector-setup-intent.js";
+export { holdConnectorAuthorizationsForSession } from "./connector-authorization-status.js";
 export { alchemistPulseGithub } from "./alchemist-pulse-github.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export * from "./github-oauth.js";
@@ -272,3 +278,9 @@ export { handleBrowserHttp } from "./browser/browser-http.js";
 export { codingBackgroundTasks } from "./coding-background-tasks.js";
 export { homeBackgroundTasks } from "./web-catalog.js";
 export { hostLog, captureHostLog, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
+
+export { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
+
+export { connectorLocalActions } from "./connector-local-actions.js";
+
+export { connectorCliActions } from "./connector-cli-actions.js";

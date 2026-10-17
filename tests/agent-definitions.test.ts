@@ -236,5 +236,5 @@ test("a run starts with the person's version of a registered prompt, and its rec
     const session = await host.adapter("prologue").readSession({ session_id: store.get("web-user", sent.work.work_id).session_id! });
     const frozen = (session as any).latest_run.frozen.prompts.find((prompt: { prompt_id: string }) => prompt.prompt_id === "assistant-base");
     assert.deepEqual([frozen.version, frozen.user_revision], [BASE_VERSION, 1]);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

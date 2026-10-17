@@ -1,7 +1,9 @@
 import { randomBytes } from "node:crypto";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { assertConnectorAuthorizationPending, assertConnectorSetup, beginConnectorAuthorization, finishConnectorAuthorization, type ConnectorSetupPlan } from "./connector-authorization-status.js";
+import { assertConnectorAuthorizationPending, assertConnectorSetup, beginConnectorAuthorization, finishConnectorAuthorization, prepareInstalledCliAuthorization, type ConnectorSetupPlan } from "./connector-authorization-status.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
+import { submitConnectorActivation } from "./connector-authorization-commit.js";
+import type { ConnectorActivation } from "./connector-activation.js";
 
 /** Shared by protected HTTP forms and protocol owners; never takes identity or permissions from a form. */
 export function checkConnectorSetupSubmission(home: string, requestId: string | undefined, actual: Pick<ConnectorSetupPlan, "service_id" | "method"> & Partial<ConnectorSetupPlan>) {
@@ -19,6 +21,7 @@ export function startConnectorSetupSubmission(home: string, requestId: string | 
   const state = randomBytes(32).toString("base64url");
   beginConnectorAuthorization(home, state, actual.connection_id ?? "", actual.service_id, Date.now(), requestId);
   return { assertCurrent: () => assertConnectorAuthorizationPending(home, state),
-    finish: (connectionId: string) => finishConnectorAuthorization(home, state, "connected", connectionId),
+    installed: () => prepareInstalledCliAuthorization(home, state),
+    submit: (completion: ConnectorActivation) => submitConnectorActivation(home, state, completion),
     fail: () => finishConnectorAuthorization(home, state, "failed") };
 }

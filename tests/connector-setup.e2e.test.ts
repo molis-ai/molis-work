@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
-import { connectorSetupAction, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { connectorSetupAction, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -9,7 +9,7 @@ import { openWork } from "./fixtures/assistant-send-journey.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // A local fixture value is entered only in the protected form. No real provider, model or account is contacted.
-test("ASC-08 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protected setup request in the existing settings surface", { timeout: 120_000 }, async t => {
+test("ASC-08 ASC-23 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protected setup request in the existing settings surface", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "empty", undefined, null); if (!browser) return;
   const { localHost, origin, homeDirectory, command, sessionId, evaluate, waitFor, click, navigate } = browser;
   assert.ok(localHost);
@@ -42,7 +42,11 @@ test("ASC-08 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protected set
   await openWork(browser, placed.work_id);
   await waitFor(`document.querySelector(${JSON.stringify(selector + " a[href]")})`);
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(selector + " a[href]")}).getAttribute('href')`), url, "reopened conversation keeps the same request");
-  await click(selector + " a[href]");
+  // ASC-23: the conversation's recovery entry is a keyboard-operable link.
+  await evaluate(`document.querySelector(${JSON.stringify(selector + " a[href]")}).focus()`);
+  assert.equal(await evaluate(`document.activeElement.matches(${JSON.stringify(selector + " a[href]")})`), true);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await waitFor("document.querySelector('[data-setup-id]')?.dataset.connectorsBound === '1'", 15_000);
   assert.equal(await evaluate("document.querySelector('[data-connector-token]').type"), "password");
   assert.equal(await evaluate("document.querySelectorAll('[data-connector-auth]').length"), 1);
@@ -61,7 +65,8 @@ test("ASC-08 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protected set
   const fixtureValue = "fixture-protected-form-value";
   await click("[data-connector-token]");
   await command("Input.insertText", { text: fixtureValue }, sessionId);
-  await click("[data-connector-auth] button[type=submit]");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await waitFor("!document.querySelector('[data-connector-auth]') && /连接已保存/.test(document.querySelector('[data-connector-feedback]')?.textContent || '')", 15_000);
   const completed = await read(request.authorization_id);
   assert.equal(completed.status, "connected");
@@ -70,6 +75,24 @@ test("ASC-08 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protected set
   assert.equal(JSON.stringify(completed).includes(fixtureValue), false);
   const conversation = await (await fetch(origin + "/api/assistant/works/" + placed.work_id)).text();
   assert.equal(conversation.includes(fixtureValue), false, "the actual persisted conversation never receives the protected input");
+  await navigate(() => command("Page.navigate", { url: origin + "/capabilities/connections?connector=model-api" }, sessionId));
+  await waitFor("document.querySelector('[data-connectors-settings]')?.dataset.connectorsBound === '1'");
+  const statusSelector = `[data-connection-row="${completed.connection_id}"] [data-connection-status]`;
+  await click(statusSelector + " summary");
+  assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(statusSelector)}).textContent`), /配置完整[\s\S]*未检查[\s\S]*服务端授权范围未知[\s\S]*尚无调用记录/);
+  for (const width of [1440, 390]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, `status fits ${width}px`);
+    const bounds = await evaluate<{ width: number; rowWidth: number; top: number; identityBottom: number }>(`(() => { const element = document.querySelector(${JSON.stringify(statusSelector)}), row = element.closest('[data-connection-row]'), box = element.getBoundingClientRect(); return { width: box.width, rowWidth: row.getBoundingClientRect().width, top: box.top, identityBottom: row.querySelector('.settings-connection-row__identity').getBoundingClientRect().bottom }; })()`);
+    assert.ok(bounds.width > bounds.rowWidth * .9, `status occupies its own full row at ${width}px`);
+    assert.ok(bounds.top >= bounds.identityBottom, `status appears below the account identity at ${width}px`);
+    await writeFile(new URL(`connection-status-${width}.png`, shots), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  }
+  // Returning from the connection view at the narrow size still reaches the original work and its request.
+  await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
+  await openWork(browser, placed.work_id);
+  await waitFor(`document.querySelector(${JSON.stringify(selector + " a[href]")})`);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(selector + " a[href]")}).getAttribute('href')`), url);
   await open(request.url);
   assert.equal(await evaluate("Boolean(document.querySelector('[data-connector-auth]'))"), false, "completed request cannot be submitted twice");
   const cancelled = await prepare("不再接入"); await open(cancelled.url);
@@ -89,4 +112,18 @@ test("ASC-08 ASC-36 ASC-37: open, leave, reopen, fill and cancel a protected set
   assert.equal(await evaluate(`document.documentElement.outerHTML.includes(${JSON.stringify(fixtureValue)})`), false);
   await click("[data-setup-id] a[href='/capabilities/connections']");
   await waitFor("document.querySelector('[data-connectors-settings]:not([data-setup-id])')");
+  // ASC-34: a real form submission reports the intent hold, keeps secrets out of the DOM, then observes owner activation.
+  const held = await prepare("等待最新要求");
+  holdConnectorAuthorizationsForSession(homeDirectory, caller.runtime_session_id!, caller.actor_id, "new-request");
+  await open(held.url);
+  await click("[data-connector-token]"); await command("Input.insertText", { text: fixtureValue }, sessionId);
+  await click("[data-connector-auth] button[type=submit]");
+  await waitFor("!document.querySelector('[data-connector-auth]') && /接入暂不提交/.test(document.querySelector('[data-connector-feedback]')?.textContent || '')");
+  assert.equal((await read(held.authorization_id)).status, "pending");
+  assert.equal(withConnectorConnections(homeDirectory, store => store.list()).length, 2);
+  assert.equal(await evaluate(`document.documentElement.outerHTML.includes(${JSON.stringify(fixtureValue)})`), false);
+  await localHost.homeActionClient().invoke(caller, connectorSetupIntentAction, { authorization_id: held.authorization_id, intent_revision: "new-request", decision: "retain" });
+  await waitFor("/连接已保存/.test(document.querySelector('[data-connector-feedback]')?.textContent || '')", 15_000);
+  assert.equal((await read(held.authorization_id)).status, "connected");
+  assert.equal(withConnectorConnections(homeDirectory, store => store.list()).length, 3);
 });

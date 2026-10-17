@@ -35,6 +35,16 @@ test("an ending that only announces the next step is recognised; results, questi
   }
 });
 
+test("ASC-28 ASC-34: a completed prerequisite does not hide the announced next step", () => {
+  assert.equal(announcesWithoutActing("接入已完成。现在按你的最新要求，只读取 `inventory://quarter`，不保存任何 Pages 文档。"), true);
+  assert.equal(announcesWithoutActing("文件已保存。接下来核对内容。"), true);
+  assert.equal(announcesWithoutActing("Setup completed. Now I will read the inventory."), true);
+  assert.equal(announcesWithoutActing("先读取库存。读取已完成。"), false);
+  assert.equal(announcesWithoutActing("接入已完成。现在没有权限读取库存，无法继续。"), false);
+  assert.equal(announcesWithoutActing("接入已完成。需要你在页面上填写凭据。"), false);
+  assert.equal(announcesWithoutActing("已保留接入。请在那里填写凭据。接入完成后，我会只读取库存。"), false);
+});
+
 test("a reply that claims a memory was kept or forgotten is recognised; saying it was not is not a claim", () => {
   // Seen from MiniMax-M3: it listed the memories, then answered as if it had kept the new one.
   assert.equal(claimsMemoryChange("记下了：**Q4 plan 项目的周会固定在周三下午两点**。这条只在本项目里生效。"), "keep");
@@ -103,6 +113,10 @@ test("a reply that shows internal identifiers is recognised; titles, file names 
   assert.deepEqual(mentionsInternalIds("用 pages.create 建好了「Q4 复盘」。", known), ["pages.create"]);
   assert.deepEqual(mentionsInternalIds("我调用了 change-capability，已新建待办。", known), ["change-capability"]);
   assert.deepEqual(mentionsInternalIds("文档 ID 是 3f2a9c1e-7b4d-4e2a-9f10-2c3d4e5f6a7b。", known), ["3f2a9c1e-7b4d-4e2a-9f10-2c3d4e5f6a7b"]);
+  // ASC-28: a protected setup destination remains openable, while identifiers in its visible label still count.
+  const setup = "/capabilities/connections?setup=3f2a9c1e-7b4d-4e2a-9f10-2c3d4e5f6a7b";
+  for (const text of [`[接入入口](${setup})`, `打开 \`${setup}\`。`, `[接入入口](https://example.com${setup})`]) assert.deepEqual(mentionsInternalIds(text, known), []);
+  assert.deepEqual(mentionsInternalIds(`[pages.create](${setup})`, known), ["pages.create"]);
   assert.deepEqual(mentionsInternalIds("没能保存（actions.outcome_unknown），请先确认一下。", known), ["actions.outcome_unknown"]);
   assert.deepEqual(mentionsInternalIds("Pages 插件（io.molis.work.pages）里已新建。", known), ["io.molis.work.pages"]);
   // Titles, plugin names, file names and ordinary words that happen to share a tool's spelling are not identifiers.

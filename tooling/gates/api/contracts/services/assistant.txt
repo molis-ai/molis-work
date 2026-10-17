@@ -139,6 +139,7 @@ export type AssistantControl = {
     kind: "resume";
 } | {
     kind: "stop";
+    keep_connections?: boolean;
 };
 
 export interface AssistantDiagnostics {

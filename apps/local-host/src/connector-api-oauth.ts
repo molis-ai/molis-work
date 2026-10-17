@@ -1,7 +1,7 @@
+import { submitConnectorActivation } from "./connector-authorization-commit.js";
 import { assertConnectorAuthorizationPending, beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
 import { checkConnectorSetupSubmission } from "./connector-setup-submission.js";
 import { saveConnectorAuthorizationPresentation } from "./connector-authorization-presentation.js";
-import { refreshFeedConnectionState } from "./connector-source-state.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { catalogWhoami, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
@@ -273,20 +273,16 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
         if (!previousContext?.account_id || previousContext.account_id !== config.context.account_id) throw new ApiOAuthError("无法确认这是原账号，请新增连接，保留已有账号绑定");
       }
       const secrets = connectorProtocolSecrets(home, config.connectionId);
-      secrets.put("client", staged.get("client") || "{}");
-      secrets.put("access", token);
-      const refreshToken = text(tokens.refresh_token);
-      if (refreshToken) secrets.put("oauth", refreshToken); else secrets.delete("oauth");
-      const expires = expiry(tokens, config.serviceId);
-      if (expires) secrets.put("expires", String(expires)); else secrets.delete("expires");
-      config.sessionId = config.connectionId;
-      withConnectorProtocols(home, store => store.save(config));
-      const connection = withConnectorConnections(home, store => store.upsertOAuth({ connectionId: config.connectionId, serviceId: config.serviceId,
-        displayName: config.displayName, accountLabel: label, accessRef: secrets.reference("access"),
-        refreshRef: refreshToken ? secrets.reference("oauth") : null, expiresRef: expires ? secrets.reference("expires") : null, stableAccountValidated: true }));
-      refreshFeedConnectionState(home, config.connectionId);
-      finishConnectorAuthorization(home, state, "connected");
-      return { service_id: config.serviceId, connection: withConnectorConnections(home, store => store.view(connection)) };
+      const refreshToken = text(tokens.refresh_token), expires = expiry(tokens, config.serviceId);
+      const credentials = { [secrets.reference("client")]: staged.get("client") || "{}", [secrets.reference("access")]: token,
+        [secrets.reference("oauth")]: refreshToken || null, [secrets.reference("expires")]: expires ? String(expires) : null };
+      const saved = { ...config, sessionId: config.connectionId };
+      delete saved.previousRevision;
+      const result = submitConnectorActivation(home, state, { kind: "oauth", target: { connectionId: config.connectionId, expectedRevision: config.previousRevision },
+        credentials, protocol: saved, input: { connectionId: config.connectionId, serviceId: config.serviceId,
+          displayName: config.displayName, accountLabel: label, accessRef: secrets.reference("access"),
+          refreshRef: refreshToken ? secrets.reference("oauth") : null, expiresRef: expires ? secrets.reference("expires") : null, stableAccountValidated: true } });
+      return { service_id: config.serviceId, ...result };
     });
   } catch (error) {
     finishConnectorAuthorization(home, state, (input.error || returned?.searchParams.get("error")) === "access_denied" ? "cancelled" : "failed");

@@ -72,7 +72,7 @@ export async function inspectSourceAuthorization(home: string, source: {
   } catch { return denied("账号需要重新授权或 CLI 当前账号已改变"); }
 }
 
-export async function inspectApiConnection(home: string, id: string, preview = false, signal?: AbortSignal) {
+export async function inspectApiConnection(home: string, id: string, preview = false, signal?: AbortSignal, beforeRead?: () => void | Promise<void>) {
   return withConnectorRequest(home, id, signal, async signal => {
   let access = await resolveApiConnection(home, id);
   const fetchImpl: typeof fetch = (input, init) => (access.fetchImpl ?? globalThis.fetch)(input, { ...init,
@@ -85,9 +85,10 @@ export async function inspectApiConnection(home: string, id: string, preview = f
       result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
     }
     if (!result.ok) throw new Error(result.message);
-    const verified = { ok: true, account: result.login, checked_at: new Date().toISOString() };
+    const verified = { ok: true, account: result.login, verified_account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, checked_at: new Date().toISOString() };
     if (!preview || getCatalogSpec(service).feed_available === false) return verified;
     const provider = createCatalogProvider({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
+    await beforeRead?.(); signal.throwIfAborted();
     const read = await provider.sync({ cursor: null });
     if (!read.ok) throw new Error(read.message);
     return { ...verified, items: read.items };
@@ -97,6 +98,7 @@ export async function inspectApiConnection(home: string, id: string, preview = f
   const health = await provider.health();
   if (!health.ok) throw new Error(health.message);
   if (!preview) return { ...health, checked_at: new Date().toISOString() };
+  await beforeRead?.(); signal.throwIfAborted();
   const read = await provider.sync({ cursor: null });
   if (!read.ok) throw new Error(read.message);
   return { ...health, items: read.items, checked_at: new Date().toISOString() };

@@ -67,7 +67,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user", options.now);
-  return { service, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { service.continuations.close(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a project work finds, reads and — after the person approves the exact input — changes through the gateway, with no directory", { timeout: 60_000 }, async t => {
@@ -84,7 +84,7 @@ test("a project work finds, reads and — after the person approves the exact in
     await until(() => f.requests[0], "first model request");
     // The model saw only the gateway and root-free tools: no file, command or per-action tools.
     const offered = f.requests[0].tools.map((tool: any) => tool.name).sort();
-    assert.deepEqual(offered, ["ask-user", "change-capability", "change-reversible", "context-remaining", "find-capabilities", "read-capability", "suggest-action", "update-todo"]);
+    assert.deepEqual(offered, ["ask-user", "board-wait", "change-capability", "change-reversible", "context-remaining", "find-capabilities", "read-capability", "suggest-action", "update-todo"]);
     assert.ok(JSON.stringify(f.requests[0]).includes("可用能力目录"), "the round carries the capability directory");
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     assert.equal(view.work.state, "waiting-review");
@@ -952,6 +952,19 @@ test("the developer diagnostics trace a round by its exact identities and frozen
     assert.ok(round!.failures.some(failure => failure.tool === "read-capability" && failure.state === "failed"), JSON.stringify(round!.failures));
     assert.ok(round!.usage && round!.usage.input > 0);
   } finally { await f.close(); }
+});
+
+test("ASC-28: malformed capability identity names the field and type before discovery or dispatch", async () => {
+  let discovered = 0, invoked = 0;
+  const client = { discover: async () => { discovered++; return []; }, invoke: async () => { invoked++; } };
+  const gateway = { client, operate: true };
+  const reference = { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" };
+  assert.match(await gatewayProblem(gateway, "change-capability", { ...reference, version: "1" }) ?? "", /version must be a JSON integer.*not the string "1"/);
+  assert.match(await gatewayProblem(gateway, "read-capability", { ...reference, capability_id: 1 }) ?? "", /capability_id must be a non-empty string/);
+  assert.match(await gatewayProblem(gateway, "change-capability", { ...reference, provider_id: null }) ?? "", /provider_id must be a non-empty string/);
+  assert.equal(discovered, 0); assert.equal(invoked, 0);
+  assert.match(await gatewayProblem(gateway, "change-capability", reference) ?? "", /No capability with that exact identity/);
+  assert.equal(discovered, 1, "a correctly typed identity reaches the existing catalog lookup");
 });
 
 test("a revision or other number written as text is passed on as written, and the refusal names the place and what was there (adoption §6.0g)", async () => {

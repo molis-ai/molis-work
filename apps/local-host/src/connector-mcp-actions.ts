@@ -5,6 +5,10 @@ import { callMcpConnectionTool, readMcpConnectionResource } from "./connector-mc
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MCP_CAPABILITY_PREFIX, createMcpVersionBook, createRegistrationSet, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputContract, mcpInputFingerprint, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { observeConnectorCall } from "./connector-call-observation.js";
+import { rememberConnectorCheck } from "./connector-observations.js";
+import { withConnectorProtocols } from "./connector-protocol-store.js";
+import type { StoredMcpConfiguration } from "./connector-mcp-configuration.js";
 
 /** A tool as the server listed it the last time the person looked; no credentials. */
 export interface ConnectorMcpTool { name: string; description?: string; inputSchema?: Record<string, unknown> }
@@ -13,6 +17,7 @@ type Seen = Record<string, { tools: Array<{ name: string; description: string; i
 const SEEN_PATH = "config/connector-mcp-tools.json";
 const VERSIONS_PATH = "config/connector-mcp-actions.json";
 const PROVIDER = "system.connectors#mcp:";
+export const connectorMcpProviderId = (connectionId: string) => `${PROVIDER}${connectionId}`;
 
 export const connectorMcpCapabilityId = (connectionId: string, tool: string) => `${CONNECTOR_MCP_CAPABILITY_PREFIX}${mcpIdPart(connectionId)}.${mcpIdPart(tool)}`;
 /** Reading a resource is a read by the protocol itself (resources/read), not by a server's hint. */
@@ -40,7 +45,7 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
     const row = connection(connectionId);
     if (!row || row.auth_method !== "mcp" || (!tools.length && !resources)) { withdraw(connectionId); return; }
     const label = row.display_name;
-    const providerId = `${PROVIDER}${connectionId}`;
+    const providerId = connectorMcpProviderId(connectionId);
     const entries = tools.map((tool): { definition: ActionDefinition; handler: ActionHandlerBinding } => {
       const shape = mcpInputFingerprint(tool.input_schema);
       const contract = mcpInputContract(tool.input_schema);
@@ -53,10 +58,11 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
         availability: () => contract.availability,
         handle: async (caller, input) => {
           await caller.beforeEffect();
-          try { return await call(options.homeDirectory, connectionId, tool.name, input as Record<string, unknown>, {
+          try { return await observeConnectorCall(options.homeDirectory, connectionId, { capability_id: definition.capability_id, version: definition.version, provider_id: providerId }, caller, dispatched => call(options.homeDirectory, connectionId, tool.name, input as Record<string, unknown>, {
             signal: caller.signal, beforeDispatch: caller.beforeEffect, expectedInputFingerprint: shape,
+            onBusinessDispatch: dispatched,
             onInspection: inspection => remember(connectionId, inspection.tools, inspection.resources),
-          }); }
+          })); }
           catch (error) { throw failure(error); }
         } } };
     });
@@ -67,7 +73,8 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
         input_schema: { type: "object", properties: { uri: { type: "string", minLength: 1, maxLength: 4096 } }, required: ["uri"], additionalProperties: false },
         output_schema: { type: "object" } } };
       entries.push({ definition, handler: { capability_id: definition.capability_id, version: definition.version, handle: async (caller, input) => {
-        try { return await read(options.homeDirectory, connectionId, (input as { uri: string }).uri, { signal: caller.signal, beforeDispatch: caller.beforeEffect }); }
+        try { return await observeConnectorCall(options.homeDirectory, connectionId, { capability_id: definition.capability_id, version: definition.version, provider_id: providerId }, caller,
+          dispatched => read(options.homeDirectory, connectionId, (input as { uri: string }).uri, { signal: caller.signal, beforeDispatch: caller.beforeEffect, onBusinessDispatch: dispatched })); }
         catch (error) { throw failure(error); }
       } } });
     }
@@ -90,6 +97,9 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
   }
 
   function remember(connectionId: string, tools: readonly ConnectorMcpTool[], resources?: readonly unknown[]) {
+    const row = connection(connectionId), config = withConnectorProtocols(options.homeDirectory, store => store.get<StoredMcpConfiguration>(connectionId));
+    if (row) rememberConnectorCheck(options.homeDirectory, connectionId, { at: new Date().toISOString(), revision: row.updated_at,
+      outcome: "connected", authorization: config?.mode === "none" ? "not-required" : "verified" });
     const seen = readJsonFile<Seen>(seenFile, {});
     const next = { tools: tools.map(tool => ({ name: tool.name, description: tool.description ?? "", input_schema: tool.inputSchema ?? { type: "object" } })),
       ...(resources?.length ? { resources: true } : {}) };

@@ -35,6 +35,7 @@ import { writerDirectoryCapabilities, writerIntegrationCapabilities, type Writer
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { memoryForAgentRun } from "./memory/memory-host.js";
+import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -104,7 +105,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
       documentParsers: [pdfDocumentParser],
       // A step's wait on a file looks only while the round's directory is still authorized for the project.
-      checks: { directoryAuthorized: async (projectId, directory) => (await workspaceGrants(options, projectId)).some(entry => entry.realpath_verified && entry.canonical_path === directory) },
+      checks: hostConditionChecks(options),
       reviewQueue: agentHost.reviews,
       app: { appId: "io.molis.work", appVersion: "0.0.0" },
     }).then((adapter) => { prologue = adapter; agentHost.register(adapter); markStarted(); }))
@@ -470,4 +471,11 @@ function inferenceClient(initialize: () => Promise<void>, current: () => Awaited
     generateImages: async input => (await get()).generateImages(input),
     evaluateTypeSafe: async input => (await get()).evaluateTypeSafe(input),
   };
+}
+
+/** A file keeps its project directory grant; a prepared connection proves its own narrow, durable read grant. */
+function hostConditionChecks(options: AgentHostCompositionOptions): NonNullable<PrologueNodeAdapterOptions["checks"]> {
+  const home = options.homeDirectory ?? resolveConfiguredHome();
+  return { directoryAuthorized: async (project, directory) => (await workspaceGrants(options, project)).some(entry => entry.realpath_verified && entry.canonical_path === directory),
+    owned: assistantConnectionCheckers(home, options.localHost) };
 }

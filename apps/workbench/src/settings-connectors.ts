@@ -3,8 +3,9 @@ import { renderFunctionsSettings } from "./functions/settings-ui.js";
 import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";
 import { connectorMark } from "./connector-marks.js";
-import type { ConnectorSettingsCardView, MolisWorkSettingsView } from "./settings-view.js";
+import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 import { renderConnectorRequest } from "./settings-connector-request.js";
+import { renderConnectionStatus } from "./settings-connection-status.js";
 
 function groupTitle(groupId: ConnectorDirectoryGroupId, L: ConnectorsSettingsPrimitives["L"]): string {
   if (groupId === "mail") return L("邮件与日历");
@@ -49,27 +50,28 @@ function connectionState(state: ConnectorConnectionView["state"], L: ConnectorsS
   return { label: L("已断开"), tone: "neutral" };
 }
 
-function renderConnectionRow(connection: ConnectorConnectionView, card: ConnectorSettingsCardView | undefined, p: ConnectorsSettingsPrimitives, inDetail = false): string {
+function renderConnectionRow(connection: ConnectorSettingsConnection, card: ConnectorSettingsCardView | undefined, p: ConnectorsSettingsPrimitives, inDetail = false): string {
   const { L, escapeHtml } = p;
   const state = connection.enabled === false ? { label: L("已停用"), tone: "neutral" } : connectionState(connection.state, L);
   const name = escapeHtml(connection.display_name);
   const serviceTitle = escapeHtml(card?.title || connection.service_id);
-  const canManage = connection.source !== "external" || connection.auth_method === "cli";
+  const project = !!connection.project_id, canManage = !project && (connection.source !== "external" || connection.auth_method === "cli");
   const credential = card ? credentialInputs(card, p) : { fields: `<input class="mw-input" type="password" autocomplete="off" aria-label="${escapeHtml(L("新令牌"))}" data-connector-token required>` };
   const id = escapeHtml(connection.connection_id);
   const serviceId = escapeHtml(connection.service_id);
-  return `<div class="settings-connection-row" data-connection-row="${id}" data-connection-service="${serviceId}">
+  return `<div class="settings-connection-row" data-connection-row="${id}" data-connection-service="${serviceId}" data-connection-revision="${escapeHtml(connection.revision)}">
     ${renderConnectorMark(connection.service_id, escapeHtml)}
     <div class="settings-connection-row__identity"><strong>${name}</strong><small>${serviceTitle} · ${escapeHtml(connectionMethod(connection.auth_method, L))}${connection.account_label ? ` · ${escapeHtml(connection.account_label)}` : ""}</small>${connection.target_origin ? `<small>${escapeHtml(L("绑定地址"))} · ${escapeHtml(connection.target_origin)}</small>` : ""}</div>
     <span class="settings-state settings-state--${state.tone}" data-connection-state data-mw-state="${connection.state === "reauth_required" ? "reauth" : connection.state === "connected" ? "saved" : "disconnected"}">${escapeHtml(state.label)}</span>
-    ${inDetail ? `<div class="settings-connection-row__actions">
-      ${connection.state !== "disconnected" && !["model-api", "image-api", "typesafe", "mcp-bearer"].includes(connection.service_id) ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-check="${id}">${L("检查连接")}</button><button class="mw-btn mw-btn--secondary" type="button" data-connection-preview="${id}">${L(connection.auth_method === "mcp" ? "查看可用工具" : "查看读取结果")}</button>` : ""}
+    ${inDetail ? `${renderConnectionStatus(connection.status, p)}<div class="settings-connection-row__actions">
+      ${project || connection.state !== "disconnected" && !["model-api", "image-api", "typesafe", "mcp-bearer"].includes(connection.service_id) ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-check="${id}">${L("检查连接")}</button><button class="mw-btn mw-btn--secondary" type="button" data-connection-preview="${id}">${L(connection.auth_method === "mcp" ? "查看可用工具" : "查看读取结果")}</button>` : ""}
       ${canManage && ["oauth", "mcp"].includes(connection.auth_method) ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-reauthorize="${id}" data-connection-method="${connection.auth_method}">${L(connection.auth_method === "mcp" ? "新增 MCP 授权" : "重新授权")}</button>` : ""}
       ${canManage && connection.auth_method === "token" ? `<details class="settings-connection-inline"><summary>${L("更换令牌")}</summary><form data-connection-replace="${id}"${credential.separator ? ` data-credential-separator="${credential.separator}"` : ""}>${credential.fields}<button class="mw-btn mw-btn--secondary" type="submit">${L("保存")}</button></form></details>` : ""}
       ${canManage ? `<details class="settings-connection-inline"><summary>${L("重命名")}</summary><form data-connection-rename="${id}"><input class="mw-input" value="${name}" maxlength="100" required aria-label="${escapeHtml(L("连接名称"))}"><button class="mw-btn mw-btn--secondary" type="submit">${L("保存")}</button></form></details>
-        ${connection.state !== "disconnected" ? `<button class="mw-btn mw-btn--danger-outline" type="button" data-connection-disconnect="${id}">${L("断开")}</button>` : ""}` : `<small>${L("由外部环境管理凭据")}</small>`}
+        ${connection.state !== "disconnected" ? `<button class="mw-btn mw-btn--danger-outline" type="button" data-connection-disconnect="${id}">${L("断开")}</button>` : ""}` : project ? `<small>${escapeHtml(connection.project_id)}</small>` : `<small>${L("由外部环境管理凭据")}</small>`}
+      ${canManage || project ? `<button class="mw-btn mw-btn--secondary" type="button" data-connection-manage="${connection.enabled === false ? "enable" : "disable"}">${connection.enabled === false ? L("启用") : L("停用")}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-connection-manage="remove">${L("移除")}</button>` : ""}
     </div><div class="settings-connection-result" data-connection-result role="status" aria-live="polite" hidden></div>
-    ${connection.auth_method === "mcp" && connection.state !== "disconnected" ? `<details class="settings-connection-tool"><summary>${L("开发者工具：手动调用 MCP")}</summary><label class="settings-connector-field"><span>${L("工具名称（先查看工具列表）")}</span><input class="mw-input" data-mcp-tool-name></label><label class="settings-connector-field"><span>${L("参数 JSON")}</span><textarea class="mw-input" data-mcp-tool-arguments rows="4">{}</textarea></label><p>${L("根据工具说明确认作用范围；点击后会执行该工具，包括它声明的写入操作。")}</p><button type="button" class="mw-btn mw-btn--secondary" data-mcp-tool-call="${id}">${L("执行工具")}</button></details><details class="settings-connection-tool"><summary>${L("开发者工具：读取 MCP 资源")}</summary><label class="settings-connector-field"><span>URI</span><input class="mw-input" data-mcp-resource-uri></label><button type="button" class="mw-btn mw-btn--secondary" data-mcp-resource-read="${id}">${L("读取资源")}</button></details>` : ""}` : `<button class="mw-btn mw-btn--ghost" type="button" data-connector-open="${serviceId}">${L("管理")}</button>`}
+    ${!project && connection.auth_method === "mcp" && connection.state !== "disconnected" ? `<details class="settings-connection-tool"><summary>${L("开发者工具：手动调用 MCP")}</summary><label class="settings-connector-field"><span>${L("工具名称（先查看工具列表）")}</span><input class="mw-input" data-mcp-tool-name></label><label class="settings-connector-field"><span>${L("参数 JSON")}</span><textarea class="mw-input" data-mcp-tool-arguments rows="4">{}</textarea></label><p>${L("根据工具说明确认作用范围；点击后会执行该工具，包括它声明的写入操作。")}</p><button type="button" class="mw-btn mw-btn--secondary" data-mcp-tool-call="${id}">${L("执行工具")}</button></details><details class="settings-connection-tool"><summary>${L("开发者工具：读取 MCP 资源")}</summary><label class="settings-connector-field"><span>URI</span><input class="mw-input" data-mcp-resource-uri></label><button type="button" class="mw-btn mw-btn--secondary" data-mcp-resource-read="${id}">${L("读取资源")}</button></details>` : ""}` : `<button class="mw-btn mw-btn--ghost" type="button" data-connector-open="${serviceId}">${L("管理")}</button>`}
   </div>`;
 }
 

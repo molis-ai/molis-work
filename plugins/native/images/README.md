@@ -46,3 +46,5 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 客户端资源由 Host 注入的 UI 生命周期管理：隐藏停止进度轮询，再次显示刷新；卸载取消本机请求并释放监听、定时器和观察器。服务端任务保持原有取消与恢复语义。
 
 执行时限与持久取消监测复用 Plugin SDK 的执行生命周期；请求去重、进程锁、图片提交和重启后中断记录继续由 Images 拥有。监测失去执行资格后停止等待，不能把撤销或关闭改写成普通失败。
+
+连接使用位置查询 `images.connection.usages` 读取原生图配置的 `auth_connection_id`，返回该配置 id 与已有生成动作；不查询历史提示、图片或 API Key。换绑、删除和停用后直接反映当前 owner 的状态，汇总可见性不授予生成权限。

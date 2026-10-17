@@ -62,7 +62,7 @@ async function fixture(t: import("node:test").TestContext) {
         return structuredClone(published);
       } }),
     characters: async () => choices(), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
-  return { service, store, requests, project, withdraw: () => { published = null; }, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, requests, project, withdraw: () => { published = null; }, async close() { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a Character the person chose really carries the round: its instructions reach the model and the round says who carried it", { timeout: 60_000 }, async t => {
@@ -168,5 +168,5 @@ test("with no role chosen, the Assistant hands a part to a professional role by 
     assert.ok(JSON.stringify(childRequests[0]).includes("每次回答先列出三处可改进的地方"), "the role's instructions reach the sub-task's model");
     assert.deepEqual(child.work.delegated_by?.work_id, sent.work.work_id, "where it came from stays visible");
     assert.equal(done.delegated!.length, 1, "the role not on offer started nothing");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

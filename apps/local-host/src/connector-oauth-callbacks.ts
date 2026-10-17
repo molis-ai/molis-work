@@ -1,3 +1,4 @@
+import { submitConnectorActivation } from "./connector-authorization-commit.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { requestHost } from "./web-http.js";
 import { assertConnectorAuthorizationPending, finishConnectorAuthorization } from "./connector-authorization-status.js";
@@ -6,7 +7,6 @@ import { completeGmailOAuthFlow, cancelGmailOAuthFlow } from "./gmail-oauth.js";
 import { clearOAuthConnectionTarget, oauthConnectionRefs, readOAuthConnectionTarget } from "./connector-oauth-targets.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withContextJourneys } from "./context-onboarding-store.js";
-import { refreshFeedConnectionState } from "./connector-source-state.js";
 import { connectorAuthorizationFailed } from "./connector-authorization-return.js";
 import { createOAuthCredentialStage } from "./connector-oauth-commit.js";
 
@@ -42,14 +42,16 @@ export async function handleConnectorOAuthCallback(request: IncomingMessage, res
           },
         });
         assertConnectorAuthorizationPending(homeDirectory, state);
-        stage.commit(targetId);
-        withConnectorConnections(homeDirectory, (store) => store.upsertOAuth({
+        const committed = submitConnectorActivation(homeDirectory, state, { kind: "oauth", target: { connectionId: targetId, expectedRevision: existing?.updated_at },
+          credentials: stage.credentials(targetId), input: {
           connectionId: targetId, serviceId: "gmail",
           displayName: existing?.display_name ?? target?.displayName ?? `Gmail · ${result.email || "新连接"}`,
           accountLabel: result.email ?? existing?.account_label,
           accessRef: refs.access, refreshRef: refs.refresh, expiresRef: refs.expiresAt,
-        }));
-        refreshFeedConnectionState(homeDirectory, targetId);
+        } });
+        if (committed.status === "pending") {
+          response.writeHead(302, { location: `/capabilities/connections?setup=${committed.authorization_id}`, "cache-control": "no-store" }); response.end(); return true;
+        }
         if (target?.onboarding) withContextJourneys(homeDirectory, store => {
           const journey = store.get(target!.onboarding!.id);
           if (journey.phase === "selecting" && journey.oauth_status === "pending" && (!journey.oauth_state || journey.oauth_state === state)) {
@@ -61,7 +63,6 @@ export async function handleConnectorOAuthCallback(request: IncomingMessage, res
         });
         clearOAuthConnectionTarget("gmail", state);
       }
-      finishConnectorAuthorization(homeDirectory, state, "connected");
       response.writeHead(302, {
         location: target.onboarding ? returnToOnboarding("connected") : `/settings/connectors?connected=gmail&connection=${targetId}`,
         "cache-control": "no-store",
@@ -85,6 +86,7 @@ export async function handleConnectorOAuthCallback(request: IncomingMessage, res
   if (method === "GET" && url.pathname === "/api/settings/connectors/notion/oauth/callback") {
     const stage = createOAuthCredentialStage(homeDirectory);
     const state = url.searchParams.get("state") ?? "";
+    let expectedRevision: string | undefined;
     try {
       assertConnectorAuthorizationPending(homeDirectory, state);
       const host = requestHost(request);
@@ -94,6 +96,7 @@ export async function handleConnectorOAuthCallback(request: IncomingMessage, res
         resolveRefs: (tokens, connectionId) => {
           assertConnectorAuthorizationPending(homeDirectory, state);
           const existing = withConnectorConnections(homeDirectory, (store) => store.get(connectionId));
+          expectedRevision = existing?.updated_at;
           if (existing?.account_label && existing.account_label !== tokens.workspaceId) {
             throw new Error("授权工作区与原连接不同，请新增 Notion 连接");
           }
@@ -101,18 +104,16 @@ export async function handleConnectorOAuthCallback(request: IncomingMessage, res
         },
       });
       assertConnectorAuthorizationPending(homeDirectory, state);
-      stage.commit(result.connectionId);
       const existing = withConnectorConnections(homeDirectory, (store) => store.get(result.connectionId));
       const refs = oauthConnectionRefs(result.connectionId);
-      withConnectorConnections(homeDirectory, (store) => store.upsertOAuth({
+      const committed = submitConnectorActivation(homeDirectory, state, { kind: "oauth", target: { connectionId: result.connectionId, expectedRevision },
+        credentials: stage.credentials(result.connectionId), input: {
         connectionId: result.connectionId, serviceId: "notion",
         displayName: existing?.display_name ?? result.displayName ?? `Notion · ${result.workspaceName || "新连接"}`,
         accountLabel: result.workspaceId || result.workspaceName,
         accessRef: refs.access, refreshRef: refs.refresh,
-      }));
-      refreshFeedConnectionState(homeDirectory, result.connectionId);
-      finishConnectorAuthorization(homeDirectory, url.searchParams.get("state") ?? "", "connected");
-      response.writeHead(302, { location: `/settings/connectors?connected=notion&connection=${result.connectionId}`, "cache-control": "no-store" });
+      } });
+      response.writeHead(302, { location: committed.status === "pending" ? `/capabilities/connections?setup=${committed.authorization_id}` : `/settings/connectors?connected=notion&connection=${result.connectionId}`, "cache-control": "no-store" });
       response.end();
     } catch (error) {
       finishConnectorAuthorization(homeDirectory, url.searchParams.get("state") ?? "", url.searchParams.get("error") === "access_denied" ? "cancelled" : "failed");

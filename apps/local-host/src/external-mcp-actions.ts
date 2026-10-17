@@ -4,6 +4,8 @@ import type { ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contra
 import type { AgentMcpLibrary, AgentMcpToolDescriptor, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { createMcpVersionBook, createRegistrationSet, EXTERNAL_MCP_CAPABILITY_PREFIX, EXTERNAL_MCP_PERMISSION, mcpIdPart, mcpInputContract, mcpToolDescription, readJsonFile, writeJsonFile } from "./mcp-tool-actions.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
+import { observeConnectionCall } from "./connector-call-observation.js";
+import { projectMcpProviderId, projectMcpRevision } from "./connector-project-status.js";
 
 const OUTPUT: ActionSchema = { type: "object", properties: { text: { type: "string" }, truncated: { type: "boolean" } }, required: ["text", "truncated"], additionalProperties: false };
 const VERSIONS_PATH = "config/external-mcp-actions.json";
@@ -72,7 +74,7 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
     const registry = options.localHost.actionRegistry(place);
     for (const { server, label, entries } of next) for (const { definition, tool, contract } of entries) {
       set.ensure(definition.capability_id, JSON.stringify([label, definition, tool, servers.get(server)?.enabled, servers.get(server)?.version, owner, libraryId(library)]), () => registry.registerProvider({
-        provider: { provider_id: `${pluginId}#mcp:${server}`, title: label, kind: "mcp", project_id: place.project_id },
+        provider: { provider_id: projectMcpProviderId(owner, server), title: label, kind: "mcp", project_id: place.project_id },
         definitions: [definition],
         handlers: [{ capability_id: definition.capability_id, version: definition.version,
           availability: () => !contract.availability.available ? contract.availability
@@ -81,7 +83,12 @@ export function createExternalMcpDirectory(options: { localHost: MolisWorkLocalH
           handle: async (caller, input) => {
             // Permission comes before any process/network start; the library reconnects and checks the exact live shape.
             await caller.beforeEffect();
-            return library.call!(owner, tool, input as Record<string, unknown>, { signal: caller.signal, beforeDispatch: caller.beforeEffect });
+            const call = (onBusinessDispatch?: () => void, onBusinessResult?: (outcome: "succeeded" | "failed" | "unknown") => void) =>
+              library.call!(owner, tool, input as Record<string, unknown>, { signal: caller.signal, beforeDispatch: caller.beforeEffect, onBusinessDispatch, onBusinessResult });
+            return options.homeDirectory ? observeConnectionCall(options.homeDirectory, server, { capability_id: definition.capability_id, version: definition.version, provider_id: projectMcpProviderId(owner, server) }, caller, async () => {
+              const current = (await library.list(owner)).find(row => row.id === server);
+              return current ? projectMcpRevision(options.homeDirectory!, current) : undefined;
+            }, call) : call();
           } }],
       }));
     }

@@ -18,11 +18,14 @@ test('Images standard MCP generates and retrieves real bytes, then preserves the
   const call=async(client:Client,name:string,args:Record<string,unknown>={})=>{const result=await client.callTool({name:`images.${name}__v${name==='connections.list'?2:1}`,arguments:args});assert.equal(result.isError,false,JSON.stringify(result));return result.structuredContent as any;};
   try{
     const client=await connect('a');const names=(await client.listTools()).tools.map(tool=>tool.name).filter(name=>name.startsWith('images.'));
-    // Nine Images actions plus its system search source and object reader; generating is not offered until a service exists to generate with.
-    assert.equal(names.length,10);assert.ok(!names.includes('images.jobs.start__v1'));assert.equal(calls,0);
+    // Includes the connection usage query; generating is not offered until a service exists to generate with.
+    assert.equal(names.length,11);assert.ok(!names.includes('images.jobs.start__v1'));assert.equal(calls,0);
+    assert.ok(names.includes('images.connection.usages__v1'));
     assert.ok(names.includes('images.connections.list__v2'));assert.equal((await client.callTool({name:'images.connections.list__v1',arguments:{}})).isError,true, 'the superseded connection contract cannot be invoked');
     const {connection}=await call(client,'connections.save',{name:'MCP provider',api_format:'openai-images',base_url:`http://127.0.0.1:${address.port}/v1`,model:'fixture-image'});
-    assert.equal((await client.listTools()).tools.filter(tool=>tool.name.startsWith('images.')).length,11,'the saved service makes generating available');
+    assert.equal((await client.listTools()).tools.filter(tool=>tool.name.startsWith('images.')).length,12,'the saved service makes generating available');
+    // ASC-10: an unauthenticated image configuration is not itself an account connection.
+    assert.deepEqual(await call(client,'connection.usages',{connection_id:connection.id}),{usages:[]});
     assert.equal((await call(client,'connections.list')).connections[0].id,connection.id);
     const input={request_id:'same-click',connection_id:connection.id,prompt:'MCP image'};
     const {job}=await call(client,'jobs.start',input);assert.equal((await call(client,'jobs.start',input)).job.id,job.id);

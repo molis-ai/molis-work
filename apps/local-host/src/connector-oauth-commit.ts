@@ -9,12 +9,12 @@ export function createOAuthCredentialStage(home: string) {
   const keys = [...Object.values(refs), `${refs.access}:client`];
   return {
     refs,
-    commit(connectionId: string): void {
-      runWithMolisWorkHome(home, () => {
+    credentials(connectionId: string): Record<string, string | null> {
+      return runWithMolisWorkHome(home, () => {
         const store = createFileSecretStore();
         const target = refsFor(connectionId);
         const destinations = [...Object.values(target), `${target.access}:client`];
-        keys.forEach((key, index) => { const value = store.get(key); if (value !== null) store.put(destinations[index]!, value); });
+        return Object.fromEntries(keys.flatMap((key, index) => { const value = store.get(key); return value === null ? [] : [[destinations[index]!, value]]; }));
       });
     },
     clear(): void { runWithMolisWorkHome(home, () => { const store = createFileSecretStore(); for (const key of keys) store.delete(key); }); },

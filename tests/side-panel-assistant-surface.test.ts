@@ -97,7 +97,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
   const send = (text: string, work_id?: string) => service.send({ ...(work_id ? { work_id } : {}), text, request_id: `req-${Math.random().toString(36).slice(2, 10)}`, context: { source: { surface: "home", title: "项目首页" }, captured_at: new Date().toISOString() } }, { project_ref: project });
   const pending = () => until(() => queue.list("board", "pending")[0], "a pending review");
-  return { service, queue, requests, page, browser, send, pending, adapter, home, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, queue, requests, page, browser, send, pending, adapter, home, async close() { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("from a blank page the Assistant looks, then opens a site and clicks only after the person approves each step", { timeout: 60_000 }, async t => {

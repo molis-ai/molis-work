@@ -7,6 +7,11 @@ import { cancelConnectorAuthorization, connectorAuthorizationStatus } from "./co
 import { checkConnectorConnection, verifyEnabledConnection } from "./connector-check-service.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
+import { describeConnectorStatus, type ConnectorActionInspector } from "./connector-status-view.js";
+import type { ConnectorConnectionView, ConnectorConnectionStatus } from "@molis-ai/molis-work-contracts/services/connector-host";
+
+export type ManagedConnectorView = (ConnectorConnectionView & { revision: string | undefined; status: ConnectorConnectionStatus })
+  | Awaited<ReturnType<typeof listProjectMcpConnections>>[number];
 
 const managementErrors = defineErrorCodes("connector.management", { authorization_unknown: "not_found", changed: "conflict" });
 
@@ -23,8 +28,8 @@ export const connectorManagementActions = {
     title: "查询服务接入方式", description: "读取产品已有的连接方式、本人前置条件和正式入口。in_app 是已有处理器，external 只是说明链接；账号验证不等于业务操作可用。",
     kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ], input_schema: serviceFilter, output_schema: output } } as ActionDefinition,
   list: { capability_id: "connectors.connections.read", version: 1, operation: "query", action: { ...metadata,
-    title: "查看服务连接", description: "列出本人已有服务连接和账号标签。记录中的 connected 表示保存的授权状态；是否此刻连通须调用检查连接，不能把保存配置当成调用成功。",
-    kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ], input_schema: serviceFilter, output_schema: output } } as ActionDefinition,
+    title: "查看服务连接", description: "列出本人已有服务连接和账号标签。记录中的 connected 表示保存的授权状态；是否此刻连通须调用检查连接，不能把保存配置当成调用成功。插件和模型的实际使用位置由 connectors.usages.read 读取。",
+    kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ], input_schema: serviceFilter, output_schema: output } } as ActionDefinition<{ service_id?: string }, { connections: ManagedConnectorView[] }>,
   check: { capability_id: "connectors.connection.check", version: 1, operation: "query", action: { ...metadata,
     title: "检查服务连接", description: "检查所选连接的真实账号或 MCP 握手与能力；刷新共同目录。只作连接与身份检查，不执行服务业务工具或业务写入。失败保留原任务和连接，不换账号。",
     kind: "query", effect: "read", scheduling: "concurrent", permissions: [CONNECTOR_MANAGEMENT_READ],
@@ -41,7 +46,7 @@ export const connectorManagementActions = {
     kind: "operation", effect: "write", permissions: [CONNECTOR_MANAGEMENT_WRITE], input_schema: authorizationInput, output_schema: output } } as ActionDefinition,
 };
 
-export function connectorManagementHandlers(home: string, remember: ConnectorMcpDirectory["remember"], projectMcp: ProjectMcpManagementPort = noProjectMcp): ActionHandlerBinding[] {
+export function connectorManagementHandlers(home: string, remember: ConnectorMcpDirectory["remember"], projectMcp: ProjectMcpManagementPort = noProjectMcp, inspect?: ConnectorActionInspector): ActionHandlerBinding[] {
   const binding = (definition: ActionDefinition, handle: ActionHandlerBinding["handle"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle });
   const authorization = (id: string) => {
     const result = connectorAuthorizationStatus(home, id);
@@ -53,20 +58,22 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
       const id = (input as { service_id?: string }).service_id;
       return { services: listConnectorSettingsCards().filter(entry => !id || entry.connector_id === id) };
     }),
-    binding(connectorManagementActions.list, async (_caller, input) => {
+    binding(connectorManagementActions.list, async (caller, input) => {
       const service = (input as { service_id?: string }).service_id;
-      const projects = !service || service === "mcp-bearer" ? await listProjectMcpConnections(projectMcp) : [];
       const revisions = withConnectorConnections(home, store => new Map(store.list(service).map(row => [row.connection_id, row.updated_at])));
-      return { connections: [...listConnectorConnectionViews(home, service).map(row => ({ ...row, revision: revisions.get(row.connection_id) })), ...projects] };
+      const actions = await inspect?.(caller) ?? [];
+      const projects = !service || service === "mcp-bearer" ? await listProjectMcpConnections(home, projectMcp, actions, caller) : [];
+      return { connections: [...listConnectorConnectionViews(home, service).map(row => ({ ...row, revision: revisions.get(row.connection_id),
+        status: describeConnectorStatus(home, row.connection_id, actions, caller) })), ...projects] };
     }),
     binding(connectorManagementActions.check, async (caller, input) => {
       const id = (input as { connection_id: string }).connection_id;
-      if (id.startsWith("mcp-")) return manageProjectMcp(projectMcp, caller, { connection_id: id, action: "check" });
+      if (id.startsWith("mcp-")) return manageProjectMcp(home, projectMcp, caller, { connection_id: id, action: "check" });
       return checkConnectorConnection(home, id, remember, caller);
     }),
     binding(connectorManagementActions.control, async (caller, input) => {
       const command = input as { connection_id: string; expected_revision: string; action: "enable" | "disable" | "remove" };
-      if (command.connection_id.startsWith("mcp-")) return manageProjectMcp(projectMcp, caller, command);
+      if (command.connection_id.startsWith("mcp-")) return manageProjectMcp(home, projectMcp, caller, command);
       await caller.beforeEffect();
       const current = withConnectorConnections(home, store => store.require(command.connection_id));
       if (current.updated_at !== command.expected_revision) throw managementErrors.changed("连接已变化，请重新读取后操作");

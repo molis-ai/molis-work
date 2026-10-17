@@ -1,3 +1,4 @@
+import { submitConnectorActivation } from "./connector-authorization-commit.js";
 import { randomUUID } from "node:crypto";
 import { githubWhoami } from "@molis-ai/molis-work-integration-github";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -76,16 +77,14 @@ export async function pollGithubConnection(home: string, input: { origin: string
     const identity = await githubWhoami({ token: result.accessToken, fetchImpl: boundedFetch });
     if (!identity.ok) throw invalid("无法验证 GitHub 账号，请重新授权");
     assertConnectorAuthorizationPending(home, state);
-    const connection = withConnectorConnections(home, store => {
-      const previous = config.previousRevision ? store.require(config.connectionId, "github") : null;
-      if (previous && (previous.updated_at !== config.previousRevision || previous.account_label !== identity.login)) throw invalid("原连接或账号已变化，请新增连接或重新准备授权");
-      // The one-use claim prevents concurrent successful polls from creating two accounts.
-      withConnectorProtocols(home, protocols => protocols.consume(state, origin)); terminal = true;
-      return previous ? store.replaceToken(previous.connection_id, result.accessToken!)
-        : store.createToken({ serviceId: "github", displayName: config.displayName || `GitHub · ${identity.login}`, token: result.accessToken!, accountLabel: identity.login, authMethod: "oauth" });
-    });
-    finishConnectorAuthorization(home, state, "connected", connection.connection_id);
-    return { status: "authorized", connection_id: connection.connection_id };
+    const previous = config.previousRevision ? withConnectorConnections(home, store => store.require(config.connectionId, "github")) : null;
+    if (previous && (previous.updated_at !== config.previousRevision || previous.account_label !== identity.login)) throw invalid("原连接或账号已变化，请新增连接或重新准备授权");
+    // Claim the provider result once; a held result then lives in the encrypted authorization record.
+    withConnectorProtocols(home, protocols => protocols.consume(state, origin)); terminal = true;
+    const committed = submitConnectorActivation(home, state, { kind: "token", input: { serviceId: "github",
+      displayName: previous?.display_name ?? config.displayName ?? `GitHub · ${identity.login}`, token: result.accessToken, accountLabel: identity.login, authMethod: "oauth" },
+      ...(previous ? { target: { connectionId: previous.connection_id, expectedRevision: config.previousRevision } } : {}) });
+    return committed.status === "pending" ? committed : { status: "authorized", connection_id: committed.connection.connection_id };
   } catch (error) { terminal = true; finishConnectorAuthorization(home, state, "failed"); throw error; }
   finally { if (terminal) { withConnectorProtocols(home, store => store.discard(state)); secrets.clear(); } }
 }

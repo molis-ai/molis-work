@@ -324,7 +324,7 @@ test("MCP settings keep authorization at 401 and missing connections as safe pro
     const refused = await fetch(origin + "/api/settings/connectors/methods/mcp/complete", { method: "POST", headers: headers(),
       body: JSON.stringify({ returned_url: origin + "/api/settings/connectors/methods/mcp/callback?state=missing-state&code=unused" }) });
     assert.equal(refused.status, 401);
-    assert.deepEqual(await refused.json(), { error: "MCP 授权会话无效、已过期或已使用，请重新连接", code: "connector.mcp.authorization" });
+    assert.deepEqual(await refused.json(), { error: "MCP 授权会话无效、已取消、已过期或已使用，请重新连接", code: "connector.mcp.authorization" });
     const missing = await fetch(origin + "/api/settings/connectors/connections/missing-connection/mcp", { method: "POST", headers: headers(), body: JSON.stringify({ action: "inspect" }) });
     assert.equal(missing.status, 400);
     assert.deepEqual(await missing.json(), { error: "MCP 连接失败，请检查服务地址、账号权限和 OAuth 应用配置后重试", code: "connector.mcp.provider" });

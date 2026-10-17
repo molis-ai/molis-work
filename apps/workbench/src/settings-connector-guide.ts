@@ -99,7 +99,7 @@ function tokenGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOpti
     <div data-protocol-result role="status" aria-live="polite" hidden></div></form>`;
 }
 
-export function renderMethodGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOption, p: ConnectorPrimitives, setup?: ConnectorSetupView["setup"]): string {
+export function renderMethodGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOption, p: ConnectorPrimitives, setup?: ConnectorSetupView["setup"], cliJob?: string): string {
   const { L, escapeHtml: e } = p;
   const field = (key: string, label: string, value = "", secret = false, placeholder = "", required = false) => `<label class="settings-connector-field"><span>${e(L(label))}</span><input class="mw-input" data-protocol-field="${e(key)}" type="${secret ? "password" : "text"}" autocomplete="off" value="${e(value)}" placeholder="${e(placeholder)}"${required ? " required" : ""}></label>`;
   const manualReturn = `<div data-oauth-return hidden>${field("returned_url", "浏览器中的完整返回地址", "", true)}<button class="mw-btn mw-btn--secondary" type="button" data-oauth-complete>${L("确认授权结果")}</button></div>`;
@@ -130,12 +130,13 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
     body = `<p>${e(L(card.connector_id === "feishu" ? "使用本机客户端登录你的用户账号，登录后自动检查连接。" : "使用已安装的官方客户端登录并检查账号。此连接可在这里读取信息，不代替 Feed 的账号授权。"))}</p>
       <p data-cli-availability>${e(option.cli.binary)} · ${L(option.cli.installed ? "已安装" : "尚未安装")}</p>
       ${officialLinks([{ label: "打开官方安装说明", url: option.cli.install_url }], p)}
+      ${(option.cli.environment_fields ?? []).map(input => field(`setting:${input.name}`, input.label, "", input.secret)).join("")}
       <div class="settings-connector-actions"><button class="mw-btn mw-btn--primary" type="button" data-cli-login${option.cli.installed ? "" : " disabled"}>${L("登录并连接")}</button><button class="mw-btn mw-btn--secondary" type="button" data-cli-connect${option.cli.installed ? "" : " disabled"}>${L("连接已登录账号")}</button><button class="mw-btn mw-btn--ghost" type="button" data-cli-detect>${L("重新检测安装")}</button></div>
       ${option.cli.note ? `<details class="settings-connector-help"><summary>${L("客户端使用说明")}</summary><p>${e(L(option.cli.note))}</p>${officialLinks(option.links, p)}</details>` : ""}
-      ${card.connector_id === "feishu" ? `<details class="settings-connector-help"><summary>${L("首次使用：配置飞书应用")}</summary><button type="button" class="mw-btn mw-btn--secondary" data-connector-feishu-setup>${L("打开应用配置")}</button></details>` : ""}
-      <div data-cli-session hidden><p>${L("请按客户端提示完成登录。部分客户端需要在下方输入选项。")}</p><pre class="settings-connection-output" data-cli-output aria-live="polite"></pre>${field("cli_input", "客户端交互输入（空白发送回车）", "", true)}<div class="settings-connector-actions"><button type="button" class="mw-btn mw-btn--secondary" data-cli-input>${L("发送")}</button><button type="button" class="mw-btn mw-btn--ghost" data-cli-cancel>${L("结束登录")}</button></div></div>`;
+      ${option.cli.setup_available ? `<button type="button" class="mw-btn mw-btn--secondary" data-cli-configure${option.cli.installed ? "" : " disabled"}>${L("配置客户端")}</button>` : ""}
+      <div data-cli-session hidden><p>${L("请按客户端提示完成登录。部分客户端需要在下方输入选项。")}</p><pre class="settings-connection-output" data-cli-output aria-live="polite"></pre>${field("cli_input", "客户端交互输入（空白发送回车）", "", true)}<div class="settings-connector-actions"><button type="button" class="mw-btn mw-btn--secondary" data-cli-input>${L("发送")}</button><button type="button" class="mw-btn mw-btn--ghost" data-cli-cancel>${L("结束操作")}</button></div></div>`;
   } else body = `<p>${e(L(option.note))}</p>${officialLinks(option.links, p)}`;
-  return `<section class="settings-connector-method" data-connector-method="${option.kind}" data-method-support="${option.support}"><div data-protocol="${option.kind}" data-protocol-service="${e(card.connector_id)}" class="settings-connector-flow">${body}${option.kind === "token" ? "" : '<div data-protocol-result role="status" aria-live="polite" hidden></div>'}</div></section>`;
+  return `<section class="settings-connector-method" data-connector-method="${option.kind}" data-method-support="${option.support}"><div data-protocol="${option.kind}" data-protocol-service="${e(card.connector_id)}"${cliJob ? ` data-cli-job="${e(cliJob)}"` : ""} class="settings-connector-flow">${body}${option.kind === "token" ? "" : '<div data-protocol-result role="status" aria-live="polite" hidden></div>'}</div></section>`;
 }
 
 export function renderConnectorSetup(card: ConnectorSettingsCardView, p: ConnectorPrimitives): string {

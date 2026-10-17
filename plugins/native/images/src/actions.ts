@@ -1,6 +1,6 @@
 import { ActionError, type ActionAvailability, type ActionDefinition, type ActionSchema, type ActionHandlerBinding, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
-import type { ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import { defineConnectorUsagesAction, type ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { IMAGES_PLUGIN_ID, type ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
 import type { ImagesService } from "./service.js";
 import { createImagesSearchHandlers, imagesSearchActions } from "./search.js";
 const text = {type:"string"}, id = {...text,minLength:1,pattern:"\\S"};
@@ -18,6 +18,7 @@ function define<I,O>(name:string,title:string,description:string,operation:"quer
   return {capability_id:`images.${name}`,version:1,operation,action:{title,description,...(execution?{execution}:{}),kind:operation==="query"?"query":"operation",scope,audiences:["user","workflow","agent","mcp"],subject_kinds:["image"],input_schema:input,output_schema:output,permissions}};
 }
 export const imagesActions={
+  connectionUsages:defineConnectorUsagesAction("images.connection.usages","生图配置使用的连接",["images:connections:read"],"home"),
   connections:{...define<Record<string,never>,{connections:ImageConnection[];auth_connections:ConnectorConnectionView[]}>("connections.list","生图服务列表","读取 Home 生图配置及当前服务连接状态，不返回凭据","query","home",object({}),object({connections:array(connection),auth_connections:array(auth)}),["images:connections:read"]),version:2},
   saveConnection:define<ImageConnectionInput,{connection:ImageConnection}>("connections.save","保存生图服务","保存协议、地址、模型及已有系统连接引用；API Key 在服务连接中管理","command","home",object({id,name:id,api_format:format,base_url:id,model:id,auth_connection_id:text},["name","api_format","base_url","model"]),object({connection}),["images:connections:write"]),
   deleteConnection:define<{id:string},{deleted:true}>("connections.delete","删除生图服务","删除生图配置及其绑定，保留生成历史和图片","command","home",object({id}),object({deleted:{const:true}}),["images:connections:write"]),
@@ -40,6 +41,10 @@ export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandle
   const project=(caller:ActionCallContext)=>{if(!caller.project_id)throw new ActionError("actions.project_required","请选择项目");return caller.project_id;};
   const bind=<I,O>(definition:ActionDefinition<I,O>,run:(input:I,caller:ActionCallContext)=>O):ActionHandlerBinding=>({capability_id:definition.capability_id,version:definition.version,handle:(caller,input)=>run(input as I,caller)});
   return [
+    bind(imagesActions.connectionUsages,input=>({usages:ports.service().listConnections().filter(connection=>connection.auth_connection_id===input.connection_id).map(connection=>({
+      usage_id:connection.id,title:connection.name,detail:connection.unavailable_reason??`生图模型：${connection.model}`,enabled:connection.available??connection.has_key,
+      actions:[{action:{capability_id:imagesActions.start.capability_id,version:imagesActions.start.version,provider_id:IMAGES_PLUGIN_ID},input:{connection_id:connection.id}}],
+    }))})),
     bind(imagesActions.connections,()=>({connections:ports.service().listConnections(),auth_connections:ports.authConnections()})),
     bind(imagesActions.saveConnection,input=>{ports.validateConnection(input);return {connection:ports.service().saveConnection(input)};}),
     bind(imagesActions.deleteConnection,input=>{ports.service().deleteConnection(input.id);return {deleted:true};}),

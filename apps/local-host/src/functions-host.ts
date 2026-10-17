@@ -36,6 +36,11 @@ export function functionsCredentialConfigured(home: string, options: FunctionsHo
   return !!ref && runWithMolisWorkHome(home, () => peekSealedEntry(ref) !== null);
 }
 
+/** Test/development overrides do not use the saved account binding. */
+export function functionsConnectionId(home: string, options: FunctionsHostOptions): string | null {
+  return (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || options.credential ? null : selectedTypeSafeConnection(home)?.connection_id ?? null;
+}
+
 export function functionsConnectionStatus(home: string, options: FunctionsHostOptions = {}): FunctionsSettingsStatus {
   const configured = functionsCredentialConfigured(home, options);
   return { has_credential: configured, source: (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : configured ? "ui" : "none" };

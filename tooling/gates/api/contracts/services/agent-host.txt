@@ -360,6 +360,8 @@ export interface AgentMcpLibrary {
     call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: {
         signal?: AbortSignal;
         beforeDispatch?(): void | Promise<void>;
+        onBusinessDispatch?(): void;
+        onBusinessResult?(outcome: "succeeded" | "failed" | "unknown"): void;
     }): Promise<AgentMcpCallResult>;
 }
 

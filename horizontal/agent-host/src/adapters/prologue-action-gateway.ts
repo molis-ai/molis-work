@@ -81,10 +81,12 @@ const abortedBy = (signal: AbortSignal) => new Promise<never>((_resolve, reject)
 });
 
 function parseCapability(args: Record<string, unknown>): CapabilityArgs {
-  if (typeof args.capability_id !== "string" || !args.capability_id || typeof args.provider_id !== "string" || !args.provider_id
-    || !Number.isSafeInteger(args.version)) throw new ActionError("actions.reference_invalid", "Name the capability exactly: capability_id, version and provider_id as find-capabilities returned them.");
+  for (const field of ["capability_id", "provider_id"] as const) {
+    if (typeof args[field] !== "string" || !args[field]) throw new ActionError("actions.reference_invalid", `${field} must be a non-empty string from find-capabilities. Nothing ran.`);
+  }
+  if (!Number.isSafeInteger(args.version)) throw new ActionError("actions.reference_invalid", "version must be a JSON integer from find-capabilities, for example 1, not the string \"1\". Correct that field; nothing ran.");
   const { capability_id: _id, version: _version, provider_id: _provider, input, ...beside } = args;
-  return { capability_id: args.capability_id, version: args.version as number, provider_id: args.provider_id, input, beside: Object.keys(beside) };
+  return { capability_id: args.capability_id as string, version: args.version as number, provider_id: args.provider_id as string, input, beside: Object.keys(beside) };
 }
 
 /**

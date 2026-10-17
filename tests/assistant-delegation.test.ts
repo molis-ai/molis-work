@@ -97,7 +97,7 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     const other = await service.send({ text: "别的事", request_id: "req-delegation-2" }, { project_ref: project });
     await assert.rejects(service.delegation(store.get("web-user", other.work.work_id))!.stop(child.work.work_id), (error: unknown) => error instanceof ActionError && error.code === "assistant.scope" && error.kind === "forbidden");
     assert.equal(service.delegation(store.get("web-user", child.work.work_id)), undefined);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a sub-task whose session opened under the Assistant's own role carries its next round as the delegated role, on that same session", { timeout: 60_000 }, async t => {
@@ -139,7 +139,7 @@ test("a sub-task whose session opened under the Assistant's own role carries its
     const own = requests.filter(request => request.messages.includes("接着把这一部分做完") && !request.messages.includes("子任务都已交回"));
     assert.ok(own.length > 0 && own.every(request => delegatedLayer.test(request.system)), "the sub-task's round carries the delegated layer");
     assert.ok(own.every(request => !/## 分工|## 记忆/.test(request.system)), "and not the delegating work's layer: it neither delegates nor keeps memories");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("stopping a work also stops the sub-tasks it handed out that are still running, even after its own round ended", { timeout: 60_000 }, async t => {
@@ -178,7 +178,7 @@ test("stopping a work also stops the sub-tasks it handed out that are still runn
     const child = await until(async () => { const view = await service.read(parent.delegated![0]!.work_id); return ["stopped", "failed"].includes(view.work.state) ? view : undefined; }, "child stopped");
     assert.equal(child.work.state, "stopped");
     await assert.rejects(service.control(sent.work.work_id, { kind: "stop" }), /没有在执行/, "nothing left to stop");
-  } finally { releaseChild(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { releaseChild(); service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("the person takes a sub-task back: it stops, the board says so, no more follow-ups go to it, and the delegating work finishes that part", { timeout: 60_000 }, async t => {
@@ -243,7 +243,7 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
     assert.equal(step.state, "cancelled");
     assert.equal(step.ended_by_person?.note, "用户把这个子任务收回到这项工作：它已停下，已产出的保留。");
     assert.deepEqual(nodes.filter(node => node.session_id === stored.session_id).map(node => node.node_id), ["work"]);
-  } finally { releaseChild(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { releaseChild(); service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 /** A delegating work and a runtime whose model can be held or switched off; the parent's model script is the caller's. */
@@ -269,7 +269,7 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
       if (!work.delegated_by) await flags.beforeAuthority?.();
       return { ...base, beforeStart: async () => { await base.beforeStart?.(); if (!work.delegated_by) await flags.beforeStart?.(); }, assertBeforeStart: () => { base.assertBeforeStart?.(); if(!work.delegated_by)flags.assertBeforeStart?.(); } };
     }, projectTitle: async () => "项目" }, "web-user");
-  return { service, store, project, flags, adapter, home, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, project, flags, adapter, home, close: async () => { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a sub-task the person put away still counts for the work that handed it out: its tokens, its place among the limit, and the stop", { timeout: 60_000 }, async t => {

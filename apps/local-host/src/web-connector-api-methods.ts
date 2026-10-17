@@ -1,3 +1,5 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { cliRequestInstallation, preparedCliRequest, installPreparedCli, connectPreparedCli } from "./connector-cli-setup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, requestHost, sendLocalWebJson as json } from "./web-http.js";
 import { startApiOAuth, completeApiOAuth, ApiOAuthError } from "./connector-api-oauth.js";
@@ -7,12 +9,14 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { inspectMcpConnection } from "./connector-mcp.js";
 import { connectorAuthorizationFailed } from "./connector-authorization-return.js";
 import type { ConnectorMcpDirectory, ConnectorMcpTool } from "./connector-mcp-actions.js";
+import { connectorAuthorizationStatus } from "./connector-authorization-status.js";
+import { saveConnectorAuthorizationPresentation } from "./connector-authorization-presentation.js";
 import { startConnectorSetupSubmission } from "./connector-setup-submission.js";
 
 const ROOT = "/api/settings/connectors/methods";
 const ITEM = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/(verify|preview)$/u;
 export async function handleConnectorApiMethodsHttp(request: IncomingMessage, response: ServerResponse, url: URL, home: string | undefined,
-  mcpTools: ConnectorMcpDirectory["remember"]): Promise<boolean> {
+  mcpTools: ConnectorMcpDirectory["remember"], beforeEffect: () => void | Promise<void>): Promise<boolean> {
   const item = ITEM.exec(url.pathname);
   if (!home || (!item && !url.pathname.startsWith(`${ROOT}/oauth/`) && !url.pathname.startsWith(`${ROOT}/cli/`))) return false;
   try {
@@ -21,7 +25,8 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
     const origin = `http://${host}`;
     if (request.method === "GET" && url.pathname === `${ROOT}/oauth/callback`) {
       const result = await completeApiOAuth(home, { origin, state: url.searchParams.get("state") || "", code: url.searchParams.get("code") || "", error: url.searchParams.get("error") || undefined });
-      response.writeHead(302, { location: `/settings/connectors?connected=${encodeURIComponent(result.service_id)}&connection=${encodeURIComponent(result.connection.connection_id)}`, "cache-control": "no-store" }); response.end(); return true;
+      response.writeHead(302, { location: result.status === "pending" ? `/capabilities/connections?setup=${result.authorization_id}`
+        : `/settings/connectors?connected=${encodeURIComponent(result.service_id)}&connection=${encodeURIComponent(result.connection.connection_id)}`, "cache-control": "no-store" }); response.end(); return true;
     }
     if (request.method !== "POST") { json(response, 405, { error: "请使用应用内连接操作" }); return true; }
     const body = await readLocalWebBody(request);
@@ -31,14 +36,34 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
       if (body.settings && typeof body.settings === "object" && !Array.isArray(body.settings)) for (const [key, value] of Object.entries(body.settings)) if (typeof value === "string" && value.length < 2048) settings[key] = value;
       json(response, 200, await startApiOAuth(home, { serviceId: str("service_id"), displayName: str("display_name"), clientId: str("client_id"), clientSecret: str("client_secret"), settings, origin, redirectUri: str("redirect_uri"), connectionId: str("connection_id") || undefined, setupId: str("setup_id") || undefined }));
     } else if (url.pathname === `${ROOT}/oauth/complete`) json(response, 200, await completeApiOAuth(home, { origin, returnedUrl: str("returned_url") }));
-    else if (url.pathname === `${ROOT}/cli/status`) json(response, 200, cliAvailability(str("service_id")));
-    else if (url.pathname === `${ROOT}/cli/login`) json(response, 200, await startCliLogin(home, str("service_id")));
+    else if (url.pathname === `${ROOT}/cli/install`) json(response, 200, await installPreparedCli(home, str("setup_id"), { beforeEffect }));
+    else if (url.pathname === `${ROOT}/cli/status`) {
+      const installed = str("setup_id") ? cliRequestInstallation(home, str("setup_id"), str("service_id")) : undefined;
+      json(response, 200, { ...cliAvailability(str("service_id")), ...(installed ? { installed: true } : {}) });
+    }
+    else if (url.pathname === `${ROOT}/cli/login`) {
+      const id = str("setup_id"), service = str("service_id"), installed = id ? cliRequestInstallation(home, id, service) : undefined;
+      const environment: Record<string, string> = {};
+      if (body.settings && typeof body.settings === "object" && !Array.isArray(body.settings)) for (const [name, value] of Object.entries(body.settings)) if (typeof value === "string" && value) environment[name] = value;
+      const configure = body.configure === true;
+      const started = await startCliLogin(home, service, installed, { id: id || undefined, configure, environment,
+        beforeEffect: async () => { await beforeEffect(); if (id) preparedCliRequest(home, id, service); },
+        ...(id ? { complete: async (signal: AbortSignal) => {
+          if (!configure) return connectPreparedCli(home, id, { signal, beforeEffect }, service);
+          await beforeEffect(); signal.throwIfAborted(); preparedCliRequest(home, id, service);
+          saveConnectorAuthorizationPresentation(home, id, { cli_job: undefined });
+        } } : {}),
+      });
+      if (id && cliLoginJob(home, started.job_id).status === "running" && ["prepared", "failed"].includes(connectorAuthorizationStatus(home, id)?.status ?? "")) saveConnectorAuthorizationPresentation(home, id, { cli_job: started.job_id });
+      json(response, 200, started);
+    }
     else if (url.pathname === `${ROOT}/cli/job`) json(response, 200, cliLoginJob(home, str("job_id"), typeof body.input === "string" ? body.input : undefined, body.cancel === true));
     else if (url.pathname === `${ROOT}/cli/connect`) {
+      if (str("setup_id")) { json(response, 200, await connectPreparedCli(home, str("setup_id"), { beforeEffect }, str("service_id"))); return true; }
       const setup = startConnectorSetupSubmission(home, str("setup_id") || undefined, { service_id: str("service_id"), method: "cli" });
       try {
-        const result = await connectCli(home, { serviceId: str("service_id"), displayName: str("display_name") }, undefined, setup?.assertCurrent);
-        setup?.finish(result.connection.connection_id); json(response, 200, result);
+        const result = await connectCli(home, { serviceId: str("service_id"), displayName: str("display_name") }, undefined, beforeEffect, setup?.submit);
+        json(response, "status" in result && result.status === "pending" ? 202 : 200, result);
       } catch (error) { setup?.fail(); throw error; }
     }
     else if (item) {
@@ -52,7 +77,7 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
       connectorAuthorizationFailed(response, error instanceof ApiOAuthError ? error.serviceId : undefined, url.searchParams.get("error") === "access_denied");
       return true;
     }
-    json(response, 400, { error: error instanceof ApiOAuthError || error instanceof ConnectorCliError || (item && error instanceof Error) ? error.message : "连接失败，请检查应用配置、回调地址及权限后重试" });
+    json(response, 400, { error: error instanceof ApiOAuthError || error instanceof ConnectorCliError || error instanceof ActionError || (item && error instanceof Error) ? error.message : "连接失败，请检查应用配置、回调地址及权限后重试" });
   }
   return true;
 }

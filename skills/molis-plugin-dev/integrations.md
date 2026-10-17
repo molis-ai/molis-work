@@ -20,7 +20,7 @@ export function createGithubIntegrationPlugin(input: { provider: IntegrationProv
 }
 ```
 
-`createProvider` 返回的 port 负责 `health` 和 `sync`（cursor、`normal` / `rebuild_cursor`）。SDK 把它收成 Connector Driver 的 `poll` 和 Signal Adapter 的 `toSignalDraft`。不要在 Native 插件里直接 fetch GitHub。
+`createProvider` 返回的 port 负责 `health` 和 `sync`（cursor、`normal` / `rebuild_cursor`）。真实 `health` 可以返回 `account: { login, account_id? }`，只有经过认证的服务响应中已验证的身份才填写；有稳定账号 id 时一并返回，显示名称和本地保存的标签不能替代身份。未返回时保持未知，不能从 message 文案解析账号。SDK 把它收成 Connector Driver 的 `poll` 和 Signal Adapter 的 `toSignalDraft`。不要在 Native 插件里直接 fetch GitHub。
 
 现有：GitHub、Gmail、RSS、YouTube Channel、Catalog（按连接器 id 生成 Manifest）、Web Query。
 
@@ -46,3 +46,5 @@ GitHub、Gmail 有独立的 oauth 模块：配置、pending、token 生命周期
 - 把来源设置按钮放进消息详情的判断池。
 - 为「以后可能有的 webhook」先声明 Listener 空壳。没有真实 poll/sync 路径就不要做 integration。
 - 用 mock health 当已连接。`status === "mock"` 在 SDK 里会收成 error。
+
+业务模块引用账号连接时，可用 contracts 的 `defineConnectorUsagesAction` 声明只读使用位置查询，返回自己当前保存的对象引用和已有业务动作。输入输出类型为 `molis.connector-usages.input.v1` / `molis.connector-usages.output.v1`；Home 的 `connectors.usages.read` 按类型发现，再以原调用者身份调用。不要另存绑定、导出凭据或替其他模块报告。报告中的动作参数只含非敏感对象 id 等已知部分；可见的使用位置不授予执行权限，目录与派出仍各自检查。公开 RSS 等没有账号的来源不生成账号引用。模型的当前配置不等于每个任务都选择该模型，不能据此列出所有推理动作。

@@ -4,9 +4,17 @@ import { inspectApiConnection } from "./connector-access.js";
 import { CONNECTOR_CLIS, inspectCliConnection } from "./connector-cli.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
+import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { observeConnectorCall } from "./connector-call-observation.js";
 
 export const CONNECTOR_RECORDS_READ = "connectors:records:read";
 const errors = defineErrorCodes("connector.records", { unsupported: "unavailable", changed: "conflict", unavailable: "unavailable" });
+
+/** Capability projection and execution use the same existing read adapter declaration. */
+export const supportsConnectorRecords = (connection: Pick<ConnectorConnectionRecord, "auth_method" | "service_id">): boolean =>
+  connection.auth_method === "cli" ? Boolean(CONNECTOR_CLIS[connection.service_id]?.read)
+    : ["token", "oauth"].includes(connection.auth_method) && (["github", "gmail"].includes(connection.service_id)
+      || isCatalogConnectorId(connection.service_id) && getCatalogSpec(connection.service_id).feed_available !== false);
 
 /** The fixed record preview already offered in settings, through its existing provider. */
 export const connectorRecordActions = {
@@ -26,10 +34,7 @@ export function connectorRecordHandlers(home: string): ActionHandlerBinding[] {
     return withConnectorRequest(home, id, deadline, async signal => {
       const connection = withConnectorConnections(home, store => store.require(id));
       const service = connection.service_id;
-      const supported = connection.auth_method === "cli" ? Boolean(CONNECTOR_CLIS[service]?.read)
-        : ["token", "oauth"].includes(connection.auth_method) && (["github", "gmail"].includes(service)
-          || isCatalogConnectorId(service) && getCatalogSpec(service).feed_available !== false);
-      if (!supported) throw errors.unsupported("此连接没有固定记录读取适配；请使用已列出的 MCP 工具或对应插件，账号检查不能代替业务读取");
+      if (!supportsConnectorRecords(connection)) throw errors.unsupported("此连接没有固定记录读取适配；请使用已列出的 MCP 工具或对应插件，账号检查不能代替业务读取");
       const current = async () => {
         await caller.beforeEffect(); signal.throwIfAborted();
         const now = withConnectorConnections(home, store => store.require(id));
@@ -37,7 +42,10 @@ export function connectorRecordHandlers(home: string): ActionHandlerBinding[] {
       };
       await current();
       let result: object;
-      try { result = connection.auth_method === "cli" ? await inspectCliConnection(home, id, true, signal) : await inspectApiConnection(home, id, true, signal); }
+      try { result = await observeConnectorCall<object>(home, id, { capability_id: connectorRecordActions.read.capability_id, version: connectorRecordActions.read.version, provider_id: "system.connectors" }, caller, dispatched => {
+        const beforeRead = async () => { await current(); dispatched(); };
+        return connection.auth_method === "cli" ? inspectCliConnection(home, id, true, signal, beforeRead) : inspectApiConnection(home, id, true, signal, beforeRead);
+      }); }
       catch {
         await current();
         throw errors.unavailable("无法读取所选账号的记录，请检查连接及该账号的访问权限；没有切换账号");

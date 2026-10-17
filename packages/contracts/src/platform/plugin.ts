@@ -502,6 +502,7 @@ export type IntegrationProviderSyncResult =
 export interface IntegrationProviderPort {
   readonly type: string;
   health(): Promise<{
+    account?: { login: string; account_id?: string };
     ok: boolean;
     status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
     message: string;

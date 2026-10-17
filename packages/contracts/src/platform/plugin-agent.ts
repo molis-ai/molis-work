@@ -20,7 +20,7 @@ export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" |
  * work is the unified actions it is given at start; `operate` lets it call commands among them, each under the effect
  * policy, while `read-only` limits it to queries.
  */
-export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"] as const;
+export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait"] as const;
 
 /**
  * Tools a method for business work may name: the capability gateway and the tools that touch no directory. A method a

@@ -1,6 +1,5 @@
 import { handleSearchHttp } from "./search-http.js";
-import { connectorAuthorizationStatus } from "./connector-authorization-status.js";
-import { readConnectorAuthorizationPresentation } from "./connector-authorization-presentation.js";
+import { connectorSettingsView } from "./web-connector-settings.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -56,7 +55,6 @@ import { handleConnectorMethodsHttp } from "./web-connector-methods.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { selectedTypeSafeConnection } from "./typesafe-connection.js";
-import { listConnectorSettingsCards } from "./connector-directory.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
 import { codingBackgroundTasks } from "./coding-background-tasks.js";
@@ -241,7 +239,7 @@ export async function handleLocalCatalogWebRequest(
       hidden_plugins: membership.hidden,
       runtimes,
       mcp_access,
-      ...(section === "connectors" ? connectorSettingsView(serverOptions.homeDirectory, url) : {}),
+      ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url) : {}),
       projects,
       web_service: await webService.detect(),
       diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
@@ -327,8 +325,8 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
+  if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory, localHost.connectorMcp?.remember, bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost)) return;
-  if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory, localHost.connectorMcp?.remember)) return;
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;
@@ -409,12 +407,4 @@ async function renderCatalogPluginSettings(contributionId: string, host: MolisWo
     });
   }
   return null;
-}
-
-/** The existing settings surface and a conversation's protected request read the same connection owner. */
-function connectorSettingsView(home: string | undefined, url: URL) {
-  const request = home && url.searchParams.has("setup") ? connectorAuthorizationStatus(home, url.searchParams.get("setup")!) : null;
-  return { connectors: listConnectorSettingsCards(), connector_connections: home ? listConnectorConnectionViews(home) : [],
-    ...(url.searchParams.has("setup") ? { connector_setup: request ? { ...request,
-      ...(request.status === "pending" ? { presentation: readConnectorAuthorizationPresentation(home!, request.id) } : {}) } : null } : {}) };
 }

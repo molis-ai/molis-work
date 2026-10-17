@@ -113,7 +113,7 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     assert.match(read.body, /每条结论和待办后面用括号注明原文依据/);
     await assert.rejects(service.readMethod(null, "io.molis.work.pages/unknown"), /没有可用的方法/);
   } finally {
-    await adapter.close();
+    service.continuations.close(); await adapter.close();
     await local.close();
     await rm(home, { recursive: true, force: true });
   }

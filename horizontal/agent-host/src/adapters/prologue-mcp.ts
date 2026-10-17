@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { createPrologueError, redactMcpError, type ExactRef, type Runtime, type ToolAbort } from "@prologue/sdk";
+import { createPrologueError, isPrologueError, redactMcpError, type ExactRef, type Runtime, type ToolAbort } from "@prologue/sdk";
 import { realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import type { AgentMcpSourceRef, AgentMcpLibrary, AgentMcpServerInput, AgentMcpServerView, AgentMcpToolDescriptor, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -327,7 +327,13 @@ async function callMcpTool(runtime: Runtime, library: AgentMcpLibrary,
       request: { name, version: checked!.version!, args: { ...args } },
       run: async request => {
         await beforeDispatch();
-        return run(callOptions.signal ? { ...request, abort: callAbort(callOptions.signal, request.abort) } : request);
+        callOptions.onBusinessDispatch?.();
+        try {
+          const result = await run(callOptions.signal ? { ...request, abort: callAbort(callOptions.signal, request.abort) } : request);
+          callOptions.onBusinessResult?.("succeeded"); return result;
+        } catch (error) {
+          callOptions.onBusinessResult?.(isPrologueError(error) && error.code === "MCP_CALL_FAILED" ? "failed" : "unknown"); throw error;
+        }
       },
       recheck: async () => { await beforeDispatch(); return library.live!(checked!); },
       now: await runtime.readClock(),

@@ -55,14 +55,16 @@ async function fixture(t: TestContext, name: string, children: string[], options
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const services: AssistantService[] = [];
   const open = (): AssistantService => {
     const service: AssistantService = new AssistantService(store, { host: async () => host,
       authority: async work => { const refused = options.refuse?.(); if (refused) throw new Error(refused); return assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)); },
       projectTitle: async () => "项目" }, "web-user");
+    services.push(service);
     return service;
   };
   const service = open();
-  t.after(async () => { for (const release of releases.values()) release.resolve(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => { for (const opened of services) opened.continuations.close(); for (const release of releases.values()) release.resolve(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
   const sent = await service.send({ text: "把这两段分给子任务起草，做完汇总", request_id: `req-${name}` }, { project_ref: project });
   const started = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" && view.delegated?.length === children.length && view.delegated.every(child => child.state === "running") ? view : undefined; }, "parent ended, sub-tasks running");
   return { service, store, open, parentId: sent.work.work_id, children: started.delegated!, release: (title: string) => releases.get(title)!.resolve(), later, rounds: () => store.rounds(sent.work.work_id) };

@@ -94,7 +94,12 @@ export interface AgentMcpLibrary {
   /** Whether this exact tool version is callable right now (connected, same configuration and shape). Synchronous. */
   live?(ref: AgentMcpToolRef): boolean;
   /** One call outside an Agent run. Recheck Host authority after asynchronous preparation and at the runtime's dispatch gate. */
-  call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: { signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }): Promise<AgentMcpCallResult>;
+  call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: {
+    signal?: AbortSignal; beforeDispatch?(): void | Promise<void>;
+    /** Host observation only, after preparation and the business dispatch guard; never grants authority. */
+    onBusinessDispatch?(): void;
+    onBusinessResult?(outcome: "succeeded" | "failed" | "unknown"): void;
+  }): Promise<AgentMcpCallResult>;
 }
 
 export interface AgentMcpToolDescriptor extends Required<Pick<AgentMcpToolRef, "server" | "tool" | "version" | "configuration_version" | "server_label">> {

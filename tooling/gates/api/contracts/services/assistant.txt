@@ -133,11 +133,11 @@ export interface AssistantContribution {
 }
 
 export type AssistantControl = {
-    kind: "pause";
+    kind: "pause" | "resume" | "stop";
 } | {
-    kind: "resume";
-} | {
-    kind: "stop";
+    kind: "withdraw";
+    run_id: string;
+    input_id: string;
 };
 
 export interface AssistantDiagnostics {
@@ -546,7 +546,7 @@ export type AssistantScope = {
     project_id: string;
 };
 
-export interface AssistantSendInput {
+export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     work_id?: string;
     executor?: "assistant" | "coding";
     mode?: string;

@@ -537,4 +537,4 @@ export class SearchService {
 }
 
 export { searchActions, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/search";
-export { confirmReferences, findReferenceCandidates, type ReferenceAccess } from "./references.js";
+export { confirmReferences, findReferenceCandidates, readReferences, type ReferenceAccess } from "./references.js";

@@ -94,9 +94,9 @@ test("PA-23: after a yield the Runtime starts no parent run; a revoked next roun
     // The child ran (its own model call); the step waits on the child's step, and once it ended the continuation may go on.
     await until("the continuation may go on", async () => (await adapter.collaboration!.read("project", session.session_id))[0]?.continuation?.state === "eligible");
     const ready = (await adapter.collaboration!.read("project", session.session_id))[0]!;
-    // The coordinator holds no board tools, so neither does its child (SDK T12): the child cannot report its step, the step
-    // comes back to the parent unfinished and the wait settles as failed. A yield waits until "settled" and goes on
-    // either way, so the continuation may go on all the same.
+    // This child only answers and never reports its step (one that does: coding-coordinator-board), so the step comes back
+    // to the parent unfinished and the wait settles as failed. A yield waits until "settled" and goes on either way, so the
+    // continuation may go on all the same.
     assert.deepEqual([ready.wait?.state, ready.wait?.until, ready.wait?.on_failure, ready.wait?.conditions[0]?.last.note, ready.continuation?.auto],
       ["failed", "settled", "continue", "back with you unfinished", true]);
     assert.deepEqual(world.requests.map(one => one.who), ["parent", "child"], "the Runtime starts no parent run of its own");

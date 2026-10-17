@@ -807,3 +807,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - `allow_model_download` 只在人发起的调用里算数，Agent 或 MCP 调用一律当作 false；这条进 SECURITY-INVARIANTS，配拒绝用例；
   - 两片都改 SDK，都跑全量；两片都改合同，都跑 `pnpm api:update`。
   - 排在 W5-01 和 §10.26 之后。
+  - 防腐线补充的细节，统筹已认可：超限用 `actions.output_invalid`；单行 64 KiB、最多 10,000 行；是否同意下载只看 `caller.audience === "user"`；plugin-runtime 新增 `observeDeactivation`（撤权、停止、隔离、失败时通知；流开着时宿主订阅它，收到就中止）。统筹再补了三条：进度行另设总字节上限，约 1 MiB；`result` 行按动作现有的输出上限算；换代时也要通知，流结束后取消订阅，并补一个用例确认取消。

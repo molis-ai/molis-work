@@ -639,7 +639,7 @@ for (const [asset, old] of [
 test("re-ask has one bounded allowance on Coding's bundle and the workbench script; other assets and later growth still fail", () => {
   const allowed = {
     "/assets/molis-work-plugins/coding.js": [373429, 373613],
-    "/assets/molis-work-workbench.js": [1103049, 1103320],
+    "/assets/molis-work-workbench.js": [1099839, 1100110],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("reask-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

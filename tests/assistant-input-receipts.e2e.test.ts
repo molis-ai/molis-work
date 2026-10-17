@@ -72,6 +72,28 @@ test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does,
   assert.deepEqual(await browser.evaluate("(() => { const thread = document.querySelector('[data-assistant-thread]'); return [thread.getAttribute('role'), thread.getAttribute('aria-live'), thread.getAttribute('aria-relevant')]; })()"), ["log", "polite", "additions"]);
   assert.equal(await chip(browser), null, "with no question waiting there is no choice to make");
   await shot(browser, "assistant-receipt-read.png");
+
+  // RCPT-326: a correction from the receipt is a Send of the person's words naming the supplement; after the round it waits for the next one.
+  const rounds = (await readWork(browser, id)).rounds, supplement = rounds.at(-1)!.turns.find(turn => turn.steer)!.steer!.id;
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Request" }]);
+  try {
+    await browser.evaluate("(() => { const receipt = document.querySelector('[data-assistant-thread] .mw-receipt'); receipt.open = true; [...receipt.querySelectorAll('button')].find(node => node.textContent === '更正…').click(); })()");
+    assert.equal(await browser.evaluate("document.activeElement === document.querySelector('[data-assistant-thread] .mw-receipt form textarea')"), true, "the words box has focus");
+    await browser.evaluate("(() => { const form = document.querySelector('[data-assistant-thread] .mw-receipt form'); [...form.querySelectorAll('button')].find(node => node.textContent === '这条针对的是：').click(); form.querySelector('textarea').value += '首页的截图'; form.requestSubmit(); })()");
+    const paused = await barrier.next(); await barrier.release(paused);
+    const body = JSON.parse(paused.request.postData!) as Record<string, unknown>;
+    assert.deepEqual([body.work_id, body.text, body.about, body.written_by], [id, "这条针对的是：首页的截图", supplement, undefined], "the person's own words, naming the supplement");
+  } finally { await barrier.close(); }
+  await browser.waitFor("!document.querySelector('[data-assistant-thread] .mw-receipt form')", 15_000);
+  await browser.waitFor("[...document.querySelectorAll('body > p.mw-sr-only[role=status]')].some(node => node.textContent.includes('已保存，下一轮开始生效'))", 5_000);
+  assert.equal((await readWork(browser, id)).rounds.length, rounds.length, "no round starts on its own");
+  // RCPT-336: it waits in the work's session, so the tray after the rounds lists it; taken back from there, nothing waits.
+  const queue = JSON.stringify("[data-assistant-thread] > .mw-tray ul[aria-label='排着，下一轮开始时带上']");
+  await browser.waitFor(`document.querySelector(${queue})?.textContent.includes('这条针对的是')`, 15_000);
+  await browser.evaluate(`[...document.querySelector(${queue}).querySelectorAll('button')].find(node => node.textContent === '撤回').click()`);
+  await waitWork(browser, id, view => Array.isArray(view.queued_inputs) && view.queued_inputs.length === 0);
+  await browser.waitFor(`!document.querySelector(${queue})`, 15_000);
+  assert.equal((await readWork(browser, id)).rounds.length, rounds.length, "taking it back starts nothing either");
 });
 
 test("RC-16: a Send whose outcome was lost goes again after a refresh under the same key, and the Host keeps one round", { timeout: 120_000 }, async t => {

@@ -12,20 +12,25 @@ class Node {
   addEventListener(_type: string, listener: () => void) { this.listeners.push(listener); }
   click() { for (const listener of this.listeners) listener(); }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(child => child !== this); this.parent = null; }
+  querySelector(selector: string) { const name = /^:scope > \.([\w-]+)$/u.exec(selector)![1]!; return this.children.find(child => child.className.split(" ").includes(name)) ?? null; }
 }
 
-function page() {
-  const chip = new Node("button"), thread = new Node("div");
+type Act = { withdraw(inputId: string): Promise<string>; correct(about: string, text: string, key: string): Promise<string> };
+function page(reply: (path: string, body: Record<string, unknown>) => Promise<unknown> = async () => ({})) {
+  const chip = new Node("button"), thread = new Node("div"), calls: Array<[string, string, Record<string, unknown>]> = [], acts: Array<Act | undefined> = [];
+  let reloads = 0;
   // The receipt itself is the design system's shared one (tests/input-receipts-client.test.ts); here it is a stand-in that
   // keeps one element per turn, as the shared one does.
-  const made = new Map<string, Node>();
-  const shared = { line: (turn: { turn_id: string; kind: string; steer?: { state: string } }) =>
-    turn.kind === "user" && turn.steer ? made.get(turn.turn_id) ?? made.set(turn.turn_id, new Node("details", "mw-receipt")).get(turn.turn_id)! : null };
-  const ui = vm.runInNewContext(`(${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})`, {})({ L: (text: string) => text, shared, chip }) as {
+  const made = new Map<string, Node>(), trays: unknown[][] = [], tray = new Node("details", "mw-receipt mw-tray");
+  const shared = { tray: (owner: Node, queued: unknown, round: object, act?: Act) => (trays.push([owner, queued, round, act]), Array.isArray(queued) && !queued.length ? null : tray), line: (turn: { turn_id: string; kind: string; steer?: { state: string } }, _round: object, act?: Act) =>
+    (acts.push(act), turn.kind === "user" && turn.steer ? made.get(turn.turn_id) ?? made.set(turn.turn_id, new Node("details", "mw-receipt")).get(turn.turn_id)! : null) };
+  const api = (path: string, method: string, body: Record<string, unknown>) => { calls.push([path, method, body]); return reply(path, body); };
+  const ui = vm.runInNewContext(`(${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})`, { Error, encodeURIComponent })({ L: (text: string) => text, shared, chip, api, work: () => "work 1", reload: () => { reloads++; } }) as {
     line(node: Node, put: (node: Node) => void, turn: object, round: object): void; paint(round: object | undefined): void; target(): string | undefined;
+    tray(thread: Node, put: (node: Node) => void, view: object | null): void;
   };
   const put = (node: Node) => { if (node.parent !== thread) { node.parent = thread; thread.children.push(node); } };
-  return { ui, chip, thread, put };
+  return { ui, chip, thread, put, calls, acts, trays, tray, reloads: () => reloads };
 }
 const steer = (state: string) => ({ turn_id: "t1", kind: "user", text: "顺便看一下截图", steer: { id: "steer-1", state } });
 const asking = (revision = 1) => ({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q1", pending_revision: revision, allows_free_text: true, from_composer: true }] });
@@ -57,4 +62,42 @@ test("RC-14: the chip shows only while the round waits on its one free-text ques
   assert.equal(chip.hidden, true, "a question the Host does not mark from_composer is answered on its own card (D34)");
   ui.paint(undefined);
   assert.equal(ui.target(), undefined);
+});
+
+test("RCPT-326: from a receipt, the Assistant takes a supplement back through the work's control and sends a correction as a Send naming it", async () => {
+  const outcomes = [{}, { outcome: "steered" }, { outcome: "queued" }];
+  const { ui, thread, put, calls, acts, reloads } = page(async (_path, body) => {
+    if (body.request_id === "lost") throw Object.assign(new Error("ui_host"), { code: "ui_host.outcome_unknown" });
+    if (body.request_id === "refused") throw Object.assign(new Error("这一轮已经结束"), { code: "assistant.stale" });
+    return outcomes.shift();
+  });
+  ui.line(thread, put, steer("received"), { ...running, run_id: "run-1" });
+  ui.line(thread, put, steer("received"), running);
+  const [act, none] = acts;
+  assert.equal(none, undefined, "a round the page cannot name gets no actions");
+  assert.equal(await act!.withdraw("steer-1"), "");
+  assert.equal(await act!.correct("steer-1", "只看失败路径", "k1"), "", "the receipt of the correction says the rest");
+  assert.equal(await act!.correct("steer-1", "只看失败路径", "k1"), "已保存，下一轮开始生效", "a correction to an ended round waits for the next");
+  await assert.rejects(act!.correct("steer-1", "只看失败路径", "lost"), /没确认送到：再按一次，同一条不会重复。/u);
+  await assert.rejects(act!.correct("steer-1", "只看失败路径", "refused"), /这一轮已经结束/u, "a refusal keeps its own words");
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.slice(0, 2))), [["/works/work%201/control", "POST", { kind: "withdraw", run_id: "run-1", input_id: "steer-1" }],
+    ["/send", "POST", { work_id: "work 1", text: "只看失败路径", about: "steer-1", request_id: "k1" }]], "RCPT-326 the receipt's key is the Send's request id");
+  assert.equal(reloads(), 5, "the work is read again after each");
+});
+
+test("RCPT-335, 3b-2c: after the rounds the Assistant places the shared tray of its latest round, says when its queue was not read, and takes one back through the work's control", async () => {
+  const { ui, thread, put, calls, trays, tray } = page();
+  const rounds = [{ run_id: "run-1", phase: "completed" }, { run_id: "run-2", phase: "running" }];
+  ui.tray(thread, put, { rounds });
+  assert.equal(thread.children.includes(tray), true, "RCPT-335 the tray follows the rounds");
+  assert.equal(trays[0]![0], thread, "RCPT-335 the thread is the surface that draws it, so its tray is its own");
+  assert.equal(trays[0]![1], undefined, "RCPT-335 a view without queued_inputs hands no queue on: not read, not empty");
+  assert.equal((trays[0]![2] as { run_id: string }).run_id, "run-2", "the latest round's");
+  ui.tray(thread, put, { rounds, queued_inputs: [] });
+  assert.deepEqual(trays[1]![1], [], "read and empty is handed on as such");
+  assert.equal(thread.children.includes(tray), false, "nothing open: the tray goes");
+  ui.tray(thread, put, null);
+  assert.equal(trays.length, 2, "no work, no tray");
+  await (trays[0]![3] as Act).withdraw("q-1");
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [["/works/work%201/control", "POST", { kind: "withdraw", run_id: "run-2", input_id: "q-1" }]], "RCPT-335 the work's own control");
 });

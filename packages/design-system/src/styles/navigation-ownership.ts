@@ -170,19 +170,12 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Runtime pane: owner and tab bar
       background: color-mix(in srgb, var(--blue) 10%, transparent);
       box-shadow: none;
     }
-    html[data-resolved-theme="light"] body.settings-page[data-desktop-shell="true"] .settings-navigation .settings-nav-group > a[aria-current="page"] {
-      background: color-mix(in srgb, var(--ink) 8%, transparent);
-      box-shadow: none;
-    }
     html[data-resolved-theme="light"] body[data-desktop-shell="true"] .navigator-project-settings[aria-current="page"],
     html[data-resolved-theme="light"] body[data-desktop-shell="true"] .workspace.is-directory-collapsed .navigator-directory-toggle {
       background: color-mix(in srgb, var(--ink) 7%, transparent);
       box-shadow: none;
     }
     html[data-resolved-theme="light"] body[data-desktop-shell="true"] .personal-account:hover,
-    html[data-resolved-theme="light"] body.settings-page[data-desktop-shell="true"] .settings-navigation > .personal-sidebar-footer .personal-account[aria-current="page"],
-    html[data-resolved-theme="light"] body.settings-page[data-desktop-shell="true"]:has(.settings-navigation) > .topbar .top-action:hover,
-    html[data-resolved-theme="light"] body.settings-page[data-desktop-shell="true"] .settings-desktop-heading > a:hover,
     html[data-resolved-theme="light"] body[data-desktop-shell="true"] .tui-focus-return:hover {
       background: var(--nav-hover);
       box-shadow: none;

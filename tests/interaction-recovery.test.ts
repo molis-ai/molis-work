@@ -74,8 +74,8 @@ test("AC-08: two places answering the same question at once: one answer is taken
   const results = await Promise.allSettled([adapter.control(handle.ref, answer(pending)), adapter.control(handle.ref, answer(pending))]);
   assert.deepEqual(results.map(result => result.status).sort(), ["fulfilled", "rejected"], "exactly one answer is taken");
   const refused = results.find((result): result is PromiseRejectedResult => result.status === "rejected")!.reason as { code?: string };
-  // The answer that loses the race reaches the SDK after the other one settled the question there.
-  assert.equal(refused.code, "PENDING_ALREADY_SETTLED", "the other is refused because the question was already answered");
+  // The answer that loses the race reaches the SDK after the other one settled the question there; the SDK's code is mapped.
+  assert.equal(refused.code, "agent.pending_not_open", "the other is refused because the question was already answered");
   assert.equal(await ended(adapter, handle.ref, deadline), "completed");
   assert.equal(bodies.length, 2, "the model heard the answer once");
 

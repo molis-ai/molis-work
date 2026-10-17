@@ -11,7 +11,6 @@ import type {
   AgentCommandOutput,
   AgentCommandOutputRef,
   AgentCreateSessionInput,
-
   AgentRunControl,
   AgentRunHandle,
   AgentRunRef,
@@ -31,6 +30,7 @@ import { emptyCapabilityMatrix } from "../capabilities.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
 import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
+import { controlFailure } from "./prologue-control-errors.js";
 import { inputsPort, type RoundInputs, type SessionQueue } from "./prologue-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
@@ -437,7 +437,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       runs: record.runs.map((ref) => ({ ...ref })),
       checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
       latest_run: view,
-      ...(record.recovery ? { recovery: { ...record.recovery } } : {}), ...(queued?.length ? { queued_inputs: queued } : {}),
+      ...(record.recovery ? { recovery: { ...record.recovery } } : {}), ...(queued ? { queued_inputs: queued } : {}),
     };
   }
 
@@ -705,42 +705,42 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {
-    await this.read(run);
-    const record = this.#requireRun(run.run_id);
-    switch (control.kind) {
-      case "stop":
-        await record.control.stop("stopped");
-        break;
-      case "cancel":
-        await record.control.stop("cancelled");
-        break;
-      case "pause":
-        record.control.pause();
-        break;
-      case "resume":
-        record.control.resume();
-        break;
-      case "switch-model":
-        await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,
-          requested: model => { record.state.model_requested = model; } });
-        break;
-      case "answer": {
-        const answer = this.#answerPending;
-        if (answer === undefined) {
-          throw agentErrors.capability_unavailable("没有接上回答通道，这条问题回答不了");
+    try {
+      await this.read(run);
+      const record = this.#requireRun(run.run_id);
+      switch (control.kind) {
+        case "stop":
+          await record.control.stop("stopped");
+          break;
+        case "cancel":
+          await record.control.stop("cancelled");
+          break;
+        case "pause":
+          record.control.pause();
+          break;
+        case "resume":
+          record.control.resume();
+          break;
+        case "switch-model":
+          await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,
+            requested: model => { record.state.model_requested = model; } });
+          break;
+        case "answer": {
+          const answer = this.#answerPending;
+          if (answer === undefined) throw agentErrors.capability_unavailable("没有接上回答通道，这条问题回答不了");
+          const question = record.state.awaiting_input.find(item => item.pending_id === control.pending_id);
+          if (!question || isEnded(record.view.phase) || question.pending_revision !== control.pending_revision) {
+            throw agentErrors.pending_not_open("这条问题不属于本轮当前等待，不能提交答案");
+          }
+          await answer(run, control);
+          // The Run owns whether the question is closed; drop it from the view
+          // only after the execution owner accepted the answer.
+          settleProloguePending(record.state, control.pending_id);
+          break;
         }
-        const question = record.state.awaiting_input.find(item => item.pending_id === control.pending_id);
-        if (!question || isEnded(record.view.phase) || question.pending_revision !== control.pending_revision) {
-          throw agentErrors.pending_not_open("这条问题不属于本轮当前等待，不能提交答案");
-        }
-        await answer(run, control);
-        // The Run owns whether the question is closed; drop it from the view
-        // only after the execution owner accepted the answer.
-        settleProloguePending(record.state, control.pending_id);
-        break;
       }
-    }
-    this.#publish(run.run_id);
+      this.#publish(run.run_id);
+    } catch (error) { throw controlFailure(error); }
   }
 
   async readCommandOutput(

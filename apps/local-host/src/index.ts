@@ -268,4 +268,5 @@ export { createProjectArrivalHttp } from "./project-arrival-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { codingBackgroundTasks } from "./coding-background-tasks.js";
 export { homeBackgroundTasks } from "./web-catalog.js";
+export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { hostLog, captureHostLog, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";

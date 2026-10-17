@@ -32,9 +32,15 @@ function element(): FakeNode {
   };
   return node;
 }
-const click = (targetSelector: string, dataset: Record<string, string> = {}) => ({
-  target: { nodeType: 1, closest: (selector: string) => selector === targetSelector ? { dataset } : null }, preventDefault() {}, stopPropagation() {},
-});
+const click = (targetSelector: string, dataset: Record<string, string> = {}) => {
+  const target = {
+    nodeType: 1, dataset, getAttribute: () => null, setAttribute() {},
+    getBoundingClientRect: () => ({ left: 0, right: 120, top: 0, bottom: 30, width: 120, height: 30 }),
+    classList: { toggle() {}, add() {}, remove() {} },
+    closest(selector: string) { return selector === targetSelector ? target : null; },
+  };
+  return { target, preventDefault() {}, stopPropagation() {} };
+};
 const flush = async () => { for (let i = 0; i < 10; i += 1) await new Promise(resolve => setImmediate(resolve)); };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -75,7 +81,9 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     document: { querySelector: (selector: string) => selector === "[data-pages=workbench]" ? workbench : null, createElement: () => element(),
       addEventListener() {}, activeElement: null, hidden: false, body: { dataset: { routePrefix: "" } } },
     window: {
-      dispatchEvent() {}, addEventListener() {},
+      listeners: new Map<string, Array<(event: { type?: string; detail?: unknown }) => void>>(),
+      dispatchEvent(event: { type: string; detail?: unknown }) { for (const fn of this.listeners.get(event.type) ?? []) fn(event); },
+      addEventListener(type: string, fn: (event: { type?: string; detail?: unknown }) => void) { const list = this.listeners.get(type) ?? []; list.push(fn); this.listeners.set(type, list); },
       MolisWorkPagesEditor: {
         emptyDoc: () => EMPTY,
         bindComments: () => async () => {}, mountPagesLanding: () => ({ report() {} }), // This fixture tests discard; real comments are covered by the editor/browser regressions.
@@ -103,6 +111,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
       store.set(doc.id, doc);
       return json({ documents: [doc] });
     }
+    if (parsed.pathname.includes("/folders/") && parsed.pathname.endsWith("/delete")) return json({ ok: true });
     const [, id, action] = /^\/api\/plugins\/pages\/([^/]+)(?:\/(.+))?$/.exec(parsed.pathname) ?? [];
     const current = store.get(decodeURIComponent(id ?? ""));
     if (!current) return json({ error: "missing" }, 404);
@@ -116,6 +125,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     }
     if (method === "POST") {
       const refusedUpdate = options.update?.(); if (refusedUpdate) return refusedUpdate;
+      if (body.expected_version !== undefined && body.expected_version !== current.version) return json({ error: "改过了", code: "pages.conflict" }, 409);
       const sent = String(body.title ?? current.title);
       const next = { ...current, title: options.normalizeTitle ? sent.trim() || "未命名文档" : sent, body: body.body ?? current.body, version: current.version + 1 };
       store.set(current.id, next);
@@ -163,6 +173,57 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
   };
 }
 const existing = (id: string, title: string, body: unknown = EMPTY): Doc => ({ id, title, body, version: 4, goal_id: "", artifact_version: 0 });
+
+test("LOGIC-02 and LOGIC-03 unsaved edits are stored before a star, a folder change, or the placement bar moving the open document", async t => {
+  const page = await mounted(t, [{ ...existing("OLD", "原稿"), folder_id: "f1" } as Doc & { folder_id: string }]);
+  try {
+    await page.fire(click("button[data-page-id]", { pageId: "OLD" }));
+    await page.write({ title: "改过的标题" }, false);
+    await page.fire(click("[data-pages-star-editor]"));
+    assert.equal(page.store.get("OLD")?.title, "改过的标题");
+    assert.equal(page.calls.some(call => call.body.code === "pages.conflict"), false);
+    const starAt = page.calls.findIndex(call => call.body.starred === true);
+    const saveAt = page.calls.findIndex(call => call.body.title === "改过的标题");
+    assert.ok(saveAt >= 0 && saveAt < starAt, "the title is saved before the star");
+  } finally { page.restore(); }
+
+  const moved = await mounted(t, [existing("OLD", "原稿")]);
+  try {
+    await moved.fire(click("button[data-page-id]", { pageId: "OLD" }));
+    await moved.write({ title: "先保存再移动" }, false);
+    await moved.fire(click("[data-pages-move]", { pagesMove: "OLD" }));
+    await moved.fire(click("[data-pages-move-to]", { pagesMoveTo: "folder-2" }));
+    assert.equal(moved.store.get("OLD")?.title, "先保存再移动");
+    const folderAt = moved.calls.findIndex(call => call.body.folder_id === "folder-2");
+    const saveAt = moved.calls.findIndex(call => call.body.title === "先保存再移动");
+    assert.ok(saveAt >= 0 && saveAt < folderAt);
+  } finally { moved.restore(); }
+
+  const folder = await mounted(t, [{ ...existing("OLD", "原稿"), folder_id: "f1" } as Doc & { folder_id: string }]);
+  try {
+    await folder.fire(click("button[data-page-id]", { pageId: "OLD" }));
+    await folder.write({ title: "删文件夹前先保存" }, false);
+    const confirm = folder.parts.get("[data-pages-confirm]") as FakeNode & { returnValue?: string };
+    confirm.showModal = () => { confirm.returnValue = "ok"; void confirm.listeners.close?.({}); };
+    await folder.fire(click("[data-pages-folder-delete]", { pagesFolderDelete: "f1" }));
+    assert.equal(folder.store.get("OLD")?.title, "删文件夹前先保存");
+    const deleteAt = folder.calls.findIndex(call => call.path.includes("/folders/"));
+    const saveAt = folder.calls.findIndex(call => call.body.title === "删文件夹前先保存");
+    assert.ok(saveAt >= 0 && deleteAt > saveAt);
+  } finally { folder.restore(); }
+
+  const placed = await mounted(t, [existing("OLD", "原稿")]);
+  try {
+    await placed.fire(click("button[data-page-id]", { pageId: "OLD" }));
+    await placed.write({ title: "移走之前写完" }, false);
+    const settle: Array<Promise<unknown>> = [];
+    (globalThis as { window: { dispatchEvent(event: unknown): void } }).window.dispatchEvent({ type: "molis:placement-flush", detail: { mode: "move", object: { kind: "pages_document", id: "OLD" }, settle } });
+    await Promise.all(settle);
+    await flush();
+    assert.equal(placed.store.get("OLD")?.title, "移走之前写完");
+    assert.equal(settle.length, 1);
+  } finally { placed.restore(); }
+});
 
 test("the discard route exists next to delete and maps to pages.discard", () => {
   assert.ok(PAGES_NATIVE_PLUGIN_ROUTES.some(route => route.route_id === "pages.discard" && route.method === "POST" && route.pattern.test("/api/pages/abc/discard")));

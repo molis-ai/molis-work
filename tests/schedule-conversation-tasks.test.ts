@@ -51,6 +51,42 @@ for (const failure of [false, true]) test(`paused conversation ignores the late 
   } finally { gate.resolve(); await running; db.close(); }
 });
 
+test("LOGIC-04 a failed round still leaves 这一轮没跑成 when the task text changed while it ran", async () => {
+  const db = new Database(":memory:"), clock = { now: new Date(2026, 8, 20, 8, 50) };
+  const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
+  const wakeupIndex = new PluginWakeupIndex();
+  const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
+  const ports = createScheduleActionPorts({ db, schedule, now: () => clock.now });
+  wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, (input, control) => handleScheduleTaskWakeup(db, input.object_ref, {
+    async run() { entered.resolve(); await gate.promise; throw new Error("模型没接上"); },
+  }, () => clock.now, control));
+  const task = ports.createTask({ title: "slow", instructions: "wait", hour: 9, minute: 0, notify_important: false });
+  clock.now = new Date(2026, 8, 20, 9, 1);
+  const running = schedule.tick();
+  try {
+    await entered.promise;
+    db.prepare("UPDATE schedule_conversation_tasks SET title = ? WHERE task_id = ?").run("改过的标题", task.task_id);
+    gate.resolve();
+    await running;
+    const stored = getScheduleConversationTask(db, task.task_id)!;
+    assert.match(stored.turns.at(-1)?.text ?? "", /到点了，但这一轮没跑成：模型没接上/);
+    assert.equal(stored.enabled, true);
+  } finally { gate.resolve(); await running; db.close(); }
+});
+
+test("LOGIC-04 a lost lease writes no failure sentence", async () => {
+  const db = new Database(":memory:");
+  const task = createScheduleConversationTask(db, { title: "租约", instructions: "看一眼", hour: 9, minute: 0, notify_important: false }, () => new Date("2026-09-20T01:00:00.000Z"));
+  let checks = 0;
+  await assert.rejects(() => handleScheduleTaskWakeup(db, task.task_id, {
+    async run() { throw new Error("模型没接上"); },
+  }, () => new Date("2026-09-20T01:05:00.000Z"), { beforeEffect() { checks += 1; if (checks > 1) throw new Error("lease lost"); } }));
+  const stored = getScheduleConversationTask(db, task.task_id)!;
+  assert.deepEqual(stored.turns.map(turn => turn.kind), ["user"]);
+  assert.equal(stored.last_error, null);
+  db.close();
+});
+
 test("a concurrent calendar tick does not replace the lease of a running one-shot conversation", async () => {
   const db = new Database(":memory:"), clock = { now: new Date(2026, 8, 20, 8, 50) };
   const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();

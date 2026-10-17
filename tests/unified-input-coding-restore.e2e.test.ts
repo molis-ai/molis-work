@@ -38,6 +38,9 @@ test("UIV-04 Coding refresh restores its complete configuration without an early
   assert.deepEqual(await evaluate("(() => {const q=s=>document.querySelector(s);return {model:q('[data-coding-model]').value,intent:q('[data-coding-intent]').value,workspace:q('[data-coding-workspace-choice]').value,disabled:q('[data-coding-send]').disabled};})()"), {
     model: JSON.stringify(['issue-fixture', 'fixture']), intent: 'discuss', workspace: before.configuration.workspace_id, disabled: false,
   });
+  // UIV-01: asynchronous loading must clear the unavailable state without another user edit.
+  await waitFor("document.querySelector('[data-coding-composer]').dataset.uivState === 'draft'");
+  assert.equal(await evaluate("document.querySelector('[data-coding-composer] [data-uiv-field-state]').textContent"), '已有草稿');
   await fill('[data-coding-task]', '恢复后继续编辑，配置不能变成空值。');
   await waitFor("document.querySelector('[data-coding-draft-status]').textContent.includes('已保存')");
   const after = await (await fetch(url)).json();

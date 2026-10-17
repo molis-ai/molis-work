@@ -622,6 +622,7 @@ function uivBind(form: HTMLFormElement, live: UivLive, host: UivPageHost): void 
   field?.addEventListener("blur", () => uivPaint(live, host));
   uivRestore(form, host);
   if (field) {
+    new MutationObserver(() => uivPaint(live, host)).observe(field, { attributes: true, attributeFilter: ["disabled"] });
     uivResize(field);
     let width = field.getBoundingClientRect().width;
     new ResizeObserver(() => { const next = field.getBoundingClientRect().width; if (next !== width) { width = next; requestAnimationFrame(() => uivResize(field)); } }).observe(field);

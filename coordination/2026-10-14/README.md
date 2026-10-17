@@ -645,6 +645,8 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - re-ask 改成两边都在 Host 上拼草稿材料（统筹认可）：plugin-sdk 里放一个共用的 `questionDraftMaterial`；助理的 `/send` 加可选的 `reask:{run_id,pending_id}`；两边都核对同样三项。条件：AssistantService 和 assistant-island 是巨大单元，不许变大，逻辑放进新的小文件，只调一次，再用真实的删减抵消；`/send` 背后如果是登记过的动作，就跑 `actions:update` 并按 CONTRACT-CHANGES 处理；#654 合入后再 merge main。
       - #657（C2）合入 26ff046cb，#658（C3）合入 16381ea26，#659 进了合并队列。#654 / #660 / #662 的合并预览都停在旧的 base 上，GitHub 不重算。#654 已请采用线 merge main；#660 和 #662 由统筹判断直接加标签，在 4fd585da5 这个 base 上跑全量。中间多出来的只有 #657 的提示词字符串，和这两个 PR 动的文件不相交；这个判断写进了两个 PR 的评论里，合并队列的 Verify 还会在真正的合并结果上再跑一遍。
       - #649（回执 3b-1）合入。已让回执线把 3b-2a 变基到 main 上、按实测重定 page-assets，开 PR 时不加标签。
+      - #659（交互 AC-07/AC-08 用例）合入 dd2bac58a。
+      - #664（情境 W3-A3a，63f9c7960，+262 −146）：统筹审过。`assistant-work-objects.ts` 是真的把逻辑抽出来；context-bus 的 `settle` 把两条重复的路径合成一条；`molis:assistant-card-target` 已在 dom-events 登记，只认一次回答，回答只能是字符串或 null，没人回答就照旧新开一项工作；Host 对 work_id 的四种拒绝都有用例。删掉的处理函数对应的选择器（`data-mobile-target`、`data-timeline-filter`、`data-mobile-directory-root`）在 pr-664 的树里都没有标记；`data-timeline-item` 还在 goals 里渲染，删掉的那段只服务筛选。`.mobile-switch` 只剩五个样式文件里的 CSS，没有标记，可以留给以后的清理片。workbench.js −3,210 B（1,100,368）。全量用 `after-label.zsh 654 664:63f9c7960` 排在 #654 后面；#660、#664 都要重定 workbench.js 的字节，后合的那个走 merge-only 门禁再量一次。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

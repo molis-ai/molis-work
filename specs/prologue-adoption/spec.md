@@ -1,6 +1,6 @@
 # Prologue 采用：能力接入与 TaskBoard 统一协作
 
-状态：执行中（2026-10-17：P4 的 Coding 一半（§6.0i、§6.0j）与助理一半 A1–A3（§6.0k、§6.0n、§6.0o）在 main，A4 在 #680；A2 写后诊断的合同在 §6.0p，按四步走：这份 spec 的 PR → Prologue 一刀（写后诊断的缝交回一条命令，SDK 用同一份 `workspace-command` 审查、Effect 链和回执去跑，不在执行器里起进程）→ 换包 → Molis 实现（那时把 S-33 加进 `docs/system/SECURITY-INVARIANTS.md`，带四条拒绝用例）；P5、P6 与 A3 的结构化一半未做。2026-10-15 时的记录：P3a 已合 main（#534，`7fe8ee65`）——换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 的最后两个缺口（换模型后撤权、「从断点继续」）由 P3b 补了用例（#556，`5948c56d`），没有改源码，SDK 的 `beforeAccept` 早由 #523 接好（§5.6a）；P3c 教 Coding 的执行角色等外面的结果（两个检查器、每次看都复核，S-27），记录见 §6.0e；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
+状态：执行中（2026-10-17：P4 的 Coding 一半（§6.0i、§6.0j）与助理一半 A1–A3（§6.0k、§6.0n、§6.0o）在 main，A4 在 #680；A2 写后诊断的合同在 §6.0p，按四步走：这份 spec 的 PR → Prologue 一刀（写后诊断的缝交回一条命令，SDK 用同一份 `workspace-command` 审查、Effect 链和回执去跑，不在执行器里起进程）→ 换包 → Molis 实现（那时在 `docs/system/SECURITY-INVARIANTS.md` 取下一个空号加一行，带四条拒绝用例）；P5、P6 与 A3 的结构化一半未做。2026-10-15 时的记录：P3a 已合 main（#534，`7fe8ee65`）——换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 的最后两个缺口（换模型后撤权、「从断点继续」）由 P3b 补了用例（#556，`5948c56d`），没有改源码，SDK 的 `beforeAccept` 早由 #523 接好（§5.6a）；P3c 教 Coding 的执行角色等外面的结果（两个检查器、每次看都复核，S-27），记录见 §6.0e；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
 
 > **2026-10-15 P3a 恢复：接续入口是 §6.0d「P3a 恢复记录」。** §6.0c 的暂停点已解除（防腐线 I8 第二个 PR #523 已合入），其中「恢复时按这个顺序」第 1、2、3 步已做完。
 
@@ -1853,11 +1853,11 @@ Prologue 一刀另外要做到：
 - 写入和检查之间配置改了：执行器在检查那一刻按当时的版本读配置。检查器被删了，就是「未检查：没有适用于 <扩展名> 的检查器」。
 - 检查在取消之前已经跑完的，回执留着，时间线照常显示。那是已经发生的事实。
 
-#### 6.0p.6 安全边界：加一行 S-33
+#### 6.0p.6 安全边界：加一行安全不变量（随 Molis 那一刀取下一个空号）
 
 判定：要加。这是宿主替模型拼命令的第一个地方：命令的来源从「模型写的」换成「人存的配置加一个文件路径」，配置的写入受众就成了新的边界。审查卡仍显示完整命令，但只靠审查挡不住「模型或文件改了配置、人照常批准」的那一类。
 
-S-33（随 Molis 那一刀加进 `docs/system/SECURITY-INVARIANTS.md`，测试 `tests/security-invariants-checkers.test.ts`）：
+这一行随 Molis 那一刀加进 `docs/system/SECURITY-INVARIANTS.md`，取那时的下一个空号，不在这里写死（S-33 已给交互线 BL-156 的 Molis 半边）。测试 `tests/security-invariants-checkers.test.ts`。内容：
 
 > 写后检查器的命令只来自人在 Coding 设置里保存的配置：模型、MCP 客户端、工作流和别的插件都存不了（受众只有 `user`）；文件路径只作为一个完整参数，以 `-` 开头的写成 `./…`，不经 shell；没有命令审查的批准就不起进程；配置改了，旧的「本会话不再询问」规则对不上新命令。
 
@@ -1883,7 +1883,7 @@ S-33（随 Molis 那一刀加进 `docs/system/SECURITY-INVARIANTS.md`，测试 `
 | PA-36 | 停下这一轮：等审查的检查撤回审查、不起进程；在跑的被停；之后 Coding 时间线没有检查项、Molis 存储没有检查结果、审查队列没有待审 | 停下之前已经跑完的检查，回执和时间线项都在 | `tests/coding-diagnose-after-write.test.ts` |
 | PA-37 | 检查器启动失败（`executable` 不存在）：写入的结果在前，后面一行「未检查：检查器启动失败（ENOENT）」，盘上是新内容 | 写入本身失败时不起检查，观察只有写入的失败 | `tests/coding-diagnose-after-write.test.ts` |
 | PA-38 | 真实语言样本：JS 项目配 `node --check {file}`，Python 项目配 `python3 -m py_compile {file}`；写进语法错，原样的报错行到观察里；改对后退出码 0 | 本来就对的文件退出码 0、输出为空；不装任何东西，不起语言服务 | `tests/coding-diagnose-after-write.test.ts`（真实 Node Host） |
-| PA-39 | S-33 四条拒绝各有断言，表里点名这个文件 | 去掉受众检查、`./` 前缀、审查、或让规则只比检查器编号，对应断言变红 | `tests/security-invariants-checkers.test.ts` |
+| PA-39 | §6.0p.6 那一行安全不变量的四条拒绝各有断言，表里点名这个文件 | 去掉受众检查、`./` 前缀、审查、或让规则只比检查器编号，对应断言变红 | `tests/security-invariants-checkers.test.ts` |
 
 Prologue 那一刀的验收写进它自己的切片：缝交回命令后经同一审查资源与回执、审查等待不计入写入时限、没声明的会话零调用不加字、取消跟随写入。每条带变异，像原切片那样。
 

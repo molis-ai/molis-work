@@ -1,6 +1,6 @@
-import { ActionError, defineErrorCodes, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isInstructedPrompt, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { PLUGIN_MODEL_LIMITS, type PluginManifest, type PluginModelClient, type PluginModelRequest, type PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_MODEL_LIMITS, type PluginManifest, type PluginModelClient, type PluginModelAvailability, type PluginModelRequest, type PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentPluginAction } from "./action-scope.js";
 
 const MODEL_INVOKE = "model:invoke";
@@ -36,7 +36,7 @@ export interface PluginModelDispatch {
 
 /** The Host's side of the service: the model itself. The Runtime decides whether a call may be made; the port makes it. */
 export interface PluginModelPort {
-  availability(): ActionAvailability;
+  availability(): PluginModelAvailability;
   /** `owner` is the plugin whose instructions are being sent; the port resolves them to the person's version. */
   complete(owner: string, prompt: InstructedPrompt, dispatch: PluginModelDispatch): Promise<{ text: string; usage?: PluginModelResult["usage"] }>;
   /** The Host's JSON decoder, so the plugin and every other caller of the model read an answer the same way. */
@@ -66,7 +66,7 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
     gate.assertActive(); gate.requireGrant(MODEL_INVOKE);
   };
   return Object.freeze({
-    availability(): ActionAvailability {
+    availability(): PluginModelAvailability {
       try { gate.assertActive(); } catch { return { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" }; }
       try { gate.requireGrant(MODEL_INVOKE); } catch { return { available: false, code: "actions.plugin_permission", reason: "插件缺少模型调用授权" }; }
       return port.availability();

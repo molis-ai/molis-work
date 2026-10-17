@@ -286,8 +286,8 @@ function inspectCommandDeclarations(parsed: PluginManifest): string[] {
   return problems;
 }
 
-/** The most a route may ask the Host to read: a 25 MB file sent as base64 inside JSON (user decision, 2026-10-17). */
-const MAX_ROUTE_BODY_BYTES = 36_000_000;
+/** The most a route may ask the Host to read: a 32 MB batch sent as base64 inside JSON (user decision, 2026-10-17). */
+const MAX_ROUTE_BODY_BYTES = 45_000_000;
 
 function inspectRouteDeclarations(parsed: PluginManifest): string[] {
   const routes = parsed.routes;

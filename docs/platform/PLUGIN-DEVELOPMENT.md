@@ -138,7 +138,9 @@ Manifest 路由可声明 `stream: "ndjson"`，只支持 POST。`bindPluginAction
 
 `BoundActionClient.invoke` 第四个参数是传输回调 `{ on_progress }`，不属于业务输入。第三个 `request.execution` 必须原样传下去：Host 用这一个对象确认 Home 路由来自哪个项目，展开或另造对象不继承这个证明。直接路由通过可选的 `request.emit` 发进度；等待模型或外部服务的动作仍声明 `scheduling: "concurrent"`。
 
-SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UTF-8 字节（含换行），至多 10,000 行，合计 1,048,576 字节；任一超限取消调用，并以 `actions.output_invalid` 错误末行结束。显式 `max_body_bytes` 最大 36,000,000 字节，项目默认 256,000、Home 默认 12 MiB 不变。客户端断连或实例停用、撤权后，Host 结束等待并释放观察器；已经开始的外部操作由插件用取消信号清理。处理器晚到时，仍须在写入前执行 `beforeEffect()`，不得写成功、失败或其他业务记录。
+普通路由可返回现有 `PluginRouteResponse.bytes` 与 `filename`，Host 按原始字节下载；强制附件、octet-stream、nosniff、sandbox、no-store，插件不能通过 `mime` 或 `headers` 改成页面执行。
+
+SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UTF-8 字节（含换行），至多 10,000 行，合计 1,048,576 字节；任一超限取消调用，并以 `actions.output_invalid` 错误末行结束。显式 `max_body_bytes` 最大 45,000,000 字节，项目默认 256,000、Home 默认 12 MiB 不变。客户端断连或实例停用、撤权后，Host 结束等待并释放观察器；已经开始的外部操作由插件用取消信号清理。处理器晚到时，仍须在写入前执行 `beforeEffect()`，不得写成功、失败或其他业务记录。
 
 ## 当前项目设置
 

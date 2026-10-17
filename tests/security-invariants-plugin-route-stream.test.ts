@@ -43,7 +43,7 @@ test("W5-01-STREAM-02 manifest accepts only POST ndjson and a bounded explicit b
   assert.equal(parsePluginManifest(manifest).routes?.at(-1)?.max_body_bytes, 36_000_000);
   for (const route of [
     { stream: "sse" }, { stream: true }, { stream: "ndjson", method: "GET" },
-    { max_body_bytes: 36_000_001 }, { max_body_bytes: 0 }, { max_body_bytes: 1.5 },
+    { max_body_bytes: 45_000_001 }, { max_body_bytes: 0 }, { max_body_bytes: 1.5 },
   ]) assert.throws(() => parsePluginManifest({ ...manifest, routes: [{ route_id: "bad", method: "POST", path: "/bad", ...route }] }));
 });
 

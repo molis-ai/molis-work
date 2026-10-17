@@ -178,7 +178,7 @@ export interface PluginRouteDeclaration {
   /** Permission the caller's session must hold. Omitted means the Plugin's own grants suffice. */
   permission?: string;
   /**
-   * The largest request body, in bytes, the Host reads for this route (at most 36 000 000). Omitted, the Host's own default: 256 000
+   * The largest request body, in bytes, the Host reads for this route (at most 45 000 000). Omitted, the Host's own default: 256 000
    * bytes on a project instance's route, 12 MiB on a Home instance's.
    */
   max_body_bytes?: number;
@@ -340,6 +340,7 @@ export interface PluginRouteResponse {
   status: number;
   body?: unknown;
   headers?: Readonly<Record<string, string>>;
+  /** Non-stream HTTP routes deliver these bytes as an inert attachment; the Host fixes the security headers. */
   bytes?: Uint8Array;
   filename?: string;
   mime?: string;

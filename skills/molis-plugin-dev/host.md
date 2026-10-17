@@ -28,7 +28,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 等待模型或外部服务时，动作声明 `scheduling: "concurrent"`，路由声明 POST 与 `stream: "ndjson"`，仍用 `bindPluginActionRoute`。动作通过 `caller.on_progress?.({ stage, progress, text_delta? })` 发进度，Host 将它编码为 NDJSON 的 `progress` 行，最后写唯一 `result` 或 `error` 行。不要让插件写末行，也不要复制或展开 `request.execution` 来补进度；SDK 用动作客户端第四个传输参数传 `on_progress`，保留可信控制对象的身份。直接路由可用 `request.emit`，它只在声明 stream 时存在。
 
-进度单行至多 65,536 字节、10,000 行、总计 1,048,576 字节，超限取消；`max_body_bytes` 只给确需上传的路由声明，最大 36,000,000 字节。未声明时项目路由仍为 256,000、Home 路由仍为 12 MiB。断连、停用或撤权后结束等待；插件必须在外部等待后、写入前调用 `beforeEffect()`，并用原取消信号清理自己启动的外部工作。
+进度单行至多 65,536 字节、10,000 行、总计 1,048,576 字节，超限取消；`max_body_bytes` 只给确需上传的路由声明，最大 45,000,000 字节。未声明时项目路由仍为 256,000、Home 路由仍为 12 MiB。断连、停用或撤权后结束等待；插件必须在外部等待后、写入前调用 `beforeEffect()`，并用原取消信号清理自己启动的外部工作。
 
 ### 必改（插件切换里能看见、点得动）
 

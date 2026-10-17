@@ -388,6 +388,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   /** A user stop disables; Host shutdown retains an enabled install in the startable installed state. */
   stop(installId: string, options: { preserve_enabled?: boolean } = {}): Promise<PluginLifecycleReceipt> {
+    this.revokeContext(installId, true); // Withdraw authority now; retain the context for the queued cleanup hook.
     return this.runLocked(installId, () => this.stopOnce(installId, options.preserve_enabled === true));
   }
 
@@ -471,7 +472,6 @@ export class PluginRuntime implements PluginRuntimeApi {
     try {
       if (live) await this.executor.stop(definition, live);
     } catch (error) {
-      this.revokeContext(installId);
       this.contributions.delete(installId);
       const crashed = {
         ...current,
@@ -482,7 +482,6 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.repository.save(crashed);
       throw pluginErrors.executor_failed("Plugin 停止失败，已记录为 crashed");
     }
-    this.revokeContext(installId);
     this.contributions.delete(installId);
     const updated = {
       ...current,
@@ -700,11 +699,11 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.contexts.get(installId)?.context ?? null;
   }
 
-  private revokeContext(installId: string): void {
+  private revokeContext(installId: string, retainForCleanup = false): void {
     this.actionDisposers.get(installId)?.();
     this.actionDisposers.delete(installId);
     this.contexts.get(installId)?.revoke();
-    this.contexts.delete(installId);
+    if (!retainForCleanup) this.contexts.delete(installId);
   }
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {

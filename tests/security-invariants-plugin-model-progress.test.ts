@@ -39,11 +39,12 @@ for (const outcome of ["answer", "failure"] as const) {
   });
 }
 
-for (const invalidation of ["action-cancel", "request-cancel", "disable", "install-revoke", "caller-revoke"] as const) {
+for (const invalidation of ["action-cancel", "request-cancel", "disable", "install-revoke", "caller-revoke", "supervisor-revoke", "stop-request"] as const) {
   test(`RAC-23 ${invalidation} refuses new model text, the late answer, and business writes`, { timeout: 60_000 }, async t => {
     const probe = homeProbe(), entered = deferred(), release = deferred(), over = deferred(), chunks: string[] = [];
     const actionAbort = new AbortController(), requestAbort = new AbortController();
     let progress: HostTextRequestOptions["onProgress"], handed = false, allowed = true;
+    let stopping: Promise<unknown> | undefined;
     const completeText: HostCompleteText = async (_prompt, options = {}) => {
       progress = options.onProgress; assert.ok(progress);
       progress({ type: "text-delta", text: "before" }); entered.resolve();
@@ -69,15 +70,17 @@ for (const invalidation of ["action-cancel", "request-cancel", "disable", "insta
       if (invalidation === "action-cancel") actionAbort.abort();
       else if (invalidation === "request-cancel") requestAbort.abort();
       else if (invalidation === "caller-revoke") allowed = false;
+      else if (invalidation === "supervisor-revoke") platform.supervisor.revoke(probe.id);
+      else if (invalidation === "stop-request") stopping = platform.runtime.stop(install.install_id);
       else if (invalidation === "disable") assert.equal((await request(`/api/plugins/${probe.id}/disable`, { method: "POST", body: {} })).status, 200);
       else { await platform.runtime.stop(install.install_id); platform.runtime.grant(install.install_id, ["storage:private"]); }
       assert.throws(() => progress!({ type: "text-delta", text: "after" }));
       assert.deepEqual(chunks, ["before"], "no text is delivered after authority ends, even if the model ignores cancellation");
     } finally { release.resolve(); }
-    await over.promise; await refused;
+    await over.promise; await refused; await stopping;
     assert.equal(handed, false);
-    if (invalidation === "disable") await platform.supervisor.enable(probe.id);
-    if (invalidation === "install-revoke") await platform.supervisor.restart(probe.id);
+    if (invalidation === "disable" || invalidation === "supervisor-revoke") await platform.supervisor.enable(probe.id);
+    if (invalidation === "install-revoke" || invalidation === "stop-request") await platform.supervisor.restart(probe.id);
     assert.equal(probe.contexts.at(-1)!.services!.storage!.get("late"), null);
   });
 }

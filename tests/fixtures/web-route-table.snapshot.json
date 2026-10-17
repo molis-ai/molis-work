@@ -481,7 +481,7 @@
       "source"
     ]
   },
-  "GET <project>/api/lingguang": {
+  "GET <project>/api/plugins/io.molis.work.lingguang/sparks": {
     "status": 200,
     "type": "application/json",
     "keys": [

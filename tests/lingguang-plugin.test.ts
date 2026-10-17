@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import test from "node:test";
 
 import {
@@ -15,8 +12,6 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   LINGGUANG_CLIENT_FACTORY_SCRIPT,
   LINGGUANG_PROJECT_PLUGIN_ID,
-  LingguangPluginRouteTable,
-  createLingguangRouteHandlers,
   lingguangManifest,
   openLingguangStore,
 } from "@molis-ai/molis-work-plugin-lingguang";
@@ -26,20 +21,10 @@ import {
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
 
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
-
+import { serveLingguang } from "./fixtures/lingguang-runtime.js";
+import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import type { LingguangConversationState } from "@molis-ai/molis-work-plugin-lingguang";
 const PROJECT = "project-lingguang";
-const OTHER = "project-other";
-
-function projectQuery(): URLSearchParams {
-  return new URLSearchParams({ project_id: PROJECT });
-}
-
-function projectBody(body: Record<string, unknown> = {}): Record<string, unknown> {
-  return { project_id: PROJECT, ...body };
-}
 
 function saveFunctionSource(script: string): string {
   const start = script.indexOf("const save = async");
@@ -84,17 +69,6 @@ function emptyView(): MolisWorkWebView {
       out_rules: [],
     },
   } as MolisWorkWebView;
-}
-
-async function withHome<T>(run: (home: string, host: MolisWorkLocalHost) => Promise<T>): Promise<T> {
-  const home = await mkdtemp(join(tmpdir(), "lingguang-"));
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async () => "可以先记录明天窗边光线的变化。" });
-  try {
-    return await run(home, host);
-  } finally {
-    await host.close();
-    await rm(home, { recursive: true, force: true });
-  }
 }
 
 test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图标用 idea", () => {
@@ -162,106 +136,35 @@ test("工作台客户端脚本挂上灵光后仍能解析，保存不重绘编�
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /showModal/);
 });
 
-test("快记、重开还在；项目隔离；丢掉后离开列表", async () => {
-  await withHome(async (home, host) => {
-    const store = openLingguangStore(home);
-    const routes = new LingguangPluginRouteTable(createLingguangRouteHandlers({ projectId: PROJECT, actions: bindActionClient(host.actionClient(
-      molisWorkHostProjectReference({ projectId: PROJECT, databasePath: join(home, "project.sqlite") })),
-      () => ({ actor_id: "test", project_id: PROJECT, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS })) }));
-    const created = await routes.handle({
-      method: "POST",
-      pathname: "/api/lingguang",
-      query: projectQuery(),
-      body: projectBody({ title: "窗边的光", body: "下午三点，灰尘在亮里转。" }),
-    });
-    const spark = (created?.body as { spark: { id: string; project_id: string; title: string; source_kind: string; status: string } }).spark;
-    assert.equal(spark.project_id, PROJECT);
-    assert.equal(spark.source_kind, "manual");
-    assert.equal(spark.status, "inbox");
-    const second = await routes.handle({
-      method: "POST",
-      pathname: "/api/lingguang",
-      query: projectQuery(),
-      body: projectBody({ body: "再丢一条没有标题的" }),
-    });
-    const third = await routes.handle({
-      method: "POST",
-      pathname: "/api/lingguang",
-      query: projectQuery(),
-      body: projectBody({ title: "要丢掉的", body: "确认后离开" }),
-    });
-    const listed = await routes.handle({ method: "GET", pathname: "/api/lingguang", query: projectQuery(), body: {} });
-    const titles = ((listed?.body as { sparks: Array<{ title: string }> }).sparks).map((item) => item.title);
-    assert.equal(titles.length, 3);
-    assert.deepEqual(new Set(titles), new Set(["要丢掉的", "再丢一条没有标题的", "窗边的光"]));
-    await assert.rejects(() => routes.handle({ method: "GET", pathname: "/api/lingguang",
-      query: new URLSearchParams({ project_id: OTHER }), body: {} }), { code: "actions.scope_mismatch" });
-    // The bound caller supplies project identity; no untrusted query is required.
-    assert.equal(((await routes.handle({ method: "GET", pathname: "/api/lingguang", query: new URLSearchParams(), body: {} }))!.body as { sparks: unknown[] }).sparks.length, 3);
-    const discardId = (third?.body as { spark: { id: string } }).spark.id;
-    const discarded = await routes.handle({
-      method: "POST",
-      pathname: "/api/lingguang/discard",
-      query: projectQuery(),
-      body: projectBody({ ids: [discardId, (second?.body as { spark: { id: string } }).spark.id] }),
-    });
-    assert.equal((discarded?.body as { ok: boolean }).ok, true);
-    assert.equal(store.list(PROJECT).length, 1);
-    assert.equal(store.list(PROJECT)[0]?.title, "窗边的光");
-    store.close();
-
-    const reopened = openLingguangStore(home);
-    assert.equal(reopened.list(PROJECT).length, 1);
-    assert.equal(reopened.list(PROJECT)[0]?.body, "下午三点，灰尘在亮里转。");
-    assert.equal(reopened.list(OTHER).length, 0);
-    reopened.close();
-  });
+test("RAC-31 RAC-32 快记、重开还在；项目隔离；丢掉后离开列表", async t => {
+  const f = await serveLingguang(t), projectId = f.project.project_id;
+  const spark = (await f.http<{ spark: LingguangSpark }>("", { title: "窗边的光", body: "下午三点，灰尘在亮里转。" })).spark;
+  assert.deepEqual([spark.project_id, spark.source_kind, spark.status], [projectId, "manual", "inbox"]);
+  const second = (await f.http<{ spark: LingguangSpark }>("", { body: "再丢一条没有标题的" })).spark;
+  const third = (await f.http<{ spark: LingguangSpark }>("", { title: "要丢掉的", body: "确认后离开" })).spark;
+  const listed = await f.http<{ sparks: LingguangSpark[] }>("");
+  assert.deepEqual(new Set(listed.sparks.map(item => item.title)), new Set(["要丢掉的", "再丢一条没有标题的", "窗边的光"]));
+  assert.equal((await f.request("?project_id=other")).status, 403);
+  assert.equal((await f.request("", { project_id: "other", title: "Denied" })).status, 403);
+  assert.equal((await f.http<{ sparks: LingguangSpark[] }>("")).sparks.length, 3, "identity comes from the Runtime instance");
+  assert.deepEqual(await f.http("/discard", { ids: [third.id, second.id] }), { ok: true });
+  await f.host.closeProject(f.project.reference);
+  const kept = await f.http<{ sparks: LingguangSpark[] }>("");
+  assert.equal(kept.sparks.length, 1);
+  assert.equal(kept.sparks[0]?.body, "下午三点，灰尘在亮里转。");
+  const reopened = openLingguangStore(f.home);
+  try { assert.deepEqual(reopened.list(projectId), kept.sparks); assert.deepEqual(reopened.list("other"), []); } finally { reopened.close(); }
 });
 
-test("改正文会写入 store；头脑风暴使用注入模型并保存真实回复", async () => {
-  await withHome(async (home, host) => {
-    const store = openLingguangStore(home);
-    const routes = new LingguangPluginRouteTable(createLingguangRouteHandlers({ projectId: PROJECT, actions: bindActionClient(host.actionClient(
-      molisWorkHostProjectReference({ projectId: PROJECT, databasePath: join(home, "project.sqlite") })),
-      () => ({ actor_id: "test", project_id: PROJECT, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS })) }));
-    const created = await routes.handle({
-      method: "POST",
-      pathname: "/api/lingguang",
-      query: projectQuery(),
-      body: projectBody({ title: "种子", body: "从这一句往下聊" }),
-    });
-    const id = (created?.body as { spark: { id: string } }).spark.id;
-    const updated = await routes.handle({
-      method: "POST",
-      pathname: `/api/lingguang/${id}`,
-      query: projectQuery(),
-      body: projectBody({ title: "种子", body: "改过的正文" }),
-    });
-    assert.equal((updated?.body as { spark: { body: string } }).spark.body, "改过的正文");
-    const opened = await routes.handle({
-      method: "POST",
-      pathname: "/api/lingguang/conversations",
-      query: projectQuery(),
-      body: projectBody({ spark_ids: [id] }),
-    });
-    const conversationId = (opened?.body as { conversation: { id: string }; sparks: Array<{ body: string }> }).conversation.id;
-    assert.equal((opened?.body as { sparks: Array<{ body: string }> }).sparks[0]?.body, "改过的正文");
-    const replied = await routes.handle({
-      method: "POST",
-      pathname: `/api/lingguang/conversations/${conversationId}/messages`,
-      query: projectQuery(),
-      body: projectBody({ body: "明天试试" }),
-    });
-    const messages = (replied?.body as { messages: Array<{ role: string; body: string }> }).messages;
-    assert.equal(messages.at(-2)?.role, "user");
-    assert.equal(messages.at(-2)?.body, "明天试试");
-    assert.equal(messages.at(-1)?.role, "assistant");
-    assert.equal(messages.at(-1)?.body, "可以先记录明天窗边光线的变化。");
-    store.close();
-
-    const reopened = openLingguangStore(home);
-    const again = reopened.openConversation([id], PROJECT);
-    assert.equal(again.messages.at(-1)?.body, "可以先记录明天窗边光线的变化。");
-    reopened.close();
-  });
+test("RAC-31 改正文会写入原库；头脑风暴使用注入模型并保存真实回复", async t => {
+  const f = await serveLingguang(t, { completeText: async () => "可以先记录明天窗边光线的变化。" });
+  const { spark } = await f.http<{ spark: LingguangSpark }>("", { title: "种子", body: "从这一句往下聊" });
+  const updated = await f.http<{ spark: LingguangSpark }>(`/${spark.id}`, { title: "种子", body: "改过的正文", expected_updated_at: spark.updated_at });
+  assert.equal(updated.spark.body, "改过的正文");
+  const opened = await f.http<LingguangConversationState>("/conversations", { spark_ids: [spark.id] });
+  assert.equal(opened.sparks[0]?.body, "改过的正文");
+  const replied = await f.http<LingguangConversationState>(`/conversations/${opened.conversation.id}/messages`, { body: "明天试试" });
+  assert.deepEqual(replied.messages.map(row => [row.role, row.body]), [["user", "明天试试"], ["assistant", "可以先记录明天窗边光线的变化。"]]);
+  const reopened = openLingguangStore(f.home);
+  try { assert.deepEqual(reopened.openConversation([spark.id], f.project.project_id).messages, replied.messages); } finally { reopened.close(); }
 });

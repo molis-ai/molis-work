@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { bindActionClient, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, createDatasetActionHandlers, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
-import { lingguangActions, lingguangContentActions, createLingguangActionHandlers, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { lingguangActions, lingguangContentActions, createLingguangActionHandlers, ownLingguangStores, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesActions, pagesContentActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { createWorkflowContentPorts } from "@molis-ai/molis-work-plugin-workflows";
@@ -110,7 +110,7 @@ test("AI actions of Form, Dataset, PPT and 灵光 recheck the grant right before
       run: state => handle(createPptActionHandlers({ withStore: run => run(decks), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "## 一页\n- 要点") }), pptActions.outlineAi.capability_id)
         .handle(revocable(state), { id: deck.id, text: "整理" }) },
     { name: "lingguang.conversation.message", unchanged: () => sparks.conversation(conversation.id, "p").messages.length,
-      run: state => handle(createLingguangActionHandlers({ withStore: run => run(sparks), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "回复") }), lingguangActions.message.capability_id)
+      run: state => handle(createLingguangActionHandlers({ ...ownLingguangStores(run => run(sparks)), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "回复") }), lingguangActions.message.capability_id)
         .handle(revocable(state, "mcp"), { id: conversation.id, body: "hi" }) },
   ];
   function newState() { return { revoked: false, dispatched: 0, sawBeforeDispatch: [] as unknown[] }; }

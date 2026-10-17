@@ -32,15 +32,15 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 ## 2. 现状（按代码）
 
-### 2.1 25 个目录条目
+### 2.1 26 个目录条目
 
 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条，在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
-- `RUNTIME_ASSEMBLED`（8）：characters、shelf、coding、files、git、diff、text-stats、form，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 7。
-- Home 级（1）：issues，目录条目带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
-- `BUILD_TIME_ASSEMBLED`（17）：alchemist、artifacts、cognia、dataset、feed、goals、images、inbox、jelly、lingguang、pages、plugin-builder、ppt、schedule、sessions、workflows、todo。
+- `RUNTIME_ASSEMBLED`（9）：characters、shelf、coding、files、git、diff、text-stats、form、lingguang，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 8。
+- Home 级（2）：issues、todo，目录条目带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
+- `BUILD_TIME_ASSEMBLED`（15）：alchemist、artifacts、cognia、dataset、feed、goals、images、inbox、jelly、pages、plugin-builder、ppt、schedule、sessions、workflows。
 
-宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
+以下接线数量为原迁移调研基线，不能当作当前完成证据；Form、Todo、灵光已删除各自的两份适配。宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
 
 ### 2.2 18 个构建期插件的分类与放置
 
@@ -71,7 +71,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 - **Home 级实例**：提供方今天在 Home 级登记一次的（`apps/local-host/src/project-host.ts` 第 225–237 行用 `this.host.actionRegistry()`，不带项目；其中第 237 行 Shelf 个人库的提供方属混合插件，另算）：Todo、Jelly、Cognia、Images、Alchemist，共 5 个。
 - **每个项目一个实例**：提供方今天按项目登记的（同文件第 189–206 行，`this.host.actionRegistry(reference)`）：Form、Dataset、PPT、Pages、灵光、Workflows、Inbox、Schedule、Feed，共 9 个。监督器条目放在 `project-plugins.ts` 的 `startPlatform`，和 Shelf、Coding 一族一样。
-- **与决定原文的差别，要用户确认（第 10 节第 3 项）。** 目录里 Form、Dataset、PPT、Pages、灵光、Workflows 也标了 `personal: true`，字面读决定会把它们也放进 Home 级实例。这里没有那样读，原因有二：一是路线图决定 10 的选项把 Form 描述为 project-scoped，推荐理由写明 Form 不必等 Home 级服务（`roadmap-2026-10-07.md` 决定 10），用户选了这一项；二是目录的 `personal` 标志在代码里只表示「每个项目都可用，不进项目启用列表」（`apps/local-host/src/project-action-availability.ts` 对 `personal` 返回不检查项目启用，`web-request.ts` 的 `enablePlugin` 拒绝 `personal` 条目，`skills/molis-plugin-dev/elements.md` 第 48 行同义），并不等于「Home 级登记」。如果用户的意思是字面读法，这 6 个也上 Home 级实例，结果只有两处变：Form 样板（W4-04）要等 W3-06 的 Home 级实例（它本来就依赖 W3-06 这一片，所以顺序不变），以及这 6 个的监督器条目从 `project-plugins.ts` 的 `startPlatform` 挪到 Home 级实例的装配处。
+- **用户已确认（2026-10-10，防腐 spec §1）。** Form、Dataset、PPT、Pages、灵光、Workflows 每个项目一个 Runtime 实例，原 Home 库仍按项目分区；Todo、Jelly、Cognia、Images、Alchemist 是 Home 级实例。目录的 `personal` 仍只表示每个项目都可用，不决定实例作用域。
 
 **混合插件**（在 `RUNTIME_ASSEMBLED` 里，宿主却仍留着手写文件，门禁看不出来）：Shelf 仍有 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、`shelf-actions.ts`、`shelf-ai.ts`，并在 `project-host.ts` 里登记两个提供方（项目一份、Home 一份）。它的收拢在 W5-01 的最后一组。Characters 原来也是混合插件（宿主里有 `characters-host.ts` 等文件），现在走另一条路：并进宿主（第 5.4 节）。
 
@@ -251,7 +251,7 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 
 1. **提供方身份**（4.2）：**已定（用户 2026-10-10，W3-06 C）：内置插件一律用插件名（`plugin_id`），实现见 4.2 提供方身份一条的「已定并实现」；下面是做决定前的写法。** 内置实例保持 `plugin_id`（倾向）、改写存量引用、还是接受重新授权。后两项不只动用户的真实 Home，还要改写死 `provider_id` 的 13 行代码（11 个文件）：自钉死要改成不写死，跨插件的钉死要去掉 `provider_id` 或另想办法（4.2 选项 (b)），而且 Pages、Inbox 的迁移顺序受它约束；保持 `plugin_id` 则这些都不用动。涉及用户的真实 Home，要用户定。
 2. **内置插件的授权规则**（4.2）：**已定（用户 2026-10-10，W3-06 B）：改 bundled 的授予规则，内置插件拿清单声明的全部权限，实现见 4.2 授权一条第 5 点。** 下面是做决定前的写法：把动作用到的权限都标必需、监督器条目传显式 `grants`、还是改 bundled 的授予规则（倾向最后一个）。对所有迁来的插件一样，Form 样板之前必须定。由 W3-06 设计稿拍板，需要评审，因为它改的是授权语义。
-3. **放置规则的读法**（2.2）：本计划按「提供方今天怎么登记」放（6 个 Home 级、9 个每项目一个），Form、Dataset、PPT、Pages、灵光、Workflows 因此在每个项目一个的实例里。如果决定「个人插件装在一个 Home 级实例」要按目录 `personal` 标志字面读，这 6 个也上 Home 级实例。要用户确认。
+3. **放置规则已定**（2.2）：按 2026-10-10 用户决定，Form、Dataset、PPT、Pages、灵光、Workflows 每个项目一个；`personal` 不决定实例作用域。
 4. **项目库内的插件表**（4.2）：Inbox、Schedule、Feed 先按现状只迁动作和界面，还是另设项目库服务。
 5. **「项目已删」步骤的送达**（4.2 末项）：倾向做成 Home 库登记项里的「按文件清除某个项目」函数。由 W3-06 与 W4-11 的设计稿定；要补进 W3-06 的描述。
 6. **例外的复审**（第 3 节）：W6-01 前复核四个例外的建议是否采纳。

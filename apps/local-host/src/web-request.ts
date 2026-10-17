@@ -20,8 +20,6 @@ import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
-import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActions, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -214,8 +212,6 @@ const sessionsAndPlanningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 /** The built-time plugins' own HTTP, each under its own permissions; Jelly and Cognia are Home plugins, Todo is personal but project-aware. */
 const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "lingguang", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
-    && await handleLingguangNativePluginHttp(request, response, url, (_input, transport) => ({ projectId: hostReference.project_id, actions: userActions(LINGGUANG_ACTION_PERMISSIONS, transport) })) },
   { id: "pages", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePagesNativePluginHttp(request, response, url, { projectId: hostReference.project_id, actions: userActions(PAGES_ACTION_PERMISSIONS) }) },
   { id: "dataset", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)

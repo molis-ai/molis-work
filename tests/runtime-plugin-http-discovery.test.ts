@@ -18,6 +18,82 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { streamProbe } from "./fixtures/plugin-stream.js";
 
+import { lingguangActions, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { serveLingguang } from "./fixtures/lingguang-runtime.js";
+import type { HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
+
+for (const mode of ["stop", "revoke", "restart", "caller-revoke"] as const) {
+  test(`RAC-34 Lingguang ${mode} rejects late model text and the whole turn; recovery uses the same library`, { timeout: 60_000 }, async t => {
+    const entered = deferred(), release = deferred();
+    let progress: HostTextRequestOptions["onProgress"], calls = 0, allowed = true;
+    const f = await serveLingguang(t, { completeText: async (_prompt, options) => {
+      if (++calls === 1) { progress = options?.onProgress; progress?.({ type: "text-delta", text: "预览" }); entered.resolve(); await release.promise; }
+      return "完整回复";
+    } });
+    const { spark } = await f.bound.invoke(lingguangActions.create, { body: "保留的想法" });
+    const { conversation } = await f.bound.invoke(lingguangActions.openConversation, { spark_ids: [spark.id] });
+    const seen: string[] = [];
+    const pending = f.client.invoke({ ...f.caller, on_progress: event => { if (event.text_delta) seen.push(event.text_delta); },
+      assert_authority_current: () => { if (!allowed) throw new Error("caller revoked"); },
+    }, lingguangActions.message, { id: conversation.id, body: "取消的提问" });
+    const refused = assert.rejects(pending);
+    try {
+      await entered.promise;
+      const platform = await f.host.withProject(f.project.reference, runtime => runningProjectPlatform(runtime.store, f.project.project_id));
+      assert.ok(platform);
+      const plugin = "io.molis.work.lingguang", installId = platform.supervisor.state(plugin)!.install_id!;
+      if (mode === "stop") await platform.runtime.stop(installId);
+      else if (mode === "revoke") platform.supervisor.revoke(plugin);
+      else if (mode === "restart") assert.equal((await platform.supervisor.restart(plugin)).status, "running");
+      else allowed = false;
+      assert.throws(() => progress!({ type: "text-delta", text: "迟到的文字" }));
+      release.resolve(); await refused;
+      assert.deepEqual(seen, ["预览"]);
+      const reopened = openLingguangStore(f.home);
+      try { assert.deepEqual(reopened.conversation(conversation.id, f.project.project_id).messages, []); assert.equal(reopened.get(spark.id).body, "保留的想法"); }
+      finally { reopened.close(); }
+      if (mode === "stop") assert.equal((await platform.supervisor.restart(plugin)).status, "running");
+      if (mode === "revoke") assert.equal((await platform.supervisor.enable(plugin)).status, "running");
+      allowed = true;
+      const recovered = await f.bound.invoke(lingguangActions.message, { id: conversation.id, body: "重新提问" });
+      assert.deepEqual(recovered.messages.map(row => [row.role, row.body]), [["user", "重新提问"], ["assistant", "完整回复"]]);
+    } finally { release.resolve(); await refused; }
+  });
+}
+
+test("RAC-34 Lingguang HTTP disconnect cancels model preview and saves no partial turn; a later turn recovers", { timeout: 60_000 }, async t => {
+  const entered = deferred(), release = deferred(), cancelled = deferred();
+  let progress: HostTextRequestOptions["onProgress"], calls = 0;
+  const f = await serveLingguang(t, { completeText: async (_prompt, options) => {
+    if (++calls === 1) {
+      assert.ok(options?.signal);
+      options.signal.addEventListener("abort", cancelled.resolve, { once: true });
+      progress = options.onProgress; progress?.({ type: "text-delta", text: "未完成的预览" });
+      entered.resolve(); await release.promise;
+    }
+    return "完整回复";
+  } });
+  const { spark } = await f.bound.invoke(lingguangActions.create, { body: "保留的想法" });
+  const { conversation } = await f.bound.invoke(lingguangActions.openConversation, { spark_ids: [spark.id] });
+  const abort = new AbortController();
+  try {
+    const response = await f.rawRequest(`${f.path}/conversations/${conversation.id}/messages`, {
+      method: "POST", body: { body: "取消的提问" }, signal: abort.signal,
+    });
+    assert.equal(response.status, 200); assert.match(response.headers.get("content-type")!, /ndjson/u);
+    await entered.promise;
+    const closed = assert.rejects(response.text(), { name: "AbortError" });
+    abort.abort(); await closed; await cancelled.promise;
+    assert.throws(() => progress!({ type: "text-delta", text: "取消后的文字" }));
+    release.resolve();
+    const recovered = await f.bound.invoke(lingguangActions.message, { id: conversation.id, body: "重新提问" });
+    assert.deepEqual(recovered.messages.map(row => [row.role, row.body]), [["user", "重新提问"], ["assistant", "完整回复"]]);
+    const reopened = openLingguangStore(f.home);
+    try { assert.deepEqual(reopened.conversation(conversation.id, f.project.project_id).messages, recovered.messages); }
+    finally { reopened.close(); }
+  } finally { release.resolve(); abort.abort(); }
+});
+
 for (const scope of ["home", "project"] as const) for (const invalidation of ["disconnect", "stop", "revoke", "upgrade"] as const) {
   test(`S-03 W5-01-STREAM-04 ${scope} streaming ${invalidation} ends the response and refuses late business writes`, { timeout: 60_000 }, async t => {
     const probe = streamProbe(scope), entered = deferred(), release = deferred(), finished = deferred(), cancelled = deferred();

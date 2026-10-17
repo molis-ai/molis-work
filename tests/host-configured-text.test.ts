@@ -103,13 +103,20 @@ test("production settings HTTP -> shared connection -> Lingguang action actually
     const response = await fetch(origin + path, { method: method ?? (body === undefined ? "GET" : "POST"), headers: {
       origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(),
     }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    if (response.headers.get("content-type")?.includes("ndjson")) {
+      const events = (await response.text()).trim().split("\n").map(line => JSON.parse(line));
+      const last = events.at(-1); assert.equal(response.status, 200);
+      assert.equal(last.type, expected === 200 ? "result" : "error");
+      if (last.type === "error") assert.equal(last.status, expected);
+      return last.type === "result" ? last.result : last;
+    }
     const payload = await response.json() as any; assert.equal(response.status, expected, JSON.stringify(payload)); return payload;
   };
   try {
     const { connection } = await http("/api/settings/connectors/connections", { service_id: "model-api", display_name: "本机验证模型", token: "http-model-fixture-key" }, 201);
     await http("/api/settings/models/from-settings", { display_name: "配置页模型", base_url: f.modelOrigin + "/v1", api_format: "openai-chat-completions",
       prompt_cache: "off", enabled: true, models: [{ model_id: "settings-model", enabled: true }], connection_id: connection.connection_id });
-    const path = `/projects/${project.project_id}/api/plugins/lingguang`;
+    const path = `/projects/${project.project_id}/api/plugins/io.molis.work.lingguang/sparks`;
     const { spark } = await http(path, { title: "来自真实设置", body: "本轮材料" });
     const { conversation } = await http(path + "/conversations", { spark_ids: [spark.id] });
     const reply = await http(`${path}/conversations/${conversation.id}/messages`, { body: "继续讨论" });

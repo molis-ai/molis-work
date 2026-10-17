@@ -138,7 +138,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     prefill:(text)=>{if(input.value.trim()!==text.trim()){input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));}input.focus();},
     // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.
     materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
-  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q});
+  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q,landed:(sent,said)=>{if(current===sent.id&&input.value===sent.text){input.value='';if(localDraft(sent.id)===sent.text)void saveDraft(sent.id,'');}status(said);}});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
   // The TaskBoard takes the conversation's place in the main area; the session list stays beside it.
   const ROLE_NAMES={planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'};
@@ -909,7 +909,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       ordered.forEach((node,at)=>{if(node.classList?.contains('coding-turn'))node.classList.toggle('is-writing',writing && at===ordered.length-1);});
       for(const detail of block.querySelectorAll(':scope > [data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
       // The supplement on its way shows after the round it goes to, until the round's own record has it.
-      const sending=run===all.at(-1)&&inputReceipts.bubble(current);if(sending)ordered.push(sending);for(const node of block.querySelectorAll(':scope > .is-sending'))if(node!==sending)node.remove();
+      const sending=run===all.at(-1)&&inputReceipts.bubble(current,run);if(sending)ordered.push(sending);for(const node of block.querySelectorAll(':scope > .is-sending'))if(node!==sending)node.remove();
       // Insert only missing/misplaced entries: polling keeps open tools and a
       // focused question form intact. Live and replay use the same ordering.
       let cursor=block.firstElementChild;

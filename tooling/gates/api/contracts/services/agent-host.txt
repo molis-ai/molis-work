@@ -970,7 +970,6 @@ export interface AgentRuntimeAdapter {
     readonly mcpLibrary?: AgentMcpLibrary;
     readonly mcp?: AgentMcpCapability;
     readonly subagents?: AgentSubagentsCapability;
-    amendStepBoard?(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
 }
 
 export type AgentRuntimeCapability = (typeof AGENT_RUNTIME_CAPABILITIES)[number];
@@ -1456,7 +1455,6 @@ export declare const agentHostCapabilities: {
     readonly createSession: HostCapabilityDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>;
     readonly listSubagents: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>;
     readonly cancelSubagent: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>;
-    readonly amendStepBoard: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number], AgentStepBoard>;
     readonly readSession: HostCapabilityDefinition<[session: AgentSessionRef], AgentSessionView>;
     readonly readSessionStatuses: HostCapabilityDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | {
         session_id: string;

@@ -1,5 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition } from "../platform/actions.js";
+import type { AgentRunRef } from "./agent-host-runtime.js";
+import type { AgentStepAmendment, AgentStepBoard } from "./agent-host-session.js";
 
 /**
  * What a session waits for and how it goes on, as Molis shows it (specs/prologue-adoption §4.6.9, §4.6.10). The SDK's
@@ -101,6 +103,8 @@ export interface AgentCollaborationPort {
   /** Continuations that are eligible, or held for a person, but for `exclude` (request keys); waits up to `timeoutMs` for one. */
   awaitReady(project: string, timeoutMs: number, exclude?: string[], signal?: AbortSignal): Promise<AgentCollaborationSessionView[]>;
   control(project: string, control: AgentCollaborationControl, actorId: string): Promise<AgentCollaborationSessionView>;
+  /** A person changes a round's plan on the graph; `expectedVersion` is the board version they saw. */
+  revise(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
 }
 
 const SESSION_VIEWS_OUTPUT = {
@@ -110,6 +114,22 @@ const SESSION_VIEWS_OUTPUT = {
 
 export interface AgentCollaborationReadInput { runtime_id: string; session_id?: string }
 export type AgentCollaborationControlInput = AgentCollaborationControl & { runtime_id: string };
+export interface AgentCollaborationReviseInput { runtime_id: string; session_id: string; run_id: string; amendment: AgentStepAmendment; expected_version: number }
+
+/** A step of the round's plan: a confirmed step (`step-N`) or one a person inserted (`user-N`). */
+const STEP = { type: "string", pattern: "^(step|user)-\\d{1,3}$" } as const;
+const WORDS = (maxLength: number) => ({ type: "string", minLength: 1, maxLength, pattern: "\\S" }) as const;
+/** One person's change, each kind with exactly its own fields (`AgentStepAmendment`). */
+const AMENDMENT = { oneOf: [
+  { type: "object", required: ["kind", "node", "reason"], additionalProperties: false, properties: { kind: { const: "skip" }, node: STEP, reason: WORDS(300) } },
+  { type: "object", required: ["kind", "after", "title", "acceptance"], additionalProperties: false,
+    properties: { kind: { const: "insert" }, after: STEP, title: WORDS(120), acceptance: WORDS(300), mine: { const: true } } },
+  { type: "object", required: ["kind", "node", "note"], additionalProperties: false, properties: { kind: { const: "unblock" }, node: STEP, note: WORDS(500) } },
+  { type: "object", required: ["kind", "node", "direction"], additionalProperties: false, properties: { kind: { const: "move" }, node: STEP, direction: { enum: ["up", "down"] } } },
+  { type: "object", required: ["kind", "node", "to"], additionalProperties: false, properties: { kind: { const: "assign" }, node: STEP, to: { enum: ["me", "session"] } } },
+  { type: "object", required: ["kind", "node", "state", "note"], additionalProperties: false,
+    properties: { kind: { const: "resolve" }, node: STEP, state: { enum: ["succeeded", "failed"] }, note: WORDS(500) } },
+] } as const;
 
 /** Read and control the project's waits; the long wait for a continuation to be ready is `agentHostCapabilities.awaitContinuations`. */
 export const agentCollaborationActions = {
@@ -129,4 +149,14 @@ export const agentCollaborationActions = {
         note: { type: "string", maxLength: 400 } } },
       output_schema: { type: "object", required: ["session"], additionalProperties: false, properties: { session: { type: "object", required: ["session_id"] } } } },
   } as ActionDefinition<AgentCollaborationControlInput, { session: AgentCollaborationSessionView }>,
+  /** The person changes a round's plan: the change is a report on the graph itself; the confirmed plan is never rewritten. */
+  revise: {
+    capability_id: "agent.collaboration.revise.v1", version: 1, operation: "command",
+    action: { title: "调整一轮的计划", description: "用户在任务图上调整这一轮的计划：跳过、插入、调顺序、改派、给受阻的步骤做决定、报自己负责的步骤的结果；按看到的版本提交，别人先改了就拒绝。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
+      audiences: ["plugin"], permissions: [], subject_kinds: [],
+      input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "amendment", "expected_version"], additionalProperties: false, properties: {
+        runtime_id: { type: "string", minLength: 1 }, session_id: { type: "string", minLength: 1 }, run_id: { type: "string", minLength: 1 },
+        amendment: AMENDMENT, expected_version: { type: "integer", minimum: 1 } } },
+      output_schema: { type: "object", required: ["board"], additionalProperties: false, properties: { board: { type: "object", required: ["version", "nodes"] } } } },
+  } as ActionDefinition<AgentCollaborationReviseInput, { board: AgentStepBoard }>,
 } as const;

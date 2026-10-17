@@ -333,15 +333,6 @@ export function registerAgentHostCapabilities<Context>(
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       await adapter.projectWork.release(ports.projectId(context), workId, caller?.actor_id ?? "user", note);
     }),
-    register(agentHostCapabilities.amendStepBoard, async (context, [session, run, amendment, expectedVersion]) => {
-      const view = await requireRun(context, session, run);
-      const adapter = ports.agentHost(context).adapter(session.runtime_id);
-      if (!adapter.amendStepBoard) throw agentErrors.capability_unavailable("当前运行时不能调整计划图");
-      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      // The person deciding: the calling plugin's actor, else the session's owner.
-      const actor = pluginFor(context)?.actor_id ?? view.owner.actor_id;
-      return adapter.amendStepBoard(run, amendment, expectedVersion, actor);
-    }),
     register(agentHostCapabilities.controlRun, async (context, [session, run, control]) => {
       await requireRun(context, session, run);
       const adapter = ports.agentHost(context).adapter(session.runtime_id);

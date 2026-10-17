@@ -9,10 +9,18 @@
  *   open, the work is its own (not Coding's) and holds the object. No answer (no Assistant here, panel closed, an object the
  *   work does not hold): the page starts a new work, as before. The answer is a pointer only: the Host still refuses a work
  *   that is not the person's own, archived, Coding's or in another project (`offerFromPage`).
+ * - A result the work made can be picked up (§21.2 item 6, W3-A3b): `pickable(card, object, title)`. A click on the card
+ *   (not on its title, which opens the object, nor on its buttons), Enter or Space picks it; Esc, or a press anywhere but
+ *   the card and the bar, puts it down. A click that ends a text selection in the card is reading, not picking. Picked, the
+ *   card reports the whole object as what is in hand (`molis:surface-focus`, granularity `object`, its rect for the bar) as
+ *   the Assistant's surface (`plugin_id: "assistant"`, as a reply's passage is; the object's kind names its owner); the
+ *   workbench marks it `place: "assistant"`, so the bar beside it offers what can be done with it, putting it on the left
+ *   included. Only a result still where it was can be picked. A card rebuilt under the bar is off screen, and the bar lets
+ *   it go as it does any surface that went away.
  */
 
 /** Made once in the island's factory, with read-only views of its state: the panel, the current work's view, the strip's joined keys. */
-export const ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT = String.raw`({ api, joined, open, current, repaint }) => {
+export const ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT = String.raw`({ api, joined, open, current, repaint, L }) => {
     const objectKey = (object) => object.kind + ":" + object.id;
     const belongsToWork = (object) => { const view = current(); return Boolean(view && (view.objects || []).some((item) => item.subject.kind === object.kind && item.subject.id === object.id)); };
     const holds = (object) => belongsToWork(object) || joined.has(objectKey(object));
@@ -31,5 +39,32 @@ export const ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT = String.raw`({ api, joined, 
       if (!detail || typeof detail.reply !== "function" || !object || typeof object.kind !== "string" || typeof object.id !== "string") return;
       if (open() && view && view.work.executor?.kind !== "coding" && holds(object)) detail.reply(view.work.work_id);
     });
-    return { objectKey, belongsToWork, holds, relatedWorks, forgetRelated: (object) => relatedCache.delete(objectKey(object)) };
+    let picked = null;
+    const say = (node, focus) => node.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail: focus }));
+    const drop = () => { if (picked) { picked.removeAttribute("aria-current"); say(picked, null); picked = null; } };
+    const pick = (node, object, title) => {
+      if (picked === node) return;
+      drop(); picked = node; node.setAttribute("aria-current", "true");
+      const ref = { ...object.subject, title };
+      say(node, { context_id: "pick:" + crypto.randomUUID(), plugin_id: "assistant", activity: "selecting", granularity: "object", object: ref,
+        targets: [{ kind: "object", role: "object", ref, text: title }], screen: { rect: node.getBoundingClientRect().toJSON(), placement: "below" } });
+    };
+    document.addEventListener("pointerdown", (event) => { if (picked && !picked.contains(event.target) && !event.target.closest(".mw-ctx, .mw-ctx-menu, .mw-ctx-panel")) drop(); });
+    const pickable = (node, object, title) => {
+      if (object.state !== "current" && object.state !== "changed") return node;
+      // A group, not a button: the card holds its own buttons. Picked, it is the current one.
+      node.tabIndex = 0; node.setAttribute("role", "group"); node.setAttribute("aria-label", L("拿起") + "：" + title);
+      node.addEventListener("click", (event) => {
+        const selection = getSelection();
+        if (event.target.closest("button, a") || (selection && !selection.isCollapsed && node.contains(selection.anchorNode))) return;
+        pick(node, object, title);
+      });
+      node.addEventListener("keydown", (event) => {
+        if (event.target !== node) return;
+        if (event.key === "Enter" || event.key === " ") { event.preventDefault(); pick(node, object, title); }
+        else if (event.key === "Escape" && picked === node) { event.preventDefault(); event.stopPropagation(); drop(); }
+      });
+      return node;
+    };
+    return { objectKey, belongsToWork, holds, relatedWorks, pickable, forgetRelated: (object) => relatedCache.delete(objectKey(object)) };
   }`;

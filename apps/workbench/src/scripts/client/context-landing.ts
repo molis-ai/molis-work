@@ -25,6 +25,14 @@ export const CONTEXT_LANDING_SCRIPT = String.raw`  const landing = {
       return cell ? { place: "side", side_tab: cell.dataset.sideBody } : element && element.closest("[data-assistant-island]") ? { place: "assistant" } : {};
     },
     with(focus) { return focus.place && focus.place !== "main" && this.value && visible(this.element) ? { landing: this.value } : {}; },
+    // A way to put the thing here, hovered or focused on the bar, shows where it would go: the page flashes its landing once each
+    // time one comes into hand. Only a landing this document's page reported and still has; a split pane's is not asked (§21.6).
+    hinted: [],
+    hint(keys, plan) {
+      const now = plan ? keys.filter((key) => plan.candidates.some((item) => item.key === key && item.origin === "attach")) : [], element = this.element;
+      if (now.some((key) => !this.hinted.includes(key)) && this.value?.pane_id === ownPane && element?.isConnected && element.ownerDocument === document) element.dispatchEvent(new CustomEvent("molis:surface-landing-flash"));
+      this.hinted = now;
+    },
     choose(focus, candidate) {
       const at = this.value, frame = this.element instanceof HTMLIFrameElement ? this.element : null;
       const send = (path, where) => post(path, { pane_id: ownPane, focus, landing: where, key: candidate.key, request_id: newRequestId() });

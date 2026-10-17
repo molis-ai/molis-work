@@ -176,7 +176,8 @@ test("visual foundation defines one wide workbench and one narrow companion", ()
   assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"/);
   assert.match(VISUAL_FOUNDATION_STYLES, /workspace\.is-desktop-tui/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@media \(max-width: 760px\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.mobile-switch/);
+  // The narrow surface switch has no markup since bc79f8a49; its last styles went with W3-A3b and #662.
+  assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.mobile-switch/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.companion-runtime/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.app \{ grid-template-rows: 44px 44px minmax\(0, 1fr\); \}/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.topbar \{[\s\S]*padding-left: 88px/);

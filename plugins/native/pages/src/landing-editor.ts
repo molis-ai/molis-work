@@ -14,6 +14,9 @@ import { headingPath } from "./focus.js";
  *   written at that place and writes nothing itself: confirming runs the choice through the Host (`run`, bound by the row
  *   to the landing it was ranked with) and shows the saved document. If the document changed after the landing was
  *   reported, nothing is written and the person chooses the place again.
+ * - When the bar asks where something would go (`molis:surface-landing-flash`: a way to put it here is hovered or focused),
+ *   the landing shows itself once without covering the text: a copper line at the cursor or the end, a light background
+ *   under a selection. Not again while it shows, and not at all when the person asked for less motion.
  */
 const PLUGIN_ID = "io.molis.work.pages";
 const AROUND = 200;
@@ -101,5 +104,25 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
     void preview(chosen, view);
   });
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && pop) close(); });
+  let flashing = false;
+  port.bench.addEventListener("molis:surface-landing-flash", () => {
+    const view = port.view(), { key, from, to } = shown;
+    if (flashing || !view || !key || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    flashing = true;
+    let clear = () => {};
+    if (from === to) {
+      const at = view.coordsAtPos(Math.min(from, view.state.doc.content.size)), line = document.createElement("span");
+      line.className = "pages-landing-flash";
+      line.style.cssText = `left:${at.left - 1}px;top:${at.top}px;height:${at.bottom - at.top}px`;
+      document.body.append(line);
+      clear = () => line.remove();
+    } else if (CSS.highlights) {
+      const range = document.createRange(), start = view.domAtPos(from), end = view.domAtPos(to);
+      range.setStart(start.node, start.offset); range.setEnd(end.node, end.offset);
+      CSS.highlights.set("pages-landing", new Highlight(range));
+      clear = () => CSS.highlights.delete("pages-landing");
+    }
+    setTimeout(() => { clear(); flashing = false; }, 700);
+  });
   return { report };
 }

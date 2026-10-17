@@ -1254,6 +1254,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | W3-A1 | 下一步与输入框同一行：宿主派生全部下一步（卡、题、结果、重试、页面建议），岛只画；删 A10「接下来」、A11 两个「去…」、A7 建议条；窄时移到输入框上方；FLOW-01…05 | #489 先合（交互线已同意，D24） |
 | W3-A2 | 情境条：取代「材料」按钮与弹层；删聚焦弹出的开场建议（A5）；✦助理等交接只带手上的东西、不替人写话 | W3-A1 |
 | W3-A3 | 写动作留在当前工作（`work_id`）；助理回复与结果可以拿起（`place: assistant`），浮条画在岛里 | W3-A2 |
+| W3-A3c（以后） | ① 分屏窗格里的落点也闪：顶层把「闪一下」转给报告落点的那个窗格（现在只闪本页自己的落点，窗格的不问）；② 浮条「更多」菜单里的放进去也闪（菜单项没有 `data-key`，悬停不算拿在手上） | W3-A3b |
 | W3-B | Pages 报告落点、三个确定性的 `attach`、落点处预览；落点事件登记；情境条显示落点。执行前宿主用 H3 的 `confirmReferences` 按调用者的权限重读落点对象，不在或没权限用合同里的 `reference-unavailable`，不另写一套；`attach` 的 `find` 取候选（`search.references@1`）改到 W4 的 F2（统筹 2026-10-15 定，见 21.8）。拆成 W3-B1（落点、动作、预览、执行）与 W3-B2（情境条显示落点） | W3-B1：H3 合入；W3-B2：W3-A2 |
 | W3-C | 右栏各格报告手上的东西（中枢接右栏） | W2'（右栏改版） |
 
@@ -1342,6 +1343,12 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 放进当前工作后，`molis:assistant-open` 让正在显示的工作重读，卡片马上出现，不用等轮询。
   - 不变大：岛把对象与工作的几样（`objectKey`、`belongsToWork`、相关工作的缓存）搬到新文件，净减 8 行；`context-bus.ts` 把行与开场建议两处一样的选择处理合成 `settle`，净减 1 行。`molis-work-workbench.js` 比 main 小 3,210 B：删掉没有任何渲染方的客户端代码（`.mobile-switch` 与 `[data-mobile-target]`、`[data-mobile-directory-root]`、`[data-timeline-filter]`，渲染方自 `bc79f8a49` 起就没了；证据表在 PR 里），留下的 `.mobile-switch` 样式交给样式表切片。
   - 验收：`tests/assistant-card-target.test.ts`（没人回答、只认一次、助理何时回答）；`tests/context-card-in-work.e2e.test.ts`（面板关着新开；面板开着且工作拿着文档时放进同一项并马上显示；再关上又新开）。
+- 2026-10-17 W3-A3b 实现（分支 `context/w3a3b-pick-flash`，叠在 W3-A3a 上；方案与六条条件统筹 10-17 定）：§21.2 第 6 条的后一半，结果卡片可以拿起，悬停放进去时落点闪一下。
+  - 拿起：结果块里还读得到的结果（`current`、`changed`）卡片可以聚焦（`role="group"`，`aria-label`「拿起：标题」）。点卡片、或聚焦后按 Enter / 空格，整个对象成了手上的东西：`molis:surface-focus`，`plugin_id: "assistant"`，`granularity: "object"`，对象与唯一的 `object` 目标取结果自己的 `subject` 与标题，`screen` 是卡片的矩形；位置照已有的写法得出 `place: "assistant"`，浮条贴着卡片。拿着的卡片 `aria-current="true"`。只有标题打开对象（标题按钮原来盖住整张卡的 `::after` 对这种卡片去掉），卡上的按钮照旧；在卡片里选字后松手是在读，不拿起。Esc（同一张卡）或在卡片与浮条以外按下就放下，同一张卡发 `null`；一次只拿一个。不在了、读不到、搬走的结果不能拿。代码在 `assistant-work-objects.ts`，岛只在结果块调用一次，行数不变。
+  - 闪一下：浮条上悬停或聚焦一个放进去的候选（候选来源是 `attach`）时，顶层把登记过的请求 `molis:surface-landing-flash` 发在报告落点的那个元素上；每次移入或聚焦算一次，同一个候选一直停着不再发。落点不是本页的（窗格的）、元素已不在或不在本文档，就什么都不发。Pages 拥有这次闪（`landing-editor.ts`，页面状态主人 `pages-landing`）：光标或末尾处一条铜色竖线，选区用 CSS 自定义高亮衬一层浅底，不盖字；正在闪时不再闪；要求少动画时不闪。
+  - 资源不变大：`molis-work-workbench.js` 比 W3-A3a 小 19 B，`molis-work-pages-editor.js` 小 11 B；三张卡片节点视图的三段模板并成一段、编辑卡片的两个确认合成一个；删掉没有渲染方的代码（`[data-plugin-expand]` 的开合与它存的 `directoryCollapsedSections`、`.plugin-stack` 选择器与开场动画、`.topbar` 的 `data-mobile-surface`、Goal 正文里的 `.desktop-pane-header`、`.mobile-switch` 的样式），证据表在 PR 里。
+  - 以后：分屏窗格的落点闪、「更多」菜单里的放进去闪，见 21.4 的 W3-A3c。
+  - 验收：PICK-01（点卡片或 Enter / 空格拿起整个对象）、PICK-02（标题打开、按钮照旧、选字不拿）、PICK-03（Esc 或按在别处放下，按在浮条上不放，一次一个）、PICK-04（不在、读不到、搬走的不能拿），在 `tests/assistant-pick.test.ts`；FLASH-01（悬停或聚焦放进去时落点闪一次，正在闪不再闪）、FLASH-02（落点已不在：不发、不报错）、FLASH-03（拿起的结果放到光标处：先预览、确认才写入），与 PICK-01 的键盘与鼠标两条路，在 `tests/context-pick-result.e2e.test.ts`。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

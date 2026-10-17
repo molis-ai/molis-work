@@ -317,7 +317,6 @@ export const NAVIGATION_OWNERSHIP_STYLES = `  /* Runtime pane: owner and tab bar
     body[data-desktop-shell="true"] .feed-filter-option[aria-checked="true"] svg { opacity: 1; }
     body[data-desktop-shell="true"] .feed-filter-summary { margin: 8px 1px 0; padding-top: 8px; border-top: 1px solid var(--line); color: var(--faint); font-size: 11px; line-height: 1.45; }
 
-    body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .mobile-switch { grid-row: 2; }
     body[data-desktop-shell="true"]:not([data-native-desktop="true"]) .workspace { grid-row: 3; }
   }
 

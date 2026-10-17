@@ -3,17 +3,21 @@
 /** What a questionnaire holds, read from its controls by their `data-ix-*` hooks. */
 export interface InteractionValues {
   /** `choice`: the picked option values; `other` is the free "other" text if the field has that slot. */
-  [fieldId: string]: string | string[] | { picked: string[]; other?: string } | { date: string; time: string };
+  /** `reference`: the picked objects, each as the caller named it (`value`) and the label it was offered with. */
+  [fieldId: string]: string | string[] | { picked: string[]; other?: string } | { date: string; time: string } | InteractionPicked[];
 }
+export interface InteractionPicked { value: string; label: string }
 export interface InteractionClientHost {
   /** The person changed something. A composition (Chinese input) reports once, when it ends. */
-  onChange?(change: { field: string; part?: string; value: string | string[] | { picked: string[]; other?: string } | { date: string; time: string } }): void;
+  onChange?(change: { field: string; part?: string; value: InteractionValues[string] }): void;
   /** A `data-ix-action` button was pressed. */
   onAction?(id: string, button: HTMLButtonElement): void;
   /** The form was submitted: its submit button, or ⌘/Ctrl+Enter. Never plain Enter in a single-line field. */
   onSubmit?(): void;
   /** The "next step" button beside a composer was pressed. */
   onStep?(index: number, button: HTMLButtonElement): void;
+  /** Objects a reference field may take whose names match what the person typed; `source` is the field's own, untouched. */
+  references?(source: string, query: string): Promise<{ items: Array<{ value: string; label: string; meta?: string }> }>;
 }
 export interface InteractionClient {
   /** True while a composition is in progress inside the card. */
@@ -32,7 +36,10 @@ export interface InteractionClient {
  * them as strings (INTERACTION_CLIENT_SCRIPT) the way the other design-system clients are; each stays under the
  * function-size gate. `createInteractionClient` is the one a TypeScript consumer calls. */
 
-/** Reading and writing the controls of every field by their `data-ix-*` hooks. Writes never take a field from the person typing in it. */
+/**
+ * Reading and writing the controls of every field by their `data-ix-*` hooks. Writes never take a field from the person typing
+ * in it; a reference field's picks are drawn again from the chip template the card carries.
+ */
 export function interactionFields(root: HTMLElement) {
   const q = <T extends Element = HTMLElement>(scope: ParentNode, selector: string) => scope.querySelector<T>(selector);
   const all = <T extends Element = HTMLElement>(scope: ParentNode, selector: string) => [...scope.querySelectorAll<T>(selector)];
@@ -55,6 +62,13 @@ export function interactionFields(root: HTMLElement) {
     const day = /^\d{4}-\d{2}-\d{2}$/.test(input.value) ? new Date(`${input.value}T12:00:00Z`) : null;
     label.textContent = day && !Number.isNaN(day.getTime()) && day.toISOString().slice(0, 10) === input.value ? weekdays[day.getUTCDay()]! : "";
   };
+  const referenceChips = (box: HTMLElement, refs: InteractionPicked[]) => q(box, "[data-ix-picked]")!.replaceChildren(...refs.map(ref => {
+    const chip = q<HTMLTemplateElement>(box, "template[data-ix-chip]")!.content.firstElementChild!.cloneNode(true) as HTMLElement;
+    chip.dataset.ixReference = ref.value;
+    chip.firstElementChild!.textContent = ref.label;
+    chip.lastElementChild!.setAttribute("aria-label", `${JSON.parse(box.dataset.ixRefLabels!).remove} ${ref.label}`);
+    return chip;
+  }));
   const read = (): InteractionValues => {
     const values: InteractionValues = {};
     for (const field of all(root, "[data-ix-field]")) {
@@ -62,7 +76,7 @@ export function interactionFields(root: HTMLElement) {
       if (options.length || q(field, "[data-ix-options]")) {
         const other = q<HTMLInputElement>(field, "[data-ix-other]"), picked = options.filter(checked).map(option => option.dataset.ixOption ?? "");
         values[id] = other ? { picked, other: other.value } : picked;
-      } else if (q(field, "[data-ix-references]")) values[id] = all(field, "[data-ix-reference]").filter(checked).map(ref => ref.dataset.ixReference ?? "");
+      } else if (q(field, "[data-ix-references]")) values[id] = all(field, "[data-ix-picked] [data-ix-reference]").map(ref => ({ value: ref.dataset.ixReference ?? "", label: ref.firstElementChild?.textContent ?? "" }));
       else if (q(field, '[data-ix-part="time"]')) values[id] = { date: q<HTMLInputElement>(field, '[data-ix-part="date"]')?.value ?? "", time: q<HTMLInputElement>(field, '[data-ix-part="time"]')?.value ?? "" };
       else values[id] = q<HTMLInputElement>(field, "[data-ix-value]")?.value ?? "";
     }
@@ -76,10 +90,11 @@ export function interactionFields(root: HTMLElement) {
       const put = (input: HTMLInputElement | HTMLTextAreaElement | null, text: string) => {
         if (input && input !== active && !(composing && field.contains(active)) && input.value !== text) input.value = text;
       };
+      const box = q(field, "[data-ix-references]");
       if (typeof value === "string") { put(q<HTMLInputElement>(field, "[data-ix-value]"), value); refreshWeekday(q(field, "[data-ix-date]")); }
+      else if (box && Array.isArray(value)) referenceChips(box, value.filter((ref): ref is InteractionPicked => typeof ref === "object"));
       else if (Array.isArray(value)) {
-        const refs = all(field, "[data-ix-reference]");
-        for (const item of refs.length ? refs : optionsOf(field)) mark(item, value.includes(item.dataset.ixReference ?? item.dataset.ixOption ?? ""));
+        for (const item of optionsOf(field)) mark(item, (value as string[]).includes(item.dataset.ixOption ?? ""));
         const group = q(field, "[data-ix-options]");
         if (group) roving(group);
       } else if ("picked" in value) {
@@ -109,7 +124,7 @@ export function interactionFields(root: HTMLElement) {
     const target = field && (q(field, "[data-ix-focus]") ?? q(field, "input, textarea, button"));
     if (target) { target.focus({ preventScroll: true }); target.scrollIntoView({ block: "nearest" }); }
   };
-  return { read, write, showErrors, focusField, mark, checked, optionsOf, roving, refreshWeekday, fieldOf, fieldId };
+  return { read, write, showErrors, focusField, mark, checked, optionsOf, roving, refreshWeekday, fieldOf, fieldId, referenceChips };
 }
 
 /** The date fields' popover over the design system's calendar: open, step months, pick, arrow keys, Escape, focus back. */
@@ -204,8 +219,92 @@ export function interactionCalendar(picked: (input: HTMLInputElement) => void) {
   return { click, key, focusOut, close };
 }
 
+/**
+ * Reference fields: ask the host as the person types (once the typing settles, and only the latest answer counts), offer
+ * what it finds as a listbox drawn from the card's row template, pick (one, or up to the cap), remove a chip. `input`,
+ * `click` and `key` say whether the event was theirs; results close once focus leaves their field.
+ */
+export function interactionReferences(host: InteractionClientHost, fields: ReturnType<typeof interactionFields>, changed: (control: HTMLElement) => void) {
+  let asked = 0, timer: ReturnType<typeof setTimeout> | undefined;
+  const parts = (node: Element) => {
+    const box = node.closest<HTMLElement>("[data-ix-references]"), q = <T extends Element = HTMLElement>(selector: string) => box!.querySelector<T>(selector)!;
+    return box && { box, input: q<HTMLInputElement>("[data-ix-ref-query]"), list: q("[role=listbox]"), status: q("[data-ix-ref-status]"), row: q<HTMLTemplateElement>("template[data-ix-ref-row]"),
+      labels: JSON.parse(box.dataset.ixRefLabels!) as Record<string, string> };
+  };
+  type Parts = NonNullable<ReturnType<typeof parts>>;
+  const close = (p: Parts, say = "") => {
+    p.list.hidden = true;
+    p.list.replaceChildren();
+    p.input.setAttribute("aria-expanded", "false");
+    p.input.removeAttribute("aria-activedescendant");
+    p.status.textContent = say;
+  };
+  const pick = (p: Parts, option: HTMLElement) => {
+    const ref = { value: option.dataset.ixRefOption!, label: option.dataset.label! };
+    const rest = (fields.read()[fields.fieldId(fields.fieldOf(p.box)!)] as InteractionPicked[]).filter(item => item.value !== ref.value);
+    if (!p.box.hasAttribute("data-ix-multiple")) fields.referenceChips(p.box, [ref]);
+    else if (rest.length >= Number(p.box.dataset.ixRefMax)) return void (p.status.textContent = p.labels.full!);
+    else fields.referenceChips(p.box, [...rest, ref]);
+    p.input.value = "";
+    close(p);
+    p.input.focus();
+    changed(p.input);
+  };
+  const show = (p: Parts, items: Array<{ value: string; label: string; meta?: string }>) => {
+    p.list.replaceChildren(...items.map((ref, at) => {
+      const option = p.row.content.firstElementChild!.cloneNode(true) as HTMLElement;
+      Object.assign(option.dataset, { ixRefOption: ref.value, label: ref.label });
+      option.id = `${p.input.id}-o${at}`;
+      option.firstElementChild!.textContent = ref.label;
+      option.lastElementChild!.textContent = ref.meta ?? "";
+      return option;
+    }));
+    p.list.hidden = !items.length;
+    p.input.setAttribute("aria-expanded", String(!!items.length));
+    p.status.textContent = items.length ? p.labels.found!.replace("{n}", String(items.length)) : p.labels.empty!;
+  };
+  const search = (p: Parts) => {
+    const text = p.input.value.trim(), mine = ++asked;
+    if (!text || !host.references) return close(p);
+    host.references(p.box.dataset.ixRefSource!, text).then(found => mine === asked && show(p, found.items), () => mine === asked && close(p, p.labels.failed));
+  };
+  const input = (target: Element) => {
+    const p = target.matches("[data-ix-ref-query]") && parts(target);
+    if (p) { clearTimeout(timer); timer = setTimeout(() => search(p), 250); }
+    return !!p;
+  };
+  const click = (target: Element) => {
+    const option = target.closest<HTMLElement>("[data-ix-ref-option]"), remove = target.closest("[data-ix-unpick]"), p = (option || remove) && parts(target);
+    if (!p) return false;
+    if (option) pick(p, option);
+    else { remove!.closest("[data-ix-reference]")!.remove(); p.input.focus(); changed(p.input); }
+    return true;
+  };
+  const key = (event: KeyboardEvent) => {
+    const p = event.target instanceof Element && event.target.matches("[data-ix-ref-query]") && parts(event.target);
+    if (!p || p.list.hidden || event.isComposing) return false;
+    const options = [...p.list.children] as HTMLElement[], active = options.findIndex(option => option.getAttribute("aria-selected") === "true"), down = event.key === "ArrowDown";
+    if (event.key === "Escape") close(p);
+    else if (event.key === "Enter" && options[active]) pick(p, options[active]!);
+    else if (down || event.key === "ArrowUp") {
+      const to = active < 0 ? (down ? 0 : options.length - 1) : (active + (down ? 1 : -1) + options.length) % options.length;
+      options.forEach((option, at) => option.setAttribute("aria-selected", String(at === to)));
+      p.input.setAttribute("aria-activedescendant", options[to]!.id);
+      options[to]!.scrollIntoView({ block: "nearest" });
+    } else return false;
+    event.preventDefault();
+    return true;
+  };
+  const focusOut = (from: EventTarget | null, next: EventTarget | null) => {
+    const p = from instanceof Element && parts(from);
+    if (p && !(next instanceof Node && p.box.contains(next))) close(p, p.status.textContent!);
+  };
+  return { input, click, key, focusOut, stop: () => clearTimeout(timer) };
+}
+
 /** Turns the card's events into the host's callbacks. Keeps no values: the consumer owns them. */
-export function assembleInteractionClient(fieldsFactory: typeof interactionFields, calendarFactory: typeof interactionCalendar, root: HTMLElement, host: InteractionClientHost = {}): InteractionClient {
+export function assembleInteractionClient(fieldsFactory: typeof interactionFields, calendarFactory: typeof interactionCalendar, referencesFactory: typeof interactionReferences,
+  root: HTMLElement, host: InteractionClientHost = {}): InteractionClient {
   let composing = false;
   const fields = fieldsFactory(root);
   const q = <T extends Element = HTMLElement>(scope: ParentNode, selector: string) => scope.querySelector<T>(selector);
@@ -217,9 +316,10 @@ export function assembleInteractionClient(fieldsFactory: typeof interactionField
     host.onChange?.({ field: id, ...(control.dataset.ixPart ? { part: control.dataset.ixPart } : {}), value: fields.read()[id]! });
   };
   const calendar = calendarFactory(input => { fields.refreshWeekday(input.closest<HTMLElement>("[data-ix-date]")); emit(input); });
+  const references = referencesFactory(host, fields, emit);
   const onClick = (event: Event) => {
     const target = event.target instanceof Element ? event.target : null;
-    if (!target || calendar.click(target)) return;
+    if (!target || calendar.click(target) || references.click(target)) return;
     const button = target.closest<HTMLButtonElement>("button");
     if (!button || button.disabled || !root.contains(button)) return;
     const step = button.closest<HTMLButtonElement>("[data-ix-step]");
@@ -237,28 +337,28 @@ export function assembleInteractionClient(fieldsFactory: typeof interactionField
       emit(input);
       return;
     }
-    const option = button.closest<HTMLButtonElement>("[data-ix-option]"), ref = button.closest<HTMLButtonElement>("[data-ix-reference]");
+    const option = button.closest<HTMLButtonElement>("[data-ix-option]");
     if (option && fields.fieldOf(option)) {
       const group = option.closest<HTMLElement>("[data-ix-options]");
       if (group?.hasAttribute("data-ix-multiple")) fields.mark(option, !fields.checked(option));
       else { for (const other of fields.optionsOf(fields.fieldOf(option)!)) fields.mark(other, other === option); if (group) fields.roving(group); }
       emit(option);
-    } else if (ref) { fields.mark(ref, !fields.checked(ref)); emit(ref); }
+    }
   };
   const onInput = (event: Event) => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return;
     fields.refreshWeekday(input.closest<HTMLElement>("[data-ix-date]"));
-    if (!composing && input.closest("[data-ix-field]")) emit(input);
+    if (!composing && !references.input(input) && input.closest("[data-ix-field]")) emit(input);
   };
   const onCompositionEnd = (event: Event) => {
     composing = false;
     const input = event.target;
-    if ((input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) && input.closest("[data-ix-field]")) emit(input);
+    if ((input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) && !references.input(input) && input.closest("[data-ix-field]")) emit(input);
   };
   const onKeyDown = (event: Event) => {
     const key = event as KeyboardEvent, target = key.target instanceof HTMLElement ? key.target : null;
-    if (calendar.key(key) || !target) return;
+    if (calendar.key(key) || references.key(key) || !target) return;
     const radio = target.closest<HTMLButtonElement>("[role=radio]");
     if (radio && ["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"].includes(key.key)) {
       const group = radio.closest<HTMLElement>("[role=radiogroup]");
@@ -281,7 +381,7 @@ export function assembleInteractionClient(fieldsFactory: typeof interactionField
       const order = all(form, "[data-ix-focus], [data-ix-part=time], [data-ix-other]");
       const next = order[order.indexOf(target) + 1];
       // A group is not itself a control: land on the pick (or the first option) inside it.
-      (next?.matches("[data-ix-options], [data-ix-references]") ? q(next, "[role=radio][aria-checked=true]") ?? q(next, "button:not(:disabled)") ?? next : next)?.focus();
+      (next?.matches("[data-ix-options]") ? q(next, "[role=radio][aria-checked=true]") ?? q(next, "button:not(:disabled)") ?? next : next)?.focus();
     }
   };
   const onSubmit = (event: Event) => {
@@ -289,7 +389,7 @@ export function assembleInteractionClient(fieldsFactory: typeof interactionField
     event.preventDefault();
     host.onSubmit?.();
   };
-  const onFocusOut = (event: Event) => calendar.focusOut((event as FocusEvent).relatedTarget);
+  const onFocusOut = (event: Event) => { calendar.focusOut((event as FocusEvent).relatedTarget); references.focusOut(event.target, (event as FocusEvent).relatedTarget); };
   const listeners: Array<[string, (event: Event) => void]> = [
     ["click", onClick], ["input", onInput], ["compositionstart", () => { composing = true; }], ["compositionend", onCompositionEnd],
     ["keydown", onKeyDown], ["submit", onSubmit], ["focusout", onFocusOut],
@@ -304,17 +404,18 @@ export function assembleInteractionClient(fieldsFactory: typeof interactionField
     focusField: fields.focusField,
     destroy() {
       calendar.close();
+      references.stop();
       for (const [name, listener] of listeners) root.removeEventListener(name, listener);
     },
   };
 }
 /** What a TypeScript consumer calls. */
 export const createInteractionClient = (root: HTMLElement, host: InteractionClientHost = {}): InteractionClient =>
-  assembleInteractionClient(interactionFields, interactionCalendar, root, host);
+  assembleInteractionClient(interactionFields, interactionCalendar, interactionReferences, root, host);
 /** The same client as a script expression, for a browser factory that cannot import: `(…)(root, host)`. */
-export const INTERACTION_CLIENT_SCRIPT = `((fields, calendar, assemble) => (root, host) => assemble(fields, calendar, root, host))(${interactionFields.toString()}, ${interactionCalendar.toString()}, ${assembleInteractionClient.toString()})`;
+export const INTERACTION_CLIENT_SCRIPT = `((fields, calendar, refs, assemble) => (root, host) => assemble(fields, calendar, refs, root, host))(${interactionFields.toString()}, ${interactionCalendar.toString()}, ${interactionReferences.toString()}, ${assembleInteractionClient.toString()})`;
 /**
  * The same client without the calendar popover (about a third of the script), for a page whose cards draw no calendar:
  * a date is typed, its weekday still shows. A page takes the full script in the change that opens a calendar on it.
  */
-export const INTERACTION_CLIENT_SCRIPT_TYPED_DATES = `((fields, assemble) => (root, host) => assemble(fields, () => ({ click: () => false, key: () => false, focusOut() {}, close() {} }), root, host))(${interactionFields.toString()}, ${assembleInteractionClient.toString()})`;
+export const INTERACTION_CLIENT_SCRIPT_TYPED_DATES = `((fields, refs, assemble) => (root, host) => assemble(fields, () => ({ click: () => false, key: () => false, focusOut() {}, close() {} }), refs, root, host))(${interactionFields.toString()}, ${interactionReferences.toString()}, ${assembleInteractionClient.toString()})`;

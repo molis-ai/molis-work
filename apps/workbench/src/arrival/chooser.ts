@@ -122,7 +122,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
 // The Assistant and what waits on the person speak for the project chosen here, or for the person outside any project.
 const chosenRoute = path => { const id = document.querySelector('.chooser')?.dataset.selected; return id && id !== 'personal' ? '/projects/' + encodeURIComponent(id) + path : path; };
 (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, projectId: null, openItem: () => {} });
-globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES}),
+globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: L("暂时搜不了，稍后再试") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})),
   placeholder: project => project && project.title ? globalThis.L("问问「{name}」的进展，或交给助理一项工作…", { name: project.title }) : globalThis.L("在个人空间里，让助理做点什么…") });
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({

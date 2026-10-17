@@ -22,7 +22,7 @@ const ASKED = { why: "约下周的复盘会", questions: [
 
 type Tool = { name: string; input_schema: { properties: { questions: { items: { properties: Record<string, { enum?: string[] }> } } } } };
 
-test("AC-27-1 AC-27-3 AC-27-5 AC-27-6: the model is offered the five types, and the card's values reach the run as the Runtime checks them", { timeout: 30_000 }, async t => {
+test("AC-27-1 AC-27-3 AC-27-5 AC-27-6: the model is offered the six types, and the card's values reach the run as the Runtime checks them", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "agent-question-types-"));
   const bodies: Array<{ tools?: Tool[]; messages?: unknown }> = [];
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
@@ -47,12 +47,11 @@ test("AC-27-1 AC-27-3 AC-27-5 AC-27-6: the model is offered the five types, and 
     await new Promise(resolve => setTimeout(resolve, 10));
   }
 
-  // What the provider really receives: the five types the surfaces draw, with their limits, and nothing for references.
+  // What the provider really receives: the six types the surfaces draw, with their limits.
   const fields = bodies[0]!.tools!.find(tool => tool.name === "ask-user")!.input_schema.properties.questions.items.properties;
-  assert.deepEqual(hostQuestionTypes(), ["choice", "text", "number", "date", "datetime"]);
-  assert.deepEqual(fields.type!.enum, ["choice", "text", "number", "date", "datetime"], "the tool's own schema names the types");
-  for (const name of ["default", "multiline", "maxLength", "min", "max", "integer", "unit"]) assert.ok(fields[name], `the schema carries ${name}`);
-  for (const name of ["refKinds", "maxCount"]) assert.equal(fields[name], undefined, `${name} waits for the reference slice (T2)`);
+  assert.deepEqual(hostQuestionTypes(), ["choice", "text", "number", "date", "datetime", "reference"]);
+  assert.deepEqual(fields.type!.enum, ["choice", "text", "number", "date", "datetime", "reference"], "the tool's own schema names the types");
+  for (const name of ["default", "multiline", "maxLength", "min", "max", "integer", "unit", "refKinds", "maxCount"]) assert.ok(fields[name], `the schema carries ${name}`);
   const questions = pending.questions!;
   assert.deepEqual(questions.map(item => [item.index, item.type]), [[0, "text"], [1, "number"], [2, "date"], [3, "datetime"]]);
   assert.equal(questions[1]!.unit, "分钟", "AC-27-6: the run holds the number's unit as the model wrote it");

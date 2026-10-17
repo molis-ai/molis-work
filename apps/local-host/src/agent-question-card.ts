@@ -1,4 +1,4 @@
-import { renderInteractionQuestion, type InteractionControl, type InteractionField, type InteractionValues } from "@molis-ai/molis-work-design-system";
+import { renderInteractionQuestion, type InteractionControl, type InteractionField, type InteractionPicked, type InteractionValues } from "@molis-ai/molis-work-design-system";
 import type { AgentPendingQuestion, AgentQuestion, AgentQuestionProblem, AgentQuestionProblemReason } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { dateTimeLocale } from "./web-locale.js";
 
@@ -6,16 +6,18 @@ import { dateTimeLocale } from "./web-locale.js";
  * An Agent's waiting question as the person sees it, wherever a run is shown (specs/ai-interaction-experience A1, A2): the
  * Host draws it with the design system's shared question card, so a surface (the Assistant's island, Coding's page) only
  * binds it with the shared client and never builds the form itself. Fields are named the way the plugin SDK's
- * `questionAnswer` reads them back: `q<n>` for question `n` of a questionnaire, `pick` and `text` otherwise.
+ * `questionAnswer` reads them back: `q<n>`, `t<n>`, `n<n>`, `d<n>`, `w<n>`, `r<n>` for question `n` of a questionnaire by its
+ * type, `pick` and `text` otherwise.
  *
  * A question is a questionnaire, a short set of options, or a question answered in words. A questionnaire's questions are
  * choices, words, numbers, dates or a date and time (T1); a number shows its unit beside it and in its error line; dates are typed, with the weekday beside them, and a date and time
- * is in this computer's time zone, named once after the time. References are offered to the model only once every surface
- * draws them (agent-question-surfaces), so they are not drawn here yet.
+ * is in this computer's time zone, named once after the time. A reference lists no candidates of its own (T2): the person
+ * types a name and the shared client asks the page's search (`search.references`, of the question's kinds) as they type; a
+ * pick is held as `<kind> <id>`, and the label it was offered with is only the person's draft, never the answer's.
  */
 /** The values of one card's fields, by field id: `q<n>` for a questionnaire's questions, `pick` and `text` otherwise. */
 const picked = (value: InteractionValues[string] | undefined): string[] =>
-  Array.isArray(value) ? value : value && typeof value === "object" && "picked" in value ? value.picked : typeof value === "string" && value ? [value] : [];
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : value && typeof value === "object" && "picked" in value ? value.picked : typeof value === "string" && value ? [value] : [];
 const otherOf = (value: InteractionValues[string] | undefined): string => value && typeof value === "object" && "picked" in value ? value.other ?? "" : "";
 
 type Say = (text: string, values?: Record<string, string | number>) => string;
@@ -60,6 +62,12 @@ function typedField(item: AgentQuestion, say: Say, draft: InteractionValues): { 
     return { id: `w${item.index}`, control: { kind: "datetime", date: kept.date, time: kept.time, zone: zoneLabel(kept.date, say), weekday: weekday(kept.date),
       dateLabel: say("日期"), timeLabel: say("时刻（24 小时制）") } };
   }
+  if (item.type === "reference") {
+    const held = draft[`r${item.index}`];
+    return { id: `r${item.index}`, control: { kind: "reference", source: (item.ref_kinds ?? []).join(","), multiple: item.multiple === true, ...(item.max_count ? { max: item.max_count } : {}),
+      picked: Array.isArray(held) ? held.filter((ref): ref is InteractionPicked => typeof ref === "object") : [], placeholder: say("输入名称搜索"),
+      labels: { remove: say("去掉"), empty: say("没有找到"), failed: say("暂时搜不了，稍后再试"), full: say("已经选够了"), found: say("{n} 个结果") } } };
+  }
   return undefined;
 }
 
@@ -92,7 +100,7 @@ const REASONS: Partial<Record<AgentQuestionProblemReason, string>> = {
   duplicate: "同一项选了两次", "other-not-allowed": "这一题不能写其他答案", "too-long": "回答太长了",
   "not-a-number": "请填一个数字", "not-an-integer": "请填整数", "too-small": "这个数太小了", "too-large": "这个数太大了",
   "bad-date": "请按 2026-10-23 这样的格式填日期", "too-early": "这个时间太早了", "too-late": "这个时间太晚了",
-  "reference-unavailable": "选的对象已不存在或现在不能用，请重新选择",
+  "reference-unavailable": "选的对象已不存在或现在不能用，请重新选择", "kind-not-allowed": "选的对象不是这一题要的那一类", "too-many": "选的太多了",
 };
 
 /** A bound as the person reads it: a number as written with its unit ("120 分钟"), a date as typed, a moment in this computer's time. */
@@ -114,12 +122,13 @@ function problemLine(problem: AgentQuestionProblem, item: AgentQuestion | undefi
   if (reason === "too-early" && low) return say("不能早于 {limit}", { limit: low });
   if (reason === "too-late" && high) return say("不能晚于 {limit}", { limit: high });
   if (reason === "too-long" && item?.type === "text") return say("不能超过 {limit} 个字", { limit: item.max_length ?? 2000 });
+  if (reason === "too-many" && item?.max_count) return say("最多选 {limit} 个", { limit: item.max_count });
   return say(REASONS[reason] ?? "这一题的回答不能提交，请改一下");
 }
 
 /** The field a question's answer is read from on the card, as `typedField` names it. */
 const fieldOf = (item: AgentQuestion | undefined, index: number): string =>
-  `${item?.type === "text" ? "t" : item?.type === "number" ? "n" : item?.type === "date" ? "d" : item?.type === "datetime" ? "w" : "q"}${index}`;
+  `${({ text: "t", number: "n", date: "d", datetime: "w", reference: "r" } as Record<string, string>)[item?.type ?? ""] ?? "q"}${index}`;
 
 /**
  * The Runtime's reasons a questionnaire answer was refused, as a line beside each question's field. Given the questions,

@@ -41,7 +41,7 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-error { color: var(--red); font-size: 12px; }
 [data-ix-focus], .mw-ix-preview, .mw-ix-result, .mw-ix-operation { scroll-margin-block: 24px; }
 :is(.mw-ix-options, .mw-ix-choices, .mw-ix-refs)[aria-invalid="true"] { border-radius: var(--r-control, 8px); box-shadow: 0 0 0 1px var(--red); }
-:is(.mw-ix-options, .mw-ix-choices, .mw-ix-refs):focus-visible { outline: var(--focus-stroke); outline-offset: 3px; }
+:is(.mw-ix-options, .mw-ix-choices):focus-visible { outline: var(--focus-stroke); outline-offset: 3px; }
 /* Options with a reason: the product's choice, the difference under the name, a copper tag for the recommendation. */
 .mw-ix-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; width: 100%; }
 .mw-ix-option { display: grid; gap: 3px; min-height: 52px; padding: 8px 12px; border: 0; border-radius: var(--r-control, 8px); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--lift-1), 0 0 0 1px var(--line);
@@ -132,29 +132,23 @@ export const INTERACTION_CALENDAR_STYLES = `
 }
 `;
 
-/** Objects and materials picked as rows. */
+/** Objects and materials: the picked ones as chips, then a search whose results (a menu-styled listbox) are real objects the person may use. */
 export const INTERACTION_REFERENCE_STYLES = `
-/* Objects and materials: real candidates the person may use, picked as rows. */
-.mw-ix-refs { display: grid; gap: 4px; width: 100%; }
-.mw-ix-ref { display: grid; grid-template-columns: 20px minmax(0, 1fr) 16px; align-items: center; gap: 10px; min-height: 40px; padding: 6px 10px; border: 0; border-radius: var(--r-row, 10px); background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer;
-  transition: background-color var(--dur-hover) var(--ease-quint); }
-.mw-ix-ref:hover:not(:disabled) { background: var(--nav-hover); }
-.mw-ix-ref[aria-pressed="true"] { background: var(--nav-active); color: var(--ink); }
-.mw-ix-ref:focus-visible { outline: var(--focus-stroke); outline-offset: -1px; }
-.mw-ix-ref__glyph svg { width: 16px; height: 16px; }
-.mw-ix-ref__text { display: grid; min-width: 0; }
-.mw-ix-ref__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-control, 500); }
-.mw-ix-ref__meta { color: var(--faint); font-size: 12px; }
-.mw-ix-ref__check { color: var(--accent); opacity: 0; transition: opacity var(--dur-move) var(--ease-quint); }
-.mw-ix-ref__check svg { width: 16px; height: 16px; }
-.mw-ix-ref[aria-pressed="true"] .mw-ix-ref__check { opacity: 1; }
-.mw-ix-ref:disabled { cursor: default; opacity: .6; }
-@media (max-width: 760px), (pointer: coarse) {
-  .mw-ix-ref { min-height: 44px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  :is(.mw-ix-ref, .mw-ix-ref__check) { animation: none; transition: none; }
-}
+.mw-ix-refs { display: grid; gap: 6px; }
+.mw-ix-picked { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; }
+:is(.mw-ix-picked, .mw-ix-ref-results) { margin: 0; list-style: none; }
+:is(.mw-ix-picked, .mw-ix-ref-status, .mw-ix-ref__meta):empty { display: none; }
+.mw-ix-chip { display: inline-flex; align-items: center; max-width: 100%; padding: 3px 3px 3px 10px; border-radius: 99px; background: var(--nav-active); font-size: 13px; }
+:is(.mw-ix-chip, .mw-ix-ref) span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mw-ix-chip button { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 99px; background: none; color: var(--muted); cursor: pointer; }
+.mw-ix-chip button:hover, .mw-ix-ref[aria-selected=true] { background: var(--nav-hover); }
+.mw-ix-chip button:focus-visible { outline: var(--focus-stroke); }
+.mw-ix-chip svg { width: 14px; height: 14px; }
+.mw-ix-ref-search:has([aria-invalid="true"]) { border-color: var(--red); }
+.mw-ix-ref-search input { flex: 1; }
+.mw-ix-ref-results:not([hidden]) { display: grid; max-height: 240px; overflow: auto; }
+:is(.mw-ix-ref__meta, .mw-ix-ref-status) { flex: none; margin: 0 0 0 auto; color: var(--faint); font-size: 12px; }
+@media (max-width: 760px), (pointer: coarse) { .mw-ix-chip button { width: 32px; height: 32px; } }
 `;
 
 /** The operation card: what it acts on, exactly what would run, how it stands. Needs the question segment. */

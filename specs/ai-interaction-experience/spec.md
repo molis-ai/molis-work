@@ -473,6 +473,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | D33 | 字段名带题型、Coding 怎样交回答（2026-10-16，本线定，技术决定按防腐后果） | 卡上的字段按题型命名（`q`/`t`/`n`/`d`/`w` 加题号），插件开发包的 `questionAnswer` 按名字读出回答；名字只是读法，回答对不对以 Runtime 手里的题目为准（字段改名交上去照样被拒，统筹 10-16 要求的用例）。Coding 的页面不再内嵌 `questionAnswer`，交回卡上字段原样（`values`），由 Coding 路由的 `toInput` 用插件开发包读成回答，再交给动作 `coding.runs.control`；动作的输入多了 `value`，按 `CONTRACT-CHANGES.md` 升到 version 4 | 页面与宿主都不必另拿题目；读法只在插件开发包一份，Coding 页面少带约 1.3 KB；`coding.runs.control` 只给本人（`user`），固定 v3 的引用只有助理调用 Coding 一处，同一个改动里改完 |
 | D34 | 输入框的「回答上面的问题」芯片在问卷下怎么办（2026-10-16，统筹提出二选一，本线选 (a)） | 芯片也覆盖「问卷里只有一道文本题」：此时输入框的话作为这道题的回答（`{ question, value }`）交给 Runtime，题的规则（字数等）照样由 Runtime 判；两道题以上、或唯一的一题不是文本题，仍只在卡上回答。哪一题能从输入框回答只由宿主判一次（`assistant-inputs.ts` 的 `freeTextQuestion`）：交回答时用它，画视图时在那一题上标 `from_composer`，页面（`assistant-send.ts`）只读这个标记，不再自己写一份条件；Assistant 交回答时按 Runtime 读到的这一轮判断（会话摘要里的问卷还没读出题目） | 统筹实走发现：模型提问只走问卷，芯片原条件（只有一个等待项、`allows_free_text`、不带 `questions`）在现有合同下出不来；T1 放开文本题后，一道文本题的问卷就是一道自由文本题，人在输入框里打字回答最自然。另一种 (b) 去掉芯片，会让人在输入框里写的话只成补充、不算回答（回执线 D14 的「补充要求不代替回答问题」），多一步 |
 | D35 | 数字题的单位（2026-10-16，用户批准上游加 `unit`；统筹 10-17 开这一片） | 题目带 `unit`（Prologue #32，经 #615 换包进 `AgentQuestion`）时，卡上在步进器后面写单位，读屏时随字段读出（`aria-describedby` 先指单位、再指报错行）；报错行的界限带单位（「不能超过 120 分钟」「不能小于 15 分钟」）。单位只是显示，回答仍是纯数字；单位由模型写，不翻译。没有 `unit` 的题照旧只写数字，不从题干里猜 | T1 先只写界限（统筹 10-16）；样式 `.mw-ix-unit` 在 T1 已随日期段进工作台与项目选择页两张表，这一片不加页面资源 |
+| D36 | 对象引用题怎样开放（T2；2026-10-17，统筹定四项、本线定做法） | ①候选按需搜：卡上不列候选，只放一个搜索框，人打字时页面才调 `search.references`（带题目的 `ref_kinds`，经工作台与项目选择页同一条路由 `/api/search/references`）；画卡、读视图、Coding 轮询都不搜。②回答里的标题取自对象主人现在的读法：宿主在交给运行之前经主人逐个再读（#618 的 `readReferences`），页面给的标题一律不用，读不到的仍是 `reference-unavailable`。③提示词不升版（同 D32，统筹 10-17 定，D23 那一句不写），由 AC-28-1 的 schema 用例代替。④模型怎样知道有哪些种类：Prologue 加 App 配置 `tool.askUserReferenceKinds`（用户 10-17 弹窗批准；schema 里写成 enum，清单外的种类当场退回），由采用线提上游、并进下一次换包；T2 在换包合入后开 PR。⑤字节差额（CSS 两张表各 +1344、`workbench.js` +4106）开 PR 前报统筹，由用户弹窗定，批了按 3c 的一次性 `APPROVED_CEILINGS` 进 | D29 的轮询问题在按需搜下不存在；`search.references` 本来就要求 `query`。模型自己写的种类名（`cognia_material`、`shelf_item` 一类）猜不出来，猜错就没有候选，题等于白问 |
 
 ## 17. 分期与 PR 序列
 
@@ -1003,11 +1004,12 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 | AC-21 助理问卷卡 | 已实现 | #492；`assistant-interaction-html.test.ts` |
 | AC-22 Coding 问卷卡 | 已实现 | #496；`coding-question-card.e2e.test.ts` |
 | AC-23 操作卡协作者 | 已实现（助理） | #492；`assistant-offers.ts`（W5-10 形状） |
-| AC-24 对象引用 | 已实现 | H3：`search.references@1` 与提交前复核（S-26，`security-invariants-object-references.test.ts`）；`reference` 题型等 T2 开放（D29） |
+| AC-24 对象引用 | 已实现 | H3：`search.references@1` 与提交前复核（S-26，`security-invariants-object-references.test.ts`）；`reference` 题型由 T2 开放（AC-28） |
 | AC-25 Coding 操作卡 | 已实现 | H4 分两片（统筹 2026-10-15 定）。**第一部分已做**：Coding 输入框上方的下一步，是最新一轮的问题（与助理同一个 `interactionNextSteps`，形状不变，只加输入）加 Coding 自己的「核对并继续」「查看变更」；每一步都按下屏上那一轮已有的控件，不开新的执行入口（后续步骤由 Coding 自己给：`plugins/native/coding/src/next-steps.ts` 的 `codingFollowUps`；宿主在已有的 `coding-surface.ts` 里与问题合成一排并画出；用例 `coding-next-steps`、`coding-question-card.e2e`）。**操作卡（第二部分）已做**（D25–D28，2b → 2a → 2c）：Coding 的 coordinator、builder 角色带 `suggest-action`，一轮的建议进运行视图（2a）；Coding 读到一轮时把它的建议落成会话的卡（`plugins/native/coding/src/action-cards.ts`，插件私有存储 `cards:<session_id>`，按 `offer_id` 只落一张、落卡在 `beforeEffect()` 之后、建议的动作此刻不在授权里就不落）；卡由宿主画（与助理同一个 `assistantCardHtml`），挂在那一轮下面，也是输入框上方的一步；点卡经新的宿主动作 `agent.offers.run@1` 执行：只跑这条建议点名的那个动作（引用、冻结的动作工具、建议时记下的合同摘要 `action_digest` 都要对上），输入过动作自己的检查，调用方只能是这一轮所属的插件（S-29）；卡按修订号认领，第二次点击不再执行，结果按失败的 kind 记（D26）。有未发送改动的卡，输入框上方那一步只把卡带到眼前、不执行（FLOW-03）。用例 `coding-action-cards`、`coding-action-cards.e2e`、`security-invariants-agent-offer-runs` |
 | AC-26 单次接续 | 已实现 | S1（#532）与 W4-04 第三片：`form-draft-questions`、`plugin-interaction-answer`、`form-runtime-routes`（W4-04-05） |
 | AC-27 放开文字、数字、日期、日期时间 | 已实现 | T1（D29–D33）：AC-27-1 题型与 provider 请求里的 schema（`agent-question-types`、`agent-typed-questions`）；AC-27-2 宿主的卡与带界限的报错；AC-27-3 读回答与改名被拒；AC-27-4 Coding 路由与 `coding.runs.control@4`（`coding-run-control-contract`）；AC-27-5 助理与 Coding 的浏览器用例（`assistant-typed-questions.e2e`、`coding-question-card.e2e`；D34 一道文本题从输入框回答，同一文件与 `assistant-interaction-html`） |
 | AC-27-6 数字题的单位 | 已实现 | D35：`agent-question-types`（Runtime 带回 `unit`、卡上与报错行带单位）、`interaction-components`（单位随字段读出）、`assistant-typed-questions.e2e` 与 `coding-question-card.e2e`（单位在步进器旁、报错「不能超过 120 分钟」） |
+| AC-28 对象引用题 | 已写完、等上游 | T2（D36）：AC-28-1 provider 请求里 `ask-user` 的 `refKinds` 是这个 Home 可读种类的 enum（等 `askUserReferenceKinds` 换包；现在 `agent-question-types` 只钉住 `reference`、`refKinds`、`maxCount` 在 schema 里）；AC-28-2 卡上不列候选，只在人打字时按题目的种类搜（`agent-reference-questions`、`interaction-components`、`interaction-client.e2e`）；AC-28-3 单选、多选、上限、草稿里的选中、逐题的话（`agent-reference-questions`、`interaction-client.e2e`）；AC-28-4 标题取自主人、页面给的标题进不了回答、种类不在题目里的搜不到也交不上（`security-invariants-object-references`）；AC-28-5 Coding 用 `coding.runs.control@5` 交回选中的对象（`coding-run-control-contract`、`coding-actions`）；AC-28-6 只用键盘做完、读屏读出结果个数、390 px 与深色（`interaction-client.e2e`、截图） |
 
 **题型放开的真实前置**（比 §17.1 写的多两件）：①共享问卷卡 `agentQuestionHtml` 只画选择题与文字，日期、数字、对象引用要先在这里画出来；②Coding 的 `coding.runs.control` 第 2 版只收 `question/indexes/other`，带 `value` 要升第 3 版（§20.0 已记），`plugins/native/coding/src/run-inputs.ts` 的 `questionAnswer` 跟着改；③插件开发包的 `questionAnswer` 要读出 `value`。
 
@@ -1030,9 +1032,9 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 
 - H3 候选：`search.references@1` 挂在 `system.search` 下（D21）。代码在 `packages/contracts/src/services/search.ts`、`horizontal/search/src/references.ts`（`findReferenceCandidates`、`confirmReferences`）、`apps/local-host/src/search-actions.ts`。
 - H3 复核：
-  - `prologue-questions.ts` 的 `refusedReferences`；`prologue-node-port.ts` 的 `answerPending` 在 SDK 校验之后、交给运行之前调用它。
+  - `prologue-questions.ts` 的 `ownedReferences`（T2 起：经主人再读并换上主人的标题）；`prologue-node-port.ts` 的 `answerPending` 在 SDK 校验之前调用它，读不到的在 SDK 的问题之后报。
   - 没接复核的宿主一律拒绝带引用的回答。
-  - 宿主由 `system-agent-service.ts` 接上 `localHost.search.confirmReferences`，只认本机用户是会话主人的情况。
+  - 宿主由 `system-agent-service.ts` 接上 `localHost.search.readReferences`，只认本机用户是会话主人的情况。
   - 新原因 `reference-unavailable`（D22），字段旁的话写在 `agent-question-card.ts`，英文在 `renderer-gap-en.ts`。
 - 安全不变量 S-26（`docs/system/SECURITY-INVARIANTS.md`）及其用例 `tests/security-invariants-object-references.test.ts`（两条），候选用例 `tests/search-references.test.ts`，夹具 `tests/fixtures/reference-owners.ts`。
 - S1：

@@ -3,6 +3,7 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { endingReviewReply } from "./fixtures/ending-review.js";
 
 /** One streamed model turn: a tool call, or plain text. */
 function turn(tool?: { name: string; input: unknown }, text = "记下了。"): string {
@@ -29,7 +30,10 @@ test("a change taken back from the Assistant's panel leaves the owner's page at 
   ];
   let turns = 0;
   const model = createServer(async (req, res) => {
-    for await (const _chunk of req) { /* the request itself is not under test */ }
+    let raw = ""; for await (const chunk of req) raw += chunk;
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    const review = endingReviewReply(raw);
+    if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(undefined, review)); return; }
     res.writeHead(200, { "content-type": "text/event-stream" });
     res.end((script[turns++] ?? (() => turn()))());
   });

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { endingReviewReply } from "./fixtures/ending-review.js";
 
 /** One streamed Anthropic-format model turn: text, or one tool call. */
 function turn(text: string, tool?: { name: string; input: object }): string {
@@ -35,6 +36,9 @@ async function openCoding(t: TestContext, ask: object) {
   const model = createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    const review = endingReviewReply(raw);
+    if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }
     bodies.push(JSON.parse(raw));
     // The round's first call asks the person a typed questionnaire; the next one goes on with the answer.
     res.writeHead(200, { "content-type": "text/event-stream" });
@@ -150,7 +154,7 @@ test("AC-27-5: Coding answers words, a number, a date and a date and time, and a
   await click(`${coding} [data-coding-send]`);
   const card = `${coding} [data-coding-question][data-ix-question]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
-  assert.deepEqual(bodies[0]?.tools?.find(tool => tool.name === "ask-user")?.input_schema.properties.questions.items.properties.type.enum, ["choice", "text", "number", "date", "datetime"], "AC-27-1: the model is offered what the card draws");
+  assert.deepEqual(bodies[0]?.tools?.find(tool => tool.name === "ask-user")?.input_schema.properties.questions.items.properties.type.enum, ["choice", "text", "number", "date", "datetime", "reference"], "AC-27-1: the model is offered what the card draws");
   const shown = await evaluate<{ fields: string[]; weekday: string; zone: string; placeholder: string }>(`(() => { const node = document.querySelector(${JSON.stringify(card)});
     return { fields: [...node.querySelectorAll('[data-ix-field]')].map(field => field.dataset.ixField), weekday: node.querySelector('[data-ix-field="d2"] [data-ix-weekday]').textContent,
       zone: node.querySelector('[data-ix-field="w3"] .mw-ix-clock .mw-ix-zone')?.textContent || '', placeholder: node.querySelector('[data-ix-field="d2"] input').placeholder }; })()`);

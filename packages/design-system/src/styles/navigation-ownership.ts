@@ -1,5 +1,16 @@
 /** AP3 visual layer: navigation-ownership. */
-export const NAVIGATION_OWNERSHIP_STYLES = `  /* Navigation ownership correction: directory controls its own rail, while
+export const NAVIGATION_OWNERSHIP_STYLES = `  /* A read-only Runtime pane shows only its parent guard: no tabs, chrome, terminal or menu. */
+  @media (min-width: 761px) {
+    body[data-desktop-shell="true"] .tui-pane[data-tui-read-only] { grid-template-rows: 58px minmax(0, 1fr); }
+    body[data-desktop-shell="true"] .tui-pane[data-tui-read-only] .tui-tabs,
+    body[data-desktop-shell="true"] .tui-pane[data-tui-read-only] .tui-chrome,
+    body[data-desktop-shell="true"] .tui-pane[data-tui-read-only] .tui-terminal,
+    body[data-desktop-shell="true"] .tui-pane[data-tui-read-only] .tui-menu { display: none !important; }
+    body[data-desktop-shell="true"] .tui-pane[data-tui-read-only] .tui-stage { padding: 0 16px 16px; grid-template-areas: "guard"; grid-template-rows: minmax(0, 1fr); }
+    body[data-desktop-shell="true"] .tui-pane[data-tui-read-only] .tui-parent-guard { min-height: 100%; max-height: none; padding-top: 16px; border-bottom: 0; align-content: start; }
+  }
+
+  /* Navigation ownership correction: directory controls its own rail, while
      Focus and Runtime stay with the selected Goal. */
 
   @media (min-width: 761px) {

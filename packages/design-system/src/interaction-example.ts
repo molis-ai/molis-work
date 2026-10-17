@@ -17,9 +17,8 @@ const fields = (errors: Partial<Record<string, string>> = {}, refreshed?: string
     control: { kind: 'number', value: errors.minutes ? 'two' : '30', unit: '分钟', step: 5, stepLabels: ['减少 5 分钟', '增加 5 分钟'] } },
   { id: 'date', label: '准备截止', hint: '需要在开始当天或之前准备好。', control: { kind: 'date', value: '2026-10-15', weekday: '周四', calendar } },
   { id: 'when', label: '开始时间', hint: '时区随问题给定，不需要输入。', control: { kind: 'datetime', date: '2026-10-16', time: '10:00', weekday: '周五', zone: '洛杉矶时间 · UTC−07:00', calendar } },
-  { id: 'materials', label: '关联材料', hint: '从可用材料里选 1–2 份 · 已选 1', error: errors.materials, control: { kind: 'reference', candidates: [
-    { id: 'goal', label: '秋季工作台 · 内部试用', meta: 'Goal', icon: 'target', selected: !errors.materials },
-    { id: 'notes', label: '10 月试用反馈摘录', meta: '文档', icon: 'file' }] } },
+  { id: 'materials', label: '关联材料', hint: '输入名称搜索，选 1–2 份', error: errors.materials, control: { kind: 'reference', source: 'material', multiple: true, max: 2, placeholder: '搜索材料',
+    picked: errors.materials ? [] : [{ value: 'goal', label: '秋季工作台 · 内部试用' }] } },
 ];
 const footer = (note: string, error = false) => ({ note, error, keys: '⌘ / Ctrl + 回车 提交', actions: [{ id: 'cancel', label: '不回答', variant: 'ghost' as const }, { id: 'submit', label: '提交回答', variant: 'primary' as const, type: 'submit' as const }] });
 const answeredRows: Array<[string, string]> = [['沟通方式', '一起复盘'], ['重点看什么', '首次使用、失败与恢复'], ['补充要求', '只看首次使用'], ['预计时长', '45 分钟'], ['开始时间', '2026-10-16 10:00（UTC−07:00）'], ['关联材料', '秋季工作台 · 内部试用']];
@@ -79,7 +78,9 @@ export function renderInteractionExample(): string {
   </div>
   <script>(()=>{const card=document.querySelector('[data-ix-question="ix-q-open"]');if(!card)return;
     let errors={minutes:'请输入 15–120 之间的整数分钟。',materials:'请选择 1–2 份材料。'};
+    const materials=[{value:'goal',label:'秋季工作台 · 内部试用',meta:'Goal'},{value:'notes',label:'10 月试用反馈摘录',meta:'文档'},{value:'plan',label:'试用复盘议程',meta:'文档'}];
     const client=(${INTERACTION_CLIENT_SCRIPT})(card,{
+      references:(source,query)=>Promise.resolve({items:materials.filter(item=>item.label.includes(query)||item.meta.includes(query))}),
       onChange:({field})=>{if(errors[field]){delete errors[field];client.showErrors(errors)}},
       onAction:id=>{const notice=card.querySelector('[data-ix-notice]');if(id==='adopt'){client.write({minutes:'45'});delete errors.minutes;client.showErrors(errors)}if(id==='adopt'||id==='keep'){if(notice)notice.hidden=true}},
       onSubmit:()=>{const v=client.read();const m=Number(v.minutes);errors={};

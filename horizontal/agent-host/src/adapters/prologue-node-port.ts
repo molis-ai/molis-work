@@ -9,7 +9,7 @@ import { createPrologueGitReviews } from "./prologue-git.js";
 import { MAX_BROADCAST } from "./prologue-messages.js";
 import { createPrologueSkillLibrary } from "./prologue-methods.js";
 import { workPaths } from "./prologue-project-work.js";
-import { answerProblems, projectQuestion, questionUnavailable, refusedReferences } from "./prologue-questions.js";
+import { answerProblems, ownedReferences, projectQuestion, questionUnavailable } from "./prologue-questions.js";
 import type { createPrologueRecovery } from "./prologue-recovery.js";
 import { startPrologueRun, type RunDeps } from "./prologue-run.js";
 import type { createPrologueSchedule } from "./prologue-schedule.js";
@@ -48,7 +48,8 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
     // A request between sessions may wait for the other side's whole round, or a restart: a week, not half an hour.
     // Background commands belong to the session and keep running after its round (the person's decision), at most four
     // at a time; a step waits up to a week, like a request.
-    config: { delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000, maxPeopleBodyChars: 24_000 }, background: { outliveRun: true, maxPerSession: 4 }, waits: { maxDeadlineMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 }, inputWaitTtlMs: 24 * 60 * 60 * 1000, ...(options.questionTypes?.length ? { askUserQuestionTypes: options.questionTypes } : {}) }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 }, intake: { maxItemBytes: 32 * 1024 * 1024, maxBatchBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
+    config: { delivery: { defaultTtlMs: 7 * 24 * 60 * 60 * 1000, maxPeopleBodyChars: 24_000 }, background: { outliveRun: true, maxPerSession: 4 }, waits: { maxDeadlineMs: 7 * 24 * 60 * 60 * 1000 }, agent: { maxTurns: SUBAGENT_DEFAULT_TURNS }, tool: { deferToolSchemasBeyond: 20, maxTimeoutMs: 300_000, observation: { maxLines: 1000, maxBytes: 64 * 1024 }, inputWaitTtlMs: 24 * 60 * 60 * 1000, ...(options.questionTypes?.length ? { askUserQuestionTypes: options.questionTypes } : {}),
+      ...(options.referenceKinds?.length && options.questionTypes?.includes("reference") ? { askUserReferenceKinds: options.referenceKinds } : {}) }, context: { maxInstructionChars: MAX_COMPOSED_INSTRUCTION_CHARS }, resource: { publish: { maxBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 }, intake: { maxItemBytes: 32 * 1024 * 1024, maxBatchBytes: 128 * 1024 * 1024 } }, model: { images: { maxResponseBytes: 40 * 1024 * 1024, maxImageBytes: 20 * 1024 * 1024, maxImages: 4 } } },
     network: { model: true, mcp: true, loopback: true },
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
@@ -223,6 +224,7 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
       return session;
     }),
     restore: id => deps.recovery.restore(id),
+    queued: id => deps.recovery.queued(id),
     async readStatus(id) {
       const saved = await deps.recovery.restore(id, true);
       return saved ? { owner: saved.owner, recovery: saved.recovery, latest: saved.runs.at(-1), planned: saved.planned } : undefined;
@@ -240,7 +242,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
       sendForPeople: (project, input, actorId) => messages.sendForPeople(project, input, actorId),
       act: (project, id, action, detail, actorId) => messages.act(project, id, action, detail, actorId),
       prioritize: prioritize(deps) },
-    collaboration: { ...deps.waitsPort.collaboration, revise: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor) },
+    collaboration: { ...deps.waitsPort.collaboration, revise: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor), works: deps.workGraphs.port },
     // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key.
     queueInput: async (sessionId, input) => {
       const index = await deps.index.read(sessionId), session = index && await runtime.sessions.open(index.ref);
@@ -321,12 +323,12 @@ export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" 
       await runtime.effects.pendings.answer(pending.ref, { kind: "text", text: answer.text }, now);
     } else {
       if (!answer.answers || answer.text !== undefined) throw agentErrors.answer_invalid("请按原问卷逐题回答");
-      const problems = answerProblems(pending.questions, answer.answers);
+      // A picked object is used only while its owner still hands it to the session's owner, under the owner's label (S-26).
+      const owned = await ownedReferences(deps.options.readReferences, (await deps.index.read(run.session_id).catch(() => undefined))?.owner, pending.questions, answer.answers);
+      const problems = answerProblems(pending.questions, owned.answers);
       if (problems.length) throw Object.assign(agentErrors.answer_invalid(`有 ${problems.length} 道题的回答不能提交`, { problems }), { problems });
-      // A picked object is used only while its owner still hands it to the session's owner (S-26).
-      const refused = await refusedReferences(deps.options.confirmReferences, (await deps.index.read(run.session_id).catch(() => undefined))?.owner, pending.questions, answer.answers);
-      if (refused.length) throw Object.assign(agentErrors.answer_invalid("选的对象现在不能用，请重新选择", { problems: refused }), { problems: refused });
-      await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: answer.answers }, now);
+      if (owned.refused.length) throw Object.assign(agentErrors.answer_invalid("选的对象现在不能用，请重新选择", { problems: owned.refused }), { problems: owned.refused });
+      await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: owned.answers }, now);
     }
   };
 }

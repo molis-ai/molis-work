@@ -13,7 +13,7 @@ import { cardView } from "./assistant-card-view.js";
 import { AssistantOffers } from "./assistant-offers.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
-  ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
+  ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID,
   type AssistantActivity, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantMaterialText,
@@ -35,6 +35,7 @@ import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./as
 import { AssistantInputs, exactRevision, inputsOf, typedWords, type SendIntent } from "./assistant-inputs.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
+import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
 
 const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
@@ -43,8 +44,6 @@ const MAX_MATERIAL_TEXT = 100_000;
 /** Images per Send and per image, within what the model providers take. */
 const MAX_IMAGES = 6;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-/** Enough for a real piece of business work with its lookups; a round never runs unbounded. */
-const ROUND_TURNS = 24;
 /** The directory lists at most this many; the gateway itself searches all of them. */
 const MAX_ACTION_TOOLS = 1000;
 
@@ -89,7 +88,6 @@ export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoti
 }
 
 const sessionRef = (work: StoredWork): AgentSessionRef => ({ session_id: work.session_id!, runtime_id: RUNTIME });
-const ownerOf = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 
 function stateOf(phase: AgentRunView["phase"] | null | undefined, recovery: boolean): AssistantWorkState {
   if (recovery) return "needs-check";
@@ -325,7 +323,7 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     // It ended still only saying what it would do, after its one continuation: nothing was done.
     "只说未做": "ended-on-promise" };
   return activity.flatMap(item => {
-    if (item.name === "reasoning" || item.name === "context-remaining" || item.name === "acknowledge-inputs") return [];
+    if (item.name === "reasoning" || item.name === "context-remaining" || item.name === "acknowledge-inputs" || item.name === "board-wait") return [];
     const verb = desktopVerb(item, verbs[item.name] ?? item.name);
     const named = titles?.get(shownActivityTarget(item.target));
     const target = (verb === "read" || verb === "change" || verb === "suggest") && named ? `${named.provider} · ${named.title}` : shownActivityTarget(item.target);
@@ -585,10 +583,7 @@ export class AssistantService {
       : stateOf(latest && latest.phase !== "unknown" ? latest.phase : latest ? null : undefined, Boolean(assistant?.recovery || coding?.recovery));
     const shown: StoredWork = work.executor.kind === "coding" && coding?.mode ? { ...work, executor: { ...work.executor, mode: coding.mode } } : work;
     // Its task board: the sub-tasks it handed out, each as its own work.
-    const children = this.store.delegatedBy(this.actorId, work.work_id);
-    const host = children.length ? await this.ports.host() : null;
-    const delegated = host ? await Promise.all(children.map(async child => ({ work_id: child.work_id, title: child.title, state: await this.stateFor(host, child), follow_ups: child.follow_ups ?? 0,
-      ...(child.delegated_by?.taken_back_at ? { taken_back: true } : {}) }))) : [];
+    const delegated = await this.delegations.parts(work);
     const scheduled = this.followUps.list(work.work_id);
     const claim = scheduled.length ? await this.followUps.claim() : null;
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
@@ -778,7 +773,7 @@ export class AssistantService {
     const host = await this.ports.host();
     const latest = await this.latestRun(host, work);
     // What it handed out stops with it: a sub-task nobody waits for any more would go on changing things.
-    const children = control.kind === "stop" ? (await Promise.all(this.store.delegatedBy(this.actorId, work.work_id, "any")
+    const children = control.kind === "stop" ? (await Promise.all(this.store.delegatedBy(this.actorId, work, "any")
       .map(async child => ({ child, run: await this.latestRun(host, child).catch(() => null) })))).filter(item => item.run && !isTerminalAgentPhase(item.run.phase)) : [];
     const running = latest && !isTerminalAgentPhase(latest.phase);
     if (!running && !children.length && !(control.kind === "stop" && this.delegations.isHandingBack(work.work_id))) throw assistantErrors.state("这项工作当前没有在执行的一轮");
@@ -1356,7 +1351,7 @@ export class AssistantService {
     const adapter = (await this.ports.host()).adapter(RUNTIME);
     if (!adapter.recovery) throw assistantErrors.unsupported("当前运行时不能核对中断的执行");
     await adapter.recovery.close(sessionRef(work), String(input.run_id), Number(input.version));
-    if (work.delegated_by) void this.delegations.settle(work.delegated_by.work_id);
+    if (work.delegated_by) await this.delegations.closed(work);
     return this.read(workId);
   }
 
@@ -1409,7 +1404,7 @@ export class AssistantService {
   /** Put away (or back). Putting away is quiet: it waits for no round in progress here or in what it handed out, and takes its timed rounds with it. */
   async archive(workId: string, archived: boolean): Promise<AssistantWork> {
     if (archived) {
-      const host = await this.ports.host(), group = [this.store.get(this.actorId, workId), ...this.store.delegatedBy(this.actorId, workId, "any")];
+      const host = await this.ports.host(), own = this.store.get(this.actorId, workId), group = [own, ...this.store.delegatedBy(this.actorId, own, "any")];
       if ((await Promise.all(group.map(item => this.stateFor(host, item)))).some(state => ["running", "paused", "waiting-input", "waiting-review"].includes(state))) {
         throw assistantErrors.state("这项工作还有一轮在进行，先停止它再归档");
       }
@@ -1514,21 +1509,10 @@ export class AssistantService {
     try {
       if (!work.reply_target) await this.memoryForRound(work, text, context);
       prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered, unavailable);
-      assertSendCurrent(stillCurrent);
-      handle = await host.start(RUNTIME, {
-        project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
-        session: sessionRef(work), role_id: role, workspace: "business", task: text,
-        action_gateway: !work.reply_target,
-        text_materials: prepared.materials,
-        // Pictures the person added: the runtime shows them to the model in this round (refused if the model cannot see).
-        ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
-          .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
-        history: "session", queued: "carry", budget: { max_turns: ROUND_TURNS, ...(left === undefined ? {} : { max_total_tokens: left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
-        // The project's side panel browser is the person's work surface: a work delegated in the background never drives it.
-        ...(work.delegated_by || work.reply_target ? { browser: false as const } : {}),
-        // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
-        ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
-      }, authority);
+      handle = await this.delegations.startPlaced(work, async placed => {
+        work = placed; assertSendCurrent(stillCurrent);
+        return host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left }), authority);
+      });
     } catch (error) {
       // No round exists: what its recall was given went into none, and nothing it would have told is told.
       const receipt = this.recalled.get(work.work_id);
@@ -1589,7 +1573,7 @@ export class AssistantService {
       told.undos = undone.map(item => item.undo_id);
     }
     // Sub-tasks the person took back since the last round (the work layer says this work finishes those parts itself).
-    const takenBack = this.store.delegatedBy(this.actorId, work.work_id).filter(child => (child.delegated_by?.taken_back_at ?? "") > since);
+    const takenBack = this.store.delegatedBy(this.actorId, work).filter(child => (child.delegated_by?.taken_back_at ?? "") > since);
     if (takenBack.length) {
       const lines = takenBack.map(child => {
         const made = this.store.relations.forWork(identity(child)).filter(row => row.relation === "result").map(row => `${row.object.kind} ${row.object.id}`);
@@ -1768,9 +1752,8 @@ export class AssistantService {
    * toward the work that delegated it and is held to that work's cap.
    */
   private async workUsage(work: StoredWork): Promise<NonNullable<AssistantWorkView["usage"]>> {
-    let owner = work;
-    if (work.delegated_by) { try { owner = this.store.get(this.actorId, work.delegated_by.work_id); } catch { owner = work; } }
-    const ids = [owner.work_id, ...this.store.delegatedBy(this.actorId, owner.work_id, "any").map(child => child.work_id)];
+    const owner = this.delegations.parentOf(work) ?? work;
+    const ids = [owner.work_id, ...this.store.delegatedBy(this.actorId, owner, "any").map(child => child.work_id)];
     await this.settleUsage(ids.flatMap(id => this.store.rounds(id).map(round => ({ work_id: id, round }))));
     const used = this.store.usage.of(this.actorId, ids);
     return { tokens: used.input + used.output, rounds: used.rounds, budget_tokens: owner.budget_tokens ?? null,
@@ -2021,8 +2004,9 @@ export class AssistantService {
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {
-    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, handed_back_run: _handed, hand_back_held: _held, question_drafts: _drafts, thread_round: _thread, ...rest } = work;
-    return { ...rest, state };
+    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, handed_back_run: _handed, hand_back_held: _held, question_drafts: _drafts, thread_round: _thread, graph_id: _graph, delegated_by: _delegated, ...rest } = work;
+    const delegated_by = this.delegations.shown(work);
+    return { ...rest, ...(delegated_by ? { delegated_by } : {}), state };
   }
 
   /** A runtime failure in words the person can act on; codes stay for the surface. */

@@ -77,6 +77,6 @@ export function watchWorks(ports: { store: AssistantStore; actorId: string; host
 
 /** Wait on one of the person's works as the page shows it, with the sub-tasks it handed out. */
 export function waitForAssistantWork(ports: Parameters<typeof watchWorks>[0] & { read(): Promise<AssistantWorkView> }, workId: string, since: string | null, timeoutMs: number, signal?: AbortSignal) {
-  const ids = [workId, ...ports.store.delegatedBy(ports.actorId, workId).map(child => child.work_id)];
+  const ids = [workId, ...ports.store.delegatedBy(ports.actorId, ports.store.get(ports.actorId, workId)).map(child => child.work_id)];
   return waitForWorkChange({ read: ports.read, since, timeoutMs, signal, ...watchWorks(ports, ids) });
 }

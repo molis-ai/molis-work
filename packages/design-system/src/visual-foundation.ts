@@ -18,7 +18,6 @@ import { DIRECTORY_LEDGER_STYLES } from "./styles/directory-ledger.js";
 import { FOUNDATION_STYLES } from "./styles/foundation.js";
 import { MOMENTUM_STYLES } from "./styles/momentum.js";
 import { NAVIGATION_OWNERSHIP_STYLES } from "./styles/navigation-ownership.js";
-import { PERSONAL_WORKBENCH_V3_STYLES } from "./styles/personal-workbench-v3.js";
 import { SOURCE_FEED_STYLES } from "./styles/source-feed.js";
 import { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 import { PRIMITIVE_STYLES } from "./styles/primitives.js";
@@ -31,7 +30,6 @@ const FOUNDATION_LAYERS = [
   FOUNDATION_STYLES,
   MOMENTUM_STYLES,
   CALM_DESKTOP_STYLES,
-  PERSONAL_WORKBENCH_V3_STYLES,
   DIRECTORY_LEDGER_STYLES,
   NAVIGATION_OWNERSHIP_STYLES,
   SOURCE_FEED_STYLES,

@@ -8,6 +8,7 @@ export declare const AGENT_RUNTIME_CAPABILITIES: readonly ["session.create", "se
 
 export interface AgentActionClient {
     discover(): Promise<readonly ActionView[]>;
+    reader?: "work";
     delegate?: AgentDelegation;
     memory?: AgentMemoryTools;
     offer?(offer: AgentActionOffer): Promise<{
@@ -248,6 +249,9 @@ export interface AgentFrozenRole {
     compaction?: {
         prompt: AgentPromptText;
         above_tokens: number;
+    };
+    ending_review?: {
+        prompt: AgentPromptText;
     };
     prompts: AgentPromptText[];
     skills?: AgentSkillDefinition[];
@@ -1128,6 +1132,7 @@ export interface AgentSessionView {
     title: string;
     runs: AgentRunRef[];
     latest_run: AgentRunView | null;
+    queued_inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[];
 }
 
 export interface AgentSkillCandidate {
@@ -1563,6 +1568,11 @@ interface AgentFrozenStartFields {
         prompt_id: string;
         version: number;
         above_tokens: number;
+    };
+    ending_review?: {
+        prompt_id: string;
+        version: number;
+        user_revision?: number;
     };
     model_context?: {
         window_tokens: number;

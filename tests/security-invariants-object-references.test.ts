@@ -6,10 +6,19 @@ import test from "node:test";
 
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 
-import { confirmReferences } from "@molis-ai/molis-work-service-search";
+import { confirmReferences, findReferenceCandidates } from "@molis-ai/molis-work-service-search";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
 
 // S-26 (docs/system/SECURITY-INVARIANTS.md): a reference a person picked is used only while its owner still hands it to them.
+
+test("S-26 a search for a question's objects never offers a kind the question did not ask for", async t => {
+  const f = await referenceOwners(t);
+  const access = f.access(person("a"));
+  assert.ok((await findReferenceCandidates(f.search, access, { kinds: ["goal", "page"], query: "试用" })).candidates.some(item => item.kind === "page"), "a page matches these words");
+  const found = await findReferenceCandidates(f.search, access, { kinds: ["goal"], query: "试用" });
+  assert.ok(found.candidates.length > 0);
+  assert.deepEqual([...new Set(found.candidates.map(item => item.kind))], ["goal"], "asked for goals, offered only goals");
+});
 
 test("S-26 a picked object its owner no longer hands to the person is refused", async t => {
   const f = await referenceOwners(t);
@@ -53,12 +62,13 @@ test("S-26 a reference answer the Host cannot confirm never reaches the run", { 
       : reply();
   });
   const asked: Array<{ owner: { project_id: string; actor_id: string }; picked: readonly { kind: string; id: string }[]; kinds: readonly string[] }> = [];
-  let verdict = false;
+  // What the owner says of the picked object now: null once it is not the person's to use.
+  let verdict: { label: string } | null = null;
   const start = async (confirm: boolean) => {
     requests.length = 0;
     const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.s26-test", appVersion: "1.0.0" }, storageRoot: join(home, `sdk-${confirm}`), reviewQueue: new AgentReviewQueue(),
       questionTypes: ["choice", "reference"],
-      ...(confirm ? { confirmReferences: async (owner: { project_id: string; actor_id: string }, picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => {
+      ...(confirm ? { readReferences: async (owner: { project_id: string; actor_id: string }, picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => {
         asked.push({ owner, picked, kinds }); return picked.map(() => verdict); } } : {}),
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
     const owner = { project_id: "a", plugin_id: "caller", install_id: "i", actor_id: "web-user" };
@@ -68,8 +78,9 @@ test("S-26 a reference answer the Host cannot confirm never reaches the run", { 
     const question = await until(async () => (await adapter.read(handle.ref)).awaiting_input[0], "the question");
     return { adapter, run: handle.ref, question };
   };
-  const answer = (question: { pending_id: string; pending_revision?: number }, id: string) => ({ kind: "answer" as const, pending_id: question.pending_id,
-    ...(question.pending_revision === undefined ? {} : { pending_revision: question.pending_revision }), answers: [{ question: 0, value: [{ kind: "goal", id, label: "内部试用" }] }] });
+  // The page sends the label it offered the object with; only the owner's reaches the run.
+  const answer = (question: { pending_id: string; pending_revision?: number }, id: string, kind = "goal") => ({ kind: "answer" as const, pending_id: question.pending_id,
+    ...(question.pending_revision === undefined ? {} : { pending_revision: question.pending_revision }), answers: [{ question: 0, value: [{ kind, id, label: "页面写的标题" }] }] });
   const refused = (error: unknown) => (error as { code?: string }).code === "agent.answer_invalid"
     && JSON.stringify((error as { problems?: unknown }).problems) === JSON.stringify([{ question: 0, id: "goal", reason: "reference-unavailable" }]);
 
@@ -84,15 +95,21 @@ test("S-26 a reference answer the Host cannot confirm never reaches the run", { 
 
   const host = await start(true);
   try {
-    verdict = false;
+    verdict = null;
     await assert.rejects(host.adapter.control(host.run, answer(host.question, "gone")), refused);
     assert.deepEqual(asked.at(-1), { owner: { project_id: "a", plugin_id: "caller", install_id: "i", actor_id: "web-user" }, picked: [{ kind: "goal", id: "gone" }], kinds: ["goal"] },
       "asked as the session's owner, about exactly the object picked and the kinds the question allows");
     assert.equal((await host.adapter.read(host.run)).awaiting_input.length, 1, "a refused answer leaves the question open");
     assert.equal(requests.length, 1, "and the model heard nothing");
-    verdict = true;
+    // A kind the question does not take is refused before anything goes on, whatever its owner would say (AC-28-4).
+    verdict = { label: "内部试用上线" };
+    await assert.rejects(host.adapter.control(host.run, answer(host.question, "p1", "page")), (error: unknown) => (error as { code?: string }).code === "agent.answer_invalid"
+      && JSON.stringify((error as { problems?: unknown }).problems) === JSON.stringify([{ question: 0, id: "goal", reason: "kind-not-allowed" }]));
+    assert.equal(requests.length, 1, "the model heard nothing of it");
     await host.adapter.control(host.run, answer(host.question, "g1"));
     await until(() => requests.length >= 2, "the run to go on");
     assert.match(requests[1]!, /g1/, "a confirmed object reaches the run");
+    assert.match(requests[1]!, /内部试用上线/, "under the label its owner gives it now");
+    assert.doesNotMatch(requests[1]!, /页面写的标题/, "AC-28-4: the label the page sent never goes into the answer");
   } finally { await host.adapter.close(); }
 });

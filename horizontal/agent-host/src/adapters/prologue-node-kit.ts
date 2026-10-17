@@ -8,6 +8,8 @@ import { agentErrors } from "../errors.js";
 import type { HostMcpConnection } from "./prologue-mcp.js";
 import type { PrologueSurfacePorts } from "./prologue-surfaces.js";
 import type { AgentReviewQueue } from "../reviews.js";
+import type { RoundFacts } from "./announce-guard.js";
+import type { StopGuard } from "./prologue-stop-guard.js";
 
 /**
  * What the parts of the Node composition share (W4-06 split `initializePrologueNodeAdapter` into them): the adapter's
@@ -20,8 +22,10 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
   questionTypes?: readonly import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionType[]; // typed types every interface showing questions renders; absent or empty: the plain question
-  /** Reads each object a person picked for a reference question again from its owner before the answer goes on (S-26); absent: refused. */
-  confirmReferences?: import("./prologue-questions.js").ReferenceConfirmer;
+  /** The kinds a reference question may ask for, each with its owner's name (T2); offered only with the "reference" type. */
+  referenceKinds?: ReadonlyArray<{ kind: string; title: string }>;
+  /** Reads each object a person picked for a reference question again from its owner before the answer goes on, for its label (S-26); absent: refused. */
+  readReferences?: import("./prologue-questions.js").ReferenceReader;
   /**
    * The side panel's browser pages (specs/archive/side-panel): attached to a business round in their project, looked at and
    * driven only through Prologue's interface control. Absent: no round gets the surface tools.
@@ -70,13 +74,15 @@ export interface RoundState {
   readonly gatewayHooks: Set<string>;
   /** Why each held ending was held, in order (the runtime's event does not say). */
   readonly heldLabels: Map<string, Array<{ target: string; summary: string }>>;
-  /** Per session, what the round now running really kept and forgot (only for sessions given memory tools). */
-  readonly memoryRounds: Map<string, { keep: number; forget: number; off: boolean; spoken: string; /** Given memory, but not the tool that keeps (or forgets): a work handed down by another work. */ without: { keep: boolean; forget: boolean } }>;
-  /** Suggestions this round really made: a reply may not say a button is ready when none was. */
-  readonly offerRounds: Map<string, { offered: number }>;
-  /** Calls this round finished without error: a reply may not say something was saved when no change was. */
+  /** Per business session, what the round now running really kept and forgot, and whether it could: switched off, or given without the tool that keeps (or forgets), as a work handed down by another work is. */
+  readonly memoryRounds: Map<string, { keep: number; forget: number; off: boolean; without: { keep: boolean; forget: boolean } }>;
+  /** Capability calls this round finished without error: a reply may not say something was saved when no change was. */
   readonly changeRounds: Map<string, { client: AgentActionClient; invoked: ExactActionReference[] }>;
-  readonly stopGuards: Map<string, { writing: boolean; held: Map<string, Set<HeldKind>> }>;
+  /** Per session, the stop check's view of the round now running (prologue-stop-guard.ts); the sessions whose check is registered. */
+  readonly stopGuards: Map<string, StopGuard>;
+  readonly stopHooks: Set<string>;
+  /** Per run, what the round called and how each call ended, from its events (ending-review.ts). */
+  readonly roundFacts: Map<string, RoundFacts>;
   readonly actionControllers: Map<string, AbortController>;
   readonly runRoots: Map<string, ExactRef<"authorized-root">>;
   readonly activeRuns: Map<string, { live(): boolean; steer(text: string): Promise<void> }>;
@@ -98,8 +104,8 @@ export interface RoundState {
 export function createRoundState(): RoundState {
   return {
     registeredMethods: new Map(), sessions: new Map(), actionToolSessions: new Set(), gatewayRuns: new Map(), gatewayKnown: new Map(),
-    gatewayHooks: new Set(), heldLabels: new Map(), memoryRounds: new Map(), offerRounds: new Map(), changeRounds: new Map(),
-    stopGuards: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runSessions: new Map(),
+    gatewayHooks: new Set(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
+    stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),
     liveSessions: new Map(), runWork: new Map(), dispatchChecks: new Map(),
   };

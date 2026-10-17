@@ -479,6 +479,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
 | 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
 | 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v1` | 三种时机；同键同文只算一次；回执说去向 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
+| 收尾核对 | 回复说做了、记住了、按钮好了或接下来要做，而这一轮其实没做 | `horizontal/agent-host/src/adapters/prologue-stop-guard.ts` 的收工钩子：可写的一轮没有任何成功的改动时，`ending-review.ts` 把结尾和宿主记的事实（`announce-guard.ts` 的 `RoundFacts`：调用过什么、结果如何）交给这一轮的模型核对一次；对不上的按种类各拦一次、接着做一次（用户 2026-09-28、2026-10-16）。核对的指令是这一轮的主人登记的提示词：Manifest 的 `ending_review` 指向它（`assistant-ending-review`、`coding-ending-review`），在「设置 › 提示词」里叫「收尾核对」，用用户改过的版本，版本记进开跑时冻结的记录（`frozen.ending_review`）；agent-host 自己不带提示词，只读回答里约定的那一行 JSON。内部标识只认宿主交给模型的；把调用写成文字按工具格式认 | 让模型读说法，宿主给事实；判断出错、超时或答得不对一律放行；有改动的一轮不核对 | 只在 Manifest 声明了 `ending_review` 的 Agent 上（现在是 Assistant 与 Coding）；有改动的一轮里多出来的假话不查；核对的用量不计入这一轮的预算 | 确定性：`tests/announce-guard.test.ts`、`tests/assistant-business-gateway.test.ts`、`tests/assistant-memory.test.ts`、`tests/agent-definitions.test.ts`；真实模型：手册需求书 §9.5 的 D1② 记录 |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
 | 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理） | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来 | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条） |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |
@@ -584,7 +585,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 现成的完整实例是创作台的回放与冒烟（`docs/platform/STUDIO-SKILL-REPLAY.md` 第 1 节与第 4 节：先离线回放，再在隔离 Home 里改前改后各跑 2–3 次冒烟、附两份报告）。按本格式写的第一份真实模型前后对比是项目上手的两段指令（需求书 §9.5）。
 
-**模型能力造成的坏效果，不按症状打补丁**（用户 2026-10-16）。开发和评测现在用的 MiniMax 能力较弱，评测里会有与设计无关的失败。坏效果来自模型自身的能力时，不头疼医头、脚疼医脚：不在提示词里为某一次的说法加一条禁令，也不在代码里为某一种失败加正则、特例分支或场景开关。这类补丁治不了能力，只会让指令和代码越来越脏——换个说法又漏掉，换个更强的模型又成了多余的限制。`horizontal/agent-host/src/adapters/announce-guard.ts` 里注明「Seen from MiniMax-M3」的措辞清单就是这样来的。判断时：
+**模型能力造成的坏效果，不按症状打补丁**（用户 2026-10-16）。开发和评测现在用的 MiniMax 能力较弱，评测里会有与设计无关的失败。坏效果来自模型自身的能力时，不头疼医头、脚疼医脚：不在提示词里为某一次的说法加一条禁令，也不在代码里为某一种失败加正则、特例分支或场景开关。这类补丁治不了能力，只会让指令和代码越来越脏——换个说法又漏掉，换个更强的模型又成了多余的限制。`horizontal/agent-host/src/adapters/announce-guard.ts` 里注明「Seen from MiniMax-M3」的措辞清单就是这样来的；D1②（用户 2026-10-16 定）把它们换成了收尾核对：一轮可写的工作没有任何成功的改动时，宿主把这一轮的事实交给模型核对一次结尾（见第 14 节「收尾核对」），不再按说法列清单。判断时：
 
 - 先按 16.4 看冻结记录：需要的事实、工具和回执都在，答案还是错，记为模型能力；缺了就改上下文或工具。
 - 比同一模型、同一批任务的前后差：改后不比改前差，又更短更清楚，就算改好了。两版都失败的任务记「两版都失败」，不算回归，也不拿来当加规则的理由。

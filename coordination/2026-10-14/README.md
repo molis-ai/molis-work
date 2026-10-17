@@ -521,6 +521,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - 交互线 T2（对象引用题）方案：**用户弹窗定**上游加 App 配置 `tool.askUserReferenceKinds`（schema 里 enum、清单外按 malformed 退回），由采用线提上游 PR；换包并进采用线下一次（随 P4）。**统筹 10-17 定**不升提示词（同 D32）。字节差额（预计 6–7 KB）开 PR 前报准确数字、弹窗问用户，批了就照 3c 用一次性 APPROVED_CEILINGS。T2 排在 #622、#618 和那次换包之后。
     - 采用线 #626（A5，只改测试）审过、挂全量；#627（Coding 协调者加板工具，统筹定 A）退回补一条非浏览器用例：协调者带确认过的计划开跑不再被拒、按计划认领与回报（`STEP_TOOLS` 检查对协调者放行是用户看得到的变化，PR 自己写着没用例）。
     - **#619、#624 暂缓**：防腐线发现 W5-05 的等价证明没覆盖原生桌面模式（服务端只在 `X-Molis-Work-Desktop: 1` 时渲染桌面外壳；探针与 visual-surfaces 都没带），`visual-foundation.test.ts` 第 4 片有 3 条红；正在补测 #611、#619、#624 与第 4 片，有差就补回主人样式表（#611 另开修复 PR）。#624 的修正（两条 `.navigator-personal` 规则真合并）已接受。v3 要按主人拆成 4a–4e。
+    - #622 重钉后 `371b58193`（workbench.js [1097095, 1101205] +4,110；代码 diff 与审过的一致）挂全量；#627 补 PA-09 用例后 `ad7420924`（协作带确认计划开跑不被拒、两步归本会话按序报告；去掉板工具即红）挂在 #626、#622 之后。协调者何时让出（评测 2/7）记 BACKLOG 归 AI 手册线，不在本片改提示词。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

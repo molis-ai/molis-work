@@ -123,7 +123,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           };
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
           const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
-            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref)), ...(lifetime ? { signal: lifetime.signal } : {}) };
+            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
           const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
           // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {

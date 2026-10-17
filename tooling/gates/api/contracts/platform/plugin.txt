@@ -421,6 +421,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
     readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
     readonly signal?: AbortSignal;
+    readonly retain_background_authority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
     readonly on_progress?: (event: {
         readonly stage: string;
         readonly progress: number;
@@ -465,6 +466,7 @@ export interface ActionErrorOptions {
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
     readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+    readonly retainBackgroundAuthority?: () => RetainedActionAuthority;
 }
 
 export interface ActionExecutionPolicy {
@@ -913,7 +915,7 @@ export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">, transport?: ActionInvokeTransport): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2411,6 +2413,17 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
     trace?: ArtifactReference[];
 }
 
+export interface PluginBackgroundClient {
+    start<T>(work: (control: PluginExecutionControl) => Promise<T>, options?: {
+        signal?: AbortSignal;
+    }): Promise<PluginBackgroundExecution<T>>;
+}
+
+export interface PluginBackgroundExecution<T> {
+    readonly result: Promise<T>;
+    cancel(): void;
+}
+
 export interface PluginCapabilityClient {
     availability(capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
     invoke<Input, Output>(capability: HostCapabilityDefinition<Input, Output>, input: Input, options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions): Promise<Output>;
@@ -2660,7 +2673,7 @@ export interface PluginEventsRepository {
     deleteCursors(projectId: string, subscriberPluginId: string): void;
 }
 
-export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current"> & {
+export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority"> & {
     readonly project_id?: string;
 };
 
@@ -2692,6 +2705,7 @@ export interface PluginFilesDeclaration {
 }
 
 export interface PluginHostServices {
+    readonly background?: import("platform/plugin-background").PluginBackgroundClient;
     readonly actions?: import("@molis-ai/molis-work-contracts/platform/actions").BoundActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
@@ -3193,7 +3207,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "materials"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "materials" | "background"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

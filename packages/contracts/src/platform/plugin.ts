@@ -1,4 +1,5 @@
 import type { ArtifactReference } from "../modules/artifacts.js";
+export type { PluginBackgroundClient, PluginBackgroundExecution } from "./plugin-background.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
 import type { RawEventAdapter } from "../services/listener-host.js";
 import type { HostCapabilityDefinition } from "./app-host.js";
@@ -77,6 +78,8 @@ export interface PluginCapabilityClient {
 }
 
 export interface PluginHostServices {
+  /** One finite continuation of an accepted action; business jobs and recovery remain plugin-owned. */
+  readonly background?: import("./plugin-background.js").PluginBackgroundClient;
   /** Host-bound entry to this Plugin's declared public actions; no arbitrary capability access. */
   readonly actions?: import("./actions.js").BoundActionClient;
   /** Present only when the Manifest declares private storage. Actual grant is checked on each operation. */
@@ -328,7 +331,7 @@ export type PluginRouteStreamLine =
   | { type: "result"; result: unknown }
   | { type: "error"; status: number; code: string; error: string; call_id?: string; details?: Readonly<Record<string, unknown>> };
 
-export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current"> & {
+export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority"> & {
   /**
    * The project a Home instance's route was called in: the Host reads it from the page's path (`/projects/<id>/api/plugins/…`) after
    * checking that the project exists and shows this plugin, never from the route's parameters, query or body. The plugin's own action
@@ -409,7 +412,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "materials"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "materials" | "background"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

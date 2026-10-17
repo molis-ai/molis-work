@@ -29,7 +29,12 @@ export function projectRouteControl(control: Omit<PluginExecutionControl, "proje
     assert_authority_current: () => {
       if (state.ended) throw ended();
       control.assert_authority_current?.();
-    } });
+    },
+    retainBackgroundAuthority: control.retainBackgroundAuthority ? () => {
+      if (state.ended) throw ended();
+      const authority = control.retainBackgroundAuthority!();
+      return Object.assign(async () => { await authority(); await current(); authority.assertCurrent(); }, { assertCurrent: authority.assertCurrent });
+    } : undefined });
   routedControls.set(routed, state);
   return { control: routed, end: () => { state.ended = true; } };
 }

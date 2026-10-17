@@ -146,6 +146,14 @@ Manifest 路由可声明 `stream: "ndjson"`，只支持 POST。`bindPluginAction
 
 SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UTF-8 字节（含换行），至多 10,000 行，合计 1,048,576 字节；任一超限取消调用，并以 `actions.output_invalid` 错误末行结束。显式 `max_body_bytes` 最大 45,000,000 字节，项目默认 256,000、Home 默认 12 MiB 不变。客户端断连或实例停用、撤权后，Host 结束等待并释放观察器；已经开始的外部操作由插件用取消信号清理。处理器晚到时，仍须在写入前执行 `beforeEffect()`，不得写成功、失败或其他业务记录。
 
+## 已受理的后台执行
+
+宿主自己运行的 Home/项目插件可在本安装的活跃并发 command 里 `await services.background.start(async control => …, { signal? })`。动作必须声明 `background_job`，否则拒绝；沙箱、升级预检没有该服务，启动钩子、直接路由、过期处理器和其他安装也不能借它开始工作。返回句柄的 `result` 是结果 Promise，`cancel()` 只取消这次执行；插件自己保存任务、幂等键、状态与恢复决定，平台不重试、不在重启后重放。
+
+后台回调保留原动作的身份、项目、权限和精确注册，并用新控制调用既有模型与数据服务。每次写入都要先 `await control.beforeEffect()`，提交前同步检查 `control.assert_authority_current?.()`；不能继续使用已返回处理器的 caller。原 HTTP/MCP 正常结束或断开后，已受理工作可继续；原 MCP 授权撤销、插件停用/升级、Host 关闭或显式取消会终止本机等待，迟到的成功与失败都不得写业务记录。没有入口提供独立后台授权的调用仍服从原 signal；不能借它逃离 Agent 的取消。项目路径上的 Home 路由仍在原项目里，提交时重查项目存在且显示该插件。
+
+执行仍在本进程；非配合式外部调用可能继续运行，插件须把控制的 signal 交给它。200 ms 周期复查使用已有 `createExecutionLifetime`，结束即释放；模型和文件服务在等待后另行核权。后台不再向已结束的路由发进度，不能递归接受后台执行；自己的结果结束后，旧控制和迟到模型回调也失效。验收见 `tests/security-invariants-plugin-background.test.ts` 与 `tests/runtime-plugin-http-discovery.test.ts`。
+
 ## 当前项目设置
 
 跨模块读取当前项目目标目录、创建意图或补充便笺可引用 Goals 的 `goalsActions.list/create/note`。公共动作输入只有业务字段，项目与 actor 由可信调用上下文绑定；不要把内部 typed Capability 的 actor 字段复制进动作 JSON。权限分别为 `goals:read` / `goals:write`，写入重试保留原 idempotency key。Goals 的写入声明 `authorship: "session"`，审计作者由宿主写进 `caller.audit_actor_id`，它属于可信上下文，不是业务参数，不改变客户端授权，也不授予决策权限；外部客户端只看到被授予的动作工具。其他 Goals 事件能力仍按其现有接口和审批合同使用，见 Goals 包 README。

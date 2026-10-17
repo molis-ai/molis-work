@@ -9,6 +9,7 @@ import { pluginHomeFor } from "./home-side.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
+import { pluginBackgroundFor } from "./plugin-background-service.js";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
@@ -49,10 +50,11 @@ export class HomePluginExecutor implements PluginExecutor {
     const ui = createPluginUiClient(new UiHost(), context, manifest);
     let database: ReturnType<typeof openPluginDatabase> | undefined;
     let files: ReturnType<typeof openPluginFiles> | undefined;
+    let background: ReturnType<typeof pluginBackgroundFor>;
     let withdrawAgentDefinitions: (() => void) | undefined;
     let withdrawCaller: (() => void) | undefined;
     const dispose = () => {
-      active = false; withdrawCaller?.();
+      active = false; background?.close(); withdrawCaller?.();
       const failures: unknown[] = [];
       for (const release of [() => database?.close(), () => files?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
@@ -72,15 +74,16 @@ export class HomePluginExecutor implements PluginExecutor {
       const authorized = { ...context, requireGrant: authorize };
       const model = pluginModelFor(home, definition, authorized, assertActive);
       const materials = pluginMaterialsFor(home, definition, authorized, assertActive);
+      background = pluginBackgroundFor(definition, authorized, assertActive);
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, database: database?.client, ...(files ? { files: files.client } : {}), ...(model ? { model } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}),
+        ui: ui.client, database: database?.client, ...(files ? { files: files.client } : {}), ...(model ? { model } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });
       const contribution = await definition.start(hosted);
-      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; withdrawCaller?.(); }, dispose });
+      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose });
       return { contribution };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }

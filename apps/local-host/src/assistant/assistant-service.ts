@@ -1511,8 +1511,7 @@ export class AssistantService {
     try {
       if (!work.reply_target) await this.memoryForRound(work, text, context);
       prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered, unavailable);
-      work = await this.delegations.place(work); assertSendCurrent(stillCurrent);
-      handle = await host.start(RUNTIME, {
+      handle = await this.delegations.startPlaced(work, async placed => { work = placed; assertSendCurrent(stillCurrent); return host.start(RUNTIME, {
         project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
         session: sessionRef(work), role_id: role, workspace: "business", task: text,
         action_gateway: !work.reply_target,
@@ -1525,7 +1524,7 @@ export class AssistantService {
         ...(work.delegated_by || work.reply_target ? { browser: false as const } : {}),
         // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
         ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
-      }, authority);
+      }, authority); });
     } catch (error) {
       // No round exists: what its recall was given went into none, and nothing it would have told is told.
       const receipt = this.recalled.get(work.work_id);

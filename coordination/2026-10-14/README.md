@@ -1006,3 +1006,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 03:00 UTC：#680（A4）合入 8abfffc02，P4 助理那一半 A1–A4 全部在 main 上。A4 改真实 Home 存量的一次性脚本，按用户的定法等下一次安装、和维护八一起做，到时再问用户。#688（回执 3d-2）新 head ac81e31a8：门禁之外和 3d-2 自己的改动逐行一致（483 行），键 [1108502, 1109302]、[373784, 373985]，正好 +800/+201；排在 chain31。#693 已加标签，全量在排队，链被合并引用过期跳过后手动加的。
 - 统筹 10-18 认可回执 3d-3（D2、D23），叠在 #688 上：板上的步骤显示「来自补充」徽标；AI 说是 new-task 时出现虚线的提议行，人点「加进计划」才走人插入的那条路，节点带 origins。origins 由宿主按本会话自己的记录核，伪造的、别的会话的都拒，被拒时零写入；AI 没有路径能直接加步骤（要有反例用例）；合同改动跑 api:update，动作改动跑 actions:update。
 - 统筹 10-18 定（采用线查实了 PATH 的问题）：Node Host 起命令时 PATH 是从 Host 自己的进程环境拷的，`.`、空项、相对项都能找到授权根里的可执行文件（本机实测）。今天的 run-command 也有这个问题：审查的意思会被绕过。选 B：PATH 只留绝对项，单开一个 Prologue PR 先合（Tauri 和内存 Host 要一起查），带拒绝用例和变异；写后检查那一刀叠在它上面。换包时 Molis 在 SECURITY-INVARIANTS 的命令那一节加一行。
+
+- 10-18 #694（情境 W2'-1，ea0e27873）审过：改名不留别名、order 排序、Escape 由面板处理、默认格写进正文均可；退回删三处死代码（plugin-membership.ts:56-60 的 data-resident 分支与注释、primitive-catalog.ts:91、craft-finish.ts 里 .bar-side 上的旧注释）并改 context-program R4 行的「未合入」；新 head 来了再加标签跑全量。

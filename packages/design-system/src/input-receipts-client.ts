@@ -22,22 +22,24 @@ export interface InputReceiptActions {
 export interface InputReceipts {
   /**
    * The receipt under one of the person's supplements, or the Host's mark on a note it wrote for them; null for anything
-   * else. The same turn always gets the same element back, changed in place, so an open detail stays open across repaints,
-   * and so does a correction being written in it. Without `act` it only shows.
+   * else. `owner` is the surface that draws it (the Assistant's thread, Coding's conversation): each keeps its own, so two
+   * showing the same round do not pull one element back and forth. On one surface the same turn always gets the same
+   * element back, changed in place, so an open detail stays open across repaints, and so does a correction being written in
+   * it. Without `act` it only shows.
    */
-  line(turn: InputReceiptTurn, round?: InputReceiptRound, act?: InputReceiptActions): HTMLElement | null;
+  line(owner: Element, turn: InputReceiptTurn, round?: InputReceiptRound, act?: InputReceiptActions): HTMLElement | null;
   /**
    * 「N 条还没处理完」 (stage 3b-2b): what waits in the session for the next round, and what the latest round's ledger
-   * leaves open, drawn from the receipts the page has drawn; null when nothing is open. `owner` is the container that
-   * draws it: each one keeps its own element across repaints, so an open tray stays open. `queued` undefined: the
+   * leaves open, drawn from the receipts `owner` has drawn; null when nothing is open. `owner` is the surface that draws it,
+   * the same as its receipts': each keeps its own element across repaints, so an open tray stays open. `queued` undefined: the
    * session's queue was not read this time (a round is live), so the tray says nothing about it, not that it is empty.
    */
   tray(owner: Element, queued: readonly InputReceiptQueued[] | undefined, round?: InputReceiptRound, act?: Pick<InputReceiptActions, "withdraw">): HTMLElement | null;
   /**
-   * 「关于补充「…」」 (stage 3d-2): a button that opens the receipt this page drew for the input, focus on its summary; null
-   * when the page drew none (an earlier round not shown), so no button does nothing. `first` runs before (a dialog closing).
+   * 「关于补充「…」」 (stage 3d-2): a button that opens the receipt `owner` drew for the input, focus on its summary; null
+   * when it drew none (an earlier round not shown), so no button does nothing. `first` runs before (a dialog closing).
    */
-  link(inputId: string, first?: () => void): HTMLElement | null;
+  link(owner: Element, inputId: string, first?: () => void): HTMLElement | null;
 }
 
 /**
@@ -80,8 +82,10 @@ export const RECEIPT_WORDS = {
  */
 export function createInputReceipts(L: (text: string) => string, tray: (parts: InputReceiptParts) => InputReceipts["tray"], correction: <E extends CorrectionEntry>(parts: InputReceiptParts, again: (entry: E) => void) => (entry: E) => void, words: typeof RECEIPT_WORDS): InputReceipts {
   const { FACT, TREATMENT, KIND, IMPACT, TARGET, QUESTION } = words;
-  type Shown = { root: HTMLDetailsElement; said: string; turn: InputReceiptTurn; round?: InputReceiptRound; act?: InputReceiptActions; form?: HTMLFormElement; problem?: string; fix?: { key: string; text: string } };
-  const shown = new Map<string, Shown>(), byInput = new Map<string, string>(), fixes = new Map<string, string[]>();
+  type Surface = { shown: Map<string, Shown>; byInput: Map<string, Shown>; fixes: Map<string, string[]> };
+  type Shown = { at: Surface; root: HTMLDetailsElement; said: string; turn: InputReceiptTurn; round?: InputReceiptRound; act?: InputReceiptActions; form?: HTMLFormElement; problem?: string; fix?: { key: string; text: string } };
+  // What each surface drew: its receipts, which one is each input's latest, and the corrections it has seen of each input.
+  const surfaces = new WeakMap<Element, Surface>();
   let live: HTMLElement | null = null, pending: string[] = [];
   const make = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text = "") => {
     const node = document.createElement(tag); node.className = cls; node.textContent = text; return node;
@@ -95,9 +99,9 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
   };
   const row = (list: HTMLElement, term: string, value: string) => { list.append(make("dt", "", L(term)), make("dd", "", value)); };
   const quote = (text: string) => text.length > 12 ? text.slice(0, 12) + "…" : text;
-  const of = (inputId: string) => shown.get(byInput.get(inputId) ?? "");
-  /** Both ends of a correction, as drawn: the input this one corrects, and the latest one correcting it. */
-  const ends = (steer: AgentTurnSteer) => [of(steer.about ?? ""), of(fixes.get(steer.id)?.at(-1) ?? "")] as const;
+  const of = (at: Surface, inputId: string) => at.byInput.get(inputId);
+  /** Both ends of a correction, as drawn on the same surface: the input this one corrects, and the latest one correcting it. */
+  const ends = ({ at, turn }: Shown) => [of(at, turn.steer!.about ?? ""), of(at, at.fixes.get(turn.steer!.id)?.at(-1) ?? "")] as const;
   const button = (cls: string, text: string, click: () => void) => {
     const node = make("button", "mw-btn mw-btn--sm " + cls, text); node.type = "button"; node.addEventListener("click", click); return node;
   };
@@ -135,7 +139,7 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
   };
   const acts = (entry: Shown, part: HTMLElement) => {
     const steer = entry.turn.steer!, act = entry.act;
-    const [about, latest] = ends(steer);
+    const [about, latest] = ends(entry);
     const links = make("div", "mw-receipt__acts");
     if (about) links.append(button("mw-btn--link", L("看原来那条"), () => reveal(about)));
     if (latest) links.append(button("mw-btn--link", L("看更正"), () => reveal(latest)));
@@ -171,7 +175,7 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
     const waits = (round?.awaiting_input ?? []).length > 0 && (steer.state === "received" || steer.state === "applied");
     const fact = L(waits ? "已补充到这一轮；问题仍在等你回答" : FACT[steer.state]);
     const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
-    const [about, fixed] = ends(steer), cited = cites(steer, round?.step_board);
+    const [about, fixed] = ends(entry), cited = cites(steer, round?.step_board);
     const link = steer.about ? L("纠正：针对") + (about ? L("「") + quote(about.turn.text) + L("」") : L("更早的一条")) : fixed ? L("你改为：「") + quote(fixed.turn.text) + L("」") : "";
     const key = JSON.stringify([fact, claim, ask, steer, link, Boolean(entry.act), cited]), before = entry.said ? JSON.parse(entry.said) as string[] : null;
     if (!force && entry.said === key) return;
@@ -193,27 +197,32 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
     }
     entry.said = key;
   };
-  const latest = () => [...shown].filter(([id, entry]) => byInput.get(entry.turn.steer!.id) === id).map(([, entry]) => ({ turn: entry.turn, round: entry.round, open: () => reveal(entry) }));
+  /** The latest drawing of each input on the surface `owner`, each with a way to open it (the tray's items). */
+  const latest = (owner: Element) => {
+    const at = surfaces.get(owner);
+    return at ? [...at.byInput.values()].map(entry => ({ turn: entry.turn, round: entry.round, open: () => reveal(entry) })) : [];
+  };
   // What the tray and the correction form share of the receipts.
   const parts = { L, say, make, button, quote, latest, attempt, redraw, treatment }, correct = correction<Shown>(parts, entry => draw(entry, true));
   return {
     tray: tray(parts),
-    link(inputId, first) {
-      const entry = of(inputId);
+    link(owner, inputId, first) {
+      const at = surfaces.get(owner), entry = at && of(at, inputId);
       return entry ? button("mw-btn--link", L("关于补充「") + quote(entry.turn.text) + L("」"), () => { first?.(); reveal(entry); }) : null;
     },
-    line(turn, round, act) {
+    line(owner, turn, round, act) {
       const steer = turn.steer;
       if (!steer) return null;
       if (turn.kind === "notice") return make("small", "mw-receipt mw-receipt--host", L("Molis 的说明，不是你发的话"));
       if (turn.kind !== "user") return null;
       // Known by its round and input id: a turn id only counts within one round, the page draws every round, and a supplement
       // a round did not read is carried into the next under the same input id (decision D28).
-      const id = round?.run_id + " " + steer.id, entry = shown.get(id) ?? { root: make("details", "mw-receipt"), said: "", turn };
-      Object.assign(entry, { turn, round, act }); shown.set(id, entry); byInput.set(steer.id, id);
-      const list = steer.about ? fixes.get(steer.about) ?? [] : [];
-      // A correction seen for the first time changes its original's receipt too, wherever the page drew that one.
-      if (steer.about && !list.includes(steer.id)) { fixes.set(steer.about, [...list, steer.id]); const original = of(steer.about); draw(entry); if (original) draw(original); }
+      const at = surfaces.get(owner) ?? surfaces.set(owner, { shown: new Map(), byInput: new Map(), fixes: new Map() }).get(owner)!;
+      const id = round?.run_id + " " + steer.id, entry = at.shown.get(id) ?? { at, root: make("details", "mw-receipt"), said: "", turn };
+      Object.assign(entry, { turn, round, act }); at.shown.set(id, entry); at.byInput.set(steer.id, entry);
+      const list = steer.about ? at.fixes.get(steer.about) ?? [] : [];
+      // A correction seen for the first time changes its original's receipt too: each surface that draws it redraws its own copy.
+      if (steer.about && !list.includes(steer.id)) { at.fixes.set(steer.about, [...list, steer.id]); const original = of(at, steer.about); draw(entry); if (original) draw(original); }
       else draw(entry);
       return entry.root;
     },
@@ -266,7 +275,7 @@ export interface InputReceiptParts {
   make<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: string): HTMLElementTagNameMap[K];
   button(cls: string, text: string, click: () => void): HTMLButtonElement;
   quote(text: string): string;
-  latest(): Array<{ turn: InputReceiptTurn; round?: InputReceiptRound; open(): void }>;
+  latest(owner: Element): Array<{ turn: InputReceiptTurn; round?: InputReceiptRound; open(): void }>;
   attempt(holder: { problem?: string }, work: () => Promise<string | void>): Promise<void>;
   redraw(root: HTMLElement, summary: HTMLElement, part: HTMLElement): void;
   treatment(claim: AgentInputModelClaim): string;
@@ -284,8 +293,8 @@ export function createInputTray({ L, say, make, button, quote, latest, attempt, 
   // One tray per surface that draws it, so a Coding page and the Assistant beside it showing the same round each keep their own.
   type Tray = { root: HTMLDetailsElement; said: string; run?: string; count?: number; problem?: string };
   const trays = new WeakMap<Element, Tray>();
-  const open = (queued: readonly InputReceiptQueued[], round?: InputReceiptRound) => {
-    const drawn = latest(), groups: { text: string; id: string; open?: () => void; queued?: boolean }[][] = GROUPS.map(() => []);
+  const open = (owner: Element, queued: readonly InputReceiptQueued[], round?: InputReceiptRound) => {
+    const drawn = latest(owner), groups: { text: string; id: string; open?: () => void; queued?: boolean }[][] = GROUPS.map(() => []);
     for (const one of queued) groups[0]!.push({ text: one.text, id: one.input_id, open: drawn.find(item => item.turn.steer!.id === one.input_id)?.open, queued: true });
     for (const { turn, round: of, open: show } of drawn) {
       const steer = turn.steer!, claim = steer.model_claim;
@@ -306,7 +315,7 @@ export function createInputTray({ L, say, make, button, quote, latest, attempt, 
     // A new round starts afresh (the same element), so its first count is not a change in the last one's.
     if (!tray || tray.run !== round?.run_id) trays.set(owner, tray = { root: tray?.root ?? make("details", "mw-receipt mw-tray"), said: "", run: round?.run_id });
     const { root } = tray;
-    const groups = open(queued ?? [], round), total = groups.flat().length;
+    const groups = open(owner, queued ?? [], round), total = groups.flat().length;
     // With the queue unread, none open in the round is not none open at all.
     if (tray.count !== undefined && tray.count !== total && (total || queued)) say(total ? total + L(" 条还没处理完") : L("没有还没处理完的了"));
     tray.count = total;

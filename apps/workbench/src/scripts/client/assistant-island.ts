@@ -618,7 +618,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           bubble.dataset.text = turn.text;
           if (kind === "assistant") { bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
         }
-        put(bubble); receipts.line(node, put, turn, round);
+        put(bubble); receipts.line(thread, node, put, turn, round);
         if (kind === "assistant") {
           const copy = keyed(node, "data-entry", "copy:" + turn.turn_id, () => {
             const btnEl = el("button", "assistant-copy", L("复制")); btnEl.type = "button";

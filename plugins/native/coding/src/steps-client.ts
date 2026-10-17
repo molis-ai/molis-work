@@ -27,7 +27,7 @@ export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(node.owner)detail.append(el('p','负责：'+(node.owner.kind==='person'?'你':node.owner.label)));
       const reports=el('ol','');
       // A report naming a supplement opens its receipt in the conversation, when this page drew one.
-      for(const report of node.reports){const li=el('li',(report.by?report.by+'：':'')+report.note);for(const one of report.inputs||[]){const link=receipts.link(one.input_id,()=>dialog.close());if(link)li.append(' ',link);}reports.append(li);}
+      for(const report of node.reports){const li=el('li',(report.by?report.by+'：':'')+report.note);for(const one of report.inputs||[]){const link=receipts.link(q('[data-coding-turns]'),one.input_id,()=>dialog.close());if(link)li.append(' ',link);}reports.append(li);}
       detail.append(reports);
       if(!node.reports.length)detail.append(el('p','尚无模型步骤回报。'));
       if(verdict){detail.append(el('p',verdict.status==='accepted'?'用户已验收通过':'用户要求返工'),el('p',verdict.notes));if(verdict.project_id!==entry.board.project_id||verdict.board_version!==entry.board.version)detail.append(el('p','这条评价对应较早回报，请重新核对当前版本。'));}

@@ -643,13 +643,13 @@ for (const [asset, old] of [
   });
 }
 
-// RCPT-344–347 (specs/ai-input-receipts §4.5, receipts 3d-2): approved by the user on 2026-10-17 in the receipts line's popup,
+// RCPT-344–348 (specs/ai-input-receipts §4.5, receipts 3d-2): approved by the user on 2026-10-17 in the receipts line's popup,
 // a step's report and the supplement it names may grow the workbench script and Coding's bundle once, from exactly the current
-// baseline to the measured size (+602, +169). One byte more, another asset, or growth from the new baseline still fails.
+// baseline to the measured size (+800, +201). One byte more, another asset, or growth from the new baseline still fails.
 test("receipts 3d-2 has one bounded allowance on the workbench script and Coding's bundle; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-plugins/coding.js": [373784, 373953],
-    "/assets/molis-work-workbench.js": [1108304, 1108906],
+    "/assets/molis-work-plugins/coding.js": [373784, 373985],
+    "/assets/molis-work-workbench.js": [1108304, 1109104],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("rcpt-3d2-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

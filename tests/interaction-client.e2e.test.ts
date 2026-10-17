@@ -24,12 +24,15 @@ const card = renderInteractionQuestion({
     { id: "minutes", label: "时长", control: { kind: "number", value: "30", step: 5, min: 15, max: 40, integer: true, unit: "分钟" } },
     { id: "date", label: "日期", control: { kind: "date", value: "2026-10-15", calendar } },
     { id: "when", label: "开始", control: { kind: "datetime", date: "2026-10-16", time: "10:00", zone: "UTC−07:00", calendar } },
-    { id: "refs", label: "材料", control: { kind: "reference", candidates: [{ id: "g", label: "G" }, { id: "d", label: "D" }] } },
+    { id: "refs", label: "材料", control: { kind: "reference", source: "goal,page", multiple: true, max: 2, picked: [],
+      labels: { remove: "去掉", empty: "没有找到", failed: "搜不了", full: "够了", found: "{n} 个" } } },
   ],
 });
 const page = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>:root{${renderShellTokens("light")}${renderShapeTokens()}${renderControlMetrics()}}${TYPEFACE_STYLES}${PRIMITIVE_STYLES}${INTERACTION_STYLES}body{margin:0;padding:24px;background:var(--paper);color:var(--ink);font-family:var(--font)}.icon-sprite{position:absolute;width:0;height:0}svg{width:14px;height:14px;fill:none;stroke:currentColor}</style></head>
   <body>${renderIconSprite()}<div id="card" style="width:640px">${card}</div>
-  <script>window.log=[];window.client=(${INTERACTION_CLIENT_SCRIPT})(document.getElementById("card"),{onChange:c=>log.push(["change",c]),onAction:id=>log.push(["action",id]),onSubmit:()=>log.push(["submit"]),onStep:i=>log.push(["step",i])});document.documentElement.dataset.ready="1"</script></body></html>`;
+  <script>window.log=[];window.client=(${INTERACTION_CLIENT_SCRIPT})(document.getElementById("card"),{onChange:c=>log.push(["change",c]),onAction:id=>log.push(["action",id]),onSubmit:()=>log.push(["submit"]),onStep:i=>log.push(["step",i]),
+    references:(source,query)=>{window.asked.push([source,query]);return window.found(query)}});
+  window.asked=[];window.found=query=>Promise.resolve({items:[{value:"goal g",label:"Goal G",meta:"Goals"},{value:"page d",label:"Doc D"},{value:"page e",label:"Doc E"}].filter(item=>item.label.includes(query))});document.documentElement.dataset.ready="1"</script></body></html>`;
 const evaluate = <T = unknown>(browser: ChromePage, expression: string) => browser.evaluate<T>(expression);
 const log = (browser: ChromePage) => evaluate<Array<[string, unknown]>>(browser, "JSON.parse(JSON.stringify(window.log))");
 const clear = (browser: ChromePage) => evaluate(browser, "window.log.length = 0");
@@ -105,13 +108,14 @@ test("AC-18 / the shared interaction client works on the design system's markup 
   });
   await t.test("write() leaves the field being typed in alone and writes the rest", async () => {
     await evaluate(browser, `document.querySelector('[data-ix-value=notes]').focus()`);
-    await evaluate(browser, `window.client.write({ notes: "被覆盖？", minutes: "25", date: "2026-10-17", when: { date: "2026-10-18", time: "09:30" }, format: ["b"], refs: ["d"] })`);
+    await evaluate(browser, `window.client.write({ notes: "被覆盖？", minutes: "25", date: "2026-10-17", when: { date: "2026-10-18", time: "09:30" }, format: ["b"], refs: [{ value: "page d", label: "Doc D" }] })`);
     assert.equal(await value("notes"), "你好", "the focused field keeps what the person typed");
     assert.equal(await value("minutes"), "25");
     assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=date] [data-ix-weekday]').textContent`), "周六");
     assert.deepEqual(await value("when"), { date: "2026-10-18", time: "09:30" });
     assert.deepEqual(await value("format"), ["b"]);
-    assert.deepEqual(await value("refs"), ["d"]);
+    assert.deepEqual(await value("refs"), [{ value: "page d", label: "Doc D" }], "a picked object is drawn again from its value and label");
+    await evaluate(browser, `window.client.write({ refs: [] })`);
   });
   await t.test("Enter in a single-line field moves on; only ⌘/Ctrl+Enter submits; the submit button submits", async () => {
     await clear(browser);
@@ -171,7 +175,61 @@ test("AC-18 / the shared interaction client works on the design system's markup 
     assert.equal(await evaluate(browser, "document.activeElement.dataset.ixValue"), "minutes");
     await evaluate(browser, `window.client.showErrors({ refs: "请选一份" })`);
     assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=minutes] [data-ix-error]').hidden`), true, "a field that is fine again goes quiet");
-    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=refs] [data-ix-references]').getAttribute('aria-invalid')`), "true");
+    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=refs] [data-ix-ref-query]').getAttribute('aria-invalid')`), "true");
+  });
+  await t.test("AC-28-2, AC-28-6: a reference field asks the host as the person types and offers what it finds as a listbox", async () => {
+    const query = "[data-ix-field=refs] [data-ix-ref-query]", list = "#card [data-ix-field=refs] [role=listbox]";
+    await clear(browser);
+    await evaluate(browser, "window.asked.length = 0");
+    await browser.fill(query, "Doc");
+    assert.deepEqual(await log(browser), [], "typing a search is not a change of the answer");
+    await browser.wait(`!document.querySelector('${list}').hidden`);
+    assert.deepEqual(await evaluate(browser, "window.asked"), [["goal,page", "Doc"]], "one search after the typing settles, with the field's own source");
+    assert.deepEqual(await evaluate(browser, `[...document.querySelectorAll('${list} [role=option]')].map(o => o.dataset.ixRefOption)`), ["page d", "page e"]);
+    assert.equal(await evaluate(browser, `document.querySelector('${query}').getAttribute('aria-expanded')`), "true");
+    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=refs] [data-ix-ref-status]').textContent`), "2 个", "the count is spoken");
+    await key(browser, "ArrowDown");
+    assert.equal(await evaluate(browser, `document.querySelector('${query}').getAttribute('aria-activedescendant')`), "q-refs-o0");
+    await key(browser, "Enter");
+    assert.deepEqual(await value("refs"), [{ value: "page d", label: "Doc D" }]);
+    assert.deepEqual((await log(browser)).filter(([kind]) => kind === "change"), [["change", { field: "refs", value: [{ value: "page d", label: "Doc D" }] }]]);
+    assert.equal(await evaluate(browser, `document.querySelector('${list}').hidden`), true, "a pick closes the results");
+    assert.equal(await evaluate(browser, `document.activeElement === document.querySelector('${query}') && document.activeElement.value`), "", "and leaves the search empty, focused");
+    await browser.fill(query, "G");
+    await browser.wait(`!!document.querySelector('${list} [data-ix-ref-option="goal g"]')`);
+    assert.equal(await evaluate(browser, `document.querySelector('${list} [data-ix-ref-option="goal g"] .mw-ix-ref__meta').textContent`), "Goals");
+    await browser.click(`${list} [data-ix-ref-option="goal g"]`);
+    assert.deepEqual((await value("refs") as Array<{ value: string }>).map(ref => ref.value), ["page d", "goal g"]);
+    await browser.fill(query, "Doc E");
+    await browser.wait(`!!document.querySelector('${list} [data-ix-ref-option="page e"]')`);
+    await browser.click(`${list} [data-ix-ref-option="page e"]`);
+    assert.equal((await value("refs") as unknown[]).length, 2, "a multiple pick stops at its cap");
+    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=refs] [data-ix-ref-status]').textContent`), "够了");
+    await key(browser, "Escape");
+    assert.equal(await evaluate(browser, `document.querySelector('${list}').hidden`), true, "Escape closes the results");
+    await browser.click('[data-ix-field=refs] [data-ix-reference="page d"] [data-ix-unpick]');
+    assert.deepEqual((await value("refs") as Array<{ value: string }>).map(ref => ref.value), ["goal g"], "a chip's button removes it");
+    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=refs] [data-ix-reference="goal g"] [data-ix-unpick]').getAttribute('aria-label')`), "去掉 Goal G");
+    await browser.fill(query, "nothing");
+    await browser.wait(`document.querySelector('[data-ix-field=refs] [data-ix-ref-status]').textContent === "没有找到"`);
+    assert.equal(await evaluate(browser, `document.querySelector('${list}').hidden`), true);
+    await evaluate(browser, "window.found = () => Promise.reject(new Error('down'))");
+    await browser.fill(query, "Doc");
+    await browser.wait(`document.querySelector('[data-ix-field=refs] [data-ix-ref-status]').textContent === "搜不了"`);
+    assert.deepEqual((await value("refs") as Array<{ value: string }>).map(ref => ref.value), ["goal g"], "a failed search keeps what was picked");
+    // A slow answer to an earlier search never replaces a later one.
+    let release = "";
+    await evaluate(browser, `window.found = query => query === "Doc" ? new Promise(resolve => { window.late = () => resolve({ items: [{ value: "page d", label: "Doc D" }] }); }) : Promise.resolve({ items: [{ value: "goal g", label: "Goal G" }] })`);
+    await browser.fill(query, "Doc");
+    await browser.wait("typeof window.late === 'function'");
+    await browser.fill(query, "Goal");
+    await browser.wait(`!!document.querySelector('${list} [data-ix-ref-option="goal g"]')`);
+    release = await evaluate<string>(browser, "(window.late(), 'released')");
+    await evaluate(browser, "new Promise(resolve => setTimeout(resolve, 50))");
+    assert.equal(release, "released");
+    assert.deepEqual(await evaluate(browser, `[...document.querySelectorAll('${list} [role=option]')].map(o => o.dataset.ixRefOption)`), ["goal g"]);
+    await key(browser, "Escape");
+    await evaluate(browser, `window.client.write({ refs: [] })`);
   });
   await t.test("destroy() removes every listener", async () => {
     await clear(browser);
@@ -190,7 +248,9 @@ test("AC-18 / the shared interaction client works on the design system's markup 
     assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-value=minutes]').value`), "45");
     assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-notice]').hidden`), true);
     assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-field=minutes] [data-ix-error]').hidden`), true);
-    await browser.click(`${card} [data-ix-reference="goal"]`);
+    await browser.fill(`${card} [data-ix-field=materials] [data-ix-ref-query]`, "试用");
+    await browser.wait(`!!document.querySelector('${card} [data-ix-ref-option="goal"]')`);
+    await browser.click(`${card} [data-ix-ref-option="goal"]`);
     assert.equal(await evaluate(browser, `document.querySelector('${card} [data-ix-field=materials] [data-ix-error]').hidden`), true, "changing a field clears its own error");
     await browser.fill(`${card} [data-ix-value=minutes]`, "x");
     await browser.click(`${card} [data-ix-action="submit"]`);

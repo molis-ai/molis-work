@@ -17,7 +17,7 @@
 export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,landed})=>{
   const SENT={'next-boundary':'已送达，当前回复或这批工具结束后交给 AI。',interrupt:'已送达：正在写的回复已丢掉，按你的话接着做；已执行的操作不撤销。','after-run':'已存好，下一轮开始时带上。'};
   const small=text=>{const node=document.createElement('small');node.className='coding-turn-receipt';node.textContent=text;return node;};
-  const AGAIN='之前已送到，没有重复发送。';let item=null;
+  const AGAIN='之前已送到，没有重复发送。';let item=null,strip=null;
   const send=async sent=>{
     sent.lost=0;item=sent;refresh();const writing=sent.mode=='interrupt'&&q('.coding-turn.is-writing');
     try{
@@ -40,6 +40,15 @@ export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,land
         node.append(small(item.lost?'没确认送到 · 再按发送，同一条不会重复':'发送中…'));
       }
       return item.node;
+    },
+    // What waits for the next round, at the end of the conversation (D31): the runtime's queue, read between rounds.
+    waiting(list){
+      const key=JSON.stringify(list.map(one=>one.input_id));if(key==strip?.dataset.key)return strip;
+      if(!list.length)return strip=null;
+      const node=strip=document.createElement('details');node.className='coding-turn coding-queued-inputs';node.dataset.kind='notice';node.dataset.key=key;
+      const head=document.createElement('summary');head.textContent='排着 '+list.length+' 条补充，下一轮开始时带上';node.append(head);
+      for(const one of list){const line=document.createElement('p');line.textContent=one.text;node.append(line);}
+      return node;
     },
   };
 }`;

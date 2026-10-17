@@ -1,7 +1,7 @@
 import type { ExactRef, Runtime } from "@prologue/sdk";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentErrors } from "../errors.js";
-import { readyStep } from "./prologue-collaboration.js";
+import { eligibleContinuation, readyStep } from "./prologue-collaboration.js";
 import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
 
 type Node = ReturnType<Runtime["boards"]["get"]>["nodes"][number];
@@ -76,7 +76,9 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
   return {
     port,
     /** Where a round of a session on a work's graph stands: the step it holds there, made ready if it was held for the person. */
-    async binding(saved: SessionIndex & { work_graph: string }, session: ExactRef<"session">, actor: string): Promise<{ board: string; node: string }> {
+    async binding(saved: SessionIndex & { work_graph: string }, session: ExactRef<"session">, actor: string): Promise<{ board: string; node: string; requestKey?: string }> {
+      const ready = eligibleContinuation(runtime, session, [boardRef(saved.work_graph)]);
+      if (ready) return ready;
       const held = runtime.boards.assignedTo(session).find(entry => entry.ref.id === saved.work_graph)?.nodes.at(-1);
       if (!held) throw agentErrors.collaboration_unknown("这项工作的任务图上没有这个会话可以接着做的一步");
       await readyStep(runtime, saved.work_graph, held.id, actor);

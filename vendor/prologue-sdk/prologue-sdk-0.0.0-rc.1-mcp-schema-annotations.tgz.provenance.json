@@ -1,0 +1,45 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "d2b3daa3de0744504b3098a17604f5f66019a29e",
+    "mergedUpstream": {
+      "pullRequest": 36,
+      "head": "8357a7af34a4a79fb36f49d48006c17ceffc3b7f",
+      "mergedAt": "2026-10-17T10:29:42Z",
+      "note": "MCP accepts supported parameter annotations without losing constraints or raw shape drift detection, and validates arguments before dispatch. Includes prior App-tools waits and MCP refresh."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-mcp-schema-annotations.tgz",
+    "bytes": 1192221,
+    "sha256": "15f69f92c7e62dbe5a5d68ccfe3297b019ff21a6ec8018e222019c192b1681a5",
+    "integrity": "sha512-q0e59Lqip6RRDJ7yqkHABZWhBBUcV4pEpH+W25yTPXmBgM3wmA56p/4WmzWwahYgSZqYF1JSc9AuljvaMYhwEw=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive d2b3daa3de0744504b3098a17604f5f66019a29e | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --offline",
+      "pnpm --filter @prologue/sdk run build",
+      "cd packages/sdk && pnpm pack --out <dir>/prologue-sdk-0.0.0-rc.1-mcp-schema-annotations.tgz"
+    ],
+    "packedOn": "2026-10-17",
+    "reproducedFrom": "d2b3daa3de0744504b3098a17604f5f66019a29e",
+    "reproducedByteIdentical": true,
+    "note": "Packed from a clean archive of merged PR #36; independent candidate and clean-archive builds are byte-identical. Targeted MCP/Tool/structured-output/public-surface regression: 24 files / 299 tests passed; full typecheck and build passed. Thirteen clean installed-package consumers and actual read-only GitHub Issue #1 access passed on these bytes; 46 tools discovered. No paid model requests or real desktop-control tests in the SDK batch."
+  }
+}

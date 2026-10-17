@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { endingReviewReply } from "./fixtures/ending-review.js";
 
 const sse = (type: string, value: object) => `event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`;
 const start = sse("message_start", { message: { id: "m", type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } })
@@ -25,6 +26,9 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   const model = createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    const review = endingReviewReply(raw);
+    if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(reply(review)); return; }
     bodies.push(JSON.parse(raw));
     res.writeHead(200, { "content-type": "text/event-stream" });
     if (bodies.length === 1) { res.write(start + sse("content_block_delta", { index: 0, delta: { type: "text_delta", text: "正在看登录流程，" } })); held.push(res); return; }
@@ -78,6 +82,13 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(await evaluate<boolean>(`!document.querySelector('${coding} [data-coding-stop]').hidden && !document.querySelector('${coding} [data-coding-status]').textContent.includes('停止')`), true);
 
+  // RC-18: words for the next round wait in the session; nothing shows them while this round runs.
+  await fill(`${coding} [data-coding-send-mode]`, "after-run");
+  await fill(`${coding} [data-coding-task]`, "下一轮顺便看注册接口");
+  await click(`${coding} [data-coding-send]`);
+  await waitFor(`document.querySelector('${coding} [data-coding-status]').textContent.includes('已存好，下一轮开始时带上')`, 15_000);
+  assert.equal(await evaluate<boolean>(`Boolean(document.querySelector('${coding} .coding-queued-inputs'))`), false, "read only while no round is live");
+
   // The mode menu is the shared select menu; each choice says what it does, and interrupting says what it costs.
   const trigger = `${coding} [data-coding-mode] [data-mw-select-trigger]`;
   await click(trigger);
@@ -119,4 +130,12 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   // RC-16: the page marks the reply it showed being written as dropped; the runtime's record does not (a Prologue need).
   assert.equal(await evaluate<boolean>(`[...document.querySelectorAll('${coding} .coding-turn.is-dropped')].some(node => node.textContent.includes('正在看登录流程') && node.textContent.includes('这段回复已丢掉（你打断了它）'))`), true);
   await shot("coding-send-receipt.png");
+
+  // RC-18: once the round ends, what waits for the next one sits at the end of the conversation, its words behind the count.
+  const strip = `${coding} .coding-queued-inputs[data-kind=notice]`;
+  await waitFor(`document.querySelector(${JSON.stringify(strip)})?.querySelector('summary')?.textContent === '排着 1 条补充，下一轮开始时带上'`, 20_000);
+  assert.equal(await evaluate<boolean>(`(() => { let next = document.querySelector(${JSON.stringify(strip)}).nextElementSibling; while (next) { if (next.matches('.coding-turn')) return false; next = next.nextElementSibling; } return true; })()`), true, "after every turn of the round");
+  await click(`${strip} summary`);
+  assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(strip)}).textContent`), /下一轮顺便看注册接口/u);
+  await shot("coding-queued-inputs.png");
 });

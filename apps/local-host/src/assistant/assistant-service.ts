@@ -13,7 +13,7 @@ import { cardView } from "./assistant-card-view.js";
 import { AssistantOffers } from "./assistant-offers.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
-  ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID,
+  ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID,
   type AssistantActivity, type AssistantCharacterChoice, type AssistantCharacterRef, type AssistantMemory, type AssistantMemoryCandidate, type AssistantMemoryPrefs, type AssistantMethod, type AssistantUsage, type AssistantUnsettledChange, type AssistantNotice, type AssistantNoticeKind, type AssistantRule, type AssistantContextSnapshot, type AssistantControl, type AssistantRecovery, type AssistantMaterial, type AssistantPendingReview, type AssistantRound,
   type AssistantScope, type AssistantSendInput, type AssistantSendResult, type AssistantWork, type AssistantWorkState, type AssistantWorkView,
   type AssistantRelatedWork, type AssistantWorkObject, type AssistantHandover, type AssistantMaterialText,
@@ -35,6 +35,7 @@ import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./as
 import { AssistantInputs, exactRevision, inputsOf, typedWords, type SendIntent } from "./assistant-inputs.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
+import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
 
 const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
@@ -43,8 +44,6 @@ const MAX_MATERIAL_TEXT = 100_000;
 /** Images per Send and per image, within what the model providers take. */
 const MAX_IMAGES = 6;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-/** Enough for a real piece of business work with its lookups; a round never runs unbounded. */
-const ROUND_TURNS = 24;
 /** The directory lists at most this many; the gateway itself searches all of them. */
 const MAX_ACTION_TOOLS = 1000;
 
@@ -89,7 +88,6 @@ export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoti
 }
 
 const sessionRef = (work: StoredWork): AgentSessionRef => ({ session_id: work.session_id!, runtime_id: RUNTIME });
-const ownerOf = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 
 function stateOf(phase: AgentRunView["phase"] | null | undefined, recovery: boolean): AssistantWorkState {
   if (recovery) return "needs-check";
@@ -325,7 +323,7 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
     // It ended still only saying what it would do, after its one continuation: nothing was done.
     "只说未做": "ended-on-promise" };
   return activity.flatMap(item => {
-    if (item.name === "reasoning" || item.name === "context-remaining" || item.name === "acknowledge-inputs") return [];
+    if (item.name === "reasoning" || item.name === "context-remaining" || item.name === "acknowledge-inputs" || item.name === "board-wait") return [];
     const verb = desktopVerb(item, verbs[item.name] ?? item.name);
     const named = titles?.get(shownActivityTarget(item.target));
     const target = (verb === "read" || verb === "change" || verb === "suggest") && named ? `${named.provider} · ${named.title}` : shownActivityTarget(item.target);
@@ -1511,21 +1509,10 @@ export class AssistantService {
     try {
       if (!work.reply_target) await this.memoryForRound(work, text, context);
       prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered, unavailable);
-      work = await this.delegations.place(work); assertSendCurrent(stillCurrent);
-      handle = await host.start(RUNTIME, {
-        project_id: ownerOf(work), plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: this.actorId,
-        session: sessionRef(work), role_id: role, workspace: "business", task: text,
-        action_gateway: !work.reply_target,
-        text_materials: prepared.materials,
-        // Pictures the person added: the runtime shows them to the model in this round (refused if the model cannot see).
-        ...(materials.some(item => item.kind === "image") ? { image_materials: materials.filter(item => item.kind === "image" && item.image)
-          .map(item => ({ material_id: item.material_id, title: item.title, resource: { id: item.image!.resource_id, revision: item.image!.revision }, media_type: item.image!.media_type })) } : {}),
-        history: "session", queued: "carry", budget: { max_turns: ROUND_TURNS, ...(left === undefined ? {} : { max_total_tokens: left }) }, skills: [], mcp_tools: [], mcp_sources: [], session_title: work.title,
-        // The project's side panel browser is the person's work surface: a work delegated in the background never drives it.
-        ...(work.delegated_by || work.reply_target ? { browser: false as const } : {}),
-        // The chosen Character really carries the round: the Host freezes its exact version or refuses, never another.
-        ...(work.character ? { character: { artifact_id: work.character.artifact_id, version: work.character.version } } : {}),
-      }, authority);
+      handle = await this.delegations.startPlaced(work, async placed => {
+        work = placed; assertSendCurrent(stillCurrent);
+        return host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left }), authority);
+      });
     } catch (error) {
       // No round exists: what its recall was given went into none, and nothing it would have told is told.
       const receipt = this.recalled.get(work.work_id);

@@ -13,6 +13,7 @@ import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService, sameLocalTimeLater } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_FOLLOW_UP_ACTIONS, registerAssistantRuleActions } from "../apps/local-host/dist/assistant/assistant-rule-actions.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -36,7 +37,7 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
   const project = { project_id: "board", storage_key: "memory:project" };
   const requests: any[] = [];
   let hold: Promise<void> | null = null;
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => { if (hold) await hold; requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array))); return reply("今天完成了三件事。"); });
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (_url: unknown, init: RequestInit) => { if (hold) await hold; requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array))); return reply("今天完成了三件事。"); }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-followups-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
@@ -132,7 +133,7 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
   const project = { project_id: "board", storage_key: "memory:project" };
   const requests: any[] = [];
   let hold: Promise<void> | null = null;
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => { if (hold) await hold; requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array))); return reply("好的。"); });
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (_url: unknown, init: RequestInit) => { if (hold) await hold; requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array))); return reply("好的。"); }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-followups-archive-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });

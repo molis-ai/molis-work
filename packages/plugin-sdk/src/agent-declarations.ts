@@ -64,6 +64,7 @@ export function inspectAgentDeclaration(
     ...roles.problems,
     ...agentCharacterProblems(agent, roles.ids),
     ...agentCompactionProblems(agent, prompts.ids),
+    ...(agent.ending_review && !prompts.ids.has(agent.ending_review.prompt_id) ? [`Agent 收尾核对 Prompt ${agent.ending_review.prompt_id} 未声明`] : []),
     ...agentSkillProblems(agent),
     ...agentRoleSkillProblems(agent),
     ...agentSubagentProblems(agent, roles.ids, prompts.ids, roles.workspaceParents),

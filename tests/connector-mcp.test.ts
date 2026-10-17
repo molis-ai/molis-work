@@ -551,6 +551,47 @@ test("online MCP contract changes replace the directory snapshot and require a n
   } finally { directory.close(); await localHost.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 
+test("PA-MCP-01: MCP header annotations keep value constraints and unsupported contracts never dispatch", { timeout: 30_000 }, async () => {
+  const declared: FixtureTool["inputSchema"] = { type: "object", properties: {
+    owner: { type: "string", enum: ["molis-ai"], "x-mcp-header": "owner" },
+    repo: { type: "string", "x-mcp-header": "repo" }, message: { type: "string", minLength: 1 },
+    "x-mcp-header": { type: "string" },
+  }, required: ["owner", "repo", "message"], additionalProperties: false };
+  const rejected: FixtureTool["inputSchema"][] = [
+    { type: "object", properties: { value: { type: "string", "x-unrecognized-constraint": true } } },
+    { type: "object", properties: { value: { type: "string", "x-mcp-header": "bad\r\nheader" } } },
+    { type: "object", properties: { value: { type: "object", "x-mcp-header": "value" } } },
+    { type: "object", properties: { a: { type: "string", "x-mcp-header": "Owner" }, b: { type: "string", "x-mcp-header": "owner" } } },
+    { type: "object", properties: { nested: { type: "object", properties: { value: { type: "string", "x-mcp-header": "value" } } } } },
+  ];
+  const temp = home(), original = structuredClone(declared);
+  const remote = await fixture({ tools: () => [{ name: "annotated", inputSchema: declared }, ...rejected.map((inputSchema, i) => ({ name: `refused_${i}`, inputSchema }))] });
+  const client = createConnectorMcpHost({ testServers: { figma: { endpoint: remote.endpoint, auth: "none" } } });
+  const localHost = new MolisWorkLocalHost({ homeDirectory: temp, completeText: null });
+  const directory = createConnectorMcpDirectory({ localHost, homeDirectory: temp, call: client.callMcpConnectionTool });
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["mcp:external"] };
+  const actions = localHost.homeActionClient();
+  try {
+    const started = await client.startMcpConnection(temp, { serviceId: "figma", displayName: "Parameter annotations", origin: callbackOrigin });
+    directory.remember(started.connectionId, started.tools as ConnectorMcpTool[], started.resources);
+    const ref = directory.reference(started.connectionId, connectorMcpCapabilityId(started.connectionId, "annotated"))!;
+    const valid = { owner: "molis-ai", repo: "molis-life", message: "actual response", "x-mcp-header": "a literal data property" };
+    for (const input of [{ repo: "molis-life", message: "missing owner" }, { ...valid, owner: 7 }, { ...valid, owner: "another-owner" },
+      { ...valid, message: "" }, { ...valid, extra: true }]) await assert.rejects(actions.invoke(caller, ref, input), { code: "actions.input_invalid" });
+    assert.equal(remote.stats().callCount, 0, "value constraints reject before the real HTTP tool handler");
+    for (let i = 0; i < rejected.length; i++) {
+      const refused = directory.reference(started.connectionId, connectorMcpCapabilityId(started.connectionId, `refused_${i}`))!;
+      await assert.rejects(actions.invoke(caller, refused, {}), { code: "actions.schema_unsupported" });
+    }
+    assert.equal(remote.stats().callCount, 0, "unrecognized or invalid annotations cannot make a tool callable");
+    assert.deepEqual(await actions.invoke(caller, ref, valid), { content: [{ type: "text", text: "actual response" }] });
+    assert.equal(remote.stats().callCount, 1);
+    const snapshot = JSON.parse(readFileSync(join(temp, "config/connector-mcp-tools.json"), "utf8"));
+    assert.deepEqual(snapshot[started.connectionId].tools.find((tool: ConnectorMcpTool) => tool.name === "annotated").input_schema, original);
+    assert.deepEqual(declared, original, "transport metadata remains on the original discovery contract");
+  } finally { directory.close(); await localHost.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
 test("an unsupported MCP contract stays unavailable beside healthy tools and recovers after rediscovery", { timeout: 30_000 }, async () => {
   const temp = home(); let supported = false, reversed = false;
   const remote = await fixture({ tools: () => { const tools: FixtureTool[] = [

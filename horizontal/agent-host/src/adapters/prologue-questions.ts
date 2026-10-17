@@ -43,22 +43,27 @@ export function answerProblems(questions: readonly PendingQuestion[], answers: Q
     question: problem.question, ...(problem.id === undefined ? {} : { id: problem.id }), reason: problem.reason }));
 }
 
-/** Reads each picked object again from its owner, as the session's owner (the Host's; S-26): true while it is still theirs to use. */
-export type ReferenceConfirmer = (owner: { project_id: string; actor_id: string }, picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => Promise<readonly boolean[]>;
+/** Reads each picked object again from its owner, as the session's owner (the Host's; S-26): its label now, or null once it is not theirs to use. */
+export type ReferenceReader = (owner: { project_id: string; actor_id: string }, picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => Promise<readonly ({ label: string } | null)[]>;
 
 /**
- * The questions whose picked objects the Host will not let through (specs/ai-interaction-experience H3): each reference is
- * read again from its owner right before the answer goes on. Without a Host to ask, or without the run's owner, none passes.
+ * The answers as the run may take them, and the questions whose picked objects the Host will not let through
+ * (specs/ai-interaction-experience H3, T2): each reference is read again from its owner right before the answer goes on,
+ * and goes with the label its owner gives it now; a label the page sent is never used. Without a Host to ask, or without
+ * the run's owner, none passes.
  */
-export async function refusedReferences(confirm: ReferenceConfirmer | undefined, owner: { project_id: string; actor_id: string } | undefined,
-  questions: readonly PendingQuestion[], answers: QuestionnaireAnswer["answers"]): Promise<AgentQuestionProblem[]> {
+export async function ownedReferences(read: ReferenceReader | undefined, owner: { project_id: string; actor_id: string } | undefined,
+  questions: readonly PendingQuestion[], answers: QuestionnaireAnswer["answers"]): Promise<{ answers: QuestionnaireAnswer["answers"]; refused: AgentQuestionProblem[] }> {
   const refused: AgentQuestionProblem[] = [];
-  for (const answer of answers) {
+  const owned = await Promise.all(answers.map(async answer => {
     const question = questions.find(each => each.index === answer.question);
-    const picked = question?.type === "reference" && Array.isArray(answer.value) ? answer.value.map(({ kind, id }) => ({ kind, id })) : [];
-    if (!question || !picked.length) continue;
-    const kept = confirm && owner ? await confirm(owner, picked, question.refKinds ?? []) : [];
-    if (picked.some((_, index) => kept[index] !== true)) refused.push({ question: question.index, ...(question.id === undefined ? {} : { id: question.id }), reason: "reference-unavailable" });
-  }
-  return refused;
+    const list: readonly unknown[] = question?.type === "reference" && Array.isArray(answer.value) ? answer.value : [];
+    // A reference not written as one is the Runtime's to refuse (`wrong-shape`), as sent.
+    if (!question || !list.length || !list.every(ref => typeof (ref as { kind?: unknown })?.kind === "string" && typeof (ref as { id?: unknown })?.id === "string")) return answer;
+    const picked = (list as { kind: string; id: string }[]).map(({ kind, id }) => ({ kind, id }));
+    const now = read && owner ? await read(owner, picked, question.refKinds ?? []) : [];
+    if (picked.some((_, index) => !now[index])) refused.push({ question: question.index, ...(question.id === undefined ? {} : { id: question.id }), reason: "reference-unavailable" });
+    return { ...answer, value: picked.map((ref, index) => ({ ...ref, label: now[index]?.label || ref.id })) };
+  }));
+  return { answers: owned, refused: refused.sort((a, b) => a.question - b.question) };
 }

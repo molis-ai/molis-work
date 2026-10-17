@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createRequire } from "node:module";
 import test from "node:test";
 
 import {
@@ -7,6 +8,9 @@ import {
   type PrologueRuntimePort,
 } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentStartRequest, AgentRunRef, AgentRunControl } from "@molis-ai/molis-work-contracts/services/agent-host";
+
+const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+const { createPrologueError } = await import(requireSdk.resolve("@prologue/sdk")) as { createPrologueError(code: string, message: string): Error };
 
 /** 提问要能走到界面，回答要能关掉它——否则 Run 卡住而用户无路可走。 */
 
@@ -129,7 +133,8 @@ test("精确问题版本与归属不匹配时不交给执行者，成功答案�
 });
 
 test("执行者拒绝答案时保留原问题，不把发送动作投影为已回答",async()=>{
-  const item=await adapterFor(async()=>{throw new Error('原问题已过期');});
+  // The real answer port is the SDK's; an expired question is refused there with PENDING_EXPIRED.
+  const item=await adapterFor(async()=>{throw createPrologueError('PENDING_EXPIRED','pending expired');});
   item.emit({...question,pendingRef:{id:'q1',revision:1}});
   await assert.rejects(()=>item.adapter.control(item.ref,{kind:'answer',pending_id:'q1',pending_revision:1,text:'回答'}),/已过期/);
   assert.equal((await item.adapter.read(item.ref)).awaiting_input.length,1);

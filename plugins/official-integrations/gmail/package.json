@@ -4,7 +4,7 @@
   "private": true,
   "description": "Official Gmail OAuth, connector, listener, Signal, settings, and Action adapters.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

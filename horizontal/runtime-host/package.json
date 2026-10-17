@@ -4,7 +4,7 @@
   "private": true,
   "description": "Runtime provider discovery, start/resume/stream/interrupt/stop, and technical Receipts.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

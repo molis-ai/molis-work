@@ -4,7 +4,7 @@
   "private": true,
   "description": "Artifact identity, version, type, content reference, scope, and provenance facts.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

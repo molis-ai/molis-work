@@ -15,6 +15,7 @@ import { createPrologueMcpLibrary } from "./prologue-mcp.js";
 import { createPrologueMemory } from "./prologue-memory.js";
 import { readResource, readResourceText, createRoundState, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import { createNodeCoordination, createNodeInference, createNodeProjectWork } from "./prologue-node-parts.js";
+import { createWorkGraphs } from "./prologue-work-graphs.js";
 import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle, questionReader } from "./prologue-node-port.js";
 import { createPrologueRecovery } from "./prologue-recovery.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
@@ -144,6 +145,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const platformMemory = createPrologueMemory(runtime, effects.bind);
   const gitReviews = createNodeGitReviews(options, host, runtime);
   const projectWork = createNodeProjectWork(options, host, runtime, state);
+  const workGraphs = createWorkGraphs(runtime, index);
   const { messages, waitsPort, stepBoards } = createNodeCoordination(runtime, index, state, projectWork);
   const reviews = { runtime, host, state, index, options, surfaces, projectWork };
   const pendings = createPendingPort(reviews);
@@ -159,7 +161,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const { inference, createBuilderAgent, close: closeInference } = createNodeInference(runtime, options, credentials, dispatchGuards);
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
-  const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork,
+  const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs,
     messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
     shutdown: async () => {
       mcpLibrary.dispose();

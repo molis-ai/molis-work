@@ -4,7 +4,7 @@
   "private": true,
   "description": "Where objects live, who can read them, what they are linked to, and how they move, copy and convert between the personal space and projects.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

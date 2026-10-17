@@ -4,7 +4,7 @@
   "private": true,
   "description": "macOS process isolation and asynchronous host mediation for generated plugins.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": { "node": ">=24" },
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "files": ["dist", "README.md"],

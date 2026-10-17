@@ -2011,6 +2011,60 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 - `renderPluginRailAccountFooter`（`apps/workbench/src/settings-directory.ts`）没有调用方，已作为单独任务提出来。
 - 第 4～6 波路线图里尚未开工的条目照 §12 的状态推进，这一节不改任何目标。
 
+### 10.22 2026-10-17 合入与在途 PR 的独立复查（§10.21 之后：#618～#633，Prologue #26、#33）
+
+对照的仍是第 1 节列的六份原文与九份补充，看法同 §10.21：门禁数字、兼容逻辑、删改的断言与调大的时限、可信身份与取消语义、改动的依据。合入的 PR 按**合入时的 head** 看：评审之后又加的提交单独看过，不只看评审时的那一版。
+
+**已合入**
+
+| PR | 合入的 head | 裁决 |
+| --- | --- | --- |
+| #618（W3-B2，情境条的落点） | `7044125be` | 有依据。合入的 head 就是 §10.21 之后评审过的那一版；页面资源只降。 |
+| #619、#624（W5-05 第 2、3 片，本线） | `a793f53df`、`d03c44fd6` | 有依据，记录见 §W4-12。#624 冻结后并过一次 main，没有改代码。统筹说明：「后合的只并 main、不重跑全量」只适用于已经跑过全量的 PR；#624 冻结后没跑过全量，所以照跑。 |
+| #625（visual-surfaces 的时限） | `5b4bca52a` | 有依据。整条用例的时限 600→1,200 秒，每个面拆成子用例、各 180 秒，慢机上失败时报出是哪个面。只调时限，按用户 10-15 的决定（慢机时限可放宽，不算放宽断言）。 |
+| #626（采用线 A5，补 §6.0b 第 2、5 项的证据） | `23e591ec4` | 有依据。只加用例，不改源码。两条都做了变红对照：去掉 PPT 的 `beforeDispatch`，三条变红；修改回执的位置早于被压缩的那次读，所以能留下来只靠效果种类。把 `change-capability` 改成 `safe-read` 的那次对照没有算作证明：它失败在等审批超时，不是回执断言。spec 里写明了这一点。 |
+| #627（Coding 协调者拿 board-read 与 board-report） | `cd80c9b07` | 有依据。合入的 head 就是评审过的那一版，加一次并 main。 |
+| #628（回执 B，补充带上自己的键） | `d894fc01a` | 有依据。评审过的是 `15941159f`。之后除了并 main，只有 `14c173333` 一个提交：RC-09 的期望加上 `key: "send.c1"`，并新加一条 RC-17 断言（补充带过去以后保留原来的键），断言只变严。 |
+| #632（人改一轮的计划：从 typed 能力改成动作） | `8086f81d4` | 有依据。 |
+
+#632 的细节：
+- typed 的 `agent.run.step-board.amend.v1` 换成动作 `agent.collaboration.revise.v1`，依据是防腐决定 #1 与采用 spec §4.6.9。
+- 宿主能力（typed）少一处，旧 id 不留别名，符合现在不留兼容期的规矩（`docs/system/CONTRACT-CHANGES.md`）。
+- 操作者取调用的插件，没有就取会话的主人，不从输入读。
+- 写之前先过 `beforeEffect` 和授权检查，Coding 的路由经动作服务调用。
+- vendored 包换成 `reference-kinds`：旧包删掉，`.sha256`、来源记录与 `patch-history.json` 同步，`SECURITY-INVARIANTS.md` 的 S-13 改指新包。
+
+**Prologue**
+
+| PR | 裁决 |
+| --- | --- |
+| #26（P2i 的消费者脚本） | 有依据。P2j 之后，接续的材料从步骤所属的会话里取，脚本里伪造的会话引用因此被记成 `SESSION_NOT_ACTIVE`。改法是步骤改属 `runtime.sessions.create()` 建出的真实会话，断言原样保留，SDK 代码不动。 |
+| #33（引用题可以列出要的对象种类） | 有依据。Molis 这边经 #632 的 `reference-kinds` 包接入。 |
+
+**在途**
+
+- #629（手册线 D1②，没改东西的一轮按事实核对收尾）：
+  - 评审时发现收尾核对的提示词 `ENDING_REVIEW` 没有登记，不出现在 设置›提示词，也不进冻结记录。
+  - 统筹定按 compaction 的先例登记。现在的 head（`ae0768b6c` 起）把它登记为 `assistant-ending-review` v1，`agent-definitions.ts` 把它和 compaction 一样排除在角色的提示词之外。
+- #630、#633（本线）：见 §W4-12 与 #633 的说明。#633 修机器槽位的饿死：一张写了一半的票被别的等待者当成死票删掉，主人就永远排不到。
+- #631（统一输入与本地语音，外部作者）：有三处违反，统筹经用户同意，已作为 PR 评论交给作者。
+  1. `design-system` 承担了产品行为：草稿存在 localStorage、助理会话的键、`/api/local-voice` 路由、发送结算。这违反它 README 的「不负责」。
+  2. 改了 `DESIGN.md` §366–374 写明的行为（桌面 28px 的例外与逐级折叠），并改了触控尺寸的断言，却没有改 `DESIGN.md`。
+  3. 两处 localStorage 读写没有包 try/catch；local-host 有没人用的导出。
+  - 安全没问题：新路由在 `refuseForeignRequest` 与 `authorizeLocalWebRequest` 之后。
+  - 它与 main 冲突，CI 没跑。
+  - 用户的裁决：由作者二选一，一是改 `DESIGN.md` 并删掉 `data-crowded` 那段代码，二是保留原行为与原断言；作者选了以后用户确认。本线不改 #631。
+
+**组合效果**
+
+- #632 换了 vendored 包，并改了 `horizontal/agent-host` 的 7 个文件；#629 也改 `horizontal/agent-host`。#629 现在的 head（`ffecda928`）不含 #632：它和 main 能干净合并，但它自己的用例是在旧包上跑的。所以 #629 跑全量之前先并一次 main，让全量在新包上跑（已告诉统筹）。
+- 页面资源按 #619→#624→#630 一次一个降；下一个是 T2，排在 #630 后面。
+- #618、#622、#628 都改助理面板或回执的页面脚本，按合入顺序各自在合并结果上重跑过。
+
+**本次复查顺手查出、交给后续的**
+
+- `chrome-inner-scroll.test.ts` 还断言 `body.settings-page[data-desktop-shell="true"]:is([data-settings-section="projects"], [data-settings-section="project"]) .settings-content { grid-column: 1 }`。两份设置页的 body 都写死了 `data-desktop-shell="false"`，所以这条规则从来不生效，和 W5-05 第 5 片删掉的那条是同一类。别的层里 `body.settings-page[data-desktop-shell="true"]` 开头的规则还有好几条（`> .topbar`、`.project-context`…），都是死规则，等 W5-05 删完皮肤后一并清（不在本片的范围里）。
+
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
 用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。

@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Pages workbench: local documents with a ProseMirror kernel.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

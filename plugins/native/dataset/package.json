@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Dataset workbench: columns, rows, CSV import, versions.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

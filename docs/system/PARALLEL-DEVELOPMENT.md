@@ -37,7 +37,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 类 | 文件 |
 | --- | --- |
 | 工作台聚合（`apps/workbench/src/` 下） | `i18n/en.ts`（总词典）、`index.ts`、`builtin-plugins.ts`、`plugin-catalog.ts`、`ui-composition.ts`、`renderer.ts`、`goals-page-renderer.ts`、`page-assets.ts`、`immersive-shell.ts`、`scripts/client/initialization.ts`、`scripts/client/plugin-workbench.ts`；另有 `packages/design-system/src/styles/craft-finish.ts`（总样式） |
-| 宿主聚合（`apps/local-host/src/` 下） | `web-request.ts`（路由分发）、`web-catalog.ts`、`project-host.ts`、`index.ts`（出口） |
+| 宿主聚合（`apps/local-host/src/` 下） | `web-request.ts`（路由分发，连同它的路由表 `web-project-platform-routes.ts`、`web-catalog-index-routes.ts`）、`web-catalog.ts`、`project-host.ts`、`index.ts`（出口） |
 | 公共合同（`packages/contracts/src/` 下） | `platform/plugin.ts`、`platform/actions.ts`、`services/agent-host.ts`、`services/assistant.ts` |
 | 登记与门禁 | `scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`、根 `package.json` 与 `pnpm-lock.yaml`、`tooling/gates/baseline.json`、`.github/workflows/ci.yml`、`tests/ci-product-subset.txt`（CI 产品子集的清单，见下） |
 | 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` |

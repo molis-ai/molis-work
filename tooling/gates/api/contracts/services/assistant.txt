@@ -558,6 +558,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     materials?: AssistantMaterial[];
     written_by?: "page";
     target?: "answer" | "steer";
+    reask?: AgentQuestionReask;
     request_id: string;
 }
 

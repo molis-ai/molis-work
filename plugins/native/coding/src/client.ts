@@ -140,7 +140,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
   const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q,landed:(sent,said)=>{if(current===sent.id&&input.value===sent.text){input.value='';if(localDraft(sent.id)===sent.text)void saveDraft(sent.id,'');}status(said);}});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
-  // The TaskBoard takes the conversation's place in the main area; the session list stays beside it.
   const ROLE_NAMES={planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'};
   // The board shows every round of the session: the loaded window as it is, earlier rounds from one read of the whole
   // session's plans and subagents, fetched again only when the number of rounds changes.
@@ -678,6 +677,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           try{sessionStorage.setItem(draftKey(id)+':questions',JSON.stringify(drafts));}catch{}
         };
         const client=card.ix=host.interaction(card,{
+          onAction:()=>void continueRound(null,{run_id:run.ref.run_id,pending_id:question.pending_id}),
           onChange:()=>{remember();lifetime.clearTimeout(draftTimer);
             draftTimer=lifetime.timeout(()=>{void saveDraft(id,localDraft(id) || '').catch(error=>{note.textContent='答案暂未写入服务，当前窗口仍保留：'+error.message;});},400);},
           onSubmit:async()=>{
@@ -702,7 +702,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const canAnswer=!terminal(run.phase) && question.answerable!==false;
       form.dataset.answerable=String(canAnswer);
       const ring=form.querySelector('.mw-ix-kicker .mw-state-ring');if(ring)ring.dataset.mwState=canAnswer?'answer':'unavailable';
-      if(form.dataset.busy!=='true') form.querySelectorAll('fieldset,button').forEach(node=>node.disabled=!canAnswer);
+      if(form.dataset.busy!=='true') form.querySelectorAll('fieldset,button:not([data-ix-action=reask])').forEach(node=>node.disabled=!canAnswer);
       if(!canAnswer && form.dataset.busy!=='true') form.querySelector('[data-ix-note]').textContent=question.unavailable_reason || '这一轮已结束，原问题不可再回答。';
     }
     for(const form of block.querySelectorAll('[data-coding-question]')) {
@@ -1505,8 +1505,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);}});
   lifetime.listen(input,'input',()=>turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());}));
   lifetime.listen(input,'keydown' ,event=>{if(event.key==='Enter' && (event.metaKey || event.ctrlKey) && !event.isComposing){event.preventDefault();q('[data-coding-composer]').requestSubmit();}});
-  // One way to start a round, shared by the composer and by continuing from a breakpoint.
-  /** A round waiting for another session: what it waits for, and starting it now or giving the wait up. */
   let queuedKey='';
   /** Marked the priority: others whose work overlaps it are asked to make way; nothing is paused. */
   const renderPriority=(id,on)=>{
@@ -1519,6 +1517,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       status(!on?'已取消优先。':result.notified.length?'已标为优先，并通知「'+result.notified.join('」「')+'」让出 '+result.paths.join('、')+'；不会自动暂停它们。':'已标为优先。现在没有和它范围重叠、还在进行的会话，没有通知谁。');await refreshState();}
     catch(error){if(!lifetime.alive)return;status(error.message,true);}finally{button.disabled=false;}
   });
+  /** A round waiting for another session: what it waits for, and starting it now or giving the wait up. */
   const renderQueued=(id,queued)=>{
     const box=q('[data-coding-queued]'),next=JSON.stringify([id,queued]);if(next===queuedKey)return;queuedKey=next;
     box.hidden=!queued;box.replaceChildren();if(!queued)return;
@@ -1546,6 +1545,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     lifetime.listen(dialog,'cancel',event=>{event.preventDefault();choose('cancel');});
     box.append(head,list,hint,actions);dialog.append(box);root.append(dialog);dialog.showModal();
   });
+  // One way to start a round, shared by the composer and by continuing from a breakpoint.
   const startRound = async (id,task,intent,modelValue,selection,extra={}) => {
     const [provider_id,model_id]=JSON.parse(modelValue);
     // A round that carries a digest waits for the model to write it first; say so rather than look stuck.
@@ -1556,13 +1556,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       :'模型没能写出摘要（'+digest.problem+'），这一轮带入的是宿主按执行记录整理的摘要。',digest.source!=='model');
   };
   const currentSelection = (id) => ({workspace_id:workspaceId,methods:structuredClone(methodSelections.get(id) || []),mcp_tools:structuredClone(mcpSelections.get(id) || []),mcp_sources:structuredClone(mcpSourceSelections.get(id) || []),materials:structuredClone(materialSelections.get(id) || []),character:structuredClone(characterSelections.get(id) ?? null),writer_assignments:[]});
-  // Continue an unfinished round: the Host states what already happened, the composer draft stays untouched.
-  const continueRound = async (runId) => {
+  // Continue an unfinished round (the Host states what already happened) or ask a closed question again; the composer draft stays untouched.
+  const continueRound = async (runId,reask) => {
     if(sending || !current)return;
     const id=current,modelValue=q('[data-coding-model]').value;sending=true;controls();
     try {
       if(!state.models.some(model=>JSON.stringify([model.provider_id,model.model_id])===modelValue))throw new Error('请先选择可用的模型');
-      const next=await api(sessionPath(id,runId)+'/continuation');
+      const next=reask?{intent:q('[data-coding-intent]').value}:await api(sessionPath(id,runId)+'/continuation');
       if(current!==id)return;
       // A plan round continues on its own graph; everything else starts a fresh round with the Host's facts.
       // The rest of a plan runs the way the person picks now: steps left after subtasks (such as running the tests) may
@@ -1570,8 +1570,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const chosen=q('[data-coding-intent]').value,intent=next.continue_step_board_of&&['execute','parallel'].includes(chosen)?chosen:next.intent;
       // A parallel round goes on with the directories it was given; the saved split is what those subtasks used.
       const selection=currentSelection(id);if(intent==='parallel')selection.writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []);
-      await startRound(id,next.task,intent,modelValue,selection,next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{});
-      status('已从断点继续：宿主核实的已发生操作已附在这一轮任务里，新的写入和命令仍需你审查。');
+      await startRound(id,next.task,intent,modelValue,selection,next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{reask});
+      if(!reask)status('已从断点继续：宿主核实的已发生操作已附在这一轮任务里，新的写入和命令仍需你审查。');
       pinned=true;await refreshState();await readCurrent();
     } catch(error) {if(!lifetime.alive)return;if(current===id)status(error.message,true);}
     finally {sending=false;controls();}

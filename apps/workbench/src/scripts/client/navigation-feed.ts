@@ -5,7 +5,6 @@ import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
 export const CLIENT_NAVIGATION_FEED_SCRIPT = `
 ${FEED_RULE_AUTHORING_SCRIPT}
     const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
-    const PLUGIN_TAB_TITLES = { goal: "Goals", sources: "Feed", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
     const directoryPanelFor = (directory) => directory;
 
     const restoreLastGoal = (openGoalsDirectory = false) => {
@@ -28,16 +27,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       location.assign(globalThis.molisWorkNavigationUrl(goalId ? route("/goals/" + encodeURIComponent(goalId)) : route("/")));
     };
 
-    const syncMobilePluginLabels = (surface, directory) => {
-      const plugin = OWN_DIRECTORY_SURFACES.includes(directory) ? directory : surface;
-      if (mobileTreeTab) mobileTreeTab.textContent = directory === "sources"
-        ? L("来源")
-        : PLUGIN_TAB_TITLES[plugin] || defaultMobileTreeLabel;
-      if (mobileDocumentTab) mobileDocumentTab.textContent = OWN_DIRECTORY_SURFACES.includes(plugin)
-        ? L("详情")
-        : defaultMobileDocumentLabel;
-    };
-
     const setDesktopWorkSurface = (surface, persist = true, restoreScroll = true) => {
       if (!desktopWorkSurfaces.length) return false;
       if (surface === "sources") {
@@ -57,7 +46,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       }
       activeDesktopSurface = surface;
       document.body.dataset.desktopSurface = surface;
-      syncMobilePluginLabels(surface, treePane?.dataset.desktopDirectory);
       if (!tabWorkspace) {
         desktopWorkSurfaces.forEach((candidate) => {
           if (candidate.closest("[data-goal-canvas-shell]")) return;
@@ -115,31 +103,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       return openWorkbenchSurface(surface, itemId, title, directoryTabMode());
     };
 
-    const currentModuleDirectory = () => OWN_DIRECTORY_SURFACES.includes(activeDesktopSurface)
-      ? activeDesktopSurface
-      : "goals";
-
-    const syncMobileNavigationChrome = () => {
-      const view = workspace?.dataset.mobileView || "tree";
-      const graphVisible = workspace?.dataset.workspaceMode === "graph" && view === "document";
-      const directoryRootActive = view === "tree" && treePane?.dataset.desktopDirectory === "root" && !graphVisible;
-      const treeTab = document.querySelector('[data-mobile-target="tree"]');
-      treeTab?.setAttribute("aria-controls", graphVisible ? "goal-momentum-pane" : "goal-tree-pane");
-      document.querySelectorAll(".mobile-switch [role='tab']").forEach((button) => {
-        const target = button.dataset.mobileTarget;
-        const active = button.hasAttribute("data-mobile-directory-root")
-          ? directoryRootActive
-          : target === "tree"
-            ? graphVisible || (view === "tree" && !directoryRootActive)
-            : target === "document"
-              ? view === "document" && !graphVisible
-              : target === view && !directoryRootActive;
-        button.classList.toggle("is-active", active);
-        button.setAttribute("aria-selected", String(active));
-        button.tabIndex = active ? 0 : -1;
-      });
-    };
-
     const LIST_PLUGIN_SECTIONS = ["goals", ...OWN_DIRECTORY_SURFACES.filter((id) => id !== "sources")];
 
     const syncPluginDirectory = (directory) => {
@@ -183,8 +146,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         const storedWidth = parseFloat(workspace.style.getPropertyValue("--tree-width")) || 0;
         if (storedWidth > 0 && storedWidth < 200) workspace.style.setProperty("--tree-width", "240px");
       }
-      syncMobilePluginLabels(activeDesktopSurface, next);
-      syncMobileNavigationChrome();
       immersiveNavigation?.sync();
       if (focusTarget) {
         requestAnimationFrame(() => {
@@ -949,7 +910,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         feedWorkbench.dataset.feedPreset = activeFeedPreset;
         feedWorkbench.dataset.workSurfaceLabel = "Feed";
       }
-      if (activeDesktopSurface === "feed" && mobileTreeTab) mobileTreeTab.textContent = "Feed";
       setFeedStatusOptionLabel("active", L("未忽略"));
       setFeedStatusOptionLabel("inbox", L("待处理"));
       setFeedStatusOptionLabel("saved", L("已保存"));

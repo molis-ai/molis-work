@@ -44,7 +44,7 @@
 
 - **例外**（4 个）已登记在 `tooling/gates/giant-exceptions.json`：样式表 3 份（动量、基础控件、Coding）、连接器声明表 1 份。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
 - **归线**（21 个）：浏览器脚本模板、旧皮肤和英文词典 `en.ts`（决定 #16，W5-03）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 一项挂在 W5-01 下：路线 W5-01 原有“Shelf 和 Characters 混合插件”一项，决定 #26 把其中 Characters 的部分提到第 4 波，那个切片在路线里还没有自己的片号（见下）。
-- **拆**（131 个，101 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 123 个里），其余 8 个归 W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个已拆完）。
+- **拆**（131 个，101 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 123 个里），其余 8 个归 W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个、W5-07 的两个已拆完）。
 - 全部单元里，45 个只超出阈值不到 20%（9 个文件、27 个函数、9 个类；类按行数与方法数里超得多的那一项算），其中 37 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
 
 ### W5-10 怎么做
@@ -130,7 +130,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W5-04 | 浏览器代码逐个插件打包、类型检查，再做工作台客户端分段 | 18 | 11 个浏览器脚本模板、`toString` 注入的函数（`createTabWorkspaceOps`、`createPluginComponentClient`、`createCodingTimeline`）、Work 终端客户端、`craft-finish.ts` 与 `primitives/catalog.ts` 里的脚本 |
 | W5-05 | 逐个删旧皮肤，并降低页面预算和巨大单元基线 | 0 | 已做（第 1～5 片）：`personal-workbench-v3.ts`、`calm-desktop.ts` 都已删 |
 | W5-06 | 声明式贡献挂载器代替 15 个 Goals 挂载适配器；`goals-page-renderer.ts` 改名，留在工作台 | — | 不拆那两个函数（适配器是别的文件） |
-| W5-07 | `handleMolisWorkWebRequest` 改成注册表，每个 `*-http` 模块导出 `{match, handle}` | 2 | `web-request.ts` |
+| W5-07 | `handleMolisWorkWebRequest` 改成注册表 | 2 | 已拆完：按顺序尝试的路由表（`web-route-table.ts`），表写在宿主里、`*-http` 模块不动（统筹 10-17 定，理由见防腐 spec §4.5 一行） |
 | W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同；已拆完：入口留描述符、错误码、`AgentHostApi` 与 `agentHostCapabilities`，其余按领域放进旁边的 `agent-host-*.ts`（运行时、启动、会话、运行视图、审查、端口、创作台），子路径与 API 快照不变 |
 | W5-10 | 其余巨大单元拆分（范围见上） | 123 | 123 个，含助理协作者、Pages 编辑器与命令 |
 | W5-11 | 宿主瘦身：连接器提供方设置与 OAuth 移进官方连接器插件，或按决定 #7 作为宿主管理接口留下 | 1 | `web-connectors-settings.ts` |
@@ -154,7 +154,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 ### 宿主 `apps/local-host`（唯一业务 composition root）
 
-28 个单元（拆 25、归线 3），22 个文件。路径前缀 `apps/local-host/src/`。
+26 个单元（拆 23、归线 3），21 个文件。路径前缀 `apps/local-host/src/`。
 
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
@@ -178,7 +178,6 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `web-connectors-settings.ts` | `handleLocalConnectorsSettingsHttp` 函数 227 行 | 归线 · §4.3 · W5-11 | 连接器提供方设置与 OAuth 的 HTTP。决定 #7 说连接器路由以后搬进各自的官方接入插件，那是 W5-11。搬的时候不能整体搬进新文件（搬到新文件的巨大函数按新单元算），要在同一个 PR 里按路由或按服务商拆到阈值以下；在 W5-11 之前这个函数冻结。 | 1 |
 | `web-goals-read.ts` | `createLocalGoalsReadHttp` 函数 175 行 | 拆 · W5-10 | `createLocalGoalsReadHttp` 内的 `page`（91）、`settings`（43）、`fragments`（30）三个路由处理各成函数，装配函数只列出它们。 | 8 |
 | `web-project-settings.ts` | `createLocalProjectSettingsHttp` 函数 189 行<br>`handle` 函数 182 行 | 拆 · W5-10 | `handle` 的 `if` 路由分支（最大 47、32、24 行）改成路由表，每个路由一个函数。`handle` 内嵌在 `createLocalProjectSettingsHttp` 里（同一段计两次）。 | 3 |
-| `web-request.ts` | `handleMolisWorkWebRequest` 函数 441 行<br>`handleMolisWorkWebRequest callback 1` 函数 327 行 | 拆 · W5-07 | 改成注册表，每个 `*-http` 模块导出 `{match, handle}`；327 行的回调内嵌在该函数里。路线写明部分依赖 W5-01。 | 22 |
 | `web-server.ts` | `createLocalWebServerFactory` 函数 241 行<br>`createMolisWorkWebServer` 函数 238 行 | 拆 · W5-10 | `createMolisWorkWebServer` 49 条语句：HTTP 服务（`server` 74）、本机宿主（`localHost` 16）、周期调度（`schedulerTimer` 14，每 30 秒推进 Feed 与 Schedule）、侧栏浏览器登记（`unregisterSurfaces` 13）、PTY 挂接（12）、关停（`server.once("close")` 12）各成启动函数，装配函数只按顺序调用并登记关停。它内嵌在 `createLocalWebServerFactory` 里（同一段计两次）。 | 7 |
 
 ### 工作台 `apps/workbench`（页面组合与浏览器脚本）

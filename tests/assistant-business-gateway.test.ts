@@ -961,6 +961,35 @@ test("a card a page prepared from the person's selection is checked like the Ass
   } finally { await f.close(); }
 });
 
+// W3-A3a (specs/context-program §21.2 item 5): a page names the work it is on as a pointer only. The card goes into it
+// only when the work is the person's own, not archived, the Assistant's (not Coding) and in this project; otherwise
+// nothing is placed and the same message can still be placed later.
+test("W3-A3a: a page's card goes into the named work only when it is the person's own, open, the Assistant's and in this project", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, []);
+  const card = { title: "记到笔记", summary: "把选中的一句存进项目笔记", reference: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" },
+    input: { text: "会后 24 小时内发纪要" }, source_object: { kind: "pages_document", id: "doc-7", version: 3, title: "周会纪要" } };
+  const source = { surface: "pages", title: "Pages" };
+  const scope = { kind: "project" as const, project_id: f.project.project_id };
+  const work = (actor_id: string, extra: Record<string, unknown> = {}) => f.store.create({ actor_id, title: "进行中的工作", scope, origin: null, project_ref: f.project, ...extra });
+  try {
+    const mine = work("web-user");
+    const refused: Array<[string, string, string]> = [
+      ["someone else's", work("someone-else").work_id, "assistant.not_found"],
+      ["archived", f.store.update("web-user", work("web-user").work_id, null, { archived: true }).work_id, "assistant.state"],
+      ["Coding's", work("web-user", { executor: { kind: "coding", title: "Coding", session_id: null } }).work_id, "assistant.unsupported"],
+      ["another project's", work("web-user", { scope: { kind: "project", project_id: "elsewhere" }, project_ref: { project_id: "elsewhere", storage_key: "memory:elsewhere" } }).work_id, "assistant.scope"],
+    ];
+    for (const [label, workId, code] of refused) {
+      await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-pointer-0001", source, card, work_id: workId }, { project_ref: f.project }),
+        (error: unknown) => (error as { code?: string }).code === code, `${label} work is refused`);
+    }
+    // Nothing was placed by the refusals: the same message now goes into the person's own open work.
+    const placed = await f.service.offers.offerFromPage({ message_id: "page-pointer-0001", source, card, work_id: mine.work_id }, { project_ref: f.project });
+    assert.equal(placed.work_id, mine.work_id);
+    assert.deepEqual((await f.service.read(mine.work_id)).objects.map(object => [object.relation, object.subject.id]), [["material", "doc-7"]]);
+  } finally { await f.close(); }
+});
+
 test("a material a round brought can be read back with its text for a preview, and a page from the browser says where it was", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [() => reply(undefined, "看过了。")]);
   try {

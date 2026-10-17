@@ -995,3 +995,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 01:05 UTC：#690 换包合入 102671ce6（Prologue b541a8e6，parked-run 包）。已通知采用线：#680 再 merge 一次这个 main 后推；A2 spec PR 可以开了。已通知交互线：BL-156 的 Molis 半边可以开，在 main 上重建，先发一行计划。
 - 统筹 10-18 认可 BL-156 Molis 半边（交互线，base main 102671ce6）：停放的题经 answerInterrupted 回答，assertBeforeAnswer 用调用当时的授权；三个码在 prologue-control-errors 一处映射；助理、Coding 各用自己的 start-round 开下一轮；开下一轮被拒时答案留在排队里，卡片写原因；BUSY 只 inspect 一次、重开一次。安全表加 S-33「停放的题按回答那一刻的授权」，带拒绝用例（含重启后撤权）；被拒时两边都零写入。A2 spec 不再占 S-33，实现时再取空号。
 - 10-18 01:20 UTC：#692（采用 A2 写后诊断 spec，ea4cbea26，只改 spec 和 BACKLOG，BL-160）审过，安全表那一行不再写死编号（S-33 已给 BL-156），走 merge-only（gate-692）。#680 merge 了 102671ce6，相关用例在跑。
+- 10-18 01:30 UTC：#680 新 head 457bdc6b4（merge 了 9fda1a405 和 102671ce6）：门禁之外 198 行逐行一致，合并干净；排在 chain29。#691 的全量在排队。

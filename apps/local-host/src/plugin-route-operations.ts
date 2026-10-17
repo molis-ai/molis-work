@@ -91,7 +91,11 @@ export async function dispatchRuntimePluginRoute(
   const input = { method: request.method ?? "GET", pathname: url.pathname, actor_id: actorId,
     query: Object.fromEntries(url.searchParams), body, granted: controls.granted, execution: controls.execution };
   const stop = () => controls.stop?.();
-  if (match.stream) return answerPluginRouteStream(response, emit => router.dispatch({ ...input, emit, stopped: stop }), stop);
+  if (match.stream) return answerPluginRouteStream(response, async emit => {
+    const result = await router.dispatch({ ...input, emit, stopped: stop });
+    if (result) await hooks.afterDispatch?.(result);
+    return result;
+  }, stop);
   const result = await router.dispatch(input);
   if (!result) return false;
   await hooks.afterDispatch?.(result);

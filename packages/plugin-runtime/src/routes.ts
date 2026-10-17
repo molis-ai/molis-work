@@ -6,7 +6,7 @@ import type {
   PluginRouteResponse,
   PluginExecutionControl,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorResponse, createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
 import { watchInstance, type InstanceWatchTimers } from "./instance-watch.js";
 import type { PluginHostLifecycle } from "./lifecycle.js";
@@ -158,6 +158,7 @@ export class PluginRouteRouter {
       return actionErrorResponse(new ActionError("actions.execution_failed", "能力执行失败"));
     }
 
+    const lifetime = match.stream ? createExecutionLifetime({ signal: input.execution?.signal }) : undefined;
     const request: PluginRouteRequest = {
       method: match.method,
       pathname: input.pathname,
@@ -166,13 +167,16 @@ export class PluginRouteRouter {
       body: input.body ?? null,
       actor_id: input.actor_id,
       ...(input.execution ? { execution: input.execution } : {}),
-      ...(match.stream && input.emit ? { emit: liveEmit(instance, input.emit) } : {}),
+      ...(match.stream && input.emit ? { emit: liveEmit(instance, event => { lifetime?.assertActive(); input.emit!(event); }) } : {}),
     };
     const unwatch = match.stream && input.stopped ? watchInstance(instance, input.stopped, this.#timers) : undefined;
     try {
-      return await binding.handle(request);
+      lifetime?.assertActive();
+      const result = binding.handle(request);
+      return await (lifetime ? lifetime.wait(Promise.resolve(result)) : result);
     } finally {
       unwatch?.();
+      lifetime?.dispose();
     }
   }
 }

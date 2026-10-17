@@ -31,14 +31,16 @@ export async function answerPluginRouteStream(response: ServerResponse,
     if (!response.destroyed && !response.writableEnded) response.write(text);
   };
   response.writeHead(200, { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff" });
+  response.flushHeaders();
+  const overflowError = () => new ActionError("actions.output_invalid", "进度超出了流式回复的上限");
   try {
     const result = await dispatch(emit);
-    if (!result) { write(errorLine(new ActionError("actions.missing", "插件没有这个入口"))); return true; }
-    if (overflow) write(errorLine(new ActionError("actions.output_invalid", "进度超出了流式回复的上限")));
+    if (overflow) write(errorLine(overflowError()));
+    else if (!result) write(errorLine(new ActionError("actions.missing", "插件没有这个入口")));
     else if (result.status >= 200 && result.status < 300) write({ type: "result", result: withPluginInteraction(result.body) });
     else write(refusalLine(result));
   } catch (error) {
-    write(errorLine(error));
+    write(errorLine(overflow ? overflowError() : error));
   } finally {
     if (!response.destroyed && !response.writableEnded) response.end();
   }

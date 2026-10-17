@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ensureProjectPlugins as ensureStarted, type ProjectPluginPorts, type ProjectPluginState as Started } from "./project-plugins.js";
 import { agentQuestionHtml } from "./agent-question-card.js";
 import { interactionNextSteps } from "./agent-next-steps.js";
@@ -189,8 +190,17 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     return true;
   }
   const pluginId = pluginRoute![1]!, platform = record.platform;
-  return dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId,
-    projectRouteHooks(record, platform, pluginId, request, url, ports));
+  const abort = new AbortController();
+  const stop = () => abort.abort(new ActionError("actions.cancelled", "这次调用已结束"));
+  request.once("aborted", stop); response.once("close", stop);
+  try {
+    return await dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId,
+      projectRouteHooks(record, platform, pluginId, request, url, ports), {
+        execution: { signal: abort.signal, beforeEffect: async () => { abort.signal.throwIfAborted(); } }, stop,
+      });
+  } finally {
+    stop(); request.off("aborted", stop); response.off("close", stop);
+  }
 }
 
 /**

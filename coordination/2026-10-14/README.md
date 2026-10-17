@@ -524,6 +524,18 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #622 重钉后 `371b58193`（workbench.js [1097095, 1101205] +4,110；代码 diff 与审过的一致）挂全量；#627 补 PA-09 用例后 `ad7420924`（协作带确认计划开跑不被拒、两步归本会话按序报告；去掉板工具即红）挂在 #626、#622 之后。协调者何时让出（评测 2/7）记 BACKLOG 归 AI 手册线，不在本片改提示词。
     - prologue#33（`askUserReferenceKinds`，采用线写）统筹审过、**用户弹窗同意合并**，统筹按审过的 head `a579bfea4` squash 合入（Prologue main `c673238e3`）：不配时逐字不变；名单有界、建 Runtime 时校验；名单外的种类在打开等待前退回并列出 App 的种类；公开面只多 `AskUserReferenceKind`。换包随 P4 先改合同的那一片；交互线 T2 在那次换包和 #618 之后开 PR。
     - #622 全量全绿、入队。#626 全量红两处，都不是产品：①分片 1 的 visual-surfaces 603.8 秒超时——这次跑的合并提交是 `8a77a0792`（#626 head 合进 `a2b7c2047`），**比 #616、#625 还旧**：GitHub 没在打标签前重算 PR 的合并引用，所以测的是 #625 之前的 600 秒旧时限；②分片 4 全部 64 个文件约 10 秒就失败，better-sqlite3 的 prebuild 下载超时、源码编出来的原生模块在 node 里断言崩溃（`RemoveEnvironmentCleanupHook … (env) != nullptr`），一个用例都没真跑。只重跑分片 4。**统筹脚本改了**：`label-when-free.zsh` 加标签前先确认 GitHub 的 PR 合并提交里含当前 origin/main，最多等 10 分钟，否则不打标签（教训：打标签前合并引用可能是旧的）。#627 的合并引用核过是新的（含 #616、#625）。
+    - #626 分片 4 单独重跑后通过，手动入队、合入（`504ebfc74`）。**用户弹窗批了 T2 的字节**：上限是 +1,344 / +1,344 / +4,090，照 3c 的写法用一次 APPROVED_CEILINGS，替换掉 3c 已经用完的条目。#627 全量全绿，入了队。
+    - #618 合 main 后是 `7044125be`，核对过：包含 main，代码 diff 不变。#628 是 `15941159f`。两个都挂上了全量，10-17 04:10 排进 GitHub 队列。
+    - 统筹定 #629：ENDING_REVIEW 照压缩那次的先例登记。轮次的主人用 `defineInstructionPrompt` 登记（例如 `assistant-ending-review` v1），开跑时传进去，版本写进 `freezeRunStart`，要带用例。#619、#624 解冻：W5-05 第 1～3 片在桌面模式下比对 0 差。
+    - #630（W5-05 第 4 片，删 personal-workbench-v3，`5c1f7b396`）统筹审过，通过。`visual-foundation.test.ts` 删改的 37 行逐类核对过：
+      - 选择器画不出来；
+      - 值被后面的层盖掉（标题栏 48/34 → 32/26）；
+      - 设置页三处渲染都是 `data-desktop-shell="false"`；
+      - `renderPluginRailAccountFooter` 没有调用方；
+      - 4 条改指到现在的主人文件；
+      - 主人文件都在 800 行以下。
+      `.desktop-work-tab` 在页面上画不出来，但还剩一条没人调的生产链：`renderInitialGoalTab`、`WORK_TAB_VISIBILITY_CLIENT_SCRIPT`、`desktop-titlebar.ts` 里 5 条规则。防腐线答应在第 5 片里连同测试一起删。page-assets 合并顺序：#618、#628 → #619 → #624 → #630 → T2（T2 等采用线换包），每个都等统筹通知再 merge main、重量字节。
+    - **#627 被合并队列放掉了**：#626 合入后，两边在 `specs/prologue-adoption/spec.md` 冲突（DIRTY）。已请采用线 merge main 解冲突。统筹 10-17 定：解冲突只改 spec 的话，核对后直接重新入队，不重跑全量（队列里的 Verify 会在合并结果上跑）；动了代码就要重跑全量。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

@@ -831,3 +831,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 本地已备好、未推的：Todo（wt-todo 06b63dfd6），#679 合入后开；§10.26（wt-docs1026 a5d77fe4c），#677 合入后开；(a) 流式路由做了一半（wt-stream 4034ac8b8）。
   - (a) 要补的必做项：项目一侧 coding-surface 调 `dispatchRuntimePluginRoute` 时不传 execution/stop，项目里的流式路由停用后断不了连接，要修好并配拒绝用例。
   - #677、#679 合入后由统筹通知接手的会话；它收不到消息，就请用户转达。
+- 10-17 17:41Z：防腐线已交给 Codex。统筹发不了消息给它，#677、#679 合入时在统筹会话里告诉用户转达。
+  - #674 已进合并队列（gh-readonly-queue）。
+  - #669 在 merge-only 门禁上。
+  - #677、#679 和 #631（手动起的）三个全量都在排队，20 个 runner 不够用，跑得慢。
+  - #671→#673→#675 在 chain9 上等空位。

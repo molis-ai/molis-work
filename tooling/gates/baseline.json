@@ -96,9 +96,9 @@
       "lines": 501,
       "methods": 16
     },
-    "file modules/functions/src/store.ts": 939,
+    "file modules/functions/src/store.ts": 937,
     "class modules/functions/src/store.ts#FunctionsStore": {
-      "lines": 336,
+      "lines": 331,
       "methods": 22
     },
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
@@ -199,7 +199,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1639,
+    "file plugins/native/coding/src/client.ts": 1638,
     "file plugins/native/coding/src/styles.ts": 828,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,

@@ -7,18 +7,19 @@ import { issueModel } from "./fixtures/issue-model.js";
 // The context strip above the Assistant's input (specs/context-program §21.2 points 1, 3, 4; decision record §21.5).
 const FIRST = "联系阿杰确认秋季发布计划。附上本周方案和预算说明。";
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
+const heading = (text: string) => ({ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text }] });
 const STRIP = "[data-assistant-context-strip]:not([hidden])";
 
-async function openNotes(t: test.TestContext) {
+async function openNotes(t: test.TestContext, content: object[] = [paragraph(FIRST)], ready = FIRST) {
   const browser = await openGoalBrowser(t, "user");
   if (!browser) return null;
   const { command, sessionId, navigate, waitFor, origin, projectId, homeDirectory } = browser;
   const model = await issueModel(t, homeDirectory, { replyText: "收到。" });
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
-  const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST)] } }); } finally { pages.close(); } })();
+  const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content } }); } finally { pages.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(FIRST)})`);
+  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(ready)})`);
   const related = () => browser.evaluate<Array<{ work_id: string; relation: string }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/related?kind=pages_document&id=' + ${JSON.stringify(page.id)}, { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
   // What the model was asked, as text: the Host names the object a round is about as 「正在看的对象：…」.
   const asked = (index: number) => JSON.stringify(model.requests[index] ?? null);
@@ -104,5 +105,93 @@ test("STRIP-03: more chips than fit scroll sideways: the side with more fades, t
     const before = await evaluate<number>(`document.querySelector(${JSON.stringify(ROW)}).scrollLeft`);
     await command("Input.dispatchMouseEvent", { type: "mouseWheel", x: box.x, y: box.y, deltaX: 0, deltaY: -200 }, sessionId);
     await waitFor(`document.querySelector(${JSON.stringify(ROW)}).scrollLeft < ${before} - 50`, 5000);
+  }
+});
+
+// A document with a heading, and the caret in it after 「第二步，」: that place is the landing Pages reports.
+const STEPS = [heading("步骤"), paragraph("第一步，整理访谈记录。"), paragraph("第二步，写出离线记录的方案。")];
+const caretAfterSecond = `(() => {
+  const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+  const text = [...editor.querySelectorAll('p')].find(node => node.textContent.startsWith('第二步')).firstChild;
+  const range = document.createRange(); range.setStart(text, 4); range.collapse(true);
+  const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
+})()`;
+const LANDING = STRIP + " .is-landing";
+
+test("STRIP-04: the landing is on the strip only while its object goes with the Send; × leaves out the landing and keeps the object", { timeout: 120_000 }, async t => {
+  const b = await openNotes(t, STEPS, "第二步");
+  if (!b) return;
+  const { evaluate, waitFor, model, asked, send } = b;
+  await evaluate(caretAfterSecond);
+  await evaluate("document.querySelector('[data-assistant-input]').focus()");
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional")}))`, 10_000);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(LANDING)}))`), false, "the object is not added: no landing either (§21.5 L-1)");
+
+  await evaluate(`document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}).click()`);
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(LANDING)}))`, 10_000);
+  // Named by the heading above the place and the place, never by counting paragraphs (L-3); a screen reader hears the sentence.
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(LANDING + " .assistant-strip-label")}).textContent`), "发布笔记 · 「步骤」光标处");
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(LANDING + " .mw-sr-only")}).textContent`), "放进去的位置：发布笔记，「步骤」，光标处（「…第二步，」之后）");
+
+  await evaluate(`document.querySelector(${JSON.stringify(LANDING + " .assistant-strip-act")}).click()`);
+  await waitFor(`!document.querySelector(${JSON.stringify(LANDING)}) && document.querySelector(${JSON.stringify(STRIP)})?.textContent.includes('正在看：发布笔记')`, 10_000);
+  assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional")}))`), false, "× on the landing leaves the object added");
+  await send("接着写");
+  for (let tries = 0; tries < 150 && !model.requests.length; tries++) await new Promise(resolve => setTimeout(resolve, 100));
+  assert.ok(asked(0).includes("正在看的对象：发布笔记"), "the object still goes with the Send");
+  assert.equal(asked(0).includes("左边可以放进去的位置"), false, "the landing left out with × is not told");
+});
+
+test("STRIP-05: a round is told the landing once its owner reads the object again, as facts; not read, nothing is told", { timeout: 120_000 }, async t => {
+  const b = await openNotes(t, STEPS, "第二步");
+  if (!b) return;
+  const { evaluate, waitFor, model, asked, send, page, homeDirectory, projectId } = b;
+  await evaluate(caretAfterSecond);
+  await evaluate("document.querySelector('[data-assistant-input]').focus()");
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}))`, 10_000);
+  await evaluate(`document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}).click()`);
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(LANDING)}))`, 10_000);
+  await send("接着写");
+  for (let tries = 0; tries < 150 && !model.requests.length; tries++) await new Promise(resolve => setTimeout(resolve, 100));
+  for (const fact of ["左边可以放进去的位置", "对象：发布笔记", "「步骤」下，光标处", "位置之前的原文", "第二步，", "位置之后的原文", "写出离线记录的方案"]) assert.ok(asked(0).includes(fact), `the round is told ${fact}`);
+
+  // The document is gone from its owner: the page still reports the landing, the Host reads nothing and tells nothing.
+  const pages = openPagesStore(homeDirectory);
+  try { pages.delete(page.id, projectId!); } finally { pages.close(); }
+  await evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { new: true } }))");
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}))`, 10_000);
+  await evaluate(`document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}).click()`);
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(LANDING)}))`, 10_000);
+  await send("再写一段");
+  const second = () => model.requests.map(request => JSON.stringify(request)).find(text => text.includes("再写一段"));
+  for (let tries = 0; tries < 150 && !second(); tries++) await new Promise(resolve => setTimeout(resolve, 100));
+  assert.ok(second(), "the round reached the model");
+  assert.equal(second()!.includes("左边可以放进去的位置"), false, "an object its owner cannot read is not told as a landing");
+});
+
+test("CTX-COVER-01: the selection toolbar waits while the Assistant's panel covers the passage and comes back when it closes, at 390 and at 1440", { timeout: 180_000 }, async t => {
+  const b = await openNotes(t);
+  if (!b) return;
+  const { command, sessionId, evaluate, waitFor, send } = b;
+  const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden])";
+  for (const [width, height, mobile] of [[390, 844, true], [1440, 950, false]] as const) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+    await evaluate(`(() => {
+      const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+      const range = document.createRange(); range.selectNodeContents(editor.querySelector('p').firstChild);
+      const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
+    })()`);
+    await waitFor(`Boolean(document.querySelector(${JSON.stringify(BAR)}))`, 10_000);
+    const passage = await evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector('[data-pages-editor] .ProseMirror p').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+    await send("看看这段");
+    await waitFor("!document.querySelector('[data-assistant-panel]').hidden", 10_000);
+    const covered = await evaluate<boolean>(`Boolean(document.elementFromPoint(${passage.x}, ${passage.y})?.closest('[data-assistant-panel]'))`);
+    if (width < 600) assert.ok(covered, "a phone's panel covers the page");
+    await new Promise(resolve => setTimeout(resolve, 600));
+    if (covered) assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(BAR)}))`), false, `${width}: no toolbar floats over the panel for a passage under it`);
+    else assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(BAR)}))`), true, `${width}: a passage the panel leaves in sight keeps its toolbar`);
+    await evaluate("document.querySelector('[data-assistant-panel-close]').click()");
+    await waitFor(`Boolean(document.querySelector(${JSON.stringify(BAR)}))`, 10_000);
   }
 });

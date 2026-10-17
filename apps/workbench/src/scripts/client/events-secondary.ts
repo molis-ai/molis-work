@@ -310,7 +310,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         if (!openWorkbenchSurface("home")) setDesktopWorkSurface("home");
         return;
       }
-      if (handleTreeSearchFocus(target)) return;
       if (handleTreeDisclosureClick(target)) return;
       if (handleMomentumNavigationClick(target)) return;
       const workbenchViewButton = target.closest("button[data-workbench-view]");
@@ -329,11 +328,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
       }
       if (handleMomentumSelectionClick(target, event)) return;
       if (handleMomentumZoomClick(target)) return;
-      if (target.closest("[data-close-work-planning]")) {
-        closeGoalOverlay();
-        document.querySelector("[data-goal-canvas-shell]")?.setAttribute("data-expanded", "false");
-        return;
-      }
       const planningLink = target.closest("[data-goal-work-planning] a[href]");
       if (planningLink && !planningLink.closest(".work-planning") && !(event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1)) {
         const url = new URL(planningLink.href, location.origin);
@@ -387,12 +381,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         return;
       }
       if (handleGoalFactorClick(target)) return;
-      if (target.closest("[data-open-goal-tui]")) {
-        setWorkspaceMode("runtime");
-        const addTerminal = document.querySelector("[data-tui-add]");
-        if (addTerminal) addTerminal.click();
-        return;
-      }
       const sectionLink = target.closest('a[href^="#"]');
       if (sectionLink) {
         const targetId = sectionLink.getAttribute("href")?.slice(1);

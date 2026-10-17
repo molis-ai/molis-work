@@ -119,11 +119,11 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
     hold: waits.hold,
     onReady: waits.onReady,
     async end(input) {
-      const ref = boardRef(input.graph_id), node = runtime.boards.get(ref).nodes.find(one => one.id === input.node_id);
+      const ref = boardRef(input.graph_id), board = runtime.boards.get(ref), node = board.nodes.find(one => one.id === input.node_id);
       if (!node) throw agentErrors.collaboration_unknown("工作的任务图上没有这一步");
-      if (ENDED.includes(node.state)) return;
+      if (ENDED.includes(node.state) || (input.if_ready && node.state !== "ready")) return;
       const holder = node.assignee?.kind === "session" ? node.assignee : undefined;
-      await runtime.boards.report({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: node.id, by: undefined, note: input.note.slice(0, 480), atMs: Date.now(), to: "cancelled",
+      await runtime.boards.report({ ref, expectedVersion: board.version, nodeId: node.id, by: undefined, note: input.note.slice(0, 480), atMs: Date.now(), to: "cancelled",
         ...(input.actor_id ? { human: { kind: "human", id: input.actor_id }, override: true } : holder ? { session: holder } : {}) });
     },
   };

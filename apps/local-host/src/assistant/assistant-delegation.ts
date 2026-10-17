@@ -160,15 +160,14 @@ export class AssistantDelegations {
    * Start a round of `work` where it stands (`placeOn`). A step added for this round is ended again when the round does
    * not start (a later send replaced it, its Character or model was refused): left open, the part would stay "still
    * working" for its delegating work. Another round of the same session may have found the step open meanwhile and gone
-   * on with it; a step a round has started on is that round's, so only one still ready is ended.
+   * on with it; a step a round has started on is that round's, so only one still ready is ended (`if_ready`: the graph
+   * checks and ends it in one step).
    */
   async startPlaced<T>(work: StoredWork, start: (work: StoredWork) => Promise<T>): Promise<T> {
     const placed = await placeOn(async () => { const graphs = await this.#graphs(); this.#listen(graphs); return graphs; }, this.ports, work);
     try { return await start(placed.work); } catch (error) {
       const added = placed.added;
-      if (added) await this.#graphs().then(async graphs => {
-        if ((await graphs.read(added.graph_id)).find(node => node.node_id === added.node_id)?.state === "ready") await graphs.end({ ...added, note: "这一轮没有开始" });
-      }).catch(() => undefined);
+      if (added) await this.#graphs().then(graphs => graphs.end({ ...added, note: "这一轮没有开始", if_ready: true })).catch(() => undefined);
       throw error;
     }
   }

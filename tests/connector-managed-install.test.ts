@@ -108,19 +108,27 @@ async function packagePlan(t: test.TestContext, home: string, beforeDownload?: (
 test("ASC-17 ASC-19 ASC-34: managed update failures preserve the active package; held candidates cancel or replace without leaked installs", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), input = await packagePlan(t, home.home), actions = home.host.homeActionClient();
   const prepare = (value: typeof input & { connection_id?: string }) => actions.invoke(caller, connectorLocalActions.prepare, value) as Promise<{ authorization_id: string }>;
-  const run = (id: string) => actions.invoke(caller, connectorLocalActions.execute, { authorization_id: id }) as Promise<{ status: string; connectionId: string }>;
+  const run = (id: string) => actions.invoke(caller, connectorLocalActions.execute, { authorization_id: id }) as Promise<{ status: string; connectionId: string; awaiting_intent?: boolean }>;
   const directories = () => readdirSync(join(home.home, "runtime/connectors/installs"));
   const original = await run((await prepare(input)).authorization_id), owned = directories(); assert.equal(owned.length, 1);
   const revision = () => withConnectorConnections(home.home, store => store.require(original.connectionId).updated_at);
   const update = { ...input, connection_id: original.connectionId, expected_revision: revision() };
   const failed = await prepare({ ...update, source: { ...input.source, bin: "not-a-command" } });
   await assert.rejects(run(failed.authorization_id), /没有提供/); assert.deepEqual(directories(), owned); assert.equal(revision(), update.expected_revision);
+  const submitHeld = async (id: string) => {
+    const held = await run(id);
+    assert.equal(held.status, "pending"); assert.equal(held.awaiting_intent, true);
+    assert.deepEqual(directories(), owned, "the model cannot install against the changed intent"); assert.equal(revision(), update.expected_revision);
+    const submitted = await home.web.post<{ status: string; awaiting_intent?: boolean }>("/api/settings/connectors/methods/local/connect", { setup_id: id, environment: {} });
+    assert.equal(submitted.status, "pending"); assert.equal(submitted.awaiting_intent, true);
+    assert.equal(directories().length, 2, "the person's completed candidate is held without replacing the active package"); assert.equal(revision(), update.expected_revision);
+  };
   const discarded = await prepare(update); holdConnectorAuthorizationsForSession(home.home, caller.runtime_session_id!, caller.actor_id, "cancel-version");
-  assert.equal((await run(discarded.authorization_id)).status, "pending"); assert.equal(directories().length, 2);
+  await submitHeld(discarded.authorization_id);
   await actions.invoke(caller, connectorManagementActions.cancel, { authorization_id: discarded.authorization_id });
   assert.deepEqual(directories(), owned); assert.equal(revision(), update.expected_revision);
   const kept = await prepare(update); holdConnectorAuthorizationsForSession(home.home, caller.runtime_session_id!, caller.actor_id, "keep-version");
-  assert.equal((await run(kept.authorization_id)).status, "pending"); assert.equal(directories().length, 2);
+  await submitHeld(kept.authorization_id);
   await actions.invoke(caller, connectorSetupIntentAction, { authorization_id: kept.authorization_id, intent_revision: "keep-version", decision: "retain" });
   assert.equal(directories().length, 1); assert.notDeepEqual(directories(), owned);
   await actions.invoke(caller, { capability_id: `mcp.connector.${original.connectionId}.record_review_note`, version: 1, provider_id: `system.connectors#mcp:${original.connectionId}` }, { note: "updated package" });

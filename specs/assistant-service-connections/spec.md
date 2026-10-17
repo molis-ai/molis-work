@@ -1,8 +1,8 @@
 # 个人助理统一接入和管理外部服务
 
-状态：实施中（2026-10-17）。连接管理、安装与消费方关联已有工程证据，GitHub 官方 MCP 的写入、启停及移除已有实操记录；真实 MiniMax 任务仍不稳定，且统一 SDK 与 P4-A1 合流尚未完成，整体未达到「内部完整」。负责人：Codex（设计、实现与验证）。当前验证与剩余事项见[覆盖表](coverage.md#当前验证与剩余事项)。
+状态：实施中（2026-10-17）。连接管理、安装与消费方关联已有工程证据，GitHub 官方 MCP 的写入、启停及移除已有实操记录；真实 MiniMax 任务仍不稳定，统一 SDK 与 P4-A1 代码已合流，但统一包缺少 App-tools 等待能力，当前助理启动被拒，整体未达到「内部完整」。负责人：Codex（设计、实现与验证）。当前验证与剩余事项见[覆盖表](coverage.md#当前验证与剩余事项)。
 
-本轮交付目标为「内部完整」：用户能在个人助理对话中完成接入，在必要的登录或授权界面完成本人操作后，回到同一任务，让助理真实调用服务并交付结果。保存配置、登录成功、列出工具和工程测试通过，都不能单独证明这个目标完成。开发基线已跟随助理基座、共享卡片、会话摘要和 Agent Host 合同拆分合入到 `76758783a`，分支 `feature/assistant-service-connections`；不改主检出或真实 Home。
+本轮交付目标为「内部完整」：用户能在个人助理对话中完成接入，在必要的登录或授权界面完成本人操作后，回到同一任务，让助理真实调用服务并交付结果。保存配置、登录成功、列出工具和工程测试通过，都不能单独证明这个目标完成。开发基线已跟随主线统一 SDK、P4-C2 与 P4-A1 重放到 `5b9fdbf35`，分支 `feature/assistant-service-connections`；不改主检出或真实 Home。
 
 ## 1. 用户目标与产品承诺
 
@@ -415,17 +415,21 @@ node scripts/check-spec-coverage.mjs
 
 最新核对（2026-10-17 08:02 UTC）：#632、#637、#641 已进入 origin/main `5b9fdbf35`，等待合入条件已满足。先保存本分支成果，再同步主线和统一包，不新造 SDK 候选。统一包内 App-tools admission 的白名单缺少 board-wait，须以真实回归确认能力缺口。240 次额度下第一项全新完整复验失败，累计 179/240；证据与归因见诊断记录。余下两项须等同步后的实际启动能力确认，未完成、未计通过。
 
-保留本需求「内部完整」目标与 Codex 负责人。暂停新 PR、SDK 换包及发布，等待 #632（P4-C2）、P4-A1，以及含 Prologue #33 和 MCP refresh 的统一 SDK 换包进入 Molis main。满足后先同步 main，移除本分支自带候选包及其过期配套记录，再按当前命令执行整体构建、基于 origin/main 的 health/page-assets 与 secrets 检查；功能 PR 不加 full-suite 标签。整套回归改由 CI full-suite 执行，不再启动本地浏览器全量。
+合流实现：保留 P4 的 graph_id、按图找委派工作、每项工作的任务图以及最新工作角色 v2；接入等待、停止与最新意图沿用本分支方案。合并后的基础提示词作为 v29，未宣称已有真实模型证据。网关保留主线“参数原样校验、不拼接字段或转换类型”的合同，只叠加本分支精确类型错误说明。SDK、锁文件和来源记录完全采用 main。合并后助理合同文件超过 800 行门槛，将卡片及准备卡片类型移至同包 assistant-cards，仍从原 services/assistant 入口导出，公开类型形状不变，不放宽门禁。
 
-收到约束时，202 文件浏览器批次已经开始。核对工作目录和子进程后，仅终止本批 runner PID 78229；退出码 143，子进程已退出，机器 browser 槽位已释放。已完成的单文件证据保留，被取消的整批不计通过。先前已授权接入的本地候选是 `app-tools-waits`（`26d6aec5`，基于 `74b333d7`），未推送或发布；现在冻结，不再自行更换。统一包还需覆盖这份候选新增的 App-tools 只读外部等待能力，否则完整业务接续不能只靠 MCP refresh 运行。
+统一包实证：整体构建成功后，四项 assistant-connector-business 用例均在第一轮启动时收到 AGENT_START_INVALID，实际消息为 App-tools 不能使用 board-wait；尚未发出任何模型请求。源码定位为统一包的 runtime-support 白名单与 agent-run-admission 录取校验。已有本地 SDK 修复 `26d6aec5` 改动六文件，包含 App-tools 白名单、只准 App owner 外部条件的运行前校验和 11 项验证；尚未合入统一来源。这是继续完整真实复验的前置缺口，不以删工具、改角色或另起等待循环绕过。
+
+收到统筹约束时，保留本需求「内部完整」目标与 Codex 负责人，暂停新 PR、SDK 换包及发布，等待 #632（P4-C2）、P4-A1，以及含 Prologue #33 和 MCP refresh 的统一 SDK 换包进入 Molis main。满足后先同步 main，移除本分支自带候选包及其过期配套记录，再按当前命令执行整体构建、基于 origin/main 的 health/page-assets 与 secrets 检查；功能 PR 不加 full-suite 标签。整套回归改由 CI full-suite 执行，不再启动本地浏览器全量。
+
+收到约束时，202 文件浏览器批次已经开始。核对工作目录和子进程后，仅终止本批 runner PID 78229；退出码 143，子进程已退出，机器 browser 槽位已释放。已完成的单文件证据保留，被取消的整批不计通过。先前已授权接入的本地候选是 `app-tools-waits`（`26d6aec5`，基于 `74b333d7`），未推送或发布；此候选已在合流时从当前分支移除，只在本地检查点保留。统一包还需覆盖这份候选新增的 App-tools 只读外部等待能力，否则完整业务接续不能只靠 MCP refresh 运行。
 
 再次核对远端（2026-10-17 07:03 UTC）：Prologue #33 与 MCP refresh #34 已合入，main 为 `e69b71cf`；现行 App-tools 名单仍不含 board-wait，本地 `26d6aec5` 的等待扩展尚未进入统一来源。Molis #632 已合入，当前 main 为 `003adf17e`，P4-A1 已开 #637、仍未合入，统一 SDK 换包也未落入 main。继续冻结本分支 SDK；执行依赖步骤前重新核对。
 
-开 PR 前必须按最终 diff 重列下表；这份按当前合并基点 `cee899c4d` 比较，包含已提交和未提交改动，不能替代合流后的清单。`apps/local-host/src/assistant/` 下共十一个文件：
+下表已按合流后的 `5b9fdbf35` 与当前差异核对；开 PR 前若再改范围，仍须重新核对。`apps/local-host/src/assistant/` 下共十一个文件：
 
 | 文件 | 本次行为与冲突关注点 |
 | --- | --- |
-| `assistant-agent.ts` | 服务接入、等待、最新意图和交付规则；基础提示词 v26 → v28（最新意图与等待已有单次真实证据，修复后完整任务尚未重新实测） |
+| `assistant-agent.ts` | 服务接入、等待、最新意图和交付规则；基础提示词 v27 → v29，保留主线角色 v2；v28 完整复验失败，v29 因 SDK 录取缺口尚未实测 |
 | `assistant-card-view.ts` | 显示已完成卡片的结果及本人接入入口 |
 | `assistant-connection-authority.ts`（新增） | 将连接操作绑定可信助理会话，并复核等待的当前管理权限 |
 | `assistant-continuations.ts`（新增） | 消费 SDK 持久等待、领取接续、当前修订和关闭时的异步结果检查 |
@@ -440,17 +444,21 @@ node scripts/check-spec-coverage.mjs
 | 合同或边界 | 当前涉及情况 |
 | --- | --- |
 | `services/agent-host-ports.ts` | MCP 实际派出与结果的观察回调；回调不授予权限 |
-| `services/assistant.ts` | 卡片结果展示，以及 `stop` 可显式指定 `keep_connections` |
+| `services/assistant.ts`、`assistant-cards.ts`（新增） | 卡片结果展示，以及 `stop` 可显式指定 `keep_connections`；卡片类型拆文件，原导出不变 |
 | `services/connector-host.ts` | 连接状态与消费引用公开导出，CLI 接入能力与环境字段 |
 | `services/connector-status.ts`、`connector-usages.ts`（新增） | 技术检查、业务调用观察和消费者查询合同 |
 | `platform/plugin-agent.ts`、`platform/plugin.ts` | owner 只读外部检查端口及插件消费引用声明 |
-| 动作快照 | `actions.tsv` 新增 Feed/Images 消费引用查询，Images 连接列表升至 v2；`host-actions.tsv` 新增十八项，涵盖授权请求、连接管理、CLI、本地 MCP、意图决议与消费查询。合流后重新生成，不覆盖 P4 的动作 |
-| API 快照 | `platform/plugin-agent`、`platform/plugin`、`services/agent-host`、`services/assistant`、`services/connector-host` 五份 |
+| 动作快照 | `actions.tsv` 新增 Feed/Images 消费引用查询，Images 连接列表升至 v2；`host-actions.tsv` 新增十八项，涵盖授权请求、连接管理、CLI、本地 MCP、意图决议与消费查询。合流后已重新生成并核对，保留 P4 动作 |
+| API 快照 | `platform/plugin-agent`、`platform/plugin`、`services/agent-host`、`services/assistant`、`services/connector-host` 及 `plugin-sdk/index` 六份 |
 | `SECURITY-INVARIANTS.md` | S-13 SDK 来源；S-27 owner 等待授权；S-30 最新意图暂缓提交；S-31 受管理安装、凭据环境与跨入口 MCP 派出 |
 
 目录外还涉及 `home-side.ts`、`web-assistant.ts`、Agent Host 的 `prologue-node.ts`/`prologue-waits.ts`/检查器与 `agent-host-composition.ts`，集成时一并核对 P4 生命周期和统一工作图，不能以只看助理目录文件代替调用链检查。
 
 ### 10.4 诊断修复后的真实模型复测（2026-10-17）
+
+集成后的独立修复（ASC-23、ASC-34）：接入检查器读取 owner 当前状态时，prepared/pending 且 commit_held 必须说明正在等待最新意图的保留/取消；completion_ready 同时为真时说明本人操作结果已收到。仍返回 pending，不替模型决议或释放提交，不产生接续。沿用实际授权记录和现有检查器，验证原始待填、意图暂缓、已收到结果后三个阶段的说明与零连接写入；这项事实反馈修复不视为模型漏掉 retain 的修复证明。
+
+集成回归：219 个相关非浏览器文件首次 215 通过、4 失败。安装用例修正旧前提后 6 项通过，原取消/保留/清理断言保留；其余三个文件的助理路径均在 SDK 录取处拒绝。整体构建、API/动作快照、merge-base health、边界与资源预算通过。详见[当前覆盖记录](coverage.md#统一主线后的定向验证2026-10-17)。
 
 一骏已要求继续用原模型和原预算复测，重点是等待接入期间改为只读之后，提交本人表单能自动接续、实际读取库存且不创建 Pages。沿用 MiniMax-M3 和累计 160 次外发请求上限，原账本 141 次不重置；使用 assistant-base v28 及本轮最新状态材料、精确错误反馈修复。先执行一项完整只读场景，再按实际剩余额度决定是否重复；不启动旧版对照，不修改原十项结果。
 

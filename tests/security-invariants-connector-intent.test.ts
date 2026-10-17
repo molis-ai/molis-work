@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { retainConnectorSetupsForSession, MolisWorkLocalHost, connectorSetupAction, connectorSetupIntentAction, connectorManagementActions, connectorRecordActions, CONNECTOR_RECORDS_READ, holdConnectorAuthorizationsForSession, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { assistantConnectionCheckers, retainConnectorSetupsForSession, MolisWorkLocalHost, connectorSetupAction, connectorSetupIntentAction, connectorManagementActions, connectorRecordActions, CONNECTOR_RECORDS_READ, holdConnectorAuthorizationsForSession, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openTestHome, serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 
@@ -21,13 +22,22 @@ const saveToken = (server: IntentServer, id: string) => server.web.post<{ status
 
 test("S-30 ASC-34 ASC-35: a late token submission stays private across Host restart and commits once for the current intent", async t => {
   const home = await openTestHome(t), prepared = await prepare(home);
+  // ASC-23 ASC-34: the owner reports the real pending reason before and after the person's submission.
+  const checker = assistantConnectionCheckers(home.home, home.host).find(value => value.id === "molis.connector-setup")!;
+  const checking = () => checker.read({ actor_id: caller.actor_id, plugin_id: ASSISTANT_PLUGIN_ID, project_id: ASSISTANT_PERSONAL_OWNER,
+    install_id: "assistant", session_id: caller.runtime_session_id! }, prepared, new AbortController().signal);
+  assert.match((await checking()).note!, /仍在等待本人完成接入/);
   hold(home.home, "only-read-1");
+  const held = await checking();
+  assert.equal(held.status, "pending"); assert.match(held.note!, /接入因任务更新而暂缓/); assert.doesNotMatch(held.note!, /仍在等待本人/);
   assert.equal((await prepare(home)).authorization_id, prepared.authorization_id, "intent metadata does not break reopening the same request");
   const saved = await saveToken(home, prepared.authorization_id);
   assert.equal(saved.awaiting_intent, true);
   assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
   const pending = await read(home, prepared.authorization_id);
   assert.equal(pending.commit_held, true); assert.equal(pending.completion_ready, true);
+  const received = await checking();
+  assert.equal(received.status, "pending"); assert.match(received.note!, /本人操作结果已收到/); assert.match(received.note!, /明确保留或取消/);
   assert.doesNotMatch(JSON.stringify(pending), /fixture-held-secret-value|connector-protocol|completion"/);
   assert.match(secret(home.home, prepared.authorization_id)!, /fixture-held-secret-value/);
   await home.close(); await home.host.close();

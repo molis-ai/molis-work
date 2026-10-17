@@ -30,7 +30,9 @@ export function connectorSetupChecker(home: string, authorize: (scope: Connector
       const request = connectorAuthorizationStatus(home, idOf(input));
       if (!request) return { status: "failed", note: "接入请求已经不存在" };
       const source = { ref: `connector-setup:${request.id}` };
-      if (request.status === "prepared" || request.status === "pending") return { status: "pending", source, note: "仍在等待本人完成接入；关闭页面不会取消" };
+      if (request.status === "prepared" || request.status === "pending") return { status: "pending", source, note: request.commit_held
+        ? `${request.completion_ready ? "本人操作结果已收到，" : ""}接入因任务更新而暂缓；需按最新意图明确保留或取消`
+        : "仍在等待本人完成接入；关闭页面不会取消" };
       if (request.status !== "connected") return { status: "failed", source, note: `接入请求已${request.status === "cancelled" ? "取消" : request.status === "expired" ? "过期" : "失败"}` };
       const connection = listConnectorConnectionViews(home, request.service_id).find(row => row.connection_id === request.connection_id);
       if (!connection?.enabled || connection.state !== "connected") return { status: "failed", source, note: "连接已停用、移除或需要重新授权" };

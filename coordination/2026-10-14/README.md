@@ -557,6 +557,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - **main 新红**：`tests/companion-client-lifecycle.e2e.test.ts` 的 W2-18-DIFF-FILE-01，`reads` 5 !== 4。Coding 产物固定、运行时标成不可用之后，Diff 选文件时还多调了一次宿主能力。回执线在 0a931c978 上复现了 4 次。最可能的来源是 #618（「主人读取对象时通知那一轮」）和 #627 的组合，#618 自己的全量是在 #627 合入前跑的。已交情境线二分并开小修复 PR，全量优先排；只在产品里修，不改断言。统筹 10-17 定：全量只红这一条的 PR，等修复合入后再入队，不在红的时候入队。
     - 更正：#628 全量全绿、入队，它的合并引用 cd4b8aa18 含 #618 和 #627，CI 上 companion-client-lifecycle 8/8 通过。所以 W2-18 只在本机红，不是 CI 上的回归，交情境线不急着查（先确认 build 是新的，再找出多出来的那次是哪个 capability）。上一条「等修复后再入队」作废。
     - #628（B）合入（`446c05218`）。#629 的 label-chain 等了 10 分钟，合并引用还是旧的，就没打标签：期间 main 连着动了两次（#632、#628），GitHub 的合并引用没跟上。核过可以干净合并，已重新挂上。已通知回执线推 C1。防腐线的 machine-slot 饿死修复（fix/machine-slot-ticket-race）算在防腐线的工具范围里，可以开 PR；要写清旧格式的票会怎样，并跑一次全量。
+    - #633（machine-slot 饿死修复，防腐线，`63d102824`）审过，通过：死活看文件名里的 pid；半写的票放在旁边的 `.writing/` 目录，旧读者碰不到；票丢了按原到达时间重写；票的格式不变，没有兼容代码。after-629.zsh 在 #629 打上标签后挂它的全量。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

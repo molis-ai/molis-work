@@ -32,3 +32,11 @@ export class AssistantUsageLedger {
     return { input: Number(row.input), output: Number(row.output), cached_input: Number(row.cached), rounds: Number(row.rounds) };
   }
 }
+
+/** Midnight of `now`'s day in `zone`, as an instant: where today's usage starts. */
+export function startOfToday(now: Date, zone: string): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    .formatToParts(now).map(part => [part.type, part.value]));
+  const wall = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +parts.hour!, +parts.minute!, +parts.second!);
+  return new Date(now.getTime() - (wall - Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!))).toISOString();
+}

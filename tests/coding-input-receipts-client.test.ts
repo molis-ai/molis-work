@@ -26,10 +26,12 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, port
     document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` }, TypeError,
   }) as (ports: object) => {
     steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string, run: { turns: object[] }): Node | null;
-    waiting(list: Array<{ input_id: string; text: string }>): Node | null;
+    act(id: string, run: string): { withdraw(inputId: string): Promise<string>; correct(about: string, text: string, key: string): Promise<string> };
   };
-  const api = (_path: string, _method: string, body: Record<string, unknown>) => { sent.push(body); return reply(body); };
-  return { ui: factory({ api, refresh: () => {}, q: () => null, landed: () => {}, ...ports }), sent };
+  const paths: string[] = [];
+  let refreshed = 0;
+  const api = (path: string, _method: string, body: Record<string, unknown>) => { paths.push(path); sent.push(body); return reply(body); };
+  return { ui: factory({ api, refresh: () => { refreshed++; }, q: () => null, landed: () => {}, ...ports }), sent, paths, refreshed: () => refreshed };
 }
 /** The round's record before it shows the supplement. */
 const nothing = { turns: [] };
@@ -96,16 +98,13 @@ test("RC-17: after a lost answer, once the run's record shows that key, the bubb
   assert.notEqual(sent[1]!.key, key, "sent again after it arrived, the same words are a new supplement");
 });
 
-test("RC-18: what waits for the next round shows once at the end of the conversation, with its words behind the count, and stays open across repaints", () => {
+// RC-18's strip became the shared tray (D38): what waits, and the words behind its count, are tested in
+// input-receipts-client.test.ts (RCPT-331 to RCPT-333); Coding draws no list of its own.
+test("RC-18, D38: what waits for the next round is in the shared tray; Coding has no strip of its own", () => {
   const { ui } = receipts(() => taken());
-  assert.equal(ui.waiting([]), null, "nothing waits, nothing shows");
-  const list = [{ input_id: "steer-1", text: "下一轮顺便看注册接口" }, { input_id: "steer-2", text: "错误提示用中文" }];
-  const strip = ui.waiting(list)!;
-  assert.equal(strip.dataset.kind, "notice", "the Host's fact, drawn as its notes are, never as the person's words");
-  assert.deepEqual(strip.children.map(child => typeof child === "string" ? child : child.textContent), ["排着 2 条补充，下一轮开始时带上", "下一轮顺便看注册接口", "错误提示用中文"]);
-  assert.equal(ui.waiting(list.map(one => ({ ...one }))), strip, "a repaint of the same queue keeps the node, so an opened list stays open");
-  assert.notEqual(ui.waiting(list.slice(1)), strip, "a changed queue is drawn again");
-  assert.equal(ui.waiting([]), null);
+  assert.equal("waiting" in ui, false, "D38 one list, in the shared tray");
+  assert.equal(CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT.includes("coding-queued-inputs"), false);
+  assert.equal(CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT.includes("排着"), false);
 });
 
 test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {
@@ -119,4 +118,28 @@ test("RC-16: interrupting dims the reply being written and says it was dropped; 
   assert.equal(await marked("interrupt", "queued"), false, "words that missed the round dropped nothing in it");
   assert.equal(await marked("interrupt", "run", true), false, "a repeat that the runtime already had marks nothing again");
   assert.equal(await receipts(() => taken()).ui.steer("s", "r", "改用新接口", "interrupt"), "已送达：正在写的回复已丢掉，按你的话接着做；已执行的操作不撤销。", "with no reply being written, nothing is marked");
+});
+
+test("RCPT-326: from a receipt, the page takes a supplement back and sends a correction naming it, both through the round's control", async () => {
+  const replies: Array<() => Promise<unknown>> = [
+    async () => ({ accepted: true, withdrawn: { input_id: "steer-1", from: "run" } }),
+    async () => ({ accepted: true, withdrawn: { input_id: "steer-1", from: "queued" } }),
+    async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: false, delivered: "run" } }),
+    async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: false, delivered: "queued" } }),
+    async () => { throw new TypeError("Failed to fetch"); },
+    async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: true, delivered: "run" } }),
+  ];
+  const { ui, sent, paths, refreshed } = receipts(() => replies.shift()!() as Promise<Reply>);
+  const act = ui.act("s 1", "run-1");
+  assert.equal(await act.withdraw("steer-1"), "", "the receipt itself says 已撤回 once the round's record does");
+  assert.equal(await act.withdraw("steer-1"), "已撤回，下一轮不会带上它。", "one the round had already left for the session says where it was taken from");
+  assert.equal(await act.correct("steer-1", "只测失败路径", "k1"), "更正已送达。");
+  assert.equal(await act.correct("steer-1", "只测失败路径", "k1"), "已存好，下一轮开始时带上。", "a correction to an ended round waits for the next one");
+  await assert.rejects(act.correct("steer-1", "只测失败路径", "k1"), /没确认送到：再按一次，同一条不会重复。/u);
+  assert.equal(await act.correct("steer-1", "只测失败路径", "k1"), "之前已送到，没有重复发送。");
+  assert.deepEqual(JSON.parse(JSON.stringify(sent.slice(0, 3))), [{ kind: "withdraw", run_id: "run-1", input_id: "steer-1" }, { kind: "withdraw", run_id: "run-1", input_id: "steer-1" },
+    { kind: "steer", run_id: "run-1", text: "只测失败路径", about: "steer-1", key: "send.k1" }], "RCPT-326 the person's words, the input they correct, and the receipt's key");
+  assert.ok(sent.slice(2).every(body => body.key === "send.k1"), "RCPT-326 sent again, the same key");
+  assert.ok(paths.every(path => path === "/sessions/s%201/control"));
+  assert.equal(refreshed(), 6, "the page reads the round again after each");
 });

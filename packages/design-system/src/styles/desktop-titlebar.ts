@@ -122,34 +122,6 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* The Goal document pane. It comes be
       min-height: var(--desktop-titlebar-height);
       align-items: center;
     }
-    body.settings-page[data-desktop-shell="true"] .settings-desktop-project {
-      height: var(--desktop-project-header-height);
-      min-height: var(--desktop-project-header-height);
-      padding: 0 !important;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: var(--desktop-titlebar-height) var(--desktop-titlebar-height);
-      align-content: start;
-      gap: 0;
-    }
-    body.settings-page[data-desktop-shell="true"] .settings-desktop-project .navigator-native-row {
-      padding-inline-start: var(--desktop-settings-safe-inline-start);
-    }
-    body.settings-page[data-desktop-shell="true"]:has(.settings-navigation) .settings-navigation {
-      grid-template-rows: var(--desktop-project-header-height) 50px minmax(0, 1fr) auto;
-    }
-    body.settings-page[data-desktop-shell="true"]:has(.settings-navigation) > .topbar {
-      height: var(--desktop-titlebar-height);
-      min-height: var(--desktop-titlebar-height);
-      padding-block: 0;
-      align-items: center;
-    }
-    body.settings-page[data-desktop-shell="true"]:has(.settings-navigation) > .topbar .project-context,
-    body.settings-page[data-desktop-shell="true"]:has(.settings-navigation) > .topbar .top-action {
-      height: var(--desktop-titlebar-control-height);
-      min-height: var(--desktop-titlebar-control-height);
-      align-self: center;
-    }
     body[data-desktop-shell="true"] .workspace.is-directory-collapsed > .tree-pane {
       padding-inline: 0;
     }
@@ -168,15 +140,6 @@ export const DESKTOP_TITLEBAR_STYLES = `  /* The Goal document pane. It comes be
     html[data-native-desktop="true"] body[data-desktop-shell="true"] .navigator-native-row,
     body[data-desktop-shell="true"][data-native-desktop="true"] .desktop-workbench-bar,
     html[data-native-desktop="true"] body[data-desktop-shell="true"] .desktop-workbench-bar {
-      transform: translateY(-2px);
-    }
-    body.settings-page[data-desktop-shell="true"][data-native-desktop="true"] > .topbar,
-    html[data-native-desktop="true"] body.settings-page[data-desktop-shell="true"] > .topbar {
-      height: var(--desktop-titlebar-height);
-      min-height: var(--desktop-titlebar-height);
-    }
-    body.settings-page[data-desktop-shell="true"][data-native-desktop="true"] > .topbar > *,
-    html[data-native-desktop="true"] body.settings-page[data-desktop-shell="true"] > .topbar > * {
       transform: translateY(-2px);
     }
   }

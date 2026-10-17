@@ -813,3 +813,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 交互线：#669 merge main，解 spec 冲突，重新定键，走 merge-only；
   - 防腐线：W5-01 开 PR 时按新的 merge-base 定键。
   - 防腐线又补了几处，统筹已认可：所有 progress 行合计不超过 1 MiB；`observeDeactivation` 在升级、重装、回滚时也通知；进度经 `BoundActionClient.invoke` 新加的第四个参数 `transport?: { on_progress? }` 传给动作，不把 control 展开成新对象。#679 是按对象身份认宿主签发的 control 的，展开以后项目就丢了。
+- **标签脚本误判，已修（10-17 夜）**：#669 已经 DIRTY，但 label-when-free2 没有取到合并预览的 base：`git rev-parse` 原样吐回了字符串，接下来的 `git diff` 出错，结果算出「无重叠」，就给它加了 full-suite。CI 没有起全量。已经撤掉标签，按 pid 停了它的 gate 子进程，把 PR 上那条留言改成了更正。脚本改了三处：遇到 CONFLICTING 直接不加；base 用 `--verify -q` 取；`git diff` 出错就不加。
+- #677 在 #667 合入后和 main 冲突（page-assets.json），已请防腐线 merge main 后重新测量；它还没跑过全量，新 head 来了要重新排进标签链。

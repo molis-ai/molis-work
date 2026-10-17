@@ -944,3 +944,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 要求先在浏览器里复现；复现出来就在 #688 里改成按面取（WeakMap），更正时重画所有画过原来那条的面，link 也按面找。
   - workbench.js +602 和 coding.js +169 是用户在回执线会话里批的。
   - 另记一笔：taskboard-client 按 node.id 编号，有插入步骤时可能和计划卡对不上，回执线去核对。
+- 换包分支测出 prologue#40 漏掉的问题（采用线）：停放的 drive 留着 deadlineTimer，最多 15 分钟，进程要拖到超时才退出，S-26 和 interaction-reask 都会挂住。
+  - 交给交互线在 Prologue 开小 PR：封口时清掉所有计时器和句柄，不用 unref 掩盖，加一条子进程自己退出的用例。我审完就合；换包从新的 Prologue main 打包，在那之前不开 PR。
+  - D5 用例改成空档期的路径（待核对 → 关掉前 needs_check → 关掉后能重新问），属于预期变化，在正文和 D5 记录里写明。
+  - 空档期 Molis 开跑前就拒了（agent.session_busy 或 assistant.needs_check），页面不会出现 controlFailure 的通用文字。
+  - inspectRecovery 不在动作目录里，它的写盘属于运行时自己的维护。

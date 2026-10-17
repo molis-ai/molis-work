@@ -819,3 +819,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #677 → 1e9055a38：除去 page-assets 和 baseline，和审过的 68c4d0a5d 逐行一致；三份 CSS 的降幅不变。挂上 chain5。W5-01 本地已经并了 #667，+28 改成以 [1104882, 1104910] 定键。
 - #671（3b-2b）→ 5fa26f5cb：merge 了 #667 和 main。除去 page-assets 那四份，对 main 的改动和审过的 aa1255e28（相对 #667 的部分）逐行一致。放行以 e49f6a558 定键：workbench.js +2,838、workbench.css +102、settings.css +57、arrival.css +64，都在用户批的 +2,838/+163/+91/+86 以内；coding.js 降了 512。有界用例的断言照原样换到 3b-2b。挂上 chain6，要跑全量。#677 会降这三份 CSS，所以它和 #671 谁后合入，谁按新的 main 重新定键。
   - 改了一处：浏览器读流的代码不放 SDK，那是 Node 包，浏览器脚本用不上。改放 `packages/ui-host/src/request-client.ts`，写成 `molisWorkRequest.stream`。客户端这一半挪到第三片（灵光迁移），和删掉灵光自己的 postStream 一起做，到时写清两份资源各自增减多少，再问一次用户。(a) 只做宿主和合同。三种行的类型只在 contracts/platform 里定义一份。
+  - observeDeactivation 改了做法（统筹认可）：新文件 plugin-runtime `instance-watch.ts`，流开着时每 100 ms 查一次 `active()`，查到 false 就中止，在 finally 里清掉。这样不用往巨大的 PluginSupervisor 里逐处挂通知。统筹加了三个条件：
+    - emit 和 beforeEffect 都同步查一次 `active()`，「不写记录」不靠轮询保证；
+    - 不导出只给测试用的计数，改成注入计时器；
+    - 计时器调 `unref()`。

@@ -349,7 +349,7 @@ Artifact 输入通知刷新当前投影，不是一次性业务命令。`onUpstr
 
 Coding `run-updated` 与 Git `operation-updated` 是 v1 刷新提示：前者来自后台 Run 的停止/待核对状态，后者来自 Prologue 已核对的 Effect/dispatch 回执。失败和 unknown 保留原语义，不宣称文件修改成功。恢复历史不产生新执行通知；Files/Git 订阅后只让 Host 视图 revision 失效，页面重新读取原接口。提示丢失靠首次进入、重新连接时读当前事实恢复，不能据此自动重跑模型或 Git；可靠业务提交仍须其 owner 的事务/持久协议。
 
-公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。Jelly 和 onboarding 已共用提取口，媒体模型下载仍需显式选择；生成摘要继续走 Prologue。
+Runtime 插件用 `context.services.materials` 读取材料：Manifest 声明 `materials:read` 才有 `extract({ file_name, bytes }, options)`，另声明 `materials:fetch` 才有 `readSource(url, options)`。服务只给宿主执行的插件，沙箱和升级预检没有；调用必须位于自己安装、声明对应权限的并发动作。上传解析用 SDK `decodeMaterialUpload`（安全文件名、支持格式、规范 Base64、非空且最多 25 MiB），不再复制检查。公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。灵光和 onboarding 已共用提取口，媒体模型下载只有可信 user 调用且 `allowModelDownload: true` 才生效；agent、mcp、workflow、plugin 的 true 被忽略并按缺模型规则拒绝；生成摘要继续走 Prologue。
 
 Shelf 的 PDF 预览与文字提取、OCR 同样走此端口。语言选项属于提取请求，逐行置信度来自 `pages[].lines`，不以页平均值代替；“待确认”、来源标题和不完整提示由业务组织。多选逐项处理。标准输入仍限 25 MiB，Shelf 由可信 Host 明确采用 32 MiB，不改变其他上传端限额。原调用撤权、取消或输入 hash 改变后不写成果或失败成果。
 

@@ -752,3 +752,5 @@ const runtimeFailureCodes = {
   "plugin.upgrade_validation_failed": true,
   "plugin.upgrade_rollback_failed": true
 } as const;
+
+export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate } from "./materials-service.js";

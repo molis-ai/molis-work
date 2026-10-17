@@ -2235,6 +2235,22 @@ export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
 
 export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining"];
 
+export interface MaterialSourceContent {
+    text: string;
+    title?: string;
+    source_url: string;
+    provider: string;
+    extractor: string;
+    coverage: MaterialExtraction["coverage"];
+    pages?: MaterialExtraction["pages"];
+    segments?: MaterialExtraction["segments"];
+    frames?: MaterialExtraction["frames"];
+    model_required?: {
+        approximate_bytes?: number;
+        variant?: string;
+    };
+}
+
 export declare const PERSONAL_SPACE_PROJECT_ID = "personal";
 
 export declare const PLACEMENT_COPY_INPUT_SCHEMA: {
@@ -2665,6 +2681,7 @@ export interface PluginHostServices {
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
     readonly model?: PluginModelClient;
+    readonly materials?: PluginMaterialsClient;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
     readonly ui: PluginUiClient;
@@ -2862,6 +2879,15 @@ export interface PluginManifest {
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
+}
+
+export type PluginMaterialRequest = MaterialExtractionOptions;
+
+export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress">;
+
+export interface PluginMaterialsClient {
+    extract?(source: MaterialSource, request?: PluginMaterialRequest): Promise<MaterialExtraction>;
+    readSource?(url: string, request?: PluginMaterialSourceRequest): Promise<MaterialSourceContent>;
 }
 
 export interface PluginModelClient {
@@ -3147,7 +3173,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "model"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "model" | "materials"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

@@ -180,6 +180,29 @@ W5-01 流式路由（a）（2026-10-17，Codex 接手继续，未验收）：保
 
 合入 Todo 的最新候选 `ce6d460108`（含 main `9626b24b1`）后，模型预览补齐并在真实 Host 的隔离 Home 中通过 8 条拒绝/交付测试；新测试归入 S-18 与安全回归。此次受影响的路由、模型、Runtime、授权和 Todo/Form/Characters 消费路径共 36 个文件、589 条通过；补验安全文档 1 条通过。命令里一度写了不存在的 `todo-ai-assist` 文件，已换成仓库实际的 `todo-organize` 与 `todo-actions`，无产品测试失败。整体与工作台构建、boundary、公开 API、merge-base health、25 项页面资源预算通过；没有新增页面资源。前一批 150 文件与浏览器验证仍作为此前路由实现的证据，共享核心最终组合全量由 CI 验证。
 
+### W5-01 材料服务前置片（2026-10-17，实施中）
+
+目标是让 Host 执行的 Runtime 插件在自己的并发动作里调用平台已有的材料读取口，达到功能可用；本片不迁灵光的装配和浏览器流读取器，不搬真实 Home 数据，不新增材料存储。`contracts/services/materials`、`material-extraction.ts` 是材料提取的事实与实现来源，Shelf、Artifacts 和项目上手已共用；不能因旧包装文件带 Jelly 前缀就把它归给 Jelly。
+
+用户决定的经过：第一次询问错误地把已有实现说成 Jelly 的代码，用户据此前提选择归 Jelly；核对上述共同入口并更正前提后，用户选择「照现状归平台（推荐）」。因此本片给 `PluginHostServices.materials` 接现有平台能力，保留 `{home}/lingguang/models` 缓存位置，在 `HOME-DATA.md` 写清归属，搬目录作为后续维护。
+
+合同与边界：`materials:read` 只给 `extract(source, options)`，输入为文件名与已授权字节，不接受路径；`materials:fetch` 只给 `readSource(url, options)`，沿用公开地址、DNS/重定向和容量限制。两项独立声明；沙箱定义与升级预检拿不到服务。运行时从 `currentPluginAction()` 取安装、动作、调用者、取消与授权，不接受插件传入身份，要求自己安装的并发动作声明对应权限，每次外部副作用前与结果返回后重查。`allowModelDownload` 只有可信 `caller.audience === "user"` 且明确为 true 才传给底层；其余来源按 false，不因为业务参数中写了身份而放行。
+
+上传检查只在 SDK 的 `decodeMaterialUpload` 实现：文件名、支持格式、规范 Base64、非空与 25 MiB；Host 和插件共用。公开来源读取实现去掉 Jelly 前缀，错误由材料服务拥有；灵光现有调用方同步识别 `material.model_required`。已有文件/来源提取结果的业务形状保持，缓存与原生 helper 位置保持。生产调用链核对显示旧 `extractJellyMaterial` / `readJellyMaterialSource` 只被灵光使用，不保留无人消费的 Jelly 错误转译层。现有来源解析测试保留文件名以保留逐文件内部引用预算，内容与用例名改成平台语义；不为重命名增加公开 API 或门禁例外。
+
+允许修改：contracts 的材料与插件服务合同、SDK 上传工具、Runtime 的材料权限绑定、Host 材料入口与服务装配、灵光当前材料调用与错误识别、对应测试/手册/Skill/安全表和 API 快照。错误主人新增路径仅登记新增的 SDK 工具，不改变已有文件的主人。原生格式提取与业务内容转换不重写。改合同后整体构建、API 快照、包 README 要求的相关测试、安全集、boundary/health（对 merge-base）、页面资源实测；全量由统筹在 CI 排。
+
+| 验收编号 | 应有行为 | 证明方式 |
+| --- | --- | --- |
+| RAC-25 | 服务按 read/fetch 分别暴露；未声明、撤权、沙箱、启动/路由/外来安装、串行动作不能调用 | `tests/security-invariants-plugin-materials.test.ts`，正式 Runtime 与拒绝断言 |
+| RAC-26 | 只有 user 的明确同意允许模型下载；agent/mcp/workflow/plugin 带 true 仍不下载 | `tests/security-invariants-plugin-materials.test.ts`，记录传给真实服务端口的选择并验证缺模型拒绝 |
+| RAC-27 | 取消、停用、升级、撤权与动作结束后，材料返回与业务写入均被拒绝；外部请求前重查 | `tests/security-invariants-plugin-materials.test.ts`，制造等待交错并检查调用数与持久化结果 |
+| RAC-28 | 上传检查唯一且拒绝路径、坏扩展名、坏/非规范 Base64、空内容与超过 25 MiB；合法材料仍可提取 | `tests/material-upload.test.ts`、现有材料提取用例 |
+| RAC-29 | 公开来源地址、重定向、解压容量与各来源解析行为保留；现有灵光路径使用平台错误 | 现有 `tests/jelly-source-providers.test.ts` 与材料/灵光回归 |
+| RAC-30 | 服务只读文件名与字节；模型缓存位置不变且授权失效后没有下载或业务记录 | 材料集成拒绝测试、HOME-DATA 记录与实际 diff 复核 |
+
+当前证据（2026-10-17，Codex）：材料服务已接入项目与 Home 两种执行器；整体构建通过。9 条实际 Runtime/Host 服务测试通过，覆盖五类调用方的下载授权、按权限暴露、沙箱/预检、外来安装/过期调用，以及取消/停用/撤权/升级后的零业务写入。SDK 上传边界与来源拒绝、现有材料和灵光相关回归通过；页面资源的灵光脚本减少 6 B，boundary 通过。仍需合入当前 main 后的包级回归和最终 health；安全编号 S-33 等待前序 S-31/S-32 合入，不通过填空行或改门禁跳过。全量待统筹在 CI 排，尚未开 PR。RAC-25–30 不替代整线 RAC-01–19 的最终裁决。
+
 ## 1. 决策记录与待决事项
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |

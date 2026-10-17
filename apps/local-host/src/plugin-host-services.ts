@@ -17,6 +17,7 @@ import { openPluginDatabase } from "./plugin-database.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
+import { pluginMaterialsFor } from "./plugin-materials-service.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -55,7 +56,8 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     library = openDeclaredLibrary(options, definition, context, assertActive);
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
-      database: library?.client, model: pluginModelFor(options.home, definition, context, assertActive) });
+      database: library?.client, model: pluginModelFor(options.home, definition, context, assertActive),
+      materials: pluginMaterialsFor(options.home, definition, context, assertActive) });
     return { context: hosted, revoke: () => { active = false; withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();
@@ -98,6 +100,7 @@ interface SessionParts {
   readonly database: PluginDatabase | undefined;
   /** The Host's text model, when the Manifest declares `model:invoke` and the Host runs the plugin itself (`pluginModelFor`). */
   readonly model: PluginModelClient | undefined;
+  readonly materials: ReturnType<typeof pluginMaterialsFor>;
 }
 
 /** The context the Plugin's `start` receives: its identity plus the services below. */
@@ -118,6 +121,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ui: ui.client,
       ...(parts.database === undefined ? {} : { database: parts.database }),
       ...(parts.model === undefined ? {} : { model: parts.model }),
+      ...(parts.materials === undefined ? {} : { materials: parts.materials }),
       ...coordinationServices(options, manifest, context, parts),
     }) });
 }

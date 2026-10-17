@@ -31,6 +31,8 @@ import type {
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 import type { InstructionPrompt } from "./model-prompts.js";
 import type { PluginModelClient } from "./plugin-model.js";
+import type { PluginMaterialsClient } from "./plugin-materials.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, MaterialSourceContent } from "./plugin-materials.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
@@ -82,6 +84,8 @@ export interface PluginHostServices {
   readonly database?: import("./plugin-database.js").PluginDatabase;
   /** The Host's text model, for a plugin the Host runs itself that declares `model:invoke`; usable only from its own concurrent actions that declare it. */
   readonly model?: PluginModelClient;
+  /** Host material readers, independently declared as materials:read and materials:fetch. */
+  readonly materials?: PluginMaterialsClient;
   /** Project artifact services are absent from Home activations. */
   readonly artifacts?: PluginArtifactClient;
   /** Present when the Manifest declares `process_items.produces`. */
@@ -401,7 +405,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "model"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "model" | "materials"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

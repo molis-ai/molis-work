@@ -1,6 +1,7 @@
 import type { AgentQuestionType } from "@molis-ai/molis-work-contracts/services/agent-interaction";
-import { isSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isSubjectReader, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { boundReferenceKinds, type ReferenceKindCandidate } from "@molis-ai/molis-work-service-agent-host";
 
 /**
  * The typed-questionnaire question types each surface that renders `awaiting_input` can draw and validate.
@@ -22,22 +23,46 @@ export function hostQuestionTypes(
   return first.filter(type => rest.every(surface => surface.includes(type)));
 }
 
-type DeclaredActions = { actions?: ReadonlyArray<{ action: Parameters<typeof isSubjectReader>[0] & { subject_kinds: readonly string[];
-  search_source?: { kinds: ReadonlyArray<{ kind: string; title: string }> } } }> };
+type Declared = Parameters<typeof isSubjectReader>[0] & { subject_kinds: readonly string[]; search_source?: { kinds: ReadonlyArray<{ kind: string; title: string }> } };
 
 /**
- * The kinds of object a reference question may ask for (T2, AC-28-1), each with the name its owner gives it: a kind a
+ * One plugin's kinds a reference question may ask for (T2, AC-28-1), each with the name the plugin gives it: a kind the
  * plugin lists for search and also reads back, since a pick is found by search and named by its owner's reader (S-26).
- * Prologue fixes the list when the Runtime is made, so it comes from the manifests the Host ships; a kind the first
- * plugin names keeps that plugin's title.
  */
-export function hostReferenceKinds(manifests: readonly DeclaredActions[] = BUILTIN_PLUGIN_CATALOG.map(entry => entry.manifest)): Array<{ kind: string; title: string }> {
-  const kinds = new Map<string, string>();
-  for (const manifest of manifests) {
-    const read = new Set((manifest.actions ?? []).filter(definition => isSubjectReader(definition.action)).flatMap(definition => definition.action.subject_kinds));
-    for (const definition of manifest.actions ?? []) for (const entry of definition.action.search_source?.kinds ?? []) {
-      if (read.has(entry.kind) && !kinds.has(entry.kind)) kinds.set(entry.kind, entry.title);
-    }
+export function pluginReferenceKinds(plugin_id: string, builtin: boolean, actions: readonly Declared[]): ReferenceKindCandidate[] {
+  const read = new Set(actions.filter(action => isSubjectReader(action)).flatMap(action => action.subject_kinds));
+  return actions.flatMap(action => action.search_source?.kinds ?? []).filter(entry => read.has(entry.kind)).map(entry => ({ plugin_id, builtin, kind: entry.kind, title: entry.title }));
+}
+
+/**
+ * The Runtime's kinds: the plugins the Host ships, bounded and ordered as each round's own list is (BL-152). A round in a
+ * project replaces it with that project's (agent-reference-kinds.ts); a round the Host cannot list for keeps this one.
+ */
+export function hostReferenceKinds(manifests: ReadonlyArray<{ plugin_id: string; actions?: ReadonlyArray<{ action: Declared }> }> = BUILTIN_PLUGIN_CATALOG.map(entry => entry.manifest)): Array<{ kind: string; title: string }> {
+  return boundReferenceKinds(manifests.flatMap(manifest => pluginReferenceKinds(manifest.plugin_id, true, (manifest.actions ?? []).map(definition => definition.action)))).kinds;
+}
+
+/** A plugin that ships with the Host registers under its own id; any other installation under its installation id. */
+const builtinOf = (view: ActionView) => {
+  const pluginId = view.provider.plugin_id ?? view.provider.provider_id;
+  const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.manifest.plugin_id === pluginId);
+  return entry && (view.provider.plugin_install_id ?? pluginId) === pluginId ? entry : undefined;
+};
+
+/**
+ * The kinds a round in a project may ask for (BL-152): those of the plugins installed and shown in it. An action that is
+ * not available here, a built-in plugin the project does not show, and a plugin the project hid are left out, as the side
+ * panel's files leave them out (side-files-http.ts). `shown` is undefined when the project has no catalog entry.
+ */
+export function projectReferenceKinds(views: readonly ActionView[], shown: ReadonlySet<string> | undefined, hidden: ReadonlySet<string>): ReferenceKindCandidate[] {
+  const plugins = new Map<string, { pluginId: string; builtin: boolean; views: ActionView[] }>();
+  for (const view of views) {
+    const pluginId = view.provider.plugin_id ?? view.provider.provider_id, builtin = builtinOf(view);
+    if (!view.availability.available || hidden.has(builtin?.project_plugin_id ?? pluginId) || (builtin && shown && !shown.has(builtin.project_plugin_id))) continue;
+    // One installation is one plugin: another installation that names a built-in plugin's id is not that plugin.
+    const key = builtin ? `builtin:${pluginId}` : `installed:${view.provider.plugin_install_id ?? pluginId}`;
+    if (!plugins.has(key)) plugins.set(key, { pluginId, builtin: !!builtin, views: [] });
+    plugins.get(key)!.views.push(view);
   }
-  return [...kinds].map(([kind, title]) => ({ kind, title }));
+  return [...plugins.values()].flatMap(plugin => pluginReferenceKinds(plugin.pluginId, plugin.builtin, plugin.views.map(view => view.action)));
 }

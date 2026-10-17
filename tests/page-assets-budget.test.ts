@@ -625,6 +625,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-arrival.css", 705879], ["/assets/molis-work-plugins/coding.js", 373429], ["/assets/molis-work-workbench.css", 1596754],
   ["/assets/molis-work-workbench.js", 1099839],
   ["/assets/molis-work-plugins/coding.js", 374113], ["/assets/molis-work-workbench.js", 1104882],
+  ["/assets/molis-work-arrival.css", 703658], ["/assets/molis-work-settings.css", 989905],
+  ["/assets/molis-work-workbench.css", 1592688], ["/assets/molis-work-workbench.js", 1105153],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -641,7 +643,7 @@ for (const [asset, old] of [
 // route may grow the workbench script once, from exactly the current baseline to the measured size (+28). One byte more, another
 // asset, or growth from the new baseline still fails.
 test("W5-01 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1105153, 1105181] } as const;
+  const allowed = { "/assets/molis-work-workbench.js": [1107991, 1108019] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("w501-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "w501-change");

@@ -963,3 +963,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - #661：之前已留言。
   - #156：10-02 的草稿，没动。
   - #631：草稿，外部作者反复手动跑全量，占掉一个位置。
+- #688 → 4363aacc6：在浏览器里复现了，回执元素在两个面之间来回挪；改成按面取（line、tray、link 都是），审过，通过。workbench.js +800、coding.js +201，用户分两次批的。等 #687 合入后，base 改成 main、重新取键，再跑全量。taskboard 编号对不上那条（插入后 S3 和 S4）放进回执线下一片的 BACKLOG。

@@ -43,6 +43,7 @@ export * from "./plugin-wiring.js";
 export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
+export type { PluginFilesClient, PluginFilesDeclaration } from "./plugin-files.js";
 export * from "./plugin-model.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
@@ -82,6 +83,8 @@ export interface PluginHostServices {
   readonly storage?: PluginPrivateStorage;
   /** Plugin-owned SQLite, only for trusted Host entries declaring a database. */
   readonly database?: import("./plugin-database.js").PluginDatabase;
+  /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. */
+  readonly files?: import("./plugin-files.js").PluginFilesClient;
   /** The Host's text model, for a plugin the Host runs itself that declares `model:invoke`; usable only from its own concurrent actions that declare it. */
   readonly model?: PluginModelClient;
   /** Host material readers, independently declared as materials:read and materials:fetch. */
@@ -406,7 +409,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "model" | "materials"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "materials"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

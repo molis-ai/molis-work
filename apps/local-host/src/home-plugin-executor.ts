@@ -4,6 +4,7 @@ import type { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-run
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { openPluginDatabase } from "./plugin-database.js";
+import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -15,6 +16,7 @@ export class HomePluginExecutor implements PluginExecutor {
   constructor(private readonly options: {
     home: string; actorId: string; client: ActionClient;
     database(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+    files(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
     providerFor(definition: PluginDefinition, installId: string): string;
     qualifyCaller(definition: PluginDefinition, caller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller): (() => void) | undefined;
     storage: SqlitePluginPrivateStorage;
@@ -46,12 +48,13 @@ export class HomePluginExecutor implements PluginExecutor {
     };
     const ui = createPluginUiClient(new UiHost(), context, manifest);
     let database: ReturnType<typeof openPluginDatabase> | undefined;
+    let files: ReturnType<typeof openPluginFiles> | undefined;
     let withdrawAgentDefinitions: (() => void) | undefined;
     let withdrawCaller: (() => void) | undefined;
     const dispose = () => {
       active = false; withdrawCaller?.();
       const failures: unknown[] = [];
-      for (const release of [() => database?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
+      for (const release of [() => database?.close(), () => files?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
@@ -60,6 +63,8 @@ export class HomePluginExecutor implements PluginExecutor {
       const home = pluginHomeFor(this.options.home);
       const declaration = this.options.database(definition);
       if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize);
+      const fileDeclaration = this.options.files(definition);
+      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize);
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
@@ -70,7 +75,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, database: database?.client, ...(model ? { model } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}),
+        ui: ui.client, database: database?.client, ...(files ? { files: files.client } : {}), ...(model ? { model } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });

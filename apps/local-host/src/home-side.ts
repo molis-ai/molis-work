@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { PluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabaseDeclaration, PluginFilesDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { homeStores } from "./home-stores.js";
@@ -62,9 +62,12 @@ function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]): HomeSt
   const registry = homeStores(), own = new Map<string, HomeStore>();
   for (const fixture of [...fixtures?.project ?? [], ...fixtures?.home ?? []]) {
     if ("manifest" in fixture) continue;
-    const name = fixture.database.store_name;
-    if (registry.get(name) || own.has(name) || !PLUGIN_LIBRARY_NAME.test(name)) continue;
-    own.set(name, { path: name, owner: fixture.definition.manifest.plugin_id, library: { baseline: fixture.database } });
+    const names = new Set([fixture.database?.store_name, fixture.files?.store_name]);
+    for (const name of names) {
+      if (!name || registry.get(name) || own.has(name) || !PLUGIN_LIBRARY_NAME.test(name)) continue;
+      own.set(name, { path: name, owner: fixture.definition.manifest.plugin_id,
+        ...(fixture.database?.store_name === name ? { library: { baseline: fixture.database } } : {}) });
+    }
   }
   return own.size ? homeStoreRegistry([...registry.stores, ...own.values()]) : registry;
 }
@@ -73,7 +76,7 @@ function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]): HomeSt
  * A plugin a Host is given for a test or a probe: a definition, or a definition with the library in the Home the Host gives it
  * (what a start-list entry does for a shipped plugin, `PluginPlatformEntry.database`; the definition itself declares none).
  */
-export type PluginFixture = PluginDefinition | { readonly definition: PluginDefinition; readonly database: PluginDatabaseDeclaration };
+export type PluginFixture = PluginDefinition | { readonly definition: PluginDefinition; readonly database?: PluginDatabaseDeclaration; readonly files?: PluginFilesDeclaration };
 
 /**
  * The test fixtures the Host bound to this Home was given, as start entries for a project's platform. Never `bundled`: a
@@ -91,8 +94,8 @@ export function homeFixtureEntries(homeDirectory: string): PluginPlatformEntry[]
 /** Both scopes use the same unbundled, in-process fixture declarations. */
 export function pluginFixtureEntries(fixtures: readonly PluginFixture[]): PluginPlatformEntry[] {
   return fixtures.map(fixture => {
-    const { definition, database } = "manifest" in fixture ? { definition: fixture, database: undefined } : fixture;
+    const { definition, database, files } = "manifest" in fixture ? { definition: fixture, database: undefined, files: undefined } : fixture;
     if (definition.execution === "sandbox") throw new Error(`夹具插件 ${definition.manifest.plugin_id} 是沙箱执行的；夹具是宿主自己运行的测试插件`);
-    return { definition, ...(database ? { database } : {}) };
+    return { definition, ...(database ? { database } : {}), ...(files ? { files } : {}) };
   });
 }

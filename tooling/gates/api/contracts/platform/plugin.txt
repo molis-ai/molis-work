@@ -2676,10 +2676,26 @@ export interface PluginExecutorHandle {
     contribution: PluginContribution;
 }
 
+export interface PluginFilesClient {
+    list(): readonly string[];
+    read(name: string): Uint8Array | null;
+    create(control: PluginExecutionControl, name: string, bytes: Uint8Array): Promise<void>;
+    remove(control: PluginExecutionControl, name: string): Promise<void>;
+}
+
+export interface PluginFilesDeclaration {
+    readonly store_name: string;
+    readonly directory: string;
+    readonly max_file_bytes: number;
+    readonly read_permission: string;
+    readonly write_permission: string;
+}
+
 export interface PluginHostServices {
     readonly actions?: import("@molis-ai/molis-work-contracts/platform/actions").BoundActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
+    readonly files?: import("platform/plugin-files").PluginFilesClient;
     readonly model?: PluginModelClient;
     readonly materials?: PluginMaterialsClient;
     readonly artifacts?: PluginArtifactClient;
@@ -3177,7 +3193,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "model" | "materials"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "materials"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

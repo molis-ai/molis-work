@@ -14,6 +14,7 @@ import {
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { openPluginDatabase } from "./plugin-database.js";
+import { openPluginFiles } from "./plugin-files.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -39,9 +40,10 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let active = true;
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
+  let files: ReturnType<typeof openPluginFiles> | undefined;
   let withdrawAgentDefinitions: (() => void) | undefined;
   let withdrawCaller: (() => void) | undefined;
-  const dispose = () => { active = false; withdrawCaller?.(); disposeArtifacts(); library?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
+  const dispose = () => { active = false; withdrawCaller?.(); disposeArtifacts(); library?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
@@ -54,9 +56,14 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       author: () => { const scope = currentPluginAction(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
+    const fileDeclaration = options.filesFor?.(definition);
+    if (fileDeclaration) {
+      if (!options.home) throw new Error("私有文件服务需要 Home");
+      files = openPluginFiles(options.home.directory, fileDeclaration, permission => { assertActive(); context.requireGrant(permission); });
+    }
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
-      database: library?.client, model: pluginModelFor(options.home, definition, context, assertActive),
+      database: library?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive) });
     return { context: hosted, revoke: () => { active = false; withdrawCaller?.(); }, dispose };
   } catch (error) {
@@ -98,6 +105,7 @@ interface SessionParts {
   readonly isActive: () => boolean;
   /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
   readonly database: PluginDatabase | undefined;
+  readonly files: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesClient | undefined;
   /** The Host's text model, when the Manifest declares `model:invoke` and the Host runs the plugin itself (`pluginModelFor`). */
   readonly model: PluginModelClient | undefined;
   readonly materials: ReturnType<typeof pluginMaterialsFor>;
@@ -120,6 +128,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
       ui: ui.client,
       ...(parts.database === undefined ? {} : { database: parts.database }),
+      ...(parts.files === undefined ? {} : { files: parts.files }),
       ...(parts.model === undefined ? {} : { model: parts.model }),
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),
       ...coordinationServices(options, manifest, context, parts),

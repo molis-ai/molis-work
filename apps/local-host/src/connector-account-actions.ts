@@ -11,6 +11,7 @@ import { connectorManagementActions, connectorManagementHandlers } from "./conne
 import { connectorRecordActions, connectorRecordHandlers } from "./connector-record-actions.js";
 import { connectorLocalActions, connectorLocalHandlers } from "./connector-local-actions.js";
 import { connectorSetupAction, connectorSetupHandler } from "./connector-setup.js";
+import { connectorSetupExecuteAction, connectorSetupExecuteHandler } from "./connector-setup-execute.js";
 import { connectorSetupIntentAction, connectorSetupIntentHandler } from "./connector-setup-intent.js";
 import { noProjectMcp, type ProjectMcpManagementPort } from "./connector-project-mcp.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
@@ -69,7 +70,7 @@ export async function readConnectorAccount(home: string, connectionId: string): 
 export function connectorAccountActionProvider(home: string, remember: ConnectorMcpDirectory["remember"], projectMcp: ProjectMcpManagementPort = noProjectMcp, inspect?: ConnectorActionInspector, clientFor?: (caller: ActionCallContext) => ActionClient): ActionProviderRegistration {
   return {
     provider: { provider_id: "system.connectors", title: "服务连接", kind: "system" },
-    definitions: [connectorUsagesAction, modelConnectionUsages, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions)],
+    definitions: [connectorUsagesAction, modelConnectionUsages, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions)],
     handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), { capability_id: connectorAccountActions.read.capability_id, version: 1,
       handle: async (caller, input) => {
         const id = (input as { connection_id: string }).connection_id, revision = withConnectorConnections(home, store => store.get(id)?.updated_at);
@@ -78,6 +79,6 @@ export function connectorAccountActionProvider(home: string, remember: Connector
         await caller.beforeEffect(); caller.signal?.throwIfAborted();
         if (revision && !rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision, outcome: "connected", authorization: "verified", account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, ...(result.scopes?.length ? { scopes: result.scopes } : {}) })) throw accountErrors.disconnected("读取期间连接已变化，请重新检查");
         return result;
-      } }, ...connectorManagementHandlers(home, remember, projectMcp, inspect), ...connectorRecordHandlers(home), connectorSetupHandler(home), connectorSetupIntentHandler(home, remember), ...connectorLocalHandlers(home, remember), ...connectorCliHandlers(home)],
+      } }, ...connectorManagementHandlers(home, remember, projectMcp, inspect), ...connectorRecordHandlers(home), connectorSetupHandler(home), connectorSetupExecuteHandler(home, remember), connectorSetupIntentHandler(home, remember), ...connectorLocalHandlers(home, remember), ...connectorCliHandlers(home)],
   };
 }

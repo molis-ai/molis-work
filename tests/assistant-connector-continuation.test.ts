@@ -36,8 +36,9 @@ for (const restart of [false, true]) test(`ASC-09 ASC-18 ASC-25 ASC-33: the Assi
   assert.equal(waiting.rounds.length, 1);
   assert.match(authorization, /^[0-9a-f-]{36}$/);
   assert.equal(model.requests.length, 4);
+  const waitingCalls = model.allRequests.length;
   await new Promise(resolve => setTimeout(resolve, 3_000));
-  assert.equal(model.requests.length, 4, "pending owner checks never call a model");
+  assert.equal(model.allRequests.length, waitingCalls, "pending owner checks never call a model, including the ending review");
   if (!restart) {
     // ASC-33: the borrowed transport can close while the Host keeps the pending work alive.
     await home.close();
@@ -54,11 +55,13 @@ for (const restart of [false, true]) test(`ASC-09 ASC-18 ASC-25 ASC-33: the Assi
   assert.equal(model.requests.length, 6);
   assert.equal(toolField(model.requests[5]?.messages, "status"), "connected", "the resumed round reads the actual committed request");
   assert.equal(toolField(model.requests[5]?.messages, "connection_id"), saved.connection.connection_id);
-  assert.doesNotMatch(JSON.stringify(model.requests), /fixture-protected-setup-secret|fixture-loopback-model/);
+  assert.doesNotMatch(JSON.stringify(model.allRequests), /fixture-protected-setup-secret|fixture-loopback-model/);
   assert.equal(withConnectorConnections(home.home, store => store.resolveToken(saved.connection.connection_id, "model-api")), "fixture-protected-setup-secret");
   await assert.rejects(server.web.post("/api/settings/connectors/connections", { service_id: "model-api", token: "fixture-replayed-secret", setup_id: authorization }), { status: 400 });
+  const completedCalls = model.allRequests.length;
   await new Promise(resolve => setTimeout(resolve, 1_100));
   assert.equal(model.requests.length, 6, "replayed completion cannot start another round");
+  assert.equal(model.allRequests.length, completedCalls, "replayed completion does not call a model for any purpose");
 });
 
 test("ASC-33 ASC-34: latest Send holds the original setup; an explicit retain survives restart and the continuation receives the latest request", { timeout: 70_000 }, async t => {
@@ -106,7 +109,9 @@ test("ASC-33 ASC-34: latest Send holds the original setup; an explicit retain su
   assert.equal(model.requests.length, 11);
   assert.match(JSON.stringify(model.requests[9]?.messages), new RegExp(latest), "the resumed model consumes the latest accepted request from the same Session");
   assert.equal(toolField(model.requests[10]?.messages, "connection_id"), saved.connection.connection_id);
-  assert.doesNotMatch(JSON.stringify(model.requests), /fixture-latest-intent-secret|fixture-loopback-model/);
+  assert.doesNotMatch(JSON.stringify(model.allRequests), /fixture-latest-intent-secret|fixture-loopback-model/);
+  const completedCalls = model.allRequests.length;
   await new Promise(resolve => setTimeout(resolve, 1_100));
   assert.equal(model.requests.length, 11, "the withdrawn first wait cannot start another continuation");
+  assert.equal(model.allRequests.length, completedCalls, "the withdrawn first wait does not call a model for any purpose");
 });

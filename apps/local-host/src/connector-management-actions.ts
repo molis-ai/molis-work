@@ -25,7 +25,7 @@ const metadata = { scope: "home", audiences: ["user", "agent", "mcp"], subject_k
 /** Management exists before a connection or project exists. It never accepts or returns credentials. */
 export const connectorManagementActions = {
   catalog: { capability_id: "connectors.methods.read", version: 1, operation: "query", action: { ...metadata,
-    title: "查询服务接入方式", description: "读取产品已有的连接方式、本人前置条件和正式入口。in_app 是已有处理器，external 只是说明链接；账号验证不等于业务操作可用。",
+    title: "查询服务接入方式", description: "传入 {} 读取全部服务的连接方式、本人前置条件和正式入口；仅在已知 connector_id 时用 service_id 过滤，不按显示名或自拟名称查询。in_app 是已有处理器，external 只是说明链接；账号验证不等于业务操作可用。",
     kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ], input_schema: serviceFilter, output_schema: output } } as ActionDefinition,
   list: { capability_id: "connectors.connections.read", version: 1, operation: "query", action: { ...metadata,
     title: "查看服务连接", description: "列出本人已有服务连接和账号标签。记录中的 connected 表示保存的授权状态；是否此刻连通须调用检查连接，不能把保存配置当成调用成功。插件和模型的实际使用位置由 connectors.usages.read 读取。",

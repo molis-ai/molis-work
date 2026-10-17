@@ -93,7 +93,7 @@ export interface McpConfiguration extends ConnectorProtocolConfiguration {
 
 export interface StartMcpConnectionInput {
   serviceId: string; displayName: string; endpoint?: string; clientId?: string; clientSecret?: string;
-  token?: string; origin: string; connectionId?: string; redirectUri?: string; setupId?: string;
+  token?: string; origin?: string; connectionId?: string; redirectUri?: string; setupId?: string;
   authentication?: "none" | "bearer" | "oauth";
   transport?: "http" | "sse";
 }
@@ -117,6 +117,13 @@ function callbackOrigin(raw: string): string {
     throw connectorErrors["connector.mcp.configuration"]("授权回调必须使用本机 HTTP 地址");
   }
   return url.origin;
+}
+function mcpCallback(input: StartMcpConnectionInput, mode: McpConfiguration["mode"]) {
+  if (mode === "none" && input.origin === undefined && input.redirectUri === undefined) return { origin: "", redirectUri: "" };
+  const origin = callbackOrigin(input.origin ?? ""), redirectUri = input.redirectUri?.trim() || origin + CALLBACK;
+  const redirect = new URL(redirectUri);
+  if (redirect.username || redirect.password || redirect.search || redirect.hash || (redirect.protocol !== "https:" && redirectUri !== origin + CALLBACK)) throw connectorErrors["connector.mcp.configuration"]("请使用当前本机回调或已登记的 HTTPS 回调地址");
+  return { origin, redirectUri };
 }
 function authorizationError(message: string): ActionError { return connectorErrors["connector.mcp.authorization"](message); }
 function safeError(error: unknown): ActionError {
@@ -292,7 +299,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     }
   }
 
-  const startMcpConnection = async (home: string, input: StartMcpConnectionInput) => serialized(home, input.connectionId ?? "new", async () => {
+  const startMcpConnection = async (home: string, input: StartMcpConnectionInput, control: McpRequestOptions = {}) => serialized(home, input.connectionId ?? "new", async () => {
     // Deployment credentials are bound to the default official resource only.
     if (!input.clientId?.trim() && !input.clientSecret?.trim() && !input.token?.trim() &&
       (!input.endpoint || input.endpoint === servers[input.serviceId]?.endpoint)) {
@@ -302,15 +309,13 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     const endpoint = endpointFor(input.serviceId, input.endpoint);
     const base = servers[input.serviceId] ?? { endpoint, auth: "either" as const };
     const server = input.serviceId === "figma" && endpoint.startsWith("https:") ? { ...base, auth: "oauth" as const, registration: "manual" as const } : base;
-    const origin = callbackOrigin(input.origin);
-    const redirectUri = input.redirectUri?.trim() || origin + CALLBACK;
-    const redirect = new URL(redirectUri);
-    if (redirect.username || redirect.password || redirect.search || redirect.hash || (redirect.protocol !== "https:" && redirectUri !== origin + CALLBACK)) throw connectorErrors["connector.mcp.configuration"]("请使用当前本机回调或已登记的 HTTPS 回调地址");
     const displayName = input.displayName?.trim();
     if (!displayName || displayName.length > 100) throw connectorErrors["connector.mcp.configuration"]("连接名称不能为空且最多 100 个字符");
     const token = input.token?.trim();
     if (token && (token.length < 8 || token.length > 16_384 || /[\r\n]/u.test(token))) throw connectorErrors["connector.mcp.configuration"]("MCP 令牌格式无效");
     const mode = mcpAuthentication(input, server);
+    const { origin, redirectUri } = mcpCallback(input, mode);
+    await control.beforeDispatch?.(); control.signal?.throwIfAborted();
     checkConnectorSetupSubmission(home, input.setupId, { service_id: input.serviceId, method: "mcp", endpoint, authentication: mode, transport: input.transport ?? "http", connection_id: input.connectionId });
     if (input.transport !== undefined && !["http", "sse"].includes(input.transport)) throw connectorErrors["connector.mcp.configuration"]("MCP 传输方式无效");
     if (mode === "oauth" && server.registration === "manual" && !input.clientId?.trim()) throw connectorErrors["connector.mcp.configuration"]("此 MCP 服务需要预先注册的 OAuth Client ID；请先配置官方应用");
@@ -326,10 +331,11 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
     const state = withConnectorProtocols(home, store => store.begin(origin, config, now()));
     const authorizationId = beginConnectorAuthorization(home, state, connectionId, input.serviceId, now(), input.setupId);
     try {
-      const connected = await useClient(home, config, inspect, state);
+      const connected = await useClient(home, config, inspect, state, control.signal, control.beforeDispatch);
       if (connected.authorizationUrl) { withConnectorProtocols(home, store => store.update(state, config)); saveConnectorAuthorizationPresentation(home, authorizationId, { authorization_url: connected.authorizationUrl }); return { connectionId, authorizationId, authorizationUrl: connected.authorizationUrl }; }
       if (!connected.result) throw connectorErrors["connector.mcp.provider"]("MCP 未完成初始化");
       if (config.mode === "oauth" && !secrets.get("access")) throw connectorErrors["connector.mcp.authorization"]("MCP 未取得访问令牌，请检查 OAuth 应用配置");
+      await control.beforeDispatch?.(); control.signal?.throwIfAborted();
       const result = commitMcpConnection(home, config, state, now());
       withConnectorProtocols(home, store => store.discard(state));
       return result.status === "pending" ? { connectionId, authorizationId, ...result } : { connectionId, authorizationId, ...connected.result };

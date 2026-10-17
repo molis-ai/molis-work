@@ -91,6 +91,10 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
         return page();
       }
       return "已用原来读到的库存完成保存。";
+    }, given => {
+      if (scenario !== "read-only" || model.requests.length !== firstReadTurn) return [];
+      assert.match(given, /接入已完成。现在按你的最新要求/);
+      return ["will_do"];
     });
     const sent = await home.web.post<AssistantSendResult>(prefix + "/api/assistant/send", { text: "接入库存来源，读取 inventory://quarter 并保存到 Pages", request_id: crypto.randomUUID() });
     const read = () => server.web.get<AssistantWorkView>(`${prefix}/api/assistant/works/${sent.work.work_id}`);
@@ -126,7 +130,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
       done = await reach(view => view.work.state === "completed" && view.rounds.length === 3, "save after restart");
     }
     assert.equal(readFileSync(join(home.home, "resource-reads.txt"), "utf8"), "read\n", "the external source was read once across all rounds");
-    assert.doesNotMatch(JSON.stringify(model.requests), /fixture-business-resource-key|fixture-loopback-model/);
+    assert.doesNotMatch(JSON.stringify(model.allRequests), /fixture-business-resource-key|fixture-loopback-model/);
     const saved = (await pages()).documents;
     if (scenario === "read-only") {
       assert.deepEqual(saved, [], "the withdrawn save has no plugin side effect");

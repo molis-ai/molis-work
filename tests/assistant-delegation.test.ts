@@ -131,7 +131,7 @@ test("a sub-task reports to the work that handed it over: its report is not held
     assert.equal(childRequests, 1, "the sub-task's report went back as it was");
     assert.deepEqual(child.rounds[0]!.activity.filter(item => item.verb === "auto-continue"), []);
     assert.equal(parentStep, 4, "the parent's own reply was held once for the tool's name");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a sub-task whose session opened under the Assistant's own role carries its next round as the delegated role, on that same session", { timeout: 60_000 }, async t => {

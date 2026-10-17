@@ -101,6 +101,7 @@ export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGE
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";
+export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
 export { connectorSetupIntentAction } from "./connector-setup-intent.js";
 export { holdConnectorAuthorizationsForSession } from "./connector-authorization-status.js";
 export { alchemistPulseGithub } from "./alchemist-pulse-github.js";

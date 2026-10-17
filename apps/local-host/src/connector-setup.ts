@@ -3,7 +3,7 @@ import { prepareConnectorAuthorization, type ConnectorSetupPlan } from "./connec
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { listConnectorSettingsCards } from "./connector-directory.js";
-import { mcpEndpointFor } from "./connector-mcp-endpoint.js";
+import { CUSTOM_MCP_SERVICE, mcpEndpointFor } from "./connector-mcp-endpoint.js";
 import { MCP_SERVERS } from "./connector-mcp.js";
 
 const errors = defineErrorCodes("connector.setup", { unsupported: "unavailable", invalid: "invalid", changed: "conflict" });
@@ -14,7 +14,7 @@ export const connectorSetupAction: ActionDefinition = {
     title: "准备服务接入", description: "根据明确选定的服务和已有方式准备接入，在同一授权记录中保存非敏感方案并给出受保护表单入口。先查看已有连接；候选只表示可能重复，不自动合并账号。凭据只能由本人在表单填写，禁止作为工具参数或聊天内容。准备完成不代表连接成功。",
     scope: "home", audiences: ["user", "agent", "mcp"], subject_kinds: ["connector"], kind: "operation", effect: "write", permissions: ["connectors:management:write"],
     input_schema: { type: "object", properties: {
-      service_id: id, method: { type: "string", enum: ["token", "oauth", "mcp", "cli"] }, display_name: { type: "string", minLength: 1, maxLength: 100 },
+      service_id: { ...id, description: `取 connectors.methods.read 返回的 connector_id，不填显示名或自拟标识。通用 HTTP/SSE MCP 地址使用 ${CUSTOM_MCP_SERVICE}；传空对象给 methods.read 可列出全部方式。` }, method: { type: "string", enum: ["token", "oauth", "mcp", "cli"] }, display_name: { type: "string", minLength: 1, maxLength: 100 },
       connection_id: { ...id, description: "仅重新授权时填写查询得到的已有连接 id。新建时省略，由系统生成，不填写服务 id 或自拟 id。" }, expected_revision: { type: ["string", "null"], minLength: 1, description: "新连接填 null；重新授权填读取到的原连接修订" }, endpoint: { type: "string", maxLength: 4096 },
       authentication: { type: "string", enum: ["none", "bearer", "oauth"] }, transport: { type: "string", enum: ["http", "sse"] },
     }, required: ["service_id", "method", "display_name", "expected_revision"], additionalProperties: false },
@@ -29,7 +29,7 @@ type ConnectorSetupInput = Omit<ConnectorSetupPlan, "expected_revision"> & { exp
 function selectedPlan(home: string, input: ConnectorSetupInput): ConnectorSetupPlan {
   const service = listConnectorSettingsCards().find(row => row.connector_id === input.service_id);
   const method = service?.method_options?.find(row => row.kind === input.method);
-  if (!method || !["in_app", "paste"].includes(method.support)) throw errors.unsupported("所选服务的这种方式仅有说明或尚无接入处理器；请查看已实现方式，或使用自定义 MCP 地址");
+  if (!method || !["in_app", "paste"].includes(method.support)) throw errors.unsupported(`所选服务标识或方式没有可执行接入处理器。请向 connectors.methods.read 传入 {}，从完整目录读取 connector_id；通用 HTTP/SSE MCP 地址使用 service_id: ${CUSTOM_MCP_SERVICE}、method: mcp，不需另行登记服务。`);
   if (!input.display_name.trim()) throw errors.invalid("请填写连接名称");
   if (input.method !== "mcp" && [input.endpoint, input.authentication, input.transport].some(value => value !== undefined)) throw errors.invalid("服务地址与 MCP 认证选项只适用于 MCP 接入");
   const endpoint = input.method === "mcp" ? mcpEndpointFor(MCP_SERVERS, input.service_id, input.endpoint) : undefined;

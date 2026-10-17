@@ -1144,12 +1144,44 @@ test("a round declares at most 12 found capabilities per tool and 24 KiB in all,
   assert.ok(bytes <= 24 * 1024, `${bytes} bytes`);
   assert.equal(declared().at(-1), "fixture.notes.wide-11@1", "the newest stays");
   assert.ok(declared().length < 12 && declared().every(title => title.includes("wide")), "the oldest found go first");
+  // ASC-30: a re-read capability is current context even after later searches evicted its native schema.
+  await find(small[0]!.capability_id);
+  assert.equal(declared().at(-1), `${small[0]!.capability_id}@1`);
   await find("fixture.notes.huge");
   assert.ok(!declared().includes("fixture.notes.huge@1"), "a schema over 8 KiB is not declared");
   await round.executors["read-capability"]!({ args: { capability_id: "fixture.notes.huge", version: 1, provider_id: "fixture.notes", input: {} } } as never);
   assert.deepEqual(ran, ["fixture.notes.huge"], "and still runs");
   const next = prologueActionGateway({ client, operate: true } as never);
   assert.equal(next.parameterBranches("read-capability"), undefined, "a new round (or the Host after a restart) starts with none");
+});
+
+test("ASC-30: a refused call restores its exact input schema in the next real SDK request without accepting the bad value", { timeout: 60_000 }, async t => {
+  type Request = { tools: Array<{ name: string; input_schema?: { properties?: { input?: { anyOf?: Array<{ title?: string }> } } } }> };
+  const titles = (body: Request) => body.tools.find(tool => tool.name === "read-capability")?.input_schema?.properties?.input?.anyOf?.map(branch => branch.title);
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "fixture.notes.count" } }),
+    () => reply({ name: "find-capabilities", input: { query: "Wide alpha" } }),
+    () => reply({ name: "find-capabilities", input: { query: "Wide bravo" } }),
+    body => {
+      assert.ok(!titles(body)?.includes("fixture.notes.count@1"), "later large lookups evicted the old native schema");
+      return reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: "" } });
+    },
+    body => {
+      assert.ok(titles(body)?.includes("fixture.notes.count@1"), "the refusal restores the current capability's native schema");
+      return reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } });
+    },
+    () => reply(undefined, "There are no notes yet."),
+  ]);
+  const wide = ["alpha", "bravo"].flatMap(group => Array.from({ length: 8 }, (_, index): ActionDefinition => ({ ...count, capability_id: `wide.${group}.${index}`,
+    action: { ...count.action, title: `Wide ${group} ${index}`, description: `Wide ${group}`, input_schema: { type: "object", properties: { text: { type: "string", description: "x".repeat(3000) } } } } })));
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "wide", kind: "plugin", title: "Wide" }, definitions: wide,
+    handlers: wide.map(definition => ({ ...definition, handle: () => { throw new Error("discovery must not call these capabilities"); } })) });
+  try {
+    const sent = await f.service.send({ text: "How many notes are there?", request_id: "req-schema-current" }, { project_ref: f.project });
+    const done = await until(async () => { const value = await f.service.read(sent.work.work_id); return value.work.state === "completed" ? value : undefined; });
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "read").map(item => item.state), ["failed", "completed"]);
+    assert.equal(f.calls.length, 1, "the invalid value never reaches the owner");
+  } finally { await f.close(); }
 });
 
 test("a change's receipt survives micro-compaction in the next request; an older read's result is compacted (§6.0b item 5)", { timeout: 60_000 }, async t => {

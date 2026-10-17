@@ -273,5 +273,5 @@ test("the ending review runs with the person's version of its instructions, and 
     assert.doesNotMatch(JSON.stringify(requests[0].system), /测试用的收尾核对/, "it is never composed into the round's own role");
     const session = await host.adapter("prologue").readSession({ session_id: store.get("web-user", sent.work.work_id).session_id! });
     assert.deepEqual(session.latest_run?.frozen.ending_review, { prompt_id: "assistant-ending-review", version: 1, user_revision: 1 });
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

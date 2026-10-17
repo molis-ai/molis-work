@@ -20,7 +20,7 @@ import { connectorAuthorizationStatus, finishConnectorAuthorization } from "../a
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
 import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/dist/connector-mcp-actions.js";
-import { MolisWorkLocalHost, connectorSetupAction, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
 import { isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -881,4 +881,93 @@ test("ASC-10 ASC-17: a real MCP error reply is a failed business call while a de
     await assert.rejects(local.host.homeActionClient().invoke(caller, ref, { message: "Never sent" }));
     assert.equal(remote.stats().callCount, 1); assert.deepEqual((await status()).last_call, failed);
   } finally { await remote.close(); }
+});
+
+for (const sse of [false, true]) test(`ASC-05 ASC-09 ASC-12: prepared anonymous ${sse ? "SSE" : "HTTP"} executes once without a form and leaves the external service running`, async t => {
+  const local = await openTestHome(t), remote = await fixture({ sse });
+  t.after(() => remote.close());
+  const caller: ActionCallContext = { actor_id: "assistant:anonymous", runtime_session_id: "anonymous-setup", audience: "agent", project_id: null,
+    permissions: [CONNECTOR_MANAGEMENT_WRITE, CONNECTOR_MANAGEMENT_READ, "mcp:external"] };
+  const client = local.host.homeActionClient();
+  const prepared = { authorization_id: (await client.invoke(caller, connectorSetupAction, { service_id: "mcp-bearer", method: "mcp", display_name: "Existing service", expected_revision: null,
+    endpoint: remote.endpoint, authentication: "none", transport: sse ? "sse" : "http" }) as { authorization_id: string }).authorization_id };
+  for (const change of [{ actor_id: "someone-else" }, { runtime_session_id: "other-session" }]) {
+    await assert.rejects(client.invoke({ ...caller, ...change }, connectorSetupExecuteAction, prepared), { code: "connector.setup.execute.denied" });
+  }
+  await assert.rejects(client.invoke({ ...caller, project_id: "other-project" }, connectorSetupExecuteAction, prepared), { code: "actions.scope_mismatch" });
+  await assert.rejects(client.invoke({ ...caller, permissions: [] }, connectorSetupExecuteAction, prepared), { code: "actions.forbidden" });
+  assert.equal(remote.stats().initializationCount, 0);
+  const attempts = await Promise.allSettled([client.invoke(caller, connectorSetupExecuteAction, prepared), client.invoke(caller, connectorSetupExecuteAction, prepared)]);
+  assert.ok(attempts.some(item => item.status === "fulfilled"));
+  const connected = await client.invoke(caller, connectorManagementActions.authorization, prepared) as { status: string; connection_id: string };
+  assert.equal(connected.status, "connected");
+  assert.equal(withConnectorConnections(local.home, store => store.list()).length, 1);
+  const starts = remote.stats().initializationCount;
+  assert.equal((await client.invoke(caller, connectorSetupExecuteAction, prepared) as { connection_id: string }).connection_id, connected.connection_id);
+  assert.equal(remote.stats().initializationCount, starts);
+  const reference = local.host.connectorMcp!.reference(connected.connection_id, connectorMcpCapabilityId(connected.connection_id, "echo"))!;
+  assert.deepEqual(await client.invoke(caller, reference, { message: "Read through the real directory" }), { content: [{ type: "text", text: "Read through the real directory" }] });
+  assert.equal(remote.stats().callCount, 1);
+  await local.close(); await local.host.close();
+  const restarted = new MolisWorkLocalHost({ homeDirectory: local.home });
+  try {
+    assert.deepEqual(await restarted.homeActionClient().invoke(caller, reference, { message: "Restored connection" }), { content: [{ type: "text", text: "Restored connection" }] });
+    const revision = () => withConnectorConnections(local.home, store => store.require(connected.connection_id).updated_at);
+    await restarted.homeActionClient().invoke(caller, connectorManagementActions.control, { connection_id: connected.connection_id, expected_revision: revision(), action: "disable" });
+    await assert.rejects(restarted.homeActionClient().invoke(caller, reference, { message: "Must not be sent" }));
+    assert.equal(remote.stats().callCount, 2);
+  } finally { await restarted.close(); }
+  assert.equal((await fetch(remote.localOrigin)).status, 405, "the external service remains available after Host shutdown and disable");
+});
+
+for (const interruption of ["cancel", "revoke", "close", "hold"] as const) test(`S-30 ASC-35: anonymous setup ${interruption} during discovery never activates a late connection`, async t => {
+  const local = await openTestHome(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const remote = await fixture({ beforeList: async () => { entered.resolve(); await release.promise; } });
+  t.after(() => remote.close());
+  let granted = true;
+  const caller: ActionCallContext = { actor_id: "assistant:anonymous", runtime_session_id: "anonymous-setup", audience: "agent", project_id: null,
+    permissions: [CONNECTOR_MANAGEMENT_WRITE, CONNECTOR_MANAGEMENT_READ], assert_authority_current: () => { if (!granted) throw new Error("test grant revoked"); } };
+  const client = local.host.homeActionClient();
+  const prepared = { authorization_id: (await client.invoke(caller, connectorSetupAction, { service_id: "mcp-bearer", method: "mcp", display_name: "Interrupted service", expected_revision: null,
+    endpoint: remote.endpoint, authentication: "none", transport: "http" }) as { authorization_id: string }).authorization_id };
+  const executing = client.invoke(caller, connectorSetupExecuteAction, prepared);
+  const settled = Promise.allSettled([executing]);
+  await entered.promise;
+  let closing: Promise<void> | undefined;
+  if (interruption === "cancel") await client.invoke(caller, connectorManagementActions.cancel, prepared);
+  if (interruption === "revoke") granted = false;
+  if (interruption === "close") closing = local.host.close();
+  if (interruption === "hold") holdConnectorAuthorizationsForSession(local.home, caller.runtime_session_id!, caller.actor_id, "latest-request");
+  release.resolve();
+  const result = (await settled)[0]!;
+  if (closing) await closing;
+  assert.equal(result.status, interruption === "hold" ? "fulfilled" : "rejected");
+  assert.deepEqual(withConnectorConnections(local.home, store => store.list()), []);
+  assert.equal(remote.stats().callCount, 0);
+  if (interruption === "hold") {
+    const status = connectorAuthorizationStatus(local.home, prepared.authorization_id)!;
+    assert.equal(status.commit_held, true); assert.equal(status.completion_ready, true);
+    await client.invoke(caller, connectorSetupIntentAction, { ...prepared, intent_revision: "latest-request", decision: "cancel" });
+    assert.equal(connectorAuthorizationStatus(local.home, prepared.authorization_id)?.status, "cancelled");
+  }
+});
+
+test("S-30 ASC-08 ASC-14: anonymous execution does not collect credentials or release a held plan", async t => {
+  const local = await openTestHome(t), remote = await fixture();
+  t.after(() => remote.close());
+  const caller: ActionCallContext = { actor_id: "assistant:anonymous", runtime_session_id: "anonymous-setup", audience: "agent", project_id: null,
+    permissions: [CONNECTOR_MANAGEMENT_WRITE, CONNECTOR_MANAGEMENT_READ] };
+  const client = local.host.homeActionClient();
+  for (const method of ["token", "oauth", "cli", "mcp"] as const) {
+    const prepared = { authorization_id: (await client.invoke(caller, connectorSetupAction, { service_id: "github", method, display_name: method, expected_revision: null,
+      ...(method === "mcp" ? { authentication: "bearer" } : {}) }) as { authorization_id: string }).authorization_id };
+    assert.deepEqual(await client.invoke(caller, connectorSetupExecuteAction, prepared), { status: "needs_person", ...prepared, url: `/capabilities/connections?setup=${prepared.authorization_id}` });
+    await assert.rejects(client.invoke(caller, connectorSetupExecuteAction, { authorization_id: prepared.authorization_id, token: "forbidden-input-value" }), { code: "actions.input_invalid" });
+  }
+  const prepared = { authorization_id: (await client.invoke(caller, connectorSetupAction, { service_id: "mcp-bearer", method: "mcp", display_name: "Held anonymous", expected_revision: null,
+    endpoint: remote.endpoint, authentication: "none", transport: "http" }) as { authorization_id: string }).authorization_id };
+  holdConnectorAuthorizationsForSession(local.home, caller.runtime_session_id!, caller.actor_id, "latest-request");
+  assert.equal((await client.invoke(caller, connectorSetupExecuteAction, prepared) as { awaiting_intent: boolean }).awaiting_intent, true);
+  assert.equal(remote.stats().initializationCount, 0);
+  assert.deepEqual(withConnectorConnections(local.home, store => store.list()), []);
 });

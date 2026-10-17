@@ -19,7 +19,7 @@ export const HOST_GOVERNED_TOOLS: readonly string[] = [GATEWAY_TOOLS.suggest, DE
   MEMORY_TOOLS.remember, MEMORY_TOOLS.forget, MEMORY_TOOLS.propose];
 const FIND_LIMIT = 8;
 
-type Gateway = NonNullable<AgentFrozenRole["action_gateway"]>;
+type Gateway = NonNullable<AgentFrozenRole["action_gateway"]> & { declare?(view: ActionView): void };
 /** `beside`: any other fields written next to the identity, which are not the capability's input. */
 interface CapabilityArgs { capability_id: string; version: number; provider_id: string; input?: unknown; beside: string[] }
 
@@ -145,7 +145,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
     const views = await gateway.client.discover();
     const view = views.find(row => row.capability_id === args.capability_id && row.version === args.version && row.provider.provider_id === args.provider_id);
     if (!view || !view.action.audiences.includes("agent")) throw new ActionError("actions.missing", notOffered(views, args, known));
-    known.add(view.capability_id);
+    known.add(view.capability_id); declared.note(view);
     if (!view.availability.available) throw new ActionError(view.availability.code, view.availability.reason);
     const reads = actionEffect(view.action, view.capability_id) === "read";
     if (write && reads) throw new ActionError("actions.gateway_mismatch", `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`);
@@ -280,7 +280,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   const pack: ScenarioPack = { id: PACK_ID, version: "2.4.8", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: all },
     permissions: { tools: all, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "assistant", skills: [], writes: true }], planning: { plannedBy: "assistant", planFirst: false }, config: {}, tools };
-  return { pack, executors, names, known, parameterBranches: declared.parameterBranches };
+  return { pack, executors, names, known, declare: declared.note, parameterBranches: declared.parameterBranches };
 }
 
 /** The delegation tools, each a thin call into the caller's delegation (which owns limits and the works themselves). */
@@ -343,6 +343,7 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
   if (!view || !view.action.audiences.includes("agent")) return notOffered(views, parsed, known ?? new Set());
   known?.add(view.capability_id);
   if (!view.availability.available) return `${view.availability.code}: ${view.availability.reason}; nothing was done.`;
+  gateway.declare?.(view);
   const reads = actionEffect(view.action, view.capability_id) === "read";
   if ((toolName === GATEWAY_TOOLS.change || toolName === GATEWAY_TOOLS.direct) && reads) return `This capability only reads; call it with ${GATEWAY_TOOLS.read}.`;
   if (toolName === GATEWAY_TOOLS.direct && !gateway.client.direct?.(view)) return `This change is not one the person lets run without asking; call it with ${GATEWAY_TOOLS.change}, which asks them first.`;

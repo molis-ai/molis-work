@@ -904,3 +904,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 启动时「已回答、还没交出」的题也留作停放，这个偏离成立：那次尝试要留给交答案时记成 settled；
   - 去掉了 cast；改用 runningAttemptOf；补上公开面快照；PR 正文写明了对调用方可见的变化。
   - 下一步：采用线在本地准备换包，#675 合入后开 PR，带上 REFUSED_BEFORE_RUN 和 inspect 会写盘这两项的核对；之后交互线做 BL-156 的 Molis 半边。
+- #675 → 55ff1100f：merge 了 main f4d18c37a。除去 page-assets 和 baseline，和 0414c3c02 逐行一致，workbench.js −55。还没跑过全量。chain16（停在等 681 标签，还没加）按 pid 停掉，换成 chain17：675→681→683→685。
+- 回执 3b-2c 在本地准备好了，head 5105cf2c2，放行提交是 +325，键 1107991。等 #671 合入后，回执线 merge main 再开 PR。

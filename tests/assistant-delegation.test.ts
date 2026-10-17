@@ -291,7 +291,8 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
     if (JSON.stringify(body.messages).includes("委托的子任务")) return child(childRound++, init.signal);
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   }));
-  const flags = { model: true, beforeAuthority: undefined as (() => Promise<void>) | undefined, beforeStart: undefined as (() => Promise<void>) | undefined, assertBeforeStart: undefined as (() => void) | undefined };
+  const flags = { model: true, beforeAuthority: undefined as (() => Promise<void>) | undefined, beforeStart: undefined as (() => Promise<void>) | undefined, assertBeforeStart: undefined as (() => void) | undefined,
+    partBeforeStart: undefined as (() => Promise<void>) | undefined };
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegation-fixture-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
@@ -301,7 +302,7 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
     authority: async work => {
       const base = assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work));
       if (!work.delegated_by) await flags.beforeAuthority?.();
-      return { ...base, beforeStart: async () => { await base.beforeStart?.(); if (!work.delegated_by) await flags.beforeStart?.(); }, assertBeforeStart: () => { base.assertBeforeStart?.(); if(!work.delegated_by)flags.assertBeforeStart?.(); } };
+      return { ...base, beforeStart: async () => { await base.beforeStart?.(); await (work.delegated_by ? flags.partBeforeStart : flags.beforeStart)?.(); }, assertBeforeStart: () => { base.assertBeforeStart?.(); if(!work.delegated_by)flags.assertBeforeStart?.(); } };
     }, projectTitle: async () => "项目" }, "web-user");
   return { service, store, project, flags, adapter, home, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
@@ -375,6 +376,34 @@ test("W2-18-DELEGATION-PLACED-01: a round in a finished sub-task that does not s
     held.resolve();
     await handedBack(3);
   } finally { held.resolve(); await f.close(); }
+});
+
+// W2-18-DELEGATION-PLACED-02 (BL-154): two sends in a finished sub-task at once. The first adds the step both stand on and
+// then fails before it starts; the second found the step open and went on with it. The first does not end it under it.
+test("W2-18-DELEGATION-PLACED-02: a round that does not start leaves alone the step another round of the same session went on with", { timeout: 60_000 }, async t => {
+  const held = Promise.withResolvers<void>(), stopped = Promise.withResolvers<void>(), failing = Promise.withResolvers<void>();
+  const f = await delegationFixture(t, [
+    () => reply({ name: "delegate-work", input: { title: "Draft", brief: "写一段。", acceptance: "一段文字" } }),
+    () => reply(undefined, "交出去了，等它交回。"),
+  ], async round => { if (round > 0) await held.promise; return reply(undefined, `第 ${round + 1} 段文字。`); });
+  try {
+    const sent = await f.service.send({ text: "委托起草", request_id: "req-placed-shared" }, { project_ref: f.project });
+    await until(async () => f.store.rounds(sent.work.work_id).length === 2 && (await f.service.read(sent.work.work_id)).work.state === "completed", "handed back");
+    const parent = f.store.get("web-user", sent.work.work_id), childId = f.store.delegatedBy("web-user", parent)[0]!.work_id;
+    const steps = async () => (await f.adapter.collaboration!.works!.read(parent.graph_id!)).filter(node => /\.r\d+$/.test(node.node_id));
+    let first = true;
+    f.flags.partBeforeStart = async () => { if (!first) return; first = false; stopped.resolve(); await failing.promise; throw new Error("这一轮临时出错"); };
+    const a = f.service.send({ work_id: childId, text: "再改一下", request_id: "req-placed-shared-a" }, { project_ref: f.project });
+    a.catch(() => undefined);
+    await stopped.promise;
+    await f.service.send({ work_id: childId, text: "再加一句", request_id: "req-placed-shared-b" }, { project_ref: f.project });
+    await until(async () => (await steps())[0]?.state === "running", "the second round runs on the step the first added");
+    failing.resolve();
+    await assert.rejects(a, /临时出错/);
+    assert.deepEqual((await steps()).map(step => [step.node_id.replace(/^.*\./, ""), step.state]), [["r1", "running"]], "one step for both rounds, still the second round's");
+    held.resolve();
+    await until(async () => (await steps())[0]?.state === "succeeded", "it ends as the second round did");
+  } finally { held.resolve(); failing.resolve(); await f.close(); }
 });
 
 test("a sub-task whose first round cannot start is not left behind: no idle orphan, and failed starts do not use up the slots", { timeout: 60_000 }, async t => {

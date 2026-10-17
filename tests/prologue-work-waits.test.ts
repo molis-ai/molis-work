@@ -114,6 +114,27 @@ test("W2-18-HANDBACK-ONE-CONTINUATION-02: while the Host's wait is open on the r
   assert.deepEqual((await w.rootStep()).continuation, armed, "the Host's wait is the one the root still waits on");
 });
 
+// BL-154: a round that did not start ends its step only while no round has started on it, checked and ended in one step.
+test("W2-18-DELEGATION-PLACED-03: ending a step only while it is ready leaves one a round has started on, and ends one still ready", { timeout: 60_000 }, async t => {
+  let go!: PromiseWithResolvers<void>, holding!: PromiseWithResolvers<void>;
+  const w = await world(t, hold => {
+    go = hold(); holding = hold();
+    return [async () => { holding.resolve(); await go.promise; return reply(undefined, "做完了。"); }];
+  });
+  const round = await w.start("做这一步。");
+  await holding.promise;
+  const running = await w.read();
+  assert.equal(running.find(node => node.node_id === "work")?.state, "running");
+  await w.works.end({ graph_id: w.graph_id, node_id: "work", note: "这一轮没有开始", if_ready: true });
+  assert.deepEqual(await w.read(), running, "a step a round has started on is that round's to end");
+  await w.handOut("p-1");
+  assert.equal((await w.read()).find(node => node.node_id === "p-1")?.state, "ready");
+  await w.works.end({ graph_id: w.graph_id, node_id: "p-1", note: "这一轮没有开始", if_ready: true });
+  assert.equal((await w.read()).find(node => node.node_id === "p-1")?.state, "cancelled", "a step no round has started on is ended");
+  go.resolve();
+  assert.equal((await w.ended(round.ref)).phase, "completed");
+});
+
 test("W2-18-HANDBACK-ARM-FAILED-01: a hand-out whose wait cannot be armed takes its step back, and the work waits again for what it waited for", { timeout: 60_000 }, async t => {
   let go!: PromiseWithResolvers<void>, holding!: PromiseWithResolvers<void>;
   const w = await world(t, hold => {

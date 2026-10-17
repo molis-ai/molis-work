@@ -991,3 +991,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 统筹 10-17 定（采用 A2 写后诊断 spec，6a7cfd4a8，§6.0p，PA-25～39）。Q1：配置归 agent-host，和 MCP 配置放一起，因为检查器挂在已授权的工作区上；SSOT 加一行。Q2：第一刀不做按检查器的本会话规则，代价写进 spec，BACKLOG 留一行后续。Q3：只做 Coding，含子任务的目录。认可先做 Prologue 一刀：缝交回一条命令，由 SDK 按 workspace-command 的审查、Effect 链和回执去跑。顺序：spec PR（merge-only）→ Prologue PR → 换包 → Molis 实现，实现时加 S-33。
 - 10-18 00:40 UTC：#690 的全量（c61496e94）全绿，50943b7c2 走 merge-only（gate-690）。#680 的 chain26 判成 CONFLICTING：#673 合入后 baseline.json 冲突。已请采用线 merge main、重新生成 baseline，再发新 head，核过后加 full-suite。
 - 10-18 00:55 UTC：#690 已入队。#691（情境 W3-A3c，c7e42d869）统筹审过：窗格先过 panes.fromParent 才闪（S-30 加了拒绝用例）；顶层只发给还连着的 iframe，origin 用 location.origin；pinned() 不变，闪只用 pointed()；+318 正好用满 [1108184, 1108502]。排在 chain28。
+- 手册线 BL-151 评测（48 次，两版都没有出错）统筹认可，采用 v7。T2 派全且答对 8 对 8；各题答对按规则 T1 8 对 5（v6 那 3 次是评测检查的缺陷，人读 8 对 8），T2、T3 都是 8 对 8。T1 让出 1/8 对 2/8，记为模型能力。T2 里 v7 后台从 3 次变成 0 次、改成前台，照实写进 §9.5。AC-25 浏览器用例开 PR 前单独重跑，还红就和基线比对。

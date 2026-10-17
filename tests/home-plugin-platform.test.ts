@@ -44,13 +44,18 @@ test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home
   assert.equal(inProject.find(view => view.definition.scope === "project" && view.provider.plugin_id === probe.id)!.availability.available, true);
   const saved = await request(`/api/plugins/${probe.id}/save`, { method: "POST", body: { text: "one Home" } });
   assert.equal(saved.status, 200, await saved.clone().text());
-  for (const prefix of ["", `/projects/${one.project_id}`, `/projects/${two.project_id}`]) {
-    const read = await request(`${prefix}/api/plugins/${probe.id}/state?project_id=forged`, { headers: { referer: `${origin}${prefix || "/"}` } });
-    assert.equal(read.status, 200, await read.clone().text());
-    assert.deepEqual(await read.json(), { value: "one Home", project_id: null }, "the HTTP prefix does not manufacture project authority");
-    assert.deepEqual(probe.seen.at(-1)?.page_context, { url: prefix || "/", title: null, provenance: "client_reported" });
-    const scoped = await request(`${prefix}/api/plugins/${probe.id}/project?project_id=${one.project_id}`);
-    assert.equal(scoped.status, 400); assert.equal((await scoped.json()).code, "actions.project_required");
+  const read = await request(`/api/plugins/${probe.id}/state?project_id=forged`, { headers: { referer: `${origin}/` } });
+  assert.equal(read.status, 200, await read.clone().text());
+  assert.deepEqual(await read.json(), { value: "one Home", project_id: null }, "a query does not manufacture project authority");
+  assert.deepEqual(probe.seen.at(-1)?.page_context, { url: "/", title: null, provenance: "client_reported" });
+  const scoped = await request(`/api/plugins/${probe.id}/project?project_id=${one.project_id}`);
+  assert.equal(scoped.status, 400); assert.equal((await scoped.json()).code, "actions.project_required");
+  // Under a project's path a Home route runs in that project only when the project shows the plugin (S-31); a fixture has no place in
+  // any project's plugin list, so its routes there are refused, and the probe stays the person's own.
+  for (const prefix of [`/projects/${one.project_id}`, `/projects/${two.project_id}`]) {
+    const refused = await request(`${prefix}/api/plugins/${probe.id}/state?project_id=forged`, { headers: { referer: `${origin}${prefix}` } });
+    assert.equal(refused.status, 403, await refused.clone().text());
+    assert.equal((await refused.json()).code, "actions.plugin_disabled");
   }
 });
 

@@ -1,5 +1,147 @@
 /** AP3 visual layer: desktop-titlebar. */
-export const DESKTOP_TITLEBAR_STYLES = `  /* One Codex-style desktop titlebar contract. The native controls and work
+export const DESKTOP_TITLEBAR_STYLES = `  /* Work tabs in the titlebar: width, scroll, selection, status dot and close button. Dead style: no page draws
+     .desktop-work-tabs; W5-05 slice 5 deletes it with renderInitialGoalTab. */
+  @media (min-width: 761px) {
+    body[data-desktop-shell="true"] .desktop-work-tabs {
+      min-width: 0;
+      max-width: min(56vw, 680px);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    body[data-desktop-shell="true"] .desktop-work-tabs::-webkit-scrollbar { display: none; }
+    body[data-desktop-shell="true"] .desktop-work-tab {
+      flex: 0 0 clamp(136px, 12vw, 190px);
+      min-width: 0;
+      max-width: 245px;
+      flex: 0 0 clamp(132px, 16vw, 190px);
+      height: 34px;
+      padding: 0 4px 0 0;
+      border-radius: 10px;
+      color: var(--muted);
+      background: color-mix(in srgb, var(--paper) 46%, transparent);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 24px;
+      align-items: center;
+      transition: color 130ms var(--ease-quint), background 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint);
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab.is-selected {
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: var(--lift-1);
+    }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tab {
+      position: relative;
+      border-radius: 7px;
+      background: transparent;
+      box-shadow: none;
+    }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tabs { gap: 0; }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tab + .desktop-work-tab::before {
+      content: "";
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 0;
+      width: 1px;
+      background: color-mix(in srgb, var(--line-strong) 70%, transparent);
+      pointer-events: none;
+    }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tab:hover:not(.is-selected) {
+      color: var(--ink-soft);
+      background: var(--nav-hover);
+    }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tab.is-selected {
+      color: var(--ink);
+      background: transparent;
+      box-shadow: none;
+    }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tab.is-selected::after {
+      content: "";
+      position: absolute;
+      left: 10px;
+      bottom: 0;
+      width: 28px;
+      height: 2px;
+      border-radius: 1px;
+      background: var(--blue);
+      pointer-events: none;
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab.is-utility {
+      flex-basis: auto;
+      min-width: max-content;
+      padding-right: 0;
+      grid-template-columns: minmax(0, 1fr);
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab.is-utility > [role="tab"] {
+      padding: 0 12px;
+      display: flex;
+      white-space: nowrap;
+      cursor: default;
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] {
+      min-width: 0;
+      height: 34px;
+      padding: 0 4px 0 12px;
+      border: 0;
+      color: inherit;
+      background: transparent;
+      display: grid;
+      grid-template-columns: 7px minmax(0, 1fr);
+      align-items: center;
+      gap: 8px;
+      text-align: left;
+      cursor: pointer;
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] i { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
+    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] i[data-status="executing"],
+    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] i[data-status="ready"] { background: var(--green); }
+    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] span { overflow: hidden; font-size: 11px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+    body[data-desktop-shell="true"] .desktop-work-tab > button:last-child {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: 0;
+      border-radius: 7px;
+      color: var(--faint);
+      background: transparent;
+      opacity: 0;
+      cursor: pointer;
+      transition: opacity 130ms var(--ease-quint), color 130ms var(--ease-quint), background 130ms var(--ease-quint);
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab:hover > button:last-child,
+    body[data-desktop-shell="true"] .desktop-work-tab:focus-within > button:last-child { opacity: 1; }
+  }
+  @media (min-width: 761px) and (max-width: 1180px) {
+    body[data-desktop-shell="true"] .desktop-work-tab { max-width: 190px; }
+  }
+  /* Desktop shell frame: safe-area variables, the app grid, project menu, drag regions and work surface. */
+  @media (min-width: 761px) {
+    body[data-desktop-shell="true"] { --desktop-project-control-center-y: calc(var(--desktop-titlebar-height) / 2); --desktop-native-control-row-height: var(--desktop-titlebar-height); --desktop-project-safe-inline-start: var(--desktop-native-project-safe-inline-start, 2px); --desktop-settings-safe-inline-start: var(--desktop-native-settings-safe-inline-start, 2px); }
+    body[data-desktop-shell="true"][data-native-desktop="true"],
+    html[data-native-desktop="true"] body[data-desktop-shell="true"] { --desktop-native-project-safe-inline-start: var(--desktop-window-safe-inline-start, 88px); --desktop-native-settings-safe-inline-start: var(--desktop-window-safe-inline-start, 88px); }
+    body[data-desktop-shell="true"] .app { gap: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); background: var(--page); }
+    body[data-desktop-shell="true"] .navigator-project-selector > svg:last-child { color: var(--faint); }
+    body[data-desktop-shell="true"] .navigator-project-menu-popover > span { min-height: 24px; align-items: center; }
+    body[data-desktop-shell="true"] .navigator-project-option,
+    body[data-desktop-shell="true"] .navigator-project-manage { min-width: 0; min-height: 34px; padding: 0 8px; border-radius: 8px; color: inherit; display: flex; align-items: center; gap: 8px; text-decoration: none; }
+    body[data-desktop-shell="true"] .navigator-project-option > span { flex: 1 1 auto; }
+    body[data-desktop-shell="true"] .navigator-project-option strong { min-width: 0; }
+    body[data-desktop-shell="true"] .navigator-project-settings { grid-template-columns: minmax(0, 1fr); }
+    body[data-desktop-shell="true"] .personal-account { grid-template-columns: 32px minmax(0, 1fr) 30px; }
+    body[data-desktop-shell="true"] .desktop-titlebar-drag { -webkit-app-region: drag; user-select: none; }
+    body[data-desktop-shell="true"] .navigator-project-selector,
+    body[data-desktop-shell="true"] .navigator-project-settings,
+    body[data-desktop-shell="true"] .desktop-work-tabs { -webkit-app-region: no-drag; }
+    body[data-desktop-shell="true"] .document-pane { --focus-canvas-inset: 0px; padding-inline: 4px 12px; padding-bottom: 12px; grid-column: 3; grid-row: 2; background: var(--page); }
+    body[data-desktop-shell="true"] .desktop-work-surface:has(> .goal-event-document) { display: flex; }
+    body[data-desktop-shell="true"][data-desktop-surface]:not([data-desktop-surface="goal"]) .tui-resizer,
+    body[data-desktop-shell="true"][data-desktop-surface]:not([data-desktop-surface="goal"]) .tui-pane { display: none !important; }
+  }
+
+  /* One Codex-style desktop titlebar contract. The native controls and work
      tabs live on row one; project selection gets the full second row. */
   @media (min-width: 761px) {
     body[data-desktop-shell="true"] {

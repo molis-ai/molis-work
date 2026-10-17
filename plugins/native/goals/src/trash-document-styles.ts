@@ -77,6 +77,12 @@ export const TRASH_GOAL_STYLES = String.raw`
     body[data-desktop-shell="true"] .trash-goal-document .goal-title-row { gap: 12px; }
     body[data-desktop-shell="true"] .trash-goal-document .goal-title-outcome { display: none; }
     body[data-desktop-shell="true"] .trash-goal-document .goal-title-actions .mw-btn { min-height: 28px; }
+    body[data-desktop-shell="true"] .trash-goal-document { width: 100%; gap: 12px; padding-inline: 12px; padding-bottom: 32px; }
+    body[data-desktop-shell="true"] .trash-goal-document .goal-header { padding-inline: 4px; padding-bottom: 12px; }
+    body[data-desktop-shell="true"] .trash-goal-document .goal-title-kicker { min-height: 26px; }
+    body[data-desktop-shell="true"] .trash-goal-document .goal-title-kicker .goal-status { padding-inline: 8px; gap: 8px; background: color-mix(in srgb, var(--goal-status-tone) 7%, var(--paper)); }
+    body[data-desktop-shell="true"] .trash-goal-document .goal-title-row h1 { max-width: 34ch; line-height: 1.18; letter-spacing: -.025em; }
+    body[data-desktop-shell="true"] .trash-goal-document .trash-goal-workspace { min-height: max(420px, calc(100dvh - 340px)); }
     body[data-desktop-shell="true"] .trash-goal-panel {
       border: 0;
       background: var(--paper);

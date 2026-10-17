@@ -2,10 +2,10 @@
   "giantUnits": 137,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 1890,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1877,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1542,
-      "methods": 92
+      "lines": 1533,
+      "methods": 91
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -49,7 +49,7 @@
     "file apps/workbench/src/i18n/en.ts": 3324,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2263,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2254,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2015,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -155,8 +155,8 @@
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
-    "file packages/design-system/src/styles/craft-finish.ts": 2144,
-    "file packages/design-system/src/styles/momentum.ts": 856,
+    "file packages/design-system/src/styles/craft-finish.ts": 2142,
+    "file packages/design-system/src/styles/momentum.ts": 823,
     "file packages/design-system/src/styles/primitives.ts": 1268,
     "file packages/im-ui/src/browser/controller.ts": 966,
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
@@ -219,10 +219,10 @@
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
     "file plugins/native/pages/src/client.ts": 1117,
     "file plugins/native/pages/src/commands.ts": 2241,
-    "file plugins/native/pages/src/editor-browser.ts": 3854,
+    "file plugins/native/pages/src/editor-browser.ts": 3829,
     "function plugins/native/pages/src/editor-browser.ts#slashPlugin": 158,
-    "function plugins/native/pages/src/editor-browser.ts#hoverHandlePlugin": 798,
-    "function plugins/native/pages/src/editor-browser.ts#view": 676,
+    "function plugins/native/pages/src/editor-browser.ts#hoverHandlePlugin": 795,
+    "function plugins/native/pages/src/editor-browser.ts#view": 673,
     "function plugins/native/pages/src/editor-browser.ts#renderMenu": 173,
     "function plugins/native/pages/src/editor-browser.ts#findPlugin": 169,
     "function plugins/native/pages/src/editor-browser.ts#mount": 828,

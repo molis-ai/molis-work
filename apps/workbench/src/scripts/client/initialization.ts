@@ -89,7 +89,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setMobileView: (...args) => setMobileView(...args),
       noteSearchActivity: (...args) => noteSearchActivity(...args),
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
-      expandDirectory: (id) => setPluginSectionExpanded(id === "sources" ? "feed" : id, true, true),
+      expandDirectory: (id) => setPluginSectionExpanded(id),
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
       getState: () => state, translate: L, route,

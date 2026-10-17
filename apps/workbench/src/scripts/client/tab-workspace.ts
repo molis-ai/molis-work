@@ -357,7 +357,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const COVER_OPENERS = {
     settings: '[data-directory-open="settings"]',
     "project-settings": '[data-directory-open="project-settings"]',
-    market: ':is([data-dock], [data-global-menu], .plugin-stack) [data-plugin-id="market"]',
+    market: ':is([data-dock], [data-global-menu]) [data-plugin-id="market"]',
   };
   const coverLabel = (kind) => kind === "market" ? L("插件市场") : kind === "project-settings" ? L("项目设置") : kind === "settings" ? L("设置") : ops.pluginTitle(kind);
   // The glyph comes from the entry that opened the cover.
@@ -584,7 +584,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       // A plugin's own page can be dragged like a tab: to an edge to open it beside, onto another pane to show it there.
       chip.draggable = true;
       const title = ops.pluginTitle(pane.viewPlugin);
-      const glyph = document.querySelector(':is(.plugin-stack, [data-dock]) [data-plugin-id="' + CSS.escape(pane.viewPlugin) + '"] svg');
+      const glyph = document.querySelector('[data-dock] [data-plugin-id="' + CSS.escape(pane.viewPlugin) + '"] svg');
       if (glyph) chip.append(glyph.cloneNode(true));
       const label = document.createElement("span"); label.textContent = title; chip.append(label);
       const onPage = !pane.activeTabId && !state.exclusive;
@@ -1584,7 +1584,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       // Already on the plugin's page: the chip is its name, and pressing it goes back to the page's list.
       if (!pane.activeTabId && state.focusedPaneId === paneId && !state.exclusive) { resetPluginPage(pane.viewPlugin); return true; }
       state.focusedPaneId = paneId;
-      const railButton = document.querySelector(':is(.plugin-stack, [data-dock]) [data-plugin-id="' + CSS.escape(viewChip.dataset.tabView) + '"]');
+      const railButton = document.querySelector('[data-dock] [data-plugin-id="' + CSS.escape(viewChip.dataset.tabView) + '"]');
       if (railButton) railButton.click();
       else { pane.activeTabId = null; state.exclusive = null; apply(); persist(); }
       return true;

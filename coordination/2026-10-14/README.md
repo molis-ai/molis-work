@@ -887,3 +887,14 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #677 → 5f7a1600c（Codex merge 了 9626b24b1）：除去 page-assets，和 1e9055a38 逐行一致，三份 CSS 的降幅不变。走 merge-only 门禁，全量已在 1e9055a38 上跑过。
 - #682（回执 3d-1）合入 62e52c373。#671 在 spec 上冲突（预料之中），回执线 merge main 后走 merge-only；全量正在旧 head 上跑，以那一次为准。3b-2c 可以叠在 #671 上开 PR 了。
 - #681 → 7a868d819：merge 了 main 9626b24b1。和审过的版本比，只是把 S-31 改名成 S-32，表格那一行去掉了「」（表格门禁会把「…」当成测试标题）。chain15 还没加标签，停掉换成 chain16：675→681→683→685。
+- #677（W5-05）合入，main 是 f4d18c37a。三份样式表的字节变小以后，#671、#675、#673 都和 page-assets.json 冲突：
+  - 已通知回执线、采用线、情境线各自 merge main，按新的 merge-base 重新取键，增量不变；
+  - #671 已经跑过全量，新 head 来了就走 merge-only；
+  - chain16 跳过了 #675（CONFLICTING），还在依次处理 681→683→685，#675 的新 head 来了以后另排；
+  - 旧的 wait-merge 671 已按 pid 停掉。
+  - 给 Codex 的通知写在统筹会话里，等用户转达：#677 已合入，可以开 §10.26（wt-docs1026，只改文档，走 merge-only），把已合入的 PR 从「在途」挪到「已合入」。
+- prologue#40（0fc1b8a86）统筹审过，要求改一处，暂不合并：
+  - 停放的题过期或被取消后，它绑着的板上那一步一直留在 running。attempt-recovery 跳过停放的跑，之后也没有任何地方去收这次尝试。改法：和「不带答案关掉」用同一个收场函数，并清掉 byRun。
+  - 去掉 start-agent-run 里没有类型的 cast。
+  - PR 正文写明三项对调用方可见的变化：拒绝码 EFFECT_RECONCILE_REQUIRED 改成 SESSION_RECOVERY_BUSY；新增 SESSION_RUN_PARKED 和 SESSION_HISTORY_UNAVAILABLE；inspect 会写盘。
+  - 换包时要改 Molis 的 `horizontal/agent-host/src/adapters/prologue-run.ts` REFUSED_BEFORE_RUN，加上 SESSION_RECOVERY_BUSY 和 SESSION_RUN_PARKED。

@@ -8,6 +8,7 @@ export const agentErrors = defineErrorCodes("agent", {
   collaboration_check_refused: "forbidden",
   collaboration_conflict: "conflict",
   collaboration_unknown: "invalid",
+  control_failed: "internal",
   directory_unauthorized: "invalid",
   input_applied: "conflict",
   input_not_queued: "conflict",

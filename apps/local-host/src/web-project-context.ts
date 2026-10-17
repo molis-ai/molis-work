@@ -11,6 +11,7 @@ import type { CodingSurfacePorts } from "./coding-surface.js";
 import type { ContextualHttpPorts } from "./contextual/contextual-http.js";
 import type { ResolvedWebBoardOptions } from "./web-types.js";
 import type { WebRequestContext } from "./web-route-table.js";
+import type { HomeRouteProjectPlugins } from "./home-plugin-http.js";
 
 /** A request for one project that exists and has a database, before the project's runtime is opened. */
 export interface ProjectRequestContext extends WebRequestContext {
@@ -45,6 +46,15 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
   const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
     catalog => shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)));
   return { ...context, options, hostReference, userActions, shownPlugins };
+}
+
+/** What a Home plugin's route under `/projects/<id>/…` checks: the plugins that project shows, or null when there is no such project. */
+export function homeRouteProjectPlugins({ composition, serverOptions }: WebRequestContext): HomeRouteProjectPlugins {
+  return projectId => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
+    let databasePath: string;
+    try { databasePath = catalog.getProject(projectId).database_path; } catch { return null; /* No such project: the route refuses, saying so. */ }
+    return { database_path: databasePath, plugins: shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)) };
+  });
 }
 
 /** `/projects/<id>` for a project page; empty for the board a fixture serves at the root. */

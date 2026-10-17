@@ -696,6 +696,7 @@ Skill 可以包含适用的确定步骤和脚本，但必须说明哪些是业�
 - 首页建议读不出来（`home-event-actions.ts`）：用户不必看到，事项照常显示；宿主日志留一行 `home / recommendations_failed`（错误名、码、能力），不进给用户看的 `issues`。用例：`tests/home-event-actions.test.ts`「D4-a」。
 - 「没配模型」和「模型设置读不了」（信息助手、工作流程，加上 Todo、Dataset、Pages、PPT、灵光、插件 `services.model` 六处同样的复制）：收成一个 `textModelAvailability`。没配模型仍是 `actions.connection_required`、各自原来的话；读不了带它自己的码（如 `catalog.unknown_database`）和「文字模型的设置读不了」，不再让用户去设置里找一个不存在的问题。信息助手和工作流程不再 `catch { return undefined }`；工作流程的端口从 `aiAvailable(): boolean` 改成 `textModel(): ActionAvailability`，衔接未接上的原因照实说。用例：`tests/text-model-availability.test.ts`、`tests/workflows-plugin.test.ts`。
 - 送达后的 Feed 判断（`schedule-runtime.ts`）：核实了原注释。判断本身的模型失败由场景的 `failed` 记成待复核，这一半属实；但别的失败（记录写不进去、权限复核）会抛出，而 Feed 的 `JudgmentQueue` 在判断前已把整批取出，第一处失败就把后面的判断全丢了。现在每个取出的判断都试一遍，最后再抛第一处失败（Feed 是主人）；送达那一侧仍不因判断失败撤回，失败在宿主日志留 `schedule / delivery_judgment_failed`。用例：`tests/schedule-operations.test.ts`「D4-d」。来源同步那几处（`source-sync.ts`、`connector-sync.ts`、`source-scheduler.ts`、`research-library-source.ts`）本来就不吞：判断失败会让那次同步失败，用户看得到，口径不同但都不悄悄丢。
+- 追补（2026-10-17，统筹审 #580 时的建议）：上一条「每个取出的判断都试一遍」有一个例外。调用方走了（`cancelled` 类的失败）就立刻停下，后面的判断只会花掉模型调用再被拒。冲刷（`flush`、`flushEntries`）把还没开始的放回队列，下一次冲刷照常判。`judgeOwn` 剩下的不放回：放回去就会由别的生产者冲刷、用别人的身份去判（可信身份只从调用上下文来）。被取消的调用什么都不写，所以这些条目既没有判断记录也没有失败记录，仍是未判；调用方再要一次（如再跑一遍 `evaluateItems`）照常判。停下时正在判的那一项两边都不放回：它的判断可能已经生效了一部分，再判一次会重复。用例：`tests/feed-sync-concurrency.test.ts` 带「(D4)」的两条，在改前的队列上都失败（取消后照样调了模型）。没变好的：工作流程交给 Feed 的那一步（`ingestItemJudged`）被取消后重试，内容没变的条目不会重新排队，和别的失败一样，要从 Inbox 项再要一次。
 
 #### C3 炼金术士交叉检查不在指令里定字数和条数（2026-10-17）
 

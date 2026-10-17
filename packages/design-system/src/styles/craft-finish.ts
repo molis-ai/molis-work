@@ -313,7 +313,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .dock-pin.is-arriving { animation: dock-pin-arrive var(--dur-move) var(--ease-spring) both; }
   ${SHELL} .dock-pin.is-leaving { opacity: 0; transform: scale(.6); pointer-events: none; transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-quint); }
 
-  /* Shelf and 灵光: the person's own, beside the project at the right. */
+  /* The side panel's button, beside the project at the right. */
   ${SHELL} .bar-side { display: flex; align-items: center; gap: 4px; min-width: 0; }
 
   /* The Dock menu: which plugins stay, what is yours everywhere, settings and the account. */

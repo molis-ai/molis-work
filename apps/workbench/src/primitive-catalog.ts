@@ -88,7 +88,7 @@ const BAR_SPECIMEN_SCRIPT = `
       tile.classList.toggle("is-available", !adding);
       toggle.dataset.state = adding ? "added" : "available";
       toggle.classList.toggle("mw-btn--primary", !adding); toggle.classList.toggle("mw-btn--secondary", adding);
-      const pin = tile.querySelector("[data-dock-choice]"); if (pin && !pin.hasAttribute("data-resident")) pin.disabled = !adding;
+      const pin = tile.querySelector("[data-dock-choice]"); if (pin) pin.disabled = !adding;
       return;
     }
     const pin = event.target.closest("[data-dock-pin]");

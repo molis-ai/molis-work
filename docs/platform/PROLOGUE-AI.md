@@ -455,7 +455,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **描述写清用途、适用对象、输入输出、影响和常见失败。** 参考能力网关（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）：`change-capability` 的描述告诉模型「执行前用户会审查确切的能力和输入，不必另外征求同意」，省掉一轮多余的确认；参数说明里写清 `input` 必须是对象、不是 JSON 字符串。
 
-**回执说真实状态，让 AI 能决定下一步。** 写入已经发出却没结束时，网关返回 `actions.outcome_unknown`，并写明它可能已经生效、不要再次提交、先用 `read-capability` 读回对象；`suggest-action` 的回执写明「nothing has run」；委派追加到上限时，错误写明「仍达不到验收时停止它，并把实际情况告诉用户」（`apps/local-host/src/assistant/assistant-delegation.ts` 的 `MAX_FOLLOW_UPS`）。「成功」不能只代表请求已经收下。
+**回执说真实状态，让 AI 能决定下一步。** 写入已经发出却没结束时，网关返回 `actions.outcome_unknown`，并写明它可能已经生效、不要再次提交、先用 `read-capability` 读回对象；`suggest-action` 的回执写明「nothing has run」；委派追加到上限时，错误写明「仍达不到验收时停止它，并把实际情况告诉用户」（`apps/local-host/src/assistant/assistant-delegation.ts` 的 `DELEGATION_LIMITS`）。「成功」不能只代表请求已经收下。
 
 **工具多了会被延后：只列名字，照样调得动。** Prologue SDK 在一轮的工具超过 20 个时，只给多出来的那些一行名册（`deferToolSchemasBeyond: 20`）。模型照名册上的名字直接调，调用照样进工具链；用 `find-tools` 取过形状的，这一跑之后的请求照常声明（[Prologue #28](https://github.com/molis-ai/prologue/pull/28)，2026-10-16 换包，见 `specs/prologue-adoption/spec.md` §6.0e）。延后了工具，`find-tools` 就带着名册在请求里，不看角色和这一轮的名单点没点它（[Prologue #30](https://github.com/molis-ai/prologue/pull/30)，同日换包）：角色不必为延后去点它。之前两样都不行，是 SDK 的设计缺陷，不是模型能力；那段时间用过一个不延后的临时做法，已删。不要在提示词里另教模型怎样调被延后的工具。
 

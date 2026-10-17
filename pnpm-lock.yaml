@@ -683,8 +683,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-mcp-refresh.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-mcp-refresh.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-app-tools-waits.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-app-tools-waits.tgz
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -1736,8 +1736,8 @@ packages:
   '@oxc-project/types@0.150.0':
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-mcp-refresh.tgz':
-    resolution: {integrity: sha512-9e1U/PSzaxcnM1tFYFZZoZoyFK55UN0Sl8v0vUZYfxamFXtujcFmedIVJ3tFNKbKfdlX6RCQR/wRx2ilYzu80g==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-mcp-refresh.tgz}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-app-tools-waits.tgz':
+    resolution: {integrity: sha512-JLBbcn/MZ2zpK9rpIS/RGZmI5pHN9+wFVuI7BgvWNqaDmFyDBeO+UcdJnT+J+sa6LMjGAXXa6Kk/LzTsxwYzjw==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-app-tools-waits.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':
@@ -3459,7 +3459,7 @@ snapshots:
 
   '@oxc-project/types@0.150.0': {}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-mcp-refresh.tgz':
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-app-tools-waits.tgz':
     dependencies:
       '@tauri-apps/api': 2.11.1
 

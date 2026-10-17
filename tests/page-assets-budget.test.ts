@@ -642,7 +642,7 @@ test("receipts 3b-2a has one bounded allowance on the workbench script, the Codi
     "/assets/molis-work-arrival.css": [746249, 746385],
     "/assets/molis-work-plugins/coding.js": [373429, 374113],
     "/assets/molis-work-workbench.css": [1625858, 1625994],
-    "/assets/molis-work-workbench.js": [1103578, 1108621],
+    "/assets/molis-work-workbench.js": [1103049, 1108092],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("rcpt-3b2a-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

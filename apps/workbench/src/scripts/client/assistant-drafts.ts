@@ -57,7 +57,7 @@ export const ASSISTANT_DRAFTS_CLIENT_SCRIPT = String.raw`
   };
   const loadDraft = () => {
     loadDraftContext(); const work = getWork();
-    input.value = work ? (work.draft || "") : (store.get(newDraftKey()) || ""); compose.dataset.uivKey = curId || "";
+    input.value = work ? (work.draft || "") : (store.get(newDraftKey()) || ""); compose.dataset.uivKey = curId || ""; compose.dataset.uivProjectId = project?.id || "";
     syncSend();
   };
 `;

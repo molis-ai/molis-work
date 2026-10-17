@@ -1,5 +1,6 @@
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
+  UIV_BOOT_SCRIPT, UIV_STYLE,
   INPUT_RECEIPTS_CLIENT_SCRIPT,
   INTERACTION_CLIENT_SCRIPT_TYPED_DATES,
   renderBarContext,
@@ -125,11 +126,11 @@ const chosenRoute = path => { const id = document.querySelector('.chooser')?.dat
 (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, projectId: null, openItem: () => {} });
 globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES}), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L),
   placeholder: project => project && project.title ? globalThis.L("问问「{name}」的进展，或交给助理一项工作…", { name: project.title }) : globalThis.L("在个人空间里，让助理做点什么…") });
-${CHOOSER_CLIENT_SCRIPT}`;
+${CHOOSER_CLIENT_SCRIPT}${UIV_BOOT_SCRIPT}`;
     return shell.document({
       title: L("选择项目 · Molis Work"), screen: "chooser", desktopShell, controlToken,
       titlebar: shell.titlebar(desktopShell, { caption: true }), stage, bar,
-      after: `${templates}<script type="application/json" id="arrival-data">${data}</script><div class="arrival-toasts" id="toasts" aria-live="polite"></div>`,
+      after: `<style>${UIV_STYLE}</style>${templates}<script type="application/json" id="arrival-data">${data}</script><div class="arrival-toasts" id="toasts" aria-live="polite"></div>`,
       scripts,
     });
   }

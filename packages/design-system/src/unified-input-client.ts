@@ -64,7 +64,7 @@ function uivField(form: HTMLFormElement): UivField | null {
 }
 function uivIdentity(form: HTMLFormElement, host: UivPageHost): UivIdentity {
   const surface = uivSurface(form) ?? "home";
-  const projectId = host.document.body?.dataset.projectId ?? "";
+  const projectId = form.dataset.uivProjectId ?? host.document.body?.dataset.projectId ?? "";
   let sessionId = form.dataset.uivKey ?? "";
   if (surface === "assistant" && !sessionId) {
     try { sessionId = host.localStorage.getItem("molis.assistant.current") ?? ""; } catch { sessionId = ""; }
@@ -664,7 +664,7 @@ export function uivMount(host: UivPageHost): void {
 
     uivPaint(live, host);
   });
-  observer.observe(host.document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-uiv-key", "data-uiv-phase", "data-uiv-result-key", "data-uiv-result-next-key"] });
+  observer.observe(host.document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-uiv-project-id", "data-uiv-key", "data-uiv-phase", "data-uiv-result-key", "data-uiv-result-next-key"] });
   const pull = () => { for (const form of uivForms(host)) uivRestore(form, host); };
   globalThis.setTimeout(pull, 1200);
   host.document.defaultView?.addEventListener("resize", () => { for (const form of uivForms(host)) { const field = uivField(form); if (field) uivResize(field); } });

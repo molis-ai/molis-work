@@ -616,6 +616,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - BL-150：情境线的回答可以接受：不进种类登记，因为没人按 id 查；id 是 `<work_id>:<run_id>:<turn_id>`；用 −6 行、−529 B 抵掉增长。另外要求 `"assistant_reply"` 只在载荷类型那里定义一次。浏览器用例在等槽位。
       - #657（手册 C2，24919bbe9）：统筹审过。只把三处创作台会读的示例换掉（`generated-ai.md`、`agent-capabilities.ts` 的 `model.generate` 说明、`build-project.ts` 的 developer README），加一条规则：条数、长度是产品约束时，在代码里检查。没有新禁令、正则或特例。挂载章节跑过 studio:replay 和 smoke（MiniMax，隔离 Home）。改了源码里的字符串和 skills/，所以挂 label-chain 跑全量。C3 的 PR 随后到。
       - #658（手册 C3，88b331668）：统筹审过。Alchemist 交叉检查提示词升到 v2，只删字数和条数限制。把无关材料列成反证的比例从 31/60 降到 5/24。接受的代价：建造成本那题要走既有格式修正的比例从 6/20 升到 6/8（都是没转义的引号，记为模型能力，不给提示词打补丁），token 多 33%。C1（结构化输出）的评测要再报这个比例。改了源码，挂 label-chain 跑全量；和 #657 不冲突。#651 的全量已通过，由门禁入队。
+      - **AC-07 的缺口（交互线测出来的，统筹 10-17 定）**：Node Host 重启后，正在等人回答的问卷全部结束（`answerable:false`），和 D5 的「24 小时内回来仍能交」对不上。处理：AC-08 的用例先单独开一个只改测试的 PR。AC-07 的验收标准不改写，行标「部分」，写明缺口，新建一条 BACKLOG（归交互线）。同一个 PR 里查最低要求：重启后至少要像 D5 的过期那样，保留草稿、能让 AI 重新问；做不到就先报统筹。接着只读查 Prologue 能不能让 `awaiting_input` 跨进程留下，查完先报；要改上游，形状先过统筹和采用线，可以和 A3、BL-152 合成一次换包。#655 已进合并队列。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

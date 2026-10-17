@@ -16,6 +16,8 @@ export interface SessionIndex {
   /** Missing on historical rooted sessions. Never infer none from an absent directory. */
   workspace?: "required" | "none" | "business";
   parent_run?: AgentRunRef;
+  /** The work graph this session works on (an Assistant Work's, or the one a part of it was handed out on): its rounds stand there. */
+  work_graph?: string;
   ref: ExactRef<"session">;
   title: string;
   owner: PrologueRestoredSession["owner"];

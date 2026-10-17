@@ -482,7 +482,7 @@ export interface AssistantRecovery {
   }>;
 }
 
-export interface AssistantSendInput {
+export interface AssistantSendInput extends Pick<import("./agent-inputs.js").AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
   /** For a new work: who carries it. An existing work keeps its executor. */
@@ -530,10 +530,10 @@ export interface AssistantHandover {
   mode?: string;
 }
 
+/** `withdraw`: take back a supplement the model has not seen (`run_id`: the round it was shown under). */
 export type AssistantControl =
-  | { kind: "pause" }
-  | { kind: "resume" }
-  | { kind: "stop" };
+  | { kind: "pause" | "resume" | "stop" }
+  | { kind: "withdraw"; run_id: string; input_id: string };
 
 /** What one provider contributes for the Assistant (read from the action directory), and the gaps that limit it. */
 export interface AssistantContribution {

@@ -18,10 +18,10 @@ function rejected(value: unknown): void {
   assert.throws(() => assertActionInput(schema, value), (error: unknown) => error instanceof ActionError && error.code === "actions.input_invalid");
 }
 
-// ADOPT-CONTROL-V2-01, RC-01: current schema and callers use a new shape under a new action version (3: a supplement's key and mode; 4: a non-choice question's answer is a value, specs/ai-interaction-experience AC-27; 5: the value may be picked objects, AC-28-5).
-test("coding.runs.control uses version 5 and remains exclusive to the person at this computer", () => {
+// ADOPT-CONTROL-V2-01, RC-01, RCPT-321: current schema and callers use a new shape under a new action version (3: a supplement's key and mode; 4: a non-choice question's answer is a value, specs/ai-interaction-experience AC-27; 5: the value may be picked objects, AC-28-5; 6: withdraw, and a supplement's about, specs/ai-input-receipts 3b-2a).
+test("coding.runs.control uses version 6 and remains exclusive to the person at this computer", () => {
   assert.equal(control.definition.capability_id, "coding.runs.control");
-  assert.equal(control.definition.version, 5);
+  assert.equal(control.definition.version, 6);
   assert.deepEqual(control.definition.action.audiences, ["user"]);
 });
 
@@ -47,6 +47,20 @@ test("RC-01: a supplement's key and send mode are checked by the published schem
   rejected({ ...base, kind: "steer", text: "先看测试", mode: "later" });
   rejected({ ...base, kind: "stop", key: "send.1" });
   assertActionInput(schema, { ...base, kind: "steer", text: "先看测试", key: "send.1", mode: "after-run" });
+});
+
+test("RCPT-321: a correction names the input it is about, and taking one back names only the input", async () => {
+  rejected({ ...base, kind: "steer", text: "只看错误级别", about: "" });
+  rejected({ ...base, kind: "withdraw" });
+  rejected({ ...base, kind: "withdraw", input_id: " " });
+  rejected({ ...base, kind: "withdraw", input_id: "steer-1", text: "撤回" });
+  rejected({ ...base, kind: "stop", about: "steer-1" });
+  const corrected = { ...base, kind: "steer", text: "只看错误级别", key: "send.2", about: "steer-1" };
+  assertActionInput(schema, corrected);
+  assert.deepEqual(await runControl(corrected, async () => []), { kind: "steer", send: { text: "只看错误级别", key: "send.2", about: "steer-1" } }, "RCPT-321 about reaches agent.inputs.send");
+  const withdrawn = { ...base, kind: "withdraw", input_id: "steer-1" };
+  assertActionInput(schema, withdrawn);
+  assert.deepEqual(await runControl(withdrawn, async () => []), { kind: "withdraw", input_id: "steer-1" });
 });
 
 test("a complete control passes the published schema and the handler does not fail for a missing field", async () => {

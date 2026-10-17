@@ -622,6 +622,11 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - AC-07 的最低要求查了：草稿还在（按 pending_id 存，重启后不变），但「请 AI 重新问」没有。不光重启，过期的情况也没做，D5 的承诺落空。统筹定：单开一片补上，两种情况一起修。走现有的开新一轮动作，原问题和草稿作为标好的材料带进去（是草稿，不是回答，也不是指令）。这一轮算本人发起的。page-assets 在同一个 PR 里抵掉，抵不掉先报统筹（字节的放宽归用户定）。译文同一个 PR 补齐。过期、重启各一个用例。顺序：AC-08 的 PR → 只读查 Prologue → 然后这一片和 BL-152 的 Prologue PR 并行。
       - #651（W3-B3）合入 106d6163a。#659（交互 AC-08，d6864b1ce，只改测试和文档；BL-156 是新建的）：退回改一处，被拒的回答要断言确切的错误码（版本旧了、已经答过），现在 `assert.ok(refused.code)` 收什么码都能过。改完直接入队。
       - #660（情境 BL-150，4d2e7b7c1）：统筹审过。`ASSISTANT_REPLY_KIND` 只在 contracts/services/contextual 定义一次；id 取 `<work_id>:<run_id>:<turn_id>`，恢复后也不变；`pick` 是真把重复的代码合并成一处，不是挤行。删掉的处理函数在全仓查过，没有渲染代码会产出它们的选择器；island 少 6 行，workbench.js 少 529 B。#651 合入以后，它和 main 在 context-program spec 与 page-assets.json 上冲突（main 的 workbench.js 现在是 1,103,578 B），已让情境线 merge main 并按实测重定字节，发来新 head 后挂 label-chain。
+      - #654 已修（a02de52e2）：挂等待失败时，只撤回本次新加的那一步，根重新等原来那几步。新用例 ARM-FAILED-01 用第 9 次交出（超过 SDK 8 个条件的上限）造出真实失败，两处变异都会变红。统筹认可，挂 label-chain，等 #657/#658 让出全量的位置。
+      - **A3 两个形状（统筹 10-17 定）**：
+        - Prologue 加可选的 `afterwards: "end-step"`：只有 `by:"app"` 能用，不建接续，等待怎样结束就怎样结束那一步；`continueEarly` 拒绝，`beginAttempt` 拒绝在这样的步骤上开跑。要写明：结束那一步走同一条 report 路径并检查 generation，等待的说明照样写进 Work 的会话。
+        - Molis 侧的作业步骤是 `job.<id>`，放在根下、没有 assignee。采用「部分是会话持有的步骤」这条规则，A2 的等待和 `binding()` 都只看会话持有的步骤，替掉了统筹之前说的按父节点排除。用例要证明：作业步骤不进交回等待、不被绑定；重启后能重新解析 `molis.action-query`；PR 里写清 `assistant.job-check` 的去留，不留第二本账。
+      - **BL-156 只读结论**：问题本身落了盘，重启后还在；等它的 Run 活在进行中的工具调用里，没法从磁盘恢复。正常关机时 `endLiveWaits()` 会故意把它们取消；崩溃后留下没人认领的问题，但只能关掉，不能接着答。所以要改上游。统筹同意先写设计（只写文档，放在 ai-interaction-experience）：关机时问卷类等待保持打开；新增一个恢复操作，校验后结算、关掉中断的 Run，把回答排成会话的下一条输入，由宿主起接续轮，模型听到的是「你问了 X，回答是 Y」。权限在回答时从回答的人取；迟到和结果未知的规则照旧；被切断的副作用不重放。采用线审过设计再写代码。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

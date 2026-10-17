@@ -601,6 +601,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - **用户 10-17 定（弹窗）：合并一律经统筹。** Codex 线和用户自己开的 PR 也要先把号码交给统筹，统筹审过、加 `full-suite` 标签、入队。统筹联系不到 Codex 线，由用户转告。再有绕过的：统筹事后审，在 main 上补跑全量，通知要变基的线，记进防腐复查。
     - W3-B3 是 #651（c942bb4b1）：新加 S-30，`pane-messages.ts` 是统一的检查，拒绝用例进了 test:security；`workbench-open-settings` 改成只认分屏里来的；tab-workspace.ts 的两个监听合成一个，没有挤行。为了抵掉 workbench.js 的增长，删了一批死代码（−1,261 B），统筹在 main 上核过，这些选择器只有被删的代码在读，没有谁生成。统筹审过，挂了 label-chain；PR 正文要补一张死代码证据表，不改 head。#652（§10.24 复查记录，只改文档）事实对，要补一句用户「合并一律经统筹」的决定，补好就入队。第 5 片的进度：浏览器模式和桌面模式都是 0 差，剩下几组补跑。
     - **用户 10-17 要求提高并行。** 本机已经满载（10 核、16 GB，负载约 27），浏览器槽只有一个，后面排着 6 个运行，加本机槽位只会多出超时，所以统筹定了这几条：PR 在等 CI 或合并时，这条线就开下一片，有依赖的叠在那个 PR 的分支上，每条线最多两片同时在做；开工前先报一句「做什么、动哪些文件、page-assets 动不动」；本机的浏览器槽只跑这一片改到的文件和只能在 macOS 上跑的，其余交给统筹加标签后的 CI 全量；长探针切成每段 15 分钟以内。已分别通知：回执开 3b-2a（叠在 #649 上），交互开下一片，采用开 A2 之后的下一片，情境开下一个 W3，防腐把探针切小。#649 的全量通过了。
+    - #649 通过全量，已入队。情境线的下一片是 BL-150（助理回复里选中的字也算「在手上」），从 c276ab9cb 新开，不依赖 #651。统筹 10-17 定，回复这个对象记成 `kind: "assistant_reply"`、`id: "<work_id>:<message_id>"`：主人只有助理，有登记对象种类的地方就要在那里声明；message_id 用 store 里稳定的那个；标题由主人给；assistant-island.ts 不许变大，抵消要靠真的删或抽，不许挤行。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

@@ -14,6 +14,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { actionEffect, type ActionCallContext, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
+import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService } from "./assistant-service.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { withPersonDispatchGuard, type PersonActions } from "./assistant-coding.js";
@@ -135,6 +136,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   });
   const entry = { home: ports.homeDirectory, service, store, threads };
   services.set(ports.localHost, entry);
+  // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
+  registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));
   // Deleting a project also stops the round its works still run and cancels their timed follow-ups, which only this service can do.
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });

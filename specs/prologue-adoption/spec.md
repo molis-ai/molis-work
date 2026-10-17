@@ -1777,9 +1777,12 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
    - 其余不在现行 `StoredWork` 里的键只列出来，不改。
    - 只改 `assistant_works.body`，在一个事务里；不动 `revision`、`updated_at`、`user_version`。只打印编号和个数，不打印标题和正文。
    - 脚本拒绝在真实 Home 的路径上跑。真实的库只在装下一个版本时写，和维护八同一步，那时再问用户。
+   - **脚本在哪、怎么跑**：不进仓库，放在统筹的共享笔记目录（`~/Library/Application Support/Claude/side-session-notes/local_7207c245-d21c-46be-b897-b5267cf14585/adoption-a4-stored-works.mjs`）。`node adoption-a4-stored-works.mjs count <assistant.db>` 只列出会改的编号和个数，什么都不写；`apply <assistant.db>` 在一个事务里改完，再数一遍。
+   - **跑之前先问用户**：对真实 Home 的任何一次 `count` 或 `apply` 都要用户先同意。写真实的库时，Home 先停，先备份，在拷贝上 `apply` 过，再对真实的库跑（脚本现在拒绝真实 Home 的路径，到那一步由维护八的流程决定怎么放行，也要用户同意）。
 4. **演练**（Q3，用户同意）。
    - 用 `sqlite3` 以只读方式（`mode=ro`）把真实 Home 的 `assistant/assistant.db` 备份到草稿目录。只拷了这一个库：脚本不读 Prologue 的库。没读密钥，没碰钥匙串。
    - 列出的结果：13 张表，`user_version` 2；`assistant_works` 0 行（`assistant_rounds`、`assistant_jobs` 也是 0）。所以要改的是 0 项：两个旧键 0 项、旧形状子 Work 0 项、其余键 0 种。
+   - **这是 10-17 只读拷贝上的数。** 装下一个版本时（和维护八同一步），写之前先再 `count` 一次：在那之前，已装的 10-11 构建还可能写出旧形状的行。
    - 在拷贝上执行了一遍：改了 0 项，`integrity_check` 为 ok，`user_version` 仍是 2。
    - 拷贝随即删掉。真实的库没被写，修改时间仍是 10-07 19:23；当时也没有进程打开它。
    - 另在一个合成库上试过一遍：两个旧键、一个旧形状子 Work、一个现行子 Work、一个陌生键。改了 2 项，现行子 Work 和陌生键原样，真实 Home 的路径被拒。
@@ -1795,7 +1798,7 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 | 编号 | 证明 |
 | --- | --- |
 | W2-18-A4-VIEW-01 | 存的正文带两个旧键、一个陌生键和宿主自己的几项：视图正好是合同的 12 个必填字段，没有值的选填字段不出现。带齐选填字段的子任务：视图多出那 5 项，`delegated_by` 是派它的工作，加上它的标题和验收标准；正文的 `delegated_by` 里留着的 `work_id` 和别的键都不出现（`tests/assistant-work-view.test.ts`） |
-| W2-18-A4-LIMITS-01 | 第七个子任务、第三次跟进都被拒，错误的原话照旧（`tests/assistant-delegation.test.ts` 里的两处） |
+| W2-18-A4-LIMITS-01 | 第七个子任务、第三次跟进、已有三个还在进行时的下一个都被拒，错误的原话照旧，被拒的那次不留下工作（`tests/assistant-delegation.test.ts` 里的三处；第三处在图上加三个没结束的步骤） |
 
 **变异**（每条改回去重建、单跑对应的用例）：
 
@@ -1804,12 +1807,13 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 | M1 `publicWork` 改回 `...rest` | VIEW-01 |
 | M2 `shown` 改回 `...rest` | VIEW-01 |
 | M3 视图漏掉 `budget_tokens` | VIEW-01 |
-| M4 `followUps` 改成 3，`parts` 那句话改一个字 | LIMITS-01 的两处 |
+| M4 `followUps` 改成 3，`parts` 那句话改一个字 | LIMITS-01 的前两处 |
+| M5 `active` 改成 4 | LIMITS-01 的第三处 |
 
-没有用例看住的一处：同时进行的上限（3）以前和现在都没有用例；它的数和话在同一张表里。
+同时进行的上限（3）以前没有用例，这一片补上了（第三处，统筹审 A4 时提）。
 
 - 验证（叠在 #675 的 `fc2f7538d` 上）：
-  - `pnpm build` 通过。全部非浏览器的 `assistant-*`、`prologue-work-*` 用例（36 个文件），加上 `project-deletion-assistant`、`security-invariants-assistant-html`、`agent-collaboration-revise`、`coding-delegation-waits`、`doc-reference-gates`、`health-gates-api-snapshot`，都一次过。
+  - `pnpm build` 通过。全部非浏览器的 `assistant-*`、`prologue-work-*` 用例（36 个文件；补了第三处之后 `assistant-delegation` 又单跑一遍），加上 `project-deletion-assistant`、`security-invariants-assistant-html`、`agent-collaboration-revise`、`coding-delegation-waits`、`doc-reference-gates`、`health-gates-api-snapshot`，都一次过。
   - `pnpm test:security` 59/59，`pnpm test:contracts` 44/44。
   - `check-health-gates --base origin/main`、`boundary:check`、`page-assets --base origin/main` 都过。`AssistantService` 1555→1553 行，方法数 94 不变；本地快查跟着降。
   - 这一片没有改公开 API、动作和页面资源；门禁列出的两份 API 变化都是 #675 的。

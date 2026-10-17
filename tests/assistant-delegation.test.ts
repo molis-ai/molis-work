@@ -354,6 +354,27 @@ test("a sub-task the person put away still counts for the work that handed it ou
   } finally { release(); await f.close(); }
 });
 
+// W2-18-A4-LIMITS-01: three parts with a step still going leave no room for a fourth, in the words the model has always been told.
+test("W2-18-A4-LIMITS-01 three sub-tasks still going leave no room for another one", { timeout: 60_000 }, async t => {
+  const f = await delegationFixture(t, [() => reply({ name: "delegate-work", input: { title: "起草", brief: "起草一段话。", acceptance: "一段话" } }), () => reply(undefined, "已交给子任务。")],
+    async () => reply(undefined, "草稿。"));
+  try {
+    const sent = await f.service.send({ text: "分给子任务起草", request_id: "req-delegation-active" }, { project_ref: f.project });
+    await until(async () => { const view = await f.service.read(sent.work.work_id); return view.work.state === "completed" && view.rounds.length === 2 && view.delegated?.[0]?.state === "completed" ? view : undefined; }, "child done, handed back");
+    const parent = f.store.get("web-user", sent.work.work_id), works = f.adapter.collaboration!.works!;
+    // Three parts whose step has not ended (the finished one is not going).
+    for (let index = 0; index < 3; index++) {
+      const node_id = `p-going-${index}`;
+      await works.add({ graph_id: parent.graph_id!, node_id, under: "work", session_id: parent.session_id!, title: `子任务 ${index}` });
+      f.store.create({ actor_id: "web-user", title: `子任务 ${index}`, scope: { kind: "project", project_id: "board" }, origin: null, project_ref: f.project,
+        delegated_by: { graph_id: parent.graph_id!, node_id, title: parent.title, acceptance: "完成" } });
+    }
+    await assert.rejects(f.service.delegation(f.store.get("web-user", sent.work.work_id))!.start({ title: "第五个", brief: "再来一个。", acceptance: "完成" }),
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.message === "已有 3 个子任务在进行，等其中一个结束再委托");
+    assert.equal(f.store.delegatedBy("web-user", parent).length, 4, "the refused one left no work behind");
+  } finally { await f.close(); }
+});
+
 // W2-18-DELEGATION-PLACED-01: the person's own round in a finished sub-task stands on a new step under it. A round that
 // does not start ends that step again, so the part is not left "still working": its place among the limit is free and
 // its delegating work is handed back to again.

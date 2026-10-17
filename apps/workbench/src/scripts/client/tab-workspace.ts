@@ -1926,7 +1926,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (embedded) {
       if (!panes.fromParent(event)) return;
       if (event.data.type === "workbench-feed-task") setFeedTask?.(event.data.taskId, false);
-      if (event.data.type === "workbench-feed-add") setFeedAddOpen?.(true);
       if (event.data.type !== "workbench-goal-view") return;
       const tab = ops.activeTab(state);
       if (tab?.plugin === "goals" && tab.kind === "item") {

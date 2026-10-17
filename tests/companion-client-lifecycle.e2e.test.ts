@@ -87,6 +87,9 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     privateStorageFor: () => ({ get: key => privateValues.get(key) ?? null, set: (key, value) => { privateValues.set(key, value); }, delete: key => privateValues.delete(key) }),
     capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
       reads++; if (!readable) throw new Error("runtime unavailable after capture");
+      // Like a Host whose runtime has no task graph: Coding's wake loop ends here instead of retrying in the background
+      // (each retry would land on a later read, after the capture, when the run is slower than its 5 s back-off).
+      if (definition.capability_id === agent.awaitContinuations.capability_id) throw Object.assign(new Error("当前运行时没有等待与接续"), { code: "agent.capability_unavailable" });
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
       if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;
       if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;

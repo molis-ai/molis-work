@@ -3,6 +3,7 @@ import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-con
 import { agentErrors } from "../errors.js";
 import { canTakeUp, eligibleContinuation, readyStep } from "./prologue-collaboration.js";
 import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
+import { createWorkJobs } from "./prologue-work-jobs.js";
 import { createWorkWaits } from "./prologue-work-waits.js";
 
 type Node = ReturnType<Runtime["boards"]["get"]>["nodes"][number];
@@ -51,13 +52,14 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
     }
     await index.update(session.id, saved => { saved.work_graph = ref.id; });
   };
-  const view = (node: Node): AgentWorkNode => {
-    const last = node.reports.at(-1);
+  const view = (graph: string, node: Node): AgentWorkNode => {
+    const last = node.reports.at(-1), job = jobs.view(graph, node);
     return { node_id: node.id, ...(node.parent ? { parent: node.parent } : {}), title: node.title, state: node.state,
       ...(node.assignee?.kind === "session" ? { session_id: node.assignee.id } : {}),
       ...(ENDED.includes(node.state) && last?.human ? { ended_by_person: { at: new Date(last.atMs).toISOString(), note: last.note } } : {}),
       ...(node.endedAtMs === undefined ? {} : { ended_at: new Date(node.endedAtMs).toISOString() }),
-      ...(node.continuation ? { continuation: { request_key: node.continuation.requestKey, state: node.continuation.state } } : {}) };
+      ...(node.continuation ? { continuation: { request_key: node.continuation.requestKey, state: node.continuation.state } } : {}),
+      ...(job ? { job } : {}) };
   };
   /** A board is a work's graph when its root is held by a session whose index says it works there. */
   const isWorkGraph = async (graph: string) => {
@@ -98,7 +100,7 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
     return last?.type as RoundEnd | undefined;
   };
 
-  const waits = createWorkWaits(runtime, ROOT, isWorkGraph);
+  const waits = createWorkWaits(runtime, ROOT, isWorkGraph), jobs = createWorkJobs(runtime, ROOT, isWorkGraph);
   const port: AgentWorkGraphPort = {
     async open(input) {
       const ref = await graph(input.key);
@@ -114,10 +116,12 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
         : () => port.end({ graph_id: input.graph_id, node_id: input.node_id, note: "没能让这项工作等它，交出撤回" });
       await waits.handOut(input.graph_id, { add, remove }, input.wait_reason);
     },
-    async read(graphId) { return runtime.boards.get(boardRef(graphId)).nodes.map(view); },
+    async read(graphId) { return runtime.boards.get(boardRef(graphId)).nodes.map(node => view(graphId, node)); },
     watch(graphId, listener) { return runtime.boards.subscribe(event => { if (event.board === graphId) listener(); }); },
     hold: waits.hold,
     onReady: waits.onReady,
+    follow: jobs.follow,
+    onJobEnded: jobs.onJobEnded,
     async end(input) {
       const ref = boardRef(input.graph_id), board = runtime.boards.get(ref), node = board.nodes.find(one => one.id === input.node_id);
       if (!node) throw agentErrors.collaboration_unknown("工作的任务图上没有这一步");

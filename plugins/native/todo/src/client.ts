@@ -93,9 +93,8 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   const headers = () => typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" };
   const route = (path) => typeof host.route === "function" ? host.route(path) : path;
-  const api = (path) => "/api/plugins/io.molis.work.todo" + path;
   const request = async (method, path, body) => {
-    const response = await fetch(route(api(path)), { method, headers: headers(), body: body === undefined || method === "GET" ? undefined : JSON.stringify(body) });
+    const response = await fetch(route(path.startsWith("/api/") ? path : "/api/plugins/io.molis.work.todo" + path), { method, headers: headers(), body: body === undefined || method === "GET" ? undefined : JSON.stringify(body) });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(payload.error || L("待办请求失败"));
@@ -103,7 +102,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       throw error;
     }
     // Works that relate to a todo read it again when it changes here (the Assistant's page message; not a request).
-    if (method === "POST" && (path.indexOf("/items") === 0 || path === "/batch" || path === "/revert")) (payload.item ? [payload.item] : payload.items || []).forEach((item) => { if (item && item.id) tellAssistant("change", item); });
+    if (method === "POST") (payload.item ? [payload.item] : payload.items || []).forEach((item) => { if (item && item.id) tellAssistant("change", item); });
     return payload;
   };
   const markView = (button) => { const on = button.dataset.todoView === view; button.classList.toggle("is-current", on); button.setAttribute("aria-pressed", String(on));

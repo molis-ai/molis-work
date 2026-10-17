@@ -5,29 +5,17 @@ import test from "node:test";
 
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
 import {
+  TODO_ACTION_PERMISSIONS,
   TODO_CLIENT_FACTORY_SCRIPT,
   TODO_EN,
   TODO_PROJECT_PLUGIN_ID,
   todoManifest,
+  todoOrganizeActions,
 } from "@molis-ai/molis-work-plugin-todo";
-import { homeStores } from "@molis-ai/molis-work-app-local-host";
-import { serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { renderMolisWorkWeb, renderMolisWorkWorkbenchClientScript, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import { homeStores, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
-
-const PROJECT = "project-todo";
-
-function view(): MolisWorkWebView {
-  const board = { project_id: "board-todo", title: "待办", active_goal_id: null, created_at: "2026-09-28T00:00:00.000Z", updated_at: "2026-09-28T00:00:00.000Z" };
-  return {
-    snapshot: { board, cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [] },
-    project: { project_id: PROJECT, display_name: "待办" },
-    projects: [{ project_id: PROJECT, display_name: "待办" }],
-    route_prefix: `/projects/${PROJECT}`,
-    demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {}, input_bindings: [], policy_bindings: [], events: [],
-    feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
-  } as unknown as MolisWorkWebView;
-}
 
 test("Todo is a personal plugin on the rail after Sessions, listed in the market, with a purgeable Home store", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), true);
@@ -39,9 +27,13 @@ test("Todo is a personal plugin on the rail after Sessions, listed in the market
   assert.equal(homeStores().get("todo")?.owner, todoManifest.plugin_id, "卸载 --purge 要能删掉待办库");
 });
 
-test("the workbench mounts the Todo stage, and the client script still parses with the quick-entry reader embedded", () => {
-  const html = renderMolisWorkWeb(view());
-  assert.match(html, /data-todo="workbench"/);
+test("a project's page mounts the Todo stage once, from the Home runtime, and the client script still parses with the quick-entry reader embedded", { timeout: 60_000 }, async t => {
+  const { request, project } = await serveHomeRuntime(t);
+  const here = await project("待办页面");
+  const page = await request(`/projects/${encodeURIComponent(here.project_id)}/`);
+  assert.equal(page.status, 200);
+  const html = await page.text();
+  assert.equal(html.match(/data-todo="workbench"/g)?.length, 1, "the Home runtime draws Todo's stage, and nothing else draws it again");
   assert.match(html, /data-todo-quick-input/);
   assert.match(html, /data-todo-confirm/);
   const script = renderMolisWorkWorkbenchClientScript();
@@ -121,3 +113,27 @@ test("待办整理师 and both organizing methods are registered with the Host, 
   assert.match(todo[0]!.methods![0]!.body, /todo\.organize\.extract/u);
   assert.equal(manifestProblems(todoManifest), "");
 });
+
+// Organizing waits for the model (a concurrent action); the result is written only if the call is still current when it comes back.
+const MAIL = { title: "张总：新版方案", received_at: "2026-09-28T09:00:00+08:00", text: "小王你好，请周五前发新版方案。" };
+const ANSWER = JSON.stringify({ candidates: [{ ref: "c1", kind: "request", title: "发送新版方案", why: "张总要求周五前收到", owner: { who: "你", stated: true },
+  due: { date: null, time: null, phrase: null }, evidence: [{ material: 1, excerpt: "请周五前发新版方案" }], uncertain: [], depends_on: [] }], reference_only: [] });
+for (const invalidation of ["none", "cancel", "disable"] as const) {
+  test(`Todo organizing waits for the model; ${invalidation === "none" ? "a current call saves its result" : `a call ${invalidation === "cancel" ? "cancelled" : "whose plugin is disabled"} while it waits writes nothing`}`, { timeout: 60_000 }, async t => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const completeText: HostCompleteText = async () => { entered.resolve(); await release.promise; return ANSWER; };
+    const { host, request } = await serveHomeRuntime(t, { completeText });
+    const base = `/api/plugins/${todoManifest.plugin_id}`, abort = new AbortController();
+    const outcome = host.homeActionClient().invoke({ ...person([...TODO_ACTION_PERMISSIONS]), signal: abort.signal }, todoOrganizeActions.extract, { materials: [MAIL] })
+      .then(() => "ok", (error: { code?: string }) => error.code ?? "failed");
+    await entered.promise;
+    if (invalidation === "cancel") abort.abort();
+    if (invalidation === "disable") assert.equal((await request(`${base}/disable`, { method: "POST", body: {} })).status, 200);
+    release.resolve();
+    const settled = await outcome;
+    if (invalidation === "disable") assert.equal((await request(`${base}/enable`, { method: "POST", body: {} })).status, 200);
+    const batches = (await (await request(`${base}/organize?status=all`)).json() as { batches: unknown[] }).batches;
+    if (invalidation === "none") { assert.equal(settled, "ok"); assert.equal(batches.length, 1, "the model's answer is a valid result"); }
+    else { assert.notEqual(settled, "ok", invalidation); assert.deepEqual(batches, [], `${invalidation}: no result is saved`); }
+  });
+}

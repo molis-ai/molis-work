@@ -172,7 +172,9 @@ Characters 并进宿主（第 5.4 节）是第 4 波的另一片，不在这条�
 
 **Todo 是第二个迁移，排在 Form 之后、其余各族之前**（2026-10-07 决定）。W5-01 的描述把「Dataset/PPT/Pages」列在「Todo」前面，只是那条描述的列举顺序，不改这个决定。
 
-Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用到 Home 级实例、Home 库服务、`services.model`（`todo-actions.ts` 注入 `completeText`），以及 4.1 第 5 项的路由带项目（项目里的待办页走 `/projects/<id>/api/plugins/io.molis.work.todo/…`）。提供方身份和授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：Todo 迁来时条目标 `bundled: true`，`todo:write` 虽是 `required: false`，也随清单声明的全部权限一起授予，写动作不会因此不可用；动作登记在 `plugin_id` 之下。它的表带可空的 `project_id`，「项目已删」步骤只清带项目的条目，个人待办留下。
+**已迁（W5-01，2026-10-17）**：`plugins/native/todo/src/plugin.ts` 的 `createTodoPlugin`，目录条目 `runtime: { scope: "home" }`；宿主的 `todo-actions.ts`、`todo-native-plugin-http.ts` 与构建期舞台已删，路由在 Manifest 里（`/api/plugins/io.molis.work.todo/…`）。
+
+Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，用到 Home 级实例、Home 库服务、`services.model`（迁移前由 `todo-actions.ts` 注入 `completeText`），以及 4.1 第 5 项的路由带项目（项目里的待办页走 `/projects/<id>/api/plugins/io.molis.work.todo/…`）。提供方身份和授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：Todo 迁来时条目标 `bundled: true`，`todo:write` 虽是 `required: false`，也随清单声明的全部权限一起授予，写动作不会因此不可用；动作登记在 `plugin_id` 之下。它的表带可空的 `project_id`，「项目已删」步骤只清带项目的条目，个人待办留下。
 
 ### 5.3 其余各族（W5-01，一个 PR 一族）
 

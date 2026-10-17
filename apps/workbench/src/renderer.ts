@@ -57,7 +57,6 @@ import {
   renderDatasetContribution,
   renderPptContribution,
   renderLingguangContribution,
-  renderTodoContribution,
   renderJellyContribution,
   renderCogniaContribution,
   renderAlchemistContribution,
@@ -135,10 +134,6 @@ function renderLingguangNativePluginSurface(surface: "directory" | "workbench"):
   return renderLingguangContribution(surface, {
     primitives: { escape: escapeHtml, text: L },
   });
-}
-
-function renderTodoNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderTodoContribution(surface, { primitives: { escape: escapeHtml, text: L } });
 }
 
 function renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string {
@@ -388,7 +383,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,

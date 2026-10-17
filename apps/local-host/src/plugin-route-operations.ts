@@ -25,7 +25,8 @@ export interface RuntimePluginRouteHooks {
 export interface RuntimePluginRouteControls {
   granted?: readonly string[];
   execution?: PluginExecutionControl;
-  readBody?(request: IncomingMessage): Promise<unknown>;
+  /** `maxBytes` is the route's declared `max_body_bytes`, when it declares one. */
+  readBody?(request: IncomingMessage, maxBytes: number | undefined): Promise<unknown>;
 }
 
 /**
@@ -76,7 +77,7 @@ export async function dispatchRuntimePluginRoute(
   await hooks.beforeDispatch?.(router);
   let body: unknown;
   if (!["GET", "HEAD"].includes(request.method ?? "GET")) {
-    try { body = await (controls.readBody ?? (request => readLocalWebBody(request, match.max_body_bytes ?? undefined)))(request); }
+    try { body = await (controls.readBody ?? ((request, maxBytes) => readLocalWebBody(request, maxBytes)))(request, match.max_body_bytes ?? undefined); }
     catch (error) {
       if (!(error instanceof ActionError)) throw error;
       const refusal = actionErrorResponse(error);

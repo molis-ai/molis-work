@@ -55,11 +55,6 @@ import {
   type LingguangUiSurface,
 } from "@molis-ai/molis-work-plugin-lingguang";
 import {
-  TODO_UI_CONTRIBUTION_ID,
-  type TodoUiModel,
-  type TodoUiSurface,
-} from "@molis-ai/molis-work-plugin-todo";
-import {
   ALCHEMIST_UI_CONTRIBUTION_ID,
   type AlchemistUiModel,
   type AlchemistUiSurface,
@@ -123,11 +118,6 @@ const DATASET_SURFACE_SLOTS: Readonly<Record<DatasetUiSurface, UiSlotDescriptor>
 };
 
 const PPT_SURFACE_SLOTS: Readonly<Record<PptUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const TODO_SURFACE_SLOTS: Readonly<Record<TodoUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
 };
@@ -364,20 +354,6 @@ export function renderLingguangContribution(
     slot: LINGGUANG_SURFACE_SLOTS[surface],
     contribution: {
       contribution_id: LINGGUANG_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
-export function renderTodoContribution(
-  surface: TodoUiSurface,
-  model: TodoUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: TODO_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: TODO_UI_CONTRIBUTION_ID,
       surface,
       model,
     },

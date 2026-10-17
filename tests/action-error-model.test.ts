@@ -8,18 +8,22 @@ import {
   ACTION_ERROR_KINDS,
   ActionError,
   defineErrorCodes,
+  type ActionDefinition,
   type ActionErrorKind,
   type BoundActionClient,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { handleFunctionsHttp, handleTodoNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { handleFunctionsHttp } from "@molis-ai/molis-work-app-local-host";
 import {
   actionErrorBody,
   actionErrorFromResponse,
   actionErrorKind,
   actionErrorResponse,
   actionHttpStatus,
+  bindPluginActionRoute,
 } from "@molis-ai/molis-work-plugin-sdk";
 import { todoErrors } from "@molis-ai/molis-work-plugin-todo";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
 // specs/repository-anti-corruption W3-02-A: one error model. An error is a code, a message, and optionally a kind and details; the code
@@ -219,20 +223,19 @@ test("Functions answers through the SDK: invalid JSON is 400 and an oversized bo
   } finally { await server.close(); }
 });
 
-test("a route with no mapper answers through the SDK: 400 for a body that is not JSON, 413 for one that is too large, with the code in the body", async () => {
-  const server = await serveNativeHttp((request, response, url) => handleTodoNativePluginHttp(request, response, url, () => never));
-  try {
-    const notJson = await server.post("/api/plugins/io.molis.work.todo/items", "{not json");
-    assert.deepEqual([notJson.status, notJson.body.code, notJson.body.error], [400, "actions.input_invalid", "请求不是有效 JSON"]);
-    const tooLarge = await server.post("/api/plugins/io.molis.work.todo/items", JSON.stringify({ padding: " ".repeat(1_100_000) }));
-    assert.deepEqual([tooLarge.status, tooLarge.body.code, tooLarge.body.error], [413, "actions.input_too_large", "请求内容过大"]);
-  } finally { await server.close(); }
+test("a Runtime route answers through the SDK: 400 for a body that is not JSON, 413 for one that is too large, with the code in the body", { timeout: 60_000 }, async t => {
+  const { request } = await serveHomeRuntime(t);
+  const notJson = await request("/api/plugins/io.molis.work.todo/items", { method: "POST", raw: "{not json" });
+  const notJsonBody = await notJson.json() as { code: string; error: string };
+  assert.deepEqual([notJson.status, notJsonBody.code, notJsonBody.error], [400, "actions.input_invalid", "请求不是有效 JSON"]);
+  const tooLarge = await request("/api/plugins/io.molis.work.todo/items", { method: "POST", raw: JSON.stringify({ padding: " ".repeat(1_100_000) }) });
+  const tooLargeBody = await tooLarge.json() as { code: string; error: string };
+  assert.deepEqual([tooLarge.status, tooLargeBody.code, tooLargeBody.error], [413, "actions.input_too_large", "请求内容过大"]);
 });
 
-// W3-02-A: Todo has no error mapper of its own. The Host's edge reads the failure's kind (SDK `actionHttpStatus`), so the platform's codes
-// answer what the platform table says everywhere, and Todo's own codes keep the status they always had.
-test("Todo's HTTP edge answers a failure with the status of its kind: the platform codes follow the table, todo.* keep their statuses", async () => {
-  const failing = (failure: unknown): (() => BoundActionClient) => () => ({ discover: async () => [], invoke: async () => { throw failure; } });
+// W3-02-A: a Runtime plugin's route (Todo's, since W5-01) has no error mapper of its own. The SDK edge reads the failure's kind
+// (`actionHttpStatus`), so the platform's codes answer what the platform table says everywhere, and an owner's codes keep their statuses.
+test("a Runtime route answers a failure with the status of its kind: the platform codes follow the table, an owner's keep their statuses", { timeout: 60_000 }, async t => {
   const cases: Array<[string, unknown, number, string]> = [
     ["the plugin is not enabled here", new ActionError("actions.plugin_disabled", "此项目未启用该插件"), 403, "actions.plugin_disabled"],
     ["the action is gone", new ActionError("actions.missing", "原动作尚未注册"), 404, "actions.missing"],
@@ -248,12 +251,24 @@ test("Todo's HTTP edge answers a failure with the status of its kind: the platfo
     ["a system error code is not passed on as the answer's code", Object.assign(new Error("ENOENT: no such file, open /x/y"), { code: "ENOENT" }), 500, "actions.execution_failed"],
     ["nor is a database driver's", Object.assign(new Error("disk I/O error"), { code: "ERR_SQLITE_ERROR" }), 500, "actions.execution_failed"],
   ];
-  for (const [name, failure, status, code] of cases) {
-    const server = await serveNativeHttp((request, response, url) => handleTodoNativePluginHttp(request, response, url, failing(failure)));
-    try {
-      const answer = await server.post("/api/plugins/io.molis.work.todo/items", JSON.stringify({ title: "写周报" }));
-      assert.deepEqual([answer.status, answer.body.code], [status, code], name);
-      assert.equal(typeof answer.body.error, "string", name);
-    } finally { await server.close(); }
+  const id = "io.molis.work.example.failing";
+  const fail: ActionDefinition<{ case: number }, never> = { capability_id: "failing.run", version: 1, operation: "command",
+    action: { title: "失败", description: "按编号抛出一种失败", scope: "home", permissions: ["failing:write"], kind: "operation", audiences: ["user"], subject_kinds: [],
+      input_schema: { type: "object", additionalProperties: false, required: ["case"], properties: { case: { type: "integer" } } } } };
+  const failing: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name: "failing", kind: "app",
+    publisher: { publisher_id: "example", signature: "home-failing" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: [{ permission: "storage:private", required: true, reason: "探针" }, { permission: "failing:write", required: true, reason: "探针" }],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [fail],
+    routes: [{ route_id: "run", method: "POST", path: "/run", permission: "failing:write" }] },
+    async start(context) {
+      return { kind: "app", actions: [{ ...fail, handle: (_caller, input) => { throw cases[input.case]![1]; } }],
+        routes: [bindPluginActionRoute(context, fail, request => request.body as { case: number }, "run")] };
+    } };
+  const { request } = await serveHomeRuntime(t, { pluginFixtures: { home: [failing] } });
+  for (const [index, [name, , status, code]] of cases.entries()) {
+    const answer = await request(`/api/plugins/${id}/run`, { method: "POST", body: { case: index } });
+    const body = await answer.json() as { code: string; error: unknown };
+    assert.deepEqual([answer.status, body.code], [status, code], name);
+    assert.equal(typeof body.error, "string", name);
   }
 });

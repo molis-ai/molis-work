@@ -46,9 +46,10 @@ export const DETAIL_READING_STYLES = `
   body.immersive-workbench .immersive-artifact-surface .artifact-detail > header:not(.plugin-stage-detail-bar) { flex: none; gap: 12px; margin: 0; padding: 12px 24px; border-bottom: 1px solid var(--line); max-height: 35%; overflow: auto; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail > header:not(.plugin-stage-detail-bar) h1 { font-size: 20px; line-height: 1.35; }
   body.immersive-workbench .immersive-artifact-surface .artifact-detail header > span { flex: none; color: var(--muted); }
-  body.immersive-workbench .immersive-artifact-surface .artifact-detail-content { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px 24px 24px; }
+  body.immersive-workbench .immersive-artifact-surface .artifact-detail-content { container-type: size; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px 24px 24px; }
   body.immersive-workbench .immersive-artifact-surface .artifact-actions { flex: none; margin: 0; padding: 12px 24px; gap: 12px; border-top: 1px solid var(--line); }
   body.immersive-workbench .artifact-raw { margin-top: 16px; }
+  body.immersive-workbench .artifact-raw pre { max-height: min(45dvh, 400px, 100cqh); }
   body.immersive-workbench .artifact-facts { margin-block: 16px; }
 
   body.immersive-workbench .tab-pane-body > .project-operation-surface .session-stage { display: flex; flex-direction: column; width: 100%; max-width: none; height: 100%; min-height: 0; margin: 0; overflow: hidden; }
@@ -72,4 +73,4 @@ export const DETAIL_READING_STYLES = `
     body.immersive-workbench .session-execution-toolbar :is(input, .mw-toggle) { min-height: 44px; }
     body.immersive-workbench .session-content-body { padding: 12px 16px; }
   }
-`;
+`.replace(/\n\s*/gu, " ");

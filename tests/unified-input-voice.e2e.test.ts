@@ -201,7 +201,8 @@ test("UIV-01 三个入口画出同一作曲条，键盘、浅色深色和窄屏�
   await waitFor("document.querySelector('[data-assistant-composer] [data-uiv-voice-status]').textContent.length > 0");
   assert.equal(await evaluate("document.querySelector('[data-assistant-composer] [data-uiv-stop-record]').hidden"), true, "recording chrome stays hidden without a microphone and a prepared model");
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-assistant-composer] [data-uiv-voice-status]').textContent"), /云端识别|上传识别/);
-  // Real helper, not a stub: the microphone resolves and the delivered probe says the model is not prepared.
+  // UI contract fixture: Linux does not ship the macOS helper. Native model probing and transcription are exercised separately below.
+  await evaluate(`(() => { const real=window.fetch.bind(window); window.fetch=async(input,init)=>{const url=typeof input==='string'?input:input.url; if(url.includes('/api/local-voice') && init?.body?.includes('"op":"probe"')) return new Response(JSON.stringify({model:'missing'}),{status:200,headers:{'content-type':'application/json'}}); return real(input,init);}; })()`);
   await evaluate(`(() => { const allow = () => Promise.resolve(new MediaStream()); const devices = navigator.mediaDevices; if (!devices) throw new Error("mediaDevices missing"); try { devices.getUserMedia = allow; } catch { Object.defineProperty(devices, "getUserMedia", { configurable: true, value: allow }); } })()`);
   await click("[data-assistant-composer] [data-uiv-mic]");
   await waitFor("!document.querySelector('[data-assistant-composer] [data-uiv-download]').hidden");
@@ -1117,6 +1118,8 @@ test("UIV-10 注入时长上限、中断说明和切会话归属", { timeout: 18
   const ownerKey = await evaluate<string>("(() => { const form = document.querySelector('[data-coding-composer]'); return 'molis.uiv.v1:coding:' + encodeURIComponent(document.body.dataset.projectId || '') + ':' + encodeURIComponent(form.dataset.uivKey || ''); })()");
   await click("[data-coding-composer] [data-uiv-mic]");
   await waitFor("(document.querySelector('[data-coding-composer] [data-uiv-voice-status]')?.textContent || '').includes('正在录音')");
+  // Hold the new session read so the loading interval cannot accidentally show the previous owner's words.
+  await evaluate(`(() => {const real=window.fetch.bind(window);window.fetch=async(input,init)=>{const url=typeof input==='string'?input:input.url;if(/\\/sessions\\/[^/?]+$/.test(url) && (!init?.method || init.method==='GET')) await new Promise(resolve=>setTimeout(resolve,800));return real(input,init);};})()`);
   await click("[data-coding-new]");
   await waitFor("(document.querySelector('[data-coding-composer] [data-uiv-voice-status]')?.textContent || '').includes('仍属于开始时的草稿')");
   const switched = await evaluate<{ value: string; voice: string; owned: string | null; key: string }>(`(() => { const field = document.querySelector('[data-coding-task]'); return { value: field ? field.value : '', voice: document.querySelector('[data-coding-composer] [data-uiv-voice-status]')?.textContent || '', owned: localStorage.getItem(${JSON.stringify(ownerKey)}), key: document.querySelector('[data-coding-composer]').dataset.uivKey || '' }; })()`);

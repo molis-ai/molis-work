@@ -173,7 +173,7 @@ function uivRestoreContext(form: HTMLFormElement, context: string | null): strin
     const select = form.querySelector<HTMLSelectElement>("[data-coding-intent]");
     if (!select || ![...select.options].some(option => option.value === context)) return uivContextInvalid(context);
     select.value = context;
-    select.dispatchEvent(new Event("change", { bubbles: true }));
+    // Coding restores model, workspace and intent together; restoration must not emit a user configuration change.
     return "";
   }
   if (form.matches("[data-home-talk-form]")) {

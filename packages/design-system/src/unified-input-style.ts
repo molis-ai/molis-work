@@ -7,6 +7,7 @@ html body form.uiv-composer[data-uiv-bound] :is(textarea[data-uiv-input], .assis
   border: 1px solid var(--line-strong); border-radius: var(--r-control); background: var(--paper); color: var(--ink);
   resize: none; field-sizing: fixed; overflow: auto; overflow-wrap: anywhere; box-shadow: none; caret-color: var(--ink);
 }
+html body form.uiv-composer[data-uiv-bound] [data-uiv-input]:placeholder-shown { white-space: pre; text-overflow: ellipsis; }
 html body form.uiv-composer[data-uiv-bound] :is(textarea[data-uiv-input], .assistant-composer-input[data-uiv-input]):focus {
   border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); outline: var(--focus-stroke); outline-offset: 1px;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
@@ -20,6 +21,7 @@ html body form.uiv-composer.bar-composer[data-assistant-composer][data-uiv-bound
 html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-uiv-input] { order: 1; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > :is([data-assistant-attach], .uiv-bar, [data-assistant-send]) { order: 2; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > .uiv-status { order: 3; }
+
 html body form.uiv-composer[data-uiv-bound] .uiv-bar { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; max-width: 100%; }
 html body form.uiv-composer[data-uiv-bound] .uiv-bar button {
   flex: none; min-width: 32px; height: 32px; min-height: 32px; padding: 0 10px; border: 0; border-radius: var(--r-control);
@@ -47,6 +49,13 @@ html body.immersive-workbench .workbench-bar:has(form.uiv-composer) .plugin-pick
   html body.immersive-workbench .workbench-bar:has(form.uiv-composer) { grid-template-rows: auto 50px; }
   html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center { margin-block: 4px; }
   html body.immersive-workbench .workbench-bar:has(form.uiv-composer) .assistant-panel { height: min(70dvh, 560px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h) - var(--next-row, 0px) - var(--context-row, 0px) - 6px - 8px)); }
+}
+@media (max-width: 600px) and (max-height: 560px) {
+  /* Short windows keep an empty, ready composer on one row. Writing and recording retain full-width text. */
+  html body form.uiv-composer.bar-composer:has([data-uiv-mic]:not([hidden])):has([data-uiv-input]:placeholder-shown) > [data-uiv-input] { flex: 1 1 120px; width: auto; order: 0; }
+  html body form.uiv-composer.bar-composer:has([data-uiv-mic]:not([hidden])):has([data-uiv-input]:placeholder-shown) > .uiv-bar { flex: 0 1 auto; }
+  html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center { margin-block: 0; }
+  html body form.uiv-composer.bar-composer[data-assistant-composer][data-uiv-bound] { padding: 4px; }
 }
 @media (max-width: 600px), (pointer: coarse) {
   html body form.uiv-composer[data-uiv-bound] :is(.uiv-bar button, [data-coding-send], button[type=submit]) { min-height: 44px; min-width: 44px; height: 44px; }

@@ -539,6 +539,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - 采用线把 merge 提交 `cd80c9b07` 推了上去（普通推送，父提交是 ad7420924 和 main 504ebfc74）。统筹核对过：spec 以外的文件和 merge-tree(main, ad7420924) 完全相同，spec 里没有冲突标记，节的顺序是 §6.0g、§6.0h、§6.0i。auto-merge 仍然开着，等新 head 的 Verify 通过就进队列，不重跑全量。C2（revise 动作 7f6a87b93 和换包 56731c060，换包已含 #33）等 #627 合入后变基、开 PR。
     - #629（D1②，结尾核对，`a62398366`）统筹审过，退回改一处：ENDING_REVIEW 还是 agent-host 里写死的 const，要照 B4 改成由轮次的主人登记（助理一份、Coding 一份，用 `defineInstructionPrompt`），开跑时传进去，版本写进 `freezeRunStart`，并补用例。其余通过：`reader` 由宿主给；回复用 fencedMaterials 围起来；核对出错就放行；做过改动的一轮不核对。contracts 有改动，要跑全量，排在 #618、#628 之后。
     - **用户弹窗批了 T2 的 settings.css +19 B**：T2 顺手修了分组输入框获焦时画两圈的问题，修法是 craft-finish 聚焦规则里的 `:not(…)`，每张表 +19 B。这 +19 B 作为 T2 那次 APPROVED_CEILINGS 的第四个条目。其余三项实测 +1,326 / +1,326 / +4,037，都在上限之内。
+    - #627 合入（`04ab02166`）。已通知采用线变基 C2 并开 PR（新动作 `agent.collaboration.revise.v1`、删 typed amend、换包 reference-kinds；不动 page-assets；要跑全量，排在 #629 一起）。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

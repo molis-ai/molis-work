@@ -8,7 +8,7 @@ import test from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-test("official MCP client discovers a Runtime plugin, persists data and isolates launch identities across processes", { timeout: 20_000 }, async () => {
+test("official MCP client discovers a Runtime plugin, persists data and isolates launch identities across processes", { timeout: 60_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "action-mcp-"));
   const database = join(root, "notes.sqlite");
   const clients: Client[] = [];

@@ -20,7 +20,7 @@ import { projectWorkDigest, workPaths, type createProjectWork } from "./prologue
 import type { createWorkGraphs } from "./prologue-work-graphs.js";
 import { withInteractionRepairLimit } from "./prologue-questions.js";
 import { runModelParams } from "./prologue-run-params.js";
-import { blockId, collaborates, eligibleContinuation, planPrefix, readyStep, sessionBlock } from "./prologue-collaboration.js";
+import { blockId, canTakeUp, collaborates, eligibleContinuation, planPrefix, readyStep, releaseStartClaim, sessionBlock } from "./prologue-collaboration.js";
 import type { PlanPlace } from "./prologue-plan-steps.js";
 import { exactCharacterKey, verifySubagentStart, type PrologueSubagentRoot } from "./prologue-subagents.js";
 import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, type PrologueSurfaces, type SurfaceAttachment } from "./prologue-surfaces.js";
@@ -228,7 +228,7 @@ async function roundBinding(deps: RunDeps, input: PrologueStartInput, index: Ses
   const board = stepBoard?.ref ?? await projectBoardOf(deps, index);
   const block = stepBoard?.block ?? await sessionBlock(runtime, board, session.ref, input.session_title ?? index.title);
   const ready = eligibleContinuation(runtime, session.ref, [board]);
-  if (ready) return { board: ready.board, node: ready.node, requestKey: ready.requestKey };
+  if (ready && await canTakeUp(runtime, ready)) return { board: ready.board, node: ready.node, requestKey: ready.requestKey };
   await readyStep(runtime, board.id, block, index.owner.actor_id ?? "user");
   return { board: board.id, node: block };
 }
@@ -579,6 +579,9 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
       try { requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成"); } catch { current = false; }
       if (!current || !code || !REFUSED_BEFORE_RUN.has(code)) await abandon();
       else await deps.index.update(input.session_id, saved => { saved.attempts[attemptIndex]!.refused = { code, at: new Date().toISOString() }; }).catch(() => undefined);
+      // The continuation the SDK claimed for this start: its own give-back is refused with the rest once the caller is not current.
+      const requestKey = binding?.requestKey;
+      if (requestKey) await deps.effects.detach(() => releaseStartClaim(runtime, { ...binding!, requestKey })).catch(() => undefined);
     }
     throw error;
   });

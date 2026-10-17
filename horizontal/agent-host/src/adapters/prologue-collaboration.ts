@@ -78,6 +78,46 @@ export async function readyStep(runtime: Runtime, board: string, node: string, a
   else if (!["ready", "running", "waiting"].includes(step.state)) throw new Error("会话的任务图已经结束，不能再开始新的一轮");
 }
 
+type At = { readonly board: string; readonly node: string; readonly requestKey: string };
+const CONTINUATION_CONFLICT = (error: unknown) => { if ((error as { code?: unknown }).code !== "TASKBOARD_CONTINUATION_CONFLICT") throw error; };
+/** Why a continuation no round can take up any more is held for the person instead. */
+const START_REFUSED = { code: "START_REFUSED", note: "接着做的那一轮没能开始；等这项工作的下一轮" };
+/** A request key a start already committed to (the SDK keeps what it resolved to) starts nothing else under it. */
+const spent = (runtime: Runtime, key: string) => runtime.findAgentStart(key).then(found => found !== undefined, () => true);
+
+/** An eligible continuation is held for the person (blocked), as the SDK holds one the App refused to start. */
+export async function holdContinuation(runtime: Runtime, board: string, node: string, reason: { code: string; note: string }): Promise<void> {
+  const ref = boardRef(board), continuation = runtime.boards.get(ref).nodes.find(one => one.id === node)?.continuation;
+  if (continuation?.state !== "eligible") return;
+  await runtime.boards.claimContinuation({ ref, nodeId: node, revision: continuation.revision, claim: { mode: "start" } })
+    .then(() => runtime.boards.releaseContinuation({ ref, nodeId: node, revision: continuation.revision + 1, to: "blocked", reason }))
+    .catch(CONTINUATION_CONFLICT);
+}
+
+/**
+ * Whether a round can start under an eligible continuation's request key. One a refused start used already cannot: the
+ * SDK takes the same key only for the same start. That continuation is held for the person, and the round goes on
+ * without it; what the wait brought is already in the session for it.
+ */
+export async function canTakeUp(runtime: Runtime, at: At): Promise<boolean> {
+  if (!await spent(runtime, at.requestKey)) return true;
+  await holdContinuation(runtime, at.board, at.node, START_REFUSED);
+  return false;
+}
+
+/**
+ * A round that was to take a step's continuation up did not start. The SDK claims the continuation before the start and
+ * gives it back when the start fails, but a caller revoked in between has that write refused with the rest; the claim
+ * would hold the continuation until the next restart. Given back here, outside the call, as the SDK's restart recovery
+ * does: only a start claim under this key that no run took up. The next round's binding sees whether the key is spent.
+ */
+export async function releaseStartClaim(runtime: Runtime, at: At): Promise<void> {
+  const ref = boardRef(at.board), step = runtime.boards.get(ref).nodes.find(one => one.id === at.node), continuation = step?.continuation;
+  if (continuation?.state !== "claimed" || continuation.claim?.mode !== "start" || continuation.requestKey !== at.requestKey) return;
+  if (step!.attempts.some(one => one.requestKey === `start:${at.requestKey}` && one.run !== undefined)) return;
+  await runtime.boards.releaseContinuation({ ref, nodeId: at.node, revision: continuation.revision, to: "eligible" }).catch(CONTINUATION_CONFLICT);
+}
+
 /** What the Host asks of a parent round before its child is let out: the round's own pre-dispatch check (authority, install, cancel). */
 export interface DispatchChecks {
   forRun(runId: string): (() => Promise<void>) | undefined;

@@ -993,3 +993,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 00:55 UTC：#690 已入队。#691（情境 W3-A3c，c7e42d869）统筹审过：窗格先过 panes.fromParent 才闪（S-30 加了拒绝用例）；顶层只发给还连着的 iframe，origin 用 location.origin；pinned() 不变，闪只用 pointed()；+318 正好用满 [1108184, 1108502]。排在 chain28。
 - 手册线 BL-151 评测（48 次，两版都没有出错）统筹认可，采用 v7。T2 派全且答对 8 对 8；各题答对按规则 T1 8 对 5（v6 那 3 次是评测检查的缺陷，人读 8 对 8），T2、T3 都是 8 对 8。T1 让出 1/8 对 2/8，记为模型能力。T2 里 v7 后台从 3 次变成 0 次、改成前台，照实写进 §9.5。AC-25 浏览器用例开 PR 前单独重跑，还红就和基线比对。
 - 10-18 01:05 UTC：#690 换包合入 102671ce6（Prologue b541a8e6，parked-run 包）。已通知采用线：#680 再 merge 一次这个 main 后推；A2 spec PR 可以开了。已通知交互线：BL-156 的 Molis 半边可以开，在 main 上重建，先发一行计划。
+- 统筹 10-18 认可 BL-156 Molis 半边（交互线，base main 102671ce6）：停放的题经 answerInterrupted 回答，assertBeforeAnswer 用调用当时的授权；三个码在 prologue-control-errors 一处映射；助理、Coding 各用自己的 start-round 开下一轮；开下一轮被拒时答案留在排队里，卡片写原因；BUSY 只 inspect 一次、重开一次。安全表加 S-33「停放的题按回答那一刻的授权」，带拒绝用例（含重启后撤权）；被拒时两边都零写入。A2 spec 不再占 S-33，实现时再取空号。

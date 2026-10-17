@@ -1,6 +1,6 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
-import type { AgentPendingQuestion } from "./agent-interaction.js";
+import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
 import type { MemoryChange, MemoryScope } from "./memory.js";
 
 /**
@@ -499,6 +499,7 @@ export interface AssistantSendInput {
    * one free-text question, `steer` adds the words to the round. Absent is `steer`: the Host never decides it is an answer.
    */
   target?: "answer" | "steer";
+  reask?: AgentQuestionReask;
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;
 }

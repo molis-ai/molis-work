@@ -36,6 +36,7 @@ import { AssistantInputs, exactRevision, inputsOf, typedWords, type SendIntent }
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
 import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
+import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 
 const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
@@ -712,7 +713,7 @@ export class AssistantService {
    * outcome and does nothing more. A round whose words the person did not write is marked (`writtenBy` for Host code, `input.written_by` from a page).
    */
   async send(input: AssistantSendInput, caller: AssistantCaller, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
-    const text = checkText(input?.text, "要发送的内容", MAX_TEXT);
+    const text = input?.reask !== undefined ? reaskTask() : checkText(input?.text, "要发送的内容", MAX_TEXT);
     let materials = checkMaterials(input.materials);
     const images = materials.filter(item => item.kind === "image");
     if (images.length > MAX_IMAGES) throw assistantErrors.invalid(`一次最多带 ${MAX_IMAGES} 张图片`);
@@ -741,6 +742,8 @@ export class AssistantService {
       work = await this.chooseCharacter(work, input.character);
       if (materials.some(item => item.reference)) materials = await this.readReferences(work, materials);
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
+      // 「请 AI 重新问」: the closed question and its draft, read from this work's own run and record, never from the page (D5).
+      if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
       this.linkSent(work, materials, created ? context : null);
       const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by) });
@@ -752,11 +755,11 @@ export class AssistantService {
       // Nothing the person typed is lost: an unsent message stays as the work's draft.
       if (work && !work.reply_target) {
         const kept = this.store.update(this.actorId, work.work_id, null, { draft: text }, false);
-        const failure = this.explain(error);
+        const failure = assistantFailure(error);
         throw new ActionError(failure.code, failure.message, { kind: failure.kind, cause: failure,
           details: { ...failure.details, work: this.publicWork(kept, await this.stateSafely(kept)) } });
       }
-      throw this.explain(error);
+      throw assistantFailure(error);
     }
   }
 
@@ -2009,10 +2012,6 @@ export class AssistantService {
     return { ...rest, ...(delegated_by ? { delegated_by } : {}), state };
   }
 
-  /** A runtime failure in words the person can act on; codes stay for the surface. */
-  private explain(error: unknown): ActionError {
-    return assistantFailure(error);
-  }
 }
 
 /**

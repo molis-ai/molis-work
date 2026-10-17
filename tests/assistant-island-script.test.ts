@@ -26,7 +26,7 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
     }
     return script.slice(start, index - 1).trim();
   });
-  assert.equal(calls.length, 3, "the bottom bar sends from three places: the browser hand-back, the frozen composer and a receipt's correction");
+  assert.equal(calls.length, 4, "the bottom bar sends from four places: the browser hand-back, asking a closed question again (D5), the frozen composer and a receipt's correction");
   assert.equal(calls.filter(call => call === "intent.body, intent.route").length, 1, "the composer sends the frozen body and trusted route it captured");
   // RCPT-326: a correction is what the person typed in the receipt's form, so it is theirs, with the input it corrects.
   const correction = "{ work_id: work(), text, about, request_id: key }";

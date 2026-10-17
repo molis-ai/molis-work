@@ -164,3 +164,12 @@ export interface InteractionRequest {
   html?: string;
 }
 export interface InteractionRequestResult { status: "needs_input"; interaction: InteractionRequest }
+
+/**
+ * 「请 AI 重新问」 (specs/ai-interaction-experience D5): which closed question a new round asks again. The page names only the
+ * question; the Host reads it from the run, takes the draft it kept for it, and writes the round's words itself.
+ */
+export interface AgentQuestionReask {
+  run_id: string;
+  pending_id: string;
+}

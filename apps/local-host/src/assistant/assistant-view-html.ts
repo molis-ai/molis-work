@@ -53,7 +53,9 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
       const drafts = ports.drafts(candidate.work.work_id);
       for (const round of candidate.rounds) {
         const words = freeTextQuestion(round.awaiting_input);
-        for (const question of round.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, ports.say, drafts[question.pending_id]), ...(question === words ? { from_composer: true } : {}) });
+        // A closed question is asked again by a new round of the Assistant's own; a Coding work's questions are Coding's.
+        const reask = candidate.work.executor.kind !== "coding";
+        for (const question of round.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, ports.say, drafts[question.pending_id], undefined, reask), ...(question === words ? { from_composer: true } : {}) });
       }
       for (const round of candidate.rounds) for (const turn of round.turns) {
         if (turn.kind === "assistant") Object.assign(turn, { html: assistantTextHtml(turn.text, candidate.objects, ports.say) });

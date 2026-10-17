@@ -29,6 +29,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     if (index >= 0) works[index] = work; else works.unshift(work);
     paintList(); drawTabs();
   };
+  // 「请 AI 重新问」 on a closed question: the page names only the question; the Host writes the round and reads the draft (D5).
+  const reaskQuestion = (work, round, question) => api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(),
+    written_by: "page", reask: { run_id: round.run_id, pending_id: question.pending_id } }).then(reload).then(poll, showError);
   onEl(compose, "submit", async (event) => {
     event.preventDefault();
     const text = String(input.value || "").trim();

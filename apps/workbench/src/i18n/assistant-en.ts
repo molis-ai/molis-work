@@ -74,6 +74,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "这个问题暂时不能回答": "This question cannot be answered right now",
   "其他（可选）": "Other (optional)",
   "提交回答": "Submit answer",
+  "请 AI 重新问": "Ask again",
   "写下回答": "Write your answer",
   "回答": "Answer",
   "执行前需要你确认": "Needs your approval before it runs",

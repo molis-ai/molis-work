@@ -823,3 +823,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - emit 和 beforeEffect 都同步查一次 `active()`，「不写记录」不靠轮询保证；
     - 不导出只给测试用的计数，改成注入计时器；
     - 计时器调 `unref()`。
+- #669 → bbb715e1c：merge 了 main（e49f6a558）。spec §18 两条都留下了；3b-2a 的四条移进已用名单；coding.js +184、workbench.js +271 重新以 e49f6a55 定键，增量不变。因为 main 删了 `explain()`，原来靠它抵掉的巨大单元增长没了，交互线把 `checkMaterials` 和留图检查原样搬进新文件 `assistant-send-materials.ts`（72 行）。统筹逐行核过，是纯搬家：常量和判定都没变，只是 `this.images` 改成了参数。全量已经在 55fe94b53 上判过，这次走 merge-only（统筹 10-17 定：纯搬家，不重跑）。#671 也以 1104882 定了 workbench.js 的键，coding.js 还会降，谁后合入谁重新定键。

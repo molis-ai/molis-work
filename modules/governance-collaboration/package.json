@@ -4,7 +4,7 @@
   "private": true,
   "description": "Review obligations, Reviews, Proposals, Decisions, and confirmation provenance.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

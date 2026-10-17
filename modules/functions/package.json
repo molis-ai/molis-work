@@ -4,7 +4,7 @@
   "private": true,
   "description": "Published functions and judgment records.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

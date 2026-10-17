@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Forms workbench: questionnaire authoring, preview, submit, and results.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

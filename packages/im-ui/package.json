@@ -4,7 +4,7 @@
   "private": true,
   "description": "Shared group conversation and inline Thread UI; no server identity or storage implementation.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": { "node": ">=24" },
   "sideEffects": false,
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },

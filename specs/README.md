@@ -4,6 +4,8 @@
 
 ## 在做的
 
+- [commercial-source-license](commercial-source-license/spec.md)：合作源码与商业授权；Codex 负责，许可声明与分发材料已完成切换及定向验证，本分支完成，待合入。
+
 - [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。
 - [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。
 - [work-brief](work-brief/spec.md)：工作简报内容插件；用户已确认纳入，需求已整理，尚未实现。

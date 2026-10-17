@@ -4,7 +4,7 @@
   "private": true,
   "description": "Durable cursor, lease, retry, quarantine, and Raw Event delivery mechanisms.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

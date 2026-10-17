@@ -147,6 +147,7 @@ Cognia 同时保留已登记的知识角色与回答指令：角色作为共享�
 - **发出前和返回后各问一次**：实例仍在运行、安装仍持有 `model:invoke`、这次调用的 `beforeEffect()` 通过，才发出；模型返回后再问一遍，才把结果交给插件。动作已经返回的调用得到 `actions.expired`（定时器里迟到的调用就是这样被挡下的），取消、撤权、停用的调用拿不到结果。插件写入前仍要自己 `await caller.beforeEffect()`，按读取时的版本提交。
 - **只收自己登记的指令**：`complete(instructed(指令, 数据), { system?, output?, timeout_ms?, max_output_tokens? })`。`owner_id` 必须是本插件（`system` 也是），裸字符串、别人的指令、没登记的指令以 `plugin.model_instruction_refused` 拒绝；发送的是用户在设置 › 提示词里改过的版本。有目录条目的内置插件，指令仍由目录条目的 `instructions` 登记；没有目录条目的插件在 `PluginDefinition.instructions` 里声明，随实例启动登记、最后一个运行它的实例停止时撤下；目录里已经为这个主人登记了任何 Agent 定义（指令、Agent 提示词、角色或方法，例如 Schedule、助理的角色，Issues 的方法）的，不能再用 `PluginDefinition.instructions`，启动失败：一个主人的定义只在一处，第二个来源会在设置和别的 Agent 眼里顶掉目录登记的角色与方法；同一个插件的两个安装（两个发布者签名）可以并排登记。
 - **限额**：`timeout_ms` 默认 120 秒、至多 600 秒，`max_output_tokens` 默认 5000、至多 12000（`PLUGIN_MODEL_LIMITS`），超出以 `plugin.model_limit_exceeded` 拒绝，不截断。`output: "json"` 用 agent-host 的 `decodePrologueJsonOutput` 解码（允许代码围栏），解不出是 `plugin.model_output_invalid`；它只解码，结构由插件自己校验。结果的 `usage` 只在供应商报告了才有。
+- **生成中预览**：可选的 `onText(delta)` 按模型原顺序接收文字增量，不含运行、模型信息或用量事件。每次交给插件之前，Runtime 同步复查原动作、安装授权和取消状态；请求结束即关闭回调，即使动作还在继续也不再交文字。插件自行把文字变为页面或动作进度；预览不表示结果已通过末尾检查或已保存。回归见 `tests/security-invariants-plugin-model-progress.test.ts`。
 - **路径**：宿主端口 → `hostTextGeneration` → agent-host 的 Prologue 推理，和别的调用方同一条；不新开供应商直连，不向 Prologue 传调用编号（2026-10-10）。宿主构造时给的 `completeText`（函数是测试替身，`null` 是没有模型）照旧有效，每次调用时才读。`availability()` 可以接在动作的 `availability` 上。
 - **不在这一片里**：图片输入、选定某个模型与列出可选模型、动作返回之后的后台任务里调模型（动作一返回，调用就被拒）。有消费者的迁移再加。
 

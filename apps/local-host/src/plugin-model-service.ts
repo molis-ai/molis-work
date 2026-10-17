@@ -41,7 +41,8 @@ export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort
       if (injected === null) throw textModelRequired();
       const { text, system } = resolved(home.directory, owner, prompt, dispatch.system);
       const options: HostTextRequestOptions = { signal: dispatch.signal, beforeDispatch: dispatch.beforeDispatch,
-        timeoutMs: dispatch.timeout_ms, maxOutputTokens: dispatch.max_output_tokens, ...(system === undefined ? {} : { system }) };
+        timeoutMs: dispatch.timeout_ms, maxOutputTokens: dispatch.max_output_tokens, ...(system === undefined ? {} : { system }),
+        ...(dispatch.onText ? { onProgress: event => { if (event.type === "text-delta") dispatch.onText!(event.text); } } : {}) };
       if (injected) return { text: await injected(text, options) };
       const generate = configured();
       if (!generate) throw textModelRequired();

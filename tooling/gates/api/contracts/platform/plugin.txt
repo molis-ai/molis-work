@@ -2871,6 +2871,7 @@ export interface PluginModelClient {
 
 export interface PluginModelRequest {
     readonly signal?: AbortSignal;
+    readonly onText?: (delta: string) => void;
     readonly system?: InstructionPrompt;
     readonly output?: "text" | "json";
     readonly timeout_ms?: number;

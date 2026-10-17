@@ -1,5 +1,5 @@
 import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createTodoActionHandlers, openTodoStore, todoManifest } from "@molis-ai/molis-work-plugin-todo";
+import { createTodoActionHandlers, openTodoStore, ownTodoStores, todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { hostCompleteText, textModelAvailability, textModelRequired, type HostCompleteText } from "./host-complete-text.js";
@@ -11,7 +11,7 @@ export function todoActionProvider(home: string, completion?: HostCompleteText |
     provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: todoManifest.name, kind: "plugin" },
     definitions: todoManifest.actions!,
     handlers: createTodoActionHandlers({
-      withStore: run => { const store = openTodoStore(home); try { return run(store); } finally { store.close(); } },
+      ...ownTodoStores(run => { const store = openTodoStore(home); try { return run(store); } finally { store.close(); } }),
       modelAvailability: () => textModelAvailability(model),
       completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
         const complete = model();

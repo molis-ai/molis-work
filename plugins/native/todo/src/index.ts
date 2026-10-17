@@ -18,9 +18,9 @@ export type { TodoPluginRouteHandler, TodoPluginRouteRequest, TodoPluginRouteRes
 export { createTodoRouteHandlers } from "./route-handlers.js";
 export type { TodoRoutePorts } from "./route-handlers.js";
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID, todoManifest } from "./manifest.js";
-export { openTodoStore, TodoStore, TODO_STORE_BASELINE, TODO_HOME_STORE } from "./store.js";
+export { openTodoStore, ownTodoStores, TodoStore, TODO_DATABASE, TODO_HOME_STORE } from "./store.js";
 export { purgeTodoProject, todoProjectData } from "./project-data.js";
-export type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput } from "./store.js";
+export type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoSql, TodoSqlValue, TodoStores } from "./store.js";
 export { todoErrors } from "./error.js";
 export { todoActions, TODO_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoAccess } from "./actions.js";
 export type { TodoActionPorts, TodoListItem, TodoListResult } from "./actions.js";

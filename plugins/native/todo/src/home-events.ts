@@ -53,11 +53,11 @@ export function todoHomeEvents(store: TodoStore, access: TodoAccess, now: Date):
   return events;
 }
 
-export function createTodoHomeEventsHandler(withStore: <T>(run: (store: TodoStore) => T) => T, now: () => Date = () => new Date()): ActionHandlerBinding {
+export function createTodoHomeEventsHandler(read: <T>(run: (store: TodoStore) => T) => T, now: () => Date = () => new Date()): ActionHandlerBinding {
   return { ...todoHomeEventsAction, handle: (caller: ActionCallContext, value: unknown): HomeEventCollection => {
     const window = value as HomeEventWindow;
     assertHomeEventWindow(window);
     const access: TodoAccess = { projectId: todoCallerProject(caller), everything: false, actor: "other", actorId: caller.actor_id };
-    return { source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办", icon: "list" }, events: withStore(store => todoHomeEvents(store, access, now())) };
+    return { source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办", icon: "list" }, events: read(store => todoHomeEvents(store, access, now())) };
   } };
 }

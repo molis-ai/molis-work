@@ -629,37 +629,33 @@ for (const [asset, old] of [
   });
 }
 
-// AC-28 (specs/ai-interaction-experience D36, T2 reference questions): approved by the user on 2026-10-17 (relayed by the coordinator),
-// the reference picker and its styles may grow the workbench script and the two stylesheets that carry the Assistant's styles
-// once, and the shared focus fix for input groups the settings sheet, from exactly the current baselines to the measured sizes
-// (within the approved +4,090, +1,344, +1,344 and +19). One byte more, another asset (Coding's bundle included: it does not
-// change), or growth from the new baseline still fails.
-test("T2 has one bounded allowance on the workbench script, the Assistant's two stylesheets and the settings sheet; other assets and later growth still fail", () => {
+// D5, D37 (specs/ai-interaction-experience, 「请 AI 重新问」): approved by the user on 2026-10-17 (the coordinator's popup, relayed),
+// asking a closed question again may grow Coding's bundle and the workbench script once, from exactly the current baselines to
+// the measured sizes (+184 and +271). One byte more, another asset, or growth from the new baseline still fails.
+test("re-ask has one bounded allowance on Coding's bundle and the workbench script; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-arrival.css": [744923, 746249],
-    "/assets/molis-work-settings.css": [1034948, 1034967],
-    "/assets/molis-work-workbench.css": [1624532, 1625858],
-    "/assets/molis-work-workbench.js": [1101126, 1105163],
+    "/assets/molis-work-plugins/coding.js": [373429, 373613],
+    "/assets/molis-work-workbench.js": [1103049, 1103320],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("t2-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "t2-change");
+  branch("reask-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "reask-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "t2-base").code, 0);
-  assert.equal(gate("--base", "t2-base").code, 0);
+  assert.equal(gate("--update", "--base", "reask-base").code, 0);
+  assert.equal(gate("--base", "reask-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "t2-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "reask-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "t2-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "t2-base").code, 0);
-  commit("freeze the measured T2 sizes"); git("branch", "-f", "t2-frozen");
+  assert.equal(gate("--update", "--base", "reask-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "reask-base").code, 0);
+  commit("freeze the measured re-ask sizes"); git("branch", "-f", "reask-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "t2-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "t2-frozen").code, 1);
+    assert.equal(gate("--base", "reask-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "reask-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
 });

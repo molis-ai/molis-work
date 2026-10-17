@@ -124,6 +124,8 @@ export interface AgentTurnSteer {
   id: string;
   /** received: taken, not yet in the context; applied: in the context; read: a kept reply was made with it (not compliance); unread: the round ended before that. */
   state: "received" | "applied" | "read" | "unread" | "withdrawn";
+  /** The key it was sent under (`AGENT_INPUT_KEY_PATTERN`), so the page that sent it knows it here even when its answer was lost. */
+  key?: string;
   model_claim?: AgentInputModelClaim;
   /** Questions asked about it, in the order asked. */
   questions?: AgentInputQuestion[];

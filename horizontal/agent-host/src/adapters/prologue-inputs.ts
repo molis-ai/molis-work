@@ -36,7 +36,7 @@ function steerView(receipt: InputReceipt, closed: boolean): AgentTurnSteer {
   const ended = closed && (receipt.state === "accepted" || receipt.state === "applied");
   const state = ended ? "unread" : receipt.state === "accepted" ? "received" : receipt.state;
   const claim = receipt.handling;
-  return { id: receipt.steerId, state,
+  return { id: receipt.steerId, state, ...(receipt.key === undefined ? {} : { key: receipt.key }),
     ...(claim ? { model_claim: { treatment: claim.treatment, ...(claim.kind ? { kind: claim.kind } : {}), targets: claim.targets.map(target => ({ ...target })),
       impacts: [...claim.impacts], ...(claim.note ? { note: claim.note } : {}), ...(claim.callId ? { call_id: claim.callId } : {}),
       ...(claim.toolCallId ? { tool_call_id: claim.toolCallId } : {}), revisions: receipt.handlingRevisions ?? 1 } } : {}),

@@ -85,6 +85,7 @@ export interface AgentSteerReceipt {
 export interface AgentTurnSteer {
     id: string;
     state: "received" | "applied" | "read" | "unread" | "withdrawn";
+    key?: string;
     model_claim?: AgentInputModelClaim;
     questions?: AgentInputQuestion[];
 }

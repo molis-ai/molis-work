@@ -90,7 +90,9 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     await until(async () => (await graph()).every(node => node.node_id === "work" || ["succeeded", "failed", "cancelled"].includes(node.state)), "first follow-up ended");
     await delegation.follow_up(child.work.work_id, "去掉编号");
     await until(async () => (await graph()).every(node => node.node_id === "work" || ["succeeded", "failed", "cancelled"].includes(node.state)), "second follow-up ended");
-    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid", "follow-ups are bounded");
+    // W2-18-A4-LIMITS-01: the limits are the Assistant's own table, in the words the model has always been told.
+    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid"
+      && error.message === "已经追加过 2 次；仍达不到验收时停止它，并把实际情况告诉用户", "follow-ups are bounded");
     const part = childStored.delegated_by!.node_id;
     assert.deepEqual((await graph()).filter(node => node.node_id !== "work").map(node => [node.node_id, node.parent, node.state]),
       [[part, "work", "succeeded"], [`${part}.f1`, part, "succeeded"], [`${part}.f2`, part, "succeeded"]]);
@@ -338,7 +340,9 @@ test("a sub-task the person put away still counts for the work that handed it ou
     }
     for (const id of made.slice(1, 3)) await f.service.archive(id, true);
     const delegation = f.service.delegation(f.store.get("web-user", sent.work.work_id))!;
-    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid");
+    // W2-18-A4-LIMITS-01
+    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid"
+      && error.message === "这项工作已经委托了 6 个子任务，不能再多；请自己完成剩下的部分或告诉用户");
 
     // The parent's stop reaches a put-away sub-task that a follow-up has set going again.
     await delegation.follow_up(childId, "再改改");

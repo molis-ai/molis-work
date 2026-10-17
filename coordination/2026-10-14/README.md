@@ -934,3 +934,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 空档期是安全的：停放的题在核对卡上关掉，关掉前开跑得 SESSION_RUN_PARKED、页面显示通用文字。用例要钉住这两点，正文写明这是暂时的。
   - REFUSED_BEFORE_RUN 加三个码，含 SESSION_HISTORY_UNAVAILABLE。
   - 交互线先叠在换包分支上准备 BL-156 的 Molis 半边，换包合入后马上开 PR。
+- 用户 10-17：不用等 Codex 来通知，直接看 GitHub PR 的进度往前推。统筹直接在 PR 上留评论，Codex 从那里读。
+  - #686（Codex，§10.26，只改文档，96a05c68d）：核对完，走 merge-only，已进合并队列。
+  - #684（Codex，W5-01 Todo 上 Home 运行时，d0a25c738）：按 §3 审过，通过，只提了一处不挡合并的小意见（tellAssistant 的条件放宽了）。排进 chain21：681→673→684→687→683→685。
+  - chain20 的 gate 子进程（675，pid 95430/4092）留着；只停了它等 681 的那一步，681 当时还没加标签。
+  - #661（用户的 PR，助理接入服务）：已不是草稿，但和 main 冲突。在 PR 上留了进队列前要做的五件事：merge main 并重新量 page-assets；库版本维护清单加一行；说明 CONNECTOR_TOOLS_HOME_STORE；拆片；补防腐复查节。

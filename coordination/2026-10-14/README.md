@@ -990,3 +990,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 采用线：网关输入 schema 核实已全部做完（#31/#615/#621），只剩 §6.0g 三条「未验证」，候选已划掉。统筹 10-17 认可下一片 A2「写后诊断」第一刀只写 spec。要写清：检查器只从已授权项目的配置来，命令走现有审查，预算写数字，结果只写事实，没有检查器时显示「未检查」，取消后不写记录；安全边界也先在 spec 里判定。#690 合入后再开 PR。
 - 统筹 10-17 定（采用 A2 写后诊断 spec，6a7cfd4a8，§6.0p，PA-25～39）。Q1：配置归 agent-host，和 MCP 配置放一起，因为检查器挂在已授权的工作区上；SSOT 加一行。Q2：第一刀不做按检查器的本会话规则，代价写进 spec，BACKLOG 留一行后续。Q3：只做 Coding，含子任务的目录。认可先做 Prologue 一刀：缝交回一条命令，由 SDK 按 workspace-command 的审查、Effect 链和回执去跑。顺序：spec PR（merge-only）→ Prologue PR → 换包 → Molis 实现，实现时加 S-33。
 - 10-18 00:40 UTC：#690 的全量（c61496e94）全绿，50943b7c2 走 merge-only（gate-690）。#680 的 chain26 判成 CONFLICTING：#673 合入后 baseline.json 冲突。已请采用线 merge main、重新生成 baseline，再发新 head，核过后加 full-suite。
+- 10-18 00:55 UTC：#690 已入队。#691（情境 W3-A3c，c7e42d869）统筹审过：窗格先过 panes.fromParent 才闪（S-30 加了拒绝用例）；顶层只发给还连着的 iframe，origin 用 location.origin；pinned() 不变，闪只用 pointed()；+318 正好用满 [1108184, 1108502]。排在 chain28。

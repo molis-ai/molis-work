@@ -646,7 +646,7 @@ for (const [asset, old] of [
 // more, another asset, or growth from the new baseline still fails.
 test("receipts 3b-2c has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1107991, 1108304],
+    "/assets/molis-work-workbench.js": [1107936, 1108249],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("rcpt-3b2c-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

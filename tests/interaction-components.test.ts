@@ -41,7 +41,8 @@ test("AC-17: the questionnaire renders mixed fields with reasons, per-field erro
   assert.match(html, /<li class="mw-ix-chip" data-ix-reference="goal g"><span>Goal &lt;a&gt;<\/span><button type="button" data-ix-unpick aria-label="去掉 Goal &lt;a&gt;">/);
   assert.match(html, /<label id="q-materials-label" for="q-materials">关联材料<\/label>/, "the search box is the field's control, named by its label");
   assert.match(html, /id="q-materials" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="q-materials-results"[^>]*aria-describedby="q-materials-status q-materials-error"/);
-  assert.match(html, /<ul class="mw-ix-ref-results" role="listbox" id="q-materials-results" hidden><\/ul><p class="mw-ix-ref-status" id="q-materials-status" data-ix-ref-status aria-live="polite"><\/p>/);
+  assert.match(html, /<ul class="mw-menu mw-ix-ref-results" role="listbox" id="q-materials-results" hidden><\/ul><template data-ix-ref-row><li class="mw-menu__item mw-ix-ref" role="option" tabindex="-1" aria-selected="false">/);
+  assert.match(html, /<p class="mw-ix-ref-status" id="q-materials-status" data-ix-ref-status aria-live="polite"><\/p>/);
   assert.doesNotMatch(html, /data-ix-ref-option/, "nothing is offered before the person searches");
 });
 test("AC-17: an answered question shows its summary and keeps its form hidden; a banner says why it can no longer be answered", () => {

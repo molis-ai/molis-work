@@ -1365,9 +1365,9 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} :is(.mw-input, .mw-textarea, .mw-select, .mw-input-group) {
     transition: border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint);
   }
-  ${PAGES} :is(.mw-input, .mw-textarea, .mw-select):not([data-plain-field]):focus-visible,
+  ${PAGES} :is(.mw-input, .mw-textarea, .mw-select):not([data-plain-field], .mw-input-group *):focus-visible,
   ${PAGES} .mw-input-group:focus-within {
-    /* The edge is full copper so the focused field reads at 3:1 or better against its surface; the halo only softens it. */
+    /* The edge is full copper so the focused field reads at 3:1 or better against its surface; the halo only softens it; a grouped field gets it on its group. */
     outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
   }
   ${PAGES} [data-plain-field]:focus-visible { box-shadow: inset 0 -2px 0 var(--focus); }

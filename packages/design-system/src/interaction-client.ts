@@ -243,7 +243,7 @@ export function interactionReferences(host: InteractionClientHost, fields: Retur
     const ref = { value: option.dataset.ixRefOption!, label: option.dataset.label! };
     const rest = (fields.read()[fields.fieldId(fields.fieldOf(p.box)!)] as InteractionPicked[]).filter(item => item.value !== ref.value);
     if (!p.box.hasAttribute("data-ix-multiple")) fields.referenceChips(p.box, [ref]);
-    else if (rest.length >= Number(p.box.dataset.ixRefMax)) return void (p.status.textContent = p.labels.full!);
+    else if (rest.length >= Number(p.box.dataset.ixRefMax)) return void (p.status.textContent = p.labels.full!, p.input.focus());
     else fields.referenceChips(p.box, [...rest, ref]);
     p.input.value = "";
     close(p);

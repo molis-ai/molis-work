@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { agentQuestionHtml, hostQuestionTypes, questionErrors } from "@molis-ai/molis-work-app-local-host";
+import { agentQuestionHtml, hostQuestionTypes, hostReferenceKinds, questionErrors } from "@molis-ai/molis-work-app-local-host";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentPendingQuestion, AgentQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
@@ -140,4 +140,35 @@ test("AC-27-2 AC-27-6: the shared card draws words, numbers, dates and a date an
     { t0: "不能超过 80 个字", d2: "请按 2026-10-23 这样的格式填日期", w3: "请填日期和时刻，例如 2026-10-23 15:00", n1: "请填整数" });
   assert.deepEqual(questionErrors([{ question: 1, reason: "too-small" }], say, question.questions), { n1: "不能小于 15 分钟" }, "AC-27-6: a limit is named in the question's unit");
   assert.deepEqual(questionErrors([{ question: 1, reason: "too-large" }], say), { q1: "这个数太大了" }, "without the questions, the reason alone");
+});
+
+// T2 (AC-28-1): the model is told which kinds of object it may ask for, as an enum of the kinds the Host's plugins list and read
+// back, each with its owner's name; a kind outside them is refused before the person is asked (Prologue's askUserReferenceKinds).
+test("AC-28-1: the ask-user schema names the Home's readable kinds, and a question asking for another kind never reaches the person", { timeout: 30_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "agent-reference-kinds-"));
+  const bodies: Array<{ tools?: Tool[]; messages?: unknown }> = [];
+  const guessed = { why: "挂到哪里", questions: [{ id: "where", type: "reference", prompt: "放在哪份资料下", refKinds: ["material"] }] };
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+    const body = JSON.parse(await new Request(input, init).text()) as { tools?: Tool[]; messages?: unknown };
+    bodies.push(body);
+    return bodies.length === 1 ? cogniaScriptedResponse({ name: "ask-user", input: guessed }) : cogniaModelResponse("这类对象没有，我换一种问法。");
+  });
+  const kinds = hostReferenceKinds();
+  assert.ok(kinds.some(entry => entry.kind === "goal" && entry.title === "目标") && kinds.some(entry => entry.kind === "cognia_material"), "the kinds come from the plugins' search sources");
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.reference-kinds-test", appVersion: "1.0.0" },
+    storageRoot: join(home, "sdk"), questionTypes: hostQuestionTypes(), referenceKinds: kinds, reviewQueue: new AgentReviewQueue(),
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => "fixture-only",
+  });
+  t.after(async () => { await adapter.close(); await rm(home, { recursive: true, force: true }); });
+  const owner = { project_id: "questions", plugin_id: "io.molis.work.test", install_id: "test", actor_id: "person" };
+  const session = await adapter.createSession({ ...owner, workspace: "business", title: "Questions" });
+  const role = { role_id: "helper", version: 1, workspace: "business" as const, execution: "operate" as const, prompts: [], host_tools: ["ask-user"] };
+  const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "helper", role, task: "把复盘挂到资料下" });
+  const deadline = Date.now() + 20_000;
+  while (bodies.length < 2) { assert.ok(Date.now() < deadline, "the model was not told about the refused question"); await new Promise(resolve => setTimeout(resolve, 10)); }
+  const fields = bodies[0]!.tools!.find(tool => tool.name === "ask-user")!.input_schema.properties.questions.items.properties as Record<string, { items?: { enum?: string[] } }>;
+  assert.deepEqual(fields.refKinds!.items!.enum, kinds.map(entry => entry.kind), "AC-28-1: refKinds is an enum of exactly the Home's kinds");
+  assert.equal((await adapter.read(handle.ref)).awaiting_input.length, 0, "a guessed kind never opens a wait the person would see");
+  assert.match(JSON.stringify(bodies[1]!.messages), /material/, "the model hears which kind was not one the App has");
 });

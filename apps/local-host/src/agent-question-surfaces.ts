@@ -1,4 +1,6 @@
 import type { AgentQuestionType } from "@molis-ai/molis-work-contracts/services/agent-interaction";
+import { isSubjectReader } from "@molis-ai/molis-work-contracts/platform/actions";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
 /**
  * The typed-questionnaire question types each surface that renders `awaiting_input` can draw and validate.
@@ -18,4 +20,24 @@ export function hostQuestionTypes(
 ): AgentQuestionType[] {
   const [first = [], ...rest] = surfaces;
   return first.filter(type => rest.every(surface => surface.includes(type)));
+}
+
+type DeclaredActions = { actions?: ReadonlyArray<{ action: Parameters<typeof isSubjectReader>[0] & { subject_kinds: readonly string[];
+  search_source?: { kinds: ReadonlyArray<{ kind: string; title: string }> } } }> };
+
+/**
+ * The kinds of object a reference question may ask for (T2, AC-28-1), each with the name its owner gives it: a kind a
+ * plugin lists for search and also reads back, since a pick is found by search and named by its owner's reader (S-26).
+ * Prologue fixes the list when the Runtime is made, so it comes from the manifests the Host ships; a kind the first
+ * plugin names keeps that plugin's title.
+ */
+export function hostReferenceKinds(manifests: readonly DeclaredActions[] = BUILTIN_PLUGIN_CATALOG.map(entry => entry.manifest)): Array<{ kind: string; title: string }> {
+  const kinds = new Map<string, string>();
+  for (const manifest of manifests) {
+    const read = new Set((manifest.actions ?? []).filter(definition => isSubjectReader(definition.action)).flatMap(definition => definition.action.subject_kinds));
+    for (const definition of manifest.actions ?? []) for (const entry of definition.action.search_source?.kinds ?? []) {
+      if (read.has(entry.kind) && !kinds.has(entry.kind)) kinds.set(entry.kind, entry.title);
+    }
+  }
+  return [...kinds].map(([kind, title]) => ({ kind, title }));
 }

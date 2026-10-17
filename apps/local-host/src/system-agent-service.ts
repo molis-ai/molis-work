@@ -3,7 +3,7 @@ import { projectOrNull } from "./catalog-lookup.js";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeAgentHost, workspaceRefFor, type AgentHostCompositionOptions } from "./agent-host-composition.js";
-import { hostQuestionTypes } from "./agent-question-surfaces.js";
+import { hostQuestionTypes, hostReferenceKinds } from "./agent-question-surfaces.js";
 import { createAgentConnectorPorts } from "./agent-connector-ports.js";
 import { openConfiguredModels } from "./configured-models.js";
 import { bindPrologueInference, bindPrologueBuilder } from "./prologue-inference-host.js";
@@ -51,6 +51,8 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         storageRoot: agentRuntimeDirectory(storageHome),
         // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
         questionTypes: hostQuestionTypes(),
+        // The kinds a reference question may ask for, so the model names one the person can find (T2, AC-28-1).
+        referenceKinds: hostReferenceKinds(),
         // A picked object goes on only while its owner still hands it to the local person, read through search, under its label now (S-26).
         readReferences: async (sessionOwner, picked, kinds) => sessionOwner.actor_id === LOCAL_PERSON_ACTOR_ID && localHost.search
           ? localHost.search.readReferences(sessionOwner.project_id, picked, kinds) : picked.map(() => null),

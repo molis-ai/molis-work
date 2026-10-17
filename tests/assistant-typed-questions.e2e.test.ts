@@ -141,6 +141,16 @@ test("AC-28: the Assistant's reference question finds a Goal by name, and the ru
     await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId); };
   await views("empty");
+  // The search box is an input group: focused, the copper edge and halo sit on the group once, not again on the input inside it.
+  await evaluate(`document.querySelector('${query}').focus()`);
+  const ring = await evaluate<{ focused: boolean; inner: string; innerEdge: string; outer: string; outerEdge: string }>(`(() => {
+    const input = document.querySelector('${query}'), inner = getComputedStyle(input), outer = getComputedStyle(input.closest('.mw-input-group'));
+    return { focused: input.matches(':focus-visible'), inner: inner.boxShadow, innerEdge: inner.borderTopWidth + ' ' + inner.borderTopStyle, outer: outer.boxShadow, outerEdge: outer.borderTopColor };
+  })()`);
+  assert.ok(ring.focused, "the search box has keyboard focus");
+  assert.equal(ring.inner, "none", "no halo on the input inside the group");
+  assert.match(ring.innerEdge, /^0px|none$/, "no edge on the input inside the group");
+  assert.notEqual(ring.outer, "none", "the group carries the halo");
   // The project's search may still be indexing its Goals on a fresh Home: type again until they are found.
   for (let attempt = 0; attempt < 20 && !(await evaluate<boolean>(`!document.querySelector('${list}').hidden`)); attempt++) {
     await evaluate(`(() => { const input = document.querySelector('${query}'); input.focus(); input.value = ''; })()`);

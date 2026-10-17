@@ -879,3 +879,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - `queued_inputs`：不给值表示没读，[] 表示读了、没有，合同和托盘都要分开处理；和 #680 的 `OptionalOf` 映射谁后合入谁补；
   - 跑 api:update；RCPT-341 期望值变化属于预期变化；
   - 页面资源先抵，抵不下的由回执线在自己的会话里弹窗问用户。
+- #675 → 0414c3c02：merge 了 f78ae6d5c。除去 baseline 和 page-assets，和审过的版本逐行一致。baseline 里也带上了 #669 的降幅（本地快查用，只降不升）。chain12 和 chain13 都还没加标签，按 pid 停掉，合成 chain14：671→675→683。

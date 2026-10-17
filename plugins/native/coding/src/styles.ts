@@ -309,7 +309,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-report pre { position:relative; overflow:auto; padding:12px 16px; background:var(--rail); border:1px solid var(--line); border-radius:var(--radius-control); }
 .coding-report .coding-code-copy { position:absolute; top:6px; right:6px; height:24px; min-height:24px; padding:0 8px; font-size:12px; opacity:0; transition:opacity 130ms var(--ease-quint); }.coding-report pre:hover .coding-code-copy,.coding-report pre:focus-within .coding-code-copy,.coding-report .coding-code-copy:focus-visible { opacity:1; }@media (hover:none) { .coding-report .coding-code-copy { opacity:1; } }
 .coding-report-source,[data-coding-report-status] { font-size:12px; color:var(--muted); }
-.coding-turn { max-width:76ch; margin:0 auto 24px; font-size:13px; line-height:1.7; overflow-wrap:anywhere; }[data-run] > .mw-tray { max-width:76ch; margin:0 auto 24px; font-size:13px; }
+.coding-turn,[data-run] > .mw-tray { max-width:76ch; margin:0 auto 24px; font-size:13px; }.coding-turn { line-height:1.7; overflow-wrap:anywhere; }
 /* The person's own words sit as a bubble on the column's right edge; the Agent's reply reads as the page. */
 .coding-turn[data-kind=user] { width:fit-content; max-width:min(64ch,85%); margin-left:auto; margin-right:max(0px,calc((100% - 76ch) / 2)); padding:12px 16px; border-radius:18px 18px 6px 18px; background:var(--rail); }
 .coding-turn p { margin:0 0 .8em; }.coding-turn p:last-child { margin-bottom:0; }

@@ -797,9 +797,9 @@ interface AgentInputView {
   - 只分账上已有的四类（D37）：排着，下一轮开始时带上（会话的 `queued_inputs`）；AI 读到了，没说怎么处理（`read`、没有 `model_claim`）；AI 说暂不采纳或需要你澄清（标明是 AI 自己说的）；为它问的问题还没回答（`open` 或 `unresolved`）。后三类只看最近一轮，每条输入只看它最后一次画出的回执；排着的那条只在第一类出现一次。
   - 每一类是一个带名字的列表，每一项是按钮：有回执的打开回执、焦点移过去（和回执里「看原来那条」同一个做法）；排着的另有「撤回」，走页面自己的撤回；直接排进会话、没有回执的，「撤回」就是它的按钮。
   - 同一个元素跨重画保留，展开的托盘不会收起；焦点在托盘里的按钮上时，重画后落到新画的那一个上。条数变了，经页面那一个礼貌状态区说一次，第一次画不说。
-- **Coding。** 托盘取代 C1 的排队条（D38、RC-18）：`inputReceipts.waiting()` 与 `.coding-queued-inputs` 删掉，`client.ts` 在原来那一行改调 `host.receipts.tray`，撤回走 v6 的 `withdraw`（会话里的那条，运行时从会话交还，见 RCPT-322）。托盘和对话那一栏同宽。助理页的回执样式（`craft-finish.ts`）把托盘排除在外。
+- **Coding。** 托盘取代 C1 的排队条（D38、RC-18）：`inputReceipts.waiting()` 与 `.coding-queued-inputs` 删掉，`client.ts` 在原来那一行改调 `host.receipts.tray`，撤回走 v6 的 `withdraw`（会话里的那条，运行时从会话交还，见 RCPT-322）。托盘和对话那一栏同宽，宽度规则和 `.coding-turn` 共用一条。`craft-finish.ts` 里助理回执的那条规则（右对齐、88% 宽、上移 8px）原来写成整页的 `.mw-receipt`，连 Coding 气泡里的回执也被它管着，这不是 3c 想要的样子；现在只管 `.assistant-round` 的直接子元素。
 - **代码位置。** 托盘是设计系统里单独的 `createInputTray`，借用回执的几个小工具和「每条输入最后一次画出的回执」；回执的措辞表挪成静态数据 `RECEIPT_WORDS`，随页面程序一起交过去。`createInputReceipts` 在 3b-2a 时正好 150 行，不这样拆就成了新的巨大单元。
-- **字节（对照 3b-2a 的预算）。** 抵消以后：`molis-work-workbench.js` +2838、`molis-work-workbench.css` +163、`molis-work-settings.css` +91、`molis-work-arrival.css` +86；`molis-work-plugins/coding.js` −512（删掉的排队条）。已复用回执的底板、按钮与「AI 自己说的，Molis 没有核对」这句。列进 PR，由统筹问用户。
+- **字节（对照 3b-2a 的预算）。** 用户 10-17 经统筹弹窗一次性批准：`molis-work-workbench.js` +2838、`molis-work-workbench.css` +163、`molis-work-settings.css` +91、`molis-work-arrival.css` +86；`molis-work-plugins/coding.js` −512（删掉的排队条）。收窄助理规则以后，三份样式表实测是 +108、+57、+70，都在批准的数以内。已复用回执的底板、按钮与「AI 自己说的，Molis 没有核对」这句。
 - **助理。** 等交互线的 re-ask 把 `contracts/services/assistant.ts` 拆出一块以后，再给 `AssistantWorkView` 加 `queued_inputs` 并接上托盘（统筹 10-17：不自己拆，免得两处拆分冲突）。到时把 3b-2a 删掉的 `AssistantControl` 那行文档注释加回来。
 - **验收编号与证据：**
   - RCPT-331：托盘只列账上有的四类，后三类只看最近一轮；更早的轮次、AI 说会采纳的、撤回的、还没交给模型的都不列；排着的只列一次；没有就不画（`tests/input-receipts-client.test.ts`）。

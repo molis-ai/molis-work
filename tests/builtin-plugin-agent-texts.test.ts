@@ -22,6 +22,7 @@ test("every built-in Agent declaration ships a body for each prompt and method i
       assert.ok(body(prompt.prompt_id, prompt.version), `${entry.project_plugin_id} declares prompt ${prompt.prompt_id}@${prompt.version} without a body`);
     }
     if (declared.compaction) assert.ok(body(declared.compaction.prompt_id), `${entry.project_plugin_id} declares compaction prompt ${declared.compaction.prompt_id} without a body`);
+    if (declared.ending_review) assert.ok(body(declared.ending_review.prompt_id), `${entry.project_plugin_id} declares ending review prompt ${declared.ending_review.prompt_id} without a body`);
     for (const skill of declared.skills ?? []) {
       const method = shipped.skills.find(s => s.skill_id === skill.skill_id && s.version === skill.version);
       assert.ok(method?.body.trim(), `${entry.project_plugin_id} declares method ${skill.skill_id}@${skill.version} without a body`);

@@ -3,33 +3,27 @@ import { assembleMcpCatalog, homeStores } from "@molis-ai/molis-work-app-local-h
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { COGNIA_ACTION_PERMISSIONS, cogniaActions } from "@molis-ai/molis-work-plugin-cognia";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { randomUUID } from "node:crypto";
-import { authorizeLocalWebRequest, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { handleCogniaNativePluginHttp } from "../apps/local-host/dist/cognia-native-plugin-http.js";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { BUILTIN_PLUGIN_WORKBENCH } from "../apps/workbench/dist/plugin-workbench.js";
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads and missing model", async t => {
-  const home = await mkdtemp(join(tmpdir(), "cognia-http-"));
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const bound = (transport: { signal: AbortSignal }) => bindActionClient(host.homeActionClient(), () => ({ actor_id: "http-test", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, ...transport }));
-  const mutationKeys = new Map<string, LocalMutationState>();
-  const server = createServer((request, response) => { if (!authorizeLocalWebRequest(request, response, new URL(request.url!, "http://127.0.0.1"), "cognia-test-control", mutationKeys)) return; void handleCogniaNativePluginHttp(request,response,new URL(request.url!,"http://127.0.0.1"),bound).then(handled=>{if(!handled){response.writeHead(404);response.end();}}).catch(error=>{response.writeHead(500);response.end(String(error));}); });
-  await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));t.after(async()=>{await new Promise<void>((resolve,reject)=>server.close(error=>error?reject(error):resolve()));await host.close();await rm(home,{recursive:true,force:true});});
-  const address=server.address();assert.ok(address&&typeof address!=='string');const origin=`http://127.0.0.1:${address.port}`, url=origin+'/api/plugins/cognia';
-  const headers = () => ({'content-type':'application/json',origin,'x-molis-work-control-token':'cognia-test-control','x-molis-work-idempotency-key':randomUUID()});
-  const post=(path:string,body:unknown)=>fetch(url+path,{method:'POST',headers:headers(),body:JSON.stringify(body)});
-  assert.equal((await fetch(url+'/import/preview',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({path:'/etc',kind:'markdown'})})).status,403);
-  assert.equal((await fetch(url+'/import/preview',{method:'POST',headers:{...headers(),origin:'https://example.com'},body:'{}'})).status,403);
-  const state=await(await fetch(url)).json();assert.deepEqual(state.materials,[]);assert.equal(state.ai_available,false);
+  const f = await serveHomeRuntime(t), path = "/api/plugins/io.molis.work.cognia/library";
+  const url = f.origin + path;
+  const post = (suffix: string, body: unknown) => f.request(path + suffix, { method: "POST", body });
+  assert.equal((await f.request(path + "/import/preview", { method: "POST", authorized: false, body: { path: "/etc", kind: "markdown" } })).status, 403);
+  assert.equal((await f.request(path + "/import/preview", { method: "POST", headers: { origin: "https://example.com" }, body: {} })).status, 403);
+  const state = await (await fetch(url)).json(); assert.deepEqual(state.materials, []); assert.equal(state.ai_available, false);
+  const project = await f.project("Old route refusal");
+  assert.equal((await f.request(`/projects/${project.project_id}/api/cognia`)).status, 404, "RAC-40: the removed Host adapter is unavailable");
+  assert.equal((await f.request("/api/cognia")).status, 400, "Home retains its shared unknown-API response");
   const body='---\ntags: [test]\n---\n# Original\n<script>globalThis.executed=true</script>';
   const preview=await(await post('/import/preview',{kind:'obsidian',name:'folder',files:[{path:'note.md',data:Buffer.from(body).toString('base64')},{path:'active.svg',data:Buffer.from('<svg onload="alert(1)"></svg>').toString('base64')}]})).json();
   assert.equal(preview.preview.entries.length,2);assert.equal((await(await fetch(url)).json()).materials.length,0);
@@ -39,14 +33,14 @@ test("HTTP preview/commit roundtrip, concurrent retry, malformed JSON, downloads
   assert.equal((await(await fetch(url+'/materials/'+material.id)).json()).material.body,body);
   const download=await fetch(url+'/materials/'+attachment.id+'/download');assert.equal(download.headers.get('content-type'),'application/octet-stream');assert.match(download.headers.get('content-disposition')!,/^attachment;/);assert.equal(download.headers.get('content-security-policy'),'sandbox');assert.equal(await download.text(),'<svg onload="alert(1)"></svg>');
   assert.equal((await fetch(url+'/import/preview?path=/etc')).status,404);
-  assert.equal((await fetch(url+'/domains',{method:'POST',headers:headers(),body:'{invalid'})).status,400);
+  assert.equal((await f.request(path + '/domains', { method: 'POST', raw: '{invalid' })).status,400);
   assert.equal((await post('/domains',null)).status,400);assert.equal((await post('/import/preview',{kind:'markdown',name:'x',files:[{path:'../x.md',data:'eA=='}]})).status,400);
-  const noModel=await post('/ai',{mode:'synthesize',material_ids:[material.id]});assert.equal(noModel.status,503);assert.match((await noModel.json()).error,/尚未配置/);
+  const noModel=await post('/ai',{mode:'synthesize',material_ids:[material.id]});assert.equal(noModel.status,503);const missing = await noModel.json(); assert.equal(missing.error, "请先在「模型设置」里连接文字模型"); assert.equal(missing.code, "actions.connection_required"); assert.equal(typeof missing.call_id, "string");
   assert.equal((await(await fetch(url+'?q=Original')).json()).materials.length,1);
 });
 
 test("Cognia registers as personal workspace, Home cleanup and read-only Home actions",async()=>{
-  const entry=BUILTIN_PLUGIN_CATALOG.find(e=>e.project_plugin_id==='cognia');assert.equal(entry?.personal,true);assert.equal(entry?.manifest.plugin_id,COGNIA_PLUGIN_ID);assert.ok(BUILTIN_PLUGIN_WORKBENCH.some(e=>e.project_plugin_id==='cognia'));assert.equal(homeStores().get('cognia')?.owner,COGNIA_PLUGIN_ID,'uninstall --purge-user-data reaches the Cognia store');
+  const entry=BUILTIN_PLUGIN_CATALOG.find(e=>e.project_plugin_id==='cognia');assert.equal(entry?.personal,true);assert.equal(entry?.manifest.plugin_id,COGNIA_PLUGIN_ID);assert.ok(BUILTIN_PLUGIN_WORKBENCH.some(e=>e.project_plugin_id==='cognia'));assert.equal(entry?.runtime?.scope,"home");assert.equal(homeStores().get('cognia')?.owner,COGNIA_PLUGIN_ID,'uninstall --purge-user-data reaches the Cognia store');
   for (const action of [cogniaActions.search, cogniaActions.read]) { assert.equal(action.operation, 'query'); assert.equal(action.action.scope, 'home'); }
   assert.ok(!assembleMcpCatalog({ audience: 'runtime' }).entries.some(row => row.action?.provider.plugin_id === COGNIA_PLUGIN_ID), 'no Cognia tool without a grant');
   const home = await mkdtemp(join(tmpdir(), 'cognia-mcp-')), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

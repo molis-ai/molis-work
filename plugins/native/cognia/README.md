@@ -10,7 +10,7 @@ Limits: 1,000 entries / 32 MB per batch, UTF-8 text up to 2 MB, attachments up t
 
 Search supports full text, domain and source filters. Internal links resolve within their own source; ambiguity stays visible. Source versions referenced by knowledge remain readable after reimport. Directly entered materials and domains are persisted in the same store.
 
-AI is explicit. The Host composes `createCogniaProloguePort` using the current Home model-settings catalog and Prologue, with no tools and no filesystem access. No environment-only model adapter is used in production. Select 1–5 text materials for synthesis, or ask a question to retrieve up to 5 materials in the chosen domain. Context is capped at 100,000 characters; it is rejected instead of silently truncated. Inputs are marked untrusted; output must contain valid fixed-source citations. Generated drafts survive restart and enter knowledge only after **Save to knowledge base**. Missing configuration or model failure leaves local reading/import intact. Actual model usage follows the configured provider's billing.
+AI is explicit. The Home Runtime supplies `services.model` from the current model-settings catalog and the shared Prologue runtime, with no tools and no filesystem access. The plugin owns its evidence and answer instructions, retains person overrides, and sets the existing 180-second timeout. Discovery reads provider/model labels without decrypting credentials or issuing a model request. Select 1–5 text materials for synthesis, or ask a question to retrieve up to 5 materials in the chosen domain. Context is capped at 100,000 characters; it is rejected instead of silently truncated. Inputs are marked untrusted; output must contain valid fixed-source citations. Generated drafts survive restart and enter knowledge only after **Save to knowledge base**. Missing configuration or model failure leaves local reading/import intact. Actual model usage follows the configured provider's billing.
 
 Cognia declares 25 capabilities in `src/actions.ts` (22 knowledge-base actions plus the standard `cognia.search.entries`, `cognia.subject.read` and `cognia.files.entries`); its manifest derives both actions and permission declarations from that definition. The Home Host registers their handlers once without opening a project or UI. HTTP and onboarding material imports call the bound action service, and MCP clients use only granted action tools; the original store remains the only business/data owner.
 
@@ -37,8 +37,10 @@ No cloud sync, background watching, bidirectional sync, proprietary database mig
 - 负责：个人知识的导入、阅读与有出处的综合。
 - 不负责：修改来源库、项目事实、第二个运行时。
 - 公开入口：`@molis-ai/molis-work-plugin-cognia`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - Home 监督器只装一个 Cognia；每个项目都读同一个库。`COGNIA_DATABASE` 保留原基线 1，读经 Runtime 库端口，写经 `database.transaction(caller.beforeEffect, …)`。停止、撤权或取消后不能保存晚到草稿。
+  - 页面用共同请求客户端调用 `/api/plugins/io.molis.work.cognia/library`；仅导入预览显式声明 45,000,000 字节，容纳 32 MB 原始文件的 Base64 JSON。
   - 目录扫描返回后，建立预览前复查原调用授权、取消及执行资格；嵌套扫描/预览沿共享动作控制传递原调用身份。返回列表、移出当前材料或删除其来源时清空本页当前对象，固定历史引用仍由资料 owner 读取。
   - 不改原文件；删除源文件不删除已导入的材料，取消预览不添加材料。
   - 提交后的预览只留回执（重复提交返回它），不再留整批文件；删除资料会让采纳过它的草稿回到未采纳，可再次采纳；已固定版本仍按草稿显示来源引用（草稿记着它采纳过的资料）。
@@ -47,7 +49,7 @@ No cloud sync, background watching, bidirectional sync, proprietary database mig
   - HTTP、MCP 动作工具与导入都经绑定的动作服务，原 Store 是唯一数据 owner。
   - 失败都是 `ActionError`：码是 `cognia.<原因>`（`cogniaErrors`）；状态只由 kind 推出，没有错误类和状态表。原来码跟着状态走（404、409、499 各有一个码，其余都叫 `cognia.invalid`），现在模型没配置是 `cognia.model_unavailable`（503），模型没给出可用结果是 `cognia.model_invalid`（502），材料太大是 `cognia.too_large`（413）。目录扫描里只有 kind 为 `too_large` 的失败会中断整批，别的失败记成那个文件的跳过原因。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-cognia run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/cognia-actions.test.ts tests/cognia-store.test.ts tests/cognia-ai.test.ts tests/cognia-http.test.ts tests/cognia-prologue.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/cognia-actions.test.ts tests/cognia-store.test.ts tests/cognia-ai.test.ts tests/cognia-http.test.ts tests/cognia-prologue.test.ts tests/cognia-runtime.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`
 - 授权等待及可见对象定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-context-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；owner 用例的授权是受控策略回调）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[specs/archive/cognia-plugin/spec.md](../../../specs/archive/cognia-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

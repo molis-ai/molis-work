@@ -2,7 +2,8 @@ import { constants } from "node:fs";
 import { lstat, open, readdir, realpath } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
-import { COGNIA_LIMITS, cogniaErrors, fileType, ignoredPath, requireCognia, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
+import { COGNIA_LIMITS, cogniaErrors, requireCognia, type ImportFile } from "./types.js";
+import { fileType, ignoredPath } from "./content.js";
 export async function scanCogniaDirectory(path: string, signal?: AbortSignal): Promise<{ locator: string; name: string; files: ImportFile[] }> {
   signal?.throwIfAborted();
   requireCognia(isAbsolute(path), "请输入绝对目录路径"); const rootStat = await lstat(path); requireCognia(rootStat.isDirectory() && !rootStat.isSymbolicLink(), "来源必须是实际目录，不能是符号链接");

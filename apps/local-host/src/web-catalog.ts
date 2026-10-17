@@ -11,8 +11,6 @@ import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
 import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
 import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
-import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
-import { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
@@ -134,8 +132,6 @@ export async function handleLocalCatalogWebRequest(
   })) return;
   if (serverOptions.homeDirectory && await handleJellyNativePluginHttp(request, response, url, transport =>
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS, ...transport })))) return;
-  if (serverOptions.homeDirectory && await handleCogniaNativePluginHttp(request, response, url, transport =>
-    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {
     shelf: { actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })) },
   })) return;

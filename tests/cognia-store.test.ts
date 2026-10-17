@@ -1,7 +1,5 @@
-import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, symlinkSync } from "node:fs";
@@ -9,8 +7,9 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { join } from "node:path";
-import { CogniaPluginRouteTable, openCogniaStore, linksFor, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
-import { scanCogniaDirectory } from "../apps/local-host/dist/cognia-directory.js";
+import { openCogniaStore, linksFor, type CogniaStore, type ImportFile } from "@molis-ai/molis-work-plugin-cognia";
+import { scanCogniaDirectory } from "@molis-ai/molis-work-plugin-cognia";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 const text = (path: string, body: string): ImportFile => ({ path, data: Buffer.from(body).toString("base64") });
 function fixture(fn: (store: CogniaStore, home: string) => void | Promise<void>) { return async () => { const home = mkdtempSync(join(tmpdir(), "cognia-store-")); const store = openCogniaStore(home); try { await fn(store, home); } finally { store.close(); rmSync(home, { recursive: true, force: true }); } }; }
 const preview = (store: CogniaStore, files: ImportFile[], locator = "local:/vault") => store.preview({ name: "vault", kind: "obsidian", locator, files });
@@ -83,22 +82,19 @@ test("资料与来源移出当前列表后固定版本仍可读，领域与草�
   assert.equal(store.read(imported.material_ids[0]!, 1).body, "导入正文");
 }));
 
-test("Cognia 路由更新和删除资料后，固定版本仍可通过路由读取", fixture(async (store, home) => {
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  try {
-  const table = new CogniaPluginRouteTable(bindActionClient(host.homeActionClient(), () => ({ actor_id: "test", project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS })));
-  const material = store.createMaterial({ title: "旧标题", body: "旧正文" });
-  const call = (method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}) =>
-    table.handle({ method, pathname, query: new URLSearchParams(), body });
-  const updated = await call("POST", `/api/cognia/materials/${material.id}/update`, { title: "新标题", body: "新正文" });
-  assert.equal((updated?.body as { material: { revision: number } }).material.revision, 2);
-  assert.equal((await call("POST", `/api/cognia/materials/${material.id}/delete`))?.status, 200);
-  assert.equal((await call("GET", "/api/cognia"))?.status, 200);
-  const fixed = await table.handle({ method: "GET", pathname: `/api/cognia/materials/${material.id}`, query: new URLSearchParams({ revision: "1" }), body: {} });
-  assert.equal((fixed?.body as { material: { body: string } }).material.body, "旧正文");
-  await assert.rejects(call("GET", `/api/cognia/materials/${material.id}`), /不存在/);
-  } finally { await host.close(); }
-}));
+test("RAC-40: Cognia Runtime 路由更新和删除资料后，固定版本仍可通过路由读取", async t => {
+  const f = await serveHomeRuntime(t), root = "/api/plugins/io.molis.work.cognia/library";
+  const post = (path: string, body: object = {}) => f.request(root + path, { method: "POST", body });
+  const { material } = await (await post("/materials", { title: "旧标题", body: "旧正文" })).json();
+  const updated = await post(`/materials/${material.id}/update`, { title: "新标题", body: "新正文" });
+  assert.equal((await updated.json()).material.revision, 2);
+  assert.equal((await post(`/materials/${material.id}/delete`)).status, 200);
+  assert.equal((await f.request(root)).status, 200);
+  const fixed = await f.request(root + `/materials/${material.id}?revision=1`);
+  assert.equal((await fixed.json()).material.body, "旧正文");
+  const deleted = await f.request(root + `/materials/${material.id}`);
+  assert.equal(deleted.status, 404); assert.match((await deleted.json()).error, /不存在/);
+});
 
 /** The Home's Cognia database, opened beside the store's own connection. */
 function inspect<T>(home: string, run: (db: DatabaseSync) => T, readOnly = true): T {

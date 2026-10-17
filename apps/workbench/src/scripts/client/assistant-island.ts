@@ -6,6 +6,7 @@ import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
 import { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./assistant-work-objects.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
 import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
 
 // The existing Coding tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
@@ -621,6 +622,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         // Words the Host wrote (a timed round, a work going on when its sub-tasks came back) are not shown as the person's; a supplement is the person's, whoever wrote the round.
         const kind = turn.kind === "user" ? (round.written_by === "host" && !turn.steer ? "host" : "user") : turn.kind === "assistant" ? "assistant" : "note";
         const bubble = keyed(node, "data-entry", entry.key, () => el("div", "assistant-msg assistant-msg--" + kind));
+        // A reply is the Assistant's own object: what the person selects in it is in hand, named by the work it belongs to.
+        const reply = kind === "assistant" && JSON.stringify({ plugin_id: "assistant", object: { kind: ${JSON.stringify(ASSISTANT_REPLY_KIND)}, id: work.work_id + ":" + round.run_id + ":" + turn.turn_id, title: work.title } });
+        if (reply && bubble.getAttribute("data-assistant-context") !== reply) bubble.setAttribute("data-assistant-context", reply);
         if (bubble.dataset.text !== turn.text) {
           bubble.dataset.text = turn.text;
           if (kind === "assistant") { bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
@@ -1690,7 +1694,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   // The last background a plugin page sent (purpose "background"), used while that plugin is the one on show.
   let background = null;
   const pageCtx = () => {
-    const surf = visible(lastSurface) ? lastSurface : [...document.querySelectorAll("[data-assistant-context]")].find(visible);
+    const surf = visible(lastSurface) ? lastSurface : [...document.querySelectorAll("[data-assistant-context]")].find((node) => visible(node) && !island.contains(node));
     if (surf) {
       try { return JSON.parse(surf.getAttribute("data-assistant-context") || "null"); } catch { return null; }
     }
@@ -1845,32 +1849,23 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       });
       startPop.append(btnEl);
     });
-    // A method is how to do it: chosen here, its steps go with this round only.
-    methods.forEach((row) => {
-      const btnEl = el("button", "assistant-starter", L("方法") + "：" + row.name + " · " + row.plugin_title); btnEl.type = "button";
-      btnEl.title = row.summary || row.name;
+    // A method (how to do it) or a capability (what to use), chosen here, goes with this round only, once.
+    const pick = (label, hint, prefix, same, material) => {
+      const btnEl = el("button", "assistant-starter", label); btnEl.type = "button";
+      btnEl.title = hint;
       btnEl.addEventListener("mousedown", (event) => event.preventDefault());
       btnEl.addEventListener("click", () => {
-        if (!files.some((file) => file.kind === "method" && file.method.method_id === row.method_id)) {
-          files.push({ material_id: "method-" + crypto.randomUUID(), kind: "method", title: L("方法") + "：" + row.name, explicit: true, method: { method_id: row.method_id } });
-        }
+        if (!files.some((file) => file.kind === material.kind && same(file))) files.push({ material_id: prefix + crypto.randomUUID(), explicit: true, ...material });
         input.value = slashDraft || ""; slashDraft = null; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMats(); input.focus();
       });
       startPop.append(btnEl);
-    });
+    };
+    methods.forEach((row) => pick(L("方法") + "：" + row.name + " · " + row.plugin_title, row.summary || row.name, "method-",
+      (file) => file.method.method_id === row.method_id, { kind: "method", title: L("方法") + "：" + row.name, method: { method_id: row.method_id } }));
     rows.forEach((row) => {
       const title = row.provider + " · " + row.title;
-      const btnEl = el("button", "assistant-starter", L("用") + "：" + title); btnEl.type = "button";
-      btnEl.title = row.description || title;
-      btnEl.addEventListener("mousedown", (event) => event.preventDefault());
-      btnEl.addEventListener("click", () => {
-        if (!files.some((file) => file.kind === "capability" && file.capability.capability_id === row.capability_id)) {
-          files.push({ material_id: "cap-" + crypto.randomUUID(), kind: "capability", title: L("用") + "：" + title, explicit: true,
-            capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } });
-        }
-        input.value = slashDraft || ""; slashDraft = null; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMats(); input.focus();
-      });
-      startPop.append(btnEl);
+      pick(L("用") + "：" + title, row.description || title, "cap-", (file) => file.capability.capability_id === row.capability_id,
+        { kind: "capability", title: L("用") + "：" + title, capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } });
     });
     if (!starters.length && !rows.length && !methods.length) startPop.append(el("p", "assistant-material-origin", L("没有匹配的能力；换个词，或直接说要做什么")));
   }

@@ -78,6 +78,11 @@ export interface SurfaceFocus {
 /** Where the thing in hand is: the work area on the left, a cell of the right panel, or the Assistant panel. */
 export type SurfacePlace = "main" | "side" | "assistant";
 export const SURFACE_PLACES: readonly SurfacePlace[] = ["main", "side", "assistant"];
+/**
+ * The object kind of an Assistant reply, as a passage of it is in hand (`place: "assistant"`). The Assistant is its only
+ * owner; its id is `<work_id>:<run_id>:<turn_id>` and nothing resolves it (an attach re-reads only the landing object).
+ */
+export const ASSISTANT_REPLY_KIND = "assistant_reply";
 
 /**
  * A rectangle in the reporting document's viewport coordinates, as it was when the surface reported, and the side of it

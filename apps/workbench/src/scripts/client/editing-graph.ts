@@ -157,12 +157,6 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         button.classList.toggle("is-active", active);
         button.setAttribute("aria-selected", String(active));
       });
-      document.querySelectorAll("button[data-workbench-view]").forEach((button) => {
-        const active = button.dataset.workbenchView === nextMode;
-        button.classList.toggle("is-active", active);
-        button.setAttribute("aria-selected", String(active));
-        button.setAttribute("tabindex", active ? "0" : "-1");
-      });
       if (graph && !workspace.querySelector("[data-goal-canvas-shell]")) graph.hidden = nextMode !== "graph";
       if (nextMode === "graph" && !workspace.querySelector("[data-goal-canvas-shell]")) {
         if (graph?.dataset.loaded === "true") updateGraphVisibility();

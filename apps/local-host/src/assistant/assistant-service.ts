@@ -34,6 +34,7 @@ import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-m
 import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
 import { AssistantInputs, exactRevision, inputsOf, typedWords, type SendIntent } from "./assistant-inputs.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
+import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
 
 const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
@@ -47,7 +48,7 @@ const ROUND_TURNS = 24;
 /** The directory lists at most this many; the gateway itself searches all of them. */
 const MAX_ACTION_TOOLS = 1000;
 
-export interface AssistantServicePorts {
+export interface AssistantServicePorts extends AssistantLandingPorts {
   /** The Home's Agent Host, ready to run. */
   host(): Promise<AgentHost>;
   authority(work: StoredWork): Promise<AgentStartAuthority>;
@@ -185,7 +186,7 @@ function checkContext(value: unknown): AssistantContextSnapshot | null {
   const selection = context.selection && typeof context.selection.text === "string" ? { text: context.selection.text.slice(0, 8000), ...(context.selection.truncated || context.selection.text.length > 8000 ? { truncated: true } : {}) } : undefined;
   return { source: { surface: context.source.surface.slice(0, 80), ...(context.source.plugin_id ? { plugin_id: String(context.source.plugin_id).slice(0, 120) } : {}), ...(context.source.title ? { title: String(context.source.title).slice(0, 200) } : {}) },
     ...(context.object ? { object: { kind: String(context.object.kind).slice(0, 80), id: String(context.object.id).slice(0, 200), ...(context.object.version !== undefined ? { version: context.object.version } : {}), ...(context.object.title ? { title: String(context.object.title).slice(0, 200) } : {}) } } : {}),
-    ...(selection ? { selection } : {}), ...(context.unsaved ? { unsaved: true } : {}), captured_at: typeof context.captured_at === "string" ? context.captured_at : new Date().toISOString() };
+    ...(selection ? { selection } : {}), ...(context.unsaved ? { unsaved: true } : {}), ...checkLanding(context), captured_at: typeof context.captured_at === "string" ? context.captured_at : new Date().toISOString() };
 }
 
 /** Split a long text into materials the runtime accepts (each at most 20,000 characters with its header). */
@@ -195,8 +196,6 @@ function chunked(base: Omit<AgentTextMaterial, "text" | "material_id">, id: stri
   return Array.from({ length: parts }, (_, index) => ({ ...base, material_id: parts === 1 ? id : `${id}.${index + 1}`,
     title: parts === 1 ? base.title : `${base.title}（${index + 1}/${parts}）`, text: text.slice(index * size, (index + 1) * size) }));
 }
-
-
 
 /** Titles of the capabilities a scope offered at its latest round start, to name them in the activity. */
 type CapabilityTitles = Map<string, { title: string; provider: string }>;
@@ -1661,7 +1660,7 @@ export class AssistantService {
         context.object ? `正在看的对象：${context.object.title ?? context.object.id}（${context.object.kind}${context.object.version !== undefined ? `，版本 ${context.object.version}` : ""}）` : "",
         context.unsaved ? "对象有未保存的修改：选区来自草稿，不是已保存版本。" : "",
         context.selection ? `选中的内容${context.selection.truncated ? "（已截断）" : ""}：\n${context.selection.text}` : ""].filter(Boolean).join("\n");
-      out.push(...chunked({ ...base, title: "当前页面（发送时）" }, "page", lines));
+      out.push(...chunked({ ...base, title: "当前页面（发送时）" }, "page", lines), ...await landingMaterials(this.ports, work.scope.kind === "personal" ? null : work.scope.project_id, context, base));
     }
     for (const material of materials) {
       const head = [`${material.explicit ? "用户明确添加" : "来自当前页面，用户保留"}；类型：${material.kind}${material.draft ? "；未保存草稿" : ""}`,

@@ -61,22 +61,7 @@ const GOALS_TREE_FILTER_SCRIPT = `    function setSelectedStatuses(values) {
 
 `;
 
-const GOALS_TREE_SEARCH_EVENTS_SCRIPT = `    treeSearch?.addEventListener("input", () => {
-      noteSearchActivity();
-      filterTree(treeSearch.value);
-      queueSave();
-    });
-    treeSearch?.addEventListener("focus", () => noteSearchActivity(500));
-    treeSearch?.addEventListener("keydown", () => noteSearchActivity());
-    treeSearch?.addEventListener("compositionstart", () => {
-      searchComposing = true;
-      noteSearchActivity();
-    });
-    treeSearch?.addEventListener("compositionend", () => {
-      searchComposing = false;
-      noteSearchActivity(500);
-    });
-    treeScroll?.addEventListener("keydown", (event) => {
+const GOALS_TREE_SEARCH_EVENTS_SCRIPT = `    treeScroll?.addEventListener("keydown", (event) => {
       if (event.target !== treeScroll) return;
       const page = Math.max(38, treeScroll.clientHeight - 38);
       const next = {
@@ -100,7 +85,7 @@ const GOALS_TREE_STATUS_CHANGE_SCRIPT = `      const statusFilter = changed.clos
         if (statusFilter.checked) selectedStatuses.add(statusFilter.value);
         else selectedStatuses.delete(statusFilter.value);
         setSelectedStatuses([...selectedStatuses]);
-        filterTree(treeSearch?.value || "");
+        filterTree("");
         queueSave();
         return true;
       }
@@ -114,23 +99,14 @@ const GOALS_TREE_FILTER_TRIGGER_SCRIPT = `    treeFilterTrigger?.addEventListene
     });
 `;
 
-const GOALS_TREE_SEARCH_FOCUS_SCRIPT = `      if (target.closest("[data-personal-search]")) {
-        treeSearch?.focus();
-        treeSearch?.select();
-        return true;
-      }
-      return false;
-`;
-
 const GOALS_TREE_DISCLOSURE_SCRIPT = `      if (!treeFilter?.hidden && !target.closest("[data-tree-filter], [data-tree-filter-trigger]")) setTreeFilterOpen(false);
       if (target.closest("[data-clear-status-filter]")) {
         setSelectedStatuses([]);
-        filterTree(treeSearch?.value || "");
+        filterTree("");
         queueSave();
         return true;
       }
       if (target.closest("[data-clear-tree-filter]")) {
-        if (treeSearch) treeSearch.value = "";
         setSelectedStatuses([]);
         filterTree("");
         queueSave();
@@ -158,10 +134,9 @@ const GOALS_TREE_KEYBOARD_SCRIPT = `      if (event.key === "Escape" && !treeFil
 
 /** Goal Tree state and handlers; shared refresh scheduling remains a Host service. */
 export const GOALS_TREE_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { treeFilter, treeFilterTrigger, treeSearch, treeScroll, globalSearch,
-      translate: L, updateGraphVisibility, queueSave, saveUiState, noteSearchActivity } = host;
+    const { treeFilter, treeFilterTrigger, treeScroll, globalSearch,
+      translate: L, updateGraphVisibility, queueSave, saveUiState } = host;
     let selectedStatuses = new Set();
-    let searchComposing = false;
 ${GOALS_TREE_FILTER_SCRIPT}
     const expandAncestors = (node) => {
       let parent = node?.closest(".tree-item")?.parentElement?.closest(".tree-item");
@@ -201,21 +176,18 @@ ${GOALS_TREE_FILTER_SCRIPT}
       });
     };
     const getSelectedStatuses = () => [...selectedStatuses];
-    const isTreeSearchComposing = () => searchComposing;
     const bindTreeSearchEvents = () => {
 ${GOALS_TREE_SEARCH_EVENTS_SCRIPT}    };
     const bindTreeFilterTrigger = () => {
 ${GOALS_TREE_FILTER_TRIGGER_SCRIPT}    };
     const handleTreeStatusChange = (changed) => {
 ${GOALS_TREE_STATUS_CHANGE_SCRIPT}    };
-    const handleTreeSearchFocus = (target) => {
-${GOALS_TREE_SEARCH_FOCUS_SCRIPT}    };
     const handleTreeDisclosureClick = (target) => {
 ${GOALS_TREE_DISCLOSURE_SCRIPT}    };
     const handleTreeKeyboard = (event) => {
 ${GOALS_TREE_KEYBOARD_SCRIPT}    };
-    return { selectTreeGoal, syncGoalCollectionFolds, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses, isTreeSearchComposing,
+    return { selectTreeGoal, syncGoalCollectionFolds, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses,
       setTreeFilterOpen, filterTree, bindTreeSearchEvents, bindTreeFilterTrigger,
-      handleTreeStatusChange, handleTreeSearchFocus, handleTreeDisclosureClick,
+      handleTreeStatusChange, handleTreeDisclosureClick,
       handleTreeKeyboard };
   }`;

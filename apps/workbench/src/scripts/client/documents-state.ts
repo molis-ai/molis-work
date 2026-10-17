@@ -127,7 +127,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       tuiWidth: workspace.classList.contains("is-tui-collapsed")
         ? parseFloat(workspace.style.getPropertyValue("--tui-width")) || undefined
         : tuiPane?.getBoundingClientRect().width,
-      query: treeSearch?.value || "",
       statuses: getSelectedStatuses(),
       mobileView: workspace.dataset.mobileView || "tree",
       navigatorView,
@@ -184,7 +183,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         item.open = disclosures.has(item.dataset.persistOpen);
       });
       syncGoalCollectionFolds();
-      if (treeSearch) treeSearch.value = "";
       setSelectedStatuses(ui?.statuses || []);
       restoreMomentumState({
         canvasView: ui?.canvasView,

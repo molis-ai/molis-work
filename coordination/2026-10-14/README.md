@@ -863,3 +863,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #669 合入 f78ae6d5c，workbench.js 1105153、coding.js 374297。#677 全量绿、已入队。#671、#673、#675 都又和 main 冲突（page-assets）。#677 合入后 CSS 还要变，所以让三条线等 #677 合入后各 merge main 一次，避免做两遍；chain9 已按 pid 停掉，新 head 核过后再排。#677 合入后在统筹会话里给 Codex 写通知（开 §10.26）。
 - #677 已入队，但因为 #669 合入，page-assets.json 冲突（18:03Z），从合并队列里退了出来。它的全量已经跑过，等 Codex merge main、重新测量后走 merge-only；通知已写进统筹会话，请用户转给 Codex。#671、#673、#675 改成现在就 merge main，不再等 #677。
 - #682 → 1fd95df53：只去掉了两处兜底，另加了 BL-158。挂上 chain10，要跑全量。
+- 交互线下一片：BL-156 的上游一半（Prologue PR，从 d7b7c214 开，工作树 ~/code/prologue-bl156），按 #663 §15.9 做，统筹认可。统筹加了五条要求：
+  - 先写问题、再写账，配崩溃用例：崩在两次写之间时修复幂等；
+  - answerInterrupted 的身份和授权取自回答那一刻，配撤权拒绝用例；
+  - 两个码各配一条拒绝用例，拒绝时不写任何东西；
+  - 没有标记的孤儿，行为不变；
+  - 公开 API 的变化写进正文。
+  - Molis 那一半等采用线换包后再做。

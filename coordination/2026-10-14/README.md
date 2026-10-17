@@ -668,6 +668,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - #656 入队。#662 → 177abcf56（merge main 57cc56635，重钉页面资源；字节等于 main，删掉的文件都没有回来）：不重新加标签。等 4c7c243bc 上的全量（run 39032973516）绿了，就走 merge-only 门禁（`after-run-662.zsh`），规则是已经跑过全量、只 merge 了 main 的不再跑。
       - #664 在 #660 合入后冲突（spec、baseline、page-assets），已请情境线 merge main 并重钉页面资源；先从加标签的队列里拿出来，新 head 到了再放回去。#654 的标签链又因为合并预览过期退出了（base 停在 a77407868）：main 多出来的 #659、#660 和它只在 baseline.json 上重叠，统筹判断直接加了 full-suite，并在 PR 里写了评论。新的标签链：`after-label.zsh 654 668:… 667:… 666:…`（pid 44366）。
       - #664 → 0114fcc54（merge main 57cc56635，重新量了一遍：workbench.js 1,099,839，删掉的东西没有回来）。统筹审过。标签链重排为 `label-chain.zsh 664:0114fcc54 668:… 667:… 666:…`（pid 55733），旧的 44366 已停。RAC-13 的文档补丁（§4.1 维护八、版本表、BACKLOG BL-157、CHECKLIST §4.3 对照真正装上的那次构建的提交，不对照 tag）放进 dshell 那一片。main 的发布版本号是 0.3.0。
+      - BL-157 门禁方案认可（排在 dshell 后面那一片）：在 health:check 里新加 `scripts/gates/store-versions.mjs`，读头上和 merge-base 两边的 CHECKLIST §3 版本表，有哪一行的版本变了，§4.1 维护清单里就必须有那个位置的 `N → M`。条件：维护项只认一种固定的行式，而且只在 §4.1 的清单里认，写在别处的说明文字不算（要有一个这种情况变红的用例）；哪一边的表或清单读不出来，就退出 2，不放行；改了位置名、只和 merge-base 比、降级也要登记，这几条在 README 里写成已知缺口。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

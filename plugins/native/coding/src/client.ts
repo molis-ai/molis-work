@@ -908,8 +908,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const writing=run===all.at(-1) && ['starting','running'].includes(run.phase) && groups.at(-1)?.kind==='turn' && groups.at(-1).value.kind==='assistant';
       ordered.forEach((node,at)=>{if(node.classList?.contains('coding-turn'))node.classList.toggle('is-writing',writing && at===ordered.length-1);});
       for(const detail of block.querySelectorAll(':scope > [data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
-      // The supplement on its way shows after the round it goes to, until the round's own record has it; what waits for the next round, after that.
-      const last=run===all.at(-1),sending=last&&inputReceipts.bubble(current,run),waiting=last&&inputReceipts.waiting(queuedInputs);for(const node of [sending,waiting])if(node)ordered.push(node);for(const node of block.querySelectorAll(':scope > .is-sending,:scope > .coding-queued-inputs'))if(node!==sending&&node!==waiting)node.remove();
+      // The supplement on its way shows after the round it goes to, until the round's own record has it; after that, the tray of what is still open (the queue, and the round's ledger).
+      const last=run===all.at(-1),sending=last&&inputReceipts.bubble(current,run),waiting=last&&host.receipts.tray(queuedInputs,{run_id:run.ref.run_id},inputReceipts.act(current,run.ref.run_id));for(const node of [sending,waiting])if(node)ordered.push(node);for(const node of block.querySelectorAll(':scope > .is-sending,:scope > .mw-tray'))if(node!==sending&&node!==waiting)node.remove();
       // Insert only missing/misplaced entries: polling keeps open tools and a
       // focused question form intact. Live and replay use the same ordering.
       let cursor=block.firstElementChild;

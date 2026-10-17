@@ -232,16 +232,16 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for receipts 3b-2a (specs/ai-input-receipts D37–D40, RCPT-321–326: a supplement's receipt takes it back
-// and sends a correction that names it, in Coding and the Assistant). The user approved it on 2026-10-17 through the
-// coordinator's popup: workbench.js +5,043, coding.js +684, workbench.css and arrival.css +136 each. Each entry is for exactly
-// one merge-base budget (main e3a0664af), capped at the measured size, and used once: the next baseline freezes again. This
-// replaces T2's spent entries; delete it in the next change to this gate (as #541, #584 and #611 did).
+// One-time allowance for receipts 3b-2b (specs/ai-input-receipts D37, D38, RCPT-331–333: one tray lists what is still open
+// from the ledger, in Coding and the Assistant). The user approved it on 2026-10-17 through the coordinator's popup:
+// workbench.js +2,838, workbench.css +163, settings.css +91, arrival.css +86; the measured sizes are below that. Each entry is
+// for exactly one merge-base budget (main e49f6a558), capped at the measured size, and used once: the next baseline freezes
+// again. This replaces 3b-2a's spent entries; delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [705879, 706015],
-  "/assets/molis-work-plugins/coding.js": [373429, 374113],
-  "/assets/molis-work-workbench.css": [1596754, 1596890],
-  "/assets/molis-work-workbench.js": [1099839, 1104882],
+  "/assets/molis-work-arrival.css": [706015, 706079],
+  "/assets/molis-work-settings.css": [994313, 994370],
+  "/assets/molis-work-workbench.css": [1596890, 1596992],
+  "/assets/molis-work-workbench.js": [1104882, 1107720],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

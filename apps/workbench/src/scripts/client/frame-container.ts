@@ -406,7 +406,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   };
   const readAsset = (target) => {
     if (!target?.closest) return null;
-    if (target.closest("[data-tree-toggle], [data-directory-back], [data-work-surface-open], [data-open-session-add], [data-feed-filter-trigger], [data-feed-filter-panel], [data-operation-search], [data-container-tabs], [data-frame-block]")) return null;
+    if (target.closest("[data-tree-toggle], [data-directory-back], [data-work-surface-open], [data-open-session-add], [data-feed-filter-trigger], [data-feed-filter-panel], [data-container-tabs], [data-frame-block]")) return null;
     const row = target.closest("[data-frame-asset]");
     if (!row) return null;
     return {

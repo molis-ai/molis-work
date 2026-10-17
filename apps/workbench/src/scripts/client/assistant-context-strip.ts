@@ -54,8 +54,12 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
   // Where a thing would be put on the left, as its owner reported it (molis:surface-landing): one chip after the rest, there
   // while the object it is in goes with the Send (§21.5 L-1); × leaves it out until the landing moves to another object. Named
   // by the heading above the place, the place and the text beside it (L-3), never by counting paragraphs.
-  let landing = null, left = "";
-  document.addEventListener("molis:surface-landing", (event) => { landing = event.detail && event.detail.object ? event.detail : null; paint(); });
+  // Only the page that reported it takes it back: a split pane and the page beside it each report their own.
+  let landing = null, from = null, left = "";
+  document.addEventListener("molis:surface-landing", (event) => {
+    if (event.detail && event.detail.object) { landing = event.detail; from = event.target; } else if (from === event.target) landing = null;
+    paint();
+  });
   const WHERE = { cursor: "光标处", selection: "选中处", end: "文末" };
   const kept = (items) => landing && WHERE[landing.position] && left !== landing.object.id
     && items.some((item) => item.key === "object" && !item.optional && item.object && item.object.id === landing.object.id) ? landing : null;

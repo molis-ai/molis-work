@@ -237,7 +237,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
 
     const filterSources = (preserveSelection = true) => {
       if (!sourceList) return;
-      const query = String(sourceSearch?.value || "").trim().toLocaleLowerCase();
       const rows = [...sourceList.querySelectorAll("[data-source-entry-id]")];
       const visible = rows.filter((row) => {
         const kind = row.dataset.sourceKind;
@@ -246,8 +245,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
           (activeSourceFilter === "account" && (kind === "github" || kind === "gmail" || kind === "connector")) ||
           (activeSourceFilter === "public" && kind === "rss") ||
           (activeSourceFilter === "attention" && status === "attention");
-        const matchesQuery = !query || String(row.dataset.sourceSearchValue || "").includes(query);
-        row.hidden = !(matchesKind && matchesQuery);
+        row.hidden = !matchesKind;
         return !row.hidden;
       });
       if (sourceResultCount) sourceResultCount.textContent = L("{count} 个来源", { count: visible.length });
@@ -807,7 +805,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         .map((control) => control?.selectedOptions?.[0]?.textContent?.trim())
         .filter(Boolean);
       const summary = labels.join(" · ");
-      if (feedFilterSummary) feedFilterSummary.textContent = summary;
       const activeCount = Number(values.source !== "all") + Number(values.type !== "all") + Number(values.time !== "all") + Number(values.status !== "active") + Number(values.sort !== "newest");
       if (feedFilterBadge) {
         feedFilterBadge.textContent = String(activeCount);
@@ -953,8 +950,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         feedWorkbench.dataset.workSurfaceLabel = "Feed";
       }
       if (activeDesktopSurface === "feed" && mobileTreeTab) mobileTreeTab.textContent = "Feed";
-      const feedDirectoryCopy = feedDirectory?.querySelector("[data-feed-directory-copy]");
-      if (feedDirectoryCopy) feedDirectoryCopy.textContent = L("所有来源消息，完整保留");
       setFeedStatusOptionLabel("active", L("未忽略"));
       setFeedStatusOptionLabel("inbox", L("待处理"));
       setFeedStatusOptionLabel("saved", L("已保存"));

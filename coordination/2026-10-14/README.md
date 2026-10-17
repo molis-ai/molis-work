@@ -972,3 +972,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-17 21:15 UTC：integration/hub-1017-a 全量结束，只挂 #673 那条动效（已修，c0fcb4ee7 审过，等它 merge main b75e20738 后排全量）。#683→#685→#681 依次走 merge-only（batchA-gates）。#687 新 head d3977af56：除 page-assets 和预算用例外，与审过的 5cd34dfde 逐行一致（346 行），键 [1107936, 1108249]，coding.js 降 1；排进 chain23 等全量。
 - 10-17 21:25 UTC：#683 已入队。#687 全量在跑。#673 新 head 5e27b7520（merge 了 main b75e20738）：tooling/gates 之外与 c0fcb4ee7 逐行一致（571 行），五项资源只降不升；排进 chain24 等全量。
 - 10-17 21:40 UTC：#680 新 head 4f154941b（merge 了 main b75e20738）：门禁文件之外与 d5cfc2b13 逐行一致（198 行），page-assets 不变，baseline 只降；排进 chain25。#689（采用线，Feed 重试用例只改测试，f2d957e0c）审过：断言更严。统筹 10-17 定：在 #689 里再收紧，让「去掉重试处理里的重新载入」这个变异变红（现在下一次看板刷新也会把正文载出来，所以仍然绿）；新 head 走 merge-only。换包等 #680 或 #689 合入一个后开。
+- 10-17 22:10 UTC：#683 合入 4726820a8，#685 合入 8dad2fb96，#681 已入队（只合并）。已请手册线发下一片（Prologue dispatch-subagent 说明「空清单就是没有工具」的更正）的一行计划。

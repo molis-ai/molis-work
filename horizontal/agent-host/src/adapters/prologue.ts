@@ -34,9 +34,10 @@ import { switchRunModel } from "./prologue-model-switch.js";
 import { inputsPort, type QueueInput, type SteerInput } from "./prologue-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
-  applyPrologueEvent,
+  applyRunEvent,
   closeInterruptedPrologueStream,
-  emptyPrologueStreamState,
+  runStreamState,
+  type RoundDesk,
   prologuePhaseOf,
   withRunFacts,
   settleProloguePending,
@@ -212,7 +213,7 @@ export interface PrologueRuntimePort {
   startAgentRun(input: PrologueStartInput): Promise<{
     run: PrologueRunPort;
     control: PrologueControlPort;
-  }>;
+  } & RoundDesk>;
   shutdown(): Promise<unknown>;
 }
 
@@ -233,7 +234,7 @@ export interface PrologueRestoredSession {
     original_questions?: Array<{ pending_id: string; pending_revision: number; kind: string; why: string }>;
     /** May be a durable incomplete prefix. Only an actual terminal event proves an ended Run. */
     events?: readonly PrologueEvent[];
-  }>;
+  } & RoundDesk>;
 }
 
 interface SessionRecord {
@@ -554,8 +555,6 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if ((role.actions?.tools.length || role.action_gateway) && !this.#runtime.actionTools) throw agentErrors.capability_unavailable("Action tools are not connected to this runtime");
     if (role.action_gateway && request.workspace !== "business") throw agentErrors.capability_unavailable("能力网关只用于业务会话");
     const at = this.#now().toISOString();
-    const state = emptyPrologueStreamState();
-    state.prompt_includes_cache = model.protocol.startsWith("openai");
     const frozen = freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: this.#runtime.defaultContextWindowTokens, callId: execution?.call_id });
 
     await execution?.beforeStart?.();
@@ -594,6 +593,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ...(request.browser === false ? { browser: false as const } : {}),
     });
 
+    const state = runStreamState(model.protocol.startsWith("openai"), started);
     const ref: AgentRunRef = {
       run_id: started.run.ref.id,
       session_id: request.session.session_id,
@@ -630,7 +630,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         if (event.text === request.task) return;
       }
       const at = this.#now().toISOString();
-      if (!applyPrologueEvent(record.state, event, at)) return;
+      if (!applyRunEvent(record.state, event, at)) return;
       // A held ending reads as what was wrong with it; one that ended still only announcing says nothing was done.
       if (event.type === "model-response-repair" && event.reason === "stop-held") {
         const label = this.#ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));
@@ -920,8 +920,7 @@ function isEnded(phase: string): boolean {
 
 /** One interpretation of persisted progress for both the directory and full history. */
 function restorePrologueRun(saved: PrologueRestoredSession["runs"][number]) {
-  const state = emptyPrologueStreamState();
-  state.prompt_includes_cache = saved.frozen.model_context?.prompt_includes_cache ?? false;
+  const state = runStreamState(saved.frozen.model_context?.prompt_includes_cache ?? false, saved);
   state.turns.push({ turn_id: "user-1", kind: "user", text: saved.task, at: saved.started_at, sequence: 0 });
   let firstPrompt = true;
   let endedAt: string | null = null;
@@ -932,7 +931,7 @@ function restorePrologueRun(saved: PrologueRestoredSession["runs"][number]) {
     }
     const atMs = (event as { atMs?: unknown }).atMs;
     const at = typeof atMs === "number" && Number.isFinite(atMs) ? new Date(atMs).toISOString() : null;
-    applyPrologueEvent(state, event, at);
+    applyRunEvent(state, event, at);
     if (isEnded(state.phase) && typeof atMs === "number") endedAt = at;
   }
   if (saved.timing) {

@@ -609,7 +609,7 @@ test("a delegated sub-task is given neither remember nor forget: its words are t
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const names = (body.tools ?? []).map((tool: { name: string }) => tool.name);
-    if (JSON.stringify(body.messages).includes("委托给你的子任务")) { childTools.push(names); return (childScript.shift() ?? (() => reply(undefined, "完成。")))(body); }
+    if (JSON.stringify(body.messages).includes("委托的子任务")) { childTools.push(names); return (childScript.shift() ?? (() => reply(undefined, "完成。")))(body); }
     parentTools.push(names);
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   });
@@ -683,6 +683,45 @@ test("a timed round is written by the Host: it is marked, it is not among the pe
     // What learning from the finished timed round is handed is what the person typed, not the timed round's own text.
     const handed = await until(async () => { await service.list(); return learned.find(item => item.work === workId); }, "learning handed over");
     assert.deepEqual([handed.run, handed.said], [rounds[1]!.run_id, ["帮我跟进今天的工作"]]);
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("G13: a supplement the person types while a round runs is theirs: remember keeps it as said, and learning is handed it, read from the runtime's own input record", { timeout: 90_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-memory-steer-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "project-a", storage_key: "memory:a" };
+  const learned: Array<{ said: string[]; run: string }> = [];
+  const held = Promise.withResolvers<void>(), asked = Promise.withResolvers<void>();
+  const typed = "周报一律先写风险";
+  // The supplement arrives while the first model call is held; the runtime puts it in context at the next boundary, where the model quotes it.
+  const script: Array<() => Response | Promise<Response>> = [
+    async () => { asked.resolve(); await held.promise; return reply({ name: "remember", input: { text: "周报要整理", scope: "personal", said: "帮我整理这周的周报" } }); },
+    () => reply({ name: "remember", input: { text: typed, scope: "personal", said: typed } }),
+    () => reply(undefined, "记住了。"),
+  ];
+  t.mock.method(globalThis, "fetch", async () => (script.shift() ?? (() => reply()))());
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-memory-steer-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const memory = platformMemory(host, home, t);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
+      memory: (task: string) => service.memoryForRound(work, task) }),
+    projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory,
+    learnFromRound: input => learned.push({ said: input.said, run: input.run_id }) }, "web-user");
+  try {
+    const sent = await service.send({ text: "帮我整理这周的周报", request_id: "req-steer-1" }, { project_ref: project });
+    const workId = sent.work.work_id;
+    await asked.promise;
+    assert.equal((await service.send({ work_id: workId, text: typed, request_id: "req-steer-2" }, {})).outcome, "steered");
+    held.resolve();
+    await until(async () => { await service.list(); return (await service.read(workId)).work.state === "completed"; }, "round with a supplement");
+    const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
+    assert.deepEqual((await memory.list(person)).items.find(item => item.text === typed)?.source, "said", "the words typed mid-round are the person's");
+    const handed = await until(() => learned.at(-1), "learning handed over");
+    assert.deepEqual(handed.said, ["帮我整理这周的周报", typed]);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 

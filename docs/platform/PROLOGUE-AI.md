@@ -124,10 +124,11 @@ bind(lingguangActions.message, async (input, caller) => {
 ```ts
 const model = () => completion === undefined ? hostCompleteText({ homeDirectory: home }) : completion ?? undefined;
 completeText: (prompt, options) => runWithMolisWorkHome(home, () => {
-  const complete = model(); if (!complete) throw ...;
+  const complete = model(); if (!complete) throw textModelRequired(L("继续对话"));
   return complete(resolveModelPrompt(home, prompt, "io.molis.work.lingguang"), options);
 }),
-modelAvailability: () => model() ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置文字模型…" },
+// 「请先在「模型设置」里连接文字模型，再继续对话」：地方名只由宿主的 textModelMissing 写，调用方只说拿来做什么。
+modelAvailability: () => textModelAvailability(model, L("继续对话")),
 ```
 
 **提示词登记与用户修改**：插件在 `src/prompts.ts` 用 `defineInstructionPrompt` 声明 owner、稳定 id、版本、用途、使用位置和默认正文，从包入口导出指令列表，在 `apps/workbench/src/builtin-plugins.ts` 的同一插件项声明 `instructions`；Host 从共同目录派生登记。插件端口接收 `InstructedPrompt`，调用传 `instructed(LINGGUANG_CONVERSATION, JSON.stringify(materials))`；Host 经 `resolveModelPrompt` 读取有效正文并记使用版本，之后才交给共享推理入口。用户材料与本次参数属于 data，不拼入可编辑的默认指令。材料中的指令不授予任何权限；超长先拒绝（灵光 18 万字符、Pages 10 万）。
@@ -138,7 +139,7 @@ modelAvailability: () => model() ? { available: true } : { available: false, cod
 
 生成插件声明 `export const prompts = [...]`，调用 `model.generate` 能力时传 `{ prompt: id, input }` 指定一段正文。Host 的 `plugin-builder/model.ts` 解析当前指令/用户覆盖，继续调用同一 `hostTextGeneration`；不接受写在代码里的 instructions。安装、停用、启用、版本切换、卸载与恢复的登记属于 `installed-plugin-host.ts`，不依赖打开创作台。设计与编码阶段则由 Builder 的 prompt 端口取有效正文，运行版本包含用户修订号。
 
-Cognia 同时保留已登记的知识角色与回答指令：角色作为共享单次推理的 system 输入，回答指令与固定资料作为正文。可编辑的提示词必须真实进入调用，不能只有登记页面。`tests/cognia-prologue.test.ts` 与 `tests/plugin-model-generation.test.ts` 经真实 SDK 和本地 HTTP 核对用户覆盖、工具边界、取消和撤权；`tests/installed-plugin-host.test.ts` 核对真实安装生命周期。
+Cognia 同时保留已登记的知识角色与回答指令：角色作为共享单次推理的 system 输入，回答指令、用户任务和资料作为正文；资料是一行 JSON，围在代码里固定的「不可信」声明之后（`fencedMaterials`，见第 14 节「材料的不可信声明」）。可编辑的提示词必须真实进入调用，不能只有登记页面。`tests/cognia-prologue.test.ts` 与 `tests/plugin-model-generation.test.ts` 经真实 SDK 和本地 HTTP 核对用户覆盖、工具边界、取消和撤权；`tests/installed-plugin-host.test.ts` 核对真实安装生命周期。
 
 **Runtime 插件（宿主自己运行的 Home 与项目实例）：`services.model`**（W3-06 E/F；`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`）。Manifest 声明 `model:invoke`、定义不是沙箱执行、平台有 Home，`context.services.model` 才存在；它不是 typed 能力，沙箱插件（生成插件）仍走 `model.generate`。 HomePluginExecutor 与项目执行器复用 `pluginModelFor` / `registerPluginAgentDefinitions`（同时登记 Manifest `methods`，W4-02），Home 的模型注入仍在每次调用时读取；停止开始撤执行权，最后一个持有该安装的实例退出时撤指令，不能新增 Home 推理进程。Home 组合用例见 `tests/home-plugin-model-lifecycle.test.ts`，替身覆盖不等于真实账号验收。
 
@@ -349,15 +350,16 @@ prompt 和执行机制「好」，是看得见的：
 | 内容 | 位置 | 机制 |
 | --- | --- | --- |
 | 产品对所有角色都成立的约束 | `layer: "base"` 的提示词 | `AGENT_PROMPT_LAYERS` 依次是 base、role、project、task，`orderPromptsByLayer` 按层排（`packages/contracts/src/platform/plugin-agent.ts`）；Coding 的 `coding-base` 单独一层，角色的措辞不能悄悄换掉它 |
-| 角色的目的与做法 | 角色提示词（`layer` 缺省为 role） | `codingPrompts`、`ASSISTANT_PROMPTS` |
+| 角色的目的与做法 | 角色提示词（`layer` 缺省为 role） | `codingPrompts`、`ASSISTANT_PROMPTS`；用途不同就是不同的角色：助理委派出去的子任务是角色 `assistant-delegated`（base 加一层「你在做另一项工作委托出来的一部分」），不在任务消息里另写一段说明 |
+| 某个工具怎样用、它的结果是什么意思 | 工具描述与参数说明 | 只在这一轮提供那个工具时出现（`prologue-action-gateway.ts`）。助理的委派与记忆：什么时候用，写在主工作角色自己的一层 `assistant-work`；怎样调用，写在 `delegate-work`、`remember` 等的描述里；委派出去的子任务两样都没有，base 里也没有；提问卡的选项、推荐与选填写在 Prologue `ask-user` 的参数说明里，base 只留什么时候问（需求书 §9.5 A3①）。工具结果只说发生了什么，不再写「回复里说……」 |
 | 一次有界调用的固定要求 | 用 `defineInstructionPrompt` 登记的指令 | 调用传 `instructed(指令, 数据)`；`composeInstructedPrompt` 是指令与数据合成模型正文的唯一写法（`packages/contracts/src/platform/model-prompts.ts`） |
 | 用户这一次的话 | task 层、用户输入 | 包里不能声明 task 层提示词，`inspectAgentDeclaration`（`packages/plugin-sdk/src/agent-declarations.ts`）拒绝：替用户说话不是插件的事 |
-| 会变的事实（时间、范围、页面、对象、目录） | 每一轮的材料 | 助理的 `roundMaterials`，源码注释写着「Changing facts travel here, not in the role」 |
+| 会变的事实（时间、范围、页面、对象、目录） | 每一轮的材料 | 助理的 `roundMaterials`，源码注释写着「Changing facts travel here, not in the role」。材料只写事实（状态、名称、版本、原因、在哪里），不写对模型的用法或禁令：「用户撤销的修改」只列撤销了什么，「除非用户再次要求，不再做」写在 base；「用户收回的子任务」「允许记住」关着时怎么办写在 `assistant-work`；能力目录只说三种标记是什么意思，怎样调用在工具描述里（需求书 §9.5 A3②） |
 | 资料、历史、检索结果、工具输出 | 数据 | 进了上下文也不获得指令权限；出机前经 `screenModelMaterial` 去掉形似密钥的文字，像指令的文字只报告、仍作数据（S-13，`horizontal/agent-host/src/adapters/prologue-screening.ts`） |
 
 **写什么。** 角色目的、结果要求、重要的判断依据、能力与真实限制、和用户怎样协作。好的句子给判断依据而不是命令：助理的「只在答案会改变结果或授权时提问」让模型自己权衡，比「不要提问」或「每次都先确认」都准；Coding 写入者的「工具返回 wrote/edited 和检查点回执，表示宿主批准后已实际落盘，此时应如实说已修改」把工具回执的含义讲清，模型就不会在已落盘之后还说「等待批准」。
 
-**输出合同。** 机器要读的，prompt 写清形状，代码负责校验：Coding 规划者的提示词写明「1–20 步，正文总量小于 12,000 字符」，`plugins/native/coding/src/plans.ts` 照样检查，超了就拒绝并说明原因。能用 SDK 的 `structured` 就用；只要 JSON 解码时用 `decodePrologueJsonOutput`，再由业务主人校验含义（第 8 节）。给人看的回复按任务表达，不规定固定标题、固定条数或每次都要的状态段落。
+**输出合同。** 机器要读的，prompt 写清形状，代码负责校验：Coding 规划者的提示词写明「1–20 步，正文总量小于 12,000 字符」，`plugins/native/coding/src/plans.ts` 照样检查，超了就拒绝并说明原因。能用 SDK 的 `structured` 就用；只要 JSON 解码时用 `decodePrologueJsonOutput`，再由业务主人校验含义（第 8 节）。给人看的回复按任务表达，不规定固定标题、固定条数或每次都要的状态段落。Agent 回复里夹着给代码读的一行时（Schedule 每轮回复的第一行 `IMPORTANT: yes|no`），这一行的格式写在这一轮任务的末尾，什么时候写 yes 只写在角色里：只写在角色里时，MiniMax 常常照内容判断对了却把这一行写成 no（`specs/ai-development-handbook/spec.md` §9.5 B5）。
 
 **示例。** 给几条有代表性、彼此不同的示例，说明哪些地方可以变；示例是帮模型理解质量的，不是唯一答案。示例要能被检查：创作台设计者提示词里的完整示例在每次回放时被取出来过宿主检查（`docs/platform/STUDIO-SKILL-REPLAY.md` 2.2），改坏它回放就红。
 
@@ -436,7 +438,9 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **回执说真实状态，让 AI 能决定下一步。** 写入已经发出却没结束时，网关返回 `actions.outcome_unknown`，并写明它可能已经生效、不要再次提交、先用 `read-capability` 读回对象；`suggest-action` 的回执写明「nothing has run」；委派追加到上限时，错误写明「仍达不到验收时停止它，并把实际情况告诉用户」（`apps/local-host/src/assistant/assistant-delegation.ts` 的 `MAX_FOLLOW_UPS`）。「成功」不能只代表请求已经收下。
 
-**工具多了会被延后：在途修复。** Prologue SDK 在一轮的工具超过 20 个时，只给多出来的那些一行名册，说明要模型用 `find-tools` 去取（`deferToolSchemasBeyond: 20`）。现在的结论是这是 SDK 的设计缺陷，不是模型能力：`find-tools` 之后，下一次请求的 `tools` 里仍然没有被延后的工具，模型按名字调不到，只能绕道（比如拿 `run-command` 去调），见 `specs/prologue-adoption/spec.md` 的评测记录。修复在上游 Prologue，采用线先放一个不延后的临时做法（用户 2026-10-16 定）。修好之前：不要在提示词里教模型怎样调被延后的工具，那治不了；角色的工具加上动作工具接近 20 个时，要知道多出的会调不到。
+**工具多了会被延后：只列名字，照样调得动。** Prologue SDK 在一轮的工具超过 20 个时，只给多出来的那些一行名册（`deferToolSchemasBeyond: 20`）。模型照名册上的名字直接调，调用照样进工具链；用 `find-tools` 取过形状的，这一跑之后的请求照常声明（[Prologue #28](https://github.com/molis-ai/prologue/pull/28)，2026-10-16 换包，见 `specs/prologue-adoption/spec.md` §6.0e）。延后了工具，`find-tools` 就带着名册在请求里，不看角色和这一轮的名单点没点它（[Prologue #30](https://github.com/molis-ai/prologue/pull/30)，同日换包）：角色不必为延后去点它。之前两样都不行，是 SDK 的设计缺陷，不是模型能力；那段时间用过一个不延后的临时做法，已删。不要在提示词里另教模型怎样调被延后的工具。
+
+**参数带上类型，不靠措辞纠正。** 一个通用入口的参数登记时只能写「什么都收」，模型就会写出 `{"item": …}`、字符串布尔这一类东西。办法是把真正的形状放进声明里，不是加一句「必须是数组」。能力网关的 `read-capability`、`change-capability`、`change-reversible`、`suggest-action`：这一轮 `find-capabilities` 找到的能力，下一次请求起在它们的 `input` 上各有一支，标题是能力的标识，内容就是目录里那份 `input_schema`，登记时那份通用的仍是其中一支（`prologue-gateway-declared.ts`，经 Prologue 的会话参数分支，[Prologue #31](https://github.com/molis-ai/prologue/pull/31)）。工具个数和名字不变，所以不碰延后的界限；调用照旧按登记核，没找过的照样调得动；每个工具最多 12 支、一次请求最多 24 KiB，超出的照样调得动。MiniMax-M3 上四个 Todo 任务各跑 3 次：带类型时 30 次网关调用里要纠正的 1 次（在找能力之前），通用参数时 38 次里 20 次、被合同拒 9 次。代价是找到能力后工具的声明变了，提示缓存从那里断开，未缓存的输入多了约八成。见 `specs/prologue-adoption/spec.md` §6.0f。形状带上之后，网关不再替模型改写错的形状（写成文字的数和布尔、JSON 字符串、写在身份旁边的字段）：能力收到的就是模型写的 `input`，写错的在审查之前按能力合同拒绝，回给它合同和出错位置上写的值，让它自己改对（§6.0g）。
 
 **少一些同义工具和要猜的参数。** 助理只有一组网关工具（查、读、改、可撤销地改、建议），能力的确切身份从 `find-capabilities` 来，不让模型拼标识。
 
@@ -451,11 +455,11 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 幂等 | `request_id`、输入键 `AGENT_INPUT_KEY_PATTERN`、委派的幂等键 | 不必写 |
 | 取消、撤权、停用 | `caller.signal`、`beforeEffect`、F2（第 8 节） | 不必写 |
 | 预算 | `AgentRunBudget`、委派与追加的上限 | 「追加次数有限」 |
-| 记忆里的「他说的」 | 写入门对照宿主保存的原话判断，不信模型给的引用（`apps/local-host/src/assistant/assistant-memory-tools.ts`） | 助理基础指令解释原样照抄的要求 |
+| 记忆里的「他说的」 | 写入门对照宿主保存的原话判断，不信模型给的引用（`apps/local-host/src/assistant/assistant-memory-tools.ts`） | `remember` 的参数说明解释原样照抄的要求（只在提供它的轮次出现） |
 
 删掉右列那句话，左列照样拒绝；右列只让模型少走弯路。
 
-**暂不可用要给原因和可行路径。** 动作的 `availability` 带 `code` 与 `reason`（如 `actions.connection_required`「请先配置文字模型」）。**现状缺口**：助理的能力目录与 `find-capabilities` 只列此刻可用的动作，不可用的连同原因一起看不到（两处都按 `availability.available` 过滤），模型只能说「缺少哪类能力」，说不出「去设置里配置模型」。这是存量欠账，不是要照抄的做法；不要以泛化的限制遮住尚未接好的能力，也不要把错误吞掉留给 AI 猜。
+**暂不可用要给原因和可行路径。** 动作的 `availability` 带 `code` 与 `reason`（如 `actions.connection_required`「请先配置文字模型」）。助理的能力目录在可用能力之后另列「现在用不了的能力」，按提供方和原因分组，原因照提供方给的原样写（`apps/local-host/src/assistant/assistant-directory.ts`）；`find-capabilities` 也找得到它们，排在可用的后面，带原因，不带调用方式和参数格式，真去调用仍由动作服务拒绝。原因是写给人看的，要说缺什么、去哪里补（如「连接「Gmail」已断开，请在服务连接中重新授权」）：模型照着原因说，原因里没有地方，它也说不出地方（需求书 §9.5 A2 的评测）。不要以泛化的限制遮住尚未接好的能力，也不要把错误吞掉留给 AI 猜。
 
 ## 14. 基础实现索引
 
@@ -467,15 +471,16 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 放进去处的起草 | 结构化填表，只填有依据的字段 | `apps/local-host/src/drafting/draft-service.ts`，指令 `CONTEXTUAL_DRAFT`，材料先过 `screenModelMaterial` | 结果逐字段按目标动作的 schema 检查；失败退回不需要模型的部分，保留原话 | 只填文字与日期字段 | 确定性：`tests/contextual-draft.test.ts` |
 | Coding 角色与提示词 | 角色目的、执行等级、工具与提示词分层 | `plugins/native/coding/src/roles.ts` 的 `codingAgentManifest`、`codingPrompts` → `AgentHost.start` 冻结 | base 层放产品约束；能做什么由执行等级与工具声明决定，不靠措辞 | 在途：采用线 P3c（PR #560）与交互线 2c 都要改这个文件 | 确定性：`tests/agent-prompt-layers.test.ts` |
 | Coding 的方法 | 用户选的做法，冻结版本内联 | `plugins/native/coding/src/methods.ts` → `prologue-methods.ts` 的 `inlineMethods` | 摘要加正文；同版本正文变了就拒绝；工具以父角色为上限 | 由用户选，不由模型发现 | 确定性：`tests/coding-product-http.test.ts`、`tests/coding-method-install.test.ts` |
-| 助理每一轮的材料 | 会变的事实随轮次走，并标为数据 | `assistant-service.ts` 的 `roundMaterials`；角色正文 `assistant-agent.ts` | 有内容才出现的分节；省略要说；对象从所有者重读 | — | 确定性：`tests/assistant-material.test.ts` |
-| 助理的能力网关 | 一组工具覆盖全部业务动作 | `prologue-action-gateway.ts` 的 `GATEWAY_TOOLS`；目录文字在 `assistant-service.ts` 的 `directory` | 参数格式按需取；回执说下一步；写入进审查 | 只列可用的动作（第 13.4 节的缺口） | 确定性：`tests/assistant-business-gateway.test.ts` |
-| 工具说明延后加载 | 工具很多时先给名册，需要时用 `find-tools` 取说明 | Prologue SDK 的 `deferToolSchemasBeyond: 20`；Coding 角色开放 `find-tools`（`specs/coding-plugin/spec.md`「工具面」） | 现在不要照着用 | 在途修复（用户 2026-10-16 定）：被延后的工具在 `find-tools` 之后仍不在下一次请求的 `tools` 里，调不到；上游 Prologue 修，采用线先放不延后的临时做法（13.4） | 真实模型：`specs/prologue-adoption/spec.md` 的评测记录（当时记为「拿不准」，之后的探查定为 SDK 设计缺陷） |
+| 助理每一轮的材料 | 会变的事实随轮次走，并标为数据 | `assistant-service.ts` 的 `roundMaterials`；角色正文 `assistant-agent.ts` | 有内容才出现的分节；只写事实，从事实推出的判断在角色里写一处；省略要说；对象从所有者重读 | — | 确定性：`tests/assistant-material.test.ts` |
+| 助理的能力网关 | 一组工具覆盖全部业务动作 | `prologue-action-gateway.ts` 的 `GATEWAY_TOOLS`；目录文字在 `assistant-directory.ts` 的 `capabilityDirectory` | 参数格式按需取；回执说下一步；写入进审查 | 只列可用的动作（第 13.4 节的缺口） | 确定性：`tests/assistant-business-gateway.test.ts` |
+| 工具说明延后加载 | 工具很多时先给名册，需要时用 `find-tools` 取说明 | Prologue SDK 的 `deferToolSchemasBeyond: 20`；Coding 角色开放 `find-tools`（`specs/coding-plugin/spec.md`「工具面」） | 可以照着用 | 只列名字的照样调得动，`find-tools` 取过的之后照常声明（Prologue #28，2026-10-16 换包；13.4）；没点 `find-tools` 的角色延后时也有名册（Prologue #30）。之前是 SDK 设计缺陷，调不到 | 替身模型：`tests/prologue-tool-declaration.test.ts`（PA-12）；真实模型：`specs/prologue-adoption/spec.md` §6.0e 的评测记录，换包后的重跑见那里 |
 | 助理的方法目录 | 方法按需读取 | 「可用的方法」→ 动作 `assistant.methods.read`（`apps/local-host/src/assistant/assistant-rule-actions.ts`） | 摘要常驻、正文按需 | 一轮最多列 20 个 | 确定性：`tests/assistant-methods.test.ts` |
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
-| 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附 | 格式纠正时追加的那段文字写死在代码里，未登记 | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
+| 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
 | 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v1` | 三种时机；同键同文只算一次；回执说去向 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
+| 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理） | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来 | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条） |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |
 | 生成插件的 `prompts` | 作者写业务意图，平台负责模型 | `skills/molis-plugin-dev/generated-ai.md`；宿主 `apps/local-host/src/plugin-builder/model.ts` | 声明 prompts、按 id 调用、会变的内容放 `input` | 只承诺一次文字生成 | 确定性：`tests/generated-plugin-prompts.test.ts`、`tests/plugin-model-generation.test.ts` |
 | Runtime 插件的 `services.model` | 宿主自己运行的插件调模型 | 第 4 节 | 只收自己登记的指令 | 见第 4 节「不在这一片里」 | 确定性：`tests/plugin-model-service.test.ts` |
@@ -593,6 +598,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 - **Agent 一轮**：冻结记录 `AgentRunView.frozen`（`horizontal/agent-host/src/adapters/prologue-frozen.ts` 的 `freezeRunStart`）记着角色与版本、每段提示词的版本与用户修订号、方法、工具、材料的标题与来源、模型和调用编号；按调用编号能在调用记录里找到这一轮走过的每一步（第 3 节）。工具活动与回执在运行视图和审查队列里。
 - **有界调用**：没有运行记录；看它所在动作的调用记录行、`hostTextGeneration` 返回的 `run_ref` 与用量，以及这段指令的使用记录（`resolveModelPrompt` 每次记下实际用的版本和用户修订号）。
 - 回看时先确认这一轮用的是默认正文还是用户改过的（修订号），再看材料里有没有、有没有被截掉。
+- **调不到模型时**：要模型的动作，可用性都由 `apps/local-host/src/host-complete-text.ts` 的 `textModelAvailability` 给。没配模型是 `actions.connection_required`（界面据此带人去设置），模型设置读不了带它自己的码（没有就是 `actions.configuration_unavailable`），两者不混成「尚未配置」。可选的判断（首页建议、送达后的判断）失败了不打扰用户，但在宿主日志里留一行（`apps/local-host/src/host-log.ts` 的 `hostLog`，只记码与能力，不记内容），不再悄悄吞掉。
 
 | 看到的 | 先查 | 多半是 | 改哪里 |
 | --- | --- | --- | --- |

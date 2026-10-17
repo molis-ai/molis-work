@@ -16,8 +16,8 @@ export type ModelReply = { text: string } | { tool: string; input: unknown };
 /** A real provider instead of scripted replies (the live eval): its key is read only through `key`, never written anywhere. */
 export interface LiveModel { readonly endpoint: string; readonly model: string; readonly key: () => string }
 export interface ToolUse { readonly name: string; readonly input: unknown }
-/** A tool as the model was offered it. */
-export interface OfferedTool { readonly name: string; readonly description: string }
+/** A tool as the model was offered it: its input schema when the request declared it, none when it is only listed by name. */
+export interface OfferedTool { readonly name: string; readonly description: string; readonly schema?: unknown }
 /** The name of the offered action tool with this title: what the model sees and calls, never a hash built here. */
 export const toolTitled = (tools: readonly OfferedTool[], title: string) => tools.find(tool => tool.name.startsWith("molis-action-") && tool.description.includes(` · ${title}`))?.name ?? `no tool titled ${title}`;
 
@@ -76,9 +76,15 @@ const definition = (capability_id: string, operation: "query" | "command", kind:
     output_schema: { type: "object", properties: { state: { type: "string" } }, required: ["state"] } },
 });
 
-export async function externalChecks(t: TestContext, script: (turn: number, messages: string, tools: readonly OfferedTool[]) => ModelReply, live?: LiveModel) {
+/** Read-only lookups a round can be given on top of the four job actions ("Lookup alpha" …), each counted apart. */
+const LOOKUPS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet"];
+
+export async function externalChecks(t: TestContext, script: (turn: number, messages: string, tools: readonly OfferedTool[]) => ModelReply, live?: LiveModel,
+  more: { readonly lookups?: number } = {}) {
   const root = await mkdtemp(join(tmpdir(), "molis-external-checks-"));
   await writeFile(join(root, "README.md"), "sandbox\n");
+  // A writers round needs one authorized directory per write subtask, apart from the main one.
+  const writer = await mkdtemp(join(tmpdir(), "molis-external-checks-writer-"));
   const requests: string[] = [], replies: ToolUse[][] = [], said: string[] = [], real = globalThis.fetch;
   // What the provider reported spending, over every reply; `unreported` counts replies that said nothing (left unknown, not 0).
   const usage = { input_tokens: 0, cache_tokens: 0, output_tokens: 0, unreported: 0 };
@@ -88,10 +94,10 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const messages = JSON.stringify(body.messages);
     requests.push(messages);
-    const tools: { name: string; description?: string }[] = body.tools ?? [];
+    const tools: { name: string; description?: string; input_schema?: unknown }[] = body.tools ?? [];
     // Tools whose shapes were left out are listed by name in find-tools' description: "- <name>: <provider> · <effect> · <title> …".
     const deferred = [...(tools.find(tool => tool.name === "find-tools")?.description ?? "").matchAll(/^- (molis-action-[\w-]+): (.*)$/gm)];
-    const offered: OfferedTool[] = [...tools.map(tool => ({ name: tool.name, description: tool.description ?? "" })), ...deferred.map(row => ({ name: row[1]!, description: row[2]! }))];
+    const offered: OfferedTool[] = [...tools.map(tool => ({ name: tool.name, description: tool.description ?? "", schema: tool.input_schema })), ...deferred.map(row => ({ name: row[1]!, description: row[2]! }))];
     if (!live) return sse(script(requests.length, messages, offered));
     // Only the request's messages and the reply's tool calls are kept; headers (the key) are not.
     const response = await real(url, init);
@@ -102,7 +108,7 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
     return response;
   });
   const switches = { pluginActive: true, actionsGranted: true, directoryAuthorized: true, state: "running" as string | Error };
-  const calls = { status: 0, cancel: 0, judge: 0, summary: 0, roundChecks: 0, discovers: 0 };
+  const calls = { status: 0, cancel: 0, judge: 0, summary: 0, roundChecks: 0, discovers: 0, lookups: {} as Record<string, number> };
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "p", storage_key: "memory:p" };
   const provider = { provider_id: "fixture.jobs", kind: "plugin" as const, title: "Jobs" };
@@ -111,16 +117,18 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
     judge = definition("fixture.jobs.judge", "command", "judgment", "Judge job", "read"),
     // A query that only reads but asks a model for its answer: it declares model:invoke.
     summary = definition("fixture.jobs.summary", "query", "query", "Summarize job", "read", ["model:invoke"]);
-  local.actionRegistry(project).registerProvider({ provider, definitions: [status, cancel, judge, summary], handlers: [
+  const lookups = LOOKUPS.slice(0, more.lookups ?? 0).map(word => definition(`fixture.jobs.lookup-${word}`, "query", "query", `Lookup ${word}`));
+  local.actionRegistry(project).registerProvider({ provider, definitions: [status, cancel, judge, summary, ...lookups], handlers: [
     { ...status, handle() { calls.status++; if (switches.state instanceof Error) throw switches.state; return { state: switches.state }; } },
     { ...cancel, handle() { calls.cancel++; return { state: "cancelled" }; } },
     { ...judge, handle() { calls.judge++; return { state: "good" }; } },
     { ...summary, handle() { calls.summary++; return { state: "done" }; } },
+    ...lookups.map(one => ({ ...one, handle() { calls.lookups[one.action.title] = (calls.lookups[one.action.title] ?? 0) + 1; return { state: "found" }; } })),
   ] });
   const ref = (definition: ActionDefinition): ExactActionReference => ({ capability_id: definition.capability_id, version: 1, provider_id: provider.provider_id });
   // The round holds model:invoke, so only the checker's own rule keeps the model-backed query out.
   const caller = { actor_id: "agent:prologue", actor_kind: "runtime" as const, audience: "agent" as const, project_id: project.project_id, permissions: ["model:invoke"] };
-  const authority: AgentStartAuthority = { manifest: codingAgentManifest, prompts: [...codingPrompts], authorizedDirectories: [root],
+  const authority: AgentStartAuthority = { manifest: codingAgentManifest, prompts: [...codingPrompts], authorizedDirectories: [root, writer],
     // The plugin instance that started the round: the real one throws this once the instance stops (plugin-host-services.ts).
     beforeDispatch: async () => { calls.roundChecks++; if (!switches.pluginActive) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); },
     actions: async (_runtime, validate) => {
@@ -145,7 +153,7 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
     resolveCredential: () => live ? live.key() : "test-only", checks: { directoryAuthorized: async (projectId, directory) => switches.directoryAuthorized && projectId === "p" && directory === root } });
   const adapter = await open();
   const host = new AgentHost({ reviews: queue }); host.register(adapter);
-  t.after(async () => { await adapter.close(); await local.close(); await rm(root, { recursive: true, force: true }); });
+  t.after(async () => { await adapter.close(); await local.close(); await rm(root, { recursive: true, force: true }); await rm(writer, { recursive: true, force: true }); });
   const owner = { project_id: "p", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
   const session = await adapter.createSession({ ...owner, directory, title: "Waits outside" });
   const start = async (task: string, extra: object = {}, roundMs = live ? 300_000 : 30_000) => {
@@ -155,7 +163,8 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
   };
   const wait = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.wait;
   const continuation = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.continuation;
-  return { root, requests, replies, said, usage, reviewed, switches, calls, adapter, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary) }, reopen: open };
+  return { root, requests, replies, said, usage, reviewed, switches, calls, adapter, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary), lookups: lookups.map(ref) }, reopen: open,
+    writerWorkspaces: [{ workspace_id: "writer-0", directory: { canonical_path: writer, realpath_verified: true } }] };
 }
 
 /** The model's call that registers the wait, as `board-wait` takes it. */

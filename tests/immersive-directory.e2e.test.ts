@@ -380,9 +380,10 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   assert.ok(await evaluate("!document.querySelector('[data-assistant-composer] [data-plugin-picker], [data-assistant-composer] [data-global-search-open]')"), "the composer holds neither the switcher nor search"); 
   await evaluate("document.querySelector('[data-assistant-more] button').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("document.querySelector('[data-assistant-more]').hidden");
-  // However many chips stand beside it, the input keeps room to type: a long work, its materials, what needs a look.
+  // However many chips stand beside it, the input keeps room to type: a long work and what needs a look (what the Send carries
+  // is the strip above the line now, context-program §21.2 point 1).
   const crowd = `(()=>{
-    for (const [chip, count] of [['[data-assistant-attention]', '23'], ['[data-assistant-materials]', '1']]) { const button = document.querySelector(chip); button.hidden = false; button.querySelector('span').textContent = count; }
+    for (const [chip, count] of [['[data-assistant-attention]', '23']]) { const button = document.querySelector(chip); button.hidden = false; button.querySelector('span').textContent = count; }
     for (const chooser of document.querySelectorAll('[data-assistant-executor], [data-assistant-character]')) chooser.hidden = false;
     document.querySelector('[data-assistant-target-label]').textContent = '继续：给我一个按钮，在待办里记下准备复盘会的数据看板';
   })()`;
@@ -438,7 +439,12 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   await waitFor(`(() => { const node = document.querySelector('[data-plugin-picker-toggle]'), rect = node.getBoundingClientRect(), at = rect.x + ',' + rect.y + ',' + rect.width;
     const same = window.__pickerToggle === node && window.__pickerToggleAt === at; window.__pickerToggle = node; window.__pickerToggleAt = at;
     window.__pickerToggleStill = same ? (window.__pickerToggleStill || 0) + 1 : 0; return window.__pickerToggleStill >= 3; })()`);
-  await click("[data-plugin-picker-toggle]");
+  // The Dock looks at the switcher's label again whenever it refits or the work area changes a class, so that can land while the
+  // press is down. Pressing, letting one land, then releasing must still close the list: the label is rebuilt only when it changed.
+  const at = await evaluate<{ x: number; y: number }>("(() => { const rect = document.querySelector('[data-plugin-picker-toggle]').getBoundingClientRect(); return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }; })()");
+  await command("Input.dispatchMouseEvent", { type: "mousePressed", ...at, button: "left", clickCount: 1 }, sessionId);
+  await evaluate("(() => { const area = document.querySelector('.tab-workspace') || document.body; area.classList.add('is-nudged'); area.classList.remove('is-nudged'); return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); })()");
+  await command("Input.dispatchMouseEvent", { type: "mouseReleased", ...at, button: "left", clickCount: 1 }, sessionId);
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor("!document.querySelector('[data-dock-more]')?.hidden && document.querySelector('[data-dock-more]')?.isConnected");

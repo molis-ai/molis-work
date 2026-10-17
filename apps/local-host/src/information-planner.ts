@@ -1,7 +1,7 @@
 import { composeInstructedPrompt, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { INFORMATION_PLANNER } from "./agent-definitions/system-prompts.js";
 import type { FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
-import type { HostCompleteText } from "./host-complete-text.js";
+import { textModelRequired, type HostCompleteText } from "./host-complete-text.js";
 
 /** Read-only proposals. Confirmed actions run through the existing plugin HTTP contracts. */
 export async function planInformationWork(snapshot: FeedSnapshot, projectId: string, body: Record<string, unknown>, completeText?: HostCompleteText, authority?: Parameters<HostCompleteText>[1],
@@ -9,7 +9,7 @@ export async function planInformationWork(snapshot: FeedSnapshot, projectId: str
   resolve?: (prompt: InstructedPrompt) => string) {
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
   if (!prompt || prompt.length > 4000) throw new Error("请用 1–4000 字说明要筛选或整理什么");
-  if (!completeText) throw new Error("尚未配置助手模型");
+  if (!completeText) throw textModelRequired();
   const sourceIds = new Set(snapshot.sources.filter(source => source.enabled).map(source => source.source_id));
   const items = snapshot.feed_items.slice(0, 20).map(item => ({ id: item.item_id, source_id: item.source_id, title: item.title, summary: item.summary.slice(0, 1000) }));
   const inbox = snapshot.inbox_entries.filter(entry => entry.subject_type === "feed_item" && ["open", "in_progress"].includes(entry.status))

@@ -66,6 +66,7 @@ tests/agent-host.test.ts
 tests/agent-pending-questions.test.ts
 tests/agent-plugin-identity.test.ts
 tests/agent-prompt-layers.test.ts
+tests/agent-question-types.test.ts
 tests/agent-review-http.test.ts
 tests/agent-review-surface.test.ts
 tests/agent-run-wait.test.ts
@@ -124,6 +125,7 @@ tests/coding-delegation-waits.test.ts
 tests/coding-delegation.test.ts
 tests/coding-events.test.ts
 tests/coding-experience.test.ts
+tests/coding-history-requirements.test.ts
 tests/coding-long-session.test.ts
 tests/coding-mcp-settings-client.test.ts
 tests/coding-mcp.test.ts
@@ -283,6 +285,7 @@ tests/prologue-compaction.test.ts
 tests/prologue-git.test.ts
 tests/prologue-inference-images.test.ts
 tests/prologue-inference-native.test.ts
+tests/prologue-input-claims.test.ts
 tests/prologue-materials.test.ts
 tests/prologue-model-controls.test.ts
 tests/prologue-model-retry.test.ts

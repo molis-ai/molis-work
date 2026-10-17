@@ -1,8 +1,8 @@
 # 版本与发布策略
 
-状态：全部节都已定。第 1、4、5 节落实用户 2026-10-08 的决定；第 2、3 节的细则与第 1 节「官方集成不跟产品版本」由用户 2026-10-08 弹窗确认；第 7 节用户 2026-10-08 选做法 A（Runtime 对内置插件一律跟当前构建），Runtime 一侧已实现（第 7.8 节）；还没做的是 0.3.0 发布 PR 里把 7 份清单的版本改成产品版本，和脚本里「内置清单等于产品版本」这一条。
+状态：0.3.0 发布候选。产品载体及现行 26 个内置插件清单已统一为 0.3.0，版本脚本核对每个内置清单；第 7 节保留 2026-10-08 机制选择与实现的依据。GitHub 仅准备草稿，尚未公开发布。
 
-Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG 和一份发布前检查清单（含各库版本表与真实 Home 的处理）。这份策略落实用户 2026-10-08 的决定（`specs/repository-anti-corruption/spec.md` §1「版本与发布策略」）：一个产品版本、下一版 0.3.0；根包、桌面端、Tauri 跟同一版本，内置插件 Manifest 跟宿主版本；工作区包保持私有 0.0.0。
+Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG 和一份发布前检查清单（含各库版本表与真实 Home 的处理）。这份策略落实用户 2026-10-08 的决定（`specs/repository-anti-corruption/spec.md` §1「版本与发布策略」）：一个产品版本、0.3.0 发布候选；根包、桌面端、Tauri 跟同一版本，内置插件 Manifest 跟宿主版本；工作区包保持私有 0.0.0。
 
 - 每次发布做什么、按什么顺序：[CHECKLIST.md](CHECKLIST.md)。
 - 改了什么：[CHANGELOG.md](CHANGELOG.md)（按版本）和 `v<版本>.md`（每个版本一篇发布说明）。
@@ -10,7 +10,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 ## 1. 一个产品版本和它的载体
 
-产品版本写在根 `package.json` 的 `version`，现在是 0.2.0。别的地方要么等于它，要么明确不属于它：
+产品版本写在根 `package.json` 的 `version`，本次发布候选是 0.3.0。别的地方要么等于它，要么明确不属于它：
 
 | 载体 | 位置 | 规则 | 谁核对 |
 | --- | --- | --- | --- |
@@ -19,7 +19,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 | 写在代码里的一处 | `apps/local-host/src/product-version.ts` 的 `PRODUCT_VERSION`。宿主报出产品版本的每个地方都从它取，不另写一份：Feed 的 User-Agent 与它和搜索运行时交给搜索证据层的 `app.version`、MCP 客户端（`connector-mcp.ts` 的两处 `Client`）的版本、Codex 会话传输的 `clientInfo.version`（`horizontal/runtime-host` 不持有版本，宿主在 `session-runtime-resources.ts` 以 `clientVersion` 选项传入）。新增要报出产品版本的地方，导入这个常量，不在脚本里再加一条载体 | 等于产品版本 | 脚本 |
 | 发布说明与 CHANGELOG | `docs/releases/v<版本>.md`、`docs/releases/CHANGELOG.md` 里的 `[<版本>]` 一节 | 当前产品版本两者都有；CHANGELOG 第一节永远是 `[Unreleased]` | 脚本 |
 | 工作区包 | 每个 `pnpm-workspace.yaml` 列出的包 | 私有，版本固定 0.0.0；它们不单独发布，随产品一起构建 | 脚本 |
-| 内置插件 Manifest | `plugins/native/*/src/manifest.ts` 的 `version` | **目标**：等于产品版本（用户 2026-10-04 定「内置插件随宿主升级」，2026-10-08 定版本跟宿主）。**现状**：各自独立，从 1.0.0 到 1.50.0（Coding）不等，约定是改了清单就升它自己的版本，但没有机制保证：main 上自 2026-09-26 起，这 7 个插件的清单摘要在版本不变时变了至少 24 次（到 `8118e617`，第 7.3 节）。重置排在路线图的 W5-15（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）。Runtime 一侧已经不挡这一步：用户 2026-10-08 选了做法 A，内置插件（监督器条目标 `bundled`）不论清单版本比安装记录高、低，还是同版本改了内容，启动时都把记录改成当前构建的清单（第 7 节，实现见第 7.8 节），所以重置不会让已装过的 Home 停在旧代码上。还没做的：0.3.0 的发布 PR 把 7 份清单的 `version` 改成产品版本，并把「等于产品版本」这一行加进脚本 | 重置前没有 |
+| 内置插件 Manifest | `plugins/native/*/src/manifest.ts` 的 `version` | 等于产品版本。当前 26 个内置插件统一为 0.3.0；Runtime 对 `bundled` 插件始终跟随当前构建（第 7 节），其安装身份与私有数据保留。官方集成、示例和第三方插件不在此范围 | 脚本；构建后的 `BUILTIN_PLUGIN_CATALOG` 由 `tests/builtin-manifests-contract.test.ts` 再核对 |
 | 各库的结构版本 | 见 [CHECKLIST.md](CHECKLIST.md) 的「各库版本表」 | 每个库自己一个数字，与产品版本无关；改库就升那个库的数字 | 脚本核对表与代码一致 |
 
 不属于这份策略的版本：非内置插件（第三方、生成的）的 Manifest 版本由插件自己定；`examples/plugin-sample` 是示例插件，自己的 2.0.0 不是产品版本；`vendor/` 里的包版本跟上游。官方集成（`plugins/official-integrations/*`：GitHub、Gmail、目录连接器、RSS、Web Query、YouTube）也不属于这份策略：内置插件指 `BUILTIN_PLUGIN_CATALOG` 里的条目（`docs/system/GLOSSARY.md` 第 3.2 节），官方集成另算，它们的 Manifest 版本（写在各自的 `src/index.ts` 里，现在 1.0.0 到 1.2.0）各自独立。它们没有持久的安装记录：`OfficialIntegrationRegistry`（`apps/local-host/src/official-integrations.ts`）为每个 Feed 来源在内存里装一个 Runtime（`MemoryPluginRuntimeRepository`），装进去的只有 GitHub、Gmail 和目录连接器，RSS、Web Query、YouTube 的 Manifest 现在没有任何调用把它们装进 Runtime；所以第 7 节的两种情形不会发生在它们身上。用户 2026-10-08 的决定没有说到它们，这个归类是起草时按上面的口径定的，等用户确认；要让它们也跟产品版本，就把它们并进上表「内置插件 Manifest」一行，并让脚本核对。
@@ -34,9 +34,11 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 ## 3. 什么时候改版本号
 
-只在发布 PR 里改，别的 PR 不碰。两次发布之间，main 上的版本是最近一次发布的版本。这条说的是产品版本；内置插件清单的版本在 0.3.0 的发布 PR 把它们改成产品版本之前仍各自独立（改清单就升它自己的版本是约定，不再是必须：Runtime 对内置插件一律跟当前构建）。第 3 节和第 7 节一起定，用户 2026-10-08 两个都确认了（第 7.6 节）：内置清单等于产品版本之后，两次发布之间不会升版本，每个改了清单（或清单引进的定义）的合并都是一次「同版本不同摘要」（第 7 节的情形二）；这在 A 之前会让开发机的 Home 每次都停在旧代码上，A 之后下次启动就跟上。情形二在 A 之前因为漏升版本发生过至少 24 次（第 7.3 节）。第 7.5 节的选项 F 是第 3 节的另一种答案，没有选。
+只在发布 PR 里改，别的 PR 不碰。两次发布之间，main 上的版本是最近一次发布的版本。这条同时适用于产品版本与内置插件清单版本；0.3.0 起两者统一。第 3 节和第 7 节一起定，用户 2026-10-08 两个都确认了（第 7.6 节）：内置清单等于产品版本之后，两次发布之间不会升版本，每个改了清单（或清单引进的定义）的合并都是一次「同版本不同摘要」（第 7 节的情形二）；这在 A 之前会让开发机的 Home 每次都停在旧代码上，A 之后下次启动就跟上。情形二在 A 之前因为漏升版本发生过至少 24 次（第 7.3 节）。第 7.5 节的选项 F 是第 3 节的另一种答案，没有选。
 
 发布 PR 一次做完：改全部载体 → 把 CHANGELOG 的 `[Unreleased]` 改成 `[<版本>] - <日期>` 并另起一个空的 `[Unreleased]` → 写 `docs/releases/v<版本>.md` → 过检查清单 → 合并后在合并提交上打 tag `v<版本>`，再在这个 tag 上手动运行发布工作流（`release-macos.yml` 只有 `workflow_dispatch`；选 tag 运行才会做 `--tag` 核对并发布 GitHub Release，选分支只构建并上传构建产物）。
+
+**0.3.0 的例外（用户 2026-10-16 定）。** 准备 0.3.0 草稿的 #595 在发布之前就合进了 main，所以从 2026-10-16 12:31 UTC 起，main 与内置清单已是 0.3.0，而最近一次发布仍是 v0.2.0，与本节第一段不符。用户定：不退回 0.2.0；v0.3.0 按最终切版提交生成，切版前的发布 PR 把 `CHANGELOG.md`「汇集至」的提交、`v0.3.0.md` 的状态句与清单摘要表刷新到那个提交，再打 tag。打了 v0.3.0 的 tag 之后，这条例外失效。
 
 **同一个版本号会对应不同的构建。** main 上每个提交都叫最近一次发布的版本；安装器遇到版本相同、内容不同时会原子刷新（`docs/installation.md`「安装边界」），每次安装的 `release.json` 记下 `content_digest`（`apps/local-host/src/installer/home-release.ts`）。0.2.0 已经因此既指 2026-09-11 的 tag，也指之后装进开发机 Home 的两个差别很大的构建（2026-09-23 的安装版，和 2026-10-07 维护三时用 e1cd4906 的构建重装的那个，见 `specs/repository-anti-corruption/spec.md` §4.1「真实 Home 维护三已做」第 1、3 步）。所以：不是从 tag 构建的安装，只说「某提交的构建」，在维护记录里写提交与 `content_digest`，不说成某个版本。
 
@@ -50,9 +52,9 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 
 产品版本不能告诉你一个 Home 能不能被某个构建打开，库版本才能。每个库只认一个当前版本，不符就拒绝（只有搜索索引这种可重建的派生库重建，角色库只拒绝更高的版本，MCP 授权文件读成空，密钥文件 `feed/secrets.json` 拒绝读取）；怎么记、记在哪、不符时怎样，都在检查清单的「各库版本表」里，并由脚本对照代码核对：改了某个库的版本而没改表、或新增了一个以 `SqliteBaseline` 常量声明的库而没列进表，CI 都会失败（脚本找不到的情况写在检查清单第 3 节）。每个库、每类文件的 owner、备份与卸载规则在 [docs/system/HOME-DATA.md](../system/HOME-DATA.md)。这套「版本不符就拒绝、老 Home 先维护」只到第一个装到开发机之外的版本为止（用户 2026-10-08 的决定 #15，`specs/repository-anti-corruption/spec.md` §1）：发布那个版本的 PR 把起点写进 [docs/system/CONTRACT-CHANGES.md](../system/CONTRACT-CHANGES.md)（检查清单第 1 节第 2 项），从那以后库的版本变更要带升级路径，不再靠拒绝加一次性维护；升级机制现在还没有，方案见 `specs/repository-anti-corruption/c-end-readiness.md` §3.2（C-2）。
 
-## 6. 现在还没有的
+## 6. 交付状态与尚缺项
 
-- 内置插件 Manifest 版本跟宿主版本（第 1 节、第 7 节，W5-15）。Runtime 对内置清单「版本更低」「同版本改了内容」两种情形的处理已经做了（第 7.8 节）；还没做的是 0.3.0 发布 PR 里把 7 份清单的版本改成产品版本，和脚本里「内置清单等于产品版本」这一条。
+- 内置插件 Manifest 版本跟宿主版本（W5-15）已在 0.3.0 发布候选中完成；正式发布仍取决于检查清单和发行物。
 - 检查「内置清单摘要变了而版本没升」的机制：选了做法 A 以后不需要，不做（第 7.6 节第 3 条）：Runtime 对内置插件的任何摘要变化都跟。非内置的插件（装的、生成的）规则没变，仍靠版本号和 `upgrade_compatibility`。
 - 产品里的备份与升级命令：现在备份是离线整份拷贝（`docs/installation.md`「离线备份与恢复边界」），库版本变了的发布靠发布者提供一次性维护流程（检查清单第 4 节）。用户 2026-10-08 定了方向：离线快照命令 `molis-work home snapshot --to <目录>` 加覆盖所有登记库的「卸载并清除数据」，路线图 W5-16，依赖 W4-11 的统一库登记表；定时在线备份留给 C 端就绪方案（`docs/prompts/repository-anti-corruption.md` §4.19）。
 - 自动发布：`release-macos.yml` 只能手动触发；公开安装包需要 Developer ID 签名与 Apple 公证（`docs/installation.md`）。

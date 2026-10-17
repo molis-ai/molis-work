@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -40,7 +41,7 @@ async function fixture(t: TestContext, name: string, children: string[], options
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const raw = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     const body = JSON.parse(raw), said = JSON.stringify(body.messages);
-    if (said.includes("委托给你的子任务")) {
+    if (said.includes("委托的子任务")) {
       const title = children.find(item => said.includes(`起草「${item}」`))!;
       await Promise.race([releases.get(title)!.promise, new Promise((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true }))]);
       return reply(undefined, `「${title}」的草稿：三句话。`);
@@ -83,7 +84,7 @@ test("sub-tasks that finish after their delegating work's round ended hand back 
   assert.equal(handBack.written_by, "host", "the Host wrote it, not the person");
   assert.match(handBack.text, /^（子任务都已交回）请核对「开头」「结尾」的结果/);
   assert.equal(later.length, 1);
-  assert.match(later[0]!, /子任务交回/, "the results come as the round's material");
+  assert.match(roundParts(later[0]!).data, /子任务交回/, "the results come as the round's material");
   assert.match(later[0]!, /「开头」的草稿：三句话/);
   assert.match(later[0]!, /「结尾」的草稿：三句话/);
   assert.match(done.rounds[1]!.turns.map(turn => turn.text).join("\n"), /汇总好了/);
@@ -94,7 +95,8 @@ test("sub-tasks that finish after their delegating work's round ended hand back 
   assert.equal(rounds().length, 2, "no second hand-back round");
   await service.send({ work_id: parentId, text: "谢谢", request_id: "req-once-thanks" }, {});
   await until(async () => (await service.read(parentId)).work.state === "completed" && rounds().length === 3, "the person's round");
-  assert.doesNotMatch(later.at(-1)!, /子任务交回/, "what was handed back is not told again");
+  // The role names the section too (what reaches a round is data); what counts is whether the data carries it.
+  assert.doesNotMatch(roundParts(later.at(-1)!).data, /子任务交回/, "what was handed back is not told again");
 });
 
 // A delegation the person closed does not come back by itself: the work they stopped, or a sub-task someone stopped,

@@ -2,9 +2,10 @@ import { createFileSecretStore, resolveMolisWorkHome, runWithMolisWorkHome } fro
 import { modelRequestShape, type ModelApiFormat, type ModelPromptCacheMode } from "@molis-ai/molis-work-contracts/modules/model-providers";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
 import { prologueProtocolFor, inferenceServiceUnavailableReason, isDispatchRefusal, PrologueInferenceError, type PrologueTextResult, type PrologueInputImage, type PrologueTextProgress, type PrologueStructuredRequest } from "@molis-ai/molis-work-service-agent-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MINIMAX_ANTHROPIC_BASE_URL } from "./model-provider-templates.js";
 import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
+import { L } from "./web-locale.js";
 
 export interface HostTextRequestOptions {
   signal?: AbortSignal;
@@ -22,6 +23,31 @@ export type HostTextGeneration = (prompt: string, options?: HostTextRequestOptio
 export interface HostTextOptions { homeDirectory?: string; selection?: TextModelSelection; resolveInference?: typeof resolvePrologueInference; env?: NodeJS.ProcessEnv }
 interface TextConfiguration { base_url: string; api_format: ModelApiFormat; model_id: string; prompt_cache?: ModelPromptCacheMode }
 const unavailable = () => new ActionError("actions.connection_required", "所选文字模型或连接已不可用，请检查模型设置和服务连接");
+
+// No text model yet: what is missing and where the person adds one, by the name the settings page shows (settings-sections.ts).
+// The only place that names it; the person, the panel and the model all read this reason (handbook 13.4).
+const TEXT_MODEL_MISSING = "请先在「模型设置」里连接文字模型";
+const TEXT_MODEL_MISSING_FOR = "请先在「模型设置」里连接文字模型，再{purpose}";
+
+/** Why the work cannot start without a text model, in the person's language; `purpose` is what it was for, already translated. */
+export function textModelMissing(purpose?: string): string {
+  return purpose ? L(TEXT_MODEL_MISSING_FOR, { purpose }) : L(TEXT_MODEL_MISSING);
+}
+
+/** The same, thrown when the work starts anyway (the model went away after the action was offered). */
+export function textModelRequired(purpose?: string): ActionError {
+  return new ActionError("actions.connection_required", textModelMissing(purpose));
+}
+
+/**
+ * Whether an action that needs the text model can run now. No model is `actions.connection_required` with the reason above,
+ * so the person knows where to set one up. Model settings that cannot be read are another fact, with the failure's own code
+ * (`actions.configuration_unavailable` when it has none), so nobody is sent to set up a model they already have.
+ */
+export function textModelAvailability(model: () => unknown, purpose?: string): ActionAvailability {
+  try { return model() ? { available: true } : { available: false, code: "actions.connection_required", reason: textModelMissing(purpose) }; }
+  catch (error) { return { available: false, code: error instanceof ActionError ? error.code : "actions.configuration_unavailable", reason: "文字模型的设置读不了，请检查模型设置" }; }
+}
 
 /** Discovery uses metadata; a returned completion rechecks its fixed selection before every request. */
 export function hostCompleteText(options: HostTextOptions = {}): HostCompleteText | undefined {

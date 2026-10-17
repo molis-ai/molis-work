@@ -4,10 +4,11 @@ import vm from "node:vm";
 import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 
 // specs/ai-input-receipts §3.3, §4.1, §4.2, §7 (stage 1d): what the Coding page shows for a supplement it sends to a round
-// under way. The shipped script runs here against a small DOM port.
+// under way. The receipt under it is the shared one (tests/input-receipts-client.test.ts, RC-12, RC-15). The shipped script
+// runs here against a small DOM port.
 class Node {
   className = ""; textContent = ""; title = ""; type = ""; onclick: (() => unknown) | null = null;
-  dataset: Record<string, string> = {};
+  dataset: Record<string, string> = {}; classes = new Set<string>(); classList = { add: (name: string) => this.classes.add(name) };
   children: Array<Node | string> = [];
   append(...nodes: Array<Node | string>) { this.children.push(...nodes); }
   get text(): string { return this.textContent + this.children.map(child => typeof child === "string" ? child : child.text).join(""); }
@@ -18,16 +19,16 @@ class Node {
 }
 
 type Reply = { receipt: { input_id: string; replayed: boolean; delivered: "run" | "queued" } };
-function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>) {
+function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { q?: (selector: string) => Node | null } = {}) {
   const sent: Array<Record<string, unknown>> = [];
   let uuid = 0;
   const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
     document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` }, TypeError,
   }) as (ports: object) => {
-    receipt(turn: object): Node | undefined; steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string): Node | null;
+    steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string): Node | null;
   };
   const api = (_path: string, _method: string, body: Record<string, unknown>) => { sent.push(body); return reply(body); };
-  return { ui: factory({ api, refresh: () => {} }), sent };
+  return { ui: factory({ api, refresh: () => {}, q: () => null, ...ports }), sent };
 }
 const taken = (delivered: "run" | "queued" = "run", replayed = false): Promise<Reply> => Promise.resolve({ receipt: { input_id: "steer-1", replayed, delivered } });
 
@@ -76,13 +77,15 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   assert.equal(refused.sent[1]!.key, "send.u2");
 });
 
-test("RC-12: the receipt line says only what the run's ledger says, and a note the Host sent reads as the Host's, without a receipt", () => {
-  const { ui } = receipts(() => taken());
-  const line = (state: string) => ui.receipt({ kind: "user", steer: { id: "steer-1", state } })!;
-  assert.deepEqual(["received", "applied", "read", "unread", "withdrawn"].map(state => line(state).textContent),
-    ["已送达", "已放进上下文，等 AI 回应", "AI 已读到", "这一轮结束时 AI 没读到，留给下一轮", "已撤回"]);
-  assert.match(line("read").title, /读到不代表已遵循/u);
-  assert.equal(ui.receipt({ kind: "user" }), undefined, "the person's own task has no receipt");
-  assert.equal(ui.receipt({ kind: "notice", steer: { id: "steer-2", state: "read" } })!.textContent, "Molis 的说明，不是你发的话");
-  assert.ok(!ui.receipt({ kind: "notice" }), "other Host notices stay as they are");
+test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {
+  const marked = async (mode: string, delivered: "run" | "queued" = "run", replayed = false) => {
+    const node = new Node();
+    await receipts(() => taken(delivered, replayed), { q: selector => selector === ".coding-turn.is-writing" ? node : null }).ui.steer("s", "r", "改用新接口", mode);
+    return node.classes.has("is-dropped") && /这段回复已丢掉（你打断了它）/u.test(node.text);
+  };
+  assert.equal(await marked("interrupt"), true);
+  assert.equal(await marked("next-boundary"), false, "a supplement read at the next boundary drops nothing");
+  assert.equal(await marked("interrupt", "queued"), false, "words that missed the round dropped nothing in it");
+  assert.equal(await marked("interrupt", "run", true), false, "a repeat that the runtime already had marks nothing again");
+  assert.equal(await receipts(() => taken()).ui.steer("s", "r", "改用新接口", "interrupt"), "已送达：正在写的回复已丢掉，按你的话接着做；已执行的操作不撤销。", "with no reply being written, nothing is marked");
 });

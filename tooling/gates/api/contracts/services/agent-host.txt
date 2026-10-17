@@ -666,6 +666,15 @@ export interface AgentMessageAttachment {
     title?: string;
 }
 
+export interface AgentOfferRunRequest {
+    runtime_id: string;
+    session_id: string;
+    run_id: string;
+    offer_id: string;
+    reference: ExactActionReference;
+    input: unknown;
+}
+
 export type AgentPeopleMessageAction = "deliver" | "accept" | "reject" | "complete" | "cancel" | "record";
 
 export interface AgentPeopleMessageInput {
@@ -877,6 +886,12 @@ export interface AgentRunHandle {
     frozen: AgentFrozenStart;
 }
 
+export interface AgentRunOffer extends AgentActionOffer {
+    offer_id: string;
+    offered_at: string;
+    action_digest: string;
+}
+
 export type AgentRunPhase = "starting" | "running" | "awaiting-review" | "awaiting-input" | "paused" | "compacting" | "completed" | "failed" | "cancelled" | "stopped" | "reconcile-required";
 
 export interface AgentRunRef {
@@ -919,6 +934,7 @@ export interface AgentRunView {
         now?: string;
         requested?: string;
     };
+    offers?: readonly AgentRunOffer[];
     started_at: string;
     ended_at: string | null;
 }
@@ -1199,6 +1215,7 @@ export interface AgentStepBoard {
             at_ms: number;
             by?: string;
             handover?: true;
+            inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef[];
         }>;
         owner?: AgentStepOwner;
         title?: string;
@@ -1325,10 +1342,7 @@ export interface AgentTurnView {
     text: string;
     at: string | null;
     sequence?: number;
-    steer?: {
-        id: string;
-        state: "received" | "applied" | "read" | "unread" | "withdrawn";
-    };
+    steer?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentTurnSteer;
 }
 
 export type AgentUsageCoverage = "unknown" | "reported" | "estimated" | "partial" | "partial-estimated";
@@ -1503,6 +1517,12 @@ export declare const agentHostCapabilities: {
         receipt: AgentReviewReceipt | null;
     }>>;
     readonly listReviews: HostCapabilityDefinition<[projectId: string, status?: AgentReviewStatus], AgentReviewRequest[]>;
+};
+
+export declare const agentOfferActions: {
+    readonly run: ActionDefinition<AgentOfferRunRequest, {
+        output: unknown;
+    }>;
 };
 
 export declare function agentTextMaterialContent(material: AgentTextMaterial): string;

@@ -43,6 +43,7 @@ const queues = new Map<string, Promise<unknown>>();
 async function serialized<T>(home: string, id: string, run: () => Promise<T>): Promise<T> {
   const key = `${resolve(home)}:${id}`;
   const previous = queues.get(key) ?? Promise.resolve();
+  // Only the order is chained: the previous refresh's failure was already answered to its own caller.
   const next = previous.catch(() => {}).then(run);
   queues.set(key, next);
   try { return await next; } finally { if (queues.get(key) === next) queues.delete(key); }

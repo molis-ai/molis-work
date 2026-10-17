@@ -1,6 +1,6 @@
 [package]
 name = "molis-work-desktop"
-version = "0.2.0"
+version = "0.3.0"
 description = "Molis Work macOS App: WebView plus local TUI PTY"
 edition = "2021"
 rust-version = "1.82"

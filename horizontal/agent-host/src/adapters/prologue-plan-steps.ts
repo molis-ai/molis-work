@@ -1,5 +1,6 @@
 import type { ExactRef, Runtime } from "@prologue/sdk";
 import type { AgentExecutionPlan, AgentStepAmendment, AgentStepBoard, AgentStepOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentInputRef } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
 type TaskNode = SdkBoard["nodes"][number];
@@ -138,9 +139,15 @@ export function shape(runtime: Runtime, board: SdkBoard, place: PlanPlace, sessi
   return { project_id: board.ref.id, version: planVersion(board, place), terminal: finished(board, place),
     nodes: executionOrder(board, place).map(node => ({ id: local(node.id), state: node.state,
       reports: node.reports.map(report => { const by = reportBy(runtime, report, session);
-        return { note: reportNote(runtime, report, session), at_ms: report.atMs, ...(by ? { by } : {}), ...(report.handover ? { handover: true as const } : {}) }; }),
+        return { note: reportNote(runtime, report, session), at_ms: report.atMs, ...(by ? { by } : {}), ...(report.handover ? { handover: true as const } : {}),
+          ...(report.inputs?.length ? { inputs: inputRefs(report.inputs) } : {}) }; }),
       owner: claimOf(runtime, node, session, alive),
       title: title(node, place), depends_on: node.dependsOn.flatMap(dep => localId(place, dep) ?? []), ...(local(node.id).startsWith("user-") ? { inserted: true } : {}) })) };
+}
+
+/** The inputs a report is about, as the runtime recorded them (pointers only; the session owns the inputs). */
+function inputRefs(refs: readonly { session: string; input: string }[]): AgentInputRef[] {
+  return refs.map(ref => ({ session_id: ref.session, input_id: ref.input }));
 }
 
 /**

@@ -36,8 +36,8 @@ export class JudgmentQueue {
 
   /** Judge everything queued, entries included, as `caller` (none for a background producer). */
   async flush(caller?: ActionCallContext): Promise<void> {
-    await this.judgeItems(this.items.splice(0), caller);
-    await this.judgeEntries(this.takeEntries(), caller);
+    const items = this.items.splice(0);
+    await judgeEach([() => this.judgeItems(items, caller), () => this.judgeEntries(this.takeEntries(), caller)]);
   }
 
   /** Judge only the named queued entries, or all of them when none are named. Others' events stay for their producers. */
@@ -55,8 +55,7 @@ export class JudgmentQueue {
     // The step cannot be interleaved with another call, so what the queues gained since the marks above is the step's own.
     const ownItems = this.items.splice(queuedItems);
     const ownEntries = this.takeEntries([...this.entries].filter(([key]) => !alreadyQueued.has(key)).map(([, entry]) => entry.entry_id));
-    await this.judgeItems([...ownItems, ...also], caller);
-    await this.judgeEntries(ownEntries, caller);
+    await judgeEach([() => this.judgeItems([...ownItems, ...also], caller), () => this.judgeEntries(ownEntries, caller)]);
     return result;
   }
 
@@ -68,25 +67,41 @@ export class JudgmentQueue {
     return taken;
   }
 
-  private async judgeItems(queued: readonly FeedItemRecord[], caller?: ActionCallContext): Promise<void> {
-    for (const { project_id, item_id } of queued) {
+  private judgeItems(queued: readonly FeedItemRecord[], caller?: ActionCallContext): Promise<void> {
+    return judgeEach(queued.map(({ project_id, item_id }) => async () => {
       let item: FeedItemRecord;
       try { item = this.reads.feedItem(project_id, item_id); }
-      catch (error) { if (error instanceof ActionError && error.code === "feed.item_not_found") continue; throw error; }
-      await this.ports.captureJudgment?.({ project_id: item.project_id, item_id: item.item_id, rule_ids: this.reads.judgedRuleIds(item) }, caller);
-      await this.ports.homeJudgment?.({ kind: "feed_item", id: item.item_id, project_id: item.project_id }, caller);
-    }
+      catch (error) { if (error instanceof ActionError && error.code === "feed.item_not_found") return; throw error; }
+      await judgeEach([
+        () => this.ports.captureJudgment?.({ project_id: item.project_id, item_id: item.item_id, rule_ids: this.reads.judgedRuleIds(item) }, caller),
+        () => this.ports.homeJudgment?.({ kind: "feed_item", id: item.item_id, project_id: item.project_id }, caller),
+      ]);
+    }));
   }
 
-  private async judgeEntries(queued: readonly QueuedEntry[], caller?: ActionCallContext): Promise<void> {
-    for (const event of queued) {
+  private judgeEntries(queued: readonly QueuedEntry[], caller?: ActionCallContext): Promise<void> {
+    return judgeEach(queued.map(event => async () => {
       // Module events can occur inside a transaction that is later rolled back.
       let entry: InboxEntryRecord;
       try { entry = this.reads.inboxEntry(event.project_id, event.entry_id); }
-      catch (error) { if (error instanceof ActionError && error.code === "inbox.entry_not_found") continue; throw error; }
-      if (entry.status !== "open" && entry.status !== "in_progress") continue;
-      await this.ports.inboxJudgment?.(entry, caller);
-      await this.ports.homeJudgment?.({ kind: "inbox_entry", id: entry.entry_id, project_id: entry.project_id }, caller);
-    }
+      catch (error) { if (error instanceof ActionError && error.code === "inbox.entry_not_found") return; throw error; }
+      if (entry.status !== "open" && entry.status !== "in_progress") return;
+      await judgeEach([
+        () => this.ports.inboxJudgment?.(entry, caller),
+        () => this.ports.homeJudgment?.({ kind: "inbox_entry", id: entry.entry_id, project_id: entry.project_id }, caller),
+      ]);
+    }));
   }
+}
+
+/**
+ * Every judgment taken off the queue is tried, in order, even when one before it fails: the queue no longer holds them, so
+ * stopping at the first failure would drop the rest unjudged. The first failure is thrown once all have been tried.
+ */
+async function judgeEach(judgments: ReadonlyArray<() => unknown>): Promise<void> {
+  let failed: { error: unknown } | undefined;
+  for (const judge of judgments) {
+    try { await judge(); } catch (error) { failed ??= { error }; }
+  }
+  if (failed) throw failed.error;
 }

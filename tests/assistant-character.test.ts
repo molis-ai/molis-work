@@ -143,7 +143,7 @@ test("with no role chosen, the Assistant hands a part to a professional role by 
   ];
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
-    if (JSON.stringify(body.messages).includes("委托给你的子任务")) { childRequests.push(body); return reply("改写：本周完成三项交付。"); }
+    if (JSON.stringify(body.messages).includes("委托的子任务")) { childRequests.push(body); return reply("改写：本周完成三项交付。"); }
     parentRequests.push(body);
     return (script[step++] ?? (() => reply()))(body);
   });

@@ -34,7 +34,7 @@ test("W2-18-ASSISTANT-404-01: A's late 404 preserves B while deleting the work s
     await browser.evaluate("new Promise(resolve => setTimeout(resolve, 0))");
     assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), b);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 留下的草稿");
-    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-materials]').getAttribute('aria-label')"), /B 的材料/);
+    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /B 的材料/);
     assert.deepEqual((await readWork(browser, b)).rounds, beforeB.rounds);
     await waitWork(browser, b, view => view.work.draft === "B 留下的草稿");
   } finally { await barrier.close(); }

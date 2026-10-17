@@ -32,7 +32,7 @@ export function projectQuestion(question: PendingQuestion): AgentQuestion {
     multiple: question.multiple === true, allow_other: question.allowOther === true,
     ...(has("default") ? { default: typeof question.default === "object" ? [...question.default!] : question.default! } : {}),
     ...(has("multiline") ? { multiline: question.multiline! } : {}), ...(has("maxLength") ? { max_length: question.maxLength! } : {}),
-    ...(has("min") ? { min: question.min! } : {}), ...(has("max") ? { max: question.max! } : {}), ...(has("integer") ? { integer: question.integer! } : {}),
+    ...(has("min") ? { min: question.min! } : {}), ...(has("max") ? { max: question.max! } : {}), ...(has("integer") ? { integer: question.integer! } : {}), ...(has("unit") ? { unit: question.unit! } : {}),
     ...(has("refKinds") ? { ref_kinds: [...question.refKinds!] } : {}), ...(has("maxCount") ? { max_count: question.maxCount! } : {}),
   };
 }

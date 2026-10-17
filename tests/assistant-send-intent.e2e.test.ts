@@ -28,7 +28,7 @@ test("W2-18-SEND-01: waiting for A's draft sends A's intent and preserves B's se
     await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
     assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), b);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 的下一条输入");
-    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-materials]').getAttribute('aria-label')"), /B 的材料/);
+    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /B 的材料/);
     const afterA = await readWork(browser, a), afterB = await readWork(browser, b);
     assert.equal(afterA.rounds.at(-1)?.text, "只给 A 的补充");
     assert.deepEqual(afterB.rounds, beforeB.rounds, "B receives no round or steer from A's send");
@@ -58,7 +58,7 @@ test("W2-18-SEND-01: a late Host refusal belongs to A and leaves B's input and m
     assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), b);
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 留下的输入");
     assert.equal(await browser.evaluate("document.querySelector('.assistant-problem')"), null);
-    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-materials]').getAttribute('aria-label')"), /B 的材料/);
+    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /B 的材料/);
     assert.equal((await readWork(browser, a)).work.draft, "A 的失败输入");
     assert.deepEqual((await readWork(browser, b)).rounds, beforeB.rounds);
   } finally { await barrier.close(); }
@@ -180,7 +180,7 @@ test("W2-18-SEND-02: returning to the original project after a lost receipt and 
     const newId = created.find(work => work.work_id !== a)?.work_id; assert.ok(newId);
     await barrier.drop(first);
     await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
-    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-materials]').getAttribute('aria-label')"), /后来选择的材料/);
+    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]').textContent"), /后来选择的材料/);
     await browser.click("[data-assistant-panel-close]");
     await browser.click(`#row-${browser.projectId}`);
     const draftState = () => browser.evaluate("({selected:document.querySelector('.chooser')?.dataset.selected,text:document.querySelector('[data-assistant-input]')?.value,current:localStorage.getItem('molis.assistant.current'),drafts:Object.fromEntries(Object.entries(localStorage).filter(([key])=>key.startsWith('molis.assistant.new-draft:')))})");
@@ -198,7 +198,7 @@ test("W2-18-SEND-02: returning to the original project after a lost receipt and 
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "");
     await browser.click("[data-assistant-new]"); await browser.click("[data-assistant-panel-close]"); await browser.click("#row-personal");
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "项目 A 的新工作");
-    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-materials]').getAttribute('aria-label')"), /后来选择的材料/);
+    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /后来选择的材料/);
     const persisted = await waitWork(browser, newId, view => view.work.state === "completed");
     assert.deepEqual(persisted.work.scope, { kind: "project", project_id: browser.projectId });
     assert.equal(persisted.rounds.length, 1, "two HTTP attempts produce one stored round");
@@ -211,7 +211,7 @@ test("W2-18-SEND-02: returning to the original project after a lost receipt and 
 test("UIV-04 Assistant materials follow their work across switching, reload and a background send", { timeout: 90_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const a = await seedWork(browser, "材料工作 A"), b = await seedWork(browser, "材料工作 B");
-  const labels = () => browser.evaluate<string>("document.querySelector('[data-assistant-materials]').getAttribute('aria-label') || ''");
+  const labels = () => browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]').textContent || ''");
   await openWork(browser, a); await putInput(browser, "相同草稿", "只属于 A 的材料");
   await openWork(browser, b); assert.doesNotMatch(await labels(), /只属于 A 的材料/);
   await putInput(browser, "相同草稿", "只属于 B 的材料");

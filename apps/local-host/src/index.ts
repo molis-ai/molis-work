@@ -141,7 +141,7 @@ export { attachMolisWorkPtySocket, type MolisWorkPtySocketHandlers } from "./pty
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
 export { developerMode } from "./developer-mode.js";
 export { rewriteNativePluginApiPath, withRewrittenPluginApi } from "./native-plugin-api.js";
-export { hostCompleteText, hostTextGeneration, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
+export { hostCompleteText, hostTextGeneration, textModelAvailability, textModelMissing, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
 // Context-driven interaction: the judgment service and the readers of what a page claims, for the tests that drive them (new tests import the entry).
 export { createContextualJudgmentService, type ContextualJudgmentPorts, type ContextualJudgmentService } from "./contextual/judgment-service.js";
 export { readJudgeRequest, readLanding } from "./contextual/contextual-request.js";
@@ -263,7 +263,12 @@ export {
   type ComputerRoundHolder,
 } from "./computer/computer-policy.js";
 export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
-export { hostLog, captureHostLog, logSearchIndexFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
+export { projectOrNull } from "./catalog-lookup.js";
+export { createProjectArrivalHttp } from "./project-arrival-http.js";
+export { handleBrowserHttp } from "./browser/browser-http.js";
+export { codingBackgroundTasks } from "./coding-background-tasks.js";
+export { homeBackgroundTasks } from "./web-catalog.js";
+export { hostLog, captureHostLog, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
 export { jellyModelCacheDirectory } from "./jelly-native-material.js";
 export { extractNativeMaterial } from "./material-native.js";
 export { handleLocalVoiceHttp } from "./local-voice-http.js";

@@ -33,7 +33,9 @@ test("every built-in Agent is registered: its prompts named for the roles that u
   const assistant = prompts.find(prompt => prompt.key === `${ASSISTANT_PLUGIN_ID}/assistant-base`)!;
   assert.equal(assistant.source.kind, "system");
   assert.equal(assistant.layer, "base");
-  assert.deepEqual(assistant.used_by, ["个人工作助理"]);
+  assert.deepEqual(assistant.used_by, ["个人工作助理", "委派的子任务"], "a delegated work runs on the same base");
+  assert.deepEqual(prompts.find(prompt => prompt.key === `${ASSISTANT_PLUGIN_ID}/assistant-work`)!.used_by, ["个人工作助理"], "delegating and memory are the person's own work's layer");
+  assert.deepEqual(prompts.find(prompt => prompt.key === `${ASSISTANT_PLUGIN_ID}/assistant-delegated`)!.used_by, ["委派的子任务"], "being delegated is that role's own layer");
   assert.equal(assistant.effective, "default");
   const coding = prompts.filter(prompt => prompt.owner_id === "io.molis.work.coding");
   assert.ok(coding.length >= 5, "Coding's base, role and compaction prompts");
@@ -49,6 +51,22 @@ test("every built-in Agent is registered: its prompts named for the roles that u
 });
 
 const NEXT_KEY = "system:contextual/contextual.next", SURFACE_KEY = "system:contextual/contextual.surface";
+
+test("ADH-12 ADH-13 the base decides where 「记一下」 goes by one judgment, and each judgment the round's materials no longer carry is said once, in one layer", () => {
+  const body = (id: string) => ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === id)!.body;
+  const layers = { base: body("assistant-base"), work: body("assistant-work"), delegated: body("assistant-delegated") };
+  assert.deepEqual(layers.base.split("\n").filter(line => line.includes("记一下")),
+    ["- 用户让你“记一下”“记下来”“别忘了”时，选目录里用途和要记的东西相符的能力；用户点名了地方就记在那里，分不清记到哪里时用 ask-user 问。项目里的工作记在当前项目，个人工作或用户说是私事的才放个人空间。"]);
+  assert.doesNotMatch(layers.base, /待办|日程|日历|笔记|灵感/, "no table of kinds: the directory says what each capability is for");
+  const once = (text: string, layer: keyof typeof layers) => {
+    for (const [name, words] of Object.entries(layers)) assert.equal(words.includes(text), name === layer, `${text}: ${name}`);
+  };
+  once("用户撤销过的修改，除非用户再次要求，不再做。", "base");
+  once("「可用的方法」里有适合这件事的方法时，先读取它的步骤再照着做，并告诉用户用了哪个方法；不适合就不用。", "base");
+  once("这项工作的对象已不存在或被移走时，先告诉用户它的现状；除非用户明确要求，不在这里重新创建，也不按旧内容改写。", "base");
+  once("用户收回的子任务由这项工作接着做完（可以读取它们已产出的对象），不再委托出去，也不再对它们追加要求。", "work");
+  once("「允许记住」关着时，用户要你以后照做的，在这项工作里照做，并告诉用户没有长期记下、在哪里可以打开。", "work");
+});
 
 test("the two questions of the selection bar are listed under 选区推荐 with their default text, and what the person leaves in them is read back without recording a use", async t => {
   const home = await mkdtemp(join(tmpdir(), "agent-definitions-wording-"));

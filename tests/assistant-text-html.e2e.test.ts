@@ -17,7 +17,9 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await waitFor("document.querySelector('[data-pages-title]')?.value === '代码验证文档'");
   await click("[data-assistant-input]");
-  await evaluate(`window.dispatchEvent(new CustomEvent('molis:assistant-message', {detail:{message_id:'text-projection-delegate',purpose:'delegate',source:{surface:'pages',title:'文档'},object:{kind:'page',id:${JSON.stringify(page.id)},title:${JSON.stringify(page.title)},version:1},text:'整理这份文档',materials:[]}}))`);
+  // The work is linked under the document because the hand-over brings it (viewing a page no longer adds it, context-program
+  // §21.5), so the hand-over names the document by its own kind.
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis:assistant-message', {detail:{message_id:'text-projection-delegate',purpose:'delegate',source:{surface:'pages',title:'文档'},object:{kind:'pages_document',id:${JSON.stringify(page.id)},title:${JSON.stringify(page.title)},version:1},text:'整理这份文档',materials:[]}}))`);
   await waitFor("document.querySelector('.assistant-rich strong')?.textContent === '第一段'", 30_000);
   await evaluate("window.firstBubble=document.querySelector('.assistant-msg--assistant')");
   model.finish();

@@ -232,24 +232,16 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance the user approved on 2026-10-15 for W3-B1's landing code (context-program §21.8: Pages reports where
-// something in hand would land and previews it there), each for exactly one merge-base budget and used once: the next
-// baseline freezes again. Delete it in the next change to this gate (as #541 did for #522's).
+// One-time allowance for receipts 3c (specs/ai-input-receipts D24–D28, RCPT-311–313: one shared supplement receipt for
+// Coding and the Assistant, with the model's claim apart from the run's fact, the in-place detail and the status-region
+// announcements). The user approved it on 2026-10-16 (D25, relayed by the coordinator): workbench.js +4,113, workbench.css and
+// arrival.css +2,062 each; coding.js falls. Each entry is for exactly one merge-base budget (main 769d1179), capped at the
+// measured size, and used once: the next baseline freezes again. W5-05 slice 1 (#611) deleted 1e's spent entries; this brings the
+// object back with 3c's three only. Delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [703633, 707045],
-  "/assets/molis-work-plugins/pages.js": [48441, 48727],
-  "/assets/molis-work-workbench.js": [1097484, 1099387],
-  // Receipts 1d's Coding input receipts (specs/ai-input-receipts §4.1, §4.2: send modes, the sending bubble, resending under
-  // the same key), under the user's 2026-10-15 rule that small, necessary growth passes once; the user approved this gate
-  // change in the receipts session on 2026-10-15. diff, files, git and text-stats serve the Coding bundle byte for byte, and
-  // Coding's styles go into both stylesheets. Same terms: exactly one merge-base budget each, used once.
-  "/assets/molis-work-plugins/coding.js": [432277, 434028],
-  "/assets/molis-work-plugins/diff.js": [432275, 434026],
-  "/assets/molis-work-plugins/files.js": [432276, 434027],
-  "/assets/molis-work-plugins/git.js": [432274, 434025],
-  "/assets/molis-work-plugins/text-stats.js": [432284, 434035],
-  "/assets/molis-work-settings.css": [1115127, 1115160],
-  "/assets/molis-work-workbench.css": [1701600, 1701633],
+  "/assets/molis-work-arrival.css": [810350, 812412],
+  "/assets/molis-work-workbench.css": [1688608, 1690670],
+  "/assets/molis-work-workbench.js": [1097095, 1101205],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

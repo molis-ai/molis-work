@@ -70,7 +70,7 @@ const wire = (body: any) => JSON.stringify(body.messages);
 const targetOf = (body: any) => /([A-Za-z0-9_-]+) — browser/u.exec(wire(body))?.[1] ?? "";
 const observationOf = (body: any) => [...wire(body).matchAll(/observation ([A-Za-z0-9_-]+)/gu)].at(-1)?.[1] ?? "";
 
-async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, decisions: Array<{ scope: string; decision: "allow" | "block" }> = [], start?: string) {
+async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, decisions: Array<{ scope: string; decision: "allow" | "block" }> = [], start?: string, desk?: HostSurfaceDriver) {
   const home = await mkdtemp(join(tmpdir(), "molis-side-surface-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "board", storage_key: "memory:project" };
@@ -87,7 +87,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.side-surface-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "fixture-only",
-    surfaces: { driverFor: owner => owner === "board" && browser.on ? page.driver : null, siteDecisions: () => decisions } });
+    surfaces: { driverFor: owner => owner === "board" && browser.on ? page.driver : null, siteDecisions: () => decisions, ...(desk ? { desktop: () => desk } : {}) } });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
@@ -97,7 +97,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
   const send = (text: string, work_id?: string) => service.send({ ...(work_id ? { work_id } : {}), text, request_id: `req-${Math.random().toString(36).slice(2, 10)}`, context: { source: { surface: "home", title: "项目首页" }, captured_at: new Date().toISOString() } }, { project_ref: project });
   const pending = () => until(() => queue.list("board", "pending")[0], "a pending review");
-  return { service, queue, requests, page, browser, send, pending, adapter, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, queue, requests, page, browser, send, pending, adapter, home, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("from a blank page the Assistant looks, then opens a site and clicks only after the person approves each step", { timeout: 60_000 }, async t => {
@@ -135,6 +135,57 @@ test("from a blank page the Assistant looks, then opens a site and clicks only a
     const done = await until(async () => { const view = await f.service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "completion");
     assert.deepEqual(f.page.done, [{ what: "navigate", url: "https://example.com/" }, { what: "pointer", x: 10, y: 20, button: "left", clicks: 1 }]);
     assert.ok(done.rounds[0]!.activity.every(item => item.state === "completed"), JSON.stringify(done.rounds[0]!.activity));
+  } finally { await f.close(); }
+});
+
+/** A desk that only looks: what an app shows, and nothing done. */
+function fakeDesk(): HostSurfaceDriver {
+  return {
+    kind: "desktop", project_id: null,
+    async identity() { return "TextEdit#1"; },
+    async scope() { return "com.apple.TextEdit"; },
+    async observe() { return new TextEncoder().encode("应用：TextEdit\n[1] button「保存」 @(10,20)"); },
+    async perform() { throw new Error("this desk only looks"); },
+    async close() {},
+    masked: () => false,
+  };
+}
+
+// AI handbook §9.5 D2: a desktop step is known from the desk the round was given, not from what its receipt says. The desk
+// is held across a session's rounds, so a later round looks at it by id without listing; that look is still a desktop step,
+// live and after the runtime restarts.
+test("a later round's look at the desk it holds is a desktop step without listing, live and after a restart", { timeout: 60_000 }, async t => {
+  // The listing is one target per line; in the request JSON a line starts after an escaped newline or the string's quote.
+  const deskOf = (body: unknown) => /(?:\\n|")([A-Za-z0-9_-]+) — desktop/u.exec(wire(body))?.[1] ?? "";
+  let desk = "";
+  const f = await fixture(t, [
+    () => reply({ name: "surface-list", input: {} }),
+    body => { desk = deskOf(body); return reply({ name: "surface-observe", input: { target: desk, kind: "accessibility-tree" } }); },
+    () => reply(undefined, "TextEdit 开着。"),
+    () => reply({ name: "surface-observe", input: { target: desk, kind: "accessibility-tree" } }),
+    () => reply(undefined, "还是 TextEdit。"),
+  ], [], undefined, fakeDesk());
+  try {
+    const first = await f.send("看一下现在开着什么应用");
+    await until(async () => (await f.service.read(first.work.work_id)).work.state === "completed", "the first round");
+    assert.ok(desk, "the round listed the desk");
+    await f.send("再看一眼", first.work.work_id);
+    const done = await until(async () => { const view = await f.service.read(first.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "the second round");
+    const look = done.rounds[1]!.activity.find(item => item.verb.endsWith("-look"));
+    assert.equal(look?.verb, "computer-look", JSON.stringify(done.rounds[1]!.activity));
+    assert.equal(look?.target, "", "the panel never shows the desk's id");
+
+    const session = done.work.session_id!;
+    await f.adapter.close();
+    const reopened = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.side-surface-test", appVersion: "1.0.0" }, storageRoot: join(f.home, "sdk"), reviewQueue: new AgentReviewQueue(),
+      modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+      resolveCredential: () => "fixture-only" });
+    try {
+      const runs = (await reopened.readSession({ session_id: session })).runs;
+      assert.equal(runs.length, 2);
+      const restoredLook = (await reopened.read(runs[1]!)).activity.find(item => item.name === "surface-observe");
+      assert.equal(restoredLook?.target, "\u0000desktop", "the restored round knows the desk from its attempt, not from a listing or the receipt");
+    } finally { await reopened.close(); }
   } finally { await f.close(); }
 });
 

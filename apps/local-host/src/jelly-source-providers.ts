@@ -22,12 +22,14 @@ function firstString(value: Record<string, unknown>, keys: string[]): string | u
 function domain(host: string, base: string): boolean { return host === base || host.endsWith(`.${base}`); }
 function https(value: unknown): string | null {
   if (typeof value !== "string") return null;
+  // A value that is not a public https address is not an address to fetch.
   try { const url = validateJellyPublicURL(value.startsWith("//") ? `https:${value}` : value); return url.protocol === "https:" ? url.href : null; } catch { return null; }
 }
 function safeReferer(value: string): string { const url = new URL(value); url.search = ""; url.hash = ""; return url.href; }
 function responseJSON(response: JellyPublicResponse): unknown { try { return JSON.parse(response.data.toString("utf8")); } catch { throw jellySourceErrors.invalid_json("来源返回的数据无法解析；原链接保留"); } }
 function checkAborted(options: JellySourceOptions): void { if (options.signal?.aborted) throw jellySourceErrors.cancelled("来源提取已取消"); }
 export function jellyXiaohongshuNoteID(value: string): string | null {
+  // Not a URL is not a Xiaohongshu note.
   let url: URL; try { url = new URL(value); } catch { return null; }
   if (url.protocol !== "https:" || !domain(url.hostname, "xiaohongshu.com")) return null;
   const match = url.pathname.match(/^\/(?:explore|discovery\/item)\/([A-Za-z\d_-]{1,128})\/?$/u);
@@ -57,6 +59,7 @@ export function jellySourceEmbeddedJSON(html: string, name: string): unknown | n
     if (char === '"') { quoted = true; sanitized += char; continue; }
     if (raw.startsWith("undefined", index) && !/[\w$]/u.test(raw[index - 1] ?? " ") && !/[\w$]/u.test(raw[index + 9] ?? " ")) { sanitized += "null"; index += 8; } else sanitized += char;
   }
+  // A page whose embedded state does not parse has no state to read; the caller tries the page's other representations.
   try { return JSON.parse(sanitized); } catch { return null; }
 }
 function walk(root: unknown, accept: (value: Record<string, unknown>) => unknown): unknown {

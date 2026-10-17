@@ -1,4 +1,4 @@
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { COGNIA_ANSWER } from "./prompts.js";
 import { randomUUID } from "node:crypto";
 import { COGNIA_LIMITS, cogniaErrors, requireCognia, stringField, type Draft, type Reference } from "./types.js";
@@ -34,8 +34,7 @@ export async function generateCogniaDraft(withStore: <T>(run: (store: CogniaStor
   requireCognia(materials.every(m => m.role !== "attachment"), "附件未做文字提取，请选择 Markdown 或文本材料");
   const references: Reference[] = materials.map((m, i) => ({ label: "S" + (i + 1), material_id: m.id, revision: m.revision, title: m.title, path: m.path, body: m.body }));
   requireCognia(references.reduce((n, r) => n + r.body.length, 0) <= COGNIA_LIMITS.ai_characters, "选中材料超过 100,000 字符，请缩小选择；内容未被截断。", cogniaErrors.too_large);
-  const boundary = "UNTRUSTED_MATERIAL_" + randomUUID();
-  const prompt = instructed(COGNIA_ANSWER, `用户任务：${JSON.stringify(question)}\nBEGIN_${boundary}\n${JSON.stringify(references)}\nEND_${boundary}`);
+  const prompt = instructed(COGNIA_ANSWER, `用户任务：${JSON.stringify(question)}\n${fencedMaterials(references, "MATERIALS_" + randomUUID())}`);
   const raw = await ports.completeText(prompt, { signal: ports.signal, beforeDispatch: ports.beforeEffect });
   requireCognia(!ports.signal?.aborted, "生成已取消，未保存草稿", cogniaErrors.cancelled);
   const heading = /^# ([^\r\n]+)\r?\n([\s\S]*)$/u.exec(raw.trim());

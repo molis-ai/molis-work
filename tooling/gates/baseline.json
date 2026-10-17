@@ -1,11 +1,11 @@
 {
-  "giantUnits": 143,
+  "giantUnits": 141,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2081,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2058,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1663,
-      "methods": 99
+      "lines": 1643,
+      "methods": 98
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -22,7 +22,7 @@
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 539,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
-      "lines": 554,
+      "lines": 553,
       "methods": 23
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
@@ -51,30 +51,29 @@
     "file apps/workbench/src/i18n/en.ts": 3324,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2343,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2235,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 1003,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2019,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
-    "function horizontal/agent-host/src/adapters/prologue-action-gateway.ts#prologueActionGateway": 162,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
-    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 202,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 969,
+    "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 968,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 604,
+      "lines": 603,
       "methods": 18
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 372,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
-      "lines": 384,
+      "lines": 382,
       "methods": 12
     },
-    "function horizontal/agent-host/src/index.ts#start": 255,
+    "function horizontal/agent-host/src/index.ts#start": 253,
     "class horizontal/listener-host/src/index.ts#ListenerHost": {
       "lines": 361,
       "methods": 18
@@ -97,9 +96,9 @@
       "lines": 501,
       "methods": 16
     },
-    "file modules/functions/src/store.ts": 939,
+    "file modules/functions/src/store.ts": 937,
     "class modules/functions/src/store.ts#FunctionsStore": {
-      "lines": 336,
+      "lines": 331,
       "methods": 22
     },
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
@@ -155,12 +154,11 @@
       "methods": 35
     },
     "function modules/shelf/src/store.ts#runJob": 199,
-    "file packages/contracts/src/services/agent-host.ts": 1576,
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
     "file packages/design-system/src/styles/calm-desktop.ts": 1392,
-    "file packages/design-system/src/styles/craft-finish.ts": 2173,
+    "file packages/design-system/src/styles/craft-finish.ts": 2160,
     "file packages/design-system/src/styles/momentum.ts": 856,
     "file packages/design-system/src/styles/personal-workbench-v3.ts": 1300,
     "file packages/design-system/src/styles/primitives.ts": 1268,
@@ -201,7 +199,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1641,
+    "file plugins/native/coding/src/client.ts": 1637,
     "file plugins/native/coding/src/styles.ts": 828,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
@@ -262,7 +260,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 930,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 495,
+  "testInternalImports": 494,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -498,7 +496,6 @@
     "tests/work-session-actions.test.ts": 1,
     "tests/work-session-mcp.test.ts": 3,
     "tests/workbench-asset-cache.test.ts": 1,
-    "tests/workbench-deferred-clients.e2e.test.ts": 1,
     "tests/workflow-content-actions.test.ts": 1,
     "tests/workflows-action-steps.e2e.test.ts": 1,
     "tests/workflows-action-steps.test.ts": 1,
@@ -1127,9 +1124,8 @@
     "docs/design/soft-workbench/.impeccable": 1,
     "plugins/native/plugin-builder/.impeccable": 1
   },
-  "emptyCatchesTotal": 4,
+  "emptyCatchesTotal": 3,
   "emptyCatches": {
-    "apps/local-host/src/web-onboarding-input.ts": 1,
     "packages/im-ui/src/browser/controller.ts": 1,
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1

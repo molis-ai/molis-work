@@ -25,8 +25,8 @@ const sameReference = (a: ExactActionReference, b: ExactActionReference) => a.ca
 
 /**
  * The Agent Host's unified actions about a session's rounds: what its sessions wait for and how they go on, and what a
- * plugin tells a round or takes back. Every write checks the call is still current right before it, and once more before a supplement
- * that found its round ended is kept in the session: a cancelled or revoked call writes nothing.
+ * plugin tells a round or takes back. Every write checks the call is still current right before it, and once more right before
+ * the runtime keeps a supplement whose round ended, or gives one back: a cancelled or revoked call writes nothing.
  */
 export function registerSessionActions<C extends Call>(register: Register<C>, ports: SessionActionPorts<C>): Array<() => void> {
   const fresh = async (call: C) => { await call.invocation.beforeEffect(); call.invocation.assertAuthorityCurrent(); };
@@ -73,7 +73,7 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       const adapter = ports.adapter(call, runtime_id);
       if (!adapter.inputs?.withdraw) throw agentErrors.capability_unavailable("当前运行时不能撤回补充");
       await fresh(call);
-      return adapter.inputs.withdraw(run, input_id);
+      return adapter.inputs.withdraw(run, input_id, () => call.invocation.assertAuthorityCurrent());
     }),
     // The person clicked a round's suggestion (D25, D27): exactly the action it names, under the round's own grant as it is now.
     register(agentOfferActions.run, async (call, input) => {

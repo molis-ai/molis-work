@@ -16,18 +16,19 @@ function notRunning(): Error {
 
 async function adapterFor(options: { steer: (input: Steer) => unknown; queue?: boolean }) {
   const listeners = new Set<(event: PrologueEvent) => void>();
-  const steered: Steer[] = [], queued: Array<{ session: string; input: unknown }> = [];
+  const steered: Steer[] = [], queued: Array<{ session: string; input: unknown }> = [], taken: Array<{ from: "run" | "queued"; id: string }> = [];
   const runtime: PrologueRuntimePort = {
     sessions: { create: async () => ({ ref: { id: "session-1" } }) },
     async startAgentRun() {
       return {
         run: { ref: { id: "run-1" }, subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); }, async cancel() {} },
         control: { state: "running", stop() {}, pause() {}, resume() {}, subscribe() { return () => {}; },
-          async steer(input) { steered.push(input); return options.steer(input) as never; } },
+          async steer(input) { steered.push(input); return options.steer(input) as never; },
+          async withdrawSteer(id) { if (id !== "steer-1") throw Object.assign(new Error("no such input"), { code: "AGENT_STEER_NOT_FOUND" }); taken.push({ from: "run", id }); } },
       };
     },
     async shutdown() { return {}; },
-    ...(options.queue === false ? {} : { queue: { async add(session: string, input: unknown) { queued.push({ session, input }); return { inputId: "steer-9", replayed: false }; }, async withdraw() {} } }),
+    ...(options.queue === false ? {} : { queue: { async add(session: string, input: unknown) { queued.push({ session, input }); return { inputId: "steer-9", replayed: false }; }, async withdraw(_session: string, id: string) { taken.push({ from: "queued", id }); } } }),
   };
   const adapter = new PrologueAgentAdapter({ runtime,
     modelConfiguration: async () => ({ protocol: "anthropic-messages", endpoint: "https://x.test", model: "m", credential_ref: "c" }) });
@@ -38,7 +39,7 @@ async function adapterFor(options: { steer: (input: Steer) => unknown; queue?: b
     role: { role_id: "reader", version: 1, execution: "read-only", prompts: [{ prompt_id: "p", version: 1, body: "b" }], host_tools: [] },
   } as AgentStartRequest);
   const send = (input: AgentInputSend, beforeQueue?: () => void) => adapter.inputs.send(handle.ref, input, beforeQueue);
-  return { adapter, ref: handle.ref, send, steered, queued, emit: (event: PrologueEvent) => { for (const listener of listeners) listener(event); } };
+  return { adapter, ref: handle.ref, send, steered, queued, taken, emit: (event: PrologueEvent) => { for (const listener of listeners) listener(event); } };
 }
 
 test("RC-02: a supplement goes to the round with its key, author and send mode, and the receipt names what the runtime took", async () => {
@@ -116,17 +117,18 @@ const owner = { project_id: "project", plugin_id: "io.molis.work.coding", instal
 /** `agent.inputs.*` as the Host registers them, over a runtime that records each supplement it is handed or asked to take back. */
 function registered() {
   const host = new AgentHost(), handlers = new Map<string, Function>(), sent: AgentInputSend[] = [], withdrawn: string[] = [];
+  let read = false;
   const adapter = { descriptor: { runtime_id: "fixture", display_name: "Fixture", provider_version: "1", capabilities: emptyCapabilityMatrix() },
     async readSession(ref) { return { session: ref, owner, title: "Owned", runs: [{ session_id: "own-session", run_id: "own-run" }], latest_run: null }; },
     inputs: { async send(_run, input, beforeQueue) { beforeQueue?.(); sent.push(input); return { input_id: "steer-1", replayed: false, delivered: "queued" as const }; },
-      async withdraw(_run, inputId) { withdrawn.push(inputId); return { input_id: inputId, from: "queued" as const }; } },
+      async withdraw(_run, inputId, beforeWithdraw) { read = true; beforeWithdraw?.(); withdrawn.push(inputId); return { input_id: inputId, from: "queued" as const }; } },
   } as AgentRuntimeAdapter;
   host.register(adapter);
   registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler); return () => {}; } },
     { agentHost: () => host, projectId: () => owner.project_id, authority: () => ({ manifest: { roles: [], prompts: [] }, authorizedDirectories: [] }) });
   const call = (input: Record<string, unknown>, invocation: Record<string, unknown>) => handlers.get(agentInputActions.send.capability_id)!({}, input, invocation);
   const withdraw = (input: Record<string, unknown>, invocation: Record<string, unknown>) => handlers.get(agentInputActions.withdraw.capability_id)!({}, input, invocation);
-  return { call, withdraw, sent, withdrawn };
+  return { call, withdraw, sent, withdrawn, read: () => read };
 }
 const input = { runtime_id: "fixture", session_id: "own-session", run_id: "own-run", text: "顺便看日志" };
 const live = (assertAuthorityCurrent: () => void = () => {}, beforeEffect: () => Promise<void> = async () => {}) =>
@@ -194,6 +196,10 @@ test("RCPT-315: a cancelled or revoked withdrawal takes nothing back; another se
   const foreign = registered();
   await assert.rejects(foreign.withdraw({ ...target, run_id: "foreign-run" }, live()), (error: unknown) => (error as { code?: string }).code === "agent.run_unknown");
   assert.deepEqual(foreign.withdrawn, []);
+  // Revoked after the port read the round, before the runtime is asked to give the supplement back: nothing is taken back.
+  const late = registered();
+  await assert.rejects(late.withdraw(target, live(() => { if (late.read()) throw new Error("revoked before the withdrawal"); })), /revoked before the withdrawal/);
+  assert.deepEqual(late.withdrawn, []);
   const fine = registered();
   assert.deepEqual(await fine.withdraw(target, live()), { input_id: "steer-1", from: "queued" });
   assert.deepEqual(fine.withdrawn, ["steer-1"]);
@@ -205,4 +211,17 @@ test("RCPT-314: a correction reaches the runtime with the input it is about, in 
   assert.deepEqual(item.steered.at(-1), { text: "日志只看错误级别", key: "send.a1", about: "steer-1" });
   await item.send({ text: "下一轮只看失败路径", key: "send.a2", mode: "after-run", about: "steer-1" });
   assert.deepEqual(item.queued.at(-1), { session: "session-1", input: { text: "下一轮只看失败路径", key: "send.a2", about: "steer-1" } });
+});
+
+test("RCPT-315: the check right before each request to give a supplement back stops it, from the round and from the session", async () => {
+  const item = await adapterFor({ steer: () => ({ steerId: "steer-1", replayed: false }) });
+  const revoked = () => { throw new Error("activation revoked"); };
+  await assert.rejects(item.adapter.inputs.withdraw!(item.ref, "steer-1", revoked), /activation revoked/, "the round still holds it");
+  await assert.rejects(item.adapter.inputs.withdraw!(item.ref, "steer-9", revoked), /activation revoked/, "the session holds it");
+  assert.deepEqual(item.taken, [], "neither the round nor the session was asked to give anything back");
+  let checks = 0;
+  assert.deepEqual(await item.adapter.inputs.withdraw!(item.ref, "steer-1", () => { checks++; }), { input_id: "steer-1", from: "run" });
+  assert.deepEqual(await item.adapter.inputs.withdraw!(item.ref, "steer-9", () => { checks++; }), { input_id: "steer-9", from: "queued" });
+  assert.deepEqual(item.taken, [{ from: "run", id: "steer-1" }, { from: "queued", id: "steer-9" }]);
+  assert.equal(checks, 3, "once before the round's write, and again before the session's when the round did not hold it");
 });

@@ -116,19 +116,21 @@ interface LiveRound { ended: boolean; control: RoundInputs; turns: readonly Agen
  * Takes a supplement back before the model saw it (specs/ai-input-receipts §4.6). The round under way gives it up while it
  * has not put it in the context; once there, the model has seen it and only a correction changes course. One the round
  * does not hold — it ended, or the supplement went straight to the session — is the session's, while it still waits there.
- * Taking back one already taken back answers the same.
+ * Taking back one already taken back answers the same. `beforeWithdraw` runs right before each request to give it back.
  */
-export async function withdrawInput(inputId: string, live: LiveRound, queue: ((inputId: string) => Promise<void>) | undefined): Promise<AgentInputWithdrawal> {
+export async function withdrawInput(inputId: string, live: LiveRound, queue: ((inputId: string) => Promise<void>) | undefined, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal> {
   const held = live.turns.find(turn => turn.steer?.id === inputId)?.steer?.state;
   if (held === "withdrawn") return { input_id: inputId, from: "run" };
   if (held === "read" || (!live.ended && held === "applied")) throw agentErrors.input_applied("这条补充已经放进上下文，撤不回了；要改口可以发一条纠正");
   if (!live.ended && live.control.withdrawSteer) {
+    beforeWithdraw?.();
     try { await live.control.withdrawSteer(inputId); return { input_id: inputId, from: "run" }; } catch (error) {
       if (codeOf(error) === "AGENT_STEER_ALREADY_APPLIED") throw agentErrors.input_applied("这条补充已经放进上下文，撤不回了；要改口可以发一条纠正");
       if (codeOf(error) !== "AGENT_STEER_NOT_FOUND" && codeOf(error) !== "RUN_NOT_RUNNING") throw error;
     }
   }
   if (!queue) throw agentErrors.capability_unavailable("当前运行时不能撤回排在会话里的补充");
+  beforeWithdraw?.();
   try { await queue(inputId); return { input_id: inputId, from: "queued" }; } catch (error) {
     if (codeOf(error) === "SESSION_INPUT_NOT_QUEUED") throw agentErrors.input_not_queued("这条补充已经不在等着：它被带进了一轮，或会话里没有这一条");
     throw error;
@@ -142,9 +144,9 @@ export function inputsPort(round: (run: AgentRunRef) => Promise<LiveRound>, queu
       const live = await round(run), keep = queue();
       try { return await deliverSteer(input, live.ended, one => live.control.steer(one), keep && (one => keep.add(run.session_id, one)), beforeQueue); } finally { publish(run.run_id); }
     },
-    withdraw: async (run, inputId) => {
+    withdraw: async (run, inputId, beforeWithdraw) => {
       const live = await round(run), keep = queue();
-      try { return await withdrawInput(inputId, live, keep && (id => keep.withdraw(run.session_id, id))); } finally { publish(run.run_id); }
+      try { return await withdrawInput(inputId, live, keep && (id => keep.withdraw(run.session_id, id)), beforeWithdraw); } finally { publish(run.run_id); }
     },
   };
 }

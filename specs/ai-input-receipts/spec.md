@@ -767,7 +767,7 @@ interface AgentInputView {
     - RCPT-314：纠正的回执和排队都带 `about`。
   - 动作层（`tests/agent-input-delivery.test.ts`）：
     - RCPT-314：一轮的补充和会话的排队里，`about` 都原样到了 SDK。
-    - RCPT-315：两份 schema；被取消、撤权的调用什么都不撤；别的会话的那一轮够不着。
+    - RCPT-315：两份 schema；被取消、撤权的调用什么都不撤，包括读完那一轮之后、交给运行时撤回之前才撤权的；别的会话的那一轮够不着。每次请求一轮或会话交还之前都再核一次调用是否还有效（`beforeWithdraw`，和 `send` 的 `beforeQueue` 一样）。
 
 ### 阶段 4：产品对象与 Goals 层
 

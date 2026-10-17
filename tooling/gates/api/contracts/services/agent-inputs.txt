@@ -72,7 +72,7 @@ export interface AgentInputWithdrawal {
 
 export interface AgentInputsPort {
     send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
-    withdraw?(run: AgentRunRef, inputId: string): Promise<AgentInputWithdrawal>;
+    withdraw?(run: AgentRunRef, inputId: string, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal>;
 }
 
 export interface AgentQueuedInput {

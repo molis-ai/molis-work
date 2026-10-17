@@ -84,12 +84,13 @@ export interface AgentQueuedInput {
 
 /**
  * The runtime's side. `beforeQueue` runs right before a supplement is kept in the session, once the round turned out to
- * have ended: the caller checks there that it may still write.
+ * have ended, and `beforeWithdraw` right before the round or the session is asked to give one back: the caller checks
+ * there that it may still write.
  */
 export interface AgentInputsPort {
   send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
   /** Takes a supplement back before the model saw it; absent where the runtime cannot. */
-  withdraw?(run: AgentRunRef, inputId: string): Promise<AgentInputWithdrawal>;
+  withdraw?(run: AgentRunRef, inputId: string, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal>;
 }
 
 /**

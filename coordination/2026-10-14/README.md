@@ -898,3 +898,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 去掉 start-agent-run 里没有类型的 cast。
   - PR 正文写明三项对调用方可见的变化：拒绝码 EFFECT_RECONCILE_REQUIRED 改成 SESSION_RECOVERY_BUSY；新增 SESSION_RUN_PARKED 和 SESSION_HISTORY_UNAVAILABLE；inspect 会写盘。
   - 换包时要改 Molis 的 `horizontal/agent-host/src/adapters/prologue-run.ts` REFUSED_BEFORE_RUN，加上 SESSION_RECOVERY_BUSY 和 SESSION_RUN_PARKED。
+- #671 → edf3d9a96：merge 了 main f4d18c37a，三份 CSS 按 #677 之后的预算重新取键，增量不变（arrival +64、settings +57、workbench.css +102），workbench.js 还是 +2,838。除去 page-assets，和 5c2772ad5 逐行一致。走 merge-only。3b-2c（09f07b543，本地）已认可：PR 的 base 用 receipts/3b2b-tray，用户在回执线会话里一次性批准了 workbench.js +325；#671 合入后 base 改成 main。

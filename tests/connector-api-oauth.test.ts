@@ -76,6 +76,28 @@ test("API OAuth connects, survives host reload, refreshes with its own app and r
     assert.equal(JSON.stringify(withConnectorConnections(directory, store => store.list())).includes("secret-a"), false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+test("ASC-19 ASC-35: disabling and reenabling during API refresh refuses stale token writes", async () => {
+  const directory = home();
+  let release!: () => void, entered!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  try {
+    const first = await startApiOAuth(directory, { serviceId: "asana", displayName: "Work", clientId: "app", clientSecret: "fixture-secret", origin });
+    await completeApiOAuth(directory, callback(first.authorization_url), transport("work"));
+    const secrets = connectorProtocolSecrets(directory, first.connection_id);
+    const before = [secrets.get("access"), secrets.get("oauth"), secrets.get("expires")];
+    const refreshing = resolveApiOAuthToken(directory, first.connection_id, true, async () => {
+      entered(); await waiting;
+      return json({ access_token: "late-access", refresh_token: "late-refresh", expires_in: 3600 });
+    });
+    const rejected = assert.rejects(refreshing, /改变|变更|变化/);
+    await reached;
+    withConnectorConnections(directory, store => { store.setEnabled(first.connection_id, false); store.setEnabled(first.connection_id, true); });
+    release(); await rejected;
+    assert.deepEqual([secrets.get("access"), secrets.get("oauth"), secrets.get("expires")], before);
+    assert.equal(withConnectorConnections(directory, store => store.state(store.require(first.connection_id))), "connected");
+  } finally { release(); rmSync(directory, { recursive: true, force: true }); }
+});
 test("reauthorization rejects same display name from another account and allows a renamed original account", async () => {
   const directory = home();
   try {

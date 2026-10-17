@@ -292,6 +292,7 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
 export async function resolveApiOAuthToken(home: string, id: string, forceRefresh = false, fetchImpl: typeof fetch = fetch): Promise<string> {
   return serialized(home, id, async () => {
     const config = configured(home, id);
+    const revision = withConnectorConnections(home, store => store.require(id)).updated_at;
     const secrets = connectorProtocolSecrets(home, id);
     const token = secrets.get("access");
     const expires = Number(secrets.get("expires"));
@@ -304,6 +305,7 @@ export async function resolveApiOAuthToken(home: string, id: string, forceRefres
     await enrichContext(config, json, fetchImpl);
     // A disconnect during the network request must win over a token refresh.
     configured(home, id);
+    if (withConnectorConnections(home, store => store.require(id)).updated_at !== revision) throw new ApiOAuthError("连接在刷新期间已变化，请重试");
     secrets.put("access", next);
     if (text(json.refresh_token)) secrets.put("oauth", text(json.refresh_token));
     const nextExpiry = expiry(json, config.serviceId);

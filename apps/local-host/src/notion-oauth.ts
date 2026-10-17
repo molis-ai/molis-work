@@ -12,7 +12,7 @@ const CLIENT_SECRET_REF = `${PREFIX}client_secret`;
 const CALLBACK_PATH = "/api/settings/connectors/notion/oauth/callback";
 const PENDING_TTL_MS = 10 * 60_000;
 
-type Pending = { state: string; clientId: string; clientSecret?: string; redirectUri: string; createdAt: number; connectionId: string; displayName?: string };
+type Pending = { state: string; clientId: string; clientSecret?: string; redirectUri: string; createdAt: number; connectionId: string; expectedRevision?: string; displayName?: string };
 const refreshInFlight = new Map<string, Promise<string>>();
 function pendingIndex(): Array<{ state: string; at: number }> {
   // No pending sign-ins, or an index a crash left torn: either way no sign-in is waiting to be finished.
@@ -67,6 +67,7 @@ export function startNotionOAuth(input: {
   clientSecret?: string;
   /** The connection the authorized workspace is saved to. */
   connectionId: string;
+  expectedRevision?: string;
   displayName?: string;
   nowMs?: number;
 }): { authorizationUrl: string; redirectUri: string } {
@@ -85,7 +86,7 @@ export function startNotionOAuth(input: {
   for (const entry of pendingIndex()) if (entry.at > now || now - entry.at > PENDING_TTL_MS) cancelNotionOAuthFlow(entry.state);
   store.put(PENDING_INDEX, JSON.stringify([...pendingIndex(), { state, at: now }]));
   const pendingValue = JSON.stringify({ state, clientId, clientSecret, redirectUri, createdAt: input.nowMs ?? Date.now(),
-    connectionId: input.connectionId, ...(input.displayName ? { displayName: input.displayName } : {}) } satisfies Pending);
+    connectionId: input.connectionId, expectedRevision: input.expectedRevision, ...(input.displayName ? { displayName: input.displayName } : {}) } satisfies Pending);
   store.put(`${PENDING_REF}:${state}`, pendingValue);
   return { authorizationUrl: notionAuthorizationUrl({ clientId, redirectUri, state }), redirectUri };
 }
@@ -117,7 +118,7 @@ export async function completeNotionOAuth(input: {
   nowMs?: number;
   fetchImpl?: typeof fetch;
   resolveRefs?: (tokens: NotionOAuthTokens, connectionId: string) => TokenRefs;
-}): Promise<NotionOAuthTokens & { connectionId: string; displayName?: string }> {
+}): Promise<NotionOAuthTokens & { connectionId: string; expectedRevision?: string; displayName?: string }> {
   const pending = readPending(input.state, input.nowMs ?? Date.now());
   if (input.callbackUrl.origin + input.callbackUrl.pathname !== pending.redirectUri) throw new Error("Notion 回调地址不匹配");
   if (!input.code.trim()) throw new Error("Notion 未返回授权码");
@@ -132,7 +133,7 @@ export async function completeNotionOAuth(input: {
   const refs = input.resolveRefs?.(tokens, pending.connectionId) ?? scopedRefs(pending.connectionId);
   saveTokens(tokens, refs);
   store.put(`${refs.access}:client`, JSON.stringify({ clientId: pending.clientId, clientSecret }));
-  return { ...tokens, connectionId: pending.connectionId, ...(pending.displayName ? { displayName: pending.displayName } : {}) };
+  return { ...tokens, connectionId: pending.connectionId, expectedRevision: pending.expectedRevision, ...(pending.displayName ? { displayName: pending.displayName } : {}) };
 }
 
 /** A connection's Notion access token, refreshed once when asked or when only the refresh token is left. */

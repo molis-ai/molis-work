@@ -14,7 +14,7 @@ import {
   startGmailOAuthFlow,
   storeGmailOAuthClient,
 } from "./gmail-oauth.js";
-import { prepareOAuthConnectionId, saveOAuthConnectionTarget } from "./connector-oauth-targets.js";
+import { prepareOAuthConnectionTarget, saveOAuthConnectionTarget } from "./connector-oauth-targets.js";
 import { withContextJourneys, contextJourneyId } from "./context-onboarding-store.js";
 import { handleConnectorOAuthCallback } from "./connector-oauth-callbacks.js";
 
@@ -36,14 +36,15 @@ export async function handleLocalConnectorsSettingsHttp(
       const body = await readBody(request);
       checkConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined,
         { service_id: "notion", method: "oauth", connection_id: typeof body.connection_id === "string" ? body.connection_id : undefined });
-      const targetId = prepareOAuthConnectionId(homeDirectory, "notion", typeof body.connection_id === "string" ? body.connection_id : undefined);
+      const target = prepareOAuthConnectionTarget(homeDirectory, "notion", typeof body.connection_id === "string" ? body.connection_id : undefined);
+      const targetId = target.connectionId;
       const host = requestHost(request);
       if (!host) throw new Error("无法确认本机回调地址");
       const started = startNotionOAuth({
         origin: `http://${host}`,
         clientId: typeof body.client_id === "string" ? body.client_id : undefined,
         clientSecret: typeof body.client_secret === "string" ? body.client_secret : undefined,
-        connectionId: targetId,
+        ...target,
         displayName: typeof body.display_name === "string" ? body.display_name.trim().slice(0, 100) : undefined,
       });
       const authorizationId = beginConnectorAuthorization(homeDirectory, new URL(started.authorizationUrl).searchParams.get("state")!, targetId, "notion", Date.now(), typeof body.setup_id === "string" ? body.setup_id : undefined);
@@ -110,14 +111,15 @@ export async function handleLocalConnectorsSettingsHttp(
       { service_id: "gmail", method: "oauth", connection_id: typeof body.connection_id === "string" ? body.connection_id : undefined });
     const onboarding = typeof body.onboarding_id === "string" ? { id: contextJourneyId(body.onboarding_id), desktop: body.desktop === true } : undefined;
     if (onboarding) withContextJourneys(homeDirectory, store => { if (store.get(onboarding.id).phase !== "selecting") throw new Error("请从来源清单重新发起连接"); });
-    const targetId = prepareOAuthConnectionId(homeDirectory, "gmail", typeof body.connection_id === "string" ? body.connection_id : undefined);
+    const target = prepareOAuthConnectionTarget(homeDirectory, "gmail", typeof body.connection_id === "string" ? body.connection_id : undefined);
+    const targetId = target.connectionId;
     const started = await startGmailOAuthFlow({
       clientId: typeof body.client_id === "string" ? body.client_id : undefined,
       clientSecret: typeof body.client_secret === "string" ? body.client_secret : undefined,
       redirectUri: onboarding ? `http://${requestHost(request)}/api/feed/connectors/gmail/oauth/callback` : typeof body.redirect_uri === "string" ? body.redirect_uri : undefined,
     });
     if (onboarding) withContextJourneys(homeDirectory, store => { const journey = store.get(onboarding.id); journey.oauth_status = "pending"; journey.oauth_state = started.state; journey.oauth_expires_at = Date.now() + 10 * 60_000; journey.error = null; store.save(journey); });
-    saveOAuthConnectionTarget("gmail", started.state, targetId,
+    saveOAuthConnectionTarget("gmail", started.state, target,
       typeof body.display_name === "string" ? body.display_name.trim().slice(0, 100) || undefined : undefined, onboarding);
     const authorizationId = beginConnectorAuthorization(homeDirectory, started.state, targetId, "gmail", Date.now(), typeof body.setup_id === "string" ? body.setup_id : undefined);
     saveConnectorAuthorizationPresentation(homeDirectory, authorizationId, { authorization_url: started.authorizationUrl });

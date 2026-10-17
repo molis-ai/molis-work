@@ -42,7 +42,7 @@ export async function handleConnectorOAuthCallback(request: IncomingMessage, res
           },
         });
         assertConnectorAuthorizationPending(homeDirectory, state);
-        const committed = submitConnectorActivation(homeDirectory, state, { kind: "oauth", target: { connectionId: targetId, expectedRevision: existing?.updated_at },
+        const committed = submitConnectorActivation(homeDirectory, state, { kind: "oauth", target: { connectionId: targetId, expectedRevision: target.expectedRevision },
           credentials: stage.credentials(targetId), input: {
           connectionId: targetId, serviceId: "gmail",
           displayName: existing?.display_name ?? target?.displayName ?? `Gmail · ${result.email || "新连接"}`,
@@ -86,7 +86,6 @@ export async function handleConnectorOAuthCallback(request: IncomingMessage, res
   if (method === "GET" && url.pathname === "/api/settings/connectors/notion/oauth/callback") {
     const stage = createOAuthCredentialStage(homeDirectory);
     const state = url.searchParams.get("state") ?? "";
-    let expectedRevision: string | undefined;
     try {
       assertConnectorAuthorizationPending(homeDirectory, state);
       const host = requestHost(request);
@@ -96,7 +95,6 @@ export async function handleConnectorOAuthCallback(request: IncomingMessage, res
         resolveRefs: (tokens, connectionId) => {
           assertConnectorAuthorizationPending(homeDirectory, state);
           const existing = withConnectorConnections(homeDirectory, (store) => store.get(connectionId));
-          expectedRevision = existing?.updated_at;
           if (existing?.account_label && existing.account_label !== tokens.workspaceId) {
             throw new Error("授权工作区与原连接不同，请新增 Notion 连接");
           }
@@ -106,7 +104,7 @@ export async function handleConnectorOAuthCallback(request: IncomingMessage, res
       assertConnectorAuthorizationPending(homeDirectory, state);
       const existing = withConnectorConnections(homeDirectory, (store) => store.get(result.connectionId));
       const refs = oauthConnectionRefs(result.connectionId);
-      const committed = submitConnectorActivation(homeDirectory, state, { kind: "oauth", target: { connectionId: result.connectionId, expectedRevision },
+      const committed = submitConnectorActivation(homeDirectory, state, { kind: "oauth", target: { connectionId: result.connectionId, expectedRevision: result.expectedRevision },
         credentials: stage.credentials(result.connectionId), input: {
         connectionId: result.connectionId, serviceId: "notion",
         displayName: existing?.display_name ?? result.displayName ?? `Notion · ${result.workspaceName || "新连接"}`,

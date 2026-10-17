@@ -337,7 +337,7 @@ test("MCP settings keep authorization at 401 and missing connections as safe pro
   }
 });
 
-for (const service of ["gmail", "notion"] as const) test(`S-32 ASC-35 ${service} cancellation during token exchange preserves existing credentials`, { timeout: 30_000 }, async t => {
+for (const service of ["gmail", "notion"] as const) test(`S-32 ASC-19 ASC-35 ${service} cancellation and stale callbacks preserve existing credentials`, { timeout: 30_000 }, async t => {
   const home = mkdtempSync(join(tmpdir(), `molis-${service}-cancel-`));
   const prior = { home: process.env.MOLIS_WORK_HOME, backend: process.env.MOLIS_WORK_SECRET_BACKEND };
   process.env.MOLIS_WORK_HOME = home; process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
@@ -353,8 +353,8 @@ for (const service of ["gmail", "notion"] as const) test(`S-32 ASC-35 ${service}
   t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url === "https://oauth2.googleapis.com/token" || url === "https://api.notion.com/v1/oauth/token") {
-      generation++; if (hold) { reached(); await waiting; }
-      return Response.json({ access_token: `fixture-access-${generation}`, refresh_token: `fixture-refresh-${generation}`, expires_in: 3600,
+      const issued = ++generation; if (hold) { reached(); await waiting; }
+      return Response.json({ access_token: `fixture-access-${issued}`, refresh_token: `fixture-refresh-${issued}`, expires_in: 3600,
         workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
     }
     if (url === "https://gmail.googleapis.com/gmail/v1/users/me/profile") return Response.json({ emailAddress: "work@example.test" });
@@ -390,6 +390,23 @@ for (const service of ["gmail", "notion"] as const) test(`S-32 ASC-35 ${service}
     const freshResponse = complete(fresh); await entered!; await cancel(fresh); release(); await freshResponse;
     assert.equal(withConnectorConnections(home, store => store.get(fresh.connection_id)), null);
     assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore().get(`connector-connection:${fresh.connection_id}:access`)), null);
+    for (const phase of ["consent", "exchange"]) {
+      hold = false;
+      const stale = await start(first.connection_id);
+      let staleResponse: Promise<Response> | undefined;
+      if (phase === "exchange") { block(); staleResponse = complete(stale); await entered!; }
+      hold = false;
+      const newer = await start(first.connection_id);
+      const accepted = await complete(newer);
+      assert.match(accepted.headers.get("location") ?? "", /connected=/);
+      const current = withConnectorConnections(home, store => store.require(first.connection_id));
+      const credentials = runWithMolisWorkHome(home, () => ["access", "refresh"].map(kind => createFileSecretStore().get(`connector-connection:${first.connection_id}:${kind}`)));
+      release();
+      const rejected = await (staleResponse ?? complete(stale));
+      assert.match(rejected.headers.get("location") ?? "", /connection_error=failed/, `${phase}: stale authorization must be rejected`);
+      assert.deepEqual(withConnectorConnections(home, store => store.require(first.connection_id)), current);
+      assert.deepEqual(runWithMolisWorkHome(home, () => ["access", "refresh"].map(kind => createFileSecretStore().get(`connector-connection:${first.connection_id}:${kind}`))), credentials);
+    }
   } finally {
     release?.(); await new Promise<void>(resolve => server.close(() => resolve())); resetSecretStoreCache();
     if (prior.home === undefined) delete process.env.MOLIS_WORK_HOME; else process.env.MOLIS_WORK_HOME = prior.home;

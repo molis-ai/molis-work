@@ -74,6 +74,9 @@ export const TRASH_GOAL_STYLES = String.raw`
     }
     body[data-desktop-shell="true"] .trash-goal-document .trash-goal-hero { padding: 16px 8px 4px; }
     body[data-desktop-shell="true"] .trash-goal-document .trash-goal-workspace { padding: 8px; }
+    body[data-desktop-shell="true"] .trash-goal-document .goal-title-row { gap: 12px; }
+    body[data-desktop-shell="true"] .trash-goal-document .goal-title-outcome { display: none; }
+    body[data-desktop-shell="true"] .trash-goal-document .goal-title-actions .mw-btn { min-height: 28px; }
     body[data-desktop-shell="true"] .trash-goal-panel {
       border: 0;
       background: var(--paper);

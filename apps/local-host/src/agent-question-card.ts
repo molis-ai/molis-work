@@ -9,7 +9,7 @@ import { dateTimeLocale } from "./web-locale.js";
  * `questionAnswer` reads them back: `q<n>` for question `n` of a questionnaire, `pick` and `text` otherwise.
  *
  * A question is a questionnaire, a short set of options, or a question answered in words. A questionnaire's questions are
- * choices, words, numbers, dates or a date and time (T1); dates are typed, with the weekday beside them, and a date and time
+ * choices, words, numbers, dates or a date and time (T1); a number shows its unit beside it and in its error line; dates are typed, with the weekday beside them, and a date and time
  * is in this computer's time zone, named once after the time. References are offered to the model only once every surface
  * draws them (agent-question-surfaces), so they are not drawn here yet.
  */
@@ -49,7 +49,7 @@ function typedField(item: AgentQuestion, say: Say, draft: InteractionValues): { 
   }
   if (item.type === "number") {
     return { id: `n${item.index}`, control: { kind: "number", value: draftText(draft[`n${item.index}`]) ?? start, step: 1, integer: item.integer === true,
-      ...(typeof item.min === "number" ? { min: item.min } : {}), ...(typeof item.max === "number" ? { max: item.max } : {}), stepLabels: [say("减少 {step}", { step: 1 }), say("增加 {step}", { step: 1 })] } };
+      ...(typeof item.min === "number" ? { min: item.min } : {}), ...(typeof item.max === "number" ? { max: item.max } : {}), ...(item.unit ? { unit: item.unit } : {}), stepLabels: [say("减少 {step}", { step: 1 }), say("增加 {step}", { step: 1 })] } };
   }
   if (item.type === "date") {
     const value = draftText(draft[`d${item.index}`]) ?? start;
@@ -95,9 +95,9 @@ const REASONS: Partial<Record<AgentQuestionProblemReason, string>> = {
   "reference-unavailable": "选的对象已不存在或现在不能用，请重新选择",
 };
 
-/** A bound as the person reads it: a number as written, a date as typed, a moment in this computer's time. */
+/** A bound as the person reads it: a number as written with its unit ("120 分钟"), a date as typed, a moment in this computer's time. */
 function bound(item: AgentQuestion, value: unknown): string | undefined {
-  if (typeof value === "number") return String(value);
+  if (typeof value === "number") return item.unit ? `${value} ${item.unit}` : String(value);
   if (typeof value !== "string" || !value) return undefined;
   if (item.type !== "datetime") return value;
   const at = localMoment(value);

@@ -860,3 +860,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 去掉「无法识别的处理方式」和 `.filter(Boolean)` 两处兜底，按闭集读、不兜底；
   - 措辞表现在报告和设计系统各有一份，记进 BACKLOG，#671 合入后由回执线合成一份。
   - 读取路径（运行视图投出的账）、引述、围栏和 RCPT-341～343 的用例都认可。
+- #669 合入 f78ae6d5c，workbench.js 1105153、coding.js 374297。#677 全量绿、已入队。#671、#673、#675 都又和 main 冲突（page-assets）。#677 合入后 CSS 还要变，所以让三条线等 #677 合入后各 merge main 一次，避免做两遍；chain9 已按 pid 停掉，新 head 核过后再排。#677 合入后在统筹会话里给 Codex 写通知（开 §10.26）。

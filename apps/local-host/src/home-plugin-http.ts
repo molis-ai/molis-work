@@ -103,6 +103,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
       granted: caller.permissions,
       execution: routed?.control ?? plain,
+      stop: () => abort.abort(),
       readBody: async (request, maxBytes) => {
         // The route's own limit when it declares one; otherwise bounded for image-bearing Home actions. Each plugin also validates its input.
         try { return await readLocalWebBody(request, maxBytes ?? 12 * 1024 * 1024); }

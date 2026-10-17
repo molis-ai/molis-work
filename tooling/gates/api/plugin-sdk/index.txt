@@ -164,6 +164,13 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
+    line_bytes: 65536;
+    lines: 10000;
+    progress_bytes: 1048576;
+}>;
+
 export type { PlacementResult } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactPublishInput } from "@molis-ai/molis-work-contracts/platform/plugin";

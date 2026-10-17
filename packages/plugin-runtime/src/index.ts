@@ -44,6 +44,7 @@ export type { PluginEventContract, PluginEventSubscription } from "./event-contr
 export { MemoryPluginEventsRepository, SqlitePluginEventsRepository, PLUGIN_EVENTS_SCHEMA_SQL } from "./event-repository.js";
 export type { PluginEventsDatabase } from "./event-repository.js";
 export { PLUGIN_ROUTE_PREFIX, PluginRouteRouter } from "./routes.js";
+export { INSTANCE_WATCH_INTERVAL_MS, type InstanceWatchTimers } from "./instance-watch.js";
 export type { PluginRouteDispatchInput, PluginRouteMatch } from "./routes.js";
 export { createPluginCapabilityClient, createPluginInputsClient, createPluginOutputsClient, pluginRequiredPorts, portArtifactId } from "./services.js";
 export type { PluginCapabilityPort, PluginWiringServicesInput } from "./services.js";

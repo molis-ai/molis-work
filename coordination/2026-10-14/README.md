@@ -977,3 +977,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-17 22:30 UTC：#681 合入 42c968efe，集成批 A 里三条（#683/#685/#681）都已合入；#673 单独跑全量。#687 已入队。
 - 统筹 10-17 认可交互线 AC-05「不串线」一片（base main）。只加用例：切换会话、切换项目、选区变化三种情形，断言写成别处不出现。查出缺陷先报一行，认可后再做最小修复；顺带补上 AC-19、AC-20 的编号。和 BL-156 准备算两片在途。
 - 统筹 10-17 认可手册线两片 Prologue（各开一个 PR，从 b541a8e6 开工）：① dispatch-subagent 的 tools/character 说明按真实行为写（空清单、点名角色、CHARACTER_ESCALATION、省略报错），subagent.md 同改，加一条「点名角色、tools 写 []」的用例；② search 的说明补上「只在内容里找，按名字找用 list」，写之前先查实现里有没有按文件名匹配的路径。两个都赶不上这次换包，下次一起带进来。prologue-run.ts:165/166 那句不符的话，先在 BACKLOG 记一行，换包后删。C4 的 Molis 半边评测前，判定规则先给统筹。
+- 10-17 22:45 UTC：#687 合入 1483a9f2c（workbench.js 1108249）。#673 全量绿、已入队，但 page-assets 又冲突：已请情境线 merge main，新 head 走 merge-only。#688 base 已自动改成 main、冲突：已请回执线 merge main、按 merge-base 定键（+800/+201 以内），发核对后排全量。#684 的 PR 评论已更新为按 [1108249, 1108277] 定键。#680、#689 和新 main 合并干净。

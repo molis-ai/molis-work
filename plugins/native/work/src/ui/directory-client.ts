@@ -48,7 +48,6 @@ export const WORK_DIRECTORY_CLIENT = `
     const directory = directoryFor(kind);
     const surface = surfaceFor(kind);
     if (!directory || !surface) return;
-    const query = String(directory.querySelector("[data-operation-search]")?.value || "").trim().toLocaleLowerCase();
     const filter = String(directory.querySelector("[data-operation-filter]")?.value || "all");
     const runtime = String(directory.querySelector("[data-session-runtime-filter]")?.value || "all");
     const status = String(directory.querySelector("[data-session-status-filter]")?.value || "all");
@@ -56,8 +55,7 @@ export const WORK_DIRECTORY_CLIENT = `
     const rows = [...directory.querySelectorAll("[data-operation-row]")];
     const visible = rows.filter((row) => {
       const contentMatches = row.dataset.recordContent === filter;
-      const shown = (!query || String(row.dataset.recordSearch || "").includes(query))
-        && (filter === "all" || contentMatches)
+      const shown = (filter === "all" || contentMatches)
         && (runtime === "all" || row.dataset.recordRuntime === runtime)
         && (status === "all" || row.dataset.recordStatus === status);
       row.hidden = !shown;
@@ -86,8 +84,6 @@ export const WORK_DIRECTORY_CLIENT = `
       empty.hidden = visible.length > 0;
       empty.querySelector("[data-operation-clear]")?.toggleAttribute("hidden", visible.length > 0);
     }
-    const count = directory.querySelector("[data-operation-count]");
-    if (count) count.textContent = String(visible.length);
     const expanded = stageShell()?.dataset.expanded === "true";
     if (!visible.length) {
       surface.querySelectorAll("[data-operation-detail]").forEach((detail) => { detail.hidden = true; });
@@ -119,22 +115,18 @@ export const WORK_DIRECTORY_CLIENT = `
       selectRecord(kind, next.dataset.recordId);
       (next.matches("[data-operation-select]") ? next : next.querySelector("[data-operation-select]"))?.focus();
     });
-    directory.querySelector("[data-operation-search]")?.addEventListener("input", () => filterRecords(kind));
     directory.querySelector("[data-operation-filter]")?.addEventListener("change", () => filterRecords(kind));
     directory.querySelector("[data-session-runtime-filter]")?.addEventListener("change", () => filterRecords(kind));
     directory.querySelector("[data-session-status-filter]")?.addEventListener("change", () => filterRecords(kind));
     directory.querySelector("[data-session-sort]")?.addEventListener("change", () => filterRecords(kind));
     directory.querySelector("[data-operation-clear]")?.addEventListener("click", () => {
-      const search = directory.querySelector("[data-operation-search]");
       const filter = directory.querySelector("[data-operation-filter]");
-      if (search) search.value = "";
       if (filter) filter.value = "all";
       const runtime = directory.querySelector("[data-session-runtime-filter]");
       const status = directory.querySelector("[data-session-status-filter]");
       if (runtime) runtime.value = "all";
       if (status) status.value = "all";
       filterRecords(kind);
-      search?.focus();
     });
   });
   const sessionDirectory = directoryFor("sessions");

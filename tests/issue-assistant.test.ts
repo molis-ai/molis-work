@@ -10,6 +10,7 @@ import { MolisWorkLocalHost, resolveWebControlToken, withConnectorConnections } 
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ISSUES_PLUGIN_ID, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
+import { endingReviewReply } from "./fixtures/ending-review.js";
 
 function reply(tool?: { name: string; input: unknown }): string {
   const events: string[] = [];
@@ -31,7 +32,10 @@ async function assistantHome(t: TestContext) {
   const replies: string[] = [], requests: unknown[] = [];
   const model = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+    const raw = Buffer.concat(chunks).toString("utf8");
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    if (endingReviewReply(raw)) { response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply()); return; }
+    requests.push(JSON.parse(raw));
     response.writeHead(200, { "content-type": "text/event-stream" }); response.end(replies.shift() ?? reply());
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));

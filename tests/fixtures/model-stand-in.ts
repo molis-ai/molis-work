@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { endingReviewReply } from "./ending-review.js";
 
 /**
  * A model provider on 127.0.0.1 that speaks the OpenAI chat-completions shape and accepts exactly one key.
@@ -21,8 +22,10 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK")
     for await (const chunk of request) body += chunk;
     const offeredKey = String(request.headers.authorization ?? "").replace(/^Bearer /, "");
     const payload = body ? JSON.parse(body) as { model?: string; stream?: boolean } : {};
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    const review = endingReviewReply(body), content = review ?? reply;
     if (request.method !== "POST" || request.url !== "/v1/chat/completions") { response.writeHead(404).end(); return; }
-    requests.push({ model: String(payload.model ?? ""), offeredKey });
+    if (!review) requests.push({ model: String(payload.model ?? ""), offeredKey });
     if (offeredKey !== acceptedKey) {
       response.writeHead(401, { "content-type": "application/json" });
       response.end(JSON.stringify({ error: { message: "invalid api key" } }));
@@ -32,13 +35,13 @@ export async function startModelStandIn(acceptedKey: string, reply = "MOLIS_OK")
     if (payload.stream) {
       response.writeHead(200, { "content-type": "text/event-stream" });
       const send = (value: unknown) => response.write(`data: ${JSON.stringify(value)}\n\n`);
-      send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: { role: "assistant", content: reply }, finish_reason: null }] });
+      send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: { role: "assistant", content }, finish_reason: null }] });
       send({ id: "stand-in", object: "chat.completion.chunk", model: payload.model, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage });
       response.end("data: [DONE]\n\n");
       return;
     }
     response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify({ choices: [{ message: { content: reply } }], usage }));
+    response.end(JSON.stringify({ choices: [{ message: { content } }], usage }));
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();

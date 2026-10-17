@@ -298,7 +298,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | 结果与后续操作 | 不完整 | 卡片结果只有一行文字；一轮之后的「接下来」只能打开结果或重试 |
 | 草稿 | 不完整 | 助理：问询卡任何字段变化都整卡重绘、清掉正在填的；卡片字段在状态或版本变化时丢失；打开助理、起始语、带入、重试会覆盖输入框。Coding：问询卡有本地与服务端草稿（`plugins/native/coding/src/client.ts` 的 `renderQuestions`） |
 | 两份问询卡实现 | 重复 | 助理 `assistant-island.ts` 的 `renderQuestion` 与 Coding `ui.ts` + `client.ts` 各一份，行为不同（Coding 有逐题检查与草稿，助理没有） |
-| Prompt 指导 | 已有，要补 | `assistant-base` v24 已要求用 `ask-user` 给具体选项、用 `suggest-action` 给卡、不在正文模拟按钮；运行时护栏 `announce-guard.ts` 拦「说有按钮却没有」。缺：字段题、推荐理由、对象选择、避免重复问 |
+| Prompt 指导 | 已有，要补 | `assistant-base` v24 已要求用 `ask-user` 给具体选项、用 `suggest-action` 给卡、不在正文模拟按钮；运行时的收尾核对（`prologue-stop-guard.ts`，D1②）把回复与这一轮的事实核对，拦「说有按钮却没有」。缺：字段题、推荐理由、对象选择、避免重复问 |
 | 单次生成插件的接续 | 新增 | Cognia、Pages、Form、Dataset、PPT、灵光、Todo、Workflows 用 `completeText`，一问一答；没有「需要补充信息」的结构化结果与接续约定 |
 
 ### 14.3 入口盘点（首轮）
@@ -576,6 +576,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 - 2026-10-11：I0 独立组合预览写成并交接（§19、§20）。
 - 2026-10-12（C1a，已取消）：曾把合同子路径先做成纯新增（#447）；统筹改序后并进 C1+H1（D11），#447 关闭。
 - 2026-10-13（交接 PR 合并 I1）：按用户决定，各线只在交接 PR 里提交；I1（#439）已合进交接分支（933c664f，无冲突）。I0 预览改用 `createInteractionClient`，删掉预览自己的 `calendar.ts` 和 `bindings.ts` 里的字段、日历、键盘处理（净减 128 行）；纯逻辑用例 21/21 与局部 typecheck 通过，**浏览器用例（`tests/ai-interaction-slice.e2e.test.ts`）等 browser 锁，尚未重跑**。
+- 2026-10-17（D1 文档与示例，AC-12，防腐复查）· 从 main `c276ab9c`（#648 之后）起 · merge-base `c276ab9c`。只动文档与用例，不改源码：`skills/molis-prologue-ai/SKILL.md` 加「交互」一节（含验证命令），`docs/platform/PROLOGUE-AI.md` §6 末尾加「问人、建议一步、引用对象」一小节（这两份归手册线，统筹 10-17 定：只加这一节，不动别的段落），`skills/molis-plugin-dev/SKILL.md` 的索引加一行，设计系统 README 补引用搜索的行为；新用例 `tests/interaction-examples.test.ts`（§15.8 示例 1，进 CI 产品子集）。`skills/molis-plugin-dev/SKILL.md` 不在创作台的 `CHAPTERS` 里，所以不需要 `studio:replay`；改了 `skills/` 后先 `pnpm build` 再跑安装类用例。通过：文档引用门禁（行内路径、动作 id 都存在）；页面资源、API 与动作快照、DOM 事件、错误码、翻译都不变。没改 `generated-ai.md`：它挂在创作台的 Skill 里，改了要 `pnpm studio:replay` 加真实模型冒烟，而生成插件沙箱没有 `ask-user` 与 `suggest-action`，`skills/molis-plugin-dev/SKILL.md` 的索引行已写明这条边界。
 - 2026-10-17（T2 对象引用题，防腐复查）· 从 main `7bf9b7a1`（#618、#632 之后）起 · merge-base `7bf9b7a1` · 决策 D36。通过：M1 边界（`boundary:check`；设计系统不引用合同与 SDK，宿主取种类只读内置 Manifest，插件之间不互相引用）；M2 健康门禁对照 merge-base（新的 `*_SCRIPT` 文本常量 0：引用搜索的接线写进工作台与项目选择页原有的两段脚本，不另立常量；`craft-finish.ts` 巨大单元行数不变）；M4 API 快照（`plugin-sdk` 的 `questionAnswer` 返回值多了引用数组，已 `api:update`）；动作快照（`coding.runs.control` 升到 v5，v1～v4 拒绝；`search.references@1` 不变）；DOM 事件 0 新增；翻译（9 句新中文都有英文，「没有找到」沿用 Todo 已有的 No matches，不新增冲突）；错误码 0 新增（`kind-not-allowed`、`too-many`、`reference-unavailable` 都是合同里已有的原因）；页面资源由用户弹窗批的一次性上限（D36 ⑤），实测 `workbench.css` +1,326、`arrival.css` +1,326、`workbench.js` +4,037、`settings.css` +19，`coding.js` 不变；S-26 加两条断言拒绝本身的用例（页面写的标题进不了回答；题目没要的种类搜不到也交不上）；用户 10-16 规则：种类清单来自 Manifest 与上游 enum，不写提示词禁令、不靠正则或特例。留下的：外部插件的种类不在清单里（BL-152）。
 - 2026-10-17（T1 后续：数字题的单位，防腐复查）· 从 main `cee899c4`（#615 换包之后）起 · 决策 D35。改动只在宿主的卡（`agent-question-card.ts`：把题目的 `unit` 交给共享控件、界限带单位）与设计系统的数字控件（`interaction.ts`：单位加 id，输入框的 `aria-describedby` 先指单位）；没有新事件、新错误码、新合同、新翻译句子；页面资源不变（单位是宿主画的 HTML，样式 T1 已有），四份资产与 main 相同。单位只经合同 `AgentQuestion.unit` 一处来，不从题干猜（用户 10-16 规则：不打补丁）。
 - 2026-10-16（T1 放开文字、数字、日期、日期时间，防腐复查）· 从 main `5ba635c8`（#597、#602 之后）起 · merge-base `5ba635c8` · 决策 D29–D33（三条统筹定、一条统筹定不升提示词、一条本线定）。做法：宿主的问卷卡（`agent-question-card.ts`）按题型画四种字段，日期旁显示星期、日期时间后显示一处本机时区；拒绝时每个字段旁的话写出界限（「不能超过 120」「不能早于 2026-10-19 09:00」），助理经工作视图、Coding 经路由把题目随拒绝带回，由宿主一处措辞；插件开发包的 `questionAnswer` 按字段名读出 `value`（数字转数，日期时间写成本机偏移）；两个界面的题型同时放开（D8）；Coding 页面交回卡上字段原样，路由读成回答，`coding.runs.control` 升到 v4（D33）。输入框的「回答上面的问题」芯片也覆盖只有一道文本题的问卷（D34，统筹实走发现原条件出不来）。样式：数字步进器从 `INTERACTION_NUMBER_STYLES` 拆出日历那段（`INTERACTION_CALENDAR_STYLES`，只在组件板），步进器进工作台与项目选择页两张表，与日期框等高、出错时边框变红，390 px 与触屏下输入框与 ± 至少 44 px；字节用 `immersive-navigation.ts` 里 `.assistant-plan` 的五条死规则抵掉（它的标记 09-28 在 `5c56d681` 删掉，样式没跟着删），两张表各少 29 字节，Coding 包少 842 字节，工作台脚本少 84 字节（芯片的条件改由宿主判、页面只读标记，D34）。留作后续：共享客户端打字时改写的星期只有中文（`interactionFields` 的 `weekdays`），英文界面下打字后会显示中文星期；数字题没有 `unit`（上游 Prologue，已报统筹）。
@@ -990,15 +991,15 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 | AC-01 范围 | 部分 | §14.3 只有首轮分组；逐插件的证据没补；第二批入口（P5）未开始 |
 | AC-02 输入体验 | 部分 | Option 在问卷卡里（助理 `agent-question-card.ts`、Coding 同一函数，用例 `assistant-interaction-html`、`coding-question-card.e2e`）。**同排推荐没有**：D14 把下一步放在最新一轮之下，不在输入框旁；Coding 没有下一步（H4）。§3 第 2 条「与输入框平齐、横向展开」是用户特别强调的，现在归情境线的助理面板布局（跨线，见下） |
 | AC-03 交互语义 | 部分 | 操作卡不点不执行、推荐不等于选中、默认值不提交（`assistant-offers.ts`；`coding-question-card.e2e`「不预选」）。输入框目标芯片（D14 修订后的 R4：「写进问卷 / 补充这一轮」）两边都没做：本线的「写进问卷」一半与回执线 1e 的一半都未开工 |
-| AC-04 补充信息 | 部分 | 宿主逐题校验与字段旁的错误已通（`answerProblems` → `agent.answer_invalid` → `questionErrors`；`agent-typed-questions.test.ts`）；但 `hostQuestionTypes()` 只有 `choice`，文本、数字、日期、对象引用都没给模型 |
-| AC-05 对象与材料 | 未做 | H3：没有候选动作、提交前没有复核。只有操作卡的目标对象改版后失效（`assistant-offers.ts` 的失效巡检） |
+| AC-04 补充信息 | 已实现 | 助理与 Coding 的 `ask-user` 带六种题型（T1、T2），宿主逐题校验与字段旁的错误（`answerProblems` → `agent.answer_invalid` → `questionErrors`）；§15.8 示例 1 一张卡问日期时间、数字与对象引用，错一题只报那一题，改对后原 Run 接着做（`interaction-examples`，2026-10-17）；浏览器里的同一条路是 `assistant-typed-questions.e2e` |
+| AC-05 对象与材料 | 部分 | H3 与 T2：候选只按题目的种类、以会话主人的权限搜（`search.references@1`），提交前宿主向主人重读，主人此刻的标题进回答，读不到的退回（S-26，`security-invariants-object-references`）；操作卡的目标对象改版后失效（`assistant-offers.ts` 的失效巡检）。没有的：选区与会话、项目切换时的不串线用例；外部插件的种类不在清单里（BL-152） |
 | AC-06 预览与结果 | 部分 | 助理操作卡有对象、参数、影响与回执（`assistant-card-view.ts`）；结果只有一行文字；下一步只有「打开结果 / 再试一次」。Coding 没有操作卡（H4） |
 | AC-07 失败恢复 | 部分 | 等待期限 24 小时（`prologue-node.ts` 的 `inputWaitTtlMs`）；草稿存在工作记录与 Coding 会话（D13、`question_drafts`）；卡片 CAS、结果未知不重试。重启后带类型问卷读回并作答的真实 Node Host 用例**没有** |
 | AC-08 并发与输入 | 部分 | 卡片版本 CAS、问题版本核对；没有「两个入口同时回答同一题」的真实交错用例 |
 | AC-09 专业插件 | 部分 | Coding 的 Diff、命令审查、报告在 A2 全量里通过；非 Agent 插件的结构化接续没有（S1） |
 | AC-10 UI | 部分 | 助理问卷卡与操作卡在 A1 看过浅、深与 390 px；Coding 问卷卡的三个宽度与深色没有记录；真实中文输入法、读屏未验证 |
 | AC-11 SDK 消费 | 部分 | 过渡包带带类型 `ask-user`，宿主用它投影与预检；只开了 `choice`；换正式包（采用线 P3）后要再核 |
-| AC-12 长期接入 | 未做 | `skills/molis-prologue-ai`、`docs/platform/PROLOGUE-AI.md`、`skills/molis-plugin-dev`（含 `generated-ai.md`）都没写问卷、操作卡、对象引用、单次接续；§15.8 三个示例一个都没有（示例 1 要日期时间、数字、对象引用；示例 2 要同排按钮；示例 3 要 S1） |
+| AC-12 长期接入 | 部分 | D1（2026-10-17）：`skills/molis-prologue-ai/SKILL.md` 的「交互」一节、`docs/platform/PROLOGUE-AI.md` §6「问人、建议一步、引用对象」、`skills/molis-plugin-dev/SKILL.md` 的索引行、设计系统 README 的引用搜索；§15.8 示例 1 有新用例 `interaction-examples`，示例 3 是 `form-draft-questions`；示例 2 的操作卡有 `action-cards`、`agent-host-offers`。没有的：示例 2 的同排按钮（归情境线）；`generated-ai.md` 未改（它挂在创作台的 Skill 里，改它要真实模型冒烟，生成插件也没有这几条路） |
 | AC-17 共享部件 | 已实现 | `interaction-components.test.ts`、`interaction-sdk-mapping.test.ts` |
 | AC-18 共享客户端 | 已实现 | `interaction-client.e2e.test.ts` |
 | AC-19、AC-20 带类型的题进宿主 | 已实现 | C1+H1（#410）；用例 `agent-typed-questions.test.ts`（用例名里没写 AC-19/20 的编号，随下一片补上） |

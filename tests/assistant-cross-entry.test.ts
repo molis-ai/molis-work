@@ -9,6 +9,7 @@ import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { openTestHome } from "./fixtures/test-home.js";
 import { crossEntrySchedule as subject, isCrossEntryObject } from "./fixtures/cross-entry-subjects.js";
 import { cogniaScriptedResponse as reply } from "./fixtures/cognia-model-response.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => Promise<T | undefined>, what: string): Promise<T> {
   const deadline = Date.now() + 20_000;
@@ -44,13 +45,13 @@ test("W3-09-1-01 T1/T2 assistant: approved Schedule changes and owner refusals r
     undefined,
   ];
   const network: unknown[] = [], originalFetch = globalThis.fetch.bind(globalThis);
-  t.mock.method(globalThis, "fetch", async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
     if (String(url) !== "https://1.1.1.1/v1/messages") return originalFetch(url, init);
     assert.ok(typeof init?.body === "string" || init?.body instanceof Uint8Array);
     const body: unknown = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body)); network.push(body);
     assert.ok(network.length <= calls.length, "the scripted model must finish each actual round");
     return reply(calls[network.length - 1], "本轮已完成。");
-  });
+  }));
   const before = await home.web.get<{ tasks: unknown[] }>(subject.path(project.project_id));
   const changed = t.mock.method(home.host.search!, "changed");
   const roundId = newCallId();
@@ -104,13 +105,13 @@ for (const failure of ["disabled", "invalid"] as const) test(`W3-09-2-01 assista
     authority: async work => assistantAuthority(home.host, work, () => new Set()), projectTitle: async () => project.display_name }, "web-user");
   t.after(async () => { await adapter.close(); db.close(); });
   const originalFetch = globalThis.fetch.bind(globalThis), requests: unknown[] = [];
-  t.mock.method(globalThis, "fetch", async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
     if (String(url) !== "https://1.1.1.1/v1/messages") return originalFetch(url, init);
     assert.ok(typeof init?.body === "string" || init?.body instanceof Uint8Array); const body: unknown = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body)); requests.push(body);
     assert.ok(requests.length <= 2, "the model receives the refusal and ends the actual round");
     return requests.length === 1 ? reply({ name: "change-capability", input: { capability_id: create.capability_id, version: create.version, provider_id: create.provider.provider_id,
       input: failure === "invalid" ? { ...subject.input("x", "23:00"), title: "x".repeat(201) } : subject.input("不可写的定时", "23:00") } }) : reply(undefined, "没有执行，原内容保留。");
-  });
+  }));
   const roundId = newCallId(), sent = await withCallId(roundId, () => service.send({ text: "创建定时", request_id: randomUUID() }, { project_ref: project.reference }));
   const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "preflight refusal completed");
   assert.equal(done.reviews.length, 0); assert.deepEqual(home.host.callLog!.find(roundId), []);

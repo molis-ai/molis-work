@@ -14,6 +14,8 @@ test("Cognia's model settings link in a pane opens the settings of the Workbench
     window.addEventListener("message", event => { if (event.origin === location.origin && event.data && typeof event.data.type === "string") window.heardFromPane.push(event.data.type); });
     const frame = document.createElement("iframe");
     frame.id = "cognia-pane";
+    // Marked as the Workbench marks its panes: the page takes a pane's messages from a pane's frame only (S-30).
+    frame.dataset.paneOwner = "probe";
     frame.src = ${JSON.stringify(`${origin}/projects/${projectId}/?workbenchPane=probe&panePlugin=cognia`)};
     document.body.append(frame);
   })()`);

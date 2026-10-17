@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { roundParts } from "./fixtures/round-parts.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -38,7 +39,7 @@ async function fixture(t: TestContext, name: string, children: string[], options
   let parentStep = 0;
   const parentScript = [...children.map(title => () => reply({ name: "delegate-work", input: { title, brief: `起草「${title}」。`, acceptance: "一段话" } })),
     () => reply(undefined, "已交给子任务，它们还在做，做完我再汇总。")];
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => {
     const raw = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     const body = JSON.parse(raw), said = JSON.stringify(body.messages);
     if (said.includes("委托的子任务")) {
@@ -49,7 +50,7 @@ async function fixture(t: TestContext, name: string, children: string[], options
     if (parentStep < parentScript.length) return parentScript[parentStep++]!();
     later.push(raw);
     return reply(undefined, "已核对子任务的结果，汇总好了。");
-  });
+  }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: `io.molis.work.handback-${name}`, appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });

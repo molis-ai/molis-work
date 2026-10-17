@@ -4,6 +4,7 @@ import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { endingReviewReply } from "./ending-review.js";
 
 function reply(tool?: { name: string; input: unknown }, text = "已记录「切换页面后输入内容丢失」（Bug）。"): string {
   const events: string[] = [], emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
@@ -40,7 +41,10 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
   const requests: unknown[] = [], rounds = new Map<string, number>();
   const model = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const body = JSON.parse(Buffer.concat(chunks).toString("utf8")); requests.push(body);
+    const raw = Buffer.concat(chunks).toString("utf8"), review = endingReviewReply(raw);
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    if (review) { response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(undefined, review)); return; }
+    const body = JSON.parse(raw); requests.push(body);
     if (behavior.unavailable) { response.writeHead(503); response.end('{"error":{"message":"fixture model unavailable"}}'); return; }
     const revision = JSON.stringify(body).match(/待整理记录 ([0-9a-f-]{36}) 版本 (\d+)/);
     const draft_id = JSON.stringify(body).match(/录入草稿 ([0-9a-f-]{36})/)?.[1] ?? (revision ? revision[1] + revision[2] + behavior.title : "missing-draft");

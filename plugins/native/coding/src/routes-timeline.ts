@@ -11,6 +11,7 @@ import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerp
 import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunView, type AgentStepAmendment, type AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 /** Coding routes for a session's timeline: its rounds as they run and as recorded, the TaskBoard, recovery and rewind, messages and background commands. */
@@ -223,7 +224,7 @@ const ROUTES: RouteMaker[] = [
       const body = bodyOf(request), amendment = stepAmendment(body.amendment), version = body.expected_version;
       if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1) throw new Error("计划图版本已失效，请刷新后再调整");
       const before = (await api!.invoke(agent.readRun, [session, ref])).step_board;
-      const board = await api!.invoke(agent.amendStepBoard, [session, ref, amendment, version]);
+      const { board } = await context.services!.actions!.invoke(agentCollaborationActions.revise, { ...session, run_id: ref.run_id, amendment, expected_version: version }, codingActionControl(beforeWrite));
       // The live round learns of the change through the same supplemental channel a person already uses.
       const note = amendmentNote(amendment, before ?? board);
       try { await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: ref.run_id, source: "host", text: note }, codingActionControl(beforeWrite)); return { board, steered: true }; }

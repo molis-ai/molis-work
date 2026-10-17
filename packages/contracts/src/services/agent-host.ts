@@ -5,7 +5,7 @@ import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ActionView } from "../platform/actions.js";
 import type { AgentCreateSessionInput, AgentSkillRef, AgentWorkingDirectory, AgentStartRequest } from "./agent-host-start.js";
 import type { AgentSubagentView, AgentSkillCatalogEntry, AgentSkillCandidate, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
-import type { AgentStepAmendment, AgentStepBoard, AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage, AgentPeopleMessageInput, AgentPeopleMessageAction, AgentMessageAttachment, AgentBackgroundTask } from "./agent-host-session.js";
+import type { AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage, AgentPeopleMessageInput, AgentPeopleMessageAction, AgentMessageAttachment, AgentBackgroundTask } from "./agent-host-session.js";
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
 import type { AgentCollaborationSessionView } from "./agent-collaboration.js";
 import type { AgentSkillDefinition } from "../platform/plugin-agent.js";
@@ -248,10 +248,6 @@ export const agentHostCapabilities = {
   cancelSubagent: {
     capability_id: "agent.subagents.cancel.v1", version: 1, operation: "command",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>,
-  /** A person adjusts the running plan's step graph; the version guards against a concurrent change. */
-  amendStepBoard: {
-    capability_id: "agent.run.step-board.amend.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number], AgentStepBoard>,
   readSession: {
     capability_id: "agent.session.read.v1",
     version: 1,

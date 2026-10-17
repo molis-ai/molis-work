@@ -1363,6 +1363,50 @@ Molis 这边：
   - 「人选协作并带计划」没在页面上走过（只有上面第二条非浏览器用例）。
   - 让出之后等很久（几小时）、宿主中途重启再接续，这一片没量。
 
+### 6.0j P4-C2：人改计划走协作合同（2026-10-17）
+
+人在任务图上改一轮的计划，从 typed 能力 `agent.run.step-board.amend.v1` 换成动作 `agent.collaboration.revise.v1`（§4.6.9「动作」一段）。阶段一不留兼容：旧 id 不留别名，typed 条目 `agentHostCapabilities.amendStepBoard`、Host 的注册与 `AgentRuntimeAdapter.amendStepBoard` 同一刀删掉（health 的 typed 能力位点 190→187）。
+
+- **合同**（`packages/contracts/src/services/agent-collaboration.ts`）：
+  - 新动作 `agent.collaboration.revise.v1`，版本 1：`kind: operation`，`operation: command`，`effect: write`，只给插件。
+  - 输入：`runtime_id`、`session_id`、`run_id`、`amendment`、`expected_version`（整数，≥1）。`amendment` 用 `oneOf` 列出现有的六种修订，每种只收自己的字段：步骤引用写成 `step-N` / `user-N`，文字非空、有上限，和 Coding 页面的检查一致。
+  - 输出：`{ board }`。
+  - actor、项目、安装都从调用上下文来：actor 是调用的插件的 actor，读不到时用会话的主人，和旧能力一样。
+  - `AgentCollaborationPort` 加 `revise(run, amendment, expectedVersion, actorId)`。
+- **宿主**：
+  - `session-actions.ts` 注册这个动作：先核这一轮属于这个会话、会话属于调用方的项目和插件，提交前再确认调用仍然有效，被取消、撤权的调用什么都不改。
+  - 适配器的 `collaboration.revise` 沿用原来那段检查：一轮结束以后，只有它还是会话里最新的计划轮、计划图也没结束，才能改。
+  - Node 组合里，`revise` 由计划步骤那一块（`stepBoards.amend`）提供，等待那一块不管它。
+- **Coding**：`coding.plan-amendments` 路由改调这个动作；页面上的检查和「告诉正在跑的那一轮」都不变。
+- **同一刀没做的**（§4.6.9 写过；这一刀不做，理由是现在没有调用方，加了就是没人用的合同）：
+  - `control` 的 `retry`、`resolve-reconciliation`：接续停下等人的三种情况（`blocked`、`needs-reconciliation`、`eligible` 但不自动），页面现在都只给「现在开始，或取消等待」，走的是已有的 `continue-now`、`cancel-wait`。没有「重新试」「核对后继续」这样的按钮要接。
+  - `revise` 的「取消节点」「重试节点」：现有六种修订里，「跳过」已经是取消；失败步骤的重试，页面上没有入口。
+  - 以后页面要这几样时，再按 §4.6.9 加进这两个动作，同时升 `version`。
+- **用例**：
+  - `tests/agent-collaboration-revise.test.ts`（新，只引包名）：
+    - 动作只给插件，schema 在任何处理之前拒掉写错形状的修订（坏引用、空白原因、不认识的种类、错的方向、`mine: false`、多出的字段、版本 0 或小数、带 `actor_id`、缺版本），六种都能通过；
+    - typed 的修订已经不在了；
+    - 修订带着人的改动、看到的版本和调用插件的 actor 交给那一轮；
+    - 被取消、被撤权的调用，以及别的会话的轮次，都不改任何东西。
+  - 改用新路径的：`coding-plan-amend-http`（路由经动作目录调 `revise`）、`prologue-step-amend`、`prologue-project-board`、`coding-step-claims`、`coding-runtime-regressions`。断言没变，只换了调用的入口，并把原来省掉的 actor 写成 `"user"`。
+- **快照**：
+  - `pnpm api:update` 改了 `contracts/services/agent-collaboration`（加了动作、类型和端口方法）和 `contracts/services/agent-host`（去掉了 `amendStepBoard`）；
+  - `pnpm actions:update` 在宿主登记的动作里加了 `agent.collaboration.revise.v1@1`。
+- **换包**（用户 10-17 弹窗同意并进采用线下一次换包；统筹定随 P4 第一个改合同的片）：
+  - vendored SDK 从 parameter-branches（`4e8468dd`）换成 reference-kinds：上游 main `c673238e`（[Prologue #33](https://github.com/molis-ai/prologue/pull/33) 的合并：统筹经用户弹窗同意后合入，树与评审过的 head `a579bfea` 相同），干净 `git archive` 打两次，逐字节相同（1,190,630 字节，SHA-256 `585909b1…`）。
+  - #33：App 可以在 `config.tool.askUserReferenceKinds` 列出对象引用题能要的种类，配了 `refKinds` 就是这几个名字的 `enum`，名单外的打开等待前就失败；不配时与原来逐字相同。Molis 这一刀只换包、不配名单，名单由交互线 T2 接上。
+  - 验证：同一棵树上 SDK 全量 355 个文件，3949 条通过、21 条跳过、0 条失败（未跑 `desktop-computer-use.live`）；13 个消费者脚本在新包上全过。
+  - 旧包和它的 `.sha256`、`.provenance.json` 删掉，记进 `patch-history.json` 的 `packagesWithoutPatch`（第 21 个），`upstream.commitsChecked` 加上 `c673238e`，逐项核对过：除三个已换掉的过渡包来源以外，都是 main 祖先。
+- **对调用方的影响**：
+  - 仓库里唯一的调用方是 Coding 的计划调整路由，同一刀改完；
+  - 工作流程步骤、绑定、MCP 工具名、Skill 都没有点名过旧能力；
+  - Coding 的 Manifest 按 `agentCollaborationActions` 全部列出，自动包含新动作。
+- **验证**（变基到 main `04ab0216` 之后）：
+  - `pnpm build` 通过；`affected-tests` 选的非浏览器用例，加上 vendor-provenance、S-13 `prologue-memory-boundary`、PA-12 `prologue-tool-declaration`、问卷两条与 `coding-coordinator-board`，146 个文件全过；
+  - `pnpm test:security` 58/58（S-13 在新包上再过一次）；`pnpm test:contracts` 44 个文件里 43 个一次过，`action-gateway` 的「production stdio」一条在机器满载时超了 20 秒时限，单独重跑 13/13 过、那条 1.8 秒；
+  - `check-health-gates --base origin/main`、`boundary:check`、`verify-release-versions`、`page-assets --base origin/main` 都过：typed 能力位点 190→187，页面资源逐项不变。
+- **未验证**：浏览器用例交给全量（统筹 10-17 定）；全量由统筹跑。
+
 ### 6.1 当前记录
 
 A0 执行记录（下列历史方案记录之后继续）：
@@ -1635,6 +1679,8 @@ A0 执行记录（下列历史方案记录之后继续）：
 | 统筹 10-16（B） | `molis.action-query@1` 只收动作工具名 `tool`；名字到精确引用的表由 `prologue-action-tools.ts` 的 `actionToolRefs` 在 `remember()` 时建，检查器不算哈希 | 模型看不到精确引用；改所有角色的工具描述（A）比这一片宽，什么都不改（C）检查器就用不上 |
 | 用户 10-16（§6.0g） | 助理网关为模型写错形状做的纠正全删：写成文字的数和布尔、JSON 字符串解码、纯文本当唯一文本字段、空白当 `{}`、写在身份旁边的字段；`find-capabilities` 之前也不另留路径，同样由能力合同在审查前拒绝，错误里写明哪个字段不对，让模型自己重发。只留 `input` 整个没给时对象合同得 `{}` | 带上类型后 30 次调用只有 1 次要纠正，且在找之前、本来就会被拒（§6.0f）；纠正是替模型猜，形状错了模型看不到，按 §11 不为模型能力打补丁 |
 | 统筹 10-17 定 A（§6.0i） | Coding 协调者角色加 `board-read`、`board-report`，孩子由 SDK 按 T12 继承；孩子角色与提示词不变 | 让出的孩子报不了自己那一步，父亲的等待总是失败；宿主的板钩子已经只许读本项目、只报自己持有的步骤 |
+| 统筹 10-17（§6.0j） | 人改计划从 typed `agent.run.step-board.amend.v1` 换成动作 `agent.collaboration.revise.v1`，旧的同一刀删掉；`control` 的 `retry`、`resolve-reconciliation` 与 `revise` 的取消/重试节点这一刀不做 | 阶段一不留兼容；那几样现在没有调用方，加了就是没人用的合同，页面要时再加并升 `version` |
+| 用户 10-17（§6.0j） | 换成从 Prologue main `c673238e`（#33）打的 reference-kinds 包，并进 P4 第一个改合同的片，不单独换 | 一次换包、一次 Molis 验证；Molis 这一刀不配名单，行为不变 |
 
 ### 7.8 工作规则
 

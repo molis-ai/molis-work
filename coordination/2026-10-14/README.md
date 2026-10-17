@@ -583,6 +583,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - 统筹会话重启过一次。nohup 起的 label-chain 和门禁脚本都还在，监视已重开。T2 #638 的全量在跑；#639 `6f0879f59`（merge main 之后，代码没变，只有 baseline 降数）已加标签，在等 runner；#643 `ccee51ee8`（merge main 之后，变动的行和审过的那一版一样）挂了 label-chain。回执线在 D1 上跑 memory-upkeep 5/5 红，和 main 加 C1 一样，确认是 main 的日期炸弹、跟 D1 无关。这几个 PR 的全量都会红在它上面，只修测试的那个 PR 先合。
     - T2 #638 的全量（run 39016408220）只红 memory-upkeep，重试也红，是 main 的日期炸弹。统筹 10-17 定：不强行入队。memory-upkeep 的修复合入后，T2 merge main 推一次（只改测试，page-assets 的数不变），按「跑过全量、只并 main」的先例入队，不重跑全量。#639、#643 照同样办。
     - memory-upkeep 的修复是回执线的 #645 `fba03a953`。只改 `tests/memory-upkeep.test.ts`：假时钟改成各条 `created_at` 的最大值加 91 天，在那之前先断言两条自动记忆在列表里，没有改断言。统筹审过，用 match-head 直接入队，不跑全量（只改一个测试文件，统筹 10-17 定）。它合入、并且 #639、#643 的全量也跑完以后，统筹通知交互线和回执线，各自 merge main 推一次，再按先例入队。
+    - #643 的 Gates 红在 `tests/ci-linux-probe.test.ts`「killed outright」那一例（job 117353732619），是测试自己的竞态，跟 D1 无关：`cutOff()` 只等 `hang-pid` 文件出现，夹具里的 `writeFileSync` 是先建文件后写内容，可能读到空文件，pid 成了 0，于是 `ps -p 0` 出错。用户 10-17 批准由回执线另开一个只改测试的 PR：要么等文件里有正整数再读，要么夹具先写临时文件再改名。不放宽断言，不加长时限。统筹审过后照 #645 的办法直接入队。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

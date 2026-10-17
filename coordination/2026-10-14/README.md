@@ -554,6 +554,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - 用户已经把统筹的说明转给了 Codex（feature/assistant-service-connections）：先别开 PR、别换包，等采用线的 MCP 刷新上游 PR 合入、新包换进 main 之后再变基、删掉自己的包，排在 #632 和 P4-A1 之后；202 个文件的全量改到 CI 上跑。
     - #632 分片 2 重跑通过，手动入队。#624 merge main 后是 `d03c44fd6`，6 个文件，craft-finish 的媒体查询单独一行、重复规则合并，字节降。#624 冻结后一次全量都没跑过，所以要跑；已经挂上，排在 #628 和 #629 后面。「后合的只 merge main、不重跑全量」只管已经跑过全量的 PR。slice 5 的两种模式状态对比现在就排 browser 槽。
     - #632（P4-C2）合入（`7bf9b7a1e`），reference-kinds 包（含 #33）进了 main。已通知交互线：T2 merge main、照新的 merge-base 重钉四个上限（+1,344 / +1,344 / +4,090 / +19）、开 PR。采用线从这个 main 开 A1，并提 MCP 刷新的上游 PR。
+    - **main 新红**：`tests/companion-client-lifecycle.e2e.test.ts` 的 W2-18-DIFF-FILE-01，`reads` 5 !== 4。Coding 产物固定、运行时标成不可用之后，Diff 选文件时还多调了一次宿主能力。回执线在 0a931c978 上复现了 4 次。最可能的来源是 #618（「主人读取对象时通知那一轮」）和 #627 的组合，#618 自己的全量是在 #627 合入前跑的。已交情境线二分并开小修复 PR，全量优先排；只在产品里修，不改断言。统筹 10-17 定：全量只红这一条的 PR，等修复合入后再入队，不在红的时候入队。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

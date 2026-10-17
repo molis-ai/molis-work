@@ -9,8 +9,9 @@ import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/servic
 import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 
-// specs/ai-interaction-experience AC-08: two places answer one question. AC-07 (a question outliving the Host closing) is not
-// met yet: closing the Node Host ends the waiting run, so its question cannot be answered after reopening (BL-156).
+// specs/ai-interaction-experience AC-08: two places answer one question. AC-07 (a question outliving the Host closing) is met
+// by BL-156: a normal shutdown parks the waiting round and its question is answered after reopening (interaction-parked-answer,
+// prologue-start-refusal; its refusals in security-invariants-parked-answer).
 
 const ASKED = { why: "约下周的复盘会", questions: [
   { id: "at", type: "datetime", prompt: "开会时间" },

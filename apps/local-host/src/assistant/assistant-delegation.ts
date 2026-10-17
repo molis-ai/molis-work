@@ -8,6 +8,7 @@ import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantMaterial
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
 
+/** Delegation bounds: works one work may hand out in all, at once, and follow-ups to each. */
 const MAX_DELEGATED = 6, MAX_ACTIVE_DELEGATED = 3, MAX_FOLLOW_UPS = 2;
 const RUNTIME = "prologue";
 const ENDED: readonly string[] = ["succeeded", "failed", "cancelled"];

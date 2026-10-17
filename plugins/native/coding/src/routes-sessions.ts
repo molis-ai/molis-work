@@ -8,7 +8,7 @@ import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from
 import type { CodingExecutionPorts } from "./routes.js";
 import { nextConfiguration, runControl, text } from "./run-inputs.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
-import { startRound } from "./start-round.js";
+import { roundAfterParkedAnswer, startRound } from "./start-round.js";
 import type { CodingSessionRecord } from "./store.js";
 import type { CodingWaitView } from "./waits.js";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -306,7 +306,7 @@ const ROUTES: RouteMaker[] = [
     });
   },
   (a) => {
-    const { context, route } = a;
+    const { context, route, busy } = a;
     return route("coding.control-run", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
@@ -320,12 +320,21 @@ const ROUTES: RouteMaker[] = [
       if (control.kind === "withdraw") return { accepted: true, withdrawn: await context.services!.actions!.invoke(agentInputActions.withdraw, { ...session, run_id: run.run_id, input_id: control.input_id }, codingActionControl(beforeWrite)) };
       const view = await api!.invoke(agent.readRun, [session, run]);
       if (isTerminalAgentPhase(view.phase)) throw new Error("这一轮已经结束，请开始新一轮");
+      const question = control.kind === "answer" ? view.awaiting_input.find(item => item.pending_id === control.pending_id) : undefined;
       await api!.invoke(agent.controlRun, [session, run, control]).catch((error: { code?: string }) => {
         // A refused answer goes back with the questions it answered, so each field's line can name the limit it crossed.
-        const asked = control.kind === "answer" ? view.awaiting_input.find(item => item.pending_id === control.pending_id)?.questions : undefined;
-        throw error?.code === "agent.answer_invalid" && asked ? Object.assign(error, { questions: asked }) : error;
+        throw error?.code === "agent.answer_invalid" && question?.questions ? Object.assign(error, { questions: question.questions }) : error;
       });
-      return { accepted: true };
+      if (control.kind !== "answer") return { accepted: true };
+      // The answer's receipt, in the words the page shows. A round parked at a restart ended with the answer; the next round
+      // takes it from the session's queue, or, refused, it waits there for 「从断点继续」.
+      if (!question?.parked) return { accepted: true, message: "回答已交给原执行者，继续这一轮任务。" };
+      const next = busy.has(record.session_id) ? { started: false as const, reason: "会话正在提交任务" } : await (async () => {
+        busy.add(record.session_id);
+        try { return await roundAfterParkedAnswer(a, record, session, api!, execution, beforeWrite); } finally { busy.delete(record.session_id); }
+      })();
+      return { accepted: true, next_round: next,
+        message: next.started ? "已回答，下一轮已开始，接着原来的任务。" : `已回答、下一轮没能开始：${next.reason}。回答留在排队里，点「从断点继续」再开始。` };
     });
   },
 ];

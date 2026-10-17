@@ -256,8 +256,8 @@ export interface PrologueAdapterOptions extends PrologueAdapterPorts {
    * otherwise write with no recorded approval.
    */
   approvals?: PrologueApprovalBridge;
-  /** Delivers an answer to one pending question the Run is stopped on. */
-  answerPending?(run: AgentRunRef, answer: Extract<AgentRunControl, { kind: "answer" }>): Promise<void>;
+  /** Delivers an answer to one pending question the Run is stopped on; `queued` when the Run was parked and the answer waits for the session's next round. */
+  answerPending?(run: AgentRunRef, answer: Extract<AgentRunControl, { kind: "answer" }>): Promise<"delivered" | "queued">;
   /**
    * Narrows the matrix further. Writes and commands stay off until the
    * approval bridge is attached for this Runtime.
@@ -732,10 +732,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
           if (!question || isEnded(record.view.phase) || question.pending_revision !== control.pending_revision) {
             throw agentErrors.pending_not_open("这条问题不属于本轮当前等待，不能提交答案");
           }
-          await answer(run, control);
-          // The Run owns whether the question is closed; drop it from the view
-          // only after the execution owner accepted the answer.
-          settleProloguePending(record.state, control.pending_id);
+          // The Run owns whether the question is closed; drop it from the view only after the execution owner accepted the
+          // answer. A parked Run ended with it: the session is read again, its next round no longer waits for checking.
+          if (await answer(run, control) === "queued") { this.#sessions.delete(run.session_id); await this.#loadSession(run.session_id); }
+          else settleProloguePending(record.state, control.pending_id);
           break;
         }
       }

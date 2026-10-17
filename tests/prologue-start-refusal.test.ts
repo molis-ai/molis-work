@@ -60,14 +60,14 @@ test("a round the runtime refuses while packing its context leaves the session u
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
 
-// prologue#40 (e0f99ea2, swapped in with b541a8e6; BL-156's upstream half): a normal shutdown parks a round whose only wait is the person's
-// answer instead of cancelling it. Until the Host answers a parked round (answerInterrupted, BL-156's Molis half), it comes
-// back like a round a crash cut off: listed with its question, to check and close; nothing else waits on it. A new round
-// before that is refused by the Host's own check of the restored session, so the runtime's SESSION_RUN_PARKED is not reached.
-test("a round parked on its question at shutdown comes back as an interrupted round with that question; closed, the session starts again", { timeout: 60_000 }, async t => {
+// prologue#40 (BL-156): a normal shutdown parks a round whose only wait is the person's answer instead of cancelling it. It
+// comes back with its question open and answerable; a new round before the answer is refused by the Host's own check of the
+// restored session, so the runtime's SESSION_RUN_PARKED is not reached. Answered, the round ends with it and the next one
+// carries the answer from the session's queue (AC-07).
+test("AC-07 a round parked on its question at shutdown comes back with that question to answer; answered, the next round carries the answer", { timeout: 60_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-parked-round-"));
-  let requests = 0;
-  t.mock.method(globalThis, "fetch", async () => ++requests === 1
+  let requests = 0; const bodies: string[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => (bodies.push(await new Request(input, init).text()), ++requests === 1)
     ? cogniaScriptedResponse({ name: "ask-user", input: { why: "确认安排", questions: [{ id: "when", prompt: "什么时候开会", options: [{ label: "今天" }, { label: "明天" }] }] } })
     : cogniaModelResponse("好的。"));
   const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.parked-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), questionTypes: ["choice"], reviewQueue: new AgentReviewQueue(),
@@ -95,15 +95,24 @@ test("a round parked on its question at shutdown comes back as an interrupted ro
   const view = await adapter.read(asked.ref);
   assert.equal(view.phase, "reconcile-required");
   assert.deepEqual(view.awaiting_input.map(item => item.pending_id), [question.pending_id], "its question is still the one it asked");
-  await assert.rejects(start(), (error: { code?: string }) => error.code === "agent.session_busy", "no new round before it is closed: the Host refuses it, the runtime is not asked");
+  await assert.rejects(start(), (error: { code?: string }) => error.code === "agent.session_busy", "no new round before it is answered or closed: the Host refuses it, the runtime is not asked");
 
   const report = await adapter.recovery!.inspect(session);
   assert.deepEqual(report.blockers, [], "a refused start and the parked round leave nothing unexplained");
   const parked = report.runs.find(run => run.run_id === asked.ref.run_id);
-  assert.equal(parked?.can_close, true);
-  await adapter.recovery!.close(session, parked!.run_id, parked!.version);
-  assert.equal((await adapter.readSession(session)).recovery, undefined, "closed, the session no longer waits for checking");
+  assert.equal(parked?.can_answer, true, "parked on an open question, it can be answered");
+  assert.equal(parked?.can_close, true, "or closed instead");
+  assert.deepEqual(parked?.questions?.map(item => item.pending_id), [question.pending_id]);
+  const reread = (await adapter.read(asked.ref)).awaiting_input.find(item => item.pending_id === question.pending_id);
+  assert.equal(reread?.parked, true);
+  assert.equal(reread?.answerable, true);
+  await adapter.control(asked.ref, { kind: "answer", pending_id: question.pending_id, pending_revision: question.pending_revision!, answers: [{ question: 0, indexes: [1] }] });
+  assert.equal((await adapter.readSession(session)).recovery, undefined, "answered, the session no longer waits for checking");
+  assert.ok((await adapter.readSession(session)).queued_inputs?.some(input => input.key === `answer.${question.pending_id}`), "the answer waits for the next round");
+  const heard = bodies.length;
   const next = await start();
   const ended = await until(async () => { const read = await adapter.read(next.ref); return ["completed", "failed", "stopped", "cancelled"].includes(read.phase) ? read : undefined; }, "the next round did not end");
   assert.equal(ended.phase, "completed");
+  assert.match(bodies[heard]!, /answered-after-interruption/, "the next round is told the question was answered after the interruption");
+  assert.match(bodies[heard]!, /明天/, "and gets the answer");
 });

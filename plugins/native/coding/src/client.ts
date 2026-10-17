@@ -685,11 +685,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
             remember();
             card.dataset.busy='true';card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=true);note.textContent='正在提交原问题的回答…';
             try {
-              await api(sessionPath(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,values:client.read()});
+              const {message}=await api(sessionPath(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,values:client.read()});
               answeredQuestions.add(key);
               const drafts=questionDrafts.get(id);if(drafts)delete drafts[key];
               try{sessionStorage.setItem(draftKey(id)+':questions',JSON.stringify(drafts || {}));}catch{}
-              client.destroy();const receipt=make('p');receipt.textContent='回答已交给原执行者，继续这一轮任务。';card.replaceChildren(receipt);
+              client.destroy();const receipt=make('p');receipt.textContent=message;card.replaceChildren(receipt);
               void saveDraft(id,localDraft(id) || '').catch(()=>{});
               if(current===id) {void readCurrent();void refreshState().catch(()=>{});}
             } catch(error) {if(!lifetime.alive)return;
@@ -699,7 +699,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         });
         const saved=questionDrafts.get(id)?.[key];if(saved && typeof saved==='object') client.write(saved);
       }
-      const canAnswer=!terminal(run.phase) && question.answerable!==false;
+      const canAnswer=(question.parked || !terminal(run.phase)) && question.answerable!==false;
       form.dataset.answerable=String(canAnswer);
       const ring=form.querySelector('.mw-ix-kicker .mw-state-ring');if(ring)ring.dataset.mwState=canAnswer?'answer':'unavailable';
       if(form.dataset.busy!=='true') form.querySelectorAll('fieldset,button:not([data-ix-action=reask])').forEach(node=>node.disabled=!canAnswer);

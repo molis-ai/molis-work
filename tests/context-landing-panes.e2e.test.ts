@@ -33,6 +33,8 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
   await waitFor(`${paneText}.includes('先完成核心体验')`, 20_000);
 
   // PANE-LAND-02: anything that is not one of the panes cannot report a landing, neither this document nor a frame that is not a pane.
+  // The pane's page reports its own landing (the end) once it opens; wait for it, so it is not taken for a forged one.
+  await waitFor("(window.landings || []).some(item => item.framed && item.detail?.position === 'end')", 10_000);
   const forged = { pane_id: "", plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: left.id, title: "发布计划" }, position: "end", version: 1, targets: [] };
   await evaluate(`(async () => {
     window.landings = [];

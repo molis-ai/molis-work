@@ -11,7 +11,7 @@ import { FLOATING_CLIENT_SOURCE } from "./floating-source.js";
  *
  * `host`: `parent` (where it is drawn; default the body), `translate`, `width()` (the room it has, default the window), `inset`
  * ({ top, bottom } of fixed chrome it must not sit under), and the choices it reports: `choose(key)`, `assistant()` (hand what is in hand to the Assistant),
- * `dismiss(reason)`, `hold({ interacting, pinned })` (the pointer or focus entered or left it or moved between its parts, with the keys under them), `settled()` (the pointer and
+ * `dismiss(reason)`, `hold({ interacting, pinned })` (the pointer or focus entered or left it or its menu, or moved between their parts, with the keys under them on the bar; `pointed()` adds the menu's), `settled()` (the pointer and
  * focus are off it again, after a newer view may have been held back). An anchor's `rect` may be a function, read at every placement.
  * `show(view)`: `{ context_id, anchor: { rect, placement? }, touch?, actions: [{ key, label, badge?, emphasis?, hint? }],
  * more: [{ title, items: [{ key, label, note?, disabled? }] }], assistant?: boolean, basis?: { text, title?, state? } }`.
@@ -107,16 +107,18 @@ closeMenu(); opener = from;
 menu = h("div", { class: "mw-ctx-menu", role: "menu", "aria-label": from.textContent }, ...items);
 menu.addEventListener("mousedown", (e) => e.preventDefault());
 menu.addEventListener("keydown", (e) => keys(e, menu));
+for (const t of ["pointerover", "pointerleave", "focusin"]) menu.addEventListener(t, hold);
 (host.parent || doc.body).append(menu); from.setAttribute("aria-expanded", "true"); place();
 const first = menu.querySelector("button:not(:disabled)"); if (first) first.focus();
 };
-const entry = (label, note, off, run) => {
+const entry = (label, note, off, run, key) => {
 const n = h("button", { type: "button", role: "menuitem", class: "mw-ctx-menu__item" }, h("span", { text: label }), note && h("small", { text: note }));
 n.disabled = !!off; n.addEventListener("click", () => { closeMenu(); run(); });
+if (key) n.dataset.key = key;
 return n;
 };
 const more = (extra) => {
-const title = (text) => h("p", { class: "mw-ctx-menu__label", text }), act = (a) => entry(a.label, a.note, a.disabled, () => host.choose(a.key)), out = [];
+const title = (text) => h("p", { class: "mw-ctx-menu__label", text }), act = (a) => entry(a.label, a.note, a.disabled, () => host.choose(a.key), a.key), out = [];
 if (extra.length) out.push(title(L("推荐")), ...extra.map(act));
 for (const g of view.more || []) out.push(title(g.title), ...g.items.map(act));
 if (view.assistant) out.push(h("div", { class: "mw-ctx-menu__gap", role: "separator" }), title(L("助理")), entry(L("带到助理"), "", 0, () => host.assistant()));
@@ -151,7 +153,10 @@ view = next; draw(false);
 };
 const release = () => { if (busy()) return; if (held) { view = held; held = null; draw(false); } if (host.settled) host.settled(); };
 const hold = () => { if (host.hold) host.hold({ interacting: !!busy(), pinned: pinned() }); };
-const pinned = () => [...root.querySelectorAll("[data-key]")].filter((n) => n.matches(":hover") || n === doc.activeElement).map((n) => n.getAttribute("data-key"));
+// The keys under the pointer or focus: on the bar (pinned, which keep their slot), and with the menu's too (pointed).
+const under = (scope) => [...scope.querySelectorAll("[data-key]")].filter((n) => n.matches(":hover") || n === doc.activeElement).map((n) => n.getAttribute("data-key"));
+const inside = (x) => root.contains(x) || menu && menu.contains(x);
+const pinned = () => under(root), pointed = () => pinned().concat(menu ? under(menu) : []);
 const keys = (e, scope) => {
 const list = [...scope.querySelectorAll("button:not(:disabled)")], at = list.indexOf(doc.activeElement);
 if (e.key === "Escape") {
@@ -166,10 +171,10 @@ list[e.key === "Home" ? 0 : e.key === "End" ? list.length - 1 : (at + (/Left|Up/
 };
 root.addEventListener("mousedown", (e) => e.preventDefault());
 root.addEventListener("keydown", (e) => keys(e, root));
-root.addEventListener("pointerenter", hold); root.addEventListener("pointerleave", () => { hold(); release(); });
+root.addEventListener("pointerleave", () => { hold(); release(); });
 root.addEventListener("pointerover", hold);
-root.addEventListener("focusin", (e) => { hold(); const from = e.relatedTarget; if (from instanceof HTMLElement && from.isConnected && !root.contains(from) && !(menu && menu.contains(from))) back = from; });
-root.addEventListener("focusout", (e) => { if (!root.contains(e.relatedTarget) && !(menu && menu.contains(e.relatedTarget))) setTimeout(() => { hold(); release(); }); });
+root.addEventListener("focusin", (e) => { hold(); const from = e.relatedTarget; if (from instanceof HTMLElement && from.isConnected && !inside(from)) back = from; });
+root.addEventListener("focusout", (e) => { if (!inside(e.relatedTarget)) setTimeout(() => { hold(); release(); }); });
 doc.addEventListener("pointerdown", (e) => {
 if (menu && !root.contains(e.target) && !menu.contains(e.target)) closeMenu();
 if (panel && !panel.keep && !root.contains(e.target) && !panel.contains(e.target)) closePanel();
@@ -199,5 +204,5 @@ panel.onClose = onClose; panel.keep = !!d.keep;
 panel.addEventListener("keydown", (k) => { if (k.key === "Escape") { k.preventDefault(); k.stopPropagation(); closePanel(); } });
 (host.parent || doc.body).append(panel); place();
 });
-return { show, hide, release, place, closePanel, pinned, focus: enter, hidden: () => root.hidden, busy: () => !!busy() };
+return { show, hide, release, place, closePanel, pinned, pointed, focus: enter, hidden: () => root.hidden, busy: () => !!busy() };
 }`);

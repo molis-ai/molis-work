@@ -149,6 +149,7 @@
 | BL-139 | 英文界面里「开始」显示成「Started」（欢迎页主按钮、新建引导的步骤名）：同一中文在状态与动作两种语境下译法不同。要让运行时的 `L()` 认稳定键（W5-03），再给这两处用各自的键 | [防腐 §10.11 F-23](repository-anti-corruption/spec.md) | 已知缺口 | 稳定键的运行时支持还没做 | W5-03 | 低 | 未分配 |
 | BL-155 | 「校验用的参数合同去掉 `x-mcp-header`」这条规则有两份：SDK 的 `mcpToolInputSchema`（Prologue #36）与 Molis 的 `mcpActionInputSchema`（`apps/local-host/src/mcp-tool-actions.ts`，#650）。Molis 另写一份，是因为只有 `horizontal/agent-host` 依赖 SDK，local-host 用不到 SDK 的那一份；同一条规则写两遍，上游改了这边不会知道。要么由 agent-host 导出 SDK 的校验副本给 local-host 用，要么写明两份怎样保持一致（例如一条用例拿同一批带标注的 schema 比两边的结果） | [防腐 §10.24](repository-anti-corruption/spec.md)、#650、Prologue #36 | 已知缺口 | 合入后复查时发现 | 无 | 低 | 采用线 |
 | BL-157 | 真实 Home 的 Pages 库 `pages/pages.db` 还是 1，代码要 2（`0ff3adb8a`，10-13，没有 PR，只多一张 `page_comments`）：装下一个版本时会被拒绝打开。做法写在 [防腐 §4.1](repository-anti-corruption/spec.md)「库版本维护清单」的 Pages 一行，属维护八：先在副本上演练，再与装新版本同一步改真库；动真实 Home 前弹窗问用户 | [防腐 §12.4 RAC-13](repository-anti-corruption/spec.md) | 未实现 | 已装的 0.2.0 只认 1，不能提前改 | 装下一个版本、用户同意 | 高 | 防腐线 |
+| BL-160 | 写后检查要不要有「本会话允许这个检查器」的规则：第一刀只用现有的按完整命令匹配（`reviews.ts` 的 `standingKey`），`{file}` 换成不同文件就要再批一次。按检查器编号与配置版本、不按文件的会话规则，会改 S-22 旁边的审查语义 | [prologue-adoption §6.0p.8](prologue-adoption/spec.md) | 明确后续做 | 统筹 10-17 定第一刀不做；要等写后检查上线后的真实用量（一轮平均批几次、人是否觉得烦）再定，由用户拍板 | A2 写后检查的 Molis 实现 | 低 | 采用线 |
 
 ## 8. 交给第二步（防腐整理）
 

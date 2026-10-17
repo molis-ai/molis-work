@@ -799,3 +799,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - (a) Runtime 路由支持流式回复：在 Manifest 里声明，宿主统一写 NDJSON，取消走 signal。方案里要写明三件事：36 MB 正文上限和 `max_body_bytes` 怎样对上；流到一半出错怎样收尾；撤权、停用时要不要立刻断。
   - (b) 材料读取归平台，不做成 Jelly 的动作，这在 main 上本来就定了：`contracts/services/materials` 写明来源身份、原件、业务转换和引用规则归消费方；Host 的 `material-extraction.ts` 就是共同提取口，Shelf、Pages、onboarding、Artifacts 已经直接在用。做法是把它经插件服务（`services.materials`，在 Manifest 里声明）交给 Runtime 插件。灵光改认平台的 `material.model_required`，不再按名字认 `jelly.material.model_required`。读网页的 `readJellyMaterialSource` 有公开地址的校验，属于安全边界，也有两个插件在用，一起归平台、去掉 jelly 前缀；哪些码变、S 表哪几行要改，在方案里列清楚。不选 Jelly 动作，是因为那样灵光就得依赖 Jelly 装着并启用着，还会把跨插件的错误码耦合留下来。
 - #672（C1）合入 a1a54984c，已通知手册线：#674 的 base 改成 main 并 merge main，新 head 统筹核过后走 merge-only。#667 的全量绿了，已入队；chain4 接着给 #669 加标签。
+- #674 → f2caa8879：base 改成 main、merge main；agent-prompts.ts 改的那一行和审过的 611f494cc 逐行一致，spec 只加了 §9.5 的 48 行记录。走 merge-only 门禁（gate-674）。

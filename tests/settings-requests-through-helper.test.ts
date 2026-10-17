@@ -25,8 +25,7 @@ const PROGRAMS: ReadonlyArray<readonly [string, string]> = [
   ["side-panel-browser", "side-panel-browser.ts"],
   ["side-panel-files", "side-panel-files.ts"],
   ["settings-directory", "scripts/client/settings-directory.ts"],
-  ["background-tasks", "scripts/client/background-tasks.ts"],
-  ["plugin-notifications", "scripts/client/plugin-notifications.ts"],
+  ["attention", "scripts/client/attention.ts"],
 ];
 
 const read = (file: string): string => readFileSync(new URL(SOURCES + file, import.meta.url), "utf8");
@@ -43,6 +42,14 @@ for (const [name, file] of PROGRAMS) {
     assert.equal(ownCaching(source), false, 'no cache: "no-store": the helper sends every request that way');
   });
 }
+
+// W4-10: the plugin notification count comes with the page's one attention read (the Assistant's bell counts it);
+// what is left here only opens the market, and sends no request at all.
+test("plugin-notifications sends no request of its own: the count comes with the page's attention read", () => {
+  const source = read("scripts/client/plugin-notifications.ts");
+  assert.equal(source.includes("molisWorkRequest"), false, "no request through the helper either");
+  assert.equal(ownRequest(source), false, "no fetch( of its own");
+});
 
 test("the check sees a request of a program's own, however it is spelled", () => {
   assert.equal(ownRequest('const r = await fetch("/api/x")'), true);

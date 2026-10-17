@@ -1,6 +1,6 @@
 {
   "name": "@molis-ai/molis-work",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Molis Work V1：面向人和 AI Runtime 的本地 SQLite 目标真相源",
   "type": "module",
   "license": "MIT",

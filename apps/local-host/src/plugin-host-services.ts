@@ -15,7 +15,7 @@ import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
-import { registerPluginInstructions } from "./plugin-instructions.js";
+import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
@@ -38,9 +38,9 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let active = true;
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
-  let withdrawInstructions: (() => void) | undefined;
+  let withdrawAgentDefinitions: (() => void) | undefined;
   let withdrawCaller: (() => void) | undefined;
-  const dispose = () => { active = false; withdrawCaller?.(); disposeArtifacts(); library?.close(); withdrawInstructions?.(); ui.dispose(); };
+  const dispose = () => { active = false; withdrawCaller?.(); disposeArtifacts(); library?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
@@ -53,7 +53,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       author: () => { const scope = currentPluginAction(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
-    withdrawInstructions = registerPluginInstructions(options.home, definition, context.install_id);
+    withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       database: library?.client, model: pluginModelFor(options.home, definition, context, assertActive) });
     return { context: hosted, revoke: () => { active = false; withdrawCaller?.(); }, dispose };

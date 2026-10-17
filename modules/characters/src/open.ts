@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { applySqliteBaseline, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { CharactersService } from "./service.js";
-import { characterErrors } from "./errors.js";
+import { characterErrors } from "@molis-ai/molis-work-contracts/modules/characters";
 import { CharactersRepository } from "./repository.js";
 import { bindDatabaseSpace, ensureStorageSpace, type AggregateReplicaContext } from "@molis-ai/molis-work-storage";
 import { createCharactersReplica, installCharactersReplication } from "./replication.js";

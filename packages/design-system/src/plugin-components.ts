@@ -184,7 +184,7 @@ export const PLUGIN_COMPONENTS_EN: Readonly<Record<string, string>> = {
   "内容加载前的占位": "A placeholder before content loads",
   "按钮在等待结果": "A button waiting for its result",
   // The context toolbar's own words (context-toolbar.ts).
-  "带到助理": "Bring to the Assistant", "说出要做什么": "Say what to do",
+  "带到助理": "Bring to the Assistant",
 };
 /** For each intent, the catalog components that can express it, most usual first (the rule's choice when Jev is absent). */
 const PREFERENCE: Record<PluginComponentIntent, string[]> = {

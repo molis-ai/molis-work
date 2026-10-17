@@ -6,7 +6,6 @@
 export const CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const lifetime=ports.lifetime;
   const {api,current,status,refresh,timeline,showReviews,sessionId,openInPanel,parentLive,prefill}=ports;
-  const svg=(name)=>'<svg aria-hidden="true"><use href="#icon-'+name+'"></use></svg>';
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
   const STATE={running:'执行中',completed:'已结束，结论待你核对',failed:'执行失败',cancelled:'已停止','reconcile-required':'中断，结果待核对'};
   const phaseOf=(child)=>child.state==='running'?'running':child.state==='completed'?'completed':child.state==='failed'?'failed':'stopped';

@@ -4,6 +4,7 @@ import test from "node:test";
 import { AgentHost, emptyCapabilityMatrix, type AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import { createHostScheduledTaskRunner } from "@molis-ai/molis-work-app-local-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import { scheduleAgentManifest } from "@molis-ai/molis-work-plugin-schedule";
 import type { AgentRuntimeAdapter, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 test("没有 Runtime 时到点执行说明原因", async () => {
@@ -115,7 +116,7 @@ test("a scheduled run is followed through its own view changes, never polled; a 
     async health() { return { ok: true, status: "ready", message: "就绪" }; },
     async createSession() { return { session_id: "s", runtime_id: "prologue" }; },
     async readSession() { return { session: { session_id: "s", runtime_id: "prologue" }, owner: { project_id: "b", plugin_id: "io.molis.work.schedule", install_id: "io.molis.work.schedule", actor_id: "schedule" }, title: "t", runs: [], latest_run: null } as never; },
-    async start() { return { ref: { session_id: "s", run_id: "r" }, frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/schedule-project", realpath_verified: true } } } as never; },
+    async start() { return { ref: { session_id: "s", run_id: "r" }, frozen: { role_id: "reader", role_version: scheduleAgentManifest.roles[0]!.version, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: "/tmp/schedule-project", realpath_verified: true } } } as never; },
     async read() { reads.push("read"); return view("running"); },
     async control(_run, control) { controls.push(control.kind); },
     async readCommandOutput() { throw new Error("unused"); },

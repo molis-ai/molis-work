@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, createRuntime, type ExactRef, type QueuedTask, type Runtime } from "@prologue/sdk";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, createRuntime, type ConditionCheckers, type ExactRef, type QueuedTask, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -30,12 +30,14 @@ import type { SessionIndexStore } from "./prologue-session-index.js";
 export const SUBAGENT_DEFAULT_TURNS = 20;
 
 /** The Prologue runtime on the Node host, with the Host's limits, posture and the rules every round runs under. */
-export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks) {
+export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers) {
   return createRuntime({
     app: options.app,
     host,
     // Before each child a round dispatches, the Host asks that round's own check again (specs/prologue-adoption §4.6.10).
     collaborationHost: createCollaborationHost(dispatchChecks),
+    // What a step may wait on outside the runtime: the Host's checkers, each look checked again against the round (prologue-checkers.ts).
+    conditionCheckers,
     // Screenshots leave only after the driver covered password, card and one-time-code fields (spec D10).
     ...(options.surfaces ? { surfaces: { screenshots: "redact" as const,
       redactScreenshot: (bytes: Uint8Array) => { const bound = surfaceHost(); return bound ? bound.redact(bytes) : Promise.reject(new Error("界面控制尚未就绪")); } } } : {}),
@@ -51,7 +53,8 @@ export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: Nod
     posture: options.reviewQueue
       ? { sandbox: "workspace-write", approval: "untrusted" }
       : { sandbox: "read-only", approval: "on-request" },
-    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }, { what: "tool" as const, name: "session-send" }] }, rules: [...codingExecutionRules,
+    // A step's wait only says what the step waits for and ends the run; what it rests on is checked when it is registered (prologue-checkers.ts).
+    ...(options.reviewQueue ? { permissionMode: { mode: "auto-allow" as const, allow: [{ what: "tool" as const, name: "board-report" }, { what: "tool" as const, name: "board-wait" }, { what: "tool" as const, name: "session-send" }] }, rules: [...codingExecutionRules,
       // A change through the business gateway always stops for the person's review of its exact input; its reads do not.
       { source: "runtime" as const, effect: "ask" as const, match: { what: "tool" as const, name: GATEWAY_TOOLS.change } },
       // A reversible change the person lets run without asking: the gateway itself refuses any other change on this tool.

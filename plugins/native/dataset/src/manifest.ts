@@ -16,7 +16,7 @@ export const datasetManifest: PluginManifest = {
   host_api_version: 2,
   plugin_id: DATASET_PLUGIN_ID,
   sync: datasetSync,
-  version: "1.2.0",
+  version: "0.3.0",
   name: "Dataset",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-dataset-binding" },

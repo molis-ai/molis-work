@@ -29,6 +29,7 @@ import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin
 import { capabilityLimits, latestCapability, slowOperations, type CapabilityImplementations, type Lane } from './capabilities.js';
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
 import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
+import { hostLog } from "../host-log.js";
 
 export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
 export interface AgentStudioOptions {
@@ -433,7 +434,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       // A directory that cannot be read leaves the board with the studio's own list, and says why rather than hiding it.
       let catalogError: string | undefined;
       const state = await workflow.state(), catalog = await studio.catalog().catch(error => {
-        catalogError = error instanceof Error ? error.message : String(error); console.error('[plugin-builder] capability catalog unavailable:', error); return [] as CatalogCapability[]; });
+        catalogError = error instanceof Error ? error.message : String(error); hostLog.warn("plugin-builder", "catalog_unavailable", error); return [] as CatalogCapability[]; });
       sendLocalWebJson(response, 200, { ...state, builds: state.builds.map(publicBuild), releases: state.releases.map(publicRelease), model: raw ? JSON.parse(raw) : null, components: PLUGIN_COMPONENTS,
         // The capability board: the unified directory as offered to plugins (and what is not, with why).
         capabilities: catalog.map(({ id, version, title, consent, effect, source, offered, reason, description, installed }) => ({ id, version, title, consent, effect, source, offered, reason, description, installed })),

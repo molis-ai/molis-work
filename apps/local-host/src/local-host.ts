@@ -17,6 +17,7 @@ import { settleTyped } from "./typed-call-settlement.js";
 import { typedCapabilityInvocation } from "./typed-capability-invocation.js";
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
   type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { hostLog } from "./host-log.js";
 
 export interface LocalHostRuntimeFactory<Runtime> {
   open(reference: LocalHostProjectReference): Runtime | Promise<Runtime>;
@@ -100,6 +101,17 @@ function assertSameIdentity(current: LocalHostProjectReference, next: LocalHostP
   if (current.project_id !== next.project_id || current.project_id !== next.project_id) {
     throw hostErrors.project_identity_conflict(`同一 storage_key 不能映射到不同 Project: ${current.project_id} / ${next.project_id}`);
   }
+}
+
+/**
+ * Closes a project's runtime once it has opened. An open that failed (the Host closing under it, say) has already told
+ * its own caller why; there is nothing to close, and the Host's close goes on (HOST-CLOSE-01).
+ */
+async function closeOpened<Runtime>(runtime: Promise<Runtime>, close: (runtime: Runtime) => void | Promise<void>): Promise<boolean> {
+  const opened = await runtime.then(value => ({ value }), () => null);
+  if (!opened) return false;
+  await close(opened.value);
+  return true;
 }
 
 export class LocalHost<Runtime> {
@@ -525,7 +537,7 @@ export class LocalHost<Runtime> {
     // in the log (only its capability, never its input): a page that stops answering is otherwise a mystery.
     const heldInLine = async () => {
       const started = Date.now();
-      const watch = setInterval(() => console.warn(`[local-host] ${capability.capability_id}@${capability.version} 已占用项目 ${reference.project_id} 的操作队列 ${Math.round((Date.now() - started) / 1000)} 秒`), HELD_IN_LINE_WARN_MS);
+      const watch = setInterval(() => hostLog.warn("actions", "project_queue_held", undefined, { capability: `${capability.capability_id}@${capability.version}`, project_id: reference.project_id, seconds: Math.round((Date.now() - started) / 1000) }), HELD_IN_LINE_WARN_MS);
       watch.unref?.();
       try { return await run(true); } finally { clearInterval(watch); }
     };
@@ -592,8 +604,7 @@ export class LocalHost<Runtime> {
       if (entry.activeUses > 0) {
         await new Promise<void>((resolve) => { entry.idleWaiters.push(resolve); });
       }
-      await this.options.runtimeFactory.close(await entry.runtime, entry.reference);
-      return true;
+      return await closeOpened(entry.runtime, runtime => this.options.runtimeFactory.close(runtime, entry.reference));
     } finally {
       for (const dispose of entry.actionDisposers) dispose();
       if (this.entries.get(storageKey) === entry) this.entries.delete(storageKey);

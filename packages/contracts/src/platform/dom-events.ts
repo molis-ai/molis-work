@@ -63,8 +63,8 @@ export const PAGE_STATE_OWNERS = {
     state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.",
   },
   "context-actions": {
-    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts"],
-    state: "What the person has in hand on the focused surface, the ranked actions offered for it, and the starters offered for the open Work.",
+    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-landing.ts"],
+    state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.",
   },
   "context-toolbar": {
     files: ["packages/design-system/src/context-toolbar.ts"],
@@ -82,9 +82,13 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/scripts/client/settings-directory.ts"],
     state: "The settings area: which global or project settings page is open, and the embedded settings pages inside it.",
   },
+  attention: {
+    files: ["apps/workbench/src/scripts/client/attention.ts"],
+    state: "What waits on the person, read once for the whole page (W4-10): the background tasks the title bar lists, the Assistant's notices for the plugin in front, the plugin deliveries waiting in the market and, on a project page, the board's event cursor.",
+  },
   "plugin-notifications": {
     files: ["apps/workbench/src/scripts/client/plugin-notifications.ts"],
-    state: "How many plugin deliveries wait on the person, and opening the market's recovery list on them.",
+    state: "Opening the market's recovery list on the plugin deliveries that wait.",
   },
   "plugin-event-recovery": {
     files: ["apps/workbench/src/scripts/client/plugin-event-recovery.ts"],
@@ -198,6 +202,16 @@ export const DOM_EVENTS = [
     summary: "An import into the Artifacts library finished in the form that dispatched it; the dialog that hosts the form closes on it.",
   },
   {
+    name: "molis-work:attention", kind: "announcement", owner: "attention", on: "document",
+    detail: "the /api/attention answer ({ background_tasks, notices, plugin_events_pending, board_cursor }) and started; a part that could not be read is null, started is the read's performance.now()",
+    summary: "The page read what waits on the person; the Assistant's bell (with the plugin notification count) paints from it, and the board refreshes when its cursor moved.",
+  },
+  {
+    name: "molis-work:attention-refresh", kind: "request", owner: "attention", on: "document",
+    detail: "none",
+    summary: "Read what waits on the person again now: the person acted on a notice.",
+  },
+  {
     name: "molis-work:character-coding", kind: "request", owner: "coding", on: "window",
     detail: "{ reference, title, task, workspace_id, skill_ids }",
     summary: "Open a new Coding session prepared from a Character run (the fixed role package and the task). Sent by the Characters page.",
@@ -263,11 +277,6 @@ export const DOM_EVENTS = [
     summary: "The market is being opened on the waiting deliveries; the recovery list shows them for a few seconds.",
   },
   {
-    name: "molis-work:plugin-events-waiting", kind: "announcement", owner: "plugin-notifications", on: "document",
-    detail: "{ pending }",
-    summary: "The number of plugin deliveries that wait on the person changed; the Assistant's bell repaints.",
-  },
-  {
     name: "molis-work:plugins-changed", kind: "announcement", owner: "plugin-membership", on: "document",
     detail: "{ came, gone, next, failed }; a listener sets failed to true when it could not bring its page in line",
     summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.",
@@ -308,7 +317,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:assistant-context-action-chosen", kind: "announcement", owner: "context-actions", on: "window", cancelable: true,
     detail: "ContextActionChosen (services/contextual); CONTEXT_ACTION_CHOSEN_EVENT",
-    summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent.",
+    summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent. An attach choice carries landing and run: the landing's owner takes it, previews there and confirms with run.",
   },
   {
     name: "molis:assistant-effect", kind: "announcement", owner: "assistant", on: "window",
@@ -322,8 +331,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis:assistant-open", kind: "request", owner: "assistant", on: "document",
-    detail: "{ work_id?, new?, source?, materials?, text? }",
-    summary: "Open the Assistant panel on a Work, or a new one, with words and materials put in and nothing sent.",
+    detail: "{ work_id?, new?, source?, materials?, object? }",
+    summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent.",
   },
   {
     name: "molis:assistant-starter-choose", kind: "request", owner: "context-actions", on: "document",
@@ -424,6 +433,11 @@ export const DOM_EVENTS = [
     name: "molis:surface-focus", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "SurfaceFocus | null (services/contextual); SURFACE_FOCUS_EVENT",
     summary: "A surface tells the context row what the person has in hand on it, or that it is nothing now. Raised from the surface's own root and bubbling to the row's listener on document; the row raises it itself, from the person's text selection, for a surface that only declares its object in data-assistant-context.",
+  },
+  {
+    name: "molis:surface-landing", kind: "request", owner: "context-actions", on: "element", bubbles: true,
+    detail: "SurfaceLanding | null (services/contextual)",
+    summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; the row keeps one landing and sends it with the requests for a thing in hand elsewhere.",
   },
   {
     name: "workbench-feed-task", kind: "request", owner: "tab-workspace", on: "document",

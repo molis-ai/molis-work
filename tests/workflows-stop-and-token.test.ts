@@ -28,7 +28,7 @@ async function setup() {
   };
   const judgment = { capability_id: RULE.capability_id, version: RULE.version, provider: { provider_id: RULE.provider_id }, operation: "command", availability: { available: true }, action: {} };
   const ports = {
-    withStore: async run => run(store), content: () => content, aiAvailable: () => false, assertInput: () => {},
+    withStore: async run => run(store), content: () => content, textModel: () => ({ available: false, code: "actions.connection_required", reason: "还没有可用的文字模型" }), assertInput: () => {},
     actions: () => ({
       discover: async () => [judgment],
       invoke: async () => ({ status: "ok", function_key: "worth-handling", version: 1, data: { choice: state.choice }, confidence: 0.9 }),

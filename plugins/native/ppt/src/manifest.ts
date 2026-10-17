@@ -17,7 +17,7 @@ export const pptManifest: PluginManifest = {
   host_api_version: 2,
   plugin_id: PPT_PLUGIN_ID,
   sync: pptSync,
-  version: "1.2.0",
+  version: "0.3.0",
   name: "PPT",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },

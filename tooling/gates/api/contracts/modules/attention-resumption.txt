@@ -78,7 +78,7 @@ export interface CreateAttentionEntryInput {
 
 export declare const attentionErrors: import("platform/action-errors").ErrorCodeRaisers<{
     readonly entry_not_found: "invalid";
-    readonly revision_conflict: "invalid";
+    readonly revision_conflict: "conflict";
     readonly invalid_reference: "invalid";
     readonly invalid_transition: "invalid";
 }>;

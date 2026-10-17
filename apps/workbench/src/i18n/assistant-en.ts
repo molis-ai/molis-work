@@ -1,5 +1,8 @@
-/** The resident Assistant in the bottom bar. */
+import { INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
+
+/** The resident Assistant in the bottom bar, with the supplement receipt it shares with every plugin. */
 export const ASSISTANT_EN: Record<string, string> = {
+  ...INPUT_RECEIPTS_EN,
   "回复到原评论": "Replying to the original comment",
   "请回到原评论继续回复": "Return to the original comment to continue",
   "在主区展开": "Expand in workspace",
@@ -84,7 +87,9 @@ export const ASSISTANT_EN: Record<string, string> = {
   "这一轮的执行记录读不到，结果需要核对": "This round's record cannot be read; its outcome needs checking.",
   "＋ 新工作": "+ New work",
   "还没有工作。发送一句话就会开始第一项。": "No work yet. Send a message to start the first one.",
-  "已补充到正在进行的这一轮": "Added to the round in progress",
+  "补充这一轮": "Add to this round",
+  "点一下改成：补充这一轮": "Click to switch to: add to this round",
+  "点一下改成：回答上面的问题": "Click to switch to: answer the question above",
   "已作为回答发送": "Sent as your answer",
   "输入已保留": "Your text is kept",
   "打开模型设置": "Open model settings",

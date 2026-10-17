@@ -62,11 +62,71 @@ export interface AgentSteerReceipt {
 export type AgentQueuedInputs = "carry" | "leave" | readonly string[];
 
 /**
+ * A supplement waiting in the session for a round to take it (specs/ai-input-receipts §4.8): sent for the next round, or
+ * left unread when its round ended. The runtime's input record is its only owner; this is that record as the Host reads it.
+ */
+export interface AgentQueuedInput {
+  input_id: string;
+  text: string;
+  /** `peer`: another session's Agent said it. */
+  source: AgentInputSource | "peer";
+  key?: string;
+  /** The round that ended without reading it; `applied`: it was in the context, but no reply came. Absent when it was sent straight to the session. */
+  left_by?: { run_id: string; applied: boolean };
+}
+
+/**
  * The runtime's side. `beforeQueue` runs right before a supplement is kept in the session, once the round turned out to
  * have ended: the caller checks there that it may still write.
  */
 export interface AgentInputsPort {
   send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
+}
+
+/** One input as the runtime's ledger knows it: whose session it belongs to and its id there. */
+export interface AgentInputRef { session_id: string; input_id: string }
+
+/** How the model says it will treat an input it read (closed set, the runtime's S3 vocabulary). */
+export type AgentInputTreatment = "apply-now" | "later-step" | "new-task" | "needs-clarification" | "not-adopted" | "answered" | "noted" | "merged";
+/** What kind of input the model takes it to be. */
+export type AgentInputKind = "supplement" | "correction" | "constraint" | "request" | "question";
+/** What the model says the input changes; declared, not observed. */
+export type AgentInputImpact = "objective" | "scope" | "priority" | "approach" | "acceptance" | "outputs" | "constraint";
+/** What a statement points at: another input, an app reference, a node of a board, an item of the round's list, a question. */
+export type AgentInputTarget = { kind: "input" | "app-ref" | "todo" | "pending"; id: string } | { kind: "board-node"; board: string; id: string };
+
+/**
+ * The model's own latest statement about an input it read (specs/ai-input-receipts §3.4, SDK S3). It is a claim: the
+ * runtime checked only that it names inputs the round read and valid targets; nothing was done because of it, it does not
+ * move the receipt's state, and it is not what the Host observed. Pages show it as what the AI says.
+ */
+export interface AgentInputModelClaim {
+  treatment: AgentInputTreatment;
+  kind?: AgentInputKind;
+  targets: AgentInputTarget[];
+  impacts: AgentInputImpact[];
+  note?: string;
+  /** The model call whose reply made the statement, and the tool call that carried it. */
+  call_id?: string;
+  tool_call_id?: string;
+  /** How many statements the model made about it; the latest stands. */
+  revisions: number;
+}
+
+/** A question the round asked about an input. `unresolved`: the round ended with no settlement on its ledger. */
+export interface AgentInputQuestion { pending_id: string; state: "open" | "settled" | "expired" | "cancelled" | "unresolved" }
+
+/**
+ * A supplement's receipt on its turn, projected by the runtime's own `projectInputReceipts` from the round's ledger.
+ * `state` is what happened to it; `model_claim` is only what the model says about it.
+ */
+export interface AgentTurnSteer {
+  id: string;
+  /** received: taken, not yet in the context; applied: in the context; read: a kept reply was made with it (not compliance); unread: the round ended before that. */
+  state: "received" | "applied" | "read" | "unread" | "withdrawn";
+  model_claim?: AgentInputModelClaim;
+  /** Questions asked about it, in the order asked. */
+  questions?: AgentInputQuestion[];
 }
 
 export type AgentInputSendRequest = AgentInputSend & { runtime_id: string; session_id: string; run_id: string };

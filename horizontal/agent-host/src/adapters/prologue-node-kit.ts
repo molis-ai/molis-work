@@ -27,6 +27,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
    * driven only through Prologue's interface control. Absent: no round gets the surface tools.
    */
   surfaces?: PrologueSurfacePorts;
+  /** What the Host answers when a step's wait on a file is looked at (prologue-checkers.ts). Absent: such a wait is refused. */
+  checks?: import("./prologue-checkers.js").PrologueCheckPorts;
   /** App identity Prologue records against this Runtime's work. */
   app: { readonly appId: string; readonly appVersion: string };
   /** Where the Node host keeps its own storage. A Host fact, never surfaced to Plugins. */

@@ -44,7 +44,7 @@
 
 - **例外**（4 个）已登记在 `tooling/gates/giant-exceptions.json`：样式表 3 份（动量、基础控件、Coding）、连接器声明表 1 份。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
 - **归线**（21 个）：浏览器脚本模板、旧皮肤和英文词典 `en.ts`（决定 #16，W5-03）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 一项挂在 W5-01 下：路线 W5-01 原有“Shelf 和 Characters 混合插件”一项，决定 #26 把其中 Characters 的部分提到第 4 波，那个切片在路线里还没有自己的片号（见下）。
-- **拆**（131 个，101 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元由 W4-05 先抽样板，也在这 123 个里），其余 8 个归 W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个已拆完）。
+- **拆**（131 个，101 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 123 个里），其余 8 个归 W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个已拆完）。
 - 全部单元里，45 个只超出阈值不到 20%（9 个文件、27 个函数、9 个类；类按行数与方法数里超得多的那一项算），其中 37 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
 
 ### W5-10 怎么做
@@ -53,7 +53,7 @@
 
 | 顺序 | 批次（包） | 文件 | 单元 | 窗口内改动它的合并数 | 备注 |
 | ---: | --- | ---: | ---: | ---: | --- |
-| 1 | `apps/local-host/src/assistant` | 2 | 3 | 18 | 决定 #3：W4-05 先拆出提醒与跟进作样板，W5-10 拆其余协作者，最后搬成独立包 |
+| 1 | `apps/local-host/src/assistant` | 2 | 3 | 18 | 决定 #3：W4-05 已拆出提醒与跟进作样板，W5-10 拆其余协作者，最后搬成独立包 |
 | 2 | `horizontal/memory` | 1 | 2 | 3 | 任务书 §4.5 点名“平台记忆服务”；N-03 之后路线里没有别的片拆它，代码不搬、包内拆 |
 | 3 | `plugins/native/pages` | 4 | 10 | 12 | 任务书点名“Pages 编辑器的挂载函数”；路线原文点名的 `mount`、`hoverHandlePlugin`、`commands.ts` 都在这里 |
 | 4 | `apps/local-host` | 16 | 20 | 41 | 不含助理目录；web-* 路由文件的形态与 W5-07 的注册表一致 |
@@ -121,7 +121,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | --- | --- | ---: | --- |
 | W3-03 | 把运行时 helper 移出 contracts，其中声明校验器放进 plugin-sdk（路线写移到 plugin-runtime，做不到，见 spec §1）；B2 已把 `inspectActionDeclarations`、`inspectAgentDeclaration` 按声明段拆开搬入 SDK | 0 | 已做（B2），清单里不再有 |
 | W4-04 | Form 样板：迁到 Runtime，浏览器代码改成打包并类型检查的 TS；删宿主里 Form 的 `registerProvider` 站点 | 2 | `form/src/client.ts`、`project-host.ts` |
-| W4-05 | 助理服务拆分样板：在原处按包形边界抽出提醒与跟进协作者，带自己的测试（决定 #3 已定） | 3 | `AssistantService`、`AssistantStore` |
+| W4-05 | 助理服务拆分样板：在原处按包形边界抽出提醒与跟进协作者 `AssistantFollowUps`（`assistant-followups.ts`），带自己的表与测试（决定 #3 已定） | 0 | 已做；`AssistantService`、`AssistantStore` 变小，仍是巨大单元，归 W5-10 |
 | W4-06 | 拆 `initializePrologueNodeAdapter`：`startAgentRun` 按阶段进 `prologue-run.ts`；轮次状态与资源读写进 `prologue-node-kit.ts`，会话索引、定时、待批与审查卡、恢复、Runtime 端口、项目工作与推理各成模块（`prologue-session-index.ts`、`prologue-schedule.ts`、`prologue-review-documents.ts`、`prologue-recovery.ts`、`prologue-node-port.ts`、`prologue-node-parts.ts`），`prologue-node.ts` 只剩组合（199 行） | 0 | 已做，清单里不再有 |
 | W4-07 | 拆 `codingRouteBindings`：激活的共享状态与恢复进 `route-activation.ts`，开一轮进 `start-round.ts`，路由按资源分成七组（`routes-writers.ts`、`routes-changesets.ts`、`routes-goals.ts`、`routes-setup.ts`、`routes-sessions.ts`、`routes-timeline.ts`、`routes-delegations.ts`），`routes.ts` 只剩组合（51 行） | 0 | 已做，清单里不再有 |
 | W5-01 | 插件族逐个迁到 Runtime，每迁一族就删宿主里它的文件和 `registerProvider` 站点；Feed 另有专项计划（尚未写出） | 4 | `project-host.ts`、Feed 投影的页面渲染、Characters 的 `createCharactersPlugin` 与内嵌的 `start`（决定 #26 把这一项提到第 4 波） |
@@ -131,7 +131,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W5-05 | 逐个删旧皮肤，并降低页面预算和巨大单元基线 | 2 | `calm-desktop.ts`、`personal-workbench-v3.ts` |
 | W5-06 | 声明式贡献挂载器代替 15 个 Goals 挂载适配器；`goals-page-renderer.ts` 改名，留在工作台 | — | 不拆那两个函数（适配器是别的文件） |
 | W5-07 | `handleMolisWorkWebRequest` 改成注册表，每个 `*-http` 模块导出 `{match, handle}` | 2 | `web-request.ts` |
-| W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同 |
+| W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同；已拆完：入口留描述符、错误码、`AgentHostApi` 与 `agentHostCapabilities`，其余按领域放进旁边的 `agent-host-*.ts`（运行时、启动、会话、运行视图、审查、端口、创作台），子路径与 API 快照不变 |
 | W5-10 | 其余巨大单元拆分（范围见上） | 123 | 123 个，含助理协作者、Pages 编辑器与命令 |
 | W5-11 | 宿主瘦身：连接器提供方设置与 OAuth 移进官方连接器插件，或按决定 #7 作为宿主管理接口留下 | 1 | `web-connectors-settings.ts` |
 | W2-08、W3-07 | 删 Goals 无生产调用方的类型化桥；管理入口改走动作并删剩余桥（工作区读取只留一个 id 已由 W2-09 做完，函数仍 270 行：删了两处登记，补了整份文件只给宿主运行的插件的判断） | 1 | `project-capabilities.ts` |
@@ -159,8 +159,8 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
 | `agent-host-composition.ts` | `composeAgentHost` 函数 261 行 | 拆 · W5-10 | `composeAgentHost` 的 30 条语句里，大块是一段段“登记一类能力并留下撤销函数”：git 操作（19 和 20 行）、git 结果（25）、准备写入者（24），另有 `integrationSource`（27）。每一类各成一个 `register…` 函数，主函数按顺序调用并收集撤销函数。 | 7 |
-| `assistant/assistant-service.ts` | 文件 2,656 行<br>`AssistantService` 类 2,098 行 / 119 方法 | 拆 · W4-05、W5-10 | 决定 #3 已定：先在原处按包形边界拆，再搬成独立包。W4-05 先抽提醒与跟进协作者（`sweepReminders`、`saveFollowUp`、`runFollowUp`、`schedule*`、`saveRule`）作样板；W5-10 再抽委派（`delegation`）、材料轮次（`roundMaterials`）、记忆桥（`memory*`）、建议与撤销（`recordOffer`、`runCard`、`undo`）；其余成组的方法也要有去处：通知与扫描（一次扫描新材料的逻辑已抽到 `assistant-material-scan.ts` 的 `scanNewMaterialOnce`，这只是第一步，还不是包形：`ScanEnvironment` 里放的是整个 `AssistantStore` 类，模块还直接导入兄弟文件 `assistant-relations.js` 的 `identity`；单次运行的保护 `#scanning` 和 `material_scan` 设置的写入仍在服务的 `scanNewMaterial` 里。别的通知方法照这个形状抽出，同时把 store 收窄成端口、去掉对兄弟实现的导入）、作业跟踪（`watchJob`、`checkJob`）、派发与交接、预算与用量、工作对象读取、方法选择、恢复、角色、诊断。目标是每个协作者不超过 25 个方法、300 行。“包形”的意思是：协作者只通过自己的端口类型依赖宿主，不 import 兄弟协作者的实现，所以最后搬包是整目录移动。拆完后 W5-10 末尾搬成独立包。 | 15 |
-| `assistant/assistant-store.ts` | `AssistantStore` 类 282 行 / 44 方法 | 拆 · W4-05、W5-10 | 44 个方法按表分组：回合与卡片、通知（`raiseNotice`、`settleNotices`）、提醒与跟进（`followUps`、`saveFollowUp`、`unsettled`）、作业与撤销（`jobs`、`undos`）、用量（`recordUsage`、`usageOf`）、设置。每个协作者带走自己的表访问，随 `AssistantService` 的拆分一起切开；W4-05 先带走提醒与跟进那一组。 | 10 |
+| `assistant/assistant-service.ts` | 文件 2,081 行<br>`AssistantService` 类 1,663 行 / 99 方法 | 拆 · W5-10 | 决定 #3 已定：先在原处按包形边界拆，再搬成独立包。W4-05 已做：提醒与跟进协作者 `AssistantFollowUps`（`assistant-followups.ts`：到期提醒、定时轮次、关注规则，带自己的表 `AssistantFollowUpRecords`，只经 `AssistantFollowUpPorts` 依赖宿主，测试 `tests/assistant-followups-collaborator.test.ts`）是样板；W5-10 再抽委派（`delegation`）、材料轮次（`roundMaterials`）、记忆桥（`memory*`）、建议与撤销（`recordOffer`、`runCard`、`undo`）；其余成组的方法也要有去处：通知与扫描（一次扫描新材料的逻辑已抽到 `assistant-material-scan.ts` 的 `scanNewMaterialOnce`，这只是第一步，还不是包形：`ScanEnvironment` 里放的是整个 `AssistantStore` 类，模块还直接导入兄弟文件 `assistant-relations.js` 的 `identity`；单次运行的保护 `#scanning` 和 `material_scan` 设置的写入仍在服务的 `scanNewMaterial` 里。别的通知方法照这个形状抽出，同时把 store 收窄成端口、去掉对兄弟实现的导入）、作业跟踪（`watchJob`、`checkJob`）、派发与交接、预算与用量、工作对象读取、方法选择、恢复、角色、诊断。目标是每个协作者不超过 25 个方法、300 行。“包形”的意思是：协作者只通过自己的端口类型依赖宿主，不 import 兄弟协作者的实现，所以最后搬包是整目录移动。拆完后 W5-10 末尾搬成独立包。 | 15 |
+| `assistant/assistant-store.ts` | `AssistantStore` 类 267 行 / 39 方法 | 拆 · W5-10 | W4-05 已带走提醒与跟进的表（`store.followUps`）。其余方法按表分组：回合与卡片、通知（`raiseNotice`、`settleNotices`）、提醒与跟进（`followUps`、`saveFollowUp`、`unsettled`）、作业与撤销（`jobs`、`undos`）、用量（`recordUsage`、`usageOf`）、设置。每个协作者带走自己的表访问，随 `AssistantService` 的拆分一起切开。 | 10 |
 | `browser/browser-host.ts` | `BrowserPage` 类 443 行 / 45 方法 | 拆 · W5-10 | `BrowserPage` 的 45 个方法分四组：连接与目标（`attach`、`listenTo`、`targetGone`、`adoptPopup`）、视口与画面（`refreshScreencast`、`applyViewport`、`resize`、`capture`）、导航与历史、输入与对话框/文件/下载（`input`、`answerDialog`、`chooseFiles`、`download*`）。各成协作者，页面类只持有它们。 | 2 |
 | `browser/surface-driver.ts` | `createBrowserSurfaceDriver` 函数 166 行 | 拆 · W5-10 | 只超 16 行。`createBrowserSurfaceDriver` 返回的驱动器对象占 141 行（`identity`、`scope`、`observe` 等方法）；各方法抽成函数，返回对象只列出它们。 | 3 |
 | `character-import-discovery.ts` | `createCharacterDiscovery` 函数 205 行<br>`discover` 函数 176 行 | 拆 · W5-10 | `discover` 里一个 `for…of` 逐个 Agent 运行时（codex、claude-code、cursor、opencode）扫描候选，占 165 行；每个运行时的扫描抽成函数，目录解析（`manualRoot`、`projectRoot`、`codexHome`、`configHome`）抽成一个函数。`discover` 内嵌在 `createCharacterDiscovery` 里（同一段计两次）。决定 #26 把 Characters 并进宿主，这个文件随之留在宿主或搬进承接它的 Module，拆分不依赖那一步。 | 0 |
@@ -255,11 +255,10 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 ### 平台包 `packages/*`
 
-24 个单元（拆 20、归线 2、例外 2），20 个文件、7 个包。路径前缀 `packages/`。
+23 个单元（拆 19、归线 2、例外 2），19 个文件、6 个包。路径前缀 `packages/`。
 
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
-| `contracts` | `src/services/agent-host.ts` | 文件 1,734 行 | 拆 · W5-09 | 按领域拆合同文件（运行能力、冻结的启动字段、运行视图、记忆能力、错误码、`agentHostCapabilities` 等），纯搬移，由 API 快照守着。 | 13 |
 | `design-system` | `src/plugin-component-client.ts` | `createPluginComponentClient` 函数 754 行 | 拆 · W5-04 | 生成插件的宿主渲染器，按部件种类画；类型化函数，用 `toString` 序列化进浏览器（754 行、73 条语句：`createPart` 142、`output` 137、`figures` 36、`showDetail` 32、`control` 32）。W5-04 改成打包的类型检查模块时，各部件成各自的模块，同一个 PR 拆到阈值以下。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 3 |
 | `design-system` | `src/primitives/catalog.ts` | 文件 947 行<br>`renderPrimitiveCatalog` 函数 648 行 | 拆 · W5-04、W5-10 | `/__ui/catalog` 规格板。页尾 `<script>` 175 行（第 771–945 行，带分支的演示脚本）是浏览器代码，归 W5-04，移出后文件 772 行、不再超限。剩下的 `renderPrimitiveCatalog` 约 470 行是样例标记，除 `.map` 拼接外没有分支和 IO，但不登记例外：它已经有 `arrivalSection`、`craftSection`、`paletteSection` 等章节函数，其余章节（`sections` 数组 116 行，`catalogDirRows` 36、`catalogShellDirectory` 35、`catalogCompact` 27 行等）照此各成章节函数，W5-10 完成。 | 3 |
 | `design-system` | `src/styles/calm-desktop.ts` | 文件 1,392 行 | 归线 · §4.8 · W5-05 | 旧皮肤，整份删除（逐个过视觉比对）。 | 3 |

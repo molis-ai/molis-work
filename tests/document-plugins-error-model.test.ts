@@ -383,14 +383,17 @@ function browserOnlyFiles(sources: ReadonlyMap<string, string>, browserEntries: 
   const server = reach([...serverEntries, ...[...sources.keys()].filter(file => !browser.has(file))]);
   return new Set([...browser].filter(file => !server.has(file)));
 }
+// A plugin's browser bundle is type-checked by its own tsconfig: Pages' editor (tsconfig.editor.json), Forms' page (tsconfig.browser.json, W4-04).
 function browserEntriesFor(owner: Owner): string[] {
-  const path = join(REPOSITORY, "plugins", "native", owner, "tsconfig.editor.json");
-  if (!existsSync(path)) return [];
-  const config = ts.readConfigFile(path, ts.sys.readFile);
-  assert.equal(config.error, undefined);
-  const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, dirname(path));
-  assert.deepEqual(parsed.errors, []);
-  return parsed.fileNames;
+  return ["tsconfig.editor.json", "tsconfig.browser.json"].flatMap((name) => {
+    const path = join(REPOSITORY, "plugins", "native", owner, name);
+    if (!existsSync(path)) return [];
+    const config = ts.readConfigFile(path, ts.sys.readFile);
+    assert.equal(config.error, undefined);
+    const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, dirname(path));
+    assert.deepEqual(parsed.errors, []);
+    return parsed.fileNames;
+  });
 }
 
 test("the owner-error check excludes browser-only modules but keeps shared, dynamic server imports and orphan modules", () => {

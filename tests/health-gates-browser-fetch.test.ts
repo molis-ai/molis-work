@@ -26,6 +26,8 @@ before(() => {
   put("specs/demo/spec.md", "# Demo\n\n状态：进行中\n");
   put("plugins/native/alpha/src/client.ts", "export const CLIENT_SCRIPT = `fetch('/old');`;\n");
   put("apps/workbench/src/client.ts", "export const CLIENT_SCRIPT = `document.title = 'Molis Work';`;\n");
+  // A browser program already kept as text, so the clean-shapes case below edits a program rather than adding one (W4-04 counts new ones).
+  put("plugins/native/alpha/src/clean.ts", "export const CLIENT_SCRIPT = `void 0;`;\n");
   put("packages/ui-host/src/request-client.ts", "export const UI_REQUEST_CLIENT_SCRIPT = `const call = createUiRequest({fetch: (input, init) => fetch(input, init)});`;\n");
   put("packages/ui-host/src/client-lifecycle.ts", "export const UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT = `() => {const scope = {async fetch(input, init = {}) {const signal = init.signal; const response = await fetch(input, {...init, signal}); return response;}};return scope;}`;\n");
   git("add", "-A"); assert.equal(gate("--update").code, 0); commit("base");
@@ -255,4 +257,26 @@ for (const source of [
   commit("reassigned declared input"); const result = gate("--base", "main");
   assert.equal(result.code, 1, result.out); assert.match(result.out, /raw fetch calls.*mapped\.ts 0 → 1/);
   assert.doesNotMatch(result.out, /cannot statically expand/);
+});
+
+// W4-04: a program the package bundles from TypeScript is read as typed source: the constant reads `dist/<name>.js`, and the
+// package's build script makes it with esbuild from an entry. A raw fetch anywhere the entry imports counts; a read that no build
+// step produces cannot be expanded and fails.
+const bundled = (build: string) => {
+  put("plugins/native/beta/package.json", JSON.stringify({ name: "@test/beta", scripts: { build } }));
+  put("plugins/native/beta/src/browser/entry.ts", "import {send} from './send.js'; send();\n");
+  put("plugins/native/beta/src/browser/send.ts", "export const send = () => window.fetch('/bundled');\n");
+  put("plugins/native/beta/src/client.ts", "import {readFileSync} from 'node:fs'; export const BETA_CLIENT_FACTORY_SCRIPT = readFileSync(new URL('./beta-client.js', import.meta.url), 'utf8').trim();\n");
+  put("apps/workbench/src/client.ts", "import {BETA_CLIENT_FACTORY_SCRIPT} from '../../../plugins/native/beta/src/client.js';\nexport const CLIENT_SCRIPT = `const factory = ${BETA_CLIENT_FACTORY_SCRIPT}; document.title = 'Molis Work';`;\n");
+};
+test("W4-04: a raw fetch in the TypeScript a bundle is built from counts in its own file", () => {
+  reset(); bundled("tsc -p tsconfig.json && esbuild src/browser/entry.ts --bundle --format=iife '--banner:js=(host) => {' --footer:js=} --outfile=dist/beta-client.js"); commit("bundled");
+  const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /raw fetch calls in a browser program in plugins\/native\/beta\/src\/browser\/send\.ts 0 → 1/);
+  assert.doesNotMatch(result.out, /cannot statically expand/);
+});
+test("W4-04: reading a bundle that no build step makes cannot be expanded", () => {
+  reset(); bundled("tsc -p tsconfig.json && esbuild src/browser/entry.ts --bundle --outfile=dist/other-client.js"); commit("unbuilt bundle");
+  const result = gate("--base", "main"); assert.equal(result.code, 1, result.out);
+  assert.match(result.out, /plugins\/native\/beta\/src\/client\.ts:1:\d+: cannot statically expand browser program \(unsupported call readFileSync/);
 });

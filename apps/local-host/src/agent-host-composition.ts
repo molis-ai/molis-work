@@ -3,7 +3,7 @@ import { pdfDocumentParser } from "./pdf-document-parser.js";
 import type { HostPluginCaller, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createExternalMcpDirectory } from "./external-mcp-actions.js";
 import { authorizeMcpActions } from "./mcp-action-client.js";
-import { currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
+import { assertActionInput, currentCallId, newCallId } from "@molis-ai/molis-work-kernel";
 import {
   AgentHost,
   createPrologueNodeAdapter,
@@ -19,7 +19,7 @@ import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules
 import { readProjectGuidance } from "./goals-actions.js";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -100,6 +100,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       ...options.prologue,
       // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
       documentParsers: [pdfDocumentParser],
+      // A step's wait on a file looks only while the round's directory is still authorized for the project.
+      checks: { directoryAuthorized: async (projectId, directory) => (await workspaceGrants(options, projectId)).some(entry => entry.realpath_verified && entry.canonical_path === directory) },
       reviewQueue: agentHost.reviews,
       app: { appId: "io.molis.work", appVersion: "0.0.0" },
     }).then((adapter) => { prologue = adapter; agentHost.register(adapter); markStarted(); }))
@@ -124,8 +126,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input, invocation) => {
     await initialize();
     if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
-    const current = async () => options.workspacesFor ? await options.workspacesFor(project.project_id)
-      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const current = () => workspaceGrants(options, project.project_id);
     const prepared = await prepareGitIndex(input, current);
     const workspace = (await current()).find(item => item.workspace_id === input.workspace_id);
     if (!workspace) throw new Error("工作区已取消授权");
@@ -148,8 +149,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     await initialize();
     if (!prologue?.gitReviews) throw new Error("Git 宿主审查执行方尚未接通");
     if (!/^[a-zA-Z0-9-]{8,80}$/.test(input.operation_id)) throw new Error("Git 操作标识无效");
-    const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
-      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const grants = await workspaceGrants(options, project.project_id);
     const workspace = grants.find(item => item.workspace_id === input.workspace_id && item.realpath_verified);
     if (!workspace) throw new Error("工作区已取消授权");
     const prepared = await prepareGitOperation(workspace, input.revision, input.operation);
@@ -172,8 +172,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   });
   const unregisterGitOperations = options.localHost.registerCapability(readGitOperationsCapability, async (project, input) => {
     await initialize();
-    const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
-      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const grants = await workspaceGrants(options, project.project_id);
     if (!grants.some(item => item.workspace_id === input.workspace_id && item.realpath_verified)) throw new Error("工作区已取消授权，不能读取操作结果");
     await agentHost.reviews.refresh(project.project_id);
     const details = await readDetails(), records: GitOperationRecord[] = [];
@@ -192,8 +191,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   });
   const unregisterGitResults = options.localHost.registerCapability(readGitResultsCapability, async (project, input) => {
     await initialize();
-    const grants = options.workspacesFor ? await options.workspacesFor(project.project_id)
-      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const grants = await workspaceGrants(options, project.project_id);
     if (!grants.some(item => item.workspace_id === input.workspace_id && item.realpath_verified)) throw new Error("工作区已取消授权，不能读取操作结果");
     await agentHost.reviews.refresh(project.project_id);
     const results: GitReviewedResult[] = [];
@@ -217,8 +215,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   });
 
   const writerParent = async (projectId: string, workspaceId: string) => {
-    const grants = options.workspacesFor ? await options.workspacesFor(projectId)
-      : [await options.workspaceFor(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const grants = await workspaceGrants(options, projectId);
     const parent = grants.find(item => item.workspace_id === workspaceId && item.realpath_verified);
     if (!parent) throw new Error("主工作区已取消授权，不能准备或读取子目录");
     return { grants, parent, port: createGitWorktreePort(parent.canonical_path) };
@@ -273,8 +270,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     // Any ended child may be brought back: one that ran out of turns after writing and testing its files still did the
     // work. What lands is exactly what the person reviews file by file, re-checked at approval; unknown outcomes still block.
     if (!child || !["completed", "failed", "cancelled"].includes(child.state) || children.some(c => ["running", "reconcile-required"].includes(c.state))) throw new Error("原子任务尚未结束或有结果待核对，暂不能整合");
-    const granted = options.workspacesFor ? await options.workspacesFor(project.project_id)
-      : [await options.workspaceFor(project.project_id)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const granted = await workspaceGrants(options, project.project_id);
     const originalDirectory = run.frozen.directory;
     if (!originalDirectory) throw new Error("无目录会话不能整合工作区");
     const originalParent = granted.find(g => g.realpath_verified && g.canonical_path === originalDirectory.canonical_path);
@@ -343,6 +339,11 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
  * authorized directory, so it fails the third — both are true answers, and
  * neither invents a fallback.
  */
+/** The project's authorized workspaces, from the list when the Host keeps one, else the single one. */
+async function workspaceGrants(options: Pick<AgentHostCompositionOptions, "workspacesFor" | "workspaceFor">, projectId: string): Promise<readonly ProjectWorkspaceRef[]> {
+  return options.workspacesFor ? await options.workspacesFor(projectId) : [await options.workspaceFor(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
+}
+
 async function startAuthority(
   runtime: MolisWorkProjectRuntime,
   pluginId: string,
@@ -380,6 +381,7 @@ async function startAuthority(
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
         invoke: async (action, input, signal) => { const authorized = await current(signal); return authorized.service.invoke(authorized.context, action, input); },
+        check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },
     ...(consumesCharacters ? { resolveCharacter: (reference, actorId) => freezeProjectCharacter(homeDirectory, actorId, runtime.project_id, runtime.coordinator.artifacts.query, reference) } : {}),
@@ -388,6 +390,13 @@ async function startAuthority(
     memory: (task, context) => memoryForAgentRun(localHost, { project_id: runtime.project_id, task, plugin_id: pluginId, ...(context?.character ? { character: context.character } : {}),
       used_for: `${manifest?.name ?? pluginId} · ${task.replace(/\s+/g, " ").trim().slice(0, 40)}` }),
   };
+}
+
+/** An input checked as dispatch will check it, against the action as this grant discovers it now; runs nothing. */
+async function checkActionInput(authorized: { context: ActionCallContext; service: { discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]> } }, reference: ExactActionReference, input: unknown): Promise<void> {
+  const view = (await authorized.service.discover(authorized.context)).find(row => row.capability_id === reference.capability_id && row.version === reference.version && row.provider.provider_id === reference.provider_id);
+  if (!view) throw new ActionError("actions.missing", "The original Agent action is no longer accessible");
+  assertActionInput(view.action.input_schema, input);
 }
 
 /**

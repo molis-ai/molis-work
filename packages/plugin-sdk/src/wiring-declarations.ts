@@ -3,13 +3,14 @@ import {
   type PluginEventsDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { isValidPortName, type PluginPortsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-wiring";
+import { PLUGIN_ID } from "./plugin-id.js";
 
 // The shape checks for a Manifest's `ports` and `events` blocks. `parsePluginManifest` is the one caller; they return every
 // problem so an author sees the whole contract at once. Moved here from the contracts package (W3-03): they run code, so
 // they live with the other Manifest rules in the SDK, and they are not part of the SDK's public exports.
 
 /** Validate one Plugin's port and group declarations. Returns every problem. */
-export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefined): string[] {
+export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefined, pluginId: string): string[] {
   if (!ports) return [];
   const problems: string[] = [];
   const inputs = new Set<string>();
@@ -29,6 +30,11 @@ export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefine
     if (!Number.isSafeInteger(input.schema_version) || input.schema_version < 1) {
       problems.push(`输入端口 ${input.port} 的 schema_version 无效`);
       continue;
+    }
+    const source = input.default_source;
+    if (source !== undefined && (typeof source !== "object" || source === null || typeof source.plugin_id !== "string" || !PLUGIN_ID.test(source.plugin_id)
+      || source.plugin_id === pluginId || !isValidPortName(source.port))) {
+      problems.push(`输入端口 ${input.port} 的默认来源要写另一个插件的 plugin_id 与输出端口名`);
     }
     inputs.add(input.port);
   }
@@ -65,6 +71,7 @@ export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefine
       continue;
     }
     groups.add(group.group_id);
+    if (group.default !== undefined && typeof group.default !== "boolean") problems.push(`输入组 ${group.group_id} 的 default 必须是布尔值`);
     if (!Array.isArray(group.ports) || group.ports.length === 0) {
       problems.push(`输入组 ${group.group_id} 必须至少包含一个端口`);
       continue;
@@ -75,6 +82,7 @@ export function inspectPortDeclarations(ports: PluginPortsDeclaration | undefine
       }
     }
   }
+  if ((ports.input_groups ?? []).filter(group => group.default === true).length > 1) problems.push("最多一个输入组是默认组");
   return problems;
 }
 

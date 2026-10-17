@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createPrologueNodeAdapter, PrologueAgentAdapter, type PrologueRuntimePort, type PrologueEvent, type PrologueRunTiming } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { startModelStandIn } from "./fixtures/model-stand-in.ts";
 
 const owner = { project_id: "recovery-board", plugin_id: "io.molis.work.coding", install_id: "recovery-install" };
 const model = { protocol: "anthropic-compatible", endpoint: "https://127.0.0.1:1/v1/messages", model: "offline-fixture", credential_ref: "fixture" };
@@ -86,6 +87,65 @@ test("packed SDK: failed terminal ledger and frozen ownership survive restart wi
     // This older handle was restored and correctly refuses control.
     await assert.rejects(adapter.control(handle.ref, { kind: "stop" }), /历史执行没有活动控制句柄/);
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("RC-08: the recovery report lists the supplements waiting in the session for its next round, from the runtime's own record", { timeout: 30_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "molis-sdk-inputs-"));
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.recovery-test", appVersion: "0.1.0" },
+    storageRoot: join(root, "runtime"), modelConfiguration: async () => model, resolveCredential: () => "fixture-not-a-real-provider-key" });
+  try {
+    const directory = { canonical_path: root, realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, actor_id: "local-user", title: "排着的补充", directory });
+    assert.deepEqual((await adapter.recovery!.inspect(session)).inputs, [], "nothing waits yet: empty is empty");
+    const handle = await adapter.start({ ...owner, actor_id: "local-user", session, directory, task: "看看测试", role_id: "reader",
+      role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } });
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("SDK failed to settle rejected network request")), 10_000);
+      let off = () => {};
+      off = adapter.observe(handle.ref, view => { if (["failed", "completed", "cancelled"].includes(view.phase)) { clearTimeout(timer); queueMicrotask(() => off()); resolve(); } });
+    });
+    const person = await adapter.inputs!.send(handle.ref, { text: "下一轮顺便看注册接口", key: "send.r1", mode: "after-run" });
+    const note = await adapter.inputs!.send(handle.ref, { text: "计划已调整", source: "host" });
+    assert.equal(person.delivered, "queued");
+    assert.equal(note.delivered, "queued", "the round had ended, so the Host's note waits too");
+    assert.deepEqual((await adapter.recovery!.inspect(session)).inputs, [
+      { input_id: person.input_id, text: "下一轮顺便看注册接口", source: "person", key: "send.r1" },
+      { input_id: note.input_id, text: "计划已调整", source: "host" },
+    ]);
+  } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("RC-09: the next round takes what waits in the session, shows it with its receipt, and takes it once", { timeout: 60_000 }, async () => {
+  const provider = await startModelStandIn("stand-in-key", "好的");
+  const root = await mkdtemp(join(tmpdir(), "molis-sdk-carry-"));
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.recovery-test", appVersion: "0.1.0" }, storageRoot: join(root, "runtime"),
+    modelConfiguration: async () => ({ protocol: "openai-compatible", endpoint: provider.baseUrl + "/chat/completions", model: "stand-in", credential_ref: "fixture" }),
+    resolveCredential: () => "stand-in-key" });
+  const ended = (ref: Parameters<typeof adapter.observe>[0]) => new Promise<Awaited<ReturnType<typeof adapter.read>>>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("the round did not end")), 20_000);
+    let off = () => {};
+    off = adapter.observe(ref, view => { if (["failed", "completed", "cancelled"].includes(view.phase)) { clearTimeout(timer); queueMicrotask(() => off()); resolve(view); } });
+  });
+  try {
+    const directory = { canonical_path: root, realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, actor_id: "local-user", title: "带上排着的补充", directory });
+    const round = (task: string) => adapter.start({ ...owner, actor_id: "local-user", session, directory, task, role_id: "reader", queued: "carry",
+      role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } });
+    const first = await round("看看测试");
+    assert.equal((await ended(first.ref)).phase, "completed");
+    const kept = await adapter.inputs!.send(first.ref, { text: "下一轮顺便看注册接口", key: "send.c1", mode: "after-run" });
+    assert.equal(kept.delivered, "queued");
+
+    const second = await round("继续");
+    const view = await ended(second.ref);
+    assert.equal(view.phase, "completed");
+    assert.deepEqual(view.turns.filter(turn => turn.steer).map(turn => ({ kind: turn.kind, text: turn.text, steer: turn.steer })),
+      [{ kind: "user", text: "下一轮顺便看注册接口", steer: { id: kept.input_id, state: "read" } }], "the round shows the supplement it took, once, under its own id");
+    assert.deepEqual((await adapter.recovery!.inspect(session)).inputs, [], "taken by the round, it no longer waits");
+
+    const third = await round("再继续");
+    assert.deepEqual((await ended(third.ref)).turns.filter(turn => turn.steer), [], "a supplement is taken once, not into every round after it");
+  } finally { await adapter.close(); await provider.close(); await rm(root, { recursive: true, force: true }); }
 });
 
 test("incomplete SDK recovery remains readable but refuses a blind restart or stale control", async () => {

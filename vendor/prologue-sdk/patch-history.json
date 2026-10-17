@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-15",
-    "mainHead": "e51233699c1463e3c8f0a8b08658c5860c962769",
-    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。 2026-10-15 对上游 main e51233699c1463e3c8f0a8b08658c5860c962769（collaboration 包的来源）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。",
+    "checkedOn": "2026-10-16",
+    "mainHead": "4e8468ddb6eb8fd0ca48110adb77a316c7048332",
+    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。 2026-10-15 对上游 main e51233699c1463e3c8f0a8b08658c5860c962769（collaboration 包的来源）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main e4afd1a718bd8a8629d52526b953bbe75149baa6（found-tools 包的来源，#28 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main be78f726df55d76e7ab7bd5889d4eeb89b049173（find-tools-deferral 包的来源，#30 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main 4e8468ddb6eb8fd0ca48110adb77a316c7048332（parameter-branches 包的来源，#32 的合并，含 #31）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -23,6 +23,7 @@
       "4702abe3e701cd2394db192bcb535436a85ed4c7",
       "4b6cd9bcf772f2b73185d8858a3ab4c7c52aa962",
       "4d5f874d37287eb2cd87c10a5837013d922555f0",
+      "4e8468ddb6eb8fd0ca48110adb77a316c7048332",
       "52c49cf5095e67cd62f4db9e9c1d515afa68ddd8",
       "55b0c85aed4a0cd9296a58180f99e31a419a9608",
       "6f530d5a818e0f7aecfb6322c5bfe22dbe7552ea",
@@ -34,10 +35,12 @@
       "a8ac8e1eb7362a2189973cbe7aaa4f4624649ee0",
       "ac4d11350ab3b6848460d140230081a58cbb215f",
       "af7375c74a2e551184c443e2a5e06e105168fed3",
+      "be78f726df55d76e7ab7bd5889d4eeb89b049173",
       "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
       "c63ea1a16eec8d8217223db1624b2409a1a33d14",
       "d2f5a05df6459440a253787e94ee6520f12d754d",
       "d4908c118f7899d44e3d1975806797a05f0094b9",
+      "e4afd1a718bd8a8629d52526b953bbe75149baa6",
       "e51233699c1463e3c8f0a8b08658c5860c962769",
       "f5ef12e6085c2865133b732ebc8ec235142685e1"
     ]
@@ -648,6 +651,30 @@
       "gitBlob": "f633a41a491d70b69b4325aa0d386812562c93f3",
       "commit": "4007a93c8901f090994bff8d847009982958bdef",
       "description": "提交 `4007a93c`（分支 `feature/model-switch-acceptance-cu-image`：CU-image 过渡线加上换模型的同步 beforeAccept 复查，即 Prologue #20，同样的改动在上游 main 是 #24；它自己不在 Prologue main）。2026-10-15 起是 main 的依赖（防腐线 I8，#523）；同日随 Molis P3a 换成从上游 main `e5123369` 打的 collaboration 包；旧包和其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-collaboration.tgz",
+      "bytes": 1182902,
+      "sha256": "9f001edeec1d6832ab1ca2e6443398ab2ab376f9cb15fc92e6393fce0c35ca62",
+      "gitBlob": "28d370d5b5ee5a870d98a6227e973cb9cb23330d",
+      "commit": "e51233699c1463e3c8f0a8b08658c5860c962769",
+      "description": "上游 main `e5123369`（Prologue #27 的合并：P2a–P2k、S4、窗口图、换模型的同步 beforeAccept 复查、撤销资源不逐块写墓碑）。2026-10-15 随 Molis P3a（#534）成为 main 的依赖；2026-10-16 换成从上游 main `e4afd1a7`（#28 的合并）打的 found-tools 包；旧包和其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-found-tools.tgz",
+      "bytes": 1186918,
+      "sha256": "cfed7ff4653289c67ee0dd2801e1b6d9a287d6c8873f477b4927e12dbf510705",
+      "gitBlob": "bb31b2a20e5714cc7ce2b45170b732e5b2b5e0ac",
+      "commit": "e4afd1a718bd8a8629d52526b953bbe75149baa6",
+      "description": "上游 main `e4afd1a7`（Prologue #28 的合并：`find-tools` 交出过形状的之后照常声明、只列了名字的延后工具 Model 那道门也照收、检查器说出参数形状）。2026-10-16 随 Molis #581 成为 main 的依赖；同日换成从上游 main `be78f726`（#30 的合并）打的 find-tools-deferral 包；旧包和其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-find-tools-deferral.tgz",
+      "bytes": 1187709,
+      "sha256": "29013b0cbeaa01e981376d9c5efb7424764b1e78280deb3f0a3bf39239711b0d",
+      "gitBlob": "fda0b4011f2e596a4daf5c70183ee786f8f4d009",
+      "commit": "be78f726df55d76e7ab7bd5889d4eeb89b049173",
+      "description": "上游 main `be78f726`（Prologue #30 的合并：一轮只要延后了工具，`find-tools` 就带着名册在请求里、调得动，不看角色和这一轮的名单点没点它）。2026-10-16 随 Molis #599 成为 main 的依赖；同日换成从上游 main `4e8468dd`（#32 的合并，含 #31）打的 parameter-branches 包；旧包和其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

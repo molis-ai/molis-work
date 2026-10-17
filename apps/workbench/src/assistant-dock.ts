@@ -64,21 +64,21 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
           </div>
         </div>
       </section>
-      <div class="assistant-popover" id="assistant-materials" data-assistant-materials-list role="group" aria-label="${L("本次发送带上的材料")}" hidden></div>
       <div class="assistant-popover" id="assistant-executors" data-assistant-executors role="group" aria-label="${L("由谁来做")}" hidden></div>
       <div class="assistant-popover" id="assistant-modes" data-assistant-modes role="group" aria-label="${L("下一轮的方式")}" hidden></div>
       <div class="assistant-popover" id="assistant-characters" data-assistant-characters role="group" aria-label="${L("由哪个角色负责")}" hidden></div>
       <div class="assistant-popover" data-assistant-starters role="group" aria-label="${L("可以这样开始")}" hidden></div>
+      <div class="assistant-context-strip" data-assistant-context-strip role="group" hidden></div>
       <div class="assistant-next-row" data-assistant-next-row hidden></div>
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${L("需要你看看")}" hidden></div>
       <div class="assistant-popover assistant-more" id="assistant-more" data-assistant-more role="group" aria-label="${L("添加")}" hidden></div>
       <form class="assistant-composer bar-composer" id="assistant-composer" data-assistant-composer aria-label="Molis Work Assistant">
         <span class="assistant-target" data-assistant-target-wrap><button class="assistant-target-main" type="button" data-assistant-target title="${L("下一次发送给哪项工作")}"><span data-assistant-target-label>${L("新工作")}</span></button><button class="assistant-target-clear" type="button" data-assistant-target-clear aria-label="${L("改为开始新工作")}" title="${L("改为开始新工作")}" hidden>${icon("x")}</button></span>
-        <button class="assistant-materials-button" type="button" data-assistant-materials aria-expanded="false" aria-controls="assistant-materials" title="${L("本次发送带上的材料")}" hidden>${icon("file")}<span class="assistant-materials-label" data-assistant-materials-label></span><span data-assistant-materials-count></span></button>
         <button class="assistant-executor" type="button" data-assistant-executor aria-haspopup="true" aria-expanded="false" aria-controls="assistant-executors" title="${L("由谁来做")}" hidden><span data-assistant-executor-label>${L("助理")}</span>${icon("chevron-up")}</button>
         <button class="assistant-attention" type="button" data-assistant-attention aria-haspopup="true" aria-expanded="false" aria-controls="assistant-notices" title="${L("需要你看看")}" hidden>${icon("bell")}<span data-assistant-attention-count></span></button>
         <button class="assistant-executor" type="button" data-assistant-character aria-haspopup="true" aria-expanded="false" aria-controls="assistant-characters" title="${L("由哪个角色负责")}" hidden><span data-assistant-character-label>${L("助理")}</span>${icon("chevron-up")}</button>
         <button class="assistant-executor" type="button" data-assistant-mode aria-haspopup="true" aria-expanded="false" aria-controls="assistant-modes" title="${L("下一轮的方式")}" hidden><span data-assistant-mode-label></span>${icon("chevron-up")}</button>
+        <button class="assistant-executor" type="button" data-assistant-answer hidden></button>
         <input class="assistant-composer-input" data-assistant-input type="text" autocomplete="off" placeholder="${L("让助理做点什么…")}" aria-label="${L("发给助理")}">
         <button class="bar-composer-attach" type="button" data-assistant-attach aria-haspopup="true" aria-expanded="false" aria-controls="assistant-more" aria-label="${L("添加文件、引用或能力")}" title="${L("添加文件、引用或能力")}">${icon("plus")}</button>
         <input type="file" data-assistant-file multiple hidden tabindex="-1" accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,.xml,.yaml,.yml,.html,.htm,.pdf,application/pdf,text/*,image/png,image/jpeg,image/gif,image/webp">

@@ -16,7 +16,7 @@ import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/ser
 export const shelfErrors = defineErrorCodes("shelf", {
   busy: "invalid",
   cancelled: "invalid",
-  configuration_changed: "invalid",
+  configuration_changed: "conflict",
   conflict: "conflict",
   empty_file: "invalid",
   empty_selection: "invalid",

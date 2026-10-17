@@ -71,6 +71,7 @@ export {
   WORK_TAB_VISIBILITY_CLIENT_SCRIPT,
 } from "./browser-assets.js";
 export { EN } from "./i18n/en.js";
+export { ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./scripts/client/assistant-send.js";
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-app-workbench",
   packagePath: "apps/workbench",
@@ -137,7 +138,7 @@ export {
 } from "./settings-models.js";
 export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration, type ArtifactContinuer } from "./plugin-catalog.js";
 
-export { pluginWorkbenchClientAsset } from "./plugin-workbench.js";
+export { pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";

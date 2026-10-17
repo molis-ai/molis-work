@@ -66,15 +66,16 @@ export function parseCodingPlanAnswer(answer: string): CodingPlanContent {
 }
 /**
  * The task a plan serves. A plan worked out over several planning rounds belongs to the request that started them;
- * what was said in later planning rounds is kept as notes the plan already reflects, and a resumed round adds nothing
- * of its own. `chain` runs oldest first and ends with the round the proposal came from.
+ * what was said in later planning rounds is kept as notes, named as such: nothing checked that the plan took each one up
+ * (specs/ai-input-receipts G14). A resumed round adds nothing of its own. `chain` runs oldest first and ends with the
+ * round the proposal came from.
  */
 export function planTask(chain: readonly AgentRunView[]): string {
   const [root, ...later] = chain;
   const asked = (run: AgentRunView) => run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => requestText(turn.text).trim()).filter(Boolean);
   const first = asked(root!)[0]?.startsWith(CONTINUATION_MARKER) ? [originalTask(root!).trim()] : asked(root!);
   const notes = later.flatMap(asked).filter(text => !text.startsWith(CONTINUATION_MARKER));
-  return first.join("\n\n") + (notes.length ? "\n\n规划时补充的意见（已体现在确认的计划里）：\n" + notes.map(text => "- " + text).join("\n") : "");
+  return first.join("\n\n") + (notes.length ? "\n\n规划时补充的意见（没有逐条核对是否已写进计划；以确认的计划为准）：\n" + notes.map(text => "- " + text).join("\n") : "");
 }
 export function planFromRun(sessionId: string, run: AgentRunView, earlier: readonly AgentRunView[] = []): Omit<CodingPlanDraft, "revision" | "confirmed"> {
   if (run.phase !== "completed" || run.frozen.role_id !== "planner") throw new Error("请等待规划轮次完成，再查看提案");

@@ -21,8 +21,8 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && node tooling/build-client.mjs",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.browser.json && ../../node_modules/.bin/esbuild src/browser/personal-account.ts --bundle --format=iife --platform=browser --target=es2022 --charset=utf8 --minify-whitespace --minify-identifiers --legal-comments=none --outfile=dist/scripts/personal-account-client.js && tsc -p tsconfig.json && node tooling/build-client.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",

@@ -1,6 +1,7 @@
 import { createLocalImServer } from "./im-server.js";
 import { createSpaceWebServer, type SpaceWebSurface } from './space-web-server.js';
 import { spaceDisposal } from './space-disposal.js';
+import { projectOrNull } from "./catalog-lookup.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleManagementActionHttp } from "./management-action-gateway.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
@@ -41,12 +42,17 @@ import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { awaitWebServerShutdown } from "./web-server-close.js";
 import { startWebProjectSchedulers } from "./web-project-schedulers.js";
+import { hostLog, repeatingFailure } from "./host-log.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
   if (address && typeof address === "object") return `http://127.0.0.1:${address.port}`;
   return "http://127.0.0.1:4173";
 }
+
+// The terminal keeps running when its record cannot be written; that is written once per process, not once per chunk.
+const recording = repeatingFailure("terminal", "recording_failed");
+const recordingFailure = (error: unknown) => recording.failed("recorder", error);
 
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   function createMolisWorkWebServer(options: WebServerOptions = {}): SpaceWebSurface {
@@ -101,19 +107,18 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const webViewCache: MolisWorkWebViewCache = new Map();
     localHost.configureSessionRuntime(storageHome, serverOptions.runtimeSessionTransport);
     const sessionResources = localHost.sessionResources();
-    void sessionResources.catch(() => undefined);
+    void sessionResources.catch(() => undefined); // Its users (the terminal recorder, session routes) answer its failure.
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
-    const warnBackground = (message: string, error: unknown) => console.warn(message, error);
     const { periodicTasks: periodic } = composition;
     const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, agents, periodic,
-      changed: databasePath => webViewCache.delete(databasePath), onError: error => warnBackground("[schedule] 项目后台调度没有启动", error) });
+      changed: databasePath => webViewCache.delete(databasePath), onError: error => hostLog.warn("schedule", "project_schedulers_not_started", error) });
     const feedSchedulers = projectSchedulers.runtimes;
     const pty = { host: null as MolisWorkPtyHost | null };
     const im = createLocalImServer(storageHome, async id => {
       if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
       return withCatalog({homeDirectory:storageHome}, catalog => {
-        try { const project=catalog.getProject(id); return {id:project.project_id,title:project.display_name}; }
-        catch { return null; }
+        const project = projectOrNull(catalog, id);
+        return project ? { id: project.project_id, title: project.display_name } : null;
       });
     });
     // The side panel's browser (specs/archive/side-panel): started on first use, one page per project. Its pages may never load
@@ -138,7 +143,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       },
     });
     const projectExists = async (projectId: string) => (fixture && projectId === fixture.projectId)
-      || await withCatalog({ homeDirectory: storageHome }, catalog => { try { catalog.getProject(projectId); return true; } catch { return false; } });
+      || await withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId) !== null);
     const server:SpaceWebSurface = http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
@@ -220,18 +225,18 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       onData(panelId, sessionId, data) {
         void sessionResources
           .then((resources) => resources.recorder.recordOutput(panelId, sessionId, data))
-          .catch(() => undefined);
+          .catch(recordingFailure);
       },
       onExit(panelId, sessionId, exit) {
         void sessionResources
           .then((resources) => resources.recorder.recordExit(panelId, sessionId, exit))
-          .catch(() => undefined);
+          .catch(recordingFailure);
       },
     });
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
-      projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) }).service;
+      projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) }).service;
     // Timed rounds live in Prologue's durable queue: the Assistant becomes their runner as soon as the runtime is up.
     // With timed work waiting the runtime is started for it; otherwise the runner joins whenever something starts the
     // runtime (a server start then costs no runtime until it is needed). It may be busy for a moment at start (another
@@ -239,16 +244,16 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     void runWithMolisWorkHome(storageHome, async () => {
       if (!assistant().hasTimedWork()) await agents.started;
       for (let attempt = 0; attempt < 40 && !lifecycle.closing; attempt++) {
-        try { await agents.ready; if (lifecycle.closing || await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) console.warn("[assistant] 定时队列暂时没有接上，稍后重试", error); }
+        try { await agents.ready; if (lifecycle.closing || await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) hostLog.warn("assistant", "schedule_not_attached", error); }
         await new Promise(resolve => setTimeout(resolve, 15_000).unref());
       }
     });
     // New material that shares a Goal with a live work: looked for every five minutes.
     periodic.every({ id: "assistant.material", title: "为进行中的工作找新资料", owner: "assistant", intervalMs: 300_000,
-      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().scanNewMaterial())), onError: error => warnBackground("[assistant] 新资料没有读到", error) });
+      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().scanNewMaterial())), onError: error => hostLog.warn("assistant", "new_material_scan_failed", error) });
     // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
     periodic.every({ id: "assistant.reminders", title: "到期提醒", owner: "assistant", intervalMs: 60_000,
-      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().sweepReminders())), onError: error => warnBackground("[assistant] 到期提醒没有读到", error) });
+      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().followUps.sweepReminders())), onError: error => hostLog.warn("assistant", "reminder_sweep_failed", error) });
     server.spaceDisposed = spaceDisposal(server, [], [
       () => periodic.stop(), () => projectSchedulers.stop(),
       () => im.close(), unregisterSurfaces, () => feedSchedulers.clear(),

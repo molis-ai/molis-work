@@ -56,7 +56,7 @@ test("a round that finishes while the person is elsewhere raises one notice; the
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目" }, "web-user");
   try {
-    service.saveRule({ kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不提醒，失败除外" });
+    service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不提醒，失败除外" });
     const sent = await service.send({ text: "整理一下", request_id: "req-attention-1" }, { project_ref: project });
     await service.list();
     assert.deepEqual(service.notices("pages"), [], "a running round raises nothing");
@@ -65,20 +65,20 @@ test("a round that finishes while the person is elsewhere raises one notice; the
     const onPages = service.notices("pages");
     assert.equal(onPages.length, 1);
     assert.equal(onPages[0]!.kind, "completed");
-    assert.deepEqual(onPages[0]!.held, { rule_id: service.rules()[0]!.rule_id, reason: "写文档时不提醒，失败除外" }, "on Pages the person's rule holds it");
+    assert.deepEqual(onPages[0]!.held, { rule_id: service.followUps.rules()[0]!.rule_id, reason: "写文档时不提醒，失败除外" }, "on Pages the person's rule holds it");
     assert.equal(service.notices("coding")[0]!.held, undefined, "elsewhere it comes through");
     await service.list(); await service.list();
     assert.equal(service.notices("coding").length, 1, "seeing the same state again raises nothing more");
     // A temporary pause holds it everywhere; removing the pause leaves the long-term rule as it was.
-    const [, pause] = service.saveRule({ kind: "pause", surfaces: [], except: ["failed"], until: new Date(Date.now() + 3600_000).toISOString(), label: "这次先别提醒" });
+    const [, pause] = service.followUps.saveRule({ kind: "pause", surfaces: [], except: ["failed"], until: new Date(Date.now() + 3600_000).toISOString(), label: "这次先别提醒" });
     assert.equal(service.notices("coding")[0]!.held?.reason, "这次先别提醒");
-    service.removeRule(pause!.rule_id);
+    service.followUps.removeRule(pause!.rule_id);
     assert.equal(service.notices("coding")[0]!.held, undefined);
     assert.equal(service.notices("pages")[0]!.held?.reason, "写文档时不提醒，失败除外");
     assert.equal(service.settleNotices({ work_id: sent.work.work_id }, "seen"), 1);
     assert.deepEqual(service.notices("coding"), [], "seen is settled");
-    assert.throws(() => service.saveRule({ kind: "pause", surfaces: [], except: [], label: "没有结束时间" }), /结束时间/);
-    assert.throws(() => service.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "" }), /说法/);
+    assert.throws(() => service.followUps.saveRule({ kind: "pause", surfaces: [], except: [], label: "没有结束时间" }), /结束时间/);
+    assert.throws(() => service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "" }), /说法/);
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -95,7 +95,7 @@ test("a new work whose round fails at once, before anything looked, still raises
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目" }, "web-user");
   try {
-    service.saveRule({ kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不提醒，失败除外" });
+    service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不提醒，失败除外" });
     const sent = await service.send({ text: "整理一下", request_id: "req-attention-fail" }, { project_ref: project });
     // Nothing reads the list while it runs; the first look finds it already failed.
     // The first look after it started finds it already failed (without a baseline at start, that look would raise nothing).

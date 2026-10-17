@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  CRAFT_FINISH_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES,
+  CRAFT_FINISH_STYLES, INTERACTION_CALENDAR_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES,
   INTERACTION_STEP_STYLES, INTERACTION_STYLES, INTERACTION_TRACE_STYLES, PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES,
   renderInteractionNextSteps, renderInteractionOperation, renderInteractionOptions, renderInteractionQuestion, renderPrimitiveCatalog,
   type InteractionField,
@@ -28,7 +28,8 @@ test("AC-17: the questionnaire renders mixed fields with reasons, per-field erro
   assert.match(html, /<span class="mw-ix-tag">推荐<\/span>/);
   assert.match(html, /data-ix-field="minutes"[\s\S]*?value="two"[\s\S]*?<p class="mw-ix-error" id="q-minutes-error" data-ix-error>请输入/, "a wrong draft stays as typed beside its error");
   assert.match(html, /<p class="mw-ix-error" id="q-format-error" data-ix-error hidden><\/p>/, "every field keeps an error slot its control points at");
-  assert.match(html, /data-ix-value="minutes"[^>]*aria-describedby="q-minutes-error"/, "a field without a hint points only at its error slot");
+  // AC-27-6: a number's unit is read with it, before its error slot; without a hint there is nothing else.
+  assert.match(html, /data-ix-value="minutes"[^>]*aria-describedby="q-minutes-unit q-minutes-error"[\s\S]*?<span class="mw-ix-unit" id="q-minutes-unit">分钟</, "a field without a hint points at its unit and its error slot");
   assert.doesNotMatch(html, /q-minutes-hint/, "nothing points at a missing id");
   assert.match(html, /aria-describedby="q-format-hint q-format-error"/);
   assert.match(html, /<span class="mw-ix-optional">选填<\/span>/);
@@ -102,14 +103,14 @@ test("AC-17, AC-21: the component board shows the parts; a product sheet takes o
   assert.ok(board.includes(INTERACTION_STYLES), "the board inlines the interaction sheet");
   for (const sheet of [PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES, CRAFT_FINISH_STYLES]) assert.ok(!sheet.includes(".mw-ix-card"), "not part of the shared page sheets");
   assert.doesNotMatch(INTERACTION_STYLES, /#[0-9a-fA-F]{3,8}\b|!important/, "tokens only, no overrides");
-  // Adopted by the Assistant (A1+H2): the pages it lives on (the workbench and the project chooser) take what it draws, and no more.
-  const drawn = [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_STEP_STYLES];
+  // Adopted by the Assistant (A1+H2, T1's number steppers): the pages it lives on (the workbench and the project chooser) take what it draws, and no more.
+  const drawn = [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_STEP_STYLES];
   for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkArrivalStylesheet()]) {
     for (const segment of drawn) assert.ok(sheet.includes(segment), "a segment the Assistant draws is in its pages' sheet");
-    for (const segment of [INTERACTION_NUMBER_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_TRACE_STYLES]) assert.ok(!sheet.includes(segment), "a segment it does not draw stays out");
+    for (const segment of [INTERACTION_CALENDAR_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_TRACE_STYLES]) assert.ok(!sheet.includes(segment), "a segment it does not draw stays out");
   }
   assert.ok(!renderMolisWorkSettingsStylesheet().includes(".mw-ix-card"), "settings pages have no Assistant");
-  assert.equal(INTERACTION_STYLES, [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_OPERATION_STYLES,
+  assert.equal(INTERACTION_STYLES, [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_CALENDAR_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_OPERATION_STYLES,
     INTERACTION_STEP_STYLES, INTERACTION_TRACE_STYLES].join(""), "the segments add up to the whole sheet");
 });
 test("AC-17: ids and scopes are escaped exactly once, so references match the elements they name", () => {

@@ -299,7 +299,7 @@ export function registerAgentHostCapabilities<Context>(
       await adapter.messages.cancel(ports.projectId(context), messageId);
     }),
     // What this project's sessions wait for and how they go on, and what a plugin tells one of their rounds (session-actions).
-    ...registerSessionActions(register, { pluginFor, adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun }),
+    ...registerSessionActions(register, { pluginFor, adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun, actions: async (call, pluginId, runtimeId) => { const authority = await ports.authority(call, pluginId); return authority.actions ? authority.actions(runtimeId) : undefined; } }),
     register(agentHostCapabilities.awaitContinuations, async (context, [runtimeId, timeoutMs, exclude]) => {
       pluginFor(context);
       const adapter = ports.agentHost(context).adapter(runtimeId);

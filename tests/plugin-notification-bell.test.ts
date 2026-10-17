@@ -23,9 +23,11 @@ test("waiting plugin notifications reach the dock bell, which opens the market o
   assert.ok(CLIENT_SCRIPT.includes(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT), "the workbench program reads the notifications");
   // Every split pane is its own page; only the window itself reads them.
   assert.match(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT, /if \(!projectId \|\| document\.body\.dataset\.paneEmbedded === "true"\) return;/);
-  assert.match(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT, /molis-work:plugin-events-waiting/);
   assert.match(PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT, /molis-work:plugin-events-open/);
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /addEventListener\("molis-work:plugin-events-waiting"/);
+  // W4-10: the bell counts them from the page's one attention read, and from the market's list, which is newer than a
+  // read that started before it.
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /detail\.plugin_events_pending === "number" && detail\.started > pluginHeldSince\) pluginWaiting = detail\.plugin_events_pending/);
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /addEventListener\("molis-work:plugin-events", \(event\) => \{ pluginHeldSince = performance\.now\(\); pluginWaiting = /);
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new CustomEvent\("molis-work:plugin-events-open"\)/);
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /\.length \+ pluginWaiting;/, "they count as something waiting for the person");
   assert.equal(EN["插件通知：{count} 条待核对"], "Plugin notifications: {count} to review");

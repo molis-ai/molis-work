@@ -97,6 +97,11 @@ export interface PluginPlatform {
   viewRevision(pluginId: string): string;
   /** Stop input refresh/delivery and events before stopping plugins or closing storage. */
   closeCoordination(): Promise<void>;
+  /**
+   * Whether the plugin running under this id ships with the Host: its active definition is one the Host's own start list
+   * marked `bundled` (the same test that gives it its plugin_id as action provider), not anything a plugin declares.
+   */
+  shipsWithHost(pluginId: string): boolean;
   /** Built after `start`, from the Manifests that actually activated. */
   router(): PluginRouteRouter;
   start(entries: readonly PluginPlatformEntry[]): Promise<PluginSupervisorReport>;
@@ -197,6 +202,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       const manifest = supervisor.manifest(state.plugin_id);
       return manifest ? [manifest] : [];
     })),
+    shipsWithHost: pluginId => identity.shipsWithHost(supervisor.manifest(pluginId)),
     upgradeCandidates: () => supervisor.upgradeCandidates(),
     upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),

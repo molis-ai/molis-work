@@ -29,7 +29,7 @@ test("a 成果 version is handed to the Assistant or to Coding as material of a 
   assert.equal(toAssistant!.materials![0]!.title, "成果「需求说明」第 1 版");
   assert.match(toAssistant!.materials![0]!.text, /范围与验收/);
   // The Assistant takes it as material of a new work and waits for the person to say what to do with it.
-  await waitFor("(document.querySelector('[data-assistant-materials]')?.getAttribute('aria-label') || '').includes('成果「需求说明」第 1 版')", 10_000);
+  await waitFor("(document.querySelector('[data-assistant-context-strip]:not([hidden])')?.textContent || '').includes('成果「需求说明」第 1 版')", 10_000);
   assert.equal(await evaluate("document.querySelector('[data-assistant-work-title]').textContent"), "新工作");
 
   if (await evaluate("Boolean(document.querySelector('[data-assistant-panel-close]')?.getClientRects().length)")) await click("[data-assistant-panel-close]");

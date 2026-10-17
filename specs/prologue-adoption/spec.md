@@ -1,6 +1,6 @@
 # Prologue 采用：能力接入与 TaskBoard 统一协作
 
-状态：执行中（2026-10-15：P3a 已恢复——已并 main `f74e29d8`（#523）、换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 剩换模型后撤权（就是 P3b，接 SDK 的 `beforeAccept`）与「从断点继续」（§5.6a）；P3b、P3c（外部条件检查器）在 P3a 合入后各一个 PR；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
+状态：执行中（2026-10-15：P3a 已合 main（#534，`7fe8ee65`）——换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 的最后两个缺口（换模型后撤权、「从断点继续」）由 P3b 补了用例（#556，`5948c56d`），没有改源码，SDK 的 `beforeAccept` 早由 #523 接好（§5.6a）；P3c 教 Coding 的执行角色等外面的结果（两个检查器、每次看都复核，S-27），记录见 §6.0e；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
 
 > **2026-10-15 P3a 恢复：接续入口是 §6.0d「P3a 恢复记录」。** §6.0c 的暂停点已解除（防腐线 I8 第二个 PR #523 已合入），其中「恢复时按这个顺序」第 1、2、3 步已做完。
 
@@ -361,7 +361,7 @@ Coding 步骤板和助理工作/委派视图都读同一图，仍挂在现有工
 | 板（常驻） | `AgentCollaborationView`：`board_id`、`version`、`work: { kind: "coding-session" \| "assistant-work"; id }`、`nodes`、`terminal` | 板跟着工作走（X5）：人直接开的 Coding 会话一块、一个助理 Work 一块，Host 在建工作时（第一跑之前）admit 常驻板与根节点；助理把工作交给编码角色时，那个 Coding 会话的跑绑在助理 Work 那块板的子节点上，不另开一块。业务对象只存 `board_id`；视图里的 `work` 由业务主人按 `board_id` 反查（Coding 插件存储 / 助理存储），SDK 板上不放 App 引用 |
 | `WaitArrangement` + 每条件 `ConditionObservation` | `AgentCollaborationWait`：`wait_id`、`version`、`mode`、`until`、`on_failure`、`deadline_at`、`conditions[]`（`kind`、可定位的 `ref` 与 `label`、`last?: { status, at, note?, checker_error? }`、`next_check_at?`）、`state`、`waited_without_model: boolean`（由 Run 账推出：从 armed 到 started 之间，这个会话没有任何尝试 / Run；不另设 Host 计数器。PA-17 用可计数的 Provider 接缝证明，界面据此回显「等待期间未调用模型」） | Coding 与助理的「在等什么」都读它；`AgentWait` 与 `agent.waits.*.v1` 在 P4 删 |
 | `Continuation` | `AgentContinuationView`：`state`、`auto`、`run_id?`、`reason?: { code, note? }` | 「准备继续 / 已继续 / 被拒原因 / 需核对」只读它 |
-| `conditionCheckers`（注入，`describe` + 每次带 scope 的 `check`） | 不暴露 | Host 检查器登记表（`apps/local-host` 的 Agent Host 装配），每次检查按 scope（板 → 工作 → actor / 项目 / 安装）复核授权，收回了就回 `refused`（界面「需要授权」）：内置 `molis.action-query`（经声明为 `operation: query` 且 `actionEffect: read` 的动作查原作业状态，映射四态，未声明状态 → unknown）、`molis.file-present`（授权根引用 + 相对路径 + 明确谓词，不越界）；后台命令走 SDK 内置 `command` 条件，不用检查器。检查器不得调用模型、AI 动作或模型 CLI |
+| `conditionCheckers`（注入，`describe` + 每次带 scope 的 `check`） | 不暴露 | Host 检查器登记表（`apps/local-host` 的 Agent Host 装配），每次检查按 scope（板 → 工作 → actor / 项目 / 安装）复核授权，收回了就回 `refused`（界面「需要授权」）：内置 `molis.action-query`（经声明为 `operation: query` 且 `actionEffect: read` 的动作查原作业状态，映射四态，未声明状态 → unknown）、`molis.file-present`（授权根引用 + 相对路径 + 明确谓词，不越界）；后台命令走 SDK 内置 `command` 条件，不用检查器。检查器不得调用模型、AI 动作或模型 CLI：`molis.action-query` 按动作声明的权限判断，判断类（按合同是命令）与声明了 `model:invoke` 的只读查询都拒（统筹 2026-10-16） |
 | `collaborationHost`（注入，`admitDispatch` + `startContinuation`） | 不暴露 | Host 协作口：两个方法按 §4.6.5 同一顺序复核 actor、范围、安装、角色、工具 / 目录、预算、模型、审查接线。`admitDispatch` 在子任务首个模型请求前做，并建共享用量账的预留（不透明引用记在尝试上；结果未知的用量不按零释放）；`startContinuation` 用接续的请求键作开跑幂等键。恢复查 SDK 自己的开跑记录（`findAgentStart`），Host 不另记一份 |
 | `boards.attemptOf(run)` | 视图投影用，不另暴露 | 操作卡、待答问题、动作调用编号挂回节点都经它推出（跨线 X2、X3） |
 | 错误码 `TASKBOARD_NOT_BOUND`、`TASKBOARD_STALE_GENERATION`、`TASKBOARD_CONTINUATION_CONFLICT`、`WAIT_ALREADY_ARMED`、`WAIT_CHECKER_UNKNOWN`、`WAIT_CONDITION_INVALID` | `agent.collaboration_not_bound`、`agent.collaboration_stale`、`agent.collaboration_conflict`、`agent.collaboration_wait_armed`、`agent.collaboration_checker_unknown`、`agent.collaboration_condition_invalid`（以主人名开头，W3-02；在 `tooling/gates/error-owners.json` 的 `agent` 名下登记） | 给人的原因文字由 Host 写 |
@@ -397,7 +397,7 @@ P1 冻结的是语义（§4.6.9）。这一节写 P3 在 Molis 一侧具体怎�
 - 删 `onWake` / `onYieldSettled`；
 - 把 `dispatch-subagent`、`board-plan` / `board-revise` / `board-report` / `board-wait`、`session-send` / `session-inject`、`await-commands` 的 `park` 简写都收成只有绑定的跑能用。
 
-只换包不改接线，类型检查和 Coding 的派子任务、确认计划、等答复、等后台命令、人排队这几条主路径会同时坏。所以 P3a 一个 PR，默认路径验证也在这个 PR 里做。P3b（换模型的 `beforeAccept`）与 P3c（外部条件检查器）各自另成一刀。
+只换包不改接线，类型检查和 Coding 的派子任务、确认计划、等答复、等后台命令、人排队这几条主路径会同时坏。所以 P3a 一个 PR，默认路径验证也在这个 PR 里做。P3b（换模型之后撤权与「从断点继续」的用例；`beforeAccept` 已由 #523 接好，见 §5.6a）与 P3c（外部条件检查器）各自另成一刀。
 
 **P3a 的接法**：
 
@@ -651,6 +651,15 @@ main 已满足（证据是 main 的用例，在对账后的树上重跑，结果
 - 缺口 5 已补：申请换模型、下一次模型调用换成新模型之后结束这一轮，关掉适配器再重开，结束的视图仍显示 `model_switch: { now }`、开跑模型与那一条换模型活动。（更正：第一次写这条用例时让第一次调用直接收尾，这一轮只调了一次模型，换模型根本没生效，看起来像冷读丢了；用例改成第一次调用要一个工具、逼出第二次调用之后，冷读是对的。不是产品缺陷。）
 - 缺口 3（申请换模型后撤权）、缺口 6（从断点继续之后的模型与凭据）没做。
 
+**2026-10-15 P3b（分支 `adoption/p3b-model-switch`）：缺口 3、6 补了用例，没有改源码。**
+
+- 更正：前文和 §6.0b 表第 7 项说 P3b 要「接 SDK 的 `beforeAccept`」。这一步早在 main 上：防腐线 I8（#523）换 acceptance 包时接的，`horizontal/agent-host/src/adapters/prologue-run.ts` 的 `switchModel` 把 `beforeAccept` 交给 SDK（先 `deps.effects.assertCurrent()` 再 SDK 自己的检查），用例是 `tests/agent-sdk-effects.test.ts` 的 W2-18-MODEL-SWITCH-01/02（配置、凭据、SDK 接受三个阶段 × 取消、撤权）。P3b 剩下的只是两个缺口的用例。
+- 缺口 3：`tests/agent-sdk-effects.test.ts`「PA-24: plugin-stopped / character-disabled after a switch is accepted …」。真实 Node 适配器经 LocalHost 与 `registerAgentHostCapabilities` 开跑，带插件实例（`plugin_caller`）；第一次模型调用要一个工具，逼出第二次调用；中间申请换到 B（端点 `1.1.1.2`），SDK 接受（`requested: B`），然后让插件实例停止（真实的 `actions.forbidden`「此插件实例已停止，请重新打开」），或让 Character 停用（真实的「所选 Character 版本不可用…」）。断言：B 的端点零请求；这一轮 `failed`，`stop_reason` 是「EFFECT_NOT_AUTHORIZED: The App refused this network dispatch before sending: <原因>」（Coding 时间线把它译成「这一轮的授权已失效」）；用量只算 START 那一次；会话里没有多出一轮。
+  - 挡住它的是现有的逐次出网检查：这一轮的 `dispatchGuard` 经 `beforeNetworkDispatch` 在每次出网前跑（SDK 的 model 通道也走它），其中 `capability-registration.ts` 的 `caller?.assertActive()` 管插件实例，`index.ts` 的 `validateCharacter()` 管 Character。SDK 另有 `beforeModelDispatch`，Molis 不用：`beforeNetworkDispatch` 已经覆盖模型调用，再接一个是同一件事查两遍。
+  - 反证：在构建产物里临时去掉这两处检查（备份后改 `dist`，跑完还原并逐字节比对），两条用例都失败，B 收到了请求。
+  - 视图里 `model_switch` 是 `{ now: "B" }`：切换在那次调用的边界上生效了（SDK 发了 `model-switched`），而它生效的那次调用在发出前被拒。用量与 `stop_reason` 说明 B 没有收到任何东西。用例把这一点钉住。统筹 2026-10-15 审定：这符合 SDK 的语义，保持现状。`model_switch.now` 的意思是「切换已生效」，不是「B 回答过」；界面上如果有地方把它写成「这一轮用 B 回答」，以后另开一项改，这次不动。
+- 缺口 6：`tests/prologue-model-controls.test.ts`「PA-24 (§4.3): a round continued after a switched one …」。Molis 的「从断点继续」是同一会话里的新一轮：Coding 的 `coding.continuation` 只起草任务与意图，模型是人当时选的，开跑时按现行设置解析（`plugins/native/coding/src/start-round.ts`）。用例：第一轮从 small 换到 large 并结束；马上在同一个活着的会话里再开一轮，选 small，就是 small、small 的端点和密钥，`model_switch` 为空；关掉适配器，把 small 挪到新端点、换一把新密钥、删掉 large，重开后再开一轮，用的是新端点和新密钥，会话历史还在；再选 large，在发出前拒绝（适配器的原话「还没有配置可用的模型」），零请求，也不多出一轮。
+
 PA-12 仍未完成：写后诊断（第 9 项，A2）与 Alchemist 的结构化生成（第 11 项，A3）都还没有实现。另记：`prologue-frozen.ts` 的 `throw new Error("思考力度只能是快速、平衡或深入")` 是普通 Error，归错误模型 W3-02-G。
 
 ## 6. 进度、证据等级与待定项
@@ -824,7 +833,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 | 4 | 工具副作用分类 | 已实现 | `prologue-action-gateway.ts`：`suggest`、委派 start/follow/stop、记忆 remember/forget/propose 都是 `mutate-external`；`prologue-action-tools.ts` 只在 `operation=query` 且 `actionEffect=read` 时给 `safe-read`；`tests/assistant-business-gateway.test.ts`、`tests/agent-action-tools-prologue.test.ts`（PA-22） | — |
 | 5 | 修改回执与微压缩 | 已实现（Molis 侧只有间接证据） | SDK `agent/core/loop-tools.ts` 由工具登记的 `effectKind` 推出 `rereadable`，只有 `safe-read` 能被换成「需要就再调」，`rereadable: false` 的不收（`c4b9fde3`，在过渡包里）；配合第 4 项，Molis 改东西的工具回执都不收；SDK `context-micro-compaction` 用例 | **文中 §6.0 写「`prologue-stream` 证明修改回执不被压」不准**：`tests/prologue-stream.test.ts` 不测压缩。Molis 侧没有「真实网关 + 压缩后的请求里回执还在」的用例；A5 补一条请求级断言 |
 | 6 | 推理力度 | 已实现 | `prologue-frozen.ts` 每轮冻结、不支持就发出前拒绝；`tests/prologue-model-controls.test.ts`、`tests/coding-model-controls.e2e.test.ts`（PA-24）；#472、#491 | — |
-| 7 | 运行中换模型 | 部分 | `prologue-model-switch.ts`；拒绝分支（提示缓存跨格式、目标没标力度、模型不可用、思考切到无思考）、停止时零请求、冷读都有用例（#491） | §5.6a 缺口 3（申请换模型后撤权）：SDK 的 `switchModel` 已有同步 `beforeAccept`（Prologue #24，在 `b01067b4`），过渡包没有，**P3 换包时在 `prologue-model-switch.ts` 接上并补用例**；缺口 6（从断点继续后重新解析模型与凭据）未做；视觉、Runtime 不支持切换两个分支无用例（造不出来，见 §5.6a） |
+| 7 | 运行中换模型 | 部分 | `prologue-model-switch.ts`；拒绝分支（提示缓存跨格式、目标没标力度、模型不可用、思考切到无思考）、停止时零请求、冷读都有用例（#491） | §5.6a 缺口 3（申请换模型后撤权）：更正——SDK 的同步 `beforeAccept` 早由 #523 在 `prologue-run.ts` 接好（W2-18-MODEL-SWITCH-01/02），不是 P3 才接；接受之后的撤权与缺口 6（从断点继续后重新解析模型与凭据）由 P3b 补了用例（§5.6a 末尾）；视觉、Runtime 不支持切换两个分支无用例（造不出来，见 §5.6a） |
 | 8 | 逐轮变更 | 已实现 | `prologue-stream.ts` 的 `turn-changes` 投影、重放不重复；Coding `turn-changes-client.ts`；`tests/coding-timeline.e2e.test.ts`（PA-24） | — |
 | 9 | 写后诊断 | **未做** | main 上没有按文件的检查器接入（`diagnose` 只出现在 Coding 方法名与开发者诊断页） | A2：检查器输入 / 输出与用例先写进本文，再实现 |
 | 10 | 文字增量、停止与错误 | 已实现 | 灵光 `client.ts` 的 `?stream=1` 逐行读、`reply-stream.ts`；阶段名已从宿主挪回插件（采用合同闭环）；`tests/lingguang-plugin.e2e.test.ts` 的「边写边出、Stop 不保存、字留在框里」 | — |
@@ -852,7 +861,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 2. §6.0 与 §6.0a 把「修改回执不被压成可重做观察」的证据记成 `context-micro-compaction` + `prologue-stream`；后者不测压缩。实现是对的（第 5 项），Molis 侧的请求级证据是缺的。
 3. §2 第 2 项写「核对 Host 侧转发与撤权零派出的测试证据」；PPT 没有这条证据（第 2 项）。
 4. §0.2 第 13 项与 §4.6.6 提到 Coding 的 `yield-wait.ts`、`round-report.ts`：main 上没有这两个文件（10-13 已作废的在途改动）。P4 要退出的是 Coding 的 `waits.ts` 与 `last-start:*` / `wake-note:*` 存储（§4.6.9）。
-5. §5.6a 缺口 3 原写「没有用例」；现在 SDK 一侧已有 `beforeAccept`，缺的是 Molis 接线，放进 P3。
+5. §5.6a 缺口 3 原写「没有用例」；现在 SDK 一侧已有 `beforeAccept`，缺的是 Molis 接线，放进 P3。（2026-10-15 更正：接线早由 #523 做了，缺的只是「接受之后撤权」的用例，P3b 补上，见 §5.6a 末尾。）
 6. §3.1 表里的 `onYieldSettled`、`SubagentRequest.yield`、`SubagentWake` 在 P2i 已从 SDK 删掉；P3 的 Molis 一侧不能再引用它们。
 
 **Prologue main 合入后的补跑**（§7.4 第 3 条、合同 P2i / P2j「验证」行）：对 `b01067b4`（P2j 之后又合了 #24）跑 `prologue-verify.sh`（build dist → `tsc` → SDK 全量，两个 worker，不跑 `desktop-computer-use.live` → 干净 `git archive` 打包 → 空目录跑全部 `*-consumer.mjs` → 对 P2h 的包再跑一遍）。P2h 的包取自 P2h 合并前的验证目录（`4416fc09` 打出，1,163,878 字节，SHA-256 `7e728f4a…`；与 #19 的 head `0bfb0e47` 比，`packages/sdk/src` 与 `package.json` 没有差别）。结果记在合同的 P2i、P2j「验证」行，经 Prologue docs PR 进 main。
@@ -911,7 +920,7 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
    5. 加并发用例：两个会话同时汇报，都成功；同一步被别人改过的那一方得到明确的冲突。
    6. `pnpm api:update`、`pnpm actions:update`；`page-assets` 量两个新状态词（只许变小，超了就在同一个文件里省字节）；`check-health-gates --base`。
    7. 写验证证据，开 PR。
-4. 之后是 P3b（换模型的 `beforeAccept`）、P3c（外部条件检查器），再往后 P4。
+4. 之后是 P3b（换模型之后撤权与「从断点继续」的用例，见 §5.6a 末尾）、P3c（外部条件检查器），再往后 P4。
 
 ### 6.0d P3a 恢复记录（2026-10-15，当前接续入口）
 
@@ -1023,6 +1032,336 @@ P1 合同（§4.6.9）冻结后，P2 按切片在 Prologue 一刀一刀实现，
 - Coding 的协调者角色没有板工具，它的孩子也就没有（SDK T12），让出的孩子永远报不了自己那一步，等待总是 failed、照样往下走。要不要给协调者或孩子开板工具是产品问题，P4 再定。
 - 宿主代人发的「优先」只告诉此刻正在跑的那几轮（§4.6.10 表里已写）。
 - `following`、2 小时认领过期，留到 P4。
+
+### 6.0e P3c 记录（2026-10-15）：Coding 的执行角色等外面的结果
+
+统筹 2026-10-15 转达用户的两项决定：
+
+1. 这一片只教 Coding 的执行角色（`builder`）用外部等待；提示词照规矩升版本、`WORDING_HISTORY` 加一行；Coding 的提示词有离线回放或评估就跑，要真实模型评测先弹窗问用户；PR 正文把「提示词改动」和「安全改动」分成两节。
+2. `molis.action-query` 按权限管，不另写名单：`operation` 为 `query`、effect 为 `read`、本会话此刻有权调用的动作都可以查；每次检查都经统一动作服务、用这一轮的授权重新核对；`SECURITY-INVARIANTS` 那一条写清只读、每次复核、写类或没有权限的一律 refused，拒绝用例里有「拿写类动作来查」。
+
+**做了什么**（PA-16～PA-19，§4.6.8 的语义）：
+
+- `horizontal/agent-host/src/adapters/prologue-checkers.ts`：SDK `conditionCheckers` 的实现。
+  - 两个检查器：`molis.action-query@1` 与 `molis.file-present@1`。
+  - 一个登记钩子（`tool-before`，只拦 `board-wait`）：登记时就拒绝写类、判断、导航、这一轮没给的动作，这时什么动作都不调。
+  - 每次看（`check`）先复核：等待仍在、范围一致、轮次仍被记得；再问这一轮自己的 `beforeDispatch`；然后才经这一轮的动作客户端重新发现、调用。文件检查器要宿主说目录此刻仍授权给这个项目（`checks.directoryAuthorized`，由 `apps/local-host/src/agent-host-composition.ts` 给）。
+  - 收回了就回 `refused`：SDK 把它记成 `checker_error`，等待停下，不再看。
+- `prologue-node-port.ts`：`conditionCheckers` 交给 `createRuntime`；`board-wait` 进自动放行名单。它自己不做事，等的东西由上面的钩子把关。
+- `prologue-node.ts`：`startAgentRun` 之后记下这一轮的授权（会话、`beforeDispatch`、目录、动作客户端与冻结的动作）；轮次结束且没有在等的等待时丢掉。宿主重启后不认旧轮次（S-27 的 host-restarted 用例）。
+- 错误码 `agent.collaboration_check_refused`、`agent.collaboration_check_not_read`（`horizontal/agent-host/src/errors.ts`）。
+- 统筹 2026-10-16 定（方案 B）：`molis.action-query@1` 只收 `tool`，即模型看到并调用的动作工具名，不收精确引用（模型看不到 `capability_id`、`provider_id`：工具名是哈希，描述里也没有）。名字到引用的表归 `prologue-action-tools.ts`：`remember()` 时用它导出的 `actionToolRefs`，按这一轮记下的 `action_tool_scope` 与冻结动作建好；检查器不自己算哈希，不在表里的名字拒绝。业务网关那一类轮次没有逐个动作的工具名，表是空的，一律拒绝。每次看仍经动作服务按这个精确引用重新发现，再查 query + read + `model:invoke`。
+- 统筹 2026-10-16 复查：失败标记经链接指向目录之外时也拒（原来被当成没有），和路径、完成标记一致；看文件用 `lstat`，解析之后被换成链接的不算在。
+- 统筹 2026-10-16 定：声明了 `model:invoke` 的只读查询也拒（`agent.collaboration_check_not_read`，和判断同一个码）。检查器一次次地看，每看一次就调一次模型，花费没有上限、答案也不确定；§4.6.9 本来就写了检查器不得调用模型。仍然按权限管：看的是动作声明的权限，不是名单。
+- Coding：`builder` 角色 13 → 14，`host_tools` 加 `board-wait`；提示词 `coding-background` 1 → 2，教两种检查器和「要判断好坏的不能这样等」。
+
+**和 §4.6.8 设计不同的地方**：
+
+- 检查器登记表放在 `horizontal/agent-host`，不在 `apps/local-host` 的装配里（§4.6.9 表里写的位置）。每次看要用这一轮自己的授权（`beforeDispatch`、动作客户端），那是适配器在开跑时拿到的；宿主只经端口回答「目录此刻是否授权」。动作的授权仍由宿主的统一动作服务每次核对（`authorizeMcpActions` 那一条链），没有在 agent-host 里另写一份。
+- 助理的 `watchJob` / `checkJob` 没有迁到这里：用户定的范围只是 Coding 的执行角色。
+- `board-wait` 自动放行后，`builder` 也能用它等 `node`、`envelope`、`command`、`pending` 四类。这几类只等、不做；提示词只教 `external`。
+
+**证据**：
+
+- `tests/prologue-external-checks.test.ts`（PA-17、PA-18）：真实 Node SDK、真实宿主动作服务、受控的供应商回复。
+  - 结果文件：旧的不算，缺完成标记不算，失败标记就是失败。
+  - 只读查询：四个状态照给定的对上；没列出的状态、查询出错都是 unknown。
+  - 等的时候没有模型请求，满足后接续可走一次。
+- `tests/security-invariants-external-checks.test.ts`（S-27，PA-16、PA-19）：
+  - 登记时拒绝：没有的检查器、目录外的路径、命令、判断、这一轮没给的动作。
+  - 动作授权收回、插件实例停了、目录不再授权、宿主重启，这四种之后的那一次看都是 refused，不调动作，之后不再看，也没有接续和模型请求。
+  - 一轮连续 5 次调用失败就停（`prologue-run.ts`），所以「这一轮没给的动作」放在第二轮。
+  - 声明了 `model:invoke` 的只读查询，这一轮持有这个权限也拒，什么都不调（先在没有这条拒绝的代码上看它红）。
+  - 失败标记经链接指到目录外：refused，不当成失败，也不接续（先看它红：修之前一直等）。
+  - 动作按工具名：用例里的名字取自发给模型的工具（含 find-tools 列出的），不在测试里算哈希；不在这一轮的名字被拒。
+- Coding 的提示词没有离线回放（`pnpm studio:replay` 只管创作台）。真实模型小评测见下。
+
+**真实模型小评测**（统筹 2026-10-16 要求）。记录按手册 16.3 的格式；没变好的逐条按手册 16.3 与统筹转达的 §11（用户 2026-10-16）分成「设计问题 / 模型能力 / 拿不准」。
+
+```text
+改动：io.molis.work.coding/coding-background v1 → v2（builder 角色 13 → 14）
+要解决的问题：builder 要等外面的事（结果文件、外部作业）时，只能轮询或不等就结束（P3c）
+环境：隔离的临时 Home；MiniMax / MiniMax-M3，接口 anthropic-messages（api.minimax.cn/anthropic）；2026-10-16
+任务：T1 别的程序写结果文件和完成标记；T2 外部作业经只读查询看状态；T3 查询旁边还给了判断和取消；T4 外部 CI 失败。改措辞时四个都看过，没有没看过的任务
+次数：v1 没有这项能力，不做改前对照；现行措辞（1c6292f9）每个任务 3 次（第 9～11 轮）；之前各版见下表
+结果：三件事都过才算过。T1 2/3；T2 0/3；T3 0/3；T4 3/3（用例 tests/coding-external-wait-live.test.ts，日志在跑的机器上，不入库）
+成本与时延：每个任务（含接着做的那一轮）平均 T1 53 秒（含一次 120 秒等不到）、输出 518 token；T2 107 秒（含一次 240 秒卡住）、输出 2362 token（两次）；T3 25 秒、1221 token；T4 11 秒、370 token。只记了 input_tokens 与 output_tokens，缓存读写没记，输入总量未知（夹具已补上缓存字段）
+没变好的：见下面的分类表
+结论与未验证：只在这四个任务、这一个模型上成立。等待机制本身（登记、宿主去看、满足后接着做、失败时停下）在 T1、T4 上过了；T2、T3 卡在登记那一步写参数。未验证的写在表后
+```
+
+- 夹具的做法：
+  - 密钥只在那一条命令上从钥匙串内联读取，不写文件、不进日志；夹具只留请求里的 messages、回复里的工具调用、文字与用量，不留请求头。
+  - 命令一律不批；沙箱里写文件、调用这一轮的动作工具都批；取消的调用次数断言为 0。
+- 每个任务查三件事：
+  1. 登记外部等待：不轮询（同一工具同一输入不看第二次），也不是没等就结束；
+  2. 条件满足后接着做完（T4 失败时等待以 failed 结束，不自己接着做）；
+  3. 等待不靠不许的动作：宿主钩子没有拒过；等的时候不判断、不取消。
+
+| 没变好的 | 出现在 | 分类 | 依据 | 做了什么 |
+| --- | --- | --- | --- | --- |
+| `params` 里的数组写成 `{"item": …}`，布尔值写成 `"true"` | 数组：第 4、5 轮，第 9～11 轮的 T2（3 次）与 T3（2 次）；`"true"`：第 2、5、11 轮 | 设计问题（`board-wait` 的 `params` 没有类型；第 12～14 轮查明，原记为拿不准） | 例子和参数错误都写明是 JSON 数组、布尔值，模型照样写错，同一位置的字符串都对。同一个模型、同样的任务和措辞，只给 `params` 带上各检查器的 schema，第 12～14 轮 12 次里 0 次 | 第 6～8 轮曾让 `status` 收单个字符串，这是为一个模型写的代码，已撤回。Prologue #28 与 Molis #581 给 `params` 带上类型 |
+| 把标题当 `tool` 写 | 第 2 轮 T2 | 设计问题 | 原措辞「照你调用它或 find-tools 列出的写法原样写」有两种读法：延后工具的名册一行里，名字和标题都在 | 改成正面说清：写名字本身，`molis-action-` 开头，列在 find-tools 的说明里 |
+| 失败时没写 `failed_marker` | 第 2 轮 T4 | 设计问题 | 原措辞只列了「failed_marker（失败标记）」，没说不写的后果 | 写明「一定写上，否则失败了这一步会一直等」；之后 T4 每轮都写了，第 9～11 轮 3/3 |
+| 把「判断类会被拒」读成不能调用 | 第 6 轮 T3 | 设计问题 | 原措辞「都会被拒绝」没说只是不能拿来等 | 写明「不能拿来等，登记时会被拒；等完照常调用」 |
+| 参数错误看不出要写数组 | 第 2～4 轮 | 设计问题 | 原错误是「status.path is at most 8 field names」，没说是数组 | 错误说明写明是 JSON 数组并带例子，对哪个模型都一样 |
+| 用 `any` 同时等成功文件和失败文件 | 第 5 轮 T4 | 模型能力 | 措辞已写明失败信号写成 `failed_marker`；只有一次，不成模式 | 第 6～8 轮曾加「不要另写一个等它的条件」，这是针对一种写法的禁令，已撤回 |
+| 完成标记是空文件，却写了 `non_empty: true`，一直等 | 第 10 轮 T1 | 模型能力 | 任务原文说标记是空文件，措辞写明 `non_empty` 的意思；3 次里 1 次 | 不改。第 6～8 轮曾去掉 `non_empty` 的介绍，已恢复 |
+| 接着做的那一轮读了文件，没写结果就停 | 第 3、5 轮 T1 | 模型能力 | 文件和回执都在；之后 5 轮里没再出现 | 不改 |
+| 动作工具被延后，改用 `run-command` 去调 | 第 7、8 轮 T3 接着做时，第 9 轮 T3 | 设计问题（SDK，2026-10-16 查明） | `builder` 的工具超过 `deferToolSchemasBeyond: 20`，动作工具全被延后。SDK 只把延后的工具名列在 `find-tools` 的说明里，之后的请求也不声明它们（`agent-run-recipe.js` 的 `toolSpecs` 只发没延后的），而执行工具时拒绝请求里没声明的工具。探针：替身模型按名字直接调用延后的「Job status」，先调不调 `find-tools` 都一样，动作调用 0 次，SDK 回「requested a tool not declared for that request」。换哪个模型都调不到 | 第 8 轮加过一句「按名字调用，不经 run-command」，没有用，已撤回。上游修好、换包后恢复延后（见下），第 12～14 轮 12 次里 0 次 |
+| 等完以后说「现在调用 Judge job」，却一个工具都没调就结束 | 第 12、14 轮 T3 接着做的那一轮 | 拿不准 | 没有拒绝、没有调不到：「Judge job」只列名字，按名字或先 `find-tools` 都调得动，第 13 轮就是先 `find-tools` 再调过的。可能是模型能力（说了要调却以文字结束），也可能和延后有关（两次失败时它的形状都不在请求里）；没有对照分不开 | 不改。按 §11 不加「说了要调就要调」一类的措辞 |
+| 夹具缺陷，不算模型 | 第 1 轮 fetch 替身拦了 DNS-over-HTTPS；第 6 轮接着做的那一轮没给动作工具；第 7 轮动作工具的审查没人回答 | — | — | 修了夹具 |
+
+未验证：
+
+- `{"item": …}` 与 `"true"` 是丢了类型还是模型能力：已由第 12～14 轮查明是设计问题（见下面的重跑记录），不再是未验证项。
+- T3 接着做时说了要调「Judge job」却没调就结束（第 12～14 轮 3 次里 2 次）：是模型能力，还是和它的形状被延后有关。要分开得有一组不延后的对照；统筹 2026-10-16 定不另跑对照，先记下。
+- 业务网关的能力输入在工具 schema 里也是宽松的并集，`type` 是六种类型都行（`prologue-action-gateway.ts`：`read-capability`、`change-capability`、`change-reversible` 共用的参数，和 `suggest-action`）。和 `board-wait` 的 `params` 是同一类问题，算设计问题。第 12～14 轮说明给检查器的参数带上类型有用（`{"item": …}` 从 5 次到 0 次）；网关按每个能力自己的输入 schema 声明，见 §6.0f。
+
+之前各版（v2 没有发布，指纹都在同一行上改）：
+
+| 轮 | v2 指纹 | 通过 | 主要失败 |
+| --- | --- | --- | --- |
+| 1 | `4e988abc` | 不算 | 夹具缺陷（DNS） |
+| 2 | `4e988abc` | 0/4 | 标题当 `tool`、没写 `failed_marker`、`"true"`、没找到动作 |
+| 3 | `b57a7683` | 2/4 | T1 接着做时没调工具；T3 超过 300 秒 |
+| 4（只重跑 T1、T3） | `b57a7683` | 1/2 | T3 的 `{"item": …}` |
+| 5 | `b57a7683`，参数错误带例子 | 1/4 | T1 没写结果；T3 `{"item": …}`；T4 `any` |
+| 6 | `f3189e25`：收单个字符串、加了禁令、去掉 `non_empty` | 3/4 | T3：夹具缺陷，加上「判断类会被拒」的歧义 |
+| 7 | `e5cee067`：写明判断类只是不能拿来等 | 3/4 | T3 用 `run-command` 调延后的工具 |
+| 8 | `3f69f9e6`：加一句按名字调用 | 3/4 | 同第 7 轮 |
+| 9～11 | `1c6292f9`（现行）：撤回第 6、8 轮为这个模型加的，留下三处设计修正 | T1 2/3，T2 0/3，T3 0/3，T4 3/3 | 见分类表 |
+| 12～14 | `1c6292f9`，换包（#581：延后的工具调得动、`params` 带类型） | T1 3/3，T2 3/3，T3 1/3，T4 3/3 | T3 接着做时说了要调却没调 |
+
+- 第 6～8 轮比现行版本过得多，原因是那几处为这个模型加的写法和代码。按 §11 不留，所以现行版本的数字更低，这是有意的。
+- 口径改过四次：
+  - 第 2 轮后：
+    - 「轮询」从「最多看 2 次」改成「同一工具同一输入不看第二次」；
+    - 宿主钩子的拒绝和 SDK 退回的参数错误分开数；
+    - T4 收紧成「等待以 failed 结束」。
+  - 第 5 轮后：T4 一度放宽，第 7 轮后改回严格的。
+  - 第 6 轮后：接着做的那一轮带上同样的动作工具（夹具缺陷）。
+  - 第 7 轮后：夹具批准动作工具的调用（夹具缺陷）。
+
+**2026-10-16 补：延后的工具调不到。** 统筹转达用户的决定：先在这边去掉延后，上游改好、换包后再恢复。
+
+- 不只评测里的 `builder`。按 main 上各角色的工具数，超过 20 个就全部延后，延后的谁都调不到：
+  - Coding：`builder` 给 2 个以上动作工具时；`coordinator` 6 个以上；`writer` 10 个以上；`planner`、`reader`、`reviewer` 13 个以上；
+  - `writers` 给 10 个以上，而且它没有 `find-tools`，连名字都看不到；
+  - 业务一轮（助理、Todo）正好 20 个，再多一个，网关、委派、记忆这 13 个工具就全被延后。
+- 暂时的做法：`prologue-node-port.ts` 不再设 `deferToolSchemasBeyond`（SDK 默认一个都不延后）。每次请求都带上全部工具的 schema，请求变长，大约多多少记在 PR 正文里。
+- 证据：`tests/prologue-tool-declaration.test.ts`（PA-12）：`builder` 一轮给 4 个动作工具、超过 20 个工具时，每个工具都在请求里声明，没有只列名字的；替身模型按名字调用两个只读动作，各执行一次。先在 main 上看它红（延后时动作调用 0 次）。换包时这条改写成下面两条。
+
+**2026-10-16 换包：恢复延后，检查器说出参数形状。** 上游 [Prologue #28](https://github.com/molis-ai/prologue/pull/28) 经用户同意合入（合并提交 `e4afd1a7`），一个改动里修了两处：
+
+- 延后的工具：只列了名字的，Model 那道门也照收；`find-tools` 交出过形状的，这一跑之后的请求照常声明，记成 Run 事件 `tools-found`，接着历史的下一跑照它接上。
+- `board-wait` 的 `params`：检查器经 `ConditionCheckers.list()` 与 `CheckerDescriptor.params` 说出参数 schema，`board-wait` 照它写成各检查器的 `anyOf`，登记时先按点名的那一个核，再轮到检查器自己的规则。
+
+Molis 这边：
+
+- 照 `vendor/prologue-sdk/README.md` 换成从 `e4afd1a7` 打的 `prologue-sdk-0.0.0-rc.1-found-tools.tgz`，删了 collaboration 包，`patch-history.json` 记一笔。同一棵树上 SDK 全量 0 失败（`desktop-computer-use.live` 没跑），13 个消费者脚本在这个包上全过。
+- `prologue-node-port.ts` 恢复 `deferToolSchemasBeyond: 20`，删掉上面暂时的做法。
+- `prologue-checkers.ts` 给两个检查器写参数 schema（structured 子集）：数组、布尔值都带类型；检查器自己的规则（一个状态只在一张表里、路径不出目录）照旧在后面核。
+- 证据：
+  - `tests/prologue-tool-declaration.test.ts`（PA-12）两条：`builder` 一轮超过 20 个工具、动作工具都只列名字时，替身模型按名字直接调，调用执行；先 `find-tools` 再调，下一次请求带着它的形状、名册上不再有它，没找的仍只列名字，调用执行。
+  - `tests/prologue-external-checks.test.ts`（PA-17）：`board-wait` 的 `params` 每个检查器一份形状；`satisfied` 写成 `{"item": …}` 在登记时被拒，说出 `$.status.satisfied`，不登记等待，什么都不看。
+  - 三条都先在旧包上看它红，见 PR 正文。
+
+**换包后重跑（第 12～14 轮，2026-10-16）**：用户在本会话同意读钥匙串里的 key；统筹定的对照做法，不另跑一轮。
+
+```text
+改动：没有改措辞。对照第 9～11 轮，只换了包（Prologue #28，Molis #581）：延后的工具只列名字也调得动、find-tools 找过的之后照常声明；board-wait 的 params 按检查器带上类型
+要解决的问题：T2、T3 卡在登记那一步写参数（{"item": …}、"true"）；T3 接着做时改用 run-command 去调延后的工具
+环境：隔离的临时 Home（run-tests.mjs 每次一份）；MiniMax / MiniMax-M3，接口 anthropic-messages（api.minimax.cn/anthropic）；#581 的合并提交 fd695a5e；2026-10-16
+任务：与第 9～11 轮相同的 T1～T4，措辞 coding-background v2（1c6292f9，#560 之后没改）
+次数：每个任务 3 次（第 12～14 轮）
+结果：三件事都过才算过。T1 3/3；T2 3/3；T3 1/3；T4 3/3（第 9～11 轮：T1 2/3，T2 0/3，T3 0/3，T4 3/3）
+预测核对：params 里的 {"item": …} 0 次、字符串布尔值 0 次（预测 0，对上）；SDK 退回的参数错误 0 次；没有命令，延后的动作工具没有改用 run-command 去调（预测对上）
+成本与时延：每个任务（含接着做的那一轮）平均 T1 17 秒、输入 3567 + 缓存 42231 token、输出 611；T2 18 秒、4400 + 37768、537；T3 22 秒、5601 + 39781、534；T4 9 秒、2494 + 15751、249。没有一次等不到或卡住
+没变好的：T3 的 2 次，见分类表「等完以后说『现在调用 Judge job』」那一行
+结论与未验证：只在这四个任务、这一个模型上成立。两处 SDK 修复以后，登记等待这一步 12 次都一次写对；剩下的失败在等完之后接着做的那一轮
+```
+
+- 延后的工具在用：第一轮先调 `find-tools` 取形状的，T2 3 次里 2 次、T3 3 次都是；接着做的那一轮，第一轮找过的直接调（`tools-found` 接上了），没找过的先 `find-tools` 再调（第 13 轮 T3 的「Judge job」）。
+- 日志在跑的机器上，不入库；夹具不留请求头，日志里没有 key。
+
+**2026-10-16 再换包：没点 `find-tools` 的角色也看得到延后的工具。** 上面「延后的工具调不到」那一节写过：`writers` 给 10 个以上动作工具，它没有 `find-tools`，名册跟着它一起没了，连名字都看不到。#28 只修了「看得到也调不到」，没修这一条。统筹转达用户的决定：在上游修，不在开跑时拒，也不要求每个角色都点 `find-tools`。上游 [Prologue #30](https://github.com/molis-ai/prologue/pull/30) 经用户在本会话同意合入（合并提交 `be78f726`）：一轮只要延后了工具，`find-tools` 就带着名册在请求里、调得动，不看这一轮的工具名单和 Character 点没点它；一条都没延后时照旧摘掉。理由和没选的两条写在 Prologue 的需求分册（`modules/tool/deferral.md`「搜索入口跟着延后走」）与短合同 `find-tools-with-deferral.md`。
+
+Molis 这边：
+
+- 照 `vendor/prologue-sdk/README.md` 换成从 `be78f726` 打的 `prologue-sdk-0.0.0-rc.1-find-tools-deferral.tgz`（同样的步骤打两次，逐字节相同），删了 found-tools 包，`patch-history.json` 记一笔。同一棵树上 SDK 全量 0 失败（`desktop-computer-use.live` 没跑），13 个消费者脚本在这个包上全过。
+- 不改 Molis 源码：`writers` 的工具名单不变，角色不必为延后去点 `find-tools`。
+- 证据：`tests/prologue-tool-declaration.test.ts`（PA-12）加两条。`writers` 一轮给 10 个只读查询，一共超过 20 个工具：
+  - 请求里声明了 `find-tools`，名册上 10 个都在；先找再调，下一次请求带着找到的那个的形状，只有它执行了一次；
+  - 照名册上的名字直接调，它的形状不在请求里，调用执行一次。
+  - 两条都先在旧包（found-tools）上看它红，见 PR 正文。
+- 不跑真实模型评测（统筹定）。
+
+**留到后面的**：
+
+- `molis.file-present` 只证明文件在（S-27 开放项）。
+- 网关能力输入的类型：见 §6.0f。
+
+### 6.0f 网关的能力输入带上类型（2026-10-16）
+
+§6.0e「未验证」第 3 条：助理网关的 `read-capability`、`change-capability`、`change-reversible`、`suggest-action` 共用一份参数，`input` 六种 JSON 类型都收，能力真正的形状只在 `find-capabilities` 的结果文字里。和 `board-wait` 的 `params` 是同一类设计问题。方案经统筹排期、用户弹窗批准上游与评测（2026-10-16）。
+
+- **做法**：工具个数、名字、调用形状都不变（BL-145：助理主轮正好 20 个，再多一个就整批延后）。这一轮找到的能力，下一次请求起在这几个工具的 `input` 上各有一支：标题是 `<capability_id>@<version>`，说明是「提供方 · 名称」，内容是目录里那份 `input_schema`；登记时那份通用的仍是其中一支。读的只在 `read-capability`，改的在 `change-capability`（可撤销的也在 `change-reversible`），`suggest-action` 两种都有。没有 `operate` 的角色不在改的工具上带。
+- **上游**：[Prologue #31](https://github.com/molis-ai/prologue/pull/31)，会话给自己包里的工具参数加分支（`sessions.open` 的 `parameterBranches`，每次组请求时现问）。目录一个名字只登记一份形状，网关是一个固定的包，所以 Molis 自己做不到。Tool 那道门照旧按登记核，分支不放宽也不收紧能调什么。
+- **Molis**：`horizontal/agent-host/src/adapters/prologue-gateway-declared.ts` 记下 `find-capabilities` 找到的、现在用得了的能力，按效果分给各工具；两份参数（`CAPABILITY_PARAMETERS`、`SUGGEST_PARAMETERS`）也搬到这里，`prologueActionGateway` 因此短了 11 行。`prologue-run.ts` 开会话时把回调交给 SDK。
+- **上限**：每个工具最多 12 支，一支最多 8 KiB，一次请求所有分支合计最多 24 KiB；超出就从最早找到的去掉。依据：内置 479 个给 Agent 的动作，`input_schema` 的 p50 182 字节、p90 626、p99 2.3 KB、最大 5.3 KB（`goals.tree.submit@1`）、合计 155 KB，所以只能声明找过的。超出的照样调得动，`find-capabilities` 的结果里照样有它的 schema。
+- **找过的属于这一轮**：新的一轮、宿主重启之后都从零开始，回到通用的那一份；调用不受影响。
+- **数字题的单位**（同一个包，统筹 2026-10-16 转达、用户批准）：[Prologue #32](https://github.com/molis-ai/prologue/pull/32) 让 `ask-user` 的数字题可以带 `unit`，写成模型自己会说的话（如「分钟」）：一行、1 到 24 个字，只用来显示，答案仍是不带单位的数，存盘读回都带着。Molis 这边 `AgentQuestion` 加可选的 `unit`（改合同，`pnpm api:update`），`prologue-questions.ts` 投影时带上；插件 SDK 的题目规则（`question-rules.ts`）照同一条核，`tests/question-rules-consistency.test.ts` 两边对照。交互线 T1 用它在输入框旁显示单位，和「不能超过 240 分钟」一起；这个包合入之前，T1 只写界限。
+- **不在这一片**：`normalizedInput`、`coerced`、`parseCapability` 里为模型写的纠正（字符串数字、字符串布尔、二次编码 JSON、写在身份旁边的字段）先不删。看评测：带上类型之后不再用到，另开一片由用户定。（已删，见 §6.0g）
+- 证据：`tests/assistant-business-gateway.test.ts` 末尾两条（§6.0f），在新包配 main 的代码上先红；`tests/agent-typed-questions.test.ts`（AC-17）、`tests/question-rules-consistency.test.ts`（S1）带上单位后同样先红。
+- **换包**：照 `vendor/prologue-sdk/README.md` 换成从上游 main `4e8468dd`（#32 的合并，含 #31）打的 `prologue-sdk-0.0.0-rc.1-parameter-branches.tgz`，同样的步骤打两次逐字节相同；删了 find-tools-deferral 包，`patch-history.json` 记一笔。同一棵树上 SDK 全量 355 个文件 0 失败（`desktop-computer-use.live` 没跑），13 个消费者脚本在这个包上全过。
+
+**真实模型小评测**（统筹 2026-10-16 转达、用户弹窗批准）。记录按手册 16.3 的格式，没变好的按 §11 分类。
+
+```text
+改动：助理网关的四个能力工具，在这一轮找到的能力上给 input 带上类型（Prologue #31 + 本片）
+要解决的问题：input 只有一份通用参数，模型把数组写成 {"item": […]}、数和布尔写成字符串，靠网关纠正或被合同拒
+环境：每轮一个临时 Home；MiniMax / MiniMax-M3，接口 anthropic-messages（api.minimax.cn/anthropic）；2026-10-16
+任务：真实 Todo 动作（定义与处理器都是 Todo 插件自己的），种好的待办都在当前项目里，审查一律批准
+  G1 改一件待办的截止日期（expected_revision 是整数）；G2 今天计划的三件都推后两天（ids 数组、oneOf 的 change、整数修订号的映射）；
+  G3 把已完成的一件归档（布尔加整数）；G4 先别直接记，给一个点了才加的按钮（完整的 create 输入，日期加嵌套的 waiting）
+次数：每个任务每组 3 次。对照组是当前 main（76758783）的通用参数，同一份夹具、同一模型
+结果：带类型 12/12；通用 11/12（G4 有一次没出卡片）
+网关调用：带类型 30 次，29 次发在已声明类型的请求里，要纠正的 1 次（在 find-capabilities 之前，见下表）、被合同拒 0 次；
+  通用 38 次，要纠正的 20 次（{"item"} 10 次、字符串数或布尔 16 次，一次调用可有两种），被合同拒 9 次
+成本与时延：12 轮合计，带类型 148 秒、未缓存输入 226,822 token、缓存读 436,999、输出 6,707；
+  通用 224 秒、126,094、330,325、9,507。带类型的未缓存输入多八成：找到能力后工具的声明变了，提示缓存从工具那里断开（MiniMax 没报缓存写入）
+没变好的：见下面的分类表
+结论与未验证：只在这四个任务、这一个模型上成立。找过的能力带上类型之后，数组、整数、布尔都按类型写；通用参数下同样的任务在 G2 每轮都先被拒
+```
+
+- 夹具的做法：
+  - 密钥只在那一条命令上从钥匙串内联读取，不写文件、不进日志。
+  - 夹具只留请求里的 messages 与 tools、回复里的工具调用（模型写的原样）、文字与用量，不留请求头。
+  - 每次调用的「要纠正」按网关自己的 `normalizedInput` 判：纠正前后不同，或写在身份旁边、`input` 写成字符串、带 `{"item": …}`。
+  - 评测文件引用包内部（`apps/local-host/dist/assistant/*`），按 `pnpm health:check` 不能作为新测试文件入库，留在统筹共享笔记里（`adoption-gateway-eval.live.test.ts`），两个工作树各拷一份跑。
+  - 跑第一遍时有两处夹具缺陷，那一遍作废、全部重跑：
+    1. 种待办用的「今天」和模型看到的不是同一天（过了上海的零点），种的待办也不在当前项目，模型按项目筛就看不到；
+    2. G3 判过的读法不带 `archived: true`，归档后的待办读不到。G3 两组都用修好的判法另跑了 3 次。
+
+| 失误 | 出现在 | 分类 | 依据 | 处理 |
+| --- | --- | --- | --- | --- |
+| 数组写成 `{"item": […]}` | 通用：G2 3 次都有（8 次调用），G4 一次（2 次调用）；带类型 0 | 设计问题 | 通用参数下 `input` 没有形状，能力的 schema 只在结果文字里；同一模型、同一任务，声明了类型之后 6 次批量与卡片调用（G2、G4 各 3 次）都写成数组 | 本片 |
+| 数和布尔写成字符串（`"1"`、`"2"`、`"true"`） | 通用：G1 一次、G2 两轮、G3 3 次都有；带类型 0 | 设计问题 | 同上；`coerced` 能改回大部分，改不了 `expected_revisions` 这种映射里的值，G2 的批量处理因此被拒 | 本片；纠正代码先不删（见上「不在这一片」），§6.0g 已删 |
+| 批量被拒后改成三次单件修改 | 通用 G2 的第 2、3 轮 | 设计问题（同上两行的后果） | 结果对，但不再是一批，撤销要三次 | 本片 |
+| 卡片被拒后说「调整一下再试」，却没再调就结束 | 通用 G4 第 2 轮 | 拿不准 | 被拒的原因是 `{"item"}`（设计问题）；被拒之后说了要再试却以文字结束，和 §6.0e 那条「说了要调却没调」同类，没有对照分不开 | 不改。按 §11 不加「说了要调就要调」一类的措辞 |
+| 没找就猜了一个能力身份，`input` 写成 `"{}"` | 带类型 G2 第 3 轮 | 模型能力 | 第一次调用在 `find-capabilities` 之前，这时还没有可声明的能力；目录里也没有这个身份，这次调用不会成；之后它先找再做，结果对 | 不改 |
+
+- 未验证：
+  - 只量了 Todo 的动作和这四种写法。别的插件 schema 更大，一轮找到很多能力时会碰到 24 KiB 的上限，最早找到的就不再声明，那时的写法没有量过。
+  - 缓存断开的花费是这一个模型、这一种提示结构上的数。要省它，得让声明在一轮里少变（比如找到后一次给齐），那是另一片，要先看真实的轮次分布。
+
+后续：上面「不在这一片」的纠正已由用户定（2026-10-16）全删，见 §6.0g；删后的同一组评测与按 §11 的分类也记在 §6.0g。
+
+### 6.0g 网关不再替模型改形状（2026-10-16）
+
+§6.0f「不在这一片」的那几段纠正，用户弹窗定（2026-10-16）：这一片做，叠在 #615 上；还没 `find-capabilities`、`input` 仍是通用参数时也一律不纠正，按合同拒；`normalizedInput` 里另两处同类的一起删。
+
+- **删掉的**（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）：
+  - `coerced`：写成文字的数和布尔（`"1"`、`"true"`）不再改成数和布尔；
+  - `input` 写成 JSON 字符串（含二次编码）不再解开；
+  - 纯文本不再当成唯一必填文本字段的值，空白文字不再当成 `{}`；
+  - `parseCapability` 不再把写在身份旁边的字段并进 `input`。
+- **现在**：能力收到的就是模型写的 `input`（`capabilityInput`）。只有一处不是纠正：`input` 整个没给、合同要对象时是 `{}`，因为工具登记里 `input` 本来可省。写错的由能力合同判，在审查之前拒绝（`gatewayProblem`），回给模型的照旧是合同、出错位置上它写的值和整份 `input_schema`；建议卡（`suggest-action`）同样经合同拒，不记卡。写在身份旁边的字段不悄悄丢掉（丢了可能拿空的 `input` 跑出错的结果），也按合同拒，说明是哪几个字段。按钮自己的字（`title`、`summary`、`editable`、`missing`）照旧不算。
+- 找之前和找之后同一套：评测里唯一一次找之前要纠正的调用，猜的是目录里没有的身份，本来就会被拒（§6.0f 表最后一行）。
+- 每轮动作工具那份 `suggest` 工具（`prologue-action-tools.ts`）用同一个 `capabilityInput`，也不再纠正；它要建议的那几个动作工具，形状本来就完整声明在请求里。
+- 测试（行为有意改变，不是放宽）：`tests/assistant-business-gateway.test.ts` 里原来断言「按它的意思收下」的五条，改成断言被合同拒、拒绝里带合同或出错位置，改对之后照常审查、出卡或读到；§6.0f 那条 `input: ""` 的读取现在先被拒、再用 `{}` 读到。`tests/issue-assistant-repair-page.e2e.test.ts`（ISSUE-25、ISSUE-34）回放的正是写在身份旁边的那次 MiniMax 失误，不用改，照样通过。
+
+**真实模型小评测**（用 §6.0f 同一份夹具，MiniMax 按授权不再弹窗问）。记录按手册 16.3 的格式，没变好的按 §11 分类。
+
+```text
+改动：助理网关删去为模型写错形状做的纠正（字符串数与布尔、JSON 字符串、纯文本当字段、空白当 {}、写在身份旁边的字段）
+要解决的问题：§6.0f 带上类型后纠正几乎不再用到（30 次调用 1 次，且在找之前）；纠正留着就是替模型猜，形状错了模型看不到
+环境：每轮一个临时 Home；MiniMax / MiniMax-M3，接口 anthropic-messages（api.minimax.cn/anthropic）；2026-10-16
+任务：§6.0f 的 G1–G4，同一份夹具（真实 Todo 动作，审查一律批准）
+次数：每个任务 3 次。对照是 §6.0f 的带类型组（同一模型、同一夹具，纠正还在）
+结果：11/12（G4 第 1 轮没出卡片，这一轮没有调用网关）；§6.0f 带类型组 12/12
+网关调用：35 次，全部发在已声明类型的请求里；按旧纠正算要纠正的 2 次（同一轮里一模一样的两次），被合同拒 2 次（就是这两次）；
+  §6.0f 带类型组 30 次、要纠正 1 次、被拒 0 次
+成本与时延：12 轮合计 172 秒、未缓存输入 232,398 token、缓存读 432,163、输出 7,782；§6.0f 带类型组 148 秒、226,822、436,999、6,707
+没变好的：见下表
+结论与未验证：只在这四个任务、这一个模型上成立。找过的能力带上类型之后，删掉纠正没有让结果变错：唯一一次本来会被纠正的写法被合同拒，模型换成单件修改做对了，没有错写或多写
+```
+
+- 夹具：评测文件同 §6.0f，留在统筹共享笔记里；网关不再导出 `normalizedInput`，「要纠正」改用评测文件里内联的一份旧纠正来判，只用来计数。
+
+| 失误 | 出现在 | 分类 | 依据 | 处理 |
+| --- | --- | --- | --- | --- |
+| 已声明为整数的 `shift_days` 写成 `"2"`（`todo.items.batch` 的 `change`，`oneOf` 里的一支） | G2 第 3 轮，两次 | 模型能力 | 这次请求里这一支的类型是声明了的；发在已声明请求里的调用，§6.0f 的 29 次和这次的另外 33 次都按类型写，只有这一轮写错 | 不改。旧的 `coerced` 会改回来；现在被合同拒，在任何效果之前 |
+| 被拒后原样重发一次，再改成三次单件修改 | G2 第 3 轮 | 拿不准 | 拒绝里有 `/change/shift_days type`，但夹在 `oneOf` 各支的 11 条错误里，「出错位置」取的是第一条 `/change`，给的是整个 `change` 对象；没有对照分不开是说明不够清楚还是模型能力。结果对，撤销要三次（§6.0f 通用组同类） | 不改（一次，不成模式）。写进未验证 |
+| 说「按钮准备好了」却没调 `suggest-action`，`ask-user` 的选项格式不对被拒，这一轮停在第二次 `ask-user` | G4 第 1 轮 | 模型能力 | 这一轮一次网关调用都没有，和删掉的纠正无关；选项格式是 `ask-user` 自己的合同。§6.0f 通用组也有一次「没出卡片」 | 不改。说做了却没做的那一句见未验证 |
+
+- 其余 10 轮（G1 三轮、G2 第 1、2 轮、G3 三轮、G4 第 2、3 轮）结果对，网关调用没有失误、没有被拒，不需要分类。
+
+- 未验证：
+  - 拒绝的「出错位置」对 `oneOf` 取第一条路径，这时指的是外层对象而不是真正写错的字段。只见过一次，没有量过换成最深那条路径会不会让模型一次改对。
+  - G4 第 1 轮的回复说按钮已准备好，实际没有卡片。停止检查（`ensureStopGuard`）拦「说改了却没有成功的改动」，这一轮停在 `ask-user` 上、说的是卡片不是改动，没有拦到。会不会误导用户、要不要由工程层核对（有没有记下的卡），是另一片，要统筹定。
+  - 别的插件的 schema 更大，一轮找到很多能力时超出 24 KiB 的那些不再声明，那时模型写错的会直接被拒，没有量过。
+
+### 6.0h A5：补 §6.0b 第 2、5 项缺的证据（2026-10-17）
+
+只加用例，没有改源码。两条在 main `6696a15be` 上都直接通过，说明实现本来就对，缺的只是证据。
+
+- **第 2 项（PPT 零派出）**：`tests/action-before-effect.test.ts` 的撤权、停用、取消循环加上 PPT（`ppt.outline_ai`）。断言与另外五个插件相同：`dispatched === 0`、库不变、恢复后能写。把构建产物里 PPT 传给模型口的 `beforeDispatch` 去掉，三条都变红；还原后通过。
+- **第 5 项（修改回执不被微压缩）**：`tests/assistant-business-gateway.test.ts` 加一条请求级用例。用真实网关与助理，先经审批做一次修改（回执 800 多字节），再读五次（每次也是 800 多字节），然后看最后一次请求：
+  - 第一次读的结果被换成了 `[observation compacted: read-capability …]`，说明压缩确实跑了；
+  - 修改回执原样都在。它在请求里的位置比第一次读还早，所以留下来只能是因为效果种类（`mutate-external` 不可重读）。
+  - SDK 默认的压缩档是保留最近 4 轮工具、小于 512 字节的不收，Molis 没改。
+  - 试过把构建产物里 `change-capability` 改成 `safe-read`：那样改连审批都跳过了，这条是等审批超时而失败，不是因为回执断言，所以不算证明。区分靠的是上面那一组对照。
+
+### 6.0i P4-C1：协调者带板工具；Coding 一半里留下的几样（2026-10-17）
+
+**统筹 10-17 定 A**（§6.0d「留到后面的」第 1 条）：Coding 的协调者角色（`coordinator`，`plugins/native/coding/src/roles.ts`，版本 13 → 14）加上 `board-read`、`board-report`。理由：孩子拿到的工具不会比父亲多（SDK T12），协调者没有板工具，它让出给的孩子就报不了交给自己的那一步，父亲那一步的等待总是 `failed`，照样往下走。
+
+- 孩子的角色（`coding-reader`、`coding-reviewer`）和所有提示词都没改：SDK 给绑了步骤的孩子补上父亲有的这两个工具，宿主的子角色工具名单不用动。
+- 边界还是宿主的板钩子（`prologue-taskboard.ts`）：只读本项目的板，只报自己持有的步骤。
+- 用例 `tests/coding-coordinator-board.test.ts`（夹具模型，只引包名）。第一条（PA-11 的切片）证明三件事：
+  - 让出的孩子报了自己那一步，父亲的等待 `satisfied`，接续 `eligible`；下一轮再报那一步，回 `TASKBOARD_CONFLICT`（已经结束）；
+  - 读、报别的项目的板，被钩子拒（「只能读取或回报本项目的任务图」）；
+  - 报同项目另一个会话持有的步骤，回 `TASKBOARD_NOT_ASSIGNED`，那个会话的计划没变。
+- 第一条在 main 上是红的：协调者那一轮直接失败。
+- `prologue-adoption-guard` 里 PA-23 那条的注释改成指向这条用例，断言没变：那个孩子只回答、不报步骤，等待照旧 `failed`。
+- 顺带的变化：`STEP_TOOLS` 这道检查现在对协调者也通过了。人选「协作」又带着确认过的计划开跑时，以前宿主拒（「当前角色未开放计划回报工具」），现在照计划跑。统筹 10-17 要求补断言：同一文件第二条（PA-09 的计划部分），协调者带两步计划开跑，不被拒，计划的两步都归本会话，按顺序报 `running`、`succeeded`。协调者去掉板工具时，这一条以那句拒绝失败。
+
+**§4.6.9 里 Coding 那一行，这一片核过以后留下的**（理由逐条写在这里，不留第二份实现，也不加兼容）：
+
+| 项 | 现在 | 为什么不删 |
+| --- | --- | --- |
+| `following` 去抖 steer（`prologue-taskboard.ts`） | 别人改了这一跑计划里的某一步（子任务回报、交回），停 1.5 秒后给这一跑发一句「任务图有更新」 | SDK 的接续只把「等待的结果」交给活着的那一跑，子任务写回只交最终报告（`describeSubagentReport` 里没有步骤和交回）；板上步骤的变化 SDK 不送。`coding-step-claims` 断言了这句话。要删得先开一刀 Prologue，让板上的变化在模型边界交给持有者 |
+| 2 小时认领过期（`CLAIM_EXPIRES_MS`） | 持有步骤的会话没有在跑、两小时没动静，就标「认领已过期」，什么也不收回 | 计划的步骤上没有等待：一跑绑的是会话那一块，不是计划的步骤，所以「代次与等待期限」在这里没有可读的。这条只改显示，规则是人定的。没有用例，列在下面「未验证」 |
+| `last-start:<会话>` | 那一轮开跑时的方式（intent、模型、思考强度、目录、actor、原任务） | P3a 定了接续由 Coding 自己用请求键起跑（§4.6.10「接续起跑」）。下一轮要按同样的方式开，这些是 Coding 自己的请求内容；Run 视图冻结的开跑记录（`AgentFrozenStart`）是宿主那一半：有角色和 `model_id`，没有 intent、provider、工作区编号、actor 和 `origin_task`。不新增动作 |
+| `wake-note:<等待>` | 只存「自动开始没成功：<原因>」 | 接续的 `control` 只有 `cancel-wait`、`continue-now`，没有地方记「起跑失败的原因」。C2 给 `control` 补 `retry`、`resolve-reconciliation` 时再看能不能记在接续上；被拒的开跑照旧不写 |
+| 内存 `busy` / `waking` | 会话正在接收发送时不接接续；一个 runtime 一个叫醒循环 | 进程里的并发闸，不是事实；P3a 定了起跑归 Coding，叫醒循环本身留着 |
+
+§4.6.9 写的「删除，改读等待与接续视图」，前提是宿主起跑接续；P3a 改成了 Coding 自己起跑。以 P3a 为准。
+
+**真实模型实走**（MiniMax，按授权不再弹窗问；评测文件没入库，留在本会话的草稿里）：
+
+```text
+改动：Coding 协调者带 board-read / board-report，让出的孩子能报自己那一步
+要解决的问题：让出给孩子以后，父亲那一步的等待总是 failed
+环境：每轮一个临时 Home，跑完即删；MiniMax / MiniMax-M3，anthropic-messages（api.minimax.cn/anthropic）；2026-10-17
+任务：协调者，「派一个代码调查子任务去读 README.md，数一下它有几个二级标题。派出去以后你这一轮就收工、把这一步交给它，不要自己去读；等它做完再接着告诉我结果。」（README 有 3 个二级标题）；审查一律批准；等待满足、接续 eligible 时开下一轮「接着做。」
+次数：7
+结果：7/7 答对（3 个，列出 Install / Use / License）；7 次孩子都调了 board-report 报自己那一步（让出的 2 次报成了，等待因此满足；前台的 5 次没核对回报的结果）
+让出：2/7 带 yield（第 1 次、第 4 次）：等待 satisfied、接续 eligible，下一轮直接用孩子的结果作答；其余 5 次是前台派出（没带 yield、background），同一轮里拿到孩子的报告作答，没有等待
+结论与未验证：让出时这一决定按设计工作（2/2）；模型多数时候不让出，见下表
+```
+
+| 失误 | 出现在 | 分类 | 依据 | 处理 |
+| --- | --- | --- | --- | --- |
+| 人说了「这一轮就收工、把这一步交给它」，却前台派出、同一轮等结果 | 7 次里 5 次 | 拿不准 | 协调者的提示词（`coding-coordinator` v5）没讲什么时候让出，只有工具说明里有 `yield`；分不清是提示词没写还是模型没照着人的话做。结果没有错 | 不改提示词、不加规则（§11）；要不要在协调者提示词里写让出，交 AI 手册线 |
+| 第一次派出把 `tools` 写成对象，被拒后改对 | 第 5 次 | 模型能力 | 合同按 schema 拒，拒绝里有位置，模型下一次写对 | 不处理 |
+
+- 未验证：
+  - 认领过期的显示没有用例（上表第 2 行）。
+  - 「人选协作并带计划」没在页面上走过（只有上面第二条非浏览器用例）。
+  - 让出之后等很久（几小时）、宿主中途重启再接续，这一片没量。
 
 ### 6.1 当前记录
 
@@ -1292,6 +1631,10 @@ A0 执行记录（下列历史方案记录之后继续）：
 | H16（统筹，2026-10-13） | 换包前在 Prologue 修：名单里没有 `acknowledge-inputs` 的一轮不写编号说明（#17） | 提醒早已按名单关掉，编号说明没有；Molis 的角色还没列这个工具，每条补充都会带一句指向不存在工具的话 |
 | PA-23 改述 | SDK 的 `yield` 仍被拒（`subagentYieldGuard`，S-23，`prologue-adoption-guard` 用例）；main 上的第 14 项是已知的私有接续，属 X6 欠账，由 P4 助理那一半还 | #472 已把第 14 项带进 main，P4 之前不回退已上线的行为 |
 | 第 14 项留到 P4 | 对账时不动 main 上的助理交回与续做，改造清单在 §7.5 | 改它要有统一协作合同（P3），现在动只能写兼容 |
+| 统筹 10-16 | 外部等待的 `molis.action-query` 也拒声明了 `model:invoke` 的只读查询，码同判断（`agent.collaboration_check_not_read`）；按动作声明的权限判断，不另写名单 | 检查器反复去看，每看一次调一次模型，花费无界、结果不确定；§4.6.9 已写检查器不得调用模型，spec 不自相矛盾；拒绝要有自己的用例（S-27） |
+| 统筹 10-16（B） | `molis.action-query@1` 只收动作工具名 `tool`；名字到精确引用的表由 `prologue-action-tools.ts` 的 `actionToolRefs` 在 `remember()` 时建，检查器不算哈希 | 模型看不到精确引用；改所有角色的工具描述（A）比这一片宽，什么都不改（C）检查器就用不上 |
+| 用户 10-16（§6.0g） | 助理网关为模型写错形状做的纠正全删：写成文字的数和布尔、JSON 字符串解码、纯文本当唯一文本字段、空白当 `{}`、写在身份旁边的字段；`find-capabilities` 之前也不另留路径，同样由能力合同在审查前拒绝，错误里写明哪个字段不对，让模型自己重发。只留 `input` 整个没给时对象合同得 `{}` | 带上类型后 30 次调用只有 1 次要纠正，且在找之前、本来就会被拒（§6.0f）；纠正是替模型猜，形状错了模型看不到，按 §11 不为模型能力打补丁 |
+| 统筹 10-17 定 A（§6.0i） | Coding 协调者角色加 `board-read`、`board-report`，孩子由 SDK 按 T12 继承；孩子角色与提示词不变 | 让出的孩子报不了自己那一步，父亲的等待总是失败；宿主的板钩子已经只许读本项目、只报自己持有的步骤 |
 
 ### 7.8 工作规则
 

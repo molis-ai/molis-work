@@ -49,10 +49,16 @@ export interface AgentRoleDeclaration {
     workspace?: "required" | "none" | "business";
     prompts?: string[];
     host_tools?: string[];
+    skills?: AgentRoleSkillsDeclaration;
     subagent_workspaces?: "required";
 }
 
 export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" | "operate";
+
+export interface AgentRoleSkillsDeclaration {
+    allowed: string[];
+    default?: string[];
+}
 
 export interface AgentSkillDeclaration {
     skill_id: string;

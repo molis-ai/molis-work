@@ -7,7 +7,7 @@ import { requireSynchronous, actionEffect, type ExactActionReference } from "@mo
 import { agentTextMaterialContent, type AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, announcesWithoutActing, claimsButton, claimsMemoryChange, claimsSavedChange, internalIdsHeld, memoryHeld, mentionsInternalIds, writesToolCallAsText } from "./announce-guard.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
-import { prologueActionTools } from "./prologue-action-tools.js";
+import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { createPrologueCompactor } from "./prologue-compaction.js";
@@ -23,7 +23,7 @@ import { runModelParams } from "./prologue-run-params.js";
 import { blockId, collaborates, eligibleContinuation, planPrefix, readyStep, sessionBlock } from "./prologue-collaboration.js";
 import type { PlanPlace } from "./prologue-plan-steps.js";
 import { exactCharacterKey, verifySubagentStart, type PrologueSubagentRoot } from "./prologue-subagents.js";
-import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, type PrologueSurfaces } from "./prologue-surfaces.js";
+import { DESKTOP_GUIDANCE, SURFACE_GUIDANCE, type PrologueSurfaces, type SurfaceAttachment } from "./prologue-surfaces.js";
 import { placeOf, type createPrologueTaskBoards } from "./prologue-taskboard.js";
 import type { createPrologueWaits } from "./prologue-waits.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
@@ -106,6 +106,9 @@ function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefi
   if (!none && !business && !input.root_path) throw new Error("执行缺少已授权工作区");
 }
 
+/** The round's Prologue system tools. Suggesting is the round's own action pack tool (prologue-action-tools.ts), not one of them. */
+const systemTools = (input: PrologueStartInput) => input.character.tools.filter(tool => tool !== SUGGEST_HOST_TOOL).map(prologueToolName);
+
 /**
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
  * forgets, offers and changes is counted for the stop check; a call to a capability that is gone is refused before review.
@@ -134,12 +137,12 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
     } } : {}),
     ...(offer ? { offer: async (proposal: Parameters<typeof offer>[0]) => { const made = await offer(proposal); offersDone.offered += 1; return made; } } : {}),
   } } : input.action_gateway;
-  const actionTools = none ? undefined : gatewayForRun
-    ? { ...prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal), scope: "gateway" }
-    : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
+  const gatewayTools = none || !gatewayForRun ? undefined : prologueActionGateway(gatewayForRun, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal);
+  const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
+    : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL));
   if (input.action_gateway) {
     state.gatewayRuns.set(input.session_id, input.action_gateway);
-    if (actionTools && "known" in actionTools) state.gatewayKnown.set(input.session_id, actionTools.known as Set<string>);
+    if (gatewayTools) state.gatewayKnown.set(input.session_id, gatewayTools.known);
     // Refused before any review: a call to a capability that is gone, switched off or asked through the wrong tool.
     if (!state.gatewayHooks.has(input.session_id)) {
       state.gatewayHooks.add(input.session_id);
@@ -152,7 +155,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
       } });
     }
   }
-  return { actionController, actionTools, memoryDone };
+  return { actionController, actionTools, memoryDone, parameterBranches: gatewayTools?.parameterBranches };
 }
 
 /**
@@ -281,7 +284,7 @@ async function roundMaterials(deps: RunDeps, input: PrologueStartInput, index: S
  */
 async function roundBinding(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, stepBoard: PlanPlace | undefined) {
   const { runtime } = deps;
-  if (index.parent_run || !collaborates(input.character.tools.map(prologueToolName), Boolean(stepBoard))) return undefined;
+  if (index.parent_run || !collaborates(systemTools(input), Boolean(stepBoard))) return undefined;
   const board = stepBoard?.ref ?? await projectBoardOf(deps, index);
   const block = stepBoard?.block ?? await sessionBlock(runtime, board, session.ref, input.session_title ?? index.title);
   const ready = eligibleContinuation(runtime, session.ref, [board]);
@@ -294,7 +297,7 @@ async function roundBinding(deps: RunDeps, input: PrologueStartInput, index: Ses
  * The project's side panel browser, for this session only: its tools join the round and the round is told how to use
  * them. Read-only rounds only look; a page another live round holds is not shared, and the round is told why.
  */
-async function roundSurface(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, business: boolean) {
+async function roundSurface(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, session: Session, business: boolean): Promise<SurfaceAttachment> {
   const surfaceHost = deps.surfaces();
   if (!(business && surfaceHost && input.browser !== false)) return { tools: [] as readonly string[], note: null, surfaces: [] as readonly ("browser" | "desktop")[] };
   return surfaceHost.attach(session, index.owner.project_id, input.session_id, { readOnly: input.provenance.frozen.execution === "read-only",
@@ -326,7 +329,7 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
     if (at < 0 || !adopted[at]) throw new Error("MCP 工具已变化，请重新选择");
     mcpTools.push(adopted[at]!);
   }
-  const tools = [...input.character.tools.map(prologueToolName), ...mcpTools, ...(parts.actionTools?.names ?? []), ...surface.tools];
+  const tools = [...systemTools(input), ...mcpTools, ...(parts.actionTools?.names ?? []), ...surface.tools];
   const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
   // The memories the Host chose for this run, as exact references (one deleted meanwhile is simply not given).
   const pinnedMemory = input.memory?.pinned.length ? await deps.platformMemory.refsFor(input.memory.pinned) : [];
@@ -590,14 +593,16 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const index = await deps.index.read(input.session_id);
   assertWorkspace(input, index, state, mode);
   const ref = state.sessions.get(input.session_id);
-  const { actionController, actionTools, memoryDone } = roundGateway(deps, input, mode.none);
+  const { actionController, actionTools, memoryDone, parameterBranches } = roundGateway(deps, input, mode.none);
   ensureStopGuard(deps, input, mode.business);
   const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id));
-  const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack, executors: actionTools!.executors } : undefined);
+  // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
+  const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack, executors: actionTools!.executors,
+    ...(parameterBranches ? { parameterBranches } : {}) } : undefined);
   if (bindActions && session) state.actionToolSessions.add(input.session_id);
   if (session === undefined) throw new Error("agent.session_unknown");
   const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
-  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], input.character.tools.map(prologueToolName), prologueToolName);
+  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], systemTools(input), prologueToolName);
   const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
   for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
   const { childRoots, childRoles, childInstructions } = await childSetup(deps, input);
@@ -610,7 +615,8 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
   const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
     ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
-    ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}) });
+    ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
+    ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });
   const dispatchGuard = async () => {
     await input.beforeDispatch?.();
     if (!mode.none && !mode.business) {
@@ -637,5 +643,6 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   state.dispatchChecks.set(started.run.ref.id, dispatchGuard);
   await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,
     project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
-  return roundHandle(deps, input, { started, session, attemptIndex, actionController, memoryDone, stepBoard: materials.stepBoard, stopping });
+  return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, memoryDone, stepBoard: materials.stepBoard, stopping }),
+    ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) };
 }

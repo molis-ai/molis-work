@@ -65,6 +65,7 @@ export function inspectAgentDeclaration(
     ...agentCharacterProblems(agent, roles.ids),
     ...agentCompactionProblems(agent, prompts.ids),
     ...agentSkillProblems(agent),
+    ...agentRoleSkillProblems(agent),
     ...agentSubagentProblems(agent, roles.ids, prompts.ids, roles.workspaceParents),
   ];
 }
@@ -217,6 +218,37 @@ function agentSkillProblems(agent: AgentManifest): string[] {
     if (!Array.isArray(skill.tools) || skill.tools.length === 0) {
       problems.push(`Agent 方法 ${skill.skill_id} 必须声明可用工具`);
     }
+  }
+  return problems;
+}
+
+/**
+ * A role's methods for its purpose: picked from the block's own methods, defaults among the allowed, and each allowed
+ * method's tools among the role's — the same rule the Host applies to a selection at start, checked before install.
+ */
+function agentRoleSkillProblems(agent: AgentManifest): string[] {
+  const problems: string[] = [];
+  const declared = new Map((agent.skills ?? []).map(skill => [skill.skill_id, skill]));
+  for (const role of agent.roles ?? []) {
+    const skills = role.skills;
+    if (skills === undefined) continue;
+    const allowed = skills.allowed, defaults = skills.default ?? [];
+    if (!Array.isArray(allowed) || !allowed.length || !Array.isArray(defaults)
+      || [...allowed, ...defaults].some(id => !validToken(id))
+      || new Set(allowed).size !== allowed.length || new Set(defaults).size !== defaults.length) {
+      problems.push(`角色 ${role.role_id} 的方法声明不合法：allowed 至少一项，各项不重复`);
+      continue;
+    }
+    if (role.workspace === "none") problems.push(`无工作区角色 ${role.role_id} 不能带方法`);
+    const tools = new Set(role.host_tools ?? []);
+    for (const id of allowed) {
+      const skill = declared.get(id);
+      if (!skill) problems.push(`角色 ${role.role_id} 引用了未声明的方法 ${id}`);
+      else if (Array.isArray(skill.tools) && skill.tools.some(tool => !tools.has(tool))) {
+        problems.push(`角色 ${role.role_id} 给不了方法 ${id} 要的工具：${skill.tools.filter(tool => !tools.has(tool)).join("、")}`);
+      }
+    }
+    for (const id of defaults) if (!allowed.includes(id)) problems.push(`角色 ${role.role_id} 的默认方法 ${id} 不在可选方法里`);
   }
   return problems;
 }

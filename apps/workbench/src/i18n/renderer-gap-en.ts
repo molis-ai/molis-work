@@ -19,6 +19,23 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "回答后接着做。": "Once you answer, this goes on.",
   "选的对象已不存在或现在不能用，请重新选择": "The object you picked is gone or not available to you now; pick again",
   "这一题的回答不能提交，请改一下": "This answer cannot be sent; please change it",
+  // Words, numbers, dates and a date and time on the same card (T1).
+  "请填一个数字": "Enter a number",
+  "请填整数": "Enter a whole number",
+  "这个数太小了": "This number is too small",
+  "这个数太大了": "This number is too large",
+  "请按 2026-10-23 这样的格式填日期": "Enter a date like 2026-10-23",
+  "请填日期和时刻，例如 2026-10-23 15:00": "Enter a date and a time, like 2026-10-23 15:00",
+  "这个时间太早了": "This is too early",
+  "这个时间太晚了": "This is too late",
+  "不能小于 {limit}": "Must be at least {limit}",
+  "不能超过 {limit}": "Must be at most {limit}",
+  "不能早于 {limit}": "Must not be before {limit}",
+  "不能晚于 {limit}": "Must not be after {limit}",
+  "不能超过 {limit} 个字": "At most {limit} characters",
+  "减少 {step}": "Decrease by {step}",
+  "增加 {step}": "Increase by {step}",
+  "{zone}（UTC{offset}）": "{zone} (UTC{offset})",
   "打开「{title}」": "Open “{title}”",
   "这一轮做出的结果": "What this round made",
   "个人工具": "Personal tools",
@@ -91,6 +108,11 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   // apps/local-host/src/artifact-native-plugin-http.ts
   "这一版不能在这个插件里继续": "This version can't be continued in this plugin",
   "这个版本没有可取回的文件": "This version has no file to retrieve",
+  // plugins/native/coding/src/next-steps.ts (H4)
+  "核对并继续": "Check and continue",
+  "这一轮需要核对结果": "This round's result needs checking",
+  "查看变更": "View changes",
+  "这一轮改过的文件": "Files this round changed",
   // apps/local-host/src/web-request.ts
   "这个侧栏内容已经不在了（插件可能已停用）": "This side panel content is gone (the plugin may have been turned off)",
   "还没有配置可用的模型，助理无法开始工作": "No usable model is configured yet, so the assistant can't start",
@@ -113,7 +135,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "准备操作卡": "prepare an action card",
   "整理上下文": "compact the context",
   "收尾": "wrap up",
-  // apps/workbench/src/scripts/client/background-tasks.ts
+  // apps/workbench/src/scripts/client/attention.ts
   "等你审查": "Needs your review",
   "挂起等待": "Queued",
   "个等你处理": "waiting for you",
@@ -431,4 +453,8 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "不知道这次操作有没有完成，请刷新后核对": "We can't tell whether this finished. Refresh the page to check.",
   "诊断编号 {id}": "Diagnostic ID {id}",
   "复制诊断编号 {id}": "Copy diagnostic ID {id}",
+  "切换到这项工作": "Switch to this work",
+  "没加入：助理看不到它，这项工作也不会记在它下面": "Not added: the Assistant can't see it, and this work won't be filed under it",
+  "没加入": "not added",
+  "这次发送带上的": "Going with this send",
 };

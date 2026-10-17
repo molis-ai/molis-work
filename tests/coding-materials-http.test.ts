@@ -53,7 +53,8 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
   };
   const start = (materials: unknown) => request("/runs", "POST", { task: "只读材料", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", materials });
   try {
-    for (const id of ["large", "other-user", "other-project", "missing"]) { const result = await start([{ artifact_id: id, version: 1 }]); assert.equal(result.status, 400, id + JSON.stringify(result.body)); }
+    // A coded refusal answers by its kind (D26): another person's material is forbidden (403, was 400); the rest stay 400.
+    for (const [id, status] of [["large", 400], ["other-user", 403], ["other-project", 400], ["missing", 400]] as const) { const result = await start([{ artifact_id: id, version: 1 }]); assert.equal(result.status, status, id + JSON.stringify(result.body)); }
     assert.equal(created, 0); assert.equal(starts.length, 0);
     assert.equal((await request("", "PATCH", { materials: refs, draft: "保留草稿" })).status, 200);
     const choices = await request("/materials"); assert.equal(choices.status, 200, JSON.stringify(choices));
@@ -72,6 +73,7 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
     assert.ok((await request("/materials")).body.materials[0].error);
     assert.equal((await request("", "PATCH", { materials: [], draft: "不用材料也能继续" })).status, 200);
     assert.equal((await start([])).status, 200); assert.deepEqual(starts[1].text_materials, []);
+    assert.deepEqual(starts.map(request => request.queued), ["carry", "carry"], "RC-09: every round takes the supplements waiting in its session (§4.8)");
     assert.equal((await request("", "PATCH", { materials: [...refs, ...refs] })).status, 400);
     const registerGitMaterial = (id: string, version: number, type: string, payload: Record<string, unknown>, board = DEMO_PROJECT_ID) => artifacts().commands.registerVersion({
       project_id: board, actor_id: "web-user", artifact_id: id, version, artifact_type_id: type, schema_version: 1,

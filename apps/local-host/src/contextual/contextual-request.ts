@@ -11,6 +11,7 @@ import {
 /** Why a context request is refused: a claim of the page that does not hold (`invalid`), or one the directory has moved past (`conflict`). */
 export const contextualErrors = defineErrorCodes("contextual", {
   input_invalid: "invalid", stale: "conflict", unavailable: "conflict", not_offered: "conflict", not_drafted: "conflict", empty: "conflict",
+  reference_unavailable: "conflict",
 });
 
 export const invalid = (field: string) => contextualErrors.input_invalid(`情境请求的 ${field} 不合法`);

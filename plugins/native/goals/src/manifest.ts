@@ -20,7 +20,7 @@ export const goalsManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: GOALS_PLUGIN_ID,
-  version: "1.0.1",
+  version: "0.3.0",
   name: "Goals",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },

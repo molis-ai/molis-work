@@ -1,26 +1,30 @@
+import { projectInputReceipts, type InputReceipt, type ModelEvent } from "@prologue/sdk";
 import type { AgentRunRef, AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AgentInputSend, AgentInputsPort, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { AgentInputSend, AgentInputsPort, AgentSteerReceipt, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { agentErrors } from "../errors.js";
 
 /**
- * A supplement's receipt in the run view, from the run's own ledger (specs/ai-input-receipts §3.2 L1, §3.3).
+ * A supplement's receipt in the run view, from the run's own ledger (specs/ai-input-receipts §3.2, §3.3, §3.4).
  *
- * The SDK records each fact as an event; this module only follows them, so the state a person sees is the runtime's,
- * never a guess: `received` when the supplement became a turn, `applied` when it went into the model's context, `read`
- * when a reply the model produced with it was kept, `withdrawn` when it was taken back before it reached the model,
- * and `unread` when the round ended before either. Read is not compliance: what the model did with it is told by its
- * own account and the receipts of what it did.
+ * The runtime projects its ledger itself (`projectInputReceipts`): received, in the context, read, withdrawn, unread when
+ * the round ended before either; the model's own statement about an input; the questions asked about it. That function
+ * reads a whole ledger, while the run view is built one event at a time, so the round keeps the events that projection
+ * reads and projects them again whenever one arrives — one projection, the runtime's, never a second one here. The Host
+ * adds a single fact the ledger cannot hold: a round it closed because its record stopped short (restored without an
+ * ending) read nothing more. Read is not compliance, and the model's statement is a claim, not what the Host observed.
  */
-export type InputEvent =
-  | { type: "steer-applied"; steerId: string }
-  | { type: "steer-read"; steerIds: readonly string[]; callId: string }
-  | { type: "steer-withdrawn"; steerId: string };
 
-type SteerState = NonNullable<AgentTurnView["steer"]>["state"];
+/** The ledger events `projectInputReceipts` reads; the rest never change a receipt. */
+const INPUT_EVENTS = new Set(["prompt", "steer-applied", "steer-read", "steer-withdrawn", "inputs-acknowledged", "awaiting-input",
+  "pending-settled", "pending-expired", "pending-cancelled", "completed", "failed", "cancelled", "tripped", "circuit-tripped"]);
 
 /** The part of the run projection these facts touch. */
-interface InputTurns {
+export interface InputLedger {
   turns: AgentTurnView[];
+  /** The round's ledger events that bear on its inputs, in order. */
+  input_events: ModelEvent[];
+  /** The Host closed the round on a record that stopped short of its ending. */
+  inputs_closed?: true;
 }
 
 /** A user prompt that carries a supplement's id starts its receipt. */
@@ -28,34 +32,46 @@ export function steerOf(role: string, steerId: string | undefined): Pick<AgentTu
   return role === "user" && steerId !== undefined ? { steer: { id: steerId, state: "received" } } : {};
 }
 
-/** Moves the named supplements forward; a fact never moves a receipt back, and a withdrawn one stays withdrawn. */
-function advance(state: InputTurns, ids: readonly string[], to: SteerState): boolean {
-  const rank: Record<SteerState, number> = { received: 0, applied: 1, read: 2, unread: 2, withdrawn: 2 };
+function steerView(receipt: InputReceipt, closed: boolean): AgentTurnSteer {
+  const ended = closed && (receipt.state === "accepted" || receipt.state === "applied");
+  const state = ended ? "unread" : receipt.state === "accepted" ? "received" : receipt.state;
+  const claim = receipt.handling;
+  return { id: receipt.steerId, state,
+    ...(claim ? { model_claim: { treatment: claim.treatment, ...(claim.kind ? { kind: claim.kind } : {}), targets: claim.targets.map(target => ({ ...target })),
+      impacts: [...claim.impacts], ...(claim.note ? { note: claim.note } : {}), ...(claim.callId ? { call_id: claim.callId } : {}),
+      ...(claim.toolCallId ? { tool_call_id: claim.toolCallId } : {}), revisions: receipt.handlingRevisions ?? 1 } } : {}),
+    ...(receipt.questions ? { questions: receipt.questions.map(question => ({ pending_id: question.pending, state: closed && question.state === "open" ? "unresolved" : question.state })) } : {}) };
+}
+
+/** Projects the kept events again and puts each receipt on its turn; true when a turn changed. */
+function projectInputs(state: InputLedger): boolean {
+  const receipts = new Map(projectInputReceipts(state.input_events).map(receipt => [receipt.steerId, receipt]));
   let changed = false;
   state.turns = state.turns.map(turn => {
-    if (!turn.steer || !ids.includes(turn.steer.id) || rank[turn.steer.state] >= rank[to]) return turn;
+    const receipt = turn.steer && receipts.get(turn.steer.id);
+    if (!receipt) return turn;
+    const steer = steerView(receipt, state.inputs_closed === true);
+    if (JSON.stringify(steer) === JSON.stringify(turn.steer)) return turn;
     changed = true;
-    return { ...turn, steer: { ...turn.steer, state: to } };
+    return { ...turn, steer };
   });
   return changed;
 }
 
-export function applySteerApplied(state: InputTurns, event: Extract<InputEvent, { type: "steer-applied" }>): boolean {
-  return advance(state, [event.steerId], "applied");
+/** Keeps an event that bears on the round's inputs and projects them again; true when a receipt changed. */
+export function noteInputEvent(state: InputLedger, event: { type: string }): boolean {
+  if (!INPUT_EVENTS.has(event.type)) return false;
+  if (event.type === "prompt" && (event as { steerId?: unknown }).steerId === undefined) return false;
+  // The runtime's `failed` always carries its error; a frame without one is not its ledger, and is not projected.
+  if (event.type === "failed" && (event as { error?: unknown }).error === undefined) return false;
+  state.input_events.push(event as ModelEvent);
+  return projectInputs(state);
 }
 
-export function applySteerRead(state: InputTurns, event: Extract<InputEvent, { type: "steer-read" }>): boolean {
-  return advance(state, event.steerIds, "read");
-}
-
-export function applySteerWithdrawn(state: InputTurns, event: Extract<InputEvent, { type: "steer-withdrawn" }>): boolean {
-  return advance(state, [event.steerId], "withdrawn");
-}
-
-/** The round ended: every supplement no reply was kept with is `unread`, whether it reached the context or not. */
-export function closeUnreadSteers(state: InputTurns): void {
-  state.turns = state.turns.map(turn => turn.steer?.state === "received" || turn.steer?.state === "applied"
-    ? { ...turn, steer: { ...turn.steer, state: "unread" } } : turn);
+/** The Host closed the round on a record that stopped short of its ending: what it had not read stays unread. */
+export function closeInputs(state: InputLedger): void {
+  state.inputs_closed = true;
+  projectInputs(state);
 }
 
 /** A supplement as the runtime takes it; `app` is the Host speaking, never the person. */

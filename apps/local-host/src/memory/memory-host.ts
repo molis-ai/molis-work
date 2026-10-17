@@ -27,6 +27,7 @@ import type { MolisWorkLocalHost } from "../project-host.js";
 import { learnFromWork, type MemoryLearningRequest } from "./memory-learning.js";
 import { runUpkeep, subjectTitles } from "./memory-upkeep.js";
 import { memoryCallService, memoryCaller } from "./memory-effect.js";
+import { hostLog } from "../host-log.js";
 
 /**
  * Host wiring of the platform memory (specs/archive/memory-system §5.2): Prologue Memory of this Home's one runtime as the
@@ -91,6 +92,11 @@ export async function memoryForAgentRun(localHost: MolisWorkLocalHost, input: { 
 }
 
 /** Registered once per Local Host, next to the Agent service that owns the runtime. */
+/** A learning pass, for `MOLIS_WORK_DEBUG=memory`: whether it ran and how many memories it kept, never what they say. */
+export function logMemoryLearning(outcome: { ran: boolean; learned: readonly unknown[] }): void {
+  hostLog.debug("memory", "learned", { ran: outcome.ran, learned: outcome.learned.length });
+}
+
 export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const existing = hosts.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing.host;
@@ -171,10 +177,10 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     };
     try {
       const outcome = await learnFromWork(service, ports.homeDirectory, request, undefined, stillWanted);
-      if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn", JSON.stringify(outcome));
+      logMemoryLearning(outcome);
     } catch (error) {
       // Nothing was written (the gate commits only whole proposals); the queue may try once more.
-      console.warn("[memory] 提炼没有完成", error instanceof Error ? error.message : String(error));
+      hostLog.warn("memory", "learning_failed", error);
       throw error;
     }
   };
@@ -185,7 +191,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     schedule.handle(LEARN_KIND, async task => { await runLearning(task.payload as unknown as MemoryLearningRequest); });
     schedule.handle(UPKEEP_KIND, async () => { await upkeepNow(); await scheduleUpkeep(new Date()); });
     queueAttached = true;
-    void scheduleUpkeep(new Date()).catch(error => console.warn("[memory] 没有排上整理", error));
+    void scheduleUpkeep(new Date()).catch(error => hostLog.warn("memory", "upkeep_not_queued", error));
   };
   // The runtime has started in this process: it holds the Home's runtime whatever transport it serves.
   let runtimeHere = false;
@@ -220,15 +226,15 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     caller,
     learnLater: async request => {
       const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6);
-      if (!service.worthLearning(request.caller, said)) { if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn skipped", request.key); return; }
+      if (!service.worthLearning(request.caller, said)) { hostLog.debug("memory", "learning_skipped", { key: request.key }); return; }
       await ports.ready();
       attachQueue();
       const schedule = ports.agentHost.adapter(RUNTIME).schedule;
       const payload = { caller: request.caller, said } as unknown as Record<string, unknown>;
       // Without the durable queue (or a session to hang it on) it runs now; a failure leaves nothing half written.
-      if (!schedule || !request.session_id) { void runLearning({ caller: request.caller, said }).catch(error => console.warn("[memory] 提炼没有完成", error)); return; }
+      if (!schedule || !request.session_id) { void runLearning({ caller: request.caller, said }).catch(error => hostLog.warn("memory", "learning_failed", error)); return; }
       const queued = await schedule.enqueue({ key: `memory-learn:${request.key}`, session_id: request.session_id, kind: LEARN_KIND, payload, due_at: new Date().toISOString(), max_attempts: 2 });
-      if (process.env.MOLIS_WORK_MEMORY_DEBUG) console.warn("[memory] learn queued", queued.key, queued.state, queued.due_at);
+      hostLog.debug("memory", "learning_queued", { key: queued.key, state: queued.state, due_at: queued.due_at });
     },
     close: () => { closed = true; dispose(); ledger.close(); hosts.delete(ports.localHost); },
   };

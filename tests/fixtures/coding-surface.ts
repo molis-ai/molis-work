@@ -12,9 +12,10 @@ export function codingFixtureRoutes(context: PluginStartContext, ports: CodingEx
   fixture.services.actions = {
     discover: async () => surface.actions.map(handler => ({ capability_id: handler.capability_id, version: handler.version,
       provider: { provider_id: fixture.install_id, plugin_install_id: fixture.install_id }, availability: { available: true } })),
-    invoke: async (definition: { capability_id: string; version: number }, input: unknown) => {
+    // The route's own call control, when a test gives one, is the caller's check before each write.
+    invoke: async (definition: { capability_id: string; version: number }, input: unknown, control?: { beforeEffect?(): Promise<void> }) => {
       const handler = surface.actions.find(row => row.capability_id === definition.capability_id && row.version === definition.version)!;
-      return handler.handle({ actor_id: fixture.actor_id as string, project_id: "fixture", audience: "user", permissions: [], beforeEffect: async () => {} }, input);
+      return handler.handle({ actor_id: fixture.actor_id as string, project_id: "fixture", audience: "user", permissions: [], beforeEffect: async () => { await control?.beforeEffect?.(); } }, input);
     },
   };
   return surface.routes.map(route => ({ ...route, handle: (request: PluginRouteRequest) => route.handle({ query: {}, ...request, actor_id: fixture.actor_id as string }) }));

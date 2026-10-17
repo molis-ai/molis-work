@@ -22,6 +22,7 @@ export const PPT_EN: Record<string, string> = {
   "已生成 {count} 页": "{count} slides generated",
   "整理中…": "Organising…",
   "请先配置可用的文字模型": "Set up a text model first",
+  "文字模型的设置读不了，请检查模型设置": "Can't read the text model settings; check them",
   "模型没有返回大纲，请调整文字后重试": "The model returned no outline; adjust the text and try again",
   "演示稿已改变，请重新读取后生成": "The deck changed; reload before generating",
   "收到的内容里没有可以做成幻灯片的文字": "Nothing in that text can become a slide",

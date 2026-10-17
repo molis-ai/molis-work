@@ -7,4 +7,4 @@
  * (docs/releases/POLICY.md section 1). `scripts/verify-release-versions.mjs` reads the line below and fails when they differ,
  * so the release pull request changes this one line along with the package files.
  */
-export const PRODUCT_VERSION = "0.2.0";
+export const PRODUCT_VERSION = "0.3.0";

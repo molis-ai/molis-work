@@ -7,13 +7,13 @@ import { PLUGIN_MEMBERSHIP_FACTORY_SCRIPT } from "./plugin-membership.js";
 import { IMMERSIVE_NAVIGATION_FACTORY_SCRIPT } from "./immersive-navigation.js";
 import { NAVIGATION_PRESENTATION_SCRIPT, DOCK_SCRIPT } from "./navigation-presentation.js";
 import { GLOBAL_SEARCH_FACTORY_SCRIPT, SEARCH_ITEM_TAB_SURFACES } from "./global-search.js";
-import { BACKGROUND_TASKS_FACTORY_SCRIPT } from "./background-tasks.js";
+import { ATTENTION_FACTORY_SCRIPT } from "./attention.js";
 import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "./plugin-notifications.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
 import { SYNC_SETTINGS_CLIENT_SCRIPT } from '../../settings-sync.js';
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
-import { INTERACTION_CLIENT_SCRIPT_TYPED_DATES } from "@molis-ai/molis-work-design-system";
+import { INPUT_RECEIPTS_CLIENT_SCRIPT, INTERACTION_CLIENT_SCRIPT_TYPED_DATES } from "@molis-ai/molis-work-design-system";
 import { PLACEMENT_FACTORY_SCRIPT } from "./placement.js";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./context-actions.js";
 import { SIDE_FILES_FACTORY_SCRIPT } from "../../side-panel-files.js";
@@ -66,9 +66,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       shownPlugin: () => tabWorkspace?.shownPlugin?.() || null,
       registerCover: (kind, open) => tabWorkspace?.registerCover?.(kind, open),
     });
-    (${BACKGROUND_TASKS_FACTORY_SCRIPT})({ translate: L, projectId: state.project?.project_id,
+    (${ATTENTION_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
-    (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id });
+    (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });
     // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3).
     // A surface that opens its items as tabs (the 成果库 opens a version) gets the item; the rest choose the record in their list.
     (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => ${JSON.stringify([...SEARCH_ITEM_TAB_SURFACES])}.includes(plugin) ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
@@ -111,16 +111,17 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       },
     });
     // The question and action cards' shared client: one copy for the Assistant and every plugin that shows them (A1, A2).
-    const interaction = (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES});
+    // The receipt under a supplement, the same way: one copy for the Assistant and every plugin that takes supplements (receipts 3c).
+    const interaction = (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES}), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
-      mountPluginClient, interaction, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
+      mountPluginClient, interaction, receipts, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
       projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     ${CODING_SETTINGS_CLIENT_SCRIPT}
-    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction,
+    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || state.snapshot.board.title || "" },
     });
@@ -380,10 +381,16 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     updateRelationPreviews();
     updateAllRelationFormPreviews();
+    // Off the Goal stage the board cursor comes with the attention read (W4-10).
+    const goalStageShown = () => (document.body.dataset.desktopSurface || "goal") === "goal";
     boardLifetime.poll(async signal => {
       boardVisibleSignal = signal;
-      await refreshBoard(false, signal);
+      if (goalStageShown()) await refreshBoard(false, signal);
     }, 4000);
+    document.addEventListener("molis-work:attention", event => {
+      const cursor = event.detail?.board_cursor;
+      if (typeof cursor === "number" && !goalStageShown() && cursor !== Number(state.snapshot.cursor)) void refreshBoard();
+    });
     boardLifetime.own(() => clearTimeout(deferredRefreshTimer));
   })();
 `;

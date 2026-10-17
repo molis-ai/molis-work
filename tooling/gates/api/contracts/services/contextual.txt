@@ -35,6 +35,8 @@ export interface ContextActionChosen {
         readonly action: ContextualCandidate["action"];
         readonly input: unknown;
     }>;
+    readonly landing?: SurfaceLanding;
+    run?(): Promise<unknown>;
 }
 
 export type ContextToolGlyph = "B" | "I" | "U" | "S" | "H1" | "H2" | "H3" | "A";

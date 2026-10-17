@@ -67,6 +67,8 @@ export interface AgentQuestion {
   max?: number | string;
   /** Number questions: whole numbers only. */
   integer?: boolean;
+  /** Number questions: the unit the answer is in, as the asker wrote it ("分钟"). Shown beside the field; the answer is still a plain number. */
+  unit?: string;
   /** Reference questions: which kinds of object may be picked, and how many at most when `multiple`. */
   ref_kinds?: string[];
   max_count?: number;

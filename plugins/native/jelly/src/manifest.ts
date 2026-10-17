@@ -4,7 +4,7 @@ import { JELLY_UI_CONTRIBUTION_ID } from "./ui.js";
 import { JELLY_ACTIONS, JELLY_ACTION_PERMISSIONS } from "./actions.js";
 import { jellySync } from "./replication.js";
 export const jellyManifest: PluginManifest = {
-  schema_version: 2, host_api_version: 2, plugin_id: JELLY_PLUGIN_ID, version: "1.1.0", name: "Jelly", kind: "native",
+  schema_version: 2, host_api_version: 2, plugin_id: JELLY_PLUGIN_ID, version: "0.3.0", name: "Jelly", kind: "native",
   publisher: { publisher_id: "molis", signature: "official-jelly-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [

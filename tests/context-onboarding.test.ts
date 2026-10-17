@@ -1,7 +1,7 @@
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, homeAgentDefinitions, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -21,6 +21,7 @@ import { createContextOnboardingHttp } from "../apps/local-host/dist/web-context
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { handleLocalConnectorsSettingsHttp } from "../apps/local-host/dist/web-connectors-settings.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { recordingTextModel, wireText } from "./fixtures/recording-text-model.js";
 import { storeGmailOAuthClient } from "../apps/local-host/dist/gmail-oauth.js";
 import { authorizeLocalWebRequest, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 
@@ -78,19 +79,58 @@ test('large materials keep their ending and resume completed model batches after
   const dir=await home(t),id=randomUUID();withContextJourneys(dir,s=>s.create(id));
   const original='# Long material\n\n'+('Ordinary work context.\n'.repeat(9000))+'FINAL FACT: launch is postponed to October 10.\n';
   selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[{path:'long.md',data:Buffer.from(original).toString('base64')}]}]});
-  const prompts:string[]=[];let readCalls=0,failed=false;
+  const prompts:string[]=[],notePrompts:string[]=[];let readCalls=0,failed=false;
   const ports={...pagesPorts(dir),readSource:async(h:string,s:Parameters<typeof readContextSource>[1])=>{readCalls++;return readContextSource(h,s);},model:async()=>({runtimeLabel:'batch fixture',completeText:async(input:ModelPromptInput)=>{const prompt=modelPromptText(input);
     assert.ok(prompt.length<82_000,'each model call has a bounded serialized prompt');prompts.push(prompt);
+    const note=typeof input!=='string'&&input.instruction.prompt_id==='onboarding.notes';if(note)notePrompts.push(prompt);
     if(prompts.length===2&&!failed){failed=true;throw Error('Temporary batch failure');}
-    return prompt.includes('这是完整材料的一部分')?'# Evidence\nWork facts retained [S1]':'# Work\nLaunch is postponed to October 10 [S1]';
+    return note?'# Evidence\nWork facts retained [S1]':'# Work\nLaunch is postponed to October 10 [S1]';
   }})};
   startContextJourney(dir,id,ports);let j=await waitContextJourney(dir,id);assert.equal(j.phase,'failed');assert.equal(j.synthesis!.completed,1);assert.equal(Object.keys(j.synthesis!.notes).length,1);
   const firstBatch=prompts[0]!.split('\n').at(-2)!;
   startContextJourney(dir,id,ports);j=await waitContextJourney(dir,id);assert.equal(j.phase,'review');assert.equal(readCalls,1);assert.equal(prompts.filter(p=>p.split('\n').at(-2)===firstBatch).length,1);
-  const uniqueBatches=[...new Set(prompts.filter(p=>p.includes('这是完整材料的一部分')).map(p=>p.split('\n').at(-2)!))];
+  const uniqueBatches=[...new Set(notePrompts.map(p=>p.split('\n').at(-2)!))];
   const processed=uniqueBatches.flatMap(p=>JSON.parse(p) as {body:string}[]).map(p=>p.body).join('');
   assert.equal(processed,j.summary!.references[0]!.body);assert.match(processed,/FINAL FACT: launch is postponed to October 10/);
   assert.match(j.summary!.body,/October 10/);assert.equal(j.summary!.references.length,1);
+});
+
+// Before B1 onboarding borrowed Cognia's port: its calls ran under Cognia's role and were recorded as Cognia's use of the onboarding
+// instructions. The served Host's real path (register, configured model, HTTP) now runs them as onboarding's own.
+test('the person\'s versions of both onboarding instructions are what the model reads, with no other owner\'s role, recorded as onboarding\'s use', { timeout: 60_000 }, async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'molis-context-')), id = randomUUID();
+  const model = await recordingTextModel(t, dir, request => /PERSON_NOTES_EDIT/.test(wireText(request)) ? '# 笔记\n要点 [S1]' : '# 项目\n要点 [S1]');
+  const definitions = homeAgentDefinitions(dir);
+  definitions.save('system:onboarding/onboarding.notes', 'PERSON_NOTES_EDIT 只记要点。', null, 'person');
+  definitions.save('system:onboarding/onboarding.proposal', 'PERSON_PROPOSAL_EDIT 写成项目建议。', null, 'person');
+  const served = await serveTestHost(t, { home: dir });
+  t.after(() => rm(dir, { recursive: true, force: true })); // after the served Host has closed
+  const post = async (path: string, body: unknown) => {
+    const response = await fetch(served.origin + path, { method: 'POST', headers: { origin: served.origin, 'content-type': 'application/json', 'x-molis-work-control-token': served.controlToken, 'x-molis-work-idempotency-key': randomUUID() }, body: JSON.stringify(body) });
+    assert.ok(response.ok, `${path}: ${response.status} ${await response.clone().text()}`); return response;
+  };
+  const long = '# Long material\n\n' + 'Ordinary work context.\n'.repeat(9000);
+  await post('/api/onboarding/context', { id });
+  await post(`/api/onboarding/context/${id}/selection`, { sources: [{ kind: 'files', selected: true, files: [{ path: 'long.md', data: Buffer.from(long).toString('base64') }] }] });
+  await post(`/api/onboarding/context/${id}/start`, {});
+  let journey: { phase: string; error: string | null } = { phase: 'reading', error: null };
+  for (let i = 0; i < 300 && ['selecting', 'reading'].includes(journey.phase); i++) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    journey = await (await fetch(`${served.origin}/api/onboarding/context/${id}`)).json() as typeof journey;
+  }
+  assert.equal(journey.phase, 'review', journey.error ?? journey.phase);
+  const notes = model.requests.filter(request => wireText(request).startsWith('PERSON_NOTES_EDIT'));
+  const proposals = model.requests.filter(request => wireText(request).startsWith('PERSON_PROPOSAL_EDIT'));
+  assert.ok(notes.length >= 2, 'the long material went through batch notes'); assert.equal(proposals.length, 1);
+  assert.equal(notes.length + proposals.length, model.requests.length, 'every call opens with the person\'s version of its instruction');
+  for (const request of model.requests) {
+    assert.equal(request.system, undefined, 'onboarding sends no system role of its own or another owner\'s');
+    assert.doesNotMatch(wireText(request), /这是完整材料中的一批|这份项目建议是/, 'the shipped default does not run beside the person\'s version');
+  }
+  for (const key of ['system:onboarding/onboarding.notes', 'system:onboarding/onboarding.proposal']) {
+    assert.equal(definitions.prompt(key).last_used?.caller, 'system:onboarding', `${key} is recorded as onboarding's use`);
+    assert.ok(definitions.prompt(key).last_used?.user_revision, `${key} ran with the person's revision`);
+  }
 });
 
 test('a batch cannot cite a source outside its input or pass invented evidence to final synthesis',async t=>{

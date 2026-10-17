@@ -165,7 +165,7 @@
 另外两条入箱路径：
 
 - **插件提醒**：Schedule 的唤醒（`scheduler.wakeup.v1`，`horizontal/scheduler`）到点调用 `deliverHostReminder`（`apps/local-host/src/schedule-reminders.ts`），把提醒写成 Feed 里 `plugin-reminders` 来源的条目并带 `source_rule` 关注原因，随后进 Inbox。安装已卸载或世代不符的提醒不投递。投递提交之后，`apps/local-host/src/schedule-runtime.ts` 的 `judgeDelivered` 再运行这条条目启动的捕捉规则与 Inbox 下一步判断（由 `bindScheduleDeliveryFeed` 装配，身份是第 7 步最后说的 `workflow-events`）；判断失败不会撤销投递。插件定时操作的结果同样以 `plugin-runs` 来源进 Feed（`apps/local-host/src/schedule-operations.ts`）。
-- **到期提醒**：Todo 的 `todo.reminders.window` 由助理每分钟询问一次（`AssistantService.sweepReminders`），每个提醒只通知一次，错过的会标明「错过的提醒」。
+- **到期提醒**：Todo 的 `todo.reminders.window` 由助理每分钟询问一次（`AssistantFollowUps.sweepReminders`，`apps/local-host/src/assistant/assistant-followups.ts`），每个提醒只通知一次，错过的会标明「错过的提醒」。
 
 **通知有三处，没有系统级通知**（`docs/platform/DESKTOP.md` 说明系统通知尚未实现）：
 

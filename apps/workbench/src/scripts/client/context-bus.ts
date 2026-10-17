@@ -14,8 +14,7 @@
  * - `signal`: what the person did with an offered action, for the memory to count (its capability and title, never the
  *   content). Nothing waits on it and nothing breaks without it.
  * - `choose`: a write goes to the Assistant as a prepared card; when no page here takes the choice (several objects, or a
- *   surface without its own handler) it is a card too, and only when even that fails the Assistant gets the words and the
- *   material. A card carries the exact action and its complete input; the Assistant runs it only when the person clicks,
+ *   surface without its own handler) it is a card too, and only when even that fails the Assistant gets what is in hand. A card carries the exact action and its complete input; the Assistant runs it only when the person clicks,
  *   and the click places it (POST /api/assistant/cards) and opens the panel on that work.
  * - `starters` (spec §6.4.2): what the directory offers for the whole object open now, by rules only (no judgment for opening
  *   a page), or the plan on show while something is in hand; the Assistant shows them and hands a click back, so it runs
@@ -37,7 +36,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     recent: [],
     request(focus) {
       return { pane_id: this.source.pane, focus, recent: this.recent.slice(0, 3), pinned: bar.pinned(),
-        ...(bar.shown ? { previous: bar.shown } : {}), dismissed: [...(this.dismissed.get(focus.context_id) || [])] };
+        ...(bar.shown ? { previous: bar.shown } : {}), dismissed: [...(this.dismissed.get(focus.context_id) || [])], ...landing.with(focus) };
     },
     report(source, focus) {
       // “Nothing in hand” only clears what that same surface put there, not what another surface reported since.
@@ -116,6 +115,8 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       prepared().then((offer) => host.openSearch(offer.input && offer.input.query)).catch((error) => bar.error(error));
       return;
     }
+    // Into the object open on the left: its owner previews it at the landing (context-landing.ts).
+    if (candidate.origin === "attach") { landing.choose(focus, candidate); return; }
     // A write goes to the Assistant as a prepared card: the person sees what it will do, and confirms it there.
     if (candidate.apply === "record") {
       prepared().then((offer) => suggestCard(focus, candidate, offer)).catch((error) => bar.error(error));
@@ -138,7 +139,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     const placed = await post("/api/assistant/cards", { message_id: newRequestId(), source, card });
     openAssistant({ work_id: placed.work_id });
   };
-  // The split pane's page did not take the choice: same as here, a card, else the words and the material.
+  // The split pane's page did not take the choice: same as here, a card, else what is in hand.
   const unhandled = (contextId, key, detail) => {
     const focus = bus.focus, source = bus.source, plan = bar.plan;
     const candidate = plan && plan.candidates.find((item) => item.key === key);
@@ -146,17 +147,8 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     post("/api/contextual/prepare", { pane_id: source.pane, focus, key, request_id: newRequestId() })
       .then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(detail));
   };
-  const askAssistant = () => {
-    const focus = bus.focus, plan = bar.plan, ask = plan && plan.assistant;
-    if (!focus) return;
-    const titles = ask ? ask.keys.map((key) => (plan.candidates.find((item) => item.key === key) || {}).title).filter(Boolean) : [];
-    const words = ask && ask.form === "compare" ? L("帮我并排比较这几处内容的相同点、不同点和冲突。")
-      : ask && ask.form === "options" ? L("这段内容可以往哪几个方向走？可以考虑：") + titles.join("、")
-      : L("帮我看看这段内容，") + (titles[0] ? L("先从「") + titles[0] + L("」开始。") : "");
-    openAssistant(assistantHint(focus, words));
-  };
-  // Only into the Assistant's input, unsent: the person adds their own words and sends.
-  const bringToAssistant = () => { if (bus.focus) openAssistant(assistantHint(bus.focus, "")); };
+  // ✦ and 「带到助理」: what is in hand goes in the Assistant's strip, unsent; the person says what to do (spec §21.2 point 4).
+  const bringToAssistant = () => { if (bus.focus) openAssistant(inHand(bus.focus)); };
 
   const starters = {
     focus: null,
@@ -223,10 +215,6 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     if (typeof detail.object_key === "string" && typeof detail.key === "string") starters.choose(detail.object_key, detail.key);
   });
 
-  document.addEventListener("molis:surface-focus", (event) => {
-    const focus = event.detail && typeof event.detail === "object" ? event.detail : null;
-    bus.report({ pane: ownPane, element: event.target instanceof Element ? event.target : null, frame: null }, focus);
-  });
   window.addEventListener("message", (event) => {
     if (event.origin !== location.origin || !event.data || typeof event.data.type !== "string") return;
     const frame = [...document.querySelectorAll("iframe[data-pane-owner]")].find((node) => node.contentWindow === event.source);
@@ -236,7 +224,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     else if (data.type === "workbench-context-action-unhandled" && data.detail) unhandled(data.context_id, data.key, data.detail);
     else if (!bus.source || bus.source.frame !== frame || !bus.focus || data.context_id !== bus.focus.context_id) return;
     else if (data.type === "workbench-context-action-choose") chooseFrom(data.context_id, data.key);
-    else if (data.type === "workbench-context-assistant") { if (data.kind === "bring") bringToAssistant(); else askAssistant(); }
+    else if (data.type === "workbench-context-assistant") bringToAssistant();
     else if (data.type === "workbench-context-dismiss") bar.dismissAll();
     else if (data.type === "workbench-context-summon") bar.summon(true);
     else if (data.type === "workbench-context-hold") {

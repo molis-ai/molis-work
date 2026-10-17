@@ -135,7 +135,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   services.set(ports.localHost, entry);
   // Deleting a project also stops the round its works still run and cancels their timed follow-ups, which only this service can do.
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
-    clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.removeFollowUp(id); } }); } });
+    clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory, assistantThreadRegistration(threads)); }
   catch (error) { console.warn("[assistant] 提醒规则动作没能登记到动作目录", error); }
@@ -146,6 +146,16 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
 async function projectCharacters(ports: AssistantHttpPorts, project: LocalHostProjectReference) {
   const { board, artifacts } = await ports.localHost.withProject(project, async runtime => ({ board: runtime.project_id, artifacts: runtime.coordinator.artifacts.query }));
   return codingCharacterPorts(ports.homeDirectory, WEB_ACTOR, board, artifacts);
+}
+
+/** What deserves the person's attention now, and on which surface (their rules hold some while it matches). */
+export async function assistantNotices(ports: AssistantHttpPorts, surface: string | null) {
+  const { service } = assistantServiceFor(ports);
+  // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
+  await service.list();
+  // What the person already acted on in its plugin is not news any more.
+  await service.settleHandledNotices().catch(() => 0);
+  return service.notices(surface);
 }
 
 /**
@@ -180,6 +190,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
         // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
         if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
+        if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
         return { status: 200, body: await service.send(body as unknown as AssistantSendInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       // What the Assistant may use here, and what the person switched off for it.
@@ -213,14 +224,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         if (typeof body.confirm_always === "boolean") store.setConfirmAlways(WEB_ACTOR, key, body.confirm_always);
         return { status: 200, body: { ok: true } };
       }
-      // What deserves the person's attention now, and on which surface (their rules hold some while it matches).
-      if (method === "GET" && parts.length === 1 && parts[0] === "notices") {
-        // Reading the works is what notices a change of state, so a closed panel still hears that a round finished.
-        await service.list();
-        // What the person already acted on in its plugin is not news any more.
-        await service.settleHandledNotices().catch(() => 0);
-        return { status: 200, body: { notices: service.notices(url.searchParams.get("surface") || null) } };
-      }
+      if (method === "GET" && parts.length === 1 && parts[0] === "notices") return { status: 200, body: { notices: await assistantNotices(ports, url.searchParams.get("surface") || null) } };
       if (method === "POST" && parts.length === 1 && parts[0] === "notices") {
         const target = { ...(typeof body.notice_id === "string" ? { notice_id: body.notice_id } : {}), ...(typeof body.work_id === "string" ? { work_id: body.work_id } : {}) };
         return { status: 200, body: { settled: service.settleNotices(target, body.state === "dismissed" ? "dismissed" : "seen") } };
@@ -249,10 +253,10 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "accept")
         return { status: 200, body: { candidate: await service.acceptMemoryCandidate(parts[1]!, { ...(typeof body.text === "string" ? { text: body.text } : {}) }) } };
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "discard") return { status: 200, body: { candidate: await service.discardMemoryCandidate(parts[1]!) } };
-      if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.rules() } };
-      if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.saveRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
-      if (method === "POST" && parts.length === 2 && parts[0] === "rules" && parts[1] === "remove") return { status: 200, body: { rules: service.removeRule(String(body.rule_id ?? "")) } };
-      if (method === "POST" && parts.length === 2 && parts[0] === "followups" && parts[1] === "remove") return { status: 200, body: { removed: await service.removeFollowUp(String(body.followup_id ?? "")) } };
+      if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.followUps.rules() } };
+      if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.followUps.saveRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
+      if (method === "POST" && parts.length === 2 && parts[0] === "rules" && parts[1] === "remove") return { status: 200, body: { rules: service.followUps.removeRule(String(body.rule_id ?? "")) } };
+      if (method === "POST" && parts.length === 2 && parts[0] === "followups" && parts[1] === "remove") return { status: 200, body: { removed: await service.followUps.remove(String(body.followup_id ?? "")) } };
       if (parts[0] !== "works" || !parts[1]) return null;
       const workId = parts[1];
       if (method === "GET" && parts.length === 2) return { status: 200, body: await service.read(workId) };
@@ -334,10 +338,12 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
     if (!answer) throw assistantErrors.invalid("请先回答再提交");
     const view = await service.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
       ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
-      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }).catch((error: { code?: string; message?: string; problems?: unknown }) => {
+      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
       // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
       if (error?.code !== "agent.answer_invalid") throw error;
-      throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L) } : undefined);
+      // Read back with the questions it answered, so each line can name the limit it crossed.
+      const asked = (await service.read(workId).catch(() => undefined))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
+      throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L, asked) } : undefined);
     });
     drafts.drop(workId, String(body.pending_id ?? ""));
     return { status: 200, body: view };

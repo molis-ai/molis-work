@@ -315,10 +315,6 @@ export function releasePagesFrozen(view: EditorView, token: string): void {
   view.dispatch(view.state.tr.setMeta(pagesFocusKey, { release: token } satisfies FocusMeta).setMeta("addToHistory", false));
 }
 
-export function clearPagesCompare(view: EditorView): void {
-  view.dispatch(view.state.tr.setMeta(pagesFocusKey, { compare: null } satisfies FocusMeta).setMeta("addToHistory", false));
-}
-
 function paragraph(text: string): Node {
   return pagesSchema.nodes.paragraph.create(null, text ? pagesSchema.text(text) : undefined);
 }

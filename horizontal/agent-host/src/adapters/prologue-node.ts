@@ -4,6 +4,8 @@ import { createNodeHost } from "@prologue/sdk/node";
 import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { announcesWithoutActing } from "./announce-guard.js";
 import type { createPluginBuilderAgent, PluginBuilderAgentOptions } from "./plugin-builder.js";
+import { actionToolRefs } from "./prologue-action-tools.js";
+import { createPrologueConditionCheckers } from "./prologue-checkers.js";
 import { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { PrologueCredentialBridge } from "./prologue-credentials.js";
 import { prologueEffects } from "./prologue-effects.js";
@@ -117,7 +119,11 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
   let surfaceHost: PrologueSurfaces | undefined;
   const state = createRoundState();
-  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) });
+  const index = createSessionIndexStore(effects.host, options.app.appId);
+  // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
+  const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id });
+  const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers);
+  checks.open();
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
   // Sites the person allowed earlier, as approvals the person can take back at once (not as rules fixed at start).
   if (surfaceHost && options.reviewQueue) for (const entry of options.surfaces!.siteDecisions()) if (entry.decision === "allow") surfaceHost.decide(entry);
@@ -134,7 +140,6 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
   });
-  const index = createSessionIndexStore(effects.host, options.app.appId);
   const surfaces = () => surfaceHost;
   const platformMemory = createPrologueMemory(runtime, effects.bind);
   const gitReviews = createNodeGitReviews(options, host, runtime);
@@ -161,14 +166,24 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       await closeInference();
       for (const controller of state.actionControllers.values()) controller.abort();
       state.actionControllers.clear();
-      stepBoards.close(); messages.close(); waitsPort.close();
+      stepBoards.close(); messages.close(); waitsPort.close(); checks.close();
       detachReviews?.();
       await checkpoints?.close(); await gitReviews?.close();
       return runtime.shutdown();
     } });
 
   return Object.assign(new PrologueAgentAdapter({
-    runtime: { ...port, startAgentRun: input => effects.start(input, () => port.startAgentRun(input)) },
+    runtime: { ...port, startAgentRun: input => effects.start(input, async () => {
+      const started = await port.startAgentRun(input);
+      // What the waits this round registers are checked against, look after look.
+      const client = input.actions?.client ?? input.action_gateway?.client;
+      checks.remember(started.run.ref.id, { session_id: input.session_id, ...(input.beforeDispatch ? { beforeDispatch: input.beforeDispatch } : {}), ...(input.root_path ? { root_path: input.root_path } : {}),
+        ...(client ? { actions: { client } } : {}), tools: index.read(input.session_id).then(saved => {
+          const attempt = saved?.attempts.find(item => item.run_id === started.run.ref.id);
+          return attempt?.action_tool_scope ? actionToolRefs(attempt.frozen.action_tools ?? [], attempt.action_tool_scope) : new Map();
+        }) }, started.run);
+      return started;
+    }) },
     modelConfiguration: options.modelConfiguration,
     stopHeld: runId => { const queue = state.heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) state.heldLabels.delete(runId); return next; },
     // Judged when the run ends, from its last words: the runtime stops consulting the hook after it has held twice.

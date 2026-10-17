@@ -1,4 +1,4 @@
-import { cliFlagValue as flag } from "@molis-ai/molis-work-app-cli";
+import { cliFlagValue as flag, printCliJson, printCliLine } from "@molis-ai/molis-work-app-cli";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createLocalUninstallService } from "./local-uninstall.js";
 import type { MolisWorkUninstallPlan } from "./installer/uninstall-contract.js";
@@ -7,7 +7,7 @@ import { DEFAULT_RESIDENT_HOST_URL, RESIDENT_HOST_URL_ENV, postToResidentHost, r
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 
 function printDemoHelp(): void {
-  console.log(`molis-work demo <create|reset|remove> [--home PATH] [--confirm] [--json]
+  printCliLine(`molis-work demo <create|reset|remove> [--home PATH] [--confirm] [--json]
 
 不带 --confirm 只显示将发生什么；demo 明确标记为可重建数据，不会与用户项目混淆。
 
@@ -15,20 +15,20 @@ remove --confirm 在 Molis Work 正在运行时交给它来删（示例项目里
 }
 
 function printUninstallHelp(): void {
-  console.log(`molis-work uninstall [--home PATH] [--confirm] [--json]
+  printCliLine(`molis-work uninstall [--home PATH] [--confirm] [--json]
 molis-work uninstall --purge-user-data --confirm --confirm-home PATH --confirm-project-count N [--home PATH] [--json]
 
 普通卸载保留用户项目、catalog、备份和日志。永久清除用户数据是独立操作，必须再次提供精确目录和项目数量。`);
 }
 
 function printUninstallPlan(plan: MolisWorkUninstallPlan): void {
-  console.log(plan.message);
-  console.log(`状态：${plan.status}`);
-  console.log(`用户项目：${plan.user_project_count}（${plan.purge_user_data ? "将永久删除" : "保留"}）`);
-  console.log(`可重建 demo：${plan.demo_project_count}`);
-  for (const change of plan.changes) console.log(`- ${change.description}: ${change.target}`);
-  for (const conflict of plan.conflicts) console.log(`冲突：${conflict}`);
-  console.log(plan.confirmation);
+  printCliLine(plan.message);
+  printCliLine(`状态：${plan.status}`);
+  printCliLine(`用户项目：${plan.user_project_count}（${plan.purge_user_data ? "将永久删除" : "保留"}）`);
+  printCliLine(`可重建 demo：${plan.demo_project_count}`);
+  for (const change of plan.changes) printCliLine(`- ${change.description}: ${change.target}`);
+  for (const conflict of plan.conflicts) printCliLine(`冲突：${conflict}`);
+  printCliLine(plan.confirmation);
 }
 
 function randomId(): string {
@@ -38,14 +38,14 @@ function randomId(): string {
 
 /** What the command prints after create, reset or remove; `result` is null when there was no demo to remove. */
 function printDemoResult(action: string, result: object | null, json: boolean): void {
-  if (json) { console.log(JSON.stringify(result, null, 2)); return; }
-  console.log(action === "remove" ? "可重建 demo 已删除；用户项目未修改" : `demo ${action === "create" ? "已创建或打开" : "已重置"}`);
+  if (json) { printCliJson(result); return; }
+  printCliLine(action === "remove" ? "可重建 demo 已删除；用户项目未修改" : `demo ${action === "create" ? "已创建或打开" : "已重置"}`);
   // Memory and the search index belong to a running Molis Work: what this command could not clear waits for it (a
   // removal keeps it in the receipt for the Host to finish) or stays as it was (a rebuild has no receipt).
   const waiting = result && "deletion" in result ? (result as ProjectDeletionResult).deletion.owner_steps.filter(step => step.state !== "complete").map(step => step.owner_id) : [];
-  if (waiting.length) console.log(`还有数据要由运行中的 Molis Work 清理（${waiting.join("、")}）；Molis Work 运行时会接着做，做完之前不能再创建 demo。`);
+  if (waiting.length) printCliLine(`还有数据要由运行中的 Molis Work 清理（${waiting.join("、")}）；Molis Work 运行时会接着做，做完之前不能再创建 demo。`);
   const left = result && "owners_left" in result ? (result.owners_left as string[] | undefined) ?? [] : [];
-  if (left.length) console.log(`demo 在 ${left.join("、")} 里的数据由运行中的 Molis Work 保管，这个命令没有清；要连它们一起清，在 Molis Work 里打开这个项目的设置，点「重建 demo」。`);
+  if (left.length) printCliLine(`demo 在 ${left.join("、")} 里的数据由运行中的 Molis Work 保管，这个命令没有清；要连它们一起清，在 Molis Work 里打开这个项目的设置，点「重建 demo」。`);
 }
 
 /**
@@ -98,8 +98,8 @@ export async function runLocalDemoCli(args: string[], withMolisWorkProjectCatalo
             ? "确认用内置示例重新生成 demo；其中的改动会被清除"
             : "确认删除这个可重建 demo；用户项目不受影响",
       };
-      if (args.includes("--json")) console.log(JSON.stringify(preview, null, 2));
-      else console.log(`${preview.confirmation}\n未执行；确认后重新运行并加 --confirm。`);
+      if (args.includes("--json")) printCliJson(preview);
+      else printCliLine(`${preview.confirmation}\n未执行；确认后重新运行并加 --confirm。`);
       return preview.status === "unavailable" ? 1 : 0;
     }
     const result = action === "create"
@@ -128,7 +128,7 @@ export async function runLocalUninstallCli(args: string[], withMolisWorkProjectC
   const purgeUserData = args.includes("--purge-user-data");
   const plan = await service.prepare({ purge_user_data: purgeUserData });
   if (!args.includes("--confirm")) {
-    if (args.includes("--json")) console.log(JSON.stringify(plan, null, 2));
+    if (args.includes("--json")) printCliJson(plan);
     else printUninstallPlan(plan);
     return plan.status === "conflict" ? 1 : 0;
   }
@@ -143,7 +143,7 @@ export async function runLocalUninstallCli(args: string[], withMolisWorkProjectC
       },
     } : {}),
   });
-  if (args.includes("--json")) console.log(JSON.stringify(result, null, 2));
-  else console.log(result.message);
+  if (args.includes("--json")) printCliJson(result);
+  else printCliLine(result.message);
   return 0;
 }

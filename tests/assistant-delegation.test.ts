@@ -11,6 +11,8 @@ const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json"
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { LocalHost, AssistantStore, AssistantService, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
+import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -42,7 +44,7 @@ test("a work hands an independent part to a work of its own, waits for it, reads
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const names = (body.tools ?? []).map((tool: { name: string }) => tool.name);
-    if (JSON.stringify(body.messages).includes("委托给你的子任务")) { childTools.push(names); return reply(undefined, "三条要点：1. 每周手工对账两小时。2. 希望自动化。3. 愿意试用。"); }
+    if (JSON.stringify(body.messages).includes("委托的子任务")) { childTools.push(names); return reply(undefined, "三条要点：1. 每周手工对账两小时。2. 希望自动化。3. 愿意试用。"); }
     parentTools.push(names);
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))(body);
   });
@@ -84,6 +86,48 @@ test("a work hands an independent part to a work of its own, waits for it, reads
   } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+test("a sub-task whose session opened under the Assistant's own role carries its next round as the delegated role, on that same session", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegated-role-"));
+  const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+  const project = { project_id: "board", storage_key: "memory:project" };
+  const requests: Array<{ system: string; messages: string }> = [];
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    requests.push({ system: JSON.stringify(body.system ?? ""), messages: JSON.stringify(body.messages) });
+    return reply(undefined, "这一部分做完了。");
+  });
+  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-delegated-role-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+  host.register(adapter);
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const service: AssistantService = new AssistantService(store, { host: async () => host,
+    authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
+  const delegatedLayer = /你在做另一项工作委托出来的一部分/;
+  try {
+    const parent = await service.send({ text: "主工作", request_id: "req-delegated-role-1" }, { project_ref: project });
+    await until(async () => (await service.read(parent.work.work_id)).work.state === "completed", "parent completion");
+    assert.doesNotMatch(requests[0]!.system, delegatedLayer, "the person's own work runs as the Assistant");
+    assert.match(requests[0]!.system, /## 分工[\s\S]*## 记忆/, "with its own layer on delegating and memory");
+    // A sub-task as works were handed out before the delegated role existed: its session was opened under the Assistant's role.
+    const child = store.create({ actor_id: "web-user", title: "早先的子任务", scope: parent.work.scope, origin: { surface: "assistant", title: `「${parent.work.title}」委托` }, project_ref: project,
+      delegated_by: { work_id: parent.work.work_id, title: parent.work.title, acceptance: "一段话" } });
+    const session = await host.createSession("prologue", { project_id: project.project_id, plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, actor_id: "web-user",
+      title: child.title, workspace: "business", role_id: "assistant" }, await assistantAuthority(local, child, () => new Set()));
+    store.update("web-user", child.work_id, null, { session_id: session.session_id });
+    await service.delegation(store.get("web-user", parent.work.work_id))!.follow_up(child.work_id, "接着把这一部分做完");
+    await until(async () => (await service.read(child.work_id)).work.state === "completed", "sub-task completion");
+    assert.equal(store.get("web-user", child.work_id).session_id, session.session_id, "it keeps the session it had");
+    const run = (await host.adapter("prologue").readSession({ session_id: session.session_id })).latest_run!;
+    assert.equal(run.frozen.role_id, "assistant-delegated");
+    assert.deepEqual(run.frozen.prompts.map(prompt => prompt.prompt_id).filter(id => id.startsWith("assistant-") && id !== "assistant-compaction"), ["assistant-base", "assistant-delegated"]);
+    // The sub-task's own round (the delegating work then goes on by itself once it is handed back, as the Assistant).
+    const own = requests.filter(request => request.messages.includes("接着把这一部分做完") && !request.messages.includes("子任务都已交回"));
+    assert.ok(own.length > 0 && own.every(request => delegatedLayer.test(request.system)), "the sub-task's round carries the delegated layer");
+    assert.ok(own.every(request => !/## 分工|## 记忆/.test(request.system)), "and not the delegating work's layer: it neither delegates nor keeps memories");
+  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 test("stopping a work also stops the sub-tasks it handed out that are still running, even after its own round ended", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-delegation-stop-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
@@ -97,7 +141,7 @@ test("stopping a work also stops the sub-tasks it handed out that are still runn
   const childHeld = new Promise<void>(resolve => { releaseChild = resolve; });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
-    if (JSON.stringify(body.messages).includes("委托给你的子任务")) {
+    if (JSON.stringify(body.messages).includes("委托的子任务")) {
       // A model request that takes its time, and gives up when the run is stopped (as a real one does).
       await Promise.race([childHeld, new Promise((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true }))]);
       return reply(undefined, "草稿。");
@@ -141,7 +185,7 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const text = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     const body = JSON.parse(text);
-    if (JSON.stringify(body.messages).includes("委托给你的子任务")) {
+    if (JSON.stringify(body.messages).includes("委托的子任务")) {
       await Promise.race([childHeld, new Promise((_resolve, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true }))]);
       return reply(undefined, "草稿。");
     }
@@ -164,14 +208,17 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
     assert.equal(after.work.work_id, sent.work.work_id, "the board shown is the delegating work's");
     assert.equal(after.delegated![0]!.taken_back, true);
     const checked = await service.delegation(store.get("web-user", sent.work.work_id))!.status({ work_ids: [childId] });
-    assert.match(checked[0]!.note ?? "", /由你在这项工作里完成/, "a round still checking on it reads what taking it back means");
+    assert.match(checked[0]!.note ?? "", /用户把这个子任务收回到这项工作：它已停下，已产出的保留。/, "a round still checking on it reads that it was taken back");
     await until(async () => ["stopped", "failed"].includes((await service.read(childId)).work.state), "child stopped");
     await assert.rejects(service.takeBack(childId), /已经收回/);
     // The delegating work's next round hears it, and a follow-up to the sub-task is refused.
     await service.send({ work_id: sent.work.work_id, text: "结论那部分你自己接着写完", request_id: "req-delegation-takeback-2" }, {});
     await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed"; }, "second round");
-    const told = parentBodies.find(body => body.includes("用户收回的子任务"));
-    assert.ok(told && told.includes("起草结论") && told.includes("不要再委托出去"), "the round is told the part is back");
+    const told = parentBodies.find(body => roundParts(body).data.includes("用户收回的子任务"));
+    assert.ok(told && roundParts(told).data.includes("起草结论"), "the round is told the part is back");
+    // ADH-12: that it is back is the data; finishing it here, not delegating it again, is the work layer's, said once.
+    assert.doesNotMatch(roundParts(told).data, /不要再委托出去/);
+    assert.match(roundParts(told).role, /用户收回的子任务由这项工作接着做完（可以读取它们已产出的对象），不再委托出去，也不再对它们追加要求。/);
     const last = parentBodies.at(-1)!;
     assert.match(last, /用户已把这个子任务收回到这项工作/, "the follow-up was refused");
     assert.equal((await service.read(childId)).work.follow_ups ?? 0, 0);
@@ -186,7 +233,7 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
   let parentStep = 0, childRound = 0;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
-    if (JSON.stringify(body.messages).includes("委托给你的子任务")) return child(childRound++, init.signal);
+    if (JSON.stringify(body.messages).includes("委托的子任务")) return child(childRound++, init.signal);
     return (parentScript[parentStep++] ?? (() => reply(undefined, "完成。")))();
   });
   const flags = { model: true, beforeAuthority: undefined as (() => Promise<void>) | undefined, beforeStart: undefined as (() => Promise<void>) | undefined, assertBeforeStart: undefined as (() => void) | undefined };

@@ -23,9 +23,9 @@ test("a 成果 version lists the Assistant work that started from it, and opens 
   // project's prefix when the tab came from a direct link.
   assert.deepEqual(await evaluate("JSON.parse(document.querySelector('[data-artifact-works]').dataset.artifactWorks)"),
     [JSON.stringify(["pages-brief", 1]), "/artifacts/pages-brief/versions/1", version]);
-  // The Assistant names the open version by its title, not its address.
+  // The Assistant names the open version by its title, not its address; only on show, it is offered, not added (context-program §21.5).
   await evaluate("document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: {} }))");
-  await waitFor("(document.querySelector('[data-assistant-materials]')?.getAttribute('aria-label') || '').includes('正在看：需求说明')", 10_000);
+  await waitFor("(document.querySelector('[data-assistant-context-strip]:not([hidden]) .is-optional')?.textContent || '').includes('正在看：需求说明没加入')", 10_000);
 
   // The person asks the Assistant while this version's tab is open (here from a direct link, so the tab holds the prefixed
   // address): the work starts from it. Without a model the round does not run, but the work and where it started are kept.

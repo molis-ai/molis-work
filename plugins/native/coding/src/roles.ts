@@ -74,14 +74,15 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_COORDINATOR_ROLE,
-      version: 12,
+      version: 14,
       name: "协作",
       // It holds run-command only so its independent reviewer can be given it: a subagent gets no tool its parent lacks.
       execution: "workspace-write",
       prompts: ["coding-base", "coding-coordinator"],
       // session-send: it may ask another session of the project, or answer one (they are neighbours on the project's board), without a review each time (the person's decision).
       // Background commands: started and stopped under review like any command; reading and waiting on them are reads.
-      host_tools: ["context-remaining", "find-tools", "ask-user", "read-file", "list", "search", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "session-send"],
+      // board-read / board-report: held so its children can report the steps handed to them (a child never holds a tool its parent lacks).
+      host_tools: ["suggest-action", "context-remaining", "find-tools", "ask-user", "read-file", "list", "search", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_WRITERS_ROLE,
@@ -96,13 +97,14 @@ export const codingAgentManifest: AgentManifest = {
     },
     {
       role_id: CODING_BUILDER_ROLE,
-      version: 13,
+      version: 15,
       name: "构建者",
       // Edits and runs commands. Needs a Runtime that supports both under Host
       // approval, so it stays unavailable until one does.
       execution: "workspace-write",
       prompts: ["coding-base", "coding-builder", "coding-background"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "run-command", "start-command", "command-output", "command-stop", "await-commands", "board-read", "board-report", "session-send"],
+      // board-wait: the step waits on something outside (a result file, a read-only query's state) with the round over; a wait is a read.
+      host_tools: ["suggest-action", "context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "run-command", "start-command", "command-output", "command-stop", "await-commands", "board-read", "board-report", "board-wait", "session-send"],
     },
     {
       role_id: CODING_WRITER_ROLE,
@@ -116,7 +118,7 @@ export const codingAgentManifest: AgentManifest = {
   ],
   prompts: [
     { prompt_id: "coding-planner", version: 2 },
-    { prompt_id: "coding-compaction", version: 2 },
+    { prompt_id: "coding-compaction", version: 3 },
     // The product's own constraints, shared by every role. Its own layer so a
     // role's wording cannot quietly replace it.
     { prompt_id: "coding-base", version: 10, layer: "base" },
@@ -124,7 +126,7 @@ export const codingAgentManifest: AgentManifest = {
     { prompt_id: "coding-writer", version: 3 },
     { prompt_id: "coding-reviewer", version: 4 },
     { prompt_id: "coding-builder", version: 5 },
-    { prompt_id: "coding-background", version: 1 },
+    { prompt_id: "coding-background", version: 2 },
     { prompt_id: "coding-coordinator", version: 5 },
     { prompt_id: "coding-writers", version: 5 },
   ],
@@ -143,7 +145,7 @@ export const codingPrompts: readonly AgentPromptText[] = [
     ].join("\n"),
   },
   {
-    prompt_id: "coding-compaction", version: 2,
+    prompt_id: "coding-compaction", version: 3,
     body: [
       "你为正在进行的编码任务选择需要保留的历史原文。你没有工具，不能执行任务，也不能改写事实或给出新建议。",
       "输入 JSON 的 instructions 是当前用户要求，retained 是已有不可改写摘录，只用于理解任务；只能从 older 选择，不重复选择已保留内容。",
@@ -151,6 +153,7 @@ export const codingPrompts: readonly AgentPromptText[] = [
       "按当前任务保留必要的要求、已确认决定、精确路径和版本、关键证据、实际操作结果、失败原因、未解决问题及下一步所需材料。区分建议与已执行，批准与已发生，未知与失败；不要把缺失证据补成成功。",
       "优先保留能支持继续工作的最小完整片段；省略重复日志和无关大段内容，不能因缩短而删除当前任务依赖的关键值或边界。不要整批保留重复日志或案例目录；保留当前任务需要的规则、范围和例外证据。保留正文总量必须小于 64 KiB，已有 retained 也计入。没有新增必需内容时可返回空 selections。",
       "只使用本次 older[].record 和 parts[].part 中确实出现的编号。片段按原始换行、JSON 转义换行或长段边界分割，逐字保留原记录，不是文件行号。每条记录从 1 编号，endPart 不得超过 partCount；不要沿用另一条记录的编号。输出前核对每个坐标。",
+      "上一次的输出没通过检查时，最后一条消息会带回 error（哪里不对）和 previous_output（你上一次的输出）：按 error 改正坐标，再按下面的格式重新输出。",
       '只输出 JSON：{"selections":[{"record":0,"startPart":1,"endPart":2}]}。record 为 older 的从零编号，片段编号从 1 开始，首尾均包含。不得选择越界或重叠范围，不得输出原文、解释或 Markdown 围栏。',
     ].join("\n"),
   },
@@ -213,8 +216,14 @@ export const codingPrompts: readonly AgentPromptText[] = [
   {
     // Only for a role that holds the background command tools; the builder prompt is shared with a child that does not.
     prompt_id: "coding-background",
-    version: 1,
-    body: "耗时长的命令（完整测试、构建、起服务）用 start-command 放到后台，同样要用户批准；要结果时用 await-commands 等它，等待期间不调模型。预计很快的就地等；可能很久、手头又没别的事时用 park: true 挂起并结束这一轮，命令结束后会带着结果自动接着做。不要反复调用 command-output 查进度。不再需要的后台命令用 command-stop 停掉。",
+    version: 2,
+    body: [
+      "耗时长的命令（完整测试、构建、起服务）用 start-command 放到后台，同样要用户批准；要结果时用 await-commands 等它，等待期间不调模型。预计很快的就地等；可能很久、手头又没别的事时用 park: true 挂起并结束这一轮，命令结束后会带着结果自动接着做。不要反复调用 command-output 查进度。不再需要的后台命令用 command-stop 停掉。",
+      "要等的不是自己的后台命令、而是外面的事（别的程序写出的结果文件，或某个查询动作报告的状态），手头又没别的可做时，用 board-wait 登记外部条件（kind 写 external），说一句在等什么，然后结束这一轮。等待期间由宿主按时去看，不调模型；满足后自动接着做，确实失败或一直看不清时交给用户。只有两个检查器：",
+      "- molis.file-present@1：看本轮授权目录里的文件。params 写 path（要等的那个文件，目录内的相对路径），可加 marker（写完才出现的完成标记）、failed_marker（失败时会出现的文件）、non_empty（布尔值 true：文件不能是空的）。例：{\"path\": \"out/report.json\", \"marker\": \"out/report.done\"}。外面的事失败时会留下信号的，一定写上 failed_marker，否则失败了这一步会一直等。只认这一轮开始之后写出的文件。文件在只说明它在，不证明内容对，也不证明生成成功，接着做时要自己核对。",
+      "- molis.action-query@1：反复调用一个这一轮能调用的只读查询动作。params 写 tool：那个动作工具的名字本身（以 molis-action- 开头的那一串；没展开的工具，名字列在 find-tools 的说明里）；input 是调用它的输入；status 写回答里的状态在哪个字段、哪些取值算什么。例：{\"tool\": \"molis-action-…\", \"input\": {\"job\": \"j-1\"}, \"status\": {\"path\": [\"state\"], \"satisfied\": [\"done\"], \"failed\": [\"error\"], \"pending\": [\"running\"]}}。没列到的取值算看不清。会修改东西的动作、判断类动作、要调用模型的查询不能拿来等，登记时会被拒；等完以后要用它们，照常直接调用那个动作工具。",
+      "需要判断好坏的条件（比如设计好不好）不能这样等，要等一个确定的完成信号，接着做时再判断。",
+    ].join("\n"),
   },
   {
     prompt_id: "coding-coordinator", version: 5,

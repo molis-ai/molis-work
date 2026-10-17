@@ -18,6 +18,11 @@ export function printCliJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
+/** One line of a command's text output, for the commands other packages run (`molis-work install`, `demo`, `uninstall`, …). */
+export function printCliLine(text: string): void {
+  console.log(text);
+}
+
 export function cliGoalUrl(goalPath: string, baseUrl: string): string {
   try {
     return new URL(goalPath, baseUrl).toString();

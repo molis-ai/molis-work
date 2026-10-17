@@ -1,4 +1,5 @@
 import { WebSocket } from "ws";
+import { hostLog } from "../host-log.js";
 
 /**
  * One DevTools connection to the browser, with page sessions multiplexed over it (`Target.attachToTarget` with
@@ -90,7 +91,7 @@ export class CdpConnection {
     }
     if (typeof frame.method !== "string") return;
     for (const handler of this.handlers.get(frame.method) ?? []) {
-      try { handler(frame.params ?? {}, frame.sessionId); } catch (error) { console.warn(`[browser] ${frame.method} 处理出错`, error); }
+      try { handler(frame.params ?? {}, frame.sessionId); } catch (error) { hostLog.warn("browser", "cdp_handler_failed", error, { method: frame.method }); }
     }
   }
 

@@ -377,19 +377,19 @@ test("the report names the receivers that cannot meet, and does not fail on them
 
 test("the report names an announcement sent from outside its owner, and does not fail on it", () => {
   const report = domEventReport(changed({ [NEW_FILE]: script([
-    'document.dispatchEvent(new CustomEvent("molis-work:plugin-events-waiting", { detail: { pending: 1 } }));',
+    'document.dispatchEvent(new CustomEvent("molis-work:plugin-events-reveal"));',
     'document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: {} }));',
   ].join("\n")) }));
   const text = report.findings.join("\n");
-  assert.match(text, /alpha\/src\/client\.ts:2 dispatches the announcement "molis-work:plugin-events-waiting", which "plugin-notifications" owns/);
+  assert.match(text, /alpha\/src\/client\.ts:2 dispatches the announcement "molis-work:plugin-events-reveal", which "plugin-notifications" owns/);
   assert.doesNotMatch(text, /alpha\/src\/client\.ts:3/, "others send a request to its owner; that is what a request is");
   assert.doesNotMatch(domEventReport(tree).findings.join("\n"), /plugin-notifications\.ts:\d+ dispatches the announcement/, "the owner sends its own announcement");
-  assert.deepEqual(domEventProblems(changed({ [NEW_FILE]: script('document.dispatchEvent(new CustomEvent("molis-work:plugin-events-waiting", { detail: { pending: 1 } }));') })), []);
+  assert.deepEqual(domEventProblems(changed({ [NEW_FILE]: script('document.dispatchEvent(new CustomEvent("molis-work:plugin-events-reveal"));') })), []);
   // An entry whose owner is not listed is the registry check's to report; the report still runs and names nothing of it.
-  const orphan = withRegistry('name: "molis-work:plugin-events-waiting", kind: "announcement", owner: "plugin-notifications"', 'name: "molis-work:plugin-events-waiting", kind: "announcement", owner: "nobody"');
-  const orphaned = domEventReport({ files: [...orphan.files, NEW_FILE], read: (file) => (file === NEW_FILE ? script('document.dispatchEvent(new CustomEvent("molis-work:plugin-events-waiting"));') : orphan.read(file)) });
+  const orphan = withRegistry('name: "molis-work:plugin-events-reveal", kind: "announcement", owner: "plugin-notifications"', 'name: "molis-work:plugin-events-reveal", kind: "announcement", owner: "nobody"');
+  const orphaned = domEventReport({ files: [...orphan.files, NEW_FILE], read: (file) => (file === NEW_FILE ? script('document.dispatchEvent(new CustomEvent("molis-work:plugin-events-reveal"));') : orphan.read(file)) });
   assert.equal("error" in orphaned, false);
-  assert.doesNotMatch(orphaned.findings.join("\n"), /plugin-events-waiting/);
+  assert.doesNotMatch(orphaned.findings.join("\n"), /plugin-events-reveal/);
 });
 
 // What the report finds on the real tree is a dead path or a broken rule, and a finding nobody wrote down is how the next
@@ -418,7 +418,7 @@ test("a finding that the known gaps do not name is caught, by its event and by i
   const section = knownGaps(readFileSync(path.join(root, GAPS_DOCUMENT), "utf8"));
   // A new dead path: an announcement sent from a file that is not its owner's, and a listener on the wrong target.
   const added = domEventReport(changed({ [NEW_FILE]: script([
-    'document.dispatchEvent(new CustomEvent("molis-work:plugin-events-waiting", { detail: { pending: 1 } }));',
+    'document.dispatchEvent(new CustomEvent("molis-work:plugin-events-reveal"));',
     'window.addEventListener("molis-work:plugins-changed", () => {});',
   ].join("\n")) })).findings;
   const missing = unrecorded(added, section);

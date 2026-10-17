@@ -12,7 +12,7 @@ export const lingguangManifest: PluginManifest = {
   host_api_version: 2,
   plugin_id: LINGGUANG_PLUGIN_ID,
   sync: lingguangSync,
-  version: "1.1.0",
+  version: "0.3.0",
   name: "灵光",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-lingguang-binding" },

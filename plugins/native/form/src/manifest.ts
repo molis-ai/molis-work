@@ -20,7 +20,7 @@ export const formManifest: PluginManifest = {
   host_api_version: 2,
   plugin_id: FORM_PLUGIN_ID,
   sync: formSync,
-  version: "1.2.0",
+  version: "0.3.0",
   name: "Forms",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-form-binding" },

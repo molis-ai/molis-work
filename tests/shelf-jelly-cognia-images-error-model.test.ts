@@ -49,7 +49,7 @@ interface OwnerSpec {
 
 const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
   shelf: { holder: shelfModule, status: {
-    busy: 400, cancelled: 400, configuration_changed: 400, conflict: 409, empty_file: 400, empty_selection: 400, extraction_unavailable: 400, hash_changed: 400,
+    busy: 400, cancelled: 400, configuration_changed: 409, conflict: 409, empty_file: 400, empty_selection: 400, extraction_unavailable: 400, hash_changed: 400,
     image_unsupported: 400, invalid: 400, invalid_file: 400, invalid_result: 400, item_not_found: 404, job_failed: 400, job_timeout: 400, missing_output: 400,
     no_model: 409, no_ocr: 400, no_text: 400, not_found: 404, not_result: 400, not_text: 400, origin_changed: 400, path_invalid: 400, recipe_unavailable: 409,
     source_conflict: 400, too_large: 400, unavailable: 400,
@@ -74,6 +74,8 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
  */
 const CHANGED: Readonly<Record<string, readonly [number, number]>> = {
   "jelly.cancelled": [400, 499], "jelly.not_found": [400, 404], "shelf.not_found": [400, 404], "jelly.source_changed": [400, 409], "images.key_required": [400, 409],
+  // The model or quick action changed while it generated: the data moved on (specs/ai-interaction-experience D26).
+  "shelf.configuration_changed": [400, 409],
 };
 
 const declarationsOf = (owner: Owner): Readonly<Record<string, Raiser>> | undefined => SPECS[owner].holder[`${owner}Errors`] as Readonly<Record<string, Raiser>> | undefined;

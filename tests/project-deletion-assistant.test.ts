@@ -22,7 +22,7 @@ async function assistantHome(t: { after(fn: () => Promise<void> | void): void })
   store.update(ACTOR, archived.work_id, null, { archived: true });
   const personal = store.create({ actor_id: ACTOR, title: "个人工作", scope: { kind: "personal" }, origin: null });
   for (const work of [gone, archived, kept, personal]) {
-    store.saveFollowUp(ACTOR, { followup_id: `fu-${work.work_id}`, work_id: work.work_id, label: "每周回看", text: "回看进度", repeat: "weekly", next_at: new Date(Date.now() + 86_400_000).toISOString(),
+    store.followUps.save(ACTOR, { followup_id: `fu-${work.work_id}`, work_id: work.work_id, label: "每周回看", text: "回看进度", repeat: "weekly", next_at: new Date(Date.now() + 86_400_000).toISOString(),
       time_zone: "Asia/Shanghai", enabled: true, created_at: new Date().toISOString() });
     store.saveJob(ACTOR, { key: `job-${work.work_id}`, job_id: "j1", work_id: work.work_id, title: "后台任务", state: "running", started_at: new Date().toISOString(),
       status: { capability_id: "x.status", version: 1, provider_id: "x" }, input: "id", path: "state", done: ["done"], failed: ["failed"], checks: 0 });
@@ -44,7 +44,7 @@ test("deleting a project removes the Assistant's works that belong to it, archiv
   assert.deepEqual(store.list(ACTOR).map(work => work.title).sort(), ["个人工作", "留下的工作"]);
   assert.deepEqual(store.list(ACTOR, { archived: true }), []);
   for (const table of ["assistant_rounds", "assistant_followups", "assistant_jobs", "assistant_notices"]) assert.equal(rows(db, table), 2, `${table} keeps only the other two works'`);
-  assert.deepEqual(store.followUps(ACTOR).map(item => item.work_id).sort(), [kept.work_id, personal.work_id].sort());
+  assert.deepEqual(store.followUps.list(ACTOR).map(item => item.work_id).sort(), [kept.work_id, personal.work_id].sort());
   assert.deepEqual(store.relations.forWork({ work_id: gone.work_id, project_id: "project-gone" }), [], "the relations it recorded are removed");
   assert.deepEqual(store.relations.forWork({ work_id: archived.work_id, project_id: "project-gone" }), []);
   assert.equal(store.relations.forWork({ work_id: kept.work_id, project_id: "project-kept" }).length, 1, "another project's relations stay");
@@ -90,14 +90,14 @@ test("a running Assistant cancels the timed rounds the runtime queued for a dele
   const sent = await service.send({ text: "帮我跟进今天的工作", request_id: "req-purge-1" }, { project_ref: { project_id: "project-gone", storage_key: "memory:project" } });
   for (let i = 0; i < 300 && (await service.read(sent.work.work_id)).work.state !== "completed"; i++) await new Promise(resolve => setTimeout(resolve, 20));
   const due = new Date(Date.now() + 3_600_000);
-  const followUp = await service.saveFollowUp({ work_id: sent.work.work_id, text: "汇总今天的进展", at: due.toISOString(), repeat: "daily", label: "每天汇总" });
+  const followUp = await service.followUps.save({ work_id: sent.work.work_id, text: "汇总今天的进展", at: due.toISOString(), repeat: "daily", label: "每天汇总" });
   const key = `fu-${followUp.followup_id}-${due.getTime()}`;
   assert.equal(adapter.schedule!.find(key)?.state, "queued");
 
-  const purged = await purgeAssistantProject(home, "project-gone", { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.removeFollowUp(id); } });
+  const purged = await purgeAssistantProject(home, "project-gone", { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } });
 
   assert.equal(purged, 1);
-  assert.deepEqual(service.followUps(), []);
+  assert.deepEqual(service.followUps.list(), []);
   assert.notEqual(adapter.schedule!.find(key)?.state, "queued", "the runtime no longer holds the timed round");
   assert.equal((await service.list()).length, 0);
 });

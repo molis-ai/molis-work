@@ -6,8 +6,8 @@
  *
  * A line still over its edge once every quiet part has narrowed is crowded, and the island (data-crowded) takes parts off in
  * steps, none squeezed under 44px: the choosers go (the side pane has who does it, the Character and the mode), then the work
- * chip's mark (the panel's tab bar starts a new work too), then the materials and the notice, which the "+" lists in a row of
- * their own and which a dot on it points to.
+ * chip's mark (the panel's tab bar starts a new work too), then the notice, which the "+" lists in a row of its own and
+ * which a dot on it points to. What the next Send carries is the strip above the line, 44px chips with 44px buttons.
  *
  * What the bar opens is a 44px target too: a button, a summary or a link in the Assistant's lists and offer, the plugin
  * switcher (its pin and add buttons, and the room its rows leave them), the Dock's "+N" list and the project menu. Wider than
@@ -44,18 +44,20 @@ export const TOUCH_TARGET_STYLES = `
     ${SHELL} .bar-composer .bar-composer-attach { position: relative; justify-content: center; min-width: 44px; height: 44px; padding: 0; }
     ${SHELL} .plugin-picker-trigger { justify-content: center; min-width: 44px; }
     html ${SHELL} .workbench-bar .bar-end .navigator-project-selector { grid-template-columns: 44px; width: 44px; height: 44px; min-height: 44px; }
-    ${SHELL} .bar-composer :is(.assistant-target, .assistant-target-main, .assistant-target-clear, .assistant-executor, .assistant-materials-button, .assistant-attention) { height: 44px; }
-    ${SHELL} .bar-composer :is(.assistant-executor, .assistant-materials-button, .assistant-attention, .assistant-target-clear) { min-width: 44px; }
+    ${SHELL} .bar-composer :is(.assistant-target, .assistant-target-main, .assistant-target-clear, .assistant-executor, .assistant-attention) { height: 44px; }
+    ${SHELL} .bar-composer :is(.assistant-executor, .assistant-attention, .assistant-target-clear) { min-width: 44px; }
     ${SHELL} .bar-composer[data-fit="narrow"] .assistant-executor:not([data-chosen]) { min-width: 44px; }
     ${SHELL} .bar-composer .assistant-target[data-mode="work"] { min-width: 88px; }
     ${SHELL} .bar-composer[data-crowded] :is([data-assistant-character], [data-assistant-executor], [data-assistant-mode]) { display: none; }
     ${SHELL} .bar-composer:is([data-crowded="mark"], [data-crowded="chips"]) .assistant-target-clear { display: none; }
     ${SHELL} .bar-composer:is([data-crowded="mark"], [data-crowded="chips"]) .assistant-target[data-mode="work"] { min-width: 44px; }
-    ${SHELL} .bar-composer[data-crowded="chips"] :is(.assistant-materials-button, .assistant-attention) { display: none; }
-    ${SHELL} .bar-composer[data-crowded="chips"]:has(.assistant-materials-button:not([hidden]), .assistant-attention:not([hidden])) .bar-composer-attach::after {
+    ${SHELL} .bar-composer[data-crowded="chips"] .assistant-attention { display: none; }
+    ${SHELL} .bar-composer[data-crowded="chips"]:has(.assistant-attention:not([hidden])) .bar-composer-attach::after {
       content: ""; position: absolute; top: 9px; right: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); pointer-events: none;
     }
-    ${SHELL} :is(.assistant-popover, .assistant-next-row, .plugin-picker-popover, .dock-overflow, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
+    ${ASSIST} .assistant-strip-chip { height: 44px; }
+    ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])) { --context-row: 50px; }
+    ${SHELL} :is(.assistant-popover, .assistant-next-row, .assistant-context-strip, .plugin-picker-popover, .dock-overflow, .navigator-project-menu-popover, .assistant-panel) :is(button:not(.assistant-inline-object), summary, a[href]:not(.assistant-link), input:not([type=checkbox], [type=radio]), select, textarea) { min-width: 44px; min-height: 44px; }
     .plugin-picker-popover { --ops-btn: 44px; }
     ${ASSIST} .assistant-tabbar { height: 50px; gap: 0; }
     ${ASSIST} :is(.assistant-tab, .assistant-tab-new) { height: 44px; margin-bottom: 0; }

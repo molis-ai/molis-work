@@ -109,7 +109,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 - 输入口默认必选。项目启用时会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。不会永远有生产者就不要声明必选入口。
 - 缺绑定仍然可以 `start`。状态是 `missing`，Host 不会调用 `onUpstreamReady`。整份构建里没有产出者时，解析只记 `port_type_unsatisfiable`，插件不因此进 `blocked`。挡住启动的是必需 Capability、依赖成环，或依赖的插件被挡住。
 - 产品里没有通用连线页：输入口由默认连线（下一条）接上，或由人在成果库详情把某一版接给插件输入（`artifacts.plugin_inputs.bind`，只对人开放）。`PluginWiringApi.bind` / `selectInputGroup` 在 Runtime 里。Local Host 没有挂 `/api/plugins/:id/ports`。
-- 默认连线只有一张名单：`apps/local-host/src/workspace-plugin-bindings.ts`，只覆盖 Coding、Shelf、Files、Git、Diff、Text stats 之间的端口。新插件的输入口不会自动接上，也不要往名单里加自己的行；需要跨插件取内容时优先走公开动作或 Capability。等有第三方端口插件时再由 Manifest 声明首选来源（specs/archive/repository-systematic-review D-04）。
+- 默认连线由消费方自己的 Manifest 声明：输入口写 `default_source: { plugin_id, port }`（另一个插件的输出口，类型必须相同），有输入组的写一个 `default: true` 的组（至多一个）。宿主在两个插件都在项目里运行、这个口什么也没读时接上（`apps/local-host/src/plugin-default-bindings.ts`），人选过的来源或固定成果版本不被覆盖；来源插件不在、没有那个口或类型不同就不接。没有名单可加（W4-03，原 D-04）。**现在只在随 Host 发布的插件之间生效**：已安装的插件写了 `default_source` 或默认组也不会自动接上，它的输入口由人接；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。
 - 输出口：`services.outputs.publish`、`invalidate(port, 给人看的原因)`、`retain(引用)`。同一轮输入是否算一组，由 Host 创建 client 时附上 `scope_key`。`publish` 参数里没有这个字段。
 - `input_groups`：组之间换着用；选中的那一组端口生效，其余不绑也不算失败。
 - 完整输入一次送达 `onUpstreamReady`；失效走 `onUpstreamUnavailable`。Host 不投递半套。
@@ -158,6 +158,8 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 仅 Agent 驱动才需要。至少有一个角色。`execution`：`read-only` | `text-edit` | `workspace-write`，省略等于只读，启动后不能自己放宽。
 
 每个角色写 `role_id`、`version`、`name`，用 `prompts` 点名自己的提示词，用 `host_tools` 点名能叫的 Host 工具。不写 `prompts` 时，运行组合会把本插件声明的全部提示词交给这个角色；解析器同时要求有一条与 `role_id` 同名的 Prompt，否则 Manifest 无效。只读角色点名自己的那几条。
+
+一个插件有几种用途（规划、执行、讨论……）时，每种用途是一个角色。角色可以写 `skills: { allowed: [...], default: [...] }`：`allowed` 是这个用途能挑的方法（只能点名 agent 块 `skills` 里声明过的），`default` 是开新一轮时已经选上的（必须在 `allowed` 里，用户可以去掉）。每个可选方法要的 `tools` 都必须在角色的 `host_tools` 里，否则 Manifest 无效：给不了工具的方法不该出现在这个用途里。不需要按用途分方法就不写。
 
 提示词层级是 `base` | `role` | `project`，省略等于 `role`。`task` 是用户这一次写的，插件声明会被拒绝。正文在包装里的 `agent_prompts` / `agent_skills`，不进 Manifest。Host 还要把正文挂进 catalog，见 [host.md](host.md)。
 

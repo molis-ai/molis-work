@@ -2,10 +2,12 @@ import { pptTestPorts } from "./fixtures/ppt-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   PERSONAL_PLUGIN_IDS,
@@ -59,6 +61,14 @@ function saveFunctionSource(script: string): string {
   assert.ok(start >= 0 && end > start, "找不到 save()");
   return script.slice(start, end);
 }
+
+// Forms' page is TypeScript bundled into its client pack (W4-04): what its code does is read in the sources, what it ships in the bundle.
+const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
+const between = (text: string, from: string, to: string) => {
+  const start = text.indexOf(from), end = text.indexOf(to, start);
+  assert.ok(start >= 0 && end > start, `找不到 ${from}`);
+  return text.slice(start, end);
+};
 
 function fillEditorSource(script: string): string {
   const start = script.indexOf("const fillEditor");
@@ -191,14 +201,15 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
   assert.ok(script.includes("const PERSONAL_PLUGIN_IDS = " + JSON.stringify([...PERSONAL_PLUGIN_IDS])));
-  assert.doesNotMatch(saveFunctionSource(FORM_CLIENT_FACTORY_SCRIPT), /fillEditor/);
+  assert.doesNotMatch(formSource("save.ts"), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(DATASET_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(PPT_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   // Form serialization and stale-response preservation are exercised in the actual browser.
   // Dataset save ordering and conflict preservation are exercised in the real browser tests.
   // PPT save ordering and conflict retention are verified through the real browser.
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /seq !== resultsSeq \|\| sel\?\.id !== id/); // the open questionnaire is `sel` (fa63ade24)
-  assert.match(fillEditorSource(FORM_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
+  assert.match(formSource("results.ts"), /seq !== page\.resultsSeq \|\| page\.sel\?\.id !== id/); // the open questionnaire is `sel` (fa63ade24)
+  assert.match(between(formSource("list.ts"), "export const fillEditor", "export const closeEditor"), /resetEditing\(page\)/);
+  assert.match(between(formSource("list.ts"), "const resetEditing", "export const fillEditor"), /clearTimeout\(page\.saveTimer\)/);
   assert.match(fillEditorSource(DATASET_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
   assert.match(fillEditorSource(PPT_CLIENT_FACTORY_SCRIPT), /clearTimeout\(saveTimer\)/);
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /closest\("\[data-column-type\]"\)/);
@@ -215,10 +226,10 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /feed-stage-entry directory-list-row/);
   // Rows no longer repeat the plugin's name as a chip; their only label is the record's state (plugin-e2e-review §4 X2).
-  for (const script of [FORM_CLIENT_FACTORY_SCRIPT, DATASET_CLIENT_FACTORY_SCRIPT, PPT_CLIENT_FACTORY_SCRIPT]) {
+  for (const [script, cell] of [[formSource("list.ts"), /fixedCell\(L, record\)/], [DATASET_CLIENT_FACTORY_SCRIPT, /fixedCell\(record\)/], [PPT_CLIENT_FACTORY_SCRIPT, /fixedCell\(record\)/]] as const) {
     assert.doesNotMatch(script, /kindChip\(/);
     assert.doesNotMatch(script, /plugin-stage-kind/);
-    assert.match(script, /fixedCell\(record\)/);
+    assert.match(script, cell);
     assert.match(script, /L\("固定版本"\) \+ " v" \+ record\.artifact_version/);
     // The row-level "存为固定版本" control is gone: it looked like share and was the least-used action; the editor keeps it.
     assert.doesNotMatch(script, /creative-artifact-act/);
@@ -227,12 +238,12 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /is-arriving/);
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /is-arriving/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /is-arriving/);
-  assert.match(FORM_CLIENT_FACTORY_SCRIPT, /mw-status mw-status--plain mw-status--" \+ \(published/);
+  assert.match(formSource("list.ts"), /mw-status mw-status--plain mw-status--" \+ \(published/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /ppt-slide-index/);
   // The PPT row carries no placeholder status span any more; its state cell is fixedCell (asserted above).
   assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /mw-status--quiet feed-entry-status/);
   assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /L\("草稿"\)/);
-  assert.doesNotMatch(FORM_CLIENT_FACTORY_SCRIPT, /className = "form-row/);
+  assert.doesNotMatch(formSource("list.ts"), /className = "form-row/);
   assert.doesNotMatch(DATASET_CLIENT_FACTORY_SCRIPT, /className = "dataset-row/);
   assert.doesNotMatch(PPT_CLIENT_FACTORY_SCRIPT, /className = "ppt-row/);
 });

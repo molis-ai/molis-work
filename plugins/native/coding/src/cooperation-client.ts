@@ -21,7 +21,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const MAIL_TONE={queued:'attention',delivered:'progress',accepted:'progress',completed:'done',rejected:'blocked',cancelled:'idle',expired:'idle'};
   const TASK_STATE={running:'运行中',succeeded:'已成功结束',failed:'失败',stopped:'已停止',interrupted:'被服务重启打断'};
   const TASK_TONE={running:'progress',succeeded:'done',failed:'blocked',stopped:'idle',interrupted:'attention'};
-  let owner='',data=null,mail=[],commands=[],backgroundUnknown=false,readAt=0,reading=false,drafts=new Map(),drawnKey='';
+  let owner='',mail=[],commands=[],backgroundUnknown=false,readAt=0,reading=false,drawnKey='';
   const drawBackground=()=>{
     backgroundSection.hidden=!commands.length&&!backgroundUnknown;backgroundSection.replaceChildren();if(backgroundSection.hidden)return;
     backgroundSection.append(el('h3','','后台命令'));if(backgroundUnknown)backgroundSection.append(el('p','','状态暂不可读'));const list=el('ol','coding-coop-mail coding-background-list');
@@ -123,7 +123,7 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   };
   const refresh=async(force=false)=>{
     const id=current();if(!id||reading)return;if(!force && owner===id && Date.now()-readAt<3000)return;
-    reading=true;try{const [value,messages,background]=await Promise.all([api('/sessions/'+encodeURIComponent(id)+'/delegations'),api('/sessions/'+encodeURIComponent(id)+'/messages').catch(()=>({messages:[]})),api('/sessions/'+encodeURIComponent(id)+'/background').catch(()=>({commands:null}))]);if(id!==current())return;backgroundUnknown=background.commands===null;commands=backgroundUnknown?(owner===id?commands:[]):background.commands;owner=id;readAt=Date.now();data=value;mail=messages.messages;
+    reading=true;try{const [value,messages,background]=await Promise.all([api('/sessions/'+encodeURIComponent(id)+'/delegations'),api('/sessions/'+encodeURIComponent(id)+'/messages').catch(()=>({messages:[]})),api('/sessions/'+encodeURIComponent(id)+'/background').catch(()=>({commands:null}))]);if(id!==current())return;backgroundUnknown=background.commands===null;commands=backgroundUnknown?(owner===id?commands:[]):background.commands;owner=id;readAt=Date.now();mail=messages.messages;
       const key=JSON.stringify([id,value,mail,commands,backgroundUnknown,rounds().map(round=>[round.run_id,round.phase,round.number])]);
       if(force || key!==drawnKey){drawnKey=key;drawBanner(value.incoming);drawSection(value);drawBackground();}}
     catch(error){if(!lifetime.alive)return;if(id===current()){banner.hidden=true;}}finally{reading=false;}
@@ -148,5 +148,5 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     catch(error){if(!lifetime.alive)return;message.textContent=error.message;}finally{send.disabled=false;}
   });
   lifetime.listen(dialog.querySelector('[data-coding-delegate-cancel]'),'click',()=>dialog.close());
-  return {refresh,openDialog,reset(){owner='';data=null;mail=[];commands=[];backgroundUnknown=false;backgroundSection.hidden=true;backgroundSection.replaceChildren();banner.hidden=true;banner.replaceChildren();section.hidden=true;section.replaceChildren();}};
+  return {refresh,openDialog,reset(){owner='';mail=[];commands=[];backgroundUnknown=false;backgroundSection.hidden=true;backgroundSection.replaceChildren();banner.hidden=true;banner.replaceChildren();section.hidden=true;section.replaceChildren();}};
 }`;

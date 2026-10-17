@@ -28,7 +28,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     cache.set(key, { at: Date.now(), value });
     return value;
   };
-  let relatedAt = 0;
+  let relatedAt = 0, relatedShown;
   const invalidate = () => { cache.clear(); relatedAt = 0; document.querySelectorAll("[data-placement-slot]").forEach((slot) => { delete slot.dataset.placementPainted; }); };
 
   /* ---- The personal space is not a project: its home says so ---- */
@@ -600,8 +600,10 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       paintMaterials();
       // The stage changed under the cards (a toolbar shown once its record exists): keep their buttons off its controls.
       if (region.children.length) clearControls();
-      const home = document.querySelector('[data-work-surface="home"]');
-      if (home && !home.hidden && Date.now() - relatedAt > 10000) void paintRelated();
+      // Read as the home comes into view or after invalidate, not on every repaint (W4-10).
+      const home = document.querySelector('[data-work-surface="home"]'), shown = home && !home.hidden;
+      if (shown && (!relatedShown || !relatedAt)) void paintRelated();
+      relatedShown = shown;
     });
   };
   // One repaint per frame, whatever woke it: a plugin naming its object, a stage showing its detail (hidden, data-expanded), new slots.

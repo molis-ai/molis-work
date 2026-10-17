@@ -66,6 +66,7 @@ tests/agent-host.test.ts
 tests/agent-pending-questions.test.ts
 tests/agent-plugin-identity.test.ts
 tests/agent-prompt-layers.test.ts
+tests/agent-question-types.test.ts
 tests/agent-review-http.test.ts
 tests/agent-review-surface.test.ts
 tests/agent-run-wait.test.ts
@@ -88,6 +89,7 @@ tests/assistant-contributions.test.ts
 tests/assistant-delegation.test.ts
 tests/assistant-diagnostics.test.ts
 tests/assistant-followups.test.ts
+tests/assistant-followups-collaborator.test.ts
 tests/assistant-image-restart-http.test.ts
 tests/assistant-island-script.test.ts
 tests/assistant-material.test.ts
@@ -123,6 +125,7 @@ tests/coding-delegation-waits.test.ts
 tests/coding-delegation.test.ts
 tests/coding-events.test.ts
 tests/coding-experience.test.ts
+tests/coding-history-requirements.test.ts
 tests/coding-long-session.test.ts
 tests/coding-mcp-settings-client.test.ts
 tests/coding-mcp.test.ts
@@ -134,6 +137,7 @@ tests/coding-plugin-activation.test.ts
 tests/coding-project-work.test.ts
 tests/coding-projection.test.ts
 tests/coding-question-card.test.ts
+tests/coding-next-steps.test.ts
 tests/coding-reading.test.ts
 tests/coding-recovery.test.ts
 tests/coding-report-usage.test.ts
@@ -281,7 +285,9 @@ tests/prologue-compaction.test.ts
 tests/prologue-git.test.ts
 tests/prologue-inference-images.test.ts
 tests/prologue-inference-native.test.ts
+tests/prologue-input-claims.test.ts
 tests/prologue-materials.test.ts
+tests/prologue-model-controls.test.ts
 tests/prologue-model-retry.test.ts
 tests/prologue-node-start-order.test.ts
 tests/prologue-project-board.test.ts

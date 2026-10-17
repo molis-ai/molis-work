@@ -65,6 +65,7 @@ import { assertFixtureScopes } from "./plugin-scope-entries.js";
 import { withPreparedActions } from "./plugin-actions-client.js";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+import { hostLog, logSearchIndexFailure } from "./host-log.js";
 
 export interface MolisWorkProjectRuntime {
   store: LocalProjectDatabase;
@@ -232,7 +233,7 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.
       this.connectorMcp = createConnectorMcpDirectory({ localHost: this, homeDirectory: options.homeDirectory });
-      try { this.connectorMcp.sync(); } catch { /* The connections page lists them again. */ }
+      try { this.connectorMcp.sync(); } catch (error) { hostLog.warn("connections", "mcp_sync_failed", error); } // The connections page lists them again.
     }
     this.host.actionRegistry().registerProvider(actionUsagesProvider(caller => {
       const project = caller.project_id ? this.host.status().projects.find(row => row.project_id === caller.project_id) : undefined;
@@ -261,7 +262,7 @@ export class MolisWorkLocalHost {
           await this.withProject(value, () => undefined);
           return value;
         },
-        onError: (error, where) => { if (process.env.MOLIS_WORK_SEARCH_DEBUG) console.warn(`[search] ${where}:`, error); } });
+        onError: logSearchIndexFailure });
       const reference = (project: PlacementProjectRecord) => molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       this.placement = createPlacementHost({ homeDirectory: home, registry: this.host.actionRegistry(),
         projects: async () => this.catalogRunner ? this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects()) : null,
@@ -407,8 +408,8 @@ export class MolisWorkLocalHost {
     return this.closing ??= (async () => {
       releaseHomeSide(this);
       this.connectorMcp?.close();
-      await this.search?.close().catch(() => undefined);
-      try { this.placement?.close(); } catch { /* closing anyway */ }
+      await this.search?.close().catch(error => { hostLog.warn("projects", "close_step_failed", error, { step: "search" }); });
+      try { this.placement?.close(); } catch (error) { hostLog.warn("projects", "close_step_failed", error, { step: "placement" }); } // One that fails to close does not keep the rest open.
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();

@@ -151,7 +151,8 @@ export const STYLES = `
   .workspace.is-desktop-tui { grid-template-columns: var(--tree-width, clamp(280px, 22vw, 360px)) 5px minmax(0, 1fr) 5px var(--tui-width, 480px); }
   .tui-resizer { position: relative; z-index: 3; cursor: col-resize; background: var(--rail); touch-action: none; }
   .tui-resizer::after { content: ""; position: absolute; inset: 0 2px 0 auto; width: 1px; background: var(--line-strong); }
-  .tui-resizer:hover::after, .tui-resizer:focus-visible::after, .tui-resizer.is-dragging::after { width: 2px; background: var(--blue); }
+  .tui-resizer:hover::after, .tui-resizer:focus-visible::after { width: 2px; background: var(--line-strong); }
+  .tui-resizer.is-dragging::after { width: 2px; background: var(--blue); }
   .tui-pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: 56px 40px minmax(0, 1fr); background: color-mix(in srgb, var(--rail) 70%, var(--paper)); container-type: inline-size; }
   .tui-tabs { min-width: 0; padding: 0 8px 0 12px; display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--rail) 70%, var(--paper)); }
   .tui-tab-list { min-width: 0; flex: 1; height: 100%; display: flex; align-items: center; gap: 4px; overflow: auto; scrollbar-width: none; }
@@ -243,7 +244,7 @@ export const STYLES = `
   .goal-more { position: relative; }
   .goal-more > summary { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 5px; background: var(--paper); display: grid; place-items: center; color: var(--muted); cursor: pointer; list-style: none; }
   .goal-more > summary::-webkit-details-marker { display: none; }
-  .goal-more > summary:hover { color: var(--ink); border-color: var(--line-strong); background: var(--nav-hover); }
+  .goal-more > summary:hover { color: var(--ink); border-color: transparent; background: var(--nav-hover); }
   .goal-more[open] > summary { color: var(--ink); border-color: var(--line-strong); background: var(--nav-active); }
   .goal-more > div { position: absolute; z-index: 8; top: calc(100% + 6px); right: 0; min-width: 168px; padding: 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); box-shadow: var(--lift-1); display: grid; }
   .goal-more .mw-btn { width: 100%; justify-content: flex-start; border: 0; height: 32px; }

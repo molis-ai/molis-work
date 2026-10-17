@@ -42,7 +42,7 @@ export async function postToResidentHost(options: {
 }): Promise<ResidentHostAnswer | null> {
   let token: string;
   try { token = options.controlToken ?? (await readFile(path.join(options.homeDirectory, WEB_CONTROL_TOKEN_RELATIVE_PATH), "utf8")).trim(); }
-  catch { return null; }
+  catch { return null; /* No control token written: no resident Host to forward to, which the caller answers. */ }
   const payload = JSON.stringify(options.body);
   let response: Response;
   try {

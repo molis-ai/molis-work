@@ -161,7 +161,8 @@ async function childSetup(deps: RunDeps, input: PrologueStartInput) {
     ? "每个子任务必须选择一个不同的 workspace 标识：" + JSON.stringify(childRoots.map(root => ({ id: root.id, path: root.path }))) + "。主任务只读，不能直接修改主工作区。子任务只在自己的目录里执行，修改仍经过宿主审查。"
       + "核对子任务成果时，可以给 read、list、search 加 workspace 参数（上面的标识）只读查看对应目录；不加就是主工作区。你的查看不代替子任务自己的先读后改，也不能在这些目录里写入或运行命令。"
     : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录，都不能修改文件；开放了运行命令的子角色可以运行检查命令，每条都经用户审查。";
-  const childInstructions = childRoles.size ? childScope + "可分派的固定子角色：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\n必须选择上述精确 character，并显式提供该角色列出的完整 tools 清单；不能遗漏角色需要的工具或增加其他工具。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务只能使用所选角色的工具，不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
+  // Facts only: the Runtime gives a named role the tools it declares, as far as this run holds them, whatever `tools` says.
+  const childInstructions = childRoles.size ? childScope + "可分派的固定子角色（character 用这里的引用，别的会被拒绝）：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\n子任务带着所选角色列出的工具，本轮没有的除外；dispatch-subagent 的 tools 不会让它多一个或少一个，可以写 []。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
   return { childRoots, childRoles, childInstructions };
 }
 

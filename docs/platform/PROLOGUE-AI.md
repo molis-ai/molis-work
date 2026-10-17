@@ -418,7 +418,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **按相关、时效、权限和实际预算选，不按「前几个」。** 省略了要说出来，模型才能如实告诉用户：灵光把过长的一条截到开头并写「（以下省略）」，整场材料超过 18 万字符就拒绝并请用户减少所选（`plugins/native/lingguang/src/actions.ts` 的 `conversationPrompt`）；助理写明「没有带上的记忆」有几条、为什么。
 
-**摘要、裁剪、记忆与交接要保住影响正确性的东西。** 上下文整理（`horizontal/agent-host/src/adapters/prologue-compaction.ts`）只让模型选原文坐标，宿主逐字拷贝，所以要求、数值和路径不会在改写里走样；整理时把当前的用户要求（`instructions`）一起交给它，压缩之后新要求仍然生效。交给子任务时，`delegate-work` 的 `brief` 字段写明「It does not see this conversation」，只附它需要的材料。一轮进行中用户补一句话，走输入回执 `agent.inputs.send.v1`（`packages/contracts/src/services/agent-inputs.ts`）：在下一个边界读进上下文、打断当前回复或留到下一轮，回执说明这句话去了哪里。这些都复用 Prologue 与已有的回执能力，不在每个插件里再做一套，也不靠每轮追加同一组禁令弥补资料丢失。
+**摘要、裁剪、记忆与交接要保住影响正确性的东西。** 上下文整理（`horizontal/agent-host/src/adapters/prologue-compaction.ts`）只让模型选原文坐标，宿主逐字拷贝，所以要求、数值和路径不会在改写里走样；整理时把当前的用户要求（`instructions`）一起交给它，压缩之后新要求仍然生效。交给子任务时，`delegate-work` 的 `brief` 字段写明「It does not see this conversation」，只附它需要的材料。一轮进行中用户补一句话，走输入回执 `agent.inputs.send.v2`（`packages/contracts/src/services/agent-inputs.ts`）：在下一个边界读进上下文、打断当前回复或留到下一轮，回执说明这句话去了哪里。这些都复用 Prologue 与已有的回执能力，不在每个插件里再做一套，也不靠每轮追加同一组禁令弥补资料丢失。
 
 **资料不足时补什么：**
 
@@ -478,7 +478,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
 | 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
-| 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v1` | 三种时机；同键同文只算一次；回执说去向 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
+| 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v2` 与 `agent.inputs.withdraw.v1` | 三种时机；同键同文只算一次；回执说去向；纠正用 `about` 指向原来那条；还没交给模型的可以撤回 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
 | 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理） | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来 | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条） |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |

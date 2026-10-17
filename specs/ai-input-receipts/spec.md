@@ -750,6 +750,26 @@ interface AgentInputView {
   - RCPT-304：同一份事件账，视图与 SDK 投影逐条一致（修订、撤回在另一条读到之后、为输入问的问题、带进来的输入、读到前结束）；宿主收口的那一种单独一条。
 - 阶段 1 的两个测试文件里，喂给它的账有「读到」而前面没有「放进上下文」，SDK 从不这样写（它只读已放进上下文的，`control.js` 的 `appliedUnread`）：补上 `steer-applied`，断言不变。
 
+**3b-1 实现记录（2026-10-17，D34、D35）：**
+
+- **撤回**是 `agent.inputs.withdraw.v1`，受众只有插件，参数是 `runtime_id`、`session_id`、`run_id`、`input_id`；`run_id` 是调用方看见那条补充的那一轮，或会话最近的一轮。
+  - 还在跑的那一轮里、还没放进上下文的，由那一轮交还（SDK `withdrawSteer`），回 `from: "run"`。
+  - 排在会话里的，由会话交还（`withdrawQueuedInput`），回 `from: "queued"`。
+  - 已撤回的再撤一次，回同样的结果。
+  - 已经放进上下文的拒绝，错误码 `agent.input_applied`，提示改发纠正。会话里已经没有的拒绝，错误码 `agent.input_not_queued`：被带进了一轮，或会话里没有这一条。
+  - 一轮已经结束、但进过上下文没等到回复的那条，会回到会话的排队里（SDK `settleRunInputs`），所以还撤得回。
+- **纠正**用 `agent.inputs.send.v2`，比 v1 多一个可选的 `about`。`about` 原样交给 SDK（一轮里的补充和排在会话里的都一样），回执（`AgentTurnSteer.about`）和排队（`AgentQueuedInput.about`）都从 SDK 自己的记录读出来。宿主不判断 `about` 指的那条在不在：它只是账上的一个指向。
+- **落点。** 合同在 `services/agent-inputs`；处理器在 `session-actions.ts`；撤回的判断在 `prologue-inputs.ts` 的 `withdrawInput`。宿主口子把会话排队合成一个 `queue: { add, withdraw }`，一轮的补充控制合成 `RoundInputs`（含 `withdrawSteer`）；`prologue.ts` 是巨大单元，这样改它少了一行。
+- **验收编号与证据：**
+  - 真 Prologue 运行时（`tests/agent-input-withdraw.test.ts`）：
+    - RCPT-311：模型请求挂起时撤回一条，回执变成「撤回」，后面的请求里都没有它；再撤一次结果相同。
+    - RCPT-312：放进上下文以后撤回被拒，回执照常走到「读到」。
+    - RCPT-313：排在会话里的撤回后，下一轮只带走还排着的那些；会话里没有的 id、被带进一轮的那条都被拒。
+    - RCPT-314：纠正的回执和排队都带 `about`。
+  - 动作层（`tests/agent-input-delivery.test.ts`）：
+    - RCPT-314：一轮的补充和会话的排队里，`about` 都原样到了 SDK。
+    - RCPT-315：两份 schema；被取消、撤权的调用什么都不撤；别的会话的那一轮够不着。
+
 ### 阶段 4：产品对象与 Goals 层
 
 依赖：PR #340 合入；W3-01 调用编号。
@@ -923,6 +943,14 @@ interface AgentInputView {
 | D31 | C：「核对并继续」看不到排着的补充 | 选 C1：会话排队有东西时，对话末尾常驻「排着 N 条补充，下一轮开始时带上」，可展开看原文；`queued_inputs` 只在会话没在跑时读；按钮文案不变。跨轮接上（旧一轮写「已带进第 N 轮」）先不做，记 BL-148 | 一处看得见就够；跨轮说法等 A 修好后看实际会不会让人困惑再定 |
 | D32 | D：「另外请记住：…」进建议卡，卡片和模型复述门槛规则 | 选 D1：写入门的门槛（`horizontal/memory/src/spoken.ts`，整条消息才算原话）不动；`memory.remember` 工具只回「已作为建议、等认可」，不再把门槛原文回给模型；卡片写「你刚才让我记住：X」，主按钮一下记住，没直接记的短理由收进详情 | 门槛是记忆主人六轮评审定的；要改的是我们自己塞给模型和人的那段话 |
 | D33 | 走查 C1（对话末尾的排队条）放在哪一片 | 单独一片，排在 3c 之后，可以和 B 并行；字节先在同一片里抵消，抵不完再把差额和理由报统筹去问用户，不并进 3c 的放行（统筹 10-16 定） | C1 要动合同（`AgentSessionView.queued_inputs`），字节也超出 3c 批的数 |
+
+**2026-10-17 统筹定（阶段 3b 方案）：**
+
+| # | 事项 | 结论 | 理由 |
+| --- | --- | --- | --- |
+| D34 | 纠正、关联记在哪 | 都是一条带 `about`（指向原输入）的补充：SDK 的输入账已经收、也已经投 `about`；「改处理方式、改关联目标」的选项生成纠正的原话，人确认后再发。Molis 不建表，也不存第二份 override 或关联 | 单一事实主人。另建一张人这边的纠正或关联表，就和 §20.2「不另建输入状态表」冲突；真要结构化的关联，走 Prologue 扩展（采用线） |
+| D35 | 3b 怎么切 | 3b-1：`agent.inputs.withdraw.v1`，加上带 `about` 的 `agent.inputs.send.v2`，不做界面；3b-2：托盘与纠正菜单。读的动作挪到 3e，到那时才有调用方。两片各开 PR，各跑全量 | 不管 D36 怎么定，撤回和 `about` 都要有；页面现在经各自的运行视图读回执，没有调用方的动作先不登记 |
+| D36 | 带到下一轮：维持一律带，还是照 D4 缺省先问 | 等用户（统筹 10-17 去问）。在那之前，`agent.inputs.carry-setting` 不动 | 现行产品一律带（Coding 与助理开跑都传 `queued: "carry"`，C1 的排队条也写「下一轮开始时带上」），等于 D4 的 `auto`；改哪边都是改用户定过的 D4 |
 
 **待办（归本线，D7 之后接 S3 时定；2026-10-12 统筹交来）：**
 

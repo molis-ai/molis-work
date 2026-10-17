@@ -45,6 +45,7 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
     let authed = false;
     let page: BrowserPage | null = null;
     let detach: (() => void) | null = null;
+    let binding = Promise.resolve();
     // A slow link must not queue frames without end: a frame waits only while fewer than two are in flight.
     let inFlight = 0;
     const listener: BrowserListener = {
@@ -61,20 +62,28 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
       if (binary) return;
       let message: BrowserClientMessage;
       try { message = JSON.parse(String(raw)) as BrowserClientMessage; } catch { return; }
+      let finishBinding: (() => void) | undefined;
       try {
         if (!authed) {
           if (message.type !== "auth" || !tokenMatches(controlToken, message.token)) { send(ws, { type: "error", message: "本地浏览器通道校验失败" }); ws.close(); return; }
           authed = true; send(ws, { type: "ready" }); return;
         }
+        // Binding reads the catalog asynchronously. Later commands must not overtake it;
+        // navigation itself stays concurrent so stop and dialog responses can still run.
+        const precedingBinding = binding;
+        if (message.type === "watch" || message.type === "attach") binding = new Promise<void>(resolve => { finishBinding = resolve; });
+        await precedingBinding;
+        if (ws.readyState !== ws.OPEN) return;
         if (message.type === "watch") {
           if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
-          if (page) return;
+          if (ws.readyState !== ws.OPEN || page) return;
           page = browsers().page(message.project_id);
           detach = page.watch(listener);
           return;
         }
         if (message.type === "attach") {
           if (typeof message.project_id !== "string" || !await options.projectExists(message.project_id)) { send(ws, { type: "error", message: "项目不存在" }); return; }
+          if (ws.readyState !== ws.OPEN) return;
           detach?.();
           page = browsers().page(message.project_id);
           detach = page.attach(listener, message.viewport);
@@ -102,6 +111,8 @@ export function attachMolisWorkBrowserSocket(server: http.Server, controlToken: 
         }
       } catch (error) {
         send(ws, { type: "error", message: error instanceof Error ? error.message : String(error) });
+      } finally {
+        finishBinding?.();
       }
     });
   });

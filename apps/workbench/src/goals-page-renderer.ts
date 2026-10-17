@@ -4,7 +4,7 @@ import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionV
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
 
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
-import { renderDialog } from "@molis-ai/molis-work-design-system";
+import { renderDialog, UIV_BOOT_SCRIPT, UIV_STYLE } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
@@ -327,7 +327,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
-  <script src="/assets/molis-work-workbench.js"></script>
+  <script src="/assets/molis-work-workbench.js"></script><style>${UIV_STYLE}</style><script>${UIV_BOOT_SCRIPT}</script>
   ${showTui ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
   });
   return prefixLocalLinks(html, view.route_prefix, desktopShell);

@@ -187,6 +187,8 @@ Coding/Git 生产通知接到当前项目的 Files/Git 视图 revision；Host re
 
 `material-extraction.ts` 实现 `contracts/services/materials`：输入已授权字节，返回正文、页/时间定位、覆盖及截断信息；不产生附件身份或业务材料记录。UTF-8 只做本地解码；HTML、PDF 文本在有界 worker 中执行，取消/超时会终止并等待 worker 退出，异常 HTML 不能阻塞主线程时限。原生 PDF/OCR/音视频和许可证归 `native/materials`，构建随 Host 打包。模型下载必须显式允许，临时文件在子进程关闭后清理。
 
+统一输入的本机语音入口复用同一提取器和模型缓存。浏览器取消准备、取消转写或断开连接时，HTTP 传输把取消信号交给原生提取器，终止并等待该次 helper 后删除临时录音；已下载的模型资源保留供重试。回归见 `tests/local-voice-cancellation.test.ts`。首次下载后的模型编译属于准备过程，完成前继续显示准备状态并允许取消。原生 helper 的 stdout 只写 JSON，Core ML 的框架诊断转到 stderr；设置 `MOLIS_VOICE_TIMINGS=1` 可记录模型加载和推理耗时，不记录音频或识别正文。模型缓存路径保持稳定；复制到新路径可能重新触发本机编译，不能把新路径的首次耗时当作日常重复转写耗时。构建脚本原子替换 helper 文件，不沿工作树软链接覆盖其他检出的程序；回归见 `tests/native-voice-build.test.ts`。
+
 Jelly 保留上传 SHA、历史路径和领域引用，只委托解析；onboarding 复用文字/HTML/PDF 文本提取，保留原始附件并拒绝截断或缺失文本层的 PDF。DOCX/ZIP 经同一 Host 文档 worker 读取，Pages 负责编辑器转换；Shelf 网页、PDF 预览、PDF 文字层与 OCR 也复用共同提取口，AI recipe 仍待迁移。Shelf 显式采用 32 MiB 输入，公共默认仍为 25 MiB；图片可按语言返回逐行置信度，产品低置信度提示留在 Shelf。Artifacts HTML 端口异步，12 秒限时，保留原 2 MiB 正文与原文限制，不用网页截断代替文档；提交前沿用 beforeSave 并复核 signal。相关回归：`tests/material-extraction.test.ts`、`tests/shelf-material-extraction.test.ts`、`tests/jelly-native-material.test.ts`、`tests/context-onboarding-documents.test.ts`。
 
 文档批次用 `MaterialDocumentReader` 返回原名、正文格式、内容和覆盖信息。ZIP 路径/目录/CRC/有界解压、DOCX Mammoth 和 UTF-16 BOM 解码归 Host；预览和正式导入经 `pages-import.ts` 共用装配。取消/超时终止 worker，Pages 在异步返回后再检查执行权限，最终业务转换与单事务/请求幂等仍由 Pages 管理。文档输出合计限 20 MiB，超限拒绝整个批次。

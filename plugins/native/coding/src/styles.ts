@@ -185,13 +185,13 @@ export const CODING_STYLES = `
 .coding-session-time { font-variant-numeric:tabular-nums; }
 .coding-stage { height:100%; min-height:0; display:grid; grid-template-columns:minmax(0,1fr); background:var(--paper); }
 [data-coding-results=true] .coding-stage { grid-template-columns:minmax(0,1fr) 320px; }
-.coding-dialogue { position:relative; min-width:0; }
-.mw-layout-primitives .coding-dialogue-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-.coding-identity { display:flex; align-items:flex-start; gap:8px; min-width:0; }
-.coding-identity-copy { flex:1; min-width:0; }
-.coding-identity-copy h2,.coding-identity-copy p { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.coding-identity-copy p { max-width:60ch; }
-.coding-context { flex-wrap:wrap; gap:4px; margin:0; padding:0; }
+.coding-dialogue{position:relative;min-width:0}
+.mw-layout-primitives .coding-dialogue-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+.coding-identity{display:flex;align-items:flex-start;gap:8px;min-width:0}
+.coding-identity-copy{flex:1;min-width:0}
+.coding-identity-copy h2,.coding-identity-copy p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.coding-identity-copy p{max-width:60ch}
+.coding-context{flex-wrap:wrap;gap:4px;margin:0;padding:0}
 [data-coding-goal-dialog] [data-coding-goal-list] {
   display:flex; flex-direction:column; gap:1px; max-height:280px; overflow:auto; margin:0; padding:4px 0;
 }
@@ -569,7 +569,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-workspace-chip { display:inline-flex; align-items:center; gap:4px; max-width:100%; margin-top:4px; color:var(--muted); font-size:12px; }
 .coding-workspace-chip svg { width:12px; height:12px; flex:none; opacity:.75; }
 .coding-workspace-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.coding-head-actions { display:flex; align-items:center; gap:8px; flex:none; }
+.coding-head-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:none;max-width:100%}
 /* The main area's view: the conversation, or the session's TaskBoard with the latest graph's progress on its tab. */
 .coding-view-switch { flex:none; padding:2px; }
 .coding-view-switch .mw-toggle { min-height:24px; padding:0 10px; font-size:12px; }

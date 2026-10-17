@@ -1,5 +1,6 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "原先选择的会话已不可用。请重新选择发送目标，草稿仍保留。": "The previously selected conversation is unavailable. Choose a destination again; your draft is kept.",
   "正在重新整理…": "Reorganizing…",
   "内容已变化，请重新整理。": "The content changed. Please reorganize again.",
   "已重新整理，确认后保存。": "Reorganized. Review and save when ready.",
@@ -176,7 +177,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "连接中断，尚未取得执行结果。请先核对事项状态。": "The connection dropped before a result arrived. Check the item's status first.",
   "暂时无法取得动作结果": "Can't get the action's result right now",
   // apps/workbench/src/scripts/client/home-talk.ts
-  "草稿暂时只能保留在当前页面，请勿刷新。": "The draft can only be kept on this page for now. Don't refresh.",
+  "草稿没能保存。": "Couldn't save the draft.",
   "正在发送": "Sending",
   "正在读取事项和可用会话…": "Loading the item and available sessions…",
   "发送到关联会话": "Send to the linked session",

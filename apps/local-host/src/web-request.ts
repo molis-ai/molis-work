@@ -49,6 +49,7 @@ import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@mol
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
+import { handleLocalVoiceHttp } from "./local-voice-http.js";
 import { dispatchWebRoutes, type WebRequestContext, type WebRoute } from "./web-route-table.js";
 import { assistantPortsFor, CATALOG_INDEX_ROUTES } from "./web-catalog-index-routes.js";
 import { projectCodingServices, projectRequestContext, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
@@ -89,7 +90,7 @@ export async function handleMolisWorkWebRequest(
 ): Promise<void> {
   const context: WebRequestContext = { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, webViewCache, feedSchedulers,
     ptyHost, webUrl, sessionResources, localHost, composition, agentHost, agentReady };
-  if (await homePluginsRoute.handle(context)) return;
+  if (await localVoiceRoute.handle(context) || await homePluginsRoute.handle(context)) return;
   // The personal space always exists for the person; it is made the first time anyone opens it.
   if (/^\/projects\/personal(?:\/|$)/u.test(url.pathname) && !serverOptions.databasePath) {
     await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.ensurePersonalSpace());
@@ -125,6 +126,9 @@ async function resolveOrChooser({ request, response, url, serverOptions, composi
   }
 }
 
+const localVoiceRoute: WebRoute<WebRequestContext> = { id: "local-voice", handle: ({ request, response, url, serverOptions }) =>
+  handleLocalVoiceHttp(request, response, url, serverOptions.homeDirectory) };
+
 /** Home plugin HTTP keeps its Home caller and the same instance, inside a project's prefix too. */
 const homePluginsRoute: WebRoute<WebRequestContext> = { id: "home-plugins", handle: ({ request, response, url, localHost, controlToken, composition }) =>
   handleHomePluginHttp(request, response, url, localHost, controlToken, composition.PAGE_CSP) };
@@ -144,6 +148,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
     }
     return true;
   } },
+  localVoiceRoute,
   homePluginsRoute,
   sideViewRoute,
   sideFilesRoute,

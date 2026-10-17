@@ -43,6 +43,11 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual pl
   assert.equal(read().items[0]!.kind, "event");
   await click('[data-jelly-mode="list"]');
   await waitFor("document.querySelector('[data-jelly-occurrence]')");
+  // UIV-11: a save notice remains readable while the next calendar action is immediately clickable.
+  assert.equal(await evaluate(`(() => {
+    const notice=document.querySelector('[data-jelly-notice]'), r=notice.getBoundingClientRect();
+    return !notice.hidden && r.width>0 && r.height>0 && !notice.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+  })()`), true, "the visible save notice never captures a click meant for the workspace below");
   await click('[data-jelly-occurrence]'); await click('[data-jelly-item-copy]');
   await waitFor("!document.querySelector('[data-jelly-item-dialog]').open && document.querySelectorAll('[data-jelly-occurrence]').length === 2");
   assert.equal(read().items.length, 2); assert.ok(read().items.every(i => i.kind === "event"));

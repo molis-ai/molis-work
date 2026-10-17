@@ -13,8 +13,16 @@ private struct Coverage: Codable { let status: String; let processed_pages: Int;
 private struct Output: Codable { let text: String; let pages: [Page]; let segments: [Segment]; let frames: [Frame]; let coverage: Coverage; let extractor: String; let duration_seconds: Double }
 private struct Failure: Codable { let error: String; let message: String; let approximate_bytes: Int?; let variant: String? }
 private enum MediaError: Error { case failure(String, String) }
-private func emit<T: Encodable>(_ value: T) throws { let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]; FileHandle.standardOutput.write(try encoder.encode(value)); FileHandle.standardOutput.write(Data([10])) }
+private let protocolOutput = FileHandle(fileDescriptor: dup(STDOUT_FILENO), closeOnDealloc: true)
+private func emit<T: Encodable>(_ value: T) throws { let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]; protocolOutput.write(try encoder.encode(value)); protocolOutput.write(Data([10])) }
 private func progress(_ stage: String, _ fraction: Double) { if let data = try? JSONSerialization.data(withJSONObject: ["stage": stage, "progress": max(0, min(1, fraction))], options: [.sortedKeys]) { FileHandle.standardError.write(data); FileHandle.standardError.write(Data([10])) } }
+// Opt-in local timing diagnostics contain durations only, never audio or recognized text.
+private func timing(_ stage: String, since start: TimeInterval, details: [String: Double] = [:]) {
+    guard ProcessInfo.processInfo.environment["MOLIS_VOICE_TIMINGS"] == "1" else { return }
+    var value: [String: Any] = ["timing": stage, "elapsed_ms": (ProcessInfo.processInfo.systemUptime - start) * 1000]
+    for (key, number) in details { value[key] = number * 1000 }
+    if let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]) { FileHandle.standardError.write(data); FileHandle.standardError.write(Data([10])) }
+}
 private func within(_ child: URL, _ root: URL) -> Bool { child.standardizedFileURL.resolvingSymlinksInPath().path.hasPrefix(root.standardizedFileURL.resolvingSymlinksInPath().path + "/") }
 private func isModel(_ folder: URL, root: URL) -> Bool {
     guard within(folder, root), folder.lastPathComponent.contains(variant) else { return false }
@@ -66,8 +74,14 @@ private func normalized(_ raw: [TranscriptionSegment]) throws -> [Segment] {
 }
 private func transcribe(_ audio: URL, folder: URL, models: URL) async throws -> [Segment] {
     progress("transcribing", 0)
+    let loadStarted = ProcessInfo.processInfo.systemUptime
+    progress("model_loading", 0)
     let kit = try await WhisperKit(WhisperKitConfig(modelFolder: folder.path, tokenizerFolder: models, verbose: false, logLevel: .none, prewarm: ProcessInfo.processInfo.physicalMemory < 32 * 1024 * 1024 * 1024, load: true, download: false))
-    let results = try await kit.transcribe(audioPath: audio.path, decodeOptions: DecodingOptions(skipSpecialTokens: true, suppressBlank: true), callback: { _ in if Task.isCancelled { return false }; progress("transcribing", 0.5); return nil })
+    timing("model_load", since: loadStarted, details: ["encoder_ms": kit.currentTimings.encoderLoadTime, "decoder_ms": kit.currentTimings.decoderLoadTime, "tokenizer_ms": kit.currentTimings.tokenizerLoadTime])
+    progress("model_loading", 1)
+    let decodeStarted = ProcessInfo.processInfo.systemUptime
+    let results = try await kit.transcribe(audioPath: audio.path, decodeOptions: DecodingOptions(detectLanguage: true, skipSpecialTokens: true, suppressBlank: true), callback: { _ in if Task.isCancelled { return false }; progress("transcribing", 0.5); return nil })
+    timing("decode", since: decodeStarted, details: ["audio_load_ms": results.reduce(0) { $0 + $1.timings.audioLoading }, "encoding_ms": results.reduce(0) { $0 + $1.timings.encoding }, "predictions_ms": results.reduce(0) { $0 + $1.timings.decodingPredictions }])
     try Task.checkCancellation(); progress("transcribing", 1)
     return try normalized(results.flatMap(\.segments))
 }
@@ -118,6 +132,8 @@ private func extract(file: URL, models: URL, work: URL, allowDownload: Bool) asy
 }
 @main struct JellyWhisperMain {
     static func main() async {
+        // Keep Core ML / ANE framework diagnostics out of the JSON protocol, even when emitted by C stdout.
+        guard protocolOutput.fileDescriptor >= 0, dup2(STDERR_FILENO, STDOUT_FILENO) >= 0 else { exit(1) }
         Logging.shared.logLevel = .none
         do {
             let arguments = Array(CommandLine.arguments.dropFirst())

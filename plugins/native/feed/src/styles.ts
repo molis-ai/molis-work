@@ -286,7 +286,8 @@ body.immersive-workbench .feed-workbench .feed-capture-rule-copy :is(strong,p,sm
 /* A very short pane (a split under a split) keeps every control, with tighter rows and one line per item:
    the preview is left to the reader, so a few items still show between the header and the pane's edge. */
 @container feed-workbench (max-height: 420px) {
-  ${F} .feed-column-head { padding-top: 8px; }
+  ${F} .feed-column-head { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 12px; padding-top: 8px; }
+  ${F} .feed-source-tabs { grid-column: 1 / -1; }
   ${F} .feed-column-title { padding-bottom: 4px; }
   ${F} .feed-scope { min-height: 32px; }
   ${F} > .feed-column > .feed-stage-toolbar { gap: 4px; padding-block: 4px; }
@@ -300,4 +301,4 @@ body.immersive-workbench .feed-workbench .feed-capture-rule-copy :is(strong,p,sm
   ${F} .plugin-stage-list .feed-stage-entry .feed-entry-copy strong { font-size: 15px; }
   ${F} .feed-stage-item-detail .feed-detail-actions > .mw-btn { min-height: 44px; }
 }
-`;
+`.replaceAll(": ", ":").replaceAll("; ", ";");

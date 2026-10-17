@@ -7,4 +7,8 @@ if [[ "$(uname -s)" != Darwin ]]; then
 fi
 swift build -c release --package-path "$native_dir/whisper" --product jelly-whisper
 mkdir -p "$native_dir/bin"
-cp "$native_dir/whisper/.build/release/jelly-whisper" "$native_dir/bin/jelly-whisper"
+# Replace the destination entry atomically: a worktree may contain a symlink to another checkout.
+helper_install="$(mktemp "$native_dir/bin/.jelly-whisper.XXXXXX")"
+trap 'rm -f "$helper_install"' EXIT
+cp -p "$native_dir/whisper/.build/release/jelly-whisper" "$helper_install"
+mv -f "$helper_install" "$native_dir/bin/jelly-whisper"

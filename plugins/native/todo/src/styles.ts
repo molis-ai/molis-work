@@ -92,7 +92,9 @@ export const TODO_STYLES = `
     .todo-candidate-actions { grid-column: 2; justify-content: flex-start; }
     .todo-batch-foot .mw-btn--primary { width: 100%; justify-content: center; }
   }
-  .todo-batch { position: sticky; bottom: 8px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 8px; padding: 6px 8px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: var(--lift-3); }
+  [data-todo=workbench] .todo-list:has(> .todo-batch:not([hidden])) > :not(.todo-rows) { flex-shrink: 0; }
+  [data-todo=workbench] .todo-list:has(> .todo-batch:not([hidden])) > .todo-rows { flex: 1; min-height: 80px; overflow: auto; }
+  .todo-batch { position: relative; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 8px; padding: 6px 8px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: var(--lift-3); }
   .todo-batch[hidden] { display: none; }
   .todo-batch strong { font-weight: 400; font-size: 13px; margin-right: 6px; font-variant-numeric: tabular-nums; }
   .todo-batch-more { position: relative; }

@@ -311,12 +311,12 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
                   ${renderButton({label:"工作区与目标",icon:"tune",variant:"ghost",attrs:{"data-coding-context-toggle":"","aria-expanded":false,title:"工作区与目标",role:"menuitem"}})}</div></div>
                 <select class="mw-select" data-coding-intent aria-label="任务方式"><option value="discuss">讨论</option><option value="plan">规划</option><option value="collaborate">协作</option><option value="parallel" disabled>并行写入</option><option value="edit" disabled>修改文件（待接通审批）</option><option value="execute" disabled>执行（待接通审批）</option><option value="review">评审</option></select>
                 <select class="mw-select" data-coding-model aria-label="使用的模型"></select><span class="coding-effort" data-coding-effort-wrap hidden><select class="mw-select" data-coding-effort aria-label="思考力度" title="这一轮每次模型调用的思考力度；只在模型设置里标注可调的模型上出现"><option value="">默认力度</option><option value="low">快速</option><option value="medium">平衡</option><option value="high">深入</option></select></span><button class="mw-btn mw-btn--ghost" type="button" data-coding-model-switch hidden>本轮改用</button>
-                <button class="mw-btn mw-btn--ghost" type="button" data-coding-pause title="当前这一步做完后暂停，可随时恢复" hidden>暂停</button><button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop title="停止这一轮" hidden>停止</button>
               </div>
               <div class="coding-meter" data-coding-meter hidden>
                 <button class="mw-btn mw-btn--ghost coding-meter-toggle" type="button" data-coding-meter-toggle aria-expanded="false" aria-controls="coding-meter-panel" title="上下文与用量"><svg class="coding-meter-ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"></circle><circle cx="10" cy="10" r="8" data-coding-meter-fill></circle></svg><span data-coding-meter-label>上下文</span></button>
                 <div class="coding-meter-panel" id="coding-meter-panel" data-coding-meter-panel role="region" aria-label="上下文与用量" hidden></div>
               </div>
+                <button class="mw-btn mw-btn--ghost" type="button" data-coding-pause title="当前这一步做完后暂停，可随时恢复" hidden>暂停</button><button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop title="停止这一轮" hidden>停止</button>
               <span data-coding-mode hidden><select class="mw-select" data-coding-send-mode aria-label="补充要求什么时候交给 AI" title="补充：当前回复或这批工具结束后交给 AI。打断：丢掉 AI 正在写的回复，按你的话接着做，已执行的操作不撤销。下一轮：这一轮不读，下一轮开始时带上。"><option value="next-boundary">补充：这步做完后读</option><option value="interrupt">打断：丢弃当前回复</option><option value="after-run">下一轮再做</option></select></span><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>发送</button>
             </div>
           </div>

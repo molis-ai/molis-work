@@ -95,23 +95,25 @@ test("RC-16: a Send whose outcome was lost goes again after a refresh under the 
   const id = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
   await waitWork(browser, id, view => view.work.state === "completed");
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  let first: Record<string, unknown> = {};
   try {
     await putInput(browser, "第二句"); await browser.click("[data-assistant-send]");
-    await barrier.drop(await barrier.next());
+    const paused = await barrier.next(); first = JSON.parse(paused.request.postData!);
+    await barrier.drop(paused);
   } finally { await barrier.close(); }
   await browser.waitFor("Boolean(document.querySelector('.assistant-problem'))", 15_000);
   assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "第二句", "the words stay in the composer");
-  const kept = JSON.parse(await browser.evaluate<string>("localStorage.getItem('molis.assistant.unsent')")) as { work: string; text: string; id: string };
-  assert.equal(kept.work, id); assert.equal(kept.text, "第二句");
+  assert.equal(first.work_id, id); assert.equal(first.text, "第二句");
+  assert.equal(typeof first.request_id, "string");
   await browser.reloadPage();
   await browser.waitFor(`localStorage.getItem('molis.assistant.current') === ${JSON.stringify(id)}`);
   const again = await sendSeen(browser, "第二句");
-  assert.equal(again.request_id, kept.id, "the same words to the same work go under the same key");
+  assert.equal(again.request_id, first.request_id, "the same words to the same work go under the same key");
   await waitWork(browser, id, view => view.work.state === "completed");
   assert.deepEqual((await readWork(browser, id)).rounds.map(round => round.text), ["第一句", "第二句"], "the Host took the words once");
-  assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.unsent')"), null, "an answered Send leaves nothing to resend");
+  assert.equal(await browser.evaluate("Object.keys(localStorage).some(key => key.startsWith('molis.assistant.pending:'))"), false, "an answered Send leaves nothing to resend");
   const fresh = await sendSeen(browser, "第三句");
-  assert.notEqual(fresh.request_id, kept.id, "other words are a new Send");
+  assert.notEqual(fresh.request_id, first.request_id, "other words are a new Send");
 });
 
 test("RC-16: without local storage the Assistant still sends; only the key across a refresh is lost", { timeout: 90_000 }, async t => {

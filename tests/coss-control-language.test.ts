@@ -35,7 +35,7 @@ test("keyboard focus uses the shared copper stroke and field halo", () => {
   // The Feed source setup is an inline panel now; its fields take the same inside stroke from the Feed stylesheet.
   // Feed's rewritten stylesheet (spec → 第二轮 · 信息流) keeps the shared stroke and adds its source-menu summary.
   // Controls take the stroke; `mw-input`/`mw-textarea` fields keep the shared field focus, so no field shows two rings.
-  assert.match(FEED_STYLES, /\.feed-workbench :is\(button:not\(\.mw-select\), summary, select:not\(\.mw-select\), input:not\(\.mw-input\), textarea:not\(\.mw-textarea\)\):focus-visible \{ outline: var\(--focus-stroke\); outline-offset: var\(--focus-stroke-inset\); \}/);
+  assert.match(FEED_STYLES, /\.feed-workbench :is\(button:not\(\.mw-select\), summary, select:not\(\.mw-select\), input:not\(\.mw-input\), textarea:not\(\.mw-textarea\)\):focus-visible \{ outline:\s*var\(--focus-stroke\);\s*outline-offset:\s*var\(--focus-stroke-inset\);\s*\}/);
   assert.equal(workbench.includes("inset 0 0 0 1.5px color-mix(in srgb, var(--blue)"), false);
   assert.equal(workbench.includes("outline: 2px solid var(--blue)"), false);
   assert.equal(workbench.includes("outline: 2px solid var(--focus)"), false);
@@ -148,7 +148,7 @@ test("product stylesheets stop painting mw-btn fills through descendant button r
   assert.doesNotMatch(workbench, /\.project-operation-surface-empty button\[data-open-session-add\] \{[^}]*background: var\(--ink\)/);
   assert.doesNotMatch(workbench, /\.goal-canvas-empty button,[^{]*\{[^}]*background: var\(--paper\)/);
   assert.match(arrival, /\.mw-btn--primary/);
-  assert.doesNotMatch(arrival, /\.onboarding-actions button \{[^}]*background: transparent;/);
+  assert.doesNotMatch(arrival, /\.onboarding-actions button \{[^}]*background:\s*transparent;/);
 });
 
 // Soft Workbench (DESIGN.md → Onboarding, 项目选择页): the way in (the chooser, the opening, Welcome, the new-project
@@ -159,10 +159,10 @@ test("the way in shares the workbench tokens in both themes", () => {
   const workbench = renderMolisWorkWorkbenchStylesheet();
   assert.match(workbench, /--page: #eeefef/);
   assert.match(workbench, /--page: #1c1d20/);
-  assert.match(arrival, /--page: #eeefef/);
-  assert.match(arrival, /data-resolved-theme="dark"[\s\S]*--page: #1c1d20/);
-  assert.match(arrival, /\.arrival \{[^}]*background: var\(--desk\)/);
-  assert.match(arrival, /\.stage-sheet \{[^}]*background: var\(--paper\)/);
+  assert.match(arrival, /--page:\s*#eeefef/);
+  assert.match(arrival, /data-resolved-theme="dark"[\s\S]*--page:\s*#1c1d20/);
+  assert.match(arrival, /\.arrival \{[^}]*background:\s*var\(--desk\)/);
+  assert.match(arrival, /\.stage-sheet \{[^}]*background:\s*var\(--paper\)/);
   assert.doesNotMatch(arrival, /--ob-page|--ob-window|--onboarding-/);
 });
 

@@ -26,6 +26,7 @@ test("W3-A3a: a write chosen on the page goes into the open work that holds the 
   // Every card the page places, with what it asked for.
   await evaluate(`(() => {
     const original = window.fetch; window.placed = [];
+    document.addEventListener("molis:surface-focus", event => { window.lastSelection = event.detail; });
     window.fetch = async (url, options) => {
       const response = await original(url, options);
       if (String(url).endsWith('/api/assistant/cards')) window.placed.push({ asked: JSON.parse(options.body), ...(await response.clone().json()) });
@@ -40,6 +41,8 @@ test("W3-A3a: a write chosen on the page goes into the open work that holds the 
       range.setStart(node, start); range.setEnd(node, start + ${TEXTS[index]!.length});
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
     })()`);
+    // The previous selection can still have a toolbar while the new selection is being published.
+    await waitFor(`window.lastSelection?.targets[0]?.text === ${JSON.stringify(TEXTS[index])}`, 10_000);
     await waitFor(`document.querySelector('${BAR} [data-more]')`, 10_000);
     await click(`${BAR} [data-more]`);
     await waitFor(`Boolean(${TODO})`, 10_000);

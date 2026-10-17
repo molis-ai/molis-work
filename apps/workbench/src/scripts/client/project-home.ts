@@ -91,8 +91,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     pop.style.width = Math.round(width) + "px";
     pop.style.left = Math.round(Math.max(8, Math.min(r.left - ar.left, ar.width - width - 8))) + "px";
     const gap = 8;
-    const anchor = Math.max(ar.top + 168, Math.min(r.top, ar.bottom - 8));
-    pop.style.maxHeight = Math.round(Math.max(160, Math.min(520, anchor - ar.top - gap - 8))) + "px";
+    const anchor = Math.min(ar.bottom - 8, Math.max(ar.top + 168, r.top));
+    pop.style.maxHeight = Math.round(Math.max(0, Math.min(520, anchor - ar.top - gap - 8))) + "px";
     // Anchor the compose row while asynchronous content or native details expand above it.
     pop.style.top = "auto";
     pop.style.bottom = Math.round(ar.bottom - anchor + gap) + "px";

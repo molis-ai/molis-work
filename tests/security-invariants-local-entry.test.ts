@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
 import { BROWSER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/browser";
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { COMPUTER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/computer";
 import { createMolisWorkWebServer, resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/desktop/launchers/web/server.js";
 
@@ -347,6 +348,28 @@ test("S-04 the browser socket serves a project only after authenticating, and on
   inside.socket.send(JSON.stringify({ type: "attach", project_id: "no-such-project" }));
   const reply = await missing;
   assert.ok(reply !== "closed" && reply.type === "error", JSON.stringify(reply));
+});
+
+test("S-04 browser commands wait for the preceding project binding and still refuse a local file address", { timeout: 60_000 }, async t => {
+  const host = await startHost(t);
+  const project = await withCatalog({ homeDirectory: host.home }, catalog => catalog.createProject({ display_name: "Socket ordering", actor_id: "owner" }));
+  const { socket } = await open(host, BROWSER_SOCKET_PATH, { origin: host.origin });
+  const ready = nextMessage(socket);
+  socket.send(JSON.stringify({ type: "auth", token: TOKEN }));
+  assert.deepEqual(await ready, { type: "ready" });
+  const received: Array<{ type?: string; state?: { problem?: { code?: string } } }> = [];
+  const refused = new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("queued navigation never reached its scheme check: " + JSON.stringify(received))), 3000);
+    socket.on("message", raw => {
+      const message = JSON.parse(String(raw)) as (typeof received)[number];
+      received.push(message);
+      if (message.state?.problem?.code === "browser.blocked_scheme") { clearTimeout(timer); resolve(); }
+    });
+  });
+  // The workbench sends these back-to-back; projectExists reads the real catalog asynchronously.
+  socket.send(JSON.stringify({ type: "watch", project_id: project.project_id }));
+  socket.send(JSON.stringify({ type: "navigate", input: "file:///must-not-open" }));
+  await refused;
 });
 
 test("S-04 the names a browser may use for this machine (localhost, [::1]) reach all three sockets as well, and the token is still what lets a client in", { timeout: 60_000 }, async t => {

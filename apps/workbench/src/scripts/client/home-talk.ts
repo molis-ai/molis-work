@@ -7,32 +7,32 @@ export const HOME_TALK_FACTORY_SCRIPT = `(host) => {
   const submit = form.querySelector('[type="submit"]');
   const drafts = new Map();
   const esc = (value) => String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
-  let activeKey = null;
+  let cur = null;
   const keyFor = (subject) => JSON.stringify([projectKey, subject.kind, subject.id]);
   const save = (key, state) => {
-    try { sessionStorage.setItem('molis.home-talk:' + key, JSON.stringify({ subject: state.subject, text: state.text, selected: state.selected,
-      preparation: state.preparation, payload: state.payload, requestId: state.requestId, receipt: state.receipt })); }
-    catch { state.storageError = L('草稿暂时只能保留在当前页面，请勿刷新。'); }
+    try { localStorage.setItem('molis.home-talk:' + key, JSON.stringify({ subject: state.subject, text: state.text, selected: state.selected,
+      preparation: state.preparation, payload: state.payload, requestId: state.requestId, receipt: state.receipt, sendKey: state.sendKey })); }
+    catch { state.storageError = L('草稿没能保存。'); }
   };
   const load = (subject) => {
     const key = keyFor(subject);
     if (!drafts.has(key)) {
       let cached = {};
-      try { cached = JSON.parse(sessionStorage.getItem('molis.home-talk:' + key) || '{}'); } catch {}
+      try { cached = JSON.parse(localStorage.getItem('molis.home-talk:' + key) || '{}'); } catch {}
       drafts.set(key, { subject, text: typeof cached.text === 'string' ? cached.text : '', selected: cached.selected || null,
         preparation: cached.preparation || null, payload: cached.payload || null, requestId: cached.requestId || null,
-        receipt: cached.receipt || null, busy: false, loading: false, error: '', checked: false });
+        receipt: cached.receipt || null, sendKey: cached.sendKey || '', invalidTarget: false, busy: false, loading: false, error: '', checked: false });
     }
     return { key, state: drafts.get(key) };
   };
-  const active = () => activeKey ? drafts.get(activeKey) : null;
+  const active = () => cur ? drafts.get(cur) : null;
   const button = (action, label) => '<button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-talk-action="' + action + '">' + esc(L(label)) + '</button>';
   const render = () => {
     const state = active(); if (!state) return;
     const locked = !!state.payload;
-    input.value = state.text;
+    input.value = state.text; form.dataset.uivContextInvalid = state.invalidTarget ? '1' : '';
     input.disabled = state.busy || locked;
-    submit.disabled = state.busy || state.loading || locked || !state.selected || !state.text.trim();
+    submit.disabled = state.busy || state.loading || locked || !state.selected || state.invalidTarget || !state.text.trim();
     submit.setAttribute('aria-label', L(state.busy ? '正在发送' : '发送消息'));
     let html = '';
     const preparation = state.preparation;
@@ -74,18 +74,23 @@ export const HOME_TALK_FACTORY_SCRIPT = `(host) => {
   };
   const prepare = async (key, state) => {
     if (state.payload || state.loading) return;
-    state.loading = true; state.error = ''; if (key === activeKey) render();
+    state.loading = true; state.error = ''; if (key === cur) render();
     try {
       const result = await prepareApi('/api/home/talk/prepare', 'POST', { subject: state.subject });
       state.preparation = result;
-      if (!result.candidates.some(row => row.session_id === state.selected)) state.selected = result.selected_session_id;
+      state.invalidTarget = !!state.selected && !result.candidates.some(row => row.session_id === state.selected);
+      if (state.invalidTarget) state.error = L('原先选择的会话已不可用。请重新选择发送目标，草稿仍保留。');
+      else if (!state.selected) state.selected = result.selected_session_id;
       save(key, state);
-    } catch (error) { state.preparation = null; state.selected = null; state.error=error; }
-    finally { state.loading = false; if (key === activeKey) render(); }
+    } catch (error) { state.preparation = null; state.invalidTarget = !!state.selected; state.error=error; }
+    finally { state.loading = false; if (key === cur) render(); }
   };
   const deliver = async (key, state, operation) => {
     if (state.busy || !state.payload) return;
-    state.busy = true; state.operation = operation; state.error = ''; state.checked = false; if (key === activeKey) render();
+    state.sendKey ||= form.dataset.uivSendKey || ('molis.uiv.v1:home:' + encodeURIComponent(document.body.dataset.projectId || '') + ':' + encodeURIComponent(key));
+    form.dataset.uivResultKey = state.sendKey; form.dataset.uivResultText = state.payload.text; delete form.dataset.uivResultNextKey; form.dataset.uivPhase = 'sending';
+    if (operation !== 'check') state.receipt = null;
+    state.busy = true; state.operation = operation; state.error = ''; state.checked = false; if (key === cur) render();
     try {
       let result;
       if (operation === 'retry') result = await messageApi('/api/session-messages/' + encodeURIComponent(state.requestId) + '/retry', 'POST', {});
@@ -93,40 +98,41 @@ export const HOME_TALK_FACTORY_SCRIPT = `(host) => {
       else result = await messageApi('/api/sessions/' + encodeURIComponent(state.payload.session_id) + '/messages', 'POST', state.payload);
       state.receipt = result; state.requestId = result.request_id;
       if (typeof result.text === 'string') state.text = result.text;
+      if (result.state === 'accepted') state.text = '';
     } catch (error) { state.error=error; }
-    finally { state.busy = false; state.checked = true; save(key, state); if (key === activeKey) render(); }
+    finally { state.busy = false; state.checked = true; save(key, state); if (key === cur) render(); form.dataset.uivResultKey = state.sendKey; delete form.dataset.uivResultNextKey; form.dataset.uivPhase = state.receipt?.state === 'accepted' ? 'succeeded' : state.receipt?.state === 'failed' ? 'failed' : 'uncertain'; }
   };
-  form.addEventListener('input', () => { const state = active(); if (!state || state.payload) return; state.text = input.value; save(activeKey, state); submit.disabled = state.loading || state.busy || !state.selected || !state.text.trim(); });
-  body.addEventListener('change', event => { const state = active(); if (!state || state.payload || !event.target.matches('[name="talk-session"]')) return; state.selected = event.target.value; save(activeKey, state); render(); });
+  form.addEventListener('input', () => { const state = active(); if (!state || state.payload) return; state.text = input.value; form.dataset.uivKey=cur||''; save(cur, state); submit.disabled = state.loading || state.busy || !state.selected || state.invalidTarget || !state.text.trim(); });
+  body.addEventListener('change', event => { const state = active(); if (!state || state.payload || !event.target.matches('[name="talk-session"]')) return; state.selected = event.target.value; state.invalidTarget = false; state.error = ''; save(cur, state); render(); });
   body.addEventListener('toggle', () => requestAnimationFrame(layout), true);
   body.addEventListener('click', event => {
     const action = event.target.closest('[data-talk-action]')?.dataset.talkAction;
     const state = active(); if (!action || !state || state.busy) return;
-    const key = activeKey;
+    const key = cur;
     if (action === 'sessions') { openPlugin?.('sessions'); return; }
     if (action === 'open') { openItem?.('sessions', state.payload.session_id, state.preparation?.candidates.find(row => row.session_id === state.payload.session_id)?.title || L('Session')); return; }
     if (action === 'reload') { prepare(key, state); return; }
     if (action === 'check' || action === 'retry') { deliver(key, state, action); return; }
     if (action === 'new' || action === 'edit') {
       if (action === 'new') state.text = '';
-      state.payload = null; state.requestId = null; state.receipt = null; state.checked = false; state.error = '';
+      state.payload = null; state.requestId = null; state.receipt = null; state.sendKey = ''; form.dataset.uivPhase = 'idle'; state.checked = false; state.error = '';
       save(key, state); prepare(key, state); input.focus();
     }
   });
   form.addEventListener('submit', event => {
     event.preventDefault();
-    const state = active(); if (!state || state.busy || state.loading || state.payload || !input.value.trim()) return;
+    const state = active(); if (!state || state.busy || state.loading || state.payload || state.invalidTarget || !input.value.trim()) return;
     const target = state.preparation?.candidates.find(row => row.session_id === state.selected); if (!target) return;
-    state.text = input.value;
+    state.text = input.value; state.sendKey = form.dataset.uivSendKey || '';
     const context = state.preparation.context;
     state.payload = { session_id: target.session_id, expected_goal_id: target.current_goal_id, idempotency_key: crypto.randomUUID(), text: state.text,
       context: { kind: context.subject.kind, id: context.subject.id, content: context.title + '\\n\\n' + context.content + (context.truncated ? '\\n（正文节选）' : '') } };
-    save(activeKey, state); deliver(activeKey, state, 'send');
+    save(cur, state); deliver(cur, state, 'send');
   });
   return { open() {
     const event = current();
-    if (!event?.subject) { body.textContent = L('这件事尚未提供可引用的上下文。'); input.value = ''; submit.disabled = true; input.disabled = true; activeKey = null; return; }
-    const { key, state } = load(event.subject); activeKey = key;
+    if (!event?.subject) { body.textContent = L('这件事尚未提供可引用的上下文。'); input.value = ''; submit.disabled = true; input.disabled = true; cur = null; return; }
+    const { key, state } = load(event.subject); cur = key; form.dataset.uivKey=key||'';
     if (state.payload) { render(); if (!state.busy) deliver(key, state, 'check'); }
     else prepare(key, state);
   } };

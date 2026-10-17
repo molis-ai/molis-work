@@ -126,9 +126,9 @@ test("工作台挂上灵光空态、确认框和快记区", () => {
   assert.match(stack, /data-assistant-island/);
   assert.doesNotMatch(stack, /data-assistant-toggle/, "助手是 Dock 里的一个容器，不再是浮窗开关");
   assert.match(stack, /data-assistant-composer/);
-  assert.match(stack, /<input class="assistant-composer-input"/);
+  assert.match(stack, /<textarea class="assistant-composer-input"/);
   assert.doesNotMatch(stack, /assistant-composer-toolbar/);
-  assert.doesNotMatch(stack, /<textarea class="assistant-composer-input"/);
+  assert.doesNotMatch(stack, /<input class="assistant-composer-input"/);
   assert.match(stack, /data-assistant-thread/);
   assert.match(stack, /data-assistant-target/, "输入框前说明下一次发送去哪项工作");
   assert.match(stack, /data-assistant-send/);

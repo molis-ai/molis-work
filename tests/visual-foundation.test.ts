@@ -425,8 +425,8 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
   assert.doesNotMatch(workbench, /\.home-composer input \{[^}]*opacity: \.7/);
   assert.match(workbench, /\.frame-empty\.mw-empty \{[\s\S]*justify-content: center;[\s\S]*gap: 12px/);
   // The chooser's directory scrolls inside its column, and the brief's prose stays one step above the captions.
-  assert.match(arrival, /\.chooser-dir \{ flex: 1; min-height: 0; overflow: auto;/);
-  assert.match(arrival, /\.mw-brief__desc \{[^}]*color: var\(--ink-soft\)/);
+  assert.match(arrival, /\.chooser-dir \{ flex:\s*1;\s*min-height:\s*0;\s*overflow:\s*auto;/);
+  assert.match(arrival, /\.mw-brief__desc \{[^}]*color:\s*var\(--ink-soft\)/);
 });
 
 test("plugin list titles yield at the squeeze edge", () => {

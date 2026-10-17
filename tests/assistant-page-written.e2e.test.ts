@@ -69,7 +69,7 @@ test("the bottom bar marks the words it writes itself as the page's, and the Hos
   const typeAndSend = async (text: string) => {
     await click("[data-assistant-input]");
     await command("Input.insertText", { text }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
     await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   };
 
@@ -162,7 +162,7 @@ test("W3-02-G4-ANSWER-01: a real Runtime refusal shows the field error and a cor
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?openPlugin=todo" }, sessionId));
   await waitFor("document.querySelector('[data-assistant-input]')");
   await click("[data-assistant-input]"); await command("Input.insertText", { text: "整理报告" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await waitFor("document.querySelector('[data-ix-question] [data-ix-field=q0] [data-ix-option=\"0\"]')", 15_000);
   const api = "/projects/" + projectId + "/api/assistant/works";

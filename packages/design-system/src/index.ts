@@ -84,3 +84,6 @@ export * from './input-receipts-client.js';
 export { INPUT_RECEIPTS_STYLES } from './styles/input-receipts.js';
 export { CONTEXT_TOOLBAR_CLIENT_SCRIPT, CONTEXT_TOOLBAR_STYLES } from './context-toolbar.js';
 export { sanitizeContextTools } from './context-tools.js';
+export * from "./unified-input.js";
+export { UIV_BOOT_SCRIPT, UIV_STYLE, uivMount } from "./unified-input-client.js";
+export type { UivPageHost } from "./unified-input-client.js";

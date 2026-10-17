@@ -61,7 +61,7 @@ export async function extractJellyMaterial(home: string, upload: JellyMaterialUp
     await checkCurrent(options);
     const { name, extension, data } = decodeUpload(upload);
     await checkCurrent(options);
-    const modelDirectory = materialMediaExtensions.has(extension) ? await modelCacheDirectory(home) : undefined;
+    const modelDirectory = materialMediaExtensions.has(extension) ? await jellyModelCacheDirectory(home) : undefined;
     await checkCurrent(options);
     const extract = createMaterialExtractor({ helperPath: options.helperPath ?? process.env.MOLIS_JELLY_NATIVE_HELPER,
       whisperHelperPath: options.whisperHelperPath ?? process.env.MOLIS_JELLY_WHISPER_HELPER,
@@ -79,7 +79,7 @@ export async function extractJellyMaterial(home: string, upload: JellyMaterialUp
     throw error;
   }
 }
-async function modelCacheDirectory(home: string): Promise<string> {
+export async function jellyModelCacheDirectory(home: string): Promise<string> {
   await mkdir(home, { recursive: true, mode: 0o700 });
   return privateDirectory(await privateDirectory(await realpath(home), "lingguang"), "models");
 }

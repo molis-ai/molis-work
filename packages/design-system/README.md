@@ -90,6 +90,12 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/m
 
 生成插件表单按提交时的输入版本处理回执：等待中又编辑时，旧成功不清新草稿、不关它的 sheet/dialog；当前草稿成功提交后才复位，prefill 编辑表单继续保留值。换版/销毁的旧回包不写当前表单或错误反馈。`tests/plugin-composition.e2e.test.ts` 的 W2-18-COMPONENT-DRAFT-01/02 使用生产 renderer、延迟回包并覆盖 form/sheet/dialog。
 
+## 首页、助手与 Coding 的统一输入
+
+`unified-input.ts` 提供草稿归属、发送结算和录音状态；`unified-input-client.ts` 将同一套行为挂到三个已有表单，`unified-input-style.ts` 提供共同书写样式。输入框按内容增高，到上限后在框内滚动，底栏为书写区和操作行保留高度。入口自身仍负责业务发送和上下文事实，并用原草稿 key 回报发送结果，不能按当前可见会话结算迟到回执。
+
+录音和转写属于开始时的草稿。准备与转写可取消，取消同时中止本地请求；转写只能插入原草稿的最新正文，位置不明时由用户确认。对应要求与工程、实操及人工验收边界见 [统一输入与语音规格](../../specs/unified-input-voice/spec.md)。实际行为回归在 `tests/unified-input-lifecycle.e2e.test.ts`、`tests/unified-input-layout.e2e.test.ts` 与 `tests/unified-input-recording.e2e.test.ts`；后者默认需要本机已准备模型，连续记录新模型路径和两次重复使用的停止到文字绘制时间；测量用页面事件时间，不包含测试驱动轮询。显式设置 `UIV_VOICE_PREPARE=1` 时，从空模型目录点击真实下载，再禁网录制并转写三次；这会下载约 626 MB，不是默认回归。`UIV_RECORDING_KEEP_HOME=1` 仅在人工复查时保留该次新建的临时 Home。跳过不代表离线转写通过。
+
 ## 开发要求
 
 - 负责：设计令牌、控件、图标、主题与无障碍基础。

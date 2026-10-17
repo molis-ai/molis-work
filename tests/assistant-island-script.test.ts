@@ -68,3 +68,90 @@ test("the bottom bar measures its line with its chips on it and folds parts off 
   assert.match(fit, /compose\.dataset\.measuring = "";[\s\S]*dataset\.crowded = step;[\s\S]*delete compose\.dataset\.measuring;/, "the typing rule is off from the first measurement to the last");
   assert.match(fit, /if \(matchMedia\("\(max-width: 600px\), \(pointer: coarse\)"\)\.matches\) for \(const step of \["choosers", "mark", "chips"\]\)/, "and the steps are the touch rules'");
 });
+
+// UIV-04: exercise the shipped draft functions, including persistence and a receipt arriving in another work.
+test("UIV-04 same text in different projects does not share materials, and a background send consumes only its attachments", () => {
+  const start = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  const contextDrafts = new Map();");
+  const end = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  const switchTo =", start);
+  assert.ok(start >= 0 && end > start, "the production draft functions must be present in the shipped client");
+  interface DraftHarness {
+    select(projectId: string, workId: string | null): void;
+    type(text: string): void;
+    attach(id: string): void;
+    read(): { text: string; files: string[] };
+    sent(): object;
+    settle(intent: object): void;
+    load(): void;
+  }
+  const make = new Function("saved", `
+    const json=JSON.stringify,uri=encodeURIComponent;
+    let project={id:'A'},curId=null,files=[],sel=null,nextScope='project',nextExec='assistant',nextMode='execute',nextChar=null,pendingChar;
+    const removed=new Set(),joined=new Set(),store={get:key=>saved.get(key)||null,set:(key,value)=>value===null?saved.delete(key):saved.set(key,value)};
+    let draftTimer,activeSend=null,draftWrite=Promise.resolve();const works=[],input={value:''},compose={dataset:{}},newDraftKey=()=> 'draft:'+project.id,
+      getWork=()=>null,syncSend=()=>{},api=()=>Promise.resolve(),paintMats=()=>saveDraftContext();
+    ${ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(start, end)}
+    return {
+      select(projectId,workId){saveDraft(true);project={id:projectId};curId=workId;loadDraft();},
+      type(text){input.value=text;saveDraft(true);},
+      attach(id){files.push({material_id:id,title:id,preview:'data:image/png;base64,abc'});saveDraftContext();},
+      read(){return {text:input.value,files:files.map(file=>file.material_id)};},
+      sent(){return {contextKey:contextKey(),files:files.slice(),selection:sel,removed:[...removed],joined:[...joined]};},
+      settle:takeDraftMaterials,load:loadDraft
+    };`) as (saved: Map<string, string>) => DraftHarness;
+  const saved = new Map<string, string>();
+  const ui = make(saved); ui.load(); ui.type("same"); ui.attach("A attachment"); const intent = ui.sent();
+  ui.select("B", null); assert.deepEqual(ui.read(), { text: "", files: [] });
+  ui.type("same"); ui.attach("B attachment"); ui.settle(intent);
+  assert.deepEqual(ui.read(), { text: "same", files: ["B attachment"] });
+  ui.select("A", null); assert.deepEqual(ui.read(), { text: "same", files: [] });
+  ui.attach("added later");
+  const reloaded = make(saved); reloaded.load();
+  assert.deepEqual(reloaded.read(), { text: "same", files: ["added later"] });
+  assert.equal([...saved.values()].some(value => value.includes("base64")), false, "only attachment references, not preview copies, are persisted");
+});
+
+
+// UIV-04: chooser initialization runs before the stored work arrives. Its empty placeholder is not an edit.
+test("UIV-04 restoring an unloaded work does not erase its draft, while input and deliberate clearing still save", () => {
+  const source = ASSISTANT_ISLAND_FACTORY_SCRIPT;
+  const draftStart = source.indexOf("  const contextDrafts = new Map();");
+  const draftEnd = source.indexOf("  const switchTo =", draftStart);
+  const inputStart = source.indexOf("  let typed = false, inputRev = 0;");
+  const inputEnd = source.indexOf('  onEl(input, "keydown",', inputStart);
+  const getWork = source.match(/  const getWork = [^\n]+/)?.[0];
+  assert.ok(draftStart >= 0 && draftEnd > draftStart && inputStart >= 0 && inputEnd > inputStart && getWork,
+    "use the shipped draft code, work lookup and input handler");
+  interface DraftInitHarness {
+    restore(): void;
+    arrive(): void;
+    edit(text: string): void;
+    flush(): void;
+    read(): { text: string; saved: string; writes: Array<{ path: string; draft: string }> };
+  }
+  const make = new Function(`
+    const json=JSON.stringify,uri=encodeURIComponent;
+    let project={id:'A'},curId='saved-work',files=[],sel=null,nextScope='project',nextExec='assistant',nextMode='execute',nextChar=null,pendingChar;
+    const removed=new Set(),joined=new Set(),stored=new Map(),store={get:key=>stored.get(key)||null,set:(key,value)=>value===null?stored.delete(key):stored.set(key,value)};
+    let draftTimer,activeSend=null,draftWrite=Promise.resolve(),view=null,onInput,saved='Host draft';
+    const works=[],writes=[],input={value:''},compose={dataset:{}},newDraftKey=()=> 'draft:'+project.id;
+    const syncSend=()=>{},paintMats=()=>{},closeSlash=()=>{},mentionAt=()=>null,closeMention=()=>{},setStarts=()=>{},
+      onEl=(_node,_event,handler)=>{onInput=handler;},api=(path,_method,body)=>{saved=body.draft;writes.push({path,draft:body.draft});return Promise.resolve();};
+    ${getWork}
+    ${source.slice(draftStart, draftEnd)}
+    ${source.slice(inputStart, inputEnd)}
+    return {
+      restore(){loadDraft();saveDraft(true);},
+      arrive(){works.push({work_id:curId,draft:saved});loadDraft();},
+      edit(text){input.value=text;onInput();},flush(){saveDraft(true);},
+      read(){return {text:input.value,saved,writes:[...writes]};}
+    };`) as () => DraftInitHarness;
+  const cold = make(); cold.restore();
+  assert.deepEqual(cold.read(), { text: "", saved: "Host draft", writes: [] }, "initialization cannot write the unloaded placeholder");
+  cold.arrive(); assert.equal(cold.read().text, "Host draft", "the untouched Host draft is displayed when its work arrives");
+  cold.edit(""); cold.flush();
+  assert.deepEqual(cold.read(), { text: "", saved: "", writes: [{ path: "/works/saved-work/draft", draft: "" }] }, "clearing a loaded draft is a real write");
+  const early = make(); early.restore(); early.edit("Written before the list arrives"); early.flush();
+  assert.equal(early.read().saved, "Written before the list arrives", "the loading guard must not discard early typing");
+  const cleared = make(); cleared.restore(); cleared.edit("Temporary text"); cleared.edit(""); cleared.flush();
+  assert.deepEqual(cleared.read(), { text: "", saved: "", writes: [{ path: "/works/saved-work/draft", draft: "" }] }, "an input event records deliberate empty text even before the work arrives");
+});

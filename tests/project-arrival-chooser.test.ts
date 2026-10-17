@@ -126,11 +126,11 @@ test("in English the page says nothing in Chinese except what a person named", (
 
 test("the sheet keeps the desk's frame fixed while the directory and the brief scroll inside it", () => {
   const css = renderMolisWorkArrivalStylesheet();
-  assert.match(css, /html:has\(> body\.arrival-page\), body\.arrival-page \{[^}]*overflow: hidden;/);
-  assert.match(css, /\.chooser-dir \{ flex: 1; min-height: 0; overflow: auto;/);
-  assert.match(css, /\.stage-sheet \{[^}]*overflow: auto;/);
-  assert.match(css, /\.chooser \{ --side-w: clamp\(296px, 24vw, 344px\); \}/);
+  assert.match(css, /html:has\(> body\.arrival-page\), body\.arrival-page \{[^}]*overflow:\s*hidden;/);
+  assert.match(css, /\.chooser-dir \{ flex:\s*1;\s*min-height:\s*0;\s*overflow:\s*auto;/);
+  assert.match(css, /\.stage-sheet \{[^}]*overflow:\s*auto;/);
+  assert.match(css, /\.chooser \{ --side-w:\s*clamp\(296px, 24vw, 344px\);\s*\}/);
   // Stacked when narrow and tall; a phone on its side (narrow and short) keeps the two columns.
-  assert.match(css, /@media \(max-width: 560px\), \(max-width: 760px\) and \(min-height: 521px\) \{\s*\.stage-split \{ grid-template-columns: minmax\(0, 1fr\); grid-template-rows: auto minmax\(0, 1fr\);/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(css, /@media \(max-width:\s*560px\), \(max-width:\s*760px\) and \(min-height:\s*521px\) \{\s*\.stage-split \{ grid-template-columns:\s*minmax\(0, 1fr\);\s*grid-template-rows:\s*auto minmax\(0, 1fr\);/);
+  assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)/);
 });

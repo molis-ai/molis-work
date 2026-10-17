@@ -87,8 +87,9 @@ html body.is-side-resizing :is([data-plugin-stage],.side-panel){transition:none!
 body.is-side-resizing iframe,body.is-side-resizing [data-side-browser] canvas{pointer-events:none!important}
 body.is-side-resizing{cursor:col-resize;user-select:none}
 @media(max-width:760px){
- html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(52dvh + var(--side-gap) + var(--sheet-inset,14px))}
- html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:52dvh;transform:translateY(12px)}
+ html body.immersive-workbench{--side-mobile-height:min(52dvh,calc((100dvh - var(--desktop-titlebar-height,32px) - var(--dock-h,48px) - 32px)*.6))}
+ html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:8px;margin-bottom:calc(var(--side-mobile-height) + var(--side-gap) + var(--sheet-inset,14px))}
+ html body.immersive-workbench .side-panel{inset:auto 8px calc(var(--dock-h,48px) + 8px) 8px;width:auto;height:var(--side-mobile-height);transform:translateY(12px)}
  .side-panel-divider{display:none!important}
 }
 @media(prefers-reduced-motion:reduce){html body.immersive-workbench :is([data-plugin-stage],.side-panel,.side-panel-body){transition:none!important;animation:none!important}.side-panel-divider:after{transition:none!important}}

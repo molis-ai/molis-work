@@ -57,7 +57,7 @@ test("a change taken back from the Assistant's panel leaves the owner's page at 
   const listed = "[...document.querySelectorAll('[data-todo-id]')].some(node => node.offsetParent && node.textContent.includes('把评审纪要发给全组'))";
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "记一下：把评审纪要发给全组" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   // The Assistant's change shows on the page (the page already rereads after a change).
   await waitFor(listed, 30_000);

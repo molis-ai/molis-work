@@ -269,3 +269,7 @@ export { handleBrowserHttp } from "./browser/browser-http.js";
 export { codingBackgroundTasks } from "./coding-background-tasks.js";
 export { homeBackgroundTasks } from "./web-catalog.js";
 export { hostLog, captureHostLog, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
+export { jellyModelCacheDirectory } from "./jelly-native-material.js";
+export { extractNativeMaterial } from "./material-native.js";
+export { handleLocalVoiceHttp } from "./local-voice-http.js";
+export { localVoiceHelper, probeLocalVoice, silentVoiceWav, transcribeLocalVoice } from "./local-voice.js";

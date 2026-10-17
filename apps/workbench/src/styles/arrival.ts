@@ -287,6 +287,11 @@ export const ARRIVAL_STYLES = String.raw`
     .chooser-dir { min-height: 104px; }
     .chooser-foot { display: none; }
   }
+  @media (max-height: 560px) {
+    .chooser-list { overflow: auto; }
+    .chooser-dir { flex: none; overflow: visible; }
+    .chooser-list > * { flex-shrink: 0; }
+  }
   @media (max-width: 600px) {
     /* A phone's bar is two rows (the assistant on one, the rest on the other), the workbench's own geometry. */
     html body.immersive-workbench.arrival-page .arrival { grid-template-rows: var(--arrival-titlebar-h) minmax(0, 1fr) auto; }
@@ -312,4 +317,4 @@ export const ARRIVAL_STYLES = String.raw`
   }
   @media(max-width:360px){.arrival-brand .mw-wordmark{display:none}}
   ${BACKGROUND_TASKS_MENU_STYLES}
-`;
+`.replaceAll(": ", ":").replaceAll("; ", ";");

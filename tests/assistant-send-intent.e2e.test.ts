@@ -155,7 +155,7 @@ test("W2-18-SEND-01: A to B to A before the receipt retains A's later draft on s
 });
 
 // W3-10-4-01 and W2-18-SEND-02: even the chooser's trusted HTTP project route and an unknown result's retry stay fixed at the click.
-test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope, materials and request_id exactly once", { timeout: 90_000 }, async t => {
+test("W2-18-SEND-02: returning to the original project after a lost receipt and reload retries its exact request once", { timeout: 90_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const a = await seedWork(browser, "等待草稿的旧工作");
   await openWork(browser, a);
@@ -180,14 +180,23 @@ test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope
     const newId = created.find(work => work.work_id !== a)?.work_id; assert.ok(newId);
     await barrier.drop(first);
     await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
+    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])')?.textContent"), /后来选择的材料/);
+    await browser.click("[data-assistant-panel-close]");
+    await browser.click(`#row-${browser.projectId}`);
+    const draftState = () => browser.evaluate("({selected:document.querySelector('.chooser')?.dataset.selected,text:document.querySelector('[data-assistant-input]')?.value,current:localStorage.getItem('molis.assistant.current'),drafts:Object.fromEntries(Object.entries(localStorage).filter(([key])=>key.startsWith('molis.assistant.new-draft:')))})");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "项目 A 的新工作", JSON.stringify(await draftState()));
+    await browser.reloadPage();
+    try { await browser.waitFor(`document.querySelector('.chooser').dataset.selected === '${browser.projectId}' && document.querySelector('[data-assistant-input]').value === '项目 A 的新工作'`); }
+    catch (cause) { throw new Error("Project draft after reload: " + JSON.stringify(await draftState()), { cause }); }
     await browser.click("[data-assistant-send]");
     const retry = await barrier.next();
     assert.equal(retry.request.url, first.request.url, "retry keeps the original trusted route");
     assert.deepEqual(JSON.parse(retry.request.postData!), body, "including context, original materials and request_id");
     await barrier.release(retry);
-    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
-    assert.equal(await browser.evaluate("document.querySelector('.chooser').dataset.selected"), "personal");
-    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), null);
+    await browser.waitFor("document.querySelector('[data-assistant-input]').value === ''");
+    assert.equal(await browser.evaluate("document.querySelector('.chooser').dataset.selected"), browser.projectId);
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "");
+    await browser.click("[data-assistant-new]"); await browser.click("[data-assistant-panel-close]"); await browser.click("#row-personal");
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "项目 A 的新工作");
     assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /后来选择的材料/);
     const persisted = await waitWork(browser, newId, view => view.work.state === "completed");
@@ -195,5 +204,37 @@ test("W2-18-SEND-02: chooser changes and a lost receipt retry the original scope
     assert.equal(persisted.rounds.length, 1, "two HTTP attempts produce one stored round");
     assert.equal(persisted.rounds[0]?.text, "项目 A 的新工作");
     assert.equal(browser.model!.requests.length, 2, "one seed round and one new round; retry does not run the model again");
+  } finally { await barrier.close(); }
+});
+
+// UIV-04: selected attachments are drafts too; returning to a work and reloading cannot borrow another work's files.
+test("UIV-04 Assistant materials follow their work across switching, reload and a background send", { timeout: 90_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const a = await seedWork(browser, "材料工作 A"), b = await seedWork(browser, "材料工作 B");
+  const labels = () => browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])')?.textContent || ''");
+  await openWork(browser, a); await putInput(browser, "相同草稿", "只属于 A 的材料");
+  await openWork(browser, b); assert.doesNotMatch(await labels(), /只属于 A 的材料/);
+  await putInput(browser, "相同草稿", "只属于 B 的材料");
+  await openWork(browser, a); assert.match(await labels(), /只属于 A 的材料/); assert.doesNotMatch(await labels(), /只属于 B 的材料/);
+  await browser.reloadPage(); await browser.waitFor("document.querySelector('[data-assistant-input]').value === '相同草稿'");
+  assert.match(await labels(), /只属于 A 的材料/); assert.doesNotMatch(await labels(), /只属于 B 的材料/);
+  const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
+  try {
+    await browser.click("[data-assistant-send]"); const sent = await barrier.next();
+    await openWork(browser, b); await barrier.release(sent);
+    await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "相同草稿");
+    assert.match(await labels(), /只属于 B 的材料/); assert.doesNotMatch(await labels(), /只属于 A 的材料/);
+    // Switching the target must also switch its visible materials before the work reread completes.
+    await browser.command("Fetch.enable", { patterns: [{ urlPattern: `*/api/assistant/works/${a}`, requestStage: "Response" }] }, browser.sessionId);
+    await openWork(browser, a);
+    const reread = await barrier.next();
+    await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    assert.doesNotMatch(await labels(), /只属于 A 的材料|只属于 B 的材料/);
+    await barrier.release(reread);
+    await browser.command("Fetch.disable", {}, browser.sessionId);
+    await browser.reloadPage(); await browser.waitFor("document.querySelector('[data-assistant-input]').value === ''");
+    await openWork(browser, b); assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "相同草稿");
+    assert.match(await labels(), /只属于 B 的材料/);
   } finally { await barrier.close(); }
 });

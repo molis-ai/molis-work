@@ -24,9 +24,9 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const desktopDirectoryPanels = [...document.querySelectorAll("[data-directory-panel]")];
     const desktopWorkSurfaces = [...document.querySelectorAll("[data-work-surface]")];
     const projectMenus = [...document.querySelectorAll("[data-project-menu]")];
-    let feedDirectory, feedWorkbench, feedList, feedSearch, feedFilterTrigger, feedFilterPanel, feedFilterBadge, feedFilterSummary, feedFilterReset,
+    let feedDirectory, feedWorkbench, feedList, feedSearch, feedFilterTrigger, feedFilterPanel, feedFilterBadge, feedFilterReset,
       feedSourceFilter, feedTypeFilter, feedTimeFilter, feedStatusFilter, feedSort, feedResultCount, feedEmpty, feedDetailEmpty,
-      sourceDirectory, sourceWorkbench, sourceList, sourceSearch, sourceResultCount, sourceEmpty, feedSourcesDialog, feedSourceError, feedSourceProgress;
+      sourceDirectory, sourceWorkbench, sourceList, sourceResultCount, sourceEmpty, feedSourcesDialog, feedSourceError, feedSourceProgress;
     const findFeedNodes = () => {
       feedDirectory = document.querySelector("[data-feed-directory]");
       feedWorkbench = document.querySelector("[data-feed-workbench]");
@@ -35,7 +35,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       feedFilterTrigger = document.querySelector("[data-feed-filter-trigger]");
       feedFilterPanel = document.querySelector("[data-feed-filter-panel]");
       feedFilterBadge = document.querySelector("[data-feed-filter-badge]");
-      feedFilterSummary = document.querySelector("[data-feed-filter-summary]");
       feedFilterReset = document.querySelector("[data-feed-filter-reset]");
       feedSourceFilter = document.querySelector("[data-feed-source-filter]");
       feedTypeFilter = document.querySelector("[data-feed-type-filter]");
@@ -48,7 +47,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       sourceDirectory = document.querySelector("[data-source-directory]");
       sourceWorkbench = document.querySelector("[data-source-workbench]");
       sourceList = document.querySelector("[data-source-list]");
-      sourceSearch = document.querySelector("[data-source-search]");
       sourceResultCount = document.querySelector("[data-source-result-count]");
       sourceEmpty = document.querySelector("[data-source-empty]");
       feedSourcesDialog = document.querySelector("[data-feed-sources-dialog]");

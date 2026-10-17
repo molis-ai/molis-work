@@ -1845,24 +1845,8 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
   const still = navigator.webdriver === true;
   if (still) root.setAttribute("data-craft-still", "");
   const reduced = () => still || matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const T = (text) => (typeof globalThis.L === "function" ? globalThis.L(text) : text);
   const embedded = body.hasAttribute("data-pane-embedded");
   const workbench = body.classList.contains("immersive-workbench");
-
-  /* A greeting that follows the local clock. */
-  const daylight = () => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 11) return ["早上好", "yellow"];
-    if (hour >= 11 && hour < 13) return ["中午好", "orange"];
-    if (hour >= 13 && hour < 18) return ["下午好", "orange"];
-    if (hour >= 18 && hour < 23) return ["晚上好", "indigo"];
-    return ["夜深了", "purple"];
-  };
-  document.querySelectorAll("[data-craft-greeting]").forEach((node) => {
-    const [text] = daylight();
-    node.textContent = T(text);
-    node.hidden = false;
-  });
 
   /* Opening a project: the rail settles in, then the sheet. Once per page. */
   if (workbench && !embedded && !reduced()) {

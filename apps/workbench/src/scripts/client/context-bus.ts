@@ -216,10 +216,8 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
   });
 
   window.addEventListener("message", (event) => {
-    if (event.origin !== location.origin || !event.data || typeof event.data.type !== "string") return;
-    const frame = [...document.querySelectorAll("iframe[data-pane-owner]")].find((node) => node.contentWindow === event.source);
+    const frame = panes.from(event), data = event.data;
     if (!frame) return;
-    const data = event.data;
     if (data.type === "workbench-surface-focus") bus.report({ pane: frame.dataset.paneOwner || "pane", element: frame, frame }, data.focus || null);
     else if (data.type === "workbench-context-action-unhandled" && data.detail) unhandled(data.context_id, data.key, data.detail);
     else if (!bus.source || bus.source.frame !== frame || !bus.focus || data.context_id !== bus.focus.context_id) return;

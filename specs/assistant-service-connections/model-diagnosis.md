@@ -6,6 +6,8 @@
 
 [Prologue #35](https://github.com/molis-ai/prologue/pull/35) 已合入 `86be989137f05b3bb90ca883540c256baf58a227`，从干净合并提交打包，字节与已验证包一致。Molis 的工作图绑定随后暴露遗漏接续请求键：宿主启动了新轮，SDK 的旧接续仍为 eligible，因而重复启动。复用现有按图、按会话的接续查询并携带 SDK 请求键后，新工作图回归从失败变为通过；撤权拒绝、单次领取和重开不重复均覆盖。四项完整 MCP 业务回归及 77 个 Agent/Prologue 和相关文件通过。[Molis #644](https://github.com/molis-ai/molis-work/pull/644) 包含统一包、此适配修复与内部等待登记不再显示工具原名的呈现修复。
 
+Molis #644 的 [PR CI](https://github.com/molis-ai/molis-work/actions/runs/39019523386) 全部通过，含两份安全检查及 Linux 产品子集 376/376 文件；无失败、重试后通过、跳过或隔离文件。[合并队列必需检查](https://github.com/molis-ai/molis-work/actions/runs/39020580792) 随后通过，2026-10-17 09:23 UTC 合入 `447bec2e039aacd8b8a64438b1353c72071b87e4`；origin/main 的包、依赖与适配源码同已验证版本一致。首轮 CI 的记忆维护日期失败在干净旧主线复现，已有独立 #645 修复，当前分支采用后六项回归通过；没有放宽断言。此 CI 针对统一 SDK 与适配修复，不替代整个连接功能分支的集成验收。
+
 以下三项均使用原 MiniMax-M3 / anthropic-messages、基础提示词 v29，在新的隔离 Home 从原始请求重新开始；没有回放前缀、手工保留接入或手工补登记等待。任务先要求读取并保存 Pages，真正进入本人操作等待后，再发送“继续接入，但接好后只读取库存，不要创建或保存 Pages 文档”。
 
 | 运行 | 新增请求 | 真实结果 | 结论 |

@@ -67,18 +67,17 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         goalPageUrl, setWorkspaceMode, saveUiState, localPathname, visibleGoals,
         openEventReaderFromHash, goalFactorFromHash, setGoalFactor, revealDeepLinkFromId,
       });
-    const { selectTreeGoal, syncGoalCollectionFolds, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses, isTreeSearchComposing,
+    const { selectTreeGoal, syncGoalCollectionFolds, getCollapsedTreeGoals, restoreTreeCollapsed, setSelectedStatuses, getSelectedStatuses,
       setTreeFilterOpen, filterTree, bindTreeSearchEvents, bindTreeFilterTrigger,
-      handleTreeStatusChange, handleTreeSearchFocus, handleTreeDisclosureClick,
+      handleTreeStatusChange, handleTreeDisclosureClick,
       handleTreeKeyboard } = (${GOALS_TREE_CLIENT_FACTORY_SCRIPT})({
-        treeFilter, treeFilterTrigger, treeSearch, treeScroll, globalSearch, translate: L,
+        treeFilter, treeFilterTrigger, treeScroll, globalSearch, translate: L,
         updateGraphVisibility, queueSave, saveUiState,
-        noteSearchActivity: (...args) => noteSearchActivity(...args),
       });
     const { prepareGoalRefresh } = (${GOALS_REFRESH_CLIENT_FACTORY_SCRIPT})({
       treeScroll, treeFilter, documentPane, dialog, readCreateDraft, refreshCreateChoices, translate: L,
     });
-    const searchInteractionActive = () => isTreeSearchComposing() || globalSearchPalette?.isBusy?.() || Date.now() < searchBusyUntil;
+    const searchInteractionActive = () => globalSearchPalette?.isBusy?.() || Date.now() < searchBusyUntil;
 
     const liveUiInteractionActive = () => {
       const active = document.activeElement;
@@ -186,21 +185,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         }
         if (!force && liveUiInteractionActive()) return;
         const ui = readUiState();
-        const replaceNavLink = (current, next) => {
-          if (!current || !next) return;
-          current.innerHTML = next.innerHTML;
-          current.className = next.className;
-          for (const name of ["href", "aria-label", "aria-current", "title"]) {
-            const value = next.getAttribute(name);
-            if (value == null) current.removeAttribute(name);
-            else current.setAttribute(name, value);
-          }
-        };
-        goalRefresh.apply(() => {
-          for (const selector of ["[data-archive-link]", "[data-trash-link]"]) {
-            replaceNavLink(document.querySelector(selector), parsed.querySelector(selector));
-          }
-        });
+        goalRefresh.apply(() => {});
         state = nextState;
         projectHome?.sync();
         document.querySelector("#molis-work-data").textContent = JSON.stringify(state).replaceAll("<", "\\u003c");
@@ -312,6 +297,6 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     document.addEventListener("change", (event) => {
       const changed = event.target?.nodeType === 1 ? event.target : null;
       if (!changed) return;
-      const changedFactorForm = changed.closest("[data-relation-form], [data-risk-create-form], [data-risk-edit-form], [data-policy-form]");
+      const changedFactorForm = changed.closest("[data-relation-form], [data-policy-form]");
       if (changedFactorForm) {
 `;

@@ -19,7 +19,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const tuiPane = document.querySelector("[data-tui-pane]");
     const treeScroll = document.querySelector("[data-tree-scroll]");
     const globalSearch = document.querySelector("[data-global-search]");
-    const treeSearch = document.querySelector("[data-tree-search]");
     const treeFilter = document.querySelector("[data-tree-filter]");
     const treeFilterTrigger = document.querySelector("[data-tree-filter-trigger]");
     const desktopDirectoryPanels = [...document.querySelectorAll("[data-directory-panel]")];

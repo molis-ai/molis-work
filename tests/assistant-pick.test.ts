@@ -1,7 +1,8 @@
 // W3-A3b (specs/context-program §21.2 item 6; 统筹 10-17): a result the work made can be picked up in the Assistant's
 // panel. The shipped script runs here on a small stand-in for the page: a click on the card or Enter / Space picks it (the
 // whole object goes into hand as the Assistant's surface), a click on its title or buttons or one that ends a text selection
-// does not, Esc or a press elsewhere (not on the bar) puts it down, and a result that is gone cannot be picked.
+// does not, Esc or a press elsewhere (not on the bar) puts it down, picking it again offers it again, and a result that is gone
+// cannot be picked.
 // Public entries only (pnpm health:check).
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -62,8 +63,17 @@ test("W3-A3b PICK-01: a click on a result card picks up the whole object as what
   assert.deepEqual(focus.targets.map((target) => [target.kind, target.text]), [["object", "发布计划"]]);
   assert.equal(focus.screen.rect.top, 20, "the bar is drawn by the card");
   assert.equal(one.node.getAttribute("aria-current"), "true");
+});
+
+test("W3-A3b PICK-05: the card already in hand, picked again (its bar was put away), is offered again as a new context", () => {
+  const { card } = page(), one = card("current");
   click(one.node);
-  assert.equal(one.reported.length, 1, "picking the card already in hand says nothing again");
+  click(one.node);
+  key(one.node, "Enter");
+  assert.equal(one.reported.length, 3, "each pick offers it again");
+  assert.equal(new Set(one.reported.map((focus) => focus!.context_id)).size, 3, "a new context each time, so the bar comes back");
+  assert.ok(one.reported.every((focus) => focus!.object.id === "doc-1"));
+  assert.equal(one.node.getAttribute("aria-current"), "true", "still the one in hand; nothing was put down");
 });
 
 test("W3-A3b PICK-01, PICK-03: Enter and Space pick the focused card the same as a click; Esc puts it down from the same card", () => {

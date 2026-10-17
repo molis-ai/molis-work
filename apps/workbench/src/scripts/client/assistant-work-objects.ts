@@ -42,9 +42,9 @@ export const ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT = String.raw`({ api, joined, 
     let picked = null;
     const say = (node, focus) => node.dispatchEvent(new CustomEvent("molis:surface-focus", { bubbles: true, detail: focus }));
     const drop = () => { if (picked) { picked.removeAttribute("aria-current"); say(picked, null); picked = null; } };
+    // Picking the card already in hand offers it again (the bar may have been put away): a new context, the same thing.
     const pick = (node, object, title) => {
-      if (picked === node) return;
-      drop(); picked = node; node.setAttribute("aria-current", "true");
+      if (picked !== node) { drop(); picked = node; node.setAttribute("aria-current", "true"); }
       const ref = { ...object.subject, title };
       say(node, { context_id: "pick:" + crypto.randomUUID(), plugin_id: "assistant", activity: "selecting", granularity: "object", object: ref,
         targets: [{ kind: "object", role: "object", ref, text: title }], screen: { rect: node.getBoundingClientRect().toJSON(), placement: "below" } });

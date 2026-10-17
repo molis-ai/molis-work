@@ -14,7 +14,7 @@ const CARD = "[data-assistant-block='results'] .assistant-item[role='group']";
 const ATTACH = ".mw-ctx:not(.mw-ctx--static):not([hidden]) [data-key^='attach.']";
 const INSERT = `[...document.querySelectorAll(${JSON.stringify(ATTACH)})].find((node) => node.textContent.includes('插入到光标处'))`;
 
-test("W3-A3b PICK-01, FLASH-01, FLASH-02, FLASH-03: a result picked up from its card goes to the cursor on the left; hovering the offer flashes the landing once", { timeout: 150_000 }, async (t) => {
+test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up from its card goes to the cursor on the left; hovering the offer flashes the landing once", { timeout: 150_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
@@ -93,6 +93,16 @@ test("W3-A3b PICK-01, FLASH-01, FLASH-02, FLASH-03: a result picked up from its 
   await waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
   await hover(false); await hover(true);
   await waitFor("window.flashLines === 2", 5_000);
+  // Off the offer onto the bar between its buttons, and back: a new entry, so it flashes again.
+  await waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
+  const gap = await evaluate<{ x: number; y: number }>(`(() => { const bar = ${INSERT}.closest('.mw-ctx'), box = bar.getBoundingClientRect();
+    for (let y = box.top + 1; y < box.bottom; y += 2) for (let x = box.left + 1; x < box.right; x += 2) {
+      const at = document.elementFromPoint(x, y); if (at && bar.contains(at) && !at.closest('[data-key]')) return { x, y }; }
+    return null; })()`);
+  assert.ok(gap, "the bar has room between its buttons");
+  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: gap.x, y: gap.y }, sessionId);
+  await hover(true);
+  await waitFor("window.flashLines === 3", 5_000);
   // Focus on the offer flashes it as hover does.
   await hover(false);
   await waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
@@ -113,6 +123,14 @@ test("W3-A3b PICK-01, FLASH-01, FLASH-02, FLASH-03: a result picked up from its 
     const text = [...editor.querySelectorAll('p')].find((node) => node.textContent === '先完成核心体验。').firstChild;
     const range = document.createRange(); range.setStart(text, 2); range.collapse(true); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`);
   await waitFor("window.lastLanding?.position === 'cursor' && window.lastLanding.targets[0].anchor !== window.flashGoneAt");
+  await evaluate(`document.querySelector(${JSON.stringify(CARD)}).focus()`);
+  await key("Enter", "Enter", 13);
+  await waitFor(`Boolean(${INSERT})`, 15_000);
+  // PICK-05: Esc on the bar puts the bar away, not the card; picking the card again brings the bar back.
+  await evaluate(`${INSERT}.focus()`);
+  await key("Escape", "Escape", 27);
+  await waitFor(`!${INSERT}`, 5_000);
+  assert.equal(await evaluate<string>(`document.querySelector(${JSON.stringify(CARD)}).getAttribute('aria-current')`), "true", "still in hand");
   await evaluate(`document.querySelector(${JSON.stringify(CARD)}).focus()`);
   await key("Enter", "Enter", 13);
   await waitFor(`Boolean(${INSERT})`, 15_000);

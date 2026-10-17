@@ -1660,7 +1660,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const pageCtx = () => {
     const surf = visible(lastSurface) ? lastSurface : [...allEls(document, "[data-assistant-context]")].find((node) => visible(node) && !island.contains(node));
     if (surf) {
-      try { return JSON.parse(surf.getAttribute("data-assistant-context") || "null"); } catch { return null; }
+      try { return JSON.parse(surf.dataset.assistantContext || "null"); } catch { return null; }
     }
     const shown = findEl(document, ".plugin-rail-items [aria-current][data-plugin-id]");
     if (background && background.object && shown && shown.dataset.pluginId === background.source.surface) {

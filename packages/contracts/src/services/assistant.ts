@@ -1,6 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
-import type { AgentPendingQuestion } from "./agent-interaction.js";
+import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
+import type { AgentInputSend } from "./agent-inputs.js";
 import type { MemoryChange, MemoryScope } from "./memory.js";
 
 /**
@@ -470,19 +471,9 @@ export interface AssistantWorkView {
   problem?: { message: string; action?: string };
 }
 
-/** An interrupted round, as the runtime's own receipts show it: what happened, what did not, what is unknown. */
-export interface AssistantRecovery {
-  blockers: string[];
-  rounds: Array<{
-    run_id: string;
-    version: number;
-    can_close: boolean;
-    blockers: string[];
-    operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
-  }>;
-}
+export type { AssistantRecovery } from "./assistant-recovery.js";
 
-export interface AssistantSendInput {
+export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
   /** For a new work: who carries it. An existing work keeps its executor. */
@@ -509,6 +500,7 @@ export interface AssistantSendInput {
    * one free-text question, `steer` adds the words to the round. Absent is `steer`: the Host never decides it is an answer.
    */
   target?: "answer" | "steer";
+  reask?: AgentQuestionReask;
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;
 }
@@ -531,9 +523,8 @@ export interface AssistantHandover {
 }
 
 export type AssistantControl =
-  | { kind: "pause" }
-  | { kind: "resume" }
-  | { kind: "stop" };
+  | { kind: "pause" | "resume" | "stop" }
+  | { kind: "withdraw"; run_id: string; input_id: string };
 
 /** What one provider contributes for the Assistant (read from the action directory), and the gaps that limit it. */
 export interface AssistantContribution {

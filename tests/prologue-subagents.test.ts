@@ -119,10 +119,11 @@ for (const outcome of ['rejected','cancelled','failed','unknown-role'] as const)
 
 test('a named child role brings its own tools: an empty tools list still gives them, and nothing past them or the parent is given (A1)', {timeout:40_000}, async t=>{
   const root=await mkdtemp(join(tmpdir(),'molis-child-tools-'));let parentCalls=0;const childTools:Record<string,string[]>={};let parentTools:string[]=[];
-  const firstText=(body:any)=>{const message=body.messages[0];return typeof message.content==='string'?message.content:message.content.find((block:any)=>block.type==='text')?.text??'';};
+  type ModelRequest={system?:unknown;tools?:Array<{name:string}>;messages:Array<{content:string|Array<{type:string;text?:string}>}>};
+  const firstText=(body:ModelRequest)=>{const content=body.messages[0]!.content;return typeof content==='string'?content:content.find(block=>block.type==='text')?.text??'';};
   t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
-    const body=JSON.parse(typeof init.body==='string'?init.body:new TextDecoder().decode(init.body as Uint8Array));
-    const names=(body.tools??[]).map((tool:any)=>tool.name).sort(),child=/^TOOLS_CHILD_[AB]/.exec(firstText(body))?.[0];
+    const body:ModelRequest=JSON.parse(typeof init.body==='string'?init.body:new TextDecoder().decode(init.body as Uint8Array));
+    const names=(body.tools??[]).map(tool=>tool.name).sort(),child=/^TOOLS_CHILD_[AB]/.exec(firstText(body))?.[0];
     if(child){childTools[child]=names;return response(`${child} done`);}
     parentCalls++;
     if(parentCalls===1){

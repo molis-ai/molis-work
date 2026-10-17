@@ -842,3 +842,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - wt-stream 4034ac8b8，分支 feature/w5-01-route-stream
   - 方案、PR 正文也在同一目录；原 scratchpad 的路径作废。
   - 跟这条线有关的通知都留在统筹会话里，Codex 从 Claude 界面读。
+- #674 合入 9b7c56d0c，#669 已入队。手册线现在没有在途的片，回执线只有一片，都已请它们发下一片的一行计划。

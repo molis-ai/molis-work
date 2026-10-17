@@ -53,8 +53,13 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     const app=new GoalProjectApplication(b.store);
     assert.match(JSON.stringify(app.goalEvents.listEvents(DEMO_PROJECT_ID,goalId, {limit: 20})),/已经从项目首页创建目标/);
     await capture('goal-recorded');
-    await plugin('feed');await click('[data-feed-source-rail] [data-feed-add-toggle]');
-    await click('[data-feed-choose-kind=custom_rss]');
+    await evaluate(`(() => { globalThis.__journeyTrace=[]; for(const type of ['mousedown','mouseup','click']) document.addEventListener(type, e=>{globalThis.__journeyTrace.push({type,target:e.target?.outerHTML?.slice(0,500),dialog:document.querySelector('[data-feed-sources-dialog]')?.hidden,surface:document.body.dataset.desktopSurface});}, true); })()`);
+    try {
+      await plugin('feed');await click('[data-feed-source-rail] [data-feed-add-toggle]');
+      await click('[data-feed-choose-kind=custom_rss]');
+    } catch(error) {
+      t.diagnostic(await evaluate<string>("JSON.stringify({trace:globalThis.__journeyTrace,dialog:document.querySelector('[data-feed-sources-dialog]')?.outerHTML.slice(0,1000),active:document.activeElement?.outerHTML,surface:document.body.dataset.desktopSurface})")); throw error;
+    }
     await fill('[data-feed-add-name]','团队设计资料');
     await fill('[data-feed-source-value=custom_rss]','https://example.com/journey.xml');
     await click('[data-feed-source-register]');

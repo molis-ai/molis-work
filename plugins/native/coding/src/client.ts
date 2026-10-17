@@ -1504,7 +1504,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     sessions:()=>state.sessions.map(session=>({...session,state_label:SESSION_STATE[session.state] || ''})),
     openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);}});
   lifetime.listen(input,'input',()=>turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());}));
-  // One way to start a round, shared by the composer and by continuing from a breakpoint.
   /** A round waiting for another session: what it waits for, and starting it now or giving the wait up. */
   let queuedKey='';
   /** Marked the priority: others whose work overlaps it are asked to make way; nothing is paused. */
@@ -1546,7 +1545,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     lifetime.listen(dialog,'cancel',event=>{event.preventDefault();choose('cancel');});
     box.append(head,list,hint,actions);dialog.append(box);root.append(dialog);dialog.showModal();
   });
-  // One way to start a round, shared by the composer and by continuing from a breakpoint.
   const startRound = async (id,task,intent,modelValue,selection,extra={}) => {
     const [provider_id,model_id]=JSON.parse(modelValue);
     // A round that carries a digest waits for the model to write it first; say so rather than look stuck.

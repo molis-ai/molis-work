@@ -60,9 +60,9 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
   let project: LocalHostProjectReference | undefined;
   if (prefixed) {
-    const refused = await refusedProject(prefixed[1]!, pluginId, projectPlugins);
-    if ("status" in refused) { sendLocalWebJson(response, refused.status, refused.body); return true; }
-    project = refused;
+    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins);
+    if (found instanceof ActionError) { const refused = actionErrorResponse(found); sendLocalWebJson(response, refused.status, refused.body); return true; }
+    project = found;
   }
   if (page && entry) {
     if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "请通过 GET 打开页面" }); return true; }
@@ -91,13 +91,18 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const abort = new AbortController();
   const disconnected = () => { if (!response.writableEnded) abort.abort(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
+  const plain = { signal: abort.signal, page_context: homePageContext(request, url),
+    beforeEffect: async () => { if (abort.signal.aborted) throw new ActionError("actions.cancelled", "调用已取消"); } };
+  // Before each write the project must still be there and still show the plugin; the project lasts only as long as this request.
+  const routed = project && prefixed ? projectRouteControl(plain, project.project_id, host.actionClient(project), async () => {
+    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins);
+    if (found instanceof ActionError) throw found;
+  }) : undefined;
   try {
     const caller = await localWebActionContext(host, undefined, []);
-    const control = { signal: abort.signal, page_context: homePageContext(request, url),
-      beforeEffect: async () => { if (abort.signal.aborted) throw new ActionError("actions.cancelled", "调用已取消"); } };
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
       granted: caller.permissions,
-      execution: project ? projectRouteControl(control, project.project_id, host.actionClient(project)) : control,
+      execution: routed?.control ?? plain,
       readBody: async request => {
         // Bounded image-bearing Home actions; each plugin additionally validates its own input.
         try { return await readLocalWebBody(request, 12 * 1024 * 1024); }
@@ -106,23 +111,22 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       },
     });
     if (!handled) sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
-  } finally { request.off("aborted", disconnected); response.off("close", disconnected); }
+  } finally { routed?.end(); request.off("aborted", disconnected); response.off("close", disconnected); }
   return true;
 }
 
 /** The Host's lifecycle operations, which are the Home's and not a project's: under a project's path only the plugin's declared routes run. */
 const HOME_ONLY_OPERATIONS = new Set(["retry", "enable", "disable", "restart", "release-quarantine", "upgrade", "view-revision"]);
 
-/** The project id from the path, once that project exists and shows this plugin; otherwise the refusal to send. */
-async function refusedProject(segment: string, pluginId: string, projectPlugins: HomeRouteProjectPlugins | undefined)
-  : Promise<LocalHostProjectReference | { status: number; body: unknown }> {
-  const refuse = (error: ActionError) => actionErrorResponse(error);
+/** The project the path names, while it exists and shows this plugin; otherwise why not. Asked when the route starts and before each write. */
+async function routeProject(segment: string, pluginId: string, projectPlugins: HomeRouteProjectPlugins | undefined)
+  : Promise<LocalHostProjectReference | ActionError> {
   let projectId: string;
-  try { projectId = decodeURIComponent(segment); } catch { return refuse(new ActionError("actions.missing", "找不到这个项目")); }
+  try { projectId = decodeURIComponent(segment); } catch { return new ActionError("actions.missing", "找不到这个项目"); }
   const found = projectPlugins ? await projectPlugins(projectId) : null;
-  if (!found) return refuse(new ActionError("actions.missing", "找不到这个项目"));
+  if (!found) return new ActionError("actions.missing", "找不到这个项目");
   const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.runtime?.scope === "home" && item.manifest.plugin_id === pluginId);
-  if (!entry || !found.plugins.includes(entry.project_plugin_id)) return refuse(new ActionError("actions.plugin_disabled", "此项目未启用该插件"));
+  if (!entry || !found.plugins.includes(entry.project_plugin_id)) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
   return molisWorkHostProjectReference({ databasePath: found.database_path, projectId });
 }
 

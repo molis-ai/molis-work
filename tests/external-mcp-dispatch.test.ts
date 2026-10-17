@@ -14,6 +14,7 @@ import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
+// PA-MCP-01: actual Molis registration and dispatch retain annotated tools and the existing effect boundaries.
 test("real Prologue HTTP dispatch rechecks persisted action grants after DNS preparation, preserves cancellation and recovers", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "external-mcp-dispatch-"));
   const notes: string[] = [];
@@ -37,7 +38,7 @@ test("real Prologue HTTP dispatch rechecks persisted action grants after DNS pre
     let result: unknown;
     if (message.method === "initialize") result = { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "dispatch-test", version: "1" } };
     else if (message.method === "tools/list") {
-      result = { tools: [{ name: "write_note", inputSchema: { type: "object", properties: { note: { type: "string" } }, required: ["note"], additionalProperties: false } }] };
+      result = { tools: [{ name: "write_note", inputSchema: { type: "object", properties: { note: { type: "string", default: "not injected", "x-mcp-header": "note" } }, required: ["note"], additionalProperties: false } }] };
     } else if (message.method === "tools/call") {
       notes.push(message.params.arguments.note);
       if (message.params.arguments.note === "已经发出") { dispatched.resolve(); return; }

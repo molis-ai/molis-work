@@ -1,4 +1,5 @@
 import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
+import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
 import { pluginSearchRows } from "../../plugin-workbench.js";
 import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
@@ -73,6 +74,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   let pluginRequestedOnLoad = false;
   const embedded = window.parent !== window && paneParams.has("workbenchPane");
   if (embedded) document.body.dataset.paneEmbedded = "true";
+  const panes = ${PANE_MESSAGES_SCRIPT};
   const notifyParent = (type, payload = {}) => { if (embedded) parent.postMessage({ type, paneId: paneParams.get("workbenchPane"), ...payload }, location.origin); };
   if (embedded) {
     document.addEventListener("pointerdown", () => notifyParent("workbench-pane-focus"), true);
@@ -1423,18 +1425,20 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
     event.preventDefault(); buttons[next]?.focus();
   });
+  // One item of the tab menu, for a tab's menu and a group's alike; a tab's puts focus back on the active tab.
+  const menuItem = (paneId, refocus) => (label, icon, key, action) => {
+    const button = document.createElement("button"); button.type = "button"; button.className = "mw-menu__item"; button.setAttribute("role", "menuitem"); button.dataset.tabMenuAction = key;
+    button.innerHTML = '<svg aria-hidden="true"><use href="#icon-' + icon + '"></use></svg><span></span>';
+    button.querySelector("span").textContent = label;
+    button.addEventListener("click", () => { tabMenu.hidePopover(); state.focusedPaneId = paneId; action(); apply(); persist(); if (refocus) focusActiveTab(); });
+    tabMenu.append(button);
+  };
   const openTabMenu = (paneId, anchor, tabId = null) => {
     const pane = paneById(paneId); if (!pane) return;
     const tab = pane.tabs.find(candidate => candidate.id === (tabId || pane.activeTabId));
     tabMenuAnchor = anchor; tabMenu.replaceChildren();
     tabMenu.setAttribute("aria-label", L(tabId ? "标签操作" : "打开插件"));
-    const add = (label, icon, key, action) => {
-      const button = document.createElement("button"); button.type = "button"; button.className = "mw-menu__item"; button.setAttribute("role", "menuitem"); button.dataset.tabMenuAction = key;
-      button.innerHTML = '<svg aria-hidden="true"><use href="#icon-' + icon + '"></use></svg><span></span>';
-      button.querySelector("span").textContent = label;
-      button.addEventListener("click", () => { tabMenu.hidePopover(); state.focusedPaneId = paneId; action(); apply(); persist(); focusActiveTab(); });
-      tabMenu.append(button);
-    };
+    const add = menuItem(paneId, true);
     if (!tabId) {
       const mounted = ["home", ...new Set([...document.querySelectorAll('[data-plugin-strip] [data-plugin-id], [data-assistant-island] [data-plugin-id], [data-dock] [data-plugin-id]')].map((el) => el.dataset.pluginId).filter((id) => id && id !== "home" && id !== "market"))];
       mounted.forEach(plugin => {
@@ -1481,13 +1485,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       colors.append(swatch);
     });
     tabMenu.append(colors);
-    const add = (label, icon, key, action) => {
-      const button = document.createElement("button"); button.type = "button"; button.className = "mw-menu__item"; button.setAttribute("role", "menuitem"); button.dataset.tabMenuAction = key;
-      button.innerHTML = '<svg aria-hidden="true"><use href="#icon-' + icon + '"></use></svg><span></span>';
-      button.querySelector("span").textContent = label;
-      button.addEventListener("click", () => { tabMenu.hidePopover(); state.focusedPaneId = paneId; action(); apply(); persist(); });
-      tabMenu.append(button);
-    };
+    const add = menuItem(paneId, false);
     add(L("取消分组"), "x", "ungroup", () => ops.ungroup(state, paneId, groupId));
     add(L("关闭分组"), "x", "close-group", () => ops.closeGroup(state, paneId, groupId));
     if (layoutMenu.matches(":popover-open")) layoutMenu.hidePopover();
@@ -1925,12 +1923,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     });
   });
   window.addEventListener("message", (event) => {
-    if (event.origin !== location.origin) return;
-    if (!embedded && event.data?.type === "workbench-open-settings") {
-      document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: event.data.href || "" } }));
-      return;
-    }
-    if (embedded && event.source === window.parent && event.data?.type === "workbench-goal-view") {
+    if (embedded) {
+      if (!panes.fromParent(event)) return;
+      if (event.data.type === "workbench-feed-task") setFeedTask?.(event.data.taskId, false);
+      if (event.data.type === "workbench-feed-add") setFeedAddOpen?.(true);
+      if (event.data.type !== "workbench-goal-view") return;
       const tab = ops.activeTab(state);
       if (tab?.plugin === "goals" && tab.kind === "item") {
         if (event.data.view === "work") tab.goalView = "work"; else delete tab.goalView;
@@ -1938,8 +1935,12 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       apply();
       return;
     }
+    const frame = panes.from(event);
+    if (frame && event.data.type === "workbench-open-settings") {
+      document.dispatchEvent(new CustomEvent("molis-work:open-settings-path", { detail: { href: event.data.href || "" } }));
+      return;
+    }
     if (!["workbench-pane-focus", "workbench-pane-open", "workbench-pane-open-beside", "workbench-pane-goal-view", "workbench-pane-history"].includes(event.data?.type)) return;
-    const frame = [...panesEl.querySelectorAll("iframe")].find((node) => node.contentWindow === event.source);
     const pane = paneById(frame?.dataset.paneOwner);
     if (!pane) return;
     if (event.data.type === "workbench-pane-history") {
@@ -2004,11 +2005,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const frame = panesEl.querySelector('iframe[data-pane-tab="' + tab.id + '"]');
     frame?.contentWindow?.postMessage({ type: "workbench-feed-task", taskId: tab.feedTask }, location.origin);
     persist();
-  });
-  if (embedded) window.addEventListener("message", (event) => {
-    if (event.origin !== location.origin || event.source !== parent) return;
-    if (event.data?.type === "workbench-feed-task") setFeedTask?.(event.data.taskId, false);
-    if (event.data?.type === "workbench-feed-add") setFeedAddOpen?.(true);
   });
   if (embedded && paneParams.has("paneFeedTask")) requestAnimationFrame(() => setFeedTask?.(paneParams.get("paneFeedTask"), false));
   return { apply, openPlugin, openPluginRecord, openItem, openBeside, openGoalWork, closeItem, addFeedTask, setExclusive, restore, landAtProjectRoot,

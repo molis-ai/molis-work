@@ -4,7 +4,7 @@
   "private": true,
   "description": "Tokens, primitives, icons, themes, and accessibility foundations.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Personal Character drafts and availability; immutable publications belong to Artifacts.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

@@ -4,7 +4,7 @@
   "private": true,
   "description": "Object references, cross-owner relationships, publication, and materialization records.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

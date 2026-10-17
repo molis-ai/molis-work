@@ -26,7 +26,8 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
 
   assert.match(settings, /body\.settings-page \{[^}]*overflow: hidden;/);
   assert.match(settings, /\.settings-content \{[^}]*overflow: hidden;/);
-  assert.match(settings, /body\.settings-page\[data-desktop-shell="true"\]:has\(\.settings-navigation\) \.settings-content \{[\s\S]*grid-column: 2;/);
+  // Both settings bodies render data-desktop-shell="false", so personal-workbench-v3's two-column .settings-content rule for "true"
+  // never applied. W5-05 slice 4 kept it while this file still asserted it; slice 5 deleted it.
   assert.match(settings, /body\.settings-page\[data-desktop-shell="true"\]:is\(\[data-settings-section="projects"\], \[data-settings-section="project"\]\) \.settings-content \{[\s\S]*grid-column: 1;/);
   assert.match(settings, /\.settings-body \{[^}]*overflow: auto;[^}]*overscroll-behavior: contain;/);
   assert.doesNotMatch(settings, /\.settings-shell \{ height: calc\(100dvh - 58px\)/);

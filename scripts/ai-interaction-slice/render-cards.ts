@@ -2,7 +2,7 @@
 // the preview is their first live consumer. Both layouts render exactly this markup; only the frame differs.
 // Every optional part is rendered up front and shown or hidden by paint.ts, so fields are never re-rendered.
 import { icon, renderInteractionOperation, renderInteractionQuestion, type InteractionField } from "../../packages/design-system/src/index.ts";
-import { formats, topics, references, labels, timeLimits, zone, type Layout } from "./model.ts";
+import { formats, topics, labels, timeLimits, zone, type Layout } from "./model.ts";
 
 const copy = {
   assistant: {
@@ -29,8 +29,8 @@ const fields: InteractionField[] = [
     control: { kind: "number", value: "", unit: "分钟", step: timeLimits.step, placeholder: "30", stepLabels: [`减少 ${timeLimits.step} 分钟`, `增加 ${timeLimits.step} 分钟`] } },
   { id: "date", label: labels.date, hint: "需要在开始当天或之前准备好。", control: { kind: "date", value: "", placeholder: "2026-10-15", calendar } },
   { id: "when", label: labels.when, hint: "时区随问题给定，不需要输入。", control: { kind: "datetime", date: "", time: "", zone: zone.label, calendar, dateLabel: "开始日期" } },
-  { id: "references", label: labels.references, hint: `从可用材料里选 1–${timeLimits.maxReferences} 份 · 已选 0`, control: { kind: "reference",
-    candidates: references.map(ref => ({ id: ref.id, label: ref.label, meta: `${ref.kind === "goal" ? "Goal" : "文档"} · 示例候选`, icon: ref.kind === "goal" ? "target" : "file" })) } },
+  { id: "references", label: labels.references, hint: `输入名称搜索，选 1–${timeLimits.maxReferences} 份 · 已选 0`, control: { kind: "reference",
+    source: "goal,document", multiple: true, max: timeLimits.maxReferences, placeholder: "搜索材料，例如「试用」", picked: [] } },
 ];
 function questionCard(layout: Layout): string {
   return renderInteractionQuestion({

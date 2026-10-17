@@ -67,19 +67,20 @@ CREATE TABLE assistant_requests (
 ${CONTEXT_LEDGER_SCHEMA}` };
 
 /** A work as stored: the public record plus the project reference its actions and sessions are bound to. */
-export interface StoredWork extends Omit<AssistantWork, "state"> {
+export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"> {
   actor_id: string;
   thread_round?: AssistantThreadRound;
   /** What the next Coding round is told of the work so far, once, after the Assistant handed it over. Never shown as the work. */
   handover_brief?: string;
   /** Present for project work: the project it was started in, never the page it is later viewed from. */
   project_ref?: LocalHostProjectReference;
-  /** On a delegated work: follow-ups its delegating work sent it. */
-  follow_ups?: number;
-  /** On a delegated work: its latest round whose result reached its delegating work (by checking, or at its next round). */
-  handed_back_run?: string;
-  /** On a delegating work: its round after which the person stopped it — what its sub-tasks hand back then does not move it on by itself. */
-  hand_back_held?: string;
+  /** The work's own task graph (its rounds and the parts it hands out stand on it), from its first round on. */
+  graph_id?: string;
+  /**
+   * On a delegated work: the step it was handed out as on its delegating work's graph, that work's title when it asked,
+   * what it was asked to deliver, and when the person took it back. Which work asked and its follow-ups are on the graph.
+   */
+  delegated_by?: { graph_id: string; node_id: string; title: string; acceptance: string; taken_back_at?: string };
   /** Half-written answers to the questions its rounds wait on, by pending id, as the question card's fields hold them. Never shown as the work. */
   question_drafts?: Record<string, Record<string, unknown>>;
 }
@@ -185,7 +186,7 @@ export class AssistantStore {
   }
 
   create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor;
-    delegated_by?: AssistantWork["delegated_by"] }): StoredWork {
+    delegated_by?: StoredWork["delegated_by"] }): StoredWork {
     const at = this.now().toISOString();
     const work: StoredWork = { work_id: `work-${randomUUID()}`, revision: 1, title: input.title, scope: structuredClone(input.scope), origin: input.origin ? structuredClone(input.origin) : null,
       ...(input.scope_title ? { scope_title: input.scope_title } : {}),
@@ -213,7 +214,7 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "follow_ups" | "delegated_by" | "budget_tokens" | "handed_back_run" | "hand_back_held" | "question_drafts" | "reply_target" | "thread_round">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
     const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };
@@ -415,9 +416,9 @@ export class AssistantStore {
     this.setSetting(actorId, "attention_rules", JSON.stringify(rules));
   }
 
-  /** The works a work delegated, oldest first; those put away only when asked for ("any"): they still count toward its budget, limit and stop. */
-  delegatedBy(actorId: string, workId: string, archived: boolean | "any" = false): StoredWork[] {
-    return this.list(actorId, { archived, limit: 500 }).filter(work => work.delegated_by?.work_id === workId).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  /** The works a work delegated (each a step on its graph), oldest first; those put away only when asked for ("any"): they still count toward its budget, limit and stop. */
+  delegatedBy(actorId: string, parent: Pick<StoredWork, "graph_id">, archived: boolean | "any" = false): StoredWork[] {
+    return this.list(actorId, { archived, limit: 500 }).filter(work => parent.graph_id !== undefined && work.delegated_by?.graph_id === parent.graph_id).sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
   releaseRequest(actorId: string, requestId: string): void {

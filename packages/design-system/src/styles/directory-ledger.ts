@@ -1,5 +1,46 @@
 /** AP3 visual layer: directory-ledger. */
-export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals establish the row grammar; Inbox, Feed,
+export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node grid, title tracking, relations, footer, compact density. */
+  .tree-chrome,
+  body[data-desktop-shell="true"] .tree-chrome { gap: 8px; }
+  .tree-node { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .tree-copy strong,
+  .navigator-goal-copy strong { font-size: 13px; font-weight: var(--weight-control, 500); line-height: 1.35; letter-spacing: -.008em; }
+  .tree-node.is-selected .tree-copy small { color: var(--muted); }
+  .tree-relations > summary strong { font-size: 11px; }
+  .tree-relations > summary em { min-height: 19px; padding: 1px 4px; border: 1px solid color-mix(in srgb, currentColor 24%, var(--line)); border-radius: 5px; background: color-mix(in srgb, currentColor 6%, var(--rail)); display: inline-flex; align-items: center; font-size: 11px; font-weight: 400; }
+  .tree-footer { padding: 0 16px; border: 0; border-top: 1px solid var(--line); background: var(--rail); color: var(--muted); }
+  @media (min-width: 761px) {
+    html[data-density="compact"] body[data-board-view] .tree-chrome { padding-block: 4px 8px; }
+    html[data-density="compact"] body[data-board-view] .tree-node,
+    html[data-density="compact"] body[data-board-view] .navigator-goal-row { min-height: 32px; }
+    html[data-density="compact"] body[data-board-view] .tree-node { padding-block: 4px; }
+    html[data-density="compact"] body[data-board-view] .tree-progress > span { display: none; }
+    html[data-density="compact"] body[data-board-view] .tree-progress > i { width: 24px; display: block; }
+  }
+  @media (max-width: 760px) {
+    .tree-chrome,
+    body[data-desktop-shell="true"] .tree-chrome { align-content: start; }
+  }
+  /* Directory rail: the tree pane, its resizer and heading. */
+  @media (min-width: 761px) {
+    body[data-desktop-shell="true"] .tree-pane,
+    body[data-desktop-shell="true"] .workspace.is-desktop-tui[data-navigator-view="graph"] .tree-pane { min-width: 0; min-height: 0; padding: 0 8px; border: 0; grid-column: 1; grid-row: 1 / -1; grid-template-rows: auto minmax(0, 1fr) auto !important; color: var(--ink-soft); background: color-mix(in srgb, var(--rail) 78%, var(--page)); box-shadow: none; overflow: visible; z-index: 2; }
+    body[data-desktop-shell="true"] .tree-resizer::after { width: 8px; }
+    body[data-desktop-shell="true"] .desktop-directory-panel { grid-row: 2; overflow: hidden; }
+    body[data-desktop-shell="true"] .desktop-directory-heading { min-height: 40px; padding: 4px 8px; align-items: center; gap: 4px; }
+    body[data-desktop-shell="true"] .desktop-directory-heading > button { width: 24px; height: 24px; border: 0; border-radius: 6px; color: var(--muted); display: grid; place-items: center; }
+    body[data-desktop-shell="true"] .desktop-directory-heading > button svg { width: 12px; height: 12px; }
+    body[data-desktop-shell="true"] .desktop-directory-heading > span { display: grid; gap: 0; }
+    body[data-desktop-shell="true"] .desktop-directory-heading small { color: var(--faint); font-size: 11px; }
+    body[data-desktop-shell="true"] .tree-row { border-radius: 7px; }
+    body[data-desktop-shell="true"] .tree-row:hover,
+    body[data-desktop-shell="true"] .tree-row:has(.tree-node.is-selected) { background: var(--nav-active); }
+  }
+  @media (max-width: 760px) {
+    body[data-desktop-shell="true"] .tree-pane { grid-template-rows: minmax(0, 1fr) !important; }
+  }
+
+  /* Unified directory ledger: Goals establish the row grammar; Inbox, Feed,
      and Sources reuse the same interaction surface without sharing domain state. */
   body[data-desktop-shell="true"] .directory-list-row {
     min-width: 0;

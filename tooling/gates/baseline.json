@@ -1,10 +1,10 @@
 {
-  "giantUnits": 141,
+  "giantUnits": 137,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2057,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2040,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1643,
+      "lines": 1628,
       "methods": 98
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -39,8 +39,6 @@
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest": 368,
-    "function apps/local-host/src/web-request.ts#handleMolisWorkWebRequest callback 1": 271,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 210,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 207,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
@@ -51,9 +49,9 @@
     "file apps/workbench/src/i18n/en.ts": 3324,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2235,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 1001,
-    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2019,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2272,
+    "file apps/workbench/src/scripts/client/navigation-feed.ts": 996,
+    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2015,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
@@ -63,17 +61,17 @@
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 967,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 966,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 603,
+      "lines": 602,
       "methods": 18
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 363,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
-      "lines": 382,
+      "lines": 381,
       "methods": 12
     },
-    "function horizontal/agent-host/src/index.ts#start": 253,
+    "function horizontal/agent-host/src/index.ts#start": 252,
     "class horizontal/listener-host/src/index.ts#ListenerHost": {
       "lines": 361,
       "methods": 18
@@ -157,10 +155,8 @@
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
-    "file packages/design-system/src/styles/calm-desktop.ts": 1392,
-    "file packages/design-system/src/styles/craft-finish.ts": 2160,
+    "file packages/design-system/src/styles/craft-finish.ts": 2144,
     "file packages/design-system/src/styles/momentum.ts": 856,
-    "file packages/design-system/src/styles/personal-workbench-v3.ts": 1300,
     "file packages/design-system/src/styles/primitives.ts": 1268,
     "file packages/im-ui/src/browser/controller.ts": 966,
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
@@ -199,7 +195,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1637,
+    "file plugins/native/coding/src/client.ts": 1638,
     "file plugins/native/coding/src/styles.ts": 828,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
@@ -518,7 +514,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 136,
+  "emptyCatchesInScriptsTotal": 134,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -562,7 +558,6 @@
     "plugins/native/coding/src/writers-client.ts": 3,
     "plugins/native/git/src/client.ts": 3,
     "plugins/native/goals/src/event-document-client.ts": 1,
-    "plugins/native/goals/src/momentum-client.ts": 2,
     "plugins/native/goals/src/project-policy-client.ts": 1,
     "plugins/native/images/src/client.ts": 2,
     "plugins/native/jelly/src/client-content.ts": 2,
@@ -864,7 +859,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 418,
+  "pluginOutsideMentionsTotal": 416,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -874,9 +869,9 @@
     "dataset#outside-files": 12,
     "diff#outside-files": 8,
     "feed#outside-files": 41,
-    "files#outside-files": 11,
+    "files#outside-files": 10,
     "form#outside-files": 8,
-    "git#outside-files": 14,
+    "git#outside-files": 13,
     "goals#outside-files": 58,
     "images#outside-files": 12,
     "inbox#outside-files": 17,

@@ -18,10 +18,10 @@ function rejected(value: unknown): void {
   assert.throws(() => assertActionInput(schema, value), (error: unknown) => error instanceof ActionError && error.code === "actions.input_invalid");
 }
 
-// ADOPT-CONTROL-V2-01, RC-01: current schema and callers use a new shape under a new action version (3: a supplement's key and mode; 4: a non-choice question's answer is a value, specs/ai-interaction-experience AC-27).
-test("coding.runs.control uses version 4 and remains exclusive to the person at this computer", () => {
+// ADOPT-CONTROL-V2-01, RC-01: current schema and callers use a new shape under a new action version (3: a supplement's key and mode; 4: a non-choice question's answer is a value, specs/ai-interaction-experience AC-27; 5: the value may be picked objects, AC-28-5).
+test("coding.runs.control uses version 5 and remains exclusive to the person at this computer", () => {
   assert.equal(control.definition.capability_id, "coding.runs.control");
-  assert.equal(control.definition.version, 4);
+  assert.equal(control.definition.version, 5);
   assert.deepEqual(control.definition.action.audiences, ["user"]);
 });
 
@@ -85,7 +85,7 @@ test("the page still posts the provider and model, and the switch takes effect o
   assert.match(CODING_CLIENT_FACTORY_SCRIPT, /从下一次模型调用起生效/);
 });
 
-test("AC-27-4: the page answers with the card's fields; the route reads them into values the published schema checks", async () => {
+test("AC-27-4 AC-28-5: the page answers with the card's fields; the route reads them into values the published schema checks", async () => {
   const asked = { kind: "answer", run_id: "run-1", pending_id: "question-1", pending_revision: 3 };
   const input = control.toInput(request({ ...asked, values: { q0: ["1"], t1: " 复盘 ", n2: "45", d3: "", w4: { date: "", time: "" } } }));
   assertActionInput(schema, input);
@@ -96,6 +96,12 @@ test("AC-27-4: the page answers with the card's fields; the route reads them int
   rejected({ ...base, ...asked, answers: [{ question: 0, value: "x".repeat(2001) }] });
   rejected({ ...base, ...asked, answers: [{ question: 0, indexes: [1], value: 1 }] });
   assert.throws(() => control.toInput(request({ ...asked, values: {} })), /请回答每一道问题后再提交/, "a card with nothing in it is not sent");
+  // AC-28-5: a reference question's picks go as objects (version 5); their labels are the Host's to replace with the owner's.
+  const picked = control.toInput(request({ ...asked, values: { r0: [{ value: "goal g1", label: "内部试用" }] } }));
+  assertActionInput(schema, picked);
+  assert.deepEqual((picked as { answers: unknown }).answers, [{ question: 0, value: [{ kind: "goal", id: "g1", label: "内部试用" }] }]);
+  rejected({ ...base, ...asked, answers: [{ question: 0, value: [{ kind: "goal", id: "g1" }] }] });
+  rejected({ ...base, ...asked, answers: [{ question: 0, value: [{ kind: "goal", id: "g1", label: "x", revision: "1" }] }] });
   assert.match(CODING_CLIENT_FACTORY_SCRIPT, /pending_revision:question\.pending_revision,values:client\.read\(\)/, "the page sends the card's fields as they are");
   assert.doesNotMatch(CODING_CLIENT_FACTORY_SCRIPT, /function questionAnswer/, "the page no longer carries its own copy of the reading");
 });

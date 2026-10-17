@@ -1,6 +1,6 @@
 import { projectInputReceipts, type InputReceipt, type ModelEvent } from "@prologue/sdk";
 import type { AgentRunRef, AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AgentInputSend, AgentInputsPort, AgentSteerReceipt, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { AgentInputSend, AgentInputsPort, AgentInputWithdrawal, AgentSteerReceipt, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { agentErrors } from "../errors.js";
 
 /**
@@ -36,7 +36,7 @@ function steerView(receipt: InputReceipt, closed: boolean): AgentTurnSteer {
   const ended = closed && (receipt.state === "accepted" || receipt.state === "applied");
   const state = ended ? "unread" : receipt.state === "accepted" ? "received" : receipt.state;
   const claim = receipt.handling;
-  return { id: receipt.steerId, state,
+  return { id: receipt.steerId, state, ...(receipt.key === undefined ? {} : { key: receipt.key }), ...(receipt.about === undefined ? {} : { about: receipt.about }),
     ...(claim ? { model_claim: { treatment: claim.treatment, ...(claim.kind ? { kind: claim.kind } : {}), targets: claim.targets.map(target => ({ ...target })),
       impacts: [...claim.impacts], ...(claim.note ? { note: claim.note } : {}), ...(claim.callId ? { call_id: claim.callId } : {}),
       ...(claim.toolCallId ? { tool_call_id: claim.toolCallId } : {}), revisions: receipt.handlingRevisions ?? 1 } } : {}),
@@ -75,9 +75,15 @@ export function closeInputs(state: InputLedger): void {
 }
 
 /** A supplement as the runtime takes it; `app` is the Host speaking, never the person. */
-export interface SteerInput { text: string; source?: "person" | "app"; key?: string; interrupt?: boolean }
+export interface SteerInput { text: string; source?: "person" | "app"; key?: string; interrupt?: boolean; about?: string }
 /** The session's own queue: what waits there for the next round, under the same keys the round's supplements use. */
 export type QueueInput = (input: Omit<SteerInput, "interrupt">) => Promise<{ inputId: string; replayed: boolean }>;
+/** A live round's supplements: hand one over, or take back one it has not put in the context; a restored round has no withdraw. */
+export interface RoundInputs { steer(input: SteerInput): Promise<{ steerId: string; replayed: boolean }>; withdrawSteer?(steerId: string): Promise<void> }
+/** The session's queue as the runtime keeps it, session by session. */
+export interface SessionQueue { add(sessionId: string, input: Parameters<QueueInput>[0]): ReturnType<QueueInput>; withdraw(sessionId: string, inputId: string): Promise<void> }
+
+const codeOf = (error: unknown) => (error as { code?: unknown } | null)?.code;
 
 /**
  * A supplement to a round. When the round has already ended, is asked to leave it for the next one, or ends between the
@@ -86,7 +92,7 @@ export type QueueInput = (input: Omit<SteerInput, "interrupt">) => Promise<{ inp
  */
 export async function deliverSteer(input: AgentInputSend, ended: boolean, steer: (input: SteerInput) => Promise<{ steerId: string; replayed: boolean }>,
   queue: QueueInput | undefined, beforeQueue?: () => void): Promise<AgentSteerReceipt> {
-  const one = { text: input.text, ...(input.source === "host" ? { source: "app" as const } : {}), ...(input.key ? { key: input.key } : {}) };
+  const one = { text: input.text, ...(input.source === "host" ? { source: "app" as const } : {}), ...(input.key ? { key: input.key } : {}), ...(input.about ? { about: input.about } : {}) };
   const keep = async (): Promise<AgentSteerReceipt> => {
     if (!queue) throw agentErrors.capability_unavailable(ended ? "这一轮已经结束，当前运行时不能把补充留到下一轮" : "当前运行时不能把补充留到下一轮");
     beforeQueue?.();
@@ -98,19 +104,49 @@ export async function deliverSteer(input: AgentInputSend, ended: boolean, steer:
     const taken = await steer({ ...one, ...(input.mode === "interrupt" ? { interrupt: true } : {}) });
     return { input_id: taken.steerId, replayed: taken.replayed, delivered: "run" };
   } catch (error) {
-    if ((error as { code?: unknown } | null)?.code !== "RUN_NOT_RUNNING") throw error;
+    if (codeOf(error) !== "RUN_NOT_RUNNING") throw error;
     return keep();
   }
 }
 
-/** A round as `inputsPort` needs it, read anew for each supplement. */
-interface LiveRound { ended: boolean; steer(input: SteerInput): Promise<{ steerId: string; replayed: boolean }> }
+/** A round as `inputsPort` needs it, read anew for each call: whether it ended, its control, and its receipts so far. */
+interface LiveRound { ended: boolean; control: RoundInputs; turns: readonly AgentTurnView[] }
 
-/** The adapter's `inputs`: reads the round, hands the supplement over, and publishes the run's view whatever came of it. */
-export function inputsPort(round: (run: AgentRunRef) => Promise<LiveRound>, queue: () => ((sessionId: string, input: Parameters<QueueInput>[0]) => ReturnType<QueueInput>) | undefined,
-  publish: (runId: string) => void): AgentInputsPort {
-  return { send: async (run, input, beforeQueue) => {
-    const live = await round(run), keep = queue();
-    try { return await deliverSteer(input, live.ended, one => live.steer(one), keep && (one => keep(run.session_id, one)), beforeQueue); } finally { publish(run.run_id); }
-  } };
+/**
+ * Takes a supplement back before the model saw it (specs/ai-input-receipts §4.6). The round under way gives it up while it
+ * has not put it in the context; once there, the model has seen it and only a correction changes course. One the round
+ * does not hold — it ended, or the supplement went straight to the session — is the session's, while it still waits there.
+ * Taking back one already taken back answers the same. `beforeWithdraw` runs right before each request to give it back.
+ */
+export async function withdrawInput(inputId: string, live: LiveRound, queue: ((inputId: string) => Promise<void>) | undefined, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal> {
+  const held = live.turns.find(turn => turn.steer?.id === inputId)?.steer?.state;
+  if (held === "withdrawn") return { input_id: inputId, from: "run" };
+  if (held === "read" || (!live.ended && held === "applied")) throw agentErrors.input_applied("这条补充已经放进上下文，撤不回了；要改口可以发一条纠正");
+  if (!live.ended && live.control.withdrawSteer) {
+    beforeWithdraw?.();
+    try { await live.control.withdrawSteer(inputId); return { input_id: inputId, from: "run" }; } catch (error) {
+      if (codeOf(error) === "AGENT_STEER_ALREADY_APPLIED") throw agentErrors.input_applied("这条补充已经放进上下文，撤不回了；要改口可以发一条纠正");
+      if (codeOf(error) !== "AGENT_STEER_NOT_FOUND" && codeOf(error) !== "RUN_NOT_RUNNING") throw error;
+    }
+  }
+  if (!queue) throw agentErrors.capability_unavailable("当前运行时不能撤回排在会话里的补充");
+  beforeWithdraw?.();
+  try { await queue(inputId); return { input_id: inputId, from: "queued" }; } catch (error) {
+    if (codeOf(error) === "SESSION_INPUT_NOT_QUEUED") throw agentErrors.input_not_queued("这条补充已经不在等着：它被带进了一轮，或会话里没有这一条");
+    throw error;
+  }
+}
+
+/** The adapter's `inputs`: reads the round, hands the supplement over or takes it back, and publishes the run's view whatever came of it. */
+export function inputsPort(round: (run: AgentRunRef) => Promise<LiveRound>, queue: () => SessionQueue | undefined, publish: (runId: string) => void): AgentInputsPort {
+  return {
+    send: async (run, input, beforeQueue) => {
+      const live = await round(run), keep = queue();
+      try { return await deliverSteer(input, live.ended, one => live.control.steer(one), keep && (one => keep.add(run.session_id, one)), beforeQueue); } finally { publish(run.run_id); }
+    },
+    withdraw: async (run, inputId, beforeWithdraw) => {
+      const live = await round(run), keep = queue();
+      try { return await withdrawInput(inputId, live, keep && (id => keep.withdraw(run.session_id, id)), beforeWithdraw); } finally { publish(run.run_id); }
+    },
+  };
 }

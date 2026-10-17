@@ -4,6 +4,8 @@
 
 export declare const ASSISTANT_FORMS: readonly AssistantForm[];
 
+export declare const ASSISTANT_REPLY_KIND = "assistant_reply";
+
 export type AssistantForm = "none" | "suggest" | "options" | "preview" | "compare";
 
 export declare const CONTEXTUAL_DRAFT_LIMITS: {

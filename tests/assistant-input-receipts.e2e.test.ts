@@ -111,3 +111,22 @@ test("RC-16: without local storage the Assistant still sends; only the key acros
   assert.equal(typeof second.work_id, "string", "the second Send goes to the work the first one started");
   await browser.waitFor("[...document.querySelectorAll('[data-assistant-thread] .assistant-msg')].filter(node => node.textContent.includes('收到本次发送。')).length === 2", 15_000);
 });
+
+test("RC-19 (D32): words the person asked to keep that the write gate held show as 「你刚才让我记住」, the gate's reason only in the details, and one press keeps them", { timeout: 90_000 }, async t => {
+  const browser = await assistantPage(t, { remember: { text: "周报先写风险", said: "周报先写风险" } }); if (!browser) return;
+  await send(browser, "帮我整理这周的周报。另外请记住：周报先写风险");
+  const id = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
+  await waitWork(browser, id, view => view.work.state === "completed" && (view.memory_candidates?.length ?? 0) === 1);
+  const candidate = (await readWork(browser, id)).memory_candidates![0]!;
+  assert.match(candidate.held ?? "", /原样照抄/, "the person asked, and the gate's reason stays the memory service's own");
+  const item = "[...document.querySelectorAll('[data-assistant-block=\"attention\"] .assistant-item')].find(node => node.textContent.includes('周报先写风险'))";
+  await browser.waitFor(`Boolean(${item})`, 15_000);
+  const shown = await browser.evaluate<{ title: string; sub: string; detail: string; primary: string }>(`(() => { const node = ${item}; return { title: node.querySelector('.assistant-item-title').textContent,
+    sub: node.querySelector('.assistant-item-sub').textContent, detail: node.title, primary: node.querySelector('.assistant-item-actions button').textContent.trim() }; })()`);
+  assert.deepEqual([shown.title, shown.sub, shown.primary], ["你刚才让我记住：周报先写风险", "个人", "记住"], "the card says what they asked, where it would go, and one press keeps it");
+  assert.equal(shown.detail, candidate.held, "why it was not kept directly waits in the details");
+  assert.doesNotMatch(await browser.evaluate<string>("document.querySelector('[data-assistant-thread]').textContent"), /原样照抄/, "the conversation does not read the gate's rule out");
+  await shot(browser, "assistant-remember-asked.png");
+  await browser.evaluate(`${item}.querySelector('.assistant-item-actions button').click()`);
+  await waitWork(browser, id, view => !view.memory_candidates?.length);
+});

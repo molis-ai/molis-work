@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "description": "Molis Work V1：面向人和 AI Runtime 的本地 SQLite 目标真相源",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/molis-ai/molis-work.git"

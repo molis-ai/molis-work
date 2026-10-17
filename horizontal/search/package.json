@@ -4,7 +4,7 @@
   "private": true,
   "description": "System search: source discovery, index freshness and recovery, and caller-scoped query aggregation.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

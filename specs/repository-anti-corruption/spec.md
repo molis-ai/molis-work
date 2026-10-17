@@ -102,6 +102,9 @@ W4-12（2026-10-15，视觉比对工具，#550）：
 - W5-05 第 0 片（删皮肤之前先把尺子补齐）：拍摄多了项目设置（常规）、Goal 的 Frame、Goal 的工作三处，共 11 处 66 张；每处在 1440 宽、浅深色两张图之后各取一份逐元素的计算样式（含 `::before`、`::after`，只存与父元素不同的值，无限动画停在 0 时刻再放回），比对按属性报出变化开始的那个元素和前后取值、只有一边有的元素（`scripts/visual/styles.mjs`），有任何样式差异与有图变化一样退出 1。图看不到的状态和不到一像素的变化由样式这一半抓。证据：同一棵树拍三次，样式 22 份两两为 0；图 66 张第一、二次一像素不差，第三次与前两次在 goal-work@1440-dark 差 4 个像素、每个 1 到 2 个色阶，落在时间线「◇」标记（y 为 759.984 的小数位置）的左边缘，样式为 0，判为 macOS 字形栅格的跨进程抖动，容差不放宽；在样式里注入一行 CSS 被点出；`tests/visual-compare.test.ts` 第 5 条（变化只在开始处报一次、继承与重述同值不算、`--compare` 只因样式就退出 1），把比对改成只比自身取值会失败。删皮肤时若撞上这 4 个像素，在 PR 里写明样式快照一致、像素差只在这里并贴对照图，每次由人判断；不写成脚本里「样式一致就放过像素」的自动规则（统筹 10-16）。
 - W5-05 第 1 片（删 `quiet-paper`，108 条规则、341 条声明）：仍在决定计算值的只有四处，各并回主人样式表——`body` 的 `text-rendering` 进 `foundation.ts` 的 `body`、`.tui-mode-label` 下划线颜色进 `momentum.ts`、`.goal-more > summary` 与 `.tui-resizer` 线在悬停与键盘焦点时的颜色进 workbench `styles/base.ts`（`.tui-resizer.is-dragging` 拆开、拖动时仍是 `--blue`）；其余声明不是被后面的规则盖掉，就是打在没有标记的类上。三份样式表各少 11,120 B，`page-assets.json` 随之降。证据（每一项都在删之前和删之后两棵树上各量一遍再比）：`pnpm visual:compare` 66 张图、22 份计算样式全 0；另用一个临时探针（不入库）在两棵树上把 quiet-paper 每条选择器碰得到的每个元素、它设的每个属性的计算值记下来再比：11 个面、全部系统设置与项目设置分区、项目规则与规划（经 `molis-work:open-settings-path` 打开）、项目列表、Goal 的 Frame / 文档视图 / 移入回收站对话框、`/goals/<id>`、`/archive`、`/trash`、各个已重定向的旧设置地址，1440 与 390 宽、浅深色、标准与紧凑密度，以及强制 `:hover`、`:focus-visible`、`:focus`、`:active`，共 1,125 个情形、531,841 个值 0 差；进入页（空 Home 的 `/onboarding`，用 arrival 样式表）48 个值 0 差。探针先抓到了第四处（`.tui-resizer` 悬停时会从 `--line-strong` 变成 `--blue`），并回 `base.ts` 后归零。没碰到的：`settings-navigation`、`settings-shell--standalone`（只在独立设置页里，这些地址现在都重定向进工作台）和 Goal 规则编辑器里的 `.policy-*`（`renderPolicyEditor` 的表单在探针走过的所有 Goal 页面上都没有画出来）。
 - W5-05 第 2 片（删 `personal-shell`，78 条规则、312 条声明）：没有一处还在决定计算值，所以整层删掉，没有并进任何主人样式表。三份样式表各少 10,020 B，`page-assets.json` 随之降；巨大单元与其他数字不变。证据叠在第 1 片之上，删之前和删之后两棵树各量一遍再比：`pnpm visual:compare` 66 张图、22 份计算样式全 0；同一个临时探针换成 personal-shell 的选择器，情形与第 1 片相同（1,125 个），4,620 个值 0 差；进入页上没有元素被这些选择器选中。探针碰到的只有 `body[data-desktop-shell="true"]` 下的 `.app`、`.workspace` 与 `.tree-pane`：只有 Goals 页把这个标记写成 `"true"`，设置页写的是 `"false"`；这几个元素的网格、边框和行都被后面的层盖掉了。其余 70 条规则的类在标记里找不到（`personal-sidebar`、`personal-nav-item`、`desktop-project-*` 等，工作台改成统一底栏之后就没人画了）。只有 `.personal-sidebar-footer` 还在源码里出现，它来自 `renderPluginRailAccountFooter`（`apps/workbench/src/settings-directory.ts`），而这个函数没有调用方。
+- W5-05 第 3 片（删 `personal-workbench-v2`，120 条规则、336 条声明）：只有两组还在决定计算值，各挪回主人。① 项目菜单弹层里账户头像的 1px 圈（`inset 0 0 0 1px var(--line-strong)`，只在 761px 以上），挪进 `craft-finish.ts` 的弹层规则，和原来一样只在 `@media (min-width: 761px)` 里生效，单独占一行；同一处弹层里 `.navigator-personal` 原有两条同一选择器的规则（中间只隔着它子元素的规则），合成一条，所以 `craft-finish.ts` 的行数不变（`visual:compare` 的 22 份逐元素计算样式在合并前后 0 差）。② 回收站 Goal 页在桌面宽度下的标题行：间距 12px、隐藏「这条 Goal 已从日常列表移除…」那一句、操作按钮最小高度 28px。三条挪进 Goals 的 `trash-document-styles.ts`，放在已有的 `@media (min-width: 761px)` 桌面块里，选择器限定在 `.trash-goal-document` 之下；`.goal-title-row` 在 markup 里只出现在回收站文档这一处。样式表的降幅：arrival.css 与 settings.css 各少 13,837 B，workbench.css 少 13,558 B（回收站的三条规则只进工作台样式表），`page-assets.json` 随之降。证据（叠在第 2 片之上）：`pnpm visual:compare` 66 张图 0 变化。状态探针测了 1,125 个情形、29,715 个值，挪完以后只剩一类差：账户名下 `small` 的 `align-items`、`row-gap`、`column-gap`（132 个情形）。这个元素在所有情形里删之前、删之后都是 `display: block`，这三个属性对 block 元素不起作用，画面不会变，所以没有把这几条不起作用的声明挪过去。计算样式的比对因此在 22 份里都报这三处，图都是 0 差。删之前，第一次量出 537 个差；挪完之后，除了这一类全部归零。
+- W5-05 第 4 片（删 `personal-workbench-v3`，433 条规则、1,641 条声明；巨大单元少一个，`baseline.json` 随之降）：整层直接删掉时，状态探针在 837,542 个值里量出 173,546 个差，12 张图有变化（goals-list、goal-work 的 1024/1440，3%～5%）。所以把还在决定计算值的规则挪进各自主人的样式表，不进兜底文件；在主人文件里放在开头，层叠位置与原来相同（v3 与这些主人之间的几层另做了静态翻转检查：同一选择器、同一属性的规则，先后一换就会翻）。① Feed 与来源整组进 `source-feed.ts`：v3 里 Feed 那一组 207 条规则，在 markup 里有元素的 120 条按原顺序整组挪，87 条在任何模板里都没有元素，删掉。挪过去以后，有四处被同一层里后写的规则翻了（`.feed-source-list` 的 gap、详情标题的字号与字距、窄屏 `.feed-directory-tools` 的内边距、窄屏详情标题字号），把这几个属性从挪过去的规则里去掉，结果与原来相同。② 目录栏（`.tree-pane`、拖拽条、目录标题、行的圆角与悬停底色）进 `directory-ledger.ts`。③ 桌面外框（安全区变量与原生窗口的 88px 安全区、`.app` 网格、项目菜单、拖拽区域、`.document-pane` 的内边距与底色、工作面、非 Goal 面上 TUI 窗格的隐藏）进 `desktop-titlebar.ts`。④ 只读的 Runtime 窗格（`.tui-pane[data-tui-read-only]`：只剩上级的守护说明，不出标签、外框、终端和菜单）进 `navigation-ownership.ts`。⑤ 回收站 Goal 页在桌面宽度下的文档与标题（宽度、间距、内边距、状态标签、标题字距、工作区最小高度）进 Goals 的 `trash-document-styles.ts` 已有的 `@media (min-width: 761px)` 块，限定在 `.trash-goal-document` 之下。主人文件都在 800 行以下（562、464、285、306、105）。选法与补漏：先用逐条去掉声明的探针找还起作用的规则；逐条去掉看不出两条规则设同一个值，整层探针又补出了⑤和 `.document-pane`；原来的探针不开桌面模式（服务端只在带 `x-molis-work-desktop: 1` 或 `?desktop=1` 时出桌面外框），`visual-foundation.test.ts` 的失败把这一点暴露出来，于是探针加了桌面一遍（1440、1024，含 18 个 `/settings/*` 地址），补出了原生窗口的安全区那条；探针原来也没有 Feed 数据和只读窗格，加上一个来源、一条带材料的条目和只读状态以后，又补出了①的整组和④。`visual-foundation.test.ts`：37 条断言删去或改写，删去的都是 markup 里没有元素的选择器（`.desktop-work-tab*`、`.workspace…`、`.desktop-utility-surface`、`.desktop-workbench-bar`、`.goal-brief-item`、`.desktop-goal-directory`、`.personal-sidebar-footer`）或被后面的层盖掉的值（标题栏 48px/34px 被 `immersive-navigation`、`linear-density` 覆盖，`[hidden]` 被 `base.ts` 的全局规则覆盖）；改写的 4 条落到现行的主人：独立设置页 markup 里是 `data-desktop-shell="false"`（所以 v3 的 Diagnostics 间距从来不生效）、原生窗口的项目按钮内边距、拖拽区域、回收站工作区高度。样式表的降幅：arrival.css 与 settings.css 各少 47,465 B，workbench.css 少 46,677 B，`page-assets.json` 随之降。证据（叠在第 3 片之上，删之前与删之后两棵树用同一份探针各量一遍）：浏览器模式 907,601 个值 0 差；桌面模式 1,218,728 个值 0 差；`pnpm visual:compare` 66 张图、22 份计算样式 0 变化。另把第 1 片之前（`ea396a276`，所有旧皮还在）与这一片在桌面模式下用四层合起来的 739 条规则比：2,032,834 个值里只剩第 3 片记过的那一类 `small` 不起作用的差，和 Feed 详情页里目录树因为 markup 多包了一层而换了路径（按路径对齐以后 1,652 个值全同），所以第 1～3 片在桌面模式下也没有漏挪。另有两组规则放回主人、没有删，因为全量里 `tests/web.test.ts` 的两条「desktop work tabs…」与 `tests/chrome-inner-scroll.test.ts` 按文字断言它们，而本片受影响用例的挑选（`scripts/affected-tests.mjs` 按读的文件与名字选）没有选到这两个文件：工作标签的整组（v3 里 111 行，加 1180px 以下的 `max-width`）进 `desktop-titlebar.ts` 开头；设置页 `body.settings-page[data-desktop-shell="true"]:has(.settings-navigation) .settings-content` 进新的 `apps/workbench/src/styles/settings-desktop-shell.ts`，由 `settings.ts` 在原位置引入。两组都是死样式：两份设置页的 body 写死 `data-desktop-shell="false"`（写 `"true"` 的只有工作台的 Goals 页，`apps/workbench/src/goals-page-renderer.ts`），工作标签没有 markup（`renderInitialGoalTab` 没有调用方），所以计算值不变。第 5 片随 `renderInitialGoalTab` 与这几条用例一起删，每条写理由。教训：删样式的片除了 affected-tests，还要按删掉的选择器 grep 用例。
+- W5-05 第 5 片（删 `calm-desktop`，324 条规则、998 条声明、1,391 行；五层旧皮全部删完，巨大单元 140→139，`baseline.json` 随之降）：还在决定计算值的声明挪到各自主人，不进兜底文件。① 表单控件与浮层（输入框、文本框、下拉框，`.theme-menu`、`.dialog-shell`、`.runtime-plan-dialog` 的边框、圆角与底色）进 `foundation.ts`。② 目录树的行（外边距、节点网格、标题字距、关系、底部、紧凑密度）进 `directory-ledger.ts` 开头。③ Runtime 窗格（主人栏与标签栏、舞台、上级守护、子选项、外框按钮、菜单、`.tui-resizer` 的线与悬停色）与设置导航进 `navigation-ownership.ts` 开头。④ Goal 文档窗格的内边距与底色（放在桌面外框自己那条之前，同优先级由它盖住）、标题栏里的项目名、窄屏 `.app` 网格进 `desktop-titlebar.ts` 开头。⑤ Goal 详情的卡片组进新的 `apps/workbench/src/styles/focus-sections.ts`（markup 在 `apps/workbench/src/focus-sections.ts`）。⑥ Goal 文档（标题、状态、hero 与工作区面板、卡片里的关系与因素、树上的状态标签）进 Goals 插件新的 `document-styles.ts`（`GOALS_DOCUMENT_STYLES`）。⑤⑥排在工作台样式表里所有基础层之后，calm 原来在 momentum 与 directory-ledger 之间，所以挪过去的规则会压过后面各层里同优先级、原来只靠次序赢的规则：静态检查（同一目标元素、同一属性族、同优先级、任何媒体条件）找出的几对，各自不改结果地解决——`.document-pane` 挪到 desktop-titlebar 开头；卡片过渡包进 `prefers-reduced-motion: no-preference`（与 titlebar 的 `transition: none` 互斥，是检查仍报的唯一一对）；卡片基规则放到 `.is-active` 之前（否则它的 `border` 盖掉选中卡的边框色）；`.focus-section-card.goal-record-section` 没有调用方传 `cardClass`，删掉。挪到 foundation、navigation-ownership、desktop-titlebar 开头的规则对它们与 calm 原位置之间的各层同样检查，0 对。补漏：第一次探针 22 类差，修了翻转与漏挪的 `.tui-resizer` 底色后剩 4 类，都是活性筛查判成死的声明——430px 容器查询里的 `border-left: 0`、只在紧凑密度回收站页起作用的 `.goal-document` 960 宽，以及两条同优先级靠次序压过 momentum 的（`.goal-header` 下内边距 24px、760 以下标题 24px），逐条去掉声明看不出后一类；四条补回 `document-styles.ts`（单独一个提交）。其余删掉的声明用 `lost` 检查复核：新样式表不再带的 791 条里，有同目标同属性、优先级不高、值不同的对手规则的 372 条（容器 5、密度 14、其他媒体 29、无条件 324），最终探针要覆盖这些条件，所以补了浏览器 1024（761～1080 媒体）与桌面 390（760 以下）两种宽度，两边都跑。死样式两组随功能删，各写理由：标题栏的工作标签（`renderInitialGoalTab` 没有调用方，连同贡献面 `initial-tab` 与 `WORK_TAB_VISIBILITY_CLIENT_SCRIPT`）、`settings-desktop-shell.ts`（两份设置页写死 `data-desktop-shell="false"`）；`tests/web.test.ts` 删两条工作标签用例（集合占位那一半留下），`visual-foundation.test.ts` 12 条改读 `renderMolisWorkWorkbenchStylesheet()`、3 条指向现行主人、7 条随无 markup 的选择器删去，`chrome-inner-scroll.test.ts` 那条换成写明理由的注释，没有放宽的断言。样式表（对 main）：arrival.css 746,249→705,879 B（少 40,370 B）、settings.css 1,034,967→994,313 B（少 40,654 B）；workbench.css 1,625,858→1,596,754 B，少 29,104 B（挪去的卡片与 Goal 规则只在它里面），`page-assets.json` 随之降。证据分两段。① 本片对第 4 片合入的 head `77cbbaa17`（main `aabf597de` 与它只差 LICENSE 文件），同一份探针：浏览器模式（1440、390）2,451,224 个值 0 差，桌面模式（1440、1024）3,265,660 个值 0 差；补的两种宽度，浏览器 1024 955,530 个值、桌面 390 1,275,118 个值，都是 0 差；Onboarding 0 差；head 一侧 1024 深色因负载超时漏了 4 个地址，两边只跑地址那一遍再比，91,253 个值 0 差。390 宽的 Feed 与 Feed 详情：浅色那一遍打开详情以后，窄屏下详情一直开着、列表看不见，所以接着的深色那一遍等不到条目（两边都这样，与样式无关）；单独跑深色，浏览器与桌面各 19,728 个值 0 差。Feed 详情页里目录树前面有一个随加载时机出现的元素，同一次运行里不同情境的路径也会差一层（base 的 1440 浅色标准与紧凑之间就差），按路径对齐以后值全同。② 并 main（`c276ab9cb` 以后）：main 自 `aabf597d` 起改样式的只有 T2（#638：craft-finish 的聚焦规则、交互里 `.mw-ix-refs` 的聚焦、新的 `INTERACTION_REFERENCE_STYLES`），D1、#629、#648、#650、#653 不改样式；三份样式表里 `CRAFT_FINISH_STYLES` 与 `ASSISTANT_INTERACTION_STYLES` 都排在 calm 原位置与本片所有新位置之后，所以挪动不跨过 T2 的规则；本片删掉的声明里末端可能落在 T2 新元素上的 39 处，祖先都不会包住问题卡（没有 markup 的、Goals 目录树与关系、只由 Goals 因素面板填的详情卡片）；并完以后三份样式表从并之前到并之后的文本差，与 main 自己从 `aabf597d` 到并入点的差逐字相同（workbench 与 arrival 各 36 行、settings 4 行）。主人文件都在 800 行以下。用例：受影响的用例加上 `tests/` 里点名删掉选择器的每个文件，浏览器 75 个文件 71 个过；`goal-event-visual.capture.ts` 在第 4 片的 head 上同样失败（等事件表的 DOM 超时），`product-interaction`、`agent-studio` 重跑两边都过（负载下的时序）；`pnpm test:contracts` 只有 `action-mcp-stdio` 在负载 25 下超出 20 秒，单独跑两边都过。`affected-tests` 选不到按选择器断言样式表的用例，这一类并进 BL-153。并 main 时的一处回退：本片先并了 #630 的 head（`467526610`），再单独删两组死样式（`9ddce29c5`）；之后并进 main 上 #630 的 squash 提交 `aabf597de`，三方合并以 #630 之前的 main 为基点，squash 提交「新增」了 `settings-desktop-shell.ts`，本片这边对基点「没有」它，于是文件和 `settings.ts` 里的两行又回来了（工作标签那一组在 squash 里本来就有，删掉的那几行与 squash 改的行重叠，没有回来）。死样式，计算值不变，探针看不出；开 PR 后复查时发现，在同一个 PR 里再删一次。教训：一个分支并过另一个 PR 的 head、又在其上删了东西，那个 PR squash 合入后再并 main，要按自己删掉的文件和选择器核一遍有没有回来。
 
 W4-08（2026-10-16，平台产品服务的边界，不新增规则，统筹 10-15 认可）：决定 N-03 之后这一项只剩「层与 owner、依赖规则写全」。逐条核对，现有的都已经守着：
 - 层与 owner：`docs/system/ARCHITECTURE.md`「平台产品服务」写明四项（记忆、放置、搜索、情境排序）可以持有跨插件策略和自己的机制记录，不拥有业务事实；`docs/SSOT-MATRIX.md` §6 与 `docs/horizontal/memory.md`、`placement.md` 各写了 owner。
@@ -1188,7 +1191,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | §4.2 调用链文档 | 部分（W1-14 已做，#319）：[`docs/system/CALL-CHAINS.md`](../../docs/system/CALL-CHAINS.md) 八条链，每个环节写归谁、输入输出、身份与权限、失败时、事件与记录，§10 登记长期例外与已定要修的偏离；`specs/action-architecture/spec.md` §3 末尾的「基本合同复核」逐类核对了八类新合同（缺口 G1–G9，见 §3 N-04）。余：调用 id 贯通 W3-01；`/api/functions/by-key/*` 没有被调用链文档裁定（BL-081 ②）；§10 末尾列的一批只走 HTTP 的写入还没有逐条盘点 | roadmap §4.2、`docs/system/CALL-CHAINS.md` |
 | §4.3 分层与边界 | 部分：N-03 已按决定 #2 记为「平台产品服务」（#296），记忆与放置两页已补（`docs/horizontal/memory.md`、`placement.md`，#319），代码不搬；N-12 方案已定（决定 #1），Goals 无调用方的桥已删、Feed 升格改走 Goals 的动作（W2-08，2026-10-09），工作区读单一 id 已做（W2-09，#348），其余的桥与 host_only 改成可用性策略待做（W3-07），Casebook 已整个删除（10-10 决定，W3-08 改为删除）；N-04 的基本合同复核已做（缺口 G1–G9）；边界规则 W1-05（还没有合入 main） | §3 N-03、N-04、N-12 |
 | §4.4 包级清单 | 部分（W1-18 的第一个 PR 已做，#322）：事实表是 70 个包，带层、状态（在用 42、Runtime 7、构建期 18、非产品 3）与计划深度（深 11、中 43、浅 16），`scripts/gates/package-inventory.mjs` 在健康门禁里守表；逐包深审（深 11、中 43）与浅审（16）待做，审查列现在 70 个都是「待审」 | §5.1、§5.2 |
-| §4.5 巨大单元 | 部分（W1-19 已做，#320）：门禁对照合并基点，只减不增（164 个单元）；`docs/system/HUGE-CLASS-MIGRATION.md` 重写为每个单元一个判定（拆、归线、例外）和计划，2026-09 的迁移记录移入 `docs/archive/huge-class-migration-2026-09.md`；`tooling/gates/giant-exceptions.json` 登记 4 个必然很长的单元，由门禁校验、不放行新增。W4-06 已做（#498）：`prologue-node.ts` 的文件与 `initializePrologueNodeAdapter`、`startAgentRun` 三个单元拆成九个模块，初始化只剩组合。W4-07 已做：Coding 的 `routes.ts` 与 `codingRouteBindings` 按资源拆成七组路由。拆分待做：W4-05、W5-09、W5-10 | `tooling/gates/baseline.json`、`docs/system/HUGE-CLASS-MIGRATION.md`、§3 N-08 |
+| §4.5 巨大单元 | 部分（W1-19 已做，#320）：门禁对照合并基点，只减不增（164 个单元）；`docs/system/HUGE-CLASS-MIGRATION.md` 重写为每个单元一个判定（拆、归线、例外）和计划，2026-09 的迁移记录移入 `docs/archive/huge-class-migration-2026-09.md`；`tooling/gates/giant-exceptions.json` 登记 4 个必然很长的单元，由门禁校验、不放行新增。W4-06 已做（#498）：`prologue-node.ts` 的文件与 `initializePrologueNodeAdapter`、`startAgentRun` 三个单元拆成九个模块，初始化只剩组合。W4-07 已做：Coding 的 `routes.ts` 与 `codingRouteBindings` 按资源拆成七组路由。W5-07 已做：`handleMolisWorkWebRequest`（368 行）与它内嵌的项目回调（271 行）两个单元改成按顺序尝试的路由表（`web-route-table.ts` 的 `WebRoute` 与 `dispatchWebRoutes`），入口只剩解析前、解析与分支；表在宿主里写，不按路线原话让 25 个 `*-http` 模块各自导出 `{match, handle}`：其中 16 个是冻结名单上的 native-plugin-http，改它们会把枢纽冲突扩到每个插件的 PR，表的顺序就是路由顺序、一处可读（统筹 10-17 定）。点名插件包的条目（各插件、Feed 与 Inbox 的判断、Goals、成果、胶囊）留在 `web-request.ts`，平台条目进 `web-project-platform-routes.ts`，目录外的那串进 `web-catalog-index-routes.ts`，一次项目请求的上下文进 `web-project-context.ts`，所以每个插件在包外被点名的文件数不变。证据：`tests/web-route-table.test.ts` 经公开入口 `createMolisWorkWebServer` 在临时 Home 里发 123 个请求（项目内外、带不带令牌、库不存在、个人空间），记状态码、类型、跳转、错误码与错误句或 JSON 顶层键、页面标题；快照先在 main 上生成并提交，重构后原样通过。原来只读 `web-request.ts` 的边界检查（Goal 读取、Feed 与 Inbox 的路由归属、事实表 SQL、已删的 Coordinator 外观）改为读分发器的全部五个文件（`WEB_DISPATCH_FILES`），只变严。拆分待做：W4-05、W5-09、W5-10 | `tooling/gates/baseline.json`、`docs/system/HUGE-CLASS-MIGRATION.md`、§3 N-08 |
 | §4.6 扩展点与插件平台 | 部分（W1-15 已做，#317）：[`docs/system/EXTENSION-POINTS.md`](../../docs/system/EXTENSION-POINTS.md)（15 个方向各写怎么加、现在要改的位置、目标，另有六个下一步功能的推演）、`RUNTIME-MIGRATION.md`（迁移计划与批准的构建期例外）、`THIRD-PARTY-PLUGINS.md`（安装方案，只是计划）；`LOCAL-HOST.md`、`PLUGIN-DEVELOPMENT.md` 的装配说法已改。余：`skills/molis-plugin-dev/host.md` 的必改步骤与 AGENTS.md 的说法未改（EXTENSION-POINTS §6，BL-119，W6-03）；装配名单冻结 18 个（2026-10-10 删实验插件从 19 个减掉 1 个，迁移还没有减过）；迁移从 W4-04（Form）起 | `docs/system/EXTENSION-POINTS.md`、`tests/builtin-plugin-assembly-gate.test.ts`、§3 R-01 |
 | §4.7 多人并行 | 部分（W1-13 已做，#314；健康门禁对照合并基点 #293、密钥扫描进 CI #294 更早合入）：`docs/system/PARALLEL-DEVELOPMENT.md`（枢纽文件、排时段、集成分支、基线比对、Agent 锁、清理、PR 体量）、`docs/system/CONTRACT-CHANGES.md`（现在不留兼容期；读取兼容从第一个装到开发机之外的版本开始，日期未到）、`.github/CODEOWNERS` 与 SSOT 各表「归属」列（由 `scripts/package-owners.mjs` 生成，`pnpm boundary:check` 校验）、PR 模板新栏目、`AGENTS.md` 指针。待做：公开 API 快照 W1-04、动作合同快照 W2-15、挑相关用例脚本 W2-17、CI 产品子集 W1-11/W2-16、插件回放工具 W4-01、测试并发隔离 W5-12（#497 已做，2026-10-16 测量见文首）、Prologue SDK 合成负责人（W1-20 提名）、固定记录 main 最新全量数字的位置（`PARALLEL-DEVELOPMENT.md` 没有定义，归 W6-05）；CODEOWNERS 现在只路由包根目录，Coding、Jelly、Shelf 在宿主与外壳里的代码未路由 | §1、`docs/system/PARALLEL-DEVELOPMENT.md` |
 | §4.8 改需求的便利 | 待做：页面资源预算 W1-07，翻译检查 W1-08（决定 #16），浏览器代码打包 W4-04、W5-04 | §3 R-07 |
@@ -2009,6 +2012,158 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 - `renderPluginRailAccountFooter`（`apps/workbench/src/settings-directory.ts`）没有调用方，已作为单独任务提出来。
 - 第 4～6 波路线图里尚未开工的条目照 §12 的状态推进，这一节不改任何目标。
 
+### 10.22 2026-10-17 合入与在途 PR 的独立复查（§10.21 之后：#618～#633，Prologue #26、#33）
+
+对照的仍是第 1 节列的六份原文与九份补充，看法同 §10.21：门禁数字、兼容逻辑、删改的断言与调大的时限、可信身份与取消语义、改动的依据。合入的 PR 按**合入时的 head** 看：评审之后又加的提交单独看过，不只看评审时的那一版。
+
+**已合入**
+
+| PR | 合入的 head | 裁决 |
+| --- | --- | --- |
+| #618（W3-B2，情境条的落点） | `7044125be` | 有依据。合入的 head 就是 §10.21 之后评审过的那一版；页面资源只降。 |
+| #619、#624（W5-05 第 2、3 片，本线） | `a793f53df`、`d03c44fd6` | 有依据，记录见 §W4-12。#624 冻结后并过一次 main，没有改代码。统筹说明：「后合的只并 main、不重跑全量」只适用于已经跑过全量的 PR；#624 冻结后没跑过全量，所以照跑。 |
+| #625（visual-surfaces 的时限） | `5b4bca52a` | 有依据。整条用例的时限 600→1,200 秒，每个面拆成子用例、各 180 秒，慢机上失败时报出是哪个面。只调时限，按用户 10-15 的决定（慢机时限可放宽，不算放宽断言）。 |
+| #626（采用线 A5，补 §6.0b 第 2、5 项的证据） | `23e591ec4` | 有依据。只加用例，不改源码。两条都做了变红对照：去掉 PPT 的 `beforeDispatch`，三条变红；修改回执的位置早于被压缩的那次读，所以能留下来只靠效果种类。把 `change-capability` 改成 `safe-read` 的那次对照没有算作证明：它失败在等审批超时，不是回执断言。spec 里写明了这一点。 |
+| #627（Coding 协调者拿 board-read 与 board-report） | `cd80c9b07` | 有依据。合入的 head 就是评审过的那一版，加一次并 main。 |
+| #628（回执 B，补充带上自己的键） | `d894fc01a` | 有依据。评审过的是 `15941159f`。之后除了并 main，只有 `14c173333` 一个提交：RC-09 的期望加上 `key: "send.c1"`，并新加一条 RC-17 断言（补充带过去以后保留原来的键），断言只变严。 |
+| #632（人改一轮的计划：从 typed 能力改成动作） | `8086f81d4` | 有依据。 |
+
+#632 的细节：
+- typed 的 `agent.run.step-board.amend.v1` 换成动作 `agent.collaboration.revise.v1`，依据是防腐决定 #1 与采用 spec §4.6.9。
+- 宿主能力（typed）少一处，旧 id 不留别名，符合现在不留兼容期的规矩（`docs/system/CONTRACT-CHANGES.md`）。
+- 操作者取调用的插件，没有就取会话的主人，不从输入读。
+- 写之前先过 `beforeEffect` 和授权检查，Coding 的路由经动作服务调用。
+- vendored 包换成 `reference-kinds`：旧包删掉，`.sha256`、来源记录与 `patch-history.json` 同步，`SECURITY-INVARIANTS.md` 的 S-13 改指新包。
+
+**Prologue**
+
+| PR | 裁决 |
+| --- | --- |
+| #26（P2i 的消费者脚本） | 有依据。P2j 之后，接续的材料从步骤所属的会话里取，脚本里伪造的会话引用因此被记成 `SESSION_NOT_ACTIVE`。改法是步骤改属 `runtime.sessions.create()` 建出的真实会话，断言原样保留，SDK 代码不动。 |
+| #33（引用题可以列出要的对象种类） | 有依据。Molis 这边经 #632 的 `reference-kinds` 包接入。 |
+
+**在途**
+
+- #629（手册线 D1②，没改东西的一轮按事实核对收尾）：
+  - 评审时发现收尾核对的提示词 `ENDING_REVIEW` 没有登记，不出现在 设置›提示词，也不进冻结记录。
+  - 统筹定按 compaction 的先例登记。现在的 head（`ae0768b6c` 起）把它登记为 `assistant-ending-review` v1，`agent-definitions.ts` 把它和 compaction 一样排除在角色的提示词之外。
+- #630、#633（本线）：见 §W4-12 与 #633 的说明。#633 修机器槽位的饿死：一张写了一半的票被别的等待者当成死票删掉，主人就永远排不到。
+- #631（统一输入与本地语音，外部作者）：有三处违反，统筹经用户同意，已作为 PR 评论交给作者。
+  1. `design-system` 承担了产品行为：草稿存在 localStorage、助理会话的键、`/api/local-voice` 路由、发送结算。这违反它 README 的「不负责」。
+  2. 改了 `DESIGN.md` §366–374 写明的行为（桌面 28px 的例外与逐级折叠），并改了触控尺寸的断言，却没有改 `DESIGN.md`。
+  3. 两处 localStorage 读写没有包 try/catch；local-host 有没人用的导出。
+  - 安全没问题：新路由在 `refuseForeignRequest` 与 `authorizeLocalWebRequest` 之后。
+  - 它与 main 冲突，CI 没跑。
+  - 用户的裁决：由作者二选一，一是改 `DESIGN.md` 并删掉 `data-crowded` 那段代码，二是保留原行为与原断言；作者选了以后用户确认。本线不改 #631。
+
+**组合效果**
+
+- #632 换了 vendored 包，并改了 `horizontal/agent-host` 的 7 个文件；#629 也改 `horizontal/agent-host`。#629 现在的 head（`ffecda928`）不含 #632：它和 main 能干净合并，但它自己的用例是在旧包上跑的。所以 #629 跑全量之前先并一次 main，让全量在新包上跑（已告诉统筹）。
+- 页面资源按 #619→#624→#630 一次一个降；下一个是 T2，排在 #630 后面。
+- #618、#622、#628 都改助理面板或回执的页面脚本，按合入顺序各自在合并结果上重跑过。
+
+**本次复查顺手查出、交给后续的**
+
+- `chrome-inner-scroll.test.ts` 还断言 `body.settings-page[data-desktop-shell="true"]:is([data-settings-section="projects"], [data-settings-section="project"]) .settings-content { grid-column: 1 }`。两份设置页的 body 都写死了 `data-desktop-shell="false"`，所以这条规则从来不生效，和 W5-05 第 5 片删掉的那条是同一类。别的层里 `body.settings-page[data-desktop-shell="true"]` 开头的规则还有好几条（`> .topbar`、`.project-context`…），都是死规则，等 W5-05 删完皮肤后一并清（不在本片的范围里）。
+
+### 10.23 2026-10-17 合入与在途 PR 的独立复查（§10.22 之后：#630、#634～#646，Prologue #34、#35）
+
+对照的仍是第 1 节列的六份原文与九份补充，看法同 §10.21：门禁数字、兼容逻辑、删改的断言与调大的时限、可信身份与取消语义、改动的依据。合入的 PR 按**合入时的 head** 看。
+
+**已合入**
+
+| PR | 合入的 head | 裁决 |
+| --- | --- | --- |
+| #636（改用 Molis AI 合作源码许可） | `655ef24ad` | 用户本人的决定。根包与各包的 `license` 改成 `"SEE LICENSE IN LICENSE"`，其中 `plugin-sdk` 与 `contracts` 原来是 MIT：外部插件作者装的就是这两个包，所以许可的变化对作者可见。 |
+| #640（归档许可 spec） | `5ef9d6217` | 有依据。只改 `specs/README.md` 索引和归档 spec 的状态句。 |
+| #633（机器槽位的饿死，本线） | `63d102824` | 有依据，说明见 §10.22。 |
+| #637（P4 助理：每个 Work 一块任务图，子任务是图上的一步） | `82f3ddbf2` | 有依据，有一处待修（见下）。 |
+| #641（vendored 包换成 mcp-refresh，Prologue main `e69b71cf`） | `62d14f828` | 有依据。旧包 `reference-kinds` 删掉，`.sha256`、来源记录、`patch-history.json`、`SECURITY-INVARIANTS.md` 与 `workspace-packages.mjs` 同步。 |
+| #642（Companion 用例的假宿主） | `e3518507c` | 有依据。只改 fixture 一行：假宿主像没有任务图的宿主那样回答 `agent.collaboration.await.v1`（`agent.capability_unavailable`），Coding 的唤醒循环在那里结束，不再在拍下输出之后重试。断言不变，产品代码不动。 |
+| #630（W5-05 第 4 片，本线） | `77cbbaa17` | 有依据，记录见 §W4-12。统筹审过最后的 head 并跑了全量。按 squash 合入。 |
+| #638（T2：引用题按名称找对象） | `86b77ad25` | 有依据（见下）。 |
+| #639（回执 C1：排着的补充显示在 Coding 对话末尾） | `7b3fd68a6` | 有依据。断言只加：RC-18 的单测、e2e，以及恢复读里的 `queued_inputs`。`baseline.json` 只降（插件包名在包外被点名的文件少 2 个）。`coding.js` 降 37,805 B。 |
+| #644（采用 SDK 的等待；工作图的接续只认领一次） | `5f078dae9` | 有依据。vendored 包换成 `app-tools-waits`（Prologue main `86be9891`，#35）：来源记录、`patch-history.json`、`SECURITY-INVARIANTS.md` S-13 同步。P4 工作图的绑定原来每轮用新随机键，等待满足后旧接续一直可认领，宿主会反复接续；现在复用 `eligibleContinuation`，PA-23 改成在项目图和工作图上各跑一遍。活动列表不显示 `board-wait` 这个工具原名，依据见采用 spec §6.0l。**合入时没有跑全量**：用户账号（yijunw0212，Codex 那条线）09:17Z 把它放进合并队列，统筹 09:19Z 才加 `full-suite` 标签，09:23Z 合入。换 vendored SDK 算共享核心，按规矩应先跑全量；它的全量（run 39020694821）在合入后补跑作证据，有红的在 main 上修。 |
+| #645（记忆整理用例的假时钟） | `fba03a953` | 有依据。原来钉的是固定日期 2027-01-15。到 2026-10-17 这一天，它离条目的写入时间已经不到 90 天，用例就红了。现在改成从条目自己的写入时间往后推 91 天，「90 天没用过的自动记忆关掉」这条断言的含义不变。 |
+| #646（Linux 探针用例等 pid 本身） | `daeccec3b` | 有依据。pid 文件写了一半时读到的是空串，读成 0 就会指向本进程组；现在读不到正整数就不算，并加了一条断言：用例确实写下了它起的进程的 pid。 |
+
+#637 的细节：
+- 依据：采用 spec §6.0k，统筹 10-17 定的五条，其中第 1、4 条由用户在弹窗里定。
+- 存量：子 Work 的 `delegated_by` 从 `{ work_id, … }` 改成图与步骤，`follow_ups` 删掉、改从图上数。旧形状不读；按用户 10-17 第 4 条，由 A4 合入前的一次性脚本改；真实 Home 在用户同意前不碰。这符合「只认现行取值、存量由维护改」。
+- 公开视图 `AssistantWork.delegated_by` 不变，`work_id` 从图推出来。
+- 合同：`AgentCollaborationPort` 加可选的 `works`，加两个类型，API 快照已刷新。
+- 门禁：`baseline.json` 只降（`assistant-service.ts` 2,058→2,054 行，类 1,643→1,640 行，脚本常量 130→129）。
+- 断言只加不放宽：WG-01～04，是新加的四组断言；原来对子 Work 自己 `follow_ups` 的断言，改成对父工作看板上的计数。
+- 人结束一步时，`actor_id` 取服务自己的 `actorId`，不从输入读。
+- **待修（已交统筹转采用线）**：用户在一个已交回的子任务里再发一轮时，`assistant-service.ts:1514` 先 `delegations.place(work)`，在图上加一步 `<part>.rN`，然后才 `assertSendCurrent` 和 `host.start`。如果这一轮没开起来（被后一次发送取代、Character 版本被拒、没有模型），catch 分支不结束这一步。于是图上这个子任务一直「还在做」：父工作不再自动交回，它一直占一个并行名额，`follow_up` 也被拒，直到用户在里面成功跑一轮。以前判断「还在做」看的是 run 的状态，一轮没开起来就不算。委派时第一轮起不来的情况，`delegate` 的 catch 会结束那一步，没问题。
+
+#638 的细节：
+- 依据：交互 spec D36、AC-28。引用题不再由卡片列出候选，改成人输入名称、经 `search.references` 搜问题要的那几类对象。
+- 删掉的断言都有替代，属于有依据的行为变化。
+  - 「卡片上不出现问题没要的那类候选」改由 S-26 的新用例证明：搜索只给问题要的那一类。
+  - 「提交了别的种类」原来报 `kind-not-allowed`。现在由宿主在答案交出去之前拒绝，模型什么都收不到。页面传来的标签不会进答案，进答案的是对象主人此刻给的标签。
+  - `SECURITY-INVARIANTS.md` S-26 和它的拒绝用例同一个 PR 改了。
+- `coding.control-run` 升到 v5（值可以是选中的对象），v1～v4 都被拒，符合 `CONTRACT-CHANGES.md`。
+- 页面资源：`page-assets.mjs` 加了一次性的 `APPROVED_CEILINGS`，每条只认合并基点 `aabf597d` 的一个准确数字。批准的是上限：workbench.js +4,090，workbench.css 与 arrival.css 各 +1,344，settings.css +19（用户 10-17 批准、由统筹转达，做法同 3c：#541、#584、#611）。实际涨的、也是条目钉的上限（对合并基点实测）：workbench.js 1,101,126→1,105,163（+4,037），workbench.css 1,624,532→1,625,858（+1,326），arrival.css 744,923→746,249（+1,326），settings.css 1,034,948→1,034,967（+19）。`page-assets.mjs` 的注释写的仍是批准的 +4,090、+1,344；按注释，下一次改这个门禁时连同条目一起删掉。
+- 和第 5 片的交集：两边改 `page-assets.json` 的同一几行，后合的那个并 main 以后按实测重钉（统筹定的顺序）。
+
+**Prologue**
+
+| PR | 裁决 |
+| --- | --- |
+| #35（App-tools 的只读外部等待） | 有依据。只对绑定了当前持有节点的顶层 App-tools 运行开放 `board-wait`，只认 App 的只读外部检查器。命令、信封、节点和待答问题这几种条件，在读目标之前就拒掉。没有新的等待循环和存储。Molis 经 #644 接入。 |
+| #34（MCP 在现有连接上刷新能力） | 有依据。`Runtime.refreshMcp` 只在还连着、还是同一条连接时用完整的新快照替换，失败或晚到的保留上一份；调用改按注册表里当前的工具形状核对，刷新后旧形状或已去掉的工具在发出前被拒，只变严。Molis 经 #641 的包接入。 |
+
+**在途**
+
+- #634（半途的一步不再让下一次读错事实）：统筹评审之外我加了两条，已由统筹转给作者。① 一个打不开的库会挡住之后每个项目的调度器（统筹定为必修）。② 孤儿对象移回失败时不留记录，建议带 `cause` 记一笔。
+- #629、#631 见 §10.22。
+- #637 那处待修的：统筹在 main 上核过，属实，已交采用线单开小修复 PR（排在 A2 前面，带上那条用例）。写这份记录时这个 PR 还没开。
+- #643（回执 D1）新加 BL-153：affected-tests 漏选读合同字段的用例。W5-05 第 4 片撞上的「按选择器断言样式表的用例选不到」是同一类，统筹定合进 BL-153，第 5 片在 #643 合入后补上，不另开一行。
+
+**组合效果**
+
+- #637 与 #632 都改 `horizontal/agent-host` 的协作口：#632 加 `revise`，#637 在同一个对象上加 `works`。合入顺序是 #632 先，#637 的 head 包含它。
+- #641 与 #644 在同一天先后换了两次 vendored 包（mcp-refresh，再换 app-tools-waits），每次都删了旧包、补了来源记录。#629 的全量要在 #644 的包上跑。
+- #637 与 #644 都改 `prologue-work-graphs.ts`：#644 补上了 #637 漏掉的接续请求键。#637 那处 `place` 的待修与它无关，还开着。
+
+### 10.24 2026-10-17 合入的独立复查（§10.23 之后：#629、#647、#648、#650，Prologue #36）
+
+看法同 §10.23。合入的 PR 按**合入时的 head** 看。
+
+**已合入**
+
+| PR | 合入的 head | 裁决 |
+| --- | --- | --- |
+| #647（§10.23，本线） | `4d926fc60` | 只改 spec。统筹审过最后的 head。 |
+| #629（D1②：一轮什么也没改时，按事实核对它的收尾；内部标识用宿主给的那些） | `a480533bc` | 有依据，见 §10.22。**合入时没有跑全量，最后的合入也没有经统筹评审，也不在统筹定的顺序上**：用户账号（yijunw0212）10:49Z 把它放进合并队列，10:57Z 合入（`8f4c9173a`），不是统筹合的，是哪个会话或谁操作的看不出。`a480533bc` 是 main 有 #637、#641、#644 之前的旧 head；统筹原先定的是等 main 含 #637、#641 以后由手册线并 main、重跑、把 head 交统筹。合并队列的 Verify 在合并结果上跑过、通过。合入后的证据同 #650：main `c276ab9cb`（含 `8f4c9173a`）的全量 run 39027427145。收尾核对的提示词由主人登记，不加措辞清单（用户 10-16「模型能力问题不打补丁」）。 |
+| #650（采用带标注的 SDK 工具，经共同的动作目录） | `09e94dcf3` | 有依据，有一处记录（见下）。**合入时没有跑全量，也没有先经统筹评审**：用户账号（yijunw0212，Codex 那条线）11:05Z 合入，没有 `full-suite` 标签。这是 10-17 第三次换 vendored 包（`app-tools-waits` → `mcp-schema-annotations`，Prologue main `d2b3daa3d`，#36），算共享核心。统筹合入后审过，全量（run 39027427145，main `c276ab9cb`）在合入后补跑作证据，有红的在 main 上修。 |
+| #648（子任务里一轮没开起来时，结束为它加的那一步） | `2fe1224fe` | 有依据。修的是 §10.23 记的 #637 待修，带 `full-suite`。留一处余项，记为 BL-154。 |
+
+#650 的细节：
+- 上游 #36：校验用的副本只去掉 `default` 和顶层 `x-mcp-header`；未知或写错的标注直接拒绝；参数在派发之前核对，报错不回显值。
+- Molis 一侧：`mcpInputContract` 先经 `mcpActionInputSchema` 去掉 `x-mcp-header`。标注只认合法的头名，只用在 `string`、`integer`、`boolean` 上，头名不分大小写不得重复；不合的，整个工具标成 `actions.schema_unsupported`，不放行。`default` 留在动作合同里：它不是约束，派发时也不会被填进参数。`tests/external-mcp-dispatch.test.ts` 的工具改成带 `default` 和 `x-mcp-header`，原有断言（重查授权、取消、恢复）不变（PA-MCP-01）。
+- 记录：来源记录、`.sha256`、`patch-history.json`（无补丁的包 23→24，核对过的上游提交 33→34）、`vendor/prologue-sdk/README.md` 同步，旧包删掉。
+- 同一条规则写了两份：SDK 的 `mcpToolInputSchema` 与 Molis 的 `mcpActionInputSchema`。Molis 另写一份，是因为只有 `horizontal/agent-host` 依赖 SDK。记为 BL-155：由 agent-host 导出 SDK 的校验副本，或写明两份怎样保持一致。
+
+#648 的细节：
+- `AssistantDelegations.startPlaced` 包住开始这一步：开始失败时，为这一轮新加的那一步由持有它的会话结束，备注「这一轮没有开始」；沿用的步骤不动。结束本身失败时吞掉，让原来的错误交给调用方（PR 写明了，这时这一步照旧开着，和修之前一样）。
+- 一轮向宿主要什么（项目、会话、角色、材料、图片、预算、浏览器、Character）挪到 `assistant-round-start.ts` 的 `roundStartInput`，字段和条件都没变。`baseline.json` 只降：类 1,640→1,629 行，文件 2,054→2,041 行。
+- 断言只加：`W2-18-DELEGATION-PLACED-01` 证明没开起来的一轮不留开着的步骤，之后还能交出满额的三个子任务，三个交回后父工作照常被交回。PR 写了去掉修复后在哪一条变红。
+- 余项（BL-154，统筹 10-17 定为不必修，归采用线）：沿用的步骤不归沿用它的那一轮。前一轮加上 `.rN`、还没失败时，同一会话的另一轮读图见到它开着就沿用；前一轮随后失败，就把后一轮正在用的这一步结束了。要同一个已交回的子任务上同时来定时发送和人发的消息（定时那条作废），或两轮同时发、只有前一轮的 `host.start` 临时出错，窗口很窄。修法：结束之前再读一次图或 Host，这一步上还没开始过任何一轮才结束。
+
+**Prologue**
+
+| PR | 裁决 |
+| --- | --- |
+| #36（MCP 参数标注与严格派发） | 有依据。见上文 #650 的细节。只变严：未知的标注拒绝，参数在派发之前核对。 |
+
+**组合效果**
+
+- 10-17 一天换了三次 vendored 包（#641、#644、#650）。#644、#650 与 #629 合入时都没有全量，#629 和 #650 的最后合入也没有经统筹评审，都由 `c276ab9cb` 合入后的全量补证据。
+- 此后的规矩（用户 10-17 在弹窗里定，统筹转达）：**所有合入都经统筹**，Codex 线和用户自己的 PR 也一样。PR 号先交统筹，由统筹评审、加标签、跑全量、入队。绕过统筹合入的，统筹事后复查，在 main 上跑全量作证据，并通知要变基的线。在途的 PR 要在 `mcp-schema-annotations` 上重跑全量。
+- W5-05 第 5 片要并 `c276ab9cb`（含 #629、#648、#650）。这三个都没改样式，三份样式表在 `7a55444fd` 与 `c276ab9cb` 上逐字节相同。
+
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
 用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。
@@ -2083,7 +2238,7 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 | R-12 | 部分：I6 `as unknown as` 193，AST/lint 只降门禁已生效。全量清零不是用户已定目标；必要重构归 W2-10/11、W5-08 |
 | R-13 | 未解决主检出工作状态：本次看到 main `9da180833` 与未提交他人成果，不 reset/clean；当前隔离复查与受测树不依赖它。主检出整理遵循独立归属与授权 |
 | R-14 | 数量已显著缩小：I6 门禁 318 个入库 `.impeccable` 文件且只降，历史 1,085 不能当现状；保留文件仍按引用规则审查，W1-23/W6-06 |
-| 皮肤 | 未完成：W5-05 已删 `quiet-paper`、`personal-shell`（第 1、2 片，见 §W4-12 下的记录），`personal-workbench-v2`、`-v3`、`calm-desktop` 还在，按这个顺序一片删一层 |
+| 皮肤 | 已完成：W5-05 按 `quiet-paper`、`personal-shell`、`personal-workbench-v2`、`-v3`、`calm-desktop` 的顺序一片删一层，五层都已删（第 1～5 片，见 §W4-12 下的记录） |
 | Goals UI | 部分：旧转接仍有，通用挂载器和外壳 renderer 改名仍 W5-06；不能把外壳错移进业务插件 |
 | Server | 按用户决定保留 IM/讨论；表归属与 Home 登记已有修复。实验的独立启动器不包装成生产入口，不删产品讨论 |
 | N-01 | 已确认遗留第二铃铛/占位已清，真实事件恢复用例消费现行唯一注意力入口；后续新 UI 以现行产品决定为准 |

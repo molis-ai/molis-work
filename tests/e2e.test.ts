@@ -249,7 +249,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     assert.match(packedReadme, /docs\/runtime\.en\.md/);
     assert.match(packedReadme, /docs\/mcp\.en\.md/);
     assert.match(packedReadme, /skills\/goal-advance\/SKILL\.md/);
-    assert.match(packedReadme, /MIT, see \[LICENSE\]/);
+    assert.match(packedReadme, /Molis AI Cooperation Source License\*\*, see \[LICENSE\]/); // CSL-03
     assert.doesNotMatch(packedReadme, /postinstall-project|兼容模式|MOLIS_WORK_DATABASE=/);
 
     await rm(runtimeRoot, { recursive: true, force: true });

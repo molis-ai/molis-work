@@ -105,6 +105,58 @@ export interface AgentCollaborationPort {
   control(project: string, control: AgentCollaborationControl, actorId: string): Promise<AgentCollaborationSessionView>;
   /** A person changes a round's plan on the graph; `expectedVersion` is the board version they saw. */
   revise(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
+  /** The Host's own works on their own graphs (an Assistant Work and the parts it hands out); absent where the runtime keeps none. */
+  works?: AgentWorkGraphPort;
+}
+
+/** A step of a work's own graph as the work's owner reads it: the SDK's state, who holds it, and whether a person ended it. */
+export interface AgentWorkNode {
+  node_id: string;
+  /** The step it hangs under; the work's root has none. */
+  parent?: string;
+  title: string;
+  state: "not-started" | "ready" | "running" | "waiting" | "blocked" | "needs-reconciliation" | "succeeded" | "failed" | "cancelled";
+  session_id?: string;
+  /** Set when a person ended it before it was done: when, and what they said. */
+  ended_by_person?: { at: string; note: string };
+  /** When it ended. */
+  ended_at?: string;
+  /** What goes on after the step's wait (the root's, while the work waits for its parts): the key its round starts under. */
+  continuation?: { request_key: string; state: AgentContinuationState };
+}
+
+/**
+ * One standing graph per work (specs/prologue-adoption §6.0k): its root, held by the work's session, and the parts the
+ * work hands to other sessions, each a step under the root (or under another part) held by that session. A round of a
+ * session that holds an unfinished step on its work's graph stands on that step. A part's step ends with the round that
+ * stands on it, as that round ended; the root stays open while the work goes on. The graph owns states, holders and
+ * generations; the work keeps only the graph's id, and a part only its step.
+ *
+ * Hand-back (§6.0n): the root waits, by the Host, for every unfinished step under it. Once they have all ended the root's
+ * continuation may go on: a round of the work running then takes it at its next model boundary; otherwise the work's next
+ * round is started under the continuation's request key, which takes it up. One step has one continuation: the Host
+ * changes only the waits it armed, and hands nothing out while the root waits on one its round armed.
+ */
+export interface AgentWorkGraphPort {
+  /** The work's graph and its root, held by `session_id`; the same key gives the same graph. */
+  open(input: { key: string; session_id: string; title: string }): Promise<{ graph_id: string }>;
+  /**
+   * A part handed to `session_id`: a step under `under`, or under the root when absent. Adding it again changes nothing.
+   * With `wait_reason` the work waits for it: the root's wait is armed again on every unfinished step under it. Refused
+   * (`agent.collaboration_conflict`, with nothing added) while no round of the work runs, while that round is taking up
+   * the last wait's result, or while the root waits on a wait its round armed. When the wait cannot be armed after the
+   * step was added, the step is ended again (`cancelled`), the root waits again for what it waited for, and the error is thrown.
+   */
+  add(input: { graph_id: string; node_id: string; under?: string; session_id: string; title: string; wait_reason?: string }): Promise<void>;
+  read(graph_id: string): Promise<AgentWorkNode[]>;
+  /** `listener` hears every change of the graph until the returned function is called. */
+  watch(graph_id: string, listener: () => void): () => void;
+  /** End a step that is not done: as the person `actor_id` did, or (without one) as its holder gave it up. */
+  end(input: { graph_id: string; node_id: string; note: string; actor_id?: string }): Promise<void>;
+  /** The person stopped the work: the wait the Host armed ends, and its continuation, if it may go on, is held for the person. */
+  hold(input: { graph_id: string; note: string }): Promise<void>;
+  /** Each time a work's root may go on (the wait on it is over), and at once for each that may go on now. */
+  onReady(listener: (ready: { graph_id: string; request_key: string }) => void): () => void;
 }
 
 const SESSION_VIEWS_OUTPUT = {

@@ -1,7 +1,7 @@
 import { agentErrors } from "../errors.js";
 import { BUSINESS_HOST_TOOLS, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import { parseAgentRunBudget, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, parseAgentRunBudget, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type {
   AgentSkillLibrary,
@@ -31,7 +31,7 @@ import { emptyCapabilityMatrix } from "../capabilities.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
 import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
-import { inputsPort, type QueueInput, type SteerInput } from "./prologue-inputs.js";
+import { inputsPort, type RoundInputs, type SessionQueue } from "./prologue-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
   applyRunEvent,
@@ -86,8 +86,8 @@ export interface PrologueAdapterPorts {
   modelConfiguration(selection?: AgentStartRequest["model_selection"]): Promise<PrologueModelConfiguration | null>;
   /** Why the Host held the run's latest ending, in the person's words (the runtime's event does not say), taken once. */
   stopHeld?(runId: string): { target: string; summary: string } | undefined;
-  /** True when the run ended (its last words given) still only saying what it would do after its one continuation. */
-  endedOnPromise?(runId: string, sessionId: string, lastText: string): boolean;
+  /** True when the run was held for only saying what it would do, and called nothing after its one continuation. */
+  endedOnPromise?(runId: string, sessionId: string): boolean;
 }
 
 export interface PrologueRunPort {
@@ -96,12 +96,11 @@ export interface PrologueRunPort {
   cancel(): Promise<void>;
 }
 
-export interface PrologueControlPort {
+export interface PrologueControlPort extends RoundInputs {
   state: PrologueControlState;
   stop(reason: "stopped" | "cancelled"): void | Promise<void>;
   pause(): void;
   resume(): void;
-  steer(input: SteerInput): Promise<{ steerId: string; replayed: boolean }>;
   /** Revalidate the original invocation after model-selection waits. */ beforeModelSwitch?(): Promise<void>;
   /** Later model calls of this Run go to this target, from its next model boundary. Absent where the runtime cannot. */
   switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">, beforeAccept: () => void): Promise<void>;
@@ -133,7 +132,7 @@ export interface PrologueStartInput {
     instructions: string;
     tools: string[];
   };
-  compaction?: { prompt: string; above_tokens: number };
+  compaction?: { prompt: string; above_tokens: number }; ending_review?: { prompt: string };
   task: string;
   /** Memories the Host chose for this run; the runtime re-reads each and injects it as data. */
   memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory;
@@ -176,7 +175,7 @@ export interface PrologueRuntimePort {
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
-  /** The session's queue for the next round; absent where the runtime keeps none. */ queueInput?(sessionId: string, input: Parameters<QueueInput>[0]): ReturnType<QueueInput>;
+  /** The session's queue for the next round; absent where the runtime keeps none. */ queue?: SessionQueue;
   background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   /** The runtime's durable local queue for timed work. */
@@ -208,6 +207,7 @@ export interface PrologueRuntimePort {
       latest?: PrologueRestoredSession["runs"][number];
       planned?: AgentRunRef;
     } | undefined>;
+    /** Supplements waiting for the next round; undefined when unreadable. */ queued?(sessionId: string): Promise<import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[] | undefined>;
   };
   startAgentRun(input: PrologueStartInput): Promise<{
     run: PrologueRunPort;
@@ -303,7 +303,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   readonly collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
-  readonly inputs = inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), steer: one => record.control.steer(one) }; }, () => this.#runtime.queueInput?.bind(this.#runtime), runId => this.#publish(runId));
+  readonly inputs = inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), control: record.control, turns: record.view.turns }; }, () => this.#runtime.queue, runId => this.#publish(runId));
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -429,16 +429,15 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   async readSession(session: AgentSessionRef): Promise<AgentSessionView> {
     const record = await this.#loadSession(session.session_id);
-    const latest = record.runs.at(-1);
+    const latest = record.runs.at(-1), view = latest ? structuredClone(this.#requireRun(latest.run_id).view) : null;
+    // Read only while no round is live (ended, or stopped for checking): what a live round takes is its own (specs/ai-input-receipts D31).
+    const queued = view && !isTerminalAgentPhase(view.phase) && view.phase !== "reconcile-required" ? undefined : await this.#runtime.sessions.queued?.(session.session_id);
     return {
-      session: { ...session },
-      owner: { ...record.owner },
-      workspace: record.workspace,
-      title: record.title,
+      session: { ...session }, owner: { ...record.owner }, workspace: record.workspace, title: record.title,
       runs: record.runs.map((ref) => ({ ...ref })),
       checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
-      latest_run: latest ? structuredClone(this.#requireRun(latest.run_id).view) : null,
-      ...(record.recovery ? { recovery: { ...record.recovery } } : {}),
+      latest_run: view,
+      ...(record.recovery ? { recovery: { ...record.recovery } } : {}), ...(queued?.length ? { queued_inputs: queued } : {}),
     };
   }
 
@@ -574,7 +573,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         instructions: role.prompts.map((prompt) => prompt.body).join("\n\n"),
         tools: [...role.host_tools],
       },
-      ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}),
+      ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
       task: request.task,
       ...(role.memory?.pinned.length ? { memory: structuredClone(role.memory) } : {}),
       ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),
@@ -636,10 +635,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         const label = this.#ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));
         if (label && held) Object.assign(held, label);
       }
-      if (event.type === "completed" && this.#ports.endedOnPromise?.(ref.run_id, ref.session_id, [...record.state.turns].reverse().find(turn => turn.kind === "assistant")?.text ?? "")) {
+      if (event.type === "completed" && this.#ports.endedOnPromise?.(ref.run_id, ref.session_id)) {
         const sequence = record.state.next_sequence++;
-        record.state.activity.push({ call_id: `model-end-${sequence}`, name: "只说未做", target: "最后只说了要做什么，没有执行", state: "failed",
-          summary: "续做一次后，这一轮的结尾仍只说明了接下来要做什么、没有调用工具：什么都没有执行", at, sequence });
+        record.state.activity.push({ call_id: `model-end-${sequence}`, name: "只说未做", target: "续做后仍没有执行", state: "failed",
+          summary: "这一轮只说了接下来要做什么，续做一次后仍没有调用任何工具：什么都没有执行", at, sequence });
       }
       // An effect the Run is stopped on goes in front of the user before
       // anything else happens. Failing to mirror it must not look like the

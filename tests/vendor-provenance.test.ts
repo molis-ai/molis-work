@@ -204,7 +204,7 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  const current = "prologue-sdk-0.0.0-rc.1-reference-kinds.tgz";
+  const current = "prologue-sdk-0.0.0-rc.1-app-wait-ends-step.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
@@ -214,9 +214,9 @@ describe("the records of this repository", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // specs/prologue-adoption §6.0j: upstream main's merge of PR #33 (the App lists the kinds a reference question may ask for).
-    assert.equal(provenance.source.commit, "c673238e340d253f7a794133d547b9f5c34b473b");
-    assert.equal(provenance.source.mergedUpstream.pullRequest, 33);
+    // vendor/prologue-sdk/README.md: upstream main's merge of PR #38, on top of #37 (the App's wait can end the step it hangs on). PA-MCP-02.
+    assert.equal(provenance.source.commit, "24e6908352a9d2b164f62b83381b1f4cc6fc7643");
+    assert.equal(provenance.source.mergedUpstream.pullRequest, 38);
     assert.equal(provenance.source.inFlight, undefined);
     assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, provenance.source.commit);
     assert.deepEqual(provenance.source.patches, []);
@@ -229,12 +229,12 @@ describe("the records of this repository", () => {
     assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 26 deleted patches and the 21 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 25 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
     assert.equal(record.patches.length, 26);
-    assert.equal(record.packagesWithoutPatch.length, 21);
-    // The 21st is the parameter-branches package this one replaced.
-    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-parameter-branches.tgz");
+    assert.equal(record.packagesWithoutPatch.length, 25);
+    // The 25th is the mcp-schema-annotations package this one replaced.
+    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-mcp-schema-annotations.tgz");
     assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
     assert.deepEqual(kinds, { "upstream-commit": 8, "uncommitted-worktree": 17, "molis-repo": 1 });
@@ -243,7 +243,7 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 31);
+    assert.equal(record.upstream.commitsChecked.length, 35);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);

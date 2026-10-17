@@ -64,7 +64,6 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderGoalDocument(item: TItem, view: TView, selected: boolean): string;
   renderTrashGoalDocument(item: TItem, selected: boolean): string;
   goalsDocumentRenderer: {
-    renderInitialGoalTab(goal: TItem["goal"]): string;
     renderEmptyGoalCollection(trash: boolean, full: boolean): string;
   };
   goalsTreeRenderer: {

@@ -101,7 +101,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const draftKey = (id) => 'molis-coding-draft:' + root.dataset.codingPrefix + ':' + id;
   const terminal = (phase) => ['completed','failed','stopped','cancelled','reconcile-required'].includes(phase);
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
-  let runtimeSessionId = null;
+  let runtimeSessionId = null, queuedInputs = [];
   let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '', draftOwner = '';
   let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
   let reportOutput=null, artifactRows=[], artifactTicket=0;
@@ -138,7 +138,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     prefill:(text)=>{if(input.value.trim()!==text.trim()){input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));}input.focus();},
     // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.
     materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
-  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q});
+  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q,landed:(sent,said)=>{if(current===sent.id&&input.value===sent.text){input.value='';if(localDraft(sent.id)===sent.text)void saveDraft(sent.id,'');}status(said);}});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
   // The TaskBoard takes the conversation's place in the main area; the session list stays beside it.
   const ROLE_NAMES={planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'};
@@ -908,8 +908,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const writing=run===all.at(-1) && ['starting','running'].includes(run.phase) && groups.at(-1)?.kind==='turn' && groups.at(-1).value.kind==='assistant';
       ordered.forEach((node,at)=>{if(node.classList?.contains('coding-turn'))node.classList.toggle('is-writing',writing && at===ordered.length-1);});
       for(const detail of block.querySelectorAll(':scope > [data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
-      // The supplement on its way shows after the round it goes to, until the round's own record has it.
-      const sending=run===all.at(-1)&&inputReceipts.bubble(current);if(sending)ordered.push(sending);for(const node of block.querySelectorAll(':scope > .is-sending'))if(node!==sending)node.remove();
+      // The supplement on its way shows after the round it goes to, until the round's own record has it; what waits for the next round, after that.
+      const last=run===all.at(-1),sending=last&&inputReceipts.bubble(current,run),waiting=last&&inputReceipts.waiting(queuedInputs);for(const node of [sending,waiting])if(node)ordered.push(node);for(const node of block.querySelectorAll(':scope > .is-sending,:scope > .coding-queued-inputs'))if(node!==sending&&node!==waiting)node.remove();
       // Insert only missing/misplaced entries: polling keeps open tools and a
       // focused question form intact. Live and replay use the same ordering.
       let cursor=block.firstElementChild;
@@ -1138,7 +1138,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       // Keep this window's draft, otherwise restore the service copy.
       if(fresh) { input.value=localDraft(id) || data.draft || ''; rememberDraft(id,input.value); draftOwner=id; q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
-      runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
+      runtimeSessionId=data.session.runtime_session_id;queuedInputs=data.session.queued_inputs||[];planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
       if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
       renderQueued(id,data.session.queued);
       renderPriority(id,data.session.priority===true);

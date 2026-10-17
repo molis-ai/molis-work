@@ -68,10 +68,10 @@ export {
   SETTINGS_CLIENT_SCRIPT,
   SETTINGS_STYLES,
   STYLES,
-  WORK_TAB_VISIBILITY_CLIENT_SCRIPT,
 } from "./browser-assets.js";
 export { EN } from "./i18n/en.js";
 export { ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./scripts/client/assistant-send.js";
+export { PANE_MESSAGES_SCRIPT } from "./scripts/client/pane-messages.js";
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-app-workbench",
   packagePath: "apps/workbench",

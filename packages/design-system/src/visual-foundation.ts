@@ -12,14 +12,11 @@ import { VISUAL_FOUNDATION_CLIENT_SCRIPT as PREFERENCE_CLIENT_SCRIPT } from "./p
 import { SELECT_MENU_CLIENT_SCRIPT } from "./select-menu-client.js";
 import { MICRO_INTERACTION_CLIENT_SCRIPT } from "./styles/micro-interactions.js";
 import { CRAFT_FINISH_CLIENT_SCRIPT } from "./styles/craft-finish.js";
-import { CALM_DESKTOP_STYLES } from "./styles/calm-desktop.js";
 import { DESKTOP_TITLEBAR_STYLES } from "./styles/desktop-titlebar.js";
 import { DIRECTORY_LEDGER_STYLES } from "./styles/directory-ledger.js";
 import { FOUNDATION_STYLES } from "./styles/foundation.js";
 import { MOMENTUM_STYLES } from "./styles/momentum.js";
 import { NAVIGATION_OWNERSHIP_STYLES } from "./styles/navigation-ownership.js";
-import { PERSONAL_WORKBENCH_V2_STYLES } from "./styles/personal-workbench-v2.js";
-import { PERSONAL_WORKBENCH_V3_STYLES } from "./styles/personal-workbench-v3.js";
 import { SOURCE_FEED_STYLES } from "./styles/source-feed.js";
 import { COSS_CONTROL_STYLES } from "./styles/coss-controls.js";
 import { PRIMITIVE_STYLES } from "./styles/primitives.js";
@@ -31,9 +28,6 @@ const FOUNDATION_LAYERS = [
   "\n",
   FOUNDATION_STYLES,
   MOMENTUM_STYLES,
-  CALM_DESKTOP_STYLES,
-  PERSONAL_WORKBENCH_V2_STYLES,
-  PERSONAL_WORKBENCH_V3_STYLES,
   DIRECTORY_LEDGER_STYLES,
   NAVIGATION_OWNERSHIP_STYLES,
   SOURCE_FEED_STYLES,

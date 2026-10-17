@@ -111,6 +111,7 @@ export interface RuntimeDependencyPackage {
 export interface InspectedSource {
   directory: string;
   version: string;
+  license?: string;
   runtimeDependencies: RuntimeDependencyPackage[];
   bundledNodePath: string | null;
   contentDigest: string;

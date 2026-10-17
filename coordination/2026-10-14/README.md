@@ -899,3 +899,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - PR 正文写明三项对调用方可见的变化：拒绝码 EFFECT_RECONCILE_REQUIRED 改成 SESSION_RECOVERY_BUSY；新增 SESSION_RUN_PARKED 和 SESSION_HISTORY_UNAVAILABLE；inspect 会写盘。
   - 换包时要改 Molis 的 `horizontal/agent-host/src/adapters/prologue-run.ts` REFUSED_BEFORE_RUN，加上 SESSION_RECOVERY_BUSY 和 SESSION_RUN_PARKED。
 - #671 → edf3d9a96：merge 了 main f4d18c37a，三份 CSS 按 #677 之后的预算重新取键，增量不变（arrival +64、settings +57、workbench.css +102），workbench.js 还是 +2,838。除去 page-assets，和 5c2772ad5 逐行一致。走 merge-only。3b-2c（09f07b543，本地）已认可：PR 的 base 用 receipts/3b2b-tray，用户在回执线会话里一次性批准了 workbench.js +325；#671 合入后 base 改成 main。
+- prologue#40 第二轮（1100940ea）统筹审过，已 squash 合入 Prologue main，提交 e0f99ea20：
+  - 抽出 `releaseParkedRun`，一处写、三处调：启动时在 sweep 之后、parkedRunCheck 和 repair 里、不带答案关掉时；
+  - 启动时「已回答、还没交出」的题也留作停放，这个偏离成立：那次尝试要留给交答案时记成 settled；
+  - 去掉了 cast；改用 runningAttemptOf；补上公开面快照；PR 正文写明了对调用方可见的变化。
+  - 下一步：采用线在本地准备换包，#675 合入后开 PR，带上 REFUSED_BEFORE_RUN 和 inspect 会写盘这两项的核对；之后交互线做 BL-156 的 Molis 半边。

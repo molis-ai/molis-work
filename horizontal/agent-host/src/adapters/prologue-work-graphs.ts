@@ -106,8 +106,13 @@ export function createWorkGraphs(runtime: Runtime, index: SessionIndexStore) {
       return { graph_id: ref.id };
     },
     async add(input) {
-      const add = async () => place(boardRef(input.graph_id), await sessionOf(input.session_id), { id: input.node_id, title: input.title, parent: input.under ?? ROOT });
-      await (input.wait_reason ? waits.handOut(input.graph_id, add, input.wait_reason) : add());
+      const ref = boardRef(input.graph_id);
+      const add = async () => place(ref, await sessionOf(input.session_id), { id: input.node_id, title: input.title, parent: input.under ?? ROOT });
+      if (!input.wait_reason) return add();
+      // A step this hand-out adds is ended again when the work cannot wait for it; one that was there already stays as it was.
+      const remove = runtime.boards.get(ref).nodes.some(node => node.id === input.node_id) ? undefined
+        : () => port.end({ graph_id: input.graph_id, node_id: input.node_id, note: "没能让这项工作等它，交出撤回" });
+      await waits.handOut(input.graph_id, { add, remove }, input.wait_reason);
     },
     async read(graphId) { return runtime.boards.get(boardRef(graphId)).nodes.map(view); },
     watch(graphId, listener) { return runtime.boards.subscribe(event => { if (event.board === graphId) listener(); }); },

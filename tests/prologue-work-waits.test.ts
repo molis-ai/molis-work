@@ -113,3 +113,27 @@ test("W2-18-HANDBACK-ONE-CONTINUATION-02: while the Host's wait is open on the r
   assert.match(w.bodies[1] ?? "", /WAIT_ALREADY_ARMED|already waits/, "the round is told the step already waits");
   assert.deepEqual((await w.rootStep()).continuation, armed, "the Host's wait is the one the root still waits on");
 });
+
+test("W2-18-HANDBACK-ARM-FAILED-01: a hand-out whose wait cannot be armed takes its step back, and the work waits again for what it waited for", { timeout: 60_000 }, async t => {
+  let go!: PromiseWithResolvers<void>, holding!: PromiseWithResolvers<void>;
+  const w = await world(t, hold => {
+    go = hold(); holding = hold();
+    return [async () => { holding.resolve(); await go.promise; return reply(undefined, "交出去了。"); }];
+  });
+  const round = await w.start("把这几段交出去。");
+  await holding.promise;
+  const parts = Array.from({ length: 8 }, (_, index) => `p-${index + 1}`);
+  for (const part of parts) await w.handOut(part);
+  // A wait takes at most eight things (the SDK refuses more before it writes anything): the ninth is added, then not waited for.
+  await assert.rejects(w.handOut("p-9"), /at most 8/);
+  const after = await w.read();
+  assert.equal(after.find(node => node.node_id === "p-9")?.state, "cancelled", "the step nothing would wait for is ended again");
+  assert.deepEqual(after.filter(node => node.node_id !== "work" && !["succeeded", "failed", "cancelled"].includes(node.state)).map(node => node.node_id), parts);
+  assert.equal(after.find(node => node.node_id === "work")?.continuation?.state, "armed", "the work waits again for the eight");
+  go.resolve();
+  assert.equal((await w.ended(round.ref)).phase, "completed");
+  for (const part of parts.slice(0, -1)) await w.works.end({ graph_id: w.graph_id, node_id: part, note: "做完了" });
+  assert.equal((await w.rootStep()).continuation?.state, "armed", "one still running: the work still waits");
+  await w.works.end({ graph_id: w.graph_id, node_id: parts.at(-1)!, note: "做完了" });
+  await until("the work may go on", async () => (await w.rootStep()).continuation?.state === "eligible");
+});

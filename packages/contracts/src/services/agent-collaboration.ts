@@ -144,7 +144,8 @@ export interface AgentWorkGraphPort {
    * A part handed to `session_id`: a step under `under`, or under the root when absent. Adding it again changes nothing.
    * With `wait_reason` the work waits for it: the root's wait is armed again on every unfinished step under it. Refused
    * (`agent.collaboration_conflict`, with nothing added) while no round of the work runs, while that round is taking up
-   * the last wait's result, or while the root waits on a wait its round armed.
+   * the last wait's result, or while the root waits on a wait its round armed. When the wait cannot be armed after the
+   * step was added, the step is ended again (`cancelled`), the root waits again for what it waited for, and the error is thrown.
    */
   add(input: { graph_id: string; node_id: string; under?: string; session_id: string; title: string; wait_reason?: string }): Promise<void>;
   read(graph_id: string): Promise<AgentWorkNode[]>;

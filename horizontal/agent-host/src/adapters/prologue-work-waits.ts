@@ -35,23 +35,37 @@ export function createWorkWaits(runtime: Runtime, root: string, isWorkGraph: (gr
       await runtime.waits.cancel(wait.ref.id, await now(), note).catch(error => { if (codeOf(error) !== "TASKBOARD_CONFLICT") throw error; });
     }
   };
+  /** The root waits, by the Host, for every unfinished step under it, in place of the Host's wait it had; for none if all ended. */
+  const waitForParts = async (graph: string, step: { session: ExactRef<"session">; generation: number }, reason: string) => {
+    await cancelOwn(graph, "换成等现在没做完的子任务");
+    const on = runtime.boards.get(boardRef(graph)).nodes.filter(node => node.id !== root && !ENDED.includes(node.state)).map(node => ({ kind: "node" as const, board: graph, node: node.id }));
+    if (!on.length) return;
+    const at = await now();
+    await runtime.waits.arm({ session: step.session, reason: reason.slice(0, 200), by: "app", arrangement: {
+      scope: { board: graph, node: root, generation: step.generation }, on, mode: "all", until: "settled", onFailure: "continue",
+      onEarlyContinue: "keep", deadlineMs: at + APP_WAIT_MS, autoContinue: true } }, at)
+      .catch(error => { throw codeOf(error) === "TASKBOARD_CONTINUATION_CONFLICT" ? agentErrors.collaboration_conflict(TAKING_UP) : error; });
+  };
   return {
-    /** Hand a step out (`add`) and have the work wait for it: checked first, so a refusal adds nothing. */
-    handOut: (graph: string, add: () => Promise<void>, reason: string) => serially(graph, async () => {
+    /**
+     * Hand a step out (`part.add`) and have the work wait for it: checked first, so a refusal adds nothing. When the wait
+     * cannot be armed after the step was added, the step is taken back (`part.remove`) and the work waits again for what
+     * it waited for before, so no step is left that nothing waits for and no round stands on.
+     */
+    handOut: (graph: string, part: { add: () => Promise<void>; remove?: () => Promise<void> }, reason: string) => serially(graph, async () => {
       const step = rootOf(graph);
       if (!step || step.assignee?.kind !== "session") throw agentErrors.collaboration_unknown("工作的任务图上没有根");
       // The SDK hands the last wait's result to the round at its next model boundary; arming another before that would drop it.
       if (step.continuation?.state === "claimed") throw agentErrors.collaboration_conflict(TAKING_UP);
       if (open(graph).some(wait => wait.by !== "app")) throw agentErrors.collaboration_conflict("这项工作正在等它自己登记的事；等那件事有了结果，再交出新的子任务");
       if (step.state !== "running") throw agentErrors.collaboration_conflict("这项工作现在没有在做的一轮，不能等它的子任务");
-      await add();
-      await cancelOwn(graph, "换成等现在没做完的子任务");
-      const on = runtime.boards.get(boardRef(graph)).nodes.filter(node => node.id !== root && !ENDED.includes(node.state)).map(node => ({ kind: "node" as const, board: graph, node: node.id }));
-      const at = await now();
-      await runtime.waits.arm({ session: step.assignee, reason: reason.slice(0, 200), by: "app", arrangement: {
-        scope: { board: graph, node: root, generation: step.generation }, on, mode: "all", until: "settled", onFailure: "continue",
-        onEarlyContinue: "keep", deadlineMs: at + APP_WAIT_MS, autoContinue: true } }, at)
-        .catch(error => { throw codeOf(error) === "TASKBOARD_CONTINUATION_CONFLICT" ? agentErrors.collaboration_conflict(TAKING_UP) : error; });
+      await part.add();
+      const at = { session: step.assignee, generation: step.generation };
+      try { await waitForParts(graph, at, reason); } catch (error) {
+        await part.remove?.().catch(() => undefined);
+        await waitForParts(graph, at, reason).catch(() => undefined);
+        throw error;
+      }
     }),
     hold: (input => serially(input.graph_id, async () => {
       await cancelOwn(input.graph_id, input.note.slice(0, 200));

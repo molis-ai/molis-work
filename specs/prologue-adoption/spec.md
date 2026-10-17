@@ -1558,7 +1558,7 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 **宿主**：
 
 - 新文件 `prologue-work-waits.ts`：`handOut`（带 `wait_reason` 的 `add` 走它）、`hold`、`onReady`。同一块图上的改动逐个串行：两个子任务同时交出，各自会取消对方刚挂的等待。
-  - `handOut` 先查、再加步骤、再取消宿主自己开着的等待、再挂新的。下面三种情况拒绝（`agent.collaboration_conflict`），这时还什么都没写：
+  - `handOut` 先查、再加步骤、再取消宿主自己开着的等待、再挂新的。加上步骤之后等待挂不上（写失败、条件超过 SDK 的 8 个），就把这一步结束掉（`cancelled`，`add` 给的 `remove`；步骤原来就在的不动），根重新等它原来等的那些，再把错误抛出去。所以不会留下一步没人等、也没有轮站在上面的子任务（统筹审 #654 时指出）。下面三种情况拒绝（`agent.collaboration_conflict`），这时还什么都没写：
     - 根的接续正被一轮收下（`claimed`）：那一轮在下一个模型边界先收到交回的结果；
     - 根上开着这一轮自己登记的等待（`by` 不是 `app`）；
     - 根上没有在做的一轮。
@@ -1610,6 +1610,7 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 | W2-18-HANDBACK-CURRENT-03 | 开跑在占用接续之后被当前调用方拒一次：通知一次，不自己再起；接续 `eligible`，人的下一轮收下它（`started`） |
 | W2-18-HANDBACK-ONE-CONTINUATION-01 | 这一轮用 `board-wait` 登记了自己的等待：这一轮还在跑时、结束以后，交出都被拒（`agent.collaboration_conflict`），图一点没变；`hold` 不取消它，它结束后也不把它的 `eligible` 接续挂起；下一轮收下接续后，交出成功，根改等新的一步 |
 | W2-18-HANDBACK-ONE-CONTINUATION-02 | 宿主的等待开着时，模型的 `board-wait` 拿到 `WAIT_ALREADY_ARMED`；根上的接续仍是宿主那个 |
+| W2-18-HANDBACK-ARM-FAILED-01 | 交出 8 步之后第 9 步挂不上等待（SDK 一次最多等 8 件）：交出报错，第 9 步 `cancelled`，没结束的还是那 8 步，根仍 `armed`；8 步都结束后根才 `eligible` |
 
 **变异**（每条改回去重建、单跑对应的用例）：
 
@@ -1626,6 +1627,8 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 | O3 `hold` 只挂起宿主等待的接续（改成都挂） | ONE-CONTINUATION-01（模型的接续成了 `blocked`） |
 | O4 先查再加（把加步骤挪到检查前） | ONE-CONTINUATION-01（被拒后图上多了 `p-2`） |
 | O5 `handOut` 里挂等待 | ONE-CONTINUATION-02 |
+| R1 挂不上时把这一步结束 | ARM-FAILED-01（第 9 步留成 `ready`） |
+| R2 挂不上时根重新等原来的 | ARM-FAILED-01（根的接续成了 `cancelled`） |
 
 - 验证（基于 main `c276ab9c`，含 #648 与 #650 换上的 `mcp-schema-annotations` 包）：
   - `pnpm build` 通过；`pnpm api:update` 刷新了 `contracts/services/agent-collaboration` 的快照（只有上面合同里的两项、`add` 的 `wait_reason`、两个方法）。

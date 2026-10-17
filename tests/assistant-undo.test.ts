@@ -174,30 +174,30 @@ async function undoFixture(t: import("node:test").TestContext, script: Array<(bo
       invoke: async (action, input) => local.actionClient(project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:write"] }, action, input) }),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
   const noteAdded = () => reply({ name: "change-reversible", input: { capability_id: "fixture.notes.add", version: 1, provider_id: "fixture.notes", input: { text: "周三前交方案" } } });
-  return { service, store, requests, flags, removes, project, notes, noteAdded,
+  return { service, store, host, requests, flags, removes, project, notes, noteAdded,
     close: async () => { unregister(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
-test("a round that could not start has told the next one nothing: undone changes, ended background work and settled changes are still to be told", { timeout: 60_000 }, async t => {
+test("W2-18-JOB-03: a round that could not start has told the next one nothing: undone changes, ended background work and settled changes are still to be told", { timeout: 60_000 }, async t => {
   const f = await undoFixture(t, [() => f.noteAdded(), () => reply(undefined, "记下了。"), () => reply(undefined, "好的。"), () => reply(undefined, "好的。")]);
   try {
     const sent = await f.service.send({ text: "记一下：周三前交方案", request_id: "undo-told-1" }, { project_ref: f.project });
     const workId = sent.work.work_id;
     const done = await until(async () => { const v = await f.service.read(workId); return v.work.state === "completed" ? v : undefined; }, "round");
     await f.service.undo(workId, done.undoable![0]!.undo_id);
-    // Background work that ended and a change that settled after a stop: both for the next round to hear once.
-    const at = new Date().toISOString();
-    f.store.saveJob("web-user", { key: "job-key-1", job_id: "job-1", work_id: workId, title: "Research · Start research", state: "completed", last_state: "completed", started_at: at, ended_at: at,
-      status: { capability_id: "fixture.jobs.status", version: 1, provider_id: "fixture.jobs" }, input: "id", path: "status", done: ["completed"], failed: ["failed"], checks: 1 });
+    // Background work that ended (its step on the work's graph, §6.0o) and a change that settled after a stop: both for the next round to hear once.
+    const at = new Date().toISOString(), works = f.host.adapter("prologue").collaboration!.works!, graph_id = f.store.get("web-user", workId).graph_id!;
+    const { node_id } = await works.follow({ graph_id, key: `${workId}.research`, job_id: "job-1", title: "Research · Start research", deadline_ms: 3_600_000, every: { first_ms: 60_000, max_ms: 60_000 },
+      query: { action: { capability_id: "fixture.jobs.status", version: 1, provider_id: "fixture.jobs" }, input: { id: "job-1" }, path: ["status"], done: ["completed"], failed: ["failed"] } });
+    await works.end({ graph_id, node_id, note: "不再跟进" });
     f.store.saveUnsettled("web-user", { change_id: "chg-1", work_id: workId, title: "Notes · Add a note", started_at: at, state: "completed", settled_at: at });
-    const untold = () => ({ undos: f.store.undos("web-user", workId).filter(undo => undo.state === "undone" && !undo.told).length,
-      jobs: f.store.jobs("web-user", workId).filter(job => !job.told).length, unsettled: f.store.unsettled("web-user", workId, true).length });
-    assert.deepEqual(untold(), { undos: 1, jobs: 1, unsettled: 1 });
+    const untold = () => ({ undos: f.store.undos("web-user", workId).filter(undo => undo.state === "undone" && !undo.told).length, unsettled: f.store.unsettled("web-user", workId, true).length });
+    assert.deepEqual(untold(), { undos: 1, unsettled: 1 });
 
     // The send fails before any round exists (no model): nothing was told.
     f.flags.model = false;
     await assert.rejects(f.service.send({ text: "继续", request_id: "undo-told-2", work_id: workId }, {}), /模型/);
-    assert.deepEqual(untold(), { undos: 1, jobs: 1, unsettled: 1 }, "a round that never started told nobody");
+    assert.deepEqual(untold(), { undos: 1, unsettled: 1 }, "a round that never started told nobody");
     assert.equal((await f.service.read(workId)).rounds.length, 1);
 
     // The next round that does start hears all three, and then they are told.
@@ -212,7 +212,7 @@ test("a round that could not start has told the next one nothing: undone changes
     const round = roundParts(f.requests.at(-1)!);
     assert.doesNotMatch(round.data, /除非用户再次要求|不要重新做|不要再次提交/);
     assert.ok(round.role.includes("用户撤销过的修改，除非用户再次要求，不再做") && round.role.includes("不要再次提交同一修改"), "the role says it");
-    assert.deepEqual(untold(), { undos: 0, jobs: 0, unsettled: 0 }, "told once the round has started");
+    assert.deepEqual(untold(), { undos: 0, unsettled: 0 }, "told once the round has started");
     await f.service.send({ text: "再继续", request_id: "undo-told-4", work_id: workId }, {});
     await until(async () => { const v = await f.service.read(workId); return v.rounds.length === 3 && v.work.state === "completed"; }, "third round");
     assert.ok(!told(f.requests.at(-1)!).undo && !told(f.requests.at(-1)!).job && !told(f.requests.at(-1)!).unsettled, "and not told again");

@@ -59,6 +59,7 @@ export { surfaceRules } from "./adapters/prologue-surfaces.js";
 export { deliverDesktopAct } from "./adapters/desktop-act-delivery.js";
 export { screenModelMaterial } from "./adapters/prologue-screening.js";
 export { projectQuestion, answerProblems } from "./adapters/prologue-questions.js";
+export { boundReferenceKinds, type ReferenceKindCandidate, type ReferenceKindProblem, type ReferenceKindsFor } from "./adapters/prologue-reference-kinds.js";
 export { createPluginBuilderAgent } from "./adapters/plugin-builder.js";
 export type { PluginBuilderAgentOptions, BuilderAgentRequest, BuilderAgentRecord, BuilderAgentActivity } from "./adapters/plugin-builder.js";
 export { resolveModelHostname } from "./adapters/node-model-dns.js";

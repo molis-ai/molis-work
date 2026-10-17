@@ -1,7 +1,7 @@
 import { agentErrors } from "../errors.js";
 import { BUSINESS_HOST_TOOLS, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import { parseAgentRunBudget, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, parseAgentRunBudget, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type {
   AgentSkillLibrary,
@@ -208,6 +208,7 @@ export interface PrologueRuntimePort {
       latest?: PrologueRestoredSession["runs"][number];
       planned?: AgentRunRef;
     } | undefined>;
+    /** Supplements waiting for the next round; undefined when unreadable. */ queued?(sessionId: string): Promise<import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[] | undefined>;
   };
   startAgentRun(input: PrologueStartInput): Promise<{
     run: PrologueRunPort;
@@ -429,16 +430,15 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   async readSession(session: AgentSessionRef): Promise<AgentSessionView> {
     const record = await this.#loadSession(session.session_id);
-    const latest = record.runs.at(-1);
+    const latest = record.runs.at(-1), view = latest ? structuredClone(this.#requireRun(latest.run_id).view) : null;
+    // Read only while no round is live (ended, or stopped for checking): what a live round takes is its own (specs/ai-input-receipts D31).
+    const queued = view && !isTerminalAgentPhase(view.phase) && view.phase !== "reconcile-required" ? undefined : await this.#runtime.sessions.queued?.(session.session_id);
     return {
-      session: { ...session },
-      owner: { ...record.owner },
-      workspace: record.workspace,
-      title: record.title,
+      session: { ...session }, owner: { ...record.owner }, workspace: record.workspace, title: record.title,
       runs: record.runs.map((ref) => ({ ...ref })),
       checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
-      latest_run: latest ? structuredClone(this.#requireRun(latest.run_id).view) : null,
-      ...(record.recovery ? { recovery: { ...record.recovery } } : {}),
+      latest_run: view,
+      ...(record.recovery ? { recovery: { ...record.recovery } } : {}), ...(queued?.length ? { queued_inputs: queued } : {}),
     };
   }
 

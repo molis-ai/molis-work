@@ -224,6 +224,7 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
       return session;
     }),
     restore: id => deps.recovery.restore(id),
+    queued: id => deps.recovery.queued(id),
     async readStatus(id) {
       const saved = await deps.recovery.restore(id, true);
       return saved ? { owner: saved.owner, recovery: saved.recovery, latest: saved.runs.at(-1), planned: saved.planned } : undefined;

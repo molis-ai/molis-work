@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Lingguang workbench: a temporary inspiration pool.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

@@ -92,6 +92,7 @@ export async function createRelease(
         private: true,
         type: "module",
         version,
+        license: source.license,
         dependencies: Object.fromEntries(
           source.runtimeDependencies.map((dependency) => [dependency.name, dependency.version]),
         ),

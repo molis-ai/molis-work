@@ -1407,6 +1407,106 @@ Molis 这边：
   - `check-health-gates --base origin/main`、`boundary:check`、`verify-release-versions`、`page-assets --base origin/main` 都过：typed 能力位点 190→187，页面资源逐项不变。
 - **未验证**：浏览器用例交给全量（统筹 10-17 定）；全量由统筹跑。
 
+### 6.0k P4 助理一半 A1：每个 Work 一块任务图，子任务是图上的步骤（2026-10-17）
+
+§7.5 第 5 条的第 1、4、5 项。统筹 10-17 定了五条：第 1、4 条由用户在弹窗里定，第 2、3、5 条统筹照推荐定。
+
+- 第 1 条：每个 Work 一块图，它的子任务也在这块图上，Work 之间不交接。
+- 第 3 条：一次跟进一个步骤。
+- 第 5 条：A1 先做。
+
+交回与自动接着做（第 2、3 项）是 A2，后台作业是 A3。这一片还没动它们，`handed_back_run`、`hand_back_held` 和按结果键起跑都还在。W5-10 的形状照旧：
+
+- `AssistantDelegations` 只经端口依赖宿主；
+- `assistant-service.ts` 与 `AssistantStore` 的类只变小：`AssistantService` 少 3 行，`AssistantStore` 行数、方法数不变。
+
+**合同**（`services/agent-collaboration`）：
+
+- `AgentCollaborationPort.works?: AgentWorkGraphPort`，五个方法：
+  - `open`：同一个键给同一块常驻图；根由这项工作的会话负责。
+  - `add`：在根或某一步下面加一步，归某个会话。重复加不变。
+  - `read`
+  - `watch`
+  - `end`：结束一步还没结束的。带 `actor_id` 时记为这个人的决定；不带时记为持有它的会话放弃了它。
+- `AgentWorkNode`：步骤 id、上一层、标题、SDK 的状态、持有它的会话，以及「人结束的」（时刻和说明）。
+- 这个端口挂在已有的协作口上，没有加在 `PrologueAgentAdapter` 上。那个类是巨大单元，不许变长。
+- 助理的公开视图没变：`AssistantWork.delegated_by` 还是 `{ work_id, title, acceptance, taken_back_at? }`，其中 `work_id` 由图推出来。
+
+**宿主**（新文件 `prologue-work-graphs.ts`）：
+
+- 板与步骤：
+  - 一块图用 `molis-work:assistant-work:<work_id>` 当幂等键开，常驻，保留最近 64 个已结束的步骤。
+  - 根叫 `work`；子任务的步骤是 `p-<编号>`，挂在根下；跟进是 `<子任务>.f<n>`，人在子 Work 里自己开的一轮是 `<子任务>.r<n>`。
+  - 会话在哪块工作图上，记在宿主的会话索引里（`work_graph`）。
+- 一轮站在哪：这样的会话开一轮，绑在它在那块图上持有的、还没结束的那一步上（`roundBinding` 第一行）。那一步若被挂起等人，先由 `readyStep` 转回 `ready`。
+- 一轮结束时：
+  - 子任务那一步跟着这一轮结束（completed → succeeded，failed、cancelled 照抄），按 `attemptOf` 找到的那一代报。
+  - 人中途结束了那一步，或者它已换代，这一轮就不报。
+  - 根不结束：工作还在继续。
+- `prologue-run.ts` 只多了这两行，加一个类型。
+
+**助理**（`assistant-delegation.ts` 就地改）：
+
+- 存储与看板：
+  - 父 Work 存 `graph_id`，在第一轮开跑前打开（`place`，在 `dispatch` 里 `host.start` 之前）。
+  - 子 Work 的 `delegated_by` 变成：图、它被派出时的那一步、父工作当时的标题、验收标准，再加 `taken_back_at`。哪项工作派的从图找；`follow_ups` 删了，从图数。
+  - `delegatedBy(actor, parent)` 按图找子 Work。
+  - 父工作看板上的子任务列表（`parts`）读图。
+- 等待与交回：
+  - `status` 等图的变化：要等的子任务都没有未结束的步骤就返回。`watchWorks` / `waitForWorkChange` 不再用于委派。
+  - 子任务的一轮结束以后，交回在它那一步结束时触发，看图，不看跑的终态。宿主报那一步比跑的终态晚一点；按跑的终态触发，交回会把子任务算成还没做完，不往下走。
+  - 「有子任务还没做完时不往下走」改读图（`owed`）。
+- 并行上限：在做的 3 个数图上还有未结束步骤的子任务。
+- 人核对后关闭子任务中断的一轮（`closeInterrupted`）：这一部分没结束的步骤由人结束，父工作可以往下走。
+
+**定下的几件事**（记进 §7.7）：
+
+1. **收回不交接给父会话。** §7.5 第 4 项写的是「改图交回父节点（代次 +1）」，实现是：
+   - 人把这一部分还没结束的步骤结束（取消，记为人的，代次 +1，子任务那一轮再也报不了）；
+   - 「这部分由父工作自己做完」记在子 Work 上（`taken_back_at`）。
+
+   理由：
+   - 父的轮站在根上。交给父会话的那一步没有轮站在上面，永远不结束：A2 在父节点上挂的等待会等不到它，父会话在图上也会一直挂着一步没做完的。
+   - 已结束的子任务没有步骤可交：SDK 只交接没结束的。而界面上已完成的子任务也能收回。
+   - 谁来做完这一部分，是 Work 的业务决定，和验收标准一样留在 Work 上。
+2. **子任务还有没结束的步骤时，跟进被拒**（`assistant.state`）。没结束包括还在跑、等人回答或确认、被重启截断。
+   - 以前会把话送进正在跑的那一轮。
+   - 理由：一次跟进一个步骤（第 3 条）。送进正在跑的一轮就没有步骤可记，上限也就数不准。工具说明写的本来就是「它的下一轮」。
+3. **人在子 Work 里自己开的一轮**，站在子任务下面新加的一步上，不算跟进。
+4. **每个助理 Work 都有图**，回帖用的 Work 也有。Coding 执行的 Work 没有：它的轮在 Coding 会话里。「助理把工作交给编码角色时，那个会话绑在助理 Work 的子节点上」不在 A1。
+5. **存量**：
+   - A1 起只认现行形状。没有 `graph_id` 的旧 Work，在它下一轮开跑前开图。
+   - 旧形状的子 Work（`delegated_by.work_id`）不读，由 A4 合入前的一次性脚本改（用户 10-17 第 4 条）。
+   - 在那之前，跑新代码的 Home 上，旧的子任务不出现在父工作的看板上，也不会触发交回；Work 本身和成果都还在。
+   - 真实 Home 在用户同意前不碰。
+
+**验收**（`tests/assistant-delegation.test.ts`，夹具模型，真实 Prologue 节点适配器）：
+
+| 编号 | 证明 |
+| --- | --- |
+| WG-01 | 委派后，父工作的图上有两步：根 `work`，由父会话持有，`running`；子任务那一步挂在根下，由子会话持有，跟着它的一轮 `succeeded`。子 Work 没有自己的图，图上能找到哪项工作派的 |
+| WG-02 | 两次跟进各是子任务下面的一步（`.f1`、`.f2`），已结束的那一步不重开；第三次被上限拒；看板上的跟进次数从图上数 |
+| WG-03 | 收回后，子任务那一步 `cancelled`，记为人结束的、带收回的说明；父会话在图上只持有根 |
+| WG-04 | 七次起不来的委派，图上没有留下还没结束的步骤 |
+
+原有断言照留：边界、上限、停止、归档后仍算数、交回、W2-18 的几条竞态。
+
+- 验证（变基到 main `5239a371` 之后）：
+  - `pnpm build` 通过。`pnpm api:update` 没有再改快照：`contracts/services/agent-collaboration` 只多 `works?`、`AgentWorkGraphPort`、`AgentWorkNode`，和 §6.0j 的 `revise` 并存。
+  - 助理的全部非浏览器用例，加上 §6.0j 的修订用例（`agent-collaboration-revise`、`prologue-step-amend`、`prologue-project-board`、`coding-step-claims`、`coding-plan-amend-http`、`coding-runtime-regressions`）和 `prologue-taskboard`，共 40 个文件，39 个一次过。
+    - 第 40 个是 `system-search-lifecycle`：在机器满载（负载 16～21）的批次里红了三次，都是刚建的目标还没进索引，搜索就先回答了。
+    - 单独跑时，这条分支和干净基线（main `446c0521`）同时各跑三次，都是 3/3 过。判为负载下的时序，不是这一片引入的。
+  - 变基前跑过 `affected-tests` 选的 193 个文件，满载下 13 个红。单独重跑后过了 10 个。
+    - 剩下的 `installed-plugin-host`、`prologue-documents` 是超时（30 秒、120 秒）；`system-search-lifecycle` 同上。
+    - 这三个在基线上一次都过。
+  - 变异：去掉 `ended()` 那一行，`assistant-delegation` 的 11 条里 7 条红。
+  - `check-health-gates --base origin/main`、`boundary:check` 都过；`pnpm test:security` 58/58，`pnpm test:contracts` 44/44。
+    - `AssistantService` 1643→1640 行，方法数 98 不变；`AssistantStore` 不变；`assistant-delegation.ts` 的类 293 行，在 300 以下。
+- 未验证：
+  - 两个浏览器用例（`assistant-handback.e2e`、`assistant-follow-live.e2e`）留给统筹排的全量。
+  - 真实模型没走：这一片不改提示词，也不改工具说明。
+  - 宿主中途重启以后，子任务那一步怎么对账：SDK 的重开对账照旧，Molis 这边没有单测。
+
 ### 6.1 当前记录
 
 A0 执行记录（下列历史方案记录之后继续）：
@@ -1681,6 +1781,9 @@ A0 执行记录（下列历史方案记录之后继续）：
 | 统筹 10-17 定 A（§6.0i） | Coding 协调者角色加 `board-read`、`board-report`，孩子由 SDK 按 T12 继承；孩子角色与提示词不变 | 让出的孩子报不了自己那一步，父亲的等待总是失败；宿主的板钩子已经只许读本项目、只报自己持有的步骤 |
 | 统筹 10-17（§6.0j） | 人改计划从 typed `agent.run.step-board.amend.v1` 换成动作 `agent.collaboration.revise.v1`，旧的同一刀删掉；`control` 的 `retry`、`resolve-reconciliation` 与 `revise` 的取消/重试节点这一刀不做 | 阶段一不留兼容；那几样现在没有调用方，加了就是没人用的合同，页面要时再加并升 `version` |
 | 用户 10-17（§6.0j） | 换成从 Prologue main `c673238e`（#33）打的 reference-kinds 包，并进 P4 第一个改合同的片，不单独换 | 一次换包、一次 Molis 验证；Molis 这一刀不配名单，行为不变 |
+| 统筹 10-17 · 助理一半五条（§6.0k） | 每个 Work 一块图、子任务共用（用户弹窗）；交回后自动接着做，用请求键起跑；一次跟进一个步骤；A1 先做，A3 之前先核实 SDK 的接续收尾；存量用一次性脚本，先在真实 Home 的只读拷贝上试跑给用户看（用户弹窗） | 助理的 Work 可以不属于项目，也不跨 Work 发信；W5-10 的形状 |
+| A1 · 收回不交接（§6.0k 第 1 条） | 收回时由人结束这一部分还没结束的步骤（代次 +1）；「由父工作做完」记在子 Work 上，不把步骤交给父会话 | 交给父会话的那一步没有轮站在上面，永远不结束，A2 的等待会等不到；已结束的子任务没有步骤可交 |
+| A1 · 跟进要等这一部分结束（§6.0k 第 2 条） | 子任务还有没结束的步骤时，拒绝跟进 | 一次跟进一个步骤；送进正在跑的一轮就记不成步骤，上限也就数不准 |
 
 ### 7.8 工作规则
 

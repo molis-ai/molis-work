@@ -4,7 +4,7 @@
   "private": true,
   "description": "Platform memory: policy, the deterministic write gate, recall orchestration, candidates, recent changes and switches over Prologue Memory.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

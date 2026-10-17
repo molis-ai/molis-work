@@ -4,7 +4,7 @@
   "private": true,
   "description": "Official read-only catalog connectors: token auth, Feed poll, and whoami.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

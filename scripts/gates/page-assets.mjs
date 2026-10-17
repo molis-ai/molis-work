@@ -235,12 +235,12 @@ const headErrors = (measured, budget, base) => {
 // One-time allowance for T2 (specs/ai-interaction-experience D36, AC-28: reference questions find objects by name on the Assistant's
 // and the project chooser's card, and a focused input group draws its focus edge once). The user approved it on 2026-10-17
 // (relayed by the coordinator): workbench.js +4,090, workbench.css and arrival.css +1,344 each, settings.css +19; coding.js does not
-// change. Each entry is for exactly one merge-base budget (main 0a931c97), capped at the measured size, and used once: the next
+// change. Each entry is for exactly one merge-base budget (main 7bf9b7a1), capped at the measured size, and used once: the next
 // baseline freezes again. This replaces receipts 3c's spent entries; delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [812403, 813729],
-  "/assets/molis-work-settings.css": [1102144, 1102163],
-  "/assets/molis-work-workbench.css": [1690661, 1691987],
+  "/assets/molis-work-arrival.css": [802383, 803709],
+  "/assets/molis-work-settings.css": [1092124, 1092143],
+  "/assets/molis-work-workbench.css": [1680641, 1681967],
   "/assets/molis-work-workbench.js": [1101126, 1105163],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

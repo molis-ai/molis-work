@@ -35,9 +35,9 @@ test("Coding's business surface is redeemed by the project Runtime, owner-bound,
     assert.equal(renamed.session.title, "修复登录超时");
     await assert.rejects(client.invoke(owner, find("coding.read-session"), { session_id: "missing" }), (error: { code?: string }) => error.code === "coding.session_unknown");
 
-    // W2-18-CODING-CONTROL-VERSION-01, RC-01, AC-27-4: the expanded control schema has one current version (4: typed answers carry a value).
-    const control = find("coding.control-run"); assert.equal(control.version, 4);
-    for (const version of [1, 2, 3]) await assert.rejects(client.invoke(owner, { ...control, version }, {}), (error: unknown) => error instanceof ActionError && error.code === "actions.missing");
+    // W2-18-CODING-CONTROL-VERSION-01, RC-01, AC-27-4, AC-28-5: the expanded control schema has one current version (4: typed answers carry a value; 5: a value may be picked objects).
+    const control = find("coding.control-run"); assert.equal(control.version, 5);
+    for (const version of [1, 2, 3, 4]) await assert.rejects(client.invoke(owner, { ...control, version }, {}), (error: unknown) => error instanceof ActionError && error.code === "actions.missing");
 
     // Other identities see the directory rows unavailable; starting rounds never reaches an Agent or MCP client at all.
     const external = (await client.discover({ ...owner, actor_id: "runtime:client", audience: "mcp" })).filter(row => row.provider.plugin_id === "io.molis.work.coding");

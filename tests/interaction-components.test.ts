@@ -14,7 +14,7 @@ const fields: InteractionField[] = [
     { value: "together", label: "一起复盘", description: "先对齐", recommended: true, selected: true }, { value: "async", label: "异步审阅", description: "先读材料" }] } },
   { id: "minutes", label: "预计时长", error: "请输入 15–120 之间的整数分钟。", control: { kind: "number", value: "two", unit: "分钟", step: 5 } },
   { id: "when", label: "开始时间", optional: true, control: { kind: "datetime", date: "2026-10-16", time: "10:00", zone: "UTC−07:00", calendar: { months: [{ year: 2026, month: 9 }] } } },
-  { id: "materials", label: "关联材料", control: { kind: "reference", candidates: [{ id: "g", label: "Goal <a>", selected: true }, { id: "d", label: "文档" }] } },
+  { id: "materials", label: "关联材料", control: { kind: "reference", source: "goal", multiple: true, max: 2, placeholder: "搜索", picked: [{ value: "goal g", label: "Goal <a>" }], labels: { remove: "去掉" } } },
 ];
 
 test("AC-17: the questionnaire renders mixed fields with reasons, per-field errors, optional marks and stable hooks", () => {
@@ -36,7 +36,14 @@ test("AC-17: the questionnaire renders mixed fields with reasons, per-field erro
   assert.match(html, /data-ix-part="date"[\s\S]*data-ix-part="time"/);
   assert.match(html, /data-slot="calendar"/, "dates use the design system's calendar");
   assert.doesNotMatch(html, /type="date"|type="datetime-local"/, "never the OS picker");
-  assert.match(html, /data-ix-reference="g" aria-pressed="true"/);
+  // AC-28-2: a reference field lists no candidates of its own: the picked ones, a search the client fills as the person types.
+  assert.match(html, /data-ix-references data-ix-ref-source="goal" data-ix-multiple data-ix-ref-max="2"/);
+  assert.match(html, /<li class="mw-ix-chip" data-ix-reference="goal g"><span>Goal &lt;a&gt;<\/span><button type="button" data-ix-unpick aria-label="去掉 Goal &lt;a&gt;">/);
+  assert.match(html, /<label id="q-materials-label" for="q-materials">关联材料<\/label>/, "the search box is the field's control, named by its label");
+  assert.match(html, /id="q-materials" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="q-materials-results"[^>]*aria-describedby="q-materials-status q-materials-error"/);
+  assert.match(html, /<ul class="mw-menu mw-ix-ref-results" role="listbox" id="q-materials-results" hidden><\/ul><template data-ix-ref-row><li class="mw-menu__item mw-ix-ref" role="option" tabindex="-1" aria-selected="false">/);
+  assert.match(html, /<p class="mw-ix-ref-status" id="q-materials-status" data-ix-ref-status aria-live="polite"><\/p>/);
+  assert.doesNotMatch(html, /data-ix-ref-option/, "nothing is offered before the person searches");
 });
 test("AC-17: an answered question shows its summary and keeps its form hidden; a banner says why it can no longer be answered", () => {
   const answered = renderInteractionQuestion({ id: "a", kicker: "已交回", title: "安排", fields, footer, answered: { rows: [["预计时长", "45 分钟"]] },
@@ -103,11 +110,11 @@ test("AC-17, AC-21: the component board shows the parts; a product sheet takes o
   assert.ok(board.includes(INTERACTION_STYLES), "the board inlines the interaction sheet");
   for (const sheet of [PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES, CRAFT_FINISH_STYLES]) assert.ok(!sheet.includes(".mw-ix-card"), "not part of the shared page sheets");
   assert.doesNotMatch(INTERACTION_STYLES, /#[0-9a-fA-F]{3,8}\b|!important/, "tokens only, no overrides");
-  // Adopted by the Assistant (A1+H2, T1's number steppers): the pages it lives on (the workbench and the project chooser) take what it draws, and no more.
-  const drawn = [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_STEP_STYLES];
+  // Adopted by the Assistant (A1+H2, T1's number steppers, T2's reference search): the pages it lives on (the workbench and the project chooser) take what it draws, and no more.
+  const drawn = [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_STEP_STYLES];
   for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkArrivalStylesheet()]) {
     for (const segment of drawn) assert.ok(sheet.includes(segment), "a segment the Assistant draws is in its pages' sheet");
-    for (const segment of [INTERACTION_CALENDAR_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_TRACE_STYLES]) assert.ok(!sheet.includes(segment), "a segment it does not draw stays out");
+    for (const segment of [INTERACTION_CALENDAR_STYLES, INTERACTION_TRACE_STYLES]) assert.ok(!sheet.includes(segment), "a segment it does not draw stays out");
   }
   assert.ok(!renderMolisWorkSettingsStylesheet().includes(".mw-ix-card"), "settings pages have no Assistant");
   assert.equal(INTERACTION_STYLES, [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_CALENDAR_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_OPERATION_STYLES,

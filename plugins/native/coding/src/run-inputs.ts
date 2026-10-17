@@ -11,7 +11,7 @@ const identity = {
 };
 /** A string the handler's text() accepts: present, within the cap, and not only spaces. */
 const words = (maximum: number) => ({ type: "string", minLength: 1, maxLength: maximum, pattern: "\\S" });
-/** A choice question's picks, or the value of any other question: words, a date or a moment as text, a number, or nothing. */
+/** A choice question's picks, or the value of any other question: words, a date or a moment as text, a number, picked objects, or nothing. */
 const answerItem = { oneOf: [{
   type: "object", additionalProperties: false, required: ["question", "indexes"],
   properties: {
@@ -20,7 +20,8 @@ const answerItem = { oneOf: [{
     other: { type: "string", maxLength: 500 },
   },
 }, { type: "object", additionalProperties: false, required: ["question", "value"],
-  properties: { question: { type: "integer" }, value: { oneOf: [{ type: "string", maxLength: 2000 }, { type: "number" }, { type: "null" }] } } }],
+  properties: { question: { type: "integer" }, value: { oneOf: [{ type: "string", maxLength: 2000 }, { type: "number" }, { type: "null" }, { type: "array", maxItems: 20, items: {
+    type: "object", additionalProperties: false, required: ["kind", "id", "label"], properties: { kind: { type: "string", maxLength: 200 }, id: { type: "string", maxLength: 200 }, label: { type: "string", maxLength: 200 } } } }] } } }],
 };
 function controlBranch(kind: string, extra: Record<string, unknown>, required: readonly string[]): ActionSchema {
   return {

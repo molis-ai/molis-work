@@ -22,7 +22,8 @@ export interface SceneContext {
   openTools(open: boolean, focus?: boolean): void;
   wide(): boolean;
 }
-const picked = (value: Change["value"]): string[] => Array.isArray(value) ? value : typeof value === "object" && "picked" in value ? value.picked : [];
+const picked = (value: Change["value"]): string[] => Array.isArray(value) ? value.map(item => typeof item === "string" ? item : item.value)
+  : typeof value === "object" && "picked" in value ? value.picked : [];
 /** What the shared questionnaire client reports becomes an edit of the draft; the rules stay in state. */
 function applyChange(state: DemoState, { field, part, value }: Change): void {
   if (field === "format") edit(state, "format", picked(value).map(Number));
@@ -49,6 +50,9 @@ export function bindScene(context: SceneContext): InteractionClient {
   const client = createInteractionClient(root, {
     onChange: change => { applyChange(state, change); refresh(); },
     onAction: id => action(id),
+    // The demo's search: fixed sample materials by name, as `search.references` would offer real ones.
+    references: (_source, query) => Promise.resolve({ items: references.filter(ref => ref.label.includes(query))
+      .map(ref => ({ value: ref.id, label: ref.label, meta: `${ref.kind === "goal" ? "Goal" : "文档"} · 示例候选` })) }),
     onSubmit: begin,
     onStep: index => {
       const shown = recommendation.shown[index];

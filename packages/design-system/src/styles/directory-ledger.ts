@@ -1,5 +1,24 @@
 /** AP3 visual layer: directory-ledger. */
-export const DIRECTORY_LEDGER_STYLES = `  /* Unified directory ledger: Goals establish the row grammar; Inbox, Feed,
+export const DIRECTORY_LEDGER_STYLES = `  /* Directory rail: the tree pane, its resizer and heading. */
+  @media (min-width: 761px) {
+    body[data-desktop-shell="true"] .tree-pane,
+    body[data-desktop-shell="true"] .workspace.is-desktop-tui[data-navigator-view="graph"] .tree-pane { min-width: 0; min-height: 0; padding: 0 8px; border: 0; grid-column: 1; grid-row: 1 / -1; grid-template-rows: auto minmax(0, 1fr) auto !important; color: var(--ink-soft); background: color-mix(in srgb, var(--rail) 78%, var(--page)); box-shadow: none; overflow: visible; z-index: 2; }
+    body[data-desktop-shell="true"] .tree-resizer::after { width: 8px; }
+    body[data-desktop-shell="true"] .desktop-directory-panel { grid-row: 2; overflow: hidden; }
+    body[data-desktop-shell="true"] .desktop-directory-heading { min-height: 40px; padding: 4px 8px; align-items: center; gap: 4px; }
+    body[data-desktop-shell="true"] .desktop-directory-heading > button { width: 24px; height: 24px; border: 0; border-radius: 6px; color: var(--muted); display: grid; place-items: center; }
+    body[data-desktop-shell="true"] .desktop-directory-heading > button svg { width: 12px; height: 12px; }
+    body[data-desktop-shell="true"] .desktop-directory-heading > span { display: grid; gap: 0; }
+    body[data-desktop-shell="true"] .desktop-directory-heading small { color: var(--faint); font-size: 11px; }
+    body[data-desktop-shell="true"] .tree-row { border-radius: 7px; }
+    body[data-desktop-shell="true"] .tree-row:hover,
+    body[data-desktop-shell="true"] .tree-row:has(.tree-node.is-selected) { background: var(--nav-active); }
+  }
+  @media (max-width: 760px) {
+    body[data-desktop-shell="true"] .tree-pane { grid-template-rows: minmax(0, 1fr) !important; }
+  }
+
+  /* Unified directory ledger: Goals establish the row grammar; Inbox, Feed,
      and Sources reuse the same interaction surface without sharing domain state. */
   body[data-desktop-shell="true"] .directory-list-row {
     min-width: 0;

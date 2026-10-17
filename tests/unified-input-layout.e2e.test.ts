@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
-import { openWork, seedWork } from "./fixtures/assistant-send-journey.js";
+import { openWork, putInput, seedWork } from "./fixtures/assistant-send-journey.js";
 
 const captures = reviewEvidenceUrl("unified-input-layout/");
 const ASSISTANT = "[data-assistant-input]";
@@ -296,6 +296,9 @@ test('UIV-01/02/11 三入口在窄屏与短窗能通过真实滚轮到达书写�
   await resize(1440,900);
   await navigate(() => command('Page.navigate', { url:`${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-assistant-composer]').dataset.uivBound === '1'");
+  // UIV-11: the material strip occupies real space above a multiline dock, including on keyboard focus.
+  await putInput(browser, LONG_DRAFT, "窄窗材料不能盖住主区");
+  await waitFor("!document.querySelector('[data-assistant-context-strip]').hidden");
   const failures:string[] = [];
   const entries = [
     { name:'assistant', form:'[data-assistant-composer]', field:ASSISTANT, surface:'.workbench-bar', send:'[data-assistant-send]' },
@@ -321,7 +324,7 @@ test('UIV-01/02/11 三入口在窄屏与短窗能通过真实滚轮到达书写�
         await waitFor(ready);
       }
     }
-    for (const [width,height] of [[320,640],[390,844],[640,393],[1280,393]]) {
+    for (const [width,height] of [[477,560],[320,640],[390,844],[640,393],[1280,393]]) {
       await draft(ASSISTANT);
       if (await evaluate<boolean>("!document.querySelector('[data-assistant-panel]').hidden")) await click('[data-assistant-panel-close]');
       await draft(entry.field);

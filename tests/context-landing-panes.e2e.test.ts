@@ -33,7 +33,7 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
   await waitFor(`${paneText}.includes('先完成核心体验')`, 20_000);
 
   // PANE-LAND-02: anything that is not one of the panes cannot report a landing, neither this document nor a frame that is not a pane.
-  const forged = { pane_id: "", plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: left.id, title: "发布计划" }, position: "end", version: 1, targets: [] };
+  const forged = { pane_id: "", plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: `forged-${left.id}`, title: "伪造落点" }, position: "end", version: 1, targets: [] };
   await evaluate(`(async () => {
     window.landings = [];
     window.postMessage({ type: 'workbench-surface-landing', landing: ${JSON.stringify(forged)} }, location.origin);
@@ -44,7 +44,8 @@ test("PANE-LAND-01, PANE-LAND-02 (W3-B3, S-30): a passage selected in the right 
     stray.contentDocument.body.append(script);
     await new Promise(resolve => setTimeout(resolve, 300)); stray.remove();
   })()`);
-  assert.deepEqual(await evaluate("window.landings"), [], "a landing from a window that is not a pane is dropped");
+  // A legitimate pane can finish reporting its initial landing during this interval; reject the forged payload itself.
+  assert.deepEqual(await evaluate(`window.landings.filter(item => item.detail?.object?.id === ${JSON.stringify(forged.object.id)})`), [], "a landing from a window that is not a pane is dropped");
 
   // PANE-LAND-01: in the pane, the person leaves the cursor after 「先完成」: the pane's frame raises the landing in the top document.
   await evaluate(`(() => {

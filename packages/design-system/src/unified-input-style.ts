@@ -39,7 +39,9 @@ html body form.uiv-composer[data-coding-composer] .coding-composer-leading { fle
 html body form.uiv-composer[data-coding-composer] .coding-composer-shell:has([data-uiv-input]:focus) { outline: none; box-shadow: none; border-color: var(--control-input); }
 html body.immersive-workbench:has(.workbench-bar form.uiv-composer) { --dock-h: var(--uiv-dock-height); }
 html body.immersive-workbench .workbench-bar:has(form.uiv-composer) { min-height: 0; }
-html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center { margin-block: 6px; }
+html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center { margin-block: 6px; --next-row: 0px; --context-row: 0px; }
+/* Material and next-step rows must reserve space, so focused controls in the main area remain visible. */
+html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center > :is(.assistant-context-strip, .assistant-next-row) { position: relative; inset: auto; margin-bottom: 6px; max-width: 100%; }
 html body.immersive-workbench .workbench-bar:has(form.uiv-composer) .plugin-picker-popover { max-height: min(78dvh, calc(100dvh - var(--dock-h) - var(--desktop-titlebar-height, 32px) - 20px)); overflow-y: auto; }
 @media (min-width: 601px) {
   html body.immersive-workbench .immersive-workspace:has(> .workbench-bar .uiv-composer) { grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr) auto; }

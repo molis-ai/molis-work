@@ -929,3 +929,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 跳转按钮只在回执真画出来时出现，open 返回有没有找到；
   - 字节先在片内抵，抵不完的在回执线会话里弹窗问用户；
   - 可以叠在 3b2c 上先开 PR。
+- #675 → 1c0999246：merge 了 main 4b063bf98。除去 page-assets 和 baseline，和 0414c3c02 逐行一致，workbench.js −55。还要跑全量。chain19（681 还没加标签）按 pid 停掉，换成 chain20：675→681→673→687→683→685。
+- 换包不等交互线（统筹 10-17 定）：
+  - 空档期是安全的：停放的题在核对卡上关掉，关掉前开跑得 SESSION_RUN_PARKED、页面显示通用文字。用例要钉住这两点，正文写明这是暂时的。
+  - REFUSED_BEFORE_RUN 加三个码，含 SESSION_HISTORY_UNAVAILABLE。
+  - 交互线先叠在换包分支上准备 BL-156 的 Molis 半边，换包合入后马上开 PR。

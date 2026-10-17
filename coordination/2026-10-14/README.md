@@ -684,6 +684,8 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
         - 可选：同一个候选移到空隙再移回来不会再闪。改了字节不变大就改，否则记进 W3-A3c ③。
         - 其余都核过：键盘、选字、只闪本页还连着的落点、正在闪不叠、少动画不闪、dom-events 主人与发方、W3-A3c 编号。证据表在两棵树上逐项 grep，被删的代码都没有渲染方；island、context-bus、context-actions 没变大，五份资源都变小。
         - 顺序：#664 合入后 base 改成 main，再 merge main（不 rebase、不 force push），重测资源字节后把 head 发给统筹，统筹再加标签。
+        - d364b4c6c 两处都改了，统筹审过、通过。PICK-05：再拿一次换新 context；pointerover 对整条浮条调 hold，移出再移回会再闪。workbench.js 1,099,774。等 #664 合入后 merge main，再加标签。
+      - #671 f5f76a3cb：回执范围收窄到 `.assistant-round > .mw-receipt`，Coding 的回执恢复共用样式，认可。托盘列表去掉的 `gap:4px` 要加回来（约 +22 B，仍在批准的额度内）。#667 是 DIRTY，还没跑过全量，回执线 merge main 后统筹加 full-suite。
       - 标签：#666 在合并队列（AWAITING_CHECKS）；#664、#665 的全量排着；标签链 85837 后面还有 670→669→672。
       - #674（手册 ui-review 2.1.0；611f494cc，叠在 #672 上）统筹审过，通过：
         - 改动：删掉「不要 Markdown、代码围栏……」一句，版本升到 2.1.0。

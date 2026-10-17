@@ -604,6 +604,11 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #649 通过全量，已入队。情境线的下一片是 BL-150（助理回复里选中的字也算「在手上」），从 c276ab9cb 新开，不依赖 #651。统筹 10-17 定，回复这个对象记成 `kind: "assistant_reply"`、`id: "<work_id>:<message_id>"`：主人只有助理，有登记对象种类的地方就要在那里声明；message_id 用 store 里稳定的那个；标题由主人给；assistant-island.ts 不许变大，抵消要靠真的删或抽，不许挤行。
     - 交互线的下一片是 AC-12：写给插件作者的文档和示例，加一个 §15.8 示例 1 的非浏览器用例，不改源码，也不改 page-assets。统筹定：在 `skills/molis-prologue-ai/SKILL.md` 和 `PROLOGUE-AI.md` 里只新加一节「交互」，别的段落不动（这两个文件归手册线，已通知手册线）；改 skills 之后要 `pnpm build`，被创作台挂载的章节还要跑 studio:replay；没做完的就按现状写。BL-152 先放着，到时候交互线给出两种做法的对比，统筹再定。#651 的全量已经排上了。
     - #652 合入 3e9ef83b6。#653（side-panel-browser 的测试修复，只改一处读法）统筹审过直接入队。它合入后，要把这个用例从统筹门禁脚本的 KNOWN 名单里拿掉；如果这次编辑又被拦，就先问用户。AC-12 和 C2 都改 `generated-ai.md`，已让交互线先查清它是不是生成出来的：是的话改源头；不是的话只加新段落，后合的并 main。
+    - **10-17 12Z 前后**：
+      - #654（采用 A2，253655d75）：统筹审过，退回一处修改。`handOut` 先加步骤、再挂等待；如果撤旧等待或挂新等待失败，步骤已经加上了，错误却往上抛，这和合同说的「拒绝时什么都不加」对不上。在 `placeOn` 里这一步就成了没人做的开着的步骤，之后每次交出都会把根的等待挂在它上面，最长等 7 天。修法：挂等待失败时把刚加的那一步结束掉，再抛错误；补一个用例。其余几项都审过，没有问题：只动宿主自己挂的等待（`by:"app"`），两个方向的拒绝都有用例；`releaseStartClaim` 只是把 SDK 自己的认领还回去，不算业务写入；追加没能开始时，那一步以取消结束，不会触发交回；旧键 `handed_back_run`/`hand_back_held` 在 A4 之前会出现在视图里，§6.0n 第 8 条写明了，A4 的一次性脚本碰真实 Home 前先问用户。action-mcp-stdio 跑了 18.6 秒，时限 20 秒，放宽时限另开一个只改测试的 PR。A3 的计划认可（叠在 #654 上），开写前先确认 SDK `autoContinue:false` 怎样收尾接续。
+      - #649 已入队，但 main 前进以后它在 docs/platform/PROLOGUE-AI.md 上冲突（DIRTY），已让回执线 merge main。它已经跑过全量，这次走 merge-only 门禁，不重跑全量。
+      - #655（交互 AC-12，779131e66）：只改文档和用例，两份手册各加一节「交互」，统筹审过，CI 绿了就由门禁入队，不跑全量。它和 #649 在 PROLOGUE-AI.md 也有冲突，谁后合谁解决。
+      - #653 在合并队列里（AWAITING_CHECKS）；#651 的全量在跑。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

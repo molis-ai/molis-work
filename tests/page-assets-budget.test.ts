@@ -637,7 +637,7 @@ test("receipts 3c has one bounded allowance on the workbench script and the Assi
   const allowed = {
     "/assets/molis-work-arrival.css": [810350, 812412],
     "/assets/molis-work-workbench.css": [1688608, 1690670],
-    "/assets/molis-work-workbench.js": [1097604, 1101714],
+    "/assets/molis-work-workbench.js": [1097095, 1101205],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("receipts-3c-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

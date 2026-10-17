@@ -55,6 +55,9 @@ const DEFAULT_CHOICE: readonly ChoiceCriterion[] = [
 const DEFAULT_NOUL: NoulCriteria = { true_description: "", false_description: "" };
 const DEFAULT_SCORE: readonly string[] = ["低", "高"];
 
+/** The next `updated_at` (also the version writes are checked against): always later, even within one millisecond. */
+const laterThan = (previous: string) => new Date(Math.max(Date.now(), Date.parse(previous) + 1)).toISOString();
+
 export class FunctionsStore {
   constructor(private readonly db: DatabaseSync) {}
 
@@ -145,7 +148,7 @@ export class FunctionsStore {
       ? pruneSceneMap(current.scene_map, current.primitive, criteria, scene_id)
       : normalizeSceneMap(patch.scene_map, current.primitive, criteria, scene_id);
     const action_map = normalizeActionMap(patch.action_map === undefined ? current.action_map ?? {} : patch.action_map, scene_id, current.primitive, criteria);
-    const now = new Date().toISOString();
+    const now = laterThan(current.updated_at);
     const written = this.db.prepare(`
       UPDATE functions
       SET name = ?, function_key = ?, instructions = ?, criteria_json = ?, scene_id = ?, scene_version = ?, scene_provider_id = ?, subject_kinds_json = ?,
@@ -176,7 +179,7 @@ export class FunctionsStore {
     if (preview.config_hash !== current.config_hash) {
       throw functionsErrors.stale_preview("预览结果对不上当前配置，请再试一次");
     }
-    const now = new Date().toISOString();
+    const now = laterThan(current.updated_at);
     const written = this.db.prepare(
       "UPDATE functions SET last_preview_json = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
     ).run(JSON.stringify(preview), now, id, expectedUpdatedAt ?? current.updated_at);
@@ -193,7 +196,7 @@ export class FunctionsStore {
       label: normalizeSampleLabel(input.label, current.samples.length),
       input: normalizeSampleInput(input.input),
     };
-    return this.writeSamples(current.id, [...current.samples, sample], expectedUpdatedAt ?? current.updated_at);
+    return this.writeSamples(current, [...current.samples, sample], expectedUpdatedAt ?? current.updated_at);
   }
 
   removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): FunctionRecord {
@@ -202,7 +205,7 @@ export class FunctionsStore {
     if (samples.length === current.samples.length) {
       throw functionsErrors.not_found("样例不存在");
     }
-    return this.writeSamples(current.id, samples, expectedUpdatedAt ?? current.updated_at);
+    return this.writeSamples(current, samples, expectedUpdatedAt ?? current.updated_at);
   }
 
   publish(id: string, expectedUpdatedAt?: string, scene?: ActionSceneReference): FunctionRecord {
@@ -212,7 +215,7 @@ export class FunctionsStore {
     if (scene && (scene.scene_id !== current.scene_id || current.scene_version && scene.version !== current.scene_version
       || current.scene_provider_id && scene.provider_id !== current.scene_provider_id)) throw functionsErrors.conflict("草稿用途已变化，请重新检查");
     const model = pinModel(current);
-    const now = new Date().toISOString();
+    const now = laterThan(current.updated_at);
     const config_hash = hashFunctionConfig({
       primitive: current.primitive,
       instructions: current.instructions,
@@ -379,16 +382,11 @@ export class FunctionsStore {
     return row ? mapJudgment(row) : null;
   }
 
-  private writeSamples(
-    id: string,
-    samples: readonly FunctionSample[],
-    expectedUpdatedAt: string,
-  ): FunctionRecord {
-    const now = new Date().toISOString();
+  private writeSamples(current: FunctionRecord, samples: readonly FunctionSample[], expectedUpdatedAt: string): FunctionRecord {
     const written = this.db.prepare(
       "UPDATE functions SET samples_json = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
-    ).run(JSON.stringify(samples), now, id, expectedUpdatedAt);
-    return this.requireCas(id, written.changes);
+    ).run(JSON.stringify(samples), laterThan(current.updated_at), current.id, expectedUpdatedAt);
+    return this.requireCas(current.id, written.changes);
   }
 }
 

@@ -172,7 +172,9 @@ function control(scope: string, field: InteractionField): string {
     case "number": {
       const step = c.step ?? 1, [less, more] = c.stepLabels ?? [`减少 ${step}`, `增加 ${step}`];
       const stepper = (sign: 1 | -1) => renderButton({ label: sign > 0 ? more : less, icon: sign > 0 ? "plus" : "minus", iconOnly: true, variant: "ghost", attrs: { "data-ix-step-by": sign * step } });
-      return `<span class="mw-ix-number-row"><span class="mw-number mw-ix-number">${stepper(-1)}<input class="mw-input" data-slot="input"${renderAttrs({ id, type: "text", value: c.value, placeholder: c.placeholder, inputmode: c.integer ? "numeric" : "decimal", autocomplete: "off", "data-ix-min": c.min, "data-ix-max": c.max, ...value })}>${stepper(1)}</span>${c.unit ? `<span class="mw-ix-unit">${esc(c.unit)}</span>` : ""}</span>`;
+      // The unit is read with the field (after its label), so a screen reader hears "时长, 分钟", not a bare number.
+      const unit = c.unit ? fieldId(scope, field.id, "unit") : "";
+      return `<span class="mw-ix-number-row"><span class="mw-number mw-ix-number">${stepper(-1)}<input class="mw-input" data-slot="input"${renderAttrs({ id, type: "text", value: c.value, placeholder: c.placeholder, inputmode: c.integer ? "numeric" : "decimal", autocomplete: "off", "data-ix-min": c.min, "data-ix-max": c.max, ...value, ...(unit ? { "aria-describedby": `${unit} ${describedBy}` } : {}) })}>${stepper(1)}</span>${unit ? `<span class="mw-ix-unit" id="${esc(unit)}">${esc(c.unit!)}</span>` : ""}</span>`;
     }
     case "date": return dateControl(c, { id, ...value });
     case "datetime": return `<span class="mw-ix-when">${dateControl({ ...c, value: c.date }, { id: `${id}-date`, "data-ix-part": "date", "data-ix-focus": true, "aria-label": c.dateLabel ?? "日期", "aria-describedby": describedBy })}<span class="mw-ix-clock"><input class="mw-input mw-ix-time" data-slot="input"${

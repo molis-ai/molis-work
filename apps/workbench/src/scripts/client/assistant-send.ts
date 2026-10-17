@@ -15,7 +15,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       if (object && !mats.some(item => item.object && objectKey(item.object) === objectKey(object))) mats.push({ material_id: "retry-object", kind: "object", title: object.title || object.id, explicit: true, object, source });
       files = [...files.filter(item => !mats.some(one => one.material_id === item.material_id)), ...mats];
       sel = selection || null; removed.delete("selection");
-      input.value = last.text; typed = true; inputRev++; syncSend(); paintMats(); saveDraft(false); input.focus();
+      input.value = last.text; input.dispatchEvent(new Event("input", { bubbles: true })); paintMats(); input.focus();
     } catch (error) { if (here()) showError(error); }
   };
   const unsettled = new Map();

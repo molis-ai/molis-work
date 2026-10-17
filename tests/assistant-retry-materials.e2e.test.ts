@@ -10,7 +10,8 @@ test("UIV-03/04 retry after model failure restores complete materials after relo
   const work = await seedWork(browser, "材料重试");
   await openWork(browser, work);
   const body = "长材料正文".repeat(5000) + "完整末尾";
-  await putInput(browser, "重试时需要完整材料");
+  const text = "重试时需要完整材料\n保留第二行原文。\n保留第三行原文。\n保留第四行原文。";
+  await putInput(browser, text);
   await browser.evaluate(`(() => { const items = new DataTransfer(); items.items.add(new File([${JSON.stringify(body)}], '完整材料.txt', { type: 'text/plain' })); const input = document.querySelector('[data-assistant-file]'); input.files = items.files; input.dispatchEvent(new Event('change')); })()`);
   await browser.waitFor("document.querySelector('[data-assistant-context-strip]').textContent.includes('完整材料.txt')");
   behavior.unavailable = true;
@@ -20,7 +21,10 @@ test("UIV-03/04 retry after model failure restores complete materials after relo
   await browser.reloadPage(); await openWork(browser, work);
   await browser.waitFor("document.querySelector('[data-ix-step-id=retry]')");
   await browser.click("[data-ix-step-id=retry]");
-  await browser.waitFor("document.querySelector('[data-assistant-input]').value === '重试时需要完整材料'");
+  await browser.waitFor(`document.querySelector('[data-assistant-input]').value === ${JSON.stringify(text)}`);
+  // UIV-01/02: restoring a short multiline draft grows the field without another keystroke or window resize.
+  await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.ok(await browser.evaluate("(() => { const field=document.querySelector('[data-assistant-input]'); return field.scrollHeight <= field.clientHeight + 1; })()"), "the four restored lines fit immediately after retry");
   assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]').textContent"), /完整材料/);
   // UIV-11: a real failure's retry row, restored file strip and open panel must not double-count dock space.
   for (const [width, height] of [[1180,760],[477,560],[390,844]]) {

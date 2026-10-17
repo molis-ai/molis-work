@@ -873,3 +873,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #683（手册线 D4 追补，589b4ac44）统筹审过，通过：取消时正在判的那一条不放回去，因为它可能已经部分生效；flush 把还没开始的放回队列；judgeOwn 剩下的丢掉、不记账。挂在 chain12。#682 由 chain10 加了标签，全量在排队；chain10 的 gate 子进程（74338）还在。
 - 教训：要把 PR 并进一条链，先看原来那条链是不是已经加上了标签。这次停 chain10 时 #682 已经加了标签，好在 gate 子进程没被停掉，chain11 也在重加标签之前停住了。已经加了标签的链别停，新的 PR 另起一条。
 - BL-156 上游授权（统筹 10-17 定）：Prologue 没有 actor 这个概念，回答时只看当时的事实：(a) 会话仍然有效；(b) 绑定的步骤还在这个会话手里，generation 也相同。App 的检查照 `assertBeforeStart` 的先例，做成一个同步断言，紧贴在第一次写入之前、和写入在同一个临界区（比如叫 `assertBeforeAnswer`），不做成写入前的异步 authorize，免得检查和写入之间被撤权钻空子。Molis 的异步检查放到调用之前做。
+- #671 → 5c2772ad5：merge 了 f78ae6d5c。除去 page-assets 那四份，和审过的 aa1255e28 逐行一致；workbench.js 改用 [1105153, 1107991] 定键（+2,838），三份 CSS 的键不变。挂在 chain13。

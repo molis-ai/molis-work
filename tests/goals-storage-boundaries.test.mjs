@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { checkGoalStorageOwnership } from "../scripts/check-package-boundaries.mjs";
+import { checkGoalStorageOwnership, WEB_DISPATCH_FILES } from "../scripts/check-package-boundaries.mjs";
 
 test("production Store/Web boundaries reject restored Goal schema and coverage SQL", () => {
-  for (const file of ["apps/desktop/launchers/web/server.ts", "apps/local-host/src/web-request.ts"]) {
+  for (const file of ["apps/desktop/launchers/web/server.ts", ...WEB_DISPATCH_FILES]) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     assert.deepEqual(checkGoalStorageOwnership(source), [], file);
     for (const sql of ["CREATE TABLE goals (goal_id TEXT)", "ALTER TABLE policy_bindings ADD COLUMN note TEXT",

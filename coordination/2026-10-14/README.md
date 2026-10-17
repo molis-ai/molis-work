@@ -812,3 +812,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 回执线：#671 merge main，同一次写字节放行的提交；
   - 交互线：#669 merge main，解 spec 冲突，重新定键，走 merge-only；
   - 防腐线：W5-01 开 PR 时按新的 merge-base 定键。
+  - 防腐线又补了几处，统筹已认可：所有 progress 行合计不超过 1 MiB；`observeDeactivation` 在升级、重装、回滚时也通知；进度经 `BoundActionClient.invoke` 新加的第四个参数 `transport?: { on_progress? }` 传给动作，不把 control 展开成新对象。#679 是按对象身份认宿主签发的 control 的，展开以后项目就丢了。

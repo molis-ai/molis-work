@@ -997,3 +997,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 01:20 UTC：#692（采用 A2 写后诊断 spec，ea4cbea26，只改 spec 和 BACKLOG，BL-160）审过，安全表那一行不再写死编号（S-33 已给 BL-156），走 merge-only（gate-692）。#680 merge 了 102671ce6，相关用例在跑。
 - 10-18 01:30 UTC：#680 新 head 457bdc6b4（merge 了 9fda1a405 和 102671ce6）：门禁之外 198 行逐行一致，合并干净；排在 chain29。#691 的全量在排队。
 - 统筹 10-18 认可 A2 的 Prologue 一刀 coding-diagnose-command：执行器只负责解析，SDK 按 run-command 那一套（审查、Effect、回执）去跑。跑之前 SDK 再核一遍命令（不经 shell、没有 grants、cwd 在授权根下、和模型给的参数无关），配拒绝用例。删掉全局开关 diagnoseAfterWrite（Molis 没人用），不留兼容。检查被拒或超时时写入照样算成功，观察里写「未检查」。本地 diff 先给统筹看。#680 的全量在排队（chain29）。
+- 交互线 AC-05 查出产品缺陷：Coding 回答引用题一律被拒（run-inputs.ts 的 questionAnswer 只收 null、字符串、数字，动作 schema 却允许对象数组）。统筹 10-18 认可最小修法，并进 AC-05 的 PR、跑全量：Coding 这一层只核形状，限额用 SDK 的 QUESTION_LIMITS；合不合题交给运行时的 questionProblems；归属照旧走 S-26。再加一条对照用例，证明 SDK questionAnswer 读出的形状 Coding 这一层能收下。

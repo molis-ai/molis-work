@@ -7,11 +7,12 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-test("plan changes are checked, applied through the Host graph operation, and told to the live round in plain words", async () => {
+test("plan changes are checked, applied through the Host's revise action, and told to the live round in plain words", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-plan-amend-")), path = join(root, "board.db"); seedDemoBoard(path);
   const store = new LocalProjectDatabase(path), sessions = new CodingSessionStore(store.db);
   sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "app", runtime_id: "prologue", at: new Date().toISOString() });
@@ -22,16 +23,17 @@ test("plan changes are checked, applied through the Host graph operation, and to
   const amendments: unknown[] = [], steers: string[] = []; let steerFails = false;
   // The live round hears of the change through agent.inputs.send, as the Host's note (never the person's words).
   const actions = pluginActions(store, DEMO_PROJECT_ID);
-  actions.registry.registerProvider({ provider: { provider_id: "fixture.agent-host", title: "fixture", kind: "system" }, definitions: [agentInputActions.send], handlers: [
+  actions.registry.registerProvider({ provider: { provider_id: "fixture.agent-host", title: "fixture", kind: "system" }, definitions: [agentInputActions.send, agentCollaborationActions.revise], handlers: [
+    { ...agentCollaborationActions.revise, handle: async (_caller, input) => { const revise = input as { session_id: string; run_id: string; amendment: unknown; expected_version: number };
+      assert.deepEqual([revise.session_id, revise.run_id], ["sdk", "r"]);
+      amendments.push({ amendment: revise.amendment, version: revise.expected_version }); return { board: { ...board, version: board.version + 2 } }; } },
     { ...agentInputActions.send, handle: async (_caller, input) => { const sent = input as { text: string; source?: string; run_id: string };
       assert.equal(sent.source, "host"); assert.equal(sent.run_id, "r");
       if (steerFails) throw new Error("run is not accepting input"); steers.push(sent.text); return { input_id: "steer-1", replayed: false, delivered: "run" }; } }] });
   const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", goalTitle: () => undefined, escapeHtml: String, translate: (s: string) => s,
-    execution: { ready: async () => {}, models: async () => [] }, capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
-      const input = args as any[];
+    execution: { ready: async () => {}, models: async () => [] }, capabilities: { async invoke<I, O>(definition: { capability_id: string }, _args: I): Promise<O> {
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
       if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "running", step_board: board } as O;
-      if (definition.capability_id === agent.amendStepBoard.capability_id) { amendments.push({ amendment: input[2], version: input[3] }); return { ...board, version: board.version + 2 } as O; }
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } } });
   const server = createServer((req, res) => { void handleCodingPluginHttp(req, res, new URL(req.url!, "http://localhost"), host()).catch(error => { res.writeHead(500); res.end(String(error)); }); });

@@ -175,7 +175,7 @@ const STYLES_BEGIN = `(() => {
 })()`;
 const STYLES_STEP = "window.__visualStyles(1000)";
 
-test("key surfaces settle to the same picture at every width, light and dark (W4-12)", { timeout: 600_000 }, async t => {
+test("key surfaces settle to the same picture at every width, light and dark (W4-12)", { timeout: 1_200_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
   const { origin, projectId, command, sessionId, navigate, waitFor, evaluate } = browser;
   const out = process.env.MOLIS_WORK_VISUAL_OUT || join(REVIEW_EVIDENCE, "visual", "latest");
@@ -184,7 +184,8 @@ test("key surfaces settle to the same picture at every width, light and dark (W4
   await command("Page.addScriptToEvaluateOnNewDocument", { source: CLOCK }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `addEventListener('DOMContentLoaded', () => { const style = document.createElement('style'); style.dataset.visualMask = ''; style.textContent = ${JSON.stringify(MASK)}; document.head.append(style); });` }, sessionId);
   const pictures: string[] = [], styles: string[] = [];
-  for (const surface of SURFACES) {
+  // A subtest per surface, each with its own limit: a slow runner fails the surface it was on, by name, not the whole run.
+  for (const surface of SURFACES) await t.test(surface.id, { timeout: 180_000 }, async () => {
     for (const size of WIDTHS) {
       await command("Emulation.setDeviceMetricsOverride", { ...size, deviceScaleFactor: 1 }, sessionId);
       await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -213,7 +214,7 @@ test("key surfaces settle to the same picture at every width, light and dark (W4
         styles.push(name);
       }
     }
-  }
+  });
   await writeFile(join(out, "manifest.json"), JSON.stringify({ pictures, styles, widths: WIDTHS, schemes: SCHEMES }, null, 2) + "\n");
   assert.equal(pictures.length, SURFACES.length * WIDTHS.length * SCHEMES.length);
   assert.equal(styles.length, SURFACES.length * SCHEMES.length);

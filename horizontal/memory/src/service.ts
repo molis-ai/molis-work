@@ -1074,16 +1074,16 @@ export class MemoryService {
   }
 
   /**
-   * One scope's memories as a versioned package: text and provenance with credentials and absolute paths taken out
-   * (Prologue's `redactText`), the facts that make them usable elsewhere, and what was taken out by kind and count.
-   * The person's quoted words (evidence) stay behind.
+   * One scope's memories as a versioned package: text, provenance and `applies.task` with credentials and absolute paths
+   * taken out (Prologue's `redactText`; unscreened, nothing is exported), what makes them usable elsewhere, and what was
+   * taken out by kind and count. The person's quoted words (evidence) stay behind.
    */
   async exportScope(caller: MemoryCaller, scope: MemoryScope): Promise<MemoryExportPackage> {
     personOnly(caller, "只有本人能导出记忆");
     const where = placeOf(caller, scope);
     const redactions = new Map<string, number>();
     const clean = async (text: string) => {
-      const redacted = (await this.ports.backend.screen?.(text).catch(() => null))?.redacted ?? text;
+      const redacted = (await (this.ports.backend.screen?.(text) ?? Promise.reject(new Error("no screen"))).catch(() => { throw memoryErrors.unavailable("去掉密钥与本机路径这一步没有完成，所以没有导出；请稍后再试"); })).redacted;
       for (const [kind, token] of [["credential", "[redacted]"], ["absolute-path", "[path]"]] as const) {
         const hits = redacted.split(token).length - 1 - (text.split(token).length - 1);
         if (hits > 0) redactions.set(kind, (redactions.get(kind) ?? 0) + hits);
@@ -1092,8 +1092,8 @@ export class MemoryService {
     };
     const entries: MemoryExportPackage["entries"] = [];
     for (const located of await this.located(caller, scope, where.owner)) {
-      entries.push({ text: await clean(located.entry.text), kind: located.meta.kind, source: located.meta.source, basis: located.meta.basis, applies: located.meta.applies,
-        origin: await clean(located.entry.origin), expires_at: located.meta.expires_at });
+      const { applies } = located.meta, task = applies.task === undefined ? {} : { task: await clean(applies.task) };
+      entries.push({ text: await clean(located.entry.text), kind: located.meta.kind, source: located.meta.source, basis: located.meta.basis, applies: { ...applies, ...task }, origin: await clean(located.entry.origin), expires_at: located.meta.expires_at });
     }
     return { format: "molis.memory", version: 1, exported_at: this.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
   }

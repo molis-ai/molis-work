@@ -1,7 +1,7 @@
 import { ActionError, type ActionCallContext, type ActionSubject, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SEARCH_PROVIDER_ID, prepareSearchFragmentOffers, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchReferencesRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
-import { SearchService, confirmReferences, findReferenceCandidates, type SearchAccess } from "@molis-ai/molis-work-service-search";
+import { SearchService, findReferenceCandidates, readReferences, type SearchAccess } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
@@ -40,6 +40,8 @@ export interface SearchHost {
    * kind, read from its owner with their authority just now), in order. False for a project that is not open.
    */
   confirmReferences(projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<boolean[]>;
+  /** The same read, giving each object's label and revision as its owner has it (null where `confirmReferences` says false). */
+  readReferences(projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<({ label: string; revision: string } | null)[]>;
   close(): Promise<void>;
 }
 
@@ -77,16 +79,18 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
   let closed = false;
   // A deleted project's entries leave the index with it; the index is derived, so this needs no label in the dialog.
   projectDeletedHooksFor(ports.homeDirectory).register({ ...SEARCH_OWNER, alive: () => !closed, clear: projectId => { service.removeProject(projectId); } });
+  const read = async (projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]) => {
+    const reference = ports.project(projectId);
+    if (!reference) return picked.map(() => null);
+    return readReferences({ client: ports.projectClient(reference), caller: await ports.ownerContext(reference) }, picked, kinds);
+  };
   return {
     service,
     changed: (providerId, projectId) => service.markChanged(providerId, projectId),
     providerChanged: provider => service.markRegistration(provider.provider_id, provider.project_id ?? null),
     projectDeleted: projectId => { service.removeProject(projectId); },
-    confirmReferences: async (projectId, picked, kinds) => {
-      const reference = ports.project(projectId);
-      if (!reference) return picked.map(() => false);
-      return confirmReferences({ client: ports.projectClient(reference), caller: await ports.ownerContext(reference) }, picked, kinds);
-    },
+    confirmReferences: async (projectId, picked, kinds) => (await read(projectId, picked, kinds)).map(found => found !== null),
+    readReferences: (projectId, picked, kinds) => read(projectId, picked, kinds),
     close: async () => { closed = true; dispose(); await service.close(); index.close(); },
   };
 }

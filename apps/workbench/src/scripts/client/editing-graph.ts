@@ -131,7 +131,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       restoreMomentumState, rememberMomentumGoal, scheduleGoalGraphLayout, restoreGoalGraphViewport,
       locateGraphNode, handleMomentumNavigationClick, handleMomentumSelectionClick, handleMomentumZoomClick } =
       (${GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT})({
-        workspace, treeSearch, documentCollection, route, translate: L,
+        workspace, documentCollection, route, translate: L,
         projectId: state.project?.project_id || state.snapshot.board.project_id,
         selectGoal: (...args) => selectGoal(...args),
         openFrame: (id) => frameContainer?.openFrame(id),

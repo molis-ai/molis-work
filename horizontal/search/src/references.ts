@@ -57,9 +57,17 @@ export async function findReferenceCandidates(search: { query(access: ReferenceA
 }
 
 /**
+ * Each picked object as its owner has it now for the caller (its label and revision), in the order given; null when it is
+ * not of an allowed kind, is gone, or the caller may not read it. A landing the Assistant is told about is named from this.
+ */
+export async function readReferences(access: ReferenceAccess, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<({ label: string; revision: string } | null)[]> {
+  return Promise.all(picked.map(subject => !kinds || kinds.includes(subject.kind) ? ownerRead(access, subject) : null));
+}
+
+/**
  * Whether each picked object is still one the caller may use, in the order given: of an allowed kind, and read from its owner
  * just now. The Host asks this right before a reference answer goes on to the run; a `false` keeps the answer back.
  */
 export async function confirmReferences(access: ReferenceAccess, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<boolean[]> {
-  return Promise.all(picked.map(async subject => (!kinds || kinds.includes(subject.kind)) && (await ownerRead(access, subject)) !== null));
+  return (await readReferences(access, picked, kinds)).map(read => read !== null);
 }

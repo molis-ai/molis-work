@@ -236,12 +236,11 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
   return {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     readStepBoard: run => stepBoards.read(run),
-    amendStepBoard: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor),
     messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id),
       sendForPeople: (project, input, actorId) => messages.sendForPeople(project, input, actorId),
       act: (project, id, action, detail, actorId) => messages.act(project, id, action, detail, actorId),
       prioritize: prioritize(deps) },
-    collaboration: deps.waitsPort.collaboration,
+    collaboration: { ...deps.waitsPort.collaboration, revise: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor) },
     // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key.
     queueInput: async (sessionId, input) => {
       const index = await deps.index.read(sessionId), session = index && await runtime.sessions.open(index.ref);

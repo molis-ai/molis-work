@@ -761,3 +761,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 页面资源字节只许减少，预算等于实测。
 - **label-chain 别一个 PR 开一条**：每条都各自每 120 秒数一次全量，同一个窗口里可能都看到「不到 2 个」，一起加标签，就超了上限。几个 PR 写进同一条：`label-chain.zsh a:head b:head …`，它一次只加一个；已经有一条在等时，新的接在它后面（10-17 把 #660、#662 改成排在 #654 后面）。
 - **合并预览卡在旧的 base 上**：10-17 #654 的 `refs/pull/654/merge` 停在 106d6163a，main 已经到了 26ff046cb；查了 10 分钟 mergeable，GitHub 一直没重算，label-when-free 退出（MERGE REF STALE），这是对的，不该拿旧 main 去跑全量。处理：请分支的主人 merge main 再推，用新 head 重新挂 label-chain。不用 close/reopen，也不替别人更新分支。注意：label-chain 的这一步失败时 `|| exit 1`，后面没有任何通知；要单独起一个后台进程，等它结束再报。
+- **标签链遇到合并预览不更新会整条停下**：10-17 夜，#670 的预览 10 分钟都没有重算，旧的 label-chain 直接 `exit 1`，排在后面的 #669、#672 没有加上标签。现在改用 `label-chain2.zsh` 和 `label-when-free2.zsh`（统筹 scratchpad）：预览不更新时，自动比对「预览的 base 到 origin/main 之间改了哪些文件」和 PR 自己的文件；不重叠就照常加标签，并在 PR 上留言说明；有重叠就跳过这个 PR，接着处理下一个，不再整条停下。
+- #673 → 8a59b07a1：base 改成 main、merge main，对 main 的改动行和审过的 d364b4c6c 逐行一致。新的标签链是 670→669→672→677→673；#667 由旧链单独处理。

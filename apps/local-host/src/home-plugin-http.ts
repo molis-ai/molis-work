@@ -4,16 +4,27 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage } from "@molis-ai/molis-work-app-workbench";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import type { MolisWorkLocalHost } from "./project-host.js";
+import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
+import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { localWebActionContext } from "./local-web-actions.js";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
 import { dispatchRuntimePluginRoute } from "./plugin-route-operations.js";
+import { projectRouteControl } from "./plugin-actions-client.js";
 import { L, htmlLang, clientI18nScript } from "./web-locale.js";
 
-/** Called only after the common local transport Host/Origin/token checks. No business dispatch list lives here. */
-export async function handleHomePluginHttp(request: IncomingMessage, response: ServerResponse, url: URL,
-  host: MolisWorkLocalHost, controlToken: string, csp: string): Promise<boolean> {
-  const page = /^\/plugins\/([a-z0-9-]+)$/u.exec(url.pathname);
+/** The project a Home route names: where its library is and the plugins it shows (personal ones unless hidden there); null when there is none. */
+export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly database_path: string; readonly plugins: readonly string[] } | null>;
+
+/**
+ * Called only after the common local transport Host/Origin/token checks. No business dispatch list lives here. A plugin's own route
+ * under a project's path (`/projects/<id>/api/plugins/<plugin>/…`) runs in that project once it exists and shows the plugin; the
+ * project comes from the path alone. Without the prefix the route runs in no project, as the person's own.
+ */
+export async function handleHomePluginHttp(request: IncomingMessage, response: ServerResponse, incomingUrl: URL,
+  host: MolisWorkLocalHost, controlToken: string, csp: string, projectPlugins?: HomeRouteProjectPlugins): Promise<boolean> {
+  const prefixed = /^\/projects\/([^/]+)(\/api\/plugins\/[^/]+\/.*)$/u.exec(incomingUrl.pathname);
+  const url = prefixed ? new URL(prefixed[2]! + incomingUrl.search, incomingUrl) : incomingUrl;
+  const page = prefixed ? null : /^\/plugins\/([a-z0-9-]+)$/u.exec(url.pathname);
   const route = /^\/api\/plugins\/([^/]+)\//u.exec(url.pathname);
   if (!page && !route || !host.homePlugins) return false;
   const entry = page ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.runtime?.scope === "home" && entry.project_plugin_id === page[1]) : undefined;
@@ -25,6 +36,11 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const sideView = side ? entry?.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;
   if (side !== null && !sideView) { sendLocalWebJson(response, 404, { error: "插件没有这个侧栏入口" }); return true; }
   const operation = route ? url.pathname.slice(`/api/plugins/${pluginId}/`.length) : "";
+  // The Host's lifecycle operations are the Home's: under a project's path they are not there, and nothing starts or retries.
+  if (prefixed && HOME_ONLY_OPERATIONS.has(operation)) {
+    const missing = actionErrorResponse(new ActionError("actions.missing", "插件没有这个入口"));
+    sendLocalWebJson(response, missing.status, missing.body); return true;
+  }
   if (operation === "retry" && request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 重试启动" }); return true; }
   let platform;
   try { platform = await (operation === "retry" ? host.homePlugins.retry() : host.homePlugins.ready()); }
@@ -42,6 +58,12 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     sendLocalWebJson(response, missing.status, missing.body); return true;
   }
   if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
+  let project: LocalHostProjectReference | undefined;
+  if (prefixed) {
+    const refused = await refusedProject(prefixed[1]!, pluginId, projectPlugins);
+    if ("status" in refused) { sendLocalWebJson(response, refused.status, refused.body); return true; }
+    project = refused;
+  }
   if (page && entry) {
     if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "请通过 GET 打开页面" }); return true; }
     const contribution = install?.state === "running" ? platform.runtime.contribution(install.install_id) : null;
@@ -71,10 +93,11 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   request.once("aborted", disconnected); response.once("close", disconnected);
   try {
     const caller = await localWebActionContext(host, undefined, []);
+    const control = { signal: abort.signal, page_context: homePageContext(request, url),
+      beforeEffect: async () => { if (abort.signal.aborted) throw new ActionError("actions.cancelled", "调用已取消"); } };
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
       granted: caller.permissions,
-      execution: { signal: abort.signal, page_context: homePageContext(request, url),
-        beforeEffect: async () => { if (abort.signal.aborted) throw new ActionError("actions.cancelled", "调用已取消"); } },
+      execution: project ? projectRouteControl(control, project.project_id, host.actionClient(project)) : control,
       readBody: async request => {
         // Bounded image-bearing Home actions; each plugin additionally validates its own input.
         try { return await readLocalWebBody(request, 12 * 1024 * 1024); }
@@ -85,6 +108,22 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     if (!handled) sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
   } finally { request.off("aborted", disconnected); response.off("close", disconnected); }
   return true;
+}
+
+/** The Host's lifecycle operations, which are the Home's and not a project's: under a project's path only the plugin's declared routes run. */
+const HOME_ONLY_OPERATIONS = new Set(["retry", "enable", "disable", "restart", "release-quarantine", "upgrade", "view-revision"]);
+
+/** The project id from the path, once that project exists and shows this plugin; otherwise the refusal to send. */
+async function refusedProject(segment: string, pluginId: string, projectPlugins: HomeRouteProjectPlugins | undefined)
+  : Promise<LocalHostProjectReference | { status: number; body: unknown }> {
+  const refuse = (error: ActionError) => actionErrorResponse(error);
+  let projectId: string;
+  try { projectId = decodeURIComponent(segment); } catch { return refuse(new ActionError("actions.missing", "找不到这个项目")); }
+  const found = projectPlugins ? await projectPlugins(projectId) : null;
+  if (!found) return refuse(new ActionError("actions.missing", "找不到这个项目"));
+  const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.runtime?.scope === "home" && item.manifest.plugin_id === pluginId);
+  if (!entry || !found.plugins.includes(entry.project_plugin_id)) return refuse(new ActionError("actions.plugin_disabled", "此项目未启用该插件"));
+  return molisWorkHostProjectReference({ databasePath: found.database_path, projectId });
 }
 
 /** The browser's same-origin page locator is a client report; it does not prove what was on screen. */

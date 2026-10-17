@@ -849,6 +849,15 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
   - **用户决定**（2026-10-11 弹窗，§1 三行）：不写真库，#382–#385 都合完后重装一次，再对会被改的五处做只读复查；停住的 Coding 轮次不提前处理。
   - **重装与复查**（2026-10-11）：`origin/main` `9f9bda551` 的干净工作树里整体构建（经整机构建锁），`node dist/cli/main.js install --source .` 输出「同版本内容已刷新（0.2.0）」，常驻服务未启用（`service status`：absent），新装的 MCP 经 stdio 列出 18 个项目。然后只读拷出五处到会话临时目录（700 权限）：`config/mcp-tools.json` 直接拷贝；`workflows/workflows.db`、`characters/characters.sqlite`、`assistant/assistant.db` 用 `?mode=ro` 打开 `VACUUM INTO`；18 个项目库是 WAL 模式、没有 `-wal` 文件、没有进程打开，只读打开建不了 `-shm`，改用 `immutable=1` 打开 `VACUUM INTO`。在拷贝上跑 `list`：各类都是 0（拷贝里只有这五处，`NOT READ` 也是 0），退出码 0；拷贝随即删除。真实 Home 一个字都没改（`workflows.db-shm` 的修改时间因只读连接更新，它是共享内存索引，不是数据）。
   - **收尾**：工具 `tests/fixtures/provider-identity-maintenance.mjs` 与演练用例 `tests/provider-identity-maintenance.test.ts` 删除，从 Git 历史 `9f9bda551` 取；检查清单第 4.3 节维护七一项勾上并写明结果，CHANGELOG 的 W3-06 C 一行注明已核对。会话里已经开着的 MCP 进程跑的是旧代码（用户要重开 Claude Code、Codex、Grok 会话）；克隆 `2026-10-10-before-maint7` 留着，删不删由用户定。
+- 真实 Home 维护八（候选，未做；动真实 Home 之前弹窗问用户）：做下面「库版本维护清单」里还没做的行，与装下一个版本同一步做，不提前：已装的构建只认旧版本，提前改了它就拒绝打开。
+  - **10-17 只读核对**（真实 Home 各库的只读拷贝，读完即删；只读 `user_version` 与 `catalog_meta`、`session_meta` 的版本，不读内容、不碰密钥；真实 Home 跑的是 10-11 构建的安装版 0.2.0）：19 个项目库都是 7，目录库 22、会话库 7，Functions 3，助理、记忆、Form 2，`homeStores()` 登记的其余各库 1，都与基线相符；不符的只有 Pages（真实 1，代码 2）。`plugin-runtime/plugin-runtime.db`、`issues/issues.db`（都是 2）真实 Home 里还没有，新版本第一次打开时按基线新建，不用维护。没有核对的：搜索索引 `search/search.db`（可重建的派生库，版本记在 `search_meta`，不符就重建、不拒绝）和两个 JSON 文件（`feed/secrets.json`、`config/mcp-tools.json`）。
+
+**库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只读这张表）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
+
+| 位置 | 版本 | 改版本的提交 | 维护 |
+| --- | --- | --- | --- |
+| `projects/<project_id>/molis-work.db` | 6 → 7 | #369（删 Casebook 的 5 张表） | 维护六，真实 Home 的 18 个项目库 10-10 已做（上面「维护六」） |
+| `pages/pages.db` | 1 → 2 | `0ff3adb8a`（10-13，直接提交到 main、没有 PR；只多一张 `page_comments`，其余建库语句逐条相同） | 维护八，未做：一个事务里按 `PAGES_STORE_BASELINE` 建 `page_comments`，写 `PRAGMA user_version = 2`，不动已有的表和行；先在副本上演练（检查清单第 4.3 节）。那个提交在检查清单第 3 节写了「真实 Home 尚未执行这一项维护」，但没有进这张表、也没有待办行，10-17 只读核对时才发现（BL-157） |
 
 **各库版本表（10-08 建立，项目库一行已按 10-10 维护六更新；各个后续候选的现行版本以 `docs/releases/CHECKLIST.md` 和 `node scripts/verify-release-versions.mjs` 的代码核对为准）**：每个库只有一份建库代码，版本不符就拒绝，不就地升级。表里是对应时点的代码版本；真实 Home 目录库已在维护四升至 22，原「仍是 21」为过时状态。I6 Home Runtime 候选 v2 的要求另见 §10.2，不把本表当候选全部库的唯一清单。
 
@@ -858,8 +867,8 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 | 目录库 `projects/catalog.db` | 22 | `catalog_meta.schema_version`（`CATALOG_SCHEMA_VERSION`，`apps/local-host/src/project-catalog-contract.ts:1`） |
 | 会话库 `sessions/sessions.db` | 7 | `session_meta.schema_version` |
 | Functions | 3 | `user_version` |
-| Form、记忆、助理 | 2 | `user_version` |
-| 连接、Agent 定义、引导、放置、炼金术士工作室、炼金术士搜索库、server、Cognia、Dataset、Images、Jelly、灵光、Pages、PPT、Todo、Workflows | 1 | `user_version` |
+| Form、记忆、助理、Pages | 2 | `user_version`（Pages 10-13 由 1 升到 2，真实 Home 还是 1，见上面的维护八） |
+| 连接、Agent 定义、引导、放置、炼金术士工作室、炼金术士搜索库、server、Cognia、Dataset、Images、Jelly、灵光、PPT、Todo、Workflows | 1 | `user_version` |
 
 **保留下来、不算兼容的机制**（门禁里剩的 9 处标记都在这几类里）：
 
@@ -2164,6 +2173,47 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 - 此后的规矩（用户 10-17 在弹窗里定，统筹转达）：**所有合入都经统筹**，Codex 线和用户自己的 PR 也一样。PR 号先交统筹，由统筹评审、加标签、跑全量、入队。绕过统筹合入的，统筹事后复查，在 main 上跑全量作证据，并通知要变基的线。在途的 PR 要在 `mcp-schema-annotations` 上重跑全量。
 - W5-05 第 5 片要并 `c276ab9cb`（含 #629、#648、#650）。这三个都没改样式，三份样式表在 `7a55444fd` 与 `c276ab9cb` 上逐字节相同。
 
+### 10.25 2026-10-17 合入的独立复查（§10.24 之后：#649、#651、#653～#655、#657～#660、#662、#663、#666、#668，Prologue #37～#39）
+
+看法同 §10.23。合入的 PR 按**合入时的 head** 看。
+
+**已合入**
+
+| PR | 合入的 head | 裁决 |
+| --- | --- | --- |
+| #653（侧栏用例：被拒页面的读取容得下还没有 `body` 的文档） | `2912423e8` | 有依据。只改测试：`document.body?.`，那一刻的断言强度不变。无标签（只改测试），经统筹合入。 |
+| #651（W3-B3：分屏里的 Pages 也是落点；每个窗格的框都标出主人） | `c942bb4b1` | 有依据，带 `full-suite`。S-30 变严：打开设置只认窗格框发来的、且在任何同源窗口之前。所有窗格 iframe 都带 `data-pane-owner`（`tab-workspace` 两处）。craft-finish 只改脚本（问候语）。没有删测试行。页面资源只降（workbench.js −1,261）。 |
+| #655（交互：插件怎样提问、建议、引用；AC-12 用例） | `779131e66` | 有依据。文档加用例，断言只加，`ci-product-subset` 加一行。 |
+| #657、#658（手册线 C2、C3：生成插件的提示词说什么是好回答；炼金术士的交叉核对问判断与依据） | `24919bbe9`、`88b331668` | 有依据，都带 `full-suite`。提示词去掉固定的数量与长度，合用户 10-16「模型能力问题不打补丁」的规则；MiniMax 评测记在 PR 里（151 次调用）；schema 要求的那一句留着。 |
+| #649（回执 3b-1：收回模型还没看到的补充；纠正指明它针对哪一条输入） | `be6d66a99` | 有依据，带 `full-suite`。`agent.inputs.send` 的形状变了（加 `about`），按 `CONTRACT-CHANGES.md` 升到 v2（快照删 v1 行、加 v2 行）。新的 `agent.inputs.withdraw.v1` 先 `requireRun`，运行时不支持就报 `capability_unavailable`，`fresh(call)` 之后才撤，撤之前再 `assertAuthorityCurrent` 一次。错误码 `agent.input_applied`、`agent.input_not_queued` 经 `defineErrorCodes`，类别 conflict。`baseline.json` 只降（`prologue.ts` 967→966），API 快照同步。 |
+| #659（AC-08：两处回答同一个问题只收一个） | `0189d3785` | 有依据。只加用例与文档。AC-07 的重启缺口照实记为 BL-156，没有用用例盖过去；新用例进 `ci-product-subset`。 |
+| #660（BL-150：助理回复里选中的一段可以拿在手上，放进左边的落点） | `4829741fb` | 有依据，带 `full-suite`。门禁数字只降：workbench.js −529，空 `catch` 136→134。 |
+| #663（BL-156 设计：一个待答的问题撑过宿主重启） | `93c2a69a5` | 有依据。只改 spec（`ai-interaction-experience` §15.9）。走上游的恢复操作（`sessions.answerInterrupted`），不续跑工具调用；身份与权限在回答时从调用上下文取，和开一轮的前置检查相同；`control` 的回答结果要说明需要一轮，这是合同变更，设计里写明了；两处待评审的点（执行器怎样放手而不写 `cancelled`、一次 `commitBatch` 能否同时跨两本账）照实列出。 |
+| #662（本线，W5-05 第 5 片：删 `calm-desktop`） | `177abcf56` | 统筹审过最后的 head。自查时发现 squash 把已删的 `settings-desktop-shell.ts` 带回来了，在 `4c7c243bc` 修掉；统筹第一轮评审也没看出来。之后每次并 main 都核对这一片删掉的三个文件仍然不在。 |
+| #654（采用线 A2：工作经 SDK 的等待与接续等它的各部分） | `41603000b` | 有依据，带 `full-suite`。我审的是 `a02de52e2`；最后的 `41603000b` 只是并 main，`git show --remerge-diff` 没有冲突的改动。去掉的 `handed_back_run` 断言逐条换成对接续状态的断言；每张图的等待串行；加之前先查；挂等待失败就删掉再挂。低处的边：再挂也失败时，没完的部分让根在空等（给调用方报错，之后的交出会重挂）。`publicWork` 展开存着的正文，旧键会漏出来，直到 A4（统筹交给采用线：A4 从合同字段建视图）。 |
+| #668（换 vendored 包：Prologue main `24e69083`，含上游 #37、#38） | `662a7b62e` | 有依据，带 `full-suite`。只换包，两个新选项都要显式开、Molis 还没用，行为不变。两次干净 `git archive` 打包逐字节相同；旧包与记录删掉，`patch-history.json`（换下的包记为无补丁包的第 25 项，核对过的上游提交 35）、README、`SECURITY-INVARIANTS.md` S-13（#650 漏改的旧包名）同步。健康门禁仍是 1 份 vendored SDK。上游 #39 不在这个包里，随下一次换包进来。 |
+| #666（本线，W5-07：网页分发改成有序的路由表） | `3137b5ee4` | 统筹审过最后的 head（并 main 之后 20 个文件、+1774 −463，与审过的一致）。123 个请求的路由快照在 main 上生成，重构后原样通过；巨大单元 139→137。 |
+
+**Prologue**
+
+| PR | 裁决 |
+| --- | --- |
+| #37（`afterwards: "end-step"`，只给 `by: "app"` 的等待） | 有依据。等待不带接续，这一步跟着等待的结果结束；不往会话写字；有这种等待的步骤拒绝 `beginAttempt`；重开时对账。只加，旧的等待不变。 |
+| #38（一跑开始时可以自带引用种类表） | 有依据。只加，用同一个 `freezeReferenceKinds` 校验，坏表在任何模型请求之前以 `AGENT_START_INVALID` 失败；子代理继承。 |
+| #39（交接时把结束这一步的等待一起丢掉） | 有依据。一行：没有活着的接续时返回去掉 `wait` 的节点。核过：带接续的等待结算时已经把 `wait` 从节点上拿掉（`taskboard.ts` 结算一处），所以「没有活着的接续却还拿着等待」只剩结束这一步的等待，PR 的说法成立。AWE-06 加了交接，改回去就红。Molis 还没采用。 |
+
+**交接时的暂停状态，现在的事实**（`.claude/handoff/anti-corruption-handoff-2026-10-14.md` 第 4、5 节；10-17 核对）
+
+- 第 108 轮全量（冻结头 `c2017a9ac`）已经跑完，没有续跑：状态文件里健康检查 exit 0（10-14 15:39Z），全量 exit 1（10-14 18:27Z），6,750 项里 6,606 通过、135 失败、9 跳过、0 取消。上文 §12 的「108 进行中」与「暂停交接」两段到此有了终态。
+- 那 135 项失败没有在 108 的树上逐条裁决，改由修复树 F109 收：交接时 F109 的三个未提交测试文件（`pages-publication`、`ppt-mcp`、`project-deletion-service`）在 `8ddab2a95` 提交，F109 整树经 #523（`b0b167ffe`，带 `full-suite`，10-15 合入 `f74e29d86`）进 main；F109 之后的 Linux 修复 `178ee5bec` 的内容随 #529（`414f61b44`）进 main（`W2-18-ALCHEMIST-UI-01` 等用例在 main 上）。此后的共同证据是 CI 上 16 分片的全量（#524），不是 108。
+- 两个暂停时的工作树（I8 冻结树、F109）都还在、都干净，没有未提交的改动。
+
+**组合效果**
+
+- 带 `full-suite` 的都跑过全量；#653、#655、#659、#663 没有标签，只改测试或文档。合入都用同一个账号，从记录上分不出是不是统筹合的，这一段没有发现绕过统筹的迹象。
+- 真实 Home 的库版本（RAC-13）：10-17 只读核对时发现 Pages 库是 1、代码要 2。`0ff3adb8a`（10-13，直接提交到 main、没有 PR）升了版本，检查清单第 3 节写了，却没有进维护清单和待办。补法是 #676（已合，`eb421d335`）：§4.1 的「库版本维护清单」与门禁 `scripts/gates/store-versions.mjs`（版本对 merge-base 变了却不在清单里就失败），Pages 记为 BL-157、随维护八做。
+- 写这一节时在途、已审，开 PR 前已合入的两个：#665（BL-154 的修法，叠在 #654 上；合入 `476c08931`，head `72db37a47`）只结束仍是 `ready` 的那一步，核过一步从 `ready` 到 `running` 只发生在一轮真的开始时，所以「仍 `ready`」就是没有一轮开始过；剩下的窗口 PR 照实写了。§10.24 写的「统筹定为不必修」与 #665 写的「统筹 10-17 选的修法」不矛盾：修法是统筹定的，做不做后来由统筹排进了采用线。#664（W3-A3a；合入 `bcb304cd1`，head `9b43af194`）页面传来的 `work_id` 只当指针，宿主的四条拒绝原来就有，本 PR 补用例；顺带删了手机标签切换的死处理器（`bc79f8a49` 起没有对应的标记），有依据，但不在 W3-A3a 的范围里，合入时记一句。两个都按上面的合入 head 在下一节再看。
+
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
 用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。
@@ -2314,7 +2364,7 @@ Images 后台 job 未携带原 MCP 调用的持续授权，但 Prologue 手册�
 | RAC-10 [人工] 巨大单元门禁缩小，测试内部引用下降且不新增 | 通过（现行只降口径） | 同口径 183→150、1,054→496（联合102b）；CI merge-base 不许增长。剩余巨大单元仍须原计划收口，目标不是强加 600 |
 | RAC-11 [人工] Skill/手册代表性场景及创作台验证 | 未验证 | 有离线 replay/历史验证，最终样板和手册未齐；W6-03 的场景走查与隔离 Home smoke 待做 |
 | RAC-12 [人工] 兼容逻辑清掉，保留机制逐项解释 | 未验证（已清理部分确认） | 0 就地补表与 9 个解释过的标记不证明无非标记兼容；结合 W1-18/旧入口核查与 W6-01 才可最终裁决 |
-| RAC-13 [人工] 每库一份当前 schema、错版明确拒绝 | 未验证（核心拒绝已确认） | baseline helper 与当前版本拒绝/数据不变测试有效；所有库的现行全集与登记门禁 W4-11 未交付。**10-16 现状**：W4-11 的统一登记已交付（`apps/local-host/src/home-stores.ts` 的 `homeStores()`，2026-10-15）；真实 Home 各库当前盖的版本仍没有核对（`docs/system/HOME-DATA.md`），所以仍是未验证 |
+| RAC-13 [人工] 每库一份当前 schema、错版明确拒绝 | 未验证（核心拒绝已确认） | baseline helper 与当前版本拒绝/数据不变测试有效；所有库的现行全集与登记门禁 W4-11 未交付。**10-16 现状**：W4-11 的统一登记已交付（`apps/local-host/src/home-stores.ts` 的 `homeStores()`，2026-10-15）；真实 Home 各库当前盖的版本仍没有核对（`docs/system/HOME-DATA.md`），所以仍是未验证。**10-17 现状**：真实 Home 各库的版本已只读核对，除 Pages（真实 1，代码 2）外全部与基线相符；Pages 记进 §4.1 的「库版本维护清单」、由维护八做；版本变了却不进这张表，现在由门禁 `scripts/gates/store-versions.mjs` 拦下。最终裁决要等维护八做完再核一次，仍是未验证 |
 | RAC-14 [人工] 在用 Home 按决定升级/重建并逐表一致 | 未通过最终状态 | 维护六/七结果仅覆盖其当时构建；维护八与新候选仍待做，同事无 Home 已由用户确认，不增加第二份迁移需求 |
 | RAC-15 [人工] 防兼容回流 CI、AGENTS/文档更新 | 通过（已实施清理范围） | merge-base 只降、schema/旧名/vendor/文档规则存在；后续实现改动仍须同步文档，不等于 RAC-12 全仓结论已证 |
 | RAC-16 [人工] 报告、附录 A、第一步每项有结论与证据 | 未通过完成态 | §12.2 已逐项裁决，仍多项在途/未验证；不能因有一个行号或 PR 链接就记已解决 |

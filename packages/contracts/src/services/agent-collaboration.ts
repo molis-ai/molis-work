@@ -151,8 +151,12 @@ export interface AgentWorkGraphPort {
   read(graph_id: string): Promise<AgentWorkNode[]>;
   /** `listener` hears every change of the graph until the returned function is called. */
   watch(graph_id: string, listener: () => void): () => void;
-  /** End a step that is not done: as the person `actor_id` did, or (without one) as its holder gave it up. */
-  end(input: { graph_id: string; node_id: string; note: string; actor_id?: string }): Promise<void>;
+  /**
+   * End a step that is not done: as the person `actor_id` did, or (without one) as its holder gave it up. With `if_ready`,
+   * only while no round has started on it (`ready`): the state is checked and the step ended against the same read of
+   * the graph, so a step a round took up in between is left to that round, and a change in between fails the end.
+   */
+  end(input: { graph_id: string; node_id: string; note: string; actor_id?: string; if_ready?: true }): Promise<void>;
   /** The person stopped the work: the wait the Host armed ends, and its continuation, if it may go on, is held for the person. */
   hold(input: { graph_id: string; note: string }): Promise<void>;
   /** Each time a work's root may go on (the wait on it is over), and at once for each that may go on now. */

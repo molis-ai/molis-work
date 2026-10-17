@@ -679,8 +679,9 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /data-workspace-mode="graph"/);
     assert.doesNotMatch(desktop, /data-workbench-view="graph"/);
     assert.match(desktop, /data-navigator-view="graph"/);
-    assert.match(desktop, /if \(mobileView === "document"\) setWorkspaceMode\("focus", false\)/);
-    assert.match(desktop, /if \(mobileView === "tui"\) setWorkspaceMode\("runtime", false\)/);
+    // The phone's tab switch has had no markup since bc79f8a49; its click handler is gone too (W3-A3a), and narrow layouts
+    // move between panes from the places that open them.
+    assert.doesNotMatch(desktop, /data-mobile-target/);
     assert.match(desktop, /if \(matchMedia\("\(max-width: 760px\)"\)\.matches\) setMobileView\("document"\)/);
     assert.match(desktop, /data-tauri-drag-region/);
     assert.match(desktop, /\.tui-terminal \{ grid-area: terminal;/);

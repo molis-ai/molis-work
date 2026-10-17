@@ -93,8 +93,9 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   const headers = () => typeof molisWorkControlHeaders === "function" ? molisWorkControlHeaders() : { "content-type": "application/json" };
   const route = (path) => typeof host.route === "function" ? host.route(path) : path;
+  const api = (path) => "/api/plugins/io.molis.work.todo" + path;
   const request = async (method, path, body) => {
-    const response = await fetch(route(path), { method, headers: headers(), body: body === undefined || method === "GET" ? undefined : JSON.stringify(body) });
+    const response = await fetch(route(api(path)), { method, headers: headers(), body: body === undefined || method === "GET" ? undefined : JSON.stringify(body) });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(payload.error || L("待办请求失败"));
@@ -102,14 +103,14 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       throw error;
     }
     // Works that relate to a todo read it again when it changes here (the Assistant's page message; not a request).
-    if (method === "POST" && path.indexOf("/api/todo") === 0) (payload.item ? [payload.item] : payload.items || []).forEach((item) => { if (item && item.id) tellAssistant("change", item); });
+    if (method === "POST" && (path.indexOf("/items") === 0 || path === "/batch" || path === "/revert")) (payload.item ? [payload.item] : payload.items || []).forEach((item) => { if (item && item.id) tellAssistant("change", item); });
     return payload;
   };
   const markView = (button) => { const on = button.dataset.todoView === view; button.classList.toggle("is-current", on); button.setAttribute("aria-pressed", String(on));
     if (on && !button.hidden) { const bar = button.parentElement, a = bar.getBoundingClientRect(), b = button.getBoundingClientRect(); bar.scrollLeft += b.left < a.left ? b.left - a.left : Math.max(0, b.right - a.right); } };
   const batchOf = (id) => batches.find((entry) => entry.candidates.some((candidate) => candidate.candidate_id === id)), candidateIn = (batch, id) => batch.candidates.find((candidate) => candidate.candidate_id === id);
   const watchWorks = () => { const asked = selected; watchWorksUntil = Date.now() + 60000; setTimeout(() => { if (selected && selected.id === asked.id) void loadWorks(asked); }, 1500); };
-  const todoPath = (id, tail = "") => "/api/todo/" + encodeURIComponent(id) + tail;
+  const todoPath = (id, tail = "") => "/items/" + encodeURIComponent(id) + tail;
   const post = (item, tail, body) => request("POST", todoPath(item.id, tail), { ...body, expected_revision: item.revision });
   const undoOf = (payload) => payload.change_id ? { change_id: payload.change_id } : null;
   const todoObject = (item) => ({ kind: "todo_item", id: item.id, title: item.title, version: item.revision });
@@ -277,7 +278,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     setBusy(true);
     try {
       await flush();
-      const payload = await request("POST", "/api/todo", { ...input, request_id: quickAttempt.request_id });
+      const payload = await request("POST", "/items", { ...input, request_id: quickAttempt.request_id });
       quickAttempt = null;
       quickInput.value = "";
       dropped = new Set();
@@ -423,11 +424,11 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     const params = new URLSearchParams({ view: query ? "all" : view });
     if (query) params.set("q", query);
     if (everything) params.set("all", "1");
-    const payload = await request("GET", "/api/todo?" + params.toString());
+    const payload = await request("GET", "/items?" + params.toString());
     if (seq !== listSeq) return;
     if (query) {
       params.set("view", "closed");
-      const closed = await request("GET", "/api/todo?" + params.toString());
+      const closed = await request("GET", "/items?" + params.toString());
       if (seq !== listSeq) return;
       payload.items = [...payload.items, ...closed.items];
     }
@@ -485,7 +486,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const loadReminders = async () => {
     const seq = ++reminderSeq;
-    const payload = await request("GET", "/api/todo/reminders");
+    const payload = await request("GET", "/reminders");
     if (seq !== reminderSeq) return;
     reminders = payload.reminders || [];
     renderReminders();
@@ -671,7 +672,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const loadBatches = async () => {
-    const payload = await request("GET", "/api/todo/organize");
+    const payload = await request("GET", "/organize");
     batches = payload.batches || [];
     const waiting = batches.reduce((sum, batch) => sum + batch.candidates.filter((candidate) => !candidate.decision).length, 0);
     reviewToggle.hidden = !batches.length && view !== "review";
@@ -679,7 +680,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (view === "review") renderReview();
   };
   const decide = async (batch, decisions, text) => {
-    const payload = await request("POST", "/api/todo/organize/" + encodeURIComponent(batch.batch_id) + "/apply", { expected_revision: batch.revision, decisions });
+    const payload = await request("POST", "/organize/" + encodeURIComponent(batch.batch_id) + "/apply", { expected_revision: batch.revision, decisions });
     decisions.forEach((decision) => choices.delete(decision.candidate_id));
     await load();
     showNote(text, { undo: payload.results.some((result) => result.item_id) ? { batch_id: payload.change_batch_id } : null });
@@ -695,7 +696,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   const runBatch = async (change, doneText) => {
     const ids = [...picked];
     const expected = Object.fromEntries(items.filter((item) => picked.has(item.id)).map((item) => [item.id, item.revision]));
-    const payload = await request("POST", "/api/todo/batch", { ids, change, expected_revisions: expected });
+    const payload = await request("POST", "/batch", { ids, change, expected_revisions: expected });
     picked.clear();
     await load();
     if (selected && ids.includes(selected.id)) await openDetail(selected.id, true);
@@ -908,7 +909,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const openDetail = async (id, keepEdits) => {
     const [payload, pool] = await Promise.all([request("GET", todoPath(id)),
-      request("GET", "/api/todo?view=all" + (everything ? "&all=1" : "")).catch(() => ({ items: [] }))]);
+      request("GET", "/items?view=all" + (everything ? "&all=1" : "")).catch(() => ({ items: [] }))]);
     history = payload.history || [];
     backlinks = payload.backlinks || [];
     linkPool = pool.items || [];
@@ -1037,7 +1038,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (button.matches("[data-todo-undo]") && undo) {
         const target = undo;
         undo = null; undoButton.hidden = true;
-        const payload = await request("POST", "/api/todo/revert", target);
+        const payload = await request("POST", "/revert", target);
         await load();
         if (selected && payload.removed_ids.includes(selected.id)) await closeDetail();
         else if (selected) await openDetail(selected.id, true);
@@ -1064,7 +1065,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
       const batch = batchId ? batches.find((entry) => entry.batch_id === batchId) : null;
       if (batch) {
         if (button.dataset.todoCloseBatch) {
-          await request("POST", "/api/todo/organize/" + encodeURIComponent(batch.batch_id) + "/close", {});
+          await request("POST", "/organize/" + encodeURIComponent(batch.batch_id) + "/close", {});
           await load();
           showNote(L("已收起「{title}」，没处理的留在原处").replace("{title}", batch.title));
           return;
@@ -1144,7 +1145,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         return;
       }
       if (button.matches("[data-todo-revert]")) {
-        const payload = await request("POST", "/api/todo/revert", { change_id: button.dataset.todoRevert });
+        const payload = await request("POST", "/revert", { change_id: button.dataset.todoRevert });
         await load();
         if (payload.removed_ids.includes(selected.id)) { await closeDetail(); showNote(L("已撤销创建")); }
         else { await openDetail(selected.id); showNote(L("已撤销")); }

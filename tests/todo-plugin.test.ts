@@ -1,24 +1,17 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
-  TODO_ACTION_PERMISSIONS,
   TODO_CLIENT_FACTORY_SCRIPT,
   TODO_EN,
   TODO_PROJECT_PLUGIN_ID,
-  TodoPluginRouteTable,
-  createTodoRouteHandlers,
   todoManifest,
 } from "@molis-ai/molis-work-plugin-todo";
-import { MolisWorkLocalHost, homeStores, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
+import { homeStores } from "@molis-ai/molis-work-app-local-host";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { renderMolisWorkWeb, renderMolisWorkWorkbenchClientScript, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
 
@@ -36,13 +29,6 @@ function view(): MolisWorkWebView {
   } as unknown as MolisWorkWebView;
 }
 
-async function withHost<T>(run: (home: string, host: MolisWorkLocalHost) => Promise<T>): Promise<T> {
-  const home = await mkdtemp(join(tmpdir(), "todo-plugin-"));
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  try { return await run(home, host); }
-  finally { await host.close(); await rm(home, { recursive: true, force: true }); }
-}
-
 test("Todo is a personal plugin on the rail after Sessions, listed in the market, with a purgeable Home store", () => {
   assert.equal(PERSONAL_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), true);
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), false);
@@ -51,7 +37,6 @@ test("Todo is a personal plugin on the rail after Sessions, listed in the market
   const card = pluginMarketCards().find(entry => entry.id === "todo");
   assert.equal(card?.personal, true);
   assert.equal(homeStores().get("todo")?.owner, todoManifest.plugin_id, "卸载 --purge 要能删掉待办库");
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/todo/batch"), "/api/todo/batch");
 });
 
 test("the workbench mounts the Todo stage, and the client script still parses with the quick-entry reader embedded", () => {
@@ -84,43 +69,39 @@ test("every Chinese string the Todo page shows has an English entry", () => {
   assert.deepEqual(missing, []);
 });
 
-test("HTTP routes map to the same actions; fixed paths are not read as ids; a project caller sees its project's todos", async () => {
-  await withHost(async (home, host) => {
-    const personal = new TodoPluginRouteTable(createTodoRouteHandlers({ actions: bindActionClient(host.homeActionClient(),
-      () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: TODO_ACTION_PERMISSIONS })) }));
-    const reference = molisWorkHostProjectReference({ projectId: PROJECT, databasePath: join(home, "project.sqlite") });
-    const inProject = new TodoPluginRouteTable(createTodoRouteHandlers({ actions: bindActionClient(host.actionClient(reference),
-      () => ({ actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: TODO_ACTION_PERMISSIONS })) }));
-    const call = async (table: TodoPluginRouteTable, method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}, query = new URLSearchParams()) => {
-      try { return (await table.handle({ method, pathname, query, body }))!; }
-      catch (error) { return actionErrorResponse(error); }
-    };
-    const mine = (await call(personal, "POST", "/api/todo", { title: "个人的事", planned_date: "2026-09-28" })).body as { item: { id: string; placement: string } };
-    assert.equal(mine.item.placement, "personal");
-    const ours = (await call(inProject, "POST", "/api/todo", { title: "项目的事", placement: "project", project_id: "forged" })).body as { item: { id: string; project_id: string } };
-    assert.equal(ours.item.project_id, PROJECT, "项目来自 Host 绑定，不来自请求");
-    const listAll = (await call(inProject, "GET", "/api/todo", {}, new URLSearchParams({ view: "all" }))).body as { items: { title: string }[] };
-    assert.deepEqual(listAll.items.map(item => item.title).sort(), ["个人的事", "项目的事"]);
-    const listHome = (await call(personal, "GET", "/api/todo", {}, new URLSearchParams({ view: "all" }))).body as { items: { title: string }[] };
-    assert.deepEqual(listHome.items.map(item => item.title), ["个人的事"]);
+test("HTTP routes map to the same actions; fixed paths are not read as ids; a project's page sees its project's todos", { timeout: 60_000 }, async t => {
+  const { request, project } = await serveHomeRuntime(t);
+  const here = await project("待办项目");
+  const base = `/api/plugins/${todoManifest.plugin_id}`;
+  const call = async (where: "personal" | "project", method: "GET" | "POST", path: string, body?: Record<string, unknown>) => {
+    const response = await request((where === "project" ? `/projects/${encodeURIComponent(here.project_id)}` : "") + base + path, { method, body: method === "POST" ? body ?? {} : undefined });
+    return { status: response.status, body: await response.json() as unknown };
+  };
+  const mine = (await call("personal", "POST", "/items", { title: "个人的事", planned_date: "2026-09-28" })).body as { item: { id: string; placement: string } };
+  assert.equal(mine.item.placement, "personal");
+  const ours = (await call("project", "POST", "/items", { title: "项目的事", placement: "project", project_id: "forged" })).body as { item: { id: string; project_id: string } };
+  assert.equal(ours.item.project_id, here.project_id, "项目来自页面路径，不来自请求");
+  const listAll = (await call("project", "GET", "/items?view=all")).body as { items: { title: string }[] };
+  assert.deepEqual(listAll.items.map(item => item.title).sort(), ["个人的事", "项目的事"]);
+  const listHome = (await call("personal", "GET", "/items?view=all")).body as { items: { title: string }[] };
+  assert.deepEqual(listHome.items.map(item => item.title), ["个人的事"]);
 
-    const batch = await call(inProject, "POST", "/api/todo/batch", { ids: [mine.item.id, ours.item.id], change: { status: "done" } });
-    assert.equal(batch.status, 200);
-    const undone = await call(inProject, "POST", "/api/todo/revert", { batch_id: (batch.body as { batch_id: string }).batch_id });
-    assert.equal(undone.status, 200);
-    assert.equal(((await call(personal, "GET", `/api/todo/${mine.item.id}`)).body as { item: { status: string } }).item.status, "open");
+  const batch = await call("project", "POST", "/batch", { ids: [mine.item.id, ours.item.id], change: { status: "done" } });
+  assert.equal(batch.status, 200, JSON.stringify(batch.body));
+  const undone = await call("project", "POST", "/revert", { batch_id: (batch.body as { batch_id: string }).batch_id });
+  assert.equal(undone.status, 200, JSON.stringify(undone.body));
+  assert.equal(((await call("personal", "GET", `/items/${mine.item.id}`)).body as { item: { status: string } }).item.status, "open");
 
-    // The person may reach every project's todos on their own page; only the listing is scoped unless they ask for all.
-    const everything = (await call(personal, "GET", "/api/todo", {}, new URLSearchParams({ view: "all", all: "1" }))).body as { items: { title: string }[] };
-    assert.deepEqual(everything.items.map(item => item.title).sort(), ["个人的事", "项目的事"]);
-    const stale = await call(personal, "POST", `/api/todo/${mine.item.id}`, { title: "旧版本", expected_revision: 1 });
-    assert.equal(stale.status, 409);
-    assert.equal((stale.body as { code: string }).code, "todo.conflict");
-    const invalid = await call(personal, "POST", "/api/todo", { title: "" });
-    assert.equal(invalid.status, 400);
-    const gone = await call(personal, "POST", `/api/todo/${mine.item.id}/delete`, {});
-    assert.equal(gone.status, 200);
-  });
+  // The person may reach every project's todos on their own page; only the listing is scoped unless they ask for all.
+  const everything = (await call("personal", "GET", "/items?view=all&all=1")).body as { items: { title: string }[] };
+  assert.deepEqual(everything.items.map(item => item.title).sort(), ["个人的事", "项目的事"]);
+  const stale = await call("personal", "POST", `/items/${mine.item.id}`, { title: "旧版本", expected_revision: 1 });
+  assert.equal(stale.status, 409);
+  assert.equal((stale.body as { code: string }).code, "todo.conflict");
+  const invalid = await call("personal", "POST", "/items", { title: "" });
+  assert.equal(invalid.status, 400);
+  const gone = await call("personal", "POST", `/items/${mine.item.id}/delete`, {});
+  assert.equal(gone.status, 200, JSON.stringify(gone.body));
 });
 
 test("待办整理师 and both organizing methods are registered with the Host, so they show in “Prompt 与 Character” and can be edited", async () => {

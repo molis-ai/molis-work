@@ -222,9 +222,9 @@ test("Functions answers through the SDK: invalid JSON is 400 and an oversized bo
 test("a route with no mapper answers through the SDK: 400 for a body that is not JSON, 413 for one that is too large, with the code in the body", async () => {
   const server = await serveNativeHttp((request, response, url) => handleTodoNativePluginHttp(request, response, url, () => never));
   try {
-    const notJson = await server.post("/api/todo", "{not json");
+    const notJson = await server.post("/api/plugins/io.molis.work.todo/items", "{not json");
     assert.deepEqual([notJson.status, notJson.body.code, notJson.body.error], [400, "actions.input_invalid", "请求不是有效 JSON"]);
-    const tooLarge = await server.post("/api/todo", JSON.stringify({ padding: " ".repeat(1_100_000) }));
+    const tooLarge = await server.post("/api/plugins/io.molis.work.todo/items", JSON.stringify({ padding: " ".repeat(1_100_000) }));
     assert.deepEqual([tooLarge.status, tooLarge.body.code, tooLarge.body.error], [413, "actions.input_too_large", "请求内容过大"]);
   } finally { await server.close(); }
 });
@@ -251,7 +251,7 @@ test("Todo's HTTP edge answers a failure with the status of its kind: the platfo
   for (const [name, failure, status, code] of cases) {
     const server = await serveNativeHttp((request, response, url) => handleTodoNativePluginHttp(request, response, url, failing(failure)));
     try {
-      const answer = await server.post("/api/todo", JSON.stringify({ title: "写周报" }));
+      const answer = await server.post("/api/plugins/io.molis.work.todo/items", JSON.stringify({ title: "写周报" }));
       assert.deepEqual([answer.status, answer.body.code], [status, code], name);
       assert.equal(typeof answer.body.error, "string", name);
     } finally { await server.close(); }

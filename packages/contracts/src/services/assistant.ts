@@ -470,17 +470,7 @@ export interface AssistantWorkView {
   problem?: { message: string; action?: string };
 }
 
-/** An interrupted round, as the runtime's own receipts show it: what happened, what did not, what is unknown. */
-export interface AssistantRecovery {
-  blockers: string[];
-  rounds: Array<{
-    run_id: string;
-    version: number;
-    can_close: boolean;
-    blockers: string[];
-    operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
-  }>;
-}
+export type { AssistantRecovery } from "./assistant-recovery.js";
 
 export interface AssistantSendInput {
   /** Omitted starts a new work. */

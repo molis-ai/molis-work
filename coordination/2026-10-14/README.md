@@ -290,7 +290,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
   - 仍先问用户（弹窗，带推荐）：发布与改版本号；动真实 Home（4207/4208/4173）或安装版；放宽门禁、`limits.json`、`biome.jsonc`、门禁脚本、例外文件；读真实凭据；计划外的 PR。
 - **合并**：
   - Molis：CI 的 `Verify` 等必需检查绿、分支与 main 同步，就可以合（merge commit）。`Linux probe` 不是必需检查。
-  - Prologue PR：按合并条件验证过即合。
+  - Prologue PR：**用户 10-17 定，统筹审过就合，不再弹窗问**（「对于Prologue，我都同意合并，只是你额外注意一下prologue的代码质量」）。统筹逐行审 diff，看这几项：取消与迟到的结果、有没有提交了一半的状态、没有这个改动时会红的用例、公开面变没变（变了要写理由）、文档与切片状态。只合审过的那个 head（`--match-head-commit`），验证证据贴在 PR 评论里。Molis 这边的换包照常走 PR。
 - **推送、开 PR**：不用再问。推送前 `pnpm secrets:check`，先 `git fetch origin main`。
 - **提交身份**：照 10-13 交接 §3 第 9 条。
 - **只在自己的路径提交**：
@@ -562,6 +562,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #629 先不打标签：手册线的浏览器批次 33 个里红 4 个。assistant-page-written 是它自己的问题，已修；issue-capture-page、issue-clarification-page、pages-assistant-surfaces 要等干净 main 的基线比对出结果再分。统筹已经停掉 #629 的 label-chain，改让 #633 先挂全量。回执线 D1 的本机浏览器批次有 134 个文件，22:53 起一直占着 browser 槽，挡住了 3 批，已请它按 pid 停掉、只留和这片直接相关的（不超过 10 个），其余交给 CI 全量。
     - #630 merge main 后是 `204dab78d`：除门禁文件和 spec 外，代码 diff 和审过的 5c1f7b396 逐行相同，§10.21 还在。已挂全量。#633 的合并引用 39bfe530e 停在 446c05218（#628），比 main 5239a3711 少一个 #624（只有 CSS），GitHub 没有重算，问 mergeable 也不重算。#633 只改 machine-slot 脚本，统筹手动打了标签。label-when-free.zsh 每轮都会先问一次 mergeable。
     - 防腐线提醒组合效果：#629 现在的 head ffecda928 不含 #632（换了包、改了 agent-host 7 个文件），本机用例都是在旧包上跑的。已请手册线下次推送时 merge main，在新包上重跑。防腐线把 §10.21 之后的复查（#618、#625～#628、#632、Prologue #26 和 #33）写成 §10.22，单独开文档 PR，统筹审完直接入队。
+    - Prologue #34（MCP 刷新，采用线把 74b333d7 变基后开的）审过，用户弹窗批了，已合入：Prologue main 现在是 `e69b71cf9`，证据贴在 PR 评论里。之后的 Prologue PR 照 §4 的新规则，不再问。已请采用线从 e69b71cf9 打两次包、逐字节比对，开换包小 PR（照 #632 的做法，patch-history 记第 22 条）；合入后请用户转告 Codex 分支变基、删掉它自己的包。#635（§10.22 复查记录，只有 `specs/repository-anti-corruption/spec.md` +54）已直接入队。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

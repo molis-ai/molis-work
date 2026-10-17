@@ -639,9 +639,9 @@ for (const [asset, old] of [
 // +136). One byte more, another asset (the settings sheet included: it does not change), or growth from the new baseline still fails.
 test("receipts 3b-2a has one bounded allowance on the workbench script, the Coding bundle and the receipt's two stylesheets; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-arrival.css": [746249, 746385],
+    "/assets/molis-work-arrival.css": [705879, 706015],
     "/assets/molis-work-plugins/coding.js": [373429, 374113],
-    "/assets/molis-work-workbench.css": [1625858, 1625994],
+    "/assets/molis-work-workbench.css": [1596754, 1596890],
     "/assets/molis-work-workbench.js": [1103049, 1108092],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];

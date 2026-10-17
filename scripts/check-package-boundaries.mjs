@@ -14,6 +14,14 @@ import {
 import { checkWorkspacePackages, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
 
 const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
+/** The Web request dispatcher: the entry and its ordered route tables (W5-07). The checks on web-request.ts read all of them. */
+export const WEB_DISPATCH_FILES = [
+  "apps/local-host/src/web-request.ts",
+  "apps/local-host/src/web-route-table.ts",
+  "apps/local-host/src/web-catalog-index-routes.ts",
+  "apps/local-host/src/web-project-context.ts",
+  "apps/local-host/src/web-project-platform-routes.ts",
+];
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -192,7 +200,7 @@ function checkMigratedFeedOwnership(repositoryRoot) {
     "plugins/native/feed/src/source-sync.ts",
     "plugins/native/feed/src/connector-sync.ts",
     "plugins/native/feed/src/source-scheduler.ts",
-    "apps/local-host/src/web-request.ts",
+    ...WEB_DISPATCH_FILES,
   ];
   const directFactSql = /\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\s+(feed_items|feed_materials|inbox_entries)\b/giu;
   for (const relativePath of legacyCallers) {
@@ -283,7 +291,7 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const renderer = read("apps/workbench/src/renderer.ts");
-  const server = read("apps/local-host/src/web-request.ts");
+  const server = WEB_DISPATCH_FILES.map(read).join("\n");
   const uiAdapter = read("apps/workbench/src/feed-projection-ui.ts");
   const httpAdapter = read("apps/local-host/src/feed-native-plugin-http.ts");
   if (fs.existsSync(path.join(repositoryRoot, "src/web/feed-native-plugin-http.ts"))) {
@@ -557,7 +565,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   errors.push(...checkNoGoalTypedAdapters(["apps", "horizontal", "modules", "packages", "plugins", "server"]
     .flatMap(directory => filesUnder(path.join(repositoryRoot, directory), file => /\.(?:ts|tsx|mts)$/u.test(file) && !/[\\/](?:tests?|__tests__)[\\/]/u.test(file)))
     .map(file => ({ path: path.relative(repositoryRoot, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }))));
-  for (const relativePath of ["apps/local-host/src/web-request.ts", "apps/mcp/src/tool-dispatch.ts", "apps/cli/src/command-dispatch.ts"]) {
+  for (const relativePath of [...WEB_DISPATCH_FILES, "apps/mcp/src/tool-dispatch.ts", "apps/cli/src/command-dispatch.ts"]) {
     const source = read(relativePath);
     errors.push(...checkGoalReadOwnerSql(source).map(error => `${relativePath}: ${error}`));
     if (
@@ -567,7 +575,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     }
     if (relativePath === "apps/local-host/src/web-request.ts") {
       if (!source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal read caller is missing goalQueries public usage`);
-    } else {
+    } else if (!WEB_DISPATCH_FILES.includes(relativePath)) {
       if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
     }
   }
@@ -618,7 +626,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
   const removedFacadeCall = /\bcoordinator(?:ForResume)?\.(?:addProjectGuidance|updateProjectGuidance|createGoal|updateDraftGoal|addRelation|deactivateRelation|setPolicy|addRisk|updateRisk|setRiskState|setGoalArchived|setGoalTrashed|revalidateGoal|evaluateLeafCompletion|effectivePlanningMethods|projectPlanningComposition|saveProjectPlanningMethod|analyzePlanningChange|validatePlanningGraph)\b/u;
   for (const relativePath of [
-    "apps/local-host/src/web-request.ts",
+    ...WEB_DISPATCH_FILES,
     "apps/mcp/src/tool-dispatch.ts",
     "apps/cli/src/command-dispatch.ts",
     "apps/local-host/src/demo-seed.ts",
@@ -953,7 +961,7 @@ function checkArtifactsOwnership(repositoryRoot) {
   if (fs.existsSync(path.join(repositoryRoot, "src/web/onboarding.ts"))) {
     errors.push("src/web/onboarding.ts: local onboarding state must remain owned by Local Host");
   }
-  if (/export function (?:buildMolisWorkWebView|cachedMolisWorkWebView)/u.test(read("apps/local-host/src/web-request.ts"))) {
+  if (/export function (?:buildMolisWorkWebView|cachedMolisWorkWebView)/u.test(WEB_DISPATCH_FILES.map(read).join("\n"))) {
     errors.push("apps/local-host/src/web-request.ts: Goal read projection and cache must remain outside HTTP routing");
   }
   const artifactHttp = read("apps/local-host/src/artifact-native-plugin-http.ts");

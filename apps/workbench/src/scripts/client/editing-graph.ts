@@ -95,36 +95,13 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         pane.toggleAttribute("inert", pane !== visiblePane);
       });
       if (!shouldMoveFocus || !visiblePane) return;
-      const switchRoot = document.querySelector(".mobile-switch");
-      const selectedTab = switchRoot?.querySelector("[aria-selected='true']");
-      if (selectedTab?.nodeType === 1) selectedTab.focus();
-      else if (visiblePane.nodeType === 1) visiblePane.focus({ preventScroll: true });
+      if (visiblePane.nodeType === 1) visiblePane.focus({ preventScroll: true });
     };
 
     const setMobileView = (view) => {
       workspace.dataset.mobileView = view;
       document.querySelector(".topbar")?.setAttribute("data-mobile-surface", view);
-      syncMobileNavigationChrome();
       applyMobilePanePresence();
-    };
-
-    const handleMobileSwitchKeyboard = (event) => {
-      const switchRoot = event.target?.closest?.(".mobile-switch");
-      if (!switchRoot || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return false;
-      const tabs = [...switchRoot.querySelectorAll("[role='tab']")];
-      const current = event.target?.closest?.("[role='tab']");
-      const index = tabs.indexOf(current);
-      if (index < 0) return false;
-      const nextIndex = event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? tabs.length - 1
-          : (index + ((event.key === "ArrowRight" || event.key === "ArrowDown") ? 1 : -1) + tabs.length) % tabs.length;
-      event.preventDefault();
-      const next = tabs[nextIndex];
-      next?.focus();
-      next?.click();
-      return true;
     };
 
     const { graphElement, loadGoalGraph, syncGoalWorkspace, updateGraphVisibility, readMomentumState,
@@ -179,12 +156,6 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         const active = button.dataset.navigatorView === navigatorView;
         button.classList.toggle("is-active", active);
         button.setAttribute("aria-selected", String(active));
-      });
-      document.querySelectorAll("button[data-workbench-view]").forEach((button) => {
-        const active = button.dataset.workbenchView === nextMode;
-        button.classList.toggle("is-active", active);
-        button.setAttribute("aria-selected", String(active));
-        button.setAttribute("tabindex", active ? "0" : "-1");
       });
       if (graph && !workspace.querySelector("[data-goal-canvas-shell]")) graph.hidden = nextMode !== "graph";
       if (nextMode === "graph" && !workspace.querySelector("[data-goal-canvas-shell]")) {

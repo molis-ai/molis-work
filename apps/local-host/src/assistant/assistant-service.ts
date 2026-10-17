@@ -35,7 +35,8 @@ import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
-import { AssistantInputs, exactRevision, inputsOf, typedWords, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, exactRevision, inputsOf, typedWords, withdrawInput, type SendIntent } from "./assistant-inputs.js";
+import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
 import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
@@ -177,7 +178,7 @@ function checkMaterials(value: unknown): AssistantMaterial[] {
 }
 
 /** What a round is given as marked data, and what in it is told only once (marked told after the round has started). */
-interface RoundMaterials { materials: AgentTextMaterial[]; told: { undos: string[]; jobs: string[]; unsettled: string[] }; handedBack: StoredWork[] }
+interface RoundMaterials { materials: AgentTextMaterial[]; told: { undos: string[]; jobs: string[]; unsettled: string[] } }
 
 /** PNG, JPEG, GIF or WebP, by the bytes themselves. */
 function looksLikeImage(bytes: Buffer): boolean {
@@ -558,8 +559,8 @@ export class AssistantService {
       try { await this.scheduleJobCheck({ ...job, checks: 0 }, this.store.get(this.actorId, job.work_id)); } catch { /* its work is gone */ }
     }
     await this.followUps.attach(schedule);
-    // Sub-tasks that settled while nobody took up what they hand back (the Host went away in between): taken up now.
-    void this.delegations.resume();
+    // Works whose sub-tasks all came back while the Host was away go on now.
+    await this.delegations.attach().catch(() => undefined);
     return true;
   }
 
@@ -760,7 +761,7 @@ export class AssistantService {
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
       assertSendCurrent(stillCurrent);
       this.linkSent(work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by) });
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by), about: input.about });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.publicWork(current, await this.stateSafely(current)); }
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
@@ -770,16 +771,21 @@ export class AssistantService {
       // Nothing the person typed is lost: an unsent message stays as the work's draft.
       if (work && !work.reply_target) {
         const kept = this.store.update(this.actorId, work.work_id, null, { draft: text }, false);
-        const failure = this.explain(error);
+        const failure = assistantFailure(error);
         throw new ActionError(failure.code, failure.message, { kind: failure.kind, cause: failure,
           details: { ...failure.details, work: this.publicWork(kept, await this.stateSafely(kept)) } });
       }
-      throw this.explain(error);
+      throw assistantFailure(error);
     } finally { inputHold?.end(); }
   }
 
   async control(workId: string, control: AssistantControl): Promise<AssistantWorkView> {
-    await controlAssistantWork(this.store.get(this.actorId, workId), control, { store: this.store, actorId: this.actorId, continuations: this.continuations, delegations: this.delegations,
+    const work = this.store.get(this.actorId, workId);
+    if (control?.kind === "withdraw") {
+      await withdrawInput(work, this.store.rounds(work.work_id), control, { coding: () => this.coding(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)) });
+      return this.read(workId);
+    }
+    await controlAssistantWork(work, control, { store: this.store, actorId: this.actorId, continuations: this.continuations, delegations: this.delegations,
       host: () => this.ports.host(), coding: work => this.coding(work), latest: (host, work) => this.latestRun(host, work), cancelSetups: this.ports.cancelSetups, retainSetups: this.ports.retainSetups });
     return this.read(workId);
   }
@@ -1444,7 +1450,7 @@ export class AssistantService {
     assertSendCurrent(stillCurrent);
     if (read.recovery_required) throw assistantErrors.needs_check(read.error ?? "Coding 会话有需要核对的中断操作", { action: "打开 Coding 核对" });
     const latest = read.runs.at(-1);
-    if (latest && !isTerminalAgentPhase(latest.phase)) {
+    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
       // Coding's own control carries both: every answer with the revision it answers, every supplement with its receipt (it takes no source: words a page wrote reach Coding as the person's).
       const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => coding.control(sessionId, latest.ref.run_id, control),
         send: ({ source: _source, ...input }) => coding.send(sessionId, latest.ref.run_id, input) }, intent);
@@ -1484,7 +1490,7 @@ export class AssistantService {
     if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: "核对上一轮的实际结果后再继续" });
     assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
-    if (latest && !isTerminalAgentPhase(latest.phase)) {
+    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
       const outcome = await this.inputs.deliver(intent?.target === "answer" ? await adapter.read(latest.ref) : latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: input => inputsOf(adapter).send(latest.ref, input, () => assertSendCurrent(stillCurrent)),
         // A running round cannot be shown a picture any more; it goes with the next round.
@@ -1520,13 +1526,12 @@ export class AssistantService {
       throw error;
     }
     await beforeStart?.();
-    this.store.markTold(this.actorId, prepared.told); this.delegations.markHandedBack(prepared.handedBack);
+    this.store.markTold(this.actorId, prepared.told);
     this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
       ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
     this.recalled.delete(work.work_id);
     this.chosenMemory.delete(work.work_id);
     this.starting.delete(work.work_id);
-    this.delegations.watch(work, handle.ref);
     this.continuations.watch(work, handle.ref);
     return this.result(work, "started", handle.ref.run_id, stillCurrent);
   }
@@ -1588,7 +1593,7 @@ export class AssistantService {
       told.jobs = jobs.filter(job => job.state !== "running").map(job => job.key);
     }
     // What its sub-tasks handed back that it has not had yet (marked with the rest once the round has started).
-    const { material: handed, told: handedBack } = await this.delegations.material(work, base);
+    const handed = await this.delegations.material(work, base);
     if (handed) out.push(handed);
     // Professional roles this work may hand a part to (published here, runnable now): delegation names one by its id.
     if (!work.delegated_by && work.project_ref && this.ports.characters && work.executor.kind !== "coding") {
@@ -1652,7 +1657,7 @@ export class AssistantService {
         material.object ? `对象：${material.object.title ?? material.object.id}（${material.object.kind}${material.object.version !== undefined ? `，版本 ${material.object.version}` : ""}）` : ""].filter(Boolean).join("\n");
       out.push(...chunked({ ...base, title: `材料：${material.title}` }, `material-${material.material_id}`, `${head}\n\n${material.text ?? "（没有可读正文）"}`));
     }
-    return { materials: out.slice(0, 30), told, handedBack };
+    return { materials: out.slice(0, 30), told };
   }
 
   private async latestRun(host: AgentHost, work: StoredWork): Promise<AgentRunView | null> {
@@ -1708,20 +1713,12 @@ export class AssistantService {
    * a delegated work does not delegate. What they report is read back, never taken as the parent's own result.
    */
   /** Midnight today where the person is, as an instant. */
-  private startOfToday(): string {
-    const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, now = this.now();
-    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
-      .formatToParts(now).map(part => [part.type, part.value]));
-    const wall = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +parts.hour!, +parts.minute!, +parts.second!);
-    return new Date(now.getTime() - (wall - Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!))).toISOString();
-  }
-
   /**
    * Today's usage of the Assistant's own rounds, from the runtime's receipts: rounds that finished today and were not
    * yet counted are read once and kept. A round still running is counted when it ends.
    */
   async usage(): Promise<AssistantUsage> {
-    const since = this.startOfToday();
+    const since = startOfToday(this.now(), this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
     await this.settleUsage(this.store.roundsSince(this.actorId, since));
     const saved = this.store.setting(this.actorId, "daily_tokens");
     return { today: this.store.usage.since(this.actorId, since), daily_tokens: saved ? Number(saved) || null : null };
@@ -2004,14 +2001,9 @@ export class AssistantService {
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {
-    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, handed_back_run: _handed, hand_back_held: _held, question_drafts: _drafts, continuation_hold: _continuation, thread_round: _thread, graph_id: _graph, delegated_by: _delegated, ...rest } = work;
+    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, question_drafts: _drafts, continuation_hold: _continuation, thread_round: _thread, graph_id: _graph, delegated_by: _delegated, ...rest } = work;
     const delegated_by = this.delegations.shown(work);
     return { ...rest, ...(delegated_by ? { delegated_by } : {}), state };
-  }
-
-  /** A runtime failure in words the person can act on; codes stay for the surface. */
-  private explain(error: unknown): ActionError {
-    return assistantFailure(error);
   }
 }
 

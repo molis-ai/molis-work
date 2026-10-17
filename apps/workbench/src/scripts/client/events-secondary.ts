@@ -80,11 +80,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         }
         return;
       }
-      const inboxFilter = target.closest("[data-inbox-filter]");
-      if (inboxFilter) {
-        setInboxFilter(inboxFilter.dataset.inboxFilter, true);
-        return;
-      }
       const inboxOpenFeed = target.closest("[data-inbox-open-feed]");
       if (inboxOpenFeed) {
         const itemId = inboxOpenFeed.dataset.inboxOpenFeed;
@@ -296,7 +291,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
       if (directoryOpen && desktopDirectoryPanels.length) {
         if (directoryOpen.tagName === "A" && (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1)) return;
         event.preventDefault();
-        if (directoryOpen.matches("[data-mobile-directory-root]")) setMobileView("tree");
         // Settings opened from the bar show their sections on a phone, as a plugin with a list does when switched to.
         if (directoryOpen.closest("[data-dock]") && matchMedia("(max-width: 760px)").matches) setMobileView("tree");
         const nextDirectory = directoryOpen.dataset.directoryOpen || "root";
@@ -312,11 +306,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
       }
       if (handleTreeDisclosureClick(target)) return;
       if (handleMomentumNavigationClick(target)) return;
-      const workbenchViewButton = target.closest("button[data-workbench-view]");
-      if (workbenchViewButton) {
-        setWorkspaceMode(workbenchViewButton.dataset.workbenchView);
-        return;
-      }
       if (target.closest("[data-tui-focus-return]")) {
         setWorkspaceMode("focus");
         return;
@@ -360,19 +349,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         return;
       }
       if (handleGoalDialogClick(target)) return;
-      const mobileTarget = target.closest("[data-mobile-target]");
-      if (mobileTarget) {
-        const mobileView = mobileTarget.dataset.mobileTarget;
-        if (mobileView === "document") setWorkspaceMode("focus", false);
-        if (mobileView === "tui") setWorkspaceMode("runtime", false);
-        if (mobileView === "tree") {
-          if (workspace.dataset.workspaceMode === "graph") setWorkspaceMode("focus", false);
-          if (treePane?.dataset.desktopDirectory === "root") setDesktopDirectory(currentModuleDirectory(), true, false);
-        }
-        setMobileView(mobileView);
-        saveUiState();
-        return;
-      }
       const focusSectionTrigger = target.closest("[data-focus-section-trigger]");
       if (focusSectionTrigger) {
         const factor = focusSectionTrigger.dataset.goalFactorTab;

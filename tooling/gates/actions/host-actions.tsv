@@ -8,7 +8,8 @@ actions.usages.read	1	system.action-usages	query	query	home	read	concurrent	agen
 agent.collaboration.control.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	c68b8987c37d	b16327ef33ed	-
 agent.collaboration.read.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	d0bfd70f551b	7cfc6db4ee5d	-
 agent.collaboration.revise.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	b173f6238855	516b9424763a	-
-agent.inputs.send.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	5947f2ff726b	fcdd65c576a7	-
+agent.inputs.send.v2	2	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	b6b41fbf8db7	fcdd65c576a7	-
+agent.inputs.withdraw.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	197c6a2226e7	b7688d6d45cd	-
 agent.offers.run.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	6fe14e4fdb6a	3f7d96ddf0df	-
 connectors.account.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:account:read	connector	-	-	7d42269d0825	e14fa014b7b4	-
 connectors.authorization.cancel	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	-

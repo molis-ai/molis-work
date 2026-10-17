@@ -80,7 +80,9 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
     };
     const own = (node) => {
       const el = node && (node.nodeType === 1 ? node : node.parentElement);
-      return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], [data-assistant-island], .mw-ctx'));
+      // In the Assistant, only a reply's words are in hand (its own context); its input, strip and buttons are not.
+      return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], .mw-ctx'))
+        || el.matches('[data-assistant-island] :not([data-assistant-context], [data-assistant-context] *)');
     };
     const read = () => {
       const sel = getSelection();

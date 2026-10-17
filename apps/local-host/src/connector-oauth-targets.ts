@@ -46,6 +46,16 @@ export function clearOAuthConnectionTarget(service: Service, state: string): voi
   createFileSecretStore().delete(pendingRef(service, state));
 }
 
+/** A token refresh belongs to the connection revision that sent it, even if it was disabled and enabled meanwhile. */
+export function oauthRefreshGuard(home: string, connectionId: string): () => void {
+  const connection = withConnectorConnections(home, store => store.require(connectionId));
+  if (!connection.enabled || connection.disconnected_at) throw new Error("连接已停用或断开，请重新连接");
+  return () => {
+    const current = withConnectorConnections(home, store => store.require(connectionId));
+    if (current.updated_at !== connection.updated_at) throw new Error("连接在刷新期间已变化，请重试");
+  };
+}
+
 export function oauthConnectionRefs(connectionId: string): { access: string; refresh: string; expiresAt: string } {
   return {
     access: `connector-connection:${connectionId}:access`,

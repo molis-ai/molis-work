@@ -11,7 +11,6 @@ import type {
   AgentCommandOutput,
   AgentCommandOutputRef,
   AgentCreateSessionInput,
-
   AgentRunControl,
   AgentRunHandle,
   AgentRunRef,
@@ -31,7 +30,8 @@ import { emptyCapabilityMatrix } from "../capabilities.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
 import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
-import { inputsPort, type QueueInput, type SteerInput } from "./prologue-inputs.js";
+import { controlFailure } from "./prologue-control-errors.js";
+import { inputsPort, type RoundInputs, type SessionQueue } from "./prologue-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
   applyRunEvent,
@@ -96,12 +96,11 @@ export interface PrologueRunPort {
   cancel(): Promise<void>;
 }
 
-export interface PrologueControlPort {
+export interface PrologueControlPort extends RoundInputs {
   state: PrologueControlState;
   stop(reason: "stopped" | "cancelled"): void | Promise<void>;
   pause(): void;
   resume(): void;
-  steer(input: SteerInput): Promise<{ steerId: string; replayed: boolean }>;
   /** Revalidate the original invocation after model-selection waits. */ beforeModelSwitch?(): Promise<void>;
   /** Later model calls of this Run go to this target, from its next model boundary. Absent where the runtime cannot. */
   switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">, beforeAccept: () => void): Promise<void>;
@@ -176,7 +175,7 @@ export interface PrologueRuntimePort {
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
-  /** The session's queue for the next round; absent where the runtime keeps none. */ queueInput?(sessionId: string, input: Parameters<QueueInput>[0]): ReturnType<QueueInput>;
+  /** The session's queue for the next round; absent where the runtime keeps none. */ queue?: SessionQueue;
   background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   /** The runtime's durable local queue for timed work. */
@@ -304,7 +303,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   readonly collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
-  readonly inputs = inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), steer: one => record.control.steer(one) }; }, () => this.#runtime.queueInput?.bind(this.#runtime), runId => this.#publish(runId));
+  readonly inputs = inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), control: record.control, turns: record.view.turns }; }, () => this.#runtime.queue, runId => this.#publish(runId));
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -706,42 +705,42 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {
-    await this.read(run);
-    const record = this.#requireRun(run.run_id);
-    switch (control.kind) {
-      case "stop":
-        await record.control.stop("stopped");
-        break;
-      case "cancel":
-        await record.control.stop("cancelled");
-        break;
-      case "pause":
-        record.control.pause();
-        break;
-      case "resume":
-        record.control.resume();
-        break;
-      case "switch-model":
-        await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,
-          requested: model => { record.state.model_requested = model; } });
-        break;
-      case "answer": {
-        const answer = this.#answerPending;
-        if (answer === undefined) {
-          throw agentErrors.capability_unavailable("没有接上回答通道，这条问题回答不了");
+    try {
+      await this.read(run);
+      const record = this.#requireRun(run.run_id);
+      switch (control.kind) {
+        case "stop":
+          await record.control.stop("stopped");
+          break;
+        case "cancel":
+          await record.control.stop("cancelled");
+          break;
+        case "pause":
+          record.control.pause();
+          break;
+        case "resume":
+          record.control.resume();
+          break;
+        case "switch-model":
+          await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,
+            requested: model => { record.state.model_requested = model; } });
+          break;
+        case "answer": {
+          const answer = this.#answerPending;
+          if (answer === undefined) throw agentErrors.capability_unavailable("没有接上回答通道，这条问题回答不了");
+          const question = record.state.awaiting_input.find(item => item.pending_id === control.pending_id);
+          if (!question || isEnded(record.view.phase) || question.pending_revision !== control.pending_revision) {
+            throw agentErrors.pending_not_open("这条问题不属于本轮当前等待，不能提交答案");
+          }
+          await answer(run, control);
+          // The Run owns whether the question is closed; drop it from the view
+          // only after the execution owner accepted the answer.
+          settleProloguePending(record.state, control.pending_id);
+          break;
         }
-        const question = record.state.awaiting_input.find(item => item.pending_id === control.pending_id);
-        if (!question || isEnded(record.view.phase) || question.pending_revision !== control.pending_revision) {
-          throw agentErrors.pending_not_open("这条问题不属于本轮当前等待，不能提交答案");
-        }
-        await answer(run, control);
-        // The Run owns whether the question is closed; drop it from the view
-        // only after the execution owner accepted the answer.
-        settleProloguePending(record.state, control.pending_id);
-        break;
       }
-    }
-    this.#publish(run.run_id);
+      this.#publish(run.run_id);
+    } catch (error) { throw controlFailure(error); }
   }
 
   async readCommandOutput(

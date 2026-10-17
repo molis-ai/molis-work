@@ -5,10 +5,11 @@ import { join } from "node:path";
 import test from "node:test";
 import { createCatalogProvider, catalogWhoami, readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { feishuCliFetch, feishuCliStatus } from "../apps/local-host/src/feishu-cli.ts";
-import { completeNotionOAuth, resolveUsableNotionToken, startNotionOAuth } from "../apps/local-host/src/notion-oauth.ts";
-import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/src/connector-directory.ts";
-import { renderConnectorsSettings } from "../apps/workbench/src/settings-connectors.ts";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { feishuCliFetch, feishuCliStatus } from "../apps/local-host/dist/feishu-cli.js";
+import { completeNotionOAuth, resolveUsableNotionToken, startNotionOAuth } from "../apps/local-host/dist/notion-oauth.js";
+import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/dist/connector-directory.js";
+import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
 
 async function isolated<T>(run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), "connector-oauth-choice-"));
@@ -30,8 +31,12 @@ async function isolated<T>(run: (directory: string) => Promise<T>): Promise<T> {
 }
 
 const NOTION_CONNECTION = "11111111-1111-4111-8111-111111111111";
+function registerNotionConnection(directory: string) {
+  withConnectorConnections(directory, store => store.upsertOAuth({ connectionId: NOTION_CONNECTION, serviceId: "notion", displayName: "Work",
+    accessRef: `connector-connection:${NOTION_CONNECTION}:access`, refreshRef: `connector-connection:${NOTION_CONNECTION}:refresh` }));
+}
 
-test("Notion OAuth rejects wrong state, exchanges code into its connection, and refreshes on demand", async () => isolated(async () => {
+test("Notion OAuth rejects wrong state, exchanges code into its connection, and refreshes on demand", async () => isolated(async directory => {
   const started = startNotionOAuth({ origin: "http://127.0.0.1:8787", clientId: "client-id", clientSecret: "client-secret", connectionId: NOTION_CONNECTION });
   const auth = new URL(started.authorizationUrl);
   assert.equal(auth.origin, "https://api.notion.com");
@@ -51,6 +56,7 @@ test("Notion OAuth rejects wrong state, exchanges code into its connection, and 
   await assert.rejects(() => completeNotionOAuth({ code: "code-1", state: "wrong", callbackUrl, fetchImpl }), /状态不匹配/);
   assert.equal(exchanges, 0);
   assert.equal((await completeNotionOAuth({ code: "code-1", state, callbackUrl, fetchImpl })).connectionId, NOTION_CONNECTION);
+  registerNotionConnection(directory);
   assert.equal(await resolveUsableNotionToken(NOTION_CONNECTION), "access-1");
   assert.equal(await resolveUsableNotionToken(NOTION_CONNECTION, true, fetchImpl), "access-2");
   assert.equal(createFileSecretStore().get(`connector-connection:${NOTION_CONNECTION}:refresh`), "refresh-2");
@@ -64,6 +70,7 @@ test("concurrent Notion refreshes share a request only within the same Home", as
     store.put("connector:notion:client_id", "fixture-client");
     store.put("connector:notion:client_secret", "fixture-secret");
     store.put(`connector-connection:${NOTION_CONNECTION}:refresh`, `refresh-${index}`);
+    registerNotionConnection(home);
   });
   let release!: () => void;
   const waiting = new Promise<void>(resolve => { release = resolve; });

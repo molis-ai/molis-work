@@ -8,7 +8,7 @@ import type { AssistantDelegations } from "./assistant-delegation.js";
 import { assistantErrors } from "./assistant-errors.js";
 
 /** Controls both a live round and a parked work. Stopping a wait does not pretend its already committed effects vanished. */
-export async function controlAssistantWork(work: StoredWork, control: AssistantControl, ports: {
+export async function controlAssistantWork(work: StoredWork, control: Exclude<AssistantControl, { kind: "withdraw" }>, ports: {
   actorId: string; store: AssistantStore; continuations: AssistantContinuations; delegations: AssistantDelegations;
   host(): Promise<AgentHost>; coding(work: StoredWork): Promise<CodingExecutor>;
   latest(host: AgentHost, work: StoredWork): Promise<AgentRunView | null>;
@@ -37,7 +37,7 @@ export async function controlAssistantWork(work: StoredWork, control: AssistantC
     ports.continuations.invalidateInput(work.work_id);
     if (running || wait?.wait) ports.store.update(ports.actorId, work.work_id, null, { continuation_hold: control.kind === "resume" ? undefined : control.kind === "pause" ? "paused" : "stopped" }, false);
     if (control.kind === "stop") {
-      ports.delegations.hold(work);
+      await ports.delegations.hold(work);
       if (work.session_id && !control.keep_connections) ports.cancelSetups?.(work.session_id);
       if (wait?.wait) await ports.continuations.withdraw(work, "用户停止了这项工作");
     }

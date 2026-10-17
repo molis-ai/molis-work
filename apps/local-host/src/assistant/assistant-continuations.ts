@@ -34,7 +34,8 @@ export class AssistantContinuations {
   async view(work: StoredWork): Promise<AgentCollaborationSessionView | undefined> {
     if (!work.session_id || work.executor.kind !== "assistant" || work.reply_target) return undefined;
     const adapter = (await this.ports.host()).adapter(RUNTIME);
-    return (await adapter.collaboration?.read(owner(work), work.session_id))?.[0];
+    const view = (await adapter.collaboration?.read(owner(work), work.session_id))?.[0];
+    return view?.wait?.by === "app" ? undefined : view;
   }
   async state(work: StoredWork, fallback: AssistantWorkState): Promise<AssistantWorkState> {
     if (work.continuation_hold && work.executor.kind === "assistant") return work.continuation_hold;
@@ -100,6 +101,7 @@ export class AssistantContinuations {
       for (const view of views) {
         const next = view.continuation;
         if (!next) continue;
+        if (view.wait?.by === "app") { held.set(next.request_key, {}); continue; }
         const work = this.works().find(work => owner(work) === scope && work.session_id === view.session_id);
         if (!work) { held.set(next.request_key, {}); continue; }
         if (work.continuation_hold || next.state !== "eligible" || !next.auto || view.wait?.state !== "satisfied") {

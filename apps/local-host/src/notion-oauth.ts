@@ -1,7 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { CatalogLiveError, NotionOAuthError, notionAuthorizationUrl, notionOAuthToken, type NotionOAuthTokens } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore, readProductEnv, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { oauthConnectionRefs } from "./connector-oauth-targets.js";
+import { oauthConnectionRefs, oauthRefreshGuard } from "./connector-oauth-targets.js";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 const PREFIX = "connector:notion:";
@@ -138,6 +138,7 @@ export async function completeNotionOAuth(input: {
 
 /** A connection's Notion access token, refreshed once when asked or when only the refresh token is left. */
 export async function resolveUsableNotionToken(connectionId: string, forceRefresh = false, fetchImpl?: typeof fetch): Promise<string | null> {
+  const beforePersist = oauthRefreshGuard(resolveMolisWorkHome(), connectionId);
   const store = createFileSecretStore();
   const refs = scopedRefs(connectionId);
   const current = store.get(refs.access)?.trim() || null;
@@ -162,6 +163,7 @@ export async function resolveUsableNotionToken(connectionId: string, forceRefres
         throw error;
       }
       if (store.get(refs.refresh)?.trim() !== refreshToken) throw new Error("Notion 连接在刷新期间已改变，请重试");
+      beforePersist();
       saveTokens(tokens, refs);
       return tokens.accessToken;
     })().finally(() => { refreshInFlight.delete(key); });

@@ -380,6 +380,7 @@ tests/import-boundary-template.test.ts
 tests/inbox-native-plugin.test.ts
 tests/inbox-prepared-pages.test.ts
 tests/interaction-examples.test.ts
+tests/interaction-recovery.test.ts
 tests/jelly-calendar.test.ts
 tests/jelly-content.test.ts
 tests/lingguang-store.test.ts
@@ -430,6 +431,7 @@ tests/uninstall-catalog.test.ts
 tests/v1.test.ts
 tests/visual-foundation.test.ts
 tests/web-mutation-key-settle.test.ts
+tests/web-route-table.test.ts
 tests/web-service-settings-client.test.ts
 tests/work-placement.test.ts
 tests/work-session-ui.test.ts

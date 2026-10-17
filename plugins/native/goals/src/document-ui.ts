@@ -37,28 +37,24 @@ function createDocumentRenderer(primitives: GoalsDocumentUiPrimitives) {
   </article>`;
   }
 
-  function renderInitialGoalTab(goal: Pick<GoalsDocumentItem["goal"], "goal_id" | "title">): string {
-    return `<div class="desktop-work-tab is-selected" data-work-tab-shell="${escapeHtml(goal.goal_id)}"><button type="button" role="tab" data-work-tab="${escapeHtml(goal.goal_id)}" aria-selected="true" aria-controls="goal-document-pane"><i aria-hidden="true"></i><span>${escapeHtml(goal.title)}</span></button><button type="button" data-close-work-tab="${escapeHtml(goal.goal_id)}" aria-label="${escapeHtml(L("关闭 {title}", { title: goal.title }))}">${icon("x")}</button></div>`;
-  }
   function renderEmptyGoalCollection(trash: boolean, full: boolean): string {
     const title = trash ? L("回收站是空的") : L("还没有归档 Goal");
     const detail = full ? `<p>${trash ? L("移入回收站的 Goal 可以在这里恢复；日常 Goal Tree 不会被它们干扰。") : L("已完成的 Goal 可以在正文顶部手动归档，历史事实不会被删除。")}</p><a href="/">${L("返回 Goal Tree")}</a>` : "";
     return `<div class="archive-empty">${icon("archive")}<h1>${title}</h1>${detail}</div>`;
   }
-  return { renderGoalDocument, renderTrashGoalDocument, renderInitialGoalTab, renderEmptyGoalCollection };
+  return { renderGoalDocument, renderTrashGoalDocument, renderEmptyGoalCollection };
 }
 export type GoalsDocumentRenderer = ReturnType<typeof createDocumentRenderer>;
 export const GOALS_DOCUMENT_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.document.v1";
 export type GoalsDocumentUiModel = { primitives: GoalsDocumentUiPrimitives } & (
   | { kind: "document"; args: Parameters<GoalsDocumentRenderer["renderGoalDocument"]> }
   | { kind: "trash"; args: Parameters<GoalsDocumentRenderer["renderTrashGoalDocument"]> }
-  | { kind: "initial-tab"; args: Parameters<GoalsDocumentRenderer["renderInitialGoalTab"]> }
   | { kind: "empty-collection"; args: Parameters<GoalsDocumentRenderer["renderEmptyGoalCollection"]> }
 );
 export const goalsDocumentUiContribution: UiContribution<GoalsDocumentUiModel> = {
   descriptor: {
     contribution_id: GOALS_DOCUMENT_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal document",
-    surfaces: ["document", "trash", "initial-tab", "empty-collection"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
+    surfaces: ["document", "trash", "empty-collection"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
   },
   render({ surface, model }) {
     if (surface !== model.kind) throw new Error("Goals document surface does not match its model");
@@ -66,7 +62,6 @@ export const goalsDocumentUiContribution: UiContribution<GoalsDocumentUiModel> =
     switch (model.kind) {
       case "document": return renderer.renderGoalDocument(...model.args);
       case "trash": return renderer.renderTrashGoalDocument(...model.args);
-      case "initial-tab": return renderer.renderInitialGoalTab(...model.args);
       case "empty-collection": return renderer.renderEmptyGoalCollection(...model.args);
     }
   },

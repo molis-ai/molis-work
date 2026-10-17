@@ -82,10 +82,6 @@ export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"
    * what it was asked to deliver, and when the person took it back. Which work asked and its follow-ups are on the graph.
    */
   delegated_by?: { graph_id: string; node_id: string; title: string; acceptance: string; taken_back_at?: string };
-  /** On a delegated work: its latest round whose result reached its delegating work (by checking, or at its next round). */
-  handed_back_run?: string;
-  /** On a delegating work: its round after which the person stopped it — what its sub-tasks hand back then does not move it on by itself. */
-  hand_back_held?: string;
   /** Half-written answers to the questions its rounds wait on, by pending id, as the question card's fields hold them. Never shown as the work. */
   question_drafts?: Record<string, Record<string, unknown>>;
   /** The person's explicit choice to hold automatic continuation; the SDK still owns the actual wait. */
@@ -222,7 +218,7 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "handed_back_run" | "hand_back_held" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
     const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };

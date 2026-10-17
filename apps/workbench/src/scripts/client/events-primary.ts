@@ -488,8 +488,8 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       const feedView = target.closest("button[data-feed-view]");
       if (feedView) { showFeedView(feedView.dataset.feedView); return; }
       if (await handleFeedRuleAction(target)) return;
-      const feedChoice = target.closest("[data-feed-choose-kind], [data-feed-connect-kind]");
-      if (feedChoice) { showFeedSetup("setup", feedChoice.dataset.feedChooseKind || feedChoice.dataset.feedConnectKind); return; }
+      const feedChoice = target.closest("[data-feed-choose-kind]");
+      if (feedChoice) { showFeedSetup("setup", feedChoice.dataset.feedChooseKind); return; }
       const feedConfig = target.closest("[data-feed-task-config-open]");
       if (feedConfig) {
         event.stopPropagation();

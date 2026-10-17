@@ -4,20 +4,45 @@
 
 目录里现在有这些东西：
 
-- 当前包 `prologue-sdk-0.0.0-rc.1-mcp-schema-annotations.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
+- 当前包 `prologue-sdk-0.0.0-rc.1-app-wait-ends-step.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 24 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
+- `patch-history.json`：已删除的 26 份历史补丁和 25 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
 另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
 
-## 当前依赖：mcp-schema-annotations（2026-10-17）
+## 当前依赖：app-wait-ends-step（2026-10-17）
 
-当前包 `prologue-sdk-0.0.0-rc.1-mcp-schema-annotations.tgz`（1,192,221 字节），SHA-256 `15f69f92c7e62dbe5a5d68ccfe3297b019ff21a6ec8018e222019c192b1681a5`。来源为上游 main `d2b3daa3de0744504b3098a17604f5f66019a29e`，即 [Prologue #36](https://github.com/molis-ai/prologue/pull/36) 的合并；无补丁、dirty 为 false，保留此前统一包能力。
+当前包 `prologue-sdk-0.0.0-rc.1-app-wait-ends-step.tgz`（1,195,429 字节），SHA-256 `cc4386e2d6edd1d6395f2c73d3cba722ac76da0855131049dd06796886ee0f0a`。来源为上游 main `24e6908352a9d2b164f62b83381b1f4cc6fc7643`，即 [Prologue #38](https://github.com/molis-ai/prologue/pull/38) 的合并，当时的 main 头；无补丁、dirty 为 false。从两份各自独立的干净 `git archive` 各打一次，两份逐字节相同。
+
+比上一份多两项：
+
+- [#37](https://github.com/molis-ai/prologue/pull/37)（`62431743`，树与评审过的 head `f4fda4a1` 相同）：App 的等待可以了结它挂着的步骤（`WaitArrangement.afterwards: "end-step"`，只给 `by: "app"`）。板上只写带 `ends` 的等待引用，不写接续；等待落定时，`running` 的步骤按终态结束（满足 → `succeeded`；失败、过期 → `failed`，`onFailure: "block"` 时 `blocked`；检查被拒 → `needs-reconciliation`），取消不动步骤。挂着它的步骤上不开尝试，提前继续拒绝。这样的等待不往会话里写话：作业怎样结束，由 App 自己从图上告诉 Work（[采用 spec](../../specs/prologue-adoption/spec.md) A3）。
+- #38（`24e69083`；它在 `d2b3daa3` 之上的改动与评审过的 head `b3be719b` 逐字相同）：一次运行开跑时可以带自己的引用种类名单。Molis 这一次只换包、不用它，由交互线接上。
+
+两项都要调用方显式选用，Molis 现在都没用，行为不变。已知缺口：交接、改派、重来时，没有接续的结束型等待的引用会留在新一代上（[Prologue #39](https://github.com/molis-ai/prologue/pull/39) 修，随下一次换包）；Molis 的作业步骤没有负责人、不会被交接，不受影响。
+
+验证（2026-10-17）：
+- 同一棵树（干净归档）上 build dist、`tsc` 无错；SDK 全量 353 个文件，3971 条通过、21 条跳过、0 条失败（未跑 `desktop-computer-use.live` 与 `computer-use.live`，它们操作真实桌面与浏览器）；
+- 这个包上 13 个消费者脚本全过；
+- 同样的步骤打第二次，字节数与 SHA-256 相同。
+
+重建命令与工具版本见旁边 `.provenance.json`。
+
+Molis 侧的验证（这一刀只换包，不写进采用 spec）：
+- 在 main `dd2bac58` 上换包：`pnpm install --frozen-lockfile --offline`、`pnpm build` 通过。
+- 非浏览器用例 132 个文件（全部 `prologue-*`、`agent-*`、`assistant-*`、`interaction-*`、MCP 与 Coding 步骤用例、`vendor-provenance`、`security-invariants-*` 中的非浏览器部分）一次全过；S-13 的 `prologue-memory-boundary` 在其中，在新包上再过一次。
+- `pnpm test:security` 59/59，`pnpm test:contracts` 44/44（动作合同快照没有变化）。
+- 浏览器用例交给全量，由统筹跑。
+- `check-health-gates --base origin/main`、`boundary:check`、`verify-release-versions` 都过；vendored SDK 仍是 1 份，没有数字变化。
+
+## 上一份：mcp-schema-annotations（#650，2026-10-17 换掉）
+
+上一份包 `prologue-sdk-0.0.0-rc.1-mcp-schema-annotations.tgz`（1,192,221 字节），SHA-256 `15f69f92c7e62dbe5a5d68ccfe3297b019ff21a6ec8018e222019c192b1681a5`。来源为上游 main `d2b3daa3de0744504b3098a17604f5f66019a29e`，即 [Prologue #36](https://github.com/molis-ai/prologue/pull/36) 的合并；无补丁、dirty 为 false，保留此前统一包能力。
 
 MCP 校验副本识别 default 与合法一级 x-mcp-header 注解，原始 schema 仍用于漂移检查；实际派出前校验参数值，不填默认值、不实现新协议头映射、不放宽模型 schema。采用合同与 Molis 验证见[采用 spec §6.0m](../../specs/prologue-adoption/spec.md#60m-mcp-参数注解与派出校验的统一-sdk2026-10-17)。
 
-SDK 24 文件 299 项回归、类型与构建通过，13 个干净包消费者通过；实际 GitHub MCP 发现 46 个工具并读取 Issue #1，零写入与模型请求。合并归档独立构建与已测包字节一致。Molis 整体构建通过，58 个相关非浏览器文件完成验证；首次发现动作目录也拒绝该注解，采用同一动作 schema 副本整理后，相关三文件 29 项通过。包边界、merge-base 健康门禁、页面资源和版本核对通过；Molis #650 的 PR CI、377 个产品子集文件与合并队列检查通过并已合入。真实模型验收另行记录。
+SDK 24 文件 299 项回归、类型与构建通过，13 个干净包消费者通过；实际 GitHub MCP 发现 46 个工具并读取 Issue #1，零写入与模型请求。合并归档独立构建与已测包字节一致。Molis 整体构建通过，58 个相关非浏览器文件完成验证；首次发现动作目录也拒绝该注解，采用同一动作 schema 副本整理后，相关三文件 29 项通过。包边界、merge-base 健康门禁、页面资源和版本核对通过；真实模型验收另行记录。#650 起是 main 的依赖，同日换成 app-wait-ends-step；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
 
 ## 上一份：app-tools-waits（2026-10-17）
 
@@ -155,8 +180,8 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：24 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 app-tools-waits 与之前的 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：34 个 Prologue 提交于 2026-10-17 对 main `d2b3daa3de0744504b3098a17604f5f66019a29e` 逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
+- `packagesWithoutPatch`：25 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 mcp-schema-annotations、之前的 app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `upstream`：35 个 Prologue 提交于 2026-10-17 对 main `24e6908352a9d2b164f62b83381b1f4cc6fc7643` 逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
 
 怎么取回并核对：
 

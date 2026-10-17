@@ -432,6 +432,111 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 
 三者写进 `skills/molis-prologue-ai/SKILL.md`、`docs/platform/PROLOGUE-AI.md` 与 `skills/molis-plugin-dev/SKILL.md`（含 `generated-ai.md`），并有对应用例。
 
+### 15.9 BL-156：等人回答的问题活过 Host 重启（设计，已评审，统筹 10-17 定了五点）
+
+> 状态：设计，未实现。2026-10-17 交互线写，采用线评审（#663 的评审意见，读的是 Prologue `24e69083`，恢复代码与 vendored 的 `d2b3daa3` 相同），统筹同日定了停放标记、写入顺序、同会话的其他轮、错误码与用例五点，下文已按它们改。对应 AC-07 的缺口。Prologue 那边由交互线写（同 BL-152），采用线下一次换包时与 prologue#39 一起换进。
+
+**现状（源码）。**
+- 问题本身落盘：`effects.pendings.restore()` 在重启后把打开中的等待读回来。期限按落盘时的墙钟截止时间重算（`pending-state.ts` 的 `deadlineWallMs`），所以重启后过期是真的过期。
+- 等待的那一跑不落盘：`ask-user` 在活的工具调用里等 `whenSettled`。
+- 正常关机（`composition/core/runtime-lifecycle.ts`）按顺序：`endLiveWaits()` 把有活等待者的打开中等待记成取消，`ask-user` 返回，这一跑以 `cancelled` 结束；然后 `cells.state = "stopped"`；最后对每个活的跑调 `run.cancel()`。AC-07 用例看到的就是这个。
+- 进程崩溃时，这一跑停在未结束，问题成了孤儿：
+  - 恢复只能 `inspect`，或者 `close`（`sessions.recoverRun`）。`close` 先取消孤儿题，再在一笔 `commitBatch` 里把这一跑记成 `RUN_INTERRUPTED`、把没读到的补充排进会话（`closeInterruptedRun`）。
+  - 重开时 `composition/core/attempt-recovery.ts` 把「跑没有终态」的 `running` 计划尝试记成 `needs-reconciliation`，它的节点若是 `running` 也一起改。
+  - 没有「回答孤儿题、让工作接着走」的操作。
+- 新一轮的准入（`agent-run-admission.ts`）只在会话 `recovering` 时拒绝，有未结束的跑并不拒绝。
+- Molis 这边：
+  - `horizontal/agent-host/src/adapters/prologue-node-port.ts` 的 `answerPending` 遇到没有活执行者的题，用「原执行者已经停止或离线」拒掉。
+  - 卡片据 `questionUnavailable` 显示不可答。
+
+**做法：正常关机把只在等人回答的跑「停放」起来；新的恢复操作回答它，并把答案交给下一轮。** 不恢复那个工具调用，也不重放任何东西。崩溃留下的孤儿不是停放，照今天的规则。
+
+1. **停放（Prologue，关机时）。**
+   - **在 `endLiveWaits` 之前判定。** 一跑够格，只当它唯一在飞的是那个 `ask-user` 等待：没有模型流，同一轮里没有别的工具调用，没有已派出的操作，没有审批。依据是这一跑自己的在飞集合，不是等待账。
+   - 够格的跑：
+     - `endLiveWaits` 跳过它的等待，不 `persistTerminal`，题在盘上仍是 `open`；
+     - 用内部的停止信号叫醒等待者（不是结算），执行者据此知道「进程要走了」：不追加工具结果，不写终态事件，不写任何日志。它落盘的前缀停在那次工具调用，和崩溃后一样（关闭时 `progressVersion === 1` 得 `durable-prefix`）；
+     - 从 `live` 里拿掉，第三步不再 `cancel` 它；
+     - **写一个持久的停放标记**（放在这一跑的记录上）：停在哪道题、哪一代、谁持有。
+   - 不够格的跑（还有别的在飞）：照今天的规则结束。
+   - **重开时**，`recoverAttempts` 见到停放标记，就不动这一跑的计划尝试和节点；没有标记的（崩溃孤儿）照今天记 `needs-reconciliation`。
+2. **新的恢复操作（Prologue）。** 暂名 `sessions.answerInterrupted(session, run, expectedVersion, pendingRef, answer)`，和 `recoverRun` 放在一起。
+   - **核对**（和 `recoverRun` 用同一份 `inspect`）：
+     - 会话是活的；
+     - 这一跑带停放标记、没有活执行者，版本与 `expectedVersion` 一致；
+     - 题属于这一跑、还开着、没过期；
+     - 答案用 `validateQuestionnaireAnswer` 按落盘的题核过；
+     - 这一跑没有结果未知的操作。
+   - **写入顺序：先结算题，再提交一笔会话账，不跨两本账合批。** 两本账虽在同一个 `ScopedStorage` 上，但 Node 的 `commitBatch` 不保证崩溃原子；从账外写等待记录还会让等待账的 `pendingVersions` 与内存里的 `held` 过时。所以：
+     1. 在等待账里用答案结算这道题。这是卡片读的唯一一笔。
+     2. 一笔 `commitBatch`（同 `closeInterruptedRun`）：这一跑的终态（`RUN_INTERRUPTED`，记下题和答案）、会话目录、以题号为幂等键的那条排队输入；同一步里把停放的计划尝试记成 `settled`，与停放时同一代、同一持有者，App 的下一轮照常 `beginAttempt`。
+   - **补做（幂等，按题号）。** 两步之间崩溃，会留下「题已结算、跑未结束、什么也没排」。补做从存着的答案把第 2 步做完，同一道题做几次都只有一条输入。它在三处跑：下一次 `answerInterrupted`、`inspect`、重开时的扫描。
+   - **补上缺口。** 今天 `inspect` 只列 `state !== "settled"` 的题，`close` 只传这些；一个已回答、还没交出的跑会被 `recoverRun` 关掉，答案就丢了。`inspect` 要报「已回答、未交出」，`close` 与 `answerInterrupted` 都先把它交出（同一个补做）。
+   - **不替 App 开下一跑**：和 `recoverRun` 一样，只排队。
+3. **同一会话的其他轮（Prologue）。** 会话里有停放的跑时，`startAgentRun` 用一个自己的码拒绝（暂名 `SESSION_RUN_PARKED`）。A2 交回时的自动续做（`auto`）、定时发送、新消息都一样被拒。要带的材料留在排队里，跟着答案那一轮进去。这与活着等的时候一致：那时工作卡在 `ask-user` 里，续做的材料也等它的下一轮。这样历史里「你问了 X」不会排在后来的轮次之后。
+4. **模型听到的是什么（Prologue 写这段文字，Molis 不在提示词里补）。**
+   - 那条排队输入的正文由 SDK 生成：说明上一轮在等人回答时中断了，原题是什么，人的回答是什么。
+   - 回答部分用今天工具结果里渲染问卷答案的同一段代码。下一轮模型看到的答案，和原来那一跑会收到的写法相同。
+   - `source` 是人（答案是人写的）。原题是模型自己写的，以数据形式带回。
+   - 下一轮用 `history: "session"`，模型能看到中断前的那一轮。它读到的是「你问了 X，回答是 Y」，不是一个接上的工具调用。
+5. **迟到、未知与错误码。**
+   - 过期：`PENDING_EXPIRED`，题照旧结束，卡片给「请 AI 重新问」（另一片）。
+   - 会话被取消或关掉：取消它的孤儿题，与今天相同。
+   - 版本过时（这一跑在核对之后变了）：拒绝，要先重新读。
+   - 有结果未知的操作：拒绝回答（`EFFECT_RECONCILE_REQUIRED`），题留着，卡上写要先核对。
+   - **会话正在恢复**：另给一个码（暂名 `SESSION_RECOVERY_BUSY`），不再和结果未知共用 `EFFECT_RECONCILE_REQUIRED`。`close` 今天对忙的会话也用后者，一并改。
+   - **两处同时回答同一道停放的题**（重启后的 AC-08）：
+     - 同一会话的恢复一次只进一个（`recovering`），另一份得到 `SESSION_RECOVERY_BUSY`；
+     - 先进的那份一结算，题就结束了；后到的再核时得到 `PENDING_ALREADY_SETTLED`。模型只听到一次。
+     - 重启后的 AC-08 依赖「一个 Home 只有一个执行进程」：`recovering` 是每个进程自己的。
+   - Molis 在错误映射的同一处（`horizontal/agent-host/src/adapters/prologue-control-errors.ts`，错误映射那一片）接这些码：
+     - `PENDING_ALREADY_SETTLED`、`PENDING_EXPIRED` 映射成 `agent.pending_not_open`；
+     - `SESSION_RECOVERY_BUSY` 映射成可重试的「还在恢复，稍后再试」；
+     - `SESSION_RUN_PARKED` 映射成「先回答上面的问题」；
+     - 没列出的映射成 `agent.control_failed`。
+6. **副作用。** 被关机切断的、带副作用的工具调用照今天的规则处理：结果未知就一直挡着，人核对之前这一跑不能结束，不能回答，也不重放。
+   - 这个操作不放松 `inspect` 的任何一条拦截，只在拦截全清时多给一个「回答并结束」的出口，与「取消并结束」（`recoverRun`）并列。
+7. **崩溃孤儿。** 没有停放标记的孤儿（崩溃留下的），绑在计划步骤上时照今天记 `needs-reconciliation`。它的卡不可答，`inspect` 把它报成一条拦截：答了也没有哪一轮能接上那个步骤，所以不排一条接不上的答案。人按今天的路核对或关掉。
+
+**Molis 这边。**
+1. **谁调它。**
+   - `answerPending`（`prologue-node-port.ts`）遇到「没有活执行者」的题时：如果这一跑在会话索引里、带停放标记、SDK 也没有它的终态，就走新操作，不再拒绝。
+   - 在调 SDK 之前，照今天的规则核答案：`answerProblems`，以及 `ownedReferences` 回主人读引用（S-26）。
+   - 这是题回答的唯一新入口。助理与 Coding 照旧经各自的回答路径到这里，不另开路由。
+2. **权限在回答时取。**
+   - 身份从这次调用的上下文来，不用原来那一跑的：
+     - 助理是 `assistant-service.ts` 的 `answer`（`store.get(actorId, workId)`，工作得是这个人的）；
+     - Coding 是会话主人的核对。
+   - 回答前先用开下一轮时的同一套核对预检：项目、插件启用、动作网关。这个人已经不能动这项工作了，就拒绝，题和草稿都留着。
+3. **开下一轮。**
+   - 操作成功后，回答路径用现有的开轮入口开一轮：助理是 `assistant-round-start.ts`，Coding 是 `plugins/native/coding/src/start-round.ts`。两者都已经 `queued: "carry"`，排着的答案和停放期间留下的材料自然带进去。
+   - `control` 的 answer 要告诉调用方「答案交给了中断的一跑，需要开下一轮」。这是 `services/agent-interaction` 的合同改动，要跑 `pnpm api:update`。
+   - 开轮失败（网关拒绝、模型设置缺）时，答案留在会话排队里，人下一次发话时带进去，不丢也不重复。卡片写「回答已收下，下一轮会带上」。
+   - 停放期间，助理与 Coding 的自动续做、定时发送和新消息被 `SESSION_RUN_PARKED` 拒绝；页面写「先回答上面的问题」，输入留作草稿。
+4. **卡片什么时候重新可答。**
+   - 只在这一跑带停放标记、`inspect` 没有拦截时可答，答案也只走上面这条路。
+   - 读取路径是 `readPendingQuestion` 和 `questionUnavailable`。
+   - 有拦截时（含崩溃孤儿绑在步骤上）卡片照旧不可答，原因写成要核对的那一条。
+   - 助理的 `answer` 现在要求 `phase === "awaiting-input"`，对停放的题改成按上面的条件放行。
+
+**测试。**
+- 上游（Prologue）：
+  - 一个进程里两个 Runtime：正常关机，再在同一份存储上重开。旧执行者迟到的续写什么也不写（这一跑记录的版本不变）。崩溃用例看不出这一条，因为那时进程已经没了。
+  - 崩溃落在「题已结算、跑未结束」之间：补做在 `answerInterrupted`、`inspect`、重开扫描三处各跑一次，只排一条输入；`close` 会先交出已回答的答案。
+  - 有停放的跑时 `startAgentRun` 被 `SESSION_RUN_PARKED` 拒绝，排队的材料随答案那一轮进去。
+  - 停放的跑重开后，计划尝试与节点不进 `needs-reconciliation`；回答后尝试是 `settled`，下一轮能 `beginAttempt`。没有标记的崩溃孤儿照旧。
+  - 一笔会话账、幂等、各种拒绝（含 `SESSION_RECOVERY_BUSY` 与 `EFFECT_RECONCILE_REQUIRED` 分开）。
+- Molis：
+  - AC-07：删掉的重启用例放回 `tests/interaction-recovery.test.ts`。关 Host 再开，回答，新的一轮带着答案跑完；模型请求里有原题和答案。
+  - 重启后的 AC-08：两处同时交，只收一份，另一份得到 `agent.pending_not_open` 或「还在恢复」。
+  - 结果未知的操作挡住回答；过期的题拒绝回答；停放期间新消息被拒、输入留着。
+
+**不包含。**
+- 接上被切断的工具调用。
+- 恢复审批与命令等待：它们照今天的规则在关机时结束。
+- 崩溃孤儿绑在步骤上时的自动解法：照今天由人核对。
+- 「请 AI 重新问」：过期和已结束的题用它，另一片。
+
 ## 16. 决策记录
 
 2026-10-09 用户对 D1–D4 选了「推荐」一列；D5、D6 未另提意见，按推荐执行，随时可改。
@@ -576,6 +681,8 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 - 2026-10-11：I0 独立组合预览写成并交接（§19、§20）。
 - 2026-10-12（C1a，已取消）：曾把合同子路径先做成纯新增（#447）；统筹改序后并进 C1+H1（D11），#447 关闭。
 - 2026-10-13（交接 PR 合并 I1）：按用户决定，各线只在交接 PR 里提交；I1（#439）已合进交接分支（933c664f，无冲突）。I0 预览改用 `createInteractionClient`，删掉预览自己的 `calendar.ts` 和 `bindings.ts` 里的字段、日历、键盘处理（净减 128 行）；纯逻辑用例 21/21 与局部 typecheck 通过，**浏览器用例（`tests/ai-interaction-slice.e2e.test.ts`）等 browser 锁，尚未重跑**。
+- 2026-10-17（运行控制的错误映射，防腐复查）· 从 main `dd2bac58`（#659 之后）起 · merge-base `dd2bac58` · 统筹批准计划。SDK 的码在一处映射：`horizontal/agent-host/src/adapters/prologue-control-errors.ts` 的 `controlFailure`，`control()`（停、取消、暂停、继续、换模型、回答）整段经它出。Molis 的 `ActionError` 原样通过；SDK 的错误按 `isPrologueError` 认出，查一张以 SDK 的 `PrologueErrorCode` 为键的表（SDK 改名或删码就编译不过；SDK 不导出码常量，所以用类型）：`PENDING_ALREADY_SETTLED`、`PENDING_EXPIRED` 映射成 `agent.pending_not_open`，其余与普通异常映射成新的 `agent.control_failed`（`internal`，经 `defineErrorCodes` 声明），原错误放在 `cause`，SDK 的码放在 `details.runtime_code`，只供诊断，调用方按 `code` 与 `kind` 分支。§15.9 的 `SESSION_RECOVERY_BUSY`、`SESSION_RUN_PARKED` 换包后加在同一张表里。AC-08 的断言改成 `agent.pending_not_open`；新用例 `tests/agent-control-errors.test.ts`（只引公开路径）：原样的 `PENDING_*` 不到调用方、没列出的 SDK 码与普通异常是 `agent.control_failed`（停止也经同一处）、Molis 的拒绝原样通过。`prologue.ts` 文件与类都不变大：回答分支的三行 `if` 写成文件里常见的一行 `if … throw`，类型导入里一行空行删掉。错误模型的数字不变（以 SDK 码为键的表不是码的出处）。
+- 2026-10-17（AC-08 并发作答的用例；AC-07 的重启缺口，防腐复查）· 从 main `02829775`（#653 之后）起 · merge-base `02829775`。只加用例与文档：`tests/interaction-recovery.test.ts`（AC-08：两份同时交同一题，只收一份），AC-07、AC-08 两行，BACKLOG 新增 BL-156。写 AC-07 的用例时发现：关掉 Node Host 再开，等人回答的一轮读回是 `cancelled`，问题不能再交；草稿还在，卡上有说明，但没有「请 AI 重新问」。统筹 10-17 定：AC-07 的标准不改，行标为部分，缺口进 BL-156；「请 AI 重新问」是 Molis 侧的修，先问统筹；下一步先读 Prologue 源码再谈设计。页面资源、API 与动作快照、DOM 事件、错误码、翻译都不变。
 - 2026-10-17（D1 文档与示例，AC-12，防腐复查）· 从 main `c276ab9c`（#648 之后）起 · merge-base `c276ab9c`。只动文档与用例，不改源码：`skills/molis-prologue-ai/SKILL.md` 加「交互」一节（含验证命令），`docs/platform/PROLOGUE-AI.md` §6 末尾加「问人、建议一步、引用对象」一小节（这两份归手册线，统筹 10-17 定：只加这一节，不动别的段落），`skills/molis-plugin-dev/SKILL.md` 的索引加一行，设计系统 README 补引用搜索的行为；新用例 `tests/interaction-examples.test.ts`（§15.8 示例 1，进 CI 产品子集）。`skills/molis-plugin-dev/SKILL.md` 不在创作台的 `CHAPTERS` 里，所以不需要 `studio:replay`；改了 `skills/` 后先 `pnpm build` 再跑安装类用例。通过：文档引用门禁（行内路径、动作 id 都存在）；页面资源、API 与动作快照、DOM 事件、错误码、翻译都不变。没改 `generated-ai.md`：它挂在创作台的 Skill 里，改了要 `pnpm studio:replay` 加真实模型冒烟，而生成插件沙箱没有 `ask-user` 与 `suggest-action`，`skills/molis-plugin-dev/SKILL.md` 的索引行已写明这条边界。
 - 2026-10-17（T2 对象引用题，防腐复查）· 从 main `7bf9b7a1`（#618、#632 之后）起 · merge-base `7bf9b7a1` · 决策 D36。通过：M1 边界（`boundary:check`；设计系统不引用合同与 SDK，宿主取种类只读内置 Manifest，插件之间不互相引用）；M2 健康门禁对照 merge-base（新的 `*_SCRIPT` 文本常量 0：引用搜索的接线写进工作台与项目选择页原有的两段脚本，不另立常量；`craft-finish.ts` 巨大单元行数不变）；M4 API 快照（`plugin-sdk` 的 `questionAnswer` 返回值多了引用数组，已 `api:update`）；动作快照（`coding.runs.control` 升到 v5，v1～v4 拒绝；`search.references@1` 不变）；DOM 事件 0 新增；翻译（9 句新中文都有英文，「没有找到」沿用 Todo 已有的 No matches，不新增冲突）；错误码 0 新增（`kind-not-allowed`、`too-many`、`reference-unavailable` 都是合同里已有的原因）；页面资源由用户弹窗批的一次性上限（D36 ⑤），实测 `workbench.css` +1,326、`arrival.css` +1,326、`workbench.js` +4,037、`settings.css` +19，`coding.js` 不变；S-26 加两条断言拒绝本身的用例（页面写的标题进不了回答；题目没要的种类搜不到也交不上）；用户 10-16 规则：种类清单来自 Manifest 与上游 enum，不写提示词禁令、不靠正则或特例。留下的：外部插件的种类不在清单里（BL-152）。
 - 2026-10-17（T1 后续：数字题的单位，防腐复查）· 从 main `cee899c4`（#615 换包之后）起 · 决策 D35。改动只在宿主的卡（`agent-question-card.ts`：把题目的 `unit` 交给共享控件、界限带单位）与设计系统的数字控件（`interaction.ts`：单位加 id，输入框的 `aria-describedby` 先指单位）；没有新事件、新错误码、新合同、新翻译句子；页面资源不变（单位是宿主画的 HTML，样式 T1 已有），四份资产与 main 相同。单位只经合同 `AgentQuestion.unit` 一处来，不从题干猜（用户 10-16 规则：不打补丁）。
@@ -994,8 +1101,8 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 | AC-04 补充信息 | 已实现 | 助理与 Coding 的 `ask-user` 带六种题型（T1、T2），宿主逐题校验与字段旁的错误（`answerProblems` → `agent.answer_invalid` → `questionErrors`）；§15.8 示例 1 一张卡问日期时间、数字与对象引用，错一题只报那一题，改对后原 Run 接着做（`interaction-examples`，2026-10-17）；浏览器里的同一条路是 `assistant-typed-questions.e2e` |
 | AC-05 对象与材料 | 部分 | H3 与 T2：候选只按题目的种类、以会话主人的权限搜（`search.references@1`），提交前宿主向主人重读，主人此刻的标题进回答，读不到的退回（S-26，`security-invariants-object-references`）；操作卡的目标对象改版后失效（`assistant-offers.ts` 的失效巡检）。没有的：选区与会话、项目切换时的不串线用例；外部插件的种类不在清单里（BL-152） |
 | AC-06 预览与结果 | 部分 | 助理操作卡有对象、参数、影响与回执（`assistant-card-view.ts`）；结果只有一行文字；下一步只有「打开结果 / 再试一次」。Coding 没有操作卡（H4） |
-| AC-07 失败恢复 | 部分 | 等待期限 24 小时（`prologue-node.ts` 的 `inputWaitTtlMs`）；草稿存在工作记录与 Coding 会话（D13、`question_drafts`）；卡片 CAS、结果未知不重试。重启后带类型问卷读回并作答的真实 Node Host 用例**没有** |
-| AC-08 并发与输入 | 部分 | 卡片版本 CAS、问题版本核对；没有「两个入口同时回答同一题」的真实交错用例 |
+| AC-07 失败恢复 | 部分 | 等待期限 24 小时（`prologue-node.ts` 的 `inputWaitTtlMs`）；草稿存在工作记录与 Coding 会话（D13、`question_drafts`）；卡片 CAS、结果未知不重试。**缺口（2026-10-17 实测）**：Home 重启后，等人回答的问题跟着结束，读回的这一轮是 `cancelled`，卡上有说明、草稿还在，但不能交、不能恢复，也没有 D5 的「请 AI 重新问」（过期的问题同样没有）。恢复仍是目标，见 BL-156 |
+| AC-08 并发与输入 | 部分 | 卡片版本 CAS、问题版本核对；两个入口同时交同一题：只收一份，另一份带码退回，模型只听到一次，跑完后再交也退回（`interaction-recovery`，2026-10-17）。没有的：浏览器里两个页签同时作答的用例 |
 | AC-09 专业插件 | 部分 | Coding 的 Diff、命令审查、报告在 A2 全量里通过；非 Agent 插件的结构化接续没有（S1） |
 | AC-10 UI | 部分 | 助理问卷卡与操作卡在 A1 看过浅、深与 390 px；Coding 问卷卡的三个宽度与深色没有记录；真实中文输入法、读屏未验证 |
 | AC-11 SDK 消费 | 部分 | 过渡包带带类型 `ask-user`，宿主用它投影与预检；只开了 `choice`；换正式包（采用线 P3）后要再核 |

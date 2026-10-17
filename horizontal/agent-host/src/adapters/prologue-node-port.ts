@@ -232,9 +232,17 @@ function sessionsPort(deps: PortDeps): PrologueRuntimePort["sessions"] {
   };
 }
 
+/** The runtime's session behind one of ours, or the reason it cannot be read. */
+async function openSessionOf(deps: PortDeps, sessionId: string, unreadable: string) {
+  const index = await deps.index.read(sessionId), session = index && await deps.runtime.sessions.open(index.ref);
+  if (!session) throw agentErrors.session_unknown(unreadable);
+  return session;
+}
+
 /** The port the adapter drives: every capability the Node composition offers, each from its own part. */
 export function createNodePort(deps: PortDeps): PrologueRuntimePort {
   const { runtime, state, stepBoards, messages, mcpLibrary } = deps;
+  const openSession = (sessionId: string, unreadable: string) => openSessionOf(deps, sessionId, unreadable);
   return {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
     readStepBoard: run => stepBoards.read(run),
@@ -243,11 +251,10 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
       act: (project, id, action, detail, actorId) => messages.act(project, id, action, detail, actorId),
       prioritize: prioritize(deps) },
     collaboration: { ...deps.waitsPort.collaboration, revise: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor), works: deps.workGraphs.port },
-    // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key.
-    queueInput: async (sessionId, input) => {
-      const index = await deps.index.read(sessionId), session = index && await runtime.sessions.open(index.ref);
-      if (!session) throw agentErrors.session_unknown("这条会话读不到，补充留不到下一轮");
-      return session.queueInput(input);
+    // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key, and gives it back while it still waits.
+    queue: {
+      add: async (sessionId, input) => (await openSession(sessionId, "这条会话读不到，补充留不到下一轮")).queueInput(input),
+      withdraw: async (sessionId, inputId) => (await openSession(sessionId, "这条会话读不到，撤不回排着的补充")).withdrawQueuedInput(inputId),
     },
     background: deps.waitsPort.background,
     projectWork: projectWorkPort(deps),

@@ -129,6 +129,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "恢复默认": "Restore default",
   "Prompt 不能为空；要回到原来的文字请用“恢复默认”": "A prompt cannot be empty; use “Restore default” to go back to the original.",
   "已保存，下一轮开始生效": "Saved; takes effect from the next round",
+  "没确认送到：再按一次，同一条不会重复。": "Not confirmed: the connection dropped or the reply couldn't be read. Press again; it won't be sent twice.",
   "默认已更新到版本": "Default updated to version",
   "查看新的默认": "view the new default",
   "查看默认文字": "View the default text",

@@ -636,9 +636,9 @@ for (const [asset, old] of [
 // change), or growth from the new baseline still fails.
 test("T2 has one bounded allowance on the workbench script, the Assistant's two stylesheets and the settings sheet; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-arrival.css": [802383, 803709],
-    "/assets/molis-work-settings.css": [1092124, 1092143],
-    "/assets/molis-work-workbench.css": [1680641, 1681967],
+    "/assets/molis-work-arrival.css": [744923, 746249],
+    "/assets/molis-work-settings.css": [1034948, 1034967],
+    "/assets/molis-work-workbench.css": [1624532, 1625858],
     "/assets/molis-work-workbench.js": [1101126, 1105163],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];

@@ -253,7 +253,7 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
       html: renderFeedRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
     // The same question card the Assistant shows, in the person's language; Coding's page restores its own drafts into it.
-    for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L) });
+    for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L, undefined, undefined, true) });
     // The row beside the composer: the round's questions as the Assistant's are, then what its card offers next (AC-25).
     // Drawn on every round the page receives in full, so a round it keeps unchanged keeps its row; it shows the latest one's.
     // The round's suggestions as the Assistant's cards are drawn; Coding keeps them and runs them (D25).

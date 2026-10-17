@@ -118,7 +118,7 @@ test("AC-23: a card's controls come back as the strings its input takes; a momen
 });
 
 const view = (phase: string, extra: Partial<AssistantWorkView> = {}): AssistantWorkView => ({
-  work: { work_id: "w1" }, reviews: [], cards: [], objects: [],
+  work: { work_id: "w1", executor: { kind: "assistant" } }, reviews: [], cards: [], objects: [],
   rounds: [{ run_id: "run-1", text: "整理周报", phase, awaiting_input: [], turns: [], activity: [], materials: [], context: null, started_at: "", ended_at: null }],
   ...extra } as AssistantWorkView);
 
@@ -132,7 +132,7 @@ test("AC-23: the steps under the latest round derive from the work: open what it
 });
 
 test("FLOW-04, FLOW-05: the row above the input puts what waits first, shows three and folds the rest; nothing in it re-runs an unknown result", () => {
-  const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check" } as AssistantWorkView["work"],
+  const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check", executor: { kind: "assistant" } } as AssistantWorkView["work"],
     reviews: [{ review_id: "r1", run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }],
     cards: [card("ready"), { ...card("unknown"), card_id: "card-2" }, { ...card("done"), card_id: "card-3" }],
     delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }, { work_id: "child-2", title: "已收回", state: "waiting-input", follow_ups: 0, taken_back: true }] });

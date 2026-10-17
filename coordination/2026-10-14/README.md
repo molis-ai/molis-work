@@ -795,3 +795,6 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 防腐线 §10.26 独立复查（在途 #667/#669/#671/#673/#675/#680/#634）：删掉的断言都换成了等价或更严的，门禁数字只降不升；三份字节放行（#667、#669、W5-01 +28）都以 1,099,839 为键，后合入的按新 main 重新定键；#664、#665 的合并解决都没问题。S-31/S-32 要改的五处（表行、S-13 里的「见 S-31」、两份用例名、spec）已转交互线核对。
 - **#661（Codex 线草稿，助理统一接入服务）防腐线复查**，交到统筹手里时要提的几条：连接库的基线从 1 改成 2（新表 connector_observations），却没在防腐 spec §4.1 的库版本维护清单里加行，变基后 store-versions 门禁会挡下；新加了一份 Home 存放 CONNECTOR_TOOLS_HOME_STORE；体量是 100 个文件、+9,180，转正前要拆片；page-assets 的基数（1,103,578）已经过时。其余都有依据。#631 无须修：Enter/Ctrl+Enter 的断言是跟着 spec 改的，没有变弱。
 - 防腐线问 §10.26（纯文档）能不能现在开第三个 PR：统筹答，等 #677 合入再开，纯文档也占一片。#679 合入后空出的位置先给 W5-01，§10.26 跟在后面。
+- **W5-01 下一片（统筹 10-17 定）**：先做灵光，Cognia 往后，Images 等 #661 定形，Jelly 最后。灵光之前先做两个平台小片，防腐线先写方案发统筹。
+  - (a) Runtime 路由支持流式回复：在 Manifest 里声明，宿主统一写 NDJSON，取消走 signal。方案里要写明三件事：36 MB 正文上限和 `max_body_bytes` 怎样对上；流到一半出错怎样收尾；撤权、停用时要不要立刻断。
+  - (b) 材料读取归平台，不做成 Jelly 的动作，这在 main 上本来就定了：`contracts/services/materials` 写明来源身份、原件、业务转换和引用规则归消费方；Host 的 `material-extraction.ts` 就是共同提取口，Shelf、Pages、onboarding、Artifacts 已经直接在用。做法是把它经插件服务（`services.materials`，在 Manifest 里声明）交给 Runtime 插件。灵光改认平台的 `material.model_required`，不再按名字认 `jelly.material.model_required`。读网页的 `readJellyMaterialSource` 有公开地址的校验，属于安全边界，也有两个插件在用，一起归平台、去掉 jelly 前缀；哪些码变、S 表哪几行要改，在方案里列清楚。不选 Jelly 动作，是因为那样灵光就得依赖 Jelly 装着并启用着，还会把跨插件的错误码耦合留下来。

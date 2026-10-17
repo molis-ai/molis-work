@@ -9,7 +9,8 @@ export const reaskTask = (): string => QUESTION_REASK.task;
 
 /**
  * 「请 AI 重新问」 on one of the Assistant's closed question cards (specs/ai-interaction-experience D5): the person's Send
- * names the question (`reask: { run_id, pending_id }`), and the round carries the question and their draft as marked data.
+ * names the question (`reask: { run_id, pending_id }`), and the round carries one material that states only facts: the
+ * question, why it ended, and the draft the person wrote but did not send.
  * The page names only which question; the Host reads it from the work's own run, and the draft from the work, so a page
  * cannot hand the model words of its own as "the draft". Only a question that can no longer be answered is asked again:
  * an open one is answered, not re-asked. A Coding work's questions are Coding's, asked again on its own page.

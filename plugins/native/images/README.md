@@ -10,6 +10,8 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 
 生成由明确提交的动作启动，费用由所连接的厂商收取。失败、超时或重启不会自动再次调用；「停止等待」仅停止本机请求，不保证厂商不继续生成或计费。重新使用提示词不立即生图。所选账号失效或服务被删除时保留原选择并显示原因，不自动换成其他账号或匿名本机请求。生成期间授权改变时不保存过期结果。
 
+连接列表 `images.connections.list@2` 的账号记录带 `enabled`，停用保留已选账号与凭据但拒绝生成；重新启用后沿用同一引用。调用方从共同目录取当前版本，旧版精确引用须重选。
+
 插件声明九项统一动作：`images.connections.list/save/delete`、`images.jobs.list/start/get/cancel/delete` 和 `images.images.read`。HTTP 仅转发到同一动作服务；标准 MCP 导出相同合同。配置操作遵守 Home 权限，任务和图片遵守项目权限；模型参数不能改变调用者的项目。启动返回持久任务，`request_id` 对相同输入去重；图片读取返回实际 Base64 字节、MIME 和文件名。
 
 数据：`{home}/images/images.db` 与 `{home}/images/assets/`。任务按宿主项目隔离，配置属于本机。Web 和独立 MCP 进程共享原数据库、请求去重与并发上限；每个任务记录执行进程，关闭或崩溃只中断该进程负责的任务。跨进程取消会通知原执行者停止等待，打开或关闭管理页面不影响任务。升级时保留原数据并补充内部 runner 身份；运行中的旧版本独占服务需要先关闭，禁止新旧执行器同时修改任务。
@@ -44,3 +46,5 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 客户端资源由 Host 注入的 UI 生命周期管理：隐藏停止进度轮询，再次显示刷新；卸载取消本机请求并释放监听、定时器和观察器。服务端任务保持原有取消与恢复语义。
 
 执行时限与持久取消监测复用 Plugin SDK 的执行生命周期；请求去重、进程锁、图片提交和重启后中断记录继续由 Images 拥有。监测失去执行资格后停止等待，不能把撤销或关闭改写成普通失败。
+
+连接使用位置查询 `images.connection.usages` 读取原生图配置的 `auth_connection_id`，返回该配置 id 与已有生成动作；不查询历史提示、图片或 API Key。换绑、删除和停用后直接反映当前 owner 的状态，汇总可见性不授予生成权限。

@@ -40,7 +40,7 @@ test("RCPT-323: the Assistant takes back a supplement its round has not read, an
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
-  t.after(async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
 
   const started = await service.send({ text: "帮我整理这周的周报", request_id: "request-1", scope: { kind: "personal" } }, {});
   const workId = started.work.work_id, runId = started.run_id!;

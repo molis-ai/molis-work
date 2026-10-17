@@ -76,7 +76,7 @@ export function createWorkWaits(runtime: Runtime, root: string, isWorkGraph: (gr
     onReady: (listener => {
       const look = (graph: string) => void isWorkGraph(graph).then(work => {
         const continuation = work ? rootOf(graph)?.continuation : undefined;
-        if (continuation?.state === "eligible") listener({ graph_id: graph, request_key: continuation.requestKey });
+        if (continuation?.state === "eligible" && runtime.waits.get(continuation.wait.ref.id)?.by === "app") listener({ graph_id: graph, request_key: continuation.requestKey });
       }, () => undefined);
       const off = runtime.boards.subscribe(event => { if (event.type === "wait" && event.nodeId === root && event.state === "eligible") look(event.board); });
       for (const ref of runtime.boards.refs()) look(ref.id);

@@ -171,6 +171,7 @@ export class AssistantOffers {
   /** What the shared card rules read for a work's cards: its objects, the person's clock and zone, and the Assistant's own refusals. */
   private rules(work: StoredWork): Omit<ActionCardPorts<StoredCard>, "authority"> {
     return { store: this.store, readSubject: subject => this.ports.readSubject(work, subject), now: () => this.ports.now(),
+      ...(work.project_ref ? { projectId: work.project_ref.project_id } : {}),
       ...(this.ports.timeZone ? { timeZone: this.ports.timeZone } : {}), refuse: (reason, message) => this.ports.fail(REFUSALS[reason], message) };
   }
 }

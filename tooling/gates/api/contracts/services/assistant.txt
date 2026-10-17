@@ -74,6 +74,7 @@ export interface AssistantCard {
     }>;
     status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
     outcome?: string;
+    presentation?: ActionResultPresentation;
     from?: {
         surface: string;
         title?: string;
@@ -133,7 +134,12 @@ export interface AssistantContribution {
 }
 
 export type AssistantControl = {
-    kind: "pause" | "resume" | "stop";
+    kind: "pause";
+} | {
+    kind: "resume";
+} | {
+    kind: "stop";
+    keep_connections?: boolean;
 } | {
     kind: "withdraw";
     run_id: string;

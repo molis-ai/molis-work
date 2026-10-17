@@ -23,6 +23,7 @@ export interface ActionCard {
     }>;
     status: ActionCardStatus;
     outcome?: string;
+    presentation?: ActionResultPresentation;
     request_id?: string;
     target?: {
         kind: string;
@@ -43,6 +44,7 @@ export interface ActionCardPorts<Card extends ActionCard = ActionCard> {
     }): Promise<ActionSubjectContext | "missing" | null>;
     now(): Date;
     readonly timeZone?: string;
+    readonly projectId?: string;
     refuse(reason: ActionCardRefusal, message: string): Error;
     started?(view: ActionView, output: unknown, card: Card): Promise<boolean>;
 }

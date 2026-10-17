@@ -2,10 +2,10 @@ import type { AsyncLocalStorage } from "node:async_hooks";
 import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type Runtime, type Skill } from "@prologue/sdk";
 import type { createNodeHost } from "@prologue/sdk/node";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
 import { agentErrors } from "../errors.js";
-import type { HostMcpConnection } from "./prologue-mcp.js";
+import type { HostMcpConnection, SaveMcpConnection } from "./prologue-mcp.js";
 import type { PrologueSurfacePorts } from "./prologue-surfaces.js";
 import type { AgentReviewQueue } from "../reviews.js";
 import type { RoundFacts } from "./announce-guard.js";
@@ -48,6 +48,7 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
    */
   resolveCredential?: (credentialRef: string) => string | null | Promise<string | null>;
   resolveMcpConnection?: (connectionId: string, endpoint: string) => HostMcpConnection | Promise<HostMcpConnection>;
+  saveMcpConnection?: SaveMcpConnection;
   subscribeMcpConnections?: (listener: (connectionId: string) => void) => () => void;
 }
 
@@ -68,7 +69,7 @@ export interface RoundState {
   readonly sessions: Map<string, ExactRef<"session">>;
   readonly actionToolSessions: Set<string>;
   /** The gateway a business session's latest round runs with, for describing a held change to the person. */
-  readonly gatewayRuns: Map<string, NonNullable<PrologueStartInput["action_gateway"]>>;
+  readonly gatewayRuns: Map<string, NonNullable<PrologueStartInput["action_gateway"]> & { declare?(view: ActionView): void }>;
   /** Per session, the capabilities the round now running has seen offered (so one gone later reads as taken away). */
   readonly gatewayKnown: Map<string, Set<string>>;
   readonly gatewayHooks: Set<string>;

@@ -122,6 +122,12 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
         // Over already, its step held for the person: giving it up gives the step back (the person's decision, on the
         // step's record); going on is the round the person starts now, which gives it back the same way.
         const continuation = continuationOf(wait);
+        if (control.kind === "cancel-wait" && continuation?.state === "eligible") {
+          const step = nodeOf(wait.scope.board, wait.scope.node)!;
+          await runtime.boards.handOver({ ref: boardRef(wait.scope.board), nodeId: step.id, from: step.assignee, to: step.assignee,
+            scope: wait.scope, note: control.note ?? "用户取消了等待后的接续", atMs: at, human: { kind: "human", id: actorId } });
+          return sessionView(wait.session.id);
+        }
         if (!continuation || !stillHeld(wait, continuation)) throw agentErrors.collaboration_conflict("这个等待已经结束");
         if (control.kind === "cancel-wait") await readyStep(runtime, wait.scope.board, wait.scope.node, actorId, control.note ?? "用户取消了等待");
         return sessionView(wait.session.id);

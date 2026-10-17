@@ -881,3 +881,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 页面资源先抵，抵不下的由回执线在自己的会话里弹窗问用户。
 - #675 → 0414c3c02：merge 了 f78ae6d5c。除去 baseline 和 page-assets，和审过的版本逐行一致。baseline 里也带上了 #669 的降幅（本地快查用，只降不升）。chain12 和 chain13 都还没加标签，按 pid 停掉，合成 chain14：671→675→683。
 - #679 合入 9626b24b1（S-31）。已通知交互线：#681 merge main、改成 S-32 后推送。在统筹会话里给 Codex 写了通知：可以开 W5-01 Todo。#673 仍和 main 冲突，在等情境线的新 head。
+- 用户已把 #679 合入的通知转给了 Codex：W5-01 用 [1105153, 1105181] 定键；#677 要 merge main。

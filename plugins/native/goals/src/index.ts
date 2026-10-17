@@ -108,6 +108,7 @@ export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./board-snap
 
 
 
+export { GOALS_DOCUMENT_STYLES } from "./document-styles.js";
 export { TRASH_GOAL_STYLES } from "./trash-document-styles.js";
 
 export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsInputBinding } from "./document-view.js";

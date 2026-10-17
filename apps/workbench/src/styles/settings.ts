@@ -1,5 +1,4 @@
 import { CONNECTOR_EXPERIENCE_STYLES } from "./settings-connectors.js";
-import { SETTINGS_DESKTOP_SHELL_STYLES } from "./settings-desktop-shell.js";
 export const SETTINGS_STYLES = `
   html:has(> body.settings-page), body.settings-page { height: 100dvh; max-height: 100dvh; min-height: 0; overflow: hidden; overscroll-behavior: none; background: var(--page); }
   body.settings-page { display: grid; grid-template-rows: auto minmax(0, 1fr); }
@@ -595,7 +594,6 @@ export const SETTINGS_STYLES = `
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
   }
-${SETTINGS_DESKTOP_SHELL_STYLES}
   body.settings-page[data-desktop-shell="true"]:is([data-settings-section="projects"], [data-settings-section="project"]) .settings-content {
     grid-column: 1;
     grid-row: 1;

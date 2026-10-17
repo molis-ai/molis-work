@@ -170,7 +170,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const browserHeld = new Set();
   const holderOf = (session) => typeof session === "string" && session
     ? works.find((work) => work.session_id === session || (work.executor && work.executor.session_id === session)) : null;
-  onEl(document, "molis:side-browser-control", (event) => {
+  document.addEventListener("molis:side-browser-control", (event) => {
     const detail = event.detail || {}, holder = holderOf(detail.session_id);
     if (!holder) return;
     if (detail.action === "takeover") { browserHeld.add(holder.work_id); paintSum(); return; }
@@ -1602,7 +1602,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   // Notices come with the page's attention read (attention.ts).
   const loadNotices = () => document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
-  onEl(document, "molis-work:attention", (event) => {
+  document.addEventListener("molis-work:attention", (event) => {
     const detail = event.detail || {};
     if (typeof detail.plugin_events_pending === "number" && detail.started > pluginHeldSince) pluginWaiting = detail.plugin_events_pending;
     if (Array.isArray(detail.notices)) {
@@ -1617,8 +1617,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     loadNotices();
   };
   noticeBtn?.addEventListener("click", () => setNotices(noticeEl.hidden));
-  onEl(document, "molis-work:model-ready", () => { if (problem && /模型/.test(problem.action || "")) { problem = null; render(); } });
-  onEl(document, "molis-work:plugin-events", (event) => { pluginHeldSince = performance.now(); pluginWaiting = Number(event.detail?.pending) || 0; paintAttention(); });
+  document.addEventListener("molis-work:model-ready", () => { if (problem && /模型/.test(problem.action || "")) { problem = null; render(); } });
+  document.addEventListener("molis-work:plugin-events", (event) => { pluginHeldSince = performance.now(); pluginWaiting = Number(event.detail?.pending) || 0; paintAttention(); });
 
   /* ─── Sending ──────────────────────────────────────────────────────────── */
   /* ─── What the person is looking at, and what goes with this Send ──────── */
@@ -1753,7 +1753,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       queueMicrotask(paintEmpty);
     },
   };
-  onEl(document, "molis:assistant-starters", (event) => {
+  document.addEventListener("molis:assistant-starters", (event) => {
     const detail = event.detail || {};
     const items = Array.isArray(detail.items) ? detail.items.filter((item) => item && typeof item.key === "string" && typeof item.label === "string") : [];
     offered.settle(detail.request_id, typeof detail.object_key === "string" ? detail.object_key : "", items);

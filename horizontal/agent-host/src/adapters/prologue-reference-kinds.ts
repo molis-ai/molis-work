@@ -1,7 +1,7 @@
 import { QUESTIONNAIRE_LIMITS } from "@prologue/sdk";
 
 /**
- * Which kinds of object a round's reference questions may ask for (BL-152, S-31). The Host lists what the round's project has
+ * Which kinds of object a round's reference questions may ask for (BL-152, S-32). The Host lists what the round's project has
  * installed and shows; what of it reaches the model's tool schema is decided here. A kind and its display name are a plugin
  * author's text, so each entry is held to the SDK's own bounds before the SDK sees it. The SDK refuses a whole list for one
  * bad entry, which would stop every round in the project; here that entry alone is left out and named as a problem for its

@@ -48,7 +48,7 @@ test("AC-28-3: a refused pick is worded on its own field, with the cap when ther
     { r1: "选的对象已不存在或现在不能用，请重新选择", r0: "这一题需要回答" });
 });
 
-// BL-152 (S-31): each round asks its own project which kinds it offers, external plugins included, in a fixed order; without
+// BL-152 (S-32): each round asks its own project which kinds it offers, external plugins included, in a fixed order; without
 // that list the Runtime's built-in one stands, and the round's subagents keep the round's.
 type Tool = { name: string; input_schema: { properties: { questions: { items: { properties: Record<string, { items?: { enum?: string[] } }> } } } } };
 type Body = { tools?: Tool[]; messages?: unknown; system?: unknown };

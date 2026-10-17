@@ -57,7 +57,7 @@ test("a change counts as linkable only when its one result kind can be read back
   assert.deepEqual(poor.gaps.filter(gap => gap.area === "results" || gap.area === "context"), [], "nor is that kind reported as unreadable");
 });
 
-// BL-152 (S-31): a kind left out of the reference questions' list is told to the plugin's author here, one line per reason.
+// BL-152 (S-32): a kind left out of the reference questions' list is told to the plugin's author here, one line per reason.
 test("a kind left out of reference questions is named on its plugin's row, once per reason", () => {
   const search = (provider: string, kinds: Array<{ kind: string; title: string }>) => view(provider, `${provider}.search`,
     { audiences: ["user"], subject_kinds: kinds.map(entry => entry.kind), search_source: { kinds: kinds.map(entry => ({ ...entry, surface: "s" })) } });

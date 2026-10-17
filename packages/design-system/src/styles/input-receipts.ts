@@ -16,14 +16,16 @@ export const INPUT_RECEIPTS_STYLES = `
 .mw-receipt:is([data-state=unread],[data-state=waiting]) .mw-receipt__fact,.mw-receipt__ask{color:var(--amber)}
 .mw-receipt[data-state=withdrawn] .mw-receipt__fact::before{background:none;box-shadow:inset 0 0 0 1px currentColor}
 .mw-receipt__claim{padding-left:10px;border-left:2px dashed var(--faint)}
-.mw-receipt__ask{padding-left:12px}
+.mw-receipt__ask,.mw-receipt__link{padding-left:12px}
 .mw-receipt__claim b{margin-right:6px;padding:0 5px;border:1px dashed currentColor;border-radius:var(--r-tag);font-weight:var(--weight-control)}
 .mw-receipt__body{display:grid;gap:8px;margin-top:6px;padding:8px 10px;border-radius:var(--r-row);background:var(--wash)}
 .mw-receipt__body dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;margin:0}
 .mw-receipt__body dd{margin:0;color:var(--ink-soft);overflow-wrap:anywhere}
-.mw-receipt__note,.mw-receipt__who{margin:0}
+.mw-receipt__note,.mw-receipt__who,.mw-receipt__problem{margin:0}
 .mw-receipt__claimed{padding:6px 8px;border:1px dashed var(--faint);border-radius:var(--r-row)}
 .mw-receipt__who{margin-bottom:4px;font-weight:var(--weight-control)}
+.mw-receipt__acts{display:flex;flex-wrap:wrap;gap:6px}
+.mw-receipt__problem{color:var(--danger)}
 .mw-receipt--host{font-style:normal}
 @media (prefers-reduced-motion:reduce){.mw-receipt__fact::after{transition:none}}
 `;

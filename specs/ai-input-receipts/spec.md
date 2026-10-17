@@ -263,9 +263,9 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
 - 补一句说明；
 - 撤回。
 
-提交后发生三件事：
+提交后发生三件事（D34、D39：「改处理方式、改关联目标、补一句」都是选项填出的原话，发成一条带 `about` 的补充；撤回见 §4.3。3b-2a 做到第 1、2 件，第 3 件随 3d、3e）：
 
-1. 立刻记为本人的决定，显示「你改为：…」。
+1. 原来那条的回执显示「你改为：…」，读自纠正的 `about`，Molis 不另存。
 2. 同时作为一条纠正输入交给 AI，带原输入的引用。
 3. AI 重新说明后显示「已按你的纠正处理」。如果 AI 仍坚持别的做法，并列显示双方说法与理由，由你决定停下、坚持还是接受。
 
@@ -769,6 +769,28 @@ interface AgentInputView {
     - RCPT-314：一轮的补充和会话的排队里，`about` 都原样到了 SDK。
     - RCPT-315：两份 schema；被取消、撤权的调用什么都不撤，包括读完那一轮之后、交给运行时撤回之前才撤权的；别的会话的那一轮够不着。每次请求一轮或会话交还之前都再核一次调用是否还有效（`beforeWithdraw`，和 `send` 的 `beforeQueue` 一样）。
 
+**3b-2a 实现记录（2026-10-17，D37–D40）：**
+
+- **回执详情里的动作。** 共用回执（设计系统 `createInputReceipts`）的 `line(turn, round, act)` 多了可选的第三个参数：页面给的撤回与纠正。没有它，回执只显示。
+  - **撤回**只在这一轮说还没交给模型时出现（`received`）。放进上下文或读到以后，详情写「AI 已看到，不能撤回；要改口就发更正。」。一轮结束时没读到、回到会话排队里的那条，由会话交还，入口放在 3b-2b 的托盘里，回执上不出撤回。
+  - **更正…**打开回执下面的一个小表单。三个选项各填出一句可改的话：「不是「AI 说的处理方式」，而是：」（AI 没说明时是「不是这个意思，而是：」）、「这条针对的是：」、「补充一句：」。人没改过的选项会被下一个替换，改过的话保留，选项接在后面。只有选项、没写内容不发。发出去的是人的原话，`about` 指向这一条。
+  - 表单在重画时原地不动：重画只换掉它前面的摘要和详情，焦点和写到一半的字都不受影响（§4.9）。焦点在详情的按钮或摘要上时，重画后落到新画的那一个上，不掉回页面。Esc 和「取消」关掉它，焦点回到「更正…」。
+  - `/__ui/catalog` 的回执样张接上了演示用的撤回与更正，两头的指向在样张上都看得见。
+  - 同一份话在丢了回复以后再发，用同一个键，运行时只算一次（§7）；改了字就是新的一条。
+  - **两头的指向**都从账上的 `about` 读：原来那条的摘要写「你改为：「…」」，纠正那条写「纠正：针对「…」」（原来那条页面没画过时写「纠正：针对更早的一条」）；详情里各有一个按钮跳到另一头。第一次见到纠正时，原来那条的回执当场重画。Molis 什么都不存（D34）。
+- **Coding。** `coding.runs.control` 升到 v6：`steer` 多了可选的 `about`，新增 `withdraw`（只带 `input_id`）。路由把它交给 `agent.inputs.withdraw`，和补充一样走 `codingActionControl(beforeWrite)`。v5 及更早不再解析（`tests/coding-actions.test.ts`）。助理调 Coding 的客户端（`assistant-coding.ts`）跟着钉 v6。页面的 `inputReceipts.act(id, run)` 把两个动作接到这一轮的控制上；`client.ts` 只在原来那一行多传一个参数。
+- **助理。** Send 多了可选的 `about`（`AssistantSendInput` 取自 `AgentInputSend`）：只用于已有的工作，不能用来回答问题。带 `about` 的话总是作为补充交给最近的一轮：还在跑就进这一轮，已经结束就排在会话里等下一轮（`queued`），不另开一轮。撤回经工作的控制（`AssistantControl` 的 `withdraw`，带 `run_id` 与 `input_id`）：Coding 承接的工作交给 Coding 的控制，助理自己的那一轮先核对这一轮属于这项工作，再交给运行时的 `inputs.withdraw`。判断写在 `assistant-inputs.ts` 的 `withdrawInput`；`AssistantService` 是巨大单元，为它腾地方删了只转调一次的 `explain`，把 `startOfToday` 挪到 `assistant-usage-ledger.ts`，类和文件都比 merge-base 短。
+- **字节。** 抵消以后还多：`molis-work-workbench.js` +5043、`molis-work-plugins/coding.js` +684、`molis-work-workbench.css` +136、`molis-work-arrival.css` +136（已复用详情的底板与 `mw-textarea` 自带的尺寸）。按统筹要求列进 PR，由统筹问用户。
+- **验收编号与证据：**
+  - RCPT-321：`coding.runs.control` v6 的 schema 收 `about` 与 `withdraw`，拒空的 `about`、不带 `input_id` 或多带字段的撤回；`runControl` 原样交出（`tests/coding-run-control-contract.test.ts`）；v1–v5 解析不到（`tests/coding-actions.test.ts`）。
+  - RCPT-322：真 Prologue 运行时经 Coding 的路由：撤回还没读的那条，后面的请求里都没有它；纠正的回执带 `about`；读过的撤回被拒（409 `agent.input_applied`）；一轮结束后的纠正排进会话，再从会话撤回（`tests/coding-input-correct-http.test.ts`）。
+  - RCPT-323：真 Prologue 运行时经助理：同上的撤回与纠正；别的轮次够不着、空的 id 被拒；结束后的纠正 `queued`、不开新的一轮、排队里带 `about`，并能撤回（`tests/assistant-input-correct.test.ts`）。
+  - RCPT-324：回执的撤回只在 `received` 出现，读过的写为什么不能撤；纠正表单的选项、原话、键、失败留字、重画不丢、Esc 与取消（`tests/input-receipts-client.test.ts`）。
+  - RCPT-325：「你改为」与「纠正：针对」从 `about` 读出，原来那条当场重画，按钮跳到另一头（同上）。
+  - RCPT-326：两个页面把动作接到各自的路由：Coding 的控制，助理的工作控制与 Send（`request_id` 就是回执的键）；丢了回复说「没确认送到」（`tests/coding-input-receipts-client.test.ts`、`tests/assistant-receipts-client.test.ts`）。助理底栏的发送点从两处变成三处，第三处是回执的更正，带的是人自己写的字，所以不标 `written_by`；守着这件事的用例点名这一处（`tests/assistant-island-script.test.ts`），别处新加的发送没有页面标记照样失败。
+  - 浏览器（本机）：Coding 页上，一轮结束后从「/v2/login」的回执发更正，排队条变成 2 条；下一轮带上它，原来那条的回执写「你改为：…」；这一轮还没读的补充从回执撤回，变成「已撤回」，模型的请求里都没有它（`tests/coding-input-receipts.e2e.test.ts`）。助理页上，一轮结束后从回执发更正：发出去的是人的原话、`about` 指向那条补充、没有页面标记，状态区说「已保存，下一轮开始生效」，不开新的一轮（`tests/assistant-input-receipts.e2e.test.ts`）。
+- **已知缺口（不在本片修）：** Coding 页上，正在写的回复后面一旦出现补充，它就不再标「正在写」，之后再打断，页面不会把那段回复标成已丢掉（RC-16）。这是页面按「最后一个回合」判断正在写的老做法，`client.ts` 是巨大单元，留给后续一片。
+
 ### 阶段 4：产品对象与 Goals 层
 
 依赖：PR #340 合入；W3-01 调用编号。
@@ -950,6 +972,15 @@ interface AgentInputView {
 | D34 | 纠正、关联记在哪 | 都是一条带 `about`（指向原输入）的补充：SDK 的输入账已经收、也已经投 `about`；「改处理方式、改关联目标」的选项生成纠正的原话，人确认后再发。Molis 不建表，也不存第二份 override 或关联 | 单一事实主人。另建一张人这边的纠正或关联表，就和 §20.2「不另建输入状态表」冲突；真要结构化的关联，走 Prologue 扩展（采用线） |
 | D35 | 3b 怎么切 | 3b-1：`agent.inputs.withdraw.v1`，加上带 `about` 的 `agent.inputs.send.v2`，不做界面；3b-2：托盘与纠正菜单。读的动作挪到 3e，到那时才有调用方。两片各开 PR，各跑全量 | 不管 D36 怎么定，撤回和 `about` 都要有；页面现在经各自的运行视图读回执，没有调用方的动作先不登记 |
 | D36 | 带到下一轮：维持一律带，还是照 D4 缺省先问 | 用户 10-17 弹窗选「一律带，可撤回」：人开的一轮带上排着的全部，托盘里逐条可撤回，没有带不带的设置（D4、D11 改定）；`agent.inputs.carry-setting` 不做 | 现行产品本来就一律带（Coding 与助理开跑都传 `queued: "carry"`，C1 的排队条也写「下一轮开始时带上」）；每轮都问会多一步，而人几乎总会选带 |
+
+**2026-10-17 统筹定（阶段 3b-2 方案）：**
+
+| # | 事项 | 结论 | 理由 |
+| --- | --- | --- | --- |
+| D37 | 托盘分几类 | 只分账上已有的：没读到 / 排着等下一轮；读到没说明；AI 说暂不采纳或需要你澄清（标明是 AI 说的）；为它问的问题还没回答。「说要做还没完成」要观察到的结果，等 3d | 没有依据的类别不画 |
+| D38 | 托盘和 C1 的排队条 | 托盘取代 C1 的排队条（RC-18）；Coding 和助理共用一个托盘 | 同一件事只有一处列表 |
+| D39 | 纠正菜单的形态 | 几个选项填出一句可改的话，发出去的是人自己的话加 `about`；不存任何结构化的东西 | D34：纠正就是一条带 `about` 的补充 |
+| D40 | 3b-2 怎么切 | 3b-2a：回执详情里的撤回与纠正、Coding `runs.control` v6、助理 Send 带 `about`；3b-2b：托盘。各开 PR、各跑全量。v6 按 `docs/system/CONTRACT-CHANGES.md` 升版本，v5 及更早不再解析 | 字节和浏览器检查各自一份 |
 
 **待办（归本线，D7 之后接 S3 时定；2026-10-12 统筹交来）：**
 

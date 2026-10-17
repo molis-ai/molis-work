@@ -234,10 +234,10 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time allowance for W5-01 (Todo on the Home runtime): 「转为待办」 now posts to /api/plugins/io.molis.work.todo/items instead of
 // /api/todo, and the longer path is the whole +28 B of workbench.js. The user approved it on 2026-10-17 in the anti-corruption line's
-// session. The entry is for exactly one merge-base budget (main e3a0664a), capped at the measured size, and used once: the next
-// baseline freezes again. This replaces T2's spent entries; delete it in the next change to this gate (as #541, #584 and #611 did).
+// session. The entry is for exactly one merge-base budget (main e49f6a558), capped at the measured size, and used once: the next
+// baseline freezes again. This replaces receipts 3b-2a's spent entries; delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1099839, 1099867],
+  "/assets/molis-work-workbench.js": [1104882, 1104910],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

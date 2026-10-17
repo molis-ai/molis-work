@@ -578,6 +578,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - 用户 10-17 已把变基说明转给 Codex：`feature/assistant-service-connections` 变基到 main（5b9fdbf35 往后），删掉自己的 mcp-refresh-current 包，改用 main 上的 mcp-refresh 包；开 PR 前报枢纽文件，不加标签。BL-153 统筹定合成一行（合同字段和样式选择器两种漏选，根子是一个），D1 不用改，防腐线在第 5 片里补样式选择器那个例子。
     - **#637 的回归**（防腐线复查发现，统筹在 main 上核过）：在交回的子任务里再发一轮时，`assistant-service.ts` 约 1514 行先 `delegations.place(work)` 在图上加一步，然后才 `assertSendCurrent` 和 `host.start`。这一轮如果没开起来，catch 不结束这一步，子任务就一直「还在做」：父工作不再交回、一直占一个委派名额、follow_up 被拒。已交采用线，单开小修复 PR，比 A2 优先，带「start 失败后图上没有开着的步骤」的用例，要跑全量。#630 全绿、已入队。#639、#643 的合并引用一直停在旧 main 上，统筹停了 label-chain，等 #630 合入后由回执线把 main 并进两个 PR、推一次，再重新挂。W5-05 第 5 片的探针差已修完，两组死样式在第 5 片里单独一个提交删。
     - #630 合入 `aabf597de`。T2 #638 merge main 后是 `76b697453`：自己的 diff 和审过的 `e7f214a5d` 比，只有钉子和预算数换成了新 merge-base 的确切数，增量不变（+1,326 / +1,326 / +4,037 / +19）。统筹核过，挂了 label-chain。回执线正在把 main 并进 #639、#643。
+    - 用户提醒 #643 有失败：Product subset（不是必需检查）里的 `tests/memory-upkeep.test.ts:117`「automatic ones unused for 90 days」`0 !== 2`，重试也红。main 5b9fdbf35 在 07:51 的 Product subset 是绿的。这个用例直接用 MemoryService，D1 按理碰不到。已请回执线在 merge main 后的 head 和干净基线上各跑 5 次：只有 D1 红，就在产品里修；两边都偶发红，算时间相关的既有问题，单独报，不在 D1 里修。查清前 #643 不挂全量。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

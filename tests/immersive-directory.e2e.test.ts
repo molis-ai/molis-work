@@ -352,7 +352,7 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   assert.deepEqual(await evaluate("window.__uiErrors"), []);
 });
 
-test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从输入框前切换；Shelf 与灵光在右侧；Dock 放不下就收进 +N", { timeout: 60_000 }, async t => {
+test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从输入框前切换；右侧只有侧栏按钮；Dock 放不下就收进 +N", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
@@ -364,12 +364,12 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
     const bar=document.querySelector('[data-dock]').getBoundingClientRect();
     const composer=document.querySelector('[data-assistant-composer]').getBoundingClientRect();
     const start=document.querySelector('.bar-start').getBoundingClientRect();
-    const residents=document.querySelector('.bar-residents').getBoundingClientRect();
+    const side=document.querySelector('.bar-side').getBoundingClientRect();
     const project=document.querySelector('.bar-end .navigator-project-selector').getBoundingClientRect();
     return Math.abs((composer.left+composer.right)/2-(bar.left+bar.right)/2)<2
-      && start.right<=composer.left && composer.right<=residents.left && residents.right<=project.left
+      && start.right<=composer.left && composer.right<=side.left && side.right<=project.left
       && project.right<=innerWidth && project.bottom<=innerHeight && project.width>=39;
-  })()`), "the bar reads Dock · Assistant · Shelf/灵光 · project, left to right, none covering another");
+  })()`), "the bar reads Dock · Assistant · side panel · project, left to right, none covering another");
   // At rest the bar is the input: no chip for a new work, no chooser nobody changed; “+” only adds (files, references,
   // capabilities) — who carries a new work and where it lives are chosen in its tab.
   assert.ok(await evaluate(`(()=>{const hidden=(sel)=>!document.querySelector(sel)?.getClientRects().length;
@@ -391,10 +391,11 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   // The choosers give way first (they shrink to an ellipsis, or fold when even that is not enough); the input never does.
   await waitFor("document.querySelector('[data-assistant-input]').getBoundingClientRect().width >= 120");
   assert.ok(await evaluate("document.querySelector('[data-assistant-composer]').scrollWidth <= document.querySelector('[data-assistant-composer]').clientWidth + 1"), "nothing runs out of the composer");
-  // A narrower window, where the bar's middle is well under 600px, keeps the same room.
+  // A narrower window, where the bar's middle is well under 600px, keeps the same room. (With one button at the bar's end
+  // instead of three the middle is wider, so the window that puts it under 560px is narrower than the 900px it was.)
   const roomy = (floor: number) => `(()=>{const f=document.querySelector('[data-assistant-composer]'),end=document.querySelector('.bar-end').getBoundingClientRect();
     return f.querySelector('[data-assistant-input]').getBoundingClientRect().width >= ${floor} && f.scrollWidth <= f.clientWidth + 1 && f.getBoundingClientRect().right <= end.left;})()`;
-  await command("Emulation.setDeviceMetricsOverride", { width: 900, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 820, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor(`document.querySelector('.bar-center').getBoundingClientRect().width < 560 && ${roomy(120)}`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate(`(()=>{const input=document.querySelector('[data-assistant-input]');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
@@ -424,8 +425,12 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), false, "working elsewhere leaves the answer open");
   await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-assistant-panel]').hidden");
-  await click('[data-bar-resident="lingguang"]');
-  await waitFor("document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-bar-resident=lingguang]').getAttribute('aria-current') === 'page'");
+  // Shelf and 灵光 are tabs of the side panel now (side-shelf §3.1): the right of the bar holds only its one button.
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.bar-side button')].map(button => button.matches('[data-side-toggle]'))"), [true]);
+  await click("[data-side-toggle]");
+  await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-toggle]').getAttribute('aria-expanded') === 'true'");
+  await click("[data-side-toggle]");
+  await waitFor("document.body.dataset.sideOpen === 'false'");
   // Choosing many plugins for the Dock (at the foot of the switcher's list) folds what does not fit instead of running
   // under the Assistant; ticking them keeps the list open.
   await click('[data-dock-choice="schedule"]');

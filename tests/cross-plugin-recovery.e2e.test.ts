@@ -42,24 +42,24 @@ test('Shelf saves the last keystroke before returning and keeps a failed draft a
   // Pin the viewport to the regression scenario so geometry does not depend on the host window size.
   await command('Emulation.setDeviceMetricsOverride', { width: 756, height: 469, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
-  // craft-finish round 4: Shelf is a resident button at the right of the bottom bar, not an item in a left rail.
-  // At this short, narrow window it must still be a whole, uncovered 32px+ target inside the viewport.
+  // craft-finish round 4, side-shelf §3.1: the right of the bottom bar is the side panel's one button (Shelf, 灵光 and the
+  // rest are its tabs). At this short, narrow window it must still be a whole, uncovered 32px+ target inside the viewport.
   const layout = await evaluate<any>(`(() => {
-    const shelf = document.querySelector('.workbench-bar [data-bar-resident=shelf]');
+    const shelf = document.querySelector('.workbench-bar [data-side-toggle]');
     const r = shelf?.getBoundingClientRect();
     const hit = r ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
-    const neighbours = [...document.querySelectorAll('.workbench-bar :is([data-bar-resident], .bar-chat, .bar-composer)')].filter(e => e !== shelf && e.getClientRects().length)
+    const neighbours = [...document.querySelectorAll('.workbench-bar :is(.dock-pin, .navigator-project-selector, .bar-composer)')].filter(e => e !== shelf && e.getClientRects().length)
       .map(e => e.getBoundingClientRect()).filter(n => r && n.left < r.right && n.right > r.left && n.top < r.bottom && n.bottom > r.top).length;
     return { viewport: { w: innerWidth, h: innerHeight }, shelf: r ? { w: r.width, h: r.height, top: r.top, bottom: r.bottom, left: r.left, right: r.right } : null,
       hitsShelf: !!(hit && shelf.contains(hit)), hitTag: hit?.tagName.toLowerCase(), neighbours };
   })()`);
   assert.equal(layout.viewport.w, 756);
   assert.equal(layout.viewport.h, 469);
-  assert.ok(layout.shelf, 'the bottom bar has a Shelf entry');
-  assert.ok(layout.shelf.w >= 32 && layout.shelf.h >= 32, 'Shelf keeps a whole target: ' + JSON.stringify(layout.shelf));
-  assert.ok(layout.shelf.top >= 0 && layout.shelf.bottom <= layout.viewport.h && layout.shelf.right <= layout.viewport.w, 'Shelf stays inside the viewport');
-  assert.equal(layout.neighbours, 0, 'no other bar control overlaps Shelf');
-  assert.equal(layout.hitsShelf, true, `elementFromPoint must hit the Shelf entry (got ${layout.hitTag})`);
+  assert.ok(layout.shelf, 'the bottom bar has the side panel button');
+  assert.ok(layout.shelf.w >= 32 && layout.shelf.h >= 32, 'the side panel button keeps a whole target: ' + JSON.stringify(layout.shelf));
+  assert.ok(layout.shelf.top >= 0 && layout.shelf.bottom <= layout.viewport.h && layout.shelf.right <= layout.viewport.w, 'the side panel button stays inside the viewport');
+  assert.equal(layout.neighbours, 0, 'no other bar control overlaps the side panel button');
+  assert.equal(layout.hitsShelf, true, `elementFromPoint must hit the side panel button (got ${layout.hitTag})`);
   await click('[data-plugin-strip] [data-plugin-id=shelf]');
   const row = `[data-shelf-list=materials] [data-shelf-item="${a.item_id}"]`;
   await waitFor(`document.querySelector('${row}')`);

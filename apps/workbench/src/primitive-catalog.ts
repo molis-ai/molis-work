@@ -91,9 +91,9 @@ const BAR_SPECIMEN_SCRIPT = `
       const pin = tile.querySelector("[data-dock-choice]"); if (pin && !pin.hasAttribute("data-resident")) pin.disabled = !adding;
       return;
     }
-    const pin = event.target.closest("[data-dock-pin], [data-bar-resident]");
+    const pin = event.target.closest("[data-dock-pin]");
     if (!pin) return;
-    stage.querySelectorAll("[data-dock-pin], [data-bar-resident]").forEach((node) => node.toggleAttribute("aria-current", node === pin));
+    stage.querySelectorAll("[data-dock-pin]").forEach((node) => node.toggleAttribute("aria-current", node === pin));
   });
   document.addEventListener("click", (event) => {
     if (!stage.contains(event.target)) { setPicker(false); stage.querySelectorAll("details[open]").forEach((node) => node.removeAttribute("open")); }

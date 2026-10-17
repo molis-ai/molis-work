@@ -683,7 +683,7 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 | R1 | 未做 | Shelf 仍是 `navigator` 视图的插件（`plugins/native/shelf/src/manifest.ts`），底栏 `BAR_RESIDENT_IDS = ["shelf", "lingguang"]`（`apps/workbench/src/immersive-shell.ts`）。W2' |
 | R2 | 部分 | 右栏有讨论、浏览器、文件、电脑与插件侧栏视图（灵光、Issue 声明了 `slot: "side"`）；Shelf 不在其中 |
 | R3 | 部分（只有底层） | 落点类型 `SurfaceLanding`、`FrozenFocus.landing`（`services/contextual.ts`）、宿主读请求（`contextual-request.ts`）、内核 `attach` 候选（`kernel/src/contextual/destinations.ts`，`tests/contextual-landing.test.ts`）都在；没有页面报告落点，没有插件声明 `attach`，界面上不出现。W3 |
-| R4 | 部分 | 右栏已有多格，但 id 与提示仍是群聊命名（`dock-window-im`、`data-dock-toggle="im"`、「侧栏：讨论、浏览器与文件」）。W2' |
+| R4 | 部分 | 右栏已有多格，但 id 与提示仍是群聊命名（`dock-window-im`、`data-dock-toggle="im"`、「侧栏：讨论、浏览器与文件」）。W2'-1 已在本地改成通用名（§21.6），未合入 |
 | R5 | 部分 | 左边：同一个池、Jev 排序、浮条陈列已在（`tests/contextual-interaction.test.ts`、`contextual-interaction.e2e`、`context-toolbar.e2e`）；右栏与助理面板还不报告手上的东西 |
 | R6 | 未做 | 同 R1 |
 | R7 | 未做 | 右→左（W3）、左→右（W6）都没有 |
@@ -1342,6 +1342,12 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 放进当前工作后，`molis:assistant-open` 让正在显示的工作重读，卡片马上出现，不用等轮询。
   - 不变大：岛把对象与工作的几样（`objectKey`、`belongsToWork`、相关工作的缓存）搬到新文件，净减 8 行；`context-bus.ts` 把行与开场建议两处一样的选择处理合成 `settle`，净减 1 行。`molis-work-workbench.js` 比 main 小 3,210 B：删掉没有任何渲染方的客户端代码（`.mobile-switch` 与 `[data-mobile-target]`、`[data-mobile-directory-root]`、`[data-timeline-filter]`，渲染方自 `bc79f8a49` 起就没了；证据表在 PR 里），留下的 `.mobile-switch` 样式交给样式表切片。
   - 验收：`tests/assistant-card-target.test.ts`（没人回答、只认一次、助理何时回答）；`tests/context-card-in-work.e2e.test.ts`（面板关着新开；面板开着且工作拿着文档时放进同一项并马上显示；再关上又新开）。
+- 2026-10-17 W2'-1 右栏本身（分支 `context/w2p-shelf-side`，本地，等统筹排期再开 PR；分片：W2'-1 右栏本身，W2'-2 Shelf 成为第一格、「平台自带」声明、窄宽度版式、旧入口改道，W2'-3 桌面入口与文档）：
+  - 底栏右侧只剩侧栏按钮（`data-side-toggle`，提示「侧栏：Shelf、灵光、文件、浏览器、电脑与讨论」）；Shelf、灵光两个常驻按钮与 `BAR_RESIDENT_IDS` 删掉，点按钮只发 `molis:side-open` / `molis:side-close`，不再另开一套窗口状态。
+  - 群聊命名直接换掉、不留别名（side-shelf §7）：面板 `id="side-panel"`，讨论框 `data-side-body="discussion"`；`data-dock-window`、`data-dock-frame`、`data-dock-toggle`、`dock-window-im` 全仓只剩历史原型与 spec 的对照记录。GLOSSARY 的 R-A10（`im` 指整个右栏）一并删掉。
+  - 格的顺序由声明决定：平台格带 `order`（文件 20、浏览器 30、电脑 40、讨论 50），插件侧栏视图的 `order` 原样带进来（灵光 10，没写的 100），一起排序，不写名单。默认格是排在第一的那格；W2'-2 Shelf 声明 0 后自然成为第一格、首次打开就在它。
+  - Dock 里 Shelf 与灵光的钉子原来因常驻固定按下，现在是普通钉子（DOCK-04 测试随之改；Shelf 的钉子在 W2'-2 随 Shelf 离开插件列表一起消失）。
+  - 页面资源只变小（数字见 PR）；`assistant-island.ts`、`client.ts`、`context-bus.ts` 不动。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

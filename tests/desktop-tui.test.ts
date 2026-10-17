@@ -599,8 +599,9 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
     // No rail: one bar at the foot. At its left the switcher, which holds, under search and the two buttons that get more
     // plugins (the market, the studio), every plugin (each with its own Dock button), then the Dock; the Assistant is only an
-    // input; Shelf and 灵光; then the project, whose menu opens group chat and holds the person.
-    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island data-system-view-owner="assistant">[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">[\s\S]*data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*class="bar-chat"[^>]*data-dock-toggle="im"[\s\S]*data-dock-window="im"[\s\S]*data-project-menu/);
+    // input; the side panel's one button (Shelf and 灵光 are its tabs); then the project, whose menu holds the person.
+    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island data-system-view-owner="assistant">[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">\s*<div class="bar-side"><button class="bar-chat"[^>]*data-side-toggle[^>]*aria-controls="side-panel"[^>]*><svg[\s\S]*?<\/button><\/div>[\s\S]*id="side-panel"[\s\S]*data-project-menu/);
+    assert.doesNotMatch(browser, /data-bar-resident|data-dock-toggle|data-dock-window|dock-window-im/, "the side panel has one button and no group-chat names (side-shelf §7)");
     assert.doesNotMatch(browser, /class="plugin-stack"|class="workbench-dock"|data-navigation-labels-toggle/);
     assert.doesNotMatch(pluginStrip, /返回项目目录/);
     assert.doesNotMatch(pluginStrip, /data-plugin-section=|data-plugin-expand=/);
@@ -615,7 +616,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(extend, /data-plugin-id="(characters|settings)"|personal-account|capabilities/, "the person, settings and capabilities live under the project button");
     const projectMenu = browser.slice(browser.indexOf('<div class="bar-end">')).match(/<details[^>]*data-project-menu>[\s\S]*?<\/details>/)?.[0] ?? "";
     // The menu is the project and the person; the discussion has its own button in the bar.
-    assert.doesNotMatch(projectMenu, /data-dock-toggle/);
+    assert.doesNotMatch(projectMenu, /data-side-toggle/);
     assert.match(projectMenu, /navigator-project-manage[\s\S]*data-personal-menu[\s\S]*class="personal-account"[\s\S]*href="\/capabilities\/library[^"]*"[^>]*data-capabilities-open[\s\S]*data-plugin-id="settings"/);
     const railItems = pluginStrip?.slice(pluginStrip.indexOf('<div class="plugin-rail-items"'), pluginStrip.indexOf("data-rail-tools-toggle") + "data-rail-tools-toggle".length) ?? "";
     assert.match(railItems, /^<div class="plugin-rail-items"[^>]*><button[^>]*data-plugin-id="home"/);

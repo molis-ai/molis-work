@@ -60,11 +60,6 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const labelOf = (node) => node.querySelector('span')?.textContent?.trim() || node.getAttribute('title') || '';
   const glyphOf = (id) => railItem(id)?.querySelector('svg')?.cloneNode(true) || null;
 
-  // Opened on purpose from the bar, the side panel takes focus (its current tab); opened by context it never does.
-  const setWindow = (id, open, focus = false) => {
-    if(id==='im')document.dispatchEvent(new CustomEvent(open?'molis:side-open':'molis:side-close',{detail:{focus}}));
-  };
-
   /* The switcher. */
   const picker = dock.querySelector('[data-plugin-picker]');
   const pickerToggle = dock.querySelector('[data-plugin-picker-toggle]');
@@ -110,15 +105,15 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
         const source = document.querySelector('[data-cover-chip]');
         put(chipOf(' is-focused is-cover', source?.querySelector('svg')?.cloneNode(true), source?.querySelector(':scope > span')?.textContent || ''));
         current.parentElement?.classList.remove('is-split');
-        dock.querySelectorAll('[data-dock-pin][aria-current], [data-bar-resident][aria-current]').forEach((button) => button.removeAttribute('aria-current'));
+        dock.querySelectorAll('[data-dock-pin][aria-current]').forEach((button) => button.removeAttribute('aria-current'));
         more?.classList.remove('has-current');
         return;
       }
       const entries = shown();
       put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), railItem(entry.plugin) ? labelOf(railItem(entry.plugin)) : entry.plugin)));
       current.parentElement?.classList.toggle('is-split', entries.length > 1);
-      dock.querySelectorAll('[data-dock-pin], [data-bar-resident]').forEach((button) => {
-        const id = button.dataset.dockPin || button.dataset.barResident;
+      dock.querySelectorAll('[data-dock-pin]').forEach((button) => {
+        const id = button.dataset.dockPin;
         const on = entries.some((entry) => entry.plugin === id && entry.focused);
         if (on) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
       });
@@ -133,10 +128,8 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const PINS_KEY = 'molis-work:dock-pins';
   const DEFAULT_PINS = ${JSON.stringify(DOCK_DEFAULT_PINS)};
   const pins = dock.querySelector('[data-dock-pins]');
-  // Shelf and 灵光 already stay beside the Assistant; the Dock does not offer them twice.
-  const residents = new Set([...dock.querySelectorAll('[data-bar-resident]')].map((node) => node.dataset.barResident));
   const readPins = () => {
-    try { const value = JSON.parse(localStorage.getItem(PINS_KEY) || 'null'); if (Array.isArray(value)) return value.filter((id) => typeof id === 'string' && !residents.has(id)); } catch {}
+    try { const value = JSON.parse(localStorage.getItem(PINS_KEY) || 'null'); if (Array.isArray(value)) return value.filter((id) => typeof id === 'string'); } catch {}
     return DEFAULT_PINS.slice();
   };
   const makePin = (id, fixed, arriving = false) => {
@@ -292,14 +285,14 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   dock.addEventListener('click', (event) => {
     const target = event.target?.nodeType === 1 ? event.target : null;
     if (!target) return;
-    const toggle = target.closest('[data-dock-toggle]');
-    if (toggle) { const id = toggle.dataset.dockToggle; setWindow(id, document.body.dataset.sideOpen !== 'true', true); return; }
+    // Opened on purpose from the bar, the side panel takes focus (its current tab); opened by context it never does.
+    if (target.closest('[data-side-toggle]')) { document.dispatchEvent(new CustomEvent(document.body.dataset.sideOpen === 'true' ? 'molis:side-close' : 'molis:side-open', { detail: { focus: true } })); return; }
     if (target.closest('[data-plugin-picker-toggle]')) { setPicker(pickerPopover?.hidden !== false); return; }
     if (target.closest('[data-dock-more]')) { setOverflow(overflow?.hidden !== false); return; }
-    const pin = target.closest('[data-dock-pin], [data-bar-resident]');
+    const pin = target.closest('[data-dock-pin]');
     if (pin) {
       setOverflow(false);
-      const id = pin.dataset.dockPin || pin.dataset.barResident;
+      const id = pin.dataset.dockPin;
       // Pressed again while its plugin is showing, an entry of the bar puts back what was there before it.
       if (host.leavePlugin?.(id)) return;
       railItem(id)?.click();
@@ -333,8 +326,6 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (pickerPopover && !pickerPopover.hidden) { event.preventDefault(); setPicker(false); pickerToggle?.focus(); return; }
     if (overflow && !overflow.hidden) { event.preventDefault(); setOverflow(false); more?.focus(); return; }
     const active = document.activeElement;
-    const inside = active?.nodeType === 1 && active.closest('[data-dock-window]');
-    if (inside) { event.preventDefault(); setWindow(inside.dataset.dockWindow, false); return; }
     if (panel && !panel.hidden && active?.nodeType === 1 && active.closest('[data-assistant-island]')) { event.preventDefault(); setPanel(false); }
   });
   new MutationObserver(paintCurrent).observe(document.querySelector('.tab-workspace') || document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-current', 'class', 'data-exclusive'] });

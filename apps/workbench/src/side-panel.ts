@@ -29,7 +29,12 @@ export interface SidePanelPluginTab {
   readonly keys?: string;
   readonly contextOwner?: string;
   readonly contextSurface?: string;
+  /** Its place among the tabs (Manifest `order`); the panel's own tabs have places too, so no tab is first by being the Host's. */
+  readonly order?: number;
 }
+
+/** The panel's own tabs, in the places they take among the plugins' (side-shelf §3.1: Shelf · 灵光 · 文件 · 浏览器 · 电脑 · 讨论). */
+const OWN_TABS = [["files", "文件", "folder", 20], ["browser", "浏览器", "globe", 30], ["computer", "电脑", "system", 40], ["discussion", "讨论", "message", 50]] as const;
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], projectTools = true): string {
   const { L, icon, escapeHtml } = primitives;
@@ -39,14 +44,17 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;
   // A plugin's side view names itself in its Manifest; the panel shows that name in the interface language.
   const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, ...entry, title: L(entry.title) }));
-  return `<section class="side-panel" id="dock-window-im" role="region" aria-label="${L("侧栏")}" data-side-panel data-dock-window="im" hidden>
+  const own = projectTools ? OWN_TABS.map(([id, label, glyph, order]) => ({ id, order, html: tab(id, L(label), glyph) })) : [];
+  const ordered = [...own, ...plugins.map(entry => ({ id: entry.id, order: entry.order ?? 100, html: tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"${entry.contextOwner ? ` data-side-context-owner="${escapeHtml(entry.contextOwner)}" data-side-context-surface="${escapeHtml(entry.contextSurface)}" hidden` : ""}${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}`) }))]
+    .sort((a, b) => a.order - b.order);
+  return `<section class="side-panel" id="side-panel" role="region" aria-label="${L("侧栏")}" data-side-panel hidden>
         <header class="side-panel-head">
           <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs>
-            ${projectTools ? tab("discussion", L("讨论"), "message") + tab("browser", L("浏览器"), "globe") + tab("computer", L("电脑"), "system") + tab("files", L("文件"), "folder") : ""}${plugins.map(entry => tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"${entry.contextOwner ? ` data-side-context-owner="${escapeHtml(entry.contextOwner)}" data-side-context-surface="${escapeHtml(entry.contextSurface)}" hidden` : ""}${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}`)).join("")}
+            ${ordered.map(entry => entry.html).join("")}
           </div>
           <button class="side-panel-close" type="button" data-side-close aria-label="${L("收起侧栏")}" title="${L("收起侧栏")}">${icon("x")}</button>
         </header>
-        ${projectTools ? body("discussion", L("项目讨论"), `<iframe title="${L("群聊与 Thread")}" data-dock-frame="im"></iframe>`)
+        ${projectTools ? body("discussion", L("项目讨论"), `<iframe title="${L("群聊与 Thread")}"></iframe>`)
           + body("browser", L("浏览器"), renderSideBrowser(primitives), " data-side-browser")
           + body("computer", L("电脑"), renderSideComputer(primitives), " data-side-computer")
           + body("files", L("文件"), renderSideFiles(primitives), " data-side-files") : ""}
@@ -110,7 +118,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   if(!panel||!stage)return;
   stage.setAttribute('data-plugin-stage','');
   document.querySelector('[data-workspace]').append(panel);
-  const frame=panel.querySelector('[data-dock-frame="im"]'),projectId=document.body.dataset.projectId;
+  const frame=panel.querySelector('[data-side-body="discussion"] iframe'),projectId=document.body.dataset.projectId;
   const tabs=()=>[...panel.querySelectorAll('[data-side-tab]')].filter(tab=>!tab.hidden);
   const divider=document.createElement('div');divider.className='side-panel-divider';divider.tabIndex=0;
   divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',globalThis.L('调整侧栏宽度'));divider.setAttribute('aria-controls',panel.id);
@@ -143,17 +151,17 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(open){
       if(!was)trigger=document.activeElement;
       panel.hidden=false;panel.inert=false;paint();void panel.offsetWidth;document.body.dataset.sideOpen='true';
-      select(options.tab??current??read('molis:side-tab')??'discussion',options.target);
+      select(options.tab??current??read('molis:side-tab'),options.target);
       if(options.focus===true)panel.querySelector('[data-side-tab][aria-selected="true"]')?.focus({preventScroll:true});
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current+'"] iframe');
       if(inner)'loaded' in inner.dataset?inner.focus():inner.addEventListener('load',()=>inner.focus(),{once:true});
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
-      if(panel.contains(document.activeElement)){const focusTarget=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-dock-toggle="im"]');focusTarget?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
+      if(panel.contains(document.activeElement)){const focusTarget=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-side-toggle]');focusTarget?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
       imVisible();document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current,target:null,open:false}}));
     }
-    document.querySelectorAll('[data-dock-toggle="im"],[data-side-toggle],[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&(!button.dataset.sidePluginOpen||current==='plugin:'+button.dataset.sidePluginOpen))));
+    document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&(!button.dataset.sidePluginOpen||current==='plugin:'+button.dataset.sidePluginOpen))));
   };
   const request=(detail={})=>{
     const tab=detail.tab==='plugin'&&detail.view?'plugin:'+detail.view:detail.tab;

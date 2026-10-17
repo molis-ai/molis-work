@@ -952,8 +952,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         feedWorkbench.dataset.feedPreset = activeFeedPreset;
         feedWorkbench.dataset.workSurfaceLabel = "Feed";
       }
-      const heading = feedDirectory?.querySelector("[data-feed-directory-title]");
-      if (heading) heading.textContent = "Feed";
       if (activeDesktopSurface === "feed" && mobileTreeTab) mobileTreeTab.textContent = "Feed";
       const feedDirectoryCopy = feedDirectory?.querySelector("[data-feed-directory-copy]");
       if (feedDirectoryCopy) feedDirectoryCopy.textContent = L("所有来源消息，完整保留");

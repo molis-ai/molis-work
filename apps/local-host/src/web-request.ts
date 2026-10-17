@@ -52,7 +52,7 @@ import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http
 import { handleLocalVoiceHttp } from "./local-voice-http.js";
 import { dispatchWebRoutes, type WebRequestContext, type WebRoute } from "./web-route-table.js";
 import { assistantPortsFor, CATALOG_INDEX_ROUTES } from "./web-catalog-index-routes.js";
-import { projectCodingServices, projectRequestContext, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
+import { homeRouteProjectPlugins, projectCodingServices, projectRequestContext, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import type { CodingSurfacePorts } from "./coding-surface.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -129,9 +129,9 @@ async function resolveOrChooser({ request, response, url, serverOptions, composi
 const localVoiceRoute: WebRoute<WebRequestContext> = { id: "local-voice", handle: ({ request, response, url, serverOptions }) =>
   handleLocalVoiceHttp(request, response, url, serverOptions.homeDirectory) };
 
-/** Home plugin HTTP keeps its Home caller and the same instance, inside a project's prefix too. */
-const homePluginsRoute: WebRoute<WebRequestContext> = { id: "home-plugins", handle: ({ request, response, url, localHost, controlToken, composition }) =>
-  handleHomePluginHttp(request, response, url, localHost, controlToken, composition.PAGE_CSP) };
+/** Home plugin HTTP keeps its Home caller and the same instance; under a project's prefix its routes run in that project, checked here. */
+const homePluginsRoute: WebRoute<WebRequestContext> = { id: "home-plugins", handle: context =>
+  handleHomePluginHttp(context.request, context.response, context.url, context.localHost, context.controlToken, context.composition.PAGE_CSP, homeRouteProjectPlugins(context)) };
 
 /** A project request before its runtime opens; the last entry opens it and runs PROJECT_RUNTIME_ROUTES there. */
 const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [

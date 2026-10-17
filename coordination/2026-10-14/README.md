@@ -1000,3 +1000,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 交互线 AC-05 查出产品缺陷：Coding 回答引用题一律被拒（run-inputs.ts 的 questionAnswer 只收 null、字符串、数字，动作 schema 却允许对象数组）。统筹 10-18 认可最小修法，并进 AC-05 的 PR、跑全量：Coding 这一层只核形状，限额用 SDK 的 QUESTION_LIMITS；合不合题交给运行时的 questionProblems；归属照旧走 S-26。再加一条对照用例，证明 SDK questionAnswer 读出的形状 Coding 这一层能收下。
 - 10-18 01:50 UTC：#692 合入 002fbbb5b。#693（手册 BL-151 + BL-159，ef11bde91）审过：coordinator v7 只删不加，宿主文字删掉「本轮没有的除外」，和 main 合并干净；排在 chain30。后续放进 C4：宿主那句「tools 不会让它多一个或少一个」等 prologue#42 换进来后就重复了，到时再看要不要删。
 - 10-18 02:10 UTC：#691 合入 df00646d8（workbench.js 1108502）。#680 的全量在跑，但 #692 改了 prologue-adoption spec 的状态句，所以冲突了：全量出结果后请采用线只解 spec 冲突，再走 merge-only。已通知情境线（W2'-1 merge 新 main）、回执线（#688 从 1108502 起定键），#684 的 PR 评论改成 [1108502, 1108530]。#693 和 main 合并干净，在 chain30 里等全量。
+- 10-18 02:20 UTC：#680 的全量（457bdc6b4）全绿，已请采用线 merge main、只解 spec 冲突，新 head 走 merge-only。

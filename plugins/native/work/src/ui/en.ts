@@ -243,6 +243,7 @@ export const WORK_EN: Record<string, string> = {
   "正在读取当前 Goal Contract 和最小 Session 上下文...": "Reading the current Goal Contract and the smallest Session context…",
   "另一条发送请求仍在执行。Molis Work 已锁定这份 package，完成或租约过期后再刷新。": "Another send request is still running. Molis Work has locked this package. Refresh after it finishes or the lease expires.",
   "上次失败不能安全重试。请取消这次 Handoff 后重新创建。": "The last failure cannot be retried safely. Cancel this Handoff and create it again.",
+  "上次发送没有确认结束，目标可能已收到；请先查看目标 Session。": "The last send was never confirmed; the target may have it. Check the target Session first.",
   "已恢复上次未发送的 package。修改后可保存或继续发送。": "Restored the last unsent package. You can edit it, save, or continue sending.",
   "package 已生成但尚未发送。请审阅目标组合和正文。": "The package is generated but not sent. Review the target combination and the text.",
   "生成失败": "Generation failed",

@@ -58,6 +58,8 @@ test("export has a version and no secrets or absolute paths; importing twice add
   const memory = await env.open();
   await memory.write(person(), { scope: "personal", text: "周报用要点列表", kind: "preference", applies: { task: "写周报时" } });
   await memory.write(person(), { scope: "personal", text: "代码都在 /Users/someone/code/goalboard 下面" });
+  // The task a memory applies to is free text too.
+  await memory.write(person(), { scope: "personal", text: "提交前先跑检查", kind: "convention", applies: { task: "改 /Users/someone/code/goalboard 里的代码时" } });
   const pack = await memory.exportScope(person(), "personal");
   assert.equal(pack.format, "molis.memory");
   assert.equal(pack.version, 1);
@@ -65,16 +67,29 @@ test("export has a version and no secrets or absolute paths; importing twice add
   assert.doesNotMatch(text, /\/Users\/someone/, "no absolute path");
   assert.ok(pack.redactions.some(item => item.kind === "absolute-path" && item.count >= 1), "says what was taken out");
   assert.equal(pack.entries.find(item => item.text === "周报用要点列表")?.applies.task, "写周报时");
+  assert.equal(pack.entries.find(item => item.text === "提交前先跑检查")?.applies.task, "改 [path] 里的代码时");
+  assert.ok(pack.redactions.some(item => item.kind === "absolute-path" && item.count >= 2), "the path in the task is counted too");
+
+  // When the runtime cannot screen the text, or screening fails, nothing is exported: never the text as it was.
+  const unscreened = (backend: ReturnType<typeof env.raw>) => new MemoryService({ backend, ledger: env.ledger(), timeZone: "Asia/Shanghai", now: () => clock.now });
+  const { screen: _screen, ...noScreen } = env.raw();
+  for (const backend of [noScreen, { ...env.raw(), screen: async () => { throw new Error("screen is down"); } }]) {
+    await assert.rejects(unscreened(backend).exportScope(person(), "personal"), (error: { code?: string; message?: string }) => {
+      assert.equal(error.code, "memory.unavailable");
+      assert.doesNotMatch(String(error.message), /\/Users\/someone/);
+      return true;
+    });
+  }
 
   // Into another scope: the first time writes, the second skips everything.
-  assert.deepEqual(await memory.importScope(person(), "project", pack), { written: 2, skipped: 0, refused: 0 });
-  assert.deepEqual(await memory.importScope(person(), "project", pack), { written: 0, skipped: 2, refused: 0 });
+  assert.deepEqual(await memory.importScope(person(), "project", pack), { written: 3, skipped: 0, refused: 0 });
+  assert.deepEqual(await memory.importScope(person(), "project", pack), { written: 0, skipped: 3, refused: 0 });
   const imported = (await memory.list(person(), { scope: "project" })).items;
   assert.ok(imported.every(item => item.source === "imported" && /导入/.test(item.origin)));
   // A damaged or unknown package: refused whole, nothing written.
   const before = (await memory.list(person(), { scope: "project" })).items.length;
   await assert.rejects(memory.importScope(person(), "project", { ...pack, version: 2 }), /版本 2 不认识/);
-  await assert.rejects(memory.importScope(person(), "project", { ...pack, entries: [...pack.entries.map(item => ({ ...item, text: `${item.text}（新）` })), { text: "", kind: "preference" }] }), /第 3 条/);
+  await assert.rejects(memory.importScope(person(), "project", { ...pack, entries: [...pack.entries.map(item => ({ ...item, text: `${item.text}（新）` })), { text: "", kind: "preference" }] }), /第 4 条/);
   assert.equal((await memory.list(person(), { scope: "project" })).items.length, before);
   // A package carrying a secret: that entry is refused, the rest still go in.
   const withSecret = { ...pack, entries: [{ text: "API key 是 sk-proj-abcdefghijklmnopqrstu12345", kind: "fact" as const, source: "manual" as const, basis: "explicit" as const, applies: {}, origin: "x", expires_at: null }] };

@@ -1020,3 +1020,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #694 新 head c7c71eadc：三处死代码与 R4 行都改了，workbench.js 再降 132（1107807），排在 chain33。#696（交互 AC-05，845c47d2f）审过：Coding 只核引用答案的形状、限额取 SDK QUESTION_LIMITS，合不合题交运行时、归属交宿主（S-26）；e2e 只引包入口、跨项目伪造的 Goal 被拒且运行时文件不变；排在 chain34。全量槽：#693、#688 在跑，之后依次 #695、#694、#696。
 
 - 10-18 W2'-2 旧链接：Workflows arrival href、搜索索引 open_json、助理通知 open 三处存有 Shelf 链接。统筹 10-18 定选 A：`openPlugin` / `open.surface` 指插件，工作台按声明的视图决定位置（主区/目录视图优先，只有 side 视图就开侧栏格），规则只在一处、无 shelf 字面量、用非 Shelf 的测试插件证明；条目参数原样交插件；三处存值在 A 下仍是现行取值，不迁移、不改合同，各加一条点开落到 Shelf 格的用例；spec 与 EXTENSION-POINTS 写明。
+
+- 10-18 #693 合入 14bb4bc55（手册 BL-151+BL-159，coordinator v7）；没动 page-assets，#688/#694/#695/#696 与新 main 合并干净、不用重新取键。已通知手册线发下一片计划。

@@ -226,6 +226,19 @@ function webFetch(input: string | URL | Request, init: RequestInit = {}): Promis
   return globalThis.fetch(input, { ...init, headers });
 }
 
+/** Listening precedes the asynchronous catalog warm-up; only a ready health response is 200. */
+async function readyHealthResponse(origin: string): Promise<Response> {
+  const deadline = Date.now() + 5000;
+  for (;;) {
+    const response = await webFetch(`${origin}/health`);
+    if (response.status === 200) return response;
+    assert.equal(response.status, 503);
+    assert.equal((await response.json() as { status: string }).status, "starting");
+    assert.ok(Date.now() < deadline, "the web host must finish starting within five seconds");
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+}
+
 /** Read the full Goal page; factor and completion content is already in the document. */
 async function readGoalPage(origin: string, goalId: string): Promise<string> {
   return (await webFetch(`${origin}/goals/${encodeURIComponent(goalId)}`)).text();
@@ -300,7 +313,7 @@ test("Web health identifies the process serving the response", async () => {
   try {
     const address = server.address();
     assert.ok(address && typeof address === "object");
-    const health = await (await webFetch(`http://127.0.0.1:${address.port}/health`)).json() as {
+    const health = await (await readyHealthResponse(`http://127.0.0.1:${address.port}`)).json() as {
       status: string;
       process_id?: number;
       service_process_id?: number;
@@ -551,7 +564,7 @@ test("Web health identifies the process serving the response", async () => {
   try {
     const address = server.address();
     assert.ok(address && typeof address === "object");
-    const health = await (await webFetch(`http://127.0.0.1:${address.port}/health`)).json() as {
+    const health = await (await readyHealthResponse(`http://127.0.0.1:${address.port}`)).json() as {
       status: string;
       process_id?: number;
       service_process_id?: number;

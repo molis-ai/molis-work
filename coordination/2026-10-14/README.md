@@ -614,6 +614,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - **BL-152（统筹 10-17 定：选 A）**：Prologue 的 start/session 接受每一轮自己的 `referenceKinds`，覆盖 Runtime 级的清单。Molis 在一轮开始时，用该项目装了的 Manifest（内置加外部）通过 `hostReferenceKinds` 算出来；从不读输入或模型，上限 100 个种类。外部 Manifest 的种类名和显示名会进模型读的工具 schema，所以要校验 id、给显示名限长；SECURITY-INVARIANTS 没覆盖的，补表行和拒绝用例。Prologue PR 由交互线写，等 #655 合入后开工；换包由采用线做，和 A3 的 Prologue 改动合成一次。没选 B：B 要拿全 Home 的并集，项目会看到自己没装的种类，新装的插件要重启才生效，种类数还可能超上限。
       - 交互线下一片：AC-07/AC-08 恢复与并发用例（新文件 `tests/interaction-recovery.test.ts`，只跑非浏览器用例，不改源码），已认可。
       - BL-150：情境线的回答可以接受：不进种类登记，因为没人按 id 查；id 是 `<work_id>:<run_id>:<turn_id>`；用 −6 行、−529 B 抵掉增长。另外要求 `"assistant_reply"` 只在载荷类型那里定义一次。浏览器用例在等槽位。
+      - #657（手册 C2，24919bbe9）：统筹审过。只把三处创作台会读的示例换掉（`generated-ai.md`、`agent-capabilities.ts` 的 `model.generate` 说明、`build-project.ts` 的 developer README），加一条规则：条数、长度是产品约束时，在代码里检查。没有新禁令、正则或特例。挂载章节跑过 studio:replay 和 smoke（MiniMax，隔离 Home）。改了源码里的字符串和 skills/，所以挂 label-chain 跑全量。C3 的 PR 随后到。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

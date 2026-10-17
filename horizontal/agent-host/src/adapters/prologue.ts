@@ -437,7 +437,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       runs: record.runs.map((ref) => ({ ...ref })),
       checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
       latest_run: view,
-      ...(record.recovery ? { recovery: { ...record.recovery } } : {}), ...(queued?.length ? { queued_inputs: queued } : {}),
+      ...(record.recovery ? { recovery: { ...record.recovery } } : {}), ...(queued ? { queued_inputs: queued } : {}),
     };
   }
 

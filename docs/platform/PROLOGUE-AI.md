@@ -226,7 +226,9 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 2. **「改到周五」**：一张操作卡，人点了才执行，对象改了版就失效。输入框旁的同排按钮归情境线，还没做。
 3. **Form「AI 生成题目」**：要求不够具体时先问几道选择题，答完接着生成（`plugins/native/form/src/drafting.ts`）。
 
-还没有的：外部插件的对象种类不在模型的清单里（BL-152，Prologue 在创建 Runtime 时固定清单）；单次接续现在只问选择题；生成插件沙箱没有 Agent 的 `ask-user` 与 `suggest-action`。
+对象引用题的种类清单每一轮按自己项目里装着、显示着的插件算，外部插件的也在内，进模型前由宿主筛（`docs/system/SECURITY-INVARIANTS.md` S-32）。
+
+还没有的：单次接续现在只问选择题；生成插件沙箱没有 Agent 的 `ask-user` 与 `suggest-action`。
 
 ## 7. 注册、入口与事件
 

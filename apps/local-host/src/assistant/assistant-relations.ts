@@ -1,7 +1,7 @@
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextAccess, ContextEdge, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { ASSISTANT_RELATIONS, type AssistantRelation, type AssistantScope } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_RELATIONS, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRelation, type AssistantScope } from "@molis-ai/molis-work-contracts/services/assistant";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
@@ -33,6 +33,24 @@ export interface WorkIdentity { work_id: string; project_id: string | null }
 /** A work as the source of its relations: its project namespace, or none for personal work. */
 export function identity(work: { work_id: string; scope: AssistantScope }): WorkIdentity {
   return { work_id: work.work_id, project_id: work.scope.kind === "project" ? work.scope.project_id : null };
+}
+
+/** A version as a relation keeps it: none when the object has no version. */
+export function revisionOf(version: string | number | undefined): string | null {
+  return version === undefined || version === null || version === "" ? null : String(version);
+}
+
+/** What a Send started from and brought along: the work keeps a relation to each, read from its owner later. */
+export function linkSent(relations: AssistantRelations, work: { work_id: string; scope: AssistantScope }, materials: AssistantMaterial[], context: AssistantContextSnapshot | null): void {
+  const id = identity(work);
+  try {
+    if (context?.object) relations.link(id, "origin", { kind: context.object.kind, id: context.object.id, revision: revisionOf(context.object.version) }, "工作从这个对象开始");
+    for (const material of materials) {
+      if (!material.object) continue;
+      relations.link(id, "material", { kind: material.object.kind, id: material.object.id, revision: material.draft ? null : revisionOf(material.object.version) },
+        material.explicit ? "用户把它加入这一轮" : "用户保留了当前页面的这个对象");
+    }
+  } catch { /* A relation that fails to record never stops the person's Send. */ }
 }
 
 /** An object a relation points to: a Plugin's object by its subject kind, in the work's project. */

@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 
 test("a round the runtime refuses while packing its context leaves the session usable, across a restart; the window and context use are recorded", { timeout: 30_000 }, async t => {
@@ -61,15 +61,16 @@ test("a round the runtime refuses while packing its context leaves the session u
 });
 
 // Prologue e0f99ea2 (prologue#40, BL-156's upstream half): a normal shutdown parks a round whose only wait is the person's
-// answer instead of cancelling it. Until the Host answers a parked round (answerInterrupted, the interaction line's half),
-// it comes back like a round a crash cut off: listed with its question, to check and close; nothing else waits on it.
+// answer instead of cancelling it. Until the Host answers a parked round (answerInterrupted, BL-156's Molis half), it comes
+// back like a round a crash cut off: listed with its question, to check and close; nothing else waits on it. A new round
+// before that is refused by the Host's own check of the restored session, so the runtime's SESSION_RUN_PARKED is not reached.
 test("a round parked on its question at shutdown comes back as an interrupted round with that question; closed, the session starts again", { timeout: 60_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-parked-round-"));
   let requests = 0;
   t.mock.method(globalThis, "fetch", async () => ++requests === 1
     ? cogniaScriptedResponse({ name: "ask-user", input: { why: "确认安排", questions: [{ id: "when", prompt: "什么时候开会", options: [{ label: "今天" }, { label: "明天" }] }] } })
     : cogniaModelResponse("好的。"));
-  const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.parked-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), questionTypes: ["choice"],
+  const make = () => createPrologueNodeAdapter({ app: { appId: "io.molis.parked-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), questionTypes: ["choice"], reviewQueue: new AgentReviewQueue(),
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "test-only" });
   let adapter = await make();
@@ -94,7 +95,7 @@ test("a round parked on its question at shutdown comes back as an interrupted ro
   const view = await adapter.read(asked.ref);
   assert.equal(view.phase, "reconcile-required");
   assert.deepEqual(view.awaiting_input.map(item => item.pending_id), [question.pending_id], "its question is still the one it asked");
-  await assert.rejects(start(), (error: { code?: string }) => error.code === "agent.session_busy", "no new round before it is closed");
+  await assert.rejects(start(), (error: { code?: string }) => error.code === "agent.session_busy", "no new round before it is closed: the Host refuses it, the runtime is not asked");
 
   const report = await adapter.recovery!.inspect(session);
   assert.deepEqual(report.blockers, [], "a refused start and the parked round leave nothing unexplained");

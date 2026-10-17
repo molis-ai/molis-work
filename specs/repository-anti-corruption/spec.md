@@ -146,6 +146,17 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 - 测试：`tests/host-log-catches.test.ts`：`W5-13-04`（项目查找只把 not_found 当没有，目录读不了与别的目录错误照抛）、`W5-13-05`（预览失败按类型记，forbidden、not_found 不记，消息与路径不进日志）、`W5-13-06`（Coding 后台清单，经宿主的真实接线：没有 Coding 的项目不记，读不了的库开始失败时记一条、读通后再失败再记；没有 Coding 的库用不带 Coding 表的空库——演示看板会建 Coding 的表，用它就量不到这一条；去掉接线里的询问即红）、`W5-13-08`（重复失败只在开始时记）、`W5-13-11`（项目简介与侧栏浏览器：没有这个项目仍是 404，目录读不了是 500 并记一条，服务照常答下一个）；`tests/im-local-project.test.ts` 的 `W5-13-11`（群聊连接：目录读不了 500，没有这个项目仍 403，之后照常连上）；`tests/connector-mcp.test.ts` 的 `W5-13-07`（重启后一个连接登记失败按 id 记，另一个照常登记）。变异检查：项目查找改回全捕获（04 失败）、预览不分种类（05 失败）、重复失败不去重（06、08 失败）、连接登记改回静默（07 失败）、Coding 去掉表检查（06 失败）。
 - 门禁：`--base origin/main` 通过；新加的几行没有留在巨大单元里（移到模块级小函数或同行注释），巨大单元的行数不变。
 
+### W5-13 补片：后台作业授权读取失败不冒充工作删除（2026-10-17，进行中）
+
+独立复查 #675（`b75e20738`）确认 `AssistantJobs.#follower` 把 `store.get` 的全部异常都当作“工作不存在”，与 `specs/prologue-adoption/spec.md` §6.0o 已定的“工作不在就 refused；读不到算这次不知道，SDK 再看”冲突。在隔离 SQLite 文件上持有真实排他锁，真实 Prologue 适配器第一次检查即把作业置为 `needs-reconciliation/unchecked`，解锁后仍不恢复，查询未执行。复现基于 main `8dad2fb96` 的同一生产实现；不读取真实 Home。
+
+最小修复仅改 `apps/local-host/src/assistant/assistant-jobs.ts` 的授权查找：只吞掉 owner 明确的 `assistant.not_found`，其他异常向现有检查器传播；检查器继续使用原有 unknown 有界重查，不新建重试、计时器或状态。作业执行、授权撤销、五次未知后交人、通知、卡片及库版本均保持原合同。复用现有 `tests/assistant-business-gateway.test.ts` 的服务与适配器夹具，允许为这条用例传入隔离的真实文件数据库。
+
+- **RAC-61**：真实排他锁引发的读取错误不会被当作工作删除；第一次失败后步骤仍运行，期间不调用状态查询；解锁后原步骤查询一次并正常完成，不创建第二步骤、不调模型。测试名带 `RAC-61`，走生产 `AssistantJobs.authority`、检查器及 SDK 等待。
+- **RAC-62**：确实不存在的工作及不属于该图的工作仍无授权；已有撤权拒绝、后台作业及助理回归通过。由同条测试及 `tests/security-invariants-external-checks.test.ts`、`tests/prologue-work-jobs.test.ts` 证明。
+
+验证：整体 `pnpm build` 后运行新增回归与 Host README 必跑/助理逻辑列表；`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`。修改是一个读取错误分类，不改合同、页面或安全上限；无需修改 API/动作快照或门禁。2026-10-17 验证通过：整体构建；定向 3 文件 69 项（含真实 SQLite 排他锁恢复与既有撤权拒绝）；Host/助理必跑其余 60 文件 510 项；真实 Chrome 1 文件 2 项，合计 64 文件 581 项、无失败或跳过；health 对 merge-base `8dad2fb96`、boundary 通过。RAC-61/62 已满足；本地实现与定向验证完成，等待按本线 PR 顺序集成，不据此宣称整体防腐线完成。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。

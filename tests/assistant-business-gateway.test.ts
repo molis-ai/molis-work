@@ -37,7 +37,7 @@ const count: ActionDefinition = { capability_id: "fixture.notes.count", version:
   title: "Count notes", description: "How many notes there are", kind: "query", scope: "project", audiences: ["agent"],
   permissions: ["notes:read"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
 
-async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, options: { model?: boolean; now?: () => Date; review?: true } = {}) {
+async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, options: { model?: boolean; now?: () => Date; review?: true; database?: DatabaseSync } = {}) {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-"));
   const notes = new DatabaseSync(":memory:");
   notes.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL, audit TEXT)");
@@ -66,7 +66,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     // The background jobs the works follow are looked at with the work's authority, as the Host wires it (agent-work-authority.ts).
     resolveCredential: () => "fixture-only", checks: { workAuthority: at => service.jobs.authority(at) } });
   host.register(adapter);
-  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const store = new AssistantStore(options.database ?? new DatabaseSync(":memory:"));
   const ports: ConstructorParameters<typeof AssistantService>[1] = { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
@@ -1233,4 +1233,48 @@ test("a change's receipt survives micro-compaction in the next request; an older
     assert.ok(!last.includes(`PAGE-1-${"p".repeat(800)}`), "and its text is gone from the request");
     assert.ok(last.includes(receipt), "the change's receipt is still there in full: it cannot be fetched again, calling again would do it again");
   } finally { await f.close(); }
+});
+
+
+test("RAC-61/62: an unreadable work keeps its job waiting, storage recovery finishes the same step, and only a missing work has no authority", { timeout: 30_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-job-authority-read-"));
+  const database = new DatabaseSync(join(directory, "assistant.db"));
+  database.exec("PRAGMA busy_timeout=0");
+  const f = await fixture(t, [], { model: false, database });
+  const locker = new DatabaseSync(join(directory, "assistant.db"));
+  let locked = false;
+  try {
+    const jobs = jobActions({ value: "completed" });
+    f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+    const session = await f.adapter.createSession({ project_id: f.project.project_id, plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "web-user", title: "Work" });
+    const work = f.store.create({ actor_id: "web-user", title: "Work", scope: { kind: "project", project_id: f.project.project_id }, project_ref: f.project, origin: null });
+    const works = f.adapter.collaboration!.works!;
+    const { graph_id } = await works.open({ key: "storage-recovery", session_id: session.session_id, title: "Work" });
+    f.store.update("web-user", work.work_id, null, { graph_id, session_id: session.session_id });
+    const key = `${work.work_id}.0123456789abcdef`, node_id = `job.${key}`;
+    let attempts = 0;
+    const authority = f.service.jobs.authority.bind(f.service.jobs);
+    t.mock.method(f.service.jobs, "authority", async (at: Parameters<typeof authority>[0]) => { attempts++; return authority(at); });
+    locker.exec("BEGIN EXCLUSIVE"); locked = true;
+    assert.throws(() => f.store.get("web-user", work.work_id), /database is locked/);
+    await works.follow({ graph_id, key, job_id: "job-1", title: "Research", deadline_ms: 3_600_000, every: { first_ms: 1000, max_ms: 1000 },
+      query: { action: { capability_id: "fixture.jobs.status", version: 1, provider_id: "fixture.jobs" }, input: { id: "job-1" }, path: ["status"], done: ["completed"], failed: ["failed"] } });
+    await until(() => attempts > 0, "first authority read");
+    // Drain the check after its read: a refused read would end the step immediately, before the next scheduled look.
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal((await works.read(graph_id)).find(node => node.node_id === node_id)?.state, "running");
+    assert.equal(jobs.looks(), 0, "storage failure cannot call the job owner's query");
+    locker.exec("ROLLBACK"); locked = false;
+    assert.equal(f.store.get("web-user", work.work_id).work_id, work.work_id);
+    await until(async () => (await works.read(graph_id)).find(node => node.node_id === node_id)?.state === "succeeded", "same job completes after recovery");
+    const steps = (await works.read(graph_id)).filter(node => node.job);
+    assert.deepEqual(steps.map(node => [node.node_id, node.job?.ended]), [[node_id, "done"]]);
+    assert.equal(jobs.looks(), 1, "one successful status query, with no re-execution of the job");
+    assert.equal(f.requests.length, 0, "the retry never calls a model");
+    assert.equal(await f.service.jobs.authority({ graph_id, node_id: "job.missing.0123456789abcdef" }), undefined);
+    assert.equal(await f.service.jobs.authority({ graph_id: "other-graph", node_id }), undefined);
+  } finally {
+    if (locked) locker.exec("ROLLBACK");
+    locker.close(); await f.close(); database.close(); await rm(directory, { recursive: true, force: true });
+  }
 });

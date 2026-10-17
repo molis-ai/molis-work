@@ -79,7 +79,7 @@
   - 每步显示状态标记（完成 / 进行中 / 受阻 / 失败 / 你跳过了）、最近一次模型回报和你的验收，点步骤可以打开原有的回报与验收弹窗。
   - 状态只来自模型对任务图的回报，不从回答正文推断。
 - **执行中调整计划**：进度卡上可以提前 / 推后（只限未开始的步骤）、跳过（需写原因）、在某步后插入（需写完成条件）、对受阻的步骤给出决定、越过失败的步骤。
-  - **宿主**：新增 Host 能力 `agent.run.step-board.amend.v1`，全部使用 SDK TaskBoard 的 report / addNode / rewire，带版本号防并发。
+  - **宿主**：新增 Host 能力 `agent.run.step-board.amend.v1`（2026-10-17 P4-C2 换成动作 `agent.collaboration.revise.v1`，形状不变，见 `specs/prologue-adoption` §6.0j），全部使用 SDK TaskBoard 的 report / addNode / rewire，带版本号防并发。
   - **只动涉及的步骤**：每次调整只重接受影响的步骤，不会因为别处的改动自动越过失败。
   - **记录**：调整以报告形式记在图上。
   - **告知这一轮**：Coding 经原有的补充要求通道把调整告诉执行中的这一轮，要求它先 board-read。

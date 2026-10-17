@@ -172,7 +172,6 @@ export interface PrologueRuntimePort {
   /** The window the runtime packs against when a model states none; a configured window is capped by it. */
   defaultContextWindowTokens?: number;
   readStepBoard?(run: AgentRunRef): Promise<AgentRunView["step_board"]>;
-  amendStepBoard?(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number, actorId: string): Promise<NonNullable<AgentRunView["step_board"]>>;
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
@@ -328,7 +327,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#runtime = options.runtime;
     if (options.runtime.projectWork) this.projectWork = options.runtime.projectWork;
     if (options.runtime.messages) this.messages = options.runtime.messages;
-    if (options.runtime.collaboration) this.collaboration = options.runtime.collaboration;
+    // A plan change goes through the adapter, which knows which round's graph may still change.
+    if (options.runtime.collaboration) this.collaboration = { ...options.runtime.collaboration, revise: (run, amendment, version, actor) => this.#revise(run, amendment, version, actor) };
     if (options.runtime.background) this.background = options.runtime.background;
     if (options.runtime.schedule) this.schedule = options.runtime.schedule;
     if (options.runtime.memory) this.memory = options.runtime.memory;
@@ -693,7 +693,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
    * from that same graph, so a blocked step is decided (or a step skipped or added) before the plan continues. An
    * earlier plan's graph, or a finished one, stays the record it was.
    */
-  async amendStepBoard(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number, actorId: string) {
+  async #revise(run: AgentRunRef, amendment: import("@molis-ai/molis-work-contracts/services/agent-host").AgentStepAmendment, expectedVersion: number, actorId: string) {
     const current = await this.read(run);
     if (isEnded(current.phase)) {
       const record = await this.#loadSession(run.session_id);
@@ -702,8 +702,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       if (later.some(view => view.frozen.execution_plan || !isEnded(view.phase))) throw agentErrors.session_busy("这一轮之后已有新的计划轮或仍在进行的一轮，它的计划图不再调整；请在最新的计划轮上调整");
       if (!current.step_board || current.step_board.terminal) throw agentErrors.session_busy("这一轮的计划图已经结束，不再调整；请调整计划后开始新一轮");
     }
-    if (!this.#runtime.amendStepBoard) throw agentErrors.capability_unavailable("当前运行时不能调整计划图");
-    return this.#runtime.amendStepBoard(run, amendment, expectedVersion, actorId);
+    return this.#runtime.collaboration!.revise(run, amendment, expectedVersion, actorId);
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {

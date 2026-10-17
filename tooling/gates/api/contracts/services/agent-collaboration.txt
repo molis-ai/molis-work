@@ -118,6 +118,7 @@ export interface AgentWorkGraphPort {
         node_id: string;
         note: string;
         actor_id?: string;
+        if_ready?: true;
     }): Promise<void>;
     hold(input: {
         graph_id: string;

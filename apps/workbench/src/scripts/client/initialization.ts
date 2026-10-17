@@ -179,7 +179,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         return;
       }
       if (handleGoalFactorKeyboard(event)) return;
-      if (handleMobileSwitchKeyboard(event)) return;
       if (handleTreeKeyboard(event)) return;
       if (event.key === "Escape" && !feedFilterPanel?.hidden) {
         event.preventDefault();

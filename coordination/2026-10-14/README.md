@@ -952,3 +952,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #675 的全量（run 39063550387）红了，只有 product-interaction.e2e 里 Feed reader 的重试按钮一处（Hidden click target），重跑一次还是红，所以门禁没有放它入队。
   - #675 没碰 Feed；main 自 19:00 全量通过之后只多了 #671（样式）和 #686（只改文档）。
   - 已请采用线用干净的基线工作树（4b063bf98）对比，分清是 main 回归、#675 引入的，还是时序问题。
+- prologue#41（交互线，de3b8475e，停放的跑留着计时器）统筹审过，代码可以：onSeal 让 drive 返回，由 finally 收掉，不 abort、不用 unref。新用例 10 遍挂了 1 遍、原因不明，所以合之前要先把「走到题之前」（限时放宽到约 30 秒）和「关机之后」（5 秒内退出，不变）两段时间分开，夹具写一行 asked 作标记，再连跑 10 遍。
+- receipts 线状态是「needs the user」，多半是在它自己的会话里弹窗问字节。

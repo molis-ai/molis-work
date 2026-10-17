@@ -818,3 +818,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #667 合入后，有四个 PR 在 page-assets.json 上和 main 冲突：#673、#675（另有 baseline.json）、#669、#671（另有 receipts 的源码）。chain4 跳过了 #677、#673、#675，现在在等 #679（它没改 page-assets，可以合并）。#673 和 #675 已请各自的线 merge main、重新测量。
 - #677 → 1e9055a38：除去 page-assets 和 baseline，和审过的 68c4d0a5d 逐行一致；三份 CSS 的降幅不变。挂上 chain5。W5-01 本地已经并了 #667，+28 改成以 [1104882, 1104910] 定键。
 - #671（3b-2b）→ 5fa26f5cb：merge 了 #667 和 main。除去 page-assets 那四份，对 main 的改动和审过的 aa1255e28（相对 #667 的部分）逐行一致。放行以 e49f6a558 定键：workbench.js +2,838、workbench.css +102、settings.css +57、arrival.css +64，都在用户批的 +2,838/+163/+91/+86 以内；coding.js 降了 512。有界用例的断言照原样换到 3b-2b。挂上 chain6，要跑全量。#677 会降这三份 CSS，所以它和 #671 谁后合入，谁按新的 main 重新定键。
+  - 改了一处：浏览器读流的代码不放 SDK，那是 Node 包，浏览器脚本用不上。改放 `packages/ui-host/src/request-client.ts`，写成 `molisWorkRequest.stream`。客户端这一半挪到第三片（灵光迁移），和删掉灵光自己的 postStream 一起做，到时写清两份资源各自增减多少，再问一次用户。(a) 只做宿主和合同。三种行的类型只在 contracts/platform 里定义一份。

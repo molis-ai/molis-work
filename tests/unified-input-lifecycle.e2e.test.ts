@@ -65,7 +65,7 @@ async function openFixture(t: TestContext): Promise<ChromePage | null> {
   await browser.command("Page.enable");
   await browser.viewport(1000, 1200);
   await browser.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/` });
-  await browser.wait("document.documentElement.dataset.ready === '1' && document.querySelectorAll('[data-uiv-bound]').length === 3");
+  await browser.wait("document.documentElement?.dataset.ready === '1' && document.querySelectorAll('[data-uiv-bound]').length === 3");
   return browser;
 }
 const options = { timeout: 60_000 };

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ENDING_REVIEW, GUARDED_TOOL_NAMES, actedThisRound, emptyRoundFacts, endingClaims, internalIdsHeld, mentionsInternalIds, noteRoundEvent, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
+import { GUARDED_TOOL_NAMES, actedThisRound, emptyRoundFacts, endingClaims, internalIdsHeld, mentionsInternalIds, noteRoundEvent, writesToolCallAsText } from "../horizontal/agent-host/src/adapters/announce-guard.js";
 
 test("a reply that writes a tool call out as text is recognised; talking about capabilities in words is not", () => {
   // Seen from MiniMax-M3 when asked for buttons: our own call syntax, which the Host can see by itself.
@@ -61,9 +61,6 @@ test("the review's answer is read only for what it was asked: how the ending rea
   // The shape of an earlier draft, or no JSON at all, finds nothing: the ending is let through.
   assert.deepEqual(endingClaims('{"claims":["kept"]}'), []);
   assert.deepEqual(endingClaims("没有发现问题"), []);
-  // The instructions are versioned: a change to them is measured before and after (handbook §16.3).
-  assert.equal(ENDING_REVIEW.version, 1);
-  for (const name of ["next_step", "changed", "kept", "forgot", "button"]) assert.match(ENDING_REVIEW.body, new RegExp(`- ${name}：`));
 });
 
 test("the guards know every tool a business round can be given, the side panel's browser and the runtime's own included", () => {

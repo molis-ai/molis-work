@@ -70,10 +70,10 @@
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 372,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
-      "lines": 382,
+      "lines": 381,
       "methods": 12
     },
-    "function horizontal/agent-host/src/index.ts#start": 253,
+    "function horizontal/agent-host/src/index.ts#start": 252,
     "class horizontal/listener-host/src/index.ts#ListenerHost": {
       "lines": 361,
       "methods": 18

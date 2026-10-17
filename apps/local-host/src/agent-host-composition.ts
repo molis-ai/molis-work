@@ -102,7 +102,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       documentParsers: [pdfDocumentParser],
       // A step's wait on a file looks only while the round's directory is still authorized for the project.
       checks: { directoryAuthorized: async (projectId, directory) => (await workspaceGrants(options, projectId)).some(entry => entry.realpath_verified && entry.canonical_path === directory) },
-      reviewQueue: agentHost.reviews, endingReview: true,
+      reviewQueue: agentHost.reviews,
       app: { appId: "io.molis.work", appVersion: "0.0.0" },
     }).then((adapter) => { prologue = adapter; agentHost.register(adapter); markStarted(); }))
       .catch(error => { ready = undefined; throw error; });

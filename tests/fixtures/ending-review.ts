@@ -9,6 +9,29 @@ export function reviewAnswer(claims: readonly string[]): string {
  * own instructions, and answered with the claims `judge` finds in what it was given (the ending and the facts).
  */
 export function endingReviewAnswer(body: { system?: unknown; messages?: unknown }, judge: (given: string) => string[]): string | undefined {
-  if (!JSON.stringify(body.system ?? "").includes("AI 助理在这一轮结束时")) return undefined;
+  // Anthropic-shaped requests carry the instructions in `system`, OpenAI-shaped ones in a system message.
+  const system = body.system ?? (Array.isArray(body.messages) ? body.messages.filter(message => (message as { role?: unknown } | null)?.role === "system") : "");
+  if (!JSON.stringify(system).includes("在这一轮结束时对用户说的话")) return undefined;
   return reviewAnswer(judge(JSON.stringify(body.messages ?? [])));
+}
+
+/**
+ * The same for a loopback model that reads the request body itself: the "nothing found" answer for a review request,
+ * undefined for the round's own calls, so a scripted model answers a review without spending one of its turns.
+ */
+export function endingReviewReply(raw: string): string | undefined {
+  if (!raw.startsWith("{")) return undefined;
+  return endingReviewAnswer(JSON.parse(raw) as { system?: unknown; messages?: unknown }, () => []);
+}
+
+/**
+ * For tests that script a round's model and do not look at its ending review: wraps the test's fetch double so each
+ * review request is answered "nothing found" with `answer`, and the script and the request counts see only the round's
+ * own calls.
+ */
+export function answeringEndingReviews<U, I extends RequestInit | undefined>(answer: (text: string) => Response, scripted: (url: U, init: I) => Promise<Response>): (url: U, init: I) => Promise<Response> {
+  return async (url, init) => {
+    const review = endingReviewReply(typeof init?.body === "string" ? init.body : init?.body instanceof Uint8Array ? new TextDecoder().decode(init.body) : "");
+    return review ? answer(review) : scripted(url, init);
+  };
 }

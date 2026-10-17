@@ -7,6 +7,7 @@ import test from "node:test";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { endingReviewAnswer } from "./fixtures/ending-review.js";
 
 // specs/prologue-adoption §4.6.10 (P3a): a yield is the SDK's — dispatch, the step waits on the child's step, the run
 // ends — and the step goes on only when the Host starts the session's next round, through the same start checks.
@@ -47,9 +48,12 @@ async function fixture(yieldIt: boolean, onFirst?: () => void) {
     let raw = "";
     for await (const chunk of request) raw += String(chunk);
     const body = JSON.parse(raw) as { system: unknown; tools?: Array<{ name: string }> };
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found", not counted as a run.
+    const review = endingReviewAnswer(body, () => []);
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    if (review) { response.end(reply(undefined, review)); return; }
     const who = body.tools?.some(tool => tool.name === "dispatch-subagent") ? "parent" : "child";
     requests.push({ who, body: raw });
-    response.writeHead(200, { "content-type": "text/event-stream" });
     if (who === "child") { response.end(reply(undefined, "读过了：README 一共三节。")); return; }
     if (requests.filter(one => one.who === "parent").length === 1) {
       const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@4/)?.[0];

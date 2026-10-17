@@ -147,6 +147,8 @@ interface AgentFrozenStartFields {
   model_id: string;
   /** Host-frozen context selection policy, absent when not wired for this runtime. */
   compaction?: { prompt_id: string; version: number; above_tokens: number };
+  /** The ending review's prompt (D1②), the person's edit included; absent when the Agent declares none. */
+  ending_review?: { prompt_id: string; version: number; user_revision?: number };
   /**
    * The window this Run was packed against (the model's own, capped by the runtime), and whether the provider's input
    * count already includes cached prompt tokens. Absent on runs started before it was recorded.
@@ -296,6 +298,8 @@ export interface AgentFrozenRole {
   execution: AgentRoleExecution;
   /** Separate selection prompt: never composed into the executing role. */
   compaction?: { prompt: AgentPromptText; above_tokens: number };
+  /** Separate review prompt, the same: never composed into the executing role. */
+  ending_review?: { prompt: AgentPromptText };
   /** Prompt bodies in composition order. */
   prompts: AgentPromptText[];
   /** Exact method bodies resolved by the Host, never accepted from the request. */

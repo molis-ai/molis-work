@@ -559,9 +559,10 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
       await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
     }
   };
-  // The stop check follows this round; its ending review runs on the round's own model, behind the same pre-dispatch check.
-  guardRound(state, input, mode.business, deps.options.endingReview ? { protocol: input.model.protocol, endpoint: input.model.endpoint, model: input.model.model, credentialRef,
-    dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
+  // The stop check follows this round; its ending review, when the round's owner gave one, runs with the owner's
+  // instructions on the round's own model, behind the same pre-dispatch check.
+  guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
+    model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
   const started = await deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
     session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding,
   }))).catch(async (error: unknown) => {

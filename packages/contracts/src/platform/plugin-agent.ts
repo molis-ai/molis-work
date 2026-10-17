@@ -113,6 +113,14 @@ export interface AgentCompactionDeclaration {
   above_tokens: number;
 }
 
+/**
+ * The prompt a writable round's last words are checked with against the round's facts when the round changed nothing
+ * (D1②): what they say it did, or will now do, that the facts do not show is held once and continued. Absent: not checked.
+ */
+export interface AgentEndingReviewDeclaration {
+  prompt_id: string;
+}
+
 export interface AgentSkillDeclaration {
   skill_id: string;
   version: number;
@@ -177,6 +185,7 @@ export interface AgentManifest {
   roles: AgentRoleDeclaration[];
   prompts: AgentPromptDeclaration[];
   compaction?: AgentCompactionDeclaration;
+  ending_review?: AgentEndingReviewDeclaration;
   skills?: AgentSkillDeclaration[];
   mcp?: boolean;
   /** Absent means Character input is not accepted. Selection always names a fixed Artifact. */

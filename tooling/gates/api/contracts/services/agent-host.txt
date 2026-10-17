@@ -250,6 +250,9 @@ export interface AgentFrozenRole {
         prompt: AgentPromptText;
         above_tokens: number;
     };
+    ending_review?: {
+        prompt: AgentPromptText;
+    };
     prompts: AgentPromptText[];
     skills?: AgentSkillDefinition[];
     host_tools: string[];
@@ -1566,6 +1569,11 @@ interface AgentFrozenStartFields {
         prompt_id: string;
         version: number;
         above_tokens: number;
+    };
+    ending_review?: {
+        prompt_id: string;
+        version: number;
+        user_revision?: number;
     };
     model_context?: {
         window_tokens: number;

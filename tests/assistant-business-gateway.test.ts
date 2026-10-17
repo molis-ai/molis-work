@@ -18,7 +18,7 @@ import { AssistantService, presentActivity } from "../apps/local-host/dist/assis
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { HOST_GOVERNED_TOOLS, capabilityInput, gatewayProblem, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
-import { reviewAnswer } from "./fixtures/ending-review.js";
+import { endingReviewAnswer, reviewAnswer } from "./fixtures/ending-review.js";
 import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -53,6 +53,9 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   let turn = 0;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    // The Assistant's ending review (D1②) runs whenever a writable round changed nothing; a test that scripts it says so.
+    const review = options.review ? undefined : endingReviewAnswer(body, () => []);
+    if (review) return reply(undefined, review);
     requests.push(body);
     const next = script[turn++] ?? (() => reply());
     return next(body);
@@ -60,7 +63,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => options.model === false ? null : ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
-    resolveCredential: () => "fixture-only", ...(options.review ? { endingReview: true as const } : {}) });
+    resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service: AssistantService = new AssistantService(store, { host: async () => host,

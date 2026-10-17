@@ -133,7 +133,7 @@ export interface PrologueStartInput {
     instructions: string;
     tools: string[];
   };
-  compaction?: { prompt: string; above_tokens: number };
+  compaction?: { prompt: string; above_tokens: number }; ending_review?: { prompt: string };
   task: string;
   /** Memories the Host chose for this run; the runtime re-reads each and injects it as data. */
   memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory;
@@ -574,7 +574,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         instructions: role.prompts.map((prompt) => prompt.body).join("\n\n"),
         tools: [...role.host_tools],
       },
-      ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}),
+      ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
       task: request.task,
       ...(role.memory?.pinned.length ? { memory: structuredClone(role.memory) } : {}),
       ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),

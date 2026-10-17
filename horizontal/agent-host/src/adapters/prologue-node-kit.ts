@@ -21,12 +21,6 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   documentParsers?: readonly import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentParser[];
   /** Host-owned surface; absence keeps all writes unavailable. */
   reviewQueue?: AgentReviewQueue;
-  /**
-   * A writable round that changed nothing has its last words read once against its facts, by the round's own model
-   * (ending-review.ts; the person chose this on 2026-10-16). Absent: no such review, and an ending is held only for
-   * what the Host sees itself (a call written as text, an identifier it handed out).
-   */
-  endingReview?: true;
   questionTypes?: readonly import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionType[]; // typed types every interface showing questions renders; absent or empty: the plain question
   /** Reads each object a person picked for a reference question again from its owner before the answer goes on (S-26); absent: refused. */
   confirmReferences?: import("./prologue-questions.js").ReferenceConfirmer;

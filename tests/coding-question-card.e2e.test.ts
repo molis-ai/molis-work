@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { endingReviewReply } from "./fixtures/ending-review.js";
 
 /** One streamed Anthropic-format model turn: text, or one tool call. */
 function turn(text: string, tool?: { name: string; input: object }): string {
@@ -35,6 +36,9 @@ async function openCoding(t: TestContext, ask: object) {
   const model = createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    const review = endingReviewReply(raw);
+    if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }
     bodies.push(JSON.parse(raw));
     // The round's first call asks the person a typed questionnaire; the next one goes on with the answer.
     res.writeHead(200, { "content-type": "text/event-stream" });

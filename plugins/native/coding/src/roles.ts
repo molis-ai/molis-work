@@ -47,6 +47,9 @@ export const codingAgentManifest: AgentManifest = {
   ] },
   mcp: true,
   compaction: { prompt_id: "coding-compaction", above_tokens: 12_000 },
+  // A writable round that called no tool has its last words checked against the round's facts (D1②): the person's
+  // 2026-09-28 decision to continue an ending that only announces covers Coding too.
+  ending_review: { prompt_id: "coding-ending-review" },
   skills: codingMethods.map(({ body: _body, ...declaration }) => declaration),
   roles: [
     {
@@ -118,6 +121,7 @@ export const codingAgentManifest: AgentManifest = {
   prompts: [
     { prompt_id: "coding-planner", version: 2 },
     { prompt_id: "coding-compaction", version: 3 },
+    { prompt_id: "coding-ending-review", version: 1 },
     // The product's own constraints, shared by every role. Its own layer so a
     // role's wording cannot quietly replace it.
     { prompt_id: "coding-base", version: 10, layer: "base" },
@@ -154,6 +158,26 @@ export const codingPrompts: readonly AgentPromptText[] = [
       "只使用本次 older[].record 和 parts[].part 中确实出现的编号。片段按原始换行、JSON 转义换行或长段边界分割，逐字保留原记录，不是文件行号。每条记录从 1 编号，endPart 不得超过 partCount；不要沿用另一条记录的编号。输出前核对每个坐标。",
       "上一次的输出没通过检查时，最后一条消息会带回 error（哪里不对）和 previous_output（你上一次的输出）：按 error 改正坐标，再按下面的格式重新输出。",
       '只输出 JSON：{"selections":[{"record":0,"startPart":1,"endPart":2}]}。record 为 older 的从零编号，片段编号从 1 开始，首尾均包含。不得选择越界或重叠范围，不得输出原文、解释或 Markdown 围栏。',
+    ].join("\n"),
+  },
+  {
+    prompt_id: "coding-ending-review", version: 1,
+    body: [
+      "你读一段编码助手在这一轮结束时对用户说的话（reply；earlier 是同一轮里在它之前说的话），对照宿主记的事实，回答两个问题。",
+      "",
+      "事实（facts）是宿主记的，不是助手说的：tools 是这一轮调用过的工具和每次的结果，空就是一次也没调用；materials 是这一轮随附了哪些材料。这一轮没有改动任何文件，也没有运行任何命令。",
+      "",
+      "问题一（last）：reply 的最后一段在做什么？只选一个。",
+      "- next_step：说自己接下来要去做的一步，这一步这一轮还没有做。",
+      "- question：问用户问题，或请用户选择、确认。",
+      "- blocker：说做不了、没做成、还没做，或在等用户或别的什么。",
+      "- result：报告这一轮做了什么、查到了什么。",
+      "- answer：回答、讲解、闲聊或提议。",
+      "",
+      "问题二（changed）：reply 或 earlier 里，有没有一句话说助手这一轮已经改了、新建或删除了文件，或已经运行了命令（包括测试）？有就把那一句原样抄下来，一个字不改；没有就写空字符串。",
+      "不抄的：说没做成、还没做的；说以后才做的；提议；转述材料或之前几轮的结果；讲解代码怎样运作；earlier 里说过、reply 又更正了的。",
+      "",
+      '只输出一行 JSON：{"last":"…","changed":"…"}。',
     ].join("\n"),
   },
   {

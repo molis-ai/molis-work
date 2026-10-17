@@ -873,6 +873,7 @@ W2 就是 context-toolbar 的 S2+S3：底部动作条换成贴着手上东西的
      - 顶层→窗格 `workbench-context-view`：`op` 取 `render` / `pending` / `idle` / `error`，带方案与回执，取代只在绘制时发的 `workbench-context-plan`。
      - 窗格→顶层 `workbench-context-hold`：`pinned` 键与是否正在交互，供「悬停不动」和判断时保位。
      - 窗格→顶层 `workbench-context-dismiss`：Esc 收起的键，顶层据此记「忽略」。
+     - 顶层→窗格 `workbench-surface-landing-flash`（W3-A3c）：请窗格在自己报告的落点上闪一次；顶层只发给落点所在、还连着的那个 iframe，目标 origin 是 `location.origin`，窗格先过 `panes.fromParent` 再处理（S-30）。
    - `workbench-surface-focus`、`-action-choose`、`-action-chosen`、`-action-unhandled` 不变。转发焦点前去掉 `screen`，它从不离开报告它的文档。
 3. **总线与视图分开**：
    - 总线只通过一个视图接口说话（`render`、`pending`、`idle`、`error`、`pinned`、`interacting`、`plan`、`published`），按情境来源选本地视图或窗格视图，不再碰任何 DOM。
@@ -1254,7 +1255,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | W3-A1 | 下一步与输入框同一行：宿主派生全部下一步（卡、题、结果、重试、页面建议），岛只画；删 A10「接下来」、A11 两个「去…」、A7 建议条；窄时移到输入框上方；FLOW-01…05 | #489 先合（交互线已同意，D24） |
 | W3-A2 | 情境条：取代「材料」按钮与弹层；删聚焦弹出的开场建议（A5）；✦助理等交接只带手上的东西、不替人写话 | W3-A1 |
 | W3-A3 | 写动作留在当前工作（`work_id`）；助理回复与结果可以拿起（`place: assistant`），浮条画在岛里 | W3-A2 |
-| W3-A3c（以后） | ① 分屏窗格里的落点也闪：顶层把「闪一下」转给报告落点的那个窗格（现在只闪本页自己的落点，窗格的不问）；② 浮条「更多」菜单里的放进去也闪（菜单项没有 `data-key`，悬停不算拿在手上） | W3-A3b |
+| W3-A3c | ① 分屏窗格里的落点也闪：顶层把「闪一下」转给报告落点的那个窗格；② 浮条「更多」菜单里的放进去也闪（实现记录见 21.6） | W3-A3b |
 | W3-B | Pages 报告落点、三个确定性的 `attach`、落点处预览；落点事件登记；情境条显示落点。执行前宿主用 H3 的 `confirmReferences` 按调用者的权限重读落点对象，不在或没权限用合同里的 `reference-unavailable`，不另写一套；`attach` 的 `find` 取候选（`search.references@1`）改到 W4 的 F2（统筹 2026-10-15 定，见 21.8）。拆成 W3-B1（落点、动作、预览、执行）与 W3-B2（情境条显示落点） | W3-B1：H3 合入；W3-B2：W3-A2 |
 | W3-C | 右栏各格报告手上的东西（中枢接右栏） | W2'（右栏改版） |
 
@@ -1347,8 +1348,14 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 拿起：结果块里还读得到的结果（`current`、`changed`）卡片可以聚焦（`role="group"`，`aria-label`「拿起：标题」）。点卡片、或聚焦后按 Enter / 空格，整个对象成了手上的东西：`molis:surface-focus`，`plugin_id: "assistant"`，`granularity: "object"`，对象与唯一的 `object` 目标取结果自己的 `subject` 与标题，`screen` 是卡片的矩形；位置照已有的写法得出 `place: "assistant"`，浮条贴着卡片。拿着的卡片 `aria-current="true"`。只有标题打开对象（标题按钮原来盖住整张卡的 `::after` 对这种卡片去掉），卡上的按钮照旧；在卡片里选字后松手是在读，不拿起。Esc（同一张卡）或在卡片与浮条以外按下就放下，同一张卡发 `null`；一次只拿一个。已经拿着的卡再点、再按 Enter 或空格，换一个新的 `context_id` 再给出一次（浮条按 Esc 收起、或因重建放手后，靠它回来），卡片仍在手上，和选中文字时 Esc 只收浮条的做法一致（统筹 10-17 审）。不在了、读不到、搬走的结果不能拿。代码在 `assistant-work-objects.ts`，岛只在结果块调用一次，行数不变。
   - 闪一下：浮条上悬停或聚焦一个放进去的候选（候选来源是 `attach`）时，顶层把登记过的请求 `molis:surface-landing-flash` 发在报告落点的那个元素上；每次移入或聚焦算一次，同一个候选一直停着不再发；浮条在指针每移过它的一部分时都报一次手上的键（`context-toolbar.ts` 的 `pointerover` 不再只认 `[data-key]`），所以移到按钮之间再回来也算一次新的移入。落点不是本页的（窗格的）、元素已不在或不在本文档，就什么都不发。Pages 拥有这次闪（`landing-editor.ts`，页面状态主人 `pages-landing`）：光标或末尾处一条铜色竖线，选区用 CSS 自定义高亮衬一层浅底，不盖字；正在闪时不再闪；要求少动画时不闪。
   - 资源不变大：`molis-work-workbench.js` 比 W3-A3a 小 19 B，`molis-work-pages-editor.js` 小 11 B；三张卡片节点视图的三段模板并成一段、编辑卡片的两个确认合成一个；删掉没有渲染方的代码（`[data-plugin-expand]` 的开合与它存的 `directoryCollapsedSections`、`.plugin-stack` 选择器与开场动画、`.topbar` 的 `data-mobile-surface`、Goal 正文里的 `.desktop-pane-header`、`.mobile-switch` 的样式），证据表在 PR 里。
-  - 以后：分屏窗格的落点闪、「更多」菜单里的放进去闪，见 21.4 的 W3-A3c。
+  - 分屏窗格的落点闪、「更多」菜单里的放进去闪，在 W3-A3c 做了（见下一条）。
   - 验收：PICK-01（点卡片或 Enter / 空格拿起整个对象）、PICK-02（标题打开、按钮照旧、选字不拿）、PICK-03（Esc 或按在别处放下，按在浮条上不放，一次一个）、PICK-04（不在、读不到、搬走的不能拿）、PICK-05（已拿着的再拿一次换新的 context 再给出，浮条收起后回来），在 `tests/assistant-pick.test.ts`；FLASH-01（悬停或聚焦放进去时落点闪一次，正在闪不再闪，移到按钮之间再回来再闪）、FLASH-02（落点已不在：不发、不报错）、FLASH-03（拿起的结果放到光标处：先预览、确认才写入），与 PICK-01 的键盘与鼠标两条路、PICK-05（浮条 Esc 收起，再按 Enter 回来），在 `tests/context-pick-result.e2e.test.ts`。
+- 2026-10-17 W3-A3c 实现（分支 `context/w3a3c-flash-panes-menu`，叠在 W3-A3b 上；方案与两条条件统筹 10-17 定）：分屏窗格的落点也闪，「更多」菜单里的放进去也闪。
+  - 菜单：菜单项带 `data-key`，指针移入、移出或焦点进入菜单都报一次手上的键，和浮条本身一样。浮条另给一个 `pointed()`（浮条上的键加菜单里的键）只用来闪；`pinned()` 的意思不变（浮条上那三个按钮里悬停或聚焦的，随下一次判断发给宿主，`planContextualLayout` 只用它给 `primary` 保位），菜单项不算进去（统筹条件 1）。
+  - 窗格：落点是窗格报告的（`pane_id` 不是本页）时，顶层不在本页发 `molis:surface-landing-flash`，而是给那个窗格的框发窗格消息 `workbench-surface-landing-flash`：只发给 `landing.element` 这个还连着、在本文档里的 iframe，目标 origin 是 `location.origin`；窗格一侧先过 `panes.fromParent`，再在报告落点的那个元素上（还在就）发这个请求，由 Pages 照旧画（统筹条件 2；消息登记在 §19.3 第 2 条，S-30 加了一行拒绝用例）。
+  - 大小：浮条程序 13,883 字（上限 13,900）：去掉被 `pointerover` 包含的 `pointerenter`，焦点进出时「在浮条或菜单里」的判断合成一处 `inside`。顶层的转发不另看 `pane_id`（落点元素是 iframe 就转给它，否则在本页发），也不再查元素是否在本文档（它总是本文档上听到的事件的目标）。删掉没有发送方的窗格消息处理 `workbench-feed-add`、没有产出方的 `.project-settings-hub`（选择器与样式；两者的另一半都在 `fe9f98064` 里没了）。`molis-work-workbench.js` 仍比 W3-A3b 多 318 B，两份样式表各少 149 B；抵不下的数字已报统筹，预算不由本片调。
+  - 还没做：手上的东西在窗格里时浮条画在窗格自己的文档里，那里悬停放进去还不闪（窗格的 `workbench-context-hold` 只带 `pinned`，顶层不据它问落点）。
+  - 验收：PANE-FLASH-01（落点在分屏窗格：悬停浮条上的「插入到光标处」，窗格画出闪线，顶层不发）、PANE-FLASH-02（窗格自己发、窗格里别的框发的「闪一下」都不闪）、MENU-FLASH-01（「更多」菜单里同一项悬停也闪；菜单项在 `pointed()` 里、不在 `pinned()` 和发给宿主的 `pinned` 里），在 `tests/context-landing-flash-panes.e2e.test.ts`；S-30 的拒绝在 `tests/security-invariants-pane-messages.test.ts`「S-30 a pane shows its landing only when the page around it asks, from this origin」。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

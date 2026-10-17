@@ -75,3 +75,17 @@ test("S-30 a token handed to one pane is taken back only by that pane's frame, a
   assert.equal(panes.take("token-1", paneA), choice, "its own pane takes it");
   assert.equal(panes.take("token-1", paneA), null, "a second time it is gone");
 });
+
+test("S-30 a pane shows its landing only when the page around it asks, from this origin", () => {
+  const { around, self, panes } = pane();
+  const flash = { type: "workbench-surface-landing-flash" };
+  assert.equal(panes.fromParent({ origin: ORIGIN, source: around, data: flash }), true, "the page around it");
+  assert.equal(panes.fromParent({ origin: ORIGIN, source: self, data: flash }), false, "the pane asking itself");
+  assert.equal(panes.fromParent({ origin: ORIGIN, source: { name: "a sibling pane" }, data: flash }), false, "a sibling pane or a popup");
+  for (const origin of ["http://127.0.0.1:4174", "https://example.com", "null"]) {
+    assert.equal(panes.fromParent({ origin, source: around, data: flash }), false, `from ${JSON.stringify(origin)}`);
+  }
+  // The page does not take it back from a pane: a pane cannot make the page around it, or another pane, flash.
+  const { paneA, panes: top } = page();
+  assert.equal(top.fromParent({ origin: ORIGIN, source: paneA.contentWindow, data: flash }), false);
+});

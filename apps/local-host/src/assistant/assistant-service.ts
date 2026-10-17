@@ -10,6 +10,7 @@ import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
 import { cardView } from "./assistant-card-view.js";
+import { workView } from "./assistant-work-view.js";
 import { AssistantOffers } from "./assistant-offers.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -1844,9 +1845,7 @@ export class AssistantService {
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {
-    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, question_drafts: _drafts, thread_round: _thread, graph_id: _graph, delegated_by: _delegated, ...rest } = work;
-    const delegated_by = this.delegations.shown(work);
-    return { ...rest, ...(delegated_by ? { delegated_by } : {}), state };
+    return workView(work, state, this.delegations.shown(work));
   }
 }
 

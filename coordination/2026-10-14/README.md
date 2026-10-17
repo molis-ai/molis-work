@@ -693,3 +693,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 新文件里的长函数算新增的巨大单元，搬家也算。所以 W4-06 必须拆到阈值以下，不能整段搬。
   - 页面资源字节只许减少，预算等于实测。
 - **label-chain 别一个 PR 开一条**：每条都各自每 120 秒数一次全量，同一个窗口里可能都看到「不到 2 个」，一起加标签，就超了上限。几个 PR 写进同一条：`label-chain.zsh a:head b:head …`，它一次只加一个；已经有一条在等时，新的接在它后面（10-17 把 #660、#662 改成排在 #654 后面）。
+- **合并预览卡在旧的 base 上**：10-17 #654 的 `refs/pull/654/merge` 停在 106d6163a，main 已经到了 26ff046cb；查了 10 分钟 mergeable，GitHub 一直没重算，label-when-free 退出（MERGE REF STALE），这是对的，不该拿旧 main 去跑全量。处理：请分支的主人 merge main 再推，用新 head 重新挂 label-chain。不用 close/reopen，也不替别人更新分支。注意：label-chain 的这一步失败时 `|| exit 1`，后面没有任何通知；要单独起一个后台进程，等它结束再报。

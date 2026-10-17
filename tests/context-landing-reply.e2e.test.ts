@@ -35,7 +35,7 @@ test("BL-150 AC-S15: a passage selected in an Assistant reply is put at the curs
   await issueModel(t, homeDirectory, { replyText: "用户说：离线也要能记下想法。" });
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "把访谈里最要紧的一句话找出来" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   await waitFor(`${reply}?.textContent.includes('离线也要能记下想法')`, 20_000);
 

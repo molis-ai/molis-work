@@ -606,7 +606,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const bubble = keyed(node, "data-entry", entry.key, () => el("div", "assistant-msg assistant-msg--" + kind));
         // A reply is the Assistant's own object: what the person selects in it is in hand, named by the work it belongs to.
         const reply = kind === "assistant" && JSON.stringify({ plugin_id: "assistant", object: { kind: ${JSON.stringify(ASSISTANT_REPLY_KIND)}, id: work.work_id + ":" + round.run_id + ":" + turn.turn_id, title: work.title } });
-        if (reply && bubble.getAttribute("data-assistant-context") !== reply) bubble.setAttribute("data-assistant-context", reply);
+        if (reply && bubble.dataset.assistantContext !== reply) bubble.dataset.assistantContext = reply;
         if (bubble.dataset.text !== turn.text) {
           bubble.dataset.text = turn.text;
           if (kind === "assistant") { bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;

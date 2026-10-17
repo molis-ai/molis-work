@@ -210,7 +210,7 @@ test("Light desktop navigation and directory selections stay flat", () => {
   assert.match(VISUAL_FOUNDATION_STYLES, /Light location states stay embedded in their rail/);
   assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.desktop-goal-directory \.tree-entry\.is-selected,[\s\S]*\.feed-list-item\.is-selected \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 8%, transparent\) !important;[\s\S]*box-shadow: none;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\[data-desktop-shell="true"\] \.goal-mode-switch button\.is-active \{[\s\S]*background: color-mix\(in srgb, var\(--blue\) 10%, transparent\);[\s\S]*box-shadow: none;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\] body\.settings-page\[data-desktop-shell="true"\] \.settings-navigation \.settings-nav-group > a\[aria-current="page"\] \{[\s\S]*background: color-mix\(in srgb, var\(--ink\) 8%, transparent\);[\s\S]*box-shadow: none;/);
+  // body.settings-page[data-desktop-shell="true"] never matches: every settings body renders data-desktop-shell="false". Its rules and the lines that asserted them went in W5-05 (desktop-shell dead selectors).
   assert.match(VISUAL_FOUNDATION_STYLES, /\.navigator-project-settings\[aria-current="page"\],[\s\S]*\.navigator-directory-toggle \{[\s\S]*background: color-mix\(in srgb, var\(--ink\) 7%, transparent\);[\s\S]*box-shadow: none;/);
 });
 
@@ -233,10 +233,7 @@ test("all desktop shells share one Codex-style two-row titlebar contract", () =>
   assert.match(VISUAL_FOUNDATION_STYLES, /\.navigator-project-selector,[\s\S]*\.navigator-project-notifications,[\s\S]*\.navigator-directory-toggle \{[\s\S]*height: var\(--desktop-titlebar-control-height\);[\s\S]*align-self: center;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.workspace > \.workbench-header,[\s\S]*display: flex;[\s\S]*align-items: center;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.desktop-workbench-bar \{[\s\S]*height: var\(--desktop-titlebar-height\);[\s\S]*align-items: center;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-desktop-project \{[\s\S]*height: var\(--desktop-project-header-height\);[\s\S]*grid-template-rows: var\(--desktop-titlebar-height\) var\(--desktop-titlebar-height\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-navigation \{[\s\S]*grid-template-rows: var\(--desktop-project-header-height\) 50px minmax\(0, 1fr\) auto;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.workspace\.is-directory-collapsed \.navigator-project-primary \{[\s\S]*display: none !important;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /> \.topbar \{[\s\S]*height: var\(--desktop-titlebar-height\);[\s\S]*align-items: center;/);
 });
 
 test("narrow settings keep one compact readable navigation layer", () => {
@@ -262,9 +259,7 @@ test("desktop shell uses one project directory, project tabs, and soft work surf
   assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-native-desktop="true"\] body\[data-desktop-shell="true"\][\s\S]*--desktop-native-project-safe-inline-start: var\(--desktop-window-safe-inline-start, 88px\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.navigator-native-row \{[\s\S]*padding: 0 8px 0 var\(--desktop-project-safe-inline-start\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\]\[data-native-desktop="true"\] \.navigator-native-row,[\s\S]*\.desktop-workbench-bar \{[\s\S]*transform: translateY\(-2px\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\]\[data-native-desktop="true"\] > \.topbar,/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\]\[data-native-desktop="true"\] > \.topbar,[\s\S]*height: var\(--desktop-titlebar-height\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\]\[data-native-desktop="true"\] > \.topbar > \*,/);
+  // body.settings-page[data-desktop-shell="true"] never matches: every settings body renders data-desktop-shell="false". Its rules and the lines that asserted them went in W5-05 (desktop-shell dead selectors).
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /project-index-page|\.project-index-panel|\.project-card\b/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-pane,[\s\S]*grid-template-rows: auto minmax\(0, 1fr\) auto !important/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-pane,[\s\S]*padding: 0 8px;/);
@@ -287,11 +282,7 @@ test("desktop shell uses one project directory, project tabs, and soft work surf
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-workspace-panel(?:[^\w-]|$)/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\[data-goal-panel\]/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tui-pane\[data-tui-read-only\] \.tui-tabs,[\s\S]*\.tui-menu \{[\s\S]*display: none !important;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\]:has\(\.settings-navigation\)/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /body\.settings-page\[data-desktop-shell="true"\] \.settings-content \{[\s\S]*grid-column: 2;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /> \.topbar \{[\s\S]*height: var\(--desktop-titlebar-height\);[\s\S]*min-height: var\(--desktop-titlebar-height\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-navigation \{[\s\S]*grid-template-rows: var\(--desktop-project-header-height\) 50px minmax\(0, 1fr\) auto;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-desktop-project \{[\s\S]*height: var\(--desktop-project-header-height\);[\s\S]*grid-template-rows: var\(--desktop-titlebar-height\) var\(--desktop-titlebar-height\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.navigator-project-settings \{[\s\S]*height: 28px;[\s\S]*min-height: 28px;/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /:not\(\[data-native-desktop="true"\]\) \.navigator-project/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.settings-navigation > \.desktop-titlebar-safe/);

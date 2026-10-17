@@ -128,7 +128,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W5-02 | 声明式登记：目录和监督器名单由各包声明生成 | 1 | `project-host.ts`（与 W5-01 同） |
 | W5-03 | 翻译按主人分词典（决定 #16 改成稳定键），删无引用的键 | 1 | `en.ts` 变小，降到 800 行以下时删这一行 |
 | W5-04 | 浏览器代码逐个插件打包、类型检查，再做工作台客户端分段 | 18 | 11 个浏览器脚本模板、`toString` 注入的函数（`createTabWorkspaceOps`、`createPluginComponentClient`、`createCodingTimeline`）、Work 终端客户端、`craft-finish.ts` 与 `primitives/catalog.ts` 里的脚本 |
-| W5-05 | 逐个删旧皮肤，并降低页面预算和巨大单元基线 | 2 | `calm-desktop.ts`、`personal-workbench-v3.ts` |
+| W5-05 | 逐个删旧皮肤，并降低页面预算和巨大单元基线 | 0 | 已做（第 1～5 片）：`personal-workbench-v3.ts`、`calm-desktop.ts` 都已删 |
 | W5-06 | 声明式贡献挂载器代替 15 个 Goals 挂载适配器；`goals-page-renderer.ts` 改名，留在工作台 | — | 不拆那两个函数（适配器是别的文件） |
 | W5-07 | `handleMolisWorkWebRequest` 改成注册表，每个 `*-http` 模块导出 `{match, handle}` | 2 | `web-request.ts` |
 | W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同；已拆完：入口留描述符、错误码、`AgentHostApi` 与 `agentHostCapabilities`，其余按领域放进旁边的 `agent-host-*.ts`（运行时、启动、会话、运行视图、审查、端口、创作台），子路径与 API 快照不变 |
@@ -261,7 +261,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | --- | --- | --- | --- | --- | ---: |
 | `design-system` | `src/plugin-component-client.ts` | `createPluginComponentClient` 函数 754 行 | 拆 · W5-04 | 生成插件的宿主渲染器，按部件种类画；类型化函数，用 `toString` 序列化进浏览器（754 行、73 条语句：`createPart` 142、`output` 137、`figures` 36、`showDetail` 32、`control` 32）。W5-04 改成打包的类型检查模块时，各部件成各自的模块，同一个 PR 拆到阈值以下。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 3 |
 | `design-system` | `src/primitives/catalog.ts` | 文件 947 行<br>`renderPrimitiveCatalog` 函数 648 行 | 拆 · W5-04、W5-10 | `/__ui/catalog` 规格板。页尾 `<script>` 175 行（第 771–945 行，带分支的演示脚本）是浏览器代码，归 W5-04，移出后文件 772 行、不再超限。剩下的 `renderPrimitiveCatalog` 约 470 行是样例标记，除 `.map` 拼接外没有分支和 IO，但不登记例外：它已经有 `arrivalSection`、`craftSection`、`paletteSection` 等章节函数，其余章节（`sections` 数组 116 行，`catalogDirRows` 36、`catalogShellDirectory` 35、`catalogCompact` 27 行等）照此各成章节函数，W5-10 完成。 | 3 |
-| `design-system` | `src/styles/calm-desktop.ts` | 文件 1,392 行 | 归线 · §4.8 · W5-05 | 旧皮肤，整份删除（逐个过视觉比对）。 | 3 |
+| `design-system` | `src/styles/calm-desktop.ts` | 文件 1,392 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 5 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/repository-anti-corruption/spec.md` §W4-12。 | 3 |
 | `design-system` | `src/styles/craft-finish.ts` | 文件 2,313 行 | 拆 · W5-04 | 1,924 行样式（`CRAFT_BASE_STYLES`）加 323 行 `CRAFT_FINISH_CLIENT_SCRIPT` 浏览器脚本，两个变化原因。脚本在 W5-04 里移出并打包；同一个 PR 把剩下的 1,924 行样式表登记为例外 · 样式表。现在不登记：文件里除样式外还有一段浏览器脚本，不是单一职责，写不出成立的理由；脚本移出后剩下的才是单一职责的样式表。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 14 |
 | `design-system` | `src/styles/momentum.ts` | 文件 1,171 行 | 例外 · 样式表 | `MOMENTUM_STYLES` 一个模板字符串，纯 CSS（Goals 动量视图）。 | 4 |
 | `design-system` | `src/styles/personal-workbench-v3.ts` | 文件 1,422 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 4 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/repository-anti-corruption/spec.md` §W4-12。 | 1 |

@@ -630,7 +630,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-plugins/coding.js", 374113], ["/assets/molis-work-workbench.js", 1104882],
   ["/assets/molis-work-arrival.css", 703658], ["/assets/molis-work-settings.css", 989905], ["/assets/molis-work-workbench.css", 1592688],
   ["/assets/molis-work-workbench.js", 1105153],
-  ["/assets/molis-work-workbench.js", 1107991],
+  ["/assets/molis-work-workbench.js", 1107936],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -649,7 +649,7 @@ for (const [asset, old] of [
 test("receipts 3d-2 has one bounded allowance on the workbench script and Coding's bundle; other assets and later growth still fail", () => {
   const allowed = {
     "/assets/molis-work-plugins/coding.js": [373784, 373985],
-    "/assets/molis-work-workbench.js": [1108304, 1109104],
+    "/assets/molis-work-workbench.js": [1108249, 1109049],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("rcpt-3d2-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

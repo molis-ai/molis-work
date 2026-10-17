@@ -920,3 +920,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 给 Codex 的通知改成：W5-01 按 [1107991, 1108019] 取键（+28 不变）。
 - #673 → cac79f540：merge 了 main 4b063bf98。除去 page-assets，和审过的 bfe96662d、8a59b07a1 逐行一致，五项资源只降不升。chain17（停在等 681 的空位，还没加标签）按 pid 停掉，换成 chain18：681→673→683→685；#675 拿到新 head 后另排。
 - 情境 W2'-1 97288ea41 在本地，等 #673 合入后，和 W3-A3c 一起算两片在途。context-card-in-work 的修改要在 PR 里分清是测试脚本还是产品：产品在选中时移动焦点算交互变化，要先给统筹看。
+- #687 → 26173f178：托盘改成按调用方容器取（WeakMap），已审过，可以；workbench.js 精简后是 +313，在批准的 +325 以内，键 [1107991, 1108304]。还没 merge main 4b063bf98，所以仍是 CONFLICTING，已通知回执线去 merge。

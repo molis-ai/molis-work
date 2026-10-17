@@ -1128,6 +1128,7 @@ export interface AgentSessionView {
     title: string;
     runs: AgentRunRef[];
     latest_run: AgentRunView | null;
+    queued_inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[];
 }
 
 export interface AgentSkillCandidate {

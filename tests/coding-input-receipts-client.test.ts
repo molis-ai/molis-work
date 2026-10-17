@@ -26,6 +26,7 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, port
     document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` }, TypeError,
   }) as (ports: object) => {
     steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string, run: { turns: object[] }): Node | null;
+    waiting(list: Array<{ input_id: string; text: string }>): Node | null;
   };
   const api = (_path: string, _method: string, body: Record<string, unknown>) => { sent.push(body); return reply(body); };
   return { ui: factory({ api, refresh: () => {}, q: () => null, landed: () => {}, ...ports }), sent };
@@ -93,6 +94,18 @@ test("RC-17: after a lost answer, once the run's record shows that key, the bubb
   assert.equal(landed.length, 1, "a later repaint says nothing more");
   await assert.rejects(ui.steer("s", "r", "补上测试", "next-boundary"));
   assert.notEqual(sent[1]!.key, key, "sent again after it arrived, the same words are a new supplement");
+});
+
+test("RC-18: what waits for the next round shows once at the end of the conversation, with its words behind the count, and stays open across repaints", () => {
+  const { ui } = receipts(() => taken());
+  assert.equal(ui.waiting([]), null, "nothing waits, nothing shows");
+  const list = [{ input_id: "steer-1", text: "下一轮顺便看注册接口" }, { input_id: "steer-2", text: "错误提示用中文" }];
+  const strip = ui.waiting(list)!;
+  assert.equal(strip.dataset.kind, "notice", "the Host's fact, drawn as its notes are, never as the person's words");
+  assert.deepEqual(strip.children.map(child => typeof child === "string" ? child : child.textContent), ["排着 2 条补充，下一轮开始时带上", "下一轮顺便看注册接口", "错误提示用中文"]);
+  assert.equal(ui.waiting(list.map(one => ({ ...one }))), strip, "a repaint of the same queue keeps the node, so an opened list stays open");
+  assert.notEqual(ui.waiting(list.slice(1)), strip, "a changed queue is drawn again");
+  assert.equal(ui.waiting([]), null);
 });
 
 test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {

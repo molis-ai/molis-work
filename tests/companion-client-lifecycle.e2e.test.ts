@@ -5,8 +5,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai/molis-work-plugin-files";
-import { renderGitBrowserDirectory, renderGitBrowserResult } from "@molis-ai/molis-work-plugin-git";
+import { FILES_CLIENT_FACTORY_SCRIPT, renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai/molis-work-plugin-files";
+import { GIT_CLIENT_FACTORY_SCRIPT, renderGitBrowserDirectory, renderGitBrowserResult } from "@molis-ai/molis-work-plugin-git";
 import { CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/coding-companions.js";
 import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/agent-review.js";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
@@ -148,7 +148,7 @@ for (const name of ["files", "git", "diff", "text-stats"]) {
     const body = name === "files" ? renderFilesBrowserDirectory() + renderFilesBrowserResult()
       : name === "git" ? renderGitBrowserDirectory() + renderGitBrowserResult() : fixedMarkup;
     const f = await fixture(t, `<section data-companion="${name}">${body}</section>`, `
-      const host={mountPluginClient:mount,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),
+      const host={mountPluginClient:mount,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),gitFactory:(${GIT_CLIENT_FACTORY_SCRIPT}),filesFactory:(${FILES_CLIENT_FACTORY_SCRIPT}),
         request:async(plugin,path,method='GET',body,signal)=>{const response=await fetch('/'+plugin+path,{method,signal,...(body?{body:JSON.stringify(body)}:{})});return response.json();}};
       window.root=document.querySelector('[data-companion]');window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
     `, path => {
@@ -250,7 +250,7 @@ for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, 
   let revision = 1;
   const markup = name === "files" ? renderFilesBrowserDirectory() + renderFilesBrowserResult() : renderGitBrowserDirectory() + renderGitBrowserResult();
   const f = await fixture(t, `<section data-companion="${name}">${markup}</section>`, `
-    const host={mountPluginClient:mount,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),
+    const host={mountPluginClient:mount,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),gitFactory:(${GIT_CLIENT_FACTORY_SCRIPT}),filesFactory:(${FILES_CLIENT_FACTORY_SCRIPT}),
       request:async(plugin,path,method='GET',body,signal)=>{const response=await fetch('/'+plugin+path,{method,signal,...(body?{body:JSON.stringify(body)}:{})});if(!response.ok)throw new Error('offline');return response.json();}};
     window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
   `, path => {

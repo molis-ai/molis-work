@@ -1,4 +1,5 @@
 import { codingReportStepsMarkdown, type CodingReportSteps } from "./report-steps.js";
+import { codingReportInputsMarkdown } from "./report-inputs.js";
 import { requestText } from "./continuation.js";
 import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -7,10 +8,6 @@ import { codingUsageSummary } from "./usage.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
 import { CODING_REPORT_TYPE, type CodingReport } from "./artifacts.js";
 
-/** What the report says about a supplement: the runtime's receipt in the same words as the timeline (specs/ai-input-receipts §3.3). */
-const STEER_WORDS: Record<NonNullable<AgentRunView["turns"][number]["steer"]>["state"], string> = {
-  received: "已送达，还没放进上下文", applied: "已放进上下文，AI 还没读到", read: "AI 已读到", unread: "这一轮结束时 AI 没读到", withdrawn: "已撤回",
-};
 import { codingChangeSetReference } from "./changeset.js";
 
 export interface CodingExecutionReport extends CodingReport {
@@ -91,8 +88,7 @@ export function createCodingExecutionReport(input: {
   const phase = { completed: "本轮结束", failed: "执行失败", stopped: "已停止", cancelled: "已取消" };
   const task = run.turns.filter(turn => turn.kind === "user" && !turn.steer).map(turn => requestText(turn.text)).join("\n\n");
   const modelAnswer = run.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n\n");
-  const supplemental = run.turns.filter(turn => turn.kind === "user" && turn.steer).map(turn =>
-    `${STEER_WORDS[turn.steer!.state]}\n${literal(turn.text)}`).join("\n\n");
+  const supplemental = codingReportInputsMarkdown(run, literal);
   const commandEvidence = input.commands.map(({ call_id, output }) => {
     if (!output) return `命令 ${call_id}：回执无法读取，结果未知。`;
     const state = output.timed_out ? "超时" : output.cancelled ? "已取消" : output.exit_code === null ? "退出状态未知" : `退出码 ${output.exit_code}`;
@@ -118,7 +114,7 @@ export function createCodingExecutionReport(input: {
       ...(input.steps ? [codingReportStepsMarkdown(run, input.steps, literal)] : []),
       ...(input.goal_source_error ? [`## 目标来源暂不可读\n本轮回答和执行证据仍已保留。无法确认原目标归属，不使用会话后来选择的目标替代，也不能据此回写 Goal 进展。\n${literal(`${input.goal_source_error.reason}\n原固定来源：${input.goal_source_error.references.map(ref => `${ref.artifact_id} v${ref.version}`).join("、")}`)}`] : []),
       ...(input.goal ? [`## 本轮关联目标\n${literal(`${input.goal.title}\n目标：${input.goal.goal_id}\n${codingGoalVersionLabel(input.goal)} · 目标事件 ${input.goal.goal_event_cursor}\n固定来源：${input.goal.reference.artifact_id} v${input.goal.reference.version}`)}\n这是开始本轮时固定的目标，不随会话改关联；本报告不代表目标验收。`] : []),
-      ...(supplemental ? [`## 补充要求\n应用表示进入上下文，不证明模型遵循，也不代替问题回答。\n\n${supplemental}`] : []),
+      ...(supplemental ? [supplemental] : []),
       ...(run.awaiting_input.length ? [`## 遗留问题\n${run.awaiting_input.map(question => `${literal(question.prompt)}\n${question.unavailable_reason || "本轮已结束，问题不可再回答；不能据此推断已收到正式回答。"}`).join("\n\n")}`] : []),
       `## 模型答复\n以下是模型的表述；检查证据另列，不自动据此判定通过。\n\n${modelAnswer || "没有已保存的模型答复。"}`,
       `## 命令与检查证据\n${commandEvidence || (run.command_outputs === undefined ? "运行时未提供命令索引，不能推断未执行。" : "本轮没有已记录的命令回执；这不等于检查通过。")}`,

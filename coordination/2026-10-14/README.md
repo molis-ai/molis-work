@@ -939,3 +939,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - #684（Codex，W5-01 Todo 上 Home 运行时，d0a25c738）：按 §3 审过，通过，只提了一处不挡合并的小意见（tellAssistant 的条件放宽了）。排进 chain21：681→673→684→687→683→685。
   - chain20 的 gate 子进程（675，pid 95430/4092）留着；只停了它等 681 的那一步，681 当时还没加标签。
   - #661（用户的 PR，助理接入服务）：已不是草稿，但和 main 冲突。在 PR 上留了进队列前要做的五件事：merge main 并重新量 page-assets；库版本维护清单加一行；说明 CONNECTOR_TOOLS_HOME_STORE；拆片；补防腐复查节。
+- #688（回执 3d-2，755853b80，base 3b2c）统筹审过，要改一处：
+  - 回执的 line 和托盘原来的问题一样，各面共用同一个元素。助理工作交给 Coding 执行时，同一条补充会被两个面来回抢；这个问题在 3b-2a 就有。#688 的 link 依赖它，可能跳到另一个面上。
+  - 要求先在浏览器里复现；复现出来就在 #688 里改成按面取（WeakMap），更正时重画所有画过原来那条的面，link 也按面找。
+  - workbench.js +602 和 coding.js +169 是用户在回执线会话里批的。
+  - 另记一笔：taskboard-client 按 node.id 编号，有插入步骤时可能和计划卡对不上，回执线去核对。

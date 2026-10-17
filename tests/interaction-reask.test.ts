@@ -13,8 +13,9 @@ import { codingReaskMaterial } from "@molis-ai/molis-work-plugin-coding";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
 import { serveTestHost } from "./fixtures/test-home.js";
 
-// specs/ai-interaction-experience D5: a question that closed before it was answered (it expired, or the Host closed while it
-// waited) is asked again by a new round of the person's, carrying the question and their draft as one marked material.
+// specs/ai-interaction-experience D5: a question that closed before it was answered (it expired, or it was closed with the
+// round a restart cut off) is asked again by a new round of the person's, carrying the question and their draft as one
+// marked material.
 // The page names only which question; the Host reads the question from the run and the draft from where the surface kept it.
 
 const ASKED = { why: "约复盘会", questions: [{ id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true, unit: "分钟" }] };
@@ -98,10 +99,19 @@ test("D5: an expired question is asked again by a new round that carries the per
   await reasked(fixture, workId, runId, pending.pending_id);
 });
 
-test("D5: a question the Host closed while it waited is asked again after reopening, with the draft", { timeout: 60_000 }, async t => {
+// A temporary path, from the swap to Prologue e0f99ea2 until BL-156's Molis half: a restart no longer ends a round that
+// waits for the person's answer; it is parked, comes back as a round to check, and its question is asked again once the
+// person has closed it. BL-156's Molis half replaces this with answering the parked question itself.
+test("D5: a question a restart cut off shows for checking, and is asked again with the draft once its round is closed", { timeout: 60_000 }, async t => {
   const fixture = await assistant(t, "restart");
   const { workId, runId, pending } = await fixture.asked();
   await fixture.reopen();
+  assert.equal((await fixture.service.read(workId)).work.state, "needs-check", "after the restart the round shows for checking");
+  await assert.rejects(fixture.service.send({ work_id: workId, request_id: "reask-early", written_by: "page", text: "", reask: { run_id: runId, pending_id: pending.pending_id } }, { project_ref: project }),
+    (error: unknown) => error instanceof ActionError && error.code === "assistant.needs_check", "not asked again before the round is closed");
+  const round = (await fixture.service.recovery(workId)).rounds.find(item => item.run_id === runId);
+  assert.equal(round?.can_close, true);
+  await fixture.service.closeInterrupted(workId, { run_id: round!.run_id, version: round!.version });
   await fixture.closed(workId, pending.pending_id);
   await reasked(fixture, workId, runId, pending.pending_id);
 });

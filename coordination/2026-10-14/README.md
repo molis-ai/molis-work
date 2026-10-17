@@ -621,6 +621,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - 手册线问要不要让 SDK 的 `decodeJsonOutput` 学会修没转义的内层引号。统筹定：不做。哪个引号本来在字符串里面说不准，猜错了会悄悄改掉原意，这正是用户说过不打补丁的模型能力问题；已有的重新要求格式的修正就够了。
       - AC-07 的最低要求查了：草稿还在（按 pending_id 存，重启后不变），但「请 AI 重新问」没有。不光重启，过期的情况也没做，D5 的承诺落空。统筹定：单开一片补上，两种情况一起修。走现有的开新一轮动作，原问题和草稿作为标好的材料带进去（是草稿，不是回答，也不是指令）。这一轮算本人发起的。page-assets 在同一个 PR 里抵掉，抵不掉先报统筹（字节的放宽归用户定）。译文同一个 PR 补齐。过期、重启各一个用例。顺序：AC-08 的 PR → 只读查 Prologue → 然后这一片和 BL-152 的 Prologue PR 并行。
       - #651（W3-B3）合入 106d6163a。#659（交互 AC-08，d6864b1ce，只改测试和文档；BL-156 是新建的）：退回改一处，被拒的回答要断言确切的错误码（版本旧了、已经答过），现在 `assert.ok(refused.code)` 收什么码都能过。改完直接入队。
+      - #660（情境 BL-150，4d2e7b7c1）：统筹审过。`ASSISTANT_REPLY_KIND` 只在 contracts/services/contextual 定义一次；id 取 `<work_id>:<run_id>:<turn_id>`，恢复后也不变；`pick` 是真把重复的代码合并成一处，不是挤行。删掉的处理函数在全仓查过，没有渲染代码会产出它们的选择器；island 少 6 行，workbench.js 少 529 B。#651 合入以后，它和 main 在 context-program spec 与 page-assets.json 上冲突（main 的 workbench.js 现在是 1,103,578 B），已让情境线 merge main 并按实测重定字节，发来新 head 后挂 label-chain。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

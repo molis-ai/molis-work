@@ -15,7 +15,7 @@ export const connectorSetupAction: ActionDefinition = {
     scope: "home", audiences: ["user", "agent", "mcp"], subject_kinds: ["connector"], kind: "operation", effect: "write", permissions: ["connectors:management:write"],
     input_schema: { type: "object", properties: {
       service_id: id, method: { type: "string", enum: ["token", "oauth", "mcp", "cli"] }, display_name: { type: "string", minLength: 1, maxLength: 100 },
-      connection_id: id, expected_revision: { type: ["string", "null"], minLength: 1, description: "新连接填 null；重新授权填读取到的原连接修订" }, endpoint: { type: "string", maxLength: 4096 },
+      connection_id: { ...id, description: "仅重新授权时填写查询得到的已有连接 id。新建时省略，由系统生成，不填写服务 id 或自拟 id。" }, expected_revision: { type: ["string", "null"], minLength: 1, description: "新连接填 null；重新授权填读取到的原连接修订" }, endpoint: { type: "string", maxLength: 4096 },
       authentication: { type: "string", enum: ["none", "bearer", "oauth"] }, transport: { type: "string", enum: ["http", "sse"] },
     }, required: ["service_id", "method", "display_name", "expected_revision"], additionalProperties: false },
     output_schema: { type: "object", properties: { authorization_id: { type: "string", format: "uuid" }, status: { type: "string" },

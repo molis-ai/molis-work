@@ -91,7 +91,7 @@ export async function inspectApiConnection(home: string, id: string, preview = f
     await beforeRead?.(); signal.throwIfAborted();
     const read = await provider.sync({ cursor: null });
     if (!read.ok) throw new Error(read.message);
-    return { ...verified, items: read.items };
+    return { ...verified, record_count: read.items.length, items: read.items };
   }
   if (!["github", "gmail"].includes(service)) throw new Error("请在使用此连接的模型、Images、Functions 或 Coding 设置中运行对应功能，验证目标服务");
   const provider = runWithMolisWorkHome(home, () => service === "github" ? createGithubConnector({ token: access.token, fetchImpl, allowFixture: false }) : createGmailConnector({ accessToken: access.token, fetchImpl, allowFixture: false }));
@@ -101,6 +101,6 @@ export async function inspectApiConnection(home: string, id: string, preview = f
   await beforeRead?.(); signal.throwIfAborted();
   const read = await provider.sync({ cursor: null });
   if (!read.ok) throw new Error(read.message);
-  return { ...health, items: read.items, checked_at: new Date().toISOString() };
+  return { ...health, record_count: read.items.length, items: read.items, checked_at: new Date().toISOString() };
   });
 }

@@ -29,8 +29,9 @@ test("ASC-03 ASC-04 ASC-07: the assistant reads the selected account's real prov
   await assert.rejects(read(selected!.connection_id, { ...caller, permissions: ["connectors:account:read"] }), { code: "actions.forbidden" });
   await assert.rejects(client.invoke(caller, connectorRecordActions.read, { connection_id: selected!.connection_id, url: "https://example.test/arbitrary" }), { code: "actions.input_invalid" });
   assert.equal(urls.length, 0);
-  const result = await read(selected!.connection_id) as { connection_id: string; result: { items: Array<{ title: string; url: string }> } };
+  const result = await read(selected!.connection_id) as { connection_id: string; result: { record_count: number; items: Array<{ title: string; url: string }> } };
   assert.equal(result.connection_id, selected!.connection_id);
+  assert.equal(result.result.record_count, 1, "ASC-30: the batch count is separate from the potentially truncated record body");
   assert.equal(result.result.items[0]!.title, "work/project · Release checklist");
   assert.equal(result.result.items[0]!.url, "https://github.com/work/project/issues/7");
   assert.doesNotMatch(JSON.stringify(result), /fixture-work-records|fixture-personal-records/);

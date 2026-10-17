@@ -10,8 +10,9 @@ import { inspectSourceAuthorization } from "../apps/local-host/dist/connector-ac
 test("ASC-03 ASC-04: official CLI fixed commands bind separate account identities and reject a later account switch", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-cli-"));
   const prior = process.env.PATH;
-  const identityFile = join(home, "identity.json"), calls = join(home, "calls.jsonl");
-  writeFileSync(join(home, "gh"), `#!${process.execPath}\nconst fs=require('node:fs'); fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify(process.argv.slice(2))+'\\n'); process.stdout.write(fs.readFileSync(${JSON.stringify(identityFile)}));`, { mode: 0o755 });
+  const identityFile = join(home, "identity.json"), recordsFile = join(home, "records.json"), calls = join(home, "calls.jsonl");
+  writeFileSync(recordsFile, JSON.stringify(Array.from({ length: 50 }, (_, id) => ({ id, body: "record-body ".repeat(200) }))));
+  writeFileSync(join(home, "gh"), `#!${process.execPath}\nconst fs=require('node:fs'); fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify(process.argv.slice(2))+'\\n'); process.stdout.write(fs.readFileSync(process.argv.includes('notifications')?${JSON.stringify(recordsFile)}:${JSON.stringify(identityFile)}));`, { mode: 0o755 });
   process.env.PATH = `${home}:${prior}`;
   try {
     const setIdentity = (id: number, name: string) => writeFileSync(identityFile, JSON.stringify({ id, login: name, access_token: "must-stay-private" }));
@@ -26,8 +27,17 @@ test("ASC-03 ASC-04: official CLI fixed commands bind separate account identitie
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
     try {
       const records = await host.homeActionClient().invoke({ actor_id: "assistant:cli", audience: "agent", project_id: null, permissions: [CONNECTOR_RECORDS_READ] },
-        connectorRecordActions.read, { connection_id: a.connection.connection_id });
+        connectorRecordActions.read, { connection_id: a.connection.connection_id }) as { result: { record_count: number; result: unknown[] } };
+      assert.equal(records.result.record_count, 50, "ASC-30: report the full batch count before large record content");
+      assert.equal(records.result.result.length, 50);
+      assert.ok(JSON.stringify(records).length > 65_536, "the batch exercises output large enough to be truncated for a model");
+      assert.match(JSON.stringify(records).slice(0, 65_536), /"record_count":50/, "the count remains in the visible prefix");
       assert.doesNotMatch(JSON.stringify(records), /must-stay-private/);
+      assert.equal("record_count" in await inspectCliConnection(home, a.connection.connection_id), false, "identity is not a record list");
+      writeFileSync(recordsFile, "[]");
+      assert.equal((await inspectCliConnection(home, a.connection.connection_id, true)).record_count, 0);
+      writeFileSync(recordsFile, '{"details":"no list"}');
+      assert.equal("record_count" in await inspectCliConnection(home, a.connection.connection_id, true), false);
     } finally { await host.close(); }
     const requests = readFileSync(calls, "utf8").trim().split("\n").map(row => JSON.parse(row));
     assert.ok(requests.some(row => JSON.stringify(row) === '["api","notifications"]'));

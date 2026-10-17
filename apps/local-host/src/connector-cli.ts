@@ -165,7 +165,8 @@ export async function inspectCliConnection(home: string, id: string, read = fals
     assertCurrent();
     if (read && spec.read && identity(connection.service_id, await readIdentity(connection.service_id, activeSignal, launch)).fingerprint !== config.fingerprint) throw new ConnectorCliError("读取期间 CLI 账号已改变，请重新连接");
     assertCurrent();
-    return { account: connection.account_label, verified_account: { login: identity(connection.service_id, result).label, account_id: config.fingerprint }, result: output };
+    return { account: connection.account_label, verified_account: { login: identity(connection.service_id, result).label, account_id: config.fingerprint },
+      ...(read && spec.read && Array.isArray(output) ? { record_count: output.length } : {}), result: output };
   });
 }
 

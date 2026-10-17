@@ -71,6 +71,8 @@ Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定�
 
 服务连接的 `connectors.records.read` 复用设置页已有的 API / CLI 记录读取，仅接受连接 id，使用 `connectors:records:read` 权限；没有业务读取适配时明确拒绝，不能把账号检查当成读取结果。连接停用、换号或调用取消时，旧读取不返回结果。回归见 `tests/connector-record-actions.test.ts`、`tests/connector-cli.test.ts`。
 
+固定记录预览的 `result.record_count` 表示本次返回数量，由 API 的记录列表或 CLI 实际返回的数组计算，放在正文之前；非列表 CLI 不猜数量。工具正文被截断时仍可读到数量，完整记录保留在原工具结果资源；该字段不是服务端全部记录总数。
+
 ## 公共搜索与证据
 
 `createSearchEvidenceRuntime` 装配 SEL 的公共 web query、可信身份、intent 持久化和 Storage 正文端口；关闭时取消并等待在途操作和传输，再由数据库所有者关闭连接。`createFeedSourceRuntime` 注入 RSS Runtime、来源路由、条件请求游标和 receipt。Alchemist 直接使用公共装配，不初始化 Feed/RSS；研究查询、预算和可引用摘要仍由 Alchemist 决定。到 AnySearch 的出站只有一条：`anysearch-transport.ts`，由 `createSearchEvidenceRuntime` 默认装配，Feed 的网页搜索与 Alchemist 研究共用（固定主机、只连公网地址并钉住、请求 64 KiB 与响应 1 MiB 上限、不跟随跳转；主机名经 `resolveModelHostname`，系统解析返回 198.18/15 假地址且设了代理变量时改由公共 DNS 核验）。SEL 自带的钉死 HTTPS 宿主不再使用，`tests/anysearch-single-owner.test.ts` 守着这一点。历史存储名称及引用保留，不改写已有数据。

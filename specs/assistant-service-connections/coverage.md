@@ -1,6 +1,6 @@
 # 服务、方式与用户操作覆盖
 
-状态：实施盘点（2026-10-17），负责人 Codex。本文是[唯一需求书](spec.md)的覆盖证据，不是运行时服务名单。基准 `afe440dd8`，在实施基线 `ba64f24a3` 复核；这期间目录中的服务与方式没有增加，Catalog 的变化为 Atlassian/Salesforce 地址校验收紧。GitHub 官方 MCP 已有真实账号、外部写入和连接管理证据，其余账号路径未验证，详见下文。
+状态：实施盘点（2026-10-17），负责人 Codex。本文是[唯一需求书](spec.md)的覆盖证据，不是运行时服务名单。基准 `afe440dd8`，在实施基线 `ba64f24a3` 复核；这期间目录中的服务与方式没有增加，Catalog 的变化为 Atlassian/Salesforce 地址校验收紧。GitHub 官方 MCP 已有真实账号、外部写入和连接管理证据；Token/CLI 的真实读取与管理也已验证，新增模型动线仍未完整通过，详见[增量诊断](model-diagnosis.md#剩余路径的增量验收)。
 
 依据：[服务目录](../../apps/local-host/src/connector-directory.ts)、[装配后的方式](../../apps/local-host/src/host-connector-methods.ts)、[API OAuth](../../apps/local-host/src/connector-api-oauth-providers.ts)、[CLI 实际命令](../../apps/local-host/src/connector-cli.ts)、[MCP 客户端](../../apps/local-host/src/connector-mcp.ts)、[Catalog 实际请求](../../plugins/official-integrations/catalog/src/catalog.ts)。下面的 API 操作按处理器的实际 endpoint/GraphQL 字段列出，不沿用目录中较宽泛的宣传文字，例如 Airtable 目前读取 Base 列表，并不读取任意表格记录。
 
@@ -112,7 +112,9 @@ Connector 库基线 2 的隔离维护演练已覆盖原连接、协议、绑定�
 
 ## 当前验证与剩余事项
 
-最新状态（2026-10-17，基线 `5b9fdbf35`）：P4 与统一 SDK 已在本分支合流，候选包已移除；统一包不允许 App-tools 使用 board-wait，四项完整业务回归在模型请求前拒绝启动。当前分支不能作为可用助理交付。累计真实请求 179/240，剩余 61；新完整只读任务没有 retain，实际读取为零，完整验收失败。主线合流的整体构建、health（对 merge-base）、边界和资源预算已通过。219 个相关非浏览器文件首次 215 通过、4 失败；安装用例修正过期前提后 6 项通过，其余三个文件都因 SDK 在业务开始前拒绝 board-wait。下面较早批次的通过仅保留为当时版本的证据。
+本轮最新（2026-10-17）：官方 Python Git MCP 的全新模型安装/调用、重启读取与移除保护已通过。Token/CLI 生产读取与管理通过，但完整模型接入尚未通过；远程保存与最新只读任务仍未完整通过。Coding 添加、会话归档、停用 Coding 与 Host 重开均已执行，随后被 SDK 缺工具阻塞；SDK 本地修复及独立干净包的真实 GitHub 读取通过，尚未提交和接入 Molis。模型累计 424/440；OAuth 仍等本人在受保护页面配置，两个 UI 文件仍排队。分层结果见[增量诊断](model-diagnosis.md#剩余路径的增量验收)，旧轮次证据保留，不能视为当前完整通过。
+
+最新状态（2026-10-17）：Prologue #35 与 Molis #644 已合入，App-tools 等待准入与工作图重复接续缺口已修复，最后两项全新本地 MCP 只读任务完整通过，累计 235/240。统一包的本地回归、PR CI 与合并队列均通过；这不替代整个连接功能分支的集成验收。一骏已要求继续远程 MCP、其他账号机制和界面验收，具体路径与尚需本人输入见需求书 §10.5，目标保持内部完整。下方历史批次按当时版本和结果保留，不能当成当前未解决问题。
 
 2026-10-16，隔离工作树 `feature/assistant-service-connections`。本轮整体构建、完整健康门禁（对 merge-base `cee899c4`）、包边界、页面资源预算和差异格式检查通过；动作合同快照在非浏览器回归中通过。真实 Home 的模型配置只读复用，未写入真实 Home、未改全局安装，没有推送或发布；真实服务写入仅限下文获准的验收 Issue，付费模型实测也见下文。
 

@@ -2,12 +2,12 @@
   "note": "Only decreases. The size in bytes of each asset the host sends under /assets/ (the body as served, uncompressed), measured from the built workspace by scripts/gates/page-assets.mjs. Lower it with `node scripts/gates/page-assets.mjs --update --base origin/main` in the PR that shrinks an asset. CI compares this file with the merge-base's copy, so raising a number or adding an asset here is refused. Frozen by decision #17; the real targets are set after the superseded skins are deleted (specs/repository-anti-corruption).",
   "assets": {
     "/assets/inter-latin-variable.woff2": 48256,
-    "/assets/molis-work-arrival.css": 703722,
+    "/assets/molis-work-arrival.css": 702988,
     "/assets/molis-work-capabilities.js": 54350,
-    "/assets/molis-work-pages-editor.js": 707018,
+    "/assets/molis-work-pages-editor.js": 707007,
     "/assets/molis-work-plugins/alchemist.js": 50619,
     "/assets/molis-work-plugins/characters.js": 30250,
-    "/assets/molis-work-plugins/coding.js": 373785,
+    "/assets/molis-work-plugins/coding.js": 373784,
     "/assets/molis-work-plugins/cognia.js": 23963,
     "/assets/molis-work-plugins/dataset.js": 25832,
     "/assets/molis-work-plugins/form.js": 30300,
@@ -22,9 +22,9 @@
     "/assets/molis-work-plugins/shelf.js": 78347,
     "/assets/molis-work-plugins/todo.js": 62081,
     "/assets/molis-work-plugins/workflows.js": 82533,
-    "/assets/molis-work-settings.css": 989962,
-    "/assets/molis-work-workbench.css": 1592790,
-    "/assets/molis-work-workbench.js": 1107936,
+    "/assets/molis-work-settings.css": 988484,
+    "/assets/molis-work-workbench.css": 1591639,
+    "/assets/molis-work-workbench.js": 1108502,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }
 }

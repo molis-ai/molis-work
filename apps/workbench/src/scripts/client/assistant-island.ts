@@ -1,4 +1,4 @@
-import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT } from "./assistant-stage.js";
+import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
@@ -485,17 +485,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       } catch (error) { showError(error); lock(false); if (hadFocus) button.focus(); }
     } });
   };
-  /* Puts children in order without moving any that already stand in place: moving a node drops the focus inside it
-     (an answer being typed, a button reached by keyboard), and a running work repaints every few seconds. */
-  const placer = (parent) => {
-    let last = null;
-    return (child) => {
-      const want = last ? last.nextElementSibling : parent.firstElementChild;
-      if (want !== child) parent.insertBefore(child, want);
-      last = child;
-      return child;
-    };
-  };
+  const placer = ${ASSISTANT_PLACER_SCRIPT};
   /** A card no round proposed: a page put it in (it names the page in from), or its round is not one of this work's. */
   const pageCard = (card) => Boolean(card.from) || !card.run_id || !(view && view.rounds.some((round) => round.run_id === card.run_id));
   // Both round cards and page cards use the same Host-drawn view without deleting chronological siblings.
@@ -1017,7 +1007,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     node.dataset.signature = signature;
     keepFocus(node, () => {
       const UNDO = { available: "可以撤销", undone: "已撤销", failed: "没能撤销" };
-      const made = results.map((o) => objectCard(o, "done"));
+      const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o)));
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
         title: change.title, sub: L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
         actions: change.state !== "undone" ? [sideAct(L("撤销"), change.title, async () => {
@@ -1395,6 +1385,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     };
     rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
     putPageCards(null);
+    receipts.tray(thread, put, work && view);
     const reviews = work ? view.reviews : [];
     [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) card.remove(); });
     reviews.forEach((review) => {
@@ -1712,8 +1703,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
      the current work (opened from it, produced by it) or the person adds it with +; then the model sees it and the work
      is linked under it, otherwise neither (spec §21.5). What a page hands over brings its object along. */
   const joined = new Set();
-  const { objectKey, belongsToWork, holds, relatedWorks, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: () => Boolean(panel && !panel.hidden),
-    current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats() });
+  const { objectKey, belongsToWork, holds, relatedWorks, pickable, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: () => Boolean(panel && !panel.hidden),
+    current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats(), L });
   /** The Coding session open on the page, which a new Coding work continues instead of starting another. */
   const codingSession = () => { const ctx = pageCtx(); return ctx && ctx.object && ctx.object.kind === "coding_session" ? ctx.object.id : null; };
   const pageObject = () => {

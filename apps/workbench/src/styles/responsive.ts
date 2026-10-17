@@ -85,10 +85,6 @@ export const RESPONSIVE_STYLES = `
     .top-action span { display: none; }
     .tree-search kbd { display: none; }
     .tree-search input { padding-right: 12px; }
-    .mobile-switch { grid-row: 2; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); padding: 0 4px; min-height: 44px; border-bottom: 1px solid var(--line); background: var(--rail); }
-    .mobile-switch button { border: 0; border-radius: 4px; background: transparent; color: var(--muted); min-height: 44px; }
-    .mobile-switch button.is-active { color: var(--ink); background: var(--paper); box-shadow: var(--lift-1); }
-    .mobile-switch button:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); box-shadow: none; }
     .workspace { grid-row: 3; grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr); }
     .tree-resizer, .tui-resizer { display: none; }
     .workspace.is-desktop-tui { grid-template-columns: 1fr; }

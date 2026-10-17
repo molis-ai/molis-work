@@ -135,7 +135,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       navigationVersion: desktopNavigationStateVersion,
       directory: treePane?.dataset.desktopDirectory || "root",
       directoryCollapsed: workspace.classList.contains("is-directory-collapsed"),
-      directoryCollapsedSections: [...document.querySelectorAll("[data-plugin-section][data-plugin-expanded='false']")].map((section) => section.dataset.pluginSection).filter(Boolean),
       feedPreset: activeFeedPreset,
       feedSelected: selectedFeedItem,
       feedTask: selectedFeedTask || "all",
@@ -170,11 +169,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
           : "root";
         const restoredDirectory = directoryPanelFor(restoredDirectoryRaw);
         setDesktopDirectory(restoredDirectory, false, false);
-        const collapsedSections = new Set(Array.isArray(ui?.directoryCollapsedSections) ? ui.directoryCollapsedSections : []);
-        document.querySelectorAll("[data-plugin-expand]").forEach((toggle) => {
-          const id = toggle.dataset.pluginExpand;
-          if (id) setPluginSectionExpanded(id, !collapsedSections.has(id), false);
-        });
       }
       restoreTreeCollapsed(ui?.collapsed);
       const disclosures = new Set(ui?.disclosures || []);

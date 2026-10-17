@@ -714,6 +714,7 @@ export interface AssistantWorkView {
         message: string;
         action?: string;
     };
+    queued_inputs?: AgentQueuedInput[];
 }
 
 export declare const servicesAssistantContract: {

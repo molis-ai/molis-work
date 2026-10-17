@@ -44,8 +44,11 @@ import { ensureStopGuard, guardRound, watchRoundFacts } from "./prologue-stop-gu
 const ROUND_DEFAULT_TURNS = 8;
 /** One model call's wait for its answer to start, and between its parts, when the round has no time budget. */
 export const MODEL_CALL_TIMEOUT_MS = 180_000;
-// Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal.
-const REFUSED_BEFORE_RUN = new Set(["AGENT_START_INVALID", "CONTEXT_BUDGET_EXCEEDED", "CONTEXT_SOURCE_MISSING", "CONTEXT_INBOUND_HELD", "EFFECT_RECONCILE_REQUIRED"]);
+// Codes the runtime raises before it creates a run: nothing ran, so the attempt is a settled refusal. The session's
+// checks before any write (a run parked on a question, one being recovered or handed over, a parked set it could not
+// read back) are among them.
+const REFUSED_BEFORE_RUN = new Set(["AGENT_START_INVALID", "CONTEXT_BUDGET_EXCEEDED", "CONTEXT_SOURCE_MISSING", "CONTEXT_INBOUND_HELD", "EFFECT_RECONCILE_REQUIRED",
+  "SESSION_RUN_PARKED", "SESSION_RECOVERY_BUSY", "SESSION_HISTORY_UNAVAILABLE"]);
 
 export interface RunDeps {
   readonly runtime: Runtime;

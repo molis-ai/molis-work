@@ -149,7 +149,7 @@ test("ASC-18 ASC-36: GitHub device authorization finishes on the restarted Host 
 });
 
 
-test("S-30 ASC-07 ASC-35: cancelling a prepared CLI request during identity inspection prevents both activation and business reads", async t => {
+test("S-32 ASC-07 ASC-35: cancelling a prepared CLI request during identity inspection prevents both activation and business reads", async t => {
   const home = await openTestHome(t), prior = process.env.PATH;
   const hold = join(home.home, "hold"), entered = join(home.home, "entered"), read = join(home.home, "read");
   writeFileSync(hold, "hold");
@@ -172,7 +172,7 @@ const timer=setInterval(()=>{if(!fs.existsSync(${JSON.stringify(hold)})){clearIn
   } finally { process.env.PATH = prior; rmSync(hold, { force: true }); }
 });
 
-test("S-30 ASC-35 ASC-36: cancelling a device request after its token poll starts rejects the late token and leaves an existing account untouched", async t => {
+test("S-32 ASC-35 ASC-36: cancelling a device request after its token poll starts rejects the late token and leaves an existing account untouched", async t => {
   const home = await openTestHome(t), request = await prepare(home, "github", "oauth");
   const existing = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Personal", token: "fixture-original-device" }));
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), realFetch = globalThis.fetch;
@@ -196,7 +196,7 @@ test("S-30 ASC-35 ASC-36: cancelling a device request after its token poll start
 });
 
 
-test("S-30 ASC-03 ASC-19: prepared reauthorization pins the original connection and revision, never overwriting a later change", async t => {
+test("S-32 ASC-03 ASC-19: prepared reauthorization pins the original connection and revision, never overwriting a later change", async t => {
   const home = await openTestHome(t);
   const replace = (id: string, token: string, setup_id: string) => fetch(home.origin + "/api/settings/connectors/connections/" + id, {
     method: "PATCH", headers: { origin: home.origin, "content-type": "application/json", "x-molis-work-control-token": home.controlToken, "x-molis-work-idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ token, setup_id }),

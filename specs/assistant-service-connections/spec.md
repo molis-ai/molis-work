@@ -2,9 +2,9 @@
 
 预算续授权（2026-10-17）：一骏在累计 636/640 次后明确将同一 MiniMax 的累计上限提高到 680，补完远程 MCP 等待中改为只读的任务；前 636 次和全部失败保留，新增结束检查、压缩等请求同样计入。不换模型，不扩到无关任务。
 
-状态：实施中（2026-10-17）。已完成本轮远程 MCP 保存与改意图只读、Token、CLI、官方 npm/Python、本机 HTTP、Coding 复用和 UI 的真实路径验证；模型累计 663/680，本轮停止新增调用。211 个不同的相关非浏览器文件及三项接入浏览器流程通过；整功能分支的集成 CI 尚未执行，整体尚不宣称「内部完整」。OAuth 按一骏决定本次暂不验收，模型附加说明错误另列。负责人：Codex（设计、实现与验证）。当前结果与限制见[覆盖表](coverage.md#当前验证与剩余事项)。
+状态：实施中（2026-10-17）。已完成本轮远程 MCP 保存与改意图只读、Token、CLI、官方 npm/Python、本机 HTTP、Coding 复用和 UI 的真实路径验证；模型累计 663/680，本轮停止新增调用。211 个不同的相关非浏览器文件及三项接入浏览器流程通过；[草稿 PR #661](https://github.com/molis-ai/molis-work/pull/661) 已建立，整功能分支的集成 CI/full-suite 仍待统筹安排，整体尚不宣称「内部完整」。OAuth 按一骏决定本次暂不验收，模型附加说明错误另列。负责人：Codex（设计、实现与验证）。当前结果与限制见[覆盖表](coverage.md#当前验证与剩余事项)。
 
-本轮交付目标为「内部完整」：用户能在个人助理对话中完成接入，在必要的登录或授权界面完成本人操作后，回到同一任务，让助理真实调用服务并交付结果。保存配置、登录成功、列出工具和工程测试通过，都不能单独证明这个目标完成。开发基线现同步到含统一 SDK #650、事实结束检查 #629 与委派起跑恢复 #648 的 `c276ab9cb`，分支 `feature/assistant-service-connections`；不改主检出或真实 Home。
+本轮交付目标为「内部完整」：用户能在个人助理对话中完成接入，在必要的登录或授权界面完成本人操作后，回到同一任务，让助理真实调用服务并交付结果。保存配置、登录成功、列出工具和工程测试通过，都不能单独证明这个目标完成。开发基线现同步到 `4fd585da5`，含统一 SDK #650、事实结束检查 #629、委派起跑恢复 #648、分屏消息检查 #651 与交互手册 #655，分支 `feature/assistant-service-connections`；不改主检出或真实 Home。
 
 2026-10-17 集成决定：采用已合入的统一 SDK #650 及主线 #629 的事实结束检查，继续使用同一 MiniMax，不保留本分支对旧措辞列表的局部修补。保留可打开的受保护接入链接、链接显示文字中的内部标识检查，以及 ASC-28/ASC-34 的真实接续与业务结果要求。已完成原基线的凭据界面复测；同步主线时保留连接等待与新版委派起跑恢复，更新结构化模型替身以独立回答结束检查，业务调用和结果断言不变。随后整体构建并验证相关业务与结束检查，界面补齐 1440/1024/390 的浅深两色；最终答复质量仍须获准预算下的真实任务证明。整体目标与 OAuth 本次暂不验收的决定不变。
 
@@ -468,7 +468,7 @@ node scripts/check-spec-coverage.mjs
 | `platform/plugin-agent.ts`、`platform/plugin.ts` | owner 只读外部检查端口及插件消费引用声明 |
 | 动作快照 | `actions.tsv` 新增 Feed/Images 消费引用查询，Images 连接列表升至 v2；`host-actions.tsv` 新增十九项，涵盖授权请求、连接管理、CLI、本地 MCP、意图决议与消费查询。合流后已重新生成并核对，保留 P4 动作 |
 | API 快照 | `platform/plugin-agent`、`platform/plugin`、`services/agent-host`、`services/assistant`、`services/connector-host` 及 `plugin-sdk/index` 六份 |
-| `SECURITY-INVARIANTS.md` | S-13 SDK 来源；S-27 owner 等待授权；S-30 最新意图暂缓提交；S-31 受管理安装、凭据环境与跨入口 MCP 派出 |
+| `SECURITY-INVARIANTS.md` | S-13 SDK 来源；S-27 owner 等待授权；S-32 最新意图暂缓提交；S-31 受管理安装、凭据环境与跨入口 MCP 派出 |
 
 目录外还涉及 `home-side.ts`、`web-assistant.ts`、Agent Host 的 `prologue-node.ts`/`prologue-waits.ts`/检查器与 `agent-host-composition.ts`，集成时一并核对 P4 生命周期和统一工作图，不能以只看助理目录文件代替调用链检查。
 

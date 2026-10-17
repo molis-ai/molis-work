@@ -63,7 +63,7 @@ test("S-31 ASC-08 ASC-14: only the protected local form supplies environment val
   assert.equal(existsSync(join(home.home, "mcp-notes.jsonl")), false);
 });
 
-test("S-30 ASC-34 ASC-35: local execution reports the current intent hold before and after protected submission", async t => {
+test("S-32 ASC-34 ASC-35: local execution reports the current intent hold before and after protected submission", async t => {
   const home = await openTestHome(t), actions = home.host.homeActionClient(), owner = { ...caller, runtime_session_id: "local-intent-work" };
   const prepared = await actions.invoke(owner, connectorLocalActions.prepare, plan(home.home, true)) as { authorization_id: string };
   holdConnectorAuthorizationsForSession(home.home, owner.runtime_session_id, owner.actor_id, "read-only-intent");

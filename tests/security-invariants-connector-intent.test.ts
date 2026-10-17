@@ -20,7 +20,7 @@ const secret = (home: string, id: string) => runWithMolisWorkHome(home, () => cr
 const saveToken = (server: IntentServer, id: string) => server.web.post<{ status: string; awaiting_intent?: boolean }>("/api/settings/connectors/connections",
   { service_id: "model-api", display_name: "Intent account", token: "fixture-held-secret-value", setup_id: id });
 
-test("S-30 ASC-34 ASC-35: a late token submission stays private across Host restart and commits once for the current intent", async t => {
+test("S-32 ASC-34 ASC-35: a late token submission stays private across Host restart and commits once for the current intent", async t => {
   const home = await openTestHome(t), prepared = await prepare(home);
   // ASC-23 ASC-34: the owner reports the real pending reason before and after the person's submission.
   const checker = assistantConnectionCheckers(home.home, home.host).find(value => value.id === "molis.connector-setup")!;
@@ -54,7 +54,7 @@ test("S-30 ASC-34 ASC-35: a late token submission stays private across Host rest
   } finally { await server.close(); await host.close(); }
 });
 
-test("S-30 ASC-34 ASC-36: stale or foreign intent cannot release a result; cancelling keeps independent requests", async t => {
+test("S-32 ASC-34 ASC-36: stale or foreign intent cannot release a result; cancelling keeps independent requests", async t => {
   const home = await openTestHome(t), first = await prepare(home), other = await prepare(home, "model-api", "token", { ...caller, runtime_session_id: "independent" });
   hold(home.home, "before"); await saveToken(home, first.authorization_id); hold(home.home, "latest");
   await assert.rejects(decide(home, first.authorization_id, "before"), /已变化/);
@@ -69,7 +69,7 @@ test("S-30 ASC-34 ASC-36: stale or foreign intent cannot release a result; cance
   assert.equal(withConnectorConnections(home.home, store => store.list()).length, 1);
 });
 
-test("S-30 ASC-34: a held replacement cannot overwrite a connection changed elsewhere", async t => {
+test("S-32 ASC-34: a held replacement cannot overwrite a connection changed elsewhere", async t => {
   const home = await openTestHome(t);
   const original = withConnectorConnections(home.home, store => store.createToken({ serviceId: "model-api", displayName: "Original", token: "fixture-original-secret" }));
   const prepared = await home.host.homeActionClient().invoke(caller, connectorSetupAction, { service_id: "model-api", method: "token", display_name: "Replacement",
@@ -87,7 +87,7 @@ test("S-30 ASC-34: a held replacement cannot overwrite a connection changed else
   assert.equal(withConnectorConnections(home.home, store => store.require(original.connection_id)).display_name, "Changed elsewhere");
 });
 
-test("S-30 ASC-34: intent received during a real OAuth completion parks its result before activation", async t => {
+test("S-32 ASC-34: intent received during a real OAuth completion parks its result before activation", async t => {
   const home = await openTestHome(t), prepared = await prepare(home, "asana", "oauth");
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const realFetch = globalThis.fetch;
@@ -111,7 +111,7 @@ test("S-30 ASC-34: intent received during a real OAuth completion parks its resu
   await assert.rejects(home.web.post("/api/settings/connectors/methods/oauth/complete", callback));
 });
 
-for (const service of ["gmail", "notion"]) test(`S-30 ASC-34: ${service} dedicated OAuth preserves a held completion through retain or cancel`, async t => {
+for (const service of ["gmail", "notion"]) test(`S-32 ASC-34: ${service} dedicated OAuth preserves a held completion through retain or cancel`, async t => {
   const home = await openTestHome(t), prepared = await prepare(home, service, "oauth");
   const realFetch = globalThis.fetch;
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
@@ -138,7 +138,7 @@ for (const service of ["gmail", "notion"]) test(`S-30 ASC-34: ${service} dedicat
   assert.equal(secret(home.home, prepared.authorization_id), null);
 });
 
-test("S-30 ASC-34: malformed held credentials are rejected before any completion or existing name is saved", async t => {
+test("S-32 ASC-34: malformed held credentials are rejected before any completion or existing name is saved", async t => {
   const home = await openTestHome(t);
   for (const token of ["tiny", "fixture\nsecret", "x".repeat(16_385)]) {
     const request = await prepare(home); hold(home.home, `invalid-${token.length}`);
@@ -160,7 +160,7 @@ test("S-30 ASC-34: malformed held credentials are rejected before any completion
   assert.equal(withConnectorConnections(home.home, store => store.resolveToken(original.connection_id, "model-api")), "fixture-original-secret");
 });
 
-test("S-30 ASC-34: a held GitHub device result stays private until the same session retains it", async t => {
+test("S-32 ASC-34: a held GitHub device result stays private until the same session retains it", async t => {
   const home = await openTestHome(t), request = await prepare(home, "github", "oauth");
   const realFetch = globalThis.fetch; let polls = 0;
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
@@ -183,7 +183,7 @@ test("S-30 ASC-34: a held GitHub device result stays private until the same sess
   assert.equal(secret(home.home, request.authorization_id), null);
 });
 
-test("S-30 ASC-34: CLI identity completed during a new intent is held and the retained connection can read once", async t => {
+test("S-32 ASC-34: CLI identity completed during a new intent is held and the retained connection can read once", async t => {
   const { writeFileSync, readFileSync, existsSync, unlinkSync } = await import("node:fs");
   const { join } = await import("node:path");
   const home = await openTestHome(t), previousPath = process.env.PATH;
@@ -211,7 +211,7 @@ else{fs.writeFileSync(${JSON.stringify(entered)},'entered');const timer=setInter
 });
 
 
-test("S-30 ASC-36: explicitly retaining a stopped work's setups commits only its active requests and never reopens cancelled requests", async t => {
+test("S-32 ASC-36: explicitly retaining a stopped work's setups commits only its active requests and never reopens cancelled requests", async t => {
   const home = await openTestHome(t), mine = await prepare(home);
   const otherOwner = { ...caller, runtime_session_id: "independent-session" }, other = await prepare(home, "model-api", "token", otherOwner);
   const cancelled = await prepare(home, "image-api");

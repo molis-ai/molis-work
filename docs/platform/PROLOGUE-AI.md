@@ -209,6 +209,25 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 - **预算**：`AgentRunBudget`（`max_turns`、`max_output_tokens`、`max_total_tokens`、`max_duration_ms`），在 SDK 里真实执行（`tests/agent-budget-prologue.test.ts`）。
 - **用量**：来自 SDK 的 `usage-recorded` 回执；供应商没报就显示未知，不填 0，也不按请求推断模型名（`reportedModels` 可为空）。
 
+### 问人、建议一步、引用对象
+
+AI 要人补信息、确认一步或挑一个对象，有四条共用的路，需求与验收在 `specs/ai-interaction-experience/spec.md`，写法清单在 `skills/molis-prologue-ai/SKILL.md` 的「交互」一节。各层分工：等待与逐题检查归 Prologue Runtime，卡由宿主画，题型与回答的规则在插件 SDK，插件只决定问什么、建议什么。
+
+| 路 | 调用链 | 守它的用例 |
+| --- | --- | --- |
+| Agent 中途问人 | 角色 `host_tools` 带 `ask-user` → Runtime 级配置的题型 `hostQuestionTypes()` 与种类 `hostReferenceKinds()`（`horizontal/agent-host/src/adapters/prologue-node-port.ts` 交给 SDK）→ Run 停在 `awaiting_input` → `agentQuestionHtml` 画卡 → 页面读回字段、`questionAnswer` → Run 的控制动作 → Runtime 逐题检查，退回 `agent.answer_invalid` 与 `problems`，`questionErrors` 写成字段旁的一行 | `tests/agent-question-types.test.ts`、`tests/agent-typed-questions.test.ts`、`tests/interaction-examples.test.ts` |
+| 对象引用题 | 种类从内置 Manifest 的搜索来源与主体读取算出 → 模型只能问这些种类（`askUserReferenceKinds`）→ 卡在人打字时调 `search.references` → 交给 Run 前宿主以会话主人的身份重读（S-26），用主人此刻的标题 | `tests/agent-reference-questions.test.ts`、`tests/security-invariants-object-references.test.ts` |
+| 建议一步（操作卡） | 有冻结 `action_tools` 的一轮，`host_tools` 带 `suggest-action` → 建议进 `AgentRunView.offers`，不执行 → 调用方用插件 SDK 的 `draftActionCard` 落成卡、`runActionCard` 执行（只经 `agent.offers.run.v1`，S-29）、`sweepActionCard` 标出失效 | `tests/action-cards.test.ts`、`tests/agent-host-offers.test.ts`、`tests/security-invariants-agent-suggestions.test.ts` |
+| 不跑 Agent 的动作先问 | 动作返回 `{ status: "needs_input", interaction }` → 宿主在插件路由上画同一张卡（`apps/local-host/src/plugin-interaction-answer.ts`）→ 带着回答再调一次 → 插件用 `questionProblems` 检查，与 Runtime 同一套规则 | `tests/form-draft-questions.test.ts`、`tests/plugin-interaction-answer.test.ts`、`tests/question-rules-consistency.test.ts` |
+
+三个代表性例子（spec §15.8）：
+
+1. **约复盘会**：助理问开会时间、时长和关联的 Goal；时长填错只在那一题报错，改对后原 Run 接着做（`tests/interaction-examples.test.ts`，浏览器里的同一条路是 `tests/assistant-typed-questions.e2e.test.ts`）。
+2. **「改到周五」**：一张操作卡，人点了才执行，对象改了版就失效。输入框旁的同排按钮归情境线，还没做。
+3. **Form「AI 生成题目」**：要求不够具体时先问几道选择题，答完接着生成（`plugins/native/form/src/drafting.ts`）。
+
+还没有的：外部插件的对象种类不在模型的清单里（BL-152，Prologue 在创建 Runtime 时固定清单）；单次接续现在只问选择题；生成插件沙箱没有 Agent 的 `ask-user` 与 `suggest-action`。
+
 ## 7. 注册、入口与事件
 
 - AI 能力就是一个动作：注册一次，页面、工作流、内置 Agent、外部 MCP 共用同一处理器和授权（见 `specs/action-architecture/spec.md` §3「基本合同」）。不要另写 MCP 工具表或宿主分支。

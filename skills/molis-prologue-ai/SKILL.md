@@ -76,6 +76,25 @@ description: How to add or change an AI capability in Molis Work — anything th
 接入本人操作的等待使用 `molis.connector-setup@1`，参数仅 `{ authorization_id }`，来自本会话的 `connectors.setup.prepare`。Host 在登记与每次读取前后检查请求的原会话、用户、项目及当前助理查询权限；重启后只恢复这项窄读取，不恢复通用动作或文件授权。检查只证明请求和连接状态，等待满足后还须按最新任务调用真实业务能力。App-tools 业务角色使用同一个 SDK 持久等待，只允许其 App 登记的只读外部检查器；命令、信封、节点及待答问题条件不向此模式开放。无绑定、其他会话与已撤权检查均拒绝。真实 SDK 与本机协议替身已验证等待、最新请求、单次接续及重启，真实模型和服务账号的验收仍见 `specs/assistant-service-connections/spec.md` §11。
 8. **文档**：新能力写进对应插件 spec；改了本清单涉及的契约，同一任务更新手册与本 Skill；改了手册第 14 节点名的代码，同一改动更新那一行。
 
+## 交互：问人、建议一步、引用对象
+
+AI 要人补信息、确认一步或挑一个对象时，用下面四条共用的路（`specs/ai-interaction-experience`）。不在回复正文里列选项让人照着打字，不自己画卡，也不另存一份等待状态：等待归 Runtime，卡归宿主，规则在插件 SDK。
+
+- **Agent 中途问人（问卷）**：角色的 `host_tools` 带 `ask-user`。模型能用的题型是 `hostQuestionTypes()`（选择、文字、数字、日期、日期时间、对象引用，即每个画问题的界面都画得出的那几种），一张卡可以混着问。Run 停在 `awaiting_input`；宿主用 `agentQuestionHtml`（`apps/local-host/src/agent-question-card.ts`）把每个等待中的问题画成同一张卡，作为 `html` 放进助理与 Coding 的视图。页面插入它，由共享客户端读回字段，插件 SDK 的 `questionAnswer` 把字段变成回答，经 Run 的控制动作交回（Coding 是 `coding.runs.control@5`）。Runtime 按它保存的题逐题检查：有一题不合格就整份退回 `agent.answer_invalid`，`problems` 经 `questionErrors` 变成各字段旁的一行（带界限与单位），问题保持打开，模型什么都没听到；改对再交，原 Run 接着做。
+- **对象引用**：一类对象能被问到，要它先能被搜到：插件为这个种类写对象读取器，并在条目列出动作（`defineSearchEntriesAction`）里列出这个种类和给人看的名字，写法见 [`molis-plugin-dev` 的 search.md](../molis-plugin-dev/search.md)。两样都在同一个 Manifest 里，这个种类就是能问的。宿主由此算出 `hostReferenceKinds()`，经 Prologue 的 `askUserReferenceKinds` 交给模型；模型问清单外的种类，给人看之前就被退回。卡上不列候选，人打字时才按这一题的种类调 `search.references`。交给 Run 之前，宿主以会话主人的身份向对象的主人重读每个选中的对象，用主人此刻的标题，页面写的标题不用；读不到的那一题退回 `reference-unavailable`（安全不变量 S-26）。现在只算内置插件的种类（BL-152）。
+- **建议一步（操作卡）**：一轮有冻结的 `action_tools` 时，角色的 `host_tools` 带 `suggest-action`，模型就多一个只能点名这一轮动作的建议工具。建议原样记进 `AgentRunView.offers`，什么都不执行。落成卡、执行、失效的规则在插件 SDK（`draftActionCard`、`runActionCard`、`sweepActionCard`），卡由调用方按 Run 的主人存（助理在 `apps/local-host/src/assistant/assistant-offers.ts`，Coding 在 `plugins/native/coding/src/action-cards.ts`），执行只经 `agent.offers.run.v1`（S-29）。人不点就不执行；对象改了版、时刻过了或动作不再提供，卡就失效而不是照旧执行。
+- **不跑 Agent 的动作先问（单次接续）**：动作发现信息不够时，返回 `{ status: "needs_input", interaction }`（contracts 的 `InteractionRequestResult`）而不是猜一个结果，并自己留着问过的题。宿主在 Runtime 插件的路由上把它画成同一张卡（`apps/local-host/src/plugin-interaction-answer.ts`），人答完，页面带着回答再调一次。插件用 SDK 的 `questionSetFlaw` 检查要问的题、`questionProblems` 检查回答，这和 Runtime 是同一套规则（`tests/question-rules-consistency.test.ts`）；退回时把问题放进错误的 `details.problems`，宿主补上各字段那一行。现在只问选择题。
+
+三个例子各有用例，照着写：
+
+| 例子 | 走的路 | 用例 |
+| --- | --- | --- |
+| 助理「帮我约一个下周的复盘会」：一张卡问开会时间、时长（分钟）和关联的 Goal；时长填 240 只在那一题报「不能超过 120 分钟」，改对后原 Run 接着做 | 问卷 + 对象引用 | `tests/interaction-examples.test.ts`；浏览器里的同一条路：`tests/assistant-typed-questions.e2e.test.ts` |
+| 助理建议「改到周五」：对话里的卡，点了才执行，对象变了就失效 | 操作卡 | `tests/action-cards.test.ts`、`tests/agent-host-offers.test.ts`。输入框旁的同排按钮归情境线，还没做 |
+| Form「AI 生成题目」缺受众与题量：先问几道选择题，答完接着生成 | 单次接续 | `plugins/native/form/src/drafting.ts`，用例 `tests/form-draft-questions.test.ts`、`tests/plugin-interaction-answer.test.ts` |
+
+改了这四条中的任何一条，跑 `node scripts/run-tests.mjs tests/interaction-examples.test.ts tests/agent-question-types.test.ts tests/agent-reference-questions.test.ts tests/action-cards.test.ts tests/form-draft-questions.test.ts tests/security-invariants-object-references.test.ts`。
+
 ## 验证与验收
 
 - `node scripts/run-tests.mjs tests/action-model-scheduling.test.ts`（等模型的动作必须并发，例外要写理由）。

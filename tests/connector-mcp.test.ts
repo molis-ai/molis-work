@@ -223,7 +223,7 @@ test("MCP OAuth DCR and PKCE survive a new host instance; refresh and 401 recove
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 
-for (const stage of ["before_callback", "token", "discovery"] as const) test(`S-30 ASC-35 cancelled MCP authorization cannot activate after ${stage}`, { timeout: 30_000 }, async () => {
+for (const stage of ["before_callback", "token", "discovery"] as const) test(`S-32 ASC-35 cancelled MCP authorization cannot activate after ${stage}`, { timeout: 30_000 }, async () => {
   const temp = home();
   let reached!: () => void, release!: () => void;
   const entered = new Promise<void>(resolve => { reached = resolve; });
@@ -797,7 +797,7 @@ test("ASC-12 ASC-14: enabling a Home MCP checks the server and refreshes changed
 });
 
 
-for (const authentication of ["none", "oauth"] as const) test(`S-30 ASC-34: ${authentication} MCP finishing during an intent change stays inactive until the latest decision`, async t => {
+for (const authentication of ["none", "oauth"] as const) test(`S-32 ASC-34: ${authentication} MCP finishing during an intent change stays inactive until the latest decision`, async t => {
   const local = await openTestHome(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const remote = await fixture({ oauth: authentication === "oauth", beforeList: async () => { entered.resolve(); await release.promise; } });
   try {
@@ -920,7 +920,7 @@ for (const sse of [false, true]) test(`ASC-05 ASC-09 ASC-12: prepared anonymous 
   assert.equal((await fetch(remote.localOrigin)).status, 405, "the external service remains available after Host shutdown and disable");
 });
 
-for (const interruption of ["cancel", "revoke", "close", "hold"] as const) test(`S-30 ASC-35: anonymous setup ${interruption} during discovery never activates a late connection`, async t => {
+for (const interruption of ["cancel", "revoke", "close", "hold"] as const) test(`S-32 ASC-35: anonymous setup ${interruption} during discovery never activates a late connection`, async t => {
   const local = await openTestHome(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const remote = await fixture({ beforeList: async () => { entered.resolve(); await release.promise; } });
   t.after(() => remote.close());
@@ -952,7 +952,7 @@ for (const interruption of ["cancel", "revoke", "close", "hold"] as const) test(
   }
 });
 
-test("S-30 ASC-08 ASC-14: anonymous execution does not collect credentials or release a held plan", async t => {
+test("S-32 ASC-08 ASC-14: anonymous execution does not collect credentials or release a held plan", async t => {
   const local = await openTestHome(t), remote = await fixture();
   t.after(() => remote.close());
   const caller: ActionCallContext = { actor_id: "assistant:anonymous", runtime_session_id: "anonymous-setup", audience: "agent", project_id: null,

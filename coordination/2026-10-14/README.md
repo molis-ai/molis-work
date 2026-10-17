@@ -981,3 +981,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-17 23:00 UTC：prologue#42（ae11f8ad）、#43（94915e78）统筹审过，各要一处小改。#42：「an empty list gives it none」和后一句的 board 工具自相矛盾。#43：用例要经过 search 工具本身断言 "(no matches)" 这串字（它出自工具层 system-tools-workspace.ts:102），另把用例名改通顺。改完核过就合，下次换包带进来。#689 已入队。
 - 10-17 23:05 UTC：#689 合入 bee59ffdd。已通知采用线开换包 PR（adoption/sdk-b541a8e6，先 merge main）。
 - 10-17 23:15 UTC：#673 新 head 96c4feec2（merge 了 main 1483a9f2c）：门禁之外 571 行逐行一致，五项资源只降；5e27b7520 的全量是绿的，所以走 merge-only（第一次开的 gate 网络超时，拿到空 head，按 pid 停掉后重开）。#680：chain25 因为合并引用过期而跳过，本地和 bee59ffdd 合并干净，换成 chain26 重新加标签。
+- 10-17 23:25 UTC：prologue#42（67098790）合入 3766ed52，#43（c4b1652b）合入 68545af6，Prologue main 现在是 68545af6。#43 的用例经过 list/search 工具本身断言 "(no matches)"，改掉那串字就变红。下一次换包带进来，这次的 b541a8e6 换包不变。

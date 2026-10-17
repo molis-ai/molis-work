@@ -10,6 +10,8 @@ import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./histo
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
 import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
+import { reaskMaterial } from "./reask.js";
+import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState, sessionTitle } from "./route-activation.js";
 import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
@@ -71,7 +73,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(projectId, record.session_id);
   if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
   const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
-  let task = plan && continueOf === undefined ? plan.source.task : text(body.task, "任务", 100_000);
+  // 「请 AI 重新问」: the Host writes the round's words; the page names only the question.
+  let task = plan && continueOf === undefined ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "任务", 100_000);
   // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
   if (plan && record.runtime_session_id && continueOf === undefined) {
     const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -125,6 +128,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), sessionTitle(a, execution));
   if (goal) text_materials.unshift(goal.material);
   if (plan) text_materials.unshift(planMaterial(plan));
+  // 「请 AI 重新问」: the closed question and the person's draft, read here, never from the request.
+  if (body.reask !== undefined) text_materials.push(await reaskMaterial(context, record, body.reask, api!));
   if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
@@ -186,7 +191,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       ...(effort ? { reasoning_effort: effort } : {}),
       workspace_id: body.workspace_id, actor_id: actorId,
-      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
+      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "任务", 100_000) }));
     return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
       ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   } finally {

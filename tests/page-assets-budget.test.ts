@@ -612,7 +612,8 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // the companions' copies of Coding's bundle. Receipts 1e (#589, specs/ai-input-receipts RC-14–RC-16) took the workbench script,
 // the three stylesheets and the Coding bundle from the last five sizes; W5-05 slice 1 removed that allowance. T2 (AC-28, D36)
 // took the workbench script and three stylesheets from the next four; receipts 3b-2a (#667, D37–D40) took the workbench script,
-// the Coding bundle and two stylesheets from the last four; W5-01 replaced that allowance.
+// the Coding bundle and two stylesheets from the next four; re-ask (#669, D5, D37) took Coding and the workbench script
+// from the last two sizes; W5-01 replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -623,6 +624,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1101126],
   ["/assets/molis-work-arrival.css", 705879], ["/assets/molis-work-plugins/coding.js", 373429], ["/assets/molis-work-workbench.css", 1596754],
   ["/assets/molis-work-workbench.js", 1099839],
+  ["/assets/molis-work-plugins/coding.js", 374113], ["/assets/molis-work-workbench.js", 1104882],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -639,7 +641,7 @@ for (const [asset, old] of [
 // route may grow the workbench script once, from exactly the current baseline to the measured size (+28). One byte more, another
 // asset, or growth from the new baseline still fails.
 test("W5-01 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1104882, 1104910] } as const;
+  const allowed = { "/assets/molis-work-workbench.js": [1105153, 1105181] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("w501-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "w501-change");

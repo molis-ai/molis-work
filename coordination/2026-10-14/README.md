@@ -1022,3 +1022,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 W2'-2 旧链接：Workflows arrival href、搜索索引 open_json、助理通知 open 三处存有 Shelf 链接。统筹 10-18 定选 A：`openPlugin` / `open.surface` 指插件，工作台按声明的视图决定位置（主区/目录视图优先，只有 side 视图就开侧栏格），规则只在一处、无 shelf 字面量、用非 Shelf 的测试插件证明；条目参数原样交插件；三处存值在 A 下仍是现行取值，不迁移、不改合同，各加一条点开落到 Shelf 格的用例；spec 与 EXTENSION-POINTS 写明。
 
 - 10-18 #693 合入 14bb4bc55（手册 BL-151+BL-159，coordinator v7）；没动 page-assets，#688/#694/#695/#696 与新 main 合并干净、不用重新取键。已通知手册线发下一片计划。
+
+- 10-18 手册线下一片认可（统筹 10-18 定）：coding-base v10→v11 只删问卷用法半句（宿主带类型 ask-user 的参数说明已写，A3① 记的第三份），留「何时该问」；MiniMax eval-a1 一轮 3 题×8×两版交替，判定规则开跑前发统筹；若形状变差不加回角色，按归属交工具说明的主人，逐条标设计问题/模型能力/拿不准。18 个旧本地分支被自动模式拦，由该会话自己问用户。

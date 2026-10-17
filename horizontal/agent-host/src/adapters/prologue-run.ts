@@ -521,7 +521,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
         await deps.effects.beforeEffect();
         return control.switchModel({ protocol: target.protocol, endpoint: target.endpoint, model: target.model, credentialRef }, { beforeAccept: () => { deps.effects.assertCurrent(); beforeAccept(); } });
       },
-      steer: input => control.steer(input), subscribe: listener => control.subscribe(listener),
+      steer: input => control.steer(input), withdrawSteer: steerId => control.withdrawSteer(steerId), subscribe: listener => control.subscribe(listener),
     },
   };
 }

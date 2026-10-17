@@ -234,11 +234,11 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time allowance for asking a closed question again (specs/ai-interaction-experience D5, D37: 「请 AI 重新问」 on the Assistant's
 // and Coding's closed question cards). The user approved it on 2026-10-17 (the coordinator's popup, relayed): coding.js +184,
-// workbench.js +271. Each entry is for exactly one merge-base budget (main 4fd585da), capped at the measured size, and used once:
+// workbench.js +271. Each entry is for exactly one merge-base budget (main dd2bac58), capped at the measured size, and used once:
 // the next baseline freezes again. This replaces T2's spent entries; delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/coding.js": [373429, 373613],
-  "/assets/molis-work-workbench.js": [1103578, 1103849],
+  "/assets/molis-work-workbench.js": [1103049, 1103320],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

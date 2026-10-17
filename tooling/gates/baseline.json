@@ -51,8 +51,8 @@
     "file apps/workbench/src/i18n/en.ts": 3324,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2277,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 1001,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2272,
+    "file apps/workbench/src/scripts/client/navigation-feed.ts": 996,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2015,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
@@ -63,7 +63,7 @@
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 967,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 966,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
       "lines": 602,
       "methods": 18
@@ -158,7 +158,7 @@
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
     "file packages/design-system/src/styles/calm-desktop.ts": 1392,
-    "file packages/design-system/src/styles/craft-finish.ts": 2160,
+    "file packages/design-system/src/styles/craft-finish.ts": 2144,
     "file packages/design-system/src/styles/momentum.ts": 856,
     "file packages/design-system/src/styles/primitives.ts": 1268,
     "file packages/im-ui/src/browser/controller.ts": 966,
@@ -517,7 +517,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 136,
+  "emptyCatchesInScriptsTotal": 134,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -561,7 +561,6 @@
     "plugins/native/coding/src/writers-client.ts": 3,
     "plugins/native/git/src/client.ts": 3,
     "plugins/native/goals/src/event-document-client.ts": 1,
-    "plugins/native/goals/src/momentum-client.ts": 2,
     "plugins/native/goals/src/project-policy-client.ts": 1,
     "plugins/native/images/src/client.ts": 2,
     "plugins/native/jelly/src/client-content.ts": 2,

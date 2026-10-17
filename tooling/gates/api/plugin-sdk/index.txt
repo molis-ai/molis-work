@@ -198,7 +198,7 @@ export declare const QUESTION_LIMITS: Readonly<{
 }>;
 
 export declare const QUESTION_REASK: Readonly<{
-    task: "请按现在的情况重新问我刚才那个问题，我之前写的草稿附在后面。";
+    task: "请按现在的情况重新问我刚才那个问题；我之前写的草稿附在后面，可以当默认值，但要我确认后再交。";
     title: "没交出去的回答草稿";
     maxValueChars: 1000;
     maxTextChars: 8000;

@@ -752,9 +752,9 @@ export class AssistantService {
     } catch (error) {
       this.store.releaseRequest(this.actorId, input.request_id);
       if (stillCurrent && !stillCurrent()) throw error;
-      // Nothing the person typed is lost: an unsent message stays as the work's draft.
+      // Nothing the person typed is lost: an unsent message stays as the work's draft (a re-ask's words are the Host's: the draft stays).
       if (work && !work.reply_target) {
-        const kept = this.store.update(this.actorId, work.work_id, null, { draft: text }, false);
+        const kept = input.reask === undefined ? this.store.update(this.actorId, work.work_id, null, { draft: text }, false) : work;
         const failure = assistantFailure(error);
         throw new ActionError(failure.code, failure.message, { kind: failure.kind, cause: failure,
           details: { ...failure.details, work: this.publicWork(kept, await this.stateSafely(kept)) } });

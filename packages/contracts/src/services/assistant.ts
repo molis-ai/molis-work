@@ -1,6 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
+import type { AgentInputSend } from "./agent-inputs.js";
 import type { MemoryChange, MemoryScope } from "./memory.js";
 
 /**
@@ -472,7 +473,7 @@ export interface AssistantWorkView {
 
 export type { AssistantRecovery } from "./assistant-recovery.js";
 
-export interface AssistantSendInput {
+export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
   /** For a new work: who carries it. An existing work keeps its executor. */
@@ -522,9 +523,8 @@ export interface AssistantHandover {
 }
 
 export type AssistantControl =
-  | { kind: "pause" }
-  | { kind: "resume" }
-  | { kind: "stop" };
+  | { kind: "pause" | "resume" | "stop" }
+  | { kind: "withdraw"; run_id: string; input_id: string };
 
 /** What one provider contributes for the Assistant (read from the action directory), and the gaps that limit it. */
 export interface AssistantContribution {

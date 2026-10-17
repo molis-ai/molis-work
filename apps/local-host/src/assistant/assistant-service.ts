@@ -32,7 +32,8 @@ import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
-import { AssistantInputs, exactRevision, inputsOf, typedWords, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, exactRevision, inputsOf, typedWords, withdrawInput, type SendIntent } from "./assistant-inputs.js";
+import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
 import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
@@ -746,7 +747,7 @@ export class AssistantService {
       if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
       this.linkSent(work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by) });
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by), about: input.about });
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
     } catch (error) {
@@ -765,6 +766,10 @@ export class AssistantService {
 
   async control(workId: string, control: AssistantControl): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
+    if (control?.kind === "withdraw") {
+      await withdrawInput(work, this.store.rounds(work.work_id), control, { coding: () => this.coding(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)) });
+      return this.read(workId);
+    }
     if (!["pause", "resume", "stop"].includes(control?.kind)) throw assistantErrors.invalid("不支持的操作");
     if (work.executor.kind === "coding") {
       const coding = await this.coding(work);
@@ -1452,7 +1457,7 @@ export class AssistantService {
     assertSendCurrent(stillCurrent);
     if (read.recovery_required) throw assistantErrors.needs_check(read.error ?? "Coding 会话有需要核对的中断操作", { action: "打开 Coding 核对" });
     const latest = read.runs.at(-1);
-    if (latest && !isTerminalAgentPhase(latest.phase)) {
+    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
       // Coding's own control carries both: every answer with the revision it answers, every supplement with its receipt (it takes no source: words a page wrote reach Coding as the person's).
       const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => coding.control(sessionId, latest.ref.run_id, control),
         send: ({ source: _source, ...input }) => coding.send(sessionId, latest.ref.run_id, input) }, intent);
@@ -1489,7 +1494,7 @@ export class AssistantService {
     if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: "核对上一轮的实际结果后再继续" });
     assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
-    if (latest && !isTerminalAgentPhase(latest.phase)) {
+    if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
       const outcome = await this.inputs.deliver(intent?.target === "answer" ? await adapter.read(latest.ref) : latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: input => inputsOf(adapter).send(latest.ref, input, () => assertSendCurrent(stillCurrent)),
         // A running round cannot be shown a picture any more; it goes with the next round.
@@ -1710,20 +1715,12 @@ export class AssistantService {
    * a delegated work does not delegate. What they report is read back, never taken as the parent's own result.
    */
   /** Midnight today where the person is, as an instant. */
-  private startOfToday(): string {
-    const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone, now = this.now();
-    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
-      .formatToParts(now).map(part => [part.type, part.value]));
-    const wall = Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!, +parts.hour!, +parts.minute!, +parts.second!);
-    return new Date(now.getTime() - (wall - Date.UTC(+parts.year!, +parts.month! - 1, +parts.day!))).toISOString();
-  }
-
   /**
    * Today's usage of the Assistant's own rounds, from the runtime's receipts: rounds that finished today and were not
    * yet counted are read once and kept. A round still running is counted when it ends.
    */
   async usage(): Promise<AssistantUsage> {
-    const since = this.startOfToday();
+    const since = startOfToday(this.now(), this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone);
     await this.settleUsage(this.store.roundsSince(this.actorId, since));
     const saved = this.store.setting(this.actorId, "daily_tokens");
     return { today: this.store.usage.since(this.actorId, since), daily_tokens: saved ? Number(saved) || null : null };
@@ -2010,7 +2007,6 @@ export class AssistantService {
     const delegated_by = this.delegations.shown(work);
     return { ...rest, ...(delegated_by ? { delegated_by } : {}), state };
   }
-
 }
 
 /**

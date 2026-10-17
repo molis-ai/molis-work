@@ -195,6 +195,10 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
         // A re-ask names a closed question of an existing work, and is not an answer: refused before any work is made or touched.
         if (body.reask !== undefined && (!body.work_id || body.target === "answer" || body.about !== undefined)) throw assistantErrors.invalid("重新问只能用在已有的工作上，不能同时作为回答或指向一条输入");
+        // A correction names the input it corrects, in a work that has one; it is a supplement, never an answer. Only the id's
+        // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
+        // session's inputs names nothing, and the receipt shows 「更早的一条」.
+        if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
         return { status: 200, body: await service.send(body as unknown as AssistantSendInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       // What the Assistant may use here, and what the person switched off for it.

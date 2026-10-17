@@ -5,12 +5,23 @@ import { compactScript } from "./compact-script.js";
 /** What the receipt reads of a run-view turn (`AgentTurnView`) and its round: the round's run id and the questions it waits on. */
 export interface InputReceiptTurn { turn_id: string; kind: string; text: string; steer?: AgentTurnSteer }
 export interface InputReceiptRound { run_id?: string; awaiting_input?: readonly unknown[] }
+/**
+ * What the page that sent a supplement lets the person do from its receipt (stage 3b-2a). Each resolves to the words the
+ * page says once (or nothing), or throws with them; the page reads its round again afterwards.
+ */
+export interface InputReceiptActions {
+  /** Takes it back before the model saw it (`agent.inputs.withdraw`). */
+  withdraw(inputId: string): Promise<string | void>;
+  /** Sends the person's words as a new supplement naming this one (`about`); the same `key` and words count once. */
+  correct(about: string, text: string, key: string): Promise<string | void>;
+}
 export interface InputReceipts {
   /**
    * The receipt under one of the person's supplements, or the Host's mark on a note it wrote for them; null for anything
-   * else. The same turn always gets the same element back, changed in place, so an open detail stays open across repaints.
+   * else. The same turn always gets the same element back, changed in place, so an open detail stays open across repaints,
+   * and so does a correction being written in it. Without `act` it only shows.
    */
-  line(turn: InputReceiptTurn, round?: InputReceiptRound): HTMLElement | null;
+  line(turn: InputReceiptTurn, round?: InputReceiptRound, act?: InputReceiptActions): HTMLElement | null;
 }
 
 /**
@@ -27,6 +38,11 @@ export interface InputReceipts {
  * Observed changes come with stage 3d. One polite status region per page says each change once, naming the supplement, and
  * never moves focus; the first paint says nothing, and the receipts themselves are `aria-live=off` so a surrounding log does
  * not say it twice.
+ *
+ * With the page's actions (§4.6, stage 3b-2a), the detail takes a supplement back while its round says no model has seen
+ * it yet (`received`), and offers a correction to any it has not taken back: a few phrases fill an editable
+ * sentence, and what is sent is the person's own words with `about` naming this input. Nothing is kept in Molis: the
+ * original's 「你改为」 and the correction's 「纠正：针对」 are read from the corrections' `about` on the ledger.
  */
 export function createInputReceipts(L: (text: string) => string): InputReceipts {
   const FACT: Record<string, string> = { received: "已送达", applied: "已放进上下文，等 AI 回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" };
@@ -35,7 +51,8 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
   const IMPACT: Record<string, string> = { objective: "目标", scope: "范围", priority: "优先级", approach: "实现方案", acceptance: "验收条件", outputs: "已有成果", constraint: "约束" };
   const TARGET: Record<string, string> = { input: "另一条补充", "app-ref": "应用里的对象", todo: "这一轮的待办", pending: "一个问题", "board-node": "计划的一步" };
   const QUESTION: Record<string, string> = { open: "等你回答", settled: "已回答", expired: "已过期", cancelled: "已取消", unresolved: "这一轮结束时还没回答" };
-  const shown = new Map<string, { root: HTMLDetailsElement; said: string }>();
+  type Shown = { root: HTMLDetailsElement; said: string; turn: InputReceiptTurn; round?: InputReceiptRound; act?: InputReceiptActions; form?: HTMLFormElement; problem?: string; fix?: { key: string; text: string } };
+  const shown = new Map<string, Shown>(), byInput = new Map<string, string>(), fixes = new Map<string, string[]>();
   let live: HTMLElement | null = null, pending: string[] = [];
   const make = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text = "") => {
     const node = document.createElement(tag); node.className = cls; node.textContent = text; return node;
@@ -48,6 +65,12 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
     pending.push(words);
   };
   const row = (list: HTMLElement, term: string, value: string) => { list.append(make("dt", "", L(term)), make("dd", "", value)); };
+  const quote = (text: string) => text.length > 12 ? text.slice(0, 12) + "…" : text;
+  const of = (inputId: string) => shown.get(byInput.get(inputId) ?? "");
+  const button = (cls: string, text: string, click: () => void) => {
+    const node = make("button", "mw-btn mw-btn--sm " + cls, text); node.type = "button"; node.addEventListener("click", click); return node;
+  };
+  const reveal = (entry: Shown | undefined) => { if (!entry) return; entry.root.open = true; entry.root.scrollIntoView({ block: "nearest" }); entry.root.querySelector("summary")?.focus(); };
   const treatment = (claim: AgentInputModelClaim) => L(TREATMENT[claim.treatment] ?? claim.treatment);
   const impacts = (claim: AgentInputModelClaim) => claim.impacts.map(one => L(IMPACT[one] ?? one)).join(L("、"));
   const claimLine = (claim: AgentInputModelClaim) => treatment(claim) + (claim.impacts.length ? L(" · 影响") + impacts(claim) : "");
@@ -72,34 +95,102 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
     part.append(group);
     return part;
   };
+  const acts = (entry: Shown, part: HTMLElement) => {
+    const steer = entry.turn.steer!, act = entry.act;
+    const about = steer.about ? of(steer.about) : undefined, latest = of((fixes.get(steer.id) ?? []).at(-1) ?? "");
+    const links = make("div", "mw-receipt__acts");
+    if (about) links.append(button("mw-btn--link", L("看原来那条"), () => reveal(about)));
+    if (latest) links.append(button("mw-btn--link", L("看更正"), () => reveal(latest)));
+    if (act && steer.state !== "withdrawn") {
+      // Only a round under way can give one back from its receipt; one left waiting in the session is the session's to give back.
+      if (steer.state === "received") links.append(button("mw-btn--secondary", L("撤回"), () => withdraw(entry)));
+      else if (steer.state !== "unread") part.append(make("p", "mw-receipt__note", L("AI 已看到，不能撤回；要改口就发更正。")));
+      if (!entry.form) links.append(button("mw-btn--ghost", L("更正…"), () => correct(entry)));
+    }
+    if (entry.problem) part.append(make("p", "mw-receipt__problem", entry.problem));
+    if (links.childElementCount) part.append(links);
+  };
+  const withdraw = async (entry: Shown) => {
+    entry.problem = undefined;
+    // The receipt's own fact line says 「已撤回」 once the round's record does; the page adds words only where it will not.
+    try { const words = await entry.act!.withdraw(entry.turn.steer!.id); if (words) say(words); }
+    catch (error) { entry.problem = (error as Error).message; say(entry.problem); }
+    draw(entry, true);
+  };
+  const correct = (entry: Shown) => {
+    const steer = entry.turn.steer!, claim = steer.model_claim;
+    const form = entry.form = make("form", "mw-receipt__body"), area = make("textarea", "mw-textarea"), status = make("p", "mw-receipt__note");
+    const phrases = [claim ? L("不是「") + treatment(claim) + L("」，而是：") : L("不是这个意思，而是："), L("这条针对的是："), L("补充一句：")];
+    const choices = make("div", "mw-receipt__acts"), send = make("button", "mw-btn mw-btn--sm mw-btn--primary", L("发送更正"));
+    for (const phrase of phrases) choices.append(button("mw-btn--secondary", phrase, () => {
+      area.value = !area.value.trim() || phrases.includes(area.value) ? phrase : area.value + "\n" + phrase; area.focus(); area.selectionStart = area.value.length;
+    }));
+    const close = () => { entry.form = undefined; form.remove(); draw(entry, true); entry.root.querySelector<HTMLElement>(".mw-receipt__acts .mw-btn--ghost")?.focus(); };
+    const done = make("div", "mw-receipt__acts");
+    done.append(send, button("mw-btn--ghost", L("取消"), close));
+    area.setAttribute("aria-label", L("更正「") + quote(entry.turn.text) + L("」"));
+    status.setAttribute("role", "status"); status.hidden = true;
+    form.append(make("p", "mw-receipt__note", L("更正会作为一条新补充发出，指向这条。")), choices, area, status, done);
+    form.addEventListener("keydown", event => { if (event.key === "Escape") { event.stopPropagation(); close(); } });
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const text = area.value.trim();
+      const tell = (words: string, problem = false) => { status.textContent = words; status.hidden = false; status.className = problem ? "mw-receipt__problem" : "mw-receipt__note"; };
+      if (!text || phrases.includes(area.value)) { tell(L("写上要改成什么"), true); return; }
+      // The same words sent again after a lost answer keep their key, so the runtime counts them once (§7).
+      if (entry.fix?.text !== text) entry.fix = { key: crypto.randomUUID(), text };
+      send.disabled = true; tell(L("发送中…"));
+      try { const words = await entry.act!.correct(steer.id, text, entry.fix.key); entry.fix = undefined; say(words || L("更正已发出")); close(); }
+      catch (error) { tell((error as Error).message, true); send.disabled = false; }
+    });
+    draw(entry, true);
+    entry.root.open = true; entry.root.append(form); area.focus();
+  };
+  const draw = (entry: Shown, force = false) => {
+    const { turn, round, root } = entry, steer = turn.steer!;
+    const waits = (round?.awaiting_input ?? []).length > 0 && (steer.state === "received" || steer.state === "applied");
+    const fact = L(waits ? "已补充到这一轮；问题仍在等你回答" : FACT[steer.state] ?? FACT.received);
+    const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
+    const about = steer.about ? of(steer.about) : undefined, fixed = of((fixes.get(steer.id) ?? []).at(-1) ?? "");
+    const link = steer.about ? L("纠正：针对") + (about ? L("「") + quote(about.turn.text) + L("」") : L("更早的一条")) : fixed ? L("你改为：「") + quote(fixed.turn.text) + L("」") : "";
+    const key = JSON.stringify([fact, claim, ask, steer, link, Boolean(entry.act)]), before = entry.said ? JSON.parse(entry.said) as string[] : null;
+    if (!force && entry.said === key) return;
+    const summary = make("summary", ""), head = make("span", "mw-receipt__fact", fact), part = body(steer);
+    summary.append(head);
+    if (claim) { const line = make("span", "mw-receipt__claim"); line.append(make("b", "", L("AI 说")), claim); summary.append(line); }
+    if (ask) summary.append(make("span", "mw-receipt__ask", ask));
+    if (link) summary.append(make("span", "mw-receipt__link", link));
+    acts(entry, part);
+    root.dataset.state = waits ? "waiting" : steer.state; root.setAttribute("aria-live", "off");
+    // A correction being written stays where it is, focus and words untouched: only what comes before it is drawn again,
+    // and focus on what was redrawn moves to its new copy rather than falling back to the page.
+    const focused = document.activeElement, kept = focused && root.contains(focused) && !entry.form?.contains(focused) ? focused.textContent : null;
+    for (const child of [...root.children]) if (child !== entry.form) child.remove();
+    root.prepend(summary, part);
+    if (kept !== null) ([...part.querySelectorAll("button")].find(node => node.textContent === kept) ?? summary).focus();
+    if (before) {
+      const words = quote(turn.text);
+      if (before[0] !== fact) say(L("你的补充「") + words + L("」：") + fact);
+      if (claim && before[1] !== claim) say(L("AI 说你的补充「") + words + L("」：") + claim);
+      if (ask && before[2] !== ask) say(ask);
+    }
+    entry.said = key;
+  };
   return {
-    line(turn, round) {
+    line(turn, round, act) {
       const steer = turn.steer;
       if (!steer) return null;
       if (turn.kind === "notice") return make("small", "mw-receipt mw-receipt--host", L("Molis 的说明，不是你发的话"));
       if (turn.kind !== "user") return null;
-      const waits = (round?.awaiting_input ?? []).length > 0 && (steer.state === "received" || steer.state === "applied");
-      const fact = L(waits ? "已补充到这一轮；问题仍在等你回答" : FACT[steer.state] ?? FACT.received);
-      const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
       // Known by its round and input id: a turn id only counts within one round, the page draws every round, and a supplement
       // a round did not read is carried into the next under the same input id (decision D28).
-      const id = round?.run_id + " " + steer.id, key = JSON.stringify([fact, claim, ask, steer]), was = shown.get(id);
-      if (was && was.said === key) return was.root;
-      const root = was?.root ?? make("details", "mw-receipt");
-      const summary = make("summary", ""), head = make("span", "mw-receipt__fact", fact);
-      summary.append(head);
-      if (claim) { const line = make("span", "mw-receipt__claim"); line.append(make("b", "", L("AI 说")), claim); summary.append(line); }
-      if (ask) summary.append(make("span", "mw-receipt__ask", ask));
-      root.dataset.state = waits ? "waiting" : steer.state; root.setAttribute("aria-live", "off");
-      root.replaceChildren(summary, body(steer));
-      if (was) {
-        const quote = turn.text.length > 12 ? turn.text.slice(0, 12) + "…" : turn.text, before = JSON.parse(was.said) as string[];
-        if (before[0] !== fact) say(L("你的补充「") + quote + L("」：") + fact);
-        if (claim && before[1] !== claim) say(L("AI 说你的补充「") + quote + L("」：") + claim);
-        if (ask && before[2] !== ask) say(ask);
-      }
-      shown.set(id, { root, said: key });
-      return root;
+      const id = round?.run_id + " " + steer.id, entry = shown.get(id) ?? { root: make("details", "mw-receipt"), said: "", turn };
+      Object.assign(entry, { turn, round, act }); shown.set(id, entry); byInput.set(steer.id, id);
+      const list = steer.about ? fixes.get(steer.about) ?? [] : [];
+      // A correction seen for the first time changes its original's receipt too, wherever the page drew that one.
+      if (steer.about && !list.includes(steer.id)) { fixes.set(steer.about, [...list, steer.id]); const original = of(steer.about); draw(entry); if (original) draw(original); }
+      else draw(entry);
+      return entry.root;
     },
   };
 }
@@ -159,4 +250,26 @@ export const INPUT_RECEIPTS_EN: Readonly<Record<string, string>> = {
   "你的补充「": "Your supplement \"",
   "」：": "\": ",
   "AI 说你的补充「": "The AI says your supplement \"",
+  "「": "\"",
+  "」": "\"",
+  "看原来那条": "See the original",
+  "看更正": "See the correction",
+  "撤回": "Withdraw",
+  "AI 已看到，不能撤回；要改口就发更正。": "The AI has seen it, so it can't be withdrawn. To change course, send a correction.",
+  "更正…": "Correct…",
+  "不是「": "Not \"",
+  "」，而是：": "\", but: ",
+  "不是这个意思，而是：": "Not what I meant. Instead: ",
+  "这条针对的是：": "This is about: ",
+  "补充一句：": "One more thing: ",
+  "发送更正": "Send correction",
+  "取消": "Cancel",
+  "更正「": "Correct \"",
+  "更正会作为一条新补充发出，指向这条。": "The correction goes out as a new supplement that points to this one.",
+  "写上要改成什么": "Write what should change",
+  "发送中…": "Sending…",
+  "更正已发出": "Correction sent",
+  "纠正：针对": "Corrects ",
+  "更早的一条": "an earlier one",
+  "你改为：「": "You changed it to \"",
 };

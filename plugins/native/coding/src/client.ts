@@ -878,7 +878,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
             }
             renderedText.set(node,renderKey); enrichCode(node);
           }
-          const receipt=host.receipts.line(turn,{run_id:run.ref.run_id,awaiting_input:run.awaiting_input});if(receipt&&receipt.parentNode!==node)node.append(receipt);ordered.push(node);
+          const receipt=host.receipts.line(turn,{run_id:run.ref.run_id,awaiting_input:run.awaiting_input},inputReceipts.act(current,run.ref.run_id));if(receipt&&receipt.parentNode!==node)node.append(receipt);ordered.push(node);
         } else if(entry.kind==='activity') {
           const activities=entry.values,key=activities[0].call_id;
           let detail=[...block.querySelectorAll('[data-coding-activity]')].find(node=>node.dataset.codingActivity===key);

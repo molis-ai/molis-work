@@ -702,7 +702,7 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 | R20 | 未做 | 助理不从情境中枢取「手上 + 落点」，没有只读系统动作给助理同一份候选。W3 |
 | R21 | 部分 | 情境条（W3-A2）带上手上的东西与正在看的对象；落点在对象已加入时出现、可 ×，发送时带给宿主、宿主经主人重读后告诉模型（W3-B2）；分屏窗格里的落点随 W3-B3 |
 | R22 | 未做 | W3 |
-| R23 | 未做 | W3 |
+| R23 | 部分 | 助理回复里选中的一段是手上的东西（`assistant_reply`，`place: "assistant"`），能放进左边的落点（BL-150）；点结果小片还不算 |
 | R24 | 部分（按设计成立） | `intake`/`attach` 写在普通写入动作上，工作流与 MCP 天然可用；还没有插件声明 |
 | R25 | 未做 | W2' |
 | R26 | 部分 | `attach` 带 `positions` 已在 SDK；材料篮 = Shelf 没有；「四份文档一个 PR」已由用户 10-13 的规则取代（每线一个交接分支，现在按波次开 PR） |
@@ -1323,6 +1323,12 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 页面资源（只减不增，同一个 PR 里删代码抵消）：`molis-work-workbench.js` −30 B，`molis-work-pages-editor.js` −27 B，三份样式表各 −9 B。删掉的是已经没有元素的旧代码（仓库里没有任何地方再产出这些属性，几处测试本就断言它们不在页面上）：Goals 目录里的搜索框（`[data-tree-search]`、`[data-personal-search]`）的监听与状态、刷新时替换「归档」「回收站」链接（`[data-archive-link]`、`[data-trash-link]`）、`[data-close-work-planning]`、`[data-open-goal-tui]`、`[data-immersive-theme]`、`[data-feed-directory-title]` 的处理，以及选择器里的 `[data-risk-*]`、`[data-artifact-select]`；情境条的 `[hidden]` 规则（元素没有别的 `display`，浏览器自带的规则已经藏起它）；Pages 的落点改用 `focus.ts` 已有的 `headingPath`，不另写一份。
   - 验收编号：STRIP-04（没加入时没有落点；加入后出现，名字是标题加位置词；× 只去掉落点，对象照旧、模型不再看到落点）、STRIP-05（模型看到落点的事实；对象被主人删掉后，这一行没有）、CTX-COVER-01（390 与 1440 下，面板盖住选区时浮条不出、收起后回来），都在 `tests/assistant-context-strip.e2e.test.ts`。
   - 顺带看到、不在本片：助理回复里的选区还不算手上的东西（DOM 选区读取排除了 `[data-assistant-island]`），所以「从回复里选一段放进左边光标处」没有接上，记在 BACKLOG BL-150（排在 W3-B3 之后，统筹 10-16 定）。
+- 2026-10-17 BL-150（分支 `context/bl150-reply-in-hand`；对象种类与 id 统筹 10-17 定）：助理回复里选中的一段成了手上的东西，能「插入到光标处」放进左边。
+  - 对象：助理是唯一的主人。回复的气泡带 `data-assistant-context`：`plugin_id: "assistant"`，`object: { kind: "assistant_reply", id: "<work_id>:<run_id>:<turn_id>", title }`。`run_id` 与 `turn_id` 是宿主给这一轮、这一句的 id（`turn_id` 每一轮各自编号，所以带上 `run_id`），刷新后不变，不是页面上的序号或时间；`title` 是工作现在的标题，由助理给，不从页面文字取。
+  - 种类不登记：现在登记对象种类的只有插件搜索来源的 `search_source.kinds`，助理没有搜索来源。这个 id 也不在别处解析：放进左边时宿主只重读落点对象（`confirmReferences`），写进 Pages 的只有文字（「作为引用插入」另写出处标题）。
+  - 读选区（`context-actions.ts` 的 `own()`）：助理面板里只有回复的字算手上的东西，输入框、情境条、按钮和人自己的话都不算；位置照 W3-B1 已有的写法从元素得出 `place: "assistant"`。助理自己找「正在看的页面」时跳过面板里的回复（`pageCtx`）。
+  - `assistant-island.ts` 不变大：斜杠菜单里「方法」与「能力」两段一样的按钮代码合成一个 `pick`，净减 5 行。种类名 `ASSISTANT_REPLY_KIND` 只在合同 `services/contextual` 定义一次，岛与测试都取它（统筹 10-17）。
+  - 验收：`tests/context-landing-reply.e2e.test.ts`（BL-150、AC-S15）：回复的 id 由工作、轮次、句子组成，刷新后相同；人自己的话选中不出东西；回复里选一段，「插入到光标处」先在 Pages 光标处预览，「放进去」写入。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

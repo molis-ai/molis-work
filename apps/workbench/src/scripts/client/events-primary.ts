@@ -146,16 +146,9 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       selectFeedItem(next.dataset.feedEntryId, false, true);
       next.focus();
     });
-    // The source directory is in the page only while the project has Feed: its search and its list are bound when it is there,
+    // The source directory is in the page only while the project has Feed: its list is bound when it is there,
     // at load or when Feed comes (adoptFeed), and only once.
     const bindSourceDirectory = () => {
-      if (sourceSearch && !sourceSearch.dataset.bound) {
-        sourceSearch.dataset.bound = "true";
-        sourceSearch.addEventListener("input", () => {
-          noteSearchActivity();
-          filterSources();
-        });
-      }
       const list = sourceList;
       if (list && !list.dataset.bound) {
         list.dataset.bound = "true";
@@ -321,7 +314,6 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       }
       if (target.closest("[data-source-filter-reset]")) {
         activeSourceFilter = "all";
-        if (sourceSearch) sourceSearch.value = "";
         sourceDirectory?.querySelectorAll("[data-source-filter]").forEach((button) => {
           const active = button.dataset.sourceFilter === "all";
           button.classList.toggle("is-active", active);

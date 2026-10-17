@@ -700,7 +700,7 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 | R18 | 部分 | `skills/molis-plugin-dev/contextual.md` 一到六节（选区动作、`intake`、`attach`、浮条工具）；页面端辅助函数与落点（第七节「还没有的」）没有 |
 | R19 | 部分 | 浮条三事件与三条窗格消息已登记（`dom-events.ts`）；`molis:surface-landing`、`molis:landing-at` 随 W3 |
 | R20 | 未做 | 助理不从情境中枢取「手上 + 落点」，没有只读系统动作给助理同一份候选。W3 |
-| R21 | 部分 | 情境条（W3-A2）带上手上的东西与正在看的对象；落点在对象已加入时出现、可 ×，发送时带给宿主、宿主经主人重读后告诉模型（W3-B2）；分屏窗格里的落点随 W3-B3 |
+| R21 | 部分 | 情境条（W3-A2）带上手上的东西与正在看的对象；落点在对象已加入时出现、可 ×，发送时带给宿主、宿主经主人重读后告诉模型（W3-B2）；分屏窗格里的落点也一样（W3-B3） |
 | R22 | 未做 | W3 |
 | R23 | 部分 | 助理回复里选中的一段是手上的东西（`assistant_reply`，`place: "assistant"`），能放进左边的落点（BL-150）；点结果小片还不算 |
 | R24 | 部分（按设计成立） | `intake`/`attach` 写在普通写入动作上，工作流与 MCP 天然可用；还没有插件声明 |
@@ -1323,6 +1323,13 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 页面资源（只减不增，同一个 PR 里删代码抵消）：`molis-work-workbench.js` −30 B，`molis-work-pages-editor.js` −27 B，三份样式表各 −9 B。删掉的是已经没有元素的旧代码（仓库里没有任何地方再产出这些属性，几处测试本就断言它们不在页面上）：Goals 目录里的搜索框（`[data-tree-search]`、`[data-personal-search]`）的监听与状态、刷新时替换「归档」「回收站」链接（`[data-archive-link]`、`[data-trash-link]`）、`[data-close-work-planning]`、`[data-open-goal-tui]`、`[data-immersive-theme]`、`[data-feed-directory-title]` 的处理，以及选择器里的 `[data-risk-*]`、`[data-artifact-select]`；情境条的 `[hidden]` 规则（元素没有别的 `display`，浏览器自带的规则已经藏起它）；Pages 的落点改用 `focus.ts` 已有的 `headingPath`，不另写一份。
   - 验收编号：STRIP-04（没加入时没有落点；加入后出现，名字是标题加位置词；× 只去掉落点，对象照旧、模型不再看到落点）、STRIP-05（模型看到落点的事实；对象被主人删掉后，这一行没有）、CTX-COVER-01（390 与 1440 下，面板盖住选区时浮条不出、收起后回来），都在 `tests/assistant-context-strip.e2e.test.ts`。
   - 顺带看到、不在本片：助理回复里的选区还不算手上的东西（DOM 选区读取排除了 `[data-assistant-island]`），所以「从回复里选一段放进左边光标处」没有接上，记在 BACKLOG BL-150（排在 W3-B3 之后，统筹 10-16 定）。
+- 2026-10-17 W3-B3 实现（分支 `context/w3b3-pane-landing`，叠在 W3-B2 上，按 B-6）：分屏窗格里的 Pages 也是落点。
+  - 窗格往上：窗格文档把自己的 `molis:surface-landing` 去掉 `screen` 后发给顶层（`workbench-surface-landing`）；顶层照现有窗格消息的写法核对（同源、来源窗口是某个 `iframe[data-pane-owner]`），在那个 frame 上重新发 `molis:surface-landing`，`pane_id` 取窗格名，所以情境行与情境条照读，不另写一套。窗格关页时报 `null`。不是窗格发来的落点一律丢掉。
+  - 往下与执行：选了 `attach.` 候选后，顶层照旧先 `prepare`，再把准备好的选择交给落点所在的窗格（`workbench-context-attach-chosen`，带一次性记号）；窗格在自己的文档里发 `molis:assistant-context-action-chosen`，Pages 在窗格里的落点处预览。确认时窗格请顶层执行（`workbench-context-attach-run`），只有收到记号的那个窗格能用它、只用一次，顶层用排序时的落点调 `/api/contextual/attach`，把结果回给窗格。宿主照旧两道检查（`confirmReferences`、Pages 比版本）。没有页面接手就照旧提示「左边的内容已经换了」。
+  - 情境条：只由报告它的那一页收回落点（分屏时窗格和旁边的页面各报各的，一页报 `null` 不再清掉另一页的）。
+  - 窗格消息的检查只写一份（S-30，统筹 10-17 定加行）：新文件 `pane-messages.ts`（`PANE_MESSAGES_SCRIPT`）给出「是哪个窗格发来的」「是不是外面那一页发来的」与「记号只给那个框、只用一次」，`context-bus.ts`、`context-landing.ts`、`context-actions.ts` 的窗格一侧与 `tab-workspace.ts` 的窗格消息监听都先过它。顺带收紧：「打开设置」（`workbench-open-settings`）以前收任何同源窗口发来的，现在只收窗格发来的（只有窗格发它）。`tab-workspace.ts` 窗格一侧原来有两个 `message` 监听（Goal 视图；Feed 任务与新增），并成一个，各自的来源检查只写一次，这个巨大单元的行数与 main 持平。拒绝用例是不开浏览器的 `tests/security-invariants-pane-messages.test.ts`，进 `pnpm test:security`。
+  - 写在 `context-landing.ts`（顶层与窗格各一段）；`context-bus.ts` 只变短（窗格检查换成一行），`assistant-island.ts`、`client.ts` 不动。
+  - 验收编号：PANE-LAND-01（窗格里留下光标 → 顶层收到带窗格名、不带 `screen` 的落点 → 右栏选一句「插入到光标处」→ 预览在窗格里、顶层没有 → 放进去、存下）、PANE-LAND-02（不是窗格的窗口发来的落点被丢掉），在 `tests/context-landing-panes.e2e.test.ts`。
 - 2026-10-17 BL-150（分支 `context/bl150-reply-in-hand`；对象种类与 id 统筹 10-17 定）：助理回复里选中的一段成了手上的东西，能「插入到光标处」放进左边。
   - 对象：助理是唯一的主人。回复的气泡带 `data-assistant-context`：`plugin_id: "assistant"`，`object: { kind: "assistant_reply", id: "<work_id>:<run_id>:<turn_id>", title }`。`run_id` 与 `turn_id` 是宿主给这一轮、这一句的 id（`turn_id` 每一轮各自编号，所以带上 `run_id`），刷新后不变，不是页面上的序号或时间；`title` 是工作现在的标题，由助理给，不从页面文字取。
   - 种类不登记：现在登记对象种类的只有插件搜索来源的 `search_source.kinds`，助理没有搜索来源。这个 id 也不在别处解析：放进左边时宿主只重读落点对象（`confirmReferences`），写进 Pages 的只有文字（「作为引用插入」另写出处标题）。

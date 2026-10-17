@@ -812,13 +812,14 @@ interface AgentInputView {
   - 岛上的回执工厂（`assistant-send.ts`）多了 `tray(thread, put, view)`：在轮次之后放共用托盘，取最近一轮，撤回走这项工作的控制（3b-2a 的 `withdraw`）。岛上只多一处调用；为抵它，把摆放子节点的 `placer` 挪进 `assistant-stage.ts`，岛短了 9 行。
   - `AssistantService` 是巨大单元：读取挪进 `assistant-inputs.ts`；把 Send 记关联的 `linkSent`（连同 `revisionOf`）挪到 `assistant-relations.ts`，类短了 9 行、少了一个方法。
   - 共用托盘的 `queued` 可以不给：不给时不画「排着」这一类；最近一轮里没有没了结的，也不说「没有还没处理完的了」。读了且为空才说。
-  - 托盘按轮次各一个：Coding 页和旁边的助理用的是同一份共用回执，以前共用一个托盘元素，会被两边抢来抢去。
+  - 托盘按画它的那个面各一个（统筹 10-17 定）：`tray(owner, queued, round, act)`，`owner` 是调用方的容器（助理传对话线程，Coding 传那一轮的块），内部用 `WeakMap` 存，面没了就随之回收。Coding 页和旁边的助理用的是同一份共用回执；助理的工作交给 Coding 执行时，两边画的还是同一轮，按轮次取会拿到同一个元素、被两边抢来抢去。轮次换了，就把上一轮的条数与播报清掉，新一轮的第一次画不当成条数的变化来说。
   - 合同里 `AssistantControl` 的文档注释加回来（3b-2a 删掉的那一行）。
 - **措辞表一份（BL-158）。** 设计系统导出 `RECEIPT_WORDS`，用 `satisfies` 按合同的闭集写全；Coding 报告（`report-inputs.ts`）改用它，删掉自己那份。报告的措辞因此与回执一致（「已放进上下文，等 AI 回应」「这一轮结束时 AI 没读到，留给下一轮」「验收条件」），RCPT-341 的期望值随之改了（预期变化，断言没放宽）。共用回执里对闭集的 `??` 兜底一并去掉：闭集按现行取值读。
-- **字节。** `molis-work-workbench.js` 比 3b-2b 量得的多 +325（按轮次的托盘状态、工厂的 `tray`、岛上的一处调用；回执、托盘的样式与措辞都复用），`molis-work-plugins/coding.js` −7，样式表不变。用户 10-17 在回执线会话的弹窗里一次性批准 workbench.js +325；开 PR 时按那时的 merge-base 定键，写成单独的放行提交。
+- **字节。** `molis-work-workbench.js` 比 3b-2b 量得的多 +313（按面的托盘状态、工厂的 `tray`、岛上的一处调用；回执、托盘的样式与措辞都复用；改成按面取后，把回执里两处一样的「更正两头」查找合成 `ends` 抵掉一部分），`molis-work-plugins/coding.js` −1，样式表不变。用户 10-17 在回执线会话的弹窗里一次性批准 workbench.js 至多 +325；开 PR 时按那时的 merge-base 定键，写成单独的放行提交。
 - **验收编号与证据：**
-  - RCPT-334：没读的排队不当空：托盘不画「排着」，最近一轮清空时不说「没有还没处理完的了」；读了且为空才说。另一轮有它自己的托盘（`tests/input-receipts-client.test.ts`）。
-  - RCPT-335：助理在轮次之后放最近一轮的托盘；视图没有 `queued_inputs` 时交给托盘的是「没读」，`[]` 原样交；没有工作就不画；撤回走这项工作的控制（`tests/assistant-receipts-client.test.ts`）。
+  - RCPT-334：没读的排队不当空：托盘不画「排着」，最近一轮清空时不说「没有还没处理完的了」；读了且为空才说。换了一轮，开头的条数不播报（`tests/input-receipts-client.test.ts`）。
+  - RCPT-337：同一轮在两个面上各画一次，是两个元素，各自的 `queued` 互不影响，也不重复播报（`tests/input-receipts-client.test.ts`）。
+  - RCPT-335：助理在轮次之后、以对话线程为面放最近一轮的托盘；视图没有 `queued_inputs` 时交给托盘的是「没读」，`[]` 原样交；没有工作就不画；撤回走这项工作的控制（`tests/assistant-receipts-client.test.ts`）。
   - RCPT-336：真 Prologue 运行时经助理：一轮在跑时视图没有 `queued_inputs`；一轮结束后排着的更正带着 `about` 出现在视图里；撤回后是 `[]`（`tests/assistant-input-correct.test.ts`）。浏览器：一轮结束后从回执发更正，托盘的「排着」列出它；从托盘撤回，排队变空、不开新的一轮（`tests/assistant-input-receipts.e2e.test.ts`）。
   - RC-18 的一条断言从「不给值」改成 `[]`：一轮结束后读了、确实没有（`tests/prologue-recovery.test.ts`，变严）。
 

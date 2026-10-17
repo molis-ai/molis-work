@@ -130,7 +130,7 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
     target: () => chip.hidden ? undefined : choice,
     /** What is still open in the work, after its rounds (the tray); none when nothing is. Its queue is left out when not read. */
     tray(thread, put, view) {
-      const round = view && view.rounds[view.rounds.length - 1], tray = round ? shared.tray(view.queued_inputs, round, act(round)) : null;
+      const round = view?.rounds.at(-1), tray = round ? shared.tray(thread, view.queued_inputs, round, act(round)) : null;
       if (tray) put(tray); else thread.querySelector(":scope > .mw-tray")?.remove();
     },
   };

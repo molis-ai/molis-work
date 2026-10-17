@@ -22,7 +22,7 @@ function page(reply: (path: string, body: Record<string, unknown>) => Promise<un
   // The receipt itself is the design system's shared one (tests/input-receipts-client.test.ts); here it is a stand-in that
   // keeps one element per turn, as the shared one does.
   const made = new Map<string, Node>(), trays: unknown[][] = [], tray = new Node("details", "mw-receipt mw-tray");
-  const shared = { tray: (queued: unknown, round: object, act?: Act) => (trays.push([queued, round, act]), Array.isArray(queued) && !queued.length ? null : tray), line: (turn: { turn_id: string; kind: string; steer?: { state: string } }, _round: object, act?: Act) =>
+  const shared = { tray: (owner: Node, queued: unknown, round: object, act?: Act) => (trays.push([owner, queued, round, act]), Array.isArray(queued) && !queued.length ? null : tray), line: (turn: { turn_id: string; kind: string; steer?: { state: string } }, _round: object, act?: Act) =>
     (acts.push(act), turn.kind === "user" && turn.steer ? made.get(turn.turn_id) ?? made.set(turn.turn_id, new Node("details", "mw-receipt")).get(turn.turn_id)! : null) };
   const api = (path: string, method: string, body: Record<string, unknown>) => { calls.push([path, method, body]); return reply(path, body); };
   const ui = vm.runInNewContext(`(${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})`, { Error, encodeURIComponent })({ L: (text: string) => text, shared, chip, api, work: () => "work 1", reload: () => { reloads++; } }) as {
@@ -90,13 +90,14 @@ test("RCPT-335, 3b-2c: after the rounds the Assistant places the shared tray of 
   const rounds = [{ run_id: "run-1", phase: "completed" }, { run_id: "run-2", phase: "running" }];
   ui.tray(thread, put, { rounds });
   assert.equal(thread.children.includes(tray), true, "RCPT-335 the tray follows the rounds");
-  assert.equal(trays[0]![0], undefined, "RCPT-335 a view without queued_inputs hands no queue on: not read, not empty");
-  assert.equal((trays[0]![1] as { run_id: string }).run_id, "run-2", "the latest round's");
+  assert.equal(trays[0]![0], thread, "RCPT-335 the thread is the surface that draws it, so its tray is its own");
+  assert.equal(trays[0]![1], undefined, "RCPT-335 a view without queued_inputs hands no queue on: not read, not empty");
+  assert.equal((trays[0]![2] as { run_id: string }).run_id, "run-2", "the latest round's");
   ui.tray(thread, put, { rounds, queued_inputs: [] });
-  assert.deepEqual(trays[1]![0], [], "read and empty is handed on as such");
+  assert.deepEqual(trays[1]![1], [], "read and empty is handed on as such");
   assert.equal(thread.children.includes(tray), false, "nothing open: the tray goes");
   ui.tray(thread, put, null);
   assert.equal(trays.length, 2, "no work, no tray");
-  await (trays[0]![2] as Act).withdraw("q-1");
+  await (trays[0]![3] as Act).withdraw("q-1");
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [["/works/work%201/control", "POST", { kind: "withdraw", run_id: "run-2", input_id: "q-1" }]], "RCPT-335 the work's own control");
 });

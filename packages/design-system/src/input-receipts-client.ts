@@ -26,11 +26,11 @@ export interface InputReceipts {
   line(turn: InputReceiptTurn, round?: InputReceiptRound, act?: InputReceiptActions): HTMLElement | null;
   /**
    * 「N 条还没处理完」 (stage 3b-2b): what waits in the session for the next round, and what the latest round's ledger
-   * leaves open, drawn from the receipts the page has drawn; null when nothing is open. The same element comes back
-   * across repaints, so an open tray stays open. `queued` undefined: the session's queue was not read this time (a round
-   * is live), so the tray says nothing about it, not that it is empty.
+   * leaves open, drawn from the receipts the page has drawn; null when nothing is open. `owner` is the container that
+   * draws it: each one keeps its own element across repaints, so an open tray stays open. `queued` undefined: the
+   * session's queue was not read this time (a round is live), so the tray says nothing about it, not that it is empty.
    */
-  tray(queued: readonly InputReceiptQueued[] | undefined, round?: InputReceiptRound, act?: Pick<InputReceiptActions, "withdraw">): HTMLElement | null;
+  tray(owner: Element, queued: readonly InputReceiptQueued[] | undefined, round?: InputReceiptRound, act?: Pick<InputReceiptActions, "withdraw">): HTMLElement | null;
 }
 
 /**
@@ -89,6 +89,8 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
   const row = (list: HTMLElement, term: string, value: string) => { list.append(make("dt", "", L(term)), make("dd", "", value)); };
   const quote = (text: string) => text.length > 12 ? text.slice(0, 12) + "…" : text;
   const of = (inputId: string) => shown.get(byInput.get(inputId) ?? "");
+  /** Both ends of a correction, as drawn: the input this one corrects, and the latest one correcting it. */
+  const ends = (steer: AgentTurnSteer) => [of(steer.about ?? ""), of(fixes.get(steer.id)?.at(-1) ?? "")] as const;
   const button = (cls: string, text: string, click: () => void) => {
     const node = make("button", "mw-btn mw-btn--sm " + cls, text); node.type = "button"; node.addEventListener("click", click); return node;
   };
@@ -119,7 +121,7 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
   };
   const acts = (entry: Shown, part: HTMLElement) => {
     const steer = entry.turn.steer!, act = entry.act;
-    const about = steer.about ? of(steer.about) : undefined, latest = of((fixes.get(steer.id) ?? []).at(-1) ?? "");
+    const [about, latest] = ends(steer);
     const links = make("div", "mw-receipt__acts");
     if (about) links.append(button("mw-btn--link", L("看原来那条"), () => reveal(about)));
     if (latest) links.append(button("mw-btn--link", L("看更正"), () => reveal(latest)));
@@ -173,7 +175,7 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
     const waits = (round?.awaiting_input ?? []).length > 0 && (steer.state === "received" || steer.state === "applied");
     const fact = L(waits ? "已补充到这一轮；问题仍在等你回答" : FACT[steer.state]);
     const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
-    const about = steer.about ? of(steer.about) : undefined, fixed = of((fixes.get(steer.id) ?? []).at(-1) ?? "");
+    const [about, fixed] = ends(steer);
     const link = steer.about ? L("纠正：针对") + (about ? L("「") + quote(about.turn.text) + L("」") : L("更早的一条")) : fixed ? L("你改为：「") + quote(fixed.turn.text) + L("」") : "";
     const key = JSON.stringify([fact, claim, ask, steer, link, Boolean(entry.act)]), before = entry.said ? JSON.parse(entry.said) as string[] : null;
     if (!force && entry.said === key) return;
@@ -238,9 +240,9 @@ export interface InputTrayParts {
  */
 export function createInputTray({ L, say, make, button, quote, latest }: InputTrayParts): InputReceipts["tray"] {
   const GROUPS = ["排着，下一轮开始时带上", "AI 读到了，没说怎么处理", "AI 说暂不采纳或需要你澄清", "为它问的问题还没回答"];
-  // One tray per round, so a Coding page and the Assistant beside it each keep their own; a new round starts a new one.
-  type Tray = { root: HTMLDetailsElement; said: string; count?: number; problem?: string };
-  const trays = new Map<string, Tray>();
+  // One tray per surface that draws it, so a Coding page and the Assistant beside it showing the same round each keep their own.
+  type Tray = { root: HTMLDetailsElement; said: string; run?: string; count?: number; problem?: string };
+  const trays = new WeakMap<Element, Tray>();
   const open = (queued: readonly InputReceiptQueued[], round?: InputReceiptRound) => {
     const drawn = latest(), groups: { text: string; id: string; open?: () => void; queued?: boolean }[][] = GROUPS.map(() => []);
     for (const one of queued) groups[0]!.push({ text: one.text, id: one.input_id, open: drawn.find(item => item.turn.steer!.id === one.input_id)?.open, queued: true });
@@ -260,9 +262,11 @@ export function createInputTray({ L, say, make, button, quote, latest }: InputTr
     catch (error) { tray.problem = (error as Error).message; say(tray.problem); }
     tray.said = "";
   };
-  return (queued, round, act) => {
-    const id = round?.run_id ?? "", tray = trays.get(id) ?? { root: make("details", "mw-receipt mw-tray"), said: "" }, { root } = tray;
-    trays.set(id, tray);
+  return (owner, queued, round, act) => {
+    let tray = trays.get(owner);
+    // A new round starts afresh (the same element), so its first count is not a change in the last one's.
+    if (!tray || tray.run !== round?.run_id) trays.set(owner, tray = { root: tray?.root ?? make("details", "mw-receipt mw-tray"), said: "", run: round?.run_id });
+    const { root } = tray;
     const groups = open(queued ?? [], round), total = groups.flat().length;
     // With the queue unread, none open in the round is not none open at all.
     if (tray.count !== undefined && tray.count !== total && (total || queued)) say(total ? total + L(" 条还没处理完") : L("没有还没处理完的了"));

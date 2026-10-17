@@ -128,7 +128,7 @@ export interface AgentWorkNode {
    * its state, and, once its step has ended, how and when: done, failed, past its deadline, or no longer checkable (the
    * work's authority refused the query, it failed too often in a row, or the step was ended otherwise).
    */
-  job?: { job_id: string; started_at: string; said?: string; ended?: "done" | "failed" | "expired" | "unchecked"; ended_at?: string };
+  job?: { job_id: string; started_at: string; ended?: "done" | "failed" | "expired" | "unchecked"; ended_at?: string };
 }
 
 /**

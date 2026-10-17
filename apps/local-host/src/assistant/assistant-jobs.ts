@@ -101,8 +101,7 @@ export class AssistantJobs {
     return steps.map(step => {
       const card = cards.find(one => one.job_step!.node_id === step.node_id);
       return { job_id: step.job.job_id, work_id: work.work_id, title: step.title, state: step.job.ended ? STATE[step.job.ended] : "running",
-        ...(step.job.said ? { last_state: step.job.said } : {}), started_at: step.job.started_at, ...(step.job.ended_at ? { ended_at: step.job.ended_at } : {}),
-        ...(card ? { card_id: card.card_id } : {}) };
+        started_at: step.job.started_at, ...(step.job.ended_at ? { ended_at: step.job.ended_at } : {}), ...(card ? { card_id: card.card_id } : {}) };
     });
   }
 
@@ -115,7 +114,7 @@ export class AssistantJobs {
     const since = this.ports.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const told = (await this.#own(work)).filter(step => !step.job.ended || (step.job.ended_at ?? "") > since);
     if (!told.length) return undefined;
-    return told.map(step => `- 「${step.title}」（任务 ${step.job.job_id}）：${step.job.ended ? { done: "已完成", failed: "没有完成", expired: "过了 6 小时仍没有结束，不再跟进", unchecked: "不再跟进" }[step.job.ended] : "仍在进行"}${step.job.said ? `（${step.job.said}）` : ""}`).join("\n");
+    return told.map(step => `- 「${step.title}」（任务 ${step.job.job_id}）：${step.job.ended ? { done: "已完成", failed: "没有完成", expired: "过了 6 小时仍没有结束，不再跟进", unchecked: "不再跟进" }[step.job.ended] : "仍在进行"}`).join("\n");
   }
 
   /** The authority the looks at the job on `at` are checked against: the work that follows it, as it may call now. */
@@ -131,29 +130,36 @@ export class AssistantJobs {
   }
 
   async #ended(at: { graph_id: string; node_id: string }): Promise<void> {
-    const work = this.#follower(at.graph_id, at.node_id), step = (await this.#steps(at.graph_id)).find(node => node.node_id === at.node_id);
-    if (!work || !step?.job.ended) return;
-    const text = { done: `「${step.title}」在后台完成了`, failed: `「${step.title}」在后台没有完成（${step.job.said ?? "失败"}）`,
+    const work = this.#follower(at.graph_id, at.node_id), told = `job:${at.graph_id}:${at.node_id}`;
+    // Heard again at every start: one already told, with no card still waiting on it, needs nothing read.
+    if (!work || this.ports.store.noticeRaised(this.ports.actorId, told) && !this.ports.store.cards(work.work_id).some(card => card.status === "running" && card.job_step?.node_id === at.node_id)) return;
+    const step = (await this.#steps(at.graph_id)).find(node => node.node_id === at.node_id);
+    if (!step?.job.ended) return;
+    const text = { done: `「${step.title}」在后台完成了`, failed: `「${step.title}」在后台没有完成`,
       expired: `「${step.title}」过了 6 小时仍没有结束，不再跟进；请到原处查看`, unchecked: `「${step.title}」不能再查看它的状态，不再跟进；请到原处查看` }[step.job.ended];
-    this.ports.store.raiseNotice(this.ports.actorId, { kind: step.job.ended === "done" ? "result" : "failed", work_id: work.work_id, work_title: work.title, text }, `job:${at.graph_id}:${at.node_id}`);
+    this.ports.store.raiseNotice(this.ports.actorId, { kind: step.job.ended === "done" ? "result" : "failed", work_id: work.work_id, work_title: work.title, text }, told);
     this.#settleCards(work.work_id, step);
   }
 
   /** The running cards that started the job on `step` say how it ended. */
   #settleCards(workId: string, step: JobStep): void {
     for (const card of this.ports.store.cards(workId).filter(one => one.status === "running" && one.job_step?.node_id === step.node_id)) {
-      const said = step.job.said ?? step.job.ended;
       try {
-        this.ports.store.updateCard(card, card.revision, step.job.ended === "done" ? { status: "done", outcome: `后台已完成（${said}）` }
-          : step.job.ended === "failed" ? { status: "failed", outcome: `后台没有完成（${said}）` } : { status: "unknown", outcome: step.job.ended === "expired" ? "过了 6 小时仍没有结束，请到原处查看" : "不能再查看它的状态，请到原处查看" });
+        this.ports.store.updateCard(card, card.revision, step.job.ended === "done" ? { status: "done", outcome: "后台已完成" }
+          : step.job.ended === "failed" ? { status: "failed", outcome: "后台没有完成" } : { status: "unknown", outcome: step.job.ended === "expired" ? "过了 6 小时仍没有结束，请到原处查看" : "不能再查看它的状态，请到原处查看" });
       } catch { /* The card changed meanwhile: the notice still says how the job ended. */ }
     }
   }
 
-  /** The work a job step belongs to: its step is keyed by the work's id, on the graph that work's jobs hang on. */
+  /**
+   * The work a job step belongs to: the step is `job.<work id>.<hash>`, on the graph that work's jobs hang on. A work
+   * not found (or whose jobs hang elsewhere) is really gone; how long ago it last changed does not matter.
+   */
   #follower(graphId: string, nodeId: string): StoredWork | undefined {
-    return this.ports.store.list(this.ports.actorId, { archived: "any", limit: 500 })
-      .find(work => AssistantJobs.graphOf(work) === graphId && nodeId.startsWith(`job.${work.work_id}.`));
+    const workId = /^job\.(.+)\.[0-9a-f]{16}$/.exec(nodeId)?.[1];
+    let work: StoredWork;
+    try { work = this.ports.store.get(this.ports.actorId, workId ?? ""); } catch { return undefined; }
+    return AssistantJobs.graphOf(work) === graphId ? work : undefined;
   }
 
   async #own(work: StoredWork): Promise<JobStep[]> {

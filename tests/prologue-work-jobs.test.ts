@@ -60,7 +60,7 @@ async function world(t: TestContext, script: (hold: () => PromiseWithResolvers<v
   const { graph_id } = await works().open({ key: "jobs", session_id: session.session_id, title: "Work" });
   const read = () => works().read(graph_id);
   const step = async (id: string) => (await read()).find(node => node.node_id === id);
-  const follow = (key = "k1", job_id = "job-1") => works().follow({ graph_id, key, job_id, title: "Jobs · Start research", deadline_ms: 3_600_000, every: { first_ms: 1000, max_ms: 1000 },
+  const follow = (key = "k1", job_id = "job-1", deadline_ms = 3_600_000) => works().follow({ graph_id, key, job_id, title: "Jobs · Start research", deadline_ms, every: { first_ms: 1000, max_ms: 1000 },
     query: { action: { capability_id: "fixture.jobs.status", version: 1, provider_id: "fixture.jobs" }, input: { id: job_id }, path: ["status"], done: ["completed"], failed: ["failed"] } });
   const start = (task: string) => host.start("prologue", { ...owner, directory, session, role_id: "builder", task }, authority);
   const ended = async (ref: AgentRunRef) => {
@@ -86,14 +86,13 @@ test("W2-18-JOB-STEP-01: a followed job is a step under the root no session hold
   const before = await w.read();
   assert.deepEqual(await w.follow(), { node_id: "job.k1" }, "the same key is the same step");
   assert.deepEqual(await w.read(), before, "following it again changes nothing");
-  // Asked with the input that names the job, and its latest word kept.
+  // Asked with the input that names the job.
   await until("the owner is asked", () => w.job.looks > 0);
   assert.deepEqual(w.job.inputs[0], { id: "job-1" });
-  await until("its word is kept", async () => (await w.step("job.k1"))?.job?.said === "running");
   w.job.state = "completed";
   await until("the job's step ends", async () => (await w.step("job.k1"))?.state === "succeeded");
   const done = await w.step("job.k1");
-  assert.deepEqual([done?.job?.ended, done?.job?.said, typeof done?.job?.ended_at], ["done", "completed", "string"]);
+  assert.deepEqual([done?.job?.ended, typeof done?.job?.ended_at, done?.job?.started_at === following?.job?.started_at], ["done", "string", true]);
   const looks = w.job.looks;
   await pause(2500);
   assert.equal(w.job.looks, looks, "nothing is asked once the job ended");
@@ -155,7 +154,7 @@ test("W2-18-JOB-STEP-04: a job that ended while the Host was down ends its step 
   assert.equal(w.job.looks, looks);
   assert.deepEqual(heard, ["job.k1"]);
   const job = after.find(node => node.node_id === "job.k1")?.job;
-  assert.deepEqual([job?.ended, job?.said], ["failed", "failed"]);
+  assert.equal(job?.ended, "failed");
 });
 
 test("W2-18-JOB-STEP-05: a job whose work is gone is not asked about; its step is held, as no longer checkable", { timeout: 60_000 }, async t => {
@@ -165,4 +164,17 @@ test("W2-18-JOB-STEP-05: a job whose work is gone is not asked about; its step i
   await until("held for a person", async () => (await w.step("job.k1"))?.state === "needs-reconciliation");
   const job = (await w.step("job.k1"))?.job;
   assert.deepEqual([job?.ended, typeof job?.ended_at, w.job.looks], ["unchecked", "string", 0], "refused before anything was asked");
+});
+
+test("W2-18-JOB-STEP-06: a step whose wait could not be armed is taken back and is not a job: no made-up start, and its end is not heard", { timeout: 60_000 }, async t => {
+  const w = await world(t);
+  const heard: string[] = [];
+  t.after(w.works().onJobEnded(ended => heard.push(ended.node_id)));
+  // A deadline that is already over: the SDK refuses the wait before it is armed.
+  await assert.rejects(w.follow("k9", "job-9", 0));
+  const step = await w.step("job.k9");
+  assert.deepEqual([step?.state, step?.job], ["cancelled", undefined], "taken back, and not shown as a job followed since some made-up time");
+  t.after(w.works().onJobEnded(ended => heard.push(ended.node_id)));
+  await pause(300);
+  assert.deepEqual([heard, w.job.looks], [[], 0], "nothing was asked, and no job's end is heard");
 });

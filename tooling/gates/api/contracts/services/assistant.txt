@@ -40,7 +40,6 @@ export interface AssistantBackgroundJob {
     work_id: string;
     title: string;
     state: "running" | "completed" | "failed" | "unknown";
-    last_state?: string;
     started_at: string;
     ended_at?: string;
     card_id?: string;

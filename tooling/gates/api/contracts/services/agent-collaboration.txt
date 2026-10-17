@@ -174,7 +174,6 @@ export interface AgentWorkNode {
     job?: {
         job_id: string;
         started_at: string;
-        said?: string;
         ended?: "done" | "failed" | "expired" | "unchecked";
         ended_at?: string;
     };

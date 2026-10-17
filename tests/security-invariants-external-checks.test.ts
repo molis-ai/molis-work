@@ -58,7 +58,7 @@ test("S-27 JOB-02 a Host wait on a job a work follows is checked against the wor
   await works.follow({ graph_id, key: "k1", job_id: "j-1", title: "Jobs · Start", deadline_ms: 3_600_000, every: { first_ms: 1000, max_ms: 1000 },
     query: { action: f.refs.status, input: { job: "j-1" }, path: ["state"], done: ["done"], failed: ["failed"] } });
   const job = async () => (await works.read(graph_id)).find(node => node.node_id === "job.k1");
-  await until("the first look", async () => (await job())?.job?.said === "running");
+  await until("the first look", () => f.calls.status === 1);
   assert.equal(f.calls.status, 1);
   f.switches.actionsGranted = false;
   f.switches.state = "done";

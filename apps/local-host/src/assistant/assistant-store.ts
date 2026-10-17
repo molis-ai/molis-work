@@ -295,6 +295,11 @@ export class AssistantStore {
     return changed ? stored : null;
   }
 
+  /** Whether a notice was raised under `dedupe`, whatever became of it since. */
+  noticeRaised(actorId: string, dedupe: string): boolean {
+    return this.db.prepare("SELECT 1 FROM assistant_notices WHERE actor_id=? AND dedupe=?").get(actorId, dedupe) !== undefined;
+  }
+
   openNotices(actorId: string): StoredNotice[] {
     return this.db.prepare("SELECT body, state FROM assistant_notices WHERE actor_id=? AND state='new' ORDER BY created_at DESC LIMIT 50").all(actorId)
       .map(row => ({ ...JSON.parse(String(row.body)) as StoredNotice, state: String(row.state) as StoredNotice["state"] }));

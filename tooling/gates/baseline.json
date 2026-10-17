@@ -8,8 +8,8 @@
       "methods": 94
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
-      "lines": 262,
-      "methods": 38
+      "lines": 267,
+      "methods": 39
     },
     "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
       "lines": 443,

@@ -478,9 +478,9 @@ function jobActions(state: { value: string }) {
   const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
     audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
     output_schema: { type: "object", properties: { status: { type: "string" } } } } };
-  let next = 0;
-  return { started: () => next, provider: { provider: { provider_id: "fixture.jobs", kind: "plugin" as const, title: "Research" }, definitions: [start, status],
-    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state.value }) }] } };
+  let next = 0, looked = 0;
+  return { started: () => next, looks: () => looked, provider: { provider: { provider_id: "fixture.jobs", kind: "plugin" as const, title: "Research" }, definitions: [start, status],
+    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => { looked++; return { status: state.value }; } }] } };
 }
 
 /** The work's graph looks at its jobs every second here (the Assistant asks after 15 s, at most every 5 minutes). */
@@ -494,7 +494,7 @@ test("W2-18-JOB-01: background work a round or a card starts is followed on the 
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "市场" } } }),
     () => reply(undefined, "已开始研究，后台进行中。"),
-    body => { assert.match(JSON.stringify(body.messages), /后台任务[\s\S]*Research · Start research」（任务 job-1）：已完成（completed）/); return reply(undefined, "研究已完成。"); },
+    body => { assert.match(JSON.stringify(body.messages), /后台任务[\s\S]*Research · Start research」（任务 job-1）：已完成/); return reply(undefined, "研究已完成。"); },
     body => { assert.doesNotMatch(JSON.stringify(body.messages), /Research · Start research」（任务 job-1）/, "told once"); return reply({ name: "suggest-action", input: { title: "再研究一次", summary: "再开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }); },
     () => reply(undefined, "给了一个按钮。"),
   ]);
@@ -511,10 +511,10 @@ test("W2-18-JOB-01: background work a round or a card starts is followed on the 
     assert.deepEqual(view.jobs!.map(job => [job.title, job.job_id, job.state]), [["Research · Start research", "job-1", "running"]]);
     const graph = await f.host.adapter("prologue").collaboration!.works!.read(f.store.get("web-user", sent.work.work_id).graph_id!);
     assert.deepEqual(graph.filter(node => node.job).map(node => [node.parent, node.session_id, node.state]), [["work", undefined, "running"]], "one step under the root that no session holds");
-    await until(async () => (await f.service.read(sent.work.work_id)).jobs?.[0]?.last_state === "running", "the owner's word is shown");
+    await until(() => jobs.looks() > 0, "the owner is asked");
     state.value = "completed";
     view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.jobs?.[0]?.state === "completed" ? v : undefined; }, "job ended");
-    assert.deepEqual([view.jobs![0]!.last_state, typeof view.jobs![0]!.ended_at], ["completed", "string"]);
+    assert.equal(typeof view.jobs![0]!.ended_at, "string");
     await until(() => f.service.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
     assert.match(f.service.notices(null).find(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text))!.text, /「Research · Start research」在后台完成了/);
     await f.service.send({ work_id: sent.work.work_id, text: "研究怎么样了", request_id: "req-00000035" }, {});
@@ -529,7 +529,7 @@ test("W2-18-JOB-01: background work a round or a card starts is followed on the 
     assert.equal((await f.service.read(sent.work.work_id)).jobs!.find(job => job.job_id === "job-2")?.card_id, ran.card_id);
     state.value = "failed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
-    assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成（failed）"]);
+    assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成"]);
     assert.equal(f.service.notices(null).filter(notice => /后台/.test(notice.text)).length, 2, "one notice for each job's end");
   } finally { await f.close(); }
 });
@@ -555,7 +555,7 @@ test("W2-18-JOB-02: running a card whose action starts a background job follows 
     assert.deepEqual((await f.service.read(sent.work.work_id)).jobs!.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
     state.value = "completed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
-    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成（completed）"]);
+    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"]);
     await until(() => f.service.notices(null).some(notice => /后台完成了/.test(notice.text)), "the person is told");
     // The Assistant built again on the same Home (as after a restart) hears every job that has ended at once: still one notice.
     const again = new AssistantService(f.store, f.ports, "web-user");
@@ -564,6 +564,31 @@ test("W2-18-JOB-02: running a card whose action starts a background job follows 
     assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
   } finally { await f.close(); }
 });
+test("W2-18-JOB-04: a work that 500 newer works have passed still answers for the job it follows: the job is looked at to its end and the person told", { timeout: 60_000 }, async t => {
+  const state = { value: "running" };
+  const f = await fixture(t, [
+    () => reply({ name: "suggest-action", input: { title: "研究一次", summary: "开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }),
+    () => reply(undefined, "给了一个按钮。"),
+  ]);
+  const jobs = jobActions(state);
+  f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+  lookOften(f);
+  try {
+    assert.equal(await f.service.attachSchedule(), true);
+    const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000038" }, { project_ref: f.project });
+    const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
+    const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
+    assert.equal(ran.status, "running");
+    await until(() => jobs.looks() > 0, "the owner is asked");
+    for (let i = 0; i < 500; i++) f.store.create({ actor_id: "web-user", title: `后来的工作 ${i}`, scope: { kind: "personal" }, origin: null });
+    assert.equal(f.store.list("web-user", { archived: "any", limit: 500 }).some(work => work.work_id === sent.work.work_id), false, "the work is not among the latest 500");
+    state.value = "completed";
+    const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
+    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"], "looked at with the work's authority, not refused as gone");
+    await until(() => f.service.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
+  } finally { await f.close(); }
+});
+
 test("stopping a round withdraws its held change: nothing runs and nothing is left to approve", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "never" } } }),

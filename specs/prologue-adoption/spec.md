@@ -1656,7 +1656,8 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 
 **合同**（`services/agent-collaboration`）：
 
-- `AgentWorkNode` 多一项 `job`：作业在主人那里的编号、开始跟进的时刻、主人最近说的状态（`said`），结束后再加怎样结束的（`done`、`failed`、`expired`、`unchecked`）和结束的时刻。
+- `AgentWorkNode` 多一项 `job`：作业在主人那里的编号、开始跟进的时刻（宿主挂等待的那一刻），结束后再加怎样结束的（`done`、`failed`、`expired`、`unchecked`）和结束的时刻。主人说的状态不记（见第 6 条）。
+- `AssistantBackgroundJob` 去掉 `last_state`：没有结构化的来源再填它（第 6 条）；工作面板的作业卡只显示进行中、完成、没完成、不再跟进。
 - 新类型 `AgentWorkJobQuery`：主人的只读状态查询（精确引用）、点名这项作业的输入、回答里状态的位置、哪些状态算完成、哪些算失败。
 - `AgentWorkGraphPort` 多两个方法：
   - `follow`：在根下加一步 `job.<键>`，没有会话持有它，宿主挂等待去看。同一个键再来一次什么都不变。看的节奏（`every`）和期限（`deadline_ms`）由 Work 的主人给，SDK 夹在自己的界内。
@@ -1667,7 +1668,7 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 
 - 新文件 `prologue-work-jobs.ts`：
   - `follow`：加步骤（不给持有者）→ 置为 `running` → 挂宿主的等待：`external` 条件、检查器 `molis.action-query@1`、`mode: all`、`until: success`、`onFailure: continue`、`onEarlyContinue: keep`、`autoContinue: false`、`afterwards: end-step`。等待挂不上就把这一步结束（`cancelled`），再把错误抛出去。两边同时加同一步时，后到的那个重读，步骤已在就直接用。
-  - 视图：作业编号取等待的 `source`，主人说的状态取等待最近一次看的记录，结束时刻取节点的 `endedAtMs`；SDK 不再看、把步骤挂给人（`needs-reconciliation`，不是终态，没有 `endedAtMs`）时取等待的 `settledAtMs`。
+  - 视图：作业编号取等待的 `source`，开始跟进的时刻取等待的 `createdAtMs`，结束时刻取节点的 `endedAtMs`；SDK 不再看、把步骤挂给人（`needs-reconciliation`，不是终态，没有 `endedAtMs`）时取等待的 `settledAtMs`。没有宿主等待的那一步（等待没挂上、已被收回）不是在跟进的作业：没有 `job`，结束时也不报给 `onJobEnded`，不编一个开始时刻。SDK 不删已结束的等待，所以跟进过的作业一直读得到。
 - `prologue-checkers.ts`：没有轮的宿主等待（`by: app`、`afterwards: end-step`）每次看都向 `checks.workAuthority({ graph_id, node_id })` 要跟进它的那项工作此刻的授权。工作不在了就 refused；读不到算这次不知道（SDK 再看）。查询的名字是宿主按精确引用写的 `molis-job-query:[provider, capability, version]`，检查器把它换回引用。任何一轮的工具表里都没有这种名字，所以模型的等待写它照样被拒。只读查询、不调模型、受众到 Agent 的规则不变。作业只声明了完成和失败两组状态，别的状态都算「还没好」。
 - `prologue-work-waits.ts`：根的交回等待只等有会话持有的步骤。
 - `prologue-waits.ts`：会话的等待视图跳过结束步骤的等待。从它不会接着做任何事，它也不能盖住根上的交回等待。
@@ -1686,10 +1687,11 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 - 卡片：跑卡片时，动作自己的结果报告和卡片同时报同一项作业，合成一步。
   - 卡片显示「已开始，后台进行中」之后，再把 `job_step` 记到卡片上。这时作业已经结束的，卡片当场结算。
   - 另一张卡片已经拿着这一步的，这张只显示动作的结果。
-- `views`：工作视图里的 `jobs` 从图上读，公开形状 `AssistantBackgroundJob` 不变。
+- `views`：工作视图里的 `jobs` 从图上读，公开形状 `AssistantBackgroundJob` 只去掉 `last_state`。
 - `material`：下一轮的「后台任务」材料，列还在进行的作业，加上上一轮开始之后结束的（看作业的结束时刻），和 A2 的交回材料一样读。
 - `authority`：给检查器的，是这项工作的轮拿到的动作客户端（`ports.authority(work).actions`）。
-- `attach`（在 `attachSchedule` 里）：订阅 `onJobEnded`。每项作业结束提醒一次（键 `job:<图>:<步>`），拿着它的卡片随之结算。
+- `attach`（在 `attachSchedule` 里）：订阅 `onJobEnded`。每项作业结束提醒一次（键 `job:<图>:<步>`），拿着它的卡片随之结算，只说完成了还是没完成。每次启动都会把结束过的作业重报一遍：已经提醒过、也没有还在进行的卡片指着它的，不读图就跳过（`AssistantStore.noticeRaised`）。
+- 跟进作业的那项工作，从步骤的 id 找：`job.<work_id>.<16 位哈希>` 里取出 `work_id`，`store.get` 它，再核对作业挂在它的图上；找不到就是真的不在了。不按最近变过的若干项工作去找。
 - 轮的 `started_at` 改记成读材料的那一刻，原来是开跑之后。
 - `hasTimedWork`：图只有运行时读得到，于是改成「6 小时内有工作变过或有卡片动过」（`AssistantStore.activeSince`）。
 - 工作面板的长等待也听工作图的变化，作业一结束面板就更新。
@@ -1704,21 +1706,25 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 4. **节奏和期限照旧**：15 秒起，每次翻倍，最多 5 分钟一次；6 小时期限。SDK 的默认最长间隔是 1 小时，所以节奏由 Work 的主人在 `follow` 里给。
    - 和以前不同的一处：以前读不到就一直重试到 6 小时。现在连续 5 次读不到（SDK 的上限，调不大）或被拒，就不再跟进，步骤 `needs-reconciliation`，人收到「不能再查看它的状态」。
 5. **存量**：
-   - `assistant_jobs` 表留在 2 号基线里，不再写。工作或项目删掉时照样删它的行。删这张表要 3 号基线，再对已有的 Home 做一次维护，那会动真实 Home，要用户定。A3 不改基线、不写维护；统筹审 A3 时问用户，推荐以后单开一片升 3 号基线，维护清单的条目（BL-157 的表格式）和维护八在同一个安装步骤里做。
+   - `assistant_jobs` 表留在 2 号基线里，不再写。工作或项目删掉时照样删它的行。A3 不改基线、不写维护。
+   - **未决项，用户 10-17 定「以后的一片」**：那一片加 3 号基线，它的维护和维护八在同一次安装里跑（维护清单的条目用 BL-157 的表格式）。维护先把还挂在表里作业上、仍是 `running` 的卡片结掉（「升级后不再跟进，请到原处查看」），再删表。
    - 升级前还在跟进的作业，升级后不再跟进。不迁移：合同只认现行形状。
+6. **主人说的状态不记**（统筹审 #675 定）。原来从等待观察记录的说明（`note`）里找「」回答 」，把后面那段当成状态：这是按措辞取事实（和 D2，#592 定的方向相反），说明有长度上限，状态里带「，」也会被截掉，SDK 也写明说明不放主人自己的内容。现在通知、卡片和下一轮的材料只说完成了还是没完成。以后真要显示，得有结构化的来源（比如请 Prologue 给 `ConditionObservation` 加一个有界的值，随下次换包），开写前先报统筹。
 
 **验收**（夹具模型，真实 Prologue 节点适配器）：
 
 | 编号 | 证明 |
 | --- | --- |
-| W2-18-JOB-STEP-01 | 跟进的作业是根下没人持有、`running` 的一步。同一个键再跟进一次，图不变。看时带上点名作业的输入，主人的状态记下来。作业完成后步骤 `succeeded`，`ended: done`，有结束时刻。之后不再看。结束只通知一次。不调模型。每次看都按这一步要授权 |
+| W2-18-JOB-STEP-01 | 跟进的作业是根下没人持有、`running` 的一步。同一个键再跟进一次，图不变。看时带上点名作业的输入。作业完成后步骤 `succeeded`，`ended: done`，有结束时刻，开始时刻不变。之后不再看。结束只通知一次。不调模型。每次看都按这一步要授权 |
 | W2-18-JOB-STEP-02 | 交出 `p-1` 后根只等 `p-1`。之后再跟进的作业不盖住会话的等待。`p-1` 结束、作业还在跑时，根的接续 `eligible`。下一轮站在根上，作业那一步仍 `running`、没人持有 |
 | W2-18-JOB-STEP-03 | 宿主重启后照样去看，用的是工作的授权。作业完成后步骤结束 |
 | W2-18-JOB-STEP-04 | 宿主停着的时候作业失败：再起来后步骤 `failed` 一次，订阅时立刻报出来，之后图不再变，也不再看 |
 | W2-18-JOB-STEP-05 | 工作不在了：一次都不看，步骤挂给人，`ended: unchecked` |
-| W2-18-JOB-01 | 一轮开始的作业在新工作的图上跟进。完成后提醒一次。第二轮的材料里有「（任务 job-1）：已完成（completed）」，第三轮没有。卡片开始的作业，卡片一直显示进行中，作业失败后卡片显示「后台没有完成（failed）」 |
-| W2-18-JOB-02 | 卡片开始的作业只有一步，归这张卡片。完成后卡片显示「后台已完成（completed）」。在同一个 Home 上重建助理（如同重启），还是只有一条提醒 |
+| W2-18-JOB-01 | 一轮开始的作业在新工作的图上跟进。完成后提醒一次。第二轮的材料里有「（任务 job-1）：已完成」，第三轮没有。卡片开始的作业，卡片一直显示进行中，作业失败后卡片显示「后台没有完成」 |
+| W2-18-JOB-02 | 卡片开始的作业只有一步，归这张卡片。完成后卡片显示「后台已完成」。在同一个 Home 上重建助理（如同重启），还是只有一条提醒 |
 | W2-18-JOB-03 | 开跑失败（没有模型）的那一次什么都没告诉。下一次开跑的那一轮听到这项作业，再下一轮不再听到（`assistant-undo`） |
+| W2-18-JOB-04 | 跟进作业的那项工作后面又建了 500 项工作（它不在最近的 500 项里）：作业照样按它的授权看到结束，卡片显示「后台已完成」，人收到提醒 |
+| W2-18-JOB-STEP-06 | 等待挂不上（期限已过，SDK 拒绝）的那一步被收回（`cancelled`），没有 `job`，也不报给 `onJobEnded`，一次都没看 |
 | S-27 JOB-01 | 模型的等待写宿主那种作业查询的名字，登记时被拒，什么动作都没调 |
 | S-27 JOB-02 | 看过一次之后收回授权：下一次看被拒，步骤挂给人（`unchecked`），被拒的那一次和之后都没再调用查询，也没有模型调用 |
 
@@ -1733,19 +1739,23 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 | M5 「上一轮开始」取成第一轮的开始 | JOB-01、JOB-03 |
 | M6 提醒的键每次不同 | JOB-01、JOB-02 |
 | M7 挂给人的一步不取等待的 `settledAtMs` | STEP-05 |
+| R2 没有等待的那一步照旧给 `job`，开始时刻编成 1970 年 | STEP-06 |
+| R2b `onJobEnded` 不看有没有等待 | STEP-06 |
+| R3 跟进的工作只在最近的 500 项里找 | JOB-04 |
 
-没有用例看住的三处：
+没有用例看住的四处：
+- 重报时已经提醒过就跳过（R4，去掉它 52/52 仍过）：只省读图和扫卡片，提醒本来就按键只发一次。
 - 轮的开始时刻记在读材料那一刻：改回开跑之后，只有在读材料和开跑之间结束的作业会漏掉，用例造不出这个时序（去掉它 51/51、5/5 仍过）。
 - 卡片记上 `job_step` 时作业已经结束、当场结算：只有作业比卡片的写入还快才走到，用例造不出这个时序（去掉它 51/51 仍过）。
 - `#following` 的进程内合并：适配器对同一步本来就重读、直接用，去掉也不变红；它省的是一次多余的加步骤（51/51 仍过）。
 
 - 验证（叠在 #665 合上 main 的 `72db37a47` 上：main `250814e3d` 已含 #654 与 #668）：
-  - `pnpm build` 通过；`pnpm api:update` 刷新了 `contracts/services/agent-collaboration` 的快照（`AgentWorkNode.job`、`AgentWorkJobQuery`、`follow`、`onJobEnded`）。
-  - `affected-tests` 选的非浏览器文件，加上全部 `prologue-*`、`assistant-*`、`agent-collab*`、`coding-*` 非浏览器用例和 `security-invariants-doc`，共 239 个文件，一次全过；改了组装与夹具之后，碰到的 6 个文件再跑一遍全过。
+  - `pnpm build` 通过；`pnpm api:update` 刷新了 `contracts/services/agent-collaboration`（`AgentWorkNode.job`、`AgentWorkJobQuery`、`follow`、`onJobEnded`）和 `contracts/services/assistant`（去掉 `last_state`）的快照；工作台脚本小了 55 字节，`page-assets.json` 跟着降。
+  - `affected-tests` 选的非浏览器文件，加上全部 `prologue-*`、`assistant-*`、`agent-collab*`、`coding-*` 非浏览器用例和 `security-invariants-doc`，第一版 239 个文件一次全过；按统筹审查改完之后（加上工作台脚本带出的用例）共 268 个文件，一次全过。
   - `pnpm test:security` 59/59，`pnpm test:contracts` 44/44。
   - `check-health-gates --base origin/main`、`boundary:check`、`secrets:check` 都过。
-    - `AssistantService` 1628→1555 行，方法数 98→94；`AssistantStore` 267→262 行，方法数 39→38。
-    - `composeAgentHost` 不变（查登记的那几行放进 `agent-work-authority.ts` 的 `workAuthorityCheck`）；`AssistantJobs` 所在文件 173 行，`prologue-work-jobs.ts` 84 行。
+    - `AssistantService` 1628→1555 行，方法数 98→94；`AssistantStore` 267 行、39 个方法，与 main 相同（去掉作业的读写，加上 `noticeRaised`）。
+    - `composeAgentHost` 不变（查登记的那几行放进 `agent-work-authority.ts` 的 `workAuthorityCheck`）；`AssistantJobs` 所在文件 179 行，`prologue-work-jobs.ts` 86 行。
 - 未验证：
   - 浏览器用例和全量：改了共同合同和三个包，由统筹排。
   - 真实模型没走：这一片不改提示词，也不改工具说明。
@@ -2036,7 +2046,9 @@ A0 执行记录（下列历史方案记录之后继续）：
 | 统筹 10-17 · 作业的结束从图上读（§6.0o 第 2 条） | 下一轮的标注材料放上一轮开始之后结束的作业，按步骤的状态和结束时刻读；不另记、不留「已告诉」标记 | 结束步骤的等待不往会话里写字；只有图这一本账，才不会两边对不上 |
 | A3 · 看作业用工作此刻的授权（§6.0o 第 3 条） | 宿主的等待每次看都向跟进它的工作要授权：受众 Agent，减去人关掉的动作；以前用人的客户端 | 没有轮的等待也过同一道检查（S-27）；人的客户端不是这项工作拿到的权限 |
 | A3 · 节奏照旧，连续读不到就停（§6.0o 第 4 条） | 15 秒起翻倍、最长 5 分钟，6 小时期限，由 `follow` 的 `every` 和 `deadline_ms` 给；连续 5 次读不到或被拒，不再跟进 | SDK 默认最长间隔 1 小时；读不到的次数上限是 SDK 的，调不大，不在 Molis 另写一套重试 |
-| A3 · `assistant_jobs` 表留着（§6.0o 第 5 条） | 不再写，建库基线不升版；删表要 3 号基线，再对已有的 Home 做一次维护 | 基线只比 `user_version`，改了表的文字不升版会漂；维护会动真实 Home，要用户定 |
+| 用户 10-17 · `assistant_jobs` 以后单开一片删（§6.0o 第 5 条） | A3 不写表、不改基线；那一片加 3 号基线，维护和维护八同一次安装里跑：先把还挂在表里作业上、仍是 `running` 的卡片结掉（「升级后不再跟进，请到原处查看」），再删表 | 基线只比 `user_version`，改了表的文字不升版会漂；维护会动真实 Home，用户在统筹的弹窗里选了「以后的一片」 |
+| 统筹审 #675 · 主人说的状态不记（§6.0o 第 6 条） | 去掉 `said` 与 `AssistantBackgroundJob.last_state`；通知、卡片、材料只说完成了还是没完成 | 原来从观察记录的说明里按措辞取状态，和 D2（#592）相反，还会被长度和「，」截断；要显示得有结构化的来源，先报统筹 |
+| 统筹审 #675 · 找跟进作业的工作、不编开始时刻（§6.0o） | 从步骤 id 取 `work_id` 再 `store.get`；没有宿主等待的步骤不是作业，不给 `job` | 只在最近 500 项里找，排在后面的工作会被当成不在、作业以 unchecked 结束；`?? 0` 会写出 1970 年 |
 
 ### 7.8 工作规则
 

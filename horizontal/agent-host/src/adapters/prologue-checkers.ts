@@ -58,9 +58,6 @@ const jobQueryRef = (tool: unknown): ExactActionReference | undefined => {
     return typeof provider_id === "string" && typeof capability_id === "string" && Number.isSafeInteger(version) ? { provider_id, capability_id, version: version as number } : undefined;
   } catch { return undefined; }
 };
-const SAID = "」回答 ";
-/** The owner's word for the state, in a look's note at an action query, when the answer had one. */
-export const saidState = (note: string | undefined) => { const at = note?.lastIndexOf(SAID) ?? -1; return at < 0 ? undefined : note!.slice(at + SAID.length).split("，")[0] || undefined; };
 
 type Look = (round: Remembered, params: unknown, signal: AbortSignal) => Promise<CheckerResult>;
 interface Remembered extends RoundCheckAuthority {
@@ -192,7 +189,7 @@ const lookAtAction: Look = async (round, params, signal) => {
   const state = String(said);
   const status = query.status.satisfied.includes(state) ? "satisfied" : query.status.failed?.includes(state) ? "failed"
     : query.status.pending?.includes(state) || round.anyOtherPending ? "pending" : undefined;
-  return status ? { status, source, note: `「${found.view.action.title}${SAID}${state}` } : { status: "unknown", source, note: `「${found.view.action.title}${SAID}${state}，不在给定的状态里` };
+  return status ? { status, source, note: `「${found.view.action.title}」回答 ${state}` } : { status: "unknown", source, note: `「${found.view.action.title}」回答 ${state}，不在给定的状态里` };
 };
 
 /** A file under the directory, written since the round that waits on it started; anything else, or outside, is not it. */

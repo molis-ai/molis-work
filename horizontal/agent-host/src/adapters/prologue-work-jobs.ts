@@ -1,7 +1,7 @@
 import type { ExactRef, Runtime } from "@prologue/sdk";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentErrors } from "../errors.js";
-import { ACTION_QUERY_CHECKER, jobQueryTool, saidState } from "./prologue-checkers.js";
+import { ACTION_QUERY_CHECKER, jobQueryTool } from "./prologue-checkers.js";
 
 type Node = ReturnType<Runtime["boards"]["get"]>["nodes"][number];
 const JOB = "job.";
@@ -13,31 +13,34 @@ const boardRef = (id: string) => ({ kind: "task-board", id, revision: 1 }) as Ex
  * `job.<key>` under the work's root that no session holds and no round runs. The Host's wait on the step (SDK
  * `afterwards: "end-step"`) asks the owner's read-only status query on the SDK's bounded schedule and ends the step the
  * way the job ended; nothing goes on from it. The graph and the SDK's wait are the only record: which job, how it was
- * asked about, the owner's latest word and how it ended are all read back from them.
+ * asked about, when it was followed and how it ended are all read back from them; what the owner said is not kept.
  */
 export function createWorkJobs(runtime: Runtime, root: string, isWorkGraph: (graph: string) => Promise<boolean>) {
   const now = async () => (await runtime.readClock()).wallTimeMs;
   const isJob = (node: Node) => node.id.startsWith(JOB) && node.parent === root && node.assignee === undefined;
   /** The Host's wait that ends the job's step: the latest one, which the step was followed by. */
   const waitOf = (graph: string, node: string) => runtime.waits.list({ board: graph, node }).filter(one => one.by === "app" && one.afterwards === "end-step").at(-1);
+  /** A step that ended as a followed job: one a Host wait followed (a step whose wait could not be armed was never one). */
+  const endedJob = (graph: string, node: Node | undefined) => node !== undefined && isJob(node) && OVER.includes(node.state) && waitOf(graph, node.id) !== undefined;
   const end = async (graph: string, node: string, note: string) => {
     const ref = boardRef(graph), step = runtime.boards.get(ref).nodes.find(one => one.id === node);
     if (!step || OVER.includes(step.state)) return;
     await runtime.boards.report({ ref, expectedVersion: runtime.boards.get(ref).version, nodeId: node, by: undefined, note, atMs: await now(), to: "cancelled" });
   };
   return {
-    /** What a job's step says about it, for the work graph's view; none for a step that is not a followed job. */
+    /**
+     * What a job's step says about it, for the work graph's view. None for a step that is not a followed job: one no
+     * Host wait follows (its wait could not be armed) has no job and no time it was followed from.
+     */
     view(graph: string, node: Node): AgentWorkNode["job"] {
-      if (!isJob(node)) return undefined;
-      const wait = waitOf(graph, node.id), on = wait?.on.find(one => one.kind === "external");
-      const said = saidState(wait?.observations[0]?.note);
-      const ended = node.state === "succeeded" ? "done" as const : node.state === "failed" ? wait?.state === "expired" ? "expired" as const : "failed" as const
+      const wait = isJob(node) ? waitOf(graph, node.id) : undefined, on = wait?.on.find(one => one.kind === "external"), source = on?.kind === "external" ? on.check.source : undefined;
+      if (!wait || !source) return undefined;
+      const ended = node.state === "succeeded" ? "done" as const : node.state === "failed" ? wait.state === "expired" ? "expired" as const : "failed" as const
         : OVER.includes(node.state) ? "unchecked" as const : undefined;
-      const source = on?.kind === "external" ? on.check.source : undefined;
       // A step the wait could no longer check is held for a person, not ended: the wait's end is the job's.
-      const endedAt = ended ? node.endedAtMs ?? wait?.settledAtMs : undefined;
-      return { job_id: source?.id ?? node.id.slice(JOB.length), started_at: new Date(wait?.createdAtMs ?? node.endedAtMs ?? 0).toISOString(),
-        ...(said ? { said } : {}), ...(ended ? { ended } : {}), ...(endedAt === undefined ? {} : { ended_at: new Date(endedAt).toISOString() }) };
+      const endedAt = ended ? node.endedAtMs ?? wait.settledAtMs : undefined;
+      return { job_id: source.id, started_at: new Date(wait.createdAtMs).toISOString(),
+        ...(ended ? { ended } : {}), ...(endedAt === undefined ? {} : { ended_at: new Date(endedAt).toISOString() }) };
     },
     follow: (async input => {
       const ref = boardRef(input.graph_id), node_id = `${JOB}${input.key}`, board = runtime.boards.get(ref);
@@ -74,10 +77,9 @@ export function createWorkJobs(runtime: Runtime, root: string, isWorkGraph: (gra
       const heard = (graph: string, node: string) => void isWorkGraph(graph).then(work => { if (work) listener({ graph_id: graph, node_id: node }); }, () => undefined);
       const off = runtime.boards.subscribe(event => {
         if (event.type !== "node-state" || !event.nodeId.startsWith(JOB) || !OVER.includes(event.to)) return;
-        const node = runtime.boards.get(boardRef(event.board)).nodes.find(one => one.id === event.nodeId);
-        if (node && isJob(node)) heard(event.board, node.id);
+        if (endedJob(event.board, runtime.boards.get(boardRef(event.board)).nodes.find(one => one.id === event.nodeId))) heard(event.board, event.nodeId);
       });
-      for (const ref of runtime.boards.refs()) for (const node of runtime.boards.get(ref).nodes) if (isJob(node) && OVER.includes(node.state)) heard(ref.id, node.id);
+      for (const ref of runtime.boards.refs()) for (const node of runtime.boards.get(ref).nodes) if (endedJob(ref.id, node)) heard(ref.id, node.id);
       return off;
     }) satisfies AgentWorkGraphPort["onJobEnded"],
   };

@@ -565,8 +565,6 @@ export interface AssistantBackgroundJob {
   /** The capability that started it, as the person reads it. */
   title: string;
   state: "running" | "completed" | "failed" | "unknown";
-  /** The plugin's own word for the latest state. */
-  last_state?: string;
   started_at: string;
   ended_at?: string;
   /** Set when a suggestion card started it. */

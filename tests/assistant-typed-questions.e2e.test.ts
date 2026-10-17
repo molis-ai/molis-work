@@ -65,7 +65,7 @@ test("AC-27-5: the Assistant answers words, a number, a date and a date and time
   const card = "[data-ix-question]";
   await waitFor(`document.querySelector('${card} [data-ix-field=w3] [data-ix-part=time]')`, 20_000);
   assert.deepEqual(requests[0]!.tools!.find(tool => tool.name === "ask-user")!.input_schema.properties.questions.items.properties.type.enum,
-    ["choice", "text", "number", "date", "datetime"], "AC-27-1: the provider is offered what the card draws");
+    ["choice", "text", "number", "date", "datetime", "reference"], "AC-27-1: the provider is offered what the card draws");
   const fill = (selector: string, value: string) => evaluate(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.focus(); node.value = ${JSON.stringify(value)};
     node.dispatchEvent(new Event('input', { bubbles: true })); node.dispatchEvent(new Event('change', { bubbles: true })); })()`);
   const evidence = reviewEvidenceUrl("ai-interaction/"); await mkdir(evidence, { recursive: true });
@@ -118,4 +118,63 @@ test("AC-27-5, D34: one text question is answered from the composer, and the run
   assert.ok(JSON.stringify(requests[1]?.messages ?? "").includes("Q4 发布复盘"), "the words answer the question");
   await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('标题记下了。')", 15_000);
   assert.equal(await evaluate("document.querySelector('[data-assistant-answer]').hidden"), true, "nothing waits, so there is no choice");
+});
+
+// T2 (AC-28-2, AC-28-3, AC-28-4, AC-28-6): a reference question lists nothing until the person types; the search offers this project's
+// Goals as their owner has them, a pick is a chip, and the run hears the Goal under its owner's title.
+test("AC-28: the Assistant's reference question finds a Goal by name, and the run hears the Goal its owner names", { timeout: 240_000 }, async t => {
+  const asked = { why: "复盘会挂在哪个 Goal 下", questions: [{ id: "goal", type: "reference", prompt: "关联的 Goal", refKinds: ["goal"], help: "输入 Goal 的名字" }] };
+  const page = await assistantAsking(t, asked, "挂好了。"); if (!page) return;
+  const { command, sessionId, evaluate, waitFor, click, requests } = page;
+  const card = "[data-ix-question]", query = `${card} [data-ix-field=r0] [data-ix-ref-query]`, list = `${card} [data-ix-field=r0] [role=listbox]`;
+  await waitFor(`document.querySelector('${query}')`, 20_000);
+  assert.equal(await evaluate(`document.querySelectorAll('${card} [data-ix-ref-option]').length`), 0, "AC-28-2: nothing is offered before the person searches");
+  const evidence = reviewEvidenceUrl("ai-interaction/"); await mkdir(evidence, { recursive: true });
+  const shot = async (name: string, width: number, scheme: "light" | "dark") => {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 }, sessionId);
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }] }, sessionId);
+    await evaluate(`document.querySelector('${card}').scrollIntoView({ block: 'center' })`);
+    await waitFor(`document.getAnimations().every(animation => animation.playState !== 'running' || animation.effect?.getTiming().iterations === Infinity)`, 5_000);
+    await writeFile(new URL(`assistant-reference-question-${name}.png`, evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+  };
+  const views = async (state: string) => { await shot(`${state}-light`, 1440, "light"); await shot(`${state}-dark`, 1440, "dark"); await shot(`${state}-390`, 390, "light");
+    await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId); };
+  await views("empty");
+  // The search box is an input group: focused, the copper edge and halo sit on the group once, not again on the input inside it.
+  await evaluate(`document.querySelector('${query}').focus()`);
+  const ring = await evaluate<{ focused: boolean; inner: string; innerEdge: string; outer: string; outerEdge: string }>(`(() => {
+    const input = document.querySelector('${query}'), inner = getComputedStyle(input), outer = getComputedStyle(input.closest('.mw-input-group'));
+    return { focused: input.matches(':focus-visible'), inner: inner.boxShadow, innerEdge: inner.borderTopWidth + ' ' + inner.borderTopStyle, outer: outer.boxShadow, outerEdge: outer.borderTopColor };
+  })()`);
+  assert.ok(ring.focused, "the search box has keyboard focus");
+  assert.equal(ring.inner, "none", "no halo on the input inside the group");
+  assert.match(ring.innerEdge, /^0px|none$/, "no edge on the input inside the group");
+  assert.notEqual(ring.outer, "none", "the group carries the halo");
+  // The project's search may still be indexing its Goals on a fresh Home: type again until they are found.
+  for (let attempt = 0; attempt < 20 && !(await evaluate<boolean>(`!document.querySelector('${list}').hidden`)); attempt++) {
+    await evaluate(`(() => { const input = document.querySelector('${query}'); input.focus(); input.value = ''; })()`);
+    await command("Input.insertText", { text: "可信" }, sessionId);
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  await waitFor(`!document.querySelector('${list}').hidden`, 10_000);
+  const offered = await evaluate<Array<{ value: string; label: string }>>(`[...document.querySelectorAll('${list} [role=option]')].map(o => ({ value: o.dataset.ixRefOption, label: o.dataset.label }))`);
+  assert.ok(offered.length > 0 && offered.every(option => option.value.startsWith("goal ")), "AC-28-2: only Goals, the kind the question asked for");
+  const goal = offered.find(option => option.label === "让每项工作都有可信的完成依据");
+  assert.ok(goal, "the Goal is offered under its own title");
+  assert.match(await evaluate<string>(`document.querySelector('${query}').getAttribute('aria-expanded')`), /true/);
+  await views("results");
+  // AC-28-6: the keyboard picks: down to the first result, Enter.
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 }, sessionId);
+  const first = await evaluate<string>(`document.querySelector('${list} [aria-selected=true]').dataset.ixRefOption`);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await waitFor(`document.querySelector('${card} [data-ix-field=r0] [data-ix-reference]')?.dataset.ixReference === ${JSON.stringify(first)}`);
+  await views("picked");
+  await click(`${card} [data-ix-action=answer]`);
+  for (let attempt = 0; requests.length < 2 && attempt < 300; attempt++) await new Promise(resolve => setTimeout(resolve, 50));
+  const told = JSON.stringify(requests[1]?.messages ?? "");
+  assert.ok(told.includes(first.slice("goal ".length)), "AC-28-4: the run hears the picked Goal");
+  await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('挂好了。')", 15_000);
 });

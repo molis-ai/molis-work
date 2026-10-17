@@ -150,7 +150,7 @@ test("AC-27-5: Coding answers words, a number, a date and a date and time, and a
   await click(`${coding} [data-coding-send]`);
   const card = `${coding} [data-coding-question][data-ix-question]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
-  assert.deepEqual(bodies[0]?.tools?.find(tool => tool.name === "ask-user")?.input_schema.properties.questions.items.properties.type.enum, ["choice", "text", "number", "date", "datetime"], "AC-27-1: the model is offered what the card draws");
+  assert.deepEqual(bodies[0]?.tools?.find(tool => tool.name === "ask-user")?.input_schema.properties.questions.items.properties.type.enum, ["choice", "text", "number", "date", "datetime", "reference"], "AC-27-1: the model is offered what the card draws");
   const shown = await evaluate<{ fields: string[]; weekday: string; zone: string; placeholder: string }>(`(() => { const node = document.querySelector(${JSON.stringify(card)});
     return { fields: [...node.querySelectorAll('[data-ix-field]')].map(field => field.dataset.ixField), weekday: node.querySelector('[data-ix-field="d2"] [data-ix-weekday]').textContent,
       zone: node.querySelector('[data-ix-field="w3"] .mw-ix-clock .mw-ix-zone')?.textContent || '', placeholder: node.querySelector('[data-ix-field="d2"] input').placeholder }; })()`);

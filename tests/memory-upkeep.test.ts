@@ -109,7 +109,11 @@ test("upkeep switches off expired and long-unused automatic memories, merges aut
   const said2 = (await memory.write(person(), { scope: "personal", text: "回答要用要点列表" })).memory!;
   const oldAuto = (await memory.offer(assistant("work-4"), { scope: "personal", text: "邮件落款写全名", kind: "preference", basis: "repeated", why: "两次", from: "extraction" })).memory!;
 
-  clock.now = new Date("2027-01-15T08:00:00.000Z");
+  // 91 days after the last of them was written (memory-system §6.4: automatic ones unused for 90 days are switched off). The runtime dates its entries by the real clock (in the product the service's `now` is that clock too),
+  // so the fake clock moves on from those dates. A fixed day (it was 2027-01-15T08:00Z) stopped being 90 days later once the real date reached 2026-10-17T08:00Z.
+  const written = (await memory.list(person(), { scope: "all" })).items;
+  assert.ok(written.some(item => item.memory_id === oldAuto.memory_id) && written.some(item => item.memory_id === auto1.memory_id));
+  clock.now = new Date(Math.max(...written.map(item => Date.parse(item.created_at))) + 91 * 86_400_000);
   // The model finds the near-duplicates (their wording differs too much for the character-pair rule).
   const report = await memory.upkeep(person(null), { projects: ["project-a"], tidy: async entries => ({ duplicates: ([[auto1.memory_id, auto3.memory_id], [said1.memory_id, said2.memory_id]] as Array<[string, string]>)
     .filter(([a, b]) => entries.some(item => item.memory_id === a) && entries.some(item => item.memory_id === b)), conflicts: [] }) });

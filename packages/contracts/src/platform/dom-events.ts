@@ -437,7 +437,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:surface-landing", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "SurfaceLanding | null (services/contextual)",
-    summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; the row keeps one landing and sends it with the requests for a thing in hand elsewhere.",
+    summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; a split pane's report comes up as a pane message and is raised again on that pane's frame. The row keeps one landing and sends it with the requests for a thing in hand elsewhere.",
   },
   {
     name: "workbench-feed-task", kind: "request", owner: "tab-workspace", on: "document",

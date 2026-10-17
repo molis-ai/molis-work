@@ -223,6 +223,30 @@ test("MCP OAuth DCR and PKCE survive a new host instance; refresh and 401 recove
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 
+test("S-32 ASC-19 ASC-35: MCP token resolution refuses a refresh completed after disable and reenable", { timeout: 30_000 }, async () => {
+  const temp = home();
+  let hold = false, entered!: () => void, release!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const remote = await fixture({ oauth: true, beforeToken: async () => { if (hold) { entered(); await waiting; } } });
+  let clock = Date.now();
+  const host = createConnectorMcpHost({ testServers: { notion: { endpoint: remote.endpoint, auth: "oauth" } }, now: () => clock });
+  try {
+    const first = await host.startMcpConnection(temp, { serviceId: "notion", displayName: "Work", origin: callbackOrigin });
+    await host.completeMcpAuthorization(temp, { state: remote.authorize(first.authorizationUrl!), code: "valid-code", origin: callbackOrigin });
+    const secrets = connectorProtocolSecrets(temp, first.connectionId);
+    const before = [secrets.get("access"), secrets.get("oauth"), secrets.get("expires")];
+    hold = true; clock += 3_600_000;
+    const refreshing = host.resolveMcpConnectionToken(temp, first.connectionId, remote.endpoint);
+    const rejected = assert.rejects(refreshing);
+    await reached;
+    withConnectorConnections(temp, store => { store.setEnabled(first.connectionId, false); store.setEnabled(first.connectionId, true); });
+    release(); await rejected;
+    assert.deepEqual([secrets.get("access"), secrets.get("oauth"), secrets.get("expires")], before);
+    assert.equal(remote.stats().callCount, 0);
+  } finally { release(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
 for (const stage of ["before_callback", "token", "discovery"] as const) test(`S-32 ASC-35 cancelled MCP authorization cannot activate after ${stage}`, { timeout: 30_000 }, async () => {
   const temp = home();
   let reached!: () => void, release!: () => void;

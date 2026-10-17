@@ -205,10 +205,10 @@ test("W2-18-HANDBACK-RESTART-01: a part's round that ended just before the Host 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.handback-restart", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
-  t.after(async () => { await adapter.close(); await local.close(); });
   const store = new AssistantStore(new DatabaseSync(database));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
+  t.after(async () => { service.continuations.close(); await adapter.close(); await local.close(); store.db.close(); });
   const parent = store.get("web-user", said.parent!), graph = () => adapter.collaboration!.works!.read(parent.graph_id!);
   const part = await until(async () => (await graph()).find(node => node.parent === "work" && node.state === "succeeded"), "the part's step ended after the restart");
   assert.ok(part.ended_at);

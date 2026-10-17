@@ -70,7 +70,9 @@ test("concurrent Notion refreshes share a request only within the same Home", as
     store.put("connector:notion:client_id", "fixture-client");
     store.put("connector:notion:client_secret", "fixture-secret");
     store.put(`connector-connection:${NOTION_CONNECTION}:refresh`, `refresh-${index}`);
+    store.put(`connector-connection:${NOTION_CONNECTION}:access`, `access-${index}`);
     registerNotionConnection(home);
+    store.delete(`connector-connection:${NOTION_CONNECTION}:access`);
   });
   let release!: () => void;
   const waiting = new Promise<void>(resolve => { release = resolve; });

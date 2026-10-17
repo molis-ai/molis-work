@@ -783,9 +783,7 @@ export class AssistantService {
     const work = this.store.get(this.actorId, workId);
     if (control?.kind === "withdraw") {
       await withdrawInput(work, this.store.rounds(work.work_id), control, { coding: () => this.coding(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)) });
-      return this.read(workId);
-    }
-    await controlAssistantWork(work, control, { store: this.store, actorId: this.actorId, continuations: this.continuations, delegations: this.delegations,
+    } else await controlAssistantWork(work, control, { store: this.store, actorId: this.actorId, continuations: this.continuations, delegations: this.delegations,
       host: () => this.ports.host(), coding: work => this.coding(work), latest: (host, work) => this.latestRun(host, work), cancelSetups: this.ports.cancelSetups, retainSetups: this.ports.retainSetups });
     return this.read(workId);
   }

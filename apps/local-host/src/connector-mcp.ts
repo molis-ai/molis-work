@@ -9,6 +9,7 @@ import { connectorProductAuth } from "./connector-product-auth.js";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { withConnectorRequest } from "./connector-lifecycle.js";
+import { oauthRefreshGuard } from "./connector-oauth-targets.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { mcpInputFingerprint } from "./mcp-tool-actions.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -210,8 +211,12 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   }
   function provider(home: string, config: McpConfiguration, state?: string, signal?: AbortSignal, beforeDispatch?: McpRequestOptions["beforeDispatch"]) {
     const secrets = connectorProtocolSecrets(home, config.sessionId);
-    const checkActive = state ? () => assertMcpAuthorizationPending(home, state, now())
-      : config.sessionId === config.connectionId ? () => { active(home, config.connectionId); } : undefined;
+    const current = !state && config.sessionId === config.connectionId ? oauthRefreshGuard(home, config.connectionId) : undefined;
+    const checkActive = () => {
+      signal?.throwIfAborted();
+      if (state) assertMcpAuthorizationPending(home, state, now());
+      else if (current) { current(); active(home, config.connectionId); }
+    };
     let authorizationUrl: string | undefined;
     const saveConfig = () => {
       if (state) { checkActive?.(); withConnectorProtocols(home, store => store.update(state, config)); }

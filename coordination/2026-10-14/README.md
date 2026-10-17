@@ -552,6 +552,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #619 全量全绿，已经入队。#632 全量只红在分片 2 的 `product-interaction.e2e`（Feed 详情重试，`Hidden click target: [data-retry-feed-detail]`），首跑和重跑都红。这一条在 #577、#581、#583、#606 上都偶发过，和 #632 无关。照先例只重跑分片 2（job 117320449531），`shard-632.zsh` 在它通过后手动入队。
     - #619 合入（`d2465e840`）。#628 是在 #619 合入前打上标签的（合并引用 cd4b8aa18），全量在跑。#624 的 base 自动改成了 main，和 main 冲突，已请防腐线 merge main、重量字节。
     - 用户已经把统筹的说明转给了 Codex（feature/assistant-service-connections）：先别开 PR、别换包，等采用线的 MCP 刷新上游 PR 合入、新包换进 main 之后再变基、删掉自己的包，排在 #632 和 P4-A1 之后；202 个文件的全量改到 CI 上跑。
+    - #632 分片 2 重跑通过，手动入队。#624 merge main 后是 `d03c44fd6`，6 个文件，craft-finish 的媒体查询单独一行、重复规则合并，字节降。#624 冻结后一次全量都没跑过，所以要跑；已经挂上，排在 #628 和 #629 后面。「后合的只 merge main、不重跑全量」只管已经跑过全量的 PR。slice 5 的两种模式状态对比现在就排 browser 槽。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

@@ -54,10 +54,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       feedSourceProgress = feedSourcesDialog?.querySelector("[data-feed-source-progress]");
     };
     findFeedNodes();
-    const mobileTreeTab = document.querySelector('[data-mobile-target="tree"]');
-    const mobileDocumentTab = document.querySelector('[data-mobile-target="document"]');
-    const defaultMobileTreeLabel = mobileTreeTab?.textContent || L("目标");
-    const defaultMobileDocumentLabel = mobileDocumentTab?.textContent || L("聚焦");
     const dialog = document.querySelector("[data-create-dialog]");
     const form = document.querySelector("[data-create-form]");
     const toast = document.querySelector("[data-toast]");

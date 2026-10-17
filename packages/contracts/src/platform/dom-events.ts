@@ -59,11 +59,11 @@ export const PAGE_STATE_OWNERS = {
     state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.",
   },
   assistant: {
-    files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts"],
+    files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts"],
     state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.",
   },
   "context-actions": {
-    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-landing.ts"],
+    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-card-target.ts", "apps/workbench/src/scripts/client/context-landing.ts"],
     state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.",
   },
   "context-toolbar": {
@@ -313,6 +313,11 @@ export const DOM_EVENTS = [
     name: "molis-work:work-mode-changed", kind: "announcement", owner: "immersive-navigation", on: "document",
     detail: "{ goalId, mode }",
     summary: "The Goal work mode changed. Nothing in the tree listens yet.",
+  },
+  {
+    name: "molis:assistant-card-target", kind: "request", owner: "assistant", on: "document",
+    detail: "{ object: { kind, id }, reply(work_id: string | null) }",
+    summary: "A write chosen on the page asks which work its card goes into. The Assistant replies with its current work when its panel is open, the work is its own (not Coding's) and holds the object (one of the work's objects, or added to its strip); otherwise nobody replies and a new work starts. One reply counts. The work id is a pointer: the Host checks it when placing the card.",
   },
   {
     name: "molis:assistant-context-action-chosen", kind: "announcement", owner: "context-actions", on: "window", cancelable: true,

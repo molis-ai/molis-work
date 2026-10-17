@@ -19,6 +19,7 @@ import { inlineMethods } from "./prologue-methods.js";
 import { projectWorkDigest, workPaths, type createProjectWork } from "./prologue-project-work.js";
 import type { createWorkGraphs } from "./prologue-work-graphs.js";
 import { withInteractionRepairLimit } from "./prologue-questions.js";
+import { roundReferenceKinds } from "./prologue-reference-kinds.js";
 import { runModelParams } from "./prologue-run-params.js";
 import { blockId, canTakeUp, collaborates, eligibleContinuation, planPrefix, readyStep, releaseStartClaim, sessionBlock } from "./prologue-collaboration.js";
 import type { PlanPlace } from "./prologue-plan-steps.js";
@@ -161,7 +162,8 @@ async function childSetup(deps: RunDeps, input: PrologueStartInput) {
     ? "每个子任务必须选择一个不同的 workspace 标识：" + JSON.stringify(childRoots.map(root => ({ id: root.id, path: root.path }))) + "。主任务只读，不能直接修改主工作区。子任务只在自己的目录里执行，修改仍经过宿主审查。"
       + "核对子任务成果时，可以给 read、list、search 加 workspace 参数（上面的标识）只读查看对应目录；不加就是主工作区。你的查看不代替子任务自己的先读后改，也不能在这些目录里写入或运行命令。"
     : "本轮没有分配独立子目录，不得填写 workspace 参数；所有子任务沿用当前授权目录，都不能修改文件；开放了运行命令的子角色可以运行检查命令，每条都经用户审查。";
-  const childInstructions = childRoles.size ? childScope + "可分派的固定子角色：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\n必须选择上述精确 character，并显式提供该角色列出的完整 tools 清单；不能遗漏角色需要的工具或增加其他工具。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务只能使用所选角色的工具，不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
+  // Facts only: the Runtime gives a named role the tools it declares, as far as this run holds them, whatever `tools` says.
+  const childInstructions = childRoles.size ? childScope + "可分派的固定子角色（character 用这里的引用，别的会被拒绝）：\n" + [...childRoles].map(([ref, role]) => `${ref}: ${role.name}; tools=${JSON.stringify(role.host_tools.map(prologueToolName))}`).join("\n") + "\n子任务带着所选角色列出的工具，本轮没有的除外；dispatch-subagent 的 tools 不会让它多一个或少一个，可以写 []。给子任务写清任务、必要上下文、依据路径与完成条件；不继承父聊天或材料。子任务不能再次分派。需要用户信息时作为阻塞返回给父任务。" : "";
   return { childRoots, childRoles, childInstructions };
 }
 
@@ -366,6 +368,7 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
   readonly character: { ref: ExactRef<"character"> }; readonly textResources: Array<{ ref: ExactRef<"resource">; as: "original" }>;
   readonly pinnedMemory: Awaited<ReturnType<RunDeps["platformMemory"]["refsFor"]>>;
   readonly binding: { board: string; node: string; requestKey?: string } | undefined;
+  readonly referenceKinds?: Array<{ kind: string; title: string }>;
 }): Parameters<Runtime["startAgentRun"]>[0] {
   const { session, root, business, credentialRef, childRoles, childRoots } = parts;
   const params = runModelParams(input.model, input.provenance.frozen.budget, input.provenance.frozen.reasoning_effort);
@@ -424,6 +427,8 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
       characterRef: parts.character.ref,
       ...(parts.textResources.length ? { mount: { textResources: parts.textResources } } : {}),
       ...(parts.pinnedMemory.length ? { memory: { pinned: parts.pinnedMemory, budgetChars: input.memory!.budget_chars } } : {}),
+      // This round's project's kinds replace the Runtime's built-in ones; its subagents keep them (BL-152).
+      ...(parts.referenceKinds ? { askUserReferenceKinds: parts.referenceKinds } : {}),
     },
   };
 }
@@ -551,6 +556,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const surface = await roundSurface(deps, input, index, session, mode.business);
   const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
   const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools });
+  const referenceKinds = await roundReferenceKinds(deps.options, index.owner);
   // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
   const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
@@ -569,7 +575,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
     model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
   const started = await deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
-    session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding,
+    session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
   }))).catch(async (error: unknown) => {
     // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
     // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.

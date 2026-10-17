@@ -23,7 +23,7 @@ import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agen
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
 import { agentActions, capabilityDirectory } from "./assistant-directory.js";
 import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from "./assistant-material-scan.js";
-import { identity } from "./assistant-relations.js";
+import { identity, linkSent, revisionOf } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { type AssistantStore, type StoredRound, type StoredWork } from "./assistant-store.js";
 import { AssistantJobs, JOB_FOLLOW_MS, pathValue } from "./assistant-jobs.js";
@@ -33,7 +33,7 @@ import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
-import { AssistantInputs, exactRevision, inputsOf, typedWords, withdrawInput, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, exactRevision, inputsOf, queuedInputs, typedWords, withdrawInput, type SendIntent } from "./assistant-inputs.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
@@ -149,10 +149,6 @@ type CapabilityTitles = Map<string, { title: string; provider: string }>;
 /** Activity in the person's terms: what was looked up, read or changed — not the tool log. */
 /** Coding sessions as a related object; Coding's own subject reader serves this kind. */
 export const CODING_SESSION_KIND = "coding_session";
-
-function revisionOf(version: string | number | undefined): string | null {
-  return version === undefined || version === null || version === "" ? null : String(version);
-}
 
 const RELATION_WORDS: Record<AssistantWorkObject["relation"], string> = { origin: "起点", material: "材料", result: "产出", session: "专业会话" };
 
@@ -534,12 +530,14 @@ export class AssistantService {
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
       ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates.length ? { memory_candidates } : {}), ...(memory_changes.length ? { memory_changes } : {}),
-      ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}) };
+      ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}),
+      ...assistant?.queued };
   }
 
   /** The rounds run in the Assistant's own session. */
   private async assistantPart(work: StoredWork): Promise<{ rounds: AssistantRound[]; reviews: AssistantPendingReview[]; recovery: boolean; problem?: { message: string; action?: string };
-    memory: Map<string, import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact> }> {
+    memory: Map<string, import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact>;
+    queued: Pick<AssistantWorkView, "queued_inputs"> }> {
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const stored = this.store.rounds(work.work_id).filter(round => round.executor !== "coding");
@@ -558,6 +556,7 @@ export class AssistantService {
     // What each run really took from memory, from the runtime's own event.
     const memory = new Map([...views].filter(([, view]) => view.memory_recalled).map(([runId, view]) => [runId, view.memory_recalled!]));
     return { rounds, reviews: this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)), recovery: Boolean(recovery), memory,
+      queued: queuedInputs(session),
       ...(recovery ? { problem: { message: recovery.reason, action: "核对上一轮的实际结果后再继续" } } : {}) };
   }
 
@@ -676,7 +675,7 @@ export class AssistantService {
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
       if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
-      this.linkSent(work, materials, created ? context : null);
+      linkSent(this.store.relations, work, materials, created ? context : null);
       const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by), about: input.about });
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
@@ -793,18 +792,6 @@ export class AssistantService {
   }
 
   /** What the person sent with a round, and — for a new work — the object it started from, as the work's relations. */
-  private linkSent(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null): void {
-    const id = identity(work);
-    try {
-      if (context?.object) this.store.relations.link(id, "origin", { kind: context.object.kind, id: context.object.id, revision: revisionOf(context.object.version) }, "工作从这个对象开始");
-      for (const material of materials) {
-        if (!material.object) continue;
-        this.store.relations.link(id, "material", { kind: material.object.kind, id: material.object.id, revision: material.draft ? null : revisionOf(material.object.version) },
-          material.explicit ? "用户把它加入这一轮" : "用户保留了当前页面的这个对象");
-      }
-    } catch { /* A relation that fails to record never stops the person's Send. */ }
-  }
-
   /**
    * A plugin hands a result back to a work (its page raised a `reply`). The work keeps a relation to the object, read
    * from its owner like every other; nothing is copied, and receiving it does not mark the work done.

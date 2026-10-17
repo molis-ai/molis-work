@@ -914,3 +914,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 新文字中英文都要有；SESSION_HISTORY_UNAVAILABLE 怎么处理，由采用线在换包时定。
 - 换包片计划已批（adoption/sdk-e0f99ea2，等 #675 合入后再开）：只改 REFUSED_BEFORE_RUN；错误表的映射和措辞归 BL-156 Molis 片；SESSION_HISTORY_UNAVAILABLE 由采用线来定；inspectRecovery 会写盘，要逐个判定调用它的只读动作，不碰真实 Home。
 - #687（回执 3b-2c，5105cf2c2，base receipts/3b2b-tray）统筹审过，要改一处：托盘按轮次取，在助理工作交给 Coding 执行时，同一个 Coding 轮次会被助理和 Coding 两个面抢同一个元素，而且 Map 不会回收。改成按调用方容器取（WeakMap），换轮次时清掉计数。其余都通过。
+- #671（回执 3b-2b）合入，main 4b063bf98，workbench.js 变成 1107991。
+  - 又和 page-assets 冲突、已通知 merge main 的：#675（采用）、#687（回执，base 已被自动改成 main，同时要改托盘）、#673（情境，930924c54）。
+  - chain17 等到空位时会跳过 #675，接着处理 681→683→685，这三个和 main 新改的文件不重叠。
+  - 给 Codex 的通知改成：W5-01 按 [1107991, 1108019] 取键（+28 不变）。

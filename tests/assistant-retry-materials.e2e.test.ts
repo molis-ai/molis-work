@@ -22,6 +22,14 @@ test("UIV-03/04 retry after model failure restores complete materials after relo
   await browser.click("[data-ix-step-id=retry]");
   await browser.waitFor("document.querySelector('[data-assistant-input]').value === '重试时需要完整材料'");
   assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]').textContent"), /完整材料/);
+  // UIV-11: a real failure's retry row, restored file strip and open panel must not double-count dock space.
+  for (const [width, height] of [[1180,760],[477,560],[390,844]]) {
+    await browser.command("Emulation.setDeviceMetricsOverride", { width,height,deviceScaleFactor:1,mobile:false }, browser.sessionId);
+    await browser.waitFor("Math.abs(parseFloat(getComputedStyle(document.body).getPropertyValue('--dock-h'))-document.querySelector('.workbench-bar').getBoundingClientRect().height)<1");
+    const panel = await browser.evaluate<{top:number;bottom:number;height:number}>("(() => { const r=document.querySelector('[data-assistant-panel]').getBoundingClientRect(); return {top:r.top,bottom:r.bottom,height:innerHeight}; })()");
+    assert.ok(panel.top >= 0 && panel.bottom <= panel.height, `failed-work panel remains inside ${width}×${height}: ${JSON.stringify(panel)}`);
+  }
+  await browser.command("Emulation.setDeviceMetricsOverride", { width:1440,height:960,deviceScaleFactor:1,mobile:false }, browser.sessionId);
   behavior.unavailable = false;
   const requestsBefore = model.requests.length;
   await browser.click("[data-assistant-send]");

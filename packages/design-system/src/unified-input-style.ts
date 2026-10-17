@@ -39,7 +39,8 @@ html body form.uiv-composer[data-coding-composer] .coding-composer-leading { fle
 html body form.uiv-composer[data-coding-composer] .coding-composer-shell:has([data-uiv-input]:focus) { outline: none; box-shadow: none; border-color: var(--control-input); }
 html body.immersive-workbench:has(.workbench-bar form.uiv-composer) { --dock-h: var(--uiv-dock-height); }
 html body.immersive-workbench .workbench-bar:has(form.uiv-composer) { min-height: 0; }
-html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center { margin-block: 6px; --next-row: 0px; --context-row: 0px; }
+html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center { margin-block: 6px; }
+html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center[data-assistant-island] { --next-row: 0px; --context-row: 0px; }
 /* Material and next-step rows must reserve space, so focused controls in the main area remain visible. */
 html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center > :is(.assistant-context-strip, .assistant-next-row) { position: relative; inset: auto; margin-bottom: 6px; max-width: 100%; }
 html body.immersive-workbench .workbench-bar:has(form.uiv-composer) .plugin-picker-popover { max-height: min(78dvh, calc(100dvh - var(--dock-h) - var(--desktop-titlebar-height, 32px) - 20px)); overflow-y: auto; }
@@ -50,7 +51,8 @@ html body.immersive-workbench .workbench-bar:has(form.uiv-composer) .plugin-pick
 @media (max-width: 600px) {
   html body.immersive-workbench .workbench-bar:has(form.uiv-composer) { grid-template-rows: auto 50px; }
   html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center { margin-block: 4px; }
-  html body.immersive-workbench .workbench-bar:has(form.uiv-composer) .assistant-panel { height: min(70dvh, 560px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h) - var(--next-row, 0px) - var(--context-row, 0px) - 6px - 8px)); }
+  html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center > :is(.assistant-context-strip, .assistant-next-row) { margin-inline: -8px; max-width: none; }
+  html body.immersive-workbench .workbench-bar:has(form.uiv-composer) .assistant-panel { position: absolute; left: 2px; right: 2px; bottom: 100%; height: min(70dvh, 560px, calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--dock-h) - var(--next-row, 0px) - var(--context-row, 0px) - 6px - 8px)); }
 }
 @media (max-width: 600px) and (max-height: 560px) {
   /* Short windows keep an empty, ready composer on one row. Writing and recording retain full-width text. */

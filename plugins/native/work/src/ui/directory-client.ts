@@ -25,7 +25,7 @@ export const WORK_DIRECTORY_CLIENT = `
     });
     surface?.querySelectorAll("[data-operation-detail]").forEach((detail) => { detail.hidden = true; });
   };
-  const selectRecord = (kind, id, moveToDetail = false) => {
+  const selectRecord = (kind, id) => {
     const directory = directoryFor(kind);
     const surface = surfaceFor(kind);
     const row = directory?.querySelector('[data-record-id="' + CSS.escape(id) + '"]');
@@ -42,7 +42,6 @@ export const WORK_DIRECTORY_CLIENT = `
       expandStage(true);
       void loadSessionContent(surface.querySelector('[data-operation-detail]:not([hidden])'));
     }
-    if (moveToDetail && matchMedia("(max-width: 760px)").matches) document.querySelector('[data-mobile-target="document"]')?.click();
   };
   const filterRecords = (kind) => {
     const directory = directoryFor(kind);
@@ -102,7 +101,7 @@ export const WORK_DIRECTORY_CLIENT = `
       }
       const select = event.target.closest("[data-operation-select]");
       if (select) {
-        selectRecord(kind, select.dataset.operationSelect, true);
+        selectRecord(kind, select.dataset.operationSelect);
       }
     });
     directory.addEventListener("keydown", (event) => {

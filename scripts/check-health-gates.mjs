@@ -46,6 +46,7 @@ import { splitsWantText, testImportSplits } from "./gates/test-import-splits.mjs
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
+import { storeVersionProblems } from "./gates/store-versions.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
@@ -496,6 +497,17 @@ const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[me
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
+// A library whose version changed against the merge-base needs a row in the spec's maintenance list (scripts/gates/store-versions.mjs).
+// It fails closed: a table it cannot read ends the run with exit 2.
+const storeVersions = () => {
+  const show = (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) || null;
+  try {
+    return storeVersionProblems({ read: workingTree().read, readBase: mergeBase ? show : undefined });
+  } catch (error) {
+    if (error?.storeVersionsUnreadable) fail(`Health gates could not read the library versions: ${error.message}`);
+    throw error;
+  }
+};
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "tooling/gates/baseline.json";
 
 // ---- --report --------------------------------------------------------------------------------------------------------
@@ -539,7 +551,7 @@ if (update) {
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
 const api = apiSnapshots();
-const errors = [...growth(), ...limitErrors(), ...absolute(), ...api.errors];
+const errors = [...growth(), ...limitErrors(), ...absolute(), ...storeVersions(), ...api.errors];
 if (errors.length) {
   console.error(`Health gates failed against ${against}:\n- ` + errors.join("\n- "));
   process.exit(1);

@@ -3,7 +3,7 @@ import type { AgentMemoryExecutionControl, AgentMemoryCapability, AgentDocumentC
 import type { AgentRecoveryCapability, AgentScheduleCapability, AgentCheckpointsCapability, AgentSkillsCapability, AgentSkillLibrary, AgentMcpLibrary, AgentMcpCapability, AgentSubagentsCapability } from "./agent-host-ports.js";
 import type { AgentCreateSessionInput, AgentStartExecution, AgentStartRequest } from "./agent-host-start.js";
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
-import type { AgentProjectWorkCapability, AgentSessionMessagesCapability, AgentBackgroundCapability, AgentStepAmendment, AgentStepBoard } from "./agent-host-session.js";
+import type { AgentProjectWorkCapability, AgentSessionMessagesCapability, AgentBackgroundCapability } from "./agent-host-session.js";
 import type { AgentCollaborationPort } from "./agent-collaboration.js";
 
 export const AGENT_RUNTIME_CAPABILITIES = [
@@ -155,6 +155,4 @@ export interface AgentRuntimeAdapter {
   readonly mcpLibrary?: AgentMcpLibrary;
   readonly mcp?: AgentMcpCapability;
   readonly subagents?: AgentSubagentsCapability;
-  /** Adjust a running plan's step graph on behalf of a person. Absent when the Runtime has no step graphs. */
-  amendStepBoard?(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
 }

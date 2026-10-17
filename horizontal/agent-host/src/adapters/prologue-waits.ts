@@ -99,7 +99,8 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
     if (!wait || !(await inProject(project, wait.session.id))) throw agentErrors.collaboration_unknown("这个等待不属于这个项目");
     return wait;
   };
-  const collaboration: AgentCollaborationPort = {
+  // A person's plan change (`revise`) is the step boards' own; the adapter adds it.
+  const collaboration: Omit<AgentCollaborationPort, "revise"> = {
     read,
     async awaitReady(project, timeoutMs, exclude = [], signal) {
       // A change is not yet a continuation that may go on (a wait's look, another project's step): look again until one

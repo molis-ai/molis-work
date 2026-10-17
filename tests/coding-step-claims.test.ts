@@ -147,7 +147,7 @@ test("a person takes a step on, records its result, adds a step for themselves a
     const done = await b.settle(started.ref);
     assert.equal(done.phase, "completed");
     let view = done.step_board!;
-    const amend = async (amendment: object) => { view = await b.adapter.amendStepBoard!(started.ref, amendment as never, view.version, "user"); return view; };
+    const amend = async (amendment: object) => { view = await b.adapter.collaboration!.revise(started.ref, amendment as never, view.version, "user"); return view; };
     await assert.rejects(amend({ kind: "resolve", node: "step-1", state: "succeeded", note: "做完了" }), /只有你认领的步骤/);
     await amend({ kind: "assign", node: "step-1", to: "me" });
     assert.deepEqual(view.nodes.find(node => node.id === "step-1")!.owner, { kind: "person", label: "用户", actor_id: "user" });

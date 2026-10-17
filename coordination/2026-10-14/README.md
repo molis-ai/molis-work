@@ -964,3 +964,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - #156：10-02 的草稿，没动。
   - #631：草稿，外部作者反复手动跑全量，占掉一个位置。
 - #688 → 4363aacc6：在浏览器里复现了，回执元素在两个面之间来回挪；改成按面取（line、tray、link 都是），审过，通过。workbench.js +800、coding.js +201，用户分两次批的。等 #687 合入后，base 改成 main、重新取键，再跑全量。taskboard 编号对不上那条（插入后 S3 和 S4）放进回执线下一片的 BACKLOG。
+- #675：全量只红在 product-interaction.e2e 的 Feed 重试（测试自己的时序：基线 main 8/8，分支 7/8，#581 那一轮的 main 上也出过），按用户 10-15 的规则走 merge-only 入队。Feed 测试的修复交给采用线，等 #675 合入后开一个只改测试的小 PR。

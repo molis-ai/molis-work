@@ -25,6 +25,7 @@ export const INPUT_RECEIPTS_STYLES = `
 .mw-receipt__claimed{padding:6px 8px;border:1px dashed var(--faint);border-radius:var(--r-row)}
 .mw-receipt__who{margin-bottom:4px;font-weight:var(--weight-control)}
 .mw-receipt__acts{display:flex;flex-wrap:wrap;gap:6px}
+.mw-tray__list{display:grid;gap:4px;margin:0;padding:0;list-style:none}
 .mw-receipt__problem{color:var(--danger)}
 .mw-receipt--host{font-style:normal}
 @media (prefers-reduced-motion:reduce){.mw-receipt__fact::after{transition:none}}

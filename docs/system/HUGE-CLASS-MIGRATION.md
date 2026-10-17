@@ -264,7 +264,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `design-system` | `src/styles/calm-desktop.ts` | 文件 1,392 行 | 归线 · §4.8 · W5-05 | 旧皮肤，整份删除（逐个过视觉比对）。 | 3 |
 | `design-system` | `src/styles/craft-finish.ts` | 文件 2,313 行 | 拆 · W5-04 | 1,924 行样式（`CRAFT_BASE_STYLES`）加 323 行 `CRAFT_FINISH_CLIENT_SCRIPT` 浏览器脚本，两个变化原因。脚本在 W5-04 里移出并打包；同一个 PR 把剩下的 1,924 行样式表登记为例外 · 样式表。现在不登记：文件里除样式外还有一段浏览器脚本，不是单一职责，写不出成立的理由；脚本移出后剩下的才是单一职责的样式表。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 14 |
 | `design-system` | `src/styles/momentum.ts` | 文件 1,171 行 | 例外 · 样式表 | `MOMENTUM_STYLES` 一个模板字符串，纯 CSS（Goals 动量视图）。 | 4 |
-| `design-system` | `src/styles/personal-workbench-v3.ts` | 文件 1,422 行 | 归线 · §4.8 · W5-05 | 旧皮肤，整份删除。 | 1 |
+| `design-system` | `src/styles/personal-workbench-v3.ts` | 文件 1,422 行 | 归线 · §4.8 · W5-05 | 已删（W5-05 第 4 片）：还在决定计算值的声明挪进各自主人的样式表，记录见 `specs/repository-anti-corruption/spec.md` §W4-12。 | 1 |
 | `design-system` | `src/styles/primitives.ts` | 文件 1,276 行 | 例外 · 样式表 | `PRIMITIVE_STYLES` 一个模板字符串，纯 CSS，开头只有几个共用的 CSS 片段常量。 | 1 |
 | `im-ui` | `src/browser/controller.ts` | 文件 966 行<br>`startIm` 函数 957 行 | 拆 · W5-10 | “讨论”页签与 IM 是在用、还会迭代的功能（决定 #4），所以按职责拆，不是冻结：`startIm` 957 行、86 条语句，启动（`startup` 72）、房间（`selectRoom` 62、`refresh` 60）、线程（`newThread` 60、`selectThread` 48）、发送（`send` 48）、document 级点击监听（一段 111 行）各成模块，`startIm` 只组合。 | 1 |
 | `im-ui` | `src/views.ts` | `createViews` 函数 164 行 | 拆 · W5-10 | `createViews` 里 `stream` 84 行、`context` 16、`markup` 12、`restoreScroll` 12：流、上下文、滚动保持各成视图函数。 | 0 |

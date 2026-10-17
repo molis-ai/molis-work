@@ -4,7 +4,7 @@
   "private": true,
   "description": "Capability registration, discovery, grants, ActionService dispatch and scene compatibility; also hosts the contextual-ranking platform product service (pure functions).",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

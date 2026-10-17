@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Coding App: sessions, runs, and the change sets, reports and diagrams they produce.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

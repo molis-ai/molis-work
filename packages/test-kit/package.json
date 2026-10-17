@@ -4,7 +4,7 @@
   "private": true,
   "description": "Business-neutral test helpers: package import boundary rules, a headless Chrome/CDP launcher and driver, and a client for the Host's local HTTP management routes.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

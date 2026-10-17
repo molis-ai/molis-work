@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Feed navigation, UI, disposition, and Module composition.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

@@ -21,6 +21,7 @@ export async function inspectSource(
   const packageText = await readText(packageJson, "installer.source.asset_missing");
   let packageMetadata: {
     version?: unknown;
+    license?: unknown;
     dependencies?: Record<string, unknown>;
     optionalDependencies?: Record<string, unknown>;
   };
@@ -57,7 +58,8 @@ export async function inspectSource(
     runtimeDependencies,
     bundledNodePath != null,
   );
-  return { directory: sourceDirectory, version, runtimeDependencies, bundledNodePath, contentDigest };
+  const license = typeof packageMetadata.license === "string" ? packageMetadata.license : undefined;
+  return { directory: sourceDirectory, version, license, runtimeDependencies, bundledNodePath, contentDigest };
 }
 
 export async function assertFreshRepositoryBuild(sourceDirectory: string): Promise<void> {

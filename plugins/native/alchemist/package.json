@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Alchemist workbench: turn a direction into comparable idea cards and a decision.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

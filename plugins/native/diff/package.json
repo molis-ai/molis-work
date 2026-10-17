@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party comparison surface over captured snapshots, prepared changes and Git changes.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

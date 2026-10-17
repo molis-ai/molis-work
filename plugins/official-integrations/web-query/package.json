@@ -4,7 +4,7 @@
   "private": true,
   "description": "Official Web Query provider adapter and settings boundary.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

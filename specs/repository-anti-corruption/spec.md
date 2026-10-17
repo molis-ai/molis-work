@@ -2082,7 +2082,7 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 | #630（W5-05 第 4 片，本线） | `77cbbaa17` | 有依据，记录见 §W4-12。统筹审过最后的 head 并跑了全量。按 squash 合入。 |
 | #638（T2：引用题按名称找对象） | `86b77ad25` | 有依据（见下）。 |
 | #639（回执 C1：排着的补充显示在 Coding 对话末尾） | `7b3fd68a6` | 有依据。断言只加：RC-18 的单测、e2e，以及恢复读里的 `queued_inputs`。`baseline.json` 只降（插件包名在包外被点名的文件少 2 个）。`coding.js` 降 37,805 B。 |
-| #644（采用 SDK 的等待；工作图的接续只认领一次） | `5f078dae9` | 有依据。vendored 包换成 `app-tools-waits`（Prologue main `86be9891`，#35）：来源记录、`patch-history.json`、`SECURITY-INVARIANTS.md` S-13 同步。P4 工作图的绑定原来每轮用新随机键，等待满足后旧接续一直可认领，宿主会反复接续；现在复用 `eligibleContinuation`，PA-23 改成在项目图和工作图上各跑一遍。活动列表不显示 `board-wait` 这个工具原名，依据见采用 spec §6.0l。 |
+| #644（采用 SDK 的等待；工作图的接续只认领一次） | `5f078dae9` | 有依据。vendored 包换成 `app-tools-waits`（Prologue main `86be9891`，#35）：来源记录、`patch-history.json`、`SECURITY-INVARIANTS.md` S-13 同步。P4 工作图的绑定原来每轮用新随机键，等待满足后旧接续一直可认领，宿主会反复接续；现在复用 `eligibleContinuation`，PA-23 改成在项目图和工作图上各跑一遍。活动列表不显示 `board-wait` 这个工具原名，依据见采用 spec §6.0l。**合入时没有跑全量**：用户账号（yijunw0212，Codex 那条线）09:17Z 把它放进合并队列，统筹 09:19Z 才加 `full-suite` 标签，09:23Z 合入。换 vendored SDK 算共享核心，按规矩应先跑全量；它的全量（run 39020694821）在合入后补跑作证据，有红的在 main 上修。 |
 | #645（记忆整理用例的假时钟） | `fba03a953` | 有依据。原来钉的是固定日期 2027-01-15。到 2026-10-17 这一天，它离条目的写入时间已经不到 90 天，用例就红了。现在改成从条目自己的写入时间往后推 91 天，「90 天没用过的自动记忆关掉」这条断言的含义不变。 |
 | #646（Linux 探针用例等 pid 本身） | `daeccec3b` | 有依据。pid 文件写了一半时读到的是空串，读成 0 就会指向本进程组；现在读不到正整数就不算，并加了一条断言：用例确实写下了它起的进程的 pid。 |
 
@@ -2103,7 +2103,7 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
   - 「提交了别的种类」原来报 `kind-not-allowed`。现在由宿主在答案交出去之前拒绝，模型什么都收不到。页面传来的标签不会进答案，进答案的是对象主人此刻给的标签。
   - `SECURITY-INVARIANTS.md` S-26 和它的拒绝用例同一个 PR 改了。
 - `coding.control-run` 升到 v5（值可以是选中的对象），v1～v4 都被拒，符合 `CONTRACT-CHANGES.md`。
-- 页面资源：`page-assets.mjs` 加了一次性的 `APPROVED_CEILINGS`，钉在合并基点 `aabf597d` 的准确数字上（workbench.js +4,090，workbench.css 与 arrival.css 各 +1,344，settings.css +19）。用户 10-17 批准、由统筹转达，做法同 3c（#541、#584、#611）。按注释，下一次改这个门禁时删掉。
+- 页面资源：`page-assets.mjs` 加了一次性的 `APPROVED_CEILINGS`，每条只认合并基点 `aabf597d` 的一个准确数字。批准的是上限：workbench.js +4,090，workbench.css 与 arrival.css 各 +1,344，settings.css +19（用户 10-17 批准、由统筹转达，做法同 3c：#541、#584、#611）。实际涨的、也是条目钉的上限（对合并基点实测）：workbench.js 1,101,126→1,105,163（+4,037），workbench.css 1,624,532→1,625,858（+1,326），arrival.css 744,923→746,249（+1,326），settings.css 1,034,948→1,034,967（+19）。`page-assets.mjs` 的注释写的仍是批准的 +4,090、+1,344；按注释，下一次改这个门禁时连同条目一起删掉。
 - 和第 5 片的交集：两边改 `page-assets.json` 的同一几行，后合的那个并 main 以后按实测重钉（统筹定的顺序）。
 
 **Prologue**

@@ -560,6 +560,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #633（machine-slot 饿死修复，防腐线，`63d102824`）审过，通过：死活看文件名里的 pid；半写的票放在旁边的 `.writing/` 目录，旧读者碰不到；票丢了按原到达时间重写；票的格式不变，没有兼容代码。after-629.zsh 在 #629 打上标签后挂它的全量。
     - #624 全量全绿，入队后合入（`5239a3711`）。#630 的 base 已经自动改成 main、和 main 冲突，已请防腐线 merge main、重量字节。它还没跑过全量，要跑，排在 #629 和 #633 后面。
     - #629 先不打标签：手册线的浏览器批次 33 个里红 4 个。assistant-page-written 是它自己的问题，已修；issue-capture-page、issue-clarification-page、pages-assistant-surfaces 要等干净 main 的基线比对出结果再分。统筹已经停掉 #629 的 label-chain，改让 #633 先挂全量。回执线 D1 的本机浏览器批次有 134 个文件，22:53 起一直占着 browser 槽，挡住了 3 批，已请它按 pid 停掉、只留和这片直接相关的（不超过 10 个），其余交给 CI 全量。
+    - #630 merge main 后是 `204dab78d`：除门禁文件和 spec 外，代码 diff 和审过的 5c1f7b396 逐行相同，§10.21 还在。已挂全量。#633 的合并引用 39bfe530e 停在 446c05218（#628），比 main 5239a3711 少一个 #624（只有 CSS），GitHub 没有重算，问 mergeable 也不重算。#633 只改 machine-slot 脚本，统筹手动打了标签。label-when-free.zsh 每轮都会先问一次 mergeable。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

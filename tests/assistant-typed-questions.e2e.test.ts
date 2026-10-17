@@ -21,7 +21,7 @@ function turn(text = "好的。", tool?: { name: string; input: object }): strin
 
 const ASKED = { why: "约下周的复盘会，先确认几件事", questions: [
   { id: "title", type: "text", prompt: "会议标题" },
-  { id: "minutes", type: "number", prompt: "时长（分钟）", min: 15, max: 120, integer: true },
+  { id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true, unit: "分钟" },
   { id: "due", type: "date", prompt: "截止日期", required: false },
   { id: "at", type: "datetime", prompt: "开会时间", min: "2026-10-19T09:00+08:00" },
 ] };
@@ -57,7 +57,7 @@ async function assistantAsking(t: TestContext, asked: object, done: string) {
   return { ...browser, requests };
 }
 
-// specs/ai-interaction-experience T1 (AC-27-5): the Assistant's card takes words, a number, a date and a date and time; a value past its
+// specs/ai-interaction-experience T1 (AC-27-5, AC-27-6): the Assistant's card takes words, a number, a date and a date and time; a value past its
 // limit is refused by the real Runtime beside its own field with the limit named, and the corrected answer continues the same work.
 test("AC-27-5: the Assistant answers words, a number, a date and a date and time, and a refused field says its limit", { timeout: 240_000 }, async t => {
   const page = await assistantAsking(t, ASKED, "复盘会安排好了。"); if (!page) return;
@@ -85,8 +85,11 @@ test("AC-27-5: the Assistant answers words, a number, a date and a date and time
   await fill(`${card} [data-ix-field=w3] [data-ix-part=date]`, "2026-10-23");
   await fill(`${card} [data-ix-field=w3] [data-ix-part=time]`, "15:00");
   await views("filled");
+  // AC-27-6: the unit is drawn beside the stepper, on one line with it.
+  assert.deepEqual(await evaluate(`(() => { const row = document.querySelector('${card} [data-ix-field=n1] .mw-ix-number-row'), unit = row?.querySelector('.mw-ix-unit');
+    return [unit?.textContent, unit && Math.abs(unit.getBoundingClientRect().top + unit.getBoundingClientRect().height / 2 - row.querySelector('.mw-ix-number').getBoundingClientRect().top - row.querySelector('.mw-ix-number').getBoundingClientRect().height / 2) < 4]; })()`), ["分钟", true]);
   await click(`${card} [data-ix-action=answer]`);
-  await waitFor(`document.querySelector('${card} [data-ix-field=n1] [data-ix-error]')?.textContent === '不能超过 120'`, 15_000);
+  await waitFor(`document.querySelector('${card} [data-ix-field=n1] [data-ix-error]')?.textContent === '不能超过 120 分钟'`, 15_000);
   const refused = await evaluate<{ invalid: string | null; focused: boolean; others: string[] }>(`(() => { const node = document.querySelector('${card}'), field = node.querySelector('[data-ix-field=n1]');
     return { invalid: field.querySelector('input').getAttribute('aria-invalid'), focused: field.contains(document.activeElement),
       others: [...node.querySelectorAll('[data-ix-error]:not([hidden])')].map(line => line.closest('[data-ix-field]').dataset.ixField) }; })()`);

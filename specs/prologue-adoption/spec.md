@@ -1212,7 +1212,7 @@ Molis 这边：
 - **上限**：每个工具最多 12 支，一支最多 8 KiB，一次请求所有分支合计最多 24 KiB；超出就从最早找到的去掉。依据：内置 479 个给 Agent 的动作，`input_schema` 的 p50 182 字节、p90 626、p99 2.3 KB、最大 5.3 KB（`goals.tree.submit@1`）、合计 155 KB，所以只能声明找过的。超出的照样调得动，`find-capabilities` 的结果里照样有它的 schema。
 - **找过的属于这一轮**：新的一轮、宿主重启之后都从零开始，回到通用的那一份；调用不受影响。
 - **数字题的单位**（同一个包，统筹 2026-10-16 转达、用户批准）：[Prologue #32](https://github.com/molis-ai/prologue/pull/32) 让 `ask-user` 的数字题可以带 `unit`，写成模型自己会说的话（如「分钟」）：一行、1 到 24 个字，只用来显示，答案仍是不带单位的数，存盘读回都带着。Molis 这边 `AgentQuestion` 加可选的 `unit`（改合同，`pnpm api:update`），`prologue-questions.ts` 投影时带上；插件 SDK 的题目规则（`question-rules.ts`）照同一条核，`tests/question-rules-consistency.test.ts` 两边对照。交互线 T1 用它在输入框旁显示单位，和「不能超过 240 分钟」一起；这个包合入之前，T1 只写界限。
-- **不在这一片**：`normalizedInput`、`coerced`、`parseCapability` 里为模型写的纠正（字符串数字、字符串布尔、二次编码 JSON、写在身份旁边的字段）先不删。看评测：带上类型之后不再用到，另开一片由用户定。
+- **不在这一片**：`normalizedInput`、`coerced`、`parseCapability` 里为模型写的纠正（字符串数字、字符串布尔、二次编码 JSON、写在身份旁边的字段）先不删。看评测：带上类型之后不再用到，另开一片由用户定。（已删，见 §6.0g）
 - 证据：`tests/assistant-business-gateway.test.ts` 末尾两条（§6.0f），在新包配 main 的代码上先红；`tests/agent-typed-questions.test.ts`（AC-17）、`tests/question-rules-consistency.test.ts`（S1）带上单位后同样先红。
 - **换包**：照 `vendor/prologue-sdk/README.md` 换成从上游 main `4e8468dd`（#32 的合并，含 #31）打的 `prologue-sdk-0.0.0-rc.1-parameter-branches.tgz`，同样的步骤打两次逐字节相同；删了 find-tools-deferral 包，`patch-history.json` 记一笔。同一棵树上 SDK 全量 355 个文件 0 失败（`desktop-computer-use.live` 没跑），13 个消费者脚本在这个包上全过。
 
@@ -1247,7 +1247,7 @@ Molis 这边：
 | 失误 | 出现在 | 分类 | 依据 | 处理 |
 | --- | --- | --- | --- | --- |
 | 数组写成 `{"item": […]}` | 通用：G2 3 次都有（8 次调用），G4 一次（2 次调用）；带类型 0 | 设计问题 | 通用参数下 `input` 没有形状，能力的 schema 只在结果文字里；同一模型、同一任务，声明了类型之后 6 次批量与卡片调用（G2、G4 各 3 次）都写成数组 | 本片 |
-| 数和布尔写成字符串（`"1"`、`"2"`、`"true"`） | 通用：G1 一次、G2 两轮、G3 3 次都有；带类型 0 | 设计问题 | 同上；`coerced` 能改回大部分，改不了 `expected_revisions` 这种映射里的值，G2 的批量处理因此被拒 | 本片；纠正代码先不删（见上「不在这一片」） |
+| 数和布尔写成字符串（`"1"`、`"2"`、`"true"`） | 通用：G1 一次、G2 两轮、G3 3 次都有；带类型 0 | 设计问题 | 同上；`coerced` 能改回大部分，改不了 `expected_revisions` 这种映射里的值，G2 的批量处理因此被拒 | 本片；纠正代码先不删（见上「不在这一片」），§6.0g 已删 |
 | 批量被拒后改成三次单件修改 | 通用 G2 的第 2、3 轮 | 设计问题（同上两行的后果） | 结果对，但不再是一批，撤销要三次 | 本片 |
 | 卡片被拒后说「调整一下再试」，却没再调就结束 | 通用 G4 第 2 轮 | 拿不准 | 被拒的原因是 `{"item"}`（设计问题）；被拒之后说了要再试却以文字结束，和 §6.0e 那条「说了要调却没调」同类，没有对照分不开 | 不改。按 §11 不加「说了要调就要调」一类的措辞 |
 | 没找就猜了一个能力身份，`input` 写成 `"{}"` | 带类型 G2 第 3 轮 | 模型能力 | 第一次调用在 `find-capabilities` 之前，这时还没有可声明的能力；目录里也没有这个身份，这次调用不会成；之后它先找再做，结果对 | 不改 |
@@ -1255,6 +1255,157 @@ Molis 这边：
 - 未验证：
   - 只量了 Todo 的动作和这四种写法。别的插件 schema 更大，一轮找到很多能力时会碰到 24 KiB 的上限，最早找到的就不再声明，那时的写法没有量过。
   - 缓存断开的花费是这一个模型、这一种提示结构上的数。要省它，得让声明在一轮里少变（比如找到后一次给齐），那是另一片，要先看真实的轮次分布。
+
+后续：上面「不在这一片」的纠正已由用户定（2026-10-16）全删，见 §6.0g；删后的同一组评测与按 §11 的分类也记在 §6.0g。
+
+### 6.0g 网关不再替模型改形状（2026-10-16）
+
+§6.0f「不在这一片」的那几段纠正，用户弹窗定（2026-10-16）：这一片做，叠在 #615 上；还没 `find-capabilities`、`input` 仍是通用参数时也一律不纠正，按合同拒；`normalizedInput` 里另两处同类的一起删。
+
+- **删掉的**（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）：
+  - `coerced`：写成文字的数和布尔（`"1"`、`"true"`）不再改成数和布尔；
+  - `input` 写成 JSON 字符串（含二次编码）不再解开；
+  - 纯文本不再当成唯一必填文本字段的值，空白文字不再当成 `{}`；
+  - `parseCapability` 不再把写在身份旁边的字段并进 `input`。
+- **现在**：能力收到的就是模型写的 `input`（`capabilityInput`）。只有一处不是纠正：`input` 整个没给、合同要对象时是 `{}`，因为工具登记里 `input` 本来可省。写错的由能力合同判，在审查之前拒绝（`gatewayProblem`），回给模型的照旧是合同、出错位置上它写的值和整份 `input_schema`；建议卡（`suggest-action`）同样经合同拒，不记卡。写在身份旁边的字段不悄悄丢掉（丢了可能拿空的 `input` 跑出错的结果），也按合同拒，说明是哪几个字段。按钮自己的字（`title`、`summary`、`editable`、`missing`）照旧不算。
+- 找之前和找之后同一套：评测里唯一一次找之前要纠正的调用，猜的是目录里没有的身份，本来就会被拒（§6.0f 表最后一行）。
+- 每轮动作工具那份 `suggest` 工具（`prologue-action-tools.ts`）用同一个 `capabilityInput`，也不再纠正；它要建议的那几个动作工具，形状本来就完整声明在请求里。
+- 测试（行为有意改变，不是放宽）：`tests/assistant-business-gateway.test.ts` 里原来断言「按它的意思收下」的五条，改成断言被合同拒、拒绝里带合同或出错位置，改对之后照常审查、出卡或读到；§6.0f 那条 `input: ""` 的读取现在先被拒、再用 `{}` 读到。`tests/issue-assistant-repair-page.e2e.test.ts`（ISSUE-25、ISSUE-34）回放的正是写在身份旁边的那次 MiniMax 失误，不用改，照样通过。
+
+**真实模型小评测**（用 §6.0f 同一份夹具，MiniMax 按授权不再弹窗问）。记录按手册 16.3 的格式，没变好的按 §11 分类。
+
+```text
+改动：助理网关删去为模型写错形状做的纠正（字符串数与布尔、JSON 字符串、纯文本当字段、空白当 {}、写在身份旁边的字段）
+要解决的问题：§6.0f 带上类型后纠正几乎不再用到（30 次调用 1 次，且在找之前）；纠正留着就是替模型猜，形状错了模型看不到
+环境：每轮一个临时 Home；MiniMax / MiniMax-M3，接口 anthropic-messages（api.minimax.cn/anthropic）；2026-10-16
+任务：§6.0f 的 G1–G4，同一份夹具（真实 Todo 动作，审查一律批准）
+次数：每个任务 3 次。对照是 §6.0f 的带类型组（同一模型、同一夹具，纠正还在）
+结果：11/12（G4 第 1 轮没出卡片，这一轮没有调用网关）；§6.0f 带类型组 12/12
+网关调用：35 次，全部发在已声明类型的请求里；按旧纠正算要纠正的 2 次（同一轮里一模一样的两次），被合同拒 2 次（就是这两次）；
+  §6.0f 带类型组 30 次、要纠正 1 次、被拒 0 次
+成本与时延：12 轮合计 172 秒、未缓存输入 232,398 token、缓存读 432,163、输出 7,782；§6.0f 带类型组 148 秒、226,822、436,999、6,707
+没变好的：见下表
+结论与未验证：只在这四个任务、这一个模型上成立。找过的能力带上类型之后，删掉纠正没有让结果变错：唯一一次本来会被纠正的写法被合同拒，模型换成单件修改做对了，没有错写或多写
+```
+
+- 夹具：评测文件同 §6.0f，留在统筹共享笔记里；网关不再导出 `normalizedInput`，「要纠正」改用评测文件里内联的一份旧纠正来判，只用来计数。
+
+| 失误 | 出现在 | 分类 | 依据 | 处理 |
+| --- | --- | --- | --- | --- |
+| 已声明为整数的 `shift_days` 写成 `"2"`（`todo.items.batch` 的 `change`，`oneOf` 里的一支） | G2 第 3 轮，两次 | 模型能力 | 这次请求里这一支的类型是声明了的；发在已声明请求里的调用，§6.0f 的 29 次和这次的另外 33 次都按类型写，只有这一轮写错 | 不改。旧的 `coerced` 会改回来；现在被合同拒，在任何效果之前 |
+| 被拒后原样重发一次，再改成三次单件修改 | G2 第 3 轮 | 拿不准 | 拒绝里有 `/change/shift_days type`，但夹在 `oneOf` 各支的 11 条错误里，「出错位置」取的是第一条 `/change`，给的是整个 `change` 对象；没有对照分不开是说明不够清楚还是模型能力。结果对，撤销要三次（§6.0f 通用组同类） | 不改（一次，不成模式）。写进未验证 |
+| 说「按钮准备好了」却没调 `suggest-action`，`ask-user` 的选项格式不对被拒，这一轮停在第二次 `ask-user` | G4 第 1 轮 | 模型能力 | 这一轮一次网关调用都没有，和删掉的纠正无关；选项格式是 `ask-user` 自己的合同。§6.0f 通用组也有一次「没出卡片」 | 不改。说做了却没做的那一句见未验证 |
+
+- 其余 10 轮（G1 三轮、G2 第 1、2 轮、G3 三轮、G4 第 2、3 轮）结果对，网关调用没有失误、没有被拒，不需要分类。
+
+- 未验证：
+  - 拒绝的「出错位置」对 `oneOf` 取第一条路径，这时指的是外层对象而不是真正写错的字段。只见过一次，没有量过换成最深那条路径会不会让模型一次改对。
+  - G4 第 1 轮的回复说按钮已准备好，实际没有卡片。停止检查（`ensureStopGuard`）拦「说改了却没有成功的改动」，这一轮停在 `ask-user` 上、说的是卡片不是改动，没有拦到。会不会误导用户、要不要由工程层核对（有没有记下的卡），是另一片，要统筹定。
+  - 别的插件的 schema 更大，一轮找到很多能力时超出 24 KiB 的那些不再声明，那时模型写错的会直接被拒，没有量过。
+
+### 6.0h A5：补 §6.0b 第 2、5 项缺的证据（2026-10-17）
+
+只加用例，没有改源码。两条在 main `6696a15be` 上都直接通过，说明实现本来就对，缺的只是证据。
+
+- **第 2 项（PPT 零派出）**：`tests/action-before-effect.test.ts` 的撤权、停用、取消循环加上 PPT（`ppt.outline_ai`）。断言与另外五个插件相同：`dispatched === 0`、库不变、恢复后能写。把构建产物里 PPT 传给模型口的 `beforeDispatch` 去掉，三条都变红；还原后通过。
+- **第 5 项（修改回执不被微压缩）**：`tests/assistant-business-gateway.test.ts` 加一条请求级用例。用真实网关与助理，先经审批做一次修改（回执 800 多字节），再读五次（每次也是 800 多字节），然后看最后一次请求：
+  - 第一次读的结果被换成了 `[observation compacted: read-capability …]`，说明压缩确实跑了；
+  - 修改回执原样都在。它在请求里的位置比第一次读还早，所以留下来只能是因为效果种类（`mutate-external` 不可重读）。
+  - SDK 默认的压缩档是保留最近 4 轮工具、小于 512 字节的不收，Molis 没改。
+  - 试过把构建产物里 `change-capability` 改成 `safe-read`：那样改连审批都跳过了，这条是等审批超时而失败，不是因为回执断言，所以不算证明。区分靠的是上面那一组对照。
+
+### 6.0i P4-C1：协调者带板工具；Coding 一半里留下的几样（2026-10-17）
+
+**统筹 10-17 定 A**（§6.0d「留到后面的」第 1 条）：Coding 的协调者角色（`coordinator`，`plugins/native/coding/src/roles.ts`，版本 13 → 14）加上 `board-read`、`board-report`。理由：孩子拿到的工具不会比父亲多（SDK T12），协调者没有板工具，它让出给的孩子就报不了交给自己的那一步，父亲那一步的等待总是 `failed`，照样往下走。
+
+- 孩子的角色（`coding-reader`、`coding-reviewer`）和所有提示词都没改：SDK 给绑了步骤的孩子补上父亲有的这两个工具，宿主的子角色工具名单不用动。
+- 边界还是宿主的板钩子（`prologue-taskboard.ts`）：只读本项目的板，只报自己持有的步骤。
+- 用例 `tests/coding-coordinator-board.test.ts`（夹具模型，只引包名）。第一条（PA-11 的切片）证明三件事：
+  - 让出的孩子报了自己那一步，父亲的等待 `satisfied`，接续 `eligible`；下一轮再报那一步，回 `TASKBOARD_CONFLICT`（已经结束）；
+  - 读、报别的项目的板，被钩子拒（「只能读取或回报本项目的任务图」）；
+  - 报同项目另一个会话持有的步骤，回 `TASKBOARD_NOT_ASSIGNED`，那个会话的计划没变。
+- 第一条在 main 上是红的：协调者那一轮直接失败。
+- `prologue-adoption-guard` 里 PA-23 那条的注释改成指向这条用例，断言没变：那个孩子只回答、不报步骤，等待照旧 `failed`。
+- 顺带的变化：`STEP_TOOLS` 这道检查现在对协调者也通过了。人选「协作」又带着确认过的计划开跑时，以前宿主拒（「当前角色未开放计划回报工具」），现在照计划跑。统筹 10-17 要求补断言：同一文件第二条（PA-09 的计划部分），协调者带两步计划开跑，不被拒，计划的两步都归本会话，按顺序报 `running`、`succeeded`。协调者去掉板工具时，这一条以那句拒绝失败。
+
+**§4.6.9 里 Coding 那一行，这一片核过以后留下的**（理由逐条写在这里，不留第二份实现，也不加兼容）：
+
+| 项 | 现在 | 为什么不删 |
+| --- | --- | --- |
+| `following` 去抖 steer（`prologue-taskboard.ts`） | 别人改了这一跑计划里的某一步（子任务回报、交回），停 1.5 秒后给这一跑发一句「任务图有更新」 | SDK 的接续只把「等待的结果」交给活着的那一跑，子任务写回只交最终报告（`describeSubagentReport` 里没有步骤和交回）；板上步骤的变化 SDK 不送。`coding-step-claims` 断言了这句话。要删得先开一刀 Prologue，让板上的变化在模型边界交给持有者 |
+| 2 小时认领过期（`CLAIM_EXPIRES_MS`） | 持有步骤的会话没有在跑、两小时没动静，就标「认领已过期」，什么也不收回 | 计划的步骤上没有等待：一跑绑的是会话那一块，不是计划的步骤，所以「代次与等待期限」在这里没有可读的。这条只改显示，规则是人定的。没有用例，列在下面「未验证」 |
+| `last-start:<会话>` | 那一轮开跑时的方式（intent、模型、思考强度、目录、actor、原任务） | P3a 定了接续由 Coding 自己用请求键起跑（§4.6.10「接续起跑」）。下一轮要按同样的方式开，这些是 Coding 自己的请求内容；Run 视图冻结的开跑记录（`AgentFrozenStart`）是宿主那一半：有角色和 `model_id`，没有 intent、provider、工作区编号、actor 和 `origin_task`。不新增动作 |
+| `wake-note:<等待>` | 只存「自动开始没成功：<原因>」 | 接续的 `control` 只有 `cancel-wait`、`continue-now`，没有地方记「起跑失败的原因」。C2 给 `control` 补 `retry`、`resolve-reconciliation` 时再看能不能记在接续上；被拒的开跑照旧不写 |
+| 内存 `busy` / `waking` | 会话正在接收发送时不接接续；一个 runtime 一个叫醒循环 | 进程里的并发闸，不是事实；P3a 定了起跑归 Coding，叫醒循环本身留着 |
+
+§4.6.9 写的「删除，改读等待与接续视图」，前提是宿主起跑接续；P3a 改成了 Coding 自己起跑。以 P3a 为准。
+
+**真实模型实走**（MiniMax，按授权不再弹窗问；评测文件没入库，留在本会话的草稿里）：
+
+```text
+改动：Coding 协调者带 board-read / board-report，让出的孩子能报自己那一步
+要解决的问题：让出给孩子以后，父亲那一步的等待总是 failed
+环境：每轮一个临时 Home，跑完即删；MiniMax / MiniMax-M3，anthropic-messages（api.minimax.cn/anthropic）；2026-10-17
+任务：协调者，「派一个代码调查子任务去读 README.md，数一下它有几个二级标题。派出去以后你这一轮就收工、把这一步交给它，不要自己去读；等它做完再接着告诉我结果。」（README 有 3 个二级标题）；审查一律批准；等待满足、接续 eligible 时开下一轮「接着做。」
+次数：7
+结果：7/7 答对（3 个，列出 Install / Use / License）；7 次孩子都调了 board-report 报自己那一步（让出的 2 次报成了，等待因此满足；前台的 5 次没核对回报的结果）
+让出：2/7 带 yield（第 1 次、第 4 次）：等待 satisfied、接续 eligible，下一轮直接用孩子的结果作答；其余 5 次是前台派出（没带 yield、background），同一轮里拿到孩子的报告作答，没有等待
+结论与未验证：让出时这一决定按设计工作（2/2）；模型多数时候不让出，见下表
+```
+
+| 失误 | 出现在 | 分类 | 依据 | 处理 |
+| --- | --- | --- | --- | --- |
+| 人说了「这一轮就收工、把这一步交给它」，却前台派出、同一轮等结果 | 7 次里 5 次 | 拿不准 | 协调者的提示词（`coding-coordinator` v5）没讲什么时候让出，只有工具说明里有 `yield`；分不清是提示词没写还是模型没照着人的话做。结果没有错 | 不改提示词、不加规则（§11）；要不要在协调者提示词里写让出，交 AI 手册线 |
+| 第一次派出把 `tools` 写成对象，被拒后改对 | 第 5 次 | 模型能力 | 合同按 schema 拒，拒绝里有位置，模型下一次写对 | 不处理 |
+
+- 未验证：
+  - 认领过期的显示没有用例（上表第 2 行）。
+  - 「人选协作并带计划」没在页面上走过（只有上面第二条非浏览器用例）。
+  - 让出之后等很久（几小时）、宿主中途重启再接续，这一片没量。
+
+### 6.0j P4-C2：人改计划走协作合同（2026-10-17）
+
+人在任务图上改一轮的计划，从 typed 能力 `agent.run.step-board.amend.v1` 换成动作 `agent.collaboration.revise.v1`（§4.6.9「动作」一段）。阶段一不留兼容：旧 id 不留别名，typed 条目 `agentHostCapabilities.amendStepBoard`、Host 的注册与 `AgentRuntimeAdapter.amendStepBoard` 同一刀删掉（health 的 typed 能力位点 190→187）。
+
+- **合同**（`packages/contracts/src/services/agent-collaboration.ts`）：
+  - 新动作 `agent.collaboration.revise.v1`，版本 1：`kind: operation`，`operation: command`，`effect: write`，只给插件。
+  - 输入：`runtime_id`、`session_id`、`run_id`、`amendment`、`expected_version`（整数，≥1）。`amendment` 用 `oneOf` 列出现有的六种修订，每种只收自己的字段：步骤引用写成 `step-N` / `user-N`，文字非空、有上限，和 Coding 页面的检查一致。
+  - 输出：`{ board }`。
+  - actor、项目、安装都从调用上下文来：actor 是调用的插件的 actor，读不到时用会话的主人，和旧能力一样。
+  - `AgentCollaborationPort` 加 `revise(run, amendment, expectedVersion, actorId)`。
+- **宿主**：
+  - `session-actions.ts` 注册这个动作：先核这一轮属于这个会话、会话属于调用方的项目和插件，提交前再确认调用仍然有效，被取消、撤权的调用什么都不改。
+  - 适配器的 `collaboration.revise` 沿用原来那段检查：一轮结束以后，只有它还是会话里最新的计划轮、计划图也没结束，才能改。
+  - Node 组合里，`revise` 由计划步骤那一块（`stepBoards.amend`）提供，等待那一块不管它。
+- **Coding**：`coding.plan-amendments` 路由改调这个动作；页面上的检查和「告诉正在跑的那一轮」都不变。
+- **同一刀没做的**（§4.6.9 写过；这一刀不做，理由是现在没有调用方，加了就是没人用的合同）：
+  - `control` 的 `retry`、`resolve-reconciliation`：接续停下等人的三种情况（`blocked`、`needs-reconciliation`、`eligible` 但不自动），页面现在都只给「现在开始，或取消等待」，走的是已有的 `continue-now`、`cancel-wait`。没有「重新试」「核对后继续」这样的按钮要接。
+  - `revise` 的「取消节点」「重试节点」：现有六种修订里，「跳过」已经是取消；失败步骤的重试，页面上没有入口。
+  - 以后页面要这几样时，再按 §4.6.9 加进这两个动作，同时升 `version`。
+- **用例**：
+  - `tests/agent-collaboration-revise.test.ts`（新，只引包名）：
+    - 动作只给插件，schema 在任何处理之前拒掉写错形状的修订（坏引用、空白原因、不认识的种类、错的方向、`mine: false`、多出的字段、版本 0 或小数、带 `actor_id`、缺版本），六种都能通过；
+    - typed 的修订已经不在了；
+    - 修订带着人的改动、看到的版本和调用插件的 actor 交给那一轮；
+    - 被取消、被撤权的调用，以及别的会话的轮次，都不改任何东西。
+  - 改用新路径的：`coding-plan-amend-http`（路由经动作目录调 `revise`）、`prologue-step-amend`、`prologue-project-board`、`coding-step-claims`、`coding-runtime-regressions`。断言没变，只换了调用的入口，并把原来省掉的 actor 写成 `"user"`。
+- **快照**：
+  - `pnpm api:update` 改了 `contracts/services/agent-collaboration`（加了动作、类型和端口方法）和 `contracts/services/agent-host`（去掉了 `amendStepBoard`）；
+  - `pnpm actions:update` 在宿主登记的动作里加了 `agent.collaboration.revise.v1@1`。
+- **换包**（用户 10-17 弹窗同意并进采用线下一次换包；统筹定随 P4 第一个改合同的片）：
+  - vendored SDK 从 parameter-branches（`4e8468dd`）换成 reference-kinds：上游 main `c673238e`（[Prologue #33](https://github.com/molis-ai/prologue/pull/33) 的合并：统筹经用户弹窗同意后合入，树与评审过的 head `a579bfea` 相同），干净 `git archive` 打两次，逐字节相同（1,190,630 字节，SHA-256 `585909b1…`）。
+  - #33：App 可以在 `config.tool.askUserReferenceKinds` 列出对象引用题能要的种类，配了 `refKinds` 就是这几个名字的 `enum`，名单外的打开等待前就失败；不配时与原来逐字相同。Molis 这一刀只换包、不配名单，名单由交互线 T2 接上。
+  - 验证：同一棵树上 SDK 全量 355 个文件，3949 条通过、21 条跳过、0 条失败（未跑 `desktop-computer-use.live`）；13 个消费者脚本在新包上全过。
+  - 旧包和它的 `.sha256`、`.provenance.json` 删掉，记进 `patch-history.json` 的 `packagesWithoutPatch`（第 21 个），`upstream.commitsChecked` 加上 `c673238e`，逐项核对过：除三个已换掉的过渡包来源以外，都是 main 祖先。
+- **对调用方的影响**：
+  - 仓库里唯一的调用方是 Coding 的计划调整路由，同一刀改完；
+  - 工作流程步骤、绑定、MCP 工具名、Skill 都没有点名过旧能力；
+  - Coding 的 Manifest 按 `agentCollaborationActions` 全部列出，自动包含新动作。
+- **验证**（变基到 main `04ab0216` 之后）：
+  - `pnpm build` 通过；`affected-tests` 选的非浏览器用例，加上 vendor-provenance、S-13 `prologue-memory-boundary`、PA-12 `prologue-tool-declaration`、问卷两条与 `coding-coordinator-board`，146 个文件全过；
+  - `pnpm test:security` 58/58（S-13 在新包上再过一次）；`pnpm test:contracts` 44 个文件里 43 个一次过，`action-gateway` 的「production stdio」一条在机器满载时超了 20 秒时限，单独重跑 13/13 过、那条 1.8 秒；
+  - `check-health-gates --base origin/main`、`boundary:check`、`verify-release-versions`、`page-assets --base origin/main` 都过：typed 能力位点 190→187，页面资源逐项不变。
+- **未验证**：浏览器用例交给全量（统筹 10-17 定）；全量由统筹跑。
 
 ### 6.1 当前记录
 
@@ -1526,6 +1677,10 @@ A0 执行记录（下列历史方案记录之后继续）：
 | 第 14 项留到 P4 | 对账时不动 main 上的助理交回与续做，改造清单在 §7.5 | 改它要有统一协作合同（P3），现在动只能写兼容 |
 | 统筹 10-16 | 外部等待的 `molis.action-query` 也拒声明了 `model:invoke` 的只读查询，码同判断（`agent.collaboration_check_not_read`）；按动作声明的权限判断，不另写名单 | 检查器反复去看，每看一次调一次模型，花费无界、结果不确定；§4.6.9 已写检查器不得调用模型，spec 不自相矛盾；拒绝要有自己的用例（S-27） |
 | 统筹 10-16（B） | `molis.action-query@1` 只收动作工具名 `tool`；名字到精确引用的表由 `prologue-action-tools.ts` 的 `actionToolRefs` 在 `remember()` 时建，检查器不算哈希 | 模型看不到精确引用；改所有角色的工具描述（A）比这一片宽，什么都不改（C）检查器就用不上 |
+| 用户 10-16（§6.0g） | 助理网关为模型写错形状做的纠正全删：写成文字的数和布尔、JSON 字符串解码、纯文本当唯一文本字段、空白当 `{}`、写在身份旁边的字段；`find-capabilities` 之前也不另留路径，同样由能力合同在审查前拒绝，错误里写明哪个字段不对，让模型自己重发。只留 `input` 整个没给时对象合同得 `{}` | 带上类型后 30 次调用只有 1 次要纠正，且在找之前、本来就会被拒（§6.0f）；纠正是替模型猜，形状错了模型看不到，按 §11 不为模型能力打补丁 |
+| 统筹 10-17 定 A（§6.0i） | Coding 协调者角色加 `board-read`、`board-report`，孩子由 SDK 按 T12 继承；孩子角色与提示词不变 | 让出的孩子报不了自己那一步，父亲的等待总是失败；宿主的板钩子已经只许读本项目、只报自己持有的步骤 |
+| 统筹 10-17（§6.0j） | 人改计划从 typed `agent.run.step-board.amend.v1` 换成动作 `agent.collaboration.revise.v1`，旧的同一刀删掉；`control` 的 `retry`、`resolve-reconciliation` 与 `revise` 的取消/重试节点这一刀不做 | 阶段一不留兼容；那几样现在没有调用方，加了就是没人用的合同，页面要时再加并升 `version` |
+| 用户 10-17（§6.0j） | 换成从 Prologue main `c673238e`（#33）打的 reference-kinds 包，并进 P4 第一个改合同的片，不单独换 | 一次换包、一次 Molis 验证；Molis 这一刀不配名单，行为不变 |
 
 ### 7.8 工作规则
 

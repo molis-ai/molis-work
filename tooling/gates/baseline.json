@@ -63,12 +63,12 @@
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 968,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 967,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
       "lines": 603,
       "methods": 18
     },
-    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 372,
+    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 363,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
       "lines": 382,
       "methods": 12
@@ -96,9 +96,9 @@
       "lines": 501,
       "methods": 16
     },
-    "file modules/functions/src/store.ts": 939,
+    "file modules/functions/src/store.ts": 937,
     "class modules/functions/src/store.ts#FunctionsStore": {
-      "lines": 336,
+      "lines": 331,
       "methods": 22
     },
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
@@ -198,7 +198,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1639,
+    "file plugins/native/coding/src/client.ts": 1638,
     "file plugins/native/coding/src/styles.ts": 828,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
@@ -779,7 +779,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 190,
+  "typedCapabilitiesTotal": 187,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 10,
     "apps/local-host/src/local-host.ts#type-refs": 5,
@@ -789,7 +789,7 @@
     "apps/local-host/src/project-host.ts#type-refs": 1,
     "apps/local-host/src/project-host.ts#register-calls": 1,
     "horizontal/agent-host/src/capability-registration.ts#type-refs": 2,
-    "horizontal/agent-host/src/capability-registration.ts#register-calls": 39,
+    "horizontal/agent-host/src/capability-registration.ts#register-calls": 38,
     "horizontal/scheduler/src/index.ts#type-refs": 1,
     "horizontal/scheduler/src/index.ts#register-calls": 4,
     "packages/contracts/src/modules/workspace-artifacts.ts#type-refs": 8,
@@ -797,8 +797,8 @@
     "packages/contracts/src/platform/actions.ts#type-refs": 1,
     "packages/contracts/src/platform/app-host.ts#type-refs": 4,
     "packages/contracts/src/platform/plugin.ts#type-refs": 1,
-    "packages/contracts/src/services/agent-host.ts#type-refs": 39,
-    "packages/contracts/src/services/agent-host.ts#without-action": 39,
+    "packages/contracts/src/services/agent-host.ts#type-refs": 38,
+    "packages/contracts/src/services/agent-host.ts#without-action": 38,
     "packages/contracts/src/services/scheduler.ts#type-refs": 4,
     "packages/contracts/src/services/scheduler.ts#without-action": 4,
     "packages/kernel/src/action-service.ts#register-calls": 1,
@@ -1253,7 +1253,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 515,
+  "explicitAnyTotal": 514,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1309,7 +1309,6 @@
     "tests/coding-history-summary-http.test.ts": 4,
     "tests/coding-materials-http.test.ts": 3,
     "tests/coding-message-wait.test.ts": 3,
-    "tests/coding-plan-amend-http.test.ts": 1,
     "tests/coding-plan-dependencies.test.ts": 1,
     "tests/coding-plans-http.test.ts": 11,
     "tests/coding-product-http.test.ts": 1,

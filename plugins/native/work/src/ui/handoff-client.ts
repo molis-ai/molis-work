@@ -36,6 +36,8 @@ export const WORK_HANDOFF_CLIENT = `
     if (handoffCancel) handoffCancel.disabled = !handoffPackageId || busy || !handoffCancellable;
     if (handoffSend) handoffSend.disabled = !editable || !handoffConfirm?.checked;
   };
+  const setBusy = (on) => { if (handoffDialog) handoffDialog.dataset.handoffBusy = String(on); updateHandoffForm(); };
+  const failed = (error) => showDialogStatus(handoffStatus, error instanceof Error ? error.message : String(error), true);
   const applyHandoffPayload = (payload) => {
     const handoff = payload?.handoff;
     if (!handoff) return;
@@ -76,8 +78,7 @@ export const WORK_HANDOFF_CLIENT = `
     if (handoffContent) handoffContent.value = "";
     if (handoffStatus) handoffStatus.hidden = true;
     if (handoffState) handoffState.textContent = L("正在生成");
-    if (handoffDialog) handoffDialog.dataset.handoffBusy = "true";
-    updateHandoffForm();
+    setBusy(true);
     handoffDialog?.showModal();
     showDialogStatus(handoffStatus, L("正在读取当前 Goal Contract 和最小 Session 上下文..."), false);
     try {
@@ -90,20 +91,17 @@ export const WORK_HANDOFF_CLIENT = `
         }),
       }));
       applyHandoffPayload(payload);
-      showDialogStatus(handoffStatus, payload.handoff?.state === "sending"
-        ? L("另一条发送请求仍在执行。Molis Work 已锁定这份 package，完成或租约过期后再刷新。")
-        : payload.handoff?.state === "failed" && payload.handoff?.retryable === false
-          ? L("上次失败不能安全重试。请取消这次 Handoff 后重新创建。")
-          : payload.reused
-            ? L("已恢复上次未发送的 package。修改后可保存或继续发送。")
-            : L("package 已生成但尚未发送。请审阅目标组合和正文。"), false);
+      const h = payload.handoff || {};
+      showDialogStatus(handoffStatus, h.state === "sending" ? L("另一条发送请求仍在执行。Molis Work 已锁定这份 package，完成或租约过期后再刷新。")
+        : h.state === "failed" && h.retryable === false ? L("上次失败不能安全重试。请取消这次 Handoff 后重新创建。")
+        : h.error_code === "work.handoff.interrupted" ? L("上次发送没有确认结束，目标可能已收到；请先查看目标 Session。")
+        : payload.reused ? L("已恢复上次未发送的 package。修改后可保存或继续发送。") : L("package 已生成但尚未发送。请审阅目标组合和正文。"), false);
       handoffContent?.focus();
     } catch (error) {
-      showDialogStatus(handoffStatus, error instanceof Error ? error.message : String(error), true);
+      failed(error);
       if (handoffState) handoffState.textContent = L("生成失败");
     } finally {
-      if (handoffDialog) handoffDialog.dataset.handoffBusy = "false";
-      updateHandoffForm();
+      setBusy(false);
     }
   }));
   handoffRuntime?.addEventListener("change", updateHandoffForm);
@@ -112,8 +110,7 @@ export const WORK_HANDOFF_CLIENT = `
   handoffConfirm?.addEventListener("change", updateHandoffForm);
   handoffSave?.addEventListener("click", async () => {
     if (!handoffPackageId) return;
-    if (handoffDialog) handoffDialog.dataset.handoffBusy = "true";
-    updateHandoffForm();
+    setBusy(true);
     showDialogStatus(handoffStatus, L("正在保存草稿..."), false);
     try {
       const payload = await parseActionResponse(await fetch(route("/api/session-handoffs/" + encodeURIComponent(handoffPackageId)), {
@@ -124,16 +121,14 @@ export const WORK_HANDOFF_CLIENT = `
       applyHandoffPayload(payload);
       showDialogStatus(handoffStatus, L("草稿已保存在本机；尚未创建或联系目标 Runtime。"), false);
     } catch (error) {
-      showDialogStatus(handoffStatus, error instanceof Error ? error.message : String(error), true);
+      failed(error);
     } finally {
-      if (handoffDialog) handoffDialog.dataset.handoffBusy = "false";
-      updateHandoffForm();
+      setBusy(false);
     }
   });
   handoffCancel?.addEventListener("click", async () => {
     if (!handoffPackageId) return;
-    if (handoffDialog) handoffDialog.dataset.handoffBusy = "true";
-    updateHandoffForm();
+    setBusy(true);
     try {
       await parseActionResponse(await fetch(route("/api/session-handoffs/" + encodeURIComponent(handoffPackageId) + "/cancel"), {
         method: "POST",
@@ -143,17 +138,15 @@ export const WORK_HANDOFF_CLIENT = `
       handoffDialog?.close();
       showToast(L("这次 Handoff 已取消，没有创建目标 Session。"));
     } catch (error) {
-      showDialogStatus(handoffStatus, error instanceof Error ? error.message : String(error), true);
+      failed(error);
     } finally {
-      if (handoffDialog) handoffDialog.dataset.handoffBusy = "false";
-      updateHandoffForm();
+      setBusy(false);
     }
   });
   handoffForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!handoffPackageId || !handoffConfirm?.checked) return;
-    if (handoffDialog) handoffDialog.dataset.handoffBusy = "true";
-    updateHandoffForm();
+    setBusy(true);
     showDialogStatus(handoffStatus, handoffTargetLocked
       ? L("正在把修改后的 package 补发到已经创建的目标 Session...")
       : L("正在创建新的目标 Session 并发送 package..."), false);
@@ -172,15 +165,12 @@ export const WORK_HANDOFF_CLIENT = `
       handoffDialog?.close();
       location.reload();
     } catch (error) {
-      showDialogStatus(handoffStatus, error instanceof Error ? error.message : String(error), true);
+      failed(error);
       if (handoffState) handoffState.textContent = L("等待重试");
       if (handoffSend) handoffSend.textContent = L("重试发送");
     } finally {
-      if (handoffDialog) handoffDialog.dataset.handoffBusy = "false";
-      updateHandoffForm();
+      setBusy(false);
     }
   });
-
-  
 }
 `;

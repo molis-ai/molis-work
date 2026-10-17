@@ -145,7 +145,7 @@ test("a real inserted SDK step and its verdict are saved in a fixed report that 
   const finished = settle(fixture, execution);
   await Promise.race([entered.promise, finished.then(() => { throw new Error("SDK execution ended before the insertion barrier"); })]);
   const initial = (await fixture.adapter.read(execution)).step_board!;
-  await fixture.adapter.amendStepBoard!(execution, { kind: "insert", after: "step-1", title: "Inserted test", acceptance: "New evidence is recorded" }, initial.version);
+  await fixture.adapter.collaboration!.revise(execution, { kind: "insert", after: "step-1", title: "Inserted test", acceptance: "New evidence is recorded" }, initial.version, "user");
   release.resolve(); await finished;
   const board = (await fixture.adapter.read(execution)).step_board!;
   assert.deepEqual(board.nodes.map(node => [node.id, node.state]), [["step-1", "succeeded"], ["user-1", "succeeded"]]);

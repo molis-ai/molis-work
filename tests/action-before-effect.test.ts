@@ -11,10 +11,11 @@ import { datasetActions, DATASET_ACTION_PERMISSIONS, openDatasetStore } from "@m
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesActions, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { cogniaActions, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { pptActions, PPT_ACTION_PERMISSIONS, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 
-const permissions = [...FORM_ACTION_PERMISSIONS, ...DATASET_ACTION_PERMISSIONS, ...LINGGUANG_ACTION_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS, ...COGNIA_ACTION_PERMISSIONS];
+const permissions = [...FORM_ACTION_PERMISSIONS, ...DATASET_ACTION_PERMISSIONS, ...LINGGUANG_ACTION_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS, ...COGNIA_ACTION_PERMISSIONS, ...PPT_ACTION_PERMISSIONS];
 const caller: ActionCallContext = { actor_id: "owner", audience: "user", project_id: "a", permissions };
 const gate = () => Promise.withResolvers<void>();
 const waitForModel = (entered: Promise<void>, pending: Promise<unknown>) => Promise.race([
@@ -85,9 +86,9 @@ test("typed Action handlers retain the Host Runtime and share the same live effe
   } finally { release.resolve(); await host.close(); }
 });
 
-type Kind = "form" | "dataset" | "lingguang" | "pages" | "cognia";
-const actions = { form: formActions.draft, dataset: datasetActions.generateAi, lingguang: lingguangActions.message, pages: pagesActions.generate, cognia: cogniaActions.synthesize };
-const output = { form: JSON.stringify({ status: "done", questions: [{ title: "A generated question", type: "text" }] }), dataset: "Generated column", lingguang: "A considered reply", pages: "A research draft with source boundaries.", cognia: "# Evidence\nA finding [S1]" };
+type Kind = "form" | "dataset" | "lingguang" | "pages" | "cognia" | "ppt";
+const actions = { form: formActions.draft, dataset: datasetActions.generateAi, lingguang: lingguangActions.message, pages: pagesActions.generate, cognia: cogniaActions.synthesize, ppt: pptActions.outlineAi };
+const output = { form: JSON.stringify({ status: "done", questions: [{ title: "A generated question", type: "text" }] }), dataset: "Generated column", lingguang: "A considered reply", pages: "A research draft with source boundaries.", cognia: "# Evidence\nA finding [S1]", ppt: "# Deck\n## A generated slide\n- A point" };
 
 async function prepare(kind: Kind, client: ReturnType<typeof bindActionClient>): Promise<Record<string, unknown>> {
   if (kind === "form") return { id: (await client.invoke(formActions.create, { title: "Original" })).form.id, prompt: "A question" };
@@ -97,6 +98,7 @@ async function prepare(kind: Kind, client: ReturnType<typeof bindActionClient>):
     const state = await client.invoke(lingguangActions.openConversation, { spark_ids: [spark.id] });
     return { id: state.conversation.id, body: "Explore this thought" };
   }
+  if (kind === "ppt") return { id: (await client.invoke(pptActions.create, { title: "Original" })).presentation.id, text: "Points to outline" };
   if (kind === "cognia") return { material_ids: [(await client.invoke(cogniaActions.createMaterial, { title: "Original", body: "Evidence" })).material.id] };
   return { request_id: "request-1", request_hash: "hash-1", title: "Research", instructions: "Write a draft", inputs: [{ entry_id: "inbox-1", item_id: "material-1", revision: 1,
     title: "Source", body: "Original evidence", url: null, source_label: "Manual", captured_at: "2026-09-26T00:00:00Z", provenance: [] }] };
@@ -106,11 +108,12 @@ function persisted(home: string, kind: Kind, input: Record<string, unknown>) {
   if (kind === "form") { const store = openFormStore(home); try { return store.get(input.id as string, "a"); } finally { store.close(); } }
   if (kind === "dataset") { const store = openDatasetStore(home); try { return store.get(input.id as string, "a"); } finally { store.close(); } }
   if (kind === "lingguang") { const store = openLingguangStore(home); try { return store.conversation(input.id as string, "a"); } finally { store.close(); } }
+  if (kind === "ppt") { const store = openPptStore(home); try { return store.get(input.id as string, "a"); } finally { store.close(); } }
   if (kind === "cognia") { const store = openCogniaStore(home); try { return { drafts: store.drafts(), materials: store.materials() }; } finally { store.close(); } }
   const store = openPagesStore(home); try { return { documents: store.list("a"), record: store.generation("a", input.request_id as string) }; } finally { store.close(); }
 }
 
-for (const kind of ["form", "dataset", "lingguang", "pages", "cognia"] as const) for (const mode of ["revoked", "disabled", "cancelled"] as const) {
+for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as const) for (const mode of ["revoked", "disabled", "cancelled"] as const) {
   test(`${kind}: ${mode} during model wait prevents all later original SQLite writes and permits authorized recovery`, { timeout: 15_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), `${kind}-effect-`)), entered = gate(), release = gate(); let enabled = true, allowed = true, dispatched = 0;
     // The Host's model port: wait (the runtime being prepared), then the action's own pre-dispatch check, then send.

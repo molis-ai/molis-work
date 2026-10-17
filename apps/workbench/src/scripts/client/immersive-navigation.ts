@@ -204,15 +204,9 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     const viewTab = event.target.closest("[data-goal-view-tab]");
     if (viewTab && frame?.contains(viewTab)) { setView(viewTab.dataset.goalViewTab, true); return; }
     if (event.target.closest("[data-goal-details-toggle]")) setDetails(frame.dataset.detailsOpen !== "true", true);
-    if (event.target.closest("[data-select-goal], [data-operation-select], [data-artifact-select], [data-inbox-row]")) {
+    if (event.target.closest("[data-select-goal], [data-operation-select], [data-inbox-row]")) {
       if (narrow()) setMobileView("document");
       sync();
-    }
-    if (event.target.closest("[data-immersive-theme]")) {
-      const theme = document.documentElement.dataset.resolvedTheme === "dark" ? "light" : "dark";
-      localStorage.setItem("molis-work:theme", theme);
-      // The existing theme owner reacts to storage changes across surfaces.
-      window.dispatchEvent(new StorageEvent("storage", { key: "molis-work:theme", newValue: theme }));
     }
   });
   // The plugin list is one Tab stop: the current plugin is tabbable, arrows move between plugins. Each plugin's two buttons

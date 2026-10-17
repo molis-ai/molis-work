@@ -112,6 +112,7 @@ export interface AssistantContextSnapshot {
         truncated?: boolean;
     };
     unsaved?: boolean;
+    landing?: AssistantLanding;
     captured_at: string;
 }
 
@@ -180,6 +181,20 @@ export interface AssistantFollowUp {
 export interface AssistantHandover {
     to: "coding" | "assistant";
     mode?: string;
+}
+
+export interface AssistantLanding {
+    plugin_id: string;
+    object: {
+        kind: string;
+        id: string;
+        title?: string;
+    };
+    position: "cursor" | "selection" | "end" | "object";
+    heading_path?: string[];
+    before?: string;
+    after?: string;
+    selected?: string;
 }
 
 export interface AssistantMaterial {

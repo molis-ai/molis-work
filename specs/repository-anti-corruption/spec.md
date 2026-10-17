@@ -103,7 +103,7 @@ W4-12（2026-10-15，视觉比对工具，#550）：
 - W5-05 第 1 片（删 `quiet-paper`，108 条规则、341 条声明）：仍在决定计算值的只有四处，各并回主人样式表——`body` 的 `text-rendering` 进 `foundation.ts` 的 `body`、`.tui-mode-label` 下划线颜色进 `momentum.ts`、`.goal-more > summary` 与 `.tui-resizer` 线在悬停与键盘焦点时的颜色进 workbench `styles/base.ts`（`.tui-resizer.is-dragging` 拆开、拖动时仍是 `--blue`）；其余声明不是被后面的规则盖掉，就是打在没有标记的类上。三份样式表各少 11,120 B，`page-assets.json` 随之降。证据（每一项都在删之前和删之后两棵树上各量一遍再比）：`pnpm visual:compare` 66 张图、22 份计算样式全 0；另用一个临时探针（不入库）在两棵树上把 quiet-paper 每条选择器碰得到的每个元素、它设的每个属性的计算值记下来再比：11 个面、全部系统设置与项目设置分区、项目规则与规划（经 `molis-work:open-settings-path` 打开）、项目列表、Goal 的 Frame / 文档视图 / 移入回收站对话框、`/goals/<id>`、`/archive`、`/trash`、各个已重定向的旧设置地址，1440 与 390 宽、浅深色、标准与紧凑密度，以及强制 `:hover`、`:focus-visible`、`:focus`、`:active`，共 1,125 个情形、531,841 个值 0 差；进入页（空 Home 的 `/onboarding`，用 arrival 样式表）48 个值 0 差。探针先抓到了第四处（`.tui-resizer` 悬停时会从 `--line-strong` 变成 `--blue`），并回 `base.ts` 后归零。没碰到的：`settings-navigation`、`settings-shell--standalone`（只在独立设置页里，这些地址现在都重定向进工作台）和 Goal 规则编辑器里的 `.policy-*`（`renderPolicyEditor` 的表单在探针走过的所有 Goal 页面上都没有画出来）。
 - W5-05 第 2 片（删 `personal-shell`，78 条规则、312 条声明）：没有一处还在决定计算值，所以整层删掉，没有并进任何主人样式表。三份样式表各少 10,020 B，`page-assets.json` 随之降；巨大单元与其他数字不变。证据叠在第 1 片之上，删之前和删之后两棵树各量一遍再比：`pnpm visual:compare` 66 张图、22 份计算样式全 0；同一个临时探针换成 personal-shell 的选择器，情形与第 1 片相同（1,125 个），4,620 个值 0 差；进入页上没有元素被这些选择器选中。探针碰到的只有 `body[data-desktop-shell="true"]` 下的 `.app`、`.workspace` 与 `.tree-pane`：只有 Goals 页把这个标记写成 `"true"`，设置页写的是 `"false"`；这几个元素的网格、边框和行都被后面的层盖掉了。其余 70 条规则的类在标记里找不到（`personal-sidebar`、`personal-nav-item`、`desktop-project-*` 等，工作台改成统一底栏之后就没人画了）。只有 `.personal-sidebar-footer` 还在源码里出现，它来自 `renderPluginRailAccountFooter`（`apps/workbench/src/settings-directory.ts`），而这个函数没有调用方。
 - W5-05 第 3 片（删 `personal-workbench-v2`，120 条规则、336 条声明）：只有两组还在决定计算值，各挪回主人。① 项目菜单弹层里账户头像的 1px 圈（`inset 0 0 0 1px var(--line-strong)`，只在 761px 以上），挪进 `craft-finish.ts` 的弹层规则，和原来一样只在 `@media (min-width: 761px)` 里生效，单独占一行；同一处弹层里 `.navigator-personal` 原有两条同一选择器的规则（中间只隔着它子元素的规则），合成一条，所以 `craft-finish.ts` 的行数不变（`visual:compare` 的 22 份逐元素计算样式在合并前后 0 差）。② 回收站 Goal 页在桌面宽度下的标题行：间距 12px、隐藏「这条 Goal 已从日常列表移除…」那一句、操作按钮最小高度 28px。三条挪进 Goals 的 `trash-document-styles.ts`，放在已有的 `@media (min-width: 761px)` 桌面块里，选择器限定在 `.trash-goal-document` 之下；`.goal-title-row` 在 markup 里只出现在回收站文档这一处。样式表的降幅：arrival.css 与 settings.css 各少 13,837 B，workbench.css 少 13,558 B（回收站的三条规则只进工作台样式表），`page-assets.json` 随之降。证据（叠在第 2 片之上）：`pnpm visual:compare` 66 张图 0 变化。状态探针测了 1,125 个情形、29,715 个值，挪完以后只剩一类差：账户名下 `small` 的 `align-items`、`row-gap`、`column-gap`（132 个情形）。这个元素在所有情形里删之前、删之后都是 `display: block`，这三个属性对 block 元素不起作用，画面不会变，所以没有把这几条不起作用的声明挪过去。计算样式的比对因此在 22 份里都报这三处，图都是 0 差。删之前，第一次量出 537 个差；挪完之后，除了这一类全部归零。
-- W5-05 第 4 片（删 `personal-workbench-v3`，433 条规则、1,641 条声明；巨大单元少一个，`baseline.json` 随之降）：整层直接删掉时，状态探针在 837,542 个值里量出 173,546 个差，12 张图有变化（goals-list、goal-work 的 1024/1440，3%～5%）。所以把还在决定计算值的规则挪进各自主人的样式表，不进兜底文件；在主人文件里放在开头，层叠位置与原来相同（v3 与这些主人之间的几层另做了静态翻转检查：同一选择器、同一属性的规则，先后一换就会翻）。① Feed 与来源整组进 `source-feed.ts`：v3 里 Feed 那一组 207 条规则，在 markup 里有元素的 120 条按原顺序整组挪，87 条在任何模板里都没有元素，删掉。挪过去以后，有四处被同一层里后写的规则翻了（`.feed-source-list` 的 gap、详情标题的字号与字距、窄屏 `.feed-directory-tools` 的内边距、窄屏详情标题字号），把这几个属性从挪过去的规则里去掉，结果与原来相同。② 目录栏（`.tree-pane`、拖拽条、目录标题、行的圆角与悬停底色）进 `directory-ledger.ts`。③ 桌面外框（安全区变量与原生窗口的 88px 安全区、`.app` 网格、项目菜单、拖拽区域、`.document-pane` 的内边距与底色、工作面、非 Goal 面上 TUI 窗格的隐藏）进 `desktop-titlebar.ts`。④ 只读的 Runtime 窗格（`.tui-pane[data-tui-read-only]`：只剩上级的守护说明，不出标签、外框、终端和菜单）进 `navigation-ownership.ts`。⑤ 回收站 Goal 页在桌面宽度下的文档与标题（宽度、间距、内边距、状态标签、标题字距、工作区最小高度）进 Goals 的 `trash-document-styles.ts` 已有的 `@media (min-width: 761px)` 块，限定在 `.trash-goal-document` 之下。主人文件都在 800 行以下（562、464、285、306、105）。选法与补漏：先用逐条去掉声明的探针找还起作用的规则；逐条去掉看不出两条规则设同一个值，整层探针又补出了⑤和 `.document-pane`；原来的探针不开桌面模式（服务端只在带 `x-molis-work-desktop: 1` 或 `?desktop=1` 时出桌面外框），`visual-foundation.test.ts` 的失败把这一点暴露出来，于是探针加了桌面一遍（1440、1024，含 18 个 `/settings/*` 地址），补出了原生窗口的安全区那条；探针原来也没有 Feed 数据和只读窗格，加上一个来源、一条带材料的条目和只读状态以后，又补出了①的整组和④。`visual-foundation.test.ts`：37 条断言删去或改写，删去的都是 markup 里没有元素的选择器（`.desktop-work-tab*`、`.workspace…`、`.desktop-utility-surface`、`.desktop-workbench-bar`、`.goal-brief-item`、`.desktop-goal-directory`、`.personal-sidebar-footer`）或被后面的层盖掉的值（标题栏 48px/34px 被 `immersive-navigation`、`linear-density` 覆盖，`[hidden]` 被 `base.ts` 的全局规则覆盖）；改写的 4 条落到现行的主人：独立设置页 markup 里是 `data-desktop-shell="false"`（所以 v3 的 Diagnostics 间距从来不生效）、原生窗口的项目按钮内边距、拖拽区域、回收站工作区高度。样式表的降幅：arrival.css 与 settings.css 各少 47,465 B，workbench.css 少 46,677 B，`page-assets.json` 随之降。证据（叠在第 3 片之上，删之前与删之后两棵树用同一份探针各量一遍）：浏览器模式 907,601 个值 0 差；桌面模式 1,218,728 个值 0 差；`pnpm visual:compare` 66 张图、22 份计算样式 0 变化。另把第 1 片之前（`ea396a276`，所有旧皮还在）与这一片在桌面模式下用四层合起来的 739 条规则比：2,032,834 个值里只剩第 3 片记过的那一类 `small` 不起作用的差，和 Feed 详情页里目录树因为 markup 多包了一层而换了路径（按路径对齐以后 1,652 个值全同），所以第 1～3 片在桌面模式下也没有漏挪。
+- W5-05 第 4 片（删 `personal-workbench-v3`，433 条规则、1,641 条声明；巨大单元少一个，`baseline.json` 随之降）：整层直接删掉时，状态探针在 837,542 个值里量出 173,546 个差，12 张图有变化（goals-list、goal-work 的 1024/1440，3%～5%）。所以把还在决定计算值的规则挪进各自主人的样式表，不进兜底文件；在主人文件里放在开头，层叠位置与原来相同（v3 与这些主人之间的几层另做了静态翻转检查：同一选择器、同一属性的规则，先后一换就会翻）。① Feed 与来源整组进 `source-feed.ts`：v3 里 Feed 那一组 207 条规则，在 markup 里有元素的 120 条按原顺序整组挪，87 条在任何模板里都没有元素，删掉。挪过去以后，有四处被同一层里后写的规则翻了（`.feed-source-list` 的 gap、详情标题的字号与字距、窄屏 `.feed-directory-tools` 的内边距、窄屏详情标题字号），把这几个属性从挪过去的规则里去掉，结果与原来相同。② 目录栏（`.tree-pane`、拖拽条、目录标题、行的圆角与悬停底色）进 `directory-ledger.ts`。③ 桌面外框（安全区变量与原生窗口的 88px 安全区、`.app` 网格、项目菜单、拖拽区域、`.document-pane` 的内边距与底色、工作面、非 Goal 面上 TUI 窗格的隐藏）进 `desktop-titlebar.ts`。④ 只读的 Runtime 窗格（`.tui-pane[data-tui-read-only]`：只剩上级的守护说明，不出标签、外框、终端和菜单）进 `navigation-ownership.ts`。⑤ 回收站 Goal 页在桌面宽度下的文档与标题（宽度、间距、内边距、状态标签、标题字距、工作区最小高度）进 Goals 的 `trash-document-styles.ts` 已有的 `@media (min-width: 761px)` 块，限定在 `.trash-goal-document` 之下。主人文件都在 800 行以下（562、464、285、306、105）。选法与补漏：先用逐条去掉声明的探针找还起作用的规则；逐条去掉看不出两条规则设同一个值，整层探针又补出了⑤和 `.document-pane`；原来的探针不开桌面模式（服务端只在带 `x-molis-work-desktop: 1` 或 `?desktop=1` 时出桌面外框），`visual-foundation.test.ts` 的失败把这一点暴露出来，于是探针加了桌面一遍（1440、1024，含 18 个 `/settings/*` 地址），补出了原生窗口的安全区那条；探针原来也没有 Feed 数据和只读窗格，加上一个来源、一条带材料的条目和只读状态以后，又补出了①的整组和④。`visual-foundation.test.ts`：37 条断言删去或改写，删去的都是 markup 里没有元素的选择器（`.desktop-work-tab*`、`.workspace…`、`.desktop-utility-surface`、`.desktop-workbench-bar`、`.goal-brief-item`、`.desktop-goal-directory`、`.personal-sidebar-footer`）或被后面的层盖掉的值（标题栏 48px/34px 被 `immersive-navigation`、`linear-density` 覆盖，`[hidden]` 被 `base.ts` 的全局规则覆盖）；改写的 4 条落到现行的主人：独立设置页 markup 里是 `data-desktop-shell="false"`（所以 v3 的 Diagnostics 间距从来不生效）、原生窗口的项目按钮内边距、拖拽区域、回收站工作区高度。样式表的降幅：arrival.css 与 settings.css 各少 47,465 B，workbench.css 少 46,677 B，`page-assets.json` 随之降。证据（叠在第 3 片之上，删之前与删之后两棵树用同一份探针各量一遍）：浏览器模式 907,601 个值 0 差；桌面模式 1,218,728 个值 0 差；`pnpm visual:compare` 66 张图、22 份计算样式 0 变化。另把第 1 片之前（`ea396a276`，所有旧皮还在）与这一片在桌面模式下用四层合起来的 739 条规则比：2,032,834 个值里只剩第 3 片记过的那一类 `small` 不起作用的差，和 Feed 详情页里目录树因为 markup 多包了一层而换了路径（按路径对齐以后 1,652 个值全同），所以第 1～3 片在桌面模式下也没有漏挪。另有两组规则放回主人、没有删，因为全量里 `tests/web.test.ts` 的两条「desktop work tabs…」与 `tests/chrome-inner-scroll.test.ts` 按文字断言它们，而本片受影响用例的挑选（`scripts/affected-tests.mjs` 按读的文件与名字选）没有选到这两个文件：工作标签的整组（v3 里 111 行，加 1180px 以下的 `max-width`）进 `desktop-titlebar.ts` 开头；设置页 `body.settings-page[data-desktop-shell="true"]:has(.settings-navigation) .settings-content` 进新的 `apps/workbench/src/styles/settings-desktop-shell.ts`，由 `settings.ts` 在原位置引入。两组都是死样式：运行时没有代码把 `data-desktop-shell` 设成 `"true"`，两份设置页的 body 写死 `"false"`，工作标签没有 markup（`renderInitialGoalTab` 没有调用方），所以计算值不变。第 5 片随 `renderInitialGoalTab` 与这几条用例一起删，每条写理由。教训：删样式的片除了 affected-tests，还要按删掉的选择器 grep 用例。
 
 W4-08（2026-10-16，平台产品服务的边界，不新增规则，统筹 10-15 认可）：决定 N-03 之后这一项只剩「层与 owner、依赖规则写全」。逐条核对，现有的都已经守着：
 - 层与 owner：`docs/system/ARCHITECTURE.md`「平台产品服务」写明四项（记忆、放置、搜索、情境排序）可以持有跨插件策略和自己的机制记录，不拥有业务事实；`docs/SSOT-MATRIX.md` §6 与 `docs/horizontal/memory.md`、`placement.md` 各写了 owner。
@@ -1943,6 +1943,73 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 - 在途的 #612 和 #614 现在都与 main 冲突（DIRTY），由各自的作者变基。
 - #613 与 #614 都动 Assistant 的回答路径：#613 改由谁回答问卷，#614 改回执怎么投影。两者不改同一个文件；但不论后合的是哪一个，都要在合并结果上重跑 `tests/prologue-input-claims.test.ts` 和 #613 的 AC-27 用例。
 - 本线的 #606 在全量里只红了 `tests/visual-surfaces.e2e.test.ts`，是一处 CDP 超时。那次运行开始于 16:45，检出的是 `528227248`，即 #606 合到 `76758783` 上，比 #604（17:02 合入）早。它撞上的是 #604 之前一次读完全部样式的那个调用，#604 已经把它拆成每次约一秒；#604 自己的全量在 Linux 上通过了 visual-surfaces。所以这不是新的问题，也和 #606 的改动（`agent.offers.run` 把 `signal` 往下交）无关。
+
+### 10.21 2026-10-17 复查总表：接手以来合入与在途的全部 PR（#513～#622、Prologue #21～#32），以及在途 6 个的组合效果
+
+这一节把接手（2026-10-14）以来逐批复查的结论收成一张表，补上前几节没有覆盖到的几个 PR，再看在途 PR 合在一起的效果。查法和 10.13～10.20 一样：
+- 门禁数字（巨大单元、页面资源、测试引用包内部、兼容标记、API 与动作快照、隔离与产品子集清单）；
+- 兼容逻辑或读取兜底；
+- 删改的断言、调大的时限；
+- 可信身份从哪里来，取消、撤权、停用之后会不会写业务记录；
+- 改动的依据：用户决定、spec 决策记录或上游已批的切片。
+
+对照的要求是第 1 节列的六份原文与九份补充；已经收口的事项（系统整理 F-01～F-35、健康报告 R-01～R-14、第一步 §4 的交接项）逐条看过有没有被退回。
+
+结论：
+- 违反要求、本线已修并验证的有四处：#589 误删 §10.17（#607 放回）、#597 被取消的点击仍会执行（#606）、另一轮质量复查确认的 N-03、N-04、N-05（#616，在途）、#608 记的两份过时记录（#617）。
+- 要用户定的一处已经定了：#595 的 0.3.0，见 §10.19 末尾。
+- 其余都有依据，都是已批准的预期变化。
+
+**汇总**
+
+| 范围 | 复查在 | 裁决 |
+| --- | --- | --- |
+| #513～#533 | §10.13 | 有依据。I8 修复树 F109 整树合入（#523）的描述把「测试同时从源码和构建加载同一个包」的绝对零误写成「测试对包内部的引用」，§10.19 N-02 已改正；没有退回的事项 |
+| #534～#556（不是本线的） | §10.14 | 有依据，无须修 |
+| #553、#557、#561、#564、#566、#567，#560、#568、#569 | §10.15 | 有依据 |
+| #569、#574，#571、#573、#575～#577，Prologue #28 | §10.16 | 有依据。#571 的建议工具输入检查依赖可选的 `client.check`，已交 H4 2b，由 #597 补齐 |
+| #580～#585，#571、#573 后续提交 | §10.17 | 有依据；#583 变基时去掉了 B2 的提交 |
+| #588～#603（不是本线的），#591、#598、#605，Prologue #29、#30 | §10.18 | #589 误删记录（已放回）；#597 取消后仍执行（#606 已修）；#595 待用户定（已定）；其余有依据 |
+| N-01～N-06、#608 | §10.19 | N-03、N-04、N-05 确认并修（#616）；N-01、N-06 不成立；N-02 与 #608 两处记录改正 |
+| #609、#610、#612～#615，Prologue #31、#32 | §10.20 | 有依据 |
+| #612、#614 的最终合入提交（`efe156edd`、`ea396a276`） | 本节 | 有依据。#612 删的 10 条断言，每条都换成把同一句话从轮次材料挪进角色、并在两边各断言一次的写法（例如「不要再委托出去」不在材料里、在角色里）；会议纪要方法从 v1 升到 v2，v1 不再登记，「不覆盖已有文档，除非用户明确要求」保留（BL-147）。#614 删的 5 条是本地 `applyPrologueEvent` 推导的断言，3a 的目的就是改由运行时的投影给回执，新增 26 条断言针对投影；产品子集加了 `tests/prologue-input-claims.test.ts` |
+| Prologue #22、#25、#27 | 本节 | 有依据。#22（P2j：只读检查器、Runtime 自己的队列道、零模型）与 #27（撤销持久资源不再逐块写墓碑，Tauri 宿主加 `storage_discard` 命令）只新增，没有删断言。#25（P2k）把工作板的冲突判断从整张板改成按节点：删掉的两条断言是「同一张板上第二次写入被拒」，换成「不同节点的两次写入都成功、同一节点用旧版本写入仍被拒（`TASKBOARD_CONFLICT`）」。依据是用户 2026-10-14 在 X5 里选的 B（一个项目的编码会话共用项目工作板，记在 Prologue 的切片文档与决策记录） |
+| 本线自己的 #550、#565、#572、#579、#582、#584、#587、#593、#600、#604、#606、#607、#611、#617 | 统筹逐个审过 | 门禁只降：#611 用完的 `APPROVED_CEILINGS` 按 #584 的做法删掉，机制留给回执 3c；#604 把读样式拆成每片约 1 秒，没有加时限。各自的证据记在 §W4-12、§10.x 与 PR 描述里 |
+
+**在途 6 个（2026-10-17 的 head）**
+
+- #616（`eccd952`，本线）：修 N-03、N-04、N-05，见 §10.19。
+- #618（W3-B2，`8afb521f0`）：情境条显示要放到哪里，选区浮条在助理面板盖住时让开。
+  - 没有删断言，新加 16 条；页面资源五项都只降。
+  - 依据是情境线的 L-1～L-3 与重叠规则（`specs/context-program`）。落点只在对象被加进这次发送时才出现（L-1），不会在没有 + 的情况下把文档内容交给模型。轮次只有在对象的主人重新读到这个对象之后才得知落点，而且是以事实的形式告诉它。
+  - 选区读取跳过助理回复的部分，记为 BL-149，没有偷偷补上。
+- #619（`d44296e`，本线）：W5-05 第 2 片，见 §W4-12。
+- #620（`acefbac35`，AC-27-6，D35）：数字题在输入框旁和错误里都写出单位。删的 3 条断言都换成更严的：schema 多带 `unit`；错误文字写成「不能超过 120 分钟」；输入框的 `aria-describedby` 同时指向单位和错误槽位。
+- #621（`47b63d477`，采用线 §6.0g）：业务网关不再改写模型写错形状的参数，形状不对就在评审之前按合同拒绝。
+  - 删的 13 条断言是「网关会改写」的旧行为，换成 21 条「拒绝并给出合同、同样的字段放进 `input` 里才评审」的断言。这是有意收紧，不是放宽。
+  - 依据：用户 10-16 的决定（`specs/prologue-adoption/spec.md` §7.7「用户 10-16（§6.0g）」），以及「模型能力问题不打补丁」（用户 10-16）。§6.0f 给工具带上类型之后，30 次调用里只剩 1 次需要改写。
+- #622（回执 3c，`fc3931994`）：Coding 与助理共用一个回执组件。
+  - 重新加了 `APPROVED_CEILINGS`，只有三条：arrival.css 与 workbench.css 各 +2,062，workbench.js +4,110；coding.js −524。
+  - 都在用户 10-16 弹窗批准的数之内（`specs/ai-input-receipts/spec.md` D25：+2,062、+2,062、+4,113），每条只认 merge-base 上的一个确切字节数。
+  - 删的 20 条断言随旧回执条一起换掉，新增 41 条。旧断言保证的几件事都有新的断言对应：本人的任务和其他宿主说明没有回执；「读到不代表已遵循」是正文文字，不是悬停提示；第一次绘制和没变的重绘都不播报；补充每前进一步只播报一次；同一输入编号带进下一轮时，两轮各有自己的回执，不轮流播报（RCPT-312，D28）。
+  - baseline 只降（Coding `client.ts` 少 1 行）。
+
+**组合效果**
+
+- 两两之间只在数字文件上重叠：`tooling/gates/page-assets.json`（六个里有五个都改它），以及 #616 与 #622 都改 `tooling/gates/baseline.json`。每个都能干净地合进 main。
+  - 先合 #622 再合 #618：代码文件 `apps/workbench/src/scripts/client/assistant-island.ts` 与 `craft-finish.ts` 能自动合并，冲突只在 `page-assets.json`。
+  - 两者都改助理面板的页面脚本，所以后合的那个要在合并结果上重跑助理面板与情境条的浏览器用例（`tests/assistant-*.e2e.test.ts`、STRIP-04/05、CTX-COVER-01、RC-14/15）。
+- #622 的放行条目按 merge-base 上的确切字节数认，现在认的是 810,350 / 1,688,608 / 1,097,604。#616、#618、#619 里任何一个先合，基数就变了，条目对不上，门禁会拒绝。到那时 3c 要在新的 main 上把同样的增量重新对到新的基数上。增量和用户批的数一样，不算新的放行。要是增量变大，就要回去问用户。
+- W5-05 后面几片（v2 已在本地做完，接着是 v3、calm-desktop）都叠在 #619 上，只降样式表字节。和 3c 的 CSS 增量不在同一处：3c 加的是共用组件的规则，W5-05 删的是旧皮肤。所以两边谁先合都只需要重新量，不需要挪规则。
+- 取消与授权语义：#606（S-29）合入后，`agent.offers.run` 把调用自己的 `signal` 交给动作，取消在核对之后到来时什么都不执行。在途 6 个里，只有 #621 动到动作调用路径，它只在评审之前多拒一类输入，不改变被取消、撤权、停用之后的处理。
+- AI 调用链：在途的改动没有在 `horizontal/agent-host` 之外调模型，也没有新增生产 AI 入口（`ai-entry-inventory.md`）。#621 删的是网关里的改写，调用仍走动作服务自己的输入检查。
+
+**剩下的**
+
+- 在途 6 个由统筹排全量、合并。
+- W5-05 还剩 v3、calm-desktop 两片：v2 那片已在本地做完、正在跑受影响用例，下一个 PR 会写进 §W4-12。
+- `renderPluginRailAccountFooter`（`apps/workbench/src/settings-directory.ts`）没有调用方，已作为单独任务提出来。
+- 第 4～6 波路线图里尚未开工的条目照 §12 的状态推进，这一节不改任何目标。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

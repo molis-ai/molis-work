@@ -1,5 +1,123 @@
 /** AP3 visual layer: desktop-titlebar. */
-export const DESKTOP_TITLEBAR_STYLES = `  /* The Goal document pane. It comes before the desktop shell's rule for the pane below, which overrides it at the same
+export const DESKTOP_TITLEBAR_STYLES = `  /* Work tabs in the titlebar: width, scroll, selection, status dot and close button. Dead style: no page draws
+     .desktop-work-tabs; W5-05 slice 5 deletes it with renderInitialGoalTab. */
+  @media (min-width: 761px) {
+    body[data-desktop-shell="true"] .desktop-work-tabs {
+      min-width: 0;
+      max-width: min(56vw, 680px);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    body[data-desktop-shell="true"] .desktop-work-tabs::-webkit-scrollbar { display: none; }
+    body[data-desktop-shell="true"] .desktop-work-tab {
+      flex: 0 0 clamp(136px, 12vw, 190px);
+      min-width: 0;
+      max-width: 245px;
+      flex: 0 0 clamp(132px, 16vw, 190px);
+      height: 34px;
+      padding: 0 4px 0 0;
+      border-radius: 10px;
+      color: var(--muted);
+      background: color-mix(in srgb, var(--paper) 46%, transparent);
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 24px;
+      align-items: center;
+      transition: color 130ms var(--ease-quint), background 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint);
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab.is-selected {
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: var(--lift-1);
+    }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tab {
+      position: relative;
+      border-radius: 7px;
+      background: transparent;
+      box-shadow: none;
+    }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tabs { gap: 0; }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tab + .desktop-work-tab::before {
+      content: "";
+      position: absolute;
+      top: 8px;
+      bottom: 8px;
+      left: 0;
+      width: 1px;
+      background: color-mix(in srgb, var(--line-strong) 70%, transparent);
+      pointer-events: none;
+    }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tab:hover:not(.is-selected) {
+      color: var(--ink-soft);
+      background: var(--nav-hover);
+    }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tab.is-selected {
+      color: var(--ink);
+      background: transparent;
+      box-shadow: none;
+    }
+    html[data-resolved-theme="light"] body[data-desktop-shell="true"] .desktop-work-tab.is-selected::after {
+      content: "";
+      position: absolute;
+      left: 10px;
+      bottom: 0;
+      width: 28px;
+      height: 2px;
+      border-radius: 1px;
+      background: var(--blue);
+      pointer-events: none;
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab.is-utility {
+      flex-basis: auto;
+      min-width: max-content;
+      padding-right: 0;
+      grid-template-columns: minmax(0, 1fr);
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab.is-utility > [role="tab"] {
+      padding: 0 12px;
+      display: flex;
+      white-space: nowrap;
+      cursor: default;
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] {
+      min-width: 0;
+      height: 34px;
+      padding: 0 4px 0 12px;
+      border: 0;
+      color: inherit;
+      background: transparent;
+      display: grid;
+      grid-template-columns: 7px minmax(0, 1fr);
+      align-items: center;
+      gap: 8px;
+      text-align: left;
+      cursor: pointer;
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] i { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
+    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] i[data-status="executing"],
+    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] i[data-status="ready"] { background: var(--green); }
+    body[data-desktop-shell="true"] .desktop-work-tab > [role="tab"] span { overflow: hidden; font-size: 11px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+    body[data-desktop-shell="true"] .desktop-work-tab > button:last-child {
+      width: 24px;
+      height: 24px;
+      padding: 0;
+      border: 0;
+      border-radius: 7px;
+      color: var(--faint);
+      background: transparent;
+      opacity: 0;
+      cursor: pointer;
+      transition: opacity 130ms var(--ease-quint), color 130ms var(--ease-quint), background 130ms var(--ease-quint);
+    }
+    body[data-desktop-shell="true"] .desktop-work-tab:hover > button:last-child,
+    body[data-desktop-shell="true"] .desktop-work-tab:focus-within > button:last-child { opacity: 1; }
+  }
+  @media (min-width: 761px) and (max-width: 1180px) {
+    body[data-desktop-shell="true"] .desktop-work-tab { max-width: 190px; }
+  }
+  /* The Goal document pane. It comes before the desktop shell's rule for the pane below, which overrides it at the same
      specificity. */
   body[data-board-view] .document-pane,
   .document-pane { padding: var(--focus-canvas-inset); scroll-padding-top: var(--focus-canvas-inset); background: color-mix(in srgb, var(--page) 78%, var(--rail)); }

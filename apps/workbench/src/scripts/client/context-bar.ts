@@ -75,7 +75,14 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
       const frame = bus.source && bus.source.frame;
       if (frame) { this.frame = frame; this.tell(frame, { op: "render", view: this.view, summon }); return; }
       this.frame = null;
-      toolbar.show({ ...this.view, touch: coarse(), anchor: { rect: rectOf(() => bus.focus || {}), placement: ((bus.focus || {}).screen || {}).placement } });
+      const rect = rectOf(() => bus.focus || {});
+      // Under the Assistant's panel or the side panel (a phone's panels cover the page), the passage cannot be seen: its toolbar
+      // waits until the cover goes, rather than floating over what the person reads now.
+      const at = rect(), hit = at && document.elementFromPoint((at.left + at.right) / 2, (at.top + at.bottom) / 2);
+      const cover = hit && hit.closest(COVERS);
+      this.covered = Boolean(cover && !(bus.source && bus.source.element && cover.contains(bus.source.element)));
+      if (this.covered) { toolbar.hide(); return; }
+      toolbar.show({ ...this.view, touch: coarse(), anchor: { rect, placement: ((bus.focus || {}).screen || {}).placement } });
     },
     render(out, focus, rulesOnly) {
       const plan = out.plan;
@@ -97,4 +104,8 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
       return true;
     },
   };
-  document.addEventListener("keydown", (event) => { if ((event.metaKey || event.ctrlKey) && event.key === "." && bar.summon()) event.preventDefault(); });`;
+  document.addEventListener("keydown", (event) => { if ((event.metaKey || event.ctrlKey) && event.key === "." && bar.summon()) event.preventDefault(); });
+  // A cover opening hides the toolbar under it; closing it brings back the one it hid.
+  const COVERS = "[data-assistant-panel], [data-side-panel]";
+  const uncover = new MutationObserver(() => { if (bar.view && !bar.frame && (bar.covered || !toolbar.hidden())) bar.push(); });
+  document.querySelectorAll(COVERS).forEach((node) => uncover.observe(node, { attributes: true, attributeFilter: ["hidden"] }));`;

@@ -331,7 +331,7 @@ const ROUTES: RouteMaker[] = [
       if (!question?.parked) return { accepted: true, message: "回答已交给原执行者，继续这一轮任务。" };
       const next = busy.has(record.session_id) ? { started: false as const, reason: "会话正在提交任务" } : await (async () => {
         busy.add(record.session_id);
-        try { return await roundAfterParkedAnswer(a, record, session, api!, execution, beforeWrite); } finally { busy.delete(record.session_id); }
+        try { return await roundAfterParkedAnswer(a, record, session, request.actor_id, api!, execution, beforeWrite); } finally { busy.delete(record.session_id); }
       })();
       return { accepted: true, next_round: next,
         message: next.started ? "已回答，下一轮已开始，接着原来的任务。" : `已回答、下一轮没能开始：${next.reason}。回答留在排队里，点「从断点继续」再开始。` };

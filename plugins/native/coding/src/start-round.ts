@@ -1,4 +1,4 @@
-import { LOCAL_PERSON_ACTOR_ID, parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
+import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentSubagentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -203,15 +203,15 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
 
 /**
  * The next round after the person answered a round parked at a restart (BL-156): started the way the parked round was
- * (`last-start:<session>`), it takes the answer from the session's queue. Refused, the answer stays queued and the reason is
+ * (`last-start:<session>`) by the one who answered (`actorId`, from the call), it takes the answer from the session's queue. Refused, the answer stays queued and the reason is
  * returned; 「从断点继续」 starts it later. A session still being recovered is read once and the round tried once more.
  */
-export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string },
+export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string }, actorId: string,
   api: Capabilities, execution: CodingExecutionPorts, beforeWrite: CodingBeforeWrite): Promise<{ started: true; run_id: string } | { started: false; reason: string }> => {
   const saved = (() => { try { return JSON.parse(a.context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as Record<string, unknown> | null; } catch { return null; } })();
   if (!saved) return { started: false, reason: "读不到这一轮是怎样开始的" };
   const body = continuedBody(saved, "服务重启前你问我的问题，我已经回答，回答附在后面。");
-  const start = () => startRound(a, record, body, typeof saved.actor_id === "string" ? saved.actor_id : LOCAL_PERSON_ACTOR_ID, api, execution, beforeWrite);
+  const start = () => startRound(a, record, body, actorId, api, execution, beforeWrite);
   const reason = (error: unknown) => error instanceof Error ? error.message : String(error);
   try { return { started: true, run_id: (await start()).run.ref.run_id }; } catch (error) {
     if ((error as { code?: unknown }).code !== "agent.session_busy") return { started: false, reason: reason(error) };

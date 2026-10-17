@@ -135,3 +135,31 @@ test("AC-07 an answer to a round parked at a restart opens the next round, or sa
     assert.equal(calls.filter(id=>id===agent.controlRun.capability_id).length,1,'the answer itself was handed over once');
   }finally{db.close();}
 });
+
+test("AC-07 the round after a parked answer is started by the one who answered, not by who started the parked round",async()=>{
+  const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  const sessions=new CodingSessionStore(db),at='2026-10-18T00:00:00Z';
+  sessions.create({project_id:'board',session_id:'app',title:'问卷',runtime_id:'prologue',at});sessions.setRuntimeSession('board','app','sdk',at);
+  // The parked round was started by someone else; what is saved of it names them.
+  const saved=new Map([['last-start:app',JSON.stringify({intent:'discuss',provider_id:'p',model_id:'m',workspace_id:'w',actor_id:'who-started',origin_task:'约复盘会'})]]);
+  const started:Array<{actor_id?:string}>=[];
+  const view={phase:'reconcile-required',awaiting_input:[{pending_id:'asked',pending_revision:1,parked:true}],frozen:{history:'session',text_materials:[]},usage:{}};
+  const context=codingContext({storage:{get:(key:string)=>saved.get(key)??null,set:(key:string,value:string)=>{saved.set(key,value);},delete:(key:string)=>{saved.delete(key);}},
+    capabilities:{invoke:async(definition:{capability_id:string},args:unknown[])=>{
+      if(definition.capability_id===agent.readSession.capability_id)return {runs:[{session_id:'sdk',run_id:'parked'}]};
+      if(definition.capability_id===agent.readRun.capability_id)return view;
+      if(definition.capability_id===agent.controlRun.capability_id)return;
+      if(definition.capability_id===projectSettingsCapabilities.workspaces.capability_id)return [{workspace_id:'w',canonical_path:'/tmp/parked-answer',realpath_verified:true}];
+      if(definition.capability_id===agent.availableRoles.capability_id)return [{role_id:'reader',available:true}];
+      // The start itself: what it was asked as is all this needs, so it stops here.
+      if(definition.capability_id===agent.startRun.capability_id){started.push((args as [string,{actor_id?:string}])[1]);throw new Error('不再往下');}
+      throw new Error('unexpected capability '+definition.capability_id);
+  }}});
+  (context as {actor_id?:string}).actor_id='who-answered';
+  const route=codingRoutes(context,{sessions,goalTitle:()=>undefined,ready:async()=>{},models:async()=>[{provider_id:'p',model_id:'m',label:'M'}]}).find(item=>item.route_id==='coding.control-run')!;
+  try {
+    const answered=await route.handle({params:{sessionId:'app'},body:{kind:'answer',run_id:'parked',pending_id:'asked',pending_revision:1,answers:[{question:0,value:45}]}} as PluginRouteRequest);
+    assert.equal(started.length,1,`the next round was asked for: ${JSON.stringify(answered.body)}`);
+    assert.equal(started[0]!.actor_id,'who-answered','under the identity of the call that answered');
+  }finally{db.close();}
+});

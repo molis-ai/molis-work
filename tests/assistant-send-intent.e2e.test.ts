@@ -225,7 +225,14 @@ test("UIV-04 Assistant materials follow their work across switching, reload and 
     await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
     assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "相同草稿");
     assert.match(await labels(), /只属于 B 的材料/); assert.doesNotMatch(await labels(), /只属于 A 的材料/);
-    await openWork(browser, a); assert.doesNotMatch(await labels(), /只属于 A 的材料|只属于 B 的材料/);
+    // Switching the target must also switch its visible materials before the work reread completes.
+    await browser.command("Fetch.enable", { patterns: [{ urlPattern: `*/api/assistant/works/${a}`, requestStage: "Response" }] }, browser.sessionId);
+    await openWork(browser, a);
+    const reread = await barrier.next();
+    await browser.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    assert.doesNotMatch(await labels(), /只属于 A 的材料|只属于 B 的材料/);
+    await barrier.release(reread);
+    await browser.command("Fetch.disable", {}, browser.sessionId);
     await browser.reloadPage(); await browser.waitFor("document.querySelector('[data-assistant-input]').value === ''");
     await openWork(browser, b); assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "相同草稿");
     assert.match(await labels(), /只属于 B 的材料/);

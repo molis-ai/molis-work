@@ -1346,9 +1346,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (index >= 0) works[index] = Object.assign({}, works[index], work, { draft: works[index].draft });
       else works.unshift(work);
     }
-    renderAttention(work); renderPath(work); renderMaterialsBlock(); renderResults(work); renderUsage(work);
+    renderAttention(work); renderPath(work); renderResults(work); renderUsage(work);
     if (empty) empty.hidden = Boolean(curId);
-    paintEmpty(); receipts.paint(work && view.rounds[view.rounds.length - 1]);
+    paintMats(); receipts.paint(work && view.rounds[view.rounds.length - 1]);
     const rounds = work ? view.rounds : [];
     if (work) announceEffects(work, rounds);
     [...thread.children].forEach((node) => { if (node.dataset.round && !rounds.some((round) => round.run_id === node.dataset.round)) node.remove(); });

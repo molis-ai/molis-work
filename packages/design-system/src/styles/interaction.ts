@@ -145,7 +145,6 @@ export const INTERACTION_REFERENCE_STYLES = `
 .mw-ix-chip button:focus-visible { outline: var(--focus-stroke); }
 .mw-ix-chip svg { width: 14px; height: 14px; }
 .mw-ix-ref-search:has([aria-invalid="true"]) { border-color: var(--red); }
-.mw-ix-ref-search input { flex: 1; }
 .mw-ix-ref-results:not([hidden]) { display: grid; max-height: 240px; overflow: auto; }
 :is(.mw-ix-ref__meta, .mw-ix-ref-status) { flex: none; margin: 0 0 0 auto; color: var(--faint); font-size: 12px; }
 @media (max-width: 760px), (pointer: coarse) { .mw-ix-chip button { width: 32px; height: 32px; } }

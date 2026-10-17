@@ -235,7 +235,7 @@ export function interactionReferences(host: InteractionClientHost, fields: Retur
   const close = (p: Parts, say = "") => {
     p.list.hidden = true;
     p.list.replaceChildren();
-    p.input.setAttribute("aria-expanded", "false");
+    p.input.ariaExpanded = "false";
     p.input.removeAttribute("aria-activedescendant");
     p.status.textContent = say;
   };
@@ -260,7 +260,7 @@ export function interactionReferences(host: InteractionClientHost, fields: Retur
       return option;
     }));
     p.list.hidden = !items.length;
-    p.input.setAttribute("aria-expanded", String(!!items.length));
+    p.input.ariaExpanded = String(!!items.length);
     p.status.textContent = items.length ? p.labels.found!.replace("{n}", String(items.length)) : p.labels.empty!;
   };
   const search = (p: Parts) => {
@@ -283,12 +283,12 @@ export function interactionReferences(host: InteractionClientHost, fields: Retur
   const key = (event: KeyboardEvent) => {
     const p = event.target instanceof Element && event.target.matches("[data-ix-ref-query]") && parts(event.target);
     if (!p || p.list.hidden || event.isComposing) return false;
-    const options = [...p.list.children] as HTMLElement[], active = options.findIndex(option => option.getAttribute("aria-selected") === "true"), down = event.key === "ArrowDown";
+    const options = [...p.list.children] as HTMLElement[], active = options.findIndex(option => option.ariaSelected === "true"), down = event.key === "ArrowDown";
     if (event.key === "Escape") close(p);
     else if (event.key === "Enter" && options[active]) pick(p, options[active]!);
     else if (down || event.key === "ArrowUp") {
       const to = active < 0 ? (down ? 0 : options.length - 1) : (active + (down ? 1 : -1) + options.length) % options.length;
-      options.forEach((option, at) => option.setAttribute("aria-selected", String(at === to)));
+      options.forEach((option, at) => option.ariaSelected = String(at === to));
       p.input.setAttribute("aria-activedescendant", options[to]!.id);
       options[to]!.scrollIntoView({ block: "nearest" });
     } else return false;

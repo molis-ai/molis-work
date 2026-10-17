@@ -78,7 +78,7 @@ export function uivSettleSend(send: UivSend, token: number, outcome: "succeeded"
 export interface UivKeyEvent { key: string; metaKey: boolean; ctrlKey: boolean; isComposing: boolean; keyCode: number }
 export type UivKeyDecision = "ignore" | "newline" | "send" | "cancel-voice" | "hold";
 export function uivPhaseBusy(phase: string): boolean {
-  return phase === "recording" || phase === "transcribing" || phase === "downloading";
+  return phase === "preparing" || phase === "recording" || phase === "transcribing" || phase === "downloading";
 }
 export function uivKeyAction(event: UivKeyEvent, voicePhase: string, send: UivSend, text: string): UivKeyDecision {
   if (event.isComposing || event.keyCode === 229) return "ignore";
@@ -89,8 +89,9 @@ export function uivKeyAction(event: UivKeyEvent, voicePhase: string, send: UivSe
 }
 
 export const UIV_RECOVERY = {
-  permission: "麦克风权限没开。请在系统设置里允许本页使用麦克风，然后重新点录音。",
-  noMic: "没有可用的麦克风，或麦克风已断开。草稿还在，可以继续打字。",
+  permission: "麦克风用来把口述转成这台设备上可编辑的文字。请在系统设置里允许本页使用麦克风，然后再点「录音」。可以继续打字。",
+  noMic: "录音不可用或已中断。草稿还在，可以继续打字。有麦克风后再点「录音」。",
+  localUnavailable: "本地识别现在不可用。草稿还在，可以继续打字。不会改用云端转写。",
   noSpeech: "未听清，可以重新录。",
   slow: "正在转写，可以取消。没有剩余时间的估计。",
   failed: "转写没有成功。草稿还在，可以重试或丢弃这段录音。",
@@ -106,11 +107,12 @@ export const UIV_RECOVERY = {
   downloadFailed: "下载没有完成，可以重试，也可以取消后继续打字。",
   modelReady: "本地识别已准备好，再点一次开始录音。发给助理仍是下一步，不表示离线。",
   needModel: "本地识别需要下载模型后才能用。音频只留在这台电脑，不会因此上传。",
+  preparing: "正在准备录音，可以取消。",
   recording: "正在录音",
   downloading: "正在下载本地识别",
 } as const;
 
-export type UivVoicePhase = "idle" | "need-permission" | "need-model" | "downloading" | "recording" | "transcribing" | "confirm-insert" | "no-speech" | "failed" | "interrupted" | "unavailable";
+export type UivVoicePhase = "idle" | "preparing" | "need-permission" | "need-model" | "downloading" | "recording" | "transcribing" | "confirm-insert" | "no-speech" | "failed" | "interrupted" | "unavailable";
 export interface UivVoice {
   phase: UivVoicePhase; generation: number; owner: UivIdentity | null; anchor: number; snapshot: string;
   pending: string | null; cleared: boolean; unclear: boolean; message: string; elapsedMs: number; level: number;
@@ -139,6 +141,10 @@ export function uivRequestRecord(voice: UivVoice, input: UivRecordRequest): UivV
   if (input.model === "missing") return { ...base, phase: "need-model", bytesTotal: input.approximateBytes ?? 626_000_000, message: UIV_RECOVERY.needModel, owner: input.owner, anchor: uivClampAnchor(input.text, input.anchor), snapshot: input.text };
   return { ...base, phase: "recording", owner: input.owner, anchor: uivClampAnchor(input.text, input.anchor), snapshot: input.text, limitMs: input.limitMs, message: UIV_RECOVERY.recording, keepAudio: true };
 }
+export function uivLoseDevice(voice: UivVoice): UivVoice {
+  if (voice.phase !== "recording") return voice;
+  return { ...uivVoiceIdle(), generation: voice.generation + 1, phase: "unavailable", message: UIV_RECOVERY.noMic };
+}
 
 export function uivBeginDownload(voice: UivVoice, confirmed: boolean): UivVoice {
   if (voice.phase !== "need-model" || !confirmed) return voice;
@@ -151,10 +157,21 @@ export function uivDownloadProgress(voice: UivVoice, done: number, total: number
   return { ...voice, bytesDone, bytesTotal, message: `${UIV_RECOVERY.downloading} ${uivBytesLabel(bytesDone)} / ${uivBytesLabel(bytesTotal)}` };
 }
 export function uivBytesLabel(bytes: number): string { return `${Math.max(0, Math.round(bytes / 1_000_000))} MB`; }
+/** Need-model status keeps the stable sentence and adds the helper's reported size. */
+export function uivVoiceStatusText(voice: Pick<UivVoice, "phase" | "message" | "bytesTotal">): string {
+  if (!voice.message) return "";
+  if (voice.phase === "need-model" && voice.bytesTotal > 0) return `${voice.message} ${uivBytesLabel(voice.bytesTotal)}`;
+  return voice.message;
+}
 export function uivFinishDownload(voice: UivVoice, ok: boolean): UivVoice {
   if (voice.phase !== "downloading") return voice;
   if (!ok) return { ...voice, phase: "need-model", message: UIV_RECOVERY.downloadFailed, keepAudio: false };
   return { ...uivVoiceIdle(), generation: voice.generation, message: UIV_RECOVERY.modelReady };
+}
+/** An aborted prepare request must not replace a cancel with a download failure. */
+export function uivDownloadRejected(voice: UivVoice, error: { name?: string } | null | undefined): UivVoice {
+  if (error?.name === "AbortError" || voice.phase !== "downloading") return voice;
+  return uivFinishDownload(voice, false);
 }
 
 export function uivStopRecord(voice: UivVoice): UivVoice {
@@ -175,12 +192,12 @@ export function uivCancelVoice(voice: UivVoice): UivVoice {
   return { ...uivVoiceIdle(), generation: voice.generation + 1, message: voice.phase === "downloading" || voice.phase === "need-model" ? UIV_RECOVERY.downloadCancelled : UIV_RECOVERY.cancelled };
 }
 export function uivNoteEdit(voice: UivVoice, text: string): UivVoice {
-  if (voice.phase !== "transcribing" && voice.phase !== "confirm-insert") return voice;
+  if (voice.phase !== "recording" && voice.phase !== "transcribing" && voice.phase !== "confirm-insert") return voice;
   if (!text) return { ...voice, cleared: true, unclear: true, message: UIV_RECOVERY.cleared };
   const prefix = voice.snapshot.slice(0, voice.anchor);
   const suffix = voice.snapshot.slice(voice.anchor);
   const unclear = !text.startsWith(prefix) || (suffix.length > 0 && !text.endsWith(suffix));
-  return { ...voice, cleared: false, unclear, message: unclear ? UIV_RECOVERY.confirm : voice.message };
+  return { ...voice, unclear, message: voice.cleared ? UIV_RECOVERY.cleared : unclear ? UIV_RECOVERY.confirm : voice.message };
 }
 export function uivNoteSwitch(voice: UivVoice, current: UivIdentity): UivVoice {
   if (!voice.owner || uivSameIdentity(voice.owner, current) || !uivVoiceBusy(voice)) return voice;
@@ -207,14 +224,14 @@ export function uivApplyTranscript(voice: UivVoice, generation: number, current:
   }
   if (!text && voice.snapshot) return { voice: { ...voice, phase: "idle", pending: null, keepAudio: false, owner: null, cleared: true, message: UIV_RECOVERY.cleared }, text, stored: null };
   const inserted = voice.unclear ? null : uivInsertTranscript(voice.snapshot, voice.anchor, text, spoken);
-  if (inserted == null) return { voice: { ...voice, phase: "confirm-insert", pending: spoken, unclear: true, keepAudio: true, message: UIV_RECOVERY.confirm }, text, stored: null };
+  if (inserted == null) return { voice: { ...voice, phase: "confirm-insert", pending: spoken, unclear: true, keepAudio: false, message: UIV_RECOVERY.confirm }, text, stored: null };
   return { voice: { ...uivVoiceIdle(), generation: voice.generation }, text: inserted, stored: null };
 }
 
 export function uivConfirmInsert(voice: UivVoice, text: string, accept: boolean): { voice: UivVoice; text: string } {
   if (voice.phase !== "confirm-insert" || !voice.pending) return { voice, text };
   const spoken = voice.pending;
-  const next = !accept || text.endsWith(spoken) ? text : `${text}${text && !text.endsWith("\n") ? "\n" : ""}${spoken}`;
+  const next = !accept || voice.cleared ? text : `${text}${text && !text.endsWith("\n") ? "\n" : ""}${spoken}`;
   return { voice: { ...uivVoiceIdle(), generation: voice.generation + 1, message: accept ? "" : UIV_RECOVERY.cancelled }, text: next };
 }
 export function uivFailTranscript(voice: UivVoice): UivVoice {
@@ -243,7 +260,7 @@ export interface UivControlVisibility {
 /** Which voice controls are on screen. Stop-recording is not the control that stops an AI task. */
 export function uivVisibleControls(phase: string): UivControlVisibility {
   const recording = phase === "recording";
-  const busy = phase === "recording" || phase === "transcribing" || phase === "downloading";
+  const busy = uivPhaseBusy(phase);
   return {
     mic: !busy && phase !== "confirm-insert",
     stop: recording,

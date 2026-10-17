@@ -35,6 +35,12 @@ Tauri 工程、配置和资源已集中在本包的 `src-tauri/`，启动占位�
 
 主窗口将系统文件拖放交给 WebKit 的 HTML5 拖放处理（`dragDropEnabled: false`），由页面现有的 drop 入口接收图片与文件；不得让 Tauri 的原生拖放接管后丢弃事件。胶囊与 Shelf 的原生拖拽路径不变。macOS 截图浮动缩略图、Finder 图片以及保存后重开需要用实际 App 验证，浏览器用例不能替代。
 
+## macOS 麦克风
+
+[macOS 配置](src-tauri/tauri.macos.conf.json) 的 `infoPlist` 和 `entitlements` 都是相对配置目录的文件路径。[Info.plist](src-tauri/Info.plist) 提供系统麦克风用途文案；[Entitlements.plist](src-tauri/Entitlements.plist) 只声明 `com.apple.security.device.audio-input`，供保持启用的 Hardened Runtime 访问音频输入，不启用 App Sandbox，也不绕过系统的用户授权。依据 Apple 的 [Audio Input Entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.device.audio-input) 和 [NSMicrophoneUsageDescription](https://developer.apple.com/documentation/bundleresources/information-property-list/nsmicrophoneusagedescription)。
+
+[配置回归](../../tests/desktop-voice-config.test.ts) 用已安装的 Tauri CLI 解析并核对 macOS 覆盖合并，用系统 `plutil` 读取实际文件与授权项；这证明配置可解析，未验证签名后 App 的实际授权弹窗或 WKWebView 录音。Chrome 的 AAC 录制验证不能替代最终桌面 App 的权限申请、真实录音、停止和本地转写验收。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
@@ -62,7 +68,7 @@ node scripts/run-tests.mjs tests/desktop-tui.test.ts
   - 启动器只准备环境并转发：MCP stdio 经动作网关转给常驻 Web 宿主，不另起执行器。
   - 不直接写业务数据库；面板、Capsule、热键等原生适配不承载业务判断。
   - 构建、安装与签名/公证是不同步骤，构建通过不等于已公证或已发布。
-- 改动后必跑：`node scripts/run-tests.mjs tests/desktop-shell-bootstrap.test.ts tests/desktop-tui.test.ts tests/action-mcp-stdio.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/desktop-shell-bootstrap.test.ts tests/desktop-tui.test.ts tests/desktop-voice-config.test.ts tests/action-mcp-stdio.test.ts`
 - 相关手册：[docs/platform/DESKTOP.md](../../docs/platform/DESKTOP.md)、[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

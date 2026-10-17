@@ -47,9 +47,9 @@ test("the chooser sends from the selected project and switches back to personal 
   await navigate(() => command("Page.reload", {}, sessionId));
   assert.equal((await works()).length, 2, "both works persist and the refused request creates nothing");
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await click("[data-assistant-input]");
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  // Ctrl+Enter on an empty draft cannot submit; open the saved work through its own control.
+  await waitFor("document.querySelector('[data-assistant-target-wrap]')?.dataset.mode === 'work'");
+  await click("[data-assistant-target]");
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden");
   await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-assistant-panel]').hidden", 4_000);

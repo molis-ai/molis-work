@@ -85,7 +85,7 @@ test("UIV-01 三个入口画出同一作曲条，键盘、浅色深色和窄屏�
     await mkdir(dir, { recursive: true });
     await appendFile(join(dir, "uiv-browser-notes.txt"), `${line}\n`);
   };
-  if (process.env.UIV_EVIDENCE_DIR) await writeFile(join(process.env.UIV_EVIDENCE_DIR, "uiv-browser-notes.txt"), "");
+  if (process.env.UIV_EVIDENCE_DIR) { await mkdir(process.env.UIV_EVIDENCE_DIR, { recursive: true }); await writeFile(join(process.env.UIV_EVIDENCE_DIR, "uiv-browser-notes.txt"), ""); }
   const readComposer = () => evaluate<{ field: string; send: string; voice: string; value: string; disabled: boolean }>(`(() => { const form = document.querySelector('[data-assistant-composer]'); const field = document.querySelector('[data-assistant-input]'); return { field: form.querySelector('[data-uiv-field-state]')?.textContent || '', send: form.querySelector('[data-uiv-send-status]')?.textContent || '', voice: form.querySelector('[data-uiv-voice-status]')?.textContent || '', value: field.value, disabled: !!field.disabled }; })()`);
   const shot = async (name = "uiv-composer.png") => {
     const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
@@ -95,19 +95,27 @@ test("UIV-01 三个入口画出同一作曲条，键盘、浅色深色和窄屏�
     if (dir) { await mkdir(dir, { recursive: true }); await writeFile(join(dir, name), bytes); }
   };
   const measure = async (label: string, parts: Array<"assistant" | "coding" | "home">) => {
-    const box = await evaluate<{ assistant: number; assistantInner: number; assistantField: number; assistantAttach: number; coding: number; codingInner: number; codingField: number; codingModel: number; home: number; homeInner: number; homeField: number; viewport: number }>(`(() => {
+    const box = await evaluate<{ assistant: number; assistantInner: number; assistantField: number; assistantAttach: number; assistantFieldBottom: number; assistantFieldTop: number; assistantAttachMid: number; assistantFieldMid: number; barTop: number; barBottom: number; pinBottom: number; coding: number; codingInner: number; codingField: number; codingModel: number; home: number; homeInner: number; homeField: number; viewport: number }>(`(() => {
       const metrics = (selector) => { const node = document.querySelector(selector); if (!node || node.hidden || node.closest("[hidden]")) return { outer: 0, inner: 0 }; return { outer: node.getBoundingClientRect().width, inner: node.clientWidth }; };
       const assistant = metrics("[data-assistant-composer]");
       const coding = metrics("[data-coding-composer] .coding-composer-shell");
       const home = metrics("[data-home-talk-form]");
       const field = (selector) => { const node = document.querySelector(selector); if (!node || node.hidden || node.closest("[hidden]")) return 0; return node.getBoundingClientRect().width; };
       const widthOf = (selector) => { const node = document.querySelector(selector); if (!node) return 0; const picker = node.closest(".mw-select-picker"); const trigger = picker ? picker.querySelector(".mw-select-picker__trigger") : null; const target = trigger && trigger.getBoundingClientRect().width > 0 ? trigger : node; if (target.hidden || target.closest("[hidden]")) return 0; return target.getBoundingClientRect().width; };
-      return { assistant: assistant.outer, assistantInner: assistant.inner, assistantField: field("[data-assistant-input]"), assistantAttach: widthOf("[data-assistant-attach]"), coding: coding.outer, codingInner: coding.inner, codingField: field("[data-coding-task]"), codingModel: widthOf("[data-coding-composer] [data-coding-model]"), home: home.outer, homeInner: home.inner, homeField: field("[data-home-talk-form] textarea"), viewport: innerWidth };
+      const rectOf = (selector) => { const node = document.querySelector(selector); if (!node) return { top: 0, bottom: 0, height: 0 }; const rect = node.getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom, height: rect.height }; };
+      const assistantFieldRect = rectOf("[data-assistant-input]");
+      const assistantAttachRect = rectOf("[data-assistant-attach]");
+      const barRect = rectOf(".workbench-bar");
+      const pinRect = rectOf(".dock-pin");
+      return { assistant: assistant.outer, assistantInner: assistant.inner, assistantField: field("[data-assistant-input]"), assistantAttach: widthOf("[data-assistant-attach]"), assistantFieldTop: assistantFieldRect.top, assistantFieldBottom: assistantFieldRect.bottom, assistantFieldMid: assistantFieldRect.top + assistantFieldRect.height / 2, assistantAttachMid: assistantAttachRect.top + assistantAttachRect.height / 2, barTop: barRect.top, barBottom: barRect.bottom, pinBottom: pinRect.bottom, coding: coding.outer, codingInner: coding.inner, codingField: field("[data-coding-task]"), codingModel: widthOf("[data-coding-composer] [data-coding-model]"), home: home.outer, homeInner: home.inner, homeField: field("[data-home-talk-form] textarea"), viewport: innerWidth };
     })()`);
     if (parts.includes("assistant")) {
       assert.ok(box.assistantInner > 0, `${label} assistant composer is on screen`);
-      assert.ok(box.assistantField >= box.assistantInner * 0.7, `${label} assistant field ${box.assistantField} of ${box.assistantInner}`);
+      assert.ok(box.assistantField > 40, `${label} assistant field ${box.assistantField} of ${box.assistantInner}`);
+      assert.ok(box.assistantFieldBottom <= box.barBottom + 1 && box.assistantFieldTop >= box.barTop - 1, `${label} assistant field stays inside the dock ${box.assistantFieldTop}-${box.assistantFieldBottom} bar ${box.barTop}-${box.barBottom}`);
+      assert.ok(box.pinBottom <= box.barBottom + 1, `${label} dock icon stays inside the bar ${box.pinBottom} of ${box.barBottom}`);
       assert.ok(box.assistantAttach > 0 && box.assistantAttach < box.assistantField, `${label} attach stays beside the field`);
+      assert.ok(box.assistantAttachMid >= box.assistantFieldBottom && box.assistantAttachMid < box.barBottom, `${label} attach is reachable below the multiline field`);
       if (box.viewport <= 720) assert.ok(box.assistant >= box.viewport * 0.8, `${label} assistant composer ${box.assistant} of viewport ${box.viewport}`);
     }
     if (parts.includes("coding")) {
@@ -230,7 +238,7 @@ test("UIV-01 三个入口画出同一作曲条，键盘、浅色深色和窄屏�
   await waitFor("document.querySelector('[data-assistant-composer] [data-uiv-voice-status]').textContent.includes('正在转写')");
   const edited = await evaluate<{ ok: boolean; status: string; value: string }>(`(() => { const field = document.querySelector('[data-assistant-input]'); const status = document.querySelector('[data-assistant-composer] [data-uiv-voice-status]').textContent; const next = field.value + '改过'; field.value = next; field.dispatchEvent(new Event('input', { bubbles: true })); return { ok: status.includes('正在转写') && !field.disabled && field.value === next, status, value: field.value }; })()`);
   assert.equal(edited.ok, true, edited.status);
-  await waitFor(`(() => { const text = document.querySelector('[data-assistant-composer] [data-uiv-voice-status]').textContent; return text.includes('等待用户明确选择') || text.includes('未听清') || text.includes('转写没有成功') || text.includes('音频无效'); })()`);
+  await waitFor(`(() => { const text = document.querySelector('[data-assistant-composer] [data-uiv-voice-status]').textContent; return text.includes('本地识别需要下载模型') || text.includes('等待用户明确选择') || text.includes('未听清') || text.includes('转写没有成功') || text.includes('音频无效'); })()`);
   const transcribed = await readComposer();
   assert.match(transcribed.value, /统一这句\n改过/);
   assert.doesNotMatch(transcribed.value, /whisper|fixture transcript|听写结果/);
@@ -1336,23 +1344,27 @@ test("UIV-10 没有麦克风、设备断开和转写失败保留草稿", { timeo
   await waitFor("document.querySelector('[data-assistant-composer] [data-uiv-mic]') instanceof HTMLButtonElement");
   const draft = "设备草稿";
   await evaluate(`(() => { const field = document.querySelector('[data-assistant-input]'); field.value = ${JSON.stringify(draft)}; field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
-  const voiceOf = () => evaluate<{ value: string; voice: string; calls: number; retry: boolean; discard: boolean }>("(() => { const form = document.querySelector('[data-assistant-composer]'); const retry = form.querySelector('[data-uiv-retry]'); const discard = form.querySelector('[data-uiv-discard]'); return { value: document.querySelector('[data-assistant-input]').value, voice: form.querySelector('[data-uiv-voice-status]')?.textContent || '', calls: window.__uivTranscribeCalls || 0, retry: !!retry && !retry.hidden, discard: !!discard && !discard.hidden }; })()");
+  const voiceOf = () => evaluate<{ value: string; voice: string; field: string; calls: number; retry: boolean; discard: boolean; mic: boolean }>("(() => { const form = document.querySelector('[data-assistant-composer]'); const retry = form.querySelector('[data-uiv-retry]'); const discard = form.querySelector('[data-uiv-discard]'); const mic = form.querySelector('[data-uiv-mic]'); return { value: document.querySelector('[data-assistant-input]').value, voice: form.querySelector('[data-uiv-voice-status]')?.textContent || '', field: form.querySelector('[data-uiv-field-state]')?.textContent || '', calls: window.__uivTranscribeCalls || 0, retry: !!retry && !retry.hidden, discard: !!discard && !discard.hidden, mic: !!mic && !mic.hidden }; })()");
   await click("[data-assistant-composer] [data-uiv-mic]");
-  await waitFor("(document.querySelector('[data-assistant-composer] [data-uiv-voice-status]')?.textContent || '').includes('没有可用的麦克风')");
+  await waitFor("(document.querySelector('[data-assistant-composer] [data-uiv-voice-status]')?.textContent || '').includes('录音不可用或已中断')");
   const missing = await voiceOf();
-  await recoverNote(`uiv-10 missing value=${JSON.stringify(missing.value)} voice=${missing.voice} calls=${missing.calls}`);
+  await recoverNote(`uiv-10 missing value=${JSON.stringify(missing.value)} voice=${missing.voice} calls=${missing.calls} mic=${missing.mic}`);
   assert.equal(missing.value, draft);
-  assert.match(missing.voice, /没有可用的麦克风，或麦克风已断开。草稿还在，可以继续打字。/);
+  assert.match(missing.voice, /录音不可用或已中断。草稿还在，可以继续打字。有麦克风后再点「录音」。/);
+  assert.doesNotMatch(missing.voice, /系统设置|云端/);
+  assert.notEqual(missing.field, missing.voice);
+  assert.equal(missing.mic, true);
   assert.equal(missing.calls, 0);
   await evaluate("window.__uivMicMode = 'live';");
   await click("[data-assistant-composer] [data-uiv-mic]");
   await waitFor("(document.querySelector('[data-assistant-composer] [data-uiv-voice-status]')?.textContent || '').includes('正在录音')");
   await evaluate("window.__uivTracks.at(-1).end()");
-  await waitFor("(document.querySelector('[data-assistant-composer] [data-uiv-voice-status]')?.textContent || '').includes('没有可用的麦克风') && !(document.querySelector('[data-assistant-composer] [data-uiv-voice-status]')?.textContent || '').includes('正在转写')");
+  await waitFor("(document.querySelector('[data-assistant-composer] [data-uiv-voice-status]')?.textContent || '').includes('录音不可用或已中断') && !(document.querySelector('[data-assistant-composer] [data-uiv-voice-status]')?.textContent || '').includes('正在转写')");
   const ended = await voiceOf();
-  await recoverNote(`uiv-10 ended value=${JSON.stringify(ended.value)} voice=${ended.voice} calls=${ended.calls}`);
+  await recoverNote(`uiv-10 ended value=${JSON.stringify(ended.value)} voice=${ended.voice} calls=${ended.calls} mic=${ended.mic}`);
   assert.equal(ended.value, draft);
-  assert.match(ended.voice, /没有可用的麦克风，或麦克风已断开/);
+  assert.match(ended.voice, /录音不可用或已中断。草稿还在，可以继续打字。有麦克风后再点「录音」。/);
+  assert.equal(ended.mic, true);
   assert.equal(ended.value.includes("今天核对统一输入"), false);
   assert.equal(ended.calls, 0);
   await click("[data-assistant-composer] [data-uiv-mic]");
@@ -1363,7 +1375,7 @@ test("UIV-10 没有麦克风、设备断开和转写失败保留草稿", { timeo
   await recoverNote(`uiv-10 cancel value=${JSON.stringify(cancelled.value)} voice=${cancelled.voice} calls=${cancelled.calls}`);
   assert.equal(cancelled.value, draft);
   assert.match(cancelled.voice, /已取消这次录音，草稿还在。/);
-  assert.equal(cancelled.voice.includes("没有可用的麦克风"), false);
+  assert.equal(cancelled.voice.includes("录音不可用或已中断"), false);
   assert.equal(cancelled.calls, 0);
   await click("[data-assistant-composer] [data-uiv-mic]");
   await waitFor("!document.querySelector('[data-assistant-composer] [data-uiv-stop-record]').hidden");

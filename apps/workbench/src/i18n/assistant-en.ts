@@ -1,5 +1,7 @@
 /** The resident Assistant in the bottom bar. */
 export const ASSISTANT_EN: Record<string, string> = {
+  "正在完成本机识别准备，首次使用可能稍久，可以取消。": "Finishing local recognition setup. The first use may take longer. You can cancel.",
+  "正在准备录音，可以取消。": "Preparing to record. You can cancel.",
   "回复到原评论": "Replying to the original comment",
   "请回到原评论继续回复": "Return to the original comment to continue",
   "在主区展开": "Expand in workspace",
@@ -554,8 +556,9 @@ export const ASSISTANT_EN: Record<string, string> = {
   "正在输入": "Typing",
   "已有草稿": "Draft",
   "现在不可用": "Unavailable",
-  "麦克风权限没开。请在系统设置里允许本页使用麦克风，然后重新点录音。": "Microphone permission is off. Allow this page to use the microphone in System Settings, then record again.",
-  "没有可用的麦克风，或麦克风已断开。草稿还在，可以继续打字。": "No microphone is available, or it was disconnected. The draft is still here; you can keep typing.",
+  "麦克风用来把口述转成这台设备上可编辑的文字。请在系统设置里允许本页使用麦克风，然后再点「录音」。可以继续打字。": "The microphone turns speech into editable text on this device. Allow this page to use the microphone in System Settings, then click Record again. You can keep typing.",
+  "录音不可用或已中断。草稿还在，可以继续打字。有麦克风后再点「录音」。": "Recording is unavailable or was interrupted. The draft is still here; keep typing. Click Record again after a microphone is available.",
+  "本地识别现在不可用。草稿还在，可以继续打字。不会改用云端转写。": "On-device recognition is unavailable. The draft is still here; keep typing. This will not switch to cloud transcription.",
   "未听清，可以重新录。": "Couldn't catch that. You can record again.",
   "正在转写，可以取消。没有剩余时间的估计。": "Transcribing. You can cancel. There is no time estimate.",
   "转写没有成功。草稿还在，可以重试或丢弃这段录音。": "Transcription failed. The draft is still here; retry or discard this recording.",

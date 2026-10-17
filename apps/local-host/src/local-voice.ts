@@ -10,6 +10,7 @@ import { isMaterialFailure } from "./material-text.js";
 const run = promisify(execFile);
 const outputLimits: MaterialLimits = { maxBytes: 15_000_000, maxCharacters: 100_000, maxTextBytes: 400_000, maxPages: 4 };
 export interface LocalVoiceOptions {
+  signal?: AbortSignal;
   helperPath?: string;
   allowModelDownload?: boolean;
   onProgress?: (progress: { stage: string; progress: number }) => void;
@@ -56,17 +57,26 @@ function readProbe(raw: unknown): LocalVoiceProbe {
 
 /** Ask the local helper whether its model is on disk. This does not download and does not send audio anywhere. */
 export async function probeLocalVoice(home: string, options: LocalVoiceOptions = {}): Promise<LocalVoiceProbe> {
+  options.signal?.throwIfAborted();
   const helper = localVoiceHelper(options.helperPath);
   const modelDirectory = await jellyModelCacheDirectory(home);
+  options.signal?.throwIfAborted();
+  const pending = run(helper, ["capabilities", modelDirectory], { timeout: 30_000, encoding: "utf8", windowsHide: true, maxBuffer: 1024 * 1024, killSignal: "SIGKILL" });
+  const closed = new Promise<void>(resolve => pending.child.once("close", () => resolve()));
+  const abort = () => { pending.child.kill("SIGKILL"); };
+  options.signal?.addEventListener("abort", abort, { once: true });
+  if (options.signal?.aborted) abort();
   try {
-    const { stdout } = await run(helper, ["capabilities", modelDirectory], { timeout: 30_000, encoding: "utf8", windowsHide: true, maxBuffer: 1024 * 1024 });
+    const { stdout } = await pending;
+    options.signal?.throwIfAborted();
     return readProbe(JSON.parse(stdout));
   } catch (error) {
+    options.signal?.throwIfAborted();
     const stdout = stdoutOf(error);
     if (stdout.trim().startsWith("{")) return readProbe(JSON.parse(stdout));
     const message = error instanceof Error ? error.message : "本地识别组件不可用";
     throw new Error(stdout ? `${message}\n${stdout}` : message);
-  }
+  } finally { options.signal?.removeEventListener("abort", abort); await closed; }
 }
 
 /** A short valid silent clip. A zero-length file never reaches the model check. */
@@ -109,11 +119,12 @@ function spokenText(result: { text: string; segments?: { text: string }[] }): st
  * The draft receives the helper's spoken segments, not the timestamped material lines.
  */
 export async function transcribeLocalVoice(home: string, audio: Uint8Array, fileName: string, options: LocalVoiceOptions = {}): Promise<LocalVoiceTranscript> {
+  options.signal?.throwIfAborted();
   const modelDirectory = await jellyModelCacheDirectory(home);
   try {
     const result = await extractNativeMaterial(
       { file_name: fileName, bytes: audio },
-      { allowModelDownload: options.allowModelDownload === true, onProgress: options.onProgress, timeoutMs: 30 * 60_000 },
+      { signal: options.signal, allowModelDownload: options.allowModelDownload === true, onProgress: options.onProgress, timeoutMs: 30 * 60_000 },
       outputLimits,
       { whisperHelperPath: localVoiceHelper(options.helperPath), modelDirectory, platform: process.platform },
     );
@@ -121,6 +132,7 @@ export async function transcribeLocalVoice(home: string, audio: Uint8Array, file
     if (!text) return { text: "", unclear: true, modelRequired: false, message: "未听清，可以重新录。" };
     return { text, unclear: false, modelRequired: false, message: "" };
   } catch (error) {
+    options.signal?.throwIfAborted();
     if (isMaterialFailure(error) && (error.code === "material.insufficient_content" || error.code === "material.empty")) {
       return { text: "", unclear: true, modelRequired: false, message: "未听清，可以重新录。" };
     }

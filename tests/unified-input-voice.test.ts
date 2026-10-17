@@ -12,8 +12,8 @@ import {
   UIV_BOOT_SCRIPT, UIV_EXCLUDED_FIELDS, UIV_PLACEHOLDERS, UIV_RECOVERY, UIV_SCENE_ONLY, UIV_SEND_COPY,
   UIV_SHARED_CONTROLS, UIV_SURFACES, uivApplyTranscript, uivBeginSend, uivCancelVoice, uivCannotSend,
   uivContextInvalid, uivDiscardAudio, uivExplainInterrupted, uivFailTranscript, uivFieldLabel, uivKeyAction,
-  uivClearedDraftText, uivLoadDraft, uivNoteEdit, uivNoteSwitch, uivNoteTyping, uivRequestRecord, uivRetryTranscript, uivSaveDraft,
-  uivSendIdle, uivSettleSend, uivStopRecord, uivTickRecord, uivVisibleControls, uivVoiceIdle,
+  uivBeginDownload, uivClearedDraftText, uivDownloadRejected, uivLoadDraft, uivLoseDevice, uivNoteEdit, uivNoteSwitch, uivNoteTyping, uivRequestRecord, uivRetryTranscript, uivSaveDraft,
+  uivSendIdle, uivSettleSend, uivStopRecord, uivTickRecord, uivVisibleControls, uivVoiceIdle, uivVoiceStatusText,
   type UivIdentity, type UivStore, type UivVoice,
 } from "@molis-ai/molis-work-design-system";
 import { extractNativeMaterial, handleLocalVoiceHttp, silentVoiceWav, transcribeLocalVoice } from "@molis-ai/molis-work-app-local-host";
@@ -111,14 +111,10 @@ test("UIV-03 成功、失败、不确定与不重复提交", () => {
   assert.equal(uivClearedDraftText("发出去", "发出去"), "");
   assert.equal(uivClearedDraftText("", "发出去"), "");
   assert.equal(uivClearedDraftText("后来改的", "发出去"), null);
-  const phaseFn = UIV_BOOT_SCRIPT.slice(UIV_BOOT_SCRIPT.indexOf("function uivReadPhase"), UIV_BOOT_SCRIPT.indexOf("function uivReadHome"));
-  assert.match(phaseFn, /uivClearedDraftText/);
-  assert.match(phaseFn, /queueMicrotask/);
-  const homeFn = UIV_BOOT_SCRIPT.slice(UIV_BOOT_SCRIPT.indexOf("function uivReadHome"), UIV_BOOT_SCRIPT.indexOf("function uivBind"));
-  assert.match(homeFn, /uivClearedDraftText/);
-  assert.match(homeFn, /!settled\.clearDraft/);
-  assert.ok(homeFn.indexOf("uivClearedDraftText") > homeFn.indexOf("!settled.clearDraft"));
-  assert.match(homeFn, /queueMicrotask/);
+  // Cross-session DOM settlement is exercised through the production boot in unified-input-lifecycle.e2e.
+  const duringRecording = uivNoteEdit(record(homeId("assistant", "a"), "旧稿", 2), "");
+  const afterRetype = uivNoteEdit(uivStopRecord(duringRecording), "全新草稿");
+  assert.equal(uivApplyTranscript(afterRetype, afterRetype.generation, homeId("assistant", "a"), "全新草稿", "旧录音", false).text, "全新草稿");
   assert.equal(uivSettleSend(first.send, first.send.token + 9, "succeeded").clearDraft, false);
   const home = uivBeginSend(uivSendIdle(), "首页", false);
   assert.equal(uivBeginSend(home.send, "助理", false).accepted, false);
@@ -179,10 +175,35 @@ test("UIV-07 转写中编辑、清空、切会话不覆盖不误填", () => {
 
 test("UIV-10 权限、无麦克风、未听清、过久、失败、切换、中断、时长、不能发送", () => {
   const owner = homeId("home", "s");
-  const denied = uivRequestRecord(uivVoiceIdle(), { owner, text: "草稿", anchor: 0, permission: "denied", model: "ready", limitMs: null });
-  assert.match(denied.message, /麦克风权限/);
-  const missing = uivRequestRecord(uivVoiceIdle(), { owner, text: "草稿", anchor: 0, permission: "granted", model: "unavailable", limitMs: null });
-  assert.match(missing.message, /没有可用的麦克风/);
+  const draft = "草稿";
+  const denied = uivRequestRecord(uivVoiceIdle(), { owner, text: draft, anchor: 0, permission: "denied", model: "ready", limitMs: null });
+  assert.equal(draft, "草稿");
+  assert.equal(denied.phase, "need-permission");
+  assert.match(denied.message, /口述转成这台设备上可编辑的文字/);
+  assert.match(denied.message, /系统设置/);
+  assert.match(denied.message, /允许本页使用麦克风/);
+  assert.match(denied.message, /再点「录音」/);
+  assert.match(denied.message, /可以继续打字/);
+  assert.equal(uivVisibleControls(denied.phase).mic, true);
+  const missing = uivRequestRecord(uivVoiceIdle(), { owner, text: draft, anchor: 0, permission: "granted", model: "unavailable", limitMs: null });
+  assert.equal(draft, "草稿");
+  assert.equal(missing.phase, "unavailable");
+  assert.match(missing.message, /录音不可用或已中断/);
+  assert.match(missing.message, /草稿还在/);
+  assert.match(missing.message, /继续打字/);
+  assert.match(missing.message, /有麦克风后再点「录音」/);
+  assert.doesNotMatch(missing.message, /系统设置|云端/);
+  assert.notEqual(missing.message, denied.message);
+  assert.equal(missing.message.includes("空白"), false);
+  assert.equal(uivVisibleControls(missing.phase).mic, true);
+  const dropped = uivLoseDevice(record(owner, draft, 0));
+  assert.equal(draft, "草稿");
+  assert.equal(dropped.phase, "unavailable");
+  assert.equal(dropped.message, missing.message);
+  assert.equal(uivLoseDevice(uivVoiceIdle()).phase, "idle");
+  assert.match(UIV_RECOVERY.localUnavailable, /本地识别现在不可用/);
+  assert.match(UIV_RECOVERY.localUnavailable, /不会改用云端转写/);
+  assert.doesNotMatch(UIV_RECOVERY.localUnavailable, /系统设置/);
   const heard = uivApplyTranscript(uivStopRecord(record(owner, "草稿", 2)), 1, owner, "草稿", "", true);
   assert.equal(heard.text, "草稿");
   assert.match(heard.voice.message, /未听清/);
@@ -205,6 +226,40 @@ test("UIV-10 权限、无麦克风、未听清、过久、失败、切换、中�
   assert.match(uivTickRecord(switchedVoice, 2_000, 0).message, /仍属于开始时的草稿/);
   assert.match(uivCannotSend(""), /现在不能发送/);
   assert.match(UIV_RECOVERY.modelReady, /不表示离线/);
+  const offer = uivRequestRecord(uivVoiceIdle(), { owner, text: draft, anchor: 0, permission: "granted", model: "missing", approximateBytes: 626_000_000, limitMs: null });
+  assert.equal(draft, "草稿");
+  assert.equal(offer.phase, "need-model");
+  assert.equal(offer.bytesTotal, 626_000_000);
+  assert.match(offer.message, /本地识别需要下载模型/);
+  assert.match(uivVoiceStatusText(offer), /626 MB/);
+  assert.equal(uivVisibleControls(offer.phase).download, true);
+  assert.equal(uivVisibleControls(offer.phase).cancel, true);
+  assert.match(UIV_BOOT_SCRIPT, /function uivVoiceStatusText/);
+  const failedDownload = uivVoiceStatusText({ phase: "need-model", message: UIV_RECOVERY.downloadFailed, bytesTotal: 626_000_000 });
+  assert.match(failedDownload, /可以重试/);
+  assert.match(failedDownload, /626 MB/);
+  assert.doesNotMatch(failedDownload, /helper exploded/);
+});
+
+test("UIV-07 取消下载后，中止的准备请求不再改成下载失败", () => {
+  const owner = homeId("home", "s");
+  const offer = uivRequestRecord(uivVoiceIdle(), { owner, text: "草稿", anchor: 0, permission: "granted", model: "missing", approximateBytes: 626_000_000, limitMs: null });
+  const downloading = uivBeginDownload(offer, true);
+  assert.equal(downloading.phase, "downloading");
+  const cancelled = uivCancelVoice(downloading);
+  assert.equal(cancelled.phase, "idle");
+  assert.match(cancelled.message, /已取消下载，可以继续打字/);
+  const kept = uivDownloadRejected(cancelled, { name: "AbortError" });
+  assert.equal(kept.phase, cancelled.phase);
+  assert.equal(kept.message, cancelled.message);
+  assert.doesNotMatch(kept.message, /下载没有完成/);
+  const aborted = uivDownloadRejected(downloading, { name: "AbortError" });
+  assert.equal(aborted.phase, "downloading");
+  assert.doesNotMatch(aborted.message, /下载没有完成/);
+  const failed = uivDownloadRejected(downloading, { name: "TypeError" });
+  assert.equal(failed.phase, "need-model");
+  assert.match(failed.message, /下载没有完成，可以重试/);
+  assert.match(UIV_BOOT_SCRIPT, /uivDownloadRejected\(live\.voice/);
 });
 
 test("UIV-11 占位只帮助开口，排除搜索、名称、表单和正文编辑器", () => {

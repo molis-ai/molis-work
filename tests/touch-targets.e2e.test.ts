@@ -4,28 +4,22 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { layoutFindings } from "./fixtures/layout-audit.js";
 import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
 
-// DESIGN.md → Focus and accessibility: every target is 44px wherever the pointer is coarse (a phone, a phone held sideways, a
-// tablet) or the window is a phone's width, and the desktop window's chrome (the title bar's tab strip and the bottom bar) keeps
-// one written, scoped exception for fine-pointer windows. This measures both sides on the real shell. Touch windows, 390×844,
-// 852×393 and 1024×768: every control of the strip and of the bar is 44px on its short side, the bar and the strip lay out
-// cleanly with them. The Assistant line stays inside its pill in the states the seeded project does not start in (a current
-// work with its chip and the chip's mark, the chips that come and go beside the input, and the crowd of them all) at the widths
-// where it is tight: 320, 360 and 390px phones and the 640, 667, 740 and 852px sideways phones. A line that cannot hold them at
-// 44px folds in steps (the choosers, then the work chip's mark, then the materials and the notice into the "+" menu); each
-// step is taken only when the one before it still overflowed, and nothing it folds is lost. The states are the ones the island can
-// show (a Character belongs to a work that is not Coding and the mode to one that is), the page object behind the materials chip is
-// a real one, and a tap into the input and away again (the phone hides the chips while typing) leaves the steps where they were.
-// A fine-pointer window of 1280px keeps the sizes the exception names and does not sink below its floor, also in a short window
-// and at 700px, where a crowded line squeezes its chips narrower but never shorter.
+// DESIGN.md and UIV-01/11: touch targets stay 44px; desktop chrome keeps its documented floors.
+// The shared multiline textarea has a 44px minimum everywhere. Context, writing and voice actions may
+// occupy separate rows; every control must stay inside the composer and viewport, including long drafts.
+// These real-shell fixtures cover both themes, optional context chips, their menus and all voice controls.
 
 type Control = { kind: string; area: "strip" | "bar"; label: string; w: number; h: number };
-type Part = { name: string; left: number; right: number };
-type LineFit = { overflow: number; left: number; right: number; vw: number; stage: string; fit: string; input: number; touchRules: boolean; parts: Part[] };
+type Part = { name: string; left: number; right: number; top: number; bottom: number };
+type LineFit = { overflow: number; left: number; right: number; top: number; bottom: number; vw: number; vh: number; stage: string; fit: string; input: number; touchRules: boolean; parts: Part[] };
 
 const KINDS: Record<string, string> = {
   "[data-assistant-input]": "assistant input",
   "[data-assistant-attach]": "assistant attach",
   "[data-assistant-send]": "assistant send",
+  "[data-uiv-mic]": "voice record", "[data-uiv-stop-record]": "voice stop", "[data-uiv-cancel-record]": "voice cancel",
+  "[data-uiv-download]": "voice download", "[data-uiv-retry]": "voice retry", "[data-uiv-discard]": "voice discard",
+  "[data-uiv-confirm]": "voice confirm", "[data-uiv-decline]": "voice decline",
   "[data-plugin-picker-toggle]": "plugin switcher",
   ".dock-pin": "dock",
   ".bar-resident": "resident",
@@ -96,7 +90,7 @@ const SHELL_CONTROLS = `(() => {
   const out = [];
   const roots = [["bar", ".workbench-bar"], ["strip", "nav.tab-strip"], ["strip", ".immersive-titlebar"]];
   for (const [area, root] of roots) {
-    for (const el of document.querySelectorAll(root + " :is(button, summary, input, [role=tab])")) {
+    for (const el of document.querySelectorAll(root + " :is(button, summary, input, textarea, [role=tab])")) {
       if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) || el.closest("[hidden], [inert], .assistant-panel, .assistant-popover, .plugin-picker-popover, [data-dock-overflow], .navigator-project-menu-popover")) continue;
       const box = el.getBoundingClientRect();
       if (box.width < 2 || box.height < 2) continue;
@@ -116,9 +110,9 @@ const LINE_FIT = `(() => {
     if (!el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
     const box = el.getBoundingClientRect();
     if (box.width < 2 || box.height < 2) continue;
-    parts.push({ name: String(el.className).split(" ")[0] || el.tagName.toLowerCase(), left: Math.round(box.left * 10) / 10, right: Math.round(box.right * 10) / 10 });
+    parts.push({ name: String(el.className).split(" ")[0] || el.tagName.toLowerCase(), left: Math.round(box.left * 10) / 10, right: Math.round(box.right * 10) / 10, top: box.top, bottom: box.bottom });
   }
-  return { overflow: composer.scrollWidth - composer.clientWidth, left: Math.round(pill.left * 10) / 10, right: Math.round(pill.right * 10) / 10, vw: document.documentElement.clientWidth,
+  return { overflow: composer.scrollWidth - composer.clientWidth, left: Math.round(pill.left * 10) / 10, right: Math.round(pill.right * 10) / 10, top: pill.top, bottom: pill.bottom, vw: document.documentElement.clientWidth, vh: innerHeight,
     stage: composer.dataset.crowded ?? "", fit: composer.dataset.fit ?? "", touchRules: matchMedia("(max-width: 600px), (pointer: coarse)").matches,
     input: Math.round(document.querySelector("[data-assistant-input]").getBoundingClientRect().width * 10) / 10, parts };
 })()`;
@@ -359,6 +353,26 @@ const PANEL_BODY = `(async () => {
 const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-resident|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
+/** Layout fixtures select production voice controls; they do not claim microphone or recognition coverage. */
+async function voiceControls(browser: Browser, floor: number): Promise<Control[]> {
+  const { evaluate } = browser;
+  const selector = '[data-assistant-composer] .uiv-bar button';
+  const before = await evaluate<boolean[]>(`[...document.querySelectorAll('${selector}')].map(button => button.hidden)`);
+  const measured: Control[] = [];
+  try {
+    for (const attrs of [["mic"], ["stop-record", "cancel-record"], ["download", "cancel-record"], ["retry", "discard"], ["confirm", "decline"]]) {
+      await evaluate(`(() => { for (const button of document.querySelectorAll('${selector}')) button.hidden = !${JSON.stringify(attrs)}.some(attr => button.hasAttribute('data-uiv-' + attr)); })()`);
+      const controls = (await evaluate<Control[]>(SHELL_CONTROLS)).filter(control => control.kind.startsWith("voice "));
+      assert.equal(controls.length, attrs.length, `voice ${attrs}: all controls are measured`);
+      assert.deepEqual(controls.filter(control => Math.min(control.w, control.h) < floor), [], `voice ${attrs}: every target is at least ${floor}px`);
+      const unreachable = await evaluate<string[]>(`[...document.querySelectorAll('${selector}')].filter(button => !button.hidden).filter(button => { const r = button.getBoundingClientRect(); const hit = document.elementFromPoint(r.x+r.width/2,r.y+r.height/2); return r.left<0 || r.right>innerWidth || r.top<0 || r.bottom>innerHeight || !(button===hit || button.contains(hit)); }).map(button => button.getAttribute('aria-label'))`);
+      assert.deepEqual(unreachable, [], `voice ${attrs}: controls are inside the window and can be hit`);
+      measured.push(...controls);
+    }
+  } finally { await evaluate(`[...document.querySelectorAll('${selector}')].forEach((button, index) => button.hidden = ${JSON.stringify(before)}[index])`); }
+  return measured;
+}
+
 
 /** ISSUE-30: declared Home tools stay inside the viewport, and the visible target can actually be reached. */
 async function assertHomeToolsReachable(browser: Browser): Promise<void> {
@@ -439,10 +453,8 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     return out;
   })()`;
 
-  /** The Assistant line with some chips shown: they are the ones the island shows beside the input in that state. A crowded line takes
-   * chips off in steps (the island marks which), so what must be on it is `present` less what that step folds; what is folded is not lost:
-   * the work chip's mark is the panel's own "new work", the choosers are in the side pane, the materials and the notice are in the "+" menu. */
-  const line = async (name: string, chips: string[], present: string[], floor: number, chipWidthFree = false, insidePill = true) => {
+  /** Every context control remains measurable or available through its documented folded entry. */
+  const line = async (name: string, chips: string[], present: string[], floor: number, chipWidthFree = false) => {
     if (present.includes("work chip")) await waitFor("document.querySelector('[data-assistant-target-wrap]')?.getClientRects().length > 0", 10_000);
     await evaluate(lookAtPage(chips.includes("[data-assistant-materials]")));
     // The island repaints its chips when its first answers come back and would hide what was shown; show them again until they stay.
@@ -464,11 +476,9 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     const small = (control: Control) => (chipWidthFree && LINE_KINDS.includes(control.kind) ? control.h : short(control)) < floor;
     assert.deepEqual(bar.filter(small).map(control => `${control.kind} 「${control.label}」 ${control.w}×${control.h}`), [], `${name}: no control of the bar is under ${floor}px`);
     assert.deepEqual(bar.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name}: every control is a known one`);
-    if (insidePill) {
       assert.ok(fit.overflow <= 1, `${name}: the line does not overflow its pill (by ${fit.overflow}px; ${JSON.stringify(fit)})`);
-      assert.deepEqual(fit.parts.filter(part => part.left < fit.left - 1 || part.right > fit.right + 1 || part.right > fit.vw).map(part => `${part.name} ${part.left}–${part.right}`), [],
-        `${name}: every part of the line is inside its pill (${fit.left}–${fit.right}) and the window (${fit.vw})`);
-    }
+      assert.deepEqual(fit.parts.filter(part => part.left < fit.left - 1 || part.right > fit.right + 1 || part.right > fit.vw || part.top < fit.top - 1 || part.bottom > fit.bottom + 1 || part.top < 0 || part.bottom > fit.vh).map(part => `${part.name} ${part.left}–${part.right}`), [],
+        `${name}: every composer row is inside its surface and the ${fit.vw}×${fit.vh} window`);
     assert.ok(fit.input >= (floor >= 44 ? 44 : 28), `${name}: the input keeps its box (${fit.input}px)`);
     // Taking chips off is the last resort: the step the island took was needed, and with none taken the line fits as it is.
     if (fit.stage) assert.equal(await evaluate<boolean | null>(stepBefore), true, `${name}: one step less folded than "${fit.stage}" would run over the pill, so the fold was needed`);
@@ -491,9 +501,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     return { fit, expected };
   };
 
-  /** A tap into the input and away again, as a person does to type and dismiss the keyboard. The phone hides the chips while the input has
-   * focus and the focus repaints the materials chip; the line must come back as it was, the same steps and inside its pill (it is measured
-   * with its chips on it, whether or not typing hides them). */
+  /** Focusing the writing row and returning must preserve the context controls and their layout. */
   const typeAndLeave = async (name: string, before: LineFit, phoneWidth: boolean) => {
     type Typing = { stage: string; fit: string; overflow: number; sendRight: number; pillRight: number; focused: boolean; chips: string[] };
     await evaluate(`document.querySelector("[data-assistant-input]").focus()`);
@@ -654,6 +662,7 @@ for (const scheme of ["light", "dark"] as const) {
     for (const width of [390, 375, 360]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
     for (const width of [350, 320]) assert.equal(moreShown[`${width} the project's settings`], false, `${width}px cannot hold 项目首页 and the "+N" button beside the directory button: the "+N" gives way, 项目首页 does not`);
     assert.equal(moreShown["320 home"], true, "without the directory button the row holds the \"+N\" button even at 320px");
+    for (const control of await voiceControls(browser, 44)) seen.add(control.kind);
     assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");
 
     // The Assistant line stays a 44px input with room to type, and its attach and send keep their size while typing.
@@ -764,17 +773,9 @@ for (const scheme of ["light", "dark"] as const) {
         assert.ok(fit.input >= (width <= 600 ? 64 : 44), `${name} · ${width}: the input keeps its floor beside the chips (${fit.input}px)`);
       }
     }
-    // The steps, window by window: a line that fits folds nothing, and the narrower the window the more it folds, never a chip it
-    // could keep. These are the stages the island reaches at 44px targets; a change here is a change in what a phone's line shows.
-    assert.deepEqual(Object.fromEntries(Object.entries(stages).filter(([key]) => /^(390|360|667) /.test(key))), {
-      "390 a current work": "", "390 a current work with its materials and a notice": "", "390 a Coding work": "",
-      "390 a work with materials, a notice and a Character": "choosers", "390 a Coding work with its materials and a notice": "choosers",
-      "360 a current work": "", "360 a current work with its materials and a notice": "mark", "360 a Coding work": "",
-      "360 a work with materials, a notice and a Character": "mark", "360 a Coding work with its materials and a notice": "mark",
-      "667 a current work": "", "667 a current work with its materials and a notice": "chips", "667 a Coding work": "choosers",
-      "667 a work with materials, a notice and a Character": "chips", "667 a Coding work with its materials and a notice": "chips",
-    }, "the steps the island takes at 390, 360 and 667px");
-    assert.equal(stages["640 a current work"], "mark", "a bare current work in a 640×360 window folds the mark and nothing else");
+    // UIV-01: separate context and writing rows keep these options available at every tested width.
+    // Per-state checks above still verify every target, fit, focus stability and any necessary folding.
+    assert.deepEqual([...new Set(Object.values(stages))], [""], "multiline composers retain the tested context controls without unnecessary folding");
 
     // A tablet's line, with every chip a work can show.
     await w.open(1024, 768, "", "true");
@@ -800,10 +801,11 @@ for (const scheme of ["light", "dark"] as const) {
         `${name} · 1280: nothing in the strip is under ${floors.strip}px or in the bar under ${floors.bar}px`);
       assert.deepEqual(controls.filter(control => control.kind.startsWith("unlisted")).map(control => control.kind), [], `${name} · 1280: every control is a known one`);
       const input = controls.find(control => control.kind === "assistant input");
-      assert.ok(input && input.h <= 32, "the desktop Assistant line stays the 28px line the exception describes, not a phone's 44px");
+      assert.ok(input && input.h >= 44 && input.h <= 160, "UIV-01/02: the desktop writing surface shares the 44px minimum and bounded multiline height");
       assert.ok(controls.some(control => w.short(control) < 44), `${name} · 1280: the desktop chrome is denser than 44px, as the exception says`);
     }
 
+    await voiceControls(browser, 32);
     // What a plugin page's menu holds is 34px on a desktop window, as DESIGN.md writes it.
     assert.deepEqual([...new Set(await w.menuRows(1280, 800))], [34], "mw-menu items keep their 34px with a fine pointer");
 
@@ -886,12 +888,10 @@ for (const scheme of ["light", "dark"] as const) {
       assert.equal(fit.touchRules, false, "a fine-pointer window of 700px does not take the phone's rules");
     }
 
-    // Just wider than a phone (620px, fine pointer) the line is not a touch window either: the island's steps are made for 44px targets
-    // and the stylesheet applies them only there, so the island takes none and puts nothing into the "+" menu while the chips are on the
-    // line, however crowded it is. (A crowded line this narrow still runs past its pill, as it did before this branch; not measured here.)
+    // At 620px a fine pointer keeps desktop controls; multiple rows must now also fit this window.
     await w.open(620, 800, "", "true");
     for (const [name, chips, kinds] of LINE_STATES) {
-      const { fit } = await w.line(`${name} · 620`, [...chips], [...kinds], floors.bar, true, false);
+      const { fit } = await w.line(`${name} · 620`, [...chips], [...kinds], floors.bar, true);
       assert.equal(fit.touchRules, false, "a fine-pointer window of 620px does not take the phone's rules");
       assert.equal(fit.stage, "", `${name} · 620: so the island marks no step`);
       assert.deepEqual(await w.moreLabels(), ["添加文件或图片…", "引用项目里的内容", "用一个能力或方法"], `${name} · 620: and the "+" menu lists its usual rows, not the chips that are still on the line`);

@@ -94,7 +94,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let directoryClaimed = false, stateLoaded = false;
   const drafts = new Map(), offsets = new Map(), draftWrites = new Map();
   const materialSelections = new Map(), characterSelections = new Map(), characterSkills = new Map(), characterTitles = new Map();
-  const questionDrafts = new Map(), methodSelections = new Map(), configurations = new Map(), adoptedConfigurations = new Map(), mcpSelections = new Map(), mcpSourceSelections = new Map();
+  const questionDrafts = new Map(), methodSelections = new Map(), configs = new Map(), adoptedConfigurations = new Map(), mcpSelections = new Map(), mcpRefs = new Map();
   const actionSelections = new Map();
   let mcpChoices = [], mcpSourceChoices = [];
   let methodChoices = [], methodDocumentTicket = 0;
@@ -202,10 +202,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const value=input.value.trim()?input.value+'\\n\\n'+instruction:instruction;
     input.value=value;rememberDraft(id,value);await saveDraft(id,value);
   }});
-  const writerDirectories = (${CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,host,current:()=>current,workspace:()=>workspaceId,workspaceLabel:()=>state.workspaces?.find(item=>item.workspace_id===workspaceId)?.canonical_path || workspaceId,status,assignments:()=>configurations.get(current)?.writer_assignments || [],saveAssignments:async(owner,parent,assignments)=>{
+  const writerDirectories = (${CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,host,current:()=>current,workspace:()=>workspaceId,workspaceLabel:()=>state.workspaces?.find(item=>item.workspace_id===workspaceId)?.canonical_path || workspaceId,status,assignments:()=>configs.get(current)?.writer_assignments || [],saveAssignments:async(owner,parent,assignments)=>{
     if(owner!==current || parent!==workspaceId)throw new Error('会话或主工作区已改变，请重新打开分工');
-    rememberConfiguration();const previous=configurations.get(current);configurations.set(current,{...previous,writer_assignments:assignments});
-    try{await flushDraft();status('分工已保存；选择并行写入并发送任务后才开始。');}catch(error){if(!lifetime.alive)return;configurations.set(owner,previous);throw error;}
+    rememberConfiguration();const previous=configs.get(current);configs.set(current,{...previous,writer_assignments:assignments});
+    try{await flushDraft();status('分工已保存；选择并行写入并发送任务后才开始。');}catch(error){if(!lifetime.alive)return;configs.set(owner,previous);throw error;}
   },select:async(owner,id)=>{
     if(owner!==current)throw new Error('会话已改变，请重新打开独立工作树');
     workspaceId=id;rememberConfiguration();await flushDraft();await refreshState();await followWorkspace();status('下一轮将使用所选独立目录；原任务与主工作区保持原状态。');
@@ -214,9 +214,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(sending || recovery || checkpointBusy || !current)throw new Error('请先完成当前操作或核对中断结果');
     const id=current,[provider_id,model_id]=JSON.parse(q('[data-coding-model]').value),intent=q('[data-coding-intent]').value==='parallel'?'parallel':'execute';
     const request={plan_revision:revision,intent,provider_id,model_id,...composerModels.effort(),workspace_id:workspaceId,
-      ...(intent==='parallel'?{writer_assignments:structuredClone(configurations.get(id)?.writer_assignments || [])}:{}),
+      ...(intent==='parallel'?{writer_assignments:structuredClone(configs.get(id)?.writer_assignments || [])}:{}),
       methods:structuredClone(methodSelections.get(id)||[]),materials:structuredClone(materialSelections.get(id)||[]),character:structuredClone(characterSelections.get(id)??null),character_skill_ids:characterSkills.get(id),
-      action_tools:structuredClone(actionSelections.get(id)||[]),mcp_tools:structuredClone(mcpSelections.get(id)||[]),mcp_sources:structuredClone(mcpSourceSelections.get(id)||[])};
+      action_tools:structuredClone(actionSelections.get(id)||[]),mcp_tools:structuredClone(mcpSelections.get(id)||[]),mcp_sources:structuredClone(mcpRefs.get(id)||[])};
     sending=true;controls();
     try{
       await flushDraft();
@@ -301,7 +301,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const saveDraft = (id, value, selectedMethods = methodSelections.get(id), selectedMaterials = materialSelections.get(id)) => {
     if (!id) return Promise.resolve();
     rememberDraft(id,value);
-    const body={draft:value, ...(actionSelections.has(id)?{action_tools:structuredClone(actionSelections.get(id))}:{}), ...(characterSkills.has(id)?{character_skill_ids:characterSkills.get(id)}:{}), ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
+    const body={draft:value, ...(actionSelections.has(id)?{action_tools:structuredClone(actionSelections.get(id))}:{}), ...(characterSkills.has(id)?{character_skill_ids:characterSkills.get(id)}:{}), ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpRefs.has(id)?{mcp_sources:structuredClone(mcpRefs.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configs.get(id) ? {configuration:structuredClone(configs.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
     const next = (draftWrites.get(id) || Promise.resolve()).catch(() => {}).then(() => api('/sessions/' + encodeURIComponent(id),'PATCH',body));
     draftWrites.set(id,next);
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
@@ -368,7 +368,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-mcp-open]').disabled=!current || sending;
     q('[data-coding-actions-open]').disabled=!current || sending;
     const actionCount=(actionSelections.get(current) || []).length;contextLabel('[data-coding-actions-open]','能力'+(actionCount?' · '+actionCount:''),actionCount);
-    const mcpCount=(mcpSelections.get(current) || []).length+(mcpSourceSelections.get(current) || []).length; contextLabel('[data-coding-mcp-open]','MCP'+(mcpCount?' · '+mcpCount:''),mcpCount);
+    const mcpCount=(mcpSelections.get(current) || []).length+(mcpRefs.get(current) || []).length; contextLabel('[data-coding-mcp-open]','MCP'+(mcpCount?' · '+mcpCount:''),mcpCount);
     const writable=['edit','execute'].includes(q('[data-coding-intent]').value);
     q('[data-coding-checkpoints-refresh]').disabled=!current || checkpointLoading;
     q('[data-coding-checkpoints-list]').querySelectorAll('button').forEach(button=>{
@@ -477,7 +477,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const canonical=value=>JSON.stringify(value,(key,item)=>item && typeof item==='object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(name=>[name,item[name]])) : item);
   const applyConfiguration = () => {
-    const config=configurations.get(current),models=q('[data-coding-model]');
+    const config=configs.get(current),models=q('[data-coding-model]');
     models.querySelector('[data-unavailable]')?.remove();
     if(config){
       q('[data-coding-intent]').value=config.intent;
@@ -494,7 +494,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const rememberConfiguration = () => {
     if(!current)return;
     const [provider_id,model_id]=JSON.parse(q('[data-coding-model]').value || '[]');
-    configurations.set(current,{intent:q('[data-coding-intent]').value,provider_id:provider_id || '',model_id:model_id || '',...composerModels.effort(),workspace_id:workspaceId,...(configurations.get(current)?.writer_assignments ? {writer_assignments:configurations.get(current).writer_assignments} : {})});
+    configs.set(current,{intent:q('[data-coding-intent]').value,provider_id:provider_id || '',model_id:model_id || '',...composerModels.effort(),workspace_id:workspaceId,...(configs.get(current)?.writer_assignments ? {writer_assignments:configs.get(current).writer_assignments} : {})});
   };
   // A session named by its first task renames its open tab too, while Coding is the surface on show (its tab is then
   // the active one and only its title changes). Whichever read sees the new name first does it.
@@ -515,7 +515,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     retitle(current,before,current && result.sessions.find(item=>item.session_id===current)?.title);
     composerModels.fill(result.models);
     const selectedWorkspace=result.workspaces.find(item=>item.workspace_id===workspaceId) || result.workspace || (result.workspaces.length===1 ? result.workspaces[0] : null);
-    if(!configurations.get(current))workspaceId=selectedWorkspace?.workspace_id || '';
+    if(!configs.get(current))workspaceId=selectedWorkspace?.workspace_id || '';
     showWorkspace(selectedWorkspace?.canonical_path,'选择已授权工作区后开始');
     const workspaceChoice=q('[data-coding-workspace-choice]');
     const workspaceKey=JSON.stringify(result.workspaces);
@@ -1118,19 +1118,19 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       // Settings saved elsewhere (the bottom Assistant, another window) are taken over unless this page holds a change of
       // its own not saved yet; otherwise its next save would quietly put the old choice back.
       const saved=canonical(data.configuration ?? null),adopted=adoptedConfigurations.get(id);
-      if(!configurations.has(id)) configurations.set(id,data.configuration);
-      else if(adopted!==undefined && saved!==adopted && canonical(configurations.get(id) ?? null)===adopted){configurations.set(id,data.configuration);if(!fresh){applyConfiguration();controls();}}
+      if(!configs.has(id)) configs.set(id,data.configuration);
+      else if(adopted!==undefined && saved!==adopted && canonical(configs.get(id) ?? null)===adopted){configs.set(id,data.configuration);if(!fresh){applyConfiguration();controls();}}
       // In step with what is saved: from here a difference is someone else's change. Out of step: this page's own change is still on its way.
-      if(adopted===undefined || canonical(configurations.get(id) ?? null)===saved) adoptedConfigurations.set(id,saved);
+      if(adopted===undefined || canonical(configs.get(id) ?? null)===saved) adoptedConfigurations.set(id,saved);
       if(fresh) {
-        if(!configurations.get(id)){
+        if(!configs.get(id)){
           q('[data-coding-intent]').value='discuss';
           q('[data-coding-model]').value=state.models[0] ? JSON.stringify([state.models[0].provider_id,state.models[0].model_id]) : '';
           workspaceId=state.workspace?.workspace_id || (state.workspaces?.length===1?state.workspaces[0].workspace_id:'');
         }
         applyConfiguration();void followWorkspace();
       }
-      if(!mcpSourceSelections.has(id))mcpSourceSelections.set(id,data.mcp_sources || []);
+      if(!mcpRefs.has(id))mcpRefs.set(id,data.mcp_sources || []);
       if(!mcpSelections.has(id))mcpSelections.set(id,data.mcp_tools || []);
       if(!actionSelections.has(id))actionSelections.set(id,data.action_tools || []);
       if(!materialSelections.has(id)) materialSelections.set(id,data.materials || []);
@@ -1221,8 +1221,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const id=current;
     void api(sessionPath(id)+'?window=1').then(data=>{
       if(current!==id || !data.configuration)return;
-      const before=configurations.get(id)?.intent;
-      configurations.set(id,{...configurations.get(id),...data.configuration});applyConfiguration();controls();
+      const before=configs.get(id)?.intent;
+      configs.set(id,{...configs.get(id),...data.configuration});applyConfiguration();controls();
       if(before!==data.configuration.intent)status('下一轮方式已在助理里改为「'+(q('[data-coding-intent]').selectedOptions[0]?.textContent || data.configuration.intent)+'」。');
     }).catch(()=>{});
     void readCurrent();
@@ -1297,7 +1297,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         } catch(error) {if(!lifetime.alive)return;if(current===id && generation===ticket){checkpointBusy=false;throw error;}}
         finally {controls();}
       }
-      if(target.matches('[data-coding-mcp-open]')) {await refreshState();mcpChoices=structuredClone(mcpSelections.get(current) || []);mcpSourceChoices=structuredClone(mcpSourceSelections.get(current) || []);renderMcp();q('[data-coding-mcp-error]').textContent='';q('[data-coding-mcp-dialog]').showModal();}
+      if(target.matches('[data-coding-mcp-open]')) {await refreshState();mcpChoices=structuredClone(mcpSelections.get(current) || []);mcpSourceChoices=structuredClone(mcpRefs.get(current) || []);renderMcp();q('[data-coding-mcp-error]').textContent='';q('[data-coding-mcp-dialog]').showModal();}
       if(target.matches('[data-coding-mcp-settings-link]'))q('[data-coding-mcp-dialog]').close();
       if(target.matches('[data-coding-mcp-close]'))q('[data-coding-mcp-dialog]').close();
       if(target.matches('[data-coding-material-open]')) await openMaterials();
@@ -1457,9 +1457,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.listen(q('[data-coding-method-dialog]'),'cancel',()=>{methodDocumentTicket++;});
   lifetime.listen(q('[data-coding-mcp-form]'),'submit',async event=>{
     event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;
-    const id=current,previous=mcpSelections.get(id),previousSources=mcpSourceSelections.get(id);mcpSelections.set(id,structuredClone(mcpChoices));mcpSourceSelections.set(id,structuredClone(mcpSourceChoices));
+    const id=current,previous=mcpSelections.get(id),previousSources=mcpRefs.get(id);mcpSelections.set(id,structuredClone(mcpChoices));mcpRefs.set(id,structuredClone(mcpSourceChoices));
     try{await flushDraft();q('[data-coding-mcp-dialog]').close();controls();status('MCP 选择已保存，仅用于下一轮。');}
-    catch(error){if(!lifetime.alive)return;mcpSelections.set(id,previous || []);mcpSourceSelections.set(id,previousSources || []);q('[data-coding-mcp-error]').textContent=error.message;}finally{button.disabled=false;}
+    catch(error){if(!lifetime.alive)return;mcpSelections.set(id,previous || []);mcpRefs.set(id,previousSources || []);q('[data-coding-mcp-error]').textContent=error.message;}finally{button.disabled=false;}
   });
   lifetime.listen(q('[data-coding-method-form]'),'submit',async event=>{
     event.preventDefault();const submit=event.currentTarget.querySelector('[type=submit]');if(submit.disabled)return;
@@ -1558,7 +1558,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(digest && id===current)status(digest.source==='model'?'前面的对话已由模型整理成摘要带入'+(digest.usage?'（用了 '+(digest.usage.input+digest.usage.output).toLocaleString()+' tokens）':'')+'，展开这一轮开头的摘要可以看全文。'
       :'模型没能写出摘要（'+digest.problem+'），这一轮带入的是宿主按执行记录整理的摘要。',digest.source!=='model');
   };
-  const currentSelection = (id) => ({workspace_id:workspaceId,methods:structuredClone(methodSelections.get(id) || []),mcp_tools:structuredClone(mcpSelections.get(id) || []),mcp_sources:structuredClone(mcpSourceSelections.get(id) || []),materials:structuredClone(materialSelections.get(id) || []),character:structuredClone(characterSelections.get(id) ?? null),writer_assignments:[]});
+  const currentSelection = (id) => ({workspace_id:workspaceId,methods:structuredClone(methodSelections.get(id) || []),mcp_tools:structuredClone(mcpSelections.get(id) || []),mcp_sources:structuredClone(mcpRefs.get(id) || []),materials:structuredClone(materialSelections.get(id) || []),character:structuredClone(characterSelections.get(id) ?? null),writer_assignments:[]});
   // Continue an unfinished round: the Host states what already happened, the composer draft stays untouched.
   const continueRound = async (runId) => {
     if(sending || !current)return;
@@ -1572,7 +1572,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       // need execution rather than another round of parallel writers.
       const chosen=q('[data-coding-intent]').value,intent=next.continue_step_board_of&&['execute','parallel'].includes(chosen)?chosen:next.intent;
       // A parallel round goes on with the directories it was given; the saved split is what those subtasks used.
-      const selection=currentSelection(id);if(intent==='parallel')selection.writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []);
+      const selection=currentSelection(id);if(intent==='parallel')selection.writer_assignments=structuredClone(configs.get(id)?.writer_assignments || []);
       await startRound(id,next.task,intent,modelValue,selection,next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{});
       status('已从断点继续：宿主核实的已发生操作已附在这一轮任务里，新的写入和命令仍需你审查。');
       pinned=true;await refreshState();await readCurrent();
@@ -1599,24 +1599,24 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   lifetime.listen(q('[data-coding-composer]'),'submit',async(event)=>{
     event.preventDefault();if(sending || recovery || checkpointBusy || !current || !input.value.trim()) return;
-    const id=current,task=input.value,action_tools=structuredClone(actionSelections.get(current)||[]),character=structuredClone(characterSelections.get(current) ?? null),materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId,writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []); sending=true;controls();
+    const sendKey=input.form.dataset.uivSendKey,settle=phase=>{input.form.dataset.uivResultKey=sendKey||'';delete input.form.dataset.uivResultNextKey;input.form.dataset.uivPhase=phase;};let posted=false,accepted=false; const id=current,task=input.value,action_tools=structuredClone(actionSelections.get(current)||[]),character=structuredClone(characterSelections.get(current) ?? null),materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpRefs.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId,writer_assignments=structuredClone(configs.get(id)?.writer_assignments || []); sending=true;controls();
     try {
       rememberConfiguration();await flushDraft();
       if(activeRun && !terminal(activeRun.phase)) {
-        const mode=q('[data-coding-send-mode]');status(await inputReceipts.steer(id,activeRun.ref.run_id,task,mode.value));mode.value='next-boundary';
+        posted=true;const mode=q('[data-coding-send-mode]');status(await inputReceipts.steer(id,activeRun.ref.run_id,task,mode.value));mode.value='next-boundary';
       } else {
         // Another session already working on the same files in this directory: the person decides who goes first.
         const {overlaps}=await api('/sessions/'+encodeURIComponent(id)+'/scope-check','POST',{task,workspace_id});
         const choice=overlaps.length?await askOverlap(overlaps):'parallel';
-        if(choice==='cancel'){status('没有发送；可以修改任务后再发。');input.form.dataset.uivPhase='idle';return;}
+        if(choice==='cancel'){if(current===id)status('没有发送；可以修改任务后再发。');settle('idle');return;}posted=true;
         if(choice==='wait'){
           await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments},{wait_for:overlaps[0].work_id});
           status('这一轮会在「'+overlaps[0].title+'」那一轮结束后自动开始。');
         } else await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments});
       }
-      if(current===id && input.value===task) input.value='';
-      if(localDraft(id)===task) await saveDraft(id,''); surfaceChanged(id); await refreshState();await readCurrent(); input.form.dataset.uivPhase='succeeded';
-    } catch(error) {if(!lifetime.alive)return; status(error.message,true); input.form.dataset.uivPhase=error instanceof TypeError?'uncertain':'failed'; }
+      accepted=true;settle('succeeded');if(current===id && input.value===task) input.value='';
+      if(localDraft(id)===task) await saveDraft(id,''); surfaceChanged(id); await refreshState();if(current===id)await readCurrent();
+    } catch(error) {if(!lifetime.alive)return; if(current===id)status(error.message,true);if(!accepted)settle(posted && (error instanceof TypeError || error instanceof SyntaxError || error.name==='AbortError')?'uncertain':'failed'); }
     finally { sending=false;controls(); }
   });
   let pollingTicks=0;

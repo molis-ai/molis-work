@@ -2,10 +2,10 @@
 import {
   UIV_RECOVERY, UIV_SEND_COPY, UIV_VOICE_OPEN_KEY,
   uivApplyTranscript, uivBeginDownload, uivBeginSend, uivBytesLabel, uivCancelVoice, uivCannotSend, uivClampAnchor,
-  uivConfirmInsert, uivContextInvalid, uivDiscardAudio, uivDownloadProgress, uivExplainInterrupted, uivFailTranscript,
-  uivFieldLabel, uivFieldState, uivFinishDownload, uivInsertTranscript, uivKeyAction, uivLoadDraft, uivNoteEdit,
+  uivConfirmInsert, uivContextInvalid, uivDiscardAudio, uivDownloadProgress, uivDownloadRejected, uivExplainInterrupted, uivFailTranscript,
+  uivFieldLabel, uivFieldState, uivFinishDownload, uivInsertTranscript, uivKeyAction, uivLoadDraft, uivLoseDevice, uivNoteEdit,
   uivClearedDraftText, uivNoteSwitch, uivNoteTyping, uivPhaseBusy, uivRequestRecord, uivRetryTranscript, uivSameIdentity, uivSaveDraft,
-  uivSettleSend, uivStopRecord, uivStorageKey, uivTickRecord, uivVisibleControls, uivVoiceBusy, uivVoiceIdle,
+  uivSettleSend, uivStopRecord, uivStorageKey, uivTickRecord, uivVisibleControls, uivVoiceBusy, uivVoiceIdle, uivVoiceStatusText,
   type UivIdentity, type UivSend, type UivStore, type UivSurface, type UivVoice,
 } from "./unified-input.js";
 
@@ -27,53 +27,24 @@ export interface UivPageHost {
 interface UivLive {
   voice: UivVoice;
   sends: Map<string, UivSend>;
+  editedSends: Set<string>;
   recorder: MediaRecorder | null;
   stream: MediaStream | null;
   audio: AudioContext | null;
+  analyser: AnalyserNode | null;
+  source: MediaStreamAudioSourceNode | null;
   chunks: Blob[];
   blob: Blob | null;
   timer: ReturnType<UivPageHost["setInterval"]> | 0;
   started: number;
-  drop: boolean;
   releasing: boolean;
-  pending: { owner: UivIdentity; text: string } | null;
-  download: AbortController | null;
-  arming: boolean;
+  pending: Map<string, UivIdentity>;
+  request: AbortController | null;
+  target: string;
 }
 type UivField = HTMLTextAreaElement | HTMLInputElement;
 
-export const UIV_STYLE = `
-form.uiv-composer .assistant-composer-input,
-form.uiv-composer [data-home-talk-form] textarea,
-form[data-home-talk-form].uiv-composer textarea,
-form[data-assistant-composer].uiv-composer .assistant-composer-input,
-form[data-coding-composer].uiv-composer [data-coding-task] {
-  box-sizing: border-box !important; width: 100% !important; min-height: 44px !important; height: auto !important;
-  font-size: 16px !important; line-height: 1.45 !important; padding: 8px 10px !important;
-  border: 1px solid var(--line) !important; border-radius: 10px !important;
-  background: var(--paper) !important; color: var(--ink) !important;
-}
-form.uiv-composer textarea:focus, form.uiv-composer .assistant-composer-input:focus {
-  outline: 2px solid var(--ink) !important; outline-offset: 1px;
-}
-form[data-assistant-composer].uiv-composer { flex-wrap: wrap !important; width: 100%; height: auto !important; min-height: 44px !important; max-height: none !important; }
-form[data-home-talk-form].uiv-composer { flex-wrap: wrap; width: 100%; }
-form[data-assistant-composer].uiv-composer .assistant-composer-input { flex: 1 1 100% !important; min-width: 100% !important; }
-form[data-home-talk-form].uiv-composer textarea { flex: 1 1 100% !important; min-width: 70% !important; }
-.uiv-bar { display: inline-flex; gap: 6px; align-items: center; }
-.uiv-bar button, form.uiv-composer [data-uiv-send-status], form.uiv-composer [data-uiv-voice-status], form.uiv-composer [data-uiv-meter], form.uiv-composer [data-uiv-field-state] {
-  font: inherit; font-size: 13px; line-height: 1.4;
-}
-form.uiv-composer [data-uiv-voice-status], form.uiv-composer [data-uiv-send-status], form.uiv-composer [data-uiv-meter], form.uiv-composer [data-uiv-field-state] {
-  flex: 1 0 100%; margin: 0;
-}
-@media (max-width: 720px) {
-  [data-assistant-island], [data-home-talk], [data-dock], form.uiv-composer,
-  form[data-coding-composer].uiv-composer .coding-composer-shell,
-  form[data-coding-composer].uiv-composer [data-coding-task] { width: 100% !important; max-width: none !important; }
-  .uiv-bar { flex-wrap: wrap; }
-}
-`.replaceAll("\n", " ");
+export { UIV_STYLE } from "./unified-input-style.js";
 
 function uivStoreOf(host: UivPageHost): UivStore {
   return {
@@ -138,12 +109,15 @@ function uivEnsure(form: HTMLFormElement, host: UivPageHost): void {
   const submit = form.querySelector<HTMLElement>("[data-assistant-send], [data-coding-send], button[type=submit]");
   if (submit?.parentElement) submit.parentElement.insertBefore(bar, submit);
   else form.append(bar);
-  for (const [attr, role] of [["data-uiv-field-state", "status"], ["data-uiv-voice-status", "status"], ["data-uiv-meter", "status"], ["data-uiv-send-status", "status"]] as const) {
+  const stack = host.document.createElement("div");
+  stack.className = "uiv-status";
+  for (const [attr, role] of [["data-uiv-voice-status", "status"], ["data-uiv-meter", "status"], ["data-uiv-send-status", "status"], ["data-uiv-field-state", "status"]] as const) {
     const node = host.document.createElement("p");
     node.setAttribute(attr, "");
     node.setAttribute("role", role);
-    form.append(node);
+    stack.append(node);
   }
+  form.append(stack);
 }
 function uivShow(form: HTMLFormElement, attr: string, on: boolean): void {
   const button = form.querySelector<HTMLButtonElement>(`[${attr}]`);
@@ -155,7 +129,8 @@ function uivText(form: HTMLFormElement, attr: string, text: string): void {
 }
 function uivPaint(live: UivLive, host: UivPageHost): void {
   const controls = uivVisibleControls(live.voice.phase);
-  const voiceText = live.voice.message ? host.L(live.voice.message) : "";
+  const message = uivVoiceStatusText({ ...live.voice, message: live.voice.message ? host.L(live.voice.message) : "" });
+  const voiceText = [live.voice.owner && message ? live.target : "", message, live.voice.pending ?? ""].filter(Boolean).join(" · ");
   const meter = live.voice.phase === "recording" ? `${host.L("声音")} ${uivMeter(live.voice.level)}` : "";
   for (const form of uivForms(host)) {
     const field = uivField(form);
@@ -163,20 +138,20 @@ function uivPaint(live: UivLive, host: UivPageHost): void {
     const id = uivIdentity(form, host);
     const send = live.sends.get(uivStorageKey(id)) ?? uivSendIdle();
     const owned = uivSameIdentity(live.voice.owner, id);
-    const state = uivFieldState({ text: field.value, focused: host.document.activeElement === field, unavailable: field.disabled, busy: uivVoiceBusy(live.voice) || send.phase === "sending", failed: send.phase === "failed" || (owned && live.voice.phase === "failed") });
+    const state = uivFieldState({ text: field.value, focused: host.document.activeElement === field, unavailable: field.disabled, busy: (owned && uivVoiceBusy(live.voice)) || send.phase === "sending", failed: send.phase === "failed" || (owned && live.voice.phase === "failed") });
     form.dataset.uivState = state;
     uivText(form, "data-uiv-field-state", host.L(uivFieldLabel(state)));
     uivShow(form, "data-uiv-mic", controls.mic);
     uivShow(form, "data-uiv-stop-record", controls.stop);
     uivShow(form, "data-uiv-cancel-record", controls.cancel);
     uivShow(form, "data-uiv-download", controls.download);
-    uivShow(form, "data-uiv-retry", controls.retry && owned);
-    uivShow(form, "data-uiv-discard", controls.discard && owned);
-    uivShow(form, "data-uiv-confirm", controls.confirm && owned);
-    uivShow(form, "data-uiv-decline", controls.decline && owned);
+    uivShow(form, "data-uiv-retry", controls.retry);
+    uivShow(form, "data-uiv-discard", controls.discard);
+    uivShow(form, "data-uiv-confirm", controls.confirm);
+    uivShow(form, "data-uiv-decline", controls.decline);
     uivText(form, "data-uiv-voice-status", voiceText);
     uivText(form, "data-uiv-meter", meter);
-    uivText(form, "data-uiv-send-status", send.message ? host.L(send.message) : "");
+    uivText(form, "data-uiv-send-status", (form.dataset.uivContextInvalid === "1" ? "" : form.dataset.uivContextInvalid) || (send.message ? host.L(send.message) : ""));
   }
   uivMarkOpen(live, host);
 }
@@ -197,13 +172,15 @@ function uivRestoreContext(form: HTMLFormElement, context: string | null): strin
   if (form.matches("[data-coding-composer]")) {
     const select = form.querySelector<HTMLSelectElement>("[data-coding-intent]");
     if (!select || ![...select.options].some(option => option.value === context)) return uivContextInvalid(context);
-    if (!select.value) select.value = context;
+    select.value = context;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
     return "";
   }
   if (form.matches("[data-home-talk-form]")) {
     const radio = form.ownerDocument.querySelector<HTMLInputElement>(`[name="talk-session"][value="${CSS.escape(context)}"]`);
     if (!radio) return uivContextInvalid(context);
-    if (!form.ownerDocument.querySelector("[name=talk-session]:checked")) radio.checked = true;
+    radio.checked = true;
+    radio.dispatchEvent(new Event("change", { bubbles: true }));
   }
   return "";
 }
@@ -211,85 +188,79 @@ function uivLimitMs(form: HTMLFormElement): number | null {
   const parsed = Number(form.dataset.uivLimitMs);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
-function uivForeignDraft(host: UivPageHost, id: UivIdentity, text: string): boolean {
-  if (!text) return false;
-  const ownKey = uivStorageKey(id);
-  let keys: string[] = [];
-  try {
-    keys = [...Array(host.localStorage.length)].map((_, index) => host.localStorage.key(index) ?? "").filter(key => key.startsWith("molis.uiv.v1:") && key !== ownKey);
-  } catch { return false; }
-  for (const key of keys) {
-    let raw: string | null = null;
-    try { raw = host.localStorage.getItem(key); } catch { raw = null; }
-    if (!raw) continue;
-    try {
-      const parsed = JSON.parse(raw) as { text?: unknown };
-      if (parsed.text !== text) continue;
-    } catch { continue; }
-    if (decodeURIComponent(key.split(":")[2] ?? "") !== id.projectId) return true;
-  }
-  return false;
-}
 function uivRestore(form: HTMLFormElement, host: UivPageHost): void {
   const field = uivField(form);
   if (!field) return;
   const id = uivIdentity(form, host);
-  const draft = uivLoadDraft(uivStoreOf(host), id);
-  const foreign = field.value !== draft.text && uivForeignDraft(host, id, field.value);
-  if (field.value !== draft.text && (foreign || !field.value)) {
+  const key = uivStorageKey(id);
+  if (form.dataset.uivRestoredKey === key) return;
+  form.dataset.uivRestoredKey = key;
+  const store = uivStoreOf(host);
+  if (store.get(key) == null) return;
+  const draft = uivLoadDraft(store, id);
+  if (field.value !== draft.text) {
     field.value = draft.text;
     field.dispatchEvent(new Event("input", { bubbles: true }));
   }
   const invalid = uivRestoreContext(form, draft.context);
-  if (invalid) uivText(form, "data-uiv-send-status", host.L(invalid));
+  form.dataset.uivContextInvalid = invalid;
 }
 function uivApplyPending(form: HTMLFormElement, live: UivLive, host: UivPageHost): void {
-  const pending = live.pending;
+  const id = uivIdentity(form, host);
+  const key = uivStorageKey(id);
   const field = uivField(form);
-  if (!pending || !field || !uivSameIdentity(pending.owner, uivIdentity(form, host))) return;
-  field.value = pending.text;
-  live.pending = null;
+  if (!field || !live.pending.has(key)) return;
+  field.value = uivLoadDraft(uivStoreOf(host), id).text;
+  live.pending.delete(key);
   field.dispatchEvent(new Event("input", { bubbles: true }));
-  uivRemember(form, host);
+}
+function uivResize(field: UivField): void {
+  if (!(field instanceof HTMLTextAreaElement) || !field.getClientRects().length) return;
+  const style = getComputedStyle(field);
+  field.style.height = "0px";
+  field.style.height = `${field.scrollHeight + parseFloat(style.borderTopWidth || "0") + parseFloat(style.borderBottomWidth || "0")}px`;
+}
+/** Publish the dock's measured height; CSS uses it only while this composer lives in the dock. */
+function uivWatchDock(host: UivPageHost): void {
+  const bar = host.document.querySelector(".workbench-bar");
+  if (!(bar instanceof HTMLElement)) return;
+  const measure = () => host.document.body.style.setProperty("--uiv-dock-height", `${bar.getBoundingClientRect().height}px`);
+  new ResizeObserver(measure).observe(bar);
+  measure();
 }
 function uivRelease(live: UivLive, host: UivPageHost): void {
   live.releasing = true;
   host.clearInterval(live.timer);
   live.timer = 0;
+  live.source?.disconnect();
+  live.source = null;
+  live.analyser = null;
   live.stream?.getTracks().forEach(track => track.stop());
   live.stream = null;
   live.recorder = null;
-  void live.audio?.close();
+  void live.audio?.close().catch(() => undefined);
   live.audio = null;
   live.releasing = false;
 }
 function uivCancel(live: UivLive, host: UivPageHost): void {
-  live.drop = true;
-  live.download?.abort();
-  live.download = null;
-  if (live.recorder && live.recorder.state !== "inactive") live.recorder.stop();
+  live.voice = uivCancelVoice(live.voice);
+  live.request?.abort();
+  live.request = null;
+  const recorder = live.recorder;
+  live.recorder = null;
+  if (recorder && recorder.state !== "inactive") recorder.stop();
   live.blob = null;
   live.chunks = [];
   uivRelease(live, host);
-  live.voice = uivCancelVoice(live.voice);
   uivPaint(live, host);
 }
 function uivLevel(live: UivLive): number {
-  const context = live.audio;
-  const stream = live.stream;
-  if (!context || !stream) return live.voice.level;
-  let source: MediaStreamAudioSourceNode | null = null;
-  try {
-    const analyser = context.createAnalyser();
-    source = context.createMediaStreamSource(stream);
-    source.connect(analyser);
-    const samples = new Uint8Array(analyser.fftSize);
-    analyser.getByteTimeDomainData(samples);
-    let sum = 0;
-    for (const sample of samples) { const centered = sample / 128 - 1; sum += centered * centered; }
-    return Math.min(1, Math.sqrt(sum / samples.length) * 4);
-  } catch { return live.voice.level; }
-  finally { source?.disconnect(); }
+  if (!live.analyser) return 0;
+  const samples = new Uint8Array(live.analyser.fftSize);
+  live.analyser.getByteTimeDomainData(samples);
+  let sum = 0;
+  for (const sample of samples) { const centered = sample / 128 - 1; sum += centered * centered; }
+  return Math.min(1, Math.sqrt(sum / samples.length) * 4);
 }
 function uivTick(live: UivLive, host: UivPageHost): void {
   if (live.voice.phase !== "recording") return;
@@ -301,15 +272,20 @@ function uivTick(live: UivLive, host: UivPageHost): void {
 }
 function uivWriteTranscript(live: UivLive, host: UivPageHost, generation: number, transcript: string, unclear: boolean): void {
   const owner = live.voice.owner;
-  const form = uivForms(host).find(candidate => owner && uivSameIdentity(uivIdentity(candidate, host), owner)) ?? uivForms(host)[0];
+  if (!owner || generation !== live.voice.generation) return;
+  const form = uivForms(host).find(candidate => uivSameIdentity(uivIdentity(candidate, host), owner));
   const field = form ? uivField(form) : null;
-  const current = form ? uivIdentity(form, host) : owner;
-  if (!current) return;
-  const applied = uivApplyTranscript(live.voice, generation, current, field?.value ?? "", transcript, unclear);
+  const store = uivStoreOf(host);
+  const saved = uivLoadDraft(store, owner);
+  const current = field?.value ?? saved.text;
+  const applied = uivApplyTranscript(live.voice, generation, owner, current, transcript, unclear);
   live.voice = applied.voice;
-  if (applied.stored) { live.pending = applied.stored; uivSaveDraft(uivStoreOf(host), applied.stored.owner, { text: applied.stored.text, context: null }); }
-  else if (field && applied.text !== field.value) { field.value = applied.text; field.dispatchEvent(new Event("input", { bubbles: true })); }
-  if (!unclear && transcript.trim() && live.voice.phase === "idle") live.blob = null;
+  if (applied.text !== current) {
+    uivSaveDraft(store, owner, { text: applied.text, context: saved.context });
+    if (field) { field.value = applied.text; field.dispatchEvent(new Event("input", { bubbles: true })); }
+    else { live.pending.set(uivStorageKey(owner), owner); live.voice = { ...live.voice, owner, message: UIV_RECOVERY.switched }; }
+  }
+  if (!live.voice.keepAudio) live.blob = null;
   uivPaint(live, host);
 }
 async function uivEncode(blob: Blob): Promise<string> {
@@ -321,11 +297,17 @@ async function uivEncode(blob: Blob): Promise<string> {
 async function uivTranscribe(live: UivLive, host: UivPageHost, generation: number): Promise<void> {
   const blob = live.blob;
   if (!blob) { live.voice = uivFailTranscript(live.voice); uivPaint(live, host); return; }
-  const posted = await uivFetch(host, { op: "transcribe", audio_base64: await uivEncode(blob), mime: blob.type }, undefined);
+  const controller = new AbortController();
+  live.request = controller;
+  const audio = await uivEncode(blob);
+  if (controller.signal.aborted || generation !== live.voice.generation) return;
+  const posted = await uivFetch(host, { op: "transcribe", audio_base64: audio, mime: blob.type }, controller.signal);
   const body = posted.json ?? {};
   if (generation !== live.voice.generation) return;
   if (body.model_required === true) {
-    live.voice = { ...live.voice, phase: "need-model", message: typeof body.message === "string" ? body.message : UIV_RECOVERY.needModel, bytesTotal: typeof body.approximate_bytes === "number" ? body.approximate_bytes : live.voice.bytesTotal };
+    const reported = typeof body.approximate_bytes === "number" ? body.approximate_bytes : Number(body.approximate_bytes);
+    const bytesTotal = Number.isFinite(reported) && reported > 0 ? reported : (live.voice.bytesTotal || 626_000_000);
+    live.voice = { ...live.voice, phase: "need-model", message: UIV_RECOVERY.needModel, bytesTotal };
     uivPaint(live, host);
     return;
   }
@@ -372,157 +354,171 @@ async function uivReadLines(response: Response, onLine: (value: Record<string, u
   const last = buffer.trim() ? uivObject(JSON.parse(buffer) as unknown) : null;
   if (last) onLine(last);
 }
-function uivOnStop(live: UivLive, host: UivPageHost): void {
-  const generation = live.voice.generation;
+function uivOnStop(live: UivLive, host: UivPageHost, recorder: MediaRecorder, generation: number): void {
+  if (live.recorder !== recorder || generation !== live.voice.generation) return;
   const blob = new Blob(live.chunks, { type: live.chunks[0]?.type || "audio/webm" });
   live.chunks = [];
   uivRelease(live, host);
-  if (live.drop) { live.drop = false; live.blob = null; return; }
   live.blob = blob;
   if (live.voice.phase === "recording") live.voice = uivStopRecord(live.voice);
   uivPaint(live, host);
   uivTranscribeOrFail(live, host, generation);
 }
 function uivDeviceLost(live: UivLive, host: UivPageHost, stream: MediaStream): void {
-  if (live.releasing || live.drop || live.voice.phase !== "recording" || live.stream !== stream) return;
-  live.drop = true;
-  live.voice = { ...uivVoiceIdle(), generation: live.voice.generation + 1, phase: "unavailable", message: UIV_RECOVERY.noMic };
+  if (live.releasing || live.voice.phase !== "recording" || live.stream !== stream) return;
+  live.voice = uivLoseDevice(live.voice);
+  const recorder = live.recorder;
+  live.recorder = null;
+  if (recorder && recorder.state !== "inactive") recorder.stop();
+  live.blob = null;
+  live.chunks = [];
+  uivRelease(live, host);
   uivPaint(live, host);
-  if (live.recorder && live.recorder.state !== "inactive") live.recorder.stop();
-  else uivRelease(live, host);
 }
 function uivArm(form: HTMLFormElement, stream: MediaStream, live: UivLive, host: UivPageHost): void {
   live.releasing = false;
   const field = uivField(form);
   const Recorder = host.MediaRecorder;
   if (!field || !Recorder) { stream.getTracks().forEach(track => track.stop()); return; }
-  const mime = Recorder.isTypeSupported?.("audio/webm") ? "audio/webm" : Recorder.isTypeSupported?.("audio/mp4") ? "audio/mp4" : "";
-  const recorder = new Recorder(stream, mime ? { mimeType: mime } : undefined);
+  const mime = ["audio/mp4;codecs=mp4a.40.2", "audio/mp4"].find(candidate => Recorder.isTypeSupported?.(candidate));
+  if (!mime) throw new Error(UIV_RECOVERY.localUnavailable);
+  const recorder = new Recorder(stream, { mimeType: mime });
   live.stream = stream;
   live.recorder = recorder;
   live.chunks = [];
-  live.drop = false;
   live.blob = null;
   live.started = host.now();
   stream.getTracks().forEach(track => {
     if (typeof track.addEventListener === "function") track.addEventListener("ended", () => uivDeviceLost(live, host, stream));
   });
-  try { live.audio = host.AudioContext ? new host.AudioContext() : null; } catch { live.audio = null; }
-  recorder.addEventListener("dataavailable", event => { if (event.data.size) live.chunks.push(event.data); });
-  recorder.addEventListener("stop", () => uivOnStop(live, host));
+  try {
+    live.audio = host.AudioContext ? new host.AudioContext() : null;
+    if (live.audio) {
+      live.analyser = live.audio.createAnalyser();
+      live.source = live.audio.createMediaStreamSource(stream);
+      live.source.connect(live.analyser);
+      void live.audio.resume().catch(() => undefined);
+    }
+  } catch { live.analyser = null; }
+  const generation = live.voice.generation;
+  recorder.addEventListener("dataavailable", event => { if (live.recorder === recorder && generation === live.voice.generation && event.data.size) live.chunks.push(event.data); });
+  recorder.addEventListener("stop", () => uivOnStop(live, host, recorder, generation));
+  recorder.addEventListener("error", () => uivDeviceLost(live, host, stream));
   recorder.start(200);
   live.timer = host.setInterval(() => uivTick(live, host), 200);
   uivPaint(live, host);
 }
 async function uivClickMic(form: HTMLFormElement, live: UivLive, host: UivPageHost): Promise<void> {
-  if (live.arming || uivVoiceBusy(live.voice)) return;
-  live.arming = true;
+  if (uivVoiceBusy(live.voice)) return;
   const field = uivField(form);
-  if (!field) { live.arming = false; return; }
+  if (!field || field.disabled) return;
   const owner = uivIdentity(form, host);
   const text = field.value;
   const anchor = uivClampAnchor(text, field.selectionStart ?? text.length);
-  const devices = host.navigator.mediaDevices;
-  if (!devices || !host.MediaRecorder) {
-    live.voice = uivRequestRecord(live.voice, { owner, text, anchor, permission: "granted", model: "unavailable", limitMs: null });
-    uivPaint(live, host);
-    live.arming = false;
-    return;
-  }
+  uivRemember(form, host);
+  const generation = live.voice.generation + 1;
+  live.voice = { ...uivVoiceIdle(), generation, owner, snapshot: text, anchor, phase: "preparing", message: UIV_RECOVERY.preparing };
+  live.target = form.querySelector("[data-assistant-target-label]")?.textContent?.trim() || form.getAttribute("aria-label") || owner.surface;
+  const controller = new AbortController();
+  live.request = controller;
+  uivPaint(live, host);
   let stream: MediaStream | null = null;
-  const stopStream = (): void => {
-    stream?.getTracks().forEach(track => track.stop());
-    stream = null;
-  };
+  let probed = false;
   try {
-    try { stream = await devices.getUserMedia({ audio: true }); }
-    catch (error) {
-      const name = error instanceof DOMException ? error.name : "";
-      const denied = name === "NotAllowedError" || name === "SecurityError" || name === "PermissionDeniedError";
-      live.voice = uivRequestRecord(live.voice, { owner, text, anchor, permission: denied ? "denied" : "granted", model: denied ? "ready" : "unavailable", limitMs: null });
-      uivPaint(live, host);
-      return;
-    }
-    let probe: Record<string, unknown> | null = null;
-    try { probe = (await uivFetch(host, { op: "probe" }, undefined)).json; }
-    catch (error) {
-      stopStream();
-      live.voice = uivRequestRecord(live.voice, { owner, text, anchor, permission: "granted", model: "unavailable", limitMs: null });
-      live.voice = { ...live.voice, message: error instanceof Error && error.message ? error.message : UIV_RECOVERY.noMic };
-      uivPaint(live, host);
-      return;
-    }
+    if (!host.navigator.mediaDevices || !host.MediaRecorder) throw new Error(UIV_RECOVERY.noMic);
+    stream = await host.navigator.mediaDevices.getUserMedia({ audio: true });
+    if (generation !== live.voice.generation) return;
+    live.stream = stream;
+    probed = true;
+    const probe = (await uivFetch(host, { op: "probe" }, controller.signal)).json;
+    if (generation !== live.voice.generation) return;
     if (probe?.model !== "available") {
-      stopStream();
-      const bytes = typeof probe?.approximate_bytes === "number" ? probe.approximate_bytes : Number(probe?.approximate_bytes);
-      live.voice = uivRequestRecord(live.voice, { owner, text, anchor, permission: "granted", model: "missing", approximateBytes: Number.isFinite(bytes) ? bytes : undefined, limitMs: null });
-      if (typeof probe?.message === "string" && probe.message) live.voice = { ...live.voice, message: probe.message };
-      uivPaint(live, host);
+      const reported = Number(probe?.approximate_bytes);
+      live.voice = { ...live.voice, phase: "need-model", bytesTotal: Number.isFinite(reported) && reported > 0 ? reported : 626_000_000, message: UIV_RECOVERY.needModel };
       return;
     }
-    const next = uivRequestRecord(live.voice, { owner, text, anchor, permission: "granted", model: "ready", limitMs: uivLimitMs(form) });
-    if (next.phase !== "recording" || next.generation === live.voice.generation) {
-      stopStream();
-      return;
-    }
-    live.voice = next;
-    const armed = stream;
+    live.voice = { ...live.voice, phase: "recording", message: UIV_RECOVERY.recording, limitMs: uivLimitMs(form), keepAudio: true };
+    uivArm(form, stream, live, host);
     stream = null;
-    if (armed) uivArm(form, armed, live, host);
+  } catch (error) {
+    if (generation !== live.voice.generation) return;
+    const denied = error instanceof DOMException && (error.name === "NotAllowedError" || error.name === "SecurityError");
+    live.voice = { ...uivVoiceIdle(), generation, phase: denied ? "need-permission" : "unavailable", message: denied ? UIV_RECOVERY.permission : probed ? UIV_RECOVERY.localUnavailable : UIV_RECOVERY.noMic };
+    uivRelease(live, host);
   } finally {
-    stopStream();
-    live.arming = false;
+    stream?.getTracks().forEach(track => track.stop());
+    if (stream && live.stream === stream) live.stream = null;
+    if (live.request === controller) live.request = null;
+    uivPaint(live, host);
   }
 }
 async function uivDownload(live: UivLive, host: UivPageHost): Promise<void> {
+  if (live.voice.phase !== "need-model") return;
   live.voice = uivBeginDownload(live.voice, true);
   const generation = live.voice.generation;
-  uivPaint(live, host);
   const controller = new AbortController();
-  live.download = controller;
-  let ok = true;
-  let note = "";
-  const posted = await uivFetch(host, { op: "prepare", confirm_download: true }, controller.signal, true);
-  if (!posted.response) throw new Error(UIV_RECOVERY.downloadFailed);
-  await uivReadLines(posted.response, line => {
-    if (typeof line.progress === "number") {
-      const total = live.voice.bytesTotal || 626_000_000;
-      live.voice = uivDownloadProgress(live.voice, Math.round(line.progress * total), total);
-      uivPaint(live, host);
-    }
-    if (line.ok === false) { ok = false; note = typeof line.message === "string" ? line.message : UIV_RECOVERY.downloadFailed; }
-  });
-  if (generation !== live.voice.generation || live.voice.phase !== "downloading") return;
-  live.voice = uivFinishDownload(live.voice, ok);
-  if (!ok && note) live.voice = { ...live.voice, message: note };
-  live.download = null;
+  live.request = controller;
   uivPaint(live, host);
-}
-function uivAct(button: HTMLButtonElement, form: HTMLFormElement, live: UivLive, host: UivPageHost): void {
-  if (button.hasAttribute("data-uiv-mic")) { void uivClickMic(form, live, host).catch(error => { live.voice = { ...uivVoiceIdle(), generation: live.voice.generation, phase: "unavailable", message: error instanceof Error ? error.message : UIV_RECOVERY.noMic }; uivPaint(live, host); }); return; }
-  if (button.hasAttribute("data-uiv-stop-record")) { live.drop = false; if (live.voice.phase === "recording") live.voice = uivStopRecord(live.voice); live.recorder?.stop(); uivPaint(live, host); return; }
-  if (button.hasAttribute("data-uiv-cancel-record")) { uivCancel(live, host); return; }
-  if (button.hasAttribute("data-uiv-download")) { void uivDownload(live, host).catch(error => { live.voice = uivFinishDownload({ ...live.voice, phase: "downloading" }, false); live.voice = { ...live.voice, message: error instanceof Error && error.message ? error.message : UIV_RECOVERY.downloadFailed }; uivPaint(live, host); }); return; }
-  if (button.hasAttribute("data-uiv-retry")) { live.voice = uivRetryTranscript(live.voice); uivPaint(live, host); uivTranscribeOrFail(live, host, live.voice.generation); return; }
-  if (button.hasAttribute("data-uiv-discard")) { live.blob = null; live.voice = uivDiscardAudio(live.voice); uivPaint(live, host); return; }
-  const field = uivField(form);
-  if (!field) return;
-  if (button.hasAttribute("data-uiv-confirm") || button.hasAttribute("data-uiv-decline")) {
-    const decided = uivConfirmInsert(live.voice, field.value, button.hasAttribute("data-uiv-confirm"));
-    live.voice = decided.voice;
-    if (decided.text !== field.value) { field.value = decided.text; field.dispatchEvent(new Event("input", { bubbles: true })); }
-    live.blob = null;
+  let ok = false;
+  try {
+    const posted = await uivFetch(host, { op: "prepare", confirm_download: true }, controller.signal, true);
+    if (!posted.response?.ok) throw new Error(UIV_RECOVERY.downloadFailed);
+    await uivReadLines(posted.response, line => {
+      if (generation !== live.voice.generation || controller.signal.aborted) return;
+      if (line.stage === "model_download" && typeof line.progress === "number") {
+        const total = live.voice.bytesTotal || 626_000_000;
+        live.voice = uivDownloadProgress(live.voice, Math.round(line.progress * total), total);
+        uivPaint(live, host);
+      }
+      if (line.stage === "model_loading") {
+        live.voice = { ...live.voice, message: "正在完成本机识别准备，首次使用可能稍久，可以取消。" };
+        uivPaint(live, host);
+      }
+      if (typeof line.ok === "boolean") ok = line.ok;
+    });
+    if (generation !== live.voice.generation) return;
+    live.voice = uivFinishDownload(live.voice, ok);
+  } catch {
+    if (generation !== live.voice.generation || controller.signal.aborted) return;
+    live.voice = uivDownloadRejected(live.voice, { name: "Error" });
+  } finally {
+    if (live.request === controller) live.request = null;
     uivPaint(live, host);
   }
 }
+function uivAct(button: HTMLButtonElement, form: HTMLFormElement, live: UivLive, host: UivPageHost): void {
+  if (button.hasAttribute("data-uiv-mic")) { void uivClickMic(form, live, host).catch(() => { live.voice = { ...uivVoiceIdle(), generation: live.voice.generation, phase: "unavailable", message: UIV_RECOVERY.noMic }; uivPaint(live, host); }); return; }
+  if (button.hasAttribute("data-uiv-stop-record")) { if (live.voice.phase === "recording") live.voice = uivStopRecord(live.voice); live.recorder?.stop(); uivPaint(live, host); return; }
+  if (button.hasAttribute("data-uiv-cancel-record")) { uivCancel(live, host); return; }
+  if (button.hasAttribute("data-uiv-download")) { void uivDownload(live, host); return; }
+  if (button.hasAttribute("data-uiv-retry")) { live.voice = uivRetryTranscript(live.voice); uivPaint(live, host); uivTranscribeOrFail(live, host, live.voice.generation); return; }
+  if (button.hasAttribute("data-uiv-discard")) { live.blob = null; live.voice = uivDiscardAudio(live.voice); uivPaint(live, host); return; }
+  if (!button.hasAttribute("data-uiv-confirm") && !button.hasAttribute("data-uiv-decline")) return;
+  const owner = live.voice.owner;
+  if (!owner) return;
+  const target = uivForms(host).find(candidate => uivSameIdentity(uivIdentity(candidate, host), owner));
+  const field = target ? uivField(target) : null;
+  const store = uivStoreOf(host);
+  const saved = uivLoadDraft(store, owner);
+  const decided = uivConfirmInsert(live.voice, field?.value ?? saved.text, button.hasAttribute("data-uiv-confirm"));
+  live.voice = decided.voice;
+  uivSaveDraft(store, owner, { ...saved, text: decided.text });
+  if (field && decided.text !== field.value) { field.value = decided.text; field.dispatchEvent(new Event("input", { bubbles: true })); }
+  else if (!field) live.pending.set(uivStorageKey(owner), owner);
+  live.blob = null;
+  uivPaint(live, host);
+}
+
 function uivOnInput(form: HTMLFormElement, live: UivLive, host: UivPageHost): void {
   const field = uivField(form);
   if (!field) return;
   const id = uivIdentity(form, host);
   uivRemember(form, host);
+  uivResize(field);
   if (uivSameIdentity(live.voice.owner, id)) live.voice = uivNoteEdit(live.voice, field.value);
   const key = uivStorageKey(id);
   const send = uivNoteTyping(live.sends.get(key) ?? uivSendIdle());
+  if (send.phase === "sending" && field.value !== send.text) live.editedSends.add(key);
   live.sends.set(key, send);
   if (form.dataset.uivPhase && form.dataset.uivPhase !== "sending") delete form.dataset.uivPhase;
   uivPaint(live, host);
@@ -539,10 +535,14 @@ function uivOnSubmit(event: Event, live: UivLive, host: UivPageHost): void {
   if (!(form instanceof HTMLFormElement) || form.dataset.uivBound !== "1") return;
   const field = uivField(form);
   if (!field) return;
+  const submit = form.querySelector<HTMLButtonElement>("[data-assistant-send], [data-coding-send], button[type=submit]");
+  if (field.disabled || submit?.disabled || form.dataset.uivContextInvalid) {
+    event.preventDefault(); event.stopImmediatePropagation(); uivRefuse(form, live, host); return;
+  }
   const key = uivStorageKey(uivIdentity(form, host));
-  const begun = uivBeginSend(live.sends.get(key) ?? uivSendIdle(), field.value, uivVoiceBusy(live.voice));
+  const begun = uivBeginSend(live.sends.get(key) ?? uivSendIdle(), field.value, uivSameIdentity(live.voice.owner, uivIdentity(form, host)) && uivVoiceBusy(live.voice));
   live.sends.set(key, begun.send);
-  if (begun.accepted) { form.dataset.uivPhase = "sending"; form.dataset.uivSendKey = key; }
+  if (begun.accepted) { live.editedSends.delete(key); form.dataset.uivPhase = "sending"; form.dataset.uivSendKey = key; }
   if (!begun.accepted) { event.preventDefault(); event.stopImmediatePropagation(); }
   uivPaint(live, host);
 }
@@ -557,67 +557,57 @@ function uivOnKey(event: KeyboardEvent, live: UivLive, host: UivPageHost): void 
   if (!form || !field || event.target !== field) return;
   const key = uivStorageKey(uivIdentity(form, host));
   const send = live.sends.get(key) ?? uivSendIdle();
-  const decision = uivKeyAction({ key: event.key, metaKey: event.metaKey, ctrlKey: event.ctrlKey, isComposing: event.isComposing, keyCode: event.keyCode }, live.voice.phase, send, field.value);
+  const decision = uivKeyAction({ key: event.key, metaKey: event.metaKey, ctrlKey: event.ctrlKey, isComposing: event.isComposing, keyCode: event.keyCode }, uivSameIdentity(live.voice.owner, uivIdentity(form, host)) ? live.voice.phase : "idle", send, field.value);
   if (decision === "ignore" || decision === "newline") return;
   event.preventDefault();
   event.stopImmediatePropagation();
   if (decision === "cancel-voice") { uivCancel(live, host); return; }
-  if (decision === "hold") { live.sends.set(key, uivBeginSend(send, field.value, uivVoiceBusy(live.voice)).send); uivPaint(live, host); return; }
+  if (decision === "hold") { live.sends.set(key, uivBeginSend(send, field.value, uivSameIdentity(live.voice.owner, uivIdentity(form, host)) && uivVoiceBusy(live.voice)).send); uivPaint(live, host); return; }
   const submit = form.querySelector<HTMLButtonElement>("[data-assistant-send], [data-coding-send], button[type=submit]");
   if (submit?.disabled) { uivRefuse(form, live, host); return; }
   form.requestSubmit();
 }
+function uivClearSaved(store: UivStore, key: string, sent: string): void {
+  const raw = store.get(key);
+  if (!raw) return;
+  try {
+    const draft = JSON.parse(raw) as { text?: unknown; context?: unknown };
+    if (typeof draft.text === "string" && uivClearedDraftText(draft.text, sent) === "") store.set(key, JSON.stringify({ ...draft, text: "" }));
+  } catch { return; }
+}
 function uivReadPhase(form: HTMLFormElement, live: UivLive, host: UivPageHost): void {
   const phase = form.dataset.uivPhase;
   const key = uivStorageKey(uivIdentity(form, host));
-  const remembered = form.dataset.uivSendKey || key;
+  const remembered = form.dataset.uivResultKey || form.dataset.uivSendKey || key;
+  const targetKey = form.dataset.uivResultNextKey || remembered;
   const send = live.sends.get(remembered) ?? uivSendIdle();
-  const move = (next: UivSend): void => {
-    live.sends.set(key, next);
-    if (remembered !== key) live.sends.delete(remembered);
-    delete form.dataset.uivSendKey;
-  };
-  if (phase === "idle" && send.phase === "sending") { move({ ...send, phase: "idle", message: "" }); return; }
+  if (phase === "sending" && send.phase !== "sending") {
+    const text = form.dataset.uivResultText ?? (remembered === key ? uivField(form)?.value ?? "" : "");
+    live.editedSends.delete(remembered);
+    live.sends.set(remembered, { phase: "sending", token: send.token + 1, text, message: UIV_SEND_COPY.sending });
+    return;
+  }
+  if (phase === "idle" && send.phase === "sending") { live.sends.set(remembered, { ...send, phase: "idle", message: "" }); return; }
   if (phase !== "succeeded" && phase !== "failed" && phase !== "uncertain") return;
   if (send.phase !== "sending") return;
   const settled = uivSettleSend(send, send.token, phase);
-  const sent = send.text;
-  const savedKey = remembered;
-  move(settled.send);
-  if (!settled.clearDraft) return;
+  live.sends.set(remembered, settled.send);
+  if (targetKey !== remembered) live.sends.set(targetKey, settled.send);
+  delete form.dataset.uivResultKey;
+  delete form.dataset.uivResultNextKey;
+  delete form.dataset.uivResultText;
+  if (form.dataset.uivSendKey === remembered) delete form.dataset.uivSendKey;
+  if (!settled.clearDraft || live.editedSends.has(remembered)) return;
+  const store = uivStoreOf(host);
+  uivClearSaved(store, remembered, send.text);
+  if (targetKey !== remembered) uivClearSaved(store, targetKey, send.text);
   queueMicrotask(() => {
+    const current = uivStorageKey(uivIdentity(form, host));
     const field = uivField(form);
-    if (!field || uivClearedDraftText(field.value, sent) !== "") return;
+    if (!field || (current !== remembered && current !== targetKey) || uivClearedDraftText(field.value, send.text) !== "") return;
     if (field.value) field.value = "";
-    const store = uivStoreOf(host);
-    const empty = JSON.stringify({ text: "", context: uivContext(form) });
-    store.set(savedKey, empty);
-    const currentKey = uivStorageKey(uivIdentity(form, host));
-    if (currentKey !== savedKey) store.set(currentKey, empty);
-  });
-}
-function uivReadHome(live: UivLive, host: UivPageHost): void {
-  const form = host.document.querySelector<HTMLFormElement>("[data-home-talk-form]");
-  const text = host.document.querySelector(".home-talk-status")?.textContent ?? "";
-  if (!form) return;
-  const key = uivStorageKey(uivIdentity(form, host));
-  const send = live.sends.get(key) ?? uivSendIdle();
-  const outcome = text.includes("已被会话接收") || text.includes("session received the message") ? "succeeded" : text.includes("明确未接收") || text.includes("did not receive") ? "failed" : text.includes("尚未确认") || text.includes("isn't confirmed") ? "uncertain" : null;
-  if ((text.includes("正在发送") || text.includes("Sending to the selected")) && send.phase !== "sending") live.sends.set(key, { ...send, phase: "sending", token: send.token, text: uivField(form)?.value ?? "", message: UIV_SEND_COPY.sending });
-  if (!outcome || send.phase !== "sending") return;
-  const settled = uivSettleSend(send, send.token, outcome);
-  const sent = send.text;
-  live.sends.set(key, settled.send);
-  if (!settled.clearDraft) return;
-  queueMicrotask(() => {
-    const field = uivField(form);
-    if (!field || uivClearedDraftText(field.value, sent) !== "") return;
-    if (field.value) field.value = "";
-    const store = uivStoreOf(host);
-    const empty = JSON.stringify({ text: "", context: uivContext(form) });
-    store.set(key, empty);
-    const currentKey = uivStorageKey(uivIdentity(form, host));
-    if (currentKey !== key) store.set(currentKey, empty);
+    uivResize(field);
+    uivPaint(live, host);
   });
 }
 function uivBind(form: HTMLFormElement, live: UivLive, host: UivPageHost): void {
@@ -626,9 +616,15 @@ function uivBind(form: HTMLFormElement, live: UivLive, host: UivPageHost): void 
   uivEnsure(form, host);
   const field = uivField(form);
   field?.addEventListener("input", () => uivOnInput(form, live, host));
+  form.addEventListener("change", () => { delete form.dataset.uivContextInvalid; uivRemember(form, host); uivPaint(live, host); });
   field?.addEventListener("focus", () => uivPaint(live, host));
   field?.addEventListener("blur", () => uivPaint(live, host));
   uivRestore(form, host);
+  if (field) {
+    uivResize(field);
+    let width = field.getBoundingClientRect().width;
+    new ResizeObserver(() => { const next = field.getBoundingClientRect().width; if (next !== width) { width = next; uivResize(field); } }).observe(field);
+  }
 }
 function uivInterrupted(live: UivLive, host: UivPageHost): void {
   let open: string | null = null;
@@ -639,10 +635,11 @@ function uivInterrupted(live: UivLive, host: UivPageHost): void {
 }
 /** Attach the shared composer behavior to the home, assistant, and Coding forms that are already on the page. */
 export function uivMount(host: UivPageHost): void {
-  const live: UivLive = { voice: uivVoiceIdle(), sends: new Map(), recorder: null, stream: null, audio: null, chunks: [], blob: null, timer: 0, started: 0, drop: false, releasing: false, pending: null, download: null, arming: false };
+  const live: UivLive = { voice: uivVoiceIdle(), sends: new Map(), editedSends: new Set(), recorder: null, stream: null, audio: null, analyser: null, source: null, chunks: [], blob: null, timer: 0, started: 0, releasing: false, pending: new Map(), request: null, target: "" };
   uivInterrupted(live, host);
   const scan = () => { for (const form of host.document.querySelectorAll("form")) if (form instanceof HTMLFormElement) uivBind(form, live, host); uivPaint(live, host); };
   scan();
+  uivWatchDock(host);
   host.document.addEventListener("keydown", event => uivOnKey(event, live, host), true);
   host.document.addEventListener("submit", event => uivOnSubmit(event, live, host), true);
   host.document.addEventListener("click", event => {
@@ -659,29 +656,28 @@ export function uivMount(host: UivPageHost): void {
     const keyed = records.some(record => record.type === "attributes");
     if (!structural && !keyed) return;
     if (structural) scan();
-    for (const form of uivForms(host)) { uivReadPhase(form, live, host); uivApplyPending(form, live, host); }
+    for (const form of uivForms(host)) { uivReadPhase(form, live, host); uivRestore(form, host); uivApplyPending(form, live, host); const field = uivField(form); if (field) uivResize(field); }
     const ownerHere = uivForms(host).some(form => live.voice.owner && uivSameIdentity(uivIdentity(form, host), live.voice.owner));
     const visible = uivForms(host).find(form => !form.hidden) ?? uivForms(host)[0];
     if (live.voice.owner && visible && !ownerHere && uivVoiceBusy(live.voice)) live.voice = uivNoteSwitch(live.voice, uivIdentity(visible, host));
-    uivReadHome(live, host);
+
     uivPaint(live, host);
   });
-  observer.observe(host.document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-uiv-key", "data-uiv-phase"] });
-  const home = host.document.querySelector("[data-home-talk-body]");
-  if (home) new MutationObserver(() => { uivReadHome(live, host); uivPaint(live, host); }).observe(home, { childList: true, subtree: true, characterData: true });
+  observer.observe(host.document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-uiv-key", "data-uiv-phase", "data-uiv-result-key", "data-uiv-result-next-key"] });
   const pull = () => { for (const form of uivForms(host)) uivRestore(form, host); };
   globalThis.setTimeout(pull, 1200);
+  host.document.defaultView?.addEventListener("resize", () => { for (const form of uivForms(host)) { const field = uivField(form); if (field) uivResize(field); } });
 }
 
 const uivBootFns = [
   uivStorageKey, uivSameIdentity, uivSaveDraft, uivLoadDraft, uivBeginSend, uivNoteTyping, uivSettleSend, uivClearedDraftText, uivPhaseBusy, uivKeyAction,
-  uivVoiceIdle, uivVoiceBusy, uivClampAnchor, uivRequestRecord, uivBeginDownload, uivDownloadProgress, uivBytesLabel, uivFinishDownload,
+  uivVoiceIdle, uivVoiceBusy, uivClampAnchor, uivRequestRecord, uivBeginDownload, uivDownloadProgress, uivBytesLabel, uivFinishDownload, uivDownloadRejected,
   uivStopRecord, uivTickRecord, uivCancelVoice, uivNoteEdit, uivNoteSwitch, uivInsertTranscript, uivApplyTranscript, uivConfirmInsert,
-  uivFailTranscript, uivRetryTranscript, uivDiscardAudio, uivExplainInterrupted, uivContextInvalid, uivCannotSend, uivVisibleControls,
+  uivFailTranscript, uivRetryTranscript, uivDiscardAudio, uivExplainInterrupted, uivContextInvalid, uivCannotSend, uivLoseDevice, uivVoiceStatusText, uivVisibleControls,
   uivFieldState, uivFieldLabel, uivStoreOf, uivSurface, uivField, uivIdentity, uivContext, uivObject, uivMeter, uivForms, uivButton,
-  uivEnsure, uivShow, uivText, uivPaint, uivMarkOpen, uivSendIdle, uivRemember, uivRestoreContext, uivLimitMs, uivForeignDraft, uivRestore, uivApplyPending, uivRelease,
+  uivEnsure, uivShow, uivText, uivPaint, uivMarkOpen, uivSendIdle, uivRemember, uivRestoreContext, uivLimitMs, uivRestore, uivApplyPending, uivResize, uivWatchDock, uivRelease,
   uivCancel, uivLevel, uivTick, uivWriteTranscript, uivEncode, uivTranscribe, uivTranscribeOrFail, uivFetch, uivReadLines, uivOnStop, uivDeviceLost, uivArm,
-  uivClickMic, uivDownload, uivAct, uivOnInput, uivRefuse, uivOnSubmit, uivKeyForm, uivOnKey, uivReadPhase, uivReadHome, uivBind,
+  uivClickMic, uivDownload, uivAct, uivOnInput, uivRefuse, uivOnSubmit, uivKeyForm, uivOnKey, uivClearSaved, uivReadPhase, uivBind,
   uivInterrupted, uivMount,
 ];
 /** The page runs these same functions. The string is inlined into the document, not into the measured workbench script. */

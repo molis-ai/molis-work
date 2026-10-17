@@ -56,7 +56,8 @@ test("底栏：输入法组合中按回车只确认候选、不发送；组合�
   assert.equal(await works(), before, "committing a candidate sends nothing");
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), true, "no work opened");
   // With the composition over, Enter only breaks the line. Ctrl+Enter is what sends.
-  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 }, sessionId);
+  // CDP rawKeyDown carries no text; keyDown with the real Enter character exercises the textarea default.
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", text: "\r", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 }, sessionId);
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(await works(), before, "plain Enter after the composition does not send");

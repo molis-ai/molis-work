@@ -1,5 +1,6 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "原先选择的会话已不可用。请重新选择发送目标，草稿仍保留。": "The previously selected conversation is unavailable. Choose a destination again; your draft is kept.",
   "正在重新整理…": "Reorganizing…",
   "内容已变化，请重新整理。": "The content changed. Please reorganize again.",
   "已重新整理，确认后保存。": "Reorganized. Review and save when ready.",

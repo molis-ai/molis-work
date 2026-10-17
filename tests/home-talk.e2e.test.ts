@@ -121,9 +121,18 @@ test("Home sends the actual text and subject to an explicit Session; drafts and 
     assert.deepEqual(await evaluate("[...document.querySelectorAll('[name=talk-session]')].map(e=>({id:e.value,selected:e.checked}))"), [{ id: chosen.session_id, selected: true }]);
     await screenshot("mobile-exact-session");
     await click('[data-home-close-talk]'); await click('[data-home-close-event]');
-    feed.linkGoal(projectId, item2.item_id, "goal-without-session", "processing");
+    // UIV-04: a changed association may suggest another session, but cannot replace the person's selected target.
+    feed.linkGoal(projectId, item2.item_id, "review-goal", "processing");
     await open(item2.item_id); await waitFor("!!document.querySelector('[data-talk-action=new]')");
     await click('[data-talk-action=new]');
+    await waitFor("document.querySelector('.home-talk-error')?.textContent.includes('原先选择的会话已不可用')");
+    assert.equal(await evaluate("document.querySelector('[name=talk-session]:checked')?.value || null"), null);
+    assert.equal(await evaluate(`document.querySelector('${send}').disabled`), true);
+    await click(`[name=talk-session][value="${chosen.session_id}"]`);
+    assert.equal(await evaluate("document.querySelector('[data-home-talk-form]').dataset.uivContextInvalid"), "");
+    await click('[data-home-close-talk]'); await click('[data-home-close-event]');
+    feed.linkGoal(projectId, item2.item_id, "goal-without-session", "processing");
+    await open(item2.item_id);
     await waitFor("!!document.querySelector('[data-talk-action=sessions]')");
     assert.equal(await evaluate("document.querySelectorAll('[name=talk-session]').length"), 0);
     assert.equal(await evaluate(`document.querySelector('${send}').disabled`), true);

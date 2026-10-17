@@ -685,6 +685,12 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
         - 其余都核过：键盘、选字、只闪本页还连着的落点、正在闪不叠、少动画不闪、dom-events 主人与发方、W3-A3c 编号。证据表在两棵树上逐项 grep，被删的代码都没有渲染方；island、context-bus、context-actions 没变大，五份资源都变小。
         - 顺序：#664 合入后 base 改成 main，再 merge main（不 rebase、不 force push），重测资源字节后把 head 发给统筹，统筹再加标签。
       - 标签：#666 在合并队列（AWAITING_CHECKS）；#664、#665 的全量排着；标签链 85837 后面还有 670→669→672。
+      - #674（手册 ui-review 2.1.0；611f494cc，叠在 #672 上）统筹审过，通过：
+        - 改动：删掉「不要 Markdown、代码围栏……」一句，版本升到 2.1.0。
+        - 确认轮按事先写的规则判，结论是通过：合格 36 → 39，结构失败 3 → 1，两条守护都在余量内。带围栏的答案 0 → 14，宿主的 model-json.ts 照常去掉。
+        - 门禁：merge-only，不跑全量。#672 合入后改 base、merge main，把新 head 发给统筹。
+        - 冒烟只走到设计冻结，碰不到复查提示词，所以这次没跑，正文里补了这句理由。
+      - 采用线：A3 等验证跑完就开，叠在 #665 上；审的时候 `assistant_jobs` 删表要弹窗问用户。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

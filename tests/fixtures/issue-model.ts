@@ -30,6 +30,8 @@ export interface IssueModelBehavior {
   suggest?: boolean;
   title?: string;
   type?: "bug" | "experience" | "feature";
+  /** Ask the Assistant's memory to keep this, quoting the person (`said`); then end in words. */
+  remember?: { text: string; said: string };
 }
 
 /** Model replies are scripted the way the Issue method asks; the Assistant, vision intake, action directory and undo stay real. */
@@ -56,7 +58,7 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
       why: "需要定位页面", questions: [{ prompt: "在哪个页面点击保存没有反应？", options: ["首页", "项目页"], allowOther: true }],
     } : { why: "你在哪个页面做了什么，出现了什么问题？也可以补充截图。" } });
     // One planned tool call per model turn of a draft; after the plan, the round ends in words.
-    const plan = behavior.replyText ? [] : behavior.question === "free-text" ? [ask(true)] : behavior.question === "correct-once" ? [ask(false), ask(true)]
+    const plan = behavior.replyText ? [] : behavior.remember ? [{ name: "remember", input: { ...behavior.remember, scope: "personal" } }] : behavior.question === "free-text" ? [ask(true)] : behavior.question === "correct-once" ? [ask(false), ask(true)]
       : behavior.question === "never-correct" ? [ask(false), ask(false), ask(false), ask(false)] : behavior.malformedCaptureAlways ? [bad, bad, bad, bad]
       : behavior.malformedCaptureOnce ? [bad, good] : behavior.suggest ? [good, card] : [good];
     const tool = revision && !behavior.replyText && !behavior.question ? (turn === 0 ? { name: "suggest-action", input: {

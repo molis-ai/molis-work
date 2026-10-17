@@ -458,6 +458,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "用过之后被改过": "Changed since it was used",
   "打开看看": "Open it",
   "要记住吗": "Remember this",
+  "你刚才让我记住": "You asked me to remember",
   "还等你处理": "Still waiting on you",
   "分出去的子任务": "Sub-tasks handed out",
   "拖到这里，或 @ 引用、/ 用能力": "Drop files here, or @ to bring in, / for a capability",

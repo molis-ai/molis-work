@@ -1008,3 +1008,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 统筹 10-18 定（采用线查实了 PATH 的问题）：Node Host 起命令时 PATH 是从 Host 自己的进程环境拷的，`.`、空项、相对项都能找到授权根里的可执行文件（本机实测）。今天的 run-command 也有这个问题：审查的意思会被绕过。选 B：PATH 只留绝对项，单开一个 Prologue PR 先合（Tauri 和内存 Host 要一起查），带拒绝用例和变异；写后检查那一刀叠在它上面。换包时 Molis 在 SECURITY-INVARIANTS 的命令那一节加一行。
 
 - 10-18 #694（情境 W2'-1，ea0e27873）审过：改名不留别名、order 排序、Escape 由面板处理、默认格写进正文均可；退回删三处死代码（plugin-membership.ts:56-60 的 data-resident 分支与注释、primitive-catalog.ts:91、craft-finish.ts 里 .bar-side 上的旧注释）并改 context-program R4 行的「未合入」；新 head 来了再加标签跑全量。
+
+- 10-18 #691 合入前跑过全量（chain28→gate-691 全绿→df00646d8），已回情境线。W2'-2 一行计划认可（统筹 10-18 定）：`always_on` 只给内置目录的插件，外装插件带它在安装时拒绝（拒绝用例 + SECURITY-INVARIANTS 一行），SDK 解析、宿主判内置；api:update 与 CONTRACT-CHANGES 影响说明；旧 `?openPlugin=shelf` / `open.surface` 先查是否落进用户数据，有则先报、不写兜底；与 #694 合计两片在途。

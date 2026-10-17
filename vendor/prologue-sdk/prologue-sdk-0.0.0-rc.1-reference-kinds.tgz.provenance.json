@@ -1,0 +1,45 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "c673238e340d253f7a794133d547b9f5c34b473b",
+    "mergedUpstream": {
+      "pullRequest": 33,
+      "head": "a579bfea4401f5ea55de15079b587e6fba195ba1",
+      "mergedAt": "2026-10-17T01:18:39Z",
+      "note": "The tip of upstream main when it was packed: the parameter-branches package's 4e8468dd and #33 (the App may list the kinds of object an ask-user reference question can ask for, App config tool.askUserReferenceKinds; the question's kinds become an enum of that list, and a question asking for a kind outside it is returned to the model as malformed). Molis takes it with P4-C2 so the interaction line can declare its reference kinds (specs/prologue-adoption §6.0j)."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-reference-kinds.tgz",
+    "bytes": 1190630,
+    "sha256": "585909b1e7fc243828927ff229069445a9056ce2ffb65c17d13c57f6b9372c0c",
+    "integrity": "sha512-uXIUJY4a6S3w7aVKsehW1xRNvSqLVK2seOrntO2yuj1jzM4uDf3HjPUfVtOs4KBvUMxxXOo7D5B1LIoFJdcJtg=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive c673238e340d253f7a794133d547b9f5c34b473b | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --offline",
+      "pnpm --filter @prologue/sdk run build",
+      "cd packages/sdk && pnpm pack --pack-destination <dir>   # writes prologue-sdk-0.0.0-rc.1.tgz; renamed to prologue-sdk-0.0.0-rc.1-reference-kinds.tgz"
+    ],
+    "packedOn": "2026-10-17",
+    "reproducedFrom": "c673238e340d253f7a794133d547b9f5c34b473b",
+    "reproducedByteIdentical": true,
+    "note": "Packed from a clean git archive of the squash merge of #33, whose tree is the reviewed head a579bfea's. The SDK full suite ran on that tree (355 files: 3949 passed, 21 skipped, 0 failed; desktop-computer-use.live not run: it drives the real desktop), and the 13 consumer scripts passed on this package; the Molis side is recorded in the adoption spec §6.0j. Packed a second time the same way on 2026-10-17: the same 1,190,630 bytes and SHA-256."
+  }
+}

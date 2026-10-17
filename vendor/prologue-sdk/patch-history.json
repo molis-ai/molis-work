@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-16",
-    "mainHead": "4e8468ddb6eb8fd0ca48110adb77a316c7048332",
-    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。 2026-10-15 对上游 main e51233699c1463e3c8f0a8b08658c5860c962769（collaboration 包的来源）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main e4afd1a718bd8a8629d52526b953bbe75149baa6（found-tools 包的来源，#28 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main be78f726df55d76e7ab7bd5889d4eeb89b049173（find-tools-deferral 包的来源，#30 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main 4e8468ddb6eb8fd0ca48110adb77a316c7048332（parameter-branches 包的来源，#32 的合并，含 #31）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。",
+    "checkedOn": "2026-10-17",
+    "mainHead": "c673238e340d253f7a794133d547b9f5c34b473b",
+    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。 2026-10-15 对上游 main e51233699c1463e3c8f0a8b08658c5860c962769（collaboration 包的来源）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main e4afd1a718bd8a8629d52526b953bbe75149baa6（found-tools 包的来源，#28 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main be78f726df55d76e7ab7bd5889d4eeb89b049173（find-tools-deferral 包的来源，#30 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main 4e8468ddb6eb8fd0ca48110adb77a316c7048332（parameter-branches 包的来源，#32 的合并，含 #31）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-17 对上游 main c673238e340d253f7a794133d547b9f5c34b473b（reference-kinds 包的来源，#33 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -38,6 +38,7 @@
       "be78f726df55d76e7ab7bd5889d4eeb89b049173",
       "c4b9fde33df465b6f1798ef1c34de85c2b1904f0",
       "c63ea1a16eec8d8217223db1624b2409a1a33d14",
+      "c673238e340d253f7a794133d547b9f5c34b473b",
       "d2f5a05df6459440a253787e94ee6520f12d754d",
       "d4908c118f7899d44e3d1975806797a05f0094b9",
       "e4afd1a718bd8a8629d52526b953bbe75149baa6",
@@ -675,6 +676,14 @@
       "gitBlob": "fda0b4011f2e596a4daf5c70183ee786f8f4d009",
       "commit": "be78f726df55d76e7ab7bd5889d4eeb89b049173",
       "description": "上游 main `be78f726`（Prologue #30 的合并：一轮只要延后了工具，`find-tools` 就带着名册在请求里、调得动，不看角色和这一轮的名单点没点它）。2026-10-16 随 Molis #599 成为 main 的依赖；同日换成从上游 main `4e8468dd`（#32 的合并，含 #31）打的 parameter-branches 包；旧包和其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-parameter-branches.tgz",
+      "bytes": 1189325,
+      "sha256": "c6f421292cfcdbadb1dd7db5e8a3175766d9515ae4d25205b732e318c434590f",
+      "gitBlob": "36438baa4c824c8689e0990106778007b2fe57d6",
+      "commit": "4e8468ddb6eb8fd0ca48110adb77a316c7048332",
+      "description": "上游 main `4e8468dd`（Prologue #32 的合并，含 #31：会话可以给自己包里的工具参数加分支；数字题可以带单位）。2026-10-16 随 Molis #615 成为 main 的依赖；2026-10-17 随 P4-C2 换成从上游 main `c673238e`（#33 的合并）打的 reference-kinds 包；旧包和其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

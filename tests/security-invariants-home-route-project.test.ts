@@ -3,8 +3,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { ISSUES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-issues";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginExecutionControl, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition, PluginExecutionControl, PluginRouteBinding, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -20,6 +21,15 @@ function createRows(home: string): Array<{ project_id: string | null; ok: boolea
   if (!existsSync(file)) return [];
   return readFileSync(file, "utf8").trim().split("\n").filter(Boolean).map(line => JSON.parse(line) as { capability_id: string; project_id: string | null; ok: boolean })
     .filter(row => row.capability_id === "issues.create");
+}
+
+/** Issue's running create route, the very binding the Host dispatches to, so a test can hold it or keep what it was handed. */
+async function issueCreateRoute(host: MolisWorkLocalHost): Promise<PluginRouteBinding> {
+  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;
+  const contribution = platform.runtime.contribution(install.install_id);
+  const route = contribution?.kind === "app" ? contribution.routes?.find(candidate => candidate.route_id === "issues.create") : undefined;
+  assert.ok(route, "Issue's create route is running");
+  return route;
 }
 
 test("S-31 a Home plugin's route under a project's path runs in that project; without the prefix it runs in none", { timeout: 60_000 }, async t => {
@@ -114,4 +124,43 @@ test("S-31 a plugin cannot name the project itself: a project on a control the H
     const body = await response.json() as { project_id: string | null } | string | null;
     assert.equal(name === "own" ? body : (body as { project_id: string | null }).project_id, null, `${name}: the call runs in no project`);
   }
+});
+
+test("S-31 a project that hides the plugin while its route waits gets no write", { timeout: 60_000 }, async t => {
+  const { home, host, request, project } = await serveHomeRuntime(t);
+  const one = await project("等待中隐藏");
+  const route = await issueCreateRoute(host), original = route.handle.bind(route);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  // The route waits, as one waiting for a model or a service would, after the Host's checks at the start and before its write.
+  route.handle = async routed => { entered.resolve(); await release.promise; return original(routed); };
+  const pending = request(`/projects/${one.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/create`, { method: "POST", body: issue });
+  await entered.promise;
+  const hide = await request(`/api/settings/projects/${one.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues" } });
+  assert.equal(hide.status, 200, await hide.clone().text());
+  release.resolve();
+  const response = await pending;
+  assert.equal(response.status, 403, await response.clone().text());
+  assert.equal((await response.json()).code, "actions.plugin_disabled");
+  assert.ok(createRows(home).every(row => !row.ok), "the write found the plugin hidden and did not run");
+  const listed = await (await request(`/api/plugins/${ISSUES_PLUGIN_ID}/list`)).json() as { items: unknown[] };
+  assert.deepEqual(listed.items, []);
+});
+
+test("S-31 a project's control ends with its request: kept and used later, it is refused, not run as the person's own", { timeout: 60_000 }, async t => {
+  const { home, host, request, project } = await serveHomeRuntime(t);
+  const one = await project("请求结束");
+  const route = await issueCreateRoute(host), original = route.handle.bind(route);
+  let kept: PluginExecutionControl | undefined;
+  route.handle = async routed => { kept = routed.execution; return original(routed); };
+  const first = await request(`/projects/${one.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/create`, { method: "POST", body: issue });
+  assert.equal(first.status, 200, await first.clone().text());
+  assert.equal(kept?.project_id, one.project_id);
+  route.handle = original;
+  const before = createRows(home).length;
+  const late = await original({ method: "POST", pathname: "/create", actor_id: LOCAL_PERSON_ACTOR_ID, params: {}, query: {}, body: issue, execution: kept });
+  assert.notEqual(late.status, 200);
+  assert.equal((late.body as { code?: string }).code, "actions.cancelled");
+  assert.ok(createRows(home).slice(before).every(row => !row.ok), "the late call left no record that ran");
+  const listed = await (await request(`/api/plugins/${ISSUES_PLUGIN_ID}/list`)).json() as { items: unknown[] };
+  assert.equal(listed.items.length, 1, "only the request's own create is kept");
 });

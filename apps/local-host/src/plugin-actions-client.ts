@@ -4,19 +4,34 @@ import type { PluginExecutionControl, PluginManifest, PluginStartContext } from 
 import { pluginActionProvider } from "./plugin-action-provider.js";
 
 /**
- * The controls this Host made for a route it dispatched inside a project, each with that project's action client; a plugin cannot make
- * one, so it cannot name a project.
+ * The controls this Host made for a route it dispatched inside a project, each with that project's action client and whether its request
+ * has ended; a plugin cannot make one, so it cannot name a project.
  */
-const routedControls = new WeakMap<PluginExecutionControl, ActionClient>();
+const routedControls = new WeakMap<PluginExecutionControl, { readonly client: ActionClient; ended: boolean }>();
+const ended = () => new ActionError("actions.cancelled", "这次请求已经结束，不能再在这个项目里调用");
 
 /**
- * A Home instance's route called in a project: the Host resolved and checked the project from the page's path before this, and `client`
- * is the Host's action client for that project (the Home client refuses a caller that names one).
+ * A Home instance's route called in a project: the Host resolved and checked the project from the page's path before this, `client` is
+ * the Host's action client for that project (the Home client refuses a caller that names one), and `current` checks again, before
+ * each write, that the project is still there and still shows the plugin. The project lasts as long as the request: once `end` is called,
+ * a call with this control is refused, never run as the person's own.
  */
-export function projectRouteControl(control: Omit<PluginExecutionControl, "project_id">, projectId: string, client: ActionClient): PluginExecutionControl {
-  const routed: PluginExecutionControl = Object.freeze({ ...control, project_id: projectId });
-  routedControls.set(routed, client);
-  return routed;
+export function projectRouteControl(control: Omit<PluginExecutionControl, "project_id">, projectId: string, client: ActionClient,
+  current: () => Promise<void>): { control: PluginExecutionControl; end(): void } {
+  const state = { client, ended: false };
+  const routed: PluginExecutionControl = Object.freeze({ ...control, project_id: projectId,
+    beforeEffect: async () => {
+      if (state.ended) throw ended();
+      await control.beforeEffect();
+      await current();
+      if (state.ended) throw ended();
+    },
+    assert_authority_current: () => {
+      if (state.ended) throw ended();
+      control.assert_authority_current?.();
+    } });
+  routedControls.set(routed, state);
+  return { control: routed, end: () => { state.ended = true; } };
 }
 
 /**
@@ -25,10 +40,11 @@ export function projectRouteControl(control: Omit<PluginExecutionControl, "proje
  */
 function callScope(instanceProject: string | undefined, instanceClient: ActionClient, control: PluginExecutionControl | undefined)
   : { project_id: string | null; client: ActionClient } {
-  const client = control?.project_id === undefined ? undefined : routedControls.get(control);
-  if (!control?.project_id || !client) return { project_id: instanceProject ?? null, client: instanceClient };
+  const routed = control?.project_id === undefined ? undefined : routedControls.get(control);
+  if (!control?.project_id || !routed) return { project_id: instanceProject ?? null, client: instanceClient };
+  if (routed.ended) throw ended();
   if (instanceProject !== undefined && instanceProject !== control.project_id) throw new ActionError("actions.forbidden", "调用所在的项目与插件实例不一致");
-  return { project_id: control.project_id, client };
+  return { project_id: control.project_id, client: routed.client };
 }
 
 /** One action binding for project and Home activations; identity and authority come from the Host. */

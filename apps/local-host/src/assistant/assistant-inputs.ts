@@ -1,7 +1,7 @@
-import type { AgentRunView, AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunView, AgentSessionView, AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentAnswerControl } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { AGENT_INPUT_KEY_PATTERN, type AgentInputSend, type AgentInputsPort, type AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
-import type { AssistantContextSnapshot, AssistantMaterial, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantContextSnapshot, AssistantMaterial, AssistantSendInput, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
 
@@ -60,6 +60,14 @@ export async function withdrawInput(work: StoredWork, rounds: ReadonlyArray<{ ru
   const inputs = await via.runtime();
   if (!inputs.withdraw) throw assistantErrors.unsupported("当前运行时不能撤回补充");
   await inputs.withdraw({ session_id: work.session_id, run_id }, input_id);
+}
+
+/**
+ * What waits in the work's own session for its next round (specs/ai-input-receipts §4.4, D31), as the runtime read it: only
+ * while none of its rounds is live. Not read (or no session) leaves it out, so the page never takes that for an empty queue.
+ */
+export function queuedInputs(session: AgentSessionView | null): Pick<AssistantWorkView, "queued_inputs"> {
+  return session?.queued_inputs ? { queued_inputs: session.queued_inputs } : {};
 }
 
 /** The revision an answer names: the first one given. An answer to a question no one numbered is not sent. */

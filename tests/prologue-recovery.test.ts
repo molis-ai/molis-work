@@ -145,7 +145,7 @@ test("RC-09: the next round takes what waits in the session, shows it with its r
       [{ kind: "user", text: "下一轮顺便看注册接口", steer: { id: kept.input_id, key: "send.c1", state: "read" } }], "the round shows the supplement it took, once, under its own id");
     assert.equal(view.turns.find(turn => turn.steer)!.steer!.key, "send.c1", "RC-17: a carried supplement keeps the key it was sent under, so a lost answer can still be matched to it");
     assert.deepEqual((await adapter.recovery!.inspect(session)).inputs, [], "taken by the round, it no longer waits");
-    assert.equal((await adapter.readSession(session)).queued_inputs, undefined, "RC-18: nothing waits, so the read carries nothing");
+    assert.deepEqual((await adapter.readSession(session)).queued_inputs, [], "RC-18: the round ended, so the queue was read, and nothing waits (3b-2c: read and empty is [], not absent)");
 
     const third = await round("再继续");
     assert.deepEqual((await ended(third.ref)).turns.filter(turn => turn.steer), [], "a supplement is taken once, not into every round after it");

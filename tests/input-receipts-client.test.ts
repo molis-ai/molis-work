@@ -55,7 +55,7 @@ function receipts() {
   let keys = 0;
   const program = vm.runInNewContext(`(${INPUT_RECEIPTS_CLIENT_SCRIPT})`, {
     document: { createElement: (tag: string) => new Node(tag), body, get activeElement() { return focus.on; } }, queueMicrotask, crypto: { randomUUID: () => `key-${++keys}` },
-  }) as (L: (text: string) => string) => { line(turn: Turn, round?: object, act?: Actions): Node | null; tray(queued: object[], round?: object, act?: Pick<Actions, "withdraw">): Node | null };
+  }) as (L: (text: string) => string) => { line(turn: Turn, round?: object, act?: Actions): Node | null; tray(queued: object[] | undefined, round?: object, act?: Pick<Actions, "withdraw">): Node | null };
   const ui = program(text => text);
   const said = () => new Promise<string[]>(resolve => setTimeout(() => resolve(body.children.map(node => node.textContent)), 0));
   return { ui, body, said };
@@ -311,4 +311,23 @@ test("RCPT-333: the tray is one element across repaints, and its count is said o
   assert.equal(ui.tray([...queue, { input_id: "q-2", text: "再补一条" }], { run_id: "run-2" }), tray, "the same element, so an open tray stays open");
   assert.equal(tray.open, true);
   assert.deepEqual(await said(), ["6 条还没处理完"], "RCPT-333 a changed count is said once, on the page's status region");
+});
+
+test("RCPT-334, 3b-2c: a queue that was not read is not an empty one, and each round keeps its own tray", async () => {
+  const { ui, said } = receipts();
+  drawn(ui);
+  const tray = ui.tray(undefined, { run_id: "run-2" })!;
+  assert.deepEqual(groups(tray).map(([label]) => label), ["AI 读到了，没说怎么处理", "AI 说暂不采纳或需要你澄清", "为它问的问题还没回答"], "RCPT-334 not read: the tray says nothing of the queue");
+  assert.notEqual(ui.tray([{ input_id: "q-1", text: "补一条" }], { run_id: "run-9" }), tray, "RCPT-334 another round (another page beside it) has its own tray");
+  const read = (state: Record<string, unknown>): Turn => ({ turn_id: "r-1", kind: "user", text: "改用新 fixture", steer: { id: "r-1", state: "read", ...state } });
+  ui.line(read({}), { run_id: "run-3" });
+  assert.ok(ui.tray(undefined, { run_id: "run-3" }));
+  ui.line(read({ model_claim: { ...claim, treatment: "apply-now" } }), { run_id: "run-3" });
+  assert.equal(ui.tray(undefined, { run_id: "run-3" }), null, "nothing left open in the round");
+  assert.deepEqual((await said()).filter(text => text.includes("处理完")), [], "RCPT-334 with the queue unread, none left in the round is not said as none left at all");
+  ui.line(read({}), { run_id: "run-4" });
+  assert.ok(ui.tray([], { run_id: "run-4" }));
+  ui.line(read({ model_claim: { ...claim, treatment: "apply-now" } }), { run_id: "run-4" });
+  assert.equal(ui.tray([], { run_id: "run-4" }), null);
+  assert.equal((await said()).filter(text => text.includes("处理完")).at(-1)?.split("；").at(-1), "没有还没处理完的了", "read and empty: that one is said");
 });

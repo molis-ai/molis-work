@@ -1,4 +1,4 @@
-import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT } from "./assistant-stage.js";
+import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
@@ -485,17 +485,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       } catch (error) { showError(error); lock(false); if (hadFocus) button.focus(); }
     } });
   };
-  /* Puts children in order without moving any that already stand in place: moving a node drops the focus inside it
-     (an answer being typed, a button reached by keyboard), and a running work repaints every few seconds. */
-  const placer = (parent) => {
-    let last = null;
-    return (child) => {
-      const want = last ? last.nextElementSibling : parent.firstElementChild;
-      if (want !== child) parent.insertBefore(child, want);
-      last = child;
-      return child;
-    };
-  };
+  const placer = ${ASSISTANT_PLACER_SCRIPT};
   /** A card no round proposed: a page put it in (it names the page in from), or its round is not one of this work's. */
   const pageCard = (card) => Boolean(card.from) || !card.run_id || !(view && view.rounds.some((round) => round.run_id === card.run_id));
   // Both round cards and page cards use the same Host-drawn view without deleting chronological siblings.
@@ -1395,6 +1385,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     };
     rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
     putPageCards(null);
+    receipts.tray(thread, put, work && view);
     const reviews = work ? view.reviews : [];
     [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) card.remove(); });
     reviews.forEach((review) => {

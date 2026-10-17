@@ -1336,6 +1336,12 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 读选区（`context-actions.ts` 的 `own()`）：助理面板里只有回复的字算手上的东西，输入框、情境条、按钮和人自己的话都不算；位置照 W3-B1 已有的写法从元素得出 `place: "assistant"`。助理自己找「正在看的页面」时跳过面板里的回复（`pageCtx`）。
   - `assistant-island.ts` 不变大：斜杠菜单里「方法」与「能力」两段一样的按钮代码合成一个 `pick`，净减 5 行。种类名 `ASSISTANT_REPLY_KIND` 只在合同 `services/contextual` 定义一次，岛与测试都取它（统筹 10-17）。
   - 验收：`tests/context-landing-reply.e2e.test.ts`（BL-150、AC-S15）：回复的 id 由工作、轮次、句子组成，刷新后相同；人自己的话选中不出东西；回复里选一段，「插入到光标处」先在 Pages 光标处预览，「放进去」写入。
+- 2026-10-17 W3-A3a 实现（分支 `context/w3a3a-card-in-work`；方案与两条条件统筹 10-17 定）：§21.2 第 5 条，浮条或开场建议选的写动作，卡片放进你正在做的工作。
+  - 判断：页面准备好卡后发登记过的请求 `molis:assistant-card-target`（`context-card-target.ts`，同步派发，只认第一次回答，只收字符串或 null）。助理在 `assistant-work-objects.ts` 里回答：面板开着、当前工作是助理自己的（不是 Coding）、且这项工作「拿着」这个对象时，回当前工作的 id。「拿着」只有一条规则，就是情境条用的那条：工作自己的对象（助理的 relation 行，随工作视图读来），或人在情境条里按 + 加入的。没人回答（没有助理、面板关着、对象不属于它），照旧新开一项。
+  - `work_id` 只是指针：宿主 `offerFromPage` 本来就只认本人的工作（按服务自己的 actor 查，不从输入取身份），已归档、Coding 的、别的项目的都拒；这次补上这四种拒绝的测试（`tests/assistant-business-gateway.test.ts`「W3-A3a」）。
+  - 放进当前工作后，`molis:assistant-open` 让正在显示的工作重读，卡片马上出现，不用等轮询。
+  - 不变大：岛把对象与工作的几样（`objectKey`、`belongsToWork`、相关工作的缓存）搬到新文件，净减 8 行；`context-bus.ts` 把行与开场建议两处一样的选择处理合成 `settle`，净减 1 行。`molis-work-workbench.js` 比 main 小 3,210 B：删掉没有任何渲染方的客户端代码（`.mobile-switch` 与 `[data-mobile-target]`、`[data-mobile-directory-root]`、`[data-timeline-filter]`，渲染方自 `bc79f8a49` 起就没了；证据表在 PR 里），留下的 `.mobile-switch` 样式交给样式表切片。
+  - 验收：`tests/assistant-card-target.test.ts`（没人回答、只认一次、助理何时回答）；`tests/context-card-in-work.e2e.test.ts`（面板关着新开；面板开着且工作拿着文档时放进同一项并马上显示；再关上又新开）。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

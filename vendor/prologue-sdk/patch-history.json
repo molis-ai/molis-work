@@ -10,7 +10,7 @@
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
     "checkedOn": "2026-10-17",
-    "mainHead": "86be989137f05b3bb90ca883540c256baf58a227",
+    "mainHead": "d2b3daa3de0744504b3098a17604f5f66019a29e",
     "statement": "2026-10-17 对上游 main 86be989137f05b3bb90ca883540c256baf58a227（Prologue #35，含 #33 与 #34）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
@@ -45,7 +45,8 @@
       "e4afd1a718bd8a8629d52526b953bbe75149baa6",
       "e51233699c1463e3c8f0a8b08658c5860c962769",
       "e69b71cf91fd34b737ce8744c65bfb14d54b2686",
-      "f5ef12e6085c2865133b732ebc8ec235142685e1"
+      "f5ef12e6085c2865133b732ebc8ec235142685e1",
+      "d2b3daa3de0744504b3098a17604f5f66019a29e"
     ]
   },
   "patches": [
@@ -702,6 +703,14 @@
       "gitBlob": "eb0ca35d9b9e77ba6d528a4de17f86273fc6566b",
       "commit": "e69b71cf91fd34b737ce8744c65bfb14d54b2686",
       "description": "上游 main e69b71cf（Prologue #34，已有 MCP 会话重新读取能力）。2026-10-17 被包含 #35 App-tools 只读外部等待的统一包替换；旧包及其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-app-tools-waits.tgz",
+      "bytes": 1191251,
+      "sha256": "3025a11ec219210a5e565ee2f81746c9597c15db43d920c574edcbf90f8ac229",
+      "gitBlob": "1740cd4ed244bb9d005f0f6985b4ad8cf395a57f",
+      "commit": "86be989137f05b3bb90ca883540c256baf58a227",
+      "description": "上游 main 86be9891（Prologue #35，App-tools 只读外部等待）。2026-10-17 被包含 #36 MCP 参数注解与派出校验的统一包替换；旧包及其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

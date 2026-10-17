@@ -1494,6 +1494,8 @@ Molis 这边：
 
 回归修复（10-17，防腐线复查 #637 时发现）：发一轮的路径先在图上放好这一轮站的步骤，再开跑。开跑失败时（发送被后一次取代、Character 版本被拒、没有模型），新加的那一步没有结束，子任务在图上一直「还在做」：父工作不再被交回，名额一直被占，追加也被拒。现在由 `AssistantDelegations.startPlaced` 包住开跑：这一轮新加的步骤，开跑失败就结束；复用已有的步骤时不动。委派时第一轮起不来的那条路径本来就由 `delegate` 结束。开跑请求本身（项目、会话、角色、材料、图片、预算、浏览器、Character）搬进 `assistant-round-start.ts` 的 `roundStartInput`：它只由 Work 和这一轮的输入算出，不需要 `AssistantService`；开跑包进回调后照常写，类也跟着变小。
 
+余项 BL-154（10-17，防腐线 §10.24 记下，统筹定了改法）：同一会话两轮同时发，前一轮加了 `.rN`，后一轮读图见它开着就沿用，前一轮随后起不来时，原来会把后一轮正在跑的这一步结束掉。现在失败分支先再读一次图，只结束还是 `ready`（没有哪一轮在上面开始过）的那一步；已经有一轮开始了，这一步归那一轮，由它结束。剩下的窗口：后一轮已经选定这一步、还没开始时前一轮结束了它，后一轮起跑时被拒（这一步已结束），人重发一次就落在新的一步上，图上不会有跑着却算「结束了」的子任务。用例 W2-18-DELEGATION-PLACED-02。
+
 - 验证（变基到 main `5239a371` 之后）：
   - `pnpm build` 通过。`pnpm api:update` 没有再改快照：`contracts/services/agent-collaboration` 只多 `works?`、`AgentWorkGraphPort`、`AgentWorkNode`，和 §6.0j 的 `revise` 并存。
   - 助理的全部非浏览器用例，加上 §6.0j 的修订用例（`agent-collaboration-revise`、`prologue-step-amend`、`prologue-project-board`、`coding-step-claims`、`coding-plan-amend-http`、`coding-runtime-regressions`）和 `prologue-taskboard`，共 40 个文件，39 个一次过。

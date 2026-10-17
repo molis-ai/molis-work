@@ -1767,6 +1767,7 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 1. **Work 视图按合同逐项取。**
    - 以前 `publicWork` 从存的正文里剥掉宿主自己的几项，剩下的全放进视图（`...rest`），正文里多一个键，视图就多一个。
    - 现在由 `assistant-work-view.ts` 的 `workView` 按 `AssistantWork` 的字段一项项取，选填的只在有值时出现。
+   - 合同以后加字段，漏取的编译不过（统筹审 #680 提）：必填的一半写成 `AssistantWork`，选填的一半写成「合同的每个选填字段都必须给、可以是 `undefined`」的类型，再只放进有值的。试过在合同上临时加一个选填字段、一个必填字段，构建都在 `workView` 报错；以前选填的那种会悄悄漏掉。
    - 子任务的 `delegated_by` 也这样取（`AssistantDelegations.shown`）：只取标题、验收标准和收回时刻。派它的工作从图上读，正文里留着的旧 `work_id` 盖不住它。
 2. **委派上限是助理的产品规则**（Q1，统筹定 A）。
    - 6/3/2 放在 `assistant-delegation.ts` 的 `DELEGATION_LIMITS`（`parts`、`active`、`followUps`），只在这一处定义；告诉模型的话一字不改。
@@ -1809,6 +1810,7 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 | M3 视图漏掉 `budget_tokens` | VIEW-01 |
 | M4 `followUps` 改成 3，`parts` 那句话改一个字 | LIMITS-01 的前两处 |
 | M5 `active` 改成 4 | LIMITS-01 的第三处 |
+| M6 合同临时加一个选填字段（和一个必填字段） | 构建失败在 `workView`，不用等用例 |
 
 同时进行的上限（3）以前没有用例，这一片补上了（第三处，统筹审 A4 时提）。
 

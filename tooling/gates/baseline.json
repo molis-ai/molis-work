@@ -53,7 +53,7 @@
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2277,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 1001,
-    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2019,
+    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2015,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,

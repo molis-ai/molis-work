@@ -26,15 +26,25 @@ export function startWebProjectSchedulers(options: {
   let stopped = false, stopping: Promise<void> | undefined, opening: Promise<void> | undefined;
   // Every project with a database is opened before the first round, not at start: opening one compiles its contracts and starts its
   // plugins, and the first requests of a launch do not wait behind that. Its schedules only run on a round anyway.
-  const openAll = () => opening ??= runWithMolisWorkHome(homeDirectory, async () => {
-    const projects = fixture ? [{ database_path: fixture.databasePath, project_id: fixture.projectId }]
-      : await withCatalog({ homeDirectory }, catalog => catalog.listProjects());
-    for (const project of projects) {
-      if (stopped) break;
-      if (fs.existsSync(project.database_path)) await localHost.withProject(molisWorkHostProjectReference({
-        databasePath: project.database_path, projectId: project.project_id }), () => undefined);
-    }
-  }).catch(error => { if (!stopped) options.onError(error); });
+  // A failed open is not kept: the tick records it, and the next interval tries the projects again. One that already opened is reused.
+  const openAll = () => {
+    if (opening) return opening;
+    const run = runWithMolisWorkHome(homeDirectory, async () => {
+      const projects = fixture ? [{ database_path: fixture.databasePath, project_id: fixture.projectId }]
+        : await withCatalog({ homeDirectory }, catalog => catalog.listProjects());
+      for (const project of projects) {
+        if (stopped) break;
+        if (fs.existsSync(project.database_path)) await localHost.withProject(molisWorkHostProjectReference({
+          databasePath: project.database_path, projectId: project.project_id }), () => undefined);
+      }
+    }).then(() => undefined, (error: unknown) => {
+      if (opening === run) opening = undefined;
+      if (!stopped) options.onError(error);
+      throw error;
+    });
+    opening = run;
+    return run;
+  };
   // A round that throws throws again every 30 seconds: written when it starts failing, and again once it has run since.
   const rounds = repeatingFailure("schedule", "round_failed");
   const ran = (key: string) => rounds.worked(key);
@@ -51,7 +61,7 @@ export function startWebProjectSchedulers(options: {
   return { runtimes, stop: () => stopping ??= (async () => {
     stopped = true;
     cancel();
-    await opening;
+    await opening?.catch(() => undefined);
     await unbind();
   })() };
 }

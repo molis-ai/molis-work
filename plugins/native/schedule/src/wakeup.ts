@@ -80,15 +80,23 @@ export async function handleScheduleTaskWakeup(
     return { detail: important ? "important" : "ok" };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    db.transaction(() => {
-      assertCurrent();
-      appendScheduleConversationTurn(db, {
-        task_id: task.task_id,
-        kind: "system",
-        text: `到点了，但这一轮没跑成：${message}`,
-        error: message,
-      }, now);
-    }).immediate();
+    // A lost lease writes nothing. A pause or archive writes nothing. A task that is still on, even if its words changed
+    // while the round ran, keeps the sentence that the round did not finish.
+    let leased = true;
+    try { control?.beforeEffect(); } catch { leased = false; }
+    const current = leased ? getScheduleConversationTask(db, objectRef) : null;
+    if (current && current.enabled && !current.archived) {
+      db.transaction(() => {
+        const latest = getScheduleConversationTask(db, objectRef);
+        if (!latest?.enabled || latest.archived) return;
+        appendScheduleConversationTurn(db, {
+          task_id: task.task_id,
+          kind: "system",
+          text: `到点了，但这一轮没跑成：${message}`,
+          error: message,
+        }, now);
+      }).immediate();
+    }
     throw error;
   }
 }

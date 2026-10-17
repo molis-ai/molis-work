@@ -298,6 +298,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ source, station | goal, payload?, note? }";
     readonly summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog.";
 }, {
+    readonly name: "molis:placement-flush";
+    readonly kind: "announcement";
+    readonly owner: "placement";
+    readonly on: "window";
+    readonly detail: "{ mode, object, settle }";
+    readonly summary: "The placement bar is about to move an object; the page that has it open pushes a promise onto settle that stores unsaved edits. The bar waits, and does not move if that promise fails.";
+}, {
     readonly name: "molis:placement-request";
     readonly kind: "request";
     readonly owner: "placement";

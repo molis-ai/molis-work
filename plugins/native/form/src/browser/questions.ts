@@ -1,5 +1,5 @@
 import type { FormOption, FormQuestion, FormQuestionInput } from "@molis-ai/molis-work-contracts/modules/form";
-import { make } from "./dom.js";
+import { icon, make } from "./dom.js";
 import type { FormPage } from "./page.js";
 
 /** The editor's question rows: read back from the page, and drawn from a form's questions. */
@@ -35,7 +35,7 @@ export const addOptionRow = (page: FormPage, container: Element, option?: Partia
   remove.type = "button";
   remove.dataset.optionRemove = "true";
   remove.setAttribute("aria-label", L("删选项"));
-  remove.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
+  remove.innerHTML = icon("icon-x");
   row.append(input, remove);
   container.append(row);
 };
@@ -69,10 +69,10 @@ export const renderQuestion = (page: FormPage, question: FormQuestionInput) => {
     + '</select>'
     + '<label class="mw-check-row"><input class="mw-check" type="checkbox" data-question-required><span>' + L("必填") + '</span></label>'
     + '<span class="form-question-move">'
-    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="-1" aria-label="' + L("上移") + '"><svg aria-hidden="true"><use href="#icon-chevron-up"></use></svg></button>'
-    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="1" aria-label="' + L("下移") + '"><svg aria-hidden="true"><use href="#icon-chevron-down"></use></svg></button>'
+    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="-1" aria-label="' + L("上移") + '">' + icon("icon-chevron-up") + '</button>'
+    + '<button class="mw-btn mw-btn--ghost" type="button" data-question-move="1" aria-label="' + L("下移") + '">' + icon("icon-chevron-down") + '</button>'
     + '</span>'
-    + '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-question-remove aria-label="' + L("删题") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button>'
+    + '<button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-question-remove aria-label="' + L("删题") + '">' + icon("icon-x") + '</button>'
     + '<div class="form-question-options" data-question-options></div>';
   const title = row.querySelector<HTMLInputElement>("[data-question-title]")!;
   title.placeholder = L("题目");

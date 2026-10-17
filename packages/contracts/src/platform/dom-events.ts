@@ -380,6 +380,11 @@ export const DOM_EVENTS = [
     summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog.",
   },
   {
+    name: "molis:placement-flush", kind: "announcement", owner: "placement", on: "window",
+    detail: "{ mode, object, settle }",
+    summary: "The placement bar is about to move an object; the page that has it open pushes a promise onto settle that stores unsaved edits. The bar waits, and does not move if that promise fails.",
+  },
+  {
     name: "molis:placement-request", kind: "request", owner: "placement", on: "window",
     detail: "{ action: use-in-project | move | copy, object }",
     summary: "Open the shared dialog that uses, moves or copies an object.",

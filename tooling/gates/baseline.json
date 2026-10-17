@@ -2,7 +2,7 @@
   "giantUnits": 141,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2058,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2057,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
       "lines": 1643,
       "methods": 98
@@ -52,7 +52,7 @@
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2277,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 1003,
+    "file apps/workbench/src/scripts/client/navigation-feed.ts": 1001,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2019,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
@@ -84,7 +84,7 @@
       "methods": 51
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
-      "lines": 404,
+      "lines": 400,
       "methods": 28
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 233,
@@ -221,7 +221,7 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1117,
+    "file plugins/native/pages/src/client.ts": 1116,
     "file plugins/native/pages/src/commands.ts": 2241,
     "file plugins/native/pages/src/editor-browser.ts": 3854,
     "function plugins/native/pages/src/editor-browser.ts#slashPlugin": 158,
@@ -579,7 +579,7 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "scriptConstantsTotal": 130,
+  "scriptConstantsTotal": 129,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
@@ -671,7 +671,7 @@
     "plugins/native/goals/src/proposal-client.ts": 1,
     "plugins/native/goals/src/refresh-client.ts": 1,
     "plugins/native/goals/src/relation-client.ts": 5,
-    "plugins/native/goals/src/tree-client.ts": 8,
+    "plugins/native/goals/src/tree-client.ts": 7,
     "plugins/native/lingguang/src/client.ts": 1,
     "plugins/native/pages/src/client.ts": 1,
     "plugins/native/ppt/src/client.ts": 1,

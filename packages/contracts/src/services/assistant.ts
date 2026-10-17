@@ -117,7 +117,7 @@ export interface AssistantPluginMessage {
 }
 
 /**
- * GET /api/assistant/works/:work_id/materials/:material_id — one material a round brought, with its text, for a preview.
+ * GET /api/assistant/works/:work_id/materials/:material_id — one material a round brought, with its text, for a preview; `?run=<run_id>` reads that exact round's complete bounded text for retry.
  * The work view leaves texts out to stay small. `url`: where it came from, when it was a web page (to open it again).
  */
 export interface AssistantMaterialText {

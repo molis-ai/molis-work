@@ -71,7 +71,7 @@ test("the bottom bar measures its line with its chips on it and folds parts off 
 
 // UIV-04: exercise the shipped draft functions, including persistence and a receipt arriving in another work.
 test("UIV-04 same text in different projects does not share materials, and a background send consumes only its attachments", () => {
-  const start = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  const contextDrafts = new Map();");
+  const start = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  const drafts = new Map();");
   const end = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  const switchTo =", start);
   assert.ok(start >= 0 && end > start, "the production draft functions must be present in the shipped client");
   interface DraftHarness {
@@ -88,15 +88,15 @@ test("UIV-04 same text in different projects does not share materials, and a bac
     let project={id:'A'},curId=null,files=[],sel=null,nextScope='project',nextExec='assistant',nextMode='execute',nextChar=null,pendingChar;
     const removed=new Set(),joined=new Set(),store={get:key=>saved.get(key)||null,set:(key,value)=>value===null?saved.delete(key):saved.set(key,value)};
     let draftTimer,activeSend=null,draftWrite=Promise.resolve();const works=[],input={value:''},compose={dataset:{}},newDraftKey=()=> 'draft:'+project.id,
-      getWork=()=>null,syncSend=()=>{},api=()=>Promise.resolve(),paintMats=()=>saveDraftContext();
+      getWork=()=>null,syncSend=()=>{},api=()=>Promise.resolve(),paintMats=()=>saveContext();
     ${ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(start, end)}
     return {
       select(projectId,workId){saveDraft(true);project={id:projectId};curId=workId;loadDraft();},
       type(text){input.value=text;saveDraft(true);},
-      attach(id){files.push({material_id:id,title:id,preview:'data:image/png;base64,abc'});saveDraftContext();},
+      attach(id){files.push({material_id:id,title:id,preview:'data:image/png;base64,abc'});saveContext();},
       read(){return {text:input.value,files:files.map(file=>file.material_id)};},
       sent(){return {contextKey:contextKey(),files:files.slice(),selection:sel,removed:[...removed],joined:[...joined]};},
-      settle:takeDraftMaterials,load:loadDraft
+      settle:takeMaterials,load:loadDraft
     };`) as (saved: Map<string, string>) => DraftHarness;
   const saved = new Map<string, string>();
   const ui = make(saved); ui.load(); ui.type("same"); ui.attach("A attachment"); const intent = ui.sent();
@@ -114,7 +114,7 @@ test("UIV-04 same text in different projects does not share materials, and a bac
 // UIV-04: chooser initialization runs before the stored work arrives. Its empty placeholder is not an edit.
 test("UIV-04 restoring an unloaded work does not erase its draft, while input and deliberate clearing still save", () => {
   const source = ASSISTANT_ISLAND_FACTORY_SCRIPT;
-  const draftStart = source.indexOf("  const contextDrafts = new Map();");
+  const draftStart = source.indexOf("  const drafts = new Map();");
   const draftEnd = source.indexOf("  const switchTo =", draftStart);
   const inputStart = source.indexOf("  let typed = false, inputRev = 0;");
   const inputEnd = source.indexOf('  onEl(input, "keydown",', inputStart);

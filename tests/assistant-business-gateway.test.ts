@@ -967,6 +967,16 @@ test("a material a round brought can be read back with its text for a preview, a
     const material = f.service.material(sent.work.work_id, "web-1");
     assert.deepEqual([material.kind, material.title, material.text, material.url], ["text", "网页 · Example Domain", page, "https://example.com/"]);
     assert.throws(() => f.service.material(sent.work.work_id, "missing"), /没有这份材料/);
+    const long = "材料正文".repeat(6000) + "完整末尾";
+    const next = await f.service.send({ work_id: sent.work.work_id, text: "核对另一版材料", request_id: "req-00000082",
+      materials: [{ material_id: "web-1", kind: "text", title: "同名新材料", explicit: true, text: long }] }, { project_ref: f.project });
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "second round");
+    assert.equal(f.service.material(sent.work.work_id, "web-1", sent.run_id).text, page, "UIV-04 retry selects the original round even when material ids repeat");
+    assert.equal(f.service.material(sent.work.work_id, "web-1", next.run_id).text, long, "retry reads all of the bounded original, beyond the preview length");
+    assert.throws(() => f.service.material(sent.work.work_id, "web-1", "not-this-round"), /没有这份材料/);
+    const other = await f.service.send({ text: "另一项工作", request_id: "req-00000083" }, { project_ref: f.project });
+    assert.throws(() => f.service.material(other.work.work_id, "web-1", next.run_id), /没有这份材料/, "a round id cannot read another work's materials");
+
   } finally { await f.close(); }
 });
 

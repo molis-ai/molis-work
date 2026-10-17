@@ -1,5 +1,23 @@
 /** Frozen Send intent and receipts, inside the resident Assistant's existing client scope. */
 export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
+  // Read the original round's material bodies, not the shortened preview or a newer material with the same id.
+  const retryRound = async (last) => {
+    const stamp = () => json([curId, inputRev, input.value, files]), id = curId, held = stamp();
+    const here = () => stamp() === held;
+    try {
+      const mats = await Promise.all((last.materials || []).map(async (item) => {
+        if (item.expired) throw new Error(L(EXPIRED_IMAGE));
+        const { material } = await api("/works/" + uri(id) + "/materials/" + uri(item.material_id) + "?run=" + uri(last.run_id));
+        return { ...item, ...material };
+      }));
+      if (!here()) return;
+      const { object, selection, source } = last.context || {};
+      if (object && !mats.some(item => item.object && objectKey(item.object) === objectKey(object))) mats.push({ material_id: "retry-object", kind: "object", title: object.title || object.id, explicit: true, object, source });
+      files = [...files.filter(item => !mats.some(one => one.material_id === item.material_id)), ...mats];
+      sel = selection || null; removed.delete("selection");
+      input.value = last.text; typed = true; inputRev++; syncSend(); paintMats(); saveDraft(false); input.focus();
+    } catch (error) { if (here()) showError(error); }
+  };
   const unsettled = new Map();
   const pendingKey = key => "molis.assistant.pending:" + key;
   const pendingSend = key => { if (unsettled.has(key)) return unsettled.get(key); try { return JSON.parse(store.get(pendingKey(key)) || "null"); } catch { return null; } };
@@ -11,7 +29,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     if (index >= 0) works[index] = work; else works.unshift(work);
     paintList(); drawTabs();
   };
-  compose.addEventListener("submit", async (event) => {
+  onEl(compose, "submit", async (event) => {
     event.preventDefault();
     const text = String(input.value || "").trim();
     if (!text || busy) return;
@@ -32,7 +50,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     requestOverride = pageText = null;
     const here = () => sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
     const sameInput = () => (intent.work ? intent.draft === undefined : inputRev === intent.inputRevision) && String(input.value || "").trim() === text;
-    const chooseSent = (work) => { moveDraftContext(work.work_id); curId = work.work_id; remember(); openTab(curId); };
+    const chooseSent = (work) => { moveContext(work.work_id); curId = work.work_id; remember(); openTab(curId); };
     busy = true; activeSend = intent; syncSend(); problem = null; setPanel(true);
     closeStarts(); clearTimeout(draftTimer);
     unsettled.set(intent.contextKey, intent);

@@ -1366,15 +1366,15 @@ export class AssistantService {
    */
 
   /** One material a round of this work brought, with its text (bounded), for the person to look at again. */
-  material(workId: string, materialId: string): AssistantMaterialText {
+  material(workId: string, materialId: string, runId?: string): AssistantMaterialText {
     const work = this.store.get(this.actorId, workId);
-    const found = this.store.rounds(work.work_id).flatMap(round => round.materials).find(item => item.material_id === materialId);
+    const found = this.store.rounds(work.work_id).filter(round => runId === undefined || round.run_id === runId).flatMap(round => round.materials).find(item => item.material_id === materialId);
     if (!found) throw assistantErrors.not_found("这项工作里没有这份材料");
     const text = typeof found.text === "string" ? found.text : undefined;
     // A page brought from the browser says where it came from on its first line.
     const url = text?.match(/^来源：\s*(https?:\/\/\S+)/u)?.[1];
     return { material_id: found.material_id, kind: found.kind, title: found.title,
-      ...(text !== undefined ? { text: text.slice(0, MATERIAL_PREVIEW_CHARS), ...(text.length > MATERIAL_PREVIEW_CHARS ? { truncated: true } : {}) } : {}),
+      ...(text !== undefined ? { text: runId ? text : text.slice(0, MATERIAL_PREVIEW_CHARS), ...(!runId && text.length > MATERIAL_PREVIEW_CHARS ? { truncated: true } : {}) } : {}),
       ...(url ? { url } : {}), ...(found.source ? { source: { ...found.source } } : {}), ...(found.object ? { object: { ...found.object } } : {}), ...(found.draft ? { draft: true } : {}) };
   }
 

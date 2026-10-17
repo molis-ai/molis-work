@@ -274,7 +274,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         finally { response.off("close", stop); }
       }
       if (method === "GET" && parts.length === 3 && parts[2] === "recovery") return { status: 200, body: await service.recovery(workId) };
-      if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.material(workId, parts[3]!) } };
+      if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.material(workId, parts[3]!, url.searchParams.get("run") || undefined) } };
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materialImage(workId, parts[3]!) } };
       if (method !== "POST") return null;
       const threadWork = await threadWorkRoute(workId, parts, body, ports);

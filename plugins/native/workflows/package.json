@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Workflows: chain existing plugins into one piece of work with typed handoffs.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

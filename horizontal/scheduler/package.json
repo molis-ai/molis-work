@@ -4,7 +4,7 @@
   "private": true,
   "description": "Durable one-shot wakeup, lease, catch-up, and delivery receipts.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

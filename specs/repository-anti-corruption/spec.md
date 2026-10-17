@@ -101,6 +101,8 @@ W4-12（2026-10-15，视觉比对工具，#550）：
 - 证据：`pnpm visual:compare` 对 main（合并基点 `65df2709`）完整跑一遍：基点树建好、两边各拍 48 张，0 张有变化。同一棵树拍三次，48 张两两一像素不差；把钉住的日期改到 10-20，首页、侧栏、助理三类 16 张被点出、差异落在周条与问候语上（变异检查）；`tests/visual-compare.test.ts` 4 条（PNG 读写与五种行过滤、拒绝 16 位、单像素与尺寸变化、`--compare` 的退出码与报告），去掉均值过滤的移位或让脚本恒退 0 都会失败。`docs/system/PARALLEL-DEVELOPMENT.md` §6「界面」一行写明何时跑。
 - W5-05 第 0 片（删皮肤之前先把尺子补齐）：拍摄多了项目设置（常规）、Goal 的 Frame、Goal 的工作三处，共 11 处 66 张；每处在 1440 宽、浅深色两张图之后各取一份逐元素的计算样式（含 `::before`、`::after`，只存与父元素不同的值，无限动画停在 0 时刻再放回），比对按属性报出变化开始的那个元素和前后取值、只有一边有的元素（`scripts/visual/styles.mjs`），有任何样式差异与有图变化一样退出 1。图看不到的状态和不到一像素的变化由样式这一半抓。证据：同一棵树拍三次，样式 22 份两两为 0；图 66 张第一、二次一像素不差，第三次与前两次在 goal-work@1440-dark 差 4 个像素、每个 1 到 2 个色阶，落在时间线「◇」标记（y 为 759.984 的小数位置）的左边缘，样式为 0，判为 macOS 字形栅格的跨进程抖动，容差不放宽；在样式里注入一行 CSS 被点出；`tests/visual-compare.test.ts` 第 5 条（变化只在开始处报一次、继承与重述同值不算、`--compare` 只因样式就退出 1），把比对改成只比自身取值会失败。删皮肤时若撞上这 4 个像素，在 PR 里写明样式快照一致、像素差只在这里并贴对照图，每次由人判断；不写成脚本里「样式一致就放过像素」的自动规则（统筹 10-16）。
 - W5-05 第 1 片（删 `quiet-paper`，108 条规则、341 条声明）：仍在决定计算值的只有四处，各并回主人样式表——`body` 的 `text-rendering` 进 `foundation.ts` 的 `body`、`.tui-mode-label` 下划线颜色进 `momentum.ts`、`.goal-more > summary` 与 `.tui-resizer` 线在悬停与键盘焦点时的颜色进 workbench `styles/base.ts`（`.tui-resizer.is-dragging` 拆开、拖动时仍是 `--blue`）；其余声明不是被后面的规则盖掉，就是打在没有标记的类上。三份样式表各少 11,120 B，`page-assets.json` 随之降。证据（每一项都在删之前和删之后两棵树上各量一遍再比）：`pnpm visual:compare` 66 张图、22 份计算样式全 0；另用一个临时探针（不入库）在两棵树上把 quiet-paper 每条选择器碰得到的每个元素、它设的每个属性的计算值记下来再比：11 个面、全部系统设置与项目设置分区、项目规则与规划（经 `molis-work:open-settings-path` 打开）、项目列表、Goal 的 Frame / 文档视图 / 移入回收站对话框、`/goals/<id>`、`/archive`、`/trash`、各个已重定向的旧设置地址，1440 与 390 宽、浅深色、标准与紧凑密度，以及强制 `:hover`、`:focus-visible`、`:focus`、`:active`，共 1,125 个情形、531,841 个值 0 差；进入页（空 Home 的 `/onboarding`，用 arrival 样式表）48 个值 0 差。探针先抓到了第四处（`.tui-resizer` 悬停时会从 `--line-strong` 变成 `--blue`），并回 `base.ts` 后归零。没碰到的：`settings-navigation`、`settings-shell--standalone`（只在独立设置页里，这些地址现在都重定向进工作台）和 Goal 规则编辑器里的 `.policy-*`（`renderPolicyEditor` 的表单在探针走过的所有 Goal 页面上都没有画出来）。
+- W5-05 第 2 片（删 `personal-shell`，78 条规则、312 条声明）：没有一处还在决定计算值，所以整层删掉，没有并进任何主人样式表。三份样式表各少 10,020 B，`page-assets.json` 随之降；巨大单元与其他数字不变。证据叠在第 1 片之上，删之前和删之后两棵树各量一遍再比：`pnpm visual:compare` 66 张图、22 份计算样式全 0；同一个临时探针换成 personal-shell 的选择器，情形与第 1 片相同（1,125 个），4,620 个值 0 差；进入页上没有元素被这些选择器选中。探针碰到的只有 `body[data-desktop-shell="true"]` 下的 `.app`、`.workspace` 与 `.tree-pane`：只有 Goals 页把这个标记写成 `"true"`，设置页写的是 `"false"`；这几个元素的网格、边框和行都被后面的层盖掉了。其余 70 条规则的类在标记里找不到（`personal-sidebar`、`personal-nav-item`、`desktop-project-*` 等，工作台改成统一底栏之后就没人画了）。只有 `.personal-sidebar-footer` 还在源码里出现，它来自 `renderPluginRailAccountFooter`（`apps/workbench/src/settings-directory.ts`），而这个函数没有调用方。
+- W5-05 第 3 片（删 `personal-workbench-v2`，120 条规则、336 条声明）：只有两组还在决定计算值，各挪回主人。① 项目菜单弹层里账户头像的 1px 圈（`inset 0 0 0 1px var(--line-strong)`，只在 761px 以上），挪进 `craft-finish.ts` 的弹层规则，和原来一样只在 `@media (min-width: 761px)` 里生效，单独占一行；同一处弹层里 `.navigator-personal` 原有两条同一选择器的规则（中间只隔着它子元素的规则），合成一条，所以 `craft-finish.ts` 的行数不变（`visual:compare` 的 22 份逐元素计算样式在合并前后 0 差）。② 回收站 Goal 页在桌面宽度下的标题行：间距 12px、隐藏「这条 Goal 已从日常列表移除…」那一句、操作按钮最小高度 28px。三条挪进 Goals 的 `trash-document-styles.ts`，放在已有的 `@media (min-width: 761px)` 桌面块里，选择器限定在 `.trash-goal-document` 之下；`.goal-title-row` 在 markup 里只出现在回收站文档这一处。样式表的降幅：arrival.css 与 settings.css 各少 13,837 B，workbench.css 少 13,558 B（回收站的三条规则只进工作台样式表），`page-assets.json` 随之降。证据（叠在第 2 片之上）：`pnpm visual:compare` 66 张图 0 变化。状态探针测了 1,125 个情形、29,715 个值，挪完以后只剩一类差：账户名下 `small` 的 `align-items`、`row-gap`、`column-gap`（132 个情形）。这个元素在所有情形里删之前、删之后都是 `display: block`，这三个属性对 block 元素不起作用，画面不会变，所以没有把这几条不起作用的声明挪过去。计算样式的比对因此在 22 份里都报这三处，图都是 0 差。删之前，第一次量出 537 个差；挪完之后，除了这一类全部归零。
 
 W4-08（2026-10-16，平台产品服务的边界，不新增规则，统筹 10-15 认可）：决定 N-03 之后这一项只剩「层与 owner、依赖规则写全」。逐条核对，现有的都已经守着：
 - 层与 owner：`docs/system/ARCHITECTURE.md`「平台产品服务」写明四项（记忆、放置、搜索、情境排序）可以持有跨插件策略和自己的机制记录，不拥有业务事实；`docs/SSOT-MATRIX.md` §6 与 `docs/horizontal/memory.md`、`placement.md` 各写了 owner。
@@ -2008,6 +2010,60 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 - `renderPluginRailAccountFooter`（`apps/workbench/src/settings-directory.ts`）没有调用方，已作为单独任务提出来。
 - 第 4～6 波路线图里尚未开工的条目照 §12 的状态推进，这一节不改任何目标。
 
+### 10.22 2026-10-17 合入与在途 PR 的独立复查（§10.21 之后：#618～#633，Prologue #26、#33）
+
+对照的仍是第 1 节列的六份原文与九份补充，看法同 §10.21：门禁数字、兼容逻辑、删改的断言与调大的时限、可信身份与取消语义、改动的依据。合入的 PR 按**合入时的 head** 看：评审之后又加的提交单独看过，不只看评审时的那一版。
+
+**已合入**
+
+| PR | 合入的 head | 裁决 |
+| --- | --- | --- |
+| #618（W3-B2，情境条的落点） | `7044125be` | 有依据。合入的 head 就是 §10.21 之后评审过的那一版；页面资源只降。 |
+| #619、#624（W5-05 第 2、3 片，本线） | `a793f53df`、`d03c44fd6` | 有依据，记录见 §W4-12。#624 冻结后并过一次 main，没有改代码。统筹说明：「后合的只并 main、不重跑全量」只适用于已经跑过全量的 PR；#624 冻结后没跑过全量，所以照跑。 |
+| #625（visual-surfaces 的时限） | `5b4bca52a` | 有依据。整条用例的时限 600→1,200 秒，每个面拆成子用例、各 180 秒，慢机上失败时报出是哪个面。只调时限，按用户 10-15 的决定（慢机时限可放宽，不算放宽断言）。 |
+| #626（采用线 A5，补 §6.0b 第 2、5 项的证据） | `23e591ec4` | 有依据。只加用例，不改源码。两条都做了变红对照：去掉 PPT 的 `beforeDispatch`，三条变红；修改回执的位置早于被压缩的那次读，所以能留下来只靠效果种类。把 `change-capability` 改成 `safe-read` 的那次对照没有算作证明：它失败在等审批超时，不是回执断言。spec 里写明了这一点。 |
+| #627（Coding 协调者拿 board-read 与 board-report） | `cd80c9b07` | 有依据。合入的 head 就是评审过的那一版，加一次并 main。 |
+| #628（回执 B，补充带上自己的键） | `d894fc01a` | 有依据。评审过的是 `15941159f`。之后除了并 main，只有 `14c173333` 一个提交：RC-09 的期望加上 `key: "send.c1"`，并新加一条 RC-17 断言（补充带过去以后保留原来的键），断言只变严。 |
+| #632（人改一轮的计划：从 typed 能力改成动作） | `8086f81d4` | 有依据。 |
+
+#632 的细节：
+- typed 的 `agent.run.step-board.amend.v1` 换成动作 `agent.collaboration.revise.v1`，依据是防腐决定 #1 与采用 spec §4.6.9。
+- 宿主能力（typed）少一处，旧 id 不留别名，符合现在不留兼容期的规矩（`docs/system/CONTRACT-CHANGES.md`）。
+- 操作者取调用的插件，没有就取会话的主人，不从输入读。
+- 写之前先过 `beforeEffect` 和授权检查，Coding 的路由经动作服务调用。
+- vendored 包换成 `reference-kinds`：旧包删掉，`.sha256`、来源记录与 `patch-history.json` 同步，`SECURITY-INVARIANTS.md` 的 S-13 改指新包。
+
+**Prologue**
+
+| PR | 裁决 |
+| --- | --- |
+| #26（P2i 的消费者脚本） | 有依据。P2j 之后，接续的材料从步骤所属的会话里取，脚本里伪造的会话引用因此被记成 `SESSION_NOT_ACTIVE`。改法是步骤改属 `runtime.sessions.create()` 建出的真实会话，断言原样保留，SDK 代码不动。 |
+| #33（引用题可以列出要的对象种类） | 有依据。Molis 这边经 #632 的 `reference-kinds` 包接入。 |
+
+**在途**
+
+- #629（手册线 D1②，没改东西的一轮按事实核对收尾）：
+  - 评审时发现收尾核对的提示词 `ENDING_REVIEW` 没有登记，不出现在 设置›提示词，也不进冻结记录。
+  - 统筹定按 compaction 的先例登记。现在的 head（`ae0768b6c` 起）把它登记为 `assistant-ending-review` v1，`agent-definitions.ts` 把它和 compaction 一样排除在角色的提示词之外。
+- #630、#633（本线）：见 §W4-12 与 #633 的说明。#633 修机器槽位的饿死：一张写了一半的票被别的等待者当成死票删掉，主人就永远排不到。
+- #631（统一输入与本地语音，外部作者）：有三处违反，统筹经用户同意，已作为 PR 评论交给作者。
+  1. `design-system` 承担了产品行为：草稿存在 localStorage、助理会话的键、`/api/local-voice` 路由、发送结算。这违反它 README 的「不负责」。
+  2. 改了 `DESIGN.md` §366–374 写明的行为（桌面 28px 的例外与逐级折叠），并改了触控尺寸的断言，却没有改 `DESIGN.md`。
+  3. 两处 localStorage 读写没有包 try/catch；local-host 有没人用的导出。
+  - 安全没问题：新路由在 `refuseForeignRequest` 与 `authorizeLocalWebRequest` 之后。
+  - 它与 main 冲突，CI 没跑。
+  - 用户的裁决：由作者二选一，一是改 `DESIGN.md` 并删掉 `data-crowded` 那段代码，二是保留原行为与原断言；作者选了以后用户确认。本线不改 #631。
+
+**组合效果**
+
+- #632 换了 vendored 包，并改了 `horizontal/agent-host` 的 7 个文件；#629 也改 `horizontal/agent-host`。#629 现在的 head（`ffecda928`）不含 #632：它和 main 能干净合并，但它自己的用例是在旧包上跑的。所以 #629 跑全量之前先并一次 main，让全量在新包上跑（已告诉统筹）。
+- 页面资源按 #619→#624→#630 一次一个降；下一个是 T2，排在 #630 后面。
+- #618、#622、#628 都改助理面板或回执的页面脚本，按合入顺序各自在合并结果上重跑过。
+
+**本次复查顺手查出、交给后续的**
+
+- `chrome-inner-scroll.test.ts` 还断言 `body.settings-page[data-desktop-shell="true"]:is([data-settings-section="projects"], [data-settings-section="project"]) .settings-content { grid-column: 1 }`。两份设置页的 body 都写死了 `data-desktop-shell="false"`，所以这条规则从来不生效，和 W5-05 第 5 片删掉的那条是同一类。别的层里 `body.settings-page[data-desktop-shell="true"]` 开头的规则还有好几条（`> .topbar`、`.project-context`…），都是死规则，等 W5-05 删完皮肤后一并清（不在本片的范围里）。
+
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
 用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。
@@ -2082,7 +2138,7 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 | R-12 | 部分：I6 `as unknown as` 193，AST/lint 只降门禁已生效。全量清零不是用户已定目标；必要重构归 W2-10/11、W5-08 |
 | R-13 | 未解决主检出工作状态：本次看到 main `9da180833` 与未提交他人成果，不 reset/clean；当前隔离复查与受测树不依赖它。主检出整理遵循独立归属与授权 |
 | R-14 | 数量已显著缩小：I6 门禁 318 个入库 `.impeccable` 文件且只降，历史 1,085 不能当现状；保留文件仍按引用规则审查，W1-23/W6-06 |
-| 皮肤 | 未完成：W5-05 已删 `quiet-paper`（第 1 片，见 §W4-12 下的记录），`personal-shell`、`personal-workbench-v2`、`-v3`、`calm-desktop` 还在，按这个顺序一片删一层 |
+| 皮肤 | 未完成：W5-05 已删 `quiet-paper`、`personal-shell`、`personal-workbench-v2`（第 1～3 片，见 §W4-12 下的记录），`-v3`、`calm-desktop` 还在，按这个顺序一片删一层 |
 | Goals UI | 部分：旧转接仍有，通用挂载器和外壳 renderer 改名仍 W5-06；不能把外壳错移进业务插件 |
 | Server | 按用户决定保留 IM/讨论；表归属与 Home 登记已有修复。实验的独立启动器不包装成生产入口，不删产品讨论 |
 | N-01 | 已确认遗留第二铃铛/占位已清，真实事件恢复用例消费现行唯一注意力入口；后续新 UI 以现行产品决定为准 |

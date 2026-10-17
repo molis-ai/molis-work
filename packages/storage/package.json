@@ -4,7 +4,7 @@
   "private": true,
   "description": "SQLite, filesystem, Blob, transaction, migration, and backup technical ports.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

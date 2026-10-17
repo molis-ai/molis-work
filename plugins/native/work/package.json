@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Session, Runtime, resume, and handoff product UI.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

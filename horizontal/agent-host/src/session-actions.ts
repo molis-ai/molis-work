@@ -15,8 +15,8 @@ export interface SessionActionPorts<C extends Call> {
   pluginFor(call: C): HostPluginCaller | undefined;
   adapter(call: C, runtimeId: string): AgentRuntimeAdapter;
   projectId(call: C): string;
-  /** The round belongs to this session, and the session to the caller's project and plugin. */
-  requireRun(call: C, session: AgentSessionRef, run: AgentRunRef): Promise<unknown>;
+  /** The round belongs to this session, and the session to the caller's project and plugin; gives the session's owner. */
+  requireRun(call: C, session: AgentSessionRef, run: AgentRunRef): Promise<{ owner: { actor_id: string } }>;
   /** The actions the plugin's rounds are granted through this runtime, as that grant reads now; absent when it grants none. */
   actions(call: C, pluginId: string, runtimeId: string): Promise<AgentActionClient | undefined>;
 }
@@ -44,6 +44,17 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       await fresh(call);
       const { runtime_id: _runtime, ...control } = input;
       return { session: await adapter.collaboration.control(ports.projectId(call), control, caller?.actor_id ?? "user") };
+    }),
+    // A person's change to a round's plan: the round must be this session's, and the session the caller's.
+    register(agentCollaborationActions.revise, async (call, input) => {
+      const { runtime_id, session_id, run_id, amendment, expected_version } = input;
+      const run = { session_id, run_id };
+      const view = await ports.requireRun(call, { runtime_id, session_id }, run);
+      const adapter = ports.adapter(call, runtime_id);
+      if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时不能调整计划图");
+      await fresh(call);
+      // The person deciding: the calling plugin's actor, else the session's owner.
+      return { board: await adapter.collaboration.revise(run, amendment, expected_version, ports.pluginFor(call)?.actor_id ?? view.owner.actor_id) };
     }),
     register(agentInputActions.send, async (call, input) => {
       const { runtime_id, session_id, run_id, ...send } = input;

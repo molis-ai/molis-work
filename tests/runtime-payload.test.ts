@@ -2,13 +2,27 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createMolisWorkRuntimePayload } from "@molis-ai/molis-work-app-local-host";
 
 const exec = promisify(execFile);
+
+// CSL-03: both the Desktop payload and the installed release must be self-contained.
+async function assertLicenseMaterials(directory: string): Promise<void> {
+  const license = await readFile(join(process.cwd(), "LICENSE"), "utf8");
+  const scope = join(directory, "node_modules", "@molis-ai");
+  const packages = (await readdir(scope)).filter(name => name.startsWith("molis-work-"));
+  assert.ok(packages.includes("molis-work-plugin-sdk"));
+  for (const target of [directory, ...packages.map(name => join(scope, name))]) {
+    const metadata = JSON.parse(await readFile(join(target, "package.json"), "utf8"));
+    assert.equal(metadata.license, "SEE LICENSE IN LICENSE", target);
+    assert.equal(await readFile(join(target, "LICENSE"), "utf8"), license, target);
+    assert.ok((await lstat(join(target, "LICENSE"))).isFile(), target);
+  }
+}
 
 test("real workspace payload installs offline from an unrelated directory and preserves vendor sources", async () => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-runtime-payload-"));
@@ -36,6 +50,7 @@ test("real workspace payload installs offline from an unrelated directory and pr
       assert.equal(bill.metadata.component.version, origin.package.version);
     }
     const marker = await readFile(join(payload, "release.json"));
+    await assertLicenseMaterials(payload);
     await assert.rejects(createMolisWorkRuntimePayload({ sourceDirectory: process.cwd(), destinationDirectory: payload, nodeExecutablePath: process.execPath }), /输出已存在/);
     assert.deepEqual(await readFile(join(payload, "release.json")), marker);
     const home = join(directory, "home");
@@ -48,6 +63,7 @@ test("real workspace payload installs offline from an unrelated directory and pr
     assert.deepEqual(await readFile(join(installed.release_directory, provenance)), await readFile(join(payload, provenance)));
     // The actual installed launcher must no longer need its source payload.
     await rm(payload, { recursive: true, force: true });
+    await assertLicenseMaterials(installed.release_directory);
     const help = await exec(installed.launchers.cli, ["--help"], { cwd: directory, env: { ...process.env, PATH: "/usr/bin:/bin", NODE_PATH: "" } });
     assert.match(help.stdout, /molis-work plugin/);
     const moduleResult = await exec(join(installed.release_directory, "runtime", "node"), ["--input-type=module", "-e", `
@@ -176,6 +192,8 @@ test("runtime payload keeps declared workspace assets and native files, not desk
       nodeExecutablePath: process.execPath,
     });
     assert.equal(created.directory, payload);
+    // CSL-03: a fixture without a declared license must not gain an invented grant.
+    assert.equal(JSON.parse(await readFile(join(payload, "package.json"), "utf8")).license, undefined);
     const desktop = join(payload, "node_modules", "fixture-desktop");
     const native = join(payload, "node_modules", "fixture-native");
     assert.equal(await readFile(join(desktop, "dist", "index.js"), "utf8"), "export const shipped = 'workspace-dist';\n");

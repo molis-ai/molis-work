@@ -43,7 +43,7 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
 | 补充的边界语义 | SDK `loop-boundary`、`loop-reply`、`compaction-history`：下一模型边界一次带上全部排队补充；有排队时不自然收工；压缩时保留补充 | 真 |
 | 打断（当轮作废，同一 Run 继续） | SDK `steer({interrupt:true})` | SDK 有，Molis 没接 |
 | 回答与补充分开 | `{kind:"answer", pending_id, pending_revision}` | 真 |
-| 人工修订 TaskBoard（插入、跳过、换序、指派、解除阻塞、裁定），带版本 | `agent.run.step-board.amend.v1`；Coding 计划修订 | 真；修订后用一条 steer 告诉运行中的这一轮 |
+| 人工修订 TaskBoard（插入、跳过、换序、指派、解除阻塞、裁定），带版本 | `agent.collaboration.revise.v1`（2026-10-17 P4-C2 起，换下 `agent.run.step-board.amend.v1`）；Coding 计划修订 | 真；修订后用一条 steer 告诉运行中的这一轮 |
 | 恢复 | `inspectRecovery` / `recoverRun`；Coding「核对并继续」 | 真：未终态 Run 标需核对、不重放；未读到的补充显示「未确认应用」 |
 | Coding 的回执文案与报告里的「补充要求」一节 | `plugins/native/coding/src/client.ts`、`report.ts` | 真，但措辞容易被误读 |
 | 助理发送幂等，失败保留草稿 | `assistant_requests` 表与 `request_id` | 真 |
@@ -706,6 +706,7 @@ interface AgentInputView {
 - RC-14：一轮等着回答唯一一道自由文本题时，助理输入框旁出现目标芯片，默认值写在芯片上（「回答上面的问题」），点一下换成「补充这一轮」，悬停说明点了会变成什么；新的问题回到默认值，问卷题（有选项的）不出芯片（只有一道文本题的问卷算自由文本题，出芯片，回答交成这道题的 `value`；哪一题出芯片由宿主判，在视图上标 `from_composer`：`specs/ai-interaction-experience` D34），没有问题等回答时芯片不出现。页面把选择作为 `target` 交给宿主，宿主不再自己判断：不带 `target` 的一律是补充；`target: "answer"` 时问题已不在等的以 `assistant.stale` 拒绝，带材料的以 `assistant.invalid` 拒绝，都什么也不发。补充下面有回执条，措辞与 RC-12 相同；问题还在等时发的补充写「已补充到这一轮；问题仍在等你回答」。删掉「已补充到正在进行的这一轮」提示（事实已在对话里）。
 - RC-15：回执状态前进时屏幕阅读器读到，不抢焦点：助理换掉那一行（对话区本来是 `role=log`、`aria-live=polite`、只播新增），状态没变的重画不换行；Coding 在已有的状态行（`role=status`、`aria-live=polite`）说「你的补充：…」，第一次画页面不说。
 - RC-16：没确认送到的那一次发送（`ui_host.outcome_unknown`）把键、原文、工作存进页面的本地存储（`molis.assistant.unsent`），刷新后同一工作、同一句话再发沿用这个键，宿主只收一次；宿主回包或拒绝后删掉。本地存储读写都包在 try/catch 里，没有本地存储时照常发送，只是刷新后保不住键。Coding 里「打断」生效时，把页面上正在写的那段回复变淡并写「这段回复已丢掉（你打断了它）」；这是页面自己的状态，刷新后没有（SDK 的记录不标，见 §6.1 第 9 项）。
+- RC-17（走查 B，D30）：运行视图的回执带补充发送时的键（`AgentTurnSteer.key`，取自运行时的输入记录）。Coding 回包丢了、气泡写「没确认送到」时，只要这一轮的记录里出现同一个键，就收掉本地气泡（同一句话不再一处说「已送达」、一处说「没确认送到」），状态行说一次「之前已送到，没有重复发送。」（与运行时认出的重发同一句）；输入框里仍是那句原话才清空，人改过就不动。之后再发同一句是新的补充。
 - RC-19（走查 D，D32）：写入门没直接记住、又是人要求记的（`remember` 被拦成建议），助理工作面板的卡片写「你刚才让我记住：X」，下面只写范围，主按钮「记住」一下记住；为什么没直接记住（记忆服务自己的 `hold_reason`）只在详情里。`remember` 工具回给模型的只有结果「没有直接记住，已作为建议放在工作面板，等用户认可」，不带门槛原文。门槛本身（`horizontal/memory/src/spoken.ts`）不动；合同 `AssistantMemoryCandidate` 加 `held`（只在人要求记、被拦下时有，是记忆服务给的原因）。
 - G13（「你说过」）：运行中补充的原话算本人说过的：记忆的「原话」与一轮结束交给学习的话，都从运行视图读（SDK 的输入记录，`kind: "user"` 且带 `steer` 的回合，截掉宿主加的选区与材料），Molis 不另存。只覆盖助理自己的运行时；交给 Coding 执行的工作里的补充不在内（读 Coding 会话要另走 Coding 的动作，留待以后）。
 

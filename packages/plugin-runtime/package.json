@@ -4,7 +4,7 @@
   "private": true,
   "description": "Plugin identity, install, grants, isolation, lifecycle, and rollback boundary.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

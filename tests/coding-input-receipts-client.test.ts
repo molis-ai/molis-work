@@ -19,17 +19,19 @@ class Node {
 }
 
 type Reply = { receipt: { input_id: string; replayed: boolean; delivered: "run" | "queued" } };
-function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { q?: (selector: string) => Node | null } = {}) {
+function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { q?: (selector: string) => Node | null; landed?: (sent: { text: string }, said: string) => void } = {}) {
   const sent: Array<Record<string, unknown>> = [];
   let uuid = 0;
   const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
     document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` }, TypeError,
   }) as (ports: object) => {
-    steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string): Node | null;
+    steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string, run: { turns: object[] }): Node | null;
   };
   const api = (_path: string, _method: string, body: Record<string, unknown>) => { sent.push(body); return reply(body); };
-  return { ui: factory({ api, refresh: () => {}, q: () => null, ...ports }), sent };
+  return { ui: factory({ api, refresh: () => {}, q: () => null, landed: () => {}, ...ports }), sent };
 }
+/** The round's record before it shows the supplement. */
+const nothing = { turns: [] };
 const taken = (delivered: "run" | "queued" = "run", replayed = false): Promise<Reply> => Promise.resolve({ receipt: { input_id: "steer-1", replayed, delivered } });
 
 test("RC-10: a supplement goes with its send mode and a key, and the page says what each mode does, in the runtime's words", async () => {
@@ -51,19 +53,19 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
     return new Promise<Reply>(resolve => { release = () => resolve({ receipt: { input_id: "steer-1", replayed: true, delivered: "run" } }); });
   });
   await assert.rejects(ui.steer("s", "r", "补上测试", "next-boundary"), /没确认送到：连接断了，或回复读不出。/u);
-  const lost = ui.bubble("s")!;
+  const lost = ui.bubble("s", nothing)!;
   assert.equal(lost.dataset.kind, "user");
   assert.match(lost.text, /补上测试.*没确认送到 · 再按发送，同一条不会重复/su);
-  assert.equal(ui.bubble("s"), lost, "a redraw keeps the same bubble");
-  assert.equal(ui.bubble("other-session"), null, "the bubble belongs to its session");
+  assert.equal(ui.bubble("s", nothing), lost, "a redraw keeps the same bubble");
+  assert.equal(ui.bubble("other-session", nothing), null, "the bubble belongs to its session");
   const again = ui.steer("s", "r", "补上测试", "next-boundary");
-  const sending = ui.bubble("s")!;
+  const sending = ui.bubble("s", nothing)!;
   assert.notEqual(sending, lost);
   assert.match(sending.text, /发送中…/u);
   assert.equal(sent[1]!.key, sent[0]!.key, "the same words in the same mode are the same supplement");
   release();
   assert.equal(await again, "之前已送到，没有重复发送。");
-  assert.equal(ui.bubble("s"), null, "once the Host has it, the round's own record shows it");
+  assert.equal(ui.bubble("s", nothing), null, "once the Host has it, the round's own record shows it");
   // Changed words, or another mode, are a new supplement; so is anything sent after a refusal.
   let calls = 0;
   const changed = receipts(() => ++calls === 1 ? Promise.reject(new TypeError("offline")) : taken());
@@ -72,9 +74,25 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   assert.notEqual(changed.sent[1]!.key, changed.sent[0]!.key);
   const refused = receipts(body => body.key === "send.u1" ? Promise.reject(new Error("这一轮已经结束")) : taken());
   await assert.rejects(refused.ui.steer("s", "r", "看日志", "next-boundary"), /已经结束/u);
-  assert.equal(refused.ui.bubble("s"), null, "a refusal clears the bubble; the words stay in the composer");
+  assert.equal(refused.ui.bubble("s", nothing), null, "a refusal clears the bubble; the words stay in the composer");
   await refused.ui.steer("s", "r", "看日志", "next-boundary");
   assert.equal(refused.sent[1]!.key, "send.u2");
+});
+
+test("RC-17: after a lost answer, once the run's record shows that key, the bubble goes and the page says once that it arrived", async () => {
+  const landed: string[] = [];
+  const { ui, sent } = receipts(() => Promise.reject(new TypeError("Failed to fetch")), { landed: (one, said) => landed.push(one.text + "｜" + said) });
+  await assert.rejects(ui.steer("s", "r", "补上测试", "next-boundary"));
+  const key = sent[0]!.key;
+  assert.ok(ui.bubble("s", { turns: [{ kind: "user", steer: { id: "steer-2", state: "received", key: "send.other" } }] }), "another supplement is not this one");
+  assert.deepEqual(landed, []);
+  const record = { turns: [{ kind: "user", text: "补上测试", steer: { id: "steer-1", state: "received", key } }] };
+  assert.equal(ui.bubble("s", record), null, "the record's turn is the one shown; the lost bubble goes");
+  assert.deepEqual(landed, ["补上测试｜之前已送到，没有重复发送。"], "said once, in the words a recognised resend gets");
+  assert.equal(ui.bubble("s", record), null);
+  assert.equal(landed.length, 1, "a later repaint says nothing more");
+  await assert.rejects(ui.steer("s", "r", "补上测试", "next-boundary"));
+  assert.notEqual(sent[1]!.key, key, "sent again after it arrived, the same words are a new supplement");
 });
 
 test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {

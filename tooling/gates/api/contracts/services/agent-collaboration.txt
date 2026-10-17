@@ -34,11 +34,20 @@ export interface AgentCollaborationPort {
     read(project: string, sessionId?: string): Promise<AgentCollaborationSessionView[]>;
     awaitReady(project: string, timeoutMs: number, exclude?: string[], signal?: AbortSignal): Promise<AgentCollaborationSessionView[]>;
     control(project: string, control: AgentCollaborationControl, actorId: string): Promise<AgentCollaborationSessionView>;
+    revise(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
 }
 
 export interface AgentCollaborationReadInput {
     runtime_id: string;
     session_id?: string;
+}
+
+export interface AgentCollaborationReviseInput {
+    runtime_id: string;
+    session_id: string;
+    run_id: string;
+    amendment: AgentStepAmendment;
+    expected_version: number;
 }
 
 export interface AgentCollaborationSessionView {
@@ -91,6 +100,9 @@ export declare const agentCollaborationActions: {
     }>;
     readonly control: ActionDefinition<AgentCollaborationControlInput, {
         session: AgentCollaborationSessionView;
+    }>;
+    readonly revise: ActionDefinition<AgentCollaborationReviseInput, {
+        board: AgentStepBoard;
     }>;
 };
 

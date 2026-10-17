@@ -88,7 +88,7 @@ test("RCPT-301/302 a real round's statements and questions about its supplements
 const prompt = (steerId: string, text: string, extra: object = {}): PrologueEvent => ({ type: "prompt", role: "user", text, steerId, atMs: 1, ...extra });
 const LEDGERS: Record<string, PrologueEvent[]> = {
   "revised statements, then withdrawn after another was read": [
-    prompt("s-1", "先跑测试"), prompt("s-2", "别动夹具"), prompt("s-3", "改成 40 分钟"),
+    prompt("s-1", "先跑测试", { key: "send.k1" }), prompt("s-2", "别动夹具"), prompt("s-3", "改成 40 分钟"),
     { type: "steer-applied", steerId: "s-1" }, { type: "steer-applied", steerId: "s-2" }, { type: "steer-read", steerIds: ["s-1", "s-2"], callId: "c-1" },
     { type: "inputs-acknowledged", callId: "c-1", toolCallId: "t-1", items: [{ steerId: "s-1", treatment: "later-step", targets: [], impacts: ["approach"] }] },
     { type: "inputs-acknowledged", callId: "c-2", toolCallId: "t-2", items: [{ steerId: "s-1", treatment: "apply-now", kind: "request", targets: [{ kind: "board-node", board: "b-1", id: "n-1" }], impacts: ["approach"], note: "现在就跑" },
@@ -119,6 +119,7 @@ for (const [name, events] of Object.entries(LEDGERS)) {
     for (const receipt of runtime) {
       const steer = view.get(receipt.steerId);
       assert.equal(steer?.state, receipt.state === "accepted" ? "received" : receipt.state, receipt.steerId);
+      assert.equal(steer?.key, receipt.key, `${receipt.steerId} key (RC-17: the page that sent it knows it by its key)`);
       assert.equal(steer?.model_claim?.treatment, receipt.handling?.treatment, `${receipt.steerId} treatment`);
       assert.equal(steer?.model_claim?.revisions, receipt.handlingRevisions, `${receipt.steerId} revisions`);
       assert.deepEqual(steer?.model_claim?.targets, receipt.handling?.targets.map(target => ({ ...target })), `${receipt.steerId} targets`);

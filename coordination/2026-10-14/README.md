@@ -703,6 +703,13 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - #666 合入 bd515e0c6。#676（防腐 BL-157，库版本门禁 + RAC-13 文档；d9b5073dd）统筹审过：读 CHECKLIST §3，按「位置」逐库比 merge-base；版本变了就要在 §4.1「库版本维护清单」里有 `old → new` 一行；读不到就 exit 2。走 merge-only 门禁（只改门禁、文档和门禁用例）。
       - #677（防腐 dshell：26 个桌面壳死选择器、12 条只钉死规则的断言；b0398f5f6）统筹审过，通过。两个设置页渲染方都写死 `data-desktop-shell="false"`；状态探针两种模式各 564 个值、0 个不同。删的是样式源码，要跑全量，排在 667 后面（pid 17567 等 72042）。
       - #664 全量通过，已入队。#671 aa1255e28（托盘 gap 回来，`:where` 合并 margin 重置）认可，等 #667。
+      - 合入：#664（W3-A3a）、#665（BL-154，476c08931）、#676（BL-157，eb421d335）。#673 已通知改 base 到 main、merge main；#675 已改 base、在合并后的 head 上验证。
+      - #675 89e8b143b 统筹审过、通过：删了 `said` 和合同里的 `last_state`；没有宿主等待的步骤不算作业（STEP-06）；`#follower` 按 id 取（JOB-04）；启动时已经通知过的作业不再读图。
+      - **W5-01 Todo 迁 Home 级 Runtime（统筹 10-17 定）**：方案认可，跟 Form 的先例做成一片。但查出服务缺口：Home 插件的路由不带页面所在的项目，HomePluginExecutor 给的 `project_id` 是 null，直接迁过去，在项目里看不到那个项目的待办。所以先补一个平台小片，由防腐线做：
+        - 宿主只从路径前缀 `/projects/<id>/` 解析项目，再核对项目存在、插件已启用，经 `PluginExecutionControl` 作为 `caller.project_id` 交给插件；
+        - 四条拒绝用例，SECURITY-INVARIANTS 加一行；
+        - 这是合同和 SDK 的改动，要跑全量。
+        - 顺序：§10.25 记录（merge-only）→ 服务片 → Todo。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

@@ -609,6 +609,11 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - #649 已入队，但 main 前进以后它在 docs/platform/PROLOGUE-AI.md 上冲突（DIRTY），已让回执线 merge main。它已经跑过全量，这次走 merge-only 门禁，不重跑全量。
       - #655（交互 AC-12，779131e66）：只改文档和用例，两份手册各加一节「交互」，统筹审过，CI 绿了就由门禁入队，不跑全量。它和 #649 在 PROLOGUE-AI.md 也有冲突，谁后合谁解决。
       - #653 在合并队列里（AWAITING_CHECKS）；#651 的全量在跑。
+      - #653 合入 02829775d；side-panel-browser 已从统筹门禁脚本的 KNOWN 名单里拿掉（这次没被拦）。
+      - **A3 卡在 SDK 上（统筹 10-17 定：选方案 1）**：SDK 收不干净没人跑的作业步骤的接续：等待一结束，接续就留在 `eligible`；`releaseContinuation` 不能转成 `cancelled`；Work 的下一轮会绑到它上面。做法：给 Prologue 开一个小 PR，加一种只结算自己那一步、不建接续的 App 等待。没选「事后放到 cancelled」，因为从等待结束到 App 收掉之前有一个窗口，下一轮会在这个窗口里绑错。作业步骤要排除在 A2 的交回等待之外，`binding()` 也不能选中它，这个形状开写前先报统筹。采用线的顺序：先改 #654，再开 Prologue PR，最后做 BL-154（叠在 #654 上，不是必修）。
+      - **BL-152（统筹 10-17 定：选 A）**：Prologue 的 start/session 接受每一轮自己的 `referenceKinds`，覆盖 Runtime 级的清单。Molis 在一轮开始时，用该项目装了的 Manifest（内置加外部）通过 `hostReferenceKinds` 算出来；从不读输入或模型，上限 100 个种类。外部 Manifest 的种类名和显示名会进模型读的工具 schema，所以要校验 id、给显示名限长；SECURITY-INVARIANTS 没覆盖的，补表行和拒绝用例。Prologue PR 由交互线写，等 #655 合入后开工；换包由采用线做，和 A3 的 Prologue 改动合成一次。没选 B：B 要拿全 Home 的并集，项目会看到自己没装的种类，新装的插件要重启才生效，种类数还可能超上限。
+      - 交互线下一片：AC-07/AC-08 恢复与并发用例（新文件 `tests/interaction-recovery.test.ts`，只跑非浏览器用例，不改源码），已认可。
+      - BL-150：情境线的回答可以接受：不进种类登记，因为没人按 id 查；id 是 `<work_id>:<run_id>:<turn_id>`；用 −6 行、−529 B 抵掉增长。另外要求 `"assistant_reply"` 只在载荷类型那里定义一次。浏览器用例在等槽位。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

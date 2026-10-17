@@ -32,8 +32,8 @@ export function codingReportInputsMarkdown(run: AgentRunView, literal: (value: s
     const corrections = steers.filter(other => other.steer!.about === steer.id).map(other => `补充 ${number.get(other.steer!.id)}`);
     if (corrections.length) lines.push(`后来由${corrections.join("、")}更正`);
     if (claim) {
-      const impacts = claim.impacts.map(impact => IMPACT_WORDS[impact]).filter(Boolean);
-      lines.push(`AI 说：${TREATMENT_WORDS[claim.treatment] ?? "无法识别的处理方式"}${impacts.length ? `；会改变${impacts.join("、")}` : ""}${claim.revisions > 1 ? `（第 ${claim.revisions} 次说明）` : ""}`);
+      const impacts = claim.impacts.map(impact => IMPACT_WORDS[impact]);
+      lines.push(`AI 说：${TREATMENT_WORDS[claim.treatment]}${impacts.length ? `；会改变${impacts.join("、")}` : ""}${claim.revisions > 1 ? `（第 ${claim.revisions} 次说明）` : ""}`);
     } else if (steer.state === "read") lines.push("AI 读到了，没说怎么处理");
     const open = steer.questions?.filter(question => question.state === "open" || question.state === "unresolved").length ?? 0;
     if (open) lines.push(`为它问的问题有 ${open} 个还没回答`);

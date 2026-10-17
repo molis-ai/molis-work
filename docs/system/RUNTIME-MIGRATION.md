@@ -90,7 +90,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 ## 4. 迁移前必须补的平台缺口
 
-调研列出三项服务缺口；核对代码后又发现另一项服务缺口（项目已删步骤的送达）和几处迁移会改变的行为。服务缺口由 W3-06 补，改变行为的几处要在 W3-06 的设计稿里定，其余前置切片见 4.4。
+调研列出三项服务缺口；核对代码后又发现另两项服务缺口（项目已删步骤的送达；Home 级路由带页面的项目，2026-10-17）和几处迁移会改变的行为。服务缺口由 W3-06 补，改变行为的几处要在 W3-06 的设计稿里定，其余前置切片见 4.4。
 
 ### 4.1 平台服务（W3-06）
 
@@ -101,6 +101,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 2. **插件自有的 Home 库服务**：按 `{home}/<id>/<id>.db` 打开已有的库，表不变。
 3. **Home 级 Runtime 实例**：`createPluginPlatform` 现在只在每个项目里创建，Home 级的个人插件（Todo、Jelly、Cognia、Images、Alchemist）要有一个 Home 级实例，按项目启用照旧。
 4. **「项目已删」步骤的送达**：见 4.2 末项。这是 2026-10-07 删除项目决定带来的缺口，路线图的 W3-06 描述里没有，需要补进去。
+5. **Home 级插件的路由带页面所在的项目**（2026-10-17 迁 Todo 前发现，统筹定由防腐线补，排在 Todo 之前）：Home 级实例的路由原来只在 `/api/plugins/<id>/…`，不带项目，插件的 `services.actions` 也绑在没有项目上（`home-plugin-executor.ts`），而今天在项目里打开的 Todo 页经宿主绑定当前项目（`todoCallerProject` 决定看得见哪些、新记的放在哪里）。直接迁会让项目里看不到这个项目的待办，新记的默认成「个人」。补法：`/projects/<id>/api/plugins/<id>/…` 由宿主从路径解析项目，核对项目存在、显示这个插件，再经它自己发出的 `PluginExecutionControl.project_id` 交给这次调用，调用走该项目的动作客户端，插件的动作在 `caller.project_id` 里看到它；查询、请求体和插件自己造的控制都不能指定项目（[SECURITY-INVARIANTS.md](SECURITY-INVARIANTS.md) S-31）。Jelly、Cognia、Images、Alchemist 迁到 Home 级时，凡是在项目里用到当前项目的路由，用的都是这同一个服务，不再另补。
 
 ### 4.2 要在 W3-06 设计稿里定的事
 
@@ -171,7 +172,7 @@ Characters 并进宿主（第 5.4 节）是第 4 波的另一片，不在这条�
 
 **Todo 是第二个迁移，排在 Form 之后、其余各族之前**（2026-10-07 决定）。W5-01 的描述把「Dataset/PPT/Pages」列在「Todo」前面，只是那条描述的列举顺序，不改这个决定。
 
-Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用到 Home 级实例、Home 库服务、`services.model`（`todo-actions.ts` 注入 `completeText`）。提供方身份和授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：Todo 迁来时条目标 `bundled: true`，`todo:write` 虽是 `required: false`，也随清单声明的全部权限一起授予，写动作不会因此不可用；动作登记在 `plugin_id` 之下。它的表带可空的 `project_id`，「项目已删」步骤只清带项目的条目，个人待办留下。
+Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用到 Home 级实例、Home 库服务、`services.model`（`todo-actions.ts` 注入 `completeText`），以及 4.1 第 5 项的路由带项目（项目里的待办页走 `/projects/<id>/api/plugins/io.molis.work.todo/…`）。提供方身份和授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：Todo 迁来时条目标 `bundled: true`，`todo:write` 虽是 `required: false`，也随清单声明的全部权限一起授予，写动作不会因此不可用；动作登记在 `plugin_id` 之下。它的表带可空的 `project_id`，「项目已删」步骤只清带项目的条目，个人待办留下。
 
 ### 5.3 其余各族（W5-01，一个 PR 一族）
 

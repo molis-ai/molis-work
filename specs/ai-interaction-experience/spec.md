@@ -432,6 +432,87 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 
 三者写进 `skills/molis-prologue-ai/SKILL.md`、`docs/platform/PROLOGUE-AI.md` 与 `skills/molis-plugin-dev/SKILL.md`（含 `generated-ai.md`），并有对应用例。
 
+### 15.9 BL-156：等人回答的问题活过 Host 重启（设计，待采用线评审）
+
+> 状态：设计，未实现（2026-10-17，交互线写，统筹定了方向；采用线评审后才写代码）。对应 AC-07 的缺口。读源码的记录在 Prologue `d2b3daa3`（现在 vendored 的包）。
+
+**现状（源码）。**
+- 问题本身落盘：`effects.pendings.restore()` 在重启后把打开中的等待读回来。期限按落盘时的墙钟截止时间重算（`pending-state.ts` 的 `deadlineWallMs`），所以重启后过期是真的过期。
+- 等待的那一跑不落盘：`ask-user` 在活的工具调用里等 `whenSettled`。
+- 正常关机时，`runtime-lifecycle.ts` 调 `endLiveWaits()`，把有活等待者的打开中等待记成取消，这一跑以 `cancelled` 结束。AC-07 用例看到的就是这个。
+- 进程崩溃时，这一跑停在未结束，问题成了孤儿：
+  - 恢复只能 `inspect`，或者 `close`（`sessions.recoverRun`）。`close` 会取消孤儿题，把这一跑记成 `RUN_INTERRUPTED`。没读到的补充在同一笔里进会话排队。
+  - 没有「回答孤儿题、让工作接着走」的操作。
+- Molis 这边：
+  - `horizontal/agent-host/src/adapters/prologue-node-port.ts` 的 `answerPending` 遇到没有活执行者的题，用「原执行者已经停止或离线」拒掉。
+  - 卡片据 `questionUnavailable` 显示不可答。
+
+**做法：正常关机与崩溃一样留下孤儿题；新的恢复操作回答它，并把答案交给下一轮。** 不恢复那个工具调用，也不重放任何东西。
+
+1. **关机留着问题（Prologue）。**
+   - 一跑如果只剩一个 `text` 或 `questionnaire` 等待：关机时不取消这个等待，也不给这一跑写终态。这一跑停在未结束，和崩溃后一样。
+   - 一跑里还有别的在飞（模型流、命令、已派出的操作、审批等待）：照今天的规则结束。
+   - 怎样让活的执行者放手又不写 `cancelled`，是这一项的主要实现风险，交采用线看。
+2. **新的恢复操作（Prologue）。** 暂名 `sessions.answerInterrupted(session, run, expectedVersion, pendingRef, answer)`，和 `recoverRun` 放在一起。
+   - **核对**（和 `recoverRun` 用同一份 `inspect`）：
+     - 会话是活的；
+     - 这一跑未结束、没有活执行者，版本与 `expectedVersion` 一致；
+     - 题属于这一跑、还开着、没过期；
+     - 答案用 `validateQuestionnaireAnswer` 按落盘的题核过；
+     - 这一跑没有结果未知的操作。
+   - **一笔提交**：结束这一跑（`RUN_INTERRUPTED`，记下题和答案），把「人回答了」作为一条输入排进会话，结算那道题。
+     - 排队那条以题号为幂等键：同一道题再交一次，回的是原来那一条。
+     - 题在等待账里，跑和排队在会话账里，两本账都在同一个 `ScopedStorage`。能用一个 `commitBatch` 就用一个。不能的话：先提交跑与排队，再结算题；重启后，跑已被这个操作关掉、题却还开着的，按幂等键补结算。具体选哪种，实现时核对后写进 PR。
+   - **不替 App 开下一跑**：和 `recoverRun` 一样，只排队。
+3. **模型听到的是什么（Prologue 写这段文字，Molis 不在提示词里补）。**
+   - 那条排队输入的正文由 SDK 生成：说明上一轮在等人回答时中断了，原题是什么，人的回答是什么。
+   - 回答部分用今天工具结果里渲染问卷答案的同一段代码。下一轮模型看到的答案，和原来那一跑会收到的写法相同。
+   - `source` 是人（答案是人写的）。原题是模型自己写的，以数据形式带回。
+   - 下一轮用 `history: "session"`，模型能看到中断前的那一轮。它读到的是「你问了 X，回答是 Y」，不是一个接上的工具调用。
+4. **迟到与未知。**
+   - 过期：`PENDING_EXPIRED`，题照旧结束，卡片给「请 AI 重新问」（另一片）。
+   - 会话被取消或关掉：取消它的孤儿题，与今天相同。
+   - 版本过时（这一跑在核对之后变了）：拒绝，要先重新读。
+   - 有结果未知的操作：拒绝回答（`EFFECT_RECONCILE_REQUIRED`），题留着，卡上写要先核对。
+   - **两处同时回答同一道孤儿题**（重启后的 AC-08）：
+     - 同一会话的恢复本来就一次只进一个（`recovering`），另一份得到「会话忙」。
+     - 先进的那份一提交，题就结算了；后到的再核时得到 `PENDING_ALREADY_SETTLED`。
+     - 两种在 Molis 都映射成 `agent.pending_not_open`（错误映射那一片）。模型只听到一次。
+5. **副作用。** 被关机切断的、带副作用的工具调用照今天的规则处理：结果未知就一直挡着，人核对之前这一跑不能结束，不能回答，也不重放。
+   - 这个操作不放松 `inspect` 的任何一条拦截，只在拦截全清时多给一个「回答并结束」的出口，与「取消并结束」（`recoverRun`）并列。
+
+**Molis 这边。**
+1. **谁调它。**
+   - `answerPending`（`prologue-node-port.ts`）遇到「没有活执行者」的题时：如果这一跑在会话索引里，SDK 也没有它的终态，就走新操作，不再拒绝。
+   - 在调 SDK 之前，照今天的规则核答案：`answerProblems`，以及 `ownedReferences` 回主人读引用（S-26）。
+   - 这是题回答的唯一新入口。助理与 Coding 照旧经各自的回答路径到这里，不另开路由。
+2. **权限在回答时取。**
+   - 身份从这次调用的上下文来，不用原来那一跑的：
+     - 助理是 `assistant-service.ts` 的 `answer`（`store.get(actorId, workId)`，工作得是这个人的）；
+     - Coding 是会话主人的核对。
+   - 回答前先用开下一轮时的同一套核对预检：项目、插件启用、动作网关。这个人已经不能动这项工作了，就拒绝，题和草稿都留着。
+3. **开下一轮。**
+   - 操作成功后，回答路径用现有的开轮入口开一轮：助理是 `assistant-round-start.ts`，Coding 是 `plugins/native/coding/src/start-round.ts`。两者都已经 `queued: "carry"`，排着的答案自然带进去。
+   - `control` 的 answer 要告诉调用方「答案交给了中断的一跑，需要开下一轮」。这是 `services/agent-interaction` 的合同改动，要跑 `pnpm api:update`。
+   - 开轮失败（网关拒绝、模型设置缺）时，答案留在会话排队里，人下一次发话时带进去，不丢也不重复。卡片写「回答已收下，下一轮会带上」。
+4. **卡片什么时候重新可答。**
+   - 只在这一跑是孤儿、`inspect` 没有拦截时可答，答案也只走上面这条路。
+   - 读取路径是 `readPendingQuestion` 和 `questionUnavailable`。
+   - 有拦截时卡片照旧不可答，原因写成要核对的那一条。
+   - 助理的 `answer` 现在要求 `phase === "awaiting-input"`，对孤儿题改成按上面的条件放行。
+
+**测试。**
+- AC-07：删掉的重启用例放回 `tests/interaction-recovery.test.ts`。关 Host 再开，回答，新的一轮带着答案跑完；模型请求里有原题和答案。
+- 重启后的 AC-08：两处同时交，只收一份。
+- 结果未知的操作挡住回答。
+- 过期的题拒绝回答。
+- 上游有对应的 SDK 用例：一笔提交、幂等、各种拒绝。
+
+**不包含。**
+- 接上被切断的工具调用。
+- 恢复审批与命令等待：它们照今天的规则在关机时结束。
+- 「请 AI 重新问」：过期和已结束的题用它，另一片。
+
 ## 16. 决策记录
 
 2026-10-09 用户对 D1–D4 选了「推荐」一列；D5、D6 未另提意见，按推荐执行，随时可改。

@@ -824,3 +824,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 不导出只给测试用的计数，改成注入计时器；
     - 计时器调 `unref()`。
 - #669 → bbb715e1c：merge 了 main（e49f6a558）。spec §18 两条都留下了；3b-2a 的四条移进已用名单；coding.js +184、workbench.js +271 重新以 e49f6a55 定键，增量不变。因为 main 删了 `explain()`，原来靠它抵掉的巨大单元增长没了，交互线把 `checkMaterials` 和留图检查原样搬进新文件 `assistant-send-materials.ts`（72 行）。统筹逐行核过，是纯搬家：常量和判定都没变，只是 `this.images` 改成了参数。全量已经在 55fe94b53 上判过，这次走 merge-only（统筹 10-17 定：纯搬家，不重跑）。#671 也以 1104882 定了 workbench.js 的键，coding.js 还会降，谁后合入谁重新定键。
+- #673 → bfe96662d：merge main（e49f6a558），重新测量。除去 page-assets 和 baseline，和审过的 8a59b07a1 逐行一致；五项资源都只降（workbench.js −65，pages-editor −11，三份 CSS −993/−1,329/−734）。
+- **标签链合并时踩了一脚**：本想把 chain4（等 #679）和 chain6（等 #671）合成一条，按 pid 停掉两条，起了 chain7（679→671→673）。可 #679 在那一刻刚好加上了标签，chain7 一开头的 `--remove-label` 又把它撤了。马上停了 chain7，重新加上标签。full-suite 的 concurrency 会取消同组里旧的那次，所以 #679 只剩一次全量在排队；chain4 给 679 分出去的 gate 子进程还在。脚本改了：label-chain2 不再一开头就撤标签，改成由 label-when-free2 等到有空位、轮到自己时，才先撤再加。#671 和 #673 现在在 chain8 上。#631 自己手动（workflow_dispatch）起的全量也在排队，所以现在排着 3 个全量。

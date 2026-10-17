@@ -966,3 +966,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - #688 → 4363aacc6：在浏览器里复现了，回执元素在两个面之间来回挪；改成按面取（line、tray、link 都是），审过，通过。workbench.js +800、coding.js +201，用户分两次批的。等 #687 合入后，base 改成 main、重新取键，再跑全量。taskboard 编号对不上那条（插入后 S3 和 S4）放进回执线下一片的 BACKLOG。
 - #675：全量只红在 product-interaction.e2e 的 Feed 重试（测试自己的时序：基线 main 8/8，分支 7/8，#581 那一轮的 main 上也出过），按用户 10-15 的规则走 merge-only 入队。Feed 测试的修复交给采用线，等 #675 合入后开一个只改测试的小 PR。
 - prologue#41（ee1f41dd）统筹审过，已 squash 合入 Prologue main，提交 b541a8e62。偶发失败的原因：这台机器设了 NODE_USE_SYSTEM_CA=1，Node 退出时要等载入系统证书的线程，用例对子进程去掉了这个变量。换包改从 b541a8e62 打包，#675 合入后开 PR。
+- 10-17 20:45 UTC：#608 合入 f86d4d711。#675 的只合并门禁又被 product-interaction 的 Feed 计时偶发挡下，这次带 EXTRA_KNOWN=tests/product-interaction.e2e.test.ts 重开（与 #578/#581 同例，用户 10-15 规则）。integration/hub-1017-a 的全量在跑（和 #631 的手动全量共用 runner）。chain22（684→687）等空位。#634、#661 都还没有新 head，等作者。

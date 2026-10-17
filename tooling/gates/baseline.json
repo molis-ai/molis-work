@@ -2,7 +2,7 @@
   "giantUnits": 141,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2058,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2057,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
       "lines": 1643,
       "methods": 98
@@ -52,7 +52,7 @@
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2235,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 1003,
+    "file apps/workbench/src/scripts/client/navigation-feed.ts": 1001,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2019,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
@@ -63,12 +63,12 @@
     "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 968,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 967,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
       "lines": 603,
       "methods": 18
     },
-    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 372,
+    "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 363,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
       "lines": 382,
       "methods": 12
@@ -579,7 +579,7 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "scriptConstantsTotal": 130,
+  "scriptConstantsTotal": 129,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
@@ -671,7 +671,7 @@
     "plugins/native/goals/src/proposal-client.ts": 1,
     "plugins/native/goals/src/refresh-client.ts": 1,
     "plugins/native/goals/src/relation-client.ts": 5,
-    "plugins/native/goals/src/tree-client.ts": 8,
+    "plugins/native/goals/src/tree-client.ts": 7,
     "plugins/native/lingguang/src/client.ts": 1,
     "plugins/native/pages/src/client.ts": 1,
     "plugins/native/ppt/src/client.ts": 1,
@@ -780,7 +780,7 @@
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },
-  "typedCapabilitiesTotal": 190,
+  "typedCapabilitiesTotal": 187,
   "typedCapabilities": {
     "apps/local-host/src/agent-host-composition.ts#register-calls": 10,
     "apps/local-host/src/local-host.ts#type-refs": 5,
@@ -790,7 +790,7 @@
     "apps/local-host/src/project-host.ts#type-refs": 1,
     "apps/local-host/src/project-host.ts#register-calls": 1,
     "horizontal/agent-host/src/capability-registration.ts#type-refs": 2,
-    "horizontal/agent-host/src/capability-registration.ts#register-calls": 39,
+    "horizontal/agent-host/src/capability-registration.ts#register-calls": 38,
     "horizontal/scheduler/src/index.ts#type-refs": 1,
     "horizontal/scheduler/src/index.ts#register-calls": 4,
     "packages/contracts/src/modules/workspace-artifacts.ts#type-refs": 8,
@@ -798,8 +798,8 @@
     "packages/contracts/src/platform/actions.ts#type-refs": 1,
     "packages/contracts/src/platform/app-host.ts#type-refs": 4,
     "packages/contracts/src/platform/plugin.ts#type-refs": 1,
-    "packages/contracts/src/services/agent-host.ts#type-refs": 39,
-    "packages/contracts/src/services/agent-host.ts#without-action": 39,
+    "packages/contracts/src/services/agent-host.ts#type-refs": 38,
+    "packages/contracts/src/services/agent-host.ts#without-action": 38,
     "packages/contracts/src/services/scheduler.ts#type-refs": 4,
     "packages/contracts/src/services/scheduler.ts#without-action": 4,
     "packages/kernel/src/action-service.ts#register-calls": 1,
@@ -1254,7 +1254,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 515,
+  "explicitAnyTotal": 514,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1310,7 +1310,6 @@
     "tests/coding-history-summary-http.test.ts": 4,
     "tests/coding-materials-http.test.ts": 3,
     "tests/coding-message-wait.test.ts": 3,
-    "tests/coding-plan-amend-http.test.ts": 1,
     "tests/coding-plan-dependencies.test.ts": 1,
     "tests/coding-plans-http.test.ts": 11,
     "tests/coding-product-http.test.ts": 1,

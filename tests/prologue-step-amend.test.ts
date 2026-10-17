@@ -54,15 +54,15 @@ test("a person inserts, skips and reorders steps of a running plan; the model re
     assert.deepEqual(current.nodes.map(node => [node.id, node.state]), [["step-1", "running"], ["step-2", "not-started"], ["step-3", "not-started"]]);
     assert.equal(current.nodes[1]!.title, "核对结论", "confirmed steps carry the plan's own titles");
 
-    await assert.rejects(adapter.amendStepBoard!(started.ref, { kind: "skip", node: "step-2", reason: "x" }, current.version - 1), /刚刚有更新/, "a stale view never changes the graph");
-    await assert.rejects(adapter.amendStepBoard!(started.ref, { kind: "skip", node: "step-1", reason: "x" }, current.version), /正在执行/, "a running step is not skipped from under the model");
-    await assert.rejects(adapter.amendStepBoard!(started.ref, { kind: "unblock", node: "step-2", note: "x" }, current.version), /没有受阻/);
+    await assert.rejects(adapter.collaboration!.revise(started.ref, { kind: "skip", node: "step-2", reason: "x" }, current.version - 1, "user"), /刚刚有更新/, "a stale view never changes the graph");
+    await assert.rejects(adapter.collaboration!.revise(started.ref, { kind: "skip", node: "step-1", reason: "x" }, current.version, "user"), /正在执行/, "a running step is not skipped from under the model");
+    await assert.rejects(adapter.collaboration!.revise(started.ref, { kind: "unblock", node: "step-2", note: "x" }, current.version, "user"), /没有受阻/);
 
-    current = await adapter.amendStepBoard!(started.ref, { kind: "insert", after: "step-1", title: "补一条回归测试", acceptance: "新测试通过" }, current.version);
+    current = await adapter.collaboration!.revise(started.ref, { kind: "insert", after: "step-1", title: "补一条回归测试", acceptance: "新测试通过" }, current.version, "user");
     assert.deepEqual(current.nodes.map(node => node.id), ["step-1", "user-1", "step-2", "step-3"]);
     assert.equal(current.nodes[1]!.inserted, true); assert.deepEqual(current.nodes[2]!.depends_on, ["user-1"], "the step after the insertion now waits for it");
-    current = await adapter.amendStepBoard!(started.ref, { kind: "skip", node: "step-3", reason: "这次不需要总结" }, current.version);
-    current = await adapter.amendStepBoard!(started.ref, { kind: "move", node: "step-2", direction: "up" }, current.version);
+    current = await adapter.collaboration!.revise(started.ref, { kind: "skip", node: "step-3", reason: "这次不需要总结" }, current.version, "user");
+    current = await adapter.collaboration!.revise(started.ref, { kind: "move", node: "step-2", direction: "up" }, current.version, "user");
     assert.deepEqual(current.nodes.map(node => node.id), ["step-1", "step-2", "user-1", "step-3"]);
     assert.deepEqual(current.nodes.find(node => node.id === "step-2")!.depends_on, ["step-1"]);
     assert.deepEqual(current.nodes.find(node => node.id === "user-1")!.depends_on, ["step-2"]);
@@ -79,7 +79,7 @@ test("a person inserts, skips and reorders steps of a running plan; the model re
     assert.match(notes("user-1"), /用户插入：补一条回归测试；完成条件：新测试通过/);
     assert.match(notes("step-3"), /用户跳过：这次不需要总结/);
     assert.match(notes("step-2"), /用户把这一步提前/);
-    await assert.rejects(adapter.amendStepBoard!(started.ref, { kind: "skip", node: "user-1", reason: "x" }, final.version), /已经结束/, "an ended round keeps its graph as the record");
+    await assert.rejects(adapter.collaboration!.revise(started.ref, { kind: "skip", node: "user-1", reason: "x" }, final.version, "user"), /已经结束/, "an ended round keeps its graph as the record");
   } finally { release(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
 
@@ -121,13 +121,13 @@ test("a later round continues the same unfinished graph, keeping a person's chan
     const first = await host.start("prologue", request(), authority);
     const deadline = Date.now() + 10_000; while (turn < 4) { if (Date.now() > deadline) throw new Error("first round never held"); await new Promise(resolve => setTimeout(resolve, 10)); }
     let board = (await adapter.read(first.ref)).step_board!;
-    board = await adapter.amendStepBoard!(first.ref, { kind: "insert", after: "step-1", title: "补一个边界测试", acceptance: "测试通过" }, board.version);
+    board = await adapter.collaboration!.revise(first.ref, { kind: "insert", after: "step-1", title: "补一个边界测试", acceptance: "测试通过" }, board.version, "user");
     await assert.rejects(host.start("prologue", request({ continue_step_board_of: first.ref.run_id }), authority), /还没有结束|仍在执行/, "a live round's graph is not taken over");
     await adapter.control(first.ref, { kind: "stop" }); const stopped = await finish(first.ref);
     assert.deepEqual(stopped.step_board!.nodes.map(node => [node.id, node.state]), [["step-1", "succeeded"], ["user-1", "ready"], ["step-2", "not-started"]]);
     // Between rounds the latest round's unfinished graph can still be changed: the next round carries on from it.
-    let between = await adapter.amendStepBoard!(first.ref, { kind: "move", node: "step-2", direction: "up" }, stopped.step_board!.version);
-    between = await adapter.amendStepBoard!(first.ref, { kind: "move", node: "step-2", direction: "down" }, between.version);
+    let between = await adapter.collaboration!.revise(first.ref, { kind: "move", node: "step-2", direction: "up" }, stopped.step_board!.version, "user");
+    between = await adapter.collaboration!.revise(first.ref, { kind: "move", node: "step-2", direction: "down" }, between.version, "user");
     assert.ok(between.version > stopped.step_board!.version, "both changes are on the record");
 
     const otherPlan = { ...plan, steps: [...plan.steps, { id: "step-3", title: "多一步", acceptance: "x" }] };
@@ -142,7 +142,7 @@ test("a later round continues the same unfinished graph, keeping a person's chan
     assert.equal(done.step_board!.project_id, stopped.step_board!.project_id);
     assert.deepEqual(done.step_board!.nodes.map(node => [node.id, node.state]), [["step-1", "succeeded"], ["user-1", "succeeded"], ["step-2", "succeeded"]]);
     assert.equal(done.step_board!.terminal, true);
-    await assert.rejects(adapter.amendStepBoard!(first.ref, { kind: "skip", node: "step-2", reason: "x" }, done.step_board!.version), /新的计划轮/, "an earlier round's graph stays the record it was");
+    await assert.rejects(adapter.collaboration!.revise(first.ref, { kind: "skip", node: "step-2", reason: "x" }, done.step_board!.version, "user"), /新的计划轮/, "an earlier round's graph stays the record it was");
     await assert.rejects(host.start("prologue", request({ continue_step_board_of: second.ref.run_id }), authority), /已经结束/, "a finished graph is not reopened");
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

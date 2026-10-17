@@ -1,6 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion } from "./agent-interaction.js";
+import type { AgentInputSend } from "./agent-inputs.js";
 import type { MemoryChange, MemoryScope } from "./memory.js";
 
 /**
@@ -482,7 +483,7 @@ export interface AssistantRecovery {
   }>;
 }
 
-export interface AssistantSendInput extends Pick<import("./agent-inputs.js").AgentInputSend, "about"> {
+export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
   /** For a new work: who carries it. An existing work keeps its executor. */
@@ -530,7 +531,6 @@ export interface AssistantHandover {
   mode?: string;
 }
 
-/** `withdraw`: take back a supplement the model has not seen (`run_id`: the round it was shown under). */
 export type AssistantControl =
   | { kind: "pause" | "resume" | "stop" }
   | { kind: "withdraw"; run_id: string; input_id: string };

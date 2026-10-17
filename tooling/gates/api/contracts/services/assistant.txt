@@ -546,7 +546,7 @@ export type AssistantScope = {
     project_id: string;
 };
 
-export interface AssistantSendInput extends Pick<import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputSend, "about"> {
+export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     work_id?: string;
     executor?: "assistant" | "coding";
     mode?: string;

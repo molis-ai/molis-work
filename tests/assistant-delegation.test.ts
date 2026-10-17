@@ -403,6 +403,10 @@ test("a sub-task whose first round cannot start is not left behind: no idle orph
 });
 
 
+/** A work's root on its own graph: what it waits for, and the continuation its next round takes up (§6.0n). */
+const rootOf = async (f: Awaited<ReturnType<typeof delegationFixture>>, workId: string) =>
+  (await f.adapter.collaboration!.works!.read(f.store.get("web-user", workId).graph_id!)).find(node => node.node_id === "work")!;
+
 for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const) test(`W2-18-HANDBACK-CURRENT-01: archive during ${stage} prevents an automatic accepted run`, { timeout: 60_000 }, async t => {
   const childWaiting = Promise.withResolvers<void>(), finishChild = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let parentCalls = 0;
@@ -446,14 +450,14 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
     assert.deepEqual(after.runs, beforeSession.runs, "the actual SDK accepted no hand-back run");
     assert.equal(f.store.rounds(sent.work.work_id).length, 1); assert.equal(f.store.get("web-user", sent.work.work_id).archived, true);
     assert.equal(parentCalls, 2, "no automatic model inference was dispatched");
-    const child = f.store.delegatedBy("web-user", f.store.get("web-user", sent.work.work_id), "any")[0]!;
-    assert.equal(child.handed_back_run, undefined, "a rejected hand-back did not consume the child's result");
+    assert.equal((await rootOf(f, sent.work.work_id)).continuation?.state, "eligible", "a rejected hand-back leaves the continuation for the work's next round");
     f.flags.beforeAuthority = undefined; f.flags.beforeStart = undefined; f.flags.assertBeforeStart = undefined;
     await f.service.archive(sent.work.work_id, false);
     await f.service.send({ work_id: sent.work.work_id, text: "恢复后核对子任务交回的结果", request_id: "handback-resume-" + stage }, { project_ref: f.project });
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "explicit resumed round completes");
     assert.equal(f.store.rounds(sent.work.work_id).length, 2);
-    assert.equal(f.store.get("web-user", child.work_id).handed_back_run, f.store.rounds(child.work_id).at(-1)?.run_id);
+    // Refused once the SDK had committed the start, the continuation's key starts nothing else: held, the round goes on without it.
+    assert.equal((await rootOf(f, sent.work.work_id)).continuation?.state, stage === "sdk-prepared-start" ? "blocked" : "started", "the person's round took it up");
     assert.equal((await f.adapter.readSession({ session_id: before.session_id })).runs.length, 2);
     assert.equal(parentCalls, 3);
   } finally { finishChild.resolve(); release.resolve(); await f.close(); }
@@ -480,15 +484,45 @@ for (const change of ["stop", "new-round"] as const) test(`W2-18-HANDBACK-CURREN
     }
     release.resolve();
     await until(() => f.service.notices(null).some(notice => notice.text.includes("没有自动接着做")), "old hand-back refused");
-    const child = f.store.delegatedBy("web-user", parent, "any")[0]!;
     assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, change === "stop" ? 1 : 2);
     if (change === "stop") {
-      assert.equal(child.handed_back_run, undefined); assert.equal(f.store.get("web-user", parent.work_id).hand_back_held, f.store.rounds(parent.work_id)[0]!.run_id);
+      assert.equal((await rootOf(f, parent.work_id)).continuation?.state, "blocked", "the person's stop holds what came back for them");
       await f.service.send({ work_id: parent.work_id, text: "现在由我明确要求继续核对交回结果", request_id: "resume-stopped-handback" }, { project_ref: f.project });
       await until(async () => (await f.service.read(parent.work_id)).work.state === "completed");
     }
     assert.equal(f.store.rounds(parent.work_id).length, 2);
     assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, 2, "only the person's current continuation was accepted");
-    assert.equal(f.store.get("web-user", child.work_id).handed_back_run, f.store.rounds(child.work_id).at(-1)?.run_id);
+    // The new round took the continuation up; one held for the person after the stop stays held (a new wait replaces it).
+    assert.equal((await rootOf(f, parent.work_id)).continuation?.state, change === "stop" ? "blocked" : "started");
   } finally { childRelease.resolve(); release.resolve(); await f.close(); }
+});
+
+// The current caller refuses the hand-back only once it holds the continuation (§6.0n): the continuation is given back,
+// the person is told, and the hand-back is not started again by itself; the work's next round takes it up.
+test("W2-18-HANDBACK-CURRENT-03: a hand-back refused after it took the continuation up is told once and not started again by itself", { timeout: 60_000 }, async t => {
+  const childWaiting = Promise.withResolvers<void>(), finishChild = Promise.withResolvers<void>();
+  let parentCalls = 0, refused = 0;
+  const f = await delegationFixture(t, [
+    () => { parentCalls++; return reply({ name: "delegate-work", input: { title: "Draft", brief: "写出一段交回的文字。", acceptance: "一段文字" } }); },
+    () => { parentCalls++; return reply(undefined, "子任务正在写。等它交回。"); },
+    () => { parentCalls++; return reply(undefined, "已核对交回的文字。"); },
+  ], async () => { childWaiting.resolve(); await finishChild.promise; return reply(undefined, "已交回的一段完整文字。"); });
+  try {
+    const sent = await f.service.send({ text: "委托起草并等它交回", request_id: "handback-refused-once" }, { project_ref: f.project });
+    await childWaiting.promise;
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "parent finishes before child");
+    f.flags.beforeStart = async () => { if (!refused && (await rootOf(f, sent.work.work_id)).continuation?.state === "claimed") { refused++; throw new Error("这一刻不能开始"); } };
+    finishChild.resolve();
+    await until(() => f.service.notices(null).some(notice => notice.text.includes("没有自动接着做")), "the refused hand-back is told");
+    await new Promise(resolve => setTimeout(resolve, 500));
+    assert.equal(refused, 1);
+    assert.equal(f.store.rounds(sent.work.work_id).length, 1, "not started again by itself");
+    assert.equal(parentCalls, 2);
+    assert.equal((await rootOf(f, sent.work.work_id)).continuation?.state, "eligible", "given back for the work's next round");
+    f.flags.beforeStart = undefined;
+    await f.service.send({ work_id: sent.work.work_id, text: "核对子任务交回的结果", request_id: "handback-refused-once-next" }, { project_ref: f.project });
+    await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed" && f.store.rounds(sent.work.work_id).length === 2, "the person's round");
+    assert.equal((await rootOf(f, sent.work.work_id)).continuation?.state, "started", "the person's round took it up");
+    assert.equal(parentCalls, 3);
+  } finally { finishChild.resolve(); await f.close(); }
 });

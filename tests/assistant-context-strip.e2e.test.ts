@@ -22,11 +22,11 @@ async function openNotes(t: test.TestContext) {
   const related = () => browser.evaluate<Array<{ work_id: string; relation: string }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/related?kind=pages_document&id=' + ${JSON.stringify(page.id)}, { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
   // What the model was asked, as text: the Host names the object a round is about as 「正在看的对象：…」.
   const asked = (index: number) => JSON.stringify(model.requests[index] ?? null);
-  // As a person sends: words typed into the input, then Enter.
+  // As a person sends: words typed into the input, then Ctrl+Enter (UIV-02).
   const send = async (words: string) => {
     await browser.evaluate("document.querySelector('[data-assistant-input]').focus()");
     await command("Input.insertText", { text: words }, sessionId);
-    for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+    for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   };
   return { ...browser, model, page, related, asked, send };
 }

@@ -224,8 +224,9 @@ function uivResize(field: UivField): void {
 function uivWatchDock(host: UivPageHost): void {
   const bar = host.document.querySelector(".workbench-bar");
   if (!(bar instanceof HTMLElement)) return;
-  const measure = () => host.document.body.style.setProperty("--uiv-dock-height", `${bar.getBoundingClientRect().height}px`);
-  new ResizeObserver(measure).observe(bar);
+  const measure = () => { const height = `${bar.getBoundingClientRect().height}px`; if (host.document.body.style.getPropertyValue("--uiv-dock-height") !== height) host.document.body.style.setProperty("--uiv-dock-height", height); };
+  let frame = 0;
+  new ResizeObserver(() => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); }); }).observe(bar);
   measure();
 }
 function uivRelease(live: UivLive, host: UivPageHost): void {
@@ -623,7 +624,7 @@ function uivBind(form: HTMLFormElement, live: UivLive, host: UivPageHost): void 
   if (field) {
     uivResize(field);
     let width = field.getBoundingClientRect().width;
-    new ResizeObserver(() => { const next = field.getBoundingClientRect().width; if (next !== width) { width = next; uivResize(field); } }).observe(field);
+    new ResizeObserver(() => { const next = field.getBoundingClientRect().width; if (next !== width) { width = next; requestAnimationFrame(() => uivResize(field)); } }).observe(field);
   }
 }
 function uivInterrupted(live: UivLive, host: UivPageHost): void {

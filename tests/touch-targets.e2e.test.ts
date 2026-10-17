@@ -198,7 +198,7 @@ const popoversScript = (floor: number) => `(async () => {
     if (!opener || !opener.isConnected) { out[name] = null; continue; }
     opener.hidden = false;
     // The strip shows while the input has focus.
-    if (button) { if (opener.matches("input")) opener.focus(); else opener.click(); }
+    if (button) { if (opener.matches("input, textarea")) opener.focus(); else opener.click(); }
     else window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: { message_id: "touch-offer", purpose: "suggest", source: { surface: "todo", title: "待办" }, text: "整理本周的待办" } }));
     await wait(300);
     const pop = document.querySelector(popover);
@@ -208,7 +208,7 @@ const popoversScript = (floor: number) => `(async () => {
       shown, missing: present.filter(selector => !controls.some(el => el.matches(selector))),
       small: controls.map(el => { const box = el.getBoundingClientRect(); return { cls: String(el.className).split(" ")[0] || el.tagName.toLowerCase(), label: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 16), w: Math.round(box.width), h: Math.round(box.height) }; }).filter(item => Math.min(item.w, item.h) < ${floor}),
     };
-    if (!pop.hidden && button) { if (opener.matches("input")) opener.blur(); else opener.click(); }
+    if (!pop.hidden && button) { if (opener.matches("input, textarea")) opener.blur(); else opener.click(); }
     await wait(120);
   }
   window.fetch = real;

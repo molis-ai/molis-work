@@ -203,7 +203,7 @@ function reachReport(browser: LayoutBrowser, selector: string, surface: string):
     const ancestors = [];
     for (let node = target.parentElement; node; node = node.parentElement) {
       const style = getComputedStyle(node), r = box(node);
-      ancestors.push({ name:node.className, overflow:style.overflowY, height:node.clientHeight, scroll:node.scrollHeight, top:node.scrollTop });
+      ancestors.push({ name:node.className, overflow:style.overflowY, height:node.clientHeight, scroll:node.scrollHeight, top:node.scrollTop, width:node.clientWidth, scrollWidth:node.scrollWidth, overflowX:style.overflowX });
       if (node.contains(root) && style.overflowY !== 'visible') { clip.top = Math.max(clip.top,r.top); clip.bottom = Math.min(clip.bottom,r.bottom); }
       if (node.contains(root) && style.overflowX !== 'visible') { clip.left = Math.max(clip.left,r.left); clip.right = Math.min(clip.right,r.right); }
     }
@@ -254,6 +254,7 @@ async function reachByTab(browser: LayoutBrowser, field: string, selectors: stri
     const focused = await browser.evaluate<string | null>(`${JSON.stringify(enabled)}.find(selector => document.activeElement.matches(selector)) || null`);
     if (focused && !visited.includes(focused)) {
       const report = await reachReport(browser,focused,surface);
+      if (!report.reachable) await captureReachability(browser, "tab-obstructed", report);
       assert.ok(report.reachable, `Tab reaches a visible, unobstructed ${focused}: ${JSON.stringify(report)}`);
       visited.push(focused);
     }

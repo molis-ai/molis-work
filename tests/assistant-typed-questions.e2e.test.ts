@@ -52,7 +52,7 @@ async function assistantAsking(t: TestContext, asked: object, done: string) {
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?openPlugin=todo" }, sessionId));
   await waitFor("document.querySelector('[data-assistant-input]')");
   await click("[data-assistant-input]"); await command("Input.insertText", { text: "约个复盘会" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
   return { ...browser, requests };
 }

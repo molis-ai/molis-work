@@ -180,7 +180,7 @@ test("W2-18-SEND-02: returning to the original project after a lost receipt and 
     const newId = created.find(work => work.work_id !== a)?.work_id; assert.ok(newId);
     await barrier.drop(first);
     await browser.waitFor("!document.querySelector('[data-assistant-send]').disabled");
-    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]').textContent"), /后来选择的材料/);
+    assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])')?.textContent"), /后来选择的材料/);
     await browser.click("[data-assistant-panel-close]");
     await browser.click(`#row-${browser.projectId}`);
     const draftState = () => browser.evaluate("({selected:document.querySelector('.chooser')?.dataset.selected,text:document.querySelector('[data-assistant-input]')?.value,current:localStorage.getItem('molis.assistant.current'),drafts:Object.fromEntries(Object.entries(localStorage).filter(([key])=>key.startsWith('molis.assistant.new-draft:')))})");
@@ -211,7 +211,7 @@ test("W2-18-SEND-02: returning to the original project after a lost receipt and 
 test("UIV-04 Assistant materials follow their work across switching, reload and a background send", { timeout: 90_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const a = await seedWork(browser, "材料工作 A"), b = await seedWork(browser, "材料工作 B");
-  const labels = () => browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]').textContent || ''");
+  const labels = () => browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])')?.textContent || ''");
   await openWork(browser, a); await putInput(browser, "相同草稿", "只属于 A 的材料");
   await openWork(browser, b); assert.doesNotMatch(await labels(), /只属于 A 的材料/);
   await putInput(browser, "相同草稿", "只属于 B 的材料");

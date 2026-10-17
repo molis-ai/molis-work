@@ -48,7 +48,7 @@
 
 ## Schedule：到点叫醒
 
-人盯着定时任务。`kind: "native"` 但有 `agent`。HTTP 走 `web-request.ts` 的 schedule handler。不要把 Coding 的 workspace-write 角色抄过来。
+人盯着定时任务。`kind: "native"` 但有 `agent`。HTTP 走 `web-request.ts` 路由表里的 schedule 条目。不要把 Coding 的 workspace-write 角色抄过来。
 
 ## Sessions / Shelf / Artifacts / Goals
 

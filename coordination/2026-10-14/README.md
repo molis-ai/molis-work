@@ -1012,3 +1012,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #691 合入前跑过全量（chain28→gate-691 全绿→df00646d8），已回情境线。W2'-2 一行计划认可（统筹 10-18 定）：`always_on` 只给内置目录的插件，外装插件带它在安装时拒绝（拒绝用例 + SECURITY-INVARIANTS 一行），SDK 解析、宿主判内置；api:update 与 CONTRACT-CHANGES 影响说明；旧 `?openPlugin=shelf` / `open.surface` 先查是否落进用户数据，有则先报、不写兜底；与 #694 合计两片在途。
 
 - 10-18 #695（交互 BL-156 Molis 半边，d90e5c9a9）审过：S-33 用网关同一份 assertCurrent、拒绝零写、BUSY 一看一试、合同只加可选输出可以；退回一处：Coding 的 roundAfterParkedAnswer 用 last-start 存档里的 actor_id（缺时退回本机人）开下一轮，改成 request.actor_id 并加不同 actor 的用例。新 head 来了加标签。
+
+- 10-18 #695 新 head 0179b100e：下一轮改用 request.actor_id、删存档 actor 与本机人退回，AC-07 用例钉住；排在 chain32（等 #693/#688 让出全量槽）。

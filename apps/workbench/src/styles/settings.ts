@@ -523,7 +523,6 @@ export const SETTINGS_STYLES = `
   .coding-settings .coding-method-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.65; padding: 12px; background: var(--nav-hover); }
   .coding-settings .mw-select { max-width: 100%; }
   .project-settings-embed-pending { margin: 0; color: var(--muted); font-size: 13px; }
-  .project-settings-hub { width: 100%; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-color: var(--line-strong) transparent; }
   .project-manager-section { padding: 16px 0 0; }
   .project-manager-section + .project-manager-section { margin-top: 4px; border-top: 0; }
   .project-manager-section h3 { margin: 0 0 12px; font-size: 13px; font-weight: var(--weight-title, 600); letter-spacing: -.01em; }

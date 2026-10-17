@@ -349,6 +349,34 @@ test("a sub-task the person put away still counts for the work that handed it ou
   } finally { release(); await f.close(); }
 });
 
+// W2-18-DELEGATION-PLACED-01: the person's own round in a finished sub-task stands on a new step under it. A round that
+// does not start ends that step again, so the part is not left "still working": its place among the limit is free and
+// its delegating work is handed back to again.
+test("W2-18-DELEGATION-PLACED-01: a round in a finished sub-task that does not start leaves no open step behind", { timeout: 60_000 }, async t => {
+  const held = Promise.withResolvers<void>();
+  const f = await delegationFixture(t, [
+    () => reply({ name: "delegate-work", input: { title: "Draft", brief: "写一段。", acceptance: "一段文字" } }),
+    () => reply(undefined, "交出去了，等它交回。"),
+  ], async round => { if (round > 0) await held.promise; return reply(undefined, `第 ${round + 1} 段文字。`); });
+  try {
+    const sent = await f.service.send({ text: "委托起草", request_id: "req-placed-refused" }, { project_ref: f.project });
+    const handedBack = (rounds: number) => until(async () => f.store.rounds(sent.work.work_id).length === rounds && (await f.service.read(sent.work.work_id)).work.state === "completed", `hand-back round ${rounds}`);
+    await handedBack(2);
+    const parent = f.store.get("web-user", sent.work.work_id), childId = f.store.delegatedBy("web-user", parent)[0]!.work_id;
+    f.flags.model = false;
+    await assert.rejects(f.service.send({ work_id: childId, text: "再改一下", request_id: "req-placed-refused-child" }, { project_ref: f.project }), /模型/);
+    f.flags.model = true;
+    const nodes = await f.adapter.collaboration!.works!.read(parent.graph_id!);
+    assert.deepEqual(nodes.filter(node => node.node_id !== "work" && !["succeeded", "failed", "cancelled"].includes(node.state)).map(node => node.node_id), [], "no step of the part is left open");
+    assert.equal(nodes.find(node => /\.r1$/.test(node.node_id))?.state, "cancelled", "the round's own step ended again");
+    // Its place is free: the limit's three parts can be handed out, all held running.
+    const delegation = f.service.delegation(parent)!;
+    for (const title of ["A", "B", "C"]) await delegation.start({ title, brief: "写一段。", acceptance: "一段文字" });
+    held.resolve();
+    await handedBack(3);
+  } finally { held.resolve(); await f.close(); }
+});
+
 test("a sub-task whose first round cannot start is not left behind: no idle orphan, and failed starts do not use up the slots", { timeout: 60_000 }, async t => {
   const f = await delegationFixture(t, [], async () => reply(undefined, "草稿。"));
   try {

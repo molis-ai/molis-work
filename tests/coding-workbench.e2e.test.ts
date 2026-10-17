@@ -148,7 +148,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await click(`[data-tab-id="${secondTab.id}"]`);
   await waitFor(`document.querySelector('${coding} [data-coding-task]').value === 'second session draft'`);
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`document.querySelectorAll('${coding} [data-coding-session]').length === 3 && document.querySelector('${coding} [data-coding-task]').value === ''`);
+  // The input clears before the asynchronously loaded session becomes current; wait for that owner too.
+  await waitFor(`document.querySelectorAll('${coding} [data-coding-session]').length === 3 && document.querySelector('${coding} [data-coding-task]').value === '' && document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession !== ${JSON.stringify(current)}`);
   const untouched = await evaluate<string>(`document.querySelector('${coding} [data-coding-session][aria-current=true]').dataset.codingSession`);
   await click(`${coding} [data-coding-new]`);
   await waitFor(`!document.querySelector('${coding} [data-coding-new]').disabled`);

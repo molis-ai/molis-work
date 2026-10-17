@@ -35,7 +35,7 @@ const materialOf = (one: ReturnType<typeof planOf>) => ({ material_id: "plan", s
 // yields to reports its own step, and the parent's wait on that step is satisfied instead of always failing. The Host's
 // board hook still bounds both: another project's board is not theirs to read, and a step they do not hold is not theirs
 // to report on.
-test("PA-08: a coordinator's yielded child reports the step it was handed and the wait is satisfied; another project's board and a step the coordinator does not hold are refused", { timeout: 60_000 }, async t => {
+test("PA-11 (slice): a coordinator's yielded child reports the step it was handed and the wait is satisfied; another project's board and a step the coordinator does not hold are refused", { timeout: 60_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-coordinator-board-"));
   const seen: Record<string, string[]> = {};
   let other = { board: "", prefix: "" }, peer = { board: "", prefix: "" }, step = "", board = "", character = "";
@@ -120,5 +120,51 @@ test("PA-08: a coordinator's yielded child reports the step it was handed and th
     const next = await host.start("prologue", { ...owner, session, directory, role_id: "coordinator", task: "NEXT_ 接着做。" } as never, authority);
     assert.equal((await ended(next.ref)).phase, "completed");
     assert.match(endedReport, /TASKBOARD_CONFLICT: \\".+\.read-readme\\" is already succeeded; it takes no further progress/, endedReport);
+  } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+// What decision A changes for the person (§6.0i): 协作 started with a confirmed plan used to be refused before it ran
+// (「当前角色未开放计划回报工具」), because the coordinator did not hold the plan's report tools. Now the round runs the
+// plan: its session holds the plan's steps and reports each as it goes.
+test("PA-09: 协作 started with a confirmed plan is not refused; its session holds the plan's steps and reports them in order", { timeout: 60_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), "molis-coordinator-plan-"));
+  const plan = { source: { artifact_id: "plan-two", version: 1 }, title: "两步", steps: [
+    { id: "step-1", title: "改 a.ts", acceptance: "a 的测试通过" }, { id: "step-2", title: "改 b.ts", acceptance: "b 的测试通过" }] };
+  let place = { board: "", prefix: "" }, turn = 0;
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+    const body = bodyOf(init), messages = JSON.stringify(body.messages);
+    const report = (id: string, state: string, note: string) => response("", { name: "board-report", input: { board: place.board, node: `${place.prefix}.${id}`, state, note, version: versionIn(messages) } });
+    turn += 1;
+    if (turn === 1) { place = placeIn(JSON.stringify(body.system)); return response("", { name: "board-read", input: { board: place.board } }); }
+    if (turn === 2) return report("step-1", "running", "开始改 a");
+    if (turn === 3) return report("step-1", "succeeded", "a 的测试通过");
+    if (turn === 4) return report("step-2", "running", "开始改 b");
+    if (turn === 5) return report("step-2", "succeeded", "b 的测试通过");
+    return response("两步都做完了。");
+  });
+  const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: root, realpath_verified: true };
+  const queue = new AgentReviewQueue();
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.coordinator-plan-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "test-only" });
+  const host = new AgentHost({ reviews: queue }); host.register(adapter);
+  try {
+    const session = await adapter.createSession({ ...owner, directory, title: "协作" });
+    const started = await host.start("prologue", { ...owner, session, directory, role_id: "coordinator", task: "按计划执行。",
+      execution_plan: plan, text_materials: [materialOf(plan)] } as never, { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [root] });
+    let done: AgentRunView;
+    for (const deadline = Date.now() + 30_000; ;) {
+      done = await adapter.read(started.ref);
+      if (["completed", "failed", "cancelled", "stopped"].includes(done.phase)) break;
+      if (Date.now() > deadline) throw new Error("timed out " + done.phase);
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.equal(done.phase, "completed", JSON.stringify(done.phase));
+    assert.ok(place.board && place.prefix, "the round was told where its plan is");
+    const nodes = done.step_board!.nodes;
+    assert.deepEqual(nodes.map(node => [node.id, node.state, node.owner?.kind]), [["step-1", "succeeded", "session"], ["step-2", "succeeded", "session"]]);
+    assert.deepEqual(nodes.map(node => node.reports.map(entry => [entry.by, entry.note])), [
+      [["本会话", "开始改 a"], ["本会话", "a 的测试通过"]],
+      [["本会话", "开始改 b"], ["本会话", "b 的测试通过"]],
+    ]);
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

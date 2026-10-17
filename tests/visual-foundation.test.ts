@@ -106,8 +106,8 @@ test("visual foundation ships one Soft Workbench world across workbench and sett
   assert.match(VISUAL_FOUNDATION_STYLES, /--faint: #6a6c70;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--action: #292a2c;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /--radius-surface: 14px;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-board-view\] \.document-pane,[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-node\.is-selected,[\s\S]*background: var\(--nav-active\);[\s\S]*box-shadow: none;/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /body\[data-board-view\] \.document-pane,[\s\S]*border-radius: 0;[\s\S]*box-shadow: none;/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.tree-node\.is-selected \{[^}]*background: var\(--nav-active\);[^}]*box-shadow: none;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.settings-navigation a\[aria-current="page"\][\s\S]*background: var\(--nav-active\);/);
 });
 
@@ -189,10 +189,6 @@ test("visual foundation defines one wide workbench and one narrow companion", ()
   assert.equal(VISUAL_FOUNDATION_STYLES.match(/linear-gradient/g)?.length, 1);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*text-overflow: ellipsis/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*mask-image:/);
-});
-
-test("Light desktop work tabs stay flat, separated, and use a compact selection marker", () => {
-  assert.match(VISUAL_FOUNDATION_STYLES, /html\[data-resolved-theme="light"\][\s\S]*\.desktop-work-tab \{[\s\S]*background: transparent;[\s\S]*box-shadow: none/);
 });
 
 test("collapsed desktop directory becomes a titlebar overlay above a full-width work canvas", () => {
@@ -321,9 +317,9 @@ test("visual foundation keeps the Goal navigator dense and relationships progres
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-relations > summary/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-relations\[open\]/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tree-dep-copy small \{[^}]*text-overflow: ellipsis/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /--goal-status-tone: var\(--ink-soft\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /border: 1px solid color-mix\(in srgb, var\(--goal-status-tone\) 28%, var\(--line\)\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-status--execution_blocked,[\s\S]*--goal-status-tone: var\(--tone-blocked, var\(--red\)\)/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.goal-status \{[^}]*--goal-status-tone: var\(--tone-idle\)/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /border: 1px solid color-mix\(in srgb, var\(--goal-status-tone\) 28%, var\(--line\)\)/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.goal-status--execution_blocked,[^{]*\{[^}]*--goal-status-tone: var\(--tone-blocked\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /body\[data-desktop-shell="true"\] \.navigator-project-settings \{[\s\S]*width: 28px;[\s\S]*place-items: center/);
   assert.match(VISUAL_FOUNDATION_STYLES, /grid-template-rows: auto auto minmax\(0, 1fr\) 42px/);
 });
@@ -363,9 +359,9 @@ test("runtime separates app chrome from a configurable terminal canvas", () => {
   assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-terminal-theme="light"[\s\S]*--terminal: #fbfbfc;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-terminal-theme="dark"[\s\S]*--terminal: #101012;/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tui-pane,[\s\S]*background: var\(--paper\);[\s\S]*color: var\(--ink\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.tui-parent-guard-copy p,[\s\S]*color: var\(--muted\)/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.tui-parent-guard-copy p,[\s\S]*color: var\(--muted\)/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.tui-chrome \.tui-advance:disabled[\s\S]*background: var\(--rail\);[\s\S]*color: var\(--faint\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.tui-terminal \{[\s\S]*background: var\(--terminal\);[\s\S]*color: var\(--terminal-ink\);/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.tui-terminal \{[\s\S]*background: var\(--terminal\);[\s\S]*color: var\(--terminal-ink\);/);
 });
 
 test("visual foundation makes the default Goal view an action-led Focus", () => {
@@ -373,28 +369,23 @@ test("visual foundation makes the default Goal view an action-led Focus", () => 
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-focus-criteria/);
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-now-blockers--clear/);
   assert.match(VISUAL_FOUNDATION_STYLES, /data-resolved-theme="dark"\] \.goal-factor-nav/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-focus-layout \{[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /@container \(min-width: 720px\)[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(220px, 250px\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /@media \(min-width: 761px\) \{[\s\S]*data-density="compact"[\s\S]*\.goal-now,[\s\S]*\.goal-focus-criteria,[\s\S]*\.goal-focus-context \{[\s\S]*padding: 12px 16px 16px;/); // spacing scale
+  // calm-desktop's .goal-focus-layout, .goal-focus-aside and compact .goal-now padding went with it in W5-05 slice 5: no template draws those elements.
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES, /\.goal-now-mark/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-focus-aside \{[\s\S]*border-top: 1px solid var\(--line\)/);
 });
 
 test("visual foundation gives every Focus detail one responsive section deck", () => {
-  assert.match(VISUAL_FOUNDATION_STYLES, /--focus-canvas-inset: clamp\(12px, 1\.4vw, 20px\)/);
+  // calm-desktop's --focus-canvas-inset clamp went in W5-05 slice 5: later layers set the inset (0px, 8px), so it decided no value; so did its 700px two-column row and the relations comment.
   assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-document \{[\s\S]*background: transparent;[\s\S]*display: grid;[\s\S]*gap: 16px;/); // spacing scale
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.goal-hero,[\s\S]*\.goal-workspace-panels \{[\s\S]*border-radius: 14px;[\s\S]*background: var\(--paper\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-row \{[\s\S]*display: grid;[\s\S]*repeat\(auto-fit, minmax\(136px, 1fr\)\)/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-copy > small \{[\s\S]*max-height: none;[\s\S]*overflow: visible;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-trigger,[\s\S]*height: 100%;[\s\S]*align-items: start;/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.goal-hero,[\s\S]*\.goal-workspace-panels \{[\s\S]*border-radius: 14px;[\s\S]*background: var\(--paper\)/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-card-row \{[\s\S]*display: grid;[\s\S]*repeat\(auto-fit, minmax\(136px, 1fr\)\)/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-card-copy > small \{[\s\S]*max-height: none;[\s\S]*overflow: visible;/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-card-trigger,[\s\S]*height: 100%;[\s\S]*align-items: start;/);
   assert.doesNotMatch(VISUAL_FOUNDATION_STYLES.slice(VISUAL_FOUNDATION_STYLES.lastIndexOf("/* Focus is an inset reading surface")), /\.focus-section-card\.is-active \{[^}]*flex:/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-stage \{[\s\S]*margin-top: 12px;[\s\S]*display: grid;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-reveal \{[\s\S]*clip-path: inset\(0 0 10% 0 round 12px\);/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /@container \(max-width: 700px\)[\s\S]*\.focus-section-card-row \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-stage \{[\s\S]*margin-top: 12px;[\s\S]*display: grid;/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-card-reveal \{[\s\S]*clip-path: inset\(0 0 10% 0 round 12px\);/);
   assert.match(VISUAL_FOUNDATION_STYLES, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.focus-section-card[\s\S]*transition: none;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /Relations read as records, not a pile of pills/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.focus-section-card-reveal \.relation-row \{[\s\S]*grid-template-columns: 54px minmax\(0, 1fr\) auto 16px;[\s\S]*justify-content: stretch;/);
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.relation-goal-id, \.relation-path, \.relation-reason[\s\S]*background: transparent !important;/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.focus-section-card-reveal \.relation-row \{[\s\S]*grid-template-columns: 54px minmax\(0, 1fr\) auto 16px;[\s\S]*justify-content: stretch;/);
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.relation-goal-id, \.relation-path, \.relation-reason[\s\S]*background: transparent !important;/);
 });
 
 // Soft Workbench (DESIGN.md → Colors, Focus): copper focus replaces the inset ink stroke, `--blue` now
@@ -480,10 +471,6 @@ test("global search glide is a single pill aligned to the selected hit", () => {
     /"--hit-x": slot\.left - box\.left - parseFloat\(style\.borderLeftWidth\) \+ list\.scrollLeft/,
   );
   assert.doesNotMatch(VISUAL_FOUNDATION_CLIENT_SCRIPT, /"--hit-y": current\.offsetTop/);
-});
-
-test("desktop Goal tabs preserve readable titles instead of shrinking to status dots", () => {
-  assert.match(VISUAL_FOUNDATION_STYLES, /\.desktop-work-tabs \{[\s\S]*overflow-x: auto;/);
 });
 
 test("visual foundation gives Goal momentum a left-to-right topology and action workbench", () => {

@@ -146,6 +146,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const gitReviews = createNodeGitReviews(options, host, runtime);
   const projectWork = createNodeProjectWork(options, host, runtime, state);
   const workGraphs = createWorkGraphs(runtime, index);
+  // A part's round that ended while the Host stopped before its step's end was written: its step ends now (§6.0n).
+  await workGraphs.reconcile();
   const { messages, waitsPort, stepBoards } = createNodeCoordination(runtime, index, state, projectWork);
   const reviews = { runtime, host, state, index, options, surfaces, projectWork };
   const pendings = createPendingPort(reviews);
@@ -192,7 +194,10 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),
     approvals,
     answerPending: answerPending({ runtime, host, state, readQuestion, index, options }),
-  }), { inference, createBuilderAgent, gitReviews, diagnostics: () => runtimeDiagnostics(runtime),
+  }), { inference, createBuilderAgent, gitReviews, diagnostics: () => {
+    const seen = runtimeDiagnostics(runtime);
+    return { ...seen, ledger_failures: [...seen.ledger_failures, ...workGraphs.failures().map((entry, at) => ({ ...entry, seq: seen.ledger_failures.length + at + 1 }))] };
+  },
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
     assertDirectoriesIdle: directoriesIdle(runtime, index), withEffect: effects.call });

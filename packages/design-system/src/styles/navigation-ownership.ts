@@ -1,5 +1,36 @@
 /** AP3 visual layer: navigation-ownership. */
-export const NAVIGATION_OWNERSHIP_STYLES = `  /* A read-only Runtime pane shows only its parent guard: no tabs, chrome, terminal or menu. */
+export const NAVIGATION_OWNERSHIP_STYLES = `  /* Runtime pane: owner and tab bars, stage, parent guard, child choices, chrome buttons, menu; settings navigation. */
+  .tui-resizer { background: var(--line); }
+  .tui-resizer:hover { background: var(--blue); }
+  .tree-resizer::after,
+  .tui-resizer::after { inset-inline: 1px; background: transparent; }
+  .tui-owner,
+  .tui-tabs { background: color-mix(in srgb, var(--paper) 96%, var(--rail)); border-color: var(--line); }
+  .tui-tab { color: var(--muted); }
+  .tui-tab.is-active { color: var(--ink); background: var(--rail); }
+  .tui-stage { background: var(--paper); }
+  .tui-parent-guard { padding: 16px 4px 16px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+  .tui-child-choices { padding-left: 24px; gap: 0; }
+  .tui-child-choice { padding: 12px 4px; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
+  .tui-child-choice:hover { border-color: var(--line-strong); background: var(--nav-hover); }
+  .tui-chrome button:not(.mw-btn) { border-color: var(--line-strong); background: var(--paper); color: var(--ink-soft); }
+  .tui-chrome button:not(.mw-btn):hover:not(:disabled) { border-color: var(--line-strong); background: var(--nav-hover); color: var(--ink); }
+  .tui-chrome button:not(.mw-btn):disabled { border-color: var(--line); background: transparent; color: var(--faint); }
+  .tui-pane[data-tui-read-only="true"] .tui-chrome { opacity: 1; }
+  .tui-chrome button:disabled,
+  .tui-chrome .tui-advance:disabled { border-color: var(--line); background: var(--rail); color: var(--faint); }
+  .tui-terminal { color: var(--terminal-ink); }
+  .tui-empty { color: var(--terminal-muted); }
+  .settings-navigation { margin: 0; padding: 32px 12px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: var(--rail); }
+  .settings-navigation a { border-radius: 6px; }
+  .settings-navigation a:hover { background: var(--nav-hover); }
+  .settings-navigation a[aria-current="page"] { color: var(--ink); background: var(--nav-active); box-shadow: none; }
+  @media (max-width: 760px) {
+    .settings-navigation { margin: 0; padding: 8px 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+    .settings-navigation a { min-height: 44px; }
+  }
+  .tui-menu { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--paper); box-shadow: var(--shadow); }
+  /* A read-only Runtime pane shows only its parent guard: no tabs, chrome, terminal or menu. */
   @media (min-width: 761px) {
     body[data-desktop-shell="true"] .tui-pane[data-tui-read-only] { grid-template-rows: 58px minmax(0, 1fr); }
     body[data-desktop-shell="true"] .tui-pane[data-tui-read-only] .tui-tabs,

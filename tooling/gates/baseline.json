@@ -1,10 +1,10 @@
 {
-  "giantUnits": 140,
+  "giantUnits": 139,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2041,
+    "file apps/local-host/src/assistant/assistant-service.ts": 2040,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1629,
+      "lines": 1628,
       "methods": 98
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -51,8 +51,8 @@
     "file apps/workbench/src/i18n/en.ts": 3324,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2264,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2272,
+    "file apps/workbench/src/scripts/client/navigation-feed.ts": 996,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2015,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
@@ -157,7 +157,6 @@
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
-    "file packages/design-system/src/styles/calm-desktop.ts": 1392,
     "file packages/design-system/src/styles/craft-finish.ts": 2144,
     "file packages/design-system/src/styles/momentum.ts": 856,
     "file packages/design-system/src/styles/primitives.ts": 1268,

@@ -140,6 +140,9 @@ test("UIV-01 三个入口画出同一作曲条，键盘、浅色深色和窄屏�
   };
   const showCoding = async () => {
     await dismissAssistantPanel();
+    // Open the menu through its real button before scrolling a row; opening it can resize the focused composer.
+    if (await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden")) await click('[data-plugin-picker-toggle]');
+    await waitFor("Math.abs(parseFloat(getComputedStyle(document.body).getPropertyValue('--dock-h'))-document.querySelector('.workbench-bar').getBoundingClientRect().height)<1");
     await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
     await waitFor("!document.querySelector('[data-coding-workbench]').hidden");
     await waitFor(`(${codingReady}) || !!document.querySelector('[data-coding-session]')?.getClientRects().length || !!document.querySelector('[data-coding-new]')?.getClientRects().length`);

@@ -301,4 +301,4 @@ body.immersive-workbench .feed-workbench .feed-capture-rule-copy :is(strong,p,sm
   ${F} .plugin-stage-list .feed-stage-entry .feed-entry-copy strong { font-size: 15px; }
   ${F} .feed-stage-item-detail .feed-detail-actions > .mw-btn { min-height: 44px; }
 }
-`;
+`.replaceAll(": ", ":").replaceAll("; ", ";");

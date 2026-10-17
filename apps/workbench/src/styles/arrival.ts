@@ -317,4 +317,4 @@ export const ARRIVAL_STYLES = String.raw`
   }
   @media(max-width:360px){.arrival-brand .mw-wordmark{display:none}}
   ${BACKGROUND_TASKS_MENU_STYLES}
-`.replace(/\n\s*/gu, " ");
+`.replaceAll(": ", ":").replaceAll("; ", ";");

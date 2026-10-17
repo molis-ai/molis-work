@@ -73,4 +73,4 @@ export const DETAIL_READING_STYLES = `
     body.immersive-workbench .session-execution-toolbar :is(input, .mw-toggle) { min-height: 44px; }
     body.immersive-workbench .session-content-body { padding: 12px 16px; }
   }
-`.replace(/\n\s*/gu, " ");
+`;

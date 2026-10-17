@@ -1349,7 +1349,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 资源不变大：`molis-work-workbench.js` 比 W3-A3a 小 19 B，`molis-work-pages-editor.js` 小 11 B；三张卡片节点视图的三段模板并成一段、编辑卡片的两个确认合成一个；删掉没有渲染方的代码（`[data-plugin-expand]` 的开合与它存的 `directoryCollapsedSections`、`.plugin-stack` 选择器与开场动画、`.topbar` 的 `data-mobile-surface`、Goal 正文里的 `.desktop-pane-header`、`.mobile-switch` 的样式），证据表在 PR 里。
   - 以后：分屏窗格的落点闪、「更多」菜单里的放进去闪，见 21.4 的 W3-A3c。
   - 验收：PICK-01（点卡片或 Enter / 空格拿起整个对象）、PICK-02（标题打开、按钮照旧、选字不拿）、PICK-03（Esc 或按在别处放下，按在浮条上不放，一次一个）、PICK-04（不在、读不到、搬走的不能拿）、PICK-05（已拿着的再拿一次换新的 context 再给出，浮条收起后回来），在 `tests/assistant-pick.test.ts`；FLASH-01（悬停或聚焦放进去时落点闪一次，正在闪不再闪，移到按钮之间再回来再闪）、FLASH-02（落点已不在：不发、不报错）、FLASH-03（拿起的结果放到光标处：先预览、确认才写入），与 PICK-01 的键盘与鼠标两条路、PICK-05（浮条 Esc 收起，再按 Enter 回来），在 `tests/context-pick-result.e2e.test.ts`。
-- 2026-10-17 W2'-1 右栏本身（分支 `context/w2p-shelf-side`，本地，等统筹排期再开 PR；分片：W2'-1 右栏本身，W2'-2 Shelf 成为第一格、「平台自带」声明、窄宽度版式、旧入口改道，W2'-3 桌面入口与文档）：
+- 2026-10-17 W2'-1 右栏本身（分支 `context/w2p-shelf-side`；分片：W2'-1 右栏本身，W2'-2 Shelf 成为第一格、「常开插件」声明（`always_on: true`）、窄宽度版式、旧入口改道，W2'-3 桌面入口与文档）：
   - 底栏右侧只剩侧栏按钮（`data-side-toggle`，提示「侧栏：Shelf、灵光、文件、浏览器、电脑与讨论」）；Shelf、灵光两个常驻按钮与 `BAR_RESIDENT_IDS` 删掉，点按钮只发 `molis:side-open` / `molis:side-close`，不再另开一套窗口状态。
   - 群聊命名直接换掉、不留别名（side-shelf §7）：面板 `id="side-panel"`，讨论框 `data-side-body="discussion"`；`data-dock-window`、`data-dock-frame`、`data-dock-toggle`、`dock-window-im` 全仓只剩历史原型与 spec 的对照记录。GLOSSARY 的 R-A10（`im` 指整个右栏）一并删掉。
   - 格的顺序由声明决定：平台格带 `order`（文件 20、浏览器 30、电脑 40、讨论 50），插件侧栏视图的 `order` 原样带进来（灵光 10，没写的 100），一起排序，不写名单。默认格是排在第一的那格；W2'-2 Shelf 声明 0 后自然成为第一格、首次打开就在它。

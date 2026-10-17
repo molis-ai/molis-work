@@ -836,3 +836,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - #669 在 merge-only 门禁上。
   - #677、#679 和 #631（手动起的）三个全量都在排队，20 个 runner 不够用，跑得慢。
   - #671→#673→#675 在 chain9 上等空位。
+- **Codex 已接手防腐线**（会话 01a130de-5470-7223-827e-b28663ee7e06，由用户在统筹会话里转达）。三个工作树用 `git worktree move` 挪到了 `/Users/yijunwang/code/molis-anti-corruption-20261017/`，head 没动（已核）：
+  - wt-todo 06b63dfd6
+  - wt-docs1026 a5d77fe4c
+  - wt-stream 4034ac8b8，分支 feature/w5-01-route-stream
+  - 方案、PR 正文也在同一目录；原 scratchpad 的路径作废。
+  - 跟这条线有关的通知都留在统筹会话里，Codex 从 Claude 界面读。

@@ -613,7 +613,8 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // the three stylesheets and the Coding bundle from the last five sizes; W5-05 slice 1 removed that allowance. T2 (AC-28, D36)
 // took the workbench script and three stylesheets from the next four; receipts 3b-2a (#667, D37–D40) took the workbench script,
 // the Coding bundle and two stylesheets from the next four; re-ask (#669, D5, D37) took Coding and the workbench script
-// from the last two sizes; W5-01 replaced that allowance.
+// from the next two sizes; receipts 3b-2b (#671, RCPT-331–333) took the script and three stylesheets from the last four;
+// W5-01 replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],

@@ -2065,6 +2065,67 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 
 - `chrome-inner-scroll.test.ts` 还断言 `body.settings-page[data-desktop-shell="true"]:is([data-settings-section="projects"], [data-settings-section="project"]) .settings-content { grid-column: 1 }`。两份设置页的 body 都写死了 `data-desktop-shell="false"`，所以这条规则从来不生效，和 W5-05 第 5 片删掉的那条是同一类。别的层里 `body.settings-page[data-desktop-shell="true"]` 开头的规则还有好几条（`> .topbar`、`.project-context`…），都是死规则，等 W5-05 删完皮肤后一并清（不在本片的范围里）。
 
+### 10.23 2026-10-17 合入与在途 PR 的独立复查（§10.22 之后：#630、#634～#646，Prologue #34、#35）
+
+对照的仍是第 1 节列的六份原文与九份补充，看法同 §10.21：门禁数字、兼容逻辑、删改的断言与调大的时限、可信身份与取消语义、改动的依据。合入的 PR 按**合入时的 head** 看。
+
+**已合入**
+
+| PR | 合入的 head | 裁决 |
+| --- | --- | --- |
+| #636（改用 Molis AI 合作源码许可） | `655ef24ad` | 用户本人的决定。根包与各包的 `license` 改成 `"SEE LICENSE IN LICENSE"`，其中 `plugin-sdk` 与 `contracts` 原来是 MIT：外部插件作者装的就是这两个包，所以许可的变化对作者可见。 |
+| #640（归档许可 spec） | `5ef9d6217` | 有依据。只改 `specs/README.md` 索引和归档 spec 的状态句。 |
+| #633（机器槽位的饿死，本线） | `63d102824` | 有依据，说明见 §10.22。 |
+| #637（P4 助理：每个 Work 一块任务图，子任务是图上的一步） | `82f3ddbf2` | 有依据，有一处待修（见下）。 |
+| #641（vendored 包换成 mcp-refresh，Prologue main `e69b71cf`） | `62d14f828` | 有依据。旧包 `reference-kinds` 删掉，`.sha256`、来源记录、`patch-history.json`、`SECURITY-INVARIANTS.md` 与 `workspace-packages.mjs` 同步。 |
+| #642（Companion 用例的假宿主） | `e3518507c` | 有依据。只改 fixture 一行：假宿主像没有任务图的宿主那样回答 `agent.collaboration.await.v1`（`agent.capability_unavailable`），Coding 的唤醒循环在那里结束，不再在拍下输出之后重试。断言不变，产品代码不动。 |
+| #630（W5-05 第 4 片，本线） | `77cbbaa17` | 有依据，记录见 §W4-12。统筹审过最后的 head 并跑了全量。按 squash 合入。 |
+| #638（T2：引用题按名称找对象） | `86b77ad25` | 有依据（见下）。 |
+| #639（回执 C1：排着的补充显示在 Coding 对话末尾） | `7b3fd68a6` | 有依据。断言只加：RC-18 的单测、e2e，以及恢复读里的 `queued_inputs`。`baseline.json` 只降（插件包名在包外被点名的文件少 2 个）。`coding.js` 降 37,805 B。 |
+| #644（采用 SDK 的等待；工作图的接续只认领一次） | `5f078dae9` | 有依据。vendored 包换成 `app-tools-waits`（Prologue main `86be9891`，#35）：来源记录、`patch-history.json`、`SECURITY-INVARIANTS.md` S-13 同步。P4 工作图的绑定原来每轮用新随机键，等待满足后旧接续一直可认领，宿主会反复接续；现在复用 `eligibleContinuation`，PA-23 改成在项目图和工作图上各跑一遍。活动列表不显示 `board-wait` 这个工具原名，依据见采用 spec §6.0l。 |
+| #645（记忆整理用例的假时钟） | `fba03a953` | 有依据。原来钉的是固定日期 2027-01-15。到 2026-10-17 这一天，它离条目的写入时间已经不到 90 天，用例就红了。现在改成从条目自己的写入时间往后推 91 天，「90 天没用过的自动记忆关掉」这条断言的含义不变。 |
+| #646（Linux 探针用例等 pid 本身） | `daeccec3b` | 有依据。pid 文件写了一半时读到的是空串，读成 0 就会指向本进程组；现在读不到正整数就不算，并加了一条断言：用例确实写下了它起的进程的 pid。 |
+
+#637 的细节：
+- 依据：采用 spec §6.0k，统筹 10-17 定的五条，其中第 1、4 条由用户在弹窗里定。
+- 存量：子 Work 的 `delegated_by` 从 `{ work_id, … }` 改成图与步骤，`follow_ups` 删掉、改从图上数。旧形状不读；按用户 10-17 第 4 条，由 A4 合入前的一次性脚本改；真实 Home 在用户同意前不碰。这符合「只认现行取值、存量由维护改」。
+- 公开视图 `AssistantWork.delegated_by` 不变，`work_id` 从图推出来。
+- 合同：`AgentCollaborationPort` 加可选的 `works`，加两个类型，API 快照已刷新。
+- 门禁：`baseline.json` 只降（`assistant-service.ts` 2,058→2,054 行，类 1,643→1,640 行，脚本常量 130→129）。
+- 断言只加不放宽：WG-01～04，是新加的四组断言；原来对子 Work 自己 `follow_ups` 的断言，改成对父工作看板上的计数。
+- 人结束一步时，`actor_id` 取服务自己的 `actorId`，不从输入读。
+- **待修（已交统筹转采用线）**：用户在一个已交回的子任务里再发一轮时，`assistant-service.ts:1514` 先 `delegations.place(work)`，在图上加一步 `<part>.rN`，然后才 `assertSendCurrent` 和 `host.start`。如果这一轮没开起来（被后一次发送取代、Character 版本被拒、没有模型），catch 分支不结束这一步。于是图上这个子任务一直「还在做」：父工作不再自动交回，它一直占一个并行名额，`follow_up` 也被拒，直到用户在里面成功跑一轮。以前判断「还在做」看的是 run 的状态，一轮没开起来就不算。委派时第一轮起不来的情况，`delegate` 的 catch 会结束那一步，没问题。
+
+#638 的细节：
+- 依据：交互 spec D36、AC-28。引用题不再由卡片列出候选，改成人输入名称、经 `search.references` 搜问题要的那几类对象。
+- 删掉的断言都有替代，属于有依据的行为变化。
+  - 「卡片上不出现问题没要的那类候选」改由 S-26 的新用例证明：搜索只给问题要的那一类。
+  - 「提交了别的种类」原来报 `kind-not-allowed`。现在由宿主在答案交出去之前拒绝，模型什么都收不到。页面传来的标签不会进答案，进答案的是对象主人此刻给的标签。
+  - `SECURITY-INVARIANTS.md` S-26 和它的拒绝用例同一个 PR 改了。
+- `coding.control-run` 升到 v5（值可以是选中的对象），v1～v4 都被拒，符合 `CONTRACT-CHANGES.md`。
+- 页面资源：`page-assets.mjs` 加了一次性的 `APPROVED_CEILINGS`，钉在合并基点 `aabf597d` 的准确数字上（workbench.js +4,090，workbench.css 与 arrival.css 各 +1,344，settings.css +19）。用户 10-17 批准、由统筹转达，做法同 3c（#541、#584、#611）。按注释，下一次改这个门禁时删掉。
+- 和第 5 片的交集：两边改 `page-assets.json` 的同一几行，后合的那个并 main 以后按实测重钉（统筹定的顺序）。
+
+**Prologue**
+
+| PR | 裁决 |
+| --- | --- |
+| #35（App-tools 的只读外部等待） | 有依据。只对绑定了当前持有节点的顶层 App-tools 运行开放 `board-wait`，只认 App 的只读外部检查器。命令、信封、节点和待答问题这几种条件，在读目标之前就拒掉。没有新的等待循环和存储。Molis 经 #644 接入。 |
+| #34（MCP 在现有连接上刷新能力） | 有依据。`Runtime.refreshMcp` 只在还连着、还是同一条连接时用完整的新快照替换，失败或晚到的保留上一份；调用改按注册表里当前的工具形状核对，刷新后旧形状或已去掉的工具在发出前被拒，只变严。Molis 经 #641 的包接入。 |
+
+**在途**
+
+- #634（半途的一步不再让下一次读错事实）：统筹评审之外我加了两条，已由统筹转给作者。① 一个打不开的库会挡住之后每个项目的调度器（统筹定为必修）。② 孤儿对象移回失败时不留记录，建议带 `cause` 记一笔。
+- #629、#631 见 §10.22。
+- #637 那处待修的：统筹在 main 上核过，属实，已交采用线单开小修复 PR（排在 A2 前面，带上那条用例）。写这份记录时这个 PR 还没开。
+- #643（回执 D1）新加 BL-153：affected-tests 漏选读合同字段的用例。W5-05 第 4 片撞上的「按选择器断言样式表的用例选不到」是同一类，统筹定合进 BL-153，第 5 片在 #643 合入后补上，不另开一行。
+
+**组合效果**
+
+- #637 与 #632 都改 `horizontal/agent-host` 的协作口：#632 加 `revise`，#637 在同一个对象上加 `works`。合入顺序是 #632 先，#637 的 head 包含它。
+- #641 与 #644 在同一天先后换了两次 vendored 包（mcp-refresh，再换 app-tools-waits），每次都删了旧包、补了来源记录。#629 的全量要在 #644 的包上跑。
+- #637 与 #644 都改 `prologue-work-graphs.ts`：#644 补上了 #637 漏掉的接续请求键。#637 那处 `place` 的待修与它无关，还开着。
+
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 
 用户更正：上一轮逻辑复查只查了 Goal 的完成规则与写进 Goal 的管理门。本轮按事实主人分 8 个区（插件基座、动作服务与授权、成果库/放置/上下文账本、搜索/记忆/助理、个人插件、文稿与数据插件、工作流插件、Coding/创作台/炼金术士），只读查逻辑缺陷，每区一个对抗核验者逐条复现或驳回（复现脚本在会话临时目录 `logic-review/`）。

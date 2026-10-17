@@ -40,7 +40,6 @@ export interface AssistantBackgroundJob {
     work_id: string;
     title: string;
     state: "running" | "completed" | "failed" | "unknown";
-    last_state?: string;
     started_at: string;
     ended_at?: string;
     card_id?: string;
@@ -558,6 +557,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     materials?: AssistantMaterial[];
     written_by?: "page";
     target?: "answer" | "steer";
+    reask?: AgentQuestionReask;
     request_id: string;
 }
 
@@ -714,6 +714,7 @@ export interface AssistantWorkView {
         message: string;
         action?: string;
     };
+    queued_inputs?: AgentQueuedInput[];
 }
 
 export declare const servicesAssistantContract: {

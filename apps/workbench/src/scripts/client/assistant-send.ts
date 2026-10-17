@@ -10,6 +10,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     if (index >= 0) works[index] = work; else works.unshift(work);
     paintList(); drawTabs();
   };
+  // 「请 AI 重新问」 on a closed question: the page names only the question; the Host writes the round and reads the draft (D5).
+  const reaskQuestion = (work, round, question) => api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(),
+    written_by: "page", reask: { run_id: round.run_id, pending_id: question.pending_id } }).then(reload).then(poll, showError);
   compose.addEventListener("submit", async (event) => {
     event.preventDefault();
     const text = String(input.value || "").trim();
@@ -88,7 +91,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * Coding shows): what the runtime's record says, and apart from it what the AI says. It changes in place and says each
  * change once on the page's status region. Words the Host wrote are the Host's notice. From it the person takes back a
  * supplement the round has not put in the context (the work's control), or sends a correction naming it (Send with
- * `about`; the receipt's key is its request id, so words resent after a lost answer count once).
+ * `about`; the receipt's key is its request id, so words resent after a lost answer count once). After the rounds, the shared
+ * tray lists what is still open (§4.4, stage 3b-2c): what waits in the work's session, read only while no round is live
+ * (`queued_inputs`), and what the latest round leaves open; one waiting is taken back through the same control.
  *
  * While the round waits on its one free-text question (the Host marks it `from_composer`: specs/ai-interaction-experience D34), the composer shows what the next Send does, with the default on
  * the chip: answer the question, or add to the round. One click switches it; the Host never decides it. The interaction
@@ -123,5 +128,10 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
     },
     /** What the next Send does while the chip shows; nothing otherwise (the words go to the round as a supplement). */
     target: () => chip.hidden ? undefined : choice,
+    /** What is still open in the work, after its rounds (the tray); none when nothing is. Its queue is left out when not read. */
+    tray(thread, put, view) {
+      const round = view?.rounds.at(-1), tray = round ? shared.tray(thread, view.queued_inputs, round, act(round)) : null;
+      if (tray) put(tray); else thread.querySelector(":scope > .mw-tray")?.remove();
+    },
   };
 }`;

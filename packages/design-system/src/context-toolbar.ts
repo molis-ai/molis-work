@@ -11,7 +11,7 @@ import { FLOATING_CLIENT_SOURCE } from "./floating-source.js";
  *
  * `host`: `parent` (where it is drawn; default the body), `translate`, `width()` (the room it has, default the window), `inset`
  * ({ top, bottom } of fixed chrome it must not sit under), and the choices it reports: `choose(key)`, `assistant()` (hand what is in hand to the Assistant),
- * `dismiss(reason)`, `hold({ interacting, pinned })` (the pointer or focus entered or left it, with the keys under them), `settled()` (the pointer and
+ * `dismiss(reason)`, `hold({ interacting, pinned })` (the pointer or focus entered or left it or moved between its parts, with the keys under them), `settled()` (the pointer and
  * focus are off it again, after a newer view may have been held back). An anchor's `rect` may be a function, read at every placement.
  * `show(view)`: `{ context_id, anchor: { rect, placement? }, touch?, actions: [{ key, label, badge?, emphasis?, hint? }],
  * more: [{ title, items: [{ key, label, note?, disabled? }] }], assistant?: boolean, basis?: { text, title?, state? } }`.
@@ -167,7 +167,7 @@ list[e.key === "Home" ? 0 : e.key === "End" ? list.length - 1 : (at + (/Left|Up/
 root.addEventListener("mousedown", (e) => e.preventDefault());
 root.addEventListener("keydown", (e) => keys(e, root));
 root.addEventListener("pointerenter", hold); root.addEventListener("pointerleave", () => { hold(); release(); });
-root.addEventListener("pointerover", (e) => { if (e.target.closest("[data-key]")) hold(); });
+root.addEventListener("pointerover", hold);
 root.addEventListener("focusin", (e) => { hold(); const from = e.relatedTarget; if (from instanceof HTMLElement && from.isConnected && !root.contains(from) && !(menu && menu.contains(from))) back = from; });
 root.addEventListener("focusout", (e) => { if (!root.contains(e.relatedTarget) && !(menu && menu.contains(e.relatedTarget))) setTimeout(() => { hold(); release(); }); });
 doc.addEventListener("pointerdown", (e) => {

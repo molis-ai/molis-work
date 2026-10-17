@@ -1,10 +1,12 @@
 /// <reference lib="dom" />
-import type { AgentInputModelClaim, AgentInputQuestion, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { AgentInputImpact, AgentInputKind, AgentInputModelClaim, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { compactScript } from "./compact-script.js";
 
 /** What the receipt reads of a run-view turn (`AgentTurnView`) and its round: the round's run id and the questions it waits on. */
 export interface InputReceiptTurn { turn_id: string; kind: string; text: string; steer?: AgentTurnSteer }
 export interface InputReceiptRound { run_id?: string; awaiting_input?: readonly unknown[] }
+/** What the tray reads of an input waiting in the session for the next round (`AgentQueuedInput`). */
+export interface InputReceiptQueued { input_id: string; text: string }
 /**
  * What the page that sent a supplement lets the person do from its receipt (stage 3b-2a). Each resolves to the words the
  * page says once (or nothing), or throws with them; the page reads its round again afterwards.
@@ -22,7 +24,30 @@ export interface InputReceipts {
    * and so does a correction being written in it. Without `act` it only shows.
    */
   line(turn: InputReceiptTurn, round?: InputReceiptRound, act?: InputReceiptActions): HTMLElement | null;
+  /**
+   * 「N 条还没处理完」 (stage 3b-2b): what waits in the session for the next round, and what the latest round's ledger
+   * leaves open, drawn from the receipts the page has drawn; null when nothing is open. `owner` is the container that
+   * draws it: each one keeps its own element across repaints, so an open tray stays open. `queued` undefined: the
+   * session's queue was not read this time (a round is live), so the tray says nothing about it, not that it is empty.
+   */
+  tray(owner: Element, queued: readonly InputReceiptQueued[] | undefined, round?: InputReceiptRound, act?: Pick<InputReceiptActions, "withdraw">): HTMLElement | null;
 }
+
+/**
+ * The words for the values on the ledger and in the model's statement, one table for every place that says them: the receipt
+ * (handed to the page program with it) and Coding's report (BL-158). Each set is the contract's closed set, read as it is.
+ */
+export const RECEIPT_WORDS = {
+  FACT: { received: "已送达", applied: "已放进上下文，等 AI 回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" },
+  TREATMENT: { "apply-now": "立即影响当前这一步", "later-step": "留到后面某一步", "new-task": "作为新任务", "needs-clarification": "需要你澄清", "not-adopted": "暂不采纳", answered: "已在回复里回答", noted: "记下，不改变执行", merged: "与另一条一起处理" },
+  KIND: { supplement: "补充", correction: "纠正", constraint: "约束", request: "新需求", question: "提问" },
+  IMPACT: { objective: "目标", scope: "范围", priority: "优先级", approach: "实现方案", acceptance: "验收条件", outputs: "已有成果", constraint: "约束" },
+  TARGET: { input: "另一条补充", "app-ref": "应用里的对象", todo: "这一轮的待办", pending: "一个问题", "board-node": "计划的一步" },
+  QUESTION: { open: "等你回答", settled: "已回答", expired: "已过期", cancelled: "已取消", unresolved: "这一轮结束时还没回答" },
+} satisfies {
+  FACT: Record<AgentTurnSteer["state"], string>; TREATMENT: Record<AgentInputTreatment, string>; KIND: Record<AgentInputKind, string>;
+  IMPACT: Record<AgentInputImpact, string>; TARGET: Record<AgentInputTarget["kind"], string>; QUESTION: Record<AgentInputQuestion["state"], string>;
+};
 
 /**
  * One receipt for every conversation that takes supplements: Coding's bubble and the Assistant's thread
@@ -43,14 +68,11 @@ export interface InputReceipts {
  * it yet (`received`), and offers a correction to any it has not taken back: a few phrases fill an editable
  * sentence, and what is sent is the person's own words with `about` naming this input. Nothing is kept in Molis: the
  * original's 「你改为」 and the correction's 「纠正：针对」 are read from the corrections' `about` on the ledger.
+ *
+ * The tray of what is still open is `createInputTray`, made from these receipts' own pieces.
  */
-export function createInputReceipts(L: (text: string) => string): InputReceipts {
-  const FACT: Record<string, string> = { received: "已送达", applied: "已放进上下文，等 AI 回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" };
-  const TREATMENT: Record<string, string> = { "apply-now": "立即影响当前这一步", "later-step": "留到后面某一步", "new-task": "作为新任务", "needs-clarification": "需要你澄清", "not-adopted": "暂不采纳", answered: "已在回复里回答", noted: "记下，不改变执行", merged: "与另一条一起处理" };
-  const KIND: Record<string, string> = { supplement: "补充", correction: "纠正", constraint: "约束", request: "新需求", question: "提问" };
-  const IMPACT: Record<string, string> = { objective: "目标", scope: "范围", priority: "优先级", approach: "实现方案", acceptance: "验收条件", outputs: "已有成果", constraint: "约束" };
-  const TARGET: Record<string, string> = { input: "另一条补充", "app-ref": "应用里的对象", todo: "这一轮的待办", pending: "一个问题", "board-node": "计划的一步" };
-  const QUESTION: Record<string, string> = { open: "等你回答", settled: "已回答", expired: "已过期", cancelled: "已取消", unresolved: "这一轮结束时还没回答" };
+export function createInputReceipts(L: (text: string) => string, tray: (parts: InputTrayParts) => InputReceipts["tray"], words: typeof RECEIPT_WORDS): InputReceipts {
+  const { FACT, TREATMENT, KIND, IMPACT, TARGET, QUESTION } = words;
   type Shown = { root: HTMLDetailsElement; said: string; turn: InputReceiptTurn; round?: InputReceiptRound; act?: InputReceiptActions; form?: HTMLFormElement; problem?: string; fix?: { key: string; text: string } };
   const shown = new Map<string, Shown>(), byInput = new Map<string, string>(), fixes = new Map<string, string[]>();
   let live: HTMLElement | null = null, pending: string[] = [];
@@ -67,12 +89,14 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
   const row = (list: HTMLElement, term: string, value: string) => { list.append(make("dt", "", L(term)), make("dd", "", value)); };
   const quote = (text: string) => text.length > 12 ? text.slice(0, 12) + "…" : text;
   const of = (inputId: string) => shown.get(byInput.get(inputId) ?? "");
+  /** Both ends of a correction, as drawn: the input this one corrects, and the latest one correcting it. */
+  const ends = (steer: AgentTurnSteer) => [of(steer.about ?? ""), of(fixes.get(steer.id)?.at(-1) ?? "")] as const;
   const button = (cls: string, text: string, click: () => void) => {
     const node = make("button", "mw-btn mw-btn--sm " + cls, text); node.type = "button"; node.addEventListener("click", click); return node;
   };
   const reveal = (entry: Shown | undefined) => { if (!entry) return; entry.root.open = true; entry.root.scrollIntoView({ block: "nearest" }); entry.root.querySelector("summary")?.focus(); };
-  const treatment = (claim: AgentInputModelClaim) => L(TREATMENT[claim.treatment] ?? claim.treatment);
-  const impacts = (claim: AgentInputModelClaim) => claim.impacts.map(one => L(IMPACT[one] ?? one)).join(L("、"));
+  const treatment = (claim: AgentInputModelClaim) => L(TREATMENT[claim.treatment]);
+  const impacts = (claim: AgentInputModelClaim) => claim.impacts.map(one => L(IMPACT[one])).join(L("、"));
   const claimLine = (claim: AgentInputModelClaim) => treatment(claim) + (claim.impacts.length ? L(" · 影响") + impacts(claim) : "");
   const asking = (questions: readonly AgentInputQuestion[]) => {
     const open = questions.filter(one => one.state === "open").length;
@@ -81,14 +105,14 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
   const body = (steer: AgentTurnSteer) => {
     const part = make("div", "mw-receipt__body"), facts = make("dl", "mw-receipt__facts");
     part.append(make("p", "mw-receipt__note", L("读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。")), facts);
-    row(facts, "运行记录", L(FACT[steer.state] ?? FACT.received) + L(" · 输入 ") + steer.id);
-    for (const [index, question] of (steer.questions ?? []).entries()) row(facts, index ? "" : "为它问的问题", L(QUESTION[question.state] ?? question.state) + L(" · 问题 ") + question.pending_id);
+    row(facts, "运行记录", L(FACT[steer.state]) + L(" · 输入 ") + steer.id);
+    for (const [index, question] of (steer.questions ?? []).entries()) row(facts, index ? "" : "为它问的问题", L(QUESTION[question.state]) + L(" · 问题 ") + question.pending_id);
     const claim = steer.model_claim;
     if (!claim) return part;
     const group = make("div", "mw-receipt__claimed"), said = make("dl", "");
     group.append(make("p", "mw-receipt__who", L("AI 自己说的，Molis 没有核对")), said);
-    row(said, "怎么处理", (claim.kind ? L(KIND[claim.kind] ?? claim.kind) + L(" · ") : "") + treatment(claim));
-    if (claim.targets.length) row(said, "指向", claim.targets.map(target => L(TARGET[target.kind] ?? target.kind) + " " + target.id).join(L("、")));
+    row(said, "怎么处理", (claim.kind ? L(KIND[claim.kind]) + L(" · ") : "") + treatment(claim));
+    if (claim.targets.length) row(said, "指向", claim.targets.map(target => L(TARGET[target.kind]) + " " + target.id).join(L("、")));
     if (claim.impacts.length) row(said, "说会改变", impacts(claim));
     if (claim.note) row(said, "AI 的原话", L("“") + claim.note + L("”"));
     row(said, "出处", (claim.revisions > 1 ? L("说明过 ") + claim.revisions + L(" 次，以最新一次为准") : L("说明过 1 次")) + (claim.tool_call_id ? L(" · 工具调用 ") + claim.tool_call_id : ""));
@@ -97,7 +121,7 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
   };
   const acts = (entry: Shown, part: HTMLElement) => {
     const steer = entry.turn.steer!, act = entry.act;
-    const about = steer.about ? of(steer.about) : undefined, latest = of((fixes.get(steer.id) ?? []).at(-1) ?? "");
+    const [about, latest] = ends(steer);
     const links = make("div", "mw-receipt__acts");
     if (about) links.append(button("mw-btn--link", L("看原来那条"), () => reveal(about)));
     if (latest) links.append(button("mw-btn--link", L("看更正"), () => reveal(latest)));
@@ -149,9 +173,9 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
   const draw = (entry: Shown, force = false) => {
     const { turn, round, root } = entry, steer = turn.steer!;
     const waits = (round?.awaiting_input ?? []).length > 0 && (steer.state === "received" || steer.state === "applied");
-    const fact = L(waits ? "已补充到这一轮；问题仍在等你回答" : FACT[steer.state] ?? FACT.received);
+    const fact = L(waits ? "已补充到这一轮；问题仍在等你回答" : FACT[steer.state]);
     const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
-    const about = steer.about ? of(steer.about) : undefined, fixed = of((fixes.get(steer.id) ?? []).at(-1) ?? "");
+    const [about, fixed] = ends(steer);
     const link = steer.about ? L("纠正：针对") + (about ? L("「") + quote(about.turn.text) + L("」") : L("更早的一条")) : fixed ? L("你改为：「") + quote(fixed.turn.text) + L("」") : "";
     const key = JSON.stringify([fact, claim, ask, steer, link, Boolean(entry.act)]), before = entry.said ? JSON.parse(entry.said) as string[] : null;
     if (!force && entry.said === key) return;
@@ -176,7 +200,9 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
     }
     entry.said = key;
   };
+  const latest = () => [...shown].filter(([id, entry]) => byInput.get(entry.turn.steer!.id) === id).map(([, entry]) => ({ turn: entry.turn, round: entry.round, open: () => reveal(entry) }));
   return {
+    tray: tray({ L, say, make, button, quote, latest }),
     line(turn, round, act) {
       const steer = turn.steer;
       if (!steer) return null;
@@ -195,8 +221,86 @@ export function createInputReceipts(L: (text: string) => string): InputReceipts 
   };
 }
 
+/** What the tray borrows from the receipts: the same small helpers, and the latest drawing of each input with a way to open it. */
+export interface InputTrayParts {
+  L(text: string): string;
+  say(words: string): void;
+  make<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text?: string): HTMLElementTagNameMap[K];
+  button(cls: string, text: string, click: () => void): HTMLButtonElement;
+  quote(text: string): string;
+  latest(): Array<{ turn: InputReceiptTurn; round?: InputReceiptRound; open(): void }>;
+}
+
+/**
+ * 「N 条还没处理完」 (§4.4, D37, D38; stage 3b-2b), for Coding and the Assistant alike. It lists only what the ledger has:
+ * what waits in the session for the next round, which can be taken back one by one before it starts; and from the latest
+ * round, what the AI read with no word on how it handles it, what it says it does not adopt yet or needs you to clarify
+ * (its own words, marked so), and what a question asked about it still waits on. Each item opens its receipt; its count is
+ * said once when it changes, never on the first paint.
+ */
+export function createInputTray({ L, say, make, button, quote, latest }: InputTrayParts): InputReceipts["tray"] {
+  const GROUPS = ["排着，下一轮开始时带上", "AI 读到了，没说怎么处理", "AI 说暂不采纳或需要你澄清", "为它问的问题还没回答"];
+  // One tray per surface that draws it, so a Coding page and the Assistant beside it showing the same round each keep their own.
+  type Tray = { root: HTMLDetailsElement; said: string; run?: string; count?: number; problem?: string };
+  const trays = new WeakMap<Element, Tray>();
+  const open = (queued: readonly InputReceiptQueued[], round?: InputReceiptRound) => {
+    const drawn = latest(), groups: { text: string; id: string; open?: () => void; queued?: boolean }[][] = GROUPS.map(() => []);
+    for (const one of queued) groups[0]!.push({ text: one.text, id: one.input_id, open: drawn.find(item => item.turn.steer!.id === one.input_id)?.open, queued: true });
+    for (const { turn, round: of, open: show } of drawn) {
+      const steer = turn.steer!, claim = steer.model_claim;
+      // Only the latest round; one waiting in the session is listed with the queue.
+      if (of?.run_id !== round?.run_id || queued.some(one => one.input_id === steer.id)) continue;
+      const at = (steer.questions ?? []).some(one => one.state === "open" || one.state === "unresolved") ? 3
+        : claim && (claim.treatment === "not-adopted" || claim.treatment === "needs-clarification") ? 2 : steer.state === "read" && !claim ? 1 : -1;
+      if (at >= 0) groups[at]!.push({ text: turn.text, id: steer.id, open: show });
+    }
+    return groups;
+  };
+  const take = async (tray: Tray, inputId: string, act: Pick<InputReceiptActions, "withdraw">) => {
+    tray.problem = undefined;
+    try { say((await act.withdraw(inputId)) || L("已撤回")); }
+    catch (error) { tray.problem = (error as Error).message; say(tray.problem); }
+    tray.said = "";
+  };
+  return (owner, queued, round, act) => {
+    let tray = trays.get(owner);
+    // A new round starts afresh (the same element), so its first count is not a change in the last one's.
+    if (!tray || tray.run !== round?.run_id) trays.set(owner, tray = { root: tray?.root ?? make("details", "mw-receipt mw-tray"), said: "", run: round?.run_id });
+    const { root } = tray;
+    const groups = open(queued ?? [], round), total = groups.flat().length;
+    // With the queue unread, none open in the round is not none open at all.
+    if (tray.count !== undefined && tray.count !== total && (total || queued)) say(total ? total + L(" 条还没处理完") : L("没有还没处理完的了"));
+    tray.count = total;
+    if (!total) { tray.said = ""; return null; }
+    const key = JSON.stringify([groups.map(group => group.map(item => [item.id, item.text, Boolean(item.open)])), tray.problem, Boolean(act)]);
+    if (tray.said === key) return root;
+    const summary = make("summary", ""), part = make("div", "mw-receipt__body");
+    summary.append(make("span", "mw-receipt__fact", total + L(" 条还没处理完")));
+    for (const [index, group] of groups.entries()) {
+      if (!group.length) continue;
+      const list = make("ul", "mw-tray__list");
+      list.setAttribute("aria-label", L(GROUPS[index]!));
+      for (const item of group) {
+        const li = make("li", "mw-receipt__acts");
+        // An item with a receipt opens it; one that only waits in the session has nothing to open, so taking it back is its button.
+        li.append(item.open ? button("mw-btn--link", quote(item.text), item.open) : make("span", "", quote(item.text)));
+        if (item.queued && act) li.append(button("mw-btn--secondary", L("撤回"), () => void take(tray, item.id, act)));
+        list.append(li);
+      }
+      part.append(make("p", "mw-receipt__who", L(GROUPS[index]!)), list);
+    }
+    if (groups[2]!.length) part.append(make("p", "mw-receipt__note", L("AI 自己说的，Molis 没有核对")));
+    if (tray.problem) part.append(make("p", "mw-receipt__problem", tray.problem));
+    const focused = document.activeElement, kept = focused && root.contains(focused) ? focused.textContent : null;
+    root.replaceChildren(summary, part);
+    if (kept !== null) ([...part.querySelectorAll("button")].find(node => node.textContent === kept) ?? summary).focus();
+    tray.said = key;
+    return root;
+  };
+}
+
 /** The page program: `(translate) => InputReceipts`. The workbench makes one and hands it to the Assistant and every plugin (`host.receipts`). */
-export const INPUT_RECEIPTS_CLIENT_SCRIPT = compactScript(createInputReceipts.toString());
+export const INPUT_RECEIPTS_CLIENT_SCRIPT = compactScript("(L) => (" + createInputReceipts.toString() + ")(L, " + createInputTray.toString() + ", " + JSON.stringify(RECEIPT_WORDS) + ")");
 
 /** The receipt's words in English (served through the workbench catalog, `apps/workbench/src/i18n/en.ts`). */
 export const INPUT_RECEIPTS_EN: Readonly<Record<string, string>> = {
@@ -272,4 +376,10 @@ export const INPUT_RECEIPTS_EN: Readonly<Record<string, string>> = {
   "纠正：针对": "Corrects ",
   "更早的一条": "an earlier one",
   "你改为：「": "You changed it to \"",
+  " 条还没处理完": " still open",
+  "没有还没处理完的了": "Nothing is still open",
+  "排着，下一轮开始时带上": "Waiting; the next round takes them",
+  "AI 读到了，没说怎么处理": "Read by the AI, with no word on how it handles them",
+  "AI 说暂不采纳或需要你澄清": "The AI says it does not adopt them yet, or needs you to clarify",
+  "为它问的问题还没回答": "A question about them still waits for an answer",
 };

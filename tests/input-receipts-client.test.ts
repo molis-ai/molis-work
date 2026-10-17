@@ -55,7 +55,7 @@ function receipts() {
   let keys = 0;
   const program = vm.runInNewContext(`(${INPUT_RECEIPTS_CLIENT_SCRIPT})`, {
     document: { createElement: (tag: string) => new Node(tag), body, get activeElement() { return focus.on; } }, queueMicrotask, crypto: { randomUUID: () => `key-${++keys}` },
-  }) as (L: (text: string) => string) => { line(turn: Turn, round?: object, act?: Actions): Node | null };
+  }) as (L: (text: string) => string) => { line(turn: Turn, round?: object, act?: Actions): Node | null; tray(queued: object[] | undefined, round?: object, act?: Pick<Actions, "withdraw">): Node | null };
   const ui = program(text => text);
   const said = () => new Promise<string[]>(resolve => setTimeout(() => resolve(body.children.map(node => node.textContent)), 0));
   return { ui, body, said };
@@ -253,4 +253,96 @@ test("RCPT-324: focus on the detail's buttons survives a repaint, landing on the
   ui.line(supplement({ state: "read", model_claim: { ...claim, revisions: 3 } }), { run_id: "run-1" }, act);
   assert.equal(focus.on, root.find(node => node.tag === "summary"), "focus on the summary goes to the new summary");
   focus.on = null;
+});
+
+// Stage 3b-2b (§4.4, D37, D38): the tray lists only what the ledger has, for Coding and the Assistant alike.
+const drawn = (ui: ReturnType<typeof receipts>["ui"], act?: Actions) => {
+  const turn = (id: string, text: string, steer: Record<string, unknown>): Turn => ({ turn_id: id, kind: "user", text, steer: { id, ...steer } });
+  ui.line(turn("old-read", "上一轮读到的", { state: "read" }), { run_id: "run-1" }, act);
+  for (const [id, text, steer] of [
+    ["s-read", "顺便看注册接口", { state: "read" }], ["s-said", "改用新 fixture", { state: "read", model_claim: { ...claim, treatment: "apply-now" } }],
+    ["s-not", "把缓存也删掉", { state: "read", model_claim: { ...claim, treatment: "not-adopted" } }],
+    ["s-clarify", "换个说法", { state: "applied", model_claim: { ...claim, treatment: "needs-clarification" } }],
+    ["s-asked", "测试放哪", { state: "read", questions: [{ pending_id: "p1", state: "open" }] }],
+    ["s-left", "错误提示用中文", { state: "unread" }], ["s-back", "不要动数据库", { state: "withdrawn" }], ["s-new", "再补一句", { state: "received" }],
+  ] as const) ui.line(turn(id, text, steer), { run_id: "run-2" }, act);
+};
+// The surface that draws the tray: the Assistant's thread, or a Coding round's block.
+const here = {} as Element, beside = {} as Element;
+const groups = (tray: Node) => tray.all("mw-tray__list").map(list => [list.getAttribute("aria-label"), list.children.map(item => item.buttons().map(node => node.text))]);
+
+test("RCPT-331, D37: the tray lists only what the ledger has, from the latest round and the session's queue, each in a labelled list of buttons", () => {
+  const { ui } = receipts(), { act } = actions();
+  drawn(ui, act);
+  const tray = ui.tray(here, [{ input_id: "s-left", text: "错误提示用中文" }, { input_id: "q-late", text: "提示文案再短一点" }], { run_id: "run-2" }, act)!;
+  assert.equal(tray.all("mw-receipt__fact")[0]!.text, "6 条还没处理完");
+  assert.deepEqual(groups(tray), [
+    ["排着，下一轮开始时带上", [["错误提示用中文", "撤回"], ["撤回"]]],
+    ["AI 读到了，没说怎么处理", [["顺便看注册接口"]]],
+    ["AI 说暂不采纳或需要你澄清", [["把缓存也删掉"], ["换个说法"]]],
+    ["为它问的问题还没回答", [["测试放哪"]]],
+  ], "RCPT-331 an earlier round, a claim that adopts it, one taken back and one not yet seen are not listed; a queued one is listed once");
+  assert.match(tray.text, /提示文案再短一点/u, "one sent straight to the session has nothing to open: taking it back is its button");
+  assert.match(tray.text, /AI 说暂不采纳或需要你澄清.*AI 自己说的，Molis 没有核对/su, "RCPT-331 the AI's own words are marked as such");
+  assert.equal(ui.tray(here, [], { run_id: "run-9" }, act), null, "nothing open, no tray");
+});
+
+test("RCPT-332, D38: an item opens its receipt and moves focus there; 撤回 takes a waiting one back through the page", async () => {
+  const { ui } = receipts(), { act, calls } = actions();
+  drawn(ui, act);
+  const read = ui.line({ turn_id: "s-read", kind: "user", text: "顺便看注册接口", steer: { id: "s-read", state: "read" } }, { run_id: "run-2" }, act)!;
+  const tray = ui.tray(here, [{ input_id: "q-late", text: "提示文案再短一点" }], { run_id: "run-2" }, act)!;
+  tray.button("顺便看注册接口").click();
+  assert.equal(read.open, true, "RCPT-332 its receipt opens");
+  assert.equal(focus.on, read.find(node => node.tag === "summary"), "RCPT-332 focus moves to the receipt");
+  tray.button("撤回").click();
+  await settled();
+  assert.deepEqual(calls, [["withdraw", "q-late"]], "RCPT-332 the page's own withdraw, with the input id");
+  assert.equal(ui.tray(here, [], { run_id: "run-2" })!.buttons().some(node => node.text === "撤回"), false, "without the page's actions it only lists");
+});
+
+test("RCPT-333: the tray is one element across repaints, and its count is said once when it changes, never on the first paint", async () => {
+  const { ui, said } = receipts();
+  drawn(ui);
+  const queue = [{ input_id: "q-1", text: "补一条" }];
+  const tray = ui.tray(here, queue, { run_id: "run-2" })!;
+  tray.open = true;
+  assert.deepEqual(await said(), [], "RCPT-333 the first paint is not news");
+  assert.equal(ui.tray(here, queue.map(one => ({ ...one })), { run_id: "run-2" }), tray);
+  assert.deepEqual(await said(), [], "an unchanged repaint says nothing");
+  assert.equal(ui.tray(here, [...queue, { input_id: "q-2", text: "再补一条" }], { run_id: "run-2" }), tray, "the same element, so an open tray stays open");
+  assert.equal(tray.open, true);
+  assert.deepEqual(await said(), ["6 条还没处理完"], "RCPT-333 a changed count is said once, on the page's status region");
+});
+
+test("RCPT-334, 3b-2c: a queue that was not read is not an empty one, and a new round is not news", async () => {
+  const { ui, said } = receipts();
+  drawn(ui);
+  const tray = ui.tray(here, undefined, { run_id: "run-2" })!;
+  assert.deepEqual(groups(tray).map(([label]) => label), ["AI 读到了，没说怎么处理", "AI 说暂不采纳或需要你澄清", "为它问的问题还没回答"], "RCPT-334 not read: the tray says nothing of the queue");
+  const read = (state: Record<string, unknown>): Turn => ({ turn_id: "r-1", kind: "user", text: "改用新 fixture", steer: { id: "r-1", state: "read", ...state } });
+  ui.line(read({}), { run_id: "run-3" });
+  assert.ok(ui.tray(here, undefined, { run_id: "run-3" }));
+  ui.line(read({ model_claim: { ...claim, treatment: "apply-now" } }), { run_id: "run-3" });
+  assert.equal(ui.tray(here, undefined, { run_id: "run-3" }), null, "nothing left open in the round");
+  assert.deepEqual((await said()).filter(text => text.includes("处理完")), [], "RCPT-334 with the queue unread, none left in the round is not said as none left at all");
+  ui.line(read({}), { run_id: "run-4" });
+  assert.ok(ui.tray(here, [], { run_id: "run-4" }));
+  ui.line(read({ model_claim: { ...claim, treatment: "apply-now" } }), { run_id: "run-4" });
+  assert.equal(ui.tray(here, [], { run_id: "run-4" }), null);
+  const told = (await said()).filter(text => text.includes("处理完"));
+  assert.equal(told.at(-1)?.split("；").at(-1), "没有还没处理完的了", "read and empty: that one is said");
+  assert.doesNotMatch(told.join("；"), /\d 条还没处理完/u, "RCPT-334 the count a new round starts with is not said as a change in the last one's");
+});
+
+test("RCPT-337, 3b-2c: one tray per surface that draws it, so the Assistant and a Coding page showing the same round each keep their own", async () => {
+  const { ui, said } = receipts();
+  drawn(ui);
+  const mine = ui.tray(here, [{ input_id: "q-1", text: "补一条" }], { run_id: "run-2" })!, theirs = ui.tray(beside, undefined, { run_id: "run-2" })!;
+  assert.notEqual(mine, theirs, "RCPT-337 two surfaces, two elements");
+  assert.equal(groups(mine)[0]![0], "排着，下一轮开始时带上");
+  assert.equal(groups(theirs)[0]![0], "AI 读到了，没说怎么处理", "RCPT-337 each draws its own queue: one not read stays not read beside one that was");
+  assert.equal(ui.tray(here, [{ input_id: "q-1", text: "补一条" }], { run_id: "run-2" }), mine, "each keeps its own element across repaints");
+  assert.equal(ui.tray(beside, undefined, { run_id: "run-2" }), theirs);
+  assert.deepEqual(await said(), [], "RCPT-337 the other surface's paint is no change in this one's count, so nothing is said twice");
 });

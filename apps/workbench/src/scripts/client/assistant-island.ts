@@ -428,8 +428,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (item.state === "failed") return verb + what + " — " + L(REASONS[item.reason] || "没有完成");
     return verb + what + " — " + L("结果未确认");
   };
-  /** Every card in the conversation has one shape: what kind of moment it is (and what kind of act), what it is about,
-      then what to do and a line on what happens when you do. */
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
      shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
   const ixClient = host.interaction;
@@ -443,6 +441,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const path = "/works/" + encodeURIComponent(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() });
     let saving = 0;
     const client = drawn(card, question.html, {
+      onAction: () => reaskQuestion(work, round, question),
       // A half-written answer is kept with the work, so a reload or another tab finds it.
       onChange: () => { clearTimeout(saving); saving = setTimeout(() => api(path + "/question-draft", "POST", held()).catch(() => undefined), 600); },
       onSubmit: async () => {

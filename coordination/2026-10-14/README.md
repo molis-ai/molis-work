@@ -693,6 +693,12 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
         - 门禁：merge-only，不跑全量。#672 合入后改 base、merge main，把新 head 发给统筹。
         - 冒烟只走到设计冻结，碰不到复查提示词，所以这次没跑，正文里补了这句理由。
       - 采用线：A3 等验证跑完就开，叠在 #665 上；审的时候 `assistant_jobs` 删表要弹窗问用户。
+      - #675（采用 A3，后台作业成为工作图上的一步；fb8dc659a，叠在 #665 上）统筹审过，退回三处：
+        - ① `said` 是从等待 note 的措辞（「」回答 」）里解析出来的，不行，推荐去掉；
+        - ② `started_at` 两样都没有时会写成 1970；
+        - ③ `#follower` 只扫最近 500 项工作，应该从 node id 里切出 work_id 直接取。
+        - 建议：启动时重放所有已结束的作业之前，先用 dedupe 键查通知。
+        - **用户 10-17 弹窗定 `assistant_jobs`：选「以后的一片」。** 加 3 号基线，维护和维护八在同一次安装里跑：先把挂在表里作业上、仍在 running 的卡片结掉，再删表。A3 不写这张表、不改基线。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

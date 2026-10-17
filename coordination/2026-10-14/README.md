@@ -620,6 +620,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
       - 手册 C1（统筹认可）：删掉 designer 提示词里的格式恳求，designer/3.7.0 → 3.8.0；验证用 studio:replay 加至少 4 组交错的 smoke。结构化输出这次做不了：MiniMax 走的是兼容 Anthropic 的协议，SDK 的登记表里这个协议没有结构化输出的字段。所以 C3 建造成本题的修正率（6/8）C1 不会改变，记为模型能力的代价，不打补丁、不进 BACKLOG，配了原生支持结构化输出的服务商再看。C1 之后做审阅提示词里的同类一句。
       - 手册线问要不要让 SDK 的 `decodeJsonOutput` 学会修没转义的内层引号。统筹定：不做。哪个引号本来在字符串里面说不准，猜错了会悄悄改掉原意，这正是用户说过不打补丁的模型能力问题；已有的重新要求格式的修正就够了。
       - AC-07 的最低要求查了：草稿还在（按 pending_id 存，重启后不变），但「请 AI 重新问」没有。不光重启，过期的情况也没做，D5 的承诺落空。统筹定：单开一片补上，两种情况一起修。走现有的开新一轮动作，原问题和草稿作为标好的材料带进去（是草稿，不是回答，也不是指令）。这一轮算本人发起的。page-assets 在同一个 PR 里抵掉，抵不掉先报统筹（字节的放宽归用户定）。译文同一个 PR 补齐。过期、重启各一个用例。顺序：AC-08 的 PR → 只读查 Prologue → 然后这一片和 BL-152 的 Prologue PR 并行。
+      - #651（W3-B3）合入 106d6163a。#659（交互 AC-08，d6864b1ce，只改测试和文档；BL-156 是新建的）：退回改一处，被拒的回答要断言确切的错误码（版本旧了、已经答过），现在 `assert.ok(refused.code)` 收什么码都能过。改完直接入队。
     - main c276ab9cb 的全量（run 39027427145，#629、#650、#648 合入之后跑的）**通过**。合入后的证据有了，三份没跑全量就合进来的 PR 都没有带出红。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。

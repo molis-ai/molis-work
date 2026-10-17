@@ -544,6 +544,7 @@ Molis Work 四条并行开发线的交接：Prologue 完整采用、AI 输入回
     - #618 全量全绿、入队。#628 全量红在 RC-09（`tests/prologue-recovery.test.ts:142`），product subset 也是这一处红：B 加了 `steer.key`，重放出来的轮次视图里多了 `key: 'send.c1'`。这是真失败，不是时间问题，已交回执线判断 key 该不该进这份视图；改期望值的话要加断言、不许放宽。防腐线复查 #631，有两条要改：产品行为写进了 design-system；DESIGN.md 366–374 的触控与密度合同被测试改了，文档却没改。**用户弹窗同意**由统筹把复查意见贴成 PR 评论（issuecomment-6229709400）。第 2 条的定法：作者二选一，由用户确认。
     - #618 合入（`0a931c978`）。统筹 10-17 定：#619 不等 #628，现在就 merge main、重量字节，两个的全量并行跑；后合的那个只因 page-assets.json 冲突，再 merge 一次 main、重量后就入队，不重跑全量（照 #536 先例）。已通知交互线：T2 只等 C2。
     - 情境线 W3-B3（分屏落点 B-6）改 page-assets.json（workbench.js 约 +1.3 KB，用死代码抵到只降），排在 T2 之后。统筹 10-17 定：窗格 postMessage 算本机安全边界，同一个 PR 里在 SECURITY-INVARIANTS 加 S-30（同源、来源窗口是 `iframe[data-pane-owner]`、令牌只认自己的框且只能用一次，覆盖全部窗格消息类型），首选不开浏览器的拒绝用例；已有窗格消息缺拒绝用例的，按安全缺陷先补。
+    - #619 merge main 后是 `a793f53df`：除 page-assets 外，diff 和审过的 head 逐行相同，已挂全量。P4-C2 是 #632（`8086f81d4`），统筹审过：revise 只给插件、schema 按种类严格、actor 从调用上下文取、先 fresh 再按版本提交，取消、撤权、跨会话的拒绝用例齐全；typed amend 删干净了；换包 reference-kinds（SHA 585909b1，patch-history 第 21 条）。已挂全量，排在 #631（jing xu 自己跑的）和 #619 之后。C2 合入后通知交互线推 T2。
 
 **10-15 起旧锁停用**：main 上的机器槽位（`scripts/machine-slot.mjs`，`docs/system/PARALLEL-DEVELOPMENT.md`）替代 `build-lock.sh`。`pnpm build` 自己拿 build 槽，`run-tests` 遇到浏览器文件拿 browser 槽，都按到达顺序排队。查看用 `node scripts/machine-slot.mjs status`，别的重活用 `node scripts/machine-slot.mjs run <build|browser> --label … -- …`。四线分支都已带上。起因：防腐的 bl140 在旧锁里循环跑浏览器用例，旧锁不排队，四个会话饿着。下面这段旧做法只留作参考。
 

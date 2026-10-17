@@ -800,3 +800,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - (b) 材料读取归平台，不做成 Jelly 的动作，这在 main 上本来就定了：`contracts/services/materials` 写明来源身份、原件、业务转换和引用规则归消费方；Host 的 `material-extraction.ts` 就是共同提取口，Shelf、Pages、onboarding、Artifacts 已经直接在用。做法是把它经插件服务（`services.materials`，在 Manifest 里声明）交给 Runtime 插件。灵光改认平台的 `material.model_required`，不再按名字认 `jelly.material.model_required`。读网页的 `readJellyMaterialSource` 有公开地址的校验，属于安全边界，也有两个插件在用，一起归平台、去掉 jelly 前缀；哪些码变、S 表哪几行要改，在方案里列清楚。不选 Jelly 动作，是因为那样灵光就得依赖 Jelly 装着并启用着，还会把跨插件的错误码耦合留下来。
 - #672（C1）合入 a1a54984c，已通知手册线：#674 的 base 改成 main 并 merge main，新 head 统筹核过后走 merge-only。#667 的全量绿了，已入队；chain4 接着给 #669 加标签。
 - #674 → f2caa8879：base 改成 main、merge main；agent-prompts.ts 改的那一行和审过的 611f494cc 逐行一致，spec 只加了 §9.5 的 48 行记录。走 merge-only 门禁（gate-674）。
+- **灵光的两个前置平台小片，方案统筹认可（10-17）。** 用户在防腐线会话里弹窗定了两件事：① 材料读取照现状归平台（第一次问时前提写错了，用户先选了「归 Jelly」，更正后重问，改选这一项）；② 只对 Manifest 显式声明 `max_body_bytes` 的路由，正文封顶从 12 MiB 提到 36,000,000，默认值不变，S-03 同步改，加一条拒绝用例。统筹另补了五条：
+  - `emit` 只交进度的载荷，`result` 和 `error` 两种行只由宿主写；单行字节和总行数各设上限；
+  - 响应头和 JSON 路由相同，Content-Type 用 `application/x-ndjson`；客户端读取流的那段代码放进 SDK，只写一份；
+  - `extract`（本机字节）和 `readSource`（联网取链接）分开声明权限；
+  - `allow_model_download` 只在人发起的调用里算数，Agent 或 MCP 调用一律当作 false；这条进 SECURITY-INVARIANTS，配拒绝用例；
+  - 两片都改 SDK，都跑全量；两片都改合同，都跑 `pnpm api:update`。
+  - 排在 W5-01 和 §10.26 之后。

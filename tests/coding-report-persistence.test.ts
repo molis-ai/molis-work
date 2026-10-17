@@ -170,11 +170,12 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
     assert.equal(res.status, 200);
     const body = saved.report.body_markdown, section = body.slice(body.indexOf("## 补充要求"), body.indexOf("## 模型答复"));
     // RCPT-341: one entry per supplement, from the ledger's state; the AI's statement is quoted as its words, never a state.
+    // The words are the shared receipt's (BL-158), so the report says each value the way the conversation does.
     assert.deepEqual(ownLines(section).filter(line => /^(补充 \d|这是|后来|AI|为它)/u.test(line)), [
-      "补充 1：AI 已读到", "后来由补充 3更正", "AI 说：作为新任务；会改变范围、验收（第 2 次说明）", "AI 的说明",
+      "补充 1：AI 已读到", "后来由补充 3更正", "AI 说：作为新任务；会改变范围、验收条件（第 2 次说明）", "AI 的说明",
       "补充 2：AI 已读到", "AI 读到了，没说怎么处理", "为它问的问题有 1 个还没回答",
-      "补充 3：已放进上下文，AI 还没读到", "这是一条更正，针对补充 1",
-      "补充 4：这一轮结束时 AI 没读到", "这是一条更正，针对更早的一条",
+      "补充 3：已放进上下文，等 AI 回应", "这是一条更正，针对补充 1",
+      "补充 4：这一轮结束时 AI 没读到，留给下一轮", "这是一条更正，针对更早的一条",
       "补充 5：已撤回",
     ]);
     assert.match(section, /「AI 说」是 AI 自己的说法，Molis 没有核对/u, "RCPT-341 the AI's words are marked as its own");

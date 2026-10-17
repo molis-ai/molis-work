@@ -1,7 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
 import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
-import type { AgentInputSend } from "./agent-inputs.js";
+import type { AgentInputSend, AgentQueuedInput } from "./agent-inputs.js";
 import type { MemoryChange, MemoryScope } from "./memory.js";
 
 /**
@@ -469,6 +469,11 @@ export interface AssistantWorkView {
   usage?: { tokens: number; rounds: number; budget_tokens: number | null; budget_of?: { work_id: string; title: string } };
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
+  /**
+   * What waits in the work's own session for its next round (specs/ai-input-receipts §4.4, D31), read only while none of its
+   * rounds is live. Absent: not read this time (a round is live, or Coding runs the work); `[]`: read, and nothing waits.
+   */
+  queued_inputs?: AgentQueuedInput[];
 }
 
 export type { AssistantRecovery } from "./assistant-recovery.js";
@@ -522,6 +527,7 @@ export interface AssistantHandover {
   mode?: string;
 }
 
+/** What the page asks of a work's latest round: pause, resume or stop it, or take back a supplement no model has seen (§4.3). */
 export type AssistantControl =
   | { kind: "pause" | "resume" | "stop" }
   | { kind: "withdraw"; run_id: string; input_id: string };

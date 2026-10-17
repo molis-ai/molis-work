@@ -1507,6 +1507,20 @@ Molis 这边：
   - 真实模型没走：这一片不改提示词，也不改工具说明。
   - 宿主中途重启以后，子任务那一步怎么对账：SDK 的重开对账照旧，Molis 这边没有单测。
 
+### 6.0l App-tools 只读外部等待的统一 SDK（2026-10-17）
+
+状态：实现及本地验证完成。用户已授权 Prologue 的等待修复推送、开 PR、检查通过后合入并更新 Molis；上游 #35 已合入。原 mcp-refresh 包的 App-tools 名单拒绝 `board-wait`；统一连接功能需要同一个 Runtime 在本人操作期间停止模型调用，并由持久接续继续原任务。本次只采用上游已合入的 SDK，包含原有 MCP refresh 与对象引用题能力；不改 Molis 的 Agent 角色、提示词、业务等待存储或真实 Home。
+
+上游合同见 [Prologue #35](https://github.com/molis-ai/prologue/pull/35) 的 `docs/slices/app-tools-waits.md`：仅绑定当前持有节点的顶层 App-tools Run 可等待 App 的只读外部检查器；命令、信封、节点和待答问题条件拒绝。沿用已有任务图、取消、权限复核与接续。公开常量新增一个工具名，参数与持久化形状不变。换包范围是 agent-host 的依赖、工作区登记、锁文件、vendor 来源与历史、来源测试及 S-13 的当前包指向；仅保留这一份 SDK。回退可由 Git 恢复上一份包及其同一组依赖文件，不引入读取兼容。
+
+验收沿用上游 ATW-01—ATW-05（`app-mode-waits.live.test.ts`、`app-mode.live.test.ts`）：真实 Node Host 的等待、重启、单次接续、拒绝和取消通过；干净安装包的公开消费者通过。Molis 侧验证 S-13（`tests/prologue-memory-boundary.test.ts`）和 agent-host 的必跑回归，执行整体构建、merge-base health、边界、版本、资源与密钥检查。真实 MiniMax 的完整只读任务在连接功能分支中继续，累计 240 次，不作为此换包已经完成的证据。
+
+集成回归发现 P4 工作图的绑定路径遗漏接续请求键：等待已满足后仍以新随机键开下一轮，旧接续一直 eligible，宿主会反复接续。该工作图绑定复用原 eligibleContinuation 查询，只在当前图、当前会话选取 SDK 请求键，交给原幂等启动；不新增等待或去重存储。PA-23 在项目图与工作图上分别验证撤权启动不消费接续、后续一轮消费接续、重开后没有 eligible 项或额外模型调用。新增工作图场景在旧实现失败、修复后通过；连接功能分支的四项真实 MCP 业务回归也已通过。
+
+新增开放的 board-wait 是持久等待的登记操作；助理工作状态已有等候投影，活动列表不再把这个工具原名显示给人。沿用现有内部控制事件的省略规则，不隐藏等待状态或失败诊断；`tests/assistant-tool-words.test.ts` 验证活动呈现，完整业务回归验证工作确实处于 waiting-input。
+
+本地验证：统一包构建、冻结离线安装、204 个相关非浏览器文件通过；补齐工作图请求键后重新整体构建，PA-23 与委派/交回三文件 18 项通过，同一修复在连接功能分支的 77 个 Agent/Prologue 及相关文件通过。merge-base health、包边界、资源预算、版本及密钥扫描随 [Molis #644](https://github.com/molis-ai/molis-work/pull/644) 核对。真实 MiniMax 只读任务仍按原诊断保留失败，不计入这些工程证据。
+
 ### 6.1 当前记录
 
 A0 执行记录（下列历史方案记录之后继续）：

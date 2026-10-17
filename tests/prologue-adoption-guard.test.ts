@@ -74,7 +74,7 @@ async function fixture(yieldIt: boolean, onFirst?: () => void) {
   return { root, requests, errors, queue, make, close };
 }
 
-test("PA-23: after a yield the Runtime starts no parent run; a revoked next round is refused before it starts and leaves the continuation where it is; the Host's next round takes it up once, and reopening asks no model", { timeout: 40_000 }, async () => {
+for (const graph of ["project", "work"] as const) test(`PA-23: after a yield on a ${graph} graph, the Host takes up a continuation once; revoked starts leave it eligible and reopening asks no model`, { timeout: 40_000 }, async () => {
   const world = await fixture(true);
   let adapter = await world.make();
   try {
@@ -83,6 +83,7 @@ test("PA-23: after a yield the Runtime starts no parent run; a revoked next roun
     const directory = { canonical_path: world.root, realpath_verified: true };
     const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [world.root] };
     const session = await adapter.createSession({ ...owner, directory, title: "P3a yield" });
+    if (graph === "work") await adapter.collaboration!.works!.open({ key: "continuation-work", session_id: session.session_id, title: "Work waiting for its child" });
     const first = await host.start("prologue", { ...owner, directory, session, role_id: "coordinator", task: "Ask one child to read README, then wait for it." }, authority);
     const ended = await terminal(adapter, first.ref, world.queue);
     assert.deepEqual(world.errors, []);

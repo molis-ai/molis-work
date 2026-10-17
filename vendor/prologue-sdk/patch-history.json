@@ -10,8 +10,8 @@
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
     "checkedOn": "2026-10-17",
-    "mainHead": "e69b71cf91fd34b737ce8744c65bfb14d54b2686",
-    "statement": "2026-10-14对当前上游main c5d35d7f1e6bc8ace6a7a60ba805045c1836aa1a 逐项用git merge-base --is-ancestor核对：commitsChecked中除08b84296与923e5a40两个已换掉的过渡包来源以外，全部是main祖先。两个过渡提交本身不在main，其功能父系保留；按完整提交号定位，不以分支名替代事实。 2026-10-15 对上游 main e51233699c1463e3c8f0a8b08658c5860c962769（collaboration 包的来源）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main e4afd1a718bd8a8629d52526b953bbe75149baa6（found-tools 包的来源，#28 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main be78f726df55d76e7ab7bd5889d4eeb89b049173（find-tools-deferral 包的来源，#30 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-16 对上游 main 4e8468ddb6eb8fd0ca48110adb77a316c7048332（parameter-branches 包的来源，#32 的合并，含 #31）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-17 对上游 main c673238e340d253f7a794133d547b9f5c34b473b（reference-kinds 包的来源，#33 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。 2026-10-17 对上游 main e69b71cf91fd34b737ce8744c65bfb14d54b2686（mcp-refresh 包的来源，#34 的合并）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先。",
+    "mainHead": "86be989137f05b3bb90ca883540c256baf58a227",
+    "statement": "2026-10-17 对上游 main 86be989137f05b3bb90ca883540c256baf58a227（Prologue #35，含 #33 与 #34）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -27,6 +27,7 @@
       "52c49cf5095e67cd62f4db9e9c1d515afa68ddd8",
       "55b0c85aed4a0cd9296a58180f99e31a419a9608",
       "6f530d5a818e0f7aecfb6322c5bfe22dbe7552ea",
+      "86be989137f05b3bb90ca883540c256baf58a227",
       "8d590818e32534880984f9e84e1efd005caa105a",
       "923e5a40e568a5df15a9a5a542d3c083c783a5e2",
       "93bbe1db280540361bf9f24be9e82589e8818e5c",
@@ -693,6 +694,14 @@
       "gitBlob": "0f219957106ce5a3330b6d787faf16c801b7968f",
       "commit": "c673238e340d253f7a794133d547b9f5c34b473b",
       "description": "上游 main `c673238e`（Prologue #33 的合并：App 可以列出对象引用题能要的种类）。2026-10-17 随 Molis #632（P4-C2）成为 main 的依赖；同日换成从上游 main `e69b71cf`（#34 的合并）打的 mcp-refresh 包；旧包和其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-mcp-refresh.tgz",
+      "bytes": 1191156,
+      "sha256": "5d1a5fcdae587a9717c71e29d7a1aba58d990244b7210b0f4984e3d937e90021",
+      "gitBlob": "eb0ca35d9b9e77ba6d528a4de17f86273fc6566b",
+      "commit": "e69b71cf91fd34b737ce8744c65bfb14d54b2686",
+      "description": "上游 main e69b71cf（Prologue #34，已有 MCP 会话重新读取能力）。2026-10-17 被包含 #35 App-tools 只读外部等待的统一包替换；旧包及其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

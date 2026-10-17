@@ -458,4 +458,10 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "没加入：助理看不到它，这项工作也不会记在它下面": "Not added: the Assistant can't see it, and this work won't be filed under it",
   "没加入": "not added",
   "这次发送带上的": "Going with this send",
+  "放进去的位置：{place}": "Where it would go: {place}",
+  "（「…{text}」之后）": " (after “…{text}”)",
+  "（替换「{text}」）": " (replacing “{text}”)",
+  "光标处": "at the cursor",
+  "选中处": "at the selection",
+  "文末": "at the end",
 };

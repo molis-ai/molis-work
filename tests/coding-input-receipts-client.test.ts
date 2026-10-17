@@ -26,7 +26,6 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, port
     document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` }, TypeError,
   }) as (ports: object) => {
     steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string, run: { turns: object[] }): Node | null;
-    waiting(list: Array<{ input_id: string; text: string }>): Node | null;
     act(id: string, run: string): { withdraw(inputId: string): Promise<string>; correct(about: string, text: string, key: string): Promise<string> };
   };
   const paths: string[] = [];
@@ -99,16 +98,13 @@ test("RC-17: after a lost answer, once the run's record shows that key, the bubb
   assert.notEqual(sent[1]!.key, key, "sent again after it arrived, the same words are a new supplement");
 });
 
-test("RC-18: what waits for the next round shows once at the end of the conversation, with its words behind the count, and stays open across repaints", () => {
+// RC-18's strip became the shared tray (D38): what waits, and the words behind its count, are tested in
+// input-receipts-client.test.ts (RCPT-331 to RCPT-333); Coding draws no list of its own.
+test("RC-18, D38: what waits for the next round is in the shared tray; Coding has no strip of its own", () => {
   const { ui } = receipts(() => taken());
-  assert.equal(ui.waiting([]), null, "nothing waits, nothing shows");
-  const list = [{ input_id: "steer-1", text: "下一轮顺便看注册接口" }, { input_id: "steer-2", text: "错误提示用中文" }];
-  const strip = ui.waiting(list)!;
-  assert.equal(strip.dataset.kind, "notice", "the Host's fact, drawn as its notes are, never as the person's words");
-  assert.deepEqual(strip.children.map(child => typeof child === "string" ? child : child.textContent), ["排着 2 条补充，下一轮开始时带上", "下一轮顺便看注册接口", "错误提示用中文"]);
-  assert.equal(ui.waiting(list.map(one => ({ ...one }))), strip, "a repaint of the same queue keeps the node, so an opened list stays open");
-  assert.notEqual(ui.waiting(list.slice(1)), strip, "a changed queue is drawn again");
-  assert.equal(ui.waiting([]), null);
+  assert.equal("waiting" in ui, false, "D38 one list, in the shared tray");
+  assert.equal(CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT.includes("coding-queued-inputs"), false);
+  assert.equal(CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT.includes("排着"), false);
 });
 
 test("RC-16: interrupting dims the reply being written and says it was dropped; nothing else is marked", async () => {

@@ -89,7 +89,7 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   await fill(`${coding} [data-coding-task]`, "下一轮顺便看注册接口");
   await click(`${coding} [data-coding-send]`);
   await waitFor(`document.querySelector('${coding} [data-coding-status]').textContent.includes('已存好，下一轮开始时带上')`, 15_000);
-  assert.equal(await evaluate<boolean>(`Boolean(document.querySelector('${coding} .coding-queued-inputs'))`), false, "read only while no round is live");
+  assert.equal(await evaluate<boolean>(`!document.querySelector('${coding} .mw-tray')?.textContent.includes('下一轮顺便看注册接口')`), true, "the queue is read only while no round is live");
 
 
   // The mode menu is the shared select menu; each choice says what it does, and interrupting says what it costs.
@@ -134,12 +134,19 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   assert.equal(await evaluate<boolean>(`[...document.querySelectorAll('${coding} .coding-turn.is-dropped')].some(node => node.textContent.includes('正在看登录流程') && node.textContent.includes('这段回复已丢掉（你打断了它）'))`), true);
   await shot("coding-send-receipt.png");
 
-  // RC-18: once the round ends, what waits for the next one sits at the end of the conversation, its words behind the count.
-  const strip = `${coding} .coding-queued-inputs[data-kind=notice]`;
-  await waitFor(`document.querySelector(${JSON.stringify(strip)})?.querySelector('summary')?.textContent === '排着 1 条补充，下一轮开始时带上'`, 20_000);
-  assert.equal(await evaluate<boolean>(`(() => { let next = document.querySelector(${JSON.stringify(strip)}).nextElementSibling; while (next) { if (next.matches('.coding-turn')) return false; next = next.nextElementSibling; } return true; })()`), true, "after every turn of the round");
-  await click(`${strip} summary`);
-  assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(strip)}).textContent`), /下一轮顺便看注册接口/u);
+  // RC-18, D38: once the round ends, what waits for the next one is in the shared tray at the end of the conversation,
+  // with what the round's ledger leaves open (RCPT-331); the old strip is gone.
+  const tray = `${coding} .mw-tray`, waiting = `${tray} ul[aria-label="排着，下一轮开始时带上"]`;
+  const listed = (list: string) => evaluate<string[]>(`[...(document.querySelector(${JSON.stringify(list)})?.children ?? [])].map(item => item.textContent)`);
+  await waitFor(`document.querySelector(${JSON.stringify(waiting)})?.children.length === 1`, 20_000);
+  assert.equal(await evaluate<boolean>(`!document.querySelector('${coding} .coding-queued-inputs')`), true, "D38 one list only");
+  assert.match(await evaluate<string>(`document.querySelector('${tray} summary').textContent`), /^\d+ 条还没处理完$/u);
+  assert.equal(await evaluate<boolean>(`(() => { let next = document.querySelector(${JSON.stringify(tray)}).nextElementSibling; while (next) { if (next.matches('.coding-turn')) return false; next = next.nextElementSibling; } return true; })()`), true, "after every turn of the round");
+  await click(`${tray} summary`);
+  assert.deepEqual(await listed(waiting), ["下一轮顺便看注册接口撤回"]);
+  // RCPT-332: an item the round read opens its receipt and takes focus there.
+  await evaluate(`[...document.querySelectorAll('${tray} button')].find(node => node.textContent.startsWith('别看旧接口了')).click()`);
+  assert.equal(await evaluate<boolean>(`(() => { const receipt = document.activeElement?.closest('.mw-receipt'); return Boolean(receipt?.open && receipt !== document.querySelector(${JSON.stringify(tray)}) && receipt.closest('.coding-turn')?.textContent.includes('/v2/login')); })()`), true);
   await shot("coding-queued-inputs.png");
 
   // RCPT-324: a correction to what the model already read is the person's words, sent naming it; after the round it waits for the next.
@@ -151,9 +158,12 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   assert.equal(await evaluate<boolean>(`${form}.querySelector('textarea') === document.activeElement`), true, "the words box has focus");
   await evaluate(`(() => { const area = ${form}.querySelector('textarea'); area.value += '登录失败时提示要说清原因'; })()`);
   await evaluate(`${form}.requestSubmit()`);
-  await waitFor(`document.querySelector(${JSON.stringify(strip)})?.querySelector('summary')?.textContent === '排着 2 条补充，下一轮开始时带上'`, 20_000);
+  await waitFor(`document.querySelector(${JSON.stringify(waiting)})?.children.length === 2`, 20_000);
   assert.equal(await evaluate<boolean>(`!${form}`), true, "sent: the form closes");
-  assert.match(await evaluate<string>(`document.querySelector(${JSON.stringify(strip)}).textContent`), /补充一句：登录失败时提示要说清原因/u);
+  assert.match((await listed(waiting)).join(" "), /补充一句：登录失败时/u);
+  // RCPT-332: one waiting in the session is taken back from the tray before the next round starts.
+  await evaluate(`[...document.querySelector(${JSON.stringify(waiting)}).children].find(item => item.textContent.startsWith('下一轮顺便看注册接口')).querySelector('button:last-child').click()`);
+  await waitFor(`document.querySelector(${JSON.stringify(waiting)})?.children.length === 1`, 20_000);
 
   // RCPT-325, RCPT-324: the next round carries the correction, and the original's receipt says what it was changed to; a
   // supplement this round has not put in the context yet is taken back from its receipt and never reaches the model.
@@ -162,6 +172,7 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   await click(`${coding} [data-coding-send]`);
   for (let i = 0; i < 600 && bodies.length <= asked; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.match(JSON.stringify(bodies[asked]?.messages ?? ""), /登录失败时提示要说清原因/u, "the correction went with the next round");
+  assert.equal(JSON.stringify(bodies.slice(asked)).includes("下一轮顺便看注册接口"), false, "RCPT-332 the one taken back from the tray did not");
   await waitFor(`${receiptOf("/v2/login")}?.querySelector('.mw-receipt__link')?.textContent === '你改为：「补充一句：登录失败时提示…」'`, 20_000);
   await waitFor(`!document.querySelector('${coding} [data-coding-stop]').hidden`, 15_000);
   await fill(`${coding} [data-coding-task]`, "顺便把日志也看一遍");

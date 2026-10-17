@@ -19,6 +19,7 @@ import { inlineMethods } from "./prologue-methods.js";
 import { projectWorkDigest, workPaths, type createProjectWork } from "./prologue-project-work.js";
 import type { createWorkGraphs } from "./prologue-work-graphs.js";
 import { withInteractionRepairLimit } from "./prologue-questions.js";
+import { roundReferenceKinds } from "./prologue-reference-kinds.js";
 import { runModelParams } from "./prologue-run-params.js";
 import { blockId, canTakeUp, collaborates, eligibleContinuation, planPrefix, readyStep, releaseStartClaim, sessionBlock } from "./prologue-collaboration.js";
 import type { PlanPlace } from "./prologue-plan-steps.js";
@@ -367,6 +368,7 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
   readonly character: { ref: ExactRef<"character"> }; readonly textResources: Array<{ ref: ExactRef<"resource">; as: "original" }>;
   readonly pinnedMemory: Awaited<ReturnType<RunDeps["platformMemory"]["refsFor"]>>;
   readonly binding: { board: string; node: string; requestKey?: string } | undefined;
+  readonly referenceKinds?: Array<{ kind: string; title: string }>;
 }): Parameters<Runtime["startAgentRun"]>[0] {
   const { session, root, business, credentialRef, childRoles, childRoots } = parts;
   const params = runModelParams(input.model, input.provenance.frozen.budget, input.provenance.frozen.reasoning_effort);
@@ -425,6 +427,8 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
       characterRef: parts.character.ref,
       ...(parts.textResources.length ? { mount: { textResources: parts.textResources } } : {}),
       ...(parts.pinnedMemory.length ? { memory: { pinned: parts.pinnedMemory, budgetChars: input.memory!.budget_chars } } : {}),
+      // This round's project's kinds replace the Runtime's built-in ones; its subagents keep them (BL-152).
+      ...(parts.referenceKinds ? { askUserReferenceKinds: parts.referenceKinds } : {}),
     },
   };
 }
@@ -552,6 +556,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const surface = await roundSurface(deps, input, index, session, mode.business);
   const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
   const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools });
+  const referenceKinds = await roundReferenceKinds(deps.options, index.owner);
   // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
   const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),
@@ -570,7 +575,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   guardRound(state, input, mode.business, input.ending_review ? { instructions: input.ending_review.prompt, protocol: input.model.protocol, endpoint: input.model.endpoint,
     model: input.model.model, credentialRef, dispatch: operation => deps.dispatchGuards.run(dispatchGuard, operation) } : undefined, actionController.signal);
   const started = await deps.dispatchGuards.run(dispatchGuard, () => runtime.startAgentRun(sdkStart(deps, input, index, {
-    session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding,
+    session, root, business: mode.business, credentialRef, childRoles, childRoots, runTools, character, textResources: materials.textResources, pinnedMemory, binding, referenceKinds,
   }))).catch(async (error: unknown) => {
     // Not accepted by the SDK: refused while the context was still being packed (the runtime creates the run only after
     // that) is a settled refusal; anything else, or a caller no longer current, takes the intent back.

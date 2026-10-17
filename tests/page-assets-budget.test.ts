@@ -616,7 +616,8 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // the workbench sheet and the workbench script from the next four; re-ask (#669, D5, D37) replaced that allowance. Re-ask
 // took Coding's bundle and the workbench script from the next two; receipts 3b-2b replaced that allowance. Receipts 3b-2b
 // (#671, RCPT-331–333) took the three stylesheets and the workbench script from the next four; receipts 3b-2c replaced that allowance.
-// Receipts 3b-2c (#687, RCPT-334–337) took the workbench script, the last one; receipts 3d-2 replaced that allowance.
+// Receipts 3b-2c (#687, RCPT-334–337) took the workbench script from the next size; W3-A3c replaced that allowance. W3-A3c
+// (#691, specs/context-program §21.6) took the workbench script from the last size; receipts 3d-2 replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -631,6 +632,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-arrival.css", 703658], ["/assets/molis-work-settings.css", 989905], ["/assets/molis-work-workbench.css", 1592688],
   ["/assets/molis-work-workbench.js", 1105153],
   ["/assets/molis-work-workbench.js", 1107936],
+  ["/assets/molis-work-workbench.js", 1108184],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

@@ -21,8 +21,8 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
-  const bodies: Array<{ messages?: unknown }> = [], held: ServerResponse[] = [], later: ServerResponse[] = [];
-  // The round's first reply keeps streaming until the person interrupts it; every later call answers at once.
+  const bodies: Array<{ messages?: unknown }> = [], held: ServerResponse[] = [], resumed: ServerResponse[] = [], later: ServerResponse[] = [];
+  // Keep the interrupted and resumed replies open until their respective UI receipts have been checked.
   const model = createServer(async (req, res) => {
     let raw = "";
     for await (const chunk of req) raw += chunk;
@@ -32,12 +32,13 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
     bodies.push(JSON.parse(raw));
     res.writeHead(200, { "content-type": "text/event-stream" });
     if (bodies.length === 1) { res.write(start + sse("content_block_delta", { index: 0, delta: { type: "text_delta", text: "正在看登录流程，" } })); held.push(res); return; }
+    if (bodies.length === 2) { resumed.push(res); return; }
     // The second round's first call waits until the test lets it answer, so a supplement can be taken back meanwhile.
     if (raw.includes("第二轮再看一遍登录") && !later.length) { later.push(res); return; }
     res.end(reply("好的，改按新接口做。"));
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
-  t.after(async () => { for (const res of [...held, ...later]) res.destroy(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
+  t.after(async () => { for (const res of [...held, ...resumed, ...later]) res.destroy(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
   const address = model.address(); assert.ok(address && typeof address !== "string");
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
   const { click, evaluate, waitFor, command, sessionId, homeDirectory } = b;
@@ -129,6 +130,10 @@ test("RC-10/RC-11/RC-13/RC-16: Coding sends a supplement with its mode, sends a 
   // Interrupting dropped the reply under way; the round goes on with the person's words, and its record shows them with a receipt.
   for (let i = 0; i < 600 && bodies.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.match(JSON.stringify(bodies[1]?.messages ?? ""), /v2\/login/u);
+  // Completion replaces the transient send status. Release it only after checking that status above,
+  // then retain the original persistent receipt, dropped reply, queue and correction assertions below.
+  assert.equal(resumed.length, 1);
+  resumed[0]!.end(reply("好的，改按新接口做。"));
   await waitFor(`[...document.querySelectorAll('${coding} .coding-turn[data-kind=user]')].some(node => node.textContent.includes('/v2/login') && node.querySelector('.mw-receipt')) && !document.querySelector('${coding} .coding-turn.is-sending')`, 20_000);
   // RC-16: the page marks the reply it showed being written as dropped; the runtime's record does not (a Prologue need).
   assert.equal(await evaluate<boolean>(`[...document.querySelectorAll('${coding} .coding-turn.is-dropped')].some(node => node.textContent.includes('正在看登录流程') && node.textContent.includes('这段回复已丢掉（你打断了它）'))`), true);

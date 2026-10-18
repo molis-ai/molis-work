@@ -15,6 +15,7 @@ import { contextualCandidates, fragmentCandidates } from "@molis-ai/molis-work-k
  * when its owner declared how it is undone, made at once; 「撤销」 is the owner's own undo, spent once, refused by the owner
  * when the Item changed since. Without an undo, as a proposal or with a field left to fill, it is a draft for a card.
  */
+const OWNER = { project: "s1", actor: "user" };
 const ports: DraftPorts = { instruction: () => "DRAFT-INSTRUCTION", screen: screenModelMaterial, today: () => "2026-10-18" };
 const PASSAGE = "下周三前完成新手引导改版，周五发给二十个老用户试用并收集反馈。";
 const focus = (context_id: string, text = PASSAGE): SurfaceFocus => ({ context_id, plugin_id: "io.molis.work.pages", activity: "selecting", granularity: "range",
@@ -38,7 +39,7 @@ test("W4-1 Q02/Q04/Q08: 记成待办 and 记下灵光 are creation entries, made
     const entries = contextualCandidates(directory, focus("c0")).filter(item => item.origin === "intake");
     const keyOf = (verb: string, at: SurfaceFocus) => contextualCandidates(directory, at).find(item => item.origin === "intake" && item.title === verb)!.key;
     assert.ok(entries.some(item => item.title === "记成待办") && entries.some(item => item.title === "记下灵光"), entries.map(item => item.title).join(" / "));
-    const create = (verb: string, at: SurfaceFocus, request: string, scope = "s1") => createChosen(scope, directory, at, undefined, keyOf(verb, at), request, { actions, ports });
+    const create = (verb: string, at: SurfaceFocus, request: string) => createChosen(OWNER, directory, at, undefined, keyOf(verb, at), request, { actions, ports });
 
     // 记下灵光: made at once from the provider's own prepare, once per request, the source named in its body.
     const spark = await create("记下灵光", focus("c1"), "req-spark");
@@ -51,15 +52,14 @@ test("W4-1 Q02/Q04/Q08: 记成待办 and 记下灵光 are creation entries, made
     // Changed since it was made: 撤销 is refused by the owner and neither discards nor changes it; the token is spent.
     const before = (await listed()).sparks.find(item => item.id === spark.subject!.id)!;
     await invoke("lingguang.update", { id: before.id, title: "改过的标题", expected_updated_at: before.updated_at });
-    await assert.rejects(undoCreated("s1", spark.undo_token!, actions), /别处修改/u);
+    await assert.rejects(undoCreated(OWNER, spark.undo_token!, actions), /别处修改/u);
     const edited = (await listed()).sparks.find(item => item.id === before.id);
     assert.equal(edited?.title, "改过的标题", "still there, as edited");
-    await assert.rejects(undoCreated("s1", spark.undo_token!, actions), (error: Error & { code?: string }) => error.code === "contextual.stale", "spent once");
+    await assert.rejects(undoCreated(OWNER, spark.undo_token!, actions), (error: Error & { code?: string }) => error.code === "contextual.stale", "spent once");
 
-    // Unchanged: 撤销 takes it out of the list (the owner keeps the record); a token of another project's pages is refused.
+    // Unchanged: 撤销 takes it out of the list (the owner keeps the record).
     const second = await create("记下灵光", focus("c2", "也许可以让新人先看一遍历史讨论"), "req-spark-2");
-    await assert.rejects(undoCreated("s2", second.undo_token!, actions), (error: Error & { code?: string }) => error.code === "contextual.stale");
-    assert.deepEqual(await undoCreated("s1", second.undo_token!, actions), { undone: true });
+    assert.deepEqual(await undoCreated(OWNER, second.undo_token!, actions), { undone: true });
     assert.equal((await listed()).sparks.some(item => item.id === second.subject!.id), false);
 
     // 记成待办: the same, by Todo's own revert.
@@ -71,10 +71,10 @@ test("W4-1 Q02/Q04/Q08: 记成待办 and 记下灵光 are creation entries, made
     assert.deepEqual(made.sources.map(source => [source.kind, source.subject?.kind, source.subject?.id]), [["material", "pages_document", "doc-1"]]);
     assert.equal((await create("记成待办", focus("c3"), "req-todo")).subject?.id, made.id, "the same request makes it once");
     await invoke("todo.items.update", { id: made.id, title: "改过的待办", expected_revision: made.revision });
-    await assert.rejects(undoCreated("s1", todo.undo_token!, actions));
+    await assert.rejects(undoCreated(OWNER, todo.undo_token!, actions));
     assert.equal((await read(made.id)).title, "改过的待办", "still there, as edited");
     const other = await create("记成待办", focus("c4", "约设计评审"), "req-todo-2");
-    await undoCreated("s1", other.undo_token!, actions);
+    await undoCreated(OWNER, other.undo_token!, actions);
     await assert.rejects(read(other.subject!.id), "Todo's revert of a creation removes the todo");
   } finally {
     await host.close();
@@ -109,7 +109,7 @@ for (const [name, entry, prepared] of [
     } };
     const at = focus("n1");
     const key = contextualCandidates(directory, at).find(item => item.origin === "intake")!.key;
-    const out = await createChosen("s1", directory, at, undefined, key, "r1", { actions, ports });
+    const out = await createChosen(OWNER, directory, at, undefined, key, "r1", { actions, ports });
     assert.deepEqual([out.created, out.undo_token, called], [false, undefined, ["notes.offers"]]);
   });
 }
@@ -123,12 +123,12 @@ test("W4-1 Q08: with an undo offered now, the entry is made at once and the undo
       : reference.capability_id === "notes.create" ? { note: { id: "n-7" } } : { ok: true };
   } };
   const at = focus("n2");
-  const out = await createChosen("s1", directory, at, undefined, contextualCandidates(directory, at).find(item => item.origin === "intake")!.key, "r2", { actions, ports });
+  const out = await createChosen(OWNER, directory, at, undefined, contextualCandidates(directory, at).find(item => item.origin === "intake")!.key, "r2", { actions, ports });
   assert.deepEqual([out.created, out.subject], [true, { kind: "note", id: "n-7" }]);
-  await undoCreated("s1", out.undo_token!, actions);
+  await undoCreated(OWNER, out.undo_token!, actions);
   assert.deepEqual(called.map(call => [call.capability_id, call.input]).slice(1), [["notes.create", { title: "一条", request_id: "r2" }], ["notes.remove", { id: "n-7" }]]);
   // Without the undo offered now (switched off, not granted), nothing runs without a card.
   const without = [directory[0]!, offers];
-  const card = await createChosen("s1", without, at, undefined, contextualCandidates(without, at).find(item => item.origin === "intake")!.key, "r3", { actions, ports });
+  const card = await createChosen(OWNER, without, at, undefined, contextualCandidates(without, at).find(item => item.origin === "intake")!.key, "r3", { actions, ports });
   assert.equal(card.created, false);
 });

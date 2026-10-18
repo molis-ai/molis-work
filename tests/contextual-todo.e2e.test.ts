@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -90,4 +91,62 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
   await evaluate(`[...${CARD("已记成待办")}.querySelectorAll('button')].find(button => button.textContent === '打开').click()`);
   await waitFor(`JSON.parse([...document.querySelectorAll('[data-assistant-context]')].map(node => node.getAttribute('data-assistant-context')).find(value => value && value.includes(${JSON.stringify(opened)})) || 'null')?.object?.id === ${JSON.stringify(opened)}`, 15_000)
     .catch(async error => { throw new Error(`${(error as Error).message}\n${await evaluate<string>("location.href + ' | ' + [...document.querySelectorAll('[data-assistant-context]')].map(node => node.getAttribute('data-assistant-context')).join(' || ')")}`); });
+});
+
+// W4-1 kept from S1 (统筹 10-18): an action without an undo still goes through a card, and a refused run of that card writes
+// nothing and leaves it as it was, ready to run again. Before W4-1 「记成待办」 showed this; it is made at once now, so Goals'
+// 「拆成目标步骤」 (a proposal, always a card) shows it here.
+test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goals 拆成目标步骤 from a real selection", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory, store } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  const pages = openPagesStore(homeDirectory);
+  const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
+  await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(SECOND)})`);
+  await evaluate(`(() => {
+    const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
+    const text = editor.querySelectorAll('p')[0].firstChild, range = document.createRange(); range.selectNodeContents(text);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
+  })()`);
+  const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
+  const WRITE = `[...document.querySelectorAll('${BAR} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;
+  await waitFor(`document.querySelector('${BAR} [data-more]')`, 8000);
+  await click(`${BAR} [data-more]`);
+  await waitFor(`Boolean(${WRITE})`);
+  await evaluate(`(() => {
+    const original = window.fetch; window.cardFetch = original; window.placedCard = null; window.refusals = 0;
+    window.fetch = async (url, options) => {
+      if (String(url).includes('/cards/') && String(url).endsWith('/run') && window.refuseRun) {
+        window.refusals++; return new Response(JSON.stringify({ error: 'fixture permission refusal' }), { status: 403, headers: { 'content-type': 'application/json' } });
+      }
+      const response = await original(url, options);
+      if (String(url).endsWith('/api/assistant/cards')) window.placedCard = { status: response.status, ...(await response.clone().json()) };
+      return response;
+    };
+    ${WRITE}.click();
+  })()`);
+  await waitFor("window.placedCard?.status === 200 && !document.querySelector('[data-assistant-panel]').hidden", 20_000);
+  const placed = await evaluate<{ work_id: string }>("window.placedCard");
+  const view = await evaluate<{ cards: Array<{ card_id: string; capability_id: string; source_object: { id: string } }> }>(
+    `fetch(document.body.dataset.routePrefix + '/api/assistant/works/' + ${JSON.stringify(placed.work_id)}, { headers: molisWorkControlHeaders() }).then(r => r.json())`);
+  const card = view.cards.find(value => value.capability_id === "goals.tree.submit")!;
+  assert.ok(card); assert.equal(card.source_object.id, page.id);
+  const proposals = () => new GoalProjectApplication(store).goalTree.listGoalTreeProposals({ project_id: projectId! }).proposals.length;
+  assert.equal(proposals(), 0, "nothing before the person runs it");
+  const run = `[data-card="${card.card_id}"] [data-ix-action="run"]`;
+  await waitFor(`document.querySelector(${JSON.stringify(run)})`);
+  const draft = await evaluate<string[]>(`[...document.querySelector('[data-card="${card.card_id}"]').querySelectorAll('input,textarea')].map(control => control.value)`);
+  await evaluate("window.refuseRun = true");
+  await click(run);
+  await waitFor(`window.refusals === 1 && !document.querySelector(${JSON.stringify(run)}).disabled`);
+  assert.deepEqual(await evaluate(`[...document.querySelector('[data-card="${card.card_id}"]').querySelectorAll('input,textarea')].map(control => control.value)`), draft, "the card is as it was");
+  assert.equal(proposals(), 0, "a refused run writes nothing");
+  await evaluate("window.refuseRun = false");
+  await click(run);
+  await waitFor(`document.querySelector('[data-card="${card.card_id}"]')?.dataset.status === 'done'`, 20_000);
+  assert.equal(proposals(), 1, "run again, it is written once");
+  assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND);
+  await evaluate("window.fetch = window.cardFetch");
 });

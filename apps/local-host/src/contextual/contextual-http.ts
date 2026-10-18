@@ -38,6 +38,8 @@ export interface ContextualHttpPorts {
   readonly homeDirectory?: string;
   /** Separates panes of different projects served by one process. */
   readonly scope: string;
+  /** The person whose authority `actions()` carries: an undo kept for them is theirs only (S-39). */
+  readonly actor_id: string;
   /** The local person's authority in this project, bound for this request. */
   actions(): ContextualActions;
   /** Whether each object is still one the person may use in this project, read from its owner now (H3); absent refuses 「放进左边」. */
@@ -184,11 +186,16 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     // A creation entry chosen on the bar: created at once when its owner declared how it is undone, else drafted for a card.
     if (route === "create") {
       const actions = ports.actions(), { focus, landing } = readJudgeRequest(body);
-      sendJson(response, 200, await whileWaited(response, async signal => createChosen(ports.scope, await actions.discover(), focus, landing,
+      sendJson(response, 200, await whileWaited(response, async signal => createChosen({ project: ports.scope, actor: ports.actor_id }, await actions.discover(), focus, landing,
         readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), { actions, ports: draftPorts(ports.homeDirectory), signal })));
       return true;
     }
-    if (route === "undo") { sendJson(response, 200, await undoCreated(ports.scope, readString(body.undo_token, "undo_token", 80), ports.actions())); return true; }
+    // The page only hands back the token: a body that names anything else (an undo, its input) is refused (S-39).
+    if (route === "undo") {
+      if (Object.keys(body).some(field => field !== "undo_token")) throw invalid("撤销请求");
+      sendJson(response, 200, await undoCreated({ project: ports.scope, actor: ports.actor_id }, readString(body.undo_token, "undo_token", 80), ports.actions()));
+      return true;
+    }
     const pane = `${ports.scope}\u0000${readString(body.pane_id, "pane_id", 80)}`;
     if (route === "cancel") { service.cancel(pane); sendJson(response, 200, { ok: true }); return true; }
     const caller: Caller = { scope: ports.scope, actions: ports.actions() };

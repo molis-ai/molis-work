@@ -8,7 +8,7 @@ import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWit
 import { ModelProviderStore, createModelProviderTables, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
 import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
-import { JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
+import { JELLY_MODEL_CONFIGURATION, type JellyModelSettings } from "@molis-ai/molis-work-plugin-jelly";
 const configuration = (home: string) => createConsumerModelConfiguration(home, JELLY_MODEL_CONFIGURATION);
 const completion = (home: string) => hostCompleteText({ homeDirectory: home, selection: configuration(home).selection() });
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -171,7 +171,7 @@ test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and 
   await platform.supervisor.restart(JELLY_PLUGIN_ID);
   let requests = 0; t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("unexpected model network"); });
   const saved = await host.homeActionClient().invoke(person(["jelly:settings"]), jellyServiceActions.saveModelSettings,
-    { base_url: "https://jelly-runtime.example/v1", model_id: "private", connection_id: connection.connection_id });
+    { base_url: "https://jelly-runtime.example/v1", model_id: "private", connection_id: connection.connection_id }) as JellyModelSettings;
   assert.deepEqual(saved.selection, { provider_id: "jelly-text", model_id: "private" });
   assert.equal(requests, 0);
   assert.deepEqual(JSON.parse(readFileSync(join(home, "jelly", "preferences.json"), "utf8")), { schema_version: 1, provider_id: "jelly-text", model_id: "private" });
@@ -203,7 +203,7 @@ test("W5-01-JMC-02 revoked private storage prevents preference, provider and con
 test("W5-01-JMC-03 a preference write failure rolls back the provider but retains the existing first-origin-pin boundary", t => {
   const home = homeFor(t), connection = modelConnection(home, "首次地址", "pin-boundary-fixture");
   const path = join(home, "jelly", "preferences.json"), rename = fs.renameSync;
-  t.mock.method(fs, "renameSync", (from, to) => {
+  t.mock.method(fs, "renameSync", (from: fs.PathLike, to: fs.PathLike) => {
     if (String(to) === path) throw new Error("injected preference rename failure");
     return rename(from, to);
   });
@@ -284,7 +284,7 @@ test("W5-01-JMC-02 a fixture cannot self-declare configuration and trusted decla
     const connection = modelConnection(f.home, "合法配置", "frozen-declaration-fixture");
     const { jellyServiceActions } = await import("@molis-ai/molis-work-plugin-jelly");
     const result = await f.service.invoke({ actor_id: "person", audience: "user", project_id: null, permissions: ["jelly:settings"] },
-      jellyServiceActions.saveModelSettings, { base_url: "https://original-binding.example/v1", model_id: "original", connection_id: connection.connection_id });
+      jellyServiceActions.saveModelSettings, { base_url: "https://original-binding.example/v1", model_id: "original", connection_id: connection.connection_id }) as JellyModelSettings;
     assert.deepEqual(result.selection, { provider_id: "jelly-text", model_id: "original" });
     assert.equal(existsSync(join(f.home, "not-jelly")), false);
     assert.equal(existsSync(join(f.home, "jelly", "preferences.json")), true);

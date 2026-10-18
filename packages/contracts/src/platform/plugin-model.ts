@@ -1,4 +1,5 @@
-import type { ActionAvailability } from "./actions.js";
+import type { BoundedInferenceReceipt } from "../services/agent-host.js";
+import type { ActionAvailability, ActionError } from "./actions.js";
 import type { InstructedPrompt, InstructionPrompt } from "./model-prompts.js";
 export type { PluginModelConfigurationInput, PluginModelConfigurationView, PluginModelConfigurationClient, PluginModelConfigurationDeclaration } from "./plugin-model-configuration.js";
 
@@ -19,7 +20,21 @@ export interface PluginModelSelection {
   readonly model_id: string;
 }
 
+export interface PluginModelChoice extends PluginModelSelection {
+  readonly label: string;
+  readonly vision: boolean;
+  readonly reasoning_effort: boolean;
+}
+
+/** Original image bytes; no caller-supplied path, URL or credential. */
+export interface PluginModelImage {
+  readonly bytes: Uint8Array;
+  readonly label?: string;
+}
+
 export interface PluginModelRequest {
+  /** Copied before the first wait; at most 30 images, 32 MiB each and 128 MiB total. */
+  readonly images?: readonly PluginModelImage[];
   /** Exact selection for this call; absent uses the Host default. An unavailable selection is refused, never replaced. */
   readonly selection?: PluginModelSelection;
   /** Joined with the running action's own signal: either one ends the call. */
@@ -37,12 +52,22 @@ export interface PluginModelRequest {
 }
 
 export interface PluginModelResult {
+  /** Original inference facts, absent only when the Host injected a text-only implementation. */
+  readonly execution?: BoundedInferenceReceipt;
+  /** After beforeEffect, immediately before synchronous commit: rechecks this original call and model binding. */
+  validateResult(): void;
   readonly text: string;
   /** Only with `output: "json"`: the decoded answer. The plugin checks its shape; the service checks only that it is JSON. */
   readonly value?: unknown;
   /** Only when the provider reported it; a model the Host was given for a test reports nothing. */
   readonly usage?: { readonly input_tokens: number; readonly output_tokens: number };
 }
+
+/** Execution failures keep their original receipt and commit guard when inference actually ran. */
+export type PluginModelFailure = ActionError & {
+  readonly execution?: BoundedInferenceReceipt;
+  readonly validateResult?: () => void;
+};
 
 /** Model display metadata only; never a credential reference or endpoint. */
 export type PluginModelAvailability = ActionAvailability & { readonly runtime_label?: string };
@@ -58,6 +83,8 @@ export interface PluginModelClient {
   /** The declared Home consumer's model settings; writes only through its exact settings action. */
   readonly configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationClient;
   /** Whether this selection (or the Host default) is available now, while the plugin is running with its model grant. */
+  /** Available model names and capabilities only; no request or credential decryption. */
+  choices(): readonly PluginModelChoice[];
   availability(selection?: PluginModelSelection): PluginModelAvailability;
   /**
    * `prompt` is the plugin's own registered instruction and this call's data (`instructed(instruction, data)`); a plain string is

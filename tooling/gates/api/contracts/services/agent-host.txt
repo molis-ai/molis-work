@@ -1387,6 +1387,34 @@ export type AgentWorkspace = {
     directory?: never;
 };
 
+export interface AgentWriteChecker {
+    checker_id: string;
+    display_name: string;
+    executable: string;
+    args: string[];
+    applies_to: string[];
+    cwd?: string;
+    timeout_ms?: number;
+    env_allowlist?: string[];
+}
+
+export interface AgentWriteCheckerList {
+    workspace_id: string;
+    version: number;
+    checkers: Array<Required<AgentWriteChecker>>;
+}
+
+export interface AgentWriteCheckerSave {
+    workspace_id: string;
+    expected_version: number;
+    checkers: AgentWriteChecker[];
+}
+
+export interface AgentWriteCheckerStore {
+    read(projectId: string, workspaceId: string): Promise<AgentWriteCheckerList>;
+    save(projectId: string, workspaceId: string, expectedVersion: number, checkers: Array<Required<AgentWriteChecker>>): Promise<AgentWriteCheckerList>;
+}
+
 export interface BoundedInferenceReceipt {
     readonly run_ref: {
         readonly kind: "run";
@@ -1549,6 +1577,13 @@ export declare const agentOfferActions: {
 };
 
 export declare function agentTextMaterialContent(material: AgentTextMaterial): string;
+
+export declare const agentWriteCheckerActions: {
+    readonly list: ActionDefinition<Record<string, never>, {
+        lists: AgentWriteCheckerList[];
+    }>;
+    readonly save: ActionDefinition<AgentWriteCheckerSave, AgentWriteCheckerList>;
+};
 
 export declare function isTerminalAgentPhase(phase: AgentRunPhase): boolean;
 

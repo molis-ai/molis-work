@@ -386,17 +386,17 @@ export const DOM_EVENTS = [
   {
     name: "molis:placement-convert", kind: "request", owner: "placement", on: "window",
     detail: "{ source, station | goal, payload?, note? }",
-    summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog.",
+    summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
     name: "molis:placement-request", kind: "request", owner: "placement", on: "window",
     detail: "{ action: use-in-project | move | copy, object }",
-    summary: "Open the shared dialog that uses, moves or copies an object.",
+    summary: "Open the shared dialog that uses, moves or copies an object. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
     name: "molis:placement-result", kind: "request", owner: "placement", on: "window",
     detail: "{ verb, title, object?, note?, file? }",
-    summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is.",
+    summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
     name: "molis:shelf-admit", kind: "request", owner: "shelf", on: "window",

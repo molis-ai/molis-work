@@ -1,5 +1,6 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { SIDE_CONTEXT_FACTORY } from "./side-panel-context.js";
+import { SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
 import { renderSideBrowser } from "./side-panel-browser.js";
 import { renderSideComputer } from "./side-panel-computer.js";
 import { renderSideFiles } from "./side-panel-files.js";
@@ -110,7 +111,8 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * inside, it closes. Tools with a chord load while the page is idle, so the first press shows a ready tool. A tab's own
  * document may report `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab and button carry a shared state ring.
  * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-close` · `molis:side-toggle`. Same-origin frames post the same
- * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows.
+ * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows; a plugin tab's
+ * page events in `SIDE_FORWARD_SCRIPT` reach this page (`molis:side-forward`) through the S-30 checks.
  */
 export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded'))return;
@@ -119,6 +121,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   stage.setAttribute('data-plugin-stage','');
   document.querySelector('[data-workspace]').append(panel);
   const frame=panel.querySelector('[data-side-body="discussion"] iframe'),projectId=document.body.dataset.projectId;
+  const forwarded=${SIDE_FORWARD_SCRIPT};
   const tabs=()=>[...panel.querySelectorAll('[data-side-tab]')].filter(tab=>!tab.hidden);
   const divider=document.createElement('div');divider.className='side-panel-divider';divider.tabIndex=0;
   divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',globalThis.L('调整侧栏宽度'));divider.setAttribute('aria-controls',panel.id);
@@ -136,13 +139,13 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     const src=body.dataset.sideSrc,inner=body.querySelector('[data-side-frame]');
     if(src&&inner&&!inner.getAttribute('src')){inner.onload=()=>{inner.dataset.loaded='';};inner.src=src;}
   };
+  const expanded=()=>document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&(!button.dataset.sidePluginOpen||current==='plugin:'+button.dataset.sidePluginOpen))));
   const select=(id,target)=>{
     if(!known(id))id=tabs()[0]?.dataset.sideTab;
     current=id;write('molis:side-tab',id);
     for(const button of panel.querySelectorAll('[data-side-tab]')){const on=button.dataset.sideTab===id;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
     for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open)load(body);}
-    document.querySelectorAll('[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&id==='plugin:'+button.dataset.sidePluginOpen)));
-    imVisible();if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
+    expanded();imVisible();if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:id,target:target??null,open}}));
   };
   const setOpen=(next,options={})=>{
@@ -161,7 +164,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
       if(panel.contains(document.activeElement)){const focusTarget=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-side-toggle]');focusTarget?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
       imVisible();document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current,target:null,open:false}}));
     }
-    document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&(!button.dataset.sidePluginOpen||current==='plugin:'+button.dataset.sidePluginOpen))));
+    expanded();
   };
   const request=(detail={})=>{
     const tab=detail.tab==='plugin'&&detail.view?'plugin:'+detail.view:detail.tab;
@@ -192,10 +195,11 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   new MutationObserver(imVisible).observe(document.documentElement,{attributes:true,attributeFilter:['data-resolved-theme']});
   addEventListener('message',async event=>{
     if(event.origin!==location.origin)return;
+    if(event.data?.type==='molis:side-forward'){const made=forwarded.from(event)&&forwarded.event(event.data.name,event.data.detail);if(made)window.dispatchEvent(made);return;}
     if(event.data?.type==='molis:side-open'&&event.source&&event.source!==window){request(event.data);return;}
     if(event.data?.type==='molis:side-close'&&event.source&&event.source!==window){setOpen(false);return;}
     if(event.data?.type==='molis:side-key'&&event.source!==window){keyed(event.data.keys);return;}
-    if(event.data?.type==='molis:side-status'){const body=[...panel.querySelectorAll('[data-side-body]')].find(body=>body.querySelector('iframe')?.contentWindow===event.source);
+    if(event.data?.type==='molis:side-status'){const body=forwarded.from(event)?.closest('[data-side-body]');
       if(body)for(const mark of document.querySelectorAll('[data-side-tab="'+body.dataset.sideBody+'"],[data-side-plugin-open="'+body.dataset.sideBody.slice(7)+'"]')){let ring=mark.querySelector('.side-busy-mark');if(event.data.status){mark.dataset.sideBusy=event.data.status;if(!ring){ring=document.createElement('i');ring.className='side-busy-mark';mark.append(ring);}ring.dataset.mwState=event.data.status==='attention'?'answer':'running';}else{delete mark.dataset.sideBusy;ring?.remove();}}return;}
     if(!frame||event.source!==frame.contentWindow)return;
     if(event.data?.type==='molis:im-close')setOpen(false);

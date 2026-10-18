@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
-import { PANE_MESSAGES_SCRIPT } from "@molis-ai/molis-work-app-workbench";
+import { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 
 const ORIGIN = "http://127.0.0.1:4173";
 interface Panes {
@@ -88,4 +88,34 @@ test("S-30 a pane shows its landing only when the page around it asks, from this
   // The page does not take it back from a pane: a pane cannot make the page around it, or another pane, flash.
   const { paneA, panes: top } = page();
   assert.equal(top.fromParent({ origin: ORIGIN, source: paneA.contentWindow, data: flash }), false);
+});
+
+test("S-30 the page takes a side view's message only from this origin and from the window of a side panel plugin frame", () => {
+  const top: Record<string, unknown> = {};
+  top.parent = top;
+  const shelf = { contentWindow: { name: "shelf side view" } };
+  const pane = { contentWindow: { name: "a split pane" } };
+  const document = { querySelectorAll: (selector: string) => selector === "[data-side-panel] iframe[data-side-frame]" ? [shelf] : selector === "iframe[data-pane-owner]" ? [pane] : [] };
+  const panes = vm.runInNewContext(SIDE_FORWARD_SCRIPT, { window: top, document, location: { origin: ORIGIN }, CustomEvent: class {} }) as { from(event: unknown): unknown };
+  const message = { type: "molis:side-forward", name: "molis:placement-result", detail: {} };
+  assert.equal(panes.from({ origin: ORIGIN, source: shelf.contentWindow, data: message }), shelf);
+  assert.equal(panes.from({ origin: ORIGIN, source: pane.contentWindow, data: message }), null, "a split pane is not a side view");
+  assert.equal(panes.from({ origin: ORIGIN, source: top, data: message }), null, "the page itself");
+  assert.equal(panes.from({ origin: ORIGIN, source: { name: "a popup" }, data: message }), null, "a window that is not a frame here");
+  for (const origin of ["http://127.0.0.1:4174", "https://example.com", "null", ""]) {
+    assert.equal(panes.from({ origin, source: shelf.contentWindow, data: message }), null, `from ${JSON.stringify(origin)}`);
+  }
+  assert.equal(panes.from({ origin: ORIGIN, source: shelf.contentWindow, data: { name: "molis:placement-result" } }), null, "no type");
+});
+
+test("S-30 a side view hands the page only the events on the one list; any other name is dropped", () => {
+  class CustomEvent { constructor(readonly type: string, readonly init: { detail: unknown }) {} }
+  const forwarded = vm.runInNewContext(SIDE_FORWARD_SCRIPT, { CustomEvent }) as { names: string[]; event(name: unknown, detail: unknown): CustomEvent | null };
+  assert.deepEqual([...forwarded.names], ["molis:placement-convert", "molis:placement-request", "molis:placement-result"]);
+  const made = forwarded.event("molis:placement-result", { verb: "received" });
+  assert.equal(made?.type, "molis:placement-result");
+  assert.deepEqual(made?.init.detail, { verb: "received" });
+  for (const name of ["molis:side-open", "molis:shelf-admit", "molis-work:open-settings-path", "constructor", "toString", "__proto__", "hasOwnProperty", "", 7, null, undefined, ["molis:placement-result"]]) {
+    assert.equal(forwarded.event(name, {}), null, `name ${JSON.stringify(name)}`);
+  }
 });

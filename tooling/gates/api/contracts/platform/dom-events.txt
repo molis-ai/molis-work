@@ -303,21 +303,21 @@ export declare const DOM_EVENTS: readonly [{
     readonly owner: "placement";
     readonly on: "window";
     readonly detail: "{ source, station | goal, payload?, note? }";
-    readonly summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog.";
+    readonly summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
     readonly name: "molis:placement-request";
     readonly kind: "request";
     readonly owner: "placement";
     readonly on: "window";
     readonly detail: "{ action: use-in-project | move | copy, object }";
-    readonly summary: "Open the shared dialog that uses, moves or copies an object.";
+    readonly summary: "Open the shared dialog that uses, moves or copies an object. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
     readonly name: "molis:placement-result";
     readonly kind: "request";
     readonly owner: "placement";
     readonly on: "window";
     readonly detail: "{ verb, title, object?, note?, file? }";
-    readonly summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is.";
+    readonly summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
     readonly name: "molis:shelf-admit";
     readonly kind: "request";

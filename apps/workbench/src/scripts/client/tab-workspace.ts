@@ -1,5 +1,4 @@
 import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
-import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
 import { pluginSearchRows } from "../../plugin-workbench.js";
 import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
@@ -74,7 +73,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   let pluginRequestedOnLoad = false;
   const embedded = window.parent !== window && paneParams.has("workbenchPane");
   if (embedded) document.body.dataset.paneEmbedded = "true";
-  const panes = ${PANE_MESSAGES_SCRIPT};
+  const panes = host.paneMessages;
   const notifyParent = (type, payload = {}) => { if (embedded) parent.postMessage({ type, paneId: paneParams.get("workbenchPane"), ...payload }, location.origin); };
   if (embedded) {
     document.addEventListener("pointerdown", () => notifyParent("workbench-pane-focus"), true);

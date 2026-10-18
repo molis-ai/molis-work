@@ -1038,3 +1038,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 W2'-2 四件认可（统筹 10-18 定），同一 PR、每件一个提交：1 选 A；2 侧栏文档转发 placement 事件走 pane-messages.ts 同一段检查、只转登记名单、扩 S-30 或加行并配拒绝用例；3 Images 改调 shelf.items.admit 动作、删 molis:shelf-admit 登记（api:update）；4 通用打开侧栏格到某一项，item 原样交视图。Dock 跳过不能钉的插件须通用、不写 shelf。#694 由情境线自己 merge main 重新取键。
 
 - 10-18 prologue#45 新 head 89f9bb4c：执行器拿到 Run 信号、与停下/时限赛跑、迟到回答丢掉，可以；ToolCall.abort 是工具期限、在途命令由 abortForeground 掐，认可不加第二条路径。再退一处：执行器答完到 prepareCommand 之间没人看信号（只靠 mutator 标记，变异未覆盖），prepare 前再看一次并加用例。
+
+- 10-18 #694 新 head 9066de74b（merge 877dc7626）：门禁之外 283 行逐行一致，workbench.js 1108607（1109302−695），排在 chain35。

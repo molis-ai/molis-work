@@ -40,6 +40,7 @@ import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
 import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
+import { afterParkedAnswer, answerablePhase, PARKED_ANSWER_TASK, recoveryAction, roundAfterParkedAnswer, sessionProblem } from "./assistant-parked-answer.js";
 import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
 
 const RUNTIME = "prologue";
@@ -81,8 +82,6 @@ export interface AssistantCaller {
   beforeStart?: () => Promise<void>;
   assertBeforeStart?: () => void;
 }
-
-/** Delegation bounds: works one work may hand out in all, at once, and follow-ups to each. */
 
 /** The rule that holds a notice of this kind on this surface now, if any. Rules apply exactly as written. */
 export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoticeKind, surface: string | null): AssistantRule | undefined {
@@ -558,7 +557,7 @@ export class AssistantService {
     const memory = new Map([...views].filter(([, view]) => view.memory_recalled).map(([runId, view]) => [runId, view.memory_recalled!]));
     return { rounds, reviews: this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)), recovery: Boolean(recovery), memory,
       queued: queuedInputs(session),
-      ...(recovery ? { problem: { message: recovery.reason, action: "核对上一轮的实际结果后再继续" } } : {}) };
+      ...sessionProblem(recovery, rounds, session) };
   }
 
   /** The rounds run in a Coding session the work carries, read through Coding's own actions. */
@@ -729,13 +728,13 @@ export class AssistantService {
   }
 
   async answer(workId: string, input: { run_id: string; pending_id: string; pending_revision?: number; text?: string;
-    answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }): Promise<AssistantWorkView> {
+    answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }, caller: AssistantCaller = {}): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     if (work.executor.kind === "coding") {
       const coding = await this.coding(work);
       const run = work.executor.session_id ? (await coding.read(work.executor.session_id, 6)).runs.find(item => item.ref.run_id === input.run_id) : undefined;
       const question = run?.awaiting_input.find(item => item.pending_id === input.pending_id);
-      if (!run || !question || run.phase !== "awaiting-input") throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
+      if (!run || !question || run.phase !== answerablePhase(question)) throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
       await coding.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: exactRevision(input.pending_revision, question.pending_revision),
         ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
       return this.read(workId);
@@ -744,13 +743,13 @@ export class AssistantService {
     const host = await this.ports.host();
     const run = await host.adapter(RUNTIME).read({ session_id: work.session_id!, run_id: input.run_id });
     const question = run.awaiting_input.find(item => item.pending_id === input.pending_id);
-    // A late answer to a question that is already closed or replaced starts nothing.
-    if (!question || run.phase !== "awaiting-input") throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
+    // A late answer to a question that is already closed or replaced starts nothing; one parked at a restart ends its round.
+    if (!question || run.phase !== answerablePhase(question)) throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
     if (input.text !== undefined && (typeof input.text !== "string" || input.text.length > MAX_TEXT)) throw assistantErrors.invalid("回答过长");
     await host.adapter(RUNTIME).control(run.ref, { kind: "answer", pending_id: input.pending_id,
       ...(input.pending_revision !== undefined ? { pending_revision: input.pending_revision } : question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}),
       ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
-    return this.read(workId);
+    return afterParkedAnswer(question.parked ? await roundAfterParkedAnswer(() => this.dispatch(this.store.get(this.actorId, workId), PARKED_ANSWER_TASK, [], null, undefined, "host", undefined, caller.beforeStart, caller.assertBeforeStart, { byHost: true }), async () => host.adapter(RUNTIME).recovery?.inspect(sessionRef(work))) : undefined, await this.read(workId));
   }
 
   async decide(workId: string, input: { review_id: string; decision: "approve" | "reject"; note?: string }): Promise<AssistantWorkView> {
@@ -1335,7 +1334,7 @@ export class AssistantService {
     }
     assertSendCurrent(stillCurrent);
     const session = await adapter.readSession(sessionRef(work));
-    if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: "核对上一轮的实际结果后再继续" });
+    if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: recoveryAction([session.latest_run && await adapter.read(session.latest_run.ref).catch(() => null)]) });
     assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
     if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {

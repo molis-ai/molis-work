@@ -99,16 +99,16 @@ test("D5: an expired question is asked again by a new round that carries the per
   await reasked(fixture, workId, runId, pending.pending_id);
 });
 
-// A temporary path, from the swap to Prologue b541a8e6 until BL-156's Molis half: a restart no longer ends a round that
-// waits for the person's answer; it is parked, comes back as a round to check, and its question is asked again once the
-// person has closed it. BL-156's Molis half replaces this with answering the parked question itself.
-test("D5: a question a restart cut off shows for checking, and is asked again with the draft once its round is closed", { timeout: 60_000 }, async t => {
+// A restart parks a round that waits for the person's answer (BL-156): its card takes the answer (AC-07,
+// interaction-parked-answer). The person may close the round instead; then its question is closed and asked again like any other.
+test("D5: a question a restart parked, its round closed instead of answered, is asked again with the draft", { timeout: 60_000 }, async t => {
   const fixture = await assistant(t, "restart");
   const { workId, runId, pending } = await fixture.asked();
   await fixture.reopen();
-  assert.equal((await fixture.service.read(workId)).work.state, "needs-check", "after the restart the round shows for checking");
+  const parked = (await fixture.service.read(workId)).rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === pending.pending_id);
+  assert.equal(parked?.answerable, true, "after the restart the card can be answered");
   await assert.rejects(fixture.service.send({ work_id: workId, request_id: "reask-early", written_by: "page", text: "", reask: { run_id: runId, pending_id: pending.pending_id } }, { project_ref: project }),
-    (error: unknown) => error instanceof ActionError && error.code === "assistant.needs_check", "not asked again before the round is closed");
+    (error: unknown) => error instanceof ActionError && error.code === "assistant.state" && error.message === "这个问题还能回答，请直接回答", "not asked again while it can still be answered");
   const round = (await fixture.service.recovery(workId)).rounds.find(item => item.run_id === runId);
   assert.equal(round?.can_close, true);
   await fixture.service.closeInterrupted(workId, { run_id: round!.run_id, version: round!.version });

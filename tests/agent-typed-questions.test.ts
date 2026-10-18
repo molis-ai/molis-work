@@ -5,6 +5,8 @@ import { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes } fr
 import { AGENT_QUESTION_PROBLEM_REASONS, AGENT_QUESTION_TYPES } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { answerProblems, projectQuestion } from "@molis-ai/molis-work-service-agent-host";
 
+// specs/ai-interaction-experience C1+H1: AC-19 is the contract (typed questions, the closed sets of types and reasons), AC-20 the
+// Host taking them from the Runtime (the explicit projection, the answer checked before the SDK, the types it offers).
 type Sdk = Parameters<typeof projectQuestion>[0];
 const choice: Sdk = { index: 0, prompt: "沟通方式", options: [{ index: 0, label: "一起复盘", description: "先对齐", recommended: true }, { index: 1, label: "异步审阅" }] };
 const typed: Sdk[] = [
@@ -15,14 +17,14 @@ const typed: Sdk[] = [
   { index: 4, id: "goal", prompt: "关联 Goal", options: [], type: "reference", refKinds: ["goal"], maxCount: 1 },
 ];
 
-test("AC-17 / AC-04: a choice question from the Runtime is shown with an explicit type and requiredness and no SDK object", () => {
+test("AC-20 / AC-17 / AC-04: a choice question from the Runtime is shown with an explicit type and requiredness and no SDK object", () => {
   const shown = projectQuestion(choice);
   assert.deepEqual(shown, { index: 0, prompt: "沟通方式", type: "choice", required: true, multiple: false, allow_other: false,
     options: [{ index: 0, label: "一起复盘", description: "先对齐", recommended: true }, { index: 1, label: "异步审阅" }] });
   assert.ok(!("id" in shown) && !("help" in shown), "an absent field stays absent rather than becoming undefined");
 });
 
-test("AC-17: every typed field is carried under its snake_case name, and a default is copied, not shared", () => {
+test("AC-19 / AC-20 / AC-17: every typed field is carried under its snake_case name, and a default is copied, not shared", () => {
   const shown = typed.map(projectQuestion);
   assert.deepEqual(shown[0]?.default, [0]);
   assert.notEqual(shown[0]?.default, (typed[0] as { default: unknown }).default);
@@ -34,14 +36,14 @@ test("AC-17: every typed field is carried under its snake_case name, and a defau
   assert.deepEqual([shown[4]?.ref_kinds, shown[4]?.max_count], [["goal"], 1]);
 });
 
-test("AC-17 / AC-04: a complete, in-range answer has no problems", () => {
+test("AC-20 / AC-17 / AC-04: a complete, in-range answer has no problems", () => {
   assert.deepEqual(answerProblems(typed, [
     { question: 0, indexes: [0] }, { question: 1, value: "" }, { question: 2, value: 45 },
     { question: 3, value: "2026-10-30" }, { question: 4, value: [{ kind: "goal", id: "g1", label: "内部试用" }] },
   ]), []);
 });
 
-test("AC-04 / AC-17: each wrong answer is named on its own question with the SDK's closed reason, and the others stay quiet", () => {
+test("AC-20 / AC-04 / AC-17: each wrong answer is named on its own question with the SDK's closed reason, and the others stay quiet", () => {
   const problems = answerProblems(typed, [
     { question: 0, indexes: [0] }, { question: 1, value: "" }, { question: 2, value: 999 },
     { question: 3, value: "2026-02-31" }, { question: 4, value: [] },
@@ -55,12 +57,12 @@ test("AC-04 / AC-17: each wrong answer is named on its own question with the SDK
   assert.ok(problems.every(problem => !("message" in problem)), "the person reads the reason through the surface's own text, not the SDK's");
 });
 
-test("AC-17: the contract's closed sets are the SDK's (19 reasons, six types)", () => {
+test("AC-19 / AC-17: the contract's closed sets are the SDK's (19 reasons, six types)", () => {
   assert.equal(AGENT_QUESTION_PROBLEM_REASONS.length, 19);
   assert.deepEqual([...AGENT_QUESTION_TYPES], ["choice", "text", "number", "date", "datetime", "reference"]);
 });
 
-test("AC-17: the Runtime is offered only the types every surface that draws questions can draw", () => {
+test("AC-20 / AC-17: the Runtime is offered only the types every surface that draws questions can draw", () => {
   // Offering even "choice" puts the model on the typed form. The Assistant (A1) and Coding (A2) both draw typed choice questions with the
   // Host's shared card (the model-facing contract is guarded by issue-clarification-page ISSUE-34), and words, numbers, dates and a date
   // and time (T1; what the provider receives is guarded by agent-question-types AC-27-1), and objects found by name (T2).

@@ -210,7 +210,7 @@ const WORDS = (maxLength: number) => ({ type: "string", minLength: 1, maxLength,
 const AMENDMENT = { oneOf: [
   { type: "object", required: ["kind", "node", "reason"], additionalProperties: false, properties: { kind: { const: "skip" }, node: STEP, reason: WORDS(300) } },
   { type: "object", required: ["kind", "after", "title", "acceptance"], additionalProperties: false,
-    properties: { kind: { const: "insert" }, after: STEP, title: WORDS(120), acceptance: WORDS(300), mine: { const: true } } },
+    properties: { kind: { const: "insert" }, after: STEP, title: WORDS(120), acceptance: WORDS(300), mine: { const: true }, origin: { type: "string", minLength: 1, maxLength: 200 } } },
   { type: "object", required: ["kind", "node", "note"], additionalProperties: false, properties: { kind: { const: "unblock" }, node: STEP, note: WORDS(500) } },
   { type: "object", required: ["kind", "node", "direction"], additionalProperties: false, properties: { kind: { const: "move" }, node: STEP, direction: { enum: ["up", "down"] } } },
   { type: "object", required: ["kind", "node", "to"], additionalProperties: false, properties: { kind: { const: "assign" }, node: STEP, to: { enum: ["me", "session"] } } },
@@ -238,7 +238,7 @@ export const agentCollaborationActions = {
   } as ActionDefinition<AgentCollaborationControlInput, { session: AgentCollaborationSessionView }>,
   /** The person changes a round's plan: the change is a report on the graph itself; the confirmed plan is never rewritten. */
   revise: {
-    capability_id: "agent.collaboration.revise.v1", version: 1, operation: "command",
+    capability_id: "agent.collaboration.revise.v2", version: 2, operation: "command",
     action: { title: "调整一轮的计划", description: "用户在任务图上调整这一轮的计划：跳过、插入、调顺序、改派、给受阻的步骤做决定、报自己负责的步骤的结果；按看到的版本提交，别人先改了就拒绝。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "amendment", "expected_version"], additionalProperties: false, properties: {

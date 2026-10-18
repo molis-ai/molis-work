@@ -6,6 +6,7 @@ import { modelImageReason, observationExpired, pointerFromNode } from "./compute
 import { isHelperFailure, isRefused, refused } from "./computer-errors.js";
 import { injectDesktopAction } from "./computer-inject.js";
 import { refuseCapture, refuseDespiteWindowText, refuseLanding, refuseSelfApproval, type LandingProbe } from "./computer-policy.js";
+import { StepProgress, treeHash } from "./computer-progress.js";
 import type { ComputerRecords } from "./computer-records.js";
 import type { HelperConnection } from "./helper-connection.js";
 
@@ -160,6 +161,8 @@ export interface DeskContext {
 export class ComputerDriver {
   /** When the last accessibility tree was read. A coordinate click after it expires is refused; a node id is read again. */
   private observedAt: number | null = null;
+  /** What the model last saw and what the last step left: a step that changes nothing is told so. */
+  private readonly progress = new StepProgress();
 
   constructor(private readonly ctx: DeskContext) {}
 
@@ -178,10 +181,11 @@ export class ComputerDriver {
       readiness: context => this.ctx.readiness(context.session_id),
       observe: (kind, context) => this.observe(kind, context?.session_id ?? null),
       perform: (action, context) => this.perform(action, context.session_id),
-      describeRound: (sessionId, context) => { round.sessionId = sessionId; this.ctx.describeRound(sessionId, context); },
+      describeRound: (sessionId, context) => { round.sessionId = sessionId; this.progress.reset(); this.ctx.describeRound(sessionId, context); },
       noteRun: (sessionId, runId) => this.ctx.noteRun(sessionId, runId),
       // A run that ended without saying how (an older Host) is judged from the facts alone.
       release: async (ended?: HostSurfaceRoundEnd) => {
+        this.progress.reset();
         if (round.sessionId) this.ctx.release(round.sessionId, ended);
       },
       close: async () => undefined,
@@ -252,6 +256,7 @@ export class ComputerDriver {
     await this.ctx.ready(sessionId);
     const target = this.ctx.target();
     if (!target) {
+      this.progress.reset();
       if (kind === "screenshot") throw new Error("还没有选定应用：先用 surface-act 的 app 动作打开或切到一个应用");
       const running = await this.ctx.helper.call<{ apps: { bundle_id: string; name: string }[] }>("apps.running");
       return new TextEncoder().encode(renderApps(running.apps, this.ctx.settings.forbiddenIds()));
@@ -277,6 +282,7 @@ export class ComputerDriver {
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
     const text = renderTree(state, tree).text;
     this.observedAt = this.now();
+    this.progress.seen(text);
     // The words go to the model; the person's record and the tab get the picture of the same moment.
     const png = await this.screenshot(state).catch(error => { if (isRefused(error)) throw error; return undefined; });
     this.ctx.recordStep({ kind: "look", app: this.appRef(), summary: `查看「${target.name}」的窗口（${state.window.title || "无标题"}）` }, png);
@@ -303,6 +309,11 @@ export class ComputerDriver {
     const [ox, oy] = state.window.frame;
     const at = (x: number, y: number): [number, number] => [ox + x, oy + y];
     const aimed = await this.aim(action, target.pid, state.window.frame);
+    const step = this.progress.before(aimed);
+    if (step.stuck) {
+      this.ctx.recordStep({ kind: "failed", app: this.appRef(), summary: `没有执行：${step.stuck}` });
+      throw new Error(step.stuck);
+    }
     try {
       await injectDesktopAction(aimed, target, at, target.pid, {
         helper: this.ctx.helper, ctx: this.ctx, settled: () => this.settled(), landsOnTarget: point => this.landsOnTarget(point),
@@ -321,7 +332,7 @@ export class ComputerDriver {
     try { png = await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; /* a missing picture does not undo the step */ }
     const activity = this.ctx.activity();
     this.ctx.recordStep({ kind: "act", app: this.appRef(), summary: activity?.summary ?? action.what, ...(activity?.point ? { point: activity.point } : {}) }, png);
-    return this.receipt(png);
+    return this.receipt(png, { action: aimed, signature: step.signature, beforeHash: step.beforeHash });
   }
 
   /** A node id is resolved on the tree read now. A bare coordinate from an expired look is refused before it is sent. */
@@ -338,15 +349,21 @@ export class ComputerDriver {
   }
 
   /** The tree after the step. The picture leaves toward a model only when that tree was cut or had nothing clickable. */
-  private async receipt(png?: Uint8Array): Promise<HostSurfaceActReceipt> {
+  private async receipt(png?: Uint8Array, step?: { readonly action: HostSurfaceAction; readonly signature: string; readonly beforeHash: string | null }): Promise<HostSurfaceActReceipt> {
     const target = this.ctx.target();
     const state = target ? await this.appState() : null;
     rememberSeen(this.ctx, state);
-    if (!target || !state?.window) return { tree: "这一步之后没有可读的窗口。" };
+    if (!target || !state?.window) {
+      this.progress.reset();
+      return { tree: "这一步之后没有可读的窗口。" };
+    }
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
     const rendered = renderTree(state, tree);
+    let note = "";
+    if (step) note = this.progress.after({ action: step.action, signature: step.signature, beforeHash: step.beforeHash, afterHash: treeHash(rendered.text) });
+    else this.progress.seen(rendered.text);
     const reason = modelImageReason(tree.nodes, rendered.cut);
-    return { tree: rendered.text, ...(reason && png ? { model_image: png, image_reason: reason } : {}) };
+    return { tree: rendered.text + note, ...(reason && png ? { model_image: png, image_reason: reason } : {}) };
   }
 
   private async switchApp(bundleId: string): Promise<Uint8Array | undefined> {
@@ -367,6 +384,7 @@ export class ComputerDriver {
     this.ctx.setTarget({ bundle_id: bundleId, name: state.name || known.name, pid: state.pid, verdict });
     try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
     this.ctx.changed();
+    this.progress.reset();
     try { return await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; return undefined; }
   }
 

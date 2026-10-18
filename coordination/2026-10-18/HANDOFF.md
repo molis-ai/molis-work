@@ -24,11 +24,11 @@
 | --- | --- | --- | --- |
 | #725 | 采用（C4：coding-base v12，删三句工具自己已经说清的话） | 已合入 main（ee78569fc）；工作树和本地分支已清 | — |
 | #726 | 回执（3e-0b：7 个 Coding 角色列上 acknowledge-inputs，常量 WORKSPACE_PARENT_TOOLS） | 3bf06ff60 审过：只改 `prologue-taskboard` 测试。原因是多一个工具让历史到了整理阈值，多出一个没有工具的请求；测试改成按事实停，断言没放宽。chain63 等空位 | 全量绿了自动入队 |
-| #720 | 情境（W3-C2 + Esc 的修复 `bus.hush()`） | 50b018acc 审过；等作者 merge main，按 `[1111791, 1111910]` 重新取键（以实测为准）。统筹定 #720 先合、#730 后合 | 新 head 核对后加 full-suite |
+| #720 | 情境（W3-C2 + Esc 的修复 `bus.hush()`） | 4dd4ac30b 审过（与 50b018acc 改动行相同，键 `[1111791, 1111910]`）；chain66 排全量。统筹定 #720 先合、#730 后合 | 全量绿即入队 |
 | #708 | 交互（AC-08 两个页签答同一题） | 952e2628e 的产品修复审过；测试里的 1.5 秒等待要改成等「拒绝之后完成的那次会话读取」 | 新 head 核对后加 full-suite |
 | prologue#50 | 手册（todo 只在这一轮收得下时才提） | 已合进 Prologue main（dd639069c，10-18） | Molis 换包交给采用线，和批 B 合成一次 |
 | #728 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 7cfb9f317 审过（只挪了 `keptWriteCheckers` 的位置），chain64 等空位 | 全量绿了自动入队 |
-| #730 | 情境 W4-1（记成待办、记下灵光成为创建入口，立即建好，由主人自己的撤销收回） | 271a879b6 审过，实现没问题；要改编号（S-39→S-40，BL-171→BL-174），PR 正文补动作快照对调用方的影响 | 改后排全量；#720 合入后 merge main、重新取键，走 merge-only |
+| #730 | 情境 W4-1（记成待办、记下灵光成为创建入口，立即建好，由主人自己的撤销收回） | 89e466364 审过：S-40 已改、正文已写动作快照影响；还差 BL-171→BL-174（四处）。要等 #727（S-39）合入，否则 health 的安全不变量一项红 | 改号后排全量；#727、#720 合入后 merge main、重新取键 `[新起点, +1,158]`，走 merge-only |
 | 待开 | 手册 BL-163/T5 评测与处理（分支 `ai/bl163-ack-eval`） | 乙重跑完：两版都没把补充当成回答，按规则删半句。甲约 37/96 | 开 PR 前要 merge main：#725 已把 coding-base 升到 v12，T5 要升 v13 |
 
 用户 10-18 补充：交接之前把存量 PR 都处理掉。各 PR 的处理：
@@ -83,8 +83,16 @@
 - `coding.js` 离预算只剩约 37 字节。
 - #708 合入后要清：工作树 `line-interaction-ac08`、分支 `interaction/ac08-two-tabs`；另外几个旧本地分支先 `git branch -d` 确认已合入再删。
 
-**情境线（情境动作）** — 总纲 `specs/context-program/spec.md`（§21 是当前接续入口）。
-- 待补。
+**情境线（情境动作）** — 总纲 `specs/context-program/spec.md`（§9 波次、§16 状态表、§21 是当前接续入口）。全文：[`lines/contextual.md`](lines/contextual.md)。工作树 `.claude/worktrees/line-contextual`。
+- 在途：#720（W3-C2）、#730（W4-1），见 §1.1。两个的放行键都从 1,111,791 取，后合的按新 merge-base 重新取键。
+- 剩下的需求：
+  1. W4 余下：Pages、Inbox、Goals 的创建入口（Goals 用 `effect: "proposes"`，总出卡片）；F2 追加 `attach` 的 `find`（`search.references@1`，统筹 10-15 定）；F3 批量；插件页和右栏格的「✦ 一句话新建」（C9、C10）；覆盖率门禁 C13（插件声明 `intake` 之后）；内容站请求号泛化（8 个插件的 `receive` 升版本，先查存量工作流是否固定版本）。
+  2. W5 拖放；W6 Shelf 动作进候选池、从左往右放、F8 材料篮、F12 讨论输入框作落点；W7 起 F4（先 G1）、F13，再 F6、F7、F10、F9。
+  3. 收尾：真实 Home 全面验证（先弹窗问用户），三份子需求书归档。
+  4. §16 状态表 R1、R6、R12、R14、R25 已做未更新，接手先按 §21.6 核对。
+  5. BL-174（#730 里，原 BL-171）：没有模型时按内容挑去处，要 `intake` 声明收哪类内容，是改合同。
+  6. PICK-05 放行判断之后的 500 ms，改成等「回复已作废」这个事实（统筹意见）。
+- 坑：`provider_id` 只在 `view.provider.provider_id`（假目录测不出）；只有规则时一段文字的第三个推荐位是去处，找按钮把 `.mw-ctx-menu` 带上；慢机时序要复现就扣住 `/api/contextual/judge`；浏览器用例与别的全量同时跑会超时，比对时串行。
 
 **手册线（AI 能力开发手册）** — `specs/ai-development-handbook/spec.md`。全文：[`lines/handbook.md`](lines/handbook.md)；BL-163 规则：[`lines/handbook-bl163-rule.md`](lines/handbook-bl163-rule.md)；评测脚本：[`lines/handbook-eval-163/`](lines/handbook-eval-163/)（密钥只从命令行的 `MINIMAX_API_KEY` 读）。
 - prologue#50 已合进 Prologue main（dd639069c）。Molis 还没换这个包：交给采用线，和批 B 合成一次。

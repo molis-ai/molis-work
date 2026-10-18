@@ -42,9 +42,22 @@
 
 （每条线做完推送后补上自己的一节：还剩哪些需求、下一片原本打算做什么、已批的计划、共享笔记在哪、要注意的坑。）
 
-**采用线（Prologue 完整采用）** — 需求书 `specs/prologue-adoption/spec.md`，手册 `specs/ai-development-handbook/spec.md` §9.5。
-- 已批、没开工：批 B（read 的窗口读加真实行号，edit 匹配不到时说明是行号前缀，只提示不兜底；计划在共享笔记 `adoption-batchB-plan.md`）。要和 prologue#50 合成一次换包。
-- 待补线会话的要点。
+**采用线（Prologue 完整采用）** — 需求书 `specs/prologue-adoption/spec.md`，手册 `specs/ai-development-handbook/spec.md` §9.5。全文：[`lines/adoption.md`](lines/adoption.md)；A2 的三片计划：[`lines/adoption-a2-plan.md`](lines/adoption-a2-plan.md)。
+- 在途：#725（C4）、#728（A2-1）。
+- 剩下的需求，按顺序：
+  1. **A2-2：执行器与时间线。**
+     - 按配置取第一个适用的检查器（BL-171），运行时再核一次授权。
+     - 记录按 (run, operationKey) 存，审查卡那一行用 `isAfterWriteCheckOperationKey` 认。
+     - 安全不变量取开工时的下一个空号，用例放 `tests/security-invariants-checkers.test.ts`。
+     - 用例：PA-26 撤权那一半、PA-27、PA-29～38。
+     - 可以顺手做 BL-172。
+  2. **A2-3：设置页。** A2-1 合入后可以和 A2-2 并行。
+  3. **批 B：read 的窗口读带行号。** 已批，没开工，计划在 [`lines/adoption-batchB-plan.md`](lines/adoption-batchB-plan.md)。和 prologue#50 合成一次换包。
+  4. 手册 §9.5 补一行「窗口读没有行号归 Prologue」。
+- 坑：
+  - 巨大单元 `registerAgentHostCapabilities` 363、`composeAgentHost` 245、`PrologueAgentAdapter` 602、`AgentHost` 381 不许变大；新能力写在新文件里，用 `register(definition, handler)`。
+  - typed 计数 187 不许变大。
+  - SSOT 里 agent-host 的例外只有三类。
 
 **回执线（AI 输入回执）** — 需求书 `specs/ai-input-receipts/spec.md`。全文：[`lines/receipts.md`](lines/receipts.md)。
 - 在途只有 #726（3e-0b）。3e-0、3e-1、3d-5 已合。

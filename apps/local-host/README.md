@@ -175,6 +175,8 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-preference-integrity.test.ts tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
+可信 Home 条目的 `owner_files` 与 `initialize_owner_files` 由实际 definition 对象绑定，先以唯一 HomeStoreRegistry 和两个 scope 的现行声明检查归属/共根，再向当前实例提供 `services.ownerFiles`。文件端口只接受声明顶层下的严格相对路径；每个文件句柄经 NOFOLLOW/NONBLOCK/fstat 后才读写，拒绝软硬链接与特殊节点。原子替换只承诺 rename 前失败保留原字节，树删除先预检；不承诺多文件事务、掉电持久或抵御同 OS 用户并发换父目录。对应 `tests/security-invariants-plugin-owner-files.test.ts`、`tests/security-invariants-plugin-owner-files-registration.test.ts`、`tests/security-invariants-plugin-owner-files-lifecycle.test.ts`；Shelf 本体尚未切换到此服务。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/platform/LOCAL-HOST.md)

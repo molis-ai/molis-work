@@ -46,6 +46,7 @@ export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
 export type { PluginFilesClient, PluginFilesDeclaration } from "./plugin-files.js";
+export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
 export * from "./plugin-model.js";
 export type { PluginImageTarget, PluginImageConnectionState, PluginImageGenerationRequest, PluginImageGenerationClient, PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
 
@@ -95,6 +96,7 @@ export interface PluginHostServices {
   readonly database?: import("./plugin-database.js").PluginDatabase;
   /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. */
   readonly files?: import("./plugin-files.js").PluginFilesClient;
+  readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
   /** The Host's text model, for a plugin the Host runs itself that declares `model:invoke`; usable only from its own concurrent actions that declare it. */
   readonly model?: PluginModelClient;
   /** Image inference and connection binding, only for a trusted Home entry declaring this consumer. */
@@ -430,7 +432,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "imageGeneration" | "materials" | "background"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

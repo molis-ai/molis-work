@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
+import fs, { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { syncBuiltinESMExports } from "node:module";
 import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { ModelProviderStore, createModelProviderTables, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
@@ -196,12 +197,16 @@ test("W5-01-JMC-02 revoked private storage prevents preference, provider and con
 
 test("W5-01-JMC-03 a preference write failure rolls back the provider but retains the existing first-origin-pin boundary", t => {
   const home = homeFor(t), connection = modelConnection(home, "首次地址", "pin-boundary-fixture");
-  mkdirSync(join(home, "jelly", "preferences.json"), { recursive: true });
-  // An unreadable existing preference fails before pinning; leave a non-directory parent instead to fail after the pin.
-  rmSync(join(home, "jelly"), { recursive: true });
-  writeFileSync(join(home, "jelly"), "not a directory");
-  assert.throws(() => configuration(home).save({ base_url: "https://pinned.example/v1", model_id: "uncommitted", connection_id: connection.connection_id }));
-  providerStore(home, store => assert.equal(store.get("jelly-text"), null));
-  assert.equal(readFileSync(join(home, "jelly"), "utf8"), "not a directory");
-  assert.throws(() => withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", "https://different.example/v1")));
+  const path = join(home, "jelly", "preferences.json"), rename = fs.renameSync;
+  t.mock.method(fs, "renameSync", (from, to) => {
+    if (String(to) === path) throw new Error("injected preference rename failure");
+    return rename(from, to);
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => configuration(home).save({ base_url: "https://pinned.example/v1", model_id: "uncommitted", connection_id: connection.connection_id }), /injected preference/);
+    providerStore(home, store => assert.equal(store.get("jelly-text"), null));
+    assert.equal(existsSync(path), false);
+    assert.throws(() => withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", "https://different.example/v1")));
+  } finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
 });

@@ -21,28 +21,29 @@ function page(reply: (path: string, body: Record<string, unknown>) => Promise<un
   let reloads = 0;
   // The receipt itself is the design system's shared one (tests/input-receipts-client.test.ts); here it is a stand-in that
   // keeps one element per turn, as the shared one does.
-  const made = new Map<string, Node>(), trays: unknown[][] = [], tray = new Node("details", "mw-receipt mw-tray");
-  const shared = { tray: (owner: Node, queued: unknown, round: object, act?: Act) => (trays.push([owner, queued, round, act]), Array.isArray(queued) && !queued.length ? null : tray), line: (turn: { turn_id: string; kind: string; steer?: { state: string } }, _round: object, act?: Act) =>
-    (acts.push(act), turn.kind === "user" && turn.steer ? made.get(turn.turn_id) ?? made.set(turn.turn_id, new Node("details", "mw-receipt")).get(turn.turn_id)! : null) };
+  const made = new Map<string, Node>(), trays: unknown[][] = [], owners: Node[] = [], tray = new Node("details", "mw-receipt mw-tray");
+  const shared = { tray: (owner: Node, queued: unknown, round: object, act?: Act) => (trays.push([owner, queued, round, act]), Array.isArray(queued) && !queued.length ? null : tray), line: (owner: Node, turn: { turn_id: string; kind: string; steer?: { state: string } }, _round: object, act?: Act) =>
+    (acts.push(act), owners.push(owner), turn.kind === "user" && turn.steer ? made.get(turn.turn_id) ?? made.set(turn.turn_id, new Node("details", "mw-receipt")).get(turn.turn_id)! : null) };
   const api = (path: string, method: string, body: Record<string, unknown>) => { calls.push([path, method, body]); return reply(path, body); };
   const ui = vm.runInNewContext(`(${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})`, { Error, encodeURIComponent })({ L: (text: string) => text, shared, chip, api, work: () => "work 1", reload: () => { reloads++; } }) as {
-    line(node: Node, put: (node: Node) => void, turn: object, round: object): void; paint(round: object | undefined): void; target(): string | undefined;
+    line(thread: Node, node: Node, put: (node: Node) => void, turn: object, round: object): void; paint(round: object | undefined): void; target(): string | undefined;
     tray(thread: Node, put: (node: Node) => void, view: object | null): void;
   };
   const put = (node: Node) => { if (node.parent !== thread) { node.parent = thread; thread.children.push(node); } };
-  return { ui, chip, thread, put, calls, acts, trays, tray, reloads: () => reloads };
+  return { ui, chip, thread, put, calls, acts, owners, trays, tray, reloads: () => reloads };
 }
 const steer = (state: string) => ({ turn_id: "t1", kind: "user", text: "顺便看一下截图", steer: { id: "steer-1", state } });
 const asking = (revision = 1) => ({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q1", pending_revision: revision, allows_free_text: true, from_composer: true }] });
 const running = { phase: "running", awaiting_input: [] };
 
 test("RC-14, RCPT-313: under a supplement the Assistant places the shared receipt, one per supplement, and removes it when the turn has none", () => {
-  const { ui, thread, put } = page();
-  ui.line(thread, put, steer("applied"), running);
-  ui.line(thread, put, steer("read"), asking());
+  const { ui, thread, put, owners } = page();
+  ui.line(thread, new Node("section", "assistant-round"), put, steer("applied"), running);
+  ui.line(thread, thread, put, steer("read"), asking());
+  assert.equal(owners[0], thread, "RCPT-348 the thread is the receipt's surface, not the round it sits in");
   assert.equal(thread.children.length, 1, "one receipt per supplement, never a second");
   assert.equal(thread.children[0]!.className, "mw-receipt"); assert.equal(thread.children[0]!.dataset.entry, "receipt:t1");
-  ui.line(thread, put, { turn_id: "t1", kind: "user", text: "顺便看一下截图" }, running);
+  ui.line(thread, thread, put, { turn_id: "t1", kind: "user", text: "顺便看一下截图" }, running);
   assert.equal(thread.children.length, 0, "a turn that is not a supplement has no receipt");
 });
 
@@ -71,8 +72,8 @@ test("RCPT-326: from a receipt, the Assistant takes a supplement back through th
     if (body.request_id === "refused") throw Object.assign(new Error("这一轮已经结束"), { code: "assistant.stale" });
     return outcomes.shift();
   });
-  ui.line(thread, put, steer("received"), { ...running, run_id: "run-1" });
-  ui.line(thread, put, steer("received"), running);
+  ui.line(thread, thread, put, steer("received"), { ...running, run_id: "run-1" });
+  ui.line(thread, thread, put, steer("received"), running);
   const [act, none] = acts;
   assert.equal(none, undefined, "a round the page cannot name gets no actions");
   assert.equal(await act!.withdraw("steer-1"), "");

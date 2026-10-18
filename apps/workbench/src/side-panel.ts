@@ -112,7 +112,8 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * document may report `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab and button carry a shared state ring.
  * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-close` · `molis:side-toggle`. Same-origin frames post the same
  * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows; a plugin tab's
- * page events in `SIDE_FORWARD_SCRIPT` reach this page (`molis:side-forward`) through the S-30 checks.
+ * document gets the target as it is (`{ type: "molis:side-target", target }`, to that frame and this origin only), and its
+ * page events in `SIDE_FORWARD_SCRIPT` reach this page (`molis:side-forward`), both through the S-30 checks.
  */
 export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded'))return;
@@ -140,11 +141,12 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(src&&inner&&!inner.getAttribute('src')){inner.onload=()=>{inner.dataset.loaded='';};inner.src=src;}
   };
   const expanded=()=>document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&(!button.dataset.sidePluginOpen||current==='plugin:'+button.dataset.sidePluginOpen))));
+  const ready=(inner,run)=>'loaded' in inner.dataset?run():inner.addEventListener('load',run,{once:true});
   const select=(id,target)=>{
     if(!known(id))id=tabs()[0]?.dataset.sideTab;
     current=id;write('molis:side-tab',id);
     for(const button of panel.querySelectorAll('[data-side-tab]')){const on=button.dataset.sideTab===id;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
-    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open)load(body);}
+    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=target&&body.querySelector('[data-side-frame]');if(inner)ready(inner,()=>inner.contentWindow?.postMessage({type:'molis:side-target',target},location.origin));}}
     expanded();imVisible();if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:id,target:target??null,open}}));
   };
@@ -157,7 +159,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
       select(options.tab??current??read('molis:side-tab'),options.target);
       if(options.focus===true)panel.querySelector('[data-side-tab][aria-selected="true"]')?.focus({preventScroll:true});
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current+'"] iframe');
-      if(inner)'loaded' in inner.dataset?inner.focus():inner.addEventListener('load',()=>inner.focus(),{once:true});
+      if(inner)ready(inner,()=>inner.focus());
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);

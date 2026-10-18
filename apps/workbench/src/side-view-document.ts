@@ -7,7 +7,7 @@ import { sideEntries } from "./plugin-catalog.js";
 import { createWorkbenchUiHost } from "./ui-composition.js";
 import { SIDE_LINKS_SCRIPT } from "./side-panel.js";
 import { homeToolKeysScript } from "./home-plugin-navigation.js";
-import { SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
+import { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
 
 /**
  * One plugin tab of the side panel (specs/archive/side-panel D13): the Host serves the declared `side` view in its own
@@ -68,12 +68,18 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
       const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
       ${client}
       // This document and the side panel around it (S-30, the same checks as a split pane): the page events the view may
-      // hand up (SIDE_FORWARD_SCRIPT) go to the page.
+      // hand up (SIDE_FORWARD_SCRIPT) go to the page; an item the panel was asked to open here comes down as
+      // molis:side-target and is handed, as it is, to the view's surface: the view finds it, nobody else reads the id.
       {
-        const forwarded = ${SIDE_FORWARD_SCRIPT};
+        const messages = ${PANE_MESSAGES_SCRIPT}, forwarded = ${SIDE_FORWARD_SCRIPT};
         if (window.parent !== window) for (const name of forwarded.names) addEventListener(name, (event) => {
           try { window.parent.postMessage({ type: "molis:side-forward", name, detail: event.detail }, location.origin); }
           catch { /* a detail that cannot be copied stays in this document */ }
+        });
+        addEventListener("message", (event) => {
+          if (!messages.fromParent(event) || event.data.type !== "molis:side-target") return;
+          const item = event.data.target && event.data.target.item;
+          if (typeof item === "string" && item) document.querySelector("[data-side-view-root] > [data-work-surface]")?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: item } }));
         });
       }
     </script>`,

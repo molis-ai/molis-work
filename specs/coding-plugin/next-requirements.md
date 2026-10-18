@@ -3,7 +3,7 @@
 > 2026-10-15：本轮可靠性、性能与 Harness 优化见[完整优化需求书](../coding-harness-optimization/spec.md)（待审阅）。其中 A1/A4/B2/D2/D3 的交集按新需求核对当前代码和分期；本文其余条目及待决不自动扩入本轮，也不把旧版现状表当作最新实现事实。
 
 - 日期：2026-09-27
-- 状态：需求已定稿；其中标了"待定"的条目，等对应事项（Q1–Q8）拍板后再开工
+- 状态：需求已定稿；其中标了"待定"的条目，等对应事项（Q1–Q8）拍板后再开工。2026-10-18 按 Anthropic 仓库补充了 A4-1/A4-2、A6、B3-1/B3-2、D2-1/D2-2、D4–D7、E6–E8（见 §9）
 - 范围：除云端 / 远程执行以外，Coding 还没覆盖或只覆盖了一部分的 20 项功能
 - 前序：七块能力（子代理、计划与 TaskBoard、中断与恢复、会话之间、长任务与上下文、工具与工程流程、体验）已做完并有真实模型证据，见 [spec.md](spec.md) 第 0 节；逐块对照见 [benchmark.md](benchmark.md)
 
@@ -222,3 +222,26 @@ SDK 的规则引擎已能按路径、命令（可执行文件和参数前缀）�
 
 - 云端 / 远程执行：云端 agent、自托管执行机器、本机与云端互相接手。
 - 用户自己的中等复杂度验收任务（七块能力的最终验收）另行安排，不属于本需求。
+
+## 9. 2026-10-18 补充：对照 Anthropic 仓库的具体做法
+
+以下不改变 A–E 的范围与顺序，只把其中几项的做法写具体，并补上原清单没有的几项。
+
+| 编号 | 补充 | 参照 | 做法 | 验收 |
+| --- | --- | --- | --- | --- |
+| A4-1 | LSP 用**声明式插件**，不在宿主逐语言写死 | `claude-plugins-official` 的 12 个 LSP 插件只在 marketplace 里写 `lspServers` | Manifest 增加 `lsp_servers`（`command`、`args`、`extensionToLanguage`、超时）；Prologue 加 LSP 客户端；先支持 TS/JS、Python、Rust、Go；只允许本机已装 server（Q5） | 装一个语言插件就能查到定义/引用；卸载后 server 退出 |
+| A4-2 | 写后诊断 + 审查前格式化 | Claude Code 的 LSP diagnostics | 写入/修改后回传该文件新增诊断；格式化放在审查之前，审查卡显示最终内容 | 改名改全、诊断为零、`tsc` 通过；审查卡看到的是格式化后的内容 |
+| A6 | Coding 也消费**技能包**（与个人助理共用） | `knowledge-work-plugins` 的角色包 | 见 [skill-packs](../skill-packs/spec.md)：`applies_to` 含 `coding` 的包可安装为方法或在起跑时注入 `agent.skills`；不授予权限 | 安装一个工程方法包，Coding session 能选到并按精确版本用 |
+| B3-1 | 用户钩子用**Markdown 规则文件** | `claude-code/plugins/hookify` | `.molis/hooks/<name>.md`：frontmatter 的 event/matcher/conditions/action（warn/block/ask）；改完立即生效；面板可启停；沙箱、超时、失败即挡 | 一条 `rm -rf` 规则挡住并告诉模型原因；一条 lint 钩子在写后跑 |
+| B3-2 | 钩子走**现有 hook bus** | Prologue `runtime.hooks` | 复用 `tool-before/after/failed`、`session-stop`、`prompt-submit` 等事件；插件 manifest 与项目规则都注册到同一条 bus；归属/作用域/阻断语义沿用现有实现 | 平台钩子与用户钩子同时生效；停用后立即不再触发 |
+| D2-1 | PR 评审是**多代理工作流**，不是单个动作 | `claude-code/plugins/code-review`、`pr-review-toolkit` | 资格检查 → 读根/修改目录的 AGENTS.md → 5 个并行评审（规范、bug、git 历史、旧 PR 评论、代码注释）→ 独立置信分 0–100，低于 80 丢掉 → 只评改动行 → inline comment 或 review 卡 | 种子 bug 被抓到、已知误报被过滤、意见带文件/行 |
+| D2-2 | 评论产线化 | `claude-code-action` 的 `classify_inline_comments`、`include_fix_links`、sticky progress | 未确认评论先缓冲并分类“真评审/测试探测”；每条意见带“去修复”链接；长任务用一条进度评论更新，不发多条 | 子代理测试评论不发到 PR；点“去修复”能带着上下文进入新一轮 |
+| D4 | **Agent 产出的 PR 真人批准门** | `claude-code-action/agent-approval-check` | N 个有写权限的不同真人批准；`/approve <sha>` 绑定 head；push 后旧批准过期；Agent/bot 不计；分支名不作信任依据 | 未达 N 票不能合并；push 后需要重新批准 |
+| D5 | 提交签名与身份 | Claude Code Action 的 `use_commit_signing` / `ssh_signing_key` | Coding 推的 commit 可配置 GitHub API 签名或 SSH 签名；bot 身份可配置；审查卡显示这次提交是谁签的 | 真实 PR 上 commit 显示 verified；身份与配置一致 |
+| D6 | PR 场景的**配置来源与注入清洗** | Claude Code Action 的安全模型 | 评审/CI 场景先从 base 分支恢复 `.molis/`、`.mcp.json`、`AGENTS.md` 等项目配置，PR head 的版本只作参考；清洗 HTML 注释、不可见字符、alt、隐藏属性、实体 | PR 作者改配置不能提权；隐藏指令不进模型上下文 |
+| D7 | 非交互结构化输出 | Claude Code Action 的 `--json-schema` | D1 的 `molis-work coding run` 支持 JSON Schema，结果按 schema 校验后作为单一 JSON 输出；用于 flaky 判定、发布说明、Issue 分诊 | 脚本/CI 能稳定消费；schema 不符时失败而不是猜 |
+| E6 | **有界迭代** | `claude-code/plugins/ralph-wiggum` | 用 Stop 事件做“同一目标反复跑”，必须有完成承诺、最大轮数、可取消；不取代正常一轮的停止判断 | 修到测试全绿后停止；达到上限/取消后不再跑 |
+| E7 | 计划即页面 | `claude-plugins-community/html-plan`、`playground` | 实施计划可生成为一张交互页：claim 树 + 每种 claim 一个 exhibit + 决策放在它影响的 claim 上；用户在页面里勾选/评论，最后把一份 response 交回 Coding | 计划页能评审、能回答决策、能把结果带回新一轮 |
+| E8 | 代码简化与安全评审作为专科角色 | `code-simplifier`、`claude-security` | 评审面板可选“简化但不改行为”“安全 finding + 独立 verifier + 只出 patch”；安全评审不自动应用 | 简化不改行为；安全 finding 经过复核才进待处理项 |
+
+补充项与现有 A–E 的关系：A4-1/A4-2 是 A4 的实现方式；A6 是 A 期新增的内容层；B3-1/B3-2 是 B3 的实现方式；D2-1/D2-2 是 D2 的评审形态；D4 是 D2 的信任门；D5–D7 是 D 期的交付与安全细节；E6–E8 是 E 期的体验/质量补充。各项的详细需求与验收见 [coding-quality-assurance](../coding-quality-assurance/spec.md)、[agent-approval](../agent-approval/spec.md)、[skill-packs](../skill-packs/spec.md)。

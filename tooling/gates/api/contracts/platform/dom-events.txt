@@ -303,28 +303,21 @@ export declare const DOM_EVENTS: readonly [{
     readonly owner: "placement";
     readonly on: "window";
     readonly detail: "{ source, station | goal, payload?, note? }";
-    readonly summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog.";
+    readonly summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
     readonly name: "molis:placement-request";
     readonly kind: "request";
     readonly owner: "placement";
     readonly on: "window";
     readonly detail: "{ action: use-in-project | move | copy, object }";
-    readonly summary: "Open the shared dialog that uses, moves or copies an object.";
+    readonly summary: "Open the shared dialog that uses, moves or copies an object. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
     readonly name: "molis:placement-result";
     readonly kind: "request";
     readonly owner: "placement";
     readonly on: "window";
     readonly detail: "{ verb, title, object?, note?, file? }";
-    readonly summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is.";
-}, {
-    readonly name: "molis:shelf-admit";
-    readonly kind: "request";
-    readonly owner: "shelf";
-    readonly on: "window";
-    readonly detail: "{ filename, mime, bytes_base64, source }";
-    readonly summary: "Put a file made elsewhere (a generated image) into the Shelf.";
+    readonly summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
     readonly name: "molis:side-browser-control";
     readonly kind: "announcement";
@@ -455,8 +448,8 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.";
     };
     readonly "tab-workspace": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts"];
-        readonly state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show.";
+        readonly files: readonly ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts"];
+        readonly state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).";
     };
     readonly "settings-directory": {
         readonly files: readonly ["apps/workbench/src/scripts/client/settings-directory.ts"];

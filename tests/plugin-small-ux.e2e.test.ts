@@ -126,7 +126,7 @@ test("Pages and 灵光: a blank item is gone when the person switches to another
   assert.equal(titles().length, before.length + 1, "kept");
   assert.equal(await evaluate("document.querySelector('[data-pages=workbench]').dataset.expanded"), "true", "and still open");
 
-  await click("[data-bar-resident=lingguang]");
+  await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
   await evaluate("document.querySelector('[data-lingguang-capture]').click()");
@@ -135,7 +135,7 @@ test("Pages and 灵光: a blank item is gone when the person switches to another
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await waitFor("document.body.dataset.desktopSurface === 'pages'", 20_000);
   await until(() => sparks().length === keptSparks);
-  await click("[data-bar-resident=lingguang]");
+  await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor("document.body.dataset.desktopSurface === 'lingguang'", 20_000);
   assert.equal(await evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"), "false");
 });
@@ -180,7 +180,7 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
   // 灵光 the same way, on its own page (the reload comes back to where the person was).
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
-  await click("[data-bar-resident=lingguang]");
+  await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
   await evaluate("document.querySelector('[data-lingguang-capture]').click()");
@@ -214,7 +214,7 @@ test("Pages and 灵光: once a blank item is taken back on 「返回」 the surf
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
-  await click("[data-bar-resident=lingguang]");
+  await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   await evaluate("document.querySelector('[data-lingguang-capture]').click()");
   await waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'", 20_000);
@@ -269,7 +269,7 @@ test("Pages and 灵光: going back with the workbench's own Back button or the p
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
-  await click("[data-bar-resident=lingguang]");
+  await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
   for (const [how, leave] of [["the titlebar Back button", () => click("[data-workspace-history=back]")], ["the plugin's name on the tab strip", () => click("[data-tab-view=lingguang]")]] as const) {
@@ -369,7 +369,7 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   // 灵光 the same way.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
-  await click("[data-bar-resident=lingguang]");
+  await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
   await evaluate(WATCH_TOASTS);
@@ -574,7 +574,7 @@ test("灵光: 「记下第一条灵光」 left empty is thrown away when the per
   await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
-  await click("[data-bar-resident=lingguang]");
+  await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const kept = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
   assert.deepEqual(kept(), []);

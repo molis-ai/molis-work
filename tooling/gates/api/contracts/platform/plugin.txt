@@ -2794,6 +2794,7 @@ export interface PluginManifest {
         signature: string;
     };
     host_api_version: 1 | 2;
+    always_on?: boolean;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
     capabilities: {

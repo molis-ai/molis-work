@@ -639,7 +639,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-plugins/coding.js", 373784], ["/assets/molis-work-workbench.js", 1108502],
   ["/assets/molis-work-plugins/coding.js", 373970], ["/assets/molis-work-settings.css", 988484], ["/assets/molis-work-workbench.css", 1591639],
   ["/assets/molis-work-workbench.js", 1109302],
-  ["/assets/molis-work-workbench.js", 1109312],
+  ["/assets/molis-work-workbench.js", 1109312], ["/assets/molis-work-workbench.js", 1109918],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -657,7 +657,7 @@ for (const [asset, old] of [
 // once, from exactly the current baseline to the measured size (+889). One byte more, another asset, or growth from the new
 // baseline still fails.
 test("receipts 3d-4 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const asset = "/assets/molis-work-workbench.js", [from, to] = [1109918, 1110807];
+  const asset = "/assets/molis-work-workbench.js", [from, to] = [1109913, 1110802];
   branch("rcpt-3d4-base", () => { sizes[asset] = from; putBudget(sizes); });
   git("checkout", "-q", "-B", "rcpt-3d4-change");
   sizes[asset] = to;

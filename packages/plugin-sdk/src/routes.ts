@@ -14,6 +14,9 @@ function routeInput<Input>(map: (request: PluginRouteRequest) => Input, request:
   }
 }
 
+/** Bounds on a streamed route's progress lines (`PluginRouteStreamLine`); the `result` line has only the action's own output limit. */
+export const PLUGIN_ROUTE_STREAM_LIMITS = Object.freeze({ line_bytes: 65_536, lines: 10_000, progress_bytes: 1_048_576 });
+
 /** A plugin HTTP route only adapts transport to an action; execution always goes through the Host. */
 export function bindPluginActionRoute<Input, Output>(
   context: PluginStartContext,
@@ -25,7 +28,8 @@ export function bindPluginActionRoute<Input, Output>(
     try {
       if (!context.actor_id || request.actor_id !== context.actor_id) throw new ActionError("actions.forbidden", "调用者与当前插件入口不一致");
       if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
-      return { status: 200, body: await context.services.actions.invoke(definition, routeInput(input, request), request.execution) };
+      const emit = request.emit;
+      return { status: 200, body: await context.services.actions.invoke(definition, routeInput(input, request), request.execution, emit ? { on_progress: event => emit(event) } : undefined) };
     } catch (error) {
       return actionErrorResponse(error);
     }

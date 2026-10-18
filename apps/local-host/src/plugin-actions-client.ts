@@ -1,4 +1,4 @@
-import { bindActionClient, ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginActionProvider } from "./plugin-action-provider.js";
@@ -96,9 +96,9 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   return !manifest.actions?.length && consumed.size === 0 ? undefined : {
     discover: async () => (await ownActions({ project_id: options.project_id ?? null, client: options.client }).discover())
       .filter(view => view.provider.plugin_install_id === context.install_id),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: PluginExecutionControl) => {
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: PluginExecutionControl, transport?: ActionInvokeTransport) => {
       const scope = callScope(options.project_id, options.client, control), projectId = scope.project_id;
-      if ((manifest.actions ?? []).some(action => sameAction(action, definition))) return ownActions(scope).invoke(definition, input, control);
+      if ((manifest.actions ?? []).some(action => sameAction(action, definition))) return ownActions(scope).invoke(definition, input, control, transport);
       if (!consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
       // A missing grant is said as one before the directory is asked: the directory hides what the plugin may not use, and would
       // otherwise answer that the action is not there.
@@ -106,7 +106,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
       const providerId = await pluginActionProvider(scope.client, { ...dependencyCaller(definition, projectId), ...(control?.signal ? { signal: control.signal } : {}) }, definition);
       options.assertActive();
-      return bindActionClient(scope.client, () => dependencyCaller(definition, projectId, providerId)).invoke(definition, input, control);
+      return bindActionClient(scope.client, () => dependencyCaller(definition, projectId, providerId)).invoke(definition, input, control, transport);
     },
   };
 }

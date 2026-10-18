@@ -6,6 +6,10 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+STREAM 正式 CI 补修（2026-10-18）：a0f47c314 的 CI 39121688588 中，边界、健康、动作合同、安全和产品子集通过，Rust 测试因 Shelf 测试目录只用进程号与时钟、并发时重名而失败；同一夹具在 c5d2b3cf6 中存在。本次仅给测试目录补进程内原子序号，生产代码和断言不变。rustfmt 与 8 线程的 Shelf Rust 定向 7/7 通过；桌面包另外两文件38条通过。MCP stdio 的原60秒用例两次超时，未放宽时限；逐阶段诊断显示三个进程启动累计约65.6秒、读写及重连均返回，总计69.6秒，仍须低并发重跑原用例确认。该超时不宣称基线已证；先推已验证的 Rust 夹具修复以重启正式 CI，不把待补证写成全绿。
+
+W5-01 STREAM 接实际 main（2026-10-18，PR #703，本地整合验证通过，待正式 CI）：#684 已在固定 head b1683481b 经 Verify、16/16 全量分片与汇总通过后合入，main 的实际 squash 提交为 c5d2b3cf66bcc6b48e0d35770480a708c5a6cccf。按原 merge-only 次序将该 main 合入 #703（efd9c18de）；保留原流式路由、增量终态与停用尾检，冲突保留主线的 Shelf/Todo 挂载清理、S-35 跨分区移动复原、全部现行安全用例与已消费资源许可。最终组合整体 build、API、boundary、merge-base health/快查下调及资源测量通过；25 项 7,475,698 B，与该 main 相同，增量 0 B。包要求及影响面的178个非浏览器文件全部通过，1,667 条通过、1 条原有沙箱环境条件跳过；真实 Chrome 的 plugin-sample.e2e 1/1 通过，去重179文件共1,668条通过、1条跳过、0失败。推送前 fetch 与 secrets 扫描通过。正式 CI 与共享核心全量仍交统筹排，不自行合并或加标签；这些是本片证据，不代表 W5/W6 整线完成。
+
 W5-01 Todo 最新主线整合（2026-10-18，merge `576b98556`，准备推送）：固定 main `7faaa027c`，保留 #712 的侧栏上下文、#699 正式 SDK 与 #719 文档。冲突仅资源许可/测试/派生表，Todo 业务源码保持原迁移。原 +28 B 重定为 workbench.js 1,110,329→1,110,357，todo.js 62,081→62,036（−45）；25 项 7,475,698 B，相对该 main 少17 B。整体 build、offline install、boundary、API/merge-base health、资源检查通过；36 个非浏览器文件 418/418，覆盖 Todo、Home Runtime、SDK/授权、侧栏消息安全和资源旧额度失效。真实 Chrome 的 todo-app、side-shelf-in-hand、context-toolbar-panes 三文件仍在机器公共窗口排队，尚无该组合结果；此前5f03的11文件29条仅是对应版本证据。推送前 fetch 确认 main 未变，secrets 扫描933行通过。先更新 PR 候选以启动正式 CI/源码复核，不称浏览器补验、全量或整线完成；不自行合并/加标签。
 
 
@@ -162,6 +166,32 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。
 - **范围**：全仓 71 个 workspace 包（2026-10-08，`scripts/workspace-packages.mjs` 的 `WORKSPACE_PACKAGES`：`apps` 6、`horizontal` 8、`modules` 13、`packages` 10、`plugins/native` 26、`plugins/official-integrations` 6、`server` 1、`tooling/plugin-cli` 1）。开工时是 73 个，`modules/execution` 与 `modules/evidence-verification` 随 #268 删除；2026-10-10 实验插件删除（`plugins/native/experiments`）后曾为 70 个；Issue 加入后恢复为 71 个，`plugins/native` 26（I6 `af0fe957` 的登记表与代码重算）。每个包都至少做一次结构审查，交出 §5 的包级清单。
 - **在途的其他线**（开工前要重新核对）：`feature/side-shelf`、`feat/plugin-picker-pins`、`docs/archive-project-arrival-flow`、`feature/fix-project-management-freeze`（另一工作树）、Codex 工作树 `~/.codex/worktrees/d62d`。
+
+W5-01 流式路由（a）（2026-10-17，Codex 接手继续，未验收）：保留已实现的 Runtime 路由、Home 项目身份与统一动作目录，补齐 Host 的 NDJSON 传输。仅声明 `stream: "ndjson"` 的 POST 路由启用；插件只发进度，Host 写唯一的结果或错误末行。单行至多 65,536 字节、进度至多 10,000 行且合计 1,048,576 字节，超限取消并返回 `actions.output_invalid`。按已接受的交接方案，单路由显式声明的请求体最大值为 36,000,000 字节，未声明的默认上限不变。项目与 Home 共用传输，断连、停用或撤权后结束等待，晚到的处理器不得写业务记录；实例观察器在成功、失败和取消时释放。进度单独传入动作客户端，保持 Host 发出的执行控制对象身份不变。
+
+范围为 contracts、plugin-sdk、plugin-runtime 与 local-host 的路由、模型文本进度及配套测试、开发手册和 S-03；不迁业务插件、不改真实 Home、不改页面资源或门禁上限。先在隔离 Home 上验证真实 HTTP 和写入拒绝，再按机器槽位整体构建、跑相关包要求与安全回归；共享核心全量交统筹的 CI 标签链。验收与验证记录如下。
+
+2026-10-17 接续整合：按用户「直接接续，不浪费时间」继续本片，四个流式路由提交已重放到 Todo #684 的最新候选 `8738385e3`，未改动本片业务实现；唯一冲突为本 spec 的整线状态句，保留最新状态。已开草稿 PR #703，以 Todo 分支为基线仅展示本片差异供审阅，保持 Todo → 流式路由的合入次序和至多两片在途。Todo 合入后再移到实际 main，改 PR 基线并交正式 CI；不加标签、不自行合并。整体与 workspace 构建、merge-base health、boundary、API 和资源检查已通过，25 项资源共 7,479,372 B，与 Todo 候选相同；当前组合的包要求与安全回归 162 个非浏览器文件全部通过（1,538 条通过、1 条原有沙箱环境跳过）；插件作者从打包 SDK、CLI 脚手架到安装后的真实 Chrome 成果与私有界面用例 1 条通过，共 163 文件、1,539 条通过、1 条跳过、无失败。共享核心全量仍由统筹在 CI 排。
+
+迁移前核对灵光的模型调用发现，现有 `services.model` 没有传递文字增量，会丢失现有的生成中预览。本片补可选的 `PluginModelRequest.onText(delta)`，Host 只把现有模型端口的 `text-delta` 传给它；Runtime 每次同步核对本次调用与安装仍有效、请求未取消，模型请求结束后关闭回调。插件仍负责把文字转换成自己的动作进度，不改模型提示词、配置、限额或业务存储。新增公开入口测试验证顺序、非文本事件过滤、取消/撤权/停用/模型结束后的拒绝与无晚到业务写入，随后重跑受影响的模型、动作与 Runtime 包回归。
+
+### W5-01 流式路由验收
+
+| 编号 | 场景与必须成立的行为 | 本地证据 |
+| --- | --- | --- |
+| RAC-20 | `W5-01-STREAM-01`：真实动作进度先于唯一结果或错误末行；JSON 路由不获得 emit；Home 路由的可信项目身份保持；模型文字增量按原顺序交给插件，非文字事件不转发 | 路由：`tests/security-invariants-plugin-route-stream.test.ts`、`tests/security-invariants-home-route-project.test.ts` 通过；模型：`tests/security-invariants-plugin-model-progress.test.ts` 通过 |
+| RAC-21 | `W5-01-STREAM-02`：Manifest 拒绝非法 stream 和请求体上限；36,000,000 字节可进入，超一字节在处理器前以 JSON 413 拒绝 | `tests/security-invariants-plugin-route-stream.test.ts`、`tests/plugin-declaration-rules.test.ts`，通过 |
+| RAC-22 | `W5-01-STREAM-03`：伪造末行字段被丢弃；单行、行数和总字节超限均取消且只出一个错误末行 | `tests/security-invariants-plugin-route-stream.test.ts`，通过 |
+| RAC-23 | `W5-01-STREAM-04`：Home 与项目流在断连、停用、撤权和升级后结束；原处理器仍被阻塞时连接已结束，释放后业务写入被拒；恢复后存储无晚到数据；模型文字回调在取消/停用/撤权/请求结束后拒绝 | 路由：`tests/runtime-plugin-http-discovery.test.ts`，8 种真实 HTTP 中断通过；模型：`tests/security-invariants-plugin-model-progress.test.ts` 通过 |
+| RAC-24 | `W5-01-STREAM-05`：反复成功、抛错、取消、停用后计时器均回到零；停用后 emit 当场拒绝 | `tests/plugin-route-stream-lifecycle.test.ts`，通过 |
+
+2026-10-17 灵光实接发现的 RAC-23 缺口：`supervisor.revoke()` 已返回而 Runtime 的停止仍在队列里时，同步文本回调原先仍能通过。停止请求现在同步撤销当前 activation 的 grant 与动作注册，清理 hook 保留原上下文并按原队列执行；不新增生命周期状态或绕过串行队列。`security-invariants-plugin-model-progress.test.ts` 的 `supervisor-revoke`、`stop-request` 在任何 await 之前断言文字被拒，并验证迟到结果不写业务记录及重新启用可恢复。 整体构建、23 个相关文件 481 条用例与 merge-base health 通过。
+
+本地定向验证：整体构建通过；上述 4 文件 27 条，加 Home 平台、Home 模型生命周期、共同路由操作与 SDK 路由适配 4 文件 23 条，共 8 文件 50 条通过。构建搬迁后失效的 Swift PCH 缓存已在本工作树内清理并重建。公开 API 快照、包边界和页面资源预算检查通过；另跑相关包 README 要求与安全集共 150 个非浏览器文件：149 个初次通过；`plugin-declaration-rules` 的两条旧 12 MiB 断言按已批准合同改为 36,000,000 与超一字节后，整文件 265 条通过。该批最终 1,416 条通过、1 条沙箱环境用例按既有条件跳过；插件安装浏览器用例 1 条通过。merge-base health 与快查基线更新通过，无门禁数字增长。共享核心全量尚未由 CI 验证，本片未完成合入验收。
+
+本片复用 SDK 已有 `createExecutionLifetime` 取消等待，Home/项目均保留原执行控制对象。按 10-17 最终交接，浏览器统一读流器留到第三片灵光迁移，在 `ui-host` 的 `molisWorkRequest.stream` 接入，不在本片新增 Node SDK 读取器；当时同时删除灵光的旧解析器并按实测资源变化报批。
+
+合入 Todo 的最新候选 `ce6d460108`（含 main `9626b24b1`）后，模型预览补齐并在真实 Host 的隔离 Home 中通过 8 条拒绝/交付测试；新测试归入 S-18 与安全回归。此次受影响的路由、模型、Runtime、授权和 Todo/Form/Characters 消费路径共 36 个文件、589 条通过；补验安全文档 1 条通过。命令里一度写了不存在的 `todo-ai-assist` 文件，已换成仓库实际的 `todo-organize` 与 `todo-actions`，无产品测试失败。整体与工作台构建、boundary、公开 API、merge-base health、25 项页面资源预算通过；没有新增页面资源。前一批 150 文件与浏览器验证仍作为此前路由实现的证据，共享核心最终组合全量由 CI 验证。
 
 ## 1. 决策记录与待决事项
 

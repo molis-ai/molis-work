@@ -1,3 +1,4 @@
+// RAC-23: both Host routes close on cancellation or instance invalidation, before late effects.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -9,11 +10,60 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { bindPluginActionRoute, type ActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
-import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
+import { ensureProjectPlugins, releaseProjectPlugins, runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { streamProbe } from "./fixtures/plugin-stream.js";
+
+for (const scope of ["home", "project"] as const) for (const invalidation of ["disconnect", "stop", "revoke", "upgrade"] as const) {
+  test(`S-03 W5-01-STREAM-04 ${scope} streaming ${invalidation} ends the response and refuses late business writes`, { timeout: 60_000 }, async t => {
+    const probe = streamProbe(scope), entered = deferred(), release = deferred(), finished = deferred(), cancelled = deferred();
+    let refusal: unknown;
+    probe.behavior.action = async (caller, context) => {
+      caller.signal!.addEventListener("abort", cancelled.resolve, { once: true });
+      entered.resolve(); await release.promise;
+      try { await caller.beforeEffect(); context.services!.storage!.set("late", "must not be saved"); return "late result"; }
+      catch (error) { refusal = error; throw error; }
+      finally { finished.resolve(); }
+    };
+    const { host, request, project } = await serveHomeRuntime(t, { pluginFixtures: { [scope]: [probe.definition] } });
+    const current = scope === "project" ? await project("Cancel a streamed action") : undefined;
+    const path = `${current ? `/projects/${current.project_id}` : ""}/api/plugins/${probe.id}/run`;
+    const abort = new AbortController();
+    try {
+      const response = await request(path, { method: "POST", body: {}, signal: abort.signal });
+      await entered.promise;
+      const platform = current
+        ? await host.withProject(current.reference, runtime => runningProjectPlatform(runtime.store, current.project_id))
+        : await host.homePlugins!.ready();
+      assert.ok(platform);
+      const text = response.text();
+      const closed = invalidation === "disconnect" ? assert.rejects(text) : text;
+      if (invalidation === "disconnect") abort.abort();
+      else if (invalidation === "stop") await platform.runtime.stop(probe.contexts.at(-1)!.install_id);
+      else if (invalidation === "upgrade") await platform.runtime.upgrade({ install_id: probe.contexts.at(-1)!.install_id,
+        definition: { ...probe.definition, manifest: { ...probe.definition.manifest, version: "1.1.0",
+          upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } } } });
+      else platform.supervisor.revoke(probe.id);
+      await cancelled.promise;
+      const body = await closed;
+      if (typeof body === "string") {
+        const lines = body.trim().split("\n").map(line => JSON.parse(line));
+        assert.equal(lines.length, 1); assert.equal(lines[0].type, "error");
+        assert.equal(lines[0].code, "actions.cancelled");
+      }
+      // The connection ended while the original handler was still held. Its eventual write must still be refused.
+      release.resolve(); await finished.promise;
+      assert.ok(refusal instanceof Error);
+      if (invalidation === "stop") await platform.supervisor.restart(probe.id);
+      else if (invalidation === "revoke") await platform.supervisor.enable(probe.id);
+      assert.equal(probe.contexts.at(-1)!.services!.storage!.get("late"), null);
+    } finally { release.resolve(); abort.abort(); }
+  });
+}
 
 test("formal Runtime HTTP entry discovers a new registered plugin without a Host ID list", async () => {
   const home = mkdtempSync(join(tmpdir(), "runtime-http-discovery-"));

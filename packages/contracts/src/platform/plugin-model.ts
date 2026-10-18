@@ -15,6 +15,8 @@ export const PLUGIN_MODEL_LIMITS = {
 export interface PluginModelRequest {
   /** Joined with the running action's own signal: either one ends the call. */
   readonly signal?: AbortSignal;
+  /** Text as it is generated, in provider order. Refused after cancellation, loss of authority, or completion of this request. */
+  readonly onText?: (delta: string) => void;
   /** One more of the plugin's own registered instructions, sent as the system prompt in the person's version. */
   readonly system?: InstructionPrompt;
   /** "json": the answer is decoded (a code fence around it is allowed) and handed over as `value`. The default is "text". */

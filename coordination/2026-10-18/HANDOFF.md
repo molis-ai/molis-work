@@ -4,6 +4,8 @@
 
 本文只在远端分支 `coordination/handoff-2026-10-14` 上，不开 PR，不合进 main。本机路径（`/Users/yijunwang/...`、`.claude/worktrees/...`、`~/code/prologue*`）只在原机器上有效。
 
+给接手人的简短说明（可直接转发，用户分享后别人才能打开）：Claude Docs「Molis Work 交接说明 2026-10-18」 https://claude.ai/code/artifact/4b29e264-5328-4329-99be-b9b49cbdc8bd
+
 ## 0. 接手先读
 
 1. 两个仓库的 `AGENTS.md`（Molis 的硬约束、门禁、构建与测试；Prologue 的 §7 live 规则）。
@@ -78,7 +80,7 @@
   - 3e 的「交付说明」，原本是下一片，没写计划，也没批；
   - §20 的 RCPT-103～107（跨压缩、跨 Run、重启仍适用；按范围纠正；三个入口一致；超预算不静默截断；端到端）；
   - 阶段 4（Goals 层）、5、6；
-  - BACKLOG 的 BL-144、148、161、162、163、164。
+  - BACKLOG 的 BL-144、148、161、162、164（BL-163 已由手册线评测后删行，#731）。
 - #726 合入后要清：工作树 `line-receipts-3e1`、`-3e0`、`-3e0b`、`-base`，以及三个 `receipts/*` 分支。删工作树和分支要先弹窗请用户批。`line-receipts-1c` 里有别人没提交的改动，别动。
 
 **交互线（跨插件 AI 交互）** — 需求书 `specs/ai-interaction-experience/spec.md`（§17 进度表）。全文：[`lines/interaction.md`](lines/interaction.md)。

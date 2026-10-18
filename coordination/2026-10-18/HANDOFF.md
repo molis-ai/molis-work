@@ -28,7 +28,7 @@
 | #708 | 交互（AC-08 两个页签答同一题） | 952e2628e 的产品修复审过；测试里的 1.5 秒等待要改成等「拒绝之后完成的那次会话读取」 | 新 head 核对后加 full-suite |
 | prologue#50 | 手册（todo 只在这一轮收得下时才提） | 已合进 Prologue main（dd639069c，10-18） | Molis 换包交给采用线，和批 B 合成一次 |
 | #728 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 7cfb9f317 审过（只挪了 `keptWriteCheckers` 的位置），chain64 等空位 | 全量绿了自动入队 |
-| #730 | 情境 W4-1（记成待办、记下灵光成为创建入口，立即建好，由主人自己的撤销收回） | 89e466364 审过：S-40 已改、正文已写动作快照影响；还差 BL-171→BL-174（四处）。要等 #727（S-39）合入，否则 health 的安全不变量一项红 | 改号后排全量；#727、#720 合入后 merge main、重新取键 `[新起点, +1,158]`，走 merge-only |
+| #730 | 情境 W4-1（记成待办、记下灵光成为创建入口，立即建好，由主人自己的撤销收回） | e757d682c 审过：S-40、BL-174 都已改，正文有动作快照对调用方的影响。health 只剩安全不变量断档一项（S-38 后直接 S-40），要等 #727（S-39）合入 | #727、#720 合入后 merge main、重新取键 `[新起点, +1,158]`，再排全量（它自己还没跑过全量） |
 | 待开 | 手册 BL-163/T5 评测与处理（分支 `ai/bl163-ack-eval`） | 乙重跑完：两版都没把补充当成回答，按规则删半句。甲约 37/96 | 开 PR 前要 merge main：#725 已把 coding-base 升到 v12，T5 要升 v13 |
 
 用户 10-18 补充：交接之前把存量 PR 都处理掉。各 PR 的处理：
@@ -92,6 +92,7 @@
   4. §16 状态表 R1、R6、R12、R14、R25 已做未更新，接手先按 §21.6 核对。
   5. BL-174（#730 里，原 BL-171）：没有模型时按内容挑去处，要 `intake` 声明收哪类内容，是改合同。
   6. PICK-05 放行判断之后的 500 ms，改成等「回复已作废」这个事实（统筹意见）。
+- 合入后要清的分支与工作树列在 `lines/contextual.md`；其中 `~/.codex/worktrees/context-w0` 不是情境线会话建的，删之前先问用户。
 - 坑：`provider_id` 只在 `view.provider.provider_id`（假目录测不出）；只有规则时一段文字的第三个推荐位是去处，找按钮把 `.mw-ctx-menu` 带上；慢机时序要复现就扣住 `/api/contextual/judge`；浏览器用例与别的全量同时跑会超时，比对时串行。
 
 **手册线（AI 能力开发手册）** — `specs/ai-development-handbook/spec.md`。全文：[`lines/handbook.md`](lines/handbook.md)；BL-163 规则：[`lines/handbook-bl163-rule.md`](lines/handbook-bl163-rule.md)；评测脚本：[`lines/handbook-eval-163/`](lines/handbook-eval-163/)（密钥只从命令行的 `MINIMAX_API_KEY` 读）。

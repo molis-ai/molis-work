@@ -1122,3 +1122,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18：#661 新 head 9d94e5eb5 只合了 main aceffff86 → full-suite（chain53，合并预览 660b2c5af 已是新的）。#713 在 2410e9a8e 上全量绿，等 #661 合入后 merge main，走 merge-only。
 - 10-18：用户要求全量快速失败，统筹开了 #716（run-tests 加 `--bail`：失败的文件马上重跑，还失败就停下这个分片；full-suite 的 matrix 改成 `fail-fast: true`）。只改 CI 和测试运行脚本，走 merge-only，排在 #661 后面（gate-716）。代价：一次红的运行只报第一个失败的文件；main-red 的情况要等 main 修好后重跑全量。#661 改成在 bb2c7cea0 上跑（只改测试：work-placement-plugins 的 press 在点击前目标被重绘换掉时重新定位）。作者 06:57 自己去掉又加上标签，取消了已经过了 12 个分片的那次；已请它改由统筹来加标签。
 - 10-18：用户让 Codex 修首页 Inbox 的偶发失败 → #661 新 head 0fbc0c89e：共用的 click 夹具先等目标可用、每次布局后重新取节点，再加一条首页回归。作者自己重加了标签（bb2c7cea0 上 14/16 的那次全量被取消），新全量 run 39107725661，gate-661 盯着。统筹建议（不挡）：查不到节点时在期限内容忍短暂消失。
+- 10-18：#661 在 0fbc0c89e 上 3 个分片失败：product-interaction 和 cross-plugin-recovery 报 Disabled click target（用例故意去点禁用的关闭按钮），goals-dialogs 报 Inspected target navigated。都和新的共用 click 有关。已请作者让 click 默认恢复原语义，首页用例显式选用「等可用再点」，标签由统筹来加。

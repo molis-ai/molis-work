@@ -430,18 +430,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
      shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
-  const ixClient = host.interaction;
+  const ixClient = host.interaction, fills = new Map(); // fills: words from the composer into a card's draft (R4, assistant-send.ts)
   const drawn = (node, html, handlers, key = html) => {
     if (node.ixKey === key) return node.ix;
     node.ix?.destroy(); node.innerHTML = html || ""; node.ixKey = key;
     node.ix = ixClient(node, handlers); node.ixBase = JSON.stringify(node.ix.read());
     return node.ix;
   };
-  // R4: words from the composer follow what the named field holds, saved as that card's draft (assistant-send.ts).
-  const fills = new Map();
   const renderQuestion = (card, work, round, question) => {
-    const path = "/works/" + encodeURIComponent(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() });
-    let saving = 0;
+    const path = "/works/" + encodeURIComponent(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() }); let saving = 0;
     const client = drawn(card, question.html, {
       onAction: () => reaskQuestion(work, round, question),
       // A half-written answer is kept with the work, so a reload or another tab finds it.

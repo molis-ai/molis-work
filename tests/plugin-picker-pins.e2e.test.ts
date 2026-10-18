@@ -119,13 +119,17 @@ test("DOCK-04 the pin keeps a plugin in the Dock and out of it, and the choice s
   assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "choosing for the Dock keeps the list open");
   await press(`${tile("pages")} [data-dock-choice]`); await frames();
   await waitFor("!document.querySelector('[data-dock-pins] [data-dock-pin=\"pages\"]')");
-  // Shelf is a 常开插件 in the side panel, so it has no entry here; 灵光's pin is like any other.
+  // Shelf is a 常开插件 in the side panel, so it has no entry here. 灵光's pin is like any other: not pinned at first,
+  // pressed it goes into the Dock.
   assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(tile("shelf"))}))`), false, "Shelf is not in the switcher");
-  assert.equal((await state("lingguang")).pinDisabled, false, "灵光's pin is an ordinary one");
-  // Kept in this browser: it is there again after the page is.
+  const spark = await state("lingguang");
+  assert.deepEqual({ pinned: spark.pinned, pinDisabled: spark.pinDisabled, kept: spark.kept }, { pinned: false, pinDisabled: false, kept: false }, "lingguang");
+  await press(`${tile("lingguang")} [data-dock-choice]`); await frames();
+  assert.ok((await dock()).includes("lingguang"), "lingguang: the Dock has it once pinned");
+  // Kept in this browser: they are there again after the page is.
   await press(`${tile("form")} [data-dock-choice]`); await frames();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("Boolean(document.querySelector('[data-dock-pins] [data-dock-pin=\"form\"]'))");
+  for (const id of ["form", "lingguang"]) await waitFor(`Boolean(document.querySelector('[data-dock-pins] [data-dock-pin="${id}"]'))`);
 });
 
 test("DOCK-05 adding a plugin changes the page in place: the entry wakes, the trash can replaces the plus, the plugin opens — and the page was not loaded again", async t => {

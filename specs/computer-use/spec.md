@@ -122,3 +122,4 @@
 - 真机验收按 [acceptance-runbook.md](acceptance-runbook.md) 执行；2026-10-18 复查时屏幕没锁，但前台有人在用（Chrome / DeepSeek Harness，刚有输入），没有启动二十步，也没有锁屏或猜密码；CU-G02–G04 仍未勾。
 - 2026-10-18 第四个切片（CU-G10，部分）：helper 的 `observe.ocr` 用 Vision 识别目标窗口截图（2 倍图），返回文本与窗口内坐标；driver 只在树被截断、可点节点少于 3 个、且树里没有密码框时调用，把文本并入观察，标为不可信。不新增合同；OCR 与截图走同一条密码框拒绝，AX 看不到的密码框仍是 D15 的已知限度。密集 UI、Electron/canvas、游戏与远程桌面的真实 OCR 质量待机器空闲时验证；裁剪图交给模型（CU-G08 的合同入口）仍未做。
 - 2026-10-18 第五个切片（CU-G06，部分）：观察省略没有名字、值或密码的无名容器（组、滚动区、窗口、工具栏、列表、表格、大纲、网页区域），缩进仍表示层级；方括号编号改成原始树下标，靠编号点击仍落在同一个节点。只改 render 层，不改合同。合成 100 个无名组 + 工具栏 + 密码框 + 按钮的树在 1,500 字以内（节点编号 `[103]` 仍可点中），真实大树/滚动/弹窗的 token 对比待真机。
+- 2026-10-18 第六个切片（CU-G12，部分）：`tests/computer-use-evaluation.test.ts` 用真实 driver + fake helper 跑 10 个场景（TextEdit、计算器、Mail 附件、Excel 导出、Finder 多窗口、Electron、画布、终端、系统设置、密码），一条命令（`node scripts/run-tests.mjs tests/computer-use-evaluation.test.ts`）输出成功率、步数、耗时、按文本长度估算的 token、拒绝数与拒绝率、接管次数。它是回归与成本仪表，不是对外基准；三项真机场景（二十步、Shelf 带截图、五类拒绝）在结果里单列，不声称已完成。

@@ -1,27 +1,29 @@
 import { modelPromptText } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { JellyPluginRouteTable, openJellyStore, runJellyAi, jellySourceHash, scheduleJellyActions, jellyActions, jellyCommandActions, jellyManifest, emptyJellyWorkspace } from "@molis-ai/molis-work-plugin-jelly";
+import { openJellyStore, runJellyAi, jellySourceHash, scheduleJellyActions, jellyActions, jellyCommandActions, jellyManifest, emptyJellyWorkspace } from "@molis-ai/molis-work-plugin-jelly";
 import { isMaterialPublicAddress } from "../apps/local-host/dist/material-source-reader.js";
 const day="2026-09-22";
 function fixture(t: { after(fn:()=>void):void }) { const home=mkdtempSync(join(tmpdir(),'jelly-integration-')), store=openJellyStore(home);t.after(()=>{store.close();rmSync(home,{recursive:true,force:true});});return store; }
-test('Jelly HTTP enforces revisions; routes and actions share persisted facts', async t=>{
-  const home=mkdtempSync(join(tmpdir(),"jelly-routes-")), store=openJellyStore(home), host=new MolisWorkLocalHost({homeDirectory:home,completeText:null});
-  t.after(async()=>{store.close();await host.close();rmSync(home,{recursive:true,force:true});});
-  const actions=bindActionClient(host.homeActionClient(),()=>({actor_id:"user",project_id:null,audience:"user",permissions:JELLY_ACTION_PERMISSIONS})),table=new JellyPluginRouteTable(actions);
+test('W5-01-JMC-01 Jelly Runtime HTTP enforces revisions; routes and actions share persisted facts', async t=>{
+  const { home, host, request } = await serveHomeRuntime(t);
+  const actions=bindActionClient(host.homeActionClient(),()=>person(JELLY_ACTION_PERMISSIONS));
   assert.equal(jellyManifest.kind,'native');
-  await assert.rejects(()=>table.handle({method:'POST',pathname:'/api/jelly/commands',query:new URLSearchParams(),body:{command:{type:'item.create',item:{title:'missing revision',start_date:day}}}}));
-  const response=await table.handle({method:'POST',pathname:'/api/jelly/commands',query:new URLSearchParams(),body:{expected_revision:0,command:{type:'item.create',item:{title:'准备发布检查',start_date:day}}}});
-  assert.equal(response?.status,200);const item=store.read().items[0]!;
+  const path='/api/plugins/io.molis.work.jelly/commands';
+  assert.equal((await request(path,{method:'POST',body:{command:{type:'item.create',item:{title:'missing revision',start_date:day}}}})).status,400);
+  const response=await request(path,{method:'POST',body:{expected_revision:0,command:{type:'item.create',item:{title:'准备发布检查',start_date:day}}}});
+  assert.equal(response.status,200,await response.text());
+  const store=openJellyStore(home);t.after(()=>store.close()); const item=store.read().items[0]!;
   const listed=await actions.invoke(jellyActions.calendar,{start:day,end:day});assert.equal(listed.items[0]!.id,item.id);
   await actions.invoke(jellyCommandActions['item.complete'],{id:item.id,completed:true,expected_revision:1});assert.ok(store.read().items[0]?.completed_at);
   await assert.rejects(()=>actions.invoke(jellyCommandActions['item.update'],{id:item.id,patch:{title:'stale'},expected_revision:1}),/其他窗口|版本/);
+  assert.equal((await request('/api/jelly')).status,404);
 });
 test('Jelly plans are previews, not writes, and schedule around real calendar occupancy',async t=>{
   const store=fixture(t);store.execute({type:'item.create',item:{title:'既有安排',start_date:day,start_time:540,end_time:600}});

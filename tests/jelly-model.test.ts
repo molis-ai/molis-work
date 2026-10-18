@@ -1,12 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { ModelProviderStore, createModelProviderTables } from "@molis-ai/molis-work-app-local-host";
+import { ModelProviderStore, createModelProviderTables, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
-import { readJellyModelSettings, saveJellyModelSettings, createJellyCompletion } from "../apps/local-host/dist/jelly-model.js";
+import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
+import { JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
+const configuration = (home: string) => createConsumerModelConfiguration(home, JELLY_MODEL_CONFIGURATION);
+const completion = (home: string) => hostCompleteText({ homeDirectory: home, selection: configuration(home).selection() });
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
 
@@ -45,9 +48,9 @@ function providerStore(home: string, action: (store: ModelProviderStore, storage
 
 test("Jelly empty model settings do not create a catalog, preferences, secret files or send a request", t => {
   const home = homeFor(t, false); let requests = 0; t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("unexpected network"); });
-  assert.deepEqual(readJellyModelSettings(home), { configured: false, providers: [], connections: [], source: "none" }); assert.equal(createJellyCompletion(home), undefined); assert.equal(requests, 0);
+  assert.deepEqual(configuration(home).read(), { configured: false, providers: [], connections: [], source: "none" }); assert.equal(completion(home), undefined); assert.equal(requests, 0);
   assert.equal(existsSync(join(home, "projects")), false); assert.equal(existsSync(join(home, "jelly")), false); assert.equal(existsSync(join(home, "feed")), false);
-  assert.throws(() => saveJellyModelSettings(home, { base_url: "https://example.com/v1", model_id: "model" }), /尚未初始化/); assert.equal(existsSync(join(home, "projects")), false);
+  assert.throws(() => configuration(home).save({ base_url: "https://example.com/v1", model_id: "model" }), /尚未初始化/); assert.equal(existsSync(join(home, "projects")), false);
 });
 
 test("W1-18-MODEL-SCHEMA-01 standalone model consumers refuse old, future and invalid catalogs without changing them", t => {
@@ -56,8 +59,8 @@ test("W1-18-MODEL-SCHEMA-01 standalone model consumers refuse old, future and in
     const storage = new LocalSqliteStorage(file);
     try { new LocalCatalogMetadata(storage.db).setVersion(version); } finally { storage.close(); }
     const before = readFileSync(file);
-    assert.throws(() => createJellyCompletion(home), /schema|版本/i);
-    assert.throws(() => readJellyModelSettings(home), /schema|版本/i);
+    assert.throws(() => completion(home), /schema|版本/i);
+    assert.throws(() => configuration(home).read(), /schema|版本/i);
     assert.deepEqual(readFileSync(file), before, "a rejected read does not repair or rewrite the catalog");
     assert.equal(existsSync(join(home, "jelly")), false, "no preference or material store is created");
     const after = new LocalSqliteStorage(file);
@@ -66,54 +69,54 @@ test("W1-18-MODEL-SCHEMA-01 standalone model consumers refuse old, future and in
   const current = new LocalSqliteStorage(file);
   try { new LocalCatalogMetadata(current.db).setVersion(22); } finally { current.close(); }
   const before = readFileSync(file);
-  assert.equal(createJellyCompletion(home), undefined);
-  assert.deepEqual(readJellyModelSettings(home), { configured: false, providers: [], connections: [], source: "none" });
+  assert.equal(completion(home), undefined);
+  assert.deepEqual(configuration(home).read(), { configured: false, providers: [], connections: [], source: "none" });
   assert.deepEqual(readFileSync(file), before, "the current empty catalog can be read without mutation");
 });
 
 test("Jelly custom model selects a Connector credential and keeps preferences free of secrets", t => {
   const home = homeFor(t); let requests = 0; t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("unexpected network"); });
   const connection = modelConnection(home, "Jelly 账号", "jelly-test-plaintext-key");
-  const settings = saveJellyModelSettings(home, { base_url: "https://models.example.com/v1", api_format: "openai-chat-completions", model_id: "text-a", connection_id: connection.connection_id });
+  const settings = configuration(home).save({ base_url: "https://models.example.com/v1", api_format: "openai-chat-completions", model_id: "text-a", connection_id: connection.connection_id });
   assert.equal(settings.configured, true); assert.equal(settings.source, "selection"); assert.deepEqual(settings.selection, { provider_id: "jelly-text", model_id: "text-a" }); assert.equal(settings.providers[0]!.has_credential, true); assert.equal(requests, 0);
   assert.equal(settings.custom_connection_id, connection.connection_id);
   const prefs = readFileSync(join(home, "jelly", "preferences.json"), "utf8"); assert.equal(prefs.includes("jelly-test-plaintext-key"), false); assert.deepEqual(JSON.parse(prefs), { schema_version: 1, provider_id: "jelly-text", model_id: "text-a" }); assert.equal(JSON.stringify(settings).includes("jelly-test-plaintext-key"), false);
   providerStore(home, (store, storage) => { assert.equal(store.get("jelly-text")?.base_url, "https://models.example.com/v1"); assert.equal(store.get("jelly-text")?.credential_ref, connection.credential_ref); assert.equal(JSON.stringify(storage.db.prepare("SELECT * FROM model_providers").all()).includes("jelly-test-plaintext-key"), false); });
   const secrets = runWithMolisWorkHome(home, () => createFileSecretStore()); assert.equal(secrets.get(connection.credential_ref!), "jelly-test-plaintext-key");
-  saveJellyModelSettings(home, { provider_id: "jelly-text", model_id: "text-b" });
-  assert.equal(readJellyModelSettings(home).custom_connection_id, connection.connection_id);
+  configuration(home).save({ provider_id: "jelly-text", model_id: "text-b" });
+  assert.equal(configuration(home).read().custom_connection_id, connection.connection_id);
   assert.equal(secrets.get(connection.credential_ref!), "jelly-test-plaintext-key");
 });
 
 test("Jelly existing-provider selection changes no shared record or key, and scoped home credentials remain isolated", async t => {
   const home = homeFor(t); const shared = modelConnection(home, "已有供应商", "shared-test-key", "https://shared.example.com/v1");
   providerStore(home, store => { store.upsert({ credential_ref: shared.credential_ref!, provider_id: "shared", display_name: "已有供应商", base_url: "https://shared.example.com/v1", api_format: "openai-chat-completions", models: [{ model_id: "existing-model", enabled: true }] }); });
-  assert.equal(readJellyModelSettings(home).source, "provider"); let before = ""; providerStore(home, store => { before = JSON.stringify(store.get("shared")); });
-  saveJellyModelSettings(home, { provider_id: "shared", model_id: "existing-model" }); providerStore(home, store => assert.equal(JSON.stringify(store.get("shared")), before));
-  assert.throws(() => saveJellyModelSettings(home, { provider_id: "shared", model_id: "existing-model", api_key: "replacement" } as never), /Connectors/);
+  assert.equal(configuration(home).read().source, "provider"); let before = ""; providerStore(home, store => { before = JSON.stringify(store.get("shared")); });
+  configuration(home).save({ provider_id: "shared", model_id: "existing-model" }); providerStore(home, store => assert.equal(JSON.stringify(store.get("shared")), before));
+  assert.throws(() => configuration(home).save({ provider_id: "shared", model_id: "existing-model", api_key: "replacement" } as never), /Connectors/);
   const seen = inferenceAt(t, home, "完成");
-  const complete = createJellyCompletion(home); assert.ok(complete); assert.equal(await complete("用户明确请求的一次摘要"), "完成");
+  const complete = completion(home); assert.ok(complete); assert.equal(await complete("用户明确请求的一次摘要"), "完成");
   assert.deepEqual(seen, [{ protocol: "openai-compatible", endpoint: "https://shared.example.com/v1/chat/completions", model: "existing-model", key: "shared-test-key" }]);
 });
 
 test("Jelly uses the selected Connector for local model calls and falls back to host environment", async t => {
   const home = homeFor(t); const connection = modelConnection(home, "本机模型", "local-test-key");
-  saveJellyModelSettings(home, { base_url: "http://127.0.0.1:9000/anthropic", api_format: "anthropic-messages", model_id: "anthropic-model", connection_id: connection.connection_id });
+  configuration(home).save({ base_url: "http://127.0.0.1:9000/anthropic", api_format: "anthropic-messages", model_id: "anthropic-model", connection_id: connection.connection_id });
   const seen = inferenceAt(t, home, "Anthropic结果");
-  assert.equal(await createJellyCompletion(home)!("生成"), "Anthropic结果");
+  assert.equal(await completion(home)!("生成"), "Anthropic结果");
   assert.deepEqual(seen.at(-1), { protocol: "anthropic-compatible", endpoint: "http://127.0.0.1:9000/anthropic/v1/messages", model: "anthropic-model", key: "local-test-key" });
   const emptyHome = join(home, "another-home"); mkdirSync(emptyHome); process.env.MOLIS_WORK_TEXT_API_KEY = "env-test-key"; process.env.MOLIS_WORK_TEXT_API_FORMAT = "anthropic-messages"; process.env.MOLIS_WORK_TEXT_BASE_URL = "https://env.example.com"; process.env.MOLIS_WORK_TEXT_MODEL = "env-model";
   const environment = inferenceAt(t, emptyHome, "Anthropic结果");
-  assert.equal(readJellyModelSettings(emptyHome).source, "environment"); assert.equal(await createJellyCompletion(emptyHome)!("生成"), "Anthropic结果");
+  assert.equal(configuration(emptyHome).read().source, "environment"); assert.equal(await completion(emptyHome)!("生成"), "Anthropic结果");
   assert.equal(environment.at(-1)?.key, "env-test-key"); assert.equal(environment.at(-1)?.endpoint, "https://env.example.com/v1/messages");
 });
 
 test("Jelly rejects insecure configuration and unowned catalogs without mutating credentials or preferences", t => {
   const home = homeFor(t); const connection = modelConnection(home, "保留账号", "preserved-key");
-  saveJellyModelSettings(home, { base_url: "https://models.example.com/v1", model_id: "good", connection_id: connection.connection_id }); const before = readFileSync(join(home, "jelly", "preferences.json"), "utf8");
-  for (const base_url of ["http://192.168.1.8/v1", "http://external.example.com", "https://user:password@example.com", "https://example.com?api_key=secret", "file:///tmp/model"]) assert.throws(() => saveJellyModelSettings(home, { base_url, model_id: "bad", connection_id: connection.connection_id }));
+  configuration(home).save({ base_url: "https://models.example.com/v1", model_id: "good", connection_id: connection.connection_id }); const before = readFileSync(join(home, "jelly", "preferences.json"), "utf8");
+  for (const base_url of ["http://192.168.1.8/v1", "http://external.example.com", "https://user:password@example.com", "https://example.com?api_key=secret", "file:///tmp/model"]) assert.throws(() => configuration(home).save({ base_url, model_id: "bad", connection_id: connection.connection_id }));
   assert.equal(readFileSync(join(home, "jelly", "preferences.json"), "utf8"), before); assert.equal(runWithMolisWorkHome(home, () => createFileSecretStore()).get(connection.credential_ref!), "preserved-key");
-  const unknown = join(home, "unknown"); mkdirSync(join(unknown, "projects"), { recursive: true }); const db = new LocalSqliteStorage(join(unknown, "projects", "catalog.db")); db.close(); assert.throws(() => readJellyModelSettings(unknown), /未知项目目录数据库/); assert.equal(existsSync(join(unknown, "feed")), false);
+  const unknown = join(home, "unknown"); mkdirSync(join(unknown, "projects"), { recursive: true }); const db = new LocalSqliteStorage(join(unknown, "projects", "catalog.db")); db.close(); assert.throws(() => configuration(unknown).read(), /未知项目目录数据库/); assert.equal(existsSync(join(unknown, "feed")), false);
 });
 
 test("Jelly model actions reuse the original provider and preference owners and discover live disablement", async t => {
@@ -132,7 +135,7 @@ test("Jelly model actions reuse the original provider and preference owners and 
     assert.equal((await actions.invoke(jellyServiceActions.modelSettings, {})).source, "provider");
     const saved = await actions.invoke(jellyServiceActions.saveModelSettings, { provider_id: "shared", model_id: "model" });
     assert.deepEqual(saved.selection, { provider_id: "shared", model_id: "model" });
-    assert.deepEqual(readJellyModelSettings(home), saved);
+    assert.deepEqual(configuration(home).read(), saved);
     providerStore(home, store => { assert.equal(JSON.stringify(store.get("shared")), sharedBefore); });
     assert.doesNotMatch(JSON.stringify(saved), /fixture-key/);
     assert.equal((await actions.discover()).find(row => row.capability_id === jellyActions.modelPlan.capability_id)!.availability.available, true);
@@ -148,4 +151,57 @@ test("Jelly model actions reuse the original provider and preference owners and 
     assert.equal((await actions.discover()).find(row => row.capability_id === jellyActions.modelPlan.capability_id)!.availability.available, false);
     await assert.rejects(actions.invoke(jellyActions.modelPlan, { source_type: "text", text: "不可使用已停用模型" }), { code: "actions.connection_required" });
   } finally { await host.close(); }
+});
+
+test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and settings-only repair without network", async t => {
+  const { serveHomeRuntime, person } = await import("./fixtures/home-runtime.js");
+  const { jellyActions, jellyServiceActions, JELLY_ACTIONS, JELLY_PLUGIN_ID } = await import("@molis-ai/molis-work-plugin-jelly");
+  const home = homeFor(t), { host, request } = await serveHomeRuntime(t, { homeDirectory: home });
+  const connection = modelConnection(home, "配置账号", "runtime-config-fixture");
+  const platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(JELLY_PLUGIN_ID)!;
+  const directory = await host.homeActionClient().discover(person(["jelly:read", "jelly:write", "jelly:settings", "model:invoke"]));
+  const jelly = directory.filter(action => action.provider.plugin_id === JELLY_PLUGIN_ID);
+  assert.equal(jelly.length, JELLY_ACTIONS.length); assert.equal(jelly.length, 53);
+  assert.ok(jelly.every(action => action.provider.plugin_install_id === installation.install_id));
+  await platform.runtime.stop(installation.install_id);
+  platform.runtime.grant(installation.install_id, installation.grants.filter(grant => grant !== "model:invoke"));
+  await platform.supervisor.restart(JELLY_PLUGIN_ID);
+  let requests = 0; t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("unexpected model network"); });
+  const saved = await host.homeActionClient().invoke(person(["jelly:settings"]), jellyServiceActions.saveModelSettings,
+    { base_url: "https://jelly-runtime.example/v1", model_id: "private", connection_id: connection.connection_id });
+  assert.deepEqual(saved.selection, { provider_id: "jelly-text", model_id: "private" });
+  assert.equal(requests, 0);
+  assert.deepEqual(JSON.parse(readFileSync(join(home, "jelly", "preferences.json"), "utf8")), { schema_version: 1, provider_id: "jelly-text", model_id: "private" });
+  assert.deepEqual(await host.homeActionClient().invoke(person(["jelly:settings"]), jellyServiceActions.modelSettings, {}), saved);
+  await assert.rejects(host.homeActionClient().invoke(person(["jelly:read", "model:invoke"]), jellyActions.modelPlan, { source_type: "text", text: "plan" }));
+  t.mock.restoreAll();
+  assert.equal((await request("/api/plugins/io.molis.work.jelly/model-settings")).status, 200);
+});
+
+test("W5-01-JMC-02 revoked private storage prevents preference, provider and connector-origin writes", async t => {
+  const { serveHomeRuntime, person } = await import("./fixtures/home-runtime.js");
+  const { jellyServiceActions, JELLY_PLUGIN_ID } = await import("@molis-ai/molis-work-plugin-jelly");
+  const home = homeFor(t), { host } = await serveHomeRuntime(t, { homeDirectory: home });
+  const connection = modelConnection(home, "尚未绑定地址", "no-late-effects-fixture");
+  const platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(JELLY_PLUGIN_ID)!;
+  await platform.runtime.stop(installation.install_id);
+  platform.runtime.grant(installation.install_id, installation.grants.filter(grant => grant !== "storage:private"));
+  await assert.rejects(host.homeActionClient().invoke(person(["jelly:settings"]), jellyServiceActions.saveModelSettings,
+    { base_url: "https://unwritten.example/v1", model_id: "unwritten", connection_id: connection.connection_id }));
+  assert.equal(existsSync(join(home, "jelly", "preferences.json")), false);
+  providerStore(home, store => assert.equal(store.get("jelly-text"), null));
+  // A refused save must not pin the connection: another origin can still become its first target.
+  withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", "https://first-target.example/v1"));
+});
+
+test("W5-01-JMC-03 a preference write failure rolls back the provider but retains the existing first-origin-pin boundary", t => {
+  const home = homeFor(t), connection = modelConnection(home, "首次地址", "pin-boundary-fixture");
+  mkdirSync(join(home, "jelly", "preferences.json"), { recursive: true });
+  // An unreadable existing preference fails before pinning; leave a non-directory parent instead to fail after the pin.
+  rmSync(join(home, "jelly"), { recursive: true });
+  writeFileSync(join(home, "jelly"), "not a directory");
+  assert.throws(() => configuration(home).save({ base_url: "https://pinned.example/v1", model_id: "uncommitted", connection_id: connection.connection_id }));
+  providerStore(home, store => assert.equal(store.get("jelly-text"), null));
+  assert.equal(readFileSync(join(home, "jelly"), "utf8"), "not a directory");
+  assert.throws(() => withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", "https://different.example/v1")));
 });

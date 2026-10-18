@@ -1102,3 +1102,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 
 - 10-18：用户问积压的旧 PR，弹窗定：#634 由统筹接手改完（工作树 .claude/worktrees/hub-634，分支 hub/634，merge main 不变基，五项必改全做，S-35 写移回的两条拒绝），#661 等作者拆片；#631、#156 是别人的草稿不动，#703 是 Codex 叠在 #684 上的草稿。
 - 10-18：#709（采用线 AC-05 修复，34946e581）审过，chain47 排在 #684 前跑全量；它与 #708 都改 page-assets.json 的 coding.js 一行，后合者合 main 重量后 merge-only；#708、#699 只红 AC-05 的等它合入后 merge main 走 merge-only。#706 全量绿、已入队。
+- 10-18：#634 统筹接手完成，head a01bc98a8（合 main 3edf9c91f、149faac7d，五项必改 + 移回失败挂 cause；S-35 = 移回的两条拒绝，tests/security-invariants-placement-revert.test.ts；local host 多导出 placementCallPorts），chain48 等空位跑全量。#706 已合（149faac7d）。#710（情境线：native-checks 的 rust-cache 加 key with-tests，CI-only）merge-only。回执线 3d-5 计划已批（checkOrigin 挪到 beforeEffect 后、insert 紧贴 addNode 同步复核）。#699 合 main 时 S-34 顺延到 S-36。

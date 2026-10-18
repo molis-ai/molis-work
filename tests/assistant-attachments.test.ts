@@ -80,7 +80,7 @@ test("a PDF the person brings is read by the Agent runtime's own parser into bou
     await assert.rejects(service.readAttachment({ name: "broken.pdf", data: Buffer.from("%PDF-1.4\nnot really a pdf").toString("base64") }), /PDF 打不开|没有可读取的文本层/);
     await assert.rejects(service.readAttachment({ name: "archive.zip", data: Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]).toString("base64") }), /暂时只能读取文本文件、PDF 和图片|不能读取/);
     await assert.rejects(service.readAttachment({ name: "empty.pdf", data: "" }), /没有收到文件/);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a picture the person brings is taken in by the runtime and shown to the model in that round only; a model marked as not seeing images gets nothing", { timeout: 60_000 }, async t => {
@@ -138,5 +138,5 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     // A reference this runtime never issued is refused before anything starts; so is what is not a picture.
     await assert.rejects(service.send({ text: "看这个", request_id: "image-send-4", scope: { kind: "personal" }, materials: [{ ...material, image: { ...material.image!, resource_id: "res-forged" } }] }, {}), /已失效/);
     await assert.rejects(service.readAttachment({ name: "photo.heic", data: Buffer.from("not an image at all").toString("base64") }), /只能带 PNG、JPEG、GIF 或 WebP 图片/);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

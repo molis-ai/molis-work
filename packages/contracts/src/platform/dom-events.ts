@@ -75,8 +75,8 @@ export const PAGE_STATE_OWNERS = {
     state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.",
   },
   "tab-workspace": {
-    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts"],
-    state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show.",
+    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts"],
+    state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {
     files: ["apps/workbench/src/scripts/client/settings-directory.ts"],
@@ -386,22 +386,22 @@ export const DOM_EVENTS = [
   {
     name: "molis:placement-convert", kind: "request", owner: "placement", on: "window",
     detail: "{ source, station | goal, payload?, note? }",
-    summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog.",
+    summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
+  },
+  {
+    name: "molis:placement-flush", kind: "announcement", owner: "placement", on: "window",
+    detail: "{ mode, object, settle }",
+    summary: "The placement bar is about to move an object; the page that has it open pushes a promise onto settle that stores unsaved edits. The bar waits, and does not move if that promise fails.",
   },
   {
     name: "molis:placement-request", kind: "request", owner: "placement", on: "window",
     detail: "{ action: use-in-project | move | copy, object }",
-    summary: "Open the shared dialog that uses, moves or copies an object.",
+    summary: "Open the shared dialog that uses, moves or copies an object. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
     name: "molis:placement-result", kind: "request", owner: "placement", on: "window",
     detail: "{ verb, title, object?, note?, file? }",
-    summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is.",
-  },
-  {
-    name: "molis:shelf-admit", kind: "request", owner: "shelf", on: "window",
-    detail: "{ filename, mime, bytes_base64, source }",
-    summary: "Put a file made elsewhere (a generated image) into the Shelf.",
+    summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
     name: "molis:side-browser-control", kind: "announcement", owner: "side-panel", on: "document",

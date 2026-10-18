@@ -13,7 +13,7 @@
  */
 export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const lifetime=ports.lifetime;
-  const {board,current,navigate,status,ownTask,amend,roleName}=ports;
+  const {board,current,navigate,status,ownTask,amend,roleName,from}=ports;
   const outline=ports.outline||null,progress=ports.progress||(()=>{}),onShow=ports.onShow||(()=>true);
   const list=board.querySelector('[data-coding-board-list]'),notice=board.querySelector('[data-coding-board-status]'),title=board.querySelector('[data-coding-board-title]'),meta=board.querySelector('[data-coding-board-meta]');
   let owner='',data=null,key='',outlineKey='',loadError='';const collapsed=new Set();
@@ -194,7 +194,10 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const main=el('button','coding-board-node');main.type='button';if(row.hint)main.title=row.hint;
     if(row.label)main.append(el('span','coding-board-key',row.label));main.append(el('strong','',row.title));
     lifetime.listen(main,'click',()=>void navigate(owner,row.target).catch(error=>status(error.message,true)));
-    lead.append(main);entry.append(lead,renderState(row.state),renderProgress(row.progress),renderDeps(row),renderMeta(row));
+    // A step a person added for a supplement links back to its receipt in the conversation.
+    lead.append(main);
+    const source=from(row.node);if(source)lead.append(source);
+    entry.append(lead,renderState(row.state),renderProgress(row.progress),renderDeps(row),renderMeta(row));
     const controls=tools(row,entry);if(controls)entry.append(controls);
     item.append(entry);
     if(row.children.length&&open){const children=el('ul','coding-board-children');for(const child of row.children)children.append(renderRow(child,depth+1));item.append(children);}
@@ -268,6 +271,8 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     renderBoard();renderOutline();
   };
   return {
+    // How a step reads, the same on the plan card in the conversation (plan-progress-client.ts).
+    stepOf,skipped,settled,
     loading(id){if(id!==owner){owner=id;data=null;key='';outlineKey='';loadError='';collapsed.clear();board.scrollTop=0;}render();},
     update(id,value){if(id!==current())return;if(id!==owner){key='';outlineKey='';collapsed.clear();board.scrollTop=0;}owner=id;data=value;loadError='';render();},
     fail(id,message){if(id!==owner)return;loadError='任务暂不可读：'+message+'；已显示内容可能过期。';key='';outlineKey='';render();},

@@ -119,6 +119,11 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   assert.equal((await change("DELETE", project.project_id, "sessions", false)).status, 403);
   assert.equal((await change("DELETE", project.project_id, "unknown")).status, 400);
   assert.equal((await change("DELETE", "missing", "sessions")).status, 404);
+  // Shelf is a 常开插件: no project removes or hides it, and the refusal records nothing.
+  const alwaysOn = await change("DELETE", project.project_id, "shelf");
+  assert.equal(alwaysOn.status, 400);
+  assert.equal((await alwaysOn.json()).code, "catalog.plugin_always_on");
+  assert.deepEqual(catalog.listHiddenPlugins(project.project_id), []);
   assert.equal((await change("POST", project.project_id, "feed")).status, 200);
   const removedFeed = await change("DELETE", project.project_id, "feed");
   assert.equal(removedFeed.status, 200);
@@ -145,5 +150,6 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   try {
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_removed' AND payload_json LIKE '%characters%'").get(project.project_id).n, 1);
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_added' AND payload_json LIKE '%characters%'").get(project.project_id).n, 1);
+    assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND payload_json LIKE '%shelf%'").get(project.project_id).n, 0);
   } finally { db.close(); }
 });

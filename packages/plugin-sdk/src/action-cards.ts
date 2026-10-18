@@ -1,4 +1,5 @@
 import { actionEffect, actionFieldInput, actionFieldValue, type ActionSubjectContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { presentActionResult, type ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { actionErrorKind } from "./errors.js";
 
@@ -24,6 +25,8 @@ export interface ActionCard {
   missing: Array<{ field: string; question: string }>;
   status: ActionCardStatus;
   outcome?: string;
+  /** The successful call's declared, bounded presentation; never the raw result. */
+  presentation?: ActionResultPresentation;
   /** Set when the person clicked; the one execution this card may have. */
   request_id?: string;
   /** The object the card would change, as it was when suggested; a card whose object moved on is no longer offered. */
@@ -57,6 +60,8 @@ export interface ActionCardPorts<Card extends ActionCard = ActionCard> {
   now(): Date;
   /** IANA zone the person works in, so a card's "today" is theirs. */
   readonly timeZone?: string;
+  /** The keeper's trusted project scope, never a value from the card input or output. */
+  readonly projectId?: string;
   refuse(reason: ActionCardRefusal, message: string): Error;
   /** Told after the action returned; true when it started work still going on (the card then shows it running). */
   started?(view: ActionView, output: unknown, card: Card): Promise<boolean>;
@@ -210,13 +215,14 @@ export async function runActionCard<Card extends ActionCard>(card: Card, input: 
   if (!view || !view.availability.available) return ports.store.update(card, card.revision, { status: "stale", outcome: view && !view.availability.available ? view.availability.reason : "这项能力已不可用或已对助理关闭" });
   try { await authority.check(view, prepared); }
   catch (error) { throw ports.refuse("invalid", `填写的内容不符合要求：${error instanceof Error ? error.message : String(error)}`); }
-  let claimed = ports.store.update(card, card.revision, { status: "running", request_id: globalThis.crypto.randomUUID(), input: prepared, missing: [], outcome: undefined });
+  let claimed = ports.store.update(card, card.revision, { status: "running", request_id: globalThis.crypto.randomUUID(), input: prepared, missing: [], outcome: undefined, presentation: undefined });
   try {
     const result = await authority.invoke(claimed.reference, prepared);
-    const outcome = summarizeResult(result);
+    const presentation = presentActionResult(view.action.result_view, result, ports.projectId);
+    const outcome = presentation?.summary ?? summarizeResult(result);
     // Background work it started: the card shows it running, then how it ended.
     if (await ports.started?.(view, result, claimed).catch(() => false)) return ports.store.update(claimed, claimed.revision, { status: "running", outcome: "已开始，后台进行中" });
-    claimed = ports.store.update(claimed, claimed.revision, { status: "done", ...(outcome ? { outcome } : {}) });
+    claimed = ports.store.update(claimed, claimed.revision, { status: "done", ...(outcome ? { outcome } : {}), ...(presentation ? { presentation } : {}) });
     return claimed;
   } catch (error) {
     return ports.store.update(claimed, claimed.revision, settled(error));

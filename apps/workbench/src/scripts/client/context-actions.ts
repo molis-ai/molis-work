@@ -12,14 +12,13 @@ import { compactScript, CONTEXT_TOOLBAR_CLIENT_SCRIPT } from "@molis-ai/molis-wo
 import { CONTEXT_BAR_SCRIPT } from "./context-bar.js";
 import { CONTEXT_BUS_SCRIPT } from "./context-bus.js";
 import { CONTEXT_LANDING_PANE_SCRIPT, CONTEXT_LANDING_SCRIPT } from "./context-landing.js";
-import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
 
 // The factory is one closure, so the four files are joined into one script, in the order of the original text.
 export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) => {
   const L = host.translate;
   const embedded = window.parent !== window && document.body.hasAttribute("data-pane-embedded");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
-  const panes = ${PANE_MESSAGES_SCRIPT};
+  const panes = host.paneMessages;
   const post=(path,body,signal)=>molisWorkRequest(host.route(path),{body,signal,fallback:L("暂时处理不了，请稍后重试")});
   const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   const quoted = (focus) => focus.targets.map((target) => target.text).join("\n\n").slice(0, 20000);

@@ -6,7 +6,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertContributionMatchesManifest } from "./contribution.js";
 
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow } from "./install-rules.js";
+import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, validateInstalledManifest } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
@@ -133,7 +133,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     discard_kept_data?: boolean;
   }): PluginLifecycleReceipt {
     const manifest = input.definition.manifest;
-    validateManifest(manifest);
+    validateInstalledManifest(manifest, input.bundled === true && input.definition.execution !== "sandbox");
     const entrypoint = manifest.entrypoints.find((candidate) => candidate.deployment === input.deployment);
     if (!entrypoint) {
       throw pluginErrors.entrypoint_missing("Plugin 没有当前部署环境的 entrypoint");
@@ -244,7 +244,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   private async changeVersion(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[] }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
     return this.runLocked(input.install_id, async () => {
       const target = input.definition.manifest;
-      validateManifest(target);
+      validateInstalledManifest(target, false);
       const current = this.requireInstall(input.install_id);
       if (current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能在升级时改变执行信任边界");
       if (rollbackCode && current.execution !== "sandbox") throw pluginErrors.state_invalid("代码回滚只适用于隔离的生成插件");

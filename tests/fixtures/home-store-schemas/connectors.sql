@@ -27,6 +27,8 @@ CREATE TABLE connector_connections (
         refresh_ref TEXT,
         expires_ref TEXT,
         source TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+        removed_at TEXT,
         disconnected_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -39,3 +41,10 @@ CREATE UNIQUE INDEX connector_connections_credential_idx
 
 CREATE INDEX connector_connections_service_idx
         ON connector_connections(service_id, created_at);
+
+-- ASC-10: latest technical observations in the unreleased connectors v2 baseline.
+CREATE TABLE connector_observations (
+  connection_id TEXT PRIMARY KEY,
+  check_json TEXT,
+  call_json TEXT
+);

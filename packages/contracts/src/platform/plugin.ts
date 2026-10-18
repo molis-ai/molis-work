@@ -209,6 +209,12 @@ export interface PluginManifest {
     signature: string;
   };
   host_api_version: 1 | 2;
+  /**
+   * v2: 常开插件. Enabled in every project, never listed where plugins are chosen, added or removed (the plugin list, the
+   * market, the Dock, a project's plugin settings), so it cannot be removed. Only a plugin that ships with the Host may
+   * declare it: the Runtime refuses to install or upgrade to a Manifest that does from anywhere else.
+   */
+  always_on?: boolean;
   entrypoints: PluginEntrypointManifest[];
   permissions: PluginPermissionDeclaration[];
   capabilities: {
@@ -543,6 +549,7 @@ export type IntegrationProviderSyncResult =
 export interface IntegrationProviderPort {
   readonly type: string;
   health(): Promise<{
+    account?: { login: string; account_id?: string };
     ok: boolean;
     status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
     message: string;

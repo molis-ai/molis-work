@@ -1,6 +1,8 @@
 # 产品介绍
 
-给官网和对外介绍用的产品介绍，一次更新存成一个新版本。最新的是编号最大的那份。产品承诺以仓库根目录的 [PRODUCT.md](../../PRODUCT.md) 为准，这里只是对外怎么讲。
+本目录保留 V0–V2 和旧介绍页。自 2026-10-18 起，V3、日更、官网场景和研究统一维护在[产品运营文档](../product-operations/README.md)下的[产品介绍目录](../product-operations/product-intro/README.md)。
+
+最新完整介绍见[2026-10-18 日更](../product-operations/product-intro/daily/2026-10-18.md)。产品承诺仍以仓库根目录的 [PRODUCT.md](../../PRODUCT.md) 为准。
 
 | 版本 | 日期 | 按 main 核对 | 较上一版 |
 | --- | --- | --- | --- |
@@ -12,9 +14,7 @@
 
 ## 怎么更新
 
-- 新增一个文件 `vN-YYYY-MM-DD.md`，已有的版本不再改。
-- 文件开头写日期、核对的 main 提交、较上一版的调整和新增，然后用 `---` 隔开正文。
-- 功能状态一律以「用户现在能不能下载到」为准，发版情况看 [GitHub Releases](https://github.com/molis-ai/molis-work/releases)。
-- 措辞守 PRODUCT.md：不编客户、用户数、评价和数据，不用「赋能」「范式」这类词。
+后续介绍、场景与研究在新目录更新，遵循[日更规范](../product-operations/product-intro/日更规范.md)。本目录保留历史版本与原有链接。
+
 
 V0、V1 起草于 Claude 文档[「官网核心亮点」](https://claude.ai/code/artifact/a3272ef7-9969-4095-9a37-754a71b7c245)，那里还有 9/29 的「官网核心亮点」和「产品介绍页文案 v1」两份旧稿。搬进仓库时只做了三处整理：日期和每版变化挪到开头，正文里的「更新」段落去掉，仓库内的链接改成相对路径。V2 起直接在仓库里写。

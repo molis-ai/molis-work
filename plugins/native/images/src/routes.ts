@@ -1,11 +1,12 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ACTION_ERROR_CODE, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { imagesActions } from "./actions.js";
 import { imagesErrors } from "./error.js";
 
 export function imagesRoutes(context: PluginStartContext): PluginRouteBinding[] {
+  context = routeContext(context);
   const body = (request: PluginRouteRequest): Record<string, unknown> => {
     if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw imagesErrors.invalid("请求必须是 JSON 对象");
     return request.body as Record<string, unknown>;
@@ -40,4 +41,17 @@ function downloadName(request: PluginRouteRequest, stored: string): string {
   const name = (request.query.name ?? "").replace(/[\u0000-\u001f\u007f"\\/:*?<>|]+/gu, " ").trim().slice(0, 80);
   const extension = /\.[a-z0-9]{2,5}$/iu.exec(stored)?.[0] ?? "";
   return name ? name.toLowerCase().endsWith(extension.toLowerCase()) ? name : name + extension : stored;
+}
+
+/** Keep the Images HTTP edge's existing generic message for unexpected driver/runtime failures. */
+function routeContext(context: PluginStartContext): PluginStartContext {
+  const actions = context.services?.actions;
+  if (!actions) return context;
+  return { ...context, services: { ...context.services, actions: { ...actions, async invoke(definition, input, control, transport) {
+    try { return await actions.invoke(definition, input, control, transport); }
+    catch (error) {
+      if (error && typeof error === "object" && "code" in error && typeof error.code === "string" && ACTION_ERROR_CODE.test(error.code)) throw error;
+      throw imagesErrors.internal("图片操作失败，请稍后重试");
+    }
+  } } } };
 }

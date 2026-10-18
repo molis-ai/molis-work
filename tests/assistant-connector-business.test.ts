@@ -24,7 +24,7 @@ else {process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,error:{code:-32
 process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');}`;
 
 for (const scenario of ["save", "read-only", "recover"] as const) {
-  test(`ASC-11 ASC-26 ASC-34: connected resource to the actual Pages owner (${scenario})`, { timeout: 90_000 }, async t => {
+  test(`ASC-11 ASC-26 ASC-34: connected resource to the actual Pages owner (${scenario})`, { timeout: 180_000 }, async t => {
     let server: TestHostServer;
     let restored: MolisWorkLocalHost | undefined;
     t.after(async () => { await server?.close(); await restored?.close(); });
@@ -99,6 +99,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
     const sent = await home.web.post<AssistantSendResult>(prefix + "/api/assistant/send", { text: "接入库存来源，读取 inventory://quarter 并保存到 Pages", request_id: crypto.randomUUID() });
     const read = () => server.web.get<AssistantWorkView>(`${prefix}/api/assistant/works/${sent.work.work_id}`);
     const approved = new Set<string>();
+    // A scenario takes about 30 s on an idle machine, most of it in these waits; under parallel load one wait alone can pass 30 s.
     const reach = async (predicate: (view: AssistantWorkView) => boolean, label: string) => untilSetup(async () => {
       const view = await read();
       for (const review of view.reviews) if (!approved.has(review.review_id)) {
@@ -106,7 +107,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
         await server.web.post(`${prefix}/api/assistant/works/${sent.work.work_id}/reviews/${review.review_id}`, { decision: "approve" });
       }
       return predicate(view) ? view : undefined;
-    }, label).catch(async error => {
+    }, label, 75_000).catch(async error => {
       const view = await read();
       t.diagnostic(JSON.stringify({ label, requests: model.requests.length, state: view.work.state, rounds: view.rounds.map(round => ({ phase: round.phase, activity: round.activity })), reviews: view.reviews.map(review => review.review_id) }));
       throw error;

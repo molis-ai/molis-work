@@ -49,7 +49,7 @@ export function cardView(card: StoredCard): AssistantCard {
   } else fields.push({ key: "", label: "内容", value: actionFieldValue("", card.input), editable: false });
   return { card_id: card.card_id, revision: card.revision, run_id: card.run_id, title: card.title, summary: card.summary, provider: card.provider,
     capability_title: card.capability_title, capability_id: card.reference.capability_id, effect: card.effect, fields, missing: card.missing, status: card.status,
-    ...(card.outcome ? { outcome: card.outcome } : {}), ...(card.from ? { from: { ...card.from } } : {}), ...(card.source_object ? { source_object: { ...card.source_object } } : {}),
+    ...(card.outcome ? { outcome: card.outcome } : {}), ...(card.presentation ? { presentation: card.presentation } : {}), ...(card.from ? { from: { ...card.from } } : {}), ...(card.source_object ? { source_object: { ...card.source_object } } : {}),
     created_at: card.created_at, updated_at: card.updated_at };
 }
 
@@ -89,6 +89,7 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
   const editable = open ? card.fields.filter(field => field.editable) : [];
   const shown = card.fields.filter(field => !editable.includes(field));
   const state = STATUS[card.status];
+  const result = card.status === "done" ? card.presentation : undefined;
   const actions = open ? [{ id: "run", label: card.status === "failed" ? `${say("再试一次")}：${card.title}` : card.title, variant: "primary" as const }, { id: "dismiss", label: say("忽略") }] : [];
   const origin = card.from ? say("来自「{title}」页面", { title: card.from.title || card.from.surface })
     + (card.source_object?.title ? ` · ${say("选中自《{title}》", { title: card.source_object.title })}` : "") : "";
@@ -102,6 +103,8 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
       : actions.length ? { actions } : {}),
     ...((state && !open) || card.outcome ? { status: { text: (state ? say(state) : "") + (card.outcome ? `${state ? "：" : ""}${card.outcome}` : ""), busy: card.status === "running",
       ...(card.status === "failed" ? { tone: "failed" as const } : ["unknown", "stale", "needs-input"].includes(card.status) ? { tone: "waiting" as const } : {}) } } : {}),
+    ...(result ? { result: { title: result.title ?? say(result.summary), body: result.text ?? "",
+      ...(result.link ? { actions: [{ id: "result", label: say(result.link.label), href: result.link.href, variant: "primary" as const }] } : {}) } } : {}),
     ...(card.status === "stale" && redo ? { recovery: [{ id: "redo", label: say("请助理按最新状态重新准备") }] } : {}),
   });
 }

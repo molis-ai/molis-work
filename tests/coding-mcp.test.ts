@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createServer } from "node:http";
+import { MolisWorkLocalHost, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
@@ -45,7 +46,7 @@ test("MCP real stdio handshake, version selection, revocation and persisted conf
 });
 
 
-test("MCP HTTP credentials stay outside views; config identity, cancellation and timeout invalidate old selections", async()=>{
+test("ASC-08 ASC-18: MCP HTTP credentials survive Host restart outside views; config identity, cancellation and timeout invalidate old selections", async()=>{
   const root=await mkdtemp(join(tmpdir(),'molis-mcp-http-'));
   const owner={project_id:'http-project',plugin_id:'io.molis.work.coding'};
   const secret='mcp-test-only-credential-123456789';
@@ -53,6 +54,7 @@ test("MCP HTTP credentials stay outside views; config identity, cancellation and
   const server=createServer(async(request,response)=>{
     if(request.url==='/hang'){initialized++;return;}
     authSeen.push(request.headers.authorization==='Bearer '+secret);
+    if(request.headers.authorization!=='Bearer '+secret){response.writeHead(401).end();return;}
     if(request.method==='DELETE'){response.writeHead(204).end();return;}
     const parts:Buffer[]=[];for await(const part of request)parts.push(Buffer.from(part));
     const message=JSON.parse(Buffer.concat(parts).toString());
@@ -63,10 +65,10 @@ test("MCP HTTP credentials stay outside views; config identity, cancellation and
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
   const address=server.address();assert.ok(address && typeof address==='object');
   const endpoint='http://127.0.0.1:'+address.port+'/mcp';
-  let adapter:Awaited<ReturnType<typeof createPrologueNodeAdapter>>|undefined;
+  let host=new MolisWorkLocalHost({homeDirectory:root,completeText:null});
+  const open=()=>ensureSystemAgentService(host,root).mcpLibrary();
   try{
-    adapter=await createPrologueNodeAdapter({app:{appId:'io.molis.mcp-http-test',appVersion:'1.0.0'},reviewQueue:new AgentReviewQueue(),storageRoot:join(root,'runtime'),modelConfiguration:async()=>null,resolveCredential:()=>null});
-    const library=adapter.mcpLibrary!;
+    let library=(await open())!;
     const input={expected_version:0,label:'Authenticated HTTP',transport:'http' as const,enabled:true,timeout_ms:1000,endpoint,auth:{kind:'replace-secret' as const,secret}};
     const saved=await library.save(owner,input);assert.equal(saved.credential,'present');assert.ok(!JSON.stringify(saved).includes(secret));
     await library.control(owner,saved.id,'connect');
@@ -79,6 +81,13 @@ test("MCP HTTP credentials stay outside views; config identity, cancellation and
     const second=(await library.list(owner))[0]!;assert.equal(second.tools[0]!.version,first.tools[0]!.version);assert.equal(second.tools[0]!.configuration_version,2);
     await assert.rejects(library.validate(owner,first.tools),/配置版本/);await library.validate(owner,second.tools);
     assert.ok(!JSON.stringify(await library.list(owner)).includes(secret));
+    await host.close();host=new MolisWorkLocalHost({homeDirectory:root,completeText:null});library=(await open())!;
+    authSeen.length=0;
+    await library.control(owner,saved.id,'connect');
+    assert.ok(authSeen.length>=2 && authSeen.every(Boolean), 'Host restart resolves the same durable credential for the actual handshake');
+    const durable=(await library.list(owner)).find(item=>item.id===saved.id)!;
+    assert.ok(durable.auth_connection_id);
+    assert.equal(withConnectorConnections(root,store=>store.resolveToken(durable.auth_connection_id!, 'mcp-bearer')),secret);
     const hanging=await library.save(owner,{...input,endpoint:endpoint.replace('/mcp','/hang'),auth:{kind:'none'},timeout_ms:5000});
     const connecting=library.control(owner,hanging.id,'connect');const failed=assert.rejects(connecting);
     while(initialized===0)await new Promise(resolve=>setTimeout(resolve,10));
@@ -88,7 +97,7 @@ test("MCP HTTP credentials stay outside views; config identity, cancellation and
     await library.save(owner,{...input,id:hanging.id,expected_version:1,endpoint:endpoint.replace('/mcp','/hang'),auth:{kind:'none'},timeout_ms:1000});
     await assert.rejects(library.control(owner,hanging.id,'connect'));
     assert.notEqual((await library.list(owner)).find(item=>item.id===hanging.id)?.health,'connected');
-  }finally{await adapter?.close();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await rm(root,{recursive:true,force:true});}
+  }finally{await host.close();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await rm(root,{recursive:true,force:true});}
 });
 
 test("MCP connection selection resolves the current Connector secret again after rotation", async () => {

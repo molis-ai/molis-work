@@ -188,10 +188,13 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await click('[data-feed-config-submit]');
   await waitFor('window.configResponseReady === true');
   assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
-  await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
+  // ASC-40: disabled cancel and submit controls receive real negative interaction attempts.
+  assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog] footer [data-feed-sources-close]').disabled"), true);
+  await click('[data-feed-sources-dialog] footer [data-feed-sources-close]', { allowDisabled: true });
   await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
-  await click('[data-feed-config-submit]');
+  assert.equal(await evaluate("document.querySelector('[data-feed-config-submit]').disabled"), true);
+  await click('[data-feed-config-submit]', { allowDisabled: true });
   assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true);
   assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog]').getAttribute('aria-busy')"), 'true');
   assert.equal(await evaluate('window.configRequests'), 1);

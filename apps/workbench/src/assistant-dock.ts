@@ -34,7 +34,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
                 <span class="assistant-summary-controls">
                   <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
                   <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
-                  <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button>
+                  <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button><button class="assistant-control" type="button" data-assistant-control="stop" data-keep-connections hidden>${L("停止任务，接入继续")}</button>
                 </span>
               </div>
               <p class="assistant-summary-title" data-assistant-work-title>${L("新工作")}</p>
@@ -54,7 +54,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
               <span class="assistant-strip-actions">
                 <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
                 <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
-                <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button>
+                <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button><button class="assistant-control" type="button" data-assistant-control="stop" data-keep-connections hidden>${L("停止任务，接入继续")}</button>
               </span>
             </div>
             <div class="assistant-thread" data-assistant-thread role="log" aria-live="polite" aria-relevant="additions">

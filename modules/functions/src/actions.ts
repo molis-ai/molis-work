@@ -1,3 +1,4 @@
+import { defineConnectorUsagesAction } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ActionError, ACTION_REFERENCE_SCHEMA, type ActionDefinition, type ActionProviderRegistration, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_MCP_DESTINATION_ID, type FunctionRecord, FunctionSummary, FunctionDescribe, FunctionInvokeResult } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsService } from "./service.js";
@@ -26,6 +27,7 @@ function define<Input, Output>(id: string, title: string, description: string, i
 }
 
 export const functionsActions = {
+  connectionUsages: defineConnectorUsagesAction("functions.connection.usages", "判断规则使用的连接", [], "home"),
   list: define<Record<string, never>, { functions: FunctionSummary[] }>("functions.list", "已发布判断规则", "列出已发布规则及稳定身份；草稿不在调用目录中。", empty,
     { type: "object", properties: { functions: { type: "array", items: summary } }, required: ["functions"] }),
   describe: define<{ function_key: string }, { function: FunctionDescribe }>("functions.describe", "查看判断合同", "读取指定已发布规则的输入、判断条件和版本。", {
@@ -71,6 +73,7 @@ export function publishedFunctionAction(record: FunctionRecord): ActionDefinitio
 
 export interface FunctionsActionPorts {
   credentialAvailable(): boolean;
+  connectionId?(): string | null;
   validatePublication?(record: FunctionRecord, caller: ActionCallContext): Promise<import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneReference | void>;
   validateRecommendations?(record: FunctionRecord, caller: ActionCallContext): Promise<void>;
   read<T>(operation: (service: FunctionsService) => T): T;
@@ -83,6 +86,9 @@ const credentialAvailability = (ports: FunctionsActionPorts) => ports.credential
 export function functionsActionProvider(ports: FunctionsActionPorts): ActionProviderRegistration {
   return { provider, definitions: [...Object.values(functionsActions), ...Object.values(functionAuthoringActions)], handlers: [
     ...functionAuthoringHandlers(ports),
+    { ...functionsActions.connectionUsages, handle: (_caller, input) => ({ usages: ports.connectionId?.() === (input as { connection_id: string }).connection_id
+      ? ports.read(service => service.listPublished()).map(record => ({ usage_id: record.function_key, title: record.name, detail: `判断模型：${record.model}`, enabled: ports.credentialAvailable(),
+        actions: [{ action: { capability_id: `functions.published.${record.function_key}`, version: record.version, provider_id: provider.provider_id }, input: {} }] })) : [] }) },
     { ...functionsActions.list, handle: () => ports.read(service => ({ functions: service.listPublished() })) },
     { ...functionsActions.describe, handle: (_caller, input) => ports.read(service => ({ function: service.describePublished((input as { function_key: string }).function_key) })) },
     { ...functionsActions.invoke, availability: () => credentialAvailability(ports), handle: (caller, input) => {

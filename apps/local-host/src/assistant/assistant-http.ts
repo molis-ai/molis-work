@@ -31,6 +31,9 @@ import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { questionErrors } from "../agent-question-card.js";
 import { AssistantQuestionDrafts } from "./assistant-questions.js";
 import { drawAssistantReply } from "./assistant-view-html.js";
+import { cancelConnectorAuthorizationsForSession, holdConnectorAuthorizationsForSession } from "../connector-authorization-status.js";
+import { retainConnectorSetupsForSession } from "../connector-setup-retain.js";
+import { assistantSetupMaterial } from "./assistant-setup-material.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -51,6 +54,12 @@ const questionDrafts = (store: AssistantStore) => new AssistantQuestionDrafts({ 
 
 /** One Assistant per Home. Its store is opened once and lives as long as the Host that serves it. */
 const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore; threads: AssistantThreads }>();
+
+/** The Host owns the shared Assistant; closing a borrowed HTTP transport does not release it. */
+export function closeAssistantService(host: MolisWorkLocalHost): void {
+  services.get(host)?.service.continuations.close();
+  services.delete(host);
+}
 
 export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads } {
   const existing = services.get(ports.localHost);
@@ -90,6 +99,10 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   };
   let threads: AssistantThreads;
   const service: AssistantService = new AssistantService(store, {
+    cancelSetups: sessionId => cancelConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR),
+    retainSetups: sessionId => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args)),
+    holdSetups: (sessionId, revision) => holdConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, revision),
+    setupMaterial: (work, offered, withdrawn) => assistantSetupMaterial(ports.homeDirectory, work, offered, withdrawn),
     host: async () => { await ports.agentReady(); return ports.agentHost; },
     // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
     memory: () => memoryHostFor(ports.localHost)?.service,
@@ -98,8 +111,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         work: { work_id: work.work_id, title: work.title } }, said, key: `${work.work_id}:${run_id}`, session_id: work.session_id ?? null })
         .catch(error => console.warn("[memory] 没有排上提炼", error));
     },
-    authority: async work => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
-      (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
+    authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
+      (view, input, output) => service.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.noteDispatched(work, view), () => {
         const snapshot = store.rounds(work.work_id).at(-1)?.context;

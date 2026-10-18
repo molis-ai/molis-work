@@ -125,4 +125,3 @@ export function endedOnPromise(state: RoundState, runId: string, sessionId: stri
   state.roundFacts.delete(runId);
   return Boolean(guard?.writing && record?.held.has("announce") && record.announcedAt === (facts?.calls.length ?? 0));
 }
-

@@ -1154,7 +1154,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     controls("resume").forEach((btn) => { btn.hidden = state !== "paused"; });
     /* Stop also reaches the sub-tasks it handed out, so it stays offered while any of them still runs. */
     const liveChildren = work && view && view.delegated ? view.delegated.filter((child) => isLive(child.state)).length : 0;
-    controls("stop").forEach((btn) => { btn.hidden = !isLive(state) && !liveChildren; });
+    controls("stop").forEach((btn) => { btn.hidden = btn.hasAttribute("data-keep-connections") ? state !== "waiting-input" || work.executor.kind !== "assistant" : !isLive(state) && !liveChildren; });
     paintStrip();
     if (!metaEl) return;
     const characters = canCharacter() ? characterChoices() : null;
@@ -2129,7 +2129,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   allEls(island, "[data-assistant-control]").forEach((btn) => onEl(btn, "click", async () => {
     if (!curId) return;
     btn.disabled = true;
-    try { view = await post(workUrl(curId) + "/control", { kind: btn.dataset.assistantControl }); render(); }
+    try { view = await post(workUrl(curId) + "/control", { kind: btn.dataset.assistantControl, ...(btn.hasAttribute("data-keep-connections") ? { keep_connections: true } : {}) }); render(); }
     catch (error) { showError(error); }
     finally { btn.disabled = false; poll(); }
   }));

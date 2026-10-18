@@ -94,7 +94,7 @@ test("S-13 memory, page context and Feed, Jelly and Cognia materials reach the m
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.injection-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
-  t.after(async () => { await adapter.close(); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
   const ledger = openMemoryLedger({ homeDirectory: home });
   t.after(() => ledger.close());
   const memory = new MemoryService({ backend: prologueMemoryBackend(async () => host.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai", projectTitle: async id => id });

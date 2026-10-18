@@ -58,7 +58,7 @@ export function createLocalFeedSourceService(
     transaction: (operation) => db.transaction(operation).immediate(),
     resolveConnection: (serviceId, connectionId) => withConnectorConnections(homeDirectory ?? resolveMolisWorkHome(), (connections) => {
       const connection = requireFeedConnection(connections, connectionId, serviceId);
-      if (connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "cli") throw feedErrors.source_invalid_configuration("Feed 自动同步请选择 API OAuth 或令牌连接；CLI / MCP 请在连接器中使用其原生操作");
+      if (!connection.enabled || connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "cli") throw feedErrors.source_invalid_configuration("Feed 自动同步请选择 API OAuth 或令牌连接；CLI / MCP 请在连接器中使用其原生操作");
       if (connections.state(connection) !== "connected" || (!connection.credential_ref && connection.auth_method !== "none")) {
         throw feedErrors.source_invalid_configuration("所选账号连接不可用，请在 Connectors 中重新授权");
       }

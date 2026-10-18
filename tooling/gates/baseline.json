@@ -1,10 +1,10 @@
 {
-  "giantUnits": 137,
+  "giantUnits": 136,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 1875,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1874,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1531,
+      "lines": 1522,
       "methods": 91
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -18,7 +18,7 @@
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
     "function apps/local-host/src/character-import-discovery.ts#createCharacterDiscovery": 205,
     "function apps/local-host/src/character-import-discovery.ts#discover": 176,
-    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 284,
+    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 539,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
@@ -35,12 +35,11 @@
       "lines": 308,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 318,
-    "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 316,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 210,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 207,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
@@ -58,7 +57,7 @@
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
-    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
+    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
     "file horizontal/agent-host/src/adapters/prologue.ts": 965,
@@ -251,10 +250,10 @@
     "file plugins/native/workflows/src/client.ts": 1358,
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013,
     "function plugins/official-integrations/gmail/src/oauth-pending.ts#createGmailPendingSessions": 178,
-    "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 170,
+    "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 168,
     "function plugins/official-integrations/gmail/src/oauth.ts#createGmailOAuth": 177,
-    "file plugins/official-integrations/gmail/src/provider.ts": 930,
-    "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
+    "file plugins/official-integrations/gmail/src/provider.ts": 910,
+    "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
   "testInternalImports": 494,
   "testImports": {

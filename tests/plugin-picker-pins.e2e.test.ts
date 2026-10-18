@@ -108,7 +108,7 @@ test("DOCK-02 a plugin the project does not have is grey, opens nothing, and can
   void press;
 });
 
-test("DOCK-04 the pin keeps a plugin in the Dock and out of it, and the choice survives a reload; Shelf's and 灵光's are fixed on", async t => {
+test("DOCK-04 the pin keeps a plugin in the Dock and out of it, and the choice survives a reload; Shelf's and 灵光's pins are ordinary ones", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { press, state, dock, evaluate, waitFor, navigate, command, sessionId, origin, projectId, frames } = b;
@@ -119,15 +119,18 @@ test("DOCK-04 the pin keeps a plugin in the Dock and out of it, and the choice s
   assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "choosing for the Dock keeps the list open");
   await press(`${tile("pages")} [data-dock-choice]`); await frames();
   await waitFor("!document.querySelector('[data-dock-pins] [data-dock-pin=\"pages\"]')");
-  // Shelf and 灵光 are always on beside the Assistant.
+  // Shelf and 灵光 left the bar for the side panel (W2'-1): their pins are like any other. Not pinned at first, pressed they
+  // go into the Dock.
   for (const id of ["shelf", "lingguang"]) {
-    const resident = await state(id);
-    assert.deepEqual({ pinned: resident.pinned, pinDisabled: resident.pinDisabled, kept: resident.kept }, { pinned: true, pinDisabled: true, kept: true }, id);
+    const ordinary = await state(id);
+    assert.deepEqual({ pinned: ordinary.pinned, pinDisabled: ordinary.pinDisabled, kept: ordinary.kept }, { pinned: false, pinDisabled: false, kept: false }, id);
+    await press(`${tile(id)} [data-dock-choice]`); await frames();
+    assert.ok((await dock()).includes(id), `${id}: the Dock has it once pinned`);
   }
-  // Kept in this browser: it is there again after the page is.
+  // Kept in this browser: they are there again after the page is.
   await press(`${tile("form")} [data-dock-choice]`); await frames();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("Boolean(document.querySelector('[data-dock-pins] [data-dock-pin=\"form\"]'))");
+  for (const id of ["form", "shelf", "lingguang"]) await waitFor(`Boolean(document.querySelector('[data-dock-pins] [data-dock-pin="${id}"]'))`);
 });
 
 test("DOCK-05 adding a plugin changes the page in place: the entry wakes, the trash can replaces the plus, the plugin opens — and the page was not loaded again", async t => {

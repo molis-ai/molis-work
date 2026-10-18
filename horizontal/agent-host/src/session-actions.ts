@@ -3,7 +3,7 @@ import { agentErrors } from "./errors.js";
 import { ActionError, type ActionDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
-import { agentOfferActions, type AgentActionClient, type AgentRunRef, type AgentRuntimeAdapter, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentOfferActions, type AgentActionClient, type AgentRunRef, type AgentRuntimeAdapter, type AgentSessionRef, type AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 type Call = { invocation: HostCapabilityInvocation };
@@ -19,6 +19,17 @@ export interface SessionActionPorts<C extends Call> {
   requireRun(call: C, session: AgentSessionRef, run: AgentRunRef): Promise<{ owner: { actor_id: string } }>;
   /** The actions the plugin's rounds are granted through this runtime, as that grant reads now; absent when it grants none. */
   actions(call: C, pluginId: string, runtimeId: string): Promise<AgentActionClient | undefined>;
+}
+
+/**
+ * The supplement a person's new step is for (specs/ai-input-receipts D2, stage 3d-3): one input of this very round, as the
+ * round's own record has it, and not one taken back. A forged id, one of another session or round, or a withdrawn one is
+ * refused here, before anything is written.
+ */
+function checkOrigin(inputId: string, turns: readonly AgentTurnView[]): void {
+  const steer = turns.find(turn => turn.steer?.id === inputId)?.steer;
+  if (!steer) throw agentErrors.input_not_origin("这条补充不是这一轮的输入，不能作为新步骤的来源");
+  if (steer.state === "withdrawn") throw agentErrors.input_not_origin("这条补充已经撤回，不能作为新步骤的来源");
 }
 
 const sameReference = (a: ExactActionReference, b: ExactActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
@@ -52,6 +63,7 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       const view = await ports.requireRun(call, { runtime_id, session_id }, run);
       const adapter = ports.adapter(call, runtime_id);
       if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时不能调整计划图");
+      if (amendment.kind === "insert" && amendment.origin !== undefined) checkOrigin(amendment.origin, (await adapter.read(run)).turns);
       await fresh(call);
       // The person deciding: the calling plugin's actor, else the session's owner.
       return { board: await adapter.collaboration.revise(run, amendment, expected_version, ports.pluginFor(call)?.actor_id ?? view.owner.actor_id) };

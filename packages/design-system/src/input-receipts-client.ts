@@ -38,8 +38,9 @@ export interface InputReceipts {
   /**
    * 「关于补充「…」」 (stage 3d-2): a button that opens the receipt `owner` drew for the input, focus on its summary; null
    * when it drew none (an earlier round not shown), so no button does nothing. `first` runs before (a dialog closing).
+   * `lead` is its first words: 「来自补充「」 on a step added for the input (stage 3d-3).
    */
-  link(owner: Element, inputId: string, first?: () => void): HTMLElement | null;
+  link(owner: Element, inputId: string, first?: () => void, lead?: "关于补充「" | "来自补充「"): HTMLElement | null;
 }
 
 /**
@@ -206,9 +207,9 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
   const parts = { L, say, make, button, quote, latest, attempt, redraw, treatment }, correct = correction<Shown>(parts, entry => draw(entry, true));
   return {
     tray: tray(parts),
-    link(owner, inputId, first) {
+    link(owner, inputId, first, lead = "关于补充「") {
       const at = surfaces.get(owner), entry = at && of(at, inputId);
-      return entry ? button("mw-btn--link", L("关于补充「") + quote(entry.turn.text) + L("」"), () => { first?.(); reveal(entry); }) : null;
+      return entry ? button("mw-btn--link", L(lead) + quote(entry.turn.text) + L("」"), () => { first?.(); reveal(entry); }) : null;
     },
     line(owner, turn, round, act) {
       const steer = turn.steer;
@@ -431,4 +432,5 @@ export const INPUT_RECEIPTS_EN: Readonly<Record<string, string>> = {
   "插入": "Inserted",
   "步骤报告提到它": "Step reports naming it",
   "关于补充「": "About the supplement \"",
+  "来自补充「": "From the supplement \"",
 };

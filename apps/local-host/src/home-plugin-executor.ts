@@ -7,6 +7,7 @@ import { openPluginDatabase } from "./plugin-database.js";
 import { pluginHomeFor } from "./home-side.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
+import { pluginMaterialsFor } from "./plugin-materials-service.js";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
@@ -65,10 +66,11 @@ export class HomePluginExecutor implements PluginExecutor {
       withdrawCaller = this.options.qualifyCaller(definition, caller);
       const authorized = { ...context, requireGrant: authorize };
       const model = pluginModelFor(home, definition, authorized, assertActive);
+      const materials = pluginMaterialsFor(home, definition, authorized, assertActive);
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, database: database?.client, ...(model ? { model } : {}), ...(storage ? { storage } : {}),
+        ui: ui.client, database: database?.client, ...(model ? { model } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });

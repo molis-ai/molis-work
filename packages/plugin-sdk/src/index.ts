@@ -232,3 +232,7 @@ const manifestFailures = {
   "plugin.permission_invalid": pluginErrors.permission_invalid,
   "plugin.declaration_invalid": pluginErrors.declaration_invalid,
 } as const;
+
+export { decodeMaterialUpload, supportsMaterialExtension, MATERIAL_EXTENSIONS, MATERIAL_UPLOAD_MAX_BYTES } from "./material-upload.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { MaterialSource, MaterialUpload, MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";

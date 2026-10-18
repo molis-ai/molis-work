@@ -14,10 +14,12 @@ const input = { runtime_id: "fixture", session_id: "own-session", run_id: "own-r
 function registered() {
   const host = new AgentHost(), handlers = new Map<string, Function>();
   const revised: Array<{ run: unknown; amendment: AgentStepAmendment; version: number; actor: string }> = [];
+  // The round's own record: one supplement it read, one taken back, one it has received and not read yet.
+  const turns = [{ turn_id: "t1", kind: "user", text: "顺便覆盖注册", steer: { id: "in-read", state: "read" } }, { turn_id: "t2", kind: "user", text: "算了", steer: { id: "in-withdrawn", state: "withdrawn" } },
+    { turn_id: "t3", kind: "user", text: "再加个登出", steer: { id: "in-received", state: "received" } }];
   const adapter = { descriptor: { runtime_id: "fixture", display_name: "Fixture", provider_version: "1", capabilities: emptyCapabilityMatrix() },
     async readSession(ref) { return { session: ref, owner, title: "Owned", runs: [{ session_id: "own-session", run_id: "own-run" }], latest_run: null }; },
-    // The round's own record: one supplement it read, one taken back.
-    async read() { return { turns: [{ turn_id: "t1", kind: "user", text: "顺便覆盖注册", steer: { id: "in-read", state: "read" } }, { turn_id: "t2", kind: "user", text: "算了", steer: { id: "in-withdrawn", state: "withdrawn" } }] }; },
+    async read() { return { turns: structuredClone(turns) }; },
     collaboration: {
       async read() { return []; }, async awaitReady() { return []; }, async control() { throw new Error("not in this test"); },
       async revise(run, amendment, version, actor) { revised.push({ run, amendment, version, actor }); return { project_id: "p", version: version + 1, terminal: false, nodes: [] }; },
@@ -27,7 +29,7 @@ function registered() {
   registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler); return () => {}; } },
     { agentHost: () => host, projectId: () => owner.project_id, authority: () => ({ manifest: { roles: [], prompts: [] }, authorizedDirectories: [] }) });
   const call = (value: Record<string, unknown>, invocation: Record<string, unknown>) => handlers.get(agentCollaborationActions.revise.capability_id)!({}, value, invocation);
-  return { call, revised, handlers };
+  return { call, revised, handlers, turns };
 }
 const live = (assertAuthorityCurrent: () => void = () => {}, beforeEffect: () => Promise<void> = async () => {}) =>
   ({ consumer: "plugin" as const, plugin: { ...owner, assertActive() {}, declaration: { manifest: {} as never } }, assertAuthorityCurrent, beforeEffect });
@@ -95,4 +97,15 @@ test("RCPT-349 a new step names a supplement only of this round, as its own reco
   const { call, revised } = registered();
   await call(insert("in-read"), live());
   assert.deepEqual(revised.map(entry => entry.amendment), [insert("in-read").amendment], "the round's own read supplement goes on, by its id");
+});
+
+test("RCPT-357 the supplement is checked once the call is current: one taken back while the call waits is refused and nothing is written", async () => {
+  const { call, revised, turns } = registered();
+  let checks = 0;
+  // The third wait is the handler's own, after the registration's and the session read's; the supplement is taken back during it.
+  const takeBack = async () => { if (++checks === 3) turns[2]!.steer.state = "withdrawn"; };
+  await assert.rejects(call({ ...input, amendment: { kind: "insert", after: "step-1", title: "加登出", acceptance: "登出测试通过", origin: "in-received" } }, live(() => {}, takeBack)),
+    (error: unknown) => (error as { code?: string }).code === "agent.input_not_origin");
+  assert.equal(checks, 3, "taken back during the handler's own wait, and refused right after it");
+  assert.deepEqual(revised, [], "nothing goes on to the runtime");
 });

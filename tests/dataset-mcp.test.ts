@@ -12,9 +12,9 @@ import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 
 // One Home has one execution owner, the resident Host (Dataset runs on its Plugin Runtime, W5-01): each external tool is an MCP
-// port whose calls cross the gateway to that Host, as the standard MCP launcher's do. "Across processes" is the tools'
-// processes and a restart of the Host.
-test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications across tool processes, a Host restart and project grants", { timeout: 120_000 }, async t => {
+// port whose calls cross the gateway to that Host, as the standard MCP launcher's do. This test builds both in one process;
+// reopening means the Host object is closed and rebuilt, not an OS process or an external MCP child.
+test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications across tool calls and a rebuilt Host object", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "dataset-mcp-"));
   let host: MolisWorkLocalHost | undefined, web: TestHostServer | undefined;
   const start = async () => {
@@ -83,7 +83,7 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
     db.exec("DROP TRIGGER fail_dataset_mcp_publication");
   } finally { db.close(); }
 
-  // The Host restarts; the tools reconnect to the new one.
+  // The Host object is closed and rebuilt in this process; the tools reconnect to it.
   await stop(); await start();
   writer = connect("writer", a.project_id); reader = connect("reader", a.project_id);
   const recovered = await call(writer, "promote", { id: dataset.id, expected_version: dataset.version });

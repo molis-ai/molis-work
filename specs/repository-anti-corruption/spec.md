@@ -146,7 +146,7 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 - 测试：`tests/host-log-catches.test.ts`：`W5-13-04`（项目查找只把 not_found 当没有，目录读不了与别的目录错误照抛）、`W5-13-05`（预览失败按类型记，forbidden、not_found 不记，消息与路径不进日志）、`W5-13-06`（Coding 后台清单，经宿主的真实接线：没有 Coding 的项目不记，读不了的库开始失败时记一条、读通后再失败再记；没有 Coding 的库用不带 Coding 表的空库——演示看板会建 Coding 的表，用它就量不到这一条；去掉接线里的询问即红）、`W5-13-08`（重复失败只在开始时记）、`W5-13-11`（项目简介与侧栏浏览器：没有这个项目仍是 404，目录读不了是 500 并记一条，服务照常答下一个）；`tests/im-local-project.test.ts` 的 `W5-13-11`（群聊连接：目录读不了 500，没有这个项目仍 403，之后照常连上）；`tests/connector-mcp.test.ts` 的 `W5-13-07`（重启后一个连接登记失败按 id 记，另一个照常登记）。变异检查：项目查找改回全捕获（04 失败）、预览不分种类（05 失败）、重复失败不去重（06、08 失败）、连接登记改回静默（07 失败）、Coding 去掉表检查（06 失败）。
 - 门禁：`--base origin/main` 通过；新加的几行没有留在巨大单元里（移到模块级小函数或同行注释），巨大单元的行数不变。
 
-W5-01-DATASET（2026-10-18，本地实现中；工作树 `feature/w5-01-dataset-runtime`，未推、未开 PR；Codex 10-18 确认切片，等 #684 合入后的空位）：
+W5-01-DATASET（2026-10-18，本地候选已审（Codex 10-18 裁定代码候选无 Blocker/P1，文案收尾后等待整合），工作树 `feature/w5-01-dataset-runtime`，未推、未开 PR；等 #684 合入后的空位）：
 - 范围：Dataset 从构建期装配迁到 Plugin Runtime，每个项目一个实例；库仍是 `{home}/dataset/dataset.db`，项目分区、目录条目与 `project_data` 不变。不改成 Home 单实例，不动其他插件。
 - 包：`store.ts` 的 SQL 端口（`DatasetSql`/`DatasetStores`/`ownDatasetStores`）与 `DATASET_DATABASE`；`actions.ts` 读/写分开；`promote.ts` 三段写（intent → publish → complete）；新增 `plugin.ts` 与 13 条 Manifest 路由（`/datasets…`），`max_body_bytes` 保持 1,000,000 B，CSV 的 2,000,000 字符仍是动作层限制；导出 `createDatasetPlugin`/`DATASET_DATABASE`，删旧 `routes.ts`/`route-handlers.ts`。
 - 宿主：删 `dataset-actions.ts`、`dataset-native-plugin-http.ts`、`project-host.ts` 的 provider、`web-request.ts`/`web-catalog.ts` 的处理段、`index.ts` 导出、`creative-artifacts.ts` 的三个 Dataset 端口；`project-plugins.ts` 加 `bundled` + `database: DATASET_DATABASE`；装配名单把 dataset 从构建期移到 Runtime，删短路由名单。

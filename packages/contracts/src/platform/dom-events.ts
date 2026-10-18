@@ -399,11 +399,6 @@ export const DOM_EVENTS = [
     summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
-    name: "molis:shelf-admit", kind: "request", owner: "shelf", on: "window",
-    detail: "{ filename, mime, bytes_base64, source }",
-    summary: "Put a file made elsewhere (a generated image) into the Shelf.",
-  },
-  {
     name: "molis:side-browser-control", kind: "announcement", owner: "side-panel", on: "document",
     detail: "{ action: takeover | handback, project_id, session_id }",
     summary: "The person took the side panel's browser over from a Work, or handed it back; the Assistant tells the Work.",

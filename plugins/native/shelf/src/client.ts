@@ -773,22 +773,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     } finally { if (lastId) applySnapshot(snapshot, lastId); }
   };
-  lifetime.listen(window,"molis:shelf-admit", async (event) => {
-    const detail = event.detail || {};
-    if (!detail.bytes_base64 || !detail.filename) return;
-    try {
-      const payload = await post("/api/shelf/items", { filename: detail.filename, mime: detail.mime || "", bytes_base64: detail.bytes_base64 });
-      if(!lifetime.alive)return;
-      snapshot = payload.snapshot;
-      if (payload.item) applySnapshot(snapshot, payload.item.item_id);
-      window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "received", title: payload.item ? payload.item.name : detail.filename,
-        object: payload.item ? { kind: "shelf_item", id: payload.item.item_id, project_id: null } : undefined,
-        note: detail.source ? L("来自 {source}", { source: detail.source }) + " · " + L("可以在 Shelf 里用于项目") : L("可以在 Shelf 里用于项目") } }));
-    } catch (error) {
-      if(!lifetime.alive)return;
-      window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "failed", title: detail.filename, note: error.message || L("放进 Shelf 失败") } }));
-    }
-  });
   const showAdmissionError = (error) => {
     expandShelfStage(true);
     if (!selected) preview.innerHTML=docHtml("Shelf",L("无法添加材料"),error.message);

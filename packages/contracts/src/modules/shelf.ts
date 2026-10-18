@@ -1,6 +1,7 @@
 import type { BoundedInferenceReceipt } from "../services/agent-host.js";
 import type { ArtifactReference } from "./artifacts.js";
 import type { ContractDescriptor } from "../platform/package.js";
+import type { ActionReference } from "../platform/actions.js";
 import type { MaterialExtractor, MaterialWebsiteReader } from "../services/materials.js";
 
 /** Execution authority is supplied by the Host, never by a serialized Shelf request. */
@@ -71,6 +72,14 @@ export const modulesShelfContract = {
   maturity: "partial",
   ssot: "docs/modules/shelf.md",
 } as const satisfies ContractDescriptor;
+
+/**
+ * `shelf.items.admit` for another plugin that puts a file it made into the person's Shelf (Images' 「放进 Shelf」): the
+ * caller names the action by this reference, through the action directory, and never reaches Shelf's implementation.
+ */
+export const SHELF_ADMIT_ACTION: ActionReference = { capability_id: "shelf.items.admit", version: 1 };
+/** The file form of `shelf.items.admit`'s input; the action answers `{ item: ShelfItemRecord }`. */
+export interface ShelfAdmitFile { readonly filename: string; readonly mime: string; readonly bytes_base64: string }
 
 export type ShelfItemGroup = "material" | "result" | "clipboard";
 export type ShelfItemKind =

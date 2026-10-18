@@ -319,13 +319,6 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ verb, title, object?, note?, file? }";
     readonly summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
-    readonly name: "molis:shelf-admit";
-    readonly kind: "request";
-    readonly owner: "shelf";
-    readonly on: "window";
-    readonly detail: "{ filename, mime, bytes_base64, source }";
-    readonly summary: "Put a file made elsewhere (a generated image) into the Shelf.";
-}, {
     readonly name: "molis:side-browser-control";
     readonly kind: "announcement";
     readonly owner: "side-panel";

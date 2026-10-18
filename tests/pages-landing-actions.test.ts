@@ -99,7 +99,7 @@ test("W3-B1 step 6: /api/contextual/attach writes only once the landing object i
       object: { kind: "pages_document", id: document.id, title: "Notes" }, targets: [{ kind: "text_range", role: "paragraph", text: "", anchor: 6, head: 6 }] };
     const asked: unknown[] = [];
     const serve = async (confirm: ((picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => Promise<boolean[]>) | undefined) => {
-      const ports = { scope: "a", actions: () => ({ discover: () => client.discover(caller), invoke: (reference: ActionReference, input: unknown) => client.invoke(caller, reference, input) }),
+      const ports = { scope: "a", actor_id: "user", actions: () => ({ discover: () => client.discover(caller), invoke: (reference: ActionReference, input: unknown) => client.invoke(caller, reference, input) }),
         ...(confirm ? { confirmReferences: async (picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => { asked.push([picked, kinds]); return confirm(picked, kinds); } } : {}) };
       const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), ports); });
       await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

@@ -119,6 +119,11 @@ export function inspectContextDeclarations(manifest: Pick<PluginManifest, "actio
         problems.push(`能力 ${key} 的${name}的 prepare ${prepare.capability_id}@${prepare.version} 不是本插件的选区动作查询（defineFragmentOffersAction）`);
       }
     }
+    // An offers query with no choices of its own shows nothing on the bar: it exists only as some entry's `prepare`.
+    if (Array.isArray(action.fragment_offer_choices) && !action.fragment_offer_choices.length && !definitions.some(source => isObject(source) && isObject(source.action)
+      && [source.action.intake, source.action.attach].some(declared => isObject(declared) && isObject(declared.prepare) && declared.prepare.capability_id === definition.capability_id && declared.prepare.version === definition.version))) {
+      problems.push(`能力 ${key} 没有片段动作选项，也不是本插件某个创建入口或追加的 prepare`);
+    }
     const attach = action.attach;
     if (isObject(attach) && typeof attach.item_kind === "string" && !kinds.has(attach.item_kind)) {
       problems.push(`能力 ${key} 的追加对象种类 ${attach.item_kind} 不是本插件拥有的种类：没有它的对象读取器，插件不能写进别的插件的对象`);

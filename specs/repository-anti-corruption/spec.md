@@ -6,6 +6,8 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+灵光交接收口（2026-10-18，Codex，本地同步通过）：本片已 merge 材料 8145f96bd 及实际 main 63639a764，保留主线 receipts/vendor/Coding 变化。整体 build、API、boundary、merge-base health 与实测资源通过；13 个直接相关文件 187 条通过（含资源预算拒绝、流读取、浏览器同源请求、Runtime HTTP、灵光动作/材料/MCP/丢弃/库、客户端与项目清理）。前期 159 文件 1,474 条通过、1 条环境跳过及其中 9 个 Chrome 文件 41 条证据仍保留；没有声称重跑这一批。workbench.js 只沿用用户已批的 +2,231 B，按实际前置重定为 1,111,791→1,114,022，灵光包减少 725 B；25 项共 7,478,632 B。Todo 与 receipts 的旧起点均进入拒绝回归，不重复消费额度。原日志 /tmp/molis-lingguang-post703-{build,api,health,boundary,assets,targeted,actions}.log。正式 CI、共享核心组合回归与合入待 PR 队列；整线尚未完成。
+
 交接收口（2026-10-18，Codex）：用户已要求停止开启后续实现，将手头候选经 PR、问题处理与合并 main 后统一交接。#703 的全部分支检查及合并队列 Verify 已通过，实际合入 main `63639a76498a44320018ed4d935ace2abed1c886`。原 MCP stdio 用例在源码、断言和 60 秒时限不变下低并发复跑 20.8 秒通过；桌面包必跑三文件共 39 条及 Shelf Rust 七条通过，原两次超时记录保留。材料 #727 已 merge 该实际 main，offline install、整体 build、API（无额外变化）、boundary、merge-base health 与资源核对通过；六个直接相关文件 39 条通过。25 项资源 7,477,126 B，仍比这份 main 少 6 B，没有新增额度；日志 /tmp/molis-materials-post703-{build,api,health,boundary,assets,targeted}.log。共享全量运行 39125232628 针对此前材料头 846d0baa8，结果另行结算。以下旧“待合入/不自行合并”等文字保留为当时记录，当前授权按本段；整条 W5/W6 仍未完成。
 
 材料服务接续（2026-10-18，Codex，本地组合验证通过，准备 PR）：#684 已以 c5d2b3cf6 合入，本片 merge #703 的本地同步源码 efd9c18de，纳入同一实际 main c5d2b3cf6。保留主线 S-38 命令 PATH，材料服务沿原顺延决定使用 S-39，测试同号；此前 S-38 记录仅为历史时点。最终 offline install、整体 build、API、boundary、merge-base health/快查下调与资源测量均通过；25 项 7,475,692 B，比前置少 6 B，来自灵光客户端的现错误码替换，无新资源额度。包要求及影响面的 183 个非浏览器文件全部通过，1,817 条通过、1 条原有沙箱环境条件跳过；实际 Chrome 的 plugin-sample.e2e 1/1 通过，去重184文件共1,818条通过、1条跳过、0失败。安全表合并材料不可信输入与主线桌面边界，派生表按组合重测。没有带入后续灵光、Cognia、Images、Jelly 的迁移源码；本片功能可用的本地证据不代表共享核心全量、正式 CI 或 W5/W6 整线完成。

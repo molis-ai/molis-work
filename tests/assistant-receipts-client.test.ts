@@ -22,15 +22,19 @@ function page(reply: (path: string, body: Record<string, unknown>) => Promise<un
   // The receipt itself is the design system's shared one (tests/input-receipts-client.test.ts); here it is a stand-in that
   // keeps one element per turn, as the shared one does.
   const made = new Map<string, Node>(), trays: unknown[][] = [], owners: Node[] = [], tray = new Node("details", "mw-receipt mw-tray");
-  const shared = { tray: (owner: Node, queued: unknown, round: object, act?: Act) => (trays.push([owner, queued, round, act]), Array.isArray(queued) && !queued.length ? null : tray), line: (owner: Node, turn: { turn_id: string; kind: string; steer?: { state: string } }, _round: object, act?: Act) =>
+  // 「当前约定」 as the shared receipt would make it: what it is asked for, and a block whose words are those runs.
+  const asked: unknown[][] = [], pacts: Array<[Node | null, string]> = [];
+  const agreements = (owner: Node, runs: string[]) => (asked.push([owner, runs]), runs.length ? Object.assign(new Node("div"), { textContent: runs.join(" "), querySelectorAll: () => runs }) : null);
+  const shared = { agreements, tray: (owner: Node, queued: unknown, round: object, act?: Act) => (trays.push([owner, queued, round, act]), Array.isArray(queued) && !queued.length ? null : tray), line: (owner: Node, turn: { turn_id: string; kind: string; steer?: { state: string } }, _round: object, act?: Act) =>
     (acts.push(act), owners.push(owner), turn.kind === "user" && turn.steer ? made.get(turn.turn_id) ?? made.set(turn.turn_id, new Node("details", "mw-receipt")).get(turn.turn_id)! : null) };
   const api = (path: string, method: string, body: Record<string, unknown>) => { calls.push([path, method, body]); return reply(path, body); };
-  const ui = vm.runInNewContext(`(${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})`, { Error, encodeURIComponent })({ L: (text: string) => text, shared, chip, api, work: () => "work 1", reload: () => { reloads++; } }) as {
+  const ui = vm.runInNewContext(`(${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})`, { Error, encodeURIComponent })({ L: (text: string) => text, shared, chip, api, work: () => "work 1", reload: () => { reloads++; },
+    pact: (content: Node | null, badge: string) => { pacts.push([content, badge]); } }) as {
     line(thread: Node, node: Node, put: (node: Node) => void, turn: object, round: object): void; paint(round: object | undefined): void; target(): string | undefined; into(): { pending_id: string; draft_from_composer?: string } | null;
-    tray(thread: Node, put: (node: Node) => void, view: object | null): void;
+    after(thread: Node, put: (node: Node) => void, view: object | null): void;
   };
   const put = (node: Node) => { if (node.parent !== thread) { node.parent = thread; thread.children.push(node); } };
-  return { ui, chip, thread, put, calls, acts, owners, trays, tray, reloads: () => reloads };
+  return { ui, chip, thread, put, calls, acts, owners, trays, tray, asked, pacts, reloads: () => reloads };
 }
 const steer = (state: string) => ({ turn_id: "t1", kind: "user", text: "顺便看一下截图", steer: { id: "steer-1", state } });
 const asking = (revision = 1) => ({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q1", pending_revision: revision, allows_free_text: true, from_composer: true }] });
@@ -108,16 +112,28 @@ test("RCPT-326: from a receipt, the Assistant takes a supplement back through th
 test("RCPT-335, 3b-2c: after the rounds the Assistant places the shared tray of its latest round, says when its queue was not read, and takes one back through the work's control", async () => {
   const { ui, thread, put, calls, trays, tray } = page();
   const rounds = [{ run_id: "run-1", phase: "completed" }, { run_id: "run-2", phase: "running" }];
-  ui.tray(thread, put, { rounds });
+  ui.after(thread, put, { rounds });
   assert.equal(thread.children.includes(tray), true, "RCPT-335 the tray follows the rounds");
   assert.equal(trays[0]![0], thread, "RCPT-335 the thread is the surface that draws it, so its tray is its own");
   assert.equal(trays[0]![1], undefined, "RCPT-335 a view without queued_inputs hands no queue on: not read, not empty");
   assert.equal((trays[0]![2] as { run_id: string }).run_id, "run-2", "the latest round's");
-  ui.tray(thread, put, { rounds, queued_inputs: [] });
+  ui.after(thread, put, { rounds, queued_inputs: [] });
   assert.deepEqual(trays[1]![1], [], "read and empty is handed on as such");
   assert.equal(thread.children.includes(tray), false, "nothing open: the tray goes");
-  ui.tray(thread, put, null);
+  ui.after(thread, put, null);
   assert.equal(trays.length, 2, "no work, no tray");
   await (trays[0]![3] as Act).withdraw("q-1");
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [["/works/work%201/control", "POST", { kind: "withdraw", run_id: "run-2", input_id: "q-1" }]], "RCPT-335 the work's own control");
+});
+
+test("RCPT-360, 3e-1: after the rounds the Assistant puts 当前约定 in its side block, from the thread's receipts of the rounds it shows, redrawn only when it reads differently", () => {
+  const { ui, thread, put, asked, pacts } = page();
+  const rounds = [{ run_id: "run-1", phase: "completed" }, { run_id: "run-2", phase: "running" }];
+  ui.after(thread, put, { rounds });
+  assert.deepEqual(asked[0], [thread, ["run-1", "run-2"]], "RCPT-360 the thread is its surface, and only this work's rounds count");
+  assert.deepEqual(pacts.map(([content, badge]) => [content?.textContent, badge]), [["run-1 run-2", "2"]], "RCPT-360 the side block gets it, with how many it lists");
+  ui.after(thread, put, { rounds: rounds.map(round => ({ ...round })) });
+  assert.equal(pacts.length, 1, "RCPT-360 the same words are not drawn again, so focus in the block stays");
+  ui.after(thread, put, null);
+  assert.deepEqual(pacts.at(-1), [null, ""], "RCPT-360 no work, no block");
 });

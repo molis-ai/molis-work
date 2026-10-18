@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -236,6 +237,61 @@ test("Home opens original Inbox items and source groups, completes Inbox, and ke
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home");
 });
 
+
+test("ASC-38, ASC-39: Home refresh cannot consume a click while Inbox offers are disabled", { timeout: 45_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
+  assert.ok(projectId);
+  const feed = createLocalFeedApplication(store.db);
+  const before = feed.listInboxEntries(projectId).find(entry => entry.subject_type === "feed_item" && entry.status === "open");
+  assert.ok(before);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.querySelector('[data-home-subject-kind=inbox_entry]')");
+  const row = '[data-home-subject-id="' + before.entry_id + '"]';
+  await evaluate(`(() => {
+    for (const day of [...document.querySelectorAll('[data-home-day]')].map(button => button.dataset.homeDay)) {
+      document.querySelector('[data-home-day="' + day + '"]').click();
+      if (document.querySelector(${JSON.stringify(row)})) return;
+    }
+    throw new Error('Seeded Inbox entry is missing from Home');
+  })()`);
+  await click(row);
+  const done = '[data-home-offer="0"]';
+  await waitFor(`document.querySelector(${JSON.stringify(done)})?.textContent === '做完了' && !document.querySelector(${JSON.stringify(done)}).disabled`);
+  // Start a real refresh after the earlier enabled check and hold its real prepare response.
+  await evaluate(`(() => {
+    window.__homeClickProbe = { pointers: 0, executions: 0 };
+    const gate = new Promise(resolve => { window.__releaseHomeOffers = resolve; });
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const path = String(args[0]);
+      if (path.endsWith('/api/home/actions/execute')) window.__homeClickProbe.executions++;
+      const response = await originalFetch(...args);
+      if (path.endsWith('/api/home/actions/prepare')) await gate;
+      return response;
+    };
+    document.addEventListener('pointerdown', event => {
+      if (event.target.closest('[data-home-offer]')) window.__homeClickProbe.pointers++;
+    }, true);
+    document.dispatchEvent(new Event('visibilitychange'));
+  })()`);
+  try {
+    await waitFor(`document.querySelector(${JSON.stringify(done)})?.disabled`);
+    await assert.rejects(click(done), /Disabled click target/, "ASC-38: a blocked refresh never consumes a pointer click");
+    assert.deepEqual(await evaluate("window.__homeClickProbe"), { pointers: 0, executions: 0 });
+    assert.equal(feed.getInboxEntry(projectId, before.entry_id).status, before.status);
+    assert.equal(feed.getInboxEntry(projectId, before.entry_id).revision, before.revision);
+    // ASC-39: the same click call can wait for a short refresh; no business operation is retried.
+    await evaluate("setTimeout(() => window.__releaseHomeOffers(), 150)");
+    await click(done);
+    await waitFor(`!document.querySelector(${JSON.stringify(row)})`, 8_000);
+    assert.deepEqual(await evaluate("window.__homeClickProbe"), { pointers: 1, executions: 1 });
+    assert.equal(feed.getInboxEntry(projectId, before.entry_id).status, "done");
+    assert.equal(feed.getInboxEntry(projectId, before.entry_id).revision, before.revision + 1);
+  } finally { await evaluate("window.__releaseHomeOffers()"); }
+});
 
 test("Home shortcuts persist per project, open their destination, and preserve edits on failure", { timeout: 90_000 }, async t => {
   const browser=await openGoalBrowser(t,"seeded");if(!browser)return;

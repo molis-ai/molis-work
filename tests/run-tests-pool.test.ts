@@ -178,3 +178,23 @@ test("--retries: a file that fails and then passes is listed as flaky and does n
   assert.match(again, /1 of 2 files passed in/);
   assert.match(again, /failed \(1\):\n\s+fail\s+\S*broken\.test\.mjs/);
 });
+
+test("--bail: a file that still fails after its retry stops the run, so the files after it never start; a flaky one does not", () => {
+  const made = directory();
+  const seen = path.join(made, "seen");
+  const write = (name: string, body: string) => { const file = path.join(made, name); writeFileSync(file, `import test from "node:test";\nimport { appendFileSync, existsSync, writeFileSync } from "node:fs";\ntest(${JSON.stringify(name)}, () => { appendFileSync(${JSON.stringify(seen)}, ${JSON.stringify(`${name}\n`)}); ${body} });\n`); return file; };
+  const marker = path.join(made, "tried");
+  const flaky = write("flaky.test.mjs", `if (!existsSync(${JSON.stringify(marker)})) { writeFileSync(${JSON.stringify(marker)}, ""); throw new Error("first try fails"); }`);
+  const broken = write("broken.test.mjs", 'throw new Error("always");');
+  const later = [write("later-1.test.mjs", ""), write("later-2.test.mjs", "")];
+  // One at a time, in the order named (no recorded durations): the flaky file, then the broken one, then the two that never start.
+  const run = spawnSync(process.execPath, [runner, "--retries", "1", "--bail", "--jobs", "1", flaky, broken, ...later], { encoding: "utf8", timeout: 120_000 });
+  const output = `${run.stdout}${run.stderr}`;
+  assert.equal(run.status, 1, output);
+  assert.match(output, /\[retry 1\] ok\s+\S*flaky\.test\.mjs/, "the flaky file is retried at once and passes");
+  assert.match(output, /\[retry 1\] FAIL\s+\S*broken\.test\.mjs/);
+  assert.match(output, /1 of 4 files passed \(1 only on a retry\)/);
+  assert.match(output, /stopped at the first failure \(--bail\): 2 of 4 files did not run or were stopped/);
+  assert.match(output, /failed \(1\):\n\s+fail\s+\S*broken\.test\.mjs/);
+  assert.deepEqual(readFileSync(seen, "utf8").trim().split("\n"), ["flaky.test.mjs", "flaky.test.mjs", "broken.test.mjs", "broken.test.mjs"], "nothing after the failure started");
+});

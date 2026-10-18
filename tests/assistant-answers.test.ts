@@ -75,7 +75,7 @@ test("an answer continues its own question; a rejection stays a rejection; a lat
     const other = await service.send({ text: "另一件事", request_id: "req-answers-2" }, { project_ref: project });
     await assert.rejects(service.answer(other.work.work_id, { run_id: round.run_id, pending_id: question.pending_id, text: "两段" }),
       (error: unknown) => error instanceof ActionError && error.code === "assistant.scope" && error.kind === "forbidden", "an answer from another work is refused");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("an answered question shows what was asked and what the person answered, whether written or picked", () => {

@@ -205,7 +205,8 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
   const { click, waitFor, command, coding, heard, enter, ask, projectId, origin, homeDirectory } = opened;
   await enter(projectId!);
   const session = await ask(LOGIN.task);
-  const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: `${origin}/projects/${projectId}/` }, undefined, 20_000);
+  // A window of its own, so both pages stay in front: Coding reads and follows a session only in a page that is shown.
+  const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: `${origin}/projects/${projectId}/`, newWindow: true }, undefined, 20_000);
   const { sessionId: tab } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true }, undefined, 20_000);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, tab, 20_000);
   const other = async <T = unknown>(expression: string): Promise<T> => {
@@ -219,26 +220,22 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   };
-  // The second tab picks the same session from Coding's list, the way a person would; Coding reads a session only in a tab in front.
-  const { targetInfo: { targetId: first } } = await command<{ targetInfo: { targetId: string } }>("Target.getTargetInfo", {}, opened.sessionId);
-  await command("Target.activateTarget", { targetId });
+  // The second tab picks the same session from Coding's list, the way a person would.
+  assert.equal(await other("document.visibilityState"), "visible");
   await otherWaits(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]')`);
   await other(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]').click()`);
-  await otherWaits(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]')`);
+  // The list is drawn by the server first; the row is clicked once Coding's page script has loaded and listens.
+  await otherWaits(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]') && !document.querySelector('[data-ui-client-state="loading"]')`);
   await other(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]').click()`);
   await otherWaits(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && document.querySelector(${JSON.stringify(card(coding))})`);
-  // Its request to answer waits in its page until released; the reply is kept for the assertions. Once `__holdReads` is set, its
-  // reads of the session wait too, so the read after the refusal lands only when let go.
-  await other(`(() => { const original = window.fetch; let release, releaseReads; window.__held = new Promise(resolve => { release = resolve; }); window.__release = () => release();
-    window.__reads = new Promise(resolve => { releaseReads = resolve; }); window.__releaseReads = () => releaseReads();
+  // Its request to answer waits in its page until released; the reply is kept for the assertions.
+  await other(`(() => { const original = window.fetch; let release; window.__held = new Promise(resolve => { release = resolve; }); window.__release = () => release();
     window.fetch = async (...args) => { const answering = args[1] && typeof args[1].body === 'string' && args[1].body.includes('"kind":"answer"');
-      if (window.__holdReads && /\\/sessions\\/[^/?]+\\?window=/.test(String(args[0]))) await window.__reads;
       if (answering) { window.__sent = true; await window.__held; }
       const response = await original(...args); if (answering) window.__reply = { status: response.status, body: await response.clone().json() }; return response; }; })()`);
   await other(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`)}).click()`);
   await other(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-action="answer"]`)}).click()`);
   await otherWaits("window.__sent === true");
-  await command("Target.activateTarget", { targetId: first });
 
   await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="1"]`);
   await click(`${card(coding)} [data-ix-action="answer"]`);
@@ -252,9 +249,10 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
     const now = await runtimeFiles(homeDirectory); same = JSON.stringify([...now]) === JSON.stringify([...taken]) ? same + 1 : 0; taken = now;
   }
 
-  // The second tab comes to the front with its reads held: it has not yet seen the round end when the refusal arrives.
-  await other("window.__holdReads = true");
-  await command("Target.activateTarget", { targetId });
+  // The second tab follows the round too: it sees the question answered and the round end while its own answer is still on the
+  // way. The card it was sent from stays, so the answer's outcome has a place to show.
+  await otherWaits(`document.querySelector('${coding}').innerText.includes(${JSON.stringify(LOGIN.done)})`);
+  assert.equal(await other(`document.querySelector(${JSON.stringify(card(coding))})?.dataset.busy`), "true", "the card whose answer is on its way is not taken down");
   await other("window.__release()");
   await otherWaits("window.__reply");
   const reply = await other<{ status: number; body: { code?: string; error?: string } }>("window.__reply");
@@ -264,11 +262,9 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
     open: [...node.querySelectorAll('fieldset,button')].filter(one => !one.disabled).length, picked: node.querySelector('[data-ix-field="q0"] [data-ix-option="0"]').getAttribute('aria-checked') ?? node.querySelector('[data-ix-field="q0"] [data-ix-option="0"]').getAttribute('aria-pressed') }; })()`;
   const kept = { refused: "true", note: reply.body.error, open: 0, picked: "true" };
   await otherWaits(`JSON.stringify(${refusedCard}) === ${JSON.stringify(JSON.stringify(kept))}`);
-  // Read again, the question is gone from the round and the round has ended; the refused card stays, closed, with its reason
-  // and what was picked, so the person sees why it was not sent.
-  await other("window.__releaseReads()");
-  await otherWaits(`document.querySelector('${coding}').innerText.includes(${JSON.stringify(LOGIN.done)})`);
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // The page reads the session again after the refusal; the question is gone from the round, and the refused card stays, closed,
+  // with its reason and what was picked, so the person sees why it was not sent.
+  await new Promise(resolve => setTimeout(resolve, 1500));
   assert.deepEqual(await other(refusedCard), kept, "after the session is read again, the refused card still says why, closed");
   await new Promise(resolve => setTimeout(resolve, 800));
   assert.equal(heard.length, 1, "the round heard the answer once");

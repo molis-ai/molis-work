@@ -704,7 +704,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(!canAnswer && form.dataset.busy!=='true') form.querySelector('[data-ix-note]').textContent=question.unavailable_reason || '这一轮已结束，原问题不可再回答。';
     }
     for(const form of block.querySelectorAll('[data-coding-question]')) {
-      if(!live.has(form.dataset.questionKey) && !form.dataset.refused) {
+      if(!live.has(form.dataset.questionKey) && !(form.dataset.busy || form.dataset.refused)) {
         const hadFocus=form.contains(document.activeElement);form.ix?.destroy();form.remove();if(hadFocus)input.focus({preventScroll:true});
       }
     }

@@ -454,7 +454,6 @@ tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
 tests/security-invariants-plugin-files.test.ts
-tests/action-background-authority.test.ts
 tests/security-invariants-plugin-background.test.ts
 
 tests/connector-status.test.ts

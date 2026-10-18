@@ -430,8 +430,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis:side-toggle", kind: "request", owner: "side-panel", on: "document",
-    detail: "{ tab? }",
-    summary: "Close the panel if it shows that tab (or any tab), otherwise open it. Nothing in the tree dispatches it yet.",
+    detail: "{ tab?, focus? }",
+    summary: "Close the panel if it shows that tab (or any tab), otherwise open it. The bar's side panel button dispatches it (with `focus: true`: opened on purpose, the panel takes focus).",
   },
   {
     name: "molis:surface-focus", kind: "request", owner: "context-actions", on: "element", bubbles: true,

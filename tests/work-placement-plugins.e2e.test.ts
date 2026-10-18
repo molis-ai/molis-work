@@ -166,7 +166,8 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const shelfDoc = "document.querySelector('[data-side-body=\"plugin:shelf/side\"] iframe')?.contentDocument";
   const shelfShows = (id: string) => waitFor(`document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'
     && ${shelfDoc}?.querySelector('[data-shelf-list=materials] [data-shelf-item="${id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
-  const inShelf = (selector: string) => evaluate(`(() => { const node = [...(${shelfDoc}?.querySelectorAll(${text(selector)}) || [])].find(node => node.getClientRects().length); node?.click(); return Boolean(node); })()`);
+  // A row's actions show on hover; the first visible match, or else the first one.
+  const inShelf = (selector: string) => evaluate(`(() => { const all = [...(${shelfDoc}?.querySelectorAll(${text(selector)}) || [])], node = all.find(node => node.getClientRects().length) || all[0]; node?.click(); return Boolean(node); })()`);
   const useHere = async (project: string, title: string) => {
     // The plugin is named, never placed: `openPlugin=shelf` opens Shelf's side tab on the item.
     await go(`/projects/${project}/?openPlugin=shelf&openItem=${encodeURIComponent(item.item_id)}`);

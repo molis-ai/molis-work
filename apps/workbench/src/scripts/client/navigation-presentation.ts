@@ -286,7 +286,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     const target = event.target?.nodeType === 1 ? event.target : null;
     if (!target) return;
     // Opened on purpose from the bar, the side panel takes focus (its current tab); opened by context it never does.
-    if (target.closest('[data-side-toggle]')) { document.dispatchEvent(new CustomEvent(document.body.dataset.sideOpen === 'true' ? 'molis:side-close' : 'molis:side-open', { detail: { focus: true } })); return; }
+    if (target.closest('[data-side-toggle]')) { document.dispatchEvent(new CustomEvent('molis:side-toggle', { detail: { focus: true } })); return; }
     if (target.closest('[data-plugin-picker-toggle]')) { setPicker(pickerPopover?.hidden !== false); return; }
     if (target.closest('[data-dock-more]')) { setOverflow(overflow?.hidden !== false); return; }
     const pin = target.closest('[data-dock-pin]');

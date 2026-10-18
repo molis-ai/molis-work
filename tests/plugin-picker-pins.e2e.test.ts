@@ -108,7 +108,7 @@ test("DOCK-02 a plugin the project does not have is grey, opens nothing, and can
   void press;
 });
 
-test("DOCK-04 the pin keeps a plugin in the Dock and out of it, and the choice survives a reload; Shelf's and 灵光's are fixed on", async t => {
+test("DOCK-04 the pin keeps a plugin in the Dock and out of it, and the choice survives a reload; 灵光's pin is an ordinary one and Shelf has none", async t => {
   const b = await openPicker(t);
   if (!b) return;
   const { press, state, dock, evaluate, waitFor, navigate, command, sessionId, origin, projectId, frames } = b;
@@ -119,11 +119,9 @@ test("DOCK-04 the pin keeps a plugin in the Dock and out of it, and the choice s
   assert.equal(await evaluate("document.querySelector('[data-plugin-picker-popover]').hidden"), false, "choosing for the Dock keeps the list open");
   await press(`${tile("pages")} [data-dock-choice]`); await frames();
   await waitFor("!document.querySelector('[data-dock-pins] [data-dock-pin=\"pages\"]')");
-  // Shelf and 灵光 are always on beside the Assistant.
-  for (const id of ["shelf", "lingguang"]) {
-    const resident = await state(id);
-    assert.deepEqual({ pinned: resident.pinned, pinDisabled: resident.pinDisabled, kept: resident.kept }, { pinned: true, pinDisabled: true, kept: true }, id);
-  }
+  // Shelf is a 常开插件 in the side panel, so it has no entry here; 灵光's pin is like any other.
+  assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(tile("shelf"))}))`), false, "Shelf is not in the switcher");
+  assert.equal((await state("lingguang")).pinDisabled, false, "灵光's pin is an ordinary one");
   // Kept in this browser: it is there again after the page is.
   await press(`${tile("form")} [data-dock-choice]`); await frames();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));

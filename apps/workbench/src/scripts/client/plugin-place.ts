@@ -14,5 +14,5 @@ export const sideOpenedTabs = (): string => JSON.stringify(sideOpenedPlugins());
 export function openPluginInSide(tabs: Record<string, string>, plugin: string, item?: string | null, title?: string | null): boolean {
   const tab = Object.hasOwn(tabs, plugin) && tabs[plugin], open = () => document.dispatchEvent(new CustomEvent("molis:side-open", { detail: { tab, target: item ? { item, title: title || "" } : null } }));
   if (tab) document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", open, { once: true }) : open();
-  return Boolean(tab);
+  return !!tab;
 }

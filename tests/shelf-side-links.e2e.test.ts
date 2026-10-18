@@ -56,9 +56,11 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   const notice = { notice_id: "shelf-link-notice", work_id: "work-shelf-link", kind: "material", text: "材料已经放进 Shelf", created_at: new Date().toISOString(),
     open: { surface: "shelf", id: item.item_id, title: item.name, project_id: projectId } };
   await evaluate(`document.dispatchEvent(new CustomEvent('molis-work:attention', { detail: { notices: [${JSON.stringify(notice)}] } }))`);
-  if (await evaluate("document.querySelector('[data-assistant-notices]').hidden")) await click("[data-assistant-attention]");
-  await waitFor(`document.querySelector('[data-assistant-notices] [data-notice-id="shelf-link-notice"][data-notice-action="open"]')?.getClientRects().length > 0`);
-  await click(`[data-assistant-notices] [data-notice-id="shelf-link-notice"][data-notice-action="open"]`);
+  // The list paints when it opens; its button may be folded into the bar's menu at this width, so it is pressed directly.
+  await evaluate("(() => { const button = document.querySelector('[data-assistant-attention]'); button.hidden = false; button.click(); })()");
+  const open = `[data-assistant-notices] [data-notice-id="shelf-link-notice"][data-notice-action="open"]`;
+  await waitFor(`Boolean(document.querySelector(${JSON.stringify(open)}))`);
+  await evaluate(`document.querySelector(${JSON.stringify(open)}).click()`);
   await landed("the Assistant notice");
 });
 

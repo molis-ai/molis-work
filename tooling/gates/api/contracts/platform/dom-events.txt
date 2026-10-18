@@ -366,8 +366,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "side-panel";
     readonly on: "document";
-    readonly detail: "{ tab? }";
-    readonly summary: "Close the panel if it shows that tab (or any tab), otherwise open it. Nothing in the tree dispatches it yet.";
+    readonly detail: "{ tab?, focus? }";
+    readonly summary: "Close the panel if it shows that tab (or any tab), otherwise open it. The bar's side panel button dispatches it (with `focus: true`: opened on purpose, the panel takes focus).";
 }, {
     readonly name: "molis:surface-focus";
     readonly kind: "request";

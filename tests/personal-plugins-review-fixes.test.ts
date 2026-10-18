@@ -186,7 +186,7 @@ test("个人插件 Manifest 声明 storage:private，Pages 另有 artifact:write
   assert.ok(pagesManifest.permissions.some((item) => item.permission === "artifact:write"));
 });
 
-test("客户端走 /api/plugins/<id>/，Host 改写到现有短路径", () => {
+test("客户端使用当前插件路径，保留的 Host 适配按合同改写", () => {
   assert.equal(rewriteNativePluginApiPath("/api/plugins/pages/abc/promote"), "/api/pages/abc/promote");
   assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.form"), "/api/form");
   assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.shelf/file"), "/api/shelf/file");
@@ -198,7 +198,8 @@ test("客户端走 /api/plugins/<id>/，Host 改写到现有短路径", () => {
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/dataset/);
   assert.match(PPT_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/ppt/);
-  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/lingguang/);
+  // RAC-31: the Runtime client targets its declared route; the HTTP discovery test rejects the removed URL.
+  assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.lingguang\/sparks/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });
 

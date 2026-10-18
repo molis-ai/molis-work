@@ -506,19 +506,14 @@
     "error": "输入不符合能力合同：/ required"
   },
   "GET <project>/api/dataset": {
-    "status": 200,
+    "status": 404,
     "type": "application/json",
-    "keys": [
-      "ai_available",
-      "ai_unavailable_reason",
-      "datasets"
-    ]
+    "error": "页面或接口不存在"
   },
   "GET <project>/api/dataset/no-such": {
     "status": 404,
     "type": "application/json",
-    "code": "dataset.not_found",
-    "error": "找不到这张表"
+    "error": "页面或接口不存在"
   },
   "GET <project>/api/images": {
     "status": 404,

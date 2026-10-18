@@ -9,8 +9,7 @@ import test from "node:test";
 
 import {
   DATASET_CLIENT_FACTORY_SCRIPT,
-  DatasetPluginRouteTable,
-  createDatasetRouteHandlers,
+  datasetActions,
   openDatasetStore,
   renderDatasetWorkbench,
 } from "@molis-ai/molis-work-plugin-dataset";
@@ -83,27 +82,21 @@ test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑�
 
   const datasets = openDatasetStore(home);
   try {
-    const routes = new DatasetPluginRouteTable(createDatasetRouteHandlers(datasetTestPorts(datasets, query.get("project_id")!, {
+    const { actions } = datasetTestPorts(datasets, query.get("project_id")!, {
       publishArtifact: (input) => {
         assert.equal(input.content.columns.length, 1);
         return { artifact_id: "dataset-" + input.record_id, version: input.version };
       },
-    })));
-    const created = await routes.handle({ method: "POST", pathname: "/api/dataset", query, body: { title: "分数" } });
-    const id = (created?.body as { dataset: { id: string } }).dataset.id;
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}`,
-      query,
-      body: { columns: [{ id: "c1", name: "姓名", type: "text", order: 1 }], rows: [] },
     });
-    const promoted = await routes.handle({ method: "POST", pathname: `/api/dataset/${id}/versions`, query, body: { note: "编辑历史" } });
-    assert.equal((promoted?.body as { version: { note: string } }).version.note, "编辑历史");
-    const artifact = await routes.handle({ method: "POST", pathname: `/api/dataset/${id}/promote`, query, body: {} });
-    const dataset = (artifact?.body as { dataset: { artifact_version: number } }).dataset;
-    assert.equal(dataset.artifact_version, 1);
-    const again = await routes.handle({ method: "POST", pathname: `/api/dataset/${id}/promote`, query, body: {} });
-    assert.equal((again?.body as { dataset: { artifact_version: number } }).dataset.artifact_version, 2);
+    const created = await actions.invoke(datasetActions.create, { title: "分数" });
+    const id = created.dataset.id;
+    await actions.invoke(datasetActions.update, { id, columns: [{ id: "c1", name: "姓名", type: "text", order: 1 }], rows: [] });
+    const promoted = await actions.invoke(datasetActions.snapshot, { id, note: "编辑历史" });
+    assert.equal(promoted.version.note, "编辑历史");
+    const artifact = await actions.invoke(datasetActions.promote, { id });
+    assert.equal(artifact.dataset.artifact_version, 1);
+    const again = await actions.invoke(datasetActions.promote, { id });
+    assert.equal(again.dataset.artifact_version, 2);
   } finally {
     datasets.close();
   }

@@ -1064,3 +1064,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #699（采用线换包 after-write-check，Prologue 94ee1ea4，含 #42–#46）审过：两份 archive 逐字节相同、parked-run 删除入 packagesWithoutPatch、provenance/README/vendor-provenance 一致；S-34 经 agent-host 公开出口断言 PATH 只用根外绝对项（五种变异各红）。排在 chain37 跑全量。
 
 - 10-18 AC-03（交互线，interaction/ac03-draft-chip）：workbench.js +606 B 用户弹窗批准一次（保留注释与提示句），键 [1109302, 1109908]；已通知交互线开 PR。
+- 10-18 C4 Molis 半边归采用线：在 #697、#699 合入后从 main 拉分支，coding-base v11→v12；删 search、read 的重复说明和 childInstructions 里「tools 可以写 []」那句；MiniMax 前后对比各 8 次（T1–T3），两组用同一个新包；改后比改前少 2 次以上的题：照实记录，给 Prologue 开 PR 补强那条工具说明，Molis 这句留到下次换包（13.1）；已告诉手册线不要重复做。

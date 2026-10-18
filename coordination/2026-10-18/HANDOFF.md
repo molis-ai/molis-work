@@ -22,7 +22,7 @@
 
 | PR | 线 | 现在 | 合进去还差什么 |
 | --- | --- | --- | --- |
-| #725 | 采用（C4：coding-base v12，删三句工具自己已经说清的话） | 统筹审过，全量在跑 | 全量绿了 gate 自动入队 |
+| #725 | 采用（C4：coding-base v12，删三句工具自己已经说清的话） | 全量绿了，已在合并队列第 1 位 | 等队列合入 |
 | #726 | 回执（3e-0b：7 个 Coding 角色列上 acknowledge-inputs，常量 WORKSPACE_PARENT_TOOLS） | 统筹审过，全量排着 | 同上 |
 | #720 | 情境（W3-C2 + Esc 的修复 `bus.hush()`） | 50b018acc 审过；等作者 merge main，按 `[1111791, 1111910]` 重新取键 | 新 head 核对后加 full-suite |
 | #708 | 交互（AC-08 两个页签答同一题） | 952e2628e 的产品修复审过；测试里的 1.5 秒等待要改成等「拒绝之后完成的那次会话读取」 | 新 head 核对后加 full-suite |
@@ -31,7 +31,12 @@
 | 待开 | 情境 W4-1（选中的文字直接记成 Todo 或灵光，带撤销提示） | 在做 | 开 PR，审过跑全量 |
 | 待开 | 手册 BL-163/T5 评测与处理 | 96+16 次 MiniMax 在跑 | 开 PR；只改文档和提示词的话按规则判断要不要跑全量 |
 
-不在本交接里的：#703、#727（防腐线 W5-01，Codex，草稿叠在一起）、#721（Computer Use，DeepSeek Harness，草稿）、#631、#156（jingxusandra-gif 的草稿）。
+不在本交接里的：
+- #703、#727：防腐线 W5-01，Codex 在做，两个草稿叠在一起。
+- #721：Computer Use 线，DeepSeek Harness 在做。10-18 晚已转为待审；按「合并一律经统筹」要审 diff、跑全量再入队。
+- #631、#156：jingxusandra-gif 的草稿。
+
+防腐线和 Computer Use 线照常进行，由用户另行安排。#727、#631 都自己手动触发过全量，会占 runner。
 
 ### 1.2 各线
 
@@ -41,11 +46,28 @@
 - 已批、没开工：批 B（read 的窗口读加真实行号，edit 匹配不到时说明是行号前缀，只提示不兜底；计划在共享笔记 `adoption-batchB-plan.md`）。要和 prologue#50 合成一次换包。
 - 待补线会话的要点。
 
-**回执线（AI 输入回执）** — 需求书 `specs/ai-input-receipts/spec.md`。
-- 待补。
+**回执线（AI 输入回执）** — 需求书 `specs/ai-input-receipts/spec.md`。全文：[`lines/receipts.md`](lines/receipts.md)。
+- 在途只有 #726（3e-0b）。3e-0、3e-1、3d-5 已合。
+- 剩下的需求：
+  - 3e 的「交付说明」，原本是下一片，没写计划，也没批；
+  - §20 的 RCPT-103～107（跨压缩、跨 Run、重启仍适用；按范围纠正；三个入口一致；超预算不静默截断；端到端）；
+  - 阶段 4（Goals 层）、5、6；
+  - BACKLOG 的 BL-144、148、161、162、163、164。
+- #726 合入后要清：工作树 `line-receipts-3e1`、`-3e0`、`-3e0b`、`-base`，以及三个 `receipts/*` 分支。删工作树和分支要先弹窗请用户批。`line-receipts-1c` 里有别人没提交的改动，别动。
 
-**交互线（跨插件 AI 交互）** — 需求书 `specs/ai-interaction-experience/spec.md`。
-- 待补。
+**交互线（跨插件 AI 交互）** — 需求书 `specs/ai-interaction-experience/spec.md`（§17 进度表）。全文：[`lines/interaction.md`](lines/interaction.md)。
+- 在途只有 #708（AC-08，改了 Coding 产品代码，要跑全量）。
+- 剩下的需求：§17 里「部分」的行，包括：
+  - AC-01 的第二批入口 P5 与逐插件的证据；
+  - AC-06 的结果卡与 Coding 操作卡 H4；
+  - AC-09 的 S1；
+  - AC-10 的宽度与深色截图（真实输入法和读屏只能用户做）；
+  - AC-12 的 `generated-ai.md`（改了要跑真实模型冒烟）；
+  - AC-11 的包来源还写着 `b541a8e6`，要更新。
+  - AC-02 同排推荐归情境线。
+- 原本的下一片（没批）：AC-10 的 Coding 问卷卡，三个宽度加深色，只跑 `coding-question-card.e2e`。
+- `coding.js` 离预算只剩约 37 字节。
+- #708 合入后要清：工作树 `line-interaction-ac08`、分支 `interaction/ac08-two-tabs`；另外几个旧本地分支先 `git branch -d` 确认已合入再删。
 
 **情境线（情境动作）** — 总纲 `specs/context-program/spec.md`（§21 是当前接续入口）。
 - 待补。

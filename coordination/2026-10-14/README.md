@@ -1124,3 +1124,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18：用户让 Codex 修首页 Inbox 的偶发失败 → #661 新 head 0fbc0c89e：共用的 click 夹具先等目标可用、每次布局后重新取节点，再加一条首页回归。作者自己重加了标签（bb2c7cea0 上 14/16 的那次全量被取消），新全量 run 39107725661，gate-661 盯着。统筹建议（不挡）：查不到节点时在期限内容忍短暂消失。
 - 10-18：#661 在 0fbc0c89e 上 3 个分片失败：product-interaction 和 cross-plugin-recovery 报 Disabled click target（用例故意去点禁用的关闭按钮），goals-dialogs 报 Inspected target navigated。都和新的共用 click 有关。已请作者让 click 默认恢复原语义，首页用例显式选用「等可用再点」，标签由统筹来加。
 - 10-18：#661 → f7d07b658：click 默认等目标可用，故意去点禁用按钮的写 allowDisabled（点之前先断言它是禁用的）；goals-dialogs 查出的是真实产品问题（后台刷新会在表单保存时整页换掉），已修：正在保存的表单也算「人还在操作」，这个判断提前到重载之前。workbench.js 1,110,056。作者 08:00 又自己加了标签，全量 run 39109760320，gate-661 盯着。
+- 10-18：#717（jingxusandra-gif，只改文档，产品运营文档）没经统筹、作者自己合了（59fd7850c）。事后复查：只有文档、门禁全过，不用补跑全量；提醒以后先交统筹，并建议约 41k 行的快照 JSON 别放进公开仓库。#661 的合并会在新 main 上测。

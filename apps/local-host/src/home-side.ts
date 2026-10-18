@@ -1,4 +1,5 @@
 import path from "node:path";
+import { closeAssistantService } from "./assistant/assistant-http.js";
 import type { PluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
 import type { HostCompleteText } from "./host-complete-text.js";
@@ -43,6 +44,7 @@ export function bindHomeSide(host: MolisWorkLocalHost, homeDirectory: string, op
 
 /** A closing Host stops offering its Home's inference at once (its successor can bind before teardown finishes) and leaves the Home side. */
 export function releaseHomeSide(host: MolisWorkLocalHost): void {
+  closeAssistantService(host);
   releaseSystemAgentService(host);
   for (const [directory, side] of sides) if (side.host === host) sides.delete(directory);
 }

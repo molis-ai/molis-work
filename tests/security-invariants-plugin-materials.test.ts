@@ -11,7 +11,7 @@ import { createPluginMaterialsClient } from "@molis-ai/molis-work-plugin-runtime
 import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { grantMaterials, materialsProbe } from "./fixtures/materials-runtime.js";
 
-test("S-34 RAC-26 runtime material authority strips download permission from every non-user audience for files and sources", async t => {
+test("S-39 RAC-26 runtime material authority strips download permission from every non-user audience for files and sources", async t => {
   const probe = materialsProbe("materialsaudiences", { readPermissions: ["materials:read", "materials:fetch"] }), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantMaterials(host, probe);
   const seen: boolean[] = [];
@@ -81,7 +81,7 @@ test("RAC-25 RAC-27 materials from another installation or an expired action can
   release.resolve(); await assert.rejects(late!, { code: "actions.expired" });
 });
 
-test("S-34 RAC-26 only a user's explicit choice reaches the speech helper as download permission", { timeout: 60_000, skip: process.platform !== "darwin" }, async t => {
+test("S-39 RAC-26 only a user's explicit choice reaches the speech helper as download permission", { timeout: 60_000, skip: process.platform !== "darwin" }, async t => {
   const probe = materialsProbe(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantMaterials(host, probe);
   const helper = join(home, "speech-helper"), choices = join(home, "choices.jsonl"), downloaded = join(home, "downloaded");

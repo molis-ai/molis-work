@@ -218,20 +218,22 @@ test("W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier f
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('RETURN_END')");
 });
 
-test("W2-18-SHELF-LIFETIME-01: admission belongs to one live mount and publishes no detached failure", { timeout: 35_000 }, async t => {
+// W2'-2 moved admission out of the page (Images calls `shelf.items.admit`), so the window event this guarded is gone; the
+// guarantee stays on the window events Shelf still hears: only the one live mount answers, a detached one stays silent.
+test("W2-18-SHELF-LIFETIME-01: a window event belongs to one live mount; a detached mount answers nothing", { timeout: 35_000 }, async t => {
   const browser = await openShelfBrowser(t); if (!browser) return;
-  const { requests, evaluate, waitFor } = browser;
-  const count = () => requests.filter(request => request === "POST /api/shelf/items").length;
-  await evaluate("window.placements=[];window.addEventListener('molis:placement-result',event=>placements.push(event.detail));window.shelfRoot=document.querySelector('[data-shelf=workbench]');window.shelfParent=shelfRoot.parentElement;shelfRoot.remove()");
-  await new Promise(resolve => setTimeout(resolve, 50));
-  const admit = "window.dispatchEvent(new CustomEvent('molis:shelf-admit',{detail:{filename:'received.txt',bytes_base64:btoa('Original fixture bytes')}}))";
-  const before = count(); await evaluate(admit); await new Promise(resolve => setTimeout(resolve, 100));
-  assert.equal(count(), before); assert.deepEqual(await evaluate("placements"), []);
+  const { requests, evaluate } = browser;
+  const reads = () => requests.filter(request => request === "GET /api/shelf").length;
+  const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  await evaluate("window.shelfRoot=document.querySelector('[data-shelf=workbench]');window.shelfParent=shelfRoot.parentElement;shelfRoot.remove()");
+  await pause(50);
+  const refresh = "window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))";
+  const detached = reads(); await evaluate(refresh); await pause(150);
+  assert.equal(reads(), detached, "a detached mount reads nothing");
   await evaluate("shelfParent.append(shelfRoot);bootShelf();bootShelf()");
-  await new Promise(resolve => setTimeout(resolve, 100));
-  await evaluate(admit); await waitFor("placements.length>0");
-  await new Promise(resolve => setTimeout(resolve, 100));
-  assert.equal(count(), before + 1); assert.deepEqual(await evaluate("placements.map(p=>p.verb)"), ["received"]);
+  await pause(150);
+  const mounted = reads(); await evaluate(refresh); await pause(200);
+  assert.equal(reads(), mounted + 1, "one live mount, one read");
 });
 
 

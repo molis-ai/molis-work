@@ -4,6 +4,7 @@ import type { PluginDeployment, PluginInstanceRecord, PluginManifest } from "@mo
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 
 import { pluginManifestDigest } from "./identity.js";
+import { validateManifest } from "./runtime-rules.js";
 
 /**
  * Why a confirmed install at another version may not reuse the private data an uninstall kept, or undefined when it
@@ -67,6 +68,19 @@ export function abandonRefusal(current: PluginInstanceRecord, installed: PluginI
     return pluginErrors.install_replaced("这次安装已经被另一次安装替换，或已被卸载，不能退回");
   }
   return undefined;
+}
+
+/**
+ * The Manifest an install or a version change puts on a record. Besides the shape every definition is checked for: a
+ * 常开插件 (`always_on`) cannot be removed, so only a plugin that ships with the Host may be one. An install from anywhere
+ * else (a package, a development directory, the plugin studio's output) and every confirmed upgrade or rollback, which only
+ * such plugins go through, are refused rather than installed with the mark ignored.
+ */
+export function validateInstalledManifest(manifest: PluginManifest, bundled: boolean): void {
+  validateManifest(manifest);
+  if (manifest.always_on === true && !bundled) {
+    throw pluginErrors.declaration_invalid("只有随宿主发布的内置插件能声明 always_on（常开插件）");
+  }
 }
 
 export function assertMutable(record: PluginInstanceRecord): void {

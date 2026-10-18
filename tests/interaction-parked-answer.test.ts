@@ -52,7 +52,7 @@ async function parkedWork(t: TestContext, name: string) {
   let current = await open();
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const service = new AssistantService(store, { host: async () => current.host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目" }, "web-user");
-  t.after(async () => { await current.adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => { service.continuations.close(); await current.adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
   const sent = await service.send({ text: "帮我约一个复盘会", request_id: randomUUID() }, { project_ref: project });
   const workId = sent.work.work_id;
   const asked = await until(async () => { const read = await service.read(workId); return read.rounds[0]?.awaiting_input.length ? read : undefined; }, "the question");

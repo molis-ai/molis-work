@@ -49,6 +49,7 @@ async function fixture(t: TestContext, name: string, children: string[], options
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const services: AssistantService[] = [];
   // The work's root on its graph: what it waits for and what goes on after (specs/prologue-adoption §6.0n).
   const nodes = () => adapter.collaboration!.works!.read(store.get("web-user", sent.work.work_id).graph_id!);
   const root = async () => (await nodes()).find(node => node.node_id === "work")!;
@@ -56,10 +57,11 @@ async function fixture(t: TestContext, name: string, children: string[], options
     const service: AssistantService = new AssistantService(store, { host: async () => host,
       authority: async work => { const refused = options.refuse?.(); if (refused) throw new Error(refused); return assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)); },
       projectTitle: async () => "项目" }, "web-user");
+    services.push(service);
     return service;
   };
   const service = open();
-  t.after(async () => { for (const release of releases.values()) release.resolve(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => { for (const opened of services) opened.continuations.close(); for (const release of releases.values()) release.resolve(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
   const sent = await service.send({ text: "把这两段分给子任务起草，做完汇总", request_id: `req-${name}` }, { project_ref: project });
   const started = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" && view.delegated?.length === children.length && view.delegated.every(child => child.state === "running") ? view : undefined; }, "parent ended, sub-tasks running");
   return { service, store, open, root, nodes, parentId: sent.work.work_id, children: started.delegated!, release: (title: string) => releases.get(title)!.resolve(), later, rounds: () => store.rounds(sent.work.work_id) };
@@ -203,10 +205,10 @@ test("W2-18-HANDBACK-RESTART-01: a part's round that ended just before the Host 
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.handback-restart", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
-  t.after(async () => { await adapter.close(); await local.close(); });
   const store = new AssistantStore(new DatabaseSync(database));
   const service: AssistantService = new AssistantService(store, { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
+  t.after(async () => { service.continuations.close(); await adapter.close(); await local.close(); store.db.close(); });
   const parent = store.get("web-user", said.parent!), graph = () => adapter.collaboration!.works!.read(parent.graph_id!);
   const part = await until(async () => (await graph()).find(node => node.parent === "work" && node.state === "succeeded"), "the part's step ended after the restart");
   assert.ok(part.ended_at);

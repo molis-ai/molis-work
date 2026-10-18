@@ -5,7 +5,7 @@ import { SAMPLE_PDF_TEXT } from "@molis-ai/molis-work-module-shelf";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
-test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent tokens", { timeout: 120_000 }, async (t) => {
+test("Shelf opens as the side panel's first tab, extracts the sample PDF, and keeps DropAgent tokens", { timeout: 120_000 }, async (t) => {
   const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
   process.env.MOLIS_WORK_SHELF_AGENT = "off";
   t.after(() => {
@@ -19,11 +19,17 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.documentElement.dataset.resolvedTheme === 'light'");
-  await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf]')");
-  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
-  await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')", 8_000);
-  assert.equal(await evaluate("document.querySelector('[data-plugin-section=shelf]')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-directory-panel=shelf]')"), null);
+  // 常开插件 (specs/side-shelf §3.2): Shelf is not in the plugin switcher and never opens in the work area. It is the side
+  // panel's first tab, where the panel opens when this browser remembers no tab.
+  await waitFor("document.querySelector('[data-side-toggle]')");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf], [data-plugin-section=shelf], [data-directory-panel=shelf], [data-work-surface=shelf]')"), null);
+  await click("[data-side-toggle]");
+  await waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'");
+  assert.equal(await evaluate("document.querySelector('#side-panel [role=tab]')?.dataset.sideTab"), "plugin:shelf/side");
+  await waitFor(`document.querySelector('[data-side-body="plugin:shelf/side"] iframe')?.getAttribute('src') === ${JSON.stringify(`/projects/${projectId}/side/shelf/side`)}`);
+  // The tab's own document, as the panel's frame loads it (the work below is all inside it).
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));
+  await waitFor("document.documentElement.dataset.resolvedTheme === 'light' && document.querySelector('[data-shelf-stage-shell]')", 8_000);
   await waitFor("[...document.querySelectorAll('[data-shelf-list=materials] [data-shelf-item]')].some(row => row.dataset.shelfName === '试用示例.pdf')", 8_000);
   // DropAgent's row is a tinted kind glyph and the name; the kind itself rides in the preview header.
   const row = await evaluate<{
@@ -175,10 +181,11 @@ test("Shelf opens in the workbench, extracts the sample PDF, and keeps DropAgent
   await evaluate(`(async () => {
     await fetch("/api/shelf/clipboard", { method: "POST", headers: molisWorkControlHeaders(), body: JSON.stringify({ text: ${JSON.stringify(clipBody)} }) });
   })()`);
-  // Re-enter through the real Workbench visibility lifecycle, not a private data-attribute observer.
-  await click('[data-plugin-strip] [data-plugin-id="inbox"]');
-  await waitFor("document.body.dataset.desktopSurface === 'inbox'");
-  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
+  // Re-enter through the client lifecycle, not a private data-attribute observer: the side panel hides the tab when
+  // another is chosen and shows it again, which the lifecycle reads from \`hidden\`.
+  await evaluate("document.querySelector('[data-shelf=workbench]').hidden = true");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  await evaluate("document.querySelector('[data-shelf=workbench]').hidden = false");
   await waitFor(`[...document.querySelectorAll('[data-shelf-clip]')].some(row => row.dataset.shelfName === ${JSON.stringify("本周待办：完善文件预览与结果对照。")})`, 8_000);
   assert.equal(await evaluate("document.querySelector('[data-shelf-current]')?.textContent"), "当前");
   await click('[data-shelf-list="clipboard"] [data-shelf-clip]');

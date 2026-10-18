@@ -58,7 +58,7 @@ function receipts() {
   const program = vm.runInNewContext(`(${INPUT_RECEIPTS_CLIENT_SCRIPT})`, {
     document: { createElement: (tag: string) => new Node(tag), body, get activeElement() { return focus.on; } }, queueMicrotask, crypto: { randomUUID: () => `key-${++keys}` },
   }) as (L: (text: string) => string) => { line(owner: object, turn: Turn, round?: object, act?: Actions): Node | null; tray(owner: object, queued: object[] | undefined, round?: object, act?: Pick<Actions, "withdraw">): Node | null;
-    link(owner: object, inputId: string, first?: () => void): Node | null };
+    link(owner: object, inputId: string, first?: () => void): Node | null; step(state: string): string; agreements(owner: object, runs: string[]): Node | null };
   const ui = program(text => text);
   const said = () => new Promise<string[]>(resolve => setTimeout(() => resolve(body.children.map(node => node.textContent)), 0));
   return { ui, body, said };
@@ -384,7 +384,43 @@ test("RCPT-345, 3d-2: link opens a receipt this page drew, after the caller's ow
   assert.equal(root.open, true, "RCPT-345 the receipt opens");
   assert.equal(focus.on, root.find(node => node.tag === "summary"), "RCPT-345 focus lands on its summary");
   assert.ok(ui.link(here, "steer-1"), "without a step of its own it still opens");
+  assert.equal(ui.link(here, "steer-1", undefined, "来自补充「")!.text, "来自补充「顺便把注册接口也覆盖一下」", "RCPT-353, 3d-3: a step added for it says where it came from");
   focus.on = null;
+});
+
+// Stage 3d-4 (§4.3, D21): what the board records about the step added for a supplement, apart from what the AI says.
+const added = (state: string, extra: Record<string, unknown> = {}) => ({ nodes: [
+  { state: "succeeded", reports: [{ note: "建好 fixture", at_ms: 1, by: "本会话" }] },
+  { state, title: "注册接口失败路径测试", inserted: true, origins: [{ session_id: "s", input_id: "steer-1" }], reports: [{ note: "用户插入：注册接口失败路径测试；完成条件：测试通过", at_ms: 2, by: "用户" }], ...extra },
+] });
+
+test("RCPT-354, 3d-4: the step the board says was added for it is a fact of the records, said apart from what the AI says", () => {
+  const { ui } = receipts();
+  const root = ui.line(here, supplement({ state: "read", model_claim: { ...claim, treatment: "new-task" } }), { run_id: "run-1", step_board: added("not-started") })!;
+  const facts = root.all("mw-receipt__facts")[0]!;
+  assert.match(facts.text, /为它加的步骤插入「注册接口失败路径测试」 · 你加的 · 现在：等待前一步$/u, "RCPT-354 its key and title as on the plan card, that a person added it, and its state now");
+  const body = root.all("mw-receipt__body")[0]!.text;
+  assert.ok(body.indexOf("记录里的") < body.indexOf("为它加的步骤") && body.indexOf("为它加的步骤") < body.indexOf("AI 自己说的，Molis 没有核对"), "RCPT-354 the records' side is named, and the AI's side stays under its own heading");
+  assert.doesNotMatch(root.all("mw-receipt__claimed")[0]!.text, /为它加的步骤/u, "the step is not among what the AI says");
+  assert.equal(root.all("mw-receipt__fact")[0]!.text, "AI 已读到", "a step moves no fact line");
+  const later = ui.line(here, supplement({ state: "read", model_claim: { ...claim, treatment: "new-task" } }), { run_id: "run-1", step_board: added("succeeded") })!;
+  assert.equal(later, root, "the same element");
+  assert.match(later.all("mw-receipt__facts")[0]!.text, /现在：模型报告完成$/u, "RCPT-354 the state is read again; done is the model's report, not a check");
+  const alone = ui.line(here, { ...supplement({ state: "read" }), turn_id: "t2" }, { run_id: "run-2", step_board: added("running") })!;
+  assert.doesNotMatch(alone.text, /记录里的/u, "with nothing the AI said beside it, the facts need no heading");
+  assert.match(alone.all("mw-receipt__facts")[0]!.text, /现在：进行中$/u);
+  assert.equal(ui.step("blocked"), "受阻，等你决定", "RCPT-356 the same words are handed to the plan card, so one state is never named two ways");
+});
+
+test("RCPT-355, 3d-4: only what the board records is shown; nothing is worked out from report times or order", () => {
+  const { ui } = receipts();
+  const root = ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: added("running", { inserted: undefined, title: undefined }) })!;
+  assert.match(root.all("mw-receipt__facts")[0]!.text, /为它加的步骤S2 · 现在：进行中$/u, "RCPT-355 no title, not marked as a person's: neither is said");
+  assert.doesNotMatch(root.text, /版|14:|加入|已生效/u, "RCPT-355 no board version, no time it was added, and nothing said to have taken effect");
+  const other = ui.line(here, { ...supplement({ state: "read" }), turn_id: "t2", steer: { id: "steer-2", state: "read" } }, { run_id: "run-1", step_board: added("running") })!;
+  assert.doesNotMatch(other.text, /为它加的步骤/u, "a step added for another supplement is not this one's");
+  const unread = ui.line(here, { ...supplement({ state: "read" }), turn_id: "t3" }, { run_id: "run-3" })!;
+  assert.doesNotMatch(unread.text, /为它加的步骤/u, "a board not read this time shows no step");
 });
 
 // The receipt is kept per surface, like the tray: the Assistant showing a round Coding runs, beside the Coding page.
@@ -405,4 +441,49 @@ test("RCPT-348: one receipt per surface that draws it; a correction updates ever
   const announced = (await said()).join("；");
   assert.equal(announced.split("你的补充「顺便把注册接").length - 1, 0, "RCPT-348 two copies drawn once each say nothing twice");
   focus.on = null;
+});
+
+// Stage 3e-1 (§9.2): 「当前约定」, what the AI says it takes as a constraint, goal or acceptance condition.
+const said = (kind: string | undefined, impacts: string[], treatment = "apply-now") => ({ treatment, ...(kind ? { kind } : {}), targets: [], impacts, revisions: 1 });
+function agreed(ui: ReturnType<typeof receipts>["ui"], act?: Actions) {
+  for (const [run, id, text, steer] of [
+    ["run-1", "a-mail", "别直接发邮件给客户，我自己发", { state: "read", model_claim: said("constraint", ["approach"]) }],
+    ["run-1", "a-time", "改到周五下午", { state: "read", model_claim: said("correction", ["objective", "acceptance"]) }],
+    ["run-2", "a-no", "顺便把缓存删了", { state: "read", model_claim: said("constraint", ["constraint"], "not-adopted") }],
+    ["run-2", "a-ask", "预算问题也要准备", { state: "read", model_claim: said("request", ["acceptance"], "needs-clarification") }],
+    ["run-2", "a-back", "不要动数据库", { state: "withdrawn", model_claim: said("constraint", ["constraint"]) }],
+    ["run-2", "a-scope", "议程里加一项续约报价", { state: "read", model_claim: said("supplement", ["scope", "outputs"]) }],
+    ["run-2", "a-bare", "只说一句", { state: "read" }],
+  ] as const) ui.line(here, { turn_id: id, kind: "user", text, steer: { id, ...steer } }, { run_id: run }, act);
+}
+
+test("RCPT-358, 3e-1: 当前约定 lists, in the order sent, what the AI says it takes as a constraint, goal or acceptance condition, as the AI's word only", () => {
+  const { ui } = receipts();
+  agreed(ui);
+  const kept = ui.agreements(here, ["run-1", "run-2"])!;
+  assert.deepEqual(kept.all("mw-tray__list")[0]!.children.map(item => [item.buttons().map(node => node.text), item.all("mw-receipt__claim").map(node => node.text)]), [
+    [["别直接发邮件给客户，我自己发"], ["AI 说采纳为约束"]],
+    [["改到周五下午"], ["AI 说采纳为目标、验收条件"]],
+  ], "RCPT-358 the person's whole words, then the AI's claim on the receipt's dashed 「AI 说」 line; not adopted, to clarify, withdrawn, other impacts and no statement are left out");
+  assert.match(kept.text, /AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 2 轮$/u, "RCPT-358 said to be unchecked, changed by a correction from its receipt, and what it looked at");
+  assert.doesNotMatch(kept.text, /已生效|已遵循|已核对/u, "RCPT-358 nothing reads as in force or checked");
+  assert.equal(ui.agreements(here, ["run-9"]), null, "none in the rounds shown, no block");
+});
+
+test("RCPT-359, 3e-1: only the rounds the surface shows now count; a later correction is said beside the one it names; each opens its receipt", () => {
+  const { ui } = receipts(), { act } = actions();
+  agreed(ui, act);
+  assert.deepEqual(ui.agreements(here, ["run-2"]), null, "another work's rounds drawn earlier on the same surface are not this one's");
+  ui.line(here, { turn_id: "a-fix", kind: "user", text: "邮件可以由你发，但先给我看", steer: { id: "a-fix", state: "received", about: "a-mail" } }, { run_id: "run-2" }, act);
+  const kept = ui.agreements(here, ["run-1", "run-2"])!, first = kept.all("mw-tray__list")[0]!.children[0]!;
+  assert.match(first.text, /后来有一条更正指向它$/u, "RCPT-359 the person's own link on the ledger is said, not what the correction changed");
+  first.button("别直接发邮件给客户，我自己发").click();
+  const receipt = ui.line(here, { turn_id: "a-mail", kind: "user", text: "别直接发邮件给客户，我自己发", steer: { id: "a-mail", state: "read", model_claim: said("constraint", ["approach"]) } }, { run_id: "run-1" }, act)!;
+  assert.equal(receipt.open, true, "RCPT-359 it opens its receipt, where 更正… is");
+  assert.ok(receipt.buttons().some(node => node.text === "更正…"));
+  // A list that reads the same is not drawn again; its button still opens the latest drawing, here in the round it was carried into (D28).
+  const carried = ui.line(here, { turn_id: "a-time", kind: "user", text: "改到周五下午", steer: { id: "a-time", state: "read", model_claim: said("correction", ["objective", "acceptance"]) } }, { run_id: "run-2" }, act)!;
+  receipt.open = false;
+  kept.all("mw-tray__list")[0]!.children[1]!.button("改到周五下午").click();
+  assert.equal(carried.open, true, "RCPT-359 an item kept from an earlier drawing opens the input's latest receipt, not the one it was drawn from");
 });

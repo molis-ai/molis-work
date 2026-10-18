@@ -8,29 +8,29 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   if (host.side) return window.MolisWorkPagesEditor.mountComments({ ...host, controlHeaders: molisWorkControlHeaders });
   const bench = document.querySelector("[data-pages=workbench]");
   if (!bench) return;
-  const list = bench.querySelector("[data-pages=directory]");
-  const rowsEl = bench.querySelector("[data-pages-rows]");
-  const empty = bench.querySelector("[data-pages-empty]");
-  const searchEmpty = bench.querySelector("[data-pages-search-empty]");
-  const searchInput = bench.querySelector("[data-pages-search]");
-  const workspace = bench.querySelector("[data-pages-stage-workspace]");
-  const titleEl = bench.querySelector("[data-pages-editor-title]");
-  const statusEl = bench.querySelector("[data-pages-editor-status]");
-  const titleInput = bench.querySelector("[data-pages-title]");
-  const goalSelect = bench.querySelector("[data-pages-goal]");
-  const starEditor = bench.querySelector("[data-pages-star-editor]");
-  const editorHost = bench.querySelector("[data-pages-editor]");
-  const note = bench.querySelector("[data-pages-note]");
-  const confirmDialog = bench.querySelector("[data-pages-confirm]");
-  const nameDialog = bench.querySelector("[data-pages-name]");
-  const templateDialog = bench.querySelector("[data-pages-template-dialog]");
+  const el = (s) => bench.querySelector(s), els = (s) => bench.querySelectorAll(s);
+  const list = el("[data-pages=directory]");
+  const rowsEl = el("[data-pages-rows]");
+  const empty = el("[data-pages-empty]");
+  const searchEmpty = el("[data-pages-search-empty]");
+  const searchInput = el("[data-pages-search]");
+  const workspace = el("[data-pages-stage-workspace]");
+  const titleEl = el("[data-pages-editor-title]");
+  const statusEl = el("[data-pages-editor-status]");
+  const titleInput = el("[data-pages-title]");
+  const goalSelect = el("[data-pages-goal]");
+  const starEditor = el("[data-pages-star-editor]");
+  const editorHost = el("[data-pages-editor]");
+  const note = el("[data-pages-note]");
+  const confirmDialog = el("[data-pages-confirm]");
+  const nameDialog = el("[data-pages-name]");
+  const templateDialog = el("[data-pages-template-dialog]");
   const Editor = window.MolisWorkPagesEditor;
   const ICON = (name) => '<svg aria-hidden="true"><use href="#icon-' + name + '"></use></svg>';
-  const moreMenu = bench.querySelector("[data-pages-more-menu]");
-  const moreButton = bench.querySelector("[data-pages-more]");
-  const createMenu = bench.querySelector("[data-pages-create-menu]");
-  const createMore = bench.querySelector("[data-pages-create-more]");
-  const moveMenu = bench.querySelector("[data-pages-move-menu]");
+  const moreMenu = el("[data-pages-more-menu]"), moreButton = el("[data-pages-more]");
+  const createMenu = el("[data-pages-create-menu]");
+  const createMore = el("[data-pages-create-more]");
+  const moveMenu = el("[data-pages-move-menu]");
   let records = [];
   let folders = [];
   let sel = null, editorEpoch = 0;
@@ -158,7 +158,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!moveMenu) return;
     moveMenu.hidden = true;
     movingId = "";
-    bench.querySelectorAll("[data-pages-move][aria-expanded=true]").forEach((node) => {
+    els("[data-pages-move][aria-expanded=true]").forEach((node) => {
       node.setAttribute("aria-expanded", "false");
     });
   };
@@ -182,7 +182,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     };
     addItem("", L("未分类"));
     folders.forEach((folder) => addItem(folder.id, folder.title));
-    bench.querySelectorAll("[data-pages-move]").forEach((node) => {
+    els("[data-pages-move]").forEach((node) => {
       node.setAttribute("aria-expanded", node === trigger ? "true" : "false");
     });
     moveMenu.hidden = false;
@@ -328,7 +328,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       starEditor.title = sel.starred ? L("取消收藏") : L("收藏");
     }
     fillGoalSelect();
-    const artifactBar = bench.querySelector("[data-pages-artifact-bar]");
+    const artifactBar = el("[data-pages-artifact-bar]");
     if (artifactBar) artifactBar.textContent = sel.publication_pending ? L("继续保存上次固定版本") : sel.artifact_version > 0 ? L("再存一个固定版本") : L("存为固定版本");
     if (sel.publication_pending) showNote("", false);
   };
@@ -339,7 +339,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       row.setAttribute("aria-selected", String(on));
     });
   };
-  // A row's only label is its state (a fixed version exists, or one is being saved); a row with neither shows just title and date.
   const fixedCell = (record) => {
     if (!record.publication_pending && !(record.artifact_version > 0)) return null;
     const node = document.createElement("span");
@@ -620,7 +619,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     closeMore();
     closeCreate();
     closeMove();
-    bench.querySelectorAll(".pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
+    els(".pages-slash, .pages-pop, .pages-block-handle, .pages-block-menu, .pages-block-ghost, .pages-drop-line").forEach((node) => { node.hidden = true; });
     sendPanel({ node: null });
   };
   const loadList = async () => {
@@ -671,9 +670,9 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!sel || unshowable) return;
     do { await save(); } while (sel && (saveTimer || dirty));
   };
+  const saveOpen = (id) => sel?.id === id && (saveTimer || dirty) && persist();
   const commentOpen = Editor.bindComments({ workbench: bench, persistCurrent: persist, showNote, translate: L, get selected() { return sel; }, get editor() { return editor; }, get unshowable() { return unshowable; }, get dirty() { return dirty || Boolean(saveTimer); } });
-  // Showing the document already open here again (its item tab after the page's list, a reload's second request): the
-  // workbench took its name off the surface when it hid it, so name it again with its version and title.
+  // Shown again (item tab, reload): the workbench took its name off when it hid it, so name it again.
   const revealEditor = () => {
     bench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
@@ -764,17 +763,19 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const toggleStar = async (id) => {
     const record = records.find((item) => item.id === id);
     if (!record) return;
+    await saveOpen(id);
     await request("POST", pageUrl(id), { starred: !record.starred });
     await loadList();
   };
   const movePage = async (id, folderId) => {
     const record = records.find((item) => item.id === id);
     if (!record || (record.folder_id || "") === folderId) return;
+    await saveOpen(id);
     await request("POST", pageUrl(id), { folder_id: folderId });
     await loadList();
   };
   const clearDrop = () => {
-    bench.querySelectorAll("[data-pages-drop].is-drop").forEach((node) => node.classList.remove("is-drop"));
+    els("[data-pages-drop].is-drop").forEach((node) => node.classList.remove("is-drop"));
   };
 
   const publishPage = async (id) => {
@@ -795,8 +796,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       placed({ verb: "versioned", title: payload.document.title, object: { kind: "pages_document", id: payload.document.id }, artifact: payload.artifact,
         note: L("第 {version} 版 · 放在这个位置的成果里；继续编辑不会改变这一版", { version: payload.document.artifact_version }) });
     } catch (error) {
-      // A failed response may follow an already committed Artifact. Refresh its
-      // durable recovery state while preserving any local edits made in flight.
+      // A failed response may follow a committed version: refresh recovery state, keep local edits.
       try {
         const payload = await request("GET", pageUrl(id));
         if (draft) adoptSaved(draft, payload.document); else storeDocument(payload.document);
@@ -806,7 +806,6 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     } finally { publishing.delete(id); }
   };
   ${PAGES_IMPORT_CLIENT_SCRIPT}
-  // Moved or copied from the placement bar: the list here changed; a document moved away is no longer here to edit.
   window.addEventListener?.("molis:placement-changed", (event) => {
     const detail = event.detail || {};
     if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("pages_document")) return;
@@ -938,6 +937,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         const ok = await ask(L("要删除这个文件夹吗？里面的文档会回到未分类。"), L("删除"));
         if (!ok) return;
         const id = folderDelete.dataset.pagesFolderDelete;
+        if (sel?.folder_id === id) await saveOpen(sel.id);
         await request("POST", "/api/plugins/pages/folders/" + encodeURIComponent(id) + "/delete", {});
         await loadList();
         return;
@@ -1074,7 +1074,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   bench.addEventListener("drop", (event) => {
     const fold = event.target.closest("[data-pages-drop=folder]");
     clearDrop();
-    bench.querySelectorAll(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
+    els(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
     if (!fold || !event.dataTransfer) return;
     stop(event);
     suppressFoldToggleUntil = Date.now() + 400;
@@ -1083,7 +1083,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   bench.addEventListener("dragend", () => {
     clearDrop();
-    bench.querySelectorAll(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
+    els(".pages-doc-row.is-dragging").forEach((node) => node.classList.remove("is-dragging"));
   });
   document.addEventListener("pointerdown", (event) => {
     const target = event.target && event.target.nodeType === 1 ? event.target : event.target && event.target.parentElement;

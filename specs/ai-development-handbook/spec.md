@@ -1,6 +1,6 @@
 # Molis Work AI 能力开发手册
 
-状态：手册正文已写入（2026-10-16）：`docs/platform/PROLOGUE-AI.md` 第二部分（第 12–17 节）与 `skills/molis-prologue-ai/SKILL.md` 的入口，ADH-01 至 ADH-11 的工程侧核对记在 §9，ADH-12 至 ADH-15（存量清理 A3②）、ADH-16 至 ADH-18（存量清理 D1②）的证明见 §8 与 §9.5；真实模型前后对比的第一份记录在 §9.5（存量清理 B1，项目上手），用户验收未做。负责人：AI 能力开发手册线（Claude，由统筹会话排期与评审）；需求整理为 Codex；现有 AI 平台、各业务插件与相关 Skill 的 owner 保留原归属。
+状态：手册正文已写入（2026-10-16）：`docs/platform/PROLOGUE-AI.md` 第二部分（第 12–17 节）与 `skills/molis-prologue-ai/SKILL.md` 的入口，ADH-01 至 ADH-11 的工程侧核对记在 §9，ADH-12 至 ADH-15（存量清理 A3②）、ADH-16 至 ADH-18（存量清理 D1②）的证明见 §8 与 §9.5；2026-10-18 补充 ADH-19 至 ADH-23（技能包渐进披露、从一次过程生成 Skill、评测循环、作者侧校验）。真实模型前后对比的第一份记录在 §9.5（存量清理 B1，项目上手），用户验收未做。负责人：AI 能力开发手册线（Claude，由统筹会话排期与评审）；需求整理为 Codex；现有 AI 平台、各业务插件与相关 Skill 的 owner 保留原归属。
 
 ## 1. 要解决的问题
 
@@ -137,6 +137,11 @@ Skill 可以包含适用的确定步骤和脚本，但必须说明哪些是业�
 | ADH-16 | 可写的一轮没有成功的改动就要结束时，结尾连同宿主记的这一轮事实，按这一轮主人登记的「收尾核对」提示词交给模型核对一次（只说了下一步、说已保存、记住、忘掉、按钮好了而事实没有），对不上的每种每轮拦一次；宿主不再按措辞表判断；核对出错、超时或答得不对就放过 | `tests/announce-guard.test.ts` 断言事实来自事件、答案只按问的读；`tests/assistant-business-gateway.test.ts` 断言核对请求没有工具、事实作为围起来的数据、拦一次与放过；`tests/assistant-memory.test.ts` 的记忆说法；`tests/agent-definitions.test.ts` 断言核对的指令登记在「收尾核对」下、用用户改过的版本、版本冻结在开跑记录里（注释带编号） |
 | ADH-17 | 内部标识只认宿主这一轮给过模型的（工具名、能力标识、字段名、工具结果里的 id 与错误码），不按形状猜；子任务交回给派它的那项工作的报告不查标识 | `tests/announce-guard.test.ts`「only identifiers the Host handed the model」；`tests/assistant-delegation.test.ts`「a sub-task reports to the work that handed it over」（注释带编号） |
 | ADH-18 | [人工] D1② 有真实模型前后对比和核对本身的单次评测，按手册 16.3 写进 §9.5，每条问题标为设计问题、模型能力或拿不准 | §9.5 D1② 记录本身 |
+| ADH-19 | [人工] Skill 章节讲清 metadata → 正文 → references/scripts/assets 的渐进披露，以及 description/when_to_use/applies_to 怎样帮助选择；示例不把整本手册塞进正文 | 场景 Skill 示例走读；对照 [skill-packs](../skill-packs/spec.md) |
+| ADH-20 | [人工] 手册给出“从一次真实过程生成 Skill”的做法：区分固定/可变/判断点、判断点做 approval gate、用已知答案回放、注册但不自动启用 | 开发者按正文生成一个 Skill 并回放 |
+| ADH-21 | [人工] 手册给出 Skill/插件评测循环：测试 prompt、多次运行看方差、触发率与结果质量、改 description/正文后重跑；不以一次成功宣称稳定 | 评测记录与前后对比 |
+| ADH-22 | [人工] 手册列出作者侧校验：manifest、hook schema、agent/skill 声明、LSP 声明、打包/签名、跨 surface UI 测试；说明哪些是拒绝、哪些只是报告 | 校验脚本与失败样例 |
+| ADH-23 | [人工] 一个开发者按手册写出一个技能包，在个人助理和 Coding 各用一次，并按评测循环改进一次；不新增第二套权限/事实 | 真实使用与改进记录 |
 
 ## 9. 当前证据与后续验证
 
@@ -1050,4 +1055,230 @@ Coding 的指令单测（同 A 的做法，10 条自编的 Coding 结尾 × 3，
   BL-159 那半句只有删字，由 tests/prologue-subagents.test.ts「(A1)」覆盖，没有单独跑真实模型。
 ```
 
+#### coding-base 不再教怎样填 ask-user 的问卷（2026-10-18）
+
+判定规则在第一次调用之前写下并经统筹确认（10-18），单独作为一笔提交；结果在下面另记。
+
+```text
+改动：plugins/native/coding/src/roles.ts 的 coding-base 升 v11，只删不加：
+  删「自由文字问题只传 why 并省略 questions；只有需要固定选项时才使用问卷，保留要求的多选与自由补充。选择题的每个选项用一句话
+  说清差别；推荐的那一项标为推荐并写理由，推荐不是替用户选；可以不答的题标为选填。」前半句「何时该问」不动。
+  宿主给 Coding 的是带类型的 ask-user（Prologue tool/core/system.ts 的 typedAskUserParameters），它的参数说明逐条写着：
+  questions "Omit to ask free text"；options[].description "How this choice differs. For the recommended one, say why"；
+  recommended "Your recommendation. It is not a choice: the person still picks"；required "Set false when the person may
+  leave it empty"。这是 A3① 记下的「问卷细则第三份」；工具的用法归工具（手册 13.1）。
+比什么：改前 v10（main 14bb4bc55），改后 v11（ai/coding-base-questionnaire efaa5d2e0）。同一个工作树、同一份 vendored SDK、
+  同一份 agent-host 构建；v10 的 coding 包构建进被忽略的 plugins/native/coding/node_modules/.eval-v10，开跑前核对版本号。
+环境：MiniMax / MiniMax-M3，anthropic-messages。每次一个进程，构建出来的 AgentHost + createPrologueNodeAdapter，适配器拿产品
+  宿主给的 hostQuestionTypes() 与 hostReferenceKinds()；Coding 的 builder 角色（coding-base + coding-builder +
+  coding-background），不带方法。不建 Home，密钥只在命令上内联读取、只交给 resolveCredential。一轮跑到模型第一次真正问出来
+  （awaiting-input）就停、不回答，5 分钟封顶；读取放行，问之前的写文件与命令一律拒绝并记下。
+任务（每次一个新的临时项目）：
+  Q1 选库：「我想让 src/config.js 也能读 YAML 配置文件。用哪个 YAML 解析库，你先给我几个候选让我选，我选好了你再动手。」
+  Q2 只能自由问：「把 scripts/deploy.sh 里的上传地址换成我们新服务器的地址。」新地址仓库里没有。
+  Q3 有一道可不答：「给项目加一个 CHANGELOG.md。动手前先问我：用 Keep a Changelog 格式还是简单的列表；第一条写哪个版本号。
+    另外维护者的联系邮箱想写的话也可以写进去，这一项我可能不填。」
+次数：三题各 8 次 × 两版，共 48 次；第 r 轮按 Q1、Q2、Q3 跑，r 为偶数先改前、奇数先改后。正式开跑前冒烟一次（Q1 改后），
+  只验脚本、不计入结果；脚本要改，开跑前交统筹。
+判定看这次运行在等的那个问题，即最后一次 ask-user 的参数（原样存进结果文件，连同首个请求里 ask-user 的工具定义与其中是否有
+  recommended）；没问出来的运行四项都算不对。判定代码在评测脚本 judge.mjs：
+  ① 选项有差别说明（Q1，程序）：至少一道选择题有两个及以上选项，每道选择题的每个选项都有非空且不同于 label 的 description。
+  ② 推荐带理由（Q1，两步都要满足）：程序判正好一个选项标 recommended: true；人判全读、不抽样，推荐项的 description、那道题
+    的 help 与整次的 why 按固定种子打乱、去掉版本号后逐条判，判完再揭盲。标准：说了为什么推荐它（适合这个项目的什么、比
+    另几个好在哪里）；只说它是什么不算。盲评表与揭盲对照放进统筹笔记夹，写明判的人。
+  ③ 选填标对（Q3，程序）：正好一道题指维护者邮箱，它的 required 是 false，其余题都不是 false。
+  ④ 该自由问时不建问卷（Q2，程序）：没有 questions 或是空列表；只放一道 type: "text" 的题也算建了问卷。
+判定：四项各自「改后 ≥ 改前 − 1」（各 8 次）就采用 v11、没有后续。有一项不满足，仍只删不加、不把句子放回角色：那一项按归属
+  记设计问题，主人是 Prologue 的 typedAskUserParameters 参数说明，先把结果交统筹再定是否开 Prologue PR、换包后再量；模型照着
+  说明仍做不到的记模型能力，不打补丁。
+照实记录、不作为条件：问出来的次数、问之前被拒的写与命令、ask-user 调用与被拒次数、Q3 选择题的选项说明、用时、模型调用数、
+  token、系统文字长度。
+出错：Provider 5xx/429、网络、超时算没对，照实列出，不挑出来重跑；任一版出错超过 2 次先把整批交统筹再判。每条没对的逐条标
+  「设计问题 / 模型能力 / 拿不准」，设计问题写清主人。
+```
+
+结果（2026-10-18，48 次，0 次出错；逐次表在统筹共享笔记 ai-handbook-coding-base-ask-results.md，② 的盲评表与揭盲对照在
+ai-handbook-coding-base-ask-blind.md，判的人是手册线会话的 Claude）：
+
+```text
+判定：采用 v11。四项各自都在界内（改后 ≥ 改前 − 1）：
+  ① 选项有差别说明（Q1）：v11 3，v10 4。
+  ② 推荐带理由（Q1，两步都满足）：v11 2，v10 3。只看程序那一步（正好一个推荐）是 v11 2、v10 4，人判又去掉 v10 一次
+    （#2 只列了它是什么）。v11 #3 是边界（「文档最多，社区默认选择」，算作和另几个比），把它算成没有理由就是 1 对 3、
+    不在界内。
+  ③ 选填标对（Q3）：v11 7，v10 7。
+  ④ 该自由问时不建问卷（Q2）：v11 0，v10 0。v10 写着「自由文字问题只传 why 并省略 questions」也是 0/8：问出来的每次都放了一
+    道 type: "text" 的题（v10 #5 另加一道选择题）。删掉那句没有改变什么。
+照实记录：
+  问出来：Q1 v11 3/8、v10 4/8；Q2 两版各 5/8；Q3 两版各 8/8。Q1 没问的（v11 5 次、v10 4 次）都在散文里列候选、给推荐和理由，
+  然后结束这一轮；v11 #7 问了，但问的是需求（运行环境、看重什么、要哪些 YAML 特性），没给候选。
+  ask-user 被拒：v10 9 次，v11 5 次。缺 why（v10 5、v11 3）、题目 id 带连字符（v10 3、v11 1）、选择题缺 options（v10 1）、
+  about 指向没读过的输入（v11 1）。同一轮连拒两次就停的：Q2 v10 #2、#7，v11 #7，都是两次都缺 why，停下后读回只写「已停止」。
+  ask-user 的工具定义里每次都有 recommended（48/48）；问之前没有写文件或跑命令（0 次被拒）。
+  用时（平均）：Q1 7.8 对 8.9 秒，Q2 5.6 对 5.6 秒，Q3 12.2 对 6.5 秒。builder 一轮的系统文字 2581 对 2688 字。
+```
+
+| 失误 | 出现在 | 分类 | 依据 | 处理 |
+| --- | --- | --- | --- | --- |
+| 人要「先给我几个候选让我选」，模型在散文里列候选、给推荐后结束这一轮，没调 ask-user | Q1：v11 5/8，v10 4/8 | 模型能力 | 删的是怎样填问卷，前半句「何时该问」和下一句「需要用户回答就调用 ask-user」都还在；两版次数相近，散文里都有推荐和理由 | 不处理 |
+| Q2 不调 ask-user，用一句话问新地址 | Q2：v11 #1、#5，v10 #0 | 模型能力 | 同上 | 不处理 |
+| 自由回答放成一道 `type: "text"` 的题，没有省略 questions | Q2：两版问出来的每一次 | 拿不准 | 带类型的 ask-user 既写「Omit to ask free text」，又有 text 题型，没说两者怎么选；v10 明说了只传 why 也是 0/8。一道 text 题对人也是一个文字框，算不算错要工具的主人定 | 交统筹：要不要请 Prologue 在说明里写清 |
+| 推荐项的说明只列它是什么，没说为什么推荐 | Q1 v10 #2（v11 #3 是边界） | 拿不准 | 两版各一次，一次看不出和删字有关 | 不处理 |
+| 问的是需求，没给候选 | Q1 v11 #7 | 拿不准 | 一次 | 不处理 |
+| 可不答的邮箱没问 | Q3 v10 #1 | 模型能力 | 人在题目里明说了这一项 | 不处理 |
+| 版本号那题也标成可不填 | Q3 v11 #2 | 拿不准 | 它在 help 里写了「留空我会用 1.0.0」，说得通 | 不处理 |
+| ask-user 缺 why | v10 5 次（3 次运行），v11 3 次（2 次运行） | 模型能力 | why 在参数里是必填，拒绝里也说了；两版各有 1 次运行下一次补上，其余连拒两次停下 | 不处理 |
+| 题目 id 写成 `yaml-lib` 这样带连字符，被拒 | v10 3 次，v11 1 次 | 设计问题（主人 Prologue） | id 的说明只写 'A short stable name to read the answer by, like "deadline"'，没写格式，校验却按格式拒；每次看了拒绝都改对了 | 交统筹，看要不要和下一条合进一个 PR |
+| 连拒两次后这一轮停下，读回只写「已停止」，人和结果文件都看不出是被拒停的 | Q2 v10 #2、#7，v11 #7 | 设计问题（主人 Molis agent-host） | 不是 Prologue 停的：`horizontal/agent-host/src/adapters/prologue-questions.ts` 的 `withInteractionRepairLimit`（18f169b15 加的）在同一工具第二次 TOOL_ARGUMENTS_INVALID 后调 `control.stop("stopped")`，不带原因；读回时 `prologue.ts` 对没有原因的停止只写「已停止」。是用假模型重放、在 SDK 的 `control.stop` 上打栈查到的 | 交统筹：Molis 这边停的时候写出原因，不进 Prologue PR |
+| about 指向没读过的输入 | Q3 v11 #4 | 模型能力 | 拒绝里说清了，下一次改对 | 不处理 |
+
+```text
+结论与未验证：按规则采用，没有要因删字而做的后续。② 在界内只靠一次边界判断（v11 #3），记在这里供复核。Q2 两版都是 0/8，
+  说明 v10 那句「只传 why 并省略 questions」本来就没起作用。只在这 3 道题、builder 这一个角色、这一个模型上成立。
+  没跑：别的角色（coordinator、writer…）、多选和「其他」选项、引用题、日期与数字题。
+  上面两条设计问题（id 的格式、被拒停下的原因）两版都会遇到，不影响这次比较，交统筹定归属后另做。
+```
+
+后续（统筹 10-18 定）：
+
+- ④：单独一道 `type: "text"` 的题，对人就是一个自由文字框，这个结果可以接受，不算错误。规则 ④ 的判定照原样记，不另改。
+- id 的格式：molis-ai/prologue#46 已合（94ee1ea4），`id` 的说明写出校验用的同一个格式，随下一次换包进 Molis。
+- 被拒停下的原因：`withInteractionRepairLimit` 停的时候交出原因（哪一种交互连续两次不合格，用人的话说），读回时显示，宿主重开后也一样；停的条件不变。用例 `tests/interaction-repair-limit.test.ts`。
+
+#### C4 Molis 半边：工具自己说清的用法不再写在 Coding 的提示词里（2026-10-18）
+
+判定规则在第一次调用之前写下并经统筹确认，单独作为一笔提交；结果在下面另记。
+
+```text
+改动：只删不加。
+  plugins/native/coding/src/roles.ts 的 coding-base 升 v12（#697 的 v11 之上）：
+    删「找文件用 list 查看目录，或直接 read 已知路径；search 只在文件内容里找文字，按文件名搜不到、返回 (no matches) 都不
+    代表文件不存在。」——search 的说明（Prologue #43）写着 "It does not match file names, so "(no matches)" does not mean
+    a file is absent; to find a file by name, list the directories that may hold it."
+    删同一份里的「（大文件用 offset、limit 读一段行）」——read 的说明写着 "Files over 64 KB cannot be read whole: pass
+    offset and limit to read a window of lines."。这一行其余不动：不用 cat、grep（命令要审查）、不用 sed -i（绕过差异
+    预览）是 Molis 的理由，SDK 没写。
+  horizontal/agent-host/src/adapters/prologue-run.ts 的子角色说明删「子任务带着所选角色列出的工具；dispatch-subagent 的 tools
+    不会让它多一个或少一个，可以写 []。」——dispatch-subagent 的 tools 说明（Prologue #42）写着 "A character that declares
+    its tools gets exactly those whatever this list says, so [] is fine"。角色名单和每个角色的 tools= 留着。这段宿主文字
+    没有自己的版本。
+  ask-user 那行不动：#46 只补了 id 的格式。
+要解决的问题：清单 C4（手册线 ai-handbook-agent-design.md §8-1）。工具的用法归工具的主人（手册 13.1）；Prologue #42、#43 已把
+  这几句写进工具说明，随 #699 的包进来，Molis 这边成了第二份。
+比什么：改前＝main 6aa8459ac（#697、#699 都合入之后，coding-base v11），改后＝本分支（v12，宿主那句删掉）。两版用同一份
+  vendored SDK（after-write-check，Prologue 94ee1ea4），只差上面的文字。改前在另一个工作树里检出 6aa8459ac 整体构建，改后是
+  本分支的构建；每次开跑脚本先核对这一版的 coding-base 版本号和三句在不在。
+环境：MiniMax / MiniMax-M3，anthropic-messages。每次一个进程，构建出来的 AgentHost + createPrologueNodeAdapter，用 Coding 的
+  codingAgentManifest 与 codingPrompts 起一轮，不带方法；让出之后照 Coding 的唤醒循环（openWait / wakeBodyOf）开下一轮，
+  最多 4 轮，整次 8 分钟封顶。不建 Home，密钥只在命令上内联读取、只交给 resolveCredential。审查由脚本代答：派出与工具操作批准，
+  写文件拒绝；命令只批准只读的 ls、cat、pwd、find、head、tail、wc、grep，其余拒绝并记下（三题都只读，coding-reader 没有命令）。
+任务（每次一个新的临时项目）：
+  T1 按文件名找文件（coding-reader：coding-base + coding-reader，工具 read、list、search）。项目有三层目录、十来个文件；
+    src/net/policies/retry-policy.js 的内容是 MAX_ATTEMPTS = 7 和 BACKOFF_MS = 250，没有一个文件的内容含 retry（脚本建完
+    项目先核对）。题目：「项目里有一个文件名带 retry 的文件，它规定最多试几次？告诉我文件路径和那个次数。」
+    答对＝最后一轮的回复写出 retry-policy.js 和 7（程序判）。回复里同时有「不存在／找不到」的，逐条人读，写出读的结论。
+  T2 读大文件的一段（coding-reader）。logs/orders.log 3000 行、约 150 KB（超过 64 KB），每行一个日期时间、一个订单号
+    ORD-xxxxx（固定种子生成，订单号互不相同，行里没有行号）。题目：「logs/orders.log 第 2400 行记的是哪个订单号？」
+    答对＝最后一轮的回复写出第 2400 行（从 1 数）的订单号。只写了第 2399 或 2401 行的、没有第 2400 行的，另记「差一行」，
+    也算没答对。
+  T3 点名角色派子任务（coordinator），BL-151 的 T3 原题：「请派一个代码调查子任务看看 src/parse.js 导出了哪些函数，告诉我
+    函数名。」答对＝一个 coding-reader 子任务开出并结束，且最后一轮的回复同时写出 parseDate 和 parseAmount。
+次数：三题各 8 次 × 两版，共 48 次；第 r 轮按 T1、T2、T3 跑，r 为偶数先改前、奇数先改后。正式开跑前冒烟一次（T3 改后），
+  只验脚本、不计入结果；脚本要改，开跑前交统筹。
+判定（统筹 10-18 定）：三题各管一句——T1 管 search 那句，T2 管 offset、limit 那半句，T3 管宿主那句。
+  某题「答对」改后 ≥ 改前 − 1：删它管的那句。
+  某题改后比改前少 2 次以上：照实记下；那条工具说明（search、read 或 dispatch-subagent）补强归 Prologue，给 Prologue 开一个
+    PR（统筹审过即合）；Molis 这句这次先留着，等带上那个 PR 的下一次换包时一起删，记在本节当作有期限的待办。不在 Molis 里
+    改写或加句子。
+照实记录、不作为条件：
+  T1：调没调 search、搜了什么、是否落空；落空后是 list 下去、放弃还是说文件不存在；list 与 read 的次数。
+  T2：每次 read 的 offset、limit；第一次不带 offset 读是否因为超过 64 KB 被拒；是否用 search 找。
+  T3：每次派出的 tools 写法（空、恰好是角色清单、少了、多了，多了的列出名字）；派出被拒的错误码与原文
+    （TOOL_ARGUMENTS_INVALID、CHARACTER_ESCALATION 或别的）；让出、后台、前台。
+  三题都记：ask-user 次数、模型调用数、轮数、token、用时、系统文字长度。
+出错（统筹 10-18 补）：与模型怎样答无关的失败（Provider 5xx/429、网络、请求超时、整次 8 分钟封顶）照实记下，那一次重跑、不计入，
+  同一格最多再跑 3 次；重跑的次数与每次的原因写进结果。与这些无关的失败（模型自己的错、运行出错）算没答对。每条没答对的逐条标
+  「设计问题 / 模型能力 / 拿不准」，设计问题写清主人。
+记录：48 次的原始结果（每次答了什么、tools 怎么写、错误码、重跑）放进统筹共享笔记 adoption-c4-results.md，spec 里只写汇总与判定。
+```
+
+结果（2026-10-18，48 次，0 次重跑；逐次表在统筹共享笔记 adoption-c4-results.md）：
+
+```text
+判定：三句都删。三题各自都在界内（改后 ≥ 改前 − 1）：
+  T1 按文件名找文件（search 那句）：改后 7，改前 8。
+  T2 读大文件的一段（offset、limit 那半句）：改后 7，改前 5。
+  T3 点名角色派子任务（宿主那句）：改后 8，改前 7。
+照实记录：
+  T1：两版只搜过 retry，都落空（改前 7 次运行、改后 6 次）；落空后 list 下去的改前 7/7、改后 5/6；没调 search 直接 list 的
+    改前 1、改后 2。改前 #6 的「不存在」是在复述被测的那句（「按文件名找不到并不代表文件不存在」），随后 list 到了文件。
+  T2：两版都没有不带 offset 读整个文件，所以没有因为超过 64 KB 被拒，也没人用 search。改后 7/8 直接读 (2400, 1)，改前 2/8。
+    没答对的四次（改前 3、改后 1）窗口都取对了，错在数窗口里的行。
+  T3：tools 写法改前 exact 6、fewer 1、没派 1，改后 exact 6、fewer 2；写少了的都没被拒，子任务带着角色的全部工具跑完；
+    没有 empty、more，没有被拒的派出，都是前台。列给模型的子角色工具与 manifest 的 host_tools 48 次都一致（统筹建议加的一栏）。
+  ask-user 只在 T1 改后 #2 出现。系统文字：reader 1162 → 1057 字，coordinator 1966 → 1801 字。
+  冒烟的两次 T3 不计入：第一次查出脚本把不透明的 character 引用当成角色 id，按统筹批的改法修好后又跑了一次。
+```
+
+| 失误 | 出现在 | 分类 | 依据 | 处理 |
+| --- | --- | --- | --- | --- |
+| `search` 落空后只看了根目录，就说没找到、转而去问 | T1 改后 #2 | 拿不准 | 正是删掉的那句防的情况；search 的说明自己写着 (no matches) 不代表没有、要按目录 list。8 次里 1 次，改前 0 次，看不出是删字的后果 | 在界内，按规则删；留给下一次 C 类评测再看 |
+| `ask-user` 的 options 写成对象，连拒两次停下 | T1 改后 #2 | 模型能力 | 第一次的拒绝给了正确写法的例子；停的原因读回时显示了 | 不处理 |
+| 读对了窗口，数错了窗口里的行 | T2 改前 #1、#4、#5，改后 #2 | 模型能力 | 四次都说出了正确的算法（「第 6 行即第 2400 行」），答的是另一行；read 的输出不带行号 | 不在 Molis 里加句子；read 输出要不要带行号交统筹看 |
+| 没派子任务，自己读了文件 | T3 改前 #4 | 模型能力 | 题目明说要派，协调者的角色说明也让派；和 tools 怎么写无关 | 不处理 |
+
+```text
+结论与未验证：按规则删三句，没有要给 Prologue 开的 PR。只在这 3 道题、coding-reader 与 coordinator 两个角色、这一个模型上成立。
+  没跑：builder、writer 等别的角色，Windows 路径，带 workspace 参数的独立子目录。
+```
+
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。
+
+## 10. 2026-10-18 补充：Skill 包、渐进披露与评测
+
+对照 Anthropic 的 `skill-creator`、`plugin-dev`、`knowledge-work-plugins` 与 `claude-code-action`，补上原手册“Skill 章节”没有展开的三件事：**一份 Skill 怎样分层、怎样从一次真实过程生成、怎样证明它值得用。**
+
+### 10.1 渐进披露
+
+一份 Skill 分三层加载：
+
+1. **metadata**（name、description、when_to_use、applies_to）：常驻，供模型/前门选择；description 要写“做什么 + 什么时候用”，不要只写一句宣传。
+2. **正文**（`SKILL.md`）：触发后进入上下文；保持在 500 行以内，按步骤写，不写整本手册。
+3. **资源**（`references/`、`scripts/`、`assets/`）：正文指向哪份才读哪份；脚本只做确定性辅助，执行仍受权限岛、沙箱和审查。
+
+资源是包的一部分，不是第二套事实；正文要写清“什么时候读哪一份”，不要用一句“详见资料”把选择丢给模型。
+
+### 10.2 从一次真实过程生成 Skill
+
+优先用刚发生过的真实过程（用户做过的步骤、纠正、拒绝）作为规格；没有就用具体的一次经历访谈。写之前先区分：
+
+- **固定**：顺序、来源、输出格式、规则。
+- **可变**：日期、名字、金额、文件、客户。
+- **判断**：用户犹豫、纠正、需要决定的地方；这些做成 approval gate。
+
+会发送、花费、发布、删除的步骤必须有 gate；不要每个步骤都问。写完后用用户已知答案的真实案例回放，对照手工结果；不一致先改，不让用户接受“差不多”。注册到目录/前门，但不自动启用、不自动排期、不扩大权限。
+
+### 10.3 评测循环
+
+1. 写 3–5 个测试 prompt，覆盖触发、不触发、边界和失败。
+2. 每个跑多次（例如 8 次），记录触发率、结果质量、耗时/用量与方差。
+3. 用已知答案或盲评判断质量；不要用一次成功宣称稳定。
+4. 改 description/正文后重跑同一组；比较前后，不只比较文案。
+5. 把原始结果、判定规则与版本存下来，供复查。
+
+评测是方法，不是新的审批系统；不因为一次评测就自动改有效版本。
+
+### 10.4 作者侧校验
+
+- manifest：必填字段、版本、来源、引用文件存在、路径不逃逸。
+- hook schema：事件、匹配器、动作、超时、阻塞语义合法。
+- agent/skill：id/version 唯一、正文长度、`tools` 在允许范围、`applies_to` 合法。
+- LSP：command/args/扩展名映射/超时合法，server 缺失时是提示不是崩溃。
+- 打包/签名/安装：固定文件列表、签名可验证、卸载只删包内容。
+- UI：跨 surface 的挂载/交互测试；没有 surface 的包不假装有界面。
+
+校验能拒绝的要在安装/启动前拒绝；只能报告的（例如建议的质量）明确标为报告，不冒充拒绝。
+
+### 10.5 与技能包的关系
+
+本节是 [skill-packs](../skill-packs/spec.md) 的作者/评测手册：技能包定义“装什么”，本节定义“怎样写、怎样证明”。两者都不新增权限、事实或第二套目录。

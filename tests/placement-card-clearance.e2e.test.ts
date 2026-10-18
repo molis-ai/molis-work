@@ -13,7 +13,7 @@ for (const width of [1440, 390]) test(`placement card ${width}px: a card that ar
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-work-surface=lingguang]')");
   const visible = (selector: string) => `(() => { const node = document.querySelector(${JSON.stringify(selector)}); return Boolean(node && node.getClientRects().length); })()`;
-  await click(await evaluate(visible("[data-bar-resident=lingguang]")) ? "[data-bar-resident=lingguang]" : "[data-plugin-picker-popover] [data-plugin-id=lingguang]");
+  await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
   await surfaceReady("lingguang");
   await evaluate(`document.querySelector("[data-lingguang-capture]").click()`);

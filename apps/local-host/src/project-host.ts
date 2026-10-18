@@ -39,6 +39,7 @@ import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
 import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
 import path from "node:path";
+import { closeConnectorResources } from "./connector-lifecycle.js";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { LocalHost, type LocalHostOptions } from "./local-host.js";
@@ -223,7 +224,7 @@ export class MolisWorkLocalHost {
     });
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(jellyActionProvider(options.homeDirectory, options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
-    if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory));
+    if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.status().projects.find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.status().projects.find(project => project.project_id === caller.project_id)!) : this.homeActionClient()));
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.
       this.connectorMcp = createConnectorMcpDirectory({ localHost: this, homeDirectory: options.homeDirectory });
@@ -362,7 +363,7 @@ export class MolisWorkLocalHost {
   }
 
   private async prepareHomeActions(): Promise<void> {
-    if (this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+    if (this.closing || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     // The Home keeps its failed ready promise; unrelated providers remain available while its HTTP entry reports that failure.
     await this.homePlugins?.ready().catch(() => undefined);
     this.systemFunctions?.refresh();
@@ -401,7 +402,7 @@ export class MolisWorkLocalHost {
   close(): Promise<void> {
     return this.closing ??= (async () => {
       releaseHomeSide(this);
-      this.connectorMcp?.close();
+      await closeConnectorResources(this.options.homeDirectory, this.connectorMcp);
       await this.search?.close().catch(error => { hostLog.warn("projects", "close_step_failed", error, { step: "search" }); });
       try { this.placement?.close(); } catch (error) { hostLog.warn("projects", "close_step_failed", error, { step: "placement" }); } // One that fails to close does not keep the rest open.
       try { await this.host.close(); }
@@ -418,7 +419,7 @@ export class MolisWorkLocalHost {
   }
 
   lifecycle(): LocalHostStatus["state"] {
-    return this.host.lifecycle();
+    return this.closing && this.host.lifecycle() === "running" ? "closing" : this.host.lifecycle();
   }
 
   status(): LocalHostStatus {

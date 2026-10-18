@@ -27,12 +27,12 @@ export const NAVIGATION_FLOW_STYLES = `
   /* On a phone the two groups already sit on their own row under the composer; trays there only add weight. */
   @media (min-width: 601px) {
     ${BAR} { --bar-tray: color-mix(in srgb, var(--ink) 4%, transparent); --bar-tray-edge: color-mix(in srgb, var(--ink) 6%, transparent); }
-    ${BAR} :is(.bar-start, .bar-residents) { padding: 6px; border-radius: var(--r-composer, 15px); background: var(--bar-tray); box-shadow: inset 0 0 0 1px var(--bar-tray-edge); }
+    ${BAR} :is(.bar-start, .bar-side) { padding: 6px; border-radius: var(--r-composer, 15px); background: var(--bar-tray); box-shadow: inset 0 0 0 1px var(--bar-tray-edge); }
     ${BAR} .bar-start .dock-pins { height: var(--dock-btn); }
     ${BAR} .bar-start .dock-pins::before { top: calc((var(--dock-btn) - 20px) / 2); }
   }
   @media (min-width: 601px) and (max-height: 560px) {
-    ${BAR} :is(.bar-start, .bar-residents) { padding: 3px; }
+    ${BAR} :is(.bar-start, .bar-side) { padding: 3px; }
   }
   /* The left column never gets narrower than its tray's least content — the switcher's glyph, 项目首页 and the +N
      fold, with the tray's padding and the gaps between them — so what folds stays inside the tray instead of sliding

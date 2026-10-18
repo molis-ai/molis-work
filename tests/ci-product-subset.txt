@@ -156,6 +156,16 @@ tests/coding-writers.test.ts
 tests/connector-api-oauth.test.ts
 tests/connector-authorization-recovery.test.ts
 tests/connector-cli.test.ts
+tests/connector-local-actions.test.ts
+tests/security-invariants-local-mcp.test.ts
+tests/connector-setup.test.ts
+tests/security-invariants-connector-intent.test.ts
+tests/security-invariants-connector-install.test.ts
+tests/security-invariants-cli-install.test.ts
+tests/security-invariants-cli-configuration.test.ts
+tests/security-invariants-native-cli.test.ts
+tests/security-invariants-graph-cli-install.test.ts
+tests/connector-record-actions.test.ts
 tests/connector-document-import.test.ts
 tests/connector-method-directory.test.ts
 tests/connector-oauth-choice.test.ts
@@ -438,3 +448,6 @@ tests/workflows-stop-and-token.test.ts
 tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
+
+tests/connector-status.test.ts
+tests/connector-consumer-usages.test.ts

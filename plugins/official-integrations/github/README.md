@@ -69,3 +69,5 @@ node scripts/run-tests.mjs tests/github-device-flow.test.ts tests/feed-connector
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+真实账号检查在 `health().account` 返回已认证响应中的账号身份，供连接 owner 在当前配置修订下核对修复等待。未取得身份时不填写，不能用本地账号显示名代替。

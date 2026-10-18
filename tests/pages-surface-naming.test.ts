@@ -127,7 +127,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     MutationObserver: class { observe() {} },
     window: windowStub,
     document: {
-      body: { dataset: { routePrefix: "" }, hasAttribute: () => false, append() {} },
+      body: { dataset: { routePrefix: "" }, hasAttribute: () => false, matches: () => false, append() {} },
       documentElement: { dataset: {} as Record<string, string> },
       activeElement: null,
       querySelector: (selector: string) => selector === "[data-pages=workbench]" ? surface : null,

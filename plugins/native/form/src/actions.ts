@@ -107,7 +107,9 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       if (!drafting) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
       const result = await drafting.draft(input, current, caller);
       if (result.status !== "drafted") return result;
-      return { status: "done" as const, form: await write(caller, store => store.update(input.id, { questions: [...current.questions, ...result.questions], expected_version: current.version }, project(caller))) };
+      const form = await write(caller, store => store.update(input.id, { questions: [...current.questions, ...result.questions], expected_version: current.version }, project(caller)));
+      drafting.forget(input.interaction?.interaction_id);
+      return { status: "done" as const, form };
     }, () => ports.modelAvailability()),
     bind(formActions.submit, (input, caller) => write(caller, store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: submissionSource(caller, input.source) }) }))),
     bind(formActions.close, (input, caller) => write(caller, store => ({ form: store.closeCollection(input.id, project(caller), input.expected_version) }))),

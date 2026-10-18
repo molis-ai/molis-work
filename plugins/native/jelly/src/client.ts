@@ -75,13 +75,13 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
         const result = await request('POST', API+'/commands', {expected_revision:state.revision,command:value});
         state = result.state; await renderView(); return state;
       } catch (error) {
-        if (error.status === 409) { const fresh = await request('GET',API); state = fresh.state; await renderView(); showNote(L('其他窗口已更新。你的编辑仍保留，请核对后重新保存。'), true); }
+        if (error.status === 409) { const fresh = await request('GET',API+'/'); state = fresh.state; await renderView(); showNote(L('其他窗口已更新。你的编辑仍保留，请核对后重新保存。'), true); }
         throw error;
       }
     });
     mutationQueue = operation; return operation;
   };
-  const loadList = async () => { const result = await request('GET',API); state = result.state; await renderView(); };
+  const loadList = async () => { const result = await request('GET',API+'/'); state = result.state; await renderView(); };
   const matches = (record, body = '') => (!filterCategory || record.category_id === filterCategory) && (!query || (record.title + ' ' + body).toLowerCase().includes(query.toLowerCase()));
   const empty = (title, message, label) => '<div class="jelly-empty">' + glyph(view === 'calendar' ? 'calendar' : view === 'notes' ? 'note' : 'idea') + '<h2>' + tx(title) + '</h2><p>' + tx(message) + '</p>' + (label ? btn(label,'data-jelly-new','plus') : '') + '</div>';
   const download = (filename, body, type) => { const url=URL.createObjectURL(new Blob([body],{type})); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); };
@@ -171,7 +171,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if(typeof id!=='string'||!id)return;
     void run(async()=>{
       await flushEditor();await mutationQueue.catch(()=>{});
-      state=(await request('GET',API)).state;
+      state=(await request('GET',API+'/')).state;
       const item=state.items.find((entry)=>entry.id===id),series=state.series.find((entry)=>entry.id===id);
       const kind=item||series?null:recordFor('note',id)?'note':null;
       if(!item&&!series&&!kind){await renderView();showNote(L('这条内容已不存在'),true);return;}

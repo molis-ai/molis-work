@@ -41,13 +41,13 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
-  "alchemist", "artifacts", "dataset", "feed", "goals", "images",
-  "inbox", "jelly", "pages", "plugin-builder", "ppt", "schedule", "sessions", "workflows",
+  "alchemist", "artifacts", "dataset", "feed", "goals",
+  "inbox", "pages", "plugin-builder", "ppt", "schedule", "sessions", "workflows",
 ]);
 
 /** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
-  "alchemist", "artifact", "dataset", "feed", "images", "inbox", "jelly",
+  "alchemist", "artifact", "dataset", "feed", "inbox",
   "pages", "personal", "ppt", "schedule", "shelf", "workflows",
 ]);
 

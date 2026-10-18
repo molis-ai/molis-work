@@ -39,7 +39,6 @@ const TRANSITIONAL: Readonly<Record<string, string>> = {
 
 /** Modules that only build a Host text model and hand it to a caller that resolves its instructions. */
 const FACTORIES = new Set([
-  "apps/local-host/src/jelly-model.ts",
   // Builds the TypeSafe provider a caller hands its own questions to; the questions are the caller's (see TYPESAFE_CALLERS).
   "apps/local-host/src/typesafe-prologue.ts",
 ]);

@@ -17,13 +17,10 @@ import { PersonalPlanningActions } from "./personal-planning-actions.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { goalsActionProvider } from "./goals-actions.js";
-import { ImagesHostService } from "./images-service-host.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
-import { imagesActionProvider } from "./images-actions.js";
 import { pptActionProvider } from "./ppt-actions.js";
 import { pagesActionProvider } from "./pages-actions.js";
 import { datasetActionProvider } from "./dataset-actions.js";
-import { jellyActionProvider } from "./jelly-actions.js";
 import { scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
 import { workflowsActionProvider } from "./workflows-actions.js";
@@ -130,7 +127,6 @@ export class MolisWorkLocalHost {
   private catalogRunner?: LocalWebCatalogRunner;
   private webCatalog?: { home: string; access: ReturnType<typeof createWebCatalogAccess> };
   private readonly systemFunctions?: SystemFunctionsActions;
-  private readonly images?: ImagesHostService;
   private readonly alchemist?: AlchemistHostService;
   private agents?: { home: string; service: AgentHostComposition };
   private closing?: Promise<void>;
@@ -214,8 +210,6 @@ export class MolisWorkLocalHost {
     if (this.personalPlanningHome) this.personalPlanning = new PersonalPlanningActions(this.personalPlanningHome, this.host.actionRegistry(),
       () => readPersonalPlanningMethodPacks(this.personalPlanningHome!));
     if (options.homeDirectory) {
-      this.images = new ImagesHostService(options.homeDirectory);
-      this.host.actionRegistry().registerProvider(imagesActionProvider(this.images));
       this.alchemist = new AlchemistHostService(options.homeDirectory, options.alchemist);
       this.host.actionRegistry().registerProvider(this.alchemist.provider());
     }
@@ -224,7 +218,6 @@ export class MolisWorkLocalHost {
       if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "判断目录缺少当前项目运行环境");
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
-    if (options.homeDirectory) this.host.actionRegistry().registerProvider(jellyActionProvider(options.homeDirectory, options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.status().projects.find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.status().projects.find(project => project.project_id === caller.project_id)!) : this.homeActionClient()));
     if (options.homeDirectory) {
@@ -410,7 +403,7 @@ export class MolisWorkLocalHost {
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();
-        try { await Promise.all([this.agents?.service.dispose(), this.images?.close(), this.alchemist?.close(), this.sessions.close(), this.homePlugins?.close()]); }
+        try { await Promise.all([this.agents?.service.dispose(), this.alchemist?.close(), this.sessions.close(), this.homePlugins?.close()]); }
         finally { await this.webCatalog?.access.close(); }
       }
     })();

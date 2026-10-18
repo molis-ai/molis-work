@@ -178,12 +178,6 @@
       ],
       "reason": "The IM server package and its identity and continuity services (ImError): its im, identity, continuity and server prefixes become im.* (spec W3-02 R6; stored codes wait for the maintenance)."
     },
-    "images": {
-      "paths": [
-        "apps/local-host/src/images-*"
-      ],
-      "reason": "The Images plugin and the Host files that serve it; its codes already start with images."
-    },
     "inbox": {
       "paths": [
         "apps/local-host/src/inbox-*",

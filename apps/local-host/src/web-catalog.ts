@@ -6,14 +6,10 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
-import { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
-import { IMAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-images";
 import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
 import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
 import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
-import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
-import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -111,16 +107,6 @@ export async function handleLocalCatalogWebRequest(
       actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
         audience: "user", permissions: DATASET_ACTION_PERMISSIONS, ...transport })) };
   })) return;
-  if (serverOptions.homeDirectory && await handleImagesNativePluginHttp(request, response, url, async (input) => {
-    const projectId = input.query.get("project_id") ?? input.body.project_id;
-    if (projectId === undefined || projectId === "") return { projectId: "", actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: IMAGES_ACTION_PERMISSIONS })) };
-    if (typeof projectId !== "string") throw new ActionError("actions.project_required", "请选择项目");
-    const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    return { projectId: project.project_id,
-      actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
-        audience: "user", permissions: IMAGES_ACTION_PERMISSIONS })) };
-  })) return;
   if (serverOptions.homeDirectory && await handlePptNativePluginHttp(request, response, url, async (input, transport) => {
     const projectId = input.query.get("project_id") ?? input.body.project_id;
     if (typeof projectId !== "string" || !projectId.trim()) throw new ActionError("actions.project_required", "请选择项目");
@@ -130,8 +116,6 @@ export async function handleLocalCatalogWebRequest(
       actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
         audience: "user", permissions: PPT_ACTION_PERMISSIONS, ...transport })) };
   })) return;
-  if (serverOptions.homeDirectory && await handleJellyNativePluginHttp(request, response, url, transport =>
-    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {
     shelf: { actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })) },
   })) return;

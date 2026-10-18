@@ -41,7 +41,7 @@ export async function promotePpt(
   id: string,
   projectId: string,
   publishArtifact: PptPublishArtifactPort,
-  options: { actorId: string; expectedVersion?: number; readArtifact?: PptReadArtifactPort; lineHead?: PptLineHeadPort },
+  options: { actorId: string; expectedVersion?: number; readArtifact?: PptReadArtifactPort; lineHead?: PptLineHeadPort; beforePublish?: () => Promise<void> },
 ): Promise<{ presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }> {
   const current = store.get(id, projectId);
   const head = options.lineHead?.({ project_id: projectId, record_id: id }) ?? null;
@@ -53,6 +53,7 @@ export async function promotePpt(
   if (written > 0) options.readArtifact?.({ project_id: projectId, record_id: id, version: written });
   const intent = await store.beginPublication(id, projectId, options.actorId, options.expectedVersion ?? current.version, existing ?? undefined, version);
   if (existing && !isDeepStrictEqual(existing, intent.content)) throw pptErrors.publication_conflict("成果与原发布快照不同，演示稿及快照已保留");
+  if (!existing) await options.beforePublish?.();
   const published = existing ? { artifact_id: "ppt-" + id, version: intent.version } : publishArtifact({
     project_id: projectId,
     record_id: current.id,

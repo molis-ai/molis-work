@@ -112,6 +112,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       runs.push({ ref: { run_id: attempt.run_id, session_id: id }, frozen: attempt.frozen,
         started_at: attempt.started_at, task: attempt.task,
         ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
+        ...(attempt.stop_reason ? { stop_reason: attempt.stop_reason } : {}),
         ...(attempt.timing ? { timing: attempt.timing } : {}),
         ...(attempt.desktop_target ? { desktop_target: attempt.desktop_target } : {}),
         ...(ref ? { terminal: true } : {}),

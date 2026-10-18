@@ -26,7 +26,7 @@ function page(reply: (path: string, body: Record<string, unknown>) => Promise<un
     (acts.push(act), owners.push(owner), turn.kind === "user" && turn.steer ? made.get(turn.turn_id) ?? made.set(turn.turn_id, new Node("details", "mw-receipt")).get(turn.turn_id)! : null) };
   const api = (path: string, method: string, body: Record<string, unknown>) => { calls.push([path, method, body]); return reply(path, body); };
   const ui = vm.runInNewContext(`(${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})`, { Error, encodeURIComponent })({ L: (text: string) => text, shared, chip, api, work: () => "work 1", reload: () => { reloads++; } }) as {
-    line(thread: Node, node: Node, put: (node: Node) => void, turn: object, round: object): void; paint(round: object | undefined): void; target(): string | undefined;
+    line(thread: Node, node: Node, put: (node: Node) => void, turn: object, round: object): void; paint(round: object | undefined): void; target(): string | undefined; into(): { pending_id: string; draft_from_composer?: string } | null;
     tray(thread: Node, put: (node: Node) => void, view: object | null): void;
   };
   const put = (node: Node) => { if (node.parent !== thread) { node.parent = thread; thread.children.push(node); } };
@@ -63,6 +63,25 @@ test("RC-14: the chip shows only while the round waits on its one free-text ques
   assert.equal(chip.hidden, true, "a question the Host does not mark from_composer is answered on its own card (D34)");
   ui.paint(undefined);
   assert.equal(ui.target(), undefined);
+});
+
+test("AC-03, R4: a questionnaire with its text question among others starts the chip at writing into that field; Send then targets nothing, and one click switches to adding to the round", () => {
+  const { ui, chip, calls } = page();
+  const form = (revision = 1) => ({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q3", pending_revision: revision, questions: [{ index: 0, prompt: "选哪个？", type: "choice" }, { index: 1, prompt: "补充要求", type: "text" }], draft_from_composer: "t1" }] });
+  ui.paint(form());
+  assert.equal(chip.hidden, false); assert.equal(chip.textContent, "写进问卷：补充要求", "the default and the field it writes into are on the chip");
+  assert.match(chip.title, /补充这一轮/u);
+  assert.equal(ui.target(), undefined, "nothing is sent as an answer or a supplement"); assert.equal(ui.into()?.pending_id, "q3"); assert.equal(ui.into()?.draft_from_composer, "t1");
+  chip.click();
+  assert.equal(chip.textContent, "补充这一轮"); assert.match(chip.title, /写进问卷/u, "the way back names the form, not answering");
+  assert.equal(ui.target(), "steer"); assert.equal(ui.into(), null);
+  chip.click();
+  assert.equal(ui.into()?.pending_id, "q3", "one click back"); assert.equal(ui.target(), undefined);
+  chip.click(); ui.paint(form(2));
+  assert.equal(ui.into()?.pending_id, "q3", "a new question starts again at its default");
+  ui.paint(running);
+  assert.equal(chip.hidden, true); assert.equal(ui.into(), null, "nothing waiting, nothing to fill");
+  assert.equal(calls.length, 0, "the chip itself writes nothing");
 });
 
 test("RCPT-326: from a receipt, the Assistant takes a supplement back through the work's control and sends a correction as a Send naming it", async () => {

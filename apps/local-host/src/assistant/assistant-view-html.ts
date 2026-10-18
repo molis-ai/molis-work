@@ -3,7 +3,7 @@ import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-cont
 import { assistantTextHtml, assistantReviewHtml } from "@molis-ai/molis-work-app-workbench";
 import { agentQuestionHtml } from "../agent-question-card.js";
 import { interactionNextSteps } from "../agent-next-steps.js";
-import { freeTextQuestion } from "./assistant-inputs.js";
+import { composerQuestion } from "./assistant-inputs.js";
 
 /**
  * What follows the latest round: open what it made (two at most), or send the same words again when it failed. They come
@@ -43,7 +43,7 @@ const isView = (value: unknown): value is AssistantWorkView => Boolean(value) &&
 
 /**
  * A reply's work views and cards, drawn on the Host so the page only binds them (specs/ai-interaction-experience A1, H2):
- * each waiting question with the person's half-written answer (and whether words from the composer answer it), each card, text, review, and the next steps above the input.
+ * each waiting question with the person's half-written answer (and whether words from the composer answer it or go into its draft), each card, text, review, and the next steps above the input.
  * Read by the Assistant's own page; the records themselves are unchanged.
  */
 export function drawAssistantReply(body: unknown, ports: { say: (text: string, values?: Record<string, string | number>) => string; drafts(workId: string): Record<string, InteractionValues>; card(card: AssistantCard): string }): void {
@@ -52,10 +52,10 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
     if (isView(candidate)) {
       const drafts = ports.drafts(candidate.work.work_id);
       for (const round of candidate.rounds) {
-        const words = freeTextQuestion(round.awaiting_input);
+        const words = composerQuestion(round.awaiting_input);
         // A closed question is asked again by a new round of the Assistant's own; a Coding work's questions are Coding's.
         const reask = candidate.work.executor.kind !== "coding";
-        for (const question of round.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, ports.say, drafts[question.pending_id], undefined, reask), ...(question === words ? { from_composer: true } : {}) });
+        for (const question of round.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, ports.say, drafts[question.pending_id], undefined, reask), ...(question !== words?.question ? {} : words.field ? { draft_from_composer: words.field } : { from_composer: true }) });
       }
       for (const round of candidate.rounds) for (const turn of round.turns) {
         if (turn.kind === "assistant") Object.assign(turn, { html: assistantTextHtml(turn.text, candidate.objects, ports.say) });

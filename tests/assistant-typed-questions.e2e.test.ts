@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { createServer } from "node:http";
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -122,6 +124,61 @@ test("AC-27-5, D34: one text question is answered from the composer, and the run
   assert.ok(JSON.stringify(requests[1]?.messages ?? "").includes("Q4 发布复盘"), "the words answer the question");
   await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('标题记下了。')", 15_000);
   assert.equal(await evaluate("document.querySelector('[data-assistant-answer]').hidden"), true, "nothing waits, so there is no choice");
+});
+
+/** Every file of the Agent runtime (its sessions, runs and queued inputs), by content. */
+async function runtimeFiles(home: string): Promise<Map<string, string>> {
+  const root = join(home, "agent-runtime"), files = new Map<string, string>();
+  for (const entry of await readdir(root, { recursive: true, withFileTypes: true })) {
+    if (entry.isFile()) files.set(join(entry.parentPath, entry.name).slice(root.length), createHash("sha256").update(await readFile(join(entry.parentPath, entry.name))).digest("hex"));
+  }
+  return files;
+}
+
+// R4 (D14, AC-03): with the text question among others, Send writes into that field of the card's draft and hands nothing back; the
+// card's own submit does. One click switches the chip to adding to the round, and back; the draft stays on the card throughout.
+test("AC-03, R4: among other questions, the composer writes into the questionnaire's text field; nothing reaches the AI until the card is submitted", { timeout: 240_000 }, async t => {
+  const asked = { why: "约下周的复盘会", questions: [{ id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true, unit: "分钟" }, { id: "notes", type: "text", prompt: "补充要求", required: false }] };
+  const page = await assistantAsking(t, asked, "复盘会安排好了。"); if (!page) return;
+  const { command, sessionId, evaluate, waitFor, click, navigate, requests, homeDirectory } = page;
+  const chip = "document.querySelector('[data-assistant-answer]')", notes = "document.querySelector('[data-ix-question] [data-ix-field=t1] textarea, [data-ix-question] [data-ix-field=t1] input')";
+  const send = async (text: string) => { await click("[data-assistant-input]"); await command("Input.insertText", { text }, sessionId); await click("[data-assistant-send]"); };
+  const work = () => evaluate<string>(`fetch(document.body.dataset.routePrefix + '/api/assistant/works', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => JSON.stringify(body.works))`);
+  await waitFor(`${notes} && !${chip}.hidden`, 20_000);
+  assert.equal(await evaluate(`${chip}.textContent`), "写进问卷：补充要求", "the default and the field it writes into are on the chip");
+  const before = { files: await runtimeFiles(homeDirectory), works: await work() };
+
+  await send("只约周三下午");
+  await waitFor(`${notes}.value === '只约周三下午' && document.querySelector('[data-assistant-input]').value === ''`, 10_000);
+  await send("会议室要有投影");
+  await waitFor(`${notes}.value === '只约周三下午\\n会议室要有投影'`, 10_000);
+  await new Promise(resolve => setTimeout(resolve, 800));
+  assert.equal(requests.length, 1, "nothing reaches the AI");
+  assert.deepEqual(await runtimeFiles(homeDirectory), before.files, "the session, its run and its queue are unchanged on disk: nothing was handed back or queued");
+  assert.equal(await work(), before.works, "the Assistant's works are unchanged");
+  assert.equal(await evaluate("document.querySelectorAll('[data-assistant-thread] .assistant-msg--user').length"), 1, "only the first message: no supplement in the thread");
+  assert.equal(await evaluate("document.querySelectorAll('[data-assistant-thread] [data-entry^=receipt]').length"), 0, "and no receipt");
+
+  await navigate(() => command("Page.reload", {}, sessionId));
+  await waitFor(`${notes}?.value === '只约周三下午\\n会议室要有投影'`, 20_000);
+
+  await click("[data-assistant-answer]");
+  assert.equal(await evaluate(`${chip}.textContent`), "补充这一轮");
+  assert.match(await evaluate<string>(`${chip}.title`), /写进问卷/u, "the way back names the form");
+  await send("顺便发个日历邀请");
+  await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('顺便发个日历邀请')", 15_000);
+  assert.notDeepEqual(await runtimeFiles(homeDirectory), before.files, "switched, the words reach the round as a supplement");
+  assert.equal(requests.length, 1, "a supplement waits behind the answer; the AI is not called");
+  assert.equal(await evaluate(`${notes}.value`), "只约周三下午\n会议室要有投影", "the supplement does not touch the draft");
+  await click("[data-assistant-answer]");
+  assert.equal(await evaluate(`${chip}.textContent`), "写进问卷：补充要求", "one click back");
+  assert.equal(await evaluate(`${notes}.value`), "只约周三下午\n会议室要有投影", "and the draft is still on the card");
+
+  await evaluate(`(() => { const node = document.querySelector('[data-ix-question] [data-ix-field=n0] input'); node.focus(); node.value = '45'; node.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await click("[data-ix-question] [data-ix-action=answer]");
+  for (let attempt = 0; requests.length < 2 && attempt < 300; attempt++) await new Promise(resolve => setTimeout(resolve, 50));
+  const told = JSON.stringify(requests[1]?.messages ?? "");
+  for (const part of ["45", "只约周三下午", "会议室要有投影"]) assert.ok(told.includes(part), `the card's submit hands back ${part}`);
 });
 
 // T2 (AC-28-2, AC-28-3, AC-28-4, AC-28-6): a reference question lists nothing until the person types; the search offers this project's

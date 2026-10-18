@@ -754,12 +754,17 @@ export interface AgentCompactionDeclaration {
     above_tokens: number;
 }
 
+export interface AgentEndingReviewDeclaration {
+    prompt_id: string;
+}
+
 export interface AgentManifest {
     directory_input_port?: string;
     text_sources?: AgentTextSourceDeclaration[];
     roles: AgentRoleDeclaration[];
     prompts: AgentPromptDeclaration[];
     compaction?: AgentCompactionDeclaration;
+    ending_review?: AgentEndingReviewDeclaration;
     skills?: AgentSkillDeclaration[];
     mcp?: boolean;
     characters?: {
@@ -2633,7 +2638,9 @@ export interface PluginEventsRepository {
     deleteCursors(projectId: string, subscriberPluginId: string): void;
 }
 
-export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">;
+export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current"> & {
+    readonly project_id?: string;
+};
 
 export interface PluginExecutor {
     start(definition: PluginDefinition, context: PluginStartContext): Promise<PluginExecutorHandle>;
@@ -2787,6 +2794,7 @@ export interface PluginManifest {
         signature: string;
     };
     host_api_version: 1 | 2;
+    always_on?: boolean;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
     capabilities: {

@@ -37,10 +37,15 @@ const SEEN: Record<AgentCollaborationWait["conditions"][number]["last"]["status"
  */
 export const wakeBodyOf = (view: CodingWaitView, last: Record<string, unknown>, person = false, queued?: { body: Record<string, unknown>; work_id: string }) => {
   if (view.wait.by === "app" && queued) return { ...queued.body, queued_work_id: queued.work_id };
-  const { actor_id: _actor, origin_task, ...how } = last;
   const what = person ? `你决定不再等${waitingOn(view.wait)}，直接接着做。`
     : view.wait.conditions.map(one => `${one.label}${SEEN[one.last.status]}${one.last.note ? `（${one.last.note}）` : ""}。`).join("\n");
-  // The original task travels on, so a round woken again still knows what it was for.
-  return { ...how, ...(typeof origin_task === "string" ? { origin_task } : {}), task: [`（接着之前的任务）你之前在等：${view.wait.reason.slice(0, 400)}`, what,
-    `请接着完成原来的任务：${typeof origin_task === "string" ? origin_task : ""}`].filter(Boolean).join("\n") };
+  return continuedBody(last, [`你之前在等：${view.wait.reason.slice(0, 400)}`, what].filter(Boolean).join("\n"));
+};
+/**
+ * The next round of a round that stopped on something (a wait, a question asked before a restart): started the way `last`
+ * was, told where things stand (`said`). The original task travels on, so a round woken again still knows what it was for.
+ */
+export const continuedBody = (last: Record<string, unknown>, said: string) => {
+  const { actor_id: _actor, origin_task, ...how } = last;
+  return { ...how, ...(typeof origin_task === "string" ? { origin_task } : {}), task: `（接着之前的任务）${said}\n请接着完成原来的任务：${typeof origin_task === "string" ? origin_task : ""}` };
 };

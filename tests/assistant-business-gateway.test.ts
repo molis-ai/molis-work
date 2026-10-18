@@ -18,6 +18,7 @@ import { AssistantService, presentActivity } from "../apps/local-host/dist/assis
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { HOST_GOVERNED_TOOLS, capabilityInput, gatewayProblem, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+import { endingReviewAnswer, reviewAnswer } from "./fixtures/ending-review.js";
 import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -36,7 +37,7 @@ const count: ActionDefinition = { capability_id: "fixture.notes.count", version:
   title: "Count notes", description: "How many notes there are", kind: "query", scope: "project", audiences: ["agent"],
   permissions: ["notes:read"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
 
-async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, options: { model?: boolean; now?: () => Date } = {}) {
+async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, options: { model?: boolean; now?: () => Date; review?: true } = {}) {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-"));
   const notes = new DatabaseSync(":memory:");
   notes.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL, audit TEXT)");
@@ -52,6 +53,9 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   let turn = 0;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    // The Assistant's ending review (D1②) runs whenever a writable round changed nothing; a test that scripts it says so.
+    const review = options.review ? undefined : endingReviewAnswer(body, () => []);
+    if (review) return reply(undefined, review);
     requests.push(body);
     const next = script[turn++] ?? (() => reply());
     return next(body);
@@ -59,15 +63,17 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => options.model === false ? null : ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
-    resolveCredential: () => "fixture-only" });
+    // The background jobs the works follow are looked at with the work's authority, as the Host wires it (agent-work-authority.ts).
+    resolveCredential: () => "fixture-only", checks: { workAuthority: at => service.jobs.authority(at) } });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const ports: ConstructorParameters<typeof AssistantService>[1] = { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
-    projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user", options.now);
-  return { service, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+    projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" };
+  const service: AssistantService = new AssistantService(store, ports, "web-user", options.now);
+  return { service, ports, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a project work finds, reads and — after the person approves the exact input — changes through the gateway, with no directory", { timeout: 60_000 }, async t => {
@@ -463,8 +469,8 @@ test("today's usage comes from the runtime's own receipts; once the person's dai
   } finally { await f.close(); }
 });
 
-test("background work a round or a card starts is followed through the plugin's status query to its end; the person is told and the next round hears it once", { timeout: 60_000 }, async t => {
-  let state = "running";
+/** The fixture's job actions: a command that starts a research run in the background, and the status query it declares. */
+function jobActions(state: { value: string }) {
   const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
     audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
     output_schema: { type: "object", properties: { run: { type: "object", properties: { jobId: { type: "string" } } } } },
@@ -472,6 +478,19 @@ test("background work a round or a card starts is followed through the plugin's 
   const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
     audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
     output_schema: { type: "object", properties: { status: { type: "string" } } } } };
+  let next = 0, looked = 0;
+  return { started: () => next, looks: () => looked, provider: { provider: { provider_id: "fixture.jobs", kind: "plugin" as const, title: "Research" }, definitions: [start, status],
+    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => { looked++; return { status: state.value }; } }] } };
+}
+
+/** The work's graph looks at its jobs every second here (the Assistant asks after 15 s, at most every 5 minutes). */
+function lookOften(f: Awaited<ReturnType<typeof fixture>>) {
+  const works = f.host.adapter("prologue").collaboration!.works!, follow = works.follow.bind(works);
+  works.follow = input => follow({ ...input, every: { first_ms: 1000, max_ms: 1000 } });
+}
+
+test("W2-18-JOB-01: background work a round or a card starts is followed on the work's graph to its end; the person is told once, the card says how it ended, and the next round hears it exactly once", { timeout: 90_000 }, async t => {
+  const state = { value: "running" };
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "市场" } } }),
     () => reply(undefined, "已开始研究，后台进行中。"),
@@ -479,75 +498,94 @@ test("background work a round or a card starts is followed through the plugin's 
     body => { assert.doesNotMatch(JSON.stringify(body.messages), /Research · Start research」（任务 job-1）/, "told once"); return reply({ name: "suggest-action", input: { title: "再研究一次", summary: "再开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }); },
     () => reply(undefined, "给了一个按钮。"),
   ]);
-  let next = 0;
-  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.jobs", kind: "plugin", title: "Research" }, definitions: [start, status],
-    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state }) }] });
-  (f.service as any).ports.scopeActions = async () => ({ discover: () => f.local.actionClient(f.project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }),
-    invoke: (action: any, input: unknown) => f.local.actionClient(f.project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }, action, input) });
+  const jobs = jobActions(state);
+  f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+  lookOften(f);
   try {
+    assert.equal(await f.service.attachSchedule(), true);
     const sent = await f.service.send({ text: "开始一轮市场研究", request_id: "req-00000034" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    // The work was new when the job started: its graph, opened for its first round, follows it all the same.
     let view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.jobs?.length ? v : undefined; }, "job followed");
     assert.deepEqual(view.jobs!.map(job => [job.title, job.job_id, job.state]), [["Research · Start research", "job-1", "running"]]);
-    const [job] = f.store.jobs("web-user", sent.work.work_id);
-    // The work was new when the job started: its first look is on the queue all the same.
-    assert.ok(f.host.adapter("prologue").schedule?.find(`${job!.key}-0`), "the first look at the job is queued");
-    assert.equal((await f.service.checkJob(job!.key))!.state, "running", "still running: looked again later");
-    state = "completed";
-    assert.equal((await f.service.checkJob(job!.key))!.state, "completed");
-    view = await f.service.read(sent.work.work_id);
-    assert.deepEqual([view.jobs![0]!.state, view.jobs![0]!.last_state], ["completed", "completed"]);
+    const graph = await f.host.adapter("prologue").collaboration!.works!.read(f.store.get("web-user", sent.work.work_id).graph_id!);
+    assert.deepEqual(graph.filter(node => node.job).map(node => [node.parent, node.session_id, node.state]), [["work", undefined, "running"]], "one step under the root that no session holds");
+    await until(() => jobs.looks() > 0, "the owner is asked");
+    state.value = "completed";
+    view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.jobs?.[0]?.state === "completed" ? v : undefined; }, "job ended");
+    assert.equal(typeof view.jobs![0]!.ended_at, "string");
+    await until(() => f.service.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
     assert.match(f.service.notices(null).find(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text))!.text, /「Research · Start research」在后台完成了/);
     await f.service.send({ work_id: sent.work.work_id, text: "研究怎么样了", request_id: "req-00000035" }, {});
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 2 && v.work.state === "completed" ? v : undefined; }, "second round");
 
     // A card that starts a job stays running until the job ends, then says how it ended.
-    state = "running";
+    state.value = "running";
     await f.service.send({ work_id: sent.work.work_id, text: "给我一个再研究一次的按钮", request_id: "req-00000036" }, {});
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
     assert.deepEqual([ran.status, ran.outcome], ["running", "已开始，后台进行中"]);
-    const cardJob = f.store.jobs("web-user", sent.work.work_id).find(item => item.card_id === ran.card_id)!;
-    state = "failed";
-    await f.service.checkJob(cardJob.key);
-    const after = (await f.service.read(sent.work.work_id)).cards.find(card => card.card_id === ran.card_id)!;
-    assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成（failed）"]);
+    assert.equal((await f.service.read(sent.work.work_id)).jobs!.find(job => job.job_id === "job-2")?.card_id, ran.card_id);
+    state.value = "failed";
+    const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
+    assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成"]);
+    assert.equal(f.service.notices(null).filter(notice => /后台/.test(notice.text)).length, 2, "one notice for each job's end");
   } finally { await f.close(); }
 });
 
-test("running a card whose action starts a background job follows that job once, as the card's own: one entry, one notice", { timeout: 60_000 }, async t => {
-  let state = "running";
-  const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
-    audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
-    output_schema: { type: "object", properties: { run: { type: "object", properties: { jobId: { type: "string" } } } } },
-    background_job: { status: { capability_id: "fixture.jobs.status", version: 1 }, id: "run.jobId", input: "id", state: "status", done: ["completed"], failed: ["failed"] } } };
-  const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
-    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
-    output_schema: { type: "object", properties: { status: { type: "string" } } } } };
+test("W2-18-JOB-02: running a card whose action starts a background job follows that job once, as the card's own: one step, one notice", { timeout: 60_000 }, async t => {
+  const state = { value: "running" };
   const f = await fixture(t, [
     () => reply({ name: "suggest-action", input: { title: "研究一次", summary: "开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }),
     () => reply(undefined, "给了一个按钮。"),
   ]);
-  let next = 0;
-  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.jobs", kind: "plugin", title: "Research" }, definitions: [start, status],
-    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state }) }] });
-  (f.service as any).ports.scopeActions = async () => ({ discover: () => f.local.actionClient(f.project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }),
-    invoke: (action: any, input: unknown) => f.local.actionClient(f.project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }, action, input) });
+  const jobs = jobActions(state);
+  f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+  lookOften(f);
   try {
+    assert.equal(await f.service.attachSchedule(), true);
     const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000037" }, { project_ref: f.project });
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
-    assert.deepEqual([ran.status, ran.outcome, next], ["running", "已开始，后台进行中", 1]);
-    // One start, one followed job: it belongs to the card, and the work lists it once.
-    const jobs = f.store.jobs("web-user", sent.work.work_id);
-    assert.deepEqual(jobs.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
-    assert.equal((await f.service.read(sent.work.work_id)).jobs!.length, 1);
-    state = "completed";
-    for (const job of f.store.jobs("web-user", sent.work.work_id)) await f.service.checkJob(job.key);
+    assert.deepEqual([ran.status, ran.outcome, jobs.started()], ["running", "已开始，后台进行中", 1]);
+    // One start, one followed job: the change's own report and the card name it at once, and it is the card's.
+    const graph = await f.host.adapter("prologue").collaboration!.works!.read(f.store.get("web-user", sent.work.work_id).graph_id!);
+    assert.equal(graph.filter(node => node.job).length, 1);
+    assert.deepEqual((await f.service.read(sent.work.work_id)).jobs!.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
+    state.value = "completed";
+    const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
+    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"]);
+    await until(() => f.service.notices(null).some(notice => /后台完成了/.test(notice.text)), "the person is told");
+    // The Assistant built again on the same Home (as after a restart) hears every job that has ended at once: still one notice.
+    const again = new AssistantService(f.store, f.ports, "web-user");
+    assert.equal(await again.attachSchedule(), true);
+    await new Promise(resolve => setTimeout(resolve, 300));
     assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
-    const after = (await f.service.read(sent.work.work_id)).cards.find(card => card.card_id === ran.card_id)!;
-    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成（completed）"]);
+  } finally { await f.close(); }
+});
+test("W2-18-JOB-04: a work that 500 newer works have passed still answers for the job it follows: the job is looked at to its end and the person told", { timeout: 60_000 }, async t => {
+  const state = { value: "running" };
+  const f = await fixture(t, [
+    () => reply({ name: "suggest-action", input: { title: "研究一次", summary: "开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }),
+    () => reply(undefined, "给了一个按钮。"),
+  ]);
+  const jobs = jobActions(state);
+  f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+  lookOften(f);
+  try {
+    assert.equal(await f.service.attachSchedule(), true);
+    const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000038" }, { project_ref: f.project });
+    const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
+    const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
+    assert.equal(ran.status, "running");
+    await until(() => jobs.looks() > 0, "the owner is asked");
+    for (let i = 0; i < 500; i++) f.store.create({ actor_id: "web-user", title: `后来的工作 ${i}`, scope: { kind: "personal" }, origin: null });
+    assert.equal(f.store.list("web-user", { archived: "any", limit: 500 }).some(work => work.work_id === sent.work.work_id), false, "the work is not among the latest 500");
+    state.value = "completed";
+    const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
+    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"], "looked at with the work's authority, not refused as gone");
+    await until(() => f.service.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
   } finally { await f.close(); }
 });
 
@@ -657,33 +695,56 @@ test("a suggestion whose moment has passed, or that counted days from another da
   } finally { await f.close(); }
 });
 
-test("a round that only announces its next step is continued once, and the person sees that it was", { timeout: 60_000 }, async t => {
-  const f = await fixture(t, [() => reply(undefined, "现在去保存这条笔记。"), () => reply(undefined, "现在就去保存。"), () => reply(undefined, "never asked")]);
+// ADH-16
+test("a round that changed nothing has its ending reviewed against its facts; one that only announced is continued once, and the person sees that it was", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [() => reply(undefined, "现在去保存这条笔记。"), () => reply(undefined, reviewAnswer(["will_do"])), () => reply(undefined, "现在就去保存。"), () => reply(undefined, "never asked")], { review: true });
   try {
     const sent = await f.service.send({ text: "Save a note saying hi", request_id: "req-00000031" }, {});
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
-    // Held once: the second request carries the first ending and the Host's reason; the second ending is not held again.
-    assert.equal(f.requests.length, 2);
-    const second = JSON.stringify(f.requests[1]);
-    assert.match(second, /现在去保存这条笔记/);
-    assert.match(second, /called no tool, so nothing has happened yet/);
+    // The review reads the ending and the Host's facts, as fenced data, with no tools; nothing is decided by the ending's wording.
+    const review = f.requests[1];
+    assert.equal(review.tools, undefined, "the review has no tools");
+    assert.match(JSON.stringify(review.system), /AI 助理在这一轮结束时/);
+    const data = JSON.stringify(review.messages);
+    assert.match(data, /不可信数据/);
+    assert.match(data, /现在去保存这条笔记/);
+    assert.match(data, /\\"tools\\":\[\]/, "the facts say no tool was called");
+    // Held once: the next request carries the first ending and the Host's reason; nothing new was called, so it is not reviewed again.
+    assert.equal(f.requests.length, 3);
+    const third = JSON.stringify(f.requests[2]);
+    assert.match(third, /现在去保存这条笔记/);
+    assert.match(third, /called no tool, so nothing has happened yet/);
     assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue").map(item => item.state), ["completed"]);
-    // Still only announcing after that: the round says plainly that nothing was done, instead of leaving the promise standing.
-    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "ended-on-promise").map(item => [item.state, item.target]), [["failed", "最后只说了要做什么，没有执行"]]);
+    // Nothing called after the continuation: the round says plainly that nothing was done, instead of leaving the promise standing.
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "ended-on-promise").map(item => [item.state, item.target]), [["failed", "续做后仍没有执行"]]);
   } finally { await f.close(); }
+});
+
+// ADH-16
+test("an ending the review finds true to the facts, and one it could not review, end as they are", { timeout: 60_000 }, async t => {
+  for (const [answer, request] of [[reviewAnswer([]), "req-00000032"], ["这一段不是要的 JSON", "req-00000033"]] as const) {
+    const f = await fixture(t, [() => reply(undefined, "周会定在周三下午两点，要我把它记到哪里吗？"), () => reply(undefined, answer), () => reply(undefined, "never asked")], { review: true });
+    try {
+      const sent = await f.service.send({ text: "周会是什么时候？", request_id: request }, { project_ref: f.project });
+      const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+      assert.equal(f.requests.length, 2, "reviewed once, not held");
+      assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue"), []);
+    } finally { await f.close(); }
+  }
 });
 
 test("each kind of slip is held once per round and reads as what it was: a tool name, then a bare announcement (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply(undefined, "我用 change-capability 再试一次，由你确认后落地。"),
     body => { assert.match(JSON.stringify(body), /internal identifiers \(change-capability\)/); return reply(undefined, "我再试一次，由你确认后落地。"); },
+    body => { assert.match(JSON.stringify(body.messages), /我再试一次，由你确认后落地/); return reply(undefined, reviewAnswer(["will_do"])); },
     body => { assert.match(JSON.stringify(body), /called no tool, so nothing has happened yet/); return reply(undefined, "我再试一次。"); },
     () => reply(undefined, "never asked"),
-  ]);
+  ], { review: true });
   try {
     const sent = await f.service.send({ text: "把那条待办改到下周二", request_id: "req-00000093" }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
-    assert.equal(f.requests.length, 3, "held for the tool name, then for the announcement, and not again");
+    assert.equal(f.requests.length, 4, "held for the tool name, reviewed, held for the announcement, and not again");
     const activity = done.rounds[0]!.activity;
     assert.deepEqual(activity.filter(item => item.verb === "auto-continue").map(item => item.target), ["上一段写出了内部标识，已让它改用名称重写", "上一段只说了要做什么，没有实际执行"]);
     assert.equal(activity.filter(item => item.verb === "ended-on-promise").length, 1, JSON.stringify(activity));
@@ -693,31 +754,33 @@ test("each kind of slip is held once per round and reads as what it was: a tool 
 test("a reply that says a button is ready when none was made is held once; the button then exists (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply(undefined, "按钮准备好了，等你点：\n\n- 内容：喝水"),
+    () => reply(undefined, reviewAnswer(["button"])),
     body => { assert.match(JSON.stringify(body), /no suggest-action call succeeded/); return reply({ name: "suggest-action", input: { title: "记下喝水", summary: "存一条笔记：喝水", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "喝水" } } }); },
     () => reply(undefined, "按钮在上面。"),
-  ]);
+  ], { review: true });
   try {
     const sent = await f.service.send({ text: "给我一个按钮：记下喝水", request_id: "req-00000071" }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(done.cards.length, 1, "the button exists");
-    assert.equal(f.requests.length, 3, "held once, not again after the card was made");
+    assert.equal(f.requests.length, 4, "reviewed and held once; not reviewed again after the card was made");
   } finally { await f.close(); }
 });
 
 test("a reply that says something was saved when no change went through is held once; the change then happens (seen with MiniMax M3.1)", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply(undefined, "记下了：已经存到笔记里。"),
+    () => reply(undefined, reviewAnswer(["changed"])),
     body => { assert.match(JSON.stringify(body), /no change succeeded in this round/); return reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "saved for real" } } }); },
     () => reply(undefined, "已经存到笔记里。"),
     () => reply(undefined, "never asked"),
-  ]);
+  ], { review: true });
   try {
     const sent = await f.service.send({ text: "记一下：saved for real", request_id: "req-00000094" }, { project_ref: f.project });
     const asked = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     await f.service.decide(sent.work.work_id, { review_id: asked.reviews[0]!.review_id, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "the note exists");
-    assert.equal(f.requests.length, 3, "held once; the same words after the change went through are not held");
+    assert.equal(f.requests.length, 4, "reviewed and held once; after the change went through the same words are not reviewed");
     assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue").map(item => item.target), ["上一段说已经保存或建好，但这一轮没有成功的改动"]);
   } finally { await f.close(); }
 });
@@ -895,6 +958,35 @@ test("a card a page prepared from the person's selection is checked like the Ass
     const second = await f.service.offers.offerFromPage({ message_id: "page-message-0004", source, card, work_id: placed.work_id }, { project_ref: f.project });
     assert.equal(second.card.run_id, null);
     assert.equal(placed.card.run_id, null);
+  } finally { await f.close(); }
+});
+
+// W3-A3a (specs/context-program §21.2 item 5): a page names the work it is on as a pointer only. The card goes into it
+// only when the work is the person's own, not archived, the Assistant's (not Coding) and in this project; otherwise
+// nothing is placed and the same message can still be placed later.
+test("W3-A3a: a page's card goes into the named work only when it is the person's own, open, the Assistant's and in this project", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, []);
+  const card = { title: "记到笔记", summary: "把选中的一句存进项目笔记", reference: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" },
+    input: { text: "会后 24 小时内发纪要" }, source_object: { kind: "pages_document", id: "doc-7", version: 3, title: "周会纪要" } };
+  const source = { surface: "pages", title: "Pages" };
+  const scope = { kind: "project" as const, project_id: f.project.project_id };
+  const work = (actor_id: string, extra: Record<string, unknown> = {}) => f.store.create({ actor_id, title: "进行中的工作", scope, origin: null, project_ref: f.project, ...extra });
+  try {
+    const mine = work("web-user");
+    const refused: Array<[string, string, string]> = [
+      ["someone else's", work("someone-else").work_id, "assistant.not_found"],
+      ["archived", f.store.update("web-user", work("web-user").work_id, null, { archived: true }).work_id, "assistant.state"],
+      ["Coding's", work("web-user", { executor: { kind: "coding", title: "Coding", session_id: null } }).work_id, "assistant.unsupported"],
+      ["another project's", work("web-user", { scope: { kind: "project", project_id: "elsewhere" }, project_ref: { project_id: "elsewhere", storage_key: "memory:elsewhere" } }).work_id, "assistant.scope"],
+    ];
+    for (const [label, workId, code] of refused) {
+      await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-pointer-0001", source, card, work_id: workId }, { project_ref: f.project }),
+        (error: unknown) => (error as { code?: string }).code === code, `${label} work is refused`);
+    }
+    // Nothing was placed by the refusals: the same message now goes into the person's own open work.
+    const placed = await f.service.offers.offerFromPage({ message_id: "page-pointer-0001", source, card, work_id: mine.work_id }, { project_ref: f.project });
+    assert.equal(placed.work_id, mine.work_id);
+    assert.deepEqual((await f.service.read(mine.work_id)).objects.map(object => [object.relation, object.subject.id]), [["material", "doc-7"]]);
   } finally { await f.close(); }
 });
 

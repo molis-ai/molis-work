@@ -307,7 +307,7 @@ jobs:
           fi
 
   # Static checks for what is not TypeScript (specs/repository-anti-corruption W1-09, scripts/gates/native-checks.mjs): rustfmt and
-  # clippy with every warning an error, and a type check of the Swift. Needs macOS because the Rust crate is the macOS desktop
+  # clippy with every warning an error, the crate's tests, and a type check of the Swift. Needs macOS because the Rust crate is the macOS desktop
   # shell. Nothing here installs Node dependencies: the script and its tests use Node alone. RUSTUP_TOOLCHAIN pins the Rust the
   # code was cleaned against: clippy gains lints with every release, and `-D warnings` on "stable" would turn each release into a
   # red build. Moving the pin is a deliberate change (clean the new warnings in the same PR).
@@ -334,7 +334,9 @@ jobs:
       - name: Native check rules reject what they claim to
         run: node --test tests/native-checks.test.mjs
 
-      - name: rustfmt and clippy
+      # cargo test runs the crate's tests (the S-14 refusals among them, apps/desktop/adapters/tauri/src/drop_wheel.rs), not only
+      # compiles them as clippy --all-targets does (统筹 10-18 定).
+      - name: rustfmt, clippy and cargo test
         run: node scripts/gates/native-checks.mjs rust
 
       - name: Swift type check

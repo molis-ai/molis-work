@@ -586,13 +586,6 @@ ${GOALS_DELIVERABLES_SCRIPT}
         })();
         return;
       }
-      const locateReq = event.target.closest("[data-locate-requirement]");
-      if (locateReq) {
-        if (locateReq.dataset.reportEvent) { void locateHistory(locateReq.dataset.reportEvent); return; }
-        if (locateReq.dataset.boundType) { showForm("report", locateReq.dataset.boundType); return; }
-        showForm("requirements");
-        return;
-      }
       const locate = event.target.closest("[data-locate-event]");
       if (locate) {
         if (locate.dataset.locateEvent) { void locateHistory(locate.dataset.locateEvent); return; }
@@ -612,13 +605,6 @@ ${GOALS_DELIVERABLES_SCRIPT}
       if (openForm) { showForm(openForm.dataset.eventFormOpen, openForm.dataset.typeId, openForm); return; }
       const report = event.target.closest("[data-event-report]");
       if (report) { showForm("report", report.dataset.eventReport, report); return; }
-      const filter = event.target.closest("[data-timeline-filter]");
-      if (filter) {
-        reading.filter = filter.dataset.timelineFilter || "all";
-        article.querySelectorAll("[data-timeline-filter]").forEach((button) => button.setAttribute("aria-pressed", String(button === filter)));
-        article.querySelectorAll("[data-timeline-item]").forEach((node) => applyLaneFilter(node));
-        return;
-      }
       const addField = event.target.closest("[data-add-type-field]");
       if (addField) {
         const box = addField.closest("form")?.querySelector("[data-type-fields]");
@@ -747,9 +733,6 @@ ${GOALS_DELIVERABLES_SCRIPT}
         if (restoreForGoal?.reader) reading.reader = restoreForGoal.reader;
         if (restoreForGoal?.form !== undefined) reading.form = restoreForGoal.form;
         hidePanels();
-        article?.querySelectorAll("[data-timeline-filter]").forEach((button) => {
-          button.setAttribute("aria-pressed", String(button.dataset.timelineFilter === (reading.filter || "all")));
-        });
         article?.querySelectorAll("[data-timeline-item]").forEach((node) => applyLaneFilter(node));
         if (reading.item) {
           article?.querySelectorAll("[data-timeline-item]").forEach((node) => node.setAttribute("aria-current", String(node.dataset.timelineItem === reading.item)));

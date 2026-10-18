@@ -11,13 +11,14 @@
 import { compactScript, CONTEXT_TOOLBAR_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { CONTEXT_BAR_SCRIPT } from "./context-bar.js";
 import { CONTEXT_BUS_SCRIPT } from "./context-bus.js";
-import { CONTEXT_LANDING_SCRIPT } from "./context-landing.js";
+import { CONTEXT_LANDING_PANE_SCRIPT, CONTEXT_LANDING_SCRIPT } from "./context-landing.js";
 
 // The factory is one closure, so the four files are joined into one script, in the order of the original text.
 export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) => {
   const L = host.translate;
   const embedded = window.parent !== window && document.body.hasAttribute("data-pane-embedded");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
+  const panes = host.paneMessages;
   const post=(path,body,signal)=>molisWorkRequest(host.route(path),{body,signal,fallback:L("暂时处理不了，请稍后重试")});
   const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   const quoted = (focus) => focus.targets.map((target) => target.text).join("\n\n").slice(0, 20000);
@@ -78,7 +79,9 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
     };
     const own = (node) => {
       const el = node && (node.nodeType === 1 ? node : node.parentElement);
-      return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], [data-assistant-island], .mw-ctx'));
+      // In the Assistant, only a reply's words are in hand (its own context); its input, strip and buttons are not.
+      return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], .mw-ctx'))
+        || el.matches('[data-assistant-island] :not([data-assistant-context], [data-assistant-context] *)');
     };
     const read = () => {
       const sel = getSelection();
@@ -164,7 +167,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
       if ((event.metaKey || event.ctrlKey) && event.key === "." && toolbar.hidden() && shown && shown.activity === "editing") { event.preventDefault(); say({ type: "workbench-context-summon" }); }
     });
     window.addEventListener("message", (event) => {
-      if (event.source !== window.parent || event.origin !== location.origin || !event.data) return;
+      if (!panes.fromParent(event)) return;
       const data = event.data;
       if (data.type === "workbench-context-view") {
         if (data.op === "idle") toolbar.hide();
@@ -180,6 +183,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
       if (fallback) parent.postMessage({ type: "workbench-context-action-unhandled", context_id: shown.context_id, key: data.candidate.key, detail: fallback }, location.origin);
     });
     window.addEventListener("pagehide", () => parent.postMessage({ type: "workbench-surface-focus", focus: null }, location.origin));
+${CONTEXT_LANDING_PANE_SCRIPT}
     return null;
   }
 

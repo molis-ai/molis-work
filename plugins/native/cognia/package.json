@@ -4,7 +4,7 @@
   "private": true,
   "description": "Personal knowledge import, reading, synthesis and source-grounded answers.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

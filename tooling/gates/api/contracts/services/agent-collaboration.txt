@@ -35,6 +35,7 @@ export interface AgentCollaborationPort {
     awaitReady(project: string, timeoutMs: number, exclude?: string[], signal?: AbortSignal): Promise<AgentCollaborationSessionView[]>;
     control(project: string, control: AgentCollaborationControl, actorId: string): Promise<AgentCollaborationSessionView>;
     revise(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
+    works?: AgentWorkGraphPort;
 }
 
 export interface AgentCollaborationReadInput {
@@ -91,6 +92,90 @@ export interface AgentContinuationView {
     reason?: {
         code: string;
         note?: string;
+    };
+}
+
+export interface AgentWorkGraphPort {
+    open(input: {
+        key: string;
+        session_id: string;
+        title: string;
+    }): Promise<{
+        graph_id: string;
+    }>;
+    add(input: {
+        graph_id: string;
+        node_id: string;
+        under?: string;
+        session_id: string;
+        title: string;
+        wait_reason?: string;
+    }): Promise<void>;
+    read(graph_id: string): Promise<AgentWorkNode[]>;
+    watch(graph_id: string, listener: () => void): () => void;
+    end(input: {
+        graph_id: string;
+        node_id: string;
+        note: string;
+        actor_id?: string;
+        if_ready?: true;
+    }): Promise<void>;
+    hold(input: {
+        graph_id: string;
+        note: string;
+    }): Promise<void>;
+    onReady(listener: (ready: {
+        graph_id: string;
+        request_key: string;
+    }) => void): () => void;
+    follow(input: {
+        graph_id: string;
+        key: string;
+        job_id: string;
+        title: string;
+        query: AgentWorkJobQuery;
+        deadline_ms: number;
+        every: {
+            first_ms: number;
+            max_ms: number;
+        };
+    }): Promise<{
+        node_id: string;
+    }>;
+    onJobEnded(listener: (ended: {
+        graph_id: string;
+        node_id: string;
+    }) => void): () => void;
+}
+
+export interface AgentWorkJobQuery {
+    action: ExactActionReference;
+    input: Record<string, unknown>;
+    path: string[];
+    done: string[];
+    failed: string[];
+}
+
+export interface AgentWorkNode {
+    node_id: string;
+    parent?: string;
+    title: string;
+    state: "not-started" | "ready" | "running" | "waiting" | "blocked" | "needs-reconciliation" | "succeeded" | "failed" | "cancelled";
+    session_id?: string;
+    ended_by_person?: {
+        at: string;
+        note: string;
+    };
+    ended_at?: string;
+    continuation?: {
+        request_key: string;
+        state: AgentContinuationState;
+    };
+    job?: {
+        job_id: string;
+        started_at: string;
+        ended?: "done" | "failed" | "expired" | "unchecked";
+        ended_at?: string;
     };
 }
 

@@ -1,56 +1,17 @@
-import { APP_MODE_SURFACE_TOOLS, APP_MODE_SYSTEM_TOOLS } from "@prologue/sdk";
-import { DELEGATION_TOOLS, GATEWAY_TOOLS, MEMORY_TOOLS } from "./prologue-action-gateway.js";
+import { APP_MODE_SURFACE_TOOLS, APP_MODE_SYSTEM_TOOLS, decodeJsonOutput } from "@prologue/sdk";
+import { DELEGATION_TOOLS, GATEWAY_TOOLS, HOST_GOVERNED_TOOLS, MEMORY_TOOLS } from "./prologue-action-gateway.js";
 
 /**
- * A round that ends by saying what it will do next, with nothing done.
- *
- * Some models close a round with "现在去改 calc.js" and no tool call: the person reads a promise, and nothing has
- * happened. For rounds that may change things, the Host holds such an ending once and lets the model continue (the
- * person chose this on 2026-09-28: one automatic continuation, shown in the round, at the cost of one more model call).
- * Only the closing paragraph is judged; a report of results, a question or a stated blocker is never held.
+ * What a round's ending is held for, and what the model then reads. Whether a reply claims something its round did
+ * not do is read by the ending review against the round's facts (ending-review.ts); what stays here is what the Host
+ * can see by itself: a tool call written out as text, and identifiers the Host itself handed the model.
+ * An ending that only announces is held once and continued (the person chose this on 2026-09-28: one automatic
+ * continuation, shown in the round, at the cost of one more model call).
  */
-// “现在是 19:04”“开始时间是…” state a fact; only “现在去…”“开始改…” announce a step. “我再试一次”“我重新提交” too (seen with
-// MiniMax-M3 after a refused edit: it ended on “我用 … 再试一次，由你确认后落地” with nothing sent and nothing to confirm).
-const INTENT = /(?:^|[。，,；;：:！!\s（(])(?:现在(?![是有还已在的为共处约大]|\s*\*)|接下来|下面|马上|随后|然后|先|开始(?![时于日前后的是])|我(?:来|先|会|将|要|准备|这就|马上|现在|去|再|重新|改用|直接)|我把(?![^。！!\n]*[了过])|我用(?=[^。！!\n：:]*?(?:删|改|建|写入|加上|调用|提交|发送|撤销|撤回|更新|保存|记下|移动))(?![^。！!\n]*[了过]))|(?<![你您]|可以|可|请)再(?:试|提交|发送|调用)一[次遍下]|\b(?:I'll|I will|I'm going to|let me|now I|next,? I)\b/i;
-const SETTLED = /已(?:经)?(?:完成|修改|改好|改完|创建|新建|写入|保存|运行|执行|提交|添加|加上|删除)|完成[了。！!]|通过|成功|失败|报错|无法|不能|做不了|没有权限|未获授权|需要你|请你|请确认|请(?:在|到|去|先|点|打开)|告诉我|你(?:希望|想|要不要|是否)|是否|\b(?:done|finished|completed|passed|failed|cannot|can't|unable)\b/i;
-
-// A whole reply that is one short line opening with the step itself (“调用…读回…，核对…”), not with what came of it.
-// Seen from MiniMax-M3: asked to read saved items back, it answered only that line and ended with nothing read.
-const PLAN_LINE = /^(?:调用|读取|读回|查看|核对|检查|打开|创建|新建|修改|更新|保存|写入|搜索|查找|查询|抽取|提取|列出|获取|整理|点击|点开|输入|填写|观察|浏览|滚动)(?![了过完好到成])(?![^。！!]*(?:结果|如下|无误|没有问题|没问题|一致))/;
-
-export function announcesWithoutActing(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed || trimmed.length > 600) return false;
-  const closing = trimmed.split(/\n+/).map(line => line.trim()).filter(Boolean).at(-1) ?? "";
-  if (/[？?]\s*$/.test(closing) || SETTLED.test(closing)) return false;
-  return INTENT.test(closing) || (!trimmed.includes("\n") && trimmed.length <= 90 && PLAN_LINE.test(trimmed));
-}
 
 /** What the model reads when its announcement is held. */
 export const ANNOUNCE_HELD =
   "Your last message only said what you would do next and called no tool, so nothing has happened yet. If the work is not finished, call the tools now. If it is finished, needs the person's decision, or cannot proceed, say so plainly.";
-
-/**
- * A reply that says something was remembered or forgotten, from a round in which no such call succeeded. Seen from
- * MiniMax-M3: it listed the memories and then answered “记下了……”, keeping nothing. Only the closing paragraph counts.
- */
-const KEPT = /已(?:经)?(?:记下|记住)|(?:记下|记住)(?:了|啦)|已(?:经)?(?:保存|存)(?:为|到|进)(?:记忆|偏好)|(?:记|存)(?:到|进)(?:了)?(?:项目「[^」]{1,40}」里|个人(?:偏好|记忆)|你的(?:偏好|记忆))|用\s*remember|\b(?:I(?:'ve| have) (?:noted|saved|remembered)|noted that)\b/i;
-const FORGOT = /已(?:经)?(?:忘掉|忘记)|(?:忘掉|忘记)(?:了|啦)|\bI(?:'ve| have) forgotten\b/i;
-// Forgetting switches a memory off or deletes it. Plugins, rules, schedules and documents are switched off and deleted all the time
-// (“已停用这条提醒规则，以后不会再提醒你”): only a sentence that also speaks of a memory is this claim.
-const REMOVED = /已(?:经)?(?:删除|删掉|停用|停掉)|(?:删除|删掉|停用|停掉)(?:了|啦)|\bI(?:'ve| have) (?:deleted|removed|switched off)\b/i;
-const MEMORY_WORDS = /记忆|偏好|记住的|\b(?:memory|memories|preference)\b/i;
-const removedMemory = (text: string) => text.split(/[。！？!?\n]+|\.\s/).some(sentence => REMOVED.test(sentence) && MEMORY_WORDS.test(sentence));
-// Only about memory: a note written into a document (“已记下会议要点”) or a deleted page is a business change, not this.
-const ABOUT_MEMORY = /记忆|偏好|以后|生效|适用|记住的|\b(?:memory|memories|preference|from now on)\b/i;
-const NOT_DONE = /(?:没有|没|未|不会|无法|不能)(?:记下|记住|保存|删除|删掉|忘掉|停用|停掉)/;
-export function claimsMemoryChange(text: string): "keep" | "forget" | null {
-  const trimmed = text.trim();
-  if (!trimmed || trimmed.length > 1200 || /[？?]\s*$/.test(trimmed) || !ABOUT_MEMORY.test(trimmed) || NOT_DONE.test(trimmed)) return null;
-  if (FORGOT.test(trimmed) || removedMemory(trimmed)) return "forget";
-  if (KEPT.test(trimmed)) return "keep";
-  return null;
-}
 
 /** What the model reads when it claimed a memory change in a round the person gave no memory (switched off in settings). */
 export const MEMORY_OFF_HELD =
@@ -69,35 +30,6 @@ export const MEMORY_NOT_GIVEN_HELD =
 /** What the model reads when a round's reply claims `claim` that no call made: switched off, no such tool in a handed-down work, or just not done. */
 export function memoryHeld(round: { off: boolean; without: { keep: boolean; forget: boolean } }, claim: "keep" | "forget"): string {
   return round.off ? MEMORY_OFF_HELD : round.without[claim] ? MEMORY_NOT_GIVEN_HELD : MEMORY_CLAIM_HELD[claim];
-}
-
-/**
- * A reply that says a button is ready when no suggestion was made this round. Seen from MiniMax-M3: asked for a
- * button, it listed the fields and said “按钮准备好了，等你点” without calling suggest-action — nothing to click.
- */
-const BUTTON = /按钮|操作卡|卡片|\bbutton\b/i;
-const READY = /准备好|备好|已(?:经)?(?:给|放|生成)|在(?:上面|下面|下方|这里)|等你点|点(?:一下|击)?(?:它|按钮)?(?:就|即可)|\b(?:ready|click|press|tap)\b/i;
-const NOT_MADE = /(?:没有|没|未|无法|不能)(?:准备|给出|生成|做出|放)/;
-export function claimsButton(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed || trimmed.length > 2000 || NOT_MADE.test(trimmed)) return false;
-  // The button and its being ready are said in one sentence. A browser round that tells of a page's 「清除」按钮 and ends
-  // with “我停在这里了” claims no button of its own.
-  return trimmed.split(/[。！？!?\n]+/u).some(sentence => BUTTON.test(sentence) && READY.test(sentence));
-}
-
-/**
- * A reply that says something was saved, created or changed in a place the person keeps things, from a round in which
- * no change succeeded. Seen from MiniMax M3.1: asked to note an idea, it answered “记下了……已经存到 Jelly 灵感里” with no
- * call at all, and nothing was kept. Memory claims have their own check; a pending confirmation or an offer is no claim.
- */
-const SAVED = /已(?:经)?(?:保存|存|记(?!住)|写入|写|加入|加|添加|新建|创建|建|安排|放|排|改|更新|修改|删除|删|移)|(?:记|存|建|加|写|改|删|排|放)(?:好|下|进去|进|到)了|记下了/;
-const PLACE = /待办|日历|日程|Jelly|灵光|灵感|笔记|文档|Pages|表单|Goal|目标|资料架|Shelf|工作区|看板|\b(?:todo|calendar|note|document|page)s?\b/i;
-const NOT_SAVED = /(?:没有|没|未|还没|无法|不能|不会|没能)(?:保存|存|记|写|加|建|创建|新建|添加|改|修改|删|安排|放)|确认后|等你确认|需要你确认|请确认|要不要|是否要|可以帮你|\b(?:not|didn't|couldn't|wasn't)\b/i;
-export function claimsSavedChange(text: string): boolean {
-  const trimmed = text.trim();
-  if (!trimmed || trimmed.length > 2000 || /[？?]\s*$/.test(trimmed)) return false;
-  return SAVED.test(trimmed) && PLACE.test(trimmed) && !NOT_SAVED.test(trimmed);
 }
 
 /** What the model reads when it said something was saved or created but no change succeeded this round. */
@@ -128,27 +60,19 @@ export const WRITTEN_CALL_HELD =
 
 
 /**
- * A reply that shows the person internal identifiers: a tool's name, a capability id the round found, a UUID, an error
- * code, a field's own name. The instructions already forbid it (use titles and names), yet MiniMax-M3 still wrote “用 pages.create
- * 建好了” and “要不要我帮你把它标上 due_date？”.
- * Only identifiers that cannot be ordinary words count: a file name such as calc.js is never one of them.
+ * Identifiers the Host itself handed the model, shown to the person in a reply: a tool's name, a capability or provider
+ * id the round found, a field's own name, an object's id or an error code from a tool's result. Only those count, each
+ * as the Host gave it (the person chose this on 2026-10-16): no pattern guesses what looks like an identifier, so a file name, a path
+ * or an address the person uses is never one. One that cannot be an ordinary word (a separator in it, four characters
+ * or more) is matched; one the person wrote in their own message is theirs.
  */
-const SPOKEN_TOOLS = TOOL_NAMES.split("|").filter(name => name.includes("-"));
-const TOOL_WORD = new RegExp(`(?<![\\w./-])(?:${SPOKEN_TOOLS.join("|")})(?![\\w/-])`);
-const UUID = /(?<![\w-])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![\w-])/i;
-const ERROR_CODE = /(?<![\w.])(?:actions|agent|assistant|memory|prologue)\.[a-z]+_[a-z_]+(?![\w.])/;
-// A field's own name (due_date, expected_revision): never a word the person uses. Not inside a path, address or file name.
-const FIELD_NAME = /(?<![\w./@#:-])[a-z]+(?:_[a-z]+)+(?![\w/@-]|\.\w)/;
+const SPOKEN_TOOLS = GUARDED_TOOL_NAMES.filter(name => name.includes("-"));
 const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-export function mentionsInternalIds(text: string, capabilityIds: Iterable<string> = []): string[] {
+export function mentionsInternalIds(text: string, given: Iterable<string>, theirs = ""): string[] {
   const found = new Set<string>();
-  for (const pattern of [TOOL_WORD, UUID, ERROR_CODE, FIELD_NAME]) {
-    const match = pattern.exec(text);
-    if (match) found.add(match[0]);
-  }
-  for (const id of capabilityIds) {
-    if (id.length < 4 || !/[._-]/.test(id)) continue;
-    if (new RegExp(`(?<![\\w.-])${escape(id)}(?![\\w-]|\\.\\w)`).test(text)) found.add(id);
+  for (const id of new Set([...SPOKEN_TOOLS, ...given])) {
+    if (id.length < 4 || !/[._:-]/.test(id) || theirs.includes(id)) continue;
+    if (new RegExp(`(?<![\\w./@#:-])${escape(id)}(?![\\w/@-]|\\.\\w)`).test(text)) found.add(id);
   }
   return [...found];
 }
@@ -156,4 +80,82 @@ export function mentionsInternalIds(text: string, capabilityIds: Iterable<string
 /** What the model reads when its reply showed internal identifiers. */
 export function internalIdsHeld(found: readonly string[]): string {
   return `Your reply shows the person internal identifiers (${found.slice(0, 4).join(", ")}). Write it again naming things by their titles and names — the capability's title, the plugin, the document or project title — and leave the identifiers out. Keep one only if the person asked for that identifier itself.`;
+}
+
+/**
+ * What a round really did, from its own events, for the ending review (ending-review.ts): which tools it called and how
+ * each ended, what it said before its last answer, and the identifiers its results handed the model.
+ */
+
+/** One tool call of the round and how it ended, as the round's own events say. */
+export interface RoundCall { readonly id: string; readonly tool: string; ended: "running" | "returned" | "failed" | "unknown" }
+
+/** What a round said and called, kept per run from its events. */
+export interface RoundFacts {
+  readonly calls: RoundCall[];
+  /** The round's words before its last answer, the tail only: a claim made there counts as much as one at the end. */
+  said: string;
+  /** Identifiers the round's tool results handed the model: field names, object ids, error codes (never titles). */
+  readonly ids: Set<string>;
+}
+
+export function emptyRoundFacts(): RoundFacts { return { calls: [], said: "", ids: new Set() }; }
+
+/** The round's events, as facts: which tools were called and how each ended, and what the results named. */
+export function noteRoundEvent(facts: RoundFacts, event: { type: string; [key: string]: unknown }): void {
+  if (event.type === "text-delta" && typeof event.text === "string") facts.said = (facts.said + event.text).slice(-4000);
+  if (event.type === "tool-call") {
+    const call = event.call as { id?: unknown; name?: unknown } | undefined;
+    if (typeof call?.name === "string") facts.calls.push({ id: String(call.id), tool: call.name, ended: "running" });
+  }
+  if (event.type === "tool-result" && typeof event.name === "string") {
+    const call = [...facts.calls].reverse().find(item => item.id === String(event.callId));
+    if (call) call.ended = event.outcome === "returned" ? "returned" : event.outcome === "failed" ? "failed" : "unknown";
+    if (typeof event.errorCode === "string") facts.ids.add(event.errorCode);
+    if (typeof event.text === "string") collectIds(event.text, facts.ids);
+  }
+}
+
+/**
+ * Tools that act in the person's world when they return: the Host-governed records, and acting on a page or an app.
+ * Keeping and forgetting a memory are counted by what they really did (a forget may return having switched nothing off).
+ */
+const ACTING_TOOLS = new Set([...HOST_GOVERNED_TOOLS.filter(name => name !== MEMORY_TOOLS.remember && name !== MEMORY_TOOLS.forget), "surface-act"]);
+/** Whether a returned call this round recorded or acted on something (a capability change is judged by its effect, a memory by its count). */
+export function actedThisRound(facts: RoundFacts): boolean {
+  return facts.calls.some(call => call.ended === "returned" && ACTING_TOOLS.has(call.tool));
+}
+
+/** Field names, object ids and error codes in a tool's JSON result: things the Host named, never words of the person. */
+function collectIds(text: string, into: Set<string>): void {
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { return; /* a plain-text result names no fields */ }
+  const walk = (node: unknown, key: string | undefined, depth: number) => {
+    if (depth > 12 || into.size > 2000) return;
+    if (Array.isArray(node)) { for (const item of node) walk(item, key, depth + 1); return; }
+    if (node && typeof node === "object") {
+      for (const [name, child] of Object.entries(node)) { if (name.includes("_")) into.add(name); walk(child, name, depth + 1); }
+      return;
+    }
+    if (typeof node !== "string" || node.length < 4 || node.length > 200 || !key) return;
+    if ((key === "id" || /_id$|Id$/.test(key)) && /[-_.:\d]/.test(node)) into.add(node);
+    if ((key === "code" || key === "error_code") && /^[a-z]+(?:\.[a-z_]+)+$/.test(node)) into.add(node);
+  };
+  walk(value, undefined, 0);
+}
+
+/** What a reply may claim against the facts. */
+export const ENDING_CLAIMS = ["changed", "kept", "forgot", "button", "will_do"] as const;
+export type EndingClaim = typeof ENDING_CLAIMS[number];
+
+/**
+ * The claims a review answered. The owner's instructions ask for one JSON line, {"last", "changed", "kept", "forgot",
+ * "button"}: an ending that is the next step to take (last: "next_step"), and each kind of change for which it copied a
+ * sentence saying the round made it. Anything else (not that JSON, an unknown value) reads as none.
+ */
+export function endingClaims(text: string): EndingClaim[] {
+  const decoded = decodeJsonOutput(text.trim(), { allowCodeFence: true });
+  if (!decoded.ok || !decoded.value || typeof decoded.value !== "object") return [];
+  const answer = decoded.value as Record<string, unknown>;
+  return ENDING_CLAIMS.filter(name => name === "will_do" ? answer.last === "next_step" : typeof answer[name] === "string" && Boolean((answer[name] as string).trim()));
 }

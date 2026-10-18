@@ -209,6 +209,27 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 - **预算**：`AgentRunBudget`（`max_turns`、`max_output_tokens`、`max_total_tokens`、`max_duration_ms`），在 SDK 里真实执行（`tests/agent-budget-prologue.test.ts`）。
 - **用量**：来自 SDK 的 `usage-recorded` 回执；供应商没报就显示未知，不填 0，也不按请求推断模型名（`reportedModels` 可为空）。
 
+### 问人、建议一步、引用对象
+
+AI 要人补信息、确认一步或挑一个对象，有四条共用的路，需求与验收在 `specs/ai-interaction-experience/spec.md`，写法清单在 `skills/molis-prologue-ai/SKILL.md` 的「交互」一节。各层分工：等待与逐题检查归 Prologue Runtime，卡由宿主画，题型与回答的规则在插件 SDK，插件只决定问什么、建议什么。
+
+| 路 | 调用链 | 守它的用例 |
+| --- | --- | --- |
+| Agent 中途问人 | 角色 `host_tools` 带 `ask-user` → Runtime 级配置的题型 `hostQuestionTypes()` 与种类 `hostReferenceKinds()`（`horizontal/agent-host/src/adapters/prologue-node-port.ts` 交给 SDK）→ Run 停在 `awaiting_input` → `agentQuestionHtml` 画卡 → 页面读回字段、`questionAnswer` → Run 的控制动作 → Runtime 逐题检查，退回 `agent.answer_invalid` 与 `problems`，`questionErrors` 写成字段旁的一行 | `tests/agent-question-types.test.ts`、`tests/agent-typed-questions.test.ts`、`tests/interaction-examples.test.ts` |
+| 对象引用题 | 种类从内置 Manifest 的搜索来源与主体读取算出 → 模型只能问这些种类（`askUserReferenceKinds`）→ 卡在人打字时调 `search.references` → 交给 Run 前宿主以会话主人的身份重读（S-26），用主人此刻的标题 | `tests/agent-reference-questions.test.ts`、`tests/security-invariants-object-references.test.ts` |
+| 建议一步（操作卡） | 有冻结 `action_tools` 的一轮，`host_tools` 带 `suggest-action` → 建议进 `AgentRunView.offers`，不执行 → 调用方用插件 SDK 的 `draftActionCard` 落成卡、`runActionCard` 执行（只经 `agent.offers.run.v1`，S-29）、`sweepActionCard` 标出失效 | `tests/action-cards.test.ts`、`tests/agent-host-offers.test.ts`、`tests/security-invariants-agent-suggestions.test.ts` |
+| 不跑 Agent 的动作先问 | 动作返回 `{ status: "needs_input", interaction }` → 宿主在插件路由上画同一张卡（`apps/local-host/src/plugin-interaction-answer.ts`）→ 带着回答再调一次 → 插件用 `questionProblems` 检查，与 Runtime 同一套规则 | `tests/form-draft-questions.test.ts`、`tests/plugin-interaction-answer.test.ts`、`tests/question-rules-consistency.test.ts` |
+
+三个代表性例子（spec §15.8）：
+
+1. **约复盘会**：助理问开会时间、时长和关联的 Goal；时长填错只在那一题报错，改对后原 Run 接着做（`tests/interaction-examples.test.ts`，浏览器里的同一条路是 `tests/assistant-typed-questions.e2e.test.ts`）。
+2. **「改到周五」**：一张操作卡，人点了才执行，对象改了版就失效。输入框旁的同排按钮归情境线，还没做。
+3. **Form「AI 生成题目」**：要求不够具体时先问几道选择题，答完接着生成（`plugins/native/form/src/drafting.ts`）。
+
+对象引用题的种类清单每一轮按自己项目里装着、显示着的插件算，外部插件的也在内，进模型前由宿主筛（`docs/system/SECURITY-INVARIANTS.md` S-32）。
+
+还没有的：单次接续现在只问选择题；生成插件沙箱没有 Agent 的 `ask-user` 与 `suggest-action`。
+
 ## 7. 注册、入口与事件
 
 - AI 能力就是一个动作：注册一次，页面、工作流、内置 Agent、外部 MCP 共用同一处理器和授权（见 `specs/action-architecture/spec.md` §3「基本合同」）。不要另写 MCP 工具表或宿主分支。
@@ -418,7 +439,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **按相关、时效、权限和实际预算选，不按「前几个」。** 省略了要说出来，模型才能如实告诉用户：灵光把过长的一条截到开头并写「（以下省略）」，整场材料超过 18 万字符就拒绝并请用户减少所选（`plugins/native/lingguang/src/actions.ts` 的 `conversationPrompt`）；助理写明「没有带上的记忆」有几条、为什么。
 
-**摘要、裁剪、记忆与交接要保住影响正确性的东西。** 上下文整理（`horizontal/agent-host/src/adapters/prologue-compaction.ts`）只让模型选原文坐标，宿主逐字拷贝，所以要求、数值和路径不会在改写里走样；整理时把当前的用户要求（`instructions`）一起交给它，压缩之后新要求仍然生效。交给子任务时，`delegate-work` 的 `brief` 字段写明「It does not see this conversation」，只附它需要的材料。一轮进行中用户补一句话，走输入回执 `agent.inputs.send.v1`（`packages/contracts/src/services/agent-inputs.ts`）：在下一个边界读进上下文、打断当前回复或留到下一轮，回执说明这句话去了哪里。这些都复用 Prologue 与已有的回执能力，不在每个插件里再做一套，也不靠每轮追加同一组禁令弥补资料丢失。
+**摘要、裁剪、记忆与交接要保住影响正确性的东西。** 上下文整理（`horizontal/agent-host/src/adapters/prologue-compaction.ts`）只让模型选原文坐标，宿主逐字拷贝，所以要求、数值和路径不会在改写里走样；整理时把当前的用户要求（`instructions`）一起交给它，压缩之后新要求仍然生效。交给子任务时，`delegate-work` 的 `brief` 字段写明「It does not see this conversation」，只附它需要的材料。一轮进行中用户补一句话，走输入回执 `agent.inputs.send.v2`（`packages/contracts/src/services/agent-inputs.ts`）：在下一个边界读进上下文、打断当前回复或留到下一轮，回执说明这句话去了哪里。这些都复用 Prologue 与已有的回执能力，不在每个插件里再做一套，也不靠每轮追加同一组禁令弥补资料丢失。
 
 **资料不足时补什么：**
 
@@ -436,7 +457,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **描述写清用途、适用对象、输入输出、影响和常见失败。** 参考能力网关（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）：`change-capability` 的描述告诉模型「执行前用户会审查确切的能力和输入，不必另外征求同意」，省掉一轮多余的确认；参数说明里写清 `input` 必须是对象、不是 JSON 字符串。
 
-**回执说真实状态，让 AI 能决定下一步。** 写入已经发出却没结束时，网关返回 `actions.outcome_unknown`，并写明它可能已经生效、不要再次提交、先用 `read-capability` 读回对象；`suggest-action` 的回执写明「nothing has run」；委派追加到上限时，错误写明「仍达不到验收时停止它，并把实际情况告诉用户」（`apps/local-host/src/assistant/assistant-delegation.ts` 的 `MAX_FOLLOW_UPS`）。「成功」不能只代表请求已经收下。
+**回执说真实状态，让 AI 能决定下一步。** 写入已经发出却没结束时，网关返回 `actions.outcome_unknown`，并写明它可能已经生效、不要再次提交、先用 `read-capability` 读回对象；`suggest-action` 的回执写明「nothing has run」；委派追加到上限时，错误写明「仍达不到验收时停止它，并把实际情况告诉用户」（`apps/local-host/src/assistant/assistant-delegation.ts` 的 `DELEGATION_LIMITS`）。「成功」不能只代表请求已经收下。
 
 **工具多了会被延后：只列名字，照样调得动。** Prologue SDK 在一轮的工具超过 20 个时，只给多出来的那些一行名册（`deferToolSchemasBeyond: 20`）。模型照名册上的名字直接调，调用照样进工具链；用 `find-tools` 取过形状的，这一跑之后的请求照常声明（[Prologue #28](https://github.com/molis-ai/prologue/pull/28)，2026-10-16 换包，见 `specs/prologue-adoption/spec.md` §6.0e）。延后了工具，`find-tools` 就带着名册在请求里，不看角色和这一轮的名单点没点它（[Prologue #30](https://github.com/molis-ai/prologue/pull/30)，同日换包）：角色不必为延后去点它。之前两样都不行，是 SDK 的设计缺陷，不是模型能力；那段时间用过一个不延后的临时做法，已删。不要在提示词里另教模型怎样调被延后的工具。
 
@@ -478,7 +499,8 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 | 委派 | 把独立的部分交给子任务 | `assistant-delegation.ts`；工具 `delegate-work`、`check-delegated-work`、`follow-up-delegated-work` | 任务说明、验收标准、只给需要的材料；一层深，数量与追加有上限；回执可核对 | 子任务看不到父会话 | 确定性：`tests/assistant-delegation.test.ts` |
 | 记忆 | 模型提议，写入门决定 | `assistant-memory-tools.ts`；指令 `MEMORY_EXTRACT` | 「他说的」由门对照保存的原话判断 | — | 确定性：`tests/assistant-memory.test.ts` |
 | 上下文整理 | 长会话保住约束 | `prologue-compaction.ts` 的 `createPrologueCompactor`、`compactionSelection`；提示词 `coding-compaction`、`assistant-compaction` | 模型选坐标、宿主拷原文；当前要求随附；格式纠正只带回事实（检查结果与上一次的输出，围栏里、固定声明之后），怎样改正写在登记的提示词里 | — | 真实 SDK：`tests/prologue-compaction.test.ts`、`tests/prologue-compaction-continue.test.ts` |
-| 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v1` | 三种时机；同键同文只算一次；回执说去向 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
+| 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v2` 与 `agent.inputs.withdraw.v1` | 三种时机；同键同文只算一次；回执说去向；纠正用 `about` 指向原来那条；还没交给模型的可以撤回 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
+| 收尾核对 | 回复说做了、记住了、按钮好了或接下来要做，而这一轮其实没做 | `horizontal/agent-host/src/adapters/prologue-stop-guard.ts` 的收工钩子：可写的一轮没有任何成功的改动时，`ending-review.ts` 把结尾和宿主记的事实（`announce-guard.ts` 的 `RoundFacts`：调用过什么、结果如何）交给这一轮的模型核对一次；对不上的按种类各拦一次、接着做一次（用户 2026-09-28、2026-10-16）。核对的指令是这一轮的主人登记的提示词：Manifest 的 `ending_review` 指向它（`assistant-ending-review`、`coding-ending-review`），在「设置 › 提示词」里叫「收尾核对」，用用户改过的版本，版本记进开跑时冻结的记录（`frozen.ending_review`）；agent-host 自己不带提示词，只读回答里约定的那一行 JSON。内部标识只认宿主交给模型的；把调用写成文字按工具格式认 | 让模型读说法，宿主给事实；判断出错、超时或答得不对一律放行；有改动的一轮不核对 | 只在 Manifest 声明了 `ending_review` 的 Agent 上（现在是 Assistant 与 Coding）；有改动的一轮里多出来的假话不查；核对的用量不计入这一轮的预算 | 确定性：`tests/announce-guard.test.ts`、`tests/assistant-business-gateway.test.ts`、`tests/assistant-memory.test.ts`、`tests/agent-definitions.test.ts`；真实模型：手册需求书 §9.5 的 D1② 记录 |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
 | 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理） | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来 | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条） |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |
@@ -584,7 +606,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 现成的完整实例是创作台的回放与冒烟（`docs/platform/STUDIO-SKILL-REPLAY.md` 第 1 节与第 4 节：先离线回放，再在隔离 Home 里改前改后各跑 2–3 次冒烟、附两份报告）。按本格式写的第一份真实模型前后对比是项目上手的两段指令（需求书 §9.5）。
 
-**模型能力造成的坏效果，不按症状打补丁**（用户 2026-10-16）。开发和评测现在用的 MiniMax 能力较弱，评测里会有与设计无关的失败。坏效果来自模型自身的能力时，不头疼医头、脚疼医脚：不在提示词里为某一次的说法加一条禁令，也不在代码里为某一种失败加正则、特例分支或场景开关。这类补丁治不了能力，只会让指令和代码越来越脏——换个说法又漏掉，换个更强的模型又成了多余的限制。`horizontal/agent-host/src/adapters/announce-guard.ts` 里注明「Seen from MiniMax-M3」的措辞清单就是这样来的。判断时：
+**模型能力造成的坏效果，不按症状打补丁**（用户 2026-10-16）。开发和评测现在用的 MiniMax 能力较弱，评测里会有与设计无关的失败。坏效果来自模型自身的能力时，不头疼医头、脚疼医脚：不在提示词里为某一次的说法加一条禁令，也不在代码里为某一种失败加正则、特例分支或场景开关。这类补丁治不了能力，只会让指令和代码越来越脏——换个说法又漏掉，换个更强的模型又成了多余的限制。`horizontal/agent-host/src/adapters/announce-guard.ts` 里注明「Seen from MiniMax-M3」的措辞清单就是这样来的；D1②（用户 2026-10-16 定）把它们换成了收尾核对：一轮可写的工作没有任何成功的改动时，宿主把这一轮的事实交给模型核对一次结尾（见第 14 节「收尾核对」），不再按说法列清单。判断时：
 
 - 先按 16.4 看冻结记录：需要的事实、工具和回执都在，答案还是错，记为模型能力；缺了就改上下文或工具。
 - 比同一模型、同一批任务的前后差：改后不比改前差，又更短更清楚，就算改好了。两版都失败的任务记「两版都失败」，不算回归，也不拿来当加规则的理由。

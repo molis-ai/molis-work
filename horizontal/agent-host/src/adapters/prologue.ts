@@ -1,7 +1,7 @@
 import { agentErrors } from "../errors.js";
 import { BUSINESS_HOST_TOOLS, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import { parseAgentRunBudget, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { isTerminalAgentPhase, parseAgentRunBudget, type AgentImageMaterial, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type {
   AgentSkillLibrary,
@@ -11,7 +11,6 @@ import type {
   AgentCommandOutput,
   AgentCommandOutputRef,
   AgentCreateSessionInput,
-
   AgentRunControl,
   AgentRunHandle,
   AgentRunRef,
@@ -31,7 +30,8 @@ import { emptyCapabilityMatrix } from "../capabilities.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "../execution-plan.js";
 import { freezeRunStart, validateRunAttachments, assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
-import { inputsPort, type QueueInput, type SteerInput } from "./prologue-inputs.js";
+import { controlFailure } from "./prologue-control-errors.js";
+import { inputsPort, type RoundInputs, type SessionQueue } from "./prologue-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import {
   applyRunEvent,
@@ -86,8 +86,8 @@ export interface PrologueAdapterPorts {
   modelConfiguration(selection?: AgentStartRequest["model_selection"]): Promise<PrologueModelConfiguration | null>;
   /** Why the Host held the run's latest ending, in the person's words (the runtime's event does not say), taken once. */
   stopHeld?(runId: string): { target: string; summary: string } | undefined;
-  /** True when the run ended (its last words given) still only saying what it would do after its one continuation. */
-  endedOnPromise?(runId: string, sessionId: string, lastText: string): boolean;
+  /** True when the run was held for only saying what it would do, and called nothing after its one continuation. */
+  endedOnPromise?(runId: string, sessionId: string): boolean;
 }
 
 export interface PrologueRunPort {
@@ -96,12 +96,12 @@ export interface PrologueRunPort {
   cancel(): Promise<void>;
 }
 
-export interface PrologueControlPort {
+export interface PrologueControlPort extends RoundInputs {
   state: PrologueControlState;
   stop(reason: "stopped" | "cancelled"): void | Promise<void>;
+  /** Why the Host itself stopped this round, in the person's words; absent when the person or the runtime stopped it. */ readonly stopReason?: string;
   pause(): void;
   resume(): void;
-  steer(input: SteerInput): Promise<{ steerId: string; replayed: boolean }>;
   /** Revalidate the original invocation after model-selection waits. */ beforeModelSwitch?(): Promise<void>;
   /** Later model calls of this Run go to this target, from its next model boundary. Absent where the runtime cannot. */
   switchModel?(target: Pick<PrologueModelConfiguration, "protocol" | "endpoint" | "model" | "credential_ref">, beforeAccept: () => void): Promise<void>;
@@ -133,7 +133,7 @@ export interface PrologueStartInput {
     instructions: string;
     tools: string[];
   };
-  compaction?: { prompt: string; above_tokens: number };
+  compaction?: { prompt: string; above_tokens: number }; ending_review?: { prompt: string };
   task: string;
   /** Memories the Host chose for this run; the runtime re-reads each and injects it as data. */
   memory?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory;
@@ -176,7 +176,7 @@ export interface PrologueRuntimePort {
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
-  /** The session's queue for the next round; absent where the runtime keeps none. */ queueInput?(sessionId: string, input: Parameters<QueueInput>[0]): ReturnType<QueueInput>;
+  /** The session's queue for the next round; absent where the runtime keeps none. */ queue?: SessionQueue;
   background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
   /** The runtime's durable local queue for timed work. */
@@ -208,6 +208,7 @@ export interface PrologueRuntimePort {
       latest?: PrologueRestoredSession["runs"][number];
       planned?: AgentRunRef;
     } | undefined>;
+    /** Supplements waiting for the next round; undefined when unreadable. */ queued?(sessionId: string): Promise<import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[] | undefined>;
   };
   startAgentRun(input: PrologueStartInput): Promise<{
     run: PrologueRunPort;
@@ -227,6 +228,7 @@ export interface PrologueRestoredSession {
     started_at: string;
     task: string;
     stop_intent?: "stopped" | "cancelled";
+    /** Why the Host stopped this run itself, when it did. */ stop_reason?: string;
     /** The runtime holds this run as finished (sealed), whatever its saved progress shows. */
     terminal?: boolean;
     timing?: PrologueRunTiming;
@@ -256,8 +258,8 @@ export interface PrologueAdapterOptions extends PrologueAdapterPorts {
    * otherwise write with no recorded approval.
    */
   approvals?: PrologueApprovalBridge;
-  /** Delivers an answer to one pending question the Run is stopped on. */
-  answerPending?(run: AgentRunRef, answer: Extract<AgentRunControl, { kind: "answer" }>): Promise<void>;
+  /** Delivers an answer to one pending question the Run is stopped on; `queued` when the Run was parked and the answer waits for the session's next round. */
+  answerPending?(run: AgentRunRef, answer: Extract<AgentRunControl, { kind: "answer" }>): Promise<"delivered" | "queued">;
   /**
    * Narrows the matrix further. Writes and commands stay off until the
    * approval bridge is attached for this Runtime.
@@ -303,7 +305,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   readonly collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
-  readonly inputs = inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), steer: one => record.control.steer(one) }; }, () => this.#runtime.queueInput?.bind(this.#runtime), runId => this.#publish(runId));
+  readonly inputs = inputsPort(async run => { await this.read(run); const record = this.#requireRun(run.run_id); return { ended: isEnded(record.view.phase), control: record.control, turns: record.view.turns }; }, () => this.#runtime.queue, runId => this.#publish(runId));
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -429,16 +431,15 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
 
   async readSession(session: AgentSessionRef): Promise<AgentSessionView> {
     const record = await this.#loadSession(session.session_id);
-    const latest = record.runs.at(-1);
+    const latest = record.runs.at(-1), view = latest ? structuredClone(this.#requireRun(latest.run_id).view) : null;
+    // Read only while no round is live (ended, or stopped for checking): what a live round takes is its own (specs/ai-input-receipts D31).
+    const queued = view && !isTerminalAgentPhase(view.phase) && view.phase !== "reconcile-required" ? undefined : await this.#runtime.sessions.queued?.(session.session_id);
     return {
-      session: { ...session },
-      owner: { ...record.owner },
-      workspace: record.workspace,
-      title: record.title,
+      session: { ...session }, owner: { ...record.owner }, workspace: record.workspace, title: record.title,
       runs: record.runs.map((ref) => ({ ...ref })),
       checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
-      latest_run: latest ? structuredClone(this.#requireRun(latest.run_id).view) : null,
-      ...(record.recovery ? { recovery: { ...record.recovery } } : {}),
+      latest_run: view,
+      ...(record.recovery ? { recovery: { ...record.recovery } } : {}), ...(queued ? { queued_inputs: queued } : {}),
     };
   }
 
@@ -574,7 +575,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         instructions: role.prompts.map((prompt) => prompt.body).join("\n\n"),
         tools: [...role.host_tools],
       },
-      ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}),
+      ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
       task: request.task,
       ...(role.memory?.pinned.length ? { memory: structuredClone(role.memory) } : {}),
       ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),
@@ -636,10 +637,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
         const label = this.#ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));
         if (label && held) Object.assign(held, label);
       }
-      if (event.type === "completed" && this.#ports.endedOnPromise?.(ref.run_id, ref.session_id, [...record.state.turns].reverse().find(turn => turn.kind === "assistant")?.text ?? "")) {
+      if (event.type === "completed" && this.#ports.endedOnPromise?.(ref.run_id, ref.session_id)) {
         const sequence = record.state.next_sequence++;
-        record.state.activity.push({ call_id: `model-end-${sequence}`, name: "只说未做", target: "最后只说了要做什么，没有执行", state: "failed",
-          summary: "续做一次后，这一轮的结尾仍只说明了接下来要做什么、没有调用工具：什么都没有执行", at, sequence });
+        record.state.activity.push({ call_id: `model-end-${sequence}`, name: "只说未做", target: "续做后仍没有执行", state: "failed",
+          summary: "这一轮只说了接下来要做什么，续做一次后仍没有调用任何工具：什么都没有执行", at, sequence });
       }
       // An effect the Run is stopped on goes in front of the user before
       // anything else happens. Failing to mirror it must not look like the
@@ -706,42 +707,42 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {
-    await this.read(run);
-    const record = this.#requireRun(run.run_id);
-    switch (control.kind) {
-      case "stop":
-        await record.control.stop("stopped");
-        break;
-      case "cancel":
-        await record.control.stop("cancelled");
-        break;
-      case "pause":
-        record.control.pause();
-        break;
-      case "resume":
-        record.control.resume();
-        break;
-      case "switch-model":
-        await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,
-          requested: model => { record.state.model_requested = model; } });
-        break;
-      case "answer": {
-        const answer = this.#answerPending;
-        if (answer === undefined) {
-          throw agentErrors.capability_unavailable("没有接上回答通道，这条问题回答不了");
+    try {
+      await this.read(run);
+      const record = this.#requireRun(run.run_id);
+      switch (control.kind) {
+        case "stop":
+          await record.control.stop("stopped");
+          break;
+        case "cancel":
+          await record.control.stop("cancelled");
+          break;
+        case "pause":
+          record.control.pause();
+          break;
+        case "resume":
+          record.control.resume();
+          break;
+        case "switch-model":
+          await switchRunModel({ record, selection: control, configure: this.#ports.modelConfiguration, defaultWindow: this.#runtime.defaultContextWindowTokens,
+            requested: model => { record.state.model_requested = model; } });
+          break;
+        case "answer": {
+          const answer = this.#answerPending;
+          if (answer === undefined) throw agentErrors.capability_unavailable("没有接上回答通道，这条问题回答不了");
+          const question = record.state.awaiting_input.find(item => item.pending_id === control.pending_id);
+          if (!question || isEnded(record.view.phase) || question.pending_revision !== control.pending_revision) {
+            throw agentErrors.pending_not_open("这条问题不属于本轮当前等待，不能提交答案");
+          }
+          // The Run owns whether the question is closed; drop it from the view only after the execution owner accepted the
+          // answer. A parked Run ended with it: the session is read again, its next round no longer waits for checking.
+          if (await answer(run, control) === "queued") { this.#sessions.delete(run.session_id); await this.#loadSession(run.session_id); }
+          else settleProloguePending(record.state, control.pending_id);
+          break;
         }
-        const question = record.state.awaiting_input.find(item => item.pending_id === control.pending_id);
-        if (!question || isEnded(record.view.phase) || question.pending_revision !== control.pending_revision) {
-          throw agentErrors.pending_not_open("这条问题不属于本轮当前等待，不能提交答案");
-        }
-        await answer(run, control);
-        // The Run owns whether the question is closed; drop it from the view
-        // only after the execution owner accepted the answer.
-        settleProloguePending(record.state, control.pending_id);
-        break;
       }
-    }
-    this.#publish(run.run_id);
+      this.#publish(run.run_id);
+    } catch (error) { throw controlFailure(error); }
   }
 
   async readCommandOutput(
@@ -777,8 +778,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ? controlPhase === "stopped" || controlPhase === "cancelled"
         ? "已请求停止，正在收尾并保存执行记录"
         : "正在保存本轮执行记录"
-      // A round the runtime stopped itself (a guardrail or its circuit breaker) keeps the reason it gave; one the person stopped says so.
-      : phase === "stopped" ? (record.state.phase === "stopped" && record.state.stop_reason) || "已停止" : record.state.stop_reason;
+      // A round the runtime (a guardrail or its circuit breaker) or the Host stopped keeps the reason it gave; one the person stopped says so.
+      : phase === "stopped" ? (record.state.phase === "stopped" && record.state.stop_reason) || record.control.stopReason || "已停止" : record.state.stop_reason;
     if (stampTerminal && isEnded(phase) && this.#runtime.saveRunTiming && !record.timingReady) {
       if (!record.timingCommit) {
         record.observedEndAt = record.view.ended_at ?? this.#now().toISOString();
@@ -958,9 +959,6 @@ function restorePrologueRun(saved: PrologueRestoredSession["runs"][number]) {
       state.stop_reason = "这轮执行在中断前没有提交完整事件账，已发生的操作需要核对；不会自动重跑。";
     }
   }
-  if (state.phase === "cancelled" && saved.stop_intent === "stopped") {
-    state.phase = "stopped";
-    state.stop_reason = "已停止";
-  }
+  if (state.phase === "cancelled" && saved.stop_intent === "stopped") { state.phase = "stopped"; state.stop_reason = saved.stop_reason ?? "已停止"; }
   return { state, endedAt };
 }

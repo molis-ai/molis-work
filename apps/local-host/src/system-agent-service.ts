@@ -3,7 +3,8 @@ import { projectOrNull } from "./catalog-lookup.js";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeAgentHost, workspaceRefFor, type AgentHostCompositionOptions } from "./agent-host-composition.js";
-import { hostQuestionTypes } from "./agent-question-surfaces.js";
+import { hostQuestionTypes, hostReferenceKinds } from "./agent-question-surfaces.js";
+import { referenceKindsPort } from "./agent-reference-kinds.js";
 import { createAgentConnectorPorts } from "./agent-connector-ports.js";
 import { openConfiguredModels } from "./configured-models.js";
 import { bindPrologueInference, bindPrologueBuilder } from "./prologue-inference-host.js";
@@ -51,9 +52,13 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         storageRoot: agentRuntimeDirectory(storageHome),
         // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
         questionTypes: hostQuestionTypes(),
-        // A picked object goes on only while its owner still hands it to the local person, read through search (S-26).
-        confirmReferences: async (sessionOwner, picked, kinds) => sessionOwner.actor_id === LOCAL_PERSON_ACTOR_ID && localHost.search
-          ? localHost.search.confirmReferences(sessionOwner.project_id, picked, kinds) : picked.map(() => false),
+        // The kinds a reference question may ask for, so the model names one the person can find (T2, AC-28-1).
+        referenceKinds: hostReferenceKinds(),
+        // Each round's own: the kinds of the plugins installed and shown in its project, external ones too (BL-152).
+        referenceKindsFor: referenceKindsPort(localHost, storageHome, () => owner.withCatalog),
+        // A picked object goes on only while its owner still hands it to the local person, read through search, under its label now (S-26).
+        readReferences: async (sessionOwner, picked, kinds) => sessionOwner.actor_id === LOCAL_PERSON_ACTOR_ID && localHost.search
+          ? localHost.search.readReferences(sessionOwner.project_id, picked, kinds) : picked.map(() => null),
         // The side panel's browser and the desktop desk, when the server that owns them registered them for this Host
         // (specs/archive/side-panel P5, specs/computer-use).
         surfaces: {

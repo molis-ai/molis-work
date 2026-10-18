@@ -24,6 +24,9 @@ export const shelfManifest: PluginManifest = {
   name: "Shelf",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-shelf-binding" },
+  // 常开插件 (specs/side-shelf §3.2): on in every project, never in the plugin list, the market, the Dock or a project's
+  // plugin settings, so it cannot be removed.
+  always_on: true,
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
     { permission: "storage:private", required: true, reason: "本机置物架文件与摘录" },
@@ -47,7 +50,8 @@ export const shelfManifest: PluginManifest = {
   ui: {
     contributions: [SHELF_UI_CONTRIBUTION_ID, SHELF_SETTINGS_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Shelf", contribution_id: SHELF_UI_CONTRIBUTION_ID, icon: "library", order: 50 },
+      // The side panel's first tab (order 0, before 灵光's 10 and the panel's own tabs); it never opens in the work area.
+      { view_id: "side", slot: "side", title: "Shelf", contribution_id: SHELF_UI_CONTRIBUTION_ID, icon: "library", order: 0 },
       { view_id: "settings", slot: "settings", title: "Shelf", contribution_id: SHELF_SETTINGS_UI_CONTRIBUTION_ID },
     ],
   },

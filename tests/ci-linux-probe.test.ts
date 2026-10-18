@@ -111,9 +111,13 @@ before(() => {
   summary = readFileSync(path.join(out, "summary.md"), "utf8");
 });
 const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+// A fixture writes its pid with writeFileSync, which creates the file before it fills it: until the number is there, the file names no process
+// (Number("") is 0, and 0 would mean this process's own group).
+const pidIn = (file: string) => { const pid = existsSync(file) ? Number(readFileSync(file, "utf8")) : 0; return Number.isInteger(pid) && pid > 0 ? pid : 0; };
 after(() => {
   const pidFile = path.join(state, "leftover-pid");
-  if (existsSync(pidFile)) { try { process.kill(Number(readFileSync(pidFile, "utf8")), "SIGKILL"); } catch { /* already gone */ } }
+  const leftover = pidIn(pidFile);
+  if (leftover) { try { process.kill(leftover, "SIGKILL"); } catch { /* already gone */ } }
   if (root) rmSync(root, { recursive: true, force: true });
 });
 
@@ -194,7 +198,8 @@ test("each result is recorded as what it is", () => {
 
 test("a process a test file leaves running is stopped when the file is done", async () => {
   assert.equal(entry("leftover.test.ts").status, "pass");
-  const pid = Number(readFileSync(path.join(state, "leftover-pid"), "utf8"));
+  const pid = pidIn(path.join(state, "leftover-pid"));
+  assert.ok(pid > 0, "the test wrote the pid of the process it started");
   for (let waited = 0; alive(pid) && waited < 3000; waited += 100) await new Promise((resolve) => setTimeout(resolve, 100));
   assert.equal(alive(pid), false, "the process the test started is still running");
 });
@@ -247,8 +252,8 @@ async function cutOff(name: string, signal: NodeJS.Signals) {
   const ended = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => child.once("close", (code, by) => resolve({ code, signal: by })));
   let group = 0;
   try {
-    await until(() => existsSync(hangPid), 60_000, "the second file to start");
-    const pid = Number(readFileSync(hangPid, "utf8"));
+    await until(() => pidIn(hangPid) > 0, 60_000, "the second file to start and write its pid");
+    const pid = pidIn(hangPid);
     group = Number(execFileSync("ps", ["-o", "pgid=", "-p", String(pid)], { encoding: "utf8" }).trim());
     const before = { report: readJson(path.join(dir, "report.json")), jobSummaryWritten: existsSync(jobSummary) };
     child.kill(signal);

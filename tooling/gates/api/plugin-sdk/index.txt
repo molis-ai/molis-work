@@ -197,6 +197,13 @@ export declare const QUESTION_LIMITS: Readonly<{
     maxUnitChars: 24;
 }>;
 
+export declare const QUESTION_REASK: Readonly<{
+    task: "请按现在的情况重新问我刚才那个问题；我之前写的草稿附在后面，可以当默认值，但要我确认后再交。";
+    title: "没交出去的回答草稿";
+    maxValueChars: 1000;
+    maxTextChars: 8000;
+}>;
+
 export { SEARCH_SOURCE_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -334,11 +341,20 @@ export declare function questionAnswer(values: unknown): {
         other?: string;
     } | {
         question: number;
-        value: string | number | null;
+        value: string | number | null | Array<{
+            kind: string;
+            id: string;
+            label: string;
+        }>;
     }>;
 } | {
     text: string;
 } | null;
+
+export declare function questionDraftMaterial(question: AgentPendingQuestion, draft: unknown): {
+    title: string;
+    text: string;
+};
 
 export declare function questionProblems(questions: readonly AgentQuestion[], answers: readonly AgentQuestionAnswer[]): AgentQuestionProblem[];
 

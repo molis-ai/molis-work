@@ -1,8 +1,10 @@
-import type { AgentRunView, AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunView, AgentSessionView, AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentAnswerControl } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { AGENT_INPUT_KEY_PATTERN, type AgentInputSend, type AgentInputsPort, type AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
-import type { AssistantContextSnapshot, AssistantMaterial, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantContextSnapshot, AssistantMaterial, AssistantSendInput, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { textFieldId } from "../agent-question-card.js";
 import { assistantErrors } from "./assistant-errors.js";
+import type { StoredWork } from "./assistant-store.js";
 
 /** What became of a Send that reached a round already under way, or one that had just ended (its words wait for the next). */
 export type RoundInputOutcome = "answered" | "steered" | "queued";
@@ -11,9 +13,10 @@ export type RoundInputOutcome = "answered" | "steered" | "queued";
  * One press of Send as the round under way sees it. `id`: the page's id for it, which the supplement carries as its key,
  * so a Send repeated after a lost answer is the same supplement to the runtime, even when the Host crashed before it
  * recorded the outcome. `target`: what the person chose while a question waits (§4.1, D14). `byHost`: the words are not
- * the person's (a page or the Host wrote them), so the runtime records them as the Host's.
+ * the person's (a page or the Host wrote them), so the runtime records them as the Host's. `about`: the earlier input
+ * these words correct (D34); the runtime keeps the link, the words say what changes.
  */
-export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; byHost?: boolean }
+export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; byHost?: boolean; about?: string }
 
 /** Where `compose` starts what it added after the person's words; nothing before it was added. */
 const ADDED = /\n\n【(?:发送时的选区，数据】|附带材料「)/;
@@ -43,6 +46,31 @@ export function inputsOf(adapter: { readonly inputs?: AgentInputsPort }): AgentI
   return adapter.inputs;
 }
 
+/**
+ * Takes back a supplement the model has not seen yet (specs/ai-input-receipts §4.6), from the work's round it was sent to
+ * or from the session where it waits. The runtime refuses one already read: the person sends a correction then.
+ */
+export async function withdrawInput(work: StoredWork, rounds: ReadonlyArray<{ run_id: string }>, { run_id, input_id }: { run_id: string; input_id: string },
+  via: { coding(): Promise<{ withdraw(sessionId: string, runId: string, inputId: string): Promise<void> }>; runtime(): Promise<AgentInputsPort> }): Promise<void> {
+  if (typeof run_id !== "string" || !run_id || typeof input_id !== "string" || !input_id) throw assistantErrors.invalid("撤回要指明是哪一轮的哪一条补充");
+  if (work.executor.kind === "coding") {
+    if (!work.executor.session_id) throw assistantErrors.state("这项工作还没有交给 Coding 的补充");
+    return (await via.coding()).withdraw(work.executor.session_id, run_id, input_id);
+  }
+  if (!work.session_id || !rounds.some(round => round.run_id === run_id)) throw assistantErrors.scope("这条补充不属于这项工作");
+  const inputs = await via.runtime();
+  if (!inputs.withdraw) throw assistantErrors.unsupported("当前运行时不能撤回补充");
+  await inputs.withdraw({ session_id: work.session_id, run_id }, input_id);
+}
+
+/**
+ * What waits in the work's own session for its next round (specs/ai-input-receipts §4.4, D31), as the runtime read it: only
+ * while none of its rounds is live. Not read (or no session) leaves it out, so the page never takes that for an empty queue.
+ */
+export function queuedInputs(session: AgentSessionView | null): Pick<AssistantWorkView, "queued_inputs"> {
+  return session?.queued_inputs ? { queued_inputs: session.queued_inputs } : {};
+}
+
 /** The revision an answer names: the first one given. An answer to a question no one numbered is not sent. */
 export function exactRevision(...revisions: Array<number | undefined>): number {
   const revision = revisions.find(value => value !== undefined);
@@ -66,7 +94,7 @@ export class AssistantInputs {
    */
   async deliver(round: AgentRunView, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, port: RunningRoundPort, intent: SendIntent = {}): Promise<RoundInputOutcome> {
     if (intent.target === "answer") {
-      const question = freeTextQuestion(round.awaiting_input);
+      const found = composerQuestion(round.awaiting_input), question = found && !found.field ? found.question : undefined;
       if (round.phase !== "awaiting-input" || !question) throw assistantErrors.stale("这一轮已经不在等你回答问题；这句话没有发送");
       if (materials.length) throw assistantErrors.invalid("回答不能带材料；要带上材料，请改选「补充这一轮」");
       const words = question.questions?.length ? { answers: [{ question: question.questions[0]!.index, value: text }] } : { text };
@@ -75,7 +103,7 @@ export class AssistantInputs {
     }
     port.beforeSteer?.();
     const key = intent.id && new RegExp(AGENT_INPUT_KEY_PATTERN).test(`send.${intent.id}`) ? { key: `send.${intent.id}` } : {};
-    const receipt = await port.send({ text: this.compose(text, materials, context), ...key, ...(intent.byHost ? { source: "host" as const } : {}) });
+    const receipt = await port.send({ text: this.compose(text, materials, context), ...key, ...(intent.byHost ? { source: "host" as const } : {}), ...(intent.about ? { about: intent.about } : {}) });
     // A round that ended as the words arrived does not take them; they wait in its session for the next round.
     return receipt?.delivered === "queued" ? "queued" : "steered";
   }
@@ -90,11 +118,16 @@ export class AssistantInputs {
 }
 
 /**
- * The round's one free-text question, the one words from the composer can answer: a question in words, or a questionnaire
- * whose one question asks for words (specs/ai-interaction-experience D34). The page shows its chip by the same answer
- * (`from_composer` on the drawn view), so the two never disagree.
+ * Where words from the composer can go while the round waits on one question (specs/ai-interaction-experience D34, R4):
+ * they answer it when it asks only for words (a question in words, or a questionnaire whose one question asks for words);
+ * they go into its draft when it is a questionnaire with more than one question and one of them asks for words (`field`
+ * names that field; the card's own submit hands it back). The page shows its chip by the same answer (`from_composer`,
+ * `draft_from_composer` on the drawn view), so the two never disagree.
  */
-export function freeTextQuestion(questions: AgentRunView["awaiting_input"]): AgentRunView["awaiting_input"][number] | undefined {
-  const [only, ...more] = questions, asked = only?.questions ?? [];
-  return only && !more.length && (asked.length ? asked.length === 1 && asked[0]!.type === "text" : only.allows_free_text) ? only : undefined;
+export function composerQuestion(questions: AgentRunView["awaiting_input"]): { question: AgentRunView["awaiting_input"][number]; field?: string } | undefined {
+  const [only, ...more] = questions, asked = only?.questions ?? [], words = asked.filter(item => item.type === "text");
+  if (!only || more.length) return undefined;
+  if (!asked.length) return only.allows_free_text ? { question: only } : undefined;
+  if (words.length !== 1) return undefined;
+  return asked.length === 1 ? { question: only } : { question: only, field: textFieldId(words[0]!.index) };
 }

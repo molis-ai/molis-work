@@ -3,7 +3,7 @@ import { agentErrors } from "./errors.js";
 import { ActionError, type ActionDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
-import { agentOfferActions, type AgentActionClient, type AgentRunRef, type AgentRuntimeAdapter, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentOfferActions, type AgentActionClient, type AgentRunRef, type AgentRuntimeAdapter, type AgentSessionRef, type AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 type Call = { invocation: HostCapabilityInvocation };
@@ -21,12 +21,23 @@ export interface SessionActionPorts<C extends Call> {
   actions(call: C, pluginId: string, runtimeId: string): Promise<AgentActionClient | undefined>;
 }
 
+/**
+ * The supplement a person's new step is for (specs/ai-input-receipts D2, stage 3d-3): one input of this very round, as the
+ * round's own record has it, and not one taken back. A forged id, one of another session or round, or a withdrawn one is
+ * refused here, before anything is written.
+ */
+function checkOrigin(inputId: string, turns: readonly AgentTurnView[]): void {
+  const steer = turns.find(turn => turn.steer?.id === inputId)?.steer;
+  if (!steer) throw agentErrors.input_not_origin("这条补充不是这一轮的输入，不能作为新步骤的来源");
+  if (steer.state === "withdrawn") throw agentErrors.input_not_origin("这条补充已经撤回，不能作为新步骤的来源");
+}
+
 const sameReference = (a: ExactActionReference, b: ExactActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
 
 /**
  * The Agent Host's unified actions about a session's rounds: what its sessions wait for and how they go on, and what a
- * plugin tells a round. Every write checks the call is still current right before it, and once more before a supplement
- * that found its round ended is kept in the session: a cancelled or revoked call writes nothing.
+ * plugin tells a round or takes back. Every write checks the call is still current right before it, and once more right before
+ * the runtime keeps a supplement whose round ended, or gives one back: a cancelled or revoked call writes nothing.
  */
 export function registerSessionActions<C extends Call>(register: Register<C>, ports: SessionActionPorts<C>): Array<() => void> {
   const fresh = async (call: C) => { await call.invocation.beforeEffect(); call.invocation.assertAuthorityCurrent(); };
@@ -52,6 +63,7 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       const view = await ports.requireRun(call, { runtime_id, session_id }, run);
       const adapter = ports.adapter(call, runtime_id);
       if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时不能调整计划图");
+      if (amendment.kind === "insert" && amendment.origin !== undefined) checkOrigin(amendment.origin, (await adapter.read(run)).turns);
       await fresh(call);
       // The person deciding: the calling plugin's actor, else the session's owner.
       return { board: await adapter.collaboration.revise(run, amendment, expected_version, ports.pluginFor(call)?.actor_id ?? view.owner.actor_id) };
@@ -64,6 +76,16 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       if (!adapter.inputs) throw agentErrors.capability_unavailable("当前运行时不能向一轮补充要求");
       await fresh(call);
       return adapter.inputs.send(run, send, () => call.invocation.assertAuthorityCurrent());
+    }),
+    // Taking a supplement back: the round, or the session, still holds it and the model has not seen it.
+    register(agentInputActions.withdraw, async (call, input) => {
+      const { runtime_id, session_id, run_id, input_id } = input;
+      const run = { session_id, run_id };
+      await ports.requireRun(call, { runtime_id, session_id }, run);
+      const adapter = ports.adapter(call, runtime_id);
+      if (!adapter.inputs?.withdraw) throw agentErrors.capability_unavailable("当前运行时不能撤回补充");
+      await fresh(call);
+      return adapter.inputs.withdraw(run, input_id, () => call.invocation.assertAuthorityCurrent());
     }),
     // The person clicked a round's suggestion (D25, D27): exactly the action it names, under the round's own grant as it is now.
     register(agentOfferActions.run, async (call, input) => {

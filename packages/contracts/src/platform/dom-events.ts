@@ -59,11 +59,11 @@ export const PAGE_STATE_OWNERS = {
     state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.",
   },
   assistant: {
-    files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts"],
+    files: ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts"],
     state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.",
   },
   "context-actions": {
-    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-landing.ts"],
+    files: ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-card-target.ts", "apps/workbench/src/scripts/client/context-landing.ts"],
     state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.",
   },
   "context-toolbar": {
@@ -75,8 +75,8 @@ export const PAGE_STATE_OWNERS = {
     state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.",
   },
   "tab-workspace": {
-    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts"],
-    state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show.",
+    files: ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts"],
+    state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).",
   },
   "settings-directory": {
     files: ["apps/workbench/src/scripts/client/settings-directory.ts"],
@@ -133,6 +133,10 @@ export const PAGE_STATE_OWNERS = {
   "goals-event-document": {
     files: ["plugins/native/goals/src/event-document-client.ts"],
     state: "The Goal event panel inside an open Goal document.",
+  },
+  "pages-landing": {
+    files: ["plugins/native/pages/src/landing-editor.ts"],
+    state: "Where something in hand would land in the Pages document open on the left, the preview there, and the brief flash that shows the place.",
   },
 } as const satisfies Readonly<Record<string, PageStateOwner>>;
 
@@ -315,6 +319,11 @@ export const DOM_EVENTS = [
     summary: "The Goal work mode changed. Nothing in the tree listens yet.",
   },
   {
+    name: "molis:assistant-card-target", kind: "request", owner: "assistant", on: "document",
+    detail: "{ object: { kind, id }, reply(work_id: string | null) }",
+    summary: "A write chosen on the page asks which work its card goes into. The Assistant replies with its current work when its panel is open, the work is its own (not Coding's) and holds the object (one of the work's objects, or added to its strip); otherwise nobody replies and a new work starts. One reply counts. The work id is a pointer: the Host checks it when placing the card.",
+  },
+  {
     name: "molis:assistant-context-action-chosen", kind: "announcement", owner: "context-actions", on: "window", cancelable: true,
     detail: "ContextActionChosen (services/contextual); CONTEXT_ACTION_CHOSEN_EVENT",
     summary: "The person chose a ranked action. The page that owns the context takes it with preventDefault(); if nobody does, the Assistant gets the words and the material, unsent. An attach choice carries landing and run: the landing's owner takes it, previews there and confirms with run.",
@@ -377,7 +386,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:placement-convert", kind: "request", owner: "placement", on: "window",
     detail: "{ source, station | goal, payload?, note? }",
-    summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog.",
+    summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
     name: "molis:placement-flush", kind: "announcement", owner: "placement", on: "window",
@@ -387,17 +396,12 @@ export const DOM_EVENTS = [
   {
     name: "molis:placement-request", kind: "request", owner: "placement", on: "window",
     detail: "{ action: use-in-project | move | copy, object }",
-    summary: "Open the shared dialog that uses, moves or copies an object.",
+    summary: "Open the shared dialog that uses, moves or copies an object. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
     name: "molis:placement-result", kind: "request", owner: "placement", on: "window",
     detail: "{ verb, title, object?, note?, file? }",
-    summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is.",
-  },
-  {
-    name: "molis:shelf-admit", kind: "request", owner: "shelf", on: "window",
-    detail: "{ filename, mime, bytes_base64, source }",
-    summary: "Put a file made elsewhere (a generated image) into the Shelf.",
+    summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
     name: "molis:side-browser-control", kind: "announcement", owner: "side-panel", on: "document",
@@ -442,7 +446,12 @@ export const DOM_EVENTS = [
   {
     name: "molis:surface-landing", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "SurfaceLanding | null (services/contextual)",
-    summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; the row keeps one landing and sends it with the requests for a thing in hand elsewhere.",
+    summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; a split pane's report comes up as a pane message and is raised again on that pane's frame. The row keeps one landing and sends it with the requests for a thing in hand elsewhere.",
+  },
+  {
+    name: "molis:surface-landing-flash", kind: "request", owner: "pages-landing", on: "element",
+    detail: "none",
+    summary: "The context row asks the page that reported the landing to show it once: a way to put the thing in hand there was hovered or focused on the bar or in its menu. Dispatched on the element that raised molis:surface-landing, only while it is connected; a split pane's landing is asked of that pane's frame (pane message workbench-surface-landing-flash, top document to pane only), which raises it on its own landing element. The page shows it without covering text, not again while it shows, and not at all under reduced motion.",
   },
   {
     name: "workbench-feed-task", kind: "request", owner: "tab-workspace", on: "document",

@@ -610,13 +610,34 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // context-program §21.8) took the Pages editor, the Pages client and the workbench script, and receipts 1d (#564,
 // specs/ai-input-receipts) the Coding bundle and both stylesheets, from the sizes below; W4-03 removed those allowances with
 // the companions' copies of Coding's bundle. Receipts 1e (#589, specs/ai-input-receipts RC-14–RC-16) took the workbench script,
-// the three stylesheets and the Coding bundle from the last five sizes; W5-05 slice 1 removed that allowance.
+// the three stylesheets and the Coding bundle from the next five sizes; W5-05 slice 1 removed that allowance. T2 (AC-28,
+// specs/ai-interaction-experience D36) took the workbench script and the three stylesheets from the next four; receipts 3b-2a
+// replaced that allowance. Receipts 3b-2a (#667, specs/ai-input-receipts D37–D40) took the arrival sheet, the Coding bundle,
+// the workbench sheet and the workbench script from the next four; re-ask (#669, D5, D37) replaced that allowance. Re-ask
+// took Coding's bundle and the workbench script from the next two; receipts 3b-2b replaced that allowance. Receipts 3b-2b
+// (#671, RCPT-331–333) took the three stylesheets and the workbench script from the next four; receipts 3b-2c replaced that allowance.
+// Receipts 3b-2c (#687, RCPT-334–337) took the workbench script from the next size; W3-A3c replaced that allowance. W3-A3c
+// (#691, specs/context-program §21.6) took the workbench script from the next size; receipts 3d-2 replaced that allowance.
+// Receipts 3d-2 (#688, RCPT-344–348) took Coding's bundle and the workbench script from the next two; receipts 3d-3 replaced that allowance.
+// Receipts 3d-3 (#700, RCPT-352/353) took Coding's bundle, two stylesheets and the workbench script from the last four; AC-03 (R4) replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
   ["/assets/molis-work-plugins/coding.js", 432277], ["/assets/molis-work-settings.css", 1115127], ["/assets/molis-work-workbench.css", 1701600],
   ["/assets/molis-work-arrival.css", 821387], ["/assets/molis-work-plugins/coding.js", 434028], ["/assets/molis-work-settings.css", 1113186],
   ["/assets/molis-work-workbench.css", 1699659], ["/assets/molis-work-workbench.js", 1095606],
+  ["/assets/molis-work-arrival.css", 744923], ["/assets/molis-work-settings.css", 1034948], ["/assets/molis-work-workbench.css", 1624532],
+  ["/assets/molis-work-workbench.js", 1101126],
+  ["/assets/molis-work-arrival.css", 705879], ["/assets/molis-work-plugins/coding.js", 373429], ["/assets/molis-work-workbench.css", 1596754],
+  ["/assets/molis-work-workbench.js", 1099839],
+  ["/assets/molis-work-plugins/coding.js", 374113], ["/assets/molis-work-workbench.js", 1104882],
+  ["/assets/molis-work-arrival.css", 703658], ["/assets/molis-work-settings.css", 989905], ["/assets/molis-work-workbench.css", 1592688],
+  ["/assets/molis-work-workbench.js", 1105153],
+  ["/assets/molis-work-workbench.js", 1107936],
+  ["/assets/molis-work-workbench.js", 1108184],
+  ["/assets/molis-work-plugins/coding.js", 373784], ["/assets/molis-work-workbench.js", 1108502],
+  ["/assets/molis-work-plugins/coding.js", 373970], ["/assets/molis-work-settings.css", 988484], ["/assets/molis-work-workbench.css", 1591639],
+  ["/assets/molis-work-workbench.js", 1109302],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -629,35 +650,32 @@ for (const [asset, old] of [
   });
 }
 
-// RCPT-311–313 (specs/ai-input-receipts D25, receipts 3c): approved by the user on 2026-10-16, the shared supplement receipt may
-// grow the workbench script and the two stylesheets that carry the Assistant's styles once, from exactly the current baselines
-// to the measured sizes (within the approved +4,113 and +2,062 each). One byte more, another asset (Coding's bundle and the
-// settings sheet included: they fell), or growth from the new baseline still fails.
-test("receipts 3c has one bounded allowance on the workbench script and the Assistant's two stylesheets; other assets and later growth still fail", () => {
+// AC-03 (specs/ai-interaction-experience R4, D14): approved by the user on 2026-10-18 in the interaction line's session, the
+// composer's 「写进问卷」 may grow the workbench script once, from exactly the current baseline to the measured size (+606).
+// One byte more, another asset, or growth from the new baseline still fails.
+test("AC-03 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-arrival.css": [810350, 812412],
-    "/assets/molis-work-workbench.css": [1688608, 1690670],
-    "/assets/molis-work-workbench.js": [1097095, 1101205],
+    "/assets/molis-work-workbench.js": [1109312, 1109918],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("receipts-3c-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "receipts-3c-change");
+  branch("ac03-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "ac03-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "receipts-3c-base").code, 0);
-  assert.equal(gate("--base", "receipts-3c-base").code, 0);
+  assert.equal(gate("--update", "--base", "ac03-base").code, 0);
+  assert.equal(gate("--base", "ac03-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "receipts-3c-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "ac03-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "receipts-3c-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "receipts-3c-base").code, 0);
-  commit("freeze the measured receipts 3c sizes"); git("branch", "-f", "receipts-3c-frozen");
+  assert.equal(gate("--update", "--base", "ac03-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "ac03-base").code, 0);
+  commit("freeze the measured AC-03 size"); git("branch", "-f", "ac03-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "receipts-3c-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "receipts-3c-frozen").code, 1);
+    assert.equal(gate("--base", "ac03-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "ac03-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
 });

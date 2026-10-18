@@ -42,7 +42,6 @@ export const GAP_EN: Record<string, string> = {
   "常驻在 Dock": "Keep in the Dock",
   "常驻 Dock": "Keep in Dock",
   "未添加": "not added",
-  "固定在底栏右侧": "Fixed at the right of the bar",
   "从本项目移除": "Remove from this project",
   "添加到本项目": "Add to this project",
   "Goals 随项目一起创建，不能从项目移除": "Goals is created with the project and cannot be removed from it",
@@ -318,7 +317,6 @@ export const GAP_EN: Record<string, string> = {
   "切换到插件": "Switch to plugin",
   // Composed labels say name and action in one sentence, so English gets its own punctuation (review F-20).
   "切换到插件：{name}": "Switch to plugin: {name}",
-  "{name}：固定在底栏右侧": "{name}: fixed at the right of the bar",
   "常驻 Dock：{name}": "Keep in Dock: {name}",
   "移除：{name}": "Remove: {name}",
   "添加：{name}": "Add: {name}",

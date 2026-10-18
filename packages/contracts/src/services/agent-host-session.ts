@@ -145,6 +145,8 @@ export interface AgentStepBoard {
     depends_on?: string[];
     /** Added by a person during the run, not part of the confirmed plan. */
     inserted?: boolean;
+    /** The inputs this step was added for, as the runtime's board records them (pointers only; the session owns the inputs). Absent: none. */
+    origins?: import("./agent-inputs.js").AgentInputRef[];
   }>;
 }
 
@@ -154,8 +156,11 @@ export interface AgentStepBoard {
  */
 export type AgentStepAmendment =
   | { kind: "skip"; node: string; reason: string }
-  /** `mine`: the person takes the new step on themselves. */
-  | { kind: "insert"; after: string; title: string; acceptance: string; mine?: true }
+  /**
+   * `mine`: the person takes the new step on themselves. `origin`: the supplement the step is for, one input of this round
+   * (the AI said it is a new task, and the person added it); the Host checks it is this round's and not taken back.
+   */
+  | { kind: "insert"; after: string; title: string; acceptance: string; mine?: true; origin?: string }
   | { kind: "unblock"; node: string; note: string }
   | { kind: "move"; node: string; direction: "up" | "down" }
   /** Hand an unfinished step to the person themselves, or back to the round's session. */

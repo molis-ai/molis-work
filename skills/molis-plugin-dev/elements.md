@@ -12,6 +12,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 - `publisher.signature` 变了 = 新身份，旧 grant 不继承。
 - `entrypoints[]`：`deployment: "local" | "server"` + `entrypoint` 路径。一等插件常用 `./index.js`。
 - `kind`：`native` | `app` | `integration`。选贡献形态，不是信任等级。
+- `always_on`（schema 2）：常开插件，每个项目都开着、不进插件列表与市场、不能移除。只有随宿主发布的内置插件能声明；插件包、开发目录和创作台的产物带 `always_on: true` 会在安装时被拒（`plugin.declaration_invalid`），升级到带它的版本也被拒。外部插件不写它。
 
 ## 版本升级
 
@@ -163,7 +164,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 `subagent_workspaces: "required"` 只放在只读父角色上（Coding 的协调者、并行写入）。工作目录是 Host 事实，候选通过 `projectSettingsCapabilities.workspaces` 读取。`directory_input_port` 不会让 Host 采信目录。
 
-今天三例：`plugins/native/coding`（kind `app`），以及 `plugins/native/schedule`、`plugins/native/todo`（kind `native`）。不要把 Coding 的 agent 块抄到普通内容插件。合同里还有 `compaction`、`text_sources`、`skills`，只有 Coding 用了 `compaction` 与 `skills`，先不要写成必填。
+今天三例：`plugins/native/coding`（kind `app`），以及 `plugins/native/schedule`、`plugins/native/todo`（kind `native`）。不要把 Coding 的 agent 块抄到普通内容插件。合同里还有 `compaction`、`ending_review`、`text_sources`、`skills`，只有 Coding 用了 `compaction`、`ending_review` 与 `skills`，先不要写成必填。`ending_review` 指向自己 `prompts` 里的一条：可写的一轮没有成功的改动就要结束时，宿主用它对照这一轮的事实核对最后的话（用户能在「设置 › 提示词」的「收尾核对」下改）；不声明就不核对。
 
 ## Integration
 

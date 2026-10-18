@@ -21,7 +21,8 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     // The Feishu/Lark connector's package travels as a registry dependency at the exact version Local Host pins. The workspace's
     // `overrides` and `allowBuilds` (pnpm-workspace.yaml) do not: the archive has no `overrides` field, and npm would ignore one
     // in an installed dependency, which docs/installation.md and dependencies-and-sdk-plan.md section 3.5 say in words.
-    const manifest = JSON.parse(published.toString("utf8")) as { dependencies: Record<string, string>; bundledDependencies?: string[] };
+    const manifest = JSON.parse(published.toString("utf8")) as { license: string; dependencies: Record<string, string>; bundledDependencies?: string[] };
+    assert.equal(manifest.license, "SEE LICENSE IN LICENSE"); // CSL-03
     const pinned = (JSON.parse(await readFile(path.join(source, "apps/local-host/package.json"), "utf8")) as { dependencies: Record<string, string> }).dependencies["@larksuiteoapi/lark-mcp"];
     assert.match(pinned ?? "", /^\d+\.\d+\.\d+$/);
     assert.equal(manifest.dependencies["@larksuiteoapi/lark-mcp"], pinned);
@@ -35,6 +36,9 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     assert.deepEqual(await readFile(path.join(output, "package.json")), published);
     const { stdout } = await exec("npm", ["pack", "--ignore-scripts", "--json", "--cache", path.join(temporary, "cache")], { cwd: output, maxBuffer: 8 * 1024 * 1024 });
     const [packed] = JSON.parse(stdout);
+    const license = await readFile(path.join(source, "LICENSE"), "utf8");
+    const packedLicense = async (prefix: string) => (await exec("tar", ["-xOf", path.join(output, packed.filename), `package/${prefix}LICENSE`])).stdout;
+    assert.equal(await packedLicense(""), license); // CSL-03: read the actual npm archive, not only staging.
     const files = new Set<string>(packed.files.map((file: { path: string }) => file.path));
     assert.ok(files.has("node_modules/@molis-ai/molis-work-module-goals/methods/industries/industry-developer-tools.md"));
     assert.ok(files.has("node_modules/@molis-ai/molis-work-plugin-cli/bin/molis-work-plugin.mjs"));
@@ -71,6 +75,10 @@ test("npm staging packs workspace assets without host binaries or modifying the 
     assert.ok(packed.bundled.includes("@molis-ai/molis-work-module-goals"));
     for (const name of packed.bundled) {
       const metadata = JSON.parse(await readFile(path.join(output, "node_modules", name, "package.json"), "utf8"));
+      if (name.startsWith("@molis-ai/molis-work-")) {
+        assert.equal(metadata.license, "SEE LICENSE IN LICENSE", name);
+        assert.equal(await packedLicense(`node_modules/${name}/`), license, name);
+      }
       for (const spec of Object.values({ ...metadata.dependencies, ...metadata.optionalDependencies })) {
         assert.doesNotMatch(String(spec), /^(workspace|file):/);
       }

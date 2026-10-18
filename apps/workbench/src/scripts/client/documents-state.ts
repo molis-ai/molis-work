@@ -135,7 +135,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       navigationVersion: desktopNavigationStateVersion,
       directory: treePane?.dataset.desktopDirectory || "root",
       directoryCollapsed: workspace.classList.contains("is-directory-collapsed"),
-      directoryCollapsedSections: [...document.querySelectorAll("[data-plugin-section][data-plugin-expanded='false']")].map((section) => section.dataset.pluginSection).filter(Boolean),
       feedPreset: activeFeedPreset,
       feedSelected: selectedFeedItem,
       feedTask: selectedFeedTask || "all",
@@ -147,7 +146,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       feedSort: feedSort?.value || "newest",
       feedPresets: feedPresetState,
       sourceSelected: selectedSource,
-      sourceQuery: sourceSearch?.value || "",
       sourceFilter: activeSourceFilter,
       sourceDetailTab: sourceWorkbench?.querySelector('[data-source-detail="' + CSS.escape(selectedSource) + '"] [data-source-detail-tab][aria-selected="true"]')?.dataset.sourceDetailTab || "overview",
       goalFactor: documentPane.querySelector('[data-goal-factor-tab][aria-selected="true"]')?.dataset.goalFactorTab || "relations",
@@ -171,11 +169,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
           : "root";
         const restoredDirectory = directoryPanelFor(restoredDirectoryRaw);
         setDesktopDirectory(restoredDirectory, false, false);
-        const collapsedSections = new Set(Array.isArray(ui?.directoryCollapsedSections) ? ui.directoryCollapsedSections : []);
-        document.querySelectorAll("[data-plugin-expand]").forEach((toggle) => {
-          const id = toggle.dataset.pluginExpand;
-          if (id) setPluginSectionExpanded(id, !collapsedSections.has(id), false);
-        });
       }
       restoreTreeCollapsed(ui?.collapsed);
       const disclosures = new Set(ui?.disclosures || []);
@@ -220,7 +213,6 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
         const availableSourceFilters = new Set(["all", "account", "public", "attention"]);
         activeSourceFilter = availableSourceFilters.has(ui?.sourceFilter) ? ui.sourceFilter : "all";
         selectedSource = String(ui?.sourceSelected || selectedSource || "");
-        if (sourceSearch) sourceSearch.value = String(ui?.sourceQuery || "");
         sourceDirectory.querySelectorAll("[data-source-filter]").forEach((button) => {
           const active = button.dataset.sourceFilter === activeSourceFilter;
           button.classList.toggle("is-active", active);

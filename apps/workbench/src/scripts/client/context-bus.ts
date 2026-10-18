@@ -23,6 +23,8 @@
  * - `chooseFrom`: a choice made in a split pane's toolbar is handled exactly as one made here, also after the person put the toolbar
  *   away for this passage.
  */
+import { CARD_TARGET_ASK_SCRIPT } from "./context-card-target.js";
+
 export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     focus: null,
     source: null,
@@ -107,27 +109,28 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     // Clicked while the row still showed the moment before the last keystroke: bring it up to date instead of acting.
     if (focus && plan && plan.context_id !== focus.context_id) { if (bus.flush) bus.flush(); return; }
     if (!focus || !source || !candidate || !candidate.available) return;
-    bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
     bus.signal(key, "accepted");
-    const prepared = () => post("/api/contextual/prepare", { pane_id: source.pane, focus, key: candidate.key, request_id: newRequestId() });
-    // What the workbench shows itself: a word looked up across the project opens in the search palette.
-    if (candidate.action.capability_id === "search.query" && host.openSearch) {
-      prepared().then((offer) => host.openSearch(offer.input && offer.input.query)).catch((error) => bar.error(error));
-      return;
-    }
-    // Into the object open on the left: its owner previews it at the landing (context-landing.ts).
-    if (candidate.origin === "attach") { landing.choose(focus, candidate); return; }
-    // A write goes to the Assistant as a prepared card: the person sees what it will do, and confirms it there.
-    if (candidate.apply === "record") {
-      prepared().then((offer) => suggestCard(focus, candidate, offer)).catch((error) => bar.error(error));
-      return;
-    }
+    const prepared = settle(focus, candidate, source.pane);
+    if (!prepared) return;
     if (source.frame) {
       source.frame.contentWindow.postMessage({ type: "workbench-context-action-chosen", context_id: focus.context_id, candidate }, location.origin);
       return;
     }
     const fallback = deliver(focus, candidate);
     if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback));
+  };
+  // A choice from the row or a starter alike: into the object open on the left, its owner previews it at the landing
+  // (context-landing.ts; an attach is a record too, so it goes first); a word looked up across the project opens in the
+  // search palette; a write goes to the Assistant as a prepared card, which the person sees and confirms there. Anything
+  // else is the caller's to hand over, with the prepare call it needs.
+  const settle = (focus, candidate, pane) => {
+    bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
+    const prepared = () => post("/api/contextual/prepare", { pane_id: pane, focus, key: candidate.key, request_id: newRequestId() });
+    if (candidate.origin === "attach") landing.choose(focus, candidate);
+    else if (candidate.action.capability_id === "search.query" && host.openSearch) prepared().then((offer) => host.openSearch(offer.input && offer.input.query)).catch((error) => bar.error(error));
+    else if (candidate.apply === "record") prepared().then((offer) => suggestCard(focus, candidate, offer)).catch((error) => bar.error(error));
+    else return prepared;
+    return null;
   };
   const suggestCard = async (focus, candidate, offer) => {
     const material = { title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) };
@@ -136,7 +139,9 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     const card = { title: candidate.title, summary, reference: offer.action, input: offer.input,
       ...(offer.editable ? { editable: offer.editable } : {}), ...(offer.missing ? { missing: offer.missing } : {}),
       source_object: focus.object, materials: [material] };
-    const placed = await post("/api/assistant/cards", { message_id: newRequestId(), source, card });
+    // Into the work the person is on when the Assistant says it holds this object (assistant-work-objects.ts); else a new work.
+    const work_id = ${CARD_TARGET_ASK_SCRIPT}(focus.object);
+    const placed = await post("/api/assistant/cards", { message_id: newRequestId(), source, card, ...(work_id ? { work_id } : {}) });
     openAssistant({ work_id: placed.work_id });
   };
   // The split pane's page did not take the choice: same as here, a card, else what is in hand.
@@ -194,15 +199,9 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       const candidate = focus && plan && focus.context_id === objectKey ? plan.candidates.find((item) => item.key === key) : null;
       // Shown a moment ago but gone or switched off since: say why instead of doing nothing.
       if (!candidate || !candidate.available) { bar.error(new Error(candidate ? candidate.reason || L("不可用") : L("这个动作已不在当前内容的候选里"))); return; }
-      bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
-      const prepared = () => post("/api/contextual/prepare", { pane_id: "assistant-start", focus, key, request_id: newRequestId() });
-      if (candidate.action.capability_id === "search.query" && host.openSearch) {
-        prepared().then((offer) => host.openSearch(offer.input && offer.input.query)).catch((error) => bar.error(error));
-        return;
-      }
-      if (candidate.apply === "record") { prepared().then((offer) => suggestCard(focus, candidate, offer)).catch((error) => bar.error(error)); return; }
+      const prepared = settle(focus, candidate, "assistant-start");
       // The page that has this object open takes it when it can (Pages runs it on the whole document); else a card.
-      const fallback = deliver(focus, { ...candidate, scope: "object" });
+      const fallback = prepared && deliver(focus, { ...candidate, scope: "object" });
       if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback));
     },
   };
@@ -216,10 +215,8 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
   });
 
   window.addEventListener("message", (event) => {
-    if (event.origin !== location.origin || !event.data || typeof event.data.type !== "string") return;
-    const frame = [...document.querySelectorAll("iframe[data-pane-owner]")].find((node) => node.contentWindow === event.source);
+    const frame = panes.from(event), data = event.data;
     if (!frame) return;
-    const data = event.data;
     if (data.type === "workbench-surface-focus") bus.report({ pane: frame.dataset.paneOwner || "pane", element: frame, frame }, data.focus || null);
     else if (data.type === "workbench-context-action-unhandled" && data.detail) unhandled(data.context_id, data.key, data.detail);
     else if (!bus.source || bus.source.frame !== frame || !bus.focus || data.context_id !== bus.focus.context_id) return;

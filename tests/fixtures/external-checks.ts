@@ -150,7 +150,9 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.external-checks-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: queue,
     modelConfiguration: async () => live ? { protocol: "anthropic-compatible", endpoint: live.endpoint, model: live.model, credential_ref: "live:minimax" }
       : { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" },
-    resolveCredential: () => live ? live.key() : "test-only", checks: { directoryAuthorized: async (projectId, directory) => switches.directoryAuthorized && projectId === "p" && directory === root } });
+    resolveCredential: () => live ? live.key() : "test-only", checks: { directoryAuthorized: async (projectId, directory) => switches.directoryAuthorized && projectId === "p" && directory === root,
+      // A job a work follows (§6.0o) is looked at with that work's own action client, taken back with the same switch.
+      workAuthority: async () => ({ actions: { client: await authority.actions!("prologue") } }) } });
   const adapter = await open();
   const host = new AgentHost({ reviews: queue }); host.register(adapter);
   t.after(async () => { await adapter.close(); await local.close(); await rm(root, { recursive: true, force: true }); await rm(writer, { recursive: true, force: true }); });
@@ -163,7 +165,7 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
   };
   const wait = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.wait;
   const continuation = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.continuation;
-  return { root, requests, replies, said, usage, reviewed, switches, calls, adapter, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary), lookups: lookups.map(ref) }, reopen: open,
+  return { root, requests, replies, said, usage, reviewed, switches, calls, adapter, session, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary), lookups: lookups.map(ref) }, reopen: open,
     writerWorkspaces: [{ workspace_id: "writer-0", directory: { canonical_path: writer, realpath_verified: true } }] };
 }
 

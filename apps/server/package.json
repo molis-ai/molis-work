@@ -32,7 +32,7 @@
     "ssot": "docs/SSOT-MATRIX.md"
   },
   "description": "Headless standalone server launcher, original Host action bridge and local asset restore adapter.",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "sideEffects": false,
   "exports": {
     ".": {

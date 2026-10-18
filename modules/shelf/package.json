@@ -4,7 +4,7 @@
   "private": true,
   "description": "Personal shelf items, copy-jobs, hashes, and local text extraction.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

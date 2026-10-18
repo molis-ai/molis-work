@@ -190,6 +190,12 @@ export interface PluginManifest {
     signature: string;
   };
   host_api_version: 1 | 2;
+  /**
+   * v2: 常开插件. Enabled in every project, never listed where plugins are chosen, added or removed (the plugin list, the
+   * market, the Dock, a project's plugin settings), so it cannot be removed. Only a plugin that ships with the Host may
+   * declare it: the Runtime refuses to install or upgrade to a Manifest that does from anywhere else.
+   */
+  always_on?: boolean;
   entrypoints: PluginEntrypointManifest[];
   permissions: PluginPermissionDeclaration[];
   capabilities: {
@@ -300,7 +306,16 @@ export interface PluginRouteRequest {
   execution?: PluginExecutionControl;
 }
 
-export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">;
+export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current"> & {
+  /**
+   * The project a Home instance's route was called in: the Host reads it from the page's path (`/projects/<id>/api/plugins/…`) after
+   * checking that the project exists and shows this plugin, never from the route's parameters, query or body. The plugin's own action
+   * called with this control sees it as `caller.project_id`. The Host reads it only on a control it issued itself: on any other object
+   * (a plugin's own, or a caller context passed on) it is ignored, as every field the control does not name is, and the call runs in
+   * the instance's project (none for a Home instance).
+   */
+  readonly project_id?: string;
+};
 
 export interface PluginRouteResponse {
   status: number;

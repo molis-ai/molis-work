@@ -1,7 +1,4 @@
-import { FILES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-files";
-import { GIT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-git";
-
-/** Host navigation and project-directory operations; file/Git behavior stays in its plugin. */
+/** Host navigation and project-directory operations; file/Git behavior stays in its plugin, whose client the setup hands over once. */
 export const CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
   for (const root of (host.root ? host.root.matches('[data-companion]') ? [host.root] : [] : document.querySelectorAll('[data-companion]'))) {
     const lifetime=host.mountPluginClient(root);if(!lifetime)continue;
@@ -13,11 +10,11 @@ export const CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(button)host.openPlugin(button.dataset.companionOpen);
     });
     if(plugin==='files') {
-      (${FILES_CLIENT_FACTORY_SCRIPT})({...host,root,openResult,closeResult});
+      host.filesFactory({...host,root,openResult,closeResult});
       q('[data-files-browser]').hidden=false;
       q('[data-files-close]').textContent='返回文件列表';
     } else if(plugin==='git') {
-      const browser=(${GIT_CLIENT_FACTORY_SCRIPT})({...host,root,openResult,closeResult,
+      const browser=host.gitFactory({...host,root,openResult,closeResult,
         showReviews:host.reviewFactory({mountPluginClient:host.mountPluginClient,route:host.route,headers:host.headers,onDecision:outcome=>browser.afterDecision(outcome)})});
       q('[data-git-browser]').hidden=false;q('[data-git-close]').textContent='返回改动列表';
     } else {

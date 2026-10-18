@@ -4,7 +4,7 @@
   "private": true,
   "description": "Thin CLI protocol, argument, and presentation adapter.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

@@ -142,7 +142,8 @@ export function shape(runtime: Runtime, board: SdkBoard, place: PlanPlace, sessi
         return { note: reportNote(runtime, report, session), at_ms: report.atMs, ...(by ? { by } : {}), ...(report.handover ? { handover: true as const } : {}),
           ...(report.inputs?.length ? { inputs: inputRefs(report.inputs) } : {}) }; }),
       owner: claimOf(runtime, node, session, alive),
-      title: title(node, place), depends_on: node.dependsOn.flatMap(dep => localId(place, dep) ?? []), ...(local(node.id).startsWith("user-") ? { inserted: true } : {}) })) };
+      title: title(node, place), depends_on: node.dependsOn.flatMap(dep => localId(place, dep) ?? []), ...(local(node.id).startsWith("user-") ? { inserted: true } : {}),
+      ...(node.origins?.length ? { origins: inputRefs(node.origins) } : {}) })) };
 }
 
 /** The inputs a report is about, as the runtime recorded them (pointers only; the session owns the inputs). */
@@ -194,9 +195,12 @@ export async function amendPlan(runtime: Runtime, place: PlanPlace, amendment: A
       const anchor = node(amendment.after);
       const heading = text(amendment.title, "步骤", 120), acceptance = text(amendment.acceptance, "完成条件", 300);
       const id = fullId(place, `user-${planNodes(board, place).filter(entry => localId(place, entry.id)!.startsWith("user-")).length + 1}`), after = dependents(anchor.id);
-      // An inserted step is the round's to do, or the person's own when they take it on.
+      // An inserted step is the round's to do, or the person's own when they take it on. One added for a supplement points
+      // at it (the Host checked it is this round's): the board records the pointer, the session keeps the input.
       const holder = amendment.mine ? person : roundSession;
-      board = await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version, node: { id, title: heading, parent: place.prefix, dependsOn: [anchor.id], onFailure: "block-for-human", ...(holder ? { assignee: holder } : {}) } });
+      if (amendment.origin !== undefined && !roundSession) throw new Error("这一轮没有会话记录，新步骤不能指向补充");
+      const origins = amendment.origin === undefined ? {} : { origins: [{ session: roundSession!.id, input: amendment.origin }] };
+      board = await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version, node: { id, title: heading, parent: place.prefix, dependsOn: [anchor.id], onFailure: "block-for-human", ...(holder ? { assignee: holder } : {}), ...origins } });
       await report(id, `用户插入：${heading}；完成条件：${acceptance}${amendment.mine ? "；由用户处理" : ""}`);
       for (const next of after) await rewire(next, replaced(node(next).dependsOn, anchor.id, [id]));
       break;

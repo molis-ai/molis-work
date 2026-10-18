@@ -22,13 +22,19 @@ ALC-LIFE 本地证据（2026-10-18，生产候选 `f26f8216e`）：整体构建�
 
 Alchemist 后续恢复裁定（用户 2026-10-18 选择，尚未实施）：重启保留任务与进度，由用户点“继续”重新授权；禁止自动续跑，不把 actor/job/lease 当授权。沿用 interrupted 与当前实例执行登记派生等待继续视图，query 不写 actor/seed，首次有权 command 再初始化。继续固定原 job/input/方向快照；Exploration 明确展示并在本次等待前冻结当前模型/taste，不承诺缺失的历史上下文逐字相同，不新造 JSON 兼容。Lens 保留原 plan/model/budget/callsUsed，未知调用从最近可恢复 checkpoint 重做，只花原剩余额度，提示可能重复计费；耗尽保留待审阅，并明确需另发新研究，不自行增加预算。安全 checkpoint 不二次调用，继续 A 不消费 B，同一 job 并发点击只能受理一次。此决定写入后续分库/恢复实施合同，本生命周期前置仍保持现行队列行为，不能用本片通过宣称此决定已经实现。
 
-W5-01 Alchemist 显式继续（ALC-RES，2026-10-18，Codex 已接受实施方案，实施中）：目标为现单一 Store 上的恢复功能可用，承接用户上段决定及已验证 ALC-LIFE，不在本片迁移项目数据库或 Plugin Runtime。重启只读显示原 job/checkpoint；旧 queued/running/interrupted 及有明确当前中断原因的 failed 均按实际 checkpoint 判定是否可继续，完成/取消/不可恢复记录拒绝。查询不写 actor、默认 settings、来源或恢复状态，空库 workspace/settings/Pulse 返回一致的纯默认视图；首次有效 command 在同一提交内依 workspace→真实 actor→必要 defaults 顺序初始化。坏记录明确失败，不补猜历史形状。
+W5-01 Alchemist 显式继续（ALC-RES，2026-10-18，Codex 已完成本地实现与相关验证，待 PR/CI 整合）：目标为现单一 Store 上的恢复功能可用，承接用户上段决定及已验证 ALC-LIFE，不在本片迁移项目数据库或 Plugin Runtime。重启只读显示原 job/checkpoint；旧 queued/running/interrupted 及有明确当前中断原因的 failed 均按实际 checkpoint 判定是否可继续，完成/取消/不可恢复记录拒绝。查询不写 actor、默认 settings、来源或恢复状态，空库 workspace/settings/Pulse 返回一致的纯默认视图；首次有效 command 在同一提交内依 workspace→真实 actor→必要 defaults 顺序初始化。坏记录明确失败，不补猜历史形状。
+
+ALC-RES 本地最终证据（2026-10-18）：整体构建、公开 API/动作快照、boundary、merge-base health 与资源实测通过；正式客户端52,373 B，25项资源共7,478,380 B。包内27文件95条、相关非浏览器190文件1,732条、真实Chrome4文件15条最终通过；保留sandbox原环境条件跳过1条。非浏览器首轮3文件失败：旧生命周期用例沿用自动恢复断言，已改为真实Host的领取前交错、新操作者明确继续并保留历史作者；HTTP测试旧手工入口把正常response关闭当撤权，已改走现有serveTestHost正式入口；Goals MCP原60秒超时后未改源码/时限，低并发复跑通过。浏览器下载首轮在ZIP未完成时读文件，改等CDP对应guid完成事件后保留原内容断言，复跑通过。仅重跑受影响4文件，不把首轮失败抹去。日志为 `/tmp/alchemist-res-final-{build,unit,required,browser,health}.log`、`/tmp/alchemist-res-test-repairs.log`、`/tmp/alchemist-res-download-repair.log` 及最终 reviewed health/boundary；独立源码复核无Blocker/P1，root核最终测试差异与原始日志。用户确认的预算/重复收费提示已实现且桌面、手机实测通过；生产WorkReuse外部接线、项目分库与Runtime迁移仍未完成。本机全量未运行，远端全量/合入及整线验收不能由本段替代。
 
 ALC-RES 共享授权补充（2026-10-18，主会话复核接受）：现单一 continue 的类别来自已存 job，静态 read/write 加实际类别持续权限；Exploration/Lens 需要 generate，Pulse 需要 collect，不能要求两类同时具备。扩展既有 retainBackgroundAuthority(additionalPermissions?) 及可信入口 hook，参数只增加检查、复制冻结，不替换原动作权限或允许引用，不引入授权存储。Kernel 只在活跃 handler 捕获，额外权限必须属于原 caller；无独立入口沿原 signal，独立入口沿后台授权，原 beforeEffect 到期保持。MCP 固定受理时原 allowed refs 与权限来源集合，之后只取该原集合与最新有效 grant 的交集；受理后新增动作、另一版本/provider 不能救活旧授权。绑定父/子 guard 分别保留各自身份与撤权，子额外权限不能替换父权限。HTTP 本地固定 owner 由可信绑定身份持续检查，response signal 只归 route control，正常响应后不撤已受理任务，受理前断开仍拒绝。继续必须先纯读 job 和类别校验，再初始化；缺权限零 seed/claim/失败记账。
 
 
 
 ALC-RES08 确认界面补齐（2026-10-18，root核实际UI后接受窄实现）：Lens继续前显示原计划模型及原预算总数/已预约/剩余；计数只从现有效 call_started ledger与绑定原plan派生，不持久化第二份计数、不把预约当已扣费。当前合法 call_dispatched 表示未知结果时明确提示“上次调用可能已收费，继续可能重复收费；该次已计入原预算，不增加预算”。沿同一 lens-progress 解析/校验提取只读inspect摘要，执行read继续保耗尽拒绝；损坏历史仍拒绝且不猜0。ResumeView仅增budget{limit,reserved,remaining}和unknownCall{operation}；耗尽也显示数字但不可提交，安全checkpoint允许零模型完成。真实UI补可继续Lens的数字/原模型/风险提示及桌面手机截图，旧耗尽、双击和正常返回路径保持。最终Chrome用例1/1通过，桌面/手机图已核，无模型真实扣费验证；用户在2026-10-18明确批准客户端脚本单次50,619→53,507 B（+2,888 B）以保留完整提示。只登记这个资源和起点，合入后的已用额度不可复用，其余资源规则不变；最终组合整合及门禁仍待完成。
+
+ALC-RES08 正式体积核对：整合后按正式 Host 服务口径实测为52,373 B（+1,754 B），上段53,507是未包装 factory 字符串。既有服务压缩保留全部预算与收费提示，最终许可因此下调为50,619→52,373，不留1,134 B余量；门禁同时拒绝多一字节、其它资源增长和新基点再次增长。
+
+ALC-RES 动作合同：新增 runs.list/resume/continue@1；explorations.start/research.start@1 改为 concurrent，受理中的授权等待不占串行队列。后两者的输入输出、provider、权限及任务引用不变，固定@1引用仍执行同一受理合同，因此只更新调度元数据与快照，不改工具名；旧串行例外移除。此改动不能证明生产WorkReuse外部接线已完成。
 
 ALC-RES 搜索最终边界补充（2026-10-18，root 已直接核对调用链并接受窄实现）：现 beforeDispatch 仅在入口，之后还等待 bootstrap、DNS 与 TLS；SEL 会写 opaque operation、secret 与正文。RES03 必须覆盖这些实际业务效果，不能以每秒撤权轮询代替。允许在 Alchemist search 资源现 owner 内用每次调用的 AsyncLocalStorage 传递本次 beforeDispatch/assertCurrent，Host search-evidence-runtime/search-intelligence-client/anysearch-transport 接同一可选检查；storage 的既有 search-storage blob/secret owner 在最终同步写入前检查，不越 owner 写 SQL、不改 vendor 或密文/schema/路径、不加授权持久化。查询控制不存在时，已配置此检查的 Alchemist 调用拒绝；未配置的 Feed 现行为保持。bootstrap 共享 promise 不能固化首次调用的权限，失败后沿现 ready reset 可再尝试；资源关闭仍等待真实 promise 退出。
 

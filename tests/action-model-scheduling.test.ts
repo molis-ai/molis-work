@@ -11,9 +11,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
  * Exceptions are listed with the reason they may stay serial.
  */
 const SERIAL_BY_DESIGN: Record<string, string> = {
-  "alchemist.explorations.start@1": "enqueues an exploration; the worker owns its lifetime",
   "alchemist.pulse.start@1": "enqueues a market pulse; the worker owns its lifetime",
-  "alchemist.research.start@1": "enqueues a confirmed research plan; the worker owns its lifetime",
 
 };
 const configurationOnly = (id: string) => id.startsWith("scenes.enable:");

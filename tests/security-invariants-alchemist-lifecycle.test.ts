@@ -225,27 +225,44 @@ test("Alchemist discovery is inert; on the Home's one Host a job keeps its calle
   assert.equal((await reopened.bound.invoke(a.conversationList, {})).messages.length, 4);
 });
 
-test("Alchemist queued jobs keep their original actor after restart", async t => {
-  const f = await setup(t), caller = await f.open("new-reader");
-  // A queued Studio task from the previous process, using its real invocation and persistent job input.
-  const original = createAlchemistStudioRuntime({ databasePath: f.path, ai: f.ai });
-  let receipt: { runId: string; jobId?: string };
-  try {
-    const actions = original.actionsFor("original-actor");
-    const { direction } = await actions.invoke(a.directionCreate, { description: "重启后沿用已保存的任务发起者身份" });
-    receipt = await actions.invoke(a.explorationStart, { id: direction.id });
-  } finally { await original.close(); }
-  const db = new Database(f.path);
-  try { assert.equal(JSON.parse((db.prepare("SELECT input_json FROM jobs WHERE id = ?").get(receipt!.jobId) as { input_json: string }).input_json).actorId, "original-actor"); }
-  finally { db.close(); }
-  await caller.bound.invoke(a.bootstrap, {});
-  let state = "queued";
-  for (let n = 0; n < 100; n++) {
-    state = (await caller.bound.invoke(a.runEvents, { id: receipt!.jobId! })).status;
-    if (state === "completed" || state === "failed") break;
-    await new Promise(resolve => setTimeout(resolve, 20));
-  }
-  assert.equal(state, "completed"); assert.equal(f.requests[0]!.actorId, "original-actor");
+test("W5-01-ALC-RES01/02/06: queued jobs retain their historical author and require the new caller to continue", async t => {
+  const f = await setup(t), original = await f.open("original-actor");
+  const { direction } = await original.bound.invoke(a.directionCreate, { description: "重启后由当前操作者明确继续任务" });
+  const owner = Reflect.get(original.host, "alchemist") as { get(caller: ActionCallContext): AlchemistStudioRuntime };
+  const studio = owner.get(original.caller);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), stopped = Promise.withResolvers<void>();
+  f.beforeClose.push(() => release.resolve());
+  let armed = false;
+  const caller = { ...original.caller, validate_authority: async () => {
+    if (armed) { entered.resolve(); await release.promise; }
+  } };
+  const receipt = await original.client.invoke(caller, a.explorationStart, { id: direction.id }) as { runId: string; jobId: string };
+  armed = true;
+  const draining = studio.runPending();
+  await entered.promise;
+  const stored = () => studio.database.prepare("SELECT status, attempt, input_json FROM jobs WHERE id = ?").get(receipt.jobId) as { status: string; attempt: number; input_json: string };
+  const before = stored();
+  assert.equal(before.status, "queued"); assert.equal(before.attempt, 0);
+  assert.equal(JSON.parse(before.input_json).actorId, "original-actor"); assert.equal(f.requests.length, 0);
+  const stop = studio.worker.stop.bind(studio.worker);
+  t.mock.method(studio.worker, "stop", () => { stop(); stopped.resolve(); });
+  const closing = original.host.close();
+  await stopped.promise; release.resolve(); await Promise.all([closing, draining]);
+  const reopened = await f.open("new-reader");
+  await reopened.bound.invoke(a.bootstrap, {});
+  const reopenedOwner = Reflect.get(reopened.host, "alchemist") as { get(caller: ActionCallContext): AlchemistStudioRuntime };
+  const current = reopenedOwner.get(reopened.caller);
+  await current.runPending();
+  assert.deepEqual(current.database.prepare("SELECT status, attempt, input_json FROM jobs WHERE id = ?").get(receipt.jobId), before);
+  assert.equal(f.requests.length, 0, "opening and querying the new Host cannot dispatch the persisted job");
+  const view = await reopened.bound.invoke(a.runResume, { id: receipt.jobId });
+  assert.equal(view.canContinue, true);
+  await reopened.bound.invoke(a.runContinue, { id: receipt.jobId, confirmation: view.confirmation });
+  await current.runPending();
+  assert.equal((await reopened.bound.invoke(a.runEvents, { id: receipt.jobId })).status, "completed");
+  assert.equal(f.requests.length, 1); assert.equal(f.requests[0]!.actorId, "new-reader");
+  const input = current.database.prepare("SELECT input_json FROM jobs WHERE id = ?").get(receipt.jobId) as { input_json: string };
+  assert.equal(JSON.parse(input.input_json).actorId, "original-actor", "execution authority does not rewrite the historical author");
 });
 
 test("W5-01-ALC-LIFE-03/05: public Host close retries the retained studio database without re-closing unrelated resources", async t => {

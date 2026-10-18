@@ -14,11 +14,11 @@
 
 公开研究通过宿主 Search Evidence Layer 收集实际 URL 和摘要；市场脉搏保留 Toolify、Watcha、GitHub 来源，界面在市场脉搏列表里写明采集会联网访问这三个站点；GitHub 来源只带用户在「来源设置」里选定的那个「设置 › 服务连接」GitHub 账号的令牌，没选就匿名访问（限额较低），不读环境变量；令牌不交给插件：宿主经 `pulseGithub.fetch` 在请求发往 `api.github.com` 时加上请求头（`SafePublicHttpClient` 的 `fetch` 选项，插件自己不建这个头，`source-adapters.test.ts` 扫源码保证），`pulseGithub.read/select` 只列账号与选择（动作 `alchemist.pulse.github`、`alchemist.pulse.github.configure`：只有 user 受众，声明在 Home 作用域（`scope: "home"`），权限是自己的 `alchemist:connections:read/write`，和 Images 的 `connections.*` 一样；绑定记在连接登记表 `home/alchemist/pulse-github`，是整个 Home 共用的一条，在任一项目里选的账号所有项目都用，来源设置对话框也写明「所有项目共用」；这两个动作由 `createAlchemistActionHandlers` 的 `pulseGithub` 端口直接服务，不需要项目、不打开任何项目的工作室）；界面上的说明与 `docs/platform/NETWORK.md` 第 7 类写的是同一条规则。单次 Lens 的本地计划不消费 AI 调用，执行阶段的搜索、交叉判断和综合计入确认的调用预算。一次搜索计为一个业务调用，包含一次搜索供应商请求和最多三个页面的提取；不是底层 HTTP 请求数。预算不足会产生部分报告，不能作为完整双 Lens 决策依据。供应商费用不可观测，不把调用数换算为金额。
 
-数据按项目存于 `{home}/alchemist/projects/<encoded projectId>/studio.sqlite`。安全检查点可恢复；外部请求已发出但无法确认结果时，任务标记中断，由用户重新研究，避免后台重复消费。停止会中断当前请求并阻止后续阶段。已完成的报告可重新研究，过程中保留上一份报告；新任务失败或取消不会显示成研究完成。
+数据按项目存于 `{home}/alchemist/projects/<encoded projectId>/studio.sqlite`。重启后保留任务与安全检查点，由用户明确点击继续；外部请求已发出但无法确认结果时，先说明可能重复收费，再从最近可恢复阶段执行，仍受原预算约束。停止会中断当前请求并阻止后续阶段。已完成的报告可重新研究，过程中保留上一份报告；新任务失败或取消不会显示成研究完成。
 
 执行中的任务持续续租，其他进程不会因原始租期结束而接管仍在执行的任务。取消或租约丢失后，原执行者停止等待；业务结果和检查点写入在原任务库中校验执行归属。任务状态与事件同事务保存，失败不会留下只有状态、没有对应事件的半次更新。系统动作服务迁移仍在进行，进度见 `specs/action-architecture/migration.md`。
 
-Studio 的 54 项业务已声明为 `alchemistActions`，输入输出验证与目录 JSON Schema 来自同一 Zod 合同。`createAlchemistActionHandlers` 为 Host 提供处理器，`LocalRuntime.actions` 执行原有业务；HTTP 仅负责参数映射、状态码、SSE 和下载。事件读取使用原任务库的一致快照，取消观察不会取消任务。生产 Host 注册这 54 项，HTTP 经同一 Kernel 执行；旧演示数据的只读能力与「历史演示记录」入口已删除（2026-10-02，artifact-positioning P8）；按 Home/项目共享运行时，最后一个 Host 释放才停止。可信调用者身份保留到对象、任务和 Prologue 会话，重启后后台任务继续使用原发起身份。标准 MCP 测试使用真实 Host 和显式 fixture 权限，不能当作生产客户端授权管理完成。旧演示 writer 和生成器已移除，仅保留历史读取及导出。
+Studio 业务由 `alchemistActions` 声明，输入输出验证与目录 JSON Schema 来自同一 Zod 合同。`createAlchemistActionHandlers` 为 Host 提供处理器，`LocalRuntime.actions` 执行原有业务；HTTP 仅负责参数映射、状态码、SSE 和下载。事件读取使用原任务库的一致快照，取消观察不会取消任务。生产 Host 注册同一动作清单，HTTP 经同一 Kernel 执行；旧演示数据的只读能力与「历史演示记录」入口已删除（2026-10-02，artifact-positioning P8）；按 Home/项目共享运行时，最后一个 Host 释放才停止。可信调用者身份保留到对象、任务和 Prologue 会话；重启后的任务保留历史作者，但需当前调用者明确继续并获得本轮权限才能执行。标准 MCP 测试使用真实 Host 和显式 fixture 权限，不能当作生产客户端授权管理完成。旧演示 writer 和生成器已移除，仅保留历史读取及导出。
 
 `src/studio` 是迁入后的唯一实现来源，不依赖原仓库路径。UI 使用宿主 plugin-stage、设计 token、列表与详情、对象侧面板及原生对话框；不再发布独立 React 页面或插件 iframe。业务 API 和已有数据原样保留，模型接入仍使用 Prologue。凭据只由宿主管理，不进入业务数据库或导出。此插件不自动创建 Goal 或修改其他插件。
 
@@ -50,7 +50,7 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
 
 LocalWorker 经 Plugin SDK 共用执行生命周期：本地关闭、取消和失租都禁止迟到的业务提交、检查点和终态写入，并停止续租。关闭后的未决外部调用保留原检查点，恢复仍由 Alchemist 判断，不自动重复模型请求。
 
-前台调用逐次传递原 `signal/beforeEffect/assert_authority_current`，模型或来源等待结束后在实际写点复查，并在最后一次等待后同步检查。取消或撤权不产生新的失败回复、研究计划或模型设置；已合法保存的本人消息保留，正常模型失败仍有解释。已接受的后台任务沿原任务生命周期运行，不携带创建调用的临时授权。页面通过共享 UI 生命周期管理事件、读取与轮询，隐藏停读、卸载取消，系统搜索可按对象 ID 跨集合与过滤打开。
+前台调用逐次传递原 `signal/beforeEffect/assert_authority_current`，模型或来源等待结束后在实际写点复查，并在最后一次等待后同步检查。取消或撤权不产生新的失败回复、研究计划或模型设置；已合法保存的本人消息保留，正常模型失败仍有解释。已接受的后台任务保留本次真实调用的持续授权，正常 HTTP 响应结束后仍可执行；撤权、停用或 Host 关闭仍阻止后续派出与业务写入。页面通过共享 UI 生命周期管理事件、读取与轮询，隐藏停读、卸载取消，系统搜索可按对象 ID 跨集合与过滤打开。
 
 固定研究成果的生产 Host 端口尚未接线。报告根据当前成果入口的 availability 禁用「保存固定版本」并解释原因，研究方法复用仍可使用；fixture 端口不代表生产支持，完整固定成果发布与预览仍未完成。
 

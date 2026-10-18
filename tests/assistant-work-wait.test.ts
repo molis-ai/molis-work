@@ -81,6 +81,6 @@ test("waiting on a work returns when its run or its stored facts change, reads i
     assert.equal((await closing).version, drafted.version);
     assert.ok(Date.now() - started < 5_000, "an ended request does not hold the wait");
   } finally {
-    answer.resolve(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true });
+    answer.resolve(); service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true });
   }
 });

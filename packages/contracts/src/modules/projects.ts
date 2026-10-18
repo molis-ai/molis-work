@@ -4,6 +4,7 @@ import { defineErrorCodes, type ActionDefinition, type ActionMetadata } from "..
 // Keep the Catalog's current transport classification; project absence is a 404.
 const projectErrors = defineErrorCodes("catalog", {
   invalid_name: "invalid",
+  plugin_always_on: "invalid",
   plugin_not_found: "invalid",
   project_not_found: "not_found",
   project_storage_invalid: "invalid",
@@ -72,6 +73,8 @@ export interface ProjectPluginRegistry {
   companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
   /** Always-on plugins a project may hide. Absent means none are personal. */
   isPersonal?(pluginId: ProjectPluginId): boolean;
+  /** 常开插件 (the Manifest's `always_on`): on in every project, and no project may hide or remove one. Absent means none are. */
+  isAlwaysOn?(pluginId: ProjectPluginId): boolean;
 }
 
 /** The bundled registry: the ids this build ships with, and their companions. */

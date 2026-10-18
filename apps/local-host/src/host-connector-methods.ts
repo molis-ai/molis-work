@@ -40,7 +40,8 @@ const HOST_METHODS: Readonly<Record<string, readonly ConnectorMethodOption[]>> =
     },
     {
       kind: "mcp", support: "in_app",
-      note: "在 Coding 中填写远程 MCP 服务器 URL，再选择这里保存的账号连接。此入口不执行服务商的 OAuth。",
+      note: "填写远程 MCP 地址，选择免登录、Bearer 或 OAuth；连接后自动发现服务提供的工具。密钥只在受保护表单填写。",
+      mcp: { endpoint: "", client_registration: "dynamic" },
       links: [link("了解 MCP 客户端与服务器", "https://modelcontextprotocol.io/docs/learn/client-concepts")],
     },
   ],
@@ -56,7 +57,9 @@ export function connectorMethodsFor(connectorId: string): readonly ConnectorMeth
     if (method.kind === "mcp" && mcp) return { ...method, support: "in_app",
       login_ready: !mcp.stdio && mcp.auth !== "none" && !mcp.endpoint.includes("{") &&
         (mcp.registration !== "manual" || Boolean(connectorProductAuth(connectorId, "mcp"))),
-      mcp: { endpoint: mcp.endpoint, client_registration: mcp.registration ?? "dynamic" }, note: method.note.replace(/Molis Work 尚未[^。]*。?/gu, "") + " 在这里授权、发现工具并显式调用；服务商资格和许可仍需满足。" };
+      mcp: { endpoint: mcp.endpoint, client_registration: mcp.registration ?? "dynamic",
+        note: `默认地址的认证方式：${mcp.auth === "none" ? "无需鉴权" : mcp.auth === "oauth" ? "OAuth" : mcp.auth === "bearer" ? "Bearer" : "OAuth 或 Bearer"}。client_registration 仅描述 OAuth 客户端注册要求；Bearer 令牌在受保护表单填写。` },
+      note: method.note.replace(/Molis Work 尚未[^。]*。?/gu, "") + " 在这里授权、发现工具并显式调用；服务商资格和许可仍需满足。" };
     return method;
   });
 }

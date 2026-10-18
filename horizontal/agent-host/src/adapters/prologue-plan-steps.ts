@@ -1,11 +1,23 @@
 import type { ExactRef, Runtime } from "@prologue/sdk";
-import type { AgentExecutionPlan, AgentStepAmendment, AgentStepBoard, AgentStepOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard, AgentStepOwner, AgentTurnView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputRef } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { AgentCollaborationPort } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
+import { checkOrigin } from "../input-origin.js";
 
 type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
 type TaskNode = SdkBoard["nodes"][number];
 type Assignee = TaskNode["assignee"];
 type Report = TaskNode["reports"][number];
+/** The round's inputs as its record has them right now. */
+export type RoundLedger = () => readonly AgentTurnView[];
+
+/**
+ * The collaboration port as the runtime gives it to the adapter: a change to the plan also gets the round's own input
+ * ledger, so a new step's supplement is checked again right before the board takes the step (specs/ai-input-receipts 3d-5).
+ */
+export type PlanCollaborationPort = Omit<AgentCollaborationPort, "revise"> & {
+  revise(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string, ledger: RoundLedger): Promise<AgentStepBoard>;
+};
 
 /**
  * Where a confirmed plan's steps are (specs/prologue-adoption §4.6.10, the user's B): on the project's work board, in
@@ -142,7 +154,8 @@ export function shape(runtime: Runtime, board: SdkBoard, place: PlanPlace, sessi
         return { note: reportNote(runtime, report, session), at_ms: report.atMs, ...(by ? { by } : {}), ...(report.handover ? { handover: true as const } : {}),
           ...(report.inputs?.length ? { inputs: inputRefs(report.inputs) } : {}) }; }),
       owner: claimOf(runtime, node, session, alive),
-      title: title(node, place), depends_on: node.dependsOn.flatMap(dep => localId(place, dep) ?? []), ...(local(node.id).startsWith("user-") ? { inserted: true } : {}) })) };
+      title: title(node, place), depends_on: node.dependsOn.flatMap(dep => localId(place, dep) ?? []), ...(local(node.id).startsWith("user-") ? { inserted: true } : {}),
+      ...(node.origins?.length ? { origins: inputRefs(node.origins) } : {}) })) };
 }
 
 /** The inputs a report is about, as the runtime recorded them (pointers only; the session owns the inputs). */
@@ -156,7 +169,7 @@ function inputRefs(refs: readonly { session: string; input: string }[]): AgentIn
  * (what changed in other sessions' blocks does not stop them); each write gives the board's version as it is then, and
  * the SDK compares only the steps it touches (P2k).
  */
-export async function amendPlan(runtime: Runtime, place: PlanPlace, amendment: AgentStepAmendment, expectedVersion: number, actor: string, roundSession: ExactRef<"session"> | undefined): Promise<SdkBoard> {
+export async function amendPlan(runtime: Runtime, place: PlanPlace, amendment: AgentStepAmendment, expectedVersion: number, actor: string, roundSession: ExactRef<"session"> | undefined, ledger: RoundLedger): Promise<SdkBoard> {
   const ref = place.ref;
   let board = runtime.boards.get(ref);
   if (finished(board, place)) throw new Error("任务图已经结束，不能再调整；请调整计划后开始新一轮");
@@ -194,9 +207,16 @@ export async function amendPlan(runtime: Runtime, place: PlanPlace, amendment: A
       const anchor = node(amendment.after);
       const heading = text(amendment.title, "步骤", 120), acceptance = text(amendment.acceptance, "完成条件", 300);
       const id = fullId(place, `user-${planNodes(board, place).filter(entry => localId(place, entry.id)!.startsWith("user-")).length + 1}`), after = dependents(anchor.id);
-      // An inserted step is the round's to do, or the person's own when they take it on.
+      // An inserted step is the round's to do, or the person's own when they take it on. One added for a supplement points
+      // at it: the board records the pointer, the session keeps the input. The round's own ledger is read once more right
+      // before the board takes the step, with no wait between, so one taken back in the meantime is refused and nothing
+      // is written. The SDK queues the write behind any earlier one on the same board; taken back while it waits there
+      // counts as taken back after: the step stays, and the receipt shows the input withdrawn.
       const holder = amendment.mine ? person : roundSession;
-      board = await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version, node: { id, title: heading, parent: place.prefix, dependsOn: [anchor.id], onFailure: "block-for-human", ...(holder ? { assignee: holder } : {}) } });
+      if (amendment.origin !== undefined && !roundSession) throw new Error("这一轮没有会话记录，新步骤不能指向补充");
+      const origins = amendment.origin === undefined ? {} : { origins: [{ session: roundSession!.id, input: amendment.origin }] };
+      if (amendment.origin !== undefined) checkOrigin(amendment.origin, ledger());
+      board = await runtime.boards.addNode({ ref, expectedVersion: runtime.boards.get(ref).version, node: { id, title: heading, parent: place.prefix, dependsOn: [anchor.id], onFailure: "block-for-human", ...(holder ? { assignee: holder } : {}), ...origins } });
       await report(id, `用户插入：${heading}；完成条件：${acceptance}${amendment.mine ? "；由用户处理" : ""}`);
       for (const next of after) await rewire(next, replaced(node(next).dependsOn, anchor.id, [id]));
       break;

@@ -16,6 +16,8 @@ const TURNS = [
   { turn_id: 't7', kind: 'user', text: '先别动公开接口', steer: { id: 'steer-7', state: 'withdrawn' } },
   { turn_id: 't8', kind: 'notice', text: '这一轮被中断，宿主按你的要求接着做。', steer: { id: 'steer-8', state: 'read' } },
 ];
+/** Coding's plan as the receipt reads it: the step a person added for steer-3 (stage 3d-4, what the board records). */
+const BOARD = { nodes: [{ state: 'running', reports: [] }, { state: 'not-started', title: '注册接口失败路径测试', inserted: true, origins: [{ session_id: 's', input_id: 'steer-3' }], reports: [] }] };
 
 const STATIC_STYLES = `
 .mw-rc-specimens{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:24px;align-items:start}
@@ -45,11 +47,11 @@ export function renderInputReceiptsExample(): string {
   <div class="mw-rc-controls"><button type="button" class="mw-btn mw-btn--secondary" data-rc-step>推进一步</button><span>状态区最近说的：<output data-rc-said>（还没有）</output></span></div>
   <script>(()=>{const coding=document.querySelector('[data-rc-coding]'),assistant=document.querySelector('[data-rc-assistant]');if(!coding||!assistant)return;
     const L=globalThis.L||(text=>text),ui=(${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
-    const turns=${JSON.stringify(TURNS)};
+    const turns=${JSON.stringify(TURNS)},board=${JSON.stringify(BOARD)};
     const act={withdraw:async id=>{turns.find(turn=>turn.steer.id===id).steer.state='withdrawn';setTimeout(paint);},
       correct:async(about,text)=>{const n=turns.length+1;turns.push({turn_id:'t'+n,kind:'user',text,steer:{id:'steer-'+n,state:'received',about}});setTimeout(paint);}};
     const paint=()=>{coding.replaceChildren();assistant.replaceChildren();for(const turn of turns){
-      const node=document.createElement('article');node.dataset.kind=turn.kind;node.textContent=turn.text;const a=ui.line(coding,turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[]},act);if(a)node.append(a);coding.append(node);
+      const node=document.createElement('article');node.dataset.kind=turn.kind;node.textContent=turn.text;const a=ui.line(coding,turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[],step_board:board},act);if(a)node.append(a);coding.append(node);
       const bubble=document.createElement('p');bubble.className='msg';bubble.dataset.kind=turn.kind;bubble.textContent=turn.text;assistant.append(bubble);const b=ui.line(assistant,turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[]},act);if(b)assistant.append(b);
       if(turn.open){a?.setAttribute('open','');b?.setAttribute('open','');delete turn.open;}}};
     paint();

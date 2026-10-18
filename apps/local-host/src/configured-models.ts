@@ -53,7 +53,7 @@ export function modelCredentialMetadata(home: string, provider: Pick<ModelProvid
   if (!existsSync(join(home, "connectors", "connectors.db"))) return absent;
   return withConnectorConnections(home, store => {
     const connection = store.list("model-api").find(row => row.credential_ref === provider.credential_ref);
-    if (!connection || connection.disconnected_at) return absent;
+    if (!connection || !connection.enabled || connection.disconnected_at) return absent;
     // The key goes only to the address its connection was pinned to when it was chosen.
     if (store.targetOrigin(connection.connection_id) !== new URL(provider.base_url).origin) return absent;
     return { available: true, revision: connection.updated_at };

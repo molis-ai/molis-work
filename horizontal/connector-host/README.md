@@ -48,8 +48,9 @@ node scripts/run-tests.mjs tests/feed-receive-chain.test.ts
 - 公开入口：`@molis-ai/molis-work-service-connector-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/connector-host`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 密钥正文只在安全适配器里出现。
+  - 密钥正文只在安全适配器里出现。token 的规范化与格式校验由连接 owner 提供，授权暂存与正式保存复用它，错误输入不能成为待激活的凭据。
   - 超时、驱动缺失等调用错误不能转成“同步成功”。
+  - 最近连通检查与业务调用分别由 `ConnectorObservationStore` 保存技术事实，绑定当时的连接修订；不存参数、返回正文或秘密，不将历史检查当作新的配置已连通。
   - 不把各 Provider 的协议复制进 Host。
 - 改动后必跑：`node scripts/run-tests.mjs tests/feed-receive-chain.test.ts tests/plugin-runtime-integration.test.ts tests/connector-connections.test.ts`
 - 相关手册：[docs/horizontal/connector-host.md](../../docs/horizontal/connector-host.md)、[skills/molis-plugin-dev/integrations.md](../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -43,7 +43,7 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
 | 补充的边界语义 | SDK `loop-boundary`、`loop-reply`、`compaction-history`：下一模型边界一次带上全部排队补充；有排队时不自然收工；压缩时保留补充 | 真 |
 | 打断（当轮作废，同一 Run 继续） | SDK `steer({interrupt:true})` | SDK 有，Molis 没接 |
 | 回答与补充分开 | `{kind:"answer", pending_id, pending_revision}` | 真 |
-| 人工修订 TaskBoard（插入、跳过、换序、指派、解除阻塞、裁定），带版本 | `agent.collaboration.revise.v1`（2026-10-17 P4-C2 起，换下 `agent.run.step-board.amend.v1`）；Coding 计划修订 | 真；修订后用一条 steer 告诉运行中的这一轮 |
+| 人工修订 TaskBoard（插入、跳过、换序、指派、解除阻塞、裁定），带版本 | `agent.collaboration.revise.v2`（2026-10-17 P4-C2 起以 v1 换下 `agent.run.step-board.amend.v1`；3d-3 起加 insert 的 `origin`，升到 v2）；Coding 计划修订 | 真；修订后用一条 steer 告诉运行中的这一轮 |
 | 恢复 | `inspectRecovery` / `recoverRun`；Coding「核对并继续」 | 真：未终态 Run 标需核对、不重放；未读到的补充显示「未确认应用」 |
 | Coding 的回执文案与报告里的「补充要求」一节 | `plugins/native/coding/src/client.ts`、`report.ts` | 真，但措辞容易被误读 |
 | 助理发送幂等，失败保留草稿 | `assistant_requests` 表与 `request_id` | 真 |
@@ -856,6 +856,41 @@ interface AgentInputView {
   - RCPT-347：步骤对话框只为 Coding 对话里画出了回执的补充出按钮；点它时对话框先关上（`tests/coding-step-receipt-link.test.ts`）。
   - RCPT-348：同一条补充在两个面上各画一份，是两个元素，重画时各自保留；更正之后两份都更新；`link` 只找自己那个面上的，没画过的面给 null；托盘只列自己那个面上的回执；不重复播报（`tests/input-receipts-client.test.ts`）。助理把对话线程交给回执当面，而不是回执所在的那一轮（`tests/assistant-receipts-client.test.ts`）。
 
+**3d-3 实现记录（2026-10-18，§4.5 前两条、D2、D23；统筹 10-18 定）：**
+
+- **AI 说的新任务先是提议（D2）。** AI 对一条补充说「作为新任务」（`model_claim.treatment` 为 `new-task`），计划卡在步骤下面加一行虚线的提议：「AI 说这是新任务，待你确认」、补充原话、「加进计划」。它是 AI 的说法，和回执里「AI 自己说的」同一类，不是步骤，不改事实。只有计划还能改（这一轮在跑，或是最新一轮、图没结束）才出现；已有步骤指向它的不再出现。点「加进计划」打开和「在后面插入一步」同一张表单，标题先填补充原话，完成条件由人写，提交走人插入步骤的同一条路，接在最后一步后面。AI 没有任何路径能自己加步骤：一轮自己的 `board-revise` 仍被 `molis-confirmed-plan-scope` 拒掉，说法本身也不加步骤。
+- **步骤指向它来自的补充（D23）。** 人的插入可以带 `origin`：一条输入的编号，只能一条。宿主在 `agent.collaboration.revise` 的处理器里核：读这一轮自己的记录，它必须是这一轮的补充、没有撤回；伪造的、别的会话或别的轮次的、撤回了的都拒（`agent.input_not_origin`），拒在碰板之前，板上和业务记录里什么都不写。核过的交给 SDK 的 `addNode` 作为节点的 `origins`（会话取这一轮的 SDK 会话，不信请求里的会话或项目）。`AgentStepBoard` 的节点投出 `origins`，照 SDK 板上记的原样，不给就是没有，这就是 D23 说的「这时再投」。
+- **徽标。** 指向补充的步骤，在计划卡和 TaskBoard 上都显示「来自补充「…」」，点开回到对话里那条回执。两处用同一份：Coding 的回执脚本给一个 `from(node, first)`，里面是共用回执的 `link`（3d-2 的那个按钮，加了 `lead` 参数，换成「来自补充「」）；对话里没画出那条回执就没有按钮。从 TaskBoard 点时先关上 TaskBoard、回到对话。
+- **合同。** `agent.collaboration.revise` 的输入加了 `amendment.origin`，按 `specs/prologue-adoption` §4.6.9「形状变了就升 version」升到 v2（快照删 v1 行、加 v2 行）；唯一的调用方是 Coding 的计划修订路由，同一个 PR 里改。`AgentStepBoard` 节点加 `origins?`（`pnpm api:update`）。
+- **字节。** 先在片内抵：计划卡的 `stepOf`、`skipped`、`settled` 和 TaskBoard 的一模一样，改成计划卡用 TaskBoard 的那一份（经端口交过去，`client.ts` 里计划卡的构造挪到 TaskBoard 之后，行数不变），「在后面插入一步」和「加进计划」共用一个插入表单，提议行与样式各压成一条，计划卡的样式挪到卡旁（`styles.ts` 不再变长）。剩下的对照 3d-2：`molis-work-plugins/coding.js` +737（提议行与「加进计划」、徽标、`origin` 校验），两份样式表各 +147（虚线提议行），`molis-work-workbench.js` +10（`link` 的 `lead`）。用户 10-18 在回执线会话的弹窗里一次性批准；放行写成单独的提交，按 merge-base（main 8fcff0442，#688、#696 之后）定键，3d-2 的两条移进用过的名单。
+- **BL-161。** TaskBoard 按 `node.id` 编号、计划卡按位置编号，插入一步后两边对不上；按统筹要求只记进 BACKLOG，不在这一片里改。
+- **验收编号与证据：**
+  - RCPT-349：插入只能带一条输入的编号，别的写法在 schema 和 Coding 的路由就被拒；宿主拒伪造的、别的会话的、撤回了的，拒时修订一次都没交下去；这一轮自己读到的照常交下去（`tests/agent-collaboration-revise.test.ts`、`tests/coding-plan-amend-http.test.ts`）。
+  - RCPT-350：真实运行时里，人加的步骤在板上指向那条补充，会话是这一轮的会话，运行视图读回同一份（`tests/prologue-board-origins.test.ts`）。
+  - RCPT-351：反例。AI 说「作为新任务」、再自己用 `board-revise` 加一步并指向它，宿主拒掉，板上还是原来那一步，没有指向（同上）。
+  - RCPT-352：计划卡只为还没有步骤指向的新任务出虚线的提议，别的说法和已加过的不出；说法本身不加步骤；只有点「加进计划」才发人的插入，带着那条补充；计划结束后不再提议（`tests/coding-board-origins.e2e.test.ts`）。
+  - RCPT-353：指向补充的步骤在计划卡和 TaskBoard 上是同一个「来自补充「…」」按钮；从 TaskBoard 点时先关上它再打开回执（同上；`link` 的 `lead` 在 `tests/input-receipts-client.test.ts`）。
+
+**3d-4 实现记录（2026-10-18，§4.3「改变了什么」、D21；统筹 10-18 定）：**
+
+- **记录里的步骤。** 回执详情在事实一侧加「为它加的步骤」：板上 `origins` 指向这条补充的步骤，写它在计划卡上的编号（S1、S2…，人插入的写「插入」）、标题、人加的（节点的 `inserted`）、现在的状态（节点的 `state`，措辞和计划卡一样：完成和失败写「模型报告完成」「模型报告失败」，是报告，不是核对）。每一项都只取板记录里现成的：没有标题就不写标题，不是人插入的就不写「你加的」。加入的时间和板版本不写：板上不记一个节点在哪一版、什么时候加入，从报告的时间或次序推算就是猜。不写「已生效」。
+- **两边各自标明。** 详情里同时有 AI 的说法（处理说明或步骤报告）时，事实一侧加「记录里的」小标题，AI 一侧仍是「AI 自己说的，Molis 没有核对」；只有事实时不加。
+- **一处读板。** 读板的部分（步骤编号、引用它的报告、为它加的步骤）挪到 `readBoard`，和托盘、纠正一样交给回执的页面程序（`createInputReceipts` 不再变长）。步骤状态的措辞放进共用措辞表 `RECEIPT_WORDS.STEP`，是合同里的闭集。Coding 不用改：它交给回执的就是这一轮的整个 `step_board`。规格板的 Coding 示例加了一个为补充插入的步骤。
+- **字节。** 对照 main（#702、#701 合入后为 a56a2763d）：`molis-work-workbench.js` +889（为它加的步骤、「记录里的」小标题、步骤状态的措辞表与读板，加上交给计划卡的 `step`）；`molis-work-plugins/coding.js` −253（计划卡删掉自己的措辞表）。片内试过：英文词典里已有的几条不重复（它不在这份脚本里，字节没少）、两次遍历板合成一处（多 1 B，撤回）。用户 10-18 在统筹的弹窗里一次性批准 +889（替换先批的 +860）；放行写成单独的提交，按 merge-base 定键，3d-3 的四条移进用过的名单。
+- **没做的。** 文件归因（一条补充改了哪些文件）记为 BL-162：审查记录不带步骤、调用和时间，要上游给调用归因，这一片不绕路。`prompts.ts` 的处理说明使用指令记为 BL-163，交 AI 手册线评估（统筹 10-18 定）。
+- **验收编号与证据：**
+  - RCPT-354：为补充加的步骤在事实一侧，写编号、标题、你加的、现在的状态；有 AI 说法时两边各有标题，步骤不在 AI 一侧；状态变了原地重画；只有事实时不加标题（`tests/input-receipts-client.test.ts`）。
+  - RCPT-355：只写板记录里有的：没有标题、不是人插入的就都不写；不写板版本、加入时间和「已生效」；为别的补充加的步骤、这次没读到的板都不显示（同上）。
+  - RCPT-356：步骤状态只有一份措辞：回执把 `RECEIPT_WORDS.STEP` 经 `host.receipts.step` 交出去，Coding 的计划卡删掉自己的 `LABEL`、改用它（统筹 10-18 定，属防腐；coding.js 只变小）（`tests/input-receipts-client.test.ts`、`tests/coding-state-rings.e2e.test.ts`）。TaskBoard 的状态表把未开始写成「等待前置」，和这里不一样，记为 BL-164。
+
+**3d-5 实现记录（2026-10-18，D2、D23；统筹 10-18 定，不记 BL）：**
+
+- **缺口。** 3d-3 的宿主在 `agent.collaboration.revise` 等调用变成现行（`beforeEffect`）之前就核了来源；等的时候那条补充被撤回，插入照样成功，板上的 `origins` 指向一条撤回了的输入。防腐线复查时复现。
+- **两处核。** 处理器先等调用现行，再按这一轮的记录核来源。运行时在插入里再核一次：读这一轮自己的输入账本（适配器按运行时推来的事件维护的那份），紧贴着 `addNode`，中间不隔 `await`。核不过都抛 `agent.input_not_origin`，板上和业务记录都不写。核来源的函数只有一份（`horizontal/agent-host/src/input-origin.ts`），宿主和运行时共用；运行时那一次经内部端口的 `revise` 把账本交下去，合同不变。
+- **照实写的边界。** SDK 的 `addNode` 把写入排在同一张板上更早的写入后面（`serially`），排队时会跨 `await`。在它排队之后才撤回的，算「撤在之后」：步骤留着，回执照实显示那条补充已撤回、这一步指向它。适配器的账本跟着运行时的事件走，运行时撤回了、事件还没推到时也算之后。
+- **验收编号与证据：**
+  - RCPT-357：插入在等调用现行时那条补充被撤回，宿主拒（`agent.input_not_origin`），板的版本和步骤都没变、没有步骤指向它；绕过宿主直接交给运行时，运行时按自己的账本同样拒、同样不写（`tests/prologue-origin-withdraw-race.test.ts`）。
+
 ### 阶段 4：产品对象与 Goals 层
 
 依赖：PR #340 合入；W3-01 调用编号。
@@ -1006,9 +1041,9 @@ interface AgentInputView {
 
 | # | 事项 | 结论 | 理由 |
 | --- | --- | --- | --- |
-| D21 | 「观察到的影响」（板版本差、逐轮变更、调用归因）放在哪一片 | 挪到 3d；3a 只投模型自称的影响，类型上标明是自称 | 它离不开 Coding 的变更集与计划板，只在界面里与自称的影响并排才有意义 |
+| D21 | 「观察到的影响」（板版本差、逐轮变更、调用归因）放在哪一片 | 挪到 3d；3a 只投模型自称的影响，类型上标明是自称 | 它离不开 Coding 的变更集与计划板，只在界面里与自称的影响并排才有意义。3d-4 做了板记录里的那一半：为补充加的步骤写在回执的事实一侧；文件归因要上游给调用归因，记为 BL-162（统筹 10-18 定） |
 | D22 | §6.2 的完整 `AgentInputView` 组合视图 | 放到 3c，按组件实际读的形状定 | 不在合同里先落一块没人读的东西 |
-| D23 | 板节点的 `origins`（这一步因哪条输入而来）投不投 | 3a 不投，只投报告的 `inputs` | Molis 不许一轮改它确认过的计划（`molis-confirmed-plan-scope` 拒 `board-revise`），节点在 Molis 里还不会因输入而来；3d 的「新任务提议」定下一步怎么落到板上时再投（实现时发现，统筹认可的方案里原有此项） |
+| D23 | 板节点的 `origins`（这一步因哪条输入而来）投不投 | 3a 不投，只投报告的 `inputs` | Molis 不许一轮改它确认过的计划（`molis-confirmed-plan-scope` 拒 `board-revise`），节点在 Molis 里还不会因输入而来；3d 的「新任务提议」定下一步怎么落到板上时再投（实现时发现，统筹认可的方案里原有此项）。3d-3 投了：人为一条补充加的步骤带 `origins`，由宿主核过（统筹 10-18 定） |
 
 **2026-10-16 统筹定（阶段 3c 方案；字节一项由用户 10-16 弹窗批准）：**
 

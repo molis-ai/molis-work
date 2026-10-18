@@ -65,7 +65,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: an Inbox entry and a 灵
   // 灵光: what is on screen, including words not saved yet, becomes the todo; the spark stays where it is.
   await load("", "lingguang");
   // Beside the project on a wide screen; from the plugin switcher on a narrow one.
-  await click(await evaluate(visible("[data-bar-resident=lingguang]")) ? "[data-bar-resident=lingguang]" : "[data-plugin-picker-popover] [data-plugin-id=lingguang]");
+  await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor("document.body.dataset.desktopSurface === 'lingguang'");
   await surfaceReady("lingguang");
   await evaluate(`document.querySelector("[data-lingguang-capture]").click()`);

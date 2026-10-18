@@ -161,7 +161,7 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     service.saveMemoryPrefs({ form: true, use_personal: false });
     const noPersonal = await round("再来一次", projectA, "req-memory-009");
     assert.doesNotMatch(recalled(noPersonal.first), /回答用要点列表/);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("recall words cover Chinese two-character pieces and Latin words", () => {
@@ -231,7 +231,7 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
     await until(async () => { const v = await service.read(first.work.work_id); return v.rounds.length === 4 && v.work.state === "completed"; }, "fourth");
     assert.match(JSON.stringify(requests.at(-1)), /已经建议过了/);
     assert.equal((await service.memoryCandidates()).length, 0);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("memory switches hold the same when a Character carries the round; turning off learning keeps what this work was told", { timeout: 90_000 }, async t => {
@@ -307,7 +307,7 @@ test("memory switches hold the same when a Character carries the round; turning 
     const next = await round({ text: "按刚才的要求改标题", request_id: "req-mc-4", work_id: on.work.work_id }, 4);
     assert.match(JSON.stringify(next.first.messages), /标题都不超过十个字/);
     assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["回答用要点列表", "先列问题再给改法"], "kept memories stay; nothing new was kept");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a claim of keeping made before the call that then failed is held at the end too (seen with MiniMax-M3)", { timeout: 90_000 }, async t => {
@@ -362,7 +362,7 @@ test("a claim of keeping made before the call that then failed is held at the en
     assert.match(reviewed, /earlier[^}]*记下了：以后周报都用表格/, "what was said before the last answer is given as earlier");
     assert.match(done.rounds[0]!.turns.filter(turn => turn.kind === "assistant").at(-1)!.text ?? "", /没有记下/);
     assert.deepEqual(await service.memories(null), [], "nothing was kept");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a round that could not start used no memory: its recall is settled as not used, and nothing of it is carried to the round that does start", { timeout: 90_000 }, async t => {
@@ -402,7 +402,7 @@ test("a round that could not start used no memory: its recall is settled as not 
     await service.send({ work_id: workId, text: "总结一下", request_id: "req-memory-start-3" }, {});
     await until(async () => { const v = await service.read(workId); return v.rounds.length === 2 && v.work.state === "completed"; }, "second round");
     assert.equal(store.rounds(workId)[1]!.memory_receipt, undefined);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("remember takes 'you said' only from the person's own messages in this work, whole; forget switches a memory off instead of deleting it", { timeout: 90_000 }, async t => {
@@ -437,7 +437,7 @@ test("remember takes 'you said' only from the person's own messages in this work
     assert.deepEqual((await tools.list()).map(entry => entry.text), ["（已停用）以后周报都先写风险，别放最后"]);
     const [change] = memory.changes(person, { scope: "project" });
     assert.deepEqual([change!.kind, change!.by, change!.undoable, change!.work?.work_id], ["disabled", "assistant", true, work.work_id]);
-  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("remember records 'you said' only for the whole of a message: a fragment, a clause, or their words about something else leave a suggestion and never the person's memory", { timeout: 90_000 }, async t => {
@@ -473,7 +473,7 @@ test("remember records 'you said' only for the whole of a message: a fragment, a
     await assert.rejects(service.memoryTools(other)!.remember!({ text: "周报最后写风险", scope: "project", said: "记住", replaces: kept.memory_id }), /没有直接记住/);
     assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["以后周报都先写风险，别放最后，记住了"]);
     assert.deepEqual((await memory.list(person)).items.map(item => item.source), ["said"]);
-  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("remember checks all of the text against the person's message, however long it is, and keeps an English request honest: an added clause, a clause taken alone and a restatement are suggestions, the message whole is theirs", { timeout: 90_000 }, async t => {
@@ -524,7 +524,7 @@ test("remember checks all of the text against the person's message, however long
     assert.deepEqual((await memory.list(person)).items.filter(item => item.memory_id === sentence.memory_id).map(item => [item.text, item.source]), [[both, "said"]]);
     assert.deepEqual((await memory.candidates(person, { scope: "personal" })).map(item => [item.text, item.basis]).filter(([text]) => /问我/.test(text!)),
       [["删文件前不用问我", "inferred"], ["改名前要问我", "inferred"], ["改名前不用问我", "inferred"]], "each of the clauses waits as the Assistant's suggestion");
-  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("remember judges the text against the messages the Host saved, not against the quote the model gives: every reversed, narrowed or added request found in review leaves a suggestion and never the person's words; the message whole is theirs", { timeout: 120_000 }, async t => {
@@ -574,7 +574,7 @@ test("remember judges the text against the messages the Host saved, not against 
     await assert.rejects(service.memoryTools(twice("两次也不一样", "自动清理旧快照", "自动清理旧快照的功能怎么样了"))!.remember!({ text: "自动清理旧快照", scope: "project", said: "自动清理旧快照" }), /没有直接记住/);
     const agreed = await service.memoryTools(twice("两次一样", "自动清理旧缓存", "自动清理旧缓存。"))!.remember!({ text: "自动清理旧缓存", scope: "project", said: "自动清理旧缓存" });
     assert.equal((await memory.list(person)).items.find(entry => entry.memory_id === agreed.memory_id)!.source, "said");
-  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("remember cannot turn a memory the gate kept itself into the person's words with a short reply that carries none of the text, even when it names that memory as the one it corrects", { timeout: 90_000 }, async t => {
@@ -606,7 +606,7 @@ test("remember cannot turn a memory the gate kept itself into the person's words
     assert.deepEqual((await memory.list(person)).items.map(item => [item.text, item.source]), [["周报都抄送老王", "auto"]]);
     assert.equal(memory.changes(person, { scope: "personal" }).find(item => item.change_id === auto.change_id)!.undoable, true, "and the gate's own write can still be taken back");
     assert.deepEqual((await memory.candidates(person, { scope: "personal" })).map(item => [item.text, item.basis]), [["周报抄送老王", "inferred"]], "the correction waits as the Assistant's suggestion");
-  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a delegated sub-task is given neither remember nor forget: its words are the delegating work's brief, not the person's", { timeout: 90_000 }, async t => {
@@ -657,7 +657,7 @@ test("a delegated sub-task is given neither remember nor forget: its words are t
     assert.match(JSON.stringify(childReplies[0].messages), /no tools to keep or forget memories/, "the held claim says it cannot, instead of telling it to call a tool it was not given");
     assert.doesNotMatch(JSON.stringify(childReplies[0].messages), /Call remember now/);
     assert.deepEqual(await service.memories("project-a"), [], "nothing the brief said was kept as the person's");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a timed round is written by the Host: it is marked, it is not among the person's words, and a remember that quotes it is only a suggestion", { timeout: 90_000 }, async t => {
@@ -703,9 +703,9 @@ test("a timed round is written by the Host: it is marked, it is not among the pe
     assert.equal((await memory.list(person)).items.find(item => item.memory_id === kept.memory_id)!.source, "said");
 
     // What learning from the finished timed round is handed is what the person typed, not the timed round's own text.
-    const handed = await until(async () => { await service.list(); return learned.find(item => item.work === workId); }, "learning handed over");
+    const handed = await until(async () => { await service.list(); return learned.find(item => item.work === workId && item.run === rounds[1]!.run_id); }, "timed learning handed over");
     assert.deepEqual([handed.run, handed.said], [rounds[1]!.run_id, ["帮我跟进今天的工作"]]);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("G13: a supplement the person types while a round runs is theirs: remember keeps it as said, and learning is handed it, read from the runtime's own input record", { timeout: 90_000 }, async t => {
@@ -744,7 +744,7 @@ test("G13: a supplement the person types while a round runs is theirs: remember 
     assert.deepEqual((await memory.list(person)).items.find(item => item.text === typed)?.source, "said", "the words typed mid-round are the person's");
     const handed = await until(() => learned.at(-1), "learning handed over");
     assert.deepEqual(handed.said, ["帮我整理这周的周报", typed]);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("remember keeps what the person wrote and nothing the model changed: a superscript or an invisible character in the text, and a message that differs from an automatic memory by a comma, a symbol or a question mark, never make a memory theirs that says something else", { timeout: 120_000 }, async t => {
@@ -802,7 +802,7 @@ test("remember keeps what the person wrote and nothing the model changed: a supe
     const kept = await service.memoryTools(start("英文", wrote))!.remember!({ text: "reply  in 「chinese」.", scope: "personal", said: "reply in chinese" });
     const item = (await entries()).find(entry => entry.memory_id === kept.memory_id)!;
     assert.deepEqual([item.text, item.source, item.evidence.map(evidence => evidence.text)], [wrote, "said", [wrote]]);
-  } finally { await adapter.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a full round: the model asks to remember a text with a superscript where the person typed plain digits; the tool refuses it as theirs, the model is told, and nothing is kept as the person's words", { timeout: 90_000 }, async t => {
@@ -846,7 +846,7 @@ test("a full round: the model asks to remember a text with a superscript where t
     await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "second round");
     assert.deepEqual((await service.memories("project-a")).map(item => item.text), ["单笔超过105元的报销都要问我"]);
     assert.equal(again.work.work_id, sent.work.work_id);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("words the page writes itself (a canned note, a request a plugin sends for the person) are marked when the round is written: a remember that copies them whole is only a suggestion, while the same words typed by the person are theirs", { timeout: 120_000 }, async t => {
@@ -919,5 +919,5 @@ test("words the page writes itself (a canned note, a request a plugin sends for 
     await until(() => learned.length >= 5 ? learned : undefined, "learning handed over");
     assert.deepEqual(learned.find(item => item.said.includes(typed))?.said, ["帮我处理一下转账", typed]);
     assert.ok(learned.every(item => item.said.every(said => ![redo, handback, delegated].includes(said))), "no page-written round is handed to learning");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

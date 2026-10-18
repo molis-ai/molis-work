@@ -10,7 +10,7 @@ CI 跑包边界与 workspace 校验、健康门禁（对照 merge-base，含 Bio
 - [ ] 健康门禁对照 merge-base 通过：`node scripts/check-health-gates.mjs --base origin/main`（CI 也这样比，在 PR 里 `--update` 放不过变大的）；数字变小就用 `--update --base origin/main` 在本 PR 更新 `tooling/gates/baseline.json`
 - [ ] 公开 API（contracts 各 subpath、插件 SDK）有变化时：已 `pnpm api:update` 刷新 `tooling/gates/api/`，并在「做了什么」写明对插件和调用方的影响
 - [ ] 动作或消费场景（Manifest 声明的，或宿主登记的）的身份、权限、受众、输入输出有变化时：`pnpm build` 后已 `pnpm actions:update` 刷新 `tooling/gates/actions/`（`pnpm test:contracts` 会对照）；同一 `capability@version` 下形状变了的，写明已升版本并改完固定它的引用，或为什么没有固定它的引用会坏
-- [ ] 改过样式、客户端脚本或字体：`pnpm workspace:build` 后 `node scripts/gates/page-assets.mjs --base origin/main` 通过（页面资源只许变小；变小了用 `--update --base origin/main` 在本 PR 把 `tooling/gates/page-assets.json` 降下来）
+- [ ] 改过样式、客户端脚本或字体：`pnpm workspace:build` 后 `node scripts/gates/page-assets.mjs --base origin/main` 通过（页面资源默认只许变小，变小了用 `--update --base origin/main` 在本 PR 把 `tooling/gates/page-assets.json` 降下来；功能必需、省不回的增长写明理由、字节数与试过的省法，经评审在 `APPROVED_CEILINGS` 一次性放行，见 `AGENTS.md`）
 - [ ] 相关用例：`node scripts/affected-tests.mjs` 选出的用例已跑 → 通过 / 失败数（它建议全量时，说明跑了还是按什么理由不跑）：
 - [ ] 全量非浏览器：`node scripts/run-tests.mjs` → 通过 / 失败数：
 - [ ] 浏览器用例（界面改动时）：跑了哪些文件、结果：

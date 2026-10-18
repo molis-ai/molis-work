@@ -119,7 +119,7 @@ test("a change that can be undone runs when asked without a confirmation, and th
     assert.ok(requests.at(-1)!.includes("Add a note（修改）"));
     assert.equal(waiting.rounds[0]!.activity[0]!.state, "failed", "the direct route is refused for it");
     assert.equal(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "nothing ran before the person confirms");
-  } finally { unregister(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { unregister(); service.continuations.close(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a round that makes exactly an offered undo's change spends that undo: the panel stops offering a take-back that can only fail", () => {
@@ -175,7 +175,7 @@ async function undoFixture(t: import("node:test").TestContext, script: Array<(bo
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
   const noteAdded = () => reply({ name: "change-reversible", input: { capability_id: "fixture.notes.add", version: 1, provider_id: "fixture.notes", input: { text: "周三前交方案" } } });
   return { service, store, host, requests, flags, removes, project, notes, noteAdded,
-    close: async () => { unregister(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+    close: async () => { unregister(); service.continuations.close(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("W2-18-JOB-03: a round that could not start has told the next one nothing: undone changes, ended background work and settled changes are still to be told", { timeout: 60_000 }, async t => {

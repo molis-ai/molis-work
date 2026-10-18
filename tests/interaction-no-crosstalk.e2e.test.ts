@@ -5,9 +5,8 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { endingReviewReply } from "./fixtures/ending-review.js";
@@ -375,11 +374,11 @@ const SECOND = "联系小王确认周末徒步路线。附上集合时间。";
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 
 // The card was made from what was selected then; a selection made later, while it is shown or in the moment its button is
-// pressed, never becomes its target. (The selection moving while the card is still being prepared is contextual-todo's.)
+// pressed, never becomes its target.
 test("AC-05: an action card keeps the selection it was made from; selecting something else after it shows, or as its button is pressed, changes nothing it does", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
-  const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, evaluate, waitFor, click, origin, projectId, homeDirectory, store } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const pages = openPagesStore(homeDirectory);
   const page = (() => { try { return pages.create({ project_id: projectId!, title: "发布笔记", body: { type: "doc", content: [paragraph(FIRST), paragraph(SECOND)] } }); } finally { pages.close(); } })();
@@ -392,7 +391,8 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
   })()`;
   const select = (index: number) => evaluate(selectScript(index));
   const bar = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
-  const todoButton = `[...document.querySelectorAll('${bar} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('记成待办'))`;
+  // A write that still goes as a card (记成待办 is made at once since W4-1): a plan broken into Goal steps, a proposal.
+  const writeButton = `[...document.querySelectorAll('${bar} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;
   await evaluate(`(() => { const original = window.fetch; window.__placed = []; window.__runs = [];
     window.fetch = async (url, options) => {
       if (String(url).includes('/cards/') && String(url).endsWith('/run')) window.__runs.push(JSON.parse(options.body));
@@ -410,22 +410,21 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
     await waitFor(`document.querySelector('${bar} [data-more]')`, 8000).catch(async error => { throw new Error(`${(error as Error).message}\nbars: ${await evaluate<string>(
       `[...document.querySelectorAll('.mw-ctx'), ...[...document.querySelectorAll('iframe')].flatMap(frame => { try { return [...frame.contentDocument.querySelectorAll('.mw-ctx')]; } catch { return []; } })].map(node => node.outerHTML.slice(0, 400)).join(' || ')`)}\nselection: ${await evaluate<string>("getSelection().toString()")}\nassistant open: ${await evaluate<boolean>("!document.querySelector('[data-assistant-panel]')?.hidden")}`); });
     await click(`${bar} [data-more]`);
-    await waitFor(`Boolean(${todoButton})`);
-    await evaluate(`${todoButton}.click()`);
+    await waitFor(`Boolean(${writeButton})`);
+    await evaluate(`${writeButton}.click()`);
     await waitFor(`window.__placed.length === ${before + 1} && !document.querySelector('[data-assistant-panel]').hidden`, 10_000);
     const placed = await evaluate<{ work_id: string }>(`window.__placed[${before}]`);
     const view = await evaluate<{ cards: Array<{ card_id: string; capability_id: string; status: string }> }>(
       `fetch(document.body.dataset.routePrefix + '/api/assistant/works/' + ${JSON.stringify(placed.work_id)}, { headers: molisWorkControlHeaders() }).then(r => r.json())`);
-    const card = view.cards.filter(one => one.capability_id === "todo.items.create" && one.status === "ready").at(-1);
+    const card = view.cards.filter(one => one.capability_id === "goals.tree.submit" && one.status === "ready").at(-1);
     assert.ok(card, "a ready card for the selection");
     const selector = `[data-card="${card.card_id}"]`;
     await waitFor(`document.querySelector(${JSON.stringify(`${selector} [data-ix-action="run"]`)})`);
     return selector;
   };
-  const todos = () => {
-    const owner = openTodoStore(homeDirectory);
-    try { return owner.list({ actor: "user", actorId: "web-user", projectId: projectId!, everything: true }).map(item => item.notes); } finally { owner.close(); }
-  };
+  // Each proposal by the passage it was made from: its steps, as the person selected them.
+  const proposals = () => new GoalProjectApplication(store).goalTree.listGoalTreeProposals({ project_id: projectId! }).proposals
+    .map(proposal => (proposal.narrative?.main_path ?? []).join("。") + "。");
 
   // 1. After the card is shown, the person selects the other paragraph; the bar follows the new selection, the card does not.
   const first = await offer(0);
@@ -434,18 +433,18 @@ test("AC-05: an action card keeps the selection it was made from; selecting some
   assert.equal(await evaluate<boolean>(`document.querySelector(${JSON.stringify(first)}).textContent.includes(${JSON.stringify(SECOND)})`), false,
     "the shown card does not take up the new selection");
   await click(`${first} [data-ix-action="run"]`);
-  await waitFor(`document.querySelector(${JSON.stringify(first)})?.dataset.status === 'done'`, 10_000);
-  assert.deepEqual(todos(), [FIRST], "the card did what it was made from; nothing was made from the selection that came after");
+  await waitFor(`document.querySelector(${JSON.stringify(first)})?.dataset.status === 'done'`, 20_000);
+  assert.deepEqual(proposals(), [FIRST], "the card did what it was made from; nothing was made from the selection that came after");
 
   // 2. In the moment its button is pressed: the pointer going down on it selects the other paragraph first.
   const second = await offer(1);
   await evaluate(`document.querySelector(${JSON.stringify(`${second} [data-ix-action="run"]`)}).addEventListener('pointerdown', () => ${selectScript(0)}, { capture: true, once: true })`);
   await click(`${second} [data-ix-action="run"]`);
-  await waitFor(`document.querySelector(${JSON.stringify(second)})?.dataset.status === 'done'`, 10_000);
+  await waitFor(`document.querySelector(${JSON.stringify(second)})?.dataset.status === 'done'`, 20_000);
   assert.equal(await evaluate("getSelection().toString()"), FIRST, "the selection did change as the button was pressed");
   const runs = await evaluate<unknown[]>("window.__runs");
   assert.equal(runs.length, 2);
   assert.equal(JSON.stringify(runs[1]).includes(FIRST), false, "what the press sent carries nothing of the selection made at that moment");
-  assert.deepEqual(todos().sort(), [FIRST, SECOND].sort(), "each card made its own item once; the selection at the press made none");
+  assert.deepEqual(proposals().sort(), [FIRST, SECOND].sort(), "each card made its own proposal once; the selection at the press made none");
   assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), FIRST + SECOND, "the page is unchanged");
 });

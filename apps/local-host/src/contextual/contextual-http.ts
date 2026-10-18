@@ -15,6 +15,7 @@ import { typeSafeConfiguration, typeSafeCredential } from "../typesafe-connectio
 import { readLocalWebBody as readBody, sendLocalWebJson as sendJson } from "../web-http.js";
 import { prepareAttach, runAttach, type ConfirmReferences } from "./contextual-attach.js";
 import { chosenCandidate } from "./contextual-choice.js";
+import { createChosen, undoCreated } from "./contextual-create.js";
 import { draftRequest } from "./contextual-draft.js";
 import { contextualErrors, invalid, readJudgeRequest, readString } from "./contextual-request.js";
 import { fragmentOffersInput, prepareSubjectOffer, sameReference } from "./contextual-service.js";
@@ -23,8 +24,9 @@ import { createContextualJudgmentService, type ContextualJudgmentService } from 
 /**
  * Workbench transport for context-driven interaction (specs/archive/contextual-interaction §4, §7). Candidates and their
  * prepared inputs come from the directory under the local person's own authority in this project; the judgment only
- * ranks them, through Jev on the Home's TypeSafe connection via Prologue. Nothing here runs a chosen action: the page
- * that owns the object runs it after the person confirms (P1), or the Assistant does through its cards (P2).
+ * ranks them, through Jev on the Home's TypeSafe connection via Prologue. A chosen action runs here only when the person
+ * confirmed it at its landing (`attach`), or it is a creation entry its owner can undo (`create`, and `undo` takes it back);
+ * otherwise the page that owns the object runs it after the person confirms (P1), or the Assistant does through its cards (P2).
  */
 export interface ContextualActions {
   discover(): Promise<readonly ActionView[]>;
@@ -36,6 +38,8 @@ export interface ContextualHttpPorts {
   readonly homeDirectory?: string;
   /** Separates panes of different projects served by one process. */
   readonly scope: string;
+  /** The person whose authority `actions()` carries: an undo kept for them is theirs only (S-40). */
+  readonly actor_id: string;
   /** The local person's authority in this project, bound for this request. */
   actions(): ContextualActions;
   /** Whether each object is still one the person may use in this project, read from its owner now (H3); absent refuses 「放进左边」. */
@@ -166,7 +170,7 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
     return true;
   }
-  const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal|draft|attach)$/u.exec(url.pathname);
+  const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal|draft|attach|create|undo)$/u.exec(url.pathname);
   if (!match) return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
   const route = match[1]!;
@@ -177,6 +181,19 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     if (route === "draft") {
       const actions = ports.actions();
       sendJson(response, 200, await whileWaited(response, async signal => draftRequest(body, await actions.discover(), { actions, ports: draftPorts(ports.homeDirectory), signal })));
+      return true;
+    }
+    // A creation entry chosen on the bar: created at once when its owner declared how it is undone, else drafted for a card.
+    if (route === "create") {
+      const actions = ports.actions(), { focus, landing } = readJudgeRequest(body);
+      sendJson(response, 200, await whileWaited(response, async signal => createChosen({ project: ports.scope, actor: ports.actor_id }, await actions.discover(), focus, landing,
+        readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), { actions, ports: draftPorts(ports.homeDirectory), signal })));
+      return true;
+    }
+    // The page only hands back the token: a body that names anything else (an undo, its input) is refused (S-40).
+    if (route === "undo") {
+      if (Object.keys(body).some(field => field !== "undo_token")) throw invalid("撤销请求");
+      sendJson(response, 200, await undoCreated({ project: ports.scope, actor: ports.actor_id }, readString(body.undo_token, "undo_token", 80), ports.actions()));
       return true;
     }
     const pane = `${ports.scope}\u0000${readString(body.pane_id, "pane_id", 80)}`;

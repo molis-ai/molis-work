@@ -82,9 +82,9 @@ export type PluginModelAvailability = ActionAvailability & { readonly runtime_la
 export interface PluginModelClient {
   /** The declared Home consumer's model settings; writes only through its exact settings action. */
   readonly configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationClient;
-  /** Whether this selection (or the Host default) is available now, while the plugin is running with its model grant. */
   /** Available model names and capabilities only; no request or credential decryption. */
   choices(): readonly PluginModelChoice[];
+  /** Whether this selection (or the Host default) is available now, while the plugin is running with its model grant. */
   availability(selection?: PluginModelSelection): PluginModelAvailability;
   /**
    * `prompt` is the plugin's own registered instruction and this call's data (`instructed(instruction, data)`); a plain string is

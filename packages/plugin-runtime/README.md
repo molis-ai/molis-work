@@ -102,3 +102,5 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`, `goal-reorg-dv3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+模型原图服务在首次等待前检查并复制字节（30 张、单张 32 MiB、合计 128 MiB）。`validateResult()` 同步复核原动作 scope、存活授权、安装及 Host 的原模型快照；成功、普通推理失败与 JSON 解码失败都保留同次执行事实，取消、撤权或过期后不能据此记业务失败。只读 `choices()` 检查安装与模型 grant，不递归调用会重算可用性的完整动作授权。回归见 `tests/plugin-model-materials.test.ts`。

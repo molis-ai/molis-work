@@ -77,3 +77,5 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-f3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+`PluginModelClient` 的 `images` 只收字节与可选名称，在首次等待前复制；`execution` 保留同次真实推理回执，注入文字替身不伪造。成功结果与可记账失败的 `validateResult()` 必须在原 `beforeEffect()` 之后、同步提交之前调用；它绑定原动作及模型配置，不能跨动作持有。`choices()` 只返回现行模型名称和能力，不给地址或凭据。

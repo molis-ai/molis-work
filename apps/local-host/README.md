@@ -248,3 +248,5 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 `connectors.usages.read` 从共同动作目录发现连接消费方查询，以当前调用者身份汇总真实使用位置；业务模块各读自己的来源、配置和绑定，Host 不存第二份关联。返回原业务动作引用与非敏感部分参数，当前目录不可调用的仍明确阻塞；Home 查询不打开其他项目。模型配置使用位置由 `model-connection-usages.ts` 从原 catalog 和连接引用投影，不增加模型调用通道。回归：`tests/connector-consumer-usages.test.ts`。
 
 MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-actions.ts` 只在动作校验副本中去掉一级基本类型参数上的有效 `x-mcp-header` 传输注释；不改参数约束，不关闭严格 schema 检查，未知关键字、嵌套或无效注释继续使该工具不可调用。HTTP 传输仍按 MCP SDK 实际协商的协议执行；这项处理不表示支持 2026-07-28 的头映射。真实 HTTP 派出与拒绝回归见 `tests/connector-mcp.test.ts` 的 ASC-03/13/31 注释用例。
+
+公共模型服务的原图由 `plugin-model-images.ts` 在 Host 私有临时目录适配现有 Prologue intake，路径由 Host 生成、目录 0700、文件 0600，调用结束清除源副本；SDK 继续负责图片格式和 intake 资源回收。`hostTextGeneration` 返回实际 dispatch 快照的同步复核函数，成功与可记账失败保留原推理事实；公共服务的 `choices()` 复用 `configuredModelChoices`，不解密或联网。回归见 `tests/plugin-model-materials.test.ts`、`tests/prologue-inference-images.test.ts`。

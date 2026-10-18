@@ -1,14 +1,14 @@
 # 内置插件迁到 Plugin Runtime：计划
 
-状态：计划，2026-10-08 按 origin/main `31c357df` 核实（行号与计数都在这个提交上重量过；2026-10-10 删除实验插件后，目录条目、名单与手写接线的计数按删掉的部分扣减，行号只改了下面标明的几处）。2026-10-16 按 origin/main `76758783` 重核名单（只改了下面目录条数、三份名单与这一句）：第一个样板 Form 已由项目监督器启动（W4-04），Issues 是 Home 监督器启动的 Home 级插件；第二个样板 Todo 仍在构建期名单上，尚未开始。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进宿主（第 5.4 节）。**2026-10-18 用户改了几项（第 1 节末四行）**：四个构建期例外取消（Goals 按本计划迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），内置插件的授权改成与其他插件同一规则，只给内置的特权改成按声明与授权，项目库加库服务；第 10 节第 3～9 项都已定。下文与这些冲突的地方标了「2026-10-18 改」，没标的照旧。
+状态：执行中。2026-10-18 按本地 W5-01 整合候选核对：Form、灵光由项目监督器启动，Issues、Todo、Cognia、Images、Jelly 由 Home 监督器启动；Todo #684、灵光 #729 已合入 main，Cognia、Images、Jelly 候选仍待各自正式合入，不能用本地名单代替 main 状态。第 2.1 节为当前代码，其他标明日期的行号、接线数量和缺口保留调研时口径。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进 modules/characters（第 5.4 节）。**2026-10-18 用户改了几项（第 1 节末四行）**：四个构建期例外取消（Goals 按本计划迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），内置插件的授权改成与其他插件同一规则，只给内置的特权改成按声明与授权，项目库加库服务；第 10 节第 3～9 项都已定。下文与这些冲突的地方标了「2026-10-18 改」，没标的照旧。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
 
 ## 白话说明
 
-内置插件现在有两种装配方式。**经 Plugin Runtime**：监督器启动，有安装记录、升级检查、崩溃恢复，HTTP 由 Manifest 声明；有 7 个，其中 Characters 已定并进宿主、不再算（第 5.4 节）。**构建期组合**：宿主里手写一行 `registerProvider`、一个 `<插件>-native-plugin-http.ts`、`web-request.ts` 里的一段路由，没有安装记录和升级检查；有 18 个，名单冻结，只许减少（实验插件已在 2026-10-10 删除，不在其中）。两种方式的插件在工作台里都有目录条目。迁移就是把这 18 个里的 14 个逐个搬到第一种方式（另 4 个是批准的例外），每搬一个，删掉它在宿主里的文件和接线。数据不动：库留在原处，用户看到的界面不变。迁完后经 Runtime 装配的是 20 个（现有 6 个加迁来的 14 个），构建期只剩 4 个例外。
+内置插件现在有两种装配方式。**经 Plugin Runtime**：监督器启动，有安装记录、升级检查、崩溃恢复，HTTP 由 Manifest 声明；本地候选有 14 个，其中 Characters 已定并进宿主（第 5.4 节）。**构建期组合**：宿主里手写一行 `registerProvider`、一个 `<插件>-native-plugin-http.ts`、`web-request.ts` 里的一段路由，没有安装记录和升级检查；本地候选还剩 12 个，名单冻结，只许减少。两种方式的插件在工作台里都有目录条目。迁移逐个删除插件在宿主里的专用文件和接线，最终构建期只剩 4 个批准例外。库留在原处，界面与业务事实保持；每片完成程度和验证见防腐 spec。
 
-Home 路径沿已有 Issue 的 `HomePluginHost` / `HomePluginExecutor`，不再建第二个平台。安装、发行物和安装隔离 KV 为完整 v2，旧版与坏结构严格拒绝；迁移来的插件业务表仍留原 SQLite。数据库/模型/动作/指令与生命周期复用现有共同服务；Home HTTP 共用 operations，项目 scope 由真实客户端给，不从路由前缀或输入制造。项目删除仍向现行 catalog 的数据 owner 调清理，不新增 Runtime 删除事件。相关验收与待运行工程证据见防腐 spec §10.2。
+Home 路径沿已有 Issue 的 `HomePluginHost` / `HomePluginExecutor`，不再建第二个平台。安装、发行物和安装隔离 KV 为完整 v2，旧版与坏结构严格拒绝；迁移来的插件业务表仍留原 SQLite。数据库/模型/动作/指令与生命周期复用现有共同服务；Home HTTP 共用 operations，Host 验证路径中的项目存在、插件可见后给本次调用建立项目身份，不信请求体或 query 自称的项目。项目删除仍向现行 catalog 的数据 owner 调清理；可信 Home 条目可声明同步停止回调，由同一 owner 在 purge 前送给当前实例，停用后回到原离线清理。相关验收与待运行工程证据见防腐 spec 的 W5-01 段。
 
 ## 1. 用户已定的决定
 
@@ -41,10 +41,10 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条，在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
 - `RUNTIME_ASSEMBLED`（9）：characters、shelf、coding、files、git、diff、text-stats、form、lingguang，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 8。
-- Home 级（3）：issues、todo、cognia，目录条目带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
-- `BUILD_TIME_ASSEMBLED`（14）：alchemist、artifacts、dataset、feed、goals、images、inbox、jelly、pages、plugin-builder、ppt、schedule、sessions、workflows。
+- Home 级（5）：issues、todo、cognia、images、jelly，目录条目带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
+- `BUILD_TIME_ASSEMBLED`（12）：alchemist、artifacts、dataset、feed、goals、inbox、pages、plugin-builder、ppt、schedule、sessions、workflows。
 
-以下接线数量为原迁移调研基线，不能当作当前完成证据；Form、Todo、灵光、Cognia 已删除各自的两份适配。宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
+以下接线数量为原迁移调研基线，不能当作当前完成证据；Form、Todo、灵光、Cognia、Images、Jelly 已删除各自的动作/HTTP适配；Images 的专用 Host 服务也已移除。宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
 
 ### 2.2 18 个构建期插件的分类与放置
 

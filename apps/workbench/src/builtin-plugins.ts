@@ -2,8 +2,8 @@ import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js"
 import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, COGNIA_DATABASE, createCogniaPlugin } from "@molis-ai/molis-work-plugin-cognia";
 import { BUILDER_CHOICE_INSTRUCTIONS, builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
-import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData, IMAGES_HOME_STORE } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, JELLY_HOME_STORE } from "@molis-ai/molis-work-plugin-jelly";
+import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData, createImagesPlugin, IMAGES_DATABASE, IMAGES_FILES, IMAGES_IMAGE_GENERATION } from "@molis-ai/molis-work-plugin-images";
+import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin, JELLY_DATABASE, JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
 import { type ProjectDataDeclaration, type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type PluginManifest, type PluginDefinition, type PluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-issues";
@@ -72,6 +72,8 @@ export interface BuiltinPluginEntry {
   readonly developer?: boolean;
   /** Explicit Runtime activation; personal visibility alone never migrates an existing plugin. */
   readonly runtime?: { readonly scope: "home"; readonly create: () => PluginDefinition; readonly database?: PluginDatabaseDeclaration; readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
+    readonly model_configuration?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration;
+    readonly image_generation?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration;
     readonly package_name: string; readonly factory_export: string;
     /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
     readonly keys?: string };
@@ -131,7 +133,8 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: IMAGES_PROJECT_PLUGIN_ID,
-    home_store: IMAGES_HOME_STORE,
+    runtime: { scope: "home", create: createImagesPlugin, database: IMAGES_DATABASE, files: IMAGES_FILES, image_generation: IMAGES_IMAGE_GENERATION,
+      package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" },
     manifest: imagesManifest,
     project_data: imagesProjectData,
     personal: true,
@@ -146,7 +149,8 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: JELLY_PROJECT_PLUGIN_ID,
-    home_store: JELLY_HOME_STORE,
+    runtime: { scope: "home", create: createJellyPlugin, database: JELLY_DATABASE, model_configuration: JELLY_MODEL_CONFIGURATION,
+      package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" },
     manifest: jellyManifest,
     instructions: JELLY_INSTRUCTIONS,
     personal: true,

@@ -38,6 +38,10 @@ tests/home-event-actions.test.ts
 tests/i18n.test.ts
 tests/inbox-action-scenes.test.ts
 tests/jelly-actions.test.ts
+tests/home-plugin-project-cleanup.test.ts
+tests/home-plugin-project-routes.test.ts
+tests/plugin-model-configuration.test.ts
+tests/plugin-image-generation.test.ts
 tests/local-web-actions.test.ts
 tests/mcp.test.ts
 tests/pages-actions.test.ts
@@ -264,6 +268,7 @@ tests/plugin-isolation-restart.test.ts
 tests/plugin-lifecycle-states.test.ts
 tests/plugin-market-catalog.test.ts
 tests/plugin-model-generation.test.ts
+tests/plugin-model-selection.test.ts
 tests/plugin-notification-bell.test.ts
 tests/plugin-package.test.ts
 tests/plugin-panel-seam.test.ts

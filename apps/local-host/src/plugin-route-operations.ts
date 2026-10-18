@@ -100,8 +100,10 @@ export async function dispatchRuntimePluginRoute(
   if (!result) return false;
   await hooks.afterDispatch?.(result);
   if (result.bytes !== undefined) {
-    response.writeHead(result.status, { "content-type": "application/octet-stream",
-      "content-disposition": "attachment; filename*=UTF-8''" + encodeURIComponent(result.filename ?? "material"),
+    const raster = ["image/png", "image/jpeg", "image/webp"].includes(result.mime ?? "");
+    const disposition = raster && result.disposition === "inline" ? "inline" : "attachment";
+    response.writeHead(result.status, { "content-type": raster ? result.mime! : "application/octet-stream",
+      "content-disposition": disposition + "; filename*=UTF-8''" + encodeURIComponent(result.filename ?? "material"),
       "x-content-type-options": "nosniff", "content-security-policy": "sandbox", "cache-control": "no-store" });
     response.end(result.bytes);
   } else sendLocalWebJson(response, result.status, withPluginInteraction(result.body));

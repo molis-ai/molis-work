@@ -151,7 +151,8 @@ Cognia 同时保留已登记的知识角色与回答指令：角色作为共享�
 - **生成中预览**：可选的 `onText(delta)` 按模型原顺序接收文字增量，不含运行、模型信息或用量事件。每次交给插件之前，Runtime 同步复查原动作、安装授权和取消状态；请求结束即关闭回调，即使动作还在继续也不再交文字。插件自行把文字变为页面或动作进度；预览不表示结果已通过末尾检查或已保存。回归见 `tests/security-invariants-plugin-model-progress.test.ts`。
 - **路径**：宿主端口 → `hostTextGeneration` → agent-host 的 Prologue 推理，和别的调用方同一条；不新开供应商直连，不向 Prologue 传调用编号（2026-10-10）。宿主构造时给的 `completeText`（函数是测试替身，`null` 是没有模型）照旧有效，每次调用时才读。`availability()` 可以接在动作的 `availability` 上。
 - **模型显示名**：`services.model.availability()` 可带 `runtime_label`，表示当前配置的提供方与模型（仅显示名和模型 ID）；读取只查元数据，不解密、不发请求。实例停止、缺授权或配置不可用时不带标签。模型执行仍按实际调用时的配置与授权复核。
-- **不在这一片里**：图片输入、选定某个模型与列出可选模型、动作返回之后的后台任务里调模型（动作一返回，调用就被拒）。有消费者的迁移再加。
+- **明确选择模型**：`complete(prompt, { selection: { provider_id, model_id } })` 和 `availability(selection)` 指向同一个已配置模型。不指定时才使用默认，目标缺失、停用或连接失效时拒绝，不回退到其他模型或环境配置。Runtime 在第一次等待前复制两个 ID，插件之后改原对象不改变本次请求；地址和凭据由 Host 解析，派出前和返回后仍检查当前配置。模型清单与供应商设置不由此接口管理。
+- **其他边界**：图片输入与列出可选模型尚未提供；动作返回后的有限继续执行须经 `services.background` 保留原授权，不能直接留一个游离的异步调用（见插件开发手册）。
 
 ```ts
 const SUMMARIZE = defineInstructionPrompt({ owner_id: "io.example.notes", prompt_id: "summarize", version: 1, title: "摘要", purpose: "把笔记压成一句话", used_by: ["笔记摘要"], body: "把下面的笔记压成一句话。" });

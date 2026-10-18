@@ -649,6 +649,10 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1110056], ["/assets/molis-work-workbench.js", 1110084],
   ["/assets/molis-work-workbench.js", 1109330], ["/assets/molis-work-workbench.js", 1110329],
   ["/assets/molis-work-workbench.js", 1110357],
+  ["/assets/molis-work-workbench.js", 1110116],
+  ["/assets/molis-work-workbench.js", 1111561],
+  ["/assets/molis-work-workbench.js", 1112315],
+  ["/assets/molis-work-workbench.js", 1112375],
   ["/assets/molis-work-workbench.js", 1111791], ["/assets/molis-work-workbench.js", 1114022],
   ["/assets/molis-work-workbench.js", 1111910], ["/assets/molis-work-workbench.js", 1114141],
 ] as const) {

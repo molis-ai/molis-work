@@ -8,14 +8,10 @@ import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-artifacts";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
-import { IMAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-images";
 import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
 import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
 import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
-import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
-import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -208,18 +204,14 @@ const sessionsAndPlanningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost.homeActionClient())) },
 ];
 
-/** The built-time plugins' own HTTP, each under its own permissions; Jelly and Cognia are Home plugins, Todo is personal but project-aware. */
+/** The remaining build-time plugins' own HTTP, each under its own permissions. */
 const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "pages", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePagesNativePluginHttp(request, response, url, { projectId: hostReference.project_id, actions: userActions(PAGES_ACTION_PERMISSIONS) }) },
   { id: "dataset", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handleDatasetNativePluginHttp(request, response, url, (_input, transport) => ({ projectId: hostReference.project_id, actions: userActions(DATASET_ACTION_PERMISSIONS, transport) })) },
-  { id: "images", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
-    && await handleImagesNativePluginHttp(request, response, url, (_input) => ({ projectId: hostReference.project_id, actions: userActions(IMAGES_ACTION_PERMISSIONS) })) },
   { id: "ppt", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePptNativePluginHttp(request, response, url, (_input, transport) => ({ projectId: hostReference.project_id, actions: userActions(PPT_ACTION_PERMISSIONS, transport) })) },
-  { id: "jelly", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory)
-    && await handleJellyNativePluginHttp(request, response, url, transport => asHomePerson(localHost, JELLY_ACTION_PERMISSIONS, transport)) },
   { id: "personal", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost }) => Boolean(serverOptions.homeDirectory)
     && await handlePersonalNativePluginHttp(request, response, url, {
       projectId: options.project?.project_id ?? "",

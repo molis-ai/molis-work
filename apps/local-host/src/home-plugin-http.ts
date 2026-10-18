@@ -100,7 +100,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     if (found instanceof ActionError) throw found;
   }) : undefined;
   try {
-    const caller = await localWebActionContext(host, undefined, []);
+    const caller = await localWebActionContext(host, project, []);
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
       granted: caller.permissions,
       execution: routed?.control ?? plain,

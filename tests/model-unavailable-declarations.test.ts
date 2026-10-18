@@ -10,7 +10,7 @@ import { ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_GENERATE_PERMISSION, alchemistA
 import { IMAGES_ACTION_PERMISSIONS, imagesActions } from "@molis-ai/molis-work-plugin-images";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 
 // AI entry inventory 7.4: an action that cannot work for want of a model or a connection says so in the directory, so the
 // Assistant sees the reason before it calls. The directory says so to the Assistant, MCP clients, workflows and plugins; the
@@ -156,8 +156,13 @@ test("generating an image is unavailable to the Assistant until an image service
   assert.equal((await f.availability(imagesActions.start.capability_id, AGENT)).available, false);
 });
 
-test("asking the directory whether images can be generated does not create the images store", async t => {
+test("W5-01-IMGPORT-01 Images startup opens its owned store; directory availability does not write business data", async t => {
   const f = await fixture(t);
   await f.availability(imagesActions.start.capability_id, AGENT);
-  assert.equal(existsSync(join(f.home, "images")), false, "discovery alone opens nothing");
+  const path = homeSqlitePath(f.home, "images");
+  assert.ok(existsSync(path), "the Home Runtime opens and recovers Images before publishing its actions");
+  const contents = () => [path, path + "-wal"].map(file => existsSync(file) ? readFileSync(file) : null);
+  const before = contents();
+  for (const audience of ["agent", "mcp", "workflow", "plugin", "user"] as const) await f.availability(imagesActions.start.capability_id, audience);
+  assert.deepEqual(contents(), before, "directory reads never change Images' store or write-ahead log");
 });

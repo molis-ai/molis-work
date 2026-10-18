@@ -207,6 +207,8 @@ W5-01 模型选择前置（2026-10-17，Codex，本地定向通过，待前序�
 
 
 
+W5-08 收尾组合验证（2026-10-18，本地通过）：合入当前 Runtime、D1 成果查询与 Images 翻译候选后，Module 不公开 Repository 的四项断言与 D1 业务测试同时保留。整体构建、API、boundary、merge-base health、资源更新通过，25 项资源 7,478,980 B、此片无增量；项目目录/绑定、Projects/Governance、成果服务与 SDK 调用等 11 文件共 66 条已有通过终态。首次动作快照用例发现上游 PPT/Dataset 的六条 D1 查询登记尚未传播；合入上游最终快照后 25 条同断言通过，未改生产或放宽测试。日志 `/tmp/molis-module-boundaries-closeout-{build,api,health,boundary,assets,targeted,actions-recheck}.log`。既有大批定向证据保留，共享核心全量及 PR/CI 仍待，不把本组合验证记为整条 W5-08 完成。
+
 W5-08 Runtime 项目绑定出口（2026-10-17，Codex，本地定向通过，待队列与 CI）：在第二片 `0a1a9f7c3` 上处理 `private-work-context`。唯一包外生产构造在 Host 的 `project-catalog.ts`：它直接装配 `RuntimeContextBindingRepository`、Resolution、Commands，并把 Repository 方法接进项目创建和删除。目标为功能可用：由 owner 的 `createRuntimeContextModule` 在同一数据库连接上完成装配，只向 Host 提供现有绑定命令、创建并绑定服务与删除项目绑定事实的服务；Repository 不再从包入口导出。项目目录创建/补偿仍由 Host 的 provision 端口负责，原事务、确认、幂等、项目事件、Session/Ledger 语义保持。
 
 范围为 owner 内一份小型装配、包入口/README、Host catalog 装配与对应公开入口用例；不改 Repository SQL、库版本、模型或插件配置、路径授权、真实 Home、加密内容 API及其格式。其余八项 Store/interface 出口另按实际消费者处理，不做为过计数的改名；没有新增 testing 子路径或内部导入。已核对在途 #661/#699/#634/#704/#706/#708/#631 的文件清单，与本片不重叠。

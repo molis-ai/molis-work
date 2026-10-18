@@ -106,6 +106,8 @@ export function createFormDrafting(ports: FormDraftPorts) {
     return { row, answers };
   };
   return {
+    /** Drops an answered question set once its questions are stored. Until then the same card can be sent again. */
+    forget(id: string | undefined) { if (id) kept.delete(id); },
     async draft(input: FormDraftRequest, form: FormRecord, call: { signal?: AbortSignal; beforeEffect(): Promise<void> }): Promise<FormDraftResult | { status: "drafted"; questions: FormQuestionInput[] }> {
       forget();
       const prior = input.interaction ? answered(input, form) : null;
@@ -116,7 +118,6 @@ export function createFormDrafting(ports: FormDraftPorts) {
       const reply = parsed(await ports.completeText(instructed(FORM_DRAFT_QUESTIONS, JSON.stringify(data)), { signal: call.signal, beforeDispatch: call.beforeEffect }));
       call.signal?.throwIfAborted();
       if (!reply) throw formErrors.invalid("模型没有返回有效题目，请调整提示后重试");
-      if (prior) kept.delete(input.interaction!.interaction_id);
       if (reply.status === "needs_input") {
         // Asked once: after the person answered, a model that still cannot draft says so instead of asking again.
         if (prior) throw formErrors.invalid("回答之后模型仍没有拟出题目，请把要求写得更具体后重试");

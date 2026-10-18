@@ -331,6 +331,8 @@ export function readContextualJudgment(body: unknown, candidates: readonly Conte
   };
 }
 
+const PASSAGE_GRANULARITIES: ReadonlySet<string> = new Set(["range", "block", "blocks"]);
+
 export interface PlanInput {
   readonly focus: SurfaceFocus;
   readonly candidates: readonly ContextualCandidate[];
@@ -356,9 +358,10 @@ export function planContextualLayout(input: PlanInput): ContextualLayoutPlan {
 
   const byKey = new Map(available.map(candidate => [candidate.key, candidate]));
   const primary = ranked.slice(0, 3);
-  // Without a judgment the rules recommend one destination, in the last slot and never emphasised (quick-create §6.1): a
-  // destination is never under “更多”, so without it nothing could be put anywhere.
-  const destination = judged || primary.some(key => isDestination(byKey.get(key)!)) ? undefined : ranked.find(key => isDestination(byKey.get(key)!));
+  // Without a judgment the rules recommend one destination for a passage, in the last slot and never emphasised (quick-create
+  // §6.1): a destination is never under “更多”, so without it nothing could be put anywhere. A word or whole objects keep their slots.
+  const passage = PASSAGE_GRANULARITIES.has(input.focus.granularity);
+  const destination = judged || !passage || primary.some(key => isDestination(byKey.get(key)!)) ? undefined : ranked.find(key => isDestination(byKey.get(key)!));
   if (destination) primary.splice(Math.min(primary.length, 2), primary.length >= 3 ? 1 : 0, destination);
   const pinned = new Set(input.pinned ?? []);
   // Slots are kept only within one context: a new selection is a new row, and nothing there is under the pointer.

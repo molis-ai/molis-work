@@ -63,8 +63,12 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
     assert.equal(submitted.proposal.items.length, 4, "two steps and their part_of relations");
     const again = await invoke<{ replayed: boolean }>(plan.action, plan.input);
     assert.equal(again.replayed, true, "the same request submits once");
+    // Another plan in the same project is its own proposal: its items are named by its own request, not step-1 again.
+    const other = (await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ goal: { id: parent, title: "提升新用户留存" } }, "req-breakdown-2"))).offers.find(offer => offer.offer_id === "breakdown")!;
+    const second = await invoke<{ proposal: { proposal_id: string }; replayed: boolean }>(other.action, other.input);
+    assert.notEqual(second.proposal.proposal_id, submitted.proposal.proposal_id);
     const after = await host.withProject(ref, runtime => runtime.store.snapshot(project.project_id));
-    assert.equal(after.goals.length, before.goals.length, "a proposal creates no Goal before approval");
+    assert.equal(after.goals.length, before.goals.length, "proposals create no Goal before approval");
 
     // 记录进展: only for a ticked task in something that belongs to a Goal; it lands on that Goal at its current cursor.
     const task: SurfaceFocus = { ...focus, context_id: "c2", activity: "completed", granularity: "block", targets: [{ kind: "block", role: "task", text: "上线新手引导" }] };

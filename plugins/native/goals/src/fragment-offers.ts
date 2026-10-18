@@ -42,16 +42,18 @@ export function prepareGoalsFragmentOffers(input: FragmentOffersInput, ports: Go
   const steps = planSteps(input);
   if (fragment.granularity !== "word" && fragment.granularity !== "objects" && steps.length) {
     const goal = fragment.goal;
+    // Goal ids and proposal item ids are unique across the project: each request names its own (a second plan is not refused for reusing them).
     const ids = steps.map((_, index) => `goal-${request_id.slice(0, 36)}-${index + 1}`);
+    const item = (kind: "step" | "part", index: number) => `${kind}-${request_id.slice(0, 36)}-${index + 1}`;
     const explanation = (index: number) => ({ problem: `${from}里的计划还只是文字，无法跟踪`, expected_effect: `“${steps[index]}”成为可以推进和验收的目标步骤`,
       non_goals: ["不修改原文"], depends_on_item_ids: [] as string[] });
     const items = steps.flatMap((title, index) => [
-      { item_id: `step-${index + 1}`, kind: "goal", operation: "create", payload: { goal_id: ids[index], title, why: `来自${from}中选中的计划` },
+      { item_id: item("step", index), kind: "goal", operation: "create", payload: { goal_id: ids[index], title, why: `来自${from}中选中的计划` },
         source_refs: [source], reason: "按选中的计划文字拆出的一步", confidence: 0.6, explanation: explanation(index) },
-      ...(goal ? [{ item_id: `part-${index + 1}`, kind: "relation", operation: "create",
+      ...(goal ? [{ item_id: item("part", index), kind: "relation", operation: "create",
         payload: { from_goal_id: ids[index], to_goal_id: goal.id, type: "part_of", reason: `“${title}”是「${goal.title}」的一步` },
         source_refs: [source], reason: "新步骤属于文档所属的目标", confidence: 0.6,
-        explanation: { ...explanation(index), depends_on_item_ids: [`step-${index + 1}`] } }] : []),
+        explanation: { ...explanation(index), depends_on_item_ids: [item("step", index)] } }] : []),
     ]);
     const placement = goal ? `，放在「${goal.title}」下` : "";
     offers.push({ offer_id: "breakdown", title: "拆成目标步骤", action: { capability_id: "goals.tree.submit", version: 1 }, input: {

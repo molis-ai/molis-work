@@ -111,6 +111,12 @@ test("W1-05: destinations only take recommended slots: never in more, and listed
   assert.deepEqual(plan.primary.filter(key => destinationKeys.has(key)), [[...destinationKeys][0]]);
   assert.equal(plan.primary.indexOf([...destinationKeys][0]!), 2);
   assert.equal(plan.emphasis, null);
+  // A word is not a passage to put anywhere: with actions of its own, the rules give it no destination.
+  const wordChoice = (id: string): FragmentOfferChoice => ({ ...fragment(id, "understand"), granularities: ["word"] });
+  const wordOffers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], [wordChoice("w1"), wordChoice("w2"), wordChoice("w3")]).action }, "query"), view(pages, "pages.ai")];
+  const word = planContextualLayout({ focus: hand({ granularity: "word" }), candidates: contextualCandidates([...wordOffers, ...many], hand({ granularity: "word" })) });
+  assert.equal(word.primary.length, 3);
+  assert.equal(word.primary.some(key => word.candidates.find(item => item.key === key)?.origin === "intake"), false, "a word keeps its slots for its own actions");
   // A judgment that likes two destinations puts them in the slots, and they are listed with them.
   const [first, second] = [...destinationKeys];
   const judged = planContextualLayout({ focus: hand(), candidates, judgment: { basis: "jev", next: { [first!]: 0.5, [second!]: 0.3 }, intent: {}, surface: "none", surface_probability: null, speak_up: null, confidence: 0.7, latency_ms: 1 } });

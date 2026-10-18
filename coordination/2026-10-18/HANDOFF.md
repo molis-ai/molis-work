@@ -14,40 +14,49 @@
 
 ## 1. 现在停在哪
 
-- Molis main：`e5adc24c2`（#714 合入之后）。Prologue main：`dd639069c`（#50 合入之后）。Molis vendored 的 SDK 还是 3adc5e87（`prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz`），#50 还没换进来。
-- 10-18 合入 Molis main 的：#709、#711、#715、#661、#716、#712、#699、#717、#719、#722、#684、#718、#713、#724、#723、#714、#725、#703（事后复查完，#727 的全量作证据）、#727（74f39a47c）。合入 Prologue main 的：#48、#49、#50。
-- main 上 `molis-work-workbench.js` 是 1,111,791 B，安全不变量编到 S-39（#727 的材料服务，已合），S-40 给情境线 W4-1（#730）。BL：BL-171～173 给 #728，BL-174 给 #730，BL-175 给手册线的 PR（appRefs 解析），BL-176 给手册线乙发现的 ask-user 结果键名 `pending` 误读（归 Prologue 设计，另开一片）。
+- Molis main：`f4207e064`（#730 合入之后）。Prologue main：`dd639069c`（#50 合入之后）。Molis vendored 的 SDK 还是 3adc5e87（`prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz`），prologue#50 还没换进来（交采用线，和批 B 合成一次）。
+- 10-18 合入 Molis main 的：#709、#711、#715、#661、#716、#712、#699、#717、#719、#722、#684、#718、#713、#724、#723、#714、#725、#703、#727、#720、#708、#726、#728、#721、#731、#730。合入 Prologue main 的：#48、#49、#50。五条暂停的线，推上来的 PR 已全部合入。
+- main 上 `molis-work-workbench.js` 是 1,113,068 B，安全不变量编到 S-40，BACKLOG 编到 BL-176（BL-163 已按评测删行）。coding-base 是 v13。
+- **全量**：用户 10-18 为提速定，交接前最后一批（#720、#708、#726、#728、#731、#730）不逐个跑全量，Verify 绿就入队；全部合入后在 main 上跑一次：run 39133836119（f4207e064），结果见下面 §1.2。#721 是从用户账号自己合的，也一起由这次全量覆盖。
 
-### 1.1 在途 PR
+### 1.1 还开着的 PR（都不是这五条线的）
 
-| PR | 线 | 现在 | 合进去还差什么 |
+| PR | 谁的 | 现在 | 接手要做的 |
 | --- | --- | --- | --- |
-| #725 | 采用（C4：coding-base v12，删三句工具自己已经说清的话） | 已合入 main（ee78569fc）；工作树和本地分支已清 | — |
-| #726 | 回执（3e-0b：7 个 Coding 角色列上 acknowledge-inputs，常量 WORKSPACE_PARENT_TOOLS） | 3bf06ff60 审过；用户 10-18 定不逐个跑全量，已直接入队 | 合入后 main 上跑一次全量 |
-| #720 | 情境（W3-C2 + Esc 的修复 `bus.hush()`） | 4dd4ac30b 审过；用户 10-18 定不逐个跑全量，已直接入队（merge-only） | 合入后 main 上跑一次全量 |
-| #708 | 交互（AC-08 两个页签答同一题） | c4e6d38e0 审过；全量第 6 片红在 PANE-LAND-02（负载时序，与本 PR 无关）；用户 10-18 定不逐个跑全量，已直接入队 | 合入后 main 上跑一次全量 |
-| prologue#50 | 手册（todo 只在这一轮收得下时才提） | 已合进 Prologue main（dd639069c，10-18） | Molis 换包交给采用线，和批 B 合成一次 |
-| #728 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 7cfb9f317 审过；用户 10-18 定不逐个跑全量，已直接入队 | 合入后 main 上跑一次全量 |
-| #730 | 情境 W4-1（记成待办、记下灵光成为创建入口，立即建好，由主人自己的撤销收回） | 1fba0b6bf 审过：已 merge main（#727 之后），S-39、S-40 两行都留，键 [1111791, 1112949] 实测不变 | chain68 排全量；#720 合入后再 merge main、重新取键，走 merge-only（情境线已暂停，交接手的人或叫情境线） |
-| #731 | 手册线 BL-163/T5 评测结果（coding-base v13 删补充半句；BL-163 按 ① 删行；BL-175、BL-176） | 9a9de4bc9 审过；用户 10-18 定不逐个跑全量，已直接入队 | 合入后 main 上跑一次全量 |
-| #732 | jingxusandra-gif，产品运营文档对抗式审查（只改 `docs/product-operations/`） | 501cf1fa8 审过、只改文档；统筹曾按 #722 先例入队，用户 10-18 把它移出了合并队列 | 不再入队，交作者与用户定 |
-| 待开 | 手册 BL-163/T5 评测与处理（分支 `ai/bl163-ack-eval`） | 乙重跑完：两版都没把补充当成回答，按规则删半句。甲约 37/96 | 开 PR 前要 merge main：#725 已把 coding-base 升到 v12，T5 要升 v13 |
+| #729 | 防腐线 W5-01（Codex）：灵光改走 Plugin Runtime，删 `/api/lingguang` | 10-18 交接前才开、已标成待审；统筹没审 | 按 §3 审；它重写 `plugins/native/lingguang/src/actions.ts`，#730 已先合，要它解冲突（#730 加了 `lingguang.revert` 与 intake 声明） |
+| #733 | 防腐线（Codex，草稿）：cognia 的知识改走 Home 插件运行时 | 10-18 13:10 新开 | 转成待审后按 §3 审 |
+| #732 | jingxusandra-gif，产品运营文档对抗式审查（只改 `docs/product-operations/`） | 501cf1fa8 统筹审过、只改文档；统筹曾按 #722 先例入队，用户 10-18 把它移出了合并队列 | 交作者与用户定，不要自己再入队 |
+| #734 | jingxusandra-gif（草稿）：Linux 探测补 uv 安装依赖（CI） | 10-18 新开 | 转成待审后按 §3 审；改的是 CI，看会不会放宽门禁 |
+| #631 | jingxusandra-gif（草稿）：统一输入与本地语音 | 用户定留给作者 | 不处理；它会手动触发全量、占 runner |
 
-用户 10-18 补充：交接之前把存量 PR 都处理掉。各 PR 的处理：
+这次处理过的存量 PR（用户 10-18：交接之前把存量 PR 都处理掉）：
 - #156（jingxusandra-gif 的文档草稿，10-02 起没更新，和 main 冲突）：按用户决定关闭，并留言说明可以在 main 上重开。
-- #631（jingxusandra-gif，统一输入与本地语音，草稿）：用户定留给作者，这次不处理。它自己手动触发过全量，会占 runner。
-- #703（防腐线 W5-01，Codex）：10-18 11:59 由本账号标成待审并直接入队，没经统筹、没跑全量。统筹已事后审，在 PR 评论里留了三条不挡合并的记录。10-18 已合入（63639a764），main 上补跑的全量是 run 39126488429，结果要写回 #703。
-- #727（防腐线 W5-01 材料服务，Codex）：用户定等它再合。统筹审过、全量过（run 39127845026，也作 #703 的事后全量证据），10-18 已合入 main（74f39a47c）。
-- #733（防腐线，Codex，草稿，10-18 13:10 新开）：cognia 的知识改走 Home 插件运行时。和 #729 一样是交接前才开的新片，留给接手的统筹。防腐线另在集成分支 `integration/anti-corruption-closeout-20261018` 上自己触发了全量，会占 runner。
-- #729（防腐线 W5-01 的下一片，Codex，草稿，叠在 #727 上，10-18 12:22 新开）：灵光改走 Plugin Runtime，删掉 `/api/lingguang`。用户说处理的是「现在存量的」，它是交接前才开的、仍在进行的线上的新片，留给接手的统筹。注意它重写了 `plugins/native/lingguang/src/actions.ts`，和 #730 撞同一个文件，后合的要解冲突。
-- #721（Computer Use 线，DeepSeek Harness）：10-18 13:46 从用户账号在 6a86d09cd 合入 main（7509b10ad），没等统筹要求的那处修改。**必须的后续，交 Computer Use 线**：`apps/local-host/src/computer/computer-act.ts` 的 `selector` 仍把模型给的 `/…/` 直接 `new RegExp(…, "iu")`，再对最多 600 个节点名 `test`；模型输入受页面内容影响，回溯型正则能卡住宿主的事件循环。改成按名字包含匹配（或有界、不回溯的匹配），配一条断言拒绝/不卡住的测试，补 `SECURITY-INVARIANTS.md` 的 S-25 行。事后记录在 PR 评论里。
+- #703（防腐线 W5-01，Codex）：没经统筹、没跑全量就从本账号入队合入（63639a764）。统筹事后审过；main 上补跑的全量第 8 片 `coding-input-receipts` 两次红、单独重跑通过，判负载时序；#727 的全量（run 39127845026）作为它的全量证据，结论写在 #703 评论里。
+- #727（防腐线 W5-01 材料服务）：用户定等它再合；审过、全量过，已合（74f39a47c）。
+- #708：全量第 6 片 `context-landing-panes` PANE-LAND-02 红——多收到的是分屏窗格里真的 Pages 又报了一次落点，不是伪造的那条被放进来，判负载时序；之后按用户决定直接入队、已合。
+- #731：#728 合入后在 BACKLOG 表尾撞行，统筹在 9aaa486ec 上 merge main（BL-171～173 排在 BL-175、BL-176 前）再入队、已合。
+- #730：#727 合入后 merge main（S-39、S-40 两行都留），#720 合入后再 merge main、放行键重取为 [1111910, 1113068]（实测 +1,158），已合。
+- #721（Computer Use 线，DeepSeek Harness）：10-18 13:46 从用户账号在 6a86d09cd 合入 main（7509b10ad），没等统筹要求的那处修改。**必须的后续，交 Computer Use 线**：`apps/local-host/src/computer/computer-act.ts` 的 `selector` 仍把模型给的 `/…/` 直接 `new RegExp(…, "iu")`，再对最多 600 个节点名 `test`；模型输入受页面内容影响，回溯型正则能卡住宿主的事件循环。改成按名字包含匹配（或有界、不回溯的匹配），配一条断言拒绝/不卡住的测试，补 `SECURITY-INVARIANTS.md` 的 S-25 行。PR 评论里有记录；统筹给用户留了一张起新会话做这件事的卡片。
 
-### 1.2 各线
+### 1.2 main 的全量（交接时）
+
+- run 39133836119（f4207e064）：进行中。结果补在这里；红的按 §2 的办法分清是谁的、是不是负载时序，交给对应的线或接手的统筹。
+
+### 1.3 合入后要清的（删除要用户在各线自己的会话里弹窗确认）
+
+- 回执线：#714、#726 都已合，工作树与分支见 [`lines/receipts.md`](lines/receipts.md)。
+- 交互线：#708 已合，工作树 `line-interaction-ac08`、分支 `interaction/ac08-two-tabs`，另几个旧本地分支先 `git branch -d` 确认已合入再删（见 [`lines/interaction.md`](lines/interaction.md)）。
+- 采用线：#725、#728 已合，工作树 `wt-a21` 与分支（见 [`lines/adoption.md`](lines/adoption.md)）。
+- 情境线：#720、#730 已合，工作树 `.claude/worktrees/line-contextual` 与笔记里列的分支；`~/.codex/worktrees/context-w0` 不是情境线会话建的，删之前先问用户（见 [`lines/contextual.md`](lines/contextual.md)）。
+- 手册线：#731 已合，分支 `ai/bl163-ack-eval`（远端在合并时已自动删）；评测用的临时 Home 按笔记清。
+- 统筹自己的：scratchpad 里的 `integ` 工作树（detached，可删）。
+
+### 1.4 各线
 
 （每条线做完推送后补上自己的一节：还剩哪些需求、下一片原本打算做什么、已批的计划、共享笔记在哪、要注意的坑。）
 
 **采用线（Prologue 完整采用）** — 需求书 `specs/prologue-adoption/spec.md`，手册 `specs/ai-development-handbook/spec.md` §9.5。全文：[`lines/adoption.md`](lines/adoption.md)；A2 的三片计划：[`lines/adoption-a2-plan.md`](lines/adoption-a2-plan.md)。
-- 在途：#725（C4）、#728（A2-1）。
+- 已合：#725（C4，ee78569fc）、#728（A2-1，a98967d7f）。没有在途的 PR。
 - 剩下的需求，按顺序：
   1. **A2-2：执行器与时间线。**
      - 按配置取第一个适用的检查器（BL-171），运行时再核一次授权。
@@ -64,7 +73,7 @@
   - SSOT 里 agent-host 的例外只有三类。
 
 **回执线（AI 输入回执）** — 需求书 `specs/ai-input-receipts/spec.md`。全文：[`lines/receipts.md`](lines/receipts.md)。
-- 在途只有 #726（3e-0b）。3e-0、3e-1、3d-5 已合。
+- 已合：#726（3e-0b，f28088b2b）、3e-0、3e-1、3d-5。没有在途的 PR。
 - 剩下的需求：
   - 3e 的「交付说明」，原本是下一片，没写计划，也没批；
   - §20 的 RCPT-103～107（跨压缩、跨 Run、重启仍适用；按范围纠正；三个入口一致；超预算不静默截断；端到端）；
@@ -73,7 +82,7 @@
 - #726 合入后要清：工作树 `line-receipts-3e1`、`-3e0`、`-3e0b`、`-base`，以及三个 `receipts/*` 分支。删工作树和分支要先弹窗请用户批。`line-receipts-1c` 里有别人没提交的改动，别动。
 
 **交互线（跨插件 AI 交互）** — 需求书 `specs/ai-interaction-experience/spec.md`（§17 进度表）。全文：[`lines/interaction.md`](lines/interaction.md)。
-- 在途只有 #708（AC-08，改了 Coding 产品代码，要跑全量）。
+- 已合：#708（AC-08，23946656c）。没有在途的 PR。
 - 剩下的需求：§17 里「部分」的行，包括：
   - AC-01 的第二批入口 P5 与逐插件的证据；
   - AC-06 的结果卡与 Coding 操作卡 H4；
@@ -87,7 +96,7 @@
 - #708 合入后要清：工作树 `line-interaction-ac08`、分支 `interaction/ac08-two-tabs`；另外几个旧本地分支先 `git branch -d` 确认已合入再删。
 
 **情境线（情境动作）** — 总纲 `specs/context-program/spec.md`（§9 波次、§16 状态表、§21 是当前接续入口）。全文：[`lines/contextual.md`](lines/contextual.md)。工作树 `.claude/worktrees/line-contextual`。
-- 在途：#720（W3-C2）、#730（W4-1），见 §1.1。两个的放行键都从 1,111,791 取，后合的按新 merge-base 重新取键。
+- 已合：#720（W3-C2，b2336d5c4）、#730（W4-1，f4207e064）。没有在途的 PR。
 - 剩下的需求：
   1. W4 余下：Pages、Inbox、Goals 的创建入口（Goals 用 `effect: "proposes"`，总出卡片）；F2 追加 `attach` 的 `find`（`search.references@1`，统筹 10-15 定）；F3 批量；插件页和右栏格的「✦ 一句话新建」（C9、C10）；覆盖率门禁 C13（插件声明 `intake` 之后）；内容站请求号泛化（8 个插件的 `receive` 升版本，先查存量工作流是否固定版本）。
   2. W5 拖放；W6 Shelf 动作进候选池、从左往右放、F8 材料篮、F12 讨论输入框作落点；W7 起 F4（先 G1）、F13，再 F6、F7、F10、F9。
@@ -100,10 +109,11 @@
 
 **手册线（AI 能力开发手册）** — `specs/ai-development-handbook/spec.md`。全文：[`lines/handbook.md`](lines/handbook.md)；BL-163 规则：[`lines/handbook-bl163-rule.md`](lines/handbook-bl163-rule.md)；评测脚本：[`lines/handbook-eval-163/`](lines/handbook-eval-163/)（密钥只从命令行的 `MINIMAX_API_KEY` 读）。
 - prologue#50 已合进 Prologue main（dd639069c）。Molis 还没换这个包：交给采用线，和批 B 合成一次。
-- 在途：分支 `ai/bl163-ack-eval`，BL-163/T5 评测。甲 96 跑、乙按映射 v2 重跑 16 跑，跑完开 PR。
+- 已合：#731（BL-163/T5 评测结果，09304a129）：BL-163 按 ① 删行（统筹 10-18 定），coding-base v13 删补充半句，BL-175（appRefs 解析器）、BL-176（ask-user 结果的 `pending` 键名，归 Prologue）。没有在途的 PR。
 - 剩下的需求：
-  1. Coding 小跑：规则已提交，等 #726 合入后再跑。
-  2. holdFinish：等 BL-163 的结果再定，另开一片。
+  1. Coding 小跑：规则已提交（spec 里「Coding 小跑」一段），#726 已合，可以跑了：用当时 main 的构建，16 次，和甲 A0-后按比例比。
+  2. holdFinish：BL-163 的结果里「收工前没说明」三版依次 2、1、0 跑，要不要设另开一片定。
+  2b. BL-176：ask-user 结果里已答的题键名叫 `pending`，模型读成「还在等」；改法归 Prologue，另开一片（Prologue PR 统筹审过即合）。
   3. 手册 §10 的正文（ADH-19～23）：一句没写。
   4. `default` 的措辞：`skills/molis-plugin-dev/elements.md:161` 和 `docs/platform/PROLOGUE-AI.md:206` 写得像宿主已经在开轮时选上了默认方法，其实宿主现在不读 `skills.default`。防腐 §10.16 把这件交给本线，要在 PR B 之前改。
   5. BL-145、146、149。

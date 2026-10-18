@@ -1,195 +1,262 @@
 # 交接（2026-10-18）
 
-用户 2026-10-18 的决定：防腐线和 Computer Use 线照常继续，其余五条线做完手上的这件就推送，然后暂停；推上来的 PR 由统筹合进 main，然后交给接手的人。
+本文是这次交接的唯一入口。它在远端分支 `coordination/handoff-2026-10-14` 上，不进 main。本机路径（`/Users/yijunwang/...`、`.claude/worktrees/...`、`/private/tmp/...`）只在原机器上有效；换机器的话，按文中的远端分支和提交号取。
 
-本文只在远端分支 `coordination/handoff-2026-10-14` 上，不开 PR，不合进 main。本机路径（`/Users/yijunwang/...`、`.claude/worktrees/...`、`~/code/prologue*`）只在原机器上有效。
+给接手人看的短版（Claude Docs，用户分享后别人才能打开）：「Molis Work 交接说明 2026-10-18」 https://claude.ai/code/artifact/4b29e264-5328-4329-99be-b9b49cbdc8bd
 
-给接手人的简短说明（可直接转发，用户分享后别人才能打开）：Claude Docs「Molis Work 交接说明 2026-10-18」 https://claude.ai/code/artifact/4b29e264-5328-4329-99be-b9b49cbdc8bd
+## 0. 一段话
 
-## 0. 接手先读
+用户 10-18 的要求：这一轮**一起收口、按标准走、不留尾巴**。防腐路线图全部做完；各需求线做到验收和归档；所有插件不分官方、个人、生成还是第三方，待遇一样，缺的平台能力补进平台。接手后开 4 个会话同时做：①统筹、②平台、③迁移、④需求（第 3 节）。统筹开工第一件事，是按防腐线最初的要求，对接手时的 main 做一次防腐审查（第 2 节）；另外三个会话同时开工，不用等审查做完。合并的规则是：每个 PR 跑过 Verify 就可以合，全量按批跑（第 4 节）。
 
-1. 两个仓库的 `AGENTS.md`（Molis 的硬约束、门禁、构建与测试；Prologue 的 §7 live 规则）。
-2. 本文。
-3. 评审清单：[`coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md`](../2026-10-13/ANTI-CORRUPTION-REVIEW.md) §3。每个 PR 入队前都按它审 diff。
-4. 流水记录：[`coordination/2026-10-14/README.md`](../2026-10-14/README.md)，每件事发生时的原话和理由都在里面，按日期往下看。
-5. `docs/system/PARALLEL-DEVELOPMENT.md`（本机只有一个浏览器槽；全量交给 CI；第 5.1 节写了不跑全量、只按 pid 停进程）。
+接手先读：两个仓库的 `AGENTS.md`（10-18 新加了一条「插件待遇一样」的硬约束）、本文、`coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md` §3（每个 PR 都按它审）、`docs/system/PARALLEL-DEVELOPMENT.md`、流水 `coordination/2026-10-14/README.md`。
 
-## 1. 现在停在哪
+## 1. 用户 10-18 定的事（都要照做）
 
-- Molis main：`f4207e064`（#730 合入之后）。Prologue main：`dd639069c`（#50 合入之后）。Molis vendored 的 SDK 还是 3adc5e87（`prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz`），prologue#50 还没换进来（交采用线，和批 B 合成一次）。
-- 10-18 合入 Molis main 的：#709、#711、#715、#661、#716、#712、#699、#717、#719、#722、#684、#718、#713、#724、#723、#714、#725、#703、#727、#720、#708、#726、#728、#721、#731、#730。合入 Prologue main 的：#48、#49、#50。五条暂停的线，推上来的 PR 已全部合入。
-- main 上 `molis-work-workbench.js` 是 1,113,068 B，安全不变量编到 S-40，BACKLOG 编到 BL-176（BL-163 已按评测删行）。coding-base 是 v13。
-- **全量**：用户 10-18 为提速定，交接前最后一批（#720、#708、#726、#728、#731、#730）不逐个跑全量，Verify 绿就入队；全部合入后在 main 上跑一次：run 39133836119（f4207e064），结果见下面 §1.2。#721 是从用户账号自己合的，也一起由这次全量覆盖。
+全文在 `specs/repository-anti-corruption/spec.md` §1 末尾 13 行，由 PR #737 写入 main。#737 还在仍描述旧规则的文档处标了「2026-10-18 改」：代码没改之前照旧，改完同步删掉这个标记。
 
-### 1.1 还开着的 PR（都不是这五条线的）
-
-| PR | 谁的 | 现在 | 接手要做的 |
-| --- | --- | --- | --- |
-| #729 | 防腐线 W5-01（Codex）：灵光改走 Plugin Runtime，删 `/api/lingguang` | 10-18 交接前才开、已标成待审；统筹没审 | 按 §3 审；它重写 `plugins/native/lingguang/src/actions.ts`，#730 已先合，要它解冲突（#730 加了 `lingguang.revert` 与 intake 声明） |
-| #733 | 防腐线（Codex，草稿）：cognia 的知识改走 Home 插件运行时 | 10-18 13:10 新开 | 转成待审后按 §3 审 |
-| #732 | jingxusandra-gif，产品运营文档对抗式审查（只改 `docs/product-operations/`） | 501cf1fa8 统筹审过、只改文档；统筹曾按 #722 先例入队，用户 10-18 把它移出了合并队列 | 交作者与用户定，不要自己再入队 |
-| #734 | jingxusandra-gif（草稿）：Linux 探测补 uv 安装依赖（CI） | 10-18 新开 | 转成待审后按 §3 审；改的是 CI，看会不会放宽门禁 |
-| #631 | jingxusandra-gif（草稿）：统一输入与本地语音 | 用户定留给作者 | 不处理；它会手动触发全量、占 runner |
-
-这次处理过的存量 PR（用户 10-18：交接之前把存量 PR 都处理掉）：
-- #156（jingxusandra-gif 的文档草稿，10-02 起没更新，和 main 冲突）：按用户决定关闭，并留言说明可以在 main 上重开。
-- #703（防腐线 W5-01，Codex）：没经统筹、没跑全量就从本账号入队合入（63639a764）。统筹事后审过；main 上补跑的全量第 8 片 `coding-input-receipts` 两次红、单独重跑通过，判负载时序；#727 的全量（run 39127845026）作为它的全量证据，结论写在 #703 评论里。
-- #727（防腐线 W5-01 材料服务）：用户定等它再合；审过、全量过，已合（74f39a47c）。
-- #708：全量第 6 片 `context-landing-panes` PANE-LAND-02 红——多收到的是分屏窗格里真的 Pages 又报了一次落点，不是伪造的那条被放进来，判负载时序；之后按用户决定直接入队、已合。
-- #731：#728 合入后在 BACKLOG 表尾撞行，统筹在 9aaa486ec 上 merge main（BL-171～173 排在 BL-175、BL-176 前）再入队、已合。
-- #730：#727 合入后 merge main（S-39、S-40 两行都留），#720 合入后再 merge main、放行键重取为 [1111910, 1113068]（实测 +1,158），已合。
-- #721（Computer Use 线，DeepSeek Harness）：10-18 13:46 从用户账号在 6a86d09cd 合入 main（7509b10ad），没等统筹要求的那处修改。**必须的后续，交 Computer Use 线**：`apps/local-host/src/computer/computer-act.ts` 的 `selector` 仍把模型给的 `/…/` 直接 `new RegExp(…, "iu")`，再对最多 600 个节点名 `test`；模型输入受页面内容影响，回溯型正则能卡住宿主的事件循环。改成按名字包含匹配（或有界、不回溯的匹配），配一条断言拒绝/不卡住的测试，补 `SECURITY-INVARIANTS.md` 的 S-25 行。PR 评论里有记录；统筹给用户留了一张起新会话做这件事的卡片。
-
-### 1.2 main 的全量（交接时）
-
-- run 39133836119（f4207e064）：进行中。结果补在这里；红的按 §2 的办法分清是谁的、是不是负载时序，交给对应的线或接手的统筹。
-
-### 1.3 合入后要清的（删除要用户在各线自己的会话里弹窗确认）
-
-- 回执线：#714、#726 都已合，工作树与分支见 [`lines/receipts.md`](lines/receipts.md)。
-- 交互线：#708 已合，工作树 `line-interaction-ac08`、分支 `interaction/ac08-two-tabs`，另几个旧本地分支先 `git branch -d` 确认已合入再删（见 [`lines/interaction.md`](lines/interaction.md)）。
-- 采用线：#725、#728 已合，工作树 `wt-a21` 与分支（见 [`lines/adoption.md`](lines/adoption.md)）。
-- 情境线：#720、#730 已合，工作树 `.claude/worktrees/line-contextual` 与笔记里列的分支；`~/.codex/worktrees/context-w0` 不是情境线会话建的，删之前先问用户（见 [`lines/contextual.md`](lines/contextual.md)）。
-- 手册线：#731 已合，分支 `ai/bl163-ack-eval`（远端在合并时已自动删）；评测用的临时 Home 按笔记清。
-- 统筹自己的：scratchpad 里的 `integ` 工作树（detached，可删）。
-
-### 1.4 各线
-
-（每条线做完推送后补上自己的一节：还剩哪些需求、下一片原本打算做什么、已批的计划、共享笔记在哪、要注意的坑。）
-
-**采用线（Prologue 完整采用）** — 需求书 `specs/prologue-adoption/spec.md`，手册 `specs/ai-development-handbook/spec.md` §9.5。全文：[`lines/adoption.md`](lines/adoption.md)；A2 的三片计划：[`lines/adoption-a2-plan.md`](lines/adoption-a2-plan.md)。
-- 已合：#725（C4，ee78569fc）、#728（A2-1，a98967d7f）。没有在途的 PR。
-- 剩下的需求，按顺序：
-  1. **A2-2：执行器与时间线。**
-     - 按配置取第一个适用的检查器（BL-171），运行时再核一次授权。
-     - 记录按 (run, operationKey) 存，审查卡那一行用 `isAfterWriteCheckOperationKey` 认。
-     - 安全不变量取开工时的下一个空号，用例放 `tests/security-invariants-checkers.test.ts`。
-     - 用例：PA-26 撤权那一半、PA-27、PA-29～38。
-     - 可以顺手做 BL-172。
-  2. **A2-3：设置页。** A2-1 合入后可以和 A2-2 并行。
-  3. **批 B：read 的窗口读带行号。** 已批，没开工，计划在 [`lines/adoption-batchB-plan.md`](lines/adoption-batchB-plan.md)。和 prologue#50 合成一次换包。
-  4. 手册 §9.5 补一行「窗口读没有行号归 Prologue」。
-- 坑：
-  - 巨大单元 `registerAgentHostCapabilities` 363、`composeAgentHost` 245、`PrologueAgentAdapter` 602、`AgentHost` 381 不许变大；新能力写在新文件里，用 `register(definition, handler)`。
-  - typed 计数 187 不许变大。
-  - SSOT 里 agent-host 的例外只有三类。
-
-**回执线（AI 输入回执）** — 需求书 `specs/ai-input-receipts/spec.md`。全文：[`lines/receipts.md`](lines/receipts.md)。
-- 已合：#726（3e-0b，f28088b2b）、3e-0、3e-1、3d-5。没有在途的 PR。
-- 剩下的需求：
-  - 3e 的「交付说明」，原本是下一片，没写计划，也没批；
-  - §20 的 RCPT-103～107（跨压缩、跨 Run、重启仍适用；按范围纠正；三个入口一致；超预算不静默截断；端到端）；
-  - 阶段 4（Goals 层）、5、6；
-  - BACKLOG 的 BL-144、148、161、162、164（BL-163 已由手册线评测后删行，#731）。
-- #726 合入后要清：工作树 `line-receipts-3e1`、`-3e0`、`-3e0b`、`-base`，以及三个 `receipts/*` 分支。删工作树和分支要先弹窗请用户批。`line-receipts-1c` 里有别人没提交的改动，别动。
-
-**交互线（跨插件 AI 交互）** — 需求书 `specs/ai-interaction-experience/spec.md`（§17 进度表）。全文：[`lines/interaction.md`](lines/interaction.md)。
-- 已合：#708（AC-08，23946656c）。没有在途的 PR。
-- 剩下的需求：§17 里「部分」的行，包括：
-  - AC-01 的第二批入口 P5 与逐插件的证据；
-  - AC-06 的结果卡与 Coding 操作卡 H4；
-  - AC-09 的 S1；
-  - AC-10 的宽度与深色截图（真实输入法和读屏只能用户做）；
-  - AC-12 的 `generated-ai.md`（改了要跑真实模型冒烟）；
-  - AC-11 的包来源还写着 `b541a8e6`，要更新。
-  - AC-02 同排推荐归情境线。
-- 原本的下一片（没批）：AC-10 的 Coding 问卷卡，三个宽度加深色，只跑 `coding-question-card.e2e`。
-- `coding.js` 离预算只剩约 37 字节。
-- #708 合入后要清：工作树 `line-interaction-ac08`、分支 `interaction/ac08-two-tabs`；另外几个旧本地分支先 `git branch -d` 确认已合入再删。
-
-**情境线（情境动作）** — 总纲 `specs/context-program/spec.md`（§9 波次、§16 状态表、§21 是当前接续入口）。全文：[`lines/contextual.md`](lines/contextual.md)。工作树 `.claude/worktrees/line-contextual`。
-- 已合：#720（W3-C2，b2336d5c4）、#730（W4-1，f4207e064）。没有在途的 PR。
-- 剩下的需求：
-  1. W4 余下：Pages、Inbox、Goals 的创建入口（Goals 用 `effect: "proposes"`，总出卡片）；F2 追加 `attach` 的 `find`（`search.references@1`，统筹 10-15 定）；F3 批量；插件页和右栏格的「✦ 一句话新建」（C9、C10）；覆盖率门禁 C13（插件声明 `intake` 之后）；内容站请求号泛化（8 个插件的 `receive` 升版本，先查存量工作流是否固定版本）。
-  2. W5 拖放；W6 Shelf 动作进候选池、从左往右放、F8 材料篮、F12 讨论输入框作落点；W7 起 F4（先 G1）、F13，再 F6、F7、F10、F9。
-  3. 收尾：真实 Home 全面验证（先弹窗问用户），三份子需求书归档。
-  4. §16 状态表 R1、R6、R12、R14、R25 已做未更新，接手先按 §21.6 核对。
-  5. BL-174（#730 里，原 BL-171）：没有模型时按内容挑去处，要 `intake` 声明收哪类内容，是改合同。
-  6. PICK-05 放行判断之后的 500 ms，改成等「回复已作废」这个事实（统筹意见）。
-- 合入后要清的分支与工作树列在 `lines/contextual.md`；其中 `~/.codex/worktrees/context-w0` 不是情境线会话建的，删之前先问用户。
-- 坑：`provider_id` 只在 `view.provider.provider_id`（假目录测不出）；只有规则时一段文字的第三个推荐位是去处，找按钮把 `.mw-ctx-menu` 带上；慢机时序要复现就扣住 `/api/contextual/judge`；浏览器用例与别的全量同时跑会超时，比对时串行。
-
-**手册线（AI 能力开发手册）** — `specs/ai-development-handbook/spec.md`。全文：[`lines/handbook.md`](lines/handbook.md)；BL-163 规则：[`lines/handbook-bl163-rule.md`](lines/handbook-bl163-rule.md)；评测脚本：[`lines/handbook-eval-163/`](lines/handbook-eval-163/)（密钥只从命令行的 `MINIMAX_API_KEY` 读）。
-- prologue#50 已合进 Prologue main（dd639069c）。Molis 还没换这个包：交给采用线，和批 B 合成一次。
-- 已合：#731（BL-163/T5 评测结果，09304a129）：BL-163 按 ① 删行（统筹 10-18 定），coding-base v13 删补充半句，BL-175（appRefs 解析器）、BL-176（ask-user 结果的 `pending` 键名，归 Prologue）。没有在途的 PR。
-- 剩下的需求：
-  1. Coding 小跑：规则已提交（spec 里「Coding 小跑」一段），#726 已合，可以跑了：用当时 main 的构建，16 次，和甲 A0-后按比例比。
-  2. holdFinish：BL-163 的结果里「收工前没说明」三版依次 2、1、0 跑，要不要设另开一片定。
-  2b. BL-176：ask-user 结果里已答的题键名叫 `pending`，模型读成「还在等」；改法归 Prologue，另开一片（Prologue PR 统筹审过即合）。
-  3. 手册 §10 的正文（ADH-19～23）：一句没写。
-  4. `default` 的措辞：`skills/molis-plugin-dev/elements.md:161` 和 `docs/platform/PROLOGUE-AI.md:206` 写得像宿主已经在开轮时选上了默认方法，其实宿主现在不读 `skills.default`。防腐 §10.16 把这件交给本线，要在 PR B 之前改。
-  5. BL-145、146、149。
-  6. 手册的用户验收。
-
-## 2. 统筹怎么做
-
-统筹不写功能，只做跨线的事：审 PR、排全量、合并、替用户按规则拍板、维护这份文档。
-
-**审 PR**
-- 每个 PR 都按 ANTI-CORRUPTION-REVIEW §3 审 diff，结论写在 PR 评论里（「统筹 MM-DD 审过 <head>：…」）。
-- 新 head 只核增量：老 head 对它的 merge-base、新 head 对 `origin/main...H`，各取改动行（`grep -E '^[+-][^+-]' | sort`）后 diff，去掉 `tooling/gates`、`scripts/gates/page-assets.mjs`、`tests/page-assets-budget.test.ts`；再用 `git merge-tree --write-tree origin/main H` 看能不能干净合并。
-- Prologue 的 PR 统筹严格审过就合（用户 10-17），代码质量要额外严格；换包交给采用线，几件合成一次。
-
-**全量**
-- `full-suite` 标签只由统筹加，同时最多两份。用 `tools/label-chain2.zsh <pr>:<完整 sha> ...`：有空位、合并预览是新的才加标签，然后用 `gate-and-queue.sh` 等结果，绿了自动入合并队列。
-- 合并预览过期时 CI 跑的是旧 main 上的旧工作流，所以标签链会等 GitHub 重算合并预览。
-- 全量从 #716 起快速失败：一个文件重试一次还失败就停下这个分片，其他分片取消。红的那次只报第一个失败的文件；`gate-and-queue.sh` 会把它报出来，凡有分片被取消一律不入队。
-- 可以 merge-only（不跑全量，`gate-and-queue.sh <pr> <sha> merge-only`）的只有两种：
-  - 只改测试、文档、门禁变严、CI 的 PR；
-  - 已经跑过全量的 PR，新 head 只是 merge main、重新取键、改文档或注释、改那一个红的用例。
-- main 上本来就红的用例：PR 只红在它上面时，等 main 修好、merge main 后走 merge-only（用户 10-18）。
-- 10-18 交接前的最后一批，用户为提速定不逐个跑全量（Verify 绿就入队，合完 main 上跑一次）。这是那一批的一次性决定，接手后照常按上面的规则跑；要不要沿用，先问用户。
-
-**页面资源**（用户 10-18，PR #705）
-- 默认只许变小。必需的增长写进 PR，统筹审过后给一次性 `APPROVED_CEILINGS`，按合入时的 merge-base 取键 `[基线, 实测]`。
-- 一个资源一次超过 10 KB，或者新增资源，才问用户。
-- 别的 PR 先合进来改了同一个资源，后合的就要重新取键（只 merge main、改键，走 merge-only）。
-
-**线的节奏**
-- 每条线开一片之前先发一行计划给统筹，批了再写代码。每条线同时最多两片，PR 等着的时候可以开下一片。
-- 本机只跑改到的文件（`node scripts/affected-tests.mjs`），全量交 CI。别人的进程只在用户同意后按 pid 停。
-
-**拍板**
-- 技术上的取舍按防腐的后果定；功能上的取舍按推荐定，写成「统筹 MM-DD 定」，并记进流水和对应的 spec。
-- 这些先弹窗问用户（AskUserQuestion，推荐项放第一个）：发版、真实 Home（4207/4208/4173）、放松门禁、真实凭据、计划外的 PR、别人的分支或进程、Prologue 之外的 vendored 和上游合并、改外部 MCP 工具名。
-- 不做：force push、裸 `git stash`、不按 pid 停进程、为模型能力的弱点加提示词补丁、兼容或兜底读取、替别的会话去拿它被拒的权限。
-
-**MiniMax**
-- 评测和隔离 Home 实走可以直接用，不用问（用户 10-16）。
-- 密钥只内联读：`MINIMAX_API_KEY="$(security find-generic-password -a "$USER" -s minimax-api-key -w)" …`，不落盘、不进日志，不用浏览器输入。
-- 只用一次性 Home，跑完即删。Home 主密钥的钥匙串条目所有 Home 共用（含真实 Home），永远别删。
-
-## 3. 工具（`tools/`）
-
-从原机器的会话草稿目录拷过来，路径改成相对脚本目录；仓库位置用 `MOLIS_REPO`（默认 `~/code/goalboard`）。都要用 zsh 跑。
-
-| 脚本 | 用法 |
+| 事项 | 决定 |
 | --- | --- |
-| `label-chain2.zsh 720:<sha> 708:<sha>` | 依次等空位、等合并预览更新，加 `full-suite` 标签，再在后台跑 gate，结果写进 `gate-<pr>.log` |
-| `label-when-free2.zsh <pr>` | 只做「等空位、等合并预览、加标签」 |
-| `gate-and-queue.sh <pr> <sha> [merge-only]` | 等这个 head 的检查跑完，全绿就 `gh pr merge --squash --auto` 入队。KNOWN 名单只放用户认过的偶发失败，别为变绿往里加 |
-| `wait-merge.sh <pr>` | 已经入队的 PR 等到合入。没入队的会立刻报 LEFT QUEUE，改用 `until [[ $(gh pr view N --json state -q .state) == MERGED ]]` |
-| `monitor.zsh` / `heads.zsh` | 配合 Claude Code 的 Monitor 用：前者报全量、合并和 gate 日志的新状态，后者报 PR 的 head 变化和新 PR。`monitor.zsh` 里合并的 PR 号范围写死在 611–760，过了要改 |
+| 收口范围 | 防腐路线图全做完：W5-01 剩下的各族，含 Feed、Alchemist、Shelf 收尾、Characters 并进 Module；W5-02～W5-17；W6-01～W6-06。需求线把 spec 剩下的验收项做完并归档；挂在名下的 BL，要么做掉，要么写清不做的理由。动真实 Home 的步骤，到时仍弹窗问 |
+| 插件待遇 | 官方、个人、生成、第三方插件：同一套 SDK 与合同、同样的 Manifest 声明、都由 Runtime 装配，平台服务、生命周期和授权规则也都一样。只有安装信任按来源区分：发布者签名决定要不要首次确认、跑不跑沙箱、动作提供方身份归谁 |
+| 四个构建期例外 | 取消。Goals 是普通插件，按标准迁；插件创作台不算插件，是平台能力；成果库（Artifacts）和 Sessions 是平台事实。Sessions 这一轮清理掉、文档留记录，以后重做（BL-177，先写需求书给用户审） |
+| 内置插件的授权 | 和其他插件同一规则：按清单的必需与可选给权限，可选的都能关；内置插件装上时可选项默认勾上（改 10-10 W3-06 B） |
+| 其余内置特权 | 一律改成按声明与授权：`always_on`、端口默认连线、Goals 信任内置调用者、native 动作自动算本机所有者权限、工作台手写名单。名单由 W5-02 从声明生成；改信任边界的（S-34、默认连线的同意流程），先设计再弹窗问 |
+| 项目库 | 做项目库服务：插件自己的项目库表（Schedule 三张、Feed 出口规则、Coding）由插件声明，宿主基线不再点名插件；Module 的表照旧归 Module |
+| 放置 | 按今天的登记方式：Form、Dataset、PPT、Pages、灵光、Workflows、Inbox、Schedule、Feed 每个项目一个实例；Todo、Issues、Jelly、Cognia、Images、Alchemist 在 Home 级实例 |
+| 删项目清数据 | 沿用目录条目上的 `project_data`（已覆盖 8 个插件），W5-02 把它挪进各插件包，不另加 Runtime 钩子 |
+| 目录条目 | 保留到 W5-02 生成后一次删 |
+| Characters | 并进 `modules/characters`；路由路径不变，成果类型由 Module 声明 |
+| 合并与全量 | Verify 过即可合；全量按批跑，一批是同时待合的 3～6 个 PR，先合成集成分支跑一次（第 4 节） |
+| Computer Use 的打开/保存面板 | 选 A：先拿真机事实；独立进程的面板继续拒绝，交给用户自己点 |
 
-日志（`gate-<pr>.log`、`*-seen.txt`）写在脚本旁边，已在 `.gitignore` 里。
+之前给过、仍然有效的授权：推送、开 PR 不用问；CI 过了、统筹审过就可以合并（用户自己的 PR 和 Codex 的也要先经统筹）；Prologue 的 PR 统筹严格审过就合；MiniMax 在一次性隔离 Home 里随便用（密钥只能内联读，第 9 节）；页面资源确实需要时可以变大（第 4.3 节）；只因负载超时而红的，重跑通过就算过。
 
-## 4. 已知的坑
+## 2. 第一步：接手时的防腐审查（统筹做，不挡别人开工）
 
-- 作者自己去掉再加 `full-suite` 标签，或者手动 dispatch，会取消快跑完的全量、占掉 runner（10-18 #661、#631、#721 都发生过）。请他们把标签交给统筹。
-- 两个标签链同时在等时，谁先加上标签是碰运气的，不保证顺序。
-- 合并预览过期：GitHub 不一定按新 main 重算。标签链会等 10 分钟，之后只有 main 新增的改动和本 PR 没有文件重叠时才照常加标签。
-- 安全编号容易撞：开 PR 前看 main 上最大的 S 号，被别人先占了就往后顺延，并在 PR 里写明。
-- 本机只有一个浏览器槽。别的工具（DeepSeek Harness）在 computer-use 的工作树里跑过本机全量，把槽占了 30 多分钟，用户同意后统筹按 pid 停了它（10-18）。
-- `tests/coding-input-receipts.e2e.test.ts`（RC-10/11/13/16）在 CI 负载下会停在「点发送方式触发器、菜单没打开」：#703 之后 main 上两次红、单独重跑第 8 片通过，本机 7.7 秒通过（10-18）。PR 全量只红它时，先 `gh run rerun <run> --failed` 重跑，不加进 KNOWN；#726 这类改 Coding 回执的 PR 红在这里要先看是不是自己的。根因（猜是状态刷新把触发器重画或藏起）留给回执线的接手人。
-- `tests/context-landing-panes.e2e.test.ts`（PANE-LAND-02）在 CI 负载下会多收到一条落点：是分屏窗格里真的 Pages 又报了一次（带真实 pane_id、光标与上下文），不是伪造的那条被放进来（#708 的全量，10-18）。红在这里时先看 `detail.pane_id` 是不是空的，空的才是 S-30 的问题。
-- `sleep` 在前台被 harness 拦着，要等就用后台 until 循环或 Monitor。
-- 情境线 10-18 晚曾用 `pkill -f "check-health-gates.mjs --base"` 停自己的健康检查（没按 pid），可能顺带停了别的会话同一时刻的健康检查。哪个会话说那段时间 health 莫名中断，让它重跑。停进程一律按 pid。
-- 草稿 PR 用 workflow_dispatch 手动触发的全量也占空位：`label-when-free2.zsh` 数的是全部在跑或排队的全量，所以统筹的标签链会排在它们后面。
-- PR 里多一个工具，可能让测试里的会话历史到整理阈值，多出一个没有工具的「选择保留历史」请求。按轮数写的假模型会因此错位，要按事实等（#726）。
-- product-subset 的作业名写着「not required yet」，但 `gate-and-queue.sh` 把它当失败，不入队。这是对的：它红了，多半是真问题（#726）。
+**要求从哪来**：防腐线最初的六份原文，`docs/prompts/repository-anti-corruption.md`、`docs/prompts/repository-systematic-review.md`（15 节）、`docs/prompts/code-health-report-2026-09-30.md`（R-01～R-14）、`docs/prompts/post-merge-functional-review.md`、`specs/archive/post-merge-review/spec.md`、`specs/archive/repository-systematic-review/spec.md`（F-01～F-35）；外加 10-18 的新规则（第 1 节）。口径和 §10.11～§10.26 一样：CI 通过、已经合入、自查过，都不能单独证明合规；要分清已批准的预期变化和没有依据的行为回退；授权内能修的就修；原文之间有冲突的，指出来交用户定，不自己改目标；不靠放宽断言、删约束或改记录来过关。
 
-## 5. 待定、留给接手的人
+**范围**：
+1. §10.26（main `4b063bf98`）之后合入的 56 个 PR（到 #729），加上交接时还在合的 #735、#736、#737、#733。每个按**合入时的 head** 审（`git show --remerge-diff <合并提交>`）。
+2. 交接时的整个 main 再看一遍，专门找三类东西：只有内置插件才有的特权；宿主替某个插件开的私路；平台缺、插件只好绕过去的能力。
+3. Codex 防腐线的候选（第 5.2 节），在它们开 PR 的时候审。
 
-- Molis 要不要设 `inputReminders.holdFinish`：BL-163 的结果已出（收工前没说明 2、1、0 跑），手册线单开一片定。
-- Coding 里写死的三个 SDK 资源种类，改用 SDK 导出的常量（采用线记在 BACKLOG）。
-- 批 B 合入 Prologue 之后，由采用线把它和已合的 #50 合成一次换包。
+**交付**：
+- 防腐 spec 新开一节 §10.27：每个 PR 的结论，以及发现的问题、归属和修法。
+- 「内置特权与平台缺口」清单：每一项写上代码位置、受影响的插件、补什么平台能力、归哪个会话、先后顺序。②③两个会话的排期以它为准。
+- 发现的问题派给对应的会话，排在它们下一片之前。
+
+**已经知道的**：
+- P1：`apps/local-host/src/placement-call.ts` 的 revert，在等 scope 之后、同步提交之前，没有再查服务还活着，关闭以后可能继续把东西移回去（Codex 交接里写的，已在隔离副本复现，最小修正后四条用例通过，main 上没修）。归②。
+- 第 1 节列的那些内置特权。
+- main 全量的结果见 §6.1。
+
+## 3. 四个会话怎么分工
+
+原则：每个会话只改自己的那些文件。要别人那块的东西，就请对方做，或者交统筹协调，不在自己的 PR 里顺手改。每个会话同时最多两个 PR 在等合并；等的时候在本地做下一片，必要时叠在自己的分支上。
+
+### ① 统筹
+
+- 开工先做第 2 节的审查。
+- 之后的日常：按 ANTI-CORRUPTION-REVIEW §3 加第 1 节的新规则审每个 PR，结论写在 PR 评论里；组批、跑集成全量、按依赖合并（第 4 节）；盯每晚 main 的全量；维护本文和流水；能按规则定的替用户定，不能定的弹窗问。
+- 机械性的跟进统筹可以自己做，省得来回等：给别人的 PR merge main、重取页面资源的放行键、顺延撞了的编号。做之前在 PR 评论里说一声，只做这几样，不碰业务改动。
+- 统筹不写功能。只改文档、记录、门禁说明。
+
+### ② 平台（补平台能力、去掉内置特权）
+
+负责的文件：`packages/contracts`、`packages/plugin-sdk`、`packages/plugin-runtime`、`packages/kernel`、`packages/storage`、`packages/ui-host`；`apps/local-host` 里的平台服务，包括 `plugin-platform.ts`、`home-plugins.ts`、`project-plugins.ts` 里平台那部分、`local-owner-permissions.ts`、`builtin-plugin-callers.ts`、`plugin-default-bindings.ts`、`placement-call.ts`；W5-02 之后，还有生成工作台名单的代码。
+
+建议顺序（第 2 节的清单出来后按它调整）：
+1. 修 `placement-call.ts` 的 P1。
+2. 内置插件的授权改成同一规则：`bundledGrants`、POLICY 7.8、设置里可选权限的开关、相关测试。
+3. 项目库服务，排在③迁 Schedule、Inbox、Feed 之前。
+4. 去特权：Goals 改用授权，不再信任内置调用者；native 动作的本机所有者权限改成按声明；`always_on` 和端口默认连线改成按声明加安装同意。后两项要先补「安装时的同意」这一项平台能力，设计好先弹窗问用户（S-34 是安全不变量）。
+5. W5-02 声明式注册（3 个 PR）：工作台的目录和设置节、搜索页签、翻译词典归属、页面资源包、设计系统名单、home-sqlite 名单、`project_data`、X-1 依赖清单，都改成从各包的声明生成。它会和③每次迁移改的 `builtin-plugins.ts` 撞车：先和③约好一个时间点，那之前的迁移先合，那之后③只写自己包里的声明。
+6. 插件创作台并进平台：删掉它的插件目录条目，代码进平台的模块；生成的插件照旧走 Runtime 和沙箱。
+7. W5-06 通用挂载器；W5-03 按主人分翻译；W5-08、W5-09、W5-11、W5-13～W5-16。W5-17（catalog 路径与真实 Home 维护）要先弹窗问用户。
+
+### ③ 迁移（插件迁到 Runtime，加上清理）
+
+负责的文件：`plugins/native/*`，以及删掉 `apps/local-host/src/<插件>-*.ts`、`project-host.ts` 里的 `registerProvider`、`web-request.ts` 路由表里的行。`project-plugins.ts` 里的监督器条目，W5-02 之前也归它。
+
+顺序：
+1. **先把 Codex 已经做完的候选落进 main**（第 5.2 节，一共 18 片左右）。这是最快的进度。按 Codex 表里的顺序组批：集成分支已经有了，先修好它全量里那一处红（`tests/personal-plugins-review-fixes.test.ts` 的 Dataset 和 PPT 断言，修法和 #736 一样），重跑全量，过了就按依赖一片一片开 PR、各自过 Verify、逐个合。
+2. 不需要新平台能力的几族：Workflows 的 Runtime 接线、Pages、Jelly、Images（在 model-selection 之后）、Shelf 的 D2/D3、Characters 并进 `modules/characters`。
+3. Goals（被宿主点名最多，单独写计划，交统筹审）。
+4. Schedule、Inbox、Feed：等②的项目库服务。Feed 要单独写计划。
+5. Alchemist：先补 Runtime 的项目分区、关闭与排空合同（Codex 的只读方案在 `alchemist-partition-next-plan.md`、`alchemist-partition-prerequisite-review.md`），这个合同由②做，或者③做、②来审。
+6. Sessions 清理：先查清谁在用，包括工作区动作、Coding、`sessionsProjectData`、真实 Home 里的存量。别人在用的能力先挪走，再删；删真实 Home 的数据先弹窗问。清理的经过写进文档，重做记在 BL-177。
+7. W6-01：删 `native-plugin-api` 别名和 `/api/<短名>` 路由，冻结名单清空，改写 AGENTS.md 那条硬约束。W6-02：给真实的生产者补生命周期测试。
+8. 最后由统筹做 W6-04～W6-06：重量、终回归、交付物。
+
+### ④ 需求（两组轮流做）
+
+④一个会话管两组。一组的 PR 在等的时候，就做另一组。统筹派来的防腐问题先做。需要平台能力时找②，不在宿主里另开一条路。
+
+**助理与 AI 组**，按顺序（详细在 `lines/` 各文件）：
+1. 采用线：A2-2 执行器与时间线；A2-3 设置页，可以和 A2-2 并行；批 B，read 的窗口读带上行号，和已合的 prologue#50 一起，**只换一次 vendored 包**；BL-172。换包由这一组独占，别的会话要换包，交给它一起换。
+2. 回执线：3e 的交付说明（先写计划交统筹）；§20 的 RCPT-103～107；阶段 4～6；BL-144、148、161、162、164。
+3. 手册线：Coding 小跑；`inputReminders.holdFinish` 要不要设；BL-176，ask-user 结果里的 `pending` 键名，开一个 Prologue PR；手册 §10 正文；`skills.default` 的措辞；BL-145、146、149；用户验收。
+4. Computer Use：CU-G13（非浏览器全量和 `test:security` 全量交 CI）；CU-G14（索引和归档）；CU-G06、G08、G10 的真机数据，以及 CU-G02～G04 的二十步真机验收，要用户的 Mac 空出来，先和用户约时间，按 `specs/computer-use/acceptance-runbook.md` 做；打开/保存面板按 A 补同进程 sheet 的真机用例；CU-G15 可选。
+
+**界面组**，按顺序：
+1. 情境线：W4 剩下的 Pages、Inbox、Goals 创建入口（Goals 用 `effect: "proposes"`）、F2、F3、C9、C10、C13；内容站请求号泛化；W5 拖放；W6、W7；BL-174；PICK-05 改成等事实；§16 状态表核对；最后真实 Home 的全面验证（先弹窗问），三份子需求书归档。
+2. 交互线：AC-10 的 Coding 问卷卡（三个宽度加深色）；AC-06 的结果卡与 H4；AC-01 的 P5；AC-09 的 S1；AC-12；AC-11 的包来源；最后验收、归档。
+
+④两组都做完了，就转去③帮忙迁移。
+
+### 3.1 会撞车的东西，怎么避开
+
+| 东西 | 规矩 |
+| --- | --- |
+| 枢纽文件（`project-plugins.ts`、`builtin-plugins.ts`、`project-host.ts`、`web-request.ts`、`dom-events.ts`、`assistant-island.ts`、`SECURITY-INVARIANTS.md`、防腐 spec） | 动之前先看在途的 PR 改了哪几行（`gh pr diff <n> \| grep '^@@'`），在 PR 正文写清楚会和谁冲突；后合的那个负责解冲突。防腐 spec 的状态句和 §10 只由统筹改；各片的记录写在 PR 正文里，加 spec 里自己那一节，不往文件开头堆段落 |
+| BACKLOG 编号 | 预先分好号段，不用再等：统筹 BL-177～179（177 已用）、② BL-180～199、③ BL-200～219、④ BL-220～249 |
+| 安全不变量编号 | 号必须连续，没法预分。开 PR 时取 main 上下一个空号；撞了，后合的顺延，只改编号，走 merge-only |
+| 页面资源放行键 | 按合入时的 merge-base 取键，一次有效；别的 PR 先合、改了同一个资源，后合的就重新取键（可以交给统筹做）。同一批里的 PR 在集成分支上一起量 |
+| vendored Prologue 包 | 只由④的助理与 AI 组换，同一时间只换一次 |
+| 本机构建和浏览器 | 整台机器同一时间只跑一个构建、一个浏览器批次（`node scripts/machine-slot.mjs`）；浏览器用例只跑改到的文件，全量交给 CI |
+| 合同（API 快照、动作快照） | 改了就跑 `pnpm api:update` / `pnpm actions:update`，PR 里写清对调用方的影响；不留兼容期，形状变了就升版本 |
+
+## 4. 合并与全量
+
+### 4.1 规则（用户 10-18 定）
+
+- **单个 PR**：统筹按 §3 审过、Verify 绿了，就可以入合并队列，不用单独跑全量。
+- **按批跑全量**：统筹把同时待合的 3～6 个 PR 合成一个分支 `integration/batch-MMDD-N`，基于最新的 main，按依赖顺序 merge 进去。推上去后 `full-suite.yml` 会对 `integration/**` 自动跑全量。全量过了，这几个 PR 按依赖逐个合，每个还是要 Verify 绿；在每个 PR 的评论里写上「批 <分支> 全量 <run> 过」。
+- **批红了**：先判断是负载时序，还是谁引入的。时序问题：`gh run rerun <run> --failed`。真失败：把引入它的 PR 拆出这一批，交回作者；其余的重新组批，或者如果它们和失败的那个没有任何文件重叠，直接合。
+- **共享核心**（contracts、SDK、kernel、plugin-runtime、换 Prologue 包）的 PR 必须在批里，不能单独合。
+- **批跑过之后 head 又变了**：只是 merge main、重取放行键、顺延编号、改文档的，不用再跑；改了业务代码的，进下一批。
+- **main**：每晚 17:00 UTC 有定时全量。红了，当天由引入它的会话修。只红 main 上已经红着的那个用例的 PR，等 main 修好、merge main 之后再合，不用重跑。
+- **merge-only**（`gate-and-queue.sh <pr> <sha> merge-only`）照旧可以用于只改文档、测试、门禁变严或 CI 的 PR。
+
+### 4.2 工具（`tools/`，都用 zsh 跑）
+
+| 脚本 | 用途 |
+| --- | --- |
+| `gate-and-queue.sh <pr> <sha> [merge-only]` | 等这个 head 的检查跑完，全绿就 `gh pr merge --squash --auto` 入队。KNOWN 名单只放用户认过的偶发失败，不为变绿往里加。按批的做法下，单个 PR 一律用 `merge-only` |
+| `label-chain2.zsh`、`label-when-free2.zsh` | 旧做法（逐个 PR 加 `full-suite` 标签）的工具，只在用户要求某个 PR 单独跑全量时用 |
+| `wait-merge.sh <pr>` | 已入队的 PR 等到合入 |
+| `monitor.zsh` / `heads.zsh` | 配合 Monitor 用：报全量、合并、gate 日志，以及 PR 的 head 变化。`monitor.zsh` 里写死的 PR 号范围是 611–760，超了要改 |
+
+### 4.3 页面资源（用户 10-18，#705）
+
+默认只许变小。确实需要变大的，在 PR 里写明理由、字节数和试过的省法，统筹审过后在 `APPROVED_CEILINGS` 里一次性放行，键是 `[merge-base 的字节数, 实测]`。一次超过 10 KB 或者新增资源，才弹窗问用户。
+
+## 5. 防腐线现状（Codex 交来的部分）
+
+防腐线 10-17 起由 Codex 负责。Codex 的交接草稿在 `/Users/yijunwang/code/molis-anti-corruption-20261017/HANDOFF-2026-10-18.md`（本机文件，下面摘了要点）；唯一的记录是 `specs/repository-anti-corruption/spec.md`，计划是 `roadmap-2026-10-07.md` 与 `docs/system/RUNTIME-MIGRATION.md`。
+
+### 5.1 已合与在途
+
+- 已合：#679（Home 路由按项目路径跑）、#677（W5-05）、#686（§10.26）、#684（Todo 迁到 Runtime）、#703（流式路由）、#727（材料服务）、#729（灵光迁到 Runtime）、#735（Computer Use 选择器不再编译成正则，S-25）。
+- #736（Codex）：#729 合入后 main 上 `personal-plugins-review-fixes` 红了，这个 PR 修灵光那条断言（收紧，不是放宽）。统筹审过，gate 已在跑，Verify 绿了就合。
+- #733（Codex，草稿）：Cognia 迁到 Home Runtime。原来的 base 是灵光分支，#729 合入后要改成接 main、转正，再审。
+- #737（统筹）：把 10-18 的决定写进文档，gate 在跑。
+
+### 5.2 Codex 本地做完、还没开 PR 的候选
+
+它们都在远端集成分支 `integration/anti-corruption-closeout-20261018`（头 `c34b65e4e`，比 main 多 371 个提交、430 个文件）上，一片叠一片地 merge 进去。单片的分支多数没推到远端，但每片的 head 都在这个集成分支的历史里，可以用 `git branch <名字> <sha>` 取出来。Codex 定的顺序：
+
+| 内容 | head | 状态 |
+| --- | --- | --- |
+| Cognia Runtime | `6f57c2b2d` | 本地已接上新前置；#733 还停在旧 head |
+| 插件私有文件 | `70d77c06e` | 等前置 |
+| 后台授权 | `402d7fcc4` | 重复的 CI 选择已修 |
+| 模型端口、Images 与 Jelly | `41fe68f0c` | 存储声明的回归已修（`wt-images-runtime`、`wt-jelly-runtime` 是旧树，不要合） |
+| 模型回执与 query 委托 | `f3cdd1724` | 公共前置；Shelf 本身还没迁 |
+| Home owner 文件服务 | `0725712ec` | 公共前置；业务接线没做 |
+| 项目成果 D1 | `bebc037a8` | 安全 CI 的选择已补 |
+| Alchemist 生命周期与恢复 | `36b2ac2c9` | Runtime 和 WorkReuse 没做 |
+| PPT Runtime | `ea0c78ed6` | 含同步 publish 的尾检 |
+| Dataset Runtime | `3cb2a9fcc` | 组合通过 |
+| Workflows Store | `7cf7795cf` | 只做了 Store 端口，Runtime 接线没做 |
+| Images 稳定翻译键 | `d60ac2b24` | 组合通过 |
+| Module 公开边界 | `4decd87da` | 组合通过 |
+| Pages 编辑职责拆分 | `858411ab7` | 组合通过，44 个文件 |
+| Job 授权读取 | `36bc503b3` | 组合通过，3 个文件 |
+| 独立复查记录 | `2dc1973dd` | 文档 |
+
+- 这个集成分支的全量 39135082261 红在 `tests/personal-plugins-review-fixes.test.ts`：Dataset 的客户端断言还要求旧的短路径；fail-fast 取消了其他分片，所以其他文件都没验证。Codex 的修法是在灵光、PPT、Dataset 各自那一片里，把断言改成 Manifest 路径（灵光的那条就是 #736）。PPT、Dataset 的修完后重跑全量。
+- 灵光已用掉 +2,231 B 的放行；Alchemist 的 +1,754 B 还没用，按实际 main 核对。Pages 比 main 小 79 B。
+- 各片的 PR 正文草稿在 `/tmp/molis-*-pr-body.md`（本机）。发 PR 前要按实际 main 和 CI 结果刷新，不要照抄里面「进行中」的字段。
+- Codex 自己的规矩里有「不跑本机全量、不加标签、最多两个在途 PR」。按 10-18 的新规则，这些候选按第 4 节组批合入，不用一个一个排全量。
+
+### 5.3 还没开始的
+
+路线图里 W5/W6 剩下的（第 3 节②③已排）：Shelf 的 D2 图参与者与 D3 Home 调用门面；Alchemist 的分区合同；Workflows 的 Manifest、路由与动作切换；Goals、Schedule、Inbox、Feed；W5-02、W5-03、W5-04、W5-06、W5-08、W5-10 剩下的、W5-11、W5-14～W5-17；W6 全部。还有 10-18 新加的：项目库服务、去特权、插件创作台并进平台、Sessions 清理、Characters 并进 Module。
+
+## 6. 交接时的状态
+
+### 6.1 main
+
+- main 在 `ce4df86f1`（#729）之后，#735 已合，#736、#737 在合。Prologue main 在 `dd639069c`。Molis vendored 的 SDK 还是 3adc5e87，prologue#50 还没换进来（交给④，和批 B 一起换）。
+- 安全不变量编到 S-40，BACKLOG 编到 BL-177（#737）。coding-base 是 v13。
+- **main 全量**（run 39133836119，`f4207e064`）：第 13 片的 `tests/side-shelf-in-hand.e2e.test.ts` AC-S04 两次红，Shelf 侧栏里选中一段文字后浮条没出现；第 14～16 片被 fail-fast 取消。同一份 main 在本机跑这个文件 2/2 通过（AC-S04 7.6 秒）；`gh run rerun --failed` 重跑那 4 片后整次运行成功。判负载时序，`f4207e064` 的全量算通过（#721、#730 等最后一批由它覆盖）。#735、#729 之后的 main 由下一次批全量或每晚的定时全量覆盖。
+- #729 合入后 main 上 `personal-plugins-review-fixes` 应该是红的，#736 修。
+
+### 6.2 还开着的别人的 PR
+
+| PR | 谁的 | 怎么办 |
+| --- | --- | --- |
+| #732 | jingxusandra-gif，产品运营文档 | 统筹审过；用户 10-18 把它移出了合并队列。交作者和用户定，不要再入队 |
+| #734 | jingxusandra-gif（草稿），Linux 探测补 uv | 转正后按 §3 审；它改 CI，注意有没有放宽门禁 |
+| #631 | jingxusandra-gif（草稿），统一输入与本地语音 | 用户定留给作者；它会手动触发全量、占 runner |
+
+### 6.3 要清的（删工作树和分支会被权限判成「Git Destructive」，要先弹窗请用户批）
+
+- 回执线：工作树 `line-receipts-3e1`、`-3e0`、`-3e0b`、`-base`，三个 `receipts/*` 分支。`line-receipts-1c` 里有别人没提交的改动，别动。
+- 交互线：工作树 `line-interaction-ac08`、分支 `interaction/ac08-two-tabs`；几个旧本地分支先 `git branch -d` 确认已合入再删。
+- 采用线：工作树 `wt-a21` 和它的分支。
+- 情境线：`.claude/worktrees/line-contextual` 和 `lines/contextual.md` 里列的分支；`~/.codex/worktrees/context-w0` 不是这个会话建的，删前先问用户。
+- 手册线：分支 `ai/bl163-ack-eval`，评测用的临时 Home。
+- Codex：`~/code/molis-anti-corruption-20261017/` 下的各工作树，等候选全部合入、证据核对完再清，由用户决定。
+- 统筹：scratchpad 里的 `integ` 工作树。
+- 主检出 `/Users/yijunwang/code/goalboard` 上有一堆没提交的文档改动，不知道是谁的。它常被真实 Home（4207）用着，不碰。
+
+## 7. 需求线跟着防腐规范走（不制造新的技术债）
+
+每个 PR 正文都带一节「防腐复查」，按 ANTI-CORRUPTION-REVIEW §3 逐项写，统筹审的时候核对。最常见的几条：
+- 插件待遇一样（第 1 节）：不给某个插件在宿主里开私路，不新加「只给内置」的判断。缺能力就找②补到平台。
+- 能力注册一次，动作走统一目录；不新加 typed 能力；插件之间只走公开合同。
+- 不留兼容和兜底读取；合同只认现行取值；形状变了就升版本，不留兼容期。
+- 门禁的数字对照 merge-base 只许降：巨大单元不能再长，新东西放新的小文件；测试不引用包内部；不新增空 `catch`、`as unknown as`、`any`。
+- 新错误码用 `defineErrorCodes("<主人>", …)`，不新写 Error 子类。
+- 页面里跨模块的事件要在 `dom-events.ts` 登记；界面文字要有英文。
+- 安全边界变了，同步改 `SECURITY-INVARIANTS.md` 和断言拒绝的测试。
+- 不为变绿而跳过、放宽或删除断言；时限可以按慢机放宽（例如 30 秒放到 90 秒，用户 10-15 认可）。
+- 模型能力弱造成的坏效果不打补丁：不加措辞禁令、正则、特例开关，后果严重的靠工程层的事实核对兜住。
+- 「不留尾巴」：PR 里不留 TODO。确实要以后做的，写进 BACKLOG（用自己的号段），写明为什么现在不做、等什么。
+
+## 8. 各需求线的详细交接
+
+各线的全文在 `lines/` 下：[`adoption.md`](lines/adoption.md)（附 [`adoption-a2-plan.md`](lines/adoption-a2-plan.md)、[`adoption-batchB-plan.md`](lines/adoption-batchB-plan.md)）、[`receipts.md`](lines/receipts.md)、[`interaction.md`](lines/interaction.md)、[`contextual.md`](lines/contextual.md)、[`handbook.md`](lines/handbook.md)（附 [`handbook-bl163-rule.md`](lines/handbook-bl163-rule.md)、评测脚本 [`handbook-eval-163/`](lines/handbook-eval-163/)）。第 3 节④的顺序就取自这些文件；文件里写的「统筹批了再开工」「每线最多两片」照旧，但全量按第 4 节跑。
+
+各线的坑，挑最要紧的：
+- 采用线：`registerAgentHostCapabilities` 363 行、`composeAgentHost` 245 行、`PrologueAgentAdapter` 602 行、`AgentHost` 381 行，都不许变大；typed 计数 187 不许变大。
+- 交互线：`coding.js` 离预算只剩约 37 字节。
+- 情境线：`provider_id` 只在 `view.provider.provider_id` 里（用假目录测不出来）；只有规则时，一段文字的第三个推荐位是去处，找按钮时要把 `.mw-ctx-menu` 带上；慢机上的时序要复现，就扣住 `/api/contextual/judge`。
+- 手册线：评测只用一次性 Home；Coding 评测的 `write` 要先 `read`，`ask-user` 必须给 `why`。
+
+## 9. 已知的坑与安全事项
+
+- **MiniMax**：密钥只内联读：`MINIMAX_API_KEY="$(security find-generic-password -a "$USER" -s minimax-api-key -w)" …`。不落盘，不进日志，不用浏览器输入。只用一次性 Home，跑完就删。Home 主密钥的钥匙串条目是所有 Home 共用的，包括真实 Home，永远别删。
+- **真实 Home**（4207、4208、4173）不读也不写；要用的话，先弹窗问用户。
+- 别的会话被 auto mode 拦下来的操作，要它在自己的会话里问用户；不要替它去做，也不要把权限转手。
+- 不做：force push、裸 `git stash`、不按 pid 停进程（情境线 10-18 用 `pkill -f` 停过健康检查，可能连带停了别人的）、兼容或兜底读取、为模型能力的弱点加提示词补丁。
+- 偶发的 CI 失败（用户认过可以重跑）：`coding-input-receipts.e2e` 的 RC-10/11/13/16，菜单没打开；`context-landing-panes.e2e` 的 PANE-LAND-02（先看 `detail.pane_id` 是不是空的，空的才是 S-30 的问题）；`side-shelf-in-hand.e2e` 的 AC-S04（第 6.1 节）。红在这些上面先重跑，不加进 KNOWN。
+- fail-fast（#716）：一个分片失败，其他分片会被取消，被取消的文件不算验证过。
+- 作者自己去掉又加上 `full-suite` 标签，或者手动 dispatch，会取消快跑完的全量、占掉 runner。
+- 合并预览过期时，CI 跑的是旧 main 上的旧工作流。
+- `product-subset` 作业名写着「not required yet」，红了多半是真问题，`gate-and-queue.sh` 不放行。
+- 测试里的会话历史到了整理阈值，会多出一个「选择保留历史」的请求；按轮数写的假模型会因此错位，要按事实等。
+- `sleep` 在前台会被拦，要等就用后台循环或 Monitor。
+
+## 10. 需要用户的事
+
+- 发版、真实 Home 的任何操作（W5-16、W5-17 的维护，Characters 和 Sessions 的存量数据），先弹窗问。
+- 改信任边界的设计（S-34 `always_on`、默认连线的安装同意），先弹窗问。
+- Sessions 重做的需求书（BL-177），给用户审。
+- Computer Use 的真机验收（CU-G02～G04 等），要和用户约 Mac 的时间。
+- 发布签名与公证（BL-021），还没定。
+- 各线工作树和分支的删除（§6.3），一项一项弹窗批。
+- #732、#631 交给作者和用户。
+- 这份文档和 Claude Docs 的交接说明，用户分享后接手的人才能打开。

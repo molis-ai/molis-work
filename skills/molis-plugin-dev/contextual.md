@@ -46,7 +46,7 @@ action: { /* …这个动作原本的声明，含 undo… */
 | `title`、`verb`、`describe` | 去处的名字、按钮上的话（「记成待办」）、给判断读的一句话：这里装什么、不装什么 |
 | `examples` | 一到三句用户可能说的话，第一句是页面「✦ 一句话新建」的占位文字 |
 | `material_field` | 输入里接收选中文字的**顶层字段**（如 Todo 的 `sources`） |
-| `prepare` | 同一插件的选区动作查询（`defineFragmentOffersAction`）：其中与 `intake_id` 同名的选项，从选中文字与出处不调模型、确定地算出整个输入；你现有的「记成待办」「记下灵光」选项就是它 |
+| `prepare` | 同一插件的选区动作查询（`defineFragmentOffersAction`）：它返回的 `offer_id` 与 `intake_id` 同名的那一条，从选中文字与出处不调模型、确定地算出整个输入。这个查询可以没有自己的选项（`choices` 为空），只为创建入口或追加准备输入，Todo 与灵光就是这样；没有选项又不是任何入口的 `prepare`，检查会拒绝 |
 | `effect` | `proposes`：只提交提案，在所有者那里再确认（Goals）；总是出卡片 |
 | `multiple` | 一段话可以建出几条，用户在一张卡里逐条取消 |
 | `places` | 同选区动作 |

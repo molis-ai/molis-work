@@ -32,10 +32,10 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 307,
+      "lines": 305,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 315,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 313,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
@@ -200,8 +200,8 @@
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
-      "lines": 122,
-      "methods": 28
+      "lines": 120,
+      "methods": 27
     },
     "class plugins/native/feed/src/application.ts#FeedApplication": {
       "lines": 493,
@@ -256,7 +256,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 930,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
-  "testInternalImports": 493,
+  "testInternalImports": 490,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -326,9 +326,8 @@
     "tests/coding-subagents-http.test.ts": 1,
     "tests/coding-surface.test.ts": 1,
     "tests/coding-writer-assignments-http.test.ts": 1,
-    "tests/cognia-http.test.ts": 2,
-    "tests/cognia-prologue.test.ts": 4,
-    "tests/cognia-store.test.ts": 1,
+    "tests/cognia-http.test.ts": 1,
+    "tests/cognia-prologue.test.ts": 3,
     "tests/companion-actions.test.ts": 4,
     "tests/companion-client-lifecycle.e2e.test.ts": 2,
     "tests/configured-text.e2e.test.ts": 1,
@@ -677,7 +676,7 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 87,
+  "rawFetchInScriptsTotal": 85,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/goals/src/relation-client.ts": 2,
@@ -694,7 +693,6 @@
     "plugins/native/issues/src/client.ts": 1,
     "plugins/native/coding/src/settings-client.ts": 1,
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
-    "plugins/native/cognia/src/client.ts": 1,
     "plugins/native/plugin-builder/src/agent-studio.ts": 2,
     "plugins/native/images/src/client.ts": 2,
     "plugins/native/jelly/src/client.ts": 1,
@@ -702,7 +700,7 @@
     "plugins/native/schedule/src/client.ts": 4,
     "plugins/native/shelf/src/client.ts": 7,
     "plugins/native/shelf/src/result-client.ts": 1,
-    "plugins/native/lingguang/src/client.ts": 2,
+    "plugins/native/lingguang/src/client.ts": 1,
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/characters/src/client.ts": 2,
     "plugins/native/pages/src/client.ts": 2,
@@ -802,13 +800,11 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 28,
+  "hostPluginFilesTotal": 24,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
     "apps/local-host/src/artifact-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/cognia-actions.ts#actions": 1,
-    "apps/local-host/src/cognia-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/dataset-actions.ts#actions": 1,
     "apps/local-host/src/dataset-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/feed-native-plugin-http.ts#native-plugin-http": 1,
@@ -819,8 +815,6 @@
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/jelly-actions.ts#actions": 1,
     "apps/local-host/src/jelly-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/lingguang-actions.ts#actions": 1,
-    "apps/local-host/src/lingguang-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/pages-actions.ts#actions": 1,
     "apps/local-host/src/pages-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/ppt-actions.ts#actions": 1,
@@ -833,7 +827,7 @@
     "apps/local-host/src/workflows-actions.ts#actions": 1,
     "apps/local-host/src/workflows-native-plugin-http.ts#native-plugin-http": 1
   },
-  "registerProviderSitesTotal": 23,
+  "registerProviderSitesTotal": 22,
   "registerProviderSites": {
     "apps/local-host/src/assistant/assistant-rule-actions.ts#register-provider": 1,
     "apps/local-host/src/connector-mcp-actions.ts#register-provider": 1,
@@ -846,7 +840,7 @@
     "apps/local-host/src/placement-actions.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/catalog.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/exposed-actions.ts#register-provider": 1,
-    "apps/local-host/src/project-host.ts#register-provider": 8,
+    "apps/local-host/src/project-host.ts#register-provider": 7,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
   "hybridPluginsTotal": 16,
@@ -857,13 +851,13 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 411,
+  "pluginOutsideMentionsTotal": 403,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
     "characters#outside-files": 11,
     "coding#outside-files": 17,
-    "cognia#outside-files": 13,
+    "cognia#outside-files": 7,
     "dataset#outside-files": 12,
     "diff#outside-files": 8,
     "feed#outside-files": 41,
@@ -875,7 +869,7 @@
     "inbox#outside-files": 17,
     "issues#outside-files": 4,
     "jelly#outside-files": 12,
-    "lingguang#outside-files": 11,
+    "lingguang#outside-files": 9,
     "pages#outside-files": 20,
     "plugin-builder#outside-files": 19,
     "ppt#outside-files": 12,

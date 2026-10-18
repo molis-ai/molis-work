@@ -6,7 +6,7 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
-W5-01 STREAM 接实际 main（2026-10-18，PR #703，整合验证中）：#684 已在固定 head b1683481b 经 Verify、16/16 全量分片与汇总通过后合入，main 的实际 squash 提交为 c5d2b3cf66bcc6b48e0d35770480a708c5a6cccf。按原 merge-only 次序将该 main 合入 #703；保留原流式路由、增量终态与停用尾检，冲突保留主线的 Shelf/Todo 挂载清理、S-35 跨分区移动复原、全部现行安全用例与已消费资源许可。此片没有新客户端增长；派生表按最终构建再生成。当前仅完成源码冲突核对，整体构建、定向回归、门禁、推送与正式CI仍待完成，不把 #684 的证据代替本片。
+W5-01 STREAM 接实际 main（2026-10-18，PR #703，本地整合验证通过，待正式 CI）：#684 已在固定 head b1683481b 经 Verify、16/16 全量分片与汇总通过后合入，main 的实际 squash 提交为 c5d2b3cf66bcc6b48e0d35770480a708c5a6cccf。按原 merge-only 次序将该 main 合入 #703（efd9c18de）；保留原流式路由、增量终态与停用尾检，冲突保留主线的 Shelf/Todo 挂载清理、S-35 跨分区移动复原、全部现行安全用例与已消费资源许可。最终组合整体 build、API、boundary、merge-base health/快查下调及资源测量通过；25 项 7,475,698 B，与该 main 相同，增量 0 B。包要求及影响面的178个非浏览器文件全部通过，1,667 条通过、1 条原有沙箱环境条件跳过；真实 Chrome 的 plugin-sample.e2e 1/1 通过，去重179文件共1,668条通过、1条跳过、0失败。推送前 fetch 与 secrets 扫描通过。正式 CI 与共享核心全量仍交统筹排，不自行合并或加标签；这些是本片证据，不代表 W5/W6 整线完成。
 
 W5-01 Todo 最新主线整合（2026-10-18，merge `576b98556`，准备推送）：固定 main `7faaa027c`，保留 #712 的侧栏上下文、#699 正式 SDK 与 #719 文档。冲突仅资源许可/测试/派生表，Todo 业务源码保持原迁移。原 +28 B 重定为 workbench.js 1,110,329→1,110,357，todo.js 62,081→62,036（−45）；25 项 7,475,698 B，相对该 main 少17 B。整体 build、offline install、boundary、API/merge-base health、资源检查通过；36 个非浏览器文件 418/418，覆盖 Todo、Home Runtime、SDK/授权、侧栏消息安全和资源旧额度失效。真实 Chrome 的 todo-app、side-shelf-in-hand、context-toolbar-panes 三文件仍在机器公共窗口排队，尚无该组合结果；此前5f03的11文件29条仅是对应版本证据。推送前 fetch 确认 main 未变，secrets 扫描933行通过。先更新 PR 候选以启动正式 CI/源码复核，不称浏览器补验、全量或整线完成；不自行合并/加标签。
 

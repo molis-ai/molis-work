@@ -119,6 +119,15 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   await hover(true);
   await new Promise((resolve) => setTimeout(resolve, 400));
   assert.equal(await evaluate<number>("window.flashAsked - window.flashGoneFrom"), 0, "nothing asked of a landing that is gone");
+  // Keep the real next judgment response in flight while Esc dismisses the rules' offer.
+  // A late result must not undo the person's dismissal (PICK-05); no request or response is fabricated.
+  await evaluate(`(() => { const fetch = window.fetch; window.fetch = async (...args) => {
+    const response = await fetch(...args);
+    if (String(args[0]).includes('/api/contextual/judge') && !window.releasePickJudgment) {
+      await new Promise((resolve) => { window.releasePickJudgment = resolve; });
+    }
+    return response;
+  }; })()`);
   // FLASH-03: the person moves the cursor, so the page reports its landing again; choosing the offer previews the result's name there.
   await evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
     const text = [...editor.querySelectorAll('p')].find((node) => node.textContent === '先完成核心体验。').firstChild;
@@ -128,10 +137,14 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   await key("Enter", "Enter", 13);
   await waitFor(`Boolean(${INSERT})`, 15_000);
   // PICK-05: Esc on the bar puts the bar away, not the card; picking the card again brings the bar back.
+  await waitFor("typeof window.releasePickJudgment === 'function'", 10_000);
   await evaluate(`${INSERT}.focus()`);
   await key("Escape", "Escape", 27);
   await waitFor(`!${INSERT}`, 5_000);
   assert.equal(await evaluate<string>(`document.querySelector(${JSON.stringify(CARD)}).getAttribute('aria-current')`), "true", "still in hand");
+  await evaluate(`window.releasePickJudgment()`);
+  await evaluate(`new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+  assert.equal(await evaluate<boolean>(`Boolean(${INSERT})`), false, "a judgment arriving after Esc must not show the dismissed offer again");
   await evaluate(`document.querySelector(${JSON.stringify(CARD)}).focus()`);
   await key("Enter", "Enter", 13);
   await waitFor(`Boolean(${INSERT})`, 15_000);

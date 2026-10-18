@@ -40,6 +40,11 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       return { pane_id: this.source.pane, focus, recent: this.recent.slice(0, 3), pinned: bar.pinned(),
         ...(bar.shown ? { previous: bar.shown } : {}), dismissed: [...(this.dismissed.get(focus.context_id) || [])], ...landing.with(focus) };
     },
+    cancel() {
+      clearTimeout(this.timer); clearTimeout(this.rulesTimer);
+      this.judging?.abort();
+      return ++this.seq;
+    },
     report(source, focus) {
       // “Nothing in hand” only clears what that same surface put there, not what another surface reported since.
       if (!focus) { if (this.source && this.source.pane === source.pane && (!this.source.element || !source.element || this.source.element === source.element)) this.set(null, null); return; }
@@ -52,12 +57,8 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       if (focus && this.focus && focus.context_id === this.focus.context_id && this.source && source && this.source.pane === source.pane) { this.focus = focus; bar.reanchor(); return; }
       const leaving = this.source, previous = this.focus;
       this.focus = focus; this.source = focus ? source : null; this.at = Date.now();
-      this.watch(Boolean(focus && source && source.element));
-      clearTimeout(this.timer);
-      clearTimeout(this.rulesTimer);
-      if (this.judging) this.judging.abort();
-      this.judging = null;
-      const seq = ++this.seq;
+      this.watch(!!(focus && source && source.element));
+      const seq = this.cancel();
       if (!focus) {
         if (leaving) post("/api/contextual/cancel", { pane_id: leaving.pane }).catch(() => undefined);
         bar.idle();

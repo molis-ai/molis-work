@@ -49,11 +49,11 @@ export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
     timer: 0,
     paneHold: { interacting: false, pinned: [] },
     pinned() { return this.frame ? this.paneHold.pinned : toolbar.pinned(); },
-    interacting() { return this.frame ? this.paneHold.interacting : Boolean(toolbar.busy()); },
+    interacting() { return this.frame ? this.paneHold.interacting : !!toolbar.busy(); },
     // The pointer or focus left the toolbar: what was meant to clear when they did, clears.
     leave() { if (this.clearWhenLeft && !this.interacting()) bus.set(null, null); },
-    // Esc: these actions are not wanted for this passage.
-    dismissAll() { (this.plan ? this.plan.primary : []).forEach((key) => { bus.dismiss(key); bus.signal(key, "ignored"); }); this.idle(); },
+    // Esc cancels late responses for this passage.
+    dismissAll() { (this.plan?.primary || []).forEach((key) => { bus.dismiss(key); bus.signal(key, "ignored"); }); bus.cancel(); this.idle(); },
     // The pane draws its own toolbar from what it is sent.
     tell(frame, message) { frame.contentWindow.postMessage({ type: "workbench-context-view", ...message }, location.origin); },
     idle() {

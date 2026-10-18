@@ -85,7 +85,7 @@ export function contextualPorts({ localHost, hostReference, serverOptions }: Pro
   const homeDirectory = serverOptions.homeDirectory;
   const context = () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
   return {
-    ...(homeDirectory ? { homeDirectory } : {}), scope: hostReference.project_id,
+    ...(homeDirectory ? { homeDirectory } : {}), scope: hostReference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
     actions: () => {
       const client = localHost.actionClient(hostReference);
       return { discover: async () => client.discover(await context()), invoke: async (reference, input) => client.invoke(await context(), reference, input) };

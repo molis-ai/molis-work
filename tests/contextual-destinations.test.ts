@@ -107,11 +107,39 @@ test("W1-05: destinations only take recommended slots: never in more, and listed
   assert.equal(plan.more.flatMap(group => group.keys).some(key => destinationKeys.has(key)), false, "not one destination under 更多");
   assert.ok(plan.candidates.every(item => item.origin !== "intake" || plan.primary.includes(item.key)), "全部操作 lists no destination that is not recommended");
   assert.ok(plan.candidates.filter(item => item.origin !== "intake").length >= 4, "the actions on the thing itself are all there");
+  // W4-1 (quick-create §6.1): without a judgment the rules recommend exactly one destination, the first by rule order, in the last slot.
+  assert.deepEqual(plan.primary.filter(key => destinationKeys.has(key)), [[...destinationKeys][0]]);
+  assert.equal(plan.primary.indexOf([...destinationKeys][0]!), 2);
+  assert.equal(plan.emphasis, null);
+  // A word is not a passage to put anywhere: with actions of its own, the rules give it no destination.
+  const wordChoice = (id: string): FragmentOfferChoice => ({ ...fragment(id, "understand"), granularities: ["word"] });
+  const wordOffers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], [wordChoice("w1"), wordChoice("w2"), wordChoice("w3")]).action }, "query"), view(pages, "pages.ai")];
+  const word = planContextualLayout({ focus: hand({ granularity: "word" }), candidates: contextualCandidates([...wordOffers, ...many], hand({ granularity: "word" })) });
+  assert.equal(word.primary.length, 3);
+  assert.equal(word.primary.some(key => word.candidates.find(item => item.key === key)?.origin === "intake"), false, "a word keeps its slots for its own actions");
   // A judgment that likes two destinations puts them in the slots, and they are listed with them.
   const [first, second] = [...destinationKeys];
   const judged = planContextualLayout({ focus: hand(), candidates, judgment: { basis: "jev", next: { [first!]: 0.5, [second!]: 0.3 }, intent: {}, surface: "none", surface_probability: null, speak_up: null, confidence: 0.7, latency_ms: 1 } });
   assert.deepEqual(judged.primary.slice(0, 2), [first, second]);
   assert.deepEqual(judged.candidates.filter(item => item.origin === "intake").map(item => item.key).sort(), judged.primary.filter(key => destinationKeys.has(key)).sort());
+});
+
+test("W4-1 §6.1: the rules pick their one destination by directory order alone, and a judgment leaves the rule out", () => {
+  const fragment = (id: string): FragmentOfferChoice => ({ offer_id: id, title: id, intent: "understand", apply: "result", hint: id, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });
+  const offers = [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], ["a", "b", "c", "d"].map(fragment)).action }, "query"), view(pages, "pages.ai")];
+  const entries = Array.from({ length: 3 }, (_, index) => view(todo, `notes.make${index}`, { intake: intake(`n${index}`) }));
+  const pick = (directory: readonly ActionView[]) => {
+    const candidates = contextualCandidates(directory, hand()), plan = planContextualLayout({ focus: hand(), candidates });
+    return plan.primary.map(key => candidates.find(item => item.key === key)!).filter(item => item.origin === "intake").map(item => item.action.capability_id);
+  };
+  // Nothing in the rules tells one entry from another: the first in the shared directory takes the slot, whichever it is.
+  assert.deepEqual(pick([...offers, ...entries]), ["notes.make0"]);
+  assert.deepEqual(pick([...offers, ...entries].reverse()), ["notes.make2"]);
+  // With a judgment the rule does not apply: the slots are what the judgment ranks, as before W4-1.
+  const candidates = contextualCandidates([...offers, ...entries], hand());
+  const own = candidates.filter(item => item.origin !== "intake").map(item => item.key);
+  const judged = planContextualLayout({ focus: hand(), candidates, judgment: { basis: "jev", next: { [own[0]!]: 0.6, [own[1]!]: 0.5, [own[2]!]: 0.4 }, intent: {}, surface: "none", surface_probability: null, speak_up: null, confidence: 0.7, latency_ms: 1 } });
+  assert.deepEqual(judged.primary, own.slice(0, 3));
 });
 
 test("W1-05: at most eight destinations go to the judgment; the actions on the thing keep the rest of the budget", () => {

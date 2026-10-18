@@ -570,7 +570,7 @@ test("W3-02-G1-03 memory: recalled for this situation when the directory has it;
   assert.ok(asked.query.startsWith("风险 我们认为") && asked.limit <= 8 && asked.budget_chars <= 1000);
   assert.deepEqual(await recallForJudgment(f, { scope: "memory-b", actions: { ...actions, discover: async () => views.slice(0, 2) } }), { state: "ok", items: [] }, "no memory here, nothing recalled");
 
-  const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "memory-c", actions: () => actions }); });
+  const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "memory-c", actor_id: "user", actions: () => actions }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   try {
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -597,7 +597,7 @@ test("W3-02-G1-03 host routes: rules at once, prepare returns the provider's own
   const invoked: ActionReference[] = [];
   const actions = { discover: async () => views, invoke: async (reference: ActionReference, input: unknown) => { invoked.push(reference); return prepares(input as FragmentOffersInput); } };
   const server = createServer((request, response) => {
-    void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "project-a", actions: () => actions })
+    void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "project-a", actor_id: "user", actions: () => actions })
       .then(handled => { if (!handled) { response.statusCode = 404; response.end(); } });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -694,7 +694,7 @@ test("host: a subject offer is prepared by the query that declared it, checked a
     return { offers: offered((input as { subject: { id: string } }).subject.id) };
   } };
   const server = createServer((request, response) => {
-    void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "project-s", actions: () => actions })
+    void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "project-s", actor_id: "user", actions: () => actions })
       .then(handled => { if (!handled) { response.statusCode = 404; response.end(); } });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

@@ -622,7 +622,8 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // Receipts 3d-3 (#700, RCPT-349–353) took Coding's bundle, both stylesheets and the workbench script from the next four; AC-03 (R4) replaced that allowance.
 // AC-03 (#702, specs/ai-interaction-experience R4) took the workbench script from the next sizes; receipts 3d-4 replaced that allowance.
 // Receipts 3d-4 (#706, RCPT-354–356) then used 1109913→1110802; W5-01 keeps both that spent start and its ceiling frozen.
-// W5-01 (#684) then used 1110329→1110357, and W4-1 replaced that allowance.
+// W5-01 (#684) used 1110329→1110357 on main; receipts 3e-1 replaced that allowance.
+// Receipts 3e-1 (#714) then used 1110357→1111791, and W4-1 replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -645,7 +646,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1109913], ["/assets/molis-work-workbench.js", 1110802],
   ["/assets/molis-work-workbench.js", 1110187], ["/assets/molis-work-workbench.js", 1110215],
   ["/assets/molis-work-workbench.js", 1110056], ["/assets/molis-work-workbench.js", 1110084],
-  ["/assets/molis-work-workbench.js", 1110329],
+  ["/assets/molis-work-workbench.js", 1110329], ["/assets/molis-work-workbench.js", 1110357],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -662,7 +663,7 @@ for (const [asset, old] of [
 // completion card with 「打开」 and 「撤销」; for the coordinator's review the workbench script may grow once, from exactly the
 // current baseline to the measured size (+1,158). One byte more, another asset, or growth from the new baseline still fails.
 test("W4-1 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const asset = "/assets/molis-work-workbench.js", [from, to] = [1110357, 1111515];
+  const asset = "/assets/molis-work-workbench.js", [from, to] = [1111791, 1112949];
   branch("w4-1-base", () => { sizes[asset] = from; putBudget(sizes); });
   git("checkout", "-q", "-B", "w4-1-change");
   sizes[asset] = to;

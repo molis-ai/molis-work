@@ -89,7 +89,8 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     return true;
   }
   const abort = new AbortController();
-  const disconnected = () => { if (!response.writableEnded) abort.abort(); };
+  const stop = () => abort.abort(new ActionError("actions.cancelled", "调用已取消"));
+  const disconnected = () => { if (!response.writableEnded) stop(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
   const plain = { signal: abort.signal, page_context: homePageContext(request, url),
     beforeEffect: async () => { if (abort.signal.aborted) throw new ActionError("actions.cancelled", "调用已取消"); } };
@@ -103,6 +104,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
       granted: caller.permissions,
       execution: routed?.control ?? plain,
+      stop,
       readBody: async (request, maxBytes) => {
         // The route's own limit when it declares one; otherwise bounded for image-bearing Home actions. Each plugin also validates its input.
         try { return await readLocalWebBody(request, maxBytes ?? 12 * 1024 * 1024); }
@@ -111,7 +113,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       },
     });
     if (!handled) sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
-  } finally { routed?.end(); request.off("aborted", disconnected); response.off("close", disconnected); }
+  } finally { stop(); routed?.end(); request.off("aborted", disconnected); response.off("close", disconnected); }
   return true;
 }
 

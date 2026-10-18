@@ -173,8 +173,17 @@ export interface PluginRouteDeclaration {
   path: string;
   /** Permission the caller's session must hold. Omitted means the Plugin's own grants suffice. */
   permission?: string;
-  /** The largest request body, in bytes, the Host reads for this route (at most 12 MiB); omitted, the Host's own default (256 000 bytes). */
+  /**
+   * The largest request body, in bytes, the Host reads for this route (at most 36 000 000). Omitted, the Host's own default: 256 000
+   * bytes on a project instance's route, 12 MiB on a Home instance's.
+   */
   max_body_bytes?: number;
+  /**
+   * `"ndjson"` (POST only): the answer is a stream of `PluginRouteStreamLine`s. The handler reports progress through the request's
+   * `emit`; the Host writes each as a `progress` line and ends the stream with one `result` or `error` line, which only the Host
+   * writes. The stream ends at once when the call is cancelled, the person leaves, or the plugin stops or is replaced.
+   */
+  stream?: "ndjson";
 }
 
 export interface PluginManifest {
@@ -304,7 +313,19 @@ export interface PluginRouteRequest {
   actor_id: string;
   /** Trusted Host invocation control, never decoded from route parameters or JSON body. */
   execution?: PluginExecutionControl;
+  /** Present only on a route that declares `stream`: one progress event, written by the Host as a `progress` line. */
+  emit?(event: import("./actions.js").ActionProgressEvent): void;
 }
+
+/**
+ * One line of a streamed route's answer, the only shape the Host writes and a page reads. Any number of `progress` lines, then
+ * exactly one `result` (the route's answer body) or `error` (the same fields a JSON route's refusal has). Progress lines are
+ * bounded (64 KiB each, 10 000 in all, 1 MiB together); the `result` line is bounded only by the action's own output limit.
+ */
+export type PluginRouteStreamLine =
+  | ({ type: "progress" } & import("./actions.js").ActionProgressEvent)
+  | { type: "result"; result: unknown }
+  | { type: "error"; status: number; code: string; error: string; call_id?: string; details?: Readonly<Record<string, unknown>> };
 
 export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current"> & {
   /**

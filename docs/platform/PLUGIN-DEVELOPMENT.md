@@ -132,6 +132,14 @@ Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbenc
 
 新增包、SDK 类型、公开 API 与动作快照、Home 库归属及 purge 清单须同步维护。资源按插件自己的客户端包加载；新增资源需要独立预算审阅，不能抬高既有资源上限。实现与验收见 [Issue V0](../../specs/issue-home-v0/spec.md)。
 
+## Runtime 流式路由
+
+Manifest 路由可声明 `stream: "ndjson"`，只支持 POST。`bindPluginActionRoute` 将真实动作的 `caller.on_progress` 接到 HTTP：每行是 `{ type: "progress", stage, progress, text_delta? }`，随后只有一个 `{ type: "result", result }` 或 `{ type: "error", status, code, error, call_id?, details? }`。末行由 Host 写，进度里的其他字段丢弃，插件不能伪造结果或诊断编号。HTTP 已经开始后状态保持 200，调用失败看错误末行；请求体超限则在开流前按普通 JSON 返回 413。未声明 stream 的路由继续返回 JSON。
+
+`BoundActionClient.invoke` 第四个参数是传输回调 `{ on_progress }`，不属于业务输入。第三个 `request.execution` 必须原样传下去：Host 用这一个对象确认 Home 路由来自哪个项目，展开或另造对象不继承这个证明。直接路由通过可选的 `request.emit` 发进度；等待模型或外部服务的动作仍声明 `scheduling: "concurrent"`。
+
+SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UTF-8 字节（含换行），至多 10,000 行，合计 1,048,576 字节；任一超限取消调用，并以 `actions.output_invalid` 错误末行结束。显式 `max_body_bytes` 最大 36,000,000 字节，项目默认 256,000、Home 默认 12 MiB 不变。客户端断连或实例停用、撤权后，Host 结束等待并释放观察器；已经开始的外部操作由插件用取消信号清理。处理器晚到时，仍须在写入前执行 `beforeEffect()`，不得写成功、失败或其他业务记录。
+
 ## 当前项目设置
 
 跨模块读取当前项目目标目录、创建意图或补充便笺可引用 Goals 的 `goalsActions.list/create/note`。公共动作输入只有业务字段，项目与 actor 由可信调用上下文绑定；不要把内部 typed Capability 的 actor 字段复制进动作 JSON。权限分别为 `goals:read` / `goals:write`，写入重试保留原 idempotency key。Goals 的写入声明 `authorship: "session"`，审计作者由宿主写进 `caller.audit_actor_id`，它属于可信上下文，不是业务参数，不改变客户端授权，也不授予决策权限；外部客户端只看到被授予的动作工具。其他 Goals 事件能力仍按其现有接口和审批合同使用，见 Goals 包 README。

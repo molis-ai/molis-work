@@ -2,6 +2,8 @@
 
 状态：执行中，整线未完成（2026-10-17，Codex 按用户授权接手防腐线，目标与原验收保持）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR，#523 已合入 main（`f74e29d86`；#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑，macOS 专有用例在本机补，失败逐个对照 main 基线，合入后的三项 Linux 修复与一处合并留下的旧错误码在后续 PR 补进。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 #523 进了 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
 
+SHM 模型失败集成补正（2026-10-18）：39130898172 的灵光失败回归仍期待底层异常 `Fixture model failure`，而本片已有公共模型服务故意隐藏底层异常。同步用例为精确 `plugin.model_failed` 与公共提示，保留会话消息为空的持久化断言及取消/撤权/并发修改分支，不恢复泄漏内部错误的旧行为。此项是当前模型失败合同的消费者补齐，生产实现不变；定向与后续全量另记。
+
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。

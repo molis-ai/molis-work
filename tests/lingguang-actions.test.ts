@@ -115,7 +115,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "discard", 
       const controller = new AbortController();
       const pending = client.invoke({ ...caller, signal: controller.signal }, actions.message, { id: conversation.id, body: "Question" });
       const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" }
-        : mode === "failure" ? /Fixture model failure/ : mode === "empty" ? { code: "lingguang.empty_reply" }
+        : mode === "failure" ? { code: "plugin.model_failed", message: "模型请求失败，请重试" } : mode === "empty" ? { code: "lingguang.empty_reply" }
         : mode === "cancel" ? { name: "AbortError" } : { code: "lingguang.conflict" });
       if (!["missing", "failure", "empty"].includes(mode)) {
         await entered;

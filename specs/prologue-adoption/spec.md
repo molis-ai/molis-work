@@ -366,7 +366,7 @@ Coding 步骤板和助理工作/委派视图都读同一图，仍挂在现有工
 | `boards.attemptOf(run)` | 视图投影用，不另暴露 | 操作卡、待答问题、动作调用编号挂回节点都经它推出（跨线 X2、X3） |
 | 错误码 `TASKBOARD_NOT_BOUND`、`TASKBOARD_STALE_GENERATION`、`TASKBOARD_CONTINUATION_CONFLICT`、`WAIT_ALREADY_ARMED`、`WAIT_CHECKER_UNKNOWN`、`WAIT_CONDITION_INVALID` | `agent.collaboration_not_bound`、`agent.collaboration_stale`、`agent.collaboration_conflict`、`agent.collaboration_wait_armed`、`agent.collaboration_checker_unknown`、`agent.collaboration_condition_invalid`（以主人名开头，W3-02；在 `tooling/gates/error-owners.json` 的 `agent` 名下登记） | 给人的原因文字由 Host 写 |
 
-**动作（不新增 typed capability，防腐决定 #1）**：`agent.collaboration.read.v1`（`kind: query`、`operation: query`、`effect: read`：按 `board_id` 或 `run_id` 读视图）；`agent.collaboration.revise.v1`（`kind: operation`、`operation: command`、`effect: write`：人修订计划，带 `expected_version`，沿用现有修订种类并加取消节点、重试节点；P4 替换 `agent.run.step-board.amend.v1`）；`agent.collaboration.control.v1`（`kind: operation`、`operation: command`、`effect: write`：`kind: "cancel-wait" | "continue-now" | "retry" | "resolve-reconciliation"`，带 `expected_version` 与节点 / 等待 / 接续引用；`continue-now` 带 `on_early_continue: keep | cancel`）。actor、项目、安装都从调用上下文取。旧的 `agent.waits.read/await/resume/cancel.v1`、`agent.run.step-board.amend.v1` 在 P4 没有调用方后同一批删除（阶段一不留兼容）；以后这几个动作的形状变了就升 `version`，同一个 PR 里先 `pnpm build` 再 `pnpm actions:update`；MCP 不改已有工具名。
+**动作（不新增 typed capability，防腐决定 #1）**：`agent.collaboration.read.v1`（`kind: query`、`operation: query`、`effect: read`：按 `board_id` 或 `run_id` 读视图）；`agent.collaboration.revise.v1`（`kind: operation`、`operation: command`、`effect: write`：人修订计划，带 `expected_version`，沿用现有修订种类并加取消节点、重试节点；P4 替换 `agent.run.step-board.amend.v1`）；`agent.collaboration.control.v1`（`kind: operation`、`operation: command`、`effect: write`：`kind: "cancel-wait" | "continue-now" | "retry" | "resolve-reconciliation"`，带 `expected_version` 与节点 / 等待 / 接续引用；`continue-now` 带 `on_early_continue: keep | cancel`）。actor、项目、安装都从调用上下文取。旧的 `agent.waits.read/await/resume/cancel.v1`、`agent.run.step-board.amend.v1` 在 P4 没有调用方后同一批删除（阶段一不留兼容）；以后这几个动作的形状变了就升 `version`，同一个 PR 里先 `pnpm build` 再 `pnpm actions:update`；MCP 不改已有工具名。revise 现行是 `agent.collaboration.revise.v2`（回执 3d-3 加 insert 的 `origin`，#700）。
 
 **输入、待答问题、操作卡挂到同一张图（跨线 X1–X3）**：
 
@@ -1514,7 +1514,7 @@ Molis 这边：
 
 ### 6.0l App-tools 只读外部等待的统一 SDK（2026-10-17）
 
-状态：实现及本地验证完成。用户已授权 Prologue 的等待修复推送、开 PR、检查通过后合入并更新 Molis；上游 #35 已合入。原 mcp-refresh 包的 App-tools 名单拒绝 `board-wait`；统一连接功能需要同一个 Runtime 在本人操作期间停止模型调用，并由持久接续继续原任务。本次只采用上游已合入的 SDK，包含原有 MCP refresh 与对象引用题能力；不改 Molis 的 Agent 角色、提示词、业务等待存储或真实 Home。
+状态：本节实现与验证完成，Prologue #35 和 Molis #644 均已合入；Molis 的合并提交为 `447bec2e039aacd8b8a64438b1353c72071b87e4`，PR CI 与合并队列必需检查通过。用户已授权这份等待修复推送、开 PR、检查通过后合入并更新 Molis。原 mcp-refresh 包的 App-tools 名单拒绝 `board-wait`；统一连接功能需要同一个 Runtime 在本人操作期间停止模型调用，并由持久接续继续原任务。本次只采用上游已合入的 SDK，包含原有 MCP refresh 与对象引用题能力；不改 Molis 的 Agent 角色、提示词、业务等待存储或真实 Home。
 
 上游合同见 [Prologue #35](https://github.com/molis-ai/prologue/pull/35) 的 `docs/slices/app-tools-waits.md`：仅绑定当前持有节点的顶层 App-tools Run 可等待 App 的只读外部检查器；命令、信封、节点和待答问题条件拒绝。沿用已有任务图、取消、权限复核与接续。公开常量新增一个工具名，参数与持久化形状不变。换包范围是 agent-host 的依赖、工作区登记、锁文件、vendor 来源与历史、来源测试及 S-13 的当前包指向；仅保留这一份 SDK。回退可由 Git 恢复上一份包及其同一组依赖文件，不引入读取兼容。
 
@@ -1524,11 +1524,11 @@ Molis 这边：
 
 新增开放的 board-wait 是持久等待的登记操作；助理工作状态已有等候投影，活动列表不再把这个工具原名显示给人。沿用现有内部控制事件的省略规则，不隐藏等待状态或失败诊断；`tests/assistant-tool-words.test.ts` 验证活动呈现，完整业务回归验证工作确实处于 waiting-input。
 
-本地验证：统一包构建、冻结离线安装、204 个相关非浏览器文件通过；补齐工作图请求键后重新整体构建，PA-23 与委派/交回三文件 18 项通过，同一修复在连接功能分支的 77 个 Agent/Prologue 及相关文件通过。merge-base health、包边界、资源预算、版本及密钥扫描随 [Molis #644](https://github.com/molis-ai/molis-work/pull/644) 核对。真实 MiniMax 只读任务仍按原诊断保留失败，不计入这些工程证据。
+本地验证：统一包构建、冻结离线安装、204 个相关非浏览器文件通过；补齐工作图请求键后重新整体构建，PA-23 与委派/交回三文件 18 项通过，同一修复在连接功能分支的 77 个 Agent/Prologue 及相关文件通过。merge-base health、包边界、资源预算、版本及密钥扫描通过。[Molis #644](https://github.com/molis-ai/molis-work/pull/644) 的 PR CI 全部通过，含两份安全检查与 Linux 产品子集 376/376 文件，无失败、重试后通过、跳过或隔离文件。连接功能分支随后用同一 MiniMax 跑三项全新完整只读任务，首项参数错误失败、后两项各自动接续一次并真实读取一次，零 Pages 写入；累计 235/240，本轮复验结束。原失败不改判，也不据此宣称整个连接功能已达到内部完整。
 
 ### 6.0m MCP 参数注解与派出校验的统一 SDK（2026-10-17）
 
-状态：本地实现与验证通过，待 PR CI 与合入。一骏已授权提交、合入上游修复并更新 Molis；[Prologue #36](https://github.com/molis-ai/prologue/pull/36) 已合入 `d2b3daa3de0744504b3098a17604f5f66019a29e`。真实 GitHub MCP 的 46 个工具原先因 `default` 与 `x-mcp-header` 被筛成 6 个，阻塞同一连接跨入口读取。本节更新统一 SDK、来源及历史记录、对应依赖锁，并把连接功能分支已有的 MCP 动作 schema 注解处理与生产派出回归纳入主线，不发布整个连接功能分支，不改真实 Home。
+状态：已合入，工程验证通过；连接功能的真实模型与体验验收另记。一骏已授权提交、合入上游修复并更新 Molis；[Prologue #36](https://github.com/molis-ai/prologue/pull/36) 已合入 `d2b3daa3de0744504b3098a17604f5f66019a29e`。真实 GitHub MCP 的 46 个工具原先因 `default` 与 `x-mcp-header` 被筛成 6 个，阻塞同一连接跨入口读取。本节更新统一 SDK、来源及历史记录、对应依赖锁，并把连接功能分支已有的 MCP 动作 schema 注解处理与生产派出回归纳入主线，不发布整个连接功能分支，不改真实 Home。
 
 SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持的非校验注解；不补默认参数、不新增协议头映射、不放宽模型结构输出。调用前执行原有 schema 值约束，非法输入不发到远端；未知约束与畸形注解仍拒绝。公开类型与依赖不变，回退通过 Git 恢复上一份包和同组依赖文件，不增加读取兼容。
 
@@ -1539,6 +1539,7 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 
 首次 Molis 回归发现 SDK 已保留带注解的工具，但主线动作 schema 编译器仍拒绝 `x-mcp-header`，生产派出用例在可用性断言失败。沿用连接功能分支已有的 `mcpInputContract` 处理：仅从动作参数副本移除合法一级 header 注解，保留原始快照、字段值约束、重复/嵌套/畸形和未知关键字拒绝；Home MCP 与项目 MCP 共用这一处，模型 schema 不变。`tests/connector-mcp.test.ts` 验证实际业务派出为零的拒绝与成功调用；前述派出用例验证 SDK 消费路径。包边界另检出工作区登记仍指向旧包，一并更新同一依赖记录。初轮相关 58 个非浏览器文件中 57 个通过，301 项通过、1 项失败；保留首次派出用例失败。补齐动作 schema 处理后整体重建，相关三文件 29 项通过（含新增拒绝路径），工作区登记修正后的包边界及 merge-base 健康门禁通过。页面资源仍为 25 项、7,598,359 字节，版本核对通过。浏览器 MCP 冒烟及完整集成交由 CI；没有在本机启动全量。
 
+Molis [#650](https://github.com/molis-ai/molis-work/pull/650) 于 2026-10-17 11:05 UTC 合入 `2dd7a258389fc8cdf5fb352c0d9d534984977c04`。[PR CI](https://github.com/molis-ai/molis-work/actions/runs/39026338214) 全部通过，产品子集 377/377 文件通过，无失败、重跑后通过、跳过或隔离；两份安全检查通过。[合并队列检查](https://github.com/molis-ai/molis-work/actions/runs/39027103146) 通过。合入后逐项核对主线包、依赖与 MCP 处理源码，同已验证版本一致。
 ### 6.0n P4 助理一半 A2：交回改用 SDK 的等待与接续（2026-10-17）
 
 §7.5 第 5 条的第 2、3 项：子任务交回、交回后自动接着做。A1 之后，「子任务都结束了没有」读图；这一片把「等它们」和「接着做」也交给 SDK：父 Work 的根挂一个等待，等根下所有没结束的步骤，SDK 管等待和根上唯一的接续。助理自己记的那份交回状态全删：

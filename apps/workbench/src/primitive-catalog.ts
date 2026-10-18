@@ -12,11 +12,11 @@ import {
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 
-const CATALOG_PLUGINS = ["goals", "inbox", "feed", "sessions", "schedule", "workflows", "pages", "shelf", "lingguang", "plugin-builder"] as const;
+const CATALOG_PLUGINS = ["goals", "inbox", "feed", "sessions", "schedule", "workflows", "pages", "lingguang", "plugin-builder"] as const;
 
 /**
  * The resident bar exactly as the workbench composes it, on a strip of desk: Dock menu, pinned plugins,
- * the plugin switcher with the Assistant line, Shelf and 灵光, discussion and the project. Pins are filled
+ * the plugin switcher with the Assistant line, the side panel's button and the project. Pins are filled
  * the way the workbench client fills them; the switcher opens with the same popover.
  */
 function renderBarSpecimen(): string {
@@ -88,12 +88,12 @@ const BAR_SPECIMEN_SCRIPT = `
       tile.classList.toggle("is-available", !adding);
       toggle.dataset.state = adding ? "added" : "available";
       toggle.classList.toggle("mw-btn--primary", !adding); toggle.classList.toggle("mw-btn--secondary", adding);
-      const pin = tile.querySelector("[data-dock-choice]"); if (pin && !pin.hasAttribute("data-resident")) pin.disabled = !adding;
+      const pin = tile.querySelector("[data-dock-choice]"); if (pin) pin.disabled = !adding;
       return;
     }
-    const pin = event.target.closest("[data-dock-pin], [data-bar-resident]");
+    const pin = event.target.closest("[data-dock-pin]");
     if (!pin) return;
-    stage.querySelectorAll("[data-dock-pin], [data-bar-resident]").forEach((node) => node.toggleAttribute("aria-current", node === pin));
+    stage.querySelectorAll("[data-dock-pin]").forEach((node) => node.toggleAttribute("aria-current", node === pin));
   });
   document.addEventListener("click", (event) => {
     if (!stage.contains(event.target)) { setPicker(false); stage.querySelectorAll("details[open]").forEach((node) => node.removeAttribute("open")); }

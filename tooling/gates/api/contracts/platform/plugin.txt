@@ -911,7 +911,7 @@ export interface ArtifactReferrersResult {
     referrers: ArtifactReferrer[];
 }
 
-export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining"];
+export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
@@ -2205,6 +2205,10 @@ export interface IntegrationProviderItem {
 export interface IntegrationProviderPort {
     readonly type: string;
     health(): Promise<{
+        account?: {
+            login: string;
+            account_id?: string;
+        };
         ok: boolean;
         status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
         message: string;
@@ -2235,7 +2239,7 @@ export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
 
-export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining"];
+export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export interface MaterialSourceContent {
     text: string;
@@ -2847,6 +2851,7 @@ export interface PluginManifest {
         signature: string;
     };
     host_api_version: 1 | 2;
+    always_on?: boolean;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
     capabilities: {

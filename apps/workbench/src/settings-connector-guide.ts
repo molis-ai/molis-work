@@ -1,5 +1,6 @@
 import type { ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { ConnectorSettingsCardView } from "./settings-view.js";
+import type { ConnectorSetupView } from "./settings-connector-request.js";
 
 export interface ConnectorPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
@@ -98,10 +99,10 @@ function tokenGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOpti
     <div data-protocol-result role="status" aria-live="polite" hidden></div></form>`;
 }
 
-export function renderMethodGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOption, p: ConnectorPrimitives): string {
+export function renderMethodGuide(card: ConnectorSettingsCardView, option: ConnectorMethodOption, p: ConnectorPrimitives, setup?: ConnectorSetupView["setup"], cliJob?: string): string {
   const { L, escapeHtml: e } = p;
   const field = (key: string, label: string, value = "", secret = false, placeholder = "", required = false) => `<label class="settings-connector-field"><span>${e(L(label))}</span><input class="mw-input" data-protocol-field="${e(key)}" type="${secret ? "password" : "text"}" autocomplete="off" value="${e(value)}" placeholder="${e(placeholder)}"${required ? " required" : ""}></label>`;
-  const manualReturn = `<div data-oauth-return hidden>${field("returned_url", "浏览器中的完整返回地址")}<button class="mw-btn mw-btn--secondary" type="button" data-oauth-complete>${L("确认授权结果")}</button></div>`;
+  const manualReturn = `<div data-oauth-return hidden>${field("returned_url", "浏览器中的完整返回地址", "", true)}<button class="mw-btn mw-btn--secondary" type="button" data-oauth-complete>${L("确认授权结果")}</button></div>`;
   let body = "";
   if (option.kind === "token" && option.support === "paste") body = tokenGuide(card, option, p);
   else if (option.oauth) {
@@ -117,8 +118,10 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
       <details class="settings-connector-help"><summary>${L("高级：使用已注册的 HTTPS 回调")}</summary>${field("redirect_uri", "HTTPS 回调地址（可选）")}<p>${L("仅在服务不接受本机回调时使用。授权后将完整返回地址粘贴到这里。")}</p></details>
       <button class="mw-btn mw-btn--primary" type="button" data-protocol-start="oauth"${dedicated ? ` data-account-login="${e(card.connector_id)}"` : ""}>${e(L("前往 {name} 登录", { name: provider }))}</button>${manualReturn}`;
   } else if (option.mcp) {
-    const manual = !option.login_ready && (option.mcp.client_registration === "manual" || ["feishu", "lark"].includes(card.connector_id));
-    const config = `${field("endpoint", "官方工具服务地址", option.mcp.endpoint)}${field("client_id", "应用 Client ID / App ID（服务要求时填写）")}${field("client_secret", "Client Secret / App Secret（服务要求时填写）", "", true)}${field("token", "访问令牌（服务支持时可选）", "", true)}<div class="settings-connector-copy"><code data-mcp-callback></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${L("复制回调")}</button></div>${field("redirect_uri", "已注册的 HTTPS 回调（可选）")}`;
+    const custom = card.connector_id === "mcp-bearer";
+    const manual = custom || !option.login_ready && (option.mcp.client_registration === "manual" || ["feishu", "lark"].includes(card.connector_id));
+    const select = (key: string, label: string, values: Array<[string, string]>, selected?: string) => `<label class="settings-connector-field"><span>${e(L(label))}</span><select class="mw-input" data-protocol-field="${key}">${values.map(([value, text]) => `<option value="${value}"${value === selected ? " selected" : ""}>${e(L(text))}</option>`).join("")}</select></label>`;
+    const config = `${field("endpoint", "官方工具服务地址", option.mcp.endpoint)}${custom ? select("authentication", "认证方式", [["oauth", "OAuth"], ["none", "无需鉴权"], ["bearer", "Bearer Token"]], setup?.authentication) + select("transport", "传输方式", [["http", "Streamable HTTP"], ["sse", "SSE"]], setup?.transport) : ["authentication", "transport"].map(key => { const value = setup?.[key as "authentication" | "transport"]; return value ? `<input type="hidden" data-protocol-field="${key}" value="${e(value)}">` : ""; }).join("")}${field("client_id", "应用 Client ID / App ID（服务要求时填写）")}${field("client_secret", "Client Secret / App Secret（服务要求时填写）", "", true)}${field("token", "访问令牌（服务支持时可选）", "", true)}<div class="settings-connector-copy"><code data-mcp-callback></code><button type="button" class="mw-btn mw-btn--ghost" data-copy-callback>${L("复制回调")}</button></div>${field("redirect_uri", "已注册的 HTTPS 回调（可选）")}`;
     body = `<p>${L("连接后可查看并使用服务商提供的工具。工具授权与邮件、文档同步账号独立，以官方授权页显示的权限为准。")}</p><p>${e(L(option.note))}</p>
       ${officialLinks(option.links, p)}
       ${manual ? `<p>${L("此服务需要先准备应用或组织配置，再开始授权。请按官方说明填写以下信息。")}</p>${config}` : `<details class="settings-connector-help"><summary>${L("服务地址与高级授权设置")}</summary>${config}</details>`}
@@ -127,12 +130,13 @@ export function renderMethodGuide(card: ConnectorSettingsCardView, option: Conne
     body = `<p>${e(L(card.connector_id === "feishu" ? "使用本机客户端登录你的用户账号，登录后自动检查连接。" : "使用已安装的官方客户端登录并检查账号。此连接可在这里读取信息，不代替 Feed 的账号授权。"))}</p>
       <p data-cli-availability>${e(option.cli.binary)} · ${L(option.cli.installed ? "已安装" : "尚未安装")}</p>
       ${officialLinks([{ label: "打开官方安装说明", url: option.cli.install_url }], p)}
+      ${(option.cli.environment_fields ?? []).map(input => field(`setting:${input.name}`, input.label, "", input.secret)).join("")}
       <div class="settings-connector-actions"><button class="mw-btn mw-btn--primary" type="button" data-cli-login${option.cli.installed ? "" : " disabled"}>${L("登录并连接")}</button><button class="mw-btn mw-btn--secondary" type="button" data-cli-connect${option.cli.installed ? "" : " disabled"}>${L("连接已登录账号")}</button><button class="mw-btn mw-btn--ghost" type="button" data-cli-detect>${L("重新检测安装")}</button></div>
       ${option.cli.note ? `<details class="settings-connector-help"><summary>${L("客户端使用说明")}</summary><p>${e(L(option.cli.note))}</p>${officialLinks(option.links, p)}</details>` : ""}
-      ${card.connector_id === "feishu" ? `<details class="settings-connector-help"><summary>${L("首次使用：配置飞书应用")}</summary><button type="button" class="mw-btn mw-btn--secondary" data-connector-feishu-setup>${L("打开应用配置")}</button></details>` : ""}
-      <div data-cli-session hidden><p>${L("请按客户端提示完成登录。部分客户端需要在下方输入选项。")}</p><pre class="settings-connection-output" data-cli-output aria-live="polite"></pre>${field("cli_input", "客户端交互输入（空白发送回车）", "", true)}<div class="settings-connector-actions"><button type="button" class="mw-btn mw-btn--secondary" data-cli-input>${L("发送")}</button><button type="button" class="mw-btn mw-btn--ghost" data-cli-cancel>${L("结束登录")}</button></div></div>`;
+      ${option.cli.setup_available ? `<button type="button" class="mw-btn mw-btn--secondary" data-cli-configure${option.cli.installed ? "" : " disabled"}>${L("配置客户端")}</button>` : ""}
+      <div data-cli-session hidden><p>${L("请按客户端提示完成登录。部分客户端需要在下方输入选项。")}</p><pre class="settings-connection-output" data-cli-output aria-live="polite"></pre>${field("cli_input", "客户端交互输入（空白发送回车）", "", true)}<div class="settings-connector-actions"><button type="button" class="mw-btn mw-btn--secondary" data-cli-input>${L("发送")}</button><button type="button" class="mw-btn mw-btn--ghost" data-cli-cancel>${L("结束操作")}</button></div></div>`;
   } else body = `<p>${e(L(option.note))}</p>${officialLinks(option.links, p)}`;
-  return `<section class="settings-connector-method" data-connector-method="${option.kind}" data-method-support="${option.support}"><div data-protocol="${option.kind}" data-protocol-service="${e(card.connector_id)}" class="settings-connector-flow">${body}${option.kind === "token" ? "" : '<div data-protocol-result role="status" aria-live="polite" hidden></div>'}</div></section>`;
+  return `<section class="settings-connector-method" data-connector-method="${option.kind}" data-method-support="${option.support}"><div data-protocol="${option.kind}" data-protocol-service="${e(card.connector_id)}"${cliJob ? ` data-cli-job="${e(cliJob)}"` : ""} class="settings-connector-flow">${body}${option.kind === "token" ? "" : '<div data-protocol-result role="status" aria-live="polite" hidden></div>'}</div></section>`;
 }
 
 export function renderConnectorSetup(card: ConnectorSettingsCardView, p: ConnectorPrimitives): string {

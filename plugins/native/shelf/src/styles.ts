@@ -5,10 +5,7 @@ export const SHELF_STYLES = `
   [data-shelf-material-status] { white-space: pre-wrap; overflow-wrap: anywhere; }
   [data-shelf-chrome] { flex-wrap: wrap; height: auto; min-height: 44px; }
 
-  [data-shelf],
-  [data-plugin-section="shelf"],
-  body.immersive-workbench [data-work-surface="shelf"],
-  body.immersive-workbench[data-desktop-surface="shelf"] .tree-pane {
+  [data-shelf] {
     --da-side: var(--content-side);
     --da-panel: var(--content-paper);
     --da-hover: var(--content-hover);
@@ -40,47 +37,32 @@ export const SHELF_STYLES = `
     font-family: var(--da-font);
     -webkit-font-smoothing: antialiased;
   }
-  body.immersive-workbench[data-desktop-surface="shelf"] .tree-pane,
-  body.immersive-workbench [data-desktop-directory="shelf"].tree-pane {
-    background: var(--da-side) !important;
-    border-right-color: var(--da-line) !important;
-  }
-  body.immersive-workbench .plugin-section[data-plugin-section="shelf"] {
-    background: var(--da-side);
-    color: var(--da-text);
-    min-height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-  body.immersive-workbench .plugin-section[data-plugin-section="shelf"] > .immersive-plugin-link {
-    display: none !important;
-  }
-  body.immersive-workbench .plugin-section[data-plugin-section="shelf"] .plugin-section-body {
-    flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0;
-  }
-  body.immersive-workbench .plugin-section[data-plugin-section="shelf"].is-expanded > .plugin-section-body > .desktop-directory-panel:not([hidden]) > :not([data-directory-list-actions]):not(.desktop-directory-heading) {
-    padding-inline: 0;
-  }
-  body.immersive-workbench :is([data-shelf], [data-plugin-section="shelf"]) :is(button, [role="button"], input) {
+  [data-shelf] :is(button, [role="button"], input) {
     appearance: none;
     -webkit-appearance: none;
   }
-  [data-shelf="directory"] {
-    position: relative;
-    flex: 1; min-height: 0; display: flex; flex-direction: column;
-    padding: 12px 12px 16px; background: var(--paper); color: var(--da-text);
+  /* Shelf is the side panel's tab (specs/side-shelf §3.2) and fills it. The list takes the whole tab; an open file takes
+     it too, with a back button above; from 640px the 213px list (DropAgent's 213pt) stays beside the open file. */
+  [data-shelf-stage-shell] {
+    position: fixed; inset: 0; overflow: hidden; container: shelf / inline-size;
+    background: var(--paper); font-family: var(--da-font);
   }
-  .plugin-stage-list[data-shelf="directory"] {
-    position: absolute; inset: 0; flex: none;
-    display: flex; flex-direction: column;
-    min-height: 0; overflow: hidden;
-    padding: 16px 24px; background: var(--paper);
-  }
-  body.immersive-workbench [data-work-surface="shelf"].plugin-stage-shell {
-    padding: 0; background: var(--paper);
+  [data-shelf-stage-shell] [hidden] { display: none !important; }
+  [data-shelf-stage-shell] > [data-shelf="directory"] {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    min-height: 0; overflow: hidden; padding: 12px 12px 16px; background: var(--paper); color: var(--da-text);
   }
   [data-shelf-stage-shell] .plugin-stage-workspace {
+    position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; min-height: 0;
     background: var(--da-panel); overflow: hidden;
+  }
+  [data-shelf-stage-shell][data-expanded="true"] > [data-shelf="directory"] { display: none; }
+  @container shelf (min-width: 640px) {
+    [data-shelf-stage-shell][data-expanded="true"] > [data-shelf="directory"] { display: flex; right: auto; width: 213px; border-right: 1px solid var(--da-line); }
+    [data-shelf-stage-shell][data-expanded="true"] > .plugin-stage-workspace { left: 213px; }
+    /* Beside an open file the list keeps its search; adding stays one icon away. */
+    [data-shelf-stage-shell][data-expanded="true"] .shelf-side-op--add { width: 30px; padding: 0; }
+    [data-shelf-stage-shell][data-expanded="true"] .shelf-side-op--add b { display: none; }
   }
   [data-shelf-stage-shell] .plugin-stage-workspace > .shelf-stage {
     flex: 1; min-height: 0; border: 0; border-radius: 0;
@@ -120,26 +102,14 @@ export const SHELF_STYLES = `
   [data-shelf] .plugin-stage-list .goal-collection-fold > summary:hover { background: var(--da-hover); color: var(--da-text); }
   [data-shelf] .plugin-stage-list .goal-collection-fold > summary strong { color: inherit; }
   [data-shelf] .plugin-stage-list .goal-collection-fold > summary small { color: var(--da-faint); }
+  [data-shelf] .goal-collection-fold .shelf-row { padding-left: 24px; }
+  [data-shelf] .goal-collection-fold .shelf-row.is-child { padding-left: 48px; }
   [data-shelf] .shelf-group-mark { color: currentColor; }
   [data-shelf] .shelf-group-mark svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
   [data-shelf] .shelf-side-foot {
     display: flex; align-items: center; justify-content: space-between;
     flex: none; margin-top: auto; padding: 12px 8px 0; border-top: 1px solid var(--da-line);
     font-size: 11px; color: var(--da-faint);
-  }
-  /* DropAgent's directory is 213pt once a file is open; until then the list stays full-width. */
-  body.immersive-workbench .plugin-stage-shell[data-shelf-stage-shell][data-expanded="true"] { --tree-width: 213px; }
-  body.immersive-workbench .plugin-stage-shell[data-shelf-stage-shell] .plugin-stage-list {
-    border-right-color: var(--da-line); background: var(--paper);
-  }
-  @media (max-width: 760px) {
-    body.immersive-workbench .plugin-stage-list[data-shelf="directory"] { padding-top: 12px; }
-  }
-  @media (min-width: 761px) {
-    body.immersive-workbench .plugin-stage-shell[data-shelf-stage-shell][data-expanded="true"] .plugin-stage-list[data-shelf="directory"] {
-      display: flex; flex-direction: column; overflow: hidden;
-      padding: 12px 12px 16px;
-    }
   }
   [data-shelf] .shelf-search {
     display: flex; align-items: center; gap: 8px; height: 30px; min-height: 30px;
@@ -148,7 +118,6 @@ export const SHELF_STYLES = `
     border: 1px solid var(--da-line);
   }
   [data-shelf] .shelf-search svg { width: 14px; height: 14px; stroke: var(--da-faint); fill: none; stroke-width: 2; }
-  body.immersive-workbench [data-shelf] .shelf-search input,
   [data-shelf] .shelf-search input {
     flex: 1; min-width: 0; border: 0 !important; background: transparent !important;
     color: var(--da-text) !important; font-size: 12px; outline: none !important; box-shadow: none !important;
@@ -285,11 +254,6 @@ export const SHELF_STYLES = `
   [data-shelf] .tone-plum { color: var(--mark-plum); }
   [data-shelf] .tone-clay { color: var(--mark-clay); }
 
-  body.immersive-workbench [data-work-surface="shelf"] {
-    display: flex; flex-direction: column; min-height: 0; height: 100%;
-    padding: 0; background: var(--paper); color: var(--da-text);
-    font-family: var(--da-font);
-  }
   [data-shelf="workbench"] .shelf-stage {
     position: relative; flex: 1; min-width: 0; min-height: 0;
     display: flex; flex-direction: column;
@@ -330,7 +294,6 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-editor.is-code {
     font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
   }
-  body.immersive-workbench [data-shelf] .shelf-paper,
   [data-shelf] .shelf-paper {
     box-sizing: border-box;
     height: 32px; padding: 0 12px; border-radius: 8px;
@@ -576,10 +539,10 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-drop-card p { margin: 0; font-size: 12px; color: var(--da-muted); }
   [data-shelf] .shelf-pdf-frame { width: 100%; min-height: min(62vh, 640px); border: 0; background: var(--da-panel); }
   [data-shelf] .shelf-image { max-width: 100%; max-height: min(62vh, 640px); border: 1px solid var(--da-line); border-radius: 8px; }
-  body.immersive-workbench :is([data-shelf], [data-plugin-section="shelf"]) :is(button, [role="button"], input):active:not(:disabled, [aria-disabled="true"]) {
+  [data-shelf] :is(button, [role="button"], input):active:not(:disabled, [aria-disabled="true"]) {
     filter: none !important;
   }
-  body.immersive-workbench :is([data-shelf], [data-plugin-section="shelf"]) :focus-visible {
+  [data-shelf] :focus-visible {
     outline: 2px solid var(--da-accent); outline-offset: -2px;
   }
   [data-shelf] .shelf-settings-body { display: flex; flex-direction: column; gap: 0; min-width: 0; }
@@ -617,7 +580,6 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-runtime-pick.is-missing { color: var(--da-faint); }
   [data-shelf] .shelf-runtime-pick.is-missing > label { cursor: default; opacity: .55; }
   [data-shelf] .shelf-runtime-pick .shelf-paper { margin-left: auto; flex: none; }
-  body.immersive-workbench [data-shelf] .shelf-runtime-pick input[type="radio"],
   [data-shelf] .shelf-runtime-pick input[type="radio"] {
     appearance: radio; -webkit-appearance: radio;
     width: 13px; height: 13px; margin: 0; flex: none;
@@ -671,7 +633,7 @@ export const SHELF_STYLES = `
   [data-shelf] .shelf-act-wrap[data-dragging="1"] { opacity: .35; }
   [data-shelf] .shelf-act-wrap { position: relative; }
   @media (prefers-reduced-motion: reduce) {
-    [data-shelf] *, [data-plugin-section="shelf"] * { animation: none !important; transition: none !important; }
+    [data-shelf] * { animation: none !important; transition: none !important; }
   }
 
   /* The one way in is named, and an empty shelf is a place to drop things. */

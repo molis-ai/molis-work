@@ -9,6 +9,8 @@
 
 初始化失败后释放本次资源，普通 `ready()` 保留失败结果，不因页面查询自动重试。用户从错误页点击重试，经受保护的 `POST /api/plugins/<plugin_id>/retry` 调用 `HomePluginHost.retry()`；并发重试共用一次启动，故障库不重建、不迁移。清理失败或 Host 已关闭时不可重启；恢复后仍保留用户停用意图。
 
+助理接续监听归 Local Host：关闭借用 Web 传输不终止共享助理，Host 关闭开始时释放监听，持久等待留待重启恢复。手动构造 `AssistantService` 的嵌入者需在关闭运行时及数据库前调用 `service.continuations.close()`；回归见 `tests/assistant-continuation-control.test.ts`、`tests/assistant-connector-continuation.test.ts`。
+
 Web 工厂自建 Host 时，`server.close(callback)` 在自有 Host 和目录连接关闭后才调用回调；调用方应等待它，再退出或清理 Home。传入的借用 Host 仍由嵌入者负责 `await host.close()`。
 
 ## 一次典型调用
@@ -67,6 +69,10 @@ PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信�
 
 Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。`schedule-operations.ts` 同样只装配安装执行器和 Inbox；计划与 occurrence、重装后的归属确认、未知结果恢复归 Schedule。执行器注册不派出工作，新的 lease 才能运行持久 pending；结果未知必须在 Schedule 核对后明确重试或跳过。
 
+服务连接的 `connectors.records.read` 复用设置页已有的 API / CLI 记录读取，仅接受连接 id，使用 `connectors:records:read` 权限；没有业务读取适配时明确拒绝，不能把账号检查当成读取结果。连接停用、换号或调用取消时，旧读取不返回结果。回归见 `tests/connector-record-actions.test.ts`、`tests/connector-cli.test.ts`。
+
+固定记录预览的 `result.record_count` 表示本次返回数量，由 API 的记录列表或 CLI 实际返回的数组计算，放在正文之前；非列表 CLI 不猜数量。工具正文被截断时仍可读到数量，完整记录保留在原工具结果资源；该字段不是服务端全部记录总数。
+
 ## 公共搜索与证据
 
 `createSearchEvidenceRuntime` 装配 SEL 的公共 web query、可信身份、intent 持久化和 Storage 正文端口；关闭时取消并等待在途操作和传输，再由数据库所有者关闭连接。`createFeedSourceRuntime` 注入 RSS Runtime、来源路由、条件请求游标和 receipt。Alchemist 直接使用公共装配，不初始化 Feed/RSS；研究查询、预算和可引用摘要仍由 Alchemist 决定。到 AnySearch 的出站只有一条：`anysearch-transport.ts`，由 `createSearchEvidenceRuntime` 默认装配，Feed 的网页搜索与 Alchemist 研究共用（固定主机、只连公网地址并钉住、请求 64 KiB 与响应 1 MiB 上限、不跟随跳转；主机名经 `resolveModelHostname`，系统解析返回 198.18/15 假地址且设了代理变量时改由公共 DNS 核验）。SEL 自带的钉死 HTTPS 宿主不再使用，`tests/anysearch-single-owner.test.ts` 守着这一点。历史存储名称及引用保留，不改写已有数据。
@@ -89,6 +95,8 @@ node scripts/run-tests.mjs tests/local-host.test.ts tests/web-home-isolation.tes
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
 ## 开发要求
+
+助理每轮的未完成接入材料由 `src/assistant/assistant-setup-material.ts` 从接入 owner 读取，按当前 actor、会话、项目和读取授权筛选；只给公开状态、意图修订及实际旧等待撤回结果，不带凭据、不决定保留/取消。新消息后的暂缓与等待撤回仍分别由连接 owner 和 SDK 负责。回归：`tests/assistant-connector-business.test.ts`。
 
 Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalHost 时归该 Host 所有，关闭或重建借用的 Web 传输仍保留连接，最终 Host 关闭才释放。借用时复核 owner/schema，查询不缓存授权或项目事实，关闭等待已有借用。当前 schema 的目录打开不取得初始化写事务，也不执行建表。首次准备遇到 SQLITE_BUSY 延迟重试目录准备，确定性 owner/schema 拒绝不自动重试，关闭取消待重试；不会重新执行失败的业务回调。`/health` 在请求校验后读取服务就绪状态，不通过目录数据库探活。
 
@@ -216,3 +224,27 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 插件消费动作时，`plugin-actions-client.ts` 从该项目真实目录解析唯一提供方并固定它，保留原声明、grant、实例取消与同步复查。Host 启动名单的实际内置 definition 通过 `plugin-entry-identity.ts` 给运行 caller 登记进程内资格；停止前及启动失败清理会撤销，复制对象、同名插件与 publisher 字符串不取得资格。原名单认可的 release restore 重新登记新 definition；Goals 的实际消费验收见防腐 spec §10.7。
 
 调度前的项目／Home 准备、范围拒绝、取消与关闭由同一 `refuseCall` / `settleCall` 记录一次未执行诊断，保留原错误与调用编号，不记输入或正文；本已取消的调用不启动插件。成功转发后继续由 ActionService 唯一结算。`inspectActionMetadata` 仅供宿主读取当前已登记声明，校验项目／存储身份，不启动 Runtime、不等可用性策略，也不提供执行授权；助理用它为冷调用的停止结果命名，正常授权与执行保留原 signal。回归见 `tests/action-call-log.test.ts` 的 PREP-108-01–04 与 `tests/assistant-business-gateway.test.ts` 的早停止持久结果。
+
+助理接入等待的状态由 SDK 任务图持有。Host 的 `connector-setup-checker.ts` 只读原会话的接入请求，并从助理 owner 重查当前权限；`assistant-continuations.ts` 读取 SDK 接续，在原对话中按最新要求开下一轮。等待时不调模型，暂停与停止的本人选择单独保留；默认停止会撤回该会话尚未提交的接入请求，已提交连接保留；显式 `keep_connections: true` 先停止业务与撤回等待，再保留该会话有效接入，不能使已停止业务再开轮。该路径依赖 App-tools 等待支持，完整证据记录在 `specs/assistant-service-connections/spec.md`。
+
+接入提交由 `connector-authorization-commit.ts` 汇合：本人在原工作发来新要求时，连接 owner 暂缓该会话的未完成请求；协议完成材料放在现有加密本人操作记录中。`connectors.setup.resolve` 只接受同一会话当前意图修订的保留/取消，释放时再次核对原连接修订。公开状态不含完成材料和凭据。回归：`tests/security-invariants-connector-intent.test.ts`、`tests/connector-mcp.test.ts`、`tests/connector-setup.e2e.test.ts`。
+
+免凭据 HTTP/SSE MCP 可经 `connectors.setup.execute@1` 执行已准备的请求，只接收授权请求 id，并核对同一用户、项目、会话及当前意图。需要凭据或本人登录时仍返回受保护表单。请求前和连接提交前复核授权、取消及 Host 生命周期，重复执行读取同一请求状态；已有外部服务进程不由 Host 接管。生产路径及取消、撤权、关闭、暂缓、重启、停用回归在 `tests/connector-mcp.test.ts`。
+
+服务连接的四维查询从配置、最近技术观察、当前调用者权限和共同动作目录投影。直接连接动作的可用性与插件对象配置分开说明；没有服务端 scopes 证据就显示未知。记录读取和 MCP 工具/资源调用在实际派出后记录结果，连通检查不计作业务调用；取消、撤权或配置变化后不再写入观察。协议返回错误、返回成功和结果丢失分别保留失败、成功和未知；最近观察不含参数或业务正文。项目 MCP 配置仍归 SDK；观察同时绑定配置版本与关联凭据修订。设置页经同一管理动作查询和管理项目连接，Home 视角不借用项目调用权限；所属项目的能力仍按调用者自身授权判断。
+
+已有连接的修复等待由 `assistantConnectionCheckers` 装配 `molis.connection-ready@1`：只读当前连接检查与能力目录，绑定稳定连接、真实账号要求和任务所需精确动作。设置页的检查走共同管理动作；暂停工作、换账号、缺权限不满足条件，移除连接明确失败。检查器自身不登录、不修复或调用业务工具。
+
+本地 MCP 的连接协议实现是 `src/connector-local-mcp.ts`（固定可执行路径、参数、工作目录、凭据环境与进程关闭），`src/connector-local-mcp-setup.ts` 在真实握手和发现完成后经同一连接 owner 提交，候选失败保留原配置。它与远程 MCP 共用 `src/connector-mcp-inspection.ts` 的完整分页发现和共同动作目录。改这些路径跑 `node scripts/run-tests.mjs tests/security-invariants-local-mcp.test.ts tests/connector-mcp.test.ts tests/connector-status.test.ts`；本地安装和对话入口的进度见当前服务接入 spec。
+
+受管理包安装由 `src/connector-tool-install.ts` 负责固定包版本、隔离环境及安装文件所有权；运行时补装在 `src/connector-tool-runtime.ts`，下载边界与校验在 `src/connector-tool-download.ts`，无 shell 的受控子进程在 `src/connector-tool-process.ts`。本机实装回归为 `node scripts/run-tests.mjs tests/connector-managed-install.test.ts`（需要已有 npm、uv 和 Python，使用本机临时包源，不从公网安装测试包）；下载拒绝、取消和目录所有权由 `tests/security-invariants-connector-install.test.ts` 验证。实装文件因 uv 前置条件暂未加入 Linux 产品子集，不用跳过断言代替安装证据。
+
+本地接入的正式动作是 `connectors.local.prepare@1`、`connectors.local.execute@1` 与清理失败后的 `connectors.local.cleanup@1`，共享管理权限及原授权记录。本人页面只提交请求 id 和声明过的环境值；方案不可被 HTTP 参数替换。完成的安装若协议验证失败，保留资源与方案供明确重试，凭据不保留在请求中；关闭 Host 取消并等待其子进程，关闭页面不取消。新增路径跑 `node scripts/run-tests.mjs tests/connector-local-actions.test.ts tests/connector-managed-install.test.ts tests/connector-local-setup.e2e.test.ts tests/personal-plugins-review-fixes.test.ts`；安装目录归 Home 的 `runtime/` 存储 owner，purge 按同一登记清理。
+
+官方 CLI 的安装方案与接续在 `src/connector-cli-setup.ts`，来源仍由 `src/connector-cli.ts` 的适配表声明，`src/connector-cli-actions.ts` 登记准备、安装和账号验证动作。受管理 CLI 用自己的配置目录与运行时，实际版本检查通过才进入本人登录；登录进程退出后 Host 完成原请求，不依赖页面轮询提交。PTY 随原请求取消或 Host 关闭结束，已完成安装与登录由原授权/连接 owner 持有。改动跑 `node scripts/run-tests.mjs tests/security-invariants-cli-install.test.ts tests/connector-cli.test.ts tests/security-invariants-connector-intent.test.ts`；包安装回归用临时 HTTP 包源与真实 npm/PTY，不使用公网账号。
+
+受管理 CLI 的包、原生发行物及前置配置都在现有 `CONNECTOR_CLIS` 适配表声明。原生下载按官方校验和固定，只提取指定普通文件；Graph 复用或补装固定 PowerShell，并用官方包管理器将固定认证模块保存在连接自身目录。飞书/Lark 配置向导继续使用该安装，完成后仍需账号登录；X 应用凭据只从受保护表单进入适配声明的环境变量，不进入参数或模型状态。CLI 输出按提交值遮蔽，重新打开原接入页恢复正在进行的交互。回归见 `tests/security-invariants-native-cli.test.ts`、`tests/security-invariants-graph-cli-install.test.ts` 与 `tests/security-invariants-cli-configuration.test.ts`。
+
+`connectors.usages.read` 从共同动作目录发现连接消费方查询，以当前调用者身份汇总真实使用位置；业务模块各读自己的来源、配置和绑定，Host 不存第二份关联。返回原业务动作引用与非敏感部分参数，当前目录不可调用的仍明确阻塞；Home 查询不打开其他项目。模型配置使用位置由 `model-connection-usages.ts` 从原 catalog 和连接引用投影，不增加模型调用通道。回归：`tests/connector-consumer-usages.test.ts`。
+
+MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-actions.ts` 只在动作校验副本中去掉一级基本类型参数上的有效 `x-mcp-header` 传输注释；不改参数约束，不关闭严格 schema 检查，未知关键字、嵌套或无效注释继续使该工具不可调用。HTTP 传输仍按 MCP SDK 实际协商的协议执行；这项处理不表示支持 2026-07-28 的头映射。真实 HTTP 派出与拒绝回归见 `tests/connector-mcp.test.ts` 的 ASC-03/13/31 注释用例。

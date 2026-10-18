@@ -38,6 +38,9 @@ test("W3-A3a: a write chosen on the page goes into the open work that holds the 
       let node; while ((node = walker.nextNode()) && !node.textContent.includes(${JSON.stringify(TEXTS[index])}));
       const start = node.textContent.indexOf(${JSON.stringify(TEXTS[index])}), range = document.createRange();
       range.setStart(node, start); range.setEnd(node, start + ${TEXTS[index]!.length});
+      // Selecting with the mouse moves focus into the preview (off the Assistant's input, which has it once the panel is open);
+      // without that the preview reports only when the click on 更多 takes focus, and that new report closes the menu it opened.
+      body.focus({ preventScroll: true });
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
     })()`);
     await waitFor(`document.querySelector('${BAR} [data-more]')`, 10_000);

@@ -110,6 +110,7 @@ func handle(_ request: [String: Any]) {
             case "app.state": return try Observe.appState(params.int32("pid"))
             case "observe.tree": return try Observe.tree(pid: params.int32("pid"), maxNodes: params.optionalInt("max_nodes") ?? 600)
             case "observe.screenshot": return try Observe.screenshot(pid: params.int32("pid"), rect: params.rect("rect"), scale: params.optionalDouble("scale") ?? 1)
+            case "observe.ocr": return try Observe.ocr(pid: params.int32("pid"), rect: params.rect("rect"), scale: params.optionalDouble("scale") ?? 2)
             case "observe.menus": return try Observe.menus(pid: params.int32("pid"), path: params.optionalStrings("path") ?? [])
             case "probe.point": return try Observe.probe(params.point("point"))
             case "focused.field": return try Observe.focusedField(pid: params.int32("pid"))

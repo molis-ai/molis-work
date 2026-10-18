@@ -9,7 +9,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 const TEXTS = ["联系阿杰确认秋季发布计划。", "联系小王确认周末徒步路线。", "联系小李确认预算说明。"];
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
-const TODO = `[...document.querySelectorAll('${BAR} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('记成待办'))`;
+// A write that goes as a card (记成待办 is made at once since W4-1): a plan broken into Goal steps, a proposal.
+const WRITE = `[...document.querySelectorAll('${BAR} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.startsWith('拆成目标步骤'))`;
 
 test("W3-A3a: a write chosen on the page goes into the open work that holds the object; with the panel closed, into a new one", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true, undefined, null);
@@ -45,8 +46,8 @@ test("W3-A3a: a write chosen on the page goes into the open work that holds the 
     })()`);
     await waitFor(`document.querySelector('${BAR} [data-more]')`, 10_000);
     await click(`${BAR} [data-more]`);
-    await waitFor(`Boolean(${TODO})`, 10_000);
-    await evaluate(`${TODO}.click()`);
+    await waitFor(`Boolean(${WRITE})`, 10_000);
+    await evaluate(`${WRITE}.click()`);
     await waitFor(`window.placed.length === ${index + 1}`, 15_000);
     return evaluate<{ asked: { work_id?: string }; work_id: string; card: { card_id: string } }>(`window.placed[${index}]`);
   };

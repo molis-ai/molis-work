@@ -1,4 +1,4 @@
-import { ActionError, defineErrorCodes, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes, requireSynchronous, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginImageConnectionState, PluginImageGenerationClient, PluginImageGenerationDeclaration, PluginImageGenerationRequest, PluginImageTarget, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { currentPluginAction } from "./action-scope.js";
@@ -44,7 +44,7 @@ export function createPluginImageGenerationClient(manifest: PluginManifest, port
     }
     if (command && scope.definition.operation !== "command") throw errors.image_action_required("连接变更只能由 command 动作执行");
     scope.caller.signal?.throwIfAborted();
-    scope.caller.assert_authority_current?.();
+    requireSynchronous(scope.caller.assert_authority_current?.(), "最终图片授权检查必须同步完成");
     return scope;
   };
   const read = (generationAllowed = false) => {
@@ -55,8 +55,11 @@ export function createPluginImageGenerationClient(manifest: PluginManifest, port
   };
   const current = (caller: ActionExecutionContext, required: readonly string[]) => {
     caller.signal?.throwIfAborted();
-    for (const permission of required) permit(permission);
-    caller.assert_authority_current?.();
+    for (const permission of required) {
+      permit(permission);
+      if (!caller.permissions.includes(permission)) throw new ActionError("actions.forbidden", "当前调用未获图片服务授权");
+    }
+    requireSynchronous(caller.assert_authority_current?.(), "最终图片授权检查必须同步完成");
   };
   return Object.freeze({
     connections() { read(); return port.connections(); },

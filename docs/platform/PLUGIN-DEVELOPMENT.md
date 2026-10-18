@@ -393,3 +393,14 @@ Builder 的截图评审把 presentation、design、host、unverified 问题分�
 Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? }`。该字段只能来自本次已认证的服务身份响应；优先携带稳定账号 id，不从显示标签或 message 文案推断。Host 连接检查将它与当前配置修订关联，跨入口恢复等待据此防止自动换用另一账号；没有身份查询能力的服务保持账号未知。
 
 连接的业务使用位置由消费方通过 `defineConnectorUsagesAction` 报告（contracts 的 `services/connector-host`）。输入是连接 id，输出是 owner 当前保存的使用位置、启用状态和已有业务动作引用及非敏感对象参数。共同目录按 `molis.connector-usages.input.v1` / `output.v1` 发现查询，由 `connectors.usages.read` 以原调用者权限汇总；没有宿主插件白名单和第二份绑定库。Feed 只返回当前项目来源，Images 返回原生图配置，Functions 返回使用当前绑定账号的已发布规则；模型配置不伪称所有文本动作都固定使用该账号。查询不调用业务操作，展示的操作仍按当前目录权限、作用域与可用性决定是否可用。
+
+
+## Home 消费者的模型配置、生图与项目清理
+
+可信 Home 启动条目可声明 `model_configuration` 与 `image_generation`，分别得到 `services.model.configuration` 与 `services.imageGeneration`；插件 Manifest/definition 自报同名字段不能授予服务，沙箱和升级预检没有这些服务。配置声明固定 preference 文件、custom provider 和 read/save 动作；selection 只读取当前消费者的精确选择，read/save 只在对应设置动作中工作。配置可在模型不可用时修复，真实调用仍要求 model:invoke、并发动作及 beforeEffect，不将显式失效选择回退到别的模型。
+
+生图服务提供 connections/inspect/bind/unbind/generate，命名空间与权限来自可信条目；只读发现不解密或 pin 目标。连接、凭据及派出归 Host/Connector/agent-host，插件保留任务调度、业务记录与字节验证。generate 返回当次结果和不透明 revision；调用方在后续文件/任务提交前按这一 revision 再检查，不能读取新 revision 来替代旧结果的版本。模型/连接/安装授权变化后，成功与失败业务记录均不写入。
+
+现有 project_data 的可信 owner 可接 contribution.onProjectDeleted：只同步停止本实例的等待与内存任务，Host 紧接原 purge，中间不 await；异步回调拒绝。停用/卸载后没有活跃 contribution 时仍走原离线 purge，结束 Home 才释放 owner 注册。回调不提供写库或文件权限。
+
+非流式路由的 bytes 默认作为附件。PluginRouteResponse 可显式给 disposition 为 inline 或 attachment；Host 只保留 image/png、image/jpeg、image/webp，其他 MIME 强制 octet-stream 附件。nosniff、sandbox、no-store 始终由 Host 设置，插件不能覆盖。HTTP 项目来自已核对存在且显示该插件的路径，query/body 不授予身份。

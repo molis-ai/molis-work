@@ -1,14 +1,11 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseDeclaration, PluginDefinition, PluginFilesDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginFilesDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createImagesActionHandlers } from "./actions.js";
 import { imagesManifest } from "./manifest.js";
 import { imagesRoutes } from "./routes.js";
 import { ImagesService } from "./service.js";
-import { IMAGES_STORE_BASELINE } from "./store.js";
 import { imagesUiContribution } from "./ui.js";
 
-export const IMAGES_DATABASE: PluginDatabaseDeclaration = { store_name: "images", ...IMAGES_STORE_BASELINE,
-  read_permission: "storage:private", write_permission: "storage:private" };
 export const IMAGES_FILES: PluginFilesDeclaration = { store_name: "images", directory: "assets", max_file_bytes: 20 * 1024 * 1024,
   read_permission: "storage:private", write_permission: "storage:private" };
 export const IMAGES_IMAGE_GENERATION: PluginImageGenerationDeclaration = { store_name: "images",

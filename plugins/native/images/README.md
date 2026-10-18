@@ -12,6 +12,8 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 
 连接列表 `images.connections.list@2` 的账号记录带 `enabled`，停用保留已选账号与凭据但拒绝生成；重新启用后沿用同一引用。调用方从共同目录取当前版本，旧版精确引用须重选。
 
+生成动作 `images.jobs.start@2` 使用 Runtime 并发后台受理并要求 `model:invoke`；输入输出保持，旧固定版本须重新选择，MCP 当前工具为 `images.jobs.start__v2`。
+
 插件声明统一动作：`images.connections.list/save/delete`、`images.jobs.list/start/get/cancel/delete` 和 `images.images.read`。HTTP 仅转发到同一动作服务；标准 MCP 导出相同合同。配置操作遵守 Home 权限，任务和图片遵守项目权限；模型参数不能改变调用者的项目。启动返回持久任务，`request_id` 对相同输入去重；图片读取返回实际 Base64 字节、MIME 和文件名。
 
 数据：`{home}/images/images.db` 与 `{home}/images/assets/`。一个 Home Runtime 实例拥有配置与任务，Web、MCP 通过同一个动作服务调用；原表结构保持版本 1。数据库、文件和生图由宿主注入的有限服务提供，插件不持有 Home 路径或凭据解析器。任务在后台保留原调用者的可撤销授权，普通请求断开不取消已受理任务；撤权、停用和项目删除后不写晚到结果或失败记录。停止不写业务状态，下次启动把遗留 running 标为 interrupted，清理所有项目均未引用的图片文件，不重新调用厂商。
@@ -32,11 +34,11 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
   - 服务框内的 Connectors 链接先关闭原生模态框，让设置接收点击与键盘；返回时保留服务字段，打开服务框主动刷新账号，失败留在框内并可重新打开重试。返回生成历史清空本页声明的当前任务，不取消已接受的服务端任务。
   - API Key 由宿主 SecretStore 加密保存；列表、任务与下载不返回 Key。
   - 失败、超时或重启不自动再次调用；「停止等待」只停本机请求，不保证厂商停止计费。
-  - 所选账号失效时保留选择并显示原因，不自动换账号；生成期间授权改变不保存过期结果。
+  - 所选账号失效时保留选择并显示原因，不自动换账号；生成期间授权或连接版本改变不保存过期结果；按当次返回的 revision 在交付与写入前复核。
   - 同一 Home 只有一个执行进程，由共同 Host 监督器管理；插件不另外建立进程锁或打开数据库。
   - `images.jobs.start` 对助理、MCP、工作流和插件随服务状态可用；用户页面仍能配置服务。发现只读取现有配置与连接状态，不 pin 地址或调用模型。
   - 项目被删除时共同 Home 生命周期回调先同步取消等待受理和执行中的任务，再由 `imagesProjectData` 清理项目任务与已引用图片；插件停用时仍可通过同一数据主人清理。未引用的部分生成文件在下一次启动恢复中清理。
-  - HTTP 挂载在 `/api/plugins/io.molis.work.images/`，路由只调用共同动作；下载使用 Runtime 字节响应，错误状态由 SDK 统一转换。
+  - HTTP 挂载在 `/api/plugins/io.molis.work.images/`，路由只调用共同动作；预览显式返回 inline，下载返回 attachment，Host 只保留 PNG/JPEG/WebP MIME；未知错误仍只回 images.internal 和原通用句，已知错误状态由 SDK 统一转换。
   - 配置、任务与文件的每次写入均等待当前授权后同步复查；并发生成维持每个 Home 最多两项，相同请求 ID 不重复调用厂商。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-images run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/images-actions.test.ts tests/images-service.test.ts tests/plugin-image-generation.test.ts tests/images-providers.test.ts tests/images-concurrency.test.ts tests/images-mcp.test.ts tests/project-deletion-owners.test.ts tests/model-unavailable-declarations.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`

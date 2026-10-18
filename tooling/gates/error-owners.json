@@ -191,12 +191,6 @@
       ],
       "reason": "The installer, uninstaller, web service and Runtime integration code: one area whose single-use prefixes (source, home, release, runtime, uninstall, service) become installer.* (spec W3-02 R5)."
     },
-    "jelly": {
-      "paths": [
-        "apps/local-host/src/jelly-*"
-      ],
-      "reason": "The Jelly plugin and the Host files that read its sources and material; its codes already start with jelly."
-    },
     "kernel": {
       "paths": [
         "packages/kernel/"

@@ -209,7 +209,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | `browser/downloads/`、`browser/uploads/`、`browser/browser.pid` | `apps/local-host/src/browser/browser-host.ts:82-83`、`:206` | 目录、PID 文件 | 临时 | purge |
 | `plugin-builder/<project_id>/{design,builds,releases,runs}/` | `apps/local-host/src/plugin-builder/agent-surface.ts:133`（根）、`:244`（design）、`:253`（builds）、`:297`（releases）、`:247`（runs）。`runs/<build>/` 是一份独立的 Prologue 存储根，有自己的 `storage.key` | 文件目录 · 无版本 | 必备份（Agent 生成的插件源码、设计稿、发布包） | purge |
 | `cache/research-library/<sha256>/` | `apps/local-host/src/research-library-source.ts:17`：研究库仓库的 bare Git 缓存 | Git 目录 | 可重建 | purge |
-| `jelly/preferences.json` | `apps/local-host/src/jelly-model.ts:16`：Jelly 选中的模型 | JSON · `schema_version` = 1 | 必备份 | purge（`jelly` 目录） |
+| `jelly/preferences.json` | `apps/local-host/src/model-configuration.ts`：可信 consumer 声明的 Jelly 模型选择 | JSON · `schema_version` = 1 | 必备份 | purge（`jelly` 目录） |
 | `characters/runs/character-*/` | `apps/local-host/src/character-native-execution.ts:18-20`：交给外部 Agent 执行时临时写出的角色包 | 目录 | 临时 | purge |
 | `images/assets/` | `plugins/native/images/src/service.ts:37`：生成的图片文件 | 文件目录 · 无版本 | 必备份 | purge（`images` 目录） |
 | `lingguang/imports/<sha256><ext>` | 旧版本留下的上传原始副本；现行 `apps/local-host/src/material-home.ts` 不再写，也没有代码读，上传的文件只在内存里提取文字（读取不保存灵光，副本没有读者也没有主人）。旧 Home 里已有的文件可以直接删除 | 文件目录 · 无版本 | 可重建（不会再被读取；删除不影响任何记录） | purge（`lingguang` 目录） |

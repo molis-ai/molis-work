@@ -2392,6 +2392,7 @@ export interface PlacementResult {
 
 export interface PluginAppContribution {
     kind: "app";
+    onProjectDeleted?(projectId: string): void;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
     views?: readonly UiContribution[];
@@ -2715,6 +2716,7 @@ export interface PluginHostServices {
     readonly database?: import("platform/plugin-database").PluginDatabase;
     readonly files?: import("platform/plugin-files").PluginFilesClient;
     readonly model?: PluginModelClient;
+    readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
     readonly materials?: PluginMaterialsClient;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
@@ -2723,6 +2725,51 @@ export interface PluginHostServices {
     readonly inputs?: PluginInputsClient;
     readonly outputs?: PluginOutputsClient;
     readonly capabilities?: PluginCapabilityClient;
+}
+
+export interface PluginImageConnectionState {
+    readonly connection_id: string | null;
+    readonly available: boolean;
+    readonly has_key: boolean;
+    readonly reason?: string;
+    readonly revision: string;
+}
+
+export interface PluginImageGenerationClient {
+    connections(): readonly ConnectorConnectionView[];
+    inspect(target: PluginImageTarget): PluginImageConnectionState;
+    bind(target: PluginImageTarget, connection_id: string): Promise<void>;
+    unbind(slot_id: string): Promise<void>;
+    generate(request: PluginImageGenerationRequest, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<{
+        readonly images: readonly {
+            readonly bytes: Uint8Array;
+            readonly mime?: string;
+        }[];
+        readonly revision: string;
+    }>;
+}
+
+export interface PluginImageGenerationDeclaration {
+    readonly store_name: string;
+    readonly read_permission: string;
+    readonly write_permission: string;
+    readonly generate_permission: string;
+}
+
+export interface PluginImageGenerationRequest extends PluginImageTarget {
+    readonly expected_revision: string;
+    readonly protocol: "openai-images" | "gemini";
+    readonly model: string;
+    readonly prompt: string;
+    readonly size?: string;
+    readonly aspect_ratio?: string;
+}
+
+export interface PluginImageTarget {
+    readonly slot_id: string;
+    readonly base_url: string;
 }
 
 export interface PluginInputDeliveryContext {
@@ -2930,8 +2977,61 @@ export type PluginModelAvailability = ActionAvailability & {
 };
 
 export interface PluginModelClient {
+    readonly configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationClient;
     availability(selection?: PluginModelSelection): PluginModelAvailability;
     complete(prompt: InstructedPrompt, request?: PluginModelRequest): Promise<PluginModelResult>;
+}
+
+export interface PluginModelConfigurationClient {
+    selection(): PluginModelSelection | undefined;
+    read(): Promise<PluginModelConfigurationView>;
+    save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
+}
+
+export interface PluginModelConfigurationDeclaration {
+    readonly preference: {
+        readonly store_name: string;
+        readonly file_name: string;
+    };
+    readonly custom_provider: {
+        readonly provider_id: string;
+        readonly display_name: string;
+    };
+    readonly actions: {
+        readonly read: Pick<ActionReference, "capability_id" | "version">;
+        readonly save: Pick<ActionReference, "capability_id" | "version">;
+    };
+}
+
+export interface PluginModelConfigurationInput {
+    readonly provider_id?: string;
+    readonly model_id?: string;
+    readonly base_url?: string;
+    readonly api_format?: ModelApiFormat;
+    readonly connection_id?: string;
+}
+
+export interface PluginModelConfigurationView {
+    readonly configured: boolean;
+    readonly providers: readonly {
+        readonly id: string;
+        readonly provider_id: string;
+        readonly name: string;
+        readonly base_url: string;
+        readonly api_format: ModelApiFormat;
+        readonly enabled: boolean;
+        readonly has_credential: boolean;
+        readonly models: readonly ModelRecord[];
+    }[];
+    readonly selection?: PluginModelSelection;
+    readonly effective_selection?: PluginModelSelection;
+    readonly source: "selection" | "provider" | "environment" | "none";
+    readonly connections: readonly {
+        readonly connection_id: string;
+        readonly display_name: string;
+        readonly state: string;
+    }[];
+    readonly custom_connection_id?: string;
 }
 
 export interface PluginModelRequest {
@@ -3132,6 +3232,7 @@ export interface PluginRouteResponse {
     bytes?: Uint8Array;
     filename?: string;
     mime?: string;
+    disposition?: "inline" | "attachment";
 }
 
 export type PluginRouteStreamLine = ({
@@ -3218,7 +3319,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "materials" | "background"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "imageGeneration" | "materials" | "background"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

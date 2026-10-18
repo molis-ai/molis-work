@@ -515,6 +515,15 @@
     "type": "application/json",
     "error": "页面或接口不存在"
   },
+  "GET <project>/api/plugins/io.molis.work.dataset/datasets": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "ai_available",
+      "ai_unavailable_reason",
+      "datasets"
+    ]
+  },
   "GET <project>/api/images": {
     "status": 404,
     "type": "application/json",

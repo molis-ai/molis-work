@@ -106,9 +106,10 @@ test("UIV-01/02/11 三入口共用书写样式，长文增高后内部滚动，�
   // Compare settled focus styles, not a frame within the production CSS transition.
   const styleOf = (selector: string) => evaluate<WritingStyle>(`(async () => {
     const field = document.querySelector(${JSON.stringify(selector)}); field.focus();
-    await Promise.all(field.getAnimations().map(animation => animation.finished));
-    const style = getComputedStyle(field);
-    return { font: style.fontSize, line: style.lineHeight, padding: style.padding, border: style.border, radius: style.borderRadius, background: style.backgroundColor, outline: style.outline, shadow: style.boxShadow };
+    const surface = field.closest(".uiv-writing-surface");
+    await Promise.all([...field.getAnimations(), ...surface.getAnimations()].map(animation => animation.finished));
+    const style = getComputedStyle(field), focus = getComputedStyle(surface);
+    return { font: style.fontSize, line: style.lineHeight, padding: style.padding, border: style.border, radius: style.borderRadius, background: style.backgroundColor, outline: focus.outline, shadow: focus.boxShadow };
   })()`);
   const closeAssistant = async () => {
     if (await evaluate<boolean>("!document.querySelector('[data-assistant-panel]').hidden")) await click("[data-assistant-panel-close]");
@@ -239,7 +240,7 @@ async function reachByWheel(browser: LayoutBrowser, selector: string, surface: s
     const stuck = attempt > 1 && (contained || (previous?.box.top === report.box.top && previous.scroll === report.scroll));
     if (report.reachable || !report.point || stuck) return { selector, reached:report.reachable, trace };
     const distance = (report.box.top + report.box.bottom - report.clip.top - report.clip.bottom) / 2;
-    await browser.command('Input.dispatchMouseEvent', { type:'mouseWheel', ...report.point, deltaX:0, deltaY:Math.sign(distance || 1)*Math.max(40,Math.min(600,Math.abs(distance))) }, browser.sessionId);
+    await browser.command('Input.dispatchMouseEvent', { type:'mouseWheel', ...report.point, deltaX:0, deltaY:Math.sign(distance || 1)*Math.max(1,Math.min(600,Math.abs(distance))) }, browser.sessionId);
     await browser.evaluate('new Promise(resolve => setTimeout(resolve, 60))');
   }
   const report = await reachReport(browser, selector, surface);

@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import { icon } from "./icons.js";
 import {
   UIV_RECOVERY, UIV_SEND_COPY, UIV_VOICE_OPEN_KEY,
   uivApplyTranscript, uivBeginDownload, uivBeginSend, uivBytesLabel, uivCancelVoice, uivCannotSend, uivClampAnchor,
@@ -45,6 +46,7 @@ interface UivLive {
 type UivField = HTMLTextAreaElement | HTMLInputElement;
 
 export { UIV_STYLE } from "./unified-input-style.js";
+const UIV_MIC_ICON = icon("mic");
 
 function uivStoreOf(host: UivPageHost): UivStore {
   return {
@@ -92,7 +94,9 @@ function uivButton(host: UivPageHost, attr: string, label: string): HTMLButtonEl
   const button = host.document.createElement("button");
   button.type = "button";
   button.setAttribute(attr, "");
-  button.textContent = host.L(label);
+  if (attr === "data-uiv-mic") button.innerHTML = UIV_MIC_ICON;
+  else button.textContent = host.L(label);
+  button.title = host.L(label);
   button.setAttribute("aria-label", host.L(label));
   button.hidden = true;
   return button;
@@ -101,6 +105,7 @@ function uivEnsure(form: HTMLFormElement, host: UivPageHost): void {
   form.classList.add("uiv-composer");
   const field = uivField(form);
   field?.setAttribute("data-uiv-input", "");
+  (field?.closest(".coding-composer-shell") ?? form).classList.add("uiv-writing-surface");
   if (form.querySelector("[data-uiv-bar]")) return;
   const bar = host.document.createElement("span");
   bar.className = "uiv-bar";
@@ -125,7 +130,7 @@ function uivShow(form: HTMLFormElement, attr: string, on: boolean): void {
 }
 function uivText(form: HTMLFormElement, attr: string, text: string): void {
   const node = form.querySelector(`[${attr}]`);
-  if (node) node.textContent = text;
+  if (node && node.textContent !== text) node.textContent = text;
 }
 function uivPaint(live: UivLive, host: UivPageHost): void {
   const controls = uivVisibleControls(live.voice.phase);
@@ -152,6 +157,11 @@ function uivPaint(live: UivLive, host: UivPageHost): void {
     uivText(form, "data-uiv-voice-status", voiceText);
     uivText(form, "data-uiv-meter", meter);
     uivText(form, "data-uiv-send-status", (form.dataset.uivContextInvalid === "1" ? "" : form.dataset.uivContextInvalid) || (send.message ? host.L(send.message) : ""));
+    // Empty, focus and draft are already conveyed by the field itself. Keep actionable feedback visible.
+    const fieldStatus = form.querySelector<HTMLElement>("[data-uiv-field-state]");
+    if (fieldStatus) fieldStatus.hidden = state !== "unavailable" || Boolean(voiceText || send.message || form.dataset.uivContextInvalid);
+    const stack = form.querySelector<HTMLElement>(".uiv-status");
+    if (stack) stack.hidden = ![...stack.children].some(node => node instanceof HTMLElement && !node.hidden && node.textContent?.trim());
   }
   uivMarkOpen(live, host);
 }
@@ -216,6 +226,7 @@ function uivApplyPending(form: HTMLFormElement, live: UivLive, host: UivPageHost
 }
 function uivResize(field: UivField): void {
   if (!(field instanceof HTMLTextAreaElement) || !field.getClientRects().length) return;
+  field.closest("form")?.toggleAttribute("data-uiv-multiline", field.value.includes("\n"));
   const style = getComputedStyle(field);
   field.style.height = "0px";
   field.style.height = `${field.scrollHeight + parseFloat(style.borderTopWidth || "0") + parseFloat(style.borderBottomWidth || "0")}px`;
@@ -684,6 +695,7 @@ const uivBootFns = [
 ];
 /** The page runs these same functions. The string is inlined into the document, not into the measured workbench script. */
 export const UIV_BOOT_SCRIPT = `(() => {
+const UIV_MIC_ICON = ${JSON.stringify(UIV_MIC_ICON)};
 const UIV_SEND_COPY = ${JSON.stringify(UIV_SEND_COPY)};
 const UIV_RECOVERY = ${JSON.stringify(UIV_RECOVERY)};
 const UIV_VOICE_OPEN_KEY = ${JSON.stringify(UIV_VOICE_OPEN_KEY)};

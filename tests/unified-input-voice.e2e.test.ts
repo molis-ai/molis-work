@@ -115,7 +115,7 @@ test("UIV-01 三个入口画出同一作曲条，键盘、浅色深色和窄屏�
       assert.ok(box.assistantFieldBottom <= box.barBottom + 1 && box.assistantFieldTop >= box.barTop - 1, `${label} assistant field stays inside the dock ${box.assistantFieldTop}-${box.assistantFieldBottom} bar ${box.barTop}-${box.barBottom}`);
       assert.ok(box.pinBottom <= box.barBottom + 1, `${label} dock icon stays inside the bar ${box.pinBottom} of ${box.barBottom}`);
       assert.ok(box.assistantAttach > 0 && box.assistantAttach < box.assistantField, `${label} attach stays beside the field`);
-      assert.ok(box.assistantAttachMid >= box.assistantFieldBottom && box.assistantAttachMid < box.barBottom, `${label} attach is reachable below the multiline field`);
+      assert.ok((box.assistantAttachMid >= box.assistantFieldBottom || (box.assistantFieldBottom - box.assistantFieldTop <= 44 && Math.abs(box.assistantAttachMid - box.assistantFieldMid) < 1)) && box.assistantAttachMid < box.barBottom, `${label} attach shares the short input row or stays below multiline writing`);
       if (box.viewport <= 720) assert.ok(box.assistant >= box.viewport * 0.8, `${label} assistant composer ${box.assistant} of viewport ${box.viewport}`);
     }
     if (parts.includes("coding")) {

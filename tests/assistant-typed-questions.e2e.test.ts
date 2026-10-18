@@ -8,6 +8,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { endingReviewReply } from "./fixtures/ending-review.js";
+import { sendBarrier, putInput, openWork, seedWork } from "./fixtures/assistant-send-journey.js";
 
 /** One streamed provider turn through the production model adapter. */
 function turn(text = "好的。", tool?: { name: string; input: object }): string {
@@ -242,4 +243,44 @@ test("AC-28: the Assistant's reference question finds a Goal by name, and the ru
   const told = JSON.stringify(requests[1]?.messages ?? "");
   assert.ok(told.includes(first.slice("goal ".length)), "AC-28-4: the run hears the picked Goal");
   await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('挂好了。')", 15_000);
+});
+
+// UIV-03/04: the questionnaire shortcut is a send with an owner, even though it starts no model round.
+test("UIV-03/04: a late questionnaire save preserves later text and a different work; a lost reply can retry without duplicating words", { timeout: 120_000 }, async t => {
+  const page = await assistantAsking(t, { why: "约复盘", questions: [{ id: "length", type: "number", prompt: "时长" }, { id: "notes", type: "text", prompt: "备注" }] }, "收到"); if (!page) return;
+  const notes = "document.querySelector('[data-ix-question] [data-ix-field=t1] input, [data-ix-question] [data-ix-field=t1] textarea')";
+  await page.waitFor(`${notes} && !document.querySelector('[data-assistant-answer]').hidden`);
+  const a = await page.evaluate<string>("localStorage.getItem('molis.assistant.current')");
+  const b = await seedWork(page, "另外的工作");
+  const barrier = await sendBarrier(page, [{ urlPattern: `*/api/assistant/works/${a}/question-draft`, requestStage: "Response" }]);
+  try {
+    await putInput(page, "第一条备注"); await page.click("[data-assistant-send]");
+    const first = await barrier.next();
+    await putInput(page, "稍后再交的文字"); await barrier.release(first);
+    await page.waitFor("document.querySelector('[data-assistant-input]').value === '稍后再交的文字' && !document.querySelector('[data-assistant-send]').disabled");
+    assert.equal(await page.evaluate(`${notes}.value`), "第一条备注");
+    await page.click("[data-assistant-send]"); const second = await barrier.next();
+    await openWork(page, b); await putInput(page, "B 自己的草稿"); await barrier.release(second);
+    await page.waitFor("!document.querySelector('[data-assistant-send]').disabled");
+    assert.equal(await page.evaluate("document.querySelector('[data-assistant-input]').value"), "B 自己的草稿");
+    await openWork(page, a); await page.waitFor(`${notes}?.value === '第一条备注 稍后再交的文字'`);
+    await page.waitFor("document.querySelector('[data-assistant-input]').value === ''");
+    await putInput(page, "断线后重试"); await page.click("[data-assistant-send]"); const lost = await barrier.next(); await barrier.drop(lost);
+    await page.waitFor("!!document.querySelector('.assistant-problem') && !document.querySelector('[data-assistant-send]').disabled");
+    assert.equal(await page.evaluate("document.querySelector('[data-assistant-composer]').dataset.uivPhase"), "uncertain", "a lost response is not a confirmed refusal");
+    assert.equal(await page.evaluate("document.querySelector('[data-assistant-input]').value"), "断线后重试");
+    let extra = 0;
+    const off = page.on("Fetch.requestPaused", (_event, session) => { if (session === page.sessionId) extra++; });
+    await page.click("[data-assistant-send]");
+    await page.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    off(); assert.equal(extra, 0, "uncertain input cannot be blindly resent");
+    await putInput(page, "断线后重试"); // Explicit editing releases the hold, as on every unified composer.
+    await page.click("[data-assistant-send]"); const retry = await barrier.next();
+    assert.equal(JSON.parse(retry.request.postData!).values.t1, "第一条备注 稍后再交的文字 断线后重试");
+    await barrier.release(retry); await barrier.close();
+    await page.waitFor("document.querySelector('[data-assistant-input]').value === ''"); await page.reloadPage();
+    await page.waitFor(`${notes}?.value === '第一条备注 稍后再交的文字 断线后重试'`);
+    const persisted = await page.evaluate<{ rounds: unknown[] }>(`fetch('/api/assistant/works/${a}').then(r=>r.json())`);
+    assert.equal(persisted.rounds.length, 1, "filling and retrying never submits the questionnaire to the model");
+  } finally { await barrier.close(); }
 });

@@ -29,7 +29,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const L = host.translate;
   const island = document.querySelector("[data-assistant-island]");
   if (!island) return null;
-  const uri = encodeURIComponent, findEl = (node, selector) => node.querySelector(selector), allEls = (node, selector) => node.querySelectorAll(selector);
+  const uri = encodeURIComponent, workUrl = id => "/works/" + uri(id), findEl = (node, selector) => node.querySelector(selector), allEls = (node, selector) => node.querySelectorAll(selector);
   const json = JSON.stringify, onEl = (node, type, listener, options) => node.addEventListener(type, listener, options);
   const attr = (node, name, value) => node.setAttribute(name, value), preventBlur = event => event.preventDefault();
   const restamp = (node, value) => { const stamp = json(value); if (node.dataset.signature === stamp) return false; node.dataset.signature = stamp; return true; };
@@ -109,7 +109,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const work = getWork();
     if (!work) { nextMode = id; paintAim(); paintSum(); return; }
     try {
-      view = await api("/works/" + uri(work.work_id) + "/mode", "POST", { mode: id }); render();
+      view = await post(workUrl(work.work_id) + "/mode", { mode: id }); render();
       window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: "coding.sessions.update", session_id: view.work.executor.session_id } }));
     }
     catch (error) { showError(error); }
@@ -181,13 +181,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       // as that answer, and one waiting on a check refuses it: then the panel only says the browser is back.
       let latest = null;
       try {
-        const seen = view && view.work.work_id === holder.work_id ? view : await api("/works/" + uri(holder.work_id));
+        const seen = view && view.work.work_id === holder.work_id ? view : await api(workUrl(holder.work_id));
         latest = seen.rounds[seen.rounds.length - 1] || null;
       } catch { host.showToast?.(L("浏览器已交还；告诉助理接着做时，它会重新观察页面")); return; }
       if (latest && (latest.phase === "awaiting-input" || (latest.awaiting_input && latest.awaiting_input.length))) { host.showToast?.(L("浏览器已交还；助理还在等你回答上面的问题")); return; }
       if (holder.state === "needs-check" || (latest && latest.phase === "reconcile-required")) { host.showToast?.(L("浏览器已交还；先核对上一步的结果，助理再接着做")); return; }
       try {
-        await api("/send", "POST", { work_id: holder.work_id, request_id: crypto.randomUUID(), written_by: "page", text: L("我把浏览器交还给你了，先重新观察页面再继续") });
+        await post("/send", { work_id: holder.work_id, request_id: crypto.randomUUID(), written_by: "page", text: L("我把浏览器交还给你了，先重新观察页面再继续") });
         await reload(); poll();
       } catch (error) { host.showToast?.(error); }
     })();
@@ -203,16 +203,17 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let draftTimer = 0, draftWrite = Promise.resolve();
   let activeSend = null;
 
-  const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:L("助理暂时无法完成")});
+  const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:L("助理暂时无法完成")}), post = (path, body, route) => api(path, "POST", body, route);
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: part("answer"), api, work: () => curId, reload: () => reload() });
   const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
-  const getWork = () => works.find((work) => work.work_id === curId) || (view && view.work.work_id === curId ? view.work : null);
+  const rowOf = id => works.find(work => work.work_id === id), getWork = (id = curId) => rowOf(id) || (view && view.work.work_id === id ? view.work : null);
+  const words = () => String(input.value || "");
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
-  const syncSend = () => { send.disabled = busy || !!getWork()?.reply_target || !String(input.value || "").trim(); };
+  const syncSend = () => { send.disabled = busy || !!getWork()?.reply_target || !words().trim(); };
 
   /* ─── Where the next Send goes ─────────────────────────────────────────── */
   const paintAim = () => {
@@ -422,21 +423,21 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node.ix;
   };
   const renderQuestion = (card, work, round, question) => {
-    const path = "/works/" + uri(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() });
+    const path = workUrl(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() });
     let saving = 0;
     const client = drawn(card, question.html, {
       onAction: () => reaskQuestion(work, round, question),
       // A half-written answer is kept with the work, so a reload or another tab finds it.
-      onChange: () => { clearTimeout(saving); saving = setTimeout(() => api(path + "/question-draft", "POST", held()).catch(() => undefined), 600); },
+      onChange: () => { clearTimeout(saving); saving = setTimeout(() => post(path + "/question-draft", held()).catch(() => undefined), 600); },
       onSubmit: async () => {
         clearTimeout(saving);
         const button = findEl(card, "[type=submit]");
         if (button) button.disabled = true;
-        try { view = await api(path + "/answer", "POST", { ...held(), run_id: round.run_id, pending_revision: question.pending_revision }); render(); poll(); }
+        try { view = await post(path + "/answer", { ...held(), run_id: round.run_id, pending_revision: question.pending_revision }); render(); poll(); }
         catch (error) { if (error.body?.details?.errors) client.showErrors(error.body.details.errors, { focus: true }); else showError(error); if (button) button.disabled = false; }
       },
     }, question.pending_id + question.pending_revision + question.answerable);
-    fills.set(question.pending_id, (field, text) => { const now = client.read()[field]; client.write({ [field]: now ? now + " " + text : text }); clearTimeout(saving); return api(path + "/question-draft", "POST", held()); });
+    fills.set(question.pending_id, (field, text) => { const now = client.read()[field], next = now ? now + " " + text : text; client.write({ [field]: next }); clearTimeout(saving); return post(path + "/question-draft", held()).catch(error => { if (client.read()[field] === next) client.write({ [field]: now }); throw error; }); });
   };
   const renderReview = (card, work, review) => {
     card.innerHTML = review.html;
@@ -445,7 +446,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const row = findEl(card, ".assistant-card-actions");
     const decide = async (decision) => {
       allEls(row, "button").forEach((one) => { one.disabled = true; });
-      try { view = await api("/works/" + uri(work.work_id) + "/reviews/" + uri(review.review_id), "POST", { decision }); render(); poll(); }
+      try { view = await post(workUrl(work.work_id) + "/reviews/" + uri(review.review_id), { decision }); render(); poll(); }
       catch (error) { showError(error); allEls(row, "button").forEach((one) => { one.disabled = false; }); }
     };
     allEls(row, "[data-assistant-decision]").forEach((button) => onEl(button, "click", () => decide(button.dataset.assistantDecision)));
@@ -459,7 +460,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       lock(true);
       try {
         // "redo" only asks: the Assistant re-reads and offers a fresh card; nothing runs in this one's place.
-        const next = await api("/works/" + uri(work.work_id) + "/cards/" + uri(card.card_id) + "/" + id, "POST", id === "run" ? { revision: card.revision, values: client.read() } : {});
+        const next = await post(workUrl(work.work_id) + "/cards/" + uri(card.card_id) + "/" + id, id === "run" ? { revision: card.revision, values: client.read() } : {});
         if (id === "redo") { await reload(); poll(); return; }
         if (view && view.work.work_id === work.work_id) view.cards = view.cards.map((one) => one.card_id === next.card_id ? next : one);
         if (next.status === "done") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: next.capability_id } }));
@@ -495,7 +496,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!workId || !material.material_id || !sideHere() || !["text", "file", "selection"].includes(material.kind)) return null;
     return async () => {
       try {
-        const { material: full } = await api("/works/" + uri(workId) + "/materials/" + uri(material.material_id));
+        const { material: full } = await api(workUrl(workId) + "/materials/" + uri(material.material_id));
         if (typeof full.text !== "string") { host.showToast?.(L("这份材料没有可以预览的正文")); return; }
         sidePreview({ preview: { title, media_type: "text/plain", text: full.text, truncated: Boolean(full.truncated), ...(full.url ? { source_url: full.url } : {}) } });
       } catch (error) { host.showToast?.(error, true); }
@@ -507,7 +508,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!workId || material.kind !== "image" || !material.material_id || material.expired || !sideHere()) return null;
     return async () => {
       try {
-        const { image } = await api("/works/" + uri(workId) + "/materials/" + uri(material.material_id) + "/image");
+        const { image } = await api(workUrl(workId) + "/materials/" + uri(material.material_id) + "/image");
         sidePreview({ preview: { title, media_type: image.media_type, url: "data:" + image.media_type + ";base64," + image.data } });
       } catch (error) { host.showToast?.(error, true); }
     };
@@ -809,7 +810,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           actions: open ? [sideAct(L("打开看看"), object.title, open, false, "secondary")] : [] }));
       });
       suggestions.forEach((candidate) => {
-        const settle = (path) => async () => { await api("/memory-candidates/" + uri(candidate.candidate_id) + path, "POST", {}); await reload(); };
+        const settle = (path) => async () => { await post("/memory-candidates/" + uri(candidate.candidate_id) + path, {}); await reload(); };
         cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: L(candidate.held ? "你刚才让我记住" : "要记住吗") + "：" + candidate.text, detail: candidate.held,
           sub: (candidate.held ? "" : candidate.why + " · ") + L(candidate.scope === "personal" ? "个人" : candidate.scope === "character" ? "角色" : "本项目"),
           actions: [sideAct(L("记住"), candidate.text, settle("/accept"), false, "primary"), sideAct(L("不用"), candidate.text, settle("/discard"), false, "secondary")] }));
@@ -883,10 +884,10 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           onEl(name, "click", () => switchTo(child.work_id));
           row.append(mark, name, el("span", "assistant-subtask-state", (child.taken_back ? L("已收回") : stateLabel(child.state)) + (child.follow_ups ? " · " + L("补改") + " " + child.follow_ups : "")));
           /* Stop one sub-task from here, without opening it; what it already did stays. */
-          if (!child.taken_back && isLive(child.state)) row.append(sideAct(L("停止"), child.title, async () => { await api("/works/" + uri(child.work_id) + "/control", "POST", { kind: "stop" }); await reload(); }, true));
+          if (!child.taken_back && isLive(child.state)) row.append(sideAct(L("停止"), child.title, async () => { await post(workUrl(child.work_id) + "/control", { kind: "stop" }); await reload(); }, true));
           /* Take the part back: it stops, what it made stays, and this work finishes that part itself. */
           if (!child.taken_back) {
-            const takeBack = sideAct(L("收回"), child.title, async () => { view = await api("/works/" + uri(child.work_id) + "/take-back", "POST", {}); render(); }, true);
+            const takeBack = sideAct(L("收回"), child.title, async () => { view = await post(workUrl(child.work_id) + "/take-back", {}); render(); }, true);
             takeBack.title = L("停下这个子任务，由这项工作自己接着做这一部分；它已产出的保留");
             row.append(takeBack);
           }
@@ -898,7 +899,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (scheduled.length) step("clock", "later", L("之后"), ...scheduled.map((followUp) => card({ icon: "clock", title: followUp.label,
         sub: L(REPEAT[followUp.repeat] || followUp.repeat) + " · " + (followUp.enabled && followUp.next_at ? L("下一次") + " " + when(followUp.next_at) : L("已结束")),
         detail: (followUp.last ? L("上次") + L(OUTCOME[followUp.last.outcome] || followUp.last.outcome) + " · " : "") + (followUp.enabled ? L(view.schedule_survives_close ? "关闭窗口后仍会执行" : "需要 Molis Work 在运行") : ""),
-        actions: followUp.enabled ? [sideAct(L("取消"), followUp.label, async () => { await api("/followups/remove", "POST", { followup_id: followUp.followup_id }); await reload(); }, true)] : [] })));
+        actions: followUp.enabled ? [sideAct(L("取消"), followUp.label, async () => { await post("/followups/remove", { followup_id: followUp.followup_id }); await reload(); }, true)] : [] })));
       const done = children.filter((child) => child.state === "completed" || child.taken_back).length;
       const stepsDone = steps.filter((item) => item.state === "done").length;
       paintBlock(node, L("路径"), "workflow", line.children.length ? line : null,
@@ -984,7 +985,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
         title: change.title, sub: L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
         actions: change.state !== "undone" ? [sideAct(L("撤销"), change.title, async () => {
-          view = await api("/works/" + uri(work.work_id) + "/undo/" + uri(change.undo_id), "POST", {});
+          view = await post(workUrl(work.work_id) + "/undo/" + uri(change.undo_id), {});
           // Taken back: the owner's page rereads, as it did when the change was made.
           const taken = (view.undoable || []).find((one) => one.undo_id === change.undo_id);
           if (taken && taken.state === "undone" && taken.capability_id) window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: work.work_id, capability_id: taken.capability_id } }));
@@ -1056,7 +1057,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       form.append(el("span", "assistant-material-origin", L("上限（tokens，含子任务）")), field, save);
       onEl(form, "submit", async (event) => {
         event.preventDefault(); save.disabled = true;
-        try { view = await api("/works/" + uri(work.work_id) + "/budget", "POST", { budget_tokens: field.value.trim() === "" ? null : Number(field.value) }); render(); }
+        try { view = await post(workUrl(work.work_id) + "/budget", { budget_tokens: field.value.trim() === "" ? null : Number(field.value) }); render(); }
         catch (error) { host.showToast?.(error); }
         finally { save.disabled = false; }
       });
@@ -1197,7 +1198,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           const hand = el("button", "assistant-side-action", toCoding ? L("交给 Coding 继续") : L("回到助理")); hand.type = "button";
           onEl(hand, "click", async () => {
             hand.disabled = true;
-            try { view = await api("/works/" + uri(work.work_id) + "/handover", "POST", { to: toCoding ? "coding" : "assistant" }); render(); input.focus(); }
+            try { view = await post(workUrl(work.work_id) + "/handover", { to: toCoding ? "coding" : "assistant" }); render(); input.focus(); }
             catch (error) { showError(error); }
             finally { if (hand.isConnected) hand.disabled = false; }
           });
@@ -1237,7 +1238,6 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const markOf = (work) => !work ? "" : WAITING.has(work.state) || urgentWorks.has(work.work_id) ? "waiting" : work.state === "running" ? "running"
     : unreadWorks.has(work.work_id) ? "unread" : work.state === "failed" ? "failed" : "";
   const MARK_LABEL = { waiting: "等你", running: "进行中", unread: "有新结果", failed: "没有完成" }; const tabMark = (mark, work) => { const node = el("span", "assistant-tab-mark"); if (mark) node.dataset.mwState = mark === "waiting" ? (work && WAITING.has(work.state) ? ringState(work.state) : "answer") : mark; attr(node, "aria-hidden", "true"); return node; };
-  const workById = (id) => works.find((work) => work.work_id === id) || (view && view.work.work_id === id ? view.work : null);
   function drawTabs() {
     if (!tabsEl) return;
     const focused = tabsEl.contains(document.activeElement) ? document.activeElement.closest("[data-tab]")?.dataset.tab : null;
@@ -1251,7 +1251,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       const main = el("button", "assistant-tab-main"); main.type = "button"; attr(main, "role", "tab");
       attr(main, "aria-selected", String(cur)); main.tabIndex = cur ? 0 : -1;
       attr(main, "aria-controls", "assistant-side");
-      main.append(tabMark(mark, workById(id)), el("span", "assistant-tab-title", title));
+      main.append(tabMark(mark, getWork(id)), el("span", "assistant-tab-title", title));
       main.title = title + (mark ? " · " + L(MARK_LABEL[mark]) : "");
       onEl(main, "click", () => { if (id === "new") void switchTo(null); else void switchTo(id); });
       wrap.append(main);
@@ -1265,7 +1265,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       }
       tabsEl.append(wrap);
     };
-    ids.forEach((id) => { const work = workById(id); tab(id, work ? work.title : L("正在读取…"), markOf(work), true); });
+    ids.forEach((id) => { const work = getWork(id); tab(id, work ? work.title : L("正在读取…"), markOf(work), true); });
     if (!curId) tab("new", L("新工作"), "", ids.length > 0);
     const cur = findEl(tabsEl, "[data-current]");
     if (cur) {
@@ -1372,7 +1372,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         onEl(check, "click", async () => {
           check.disabled = true;
           try {
-            const report = await api("/works/" + uri(work.work_id) + "/recovery");
+            const report = await api(workUrl(work.work_id) + "/recovery");
             const OUTCOMES = { completed: "已发生", failed: "失败，没有发生", "not-dispatched": "没有执行", unknown: "结果未知，请到原处核对" };
             const list = el("ul", "assistant-recovery");
             report.rounds.forEach((round) => {
@@ -1383,7 +1383,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
                 const close = el("button", "mw-btn mw-btn--primary mw-btn--sm", L("已核对，结束这一轮")); close.type = "button";
                 onEl(close, "click", async () => {
                   close.disabled = true;
-                  try { view = await api("/works/" + uri(work.work_id) + "/recovery", "POST", { run_id: round.run_id, version: round.version }); render(); }
+                  try { view = await post(workUrl(work.work_id) + "/recovery", { run_id: round.run_id, version: round.version }); render(); }
                   catch (error) { showError(error); }
                 });
                 list.append(close);
@@ -1475,7 +1475,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const reload = async () => {
     if (!curId) return;
     const id = curId;
-    try { const next = await api("/works/" + uri(id)); if (id === curId) { view = next; render(); } }
+    try { const next = await api(workUrl(id)); if (id === curId) { view = next; render(); } }
     catch (error) {
       if (id !== curId) return;
       if (error.code === "assistant.not_found") { curId = null; remember(); view = null; render(); return; }
@@ -1605,7 +1605,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     paintAttention();
   });
   const settleNotice = async (target, state) => {
-    try { await api("/notices", "POST", Object.assign({ state }, target)); } catch { /* the next read shows it again */ }
+    try { await post("/notices", Object.assign({ state }, target)); } catch { /* the next read shows it again */ }
     loadNotices();
   };
   noticeBtn?.addEventListener("click", () => setNotices(noticeEl.hidden));
@@ -1789,7 +1789,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const starters = startersFor().filter((starter) => !q || starter.label.toLowerCase().includes(q));
     const rows = (await loadCapabilityRows()).filter((row) => !q || [row.title, row.provider, row.description].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 8);
     const methods = (await loadMethodRows()).filter((row) => !q || [row.name, row.plugin_title, row.summary].some((text) => String(text || "").toLowerCase().includes(q))).slice(0, 5);
-    if (!String(input.value || "").startsWith("/")) return;
+    if (!words().startsWith("/")) return;
     starts.dataset.mode = "slash";
     starts.hidden = false;
     starts.replaceChildren(el("p", "assistant-popover-title", L("用一个方法或能力，或这样开始")));
@@ -1829,7 +1829,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
      A hit is only a pointer: the Host checks it with its owner and reads it before the round. */
   const mentionOpen = () => starts && !starts.hidden && starts.dataset.mode === "mention";
   const mentionAt = () => {
-    const before = String(input.value || "").slice(0, input.selectionStart ?? String(input.value || "").length);
+    const before = words().slice(0, input.selectionStart ?? words().length);
     const match = /(^|\s)@([^\s@]{0,40})$/.exec(before);
     return match ? { query: match[2], start: before.length - match[2].length - 1 } : null;
   };
@@ -1857,7 +1857,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         onEl(btn, "mousedown", preventBlur);
         onEl(btn, "click", () => {
           const at = mentionAt() || found;
-          const value = String(input.value || "");
+          const value = words();
           input.value = value.slice(0, at.start) + "「" + hit.title + "」" + value.slice(at.start + 1 + at.query.length);
           if (!files.some((file) => file.reference && file.object && file.object.kind === hit.subject.kind && file.object.id === hit.subject.id)) {
             files.push({ material_id: "ref-" + crypto.randomUUID(), kind: "object", title: hit.title, explicit: true, reference: { hit_id: hit.hit_id },
@@ -1902,7 +1902,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (file.size > 5 * 1024 * 1024) { host.showToast?.(L("图片超过 5 MB，请压缩或截取需要的部分") + "：" + file.name); continue; }
         try {
           const data = await readBase64(file);
-          const { material } = await api("/attachments", "POST", { name: file.name, data }, route);
+          const { material } = await post("/attachments", { name: file.name, data }, route);
           // The preview is a data URL: the page's policy shows data images, not blob URLs.
           targetFiles.push({ material_id: material.material_id, kind: "image", title: material.title, image: material.image, explicit: true, preview: "data:" + file.type + ";base64," + data });
         } catch (error) { host.showToast?.({...error,name:"Error",message:file.name+"："+(error.message||String(error))}); }
@@ -1912,7 +1912,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
         if (file.size > 8 * 1024 * 1024) { host.showToast?.(L("文件超过 8 MB，请只带需要的部分") + "：" + file.name); continue; }
         try {
-          const { material } = await api("/attachments", "POST", { name: file.name, data: await readBase64(file) }, route);
+          const { material } = await post("/attachments", { name: file.name, data: await readBase64(file) }, route);
           targetFiles.push({ material_id: material.material_id, kind: "file", title: material.title, text: material.text, explicit: true });
         } catch (error) { host.showToast?.({...error,name:"Error",message:file.name+"："+(error.message||String(error))}); }
         continue;
@@ -1938,7 +1938,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   /** Starts “@” or “/” in the input as if typed; words already there wait aside while “/” picks, and come back after. */
   let slashDraft = null;
   const insertTrigger = (mark) => {
-    const value = String(input.value || "");
+    const value = words();
     if (mark === "/") { if (value.trim() && !value.startsWith("/")) slashDraft = value; input.value = "/"; }
     else input.value = value + (value && !/\s$/.test(value) ? " " : "") + mark;
     input.focus(); input.setSelectionRange(input.value.length, input.value.length);
@@ -2043,7 +2043,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     else if (message.work_id || curId) await switchTo(null);
     if (!message.work_id && message.executor === "coding" && codingHere()) { nextExec = "coding"; paintAim(); paintSum(); } // e.g. the 成果库's 「交给 Coding」
     bring(message);
-    if (!String(input.value || "").trim()) { setPanel(true); input.focus(); return; }
+    if (!words().trim()) { setPanel(true); input.focus(); return; }
     requestOverride = "msg-" + message.message_id; pageText = message.text && input.value.trim();
     compose.requestSubmit(send);
   };
@@ -2086,7 +2086,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     if (message.purpose === "reply") {
       if (!message.work_id || !message.object) return;
-      void api("/works/" + uri(message.work_id) + "/results", "POST", { object: message.object, source: message.source })
+      void post(workUrl(message.work_id) + "/results", { object: message.object, source: message.source })
         .then((res) => { if (curId === message.work_id) { view = res; render(); } })
         .catch((error) => showError(error));
     }
@@ -2094,7 +2094,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let typed = false, inputRev = 0;
   onEl(input, "input", () => {
     typed = true; inputRev++; syncSend(); saveDraft(false);
-    const value = String(input.value || "");
+    const value = words();
     if (value.startsWith("/")) { void setSlash(value.slice(1)); return; }
     closeSlash();
     const mention = mentionAt();
@@ -2107,7 +2107,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (mentionOpen() && event.key === "ArrowDown") { event.preventDefault(); findEl(starts, "button")?.focus(); return; }
     if (mentionOpen() && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeMention(); return; }
     if (mentionOpen() && event.key === "Enter" && !event.isComposing && event.keyCode !== 229 && findEl(starts, "button")) { event.preventDefault(); findEl(starts, "button").click(); return; }
-    if (event.key !== "Enter" || event.isComposing || event.keyCode === 229 || (!(event.metaKey || event.ctrlKey) && !(slashOpen() && String(input.value || "").startsWith("/")))) return;
+    if (event.key !== "Enter" || event.isComposing || event.keyCode === 229 || (!(event.metaKey || event.ctrlKey) && !(slashOpen() && words().startsWith("/")))) return;
     event.preventDefault();
     if (slashOpen()) findEl(starts, "button")?.click();
   });
@@ -2129,7 +2129,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   allEls(island, "[data-assistant-control]").forEach((btn) => onEl(btn, "click", async () => {
     if (!curId) return;
     btn.disabled = true;
-    try { view = await api("/works/" + uri(curId) + "/control", "POST", { kind: btn.dataset.assistantControl }); render(); }
+    try { view = await post(workUrl(curId) + "/control", { kind: btn.dataset.assistantControl }); render(); }
     catch (error) { showError(error); }
     finally { btn.disabled = false; poll(); }
   }));
@@ -2180,7 +2180,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const RESTING_MS = 15 * 60 * 1000;
   const restIfStale = () => {
     const work = getWork();
-    if (!work || isLive(work.state) || (panel && !panel.hidden) || String(input.value || "").trim()) return;
+    if (!work || isLive(work.state) || (panel && !panel.hidden) || words().trim()) return;
     const at = Date.parse(work.updated_at || "");
     if (Number.isFinite(at) && Date.now() - at > RESTING_MS) void switchTo(null);
   };

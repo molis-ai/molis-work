@@ -28,7 +28,9 @@ test('Live public RSS uses production fetch, deduplicates, and opens retained co
   await b.waitFor(`document.querySelector('[data-feed-detail="${itemId}"] [data-feed-action=inbox]')`);
   const item=createLocalFeedApplication(b.store.db).getItem(DEMO_PROJECT_ID,itemId);
   assert.ok(item.read_at);assert.ok(item.body.length>0);
-  await b.navigate(()=>b.click(`[data-feed-detail="${itemId}"] [data-feed-action=inbox]`));
+  // Inbox is now an in-page action; completion is the persisted reference, not a document navigation.
+  await b.click(`[data-feed-detail="${itemId}"] [data-feed-action=inbox]`);
+  await b.waitFor(`document.querySelector('[data-feed-detail="${itemId}"] [data-feed-action=inbox]')?.textContent.includes('已加入')`);
   const inbox=await (await fetch(`${b.origin}/projects/${b.projectId}/api/inbox`)).json();
   assert.ok(JSON.stringify(inbox.entries).includes(item.item_id), 'Inbox retains the actual Feed reference');
   t.diagnostic(JSON.stringify({firstCreated:first.created,secondCreated:second.created,retainedBodyCharacters:item.body.length,inbox:true}));

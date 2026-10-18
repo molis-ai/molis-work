@@ -12,8 +12,13 @@ for(const kind of ['github','gmail'] as const) {
     const dir=await mkdtemp(join(tmpdir(),'molis-live-account-'));const path=join(dir,'local.db');seedDemoBoard(path);const store=new LocalProjectDatabase(path);
     try {
       const home=resolveMolisWorkHome();
-      const connection=withConnectorConnections(home,rows=>rows.list(kind).find(row=>rows.state(row)==='connected'));
-      assert.ok(connection,'An existing account connection is required');
+      // The runner deliberately creates an empty Home. Explicit live tokens stay in its encrypted
+      // test store and are deleted with it; never point an automated sync at the person's Home.
+      const token=process.env[kind==='github'?'MOLIS_WORK_LIVE_GITHUB_TOKEN':'MOLIS_WORK_LIVE_GMAIL_TOKEN'];
+      const connection=withConnectorConnections(home,rows=>token
+        ? rows.createToken({serviceId:kind,displayName:'Isolated live acceptance',token})
+        : rows.list(kind).find(row=>rows.state(row)==='connected'));
+      assert.ok(connection,`An explicitly supplied ${kind} token or existing isolated connection is required`);
       const feed=createLocalFeedApplication(store.db);
       const base=feed.upsertSource(accountSourceRecord(kind));
       // Choosing the account goes through the same Source update a person makes in Feed.

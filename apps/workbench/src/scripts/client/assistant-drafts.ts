@@ -40,18 +40,18 @@ export const ASSISTANT_DRAFTS_CLIENT_SCRIPT = String.raw`
   const saveDraft = (immediate) => {
     if (curId && !getWork() && !typed) return;
     clearTimeout(draftTimer);
-    saveContext(); const id = curId, text = String(input.value || ""), newKey = newDraftKey();
+    saveContext(); const id = curId, text = words(), newKey = newDraftKey();
     if (id && activeSend?.work === id) {
-      const work = works.find((row) => row.work_id === id); if (work) work.draft = text;
+      const work = rowOf(id); if (work) work.draft = text;
       if (!immediate || text.trim() !== activeSend.body.text || activeSend.draft !== undefined) activeSend.draft = text;
       return;
     }
     const write = () => {
       if (!id) { store.set(newKey, text || null); return; }
-      const work = works.find((row) => row.work_id === id);
+      const work = rowOf(id);
       if (work && work.draft === text) return;
       if (work) work.draft = text;
-      draftWrite = api("/works/" + uri(id) + "/draft", "POST", { draft: text }).catch(() => { /* kept on the page; the next edit retries */ });
+      draftWrite = post(workUrl(id) + "/draft", { draft: text }).catch(() => { /* kept on the page; the next edit retries */ });
     };
     if (immediate) write(); else draftTimer = setTimeout(write, 700);
   };

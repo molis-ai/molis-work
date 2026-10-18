@@ -1,13 +1,17 @@
+/**
+ * Send keeps original round materials when retrying; shortened previews cannot replace their bodies.
+ * Reasking names the closed question; the Host writes the round and reads the draft (D5).
+ * A supplement's receipt is its timeline line; only answers and next-round words get a toast.
+ */
 /** Frozen Send intent and receipts, inside the resident Assistant's existing client scope. */
 export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
-  // Read the original round's material bodies, not the shortened preview or a newer material with the same id.
   const retryRound = async (last) => {
     const stamp = () => json([curId, inputRev, input.value, files]), id = curId, held = stamp();
     const here = () => stamp() === held;
     try {
       const mats = await Promise.all((last.materials || []).map(async (item) => {
         if (item.expired) throw new Error(L(EXPIRED_IMAGE));
-        const { material } = await api("/works/" + uri(id) + "/materials/" + uri(item.material_id) + "?run=" + uri(last.run_id));
+        const { material } = await api(workUrl(id) + "/materials/" + uri(item.material_id) + "?run=" + uri(last.run_id));
         return { ...item, ...material };
       }));
       if (!here()) return;
@@ -18,7 +22,12 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       input.value = last.text; input.dispatchEvent(new Event("input", { bubbles: true })); paintMats(); input.focus();
     } catch (error) { if (here()) showError(error); }
   };
-  const unsettled = new Map();
+  const unsettled = new Map(), ui = compose.dataset;
+  const settleSend = (key, phase, next) => {
+    ui.uivResultKey = key || "";
+    if (next && key) ui.uivResultNextKey = key.slice(0, key.lastIndexOf(":") + 1) + uri(next); else delete ui.uivResultNextKey;
+    ui.uivPhase = phase;
+  };
   const pendingKey = key => "molis.assistant.pending:" + key;
   const pendingSend = key => { if (unsettled.has(key)) return unsettled.get(key); try { return JSON.parse(store.get(pendingKey(key)) || "null"); } catch { return null; } };
   const forgetSend = key => { unsettled.delete(key); store.set(pendingKey(key), null); };
@@ -29,16 +38,26 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     if (index >= 0) works[index] = work; else works.unshift(work);
     paintList(); drawTabs();
   };
-  // 「请 AI 重新问」 on a closed question: the page names only the question; the Host writes the round and reads the draft (D5).
-  const reaskQuestion = (work, round, question) => api("/send", "POST", { work_id: work.work_id, request_id: crypto.randomUUID(),
+  const reaskQuestion = (work, round, question) => post("/send", { work_id: work.work_id, request_id: crypto.randomUUID(),
     written_by: "page", reask: { run_id: round.run_id, pending_id: question.pending_id } }).then(reload).then(poll, showError);
   onEl(compose, "submit", async (event) => {
     event.preventDefault();
-    const text = String(input.value || "").trim();
+    const text = words().trim();
     if (!text || busy) return;
     const into = curId && receipts.into(), fill = into && fills.get(into.pending_id);
     if (fill) {
-      await fill(into.draft_from_composer, text).then(() => { input.value = ""; saveDraft(true); syncSend(); host.showToast?.(L("已写进问卷；按「提交回答」才交回")); }, showError);
+      const owner = contextKey(), revision = inputRev, key = ui.uivSendKey, work = curId, route = host.route("/api/assistant/works/" + uri(work) + "/draft");
+      busy = true; syncSend();
+      try {
+        await fill(into.draft_from_composer, text); settleSend(key, "succeeded");
+        if (owner === contextKey() && revision === inputRev) { input.value = ""; saveDraft(true); }
+        else if (owner !== contextKey()) {
+          await draftWrite; const row = rowOf(work);
+          if (row?.draft === text) { row.draft = ""; draftWrite = post("", { draft: "" }, route).catch(showError); }
+        }
+        host.showToast?.(L("已写进问卷；按「提交回答」才交回"));
+      } catch (error) { settleSend(key, error.code === "ui_host.outcome_unknown" ? "uncertain" : "failed"); if (owner === contextKey()) showError(error); else host.showToast?.(error); }
+      finally { busy = false; syncSend(); }
       return;
     }
     const again = pendingSend(contextKey()), byPage = pageText === text;
@@ -50,14 +69,13 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       body.executor = nextExec;
       if (nextExec === "coding") { const session = codingSession(); if (session) body.coding_session_id = session; else body.mode = nextMode; }
     } else body.scope = nextScope === "project" && project ? { kind: "project", project_id: project.id } : { kind: "personal" };
-    const intent = !requestOverride && again?.body.text === text ? { ...again, inputRevision:inputRev, sendKey:compose.dataset.uivSendKey, draft:undefined } : {
-      body, work: curId, target: sendTarget(), route: host.route("/api/assistant/send"), character, inputRevision:inputRev, contextKey:contextKey(), newDraftKey:newDraftKey(), sendKey:compose.dataset.uivSendKey,
+    const intent = !requestOverride && again?.body.text === text ? { ...again, inputRevision:inputRev, sendKey:ui.uivSendKey, draft:undefined } : {
+      body, work: curId, target: sendTarget(), route: host.route("/api/assistant/send"), character, inputRevision:inputRev, contextKey:contextKey(), newDraftKey:newDraftKey(), sendKey:ui.uivSendKey,
       files: files.slice(), selection:sel, removed: [...removed], joined: [...joined],
     };
-    const settleInput = (phase, nextId) => { compose.dataset.uivResultKey = intent.sendKey || ""; if (!intent.work && nextId && intent.sendKey) compose.dataset.uivResultNextKey = intent.sendKey.slice(0, intent.sendKey.lastIndexOf(":") + 1) + uri(nextId); else delete compose.dataset.uivResultNextKey; compose.dataset.uivPhase = phase; };
     requestOverride = pageText = null;
     const here = () => sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
-    const sameInput = () => (intent.work ? intent.draft === undefined : inputRev === intent.inputRevision) && String(input.value || "").trim() === text;
+    const sameInput = () => (intent.work ? intent.draft === undefined : inputRev === intent.inputRevision) && words().trim() === text;
     const chooseSent = (work) => { moveContext(work.work_id); curId = work.work_id; remember(); openTab(curId); };
     busy = true; activeSend = intent; syncSend(); problem = null; setPanel(true);
     closeStarts(); clearTimeout(draftTimer);
@@ -66,10 +84,10 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     let accepted = false;
     try {
       await draftWrite;
-      const res = await api("/send", "POST", intent.body, intent.route);
+      const res = await post("/send", intent.body, intent.route);
       accepted = true; forgetSend(intent.contextKey);
       const visible = here();
-      retainSent(res.work); takeMaterials(intent); settleInput("succeeded", res.work.work_id);
+      retainSent(res.work); takeMaterials(intent); settleSend(intent.sendKey, "succeeded", !intent.work && res.work.work_id);
       if (store.get(intent.newDraftKey) === text) store.set(intent.newDraftKey, null);
       if (visible) {
         if (sameInput()) {
@@ -78,11 +96,10 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
         chooseSent(res.work);
         if (pendingChar === intent.character) pendingChar = undefined;
         if (nextChar === intent.character) nextChar = null;
-        if (String(input.value || "")) saveDraft(true);
+        if (words()) saveDraft(true);
         await reload();
       }
       if (res.work.executor?.kind === "coding") window.dispatchEvent(new CustomEvent("molis:assistant-effect", { detail: { work_id: res.work.work_id, capability_id: "coding.runs.start", session_id: res.work.executor.session_id } }));
-      // A supplement's fate is its receipt line in the thread; only an answer and words kept for the next round say more.
       const said = { answered: L("已作为回答发送"), queued: L("已保存，下一轮开始生效") }[res.outcome];
       if (visible && said) host.showToast?.(said);
     } catch (error) {
@@ -90,7 +107,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
       const unknown=error.code==="ui_host.outcome_unknown";if(!unknown)forgetSend(intent.contextKey);
       const data=error.body?.details||{},visible=here();
       if (data.work) retainSent(data.work);
-      settleInput(unknown?"uncertain":"failed", data.work?.work_id);
+      settleSend(intent.sendKey, unknown?"uncertain":"failed", !intent.work && data.work?.work_id);
       if (visible) {
         if (data.work) {
           if (sameInput() && store.get(intent.newDraftKey) === text) store.set(intent.newDraftKey, null);
@@ -103,8 +120,8 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     } finally {
       activeSend = null;
       if (intent.draft !== undefined && intent.work) {
-        const work = works.find(row => row.work_id === intent.work); if (work) work.draft = intent.draft;
-        draftWrite = api("/works/" + uri(intent.work) + "/draft", "POST", { draft: intent.draft }, intent.route.slice(0, -5) + "/works/" + uri(intent.work) + "/draft")
+        const work = rowOf(intent.work); if (work) work.draft = intent.draft;
+        draftWrite = post("", { draft: intent.draft }, intent.route.slice(0, -5) + workUrl(intent.work) + "/draft")
           .catch(() => { /* the next edit retries the retained draft */ });
       }
       busy = false; syncSend(); poll();

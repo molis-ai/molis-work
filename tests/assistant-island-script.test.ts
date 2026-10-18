@@ -13,8 +13,8 @@ test("the Assistant's bottom-bar script parses as one function", () => {
 // carries the page's mark, and so does a plugin's hand-over that goes out on a click. A Send added later without the mark fails here.
 test("every Send the bottom bar writes itself is marked as the page's; only the composer's own Send can carry the person's words", () => {
   const script = ASSISTANT_ISLAND_FACTORY_SCRIPT;
-  // The argument of each api("/send", "POST", …) call: up to the parenthesis that closes it, skipping what is inside quotes.
-  const calls = [...script.matchAll(/api\("\/send", "POST", /g)].map(found => {
+  // Both the shared POST helper and the direct transport carry the same Send arguments.
+  const calls = [...script.matchAll(/(?:api\("\/send", "POST", |post\("\/send", )/g)].map(found => {
     const start = found.index! + found[0].length;
     let depth = 1, quote = "", index = start;
     for (; index < script.length && depth > 0; index += 1) {
@@ -69,6 +69,15 @@ test("the bottom bar measures its line with its chips on it and folds parts off 
   assert.match(fit, /if \(matchMedia\("\(max-width: 600px\), \(pointer: coarse\)"\)\.matches\) for \(const step of \["choosers", "mark", "chips"\]\)/, "and the steps are the touch rules'");
 });
 
+/** Load the actual shared helpers too: the slice must have the same work/input/HTTP dependencies as the page. */
+function draftSupport(): string {
+  const source = ASSISTANT_ISLAND_FACTORY_SCRIPT;
+  const lookup = source.match(/  const rowOf = [^\n]+/)?.[0], words = source.match(/  const words = [^\n]+/)?.[0];
+  const path = source.match(/workUrl = (.*?), findEl =/)?.[1], post = source.match(/post = ([^\n]+);/)?.[1];
+  assert.ok(lookup && words && path && post, "the draft harness uses the production shared helpers");
+  return `${lookup}\n${words}\nconst workUrl = ${path}, post = ${post};`;
+}
+
 // UIV-04: exercise the shipped draft functions, including persistence and a receipt arriving in another work.
 test("UIV-04 same text in different projects does not share materials, and a background send consumes only its attachments", () => {
   const start = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  const drafts = new Map();");
@@ -87,8 +96,9 @@ test("UIV-04 same text in different projects does not share materials, and a bac
     const json=JSON.stringify,uri=encodeURIComponent;
     let project={id:'A'},curId=null,files=[],sel=null,nextScope='project',nextExec='assistant',nextMode='execute',nextChar=null,pendingChar;
     const removed=new Set(),joined=new Set(),store={get:key=>saved.get(key)||null,set:(key,value)=>value===null?saved.delete(key):saved.set(key,value)};
-    let draftTimer,activeSend=null,draftWrite=Promise.resolve();const works=[],input={value:''},compose={dataset:{}},newDraftKey=()=> 'draft:'+project.id,
-      getWork=()=>null,syncSend=()=>{},api=()=>Promise.resolve(),paintMats=()=>saveContext();
+    let draftTimer,activeSend=null,draftWrite=Promise.resolve(),view=null;const works=[],input={value:''},compose={dataset:{}},newDraftKey=()=> 'draft:'+project.id,
+      syncSend=()=>{},api=()=>Promise.resolve(),paintMats=()=>saveContext();
+    ${draftSupport()}
     ${ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(start, end)}
     return {
       select(projectId,workId){saveDraft(true);project={id:projectId};curId=workId;loadDraft();},
@@ -118,8 +128,7 @@ test("UIV-04 restoring an unloaded work does not erase its draft, while input an
   const draftEnd = source.indexOf("  const switchTo =", draftStart);
   const inputStart = source.indexOf("  let typed = false, inputRev = 0;");
   const inputEnd = source.indexOf('  onEl(input, "keydown",', inputStart);
-  const getWork = source.match(/  const getWork = [^\n]+/)?.[0];
-  assert.ok(draftStart >= 0 && draftEnd > draftStart && inputStart >= 0 && inputEnd > inputStart && getWork,
+  assert.ok(draftStart >= 0 && draftEnd > draftStart && inputStart >= 0 && inputEnd > inputStart,
     "use the shipped draft code, work lookup and input handler");
   interface DraftInitHarness {
     restore(): void;
@@ -136,7 +145,7 @@ test("UIV-04 restoring an unloaded work does not erase its draft, while input an
     const works=[],writes=[],input={value:''},compose={dataset:{}},newDraftKey=()=> 'draft:'+project.id;
     const syncSend=()=>{},paintMats=()=>{},closeSlash=()=>{},mentionAt=()=>null,closeMention=()=>{},setStarts=()=>{},
       onEl=(_node,_event,handler)=>{onInput=handler;},api=(path,_method,body)=>{saved=body.draft;writes.push({path,draft:body.draft});return Promise.resolve();};
-    ${getWork}
+    ${draftSupport()}
     ${source.slice(draftStart, draftEnd)}
     ${source.slice(inputStart, inputEnd)}
     return {

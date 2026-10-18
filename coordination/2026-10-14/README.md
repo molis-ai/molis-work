@@ -1069,3 +1069,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 采用线 C4 判定规则认可（与答题无关的失败照实记下并重跑，每格最多再跑 3 次；原始结果放进 adoption-c4-results.md）。A2 Molis 实现计划认可，切片 A2-1 配置与动作 → A2-2 执行器与 S-35 → A2-3 设置页；§6.0p 改四处（一次写入一条命令，按配置顺序取第一个；截断用 SDK 的；观察的文字归 SDK；审查卡认 operationKey）。另有四条要求：改动记进决策记录，「一次写入跑多个检查器」记 BACKLOG；operationKey 的前缀用 SDK 的导出，没有就开一个只做导出的小 Prologue PR；检查器名与版本取执行器自己按写入标识存的记录，不拿命令去匹配；动作 id 写 agent.checkers.list.v1 / save.v1；A2-3 的字节到时弹窗问用户。
 - 10-18 #700 新 head eb1c02020 只多一个文档提交（revise 写成 v2），已核，交 chain38 等空槽。
 - 10-18 A2 第 2、3 条走 A：Prologue 小 PR 把写后检查的键改成 after-write-check:<callId>（每次写入都有 callId 就只留这一种形状），导出判断函数和构造函数，执行器入参带上这个键；可顺手导出另外三种资源种类的常量。审过即合，合完换包，排在 A2-2 前面。
+- 10-18 #697 全量绿，已入队。#699 全量红：interaction-no-crosstalk AC-05（第二个会话没调到模型），已退回采用线，用 #699 的 head 和 main 基线对比。#702（交互线 AC-03，8980904a1）审过：字段名 t${index} 写了两份，要求从 agent-question-card 导出一个函数两处共用；assistant-island 为守行数压行，这次放行，下次必须真拆。#700 与 #702 都替换 3d-2 的放行条目，后合的那个重新定键。

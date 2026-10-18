@@ -49,7 +49,8 @@ export function createPluginImageGenerationClient(manifest: PluginManifest, port
   };
   const read = (generationAllowed = false) => {
     const scope = currentPluginAction();
-    const permission = generationAllowed && scope?.definition.action.permissions.includes(permissions.generate) ? permissions.generate : permissions.read;
+    const permission = generationAllowed && scope?.definition.action.permissions.includes(permissions.generate) ? permissions.generate
+      : generationAllowed && scope?.definition.action.permissions.includes(permissions.write) ? permissions.write : permissions.read;
     if (scope) action([permission]);
     else permit(permission); // Discovery sees metadata; it cannot dispatch or mutate a binding.
   };

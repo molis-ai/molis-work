@@ -66,7 +66,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     pending = draft.pending && typeof draft.pending.request_id === 'string' && typeof draft.pending.fingerprint === 'string' ? draft.pending : null;
   };
   const request = async (method, path, body, signal) => {
-    const response = await life.fetch(host.route('/api/images' + path), {
+    const response = await life.fetch(host.route('/api/plugins/io.molis.work.images' + path), {
       method, cache: 'no-store', signal,
       headers: molisWorkControlHeaders(),
       body: method === 'GET' || body === undefined ? undefined : JSON.stringify(body),
@@ -86,7 +86,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const index = (job.images || []).findIndex((entry) => entry.id === item.id);
     return base + ((job.images || []).length > 1 && index >= 0 ? ' ' + (index + 1) : '') + ext;
   };
-  const imageUrl = (job, image, download = false) => host.route('/api/images/jobs/' + encodeURIComponent(job.id) + '/images/' + encodeURIComponent(image.id)) + (download ? '?download=1' : '');
+  const imageUrl = (job, image, download = false) => host.route('/api/plugins/io.molis.work.images/jobs/' + encodeURIComponent(job.id) + '/images/' + encodeURIComponent(image.id)) + (download ? '?download=1' : '');
   const dateLabel = (value) => {
     const date = new Date(value);
     return Number.isNaN(date.valueOf()) ? '' : date.toLocaleString(document.documentElement.lang || undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });

@@ -269,7 +269,7 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 | 右栏格的顺序 | 平台自带的格也给一个 `order`，与插件侧栏视图放在一起排序，不在宿主里写死 Shelf 排第一 |
 | Shelf 的 manifest | `navigator` 视图改为 `side` 视图，由宿主排版的侧栏文档出（已在整页门禁的例外清单里，不新增例外）；Manifest 声明 `always_on: true`（「常开插件」，2026-10-17 定名）：始终启用，不进插件列表；只有内置插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-34） |
 | Shelf 在插件分组里（`immersive-shell.ts` 的「个人」组）、插件选择、市场、项目插件管理 | 撤下 |
-| 桌面的 `molisWorkOpenShelf` 和轮盘的 `over_shelf_panel` | 改成发 `molis:side-open` 打开 Shelf 格；轮盘的命中判断改用右栏的位置 |
+| 桌面的 `molisWorkOpenShelf` 和轮盘的 `over_shelf_panel` | 2026-10-18 W2'-3（统筹定）：`molisWorkOpenShelf` 只说插件名，调页面的 `molisWorkOpenPlugin("shelf")`（就是工作台的 `openPlugin`，落在哪里由声明决定，`openPluginInSide` 一处判断），不写死格名；壳从顶层文档报「右栏开着且选中的是 Shelf 格」时那一格的矩形（`shelf_surface_changed` 的 `panel`，代替原来的 `data-desktop-surface="shelf"`），轮盘只把这个矩形当 Shelf 的放入处，矩形先经检查（S-14）；热键的显示/隐藏开关以「Shelf 格正在显示」为准 |
 | 搜索、placement 与结果视图链接中打开 Shelf 材料 | 打开右栏的 Shelf 格，并选中那一行；包括 `shelf.items.admit` 结果视图里的 `?openPlugin=shelf&openItem=…`。整页门禁沿链接打开地址，改道后仍须落在工作台里（总纲 15.2） |
 | Shelf 的文件来源 `shelf.files.entries` | 保留：Shelf 的材料继续出现在「文件」格（只能看），也在 Shelf 格（能加工）。它是个人范围，只列材料与结果，不含过程项（`shelf.text-material.v1` 不进「文件」格，总纲 15.1） |
 | 灵光 `island` 视图 | 2026-10-09 核对：仍在用，它让灵光排在插件菜单「个人」组的最前面，保留 |

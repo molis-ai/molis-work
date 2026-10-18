@@ -476,7 +476,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 - Shelf 的 `navigator` 视图删掉后，左边主区不再有 Shelf 页。原来指向它的入口都要改道到右栏的 Shelf 格：
   - `shelf.items.admit` 结果视图里的链接 `?openPlugin=shelf&openItem=…`；
   - 搜索结果的 `open: { surface: "shelf" }`；
-  - 桌面的 `molisWorkOpenShelf`（现在的做法是点插件列表里 Shelf 那一行）。
+  - 桌面的 `molisWorkOpenShelf`（W2'-3 起调 `molisWorkOpenPlugin("shelf")`，与上两条走同一条规则）。
 - 整页门禁会沿工作台里的链接逐个打开地址，改道之后仍须落在工作台里。
 - 浏览器格、文件格、助理面板都在顶层文档里，浮条直接画在那里，不涉及整页。
 
@@ -1371,6 +1371,11 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
     - 侧栏文档把登记的落点事件（`molis:placement-convert`、`-request`、`-result`，名单只在 `SIDE_FORWARD_SCRIPT` 一处）转给页面；页面只收同源、来源窗口是侧栏插件格框架的消息，名单外的名字丢掉（S-30 扩展，`tests/security-invariants-pane-messages.test.ts`、SIDE-FWD-01）。
     - 图片「放进 Shelf」经宿主路由调 `shelf.items.admit`（定义只在合同里一份，`SHELF_ADMIT_ACTION`：Shelf 按它注册，图片按它调用，不转型），`molis:shelf-admit` 从登记表删掉；放好后出一张落点卡片，从卡片的「打开」进 Shelf 格（不自动打开）。
     - 侧栏格按条目打开：`molis:side-open` 带 `target {item,title}`，侧栏对已载入的格框架以本页源发 `molis:side-target`，格文档按同一检查收下后在自己的工作面上发 `molis-work:select-item`；工作台不读条目 id。
+- 2026-10-18 W2'-3 桌面入口（分支 `context/w2p3-desktop-entries`，叠在 #701 上；统筹 10-18 认可计划并定两处做法）：
+  - 热键、菜单栏打开 Shelf 只说插件名：`molisWorkOpenShelf` 调页面的 `molisWorkOpenPlugin("shelf")`，它就是工作台的 `openPlugin`，判断仍只在 `openPluginInSide` 一处；不写死格名，不加 focus（原来点插件列表时也不移焦点）。热键脚本里点插件列表的兜底删掉。
+  - 壳从顶层文档（不是框架）报「右栏开着且选中的是 Shelf 格」时那一格的矩形：现成的 `shelf_surface_changed` 把 `active` 换成 `panel`（CSS 像素，内容区左上为原点）；矩形先经 `reported_panel` 检查，轮盘命中只用 `over_reported_panel`（S-14 表与 `tests/security-invariants-desktop-ipc.test.ts` 同步，Rust 用例 `s14_…`）。热键的显示/隐藏开关以「Shelf 格正在显示」为准。
+  - 页面顶部的插件说明（`STAGE_SUMMARIES`）按工作区面取，只开在右栏的插件没有工作区面，按同一条规则（`sideOpenedPlugins`）不再带进页面，`workbench.js` 由此不超过 #701 的大小。
+  - 用例：`tests/desktop-shelf-side.e2e.test.ts`（DESK-SHELF-01、DESK-SHELF-02，用真的壳脚本和一个记录调用的替身桥）、`tests/desktop-tui.test.ts`。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

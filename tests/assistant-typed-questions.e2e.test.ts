@@ -243,3 +243,65 @@ test("AC-28: the Assistant's reference question finds a Goal by name, and the ru
   assert.ok(told.includes(first.slice("goal ".length)), "AC-28-4: the run hears the picked Goal");
   await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('挂好了。')", 15_000);
 });
+
+/** A second tab of the same browser on the same address, opened behind the first: same origin, so it opens the work the first tab opened. */
+async function secondTab(command: <T = unknown>(method: string, params?: Record<string, unknown>, sessionId?: string, timeoutMs?: number) => Promise<T>, url: string) {
+  const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url, background: true }, undefined, 20_000);
+  const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true }, undefined, 20_000);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId, 20_000);
+  const evaluate = async <T = unknown>(expression: string): Promise<T> => {
+    const result = await command<{ result: { value: T }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId, 20_000);
+    assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
+    return result.result.value;
+  };
+  const waitFor = async (expression: string, timeoutMs = 20_000) => {
+    for (const deadline = Date.now() + timeoutMs; !(await evaluate<boolean>(`(() => { try { return Boolean(${expression}); } catch { return false; } })()`).catch(() => false));) {
+      assert.ok(Date.now() < deadline, `DOM condition timeout in the second tab: ${expression.slice(0, 160)}`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  };
+  return { evaluate, waitFor, front: () => command("Target.activateTarget", { targetId }) };
+}
+
+// AC-08: two tabs answer the same question. The second tab's answer is held in that page until the first tab's answer was taken,
+// then let go: the order is fixed, not left to timing. One answer is taken; the other is refused with a code beside the card, the
+// model hears the answer once, and the refused answer writes nothing.
+test("AC-08: two tabs answer one question: one is taken, the other is refused with a code, the model hears once and nothing is written twice", { timeout: 240_000 }, async t => {
+  const asked = { why: "约下周的复盘会", questions: [{ id: "minutes", type: "number", prompt: "时长", min: 15, max: 120, integer: true, unit: "分钟" }] };
+  const page = await assistantAsking(t, asked, "时长记下了。"); if (!page) return;
+  const { command, evaluate, waitFor, click, requests, homeDirectory, origin, projectId } = page;
+  const field = "[data-ix-question] [data-ix-field=n0] input";
+  await waitFor(`document.querySelector('${field}')`, 20_000);
+  const other = await secondTab(command, origin + "/projects/" + projectId + "/?openPlugin=todo");
+  await other.waitFor(`document.querySelector('${field}')`);
+  const fill = (value: string) => `(() => { const node = document.querySelector('${field}'); node.focus(); node.value = '${value}'; node.dispatchEvent(new Event('input', { bubbles: true })); })()`;
+  // The second tab's request to answer waits in its page until released; its reply is kept for the assertions.
+  await other.evaluate(`(() => { const original = window.fetch; let release; window.__held = new Promise(resolve => { release = resolve; }); window.__release = () => release();
+    window.fetch = async (...args) => { const answering = String(args[0]).endsWith('/answer');
+      if (answering) { window.__sent = true; await window.__held; }
+      const response = await original(...args); if (answering) window.__reply = { status: response.status, body: await response.clone().json() }; return response; }; })()`);
+  await other.evaluate(fill("77"));
+  await other.evaluate("document.querySelector('[data-ix-question] [data-ix-action=answer]').click()");
+  await other.waitFor("window.__sent === true");
+  await evaluate(fill("45"));
+  await click("[data-ix-question] [data-ix-action=answer]");
+  await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('时长记下了。')", 20_000);
+  assert.equal(requests.length, 2, "the first tab's answer is taken and the round goes on");
+  const state = () => evaluate<string>(`fetch(document.body.dataset.routePrefix + '/api/assistant/works', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works[0].state)`);
+  for (let attempt = 0; (await state()) !== "completed"; attempt++) { assert.ok(attempt < 100, "the round ends"); await new Promise(resolve => setTimeout(resolve, 100)); }
+  const taken = { files: await runtimeFiles(homeDirectory) };
+
+  await other.front();
+  await other.evaluate("window.__release()");
+  await other.waitFor("window.__reply");
+  const reply = await other.evaluate<{ status: number; body: { code?: string } }>("window.__reply");
+  assert.deepEqual([reply.status, reply.body.code], [409, "assistant.stale"], "the other is refused: the question was already answered");
+  await other.waitFor("document.querySelector('[data-assistant-thread] .assistant-problem')?.textContent.includes('这个问题已经结束或被替换，回答没有发送')");
+  await other.waitFor("!document.querySelector('[data-ix-question] [data-ix-action=answer]')");
+  await new Promise(resolve => setTimeout(resolve, 800));
+  assert.equal(requests.length, 2, "the model heard the answer once");
+  const results = JSON.stringify((requests[1]!.messages as Array<{ content: unknown }>).flatMap(message => Array.isArray(message.content) ? message.content : [])
+    .filter((block: { type?: string }) => block.type === "tool_result"));
+  assert.ok(results.includes("45") && !results.includes("77"), "it heard the answer that was taken, not the refused one");
+  assert.deepEqual(await runtimeFiles(homeDirectory), taken.files, "the refused answer writes nothing: the session, its run and its queue are unchanged on disk");
+});

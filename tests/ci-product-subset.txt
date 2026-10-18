@@ -120,6 +120,7 @@ tests/coding-artifacts.test.ts
 tests/coding-background-tasks.test.ts
 tests/coding-background-wait.test.ts
 tests/coding-changeset-http.test.ts
+tests/coding-checkers-settings.test.ts
 tests/coding-client-scripts.test.ts
 tests/coding-collab-handoff.test.ts
 tests/coding-commands.test.ts

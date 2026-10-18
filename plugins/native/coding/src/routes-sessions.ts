@@ -12,10 +12,13 @@ import { roundAfterParkedAnswer, startRound } from "./start-round.js";
 import type { CodingSessionRecord } from "./store.js";
 import type { CodingWaitView } from "./waits.js";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { parseExactActionReferences, searchEntriesPage, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes, parseExactActionReferences, searchEntriesPage, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSessionStatus } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+
+/** A control for a round this session does not have, or for one that has ended (a second tab answering after the first, AC-08). */
+const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found", round_ended: "conflict" });
 
 /** Coding routes for sessions and their rounds: the directory, creating and changing a session, starting, queueing and steering a round. */
 
@@ -314,12 +317,12 @@ const ROUTES: RouteMaker[] = [
       const snapshot = await api!.invoke(agent.readSession, [session]);
       const body = bodyOf(request);
       const run = snapshot.runs.find((entry) => entry.run_id === body.run_id);
-      if (!run) throw new Error("找不到属于这个会话的执行");
+      if (!run) throw codingRunErrors.run_not_found("找不到属于这个会话的执行");
       const control = await runControl(body, () => execution.models());
       if (control.kind === "steer") return { accepted: true, receipt: await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: run.run_id, ...control.send }, codingActionControl(beforeWrite)) };
       if (control.kind === "withdraw") return { accepted: true, withdrawn: await context.services!.actions!.invoke(agentInputActions.withdraw, { ...session, run_id: run.run_id, input_id: control.input_id }, codingActionControl(beforeWrite)) };
       const view = await api!.invoke(agent.readRun, [session, run]);
-      if (isTerminalAgentPhase(view.phase)) throw new Error("这一轮已经结束，请开始新一轮");
+      if (isTerminalAgentPhase(view.phase)) throw codingRunErrors.round_ended("这一轮已经结束，请开始新一轮");
       const question = control.kind === "answer" ? view.awaiting_input.find(item => item.pending_id === control.pending_id) : undefined;
       await api!.invoke(agent.controlRun, [session, run, control]).catch((error: { code?: string }) => {
         // A refused answer goes back with the questions it answered, so each field's line can name the limit it crossed.

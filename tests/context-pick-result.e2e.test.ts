@@ -27,6 +27,11 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `document.addEventListener('molis:surface-landing', (event) => { window.lastLanding = event.detail; });
     document.addEventListener('molis:surface-focus', (event) => { window.lastFocus = event.detail; });
     window.flashAsked = 0; window.flashLines = 0;
+    // A judgment held back until the test lets it go, and how many came back (PICK-05).
+    window.judged = 0; const realFetch = window.fetch;
+    window.fetch = async (...args) => { const judge = window.holdJudge && String(args[0]?.url || args[0]).includes('/api/contextual/judge');
+      while (judge && window.holdJudge) await new Promise((resolve) => setTimeout(resolve, 20));
+      try { return await realFetch.apply(window, args); } finally { if (judge) window.judged += 1; } };
     document.addEventListener('molis:surface-landing-flash', () => { window.flashAsked += 1; }, true);
     new MutationObserver((records) => { for (const record of records) for (const node of record.addedNodes) if (node.classList?.contains('pages-landing-flash')) window.flashLines += 1; })
       .observe(document, { childList: true, subtree: true });` }, sessionId);
@@ -123,13 +128,19 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
     const text = [...editor.querySelectorAll('p')].find((node) => node.textContent === '先完成核心体验。').firstChild;
     const range = document.createRange(); range.setStart(text, 2); range.collapse(true); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); })()`);
   await waitFor("window.lastLanding?.position === 'cursor' && window.lastLanding.targets[0].anchor !== window.flashGoneAt");
+  await evaluate("window.holdJudge = true");
   await evaluate(`document.querySelector(${JSON.stringify(CARD)}).focus()`);
   await key("Enter", "Enter", 13);
   await waitFor(`Boolean(${INSERT})`, 15_000);
-  // PICK-05: Esc on the bar puts the bar away, not the card; picking the card again brings the bar back.
+  // PICK-05: Esc on the bar puts the bar away, not the card; a judgment that comes back after it does not bring the bar up again
+  // (on a slow machine it comes back late); picking the card again brings the bar back.
   await evaluate(`${INSERT}.focus()`);
   await key("Escape", "Escape", 27);
   await waitFor(`!${INSERT}`, 5_000);
+  await evaluate("window.holdJudge = false");
+  await waitFor("window.judged === 1", 5_000);
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  assert.equal(await evaluate<boolean>(`!${INSERT}`), true, "a judgment after Esc does not bring the bar back");
   assert.equal(await evaluate<string>(`document.querySelector(${JSON.stringify(CARD)}).getAttribute('aria-current')`), "true", "still in hand");
   await evaluate(`document.querySelector(${JSON.stringify(CARD)}).focus()`);
   await key("Enter", "Enter", 13);

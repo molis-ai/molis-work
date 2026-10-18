@@ -29,11 +29,11 @@ export function registerPluginProjectCleanup(home: string, runtime: PluginRuntim
   const dispose = entries.flatMap(entry => {
     const owner = entry.project_data;
     if (!owner) return [];
-    const pluginId = entry.definition.manifest.plugin_id;
+    const pluginId = entry.definition.manifest.plugin_id, signature = entry.definition.manifest.publisher.signature;
     return [hooks.register({
       id: owner.owner_id, label: owner.declaration.label,
       clear(projectId) {
-        const record = runtime.list().find(item => item.plugin_id === pluginId && item.state !== "uninstalled");
+        const record = runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === signature && item.state !== "uninstalled");
         const contribution = record && runtime.contribution(record.install_id);
         if (contribution?.kind === "app" && contribution.onProjectDeleted) {
           requireSynchronous(contribution.onProjectDeleted(projectId), "项目清理前必须同步停止后台工作");

@@ -11,7 +11,7 @@ import { functionAuthoringActions } from "@molis-ai/molis-work-module-functions"
 import { openTestHome } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "consumer-reader", audience: "agent", project_id: null,
-  permissions: ["connectors:management:read", "images:connections:read", "images:connections:write", "images:generate", "feed:read", "feed:write", "functions:manage", "functions:invoke"] };
+  permissions: ["connectors:management:read", "images:connections:read", "images:connections:write", "images:generate", "model:invoke", "feed:read", "feed:write", "functions:manage", "functions:invoke"] };
 type Usage = Omit<ConnectorUsage, "actions"> & { source: ActionReference; actions: Array<ConnectorUsage["actions"][number] & { available: boolean; reason?: string }> };
 const read = (client: ActionClient, connection_id: string, context = caller) => client.invoke(context, connectorUsagesAction, { connection_id }) as Promise<{ usages: Usage[]; issues: string[] }>;
 
@@ -40,6 +40,9 @@ test("ASC-10 ASC-21: real model and image bindings are reported without keys, an
   const noGenerate = await read(projectClient, first!.connection_id, { ...scoped, permissions: scoped.permissions.filter(permission => permission !== "images:generate") });
   assert.equal(noGenerate.usages[0]?.actions[0]?.available, false);
   assert.match(noGenerate.usages[0]?.actions[0]?.reason ?? "", /作用域/);
+  const noModel = await read(projectClient, first!.connection_id, { ...scoped, permissions: scoped.permissions.filter(permission => permission !== "model:invoke") });
+  assert.equal(noModel.usages[0]?.actions[0]?.available, false, "Images v2 also requires model invocation authority");
+  assert.match(noModel.usages[0]?.actions[0]?.reason ?? "", /作用域/);
   const noRead = await read(projectClient, first!.connection_id, { ...scoped, permissions: ["connectors:management:read"] });
   assert.equal(noRead.usages.length, 0); assert.deepEqual(noRead.issues, [], "a reporter outside the caller's visible directory is not disclosed as an error");
   await assert.rejects(projectClient.invoke({ ...scoped, permissions: ["connectors:management:read"] }, imagesActions.connectionUsages, { connection_id: first!.connection_id }), { code: "actions.forbidden" });

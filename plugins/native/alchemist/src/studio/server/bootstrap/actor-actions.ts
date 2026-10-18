@@ -21,6 +21,14 @@ export function actionsInFlight() {
           return invoker.invoke(definition, input, signal, {
             assert_authority_current: assertCurrent,
             beforeEffect: async () => { assertCurrent(); await control?.beforeEffect(); assertCurrent(); },
+            retainBackgroundAuthority: control?.retainBackgroundAuthority ? additionalPermissions => {
+              assertCurrent();
+              const retained = control.retainBackgroundAuthority!(additionalPermissions);
+              const assertRetained = () => { stop.signal.throwIfAborted(); retained.assertCurrent(); };
+              return Object.assign(async () => {
+                assertRetained(); await retained(); assertRetained();
+              }, { assertCurrent: assertRetained });
+            } : undefined,
           });
         });
         active.add(work);
@@ -38,8 +46,6 @@ export function bindAlchemistActor(owner: string, d: { database: SqliteDatabase;
   return { invoke: async (definition, input, signal, control) => {
     signal?.throwIfAborted(); await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
     if (d.closed()) throw new Error("alchemist.alchemist_closed");
-    d.database.prepare("INSERT OR IGNORE INTO workspace_actors (id, workspace_id, kind, name, created_at) VALUES (?, ?, ?, ?, ?)")
-      .run(owner, "workspace-local", "local_user", owner, d.clock.now());
     return d.actors.run(owner, () => d.actions.invoke(definition, input, signal, control));
   } };
 }

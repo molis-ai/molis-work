@@ -1,10 +1,11 @@
+import { createLocalRuntime } from "./fixtures/alchemist-runtime.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAlchemistStudioRuntime as createLocalRuntime, type AlchemistStudioRuntime as LocalRuntime } from "@molis-ai/molis-work-plugin-alchemist";
+import { type AlchemistStudioRuntime as LocalRuntime } from "@molis-ai/molis-work-plugin-alchemist";
 import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 
 const model = { id: "test-provider/test-model", label: "显式测试模型", runtimeLabel: "Prologue · 显式测试", costVisibility: "unobservable" as const };
@@ -228,7 +229,7 @@ test("Alchemist: cancelling an in-flight search aborts it and prevents following
   });
 });
 
-test("Alchemist: restart before lease expiry recovers on a later drain and never replays ambiguous dispatch", async () => {
+test("Alchemist: W5-01-ALC-RES01: restart leaves jobs unchanged even after lease expiry", async () => {
   await withRuntime(async (runtime, host, databasePath) => {
     const { ideaId } = await createIdea(runtime);
     const { plan } = await api(runtime, `/ideas/${ideaId}/lenses/market_space/plans`, "POST", { ideaVersion: 1, modelPolicy: "fixed", modelId: model.id, budget: { kind: "calls", limit: 1 } });
@@ -243,8 +244,8 @@ test("Alchemist: restart before lease expiry recovers on a later drain and never
       restarted.database.prepare("UPDATE jobs SET lease_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?").run(run.jobId);
       await restarted.runPending();
       const lens = (await api(restarted, `/ideas/${ideaId}/versions/1/research`)).lenses.market_space;
-      assert.equal(lens.run.status, "failed");
-      assert.equal(lens.run.errorCode, "alchemist.research_call_interrupted");
+      assert.equal(lens.run.status, "queued");
+      assert.equal((restarted.database.prepare("SELECT status FROM jobs WHERE id = ?").get(run.jobId) as { status: string }).status, "running");
       assert.equal(host.searched.length, 0);
       assert.equal(host.generated.length, 1);
     } finally { await restarted.close(); }
@@ -293,7 +294,7 @@ test("W5-01-ALC-LIFE-02: Alchemist close waits for cancelled in-flight work befo
       restarted.database.prepare("UPDATE jobs SET lease_expires_at = '2000-01-01T00:00:00.000Z' WHERE id = ?").run(jobId);
       await restarted.runPending();
       const recovered = restarted.database.prepare("SELECT status, error_code FROM exploration_runs WHERE id = ?").get(runId);
-      assert.deepEqual({ ...recovered }, { status: "failed", error_code: "alchemist.ai_call_interrupted" });
+      assert.deepEqual({ ...recovered }, { status: "running", error_code: null });
       assert.equal(repeatedCalls, 0);
     } finally { await restarted.close(); }
   });

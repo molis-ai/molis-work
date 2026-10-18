@@ -27,7 +27,11 @@ import type { WorkspaceExportService } from "../services/workspace-export.js";
 
 import type { WorkReuseService } from "../../../work-reuse/service.js";
 
+import type { JobResumption } from "../services/job-resumption.js";
+
 export interface ApiDependencies {
+  jobResumption: JobResumption;
+  initializeCommand(): void;
   workReuse: WorkReuseService;
   workspaceId: string;
   actorId: string;

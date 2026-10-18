@@ -55,3 +55,5 @@ LocalWorker 经 Plugin SDK 共用执行生命周期：本地关闭、取消和�
 固定研究成果的生产 Host 端口尚未接线。报告根据当前成果入口的 availability 禁用「保存固定版本」并解释原因，研究方法复用仍可使用；fixture 端口不代表生产支持，完整固定成果发布与预览仍未完成。
 
 本轮控制与客户端回归：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/security-invariants-alchemist-lifecycle.test.ts tests/alchemist-client-boundaries.e2e.test.ts`。浏览器用例使用真实 Studio HTTP/SQLite 与受控模型响应；正式 Host 的等待后提交另由生命周期用例覆盖，不代替真实模型质量与整合实操。
+
+重启只读取原任务，不重新领取租约或执行 queued/running。`runs.resume` 展示继续条件，`runs.continue` 在真实调用者确认后只受理指定任务：探索固定本次模型与 Taste，Lens 沿原计划并从完整 `call_started` 历史累计预约数。未知结果可能已经收费，继续可能重复收费，且仍占原预算；安全 checkpoint 可零模型落库，耗尽不扩额。worker 的领取、续租、checkpoint、成功和失败写入都保留本轮类别权限与原授权；旧 actorId 不授予继续权。WorkReuse Host 真实外部接线尚未完成，fixture 接收方的 guard 证明不等于生产闭环。改恢复路径加跑 `tests/alchemist-resumption.test.ts`、`tests/security-invariants-alchemist-resumption.test.ts`、`tests/alchemist-resumption.e2e.test.ts` 及包内 acceptance、budget-history、recovery、lease、work-reuse 用例。

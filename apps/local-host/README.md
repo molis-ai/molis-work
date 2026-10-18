@@ -250,3 +250,5 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 `connectors.usages.read` 从共同动作目录发现连接消费方查询，以当前调用者身份汇总真实使用位置；业务模块各读自己的来源、配置和绑定，Host 不存第二份关联。返回原业务动作引用与非敏感部分参数，当前目录不可调用的仍明确阻塞；Home 查询不打开其他项目。模型配置使用位置由 `model-connection-usages.ts` 从原 catalog 和连接引用投影，不增加模型调用通道。回归：`tests/connector-consumer-usages.test.ts`。
 
 MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-actions.ts` 只在动作校验副本中去掉一级基本类型参数上的有效 `x-mcp-header` 传输注释；不改参数约束，不关闭严格 schema 检查，未知关键字、嵌套或无效注释继续使该工具不可调用。HTTP 传输仍按 MCP SDK 实际协商的协议执行；这项处理不表示支持 2026-07-28 的头映射。真实 HTTP 派出与拒绝回归见 `tests/connector-mcp.test.ts` 的 ASC-03/13/31 注释用例。
+
+后台类别权限从受理时的真实 MCP allowed refs 固定来源，再与当前精确 grants/声明求交；新授予的同权限动作不能救活旧任务。Alchemist HTTP 的请求 signal 只约束本次传输控制，正常响应结束后已受理工作仍检查 Host/项目/原动作权限。搜索派出在 DNS 后、TLS 请求体前及后续请求复核同一调用，SearchEvidence/secret/opaque/content 写入保留最终同步检查。回归见 `tests/security-invariants-alchemist-resumption.test.ts`、`tests/search-effect-authority.test.ts`、`tests/action-background-authority.test.ts`。

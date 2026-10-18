@@ -33,7 +33,7 @@ const failed=e=>{if(life.visible&&e.name!=='AbortError')notice(e.message,true);}
 const active=status=>['queued','running'].includes(status);
 let data={directions:[],explorations:[],ideas:[]},pulse={reports:[]},decisions={cases:[],activities:[],log:[]},runtime={models:[],configured:false},rules={taste:[],playbook:[]};
 let view='directions',archived=false,focus=null,model=null,study=null,choice=null,ctx={kind:'surface',label:L('方向'),surface:'ideas'},target=null,quote=null,sideMode='',onSubmit=null,busy=false,returnFocus=null,seq=0,loadSeq=0,wanted=null,ready=false,pollId,detailId='',lastRow=null;
-let shown='',canReuse=false;
+let shown='',canReuse=false,jobs=[];
 const setContext=()=>{const c={plugin_id:'io.molis.work.alchemist',surface_title:L('炼金术士')};
 if(ctx.kind==='direction'&&ctx.directionId)c.object={kind:'alchemist-direction',id:ctx.directionId,title:ctx.label||''};
 else if(ctx.kind==='idea'&&ctx.ideaId&&ctx.version!=='draft')c.object={kind:'alchemist-idea',id:ctx.ideaId,...(ctx.version?{version:String(ctx.version)}:{}),title:ctx.label||''};
@@ -45,7 +45,7 @@ const persist=()=>{try{localStorage.setItem(stateKey,JSON.stringify({collection:
 const same=v=>JSON.stringify(v)===JSON.stringify(focus);
 function setTitle(title){$('title').textContent=title;}
 `+WORK_REUSE_CLIENT+ALCHEMIST_VIEWS+ALCHEMIST_FLOWS+String.raw`
-async function load(){const n=++loadSeq;const values=await Promise.all([api('/bootstrap'),api('/pulse/reports'),api('/decisions'),api('/settings/runtime')]);if(n!==loadSeq)return false;[data,pulse,decisions,runtime]=values;ready=true;renderList();schedule();return true;}
+async function load(){const n=++loadSeq;const values=await Promise.all([api('/bootstrap'),api('/pulse/reports'),api('/decisions'),api('/settings/runtime'),api('/runs')]);if(n!==loadSeq)return false;[data,pulse,decisions,runtime]=values;jobs=values[4].jobs;ready=true;renderList();schedule();return true;}
 life.listen(document,'molis-work:model-ready',()=>{if(ready&&life.visible)void refresh().catch(failed);});
 async function refresh(){if(wanted)return selectItem(wanted);const n=seq;await load();if(n===seq&&focus)await open(focus,false);}
 function closeDetail(){seq++;wanted=null;focus=null;target=null;quote=null;side.hidden=true;sideMode='';root.dataset.expanded='false';$('workspace').hidden=true;renderList();persist();lastRow?.isConnected&&lastRow.focus();}
@@ -68,7 +68,7 @@ $('action=annotations').hidden=!target;
 }
 function activityLabel(kind){return ({'idea.kept':'保留了想法','idea_card.discarded':'弃牌','decision.created':'保存了决定','memory.taste_created':'添加了判断偏好','memory.playbook_created':'保存了研究方法','annotation.created':'添加了注释'})[kind]||kind.replaceAll('.',' · ');}
 function schedule(){
-life.clearTimeout(pollId);const running=data.explorations.some(e=>active(e.status))||active(pulse.latestRun?.status)||Object.values(study?.lenses||{}).some(l=>active(l.status));if(!running||!life.visible)return;
+life.clearTimeout(pollId);const running=jobs.some(j=>j.accepted);if(!running||!life.visible)return;
 pollId=life.timeout(async()=>{try{
 const selected=focus?{...focus}:null;await load();if(!selected||!same(selected))return;
 if(selected.kind==='idea'&&['market','cost'].includes(selected.panel)){

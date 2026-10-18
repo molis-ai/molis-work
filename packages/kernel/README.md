@@ -112,3 +112,5 @@ AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字
 `registeredActionMetadata` 只读当前登记的动作声明，沿目录的同一项目与 audience 过滤，先筛后出行，不调用提供方、处理器、依赖或 Host 可用性策略；结果没有 `availability`，不代表执行许可。常规目录把原可见性检查并进同一次筛选，再给每行算可用性。取消操作的诊断可借它命名，实际动作仍经完整调度与最终授权。
 
 登记的描述在注册时复制一次并整个冻结（`CapabilityRegistry.register`）：`descriptors()`、`descriptor()` 与目录各行（`discover`、`inspect` 的 `action`、`provider`）共用这一份，不再每读一次深拷贝一次（Goals 一家的合同就约 350 KB，目录每页、每次调用都读）。读者改不了它，写入直接抛 `TypeError`，提供方事后改自己的对象也不影响登记；要改的读者自己复制，交给第三方运行时的合同同样先复制（MCP 工具、Agent 工具参数）。回归：`tests/action-service.test.ts`。
+
+显式后台受理的额外权限只收窄原 authority：`retainBackgroundAuthority(additionalPermissions?)` 固定原注册与权限，原 handler 的 beforeEffect 不延长；有入口 hook 时由其复核后台授权，无 hook 时保留原取消。父子 bound 身份分别检查。改这条链补跑 `tests/action-background-authority.test.ts`、`tests/security-invariants-alchemist-resumption.test.ts`。

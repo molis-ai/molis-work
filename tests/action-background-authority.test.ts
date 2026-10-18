@@ -61,3 +61,39 @@ test("S-18 RAC-52 final synchronous authority and environment checks survive an 
     allowed = true; environment = false; assert.throws(() => retained.assertCurrent(), { code: "actions.host_closed" });
   } finally { release.resolve(); dispose(); }
 });
+
+test("W5-01-ALC-RES03 additional background permissions are a subset and remain revocable after the handler", async () => {
+  const service = new ActionService(); let retained!: RetainedActionAuthority, allowed = true;
+  const dispose = service.registerProvider({ provider: { provider_id: "probe", title: "Probe", kind: "system" }, definitions: [action],
+    handlers: [{ ...action, handle: context => { retained = context.retainBackgroundAuthority!(["probe:generate"]); return null; } }] });
+  try {
+    await assert.rejects(service.invoke(caller, action, {}), { code: "actions.forbidden" });
+    const assertCurrent = (_reference?: unknown, required?: readonly string[]) => {
+      if (!allowed && required?.includes("probe:generate")) throw new ActionError("actions.forbidden", "generation revoked");
+    };
+    await service.invoke({ ...caller, permissions: ["probe:generate"], assert_authority_current: assertCurrent,
+      validate_permissions: async required => assertCurrent(undefined, required) }, action, {});
+    await retained(); allowed = false;
+    assert.throws(retained.assertCurrent, /generation revoked/u); await assert.rejects(retained(), /generation revoked/u);
+  } finally { dispose(); }
+});
+
+test("W5-01-ALC-RES03 nested child permissions stay with the child while the parent authority remains required", async () => {
+  const service = new ActionService(), child = { ...action, capability_id: "probe.child-extra" }; let retained!: RetainedActionAuthority;
+  let parentAllowed = true, childAllowed = true;
+  const parentCheck = () => { if (!parentAllowed) throw new Error("parent revoked"); };
+  const bound = bindActionClient(service, () => ({ ...caller, permissions: ["child:generate"],
+    assert_authority_current: (_ref, required) => { if (!childAllowed && required?.includes("child:generate")) throw new Error("child revoked"); } }));
+  const dispose = service.registerProvider({ provider: { provider_id: "probe", title: "Probe", kind: "system" }, definitions: [action, child], handlers: [
+    { ...action, handle: context => bound.invoke(child, {}, context) },
+    { ...child, handle: context => { retained = context.retainBackgroundAuthority!(["child:generate"]); return null; } },
+  ] });
+  try {
+    await service.invoke({ ...caller, retain_background_authority: (_refs, extra) => {
+      assert.deepEqual(extra, [], "child permissions are not asserted against the parent identity");
+      return Object.assign(async () => parentCheck(), { assertCurrent: parentCheck });
+    } }, action, {});
+    await retained(); childAllowed = false; await assert.rejects(retained(), /child revoked/u);
+    childAllowed = true; parentAllowed = false; await assert.rejects(retained(), /parent revoked/u);
+  } finally { dispose(); }
+});

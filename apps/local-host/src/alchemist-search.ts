@@ -1,4 +1,5 @@
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
 import { applySqliteBaseline, createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, runWithMolisWorkHome, type SecretStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
@@ -21,12 +22,20 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
   const directory = alchemistProjectDirectory(options.homeDirectory, options.projectId);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const storage = new LocalSqliteStorage(path.join(directory, "search.sqlite"));
+  const calls = new AsyncLocalStorage<Parameters<AlchemistAiPort["search"]>[0]>();
+  const currentCall = () => {
+    const call = calls.getStore();
+    if (!call) throw new Error("alchemist.search_authority_missing");
+    return call;
+  };
+  const assertCurrent = () => { const call = currentCall(); call.signal?.throwIfAborted(); call.assertCurrent?.(); };
   const runtime = (() => {
     try {
       applySqliteBaseline(storage.db, storage.path, ALCHEMIST_SEARCH_BASELINE);
       return runWithMolisWorkHome(options.homeDirectory, () => {
         const secretStore = options.secretStore ?? createFileSecretStore();
-        return createSearchEvidenceRuntime({ db: storage.db, secretStore,
+        return createSearchEvidenceRuntime({ db: storage.db, secretStore, assertCurrent,
+          beforeDispatch: async () => { await currentCall().beforeDispatch?.(); assertCurrent(); },
           content: createEvidenceContentStore({ secretStore, rootDirectory: path.join(directory, "search-content") }) });
       });
     } catch (error) { storage.close(); throw error; }
@@ -35,6 +44,7 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
   const active = new Set<Promise<Awaited<ReturnType<AlchemistAiPort["search"]>>>>();
   const search: AlchemistAiPort["search"] = input => runWithMolisWorkHome(options.homeDirectory, async () => {
       input.signal?.throwIfAborted();
+      await input.beforeDispatch?.();
       const selectors = [{ kind: "provider" as const, value: "anysearch" }, { kind: "channel" as const, value: "web" as const },
         { kind: "source_definition" as const, namespace: "app" as const, value: "anysearch" }];
       const result = await runtime.intelligenceCollect.executeExact({
@@ -64,7 +74,7 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
   return {
     async search(input) {
       if (stopped) throw new Error("alchemist.search_closed");
-      const work = search(input); active.add(work);
+      const work = calls.run(input, () => search(input)); active.add(work);
       try { return await work; } finally { active.delete(work); }
     },
     shutdown() {

@@ -26,6 +26,8 @@ export interface SearchEvidenceRuntime {
 /** Host composition over SEL. An optional source contributes its own routes and provider runtime. */
 export function createSearchEvidenceRuntime(options: {
   db: SqliteDatabase;
+  beforeDispatch?: () => Promise<void>;
+  assertCurrent?: () => void;
   secretStore?: SecretStore;
   content?: EvidenceContentStore;
   /** Test seam. Production never passes it: the one way to reach AnySearch is `anysearch-transport.ts`. */
@@ -38,11 +40,13 @@ export function createSearchEvidenceRuntime(options: {
   }
   const secretStore = options.secretStore ?? createFileSecretStore();
   const content = options.content ?? createEvidenceContentStore({ secretStore });
-  const hostContent = createSearchContentPort(content);
-  const transport = options.queryTransport ?? createAnySearchTransport();
+  const hostContent = createSearchContentPort(content, options.assertCurrent);
+  const transport = options.queryTransport ?? createAnySearchTransport(options);
   // Own fallible transport cleanup here: SEL memoizes a rejected host shutdown permanently.
   const queryHost = createPortBackedNodeSearchHost({
-    appId: APP_ID, transport: { execute: call => transport.execute(call) }, content: hostContent,
+    appId: APP_ID, transport: { async execute(call) {
+      await options.beforeDispatch?.(); options.assertCurrent?.(); return transport.execute(call);
+    } }, content: hostContent,
   });
   const queryRuntime = createAnySearchRuntime(queryHost.host);
   const source = options.source;
@@ -59,7 +63,7 @@ export function createSearchEvidenceRuntime(options: {
   } : queryRuntime;
   const queryRoutes = createWebQueryRouteResolver();
   const intelligenceCollect = createIntelligenceCollectAdapter({
-    db: options.db, secretStore, searchRuntime,
+    db: options.db, secretStore, searchRuntime, assertCurrent: options.assertCurrent,
     routeResolver: { resolveExact: input => (input.input.kind === "query" || !source
       ? queryRoutes : source.routeResolver).resolveExact(input) },
   });
@@ -95,12 +99,13 @@ function createAnySearchRuntime(
   });
 }
 
-export function createSearchContentPort(store: EvidenceContentStore): SearchHostContentPort {
+export function createSearchContentPort(store: EvidenceContentStore, assertCurrent?: () => void): SearchHostContentPort {
   return {
     async write({ appId, markdown }) {
       if (appId !== APP_ID || typeof markdown !== "string") {
         throw new Error("search evidence content rejected");
       }
+      assertCurrent?.();
       return store.write(markdown);
     },
     async read({ appId, contentRef }) {

@@ -11,8 +11,6 @@ export function studioLifecycle(d: { database: SqliteDatabase; worker: LocalWork
     if (draining) return draining;
     if (closed) return Promise.resolve();
     draining = (async () => {
-      // A restart can precede the former lease deadline; retain the current recovery contract in this slice.
-      d.jobs.recoverExpired();
       while (!closed && await d.worker.runNext()) { /* drain sequentially */ }
     })().finally(() => { draining = undefined; });
     return draining;
@@ -20,7 +18,7 @@ export function studioLifecycle(d: { database: SqliteDatabase; worker: LocalWork
   return {
     closed: () => closed,
     runPending,
-    idle: () => !closed && !draining && d.actions.none() && !d.jobs.hasActive(),
+    idle: () => !closed && !draining && d.actions.none() && !d.worker.hasAccepted(),
     start() {
       if (interval || closed) return;
       void runPending();

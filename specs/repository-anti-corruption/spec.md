@@ -28,7 +28,7 @@ ALC-RES 共享授权补充（2026-10-18，主会话复核接受）：现单一 c
 
 
 
-ALC-RES08 确认界面补齐（2026-10-18，root核实际UI后接受窄实现）：Lens继续前显示原计划模型及原预算总数/已预约/剩余；计数只从现有效 call_started ledger与绑定原plan派生，不持久化第二份计数、不把预约当已扣费。当前合法 call_dispatched 表示未知结果时明确提示“上次调用可能已收费，继续可能重复收费；该次已计入原预算，不增加预算”。沿同一 lens-progress 解析/校验提取只读inspect摘要，执行read继续保耗尽拒绝；损坏历史仍拒绝且不猜0。ResumeView仅增budget{limit,reserved,remaining}和unknownCall{operation}；耗尽也显示数字但不可提交，安全checkpoint允许零模型完成。真实UI补可继续Lens的数字/原模型/风险提示及桌面手机截图，旧耗尽、双击和正常返回路径保持；最后按实际产物差值另取单次资源许可，尚无本片增长授权。
+ALC-RES08 确认界面补齐（2026-10-18，root核实际UI后接受窄实现）：Lens继续前显示原计划模型及原预算总数/已预约/剩余；计数只从现有效 call_started ledger与绑定原plan派生，不持久化第二份计数、不把预约当已扣费。当前合法 call_dispatched 表示未知结果时明确提示“上次调用可能已收费，继续可能重复收费；该次已计入原预算，不增加预算”。沿同一 lens-progress 解析/校验提取只读inspect摘要，执行read继续保耗尽拒绝；损坏历史仍拒绝且不猜0。ResumeView仅增budget{limit,reserved,remaining}和unknownCall{operation}；耗尽也显示数字但不可提交，安全checkpoint允许零模型完成。真实UI补可继续Lens的数字/原模型/风险提示及桌面手机截图，旧耗尽、双击和正常返回路径保持。最终Chrome用例1/1通过，桌面/手机图已核，无模型真实扣费验证；用户在2026-10-18明确批准客户端脚本单次50,619→53,507 B（+2,888 B）以保留完整提示。只登记这个资源和起点，合入后的已用额度不可复用，其余资源规则不变；最终组合整合及门禁仍待完成。
 
 ALC-RES 搜索最终边界补充（2026-10-18，root 已直接核对调用链并接受窄实现）：现 beforeDispatch 仅在入口，之后还等待 bootstrap、DNS 与 TLS；SEL 会写 opaque operation、secret 与正文。RES03 必须覆盖这些实际业务效果，不能以每秒撤权轮询代替。允许在 Alchemist search 资源现 owner 内用每次调用的 AsyncLocalStorage 传递本次 beforeDispatch/assertCurrent，Host search-evidence-runtime/search-intelligence-client/anysearch-transport 接同一可选检查；storage 的既有 search-storage blob/secret owner 在最终同步写入前检查，不越 owner 写 SQL、不改 vendor 或密文/schema/路径、不加授权持久化。查询控制不存在时，已配置此检查的 Alchemist 调用拒绝；未配置的 Feed 现行为保持。bootstrap 共享 promise 不能固化首次调用的权限，失败后沿现 ready reset 可再尝试；资源关闭仍等待真实 promise 退出。
 

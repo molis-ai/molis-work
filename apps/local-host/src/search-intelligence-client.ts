@@ -78,6 +78,7 @@ export interface IntelligenceCollectAdapter {
 
 export function createIntelligenceCollectAdapter(options: {
   readonly db: SqliteDatabase;
+  readonly assertCurrent?: () => void;
   readonly secretStore?: SecretStore;
   readonly searchRuntime: SearchRuntime;
   readonly routeResolver: SearchIntentRouteResolverV1;
@@ -98,6 +99,7 @@ export function createIntelligenceCollectAdapter(options: {
         options.secretStore ?? createFileSecretStore(),
         options.searchRuntime,
         options.routeResolver,
+        options.assertCurrent,
       ).catch((error) => {
         ready = null;
         throw error;
@@ -114,6 +116,7 @@ export function createIntelligenceCollectAdapter(options: {
         signal.throwIfAborted();
         const state = await ensureReady();
         signal.throwIfAborted();
+        options.assertCurrent?.();
         const result = await state.client.executeExact(request, { signal });
         signal.throwIfAborted();
         return toPublicResult(result);
@@ -145,13 +148,14 @@ async function bootstrapReady(
   secretStore: SecretStore,
   searchRuntime: SearchRuntime,
   routeResolver: SearchIntentRouteResolverV1,
+  assertCurrent?: () => void,
 ): Promise<ReadyState> {
-  const blobStore = createSearchOpaqueBlobStore(db);
+  const blobStore = createSearchOpaqueBlobStore(db, assertCurrent);
   const foundation = await createSearchStorageFoundation({
     appId: APP_ID,
     keyNamespace: KEY_NAMESPACE,
     aead: createSearchAead(),
-    secretStore: createSearchSecretStore(secretStore),
+    secretStore: createSearchSecretStore(secretStore, assertCurrent),
     operationStore: blobStore,
     contentStore: blobStore,
   });

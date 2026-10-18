@@ -79,7 +79,7 @@ test("a round that finishes while the person is elsewhere raises one notice; the
     assert.deepEqual(service.notices("coding"), [], "seen is settled");
     assert.throws(() => service.followUps.saveRule({ kind: "pause", surfaces: [], except: [], label: "没有结束时间" }), /结束时间/);
     assert.throws(() => service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "" }), /说法/);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a new work whose round fails at once, before anything looked, still raises its failure; a quiet rule with the failure exception lets it through", { timeout: 60_000 }, async t => {
@@ -103,7 +103,7 @@ test("a new work whose round fails at once, before anything looked, still raises
     await service.list();
     const onPages = service.notices("pages");
     assert.deepEqual(onPages.map(notice => [notice.kind, notice.held ?? null]), [["failed", null]], "the failure comes through, the rule's exception applies");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("the person's rules are the Assistant's own actions: found by agents, adding one is a change, the Host keeps it as written", async () => {

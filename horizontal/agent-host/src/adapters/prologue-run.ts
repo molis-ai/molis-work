@@ -121,7 +121,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
     : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL));
   if (input.action_gateway) {
-    state.gatewayRuns.set(input.session_id, input.action_gateway);
+    state.gatewayRuns.set(input.session_id, { ...input.action_gateway, declare: gatewayTools?.declare });
     if (gatewayTools) state.gatewayKnown.set(input.session_id, gatewayTools.known);
     // Refused before any review: a call to a capability that is gone, switched off or asked through the wrong tool.
     if (!state.gatewayHooks.has(input.session_id)) {

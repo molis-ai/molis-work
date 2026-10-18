@@ -13,10 +13,18 @@ export function agentMcpEndpoint(home: string, id: string): string | null {
 /** Agent consumes Host references; the selected connection owns refresh and target validation. */
 export function createAgentConnectorPorts(home: string, resolveToken = resolveMcpConnectionToken) {
   return {
+    async saveMcpConnection(input: { label: string; endpoint: string; secret: string }) {
+      const connection = withConnectorConnections(home, store => {
+        const row = store.createToken({ serviceId: "mcp-bearer", displayName: input.label, token: input.secret });
+        try { store.assertTarget(row.connection_id, "mcp-bearer", input.endpoint); return row; }
+        catch (error) { store.remove(row.connection_id); throw error; }
+      });
+      return { connection_id: connection.connection_id, discard: () => { withConnectorConnections(home, store => store.remove(connection.connection_id)); } };
+    },
     subscribeMcpConnections: (listener: (id: string) => void) => subscribeConnectorChanges(home, listener),
     async resolveMcpConnection(id: string, endpoint: string) {
       const row = withConnectorConnections(home, store => store.require(id));
-      if (row.disconnected_at) throw new Error("所选 MCP 账号已断开，请重新连接");
+      if (!row.enabled || row.disconnected_at) throw new Error("所选 MCP 账号已断开，请重新连接");
       if (row.auth_method === "mcp") {
         if (!agentMcpEndpoint(home, id)) throw new Error("此连接使用服务商的原生传输，请在连接设置中使用其工具操作");
         const token = await resolveToken(home, id, endpoint);
@@ -27,7 +35,7 @@ export function createAgentConnectorPorts(home: string, resolveToken = resolveMc
         const connection = store.require(id, "mcp-bearer");
         if (store.state(connection) !== "connected") return null;
         store.assertTarget(id, "mcp-bearer", endpoint);
-        return connection.credential_ref;
+        return { credentialRef: connection.credential_ref ?? undefined, revision: connection.updated_at };
       });
     },
     async resolveMcpCredential(ref: string): Promise<string | null> {

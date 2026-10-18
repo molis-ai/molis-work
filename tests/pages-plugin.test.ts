@@ -328,10 +328,11 @@ test("按住 Alt 拖开会复制一块，原来的还在", () => {
   assert.deepEqual(pair!.content.content.map((node) => node.textContent), ["甲", "乙", "丙", "甲", "乙"]);
   assert.equal(placeCopySpan(doc, 0, 0, 99, 0), null);
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  assert.match(editor, /commitDrag\(editorView, anchor, head, gap, level,\s*tr => tr\.setMeta\(hoverKey, \{ span: null, pos: -1, dragging: false \}\), alt\)/);
-  assert.match(editor, /drag\.alt = event\.altKey/);
-  assert.match(editor, /previewCopySpan\(motion\.layoutSource/);
+  const drag = readFileSync(new URL("../plugins/native/pages/src/editor-block-drag.ts", import.meta.url), "utf8");
+  const render = readFileSync(new URL("../plugins/native/pages/src/editor-block-drag-render.ts", import.meta.url), "utf8");
+  assert.match(drag, /commitDrag\(view, anchor, head, gap, level,\s*tr => tr\.setMeta\(hoverKey, \{ span: null, pos: -1, dragging: false \}\), alt\)/);
+  assert.match(drag, /drag\.alt = event\.altKey/);
+  assert.match(render, /previewCopySpan\(motion\.layoutSource/);
   assert.match(PAGES_STYLES, /pages-block-ghost\.is-copy::after/);
 });
 
@@ -1770,8 +1771,8 @@ test("块菜单开着时上下键移动高亮，回车才执行", () => {
   assert.equal(blockMenuKey(1, 6, "ArrowLeft"), "stay");
   assert.equal(blockMenuKey(1, 6, "ArrowLeft", true), "back");
   assert.match(PAGES_STYLES, /data-pages-menu-open/);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  assert.match(editor, /addEventListener\("keydown", onKey, true\)/);
+  const handle = readFileSync(new URL("../plugins/native/pages/src/editor-block-handle.ts", import.meta.url), "utf8");
+  assert.match(handle, /on\(document, "keydown", onKey, \{ capture: true \}\)/);
   assert.match(PAGES_STYLES, /pages-block-menu \.mw-menu__item\.is-on/);
 });
 
@@ -1810,11 +1811,13 @@ test("Cmd+/ 打开光标所在块的菜单，Tab 留在编辑器里", () => {
   ]);
   assert.equal(blockMenuTarget(callout, 2), 1);
   const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  const keys = editor.indexOf("blockMenuShortcut(event.key");
+  const plugin = readFileSync(new URL("../plugins/native/pages/src/editor-block-plugin.ts", import.meta.url), "utf8");
+  const handle = readFileSync(new URL("../plugins/native/pages/src/editor-block-handle.ts", import.meta.url), "utf8");
+  const keys = plugin.indexOf("blockMenuShortcut(event.key");
   assert.ok(keys > 0);
-  assert.ok(editor.indexOf("openMenu: true", keys) > keys);
-  const tick = editor.indexOf("hover.menuTick !== menuTick");
-  assert.ok(editor.indexOf("openMenu()", tick) > tick);
+  assert.ok(plugin.indexOf("openMenu: true", keys) > keys);
+  const tick = handle.indexOf("hover.menuTick !== menuTick");
+  assert.ok(handle.indexOf("openMenu()", tick) > tick);
   const tab = editor.indexOf("Tab: (state, dispatch, current)");
   const shift = editor.indexOf("\"Shift-Tab\":", tab);
   assert.match(editor.slice(tab, shift), /indentListItem\(state, dispatch\)/);
@@ -1893,8 +1896,8 @@ test("划过整块时按块选中，半句仍是文字", () => {
     if (node.type.name === "paragraph" && node.textContent === "乙") paraB = pos;
   });
   assert.deepEqual(blockSpanFromRange(callout, inside, insideEnd), { anchor: paraA, head: paraB });
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  assert.match(editor, /blockSpanFromRange\(tr\.doc, tr\.selection\.from, tr\.selection\.to\)/);
+  const plugin = readFileSync(new URL("../plugins/native/pages/src/editor-block-plugin.ts", import.meta.url), "utf8");
+  assert.match(plugin, /blockSpanFromRange\(tr\.doc, tr\.selection\.from, tr\.selection\.to\)/);
 });
 
 test("选中几块再删除或复制，动的是整组", () => {
@@ -2778,7 +2781,9 @@ test("浮层放不下就翻到另一边，菜单里的当前项滚进视野", ()
   assert.equal(scrollShouldFollow(null, null), true);
   const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
   const menus = readFileSync(new URL("../plugins/native/pages/src/editor-insert-menu.ts", import.meta.url), "utf8");
-  assert.equal(editor.match(/followScroll\(menu/g)?.length, 1);
+  const handle = readFileSync(new URL("../plugins/native/pages/src/editor-block-handle.ts", import.meta.url), "utf8");
+  assert.equal(handle.match(/followScroll\(menu/g)?.length, 1);
+  assert.doesNotMatch(editor, /followScroll\(menu/);
   assert.equal(menus.match(/followScroll\(menu/g)?.length, 2);
   assert.match(editor, /followScroll\(linkPreview/);
 });

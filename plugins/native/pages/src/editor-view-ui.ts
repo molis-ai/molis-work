@@ -57,3 +57,8 @@ export function keepSelectedVisible(menu: HTMLElement): void {
     { offsetTop: current.offsetTop, offsetHeight: current.offsetHeight },
   );
 }
+
+export function stopEvent(event: Event): void {
+  event.preventDefault();
+  event.stopPropagation();
+}

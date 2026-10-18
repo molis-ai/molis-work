@@ -1,4 +1,5 @@
 import { PluginKey, NodeSelection, type EditorState, type Command } from "prosemirror-state";
+import type { Node as ProseMirrorNode } from "prosemirror-model";
 import type { EditorView } from "prosemirror-view";
 import { spanIsGroup, deleteSpan, duplicateSpan } from "./commands.js";
 import { dragRows, nudgeSpan } from "./reorder.js";
@@ -16,10 +17,13 @@ export function runBlockCommand(view: EditorView, command: Command): void {
 }
 
 export function rowAtSelection(state: EditorState): number {
-  const pos = state.selection.from;
+  return rowAtPosition(state.doc, state.selection.from);
+}
+
+export function rowAtPosition(doc: ProseMirrorNode, pos: number): number {
   let hit = -1;
-  for (const row of dragRows(state.doc)) {
-    const node = state.doc.nodeAt(row.pos);
+  for (const row of dragRows(doc)) {
+    const node = doc.nodeAt(row.pos);
     if (node && pos >= row.pos && pos < row.pos + node.nodeSize) hit = row.pos;
   }
   return hit;

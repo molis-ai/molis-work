@@ -236,11 +236,11 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // W5-01 integration: the already approved Todo +28 B and shared Lingguang stream reader +2,231 B
-// are rebased onto actual main's 1,110,187 B, retaining the integrated -71 B reduction (net +2,188 B).
-// No new growth is allowed. Once these prerequisites land,
+// are rebased onto actual main's 1,110,056 B (+2,259 B). Main now contains the prior -71 B from #661,
+// so that reduction is already in the baseline and is not subtracted twice. No new allowance. Once these prerequisites land,
 // rekey only the still-unspent increment; after both land remove this one-shot allowance entirely.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110187, 1112375],
+  "/assets/molis-work-workbench.js": [1110056, 1112315],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

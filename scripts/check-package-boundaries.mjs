@@ -1031,12 +1031,13 @@ function checkArtifactsOwnership(repositoryRoot) {
   return { errors };
 }
 
-function checkPrivateWorkContextOwnership(repositoryRoot) {
+export function checkPrivateWorkContextOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const requiredOwnerFiles = [
     "modules/private-work-context/src/content-store.ts",
     "modules/private-work-context/src/context-bindings.ts",
+    "modules/private-work-context/src/runtime-context-module.ts",
     "modules/private-work-context/src/session-events.ts",
     "modules/private-work-context/src/session-handoffs.ts",
     "modules/private-work-context/src/session-surfaces.ts",
@@ -1068,13 +1069,17 @@ function checkPrivateWorkContextOwnership(repositoryRoot) {
   const entry = read("modules/private-work-context/src/index.ts");
   for (const required of [
     "MolisWorkSessionRegistry",
-    "RuntimeContextBindingRepository",
+    "createRuntimeContextModule",
     'maturity: "partial"',
     '"runtime-context-bindings"',
   ]) {
     if (!entry.includes(required)) {
       errors.push(`modules/private-work-context/src/index.ts: missing ${required}`);
     }
+  }
+
+  if (entry.includes("RuntimeContextBindingRepository")) {
+    errors.push("modules/private-work-context/src/index.ts: Runtime binding Repository must remain private");
   }
 
   for (const retired of ["src/sessions/registry.ts","src/sessions/content-store.ts"]) {
@@ -1087,8 +1092,11 @@ function checkPrivateWorkContextOwnership(repositoryRoot) {
   }
 
   const catalog = read("apps/local-host/src/project-catalog.ts");
-  if (!catalog.includes("RuntimeContextBindingRepository")) {
+  if (!catalog.includes("createRuntimeContextModule")) {
     errors.push("apps/local-host/src/project-catalog.ts: Runtime binding composition must use the Private Work Context public entrypoint");
+  }
+  if (catalog.includes("RuntimeContextBindingRepository")) {
+    errors.push("apps/local-host/src/project-catalog.ts: Runtime binding Repository must remain private");
   }
   const directContextSql = /\b(?:CREATE TABLE(?: IF NOT EXISTS)?|FROM|INTO|UPDATE|DELETE FROM)\s+(runtime_context_bindings|runtime_context_binding_events|runtime_context_setup_requests|runtime_context_suggestion_rejections)\b/giu;
   for (const match of catalog.matchAll(directContextSql)) {

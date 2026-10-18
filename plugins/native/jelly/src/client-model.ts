@@ -2,7 +2,7 @@
 export const JELLY_MODEL_CLIENT_SCRIPT = String.raw`
   let leftForSettings=false;
   const openModelSettings=async()=>{
-    leftForSettings=false;await flushEditor();const payload=await request('GET','/api/jelly/model-settings');const settings=payload.settings||payload;
+    leftForSettings=false;await flushEditor();const payload=await request('GET',API+'/model-settings');const settings=payload.settings||payload;
     let providerId=settings.selection?.provider_id||settings.effective_selection?.provider_id||settings.providers?.find((provider)=>provider.enabled!==false)?.provider_id||settings.providers?.[0]?.id||'';
     let modelId=settings.selection?.model_id||settings.effective_selection?.model_id||'';let custom=false;let apiFormat='openai-chat-completions';
     const providers=(settings.providers||[]).filter((provider)=>provider.enabled!==false);
@@ -14,7 +14,7 @@ export const JELLY_MODEL_CLIENT_SCRIPT = String.raw`
       let body;
       if(custom){const base=$('[data-jelly-model-base]').value.trim();const model=$('[data-jelly-model-id]').value.trim();if(!base||!model)throw new Error(L('填写服务地址和模型 ID'));body={base_url:base,api_format:apiFormat,model_id:model,connection_id:$('[data-jelly-model-connection]').value};}
       else{if(!providerId||!modelId)throw new Error(L('选择一个模型，或填写自定义模型'));body={provider_id:providerId,model_id:modelId};}
-      await request('POST','/api/jelly/model-settings',body);showNote(L('模型设置已保存'));
+      await request('POST',API+'/model-settings',body);showNote(L('模型设置已保存'));
     });
     const paint=()=>{
       $('[data-jelly-model-providers]').innerHTML=providers.map((entry)=>btn(entry.name||entry.id,'data-jelly-provider="'+esc(entry.provider_id||entry.id)+'" aria-pressed="'+(!custom&&(entry.provider_id||entry.id)===providerId)+'"')).join('')+btn('自定义模型','data-jelly-provider="__custom" aria-pressed="'+custom+'"');

@@ -19,7 +19,7 @@ async function fixture(t: test.TestContext, completeText: HostCompleteText | nul
   return { home, host, ref, caller, client, bound };
 }
 
-test("Dataset registers all business actions; snapshots, CSV and Artifact share original storage", async t => {
+test("W5-01-DATASET-01: Dataset registers all business actions; snapshots, CSV and Artifact share original storage", async t => {
   const f = await fixture(t);
   const invoke = (key: keyof typeof actions, args: object = {}): Promise<any> => f.bound.invoke(actions[key] as never, args as never);
   const catalog = await f.bound.discover();

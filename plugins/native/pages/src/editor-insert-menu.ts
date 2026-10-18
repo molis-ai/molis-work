@@ -110,7 +110,7 @@ export function slashPlugin(translate: Translate | undefined) {
   picker.type = "file";
   picker.accept = "image/png,image/jpeg,image/gif,image/webp";
   picker.hidden = true;
-  
+
   const choose = (editor: EditorView, id: string) => {
     if (id === "image") {
       pickSlashImage(picker, editor);

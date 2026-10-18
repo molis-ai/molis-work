@@ -1,6 +1,10 @@
 
 import { EN } from "./i18n/en.js";
-import { pluginTabTitles } from "./plugin-catalog.js";
+import { BUILTIN_PLUGIN_CATALOG, pluginTabTitles } from "./plugin-catalog.js";
+
+const PLUGIN_MESSAGES: Record<string, { readonly zh: string; readonly en: string }> = Object.assign(
+  {}, ...BUILTIN_PLUGIN_CATALOG.map(entry => entry.messages),
+);
 
 
 export { EN } from "./i18n/en.js";
@@ -95,9 +99,9 @@ function localeSwitchHref(locale: WebLocale, nextPath: string): string {
   return `/locale?lang=${locale}&next=${encodeURIComponent(safeNextPath(nextPath))}`;
 }
 
-function L(zh: string, vars?: Record<string, string | number>): string {
+function L(key: string, vars?: Record<string, string | number>): string {
   const locale = currentLocale();
-  let text = locale === "en" ? (EN[zh] ?? zh) : zh;
+  let text = PLUGIN_MESSAGES[key]?.[locale] ?? (locale === "en" ? (EN[key] ?? key) : key);
   if (vars) {
     for (const [key, value] of Object.entries(vars)) {
       text = text.replaceAll(`{${key}}`, String(value));
@@ -114,19 +118,23 @@ function renderLocaleSwitch(nextPath: string): string {
   </nav>`;
 }
 
+function catalogJson(locale: WebLocale): string {
+  const messages = Object.fromEntries(Object.entries(PLUGIN_MESSAGES).map(([key, text]) => [key, text[locale]]));
+  return JSON.stringify({ ...(locale === "en" ? EN : {}), ...messages }).replaceAll("<", "\\u003c");
+}
+
 function englishCatalogJson(): string {
-  return JSON.stringify(EN).replaceAll("<", "\\u003c");
+  return catalogJson("en");
 }
 
 function clientI18nScript(): string {
-  const catalog = currentLocale() === "en" ? englishCatalogJson() : "{}";
+  const catalog = catalogJson(currentLocale());
   // The built-in plugins' tab titles in this page's language, read by the workbench scripts (one copy, not one per script).
   const titles = JSON.stringify(pluginTabTitles(currentLocale() === "en")).replaceAll("<", "\\u003c");
-  return `globalThis.MOLIS_WORK_EN = ${catalog};
+  return `globalThis.MOLIS_WORK_MESSAGES = ${catalog};
   globalThis.MOLIS_WORK_PLUGIN_TITLES = ${titles};
-  globalThis.L = function L(zh, vars) {
-    const useEn = !String(document.documentElement.lang || "zh").toLowerCase().startsWith("zh");
-    let text = useEn && globalThis.MOLIS_WORK_EN && globalThis.MOLIS_WORK_EN[zh] ? globalThis.MOLIS_WORK_EN[zh] : zh;
+  globalThis.L = function L(key, vars) {
+    let text = globalThis.MOLIS_WORK_MESSAGES[key] ?? key;
     if (vars) {
       for (const key of Object.keys(vars)) text = text.split("{" + key + "}").join(String(vars[key]));
     }

@@ -6,7 +6,7 @@ import { type FormPage, formPage, hasUnsaved } from "./page.js";
 import { fillOptions } from "./questions.js";
 import { formRequest } from "./request.js";
 import { importAnswers, submitPreview } from "./results.js";
-import { queueSave } from "./save.js";
+import { queueSave, save } from "./save.js";
 import { showNote } from "./status.js";
 import type { FormClientHost } from "./types.js";
 
@@ -44,11 +44,15 @@ const listen = (page: FormPage) => {
   const { importInput } = page;
   importInput?.addEventListener("change", () => void importAnswers(page, importInput));
   const reloadList = () => void loadList(page).catch((error: Error) => showNote(page, error.message, true));
-  // Moved or copied from the placement bar: this list changed; a form moved away is no longer here to edit.
+  // Before the bar moves this form, store the editor. Preview answers stay unsent. A failed save cancels the move.
+  window.addEventListener("molis:placement-flush", (event) => {
+    const detail = (event as CustomEvent<{ mode?: string; object?: { kind?: string; id?: string }; settle?: Promise<unknown>[] }>).detail;
+    if (detail?.mode === "move" && detail.object?.kind === "form" && page.sel?.id === detail.object.id) detail.settle?.push(save(page));
+  });
   window.addEventListener("molis:placement-changed", (event) => {
     const detail = (event as CustomEvent<{ mode?: string; from?: { kind?: string; id?: string }; to?: { kind?: string } }>).detail || {};
-    if (![detail.from && detail.from.kind, detail.to && detail.to.kind].includes("form")) return;
-    if (detail.mode === "move" && detail.from && page.sel && page.sel.id === detail.from.id) closeEditor(page);
+    if (![detail.from?.kind, detail.to?.kind].includes("form")) return;
+    if (detail.mode === "move" && page.sel?.id === detail.from?.id) closeEditor(page);
     reloadList();
   });
   document.addEventListener("molis-work:model-ready", reloadList);

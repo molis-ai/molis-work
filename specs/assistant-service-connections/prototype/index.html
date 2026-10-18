@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>服务接入 · Molis Work 交互切片</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <header class="titlebar"><strong>Molis Work</strong><span>Alpha / 发布准备</span><button id="show-guide" class="quiet">演示说明</button></header>
+  <main class="work-sheet">
+    <nav class="tabs" aria-label="工作区"><span class="current">Pages</span><span>上线准备</span></nav>
+    <article class="document"><p class="eyebrow">ALPHA · 项目资料</p><h1>把上线前的事情想清楚</h1><p class="lead">从团队已有的资料开始，确认范围、责任和还需要补齐的地方。</p><hr><h2>这次要找到什么</h2><p>发布窗口、安全复核和客户通知的要求。找到原始依据后，再决定哪些内容需要写进上线清单。</p><blockquote>让助理使用已经接好的服务；需要登录时，在这里继续。</blockquote><div id="saved-result" hidden><h2>上线要求</h2><p>发布窗口：周四 10:00–12:00。先完成权限复核，再发送客户通知。</p><a href="#source" class="source-link">团队知识库 / Alpha 发布规范 · 演示资料</a></div></article>
+  </main>
+  <aside class="assistant" aria-label="个人助理" id="assistant">
+    <div class="assistant-head"><strong>整理 Alpha 上线要求</strong><div><span class="demo-tag">交互演示</span><button id="collapse" class="icon-button" aria-label="收起对话">−</button></div></div>
+    <div class="conversation" id="conversation">
+      <p class="user-message">接入团队知识库，查找 Alpha 的上线要求，整理成文档。</p>
+      <div id="reply" aria-live="polite"></div>
+    </div>
+    <div class="intent"><label for="instruction">当前任务</label><select id="instruction"><option value="save">读取资料并保存文档</option><option value="read">只读取资料，先别保存</option></select></div>
+  </aside>
+  <footer class="dock"><div class="dock-group"><button id="home-view" class="quiet">⌂ 首页</button><button id="connections-view" class="quiet">服务连接</button></div><button class="composer" id="reopen"><span>继续和助理讨论…</span><span aria-hidden="true">↑</span></button><div class="dock-group"><span class="project-avatar">A</span><span>Alpha</span></div></footer>
+  <section class="demo-controls" aria-label="演示场景"><label for="scenario">演示场景</label><select id="scenario"><option value="new">新连接 · 等待授权</option><option value="reuse">复用 Coding 已有连接</option><option value="permission">仅缺当前操作权限</option><option value="failure">连接失败与重试</option></select><button id="restart" class="quiet">重置场景</button></section>
+  <dialog id="authorization" aria-labelledby="authorization-title"><form method="dialog"><div class="dialog-head"><h2 id="authorization-title">连接团队知识库</h2><button class="icon-button" aria-label="关闭授权页" value="close">×</button></div><p class="demo-note">演示本人操作界面，不会登录服务或接收凭据。</p><dl><div><dt>服务</dt><dd>团队知识库 MCP</dd></div><div><dt>账号</dt><dd>Alpha 团队 · 工作账号</dd></div><div><dt>使用范围</dt><dd>Alpha 项目</dd></div><div><dt>请求权限</dt><dd>检索、读取项目资料</dd></div></dl><p class="secondary">关闭此页会保留等待；取消这次接入会使本次授权失效。</p><div class="actions"><button value="cancel" class="quiet" id="cancel-authorization">取消这次接入</button><button value="authorize" class="primary" id="grant">完成演示授权</button></div></form></dialog>
+  <dialog id="details" aria-labelledby="details-title"><div class="dialog-head"><h2 id="details-title">连接详情</h2><button class="icon-button" id="close-details" aria-label="关闭连接详情">×</button></div><div id="connection-details"></div></dialog>
+  <dialog id="guide" aria-labelledby="guide-title"><div class="dialog-head"><h2 id="guide-title">这份切片能体验什么</h2><button class="icon-button" id="close-guide" aria-label="关闭演示说明">×</button></div><p>复用已有连接、新接入、关闭登录页后返回、等待时改成“只读”、取消、连接失败重试，以及停用和重新启用。</p><p>界面、授权结果、服务响应与文档都是模拟。不会连接真实服务，不会保存密钥，不调用模型。正式实现仍需通过协议、权限、恢复和真实账号验收。</p></dialog>
+  <script src="script.js"></script>
+</body></html>

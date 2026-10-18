@@ -1,5 +1,5 @@
 import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
-import { arrive, firstLine, make, textCell, whenOf } from "./dom.js";
+import { arrive, firstLine, icon, make, textCell, whenOf } from "./dom.js";
 import { renderPreview } from "./fields.js";
 import type { FormList, FormPage } from "./page.js";
 import { renderQuestions } from "./questions.js";
@@ -139,7 +139,7 @@ export const listFailed = (page: FormPage, error: Error | undefined) => {
   if (page.empty) page.empty.hidden = true;
   const box = make("div", "mw-empty mw-empty--error");
   box.setAttribute("role", "alert");
-  box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
+  box.innerHTML = '<span class="mw-empty__mark">' + icon("icon-circle-alert") + '</span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
   box.querySelector("strong")!.textContent = L("列表暂时读不到");
   const text = box.querySelector("p")!;
   text.textContent = error?.message || L("请稍后重试");

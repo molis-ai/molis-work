@@ -1,3 +1,4 @@
+import { acceptTestJob } from "../fixtures/job-authority.js";
 // @vitest-environment node
 
 import { describe, expect, it, vi } from "vitest";
@@ -80,6 +81,7 @@ describe("Lens cancellation", () => {
         planId: "plan-cancel",
       });
 
+      acceptTestJob(worker, run.jobId);
       const running = worker.runNext();
       await started;
       createCancelLensRunService({ database, jobs, research, now: clock.now })(run.jobId);

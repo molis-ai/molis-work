@@ -122,7 +122,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const state = createRoundState();
   const index = createSessionIndexStore(effects.host, options.app.appId);
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
-  const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id });
+  const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
+    owner: async id => (await index.read(id).catch(() => undefined))?.owner });
   const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers);
   checks.open();
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
@@ -137,7 +138,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const inherited = dispatchGuards.getStore();
       return dispatchGuards.run(async () => { await inherited?.(); await guard(); }, operation);
     },
-    resolveConnection: options.resolveMcpConnection,
+    directoryAuthorized: options.checks?.directoryAuthorized,
+    resolveConnection: options.resolveMcpConnection, saveConnection: options.saveMcpConnection,
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
   });

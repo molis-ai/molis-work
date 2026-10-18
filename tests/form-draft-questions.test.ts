@@ -86,6 +86,39 @@ test("AC-26 the model is asked once: after an answer it must draft, and a reply 
   }
 });
 
+test("LOGIC-05 questions the form cannot store leave the answers in place, so the same card can be sent again", async t => {
+  const bad = { status: "done", questions: [{ title: "选一个", type: "singleChoice", options: ["只有一个"] }] };
+  const f = await fixture(t, [ASK, bad, DONE]);
+  const { interaction } = await f.call({});
+  const values = { q0: ["0"], q1: ["0"] };
+  await assert.rejects(f.call({ interaction: { interaction_id: interaction.interaction_id, values } }), (error: { code?: string }) => error.code === "form.invalid");
+  const done = await f.call({ interaction: { interaction_id: interaction.interaction_id, values } });
+  assert.equal(done.status, "done");
+  assert.equal(done.form.questions.length, 3);
+});
+
+test("LOGIC-05 a failed save keeps the answers until the questions are actually stored", async t => {
+  const home = await mkdtemp(join(tmpdir(), "form-draft-"));
+  const forms = openFormStore(home);
+  t.after(async () => { forms.close(); await rm(home, { recursive: true, force: true }); });
+  const replies = [ASK, DONE, DONE];
+  let failWrite = true;
+  const stores = ownFormStores(run => run(forms));
+  const handlers: ActionHandlerBinding[] = createFormActionHandlers({ ...stores, modelAvailability: () => ({ available: true }),
+    write: async (caller, run) => { if (failWrite) { failWrite = false; throw new Error("落库失败"); } return stores.write(caller, run); },
+    completeText: async () => JSON.stringify(replies.shift()) });
+  const draft = handlers.find(handler => handler.capability_id === formActions.draft.capability_id)!;
+  const caller: ActionExecutionContext = { actor_id: "web-user", project_id: "p", audience: "user", permissions: [], beforeEffect: async () => {} };
+  const form = forms.create({ project_id: "p", title: "试用反馈" });
+  const call = (input: Record<string, unknown>) => draft.handle(caller, { id: form.id, prompt: "做一份试用反馈问卷", ...input }) as Promise<Drafted>;
+  const { interaction } = await call({});
+  const values = { q0: ["0"], q1: ["0"] };
+  await assert.rejects(call({ interaction: { interaction_id: interaction.interaction_id, values } }), /落库失败/);
+  const done = await call({ interaction: { interaction_id: interaction.interaction_id, values } });
+  assert.equal(done.status, "done");
+  assert.equal(forms.get(form.id, "p").questions.length, 3);
+});
+
 test("AC-26 「AI 生成题目」 is a well-formed metered model action that waits for the model off the project's queue", () => {
   assert.deepEqual(inspectActionDeclarations([formActions.draft], undefined), []);
   assert.equal(formActions.draft.action.scheduling, "concurrent");

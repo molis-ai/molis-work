@@ -7,7 +7,7 @@ import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
-for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save ordering, conflict, versions, explicit AI and publication`, { timeout: 90_000 }, async t => {
+for (const width of [1440, 390]) test(`W5-01-DATASET-03: Dataset ${width}px: edit, CSV, save ordering, conflict, versions, explicit AI and publication`, { timeout: 90_000 }, async t => {
   let modelCalls = 0;
   const browser = await openGoalBrowser(t, true, undefined, async prompt => { modelCalls++; assert.match(prompt, /截止时间/); return "截止日期"; }); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;
@@ -46,7 +46,7 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
   await evaluate(`(() => { const original = window.fetch; window.datasetSaveRequests = 0;
     window.fetch = async (url, init) => {
       const response = await original(url, init);
-      if (init?.method === 'POST' && new URL(url, location.href).pathname === '/api/plugins/dataset/${id}') {
+      if (init?.method === 'POST' && new URL(url, location.href).pathname.endsWith('/api/plugins/io.molis.work.dataset/datasets/${id}')) {
         window.datasetSaveRequests++;
         if (window.datasetSaveRequests === 1) await new Promise(resolve => { window.releaseDatasetSave = resolve; });
       }
@@ -125,8 +125,11 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
   assert.equal(read()[0]!.description, '发布中继续编辑');
   assert.equal(await evaluate("document.querySelector('[data-dataset-stage-workspace]').scrollLeft"), 0, 'toolbar scrolling must not shift the editor');
   // Scope spoofing is rejected by the real HTTP adapter, before any business mutation.
-  const denied = await evaluate<{status:number}>(`fetch('/api/plugins/dataset?project_id=${projectId}', {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'other-project', title:'must not exist'})}).then(r=>({status:r.status}))`);
+  const denied = await evaluate<{status:number}>(`fetch((document.body.dataset.routePrefix||'') + '/api/plugins/io.molis.work.dataset/datasets?project_id=${projectId}', {method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'other-project', title:'must not exist'})}).then(r=>({status:r.status}))`);
   assert.equal(denied.status, 403); assert.equal(read().length, 1);
+  // The short native route is gone, with no compatibility alias: the Runtime route is the only one.
+  const oldRoute = await evaluate<{status:number}>(`fetch((document.body.dataset.routePrefix||'') + '/api/dataset?project_id=${projectId}').then(r=>({status:r.status}))`);
+  assert.equal(oldRoute.status, 404);
   // The dataset being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
   await reloadPage(); await open(); await waitFor("document.querySelector('[data-dataset-title]')?.getClientRects().length > 0");
   await idle(); assert.equal(read()[0]!.artifact_version, 1);
@@ -138,7 +141,7 @@ for (const width of [1440, 390]) test(`Dataset ${width}px: edit, CSV, save order
   await writeFile(new URL(`dataset-editor-${width}.png`, output), Buffer.from((await command<{data:string}>('Page.captureScreenshot', {format:'png'}, sessionId)).data, 'base64'));
 });
 
-test('Dataset without a model disables AI while local creation and column edits still work', {timeout:45_000}, async t => {
+test('W5-01-DATASET-03: Dataset without a model disables AI while local creation and column edits still work', {timeout:45_000}, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const {command, sessionId, navigate, waitFor, evaluate, click, origin, projectId} = browser;
   await command('Emulation.setDeviceMetricsOverride', {width:1440, height:950, deviceScaleFactor:1, mobile:false}, sessionId);

@@ -145,8 +145,8 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `plugins/native/diff` | 对比界面：同一处理三种输入（`app`，Coding 家族） | Runtime 托管；输入是 Files 的两个快照、Coding Run 准备的变更集、Git 工作区里的改动；变更集过程项类型 `diff.changeset.v1` 按这个消费者定义 | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/text-stats` | 对已取得的文件快照数字符、UTF-8 字节和行（`app`，Coding 家族） | Runtime 托管；消费一个文件快照输入；两个查询动作（`text-stats.state` 读取已固定快照的统计，`text-stats.count` 统计给定文本），没有输出端口、事件和存储 | `partial` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/issues` | 个人问题的原始描述、类型、上下文与版本 | Home Runtime 托管；业务表 `{home}/issues/issues.db`；页面、助理、MCP 共用 `issues.*`，项目切换不分库；连接和授权由 Host 提供 | `partial` | `specs/issue-home-v0/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/images` | 个人生图与项目生成记录 | 见下文「图片生成插件」；生成经 Prologue | `partial` | `specs/archive/images-plugin/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/jelly` | 个人日历与笔记（收想法在灵光） | 见下文「Jelly 私人工作区」 | `partial` | `specs/archive/jelly-plugin/` | 内置插件：@yijunw0212、@jingxusandra-gif |
+| `plugins/native/images` | 个人生图与项目生成记录 | Home Runtime 独占原库/文件；生图经有限服务和 Prologue | `partial` | `specs/archive/images-plugin/spec.md` | 内置插件：@yijunw0212 |
+| `plugins/native/jelly` | 个人日历与笔记（收想法在灵光） | Home Runtime 独占原库；模型及配置经有限服务 | `partial` | `specs/archive/jelly-plugin/` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/cognia` | 个人知识库（现行 native 版） | 见下文「Cognia 个人知识库」；Cognia 2（生成插件方向）需求书未实施 | `partial` | `specs/archive/cognia-plugin/spec.md`；`specs/archive/cognia-plugin/v2/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/workflows` | 工作流程：内容站交接、模板转换、AI 整理、判断规则、动作步骤 | 站点与步骤从动作目录发现；交接幂等、中断复用原结果 | `partial` | `specs/action-architecture/spec.md` 工作流程节 | 内置插件：@yijunw0212 |
 | `plugins/native/plugin-builder` | 插件创作台：从一句需求生成插件 | 见下文「插件创作工作台」 | `partial` | `specs/archive/plugin-builder/work-items/studio-v3/spec.md` | 内置插件：@yijunw0212 |
@@ -193,13 +193,13 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | 责任 | Owner | 唯一事实源 |
 | --- | --- | --- |
 | 本机生图连接、项目任务、生成图片 | `plugins/native/images` | `{home}/images/images.db` 与 `assets/`；合同 `packages/contracts/src/modules/images.ts` |
-| API Key 加密、项目路由、HTTP 生命周期 | Local Host / Storage | 宿主 SecretStore 与解析后的项目上下文 |
+| 连接凭据、授权与实际模型请求 | Connector owner / Home Host / agent-host | Connector 连接与绑定；可信声明选择命名空间，imageGeneration 服务只交回字节与当次 revision |
 
 协议、范围与验证边界：`specs/archive/images-plugin/spec.md`；不改变文字模型设置，不自动重试或声明 Artifact 发布。
 
 ## Jelly 私人工作区
 
-`plugins/native/jelly` 拥有个人日历、每周重复实例、分类、笔记块、关联和撤销历史；唯一写入库 `{home}/jelly/jelly.db`。收想法、读文件与网页在灵光（[合入后审查 PMR-22](../specs/archive/post-merge-review/spec.md)）。Host 只接 HTTP、MCP 和模型端口，Workbench 只装配插件界面。原 Jelly App 的数据文件不参与写入。合同：`packages/contracts/src/modules/jelly.ts`；完整复刻范围与未验收项：`specs/archive/jelly-plugin/`。
+`plugins/native/jelly` 拥有个人日历、每周重复实例、分类、笔记块、关联和撤销历史；唯一写入库 `{home}/jelly/jelly.db`。收想法、读文件与网页在灵光（[合入后审查 PMR-22](../specs/archive/post-merge-review/spec.md)）。Home Runtime 注册全部 53 动作并提供 database、model 和 model.configuration；Host 的通用配置服务拥有模型选择解释与原 preferences.json v1，Jelly 拥有设置动作/UI与业务库。Workbench 只装配插件界面。原 Jelly App 的数据文件不参与写入。合同：`packages/contracts/src/modules/jelly.ts`；完整复刻范围与未验收项：`specs/archive/jelly-plugin/`。
 
 ### 插件创作工作台
 

@@ -16,13 +16,11 @@ import { mkdtemp, rm, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAlchemistProloguePort } from "../apps/local-host/dist/alchemist-prologue.js";
-import { handleAlchemistNativePluginHttp } from "../apps/local-host/dist/alchemist-native-plugin-http.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 import { createAlchemistSearchPort } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
+import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createAnySearchTransport } from "../apps/local-host/dist/anysearch-transport.js";
 import { ADDRESSES_NEVER_PUBLIC, ADDRESSES_PUBLIC } from "./fixtures/public-address-policy.js";
-import { authorizeLocalWebRequest, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -41,37 +39,30 @@ const ai: AlchemistAiPort = {
 test("studio HTTP keeps project isolation, authorized writes, persisted cards, export and legacy read-only boundary", { timeout: 15_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "alchemist-http-"));
   let host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai } });
-  const mutations = new Map<string, LocalMutationState>();
-  const token = "alchemist-http-test-control-token-0123456789";
-  const server = http.createServer(async (request, response) => {
-    const url = new URL(request.url!, "http://localhost");
-    if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
-    const project = /^\/projects\/([^/]+)/.exec(url.pathname)?.[1] ?? "a";
-    url.pathname = url.pathname.replace(/^\/projects\/[^/]+/, "");
-    const ref = molisWorkHostProjectReference({ databasePath: join(home, `${project}.sqlite`), projectId: project });
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: project, title: "HTTP Alchemist", actor_id: "http-user", idempotency_key: "alchemist-http-init" }));
-    await handleAlchemistNativePluginHttp(request, response, url, { projectId: project, routePrefix: `/projects/${project}`,
-      actions: { invoke: async (definition, input, signal) => await host.actionClient(ref).invoke({ actor_id: "http-user", project_id: project, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS, signal }, definition, input) as never } });
-  });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  const request = async (project: string, suffix: string, body?: unknown) => {
-    const response = await fetch(`${origin}/projects/${project}/api/alchemist/studio/api/v1${suffix}`, {
+  let served = await serveTestHost(null, { home, host });
+  const projects = {
+    a: await served.createProject("Alchemist A", ["alchemist"]),
+    b: await served.createProject("Alchemist B", ["alchemist"]),
+  };
+  let { origin, controlToken: token } = served;
+  const projectUrl = (project: "a" | "b") => `${origin}/projects/${projects[project].project_id}`;
+  const request = async (project: "a" | "b", suffix: string, body?: unknown) => {
+    const response = await fetch(`${projectUrl(project)}/api/alchemist/studio/api/v1${suffix}`, {
       method: body === undefined ? "GET" : "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     return { status: response.status, body: await response.json() as any };
   };
   try {
-    const denied = await fetch(`${origin}/projects/a/api/alchemist/studio/api/v1/directions`, { method: "POST", body: "{}" });
+    const denied = await fetch(`${projectUrl("a")}/api/alchemist/studio/api/v1/directions`, { method: "POST", body: "{}" });
     assert.equal(denied.status, 403);
     // The old standalone Studio address is gone, not redirected (no compatibility routes).
-    const page = await fetch(`${origin}/projects/a/api/alchemist/studio`, { redirect: "manual" });
+    const page = await fetch(`${projectUrl("a")}/api/alchemist/studio`, { redirect: "manual" });
     assert.equal(page.status, 404);
-    assert.equal((await fetch(`${origin}/projects/a/api/alchemist/studio/assets/app.js`)).status, 404);
-    const mismatch = await fetch(`${origin}/projects/a/api/alchemist/studio?project_id=b`); assert.equal(mismatch.status, 400);
+    assert.equal((await fetch(`${projectUrl("a")}/api/alchemist/studio/assets/app.js`)).status, 404);
+    const mismatch = await fetch(`${projectUrl("a")}/api/alchemist/studio?project_id=b`); assert.equal(mismatch.status, 400);
     // A body that is not JSON is a coded error of the platform (W3-02-A); on origin/main this edge answered 400 with its own `alchemist.request_failed`.
-    const notJson = await fetch(`${origin}/projects/a/api/alchemist/studio/api/v1/directions`, { method: "POST", body: "{not json",
+    const notJson = await fetch(`${projectUrl("a")}/api/alchemist/studio/api/v1/directions`, { method: "POST", body: "{not json",
       headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() } });
     assert.deepEqual([notJson.status, (await notJson.json() as { code: string }).code], [400, "actions.input_invalid"]);
     const created = await request("a", "/directions", { description: "让创始人用访谈原句复核自己的产品假设" });
@@ -92,13 +83,15 @@ test("studio HTTP keeps project isolation, authorized writes, persisted cards, e
     const exported = await request("a", "/workspace/export?format=json", {});
     assert.equal(exported.status, 200); assert.match(JSON.stringify(exported.body), /访谈回看/); assert.doesNotMatch(JSON.stringify(exported.body), /api_key|secret_alias/);
     const otherExport = await request("b", "/workspace/export?format=json", {}); assert.doesNotMatch(JSON.stringify(otherExport.body), /访谈回看/);
-    const oldWrite = await fetch(`${origin}/projects/a/api/alchemist`, { method: "POST", headers: { origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() }, body: "{}" }); assert.equal(oldWrite.status, 404);
-    await host.close();
+    const oldWrite = await fetch(`${projectUrl("a")}/api/alchemist`, { method: "POST", headers: { origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() }, body: "{}" }); assert.equal(oldWrite.status, 404);
+    await served.close(); await host.close();
     host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai } });
+    served = await serveTestHost(null, { home, host });
+    ({ origin, controlToken: token } = served);
     const restored = await request("a", "/bootstrap"); assert.equal(restored.body.ideas.length, 1); assert.equal(restored.body.ideas[0].title, card.title);
   } finally {
     await host.close();
-    await new Promise<void>(resolve => server.close(() => resolve()));
+    await served.close();
     await rm(home, { recursive: true, force: true });
   }
 });

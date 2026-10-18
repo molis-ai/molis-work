@@ -235,10 +235,14 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// W5-10-PPV: the user approved the measured preview extraction's 103 B on 2026-10-18.
-// Only this exact predecessor can grow once; later growth and every other asset stay frozen.
+// W5-01 Lingguang: the shared browser NDJSON reader adds 2,231 B to workbench.js, while Lingguang's own bundle loses
+// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. Actual main now includes
+// Todo and receipts 3e-1, starting at 1,111,791 B. Preserve only the unspent +2,231 B; every prior start remains refused.
+// This exact increase is spent once; later growth stays frozen.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [706825, 706928],
+  "/assets/molis-work-workbench.js": [1111791, 1114022],
+  // User approved 2026-10-18: explicit Alchemist continuation, original budget and unknown-call fee warning.
+  "/assets/molis-work-plugins/alchemist.js": [50619, 52373],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

@@ -1,12 +1,15 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { homeFixtureEntries, type PluginFixture } from "./home-side.js";
+import { homeFixtureEntries, pluginFixtureDeclarations, storesWithFixtures, type PluginFixture } from "./home-side.js";
+import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 
 const definitionOf = (fixture: PluginFixture) => "manifest" in fixture ? fixture : fixture.definition;
 
 /** Host configuration is checked before any Home or project instance can start. */
 export function assertFixtureScopes(fixtures: { home?: readonly PluginFixture[]; project?: readonly PluginFixture[] } | undefined, hasHome: boolean): void {
   const home = fixtures?.home ?? [];
+  assertOwnerFilesEntries([...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, definition: entry.runtime.create() }] : []),
+    ...pluginFixtureDeclarations(home)], pluginFixtureDeclarations(fixtures?.project ?? []), hasHome ? { stores: storesWithFixtures(fixtures) } : null);
   if (home.length && !hasHome) throw new Error("Home 夹具需要明确的 Home 目录");
   const projectIds = new Set((fixtures?.project ?? []).map(item => definitionOf(item).manifest.plugin_id));
   for (const fixture of home) {

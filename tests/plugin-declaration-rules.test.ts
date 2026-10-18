@@ -108,7 +108,7 @@ const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unk
   { rule: "an undo that names nothing", actions: [defined({ undo: {} })], expected: [`能力 ${KEY} 的撤销声明必须是可撤回的命令，并写明同一提供方的撤销命令与其输入在本次输出里的位置`] },
   { rule: "a search source declared on a plain action", actions: [defined({ search_source: { kinds: [] } })], expected: [`能力 ${KEY} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置`] },
   { rule: "the search entries type with the wrong schemas", actions: [defined({ input_type: SEARCH_ENTRIES_INPUT_TYPE })], expected: [`能力 ${KEY} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置`] },
-  { rule: "fragment offer choices on a plain action", actions: [defined({ fragment_offer_choices: [] })], expected: [`能力 ${KEY} 没有兑现片段动作协议 v1 的输入输出合同`, `能力 ${KEY} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`] },
+  { rule: "fragment offer choices on a plain action", actions: [defined({ fragment_offer_choices: [{}] })], expected: [`能力 ${KEY} 没有兑现片段动作协议 v1 的输入输出合同`, `能力 ${KEY} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`] },
   { rule: "the fragment offers type with the wrong schemas", actions: [defined({ input_type: FRAGMENT_OFFERS_INPUT_TYPE })], expected: [`能力 ${KEY} 没有兑现片段动作协议 v1 的输入输出合同`, `能力 ${KEY} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`] },
   { rule: "a file source declared on a plain action", actions: [defined({ file_source: {} })], expected: [`能力 ${KEY} 没有兑现文件来源协议 v1：需要规范输入输出、查询类型、对本机用户开放、与角色一致的声明和对应文件种类的打开位置`] },
   { rule: "the file entries type with the wrong schemas", actions: [defined({ input_type: FILE_ENTRIES_INPUT_TYPE })], expected: [`能力 ${KEY} 没有兑现文件来源协议 v1：需要规范输入输出、查询类型、对本机用户开放、与角色一致的声明和对应文件种类的打开位置`] },
@@ -155,7 +155,8 @@ const MANY_IN_ONE = defined({
   background_job: {},
   undo: {},
   search_source: { kinds: [] },
-  fragment_offer_choices: [],
+  // An empty list is only checked against the Manifest (an entry's `prepare`, W4-1); a malformed choice is checked here.
+  fragment_offer_choices: [{}],
   file_source: {},
   workflow_content: {},
 }, { operation: "command" });

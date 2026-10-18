@@ -2,8 +2,11 @@ import type { AgentSessionRef, AgentStartRequest, AgentTextMaterial } from "@mol
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID, type AssistantMaterial } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { StoredWork } from "./assistant-store.js";
 
-/** Enough for a real piece of business work with its lookups; a round never runs unbounded. */
-export const ROUND_TURNS = 24;
+/**
+ * Enough for a real piece of business work with its lookups, including a desktop task that needs about twenty steps
+ * with a look and an action each; a round never runs unbounded (specs/computer-use §9, CU-G05).
+ */
+export const ROUND_TURNS = 60;
 /** Whose a work's rounds are on the Host: its project's, or the person's own when it belongs to none. */
 export const ownerOf = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PERSONAL_OWNER;
 

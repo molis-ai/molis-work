@@ -1108,3 +1108,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18：用户问 #661 能否合并，弹窗定：**不拆，整体审一次就合**。统筹已审（1d1a44944），必改 3 条：S-35/S-36 与 #634 撞号要顺延；HubSpot 受管安装走 latest、没钉版本；已存的 replace-secret HTTP MCP 配置升级后连不上，要进维护八与正文。用户另定：接受 images.connections.list v1→v2（MCP 工具名 __v1→__v2，旧名停用）。改完、merge main、重量后统筹加 full-suite。
 
 - 10-18：#709 新 head 5d403c724 只合 main 4bea52c84、重量 coding.js 374,437，逐行同 34946e581 → merge-only 入队（gate-709b）。#711 全量绿（cedd0503d）已自动入队。
+- 10-18：#712 新 head 4f7ace6e7 只合 main 4bea52c84、放行改为 [1110187, 1110460]（+273），逐行同 3255098e6 → full-suite（chain50）。

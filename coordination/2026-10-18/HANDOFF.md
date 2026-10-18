@@ -40,7 +40,7 @@
 - #727（防腐线 W5-01 材料服务，Codex）：用户定等它再合。统筹审过、全量过（run 39127845026，也作 #703 的事后全量证据），10-18 已合入 main（74f39a47c）。
 - #733（防腐线，Codex，草稿，10-18 13:10 新开）：cognia 的知识改走 Home 插件运行时。和 #729 一样是交接前才开的新片，留给接手的统筹。防腐线另在集成分支 `integration/anti-corruption-closeout-20261018` 上自己触发了全量，会占 runner。
 - #729（防腐线 W5-01 的下一片，Codex，草稿，叠在 #727 上，10-18 12:22 新开）：灵光改走 Plugin Runtime，删掉 `/api/lingguang`。用户说处理的是「现在存量的」，它是交接前才开的、仍在进行的线上的新片，留给接手的统筹。注意它重写了 `plugins/native/lingguang/src/actions.ts`，和 #730 撞同一个文件，后合的要解冲突。
-- #721（Computer Use 线，DeepSeek Harness）：统筹审过 6a86d09cd，要改一处：模型给的 `/正则/` 会回溯卡死执行进程，统筹定换成「包含」匹配。改完核增量，跑全量，合入。真机验收（CU-G02–G04）用户决定晚点。
+- #721（Computer Use 线，DeepSeek Harness）：10-18 13:46 从用户账号在 6a86d09cd 合入 main（7509b10ad），没等统筹要求的那处修改。**必须的后续，交 Computer Use 线**：`apps/local-host/src/computer/computer-act.ts` 的 `selector` 仍把模型给的 `/…/` 直接 `new RegExp(…, "iu")`，再对最多 600 个节点名 `test`；模型输入受页面内容影响，回溯型正则能卡住宿主的事件循环。改成按名字包含匹配（或有界、不回溯的匹配），配一条断言拒绝/不卡住的测试，补 `SECURITY-INVARIANTS.md` 的 S-25 行。事后记录在 PR 评论里。
 
 ### 1.2 各线
 

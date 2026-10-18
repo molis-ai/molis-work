@@ -20,6 +20,12 @@ OwnerFiles 交接收口（2026-10-18，Codex，本地同步通过）：已 merge
 
 SHM/AQD 交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前模型/Images/Jelly 前置 10e8ef32a 与实际 main 63639a764，保留原模型最终提交复核和原调用者只读委托。整体 offline install/build、API（无额外变化）、boundary、merge-base health 与实测资源通过；13 个有效相关文件 121 条通过，覆盖原图/推理回执、权限等待、query-only、真实 Home/project HTTP/MCP、后台授权及缺项目诊断。首批命令误写不存在的 home-platform.test.ts，属于路径错误，实际 home-plugin-platform.test.ts 已另跑 7/7 通过；不把该错误当成产品回归。25 项 7,478,060 B，无本片增量。日志 /tmp/molis-shm-aqd-closeout-{build,api,health,boundary,assets,targeted,home-platform}.log。此前完整相关与浏览器证据保留，正式 PR/CI 待前置；Shelf 业务迁移仍未开始。
 
+Jelly Runtime 首屏修复（2026-10-18，第二轮全量发现）：真实 Chrome 在 1440/390 两宽均无法加载日历；隔离页面诊断确认客户端 GET `/api/plugins/io.molis.work.jelly` 返回 404，同一现行 Manifest 根路由带末尾 `/` 返回 200。只修客户端初载、冲突后刷新、按 ID 打开前刷新三处工作区读取，统一请求声明的 `/`；Host 匹配、路由权限、业务动作与数据不变，不新增旧地址兼容。`W5-01-JELLYHTTP-02`：正式 Chrome 初载、创建/编辑、手工拆解、复制日程与重载持久化均通过（1440/390）；同原用例在主线基线通过、修前组合失败。整体构建后跑 Jelly 现行必跑、模型设置页面回归、health/boundary/API及资源；不得以加长等待掩盖 404。
+
+第二轮补修验证：整体 build、完整 merge-base health/API、boundary 和资源通过；10 个相关非浏览器文件 75 条、2 个真实 Chrome 文件 14 条，共 12 文件 89 条通过。Jelly 同一 1440/390 用例在已合入材料基线通过、修前组合失败、修后通过；完整创建/编辑/手工计划/复制/重载路径保持。Jelly 客户端 91,167→91,179 B（修复 +12 B），仍低于实际 main 预算；本模型组合 25 项 7,478,072 B，相对前置减少 300 B，无新额度。原日志 `/tmp/molis-jelly-{baseline,combined-before,root-*}.log`、`/tmp/molis-model-consumer-usages-after.log`；后续全量另记。
+
+Images v2 连接用途集成补正（2026-10-18）：第二轮全量 39132021277 暴露连接用途成功夹具仍只有 `images:generate`，遗漏现行 v2 动作要求的 `model:invoke`。真实 main 材料基线同用例通过，当前组合失败；成功夹具补完整现行权限，并新增仅移除 model:invoke 的拒绝分支，原 Home 无项目、缺 generate、不可见 reporter、换账号及停用连接断言保持。未修改生产权限或可用性判定。
+
 模型/Runtime 集成全量补正（2026-10-18）：39130898172 的 `affected-tests` 失败来自历史断言“至少 18 个 SqliteBaseline 声明”；Images/Jelly 迁移已从 19 个减到 17 个，后续 PPT/Dataset/Workflows 继续减到 14 个。改为明确断言两处实际声明必须被发现，再逐个检查扫描所得全部声明的完整 version/schema；原 schema 变化、版本变化和无存储文件的拒绝判定均保持，不改选择脚本或门禁规则。定向与后续全量结果另记。
 
 模型端口与 Images/Jelly 交接收口（2026-10-18，Codex，本地同步通过）：候选 merge 前置后台服务 c99e348ec，包含实际 main 63639a764 与已验证的灵光、Cognia、插件文件服务；保留主线 vendor/receipts 与完整的已消费资源拒绝用例。整体 offline install/build、API 与动作快照（均无额外变化）、boundary、merge-base health 及实测资源通过，19 个直接相关文件 235 条通过，覆盖模型选择/配置/图片调用、项目清理/路由、Images/Jelly HTTP/MCP、授权并发及公开合同。25 项共 7,478,060 B，比当前后台服务前置减少 312 B；本次没有新增资源额度。日志 /tmp/molis-model-closeout-{install,build,api,actions,health,boundary,assets,targeted}.log；前期必跑与 Chrome 证据继续有效，未冒称重复运行。共享核心全量和正式 PR/CI/合入仍待队列，整线未完成。

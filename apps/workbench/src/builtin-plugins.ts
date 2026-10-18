@@ -234,6 +234,8 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       contributions: [shelfUiContribution, shelfSettingsUiContribution],
       stylesheet: SHELF_STYLES,
       clientFactory: SHELF_CLIENT_FACTORY_SCRIPT,
+      // Its terminal well runs xterm, which the side tab's own document has to load (the page loads it for the stage).
+      clientAssets: ["/desktop/pty-client.js"],
       settingsClient: SHELF_SETTINGS_CLIENT_SCRIPT,
     },
   },

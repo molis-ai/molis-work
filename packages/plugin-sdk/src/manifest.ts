@@ -34,6 +34,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
     throw pluginErrors.manifest_invalid("app Plugin 必须使用 schema_version 2");
   }
   inspectUpgradeCompatibility(manifest);
+  if (manifest.always_on !== undefined && typeof manifest.always_on !== "boolean") invalid("always_on 必须为布尔值");
   if (!Array.isArray(manifest.entrypoints) || manifest.entrypoints.length === 0) {
     throw pluginErrors.entrypoint_missing("Plugin 至少需要一个 entrypoint");
   }
@@ -162,6 +163,7 @@ export function comparePluginVersions(left: string, right: string): number {
 /** A v1 Manifest cannot carry v2 declarations: the version must state the contract. */
 function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, unknown>): void {
   const v2Blocks: Array<[string, unknown]> = [
+    ["always_on", manifest.always_on],
     ["ports", manifest.ports],
     ["events", manifest.events],
     ["routes", manifest.routes],

@@ -10,6 +10,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  ALWAYS_ON_PLUGIN_IDS,
   PERSONAL_PLUGIN_IDS,
   PROJECT_SCOPED_PLUGIN_IDS,
   pluginMarketCards,
@@ -138,8 +139,11 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
     ["form", "dataset", "ppt"],
   );
   const market = pluginMarketCards();
-  // Every personal plugin is in the market except 角色, whose page is Settings › 角色.
-  assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id), PERSONAL_PLUGIN_IDS.filter((id) => id !== "characters"));
+  // Every personal plugin is in the market except 角色, whose page is Settings › 角色, and the 常开插件 (Shelf), which nobody
+  // adds or removes.
+  assert.deepEqual(ALWAYS_ON_PLUGIN_IDS, ["shelf"]);
+  assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id),
+    PERSONAL_PLUGIN_IDS.filter((id) => id !== "characters" && !ALWAYS_ON_PLUGIN_IDS.includes(id)));
   assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");
 });
 

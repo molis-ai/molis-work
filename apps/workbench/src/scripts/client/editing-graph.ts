@@ -196,7 +196,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     try {
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
         prepareSurface: surface => deferredClients?.prepare(surface),
-        setFeedTask, setFeedAddOpen, showToast,
+        setFeedTask, setFeedAddOpen, showToast, paneMessages,
         showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
         translate: L,
         getSurface: () => activeDesktopSurface,

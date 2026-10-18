@@ -310,7 +310,6 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["inbox", "Inbox", "inbox"],
       ["jelly", "Jelly", "calendar"],
       ["feed", "Feed", "rss"],
-      ["shelf", "Shelf", "library"],
       ["pages", "Pages", "note"],
       ["form", "Forms", "clipboard"],
       ["dataset", "Dataset", "database"],
@@ -318,7 +317,7 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
       ["alchemist", "炼金术士", "zap"],
       ["artifacts", "成果", "package"],
     ],
-    "侧栏轨只挂 Manifest 声明了 navigator 的插件；灵光在岛上",
+    "侧栏轨只挂 Manifest 声明了 navigator 的插件；灵光在岛上，Shelf 是侧栏的格",
   );
   assert.deepEqual(
     islandEntries(everything).map((entry) => [entry.id, entry.label, entry.glyph]),
@@ -327,8 +326,8 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   );
 
   assert.deepEqual(
-    railEntries(["goals", "shelf"]).map((entry) => entry.id),
-    ["goals", "shelf"],
+    railEntries(["goals", "pages"]).map((entry) => entry.id),
+    ["goals", "pages"],
     "只显示已启用的插件，且保持声明顺序",
   );
   assert.deepEqual(railEntries([]), []);
@@ -363,4 +362,33 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("todo"), false, "个人插件不是项目可启用项");
   assert.equal(BUILTIN_PLUGIN_REGISTRY.has("alchemist"), false, "个人插件不是项目可启用项");
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("feed"), ["inbox"]);
+});
+
+test("a 常开插件 is shown in every project, even one that once hid it, and is neither offered nor removable", async () => {
+  const { shownProjectPlugins, pluginMarketCards, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-workbench");
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.isAlwaysOn?.("shelf"), true);
+  assert.equal(BUILTIN_PLUGIN_REGISTRY.isAlwaysOn?.("lingguang"), false);
+  // A project that hid Shelf before it became always on still shows it; a hidden ordinary personal plugin stays hidden.
+  const shown = shownProjectPlugins(["goals"], ["shelf", "lingguang"]);
+  assert.ok(shown.includes("shelf"));
+  assert.equal(shown.includes("lingguang"), false);
+  assert.equal(pluginMarketCards().some((card) => card.id === "shelf"), false, "nobody adds what is always on");
+});
+
+test("OPEN-PLACE-01 a plugin opens where its declarations put it: the work area if it has a stage, else its side tab", async () => {
+  const { sideOpenedPlugins } = await import("@molis-ai/molis-work-app-workbench");
+  const entry = (id: string, slots: string[], views: Array<{ view_id: string; slot: string }>) => ({
+    project_plugin_id: id,
+    manifest: { ui: { views } },
+    workbench: { contributions: [{ descriptor: { surfaces: slots.map((target_slot_id) => ({ target_slot_id })) } }] },
+  });
+  // A side view and nothing else (not Shelf): its side tab. A stage and a side view: the stage, as before.
+  assert.deepEqual(sideOpenedPlugins([
+    entry("notes-sidecar", ["workbench.side"], [{ view_id: "pad", slot: "side" }]),
+    entry("both", ["workbench.main", "workbench.side"], [{ view_id: "main", slot: "navigator" }, { view_id: "side", slot: "side" }]),
+    entry("listed", ["workbench.directory", "workbench.side"], [{ view_id: "side", slot: "side" }]),
+    entry("nowhere", [], []),
+  ]), { "notes-sidecar": "plugin:notes-sidecar/pad" });
+  // The shipped plugins: Shelf is the only one with nothing but a side view.
+  assert.deepEqual(sideOpenedPlugins(), { shelf: "plugin:shelf/side" });
 });

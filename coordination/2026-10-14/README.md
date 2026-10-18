@@ -1052,3 +1052,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 prologue#46 合入 94ee1ea4（ask-user 的 id 说明由校验用的 QUESTION_ID_PATTERN 拼出，用例读模型拿到的说明逐个试边界）。换包改从 94ee1ea4 打（#42–#46）。手册线在途剩 #697，后续 ② 可开。
 
 - 10-18 #695 合入 6505378e8（BL-156 Molis 半边、S-33、AC-07），coding.js 373970；#694/#696/#697 与新 main 合并干净、不用重新取键。交互线发下一片计划。
+
+- 10-18 #696 全量过，在入队。#698（手册后续 ②，324bece38，叠在 #697 上）审过：withInteractionRepairLimit 停下带人话原因、活读与重开读同一原因、条件不变；等 #697 合入后改 base 为 main、merge main，再加标签。

@@ -2,11 +2,8 @@ import { CONNECTOR_EXPERIENCE_STYLES } from "./settings-connectors.js";
 export const SETTINGS_STYLES = `
   html:has(> body.settings-page), body.settings-page { height: 100dvh; max-height: 100dvh; min-height: 0; overflow: hidden; overscroll-behavior: none; background: var(--page); }
   body.settings-page { display: grid; grid-template-rows: auto minmax(0, 1fr); }
-  body.settings-page[data-desktop-shell="true"] > .topbar { display: flex; }
   .settings-page > .topbar { height: 58px; min-height: 58px; }
   .settings-page .brand { color: inherit; text-decoration: none; }
-  body.settings-page[data-desktop-shell="true"] .project-context strong { display: block; }
-  body.settings-page[data-desktop-shell="true"] .project-context small { display: none; }
   .settings-shell { min-width: 0; min-height: 0; height: 100%; overflow: hidden; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
   .settings-shell--standalone { grid-template-columns: minmax(0, 1fr); }
   .settings-shell--standalone .settings-document { margin-inline: auto; }
@@ -523,7 +520,6 @@ export const SETTINGS_STYLES = `
   .coding-settings .coding-method-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.65; padding: 12px; background: var(--nav-hover); }
   .coding-settings .mw-select { max-width: 100%; }
   .project-settings-embed-pending { margin: 0; color: var(--muted); font-size: 13px; }
-  .project-settings-hub { width: 100%; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-color: var(--line-strong) transparent; }
   .project-manager-section { padding: 16px 0 0; }
   .project-manager-section + .project-manager-section { margin-top: 4px; border-top: 0; }
   .project-manager-section h3 { margin: 0 0 12px; font-size: 13px; font-weight: var(--weight-title, 600); letter-spacing: -.01em; }
@@ -558,53 +554,6 @@ export const SETTINGS_STYLES = `
     .project-manager-open, .project-manager-index-actions > *, .project-manager-danger-actions button, .project-delete-quiet, .project-settings-fold > summary { min-height: 44px; }
     .project-manager-create-form input, .project-settings-identity input { font-size: 16px; }
     .project-settings-fold-body .guidance-aside { grid-template-columns: 1fr; gap: 16px; }
-  }
-  body.settings-page[data-desktop-shell="true"][data-settings-section="projects"],
-  body.settings-page[data-desktop-shell="true"][data-settings-section="project"] {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  body.settings-page[data-desktop-shell="true"]:is([data-settings-section="projects"], [data-settings-section="project"]) > .topbar {
-    grid-column: 1;
-    grid-row: 1;
-    z-index: 1;
-    padding: 0 16px;
-    border: 0;
-    border-bottom: 1px solid var(--line);
-    border-radius: 0;
-    background: var(--paper);
-  }
-  body.settings-page[data-desktop-shell="true"]:is([data-settings-section="projects"], [data-settings-section="project"]) > .topbar > .brand {
-    position: static;
-    left: auto;
-    transform: none;
-    display: flex;
-    height: auto;
-    padding: 0;
-  }
-  body.settings-page[data-desktop-shell="true"]:is([data-settings-section="projects"], [data-settings-section="project"]) > .topbar > .top-action {
-    display: inline-flex;
-  }
-  body.settings-page[data-desktop-shell="true"]:is([data-settings-section="projects"], [data-settings-section="project"]) > .settings-shell {
-    grid-column: 1;
-    grid-row: 2;
-    min-height: 0;
-    height: auto;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
-  }
-  body.settings-page[data-desktop-shell="true"]:is([data-settings-section="projects"], [data-settings-section="project"]) .settings-content {
-    grid-column: 1;
-    grid-row: 1;
-    padding: 0;
-    min-height: 0;
-    overflow: hidden;
-    background: var(--paper);
-  }
-  body.settings-page[data-desktop-shell="true"][data-settings-section="projects"] .project-manager {
-    height: 100%;
-    min-height: 0;
   }
 `;
 
@@ -717,13 +666,6 @@ export const SETTINGS_IA_NAV_STYLES = `
     display: flex;
     flex-direction: column;
     gap: 0;
-    overflow: hidden;
-  }
-  body.settings-page[data-desktop-shell="true"] .settings-navigation.settings-navigation--codex {
-    display: flex;
-    flex-direction: column;
-    grid-template-rows: none;
-    padding: 16px 12px 32px;
     overflow: hidden;
   }
   body.settings-page .settings-navigation--codex .settings-nav-back {

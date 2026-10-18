@@ -75,9 +75,12 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
    * up, the step is given back and the continuation is left as it was (the SDK has no way out of it but a new wait).
    */
   const stillHeld = (wait: HeldWait, continuation: AgentContinuationView) => HELD.includes(continuation.state) && HELD.includes(nodeOf(wait.scope.board, wait.scope.node)?.state ?? "");
-  /** A session's wait that still matters: the open one, or the latest whose continuation was not taken up or given up. */
+  /**
+   * A session's wait that still matters: the open one, or the latest whose continuation was not taken up or given up. A
+   * wait that ends its step (a job a work follows, §6.0o) is not one: nothing goes on in the session from it.
+   */
   const sessionView = async (sessionId: string): Promise<AgentCollaborationSessionView> => {
-    const held = [...runtime.waits.list({ session: sessionId })].sort((a, b) => b.createdAtMs - a.createdAtMs);
+    const held = [...runtime.waits.list({ session: sessionId })].filter(wait => wait.afterwards !== "end-step").sort((a, b) => b.createdAtMs - a.createdAtMs);
     for (const wait of held) {
       const continuation = continuationOf(wait);
       if (wait.state === "waiting" || continuation && !["started", "cancelled"].includes(continuation.state) && (!HELD.includes(continuation.state) || stillHeld(wait, continuation))) {

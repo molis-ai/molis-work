@@ -143,6 +143,12 @@ export interface AgentPendingQuestion {
   /** Frozen questionnaire read from its execution owner, never reconstructed from prose. */
   questions?: ReadonlyArray<AgentQuestion>;
   answerable?: boolean;
+  /**
+   * The round stopped at a restart while this question was open, and it can still be answered: the answer ends that round and
+   * waits in the session for its next round, which whoever answered opens. Absent: the round, if it is answerable, takes the
+   * answer itself.
+   */
+  parked?: true;
   unavailable_reason?: string;
 }
 
@@ -164,3 +170,12 @@ export interface InteractionRequest {
   html?: string;
 }
 export interface InteractionRequestResult { status: "needs_input"; interaction: InteractionRequest }
+
+/**
+ * 「请 AI 重新问」 (specs/ai-interaction-experience D5): which closed question a new round asks again. The page names only the
+ * question; the Host reads it from the run, takes the draft it kept for it, and writes the round's words itself.
+ */
+export interface AgentQuestionReask {
+  run_id: string;
+  pending_id: string;
+}

@@ -380,6 +380,7 @@ tests/import-boundary-template.test.ts
 tests/inbox-native-plugin.test.ts
 tests/inbox-prepared-pages.test.ts
 tests/interaction-examples.test.ts
+tests/interaction-reask.test.ts
 tests/interaction-recovery.test.ts
 tests/jelly-calendar.test.ts
 tests/jelly-content.test.ts

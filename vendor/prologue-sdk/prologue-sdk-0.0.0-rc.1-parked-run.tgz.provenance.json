@@ -1,0 +1,45 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "b541a8e62752fce23c83f959d55e549b3086557f",
+    "mergedUpstream": {
+      "pullRequest": 41,
+      "head": "ee1f41dd19ad57b70fd152575e4ecab898fb0fb2",
+      "mergedAt": "2026-10-17T20:41:11Z",
+      "note": "Upstream main after #41 (a parked run's driver returns at seal, so its timers no longer keep the process alive), on top of #40 (a run waiting on a question survives a normal shutdown, BL-156; head 1100940e) and #39 (a handover drops the wait that ends its step; merge d7b7c214, head 6aaa7775). Includes everything from #38 and before."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-parked-run.tgz",
+    "bytes": 1211301,
+    "sha256": "6f551e02050f85bb431aca88ac76ed67f0495b2c606e5e60b3e1c2625a9e61e2",
+    "integrity": "sha512-t3y5l+ocXp8PQHi2yn4y7Cykpxzalh61+/lZt3krB1D1GHdyvzswraylRBQ3GVB/gN7/cQm9ySZwzbLjtBqb9g=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive b541a8e62752fce23c83f959d55e549b3086557f | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --offline",
+      "pnpm --filter @prologue/sdk run build",
+      "cd packages/sdk && pnpm pack --out <dir>/prologue-sdk-0.0.0-rc.1-parked-run.tgz"
+    ],
+    "packedOn": "2026-10-17",
+    "reproducedFrom": "b541a8e62752fce23c83f959d55e549b3086557f",
+    "reproducedByteIdentical": true,
+    "note": "Packed twice from two separate clean archives of upstream main b541a8e6; the two packs are byte-identical. On that tree: tsc (tsconfig.typecheck.json) and build pass; SDK suite without desktop-computer-use.live and computer-use.live: 360 files (354 passed, 6 skipped by their existing conditions), 3989 tests passed, 21 skipped, 0 failed; the 13 consumer fixtures pass against this pack in a clean install. No paid model requests or real desktop-control tests."
+  }
+}

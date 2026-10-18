@@ -61,7 +61,10 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       if (run.blockers.length && !reasons.length) reasons.push("执行或操作记录尚未核实，请稍后重新核对。");
       return { run_id: run.ref.id, version: run.version, live: run.live, waiting: run.waiting,
         operations: run.operations.map(operation => ({ ...operation })), blockers: reasons,
-        can_close: run.canClose && blockers.length === 0, ...(subagent ? { subagent } : {}) };
+        can_close: run.canClose && blockers.length === 0, ...(run.canAnswer && blockers.length === 0 ? { can_answer: true as const } : {}),
+        ...(run.questions.length ? { questions: run.questions.map(question => ({ pending_id: question.ref.id, pending_revision: question.ref.revision, kind: question.kind,
+          prompt: question.prompt, ...(question.answered ? { answered: true as const } : {}) })) } : {}),
+        ...(subagent ? { subagent } : {}) };
     };
     // A subtask cut off by a restart blocks every new round of its parent until its own interrupted run is closed.
     const children = [];
@@ -77,10 +80,14 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
   };
 
   /** Why a restored session needs checking before a new round, if it does. */
-  const restoreReasons = (id: string, index: SessionIndex, terminal: readonly { id: string }[], open: OpenWork): string[] => {
+  const restoreReasons = async (id: string, index: SessionIndex, terminal: readonly { id: string }[], open: OpenWork): Promise<string[]> => {
     const reasons: string[] = [];
     if (open.unavailable.length) reasons.push("未能查清运行时的未结束工作，暂不能安全继续");
-    if (open.items.some(item => item.origin.session === id)) reasons.push("此会话仍有中断的执行、等待或结果未知的操作，需要核对");
+    const mine = open.items.filter(item => item.origin.session === id);
+    // A round parked at a normal shutdown on a question that can still be answered waits for the person, not for checking.
+    const parked = mine.length ? (await runtime.sessions.inspectRecovery(index.ref).catch(() => undefined))?.runs.filter(run => run.canAnswer && run.parked) ?? [] : [];
+    if (mine.length && mine.every(item => parked.some(run => item.id === run.ref.id || item.id === run.parked!.pending.id))) reasons.push("上一轮停在一道等你回答的问题上：回答后接着做，也可以结束那一轮");
+    else if (mine.length) reasons.push("此会话仍有中断的执行、等待或结果未知的操作，需要核对");
     if (childrenToReconcile(id).length) reasons.push("有子任务在中断后结果待核对：核对并结束它的中断轮次后，才能开始新一轮");
     if (terminal.some(ref => !index.attempts.some(attempt => attempt.run_id === ref.id))) reasons.push("SDK 有执行记录缺少宿主启动索引，需要核对对应关系");
     return reasons;
@@ -95,7 +102,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
     if (index.workspace !== "none" && index.workspace !== "business") await deps.checkpoints?.restore(id);
     const terminal = await session.terminalRuns();
     const open = await runtime.listOpenWork();
-    const reasons = restoreReasons(id, index, terminal, open);
+    const reasons = await restoreReasons(id, index, terminal, open);
     const runs: PrologueRestoredSession["runs"] = [];
     const reverse = [...index.attempts].reverse();
     const last = reverse.find(attempt => attempt.run_id);
@@ -112,6 +119,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       runs.push({ ref: { run_id: attempt.run_id, session_id: id }, frozen: attempt.frozen,
         started_at: attempt.started_at, task: attempt.task,
         ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
+        ...(attempt.stop_reason ? { stop_reason: attempt.stop_reason } : {}),
         ...(attempt.timing ? { timing: attempt.timing } : {}),
         ...(attempt.desktop_target ? { desktop_target: attempt.desktop_target } : {}),
         ...(ref ? { terminal: true } : {}),

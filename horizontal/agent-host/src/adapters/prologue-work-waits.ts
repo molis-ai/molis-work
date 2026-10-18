@@ -35,10 +35,14 @@ export function createWorkWaits(runtime: Runtime, root: string, isWorkGraph: (gr
       await runtime.waits.cancel(wait.ref.id, await now(), note).catch(error => { if (codeOf(error) !== "TASKBOARD_CONFLICT") throw error; });
     }
   };
-  /** The root waits, by the Host, for every unfinished step under it, in place of the Host's wait it had; for none if all ended. */
+  /**
+   * The root waits, by the Host, for every unfinished part under it, in place of the Host's wait it had; for none if all
+   * ended. A part is a step a session holds: a job the work follows (§6.0o) is a step no session holds, and is not waited for.
+   */
   const waitForParts = async (graph: string, step: { session: ExactRef<"session">; generation: number }, reason: string) => {
     await cancelOwn(graph, "换成等现在没做完的子任务");
-    const on = runtime.boards.get(boardRef(graph)).nodes.filter(node => node.id !== root && !ENDED.includes(node.state)).map(node => ({ kind: "node" as const, board: graph, node: node.id }));
+    const on = runtime.boards.get(boardRef(graph)).nodes.filter(node => node.id !== root && node.assignee?.kind === "session" && !ENDED.includes(node.state))
+      .map(node => ({ kind: "node" as const, board: graph, node: node.id }));
     if (!on.length) return;
     const at = await now();
     await runtime.waits.arm({ session: step.session, reason: reason.slice(0, 200), by: "app", arrangement: {

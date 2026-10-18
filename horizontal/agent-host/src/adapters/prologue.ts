@@ -99,6 +99,7 @@ export interface PrologueRunPort {
 export interface PrologueControlPort extends RoundInputs {
   state: PrologueControlState;
   stop(reason: "stopped" | "cancelled"): void | Promise<void>;
+  /** Why the Host itself stopped this round, in the person's words; absent when the person or the runtime stopped it. */ readonly stopReason?: string;
   pause(): void;
   resume(): void;
   /** Revalidate the original invocation after model-selection waits. */ beforeModelSwitch?(): Promise<void>;
@@ -227,6 +228,7 @@ export interface PrologueRestoredSession {
     started_at: string;
     task: string;
     stop_intent?: "stopped" | "cancelled";
+    /** Why the Host stopped this run itself, when it did. */ stop_reason?: string;
     /** The runtime holds this run as finished (sealed), whatever its saved progress shows. */
     terminal?: boolean;
     timing?: PrologueRunTiming;
@@ -256,8 +258,8 @@ export interface PrologueAdapterOptions extends PrologueAdapterPorts {
    * otherwise write with no recorded approval.
    */
   approvals?: PrologueApprovalBridge;
-  /** Delivers an answer to one pending question the Run is stopped on. */
-  answerPending?(run: AgentRunRef, answer: Extract<AgentRunControl, { kind: "answer" }>): Promise<void>;
+  /** Delivers an answer to one pending question the Run is stopped on; `queued` when the Run was parked and the answer waits for the session's next round. */
+  answerPending?(run: AgentRunRef, answer: Extract<AgentRunControl, { kind: "answer" }>): Promise<"delivered" | "queued">;
   /**
    * Narrows the matrix further. Writes and commands stay off until the
    * approval bridge is attached for this Runtime.
@@ -437,7 +439,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       runs: record.runs.map((ref) => ({ ...ref })),
       checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
       latest_run: view,
-      ...(record.recovery ? { recovery: { ...record.recovery } } : {}), ...(queued?.length ? { queued_inputs: queued } : {}),
+      ...(record.recovery ? { recovery: { ...record.recovery } } : {}), ...(queued ? { queued_inputs: queued } : {}),
     };
   }
 
@@ -732,10 +734,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
           if (!question || isEnded(record.view.phase) || question.pending_revision !== control.pending_revision) {
             throw agentErrors.pending_not_open("这条问题不属于本轮当前等待，不能提交答案");
           }
-          await answer(run, control);
-          // The Run owns whether the question is closed; drop it from the view
-          // only after the execution owner accepted the answer.
-          settleProloguePending(record.state, control.pending_id);
+          // The Run owns whether the question is closed; drop it from the view only after the execution owner accepted the
+          // answer. A parked Run ended with it: the session is read again, its next round no longer waits for checking.
+          if (await answer(run, control) === "queued") { this.#sessions.delete(run.session_id); await this.#loadSession(run.session_id); }
+          else settleProloguePending(record.state, control.pending_id);
           break;
         }
       }
@@ -776,8 +778,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       ? controlPhase === "stopped" || controlPhase === "cancelled"
         ? "已请求停止，正在收尾并保存执行记录"
         : "正在保存本轮执行记录"
-      // A round the runtime stopped itself (a guardrail or its circuit breaker) keeps the reason it gave; one the person stopped says so.
-      : phase === "stopped" ? (record.state.phase === "stopped" && record.state.stop_reason) || "已停止" : record.state.stop_reason;
+      // A round the runtime (a guardrail or its circuit breaker) or the Host stopped keeps the reason it gave; one the person stopped says so.
+      : phase === "stopped" ? (record.state.phase === "stopped" && record.state.stop_reason) || record.control.stopReason || "已停止" : record.state.stop_reason;
     if (stampTerminal && isEnded(phase) && this.#runtime.saveRunTiming && !record.timingReady) {
       if (!record.timingCommit) {
         record.observedEndAt = record.view.ended_at ?? this.#now().toISOString();
@@ -957,9 +959,6 @@ function restorePrologueRun(saved: PrologueRestoredSession["runs"][number]) {
       state.stop_reason = "这轮执行在中断前没有提交完整事件账，已发生的操作需要核对；不会自动重跑。";
     }
   }
-  if (state.phase === "cancelled" && saved.stop_intent === "stopped") {
-    state.phase = "stopped";
-    state.stop_reason = "已停止";
-  }
+  if (state.phase === "cancelled" && saved.stop_intent === "stopped") { state.phase = "stopped"; state.stop_reason = saved.stop_reason ?? "已停止"; }
   return { state, endedAt };
 }

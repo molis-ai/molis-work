@@ -1,11 +1,11 @@
 {
-  "giantUnits": 136,
+  "giantUnits": 137,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
-    "file apps/local-host/src/assistant/assistant-service.ts": 2031,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1875,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1610,
-      "methods": 96
+      "lines": 1531,
+      "methods": 91
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -18,7 +18,7 @@
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
     "function apps/local-host/src/character-import-discovery.ts#createCharacterDiscovery": 205,
     "function apps/local-host/src/character-import-discovery.ts#discover": 176,
-    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
+    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 284,
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 539,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
@@ -35,32 +35,33 @@
       "lines": 308,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 316,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 318,
+    "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 210,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 207,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
-    "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 223,
-    "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 187,
+    "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 221,
+    "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 185,
     "file apps/workbench/src/i18n/en.ts": 3324,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
-    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 346,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2264,
+    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 335,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2254,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
-    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2015,
+    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2013,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
-    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 442,
+    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#run": 153,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
     "function horizontal/agent-host/src/adapters/prologue-git.ts#createPrologueGitReviews": 188,
-    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 217,
+    "function horizontal/agent-host/src/adapters/prologue-mcp.ts#createPrologueMcpLibrary": 232,
     "function horizontal/agent-host/src/adapters/prologue-messages.ts#createSessionMessages": 164,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 966,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 965,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
       "lines": 602,
       "methods": 18
@@ -154,8 +155,8 @@
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
-    "file packages/design-system/src/styles/craft-finish.ts": 2144,
-    "file packages/design-system/src/styles/momentum.ts": 856,
+    "file packages/design-system/src/styles/craft-finish.ts": 2142,
+    "file packages/design-system/src/styles/momentum.ts": 823,
     "file packages/design-system/src/styles/primitives.ts": 1268,
     "file packages/im-ui/src/browser/controller.ts": 966,
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
@@ -218,10 +219,10 @@
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
     "file plugins/native/pages/src/client.ts": 1117,
     "file plugins/native/pages/src/commands.ts": 2241,
-    "file plugins/native/pages/src/editor-browser.ts": 3854,
+    "file plugins/native/pages/src/editor-browser.ts": 3829,
     "function plugins/native/pages/src/editor-browser.ts#slashPlugin": 158,
-    "function plugins/native/pages/src/editor-browser.ts#hoverHandlePlugin": 798,
-    "function plugins/native/pages/src/editor-browser.ts#view": 676,
+    "function plugins/native/pages/src/editor-browser.ts#hoverHandlePlugin": 795,
+    "function plugins/native/pages/src/editor-browser.ts#view": 673,
     "function plugins/native/pages/src/editor-browser.ts#renderMenu": 173,
     "function plugins/native/pages/src/editor-browser.ts#findPlugin": 169,
     "function plugins/native/pages/src/editor-browser.ts#mount": 828,
@@ -235,7 +236,7 @@
       "methods": 40
     },
     "file plugins/native/ppt/src/client.ts": 806,
-    "file plugins/native/shelf/src/client.ts": 1708,
+    "file plugins/native/shelf/src/client.ts": 1692,
     "file plugins/native/todo/src/client.ts": 1240,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 381,
@@ -250,10 +251,10 @@
     "file plugins/native/workflows/src/client.ts": 1358,
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013,
     "function plugins/official-integrations/gmail/src/oauth-pending.ts#createGmailPendingSessions": 178,
-    "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 168,
+    "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 170,
     "function plugins/official-integrations/gmail/src/oauth.ts#createGmailOAuth": 177,
-    "file plugins/official-integrations/gmail/src/provider.ts": 910,
-    "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
+    "file plugins/official-integrations/gmail/src/provider.ts": 930,
+    "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 198
   },
   "testInternalImports": 494,
   "testImports": {
@@ -676,7 +677,7 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 87,
+  "rawFetchInScriptsTotal": 86,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/goals/src/relation-client.ts": 2,
@@ -695,7 +696,7 @@
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
     "plugins/native/cognia/src/client.ts": 1,
     "plugins/native/plugin-builder/src/agent-studio.ts": 2,
-    "plugins/native/images/src/client.ts": 2,
+    "plugins/native/images/src/client.ts": 1,
     "plugins/native/jelly/src/client.ts": 1,
     "plugins/native/jelly/src/client-material.ts": 1,
     "plugins/native/schedule/src/client.ts": 4,
@@ -1248,7 +1249,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 514,
+  "explicitAnyTotal": 510,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1282,7 +1283,7 @@
     "tests/artifacts-actions-browser.test.ts": 1,
     "tests/artifacts-actions.test.ts": 1,
     "tests/assistant-answers.test.ts": 2,
-    "tests/assistant-business-gateway.test.ts": 12,
+    "tests/assistant-business-gateway.test.ts": 8,
     "tests/assistant-character.test.ts": 4,
     "tests/assistant-coding-executor.test.ts": 5,
     "tests/assistant-delegation.test.ts": 1,

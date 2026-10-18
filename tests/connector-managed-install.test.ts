@@ -136,7 +136,7 @@ test("ASC-17 ASC-19 ASC-34: managed update failures preserve the active package;
   assert.deepEqual(directories(), []); assert.deepEqual(JSON.parse(readFileSync(join(home.home, "mcp-notes.jsonl"), "utf8")), { note: "updated package" });
 });
 
-test("S-31 ASC-25: cancelling during a real package download terminates its installer and removes only its candidate", { timeout: 30_000 }, async t => {
+test("S-35 ASC-25: cancelling during a real package download terminates its installer and removes only its candidate", { timeout: 30_000 }, async t => {
   const home = await openTestHome(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const input = await packagePlan(t, home.home, async () => { entered.resolve(); await release.promise; }), actions = home.host.homeActionClient();
   const request = await actions.invoke(caller, connectorLocalActions.prepare, input) as { authorization_id: string };

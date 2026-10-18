@@ -14,6 +14,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { actionEffect, type ActionCallContext, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
+import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService } from "./assistant-service.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { withPersonDispatchGuard, type PersonActions } from "./assistant-coding.js";
@@ -148,6 +149,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   });
   const entry = { home: ports.homeDirectory, service, store, threads };
   services.set(ports.localHost, entry);
+  // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
+  registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));
   // Deleting a project also stops the round its works still run and cancels their timed follow-ups, which only this service can do.
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });
@@ -206,6 +209,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
         if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
         if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
+        // A re-ask names a closed question of an existing work, and is not an answer: refused before any work is made or touched.
+        if (body.reask !== undefined && (!body.work_id || body.target === "answer" || body.about !== undefined)) throw assistantErrors.invalid("重新问只能用在已有的工作上，不能同时作为回答或指向一条输入");
         // A correction names the input it corrects, in a work that has one; it is a supplement, never an answer. Only the id's
         // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
         // session's inputs names nothing, and the receipt shows 「更早的一条」.
@@ -357,7 +362,7 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
     if (!answer) throw assistantErrors.invalid("请先回答再提交");
     const view = await service.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
       ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
-      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
+      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }, projectRef ? { project_ref: projectRef } : {}).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
       // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
       if (error?.code !== "agent.answer_invalid") throw error;
       // Read back with the questions it answered, so each line can name the limit it crossed.

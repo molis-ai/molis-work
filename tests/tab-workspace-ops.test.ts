@@ -22,12 +22,12 @@ test("opening a plugin shows its default view without adding a mother tab", () =
   assert.equal(ops.focused(state).tabs.some((tab) => tab.kind === "mother"), false);
 });
 
-test("Shelf is a named plugin view, not a later-only plugin", () => {
+test("Feed is a named plugin view, not a later-only plugin", () => {
   const state = ops.create();
-  const tab = ops.openPlugin(state, "shelf");
-  assert.equal(tab.plugin, "shelf");
-  assert.equal(ops.pluginTitle("shelf"), "Shelf");
-  assert.equal(ops.focused(state).viewPlugin, "shelf");
+  const tab = ops.openPlugin(state, "feed");
+  assert.equal(tab.plugin, "feed");
+  assert.equal(ops.pluginTitle("feed"), "Feed");
+  assert.equal(ops.focused(state).viewPlugin, "feed");
   assert.equal(ops.activeTab(state), null);
 });
 
@@ -397,11 +397,11 @@ test("closing the item tab being read shows its own plugin's page, not the page 
 test("choosing a tab steps out of a cover, and entering the project does too", () => {
   const state = ops.create();
   const home = ops.activeTab(state);
-  ops.openPlugin(state, "shelf");
+  ops.openPlugin(state, "feed");
   ops.setExclusive(state, "settings");
   ops.activate(state, state.focusedPaneId, home.id);
   assert.equal(state.exclusive, null);
-  ops.openPlugin(state, "shelf");
+  ops.openPlugin(state, "feed");
   ops.setExclusive(state, "project-settings");
   ops.landAtProjectRoot(state);
   assert.equal(state.exclusive, null);

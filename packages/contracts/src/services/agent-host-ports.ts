@@ -156,6 +156,10 @@ export interface AgentRecoveryReport {
     live: boolean;
     waiting: number;
     can_close: boolean;
+    /** Parked at a normal shutdown on an open question that can be answered now (it can still be closed instead). Absent: not answerable. */
+    can_answer?: true;
+    /** The questions the round left open; `answered`: answered after the interruption, the answer waits for the next round. */
+    questions?: Array<{ pending_id: string; pending_revision: number; kind: string; prompt: string; answered?: true }>;
     blockers: string[];
     operations: Array<{ effect_id: string; kind: string; summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
     /** The interrupted round belongs to this subtask of the session; closing it settles the subtask. */

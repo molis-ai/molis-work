@@ -9,7 +9,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 const caller: ActionCallContext = { actor_id: "graph-installer", audience: "agent", project_id: null,
   permissions: ["connectors:management:read", "connectors:management:write", CONNECTOR_RECORDS_READ] };
 
-test("S-31 ASC-07 ASC-14 ASC-22: Graph uses its private module and login paths with a matching existing PowerShell, reads through the owner, and removes only its own files", { timeout: 30_000 }, async t => {
+test("S-35 ASC-07 ASC-14 ASC-22: Graph uses its private module and login paths with a matching existing PowerShell, reads through the owner, and removes only its own files", { timeout: 30_000 }, async t => {
   const home = await openTestHome(t), tools = join(home.home, "user-tools"); mkdirSync(tools);
   const executable = join(tools, "pwsh"), previousPath = process.env.PATH, previousSecret = process.env.ASC_PRIVATE_HOST_VALUE, fetch = globalThis.fetch;
   writeFileSync(executable, `#!${realpathSync(process.execPath)}

@@ -4,6 +4,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { CODING_CLIENT_FACTORY_SCRIPT, codingRouteActions, runControl, type CodingModelChoice } from "@molis-ai/molis-work-plugin-coding";
+import { QUESTION_LIMITS, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 
 const control = codingRouteActions["coding.control-run"]!;
 const schema = control.definition.action.input_schema;
@@ -118,4 +119,31 @@ test("AC-27-4 AC-28-5: the page answers with the card's fields; the route reads 
   rejected({ ...base, ...asked, answers: [{ question: 0, value: [{ kind: "goal", id: "g1", label: "x", revision: "1" }] }] });
   assert.match(CODING_CLIENT_FACTORY_SCRIPT, /pending_revision:question\.pending_revision,values:client\.read\(\)/, "the page sends the card's fields as they are");
   assert.doesNotMatch(CODING_CLIENT_FACTORY_SCRIPT, /function questionAnswer/, "the page no longer carries its own copy of the reading");
+});
+
+// AC-05 (specs/ai-interaction-experience): a reference question answered on Coding's page reached the schema as picked objects
+// and then was refused by the handler, which took only words, numbers or nothing. Coding reads only the shape, within the
+// SDK's limits; whether the picks fit their question is the Runtime's to judge, and whether the person may hand them over the Host's (S-26).
+test("AC-05: picked objects pass the handler as they are; too many, a missing field or one over the limit is refused", async () => {
+  const asked = { kind: "answer", pending_id: "question-1", pending_revision: 3 };
+  const with_ = (value: unknown) => runControl({ ...asked, answers: [{ question: 0, value }] }, async () => []);
+  const goal = { kind: "goal", id: "g1", label: "内部试用" };
+  assert.deepEqual(await with_([goal, { kind: "page", id: "p2", label: "发布笔记" }]), { ...asked, answers: [{ question: 0, value: [goal, { kind: "page", id: "p2", label: "发布笔记" }] }] });
+  assert.deepEqual(await with_([]), { ...asked, answers: [{ question: 0, value: [] }] }, "an empty pick goes on for the Runtime to judge against its question");
+  const many = Array.from({ length: QUESTION_LIMITS.maxReferences + 1 }, (_, index) => ({ kind: "goal", id: `g${index}`, label: "x" }));
+  await assert.rejects(with_(many), /最多选/);
+  await assert.doesNotReject(with_(many.slice(1)), "exactly the SDK's limit is taken");
+  await assert.rejects(with_([{ kind: "goal", id: "g1" }]), /选中的对象格式无效/);
+  await assert.rejects(with_([{ kind: "goal", id: 1, label: "x" }]), /选中的对象格式无效/);
+  await assert.rejects(with_([{ ...goal, label: "x".repeat(QUESTION_LIMITS.maxReferenceChars + 1) }]), /选中的对象格式无效/);
+  await assert.rejects(with_(["goal g1"]), /选中的对象格式无效/);
+  await assert.rejects(runControl({ ...asked, answers: [{ question: 0, value: [goal], other: "x" }] }, async () => []), /问题的回答格式无效/);
+});
+
+test("AC-05: the card's reference field, read by the SDK's questionAnswer, is a shape the handler takes: the page and the action send the same", async () => {
+  const read = questionAnswer({ r0: [{ value: "goal g1", label: "内部试用" }, { value: "page p2", label: "发布笔记" }] });
+  assert.ok(read && "answers" in read);
+  const asked = { kind: "answer", pending_id: "question-1", pending_revision: 3 };
+  assertActionInput(schema, { ...base, ...asked, ...read });
+  assert.deepEqual(await runControl({ ...asked, ...read }, async () => []), { ...asked, ...read });
 });

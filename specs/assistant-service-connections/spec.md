@@ -468,7 +468,7 @@ node scripts/check-spec-coverage.mjs
 | `platform/plugin-agent.ts`、`platform/plugin.ts` | owner 只读外部检查端口及插件消费引用声明 |
 | 动作快照 | `actions.tsv` 新增 Feed/Images 消费引用查询，Images 连接列表升至 v2；`host-actions.tsv` 新增十九项，涵盖授权请求、连接管理、CLI、本地 MCP、意图决议与消费查询。合流后已重新生成并核对，保留 P4 动作 |
 | API 快照 | `platform/plugin-agent`、`platform/plugin`、`services/agent-host`、`services/assistant`、`services/connector-host` 及 `plugin-sdk/index` 六份 |
-| `SECURITY-INVARIANTS.md` | S-13 SDK 来源；S-27 owner 等待授权；S-32 最新意图暂缓提交；S-31 受管理安装、凭据环境与跨入口 MCP 派出 |
+| `SECURITY-INVARIANTS.md` | S-13 SDK 来源；S-27 owner 等待授权；S-36 最新意图暂缓提交；S-35 受管理安装、凭据环境与跨入口 MCP 派出 |
 
 目录外还涉及 `home-side.ts`、`web-assistant.ts`、Agent Host 的 `prologue-node.ts`/`prologue-waits.ts`/检查器与 `agent-host-composition.ts`，集成时一并核对 P4 生命周期和统一工作图，不能以只看助理目录文件代替调用链检查。
 
@@ -554,6 +554,8 @@ SDK 历史阻塞（2026-10-16，已获授权并接入，最新证据见本节末
 正式 PR 前 OAuth 代码核查补充（2026-10-17，ASC-19、ASC-35）：Gmail、Notion 专用授权从开始时固定原连接修订，不能在回调或令牌交换后重新取修订作为提交依据；另一授权先完成、改名或停用后，旧回调必须拒绝且保留当前连接及凭据。通用 API、Gmail、Notion 与 MCP 的 OAuth 刷新同样固定请求前修订，停用后再启用也不能接受停用前发出的刷新结果；Gmail 协议包在写令牌前同步调用宿主的修订检查，连接状态仍归 Host。定向回归分别制造等待本人同意、令牌交换和刷新中的交错，并断言状态、access/refresh 凭据与原连接均未被旧结果覆盖。真实服务商账号登录仍按已有决定留待后续，不以模拟协议测试替代。
 
 同次主线集成（ASC-19、ASC-34）：保留主线 P4 的 SDK 子任务等待与交回，以及回执撤回；本分支负责模型登记的外部接入等待。子任务交回只消费 Host 登记的等待，外部接续只消费 Agent 登记的等待；双方读取同一 SDK 事实，不能因同一接续启动两轮。停止工作等待 SDK 完成子任务等待的撤回，再处理接入等待与子任务停止。用原子任务交回单次接续、停止、重启用例及本分支外部接入回归共同验证。
+
+最新主线收尾（2026-10-17，ASC-19、ASC-25、ASC-33、ASC-34）：一骏要求同步最新 main、解决冲突并重新跑 CI，full-suite 继续交由统筹，OAuth 真实登录继续暂缓。本次以 `3edf9c91f` 为集成基线，保留主线 P4 后台作业图、公开工作视图白名单、回执托盘与重启后回答题目的当次授权；连接的 owner 等待仍用原会话与当前权限复查，后台作业等待仍用主线工作授权，两者分别读取原事实。保留操作卡来源标记与结果入口，关闭时释放两个监听者。安全表保留主线 S-31—S-34，本功能安装及授权提交顺延为 S-35、S-36，并同步测试编号。合并后整体构建，按冲突调用链运行助理、Prologue、OAuth、状态恢复、安全及对应界面回归，重建 API/动作快照与预算，再推送确认常规 CI；不以它替代 full-suite 或真实账号验收。
 
 SDK 全量证据（2026-10-16）：采用的本地 `0272e234` 源码在浏览器时段内运行 Vitest，349 文件、3940 项通过，6 文件/21 项按套件条件跳过；排除真实桌面控制用例，类型检查通过。没有接入真实账号或调用付费模型。
 

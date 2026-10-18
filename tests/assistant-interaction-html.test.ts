@@ -132,7 +132,7 @@ test("AC-23: a card's controls come back as the strings its input takes; a momen
 });
 
 const view = (phase: string, extra: Partial<AssistantWorkView> = {}): AssistantWorkView => ({
-  work: { work_id: "w1" }, reviews: [], cards: [], objects: [],
+  work: { work_id: "w1", executor: { kind: "assistant" } }, reviews: [], cards: [], objects: [],
   rounds: [{ run_id: "run-1", text: "整理周报", phase, awaiting_input: [], turns: [], activity: [], materials: [], context: null, started_at: "", ended_at: null }],
   ...extra } as AssistantWorkView);
 
@@ -146,7 +146,7 @@ test("AC-23: the steps under the latest round derive from the work: open what it
 });
 
 test("FLOW-04, FLOW-05: the row above the input puts what waits first, shows three and folds the rest; nothing in it re-runs an unknown result", () => {
-  const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check" } as AssistantWorkView["work"],
+  const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check", executor: { kind: "assistant" } } as AssistantWorkView["work"],
     reviews: [{ review_id: "r1", run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }],
     cards: [card("ready"), { ...card("unknown"), card_id: "card-2" }, { ...card("done"), card_id: "card-3" }],
     delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }, { work_id: "child-2", title: "已收回", state: "waiting-input", follow_ups: 0, taken_back: true }] });
@@ -193,6 +193,22 @@ test("AC-27-5, D34: a question in words, or a questionnaire's one text question,
   assert.deepEqual(marked([questionnaire]), [false], "choice questions stay on the card");
   assert.deepEqual(marked([{ ...oneText, questions: [text(0), { ...text(1), type: "number" }] }]), [false], "two questions stay on the card");
   assert.deepEqual(marked([words, oneText]), [false, false], "with two waiting, the composer cannot tell which one it answers");
+});
+
+// R4 (D14): a questionnaire whose one text question sits among others takes the composer's words into that field's draft, never as the answer.
+test("AC-03, R4: among other questions, a questionnaire's one text question is marked draft_from_composer with its field; never both marks", () => {
+  const text = (index: number) => ({ index, prompt: "补充要求", type: "text" as const, required: false, options: [], multiple: false, allow_other: false });
+  const marks = (awaiting: AgentPendingQuestion[]) => {
+    const waiting = view("awaiting-input"); waiting.rounds[0]!.awaiting_input = structuredClone(awaiting);
+    drawAssistantReply(waiting, { say, drafts: () => ({}), card: () => "" });
+    return waiting.rounds[0]!.awaiting_input.map(item => { const { from_composer, draft_from_composer } = item as { from_composer?: true; draft_from_composer?: string }; return { from_composer, draft_from_composer }; });
+  };
+  const mixed: AgentPendingQuestion = { ...questionnaire, pending_id: "m", questions: [...questionnaire.questions!, text(questionnaire.questions!.length)] };
+  const field = `t${questionnaire.questions!.length}`;
+  assert.deepEqual(marks([mixed]), [{ from_composer: undefined, draft_from_composer: field }], "the words go into that field's draft");
+  assert.deepEqual(marks([{ ...mixed, questions: [...mixed.questions!, text(9)] }]), [{ from_composer: undefined, draft_from_composer: undefined }], "two text questions: the composer cannot tell which field");
+  assert.deepEqual(marks([mixed, mixed]), [{ from_composer: undefined, draft_from_composer: undefined }, { from_composer: undefined, draft_from_composer: undefined }], "two waiting: neither");
+  assert.deepEqual(marks([{ ...mixed, questions: [text(0)] }]), [{ from_composer: true, draft_from_composer: undefined }], "one text question alone is answered from the composer (D34)");
 });
 
 

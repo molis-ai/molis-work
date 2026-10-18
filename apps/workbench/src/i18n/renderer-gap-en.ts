@@ -544,4 +544,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "光标处": "at the cursor",
   "选中处": "at the selection",
   "文末": "at the end",
+  // A result card in the Assistant panel, picked up as what is in hand (W3-A3b).
+  "拿起": "Pick up",
 };

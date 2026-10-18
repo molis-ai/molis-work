@@ -2,8 +2,8 @@ import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js"
 export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
-import type { AgentPendingQuestion } from "./agent-interaction.js";
-import type { AgentInputSend } from "./agent-inputs.js";
+import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
+import type { AgentInputSend, AgentQueuedInput } from "./agent-inputs.js";
 import type { MemoryChange, MemoryScope } from "./memory.js";
 
 /**
@@ -426,19 +426,14 @@ export interface AssistantWorkView {
   usage?: { tokens: number; rounds: number; budget_tokens: number | null; budget_of?: { work_id: string; title: string } };
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
+  /**
+   * What waits in the work's own session for its next round (specs/ai-input-receipts §4.4, D31), read only while none of its
+   * rounds is live. Absent: not read this time (a round is live, or Coding runs the work); `[]`: read, and nothing waits.
+   */
+  queued_inputs?: AgentQueuedInput[];
 }
 
-/** An interrupted round, as the runtime's own receipts show it: what happened, what did not, what is unknown. */
-export interface AssistantRecovery {
-  blockers: string[];
-  rounds: Array<{
-    run_id: string;
-    version: number;
-    can_close: boolean;
-    blockers: string[];
-    operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
-  }>;
-}
+export type { AssistantRecovery } from "./assistant-recovery.js";
 
 export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
@@ -467,6 +462,7 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
    * one free-text question, `steer` adds the words to the round. Absent is `steer`: the Host never decides it is an answer.
    */
   target?: "answer" | "steer";
+  reask?: AgentQuestionReask;
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;
 }
@@ -488,6 +484,7 @@ export interface AssistantHandover {
   mode?: string;
 }
 
+/** What the page asks of a work's latest round: pause, resume or stop it, or take back a supplement no model has seen (§4.3). */
 export type AssistantControl =
   | { kind: "pause" }
   | { kind: "resume" }
@@ -524,8 +521,6 @@ export interface AssistantBackgroundJob {
   /** The capability that started it, as the person reads it. */
   title: string;
   state: "running" | "completed" | "failed" | "unknown";
-  /** The plugin's own word for the latest state. */
-  last_state?: string;
   started_at: string;
   ended_at?: string;
   /** Set when a suggestion card started it. */

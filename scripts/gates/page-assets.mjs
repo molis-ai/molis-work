@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Page resource budget (specs/repository-anti-corruption §4.8/§4.13, slice W1-07, decision #17): the workbench's
-// stylesheets and scripts, the plugin client packs and the fonts are frozen at the size they have now and may only fall.
-// The real per-asset targets are set after the superseded skins are deleted; until then nothing may grow.
+// stylesheets and scripts, the plugin client packs and the fonts are frozen at the size they have now and by default only fall.
+// The budget is a size control, not a hard ceiling (the user amended decision #17 on 2026-10-18): growth a feature needs and
+// that cannot be won back in the same asset is admitted once through APPROVED_CEILINGS below, after review, with the reason,
+// the bytes and what was tried written in the PR. More than 10 KB on one asset at once, or a new asset, is asked of the user
+// first (AGENTS.md).
 //
 // What is measured is what the host sends: every `/assets/...` path that apps/local-host/src/web-assets.ts serves
 // (`serveWorkbenchAsset`), requested from the built `createLocalWebAssets`, with the byte length of the body. The host
@@ -227,21 +230,18 @@ const headErrors = (measured, budget, base) => {
     if (allowed === undefined && base?.[asset] !== undefined) errors.push(`${asset} (${bytes} bytes) is still sent by the host but its entry was deleted from ${BUDGET_FILE} (the merge-base budgets ${base[asset]} bytes); deleting an entry does not exempt an asset the host sends, restore it`);
     else if (allowed === undefined) errors.push(`${asset} (${bytes} bytes) has no budget in ${BUDGET_FILE}; budgets only fall, so a new asset is refused: serve less, or fold it into an existing asset`);
     else if (bytes === undefined) errors.push(`${asset} has a budget but the host no longer serves it; remove the entry from ${BUDGET_FILE} (removing is always allowed)`);
-    else if (bytes > allowed) errors.push(`${asset} grew: budget ${allowed} → built ${bytes} bytes (+${bytes - allowed}); make the page lighter, the budget cannot be raised`);
+    else if (bytes > allowed) errors.push(`${asset} grew: budget ${allowed} → built ${bytes} bytes (+${bytes - allowed}); make the page lighter; growth a feature needs is admitted once through APPROVED_CEILINGS after review (AGENTS.md), never by raising the budget file`);
     else if (bytes < allowed) errors.push(`${asset} is ${allowed - bytes} bytes under its budget (${allowed} → built ${bytes}); lower the budget with \`node scripts/gates/page-assets.mjs --update --base origin/main\` so the slack cannot be used again`);
   }
   return errors;
 };
-// One-time allowance for receipts 3b-2a (specs/ai-input-receipts D37–D40, RCPT-321–326: a supplement's receipt takes it back
-// and sends a correction that names it, in Coding and the Assistant). The user approved it on 2026-10-17 through the
-// coordinator's popup: workbench.js +5,043, coding.js +684, workbench.css and arrival.css +136 each. Each entry is for exactly
-// one merge-base budget (main e3a0664af), capped at the measured size, and used once: the next baseline freezes again. This
-// replaces T2's spent entries; delete it in the next change to this gate (as #541, #584 and #611 did).
+// One-time allowance for AC-03's 「写进问卷」 (specs/ai-interaction-experience R4, D14: with a questionnaire's text question
+// among others, the Assistant's composer writes into that field's draft and hands nothing back). The user approved it on
+// 2026-10-18 in this line's session: workbench.js +606, the shipped comments and the toast kept. The entry is for exactly one
+// merge-base budget (main e128c1203, after #700), capped at the measured size, and used once: the next baseline freezes again.
+// This replaces receipts 3d-3's spent entries; delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [705879, 706015],
-  "/assets/molis-work-plugins/coding.js": [373429, 374113],
-  "/assets/molis-work-workbench.css": [1596754, 1596890],
-  "/assets/molis-work-workbench.js": [1099839, 1104882],
+  "/assets/molis-work-workbench.js": [1109312, 1109918],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

@@ -41,7 +41,9 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
       const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root), errors=[];
       const ports={lifetime,current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{}};
-      const progress=(${embeddedFactory("planProgress")})(ports);
+      // The plan card numbers and settles steps with the TaskBoard's own helpers, as the client hands them over (3d-3).
+      const taskboard=(${embeddedFactory("taskboard")})({...ports,board:root.querySelector('[data-coding-board]'),ownTask:text=>text,from:()=>null,roleName:id=>id,navigate:async()=>{},amend:async()=>{}});
+      const progress=(${embeddedFactory("planProgress")})({...ports,from:()=>null,stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled});
       const nodes=['succeeded','running','not-started','blocked','cancelled','ready'].map((state,i)=>({id:'step-'+(i+1),state,reports:[]}));
       const board={version:1,terminal:false,nodes},entry={board,verdicts:{},plan:{content:{title:'验证状态',steps:nodes.map(n=>({title:n.id,acceptance:'保留事实'}))}}};
       const run={ref:{run_id:'round'},phase:'running',frozen:{role_id:'builder'}};

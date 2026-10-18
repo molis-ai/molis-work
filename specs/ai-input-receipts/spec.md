@@ -43,7 +43,7 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
 | 补充的边界语义 | SDK `loop-boundary`、`loop-reply`、`compaction-history`：下一模型边界一次带上全部排队补充；有排队时不自然收工；压缩时保留补充 | 真 |
 | 打断（当轮作废，同一 Run 继续） | SDK `steer({interrupt:true})` | SDK 有，Molis 没接 |
 | 回答与补充分开 | `{kind:"answer", pending_id, pending_revision}` | 真 |
-| 人工修订 TaskBoard（插入、跳过、换序、指派、解除阻塞、裁定），带版本 | `agent.collaboration.revise.v1`（2026-10-17 P4-C2 起，换下 `agent.run.step-board.amend.v1`）；Coding 计划修订 | 真；修订后用一条 steer 告诉运行中的这一轮 |
+| 人工修订 TaskBoard（插入、跳过、换序、指派、解除阻塞、裁定），带版本 | `agent.collaboration.revise.v2`（2026-10-17 P4-C2 起以 v1 换下 `agent.run.step-board.amend.v1`；3d-3 起加 insert 的 `origin`，升到 v2）；Coding 计划修订 | 真；修订后用一条 steer 告诉运行中的这一轮 |
 | 恢复 | `inspectRecovery` / `recoverRun`；Coding「核对并继续」 | 真：未终态 Run 标需核对、不重放；未读到的补充显示「未确认应用」 |
 | Coding 的回执文案与报告里的「补充要求」一节 | `plugins/native/coding/src/client.ts`、`report.ts` | 真，但措辞容易被误读 |
 | 助理发送幂等，失败保留草稿 | `assistant_requests` 表与 `request_id` | 真 |
@@ -791,6 +791,86 @@ interface AgentInputView {
   - 浏览器（本机）：Coding 页上，一轮结束后从「/v2/login」的回执发更正，排队条变成 2 条；下一轮带上它，原来那条的回执写「你改为：…」；这一轮还没读的补充从回执撤回，变成「已撤回」，模型的请求里都没有它（`tests/coding-input-receipts.e2e.test.ts`）。助理页上，一轮结束后从回执发更正：发出去的是人的原话、`about` 指向那条补充、没有页面标记，状态区说「已保存，下一轮开始生效」，不开新的一轮（`tests/assistant-input-receipts.e2e.test.ts`）。
 - **已知缺口（不在本片修）：** Coding 页上，正在写的回复后面一旦出现补充，它就不再标「正在写」，之后再打断，页面不会把那段回复标成已丢掉（RC-16）。这是页面按「最后一个回合」判断正在写的老做法，`client.ts` 是巨大单元，留给后续一片。
 
+**3b-2b 实现记录（2026-10-17，D37、D38；助理一侧在 3b-2c）：**
+
+- **托盘。** 共用回执多了 `tray(queued, round, act)`：会话里排着的输入，加上最近一轮账上还没了结的，画成一行「N 条还没处理完」，点开分类列出。没有就不画。
+  - 只分账上已有的四类（D37）：排着，下一轮开始时带上（会话的 `queued_inputs`）；AI 读到了，没说怎么处理（`read`、没有 `model_claim`）；AI 说暂不采纳或需要你澄清（标明是 AI 自己说的）；为它问的问题还没回答（`open` 或 `unresolved`）。后三类只看最近一轮，每条输入只看它最后一次画出的回执；排着的那条只在第一类出现一次。
+  - 每一类是一个带名字的列表，每一项是按钮：有回执的打开回执、焦点移过去（和回执里「看原来那条」同一个做法）；排着的另有「撤回」，走页面自己的撤回；直接排进会话、没有回执的，「撤回」就是它的按钮。
+  - 同一个元素跨重画保留，展开的托盘不会收起；焦点在托盘里的按钮上时，重画后落到新画的那一个上。条数变了，经页面那一个礼貌状态区说一次，第一次画不说。
+- **Coding。** 托盘取代 C1 的排队条（D38、RC-18）：`inputReceipts.waiting()` 与 `.coding-queued-inputs` 删掉，`client.ts` 在原来那一行改调 `host.receipts.tray`，撤回走 v6 的 `withdraw`（会话里的那条，运行时从会话交还，见 RCPT-322）。托盘和对话那一栏同宽，宽度规则和 `.coding-turn` 共用一条。`craft-finish.ts` 里助理回执的那条规则（右对齐、88% 宽、上移 8px）原来写成整页的 `.mw-receipt`，连 Coding 气泡里的回执也被它管着，这不是 3c 想要的样子；现在只管 `.assistant-round` 的直接子元素。
+- **代码位置。** 托盘是设计系统里单独的 `createInputTray`，借用回执的几个小工具和「每条输入最后一次画出的回执」；回执的措辞表挪成静态数据 `RECEIPT_WORDS`，随页面程序一起交过去。`createInputReceipts` 在 3b-2a 时正好 150 行，不这样拆就成了新的巨大单元。
+- **字节（对照 3b-2a 的预算）。** 用户 10-17 经统筹弹窗一次性批准：`molis-work-workbench.js` +2838、`molis-work-workbench.css` +163、`molis-work-settings.css` +91、`molis-work-arrival.css` +86；`molis-work-plugins/coding.js` −512（删掉的排队条）。收窄助理规则、托盘行间 4px 与行内居中都加上以后，四个 `margin:0` 并成一条 `:where` 规则，三份样式表实测是 +102、+57、+64，都在批准的数以内。已复用回执的底板、按钮与「AI 自己说的，Molis 没有核对」这句。
+- **助理。** 等交互线的 re-ask 把 `contracts/services/assistant.ts` 拆出一块以后，再给 `AssistantWorkView` 加 `queued_inputs` 并接上托盘（统筹 10-17：不自己拆，免得两处拆分冲突）。到时把 3b-2a 删掉的 `AssistantControl` 那行文档注释加回来。
+- **验收编号与证据：**
+  - RCPT-331：托盘只列账上有的四类，后三类只看最近一轮；更早的轮次、AI 说会采纳的、撤回的、还没交给模型的都不列；排着的只列一次；没有就不画（`tests/input-receipts-client.test.ts`）。
+  - RCPT-332：一项打开它的回执并把焦点移过去；「撤回」走页面的撤回、带输入 id；没有页面动作时只列不撤（同上）。浏览器：Coding 页上，一轮结束后托盘列出排着的那条和读到没说明的那条，点后者打开它的回执、焦点在那里；从托盘撤回排着的一条，下一轮的请求里没有它（`tests/coding-input-receipts.e2e.test.ts`）。
+  - RCPT-333：跨重画是同一个元素；条数变了只说一次，第一次画和没变的重画都不说（`tests/input-receipts-client.test.ts`）。
+
+**3b-2c 实现记录（2026-10-17，§4.4、D31、D37；BL-158；统筹 10-17 定）：**
+
+- **助理的托盘。** `AssistantWorkView.queued_inputs` 是这项工作自己的会话里排着的输入，按运行时读出的原样给（`assistant-inputs.ts` 的 `queuedInputs`）。规则同 D31：只在它的轮次都不在跑时读。不给值是「这次没读」（有活轮，或这项工作由 Coding 承接）；`[]` 是「读了，确实没有」。运行时的 `readSession` 也照这个分开：以前读了、但为空时不给值，现在给 `[]`（`AgentSessionView.queued_inputs`，Coding 的路由与页面跟着原样传）。
+  - 岛上的回执工厂（`assistant-send.ts`）多了 `tray(thread, put, view)`：在轮次之后放共用托盘，取最近一轮，撤回走这项工作的控制（3b-2a 的 `withdraw`）。岛上只多一处调用；为抵它，把摆放子节点的 `placer` 挪进 `assistant-stage.ts`，岛短了 9 行。
+  - `AssistantService` 是巨大单元：读取挪进 `assistant-inputs.ts`；把 Send 记关联的 `linkSent`（连同 `revisionOf`）挪到 `assistant-relations.ts`，类短了 9 行、少了一个方法。
+  - 共用托盘的 `queued` 可以不给：不给时不画「排着」这一类；最近一轮里没有没了结的，也不说「没有还没处理完的了」。读了且为空才说。
+  - 托盘按画它的那个面各一个（统筹 10-17 定）：`tray(owner, queued, round, act)`，`owner` 是调用方的容器（助理传对话线程，Coding 传那一轮的块），内部用 `WeakMap` 存，面没了就随之回收。Coding 页和旁边的助理用的是同一份共用回执；助理的工作交给 Coding 执行时，两边画的还是同一轮，按轮次取会拿到同一个元素、被两边抢来抢去。轮次换了，就把上一轮的条数与播报清掉，新一轮的第一次画不当成条数的变化来说。
+  - 合同里 `AssistantControl` 的文档注释加回来（3b-2a 删掉的那一行）。
+- **措辞表一份（BL-158）。** 设计系统导出 `RECEIPT_WORDS`，用 `satisfies` 按合同的闭集写全；Coding 报告（`report-inputs.ts`）改用它，删掉自己那份。报告的措辞因此与回执一致（「已放进上下文，等 AI 回应」「这一轮结束时 AI 没读到，留给下一轮」「验收条件」），RCPT-341 的期望值随之改了（预期变化，断言没放宽）。共用回执里对闭集的 `??` 兜底一并去掉：闭集按现行取值读。
+- **字节。** `molis-work-workbench.js` 比 3b-2b 量得的多 +313（按面的托盘状态、工厂的 `tray`、岛上的一处调用；回执、托盘的样式与措辞都复用；改成按面取后，把回执里两处一样的「更正两头」查找合成 `ends` 抵掉一部分），`molis-work-plugins/coding.js` −1，样式表不变。用户 10-17 在回执线会话的弹窗里一次性批准 workbench.js 至多 +325；开 PR 时按那时的 merge-base 定键，写成单独的放行提交。
+- **验收编号与证据：**
+  - RCPT-334：没读的排队不当空：托盘不画「排着」，最近一轮清空时不说「没有还没处理完的了」；读了且为空才说。换了一轮，开头的条数不播报（`tests/input-receipts-client.test.ts`）。
+  - RCPT-337：同一轮在两个面上各画一次，是两个元素，各自的 `queued` 互不影响，也不重复播报（`tests/input-receipts-client.test.ts`）。
+  - RCPT-335：助理在轮次之后、以对话线程为面放最近一轮的托盘；视图没有 `queued_inputs` 时交给托盘的是「没读」，`[]` 原样交；没有工作就不画；撤回走这项工作的控制（`tests/assistant-receipts-client.test.ts`）。
+  - RCPT-336：真 Prologue 运行时经助理：一轮在跑时视图没有 `queued_inputs`；一轮结束后排着的更正带着 `about` 出现在视图里；撤回后是 `[]`（`tests/assistant-input-correct.test.ts`）。浏览器：一轮结束后从回执发更正，托盘的「排着」列出它；从托盘撤回，排队变空、不开新的一轮（`tests/assistant-input-receipts.e2e.test.ts`）。
+  - RC-18 的一条断言从「不给值」改成 `[]`：一轮结束后读了、确实没有（`tests/prologue-recovery.test.ts`，变严）。
+
+**3d-1 实现记录（2026-10-17，§4.7；统筹 10-17 定）：**
+
+- **报告的「补充要求」一节**改成每条补充一段（`plugins/native/coding/src/report-inputs.ts`，`report.ts` 只调它）：
+  - 第一行是账上的事实（送达、放进上下文、读到、没读到、撤回）。
+  - 更正的两头都写：「这是一条更正，针对补充 N」（这一轮里没有那条时写「更早的一条」），原来那条写「后来由补充 M 更正」。
+  - 「AI 说：…」是模型自己的说法（处理方式与它说会改变的方面，都是闭集里的词，多次说明时写第几次），只当引述，不推出任何状态。读到了却没说明的写「AI 读到了，没说怎么处理」；为它问的问题还没回答的写个数。
+  - 节首说清：放进上下文、读到都不证明 AI 照做了；「AI 说」是它自己的说法，Molis 没有核对。没有观察到的结果，所以不写「已生效 / 部分生效」，那要等 3d 的变更集归因（D21）。
+- **事实从哪里读。** 只读这一轮的运行视图：报告本来就经 `agent.runs.read` 拿到它，回执是运行时自己的 `projectInputReceipts` 从账上投出来的（3a）。Coding 不查别人的表，也不另存一份。
+- **不可信的话。** 人的原话和 AI 的说明各放进一个围栏（`literal`，围栏比正文里最长的反引号还长）：页面经 `renderFeedRichText` 消毒后显示成代码块；报告交给后面的模型时是一份材料（`agentTextMaterialContent`，带来源的数据资源，不进提示词），里面同样是引述。
+- **措辞表。** 处理方式与影响的词和共用回执（设计系统）同义；共用回执的表在 3b-2b 才挪成模块级数据、还没导出，所以这里先各留一份。#671 合入后合成一份，放在两边都能引用的地方，回执线的下一片先做（BL-158，统筹 10-17 定）。处理方式与影响都是合同里的闭集，按现行取值读，不兜底不认识的值。
+- **验收编号与证据**（`tests/coding-report-persistence.test.ts`，经 Coding 的报告路由保存）：
+  - RCPT-341：五种状态、更正的两头、AI 说的处理方式与影响（标明是它说的）、读到没说明、没回答的问题，各一行；节里没有「已生效」。
+  - RCPT-342：原话和 AI 的说明里夹带的标题、`<img onerror>` 都留在引述里：报告自己的话里没有它们，页面上只有一个「执行状态」标题，图片标签被转义。
+  - RCPT-343：交给后面的模型时，报告是带来源的材料，夹带的话仍在引述里，不多出一个标题。
+
+**3d-2 实现记录（2026-10-17，§4.5 第三条；统筹 10-17 定）：**
+
+- **报告与输入两头都看得见。** 依据是板上报告已有的 `inputs`（3a 投好的），合同不动。
+  - 回执详情：板上某一步的报告提到这条补充时，在「AI 自己说的，Molis 没有核对」下面加「步骤报告提到它」，一条报告一行：步骤的键加报告原话，和「AI 的原话」同一种引号、同样不截断。它是 AI 的说法，不改事实那一行，也不据此说「已生效」（D21）。
+  - 步骤的键和计划卡上一致：`S` 加它在板上的位置，插入的那一步写「插入」。
+  - `round.step_board` 和 `queued_inputs` 一样分两种：不给值是这次没读，不画任何一行；给了而没有报告提到它，也不画。Coding 把每一轮视图里的板原样交给回执；助理的轮次里有板（Coding 承接的工作）就有这一行，没有就不出现。
+  - Coding 的步骤详情：报告提到的补充，在这个页面上画出了回执的，才出一个「关于补充「…」」按钮。共用回执的 `link(inputId, first)` 只在找到回执时给按钮，否则给 null，所以没有点了没反应的按钮（更早的轮次没画出来时就是这样）。点它先关上步骤对话框（`first`），再打开回执，焦点落在它的 summary 上（复用 `reveal`）。
+  - 服务端报告：每条补充下面列出提到它的步骤报告，「步骤报告提到它（S2，AI 的说法）」，原话放进围栏。
+- **回执按画它的面各一份（统筹 10-17 定）。** 3b-2a 起回执按「轮 + 输入」在整页共用一份：助理的工作交给 Coding 执行时，助理的对话线程和旁边的 Coding 页画同一轮的同一条补充，拿到同一个元素，来回挪（浏览器里复现过：Coding 先画，助理拿走，Coding 下一次重画又拿回去，助理那条补充下面就没有回执了）。`link` 找的是最后画的那一份，可能在另一个面上。现在 `line(owner, turn, round, act)`、`link(owner, inputId, first)`、`tray(owner, …)` 都以画它的面为准：助理传对话线程，Coding 传对话容器（`[data-coding-turns]`，托盘也从 3b-2c 的每轮的块改成它，Coding 只在最后一轮下画托盘，换一轮就重置）。每个面各自记它画的回执、每条输入最近的那一份和它见过的更正（`WeakMap<Element, …>`，面没了就回收）。更正第一次出现在哪个面上，就重画那个面上的原来那条；两个面都画这一轮，所以两份都会更新。`/__ui/catalog` 的样例原来用两个实例绕开这个问题，现在是同一个实例的两个面。
+- **代码位置。** 回执多了这几行以后，`createInputReceipts` 超过了 150 行，所以把更正的表单拆成单独的 `createCorrection`，和托盘一样随页面程序交过去。回执、托盘、更正三处共用一份小工具（`InputReceiptParts`）；撤回的「说一次、拒绝时留下原因」（`attempt`）和「重画时焦点跟到新的那个按钮」（`redraw`），原来在回执和托盘里各写一遍，合成一份。Coding 的回执脚本里，两处「连接断了还是回复读不出」的判断和控制路径也合成一份。
+- **字节。** 对照 3b-2c：`molis-work-workbench.js` +602（回执里的那一行、`link`，以及拆出 `createCorrection` 本身约 130 B；合并重复的撤回与重画已抵掉一部分），`molis-work-plugins/coding.js` +169（步骤详情的按钮；合并 Coding 回执脚本里的两处重复已抵掉一部分），样式表不变。用户 10-17 在回执线会话的弹窗里一次性批准这两项；回执改成按面各一份后再多 workbench.js +198、coding.js +32（每个面的记账、五处调用多一个参数；托盘不再往上找面、每条输入最近的一份直接存元素，抵掉 148 B），用户同日在同一个弹窗里再批一次，合计 +800、+201；放行写成单独的提交，按 merge-base 定键。
+- **验收编号与证据：**
+  - RCPT-344：回执引用提到它的步骤报告，放在 AI 自己说的那一组里，键与计划卡一致；没提到它的报告不出现；板没读时什么都不画；事实一行不变；新来一条报告时重画同一个元素（`tests/input-receipts-client.test.ts`）。
+  - RCPT-345：`link` 对页面没画出的回执给 null；按钮先跑调用方的那一步，再打开回执、焦点落在 summary 上（同上）。
+  - RCPT-346：服务端报告在每条补充下引用提到它的步骤报告，标明是 AI 的说法，原话在围栏里；夹带的话留在引述里（`tests/coding-report-persistence.test.ts`，与 RCPT-342 同一份夹带）。
+  - RCPT-347：步骤对话框只为 Coding 对话里画出了回执的补充出按钮；点它时对话框先关上（`tests/coding-step-receipt-link.test.ts`）。
+  - RCPT-348：同一条补充在两个面上各画一份，是两个元素，重画时各自保留；更正之后两份都更新；`link` 只找自己那个面上的，没画过的面给 null；托盘只列自己那个面上的回执；不重复播报（`tests/input-receipts-client.test.ts`）。助理把对话线程交给回执当面，而不是回执所在的那一轮（`tests/assistant-receipts-client.test.ts`）。
+
+**3d-3 实现记录（2026-10-18，§4.5 前两条、D2、D23；统筹 10-18 定）：**
+
+- **AI 说的新任务先是提议（D2）。** AI 对一条补充说「作为新任务」（`model_claim.treatment` 为 `new-task`），计划卡在步骤下面加一行虚线的提议：「AI 说这是新任务，待你确认」、补充原话、「加进计划」。它是 AI 的说法，和回执里「AI 自己说的」同一类，不是步骤，不改事实。只有计划还能改（这一轮在跑，或是最新一轮、图没结束）才出现；已有步骤指向它的不再出现。点「加进计划」打开和「在后面插入一步」同一张表单，标题先填补充原话，完成条件由人写，提交走人插入步骤的同一条路，接在最后一步后面。AI 没有任何路径能自己加步骤：一轮自己的 `board-revise` 仍被 `molis-confirmed-plan-scope` 拒掉，说法本身也不加步骤。
+- **步骤指向它来自的补充（D23）。** 人的插入可以带 `origin`：一条输入的编号，只能一条。宿主在 `agent.collaboration.revise` 的处理器里核：读这一轮自己的记录，它必须是这一轮的补充、没有撤回；伪造的、别的会话或别的轮次的、撤回了的都拒（`agent.input_not_origin`），拒在碰板之前，板上和业务记录里什么都不写。核过的交给 SDK 的 `addNode` 作为节点的 `origins`（会话取这一轮的 SDK 会话，不信请求里的会话或项目）。`AgentStepBoard` 的节点投出 `origins`，照 SDK 板上记的原样，不给就是没有，这就是 D23 说的「这时再投」。
+- **徽标。** 指向补充的步骤，在计划卡和 TaskBoard 上都显示「来自补充「…」」，点开回到对话里那条回执。两处用同一份：Coding 的回执脚本给一个 `from(node, first)`，里面是共用回执的 `link`（3d-2 的那个按钮，加了 `lead` 参数，换成「来自补充「」）；对话里没画出那条回执就没有按钮。从 TaskBoard 点时先关上 TaskBoard、回到对话。
+- **合同。** `agent.collaboration.revise` 的输入加了 `amendment.origin`，按 `specs/prologue-adoption` §4.6.9「形状变了就升 version」升到 v2（快照删 v1 行、加 v2 行）；唯一的调用方是 Coding 的计划修订路由，同一个 PR 里改。`AgentStepBoard` 节点加 `origins?`（`pnpm api:update`）。
+- **字节。** 先在片内抵：计划卡的 `stepOf`、`skipped`、`settled` 和 TaskBoard 的一模一样，改成计划卡用 TaskBoard 的那一份（经端口交过去，`client.ts` 里计划卡的构造挪到 TaskBoard 之后，行数不变），「在后面插入一步」和「加进计划」共用一个插入表单，提议行与样式各压成一条，计划卡的样式挪到卡旁（`styles.ts` 不再变长）。剩下的对照 3d-2：`molis-work-plugins/coding.js` +737（提议行与「加进计划」、徽标、`origin` 校验），两份样式表各 +147（虚线提议行），`molis-work-workbench.js` +10（`link` 的 `lead`）。用户 10-18 在回执线会话的弹窗里一次性批准；放行写成单独的提交，按 merge-base（main 8fcff0442，#688、#696 之后）定键，3d-2 的两条移进用过的名单。
+- **BL-161。** TaskBoard 按 `node.id` 编号、计划卡按位置编号，插入一步后两边对不上；按统筹要求只记进 BACKLOG，不在这一片里改。
+- **验收编号与证据：**
+  - RCPT-349：插入只能带一条输入的编号，别的写法在 schema 和 Coding 的路由就被拒；宿主拒伪造的、别的会话的、撤回了的，拒时修订一次都没交下去；这一轮自己读到的照常交下去（`tests/agent-collaboration-revise.test.ts`、`tests/coding-plan-amend-http.test.ts`）。
+  - RCPT-350：真实运行时里，人加的步骤在板上指向那条补充，会话是这一轮的会话，运行视图读回同一份（`tests/prologue-board-origins.test.ts`）。
+  - RCPT-351：反例。AI 说「作为新任务」、再自己用 `board-revise` 加一步并指向它，宿主拒掉，板上还是原来那一步，没有指向（同上）。
+  - RCPT-352：计划卡只为还没有步骤指向的新任务出虚线的提议，别的说法和已加过的不出；说法本身不加步骤；只有点「加进计划」才发人的插入，带着那条补充；计划结束后不再提议（`tests/coding-board-origins.e2e.test.ts`）。
+  - RCPT-353：指向补充的步骤在计划卡和 TaskBoard 上是同一个「来自补充「…」」按钮；从 TaskBoard 点时先关上它再打开回执（同上；`link` 的 `lead` 在 `tests/input-receipts-client.test.ts`）。
+
 ### 阶段 4：产品对象与 Goals 层
 
 依赖：PR #340 合入；W3-01 调用编号。
@@ -943,7 +1023,7 @@ interface AgentInputView {
 | --- | --- | --- | --- |
 | D21 | 「观察到的影响」（板版本差、逐轮变更、调用归因）放在哪一片 | 挪到 3d；3a 只投模型自称的影响，类型上标明是自称 | 它离不开 Coding 的变更集与计划板，只在界面里与自称的影响并排才有意义 |
 | D22 | §6.2 的完整 `AgentInputView` 组合视图 | 放到 3c，按组件实际读的形状定 | 不在合同里先落一块没人读的东西 |
-| D23 | 板节点的 `origins`（这一步因哪条输入而来）投不投 | 3a 不投，只投报告的 `inputs` | Molis 不许一轮改它确认过的计划（`molis-confirmed-plan-scope` 拒 `board-revise`），节点在 Molis 里还不会因输入而来；3d 的「新任务提议」定下一步怎么落到板上时再投（实现时发现，统筹认可的方案里原有此项） |
+| D23 | 板节点的 `origins`（这一步因哪条输入而来）投不投 | 3a 不投，只投报告的 `inputs` | Molis 不许一轮改它确认过的计划（`molis-confirmed-plan-scope` 拒 `board-revise`），节点在 Molis 里还不会因输入而来；3d 的「新任务提议」定下一步怎么落到板上时再投（实现时发现，统筹认可的方案里原有此项）。3d-3 投了：人为一条补充加的步骤带 `origins`，由宿主核过（统筹 10-18 定） |
 
 **2026-10-16 统筹定（阶段 3c 方案；字节一项由用户 10-16 弹窗批准）：**
 

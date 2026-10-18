@@ -1,5 +1,6 @@
 import { CODING_TIMELINE_STYLES } from "./timeline-styles.js";
 import { CODING_COMPOSER_MODEL_STYLES } from "./composer-model-client.js";
+import { CODING_PLAN_PROGRESS_STYLES } from "./plan-progress-client.js";
 /** Layout only; controls, colors, and focus behavior use the shared system. */
 export const CODING_STYLES = `
 .coding-material { min-width:0; padding:12px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
@@ -309,7 +310,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-report pre { position:relative; overflow:auto; padding:12px 16px; background:var(--rail); border:1px solid var(--line); border-radius:var(--radius-control); }
 .coding-report .coding-code-copy { position:absolute; top:6px; right:6px; height:24px; min-height:24px; padding:0 8px; font-size:12px; opacity:0; transition:opacity 130ms var(--ease-quint); }.coding-report pre:hover .coding-code-copy,.coding-report pre:focus-within .coding-code-copy,.coding-report .coding-code-copy:focus-visible { opacity:1; }@media (hover:none) { .coding-report .coding-code-copy { opacity:1; } }
 .coding-report-source,[data-coding-report-status] { font-size:12px; color:var(--muted); }
-.coding-turn { max-width:76ch; margin:0 auto 24px; font-size:13px; line-height:1.7; overflow-wrap:anywhere; }
+.coding-turn,[data-run] > .mw-tray { max-width:76ch; margin:0 auto 24px; font-size:13px; }.coding-turn { line-height:1.7; overflow-wrap:anywhere; }
 /* The person's own words sit as a bubble on the column's right edge; the Agent's reply reads as the page. */
 .coding-turn[data-kind=user] { width:fit-content; max-width:min(64ch,85%); margin-left:auto; margin-right:max(0px,calc((100% - 76ch) / 2)); padding:12px 16px; border-radius:18px 18px 6px 18px; background:var(--rail); }
 .coding-turn p { margin:0 0 .8em; }.coding-turn p:last-child { margin-bottom:0; }
@@ -736,24 +737,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-filter[data-coding-filter=needs-you] .coding-filter-count { background:color-mix(in srgb,var(--amber) 18%,transparent); color:var(--amber); }
 .coding-filter-count[hidden] { display:none; }
 
-/* Running plan: the round's own step graph under the task, with the person's controls while it runs. */
-.coding-plan-progress { max-width:76ch; margin:0 auto 24px; padding:12px 16px; border:1px solid var(--line); border-radius:12px; background:var(--paper); font-size:13px; animation:coding-rise 130ms var(--ease-quint); }
-.coding-plan-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; color:var(--ink); }
-.coding-plan-head svg { width:14px; height:14px; color:var(--muted); flex:none; }
-.coding-plan-head strong { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
-.coding-plan-count { flex:none; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
-.coding-plan-revision { flex:none; font-size:11px; color:var(--faint); }
-/* The plan card in the conversation uses the TaskBoard's rows, without the progress column. */
-.coding-plan-steps { margin:4px 0 0; }
-.coding-board--compact .coding-board-entry { grid-template-columns:minmax(0,1fr) 7.5rem 7rem auto; padding:0 8px; }
-.coding-plan-step[data-state=running] .coding-board-node strong { font-weight:500; }
-.coding-plan-step:is([data-state=skipped],[data-state=cancelled]) .coding-board-node strong { color:var(--faint); text-decoration:line-through; }
-.coding-plan-step[data-inserted=true] .coding-board-node strong::after { content:"你插入的"; margin-left:8px; padding:0 8px; border-radius:999px; background:color-mix(in srgb,var(--blue) 12%,transparent); color:var(--blue); font-size:11px; text-decoration:none; }
-.coding-plan-form { display:grid; gap:8px; margin:4px 0 8px 32px; padding:8px; border:1px solid var(--line); border-radius:8px; }
-.coding-plan-form .mw-input { height:30px; font-size:13px; }
-.coding-plan-form-actions { display:flex; justify-content:flex-end; gap:8px; }
-.coding-plan-form-actions .mw-btn { height:26px; min-height:26px; font-size:12px; }
-.coding-plan-foot { margin:8px 0 0; font-size:12px; color:var(--faint); }
+${CODING_PLAN_PROGRESS_STYLES}
 @media (hover:none) { .coding-board-tools { display:inline-flex; } }
 @container molis-coding (max-width:760px) { .coding-board--compact .coding-board-entry { grid-template-columns:minmax(0,1fr) auto; } .coding-board--compact :is(.coding-board-deps,.coding-board-meta) { display:none; } .coding-board-tools { display:inline-flex; position:static; box-shadow:none; } }
 

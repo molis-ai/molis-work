@@ -26,9 +26,9 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
 
   assert.match(settings, /body\.settings-page \{[^}]*overflow: hidden;/);
   assert.match(settings, /\.settings-content \{[^}]*overflow: hidden;/);
-  // Both settings bodies render data-desktop-shell="false", so personal-workbench-v3's two-column .settings-content rule for "true"
-  // never applied. W5-05 slice 4 kept it while this file still asserted it; slice 5 deleted it.
-  assert.match(settings, /body\.settings-page\[data-desktop-shell="true"\]:is\(\[data-settings-section="projects"\], \[data-settings-section="project"\]\) \.settings-content \{[\s\S]*grid-column: 1;/);
+  // Both settings bodies render data-desktop-shell="false", so no body.settings-page[data-desktop-shell="true"] rule ever applied:
+  // personal-workbench-v3's two-column .settings-content went in W5-05 slice 5, the projects-section .settings-content in the
+  // desktop-shell dead-selector slice.
   assert.match(settings, /\.settings-body \{[^}]*overflow: auto;[^}]*overscroll-behavior: contain;/);
   assert.doesNotMatch(settings, /\.settings-shell \{ height: calc\(100dvh - 58px\)/);
 
@@ -52,9 +52,10 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(workbench, /feed-stage-list .goal-collection-fold > summary/);
   assert.match(workbench, /plugin-stage-list \.goal-collection-fold \.feed-stage-entry \{ padding-left: 24px; \}/);
   assert.match(workbench, /plugin-stage-list \.goal-collection-fold > :is\(\.mw-dir-row, a\.mw-dir-row\) \{ padding-left: 24px; \}/);
-  assert.match(workbench, /plugin-stage-list \.goal-collection-fold \.shelf-row \{ padding-left: 24px; \}/);
+  assert.match(workbench, /\[data-shelf\] \.goal-collection-fold \.shelf-row \{ padding-left: 24px; \}/);
   assert.doesNotMatch(workbench, /plugin-stage-shell\[data-expanded="true"\] \.shelf-stage-chrome \{ display: none; \}/);
-  assert.match(workbench, /\[data-shelf-stage-shell\]\[data-expanded="true"\] \{ --tree-width: 213px/);
+  // Shelf is the side panel's tab: from 640px of tab its 213px list stays beside the open file.
+  assert.match(workbench, /@container shelf \(min-width: 640px\) \{\s*\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
   assert.match(workbench, /plugin-stage-list \.artifact-empty \{ max-width: 32ch;/);
   // Spacing snapped to the 4/8/12/16 scale in the visual refinement (spec → 第三轮 · 间距与形状); the indent stays 24px.
   assert.match(workbench, /feed-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);

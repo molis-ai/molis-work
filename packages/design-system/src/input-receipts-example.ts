@@ -44,13 +44,13 @@ export function renderInputReceiptsExample(): string {
   </div>
   <div class="mw-rc-controls"><button type="button" class="mw-btn mw-btn--secondary" data-rc-step>推进一步</button><span>状态区最近说的：<output data-rc-said>（还没有）</output></span></div>
   <script>(()=>{const coding=document.querySelector('[data-rc-coding]'),assistant=document.querySelector('[data-rc-assistant]');if(!coding||!assistant)return;
-    const L=globalThis.L||(text=>text),one=(${INPUT_RECEIPTS_CLIENT_SCRIPT})(L),two=(${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
+    const L=globalThis.L||(text=>text),ui=(${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
     const turns=${JSON.stringify(TURNS)};
     const act={withdraw:async id=>{turns.find(turn=>turn.steer.id===id).steer.state='withdrawn';setTimeout(paint);},
       correct:async(about,text)=>{const n=turns.length+1;turns.push({turn_id:'t'+n,kind:'user',text,steer:{id:'steer-'+n,state:'received',about}});setTimeout(paint);}};
     const paint=()=>{coding.replaceChildren();assistant.replaceChildren();for(const turn of turns){
-      const node=document.createElement('article');node.dataset.kind=turn.kind;node.textContent=turn.text;const a=one.line(turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[]},act);if(a)node.append(a);coding.append(node);
-      const bubble=document.createElement('p');bubble.className='msg';bubble.dataset.kind=turn.kind;bubble.textContent=turn.text;assistant.append(bubble);const b=two.line(turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[]},act);if(b)assistant.append(b);
+      const node=document.createElement('article');node.dataset.kind=turn.kind;node.textContent=turn.text;const a=ui.line(coding,turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[]},act);if(a)node.append(a);coding.append(node);
+      const bubble=document.createElement('p');bubble.className='msg';bubble.dataset.kind=turn.kind;bubble.textContent=turn.text;assistant.append(bubble);const b=ui.line(assistant,turn,{awaiting_input:turn.turn_id==='t1'?[{}]:[]},act);if(b)assistant.append(b);
       if(turn.open){a?.setAttribute('open','');b?.setAttribute('open','');delete turn.open;}}};
     paint();
     const steps=[{state:'read'},{state:'read',model_claim:{treatment:'apply-now',kind:'constraint',targets:[],impacts:['constraint'],revisions:1}}];

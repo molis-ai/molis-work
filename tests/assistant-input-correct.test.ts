@@ -45,6 +45,7 @@ test("RCPT-323: the Assistant takes back a supplement its round has not read, an
   const started = await service.send({ text: "帮我整理这周的周报", request_id: "request-1", scope: { kind: "personal" } }, {});
   const workId = started.work.work_id, runId = started.run_id!;
   await asked.promise;
+  assert.equal((await service.read(workId)).queued_inputs, undefined, "RCPT-336 while its round is live, the work's queue is not read");
   const steerOf = async (text: string) => (await service.read(workId)).rounds.flatMap(round => round.turns).find(turn => turn.text === text)?.steer;
   assert.equal((await service.send({ work_id: workId, text: "不要写具体数字", request_id: "request-2" }, {})).outcome, "steered");
   assert.equal((await service.send({ work_id: workId, text: "顺便列出风险", request_id: "request-3" }, {})).outcome, "steered");
@@ -69,6 +70,9 @@ test("RCPT-323: the Assistant takes back a supplement its round has not read, an
   assert.equal((await service.read(workId)).rounds.length, 1, "RCPT-323 no round starts on its own");
   const waiting = await adapter.readSession(session);
   assert.deepEqual(waiting.queued_inputs?.map(input => [input.text, input.about]), [["风险改成只写一条", kept.id]], "RCPT-323 it waits with the input it is about");
+  assert.deepEqual((await service.read(workId)).queued_inputs?.map(input => [input.input_id, input.text, input.about]),
+    [[waiting.queued_inputs![0]!.input_id, "风险改成只写一条", kept.id]], "RCPT-336 the work's view carries what waits, as the runtime read it");
   await service.control(workId, { kind: "withdraw", run_id: runId, input_id: waiting.queued_inputs![0]!.input_id });
-  assert.deepEqual((await adapter.readSession(session)).queued_inputs ?? [], [], "RCPT-323 and it can be taken back from there");
+  assert.deepEqual((await adapter.readSession(session)).queued_inputs, [], "RCPT-323 and it can be taken back from there");
+  assert.deepEqual((await service.read(workId)).queued_inputs, [], "RCPT-336 read, and nothing waits");
 });

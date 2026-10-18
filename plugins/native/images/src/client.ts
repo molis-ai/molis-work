@@ -218,12 +218,11 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       keep.addEventListener('click', async () => {
         keep.disabled = true;
         try {
-          const response = await fetch(imageUrl(job, item, true), { cache: 'no-store' });
-          if (!response.ok) throw new Error(L('图片暂时无法读取，请刷新记录后重试。'));
-          const bytes = new Uint8Array(await response.arrayBuffer());
-          let binary = ''; for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(index, index + 0x8000));
-          window.dispatchEvent(new CustomEvent('molis:shelf-admit', { detail: { filename: fileNameOf(job, item), mime: item.mime_type || response.headers.get('content-type') || 'image/png', bytes_base64: btoa(binary),
-            source: L('图片') + ' · ' + job.prompt.slice(0, 40) } }));
+          const { item: kept } = await request('POST', '/jobs/' + encodeURIComponent(job.id) + '/images/' + encodeURIComponent(item.id) + '/shelf', { filename: fileNameOf(job, item) });
+          // The card says where the copy went; its 打开 opens it where Shelf opens (the side panel, by declaration).
+          const shelved = { kind: 'shelf_item', id: kept.item_id, project_id: null };
+          window.dispatchEvent(new CustomEvent('molis:placement-result', { detail: { verb: 'received', title: kept.name, object: shelved, open: { surface: 'shelf', id: kept.item_id, project_id: null },
+            note: L('来自 {source}', { source: L('图片') + ' · ' + job.prompt.slice(0, 40) }) + ' · ' + L('可以在 Shelf 里用于项目') } }));
         } catch (error) { say(error.message || L('放进 Shelf 失败'), true); }
         finally { setTimeout(() => { keep.disabled = false; }, 1200); }
       });

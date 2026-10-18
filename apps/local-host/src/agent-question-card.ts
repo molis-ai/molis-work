@@ -43,11 +43,14 @@ function zoneLabel(date: string, say: Say): string {
 }
 const draftText = (value: InteractionValues[string] | undefined): string | undefined => typeof value === "string" ? value : undefined;
 
+/** The field a questionnaire's text question is drawn as; the Assistant's composer writes into it by this id (R4). */
+export const textFieldId = (index: number): string => `t${index}`;
+
 /** One questionnaire question that is not a choice, as its field: `t<n>`, `n<n>`, `d<n>` or `w<n>`, as `questionAnswer` reads it. */
 function typedField(item: AgentQuestion, say: Say, draft: InteractionValues): { id: string; control: InteractionControl } | undefined {
   const start = item.default === undefined || Array.isArray(item.default) ? "" : String(item.default);
   if (item.type === "text") {
-    return { id: `t${item.index}`, control: { kind: "text", value: draftText(draft[`t${item.index}`]) ?? start, multiline: item.multiline === true, ...(item.max_length ? { maxLength: item.max_length } : {}) } };
+    return { id: textFieldId(item.index), control: { kind: "text", value: draftText(draft[textFieldId(item.index)]) ?? start, multiline: item.multiline === true, ...(item.max_length ? { maxLength: item.max_length } : {}) } };
   }
   if (item.type === "number") {
     return { id: `n${item.index}`, control: { kind: "number", value: draftText(draft[`n${item.index}`]) ?? start, step: 1, integer: item.integer === true,
@@ -74,7 +77,9 @@ function typedField(item: AgentQuestion, say: Say, draft: InteractionValues): { 
 /** The card, with what the person already wrote back in place. */
 export function agentQuestionHtml(question: AgentPendingQuestion, say: Say, draft: InteractionValues = {},
   /** What answering leads to, in the asker's words; an Agent's run goes on by default. */
-  note = say("回答后这一轮会接着做。")): string {
+  note = say("回答后这一轮会接着做。"),
+  /** A closed card offers to ask again with this draft (D5); only where the surface starts that round. */
+  reask = false): string {
   const fields: InteractionField[] = question.questions?.length
     ? question.questions.map(item => ({ label: item.prompt, optional: !item.required, ...(item.help ? { hint: item.help } : {}),
       ...typedField(item, say, draft) ?? { id: `q${item.index}`, control: { kind: "choice" as const, multiple: item.multiple, recommendedLabel: say("推荐"), options: item.options.map(option => ({ value: String(option.index), label: option.label,
@@ -90,7 +95,7 @@ export function agentQuestionHtml(question: AgentPendingQuestion, say: Say, draf
   const closed = question.answerable === false;
   return renderInteractionQuestion({
     id: `q-${question.pending_id}`, kicker: say("等你回答"), state: closed ? "unavailable" : "answer", title: question.prompt, fields, optionalLabel: say("选填"),
-    ...(closed ? { banner: { text: question.unavailable_reason || say("这个问题暂时不能回答"), tone: "quiet" as const, actions: [] } } : {}),
+    ...(closed ? { banner: { text: question.unavailable_reason || say("这个问题暂时不能回答"), tone: "quiet" as const, actions: reask ? [{ id: "reask", label: say("请 AI 重新问") }] : [] } } : {}),
     footer: { note, keys: "⌘↵", actions: closed ? [] : [{ id: "answer", label: say("提交回答"), variant: "primary", type: "submit" }] },
   });
 }

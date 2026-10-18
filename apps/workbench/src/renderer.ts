@@ -57,7 +57,6 @@ import {
   renderPptContribution,
   renderLingguangContribution,
   renderJellyContribution,
-  renderCogniaContribution,
   renderAlchemistContribution,
   renderWorkflowsContribution,
   renderWorkbenchDocument,
@@ -108,10 +107,6 @@ function renderPptNativePluginSurface(surface: "directory" | "workbench"): strin
   return renderPptContribution(surface, {
     primitives: { escape: escapeHtml, text: L },
   });
-}
-
-function renderCogniaNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderCogniaContribution(surface, { primitives: { escape: escapeHtml, text: L } });
 }
 
 function renderJellyNativePluginSurface(surface: "directory" | "workbench"): string {
@@ -371,7 +366,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,

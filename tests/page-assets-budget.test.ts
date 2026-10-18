@@ -647,33 +647,32 @@ for (const [asset, old] of [
   });
 }
 
-// RCPT-344–348 (specs/ai-input-receipts §4.5, receipts 3d-2): approved by the user on 2026-10-17 in the receipts line's popup,
-// a step's report and the supplement it names may grow the workbench script and Coding's bundle once, from exactly the current
-// baseline to the measured size (+800, +201). One byte more, another asset, or growth from the new baseline still fails.
-test("receipts 3d-2 has one bounded allowance on the workbench script and Coding's bundle; other assets and later growth still fail", () => {
+// AC-03 (specs/ai-interaction-experience R4, D14): approved by the user on 2026-10-18 in the interaction line's session, the
+// composer's 「写进问卷」 may grow the workbench script once, from exactly the current baseline to the measured size (+606).
+// One byte more, another asset, or growth from the new baseline still fails.
+test("AC-03 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-plugins/coding.js": [373784, 373985],
-    "/assets/molis-work-workbench.js": [1108502, 1109302],
+    "/assets/molis-work-workbench.js": [1109302, 1109908],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("rcpt-3d2-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "rcpt-3d2-change");
+  branch("ac03-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "ac03-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "rcpt-3d2-base").code, 0);
-  assert.equal(gate("--base", "rcpt-3d2-base").code, 0);
+  assert.equal(gate("--update", "--base", "ac03-base").code, 0);
+  assert.equal(gate("--base", "ac03-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "rcpt-3d2-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "ac03-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "rcpt-3d2-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "rcpt-3d2-base").code, 0);
-  commit("freeze the measured 3d-2 sizes"); git("branch", "-f", "rcpt-3d2-frozen");
+  assert.equal(gate("--update", "--base", "ac03-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "ac03-base").code, 0);
+  commit("freeze the measured AC-03 size"); git("branch", "-f", "ac03-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "rcpt-3d2-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "rcpt-3d2-frozen").code, 1);
+    assert.equal(gate("--base", "ac03-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "ac03-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
 });

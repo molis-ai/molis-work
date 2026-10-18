@@ -76,7 +76,9 @@ test("native Desktop identity self-heals before layout and survives full-page na
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /--desktop-window-safe-inline-start","88px"/);
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /next\.searchParams\.set\("desktop","1"\)/);
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /location\.replace\(normalized\)/);
-  assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /molisWorkOpenShelf/);
+  // W2'-3: Shelf's hotkey and menu name the plugin; the page decides where it opens (desktop-shelf-side.e2e).
+  assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /molisWorkOpenShelf=\(\)=>globalThis\.molisWorkOpenPlugin\?\.\("shelf"\)/);
+  assert.doesNotMatch(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /data-plugin-strip|desktopSurface/);
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /molisWorkShelfNotice/);
   assert.match(WEB_RENDER_SOURCE, /const THEME_BOOTSTRAP_SCRIPT = `\$\{BASE_THEME_BOOTSTRAP_SCRIPT\}\$\{NATIVE_DESKTOP_BOOTSTRAP_SCRIPT\}`/);
   assert.doesNotMatch(

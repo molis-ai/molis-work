@@ -18,13 +18,15 @@ import { type AttrValue, cx, escapeHtml, renderAttrs } from "./primitives/html.j
 
 export type InteractionTone = "waiting" | "progress" | "done" | "failed" | "quiet";
 export interface InteractionBadge { label: string; tone: InteractionTone; /** null for descriptions that do not express a state (such as an effect). */ state?: StateRingState | null }
-/** A button on an interaction part. `id` becomes `data-ix-action`; `attrs` lets the caller keep its own hooks. */
+/** A button or internal link on an interaction part. `id` becomes `data-ix-action`; `attrs` lets the caller keep its own hooks. */
 export interface InteractionAction {
   id: string;
   label: string;
   variant?: "primary" | "secondary" | "ghost";
   type?: "button" | "submit";
   disabled?: boolean;
+  /** An internal destination; navigation does not dispatch an interaction action. */
+  href?: string;
   icon?: MolisWorkIcon;
   iconOnly?: boolean;
   attrs?: Record<string, AttrValue>;
@@ -120,7 +122,7 @@ const fieldId = (scope: string, id: string, part = "") => `${scope}-${id}${part 
 export function renderInteractionAction(action: InteractionAction): string {
   return renderButton({
     label: action.label, variant: action.variant ?? "secondary", type: action.type, disabled: action.disabled,
-    icon: action.icon, iconOnly: action.iconOnly, attrs: { "data-ix-action": action.id, ...action.attrs },
+    icon: action.icon, iconOnly: action.iconOnly, href: action.href, attrs: { ...(!action.href ? { "data-ix-action": action.id } : {}), ...action.attrs },
   });
 }
 const actionRow = (actions: InteractionAction[] | undefined, hook: string, end = false) =>

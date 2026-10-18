@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readNativePluginJsonBody } from "./native-plugin-http.js";
 import { sendLocalWebJson as json } from "./web-http.js";
-import { listConnectorConnectionViews } from "./web-connector-connections.js";
+import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { gmailOAuthConfigured } from "./gmail-oauth.js";
 import { withContextJourneys } from "./context-onboarding-store.js";
 import { adoptContextJourney, updateContextDraft, contextModel, readContextJourney, reopenContextJourney, selectContextSources, startContextJourney, type ContextOnboardingPorts } from "./context-onboarding-service.js";

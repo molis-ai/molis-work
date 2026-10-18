@@ -22,10 +22,7 @@ export function createGmailTokenLifecycle(ports: GmailOAuthPorts, configuration:
     };
   }
 
-  /**
-   * Persist rotated private access facts after exchange or refresh, under one connection's refs.
-   * Refresh token is updated only when Google returns a new one.
-   */
+  /** Persist one connection's tokens; replace its refresh token only when Google returns a new one. */
   function persistGmailAccessLifecycle(opts: {
     accessToken: string;
     refreshToken?: string;
@@ -77,6 +74,8 @@ export function createGmailTokenLifecycle(ports: GmailOAuthPorts, configuration:
     /** The connection whose tokens are used and rotated. */
     tokenRefs: GmailTokenRefs;
     forceRefresh?: boolean;
+    /** The connection owner rechecks its revision synchronously before any refreshed credential is saved. */
+    beforePersist?: () => void;
   }): Promise<GmailUsableTokenResult> {
     const lifecycle = loadGmailTokenLifecycle(opts.tokenRefs);
     if (!lifecycle) {
@@ -158,6 +157,7 @@ export function createGmailTokenLifecycle(ports: GmailOAuthPorts, configuration:
     }
 
     if (loadRefreshToken(opts.tokenRefs) !== refreshToken) return needsAuthResult("Gmail connection changed while refreshing; retry");
+    opts.beforePersist?.();
     persistGmailAccessLifecycle({
       accessToken: json.access_token.trim(),
       refreshToken: json.refresh_token,
@@ -168,7 +168,5 @@ export function createGmailTokenLifecycle(ports: GmailOAuthPorts, configuration:
 
     return { ok: true, accessToken: json.access_token.trim() };
   }
-
-
   return { loadRefreshToken, persistGmailAccessLifecycle, resolveUsableGmailAccessToken };
 }

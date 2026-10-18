@@ -10,6 +10,8 @@ export interface MwButtonOptions {
   size?: MwControlSize;
   type?: "button" | "submit" | "reset";
   disabled?: boolean;
+  /** Same-origin navigation uses a real link, with the same control styling. */
+  href?: string;
   loading?: boolean;
   icon?: MolisWorkIcon;
   iconOnly?: boolean;
@@ -31,7 +33,9 @@ export function renderButton(options: MwButtonOptions): string {
   const text = options.iconOnly
     ? `<span class="mw-sr-only">${label}</span>`
     : `<span data-slot="button-label">${label}</span>`;
-  return `<button type="${options.type ?? "button"}" class="${cx(
+  const href = !disabled && options.href && /^\/(?!\/)/u.test(options.href) && !/[\\\u0000-\u0020\u007f]/u.test(options.href) ? options.href : null;
+  const tag = href ? "a" : "button";
+  return `<${tag} ${href ? `href="${escapeHtml(href)}"` : `type="${options.type ?? "button"}"`} class="${cx(
     "mw-btn",
     `mw-btn--${variant}`,
     `mw-btn--${size}`,
@@ -39,5 +43,5 @@ export function renderButton(options: MwButtonOptions): string {
     options.className,
   )}" data-slot="button"${options.loading ? " data-loading" : ""}${disabled ? " disabled" : ""}${
     options.iconOnly ? ` aria-label="${label}"` : ""
-  }${renderAttrs(options.attrs)}>${spinner}${leading}${text}${key}</button>`;
+  }${renderAttrs(options.attrs)}>${spinner}${leading}${text}${key}</${tag}>`;
 }

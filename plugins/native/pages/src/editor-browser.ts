@@ -1,3 +1,5 @@
+import { PagesBlockMenu } from "./editor-block-menu.js";
+import { hoverKey, EMPTY_HOVER, runBlockCommand, rowAtSelection, hoveredGroup, dropHoveredGroup, duplicateHoveredGroup, nudgeEditor } from "./editor-block-selection.js";
 export { mountComments } from "./comment-side-client.js";
 export { bindComments } from "./comment-editor-client.js";
 export { listFailed } from "./list-client.js";
@@ -15,19 +17,15 @@ import { commitDrag, DragPreview } from "./drag-preview.js";
 import { keymap } from "prosemirror-keymap";
 import { DOMSerializer, Fragment, Node, Slice } from "prosemirror-model";
 import { splitListItem } from "prosemirror-schema-list";
-import { Command, EditorState, NodeSelection, Plugin, PluginKey, TextSelection, Transaction } from "prosemirror-state";
+import { Command, EditorState, NodeSelection, Plugin, TextSelection, Transaction } from "prosemirror-state";
 import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
 import { applyPagesActions, endPagesTransients, ownPagesTransient, readPagesImage } from "./editor-transient.js";
 import { fillStaticIndexes } from "./card-content.js";
 import {
   blockPos,
-  deleteBlock,
-  deleteRow,
   deleteSpan,
-  duplicateBlock,
   duplicateEnclosingRow,
   enterHeading,
-  duplicateRow,
   duplicateSpan,
   enterInToggle,
   exitWrappedBlock,
@@ -52,7 +50,6 @@ import {
   headingIndexAt,
   listKindAt,
   headingLevelAt,
-  addColumn,
   applyListSelection,
   applyHeading,
   selectBlockThenAll,
@@ -68,9 +65,7 @@ import {
   insertAfterSelectedBlock,
   insertAfterSpan,
   hardBreakAtSpanEnd,
-  hoverMenuIndex,
   popEscape,
-  blockMenuKey,
   handleAnchor,
   hoverPosAfter,
   blockSpanStep,
@@ -79,10 +74,8 @@ import {
   blockSpanToRow,
   blockMenuShortcut,
   blockMenuTarget,
-  spanIsGroup,
   splitTaskItem,
   setCalloutStyle,
-  setRowsTone,
   toggleTaskChecked,
   toggleTaskGroup,
   setLink,
@@ -92,7 +85,6 @@ import {
   markCovers,
   toneAt,
   turnRowInto,
-  turnSpanInto,
   turnGroup,
   clearSpanMarks,
   clearInlineMarks,
@@ -100,7 +92,6 @@ import {
   commentAt,
   setComment,
   unwrapAtStart,
-  unwrapColumns,
 } from "./commands.js";
 import { acceptedImageFile, bookmarkLabel, linkClickOpens, safePagesHref } from "./link.js";
 
@@ -115,31 +106,23 @@ import { markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, 
 import { nodesToMarkdown } from "./to-markdown.js";
 import { pasteHtml, type PasteLeaf } from "./paste-html.js";
 import {
-  addTableColumn,
   addTableRow,
   atLastTableCell,
-  deleteTableColumn,
-  deleteTableRow,
   moveTableColumn,
   moveTableEdge,
-  moveTableRow,
   tableHit,
-  toggleHeaderRow,
 } from "./table-edit.js";
 
-import { dragRows, dropLevelRange, nodesInSpan, nudgeSpan, previewCopySpan, previewSpan, spanRoots, spanRows, type DragRow } from "./reorder.js";
+import { dragRows, dropLevelRange, nodesInSpan, previewCopySpan, previewSpan, spanRoots, spanRows, type DragRow } from "./reorder.js";
 import { PAGES_TONES } from "./tone.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
 import { applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen } from "./focus.js";
 import type { Translate, PagesEditorMountOptions, PagesEditorHandle, PagesCommandPreset, PagesToolGroup } from "./editor-types.js";
-import { t, overlayRoot, dsIcon, escapeHtml, actions, keepSelectedVisible } from "./editor-view-ui.js";
+import { t, overlayRoot, dsIcon, escapeHtml, actions } from "./editor-view-ui.js";
 import { codeHighlightPlugin, imageNodeView, bookmarkNodeView, codeNodeView } from "./editor-node-media.js";
 import { columnNodeView, cellNodeView, taskNodeView, toggleNodeView, calloutNodeView, mentionNodeView, calendarNodeView, tocNodeView } from "./editor-node-layout.js";
 import { cardNodeView } from "./editor-node-cards.js";
 export type { PagesEditorHandle, PagesToolItem, PagesToolGroup, PagesCommandPreset, PagesListItem, PagesEditorMountOptions } from "./editor-types.js";
-type PagesHover = { pos: number; dragging: boolean; anchor: number; head: number; menuTick: number };
-const hoverKey = new PluginKey<PagesHover>("pages-hover");
-const EMPTY_HOVER: PagesHover = { pos: -1, dragging: false, anchor: -1, head: -1, menuTick: 0 };
 
 function commandToggle(markName: string): Command {
   return (state, dispatch, editor) => {
@@ -183,51 +166,11 @@ function headingCommand(level: 1 | 2 | 3): Command {
   };
 }
 
-/** Run a block command against the view and hand focus back to the editor. */
-function runBlockCommand(view: EditorView, command: Command): void {
-  if (!command(view.state, view.dispatch.bind(view), view)) return;
-  view.focus();
-}
-
-function rowAtSelection(state: EditorState): number {
-  const pos = state.selection.from;
-  let hit = -1;
-  for (const row of dragRows(state.doc)) {
-    const node = state.doc.nodeAt(row.pos);
-    if (node && pos >= row.pos && pos < row.pos + node.nodeSize) hit = row.pos;
-  }
-  return hit;
-}
-
 function dropSelectedBlock(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
   const tr = deleteSelectedBlock(state);
   if (!tr) return false;
   if (dispatch) dispatch(tr.scrollIntoView());
   return true;
-}
-
-function hoveredGroup(view: EditorView): { anchor: number; head: number } | null {
-  const hover = hoverKey.getState(view.state);
-  if (!hover || !spanIsGroup(view.state.doc, hover.anchor, hover.head)) return null;
-  return { anchor: hover.anchor, head: hover.head };
-}
-
-function dropHoveredGroup(view: EditorView): boolean {
-  const group = hoveredGroup(view);
-  if (!group) return false;
-  return deleteSpan(group.anchor, group.head)(view.state, (tr) => {
-    view.dispatch(tr.setMeta(hoverKey, { span: null, pos: -1 }).scrollIntoView());
-  });
-}
-
-function duplicateHoveredGroup(view: EditorView): boolean {
-  const group = hoveredGroup(view);
-  if (!group) return false;
-  const ok = duplicateSpan(group.anchor, group.head)(view.state, (tr) => {
-    view.dispatch(tr.setMeta(hoverKey, { span: null }).scrollIntoView());
-  });
-  if (ok) view.focus();
-  return ok;
 }
 
 function applySelected(tr: Transaction | null, dispatch?: (tr: Transaction) => void): boolean {
@@ -261,31 +204,6 @@ function writeSpanClipboard(view: EditorView, event: ClipboardEvent, cut: boolea
   return true;
 }
 
-/** Move the selected rows, or the row holding the caret, one slot among their siblings. */
-function nudgeEditor(view: EditorView, direction: -1 | 1): boolean {
-  const hover = hoverKey.getState(view.state) ?? EMPTY_HOVER;
-  const anchor = hover.anchor >= 0 ? hover.anchor : rowAtSelection(view.state);
-  const head = hover.anchor >= 0 ? hover.head : anchor;
-  if (tableHit(view.state)) {
-    const rowMove = moveTableRow(view.state, direction);
-    if (!rowMove) return true;
-    view.dispatch(rowMove.scrollIntoView());
-    view.focus();
-    return true;
-  }
-  if (anchor < 0 || head < 0) return false;
-  const moved = nudgeSpan(view.state.doc, anchor, head, direction);
-  if (!moved) return false;
-  const tr = view.state.tr.replaceWith(0, view.state.doc.content.size, moved.doc.content);
-  if (moved.anchor >= 0) {
-    try { tr.setSelection(NodeSelection.create(tr.doc, moved.anchor)); } catch { /* the caret stays where mapping put it */ }
-    tr.setMeta(hoverKey, { span: { anchor: moved.anchor, head: moved.head } });
-  }
-  view.dispatch(tr.scrollIntoView());
-  view.focus();
-  return true;
-}
-
 function nudgeTableColumn(view: EditorView, direction: -1 | 1): boolean {
   if (!tableHit(view.state)) return false;
   const moved = moveTableColumn(view.state, direction);
@@ -293,22 +211,6 @@ function nudgeTableColumn(view: EditorView, direction: -1 | 1): boolean {
   view.dispatch(moved.scrollIntoView());
   view.focus();
   return true;
-}
-
-function turnIntoItems(translate: Translate | undefined) {
-  return [
-    { id: "paragraph", icon: "text", label: t(translate, "段落") },
-    { id: "heading1", icon: "hash", label: t(translate, "标题 1") },
-    { id: "heading2", icon: "hash", label: t(translate, "标题 2") },
-    { id: "heading3", icon: "hash", label: t(translate, "标题 3") },
-    { id: "bullet_list", icon: "rows", label: t(translate, "无序列表") },
-    { id: "ordered_list", icon: "list-ordered", label: t(translate, "有序列表") },
-    { id: "task_list", icon: "check", label: t(translate, "清单") },
-    { id: "callout", icon: "info", label: t(translate, "Callout") },
-    { id: "blockquote", icon: "message", label: t(translate, "引用") },
-    { id: "toggle", icon: "chevron-right", label: t(translate, "Toggle") },
-    { id: "code_block", icon: "code", label: t(translate, "代码") },
-  ];
 }
 
 
@@ -435,10 +337,8 @@ function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: num
     view(editorView) {
       const handle = handleWidget(translate);
       handle.hidden = true;
-      const menu = document.createElement("div");
-      menu.className = "mw-menu pages-block-menu";
-      menu.hidden = true;
-      menu.setAttribute("role", "menu");
+      const blockMenu = new PagesBlockMenu(editorView, translate, () => pos, onNote);
+      const menu = blockMenu.dom;
       const ghost = document.createElement("div");
       ghost.className = "pages-block-ghost pages-editor-host";
       ghost.hidden = true;
@@ -453,11 +353,7 @@ function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: num
       let dragFrame = 0;
       let suppressClick = false;
       let menuTick = 0;
-
-      const closeMenu = () => {
-        menu.hidden = true;
-        menu.replaceChildren();
-      };
+      const closeMenu = () => blockMenu.close();
       const hideHandle = () => {
         handle.hidden = true;
         placed = -1;
@@ -469,8 +365,6 @@ function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: num
         if (nextPos !== pos) closeMenu();
         editorView.dispatch(editorView.state.tr.setMeta(hoverKey, { pos: nextPos, dragging }));
       };
-      const depthOf = () => (pos < 0 ? 0 : editorView.state.doc.resolve(pos).depth);
-      const topIndex = () => (pos < 0 ? 0 : editorView.state.doc.resolve(pos).index(0));
       const placeHandle = (rowPos: number, force = false, followingCaret = false) => {
         const node = rowPos >= 0 ? editorView.state.doc.nodeAt(rowPos) : null;
         const dom = node ? editorView.nodeDOM(rowPos) : null;
@@ -598,252 +492,7 @@ function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: num
         }
         return hit;
       };
-      const menuItem = (icon: string, label: string, run: () => void, danger = false, opens = false) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = danger ? "mw-menu__item mw-menu__item--danger" : "mw-menu__item";
-        button.setAttribute("role", "menuitem");
-        if (opens) button.dataset.pagesMenuOpen = "1";
-        button.innerHTML = `${dsIcon(icon)}<span>${escapeHtml(label)}</span>`;
-        button.addEventListener("mousedown", (event) => event.preventDefault());
-        button.addEventListener("click", (event) => {
-          event.preventDefault();
-          run();
-        });
-        return button;
-      };
-      const appendTableActions = () => {
-        const node = pos >= 0 ? editorView.state.doc.nodeAt(pos) : null;
-        if (node?.type.name !== "table") return;
-        const run = (make: typeof addTableRow) => {
-          const tr = make(editorView.state, pos);
-          if (tr) editorView.dispatch(tr.scrollIntoView());
-          closeMenu();
-          editorView.focus();
-        };
-        menu.append(
-          menuItem("plus", t(translate, "加一行"), () => run(addTableRow)),
-          menuItem("grid", t(translate, "加一列"), () => run(addTableColumn)),
-          menuItem("minus", t(translate, "删行"), () => run(deleteTableRow)),
-          menuItem("minus", t(translate, "删列"), () => run(deleteTableColumn)),
-          menuItem("rows", t(translate, "表头行"), () => run(toggleHeaderRow)),
-        );
-      };
-      const activeSpan = () => {
-        const hover = hoverState();
-        if (hover.anchor < 0 || pos < 0) return null;
-        const doc = editorView.state.doc;
-        const rows = spanRows(doc, hover.anchor, hover.head);
-        if (!rows.some((row) => row.pos === pos)) return null;
-        return spanRoots(doc, hover.anchor, hover.head).length > 1
-          ? { anchor: hover.anchor, head: hover.head }
-          : null;
-      };
-      const tonePositions = (): number[] => {
-        const hover = hoverState();
-        if (hover.anchor >= 0 && pos >= 0) {
-          const doc = editorView.state.doc;
-          const rows = spanRows(doc, hover.anchor, hover.head);
-          if (rows.some((row) => row.pos === pos)) {
-            const roots = spanRoots(doc, hover.anchor, hover.head);
-            if (roots.length) return roots.map((row) => row.pos);
-          }
-        }
-        return pos >= 0 ? [pos] : [];
-      };
-      const paintMenu = (index: number) => {
-        const items = [...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
-        items.forEach((button, itemIndex) => button.classList.toggle("is-on", itemIndex === index));
-        keepSelectedVisible(menu);
-      };
-      menu.addEventListener("mouseover", (event) => {
-        const button = (event.target as HTMLElement | null)?.closest("button");
-        if (!(button instanceof HTMLButtonElement) || !menu.contains(button)) return;
-        const items = [...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
-        const current = items.findIndex((item) => item.classList.contains("is-on"));
-        const next = hoverMenuIndex(current, items.indexOf(button), items.length);
-        if (next != null) paintMenu(next);
-      });
-      let menuMode: "root" | "turn" | "tone" = "root";
-      const renderMenu = (mode: "root" | "turn" | "tone") => {
-        menuMode = mode;
-        menu.replaceChildren();
-        const block = topIndex();
-        const grouped = (() => {
-          const hover = hoverState();
-          if (mode !== "root" || hover.anchor < 0 || pos < 0) return null;
-          const rows = spanRows(editorView.state.doc, hover.anchor, hover.head);
-          if (!rows.some((row) => row.pos === pos)) return null;
-          return spanRoots(editorView.state.doc, hover.anchor, hover.head).length > 1 ? hover : null;
-        })();
-        if (grouped) {
-          appendTableActions();
-          const finish = (command: ReturnType<typeof deleteSpan>) => {
-            command(editorView.state, (tr) => {
-              editorView.dispatch(tr.setMeta(hoverKey, { span: null }));
-            });
-            closeMenu();
-          };
-          menu.append(
-            menuItem("chevron-up", t(translate, "上移"), () => {
-              nudgeEditor(editorView, -1);
-              closeMenu();
-            }),
-            menuItem("chevron-down", t(translate, "下移"), () => {
-              nudgeEditor(editorView, 1);
-              closeMenu();
-            }),
-            menuItem("tune", t(translate, "颜色"), () => renderMenu("tone"), false, true),
-            menuItem("refresh", t(translate, "转换为"), () => renderMenu("turn"), false, true),
-            menuItem("copy", t(translate, "复制"), () => finish(duplicateSpan(grouped.anchor, grouped.head))),
-            menuItem("trash", t(translate, "删除"), () => finish(deleteSpan(grouped.anchor, grouped.head)), true),
-          );
-          paintMenu(0);
-          return;
-        }
-        if (mode === "root" && depthOf() > 0) {
-          appendTableActions();
-          menu.append(
-            menuItem("refresh", t(translate, "转换为"), () => renderMenu("turn"), false, true),
-            menuItem("tune", t(translate, "颜色"), () => renderMenu("tone"), false, true),
-            menuItem("chevron-up", t(translate, "上移"), () => {
-              nudgeEditor(editorView, -1);
-              closeMenu();
-            }),
-            menuItem("chevron-down", t(translate, "下移"), () => {
-              nudgeEditor(editorView, 1);
-              closeMenu();
-            }),
-            menuItem("copy", t(translate, "复制"), () => {
-              runBlockCommand(editorView, duplicateRow(pos));
-              closeMenu();
-            }),
-            menuItem("trash", t(translate, "删除"), () => {
-              runBlockCommand(editorView, deleteRow(pos));
-              closeMenu();
-            }, true),
-          );
-          paintMenu(0);
-          return;
-        }
-        if (mode === "tone") {
-          menu.append(menuItem("arrow", t(translate, "返回"), () => renderMenu("root")));
-          ([
-            ["font_color", "文字颜色"],
-            ["highlight", "背景色"],
-          ] as const).forEach(([kind, labelText]) => {
-            const label = document.createElement("p");
-            label.className = "pages-menu-label";
-            label.textContent = t(translate, labelText);
-            const strip = document.createElement("div");
-            strip.className = "pages-tone-strip";
-            const swatch = (tone: string, name: string) => {
-              const button = document.createElement("button");
-              button.type = "button";
-              button.className = "pages-tone";
-              button.dataset.pagesTone = tone || "none";
-              button.setAttribute("aria-label", name);
-              button.title = name;
-              button.addEventListener("mousedown", (event) => event.preventDefault());
-              button.addEventListener("click", (event) => {
-                event.preventDefault();
-                const tr = setRowsTone(editorView.state, tonePositions(), kind, tone);
-                if (tr) editorView.dispatch(tr.scrollIntoView());
-                closeMenu();
-                editorView.focus();
-              });
-              strip.append(button);
-            };
-            swatch("", t(translate, "默认"));
-            PAGES_TONES.forEach((tone) => swatch(tone.id, t(translate, tone.label)));
-            menu.append(label, strip);
-          });
-          paintMenu(0);
-          return;
-        }
-        if (mode === "turn") {
-          menu.append(menuItem("arrow", t(translate, "返回"), () => renderMenu("root")));
-          const label = document.createElement("p");
-          label.className = "pages-menu-label";
-          label.textContent = t(translate, "转换为");
-          menu.append(label);
-          const conversion = (id: string) => {
-            const span = activeSpan();
-            return turnSpanInto(editorView.state, span?.anchor ?? pos, span?.head ?? pos, id);
-          };
-          turnIntoItems(translate).forEach((item) => {
-            const button = menuItem(item.icon, item.label, () => {
-              const tr = conversion(item.id);
-              if (tr) editorView.dispatch(tr.setMeta(hoverKey, { span: null }).scrollIntoView());
-              closeMenu();
-              editorView.focus();
-            });
-            button.disabled = !conversion(item.id);
-            if (button.disabled) button.title = t(translate, "此转换无法保留块中的内容");
-            menu.append(button);
-          });
-          paintMenu(0);
-          return;
-        }
-        appendTableActions();
-        const columnListAt = (() => {
-          if (pos < 0) return -1;
-          const direct = editorView.state.doc.nodeAt(pos);
-          if (direct?.type.name === "column_list") return pos;
-          const $at = editorView.state.doc.resolve(Math.min(pos + 1, editorView.state.doc.content.size));
-          for (let depth = $at.depth; depth > 0; depth -= 1) {
-            if ($at.node(depth).type.name === "column_list") return $at.before(depth);
-          }
-          return -1;
-        })();
-        if (columnListAt >= 0) {
-          menu.append(
-            menuItem("columns", t(translate, "加一栏"), () => {
-              const tr = addColumn(editorView.state, columnListAt);
-              if (tr) editorView.dispatch(tr.scrollIntoView());
-              closeMenu();
-              editorView.focus();
-            }),
-            menuItem("rows", t(translate, "取消分栏"), () => {
-              const tr = unwrapColumns(editorView.state, columnListAt);
-              if (tr) editorView.dispatch(tr.scrollIntoView());
-              closeMenu();
-              editorView.focus();
-            }),
-          );
-        }
-        menu.append(
-          menuItem("refresh", t(translate, "转换为"), () => renderMenu("turn"), false, true),
-          menuItem("tune", t(translate, "颜色"), () => renderMenu("tone"), false, true),
-          menuItem("copy", t(translate, "复制"), () => {
-            runBlockCommand(editorView, duplicateBlock(block));
-            closeMenu();
-          }),
-          menuItem("message", t(translate, "备注"), () => {
-            onNote(block);
-            closeMenu();
-          }),
-          menuItem("chevron-up", t(translate, "上移"), () => {
-            nudgeEditor(editorView, -1);
-            closeMenu();
-          }),
-          menuItem("chevron-down", t(translate, "下移"), () => {
-            nudgeEditor(editorView, 1);
-            closeMenu();
-          }),
-          menuItem("trash", t(translate, "删除"), () => {
-            runBlockCommand(editorView, deleteBlock(block));
-            closeMenu();
-          }, true),
-        );
-        paintMenu(0);
-      };
-      const openMenu = () => {
-        menu.hidden = false;
-        renderMenu("root");
-        const rect = handle.getBoundingClientRect();
-        placeOverlay(menu, rect, "beside");
-      };
+      const openMenu = () => blockMenu.open(handle);
       const onMove = (event: MouseEvent) => {
         if (event.buttons || drag) return;
         const target = event.target as HTMLElement | null;
@@ -1015,28 +664,7 @@ function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: num
           event.stopPropagation();
           return;
         }
-        if (menu.hidden || event.isComposing) return;
-        const items = [...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
-        const index = items.findIndex((button) => button.classList.contains("is-on"));
-        const current = items[index];
-        const action = blockMenuKey(index, items.length, event.key, menuMode !== "root", current?.dataset.pagesMenuOpen === "1");
-        if (action == null) return;
-        event.preventDefault();
-        event.stopPropagation();
-        if (action === "close") {
-          closeMenu();
-          return;
-        }
-        if (action === "back") {
-          renderMenu("root");
-          return;
-        }
-        if (action === "stay") return;
-        if (action === "run") {
-          (items[index] ?? items[0])?.click();
-          return;
-        }
-        paintMenu(action);
+        blockMenu.handleKey(event);
       };
       const hostEl = editorView.dom.closest<HTMLElement>(".pages-editor-host") ?? editorView.dom;
       const workspace = editorView.dom.closest<HTMLElement>(".pages-workspace");
@@ -1100,7 +728,7 @@ function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: num
           workspace?.removeEventListener("scroll", onScroll);
           stopScroll();
           handle.remove();
-          menu.remove();
+          blockMenu.destroy();
           ghost.remove();
         },
       };

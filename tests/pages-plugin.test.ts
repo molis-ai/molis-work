@@ -1781,16 +1781,16 @@ test("鼠标移到菜单项上，高亮跟着走", () => {
   assert.equal(hoverMenuIndex(0, -1, 5), null);
   assert.equal(hoverMenuIndex(0, 5, 5), null);
   assert.equal(hoverMenuIndex(0, 0, 0), null);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
   const menus = readFileSync(new URL("../plugins/native/pages/src/editor-insert-menu.ts", import.meta.url), "utf8");
+  const blocks = readFileSync(new URL("../plugins/native/pages/src/editor-block-menu.ts", import.meta.url), "utf8");
   const slash = menus.indexOf("function slashPlugin");
   const mention = menus.indexOf("function mentionPlugin");
-  const block = editor.indexOf("pages-block-menu");
+  const block = blocks.indexOf("pages-block-menu");
   assert.ok(slash >= 0 && mention > slash && block >= 0);
   assert.ok(menus.indexOf("hoverMenuIndex(current.index, index, items.length)", slash) > slash);
   assert.ok(menus.indexOf("hoverMenuIndex(current.index, index, items.length)", slash) < mention);
   assert.ok(menus.indexOf("hoverMenuIndex(current.index, index, items.length)", mention) > mention);
-  assert.ok(editor.indexOf("hoverMenuIndex(current, items.indexOf(button), items.length)", block) > block);
+  assert.ok(blocks.indexOf("hoverMenuIndex(current, items.indexOf(button), items.length)", block) > block);
 });
 
 test("Cmd+/ 打开光标所在块的菜单，Tab 留在编辑器里", () => {

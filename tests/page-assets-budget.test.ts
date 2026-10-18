@@ -642,6 +642,9 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1109312], ["/assets/molis-work-workbench.js", 1109918],
   ["/assets/molis-work-workbench.js", 1110116], ["/assets/molis-work-workbench.js", 1109330], ["/assets/molis-work-workbench.js", 1111561],
   ["/assets/molis-work-workbench.js", 1109913], ["/assets/molis-work-workbench.js", 1110802],
+  ["/assets/molis-work-workbench.js", 1110187], ["/assets/molis-work-workbench.js", 1112375],
+  ["/assets/molis-work-workbench.js", 1110215], ["/assets/molis-work-workbench.js", 1110056],
+  ["/assets/molis-work-workbench.js", 1110084], ["/assets/molis-work-workbench.js", 1112315],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -655,10 +658,10 @@ for (const [asset, old] of [
 }
 
 // W5-01 integration: the approved Todo +28 B and Lingguang +2,231 B are rebased onto actual main,
-// from exactly 1,110,187 B to the measured 1,112,375 B (net +2,188 B after the integrated -71 B). One byte more, another
+// from exactly 1,110,329 B to the ceiling 1,112,588 B (+2,259 B; main already includes #661's -71 B). One byte more, another
 // asset, or growth from the new baseline still fails.
 test("W5-01 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1110187, 1112375] } as const;
+  const allowed = { "/assets/molis-work-workbench.js": [1110329, 1112588] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("w501-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "w501-change");

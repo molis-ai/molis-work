@@ -46,7 +46,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
-      fail-fast: false
+      # A shard that fails cancels the others still running or waiting: a red run reports its first failing file and frees the
+      # runners, instead of finishing all sixteen shards first (user 2026-10-18).
+      fail-fast: true
       # At most six runners per run, so several runs at once still leave most of the repository's 20 runners to `Verify` and the
       # merge queue (user 2026-10-15). The sixteen shards then run in about three waves: some 30 to 35 minutes a run.
       max-parallel: 6
@@ -118,11 +120,12 @@ jobs:
           key: full-suite-durations-${{ matrix.shard }}-${{ github.run_id }}
           restore-keys: full-suite-durations-${{ matrix.shard }}-
 
-      # A file that fails is run once more; one that then passes is listed as flaky in the summary and does not turn the shard red, so
-      # the check shows the files that fail every time (user 2026-10-15).
+      # A file that fails is run once more at once; one that then passes is listed as flaky in the summary and does not turn the shard
+      # red, so the check shows the files that fail every time (user 2026-10-15). One that fails again stops the shard (`--bail`): no
+      # more files start and the running ones are stopped (user 2026-10-18).
       - name: Run this shard
         shell: bash
-        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/16 --timeout-seconds 900 --retries 1 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
+        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/16 --timeout-seconds 900 --retries 1 --bail 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
 
       # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.
       - name: Summary

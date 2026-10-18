@@ -128,7 +128,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   /** No shown plugin surface is still loading its client; one whose client failed to load shows its own retry. */
   const SURFACES_SETTLED = `!document.querySelector('[data-ui-client-state="loading"]')
     && ![...document.querySelectorAll('[data-deferred-surface]')].some(surface => !surface.closest('[hidden]') && surface.dataset.uiClientState !== 'failed')`;
-  async function click(selector: string): Promise<void> {
+  async function click(selector: string, options: { allowDisabled?: boolean } = {}): Promise<void> {
+    // Negative interaction tests may deliberately press a disabled control; visibility and hit checks still apply.
     // A person waits while a plugin surface they opened is still loading its client (#150): it is inert until then.
     await waitFor(SURFACES_SETTLED, 10_000);
     const point = await evaluate<{ x: number; y: number; covered: boolean }>(`(async () => { let element = document.querySelector(${JSON.stringify(selector)});
@@ -166,7 +167,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
           element = document.querySelector(${JSON.stringify(selector)});
           if (!element) throw new Error('Click target disappeared: ' + ${JSON.stringify(selector)});
           const rect = element.getBoundingClientRect();
-          if (rect.width && rect.height && !element.matches(':disabled')) {
+          if (rect.width && rect.height && (${options.allowDisabled === true} || !element.matches(':disabled'))) {
             const hit = document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
             return {x:rect.x+rect.width/2,y:rect.y+rect.height/2,covered:!element.contains(hit)};
           }

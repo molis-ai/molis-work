@@ -14,6 +14,7 @@ import { endingReviewReply } from "./fixtures/ending-review.js";
 
 // specs/ai-interaction-experience AC-05: what a person writes into a question, and what they answer, stays with the session,
 // project and object it was asked in. Each test asserts the refusal: the other session, project or object never gets it.
+// AC-08 (two tabs answering one question) is here too: it needs the same Coding round that asks.
 
 /** One streamed Anthropic-format model turn: text, or one tool call. */
 function turn(text: string, tool?: { name: string; input: object }): string {
@@ -194,6 +195,92 @@ test("AC-05: a question's draft and answer stay in the session it was asked in; 
   assert.doesNotMatch(secondAnswer, /导出/, "the second round never hears the first session's answer");
 });
 
+
+// AC-08: two tabs answer the same Coding question. The second tab's answer is held in that page until the first tab's answer was
+// taken and its round ended, then let go: the order is fixed, not left to timing. One is taken; the other comes back refused with a
+// code, and its card stays, closed, saying why, after the session is read again; the round hears the answer once, and the refused
+// one writes nothing.
+test("AC-08: two tabs answer one Coding question: one is taken, the other is refused with a code, the round hears once and nothing is written twice", { timeout: 240_000 }, async t => {
+  const opened = await openCoding(t, [LOGIN]); if (!opened) return;
+  const { click, waitFor, command, coding, heard, enter, ask, projectId, origin, homeDirectory } = opened;
+  await enter(projectId!);
+  const session = await ask(LOGIN.task);
+  // A window of its own, so both pages stay in front: Coding reads and follows a session only in a page that is shown.
+  const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: `${origin}/projects/${projectId}/`, newWindow: true }, undefined, 20_000);
+  const { sessionId: tab } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true }, undefined, 20_000);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, tab, 20_000);
+  const other = async <T = unknown>(expression: string): Promise<T> => {
+    const result = await command<{ result: { value: T }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, tab, 20_000);
+    assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
+    return result.result.value;
+  };
+  const otherWaits = async (expression: string, timeoutMs = 30_000) => {
+    for (const deadline = Date.now() + timeoutMs; !(await other<boolean>(`(() => { try { return Boolean(${expression}); } catch { return false; } })()`).catch(() => false));) {
+      assert.ok(Date.now() < deadline, `DOM condition timeout in the second tab: ${expression.slice(0, 160)}`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  };
+  // The second tab picks the same session from Coding's list, the way a person would.
+  assert.equal(await other("document.visibilityState"), "visible");
+  await otherWaits(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]')`);
+  await other(`document.querySelector('[data-plugin-strip] [data-plugin-id="coding"]').click()`);
+  // The list is drawn by the server first; the row is clicked once Coding's page script has loaded and listens.
+  await otherWaits(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]') && !document.querySelector('[data-ui-client-state="loading"]')`);
+  await other(`document.querySelector('${coding} [data-coding-session=${JSON.stringify(session)}]').click()`);
+  await otherWaits(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(session)} && document.querySelector(${JSON.stringify(card(coding))})`);
+  // Its request to answer waits in its page until released; the reply is kept for the assertions. Every read of the session that
+  // starts after the reply waits until `__rereads()`, and is counted once the page has drawn from it: its JSON taken, and the page's own
+  // code after that run.
+  await other(`(() => { const original = window.fetch; let release, reread; window.__held = new Promise(resolve => { release = resolve; }); window.__release = () => release();
+    window.__readsAfter = 0; const rereads = new Promise(resolve => { reread = resolve; }); window.__rereads = () => reread();
+    window.fetch = async (...args) => { const answering = args[1] && typeof args[1].body === 'string' && args[1].body.includes('"kind":"answer"');
+      const rereading = Boolean(window.__reply) && !(args[1] && args[1].body) && /\\/sessions\\//.test(String(args[0]));
+      if (answering) { window.__sent = true; await window.__held; }
+      if (rereading) { await rereads; const response = await original(...args), json = response.json.bind(response);
+        response.json = async () => { const value = await json(); setTimeout(() => { window.__readsAfter++; }); return value; }; return response; }
+      const response = await original(...args); if (answering) window.__reply = { status: response.status, body: await response.clone().json() }; return response; }; })()`);
+  await other(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`)}).click()`);
+  await other(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-action="answer"]`)}).click()`);
+  await otherWaits("window.__sent === true");
+
+  await click(`${card(coding)} [data-ix-field="q0"] [data-ix-option="1"]`);
+  await click(`${card(coding)} [data-ix-action="answer"]`);
+  await waitFor(`document.querySelector('${coding}').innerText.includes(${JSON.stringify(LOGIN.done)})`, 30_000);
+  assert.equal(heard.length, 1, "the first tab's answer is taken and the round goes on");
+  // The round ends writing its own records; what is on disk once they stop changing is what the refused answer must leave.
+  let taken = await runtimeFiles(homeDirectory);
+  for (let attempt = 0, same = 0; same < 3; attempt++) {
+    assert.ok(attempt < 100, "the round's records settle");
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const now = await runtimeFiles(homeDirectory); same = JSON.stringify([...now]) === JSON.stringify([...taken]) ? same + 1 : 0; taken = now;
+  }
+
+  // The second tab follows the round too: it sees the question answered and the round end while its own answer is still on the
+  // way. The card it was sent from stays, so the answer's outcome has a place to show.
+  await otherWaits(`document.querySelector('${coding}').innerText.includes(${JSON.stringify(LOGIN.done)})`);
+  assert.equal(await other(`document.querySelector(${JSON.stringify(card(coding))})?.dataset.busy`), "true", "the card whose answer is on its way is not taken down");
+  await other("window.__release()");
+  await otherWaits("window.__reply");
+  const reply = await other<{ status: number; body: { code?: string; error?: string } }>("window.__reply");
+  // The first answer was taken and the round has ended: what the Host knows is that, not who answered.
+  assert.deepEqual([reply.status, reply.body.code], [409, "coding.round_ended"], "the other is refused with a code: the round has ended");
+  const refusedCard = `(() => { const node = document.querySelector(${JSON.stringify(card(coding))}); return node && { refused: node.dataset.refused, note: node.querySelector('[data-ix-note]').textContent,
+    open: [...node.querySelectorAll('fieldset,button')].filter(one => !one.disabled).length, picked: node.querySelector('[data-ix-field="q0"] [data-ix-option="0"]').getAttribute('aria-checked') ?? node.querySelector('[data-ix-field="q0"] [data-ix-option="0"]').getAttribute('aria-pressed') }; })()`;
+  const kept = { refused: "true", note: reply.body.error, open: 0, picked: "true" };
+  // Refused, before the page has read the session again: the card is closed with its reason.
+  await otherWaits(`JSON.stringify(${refusedCard}) === ${JSON.stringify(JSON.stringify(kept))}`);
+  // The page reads the session again after the refusal; the question is gone from the round, and the refused card stays, closed,
+  // with its reason and what was picked, so the person sees why it was not sent.
+  await other("window.__rereads()");
+  await otherWaits("window.__readsAfter >= 1");
+  assert.deepEqual(await other(refusedCard), kept, "after the session is read again, the refused card still says why, closed");
+  await new Promise(resolve => setTimeout(resolve, 800));
+  assert.equal(heard.length, 1, "the round heard the answer once");
+  const answer = answersIn(heard[0]!.body);
+  assert.match(answer, /导出/, "it heard the answer that was taken");
+  assert.doesNotMatch(answer, /登录/, "and not the refused one");
+  assert.deepEqual(await runtimeFiles(homeDirectory), taken, "the refused answer writes nothing: the session, its run and its queue are unchanged on disk");
+});
 
 const GOAL_QUESTION = (side: string) => ({ why: `${side}：这件事挂到哪个 Goal 下`, questions: [{ id: "goal", type: "reference", prompt: "关联的 Goal", refKinds: ["goal"] }] });
 const OURS: Asked = { task: "甲项目：把发布挂到 Goal", done: "甲：挂好了。", ask: GOAL_QUESTION("甲") };

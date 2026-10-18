@@ -96,7 +96,7 @@ Issue 的页面录入（#396、#420）不是新的入口：页面开一件助理
 | TX-4 | `ppt.outline_ai` | 同上 | 不可用，列表里 `ai_available:false` 且界面按钮置灰 | `ppt-actions.ts`；`client.ts` 按 `ai_available` 禁用并给出原因。[已确认] |
 | TX-5 | `form.questions.draft`（AI 生成题目，信息不够时先问；2026-10-15 取代 `form.questions.ai`） | 同上 | 同上 | `form-actions.ts`；`list` 带 `ai_available`。[已确认] |
 | TX-6 | `dataset.columns.ai`（AI 拟列名，不发表内数据） | 同上 | 同上 | `dataset-actions.ts`。[已确认] |
-| TX-7 | `todo.organize.extract`（整理材料成待办候选） | 用户、助理、工作流、MCP | 不可用 | `todo-actions.ts`。**Todo 界面没有触发它的按钮**（`plugins/native/todo/src/client.ts` 只列、采用、关闭整理批次），生产里只有项目上手（`apps/local-host/src/web-onboarding.ts:30`）与助理/MCP 调它。[已确认] |
+| TX-7 | `todo.organize.extract`（整理材料成待办候选） | 用户、助理、工作流、MCP | 不可用 | `plugins/native/todo/src/plugin.ts`（`services.model`）。**Todo 界面没有触发它的按钮**（`plugins/native/todo/src/client.ts` 只列、采用、关闭整理批次），生产里只有项目上手（`apps/local-host/src/web-onboarding.ts:30`）与助理/MCP 调它。[已确认] |
 | TX-8 | `lingguang.conversation.message`（灵光对话） | 用户、助理、工作流、MCP | 不可用 | `lingguang-actions.ts`。[已确认] |
 | TX-9 | `cognia.knowledge.synthesize`、`cognia.knowledge.query` | 同上 | 不可用，页面顶部写「当前没有可用的文字模型……导入、搜索和阅读仍可使用」并给「打开模型设置」（U，截图 07） | `cognia-prologue.ts` 固定模型并注入 `hostCompleteText`；检索用关键词子串打分选 1–5 份材料，再让模型带引用作答（`plugins/native/cognia/src/ai.ts`）。[已确认] |
 | TX-10 | `jelly.plan.generate`（把原文或笔记选区拆成待采纳的行动计划） | 同上 | 不可用；另有「手工拆解」路径不要模型（`plugins/native/jelly/src/ai.ts` 的 `manual`） | `jelly-actions.ts`：`completeJson` 在派出前后各 `beforeEffect()`，SDK `decodeJsonOutput` 解码，坏结构报 `jelly.ai_invalid` 不改原文。Jelly 只有这一条登记指令（`JELLY_DECOMPOSE`），没有摘要类调用；`docs/platform/PROLOGUE-AI.md:57` 写的「每次分段摘要或合并」已经不是现状（§7 第 9 项）。Jelly 自带模型选择（`jelly.model.configure`）。[已确认] |

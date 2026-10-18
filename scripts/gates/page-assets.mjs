@@ -235,15 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for W3-C (specs/context-program §21.4, §21.6; specs/side-shelf AC-S04: a side panel plugin tab reports
-// what is in hand, as a split pane does). The page's context bus now also takes a side tab's messages, checked by the one
-// `SIDE_FRAME_FROM_SCRIPT` that `molis:side-forward` uses (S-30), so that check ships twice in this script; with marking the
-// focus as in the side panel, the workbench script is +273, once. Tried: shortening the shared check's names (about 40 bytes,
-// at the cost of a security check that reads less plainly); the side tab's own half runs in its own document, not here.
-// The entry is for exactly one merge-base budget (main de6dbfc8b), capped at the measured size, and used once: the next baseline
-// freezes again. This replaces receipts 3d-4's spent entry; delete it in the next change to this gate (as #541, #584 and #611 did).
+// One-time allowance for W5-01 (Todo on the Home runtime): the longer 「转为待办」 route adds 28 B to workbench.js.
+// Approved by the user on 2026-10-17; re-keyed after main 7faaa027c under the agreed merge-only synchronization rule.
+// Receipts 3d-4's [1109913, 1110802] is already spent on main; its old starting sizes remain refusal tests.
+// W3-C used 1110056→1110329 on main; this allowance preserves that result and adds only Todo's approved 28 B.
+// Only this exact starting size may grow once; the next baseline freezes again.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110056, 1110329],
+  "/assets/molis-work-workbench.js": [1110329, 1110357],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

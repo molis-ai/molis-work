@@ -1,6 +1,6 @@
 # 交接（2026-10-18）
 
-本文是这次交接的唯一入口。它在远端分支 `coordination/handoff-2026-10-14` 上，不进 main。本机路径（`/Users/yijunwang/...`、`.claude/worktrees/...`、`/private/tmp/...`）只在原机器上有效；换机器的话，按文中的远端分支和提交号取。
+本文是这次交接的唯一入口。它在远端分支 `coordination/handoff-2026-10-14` 上，不进 main。**接手人在另一台电脑上。** 文中出现的本机路径（`/Users/yijunwang/...`、`~/code/...`、`.claude/worktrees/...`、`/private/tmp/...`、scratchpad、`$S`）和端口 4207/4208/4173 都只在原机器上，接手人拿不到也不用管；要的东西都按文中的远端分支、提交号和 PR 号取。换机器开工的步骤见第 0.1 节。
 
 给接手人看的短版（Claude Docs，用户分享后别人才能打开）：「Molis Work 交接说明 2026-10-18」 https://claude.ai/code/artifact/4b29e264-5328-4329-99be-b9b49cbdc8bd
 
@@ -9,6 +9,17 @@
 用户 10-18 的要求：这一轮**一起收口、按标准走、不留尾巴**。防腐路线图全部做完；各需求线做到验收和归档；所有插件不分官方、个人、生成还是第三方，待遇一样，缺的平台能力补进平台。接手后开 4 个会话同时做：①统筹、②平台、③迁移、④需求（第 3 节）。统筹开工第一件事，是按防腐线最初的要求，对接手时的 main 做一次防腐审查（第 2 节）；另外三个会话同时开工，不用等审查做完。合并的规则是：每个 PR 跑过 Verify 就可以合，全量按批跑（第 4 节）。
 
 接手先读：两个仓库的 `AGENTS.md`（10-18 新加了一条「插件待遇一样」的硬约束）、本文、`coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md` §3（每个 PR 都按它审）、`docs/system/PARALLEL-DEVELOPMENT.md`、流水 `coordination/2026-10-14/README.md`。
+
+### 0.1 在另一台电脑上开工
+
+- GitHub 账号要有 `molis-ai/molis-work` 与 `molis-ai/prologue` 的写和合并权限（合并队列、加标签、重跑 CI），`gh auth status` 确认。没有就请用户加。
+- 克隆 `molis-ai/molis-work`，自己的目录随意。第一次装依赖要联网：`pnpm install --frozen-lockfile`（`AGENTS.md` 里的 `--offline` 要本机已有 pnpm 缓存才行）；然后 `pnpm build`。浏览器用例要本机装 Chrome。
+- 换 Prologue 包（④）要另外克隆 `molis-ai/prologue`，按 `vendor/prologue-sdk/README.md` 重建。
+- 交接文件：`git fetch origin coordination/handoff-2026-10-14`，在一个单独的工作树里看，不要合进 main。
+- 第 4.2 节的脚本默认在 `$HOME/code/goalboard` 里跑，换了目录就设 `MOLIS_REPO=<你的克隆>`；日志写在脚本所在目录（`S=${0:A:h}`），建议把 `tools/` 拷到自己的临时目录再用。
+- MiniMax：用户同意评测和隔离 Home 实走直接用、不用每次问。密钥向用户要，存进你自己机器的钥匙串（服务名沿用 `minimax-api-key`），只内联读，不贴进聊天、文件和日志。
+- 真实 Home：你机器上日常在用的那个 Home 也算，测试和实走一律用一次性 Home。用户原机器上的 Home 和数据，接手人碰不到，也不要去碰。
+- 原机器上的工作树、scratchpad、本地分支（第 6.3 节）由原机器那边清，接手人不用管；接手人只处理远端分支和 PR。
 
 ## 1. 用户 10-18 定的事（都要照做）
 
@@ -143,7 +154,7 @@
 
 ## 5. 防腐线现状（Codex 交来的部分）
 
-防腐线 10-17 起由 Codex 负责。Codex 的交接草稿在 `/Users/yijunwang/code/molis-anti-corruption-20261017/HANDOFF-2026-10-18.md`（本机文件，下面摘了要点）；唯一的记录是 `specs/repository-anti-corruption/spec.md`，计划是 `roadmap-2026-10-07.md` 与 `docs/system/RUNTIME-MIGRATION.md`。
+防腐线 10-17 起由 Codex 负责。Codex 的交接草稿在原机器的本地文件里，接手人拿不到，要点已经摘在下面；Codex 收尾后如果把它的交接推到远端，以那份为准。唯一的记录是 `specs/repository-anti-corruption/spec.md`，计划是 `roadmap-2026-10-07.md` 与 `docs/system/RUNTIME-MIGRATION.md`。
 
 ### 5.1 已合与在途
 
@@ -176,7 +187,7 @@
 
 - 这个集成分支的全量 39135082261 红在 `tests/personal-plugins-review-fixes.test.ts`：Dataset 的客户端断言还要求旧的短路径；fail-fast 取消了其他分片，所以其他文件都没验证。Codex 的修法是在灵光、PPT、Dataset 各自那一片里，把断言改成 Manifest 路径（灵光的那条就是 #736）。PPT、Dataset 的修完后重跑全量。
 - 灵光已用掉 +2,231 B 的放行；Alchemist 的 +1,754 B 还没用，按实际 main 核对。Pages 比 main 小 79 B。
-- 各片的 PR 正文草稿在 `/tmp/molis-*-pr-body.md`（本机）。发 PR 前要按实际 main 和 CI 结果刷新，不要照抄里面「进行中」的字段。
+- 各片的 PR 正文草稿只在原机器上，接手人拿不到：开 PR 时按这一片的 diff、防腐 spec 里它那一节和实际的 CI 结果重写。
 - Codex 自己的规矩里有「不跑本机全量、不加标签、最多两个在途 PR」。按 10-18 的新规则，这些候选按第 4 节组批合入，不用一个一个排全量。
 
 ### 5.3 还没开始的
@@ -201,6 +212,9 @@
 | #631 | jingxusandra-gif（草稿），统一输入与本地语音 | 用户定留给作者；它会手动触发全量、占 runner |
 
 ### 6.3 要清的（删工作树和分支会被权限判成「Git Destructive」，要先弹窗请用户批）
+
+下面除了远端分支，都在原机器上，由原机器那边清，接手人不用管。
+
 
 - 回执线：工作树 `line-receipts-3e1`、`-3e0`、`-3e0b`、`-base`，三个 `receipts/*` 分支。`line-receipts-1c` 里有别人没提交的改动，别动。
 - 交互线：工作树 `line-interaction-ac08`、分支 `interaction/ac08-two-tabs`；几个旧本地分支先 `git branch -d` 确认已合入再删。
@@ -237,8 +251,8 @@
 
 ## 9. 已知的坑与安全事项
 
-- **MiniMax**：密钥只内联读：`MINIMAX_API_KEY="$(security find-generic-password -a "$USER" -s minimax-api-key -w)" …`。不落盘，不进日志，不用浏览器输入。只用一次性 Home，跑完就删。Home 主密钥的钥匙串条目是所有 Home 共用的，包括真实 Home，永远别删。
-- **真实 Home**（4207、4208、4173）不读也不写；要用的话，先弹窗问用户。
+- **MiniMax**：密钥只内联读：`MINIMAX_API_KEY="$(security find-generic-password -a "$USER" -s minimax-api-key -w)" …`（密钥怎么拿见第 0.1 节）。不落盘，不进日志，不用浏览器输入。只用一次性 Home，跑完就删。Home 主密钥的钥匙串条目是所有 Home 共用的，包括真实 Home，永远别删。
+- **真实 Home**（原机器上是 4207、4208、4173；你机器上日常用的那个也算）不读也不写；要用的话，先弹窗问用户。
 - 别的会话被 auto mode 拦下来的操作，要它在自己的会话里问用户；不要替它去做，也不要把权限转手。
 - 不做：force push、裸 `git stash`、不按 pid 停进程（情境线 10-18 用 `pkill -f` 停过健康检查，可能连带停了别人的）、兼容或兜底读取、为模型能力的弱点加提示词补丁。
 - 偶发的 CI 失败（用户认过可以重跑）：`coding-input-receipts.e2e` 的 RC-10/11/13/16，菜单没打开；`context-landing-panes.e2e` 的 PANE-LAND-02（先看 `detail.pane_id` 是不是空的，空的才是 S-30 的问题）；`side-shelf-in-hand.e2e` 的 AC-S04（第 6.1 节）。红在这些上面先重跑，不加进 KNOWN。
@@ -254,8 +268,8 @@
 - 发版、真实 Home 的任何操作（W5-16、W5-17 的维护，Characters 和 Sessions 的存量数据），先弹窗问。
 - 改信任边界的设计（S-34 `always_on`、默认连线的安装同意），先弹窗问。
 - Sessions 重做的需求书（BL-177），给用户审。
-- Computer Use 的真机验收（CU-G02～G04 等），要和用户约 Mac 的时间。
+- Computer Use 的真机验收（CU-G02～G04 等）要在 macOS 上做，用哪台机器、什么时间，先和用户约。
 - 发布签名与公证（BL-021），还没定。
-- 各线工作树和分支的删除（§6.3），一项一项弹窗批。
+- 远端分支的删除，一项一项弹窗批（原机器上的工作树由原机器那边清）。
 - #732、#631 交给作者和用户。
 - 这份文档和 Claude Docs 的交接说明，用户分享后接手的人才能打开。

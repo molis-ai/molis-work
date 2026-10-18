@@ -18,8 +18,6 @@ import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
 import { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
-import { TODO_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-todo";
-import { handleTodoNativePluginHttp } from "./todo-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
@@ -233,8 +231,6 @@ const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     && await handlePptNativePluginHttp(request, response, url, (_input, transport) => ({ projectId: hostReference.project_id, actions: userActions(PPT_ACTION_PERMISSIONS, transport) })) },
   { id: "jelly", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory)
     && await handleJellyNativePluginHttp(request, response, url, transport => asHomePerson(localHost, JELLY_ACTION_PERMISSIONS, transport)) },
-  { id: "todo", handle: async ({ request, response, url, serverOptions, userActions }) => Boolean(serverOptions.homeDirectory)
-    && await handleTodoNativePluginHttp(request, response, url, transport => userActions(TODO_ACTION_PERMISSIONS, transport)) },
   { id: "cognia", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory)
     && await handleCogniaNativePluginHttp(request, response, url, transport => asHomePerson(localHost, COGNIA_ACTION_PERMISSIONS, transport)) },
   { id: "personal", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost }) => Boolean(serverOptions.homeDirectory)

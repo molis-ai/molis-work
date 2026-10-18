@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { modelPromptText, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, passageFound, todoActions, todoManifest, todoOrganizeActions as organize } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, passageFound, todoActions, todoManifest, todoOrganizeActions as organize, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 
 const TODAY = "2026-09-28";
 
@@ -21,7 +21,7 @@ function fixture(t: { after(fn: () => void): void }, model: Model | null) {
   const service = new ActionService();
   const prompts: InstructedPrompt[] = [];
   service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
-    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ withStore: run => run(store), today: () => TODAY,
+    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)), today: () => TODAY,
       ...(model ? { completeText: async (prompt: InstructedPrompt) => { prompts.push(prompt); return model(prompt); } } : {}) }) });
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
   const as = (project_id: string | null, audience: ActionCallContext["audience"] = "user") =>
@@ -263,7 +263,7 @@ test("a batch saved before request ids were kept per caller holds the raw id: it
   const f = fixture(t, () => exampleAnswer());
   const old = await f.me.invoke(organize.extract, { materials: [MAIL], request_id: "r-before" });
   // How such a row looks in a Home that kept the caller's id as it came.
-  f.store.database().prepare("UPDATE todo_batches SET request_id = ? WHERE batch_id = ?").run("r-before", old.batch.batch_id);
+  f.store.database().run("UPDATE todo_batches SET request_id = ? WHERE batch_id = ?", ["r-before", old.batch.batch_id]);
   assert.deepEqual((await f.me.invoke(organize.list, { status: "all" })).batches.map(batch => batch.batch_id), [old.batch.batch_id]);
   assert.equal((await f.me.invoke(organize.get, { id: old.batch.batch_id })).batch.batch_id, old.batch.batch_id);
   const again = await f.me.invoke(organize.extract, { materials: [MAIL], request_id: "r-before" });

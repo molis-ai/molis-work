@@ -58,7 +58,10 @@ test("ISSUE-01 failed Home initialization preserves its database and only explic
     assert.equal((await fetch(`${origin}/plugins/issues`)).status, 503, "ordinary reads do not silently restart");
     const retries = await Promise.all(Array.from({ length: 4 }, () => retry()));
     for (const response of retries) { assert.equal(response.status, 200, await response.clone().text()); await response.text(); }
-    assert.equal(host.homePlugins!.installations().length, 1);
+    // Four concurrent retries install each Home plugin once (Issues, and every other catalog Home plugin beside it).
+    const installed = host.homePlugins!.installations().map(record => record.plugin_id);
+    assert.deepEqual(installed.filter(id => id === ISSUES_PLUGIN_ID), [ISSUES_PLUGIN_ID]);
+    assert.equal(new Set(installed).size, installed.length, "no Home plugin is installed twice");
     const capabilities = await host.homeActionClient().discover(user);
     assert.equal(capabilities.filter(action => action.capability_id.startsWith("issues.")).length, 9);
     const saved = await host.homeActionClient().invoke(user, issuesActions.create, input) as Issue;

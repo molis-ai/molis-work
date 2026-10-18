@@ -346,12 +346,6 @@
       ],
       "reason": "The sources module (SourcesError): its source_* codes become sources.*."
     },
-    "todo": {
-      "paths": [
-        "apps/local-host/src/todo-*"
-      ],
-      "reason": "The Todo plugin and its Host actions file; its codes already start with todo."
-    },
     "ui_host": {
       "paths": [
         "packages/ui-host/"

@@ -164,10 +164,10 @@ test("W3-09-1-01 T7: stale Home Todo revisions refuse page and actual MCP equall
   const home = await openTestHome(t), project = await home.createProject("Home scope caller");
   await home.grant(clientId, null, [todo.create, todo.get, todo.status]);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
-  const created = await page(home, "/api/todo", { title: "本人保留的真实待办" });
+  const created = await page(home, "/api/plugins/io.molis.work.todo/items", { title: "本人保留的真实待办" });
   assert.equal(created.status, 200, JSON.stringify(created.body));
   const item = object(created.body.item); assert.ok(typeof item.id === "string"); assert.ok(typeof item.revision === "number");
-  const path = `/api/todo/${encodeURIComponent(item.id)}`;
+  const path = `/api/plugins/io.molis.work.todo/items/${encodeURIComponent(item.id)}`;
   const updated = await page(home, path + "/status", { status: "doing", expected_revision: item.revision });
   assert.equal(updated.status, 200, JSON.stringify(updated.body));
   const before = await home.web.get(path), stale = { id: item.id, status: "done", expected_revision: item.revision };
@@ -256,11 +256,11 @@ test("W3-09-3-01/02: actual Home Todo MCP writes require complete read revisions
   const home = await openTestHome(t), project = await home.createProject("Versioned external caller");
   await home.grant(clientId, null, [todo.create, todo.get, todo.status, todo.batch]);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
-  const first = await page(home, "/api/todo", { title: "第一个真实待办" }), second = await page(home, "/api/todo", { title: "第二个真实待办" });
+  const first = await page(home, "/api/plugins/io.molis.work.todo/items", { title: "第一个真实待办" }), second = await page(home, "/api/plugins/io.molis.work.todo/items", { title: "第二个真实待办" });
   assert.equal(first.status, 200); assert.equal(second.status, 200);
   const a = object(first.body.item), b = object(second.body.item);
   assert.ok(typeof a.id === "string" && typeof b.id === "string" && typeof a.revision === "number" && typeof b.revision === "number");
-  const ids = [a.id, b.id], paths = ids.map(id => `/api/todo/${encodeURIComponent(id)}`), before = await Promise.all(paths.map(path => home.web.get(path)));
+  const ids = [a.id, b.id], paths = ids.map(id => `/api/plugins/io.molis.work.todo/items/${encodeURIComponent(id)}`), before = await Promise.all(paths.map(path => home.web.get(path)));
   for (const expected of [undefined, {}, { [a.id]: a.revision }]) {
     const input = { ids, change: { status: "doing" }, ...(expected === undefined ? {} : { expected_revisions: expected }) };
     const refused = await mcpCall(mcp, todo.batch.capability_id, input);

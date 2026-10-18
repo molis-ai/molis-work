@@ -32,10 +32,10 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 308,
+      "lines": 307,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 316,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 313,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
@@ -43,11 +43,11 @@
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
-    "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 221,
-    "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 185,
+    "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 220,
+    "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 184,
     "file apps/workbench/src/i18n/en.ts": 3324,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
-    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 335,
+    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 331,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2212,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 2013,
@@ -238,7 +238,7 @@
     "file plugins/native/shelf/src/client.ts": 1692,
     "file plugins/native/todo/src/client.ts": 1240,
     "class plugins/native/todo/src/store.ts#TodoStore": {
-      "lines": 381,
+      "lines": 378,
       "methods": 28
     },
     "function plugins/native/work/src/actions.ts#createWorkActionHandlers": 169,
@@ -255,7 +255,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 494,
+  "testInternalImports": 493,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -483,7 +483,7 @@
     "tests/tab-split-drop.test.ts": 5,
     "tests/tab-strip-share.test.ts": 3,
     "tests/tab-workspace-ops.test.ts": 1,
-    "tests/todo-plugin.test.ts": 2,
+    "tests/todo-plugin.test.ts": 1,
     "tests/ui-audit-2026-09-22.test.ts": 5,
     "tests/web-catalog-recovery.test.ts": 1,
     "tests/web-service-settings-client.test.ts": 1,
@@ -801,7 +801,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 30,
+  "hostPluginFilesTotal": 28,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -828,13 +828,11 @@
     "apps/local-host/src/schedule-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
     "apps/local-host/src/shelf-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/todo-actions.ts#actions": 1,
-    "apps/local-host/src/todo-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/work-actions.ts#actions": 1,
     "apps/local-host/src/workflows-actions.ts#actions": 1,
     "apps/local-host/src/workflows-native-plugin-http.ts#native-plugin-http": 1
   },
-  "registerProviderSitesTotal": 24,
+  "registerProviderSitesTotal": 23,
   "registerProviderSites": {
     "apps/local-host/src/assistant/assistant-rule-actions.ts#register-provider": 1,
     "apps/local-host/src/connector-mcp-actions.ts#register-provider": 1,
@@ -847,7 +845,7 @@
     "apps/local-host/src/placement-actions.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/catalog.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/exposed-actions.ts#register-provider": 1,
-    "apps/local-host/src/project-host.ts#register-provider": 9,
+    "apps/local-host/src/project-host.ts#register-provider": 8,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
   "hybridPluginsTotal": 16,
@@ -858,7 +856,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 416,
+  "pluginOutsideMentionsTotal": 411,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -883,7 +881,7 @@
     "schedule#outside-files": 19,
     "shelf#outside-files": 16,
     "text-stats#outside-files": 7,
-    "todo#outside-files": 12,
+    "todo#outside-files": 7,
     "work#outside-files": 23,
     "workflows#outside-files": 9
   },
@@ -1124,7 +1122,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 188,
+  "unknownCastsTotal": 187,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1236,7 +1234,6 @@
     "tests/runtime-host.test.ts": 1,
     "tests/side-panel-assistant-surface.test.ts": 1,
     "tests/system-search-lifecycle.test.ts": 1,
-    "tests/todo-plugin.test.ts": 1,
     "tests/typesafe-inference-port.test.ts": 3,
     "tests/web.test.ts": 1,
     "tests/work-terminal-client.test.ts": 1,

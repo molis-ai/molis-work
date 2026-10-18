@@ -142,6 +142,8 @@ CI 期间 main 再合入回执 #706（`149faac7d`）后，只有资源预算文�
 
 CI 的 Issue 助理夹具修复（2026-10-17）：`ccf0d9f64` 的安全检查中 `ISSUE-07` 未出现删除确认卡；干净 main 与分支的普通本地重跑均通过。对分支模型替身的业务请求加入 30ms 延迟，并让后台请求等到业务队列非空，复现记忆提炼消耗后续操作回复、助理提前结束。夹具现在为已知的记忆提炼返回空 candidates，为结束检查返回其结构化答案，两者均不消费业务回复队列。相同交错修复前失败、修复后 3/3 通过；临时延迟和诊断已移除，生产行为及全部业务断言未改。随后 `node scripts/run-tests.mjs --jobs 2 tests/issue-assistant.test.ts tests/issue-home.test.ts tests/issue-home-runtime.test.ts tests/memory-learning.test.ts tests/memory-agent-runs.test.ts tests/prologue-memory-boundary.test.ts` 的 6 文件、26 项全部通过。本轮有效定向证据累计去重 **70 文件、607 项，无跳过**；仍不是 full-suite。失败的旧 CI 保留，新提交重新运行常规 CI。
 
+第三次 main 同步（2026-10-17，`c31291c34`）：Shelf 桌面入口 #704 与主线 CI 缓存 #710 加入后，重建并解决唯一的资源预算冲突。工作台/桌面 22 个非浏览器文件全部通过；4 个 Chrome 文件、9 项通过，包含 Shelf 侧栏边界上报、标签工作区、Issue 快捷键与助理发送意图。该轮与既有有效证据去重 **93 文件、775 项，无跳过**，其中 **13 个 Chrome 文件、25 项**。API/动作快照无变化，包边界和对新基线的健康门禁通过；资源 25 项共 7,476,241 字节，workbench.js 1,110,730，比 main 少 71。前一提交 `3bf5876ea` 的[常规 CI](https://github.com/molis-ai/molis-work/actions/runs/39098197064)全部通过（13 个执行作业，Linux probe 按规则跳过）；最新合并提交以 PR 对应 head 的检查为准。
+
 剩余与限制：旧提交 `90a60c17a` 的常规 [PR CI](https://github.com/molis-ai/molis-work/actions/runs/39031488255) 全部通过，包含产品子集与安全检查；后续 `0090afe38` 的常规 CI 也全部通过；最新集成提交以 PR 检查为准。整功能 full-suite 仍待统筹安排，不宣称整体内部完整。真实回复中另有三处附加说明错误：Token 误称“最近 100 条”、CLI 未经依据解释“API 单页上限 50”、本机 HTTP 把实际 /mcp 拼为 /mp；正确的实际读取与生命周期证据保留，但不能声称回复完全可靠。一骏本人尚未进行本轮验收，OAuth 真实账号保留未验证。逐请求结果与失败归因见[增量诊断](model-diagnosis.md#剩余路径的增量验收)。
 
 历史状态（2026-10-17）：Prologue #35 与 Molis #644 已合入，App-tools 等待准入与工作图重复接续缺口已修复，最后两项全新本地 MCP 只读任务完整通过，累计 235/240。统一包的本地回归、PR CI 与合并队列均通过；这不替代整个连接功能分支的集成验收。一骏已要求继续远程 MCP、其他账号机制和界面验收，具体路径与尚需本人输入见需求书 §10.5，目标保持内部完整。下方历史批次按当时版本和结果保留，不能当成当前未解决问题。

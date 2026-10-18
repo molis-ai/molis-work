@@ -23,13 +23,13 @@
 | PR | 线 | 现在 | 合进去还差什么 |
 | --- | --- | --- | --- |
 | #725 | 采用（C4：coding-base v12，删三句工具自己已经说清的话） | 已合入 main（ee78569fc）；工作树和本地分支已清 | — |
-| #726 | 回执（3e-0b：7 个 Coding 角色列上 acknowledge-inputs，常量 WORKSPACE_PARENT_TOOLS） | 3bf06ff60 审过：只改 `prologue-taskboard` 测试。原因是多一个工具让历史到了整理阈值，多出一个没有工具的请求；测试改成按事实停，断言没放宽。chain63 等空位 | 全量绿了自动入队 |
-| #720 | 情境（W3-C2 + Esc 的修复 `bus.hush()`） | 4dd4ac30b 审过（与 50b018acc 改动行相同，键 `[1111791, 1111910]`）；chain66 排全量。统筹定 #720 先合、#730 后合 | 全量绿即入队 |
-| #708 | 交互（AC-08 两个页签答同一题） | 952e2628e 的产品修复审过；测试里的 1.5 秒等待要改成等「拒绝之后完成的那次会话读取」 | 新 head 核对后加 full-suite |
+| #726 | 回执（3e-0b：7 个 Coding 角色列上 acknowledge-inputs，常量 WORKSPACE_PARENT_TOOLS） | 3bf06ff60 审过；用户 10-18 定不逐个跑全量，已直接入队 | 合入后 main 上跑一次全量 |
+| #720 | 情境（W3-C2 + Esc 的修复 `bus.hush()`） | 4dd4ac30b 审过；用户 10-18 定不逐个跑全量，已直接入队（merge-only） | 合入后 main 上跑一次全量 |
+| #708 | 交互（AC-08 两个页签答同一题） | c4e6d38e0 审过；全量第 6 片红在 PANE-LAND-02（负载时序，与本 PR 无关）；用户 10-18 定不逐个跑全量，已直接入队 | 合入后 main 上跑一次全量 |
 | prologue#50 | 手册（todo 只在这一轮收得下时才提） | 已合进 Prologue main（dd639069c，10-18） | Molis 换包交给采用线，和批 B 合成一次 |
-| #728 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 7cfb9f317 审过（只挪了 `keptWriteCheckers` 的位置），chain64 等空位 | 全量绿了自动入队 |
+| #728 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 7cfb9f317 审过；用户 10-18 定不逐个跑全量，已直接入队 | 合入后 main 上跑一次全量 |
 | #730 | 情境 W4-1（记成待办、记下灵光成为创建入口，立即建好，由主人自己的撤销收回） | 1fba0b6bf 审过：已 merge main（#727 之后），S-39、S-40 两行都留，键 [1111791, 1112949] 实测不变 | chain68 排全量；#720 合入后再 merge main、重新取键，走 merge-only（情境线已暂停，交接手的人或叫情境线） |
-| #731 | 手册线 BL-163/T5 评测结果（coding-base v13 删补充半句；BL-163 按 ① 删行；BL-175、BL-176） | 9a9de4bc9 审过 | 提示词改动，要全量；等 main 的红用例定了再排 |
+| #731 | 手册线 BL-163/T5 评测结果（coding-base v13 删补充半句；BL-163 按 ① 删行；BL-175、BL-176） | 9a9de4bc9 审过；用户 10-18 定不逐个跑全量，已直接入队 | 合入后 main 上跑一次全量 |
 | #732 | jingxusandra-gif，产品运营文档对抗式审查（只改 `docs/product-operations/`） | 501cf1fa8 审过、只改文档；统筹曾按 #722 先例入队，用户 10-18 把它移出了合并队列 | 不再入队，交作者与用户定 |
 | 待开 | 手册 BL-163/T5 评测与处理（分支 `ai/bl163-ack-eval`） | 乙重跑完：两版都没把补充当成回答，按规则删半句。甲约 37/96 | 开 PR 前要 merge main：#725 已把 coding-base 升到 v12，T5 要升 v13 |
 

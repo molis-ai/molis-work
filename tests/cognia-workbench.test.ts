@@ -1,18 +1,27 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pluginWorkbenchClientAsset } from "@molis-ai/molis-work-app-workbench";
-import { renderMolisWorkWeb, renderMolisWorkWorkbenchClientScript, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
-test("the Host page retains Cognia's real surface and loads its registered client on demand", () => {
-  const view = {
-    snapshot: { board: { project_id: "cognia-render-test", title: "Knowledge", active_goal_id: null, created_at: "2026-09-23T00:00:00.000Z", updated_at: "2026-09-23T00:00:00.000Z" }, cursor: 0, goals: [], relations: [], goal_tree_proposals: [], planning_method_packs: [] },
-    project: { project_id: "cognia-render-test", display_name: "Knowledge" }, projects: [{ project_id: "cognia-render-test", display_name: "Knowledge" }], route_prefix: "/projects/cognia-render-test", demo: false, active_goal_id: null, goals: [], archived_goals: [], trashed_goals: [], counts: {}, coverage: [], input_bindings: [], policy_bindings: [], events: [], feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] },
-  } as MolisWorkWebView;
-  const html = renderMolisWorkWeb(view);
+test("RAC-43: the Host keeps one Cognia Runtime surface and loads its registered client on demand", async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("One knowledge stage");
+  const page = async () => {
+    const response = await f.request(`/projects/${project.project_id}/`);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.equal([...html.matchAll(/data-work-surface="cognia"/g)].length, 1);
+    return html;
+  };
+  const html = await page();
   assert.match(html, /data-cognia="workbench"/);
   assert.match(html, /data-work-surface="cognia"/);
   assert.match(html, /data-cognia-action="import"/);
   assert.match(html, /data-cognia-workspace/);
+  assert.equal((await f.request("/api/plugins/io.molis.work.cognia/disable", { method: "POST", body: {} })).status, 200);
+  assert.doesNotMatch(await page(), /data-cognia="workbench"/);
+  assert.equal((await f.request("/api/plugins/io.molis.work.cognia/enable", { method: "POST", body: {} })).status, 200);
+  assert.match(await page(), /data-cognia="workbench"/);
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotMatch(script, /data-cognia=workbench/);
   assert.match(script, /\/assets\/molis-work-plugins\//);

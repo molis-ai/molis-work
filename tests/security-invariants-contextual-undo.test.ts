@@ -9,7 +9,7 @@ import { screenModelMaterial } from "@molis-ai/molis-work-service-agent-host";
 import { contextualCandidates } from "@molis-ai/molis-work-kernel/contextual";
 
 /**
- * S-39 (docs/system/SECURITY-INVARIANTS.md; specs/context-program W4-1): a creation entry the bar made at once keeps its owner's
+ * S-40 (docs/system/SECURITY-INVARIANTS.md; specs/context-program W4-1): a creation entry the bar made at once keeps its owner's
  * undo on the Host, behind a token. The token is spent once, only by the same person in the same project, within 30 minutes, and
  * only while the undo's provider is the installation that made the thing; the page hands back the token and nothing else.
  */
@@ -48,14 +48,14 @@ async function made(fake: ReturnType<typeof owner>, by: UndoOwner = OWNER): Prom
 }
 const stale = (error: Error & { code?: string }) => error.code === "contextual.stale";
 
-test("S-39 an undo token is spent once: the second 撤销 is refused and runs nothing", async () => {
+test("S-40 an undo token is spent once: the second 撤销 is refused and runs nothing", async () => {
   const fake = owner(), token = await made(fake);
   assert.deepEqual(await undoCreated(OWNER, token, fake.actions), { undone: true });
   await assert.rejects(undoCreated(OWNER, token, fake.actions), stale);
   assert.equal(fake.removed(), 1);
 });
 
-test("S-39 another project or another person cannot spend the token, and does not use it up for its owner", async () => {
+test("S-40 another project or another person cannot spend the token, and does not use it up for its owner", async () => {
   const fake = owner(), token = await made(fake);
   await assert.rejects(undoCreated({ ...OWNER, project: "project-b" }, token, fake.actions), stale);
   await assert.rejects(undoCreated({ ...OWNER, actor: "person-b" }, token, fake.actions), stale);
@@ -64,14 +64,14 @@ test("S-39 another project or another person cannot spend the token, and does no
   assert.equal(fake.removed(), 1, "still its owner's");
 });
 
-test("S-39 a token past its 30 minutes is refused, spent, and nothing is undone", async () => {
+test("S-40 a token past its 30 minutes is refused, spent, and nothing is undone", async () => {
   const fake = owner(), token = await made(fake);
   await assert.rejects(undoCreated(OWNER, token, fake.actions, Date.now() + 31 * 60_000), stale);
   await assert.rejects(undoCreated(OWNER, token, fake.actions), stale);
   assert.equal(fake.removed(), 0);
 });
 
-test("S-39 once the undo's provider is another installation, or no longer offers it, the old token undoes nothing", async () => {
+test("S-40 once the undo's provider is another installation, or no longer offers it, the old token undoes nothing", async () => {
   for (const now of [
     DIRECTORY.map(item => item.capability_id === "notes.remove" ? view("notes.remove", {}, "command", { ...provider, plugin_install_id: "install-2" }) : item),
     DIRECTORY.map(item => item.capability_id === "notes.remove" ? { ...item, availability: { available: false, code: "plugin.disabled", reason: "停用" } } as ActionView : item),
@@ -84,7 +84,7 @@ test("S-39 once the undo's provider is another installation, or no longer offers
   }
 });
 
-test("S-39 the page hands back the token and nothing else: a body that names an undo or its input is refused and runs nothing", async t => {
+test("S-40 the page hands back the token and nothing else: a body that names an undo or its input is refused and runs nothing", async t => {
   const fake = owner(), token = await made(fake);
   const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"),
     { scope: OWNER.project, actor_id: OWNER.actor, actions: () => fake.actions }); });

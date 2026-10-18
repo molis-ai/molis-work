@@ -13,7 +13,7 @@ import { contextualErrors } from "./contextual-request.js";
  * Items, a field the draft could not fill) comes back as the draft, for the page to show as a card the person confirms.
  *
  * The undo is the owner's own undo command with the input this creation's output gives (`declaredUndo`, as the Assistant's
- * works use it). It stays here, in memory, behind a token (S-39): spent once, only by the same person in the same project, within
+ * works use it). It stays here, in memory, behind a token (S-40): spent once, only by the same person in the same project, within
  * 30 minutes, and only while the undo's provider is still the installation that made the thing; a restart forgets it. The page
  * never names an undo, and the undo runs through the person's own actions, like any other call.
  */

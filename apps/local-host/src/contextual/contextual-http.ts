@@ -38,7 +38,7 @@ export interface ContextualHttpPorts {
   readonly homeDirectory?: string;
   /** Separates panes of different projects served by one process. */
   readonly scope: string;
-  /** The person whose authority `actions()` carries: an undo kept for them is theirs only (S-39). */
+  /** The person whose authority `actions()` carries: an undo kept for them is theirs only (S-40). */
   readonly actor_id: string;
   /** The local person's authority in this project, bound for this request. */
   actions(): ContextualActions;
@@ -190,7 +190,7 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
         readString(body.key, "key", 80), readString(body.request_id, "request_id", 120), { actions, ports: draftPorts(ports.homeDirectory), signal })));
       return true;
     }
-    // The page only hands back the token: a body that names anything else (an undo, its input) is refused (S-39).
+    // The page only hands back the token: a body that names anything else (an undo, its input) is refused (S-40).
     if (route === "undo") {
       if (Object.keys(body).some(field => field !== "undo_token")) throw invalid("撤销请求");
       sendJson(response, 200, await undoCreated({ project: ports.scope, actor: ports.actor_id }, readString(body.undo_token, "undo_token", 80), ports.actions()));

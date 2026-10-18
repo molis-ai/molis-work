@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { JellyCommand, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
 import { emptyJellyWorkspace, applyJellyCalendarCommand, validateJellyWorkspace } from "./calendar.js";
 import { applyJellyContentCommand, jellyHash, validateJellyContent } from "./content.js";
@@ -108,7 +108,7 @@ export class JellyStore {
  * The Jelly store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const JELLY_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const JELLY_DATABASE: PluginDatabaseDeclaration = { store_name: "jelly", version: 1, read_permission: "jelly:read", write_permission: "jelly:write", schema: `
   CREATE TABLE jelly_workspace (singleton INTEGER PRIMARY KEY CHECK(singleton = 1), revision INTEGER NOT NULL, body TEXT NOT NULL, checksum TEXT NOT NULL);
   CREATE TABLE jelly_note_versions (id TEXT PRIMARY KEY, revision INTEGER NOT NULL);
   CREATE TABLE jelly_history (id INTEGER PRIMARY KEY AUTOINCREMENT, command TEXT NOT NULL, before_body TEXT NOT NULL, after_body TEXT NOT NULL, before_checksum TEXT NOT NULL, after_checksum TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
@@ -119,7 +119,7 @@ export function openJellyStore(home: string): JellyStore {
   const db = openHomeSqliteDatabase(home, JELLY_HOME_STORE.path);
   try {
     db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-    applySqliteBaseline(db, homeSqlitePath(home, JELLY_HOME_STORE.path), JELLY_STORE_BASELINE);
+    applySqliteBaseline(db, homeSqlitePath(home, JELLY_HOME_STORE.path), JELLY_DATABASE);
     const sql: PluginDatabaseTransaction = {
       get: (query, parameters = []) => db.prepare(query).get(...parameters) ?? null,
       all: (query, parameters = []) => db.prepare(query).all(...parameters),
@@ -138,7 +138,4 @@ export function openJellyStore(home: string): JellyStore {
 }
 
 /** This plugin's store in the Home's store registry (W4-11): `jelly/jelly.db` at its one baseline. */
-export const JELLY_HOME_STORE: HomeStoreDeclaration = { path: "jelly", library: { baseline: JELLY_STORE_BASELINE } };
-
-/** Trusted Home Runtime entry; the existing physical library and schema remain unchanged. */
-export const JELLY_DATABASE: PluginDatabaseDeclaration = { store_name: "jelly", ...JELLY_STORE_BASELINE, read_permission: "jelly:read", write_permission: "jelly:write" };
+export const JELLY_HOME_STORE: HomeStoreDeclaration = { path: "jelly", library: { baseline: JELLY_DATABASE } };

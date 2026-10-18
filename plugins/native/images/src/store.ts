@@ -1,7 +1,7 @@
-import { clearInExistingHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { clearInExistingHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
-import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabaseDeclaration, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { imagesErrors } from "./error.js";
@@ -14,7 +14,7 @@ type Row = Record<string, unknown>;
  * The images store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const IMAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const IMAGES_DATABASE: PluginDatabaseDeclaration = { store_name: "images", version: 1, read_permission: "storage:private", write_permission: "storage:private", schema: `
   CREATE TABLE connections (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
     base_url TEXT NOT NULL, model TEXT NOT NULL,
@@ -133,7 +133,7 @@ const ASSET_FILE = /^[a-f0-9-]+\.(png|jpg|webp)$/u;
  * process loses its record; its result is dropped when it finishes.
  */
 export function purgeImagesProject(homeDirectory: string, projectId: string): void {
-  const files = clearInExistingHomeSqlite(homeDirectory, IMAGES_HOME_STORE.path, IMAGES_STORE_BASELINE, db => deleteProjectJobs(db, projectId));
+  const files = clearInExistingHomeSqlite(homeDirectory, IMAGES_HOME_STORE.path, IMAGES_DATABASE, db => deleteProjectJobs(db, projectId));
   if (files) removeAssetFiles(join(homeDirectory, IMAGES_HOME_STORE.path, "assets"), files);
 }
 
@@ -153,7 +153,7 @@ function jobFromRow(row: Row): ImageJob {
 }
 
 /** This plugin's store in the Home's store registry (W4-11): `images/images.db` at its one baseline. */
-export const IMAGES_HOME_STORE: HomeStoreDeclaration = { path: "images", library: { baseline: IMAGES_STORE_BASELINE } };
+export const IMAGES_HOME_STORE: HomeStoreDeclaration = { path: "images", library: { baseline: IMAGES_DATABASE } };
 
 function connectionFromRow(row: Row): StoredConnection {
   return { id: String(row.id), name: String(row.name), api_format: row.api_format as StoredConnection["api_format"],

@@ -15,7 +15,7 @@ const job=object({id,project_id:id,request_id:id,connection_id:id,connection_nam
   status:{enum:["running","succeeded","failed","cancelled","interrupted"]},images:array(image),error:text,created_at:text,finished_at:{type:["string","null"]}});
 const changed=object({job});
 function define<I,O>(name:string,title:string,description:string,operation:"query"|"command",scope:"home"|"project",input:ActionSchema,output:ActionSchema,permissions:readonly string[],execution?:ActionDefinition["action"]["execution"]):ActionDefinition<I,O>{
-  return {capability_id:`images.${name}`,version:1,operation,action:{title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
+  return {capability_id:`images.${name}`,version:name === "jobs.start" ? 2 : 1,operation,action:{title,description,...(execution?{execution}:{}),...(name === "jobs.start" ? {scheduling:"concurrent" as const,background_job:{
     status:{capability_id:"images.jobs.get",version:1},id:"job.id",input:"id",state:"job.status",done:["succeeded","cancelled"],failed:["failed","interrupted"]}}:{}),kind:operation==="query"?"query":"operation",scope,audiences:["user","workflow","agent","mcp"],subject_kinds:["image"],input_schema:input,output_schema:output,permissions}};
 }
 export const imagesActions={

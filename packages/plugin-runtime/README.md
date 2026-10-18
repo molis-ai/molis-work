@@ -104,3 +104,5 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
 模型原图服务在首次等待前检查并复制字节（30 张、单张 32 MiB、合计 128 MiB）。`validateResult()` 同步复核原动作 scope、存活授权、安装及 Host 的原模型快照；成功、普通推理失败与 JSON 解码失败都保留同次执行事实，取消、撤权或过期后不能据此记业务失败。只读 `choices()` 检查安装与模型 grant，不递归调用会重算可用性的完整动作授权。回归见 `tests/plugin-model-materials.test.ts`。
+
+Home 的消费者设置与生图服务分别由 `model-configuration.ts`、`image-generation.ts` 核对可信声明、当前实例、动作权限与执行范围。只读 selection/inspect 供可用性判断，不递归进入完整动作可用性；真实模型/配置写入仍复查 beforeEffect 和同步授权。图片结果携带派出时的 revision，交付与业务写入按该版本复核。合同和恢复边界见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-消费者的模型配置生图与项目清理)；改这些路径加跑 `tests/plugin-model-configuration.test.ts`、`tests/plugin-image-generation.test.ts`、`tests/home-plugin-project-cleanup.test.ts`、`tests/home-plugin-project-routes.test.ts`。

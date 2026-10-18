@@ -520,7 +520,22 @@
   "GET <project>/api/images": {
     "status": 404,
     "type": "application/json",
-    "error": "找不到图片操作或请求方法不支持"
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.images/jobs": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "jobs"
+    ]
+  },
+  "GET <project>/api/plugins/io.molis.work.images/connections": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "auth_connections",
+      "connections"
+    ]
   },
   "GET <project>/api/ppt": {
     "status": 200,
@@ -532,6 +547,11 @@
     ]
   },
   "GET <project>/api/jelly": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.jelly/": {
     "status": 200,
     "type": "application/json",
     "keys": [

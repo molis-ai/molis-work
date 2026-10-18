@@ -640,6 +640,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-plugins/coding.js", 373970], ["/assets/molis-work-settings.css", 988484], ["/assets/molis-work-workbench.css", 1591639],
   ["/assets/molis-work-workbench.js", 1109302],
   ["/assets/molis-work-workbench.js", 1109312], ["/assets/molis-work-workbench.js", 1109918],
+  ["/assets/molis-work-workbench.js", 1110116], ["/assets/molis-work-workbench.js", 1109330], ["/assets/molis-work-workbench.js", 1111561],
   ["/assets/molis-work-workbench.js", 1109913], ["/assets/molis-work-workbench.js", 1110802],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
@@ -653,11 +654,11 @@ for (const [asset, old] of [
   });
 }
 
-// W5-01 Lingguang: approved by the user on 2026-10-17, the shared stream reader may grow workbench.js once,
-// from exactly the prerequisite baseline to the measured size (+2,231 B). One byte more, another
+// W5-01 integration: the approved Todo +28 B and Lingguang +2,231 B are rebased onto actual main,
+// from exactly 1,110,187 B to the measured 1,112,375 B (net +2,188 B after the integrated -71 B). One byte more, another
 // asset, or growth from the new baseline still fails.
 test("W5-01 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1109330, 1111561] } as const;
+  const allowed = { "/assets/molis-work-workbench.js": [1110187, 1112375] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("w501-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "w501-change");

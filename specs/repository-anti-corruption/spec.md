@@ -12,7 +12,7 @@ Host 沿现 hostTextGeneration 真实 dispatch snapshot 产生同步 validateRes
 
 范围：contracts/plugin-model、Runtime model-service、Host plugin-model-service/host-complete-text（必要时一个原图暂存 helper）、相关测试与必要开发说明；公共出口、API快照、安全表、共享 spec 与资源由主会话整合。`W5-01-SHM-01`：真实 Runtime→Host→本机模型链验证两种协议原图字节/顺序、等待前快照、prompt覆盖、真实成功/失败/JSON解码回执与暂存清理，伪图/非vision拒绝零请求。`W5-01-SHM-02`：真实最终 beforeEffect barrier 期间连接/模型变化、撤权、停止再启用，成功与失败 guard 都阻止零迟到业务写；原调用结束后及另一次调用不复用旧 guard，未变化对照可提交。`W5-01-SHM-03`：choices 随目录状态即时变化且零请求/零解密、不含地址或凭据引用，精确 selection 与 availability/complete一致、不回退。先整体 build，再模型service/selection/lifecycle/metadata/progress、host-configured-text、prologue-inference-images/native、Shelf AI/job/recipes/settings、prompt-registration与新真实用例；boundary、API、merge-base health、资源门禁由主会话统一做。共享核心全量交统筹CI，本机不跑；本片通过也不代表Shelf迁移完成。
 
-W5-01 Jelly / Images 并行前置（2026-10-18，执行中）：用户要求每个插件迁移独立 worktree，plan 与已明确的实现并行、主会话 review。当前工具最多主会话加三个运行中的子代理，四个子任务负责人按依赖接续；不增加在途 PR 数、不合并、不加标签、不碰真实 Home。此候选把模型选择前置 `e8925f8ea` 与 #661 `9d94e5eb5` 合在本地，尚未验证，不宣称 #661 已合入。安全表保留材料与常开插件两条原 S-34，编号冲突仍等统筹裁决；基线/资源先取 #661，构建后重生成并按已有 Todo +28 B、灵光 +2231 B 的授权重定，不能据旧快查宣布通过。
+W5-01 Jelly / Images 并行前置（2026-10-18，本地定向通过，待队列与 CI）：用户要求每个插件迁移独立 worktree，plan 与已明确的实现并行、主会话 review。当前工具最多主会话加三个运行中的子代理，四个子任务负责人按依赖接续；不增加在途 PR 数、不合并、不加标签、不碰真实 Home。此候选包含模型选择前置 `e8925f8ea`、#661 `0fbc0c89e` 与已验证的后台、材料、灵光、Cognia 前置，不宣称这些候选或 #661 已合入。材料已按用户 10-18 决定顺延 S-38，主线常开插件 S-34 保留。已有 Todo +28 B、灵光 +2231 B 的许可重定至实际 main 的 workbench.js 1,110,187 B；保留组合中减少的 71 B，实测 1,112,375 B，净增 2,188 B，无新增增长授权，前序合入后只可重定仍未使用的额度。
 
 - Jelly 模型配置采用 `services.model.configuration.selection/read/save`，可信 Home 条目声明唯一 preference 文件、固定 custom provider、设置 read/save 动作引用；不接受调用方路径、身份、凭据或任意 service map。Host 消费者模型配置服务独占解释与读写模型选择，仍用原 `jelly/preferences.json` v1 和现有 ModelProvider/Connector owner；Jelly 拥有日历、笔记、设置动作/UI和消费入口。53 动作全部由 Runtime 唯一提供，受众/权限/schema不缩小；显式模型选择不回退。通用配置实现替换原 Jelly 专属 Host 实现，不留第二份设置逻辑；原 provider+preference 同步补偿保留，Connector 首次 origin pin 不随之后文件失败回滚的现有边界明确保留。配置 read/save 绑定原执行动作，所有持久效果前复核 beforeEffect、当前安装/权限/同步授权；selection 只给当前安装自身模型名字供 availability。`W5-01-JMC-01`：真实 Runtime 保原53动作/模型选择/配置格式且保存不联网。`W5-01-JMC-02`：设置专属调用、伪声明、跨安装、停用/换代/撤权/过期回调拒绝，原文件/provider/连接零迟到写。`W5-01-JMC-03`：输入等待前复制，失效选择不回退，文件失败后按现有 provider/preference/pin 各自边界断言。
 - Images 采用专用 `services.imageGeneration.connections/inspect/bind/unbind/generate`；声明在可信启动条目，保留 `("home","images",slot)` 绑定、原 v1 库与资产位置。连接和密钥仍只由 Connector owner 解释，模型只经 agent-host；输出字节交插件验证/保存，不把任务、调度或私有SQL搬入Host。inspect必须只读，assertTarget首次pin只在授权后；并发指纹只含不透明摘要，不向插件泄露密文或secret引用。生成使用既有后台授权与文件服务，前后和每次派出核原连接/权限，取消或撤权不写失败记录。`W5-01-IMGPORT-01`：无密钥loopback、有失效绑定loopback、错误服务/目标、disabled/removed及凭据/绑定中途变化均按现行边界拒绝；实际请求与结果可核对。`W5-01-IMGPORT-02`：真实Runtime当前动作/安装与后台授权检查，迟到成功/失败均零业务写，停止、重新启用、孤儿文件及最多两项运行/幂等行为实证。
@@ -22,9 +22,17 @@ W5-01 Jelly / Images 并行前置（2026-10-18，执行中）：用户要求每�
 
 整合 HTTP 回归补充：Images 的图片预览必须内联显示、显式下载保留附件文件名；现有 Runtime bytes 一律 octet-stream 附件会使图片 UI 无法显示。公共响应补可选 disposition（inline/attachment，省略仍 attachment），Host 只保留 image/png、image/jpeg、image/webp 三种无脚本位图 MIME，只有显式 inline 才内联；其他 MIME（含 HTML/SVG）一律仍为 octet-stream 附件。所有二进制响应继续由 Host 固定 nosniff、sandbox、no-store，不接受插件 headers。`W5-01-IMGHTTP-01`：真实 Home/project HTTP 验证三种位图的内联/下载与字节、文件名，HTML/SVG及伪头仍拒绝内联；Images 实际生成→预览→下载回归通过。未知 Images 错误继续对外只给 images.internal 与原通用句，不能泄露内部路径；已知 owner/平台错误保持原码和状态。
 
+数据库声明收尾：Images/Jelly 各自以 IMAGES_DATABASE/JELLY_DATABASE 作为唯一 version/schema 定义，Runtime、离线项目清理与 Home 库目录共用；删除旧 baseline 名字及重复包装，同步发布版本表与调用测试，物理路径/版本/SQL 不变。客户端只收束重复 data-images 选择器，保持任意 selector 的 $、class 与 directory 查询路径；用于抵消完整插件路由带来的 44 B，不修改压缩器或资源上限。
+
+动作合同收尾：Images jobs.start 因 Runtime 后台受理改为 concurrent、增加 model:invoke 并声明后台状态追踪，按当前合同规则升到 version 2；输入输出和 request_id 幂等形状保持。客户端、HTTP和连接使用位置从同一 imagesActions 引用取版本；MCP 当前工具为 images.jobs.start__v2，旧版固定引用失效并要求重新选择，不加兼容别名或改真实Home。只读MCP客户端须在当前v2仍被拒绝，v1不再发现；动作快照显式登记这一版本变化。
+
 项目清理接缝：HomePluginHost 用目录原 project_data 的 owner、label 与 purge 注册既有 owner 栈的 wrapper；clear 从 Runtime 取当前已发布 contribution，同步调用可选 onProjectDeleted 后立即执行原 purge，中间不 await。可信声明按 definition 对象冻结并在正式发行物恢复时传递；无声明却返回回调、异步回调均拒绝。回调仅取消本实例内存任务，不授予写库/文件权；停止/卸载期间无 contribution 即走原 purge，Home 释放在实例停止后恢复原 owner。Images 在第一个 await 前登记受理取消信号，删除与固定 id rebuild 后旧信号不可复活；已写入但尚未引用的文件按启动恢复清理，不宣称回执当刻全部收回。`W5-01-RPC-01`：同步取消先于 purge、当前代次投递及 close 恢复原 owner；`W5-01-RPC-02`：缺可信声明、原声明被变更、异步回调及抛错均真实拒绝或保持冻结身份，拒绝不执行 purge；`W5-01-RPC-03`：受理等待/文件提交交错、旧任务晚到与恢复按 IMGPORT-02/03 实证。
 
 实施边界：配置合同与其Runtime gate/Host owner、图片合同与其Runtime gate/Host adapter可分别准备；共享 plugin合同出口、可信identity、Home executor、catalog、公开API/动作快照、SSOT、安全表与资源由主会话串行。两项新服务仅接当前 Home 消费方，不为项目执行器预埋。插件迁移各自独立worktree，平台前置与插件切换分提交，先冻结合同再整合消费者。验证先整体build，再各包README、真实临时Home/Host/Runtime、定向Chrome、boundary、merge-base health、API/actions与实测资源；共享全量交统筹CI，不在本机跑全量。尚未实现/运行的编号不记通过。
+
+本片验收：W5-01-JMC-01～03、IMGPORT-01～03、HPR-01、IMGHTTP-01、RPC-01～03 的真实临时 Home/Runtime/HTTP/MCP、并发拒绝和持久化路径通过。最终整体构建、API/动作快照、boundary、完整 merge-base health 与资源通过；健康快查收紧为 136 个巨大单元、486 处测试内部引用、20 个插件专属 Host 文件、20 处 registerProvider、393 处插件包外点名。25 项资源共 7,476,413 B，其中 Images 22,458→22,212 B、Jelly 91,233→91,167 B。135 个包要求及相关非浏览器文件首轮 133 通过：Images MCP 仍找旧 v1、发布版本表未识别重复包装声明两项已按上述现行合同修复，并在补充批通过。安全/合同与变更重验 103 文件首轮 102 通过；assistant-thread-reply 第二条在 fetch 收到 ECONNRESET，原代码单独复跑 3/3 通过，没有改断言或超时。5 个真实 Chrome 文件 19 条通过（configured-text、content-context-regressions、model-ready-surfaces、plugin-sample、images-actions）。保留 plugin-sandbox-network 原环境条件跳过 1 条；没有据此声称所有环境已覆盖。
+
+运行证据：`/tmp/molis-runtime-migrations-{required,completion,browser-final,final3-build,health-final2,boundary-final2,assets-final3}.log` 与 `/tmp/molis-runtime-assistant-recheck.log`。这批验证使用本机受控供应商和隔离 Home，证明配置/授权/真实请求及结果保存的调用链，不代替真实外部厂商、一骏本人体验或最终 CI；本机全量未运行。后续仍需按原队列逐插件接实际 main、正式 CI 与 PR 交付，整个 W5/W6 未完成。
 
 W5-01 模型选择前置（2026-10-17，Codex，本地定向通过，待前序与 CI）：Jelly 的现行 `preferences.json` 保存独立的供应商/模型选择，Shelf 也有逐次选择；Runtime 的 `services.model` 目前只用默认模型。迁移不能丢掉人的选择，因此先补公共服务的精确选择入口，目标为功能可用并由真实 Host/Runtime 与本机模型替身验证。`availability(selection?)` 和 `complete(prompt, { selection })` 只收已有目录中的 `provider_id`、`model_id`；不指定时沿用默认选择，指定后找不到、停用或连接失效均拒绝，不落到另一供应商或环境模型。选择在任何异步等待前复制，调用途中改原对象不改变本次目标；凭据、地址及模型配置仍由 Host 持有，派出前与返回后的现行授权/连接检查照旧。
 
@@ -36,7 +44,7 @@ W5-01 模型选择前置（2026-10-17，Codex，本地定向通过，待前序�
 
 W5-01 Todo 同步（2026-10-17，PR #684，仍待合入）：按交接的 merge-only 顺序纳入 main `8fcff0442`。冲突仅为单次资源许可、对应测试及两份派生表；主线的交互、回执、SDK 与 S-32/S-33 保留。Todo 的 +28 B 已按既有批准重定为 workbench.js 1,109,302→1,109,330，Todo 客户端 62,081→62,036 B（−45）；25 项资源总计 7,479,372 B，整体与 workspace 构建、资源实测及 boundary 已通过。#688 已用的 Coding 373,784 与 workbench.js 1,108,502 两个起点补进拒绝回归。合并后定向 10 文件 / 162 条、真实 Chrome 2 文件 / 7 条、安全清单 63 文件全部通过；sandbox 文件保留 1 个环境条件跳过项。merge-base health 与快查下调通过。共享核心全量交统筹在 CI 排；不把已做好的后续本地切片算作已合入。
 
-材料服务编号（2026-10-17，用户决定）：Runtime 材料服务统一改用 **S-34**，保留 main #695 的 S-33（重启后回答问卷的授权）。安全表和对应拒绝测试已同步；以下旧验证段落中的 S-33 仍指当时的材料编号，保留原运行事实。本次只改编号，不改授权、行为或断言；按原队列在前置合入后同步实际 main，并重验完整安全表，不把旧工作树未纳入 S-32/S-33 当作当前主线缺陷。
+材料服务编号（2026-10-18，用户确认顺延）：Runtime 材料服务改用 **S-38**，保留当前 main 的 S-34 常开插件及 S-35～S-37。安全表与对应拒绝测试同步；以下旧验证中的 S-33/S-34 只表示当时编号，保留原运行事实。本次不改变授权、行为或断言；材料候选在前置合入后接实际 main，旧基点没有的中间编号不补造条目。其他在途分支的编号由其 owner 接当前 main 排列。
 
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
@@ -1140,9 +1148,9 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/form` | 内置插件 | 33 | 3,163 | `store.ts` 522 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 已审 |
-| `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/images` | 内置插件 | 16 | 1,531 | `client.ts` 458 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/inbox` | 内置插件 | 13 | 1,016 | `ui.ts` 189 | 1 | 1 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/jelly` | 内置插件 | 27 | 2,355 | `content.ts` 202 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/jelly` | 内置插件 | 28 | 2,485 | `content.ts` 202 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/lingguang` | 内置插件 | 13 | 1,840 | `client.ts` 707 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/pages` | 内置插件 | 44 | 14,848 | `editor-browser.ts` 4,043 | 3 | 3 | 2 | 构建期 | 深 | 已审 |
 | `plugins/native/plugin-builder` | 内置插件 | 17 | 2,855 | `agent-authoring.ts` 800 | 1 | 2 | 2 | 构建期 | 中 | 已审 |

@@ -29,6 +29,7 @@ export interface AgentPendingQuestion {
     allows_free_text: boolean;
     questions?: ReadonlyArray<AgentQuestion>;
     answerable?: boolean;
+    parked?: true;
     unavailable_reason?: string;
 }
 

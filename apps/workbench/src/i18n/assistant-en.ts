@@ -545,4 +545,11 @@ export const ASSISTANT_EN: Record<string, string> = {
   "还缺系统授权：": "Still missing system permissions: ",
   "。在侧栏的「电脑」标签里按引导授权。": ". Grant them in the side panel’s Computer tab.",
   "系统授权齐全。": "All system permissions are granted.",
+  // A round parked at a restart on its question (BL-156): the Agent's refusals of a control, and what the work says while the answer waits.
+  "这个会话正在恢复，请稍后再试": "This session is being recovered. Try again in a moment.",
+  "这个会话停在一道等你回答的问题上：先回答它，或结束那一轮": "This session stopped on a question waiting for your answer. Answer it, or end that round.",
+  "这个会话的运行记录暂时读不出来，请稍后再试": "This session's run records can't be read right now. Try again in a moment.",
+  "上一轮停在一道等你回答的问题上：回答后接着做，也可以结束那一轮": "The last round stopped on a question waiting for your answer. Answer it to go on, or end that round.",
+  "已回答，下一轮还没开始；回答留在排队里": "Answered. The next round hasn't started; your answer is waiting in the queue.",
+  "说“继续”接着做": "Say “continue” to go on",
 };

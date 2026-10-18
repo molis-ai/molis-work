@@ -267,7 +267,7 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 | --- | --- |
 | 底栏的 `BAR_RESIDENT_IDS` 和两个按钮 | 删掉，只留侧栏按钮；`dock-window-im`、`data-dock-window="im"`、`data-dock-frame="im"`、`data-dock-toggle="im"` 改用通用名字，不留兼容别名（`immersive-shell.ts`、`side-panel.ts`、`navigation-presentation.ts`、`docs/system/GLOSSARY.md` 一起改）；侧栏按钮的提示改为「侧栏：Shelf、灵光、文件、浏览器、电脑与讨论」 |
 | 右栏格的顺序 | 平台自带的格也给一个 `order`，与插件侧栏视图放在一起排序，不在宿主里写死 Shelf 排第一 |
-| Shelf 的 manifest | `navigator` 视图改为 `side` 视图，由宿主排版的侧栏文档出（已在整页门禁的例外清单里，不新增例外）；Manifest 声明 `always_on: true`（「常开插件」，2026-10-17 定名）：始终启用，不进插件列表；只有内置插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-33） |
+| Shelf 的 manifest | `navigator` 视图改为 `side` 视图，由宿主排版的侧栏文档出（已在整页门禁的例外清单里，不新增例外）；Manifest 声明 `always_on: true`（「常开插件」，2026-10-17 定名）：始终启用，不进插件列表；只有内置插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-34） |
 | Shelf 在插件分组里（`immersive-shell.ts` 的「个人」组）、插件选择、市场、项目插件管理 | 撤下 |
 | 桌面的 `molisWorkOpenShelf` 和轮盘的 `over_shelf_panel` | 改成发 `molis:side-open` 打开 Shelf 格；轮盘的命中判断改用右栏的位置 |
 | 搜索、placement 与结果视图链接中打开 Shelf 材料 | 打开右栏的 Shelf 格，并选中那一行；包括 `shelf.items.admit` 结果视图里的 `?openPlugin=shelf&openItem=…`。整页门禁沿链接打开地址，改道后仍须落在工作台里（总纲 15.2） |
@@ -343,6 +343,6 @@ readonly places?: readonly ("main" | "side" | "assistant")[];
 | 2026-10-09 | 吸收 main：Shelf 交给项目的文字材料是过程项，不进「文件」格；Coding 报告与变更集收进 Shelf 都是个人副本；「放上 Shelf」的底层动作是 `shelf.items.admit`（撤销 `shelf.items.delete`），不产生过程项；Shelf 的侧栏视图由宿主排版的侧栏文档出，不新增整页例外；改名不留别名（总纲第 15 节） | 常规取舍，按 artifact-positioning、整页门禁与健康门禁 |
 | 2026-10-12 | 第一批「放进左边」只做 Pages 的三个确定性动作：插入到光标处（没有光标放文末）、替换选中的文字、作为引用插入（带出处）；其余（整理成要点后插入、Goals 作为依据附上、Coding 放进下一轮材料）排第二批，前置条件见总纲 §14 | 统筹按用户的规则定（功能线选体验最好的）：确定性、预览即写入、可核对可撤销；用户可在验收时推翻 |
 | 2026-10-12 | 平台自带格的对象种类叫 `browser_page`、`discussion_message`；否决 `web.page`、`im.message` | 统筹按用户的规则定（技术决策看防腐后果）：对象种类一律是「主人_东西」；点号与能力 id 撞形；`im` 按 GLOSSARY R-A10 已指整个右栏 dock |
-| 2026-10-17 | `always_on: true`（常开插件）只有随宿主发布的内置插件能声明：外部安装、创作台产物与确认过的升级带着它一律在安装时拒绝（`plugin.declaration_invalid`），不是忽略；常开插件不能从项目移除或隐藏（`catalog.plugin_always_on`），市场与插件切换不列它；旧的「隐藏」存值不再生效 | 统筹（信任边界，SECURITY-INVARIANTS S-33） |
+| 2026-10-17 | `always_on: true`（常开插件）只有随宿主发布的内置插件能声明：外部安装、创作台产物与确认过的升级带着它一律在安装时拒绝（`plugin.declaration_invalid`），不是忽略；常开插件不能从项目移除或隐藏（`catalog.plugin_always_on`），市场与插件切换不列它；旧的「隐藏」存值不再生效 | 统筹（信任边界，SECURITY-INVARIANTS S-34） |
 | 2026-10-09 | 灵光的 `island` 视图保留：它仍在给插件菜单的「个人」组排序 | 核对结果 |
 | 2026-10-17 | W2'-1（右栏本身）：删掉底栏的 Shelf、灵光两个按钮和 `BAR_RESIDENT_IDS`，底栏右侧只留侧栏按钮（`data-side-toggle`，提示按 3.1）；群聊命名直接换成通用名、不留别名：面板 `id="side-panel"`、讨论框 `data-side-body="discussion"`，`data-dock-window`、`data-dock-frame`、`data-dock-toggle` 都不再出现。平台格按 `order` 与插件的侧栏视图排在一起（文件 20、浏览器 30、电脑 40、讨论 50；灵光声明 10，没写的排 100）。Dock 里 Shelf 与灵光的钉子原来因常驻而固定按下，现在是普通钉子（DOCK-04 测试随之改）；Shelf 成为第一格、「常开插件」的声明（`always_on: true`，统筹 10-17 定名）、窄宽度版式与旧入口改道在 W2'-2，桌面入口与文档在 W2'-3 | 3.1、第 7 节；分片由统筹排期 |

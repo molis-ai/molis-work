@@ -21,6 +21,7 @@ import { startDelegation } from "./routes-delegations.js";
 import { chosenEffort, text } from "./run-inputs.js";
 import { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./session-title.js";
 import type { CodingSessionRecord } from "./store.js";
+import { continuedBody } from "./waits.js";
 import { codingWriterAssignments } from "./writers.js";
 
 // A round started here is followed until it settles, so the session's recorded state — which the directory and the
@@ -198,4 +199,23 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // R-CODING-RECEIPT-01/02: accepted work keeps its activation follower even when the caller cannot finish its receipt.
     follow(a, context.services!.capabilities!, ports ?? execution, record.session_id, session, run.ref, workspace.workspace_id);
   }
+};
+
+/**
+ * The next round after the person answered a round parked at a restart (BL-156): started the way the parked round was
+ * (`last-start:<session>`) by the one who answered (`actorId`, from the call), it takes the answer from the session's queue. Refused, the answer stays queued and the reason is
+ * returned; 「从断点继续」 starts it later. A session still being recovered is read once and the round tried once more.
+ */
+export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string }, actorId: string,
+  api: Capabilities, execution: CodingExecutionPorts, beforeWrite: CodingBeforeWrite): Promise<{ started: true; run_id: string } | { started: false; reason: string }> => {
+  const saved = (() => { try { return JSON.parse(a.context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as Record<string, unknown> | null; } catch { return null; } })();
+  if (!saved) return { started: false, reason: "读不到这一轮是怎样开始的" };
+  const body = continuedBody(saved, "服务重启前你问我的问题，我已经回答，回答附在后面。");
+  const start = () => startRound(a, record, body, actorId, api, execution, beforeWrite);
+  const reason = (error: unknown) => error instanceof Error ? error.message : String(error);
+  try { return { started: true, run_id: (await start()).run.ref.run_id }; } catch (error) {
+    if ((error as { code?: unknown }).code !== "agent.session_busy") return { started: false, reason: reason(error) };
+  }
+  await api.invoke(agent.inspectRecovery, [session]).catch(() => undefined);
+  try { return { started: true, run_id: (await start()).run.ref.run_id }; } catch (error) { return { started: false, reason: reason(error) }; }
 };

@@ -163,7 +163,7 @@ interface ItemAttach {
 | 内容站幂等键 | 泛化为请求号（只认现行形状，不新增读取兼容） | quick-create |
 | 插件 SDK 页面端 | 一个 `contextual` 模块：报告手上的东西或落点、发布工具、开面板槽、接收放进与工具调用 | 合并 side-shelf 4.4 与 context-toolbar §11 |
 | 平台自带的格 | 讨论、浏览器、文件按 side 视图的形状登记；`browser_page`、`discussion_message` 的读取动作 | side-shelf |
-| Shelf 是常开插件 | Manifest 的通用声明 `always_on: true`（「常开插件」）：始终启用、不进插件列表、市场、Dock、项目插件管理，不能从项目里移除；只有内置插件能声明（S-33）；Shelf 只有 side 视图 | side-shelf §7、§11 |
+| Shelf 是常开插件 | Manifest 的通用声明 `always_on: true`（「常开插件」）：始终启用、不进插件列表、市场、Dock、项目插件管理，不能从项目里移除；只有内置插件能声明（S-34）；Shelf 只有 side 视图 | side-shelf §7、§11 |
 | 页面自己陈列动作 | 对象声明里的一个通用字段，表示「本提供方的动作由我自己陈列」；浮条在这个表面上不重复列出这个提供方的动作（Shelf 格用它） | 本文 §7 |
 
 目录检查合并为一组（side-shelf 4.3 与 context-toolbar §11.5 的覆盖率门禁放在一起）：
@@ -1363,7 +1363,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - Dock 里 Shelf 与灵光的钉子原来因常驻固定按下，现在是普通钉子（DOCK-04 测试随之改；Shelf 的钉子在 W2'-2 随 Shelf 离开插件列表一起消失）。
   - 页面资源只变小（数字见 PR）；`assistant-island.ts`、`client.ts`、`context-bus.ts` 不动。
 - 2026-10-17 W2'-2 Shelf 成为右栏第一格（分支 `context/w2p2-shelf-always-on`，叠在 #694 上）：
-  - Manifest 新增 `always_on`（v2，布尔）：SDK 解析，Plugin Runtime 在安装和确认升级时拒绝非内置的声明（S-33，`tests/security-invariants-always-on.test.ts`）；项目移除时拒绝（`catalog.plugin_always_on`），市场与插件切换跳过，旧的隐藏存值不再生效。
+  - Manifest 新增 `always_on`（v2，布尔）：SDK 解析，Plugin Runtime 在安装和确认升级时拒绝非内置的声明（S-34，`tests/security-invariants-always-on.test.ts`）；项目移除时拒绝（`catalog.plugin_always_on`），市场与插件切换跳过，旧的隐藏存值不再生效。
   - Shelf 只剩一个界面面 `side`（`order: 0`，第一格）；工作区的 Shelf 舞台、目录与工作台里为它写的路径删掉。样式改成填满格子：窄时目录全宽、打开一项盖住目录并带返回，容器 ≥ 640px 时目录 213px 留在左边（容器查询，不看视口）。
   - 存值：保存的标签状态里点名 shelf 的，工作区回到项目首页一次（现有的通用处理）；Dock 里存过的 shelf 钉子渲染时跳过，存值不改。
   - 统筹 10-18 定的四项（同一个 PR，各一个提交）：

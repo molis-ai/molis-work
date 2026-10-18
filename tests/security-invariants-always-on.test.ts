@@ -5,7 +5,7 @@ import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-cont
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 
-// S-33: a 常开插件 (`always_on: true`) cannot be removed, so only a plugin that ships with the Host may declare it. The
+// S-34: a 常开插件 (`always_on: true`) cannot be removed, so only a plugin that ships with the Host may declare it. The
 // Host says which plugins ship with it (`bundled`); every other install, and every confirmed upgrade, is refused.
 
 const PLUGIN_ID = "io.molis.work.example.always-on";
@@ -25,7 +25,7 @@ function definition(value: PluginManifest, execution?: "sandbox"): PluginDefinit
 
 const refusedAsAlwaysOn = (error: unknown) => error instanceof ActionError && error.code === "plugin.declaration_invalid" && error.message.includes("always_on");
 
-test("S-33 a plugin that does not ship with the Host is refused at install when it declares always_on, not installed with the mark ignored", () => {
+test("S-34 a plugin that does not ship with the Host is refused at install when it declares always_on, not installed with the mark ignored", () => {
   const runtime = new PluginRuntime();
   assert.throws(() => runtime.install({ definition: definition(manifest("1.0.0", { always_on: true })), deployment: "local", grants: [] }), refusedAsAlwaysOn);
   assert.equal(runtime.list().length, 0);
@@ -36,7 +36,7 @@ test("S-33 a plugin that does not ship with the Host is refused at install when 
   assert.equal(new PluginRuntime().install({ definition: definition(manifest("1.0.0", { always_on: true })), deployment: "local", bundled: true }).install.plugin_id, PLUGIN_ID);
 });
 
-test("S-33 a confirmed upgrade cannot make an installed plugin always on", async () => {
+test("S-34 a confirmed upgrade cannot make an installed plugin always on", async () => {
   const runtime = new PluginRuntime();
   const { install } = runtime.install({ definition: definition(manifest("1.0.0")), deployment: "local", grants: [] });
   const target = manifest("1.1.0", { always_on: true, upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } });
@@ -44,7 +44,7 @@ test("S-33 a confirmed upgrade cannot make an installed plugin always on", async
   assert.equal(runtime.list()[0]?.version, "1.0.0");
 });
 
-test("S-33 the SDK reads always_on only as a v2 boolean", () => {
+test("S-34 the SDK reads always_on only as a v2 boolean", () => {
   assert.equal(parsePluginManifest(manifest("1.0.0", { always_on: true })).always_on, true);
   assert.throws(() => parsePluginManifest({ ...manifest("1.0.0"), always_on: "yes" }), (error: unknown) => error instanceof ActionError && error.code === "plugin.manifest_invalid");
   const v1 = { ...manifest("1.0.0"), schema_version: 1, host_api_version: 1, kind: "native", always_on: true };

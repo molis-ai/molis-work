@@ -8,9 +8,10 @@ import { promisify } from "node:util";
 import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MaterialExtraction, MaterialExtractionOptions, MaterialLimits, MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
 import { isMaterialFailure, materialErrors, materialFailure } from "./material-text.js";
+import { MATERIAL_EXTENSIONS } from "@molis-ai/molis-work-plugin-sdk";
 const run = promisify(execFile);
-export const materialMediaExtensions = new Set([".mp3", ".wav", ".m4a", ".aac", ".aiff", ".aif", ".flac", ".mp4", ".mov", ".m4v", ".webm"]);
-export const materialImageExtensions = new Set([".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".gif"]);
+export const materialMediaExtensions = new Set<string>(MATERIAL_EXTENSIONS.media);
+export const materialImageExtensions = new Set<string>(MATERIAL_EXTENSIONS.image);
 /** Trusted Host configuration. These paths must never come from an Action input. */
 export interface NativeMaterialOptions {
   helperPath?: string; whisperHelperPath?: string; platform?: NodeJS.Platform;

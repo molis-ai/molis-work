@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { JellyPluginRouteTable, openJellyStore, runJellyAi, jellySourceHash, scheduleJellyActions, jellyActions, jellyCommandActions, jellyManifest, emptyJellyWorkspace } from "@molis-ai/molis-work-plugin-jelly";
-import { isJellyPublicAddress } from "../apps/local-host/dist/jelly-source-reader.js";
+import { isMaterialPublicAddress } from "../apps/local-host/dist/material-source-reader.js";
 const day="2026-09-22";
 function fixture(t: { after(fn:()=>void):void }) { const home=mkdtempSync(join(tmpdir(),'jelly-integration-')), store=openJellyStore(home);t.after(()=>{store.close();rmSync(home,{recursive:true,force:true});});return store; }
 test('Jelly HTTP enforces revisions; routes and actions share persisted facts', async t=>{
@@ -54,8 +54,8 @@ test('Jelly AI failures retain source; no fabricated model output',async t=>{
   const manual=await runJellyAi(before,{kind:'decompose',source_type:'note',source_id:id,manual:true},{});assert.ok('plan'in manual);assert.equal(manual.method,'manual');
 });
 test('public material reader rejects loopback, private, mapped, and link-local addresses',()=>{
- for(const ip of ['127.0.0.1','10.0.0.1','172.16.0.1','192.168.1.1','169.254.169.254','100.64.0.1','::1','::ffff:127.0.0.1','fe80::1','fc00::1'])assert.equal(isJellyPublicAddress(ip),false,ip);
- assert.equal(isJellyPublicAddress('8.8.8.8'),true);assert.equal(isJellyPublicAddress('2606:4700:4700::1111'),true);
+ for(const ip of ['127.0.0.1','10.0.0.1','172.16.0.1','192.168.1.1','169.254.169.254','100.64.0.1','::1','::ffff:127.0.0.1','fe80::1','fc00::1'])assert.equal(isMaterialPublicAddress(ip),false,ip);
+ assert.equal(isMaterialPublicAddress('8.8.8.8'),true);assert.equal(isMaterialPublicAddress('2606:4700:4700::1111'),true);
 });
 test('proposed slots preserve cross-midnight occupancy and report no slot when full',()=>{
  const state=emptyJellyWorkspace();const action={id:'a',title:'制作',notes:'',category_id:'uncategorized',priority:'none' as const,schedule:null};

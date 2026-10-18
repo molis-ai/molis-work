@@ -276,9 +276,9 @@ test("the Shelf subject and file readers answer a code that ends in .not_found f
 test("Jelly's streamed error event keeps the code and the details, and carries the status of the kind", async () => {
   const edge = await failingEdge("jelly");
   try {
-    const download = new ActionError("jelly.material.model_required", "需要下载语音模型", { kind: "conflict", details: { approximate_bytes: 626_000_000, variant: "base" } });
+    const download = new ActionError("material.model_required", "需要下载语音模型", { kind: "conflict", details: { approximate_bytes: 626_000_000, variant: "base" } });
     for (const [error, status, code, details] of [
-      [download, 409, "jelly.material.model_required", { approximate_bytes: 626_000_000, variant: "base" }],
+      [download, 409, "material.model_required", { approximate_bytes: 626_000_000, variant: "base" }],
       [new ActionError("actions.plugin_disabled", "此项目未启用该插件"), 403, "actions.plugin_disabled", undefined],
       [new Error("没有码"), 500, "actions.execution_failed", undefined],
     ] as const) {
@@ -343,7 +343,7 @@ test("a caller's mistake in the owners' server sources has a code: the bare new 
   const kept = [
     "plugins/native/shelf/src/plugin.ts", "plugins/native/shelf/src/routes.ts", "plugins/native/shelf/src/settings-ui.ts", "plugins/native/shelf/src/ui.ts", "plugins/native/shelf/src/prompts.ts",
     "modules/shelf/src/recipes.ts", "plugins/native/jelly/src/ui.ts", "plugins/native/images/src/ui.ts", "plugins/native/images/src/store.ts",
-    "apps/local-host/src/jelly-source-reader.ts",
+    "apps/local-host/src/material-source-reader.ts",
   ];
   for (const path of ownerSources()) {
     const matches = [...read(path).matchAll(/new (?:Error|TypeError|RangeError)\(/gu)];

@@ -235,13 +235,17 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for receipts 3e-1 (#714, specs/ai-input-receipts §9.2): the Assistant's 「当前约定」 block, its list
-// in the shared receipt and their English add 1,434 B to workbench.js (the list's two notes were merged into one first).
-// Approved by the coordinator on 2026-10-18 under the 10-18 rule (under 10 KB, no new asset), keyed on main 0ffa9842d.
-// W5-01 used 1110329→1110357 on main; its old starting sizes remain refusal tests.
-// Only this exact starting size may grow once; the next baseline freezes again.
+// One-time allowance for W3-C2 (specs/context-program §21.4, §21.6: hovering a way to put the thing in hand on a side tab's own
+// bar, or in its menu, flashes the landing on the left). A pane's hold names the keys under the pointer and the page looks them up
+// in its own plan; the workbench script is +81, once, approved by the coordinator on 2026-10-18. Tried: the pane's last hold sends
+// no fields (the page reads them as empty); one helper for both key lists came out larger and was dropped. With it, +38 so that
+// Esc also stops a plan still on its way (a judgment coming back after Esc brought the toolbar up again; the full suite caught
+// it on #720): the stop already there for a new thing in hand became one `hush()` both use. +119 in all.
+// The entry is for exactly one merge-base budget (main 63639a764, after receipts 3e-1), capped at the measured size, and used once:
+// the next baseline freezes again. This replaces receipts 3e-1's spent entry; delete it in the next change to this gate (as #541, #584 and
+// #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110357, 1111791],
+  "/assets/molis-work-workbench.js": [1111791, 1111910],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

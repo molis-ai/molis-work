@@ -43,7 +43,7 @@ AI 的说法和执行事实分开显示。AI 的说法标「AI 的理解」，�
 | 补充的边界语义 | SDK `loop-boundary`、`loop-reply`、`compaction-history`：下一模型边界一次带上全部排队补充；有排队时不自然收工；压缩时保留补充 | 真 |
 | 打断（当轮作废，同一 Run 继续） | SDK `steer({interrupt:true})` | SDK 有，Molis 没接 |
 | 回答与补充分开 | `{kind:"answer", pending_id, pending_revision}` | 真 |
-| 人工修订 TaskBoard（插入、跳过、换序、指派、解除阻塞、裁定），带版本 | `agent.collaboration.revise.v1`（2026-10-17 P4-C2 起，换下 `agent.run.step-board.amend.v1`）；Coding 计划修订 | 真；修订后用一条 steer 告诉运行中的这一轮 |
+| 人工修订 TaskBoard（插入、跳过、换序、指派、解除阻塞、裁定），带版本 | `agent.collaboration.revise.v2`（2026-10-17 P4-C2 起以 v1 换下 `agent.run.step-board.amend.v1`；3d-3 起加 insert 的 `origin`，升到 v2）；Coding 计划修订 | 真；修订后用一条 steer 告诉运行中的这一轮 |
 | 恢复 | `inspectRecovery` / `recoverRun`；Coding「核对并继续」 | 真：未终态 Run 标需核对、不重放；未读到的补充显示「未确认应用」 |
 | Coding 的回执文案与报告里的「补充要求」一节 | `plugins/native/coding/src/client.ts`、`report.ts` | 真，但措辞容易被误读 |
 | 助理发送幂等，失败保留草稿 | `assistant_requests` 表与 `request_id` | 真 |

@@ -35,13 +35,13 @@ export interface PptSql {
   run(sql: string, parameters?: readonly PptSqlValue[]): { changes: number | bigint };
 }
 
-/** Where the actions read and write: reads run on their own; a write waits for the call's authority and is one transaction. */
+/** Where the actions read and write: reads run on their own; a write waits for the call's authority. Each writing Store operation is already one transaction through the injected `atomically`; the Runtime adapter will bind the Store inside its one `database.transaction`. */
 export interface PptStores {
   read<T>(run: (store: PptStore) => T): T;
   write<T>(caller: ActionExecutionContext, run: (store: PptStore) => T): Promise<T>;
 }
 
-/** Reads and writes on a store opened for each run, for tests and maintenance. */
+/** Reads and writes on a store opened for each run, for tests and maintenance; the caller's beforeEffect is awaited, and the Store's own `atomically` still wraps each business operation. */
 export function ownPptStores(withStore: <T>(run: (store: PptStore) => T) => T): PptStores {
   return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(run); } };
 }

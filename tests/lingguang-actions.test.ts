@@ -284,3 +284,21 @@ test("a streamed reply shows the model's text as it comes; closing the request s
     catalog.close(); await host.close(); await rm(home, { recursive: true, force: true });
   }
 });
+
+// W4-1 LG-REVERT-01 (specs/context-program §21.5): 记下灵光 is taken back by `lingguang.revert`, which goes through the same store
+// function and version check as `lingguang.discard` and needs the same permission. Changed since it was noted, it is refused and
+// nothing changes; unchanged, it leaves the list and the record is kept.
+test("LG-REVERT-01 lingguang.revert refuses a spark changed since it was noted and changes nothing; an unchanged one leaves the list", async () => {
+  await fixture(async ({ bound, client, caller }) => {
+    const { spark } = await bound.invoke(actions.create, { title: "Noted", body: "As noted" });
+    const edited = (await bound.invoke(actions.update, { id: spark.id, title: "Edited elsewhere", expected_updated_at: spark.updated_at })).spark;
+    await assert.rejects(bound.invoke(actions.revert, { id: spark.id, expected_updated_at: spark.updated_at }), { code: "lingguang.conflict" });
+    assert.deepEqual((await bound.invoke(actions.get, { id: spark.id })).spark, edited, "neither discarded nor changed");
+    await assert.rejects(client.invoke({ ...caller, permissions: ["lingguang:read"] }, actions.revert, { id: spark.id, expected_updated_at: edited.updated_at }),
+      { code: "actions.forbidden" }, "the same permission as discard");
+    assert.deepEqual(actions.revert.action.permissions, actions.discard.action.permissions);
+    await bound.invoke(actions.revert, { id: spark.id, expected_updated_at: edited.updated_at });
+    assert.deepEqual((await bound.invoke(actions.list, {})).sparks.map(row => row.id), [], "out of the list");
+    assert.equal((await bound.invoke(actions.get, { id: spark.id })).spark.status, "discarded", "the record is kept");
+  });
+});

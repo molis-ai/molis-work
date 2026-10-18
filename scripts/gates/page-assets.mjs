@@ -235,17 +235,16 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for W3-C2 (specs/context-program §21.4, §21.6: hovering a way to put the thing in hand on a side tab's own
-// bar, or in its menu, flashes the landing on the left). A pane's hold names the keys under the pointer and the page looks them up
-// in its own plan; the workbench script is +81, once, approved by the coordinator on 2026-10-18. Tried: the pane's last hold sends
-// no fields (the page reads them as empty); one helper for both key lists came out larger and was dropped. With it, +38 so that
-// Esc also stops a plan still on its way (a judgment coming back after Esc brought the toolbar up again; the full suite caught
-// it on #720): the stop already there for a new thing in hand became one `hush()` both use. +119 in all.
-// The entry is for exactly one merge-base budget (main 63639a764, after receipts 3e-1), capped at the measured size, and used once:
-// the next baseline freezes again. This replaces receipts 3e-1's spent entry; delete it in the next change to this gate (as #541, #584 and
-// #611 did).
+// One-time allowance for W4-1 (specs/context-program §21.4, §21.6; quick-create §8 point 3, AC Q02/Q04/Q08: 记成待办 and
+// 记下灵光 are creation entries, made at once and taken back by their owner's own undo). The bar's choice of a creation entry now
+// posts it to the Host, keeps one request per selection and entry (so a second click makes it once) and shows the completion
+// card with 「打开」 and 「撤销」; with the one new English line, the workbench script is +1,158, once. Tried: the comments ship
+// stripped; the two old fragment choices left no page code to remove; 「打开」 reuses the placement's describe and openObject
+// rather than a new path, and the card is the placement's own. The entry is for exactly one merge-base budget (main
+// f28088b2b, after W3-C2), capped at the measured size, and used once: the next baseline freezes again. This replaces W3-C2's spent entry;
+// delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1111791, 1111910],
+  "/assets/molis-work-workbench.js": [1111910, 1113068],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

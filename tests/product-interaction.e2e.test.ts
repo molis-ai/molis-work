@@ -219,12 +219,18 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");await click('[data-plugin-id=feed]');
   const row=`[data-feed-entry-id="${item.item_id}"]`;
   await waitFor(`Boolean(document.querySelector('${row}'))`);
-  await evaluate(`{const original=window.fetch;let fail=true;window.fetch=(url,options)=>{if(fail&&String(url).includes('/detail?')){fail=false;return Promise.resolve(new Response('failed',{status:503}));}return original(url,options);};}`);
-  await click(row);await waitFor("document.querySelector('[data-feed-stage-shell][data-expanded=true] [data-retry-feed-detail]')");
+  // The detail fails until the retry is pressed. Until then the attention read's board cursor is held back: a new cursor
+  // refreshes the board, which opens the selected item again and hides the retry while it does. The page also records
+  // whether the first detail request after the press was made by the press itself (the window's capture listener runs
+  // before the page's click handler, its bubble listener after), so a later refresh cannot stand in for the retry.
+  await evaluate(`{const original=window.fetch;let fail=true,pressing=false;addEventListener('click',event=>{if(event.target.closest?.('[data-retry-feed-detail]')){fail=false;pressing=true;}},true);addEventListener('click',()=>{pressing=false;});window.fetch=(url,options)=>{const address=String(url);if(address.includes('/detail?')){if(fail)return Promise.resolve(new Response('failed',{status:503}));window.__firstDetailAfterRetry??=pressing?'the press':'something else';}if(fail&&address.includes('/api/attention?'))return original(url,options).then(async response=>new Response(JSON.stringify({...await response.json(),board_cursor:null}),{status:response.status,headers:response.headers}));return original(url,options);};}`);
+  const retry='[data-feed-stage-workspace] [data-feed-detail-empty] [data-retry-feed-detail]';
+  await click(row);await waitFor(`document.querySelector('[data-feed-stage-shell][data-expanded=true] ${retry}')?.checkVisibility()`);
   // One retry, in the placeholder under the reader bar.
-  assert.equal(await evaluate<number>("[...document.querySelectorAll('[data-feed-stage-workspace] [data-retry-feed-detail]')].filter(b=>b.checkVisibility()).length"),1);
-  await click('[data-feed-stage-workspace] [data-feed-detail-empty] [data-retry-feed-detail]');
+  assert.deepEqual(await evaluate<boolean[]>(`[...document.querySelectorAll('[data-feed-stage-workspace] [data-retry-feed-detail]')].filter(b=>b.checkVisibility()).map(b=>b===document.querySelector('${retry}'))`),[true]);
+  await click(retry);
   await waitFor(`document.querySelector('[data-feed-detail="${item.item_id}"] .feed-rich-content')`);
+  assert.equal(await evaluate<string>("window.__firstDetailAfterRetry"),'the press','the retry itself loads the detail again');
   assert.ok(feed.getFeedItem(DEMO_PROJECT_ID,item.item_id).read_at);
   assert.equal(await evaluate(`document.querySelector('${row}').getAttribute('aria-expanded')`),'true');
   assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('[data-feed-detail="${item.item_id}"] h1')).display`),'none');

@@ -54,8 +54,9 @@ export async function waitForWorkChange<View = AssistantWorkView>(input: {
 }
 
 /**
- * What wakes a wait on some of the person's works: their own stored facts, and the runs they wait on now (each one's
- * latest Assistant round, and the latest round of the Coding session it runs in or handed to, when `codingRun` says).
+ * What wakes a wait on some of the person's works: their own stored facts, the runs they wait on now (each one's
+ * latest Assistant round, and the latest round of the Coding session it runs in or handed to, when `codingRun` says),
+ * and their graphs (a background job they follow ends there).
  */
 export function watchWorks(ports: { store: AssistantStore; actorId: string; host(): Promise<AgentHost>; codingRun?(work: StoredWork): Promise<AgentRunRef | undefined> }, workIds: readonly string[]) {
   return {
@@ -70,6 +71,8 @@ export function watchWorks(ports: { store: AssistantStore; actorId: string; host
       let replaying = true;
       const stops = refs.flatMap(ref => { try { return [adapter.observe(ref, () => { if (!replaying) listener(); })]; } catch { return []; } });
       replaying = false;
+      const graphs = new Set(workIds.flatMap(id => { const work = ports.store.get(ports.actorId, id), graph = work.delegated_by?.graph_id ?? work.graph_id; return graph ? [graph] : []; }));
+      for (const graph of graphs) { try { stops.push(adapter.collaboration?.works?.watch(graph, listener) ?? (() => undefined)); } catch { /* no graph to hear */ } }
       return () => stops.forEach(stop => stop());
     },
   };

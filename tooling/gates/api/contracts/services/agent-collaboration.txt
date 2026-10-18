@@ -128,6 +128,32 @@ export interface AgentWorkGraphPort {
         graph_id: string;
         request_key: string;
     }) => void): () => void;
+    follow(input: {
+        graph_id: string;
+        key: string;
+        job_id: string;
+        title: string;
+        query: AgentWorkJobQuery;
+        deadline_ms: number;
+        every: {
+            first_ms: number;
+            max_ms: number;
+        };
+    }): Promise<{
+        node_id: string;
+    }>;
+    onJobEnded(listener: (ended: {
+        graph_id: string;
+        node_id: string;
+    }) => void): () => void;
+}
+
+export interface AgentWorkJobQuery {
+    action: ExactActionReference;
+    input: Record<string, unknown>;
+    path: string[];
+    done: string[];
+    failed: string[];
 }
 
 export interface AgentWorkNode {
@@ -144,6 +170,12 @@ export interface AgentWorkNode {
     continuation?: {
         request_key: string;
         state: AgentContinuationState;
+    };
+    job?: {
+        job_id: string;
+        started_at: string;
+        ended?: "done" | "failed" | "expired" | "unchecked";
+        ended_at?: string;
     };
 }
 

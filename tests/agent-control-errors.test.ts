@@ -14,7 +14,7 @@ const { createPrologueError } = await import(requireSdk.resolve("@prologue/sdk")
  * `agent.control_failed`, and a Molis refusal passes through as it is. `details.runtime_code` is for diagnostics only.
  */
 
-type Answer = (run: AgentRunRef, answer: Extract<AgentRunControl, { kind: "answer" }>) => Promise<void>;
+type Answer = (run: AgentRunRef, answer: Extract<AgentRunControl, { kind: "answer" }>) => Promise<"delivered" | "queued">;
 
 async function adapterFor(options: { answer?: Answer; stop?: () => void } = {}) {
   const listeners = new Set<(event: PrologueEvent) => void>();
@@ -61,6 +61,22 @@ test("a raw SDK PENDING_* code never reaches the caller: a closed or expired que
     assert.equal(error.details?.runtime_code, code, "the SDK code is kept for diagnostics");
     assert.equal(error.cause, sdkError);
     if (code !== "PENDING_KIND_MISMATCH") assert.equal(error.code, "agent.pending_not_open", code);
+  }
+});
+
+test("BL-156: the three refusals of a round parked at a restart reach the caller as agent.session_busy, in the person's words", async () => {
+  const words: Record<string, string> = {
+    SESSION_RECOVERY_BUSY: "这个会话正在恢复，请稍后再试",
+    SESSION_RUN_PARKED: "这个会话停在一道等你回答的问题上：先回答它，或结束那一轮",
+    SESSION_HISTORY_UNAVAILABLE: "这个会话的运行记录暂时读不出来，请稍后再试",
+  };
+  for (const [code, message] of Object.entries(words)) {
+    const sdkError = createPrologueError(code, "sdk words");
+    const item = await adapterFor({ answer: async () => { throw sdkError; } });
+    const error = await refusal(item.adapter.control(item.ref, answer));
+    assert.equal(error.code, "agent.session_busy", code);
+    assert.equal(error.message, message, `${code} is said in the person's words, not the SDK's`);
+    assert.equal(error.details?.runtime_code, code);
   }
 });
 

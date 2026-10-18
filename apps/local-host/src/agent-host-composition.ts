@@ -35,6 +35,7 @@ import { writerDirectoryCapabilities, writerIntegrationCapabilities, type Writer
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { memoryForAgentRun } from "./memory/memory-host.js";
+import { workAuthorityCheck } from "./agent-work-authority.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -100,8 +101,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       ...options.prologue,
       // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
       documentParsers: [pdfDocumentParser],
-      // A step's wait on a file looks only while the round's directory is still authorized for the project.
-      checks: { directoryAuthorized: async (projectId, directory) => (await workspaceGrants(options, projectId)).some(entry => entry.realpath_verified && entry.canonical_path === directory) },
+      // A step's wait on a file looks only while the round's directory is still authorized for the project; a job a work follows, with that work's authority now.
+      checks: { directoryAuthorized: async (projectId, directory) => (await workspaceGrants(options, projectId)).some(entry => entry.realpath_verified && entry.canonical_path === directory), workAuthority: workAuthorityCheck(options.localHost) },
       reviewQueue: agentHost.reviews,
       app: { appId: "io.molis.work", appVersion: "0.0.0" },
     }).then((adapter) => { prologue = adapter; agentHost.register(adapter); markStarted(); }))

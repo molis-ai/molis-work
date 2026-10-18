@@ -134,6 +134,10 @@ export const PAGE_STATE_OWNERS = {
     files: ["plugins/native/goals/src/event-document-client.ts"],
     state: "The Goal event panel inside an open Goal document.",
   },
+  "pages-landing": {
+    files: ["plugins/native/pages/src/landing-editor.ts"],
+    state: "Where something in hand would land in the Pages document open on the left, the preview there, and the brief flash that shows the place.",
+  },
 } as const satisfies Readonly<Record<string, PageStateOwner>>;
 
 export type PageStateOwnerId = keyof typeof PAGE_STATE_OWNERS;
@@ -443,6 +447,11 @@ export const DOM_EVENTS = [
     name: "molis:surface-landing", kind: "request", owner: "context-actions", on: "element", bubbles: true,
     detail: "SurfaceLanding | null (services/contextual)",
     summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; a split pane's report comes up as a pane message and is raised again on that pane's frame. The row keeps one landing and sends it with the requests for a thing in hand elsewhere.",
+  },
+  {
+    name: "molis:surface-landing-flash", kind: "request", owner: "pages-landing", on: "element",
+    detail: "none",
+    summary: "The context row asks the page that reported the landing to show it once: a way to put the thing in hand there was hovered or focused on the bar or in its menu. Dispatched on the element that raised molis:surface-landing, only while it is connected; a split pane's landing is asked of that pane's frame (pane message workbench-surface-landing-flash, top document to pane only), which raises it on its own landing element. The page shows it without covering text, not again while it shows, and not at all under reduced motion.",
   },
   {
     name: "workbench-feed-task", kind: "request", owner: "tab-workspace", on: "document",

@@ -233,14 +233,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         }
         return;
       }
-      const expandToggle = target.closest("[data-plugin-expand]");
-      if (expandToggle) {
-        event.preventDefault();
-        const section = expandToggle.closest("[data-plugin-section]");
-        const expanded = section?.dataset.pluginExpanded === "true";
-        setPluginSectionExpanded(expandToggle.dataset.pluginExpand, !expanded, true);
-        return;
-      }
       const surfaceOpen = target.closest("[data-work-surface-open]");
       if (surfaceOpen) {
         const surface = surfaceOpen.dataset.workSurfaceOpen || "goal";

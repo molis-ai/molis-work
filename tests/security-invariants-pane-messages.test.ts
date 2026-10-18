@@ -95,7 +95,7 @@ test("S-30 the page takes a side view's message only from this origin and from t
   top.parent = top;
   const shelf = { contentWindow: { name: "shelf side view" } };
   const pane = { contentWindow: { name: "a split pane" } };
-  const document = { querySelectorAll: (selector: string) => selector === "[data-side-panel] iframe[data-side-frame]" ? [shelf] : selector === "iframe[data-pane-owner]" ? [pane] : [] };
+  const document = { querySelectorAll: (selector: string) => selector === "#side-panel iframe[data-side-frame]" ? [shelf] : selector === "iframe[data-pane-owner]" ? [pane] : [] };
   const panes = vm.runInNewContext(SIDE_FORWARD_SCRIPT, { window: top, document, location: { origin: ORIGIN }, CustomEvent: class {} }) as { from(event: unknown): unknown };
   const message = { type: "molis:side-forward", name: "molis:placement-result", detail: {} };
   assert.equal(panes.from({ origin: ORIGIN, source: shelf.contentWindow, data: message }), shelf);

@@ -140,13 +140,13 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     const src=body.dataset.sideSrc,inner=body.querySelector('[data-side-frame]');
     if(src&&inner&&!inner.getAttribute('src')){inner.onload=()=>{inner.dataset.loaded='';};inner.src=src;}
   };
-  const expanded=()=>document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&(!button.dataset.sidePluginOpen||current==='plugin:'+button.dataset.sidePluginOpen))));
+  const expanded=()=>document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(b=>b.setAttribute('aria-expanded',String(open&&(!b.dataset.sidePluginOpen||current==='plugin:'+b.dataset.sidePluginOpen))));
   const ready=(inner,run)=>'loaded' in inner.dataset?run():inner.addEventListener('load',run,{once:true});
   const select=(id,target)=>{
     if(!known(id))id=tabs()[0]?.dataset.sideTab;
     current=id;write('molis:side-tab',id);
     for(const button of panel.querySelectorAll('[data-side-tab]')){const on=button.dataset.sideTab===id;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
-    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=target&&body.querySelector('[data-side-frame]');if(inner)ready(inner,()=>inner.contentWindow?.postMessage({type:'molis:side-target',target},location.origin));}}
+    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=target&&body.querySelector('[data-side-frame]');if(inner)ready(inner,()=>inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin));}}
     expanded();imVisible();if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:id,target:target??null,open}}));
   };
@@ -163,7 +163,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
-      if(panel.contains(document.activeElement)){const focusTarget=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-side-toggle]');focusTarget?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
+      if(panel.contains(document.activeElement)){const back=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-side-toggle]');back?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
       imVisible();document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current,target:null,open:false}}));
     }
     expanded();
@@ -197,7 +197,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   new MutationObserver(imVisible).observe(document.documentElement,{attributes:true,attributeFilter:['data-resolved-theme']});
   addEventListener('message',async event=>{
     if(event.origin!==location.origin)return;
-    if(event.data?.type==='molis:side-forward'){const made=forwarded.from(event)&&forwarded.event(event.data.name,event.data.detail);if(made)window.dispatchEvent(made);return;}
+    if(event.data?.type==='molis:side-forward'){const made=forwarded.from(event)&&forwarded.event(event.data.name,event.data.detail);made&&window.dispatchEvent(made);return;}
     if(event.data?.type==='molis:side-open'&&event.source&&event.source!==window){request(event.data);return;}
     if(event.data?.type==='molis:side-close'&&event.source&&event.source!==window){setOpen(false);return;}
     if(event.data?.type==='molis:side-key'&&event.source!==window){keyed(event.data.keys);return;}

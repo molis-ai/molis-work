@@ -125,8 +125,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
     } catch {}
     if (state.exclusive) coverPlace = historyCoverPlace(state.exclusive);
-    const dropParams = (...names) => { const url = new URL(location.href); names.forEach((name) => url.searchParams.delete(name)); history.replaceState(history.state, "", url); };
-    let requestedPlugin = paneParams.get("openPlugin"); const requestedItem = paneParams.get("openItem");
+    const dropParams = (...names) => { const url = new URL(location.href); names.forEach(name => url.searchParams.delete(name)); history.replaceState(history.state, "", url); };
+    let requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
     // A side-panel plugin takes the link there (plugin-place).
     if (requestedPlugin && openInSide(requestedPlugin, requestedItem || paneParams.get("openRecord"), paneParams.get("openTitle"))) { dropParams("openPlugin", "openItem", "openTitle", "openRecord"); requestedPlugin = null; }
     if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem) {

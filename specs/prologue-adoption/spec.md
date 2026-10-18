@@ -1,6 +1,6 @@
 # Prologue 采用：能力接入与 TaskBoard 统一协作
 
-状态：执行中（2026-10-17：P4 的 Coding 一半（§6.0i、§6.0j）与助理一半 A1–A3（§6.0k、§6.0n、§6.0o）在 main，A4 在 #680（§6.0q）；A2 写后诊断的合同在 §6.0p，按四步走：这份 spec 的 PR → Prologue 一刀（写后诊断的缝交回一条命令，SDK 用同一份 `workspace-command` 审查、Effect 链和回执去跑，不在执行器里起进程）→ 换包 → Molis 实现（那时在 `docs/system/SECURITY-INVARIANTS.md` 取下一个空号加一行，带四条拒绝用例）；P5、P6 与 A3 的结构化一半未做。2026-10-15 时的记录：P3a 已合 main（#534，`7fe8ee65`）——换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 的最后两个缺口（换模型后撤权、「从断点继续」）由 P3b 补了用例（#556，`5948c56d`），没有改源码，SDK 的 `beforeAccept` 早由 #523 接好（§5.6a）；P3c 教 Coding 的执行角色等外面的结果（两个检查器、每次看都复核，S-27），记录见 §6.0e；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
+状态：执行中（2026-10-18：P4 的 Coding 一半（§6.0i、§6.0j）与助理一半 A1–A3（§6.0k、§6.0n、§6.0o）在 main，A4 在 #680（§6.0q）；A2 写后诊断的合同在 §6.0p：Prologue 一刀（#45、#47）和换包（#723，3adc5e87）已在 main，Molis 实现分三片，A2-1 配置与 `agent.write_checkers.*` 两个动作（§6.0p.10）→ A2-2 执行器、时间线和安全不变量 → A2-3 设置页；P5、P6 与 A3 的结构化一半未做。2026-10-15 时的记录：P3a 已合 main（#534，`7fe8ee65`）——换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 的最后两个缺口（换模型后撤权、「从断点继续」）由 P3b 补了用例（#556，`5948c56d`），没有改源码，SDK 的 `beforeAccept` 早由 #523 接好（§5.6a）；P3c 教 Coding 的执行角色等外面的结果（两个检查器、每次看都复核，S-27），记录见 §6.0e；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
 
 > **2026-10-15 P3a 恢复：接续入口是 §6.0d「P3a 恢复记录」。** §6.0c 的暂停点已解除（防腐线 I8 第二个 PR #523 已合入），其中「恢复时按这个顺序」第 1、2、3 步已做完。
 
@@ -1790,10 +1790,10 @@ Prologue 一刀另外要做到：
   - `cwd`：相对工作区根，默认 `.`；
   - `timeout_ms`（§6.0p.3）；
   - `env_allowlist`：默认空。
-- **文件怎样进命令**：`args` 里至多一个元素整个写成 `{file}`，执行时换成这次写入的、相对工作区根的路径，作为一个完整参数。不允许 `{file}` 嵌在别的文字里（如 `--file={file}`），也不允许出现两次。路径以 `-` 开头时写成 `./<路径>`，不会被当成选项。
-- **主人**：`horizontal/agent-host`，和 MCP 服务器配置放在一起；检查器同样是在已授权工作区里由 Agent 运行时起的命令。两个动作：`agent.checkers.list@1`（query）与 `agent.checkers.save@1`（command，带 `expected_version`）。按「新能力注册成动作」，不加 typed 条目。设置页放在 Coding 的设置里（`CODING_SETTINGS_UI_CONTRIBUTION_ID`），和方法、MCP 并列。
+- **文件怎样进命令**：`args` 里恰好一个元素整个写成 `{file}`（没有 `{file}` 的保存时拒，见 §6.0p.9），执行时换成这次写入的、相对工作区根的路径，作为一个完整参数。不允许 `{file}` 嵌在别的文字里（如 `--file={file}`），也不允许出现两次。路径以 `-` 开头时写成 `./<路径>`，不会被当成选项。
+- **主人**：`horizontal/agent-host`，和 MCP 服务器配置放在一起；检查器同样是在已授权工作区里由 Agent 运行时起的命令。存在 Prologue Runtime 的存储里（kind `molis-write-checkers`，每个项目、每个工作区一条），版本就是存储自己的版本，从 1 起；不建表。两个动作：`agent.write_checkers.list.v1`（query）与 `agent.write_checkers.save.v1`（command，带 `expected_version`），受众都只有 `user`。按「新能力注册成动作」，不加 typed 条目。代码与存储里叫 write-checker，和等待用的条件检查器（`prologue-checkers.ts`）分开（统筹 10-18 定，见 §6.0p.10）。设置页放在 Coding 的设置里（`CODING_SETTINGS_UI_CONTRIBUTION_ID`），和方法、MCP 并列。
 - **谁能改**：
-  - 只有人，在 Coding 设置页里改。`agent.checkers.save@1` 的受众只有 `user`，权限 `projects:settings`，和项目设置的动作一样（`packages/contracts/src/modules/projects.ts`）。页面直接调这个动作，不经 Coding 的插件路由转调（转调的受众是 `plugin`）。
+  - 只有人，在 Coding 设置页里改。`agent.write_checkers.save.v1` 的受众只有 `user`，权限 `projects:settings`，和项目设置的动作一样（`packages/contracts/src/modules/projects.ts`）。页面直接调这个动作，不经 Coding 的插件路由转调（转调的受众是 `plugin`）。
   - 不登记 `agent`、`mcp`、`workflow`、`plugin`：模型、MCP 客户端、工作流和别的插件都改不了。
   - 操作者从调用上下文来（S-17），不从输入读。
 - **只给已授权的工作区**：保存时工作区必须是这个项目此刻已授权、`realpath_verified` 的（`projectSettingsCapabilities.workspaces`，和 MCP 的 stdio 工作区同一处）。
@@ -1801,7 +1801,7 @@ Prologue 一刀另外要做到：
   - 工作区授权与检查器配置是两件事。改检查器不放宽工作区，不要求重新授权工作区。
   - 每一次检查都过命令审查（§6.0p.3）。「本会话不再询问」的规则按完整命令精确匹配，所以配置一改，命令变了，旧规则自然对不上，要重新批准，不另写一套失效逻辑。
   - 工作区授权被撤回后，它的检查器不再运行：写入的观察写「未检查：工作区授权已撤回」，不起审查。配置本身留着，授权回来后照用。
-  - 审查卡和给模型的那一行都写出用的是配置的哪个版本（SDK 的命令回执里没有这一项，Molis 不往回执里加字段）。
+  - 审查卡和时间线写出用的是哪个检查器、配置的哪个版本；给模型的观察里没有这两项（§6.0p.4）。SDK 的命令回执里也没有这一项，Molis 不往回执里加字段。
 - **不从模型和文件里读命令**：
   - 不读 `package.json` 的 scripts、`Makefile`、`.editorconfig`、仓库里的任何配置文件来推出命令，也不自动「发现」检查器。
   - 模型的写入调用只给路径和内容，执行器拿到的路径来自 SDK 的写入回执，不是模型的文字。模型调用里多写的字段（如 `checker`、`command`）由写入工具的合同拒（SDK 的 `write` 参数是 `additionalProperties: false`）。
@@ -1810,7 +1810,7 @@ Prologue 一刀另外要做到：
 #### 6.0p.3 执行与预算
 
 - **走现有的命令审查，不新开免审路径。**
-  - 每一次检查是一笔命令 Effect，审查卡就是现在的命令卡（`prologue-review-documents.ts` 的 `workspaceCard`）：完整的 executable、argv、cwd、时限、环境名单、所属工作区。卡上多一行「写后检查：<显示名>（配置 v<n>）」，由宿主按 `checker_id` 和版本读配置写出，不来自模型。
+  - 每一次检查是一笔命令 Effect，审查卡就是现在的命令卡（`prologue-review-documents.ts` 的 `workspaceCard`）：完整的 executable、argv、cwd、时限、环境名单、所属工作区。卡上多一行「写后检查：<显示名>（配置 v<n>）」。宿主靠审查资源的 `operationKey` 认出这是写后检查，用 SDK 导出的 `isAfterWriteCheckOperationKey` 判断，不自己拼 `after-write-check:` 这个字符串。检查器和版本来自执行器自己的记录：执行器回答时记下这次写入选了哪个检查器、哪个版本，按（run，`operationKey`）存，审查卡和时间线按同一个键读。键只在一轮里唯一（SDK 每个执行器一轮里按次序编号），所以要带上 run。都不来自模型，也不拿命令反过来匹配配置。
   - 人批准才跑。拒绝、过期都不跑。
   - 「本会话不再询问」照现有规则（`reviews.ts` 的 `standingKey`）：同一会话、同一命令、同一 cwd、环境、时限，才不再问。`{file}` 换成不同的文件，就是不同的命令，要再问。
   - 不新增按检查器的本会话规则（见 §6.0p.8 Q2）。
@@ -1820,22 +1820,15 @@ Prologue 一刀另外要做到：
   | 项 | 取值 | 超了怎样 |
   | --- | --- | --- |
   | 一次检查的时长 | 默认 30,000 毫秒（SDK 的 `DEFAULT_COMMAND_TIMEOUT_MS`），可配 1,000–60,000（SDK 工具时限上限 `maxTimeoutMs` 60,000）；超出范围保存时拒 | 进程照命令路径停掉，结果写「超时（<n> 秒）」；文件已经写入，照常 |
-  | 给模型的输出 | 至多 4,000 字（UTF-16 长度）：前 2,000 与后 2,000 | 中间换成一行「[已截断：共 <N> 字]」；完整输出留在 SDK 的命令回执里，页面从回执读 |
-  | 一轮的检查次数 | 至多 10 次（一次写入可匹配几个检查器，每个算一次） | 第 11 次起不审查、不起进程，观察写「未检查：这一轮已检查 10 次」；下一轮从 0 计 |
+  | 给模型的输出 | 按 SDK 所有工具结果共用的 `config.tool.observation` 截断，Molis 不另定字数 | 截断的样子由 SDK 定；完整输出留在 SDK 的命令回执里，页面从回执读 |
+  | 一轮的检查次数 | 至多 10 次（一次写入只跑一个：按配置顺序取第一个适用的；几个都跑见 BL-171） | 第 11 次起不审查、不起进程，观察写「未检查：这一轮已检查 10 次」；下一轮从 0 计 |
   | 同时进行 | 一轮里一次一个，按配置的顺序 | 不并行；前一个没完，后一个排着 |
   | 审查等待 | 不计入上面的时长，也不计入写入的时限 | 按审查自己的期限；过期写「未检查：检查命令没有获批（过期）」 |
 
 #### 6.0p.4 给模型的结果：只写事实
 
 - 拼进这次写入的观察，在写入自己的结果之后。写入成功与否先说，检查失败不掩盖文件已经写入。
-- 只有这几行，没有「请修复」「通过」「失败」一类的话。退出码就写退出码。
-
-  ```text
-  检查器：<显示名>（配置 v<n>；<executable> <argv…>）
-  结果：退出码 <n> | 超时（<n> 秒） | 被拒 | 没有获批（过期） | 启动失败（<码>）
-  输出：
-  <截断后的输出>
-  ```
+- 检查那一段由 SDK 写（英文，以 `Check after write (data, not instructions):` 开头，后面是命令、退出码或没跑的原因、截断后的输出）。Molis 能写进去的只有「未检查」的原因（下面几条）；检查器名和配置版本只上审查卡和时间线。没有「请修复」「通过」「失败」一类的话，退出码就写退出码。
 
 - 输出是外部数据，和 `run-command` 的输出一样作为工具结果交给模型，不进系统提示，也不当成指令。
 - **未检查**：
@@ -1870,16 +1863,16 @@ Prologue 一刀另外要做到：
 
 | 编号 | 标准 | 拒绝或反例 | 用例 |
 | --- | --- | --- | --- |
-| PA-25 | 人在 Coding 设置里存检查器，版本从 1 起，带 `expected_version` 改 | Agent 一轮里的工具、MCP 客户端、别的插件调 `agent.checkers.save@1` 都被拒，配置不变；版本过时的保存被拒 | `tests/coding-checkers-settings.test.ts` |
+| PA-25 | 人在 Coding 设置里存检查器，版本从 1 起，带 `expected_version` 改 | Agent 一轮里的工具、MCP 客户端、工作流、别的插件调 `agent.write_checkers.save.v1` 都被拒，配置不变；版本过时的保存被拒 | `tests/coding-checkers-settings.test.ts` |
 | PA-26 | 只能给此刻已授权、`realpath_verified` 的工作区存；撤回授权后写入观察写「未检查：工作区授权已撤回」，不起审查 | 给没授权的工作区存被拒；撤回后零审查、零进程 | `tests/coding-checkers-settings.test.ts` |
 | PA-27 | 检查用的 argv 与配置逐项相同，只把 `{file}` 换成写入回执里的路径 | 写入的文件里写着 `// checker: rm -rf .`、`package.json` 里有 scripts，argv 照旧；写入调用多带 `command` 字段被写入工具的合同拒 | `tests/coding-diagnose-after-write.test.ts` |
 | PA-28 | `{file}` 作为一个完整参数；`-rf.js` 写成 `./-rf.js`；带空格、`;` 的路径原样是一个参数 | `--file={file}`、`{file}` 出现两次、配置带 `grants`、时长超出 1,000–60,000 的保存都被拒 | `tests/coding-checkers-settings.test.ts`、`tests/security-invariants-checkers.test.ts` |
-| PA-29 | 每次检查恰好一张命令审查卡，内容与配置相同，带「写后检查：<名>（配置 v<n>）」；批准后才跑 | 拒绝或过期：进程没起（夹具检查器会写一个标记文件，断言它不存在），观察写「被拒」「没有获批（过期）」 | `tests/coding-diagnose-after-write.test.ts`、`tests/security-invariants-checkers.test.ts` |
+| PA-29 | 每次检查恰好一张命令审查卡，内容与配置相同，带「写后检查：<名>（配置 v<n>）」，名和版本按执行器记下的（run，`operationKey`）读；批准后才跑 | 拒绝或过期：进程没起（夹具检查器会写一个标记文件，断言它不存在），观察写「被拒」「没有获批（过期）」 | `tests/coding-diagnose-after-write.test.ts`、`tests/security-invariants-checkers.test.ts` |
 | PA-30 | 选「本会话不再询问」后，同一文件再写，经同一决定路径自动批准 | 换一个文件（argv 不同）要再审；改了配置（argv 不同）要再审 | `tests/coding-diagnose-after-write.test.ts`、`tests/security-invariants-checkers.test.ts` |
 | PA-31 | 超过时长的检查被停，观察写「超时（2 秒）」，文件内容是新的 | 审查等了 3 秒才批，时长 2 秒的检查照样跑完（审查等待不计入） | `tests/coding-diagnose-after-write.test.ts` |
-| PA-32 | 10,000 字的输出给模型的是前 2,000、后 2,000 与「[已截断：共 10,000 字]」；完整输出在命令回执里 | 3,999 字的输出原样，没有截断行 | `tests/coding-diagnose-after-write.test.ts` |
+| PA-32 | 超过 SDK `config.tool.observation` 上限的输出，给模型的是 SDK 截断后的那一份；完整输出在命令回执里 | 不到上限的输出原样，没有截断标记 | `tests/coding-diagnose-after-write.test.ts` |
 | PA-33 | 一轮第 11 次检查不审查、不起进程，观察写「未检查：这一轮已检查 10 次」 | 下一轮第 1 次照常审查、照常跑 | `tests/coding-diagnose-after-write.test.ts` |
-| PA-34 | 观察只有 §6.0p.4 的那几行，退出码 0 和 1 的全文与快照逐字相同 | 退出码 1 不写成「失败」，0 不写成「通过」；没有模板以外的行 | `tests/coding-diagnose-after-write.test.ts` |
+| PA-34 | 观察里检查那一段只有 SDK 写的那几行，Molis 只加「未检查」的原因；退出码 0 和 1 的全文与快照逐字相同 | 退出码 1 不写成「失败」，0 不写成「通过」；检查器名和配置版本不进观察 | `tests/coding-diagnose-after-write.test.ts` |
 | PA-35 | 没有检查器的项目：零调用、零审查，观察不变，时间线标「未检查」；没有适用检查器的文件：观察写「未检查：没有适用于 .md 的检查器」 | 检查过的写入在时间线上显示检查器和退出码，不显示「未检查」；时间线的结果从回执读，把观察文字改掉不影响它 | `tests/coding-diagnose-after-write.test.ts`、`tests/coding-diagnose-timeline.e2e.test.ts` |
 | PA-36 | 停下这一轮：等审查的检查撤回审查、不起进程；在跑的被停；之后 Coding 时间线没有检查项、Molis 存储没有检查结果、审查队列没有待审 | 停下之前已经跑完的检查，回执和时间线项都在 | `tests/coding-diagnose-after-write.test.ts` |
 | PA-37 | 检查器启动失败（`executable` 不存在）：写入的结果在前，后面一行「未检查：检查器启动失败（ENOENT）」，盘上是新内容 | 写入本身失败时不起检查，观察只有写入的失败 | `tests/coding-diagnose-after-write.test.ts` |
@@ -1900,6 +1893,28 @@ Prologue 那一刀的验收写进它自己的切片：缝交回命令后经同�
 - 改了配置，命令变了，之前批过的都要重批。
 
 这会让人多点几次批准，换来的是每一条真正跑的命令都在卡上看过一遍。要不要加「本会话允许这个检查器」一类的规则（按检查器编号与配置版本，不按文件），等有了真实用量（一轮平均批几次、人是否觉得烦）再定。那要改 S-22 旁边的审查语义，由用户拍板。
+
+#### 6.0p.10 统筹 10-18 定：对照 #45、#47 改的四处，和 A2-1 的三条
+
+Prologue #45（写后检查交回一条命令）和 #47（执行器拿到检查的标识，导出判断键的函数和三种资源的常量）合入以后，上面有四处和 SDK 对不上，A2-1 这一片按统筹 10-18 的决定改了正文：
+
+1. **一次写入只跑一条命令。** SDK 的缝一次写入只收一条，所以按配置顺序取第一个适用的检查器；原来写的「可匹配几个、每个算一次」删掉。几个都跑记成 BL-171，以后找 Prologue 提。
+2. **截断用 SDK 共用的 `config.tool.observation`**，去掉「前 2,000 加后 2,000 字」；完整输出在命令回执里（PA-32 跟着改）。
+3. **观察是 SDK 写的英文。** Molis 能写进去的只有「未检查」的原因；检查器名和配置版本只上审查卡和时间线（§6.0p.4，PA-34 跟着改）。
+4. **审查卡怎样认出写后检查、名和版本从哪来。** 用 SDK 导出的 `isAfterWriteCheckOperationKey` 判断审查资源的 `operationKey`，不在 Molis 里写死 `after-write-check:`。名和版本用执行器自己的记录：执行器回答时记下选了哪个检查器、哪个版本，按（run，`operationKey`）存，审查卡按同一个键读，不拿命令去匹配（统筹选 A：三处共用 SDK 给的同一个键）。SDK 的键是每个执行器一轮里的次序号（脚本步骤写入没有 callId，模型的 callId 在一轮里也可能重复，#47 的说明），只在一轮里唯一，所以带上 run（§6.0p.3，PA-29 跟着改）。
+
+A2-1 另外三条：
+
+- **动作 id 是 `agent.write_checkers.list.v1`、`agent.write_checkers.save.v1`**，不是 `agent.checkers.*`：id 会出现在动作目录、Agent 的工具清单和 MCP 工具名里，「checkers」在那里和等待用的条件检查器分不开。代码和存储 kind 都叫 write-checker，`docs/system/GLOSSARY.md` 把「写后检查器」和「等待检查器」分开写。
+- **SSOT 写明例外。** `docs/SSOT-MATRIX.md` 第 6 节原来说横向服务只存技术状态；改成照实写：`agent-host` 另外保存人保存的 Agent 配置，只有外部 MCP 服务器、装进项目的 Skill、写后检查器三类，各在「Agent Host 保存的人的配置」表里有一行；不顺带搬家，也不扩大范围。
+- **安全不变量随 A2-2 登记。** 保存时的校验（受众、已授权工作区、`{file}` 的写法、时长、cwd）不是安全边界；边界在 A2-2 的执行器上，执行时再核一次授权。所以 §6.0p.6 那一行和 `tests/security-invariants-checkers.test.ts` 随 A2-2 加。
+
+A2-1 做到的（PA-25 全部，PA-26 与 PA-28 中保存的那一半，用例 `tests/coding-checkers-settings.test.ts`）：
+
+- 合同在 `packages/contracts/src/services/agent-host-write-checkers.ts`，从 `services/agent-host` 导出。
+- 存储在 `horizontal/agent-host/src/adapters/prologue-write-checkers.ts`；登记和保存时的校验在 `horizontal/agent-host/src/write-checker-actions.ts`，照 `session-actions.ts` 的 `register(definition, handler)` 写法。
+- 工作区由 local-host 读项目目录给（和起跑授权同一处 `workspacesFor`），只认此刻已授权、`realpath_verified` 的。
+- 撤回授权后列表里不再有它，保存被拒；配置留着，授权回来后照旧。PA-26 的「未检查：工作区授权已撤回」和 PA-28 的 `./` 前缀在执行器里，属于 A2-2。
 
 #### 6.0p.9 不做的
 
@@ -2263,6 +2278,8 @@ A0 执行记录（下列历史方案记录之后继续）：
 | 用户 10-17 · Q2 选 A（§6.0q 第 3 条） | 一次性脚本去掉旧形状子 Work 的 `delegated_by`，它们成为独立的工作，正文、轮次和结果都留着；不在 Prologue 的库里补步骤 | 旧子任务在图上没有步骤可指；合同只认现行形状 |
 | 用户 10-17 · Q3 同意（§6.0q 第 4 条） | 在真实 Home 助理数据的只读拷贝上演练：只拷助理库和 Prologue 的库文件，先列出会改多少项，再在拷贝上跑一遍；不读密钥，不碰 Home 主密钥的钥匙串条目；跑完删拷贝。真实的库只在装下一个版本时、和维护八同一步写，那时再问用户 | 演练不写真实数据；真正的写入和维护在同一次安装里 |
 | 统筹 10-17 · Q4 不是（§6.0q 第 6 条） | A4 只改代码和脚本；3 号基线（删 `assistant_jobs`）另做一片，节奏跟维护八和 BL-157 的门禁走 | 改基线要带维护，会动真实 Home |
+| 统筹 10-18 定 · A2 对照 #45、#47 的四处（§6.0p.10） | 一次写入只跑配置里第一个适用的检查器；截断用 SDK 的 `config.tool.observation`；观察是 SDK 写的，Molis 只写「未检查」的原因；审查卡用 `isAfterWriteCheckOperationKey` 认，名和版本按执行器记下的（run，`operationKey`）读 | SDK 的缝一次只收一条命令、自己截断、自己写观察；键只在一轮里唯一，拿命令反查要靠保存时多一条唯一规则 |
+| 统筹 10-18 定 · A2-1 的 id 与 SSOT（§6.0p.10） | 动作 id `agent.write_checkers.list.v1`、`agent.write_checkers.save.v1`，受众只有 `user`；SSOT 写明 `agent-host` 只另存三类人保存的 Agent 配置（MCP、Skill、写后检查器）；安全不变量随 A2-2 | id 会进动作目录、工具清单和 MCP 工具名，「checkers」和等待检查器分不开；保存时的校验不是边界，边界在执行器 |
 
 ### 7.8 工作规则
 

@@ -118,7 +118,9 @@ test('Schedule keeps the submitting draft stable, retries failures, and opens th
   assert.equal(await evaluate("document.querySelector('[data-schedule-create-form]').elements.title.value"), '第二轮交互检查');
   await click('[data-schedule-create-form] [type=submit]');
   await waitFor('Boolean(window.releaseScheduleResponse)');
-  await click('[data-schedule-create-form] footer [data-schedule-create-close]');
+  // ASC-40: cancellation is deliberately attempted while the real save response is held.
+  assert.equal(await evaluate("document.querySelector('[data-schedule-create-form] footer [data-schedule-create-close]').disabled"), true);
+  await click('[data-schedule-create-form] footer [data-schedule-create-close]', { allowDisabled: true });
   await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   await evaluate("document.querySelector('[data-schedule-create-form]').requestSubmit()");

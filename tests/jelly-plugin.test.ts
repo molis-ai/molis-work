@@ -23,7 +23,9 @@ test('W5-01-JMC-01 Jelly Runtime HTTP enforces revisions; routes and actions sha
   const listed=await actions.invoke(jellyActions.calendar,{start:day,end:day});assert.equal(listed.items[0]!.id,item.id);
   await actions.invoke(jellyCommandActions['item.complete'],{id:item.id,completed:true,expected_revision:1});assert.ok(store.read().items[0]?.completed_at);
   await assert.rejects(()=>actions.invoke(jellyCommandActions['item.update'],{id:item.id,patch:{title:'stale'},expected_revision:1}),/其他窗口|版本/);
-  assert.equal((await request('/api/jelly')).status,404);
+  const beforeRemoved=store.read(),removed=await request('/api/jelly'),unknown=await request('/api/no-such-route');
+  assert.equal(unknown.ok,false);assert.equal(removed.status,unknown.status);assert.deepEqual(await removed.json(),await unknown.json());
+  assert.deepEqual(store.read(),beforeRemoved,'the removed route has no Jelly effect');
 });
 test('Jelly plans are previews, not writes, and schedule around real calendar occupancy',async t=>{
   const store=fixture(t);store.execute({type:'item.create',item:{title:'既有安排',start_date:day,start_time:540,end_time:600}});

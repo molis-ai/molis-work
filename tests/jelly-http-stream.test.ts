@@ -16,9 +16,11 @@ test('a plan stream reports progress, returns the plan and commits nothing',{tim
   assert.match(response.headers.get('content-type')!,/ndjson/);
   const events=(await response.text()).trim().split('\n').map(line=>JSON.parse(line));const final=events.at(-1);
   assert.equal(events[0].type,'progress',JSON.stringify({status:response.status,headers:Object.fromEntries(response.headers),events}));assert.equal(final.type,'result');assert.equal(final.result.plan.actions[0].title,'核对来源与任务');
+  // The removed material entry follows the generic unknown-Home-route refusal, not a Jelly handler.
+  const input={file_name:'a.txt',data_base64:'YQ=='};
+  const removed=await post('/api/jelly/material?stream=1',input),unknown=await post('/api/no-such-route',input);
+  assert.equal(unknown.ok,false);assert.equal(removed.status,unknown.status);assert.deepEqual(await removed.json(),await unknown.json());
   const persisted=openJellyStore(home);try{assert.deepEqual(persisted.read(),before);}finally{persisted.close();}
-  // Only planning streams: the routes that read files and pages now belong to 灵光.
-  assert.equal((await post('/api/jelly/material?stream=1',{file_name:'a.txt',data_base64:'YQ=='})).status,404);
 });
 
 test('disconnecting a plan aborts model work and changes nothing',{timeout:10_000},async t=>{

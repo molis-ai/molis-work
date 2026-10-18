@@ -3,15 +3,16 @@ import test from "node:test";
 import type { HostSurfaceActReceipt, HostSurfaceAction } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { ComputerDriver, isRefused, type DeskContext } from "@molis-ai/molis-work-app-local-host";
 
-type Node = { role: string; name: string; depth: number; frame: [number, number, number, number] };
+type Node = { role: string; name: string; depth: number; frame: [number, number, number, number]; secure?: boolean; subrole?: string };
 type Step = { kind?: string; summary?: string };
+type OcrLine = { text: string; x: number; y: number; width: number; height: number };
 
 const button: Node = { role: "AXButton", name: "保存", depth: 0, frame: [10, 10, 40, 20] };
 const saved: Node = { ...button, name: "已保存" };
 
 type Call = { op: string; payload?: Record<string, unknown> };
 
-function desk(options: { trees?: Node[][]; steps?: Step[]; nodes?: Node[]; windows?: string[]; menus?: string[]; windowMenuItems?: { title: string; enabled?: boolean }[]; calls?: Call[] } = {}): DeskContext {
+function desk(options: { trees?: Node[][]; steps?: Step[]; nodes?: Node[]; windows?: string[]; menus?: string[]; windowMenuItems?: { title: string; enabled?: boolean }[]; ocrLines?: OcrLine[]; ocrFails?: boolean; calls?: Call[] } = {}): DeskContext {
   const state = { bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
     window: { title: "Notes", frame: [0, 0, 120, 80] as [number, number, number, number], window_id: 1, document: "" },
     windows: (options.windows ?? []).map(title => ({ title, frame: [0, 0, 120, 80] as [number, number, number, number], focused: title === "Notes", minimized: false })) };
@@ -27,6 +28,10 @@ function desk(options: { trees?: Node[][]; steps?: Step[]; nodes?: Node[]; windo
         return { window: { title: "Notes", frame: state.window.frame }, nodes, truncated: false, menus: options.menus ?? [] } as T;
       }
       if (op === "observe.menus") return { items: options.windowMenuItems ?? [] } as T;
+      if (op === "observe.ocr") {
+        if (options.ocrFails) throw new Error("observe.ocr failed");
+        return { lines: options.ocrLines ?? [] } as T;
+      }
       if (op === "probe.point") return { window: { pid: 4, title: "Notes" }, element: { pid: 4, name: "保存", window_title: "Notes" } } as T;
       if (op.startsWith("input.")) return {} as T;
       throw new Error(op);
@@ -128,4 +133,45 @@ test("CU-G09: a sheet is named in the tree, not left as its raw accessibility ro
   const driver = new ComputerDriver(desk({ nodes: [{ role: "AXSheet", name: "保存", depth: 0, frame: [0, 0, 100, 50] }] }));
   const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
   assert.match(text, /表单「保存」/);
+});
+
+test("CU-G10: a sparse tree gets OCR text with window-relative points", async () => {
+  const calls: Call[] = [];
+  const driver = new ComputerDriver(desk({
+    nodes: [{ role: "AXStaticText", name: "画布", depth: 0, frame: [0, 0, 120, 80] }],
+    ocrLines: [{ text: "确定", x: 10, y: 10, width: 20, height: 10 }],
+    calls,
+  }));
+  const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
+  assert.match(text, /屏幕文字（OCR/);
+  assert.match(text, /确定 @\(20,15\)/);
+  assert.equal(calls.some(call => call.op === "observe.ocr"), true);
+});
+
+test("CU-G10: a tree with enough clickable nodes does not pay for OCR", async () => {
+  const calls: Call[] = [];
+  const nodes = [1, 2, 3, 4].map(index => ({ ...button, name: `按钮${index}` }));
+  const driver = new ComputerDriver(desk({ nodes, ocrLines: [{ text: "不该出现", x: 1, y: 1, width: 10, height: 10 }], calls }));
+  const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
+  assert.equal(calls.some(call => call.op === "observe.ocr"), false);
+  assert.doesNotMatch(text, /OCR/);
+});
+
+test("CU-G10: OCR failing leaves the accessibility look intact", async () => {
+  const driver = new ComputerDriver(desk({ nodes: [{ role: "AXStaticText", name: "画布", depth: 0, frame: [0, 0, 120, 80] }], ocrFails: true }));
+  const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
+  assert.match(text, /画布/);
+  assert.doesNotMatch(text, /OCR/);
+});
+
+test("CU-G10: a secure field in the tree keeps OCR from running", async () => {
+  const calls: Call[] = [];
+  const driver = new ComputerDriver(desk({
+    nodes: [{ role: "AXTextField", subrole: "AXSecureTextField", name: "密码", depth: 0, frame: [0, 0, 100, 20], secure: true }],
+    ocrLines: [{ text: "不该出现", x: 1, y: 1, width: 10, height: 10 }],
+    calls,
+  }));
+  const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
+  assert.doesNotMatch(text, /OCR/);
+  assert.equal(calls.some(call => call.op === "observe.ocr"), false);
 });

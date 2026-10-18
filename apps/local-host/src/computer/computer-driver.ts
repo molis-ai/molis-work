@@ -2,11 +2,12 @@ import { createHash } from "node:crypto";
 import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
 import { showsMolis, tierOf, type AppTierVerdict } from "./app-tiers.js";
-import { modelImageReason, observationExpired, pointerFromNode } from "./computer-act.js";
+import { modelImageReason, nodeIsClickable, observationExpired, pointerFromNode } from "./computer-act.js";
 import { isHelperFailure, isRefused, refused } from "./computer-errors.js";
 import { injectDesktopAction } from "./computer-inject.js";
 import { refuseCapture, refuseDespiteWindowText, refuseLanding, refuseSelfApproval, type LandingProbe } from "./computer-policy.js";
 import { StepProgress, treeHash } from "./computer-progress.js";
+import { ocrText } from "./computer-ocr.js";
 import { windowMenuHint } from "./computer-windows.js";
 import type { ComputerRecords } from "./computer-records.js";
 import type { HelperConnection } from "./helper-connection.js";
@@ -282,7 +283,9 @@ export class ComputerDriver {
     if (kind === "dom") throw new Error("桌面应用没有 DOM：请用 accessibility-tree 观察");
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
     const base = renderTree(state, tree).text;
-    const text = base + await windowMenuHint(this.ctx.helper, target.pid, tree.menus, (state.windows ?? []).map(one => one.title));
+    const sparse = !tree.nodes.some(node => node.secure) && (tree.truncated || tree.nodes.filter(nodeIsClickable).length < 3);
+    const text = base + await windowMenuHint(this.ctx.helper, target.pid, tree.menus, (state.windows ?? []).map(one => one.title))
+      + await ocrText(this.ctx.helper, target.pid, state.window.frame, sparse);
     this.observedAt = this.now();
     this.progress.seen(base);
     // The words go to the model; the person's record and the tab get the picture of the same moment.

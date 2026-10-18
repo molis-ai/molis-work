@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
@@ -15,12 +15,13 @@ const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden])";
 const MATERIAL = "离线也要能记下想法，回到网上再同步。";
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 
-test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the bar follows to the left and goes when the panel closes", { timeout: 150_000 }, async (t) => {
+/** Pages open on the left with its cursor placed (the landing), and a text material open in Shelf's side tab. */
+async function shelfBesidePages(t: TestContext) {
   const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
   process.env.MOLIS_WORK_SHELF_AGENT = "off";
   t.after(() => { if (agentSetting === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = agentSetting; });
   const browser = await openGoalBrowser(t, true);
-  if (!browser) return;
+  if (!browser) return null;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId, homeDirectory } = browser;
   const store = openPagesStore(homeDirectory);
   const left = (() => { try { return store.create({ project_id: projectId!, title: "发布计划", body: { type: "doc", content: [paragraph("先完成核心体验。"), paragraph("再安排发布。")] } }); } finally { store.close(); } })();
@@ -59,6 +60,13 @@ test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the 
     const walker = doc.createTreeWalker(body, NodeFilter.SHOW_TEXT); let node; while ((node = walker.nextNode()) && !node.textContent.includes('离线也要能'));
     const start = node.textContent.indexOf('离线'), range = doc.createRange(); range.setStart(node, start); range.setEnd(node, start + 9);
     const selection = doc.getSelection(); selection.removeAllRanges(); selection.addRange(range); doc.dispatchEvent(new Event('selectionchange')); })()`;
+  return { ...browser, item, selectInShelf, capture };
+}
+
+test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the bar follows to the left and goes when the panel closes", { timeout: 150_000 }, async (t) => {
+  const fixture = await shelfBesidePages(t);
+  if (!fixture) return;
+  const { evaluate, waitFor, item, selectInShelf, capture } = fixture;
   await evaluate(selectInShelf);
   await waitFor(`Boolean(${SHELF}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)}))`, 15_000);
   const placed = await evaluate<{ inTop: boolean; inView: boolean; beside: boolean }>(`(() => { const doc = ${SHELF}.contentDocument, bar = doc.querySelector(${JSON.stringify(BAR)}).getBoundingClientRect();
@@ -90,4 +98,42 @@ test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the 
   await waitFor(`Boolean(${SHELF}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)})) && !document.querySelector(${JSON.stringify(BAR)})`, 15_000);
   await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
   await waitFor(`document.body.dataset.sideOpen === 'false' && !${SHELF}.contentDocument.querySelector(${JSON.stringify(BAR)}) && !document.querySelector(${JSON.stringify(BAR)})`, 10_000);
+});
+
+test("W3-C2: hovering 「插入到光标处」 on the side tab's own bar, or in its 「更多」 menu, flashes the landing on the left", { timeout: 150_000 }, async (t) => {
+  const fixture = await shelfBesidePages(t);
+  if (!fixture) return;
+  const { command, sessionId, evaluate, waitFor, selectInShelf } = fixture;
+  // Pages draws its flash line only for a person who has not asked for reduced motion.
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "no-preference" }] }, sessionId);
+  // Every flash asked of the top document, and every flash line Pages draws there.
+  await evaluate(`(() => { window.flashAsked = 0; window.flashLines = 0;
+    document.addEventListener('molis:surface-landing-flash', () => { window.flashAsked += 1; }, true);
+    new MutationObserver((records) => { for (const record of records) for (const node of record.addedNodes) if (node.classList?.contains('pages-landing-flash')) window.flashLines += 1; })
+      .observe(document.body, { childList: true, subtree: true }); })()`);
+  await evaluate(selectInShelf);
+  const offer = (scope: string) => `[...${SHELF}.contentDocument.querySelectorAll(${JSON.stringify(`${scope} [data-key^='attach.']`)})].find(node => node.textContent.includes('插入到光标处'))`;
+  const onBar = offer(".mw-ctx:not(.mw-ctx--static):not([hidden])"), inMenu = offer(".mw-ctx-menu");
+  await waitFor(`${onBar} !== undefined`, 15_000);
+  // A point inside the side tab's frame, in the top page's coordinates: the pointer reaches the frame's bar as a person's would.
+  const moveTo = async (expression: string) => {
+    const point = await evaluate<{ x: number; y: number }>(`(() => { const frame = ${SHELF}.getBoundingClientRect(), rect = (${expression}).getBoundingClientRect();
+      return { x: frame.left + rect.left + rect.width / 2, y: frame.top + rect.top + rect.height / 2 }; })()`);
+    await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: point.x, y: point.y }, sessionId);
+    return point;
+  };
+  const away = () => command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 700, y: 700 }, sessionId);
+
+  await moveTo(onBar);
+  await waitFor("window.flashAsked === 1 && window.flashLines === 1", 5_000);
+  await waitFor("document.querySelector('.pages-landing-flash') === null", 5_000);
+  await away();
+
+  // The same offer in the tab's 「更多」 menu.
+  const more = await moveTo(`${SHELF}.contentDocument.querySelector('.mw-ctx:not(.mw-ctx--static):not([hidden]) [data-more]')`);
+  for (const type of ["mousePressed", "mouseReleased"]) await command("Input.dispatchMouseEvent", { type, x: more.x, y: more.y, button: "left", clickCount: 1 }, sessionId);
+  await waitFor(`${inMenu} !== undefined`, 5_000);
+  await moveTo(inMenu);
+  await waitFor("window.flashAsked === 2 && window.flashLines === 2", 5_000);
+  assert.equal(await evaluate<string>("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), "先完成核心体验。再安排发布。", "a flash writes nothing");
 });

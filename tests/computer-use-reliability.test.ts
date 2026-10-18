@@ -157,6 +157,15 @@ test("CU-G10: a tree with enough clickable nodes does not pay for OCR", async ()
   assert.doesNotMatch(text, /OCR/);
 });
 
+test("CU-G10: a tree cut by the text budget also gets OCR", async () => {
+  const calls: Call[] = [];
+  const nodes = Array.from({ length: 10 }, (_, index) => ({ ...button, name: `按钮${index}${"x".repeat(3_000)}` }));
+  const driver = new ComputerDriver(desk({ nodes, ocrLines: [{ text: "确定", x: 1, y: 1, width: 10, height: 10 }], calls }));
+  const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
+  assert.equal(calls.some(call => call.op === "observe.ocr"), true);
+  assert.match(text, /屏幕文字（OCR/);
+});
+
 test("CU-G10: OCR failing leaves the accessibility look intact", async () => {
   const driver = new ComputerDriver(desk({ nodes: [{ role: "AXStaticText", name: "画布", depth: 0, frame: [0, 0, 120, 80] }], ocrFails: true }));
   const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));

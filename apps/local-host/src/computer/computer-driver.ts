@@ -275,8 +275,10 @@ export class ComputerDriver {
     }
     if (kind === "dom") throw new Error("桌面应用没有 DOM：请用 accessibility-tree 观察");
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
-    const base = renderTree(state, tree).text;
-    const sparse = !tree.nodes.some(node => node.secure) && (tree.truncated || tree.nodes.filter(nodeIsClickable).length < 3);
+    const rendered = renderTree(state, tree);
+    const base = rendered.text;
+    const sparse = !tree.nodes.some(node => node.secure)
+      && (tree.truncated || rendered.cut || tree.nodes.filter(nodeIsClickable).length < 3);
     const text = base + await windowMenuHint(this.ctx.helper, target.pid, tree.menus, (state.windows ?? []).map(one => one.title))
       + await ocrText(this.ctx.helper, target.pid, state.window.frame, sparse);
     this.observedAt = this.now();

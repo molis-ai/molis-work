@@ -6,6 +6,8 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+后台授权集成全量补正（2026-10-18）：39130898172 的 `ci-product-subset-plan` 发现 `action-background-authority.test.ts` 已由挡合并的动作合同通配命令运行，又被本片加入产品子集。移除子集中的重复选择，合同命令和全部授权拒绝断言保持，仍由 CI 必跑；定向与后续全量结果另记。
+
 后台授权交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前私有文件/Cognia/灵光与实际 main 63639a764，保留安全表和 CI 子集双方条目，后台授权生产实现不变。整体 build、API、boundary、merge-base health 及资源核对通过；六个直接相关文件 81 条通过，涵盖后台失权拒绝、Kernel 授权、真实 HTTP 生命周期、模型/文件服务与 Host 接线。25 项资源共 7,478,372 B，无本片增量；日志 /tmp/molis-background-closeout-{build,api,health,boundary,assets,targeted}.log。原完整相关组合证据保留，正式 PR/CI 待前置；不把模型端口或插件业务迁移算成本片已合入。
 插件私有文件交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前 Cognia/灵光与实际 main 63639a764；保留主线 Assistant 关闭接线、Shelf IPC 拒绝和产品子集两项连接器回归，同时保留 files 类型/授权接线与安全断言。整体 build、API、boundary、merge-base health 及资源重测通过；六个直接相关文件 54 条通过，覆盖文件边界、Home 生命周期、真实 Host 服务/执行器、项目库和安装 grant。25 项资源共 7,478,372 B，与 Cognia 相同；日志 /tmp/molis-plugin-files-closeout-{build,api,health,boundary,assets,targeted}.log。早前完整相关组合证据保持，正式 PR/CI 待依赖顺序，未开始新的业务迁移。
 Cognia 交接收口（2026-10-18，Codex，本地同步通过）：已 merge 灵光 a1a10e86d 与实际 main 63639a764。业务源码保持此前已审候选，冲突仅整合安全表与重生成派生记录；S-18 同时保留主线跨分区恢复与模型 metadata 拒绝证据。整体 build、API/动作快照（均无额外变化）、boundary、merge-base health 和资源检查通过；13 个直接相关文件 344 条通过，覆盖 Cognia 动作/Store/AI/HTTP/Runtime、Host 模型与附件拒绝、声明、路由和 Home 平台。Cognia 客户端仍减少 260 B，25 项资源共 7,478,372 B；日志 /tmp/molis-cognia-closeout-{build,api,actions,health,boundary,assets,targeted}.log。此前组合的 203 文件 1,823 条、其中 5 个 Chrome 文件 20 条及 1 条环境跳过证据保留，未重复计为本次重跑。正式 PR、CI 与合入仍按前置顺序推进，整线未完成。

@@ -2,6 +2,14 @@
 
 状态：执行中，整线未完成（2026-10-15，Claude 按用户 10-14 目标接手，Codex 写线已暂停交接）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR，#523 已合入 main（`f74e29d86`；#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑，macOS 专有用例在本机补，失败逐个对照 main 基线，合入后的三项 Linux 修复与一处合并留下的旧错误码在后续 PR 补进。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 #523 进了 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
 
+W5-10 Pages 命令族拆分（2026-10-17，Codex，本地定向通过，待队列与 CI）：按路线图和巨大单元迁移表先收 `plugins/native/pages/src/commands.ts` 的 2,241 行，目标为功能可用且行为等价。保留块编辑、选区、列表、折叠、分栏、代码、行内格式与 Markdown 的现行语义；按职责拆成 selection、blocks、insert、containers、caret、formatting、markdown 七个内部模块，`commands.ts` 只显式重导出现有名字。底层选区与位置读取不依赖执行命令；插入及容器命令使用块变更，模块之间不回指 barrel、不形成环。原有局部辅助函数只在有真实跨模块调用时内部导出，不加入包入口。函数体、执行顺序、ProseMirror Transaction、返回值及 dry-run 判断保持。输入仍是现行 EditorState/位置/命令参数，输出仍是现行 Transaction 或 Command；依赖与文档 schema 不变。
+
+范围为上述源码、Pages README、既有测试的验收编号、下降的健康及资源快查和本段证据。`index.ts`/包 exports、动作、数据库、Host、路由、样式和 Skill 合同不改；不处理在途 #634 的 client/import-client，也不把这一片当成 editor mount/hover 或整条 W5-10 完成。基于 main `149faac7d` 的独立工作树；无迁移、读取兜底或新依赖。保留原入口使调用方无须切换，回滚可直接还原本片提交。
+
+验收：`W5-10-PGC-01` 原命令入口及包入口导出的名字与类型保持，函数/常量实现逐项等价，新模块均不超过现行 800 行文件和函数阈值，无循环依赖；`W5-10-PGC-02` 块/列表/容器/选区/代码/格式/Markdown 的既有生产命令回归通过，撤销、边界和不适用时的拒绝保持；`W5-10-PGC-03` 真实 Chrome 的编辑与内容往返路径通过，打包编辑器正常加载，页面资源不增加。先整体 `pnpm build`，再运行 Pages README 必跑、`tests/pages-plugin.test.ts`、`tests/pages-input-rules.test.ts`、`tests/pages-conversion.test.ts`、拖拽与所有命令直接调用方；浏览器运行 `tests/plugin-small-ux.e2e.test.ts`、`tests/content-editing-regressions.e2e.test.ts`、`tests/content-portable-regressions.e2e.test.ts`、Pages 动作与导入路径。最后核对 boundary、完整 merge-base health、API 快照、资源与实际 diff。不运行本机全量；全量由统筹 CI 安排。此片无新增产品决定，若拆分导致资源变大，先分析打包顺序和命名，不修改门禁许可。
+
+本片验证：`W5-10-PGC-01` 搬移前后逐项 AST 比对确认全部 139 个声明实现原样保留，原入口 113 个导出相同；构建后的包入口声明完全相同，113 个命令签名在解析同一导入类型名后相同。七个模块为 139～634 行，汇总入口 128 行，依赖无回环。`W5-10-PGC-02` README 必跑、命令/输入规则/转换/拖拽/评论及直接调用方共 29 文件 545 条全部通过。`W5-10-PGC-03` 七个真实 Chrome 文件 37 条全部通过，包括编辑状态、文稿切换保护、评论、导入/发布与内容往返；合计 36 文件 582 条，零失败/跳过。整体构建、boundary、完整 merge-base health/API（64 快照、2,506 声明）和资源检查通过，巨大单元 137→136，快查只删除原命令文件这一项；25 份页面资源共 7,476,313 B，Pages 编辑器对外资源保持 707,007 B，本片增量 0。日志 `/tmp/molis-pages-commands-{build,regression,browser,boundary,health,health-update,assets}.log`，定向非浏览器清单 `/tmp/molis-pages-commands-files.json`。首次健康检查只因本段把整线状态句挤出开头而失败，已把状态句保留在第三行并完整复跑通过，没有改门禁规则。未运行本机全量、未发布或触碰真实 Home，整条 W5-10 仍继续。
+
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。

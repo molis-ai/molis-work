@@ -270,6 +270,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   }
 }
 
+// W5-10-PGC-01/02: the existing public imports exercise the split command families and their editing semantics.
 test("标题里按回车落到正文开头", () => {
   const blank = pagesSchema.node("doc", null, [pagesSchema.node("paragraph")]);
   assert.equal(docStart(blank), 1);

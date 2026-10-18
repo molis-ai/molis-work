@@ -6,6 +6,7 @@ import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
+// W5-10-PGC-03: exercise the bundled Pages command families through the real editor and host.
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
 test("W2-18-PAGES-COMMENT-01: a plain comment popup follows its original range and refuses a replaced document", { timeout: 90_000 }, async t => {

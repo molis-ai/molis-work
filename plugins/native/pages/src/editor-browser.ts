@@ -1,6 +1,9 @@
 export { mountComments } from "./comment-side-client.js";
 export { bindComments } from "./comment-editor-client.js";
 export { listFailed } from "./list-client.js";
+export { emptyDoc, pagesSchema };
+export { applyToPagesFrozen, freezePagesFocus, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus, type FrozenPagesFocus } from "./focus.js";
+export { mountPagesLanding } from "./landing-editor.js";
 import { openEditorComment } from "./editor-comments.js";
 import { baseKeymap, chainCommands, setBlockType } from "prosemirror-commands";
 import { dropCursor } from "prosemirror-dropcursor";
@@ -13,9 +16,9 @@ import { keymap } from "prosemirror-keymap";
 import { DOMSerializer, Fragment, Node, Slice } from "prosemirror-model";
 import { splitListItem } from "prosemirror-schema-list";
 import { Command, EditorState, NodeSelection, Plugin, PluginKey, TextSelection, Transaction } from "prosemirror-state";
-import { Decoration, DecorationSet, EditorView, ViewMutationRecord } from "prosemirror-view";
-import { applyPagesActions, closePagesPopover, endPagesTransients, ownPagesTransient, pagesPopoverAnchor, readPagesImage } from "./editor-transient.js";
-import { fillStaticIndexes, taskStatusText } from "./card-content.js";
+import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
+import { applyPagesActions, endPagesTransients, ownPagesTransient, readPagesImage } from "./editor-transient.js";
+import { fillStaticIndexes } from "./card-content.js";
 import {
   blockPos,
   deleteBlock,
@@ -32,9 +35,6 @@ import {
   indentUnderPrevious,
   insertCodeIndent,
   insertHardBreak,
-  setImageWidth,
-  setImageCaption,
-  setBookmarkTitle,
   insertSlashBelow,
   leaveCodeDown,
   leaveEmptyCodeLine,
@@ -53,7 +53,6 @@ import {
   listKindAt,
   headingLevelAt,
   addColumn,
-  nudgeColumnShare,
   applyListSelection,
   applyHeading,
   applySlash,
@@ -89,9 +88,7 @@ import {
   splitTaskItem,
   setCalloutStyle,
   setRowsTone,
-  setToggleOpen,
   toggleTaskChecked,
-  flipTaskAt,
   toggleTaskGroup,
   setLink,
   setTone,
@@ -110,101 +107,39 @@ import {
   unwrapAtStart,
   unwrapColumns,
 } from "./commands.js";
-import { acceptedImageFile, bookmarkLabel, imageAlt, linkClickOpens, safePagesBookmarkTitle, safePagesHref, safePagesImageCaption, safePagesImageSrc, safePagesImageWidth } from "./link.js";
+import { acceptedImageFile, bookmarkLabel, linkClickOpens, safePagesHref } from "./link.js";
 import { toneFromCssColor } from "./tone.js";
 import { calloutIconFor, PAGES_CALLOUT_ICONS, safePagesCalloutTone } from "./callout.js";
-import { highlightRanges } from "./code-highlight.js";
-import { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
 import { findHits, replaceAllFindHits, replaceFindHit, stepFindHit } from "./find.js";
 import { followScroll, pinAt, placeOverlay, type FloatingAnchor } from "@molis-ai/molis-work-design-system/floating";
 import { rowGapAt, scrollChildIntoView } from "./floating.js";
 import { markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, pasteUrl } from "./paste-markdown.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { pasteHtml, type PasteLeaf } from "./paste-html.js";
-import { addTableColumn, addTableRow, atLastTableCell, deleteTableColumn, deleteTableRow, moveTableColumn, moveTableEdge, moveTableRow, setColumnWidth, tableHit, toggleHeaderRow } from "./table-edit.js";
+import {
+  addTableColumn,
+  addTableRow,
+  atLastTableCell,
+  deleteTableColumn,
+  deleteTableRow,
+  moveTableColumn,
+  moveTableEdge,
+  moveTableRow,
+  tableHit,
+  toggleHeaderRow,
+} from "./table-edit.js";
 import { blockPlaceholder } from "./placeholder.js";
 import { dragRows, dropLevelRange, nodesInSpan, nudgeSpan, previewCopySpan, previewSpan, spanRoots, spanRows, type DragRow } from "./reorder.js";
 import { PAGES_TONES } from "./tone.js";
-import { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
-import { applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus } from "./focus.js";
+import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
+import { applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen } from "./focus.js";
+import type { Translate, PagesEditorMountOptions, PagesListItem, PagesEditorHandle, PagesCommandPreset, PagesToolGroup } from "./editor-types.js";
+import { t, overlayRoot, dsIcon, escapeHtml, actions } from "./editor-view-ui.js";
+import { codeHighlightPlugin, imageNodeView, bookmarkNodeView, codeNodeView } from "./editor-node-media.js";
+import { columnNodeView, cellNodeView, taskNodeView, toggleNodeView, calloutNodeView, mentionNodeView, calendarNodeView, tocNodeView } from "./editor-node-layout.js";
+import { cardNodeView } from "./editor-node-cards.js";
+export type { PagesEditorHandle, PagesToolItem, PagesToolGroup, PagesCommandPreset, PagesListItem, PagesEditorMountOptions } from "./editor-types.js";
 
-export { emptyDoc, pagesSchema };
-export { applyToPagesFrozen, freezePagesFocus, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus, type FrozenPagesFocus } from "./focus.js";
-export { mountPagesLanding } from "./landing-editor.js";
-
-export interface PagesEditorHandle {
-  readonly view: EditorView;
-  /** Takes down what the editor put around itself (the link and comment previews, the popup, its listeners). */
-  readonly release: () => void;
-  /** Run a writing command on the current selection from outside the editor (the context toolbar); see `PagesCommandPreset`. */
-  readonly runCommand?: (command: string, style: string | undefined, preset?: PagesCommandPreset) => Promise<void>;
-  /** The tools the context toolbar draws for the selection, with their pressed state. */
-  readonly tools: () => PagesToolGroup[];
-  /** The person clicked a tool in the toolbar. */
-  readonly runTool: (id: string) => void;
-  /** Where the selection is on screen, for the toolbar to sit next to. */
-  readonly screen: () => { left: number; right: number; top: number; bottom: number };
-}
-
-export interface PagesToolItem {
-  readonly id: string;
-  readonly label: string;
-  readonly glyph?: string;
-  readonly icon?: string;
-  readonly pressed?: boolean;
-  readonly opens?: "panel";
-}
-export interface PagesToolGroup {
-  readonly id: string;
-  readonly collapse: "never" | "overflow";
-  readonly items: readonly PagesToolItem[];
-}
-
-/**
- * A command started from outside the editor. The selection is frozen at once; `prepare` then supplies the exact
- * command from the offer the Host prepared, and the result is placed by `mode` after the person accepts it.
- */
-export interface PagesCommandPreset {
-  readonly mode?: "replace" | "insert_after";
-  readonly prepare?: () => Promise<{ command: string; style?: string; text?: string }>;
-  readonly title?: string;
-  readonly okLabel?: string;
-  /** The focus the bar's actions were ranked for; the command runs on its range, and not at all once it changed. */
-  readonly localId?: string;
-  /** `object`: the command acts on the whole document (整篇), with its current text, whatever is selected. */
-  readonly scope?: "object";
-}
-
-export interface PagesListItem {
-  readonly id: string;
-  readonly title: string;
-}
-
-export interface PagesEditorMountOptions {
-  doc?: unknown;
-  onChange?: () => void;
-  translate?: (value: string) => string;
-  pages?: () => readonly PagesListItem[];
-  onOpenPage?: (id: string) => void;
-  onComment?: (markId: string) => void;
-  runAi?: (input: { command: string; text: string; style?: string }) => Promise<{ text: string }>;
-  onCreateFromAi?: (input: { title: string; text: string }) => Promise<void>;
-  /** What the person has in hand, whenever it changes (specs/archive/contextual-interaction §4.1); `null` is the page as a whole. */
-  onFocus?: (focus: PagesFocus | null) => void;
-  /** The tools or their pressed state may have changed (after every transaction); the surface asks `tools()`. */
-  onTools?: () => void;
-  /** Where the selection is on screen may have changed (a scroll, a resize): the surface reports its focus again. */
-  onScreen?: () => void;
-  /**
-   * Hands the context toolbar a small form to draw under itself (`node: null` takes it down). True when the toolbar took it; false
-   * when there is no toolbar to show it (a whole-document action started from the Assistant), and the editor shows it itself.
-   */
-  openPanel?: (panel: { node: HTMLElement | null; label?: string; onClose?: () => void; keep?: boolean }) => boolean;
-  /** Extra ProseMirror plugins from the embedding surface, added after the editor's own. */
-  plugins?: readonly Plugin[];
-}
-
-type Translate = (value: string) => string;
 
 const slashKey = new PluginKey<{ open: boolean; pos: number; query: string; index: number }>("pages-slash");
 const mentionKey = new PluginKey<{ open: boolean; from: number; query: string; index: number }>("pages-mention");
@@ -220,7 +155,6 @@ const findKey = new PluginKey<FindBar>("pages-find");
 type PagesHover = { pos: number; dragging: boolean; anchor: number; head: number; menuTick: number };
 const hoverKey = new PluginKey<PagesHover>("pages-hover");
 const EMPTY_HOVER: PagesHover = { pos: -1, dragging: false, anchor: -1, head: -1, menuTick: 0 };
-const codeHighlightKey = new PluginKey<DecorationSet>("pages-code-highlight");
 
 function commandToggle(markName: string): Command {
   return (state, dispatch, editor) => {
@@ -264,14 +198,6 @@ function headingCommand(level: 1 | 2 | 3): Command {
   };
 }
 
-function t(translate: Translate | undefined, value: string): string {
-  return translate ? translate(value) : value;
-}
-
-function dsIcon(name: string): string {
-  return `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
-}
-
 const CLIP_IMAGE = /^image\/(png|jpeg|gif|webp)$/iu;
 
 function clipboardImage(data: DataTransfer | null): File | null {
@@ -313,12 +239,6 @@ function leafFromDom(node: globalThis.Node): PasteLeaf | string | null {
     ...(el.hasAttribute("data-pages-tasks") ? { tasks: true } : {}),
     children,
   };
-}
-
-function overlayRoot(): HTMLElement {
-  return document.querySelector("[data-pages-stage-workspace]")
-    ?? document.querySelector("[data-pages=workbench]")
-    ?? document.body;
 }
 
 function keepSelectedVisible(menu: HTMLElement): void {
@@ -1844,720 +1764,6 @@ function gapWidget(index: number, translate?: Translate): HTMLElement {
   return line;
 }
 
-function columnNodeView(node: Node, view: EditorView, getPos: () => number | undefined, translate?: Translate) {
-  let current = node;
-  const dom = document.createElement("div");
-  dom.className = "pages-column";
-  dom.dataset.pagesColumn = "1";
-  const content = document.createElement("div");
-  const handle = document.createElement("button");
-  handle.type = "button";
-  handle.className = "pages-column-resize";
-  handle.setAttribute("aria-label", t(translate, "调整栏宽"));
-  const paint = () => {
-    dom.dataset.pagesColumnShare = String(safePagesColumnShare(current.attrs.width));
-  };
-  handle.addEventListener("mousedown", (event) => event.preventDefault());
-  handle.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const startX = event.clientX;
-    const next = dom.nextElementSibling;
-    const pair = dom.getBoundingClientRect().width + (next instanceof HTMLElement ? next.getBoundingClientRect().width : 0);
-    const move = (ev: PointerEvent) => {
-      const list = dom.parentElement;
-      if (!(list instanceof HTMLElement) || !(next instanceof HTMLElement) || pair <= 0) return;
-      const left = safePagesColumnShare(current.attrs.width);
-      const rightShare = Number(next.dataset.pagesColumnShare || 1);
-      const right = safePagesColumnShare(rightShare);
-      const sum = left + right;
-      const nextLeft = Math.max(0.2, Math.min(sum - 0.2, left + ((ev.clientX - startX) / pair) * sum));
-      const tracks = [...list.children].map((child) => {
-        if (child === dom) return `${Math.round(nextLeft * 100) / 100}fr`;
-        if (child === next) return `${Math.round((sum - nextLeft) * 100) / 100}fr`;
-        return `${safePagesColumnShare((child as HTMLElement).dataset.pagesColumnShare)}fr`;
-      });
-      list.style.gridTemplateColumns = tracks.join(" ");
-    };
-    const up = (ev: PointerEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      const pos = getPos();
-      if (pos == null || pair <= 0) return;
-      const $pos = view.state.doc.resolve(pos);
-      if ($pos.parent.type !== pagesSchema.nodes.column_list) return;
-      const left = safePagesColumnShare($pos.parent.child($pos.index()).attrs.width);
-      const right = safePagesColumnShare($pos.parent.child($pos.index() + 1)?.attrs.width);
-      const delta = ((ev.clientX - startX) / pair) * (left + right);
-      const tr = nudgeColumnShare(view.state, $pos.before($pos.depth), $pos.index(), delta);
-      if (tr) view.dispatch(tr);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  });
-  paint();
-  dom.append(content, handle);
-  return {
-    dom,
-    contentDOM: content,
-    ignoreMutation: (mutation: ViewMutationRecord) => mutation.target === handle || mutation.target === dom,
-    update(next: Node) {
-      if (next.type !== current.type) return false;
-      current = next;
-      paint();
-      return true;
-    },
-  };
-}
-
-function bookmarkNodeView(node: Node, view: EditorView, getPos: () => number | undefined, translate?: Translate) {
-  let current = node;
-  let selected = false;
-  const frame = document.createElement("div");
-  frame.className = "pages-bookmark";
-  frame.contentEditable = "false";
-  const titleInput = document.createElement("input");
-  titleInput.type = "text";
-  titleInput.className = "pages-bookmark-title";
-  titleInput.maxLength = 120;
-  titleInput.placeholder = t(translate, "名称");
-  const titleText = document.createElement("strong");
-  const url = document.createElement("a");
-  url.target = "_blank";
-  url.rel = "noreferrer noopener";
-  const shownTitle = () => {
-    const href = safePagesHref(current.attrs.href);
-    return safePagesBookmarkTitle(current.attrs.title) || bookmarkLabel(href) || t(translate, "链接");
-  };
-  const paint = () => {
-    const href = safePagesHref(current.attrs.href);
-    titleText.textContent = shownTitle();
-    titleInput.hidden = !selected;
-    titleText.hidden = selected;
-    if (document.activeElement !== titleInput) titleInput.value = shownTitle();
-    url.textContent = href || shownTitle();
-    if (href) url.href = href;
-    else url.removeAttribute("href");
-  };
-  titleInput.addEventListener("mousedown", (event) => event.stopPropagation());
-  titleInput.addEventListener("keydown", (event) => {
-    event.stopPropagation();
-    if (event.key === "Enter") {
-      event.preventDefault();
-      view.focus();
-    }
-  });
-  titleInput.addEventListener("input", () => {
-    const pos = getPos();
-    if (pos == null) return;
-    const tr = setBookmarkTitle(view.state, pos, titleInput.value);
-    if (tr) view.dispatch(tr);
-  });
-  titleInput.addEventListener("blur", () => {
-    titleInput.value = shownTitle();
-  });
-  url.addEventListener("click", (event) => {
-    const href = safePagesHref(current.attrs.href);
-    if (!href || !linkClickOpens(event)) {
-      event.preventDefault();
-      return;
-    }
-    event.preventDefault();
-    window.open(href, "_blank", "noopener,noreferrer");
-  });
-  frame.append(titleInput, titleText, url);
-  paint();
-  return {
-    dom: frame,
-    ignoreMutation: () => true,
-    selectNode() {
-      selected = true;
-      frame.classList.add("is-selected");
-      paint();
-    },
-    deselectNode() {
-      selected = false;
-      frame.classList.remove("is-selected");
-      paint();
-    },
-    update(next: Node) {
-      if (next.type !== current.type) return false;
-      current = next;
-      paint();
-      return true;
-    },
-  };
-}
-
-function imageNodeView(node: Node, view: EditorView, getPos: () => number | undefined, translate?: Translate) {
-  let current = node;
-  let selected = false;
-  const frame = document.createElement("div");
-  frame.className = "pages-image-frame";
-  frame.contentEditable = "false";
-  const media = document.createElement("div");
-  const handle = document.createElement("button");
-  handle.type = "button";
-  handle.className = "pages-image-resize";
-  handle.setAttribute("aria-label", t(translate, "调整宽度"));
-  const caption = document.createElement("input");
-  caption.type = "text";
-  caption.className = "pages-image-caption";
-  caption.placeholder = t(translate, "说明");
-  caption.maxLength = 200;
-  caption.addEventListener("mousedown", (event) => event.stopPropagation());
-  caption.addEventListener("keydown", (event) => {
-    event.stopPropagation();
-    if (event.key === "Enter") {
-      event.preventDefault();
-      view.focus();
-    }
-  });
-  caption.addEventListener("input", () => {
-    const pos = getPos();
-    if (pos == null) return;
-    const tr = setImageCaption(view.state, pos, caption.value);
-    if (tr) view.dispatch(tr);
-  });
-  caption.addEventListener("blur", () => {
-    caption.value = safePagesImageCaption(current.attrs.caption);
-  });
-  const syncCaption = () => {
-    const text = safePagesImageCaption(current.attrs.caption);
-    caption.hidden = !selected && !text;
-    if (document.activeElement !== caption) caption.value = text;
-  };
-  const paint = () => {
-    const src = safePagesImageSrc(current.attrs.src);
-    const alt = String(current.attrs.alt || imageAlt(src) || "图片");
-    const width = safePagesImageWidth(current.attrs.width);
-    frame.style.width = width ? width + "px" : "";
-    media.replaceChildren();
-    if (!src) {
-      const broken = document.createElement("div");
-      broken.className = "pages-image is-broken";
-      broken.textContent = alt;
-      media.append(broken);
-    } else {
-      const img = document.createElement("img");
-      img.className = "pages-image";
-      img.src = src;
-      img.alt = alt;
-      img.dataset.pagesImage = "1";
-      media.append(img);
-    }
-    syncCaption();
-  };
-  handle.addEventListener("mousedown", (event) => event.preventDefault());
-  handle.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const img = media.querySelector("img");
-    const startX = event.clientX;
-    const startWidth = (img ?? frame).getBoundingClientRect().width;
-    const move = (ev: PointerEvent) => {
-      frame.style.width = safePagesImageWidth(startWidth + ev.clientX - startX) + "px";
-    };
-    const up = (ev: PointerEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      const pos = getPos();
-      if (pos == null) return;
-      const parent = frame.parentElement?.getBoundingClientRect().width ?? 0;
-      const raw = startWidth + ev.clientX - startX;
-      const next = parent > 0 && raw >= parent - 24 ? 0 : safePagesImageWidth(raw);
-      const tr = setImageWidth(view.state, pos, next);
-      if (tr) view.dispatch(tr);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  });
-  frame.append(media, handle, caption);
-  paint();
-  return {
-    dom: frame,
-    ignoreMutation: () => true,
-    selectNode() {
-      selected = true;
-      frame.classList.add("is-selected");
-      syncCaption();
-    },
-    deselectNode() {
-      selected = false;
-      frame.classList.remove("is-selected");
-      syncCaption();
-    },
-    update(next: Node) {
-      if (next.type !== current.type) return false;
-      current = next;
-      paint();
-      return true;
-    },
-  };
-}
-
-function cellNodeView(node: Node, view: EditorView, getPos: () => number | undefined, translate?: Translate) {
-  let current = node;
-  const dom = document.createElement(node.type.name === "table_header" ? "th" : "td");
-  const content = document.createElement("div");
-  const handle = document.createElement("button");
-  handle.type = "button";
-  handle.className = "pages-col-resize";
-  handle.setAttribute("aria-label", t(translate, "调整列宽"));
-  const paint = () => {
-    const width = safePagesColumnWidth(current.attrs.colwidth);
-    if (width) {
-      dom.style.width = width + "px";
-      dom.dataset.pagesColwidth = String(width);
-    } else {
-      dom.style.width = "";
-      delete dom.dataset.pagesColwidth;
-    }
-  };
-  handle.addEventListener("mousedown", (event) => event.preventDefault());
-  handle.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const startX = event.clientX;
-    const startWidth = dom.getBoundingClientRect().width;
-    const column = dom.cellIndex;
-    const table = dom.closest("table");
-    const cells = table ? [...table.rows].map((row) => row.cells[column]).filter((cell) => cell != null) : [dom];
-    const move = (ev: PointerEvent) => {
-      const next = safePagesColumnWidth(startWidth + ev.clientX - startX) + "px";
-      cells.forEach((cell) => { cell.style.width = next; });
-    };
-    const up = (ev: PointerEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      const pos = getPos();
-      if (pos == null) return;
-      const $pos = view.state.doc.resolve(pos);
-      if ($pos.parent.type !== pagesSchema.nodes.table_row || $pos.depth < 2) return;
-      const tablePos = $pos.before($pos.depth - 1);
-      const colIndex = $pos.index();
-      const tr = setColumnWidth(view.state, tablePos, colIndex, startWidth + ev.clientX - startX);
-      if (tr) view.dispatch(tr);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  });
-  paint();
-  dom.append(content, handle);
-  return {
-    dom,
-    contentDOM: content,
-    ignoreMutation: (mutation: ViewMutationRecord) => mutation.target === handle || mutation.target === dom,
-    update(next: Node) {
-      if (next.type !== current.type) return false;
-      current = next;
-      paint();
-      return true;
-    },
-  };
-}
-
-function taskNodeView(node: Node, view: EditorView, getPos: () => number | undefined) {
-  const dom = document.createElement("li");
-  dom.className = "pages-task-item" + (node.attrs.checked ? " is-checked" : "");
-  const box = document.createElement("input");
-  box.type = "checkbox";
-  box.checked = Boolean(node.attrs.checked);
-  box.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    const pos = getPos();
-    if (pos == null) return;
-    const tr = flipTaskAt(view.state, pos);
-    if (tr) view.dispatch(tr);
-  });
-  const content = document.createElement("div");
-  content.className = "pages-task-content";
-  dom.append(box, content);
-  return {
-    dom,
-    contentDOM: content,
-    ignoreMutation: (mutation: ViewMutationRecord) => mutation.target !== content && !content.contains(mutation.target),
-    update(next: Node) {
-      if (next.type !== node.type) return false;
-      box.checked = Boolean(next.attrs.checked);
-      dom.classList.toggle("is-checked", Boolean(next.attrs.checked));
-      node = next;
-      return true;
-    },
-  };
-}
-
-function toggleNodeView(node: Node, view: EditorView, getPos: () => number | undefined) {
-  const dom = document.createElement("div");
-  dom.className = "pages-toggle" + (node.attrs.open ? " is-open" : "");
-  const caret = document.createElement("button");
-  caret.type = "button";
-  caret.className = "pages-toggle-caret";
-  caret.innerHTML = dsIcon("chevron-right");
-  caret.addEventListener("mousedown", (event) => event.preventDefault());
-  caret.addEventListener("click", () => {
-    const pos = getPos();
-    if (pos == null) return;
-    const tr = setToggleOpen(view.state, pos);
-    if (tr) view.dispatch(tr);
-  });
-  const body = document.createElement("div");
-  body.className = "pages-toggle-body";
-  dom.append(caret, body);
-  return {
-    dom,
-    contentDOM: body,
-    ignoreMutation: (mutation: ViewMutationRecord) => mutation.target !== body && !body.contains(mutation.target),
-    update(next: Node) {
-      if (next.type !== node.type) return false;
-      node = next;
-      dom.classList.toggle("is-open", Boolean(next.attrs.open));
-      return true;
-    },
-  };
-}
-
-function calloutNodeView(
-  node: Node,
-  getPos: () => number | undefined,
-  translate: Translate | undefined,
-  onPick: (pos: number, anchor: HTMLElement) => void,
-) {
-  const dom = document.createElement("aside");
-  const mark = document.createElement("button");
-  mark.type = "button";
-  mark.className = "pages-callout-mark";
-  mark.dataset.pagesCalloutPick = "1";
-  const pickLabel = t(translate, "换图标或颜色");
-  mark.setAttribute("aria-label", pickLabel);
-  mark.title = pickLabel;
-  mark.addEventListener("mousedown", (event) => event.preventDefault());
-  mark.addEventListener("click", (event) => {
-    event.preventDefault();
-    const pos = getPos();
-    if (pos !== undefined) onPick(pos, mark);
-  });
-  const body = document.createElement("div");
-  body.className = "pages-callout-body";
-  const paint = (current: Node) => {
-    node = current;
-    dom.className = "pages-callout";
-    dom.dataset.pagesCallout = safePagesCalloutTone(current.attrs.tone);
-    mark.innerHTML = dsIcon(calloutIconFor(current.attrs.icon, current.attrs.tone));
-  };
-  paint(node);
-  dom.append(mark, body);
-  return {
-    dom,
-    contentDOM: body,
-    ignoreMutation: (mutation: ViewMutationRecord) => mutation.target !== body && !body.contains(mutation.target),
-    update(next: Node) {
-      if (next.type !== node.type) return false;
-      paint(next);
-      return true;
-    },
-  };
-}
-
-function mentionNodeView(node: Node, options: PagesEditorMountOptions) {
-  const dom = document.createElement("span");
-  dom.className = "pages-mention";
-  dom.textContent = "@" + String(node.attrs.title || "");
-  dom.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    if (node.attrs.page_id) options.onOpenPage?.(String(node.attrs.page_id));
-  });
-  return {
-    dom,
-    ignoreMutation: () => true,
-    update(next: Node) {
-      if (next.type !== node.type) return false;
-      node = next;
-      const label = "@" + String(next.attrs.title || "");
-      if (dom.textContent !== label) dom.textContent = label;
-      return true;
-    },
-  };
-}
-
-const CARD_LOOK = { ref: ["link", "选择文档"], task: ["clipboard", "任务"], event: ["calendar", "日程"] } as const;
-
-function cardNodeView(kind: "ref" | "task" | "event", node: Node, view: EditorView, getPos: () => number | undefined, options: PagesEditorMountOptions) {
-  const translate = options.translate;
-  const dom = document.createElement("article");
-  const paint = (current: Node) => {
-    node = current;
-    const { title, status, due, description, at } = current.attrs;
-    // One card for all three: the mark, the title (or what to fill in), and one line under it; a task adds its note.
-    const sub = kind === "ref" ? t(translate, "文档引用") : kind === "task" ? statusLabel(String(status), translate) + (due ? " · " + due : "") : String(at || t(translate, "没有日期"));
-    dom.className = "pages-card pages-card--" + kind + (kind === "task" ? " is-" + String(status || "todo") : "");
-    dom.innerHTML = `<span class="pages-card-mark">${dsIcon(CARD_LOOK[kind][0])}</span><span class="pages-card-body"><strong class="${title ? "" : "is-placeholder"}">${escapeHtml(String(title || t(translate, CARD_LOOK[kind][1])))}</strong><span>${escapeHtml(sub)}</span>${kind === "task" && description ? `<p>${escapeHtml(String(description))}</p>` : ""}</span>`;
-  };
-  paint(node);
-  dom.addEventListener("mousedown", (event) => {
-    event.preventDefault();
-    const pos = getPos();
-    if (pos == null) return;
-    if (kind === "ref") {
-      if (node.attrs.page_id) options.onOpenPage?.(String(node.attrs.page_id));
-      else pickPage(view, pos, node, options);
-      return;
-    }
-    editCard(kind, view, pos, node, options);
-  });
-  return {
-    dom,
-    ignoreMutation: () => true,
-    update(next: Node) {
-      if (next.type !== node.type) return false;
-      paint(next);
-      return true;
-    },
-  };
-}
-
-function statusLabel(status: string, translate: Translate | undefined): string {
-  return t(translate, taskStatusText(status));
-}
-
-function pickPage(view: EditorView, pos: number, node: Node, options: PagesEditorMountOptions): void {
-  closePagesPopover(".pages-pop[data-open=ref]");
-  const pages = options.pages?.() ?? [];
-  const pop = document.createElement("div");
-  pop.className = "pages-pop";
-  pop.dataset.open = "ref";
-  const scope = pagesPopoverAnchor(view, pop, pos, pos + node.nodeSize);
-  if (!pages.length) {
-    const empty = document.createElement("p");
-    empty.textContent = t(options.translate, "没有匹配的文档");
-    pop.append(empty);
-  }
-  pages.forEach((item) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "pages-slash-item";
-    button.innerHTML = `<span class="pages-slash-icon">${dsIcon("note")}</span><strong>${escapeHtml(item.title)}</strong>`;
-    button.addEventListener("click", () => {
-      const at = scope.at(); if (!at?.intact) return;
-      view.dispatch(view.state.tr.setNodeMarkup(at.from, undefined, { ...view.state.doc.nodeAt(at.from)?.attrs, page_id: item.id, title: item.title }));
-      scope.close();
-    });
-    pop.append(button);
-  });
-  const cancel = document.createElement("button");
-  cancel.type = "button";
-  cancel.className = "mw-btn mw-btn--ghost";
-  cancel.textContent = t(options.translate, "取消");
-  cancel.addEventListener("click", scope.close);
-  pop.append(cancel);
-  overlayRoot().append(pop);
-  placeOverlay(pop, view.coordsAtPos(pos), "below");
-}
-
-function editCard(kind: "task" | "event", view: EditorView, pos: number, node: Node, options: PagesEditorMountOptions): void {
-  closePagesPopover(".pages-pop[data-open=card]");
-  const pop = document.createElement("div");
-  pop.className = "pages-pop";
-  pop.dataset.open = "card";
-  const scope = pagesPopoverAnchor(view, pop, pos, pos + node.nodeSize);
-  const title = field(options.translate, "标题", String(node.attrs.title || ""), "text");
-  pop.append(title.label);
-  // What the card's own fields say, written with its title when confirmed.
-  let read: () => Record<string, string>;
-  if (kind === "task") {
-    const description = field(options.translate, "描述", String(node.attrs.description || ""), "text");
-    const status = document.createElement("label");
-    status.textContent = t(options.translate, "状态");
-    const select = document.createElement("select");
-    [["todo", "待办"], ["doing", "进行中"], ["done", "完成"]].forEach(([value, label]) => {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = t(options.translate, label);
-      if (node.attrs.status === value) option.selected = true;
-      select.append(option);
-    });
-    status.append(select);
-    const due = field(options.translate, "截止日期", String(node.attrs.due || ""), "date");
-    pop.append(description.label, status, due.label);
-    read = () => ({ description: description.input.value, status: select.value, due: due.input.value });
-  } else {
-    const date = field(options.translate, "日期", String(node.attrs.at || ""), "date");
-    pop.append(date.label);
-    read = () => ({ at: date.input.value });
-  }
-  pop.append(actions(options.translate, () => {
-    const at = scope.at(); if (!at?.intact) return;
-    view.dispatch(view.state.tr.setNodeMarkup(at.from, undefined, { ...view.state.doc.nodeAt(at.from)?.attrs, title: title.input.value, ...read() }));
-    scope.close();
-  }, scope.close));
-  overlayRoot().append(pop);
-  placeOverlay(pop, view.coordsAtPos(pos), "below");
-  title.input.focus();
-}
-
-function field(translate: Translate | undefined, label: string, value: string, type: string) {
-  const wrap = document.createElement("label");
-  wrap.textContent = t(translate, label);
-  const input = document.createElement("input");
-  input.className = "mw-input";
-  input.type = type;
-  input.value = value;
-  wrap.append(input);
-  return { label: wrap, input };
-}
-
-function actions(translate: Translate | undefined, ok: () => void, cancel: () => void, okLabel = "确定"): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "pages-pop-actions";
-  const dismiss = document.createElement("button");
-  dismiss.type = "button";
-  dismiss.className = "mw-btn mw-btn--ghost";
-  dismiss.textContent = t(translate, "取消");
-  dismiss.addEventListener("click", cancel);
-  const save = document.createElement("button");
-  save.type = "button";
-  save.className = "mw-btn mw-btn--primary";
-  save.textContent = t(translate, okLabel);
-  save.addEventListener("click", ok);
-  row.append(dismiss, save);
-  return row;
-}
-
-function calendarNodeView() {
-  const dom = document.createElement("div");
-  dom.className = "pages-calendar";
-  return {
-    dom,
-    ignoreMutation: () => true,
-    update() {
-      return true;
-    },
-  };
-}
-
-function codeNodeView(node: Node, view: EditorView, getPos: () => number | undefined, translate: Translate | undefined) {
-  const dom = document.createElement("div");
-  dom.className = "pages-code-block";
-  const bar = document.createElement("div");
-  bar.className = "pages-code-bar";
-  bar.contentEditable = "false";
-
-  const select = document.createElement("select");
-  select.className = "pages-code-language";
-  select.setAttribute("aria-label", t(translate, "代码语言"));
-  PAGES_CODE_LANGUAGES.forEach((language) => {
-    const option = document.createElement("option");
-    option.value = language.id;
-    option.textContent = t(translate, language.label);
-    select.append(option);
-  });
-  select.value = safePagesLanguage(node.attrs.language);
-
-  const copy = document.createElement("button");
-  copy.type = "button";
-  copy.className = "pages-code-copy";
-  const copyLabel = t(translate, "复制代码");
-  copy.setAttribute("aria-label", copyLabel);
-  copy.title = copyLabel;
-  copy.innerHTML = dsIcon("copy");
-
-  bar.append(select, copy);
-  const pre = document.createElement("pre");
-  pre.className = "pages-code";
-  const code = document.createElement("code");
-  pre.append(code);
-  dom.append(bar, pre);
-
-  select.addEventListener("mousedown", (event) => event.stopPropagation());
-  select.addEventListener("change", () => {
-    const pos = getPos();
-    if (pos === undefined) return;
-    const current = view.state.doc.nodeAt(pos);
-    if (!current) return;
-    const language = safePagesLanguage(select.value);
-    view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...current.attrs, language }));
-    view.focus();
-  });
-  copy.addEventListener("mousedown", (event) => event.preventDefault());
-  copy.addEventListener("click", () => {
-    const pos = getPos();
-    const current = pos === undefined ? null : view.state.doc.nodeAt(pos);
-    void navigator.clipboard?.writeText(current?.textContent ?? "").then(() => {
-      copy.classList.add("is-done");
-      setTimeout(() => copy.classList.remove("is-done"), 1200);
-    }, () => undefined);
-  });
-
-  const sync = (next: Node) => {
-    const language = safePagesLanguage(next.attrs.language);
-    if (select.value !== language) select.value = language;
-    pre.dataset.language = language;
-    dom.dataset.language = language;
-    if (next.content.size === 0) {
-      code.dataset.placeholder = t(translate, "写代码");
-      code.classList.add("is-empty");
-    } else {
-      delete code.dataset.placeholder;
-      code.classList.remove("is-empty");
-    }
-  };
-  sync(node);
-
-  return {
-    dom,
-    contentDOM: code,
-    update(next: Node) {
-      if (next.type !== node.type) return false;
-      sync(next);
-      return true;
-    },
-    ignoreMutation(mutation: ViewMutationRecord) {
-      if (mutation.type === "selection") return false;
-      return !code.contains(mutation.target as globalThis.Node);
-    },
-  };
-}
-
-/** Recolour code blocks only when the document actually moved; highlighting every state is wasted work. */
-function codeHighlightPlugin() {
-  const build = (doc: Node): DecorationSet => {
-    const found: Decoration[] = [];
-    doc.descendants((node, pos) => {
-      if (node.type !== pagesSchema.nodes.code_block) return;
-      const base = pos + 1;
-      highlightRanges(node.textContent, node.attrs.language).forEach((range) => {
-        found.push(Decoration.inline(base + range.from, base + range.to, { class: range.className }));
-      });
-    });
-    return DecorationSet.create(doc, found);
-  };
-  return new Plugin({
-    key: codeHighlightKey,
-    state: {
-      init: (_config, state) => build(state.doc),
-      apply: (tr, value: DecorationSet, _old, next) => (tr.docChanged ? build(next.doc) : value),
-    },
-    props: {
-      decorations(state) {
-        return codeHighlightKey.getState(state);
-      },
-    },
-  });
-}
-
-function tocNodeView() {
-  const dom = document.createElement("nav");
-  dom.className = "pages-toc";
-  dom.setAttribute("data-pages-toc", "1");
-  return {
-    dom,
-    ignoreMutation: () => true,
-    update() {
-      return true;
-    },
-  };
-}
-
 function calendarPlugin() {
   return new Plugin({
     view(view) {
@@ -2674,10 +1880,6 @@ function cellNav(view: EditorView, dir: 1 | -1): boolean {
   if (!found) return false;
   view.dispatch(view.state.tr.setSelection(found).scrollIntoView());
   return true;
-}
-
-function escapeHtml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
 function applyComment(view: EditorView, from: number, to: number, text: string, id?: string): void {

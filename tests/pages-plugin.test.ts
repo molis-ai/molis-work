@@ -270,7 +270,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   }
 }
 
-// W5-10-PGC-01/02: the existing public imports exercise the split command families and their editing semantics.
+// W5-10-PGC-01/02, W5-10-PGV-01/02: public imports and the built editor exercise the split commands and node views.
 test("标题里按回车落到正文开头", () => {
   const blank = pagesSchema.node("doc", null, [pagesSchema.node("paragraph")]);
   assert.equal(docStart(blank), 1);
@@ -491,9 +491,11 @@ test("点待办的勾选框会翻转这一条", () => {
     doc: pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("甲")])]),
   });
   assert.ok(flipTaskAt(prose, 0) === null);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-node-layout.ts", import.meta.url), "utf8");
   const start = editor.indexOf("function taskNodeView");
-  const body = editor.slice(start, editor.indexOf("\nfunction ", start + 1));
+  const end = editor.indexOf("\nexport function ", start + 1);
+  assert.ok(start >= 0 && end > start);
+  const body = editor.slice(start, end);
   assert.match(body, /flipTaskAt\(view\.state, pos\)/);
   assert.equal(body.includes("addEventListener(\"change\""), false);
 });

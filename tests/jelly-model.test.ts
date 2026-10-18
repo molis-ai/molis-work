@@ -158,6 +158,7 @@ test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and 
   const { serveHomeRuntime, person } = await import("./fixtures/home-runtime.js");
   const { jellyActions, jellyServiceActions, JELLY_ACTIONS, JELLY_PLUGIN_ID } = await import("@molis-ai/molis-work-plugin-jelly");
   const home = homeFor(t), { host, request } = await serveHomeRuntime(t, { homeDirectory: home });
+  try {
   const connection = modelConnection(home, "配置账号", "runtime-config-fixture");
   const platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(JELLY_PLUGIN_ID)!;
   const directory = await host.homeActionClient().discover(person(["jelly:read", "jelly:write", "jelly:settings", "model:invoke"]));
@@ -177,12 +178,14 @@ test("W5-01-JMC-01 real Jelly Runtime keeps all actions, isolated selection and 
   await assert.rejects(host.homeActionClient().invoke(person(["jelly:read", "model:invoke"]), jellyActions.modelPlan, { source_type: "text", text: "plan" }));
   t.mock.restoreAll();
   assert.equal((await request("/api/plugins/io.molis.work.jelly/model-settings")).status, 200);
+  } finally { await host.close(); }
 });
 
 test("W5-01-JMC-02 revoked private storage prevents preference, provider and connector-origin writes", async t => {
   const { serveHomeRuntime, person } = await import("./fixtures/home-runtime.js");
   const { jellyServiceActions, JELLY_PLUGIN_ID } = await import("@molis-ai/molis-work-plugin-jelly");
   const home = homeFor(t), { host } = await serveHomeRuntime(t, { homeDirectory: home });
+  try {
   const connection = modelConnection(home, "尚未绑定地址", "no-late-effects-fixture");
   const platform = await host.homePlugins!.ready(), installation = host.homePlugins!.installation(JELLY_PLUGIN_ID)!;
   await platform.runtime.stop(installation.install_id);
@@ -193,6 +196,7 @@ test("W5-01-JMC-02 revoked private storage prevents preference, provider and con
   providerStore(home, store => assert.equal(store.get("jelly-text"), null));
   // A refused save must not pin the connection: another origin can still become its first target.
   withConnectorConnections(home, store => store.assertTarget(connection.connection_id, "model-api", "https://first-target.example/v1"));
+  } finally { await host.close(); }
 });
 
 test("W5-01-JMC-03 a preference write failure rolls back the provider but retains the existing first-origin-pin boundary", t => {

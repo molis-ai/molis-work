@@ -5,7 +5,7 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 export function feedConnectorAuthStatus(home: string | undefined): ConnectorAuthStatus {
   if (!home) return { github: { bound: false }, gmail: { bound: false } };
   return withConnectorConnections(home, store => {
-    const bound = (service: string) => store.list(service).some(row => !row.disconnected_at);
+    const bound = (service: string) => store.list(service).some(row => row.enabled && !row.disconnected_at);
     return { github: { bound: bound("github") }, gmail: { bound: bound("gmail") } };
   });
 }

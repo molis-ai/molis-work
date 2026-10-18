@@ -30,6 +30,11 @@ export interface PlacementPorts {
   spaces(): Promise<readonly PlacementSpaceView[]>;
   /** Opens the partition when needed. Throws `placement.project_missing` when the project no longer exists. */
   scope(projectId: string | null): Promise<PlacementScope>;
+  /**
+   * Opens a partition to undo a move the plugin already committed. The call being refused does not get another vote:
+   * its lease already failed, and checking it again would leave the object where that call put it.
+   */
+  revert?(projectId: string | null): Promise<PlacementScope>;
   /** Original dispatcher control, bound per invocation; never stored as placement data. */
   beforeEffect?(): void | Promise<void>;
   /** Last title seen for an object, so a deleted one is still named where it was used. A cache, never a fact. */
@@ -278,11 +283,8 @@ export class PlacementService {
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
       throw new ActionError("placement.result_mismatch", this.t("插件返回的移动结果与请求不一致，请刷新后核对"));
     }
-    await this.ports.beforeEffect?.();
-    this.ports.ledger.commands.put(ACCESS, { key: key("location", object.kind, object.id), type: TYPES.location,
-      source: identity(object.kind, object.id), target: projectRef(to), cause: `placement.move:${object.project_id}` });
-    // It now lives in that project: “used in” it says nothing more.
-    this.ports.ledger.commands.remove(ACCESS, key("used_in", object.kind, object.id, to), "placement.moved_into_project");
+    const from = object.project_id;
+    await settleMove(this.ports, object, to, from, () => writeProjectLocation(this.ports, object, from, to), text => this.t(text));
     const moved = { ...object, project_id: to };
     return { object: moved, location: this.location(to, spaces), open: await this.openOf(moved) };
   }
@@ -305,12 +307,11 @@ export class PlacementService {
     if (result.subject.kind !== object.kind || result.subject.id !== object.id || result.project_id !== to) {
       throw new ActionError("placement.result_mismatch", this.t("插件返回的移动结果与请求不一致，请刷新后核对"));
     }
-    await this.ports.beforeEffect?.();
-    this.remember(object);
-    this.ports.ledger.commands.put(ACCESS, { key: key("belonged_to", object.kind, object.id), type: TYPES.belonging,
-      source: identity(object.kind, object.id), target: projectRef(from), cause: `placement.move:${to}` });
-    this.ports.ledger.commands.remove(ACCESS, key("used_in", object.kind, object.id, to), "placement.moved_into_project");
-    this.rememberBelonging(object, to === PERSONAL_SPACE_PROJECT_ID ? null : to);
+    await settleMove(this.ports, object, to === PERSONAL_SPACE_PROJECT_ID ? null : to, from, () => {
+      this.remember(object);
+      writeHomeBelonging(this.ports, object, from, to);
+      this.rememberBelonging(object, to === PERSONAL_SPACE_PROJECT_ID ? null : to);
+    }, text => this.t(text));
     return { object, location: this.homeLocation(to, spaces), open: await this.openOf(object) };
   }
 
@@ -462,6 +463,45 @@ export class PlacementService {
 }
 
 const ref = (view: ActionView): ActionReference => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
+
+function writeProjectLocation(ports: PlacementPorts, object: PlacedObject, from: string, to: string): void {
+  ports.ledger.commands.put(ACCESS, { key: key("location", object.kind, object.id), type: TYPES.location,
+    source: identity(object.kind, object.id), target: projectRef(to), cause: `placement.move:${from}` });
+  ports.ledger.commands.remove(ACCESS, key("used_in", object.kind, object.id, to), "placement.moved_into_project");
+}
+
+function writeHomeBelonging(ports: PlacementPorts, object: PlacedObject, from: string, to: string): void {
+  ports.ledger.commands.put(ACCESS, { key: key("belonged_to", object.kind, object.id), type: TYPES.belonging,
+    source: identity(object.kind, object.id), target: projectRef(from), cause: `placement.move:${to}` });
+  ports.ledger.commands.remove(ACCESS, key("used_in", object.kind, object.id, to), "placement.moved_into_project");
+}
+
+/** The plugin has already moved the object. The lease and the ledger edge share its fate: a refusal moves it back and writes nothing; if it cannot move back after the edge was attempted, the edge is written again so the place the plugin kept is the place a later lookup finds. */
+async function settleMove(ports: PlacementPorts, object: PlacedObject, at: string | null, backTo: string, write: () => void, t: (zh: string) => string): Promise<void> {
+  let leased = false;
+  try {
+    await ports.beforeEffect?.();
+    leased = true;
+    write();
+  } catch (error) {
+    let undone = true, why: unknown;
+    try { await moveBack(ports, object, at, backTo, t); } catch (failure) { undone = false; why = failure; }
+    if (!undone && leased) { try { write(); } catch { /* the plugin kept the new place */ } }
+    // Why it did not come back rides on the refusal, so an object the plugin kept is not left without a trace.
+    if (!undone && error instanceof Error && error.cause === undefined) error.cause = why;
+    throw error;
+  }
+}
+
+async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string | null, to: string, t: (zh: string) => string): Promise<void> {
+  // A Home-kept object (a todo) is moved by a Home action, which a project catalog does not list. A project object is moved
+  // from the partition it just arrived in, so the caller's project is the place the plugin already wrote.
+  const scope = await (ports.revert ?? ports.scope)(object.project_id === null ? null : at);
+  const view = (await scope.client.discover(scope.caller)).find(entry => isObjectMover(entry.action) && entry.action.subject_kinds.includes(object.kind) && entry.availability.available);
+  if (!view) throw new ActionError("placement.not_movable", t("移回原处时找不到移动动作"));
+  const result = await scope.client.invoke(scope.caller, ref(view), { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
+  if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("移回原处的结果与请求不一致"));
+}
 
 /** The ledger access this service writes as; the Host authorizes exactly this partition. */
 export const PLACEMENT_LEDGER_ACCESS = ACCESS;

@@ -142,8 +142,8 @@ test("RCPT-304 a round the Host closed on a record that stopped short: what was 
     [["s-1", "unread", undefined], ["s-2", "unread", [{ pending_id: "p-1", state: "unresolved" }]]]);
 });
 
-// RCPT-303: a report a round made about an input points back at it. (A step cannot come from an input yet: a round may not
-// change its confirmed plan's steps, so the board's own `origins` are not projected; see spec §11 stage 3, D21.)
+// RCPT-303: a report a round made about an input points back at it. (A round still may not change its confirmed plan's steps;
+// a step comes from an input only when the person adds it, stage 3d-3: tests/prologue-board-origins.test.ts.)
 test("RCPT-303 the step board carries the inputs a report refers to", { timeout: 60_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-input-origins-"));
   t.after(() => rm(root, { recursive: true, force: true }));

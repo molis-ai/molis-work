@@ -23,7 +23,7 @@ export function cliConnectionFetch(home: string, id: string): typeof fetch {
 /** Single account-bound resolver for API readers. Never falls back to another saved account. */
 export async function resolveApiConnection(home: string, id: string, service?: string, forceRefresh = false) {
   const connection = withConnectorConnections(home, store => store.require(id, service));
-  if (connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "none") throw new Error("所选连接不能用于此 API 读取，请选择有效的 API 账号");
+  if (!connection.enabled || connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "none") throw new Error("所选连接不能用于此 API 读取，请选择有效的 API 账号");
   return runWithMolisWorkHome(home, async () => {
     if (connection.auth_method === "cli") {
       if (connection.service_id !== "feishu") throw new Error("此 CLI 连接请通过连接设置中的只读操作使用");
@@ -61,19 +61,19 @@ export async function inspectSourceAuthorization(home: string, source: {
   try {
     const connection = id ? withConnectorConnections(home, store => store.require(id, source.kind)) : null;
     if (connection) {
-      if (connection.disconnected_at) return denied("连接已断开", connection.updated_at);
+      if (!connection.enabled || connection.disconnected_at) return denied("连接已断开", connection.updated_at);
       if (connection.auth_method === "cli") await inspectCliConnection(home, connection.connection_id);
       else await resolveApiConnection(home, connection.connection_id, source.kind);
       const latest = withConnectorConnections(home, store => store.require(connection.connection_id));
-      if (latest.disconnected_at || latest.updated_at !== connection.updated_at) return denied("检查期间连接已改变", latest.updated_at);
+      if (!latest.enabled || latest.disconnected_at || latest.updated_at !== connection.updated_at) return denied("检查期间连接已改变", latest.updated_at);
       return { authorized: true, connection_id: connection.connection_id, revision: connection.updated_at };
     }
     return denied("来源缺少当前有效的账号连接");
   } catch { return denied("账号需要重新授权或 CLI 当前账号已改变"); }
 }
 
-export async function inspectApiConnection(home: string, id: string, preview = false) {
-  return withConnectorRequest(home, id, undefined, async signal => {
+export async function inspectApiConnection(home: string, id: string, preview = false, signal?: AbortSignal, beforeRead?: () => void | Promise<void>) {
+  return withConnectorRequest(home, id, signal, async signal => {
   let access = await resolveApiConnection(home, id);
   const fetchImpl: typeof fetch = (input, init) => (access.fetchImpl ?? globalThis.fetch)(input, { ...init,
     signal: AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])]) });
@@ -85,20 +85,22 @@ export async function inspectApiConnection(home: string, id: string, preview = f
       result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
     }
     if (!result.ok) throw new Error(result.message);
-    const verified = { ok: true, account: result.login, checked_at: new Date().toISOString() };
+    const verified = { ok: true, account: result.login, verified_account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, checked_at: new Date().toISOString() };
     if (!preview || getCatalogSpec(service).feed_available === false) return verified;
     const provider = createCatalogProvider({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
+    await beforeRead?.(); signal.throwIfAborted();
     const read = await provider.sync({ cursor: null });
     if (!read.ok) throw new Error(read.message);
-    return { ...verified, items: read.items };
+    return { ...verified, record_count: read.items.length, items: read.items };
   }
   if (!["github", "gmail"].includes(service)) throw new Error("请在使用此连接的模型、Images、Functions 或 Coding 设置中运行对应功能，验证目标服务");
   const provider = runWithMolisWorkHome(home, () => service === "github" ? createGithubConnector({ token: access.token, fetchImpl, allowFixture: false }) : createGmailConnector({ accessToken: access.token, fetchImpl, allowFixture: false }));
   const health = await provider.health();
   if (!health.ok) throw new Error(health.message);
   if (!preview) return { ...health, checked_at: new Date().toISOString() };
+  await beforeRead?.(); signal.throwIfAborted();
   const read = await provider.sync({ cursor: null });
   if (!read.ok) throw new Error(read.message);
-  return { ...health, items: read.items, checked_at: new Date().toISOString() };
+  return { ...health, record_count: read.items.length, items: read.items, checked_at: new Date().toISOString() };
   });
 }

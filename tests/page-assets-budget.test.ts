@@ -618,7 +618,10 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // (#671, RCPT-331–333) took the three stylesheets and the workbench script from the next four; receipts 3b-2c replaced that allowance.
 // Receipts 3b-2c (#687, RCPT-334–337) took the workbench script from the next size; W3-A3c replaced that allowance. W3-A3c
 // (#691, specs/context-program §21.6) took the workbench script from the next size; receipts 3d-2 replaced that allowance.
-// Receipts 3d-2 (#688, RCPT-344–348) took Coding and the workbench script from the last two sizes; W5-01 replaces it.
+// Receipts 3d-2 (#688, RCPT-344–348) took Coding's bundle and the workbench script from the next two; receipts 3d-3 replaced that allowance.
+// Receipts 3d-3 (#700, RCPT-349–353) took Coding's bundle, both stylesheets and the workbench script from the next four; AC-03 (R4) replaced that allowance.
+// AC-03 (#702, specs/ai-interaction-experience R4) took the workbench script from the next sizes; receipts 3d-4 replaced that allowance.
+// Receipts 3d-4 (#706, RCPT-354–356) then used 1109913→1110802; W5-01 keeps both that spent start and its ceiling frozen.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -635,7 +638,13 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1107936],
   ["/assets/molis-work-workbench.js", 1108184],
   ["/assets/molis-work-plugins/coding.js", 373784], ["/assets/molis-work-workbench.js", 1108502],
+  ["/assets/molis-work-plugins/coding.js", 373970], ["/assets/molis-work-settings.css", 988484], ["/assets/molis-work-workbench.css", 1591639],
   ["/assets/molis-work-workbench.js", 1109302],
+  ["/assets/molis-work-workbench.js", 1109312], ["/assets/molis-work-workbench.js", 1109918],
+  ["/assets/molis-work-workbench.js", 1109913], ["/assets/molis-work-workbench.js", 1110802],
+  ["/assets/molis-work-workbench.js", 1110187], ["/assets/molis-work-workbench.js", 1110215],
+  ["/assets/molis-work-workbench.js", 1110056], ["/assets/molis-work-workbench.js", 1110084],
+  ["/assets/molis-work-workbench.js", 1109330], ["/assets/molis-work-workbench.js", 1110329],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -652,7 +661,7 @@ for (const [asset, old] of [
 // from exactly the prerequisite baseline to the measured size (+2,231 B). One byte more, another
 // asset, or growth from the new baseline still fails.
 test("W5-01 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1109330, 1111561] } as const;
+  const allowed = { "/assets/molis-work-workbench.js": [1110357, 1112588] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("w501-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "w501-change");

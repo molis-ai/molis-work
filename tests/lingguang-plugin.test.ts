@@ -89,13 +89,16 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
 test("工作台挂上灵光空态、确认框和快记区", () => {
   const html = renderMolisWorkWeb(emptyView());
   assert.match(html, /data-plugin-id="lingguang"/);
-  // Unified bottom bar: the plugin switcher (every entry of the project) at the left, the assistant in the middle,
-  // Shelf and 灵光 as resident buttons right beside the project button. 灵光 itself still opens as a full stage.
+  // Unified bottom bar: the plugin switcher (every entry of the project) at the left, the assistant in the middle, the
+  // side panel's one button beside the project button (side-shelf §3.1). 灵光 is a tab of the side panel, right after Shelf,
+  // the 常开插件, and still opens as a full stage from the switcher.
   const stack = html.slice(html.indexOf('class="workbench-bar"'), html.indexOf('id="goal-tree-pane"'));
   const stripAt = stack.indexOf("data-plugin-strip"), assistantAt = stack.indexOf("data-assistant-island");
-  const residentAt = stack.indexOf('data-bar-resident="lingguang"'), projectAt = stack.indexOf("data-project-island");
-  assert.ok(stripAt >= 0 && assistantAt > stripAt && residentAt > assistantAt && projectAt > residentAt, "底栏：插件切换在最左、助手居中、灵光常驻按钮紧贴项目圆钮");
-  assert.match(stack.slice(residentAt - 200, projectAt), /data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*data-dock-toggle="im"/);
+  const sideAt = stack.indexOf("data-side-toggle"), projectAt = stack.indexOf("data-project-island");
+  assert.ok(stripAt >= 0 && assistantAt > stripAt && sideAt > assistantAt && projectAt > sideAt, "底栏：插件切换在最左、助手居中、侧栏按钮紧贴项目圆钮");
+  assert.doesNotMatch(stack, /data-bar-resident/);
+  const tabs = [...stack.matchAll(/data-side-tab="([^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(tabs.slice(0, 6), ["plugin:shelf/side", "plugin:lingguang/side", "files", "browser", "computer", "discussion"], "侧栏的格按 order 排：Shelf（常开插件）、灵光、文件、浏览器、电脑、讨论，没写 order 的插件格排在后面");
   assert.match(stack.slice(stripAt, assistantAt), /data-plugin-id="lingguang"/, "插件切换列表是项目的全部入口，灵光也在其中");
   assert.match(stack, /data-assistant-island/);
   assert.doesNotMatch(stack, /data-assistant-toggle/, "助手是 Dock 里的一个容器，不再是浮窗开关");

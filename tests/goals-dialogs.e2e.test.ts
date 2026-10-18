@@ -151,7 +151,16 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   await waitFor("window.trashResponseReady === true");
   assert.ok(goal().trashed_at, "the production endpoint has already saved the original Goal");
   assert.equal(await evaluate("document.querySelector('[data-goal-trash-form]').getAttribute('aria-busy')"), "true");
-  await click('[data-goal-trash-dialog] footer [data-close-goal-trash]');
+  // ASC-40: deliberately press a disabled cancel control while the real response is held.
+  const pendingCancel = '[data-goal-trash-dialog] footer [data-close-goal-trash]';
+  await evaluate(`(() => {
+    window.pendingCancelPointerDowns = 0;
+    document.querySelector(${JSON.stringify(pendingCancel)}).addEventListener('pointerdown', () => { window.pendingCancelPointerDowns++; });
+  })()`);
+  assert.equal(await evaluate(dom(pendingCancel) + ".disabled"), true);
+  await click(pendingCancel, { allowDisabled: true });
+  assert.equal(await evaluate("window.pendingCancelPointerDowns"), 1);
+  assert.equal(await evaluate(dom(pendingCancel) + ".disabled"), true);
   await command('Input.dispatchKeyEvent', {type:'keyDown', key:'Escape', code:'Escape', windowsVirtualKeyCode:27}, sessionId);
   await command('Input.dispatchKeyEvent', {type:'keyUp', key:'Escape', code:'Escape', windowsVirtualKeyCode:27}, sessionId);
   await evaluate("document.querySelector('[data-goal-trash-form]').requestSubmit()");

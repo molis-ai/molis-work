@@ -49,7 +49,7 @@ for (const stage of ["state", "materials", "runtime", "enqueue"] as const) {
     const service = new AssistantService(store, { host: async () => host,
       authority: async work => ({ ...assistantAuthority(local, work, () => new Set()), ...(stage === "runtime" ? { beforeStart: barrier } : {}) }),
       projectTitle: async () => { if (stage === "materials") await barrier(); return "Project"; }, timeZone: "UTC" }, "web-user");
-    t.after(async () => { release.resolve(); await adapter.close(); await local.close(); db.close(); await rm(directory, { recursive: true, force: true }); });
+    t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); await rm(directory, { recursive: true, force: true }); });
     await service.attachSchedule();
     const sent = await service.send({ text: "Begin this work", request_id: "followup-start-0001" }, { project_ref: project });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed");
@@ -143,7 +143,7 @@ for (const stage of ["state", "sessions.update", "runs.start"] as const) {
         invoke: (reference, input, beforeDispatch) => client.invoke({ actor_id: "web-user", project_id: project.project_id,
           audience: "user", permissions: [], validate_authority: beforeDispatch }, reference, input),
       }) }, "web-user");
-    t.after(async () => { release.resolve(); await adapter.close(); await local.close(); db.close(); coding.close(); await rm(directory, { recursive: true, force: true }); });
+    t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); coding.close(); await rm(directory, { recursive: true, force: true }); });
     await service.attachSchedule();
     const sent = await service.send({ text: "Start as Assistant", request_id: "coding-followup-0001" }, { project_ref: project });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed");

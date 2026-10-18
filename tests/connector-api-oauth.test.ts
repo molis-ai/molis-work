@@ -6,7 +6,8 @@ import { join } from "node:path";
 import test from "node:test";
 import { createServer } from "node:http";
 import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, apiOAuthContext } from "../apps/local-host/dist/connector-api-oauth.js";
-import { inspectApiConnection } from "../apps/local-host/dist/connector-access.js";
+import { inspectApiConnection, resolveApiConnection } from "../apps/local-host/dist/connector-access.js";
+import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createCatalogProvider, catalogWhoami } from "@molis-ai/molis-work-integration-catalog";
@@ -75,6 +76,55 @@ test("API OAuth connects, survives host reload, refreshes with its own app and r
     await assert.rejects(completeApiOAuth(directory, callback(a.authorization_url), transport("account-a")), /已使用|不存在/u);
     assert.equal(JSON.stringify(withConnectorConnections(directory, store => store.list())).includes("secret-a"), false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+test("ASC-19 ASC-35: disabling and reenabling during API refresh refuses stale token writes", async () => {
+  const directory = home();
+  let release!: () => void, entered!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  try {
+    const first = await startApiOAuth(directory, { serviceId: "asana", displayName: "Work", clientId: "app", clientSecret: "fixture-secret", origin });
+    await completeApiOAuth(directory, callback(first.authorization_url), transport("work"));
+    const secrets = connectorProtocolSecrets(directory, first.connection_id);
+    const before = [secrets.get("access"), secrets.get("oauth"), secrets.get("expires")];
+    const refreshing = resolveApiOAuthToken(directory, first.connection_id, true, async () => {
+      entered(); await waiting;
+      return json({ access_token: "late-access", refresh_token: "late-refresh", expires_in: 3600 });
+    });
+    const rejected = assert.rejects(refreshing, /改变|变更|变化/);
+    await reached;
+    withConnectorConnections(directory, store => { store.setEnabled(first.connection_id, false); store.setEnabled(first.connection_id, true); });
+    release(); await rejected;
+    assert.deepEqual([secrets.get("access"), secrets.get("oauth"), secrets.get("expires")], before);
+    assert.equal(withConnectorConnections(directory, store => store.state(store.require(first.connection_id))), "connected");
+  } finally { release(); rmSync(directory, { recursive: true, force: true }); }
+});
+for (const service of ["gmail", "notion"] as const) test(`ASC-19 ASC-35: ${service} refresh cannot write after disable and reenable`, async t => {
+  const directory = home(), id = crypto.randomUUID(), prefix = `connector-connection:${id}`;
+  let release!: () => void, entered!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  try {
+    await runWithMolisWorkHome(directory, async () => {
+      const secrets = createFileSecretStore();
+      const saved = { [`${prefix}:access`]: "current-access", [`${prefix}:refresh`]: "current-refresh", [`${prefix}:expires_at`]: new Date(0).toISOString(),
+        [`${prefix}:access:client`]: JSON.stringify({ clientId: "fixture-client", clientSecret: "fixture-secret" }) };
+      for (const [key, value] of Object.entries(saved)) secrets.put(key, value);
+      withConnectorConnections(directory, store => store.upsertOAuth({ connectionId: id, serviceId: service, displayName: "Work",
+        accessRef: `${prefix}:access`, refreshRef: `${prefix}:refresh`, expiresRef: `${prefix}:expires_at` }));
+      t.mock.method(globalThis, "fetch", async () => {
+        entered(); await waiting;
+        return json({ access_token: "late-access", refresh_token: "late-refresh", expires_in: 3600, workspace_id: "workspace", workspace_name: "Work", bot_id: "bot" });
+      });
+      const refreshing = resolveApiConnection(directory, id, service, true);
+      const rejected = assert.rejects(refreshing);
+      await reached;
+      withConnectorConnections(directory, store => { store.setEnabled(id, false); store.setEnabled(id, true); });
+      release(); await rejected;
+      assert.deepEqual(Object.fromEntries(Object.keys(saved).map(key => [key, secrets.get(key)])), saved);
+      assert.equal(withConnectorConnections(directory, store => store.state(store.require(id))), "connected");
+    });
+  } finally { release(); rmSync(directory, { recursive: true, force: true }); }
 });
 test("reauthorization rejects same display name from another account and allows a renamed original account", async () => {
   const directory = home();

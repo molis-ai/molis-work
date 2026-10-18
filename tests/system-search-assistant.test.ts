@@ -86,7 +86,7 @@ test("an Assistant round on the real Host finds the capability, searches unopene
     assert.equal(done.reviews.length, 0, "searching and reading ask the person nothing");
     assert.equal(requests.length, 4);
   } finally {
-    await adapter.close();
+    service.continuations.close(); await adapter.close();
     await local.close();
     await rm(home, { recursive: true, force: true });
   }

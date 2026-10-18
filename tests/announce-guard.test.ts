@@ -33,6 +33,18 @@ test("only identifiers the Host handed the model count as internal: no pattern g
   assert.match(internalIdsHeld(["pages.create"]), /pages\.create/);
 });
 
+test("ASC-27 ASC-28: connection links stay usable and an external status value is not an internal identifier", () => {
+  const id = "3f2a9c1e-7b4d-4e2a-9f10-2c3d4e5f6a7b", given = [id, "pages.create"];
+  const setup = `/capabilities/connections?setup=${id}`;
+  for (const text of [`[接入入口](${setup})`, `打开 \`${setup}\`。`, `[接入入口](https://example.com${setup})`]) assert.deepEqual(mentionsInternalIds(text, given), []);
+  assert.deepEqual(mentionsInternalIds(`[pages.create](${setup})`, given), ["pages.create"]);
+  const facts = emptyRoundFacts();
+  noteRoundEvent(facts, { type: "tool-result", name: "read-capability", outcome: "returned", text: JSON.stringify({ title: "[Molis Work 验收] 服务连接写入与读回（ASC-31）", state: "closed", state_reason: "not_planned" }) });
+  assert.ok(facts.ids.has("state_reason"));
+  assert.deepEqual(mentionsInternalIds("Issue 已关闭，关闭原因是 not_planned。", facts.ids), []);
+  assert.deepEqual(mentionsInternalIds("state_reason 是 not_planned。", facts.ids), ["state_reason"]);
+});
+
 // ADH-16: the facts the ending is reviewed against come from the round's own events.
 test("a round's facts come from its events: each call and how it ended, and the identifiers its results named", () => {
   const facts = emptyRoundFacts();

@@ -121,7 +121,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   const actionTools = none ? undefined : gatewayTools ? { ...gatewayTools, scope: "gateway" }
     : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL));
   if (input.action_gateway) {
-    state.gatewayRuns.set(input.session_id, input.action_gateway);
+    state.gatewayRuns.set(input.session_id, { ...input.action_gateway, declare: gatewayTools?.declare });
     if (gatewayTools) state.gatewayKnown.set(input.session_id, gatewayTools.known);
     // Refused before any review: a call to a capability that is gone, switched off or asked through the wrong tool.
     if (!state.gatewayHooks.has(input.session_id)) {
@@ -491,11 +491,19 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
 }): Awaited<ReturnType<PrologueRuntimePort["startAgentRun"]>> {
   const { started, actionController } = at;
   const control = started.control;
+  // The Host stops a round itself (an interaction refused twice) before its next model call, then keeps why it did,
+  // so the stop reads back with its reason live and after a restart; a failed save leaves only the live reason.
+  let hostStop: string | undefined;
+  const stopForHost = (reason: string) => {
+    if (hostStop || ["completed", "failed", "stopped", "cancelled"].includes(control.state)) return;
+    hostStop = reason; control.stop("stopped");
+    void deps.index.update(input.session_id, index => { Object.assign(index.attempts[at.attemptIndex]!, { stop_intent: "stopped", stop_reason: reason }); }).catch(() => undefined);
+  };
   return {
     run: {
       ref: { id: started.run.ref.id },
       subscribe: (listener: (event: PrologueEvent) => void) =>
-        started.run.subscribe(withInteractionRepairLimit(control, (event) => {
+        started.run.subscribe(withInteractionRepairLimit(stopForHost, (event) => {
           if (event.type === "completed" || event.type === "failed" || event.type === "cancelled") roundEnded(deps, started, at.session, at.stepBoard, event.type, actionController);
           if (event.type === "command-receipt") {
             const events = deps.state.commandEvents.get(started.run.ref.id) ?? [];
@@ -511,6 +519,7 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
     },
     control: {
       get state() { const state = control.state; return state === "sleeping" ? "paused" : state; },
+      get stopReason() { return hostStop; },
       stop(reason) {
         if (["completed", "failed", "stopped", "cancelled"].includes(control.state)) return Promise.resolve();
         // Persist user intent before cancellation; the SDK still owns when

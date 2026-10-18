@@ -2976,8 +2976,15 @@ export type PluginModelAvailability = ActionAvailability & {
     readonly runtime_label?: string;
 };
 
+export interface PluginModelChoice extends PluginModelSelection {
+    readonly label: string;
+    readonly vision: boolean;
+    readonly reasoning_effort: boolean;
+}
+
 export interface PluginModelClient {
     readonly configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationClient;
+    choices(): readonly PluginModelChoice[];
     availability(selection?: PluginModelSelection): PluginModelAvailability;
     complete(prompt: InstructedPrompt, request?: PluginModelRequest): Promise<PluginModelResult>;
 }
@@ -3034,7 +3041,18 @@ export interface PluginModelConfigurationView {
     readonly custom_connection_id?: string;
 }
 
+export type PluginModelFailure = ActionError & {
+    readonly execution?: BoundedInferenceReceipt;
+    readonly validateResult?: () => void;
+};
+
+export interface PluginModelImage {
+    readonly bytes: Uint8Array;
+    readonly label?: string;
+}
+
 export interface PluginModelRequest {
+    readonly images?: readonly PluginModelImage[];
     readonly selection?: PluginModelSelection;
     readonly signal?: AbortSignal;
     readonly onText?: (delta: string) => void;
@@ -3045,6 +3063,8 @@ export interface PluginModelRequest {
 }
 
 export interface PluginModelResult {
+    readonly execution?: BoundedInferenceReceipt;
+    validateResult(): void;
     readonly text: string;
     readonly value?: unknown;
     readonly usage?: {

@@ -91,17 +91,19 @@ test("W5-01-IMGPORT-02: actual plugin actions refuse serial and undeclared image
 test("a connection replaced after dispatch returns cannot authorize old image bytes", async t => {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
-  let reached!: () => void, release!: () => void, returned!: () => void;
+  let reached!: () => void, release!: () => void, finished!: () => void;
   const entered = new Promise<void>(resolve => { reached = resolve; });
   const resume = new Promise<void>(resolve => { release = resolve; });
-  const settled = new Promise<void>(resolve => { returned = resolve; });
+  const settled = new Promise<void>(resolve => { finished = resolve; });
   t.after(() => release());
   const f = await imageRuntimeFixture(t, { context: context => {
-    const imageGeneration = context.services!.imageGeneration!;
-    return { ...context, services: { ...context.services!, imageGeneration: { ...imageGeneration,
+    const imageGeneration = context.services!.imageGeneration!, background = context.services!.background!;
+    return { ...context, services: { ...context.services!, background: {
+      start: (work, options) => background.start(async control => { try { return await work(control); } finally { finished(); } }, options),
+    }, imageGeneration: { ...imageGeneration,
       async generate(request, options) {
         const receipt = await imageGeneration.generate(request, options); reached(); await resume;
-        returned(); return receipt;
+        return receipt;
       },
     } } };
   } });
@@ -112,8 +114,6 @@ test("a connection replaced after dispatch returns cannot authorize old image by
   await entered;
   await f.client(null).invoke(actions.saveConnection, { ...f.input, id: connection.id, auth_connection_id: second.connection_id });
   release(); await settled;
-  // The background result has returned; let its rejection and guarded persistence finish.
-  await new Promise(resolve => setTimeout(resolve, 30));
   const current = (await f.client().invoke(actions.get, { id: job.id })).job;
   assert.equal(current.status, "running"); assert.deepEqual(current.images, []); assert.equal(current.error, "");
   assert.equal(f.calls.length, 1);

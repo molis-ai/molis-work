@@ -21,6 +21,23 @@
 - 真实 Home：你机器上日常在用的那个 Home 也算，测试和实走一律用一次性 Home。用户原机器上的 Home 和数据，接手人碰不到，也不要去碰。
 - 原机器上的工作树、scratchpad、本地分支（第 6.3 节）由原机器那边清，接手人不用管；接手人只处理远端分支和 PR。
 
+### 0.2 交给你的七条线
+
+我们这边原来是七条线并行：防腐线、Computer Use 线，加上五条需求线（采用、回执、交互、情境、手册）。10-18 五条需求线做完手上那片就暂停，防腐线和 Computer Use 线一直做到交接。现在七条全交给你，按第 3 节分到四个会话。文中说「某某线」，指的就是下表这一行。
+
+| 线 | 做什么 | 需求书（唯一记录） | 交接全文 | 归哪个会话 |
+| --- | --- | --- | --- | --- |
+| 防腐线 | 系统性代码与架构整理：插件全部迁到 Plugin Runtime，去掉宿主里按插件写的私路，门禁数字只降不升 | `specs/repository-anti-corruption/spec.md`，计划在同目录 `roadmap-2026-10-07.md` 与 `docs/system/RUNTIME-MIGRATION.md` | 本文第 2、5 节 | 平台能力与去特权归②，插件迁移归③，审查和 W6-04～W6-06 归① |
+| Computer Use 线 | 个人助理在桌面上操作别的应用，带确认、记录与安全拒绝 | `specs/computer-use/spec.md`（另有 `open-decisions.md`、`acceptance-runbook.md`） | 本文第 3 节④第 4 项 | ④ 助理与 AI 组 |
+| 采用线 | 把 Prologue SDK 的能力接进 Molis，TaskBoard 统一协作；vendored Prologue 包由它换 | `specs/prologue-adoption/spec.md` | `lines/adoption.md`（附 A2、批 B 的计划） | ④ 助理与 AI 组 |
+| 回执线 | AI 对话的输入回执：用户的每句话被怎么处理、在哪里处理、改变了什么、还差什么 | `specs/ai-input-receipts/spec.md` | `lines/receipts.md` | ④ 助理与 AI 组 |
+| 手册线 | AI 能力开发手册（`docs/platform/PROLOGUE-AI.md`、`skills/molis-prologue-ai/`），并按手册清理存量 AI 逻辑 | `specs/ai-development-handbook/spec.md` | `lines/handbook.md`（附评测规则与脚本） | ④ 助理与 AI 组 |
+| 情境线 | 情境动作总纲：一个动作池、一条浮条、右栏与创建入口，以及助理面板的布局与动线 | `specs/context-program/spec.md` | `lines/contextual.md` | ④ 界面组 |
+| 交互线 | 跨插件 AI 交互的合同与体验：问卷卡、结果卡、卡内渲染、Coding 的呈现 | `specs/ai-interaction-experience/spec.md` | `lines/interaction.md` | ④ 界面组 |
+
+- 需求书开头的「远端交接」「统筹更正」等段落是更早几轮的接续入口，有的已经过时。**现在的接续入口是 `lines/` 里那份交接全文**，它和需求书不一致时以交接全文为准，做完后把需求书改到一致。
+- 界面一面一主（10-15 定，照旧）：助理面板的布局、下一步行与部件归情境线；卡和题的合同、卡内渲染、Coding 的呈现归交互线；回执的内容归回执线，画在情境线留的位置上；采用线不开界面。④一个会话管这几条，照这个分法写 PR，跨面的改动在 PR 里写清楚。
+
 ## 1. 用户 10-18 定的事（都要照做）
 
 全文在 `specs/repository-anti-corruption/spec.md` §1 末尾 13 行，由 PR #737 写入 main（`5972daefd`）。#737 还在仍描述旧规则的文档处标了「2026-10-18 改」：代码没改之前照旧，改完同步删掉这个标记。

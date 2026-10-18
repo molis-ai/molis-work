@@ -72,6 +72,8 @@ W5-10 Pages 命令族拆分（2026-10-17，Codex，本地定向通过，待队�
 
 本片验证：`W5-10-PGC-01` 搬移前后逐项 AST 比对确认全部 139 个声明实现原样保留，原入口 113 个导出相同；构建后的包入口声明完全相同，113 个命令签名在解析同一导入类型名后相同。七个模块为 139～634 行，汇总入口 128 行，依赖无回环。`W5-10-PGC-02` README 必跑、命令/输入规则/转换/拖拽/评论及直接调用方共 29 文件 545 条全部通过。`W5-10-PGC-03` 七个真实 Chrome 文件 37 条全部通过，包括编辑状态、文稿切换保护、评论、导入/发布与内容往返；合计 36 文件 582 条，零失败/跳过。整体构建、boundary、完整 merge-base health/API（64 快照、2,506 声明）和资源检查通过，巨大单元 137→136，快查只删除原命令文件这一项；25 份页面资源共 7,476,313 B，Pages 编辑器对外资源保持 707,007 B，本片增量 0。日志 `/tmp/molis-pages-commands-{build,regression,browser,boundary,health,health-update,assets}.log`，定向非浏览器清单 `/tmp/molis-pages-commands-files.json`。首次健康检查只因本段把整线状态句挤出开头而失败，已把状态句保留在第三行并完整复跑通过，没有改门禁规则。未运行本机全量、未发布或触碰真实 Home，整条 W5-10 仍继续。
 
+SHM 模型失败集成补正（2026-10-18）：39130898172 的灵光失败回归仍期待底层异常 `Fixture model failure`，而本片已有公共模型服务故意隐藏底层异常。同步用例为精确 `plugin.model_failed` 与公共提示，保留会话消息为空的持久化断言及取消/撤权/并发修改分支，不恢复泄漏内部错误的旧行为。此项是当前模型失败合同的消费者补齐，生产实现不变；定向与后续全量另记。
+
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
@@ -90,7 +92,11 @@ OwnerFiles 交接收口（2026-10-18，Codex，本地同步通过）：已 merge
 
 SHM/AQD 交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前模型/Images/Jelly 前置 10e8ef32a 与实际 main 63639a764，保留原模型最终提交复核和原调用者只读委托。整体 offline install/build、API（无额外变化）、boundary、merge-base health 与实测资源通过；13 个有效相关文件 121 条通过，覆盖原图/推理回执、权限等待、query-only、真实 Home/project HTTP/MCP、后台授权及缺项目诊断。首批命令误写不存在的 home-platform.test.ts，属于路径错误，实际 home-plugin-platform.test.ts 已另跑 7/7 通过；不把该错误当成产品回归。25 项 7,478,060 B，无本片增量。日志 /tmp/molis-shm-aqd-closeout-{build,api,health,boundary,assets,targeted,home-platform}.log。此前完整相关与浏览器证据保留，正式 PR/CI 待前置；Shelf 业务迁移仍未开始。
 
+模型/Runtime 集成全量补正（2026-10-18）：39130898172 的 `affected-tests` 失败来自历史断言“至少 18 个 SqliteBaseline 声明”；Images/Jelly 迁移已从 19 个减到 17 个，后续 PPT/Dataset/Workflows 继续减到 14 个。改为明确断言两处实际声明必须被发现，再逐个检查扫描所得全部声明的完整 version/schema；原 schema 变化、版本变化和无存储文件的拒绝判定均保持，不改选择脚本或门禁规则。定向与后续全量结果另记。
+
 模型端口与 Images/Jelly 交接收口（2026-10-18，Codex，本地同步通过）：候选 merge 前置后台服务 c99e348ec，包含实际 main 63639a764 与已验证的灵光、Cognia、插件文件服务；保留主线 vendor/receipts 与完整的已消费资源拒绝用例。整体 offline install/build、API 与动作快照（均无额外变化）、boundary、merge-base health 及实测资源通过，19 个直接相关文件 235 条通过，覆盖模型选择/配置/图片调用、项目清理/路由、Images/Jelly HTTP/MCP、授权并发及公开合同。25 项共 7,478,060 B，比当前后台服务前置减少 312 B；本次没有新增资源额度。日志 /tmp/molis-model-closeout-{install,build,api,actions,health,boundary,assets,targeted}.log；前期必跑与 Chrome 证据继续有效，未冒称重复运行。共享核心全量和正式 PR/CI/合入仍待队列，整线未完成。
+
+后台授权集成全量补正（2026-10-18）：39130898172 的 `ci-product-subset-plan` 发现 `action-background-authority.test.ts` 已由挡合并的动作合同通配命令运行，又被本片加入产品子集。移除子集中的重复选择，合同命令和全部授权拒绝断言保持，仍由 CI 必跑；定向与后续全量结果另记。
 
 后台授权交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前私有文件/Cognia/灵光与实际 main 63639a764，保留安全表和 CI 子集双方条目，后台授权生产实现不变。整体 build、API、boundary、merge-base health 及资源核对通过；六个直接相关文件 81 条通过，涵盖后台失权拒绝、Kernel 授权、真实 HTTP 生命周期、模型/文件服务与 Host 接线。25 项资源共 7,478,372 B，无本片增量；日志 /tmp/molis-background-closeout-{build,api,health,boundary,assets,targeted}.log。原完整相关组合证据保留，正式 PR/CI 待前置；不把模型端口或插件业务迁移算成本片已合入。
 插件私有文件交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前 Cognia/灵光与实际 main 63639a764；保留主线 Assistant 关闭接线、Shelf IPC 拒绝和产品子集两项连接器回归，同时保留 files 类型/授权接线与安全断言。整体 build、API、boundary、merge-base health 及资源重测通过；六个直接相关文件 54 条通过，覆盖文件边界、Home 生命周期、真实 Host 服务/执行器、项目库和安装 grant。25 项资源共 7,478,372 B，与 Cognia 相同；日志 /tmp/molis-plugin-files-closeout-{build,api,health,boundary,assets,targeted}.log。早前完整相关组合证据保持，正式 PR/CI 待依赖顺序，未开始新的业务迁移。

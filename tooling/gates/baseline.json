@@ -1124,7 +1124,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 188,
+  "unknownCastsTotal": 185,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1183,7 +1183,7 @@
     "plugins/native/todo/src/organize.ts": 1,
     "plugins/native/todo/src/store.ts": 4,
     "plugins/native/work/src/directory.ts": 1,
-    "plugins/native/workflows/src/store.ts": 4,
+    "plugins/native/workflows/src/store.ts": 1,
     "scripts/contextual-slice/client.ts": 2,
     "server/src/im/reads.ts": 6,
     "tests/action-service.test.ts": 1,

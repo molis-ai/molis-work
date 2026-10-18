@@ -146,6 +146,13 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 - 测试：`tests/host-log-catches.test.ts`：`W5-13-04`（项目查找只把 not_found 当没有，目录读不了与别的目录错误照抛）、`W5-13-05`（预览失败按类型记，forbidden、not_found 不记，消息与路径不进日志）、`W5-13-06`（Coding 后台清单，经宿主的真实接线：没有 Coding 的项目不记，读不了的库开始失败时记一条、读通后再失败再记；没有 Coding 的库用不带 Coding 表的空库——演示看板会建 Coding 的表，用它就量不到这一条；去掉接线里的询问即红）、`W5-13-08`（重复失败只在开始时记）、`W5-13-11`（项目简介与侧栏浏览器：没有这个项目仍是 404，目录读不了是 500 并记一条，服务照常答下一个）；`tests/im-local-project.test.ts` 的 `W5-13-11`（群聊连接：目录读不了 500，没有这个项目仍 403，之后照常连上）；`tests/connector-mcp.test.ts` 的 `W5-13-07`（重启后一个连接登记失败按 id 记，另一个照常登记）。变异检查：项目查找改回全捕获（04 失败）、预览不分种类（05 失败）、重复失败不去重（06、08 失败）、连接登记改回静默（07 失败）、Coding 去掉表检查（06 失败）。
 - 门禁：`--base origin/main` 通过；新加的几行没有留在巨大单元里（移到模块级小函数或同行注释），巨大单元的行数不变。
 
+W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `feature/w5-01-workflows-store`，基于 `origin/main 7faaa027c`，未推、未开 PR）：
+- 范围：Workflows 仍按每个项目一个 Runtime 实例；本片只改 `plugins/native/workflows/src/store.ts` 的窄 SQL 端口（`WorkflowsSql`/`WorkflowsStores`/`ownWorkflowsStores`）与唯一 `WORKFLOWS_DATABASE`（`store_name: "workflows"`、version 1、原 schema/两表形状不变），`openWorkflowsStore` 保留 `{home}/workflows/workflows.db`、WAL、`applySqliteBaseline` 与关闭归属；`WORKFLOWS_HOME_STORE`、`project-data.ts` 与发布库版本表引用同一份，删除 `WORKFLOWS_STORE_BASELINE` 别名。
+- 不变：`project_id` 分区、流程修订冲突、实例 `updated_at` 并发凭证、停止/继续与手动确认、固定交接键及拒绝后的零写入、项目删除只清本项目且缺库不创建；动作 id/版本/权限、Manifest/路由、宿主接线、UI 与 Runtime 迁移均不动。
+- 验收：`W5-01-WORKFLOWS-STORE-01` 唯一声明与 Home baseline 一致，`ownWorkflowsStores` 经原 Store 读写且修订冲突仍拒绝；`W5-01-WORKFLOWS-STORE-02` `beforeEffect` 拒绝时回调未进入、库不变；现有 Workflows 行为用例保持。
+- 证据（2026-10-18，本地；基于 `origin/main 7faaa027`）：整体 `pnpm build` 71 包通过；`tests/workflows-store.test.ts` 的 `W5-01-WORKFLOWS-STORE-01`/`02` 2/2，连同 workflows-plugin 7/7、handoff 3/3、stop-and-token 3/3、stop-effects 2/2、action-steps 1/1、content-actions 3/3、project-deletion-owners 12/12，共 8 文件 33/33；`verify-release-versions`、`boundary:check`、health（merge-base `7faaa027`）通过。日志：`logs/workflows-store-build.log`、`logs/workflows-store-tests.log`、`logs/workflows-store-health.log`。
+- 待办：Manifest/路由、动作切换、宿主接线删除与 Runtime 迁移另片；等 Codex 的实际基线与公共前置。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。
@@ -963,7 +970,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
 | `plugins/native/todo` | 内置插件 | 22 | 4,271 | `client.ts` 1,245 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/workflows` | 内置插件 | 15 | 3,708 | `client.ts` 1,387 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/workflows` | 内置插件 | 20 | 3,924 | `client.ts` 1,358 | 1 | 4 | 2 | 构建期 | 中 | 待审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `plugins/official-integrations/gmail` | 官方接入 | 12 | 2,673 | `provider.ts` 957 | 3 | 2 | 2 | 在用 | 中 | 已审 |

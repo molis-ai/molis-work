@@ -10,6 +10,8 @@ SHM 模型失败集成补正（2026-10-18）：39130898172 的灵光失败回归
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+D1 项目成果操作交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前 OwnerFiles/SHM/AQD 与实际 main 63639a764，原固定身份及 owner 操作实现不变。安全表 S-17 保留 D1 真实拒绝，S-18 并入 OwnerFiles 与当前主线；整体 offline install/build、API/动作快照（均无额外变化）、boundary、merge-base health 与资源核对通过。11 个直接相关文件 99 条通过，覆盖创建参数后续变更不能换权、过程 own 恢复、公开 SDK/输入图、真实 Host/Runtime、查询委托、OwnerFiles 生命周期与动作合同。25 项 7,478,060 B，无本片增量。日志 /tmp/molis-d1-closeout-{build,api,actions,health,boundary,assets,targeted}.log；原79文件921条及修前红/修后绿证据保留。正式 PR/CI 待前置；D2/D3 与 Shelf 业务迁移均未启动。
+
 OwnerFiles 交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前 SHM/AQD 与实际 main 63639a764，未改变原已审服务实现；安全表保留当前主线与本服务的最终同步授权/句柄失效拒绝。整体 offline install/build、API（无额外变化）、boundary、merge-base health 与实测资源通过；七个直接相关文件 60 条通过，覆盖路径/注册/生命周期拒绝、当前 Home 路由、Host 接线、Runtime 安装及私有文件服务。25 项资源 7,478,060 B，本片增量 0；日志 /tmp/molis-owner-files-closeout-{build,api,health,boundary,assets,targeted}.log。原172文件相关证据保留，正式 PR/CI 待前置；Shelf/Alchemist 业务接入与迁移仍未完成。
 
 共享全量 Jelly 模型失败断言（2026-10-18，W5-01-SHM-01，本地通过）：39140030877 的 10/16 在 jelly-actions 的原 /model down/ 断言失败；五分片成功，其余取消，不计全量通过。干净材料基线同文件 16/16，组合 15/16；基线与实际 main 的该用例相同。SHM 公共模型服务把未分类 provider 错误归为既定 plugin.model_failed/upstream 与中文公开消息，Jelly 的 Host→Runtime 调用也走这份分类。只把该原断言改为准确 code/message，保留取消的 jelly.cancelled、成功预览与执行前工作区逐项相同；不改生产代码或错误传播。当前整合的灵光、Dataset 与模型服务同类断言已核对，其他 raw failure 匹配是成果关联/删除故障而非模型调用，不作替换。Jelly/灵光动作、跨插件错误、模型服务与真实回执/授权五文件 72 条及完整 health 通过（/tmp/molis-shm-jelly-failure-after.log、/tmp/molis-shm-jelly-failure-health.log）；既有构建复用。下一轮集成全量另结算。
@@ -90,6 +92,30 @@ Host 只绑定 canonical Home 和声明，打开 port 不创建目录。受信 i
 验证：先整体 `pnpm build`，再新真实 Home 安全测试及 Runtime/Host/contracts README 对应定向用例，包含现 private storage/files/database/upgrade/Home lifecycle；拒绝必须核磁盘状态。随后 boundary、API、merge-base health、资源门禁。共享核心全量交统筹 CI，本机不跑全量；不增加浏览器资源，正式 Shelf 产品/桌面体验仍留后片。
 
 本地证据（2026-10-18，本地实现与相关验证通过，待PR/CI整合）：整体build、新增/既有9文件72条、API、merge-base health、boundary和25项资源测量均通过；资源7,476,626 B，与前置S相同。IO测试首轮因macOS /var→/private/var真实路径未匹配故障注入而失败，修fixture后原rename/chmod故障与字节/临时文件断言5/5通过，无生产修改。另163文件相关回归首轮162通过；唯一home-plugin-project-routes旧期待与冻结S dfc21df3b同样冲突。合并公共测试补正4c39270a7后，原完整用例1/1通过，精确400/project_required与撤grant403均保留；其余162文件不重复跑。README测试通配符改成现存文件名后边界复查通过。日志 /tmp/owner-files-required-tests.log、/tmp/owner-files-home-route-final.log、/tmp/owner-files-boundary-recheck.log；保留原sandbox环境条件跳过。真实Shelf接入、Store迁移和产品/桌面体验尚未做，本片仅公共OwnerFiles服务，不称整线完成。
+
+### W5-01 Shelf 前置 D1：项目成果操作与过程项恢复（2026-10-18，本地实现、复审与定向验证通过，待主线整合/CI；负责人 Codex）
+
+目标等级为公共前置功能可用。现 `createPluginArtifactClient` 将动作注册和成果政策混在一起，过程项只有 record，Shelf 后续 Home 迁移缺少复用的 owner 操作、读取自己过程版本和可消费目录。本片基于已交付 S `dfc21df3b` 提取现 owner 操作，并立即由现项目 SDK client 消费；不做 D2 图参与者、D3 Home invocation 门面、Shelf 正式迁移或新增 Home 声明，不改 C OwnerFiles、A Alchemist，也不另建 registry、库或直接跨包 SQL。
+
+保留旧五个 SDK 动作的 identity/schema/version、project/actor/producer 绑定、created_by 来源与停用/撤权拒绝。特别是既有 artifact head/readOwn 仍仅按 producer_plugin_id 判自己，不顺便加严签名/owner；普通 read 仍成果优先、过程其次，过程个人 owner 与 consumes/归档/可用性规则不变。已经固定的合法版本在生产者停用后仍可被消费，不新增 active-producer 条件。
+
+作者合同新增 `PluginProcessItemHead { version: number }`；`PluginProcessItemClient.head(artifactId)` 与 `readOwn(reference)` 返回过程最新版本/固定记录或 null；校验 producer id、publisher signature，personal 还需 owner_actor_id 等于安装 actor_id，不比较 producer version，归档/unavailable 自恢复可读且不要求 consumes。record 的 owner/author 仍按现 Module 规则，不为恢复接口重写旧 owner；由其他 author 写下的个人过程项对安装 actor 的 own 读取明确拒绝。`PluginArtifactClient.listConsumable()` 返回 `PluginConsumableVersion extends ArtifactReference { kind: "artifact" | "process_item"; artifact_type_id; schema_version; title: string | null }[]`，不返回正文、metadata、owner 或路径。返回所有可消费固定版本（不限 latest/端口），成果在前、过程在后，分别保持 owner listArtifacts 顺序；过程 metadata.title 仅非空字符串原样返回，其余 null。与 read 共用消费判定，拒绝项过滤，查询错误抛出。同 id/version 碰撞时成果优先：用于排除过程引用的集合必须取全部成果记录，包括不可消费成果，保证列表随后 read 不会读到另一种类；集合仅为单次查询局部值。
+
+在 artifacts owner 包新增 `createPluginArtifactOperations({ api, process, manifest, project_id, actor_id, author?, authorize, assertInput })`，返回分开的 `{ client, process }`（两个 head/readOwn 不能交叉合成一个对象）。工厂 clone Manifest，每方法先核声明再调可信 authorize；不创建身份、不登记动作。共享输入投影/动作 schema 提取为一个包内文件，白名单先丢弃伪身份字段再校验，保留现客户端语义。Host 注入 kernel 已公开的 assertActionInput；项目 ActionService 与 owner 直调边界使用同一 schema/validator，不复制解析规则、不加 no-op 或调用方可开的跳过开关。owner 包不依赖 kernel，现 Host/client/test 调用点补 required validator。公开工厂只经 artifacts 包出口，作者从 contracts/platform/plugin 得新类型，本片不额外扩 SDK 的便利 type export。
+
+`createPluginArtifactClient` 保留安装匹配、一次 provider 注册、availability、caller allowlist、invokeSync 与 dispose，五项旧 handler 全委托共同工厂；同 provider 新增 `process-head`、`process-own`、`list` 三个 query @1，project scope、plugin audience、artifact:read、sync。旧 @1 的输入输出不变。Home 不提前接这份工厂。动态 SDK 动作可能不被当前无安装身份的 host snapshot 枚举到：按现 actions:update 实测记录，不为快照放开 availability；定向 discovery 固定新动作的 schema/版本/受众/权限。
+
+允许源码范围：contracts 的 plugin-artifacts.ts/plugin.ts；artifacts 的 plugin-client.ts、plugin-operations.ts、plugin-action-contracts.ts、index.ts（现 action-schemas.ts 仅共享 schema 必需时）；Host plugin-host-services.ts 的 validator 注入；plugin-artifact-client、plugin-artifact-operations、plugin-host-services 与必要 typed fixture 测试。既有公共 client 新增 required 方法导致的 typed fixture 仅补实际语义，不改可选方法兜底。root 串行维护唯一 spec、包 README/必要 Skill、安全表与 API/动作派生快照。没有数据库迁移或页面资源变化；错误沿现 artifacts.plugin_denied/plugin_incompatible 与 kernel 校验模型。
+
+验收：
+- **W5-01-D1-01**：旧五动作经实际项目 client 委托唯一操作工厂；返回、事件游标、replayed、身份白名单、停止/撤权/旧 client 拒绝不变。
+- **W5-01-D1-02**：process head/readOwn 的精确 store、null/最新/归档/unavailable 恢复、错 producer/签名/个人 owner 拒绝与跨 producer version 恢复；artifact own 原规则不加严。
+- **W5-01-D1-03**：两类多版本/未连端口目录、标题、过滤和引用碰撞优先级符合上述合同；列出的每个 ref 经 read 得到同 kind/type/version；查询故障抛出，空库返回空列表。
+- **W5-01-D1-04**：未声明 type/schema、跨 store 同ID、冲突版本、伪身份与非法输入拒绝后版本/事件不增加；SDK 与直调共享验证；author 与安装 actor 不同时保留原 created_by/owner 并按新 own 边界拒绝。
+- **W5-01-D1-05**：真实 SDK discovery 新三 query @1 的完整合同，其他安装、无 grant 和伪受众拒绝；旧五 action schema 不变。不能全用裸工厂 fixture 代替生产链。
+- **W5-01-D1-06**：真实项目 Host 暴露 process head/readOwn 和 listConsumable；现 inputs/outputs 的 record/select 继续工作，生产者 stop 后固定可消费版本仍可读；工厂不注册 provider，client 仍只注册一份且可 dispose。
+
+验证：整体 build 与包要求相关 79 个不同文件、921 条测试通过（71 文件 865 条，加最终 8 文件 56 条；不重复计算初轮）。创建参数身份回归在修前代码精确复现修改 actor_id 后借读他人过程项，修正后通过。API 源码匹配、动作合同 25 条、boundary、merge-base health 与资源检查通过；25 项资源仍为 7,476,626 B，本片增量为零。API 仅增 plugin 合同，动作快照新增 9 个安装各自的三个 query（27 行），旧五动作 schema/version 保持，不新增用户/MCP 动作。日志为 /tmp/molis-artifact-operations-d1-{required,binding-before,binding-build,binding-tests}.log 及 /tmp/molis-d1-{api-check,actions-final,contracts-final,boundary-final,health-final,assets-final}.log。contracts-final 中曾误传不存在的 plugin-api-snapshot 文件；实际动作合同 25/25 通过，API 已用正式脚本核对成功，该参数错误不计为产品失败。共享核心全量及正式主线整合仍待 CI；未实施 D2/D3 或 Shelf 迁移。
 
 AQD 测试合同补正（2026-10-18，生产源码不变）：OwnerFiles 的相关回归发现 home-plugin-project-routes 在 personal 路径附 query project_id 时仍期待403/forbidden，冻结 S dfc21df3b复现同一400!=403。实际可信项目只从路径建立；现AQD已经明确保留Home缺项目400/actions.project_required并先于caller allowlist，因此只将这两个旧期待改为精确400/project_required。保留合法项目路径400/input_invalid、拒绝后jobs为空、撤grant后的403/forbidden和Home读仍可用等断言；这是与已接受合同对齐，不改生产或放宽成任意拒绝。原文件复跑1/1通过，真实响应确认精确project_required；合法project路径、拒绝后空jobs及撤grant后的403对照均保留并通过。
 

@@ -1115,3 +1115,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18：#661 新 head 1ab2f29f3（合了 main a19524f58）统筹复核过：增量正好是审查修订（HubSpot 移除、loader 环境变量、§4.1 凭据维护、改名说明、S-36/S-37、错误码），workbench.js 1,110,116（比 main 少 71）。加了 full-suite（chain51）。#713 的标签链等 #661 入队后再起，好让它排在 #661 后面合并。
 - 10-18：#714（回执 3e-1，f0b18422c，叠在 #713 上）统筹审过，workbench.js +1,413 一次性放行，按合入时的 merge-base 取键；顺序 #661 → #713 → #714。3e-0b（Coding 的 roles.ts 自己列 acknowledge-inputs）计划批准，#713 合入后再开。
 - 10-18：W3-C2（cce160ed5，叠在 #712 上）统筹看过，可以；workbench.js +81 一次性放行，等 #712 合入后再开 PR。分屏窗格的焦点不带 place，今天闪不了，已记进 §21.6。adoption 的 feef0443 换包已在本地备好（0eacb7efb），等 #699 合入后从 main 重做，如果手册线的 Prologue 修复那时已经合入，就两件合成一次换包。
+- 10-18：#712 在 4f7ace6e7 上全量绿，合并要等 #661 合入后（再 merge main、重新取键，ba5635b5c 走 merge-only）。#713 和 main 有冲突，已请回执线现在 merge main，好用上空出来的全量位置；合并仍排在 #661 后面。

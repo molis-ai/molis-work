@@ -1050,4 +1050,46 @@ Coding 的指令单测（同 A 的做法，10 条自编的 Coding 结尾 × 3，
   BL-159 那半句只有删字，由 tests/prologue-subagents.test.ts「(A1)」覆盖，没有单独跑真实模型。
 ```
 
+#### coding-base 不再教怎样填 ask-user 的问卷（2026-10-18）
+
+判定规则在第一次调用之前写下并经统筹确认（10-18），单独作为一笔提交；结果在下面另记。
+
+```text
+改动：plugins/native/coding/src/roles.ts 的 coding-base 升 v11，只删不加：
+  删「自由文字问题只传 why 并省略 questions；只有需要固定选项时才使用问卷，保留要求的多选与自由补充。选择题的每个选项用一句话
+  说清差别；推荐的那一项标为推荐并写理由，推荐不是替用户选；可以不答的题标为选填。」前半句「何时该问」不动。
+  宿主给 Coding 的是带类型的 ask-user（Prologue tool/core/system.ts 的 typedAskUserParameters），它的参数说明逐条写着：
+  questions "Omit to ask free text"；options[].description "How this choice differs. For the recommended one, say why"；
+  recommended "Your recommendation. It is not a choice: the person still picks"；required "Set false when the person may
+  leave it empty"。这是 A3① 记下的「问卷细则第三份」；工具的用法归工具（手册 13.1）。
+比什么：改前 v10（main 14bb4bc55），改后 v11（ai/coding-base-questionnaire efaa5d2e0）。同一个工作树、同一份 vendored SDK、
+  同一份 agent-host 构建；v10 的 coding 包构建进被忽略的 plugins/native/coding/node_modules/.eval-v10，开跑前核对版本号。
+环境：MiniMax / MiniMax-M3，anthropic-messages。每次一个进程，构建出来的 AgentHost + createPrologueNodeAdapter，适配器拿产品
+  宿主给的 hostQuestionTypes() 与 hostReferenceKinds()；Coding 的 builder 角色（coding-base + coding-builder +
+  coding-background），不带方法。不建 Home，密钥只在命令上内联读取、只交给 resolveCredential。一轮跑到模型第一次真正问出来
+  （awaiting-input）就停、不回答，5 分钟封顶；读取放行，问之前的写文件与命令一律拒绝并记下。
+任务（每次一个新的临时项目）：
+  Q1 选库：「我想让 src/config.js 也能读 YAML 配置文件。用哪个 YAML 解析库，你先给我几个候选让我选，我选好了你再动手。」
+  Q2 只能自由问：「把 scripts/deploy.sh 里的上传地址换成我们新服务器的地址。」新地址仓库里没有。
+  Q3 有一道可不答：「给项目加一个 CHANGELOG.md。动手前先问我：用 Keep a Changelog 格式还是简单的列表；第一条写哪个版本号。
+    另外维护者的联系邮箱想写的话也可以写进去，这一项我可能不填。」
+次数：三题各 8 次 × 两版，共 48 次；第 r 轮按 Q1、Q2、Q3 跑，r 为偶数先改前、奇数先改后。正式开跑前冒烟一次（Q1 改后），
+  只验脚本、不计入结果；脚本要改，开跑前交统筹。
+判定看这次运行在等的那个问题，即最后一次 ask-user 的参数（原样存进结果文件，连同首个请求里 ask-user 的工具定义与其中是否有
+  recommended）；没问出来的运行四项都算不对。判定代码在评测脚本 judge.mjs：
+  ① 选项有差别说明（Q1，程序）：至少一道选择题有两个及以上选项，每道选择题的每个选项都有非空且不同于 label 的 description。
+  ② 推荐带理由（Q1，两步都要满足）：程序判正好一个选项标 recommended: true；人判全读、不抽样，推荐项的 description、那道题
+    的 help 与整次的 why 按固定种子打乱、去掉版本号后逐条判，判完再揭盲。标准：说了为什么推荐它（适合这个项目的什么、比
+    另几个好在哪里）；只说它是什么不算。盲评表与揭盲对照放进统筹笔记夹，写明判的人。
+  ③ 选填标对（Q3，程序）：正好一道题指维护者邮箱，它的 required 是 false，其余题都不是 false。
+  ④ 该自由问时不建问卷（Q2，程序）：没有 questions 或是空列表；只放一道 type: "text" 的题也算建了问卷。
+判定：四项各自「改后 ≥ 改前 − 1」（各 8 次）就采用 v11、没有后续。有一项不满足，仍只删不加、不把句子放回角色：那一项按归属
+  记设计问题，主人是 Prologue 的 typedAskUserParameters 参数说明，先把结果交统筹再定是否开 Prologue PR、换包后再量；模型照着
+  说明仍做不到的记模型能力，不打补丁。
+照实记录、不作为条件：问出来的次数、问之前被拒的写与命令、ask-user 调用与被拒次数、Q3 选择题的选项说明、用时、模型调用数、
+  token、系统文字长度。
+出错：Provider 5xx/429、网络、超时算没对，照实列出，不挑出来重跑；任一版出错超过 2 次先把整批交统筹再判。每条没对的逐条标
+  「设计问题 / 模型能力 / 拿不准」，设计问题写清主人。
+```
+
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。

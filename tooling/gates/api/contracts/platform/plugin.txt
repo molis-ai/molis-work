@@ -2925,11 +2925,12 @@ export type PluginModelAvailability = ActionAvailability & {
 };
 
 export interface PluginModelClient {
-    availability(): PluginModelAvailability;
+    availability(selection?: PluginModelSelection): PluginModelAvailability;
     complete(prompt: InstructedPrompt, request?: PluginModelRequest): Promise<PluginModelResult>;
 }
 
 export interface PluginModelRequest {
+    readonly selection?: PluginModelSelection;
     readonly signal?: AbortSignal;
     readonly onText?: (delta: string) => void;
     readonly system?: InstructionPrompt;
@@ -2945,6 +2946,11 @@ export interface PluginModelResult {
         readonly input_tokens: number;
         readonly output_tokens: number;
     };
+}
+
+export interface PluginModelSelection {
+    readonly provider_id: string;
+    readonly model_id: string;
 }
 
 export interface PluginOutputPublishInput {

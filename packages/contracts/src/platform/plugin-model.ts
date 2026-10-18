@@ -12,7 +12,15 @@ export const PLUGIN_MODEL_LIMITS = {
   max_output_tokens: 12_000,
 } as const;
 
+/** A model already configured by the person in this Home; never an endpoint or a credential. */
+export interface PluginModelSelection {
+  readonly provider_id: string;
+  readonly model_id: string;
+}
+
 export interface PluginModelRequest {
+  /** Exact selection for this call; absent uses the Host default. An unavailable selection is refused, never replaced. */
+  readonly selection?: PluginModelSelection;
   /** Joined with the running action's own signal: either one ends the call. */
   readonly signal?: AbortSignal;
   /** Text as it is generated, in provider order. Refused after cancellation, loss of authority, or completion of this request. */
@@ -46,8 +54,8 @@ export type PluginModelAvailability = ActionAvailability & { readonly runtime_la
  * The plugin still checks `beforeEffect()` itself before it writes, and commits against the version it read.
  */
 export interface PluginModelClient {
-  /** Whether a call could be answered now: the plugin is running with the grant, and the Host has a model set up. */
-  availability(): PluginModelAvailability;
+  /** Whether this selection (or the Host default) is available now, while the plugin is running with its model grant. */
+  availability(selection?: PluginModelSelection): PluginModelAvailability;
   /**
    * `prompt` is the plugin's own registered instruction and this call's data (`instructed(instruction, data)`); a plain string is
    * refused. The person's version of the instruction is what is sent.

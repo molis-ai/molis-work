@@ -253,6 +253,7 @@ tests/plugin-isolation-restart.test.ts
 tests/plugin-lifecycle-states.test.ts
 tests/plugin-market-catalog.test.ts
 tests/plugin-model-generation.test.ts
+tests/plugin-model-selection.test.ts
 tests/plugin-notification-bell.test.ts
 tests/plugin-package.test.ts
 tests/plugin-panel-seam.test.ts

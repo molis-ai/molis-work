@@ -1,6 +1,6 @@
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt, InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import type { PluginDefinition, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginModelClient, PluginModelSelection, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginModelClient, pluginModelErrors, type PluginModelPort } from "@molis-ai/molis-work-plugin-runtime";
 import { decodePrologueJsonOutput, reportedTokenTotal } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -30,17 +30,17 @@ const unavailable = (reason: string): ActionAvailability => ({ available: false,
  * stands in for the model (tests), `null` says there is none; otherwise the Home's own configuration, as for every other caller.
  */
 export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort {
-  const configured = () => hostTextGeneration({ homeDirectory: home.directory });
+  const configured = (selection?: PluginModelSelection) => hostTextGeneration({ homeDirectory: home.directory, selection });
   return {
-    availability() {
+    availability(selection) {
       const injected = home.completeText();
       if (injected !== undefined) return injected === null ? unavailable(textModelMissing()) : { available: true };
       let label: string | undefined;
       const state = textModelAvailability(() => {
-        if (!configured()) return false;
+        if (!configured(selection)) return false;
         const catalog = openConfiguredModels(home.directory);
         try {
-          const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store);
+          const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store, selection);
           if (selected) label = `Prologue · ${selected.provider.display_name} · ${selected.model.model_id}`;
           return true;
         } finally { catalog?.storage.close(); }
@@ -55,7 +55,7 @@ export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort
         timeoutMs: dispatch.timeout_ms, maxOutputTokens: dispatch.max_output_tokens, ...(system === undefined ? {} : { system }),
         ...(dispatch.onText ? { onProgress: event => { if (event.type === "text-delta") dispatch.onText!(event.text); } } : {}) };
       if (injected) return { text: await injected(text, options) };
-      const generate = configured();
+      const generate = configured(dispatch.selection);
       if (!generate) throw textModelRequired();
       const result = await generate(text, options);
       const input = reportedTokenTotal(result.usage, "input"), output = reportedTokenTotal(result.usage, "output");

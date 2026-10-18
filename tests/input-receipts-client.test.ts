@@ -58,7 +58,7 @@ function receipts() {
   const program = vm.runInNewContext(`(${INPUT_RECEIPTS_CLIENT_SCRIPT})`, {
     document: { createElement: (tag: string) => new Node(tag), body, get activeElement() { return focus.on; } }, queueMicrotask, crypto: { randomUUID: () => `key-${++keys}` },
   }) as (L: (text: string) => string) => { line(owner: object, turn: Turn, round?: object, act?: Actions): Node | null; tray(owner: object, queued: object[] | undefined, round?: object, act?: Pick<Actions, "withdraw">): Node | null;
-    link(owner: object, inputId: string, first?: () => void): Node | null; step(state: string): string };
+    link(owner: object, inputId: string, first?: () => void): Node | null; step(state: string): string; agreements(owner: object, runs: string[]): Node | null };
   const ui = program(text => text);
   const said = () => new Promise<string[]>(resolve => setTimeout(() => resolve(body.children.map(node => node.textContent)), 0));
   return { ui, body, said };
@@ -441,4 +441,44 @@ test("RCPT-348: one receipt per surface that draws it; a correction updates ever
   const announced = (await said()).join("；");
   assert.equal(announced.split("你的补充「顺便把注册接").length - 1, 0, "RCPT-348 two copies drawn once each say nothing twice");
   focus.on = null;
+});
+
+// Stage 3e-1 (§9.2): 「当前约定」, what the AI says it takes as a constraint, goal or acceptance condition.
+const said = (kind: string | undefined, impacts: string[], treatment = "apply-now") => ({ treatment, ...(kind ? { kind } : {}), targets: [], impacts, revisions: 1 });
+function agreed(ui: ReturnType<typeof receipts>["ui"], act?: Actions) {
+  for (const [run, id, text, steer] of [
+    ["run-1", "a-mail", "别直接发邮件给客户，我自己发", { state: "read", model_claim: said("constraint", ["approach"]) }],
+    ["run-1", "a-time", "改到周五下午", { state: "read", model_claim: said("correction", ["objective", "acceptance"]) }],
+    ["run-2", "a-no", "顺便把缓存删了", { state: "read", model_claim: said("constraint", ["constraint"], "not-adopted") }],
+    ["run-2", "a-ask", "预算问题也要准备", { state: "read", model_claim: said("request", ["acceptance"], "needs-clarification") }],
+    ["run-2", "a-back", "不要动数据库", { state: "withdrawn", model_claim: said("constraint", ["constraint"]) }],
+    ["run-2", "a-scope", "议程里加一项续约报价", { state: "read", model_claim: said("supplement", ["scope", "outputs"]) }],
+    ["run-2", "a-bare", "只说一句", { state: "read" }],
+  ] as const) ui.line(here, { turn_id: id, kind: "user", text, steer: { id, ...steer } }, { run_id: run }, act);
+}
+
+test("RCPT-358, 3e-1: 当前约定 lists, in the order sent, what the AI says it takes as a constraint, goal or acceptance condition, as the AI's word only", () => {
+  const { ui } = receipts();
+  agreed(ui);
+  const kept = ui.agreements(here, ["run-1", "run-2"])!;
+  assert.deepEqual(kept.all("mw-tray__list")[0]!.children.map(item => [item.buttons().map(node => node.text), item.all("mw-receipt__claim").map(node => node.text)]), [
+    [["别直接发邮件给客户，我自己发"], ["AI 说采纳为约束"]],
+    [["改到周五下午"], ["AI 说采纳为目标、验收条件"]],
+  ], "RCPT-358 the person's whole words, then the AI's claim on the receipt's dashed 「AI 说」 line; not adopted, to clarify, withdrawn, other impacts and no statement are left out");
+  assert.match(kept.text, /AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 2 轮$/u, "RCPT-358 said to be unchecked, changed by a correction from its receipt, and what it looked at");
+  assert.doesNotMatch(kept.text, /已生效|已遵循|已核对/u, "RCPT-358 nothing reads as in force or checked");
+  assert.equal(ui.agreements(here, ["run-9"]), null, "none in the rounds shown, no block");
+});
+
+test("RCPT-359, 3e-1: only the rounds the surface shows now count; a later correction is said beside the one it names; each opens its receipt", () => {
+  const { ui } = receipts(), { act } = actions();
+  agreed(ui, act);
+  assert.deepEqual(ui.agreements(here, ["run-2"]), null, "another work's rounds drawn earlier on the same surface are not this one's");
+  ui.line(here, { turn_id: "a-fix", kind: "user", text: "邮件可以由你发，但先给我看", steer: { id: "a-fix", state: "received", about: "a-mail" } }, { run_id: "run-2" }, act);
+  const kept = ui.agreements(here, ["run-1", "run-2"])!, first = kept.all("mw-tray__list")[0]!.children[0]!;
+  assert.match(first.text, /后来有一条更正指向它$/u, "RCPT-359 the person's own link on the ledger is said, not what the correction changed");
+  first.button("别直接发邮件给客户，我自己发").click();
+  const receipt = ui.line(here, { turn_id: "a-mail", kind: "user", text: "别直接发邮件给客户，我自己发", steer: { id: "a-mail", state: "read", model_claim: said("constraint", ["approach"]) } }, { run_id: "run-1" }, act)!;
+  assert.equal(receipt.open, true, "RCPT-359 it opens its receipt, where 更正… is");
+  assert.ok(receipt.buttons().some(node => node.text === "更正…"));
 });

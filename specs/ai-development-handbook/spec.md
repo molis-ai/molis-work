@@ -1134,4 +1134,10 @@ ai-handbook-coding-base-ask-blind.md，判的人是手册线会话的 Claude）�
   上面两条设计问题（id 的格式、被拒停下的原因）两版都会遇到，不影响这次比较，交统筹定归属后另做。
 ```
 
+后续（统筹 10-18 定）：
+
+- ④：单独一道 `type: "text"` 的题，对人就是一个自由文字框，这个结果可以接受，不算错误。规则 ④ 的判定照原样记，不另改。
+- id 的格式：molis-ai/prologue#46 已合（94ee1ea4），`id` 的说明写出校验用的同一个格式，随下一次换包进 Molis。
+- 被拒停下的原因：`withInteractionRepairLimit` 停的时候交出原因（哪一种交互连续两次不合格，用人的话说），读回时显示，宿主重开后也一样；停的条件不变。用例 `tests/interaction-repair-limit.test.ts`。
+
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。

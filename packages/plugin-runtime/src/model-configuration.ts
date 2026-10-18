@@ -15,7 +15,7 @@ export interface PluginModelConfigurationPort {
 export function createPluginModelConfigurationClient(manifest: PluginManifest, declaration: PluginModelConfigurationDeclaration,
   port: PluginModelConfigurationPort, gate: PluginModelGate): PluginModelConfigurationClient {
   const check = (scope: PluginActionScope) => {
-    gate.assertActive();
+    gate.assertActive(); gate.requireGrant("storage:private");
     scope.caller.signal?.throwIfAborted();
     for (const permission of scope.definition.action.permissions) {
       gate.requireGrant(permission);

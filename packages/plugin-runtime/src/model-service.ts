@@ -121,6 +121,9 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
       try { answer = await port.complete(manifest.plugin_id, prompt, dispatch); }
       catch (error) {
         receiving = false;
+        // The Host already rejected this binding. Do not replace that terminal refusal with
+        // a fresh availability error, or expose it as a failure the plugin may record.
+        if (error instanceof ActionError && error.code === "actions.configuration_changed") throw error;
         await authority(caller);
         validateCall();
         const failure: PluginModelFailure = error instanceof ActionError ? error : pluginModelErrors.model_failed("模型请求失败，请重试");

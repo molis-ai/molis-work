@@ -93,7 +93,11 @@ for (const change of ["unchanged", "connection", "model", "revoke", "grant", "re
       if (change === "connection") withConnectorConnections(f.home, store => store.disconnect(f.connectionId));
       if (change === "model") await f.save(true, false);
       if (change === "revoke") revoked = true;
-      if (change === "grant") f.platform.runtime.grant(f.install.install_id, f.probe.permissions.filter(permission => permission !== "model:invoke"));
+      if (change === "grant") {
+        await f.platform.runtime.stop(f.install.install_id);
+        f.platform.runtime.grant(f.install.install_id, f.probe.permissions.filter(permission => permission !== "model:invoke"));
+        await f.platform.supervisor.restart(f.probe.id);
+      }
       if (change === "restart") { await f.platform.runtime.stop(f.install.install_id); await f.platform.supervisor.restart(f.probe.id); }
     } finally { release.resolve(); }
     const result = await outcome;
@@ -144,20 +148,31 @@ test("W5-01-SHM-03 choices use live metadata with zero requests/decryption and r
   const get = secrets.get.bind(secrets);
   t.mock.method(secrets, "get", (ref: string) => { reads++; return get(ref); });
   const model = f.model();
-  assert.deepEqual(model.choices(), [
+  const choices = (read = () => model.choices()) => {
+    const beforeReads = reads, beforeRequests = f.requests.length;
+    try { return read(); }
+    finally {
+      assert.equal(reads - beforeReads, 0, "each choices read must not decrypt credentials");
+      assert.equal(f.requests.length - beforeRequests, 0, "each choices read must not contact the provider");
+    }
+  };
+  assert.deepEqual(choices(), [
     { provider_id: "shm", model_id: "vision", label: "SHM · vision", vision: true, reasoning_effort: false },
     { provider_id: "shm", model_id: "text", label: "SHM · text", vision: false, reasoning_effort: false },
   ]);
-  assert.doesNotMatch(JSON.stringify(model.choices()), /credential|http|secret|token/);
-  await f.save(false); assert.deepEqual(model.choices(), []);
-  await f.save(); assert.equal(model.choices().length, 2);
+  assert.doesNotMatch(JSON.stringify(choices()), /credential|http|secret|token/);
+  await f.save(false); assert.deepEqual(choices(), []);
+  await f.save(); assert.equal(choices().length, 2);
   withConnectorConnections(f.home, store => store.disconnect(f.connectionId));
-  assert.deepEqual(model.choices(), []);
-  assert.equal(reads, 0); assert.equal(f.requests.length, 0);
-  f.platform.runtime.grant(f.install.install_id, f.probe.permissions.filter(permission => permission !== "model:invoke"));
-  assert.throws(() => model.choices());
+  assert.deepEqual(choices(), []);
+  assert.equal(f.requests.length, 0);
   await f.platform.runtime.stop(f.install.install_id);
-  assert.throws(() => model.choices());
+  f.platform.runtime.grant(f.install.install_id, f.probe.permissions.filter(permission => permission !== "model:invoke"));
+  await f.platform.supervisor.restart(f.probe.id);
+  const revokedModel = f.model();
+  assert.throws(() => choices(() => revokedModel.choices()));
+  await f.platform.runtime.stop(f.install.install_id);
+  assert.throws(() => choices(() => revokedModel.choices()));
 });
 
 test("W5-01-SHM-01 cancellation releases Host image sources and SDK intake resources on owner close", { timeout: 60_000 }, async t => {

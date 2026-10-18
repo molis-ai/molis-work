@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
 import { CODING_CLIENT_FACTORY_SCRIPT, renderCodingWorkbench } from "@molis-ai/molis-work-plugin-coding";
-import { escapeHtml, icon, STATE_RING_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon, INPUT_RECEIPTS_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 
@@ -43,7 +43,7 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
       const ports={lifetime,current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{}};
       // The plan card numbers and settles steps with the TaskBoard's own helpers, as the client hands them over (3d-3).
       const taskboard=(${embeddedFactory("taskboard")})({...ports,board:root.querySelector('[data-coding-board]'),ownTask:text=>text,from:()=>null,roleName:id=>id,navigate:async()=>{},amend:async()=>{}});
-      const progress=(${embeddedFactory("planProgress")})({...ports,from:()=>null,stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled});
+      const progress=(${embeddedFactory("planProgress")})({...ports,from:()=>null,stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:(${INPUT_RECEIPTS_CLIENT_SCRIPT})(text=>text).step});
       const nodes=['succeeded','running','not-started','blocked','cancelled','ready'].map((state,i)=>({id:'step-'+(i+1),state,reports:[]}));
       const board={version:1,terminal:false,nodes},entry={board,verdicts:{},plan:{content:{title:'验证状态',steps:nodes.map(n=>({title:n.id,acceptance:'保留事实'}))}}};
       const run={ref:{run_id:'round'},phase:'running',frozen:{role_id:'builder'}};
@@ -64,6 +64,7 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
     assert.deepEqual(result.paused, ["done", "paused", "waiting", "blocked", "cancelled", "ready"]);
     assert.equal(result.person, "doing", "a person's step never pretends the Agent is executing");
     assert.equal(result.accepted, "done");
+    // RCPT-356: the plan card says each state in the receipt's words (host.receipts.step), handed through its port.
     assert.deepEqual(result.labels, ["模型报告完成", "你已验收", "等待前一步", "受阻，等你决定", "已取消", "可以开始"]);
     assert.deepEqual(result.commands, ["interrupted", "stopped", "failed", "done", "running"]);
     assert.deepEqual(result.letters, ["failed", "queued"], "failed receiving rounds are not voluntary cancellations");

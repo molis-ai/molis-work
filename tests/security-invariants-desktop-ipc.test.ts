@@ -94,3 +94,22 @@ test("W2-18-CAPSULE: every command the capsule calls has its existing explicit p
   assert.deepEqual(allowed, ["capsule_hide", "capsule_open_main", "capsule_resize", "capsule_set_locale", "capsule_update_menu_bar"]);
   for (const command of invoked) assert.ok(allowed.includes(command), `${command}: capsule invocation has no permission`);
 });
+
+// W2'-3 (specs/context-program §21.6): the page tells the shell where Shelf's side tab is, and the drop wheel treats that box
+// as Shelf's drop place. The box comes from a page, so the shell keeps it only through `reported_panel` (finite, inside the
+// content's top-left, with area) and hits it only through `over_reported_panel` (it must fit the content). Those two are
+// exercised by the Rust tests named `s14_…` in drop_wheel.rs (`cargo test`); this pins that the command reaches the wheel only
+// through them, so a page cannot hand the wheel an unchecked box.
+test("S-14 the Shelf box a page reports reaches the drop wheel only through its check", () => {
+  const SRC = new URL("../apps/desktop/adapters/tauri/src/", import.meta.url);
+  const main = readFileSync(MAIN_RS, "utf8"), wheel = readFileSync(new URL("drop_wheel_macos.rs", SRC), "utf8"), pure = readFileSync(new URL("drop_wheel.rs", SRC), "utf8");
+  const command = /fn shelf_surface_changed\(([^)]*)\)\s*\{([^}]*)\}/.exec(main);
+  assert.ok(command, "the command is read");
+  assert.match(command[1]!, /^\s*panel: Option<drop_wheel::PanelBox>,\s*language: Option<String>,\s*theme: Option<String>,?\s*$/, "the page sends a box, a language and a theme, nothing else");
+  assert.match(command[2]!, /set_shelf_surface\(panel, /);
+  const writes = [...wheel.matchAll(/SHELF_PANEL\.lock\(\)/g)].length;
+  assert.equal(writes, 2, "the box is written in one place and read in one place");
+  assert.match(wheel, /\*shown = drop_wheel::reported_panel\(panel\);/, "what is stored is what the check keeps");
+  assert.match(wheel, /fn over_shelf_panel\([\s\S]*?drop_wheel::over_reported_panel\(/, "the hit test is the checked one");
+  for (const name of ["s14_a_reported_shelf_box_that_is_not_a_box_is_refused", "s14_the_wheel_takes_the_shelf_tab_only_where_it_is_on_screen"]) assert.match(pure, new RegExp(`fn ${name}\\(`), `${name}: the refusal is tested`);
+});

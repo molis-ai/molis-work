@@ -26,9 +26,7 @@ const EVENT_HOT_KEY_PRESSED: u32 = 5;
 const EVENT_PARAM_DIRECT_OBJECT: u32 = 0x2D2D2D2D;
 const TYPE_EVENT_HOT_KEY_ID: u32 = 0x686B6964;
 const OPEN_SHELF_JS: &str = r#"(() => {
-  const open = globalThis.molisWorkOpenShelf;
-  if (typeof open === "function") open();
-  else document.querySelector('[data-plugin-strip] [data-plugin-id="shelf"]')?.click();
+  globalThis.molisWorkOpenShelf?.();
   const refresh = globalThis.molisWorkShelfRefresh;
   if (typeof refresh === "function") setTimeout(() => refresh(), 40);
 })();"#;

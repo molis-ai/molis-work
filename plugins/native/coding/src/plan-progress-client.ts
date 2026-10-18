@@ -5,15 +5,15 @@
  *
  * A supplement the AI says is a new task (D2, stage 3d-3) is not a step: it shows under the steps as the AI's words,
  * dashed, until the person adds it with 「加进计划」, the same insert a person makes, pointing at that supplement. A step
- * added that way links back to its receipt (`from`, the same button as the TaskBoard's).
+ * added that way links back to its receipt (`from`, the same button as the TaskBoard's). A step's state is said in the
+ * receipt's own words (`word`, `host.receipts.step`), so the card and the receipt never name one state two ways (3d-4).
  */
 export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const lifetime=ports.lifetime;
-  const {api,current,status,refresh,openStep,from,stepOf,skipped,settled}=ports;
+  const {api,current,status,refresh,openStep,from,stepOf,skipped,settled,word}=ports;
   const svg=(name)=>'<svg aria-hidden="true"><use href="#icon-'+name+'"></use></svg>';
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
   const MARK={succeeded:'done',running:'running',failed:'failed',blocked:'blocked',cancelled:'cancelled',ready:'ready','not-started':'waiting'};
-  const LABEL={succeeded:'模型报告完成',running:'进行中',failed:'模型报告失败',blocked:'受阻，等你决定',waiting:'在等别的步骤','needs-reconciliation':'重启后需要核对',cancelled:'已取消',ready:'可以开始','not-started':'等待前一步'};
   const amend=async(card,runId,version,amendment)=>{
     const id=current();card.dataset.busy='true';
     try{
@@ -71,7 +71,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       const state=el('span','coding-board-state coding-plan-state');state.dataset.tone=decided==='accepted'?'accepted':decided==='needs-work'?'attention':skipped(node)?'quiet':TONE[node.state]||'idle';
       state.dataset.mwState=decided==='accepted'?'done':decided==='needs-work'?'blocked':skipped(node)?'cancelled':node.state==='running'?(node.owner?.kind==='person'?'doing':['starting','running','compacting'].includes(run.phase)?'running':({paused:'paused',pausing:'paused','awaiting-input':'answer','awaiting-review':'approval'})[run.phase]||'doing'):MARK[node.state]||'idle';
       const yours=node.owner?.kind==='person'&&['succeeded','failed'].includes(node.state);
-      state.append(el('span','',decided==='accepted'?'你已验收':decided==='needs-work'?'要求返工':skipped(node)?'你跳过了':yours?(node.state==='succeeded'?'你标记完成':'你标记失败'):LABEL[node.state]||node.state));if(decided)state.dataset.verdict=decided;
+      state.append(el('span','',decided==='accepted'?'你已验收':decided==='needs-work'?'要求返工':skipped(node)?'你跳过了':yours?(node.state==='succeeded'?'你标记完成':'你标记失败'):word(node.state)));if(decided)state.dataset.verdict=decided;
       const deps=(node.depends_on||[]).map(id=>board.nodes.find(other=>other.id===id)).filter(Boolean),waiting=deps.filter(dep=>!settled(dep)),stuck=waiting.filter(dep=>['failed','blocked'].includes(dep.state));
       const chip=el('span','coding-board-deps '+(!deps.length?'is-empty':stuck.length?'is-blocked':waiting.length?'is-waiting':'is-ready'));
       if(deps.length){chip.textContent=deps.length+' 个前置'+(stuck.length?' · '+stuck.length+' 个阻塞':waiting.length?' · '+waiting.length+' 个未完成':' · 已就绪');chip.title=deps.map(dep=>stepOf(entry.plan,dep).title).join('\\n');}

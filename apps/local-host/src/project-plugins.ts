@@ -14,6 +14,7 @@ import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
+import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -103,6 +104,19 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
   return opening;
 }
 
+
+/** The two project plugins whose library lives in the Home; a platform without a Home starts neither. */
+function homeLibraryEntries(homeDirectory: string | undefined, formPlugin: ReturnType<typeof createFormPlugin>,
+  datasetPlugin: ReturnType<typeof createDatasetPlugin>): PluginPlatformEntry[] {
+  if (!homeDirectory) return [];
+  return [
+    { definition: formPlugin, bundled: true, database: FORM_DATABASE,
+      releaseArtifact: nativePluginReleaseArtifact<typeof createFormPlugin>("@molis-ai/molis-work-plugin-form", "createFormPlugin", factory => factory()) },
+    { definition: datasetPlugin, bundled: true, database: DATASET_DATABASE,
+      releaseArtifact: nativePluginReleaseArtifact<typeof createDatasetPlugin>("@molis-ai/molis-work-plugin-dataset", "createDatasetPlugin", factory => factory()) },
+  ];
+}
+
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
   const record: ProjectPluginState = { platform: null, running: false };
   try {
@@ -183,8 +197,9 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       },
       onWorkingTreeChanged: () => { platform.invalidateView(GIT_PLUGIN_ID); },
     };
-    // Forms keeps its library in the Home (`form/form.db`), so a platform without a Home has no Forms.
+    // Forms and Datasets keep their libraries in the Home (`form/form.db`, `dataset/dataset.db`), so a platform without a Home has neither.
     const formPlugin = createFormPlugin();
+    const datasetPlugin = createDatasetPlugin();
     const entries: PluginPlatformEntry[] = [
       {
         definition: createCharactersPlugin(charactersPorts),
@@ -198,13 +213,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         releaseArtifact: nativePluginReleaseArtifact<typeof createShelfPlugin>(
           "@molis-ai/molis-work-plugin-shelf", "createShelfPlugin", factory => factory(shelfPorts)),
       },
-      ...ports.homeDirectory ? [{
-        definition: formPlugin,
-        bundled: true,
-        database: FORM_DATABASE,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createFormPlugin>(
-          "@molis-ai/molis-work-plugin-form", "createFormPlugin", factory => factory()),
-      }] : [],
+      ...homeLibraryEntries(ports.homeDirectory, formPlugin, datasetPlugin),
       {
         definition: createCodingPlugin(codingPorts),
         bundled: true,

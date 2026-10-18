@@ -132,12 +132,6 @@
       ],
       "reason": "Contextual ranking's Host side (service, judgment, HTTP edge); its codes already start with contextual."
     },
-    "dataset": {
-      "paths": [
-        "apps/local-host/src/dataset-*"
-      ],
-      "reason": "The Dataset plugin and the Host files that serve it; its codes already start with dataset."
-    },
     "feed": {
       "paths": [
         "modules/feed/",

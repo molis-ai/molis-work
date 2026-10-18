@@ -12,8 +12,6 @@ import { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
 import { IMAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-images";
 import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
 import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
-import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
-import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
 import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
 import { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
@@ -220,8 +218,6 @@ const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     && await handleLingguangNativePluginHttp(request, response, url, (_input, transport) => ({ projectId: hostReference.project_id, actions: userActions(LINGGUANG_ACTION_PERMISSIONS, transport) })) },
   { id: "pages", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePagesNativePluginHttp(request, response, url, { projectId: hostReference.project_id, actions: userActions(PAGES_ACTION_PERMISSIONS) }) },
-  { id: "dataset", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
-    && await handleDatasetNativePluginHttp(request, response, url, (_input, transport) => ({ projectId: hostReference.project_id, actions: userActions(DATASET_ACTION_PERMISSIONS, transport) })) },
   { id: "images", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handleImagesNativePluginHttp(request, response, url, (_input) => ({ projectId: hostReference.project_id, actions: userActions(IMAGES_ACTION_PERMISSIONS) })) },
   { id: "ppt", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)

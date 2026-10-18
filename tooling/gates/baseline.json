@@ -32,10 +32,10 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 308,
+      "lines": 307,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 318,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 309,
     "function apps/local-host/src/web-connectors-settings.ts#handleLocalConnectorsSettingsHttp": 227,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
@@ -195,7 +195,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1638,
+    "file plugins/native/coding/src/client.ts": 1635,
     "file plugins/native/coding/src/styles.ts": 812,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
@@ -802,15 +802,13 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 30,
+  "hostPluginFilesTotal": 28,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
     "apps/local-host/src/artifact-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/cognia-actions.ts#actions": 1,
     "apps/local-host/src/cognia-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/dataset-actions.ts#actions": 1,
-    "apps/local-host/src/dataset-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/feed-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/goals-actions.ts#actions": 1,
     "apps/local-host/src/images-actions.ts#actions": 1,
@@ -859,14 +857,14 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 416,
+  "pluginOutsideMentionsTotal": 412,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
     "characters#outside-files": 11,
     "coding#outside-files": 17,
     "cognia#outside-files": 13,
-    "dataset#outside-files": 12,
+    "dataset#outside-files": 8,
     "diff#outside-files": 8,
     "feed#outside-files": 41,
     "files#outside-files": 10,
@@ -1249,7 +1247,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 510,
+  "explicitAnyTotal": 508,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1328,7 +1326,7 @@
     "tests/cross-device-continuity.test.ts": 1,
     "tests/cross-plugin-recovery.e2e.test.ts": 1,
     "tests/dataset-actions.test.ts": 5,
-    "tests/dataset-mcp.test.ts": 4,
+    "tests/dataset-mcp.test.ts": 2,
     "tests/document-pin-after-move.test.ts": 20,
     "tests/files-product-http.test.ts": 4,
     "tests/fixtures/alchemist-actions.ts": 1,

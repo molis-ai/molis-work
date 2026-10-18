@@ -10,8 +10,8 @@ test("W5-01-HPR-01 Home routes obtain project-only permissions from the resolved
   assert.equal(missing.status, 400, await missing.clone().text());
   assert.equal((await missing.json()).code, "actions.input_invalid", "the legitimate project route reaches its action input validation");
   const personal = await f.request(root + `/jobs?project_id=${project.project_id}`, { method: "POST", body: {} });
-  assert.equal(personal.status, 403);
-  assert.equal((await personal.json()).code, "actions.forbidden", "a query field cannot provide a project's route grant");
+  assert.equal(personal.status, 400);
+  assert.equal((await personal.json()).code, "actions.project_required", "a query field cannot establish trusted project context");
   assert.deepEqual(await (await f.request(scoped + "/jobs")).json(), { jobs: [] });
   const platform = await f.host.homePlugins!.ready(), install = f.host.homePlugins!.installation(plugin)!;
   await platform.runtime.stop(install.install_id);

@@ -6,6 +6,12 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+D1 项目成果操作交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前 OwnerFiles/SHM/AQD 与实际 main 63639a764，原固定身份及 owner 操作实现不变。安全表 S-17 保留 D1 真实拒绝，S-18 并入 OwnerFiles 与当前主线；整体 offline install/build、API/动作快照（均无额外变化）、boundary、merge-base health 与资源核对通过。11 个直接相关文件 99 条通过，覆盖创建参数后续变更不能换权、过程 own 恢复、公开 SDK/输入图、真实 Host/Runtime、查询委托、OwnerFiles 生命周期与动作合同。25 项 7,478,060 B，无本片增量。日志 /tmp/molis-d1-closeout-{build,api,actions,health,boundary,assets,targeted}.log；原79文件921条及修前红/修后绿证据保留。正式 PR/CI 待前置；D2/D3 与 Shelf 业务迁移均未启动。
+
+OwnerFiles 交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前 SHM/AQD 与实际 main 63639a764，未改变原已审服务实现；安全表保留当前主线与本服务的最终同步授权/句柄失效拒绝。整体 offline install/build、API（无额外变化）、boundary、merge-base health 与实测资源通过；七个直接相关文件 60 条通过，覆盖路径/注册/生命周期拒绝、当前 Home 路由、Host 接线、Runtime 安装及私有文件服务。25 项资源 7,478,060 B，本片增量 0；日志 /tmp/molis-owner-files-closeout-{build,api,health,boundary,assets,targeted}.log。原172文件相关证据保留，正式 PR/CI 待前置；Shelf/Alchemist 业务接入与迁移仍未完成。
+
+SHM/AQD 交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前模型/Images/Jelly 前置 10e8ef32a 与实际 main 63639a764，保留原模型最终提交复核和原调用者只读委托。整体 offline install/build、API（无额外变化）、boundary、merge-base health 与实测资源通过；13 个有效相关文件 121 条通过，覆盖原图/推理回执、权限等待、query-only、真实 Home/project HTTP/MCP、后台授权及缺项目诊断。首批命令误写不存在的 home-platform.test.ts，属于路径错误，实际 home-plugin-platform.test.ts 已另跑 7/7 通过；不把该错误当成产品回归。25 项 7,478,060 B，无本片增量。日志 /tmp/molis-shm-aqd-closeout-{build,api,health,boundary,assets,targeted,home-platform}.log。此前完整相关与浏览器证据保留，正式 PR/CI 待前置；Shelf 业务迁移仍未开始。
+
 模型端口与 Images/Jelly 交接收口（2026-10-18，Codex，本地同步通过）：候选 merge 前置后台服务 c99e348ec，包含实际 main 63639a764 与已验证的灵光、Cognia、插件文件服务；保留主线 vendor/receipts 与完整的已消费资源拒绝用例。整体 offline install/build、API 与动作快照（均无额外变化）、boundary、merge-base health 及实测资源通过，19 个直接相关文件 235 条通过，覆盖模型选择/配置/图片调用、项目清理/路由、Images/Jelly HTTP/MCP、授权并发及公开合同。25 项共 7,478,060 B，比当前后台服务前置减少 312 B；本次没有新增资源额度。日志 /tmp/molis-model-closeout-{install,build,api,actions,health,boundary,assets,targeted}.log；前期必跑与 Chrome 证据继续有效，未冒称重复运行。共享核心全量和正式 PR/CI/合入仍待队列，整线未完成。
 
 后台授权交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前私有文件/Cognia/灵光与实际 main 63639a764，保留安全表和 CI 子集双方条目，后台授权生产实现不变。整体 build、API、boundary、merge-base health 及资源核对通过；六个直接相关文件 81 条通过，涵盖后台失权拒绝、Kernel 授权、真实 HTTP 生命周期、模型/文件服务与 Host 接线。25 项资源共 7,478,372 B，无本片增量；日志 /tmp/molis-background-closeout-{build,api,health,boundary,assets,targeted}.log。原完整相关组合证据保留，正式 PR/CI 待前置；不把模型端口或插件业务迁移算成本片已合入。

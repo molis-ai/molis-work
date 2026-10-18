@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
 import { showsMolis, tierOf, type AppTierVerdict } from "./app-tiers.js";
-import { isUnnamedContainer, modelImageReason, nodeIsClickable, observationExpired, pointerFromNode } from "./computer-act.js";
+import { isUnnamedContainer, modelImageReason, nodeIsClickable, observationExpired, pointerFromNode, roleName } from "./computer-act.js";
 import { isHelperFailure, isRefused, refused } from "./computer-errors.js";
 import { injectDesktopAction } from "./computer-inject.js";
 import { refuseCapture, refuseDespiteWindowText, refuseLanding, refuseSelfApproval, type LandingProbe } from "./computer-policy.js";
@@ -18,14 +18,6 @@ export const NO_APP_SCOPE = "desktop:no-app";
 /** Moves of the person's mouse this recent make the next action wait for the mouse to settle. */
 const SETTLE_MS = 600;
 const TREE_TEXT_BUDGET = 22_000;
-
-const ROLE_NAMES: Readonly<Record<string, string>> = {
-  AXButton: "按钮", AXTextField: "文本框", AXTextArea: "文本区", AXStaticText: "文字", AXCheckBox: "复选框", AXRadioButton: "单选按钮",
-  AXPopUpButton: "弹出菜单", AXMenuButton: "菜单按钮", AXLink: "链接", AXTab: "标签", AXRow: "行", AXCell: "单元格", AXImage: "图像",
-  AXSlider: "滑块", AXComboBox: "组合框", AXMenuItem: "菜单项", AXMenuBarItem: "菜单", AXGroup: "组", AXScrollArea: "滚动区",
-  AXTable: "表格", AXOutline: "大纲", AXList: "列表", AXToolbar: "工具栏", AXWebArea: "网页区域", AXHeading: "标题",
-  AXDisclosureTriangle: "展开按钮", AXIncrementor: "步进器", AXSegmentedControl: "分段控件", AXSwitch: "开关", AXSheet: "表单", AXDialog: "对话框", AXPopover: "浮层", AXWindow: "窗口",
-};
 
 /** Words on a control or menu item that mean the step cannot be taken back. */
 const IRREVERSIBLE_WORDS = /发送|send\b|提交|submit|删除|delete|移到废纸篓|move to trash|清空|empty trash|抹掉|erase|付款|支付|\bpay\b|购买|buy\b|purchase|下单|place order|转账|transfer|发布|publish|\bpost\b|回复全部|reply all|签署|sign\b|确认订单|checkout|永久/iu;
@@ -66,13 +58,13 @@ function renderTree(state: AppState, tree: Tree): { text: string; cut: boolean }
     `窗口：「${tree.window.title || "无标题"}」，${width}×${height}。坐标以这个窗口的左上角为原点，单位是点；点击、滚动、拖动、悬停都用这里的坐标。`,
     ...(tree.menus.length ? [`菜单栏：${tree.menus.join("、")}（用 surface-act 的 menu 动作按菜单路径选，例如 ["${tree.menus[1] ?? tree.menus[0]}", "…"]）`] : []),
     "",
-    "窗口里的元素（@ 后是点击用的中心坐标）：",
+    "窗口里的元素（@ 后是点击用的中心坐标；pointer 的 node 可以填 [n]，也可以写「角色:名称」或 /正则/）：",
   ];
   let used = lines.join("\n").length;
   let cut = tree.truncated;
   for (const [offset, node] of tree.nodes.entries()) {
     if (isUnnamedContainer(node)) continue;
-    const role = node.subrole === "AXSecureTextField" ? "密码框" : node.subrole === "AXSearchField" ? "搜索框" : ROLE_NAMES[node.role] ?? node.role.replace(/^AX/u, "");
+    const role = roleName(node);
     const states = [node.disabled ? "不可用" : "", node.focused ? "有焦点" : "", node.selected ? "已选中" : "", node.expanded ? "已展开" : ""].filter(Boolean);
     const value = node.secure ? (node.filled ? "（已填写，已隐藏）" : "") : node.value && node.value !== node.name ? ` 值=${node.value.replace(/\s+/gu, " ").slice(0, 300)}` : "";
     const at = node.frame && node.frame[2] > 0 && node.frame[3] > 0

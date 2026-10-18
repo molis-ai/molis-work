@@ -11,6 +11,7 @@ export type HostSurfaceKind = "browser" | "desktop";
 export type HostSurfaceObservationKind = "dom" | "accessibility-tree" | "screenshot" | "window-metadata";
 
 export type HostSurfaceAction =
+  /** A tree id from the last look (`[3]`), or a selector: `保存`, `按钮:保存`, `/正则/`; resolved on the tree read at injection. */
   | { readonly what: "pointer"; readonly x: number; readonly y: number; readonly button: "left" | "right" | "middle"; readonly clicks: number; readonly node?: string }
   | { readonly what: "key"; readonly keys: readonly string[] }
   | { readonly what: "text"; readonly text: string }

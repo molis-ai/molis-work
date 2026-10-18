@@ -147,4 +147,4 @@
 | CU-G14 文档 | 部分 | spec/runbook 已更新；索引与归档未做 |
 | CU-G15 文件/延迟/多显示器 | 未做 | 可选阶段 5 |
 
-draft PR：[#721](https://github.com/molis-ai/molis-work/pull/721)。
+draft PR：[#721](https://github.com/molis-ai/molis-work/pull/721)。打开/保存面板与模型主动 zoom 的选项、验证矩阵见 [open-decisions.md](open-decisions.md)。

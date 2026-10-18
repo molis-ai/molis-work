@@ -6,16 +6,15 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { lingguangActions } from "@molis-ai/molis-work-plugin-lingguang";
-import { bindActionClient, type ActionCallContext, type ActionDefinition, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionCallContext, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { planSteps } from "../plugins/native/goals/dist/fragment-offers.js";
 
 /**
- * specs/archive/contextual-interaction §10 P2: the platform-wide fragment offers of Goals and 灵光, through the real directory
+ * specs/archive/contextual-interaction §10 P2: the platform-wide fragment offers of Goals, through the real directory
  * and the real actions. What a provider prepares must be exactly what its own action accepts, and running it must do
- * what the card said (a proposal that creates nothing yet; progress on the right Goal; one spark per request).
+ * what the card said (a proposal that creates nothing yet; progress on the right Goal).
  */
 const fragment = (over: Partial<FragmentOffersInput["fragment"]>, request_id: string): FragmentOffersInput => ({ request_id, fragment: {
   object: { kind: "pages_document", id: "doc-1", version: 3, title: "留存计划" }, granularity: "range",
@@ -28,13 +27,13 @@ test("a plan becomes steps by clause; several selected parts become one step eac
   assert.deepEqual(planSteps(fragment({ targets: [{ kind: "text_range", text: "2026 年完成迁移" }] }, "r")), ["2026 年完成迁移"]);
 });
 
-test("Goals and 灵光 fragment offers: prepared inputs run through the real actions and do what the card says", { timeout: 60_000 }, async () => {
+test("Goals fragment offers: prepared inputs run through the real actions and do what the card says", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "contextual-offers-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Offers", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", project_id: project.project_id, audience: "user",
-    permissions: ["goals:read", "goals:write", "lingguang:read", "lingguang:write", "todo:read", "todo:write"] };
+    permissions: ["goals:read", "goals:write"] };
   const client = host.actionClient(ref);
   const bound = bindActionClient(client, () => caller);
   const invoke = <O>(reference: { capability_id: string; version: number; provider_id?: string }, input: unknown) => client.invoke(caller, reference, input) as Promise<O>;
@@ -47,9 +46,11 @@ test("Goals and 灵光 fragment offers: prepared inputs run through the real act
       targets: [{ kind: "text_range", role: "paragraph", text: "下周三前完成新手引导改版，周五发给二十个老用户试用并收集反馈。" }] };
     const candidates = fragmentCandidates(directory, focus);
     const titles = candidates.filter(item => item.available).map(item => item.title);
-    assert.ok(titles.includes("拆成目标步骤") && titles.includes("记下灵光"), titles.join(" / "));
+    assert.ok(titles.includes("拆成目标步骤"), titles.join(" / "));
+    // 记下灵光 and 记成待办 are creation entries now (W4-1): their offers queries only prepare, and tests/contextual-create.test.ts runs them.
+    assert.ok(!titles.includes("记下灵光") && !titles.includes("记成待办"), titles.join(" / "));
     assert.ok(!titles.includes("记录进展"), "progress needs a ticked task");
-    for (const item of candidates.filter(item => item.offer_id === "breakdown" || item.offer_id === "capture")) assert.equal(item.apply, "record", "both write: confirmed first");
+    assert.equal(candidates.find(item => item.offer_id === "breakdown")?.apply, "record", "it writes: confirmed first");
 
     // 拆成目标步骤: a proposal under the document's Goal; nothing is created until the person approves it in Goals.
     const breakdown = candidates.find(item => item.offer_id === "breakdown")!;
@@ -62,8 +63,12 @@ test("Goals and 灵光 fragment offers: prepared inputs run through the real act
     assert.equal(submitted.proposal.items.length, 4, "two steps and their part_of relations");
     const again = await invoke<{ replayed: boolean }>(plan.action, plan.input);
     assert.equal(again.replayed, true, "the same request submits once");
+    // Another plan in the same project is its own proposal: its items are named by its own request, not step-1 again.
+    const other = (await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ goal: { id: parent, title: "提升新用户留存" } }, "req-breakdown-2"))).offers.find(offer => offer.offer_id === "breakdown")!;
+    const second = await invoke<{ proposal: { proposal_id: string }; replayed: boolean }>(other.action, other.input);
+    assert.notEqual(second.proposal.proposal_id, submitted.proposal.proposal_id);
     const after = await host.withProject(ref, runtime => runtime.store.snapshot(project.project_id));
-    assert.equal(after.goals.length, before.goals.length, "a proposal creates no Goal before approval");
+    assert.equal(after.goals.length, before.goals.length, "proposals create no Goal before approval");
 
     // 记录进展: only for a ticked task in something that belongs to a Goal; it lands on that Goal at its current cursor.
     const task: SurfaceFocus = { ...focus, context_id: "c2", activity: "completed", granularity: "block", targets: [{ kind: "block", role: "task", text: "上线新手引导" }] };
@@ -77,25 +82,6 @@ test("Goals and 灵光 fragment offers: prepared inputs run through the real act
     const state = await bound.invoke(goalsActions.state, { goal_id: parent });
     assert.equal(state.progress_summary?.summary, "完成：上线新手引导");
 
-    // 记下灵光: one spark per request, the source named in its body.
-    const capture = candidates.find(item => item.offer_id === "capture")!;
-    const noted = await invoke<{ offers: FragmentActionOffer[] }>(capture.source, fragment({}, "req-spark"));
-    const spark = noted.offers[0]!;
-    await invoke(spark.action, spark.input);
-    await invoke(spark.action, spark.input);
-    const { sparks } = await bound.invoke(lingguangActions.list as ActionDefinition<Record<string, never>, { sparks: { body: string }[] }>, {});
-    assert.equal(sparks.filter(item => item.body.includes("出自：留存计划")).length, 1);
-
-    // 记成待办: one todo per request, remembering the object it came from.
-    const todoOffer = candidates.find(item => item.offer_id === "todo");
-    assert.equal(todoOffer?.apply, "record");
-    const todoReady = await invoke<{ offers: FragmentActionOffer[] }>(todoOffer!.source, fragment({}, "req-todo"));
-    const todo = todoReady.offers[0]!;
-    assert.equal((todo.input as { title: string }).title, "下周三前完成新手引导改版，周五发给二十个老用户试用并收集反馈");
-    const made = await invoke<{ item: { id: string; title: string; sources: { kind: string; subject: { kind: string; id: string } | null }[] } }>(todo.action, todo.input);
-    const again2 = await invoke<{ item: { id: string }; replayed: boolean }>(todo.action, todo.input);
-    assert.equal(again2.item.id, made.item.id, "the same request creates it once");
-    assert.deepEqual(made.item.sources.map(source => [source.kind, source.subject?.kind, source.subject?.id]), [["material", "pages_document", "doc-1"]]);
   } finally {
     await host.close();
     await rm(home, { recursive: true, force: true });

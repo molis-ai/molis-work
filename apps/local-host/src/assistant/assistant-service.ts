@@ -30,7 +30,8 @@ import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from ".
 import { identity, linkSent, revisionOf } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { type AssistantStore, type StoredRound, type StoredWork } from "./assistant-store.js";
-import { AssistantJobs, JOB_FOLLOW_MS, pathValue } from "./assistant-jobs.js";
+import { AssistantJobs, JOB_FOLLOW_MS } from "./assistant-jobs.js";
+import { declaredUndo } from "../action-undo.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
 import { randomUUID } from "node:crypto";
@@ -880,17 +881,10 @@ export class AssistantService {
 
   /** A change that declares how it is undone leaves that undo on its work, with the exact input its output gives. */
   private recordUndo(work: StoredWork, view: ActionView, output: unknown): void {
-    const undo = view.action.undo;
-    if (!undo || view.operation !== "command") return;
-    const input: Record<string, unknown> = {};
-    for (const [field, path] of Object.entries(undo.input)) {
-      const value = pathValue(output, Array.isArray(path) ? path[0]! : path as string);
-      // The output does not say what to undo: nothing is offered rather than an undo that might hit something else.
-      if (value === undefined || value === null || value === "") return;
-      input[field] = Array.isArray(path) ? [value] : value;
-    }
+    const undo = declaredUndo(view, output);
+    if (!undo) return;
     this.store.saveUndo(this.actorId, { undo_id: randomUUID(), work_id: work.work_id, title: `${view.provider.title} · ${view.action.title}`, state: "available",
-      created_at: this.now().toISOString(), reference: { capability_id: undo.capability_id, version: undo.version, provider_id: view.provider.provider_id }, input });
+      created_at: this.now().toISOString(), ...undo });
   }
 
   #undoing = new Map<string, Promise<AssistantWorkView>>();

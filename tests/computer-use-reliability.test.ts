@@ -191,3 +191,10 @@ test("CU-G06: unnamed containers are left out, and node ids still point at the r
   await driver.surface().perform({ what: "pointer", node: "[103]", x: 1, y: 1, button: "left", clicks: 1 }, { session_id: "s" });
   assert.deepEqual(calls.find(call => call.op === "input.pointer")?.payload?.point, [30, 20]);
 });
+
+test("CU-G09: a long window title is offered in full, because the menu path matches it exactly", async () => {
+  const long = `A long document name ${"x".repeat(120)}.txt`;
+  const driver = new ComputerDriver(desk({ windows: ["Notes", long], menus: ["窗口"], windowMenuItems: [{ title: "Notes" }, { title: long }] }));
+  const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
+  assert.match(text, new RegExp(long.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")));
+});

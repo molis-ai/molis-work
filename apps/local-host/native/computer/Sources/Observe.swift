@@ -334,13 +334,16 @@ enum Observe {
         let box = (shot["rect"] as? [Double]) ?? []
         let width = box.count >= 4 ? box[2] : Double(cgImage.width)
         let height = box.count >= 4 ? box[3] : Double(cgImage.height)
+        // The capture may be clipped by the display; the model's coordinates are relative to the window, not the crop.
+        let offsetX = (box.count >= 4 ? box[0] : Double(rect.minX)) - Double(rect.minX)
+        let offsetY = (box.count >= 4 ? box[1] : Double(rect.minY)) - Double(rect.minY)
         let found = (request.results ?? []).compactMap { observation -> [String: Any]? in
             guard let candidate = observation.topCandidates(1).first else { return nil }
             let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return nil }
             let bounding = observation.boundingBox
-            let x = Double(bounding.minX) * width
-            let y = (1 - Double(bounding.maxY)) * height
+            let x = Double(bounding.minX) * width + offsetX
+            let y = (1 - Double(bounding.maxY)) * height + offsetY
             let boxWidth = Double(bounding.width) * width
             let boxHeight = Double(bounding.height) * height
             return ["text": String(text.prefix(500)), "x": x, "y": y, "width": boxWidth, "height": boxHeight,

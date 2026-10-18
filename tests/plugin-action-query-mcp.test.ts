@@ -36,9 +36,13 @@ test("AQD-05 actual MCP parent-only and partial grants refuse, full exact grants
   assert.equal(probe.seen.at(-1)!.audience, "mcp"); assert.equal(probe.seen.at(-1)!.actor_id, clientId);
   probe.contexts.at(-1)!.services!.storage!.delete("delivered");
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-  probe.behavior.before = async () => { entered.resolve(); await release.promise; };
+  const target = { ...pagesContentActions.read, capability_id: "query.target" };
+  s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "held-query", title: "Held query", kind: "system", project_id: project.project_id },
+    definitions: [target], handlers: [{ ...target, handle: async () => { entered.resolve(); await release.promise; return { title: "Held", body: "Late query result" }; } }] });
+  probe.target.current = target;
+  await s.grant(clientId, project.project_id, [target]);
   const pending = call();
-  try { await Promise.race([entered.promise, pending.then(() => { throw new Error("Missed MCP wait"); })]); await s.revoke(clientId, project.project_id, [pagesActions.get]); }
+  try { await Promise.race([entered.promise, pending.then(() => { throw new Error("Missed MCP wait"); })]); await s.revoke(clientId, project.project_id, [target]); }
   finally { release.resolve(); }
   assert.equal((await pending).isError, true); assert.equal(probe.contexts.at(-1)!.services!.storage!.get("delivered"), null);
 });

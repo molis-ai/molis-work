@@ -414,6 +414,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly audience: ActionAudience;
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
+    readonly query_only?: true;
     readonly permissions: readonly string[];
     readonly allowed_capability_ids?: readonly string[];
     readonly allowed_actions?: readonly ActionReference[];
@@ -915,7 +916,7 @@ export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority">, transport?: ActionInvokeTransport): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2390,6 +2391,10 @@ export interface PlacementResult {
     revision: string;
 }
 
+export interface PluginActionClient extends BoundActionClient {
+    invokeQuery<Input = unknown, Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: Input): Promise<Output>;
+}
+
 export interface PluginAppContribution {
     kind: "app";
     onProjectDeleted?(projectId: string): void;
@@ -2678,7 +2683,7 @@ export interface PluginEventsRepository {
     deleteCursors(projectId: string, subscriberPluginId: string): void;
 }
 
-export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority"> & {
+export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only"> & {
     readonly project_id?: string;
 };
 
@@ -2711,7 +2716,7 @@ export interface PluginFilesDeclaration {
 
 export interface PluginHostServices {
     readonly background?: import("platform/plugin-background").PluginBackgroundClient;
-    readonly actions?: import("@molis-ai/molis-work-contracts/platform/actions").BoundActionClient;
+    readonly actions?: PluginActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
     readonly files?: import("platform/plugin-files").PluginFilesClient;

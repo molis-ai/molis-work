@@ -58,7 +58,7 @@ test("AQD-02/AQD-07 no action scope, a finished inherited scope, and a different
 for (const mutation of ["source-stop", "source-grant", "target-replace", "parent-revoke", "cancel"] as const) {
   test(`AQD-02 ${mutation} while query waits prevents result delivery`, async t => {
     const s = await setup(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-    const target: ActionDefinition = { ...pagesContentActions.read, capability_id: "query.target", action: { ...pagesContentActions.read.action, input_schema: { type: "object" }, output_schema: { type: "string" } } };
+    const target: ActionDefinition = { capability_id: "query.target", version: 1, operation: "query", action: { title: "Held query", description: "Read while authority changes", kind: "query", scope: "project", audiences: ["user", "agent", "mcp"], permissions: ["pages:read"], subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "string" } } };
     s.probe.target.current = target;
     const registration = { provider: { provider_id: "query-provider", title: "Query provider", kind: "system" as const }, definitions: [target], handlers: [{ ...target, handle: async () => { entered.resolve(); await release.promise; return "late content"; } }] };
     let remove = s.host.actionRegistry(s.project.reference).registerProvider(registration), active = true;
@@ -81,7 +81,7 @@ for (const mutation of ["source-stop", "source-grant", "target-replace", "parent
 
 for (const target of ["query.command", "query.missing", "version", "provider", "schema"] as const) test(`AQD-03 ${target} cannot redirect or alter the registered query contract`, async t => {
   const s = await setup(t); let commands = 0;
-  const command = { ...pagesContentActions.read, capability_id: "query.command", operation: "command" as const };
+  const command: ActionDefinition = { capability_id: "query.command", version: 1, operation: "command", action: { title: "Command", description: "Must never execute via delegation", kind: "operation", scope: "project", audiences: ["user", "agent", "mcp"], permissions: ["pages:read"], subject_kinds: [], input_schema: { type: "object" } } };
   s.host.actionRegistry(s.project.reference).registerProvider({ provider: { provider_id: "command", title: "Command", kind: "system" }, definitions: [command], handlers: [{ ...command, handle: () => ++commands }] });
   if (target === "version") s.probe.target.current = { ...pagesContentActions.read, version: 999 };
   else if (target === "provider") s.probe.target.current = { ...pagesContentActions.read, provider_id: "wrong" };
@@ -89,4 +89,29 @@ for (const target of ["query.command", "query.missing", "version", "provider", "
   else s.probe.target.current = { ...command, capability_id: target, operation: "query" };
   if (target === "schema") await assert.rejects(s.client.invoke(s.caller, s.probe.action, {})); else await assert.rejects(s.read());
   assert.equal(commands, 0); assert.equal(s.probe.contexts.at(-1)!.services!.storage!.get("delivered"), null);
+});
+
+
+test("AQD-07 Home start may await action discovery without re-entering its own ready operation", { timeout: 15_000 }, async t => {
+  const probe = queryProbe("querystart"), original = probe.definition.start; let discovered = false;
+  probe.definition.start = async context => { await context.services!.actions!.discover(); discovered = true; return original(context); };
+  const s = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { home: [probe.definition] } } });
+  await s.host.homePlugins!.ready(); assert.equal(discovered, true);
+  assert.equal(s.host.homePlugins!.installation(probe.id)!.state, "running");
+});
+
+
+test("AQD-01/AQD-06 autonomous own invocation cannot manufacture user query authority from consumes and grants", async t => {
+  const probe = queryProbe("queryautonomous", "project");
+  const s = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [probe.definition] } } });
+  const project = await s.createProject("Autonomous query", ["pages"]);
+  const page = await s.host.actionClient(project.reference).invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: ["pages:write"] },
+    pagesActions.create, { title: "Available material", markdown: "Must not borrow the owner" }) as { document: { id: string } };
+  const context = probe.contexts.at(-1)!;
+  assert.ok(context.grants.includes("pages:read")); assert.equal(probe.action.action.required_actions, undefined);
+  await assert.rejects(context.services!.actions!.invoke(probe.action, { item_id: page.document.id }), { code: "actions.dependency_missing" });
+  assert.equal(probe.seen.at(-1)!.project_id, project.project_id);
+  assert.ok(probe.seen.at(-1)!.allowed_actions?.every(item => item.capability_id === probe.action.capability_id));
+  assert.equal(context.services!.storage!.get("delivered"), null);
+  assert.equal(await context.services!.actions!.invoke(probe.action, { text: "Autonomous direct text" }), "Autonomous direct text");
 });

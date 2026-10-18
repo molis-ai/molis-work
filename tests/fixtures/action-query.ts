@@ -1,5 +1,6 @@
 import type { ActionDefinition, ActionExecutionContext, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { pagesContentActions } from "@molis-ai/molis-work-plugin-pages";
 
 export const queryInput = { type: "object", properties: { item_id: { type: "string" }, text: { type: "string" } }, additionalProperties: false };
@@ -26,14 +27,14 @@ export function queryProbe(name = "queryprobe", scope: "home" | "project" = "hom
       await behavior.before?.();
       const result = input.text ?? await context.services!.actions!.invokeQuery(target.current, input.item_id ? { item_id: input.item_id } : {});
       await behavior.after?.();
-      await caller.beforeEffect(); context.services!.storage!.set("delivered", result);
+      await caller.beforeEffect(); context.services!.storage!.set("delivered", JSON.stringify(result));
       return result;
-    } }], routes: ["read", "clone", "direct", "forged"].map(route_id => ({ route_id, async handle(request) {
+    } }], routes: [bindPluginActionRoute(context, action, request => request.body as { item_id?: string; text?: string }, "read"), ...["clone", "direct", "forged"].map(route_id => ({ route_id, async handle(request) {
       if (route_id === "direct") return { status: 200, body: await context.services!.actions!.invokeQuery(target.current, request.body) };
       const control = route_id === "clone" && request.execution ? { ...request.execution } : request.execution;
       const supplied = route_id === "forged" ? { ...action, action: { ...action.action, permissions: [] } } : action;
       return { status: 200, body: await context.services!.actions!.invoke(supplied, request.body as { item_id?: string; text?: string }, control) };
-    } })) };
+    } }))] };
   } };
   return { id, action, target, behavior, definition, contexts, seen };
 }

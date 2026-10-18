@@ -94,6 +94,8 @@ node scripts/run-tests.mjs tests/local-host.test.ts tests/web-home-isolation.tes
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受当前同安装动作 scope，保留原调用者并交给同一动作服务检查。HTTP 在既有 routedControls 保存可信 caller；项目来自已核路径，Home 无项目不借项目，复制 control 不能取得身份。本机 owner 的 native 读取集合由原 LOCAL_OWNER_PERMISSIONS 提供，来源插件自身仍必须声明并持有目标权限。请求 signal 归 route control，接受前断开拒绝；已接受的后台工作保留现 entry-owned lifetime。Home 插件内使用底层已有 client，避免 start 内 discover 重入 Home ready；公开入口仍负责原 Runtime 准备。相关验证：`tests/plugin-action-query-http.test.ts`、`tests/plugin-action-query-home-http.test.ts`、`tests/plugin-action-query-mcp.test.ts` 与 `tests/security-invariants-plugin-background.test.ts`。
+
 ## 开发要求
 
 助理每轮的未完成接入材料由 `src/assistant/assistant-setup-material.ts` 从接入 owner 读取，按当前 actor、会话、项目和读取授权筛选；只给公开状态、意图修订及实际旧等待撤回结果，不带凭据、不决定保留/取消。新消息后的暂缓与等待撤回仍分别由连接 owner 和 SDK 负责。回归：`tests/assistant-connector-business.test.ts`。

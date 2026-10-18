@@ -5,13 +5,13 @@ import { ActionError, bindActionClient, type ActionCallContext, type ActionDefin
 const caller: ActionCallContext = { actor_id: "reader", project_id: "project", audience: "user", permissions: ["query:read", "query:extra"] };
 const query: ActionDefinition = { capability_id: "query.target", version: 1, operation: "query", action: { title: "Query", description: "Registered query", kind: "query", scope: "project",
   permissions: ["query:read"], audiences: ["user"], subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } };
-const command: ActionDefinition = { ...query, capability_id: "query.command", operation: "command" };
+const command: ActionDefinition = { ...query, capability_id: "query.command", operation: "command", action: { ...query.action, kind: "operation" } };
 
 test("AQD-03 actual dispatch and fresh bound callers retain query_only, including synchronous dispatch", async () => {
   const service = new ActionService(); let commands = 0;
   service.registerProvider({ provider: { provider_id: "target", title: "Target", kind: "system" }, definitions: [query, command], handlers: [
     { ...query, handle: execution => bindActionClient(service, () => caller).invoke(command, {}, execution) },
-    { ...command, handle: () => ++commands },
+    { ...command, execution: "sync", handle: () => ++commands },
   ] });
   const restricted = { ...caller, query_only: true as const };
   assert.deepEqual(service.discover(restricted).map(view => view.capability_id), [query.capability_id]);
@@ -28,7 +28,7 @@ test("AQD-03 dispatch checks current registered permissions before a query handl
   const discovered = service.discover(caller)[0]!;
   remove();
   const replacement = { ...query, action: { ...query.action, permissions: ["query:extra"] } };
-  remove = service.registerProvider({ provider: { provider_id: "target", title: "Target", kind: "system" }, definitions: [replacement], handlers: [{ ...replacement, handle: () => ++entered }] });
+  remove = service.registerProvider({ provider: { provider_id: "target", title: "Target", kind: "system" }, definitions: [replacement], handlers: [{ ...replacement, execution: "sync", handle: () => ++entered }] });
   const restricted = { ...caller, query_only: true as const, assert_authority_current: (_ref: unknown, permissions: readonly string[] = []) => {
     if (permissions.includes("query:extra")) throw new ActionError("actions.forbidden", "Source lacks current permission");
   } };
@@ -44,7 +44,7 @@ test("AQD-03 a discovered query replaced with a command cannot run under its old
   const remove = service.registerProvider({ provider, definitions: [query], handlers: [{ ...query, handle: () => "old" }] });
   const restricted = { ...caller, query_only: true as const }, old = service.discover(restricted)[0]!;
   remove();
-  const changed = { ...query, operation: "command" as const };
+  const changed: ActionDefinition = { ...query, operation: "command", action: { ...query.action, kind: "operation" } };
   service.registerProvider({ provider, definitions: [changed], handlers: [{ ...changed, handle: () => ++commands }] });
   await assert.rejects(service.invoke(restricted, old, {})); assert.equal(commands, 0);
 });

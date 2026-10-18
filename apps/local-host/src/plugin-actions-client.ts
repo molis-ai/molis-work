@@ -104,7 +104,11 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     const caller = scope.caller;
     const check = (permissions: readonly string[] = []) => { options.assertActive(); for (const permission of [...definition.action.permissions, ...permissions]) context.requireGrant(permission); };
     return bindActionClient(scope.client, () => ({ ...caller,
-      validate_authority: async reference => { check(); await caller.validate_authority?.(reference); check(); },
+      validate_authority: async reference => {
+        check();
+        if (definition.action.scope === "project" && !caller.project_id) throw new ActionError("actions.project_required", "请选择项目");
+        await caller.validate_authority?.(reference); check();
+      },
       assert_authority_current: (reference, permissions) => { check(permissions); requireSynchronous(caller.assert_authority_current?.(reference, permissions)); },
     }));
   };
@@ -141,8 +145,8 @@ export function withPreparedActions(client: ActionClient, prepare: (caller: Acti
   };
 }
 
-/** Home plugins may delegate into an already-open project named by the trusted active caller. */
-export function homePluginActions(host: Pick<import("./project-host.js").MolisWorkLocalHost, "status" | "actionClient" | "homeActionClient">): ActionClient {
+/** Use the raw Host clients: preparing Home plugins here would make discovery during start wait on its own startup. */
+export function homePluginActions(host: Pick<import("./local-host.js").LocalHost<unknown>, "status" | "actionClient" | "homeActionClient">): ActionClient {
   const client = (caller: ActionCallContext) => {
     if (!caller.project_id) return host.homeActionClient();
     const project = host.status().projects.find(row => row.project_id === caller.project_id && row.state !== "closing");

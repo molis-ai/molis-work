@@ -200,11 +200,12 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
   request.once("aborted", stop); response.once("close", stop);
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
-    const plain = pluginRouteControl(abort.signal, () => { if (platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件已停止"); });
+    const current = () => { if (platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件已停止"); };
+    const plain = pluginRouteControl(abort.signal, current);
     abort.signal.throwIfAborted();
     const caller = await ports.routeCaller?.();
     abort.signal.throwIfAborted();
-    if (caller) routed = projectRouteControl(plain, ports.projectId, ports.actions.client, async () => { await plain.beforeEffect(); }, caller);
+    if (caller) routed = projectRouteControl(plain, ports.projectId, ports.actions.client, async () => { current(); }, caller);
     return await dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId,
       projectRouteHooks(record, platform, pluginId, request, url, ports), {
         granted,

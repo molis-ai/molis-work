@@ -6,6 +6,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
 import { dispatchRuntimePluginRoute } from "./plugin-route-operations.js";
@@ -97,7 +98,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
     abort.signal.throwIfAborted();
-    const caller = await localWebActionContext(host, project, []);
+    const caller = await localWebActionContext(host, project, LOCAL_OWNER_PERMISSIONS);
     abort.signal.throwIfAborted();
     routed = projectRouteControl(plain, project?.project_id ?? null, project ? host.actionClient(project) : host.homeActionClient(), async () => {
       if (!project || !prefixed) return;

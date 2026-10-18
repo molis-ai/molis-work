@@ -56,11 +56,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       const leaving = this.source, previous = this.focus;
       this.focus = focus; this.source = focus ? source : null; this.at = Date.now();
       this.watch(Boolean(focus && source && source.element));
-      clearTimeout(this.timer);
-      clearTimeout(this.rulesTimer);
-      if (this.judging) this.judging.abort();
-      this.judging = null;
-      const seq = ++this.seq;
+      const seq = this.hush();
       if (!focus) {
         if (leaving) post("/api/contextual/cancel", { pane_id: leaving.pane }).catch(() => undefined);
         bar.idle();
@@ -76,6 +72,8 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       if (writing) this.rulesTimer = setTimeout(() => this.flush && this.flush(), 400); else this.flush();
       this.timer = setTimeout(() => this.judge(seq, focus), writing ? 900 : 350);
     },
+    // Nothing still on its way for what was in hand comes back to the toolbar: a new thing in hand, or Esc.
+    hush() { clearTimeout(this.timer); clearTimeout(this.rulesTimer); if (this.judging) this.judging.abort(); this.judging = null; return ++this.seq; },
     async judge(seq, focus) {
       const controller = new AbortController();
       this.judging = controller;

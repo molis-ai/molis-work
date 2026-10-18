@@ -1388,6 +1388,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 顶层收到后（来源检查 S-30 与当前焦点检查在前）调与自己浮条同一个 `landing.hint(pointed, bar.plan)`：键只在顶层自己的方案里查，查不到或不是 `attach.` 键就什么也不闪，不报错、不记日志；最多看前 16 个。
   - 实际能闪的是右栏格：分屏窗格里的焦点不带 `place`，不给落点，也就没有 `attach.`，那一半代码相同、今天没有可闪的。
   - 用例：`tests/security-invariants-pane-messages.test.ts`「S-30 W3-C2 …」（非 attach 键、非字符串、不是数组、别的来源带合法键、过期的 context 都不闪；Shelf 格悬停闪一次，离开再回来再闪），`tests/side-shelf-in-hand.e2e.test.ts`「W3-C2」（真指针悬停 Shelf 格浮条上与菜单里的「插入到光标处」，左边 Pages 闪、不写）。
+  - 全量（run 39115596523）在 `context-pick-result.e2e` 的 PICK-05 红：Esc 收起浮条，可是已经排上或在路上的判断回来后又把浮条画了出来（慢机上判断回来得晚）。不是 W3-C2 的改动造成的，是 Esc 原本的缺口：现在 Esc 和「换了手上的东西」用同一个 `bus.hush()`，把排着的计时、在路上的判断和规则的回复都作废。PICK-05 加了一步：把判断扣住，按 Esc 之后再放行，浮条不再出来（不修时这一步失败）。workbench.js 因此再加 38 字节，并进 W3-C2 的一次性放行。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

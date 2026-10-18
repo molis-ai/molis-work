@@ -1,18 +1,19 @@
-import { pagesKeymap, commandToggle } from "./editor-keyboard.js";
+import { editorToolDefinitions, editorToolGroups, editorSelectionScreen } from "./editor-tools.js";
+import { pagesKeymap } from "./editor-keyboard.js";
 import { hoverKey, runBlockCommand, hoveredGroup } from "./editor-block-selection.js";
 import { openEditorComment } from "./editor-comments.js";
-import { baseKeymap, setBlockType } from "prosemirror-commands";
+import { baseKeymap } from "prosemirror-commands";
 import { dropCursor } from "prosemirror-dropcursor";
 import { gapCursor } from "prosemirror-gapcursor";
 import { history } from "prosemirror-history";
 import { pagesInputRules } from "./input-rules.js";
 import { keymap } from "prosemirror-keymap";
 import { DOMSerializer, Fragment, Node } from "prosemirror-model";
-import { Command, EditorState, NodeSelection, Plugin, TextSelection, Transaction } from "prosemirror-state";
+import { EditorState, NodeSelection, Plugin, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { applyPagesActions, endPagesTransients, ownPagesTransient } from "./editor-transient.js";
 import { fillStaticIndexes } from "./card-content.js";
-import { blockPos, focusBelowContent, linkAt, revealHeading, headingIndexAt, listKindAt, headingLevelAt, applyListSelection, applyHeading, selectEnclosingBlock, replaceSelectedBlock, replaceSpan, docStart, tripleClickSelection, popEscape, blockSpanToRow, splitTaskItem, setCalloutStyle, toggleTaskChecked, toggleTaskGroup, setLink, setTone, markCovers, toneAt, commentAt, setComment } from "./commands.js";
+import { blockPos, focusBelowContent, linkAt, revealHeading, headingIndexAt, selectEnclosingBlock, replaceSelectedBlock, replaceSpan, docStart, tripleClickSelection, popEscape, blockSpanToRow, splitTaskItem, setCalloutStyle, toggleTaskChecked, toggleTaskGroup, setLink, setTone, toneAt, commentAt, setComment } from "./commands.js";
 import { bookmarkLabel, linkClickOpens, safePagesHref } from "./link.js";
 import { calloutIconFor, PAGES_CALLOUT_ICONS, safePagesCalloutTone } from "./callout.js";
 import { findPlugin } from "./editor-find.js";
@@ -24,7 +25,7 @@ import { nodesToMarkdown } from "./to-markdown.js";
 import { PAGES_TONES } from "./tone.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
 import { applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen } from "./focus.js";
-import type { Translate, PagesEditorMountOptions, PagesEditorHandle, PagesCommandPreset, PagesToolGroup } from "./editor-types.js";
+import type { Translate, PagesEditorMountOptions, PagesEditorHandle, PagesCommandPreset } from "./editor-types.js";
 import { t, overlayRoot, dsIcon, escapeHtml, actions } from "./editor-view-ui.js";
 import { codeHighlightPlugin, imageNodeView, bookmarkNodeView, codeNodeView } from "./editor-node-media.js";
 import { columnNodeView, cellNodeView, taskNodeView, toggleNodeView, calloutNodeView, mentionNodeView, calendarNodeView, tocNodeView } from "./editor-node-layout.js";
@@ -53,17 +54,6 @@ export function toHTML(value: unknown): string {
   wrap.append(serializer.serializeFragment(node.content));
   fillStaticIndexes(wrap, node);
   return wrap.innerHTML;
-}
-
-function headingCommand(level: 1 | 2 | 3): Command {
-  return (state, dispatch) => {
-    const grouped = applyHeading(state, level);
-    if (grouped) {
-      dispatch?.(grouped);
-      return true;
-    }
-    return setBlockType(pagesSchema.nodes.heading, { level })(state, dispatch);
-  };
 }
 
 function calendarPlugin() {
@@ -189,17 +179,6 @@ function docPlainText(doc: Node): string {
   return lines.join("\n\n");
 }
 
-function dispatchList(
-  state: EditorState,
-  dispatch: ((tr: Transaction) => void) | undefined,
-  id: "bullet_list" | "ordered_list" | "task_list",
-): boolean {
-  const tr = applyListSelection(state, id);
-  if (!tr) return false;
-  dispatch?.(tr);
-  return true;
-}
-
 function fillCalloutStyle(pop: HTMLElement, view: EditorView, at: () => ReturnType<typeof resolvePagesFrozen>, node: Node, anchor: HTMLElement, translate: PagesEditorMountOptions["translate"], hidePop: () => void): void {
   const iconHead = document.createElement("p");
   iconHead.className = "pages-menu-label";
@@ -275,22 +254,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   commentEdit.textContent = t(options.translate, "编辑");
   commentPreview.append(commentText, commentEdit);
   // The tools the context toolbar draws (context-toolbar §3: an editor's own commands, not actions). `group` is how they sit on the bar.
-  const toolDefs: Array<{ id: string; group: "marks" | "blocks" | "insert"; label: string; glyph?: string; icon?: string; run?: (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean; panel?: "tone" | "link" | "comment" }> = [
-    { id: "strong", group: "marks", label: t(options.translate, "加粗"), glyph: "B", run: commandToggle("strong") },
-    { id: "em", group: "marks", label: t(options.translate, "斜体"), glyph: "I", run: commandToggle("em") },
-    { id: "underline", group: "marks", label: t(options.translate, "下划线"), glyph: "U", run: commandToggle("underline") },
-    { id: "strike", group: "marks", label: t(options.translate, "删除线"), glyph: "S", run: commandToggle("strike") },
-    { id: "code", group: "marks", label: t(options.translate, "代码"), icon: "code", run: commandToggle("code") },
-    { id: "h1", group: "blocks", label: t(options.translate, "标题 1"), glyph: "H1", run: headingCommand(1) },
-    { id: "h2", group: "blocks", label: t(options.translate, "标题 2"), glyph: "H2", run: headingCommand(2) },
-    { id: "h3", group: "blocks", label: t(options.translate, "标题 3"), glyph: "H3", run: headingCommand(3) },
-    { id: "ul", group: "blocks", label: t(options.translate, "无序列表"), icon: "rows", run: (state, dispatch) => dispatchList(state, dispatch, "bullet_list") },
-    { id: "ol", group: "blocks", label: t(options.translate, "有序列表"), icon: "list-ordered", run: (state, dispatch) => dispatchList(state, dispatch, "ordered_list") },
-    { id: "task", group: "blocks", label: t(options.translate, "清单"), icon: "check", run: (state, dispatch) => dispatchList(state, dispatch, "task_list") },
-    { id: "tone", group: "insert", label: t(options.translate, "颜色"), glyph: "A", panel: "tone" },
-    { id: "link", group: "insert", label: t(options.translate, "链接"), icon: "link", panel: "link" },
-    { id: "comment", group: "insert", label: t(options.translate, "评论"), icon: "message", panel: "comment" },
-  ];
+  const toolDefs = editorToolDefinitions(options.translate);
   overlayRoot().append(linkPreview, commentPreview);
 
   const pop = document.createElement("div");
@@ -585,27 +549,11 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     ...(options.plugins ?? []),
   ];
 
-  // The tools as the toolbar draws them: the editor's commands, with whether each is on for the selection.
-  const toolGroups = (): PagesToolGroup[] => {
-    const { from, to } = view.state.selection;
-    const list = listKindAt(view.state), heading = headingLevelAt(view.state);
-    const on = (id: string) => (id === "ul" && list === "bullet_list") || (id === "ol" && list === "ordered_list") || (id === "task" && list === "task_list")
-      || (/^h[123]$/.test(id) && heading === Number(id.slice(1))) || (Boolean(pagesSchema.marks[id]) && markCovers(view.state.doc, from, to, id));
-    const group = (id: "marks" | "blocks" | "insert", collapse: "never" | "overflow"): PagesToolGroup => ({ id, collapse,
-      items: toolDefs.filter((tool) => tool.group === id).map((tool) => ({ id: tool.id, label: tool.label, ...(tool.glyph ? { glyph: tool.glyph } : {}),
-        ...(tool.icon ? { icon: tool.icon } : {}), ...(tool.run ? { pressed: on(tool.id) } : { opens: "panel" as const }) })) });
-    return [group("marks", "overflow"), group("blocks", "overflow"), group("insert", "never")];
-  };
   const runTool = (id: string) => {
     const tool = toolDefs.find((entry) => entry.id === id);
     if (!tool) return;
     if (tool.panel === "tone") openTone(view); else if (tool.panel === "link") openLink(view); else if (tool.panel === "comment") openComment(view);
     else { tool.run?.(view.state, view.dispatch.bind(view)); view.focus(); }
-  };
-  const screen = () => {
-    const { from, to } = view.state.selection;
-    const a = view.coordsAtPos(from), b = view.coordsAtPos(to);
-    return { left: Math.min(a.left, b.left), right: Math.max(a.right, b.right), top: Math.min(a.top, b.top), bottom: Math.max(a.bottom, b.bottom) };
   };
 
   const placeLinkPreview = (current: EditorView) => {
@@ -810,7 +758,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   };
   const stopScroll = followScroll(linkPreview, reposition);
   window.addEventListener("resize", reposition);
-  return { view, runCommand: (command, style, preset) => runAiCommand(view, command, style, preset), tools: toolGroups, runTool, screen,
+  return { view, runCommand: (command, style, preset) => runAiCommand(view, command, style, preset), tools: () => editorToolGroups(view, toolDefs), runTool, screen: () => editorSelectionScreen(view),
     release: () => {
       stopScroll();
       window.removeEventListener("resize", reposition);

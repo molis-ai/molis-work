@@ -2,11 +2,15 @@
 
 状态：执行中，整线未完成（2026-10-18，Codex 继续用户已授权的 W5/W6 与独立复查；Claude 原分工按既有交接保留）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR，#523 已合入 main（`f74e29d86`；#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑，macOS 专有用例在本机补，失败逐个对照 main 基线，合入后的三项 Linux 修复与一处合并留下的旧错误码在后续 PR 补进。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 #523 进了 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
 
-W5-10 Pages 工具定义与选区投影拆分（PGT，2026-10-18，Codex，已接受、执行中）：接 PGK `507f454bb`，目标为功能可用且行为保持。14 项工具定义、heading/list 命令工厂、分组与 pressed/opens 投影、选区 screen 归新内部 editor-tools；六行 runTool 留入口路由既有弹层或命令。commandToggle 沿用 keyboard 中唯一实现。工具定义在原时刻按原顺序创建，每次 tools/screen/runTool 只读或操作当次 view/state，不缓存视图或选区、不加 getView/controller/生命周期 owner。三段列表命令改用捕获固定 id 的同形工厂，tools/screen 的转发闭包直接放入原 handle，执行时机不变。外部同参数预演与原正式产物逐字节核对后，候选 served bytes 706,825，低于 PGK 的 706,839 B；此为可行性证据，正式构建与行为仍待验证。
+W5-10 Pages 工具定义与选区投影拆分（PGT，2026-10-18，Codex，本地定向通过）：接 PGK `507f454bb`，目标为功能可用且行为保持。14 项工具定义、heading/list 命令工厂、分组与 pressed/opens 投影、选区 screen 归新内部 editor-tools；六行 runTool 留入口路由既有弹层或命令。commandToggle 沿用 keyboard 中唯一实现。工具定义在原时刻按原顺序创建，每次 tools/screen/runTool 只读或操作当次 view/state，不缓存视图或选区、不加 getView/controller/生命周期 owner。三段列表命令改用捕获固定 id 的同形工厂，tools/screen 的转发闭包直接放入原 handle，执行时机不变。外部同参数预演与原正式产物逐字节核对后，候选 served bytes 706,825，低于 PGK 的 706,839 B；正式构建已确认该值，关键行为按下述实操结果验收。
 
 范围只含 Pages editor-tools/editor-browser、README、必要的位置断言与新 tools Chrome 用例、本 spec/迁移表和下降快照；公开 27 出口、handle、schema、存储、动作、Host、样式与构建参数保持。`W5-10-PGT-01`：14 工具与分组/字段/译文顺序、命令事务及剩余入口 AST 保持，依赖无环、无新巨大单元，整体构建与 merge-base health/API/boundary/资源通过，正式脚本不超过 706,839 B。`W5-10-PGT-02`：新真实 Chrome 用例先在 PGK 正式资源通过，再在本片通过；从公开 mount/handle 验动态 pressed、只读 tools/screen 无额外通知、命令正文/邻居/选区/undo/focus，以及 tone/link/comment 路由；未知 id 不改正文或抢焦点。`W5-10-PGT-03`：setDoc 后工具和矩形使用新文档/选区，滚动和重挂仍正确，旧实例不受新 handle 影响；复用键盘与两项真实上下文工具栏用例，验证工作台接线及窄屏状态。矩形期望来自可见 DOM Range，不能复制被测算法。
 
-先准备测试并跑 PGK 基线，再应用已审候选；writer 只写上述 Pages 源码/测试/README，root 串行维护共享文档、快照、正式整体构建与最终验收。只为这片增加能发现用户路径回归的用例，复用已证生命周期，不造全工具组合矩阵。入口预演 856→805、mount 568→538 行，仍有后续职责待拆；本片不代表 W5-10 完成，不运行本机全量、不新增第三个在途 PR。
+先准备测试并跑 PGK 基线，再应用已审候选；writer 只写上述 Pages 源码/测试/README，root 串行维护共享文档、快照、正式整体构建与最终验收。只为这片增加能发现用户路径回归的用例，复用已证生命周期，不造全工具组合矩阵。正式入口 856→804、mount 568→537 行，仍有后续职责待拆；本片不代表 W5-10 完成，不运行本机全量、不新增第三个在途 PR。
+
+本片验证：W5-10-PGT-01，14 项工具定义和译文次序、事务及其余入口 AST、27 个公开出口保持，55 个相对模块无环；新工具模块 65 行、最大函数 18 行。独立只读复查无 Blocker/P1；整体构建、完整 merge-base health/API、boundary 与资源门禁通过，下降快查已更新。正式脚本 706,839→706,825 B（−14），25 项共 7,476,131 B。W5-10-PGT-02/03 新增三条先在 PGK 正式资源通过，再在本片通过；最终 31 个非浏览器文件 620 条、7 个真实 Chrome 文件 43 条，共 38 文件 663 条通过，零跳过。首轮浏览器命令另含一个拼错且不存在的文件名，该项没有执行；保留其失败日志，之后单独运行实际 plugin-small-ux，16/16 通过，其余六份 27 条不重复跑。
+
+运行证据：`/tmp/molis-pages-tools-{build,browser,small-ux,boundary,health,assets}.log`，新用例基线 `/tmp/molis-pages-tools-baseline.log`；31 非浏览器文件沿用 `/tmp/molis-pages-keyboard-required.json`，逐文件通过终态保存在本次运行器输出，未重造日志。Chrome 验证正式资源、公开 handle 与实际工作台工具栏/窄屏，不代表外部模型质量或一骏本人验收；本机全量未跑，剩余 mount 职责继续。
 
 W5-10 Pages 键盘命令装配拆分（2026-10-18，Codex，本地定向通过，待队列与 CI）：接已验证的 PGP，目标为功能可用且行为保持。将 mount 中 37 个自定义绑定按原连续顺序分成 shortcutKeys、blockKeys、navigationKeys 三个短职责函数，由新内部 editor-keyboard 的 pagesKeymap 装配成原位置的同一个 keymap 插件；turnCurrent、applySelected、nudgeTableColumn、cellNav 一并迁入，共用 commandToggle 仍只有一份供键盘与工具栏使用。每个 mount 仍创建自己的键表；原闭包 view 改为 ProseMirror keydownHandler 每次执行给出的第三参数，不在装配时读 view，不引入 view/selection 缓存或 getView 端口。只把现有 openLink 回调交给该模块，弹层 owner 与生命周期保持。 `turnCurrent(id)` 只捕获固定目标，执行时取第三参数 view；上下方向和 Tab 的镜像分支在同一职责中收成方向函数，保持无变化 transaction 的返回值、Tab 最终吞键与 Shift-Tab 不增行。
 

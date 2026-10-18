@@ -218,8 +218,8 @@
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
     "file plugins/native/pages/src/client.ts": 1117,
-    "file plugins/native/pages/src/editor-browser.ts": 856,
-    "function plugins/native/pages/src/editor-browser.ts#mount": 568,
+    "file plugins/native/pages/src/editor-browser.ts": 804,
+    "function plugins/native/pages/src/editor-browser.ts#mount": 537,
     "class plugins/native/pages/src/store.ts#PagesStore": {
       "lines": 374,
       "methods": 28

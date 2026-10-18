@@ -116,7 +116,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
   const abort = new AbortController();
   const pending = f.client.invoke({ ...f.caller, signal: abort.signal }, actions.generateAi, { id: dataset.id, prompt: "计划截止日期" });
   if (mode === "success") { assert.equal((await pending).dataset.columns.at(-1)!.name, "截止日期"); return; }
-  const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" } : mode === "failure" ? /Fixture failure/ : mode === "empty" ? /没有返回有效列名/
+  const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" } : mode === "failure" ? { code: "plugin.model_failed", message: "模型请求失败，请重试" } : mode === "empty" ? /没有返回有效列名/
     : mode === "cancel" ? { name: "AbortError" } : mode === "edit" ? { code: "dataset.conflict" } : { code: "dataset.not_found" });
   if (["cancel", "edit", "delete"].includes(mode)) {
     await entered.promise;

@@ -1094,3 +1094,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18：#706（回执 3d-4，485dec756，键 [1109918, 1110807]）审过，chain42 跑全量。交互线 AC-08 浏览器用例（只改测试与 spec，merge-only）已批。
 - 10-18：#701 新 head 282789bd6（只改 workflows-action-steps 两条等待进 Shelf 右栏 iframe + 合 main b3499cda5 + 降 page-assets）走 merge-only（#700 先例）。采用线 AC-05 修复 10/10 绿，接着跑相关 17 个文件与突变。
 - 10-18：#705 已合（3b3a7f573）、#701 已合（a56a2763d）。#704 改 base 到 main 后再审；情境线 cargo test 片开工。
+- 10-18：#706 全量红 2 个：coding-client-lifecycle（#706 挂载时取 host.receipts.step，改为用到时再取）、context-card-in-work W3-A3a（:46 菜单项点前消失，要对基线）。产品代码要改，下个 head 重跑全量；键 [1109913, 实测 ≤ +889]。

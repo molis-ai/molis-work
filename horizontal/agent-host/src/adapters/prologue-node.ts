@@ -193,7 +193,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     // Judged when the run ends, from its facts: held for only announcing, and nothing called after that.
     endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),
     approvals,
-    answerPending: answerPending({ runtime, host, state, readQuestion, index, options }),
+    answerPending: answerPending({ runtime, host, state, readQuestion, index, options, effects }),
   }), { inference, createBuilderAgent, gitReviews, diagnostics: () => {
     const seen = runtimeDiagnostics(runtime);
     return { ...seen, ledger_failures: [...seen.ledger_failures, ...workGraphs.failures().map((entry, at) => ({ ...entry, seq: seen.ledger_failures.length + at + 1 }))] };

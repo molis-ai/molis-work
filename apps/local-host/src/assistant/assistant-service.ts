@@ -10,6 +10,7 @@ import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
 import { cardView } from "./assistant-card-view.js";
+import { workView } from "./assistant-work-view.js";
 import { AssistantOffers } from "./assistant-offers.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -23,21 +24,23 @@ import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agen
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
 import { agentActions, capabilityDirectory } from "./assistant-directory.js";
 import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from "./assistant-material-scan.js";
-import { identity } from "./assistant-relations.js";
+import { identity, linkSent, revisionOf } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { type AssistantStore, type StoredJob, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { type AssistantStore, type StoredRound, type StoredWork } from "./assistant-store.js";
+import { AssistantJobs, JOB_FOLLOW_MS, pathValue } from "./assistant-jobs.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
 import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
-import { AssistantInputs, exactRevision, inputsOf, typedWords, withdrawInput, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, exactRevision, inputsOf, queuedInputs, typedWords, withdrawInput, type SendIntent } from "./assistant-inputs.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
 import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
+import { afterParkedAnswer, answerablePhase, PARKED_ANSWER_TASK, recoveryAction, roundAfterParkedAnswer, sessionProblem } from "./assistant-parked-answer.js";
 import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
 
 const RUNTIME = "prologue";
@@ -80,8 +83,6 @@ export interface AssistantCaller {
   assertBeforeStart?: () => void;
 }
 
-/** Delegation bounds: works one work may hand out in all, at once, and follow-ups to each. */
-
 /** The rule that holds a notice of this kind on this surface now, if any. Rules apply exactly as written. */
 export function holdingRule(rules: readonly AssistantRule[], kind: AssistantNoticeKind, surface: string | null): AssistantRule | undefined {
   return rules.find(rule => !rule.except.includes(kind) && (rule.kind === "pause" || !rule.surfaces.length || (surface !== null && rule.surfaces.includes(surface))));
@@ -116,7 +117,7 @@ function checkText(value: unknown, field: string, max: number): string {
 }
 
 /** What a round is given as marked data, and what in it is told only once (marked told after the round has started). */
-interface RoundMaterials { materials: AgentTextMaterial[]; told: { undos: string[]; jobs: string[]; unsettled: string[] } }
+interface RoundMaterials { materials: AgentTextMaterial[]; told: { undos: string[]; unsettled: string[] } }
 
 /** PNG, JPEG, GIF or WebP, by the bytes themselves. */
 function looksLikeImage(bytes: Buffer): boolean {
@@ -148,10 +149,6 @@ type CapabilityTitles = Map<string, { title: string; provider: string }>;
 /** Activity in the person's terms: what was looked up, read or changed — not the tool log. */
 /** Coding sessions as a related object; Coding's own subject reader serves this kind. */
 export const CODING_SESSION_KIND = "coding_session";
-
-function revisionOf(version: string | number | undefined): string | null {
-  return version === undefined || version === null || version === "" ? null : String(version);
-}
 
 const RELATION_WORDS: Record<AssistantWorkObject["relation"], string> = { origin: "起点", material: "材料", result: "产出", session: "专业会话" };
 
@@ -312,18 +309,6 @@ function answerOf(output: string | undefined): string {
 /** Recall words: the platform memory's own (Chinese two-character pieces and Latin words). */
 export { recallKeywords } from "@molis-ai/molis-work-service-memory";
 
-const JOB_KIND = "assistant.job-check";
-/** The value at a dot path (`run.jobId`), or undefined. */
-function pathValue(value: unknown, path: string): unknown {
-  return path.split(".").reduce<unknown>((node, key) => node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined, value);
-}
-/** An object with one value placed at a dot path. */
-function setPath(target: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {
-  const keys = path.split("."); let node = target;
-  keys.slice(0, -1).forEach(key => { node = (node[key] = node[key] && typeof node[key] === "object" ? node[key] : {}) as Record<string, unknown>; });
-  node[keys.at(-1)!] = value;
-  return target;
-}
 /** A follow-up's next due time as a queued task: one key per follow-up and due time. */
 
 export { sameLocalTimeLater } from "./assistant-followups.js";
@@ -347,13 +332,15 @@ export class AssistantService {
   /** Sub-tasks this person's works hand out, and what they hand back. */
   private readonly delegations: AssistantDelegations;
   readonly offers: AssistantOffers;
+  /** Background work this person's works started, followed on their graphs. */
+  readonly jobs: AssistantJobs;
   /** The reminders, timed rounds and attention rules of this person. */
   readonly followUps: AssistantFollowUps<StoredWork>;
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
     private readonly now = () => new Date()) {
+    this.jobs = new AssistantJobs({ store, actorId, host: () => ports.host(), actions: async work => (await ports.authority(work)).actions?.(RUNTIME) });
     this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
-      readSubject: (work, subject) => this.readSubject(work, subject), authority: work => ports.authority(work),
-      watchJob: (work, view, output, cardId) => this.watchJob(work, view, output, cardId),
+      readSubject: (work, subject) => this.readSubject(work, subject), authority: work => ports.authority(work), jobs: this.jobs,
       createWork: (title, scope, context, caller) => this.createWork(title, scope, context, caller, undefined), fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
       work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
@@ -474,23 +461,23 @@ export class AssistantService {
   /** What the last look saw in each project, kept with its record (for diagnostics). */
   private scanLooks: ScanLook[] = [];
 
-  /** Whether anything timed is waiting: an enabled follow-up with a next time, or background work still followed. */
+  /**
+   * Whether anything timed may be waiting: an enabled follow-up with a next time, or a work active within the time a
+   * background job is followed (its step is on the work's graph, which only the runtime reads).
+   */
   hasTimedWork(): boolean {
-    return this.followUps.pending() || this.store.jobs(this.actorId).some(job => job.state === "running");
+    return this.followUps.pending() || this.store.activeSince(this.actorId, new Date(this.now().getTime() - JOB_FOLLOW_MS).toISOString());
   }
 
   /**
-   * Become the runner for timed rounds and background jobs, and make sure each standing one is queued again. Called when
-   * the Host starts.
+   * Become the runner for timed rounds, make sure each standing one is queued again, and hear the background jobs that
+   * end. Called when the Host starts.
    */
   async attachSchedule(): Promise<boolean> {
     const schedule = await this.schedule().catch(() => null);
     if (!schedule) return false;
-    this.#jobRunnerFor(schedule);
-    // Jobs still followed when the Host went away: look again soon.
-    for (const job of this.store.jobs(this.actorId).filter(item => item.state === "running")) {
-      try { await this.scheduleJobCheck({ ...job, checks: 0 }, this.store.get(this.actorId, job.work_id)); } catch { /* its work is gone */ }
-    }
+    // Jobs that ended while the Host was away are told now; the runtime looks again at those still followed.
+    await this.jobs.attach().catch(() => undefined);
     await this.followUps.attach(schedule);
     // Works whose sub-tasks all came back while the Host was away go on now.
     await this.delegations.attach().catch(() => undefined);
@@ -534,7 +521,7 @@ export class AssistantService {
     const scheduled = this.followUps.list(work.work_id);
     const claim = scheduled.length ? await this.followUps.claim() : null;
     const unsettled = this.store.unsettled(this.actorId, work.work_id, true);
-    const jobs = this.store.jobs(this.actorId, work.work_id).map(({ key: _key, status: _status, input: _input, path: _path, done: _done, failed: _failed, checks: _checks, told: _told, ...view }) => view);
+    const jobs = await this.jobs.views(work);
     const undoable = this.store.undos(this.actorId, work.work_id).slice(-10).map(({ work_id: _work, reference, input: _input, told: _told, ...view }) => ({ ...view, capability_id: reference.capability_id }));
     const memory_candidates = await this.memoryCandidates(work.work_id);
     const { changes: memory_changes } = await this.memoryTrail(work, rounds, this.store.rounds(work.work_id), assistant?.memory ?? new Map()).catch(() => ({ changes: [] as MemoryChange[] }));
@@ -543,12 +530,14 @@ export class AssistantService {
     return { work: this.publicWork(shown, state), rounds, reviews: [...(assistant?.reviews ?? []), ...(coding?.reviews ?? [])],
       cards: this.store.cards(work.work_id).map(card => cardView(card)), objects: await this.workObjects(work), ...(delegated.length ? { delegated } : {}),
       ...(scheduled.length ? { scheduled } : {}), ...(claim ? { schedule_survives_close: claim.survives_window_close } : {}), ...(unsettled.length ? { unsettled } : {}), ...(jobs.length ? { jobs } : {}), ...(undoable.length ? { undoable } : {}), ...(memory_candidates.length ? { memory_candidates } : {}), ...(memory_changes.length ? { memory_changes } : {}),
-      ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}) };
+      ...(usage && (usage.rounds || usage.budget_tokens !== null) ? { usage } : {}), ...(problem ? { problem } : {}),
+      ...assistant?.queued };
   }
 
   /** The rounds run in the Assistant's own session. */
   private async assistantPart(work: StoredWork): Promise<{ rounds: AssistantRound[]; reviews: AssistantPendingReview[]; recovery: boolean; problem?: { message: string; action?: string };
-    memory: Map<string, import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact> }> {
+    memory: Map<string, import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact>;
+    queued: Pick<AssistantWorkView, "queued_inputs"> }> {
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const stored = this.store.rounds(work.work_id).filter(round => round.executor !== "coding");
@@ -567,7 +556,8 @@ export class AssistantService {
     // What each run really took from memory, from the runtime's own event.
     const memory = new Map([...views].filter(([, view]) => view.memory_recalled).map(([runId, view]) => [runId, view.memory_recalled!]));
     return { rounds, reviews: this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)), recovery: Boolean(recovery), memory,
-      ...(recovery ? { problem: { message: recovery.reason, action: "核对上一轮的实际结果后再继续" } } : {}) };
+      queued: queuedInputs(session),
+      ...sessionProblem(recovery, rounds, session) };
   }
 
   /** The rounds run in a Coding session the work carries, read through Coding's own actions. */
@@ -685,7 +675,7 @@ export class AssistantService {
       if (materials.some(item => item.kind === "method")) materials = await this.chosenMethods(work, materials);
       if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
-      this.linkSent(work, materials, created ? context : null);
+      linkSent(this.store.relations, work, materials, created ? context : null);
       const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by), about: input.about });
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
@@ -738,13 +728,13 @@ export class AssistantService {
   }
 
   async answer(workId: string, input: { run_id: string; pending_id: string; pending_revision?: number; text?: string;
-    answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }): Promise<AssistantWorkView> {
+    answers?: ReadonlyArray<import("@molis-ai/molis-work-contracts/services/agent-interaction").AgentQuestionAnswer> }, caller: AssistantCaller = {}): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     if (work.executor.kind === "coding") {
       const coding = await this.coding(work);
       const run = work.executor.session_id ? (await coding.read(work.executor.session_id, 6)).runs.find(item => item.ref.run_id === input.run_id) : undefined;
       const question = run?.awaiting_input.find(item => item.pending_id === input.pending_id);
-      if (!run || !question || run.phase !== "awaiting-input") throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
+      if (!run || !question || run.phase !== answerablePhase(question)) throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
       await coding.control(work.executor.session_id!, run.ref.run_id, { kind: "answer", pending_id: input.pending_id, pending_revision: exactRevision(input.pending_revision, question.pending_revision),
         ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
       return this.read(workId);
@@ -753,13 +743,13 @@ export class AssistantService {
     const host = await this.ports.host();
     const run = await host.adapter(RUNTIME).read({ session_id: work.session_id!, run_id: input.run_id });
     const question = run.awaiting_input.find(item => item.pending_id === input.pending_id);
-    // A late answer to a question that is already closed or replaced starts nothing.
-    if (!question || run.phase !== "awaiting-input") throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
+    // A late answer to a question that is already closed or replaced starts nothing; one parked at a restart ends its round.
+    if (!question || run.phase !== answerablePhase(question)) throw assistantErrors.stale("这个问题已经结束或被替换，回答没有发送");
     if (input.text !== undefined && (typeof input.text !== "string" || input.text.length > MAX_TEXT)) throw assistantErrors.invalid("回答过长");
     await host.adapter(RUNTIME).control(run.ref, { kind: "answer", pending_id: input.pending_id,
       ...(input.pending_revision !== undefined ? { pending_revision: input.pending_revision } : question.pending_revision !== undefined ? { pending_revision: question.pending_revision } : {}),
       ...(input.text !== undefined ? { text: input.text } : {}), ...(input.answers ? { answers: input.answers } : {}) });
-    return this.read(workId);
+    return afterParkedAnswer(question.parked ? await roundAfterParkedAnswer(() => this.dispatch(this.store.get(this.actorId, workId), PARKED_ANSWER_TASK, [], null, undefined, "host", undefined, caller.beforeStart, caller.assertBeforeStart, { byHost: true }), async () => host.adapter(RUNTIME).recovery?.inspect(sessionRef(work))) : undefined, await this.read(workId));
   }
 
   async decide(workId: string, input: { review_id: string; decision: "approve" | "reject"; note?: string }): Promise<AssistantWorkView> {
@@ -802,18 +792,6 @@ export class AssistantService {
   }
 
   /** What the person sent with a round, and — for a new work — the object it started from, as the work's relations. */
-  private linkSent(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null): void {
-    const id = identity(work);
-    try {
-      if (context?.object) this.store.relations.link(id, "origin", { kind: context.object.kind, id: context.object.id, revision: revisionOf(context.object.version) }, "工作从这个对象开始");
-      for (const material of materials) {
-        if (!material.object) continue;
-        this.store.relations.link(id, "material", { kind: material.object.kind, id: material.object.id, revision: material.draft ? null : revisionOf(material.object.version) },
-          material.explicit ? "用户把它加入这一轮" : "用户保留了当前页面的这个对象");
-      }
-    } catch { /* A relation that fails to record never stops the person's Send. */ }
-  }
-
   /**
    * A plugin hands a result back to a work (its page raised a `reply`). The work keeps a relation to the object, read
    * from its owner like every other; nothing is copied, and receiving it does not mark the work done.
@@ -869,83 +847,9 @@ export class AssistantService {
     });
   }
 
-  /**
-   * A command that starts background work (declared by its `background_job`) is followed to its end: its state is read
-   * through the plugin's own status query, on Prologue's queue, less often as time goes on. Returns the job, or null.
-   */
-  async watchJob(work: StoredWork, view: ActionView, output: unknown, cardId?: string): Promise<StoredJob | null> {
-    const declared = view.action.background_job;
-    if (!declared) return null;
-    const jobId = pathValue(output, declared.id);
-    if (typeof jobId !== "string" && typeof jobId !== "number") return null;
-    const status = { capability_id: declared.status.capability_id, version: declared.status.version, provider_id: view.provider.provider_id };
-    // One job is followed once: the Assistant's own authority already followed what this change started, so a card that ran
-    // it takes that job over rather than following it a second time.
-    const followed = this.store.jobs(this.actorId, work.work_id).find(item => item.state === "running" && item.job_id === String(jobId) && item.status.capability_id === status.capability_id && item.status.provider_id === status.provider_id);
-    if (followed) {
-      if (!cardId || followed.card_id === cardId) return followed;
-      if (followed.card_id) return null;
-      this.store.saveJob(this.actorId, { ...followed, card_id: cardId });
-      return { ...followed, card_id: cardId };
-    }
-    const job: StoredJob = { key: `job-${randomUUID()}`, job_id: String(jobId), work_id: work.work_id, title: `${view.provider.title} · ${view.action.title}`, state: "running",
-      started_at: this.now().toISOString(), ...(cardId ? { card_id: cardId } : {}), status,
-      input: declared.input, path: declared.state, done: [...declared.done], failed: [...declared.failed], checks: 0 };
-    this.store.saveJob(this.actorId, job);
-    await this.scheduleJobCheck(job, work);
-    return job;
-  }
-
-  private async scheduleJobCheck(job: StoredJob, work: StoredWork): Promise<void> {
-    // The work as stored now: a new work's session is made after its first round's authority captured the work, so the
-    // copy the change came through has none (seen live: a job started in a new work was never looked at again).
-    let current: StoredWork;
-    try { current = this.store.get(this.actorId, work.work_id); } catch { return; }
-    const schedule = await this.schedule().catch(() => null);
-    if (!schedule || !current.session_id) return;
-    this.#jobRunnerFor(schedule);
-    // 15 s, then doubling, at most every 5 minutes.
-    const delay = Math.min(300_000, 15_000 * 2 ** Math.min(job.checks, 5));
-    await schedule.enqueue({ key: `${job.key}-${job.checks}`, session_id: current.session_id, kind: JOB_KIND, payload: { key: job.key }, due_at: new Date(this.now().getTime() + delay).toISOString(), max_attempts: 1 });
-  }
-
-  #detachJobs: (() => void) | null = null;
-  #jobRunnerFor(schedule: AgentScheduleCapability): void {
-    if (!this.#detachJobs) this.#detachJobs = schedule.handle(JOB_KIND, async task => { await this.checkJob(String(task.payload.key ?? "")); });
-  }
-
-  /** Reads a followed job's state once; ends it (telling the person) or schedules the next look. Never re-runs anything. */
-  async checkJob(key: string): Promise<StoredJob | null> {
-    const job = this.store.jobs(this.actorId).find(item => item.key === key);
-    if (!job || job.state !== "running") return job ?? null;
-    let work: StoredWork;
-    try { work = this.store.get(this.actorId, job.work_id); } catch { return null; }
-    let state: string | null = null;
-    try {
-      const actions = await this.ports.scopeActions?.(work);
-      if (actions) state = String(pathValue(await actions.invoke(job.status, setPath({}, job.input, job.job_id)), job.path) ?? "");
-    } catch { state = null; }
-    const ended = state && job.done.includes(state) ? "completed" as const : state && job.failed.includes(state) ? "failed" as const : null;
-    const giveUp = !ended && this.now().getTime() - Date.parse(job.started_at) > 6 * 3600_000;
-    const next: StoredJob = { ...job, checks: job.checks + 1, ...(state ? { last_state: state } : {}),
-      ...(ended ? { state: ended, ended_at: this.now().toISOString() } : giveUp ? { state: "unknown" as const, ended_at: this.now().toISOString() } : {}) };
-    this.store.saveJob(this.actorId, next);
-    if (next.state === "running") { await this.scheduleJobCheck(next, work); return next; }
-    this.store.raiseNotice(this.actorId, { kind: next.state === "failed" ? "failed" : "result", work_id: work.work_id, work_title: work.title,
-      text: next.state === "completed" ? `「${next.title}」在后台完成了` : next.state === "failed" ? `「${next.title}」在后台没有完成（${next.last_state ?? "失败"}）` : `「${next.title}」过了 6 小时仍没有结束，不再跟进；请到原处查看` }, `job:${next.key}:${next.state}`);
-    if (next.card_id) {
-      try {
-        const card = this.store.card(work.work_id, next.card_id);
-        this.store.updateCard(card, card.revision, next.state === "completed" ? { status: "done", outcome: `后台已完成（${next.last_state}）` }
-          : next.state === "failed" ? { status: "failed", outcome: `后台没有完成（${next.last_state}）` } : { status: "unknown", outcome: "过了 6 小时仍没有结束，请到原处查看" });
-      } catch { /* The card changed meanwhile: the notice still says how the job ended. */ }
-    }
-    return next;
-  }
-
   /** A command the Assistant ran for this work succeeded: keep the object it created or changed, at its new revision. */
   recordResult(work: StoredWork, view: ActionView, input: unknown, output: unknown): void {
-    void this.watchJob(work, view, output).catch(() => undefined);
+    void this.jobs.follow(work, view, output).catch(() => undefined);
     this.spendUndos(work, view, input);
     this.recordUndo(work, view, output);
     const result = actionResultSubject(view.action, input, output);
@@ -1430,7 +1334,7 @@ export class AssistantService {
     }
     assertSendCurrent(stillCurrent);
     const session = await adapter.readSession(sessionRef(work));
-    if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: "核对上一轮的实际结果后再继续" });
+    if (session.recovery) throw assistantErrors.needs_check(session.recovery.reason, { action: recoveryAction([session.latest_run && await adapter.read(session.latest_run.ref).catch(() => null)]) });
     assertSendCurrent(stillCurrent);
     const latest = session.latest_run;
     if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
@@ -1453,6 +1357,8 @@ export class AssistantService {
     // The memories this round is given, chosen now so the round's materials can say how many did not fit.
     this.chosenMemory.delete(work.work_id); this.recalled.delete(work.work_id);
     let prepared: RoundMaterials, handle: Awaited<ReturnType<AgentHost["start"]>>;
+    // The round starts as of the moment its materials are read: what ends after that reaches the next round.
+    const startedAt = this.now().toISOString();
     try {
       if (!work.reply_target) await this.memoryForRound(work, text, context);
       prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered, unavailable);
@@ -1469,7 +1375,7 @@ export class AssistantService {
     }
     await beforeStart?.();
     this.store.markTold(this.actorId, prepared.told);
-    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
+    this.store.addRound(work.work_id, { run_id: handle.ref.run_id, text, materials, context, started_at: startedAt, ...(writtenBy ? { written_by: writtenBy } : {}), ...(work.character ? { character: { ...work.character } } : {}),
       ...(spent.budget_tokens === null ? {} : { work_budget: spent.budget_tokens }), ...(this.recalled.get(work.work_id) ? { memory_receipt: this.recalled.get(work.work_id)! } : {}) });
     this.recalled.delete(work.work_id);
     this.chosenMemory.delete(work.work_id);
@@ -1505,12 +1411,11 @@ export class AssistantService {
     const base = { source_artifact_id: work.work_id, source_version: 1 };
     const out: AgentTextMaterial[] = [{ ...base, material_id: "situation", title: "本轮情况", text: situation }];
     // What this round tells that is told only once: marked after the round has started, not before (a start that fails tells nothing).
-    const told = { undos: [] as string[], jobs: [] as string[], unsettled: [] as string[] };
+    const told = { undos: [] as string[], unsettled: [] as string[] };
     // What the person did with earlier suggestions since the last round: the next round goes on from there.
     const since = this.store.rounds(work.work_id).at(-1)?.started_at ?? "";
     const handled = this.store.cards(work.work_id).filter(card => card.updated_at > since && ["done", "failed", "unknown", "dismissed", "stale"].includes(card.status));
     if (handled.length) out.push(...chunked({ ...base, title: "用户对建议的处理" }, "cards", handled.map(card => `- 「${card.title}」：${{ done: "已执行", failed: "执行失败", unknown: "结果未确认", dismissed: "用户忽略", stale: "已失效" }[card.status as "done"]}${card.outcome ? `（${card.outcome.slice(0, 300)}）` : ""}`).join("\n")));
-    // Background work this work started: running ones as such, ended ones once.
     // Changes the person took back since (the base says what follows from that).
     const undone = this.store.undos(this.actorId, work.work_id).filter(item => item.state === "undone" && !item.told);
     if (undone.length) {
@@ -1528,11 +1433,9 @@ export class AssistantService {
       out.push(...chunked({ ...base, title: "用户收回的子任务" }, "taken-back", ["用户把下面的子任务收回到这项工作，它们已停下，已产出的成果保留：",
         ...lines].join("\n")));
     }
-    const jobs = this.store.jobs(this.actorId, work.work_id).filter(job => job.state === "running" || !job.told);
-    if (jobs.length) {
-      out.push(...chunked({ ...base, title: "后台任务" }, "jobs", jobs.map(job => `- 「${job.title}」（任务 ${job.job_id}）：${job.state === "running" ? "仍在进行" : job.state === "completed" ? "已完成" : job.state === "failed" ? "没有完成" : "不再跟进"}${job.last_state ? `（${job.last_state}）` : ""}`).join("\n")));
-      told.jobs = jobs.filter(job => job.state !== "running").map(job => job.key);
-    }
+    // Background work it started: those still running, and those that ended since its latest round began.
+    const jobs = await this.jobs.material(work).catch(() => undefined);
+    if (jobs) out.push(...chunked({ ...base, title: "后台任务" }, "jobs", jobs));
     // What its sub-tasks handed back that it has not had yet (marked with the rest once the round has started).
     const handed = await this.delegations.material(work, base);
     if (handed) out.push(handed);
@@ -1942,9 +1845,7 @@ export class AssistantService {
   }
 
   private publicWork(work: StoredWork, state: AssistantWorkState): AssistantWork {
-    const { actor_id: _actor, project_ref: _ref, handover_brief: _brief, question_drafts: _drafts, thread_round: _thread, graph_id: _graph, delegated_by: _delegated, ...rest } = work;
-    const delegated_by = this.delegations.shown(work);
-    return { ...rest, ...(delegated_by ? { delegated_by } : {}), state };
+    return workView(work, state, this.delegations.shown(work));
   }
 }
 

@@ -22,8 +22,7 @@ const KINDS: Record<string, string> = {
   "[data-uiv-confirm]": "voice confirm", "[data-uiv-decline]": "voice decline",
   "[data-plugin-picker-toggle]": "plugin switcher",
   ".dock-pin": "dock",
-  ".bar-resident": "resident",
-  ".bar-chat": "discussion",
+  ".bar-chat": "side panel",
   ".navigator-project-selector": "project",
   "[data-home-plugin-open]": "home plugin", // ISSUE-30: the declared Home tools remain visible in the titlebar.
   ".immersive-show-directory, .navigator-directory-toggle": "directory toggle",
@@ -353,7 +352,7 @@ const PANEL_BODY = `(async () => {
 })()`;
 
 /** A finding that is about the strip or the bar (the page behind them has its own audits). */
-const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-resident|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
+const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-side|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 /** Layout fixtures select production voice controls; they do not claim microphone or recognition coverage. */
@@ -661,8 +660,10 @@ for (const scheme of ["light", "dark"] as const) {
         moreShown[`${width} ${name}`] = dock.more;
       }
     }
-    for (const width of [390, 375, 360]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
-    for (const width of [350, 320]) assert.equal(moreShown[`${width} the project's settings`], false, `${width}px cannot hold 项目首页 and the "+N" button beside the directory button: the "+N" gives way, 项目首页 does not`);
+    // One button at the bar's end instead of three (side-shelf §3.1) leaves every width room for 项目首页 and the "+N" button,
+    // even beside the directory button at 320px. Should the row ever run short, the "+N" gives way and the check above holds
+    // the dropped buttons to the switcher's list.
+    for (const width of [390, 375, 360, 350, 320]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
     assert.equal(moreShown["320 home"], true, "without the directory button the row holds the \"+N\" button even at 320px");
     for (const control of await voiceControls(browser, 44)) seen.add(control.kind);
     assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");

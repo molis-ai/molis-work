@@ -21,7 +21,6 @@ export const HOME_EN: Record<string, string> = {
   "继续写作": "Keep writing",
   "看看安排": "See what's scheduled",
   "记下灵感": "Jot down an idea",
-  "放进来的材料": "Materials you dropped in",
   "概览": "Overview",
   "Goal 视图": "Goal view",
 };

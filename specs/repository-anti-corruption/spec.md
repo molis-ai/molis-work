@@ -398,6 +398,7 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 | 2026-10-14 | CI 必过检查拆成并行作业（弹窗，「开发、CI 都慢」的系统优化，PR #497） | 合入（推荐）；只合测试运行器，CI 结构先不动 | 合入 | 原来 `Verify` 约 28–29 分钟，全卡在串行的 `architecture-boundaries`。拆成 `gates`、`health-gate-rules`（都不构建，后者分两个 runner）与 `architecture-boundaries`、`action-contracts`（各自构建），都在 `Verify` 的 `needs` 里（PR 上第一次运行 `Verify` 约 7.7 分钟；健康门禁的变异用例每个文件本身就占一个多核，4 核 runner 上并行几乎不再加快，所以分到更多 runner 上，并用 `actions/cache` 留下用时让长的先跑）；安全不变量单独一个不挡合并的作业；`workspace:verify` 去掉重复构建 `tsc` 的 `workspace:typecheck`。检查一项不少、不放宽。按 `AGENTS.md`，改 CI 步骤要用户确认，这一行就是 |
 | 2026-10-14 | Linux 探针跑的频率（弹窗） | 每晚一次 + 手动（推荐）；保持每次推送都跑；只在推送到 main 时跑 | 每晚一次 + 手动 | `schedule` 每晚跑 main（有自己的并发组，夜里的合并取消不到它），保留 `workflow_dispatch`；PR 和推送上不跑。每次推送占一小时 runner、不决定任何事，main 上又常被下一次合并取消 |
 | 2026-10-14 | 产品子集作业的并行份数（弹窗） | 现在提到 4 份（推荐）；等并入 `Verify` 时再说 | 提到 4 份 | 拆分后必过检查约 10 分钟，子集约 15 分钟，并入后会成为最长的一项；runner 是 4 核，趁作业还不挡合并（W2-16）看负载会不会让文件变得不稳定 |
+| 2026-10-18 | 页面体积是不是硬上限（改 #17，用户在统筹会话里提出） | 用户直接给出 | 体积控制，不是硬上限 | 默认只许变小、能省先省；功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数与试过的省法，评审认可后在 `APPROVED_CEILINGS` 一次性放行（只认 merge-base 的准确数字，上限等于实测，下一条放行进来时删掉用完的），合入后照样冻结。一个资源一次涨超过 10 KB、或新增资源（要改门禁），先问用户（10 KB 这条线是统筹 10-18 定）。此前每次放行都弹窗问用户（#589、AC-03 +606、回执 3d-4 +889） |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -528,7 +529,7 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 | R-14 | 仍然成立 [已确认] | `git ls-files .impeccable` 1,085 个文件、约 111 MiB（`git ls-tree -r -l HEAD -- .impeccable` 求和 111.3 MiB）；`.gitignore` 只忽略 `.impeccable/qa/`、`config.local.json`、`questions/` | 决定 #22（只留现行 spec、文档或测试引用的评审组与设计参考，其余从树里删、不改历史，门禁只许减少）：W1-23、W1-06（数量门禁） |
 | 皮肤 | 仍然成立 [已确认] | `packages/design-system/src/visual-foundation.ts` 按顺序拼接 14 个样式模块，含 `momentum` 1,170 行、`quiet-paper` 382、`calm-desktop` 1,391、`personal-shell` 373、`personal-workbench-v2` 393、`-v3` 1,421；`styles/` 共 17 个文件、11,885 行（报告时 11,338）；`craft-finish.ts` 2,312 行 | 决定 #17（自动比对像素、超阈值给用户看；页面体积先冻结）：W1-07（体积门禁）、W4-12（视觉比对）、W5-05（逐个删除） |
 | Goals UI | 部分，已不完全成立 [已确认] | `apps/workbench/src/goals-*.ts` 16 个、573 行：15 个是 5–59 行的挂载转接层，已不含 Goals 业务界面；`goals-page-renderer.ts`（335 行）是工作台外壳的页面渲染器，名字起错了，留在工作台改名 | §4.3/§4.6：W5-06（通用贡献挂载器取代 15 个转接层，并改名） |
-| Server | 已不按原样成立 [已确认] | `server/` 与 `packages/im-ui` 支撑侧栏「项目讨论」页签（`apps/workbench/src/side-panel.ts:42` 的 `data-dock-frame="im"`；`apps/local-host/src/im-server.ts:3-4` 引入二者）；`apps/server`（5 个文件）这个独立启动器仍没有产品入口，只有 `tests/cross-device-*.test.ts` 在用；SSOT 标「实验性」（`docs/SSOT-MATRIX.md:57`）；`server/server.sqlite` 已登记进 `docs/system/HOME-DATA.md` | 决定 #4（保留并继续迭代，不冻结；只修账目：备份表、宿主不再直接读它的表、包归类）：「宿主不再直接读它的表」已由 W2-06 做完（`im-server.ts` 与 `apps/server/src/main.ts` 改走 `Identity`、`ContinuityService` 的方法），其余 W2-12 |
+| Server | 已不按原样成立 [已确认] | `server/` 与 `packages/im-ui` 支撑侧栏「项目讨论」页签（`apps/workbench/src/side-panel.ts` 的 `data-side-body="discussion"`；`apps/local-host/src/im-server.ts:3-4` 引入二者）；`apps/server`（5 个文件）这个独立启动器仍没有产品入口，只有 `tests/cross-device-*.test.ts` 在用；SSOT 标「实验性」（`docs/SSOT-MATRIX.md:57`）；`server/server.sqlite` 已登记进 `docs/system/HOME-DATA.md` | 决定 #4（保留并继续迭代，不冻结；只修账目：备份表、宿主不再直接读它的表、包归类）：「宿主不再直接读它的表」已由 W2-06 做完（`im-server.ts` 与 `apps/server/src/main.ts` 改走 `Identity`、`ContinuityService` 的方法），其余 W2-12 |
 | N-01 | 已修复 [已确认] | 标题栏只剩底栏铃铛 `data-assistant-attention`（#140，`597d15d2`）；`data-plugin-notifications`、「通知，暂不可用」「通知功能即将开放」在源码里 0 处，只在两处断言里作为「不应出现」被检查（`tests/plugin-notification-bell.test.ts:17`、`tests/plugin-event-recovery.e2e.test.ts:22`） | — |
 | N-02 | 已修复 [已确认] | `vendor/prologue-sdk/` 只剩 1 份 tgz（`prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`，#170 删旧包）；`tooling/gates/limits.json` 的 `vendoredPrologueSdk` 上限 2，由 `pnpm health:check` 守，CI 里跑 | 来源与补丁见 N-14 |
 | N-03 | 已按决定收口为文档分类，代码不搬 [已确认] | 决定 #2：架构里加一类「平台产品服务」。已写进 `docs/system/ARCHITECTURE.md`「平台产品服务」小节与 `docs/SSOT-MATRIX.md` §6（#296）；代码未动：`horizontal/memory/src/service.ts` 1,337 行（写入门、自动写入、插件写入审批）、`horizontal/placement/src/index.ts` 479 行。记忆与放置两页已补（`docs/horizontal/memory.md`、`placement.md`，#319）。余：边界规则入门禁 | W1-05（边界规则）、W4-08（按决定改为文档与边界规则，不搬代码） |
@@ -1016,7 +1017,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | vendored 包数量 | `vendor/prologue-sdk/*.tgz` 不超过 2 份 | #170 合入后 1 份 | 放回一份旧包 |
 | spec 状态句与根目录 | `specs/` 根目录每份都有状态句；只许在做的与现行规范 | 当前根目录 | 新建一份没有状态句的 spec |
 | 兼容逻辑不回流 | 源码不再出现 `ALTER TABLE`、`ensureSqliteColumn`、旧产品名与兼容标记（建库基线与允许名单除外） | 删兼容后为 0 | 加一处 `ALTER TABLE` |
-| 页面资源预算（§4.8，用户决定 #17） | 宿主 `apps/local-host/src/web-assets.ts` 里写成字符串字面量的每个 `/assets/` 路径（三份样式表、`molis-work-workbench.js` 与 `molis-work-capabilities.js` 两份脚本、Pages 编辑器、各插件客户端包、字体）向构建产物要内容，量发出去的字节数；预算文件（当前的与 merge-base 的）里读不到路由、宿主却还在发的路径照样量并按发现遗漏失败，所以删条目躲不掉；读不成整条字面量的写法（模板、拼接、前缀）、拿请求路径和非字面量比较、文件里除整条 `/assets/…` 字面量和插件包那一条已知正则以外还出现单词 `assets`（正则或带转义斜杠的写法：`\/assets\/`、`[\/]assets`、`(assets)`），退出 2；CI 在 `workspace:verify` 之后跑，预算文件与 merge-base 里的那份比，调大数字、加条目、删仍在发的条目都放不过；数字必须等于实测 | `tooling/gates/page-assets.json`（先冻结，只许变小；旧皮肤删完后再定真实上限） | 工作台样式表多一个字节；新增一个 `/assets/` 路由（含写成正则的，但把 `assets` 一词本身拆开的除外，见没覆盖的几项）；手改预算调大；把路由改成读不到的写法并删掉预算条目 |
+| 页面资源预算（§4.8，用户决定 #17） | 宿主 `apps/local-host/src/web-assets.ts` 里写成字符串字面量的每个 `/assets/` 路径（三份样式表、`molis-work-workbench.js` 与 `molis-work-capabilities.js` 两份脚本、Pages 编辑器、各插件客户端包、字体）向构建产物要内容，量发出去的字节数；预算文件（当前的与 merge-base 的）里读不到路由、宿主却还在发的路径照样量并按发现遗漏失败，所以删条目躲不掉；读不成整条字面量的写法（模板、拼接、前缀）、拿请求路径和非字面量比较、文件里除整条 `/assets/…` 字面量和插件包那一条已知正则以外还出现单词 `assets`（正则或带转义斜杠的写法：`\/assets\/`、`[\/]assets`、`(assets)`），退出 2；CI 在 `workspace:verify` 之后跑，预算文件与 merge-base 里的那份比，调大数字、加条目、删仍在发的条目都放不过；数字必须等于实测 | `tooling/gates/page-assets.json`（先冻结，默认只许变小；2026-10-18 起是体积控制、不是硬上限，功能必需的增长经评审在 `APPROVED_CEILINGS` 一次性放行，见决策记录） | 工作台样式表多一个字节；新增一个 `/assets/` 路由（含写成正则的，但把 `assets` 一词本身拆开的除外，见没覆盖的几项）；手改预算调大；把路由改成读不到的写法并删掉预算条目 |
 | 独立整页（artifact-positioning S7） | 除例外清单外没有路由返回完整 HTML；插件内容里不出现自带外壳；站内链接不跳出工作台 | [artifact-positioning §4](../artifact-positioning/spec.md) | 加一个返回整页的路由 |
 | 成果库声明（artifact-positioning A7） | manifest 声明与实际写入一致；可见类型必须有预览；交换数据不进用户可见列表 | 同上 | 写一个未声明的类型 |
 | 文档引用（W1-06） | 活文档（`archive/` 之外的 `.md`）没有断链（含标题锚点）；`skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md` 引用的路径、`pnpm` 脚本与动作 id 存在；`specs/README.md` 索引与根目录分类一致；`specs/BACKLOG.md` 没有完成行 | 从 0 开始，没有基线；有意的例外在 `tooling/gates/doc-citation-exceptions.json`（带理由，不再需要就要删） | 加一处断链、引用一个不存在的 id、少列一份 spec、留一行已完成 |
@@ -1041,7 +1042,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 - 终端客户端 `dist/web/pty-client.js`（根 `pnpm build:pty-client` 生成，CI 不跑）。
 - 只在 macOS 上量过；输出不随语言、时区、路径变，但 Linux CI 上的第一次运行才是核对。
 
-工作流上要知道：冻结按资源、等号严格，也没有像巨大单元那样的例外文件（用户决定 #17 就是这样写的），所以合入后，任何给 `workbench.css`、`workbench.js`、`settings.css`、`arrival.css` 或某个插件包多加一个字节的在途界面 PR 都会在 CI 里红，除非它在同一个资源里省回同样多；两个 PR 都压低同一个资源时会在 `page-assets.json` 的同一行冲突，合并后要重新 `--update --base origin/main`。
+工作流上要知道：冻结按资源、等号严格，也没有像巨大单元那样的例外文件（用户决定 #17 就是这样写的），所以合入后，任何给 `workbench.css`、`workbench.js`、`settings.css`、`arrival.css` 或某个插件包多加一个字节的在途界面 PR 都会在 CI 里红，除非它在同一个资源里省回同样多；两个 PR 都压低同一个资源时会在 `page-assets.json` 的同一行冲突，合并后要重新 `--update --base origin/main`。2026-10-18 用户改了这一条：体积是控制，不是硬上限。功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数与试过的省法，评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条一次性放行（只认 merge-base 的准确数字，上限等于实测），合入后照样冻结；一个资源一次涨超过 10 KB 或新增资源，先问用户。
 
 CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.yml`）；以上门禁都以非浏览器用例或脚本形式加到 `architecture-boundaries` 作业里，时间预算 3 分钟以内。
 
@@ -1435,7 +1436,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | 14 | CI 产品子集 | 先不挡、两周后并入 Verify |
 | 15 | 「不留兼容」窗口 | 第一个装到开发机外的版本 |
 | 16 | 翻译 | 全部换成稳定键 |
-| 17 | 视觉验收与页面体积 | 自动比对像素、超阈值给用户看；体积先冻结 |
+| 17 | 视觉验收与页面体积 | 自动比对像素、超阈值给用户看；体积先冻结，2026-10-18 改为体积控制：必需的增长经评审一次性放行 |
 | 18 | 非内置插件的 methods | 和内置插件一样注册 |
 | 19 | 没有使用者的接口 | 删按需搜索，记忆只给 MCP |
 | 20 | 备份与清除范围 | 离线快照命令，清除覆盖所有登记的库 |
@@ -2214,6 +2215,47 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 - 带 `full-suite` 的都跑过全量；#653、#655、#659、#663 没有标签，只改测试或文档。合入都用同一个账号，从记录上分不出是不是统筹合的，这一段没有发现绕过统筹的迹象。
 - 真实 Home 的库版本（RAC-13）：10-17 只读核对时发现 Pages 库是 1、代码要 2。`0ff3adb8a`（10-13，直接提交到 main、没有 PR）升了版本，检查清单第 3 节写了，却没有进维护清单和待办。补法是 #676（已合，`eb421d335`）：§4.1 的「库版本维护清单」与门禁 `scripts/gates/store-versions.mjs`（版本对 merge-base 变了却不在清单里就失败），Pages 记为 BL-157、随维护八做。
 - 写这一节时在途、已审，开 PR 前已合入的两个：#665（BL-154 的修法，叠在 #654 上；合入 `476c08931`，head `72db37a47`）只结束仍是 `ready` 的那一步，核过一步从 `ready` 到 `running` 只发生在一轮真的开始时，所以「仍 `ready`」就是没有一轮开始过；剩下的窗口 PR 照实写了。§10.24 写的「统筹定为不必修」与 #665 写的「统筹 10-17 选的修法」不矛盾：修法是统筹定的，做不做后来由统筹排进了采用线。#664（W3-A3a；合入 `bcb304cd1`，head `9b43af194`）页面传来的 `work_id` 只当指针，宿主的四条拒绝原来就有，本 PR 补用例；顺带删了手机标签切换的死处理器（`bc79f8a49` 起没有对应的标记），有依据，但不在 W3-A3a 的范围里，合入时记一句。两个都按上面的合入 head 在下一节再看。
+
+### 10.26 2026-10-17 合入与在途 PR 的独立复查（截至 main `4b063bf98`；含已合入 #667、#669、#671、#672、#674、#677、#679、#682）
+
+看法同 §10.23。合入的 PR 按**合入时的 head** 看；合并提交用 `git show --remerge-diff` 看冲突是怎样解的。2026-10-17 提交前复核了下表新增合入项及 #681 的编号修正；其余在途行保留最初审阅的 head，不把后来推送当成已经复核。新开的 #683～#685 不在本节审阅范围内。
+
+**已合入**
+
+| PR | 合入的 head | 裁决 |
+| --- | --- | --- |
+| #665（BL-154：没开起来的一轮只结束还没有一轮开始过的那一步） | `72db37a47` | 有依据，带 `full-suite`。核心在 `427c898ec`：`end` 加可选的 `if_ready`，状态检查与结束对着同一次同步读图，中间被一轮接走的那一步留给那一轮；合同字段是可选的，API 快照同步。最后一次并 main（`72db37a47`）的冲突解法：`agent-collaboration.ts` 留 `if_ready` 的那份说明，`prologue-work-waits.test.ts` 留 DELEGATION-PLACED-03，`BACKLOG.md` 删掉 BL-150（#660 做完）与 BL-154（本 PR 修完）两行，都合法。 |
+| #664（W3-A3a：页面上选的写动作，卡片放进拿着这个对象的工作） | `9b43af194` | 有依据，带 `full-suite`。两次并 main（`cbc812f15`、`a90f2e10a`）只碰 `baseline.json`、`page-assets.json` 与 context-program spec：spec 两段都留，只换了先后；门禁文件先取 main 的数，最后的 head 把 workbench.js 降到 1,099,839（比合入前的 main 少 3,210）。 |
+| #670（运行控制的失败，用 Agent 的话交给调用方） | `6da1670a8` | 有依据，带 `full-suite`。SDK 错误码只在一处（`controlFailure`）映射，码表写成 `Partial<Record<PrologueErrorCode, …>>`，SDK 加码时编译器看得见；普通错误给通用的一句；`control()` 的路径只抛 `agentErrors`。没有调用方再按 SDK 原码分支（agent-host 自己的 `codeOf` 只在 `prologue-inputs` 内部用）。测试的假实现改抛 `PENDING_EXPIRED`，断言不变。 |
+| #676（本线：库版本变了就要在维护清单里有一行，BL-157、RAC-13） | `d9b5073dd` | 只让门禁变严：新加 `scripts/gates/store-versions.mjs`，读不了表时以 exit 2 失败（失败即关）；没有放松别的规则，新用例进 `ci-product-subset`。没有标签：不改产品代码。 |
+| #678（本线：§10.25） | `9cef9900a` | 只改本 spec。 |
+| #667（回执 3b-2a：从回执撤回与纠正；`coding.runs.control` v6） | `e403929a4` | 有依据，带 `full-suite`。形状变了就升版本（快照删 v5 行、加 v6 行），不留 v5；唯一钉住它的调用方（助理的 Coding 客户端）同 PR 改到 v6，没有工作流、MCP、Skill 用它。字节放行（workbench.js +5,043、coding.js +684、两份样式表各 +136）由用户 10-17 经统筹弹窗批准，用一次性的 `APPROVED_CEILINGS` 写法，以 merge-base 为键，带有界用例。 |
+| #669（「请 AI 重新问」） | `bbb715e1c` | 有依据。复核并 main 的 `b7787fa38`：重新问与纠正输入的检查都保留，发送来源断言从三处改为实际四处；失败时重新问不覆盖人的草稿。材料校验移到自己的文件，限制不变。字节许可按 #667 后的基准重定为 coding.js 374,113→374,297（+184）、workbench.js 1,104,882→1,105,153（+271），#667 的四个起点进入已用名单，没有叠加使用。 |
+| #671（回执 3b-2b：共用的未处理托盘；去掉 Coding 的排队条） | `edf3d9a96` | 有依据。删掉的排队条断言换成托盘的断言，并加了「只有一个列表」的反向检查（D38）。复核三次并 main 的冲突：spec 保留两线记录，补充要求的实现与用例保留托盘和逐条说明，资源许可按新基准重定。相对最初审阅 head，末次门禁已改为用户批准的一次性增长：workbench.js +2,838 B，arrival/settings/workbench 三份 CSS 实测 +64/+57/+102 B，均在批准上限内；#667、#669 的旧起点已列为用完。 |
+| #672（手册线 C1） | `026d51582` | 有依据。只调整设计指令及说明，要求一个 JSON 对象，去掉恳求格式的话；未改变解析或合同。 |
+| #674（ui-review 2.1.0） | `f2caa8879` | 有依据。指令不再列举不要用的格式；并 main 的冲突只在手册 spec，保留 C1 与视觉复查两段证据，没有删掉其中一段。 |
+| #677（本线：删设置页的 desktop-shell 规则） | `5f7a1600c` | 有依据。现有设置页不产生对应 body 属性，删除的是不匹配的规则。末次并 main 仅资源数字冲突，保留 main 的 workbench.js 与本片三份 CSS 的实测降幅；三份分别减少 2,357、4,408、4,202 B。 |
+| #679（本线：Home 插件路由带项目，S-31） | `4a2dec7fb` | 有依据。路由项目由宿主确认且绑定原控制对象；每次写前重查项目存在、插件显示状态，请求结束后控制失效。新用例覆盖隐藏插件期间的迟到写入及请求结束后再次调用，两个都明确拒绝；没有把请求体里的项目当身份。 |
+| #682（回执 3d-1：报告逐条说明补充要求） | `1fd95df53` | 有依据。报告从运行时视图读每条补充的记录状态、模型说法、更正关系与未答问题，不另存副本，不据此宣称生效。人的原话与模型说明使用原有围栏转义；新增用例走真实报告保存、HTML 展示及下一轮材料路径，检查注入标题和 HTML 不能变成报告自己的话。移除的是旧的简略补充列表，原有报告持久化断言仍在。 |
+
+
+**在途**（按 10-17 晚各自的 head 看；只看依据与回归，合入前统筹再审最后的 head）
+
+| PR | head | 看到的 |
+| --- | --- | --- |
+| #675（采用线 A3：后台作业是工作图上的一步） | `fc2f7538d` | 有依据。删掉的 12 条断言逐条换成对图上那一步的断言（`untold` 少了 `jobs` 一项，因为作业不再单记）；结果文字去掉了括号里的原始状态（「后台没有完成（failed）」→「后台没有完成」），这是本 PR 的预期变化，不是回归。`assistant_jobs` 留在 2 号基线、不再写：真实 Home 里还在 running 的作业卡要等以后那一片（3 号基线，与维护八同一次安装）结掉。这一条是用户 10-17 在统筹弹窗里选的「以后的一片」，spec 记了。门禁只降（assistant-service 2040→1956，显式 `any` 514→510，workbench.js −55）。 |
+| #680（采用线 A4：工作的视图只取合同字段） | `d5cfc2b13` | 有依据，补的是 §10.25 记下的 `publicWork` 旧键外漏：`workView` 按合同字段逐项取，合同加字段时漏取会编译不过。存量改法照用户 10-17 定的 Q2：一次性脚本不进仓库，拒绝在真实 Home 的路径上跑，对真实 Home 的任何一次 `count`、`apply` 都要先问用户。演练用的真实 Home 只读拷贝（Q3，用户同意）里 `assistant_works` 与 `assistant_jobs` 都是 0 行，所以 #675 留下的 running 作业卡在那份拷贝上是空的；装下一个版本前要再数一次。没有删断言，门禁只降。 |
+| #673（W3-A3b：拿起结果卡；悬停时落点闪一下） | `8a59b07a1` | 有依据。新的 DOM 事件在 `dom-events.ts` 登记，API 快照同步；门禁与页面资源只降。 |
+| #681（交互线 BL-152：每轮按自己项目目录算对象引用种类） | `7a868d819` | 原先审阅的依据成立；提交前复核编号修正：本片已改为 S-32，S-13 的引用、拒绝用例和交互 spec 同步，S-31 留给已合入的 #679。此前的编号冲突已解决；这一行只补核编号与合入 main 的变化。 |
+| #634（Cursor：做了一半的步骤不再让下一次读到错的事实） | `02a884aa2` | 门禁只降。现在和 main 冲突（DIRTY），解冲突之后再看最后的 head。 |
+| #661（草稿：助理统一接入服务，100 个文件、+9,180） | `90a60c17a` | 方向有依据（`specs/assistant-service-connections`），`@prologue/sdk` 只在 agent-host 里引用，门禁数字只降（巨大单元 140→139、浏览器脚本空 `catch` 136→134）。合入前要补一样：连接库基线 1→2（新表 `connector_observations`，基线遇旧版本「拒绝」打开），它自己的 CHECKLIST 写了「真实 Home 尚未维护，不能直接用新构建」，隔离副本演练过；但它是在 #676 之前开的，没有在本 spec §4.1 的库版本维护清单里加一行，变基后 `store-versions` 门禁会挡下。另新增一份 Home 存放（`CONNECTOR_TOOLS_HOME_STORE`）。`prologue-mcp.ts` 的 `as unknown as` 是改写原有的一行，计数不变。体量远超 `PARALLEL-DEVELOPMENT.md` 的 PR 体量建议，转正前宜拆片；它的 page-assets 基数（workbench.js 1,103,578）已过时，要在新 main 上重量。 |
+| #631（草稿，外部作者：统一输入与本地语音） | `8055bedfc` | 有依据。行为变化都写在 `specs/unified-input-voice` §2 的需求里：Enter 换行、Ctrl/Command+Enter 发送（`assistant-dock-ime` 的断言随之改成「Enter 不发送、插入换行；Ctrl+Enter 发送一次」，没有变弱）；作曲条改成多行 textarea。删掉的 36 条断言里，CSS 那些是把字面空格改成 `\s*`，被测的规则没变；回执用例改从实际请求取 `request_id`，「同样的话同一个键、换了话换键、答复后不留待发」三条都在；`touch-targets` 的分步折叠换成「各控件留在作曲条与视口内、44px」，跟随新版面。缺 Chrome 或本机模型时 `t.skip`，仓库里有 20 个文件这样写，属于先例，跳过的原因写明了不算通过。桌面权限只加 `audio-input` 和麦克风说明，spec 记了 codesign 的检查。`home-talk.ts` 的空 `catch` 是把原来读 sessionStorage 的一行改成读 localStorage，计数不变。门禁数字只降。 |
+
+**组合效果**
+
+- 字节放行已按合入顺序消耗：#667 从 workbench.js 1,099,839 增到 1,104,882；#669 从 1,104,882 增到 1,105,153。#671 随后将 workbench.js 增到 1,107,991，三份 CSS 分别增到 703,722、989,962、1,592,790。本线 Todo #684 的 +28 已重定为 1,107,991→1,108,019，并把 #671 的四个起点放进已用名单。后续合入若再改基准，仍须重新构建重定键，不能重复使用旧许可。
+- 删掉的断言（#667、#669、#671、#673、#675、#634）都有等价或更严的替换，或者属于本 PR 的预期变化；没有找到为了变绿而放宽的。
+- 结论：这一批没有找到无依据的回归，也没有把已清理的问题带回来。原先的编号冲突已按统筹决定修正；仍在途的 PR 在合入前要复核最后的 head。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

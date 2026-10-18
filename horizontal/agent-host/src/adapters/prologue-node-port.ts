@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, createRuntime, type ConditionCheckers, type ExactRef, type QueuedTask, type Runtime } from "@prologue/sdk";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -250,7 +250,7 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
       sendForPeople: (project, input, actorId) => messages.sendForPeople(project, input, actorId),
       act: (project, id, action, detail, actorId) => messages.act(project, id, action, detail, actorId),
       prioritize: prioritize(deps) },
-    collaboration: { ...deps.waitsPort.collaboration, revise: (run, amendment, expectedVersion, actor) => stepBoards.amend(run, amendment, expectedVersion, actor), works: deps.workGraphs.port },
+    collaboration: { ...deps.waitsPort.collaboration, revise: (run, amendment, expectedVersion, actor, ledger) => stepBoards.amend(run, amendment, expectedVersion, actor, ledger), works: deps.workGraphs.port },
     // A supplement that is to wait for the next round, or whose round has ended: the session keeps it, under its key, and gives it back while it still waits.
     queue: {
       add: async (sessionId, input) => (await openSession(sessionId, "这条会话读不到，补充留不到下一轮")).queueInput(input),
@@ -289,11 +289,13 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
       // The original persisted answer owns this fact, including after restart.
       // Do not turn an answered question back into an empty disabled form.
       if (pending.state === "settled") return null;
-      const unavailable = questionUnavailable(pending, (await deps.host.readClock()).monotonicMs, Boolean(state.activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref)));
+      const live = Boolean(state.activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref));
+      const parked = !live && pending.state === "open" ? await parkedOn(runtime, deps.index, run, pending.ref) : undefined;
+      const unavailable = questionUnavailable(pending, (await deps.host.readClock()).monotonicMs, live || parked !== undefined);
       return { pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind,
         prompt: pending.why, options: [], allows_free_text: pending.kind === "text",
         ...(pending.kind === "questionnaire" ? { questions: pending.questions.map(projectQuestion) } : {}), answerable: unavailable === undefined,
-        ...(unavailable ? { unavailable_reason: unavailable } : {}) };
+        ...(parked && !unavailable ? { parked: true as const } : {}), ...(unavailable ? { unavailable_reason: unavailable } : {}) };
     },
     readCommandOutput: readCommandOutput(deps),
     sessions: sessionsPort(deps),
@@ -314,8 +316,24 @@ export function questionReader(runtime: Runtime) {
   };
 }
 
-/** The adapter's answer path: the original question, still open in a live run, answered in its own kind. */
-export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" | "readQuestion" | "index" | "options">): NonNullable<PrologueAdapterOptions["answerPending"]> {
+/**
+ * The round's parked view, when a normal shutdown parked it on exactly this question and the runtime says it can be answered
+ * now (prologue#40). A crash orphan has no marker and is never answerable.
+ */
+async function parkedOn(runtime: Runtime, index: SessionIndexStore, run: AgentRunRef, pending: ExactRef<"pending">) {
+  const saved = await index.read(run.session_id).catch(() => undefined);
+  const report = saved && await runtime.sessions.inspectRecovery(saved.ref).catch(() => undefined);
+  const view = report?.runs.find(entry => entry.ref.id === run.run_id && entry.parked && sameRef(entry.parked.pending, pending));
+  return saved && view?.canAnswer ? { session: saved.ref, view } : undefined;
+}
+
+/**
+ * The adapter's answer path: the original question, still open, answered in its own kind. A live run takes the answer at
+ * once (`delivered`). A run parked at a normal shutdown ends with the question answered and the answer queued as the
+ * person's input for the session's next round, which the caller opens (`queued`); the runtime settles it under this call's
+ * own final authority check, the gateway's, at the moment it writes (S-33).
+ */
+export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" | "readQuestion" | "index" | "options" | "effects">): NonNullable<PrologueAdapterOptions["answerPending"]> {
   return async (run, answer) => {
     const { runtime } = deps;
     if (!Number.isInteger(answer.pending_revision) || answer.pending_revision! < 1) {
@@ -323,11 +341,14 @@ export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" 
     }
     const pending = await deps.readQuestion(run, answer.pending_id, answer.pending_revision!);
     const now = await deps.host.readClock();
-    const unavailable = questionUnavailable(pending, now.monotonicMs, Boolean(deps.state.activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref)));
+    const live = Boolean(deps.state.activeRuns.get(run.run_id)?.live() && runtime.effects.pendings.hasLiveWaiter(pending.ref));
+    const parked = !live && pending.state === "open" ? await parkedOn(runtime, deps.index, run, pending.ref) : undefined;
+    const unavailable = questionUnavailable(pending, now.monotonicMs, live || parked !== undefined);
     if (unavailable) throw agentErrors.pending_not_open(unavailable);
+    let reply: PendingAnswer;
     if (pending.kind === "text") {
       if (typeof answer.text !== "string" || !answer.text.trim() || answer.answers !== undefined) throw agentErrors.answer_invalid("请填写原问题的文字回答");
-      await runtime.effects.pendings.answer(pending.ref, { kind: "text", text: answer.text }, now);
+      reply = { kind: "text", text: answer.text };
     } else {
       if (!answer.answers || answer.text !== undefined) throw agentErrors.answer_invalid("请按原问卷逐题回答");
       // A picked object is used only while its owner still hands it to the session's owner, under the owner's label (S-26).
@@ -335,8 +356,11 @@ export function answerPending(deps: Pick<PortDeps, "runtime" | "host" | "state" 
       const problems = answerProblems(pending.questions, owned.answers);
       if (problems.length) throw Object.assign(agentErrors.answer_invalid(`有 ${problems.length} 道题的回答不能提交`, { problems }), { problems });
       if (owned.refused.length) throw Object.assign(agentErrors.answer_invalid("选的对象现在不能用，请重新选择", { problems: owned.refused }), { problems: owned.refused });
-      await runtime.effects.pendings.answer(pending.ref, { kind: "questionnaire", answers: owned.answers }, now);
+      reply = { kind: "questionnaire", answers: owned.answers };
     }
+    if (!parked) { await runtime.effects.pendings.answer(pending.ref, reply, now); return "delivered"; }
+    await runtime.sessions.answerInterrupted(parked.session, parked.view.ref, parked.view.version, pending.ref, reply, { assertBeforeAnswer: deps.effects.assertCurrent });
+    return "queued";
   };
 }
 

@@ -89,7 +89,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setMobileView: (...args) => setMobileView(...args),
       noteSearchActivity: (...args) => noteSearchActivity(...args),
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
-      expandDirectory: (id) => setPluginSectionExpanded(id === "sources" ? "feed" : id, true, true),
+      expandDirectory: (id) => setPluginSectionExpanded(id),
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
       getState: () => state, translate: L, route,
@@ -125,7 +125,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || state.snapshot.board.title || "" },
     });
-    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(),
+    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), paneMessages,
       openSearch: (query) => globalSearchPalette?.open(document.activeElement, query) });
     globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),

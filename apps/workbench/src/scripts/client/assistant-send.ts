@@ -36,6 +36,11 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     event.preventDefault();
     const text = String(input.value || "").trim();
     if (!text || busy) return;
+    const into = curId && receipts.into(), fill = into && fills.get(into.pending_id);
+    if (fill) {
+      await fill(into.draft_from_composer, text).then(() => { input.value = ""; saveDraft(true); syncSend(); host.showToast?.(L("已写进问卷；按「提交回答」才交回")); }, showError);
+      return;
+    }
     const again = pendingSend(contextKey()), byPage = pageText === text;
     const body = { text, request_id: requestOverride || crypto.randomUUID(), context: pageContext(), materials: sendMaterials(), ...(byPage ? { written_by: "page" } : {}) };
     const character = curId ? pendingChar : nextChar || undefined;
@@ -114,40 +119,51 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * Coding shows): what the runtime's record says, and apart from it what the AI says. It changes in place and says each
  * change once on the page's status region. Words the Host wrote are the Host's notice. From it the person takes back a
  * supplement the round has not put in the context (the work's control), or sends a correction naming it (Send with
- * `about`; the receipt's key is its request id, so words resent after a lost answer count once).
+ * `about`; the receipt's key is its request id, so words resent after a lost answer count once). After the rounds, the shared
+ * tray lists what is still open (§4.4, stage 3b-2c): what waits in the work's session, read only while no round is live
+ * (`queued_inputs`), and what the latest round leaves open; one waiting is taken back through the same control.
  *
  * While the round waits on its one free-text question (the Host marks it `from_composer`: specs/ai-interaction-experience D34), the composer shows what the next Send does, with the default on
- * the chip: answer the question, or add to the round. One click switches it; the Host never decides it. The interaction
- * line's 「写进问卷」 replaces the answer state here, and only here (D14).
+ * the chip: answer the question, or add to the round. One click switches it; the Host never decides it. When the round
+ * waits on a questionnaire whose one text question is among others (the Host marks it `draft_from_composer` with that
+ * field), the default is 「写进问卷」 instead: Send writes the words into the card's draft and hands nothing back (R4, D14).
  */
 export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, api, work, reload }) => {
-  const CHOICES = { answer: ["回答上面的问题", "点一下改成：补充这一轮"], steer: ["补充这一轮", "点一下改成：回答上面的问题"] };
-  let asked = "", choice = "answer";
+  const CHOICES = { answer: "回答上面的问题", draft: "写进问卷", steer: "补充这一轮" };
+  let asked = "", ask = null, choice = "answer";
   const question = (round) => {
     const waiting = round && round.phase === "awaiting-input" ? round.awaiting_input || [] : [];
-    return waiting.find((item) => item.from_composer) || null;
+    return waiting.find((item) => item.from_composer || item.draft_from_composer) || null;
   };
-  const label = () => { chip.textContent = L(CHOICES[choice][0]); chip.title = L(CHOICES[choice][1]); };
-  chip.addEventListener("click", () => { choice = choice === "answer" ? "steer" : "answer"; label(); });
+  const first = () => ask?.draft_from_composer ? "draft" : "answer";
+  const label = () => { chip.textContent = L(CHOICES[choice]); chip.title = L("点一下改成：" + CHOICES[choice === "steer" ? first() : "steer"]); };
+  chip.addEventListener("click", () => { choice = choice === "steer" ? first() : "steer"; label(); });
   const lost = (error) => { throw error.code === "ui_host.outcome_unknown" ? new Error(L("没确认送到：再按一次，同一条不会重复。")) : error; };
   const act = (round) => round && round.run_id ? {
     withdraw: (input_id) => api("/works/" + encodeURIComponent(work()) + "/control", "POST", { kind: "withdraw", run_id: round.run_id, input_id }).then(() => "", lost).finally(reload),
     correct: (about, text, key) => api("/send", "POST", { work_id: work(), text, about, request_id: key }).then((res) => res.outcome === "queued" ? L("已保存，下一轮开始生效") : "", lost).finally(reload),
   } : undefined;
   return {
-    /** The receipt under one of the person's supplements, placed after it; none for anything else. */
-    line(node, put, turn, round) {
-      const key = "receipt:" + turn.turn_id, line = shared.line(turn, round, act(round));
+    /** The receipt under one of the person's supplements, placed after it; none for anything else. The thread is its surface. */
+    line(thread, node, put, turn, round) {
+      const key = "receipt:" + turn.turn_id, line = shared.line(thread, turn, round, act(round));
       if (!line) { [...node.children].find((child) => child.dataset.entry === key)?.remove(); return; }
       line.dataset.entry = key; put(line);
     },
-    /** Shows the chip while the round waits on its one free-text question; a new question starts at answering it. */
+    /** Shows the chip while the round waits on a question the composer can answer or fill; a new one starts at its default. */
     paint(round) {
-      const ask = question(round), id = ask ? ask.pending_id + ":" + ask.pending_revision : "";
-      if (id !== asked) { asked = id; choice = "answer"; label(); }
+      ask = question(round); const id = ask ? ask.pending_id + ":" + ask.pending_revision : "";
+      if (id !== asked) { asked = id; choice = first(); label(); }
       chip.hidden = !ask;
     },
     /** What the next Send does while the chip shows; nothing otherwise (the words go to the round as a supplement). */
-    target: () => chip.hidden ? undefined : choice,
+    target: () => chip.hidden || choice === "draft" ? undefined : choice,
+    /** The question whose draft the next Send fills instead. */
+    into: () => !chip.hidden && choice === "draft" ? ask : null,
+    /** What is still open in the work, after its rounds (the tray); none when nothing is. Its queue is left out when not read. */
+    tray(thread, put, view) {
+      const round = view?.rounds.at(-1), tray = round ? shared.tray(thread, view.queued_inputs, round, act(round)) : null;
+      if (tray) put(tray); else thread.querySelector(":scope > .mw-tray")?.remove();
+    },
   };
 }`;

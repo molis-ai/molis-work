@@ -1,5 +1,6 @@
 import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { SIDE_CONTEXT_FACTORY } from "./side-panel-context.js";
+import { SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
 import { renderSideBrowser } from "./side-panel-browser.js";
 import { renderSideComputer } from "./side-panel-computer.js";
 import { renderSideFiles } from "./side-panel-files.js";
@@ -29,7 +30,12 @@ export interface SidePanelPluginTab {
   readonly keys?: string;
   readonly contextOwner?: string;
   readonly contextSurface?: string;
+  /** Its place among the tabs (Manifest `order`); the panel's own tabs have places too, so no tab is first by being the Host's. */
+  readonly order?: number;
 }
+
+/** The panel's own tabs, in the places they take among the plugins' (side-shelf §3.1: Shelf · 灵光 · 文件 · 浏览器 · 电脑 · 讨论). */
+const OWN_TABS = [["files", "文件", "folder", 20], ["browser", "浏览器", "globe", 30], ["computer", "电脑", "system", 40], ["discussion", "讨论", "message", 50]] as const;
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], projectTools = true): string {
   const { L, icon, escapeHtml } = primitives;
@@ -39,14 +45,17 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;
   // A plugin's side view names itself in its Manifest; the panel shows that name in the interface language.
   const plugins = pluginTabs.map(entry => ({ id: `plugin:${entry.key}`, ...entry, title: L(entry.title) }));
-  return `<section class="side-panel" id="dock-window-im" role="region" aria-label="${L("侧栏")}" data-side-panel data-dock-window="im" hidden>
+  const own = projectTools ? OWN_TABS.map(([id, label, glyph, order]) => ({ id, order, html: tab(id, L(label), glyph) })) : [];
+  const ordered = [...own, ...plugins.map(entry => ({ id: entry.id, order: entry.order ?? 100, html: tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"${entry.contextOwner ? ` data-side-context-owner="${escapeHtml(entry.contextOwner)}" data-side-context-surface="${escapeHtml(entry.contextSurface)}" hidden` : ""}${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}`) }))]
+    .sort((a, b) => a.order - b.order);
+  return `<section class="side-panel" id="side-panel" role="region" aria-label="${L("侧栏")}" data-side-panel hidden>
         <header class="side-panel-head">
           <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs>
-            ${projectTools ? tab("discussion", L("讨论"), "message") + tab("browser", L("浏览器"), "globe") + tab("computer", L("电脑"), "system") + tab("files", L("文件"), "folder") : ""}${plugins.map(entry => tab(entry.id, entry.title, entry.icon, ` data-side-plugin="${escapeHtml(entry.key)}"${entry.contextOwner ? ` data-side-context-owner="${escapeHtml(entry.contextOwner)}" data-side-context-surface="${escapeHtml(entry.contextSurface)}" hidden` : ""}${entry.keys ? ` data-side-keys="${escapeHtml(entry.keys)}"` : ""}`)).join("")}
+            ${ordered.map(entry => entry.html).join("")}
           </div>
           <button class="side-panel-close" type="button" data-side-close aria-label="${L("收起侧栏")}" title="${L("收起侧栏")}">${icon("x")}</button>
         </header>
-        ${projectTools ? body("discussion", L("项目讨论"), `<iframe title="${L("群聊与 Thread")}" data-dock-frame="im"></iframe>`)
+        ${projectTools ? body("discussion", L("项目讨论"), `<iframe title="${L("群聊与 Thread")}"></iframe>`)
           + body("browser", L("浏览器"), renderSideBrowser(primitives), " data-side-browser")
           + body("computer", L("电脑"), renderSideComputer(primitives), " data-side-computer")
           + body("files", L("文件"), renderSideFiles(primitives), " data-side-files") : ""}
@@ -103,7 +112,9 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * inside, it closes. Tools with a chord load while the page is idle, so the first press shows a ready tool. A tab's own
  * document may report `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab and button carry a shared state ring.
  * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-close` · `molis:side-toggle`. Same-origin frames post the same
- * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows.
+ * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows; a plugin tab's
+ * document gets the target as it is (`{ type: "molis:side-target", target }`, to that frame and this origin only), and its
+ * page events in `SIDE_FORWARD_SCRIPT` reach this page (`molis:side-forward`), both through the S-30 checks.
  */
 export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   if(document.body.hasAttribute('data-pane-embedded'))return;
@@ -111,7 +122,8 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   if(!panel||!stage)return;
   stage.setAttribute('data-plugin-stage','');
   document.querySelector('[data-workspace]').append(panel);
-  const frame=panel.querySelector('[data-dock-frame="im"]'),projectId=document.body.dataset.projectId;
+  const frame=panel.querySelector('[data-side-body="discussion"] iframe'),projectId=document.body.dataset.projectId;
+  const forwarded=${SIDE_FORWARD_SCRIPT};
   const tabs=()=>[...panel.querySelectorAll('[data-side-tab]')].filter(tab=>!tab.hidden);
   const divider=document.createElement('div');divider.className='side-panel-divider';divider.tabIndex=0;
   divider.setAttribute('role','separator');divider.setAttribute('aria-orientation','vertical');divider.setAttribute('aria-label',globalThis.L('调整侧栏宽度'));divider.setAttribute('aria-controls',panel.id);
@@ -129,13 +141,14 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     const src=body.dataset.sideSrc,inner=body.querySelector('[data-side-frame]');
     if(src&&inner&&!inner.getAttribute('src')){inner.onload=()=>{inner.dataset.loaded='';};inner.src=src;}
   };
+  const expanded=()=>document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(b=>b.setAttribute('aria-expanded',String(open&&(!b.dataset.sidePluginOpen||current==='plugin:'+b.dataset.sidePluginOpen))));
+  const ready=(inner,run)=>'loaded' in inner.dataset?run():inner.addEventListener('load',run,{once:true});
   const select=(id,target)=>{
     if(!known(id))id=tabs()[0]?.dataset.sideTab;
     current=id;write('molis:side-tab',id);
     for(const button of panel.querySelectorAll('[data-side-tab]')){const on=button.dataset.sideTab===id;button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
-    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open)load(body);}
-    document.querySelectorAll('[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&id==='plugin:'+button.dataset.sidePluginOpen)));
-    imVisible();if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
+    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=target&&body.querySelector('[data-side-frame]');if(inner)ready(inner,()=>inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin));}}
+    expanded();imVisible();if(open)panel.querySelector('[data-side-tab][aria-selected="true"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:id,target:target??null,open}}));
   };
   const setOpen=(next,options={})=>{
@@ -144,17 +157,17 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     if(open){
       if(!was)trigger=document.activeElement;
       panel.hidden=false;panel.inert=false;paint();void panel.offsetWidth;document.body.dataset.sideOpen='true';
-      select(options.tab??current??read('molis:side-tab')??'discussion',options.target);
+      select(options.tab??current??read('molis:side-tab'),options.target);
       if(options.focus===true)panel.querySelector('[data-side-tab][aria-selected="true"]')?.focus({preventScroll:true});
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current+'"] iframe');
-      if(inner)'loaded' in inner.dataset?inner.focus():inner.addEventListener('load',()=>inner.focus(),{once:true});
+      if(inner)ready(inner,()=>inner.focus());
     }else if(was){
       document.body.dataset.sideOpen='false';panel.inert=true;
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
-      if(panel.contains(document.activeElement)){const focusTarget=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-dock-toggle="im"]');focusTarget?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
+      if(panel.contains(document.activeElement)){const back=trigger?.isConnected&&trigger.getClientRects().length?trigger:document.querySelector('[data-side-toggle]');back?.focus({preventScroll:true});if(panel.contains(document.activeElement))document.activeElement.blur();}
       imVisible();document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current,target:null,open:false}}));
     }
-    document.querySelectorAll('[data-dock-toggle="im"],[data-side-toggle],[data-side-plugin-open]').forEach(button=>button.setAttribute('aria-expanded',String(open&&(!button.dataset.sidePluginOpen||current==='plugin:'+button.dataset.sidePluginOpen))));
+    expanded();
   };
   const request=(detail={})=>{
     const tab=detail.tab==='plugin'&&detail.view?'plugin:'+detail.view:detail.tab;
@@ -185,6 +198,7 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
   new MutationObserver(imVisible).observe(document.documentElement,{attributes:true,attributeFilter:['data-resolved-theme']});
   addEventListener('message',async event=>{
     if(event.origin!==location.origin)return;
+    if(event.data?.type==='molis:side-forward'){const made=forwarded.from(event)&&forwarded.event(event.data.name,event.data.detail);made&&window.dispatchEvent(made);return;}
     if(event.data?.type==='molis:side-open'&&event.source&&event.source!==window){request(event.data);return;}
     if(event.data?.type==='molis:side-close'&&event.source&&event.source!==window){setOpen(false);return;}
     if(event.data?.type==='molis:side-key'&&event.source!==window){keyed(event.data.keys);return;}

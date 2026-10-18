@@ -23,10 +23,7 @@ import {
   type ScheduleUiSurface,
 } from "@molis-ai/molis-work-plugin-schedule";
 import {
-  SHELF_UI_CONTRIBUTION_ID,
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
-  type ShelfUiModel,
-  type ShelfUiSurface,
   type ShelfSettingsUiModel,
 } from "@molis-ai/molis-work-plugin-shelf";
 import {
@@ -96,11 +93,6 @@ const INBOX_SURFACE_SLOTS: Readonly<Record<InboxUiSurface, UiSlotDescriptor>> = 
 };
 
 const SCHEDULE_SURFACE_SLOTS: Readonly<Record<ScheduleUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const SHELF_SURFACE_SLOTS: Readonly<Record<ShelfUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
 };
@@ -251,20 +243,6 @@ export function renderScheduleContribution(
     slot: SCHEDULE_SURFACE_SLOTS[surface],
     contribution: {
       contribution_id: SCHEDULE_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
-export function renderShelfContribution(
-  surface: ShelfUiSurface,
-  model: ShelfUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: SHELF_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: SHELF_UI_CONTRIBUTION_ID,
       surface,
       model,
     },

@@ -759,6 +759,14 @@ export interface AgentRecoveryReport {
         live: boolean;
         waiting: number;
         can_close: boolean;
+        can_answer?: true;
+        questions?: Array<{
+            pending_id: string;
+            pending_revision: number;
+            kind: string;
+            prompt: string;
+            answered?: true;
+        }>;
         blockers: string[];
         operations: Array<{
             effect_id: string;
@@ -1188,6 +1196,7 @@ export type AgentStepAmendment = {
     title: string;
     acceptance: string;
     mine?: true;
+    origin?: string;
 } | {
     kind: "unblock";
     node: string;
@@ -1225,6 +1234,7 @@ export interface AgentStepBoard {
         title?: string;
         depends_on?: string[];
         inserted?: boolean;
+        origins?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef[];
     }>;
 }
 

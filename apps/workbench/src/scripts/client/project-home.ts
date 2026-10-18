@@ -279,7 +279,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     $("[data-home-talk-ctx]").textContent = event.title ? "· " + event.title : "";
   };
   // The things at hand: the plugins kept in the Dock, then the person's own shortcuts.
-  const QUICK_CAPTIONS = { goals: "找到下一步", feed: "阅读与留下", inbox: "处理待办", sessions: "回到会话", pages: "继续写作", schedule: "看看安排", lingguang: "记下灵感", shelf: "放进来的材料" };
+  const QUICK_CAPTIONS = { goals: "找到下一步", feed: "阅读与留下", inbox: "处理待办", sessions: "回到会话", pages: "继续写作", schedule: "看看安排", lingguang: "记下灵感" };
   const renderQuick = () => {
     const list = $("[data-home-quick]");
     const seen = new Set();

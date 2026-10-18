@@ -83,8 +83,10 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   await writeFile('/tmp/action-workflow-result-review/narrow.png', Buffer.from(narrow.data, 'base64'));
   await command('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => click('[data-wf-result-link]'));
-  await waitFor(`document.querySelector('[data-shelf-item="${saved[0]!.item_id}"]')?.getAttribute('aria-selected') === 'true'`);
-  await waitFor("document.querySelector('[data-shelf-preview]')?.innerText.includes('这是端到端字段映射的原始正文')");
+  // The result's link opens Shelf where its declarations put it: its side tab, on the item (W2'-2, specs/context-program §21.6).
+  const shelfView = `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')?.contentDocument`;
+  await waitFor(`${shelfView}?.querySelector('[data-shelf-item="${saved[0]!.item_id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
+  await waitFor(`${shelfView}?.querySelector('[data-shelf-preview]')?.innerText.includes('这是端到端字段映射的原始正文')`, 15_000);
 
 });
 

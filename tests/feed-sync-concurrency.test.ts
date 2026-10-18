@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
-import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedSourceHandlers, feedSourceActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedConnectorSync, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -84,4 +84,67 @@ test("concurrent manual Feed evaluations consume only the Inbox events they crea
     release.resolve(); await first;
     assert.deepEqual(seen, [{ entry: entryFor(1), actor: "b" }, { entry: entryFor(0), actor: "a" }]);
   } finally { release.resolve(); store.close(); rmSync(home, { recursive: true, force: true }); }
+});
+
+/** Fake judgment ports: each call is one model call; a caller named "gone" has gone away, so its calls are refused as cancelled. */
+async function cancellableFeed(run: (fixture: {
+  feed: import("@molis-ai/molis-work-plugin-feed").FeedApplication; calls: string[]; ingest(id: string): string;
+  context(actor_id: string): { actor_id: string; project_id: string; audience: "user"; permissions: string[] };
+}) => Promise<void>): Promise<void> {
+  const { createLocalFeedApplication } = await import("@molis-ai/molis-work-app-local-host");
+  const home = mkdtempSync(join(tmpdir(), "feed-judgment-cancel-")), path = join(home, "project.sqlite");
+  seedDemoBoard(path); const store = new LocalProjectDatabase(path);
+  const calls: string[] = [];
+  const judge = (name: string) => async (subject: { item_id?: string; entry_id?: string; id?: string }, caller?: { actor_id: string }) => {
+    calls.push(`${name} ${subject.item_id ?? subject.entry_id ?? subject.id} ${caller?.actor_id}`);
+    if (caller?.actor_id === "gone") throw new ActionError("actions.cancelled", "调用已取消");
+  };
+  try {
+    const feed = createLocalFeedApplication(store.db, { captureJudgment: judge("capture"), homeJudgment: judge("home"), inboxJudgment: judge("inbox") });
+    const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({ kind: "web_query", query: "cancel" }).source;
+    feed.createOutRule(DEMO_PROJECT_ID, { name: "Every item", match: { source_id: source.source_id }, admission: "inbox" });
+    await run({ feed, calls, context: actor_id => ({ actor_id, project_id: DEMO_PROJECT_ID, audience: "user" as const, permissions: [] }),
+      ingest: id => feed.ingestItem({ source, externalId: id, title: id, summary: id, occurredAt: new Date().toISOString(), attention: false }).item.item_id });
+  } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+}
+
+test("a cancelled caller stops the Feed judgments it was making, and a flush puts back what it had not started on (D4)", async () => {
+  await cancellableFeed(async ({ feed, calls, ingest, context }) => {
+    const [a, b, c] = ["a", "b", "c"].map(ingest);
+    const entry = (item: string) => feed.listInboxEntries(DEMO_PROJECT_ID).find(entry => entry.subject_id === item)!.entry_id;
+    const [ea, eb, ec] = [a, b, c].map(entry);
+    await assert.rejects(feed.flushPendingInboxJudgments(context("gone")), { code: "actions.cancelled" });
+    assert.deepEqual(calls.splice(0), [`inbox ${ea} gone`], "no model call after the cancel");
+    await assert.rejects(feed.flushPendingJudgments(context("gone")), { code: "actions.cancelled" });
+    assert.deepEqual(calls.splice(0), [`capture ${a} gone`], "no model call after the cancel, and the entries were never taken");
+    await feed.flushPendingJudgments(context("owner"));
+    // What each flush had not started on is back in the queue. The item and the entry it stopped on are not: some of their
+    // judgments may already have taken effect.
+    assert.deepEqual(calls.splice(0), [`capture ${b} owner`, `home ${b} owner`, `capture ${c} owner`, `home ${c} owner`,
+      `inbox ${eb} owner`, `home ${eb} owner`, `inbox ${ec} owner`, `home ${ec} owner`]);
+  });
+});
+
+test("what a cancelled call judging its own work leaves is neither judged nor recorded, and is judged when asked again (D4)", async () => {
+  await cancellableFeed(async ({ feed, calls, ingest, context }) => {
+    const [p, q] = ["p", "q"].map(ingest);
+    await feed.flushPendingJudgments(context("owner"));
+    calls.length = 0;
+    const before = feed.snapshot(DEMO_PROJECT_ID);
+    await assert.rejects(feed.evaluateItems(DEMO_PROJECT_ID, [p, q], context("gone")), { code: "actions.cancelled" });
+    assert.deepEqual(calls.splice(0), [`capture ${p} gone`], "no model call after the cancel");
+    assert.deepEqual(feed.snapshot(DEMO_PROJECT_ID), before, "no judgment or failure is recorded for what the call left");
+    // Not put back: another producer's flush would judge it under its own identity.
+    await feed.flushPendingJudgments(context("other"));
+    assert.deepEqual(calls.splice(0), []);
+    await feed.evaluateItems(DEMO_PROJECT_ID, [p, q], context("owner"));
+    assert.deepEqual(calls.splice(0), [`capture ${p} owner`, `home ${p} owner`, `capture ${q} owner`, `home ${q} owner`]);
+
+    await assert.rejects(feed.ingestItemJudged({ source: feed.snapshot(DEMO_PROJECT_ID).sources.find(source => source.kind === "web_query")!, externalId: "r",
+      title: "r", summary: "r", occurredAt: new Date().toISOString(), attention: false }, context("gone")), { code: "actions.cancelled" });
+    const r = feed.snapshot(DEMO_PROJECT_ID).feed_items.find(item => item.title === "r")!.item_id;
+    assert.deepEqual(calls.splice(0), [`capture ${r} gone`], "the entry its ingest created is not judged either");
+    await feed.flushPendingJudgments(context("other"));
+    assert.deepEqual(calls.splice(0), [], "neither the item nor its entry went back to the shared queue");
+  });
 });

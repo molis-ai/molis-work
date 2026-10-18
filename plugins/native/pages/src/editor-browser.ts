@@ -312,7 +312,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   };
 
   const openComment = (view: EditorView) => openEditorComment(view, { onComment: options.onComment,
-    pop, showPop, anchorPop, translate: options.translate, actions, hidePop, applyComment, placePop });
+    pop, showPop, anchorPop, translate: options.translate, actions, hidePop: () => hidePop(), applyComment, placePop });
 
   const openTone = (view: EditorView) => {
     showPop();

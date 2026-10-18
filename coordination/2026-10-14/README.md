@@ -1065,3 +1065,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 
 - 10-18 AC-03（交互线，interaction/ac03-draft-chip）：workbench.js +606 B 用户弹窗批准一次（保留注释与提示句），键 [1109302, 1109908]；已通知交互线开 PR。
 - 10-18 C4 Molis 半边归采用线：在 #697、#699 合入后从 main 拉分支，coding-base v11→v12；删 search、read 的重复说明和 childInstructions 里「tools 可以写 []」那句；MiniMax 前后对比各 8 次（T1–T3），两组用同一个新包；改后比改前少 2 次以上的题：照实记录，给 Prologue 开 PR 补强那条工具说明，Molis 这句留到下次换包（13.1）；已告诉手册线不要重复做。
+- 10-18 #700（回执线 3d-3，870527f58）审过：用户在回执线自己的弹窗里批准了 +737/+147/+147/+10，键按 8fcff0442 定；origin 由宿主在碰板之前核对；revise 升到 v2。只差一处文档（ai-input-receipts 第 46 行和 prologue-adoption §4.6.9 改写成 v2），推上新 head 后再加 full-suite；#694、#684、AC-03 的 workbench.js 键，谁后合谁重定。

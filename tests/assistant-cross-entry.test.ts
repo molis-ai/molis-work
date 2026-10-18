@@ -31,7 +31,7 @@ test("W3-09-1-01 T1/T2 assistant: approved Schedule changes and owner refusals r
   const service: AssistantService = new AssistantService(store, { host: async () => agent,
     authority: async work => assistantAuthority(home.host, work, () => store.disabledActions("web-user")),
     projectTitle: async () => project.display_name }, "web-user");
-  t.after(async () => { await adapter.close(); db.close(); });
+  t.after(async () => { service.continuations.close(); await adapter.close(); db.close(); });
   const expected = new Date(Date.now() + 12 * 60 * 60_000), clock = `${String(expected.getHours()).padStart(2, "0")}:${String(expected.getMinutes()).padStart(2, "0")}`;
   const input = subject.input("同一个真实任务", clock);
   const caller = { actor_id: "web-user", audience: "agent" as const, project_id: project.project_id, permissions: ["schedule:read", "schedule:write"] };
@@ -103,7 +103,7 @@ for (const failure of ["disabled", "invalid"] as const) test(`W3-09-2-01 assista
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
   const service = new AssistantService(store, { host: async () => agent,
     authority: async work => assistantAuthority(home.host, work, () => new Set()), projectTitle: async () => project.display_name }, "web-user");
-  t.after(async () => { await adapter.close(); db.close(); });
+  t.after(async () => { service.continuations.close(); await adapter.close(); db.close(); });
   const originalFetch = globalThis.fetch.bind(globalThis), requests: unknown[] = [];
   t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
     if (String(url) !== "https://1.1.1.1/v1/messages") return originalFetch(url, init);

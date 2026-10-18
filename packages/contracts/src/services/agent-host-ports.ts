@@ -82,9 +82,11 @@ export interface AgentMcpServerView {
 }
 
 export interface AgentMcpLibrary {
+  /** Host management only: configuration provenance and safe views across projects; this grants no invocation authority. */
+  catalog?(): Promise<Array<{ owner: AgentSkillOwner; server: AgentMcpServerView }>>;
   list(owner: AgentSkillOwner): Promise<AgentMcpServerView[]>;
   save(owner: AgentSkillOwner, input: AgentMcpServerInput): Promise<AgentMcpServerView>;
-  control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove"): Promise<void>;
+  control(owner: AgentSkillOwner, id: string, action: "connect" | "refresh" | "disconnect" | "cancel" | "remove", options?: { expected_version?: number; signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }): Promise<void>;
   validateSources(owner: AgentSkillOwner, selected: readonly AgentMcpSourceRef[]): Promise<AgentMcpSourceRef[]>;
   validate(owner: AgentSkillOwner, selected: readonly AgentMcpToolRef[]): Promise<AgentMcpToolRef[]>;
   /** Connected tools with the input shape the server declared, for the shared action directory. */
@@ -92,7 +94,12 @@ export interface AgentMcpLibrary {
   /** Whether this exact tool version is callable right now (connected, same configuration and shape). Synchronous. */
   live?(ref: AgentMcpToolRef): boolean;
   /** One call outside an Agent run. Recheck Host authority after asynchronous preparation and at the runtime's dispatch gate. */
-  call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: { signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }): Promise<AgentMcpCallResult>;
+  call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: {
+    signal?: AbortSignal; beforeDispatch?(): void | Promise<void>;
+    /** Host observation only, after preparation and the business dispatch guard; never grants authority. */
+    onBusinessDispatch?(): void;
+    onBusinessResult?(outcome: "succeeded" | "failed" | "unknown"): void;
+  }): Promise<AgentMcpCallResult>;
 }
 
 export interface AgentMcpToolDescriptor extends Required<Pick<AgentMcpToolRef, "server" | "tool" | "version" | "configuration_version" | "server_label">> {

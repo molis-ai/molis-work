@@ -105,7 +105,7 @@ async function listenDispatcher(
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.deepEqual(homeStores().stores.map(store => store.path), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "assistant",
-    "placement", "agent-definitions", "connectors", "context-onboarding", "alchemist", "functions", "characters", "memory", "search", "feed", "server",
+    "placement", "agent-definitions", "connectors", "runtime", "context-onboarding", "alchemist", "functions", "characters", "memory", "search", "feed", "server",
     "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "cache", "git-operation-details.json", "config/onboarding.json",
     "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"]);

@@ -82,5 +82,5 @@ test("a cap the person puts on one work holds its rounds: what is left bounds th
     assert.match(stopInWords("MODEL_NETWORK_FAILED: fetch failed"), /^连不上模型服务.*模型设置.*（MODEL_NETWORK_FAILED: fetch failed）$/);
     assert.match(stopInWords("MODEL_AUTH_FAILED: 401 invalid api key"), /模型服务拒绝了这次调用/);
     assert.match(stopInWords("MODEL_HTTP_ERROR: 529 overloaded"), /太忙/);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

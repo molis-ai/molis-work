@@ -1030,3 +1030,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 手册线 coding-base v11 判定规则认可（四项各「改后 ≥ 改前 − 1」，② 程序 + 盲评人判全读；冒烟一次不计入；原始参数存结果文件、盲评表入笔记夹）。回执线在自己的会话里弹窗问用户，等用户答。
 
 - 10-18 #688 全量过、已入合并队列。prologue#45（采用线写后检查，d918e294）审过：七项决定落对；退回一处：Run 取消没接到写后检查（解析期间取消后照样起进程、跑着时取消要等 Host 时限），要传 abort、三处检查、起进程后订阅 cancelCommand，加两条取消用例，让 abortForeground 变异变红。
+
+- 10-18 手册线评测：规则入 §9.5（3533ca357）；脚本只多记（askTool、askActivity）认可，开跑 48 次。后续两条待跑完查归属：typed ask-user 的 id 说明没写不许连字符（设计问题，主人 Prologue）；连拒两次后停轮的 stop_reason 只写「已停止」。

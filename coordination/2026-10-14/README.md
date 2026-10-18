@@ -1048,3 +1048,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #695 新 head c28ef7500：门禁之外 627 行逐行一致，只多 S-33 行去掉「」与重新取键，走 merge-only（gate-695b）。#697（手册 coding-base v11，56a1ec63b）只删不加，48 次评测按规则采用（① 3/4、② 2/3 边界判断统筹复核同意、③ 7/7、④ 0/0），排在 chain36。统筹 10-18 定：④ 单独一道 text 题算可接受；后续两片：Prologue PR 让 id 说明写出校验认的格式（同一常量、配用例），Molis agent-host 片让 withInteractionRepairLimit 停下时带上事实原因。
 
 - 10-18 采用线换包计划认可（after-write-check 包含 prologue#42–#45，照 #690 验证）。统筹 10-18 定：PATH 规则进 SECURITY-INVARIANTS 正式一行（不放 §4），配一份对 vendored 包断言拒绝的 Molis 用例（照 S-13 写法）；S-33 归 #695，换包与 W2'-2 的 always_on 各取开 PR 时的下一个空号，后合入者顺延；表里非标题引语不用「」。
+
+- 10-18 prologue#46 合入 94ee1ea4（ask-user 的 id 说明由校验用的 QUESTION_ID_PATTERN 拼出，用例读模型拿到的说明逐个试边界）。换包改从 94ee1ea4 打（#42–#46）。手册线在途剩 #697，后续 ② 可开。

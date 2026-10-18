@@ -43,11 +43,14 @@ function zoneLabel(date: string, say: Say): string {
 }
 const draftText = (value: InteractionValues[string] | undefined): string | undefined => typeof value === "string" ? value : undefined;
 
+/** The field a questionnaire's text question is drawn as; the Assistant's composer writes into it by this id (R4). */
+export const textFieldId = (index: number): string => `t${index}`;
+
 /** One questionnaire question that is not a choice, as its field: `t<n>`, `n<n>`, `d<n>` or `w<n>`, as `questionAnswer` reads it. */
 function typedField(item: AgentQuestion, say: Say, draft: InteractionValues): { id: string; control: InteractionControl } | undefined {
   const start = item.default === undefined || Array.isArray(item.default) ? "" : String(item.default);
   if (item.type === "text") {
-    return { id: `t${item.index}`, control: { kind: "text", value: draftText(draft[`t${item.index}`]) ?? start, multiline: item.multiline === true, ...(item.max_length ? { maxLength: item.max_length } : {}) } };
+    return { id: textFieldId(item.index), control: { kind: "text", value: draftText(draft[textFieldId(item.index)]) ?? start, multiline: item.multiline === true, ...(item.max_length ? { maxLength: item.max_length } : {}) } };
   }
   if (item.type === "number") {
     return { id: `n${item.index}`, control: { kind: "number", value: draftText(draft[`n${item.index}`]) ?? start, step: 1, integer: item.integer === true,

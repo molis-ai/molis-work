@@ -901,6 +901,15 @@ interface AgentInputView {
   - RCPT-363：业务角色仍然拿不到碰目录或执行命令的工具，`read-file`、`list`、`search`、`write`、`edit-file`、`run-command` 都在开轮前被拒，模型一次都没被调用；只列业务工具的照常开轮（`tests/prologue-start-refusal.test.ts`）。
 - **顺带查到的。** Coding 的角色（`plugins/native/coding/src/roles.ts`）也没有列 `acknowledge-inputs`，所以真实的 Coding 轮次同样给不出处理说明。这不是业务名单的事，要另开一片定（报统筹）。
 
+**3e-0b 实现记录（2026-10-18，3e-0 顺带查到的；统筹 10-18 定）：**
+
+- **缺口。** Coding 的角色是 workspace 角色，不展开 `BUSINESS_HOST_TOOLS`，自己列工具；原来没有一个列了 `acknowledge-inputs`，所以真实的 Coding 轮次看不到补充编号、给不出处理说明，回执里的「AI 说」在 Coding 里也是空的。
+- **做法。** 在 `plugins/native/coding/src/roles.ts` 里，和人对话的七个角色（规划者、阅读者、评审者、协作、并行写入、构建者、改写者）都列上 `acknowledge-inputs`，版本各 +1。派出去的三个子角色不列：人的补充不直接交给它们。提示词不动。
+- **并行写入（统筹 10-18 定选 A）。** 给子任务独立目录的父角色，运行时有一份写死的工具名单（只能读和分派），原来在 `prologue-run.ts` 里是一行字面量，只此一处。收成有名字的常量 `WORKSPACE_PARENT_TOOLS`，加上 `acknowledge-inputs`：它不执行、不碰目录，和名单里的 `ask-user`、`session-send` 同一类。能写或能执行的工具仍然被拒。
+- **验收编号与证据：**
+  - RCPT-364：真实的 Coding 宿主里，一轮的模型请求列着 `acknowledge-inputs`，看得到运行时给的补充编号；它的说明落成回执上的 `model_claim`，账上的状态不变（`tests/coding-input-acknowledge-http.test.ts`）。
+  - RCPT-365：并行写入的父角色带 `write` 或 `run-command` 仍然开不了轮，模型一次都没被调用；Coding 自己的并行写入角色带着 `acknowledge-inputs` 照常开轮，请求里列着它（`tests/prologue-workspace-parent-tools.test.ts`）。
+
 ### 阶段 4：产品对象与 Goals 层
 
 依赖：PR #340 合入；W3-01 调用编号。

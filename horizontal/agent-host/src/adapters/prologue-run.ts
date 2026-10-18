@@ -138,11 +138,15 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   return { actionController, actionTools, parameterBranches: gatewayTools?.parameterBranches };
 }
 
+/** What a parent that hands its children their own directories may hold: reading, dispatching, asking the person, the board,
+ * the project's sessions and saying how it handles a supplement (receipts 3e-0b); no tool that writes or runs anything. */
+const WORKSPACE_PARENT_TOOLS: readonly string[] = ["read-file", "list", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "acknowledge-inputs", "board-read", "board-report", "session-send"];
+
 /** The round's child directories and fixed child roles, each a published Character, and what the round is told of them. */
 async function childSetup(deps: RunDeps, input: PrologueStartInput) {
   const { runtime } = deps;
   const childRoots: PrologueSubagentRoot[] = [];
-  if (input.subagent_workspaces?.length && input.character.tools.some(tool => !["read-file", "list", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "board-read", "board-report", "session-send"].includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
+  if (input.subagent_workspaces?.length && input.character.tools.some(tool => !WORKSPACE_PARENT_TOOLS.includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
   for (const grant of input.subagent_workspaces ?? []) {
     const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
     if ([input.root_path!, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");

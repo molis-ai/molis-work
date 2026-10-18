@@ -69,6 +69,8 @@ export const WRITTEN_CALL_HELD =
 const SPOKEN_TOOLS = GUARDED_TOOL_NAMES.filter(name => name.includes("-"));
 const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export function mentionsInternalIds(text: string, given: Iterable<string>, theirs = ""): string[] {
+  // Addresses are usable destinations, not spoken identifiers. Preserve their labels for the normal check.
+  text = text.replace(/(?:https?:\/\/|\/(?!\/))[\w][^\s<>`"\u3000-\u303f\uff00-\uffef)\]]*/g, "");
   const found = new Set<string>();
   for (const id of new Set([...SPOKEN_TOOLS, ...given])) {
     if (id.length < 4 || !/[._:-]/.test(id) || theirs.includes(id)) continue;

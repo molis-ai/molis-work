@@ -123,7 +123,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           };
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
           const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
-            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref)), ...(lifetime ? { signal: lifetime.signal } : {}) };
+            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
           const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
           // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
@@ -206,7 +206,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         await call.validate_authority({ ...reference, provider_id: definition.action_provider?.provider_id });
         if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
       }
-      assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id });
+      assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id }, definition.action?.permissions);
       return this.registry.invoke(call, definition, input);
     });
   }
@@ -220,7 +220,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       const registration = this.registry.registrationToken(definition);
       requireSynchronous(call.validate_authority?.({ ...reference, provider_id: definition.action_provider?.provider_id }), "授权检查需要异步调用");
       if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
-      assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id });
+      assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id }, definition.action?.permissions);
       return this.registry.invokeSync(call, definition, input);
     });
   }

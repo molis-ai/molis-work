@@ -1,3 +1,6 @@
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { projectRouteControl } from "./plugin-actions-client.js";
+import { pluginRouteControl } from "./plugin-route-control.js";
 import { ensureProjectPlugins as ensureStarted, type ProjectPluginPorts, type ProjectPluginState as Started } from "./project-plugins.js";
 import { agentQuestionHtml } from "./agent-question-card.js";
 import { interactionNextSteps } from "./agent-next-steps.js";
@@ -77,6 +80,7 @@ import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-eve
  */
 
 export interface CodingSurfacePorts extends ProjectPluginPorts {
+  routeCaller?(): Promise<ActionCallContext>;
   escapeHtml(value: unknown): string;
   translate(value: string): string;
 }
@@ -189,8 +193,27 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     return true;
   }
   const pluginId = pluginRoute![1]!, platform = record.platform;
-  return dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId,
-    projectRouteHooks(record, platform, pluginId, request, url, ports));
+  const installId = platform.supervisor.state(pluginId)?.install_id;
+  const granted = installId ? platform.runtime.get(installId).grants : [];
+  const abort = new AbortController();
+  const stop = () => abort.abort(new ActionError("actions.cancelled", "这次调用已结束"));
+  request.once("aborted", stop); response.once("close", stop);
+  let routed: ReturnType<typeof projectRouteControl> | undefined;
+  try {
+    const current = () => { if (platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件已停止"); };
+    const plain = pluginRouteControl(abort.signal, current);
+    abort.signal.throwIfAborted();
+    const caller = await ports.routeCaller?.();
+    abort.signal.throwIfAborted();
+    if (caller) routed = projectRouteControl(plain, ports.projectId, ports.actions.client, async () => { current(); }, caller);
+    return await dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId,
+      projectRouteHooks(record, platform, pluginId, request, url, ports), {
+        granted,
+        execution: routed?.control ?? plain, stop,
+      });
+  } finally {
+    stop(); routed?.end(); request.off("aborted", stop); response.off("close", stop);
+  }
 }
 
 /**

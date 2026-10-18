@@ -104,7 +104,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 ## 个人 Home Runtime 与插件 SQLite
 
-数据属于个人 Home、切换项目不分开的新内置插件，在 `BUILTIN_PLUGIN_CATALOG` 的同一条目声明 `runtime: { scope: "home", create, package_name, factory_export, database? }`。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。本轮只由 Issue 消费 Home Runtime，现有迁移顺序不变。
+数据属于个人 Home、切换项目不分开的新内置插件，在 `BUILTIN_PLUGIN_CATALOG` 的同一条目声明 `runtime: { scope: "home", create, package_name, factory_export, database?, files? }`。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。当前 Issues、Todo 和 Cognia 使用 Home Runtime，迁移顺序见 `docs/system/RUNTIME-MIGRATION.md`。
 
 一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目标 `bundled` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
@@ -112,13 +112,17 @@ Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留�
 
 Home 的 `services.storage` 复用安装隔离 KV 与原子 `compareAndSet`；升级校验只给 `get`，候选启动失败恢复原 KV。`services.model` 和指令登记使用项目执行器同一入口与限制；只在自己的 concurrent 动作中调用，停用、取消、撤权或动作结束后的结果不交付。数据库、模型、动作和 KV 句柄随实例与安装世代失效，停止钩子开始时也不能继续写。普通关闭保留启用意图，用户停用跨重启保留，重装不继承旧授权。
 
-Home 动作/场景可以声明 Home 或项目 scope。项目作用域必须经真实项目的动作/场景客户端；缺项目拒绝。`/api/plugins/<id>/…` 与真实 `/projects/<id>` 前缀后的同一路由访问同一个 Home 实例，HTTP 保持 Home scope，不能从 body/query 构造项目。API 归实际 Runtime 注册，目录只供现有页面；共用 `plugin-route-operations.ts` 的重启/解除隔离/升级/视图版本与分发，保留当前网页授权、断开取消、`beforeEffect`、client_reported 页面上下文和 12 MiB 读体上限。项目 Files/wiring/Coding 钩子仍只属于项目。
+Home 动作/场景可以声明 Home 或项目 scope。项目作用域必须经真实项目的动作/场景客户端；缺项目拒绝。`/api/plugins/<id>/…` 与真实 `/projects/<id>` 前缀后的同一路由访问同一个 Home 实例：不带前缀时调用不在任何项目里；带前缀时宿主先核对项目存在、并且显示这个插件，再把项目放进它自己发出的调用控制，插件的动作在 `caller.project_id` 里看到它，每次写之前再核对一次，请求结束后这份控制作废（`docs/system/SECURITY-INVARIANTS.md` S-31）。项目不能从 body/query 或插件自己造的控制里来。API 归实际 Runtime 注册，目录只供现有页面；共用 `plugin-route-operations.ts` 的重启/解除隔离/升级/视图版本与分发，保留当前网页授权、断开取消、`beforeEffect`、client_reported 页面上下文；读体上限是路由声明的 `max_body_bytes`，没声明时 12 MiB。项目 Files/wiring/Coding 钩子仍只属于项目。
 
-Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与其他项目动作仍可用；普通 ready 保持失败，不自动重试。受保护的 POST retry 才重试，并发 retry 共用一次启动；清理失败或关闭不能再开第二实例。`pluginFixtures.home` 与 `.project` 沿用 definition 或 `{ definition, database }` 夹具形状，不是 bundled、不接受沙箱或内置同名伪造，实际两份启动名单不能重复插件身份。
+Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与其他项目动作仍可用；普通 ready 保持失败，不自动重试。受保护的 POST retry 才重试，并发 retry 共用一次启动；清理失败或关闭不能再开第二实例。`pluginFixtures.home` 与 `.project` 沿用 definition 或 `{ definition, database?, files? }` 夹具形状，不是 bundled、不接受沙箱或内置同名伪造，实际两份启动名单不能重复插件身份。
+
+可信原生插件需要自己的二进制文件时，在同一个宿主启动条目上声明 `files: { store_name, directory, max_file_bytes, read_permission, write_permission }`，得到 `context.services.files`。`store_name` 必须已在 Home 存储登记中属于该插件，`directory` 是它下面的一个普通目录名。Manifest 只声明 `storage:private` 和读写权限，不选磁盘路径；无 Home、沙箱、错误 owner 或缺声明会在启动任何条目前被拒，升级预检没有文件服务。Home 和项目实例使用同一份实现。
+
+`files.list()` 只列可访问的普通文件名；`read(name)` 返回字节或 null，二者都不创建目录。`create(caller, name, bytes)` 排他创建 0600 文件，拒绝覆盖；`remove(caller, name)` 删除普通文件，缺失时成功。文件名必须是 ASCII 字母或数字开头、其后只含字母、数字、点、下划线或连字符，最多 200 字符，不接受路径；目录与文件符号链接都被拒，读写受条目声明的单文件上限约束。变更在等待后同步重查 signal、原调用者与安装权限，停止钩子和旧句柄不能继续写。文件的业务身份、记录提交与未引用文件的清理由插件负责；本服务不提供任意本机文件读取或后台执行能力。
 
 可信目录的 `database` 声明由 `PluginDatabaseDeclaration` 描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只用于可信 Native 插件；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
 
-项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 `project-plugins.ts` 启动名单的条目上写 `database`（`PluginPlatformEntry`，类型 `PluginDatabaseDeclaration`），不写进插件定义。声明记在宿主列出的那个定义对象上，所以同 `plugin_id` 的开发中或生成的插件拿不到；沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 `PERSONAL_HOME_SQLITE_STORES` 里（卸载 `--purge-user-data` 才清得到；Home 的其他一级目录因此被拒）、不是宿主自己的库（临时拒绝名单 `HOST_LIBRARY_NAMES`，等 W4-11 的 Home 库登记表）、Manifest 声明了 `storage:private` 和库的读写两个权限，同一份名单里不能有两个插件用同一个库；名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，换项目数据不分开；库随插件启动打开、停止关闭，每个项目的实例各持一对连接。下面几条对两种实例都一样。目前生产名单里还没有条目声明库，Todo、Form 迁到 Runtime 时是第一批。
+项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 `project-plugins.ts` 启动名单的条目上写 `database`（`PluginPlatformEntry`，类型 `PluginDatabaseDeclaration`），不写进插件定义。声明记在宿主列出的那个定义对象上，所以同 `plugin_id` 的开发中或生成的插件拿不到；沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 Home 存储登记中归该插件所有，并与登记的库基线一致；Manifest 声明 `storage:private` 和库的读写权限，同一份名单不能重复占用库。名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，数据由插件自己按项目分区；库随实例启动打开、停止关闭。Form 与灵光是当前生产条目。
 
 - `database.get/all` 用 SQLite 只读连接，接受参数化查询；没有跨库、路径和连接管理入口。
 - `database.transaction(caller.beforeEffect, tx => …)` 先等待当前动作授权，再复查安装和 grant，随后执行短同步事务；异步回调拒绝并回滚。事务对象离开回调后失效。
@@ -126,11 +130,29 @@ Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与�
 - `BoundActionClient.invoke` 的第三个控制参数仅限 Host 内部传递取消、`beforeEffect` 和带来源的 `page_context`；不会进入业务 JSON。父调用和子调用的取消信号都保留。 Home 消费宿主动作的 `HostPluginCaller` 同样来自执行器，项目为 `null`，插件、安装和操作者仍为真实值；项目和 Agent 入口拒绝这份身份，业务参数不能给它补项目。
 - 浏览器同源 Referrer 与助理页面快照当前标为 `client_reported`，不代表屏幕内容已经核实；缺页面时为空，不从用户正文推断。
 
-公共页面 `/plugins/<短名>` 在没有项目时也能打开；项目工作台挂同一运行实例的 contribution。Manifest 路由在 `/api/plugins/<plugin_id>/` 转调公共动作，经过统一 Host / Origin / token 检查。插件页面的启用与停用是显式操作；停用跨重启保留，正常 Host 退出只释放运行实例并保留启用意图。 已声明的 Home 条目卸载后，其 API 以 `actions.missing` 和 404 拒绝；读取、重试与启用入口不重建安装，也不借项目前缀落到另一个实例。外部 MCP 仍须逐客户端逐动作授权，安装插件不等于授权外部客户端。
+公共页面 `/plugins/<短名>` 在没有项目时也能打开；项目工作台挂同一运行实例的 contribution。宿主渲染 Home 视图时给的 model 和工作台给内置舞台的一样：`{ primitives: { escape, text } }`（`text` 按页面语言翻译）。Manifest 路由在 `/api/plugins/<plugin_id>/` 转调公共动作，经过统一 Host / Origin / token 检查。插件页面的启用与停用是显式操作；停用跨重启保留，正常 Host 退出只释放运行实例并保留启用意图。 已声明的 Home 条目卸载后，其 API 以 `actions.missing` 和 404 拒绝；读取、重试与启用入口不重建安装，也不借项目前缀落到另一个实例。外部 MCP 仍须逐客户端逐动作授权，安装插件不等于授权外部客户端。
 
 Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbench.side` surface。Host 用 `/plugins/<短名>?side=<view_id>` 渲染正在运行的 contribution，拒绝未声明的视图；客户端收到 `side: true`。首页及项目右上角的 Home 工具由目录声明派生，在既有侧栏打开该文档，保留主页面。侧栏按需加载，收起及切换标签不销毁文档；插件自行决定初次展示什么内容，位置和宽度仍归 Host。Home 侧栏不要求创建或授权一个假项目。
 
 新增包、SDK 类型、公开 API 与动作快照、Home 库归属及 purge 清单须同步维护。资源按插件自己的客户端包加载；新增资源需要独立预算审阅，不能抬高既有资源上限。实现与验收见 [Issue V0](../../specs/issue-home-v0/spec.md)。
+
+## Runtime 流式路由
+
+Manifest 路由可声明 `stream: "ndjson"`，只支持 POST。`bindPluginActionRoute` 将真实动作的 `caller.on_progress` 接到 HTTP：每行是 `{ type: "progress", stage, progress, text_delta? }`，随后只有一个 `{ type: "result", result }` 或 `{ type: "error", status, code, error, call_id?, details? }`。末行由 Host 写，进度里的其他字段丢弃，插件不能伪造结果或诊断编号。HTTP 已经开始后状态保持 200，调用失败看错误末行；请求体超限则在开流前按普通 JSON 返回 413。未声明 stream 的路由继续返回 JSON。
+
+`BoundActionClient.invoke` 第四个参数是传输回调 `{ on_progress }`，不属于业务输入。第三个 `request.execution` 必须原样传下去：Host 用这一个对象确认 Home 路由来自哪个项目，展开或另造对象不继承这个证明。直接路由通过可选的 `request.emit` 发进度；等待模型或外部服务的动作仍声明 `scheduling: "concurrent"`。
+
+普通路由可返回现有 `PluginRouteResponse.bytes` 与 `filename`，Host 按原始字节下载；强制附件、octet-stream、nosniff、sandbox、no-store，插件不能通过 `mime` 或 `headers` 改成页面执行。
+
+SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UTF-8 字节（含换行），至多 10,000 行，合计 1,048,576 字节；任一超限取消调用，并以 `actions.output_invalid` 错误末行结束。显式 `max_body_bytes` 最大 45,000,000 字节，项目默认 256,000、Home 默认 12 MiB 不变。客户端断连或实例停用、撤权后，Host 结束等待并释放观察器；已经开始的外部操作由插件用取消信号清理。处理器晚到时，仍须在写入前执行 `beforeEffect()`，不得写成功、失败或其他业务记录。
+
+## 已受理的后台执行
+
+宿主自己运行的 Home/项目插件可在本安装的活跃并发 command 里 `await services.background.start(async control => …, { signal? })`。动作必须声明 `background_job`，否则拒绝；沙箱、升级预检没有该服务，启动钩子、直接路由、过期处理器和其他安装也不能借它开始工作。返回句柄的 `result` 是结果 Promise，`cancel()` 只取消这次执行；插件自己保存任务、幂等键、状态与恢复决定，平台不重试、不在重启后重放。
+
+后台回调保留原动作的身份、项目、权限和精确注册，并用新控制调用既有模型与数据服务。每次写入都要先 `await control.beforeEffect()`，提交前同步检查 `control.assert_authority_current?.()`；不能继续使用已返回处理器的 caller。原 HTTP/MCP 正常结束或断开后，已受理工作可继续；原 MCP 授权撤销、插件停用/升级、Host 关闭或显式取消会终止本机等待，迟到的成功与失败都不得写业务记录。没有入口提供独立后台授权的调用仍服从原 signal；不能借它逃离 Agent 的取消。项目路径上的 Home 路由仍在原项目里，提交时重查项目存在且显示该插件。
+
+执行仍在本进程；非配合式外部调用可能继续运行，插件须把控制的 signal 交给它。200 ms 周期复查使用已有 `createExecutionLifetime`，结束即释放；模型和文件服务在等待后另行核权。后台不再向已结束的路由发进度，不能递归接受后台执行；自己的结果结束后，旧控制和迟到模型回调也失效。验收见 `tests/security-invariants-plugin-background.test.ts` 与 `tests/runtime-plugin-http-discovery.test.ts`。
 
 ## 当前项目设置
 
@@ -253,6 +275,8 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 - 调用时传 `instructed(指令, 数据)`：指令只写要求，用户材料、本次参数放在数据里（数据不会被当成指令）。模型端口类型写 `InstructedPrompt` 或 `ModelPromptInput`，不收裸字符串。
 - Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在 `apps/workbench/src/builtin-plugins.ts` 自己的目录条目上声明 `instructions`，Host 从共同目录派生登记，`builtin-instructions.ts` 的 `BUILTIN_INSTRUCTIONS` 除目录派生的之外只列 Host 自己的 `system:*` 题面，不点名插件的指令。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
 - 宿主自己运行的 Runtime 插件（非沙箱执行）调模型用 `context.services.model`，不写宿主绑定文件：Manifest 声明 `model:invoke`；只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调；传 `instructed(自己的指令, 数据)`，发送用户改过的版本；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`。没有目录条目的插件在 `PluginDefinition.instructions` 里声明自己的指令（SDK 导出 `defineInstructionPrompt`、`instructed`）；有目录条目的内置插件仍在条目上声明；目录已经为某个主人登记了角色或方法而没有指令（Schedule、助理、Issues）的，也算有条目，`PluginDefinition.instructions` 对它启动失败。一个主人的定义只在一处。限额、错误码和不做的事见 [Prologue AI 手册第 4 节](PROLOGUE-AI.md)。
+- 模型请求可带 `selection: { provider_id, model_id }`，可用性用 `services.model.availability(selection)`；明确选择失败不改用默认模型。仅指定已有目录项，地址、凭据和供应商配置仍由 Host 管理。
+- `services.model.choices()` 只返回当前可用模型的名称与能力，不解密或联网。原图输入用 `images: [{ bytes, label? }]`，首次等待前复制，最多 30 张、单张 32 MiB、合计 128 MiB，不收路径或 URL；Host 临时副本和 SDK intake 各自清理。成功结果带真实 `execution` 回执和同步 `validateResult()`，失败及 JSON 解码失败在已有推理事实时也保留回执；未知用量保持未知。写业务前先 `await caller.beforeEffect()`，随后立即 `result.validateResult()` 再同步提交；失败记账用相同检查，不能借另一动作或新模型绑定提交旧结果。细节与示例见 Prologue AI 手册第 4 节。
 - 门禁 `tests/prompt-registration.test.ts`：没登记的指令、收裸字符串的端口、绕开登记直接调模型的 Host 模块都会失败；确需过渡的写进清单并写明原因。
 - 插件创作台生成的插件同样如此：要求在操作代码里 `export const prompts = [{ id, title, purpose, body }]` 声明，`model.generate` 传 `{ prompt: id, input }`；安装时登记、卸载时撤下（用户的修改保留）。检查 G4 会拒绝未声明的 id 和仍传 `instructions` 的调用。
 - 设置“Prompt 与 Character”底部的“开发者诊断”列出每个来源登记了什么、哪些没有生效及原因，以及仍未登记的模型调用。
@@ -266,6 +290,8 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 - 与 `agent.skills` 的区别：`agent.skills` 是插件自己的 Agent 用的方法；`methods` 给别的 Agent 用。
 - 助理会在“可用的方法”里看到它（只列名称和适用说明），合适时读取正文照做；用户也可以用“/”直接选定。方法只对采用它的那一轮有效。插件停用后，方法就不再列出。
 - 正文写步骤和边界，不要写死对象标识；需要改数据的步骤照常经 change-capability，由用户确认。
+
+项目外部 MCP 配置由同一 Home 的 Prologue owner 保存；来源插件仅说明来历，关闭添加页或停用该入口不撤销连接。共同动作保留项目范围，按实际消费者权限调用，派出前复核原工作区与配置版本。持久认证只引用 Home Connector owner，不持久使用 SDK 进程内的凭据引用。连接启停独立于凭据，所有消费方尊重启用状态。
 
 ## 对外 MCP
 
@@ -341,7 +367,7 @@ Artifact 输入通知刷新当前投影，不是一次性业务命令。`onUpstr
 
 Coding `run-updated` 与 Git `operation-updated` 是 v1 刷新提示：前者来自后台 Run 的停止/待核对状态，后者来自 Prologue 已核对的 Effect/dispatch 回执。失败和 unknown 保留原语义，不宣称文件修改成功。恢复历史不产生新执行通知；Files/Git 订阅后只让 Host 视图 revision 失效，页面重新读取原接口。提示丢失靠首次进入、重新连接时读当前事实恢复，不能据此自动重跑模型或 Git；可靠业务提交仍须其 owner 的事务/持久协议。
 
-公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。Jelly 和 onboarding 已共用提取口，媒体模型下载仍需显式选择；生成摘要继续走 Prologue。
+Runtime 插件用 `context.services.materials` 读取材料：Manifest 声明 `materials:read` 才有 `extract({ file_name, bytes }, options)`，另声明 `materials:fetch` 才有 `readSource(url, options)`。服务只给宿主执行的插件，沙箱和升级预检没有；调用必须位于自己安装、声明对应权限的并发动作。上传解析用 SDK `decodeMaterialUpload`（安全文件名、支持格式、规范 Base64、非空且最多 25 MiB），不再复制检查。公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。灵光和 onboarding 已共用提取口，媒体模型下载只有可信 user 调用且 `allowModelDownload: true` 才生效；agent、mcp、workflow、plugin 的 true 被忽略并按缺模型规则拒绝；生成摘要继续走 Prologue。
 
 Shelf 的 PDF 预览与文字提取、OCR 同样走此端口。语言选项属于提取请求，逐行置信度来自 `pages[].lines`，不以页平均值代替；“待确认”、来源标题和不完整提示由业务组织。多选逐项处理。标准输入仍限 25 MiB，Shelf 由可信 Host 明确采用 32 MiB，不改变其他上传端限额。原调用撤权、取消或输入 hash 改变后不写成果或失败成果。
 
@@ -364,3 +390,26 @@ Builder 的截图评审把 presentation、design、host、unverified 问题分�
 宿主的 `assistant.threads.start/status/retry/stop` 统一管理执行与投递，使用同一个 Home 的 Prologue。普通评论不调用它；只有用户明确请求助理回复才发 start。保存评论与调用模型分别幂等，重试已完成的运行只重投递；正文仍由原插件独占管理。Pages 是第一项实现，动作与侧栏协议不要求助理导入 Pages。
 
 评论上下文读取动作可接受用户明确提供的 `draft: { text, revision }`（公开类型 `AssistantThreadDraft`）：owner 先核对它的基准版本与当前对象权限，再返回带「未保存草稿」标识的上下文。它不授予写正文的权限，也不替换保存后的对象；未声明支持的 owner 不接收该可选输入。
+
+Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? }`。该字段只能来自本次已认证的服务身份响应；优先携带稳定账号 id，不从显示标签或 message 文案推断。Host 连接检查将它与当前配置修订关联，跨入口恢复等待据此防止自动换用另一账号；没有身份查询能力的服务保持账号未知。
+
+连接的业务使用位置由消费方通过 `defineConnectorUsagesAction` 报告（contracts 的 `services/connector-host`）。输入是连接 id，输出是 owner 当前保存的使用位置、启用状态和已有业务动作引用及非敏感对象参数。共同目录按 `molis.connector-usages.input.v1` / `output.v1` 发现查询，由 `connectors.usages.read` 以原调用者权限汇总；没有宿主插件白名单和第二份绑定库。Feed 只返回当前项目来源，Images 返回原生图配置，Functions 返回使用当前绑定账号的已发布规则；模型配置不伪称所有文本动作都固定使用该账号。查询不调用业务操作，展示的操作仍按当前目录权限、作用域与可用性决定是否可用。
+
+
+## Home 主人的私有文件树
+
+可信 Home 条目可声明 `owner_files` 与可选的 `initialize_owner_files`，根目录沿唯一 HomeStoreRegistry 验证 owner；同一根不能同时被 database、旧 files 或第二份 owner_files 占用，完整声明校验在受管开库和初始化之前完成。声明绑定实际 definition 并深复制冻结。项目、沙箱、升级预检以及 Manifest 自报字段均不能获得服务。它是平台前置，现 Shelf owner 和正式装配保持现状。
+
+`services.ownerFiles.stat/read/list(relative)` 需要本安装正在执行的真实动作读权限。`write(run)` 需要 command 和原写权限，等待原 `beforeEffect()` 后才给同步 writer；每个原语继续复核原调用、安装与取消，退出或 Promise 回调后 writer 永久失效。Writer 内读取沿写权限，不借新动作延长旧句柄。可信 initializer 在有效 activation 与写 grant 下获得同样的短 writer，完成后才 start/register；它不进入插件 services。
+
+路径是已声明顶层下的严格相对路径，可包含 Unicode；软硬链接、特殊节点和不安全子树均拒绝。create/copy 独占，replace 要已有文件；replaceFileAtomic 使用同目录独占临时文件，rename 前失败保留原字节并清本次临时文件。removeTree 先预检且不删除声明目录顶层。读写无额外32MiB限制，仍受运行环境字节上限约束。没有多文件事务、掉电持久或同 OS 用户并发替换父目录防护的承诺；同步成功后又抛错不会回滚此前合法写入。
+
+## Home 消费者的模型配置、生图与项目清理
+
+可信 Home 启动条目可声明 `model_configuration` 与 `image_generation`，分别得到 `services.model.configuration` 与 `services.imageGeneration`；插件 Manifest/definition 自报同名字段不能授予服务，沙箱和升级预检没有这些服务。配置声明固定 preference 文件、custom provider 和 read/save 动作；selection 只读取当前消费者的精确选择，read/save 只在对应设置动作中工作。配置可在模型不可用时修复，真实调用仍要求 model:invoke、并发动作及 beforeEffect，不将显式失效选择回退到别的模型。
+
+生图服务提供 connections/inspect/bind/unbind/generate，命名空间与权限来自可信条目；只读发现不解密或 pin 目标。连接、凭据及派出归 Host/Connector/agent-host，插件保留任务调度、业务记录与字节验证。generate 返回当次结果和不透明 revision；调用方在后续文件/任务提交前按这一 revision 再检查，不能读取新 revision 来替代旧结果的版本。模型/连接/安装授权变化后，成功与失败业务记录均不写入。
+
+现有 project_data 的可信 owner 可接 contribution.onProjectDeleted：只同步停止本实例的等待与内存任务，Host 紧接原 purge，中间不 await；异步回调拒绝。停用/卸载后没有活跃 contribution 时仍走原离线 purge，结束 Home 才释放 owner 注册。回调不提供写库或文件权限。
+
+非流式路由的 bytes 默认作为附件。PluginRouteResponse 可显式给 disposition 为 inline 或 attachment；Host 只保留 image/png、image/jpeg、image/webp，其他 MIME 强制 octet-stream 附件。nosniff、sandbox、no-store 始终由 Host 设置，插件不能覆盖。HTTP 项目来自已核对存在且显示该插件的路径，query/body 不授予身份。

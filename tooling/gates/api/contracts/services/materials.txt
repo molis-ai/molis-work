@@ -87,6 +87,22 @@ export interface MaterialSource {
     bytes: Uint8Array;
 }
 
+export interface MaterialSourceContent {
+    text: string;
+    title?: string;
+    source_url: string;
+    provider: string;
+    extractor: string;
+    coverage: MaterialExtraction["coverage"];
+    pages?: MaterialExtraction["pages"];
+    segments?: MaterialExtraction["segments"];
+    frames?: MaterialExtraction["frames"];
+    model_required?: {
+        approximate_bytes?: number;
+        variant?: string;
+    };
+}
+
 export interface MaterialUpload {
     file_name: string;
     data_base64: string;

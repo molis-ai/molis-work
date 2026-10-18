@@ -1,15 +1,11 @@
-import { join } from "node:path";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
+import { LocalActionGatewayClient } from "@molis-ai/molis-work-app-local-host";
 import { createActionMcpPorts, handleMcpMessage, serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
 
-// Explicit fixture launch grants. Production client grant management is tested separately.
-const [home, projectId, access] = process.argv.slice(2);
-if (!home || !projectId) throw new Error("Missing fixture identity");
-const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async () => "MCP fixture reply" });
-const ref = molisWorkHostProjectReference({ databasePath: join(home, `${projectId}.sqlite`), projectId: projectId });
-const ports = createActionMcpPorts({ service: host.actionClient(ref), serverInfo: { name: "lingguang-actions", version: "1" },
-  context: () => ({ actor_id: `fixture-${projectId}`, project_id: projectId, audience: "mcp", permissions: access === "read" ? ["lingguang:read"] : LINGGUANG_ACTION_PERMISSIONS }),
+// The external process forwards to the resident Host; only that Host runs the project's Runtime.
+const [homeDirectory, url, projectId, clientId] = process.argv.slice(2);
+if (!homeDirectory || !url || !projectId || !clientId) throw new Error("Missing fixture identity");
+const ports = createActionMcpPorts({ service: new LocalActionGatewayClient({ homeDirectory, url, projectId, clientId }),
+  serverInfo: { name: "lingguang-actions", version: "1" },
+  context: () => ({ actor_id: clientId, project_id: projectId, audience: "mcp", permissions: [] }),
 });
-try { await serveMcpStdio({ handleMessage: message => handleMcpMessage(message, ports) }); }
-finally { await host.close(); }
+await serveMcpStdio({ handleMessage: message => handleMcpMessage(message, ports) });

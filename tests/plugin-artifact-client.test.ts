@@ -8,6 +8,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -16,7 +17,7 @@ import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
 
-test("installed Plugins exchange exact Artifact versions by type, with bound authority and real denied side effects", async () => {
+test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, with bound authority and real denied side effects", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-artifacts-"));
   const databasePath = join(directory, "board.db");
   seedDemoBoard(databasePath);
@@ -47,7 +48,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
         artifacts: { produces: [preview.type],
           consumes: [{ artifact_type_id: "example.note", schema_version: options.schema ?? 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
-        const hosted = createPluginArtifactClient({ api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID,
+        const hosted = createPluginArtifactClient({ assertInput: assertActionInput, api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID,
           actor_id: options.actor ?? "author" });
         client = hosted.client; dispose = hosted.dispose;
         const contribution = await base.start(context);
@@ -131,7 +132,7 @@ test("installed Plugins exchange exact Artifact versions by type, with bound aut
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("an installation reads a process item only for the actor it was recorded for, while a personal 成果 is read by type", async () => {
+test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts and preserve real installation authority", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-process-read-"));
   const databasePath = join(directory, "board.db");
   seedDemoBoard(databasePath);
@@ -145,7 +146,7 @@ test("an installation reads a process item only for the actor it was recorded fo
       type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
       async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
     } });
-    async function install(name: string, actor: string) {
+    async function install(name: string, actor: string, read = true) {
       let hosted!: ReturnType<typeof createPluginArtifactClient>;
       const preview = artifactPreview(`io.molis.work.example.${name}`);
       const manifest: PluginManifest = { ...base.manifest, plugin_id: `io.molis.work.example.${name}`,
@@ -156,20 +157,21 @@ test("an installation reads a process item only for the actor it was recorded fo
         artifacts: { produces: [preview.type], consumes: [{ artifact_type_id: "example.note", schema_version: 1 }] },
         process_items: { produces: [{ artifact_type_id: "example.item", schema_version: 1 }], consumes: [{ artifact_type_id: "example.item", schema_version: 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
-        hosted = createPluginArtifactClient({ api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: actor });
+        hosted = createPluginArtifactClient({ assertInput: assertActionInput, api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: actor });
         const contribution = await base.start(context);
         return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
       }, stop() { hosted.dispose(); } };
-      const installed = runtime.install({ definition, deployment: "local", grants: ["network:github.com", "secret:github", "artifact:write", "artifact:read"] });
+      const installed = runtime.install({ definition, deployment: "local", grants: ["network:github.com", "secret:github", "artifact:write", ...(read ? ["artifact:read"] : [])] });
       await runtime.start(installed.install.install_id);
-      return hosted;
+      return { ...hosted, installId: installed.install.install_id };
     }
     const producer = await install("producer", "author"), sameActor = await install("same-actor", "author"), otherActor = await install("other-actor", "other");
 
     // ARTACC-01/ARTACC-02: A process item belongs to the actor whose installation recorded it: the ownership decision (2026-10-07) is about personal 成果 only.
     const item = { artifact_id: "item-1", version: 1, artifact_type_id: "example.item", schema_version: 1,
       content: { kind: "inline" as const, payload: { step: "draft" } } };
-    const recorded = producer.process.record(item);
+    const recorded = producer.process.record({ ...item, project_id: "forged-project", actor_id: "forged-actor", owner_actor_id: "forged-owner",
+      producer: { plugin_id: "forged", plugin_version: "999", binding_signature: "forged" }, scope: "team_project" });
     assert.equal(recorded.artifact.owner_actor_id, "author");
     assert.deepEqual(sameActor.client.read(item), recorded.artifact);
     assert.throws(() => otherActor.client.read(item), (error: unknown) => error instanceof ActionError && error.code === "artifacts.plugin_denied" && error.kind === "forbidden");
@@ -179,5 +181,98 @@ test("an installation reads a process item only for the actor it was recorded fo
       content: { kind: "inline" as const, payload: { title: "Note" } } };
     const published = producer.client.publish(note);
     assert.deepEqual(otherActor.client.read(note), published.artifact);
+    assert.deepEqual(producer.process.head(item.artifact_id), { version: 1 });
+    assert.deepEqual(producer.process.readOwn(item), recorded.artifact);
+    assert.deepEqual(producer.client.head(note.artifact_id), { version: 1, source_revision: 1 });
+    assert.deepEqual(producer.client.readOwn(note), published.artifact);
+    assert.deepEqual(producer.client.listConsumable().map(row => row.kind), ["artifact", "process_item"]);
+    assert.deepEqual(otherActor.client.listConsumable().map(row => row.kind), ["artifact"]);
+
+    const actions = pluginActions(store, DEMO_PROJECT_ID);
+    const caller = { actor_id: "author", project_id: DEMO_PROJECT_ID, audience: "plugin" as const,
+      plugin_install_id: producer.installId, permissions: ["artifact:read", "artifact:write"] };
+    const prefix = `sdk.artifacts.${producer.installId}`;
+    const sdk = actions.registry.discover(caller).filter(row => row.provider.provider_id === prefix);
+    assert.equal(sdk.length, 8, "all operations live in the existing single installation provider");
+    const expected = sdkContracts();
+    for (const operation of Object.keys(expected) as (keyof typeof expected)[]) {
+      const row = sdk.find(value => value.capability_id === `${prefix}.${operation}`);
+      assert.ok(row);
+      assert.equal(row.version, 1);
+      assert.equal(row.operation, operation === "publish" || operation === "record" ? "command" : "query");
+      assert.equal(row.action.scope, "project");
+      assert.deepEqual(row.action.audiences, ["plugin"]);
+      assert.deepEqual(row.action.subject_kinds, ["artifact"]);
+      assert.deepEqual(row.action.permissions, [operation === "publish" || operation === "record" ? "artifact:write" : "artifact:read"]);
+      assert.deepEqual(row.action.input_schema, expected[operation].input);
+      assert.deepEqual(row.action.output_schema, expected[operation].output);
+    }
+    const noGrant = await install("no-grant", "author", false);
+    for (const operation of ["process-head", "process-own", "list"]) {
+      const row = sdk.find(value => value.capability_id === `${prefix}.${operation}`)!;
+      const input = operation === "list" ? {} : operation === "process-head" ? { artifact_id: item.artifact_id } : { artifact_id: item.artifact_id, version: 1 };
+      assert.doesNotThrow(() => actions.client.invokeSync(caller, row, input), "new queries really execute synchronously");
+      assert.equal(row.action.kind, "query");
+      assert.throws(() => actions.client.invokeSync({ ...caller, plugin_install_id: sameActor.installId }, row, input), { code: "artifacts.plugin_denied" });
+      assert.throws(() => actions.client.invokeSync({ ...caller, actor_id: "other" }, row, input), { code: "artifacts.plugin_denied" });
+      for (const audience of ["user", "mcp"] as const) {
+        assert.equal(actions.registry.discover({ ...caller, audience }).some(value => value.capability_id === row.capability_id), false);
+        assert.throws(() => actions.client.invokeSync({ ...caller, audience }, row, input), { code: "actions.forbidden" });
+      }
+      const noRead = { ...caller, plugin_install_id: noGrant.installId };
+      const unavailable = actions.registry.discover(noRead).find(value => value.capability_id === `sdk.artifacts.${noGrant.installId}.${operation}`)!;
+      assert.deepEqual(unavailable.availability.available, false);
+      assert.throws(() => actions.client.invokeSync(noRead, unavailable, input), { code: "artifacts.plugin_denied" });
+    }
+    const before = { artifacts: api.query.listArtifacts(DEMO_PROJECT_ID), process: processItems.query.listArtifacts(DEMO_PROJECT_ID), cursor: store.eventCursor(DEMO_PROJECT_ID) };
+    for (const invalid of [
+      () => producer.client.publish({ ...note, version: 0 }),
+      () => producer.process.record({ ...item, version: 0 }),
+      () => Reflect.apply(producer.process.record, null, [{ ...item, content: { kind: "inline" } }]),
+      () => producer.process.head(" "),
+      () => producer.process.readOwn({ artifact_id: item.artifact_id, version: 0 }),
+    ]) assert.throws(invalid, { code: "actions.input_invalid" });
+    assert.deepEqual({ artifacts: api.query.listArtifacts(DEMO_PROJECT_ID), process: processItems.query.listArtifacts(DEMO_PROJECT_ID), cursor: store.eventCursor(DEMO_PROJECT_ID) }, before);
+    await runtime.stop(producer.installId);
+    assert.deepEqual(sameActor.client.read(item), recorded.artifact, "producer stop keeps fixed process versions consumable");
+    assert.deepEqual(sameActor.client.read(note), published.artifact);
+    assert.deepEqual(sameActor.client.listConsumable().map(row => row.kind), ["artifact", "process_item"]);
+    for (const retained of [() => producer.process.head(item.artifact_id), () => producer.process.readOwn(item), () => producer.client.listConsumable()]) {
+      assert.throws(retained, { code: "plugin.grant_denied" });
+    }
+    assert.equal(actions.registry.discover(caller).some(row => row.provider.provider_id === prefix), false, "stop disposes the SDK provider");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+/** W5-01-D1-05: independent expected contracts keep the old five @1 shapes intact and fix the new queries' full schemas. */
+function sdkContracts() {
+  const id = { type: "string", minLength: 1, pattern: "\\S" }, version = { type: "integer", minimum: 1 }, text = { type: "string" };
+  const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
+  const nullable = (schema: unknown) => ({ anyOf: [schema, { type: "null" }] });
+  const array = (items: unknown) => ({ type: "array", items });
+  const reference = object({ artifact_id: id, version });
+  const fields = { artifact_id: id, version, project_id: id, artifact_type_id: id, schema_version: version,
+    producer_plugin_id: id, producer_plugin_version: id, producer_binding_signature: id, owner_actor_id: id,
+    content_kind: { enum: ["inline", "reference"] }, payload: {}, content_ref: nullable(text), content_digest: text,
+    size_bytes: { type: "integer", minimum: 0 }, metadata: { type: "object" }, scope: { enum: ["personal", "team_project"] },
+    availability: { enum: ["available", "unavailable"] }, unavailable_reason: nullable(text), lifecycle_state: { enum: ["active", "archived"] },
+    supersedes_version: nullable(version), created_by: id, created_at: text, archived_at: nullable(text), archived_by: nullable(text) };
+  const origin = { oneOf: [object({ kind: { const: "pinned" }, subject: object({ kind: id, id }), revision: id }), object({ kind: { const: "imported" }, file_name: id })] };
+  const processRecord = object(fields), record = object({ ...fields, origin, title: id, media_type: id, trace: array(reference) });
+  const versionProperties = { artifact_id: id, version, artifact_type_id: id, schema_version: version,
+    content: { oneOf: [object({ kind: { const: "inline" }, payload: {} }), object({ kind: { const: "reference" }, content_ref: id,
+      digest: id, size_bytes: { type: "integer", minimum: 0 }, observed_digest: nullable(text), available: { type: "boolean" } }, ["kind", "content_ref", "digest", "size_bytes"])] },
+    metadata: { type: "object" }, supersedes_version: nullable(version) };
+  const required = ["artifact_id", "version", "artifact_type_id", "schema_version", "content"];
+  const result = (artifact: unknown) => object({ artifact, observed_event_cursor: { type: "integer", minimum: 0 }, replayed: { type: "boolean" } });
+  return {
+    read: { input: reference, output: nullable({ anyOf: [record, processRecord] }) },
+    head: { input: object({ artifact_id: id }), output: nullable(object({ version, source_revision: nullable({ type: "integer", minimum: 0 }) })) },
+    own: { input: reference, output: nullable(record) },
+    publish: { input: object({ ...versionProperties, origin, title: id, media_type: id, trace: array(reference) }, [...required, "origin", "title", "media_type"]), output: result(record) },
+    record: { input: object(versionProperties, required), output: result(processRecord) },
+    "process-head": { input: object({ artifact_id: id }), output: nullable(object({ version })) },
+    "process-own": { input: reference, output: nullable(processRecord) },
+    list: { input: object({}), output: array(object({ artifact_id: id, version, kind: { enum: ["artifact", "process_item"] }, artifact_type_id: id, schema_version: version, title: nullable(text) })) },
+  };
+}

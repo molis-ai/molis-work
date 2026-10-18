@@ -8,7 +8,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 
-for (const width of [1440, 390]) test(`Images ${width}px: revoked and missing selections stay explicit, then user chooses and generates`, { timeout: 90_000 }, async t => {
+for (const [width, locale] of [[1440, "zh"], [390, "zh"], [1440, "en"], [390, "en"]] as const) test(`RAC-58 Images ${locale} ${width}px: revoked and missing selections stay explicit, then user chooses and generates`, { timeout: 90_000 }, async t => {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
@@ -23,21 +23,25 @@ for (const width of [1440, 390]) test(`Images ${width}px: revoked and missing se
   const auth = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "image-api", displayName: "图像测试账号", token: "fixture-only-image-key" }));
   const replacement = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "image-api", displayName: "备用图像账号", token: "fixture-only-replacement-key" }));
   const input = async (selector: string, value: string) => evaluate(`(() => { const node=document.querySelector(${JSON.stringify(selector)}); node.value=${JSON.stringify(value)}; node.dispatchEvent(new Event('input',{bubbles:true})); })()`);
-  const api = async (method: string, path: string, body?: unknown) => evaluate<any>(`(async () => { const r=await fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/images${path}`)}, {method:${JSON.stringify(method)},headers:molisWorkControlHeaders(),${body === undefined ? "" : `body:JSON.stringify(${JSON.stringify(body)}),`}}); const body=await r.json(); if(!r.ok)throw new Error(JSON.stringify(body)); return body; })()`);
+  const api = async (method: string, path: string, body?: unknown) => evaluate<any>(`(async () => { const r=await fetch(${JSON.stringify(`/projects/${projectId}/api/plugins/io.molis.work.images${path}`)}, {method:${JSON.stringify(method)},headers:molisWorkControlHeaders(),${body === undefined ? "" : `body:JSON.stringify(${JSON.stringify(body)}),`}}); const body=await r.json(); if(!r.ok)throw new Error(JSON.stringify(body)); return body; })()`);
   const output = reviewEvidenceUrl("action-service/"); await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {
     await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
     const result = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
-    await writeFile(new URL(`images-${name}-${width}.png`, output), Buffer.from(result.data, "base64"));
+    await writeFile(new URL(`images-${name}-${width}-${locale}.png`, output), Buffer.from(result.data, "base64"));
   };
   await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=images` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${locale}&next=${encodeURIComponent(`/projects/${projectId}/?openPlugin=images`)}` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=images]')");
   if (await evaluate("document.body.dataset.desktopSurface") !== "images") {
     await click('[data-plugin-strip] [data-plugin-id="images"]');
   }
   await waitFor("document.body.dataset.desktopSurface === 'images'");
+  assert.equal(await evaluate("document.querySelector('[data-images-history-empty] strong').textContent"), locale === "en" ? "No images yet" : "还没有图片");
+  assert.equal(await evaluate("document.querySelector('[data-images-prompt]').placeholder"), locale === "en"
+    ? "For example: A desk at dawn, coffee and an open book, sunlight from the left, film photography, warm tones."
+    : "例如：清晨的书桌，一杯咖啡和翻开的书，阳光从左侧照入，胶片摄影，暖色调。");
   const { connection: chosen } = await api("POST", "/connections", { name: "当前生图服务", api_format: "openai-images", base_url: baseUrl, model: "fixture", auth_connection_id: auth.connection_id });
   const { connection: backup } = await api("POST", "/connections", { name: "本机备用服务", api_format: "openai-images", base_url: baseUrl, model: "fixture" });
   await click("[data-images-refresh]"); await click("[data-images-new]");
@@ -51,7 +55,7 @@ for (const width of [1440, 390]) test(`Images ${width}px: revoked and missing se
   await click("[data-images-connections]");
   await waitFor("document.querySelector('[data-images-dialog]').open");
   assert.equal(await evaluate("document.querySelector('[data-images-connection-auth]').value"), auth.connection_id);
-  assert.match(await evaluate<string>("document.querySelector('[data-images-connection-auth]').selectedOptions[0].textContent"), /不可用/);
+  assert.match(await evaluate<string>("document.querySelector('[data-images-connection-auth]').selectedOptions[0].textContent"), locale === "en" ? /unavailable/ : /不可用/);
   await screenshot("connection");
   await evaluate(`(() => { const node=document.querySelector('[data-images-connection-auth]'); node.value=${JSON.stringify(replacement.connection_id)}; node.dispatchEvent(new Event('change',{bubbles:true})); })()`);
   await input("[data-images-connection-url]", baseUrl);
@@ -61,13 +65,16 @@ for (const width of [1440, 390]) test(`Images ${width}px: revoked and missing se
 
   await api("DELETE", `/connections/${chosen.id}`); await click("[data-images-workspace] [data-images-refresh]");
   await waitFor("document.querySelector('[data-images-generate]').disabled && !document.querySelector('[data-images-service-unavailable]').hidden");
-  assert.match(await evaluate<string>("document.querySelector('[data-images-service-label]').textContent"), /所选生图服务不可用/);
+  assert.match(await evaluate<string>("document.querySelector('[data-images-service-label]').textContent"), locale === "en" ? /selected image service is unavailable/ : /所选生图服务不可用/);
   assert.equal(await evaluate("document.querySelector('[data-images-prompt]').value"), "雨后树叶上的水珠");
   assert.equal(calls, 0); await screenshot("missing");
   await click("[data-images-service-menu] summary"); await click(`[data-images-use-connection="${backup.id}"]`);
   await waitFor("!document.querySelector('[data-images-generate]').disabled"); await click("[data-images-generate]");
   await waitFor("document.querySelector('[data-images-result] img')?.naturalWidth > 0", 12_000);
   assert.equal(calls, 1);
+  assert.equal(await evaluate("document.querySelector('[data-images-title]').textContent"), locale === "en" ? "Results" : "生成结果");
+  assert.equal(await evaluate("document.querySelector('[data-images-result] h2').textContent"), locale === "en" ? "Generated" : "已生成");
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-images=workbench]').textContent"), /images\.(?:compose|service|history|account|result|status|error)\./);
   const imageUrl = await evaluate<string>("document.querySelector('[data-images-result] img').src");
   assert.deepEqual(Buffer.from(await (await fetch(imageUrl + "?download=1")).arrayBuffer()), Buffer.from(PNG, "base64"));
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);

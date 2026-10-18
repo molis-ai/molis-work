@@ -9,8 +9,7 @@ import test from "node:test";
 
 import {
   DATASET_CLIENT_FACTORY_SCRIPT,
-  DatasetPluginRouteTable,
-  createDatasetRouteHandlers,
+  datasetActions,
   openDatasetStore,
   renderDatasetWorkbench,
 } from "@molis-ai/molis-work-plugin-dataset";
@@ -26,9 +25,8 @@ import {
 } from "@molis-ai/molis-work-plugin-pages";
 import {
   PPT_CLIENT_FACTORY_SCRIPT,
-  PptPluginRouteTable,
-  createPptRouteHandlers,
   openPptStore,
+  pptActions,
   renderPptWorkbench,
 } from "@molis-ai/molis-work-plugin-ppt";
 
@@ -83,46 +81,40 @@ test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑�
 
   const datasets = openDatasetStore(home);
   try {
-    const routes = new DatasetPluginRouteTable(createDatasetRouteHandlers(datasetTestPorts(datasets, query.get("project_id")!, {
+    const { actions } = datasetTestPorts(datasets, query.get("project_id")!, {
       publishArtifact: (input) => {
         assert.equal(input.content.columns.length, 1);
         return { artifact_id: "dataset-" + input.record_id, version: input.version };
       },
-    })));
-    const created = await routes.handle({ method: "POST", pathname: "/api/dataset", query, body: { title: "分数" } });
-    const id = (created?.body as { dataset: { id: string } }).dataset.id;
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}`,
-      query,
-      body: { columns: [{ id: "c1", name: "姓名", type: "text", order: 1 }], rows: [] },
     });
-    const promoted = await routes.handle({ method: "POST", pathname: `/api/dataset/${id}/versions`, query, body: { note: "编辑历史" } });
-    assert.equal((promoted?.body as { version: { note: string } }).version.note, "编辑历史");
-    const artifact = await routes.handle({ method: "POST", pathname: `/api/dataset/${id}/promote`, query, body: {} });
-    const dataset = (artifact?.body as { dataset: { artifact_version: number } }).dataset;
-    assert.equal(dataset.artifact_version, 1);
-    const again = await routes.handle({ method: "POST", pathname: `/api/dataset/${id}/promote`, query, body: {} });
-    assert.equal((again?.body as { dataset: { artifact_version: number } }).dataset.artifact_version, 2);
+    const created = await actions.invoke(datasetActions.create, { title: "分数" });
+    const id = created.dataset.id;
+    await actions.invoke(datasetActions.update, { id, columns: [{ id: "c1", name: "姓名", type: "text", order: 1 }], rows: [] });
+    const promoted = await actions.invoke(datasetActions.snapshot, { id, note: "编辑历史" });
+    assert.equal(promoted.version.note, "编辑历史");
+    const artifact = await actions.invoke(datasetActions.promote, { id });
+    assert.equal(artifact.dataset.artifact_version, 1);
+    const again = await actions.invoke(datasetActions.promote, { id });
+    assert.equal(again.dataset.artifact_version, 2);
   } finally {
     datasets.close();
   }
 
   const decks = openPptStore(home);
   try {
-    const routes = new PptPluginRouteTable(createPptRouteHandlers(pptTestPorts(decks, query.get("project_id")!, {
+    const { actions } = pptTestPorts(decks, query.get("project_id")!, {
       publishArtifact: (input) => {
         assert.ok(input.content.slides.length > 0);
         return { artifact_id: "ppt-" + input.record_id, version: input.version };
       },
-    })));
-    const created = await routes.handle({ method: "POST", pathname: "/api/ppt", query, body: { title: "发布会" } });
-    const id = (created?.body as { presentation: { id: string } }).presentation.id;
-    const first = await routes.handle({ method: "POST", pathname: `/api/ppt/${id}/promote`, query, body: {} });
-    const second = await routes.handle({ method: "POST", pathname: `/api/ppt/${id}/promote`, query, body: {} });
-    assert.equal((first?.body as { artifact: { version: number } }).artifact.version, 1);
-    assert.equal((second?.body as { presentation: { title: string; artifact_version: number } }).presentation.title, "发布会");
-    assert.equal((second?.body as { presentation: { artifact_version: number } }).presentation.artifact_version, 2);
+    });
+    const created = await actions.invoke(pptActions.create, { title: "发布会" });
+    const id = created.presentation.id;
+    const first = await actions.invoke(pptActions.promote, { id });
+    const second = await actions.invoke(pptActions.promote, { id });
+    assert.equal(first.artifact.version, 1);
+    assert.equal(second.presentation.title, "发布会");
+    assert.equal(second.presentation.artifact_version, 2);
   } finally {
     decks.close();
   }

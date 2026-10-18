@@ -18,7 +18,7 @@ export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-r
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineAction } from "./actions.js";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
-export { bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
+export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
 /** One error model: raise `ActionError`s whose codes your plugin declares once with `defineErrorCodes`; the Host's edge answers them by kind. */
 export { ActionError, defineErrorCodes, type ActionErrorKind, type ActionErrorOptions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse, actionErrorFromResponse, type ActionErrorBody, type ActionErrorBodyOptions } from "./errors.js";
@@ -40,7 +40,7 @@ export type { ActionExecutionContext, ActionExecutionPolicy, ActionResultView, A
   ActionSceneReference, ActionSceneBinding, ActionSceneTargetDefinition, ActionSceneTarget, ActionSceneConfigureOptions, ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 export type {
   PluginManifest, PluginDefinition, PluginStartContext, PluginArtifactClient, PluginArtifactPublishInput, PluginPrivateStorage,
-  PluginUiClient, PluginHostServices,
+  PluginUiClient, PluginHostServices, PluginActionClient,
   PluginDatabase, PluginDatabaseReader, PluginDatabaseTransaction, PluginDatabaseDeclaration, PluginSqlValue, PluginSqlRow,
   PluginModelClient, PluginModelRequest, PluginModelResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -232,3 +232,7 @@ const manifestFailures = {
   "plugin.permission_invalid": pluginErrors.permission_invalid,
   "plugin.declaration_invalid": pluginErrors.declaration_invalid,
 } as const;
+
+export { decodeMaterialUpload, supportsMaterialExtension, MATERIAL_EXTENSIONS, MATERIAL_UPLOAD_MAX_BYTES } from "./material-upload.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { MaterialSource, MaterialUpload, MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";

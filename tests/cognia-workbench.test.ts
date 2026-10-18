@@ -19,5 +19,5 @@ test("the Host page retains Cognia's real surface and loads its registered clien
   const client = pluginWorkbenchClientAsset("cognia");
   assert.ok(client, "the registered surface must have a loadable client asset");
   assert.match(client, /data-cognia=workbench/);
-  assert.match(client, /\/api\/plugins\/cognia/);
+  assert.match(client, /\/api\/plugins\/io\.molis\.work\.cognia\/library/);
 });

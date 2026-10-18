@@ -142,3 +142,66 @@ test("BL-140: a menu open in the Goal document holds the background refresh unti
   await evaluate("document.querySelector('[data-goal-event-document] .goal-more').open = false");
   await waitFor("window.__refreshes > 0", 10_000);
 });
+
+test("ASC-41: a pending save blocks an in-flight refresh and later polls until its own response arrives", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t); if (!browser) return;
+  const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, openGoalWork } = browser;
+  const goalId = "REFRESH-SAVING";
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await addGoal(origin, goalId);
+  await navigate(() => command("Page.navigate", { url: origin + "/goals/" + goalId }, sessionId));
+  await openGoalWork();
+  await evaluate(`(() => {
+    const original = window.fetch;
+    window.__refreshRequests = 0; window.__trashRequests = 0;
+    window.fetch = async (input, options) => {
+      const path = new URL(String(input), location.href).pathname;
+      if (path === '/api/board/refresh') {
+        window.__refreshRequests++;
+        if (window.__refreshRequests === 1) {
+          window.__refreshHeld = true;
+          await new Promise(resolve => { window.__releaseRefresh = resolve; });
+        }
+      }
+      const response = await original(input, options);
+      if (path.endsWith('/trash') && options?.method === 'POST') {
+        window.__trashRequests++;
+        window.__saveHeld = true;
+        await new Promise(resolve => { window.__releaseSave = resolve; });
+      }
+      if (path === '/api/board/refresh') {
+        const body = await response.text();
+        window.__refreshDelivered = true;
+        return new Response(body, { status: response.status, headers: response.headers });
+      }
+      return response;
+    };
+  })()`);
+  await addGoal(origin, "REFRESH-TRIGGER");
+  await waitFor("window.__refreshHeld === true", 10_000);
+  await click(".goal-more > summary");
+  await click('[data-goal-view="' + goalId + '"] [data-open-goal-trash]');
+  await evaluate("document.querySelector('[data-goal-trash-form] [name=reason]').value = 'Keep the pending save in view'");
+  await click("[data-goal-trash-submit]");
+  await waitFor("window.__saveHeld === true");
+  assert.equal(await evaluate("document.activeElement === document.body"), true, "disabling the submit button loses focus");
+  const saved = store.snapshot(DEMO_PROJECT_ID);
+  assert.ok(saved.goals.find(goal => goal.goal_id === goalId)?.trashed_at);
+  // The request began before saving; its actual response now describes the Goal in the trash.
+  await evaluate("window.__releaseRefresh()");
+  await waitFor("window.__refreshDelivered === true");
+  await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+  assert.equal(await evaluate("location.pathname"), "/goals/" + goalId);
+  assert.equal(await evaluate("document.querySelector('[data-goal-trash-dialog]').open"), true);
+  // Two normal four-second polls must also respect the still-pending save.
+  await evaluate("new Promise(resolve => setTimeout(resolve, 9000))");
+  assert.deepEqual(await evaluate(`({ requests: window.__refreshRequests, saves: window.__trashRequests,
+    open: document.querySelector('[data-goal-trash-dialog]').open,
+    busy: document.querySelector('[data-goal-trash-form]').getAttribute('aria-busy') })`),
+  { requests: 1, saves: 1, open: true, busy: "true" });
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), saved, "waiting and refreshing cause no further writes");
+  await navigate(() => evaluate("window.__releaseSave()"));
+  await waitFor("document.querySelector('.trash-goal-panel--restore [data-open-goal-restore]')");
+  assert.equal(await evaluate("location.pathname"), "/trash/goals/" + goalId);
+  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), saved);
+});

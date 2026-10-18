@@ -1,10 +1,9 @@
-import type { DatabaseSync } from "node:sqlite";
 import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoPlacement, TodoSource } from "@molis-ai/molis-work-contracts/modules/todo";
 import { TODO_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, isTodoTime } from "./dates.js";
 import { todoErrors } from "./error.js";
 import { normalizeForMatch, TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
-import { todoRequestKey, type TodoAccess, type TodoFields, type TodoStore } from "./store.js";
+import { todoRequestKey, type TodoAccess, type TodoFields, type TodoSql, type TodoStore } from "./store.js";
 
 /** What the person chose for one candidate in the review. */
 export interface TodoCandidateDecision {
@@ -48,20 +47,20 @@ const fingerprint = (title: string) => normalizeForMatch(title).slice(0, 120);
  * what came from which material, so importing the same material again does not bring back what was handled or ignored.
  */
 export class TodoOrganizer {
-  private readonly db: DatabaseSync;
+  private readonly db: TodoSql;
 
   constructor(private readonly store: TodoStore) {
-    // Its tables are part of the Todo store's baseline (TODO_STORE_BASELINE).
+    // Its tables are part of the Todo library's schema (TODO_DATABASE).
     this.db = store.database();
   }
 
   list(access: TodoAccess, status: "open" | "all" = "open"): TodoBatch[] {
-    const rows = this.db.prepare("SELECT * FROM todo_batches ORDER BY created_at DESC LIMIT 50").all() as unknown as BatchRow[];
+    const rows = this.db.all("SELECT * FROM todo_batches ORDER BY created_at DESC LIMIT 50") as unknown as BatchRow[];
     return rows.filter(row => visible(row, access)).map(row => this.live(row, access)).filter(batch => status === "all" || batch.status === "open");
   }
 
   get(id: string, access: TodoAccess): TodoBatch {
-    const row = this.db.prepare("SELECT * FROM todo_batches WHERE batch_id = ?").get(id) as BatchRow | undefined;
+    const row = this.db.get("SELECT * FROM todo_batches WHERE batch_id = ?", [id]) as BatchRow | undefined;
     const batch = row ? this.live(row, access) : null;
     if (!batch || !visible(batch, access)) throw todoErrors.not_found("找不到这份整理结果");
     return batch;
@@ -76,7 +75,7 @@ export class TodoOrganizer {
     let reopened = false;
     const candidates = batch.candidates.map(candidate => {
       const added = candidate.decision?.action === "added" ? candidate.decision.item_id : null;
-      if (added && !this.db.prepare("SELECT 1 FROM todo_items WHERE id = ?").get(added)) {
+      if (added && !this.db.get("SELECT 1 FROM todo_items WHERE id = ?", [added])) {
         reopened = true;
         return { ...candidate, decision: null };
       }
@@ -97,7 +96,7 @@ export class TodoOrganizer {
   /** The batch an earlier request with this id created, so a retried request never organizes twice. */
   byRequest(requestId: string, access: TodoAccess): TodoBatch | null {
     const key = todoRequestKey(access, requestId);
-    const seen = key ? this.db.prepare("SELECT batch_id FROM todo_batches WHERE request_id = ?").get(key) as { batch_id: string } | undefined : undefined;
+    const seen = key ? this.db.get("SELECT batch_id FROM todo_batches WHERE request_id = ?", [key]) as { batch_id: string } | undefined : undefined;
     return seen ? this.get(seen.batch_id, access) : null;
   }
 
@@ -109,7 +108,7 @@ export class TodoOrganizer {
     reference_only: TodoBatch["reference_only"]; unverified: number; request_id?: string }, access: TodoAccess): { batch: TodoBatch; replayed: boolean } {
     const requestKey = todoRequestKey(access, input.request_id);
     if (requestKey) {
-      const seen = this.db.prepare("SELECT batch_id FROM todo_batches WHERE request_id = ?").get(requestKey) as { batch_id: string } | undefined;
+      const seen = this.db.get("SELECT batch_id FROM todo_batches WHERE request_id = ?", [requestKey]) as { batch_id: string } | undefined;
       if (seen) return { batch: this.get(seen.batch_id, access), replayed: true };
     }
     const at = this.store.clock().toISOString();
@@ -126,7 +125,7 @@ export class TodoOrganizer {
     for (const draft of input.candidates) {
       const print = fingerprint(draft.title);
       const keys = [...new Set(draft.evidence.map(entry => materials[entry.material - 1]?.source_key).filter((key): key is string => Boolean(key)))];
-      const memory = keys.map(key => this.db.prepare("SELECT * FROM todo_source_memory WHERE source_key = ? AND fingerprint = ?").get(key, print) as
+      const memory = keys.map(key => this.db.get("SELECT * FROM todo_source_memory WHERE source_key = ? AND fingerprint = ?", [key, print]) as
         { decision: string; item_id: string | null } | undefined).find(Boolean);
       if (memory?.decision === "ignored") { ignoredAgain += 1; continue; }
       let candidate = draft;
@@ -157,15 +156,15 @@ export class TodoOrganizer {
     const batch: TodoBatch = { batch_id: crypto.randomUUID(), title: input.title.slice(0, 120) || `整理 ${materials.length} 份材料`, origin: input.origin, project_id: access.projectId,
       method: input.method, materials: materials.map(strip), candidates, reference_only: input.reference_only, notes, status: candidates.length ? "open" : "done",
       created_at: at, updated_at: at, revision: 1 };
-    this.db.prepare(`INSERT INTO todo_batches (batch_id, project_id, origin, method, title, body_json, status, created_at, updated_at, revision, request_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(batch.batch_id, batch.project_id, batch.origin, batch.method, batch.title,
-      JSON.stringify({ materials, candidates, reference_only: batch.reference_only, notes } satisfies BatchBody), batch.status, at, at, 1, requestKey);
+    this.db.run(`INSERT INTO todo_batches (batch_id, project_id, origin, method, title, body_json, status, created_at, updated_at, revision, request_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [batch.batch_id, batch.project_id, batch.origin, batch.method, batch.title,
+      JSON.stringify({ materials, candidates, reference_only: batch.reference_only, notes } satisfies BatchBody), batch.status, at, at, 1, requestKey]);
     return { batch, replayed: false };
   }
 
   /** Apply the person's choices, all or nothing. Candidates not mentioned stay open for later. */
   apply(batchId: string, decisions: readonly TodoCandidateDecision[], expectedRevision: number | undefined, access: TodoAccess): TodoApplyResult {
-    const row = this.db.prepare("SELECT * FROM todo_batches WHERE batch_id = ?").get(batchId) as BatchRow | undefined;
+    const row = this.db.get("SELECT * FROM todo_batches WHERE batch_id = ?", [batchId]) as BatchRow | undefined;
     if (!row || !visible(fromRow(row), access)) throw todoErrors.not_found("找不到这份整理结果");
     if (expectedRevision !== undefined && row.revision !== expectedRevision) throw todoErrors.conflict("这份整理结果已在别处处理过，请重新打开");
     const body = JSON.parse(row.body_json) as BatchBody;
@@ -223,9 +222,8 @@ export class TodoOrganizer {
           outcome = decision.action === "merge" ? "merged" : "updated";
         }
         for (const key of keys) {
-          this.db.prepare(`INSERT INTO todo_source_memory (source_key, fingerprint, decision, item_id, reason, at) VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT (source_key, fingerprint) DO UPDATE SET decision = excluded.decision, item_id = excluded.item_id, reason = excluded.reason, at = excluded.at`)
-            .run(key, fingerprint(candidate.title), outcome === "ignored" ? "ignored" : "handled", itemId, decision.ignore_reason?.slice(0, 100) ?? "", at);
+          this.db.run(`INSERT INTO todo_source_memory (source_key, fingerprint, decision, item_id, reason, at) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT (source_key, fingerprint) DO UPDATE SET decision = excluded.decision, item_id = excluded.item_id, reason = excluded.reason, at = excluded.at`, [key, fingerprint(candidate.title), outcome === "ignored" ? "ignored" : "handled", itemId, decision.ignore_reason?.slice(0, 100) ?? "", at]);
         }
         if (itemId) itemFor.set(candidate.candidate_id, itemId);
         body.candidates[index] = { ...candidate, existing: record, decision: { action: outcome, item_id: itemId, reason: decision.ignore_reason?.slice(0, 100) ?? "", at } };
@@ -244,8 +242,7 @@ export class TodoOrganizer {
         }
       }
       const status = body.candidates.every(candidate => candidate.decision) ? "done" : "open";
-      const updated = this.db.prepare("UPDATE todo_batches SET body_json = ?, status = ?, updated_at = ?, revision = revision + 1 WHERE batch_id = ? AND revision = ?")
-        .run(JSON.stringify(body), status, at, batchId, row.revision);
+      const updated = this.db.run("UPDATE todo_batches SET body_json = ?, status = ?, updated_at = ?, revision = revision + 1 WHERE batch_id = ? AND revision = ?", [JSON.stringify(body), status, at, batchId, row.revision]);
       if (updated.changes !== 1) throw todoErrors.conflict("这份整理结果已在别处处理过，请重新打开");
     });
     return { batch: this.get(batchId, access), change_batch_id: changeBatch, results };
@@ -255,7 +252,7 @@ export class TodoOrganizer {
   close(batchId: string, access: TodoAccess): TodoBatch {
     const batch = this.get(batchId, access);
     if (batch.status === "done") return batch;
-    this.db.prepare("UPDATE todo_batches SET status = 'done', updated_at = ?, revision = revision + 1 WHERE batch_id = ?").run(this.store.clock().toISOString(), batchId);
+    this.db.run("UPDATE todo_batches SET status = 'done', updated_at = ?, revision = revision + 1 WHERE batch_id = ?", [this.store.clock().toISOString(), batchId]);
     return this.get(batchId, access);
   }
 

@@ -6,6 +6,8 @@ import { LINGGUANG_UI_CONTRIBUTION_ID } from "./ui.js";
 
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID };
 
+const BODY_BYTES = 36_000_000;
+
 export const lingguangManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
@@ -21,6 +23,18 @@ export const lingguangManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   actions: [...LINGGUANG_ACTIONS, ...Object.values(lingguangContentActions)],
+  routes: [
+    { route_id: "lingguang.list", method: "GET", path: "/sparks" },
+    { route_id: "lingguang.create", method: "POST", path: "/sparks", max_body_bytes: BODY_BYTES },
+    { route_id: "lingguang.discard_many", method: "POST", path: "/sparks/discard", max_body_bytes: BODY_BYTES },
+    { route_id: "lingguang.material_read", method: "POST", path: "/sparks/material", max_body_bytes: BODY_BYTES, stream: "ndjson" },
+    { route_id: "lingguang.source_read", method: "POST", path: "/sparks/source", max_body_bytes: BODY_BYTES, stream: "ndjson" },
+    { route_id: "lingguang.conversation_open", method: "POST", path: "/sparks/conversations", max_body_bytes: BODY_BYTES },
+    { route_id: "lingguang.conversation_message", method: "POST", path: "/sparks/conversations/:id/messages", max_body_bytes: BODY_BYTES, stream: "ndjson" },
+    { route_id: "lingguang.get", method: "GET", path: "/sparks/:id" },
+    { route_id: "lingguang.update", method: "POST", path: "/sparks/:id", max_body_bytes: BODY_BYTES },
+    { route_id: "lingguang.discard", method: "POST", path: "/sparks/:id/discard", max_body_bytes: BODY_BYTES },
+  ],
   artifacts: { produces: [], consumes: [] },
   ui: {
     contributions: [LINGGUANG_UI_CONTRIBUTION_ID],

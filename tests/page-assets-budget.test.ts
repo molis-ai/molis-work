@@ -619,7 +619,10 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // Receipts 3b-2c (#687, RCPT-334–337) took the workbench script from the next size; W3-A3c replaced that allowance. W3-A3c
 // (#691, specs/context-program §21.6) took the workbench script from the next size; receipts 3d-2 replaced that allowance.
 // Receipts 3d-2 (#688, RCPT-344–348) took Coding's bundle and the workbench script from the next two; receipts 3d-3 replaced that allowance.
-// Receipts 3d-3 (#700, RCPT-352/353) took Coding's bundle, two stylesheets and the workbench script from the last four; AC-03 (R4) replaced that allowance.
+// Receipts 3d-3 (#700, RCPT-349–353) took Coding's bundle, both stylesheets and the workbench script from the next four; AC-03 (R4) replaced that allowance.
+// AC-03 (#702, specs/ai-interaction-experience R4) took the workbench script from the next sizes; receipts 3d-4 replaced that allowance.
+// Receipts 3d-4 (#706, RCPT-354–356) then used 1109913→1110802; W5-01 keeps both that spent start and its ceiling frozen.
+// W5-01 (#684) used 1110329→1110357 on main; receipts 3e-1 replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -638,6 +641,16 @@ for (const [asset, old] of [
   ["/assets/molis-work-plugins/coding.js", 373784], ["/assets/molis-work-workbench.js", 1108502],
   ["/assets/molis-work-plugins/coding.js", 373970], ["/assets/molis-work-settings.css", 988484], ["/assets/molis-work-workbench.css", 1591639],
   ["/assets/molis-work-workbench.js", 1109302],
+  ["/assets/molis-work-workbench.js", 1109312], ["/assets/molis-work-workbench.js", 1109918],
+  ["/assets/molis-work-workbench.js", 1109913], ["/assets/molis-work-workbench.js", 1110802],
+  ["/assets/molis-work-workbench.js", 1110187], ["/assets/molis-work-workbench.js", 1110215],
+  ["/assets/molis-work-workbench.js", 1110056], ["/assets/molis-work-workbench.js", 1110084],
+  ["/assets/molis-work-workbench.js", 1109330], ["/assets/molis-work-workbench.js", 1110329],
+  ["/assets/molis-work-workbench.js", 1110357],
+  ["/assets/molis-work-workbench.js", 1110116],
+  ["/assets/molis-work-workbench.js", 1111561],
+  ["/assets/molis-work-workbench.js", 1112315],
+  ["/assets/molis-work-workbench.js", 1112375],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -650,32 +663,52 @@ for (const [asset, old] of [
   });
 }
 
-// AC-03 (specs/ai-interaction-experience R4, D14): approved by the user on 2026-10-18 in the interaction line's session, the
-// composer's 「写进问卷」 may grow the workbench script once, from exactly the current baseline to the measured size (+606).
-// One byte more, another asset, or growth from the new baseline still fails.
-test("AC-03 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = {
-    "/assets/molis-work-workbench.js": [1109312, 1109918],
-  } as const;
+// W5-01 Lingguang: approved by the user on 2026-10-17, the shared stream reader may grow workbench.js once,
+// from exactly the prerequisite baseline to the measured size (+2,231 B). One byte more, another
+// asset, or growth from the new baseline still fails.
+test("W5-01 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
+  const allowed = { "/assets/molis-work-workbench.js": [1111791, 1114022] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("ac03-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "ac03-change");
+  branch("w501-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "w501-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "ac03-base").code, 0);
-  assert.equal(gate("--base", "ac03-base").code, 0);
+  assert.equal(gate("--update", "--base", "w501-base").code, 0);
+  assert.equal(gate("--base", "w501-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "ac03-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "w501-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "ac03-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "ac03-base").code, 0);
-  commit("freeze the measured AC-03 size"); git("branch", "-f", "ac03-frozen");
+  assert.equal(gate("--update", "--base", "w501-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "w501-base").code, 0);
+  commit("freeze the measured W5-01 size"); git("branch", "-f", "w501-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "ac03-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "ac03-frozen").code, 1);
+    assert.equal(gate("--base", "w501-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "w501-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
+});
+
+test("W5-01-ALC-RES08: approved continuation UI allowance cannot grow or be reused", () => {
+  const asset = "/assets/molis-work-plugins/alchemist.js";
+  branch("alchemist-res-base", () => { sizes[asset] = 50619; putBudget(sizes); });
+  git("checkout", "-q", "-B", "alchemist-res-change");
+  sizes[asset] = 52373;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 0);
+  assert.equal(gate("--base", "alchemist-res-base").code, 0);
+  sizes[asset]++;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 1);
+  sizes[asset]--;
+  sizes["/assets/a.css"]++;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 1);
+  sizes["/assets/a.css"]--;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 0);
+  commit("freeze the approved Alchemist continuation UI size");
+  git("branch", "-f", "alchemist-res-frozen");
+  sizes[asset]++;
+  putBudget(sizes);
+  assert.equal(gate("--base", "alchemist-res-frozen").code, 1);
+  assert.equal(gate("--update", "--base", "alchemist-res-frozen").code, 1);
 });

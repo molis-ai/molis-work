@@ -24,6 +24,7 @@ export interface PluginHostExecutorOptions {
    * a generated one), whatever its Manifest asks for; the plugin never names a library. Needs `home`.
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+  filesFor?(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
    * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions

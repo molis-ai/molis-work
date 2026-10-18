@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createConnectorAuthorizationMonitor } from "../apps/workbench/dist/scripts/connector-authorization-monitor.js";
-import { beginConnectorAuthorization, connectorAuthorizationStatus, finishConnectorAuthorization } from "../apps/local-host/dist/connector-authorization-status.js";
+import { beginConnectorAuthorization, cancelConnectorAuthorization, connectorAuthorizationStatus, finishConnectorAuthorization } from "../apps/local-host/dist/connector-authorization-status.js";
 import { startApiOAuth, completeApiOAuth } from "../apps/local-host/dist/connector-api-oauth.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 
@@ -73,4 +73,31 @@ test("disconnected custom OAuth never borrows credentials from a product app wit
     keys.forEach((key, i) => { if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i]; });
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+for (const phase of ["before-exchange", "exchange", "identity"] as const) test(`ASC-35 cancelled API OAuth at ${phase} never activates and cannot be replayed`, async () => {
+  const home = mkdtempSync(join(tmpdir(), "molis-api-oauth-cancel-"));
+  try {
+    const origin = "http://localhost:19358";
+    const started = await startApiOAuth(home, { serviceId: "asana", displayName: "Work", clientId: "app", clientSecret: "fixture-secret", origin });
+    const state = new URL(started.authorization_url).searchParams.get("state")!;
+    let reached!: () => void, release!: () => void;
+    const entered = new Promise<void>(resolve => { reached = resolve; });
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    let calls = 0;
+    const transport: typeof fetch = async url => {
+      calls++;
+      const exchange = String(url).includes("oauth_token");
+      if (exchange === (phase === "exchange")) { reached(); await waiting; }
+      return Response.json(exchange ? { access_token: "fixture-access", refresh_token: "fixture-refresh" } : { data: { gid: "account", name: "Work" } });
+    };
+    if (phase === "before-exchange") cancelConnectorAuthorization(home, started.authorization_id);
+    const pending = completeApiOAuth(home, { origin, state, code: "fixture-code" }, transport);
+    if (phase !== "before-exchange") { await entered; assert.equal(cancelConnectorAuthorization(home, started.authorization_id)?.status, "cancelled"); release(); }
+    await assert.rejects(pending);
+    assert.equal(connectorAuthorizationStatus(home, started.authorization_id)?.status, "cancelled");
+    assert.deepEqual(withConnectorConnections(home, store => store.list()), []);
+    await assert.rejects(completeApiOAuth(home, { origin, state, code: "fixture-code" }, transport));
+    if (phase === "before-exchange") assert.equal(calls, 0);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

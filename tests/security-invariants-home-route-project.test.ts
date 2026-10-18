@@ -1,3 +1,4 @@
+// RAC-20: streaming preserves the Host-issued project identity.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-wo
 import type { PluginDefinition, PluginExecutionControl, PluginRouteBinding, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
+import { streamLines } from "./fixtures/plugin-stream.js";
 import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // Security invariant S-31 (docs/system/SECURITY-INVARIANTS.md): a Home plugin's route runs in a project only when the page's path names
@@ -14,6 +16,24 @@ import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-run
 // from the route's query or body, and never from a control the plugin made itself. Without the prefix the route runs in no project.
 
 const issue = { title: "项目里的问题", type: "bug", description: "在项目页面里记下" };
+
+test("S-31 W5-01-STREAM-01 a Home route keeps the Host-issued project's identity while forwarding real action progress", { timeout: 60_000 }, async t => {
+  const { home, host, request, project } = await serveHomeRuntime(t), current = await project("Stream into this project");
+  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(ISSUES_PLUGIN_ID)!;
+  const manifest = platform.supervisor.manifest(ISSUES_PLUGIN_ID)!;
+  const route = manifest.routes!.find(candidate => candidate.route_id === "issues.create")!;
+  const action = platform.runtime.contribution(install.install_id)!.actions!.find(candidate => candidate.capability_id === "issues.create")!;
+  const originalStream = route.stream, originalHandle = action.handle;
+  // Give the real Home action a streamed route for this test. Its owner, SQL and Host-issued project control stay unchanged.
+  route.stream = "ndjson";
+  action.handle = (caller, input) => { caller.on_progress?.({ stage: "saving", progress: 0.5 }); return originalHandle(caller, input); };
+  t.after(() => { if (originalStream === undefined) delete route.stream; else route.stream = originalStream; action.handle = originalHandle; });
+  const lines = await streamLines(await request(`/projects/${current.project_id}/api/plugins/${ISSUES_PLUGIN_ID}/create`, { method: "POST", body: issue }));
+  assert.deepEqual(lines.filter(line => line.type === "progress"), [{ type: "progress", stage: "saving", progress: 0.5 }]);
+  assert.equal(lines.at(-1)?.type, "result");
+  assert.equal(createRows(home).at(-1)?.project_id, current.project_id);
+  assert.equal(createRows(home).at(-1)?.ok, true);
+});
 
 /** The rows the Host's call log kept for Issue's create, oldest first: who asked, from which project, how it ended. */
 function createRows(home: string): Array<{ project_id: string | null; ok: boolean }> {

@@ -71,3 +71,67 @@ test("W4-09-04: an idle studio is closed and opened again by the next action; a 
   await reply;
   await until(() => !studioOpen(), "closed once the action has returned and the studio is idle");
 });
+
+test("LOGIC-07 a request while an idle studio is closing does not open a second one", { timeout: 60_000 }, async t => {
+  const live = new Set<ReturnType<typeof setInterval>>();
+  const [create, clear] = [globalThis.setInterval, globalThis.clearInterval];
+  globalThis.setInterval = ((handler: Parameters<typeof setInterval>[0], ms?: number, ...rest: unknown[]) => {
+    const timer = create(handler, ms, ...rest); if (ms === WORKER_MS) live.add(timer); return timer; }) as typeof setInterval;
+  globalThis.clearInterval = ((timer?: Parameters<typeof clearInterval>[0]) => { live.delete(timer as ReturnType<typeof setInterval>); clear(timer); }) as typeof clearInterval;
+  t.after(() => { globalThis.setInterval = create; globalThis.clearInterval = clear; });
+  const until = async (done: () => boolean, label: string) => {
+    for (let n = 0; n < 200 && !done(); n++) await wait(25);
+    assert.ok(done(), label);
+  };
+  const home = await mkdtemp(join(tmpdir(), "alchemist-studio-closing-"));
+  const { ai } = controlledAlchemistAi();
+  let release: (() => void) | undefined, hung = false;
+  const host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture", idleReclaimMs: 40, wrapStudio(runtime) {
+    if (hung) return;
+    hung = true;
+    const close = runtime.close.bind(runtime);
+    runtime.close = () => new Promise((resolve, reject) => { release = () => { void close().then(resolve, reject); }; });
+  } } });
+  t.after(async () => { release?.(); await host.close(); await rm(home, { recursive: true, force: true }); });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
+  await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, title: "Closing", actor_id: "setup", idempotency_key: "init" }));
+  const caller: ActionCallContext = { actor_id: "owner", project_id: ref.project_id, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS };
+  const bound = bindActionClient(host.actionClient(ref), () => caller);
+  const { direction } = await bound.invoke(a.directionCreate, { description: "关掉的过程中不能再开一个" });
+  assert.equal(live.size, 1);
+  await until(() => release !== undefined, "idle reclaim started closing the studio");
+  await assert.rejects(bound.invoke(a.directionContext, { subject_id: direction.id }), (error: { code?: string }) => error.code === "alchemist.closing");
+  assert.equal(live.size, 1, "the closing studio is still the only one");
+  const finish = release!;
+  release = undefined;
+  finish();
+  await until(() => live.size === 0, "the studio leaves the process table after close finishes");
+  const read = await bound.invoke(a.directionContext, { subject_id: direction.id });
+  assert.equal(read.subject.id, direction.id);
+  assert.equal(live.size, 1, "the next action opens it again");
+});
+
+test("W5-01-ALC-LIFE-07: idle close failure is observed and retains the only studio for explicit retry", { timeout: 20_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "alchemist-idle-failure-"));
+  const { ai } = controlledAlchemistAi();
+  const failed = Promise.withResolvers<void>();
+  let attempts = 0, opened = 0;
+  const host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, idleReclaimMs: 100,
+    wrapStudio(studio) {
+      opened++;
+      const close = studio.close.bind(studio);
+      studio.close = async () => { if (++attempts === 1) { failed.resolve(); throw new Error("idle close failed once"); } await close(); };
+    },
+  } });
+  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
+  await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, title: "Idle failure", actor_id: "setup", idempotency_key: "init" }));
+  const caller: ActionCallContext = { actor_id: "owner", project_id: ref.project_id, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS };
+  const bound = bindActionClient(host.actionClient(ref), () => caller);
+  await bound.invoke(a.bootstrap, {});
+  await failed.promise;
+  await assert.rejects(bound.invoke(a.bootstrap, {}), { code: "alchemist.closing" });
+  assert.equal(opened, 1);
+  await host.close();
+  assert.ok(attempts >= 2, "explicit close retries the retained resource");
+});

@@ -37,7 +37,6 @@ export interface GovernanceCollaborationModuleOptions {
 
 export class GovernanceCollaborationModule implements GovernanceApplicationApi {
   readonly provenance: GovernanceProvenance;
-  readonly repository: GovernanceRepository;
   readonly records: GovernanceRecordsApi;
   readonly decisions: GovernanceApplicationApi["decisions"];
   readonly eventDecisions: GovernanceApplicationApi["eventDecisions"];
@@ -45,14 +44,14 @@ export class GovernanceCollaborationModule implements GovernanceApplicationApi {
 
   constructor(options: GovernanceCollaborationModuleOptions) {
     this.provenance = new GovernanceProvenance();
-    this.repository = new GovernanceRepository(options.db);
+    const repository = new GovernanceRepository(options.db);
     this.records = new GovernanceRecordStore(options.db);
     this.decisions = new GovernanceDecisionTransactions(options.db);
     this.eventDecisions = new GovernanceEventDecisions(
       options.db,
       options.now,
     );
-    this.query = governanceQueries(this.repository);
+    this.query = governanceQueries(repository);
   }
 }
 
@@ -74,13 +73,9 @@ export {
   GOAL_EVENT_TRUSTED_DECISIONS_SQL,
 } from "./event-decisions.js";
 export {
-  GovernanceRepository,
   type GovernanceSqliteDatabase,
   type GovernanceSqliteStatement,
 } from "./repository.js";
-export {
-  GovernanceRecordStore,
-} from "./record-store.js";
 export { assertGovernanceTransition, deriveGoalTreeProposalState } from "./state-machine.js";
 
 function governanceQueries(repository: GovernanceRepository): GovernanceQueryApi {

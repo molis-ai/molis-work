@@ -1,12 +1,19 @@
 import { ActionError, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { createPluginOwnerFilesClient, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { openPluginDatabase } from "./plugin-database.js";
+import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
+import { pluginMaterialsFor } from "./plugin-materials-service.js";
+import { pluginBackgroundFor } from "./plugin-background-service.js";
+import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
+import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
+import type { PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
+import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
@@ -14,6 +21,11 @@ export class HomePluginExecutor implements PluginExecutor {
   constructor(private readonly options: {
     home: string; actorId: string; client: ActionClient;
     database(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+    files(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
+    ownerFiles(definition: PluginDefinition): PluginOwnerFilesBinding | undefined;
+    modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
+    imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
+    projectData(definition: PluginDefinition): PluginProjectCleanup | undefined;
     providerFor(definition: PluginDefinition, installId: string): string;
     qualifyCaller(definition: PluginDefinition, caller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller): (() => void) | undefined;
     storage: SqlitePluginPrivateStorage;
@@ -45,12 +57,14 @@ export class HomePluginExecutor implements PluginExecutor {
     };
     const ui = createPluginUiClient(new UiHost(), context, manifest);
     let database: ReturnType<typeof openPluginDatabase> | undefined;
+    let files: ReturnType<typeof openPluginFiles> | undefined;
+    let background: ReturnType<typeof pluginBackgroundFor>;
     let withdrawAgentDefinitions: (() => void) | undefined;
     let withdrawCaller: (() => void) | undefined;
     const dispose = () => {
-      active = false; withdrawCaller?.();
+      active = false; background?.close(); withdrawCaller?.();
       const failures: unknown[] = [];
-      for (const release of [() => database?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
+      for (const release of [() => database?.close(), () => files?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
@@ -59,21 +73,33 @@ export class HomePluginExecutor implements PluginExecutor {
       const home = pluginHomeFor(this.options.home);
       const declaration = this.options.database(definition);
       if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize);
+      const fileDeclaration = this.options.files(definition);
+      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize);
+      const owned = this.options.ownerFiles(definition);
+      const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
+        { install_id: context.install_id, assertActive, requireGrant: authorize }) : undefined;
+      if (owned?.initialize && context.grants.includes("storage:private") && context.grants.includes(owned.declaration.write_permission)) ownerFiles!.initializeTrusted(owned.initialize);
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
       withdrawCaller = this.options.qualifyCaller(definition, caller);
       const authorized = { ...context, requireGrant: authorize };
-      const model = pluginModelFor(home, definition, authorized, assertActive);
+      const model = pluginModelFor(home, definition, authorized, assertActive, this.options.modelConfiguration(definition));
+      const imageGeneration = pluginImageGenerationFor(home, definition, authorized, this.options.imageGeneration(definition), assertActive);
+      const materials = pluginMaterialsFor(home, definition, authorized, assertActive);
+      background = pluginBackgroundFor(definition, authorized, assertActive);
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, database: database?.client, ...(model ? { model } : {}), ...(storage ? { storage } : {}),
+        ui: ui.client, database: database?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });
       const contribution = await definition.start(hosted);
-      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; withdrawCaller?.(); }, dispose });
+      if (contribution.kind === "app" && contribution.onProjectDeleted && !this.options.projectData(definition)) {
+        throw new ActionError("actions.forbidden", "项目清理回调缺少可信 Home 数据主人声明");
+      }
+      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose });
       return { contribution };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }

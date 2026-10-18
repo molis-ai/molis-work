@@ -1,13 +1,7 @@
-import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { defineInstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DEFAULT_JUDGMENT_WORDING } from "@molis-ai/molis-work-kernel/contextual";
 
 /** Prompts the Host itself sends outside any Plugin manifest. A leaf module: the register and the callers both import it. */
-export const COGNIA_OWNER = "io.molis.work.cognia";
-/** The role Cognia's knowledge answers run as, registered so the person can see and edit it. */
-export const COGNIA_EVIDENCE_PROMPT: AgentPromptText = { prompt_id: "cognia-evidence", version: 2, layer: "base",
-  body: "你在 Cognia 里帮用户整理收集来的资料，或回答关于这些资料的问题。用户会把结果存进知识库、以后引用，所以每个说法都要能在给定的资料里找到；资料不够就直说缺什么，不拿资料以外的知识来补。" };
-
 /** Project onboarding reads imported materials in parts and proposes a project to continue from. */
 export const ONBOARDING_OWNER = "system:onboarding";
 const EVIDENCE_RULES = "仅输出 Markdown，第一行 # 简短标题，其后正文。每项事实沿用原始 [S1] 形式引用，不能重新编号或虚构来源。";

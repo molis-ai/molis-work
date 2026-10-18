@@ -1,4 +1,5 @@
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
 import { applySqliteBaseline, createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, runWithMolisWorkHome, type SecretStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
@@ -21,20 +22,29 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
   const directory = alchemistProjectDirectory(options.homeDirectory, options.projectId);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const storage = new LocalSqliteStorage(path.join(directory, "search.sqlite"));
+  const calls = new AsyncLocalStorage<Parameters<AlchemistAiPort["search"]>[0]>();
+  const currentCall = () => {
+    const call = calls.getStore();
+    if (!call) throw new Error("alchemist.search_authority_missing");
+    return call;
+  };
+  const assertCurrent = () => { const call = currentCall(); call.signal?.throwIfAborted(); call.assertCurrent?.(); };
   const runtime = (() => {
     try {
       applySqliteBaseline(storage.db, storage.path, ALCHEMIST_SEARCH_BASELINE);
       return runWithMolisWorkHome(options.homeDirectory, () => {
         const secretStore = options.secretStore ?? createFileSecretStore();
-        return createSearchEvidenceRuntime({ db: storage.db, secretStore,
+        return createSearchEvidenceRuntime({ db: storage.db, secretStore, assertCurrent,
+          beforeDispatch: async () => { await currentCall().beforeDispatch?.(); assertCurrent(); },
           content: createEvidenceContentStore({ secretStore, rootDirectory: path.join(directory, "search-content") }) });
       });
     } catch (error) { storage.close(); throw error; }
   })();
-  let closing: Promise<void> | undefined;
-  return {
-    search: input => runWithMolisWorkHome(options.homeDirectory, async () => {
+  let closing: Promise<void> | undefined, stopped = false, runtimeClosed = false;
+  const active = new Set<Promise<Awaited<ReturnType<AlchemistAiPort["search"]>>>>();
+  const search: AlchemistAiPort["search"] = input => runWithMolisWorkHome(options.homeDirectory, async () => {
       input.signal?.throwIfAborted();
+      await input.beforeDispatch?.();
       const selectors = [{ kind: "provider" as const, value: "anysearch" }, { kind: "channel" as const, value: "web" as const },
         { kind: "source_definition" as const, namespace: "app" as const, value: "anysearch" }];
       const result = await runtime.intelligenceCollect.executeExact({
@@ -60,11 +70,20 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
       }
       if (!sources.length) throw Object.assign(new Error("公开来源未提供可用正文；本次研究仍未知，请调整范围后重试。"), { code: "alchemist.research_no_sources" });
       return sources;
-    }),
+    });
+  return {
+    async search(input) {
+      if (stopped) throw new Error("alchemist.search_closed");
+      const work = calls.run(input, () => search(input)); active.add(work);
+      try { return await work; } finally { active.delete(work); }
+    },
     shutdown() {
+      stopped = true;
       return closing ??= runWithMolisWorkHome(options.homeDirectory, async () => {
-        try { await runtime.shutdown(); } finally { storage.close(); }
-      });
+        await Promise.allSettled([...active]);
+        if (!runtimeClosed) { await runtime.shutdown(); runtimeClosed = true; }
+        storage.close();
+      }).catch(error => { closing = undefined; throw error; });
     },
   };
 }

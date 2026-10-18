@@ -99,6 +99,13 @@ export async function dispatchRuntimePluginRoute(
   const result = await router.dispatch(input);
   if (!result) return false;
   await hooks.afterDispatch?.(result);
-  sendLocalWebJson(response, result.status, withPluginInteraction(result.body));
+  if (result.bytes !== undefined) {
+    const raster = ["image/png", "image/jpeg", "image/webp"].includes(result.mime ?? "");
+    const disposition = raster && result.disposition === "inline" ? "inline" : "attachment";
+    response.writeHead(result.status, { "content-type": raster ? result.mime! : "application/octet-stream",
+      "content-disposition": disposition + "; filename*=UTF-8''" + encodeURIComponent(result.filename ?? "material"),
+      "x-content-type-options": "nosniff", "content-security-policy": "sandbox", "cache-control": "no-store" });
+    response.end(result.bytes);
+  } else sendLocalWebJson(response, result.status, withPluginInteraction(result.body));
   return true;
 }

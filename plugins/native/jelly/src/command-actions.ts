@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { withActionEffect, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JellyItem, JellyNote, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
-import type { JellyStore } from "./store.js";
+import type { JellyStores } from "./store.js";
 import * as s from "./action-schema.js";
 import { JELLY_ITEM_SUBJECT_KIND, JELLY_NOTE_SUBJECT_KIND } from "./search.js";
 
@@ -96,13 +96,13 @@ const entries: Partial<Record<keyof typeof jellyCommandActions, EntryTarget>> = 
   "note.restore": byId("note"),
 };
 const pools: Record<JellyEntryKey, (state: JellyWorkspace) => readonly { id: string }[]> = { item: state => state.items, series: state => state.series, note: state => state.notes };
-export function createJellyCommandHandlers(withStore: <T>(run: (store: JellyStore) => T) => T): ActionHandlerBinding[] {
+export function createJellyCommandHandlers(stores: JellyStores): ActionHandlerBinding[] {
   return Object.entries(jellyCommandActions).map(([type, definition]) => ({ capability_id: definition.capability_id, version: definition.version,
     handle: (caller, raw) => {
       caller.signal?.throwIfAborted();
       const { expected_revision, ...input } = raw as JellyCommandInput;
       const target = entries[type as keyof typeof jellyCommandActions], fields = target?.prepare?.(input) ?? input;
-      return withStore(store => {
+      return stores.write(caller, store => {
         const state = store.execute({ type, ...fields }, expected_revision);
         if (!target) return { state };
         const id = target.id(fields, state);

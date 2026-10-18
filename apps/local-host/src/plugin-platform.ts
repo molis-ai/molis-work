@@ -32,7 +32,9 @@ import type { PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
+import { assertFilesEntries } from "./plugin-files-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
+import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -53,8 +55,9 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
  * One entry of the Host's own start list. `database` is the library in the Home the Host gives that plugin as
  * `services.database`; the entry names it, never the plugin (`assertDatabaseEntries` says what a list may declare).
  */
-export interface PluginPlatformEntry extends PluginSupervisorEntry {
+export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "owner_files" | "initialize_owner_files"> {
   readonly database?: PluginDatabaseDeclaration;
+  readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
 }
 
 export interface PluginPlatformOptions {
@@ -126,6 +129,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     providerFor,
     qualifyCaller: identity.qualifyCaller,
     databaseFor: identity.databaseFor,
+    filesFor: identity.filesFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
@@ -214,6 +218,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
         listed.add(definition.manifest.plugin_id);
       }
       assertDatabaseEntries(entries, options.home);
+      assertOwnerFilesEntries(options.home ? homeOwnerFilesEntries(options.home.directory) : [], entries, options.home);
+      assertFilesEntries(entries, options.home);
       identity.remember(entries);
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.

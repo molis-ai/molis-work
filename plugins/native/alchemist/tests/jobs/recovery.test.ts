@@ -1,3 +1,4 @@
+import { acceptTestJob } from "../fixtures/job-authority.js";
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
@@ -13,7 +14,7 @@ import { createExplorationService } from "../../src/studio/server/services/creat
 import { createTempDatabase } from "../db/helpers/temp-database.js";
 
 describe("SqliteJobRunner recovery", () => {
-  it("requeues an expired job from its checkpoint without duplicating persisted cards", async () => {
+  it("W5-01-ALC-RES01/04 explicitly accepts an expired job from its checkpoint without duplicating persisted cards", async () => {
     const temp = createTempDatabase();
     const database = openDatabase(temp.path);
     try {
@@ -49,7 +50,7 @@ describe("SqliteJobRunner recovery", () => {
         clock: mutableClock,
       });
       const receipt = createExploration({ directionId: direction.id });
-      const claimed = firstRunner.claimNext();
+      const claimed = firstRunner.claim(receipt.jobId);
       expect(claimed?.id).toBe(receipt.jobId);
 
       const checkpoint = FixtureAiRuntimeAdapter.exampleCheckpoint({
@@ -69,9 +70,8 @@ describe("SqliteJobRunner recovery", () => {
         idFactory,
         leaseMs: 1_000,
       });
-      expect(restartedRunner.recoverExpired()).toBe(1);
       expect(restartedRunner.get(receipt.jobId)).toMatchObject({
-        status: "queued",
+        status: "running",
         checkpoint,
       });
 
@@ -84,8 +84,10 @@ describe("SqliteJobRunner recovery", () => {
           clock: mutableClock,
         }),
       );
+      expect(await worker.runNext()).toBe(false);
+      acceptTestJob(worker, receipt.jobId);
       await worker.runNext();
-      await worker.runNext();
+      expect(await worker.runNext()).toBe(false);
 
       expect(restartedRunner.get(receipt.jobId)?.status).toBe("completed");
       expect(explorations.get(receipt.runId)?.cards).toHaveLength(checkpoint.cards.length);
@@ -93,8 +95,6 @@ describe("SqliteJobRunner recovery", () => {
         "queued",
         "running",
         "checkpoint_saved",
-        "interrupted",
-        "queued",
         "running",
         "completed",
       ]);

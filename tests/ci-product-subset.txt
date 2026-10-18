@@ -38,6 +38,10 @@ tests/home-event-actions.test.ts
 tests/i18n.test.ts
 tests/inbox-action-scenes.test.ts
 tests/jelly-actions.test.ts
+tests/home-plugin-project-cleanup.test.ts
+tests/home-plugin-project-routes.test.ts
+tests/plugin-model-configuration.test.ts
+tests/plugin-image-generation.test.ts
 tests/local-web-actions.test.ts
 tests/mcp.test.ts
 tests/pages-actions.test.ts
@@ -263,6 +267,7 @@ tests/plugin-isolation-restart.test.ts
 tests/plugin-lifecycle-states.test.ts
 tests/plugin-market-catalog.test.ts
 tests/plugin-model-generation.test.ts
+tests/plugin-model-selection.test.ts
 tests/plugin-notification-bell.test.ts
 tests/plugin-package.test.ts
 tests/plugin-panel-seam.test.ts
@@ -342,6 +347,7 @@ tests/chrome-inner-scroll.test.ts
 tests/cli-protocol.test.ts
 tests/codex-transport.test.ts
 tests/cognia-ai.test.ts
+tests/cognia-runtime.test.ts
 tests/cognia-workbench.test.ts
 tests/contextual-interaction.test.ts
 tests/coss-control-language.test.ts
@@ -447,6 +453,9 @@ tests/workflows-stop-and-token.test.ts
 tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
+tests/security-invariants-plugin-files.test.ts
+tests/action-background-authority.test.ts
+tests/security-invariants-plugin-background.test.ts
 
 tests/connector-status.test.ts
 tests/connector-consumer-usages.test.ts

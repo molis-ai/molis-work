@@ -8,7 +8,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, createMolisWorkLocalHost, molisWorkHostProjectReference, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions as alchemist, ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { IMAGES_STORE_BASELINE } from "@molis-ai/molis-work-plugin-images";
+import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
 import { applySqliteBaseline, createFileSecretStore, homeSqlitePath, openHomeSqliteDatabase, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 
@@ -105,7 +105,7 @@ test("a running Host's owners clear what only they can: pictures being made, the
     mkdirSync(join(home, "images", "assets"), { recursive: true });
     writeFileSync(join(home, "images", "assets", "aaaa-0001.png"), "png");
     const images = openHomeSqliteDatabase(home, "images");
-    applySqliteBaseline(images, homeSqlitePath(home, "images"), IMAGES_STORE_BASELINE);
+    applySqliteBaseline(images, homeSqlitePath(home, "images"), IMAGES_DATABASE);
     images.prepare(`INSERT INTO jobs (id,project_id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
       VALUES ('job-1',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(project.project_id, "request-1", "hash", "c", "c", "openai-images", "m", "提示词", "", "", "succeeded",
       JSON.stringify([{ id: "i", filename: "aaaa-0001.png", mime_type: "image/png", byte_length: 3 }]), "", new Date().toISOString(), new Date().toISOString(), null);

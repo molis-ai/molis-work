@@ -1,7 +1,7 @@
 import type { AiRuntimePort, GenerationResult, RuntimeModel, StructuredGenerationRequest } from "../../domain/kernel/ports.js";
 import type { RuntimeSettings } from "../../domain/settings/runtime-settings.js";
 import type { RuntimeSettingsDto } from "../../shared/contracts/settings.js";
-import type { SqliteSettingsRepository } from "../db/settings-repository.js";
+import { defaultRuntimeSettings, type SqliteSettingsRepository } from "../db/settings-repository.js";
 import { generateWithHost, type AlchemistAiPort } from "./host-port.js";
 import type { AlchemistEffectControl } from "../services/action-operations.js";
 
@@ -15,11 +15,27 @@ export class RuntimeSelector implements AiRuntimePort {
   constructor(private readonly options: RuntimeSelectorOptions) {}
   async listModels(): Promise<readonly RuntimeModel[]> { return this.options.ai.listModels(); }
   async generateStructured<Result>(input: StructuredGenerationRequest<Result>): Promise<GenerationResult<Result>> {
+    if (input.modelId) {
+      if (!(await this.listModels()).some(model => model.id === input.modelId)) throw new Error("alchemist.runtime_model_unavailable");
+      return generateWithHost(this.options.ai, input, input.modelId);
+    }
     const settings = this.settings();
     const models = await this.listModels();
     const selected = settings.modelPolicy === "fixed" ? models.find(model => model.id === settings.modelId) : models[0];
     if (!selected) throw new Error(settings.modelPolicy === "fixed" ? "alchemist.runtime_model_unavailable" : "alchemist.runtime_not_configured");
     return generateWithHost(this.options.ai, input, selected.id);
+  }
+  selectionIdentity(): string {
+    const { modelId, modelPolicy, updatedAt } = this.settings();
+    return JSON.stringify({ modelId, modelPolicy, updatedAt });
+  }
+  async captureSelection(): Promise<{ modelId: string; identity: string }> {
+    const settings = this.settings(), identity = this.selectionIdentity();
+    const models = await this.listModels();
+    if (identity !== this.selectionIdentity()) throw new Error("alchemist.resume_context_changed");
+    const selected = settings.modelPolicy === "fixed" ? models.find(model => model.id === settings.modelId) : models[0];
+    if (!selected) throw new Error(settings.modelPolicy === "fixed" ? "alchemist.runtime_model_unavailable" : "alchemist.runtime_not_configured");
+    return { modelId: selected.id, identity };
   }
   async isRealEnabled(): Promise<boolean> { return (await this.getPublicSettings()).configured; }
   async getPublicSettings(): Promise<RuntimeSettingsDto> { return this.publicSettings(this.settings(), await this.listModels()); }
@@ -37,8 +53,7 @@ export class RuntimeSelector implements AiRuntimePort {
   }
   private settings(): RuntimeSettings {
     const settings = this.options.settings.get(this.options.workspaceId);
-    if (!settings) throw new Error("alchemist.runtime_settings_not_found");
-    return settings;
+    return settings ?? defaultRuntimeSettings(this.options.workspaceId);
   }
   private publicSettings(settings: RuntimeSettings, models: readonly RuntimeModel[]): RuntimeSettingsDto {
     const selected = settings.modelPolicy === "fixed" ? models.find(model => model.id === settings.modelId) : models[0];

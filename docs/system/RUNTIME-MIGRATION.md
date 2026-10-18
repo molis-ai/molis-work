@@ -1,14 +1,14 @@
 # 内置插件迁到 Plugin Runtime：计划
 
-状态：计划，2026-10-08 按 origin/main `31c357df` 核实（行号与计数都在这个提交上重量过；2026-10-10 删除实验插件后，目录条目、名单与手写接线的计数按删掉的部分扣减，行号只改了下面标明的几处）。2026-10-16 按 origin/main `76758783` 重核名单（只改了下面目录条数、三份名单与这一句）：第一个样板 Form 已由项目监督器启动（W4-04），Issues 是 Home 监督器启动的 Home 级插件；第二个样板 Todo 仍在构建期名单上，尚未开始。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进宿主（第 5.4 节）。
+状态：执行中。2026-10-18 按本地 W5-01 整合候选核对：Form、灵光、PPT、Dataset 由项目监督器启动，Issues、Todo、Cognia、Images、Jelly 由 Home 监督器启动；Todo 的 #684 已合入，后续候选仍待各自正式合入，不能用本地名单代替 main 状态。第 2.1 节为当前代码，其他标明日期的行号、接线数量和缺口保留调研时口径。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进宿主（第 5.4 节）。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
 
 ## 白话说明
 
-内置插件现在有两种装配方式。**经 Plugin Runtime**：监督器启动，有安装记录、升级检查、崩溃恢复，HTTP 由 Manifest 声明；有 7 个，其中 Characters 已定并进宿主、不再算（第 5.4 节）。**构建期组合**：宿主里手写一行 `registerProvider`、一个 `<插件>-native-plugin-http.ts`、`web-request.ts` 里的一段路由，没有安装记录和升级检查；有 18 个，名单冻结，只许减少（实验插件已在 2026-10-10 删除，不在其中）。两种方式的插件在工作台里都有目录条目。迁移就是把这 18 个里的 14 个逐个搬到第一种方式（另 4 个是批准的例外），每搬一个，删掉它在宿主里的文件和接线。数据不动：库留在原处，用户看到的界面不变。迁完后经 Runtime 装配的是 20 个（现有 6 个加迁来的 14 个），构建期只剩 4 个例外。
+内置插件现在有两种装配方式。**经 Plugin Runtime**：监督器启动，有安装记录、升级检查、崩溃恢复，HTTP 由 Manifest 声明；本地候选有 16 个，其中 Characters 已定并进宿主（第 5.4 节）。**构建期组合**：宿主里手写一行 `registerProvider`、一个 `<插件>-native-plugin-http.ts`、`web-request.ts` 里的一段路由，没有安装记录和升级检查；本地候选还剩 10 个，名单冻结，只许减少。两种方式的插件在工作台里都有目录条目。迁移逐个删除插件在宿主里的专用文件和接线，最终构建期只剩 4 个批准例外。库留在原处，界面与业务事实保持；每片完成程度和验证见防腐 spec。
 
-Home 路径沿已有 Issue 的 `HomePluginHost` / `HomePluginExecutor`，不再建第二个平台。安装、发行物和安装隔离 KV 为完整 v2，旧版与坏结构严格拒绝；迁移来的插件业务表仍留原 SQLite。数据库/模型/动作/指令与生命周期复用现有共同服务；Home HTTP 共用 operations，项目 scope 由真实客户端给，不从路由前缀或输入制造。项目删除仍向现行 catalog 的数据 owner 调清理，不新增 Runtime 删除事件。相关验收与待运行工程证据见防腐 spec §10.2。
+Home 路径沿已有 Issue 的 `HomePluginHost` / `HomePluginExecutor`，不再建第二个平台。安装、发行物和安装隔离 KV 为完整 v2，旧版与坏结构严格拒绝；迁移来的插件业务表仍留原 SQLite。数据库/模型/动作/指令与生命周期复用现有共同服务；Home HTTP 共用 operations，Host 验证路径中的项目存在、插件可见后给本次调用建立项目身份，不信请求体或 query 自称的项目。项目删除仍向现行 catalog 的数据 owner 调清理；可信 Home 条目可声明同步停止回调，由同一 owner 在 purge 前送给当前实例，停用后回到原离线清理。相关验收与待运行工程证据见防腐 spec 的 W5-01 段。
 
 ## 1. 用户已定的决定
 
@@ -32,15 +32,17 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 ## 2. 现状（按代码）
 
-### 2.1 25 个目录条目
+### 2.1 26 个目录条目
 
 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条，在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
-- `RUNTIME_ASSEMBLED`（8）：characters、shelf、coding、files、git、diff、text-stats、form，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 7。
-- Home 级（1）：issues，目录条目带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
-- `BUILD_TIME_ASSEMBLED`（17）：alchemist、artifacts、cognia、dataset、feed、goals、images、inbox、jelly、lingguang、pages、plugin-builder、ppt、schedule、sessions、workflows、todo。
+- `RUNTIME_ASSEMBLED`（11）：characters、shelf、coding、files、git、diff、text-stats、form、lingguang、ppt、dataset，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 10。
+- Home 级（5）：issues、todo、cognia、images、jelly，目录条目带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
+- `BUILD_TIME_ASSEMBLED`（10）：alchemist、artifacts、feed、goals、inbox、pages、plugin-builder、schedule、sessions、workflows。
 
-宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
+PPT 的本地 Runtime 迁移候选已实现（见防腐 spec W5-01-PPT；宿主 `ppt-actions.ts`/`ppt-native-plugin-http.ts` 已删，尚未推送/合入）。
+
+以下接线数量为原迁移调研基线，不能当作当前完成证据；Form、Todo、灵光、Cognia、Images、Jelly 已删除各自的动作/HTTP适配；Images 的专用 Host 服务也已移除。宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
 
 ### 2.2 18 个构建期插件的分类与放置
 
@@ -71,7 +73,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 - **Home 级实例**：提供方今天在 Home 级登记一次的（`apps/local-host/src/project-host.ts` 第 225–237 行用 `this.host.actionRegistry()`，不带项目；其中第 237 行 Shelf 个人库的提供方属混合插件，另算）：Todo、Jelly、Cognia、Images、Alchemist，共 5 个。
 - **每个项目一个实例**：提供方今天按项目登记的（同文件第 189–206 行，`this.host.actionRegistry(reference)`）：Form、Dataset、PPT、Pages、灵光、Workflows、Inbox、Schedule、Feed，共 9 个。监督器条目放在 `project-plugins.ts` 的 `startPlatform`，和 Shelf、Coding 一族一样。
-- **与决定原文的差别，要用户确认（第 10 节第 3 项）。** 目录里 Form、Dataset、PPT、Pages、灵光、Workflows 也标了 `personal: true`，字面读决定会把它们也放进 Home 级实例。这里没有那样读，原因有二：一是路线图决定 10 的选项把 Form 描述为 project-scoped，推荐理由写明 Form 不必等 Home 级服务（`roadmap-2026-10-07.md` 决定 10），用户选了这一项；二是目录的 `personal` 标志在代码里只表示「每个项目都可用，不进项目启用列表」（`apps/local-host/src/project-action-availability.ts` 对 `personal` 返回不检查项目启用，`web-request.ts` 的 `enablePlugin` 拒绝 `personal` 条目，`skills/molis-plugin-dev/elements.md` 第 48 行同义），并不等于「Home 级登记」。如果用户的意思是字面读法，这 6 个也上 Home 级实例，结果只有两处变：Form 样板（W4-04）要等 W3-06 的 Home 级实例（它本来就依赖 W3-06 这一片，所以顺序不变），以及这 6 个的监督器条目从 `project-plugins.ts` 的 `startPlatform` 挪到 Home 级实例的装配处。
+- **用户已确认（2026-10-10，防腐 spec §1）。** Form、Dataset、PPT、Pages、灵光、Workflows 每个项目一个 Runtime 实例，原 Home 库仍按项目分区；Todo、Jelly、Cognia、Images、Alchemist 是 Home 级实例。目录的 `personal` 仍只表示每个项目都可用，不决定实例作用域。
 
 **混合插件**（在 `RUNTIME_ASSEMBLED` 里，宿主却仍留着手写文件，门禁看不出来）：Shelf 仍有 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、`shelf-actions.ts`、`shelf-ai.ts`，并在 `project-host.ts` 里登记两个提供方（项目一份、Home 一份）。它的收拢在 W5-01 的最后一组。Characters 原来也是混合插件（宿主里有 `characters-host.ts` 等文件），现在走另一条路：并进宿主（第 5.4 节）。
 
@@ -238,10 +240,10 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 | 指标 | 现在 | 全部迁完后的目标 |
 | --- | --- | --- |
 | 目录条目 | 25 | 24（Characters 并进宿主后少一条） |
-| `RUNTIME_ASSEMBLED`（Runtime 装配的内置插件） | 7 | 20（现有 6 个，Characters 移出，加迁来的 14 个） |
-| `BUILD_TIME_ASSEMBLED`（构建期装配的内置插件） | 18 | 4（Goals、Artifacts、Sessions、插件创作台） |
-| `apps/local-host/src/*-native-plugin-http.ts` | 17 个文件，905 行 | 1 个（`artifact-native-plugin-http.ts`，208 行） |
-| 以插件命名的 `apps/local-host/src/*-actions.ts` | 16 个，593 行 | 3 个（`artifact-actions.ts`、`goals-actions.ts`、`work-actions.ts`，共 136 行） |
+| `RUNTIME_ASSEMBLED`（Runtime 装配的内置插件） | 9 | 20（现有 6 个，Characters 移出，加迁来的 14 个） |
+| `BUILD_TIME_ASSEMBLED`（构建期装配的内置插件） | 16 | 4（Goals、Artifacts、Sessions、插件创作台） |
+| `apps/local-host/src/*-native-plugin-http.ts` | 15 个文件 | 1 个（`artifact-native-plugin-http.ts`，208 行） |
+| 以插件命名的 `apps/local-host/src/*-actions.ts` | 15 个 | 3 个（`artifact-actions.ts`、`goals-actions.ts`、`work-actions.ts`，共 136 行） |
 | `project-host.ts` 里按插件逐个登记的 `registerProvider` | 16 行 | 0 |
 | 新增一个内置插件在包外的手改文件数（外加门禁名单一行与 SSOT 一行，两端都要） | 12（见 EXTENSION-POINTS.md 3.1） | 1（要 X-1；没有 X-1 是 4） |
 
@@ -251,7 +253,7 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 
 1. **提供方身份**（4.2）：**已定（用户 2026-10-10，W3-06 C）：内置插件一律用插件名（`plugin_id`），实现见 4.2 提供方身份一条的「已定并实现」；下面是做决定前的写法。** 内置实例保持 `plugin_id`（倾向）、改写存量引用、还是接受重新授权。后两项不只动用户的真实 Home，还要改写死 `provider_id` 的 13 行代码（11 个文件）：自钉死要改成不写死，跨插件的钉死要去掉 `provider_id` 或另想办法（4.2 选项 (b)），而且 Pages、Inbox 的迁移顺序受它约束；保持 `plugin_id` 则这些都不用动。涉及用户的真实 Home，要用户定。
 2. **内置插件的授权规则**（4.2）：**已定（用户 2026-10-10，W3-06 B）：改 bundled 的授予规则，内置插件拿清单声明的全部权限，实现见 4.2 授权一条第 5 点。** 下面是做决定前的写法：把动作用到的权限都标必需、监督器条目传显式 `grants`、还是改 bundled 的授予规则（倾向最后一个）。对所有迁来的插件一样，Form 样板之前必须定。由 W3-06 设计稿拍板，需要评审，因为它改的是授权语义。
-3. **放置规则的读法**（2.2）：本计划按「提供方今天怎么登记」放（6 个 Home 级、9 个每项目一个），Form、Dataset、PPT、Pages、灵光、Workflows 因此在每个项目一个的实例里。如果决定「个人插件装在一个 Home 级实例」要按目录 `personal` 标志字面读，这 6 个也上 Home 级实例。要用户确认。
+3. **放置规则已定**（2.2）：按 2026-10-10 用户决定，Form、Dataset、PPT、Pages、灵光、Workflows 每个项目一个；`personal` 不决定实例作用域。
 4. **项目库内的插件表**（4.2）：Inbox、Schedule、Feed 先按现状只迁动作和界面，还是另设项目库服务。
 5. **「项目已删」步骤的送达**（4.2 末项）：倾向做成 Home 库登记项里的「按文件清除某个项目」函数。由 W3-06 与 W4-11 的设计稿定；要补进 W3-06 的描述。
 6. **例外的复审**（第 3 节）：W6-01 前复核四个例外的建议是否采纳。

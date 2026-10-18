@@ -67,18 +67,18 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
     calls.push({ method, path: parsed.pathname, body, keepalive: init?.keepalive });
     if (parsed.pathname === "/api/placement/describe") return json({ associations: [] });
-    if (parsed.pathname === "/api/plugins/lingguang") {
+    if (parsed.pathname === "/api/plugins/io.molis.work.lingguang/sparks") {
       if (method === "GET") return json({ sparks: [...store.values()].filter(item => item.status === "inbox") });
       created += 1;
       const made = spark(`S${created}`, String(body.title ?? "未命名灵光"), String(body.body ?? ""));
       store.set(made.id, made);
       return json({ spark: made });
     }
-    if (parsed.pathname === "/api/plugins/lingguang/conversations") {
+    if (parsed.pathname === "/api/plugins/io.molis.work.lingguang/sparks/conversations") {
       const ids = body.spark_ids as string[];
       return json({ conversation: { id: "C1" }, sparks: ids.map(id => store.get(id)), messages: [] });
     }
-    if (parsed.pathname === "/api/plugins/lingguang/discard") {
+    if (parsed.pathname === "/api/plugins/io.molis.work.lingguang/sparks/discard") {
       const refused = options.discard?.(); if (refused) return refused;
       // The Host's guard, the same as lingguang.update's: a spark that is no longer the copy the caller read is not discarded.
       const ids = body.ids as string[], expected = body.expected_updated_at as Record<string, string> | undefined;
@@ -123,7 +123,7 @@ async function mounted(initial: Spark[], options: { onGet?: (spark: Spark) => Sp
       if (next.body !== undefined) part("[data-lingguang-body]").value = next.body;
       await part("[data-lingguang-stage-workspace]").listeners.input?.({ target: { closest: () => ({}) } });
     },
-    discards: () => calls.filter(call => call.path === "/api/plugins/lingguang/discard"),
+    discards: () => calls.filter(call => call.path === "/api/plugins/io.molis.work.lingguang/sparks/discard"),
     restore() { Object.assign(globalThis, { fetch: saved.fetch, document: saved.document, window: saved.window, location: saved.location }); },
   };
 }
@@ -205,10 +205,10 @@ test("a spark that went into a brainstorm is in use: leaving it does not throw i
   try {
     await page.fire(click("[data-lingguang-capture]"));
     await page.fire(click(BRAINSTORM));
-    assert.deepEqual(page.calls.filter(call => call.path === "/api/plugins/lingguang/conversations").map(call => call.body.spark_ids), [["S1"]]);
+    assert.deepEqual(page.calls.filter(call => call.path === "/api/plugins/io.molis.work.lingguang/sparks/conversations").map(call => call.body.spark_ids), [["S1"]]);
     await page.fire(click("[data-lingguang-back]"));
     assert.equal(page.discards().length, 0);
-    assert.equal(page.calls.some(call => call.method === "GET" && call.path === "/api/plugins/lingguang/S1"), false, "it is not even read: it was never going to be thrown away");
+    assert.equal(page.calls.some(call => call.method === "GET" && call.path === "/api/plugins/io.molis.work.lingguang/sparks/S1"), false, "it is not even read: it was never going to be thrown away");
     assert.equal(page.store.get("S1")?.status, "inbox");
     // The same when it is left by the page being hidden while the chat is open.
     await page.fire(click("[data-lingguang-capture]"));
@@ -227,7 +227,7 @@ test("when the workbench hides the page for another plugin, the blank spark is t
     page.lifetime.hideSurface(); await page.elapse();
     assert.deepEqual(page.discards().map(call => call.body.ids), [["S1"]]);
     assert.equal(page.discards()[0]!.keepalive, undefined, "an ordinary call: the page is still here");
-    assert.ok(page.calls.findIndex(call => call.method === "GET" && call.path === "/api/plugins/lingguang/S1") < page.calls.indexOf(page.discards()[0]!), "the Host's copy was read first");
+    assert.ok(page.calls.findIndex(call => call.method === "GET" && call.path === "/api/plugins/io.molis.work.lingguang/sparks/S1") < page.calls.indexOf(page.discards()[0]!), "the Host's copy was read first");
     assert.equal(page.editorOpen(), false, "what comes back is the list");
     assert.equal(page.store.get("S1")?.status, "discarded");
     assert.equal(page.store.get("OLD")?.status, "inbox");
@@ -310,7 +310,7 @@ test("when the page goes away, the blank spark is thrown away with a call that o
     await page.fire(click("[data-lingguang-capture]"));
     page.lifetime.unload(); await page.elapse();
     assert.deepEqual(page.discards().map(call => [call.body.ids, call.keepalive]), [[["S1"], true]]);
-    assert.equal(page.calls.some(call => call.method === "GET" && call.path === "/api/plugins/lingguang/S1"), false, "no time to read the Host's copy first");
+    assert.equal(page.calls.some(call => call.method === "GET" && call.path === "/api/plugins/io.molis.work.lingguang/sparks/S1"), false, "no time to read the Host's copy first");
     assert.equal(page.store.get("S1")?.status, "discarded");
     // The workbench keeps the record open in a page so a reload reopens it, and forgets it when the page reports it is back at its
     // list (data-expanded false). A reopen of a spark that was just thrown away would show 「这条灵光已丢掉或不存在」 on every reload.

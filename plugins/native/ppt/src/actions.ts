@@ -5,7 +5,8 @@ import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
 import { PPT_ARTIFACT_TYPE_ID, PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { promotePpt, type PptLineHeadPort, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
-import type { PptStore } from "./store.js";
+import type { PptStore, PptStores } from "./store.js";
+import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPptSearchHandlers, pptSearchActions } from "./search.js";
 import { pptArtifactPreview, pptArtifactPreviewHandler } from "./artifact-preview.js";
 import { pptErrors } from "./error.js";
@@ -66,11 +67,14 @@ export const pptActions = {
   subject: pptSearchActions.subject,
 };
 export const PPT_ACTION_PERMISSIONS = [...new Set(Object.values(pptActions).flatMap(definition => definition.action.permissions))];
-export interface PptActionPorts {
-  withStore<T>(run: (store: PptStore) => T): T;
+export interface PptActionPorts extends PptStores {
   /** Whether the current text model can be asked; absent means no model in this environment. */
   modelAvailability?(): ActionAvailability;
-  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<string>;
+  /** The full result, so the synchronous `validateResult()` can run inside the write transaction. */
+  complete?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }): Promise<PluginModelResult>;
+  /** Publication has two commits (intent, then completion); a facade keeps a failed artifact write recoverable. */
+  promote?(caller: ActionExecutionContext, id: string, projectId: string, expectedVersion: number | undefined,
+    publishArtifact: PptPublishArtifactPort): ReturnType<typeof promotePpt>;
   /** Pages documents through Pages' public content actions, with the caller's own authority; absent when Pages is not reachable. */
   listPages?(caller: ActionCallContext): Promise<Array<{ id: string; title: string; updated_at: string | null }>>;
   readPage?(pageId: string, caller: ActionCallContext): Promise<{ title: string; body: string }>;
@@ -111,29 +115,34 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
   };
   const modelAvailability = (): ActionAvailability => ports.modelAvailability ? ports.modelAvailability() : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, retainActionAuthority(caller, { capability_id: definition.capability_id, version: definition.version, provider_id: PPT_PLUGIN_ID }, caller.beforeEffect)), ...(availability ? { availability } : {}) });
-  const promote = (id: string, caller: ActionCallContext, expectedVersion?: number) => ports.withStore(store => promotePpt(store, id, project(caller), value => ports.publishArtifact!(value, caller),
-    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead }));
+  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => {
+    const publish = (value: Parameters<PptPublishArtifactPort>[0]) => ports.publishArtifact!(value, caller);
+    // A published line commits its intent before the artifact is written; a failure keeps that intent for recovery.
+    if (ports.promote) return ports.promote(caller, id, project(caller), expectedVersion, publish);
+    const options = { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? (value: Parameters<PptReadArtifactPort>[0]) => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead };
+    return ports.write(caller, store => promotePpt(store, id, project(caller), publish, options));
+  };
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "ppt.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   return [
     pptArtifactPreviewHandler,
     bind(pptActions.list, (_, caller) => {
       const ai = modelAvailability(), permitted = pptActions.outlineAi.action.permissions.every(p => caller.permissions.includes(p))
         && (!caller.allowed_capability_ids || caller.allowed_capability_ids.includes(pptActions.outlineAi.capability_id));
-      return ports.withStore(store => ({ presentations: store.list(project(caller)), ai_available: ai.available && permitted,
+      return ports.read(store => ({ presentations: store.list(project(caller)), ai_available: ai.available && permitted,
         ai_unavailable_reason: !permitted ? "当前调用方未获 AI 整理大纲的授权" : ai.available ? null : ai.reason ?? "请先配置可用的文字模型" }));
     }),
-    bind(pptActions.get, (input, caller) => ports.withStore(store => ({ presentation: store.get(input.id, project(caller)) }))),
-    bind(pptActions.create, (input, caller) => ports.withStore(store => ({ presentation: store.create({ ...input, project_id: project(caller) }) }))),
-    bind(pptActions.update, (input, caller) => ports.withStore(store => ({ presentation: store.update(input.id, input, project(caller)) }))),
-    bind(pptActions.delete, (input, caller) => ports.withStore(store => { store.delete(input.id, project(caller), input.expected_version); return { ok: true }; })),
-    bind(pptActions.export, (input, caller) => ports.withStore(store => {
+    bind(pptActions.get, (input, caller) => ports.read(store => ({ presentation: store.get(input.id, project(caller)) }))),
+    bind(pptActions.create, (input, caller) => ports.write(caller, store => ({ presentation: store.create({ ...input, project_id: project(caller) }) }))),
+    bind(pptActions.update, (input, caller) => ports.write(caller, store => ({ presentation: store.update(input.id, input, project(caller)) }))),
+    bind(pptActions.delete, (input, caller) => ports.write(caller, store => { store.delete(input.id, project(caller), input.expected_version); return { ok: true }; })),
+    bind(pptActions.export, (input, caller) => ports.read(store => {
       const presentation = store.get(input.id, project(caller));
       if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw pptErrors.conflict("演示稿已改变，请重新读取后导出");
       return { filename: presentation.title.replace(/[\\/:*?"<>|\x00-\x1f]/g, "_") + ".json", mime_type: "application/json" as const, content: JSON.stringify(presentation, null, 2) };
     })),
-    bind(pptActions.promote, (input, caller) => promote(input.id, caller, input.expected_version), publishable),
-    bind(pptActions.artifactPin, (input, caller) => { const { artifact, recovered } = promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
-    bindArtifactContinue(pptActions.artifactContinue, [PPT_ARTIFACT_TYPE_ID], (artifact, caller) => ports.withStore(store => {
+    bind(pptActions.promote, async (input, caller) => await promote(input.id, caller, input.expected_version), publishable),
+    bind(pptActions.artifactPin, async (input, caller) => { const { artifact, recovered } = await promote(input.subject_id, caller); return { artifact, recovered }; }, publishable),
+    bindArtifactContinue(pptActions.artifactContinue, [PPT_ARTIFACT_TYPE_ID], (artifact, caller) => ports.write(caller, store => {
       const payload = (artifact.payload ?? {}) as Record<string, unknown>, at = project(caller);
       const created = store.create({ title: typeof payload.title === "string" ? payload.title : artifact.title, project_id: at });
       // A version the editor cannot take leaves no empty 演示稿 behind.
@@ -141,11 +150,11 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       catch (error) { store.delete(created.id, at); throw error; }
       return { surface: PPT_PROJECT_PLUGIN_ID, id: created.id, title: created.title };
     })),
-    bindArtifactCompare(pptActions.artifactCompare, PPT_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.withStore(store => store.get(id, project(caller)))),
+    bindArtifactCompare(pptActions.artifactCompare, PPT_ARTIFACT_TYPE_ID, (id, caller) => objectOrMissing(() => ports.read(store => store.get(id, project(caller)))),
       (payload, object) => sameArtifactFields(payload, object, ["title", "description", "color_primary", "color_background", "color_text", "slides"]),
       // Moved to another project, it is not gone: only the owner can tell, from its Home-wide table.
-      id => ports.withStore(store => objectOrMissing(() => store.get(id)) !== null)),
-    bind(pptActions.pptx, (input, caller) => ports.withStore(store => {
+      id => ports.read(store => objectOrMissing(() => store.get(id)) !== null)),
+    bind(pptActions.pptx, (input, caller) => ports.read(store => {
       const presentation = store.get(input.id, project(caller));
       if (input.expected_version !== undefined && input.expected_version !== presentation.version) throw pptErrors.conflict("演示稿已改变，请重新读取后导出");
       return { filename: pptxFilename(presentation.title), mime_type: PPTX_MIME_TYPE, content_base64: Buffer.from(buildPptx(presentation)).toString("base64"), slide_count: presentation.slides.length };
@@ -156,34 +165,35 @@ export function createPptActionHandlers(ports: PptActionPorts): ActionHandlerBin
       catch (error) { return { documents: [], unavailable_reason: error instanceof Error ? error.message : "读不到 Pages 文档" }; }
     }),
     bind(pptActions.outline, async (input, caller) => {
-      const current = ports.withStore(store => store.get(input.id, project(caller)));
+      const current = ports.read(store => store.get(input.id, project(caller)));
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw pptErrors.conflict("演示稿已改变，请重新读取后生成");
       assertRoomForOutline(current, input.replace);
       const source = await outlineSource(input, caller);
-      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
-      return ports.withStore(store => applyOutline(store, { ...input, expected_version: current.version }, project(caller), source));
+      caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
+      return ports.write(caller, store => applyOutline(store, { ...input, expected_version: current.version }, project(caller), source));
     }),
     bind(pptActions.outlineAi, async (input, caller) => {
-      const current = ports.withStore(store => store.get(input.id, project(caller)));
+      const current = ports.read(store => store.get(input.id, project(caller)));
       if (input.expected_version !== undefined && current.version !== input.expected_version) throw pptErrors.conflict("演示稿已改变，请重新读取后生成");
       assertRoomForOutline(current, input.replace);
       const source = await outlineSource(input, caller);
       caller.signal?.throwIfAborted();
-      if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-      const markdown = (await ports.completeText(instructed(PPT_DRAFT_OUTLINE, JSON.stringify({ text: source })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
+      if (!ports.complete) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
+      const result = await ports.complete(instructed(PPT_DRAFT_OUTLINE, JSON.stringify({ text: source })), { signal: caller.signal, beforeDispatch: caller.beforeEffect });
       caller.signal?.throwIfAborted();
+      const markdown = result.text.trim();
       if (!markdown) throw pptErrors.invalid("模型没有返回大纲，请调整文字后重试");
-      await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
-      return ports.withStore(store => applyOutline(store, { ...input, expected_version: current.version }, project(caller), markdown));
+      caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
+      return ports.write(caller, store => { result.validateResult(); return applyOutline(store, { ...input, expected_version: current.version }, project(caller), markdown); });
     }, () => modelAvailability()),
-    bindObjectMoveHandler(pptActions.move, input => ports.withStore(store => {
+    bindObjectMoveHandler(pptActions.move, (input, caller) => ports.write(caller, store => {
       const presentation = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
       return { subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
     })),
-    bindObjectCopyHandler(pptActions.copy, input => ports.withStore(store => {
+    bindObjectCopyHandler(pptActions.copy, (input, caller) => ports.write(caller, store => {
       const presentation = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
       return { subject: { kind: PPT_SUBJECT_KIND, id: presentation.id }, project_id: presentation.project_id, revision: String(presentation.version) };
     })),
-    ...createPptSearchHandlers(ports.withStore),
+    ...createPptSearchHandlers(ports.read),
   ];
 }

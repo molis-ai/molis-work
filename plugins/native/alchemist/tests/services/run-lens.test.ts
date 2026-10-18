@@ -1,3 +1,4 @@
+import { acceptTestJob } from "../fixtures/job-authority.js";
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -33,6 +34,7 @@ describe("Lens worker", () => {
       planId: "plan-market",
     });
 
+    acceptTestJob(fixture.worker, run.jobId);
     await fixture.worker.runNext();
 
     expect(fixture.research.getRun(run.id)).toMatchObject({
@@ -71,6 +73,7 @@ describe("Lens worker", () => {
       planId: "plan-market",
     });
 
+    acceptTestJob(fixture.worker, run.jobId);
     await fixture.worker.runNext();
 
     expect(fixture.runtime.collect).toHaveBeenCalledTimes(1);
@@ -87,8 +90,9 @@ describe("Lens worker", () => {
 
   it("uses exactly two calls when the ceiling is two", async () => {
     const fixture = setup(2);
-    fixture.startLensRun({ ideaId: "idea-01", lens: "market_space", planId: "plan-market" });
+    const run = fixture.startLensRun({ ideaId: "idea-01", lens: "market_space", planId: "plan-market" });
 
+    acceptTestJob(fixture.worker, run.jobId);
     await fixture.worker.runNext();
 
     expect(fixture.runtime.collect).toHaveBeenCalledTimes(1);

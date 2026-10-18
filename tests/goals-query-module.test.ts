@@ -7,6 +7,7 @@ import test from "node:test";
 
 import {
   GoalsModule,
+  createGoalReadServices,
 } from "@molis-ai/molis-work-module-goals";
 
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
@@ -85,6 +86,10 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     store.db.prepare("UPDATE goals SET trashed_at = ?, trashed_by = ? WHERE goal_id = ?")
       .run("2026-09-02T00:01:00.000Z", "user-1", "goal-history");
 
+    // W5-08-MOD-03/04: read-only assembly exposes the same facts without a public Repository.
+    const read = createGoalReadServices(store.db);
+    assert.equal("repository" in read.query, false);
+    assert.deepEqual(read.query.snapshot("board-query"), goals.query.snapshot("board-query"));
     const snapshot = goals.query.snapshot("board-query");
     const legacySnapshot = store.snapshot("board-query");
     assert.deepEqual(snapshot.board, legacySnapshot.board);

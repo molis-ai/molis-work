@@ -645,7 +645,14 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1109913], ["/assets/molis-work-workbench.js", 1110802],
   ["/assets/molis-work-workbench.js", 1110187], ["/assets/molis-work-workbench.js", 1110215],
   ["/assets/molis-work-workbench.js", 1110056], ["/assets/molis-work-workbench.js", 1110084],
-  ["/assets/molis-work-workbench.js", 1110329],
+  ["/assets/molis-work-workbench.js", 1109330], ["/assets/molis-work-workbench.js", 1110329],
+  ["/assets/molis-work-workbench.js", 1110357],
+  ["/assets/molis-work-workbench.js", 1110116],
+  ["/assets/molis-work-workbench.js", 1111561],
+  ["/assets/molis-work-workbench.js", 1112315],
+  ["/assets/molis-work-workbench.js", 1112375],
+  // W5-10 preview extraction is smaller than the combined main baseline; its intermediate allowance is retired.
+  ["/assets/molis-work-pages-editor.js", 706825], ["/assets/molis-work-pages-editor.js", 706928],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -658,31 +665,52 @@ for (const [asset, old] of [
   });
 }
 
-// W3-C used 1110056→1110329 and W5-01 1110329→1110357 on main; their starts and ceilings are also spent.
-// Receipts 3e-1 (#714, specs/ai-input-receipts §9.2): approved by the coordinator on 2026-10-18, the Assistant's 「当前约定」
-// block may grow the workbench script once, from exactly the current baseline to the measured size (+1,434). One byte more,
-// another asset, or growth from the new baseline still fails.
-test("receipts 3e-1 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1110357, 1111791] } as const;
+// W5-01 Lingguang: approved by the user on 2026-10-17, the shared stream reader may grow workbench.js once,
+// from exactly the prerequisite baseline to the measured size (+2,231 B). One byte more, another
+// asset, or growth from the new baseline still fails.
+test("W5-01 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
+  const allowed = { "/assets/molis-work-workbench.js": [1111791, 1114022] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("rcpt3e1-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "rcpt3e1-change");
+  branch("w501-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "w501-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "rcpt3e1-base").code, 0);
-  assert.equal(gate("--base", "rcpt3e1-base").code, 0);
+  assert.equal(gate("--update", "--base", "w501-base").code, 0);
+  assert.equal(gate("--base", "w501-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "rcpt3e1-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "w501-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "rcpt3e1-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "rcpt3e1-base").code, 0);
-  commit("freeze the measured 3e-1 size"); git("branch", "-f", "rcpt3e1-frozen");
+  assert.equal(gate("--update", "--base", "w501-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "w501-base").code, 0);
+  commit("freeze the measured W5-01 size"); git("branch", "-f", "w501-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "rcpt3e1-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "rcpt3e1-frozen").code, 1);
+    assert.equal(gate("--base", "w501-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "w501-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
+});
+
+test("W5-01-ALC-RES08: approved continuation UI allowance cannot grow or be reused", () => {
+  const asset = "/assets/molis-work-plugins/alchemist.js";
+  branch("alchemist-res-base", () => { sizes[asset] = 50619; putBudget(sizes); });
+  git("checkout", "-q", "-B", "alchemist-res-change");
+  sizes[asset] = 52373;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 0);
+  assert.equal(gate("--base", "alchemist-res-base").code, 0);
+  sizes[asset]++;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 1);
+  sizes[asset]--;
+  sizes["/assets/a.css"]++;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 1);
+  sizes["/assets/a.css"]--;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 0);
+  commit("freeze the approved Alchemist continuation UI size");
+  git("branch", "-f", "alchemist-res-frozen");
+  sizes[asset]++;
+  putBudget(sizes);
+  assert.equal(gate("--base", "alchemist-res-frozen").code, 1);
+  assert.equal(gate("--update", "--base", "alchemist-res-frozen").code, 1);
 });

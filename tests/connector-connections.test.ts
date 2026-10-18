@@ -9,7 +9,10 @@ import { ConnectorConnectionStore, withConnectorConnections } from "../apps/loca
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
-import { ImagesHostService } from "../apps/local-host/dist/images-service-host.js";
+import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin, IMAGES_DATABASE, IMAGES_FILES, IMAGES_IMAGE_GENERATION, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
 import { refreshFeedConnectionState } from "../apps/local-host/dist/web-connector-connections.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
@@ -74,7 +77,9 @@ test("API and MCP credentials pin their first destination origin and reject a di
 test("Images uses the chosen Connector credential for each generation and survives another account disconnect", async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-image-connector-"));
   const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
-  const imageHost = new ImagesHostService(home);
+  const registry = new ActionService();
+  const imageHost = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry, client: registry, entries: [{ scope: "home", manifest: imagesManifest, create: createImagesPlugin,
+    database: IMAGES_DATABASE, files: IMAGES_FILES, image_generation: IMAGES_IMAGE_GENERATION, project_data: { owner_id: "images", declaration: imagesProjectData }, package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" }] });
   const seen: string[] = [];
   const unbind = bindPrologueInference(home, {
     completeText: async () => { throw new Error("Unexpected text inference"); },
@@ -93,23 +98,28 @@ test("Images uses the chosen Connector credential for each generation and surviv
       store.createToken({ serviceId: "image-api", displayName: "图片账号 A", token: "image-token-a" }),
       store.createToken({ serviceId: "image-api", displayName: "图片账号 B", token: "image-token-b" }),
     ]);
-    const images = imageHost.get();
+    await imageHost.ready();
+    assert.equal(imageHost.installation(imagesManifest.plugin_id)?.state, "running");
+    const client = (projectId: string | null) => bindActionClient(registry, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: IMAGES_ACTION_PERMISSIONS }));
+    const settings = client(null), images = client("board-one");
     const config = { name: "生图服务", api_format: "openai-images" as const, base_url: "https://images.example/v1", model: "image-model" };
-    const connection = images.saveConnection({ ...config, auth_connection_id: a!.connection_id });
+    const { connection } = await settings.invoke(imagesActions.saveConnection, { ...config, auth_connection_id: a!.connection_id });
     async function generate(requestId: string) {
-      const job = images.start("board-one", { request_id: requestId, connection_id: connection.id, prompt: "一张图" });
-      for (let i = 0; i < 100 && images.getJob("board-one", job.id).status === "running"; i++) {
+      const { job } = await images.invoke(imagesActions.start, { request_id: requestId, connection_id: connection.id, prompt: "一张图" });
+      let current = job;
+      for (let i = 0; i < 100 && current.status === "running"; i++) {
         await new Promise(resolve => setTimeout(resolve, 10));
+        current = (await images.invoke(imagesActions.get, { id: job.id })).job;
       }
-      assert.equal(images.getJob("board-one", job.id).status, "succeeded", JSON.stringify(images.getJob("board-one", job.id)));
+      assert.equal(current.status, "succeeded", JSON.stringify(current));
     }
     await generate("account-a");
     assert.equal(withConnectorConnections(home, store => store.targetOrigin(a!.connection_id)), "https://images.example");
-    images.saveConnection({ ...config, id: connection.id, auth_connection_id: b!.connection_id });
+    await settings.invoke(imagesActions.saveConnection, { ...config, id: connection.id, auth_connection_id: b!.connection_id });
     withConnectorConnections(home, store => store.disconnect(a!.connection_id));
     await generate("account-b");
     assert.deepEqual(seen, ["Bearer image-token-a", "Bearer image-token-b"]);
-    assert.equal(images.listConnections()[0]?.auth_connection_id, b!.connection_id);
+    assert.equal((await settings.invoke(imagesActions.connections, {})).connections[0]?.auth_connection_id, b!.connection_id);
   } finally {
     await imageHost.close();
     unbind();

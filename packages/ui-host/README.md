@@ -45,6 +45,7 @@ UI Host 不解释 Goal、Feed 或 Artifact 状态。Plugin 客户端的注册释
 - 只发本页同源：别的源、别的端口、协议相对地址一律 `ui_host.cross_origin`，不发请求（安全不变量 S-03 的浏览器一侧，`tests/security-invariants-browser-request.test.ts`）。
 - 变更带控制令牌、一次性键和 JSON 类型，读取不带；调用方的 `headers` 盖不掉这三个。每个请求 `cache: "no-store"`，只发一次，不自动重试。
 - 失败是带 `code`、`status`、`callId`、`body` 的普通 `Error`（不是子类）；错误体只认 `{ error, code?, call_id? }`。没有回答时读取报 `ui_host.unreachable`，写入报 `ui_host.outcome_unknown`，都不显示浏览器英文原话。
+- `request.stream(url, { body, signal, scope, onProgress })` 发送一次 POST 并读取 Runtime 的 NDJSON：UTF-8 跨块分行，进度先交给视图，以唯一 result/error 末行收尾。HTTP 失败与 error 行使用相同错误对象，详情保留在 `body.details`；流无末行或中途断开报 `ui_host.outcome_unknown`，格式或末行后的数据报 `ui_host.invalid_response`。每块和每行都检查取消与挂载状态，结束时释放 reader；预览文字不代表已保存。
 - 诊断编号只读错误体里的 `call_id`（宿主只在调用记录里查得到时才写），不读响应头；`show`、`toast` 在错误区域或吐司里加一个「诊断编号 xxxxxxxx」按钮，点一下复制完整编号。显示的短编号是编号的前 8 个字符。
 - 码前缀 `ui_host.*` 归本包：`cross_origin`、`unreachable`、`outcome_unknown`、`invalid_response`、`uncoded`。
 

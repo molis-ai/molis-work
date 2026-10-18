@@ -15,8 +15,85 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { streamProbe } from "./fixtures/plugin-stream.js";
+import { backgroundProbe } from "./fixtures/plugin-background.js";
+
+import { lingguangActions, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { serveLingguang } from "./fixtures/lingguang-runtime.js";
+import type { HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
+
+for (const mode of ["stop", "revoke", "restart", "caller-revoke"] as const) {
+  test(`RAC-34 Lingguang ${mode} rejects late model text and the whole turn; recovery uses the same library`, { timeout: 60_000 }, async t => {
+    const entered = deferred(), release = deferred();
+    let progress: HostTextRequestOptions["onProgress"], calls = 0, allowed = true;
+    const f = await serveLingguang(t, { completeText: async (_prompt, options) => {
+      if (++calls === 1) { progress = options?.onProgress; progress?.({ type: "text-delta", text: "预览" }); entered.resolve(); await release.promise; }
+      return "完整回复";
+    } });
+    const { spark } = await f.bound.invoke(lingguangActions.create, { body: "保留的想法" });
+    const { conversation } = await f.bound.invoke(lingguangActions.openConversation, { spark_ids: [spark.id] });
+    const seen: string[] = [];
+    const pending = f.client.invoke({ ...f.caller, on_progress: event => { if (event.text_delta) seen.push(event.text_delta); },
+      assert_authority_current: () => { if (!allowed) throw new Error("caller revoked"); },
+    }, lingguangActions.message, { id: conversation.id, body: "取消的提问" });
+    const refused = assert.rejects(pending);
+    try {
+      await entered.promise;
+      const platform = await f.host.withProject(f.project.reference, runtime => runningProjectPlatform(runtime.store, f.project.project_id));
+      assert.ok(platform);
+      const plugin = "io.molis.work.lingguang", installId = platform.supervisor.state(plugin)!.install_id!;
+      if (mode === "stop") await platform.runtime.stop(installId);
+      else if (mode === "revoke") platform.supervisor.revoke(plugin);
+      else if (mode === "restart") assert.equal((await platform.supervisor.restart(plugin)).status, "running");
+      else allowed = false;
+      assert.throws(() => progress!({ type: "text-delta", text: "迟到的文字" }));
+      release.resolve(); await refused;
+      assert.deepEqual(seen, ["预览"]);
+      const reopened = openLingguangStore(f.home);
+      try { assert.deepEqual(reopened.conversation(conversation.id, f.project.project_id).messages, []); assert.equal(reopened.get(spark.id).body, "保留的想法"); }
+      finally { reopened.close(); }
+      if (mode === "stop") assert.equal((await platform.supervisor.restart(plugin)).status, "running");
+      if (mode === "revoke") assert.equal((await platform.supervisor.enable(plugin)).status, "running");
+      allowed = true;
+      const recovered = await f.bound.invoke(lingguangActions.message, { id: conversation.id, body: "重新提问" });
+      assert.deepEqual(recovered.messages.map(row => [row.role, row.body]), [["user", "重新提问"], ["assistant", "完整回复"]]);
+    } finally { release.resolve(); await refused; }
+  });
+}
+
+test("RAC-34 Lingguang HTTP disconnect cancels model preview and saves no partial turn; a later turn recovers", { timeout: 60_000 }, async t => {
+  const entered = deferred(), release = deferred(), cancelled = deferred();
+  let progress: HostTextRequestOptions["onProgress"], calls = 0;
+  const f = await serveLingguang(t, { completeText: async (_prompt, options) => {
+    if (++calls === 1) {
+      assert.ok(options?.signal);
+      options.signal.addEventListener("abort", cancelled.resolve, { once: true });
+      progress = options.onProgress; progress?.({ type: "text-delta", text: "未完成的预览" });
+      entered.resolve(); await release.promise;
+    }
+    return "完整回复";
+  } });
+  const { spark } = await f.bound.invoke(lingguangActions.create, { body: "保留的想法" });
+  const { conversation } = await f.bound.invoke(lingguangActions.openConversation, { spark_ids: [spark.id] });
+  const abort = new AbortController();
+  try {
+    const response = await f.rawRequest(`${f.path}/conversations/${conversation.id}/messages`, {
+      method: "POST", body: { body: "取消的提问" }, signal: abort.signal,
+    });
+    assert.equal(response.status, 200); assert.match(response.headers.get("content-type")!, /ndjson/u);
+    await entered.promise;
+    const closed = assert.rejects(response.text(), { name: "AbortError" });
+    abort.abort(); await closed; await cancelled.promise;
+    assert.throws(() => progress!({ type: "text-delta", text: "取消后的文字" }));
+    release.resolve();
+    const recovered = await f.bound.invoke(lingguangActions.message, { id: conversation.id, body: "重新提问" });
+    assert.deepEqual(recovered.messages.map(row => [row.role, row.body]), [["user", "重新提问"], ["assistant", "完整回复"]]);
+    const reopened = openLingguangStore(f.home);
+    try { assert.deepEqual(reopened.conversation(conversation.id, f.project.project_id).messages, recovered.messages); }
+    finally { reopened.close(); }
+  } finally { release.resolve(); abort.abort(); }
+});
 
 for (const scope of ["home", "project"] as const) for (const invalidation of ["disconnect", "stop", "revoke", "upgrade"] as const) {
   test(`S-03 W5-01-STREAM-04 ${scope} streaming ${invalidation} ends the response and refuses late business writes`, { timeout: 60_000 }, async t => {
@@ -222,3 +299,40 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
     await host.close(); rmSync(home, { recursive: true, force: true });
   }
 });
+
+for (const scope of ["home", "project"] as const) {
+  test(`S-18 RAC-52 RAC-54 ${scope} revokes accepted work before awaiting stop and refuses a route without its installation grant`, { timeout: 30_000 }, async t => {
+    const probe = backgroundProbe(`background-stop-${scope}`, scope), entered = deferred(), release = deferred();
+    // The business permission is optional here so the real grant API can leave the plugin running without it.
+    probe.definition.manifest.permissions.find(item => item.permission === `background-stop-${scope}:write`)!.required = false;
+    probe.behavior.work = async () => { entered.resolve(); await release.promise; throw new Error("late provider failure"); };
+    const f = await serveHomeRuntime(t, { pluginFixtures: { [scope]: [probe.definition] } });
+    const project = scope === "project" ? await f.project("Stop a background action") : undefined;
+    // First activate project fixtures, then grant through the lifecycle API while stopped.
+    if (project) await f.host.inspectActions(person(probe.permissions, project.project_id), project.reference);
+    const platform = project ? await f.host.withProject(project.reference, runtime => runningProjectPlatform(runtime.store, project.project_id)) : await f.host.homePlugins!.ready();
+    assert.ok(platform);
+    const installId = platform.supervisor.state(probe.id)!.install_id!;
+    await platform.runtime.stop(installId);
+    platform.runtime.grant(installId, probe.permissions); await platform.supervisor.restart(probe.id);
+    const path = `${project ? `/projects/${project.project_id}` : ""}/api/plugins/${probe.id}/background`;
+    const heldStop = deferred(), stopEntered = deferred();
+    probe.lifecycle.stop = async () => { stopEntered.resolve(); await heldStop.promise; };
+    try {
+      assert.equal((await f.request(path, { method: "POST", body: { id: "held" } })).status, 200); await entered.promise;
+      const rejected = assert.rejects(probe.handles[0]!.result);
+      const stop = platform.runtime.stop(installId); await stopEntered.promise;
+      assert.equal(probe.controls[0]!.signal!.aborted, true); await rejected;
+      await assert.rejects(probe.controls[0]!.beforeEffect());
+      heldStop.resolve(); await stop;
+      platform.runtime.grant(installId, probe.permissions.filter(permission => !permission.endsWith(":write")));
+      await platform.supervisor.restart(probe.id);
+      release.resolve(); await new Promise<void>(resolve => setImmediate(resolve));
+      assert.equal(probe.stored("result.held"), null); assert.equal(probe.stored("failure.held"), null);
+      const before = probe.requests.length;
+      const denied = await f.request(path, { method: "POST", body: { id: "denied", permissions: probe.permissions } });
+      assert.equal(denied.status, 403); assert.equal(probe.requests.length, before, "route grant is checked before plugin code");
+      assert.equal(probe.handles.length, 1);
+    } finally { release.resolve(); heldStop.resolve(); }
+  });
+}

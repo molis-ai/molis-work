@@ -1,5 +1,6 @@
 // Small DOM helpers shared by editor overlays and node views.
 import type { Translate } from "./editor-types.js";
+import { scrollChildIntoView } from "./floating.js";
 
 
 export function t(translate: Translate | undefined, value: string): string {
@@ -46,4 +47,13 @@ export function actions(translate: Translate | undefined, ok: () => void, cancel
 
 export function escapeHtml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+}
+
+export function keepSelectedVisible(menu: HTMLElement): void {
+  const current = menu.querySelector(".is-on");
+  if (!(current instanceof HTMLElement)) return;
+  menu.scrollTop = scrollChildIntoView(
+    { scrollTop: menu.scrollTop, clientHeight: menu.clientHeight },
+    { offsetTop: current.offsetTop, offsetHeight: current.offsetHeight },
+  );
 }

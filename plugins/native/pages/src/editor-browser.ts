@@ -55,8 +55,6 @@ import {
   addColumn,
   applyListSelection,
   applyHeading,
-  applySlash,
-  commitGap,
   selectBlockThenAll,
   selectEnclosingBlock,
   replaceSelectedBlock,
@@ -70,7 +68,6 @@ import {
   insertAfterSelectedBlock,
   insertAfterSpan,
   hardBreakAtSpanEnd,
-  menuKey,
   hoverMenuIndex,
   popEscape,
   blockMenuKey,
@@ -83,8 +80,6 @@ import {
   blockMenuShortcut,
   blockMenuTarget,
   spanIsGroup,
-  slashSession,
-  dismissedMenuRange,
   splitTaskItem,
   setCalloutStyle,
   setRowsTone,
@@ -108,11 +103,14 @@ import {
   unwrapColumns,
 } from "./commands.js";
 import { acceptedImageFile, bookmarkLabel, linkClickOpens, safePagesHref } from "./link.js";
-import { toneFromCssColor } from "./tone.js";
+
 import { calloutIconFor, PAGES_CALLOUT_ICONS, safePagesCalloutTone } from "./callout.js";
 import { findPlugin, openFind } from "./editor-find.js";
+import { slashPlugin, mentionPlugin, slashKey, mentionKey, paragraphNode } from "./editor-insert-menu.js";
+import { chromePlugin } from "./editor-gap.js";
+import { CLIP_IMAGE, clipboardImage, leafFromDom } from "./editor-paste.js";
 import { followScroll, pinAt, placeOverlay, type FloatingAnchor } from "@molis-ai/molis-work-design-system/floating";
-import { rowGapAt, scrollChildIntoView } from "./floating.js";
+import { rowGapAt } from "./floating.js";
 import { markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, pasteUrl } from "./paste-markdown.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { pasteHtml, type PasteLeaf } from "./paste-html.js";
@@ -128,22 +126,17 @@ import {
   tableHit,
   toggleHeaderRow,
 } from "./table-edit.js";
-import { blockPlaceholder } from "./placeholder.js";
+
 import { dragRows, dropLevelRange, nodesInSpan, nudgeSpan, previewCopySpan, previewSpan, spanRoots, spanRows, type DragRow } from "./reorder.js";
 import { PAGES_TONES } from "./tone.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
 import { applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen } from "./focus.js";
-import type { Translate, PagesEditorMountOptions, PagesListItem, PagesEditorHandle, PagesCommandPreset, PagesToolGroup } from "./editor-types.js";
-import { t, overlayRoot, dsIcon, escapeHtml, actions } from "./editor-view-ui.js";
+import type { Translate, PagesEditorMountOptions, PagesEditorHandle, PagesCommandPreset, PagesToolGroup } from "./editor-types.js";
+import { t, overlayRoot, dsIcon, escapeHtml, actions, keepSelectedVisible } from "./editor-view-ui.js";
 import { codeHighlightPlugin, imageNodeView, bookmarkNodeView, codeNodeView } from "./editor-node-media.js";
 import { columnNodeView, cellNodeView, taskNodeView, toggleNodeView, calloutNodeView, mentionNodeView, calendarNodeView, tocNodeView } from "./editor-node-layout.js";
 import { cardNodeView } from "./editor-node-cards.js";
 export type { PagesEditorHandle, PagesToolItem, PagesToolGroup, PagesCommandPreset, PagesListItem, PagesEditorMountOptions } from "./editor-types.js";
-
-
-const slashKey = new PluginKey<{ open: boolean; pos: number; query: string; index: number }>("pages-slash");
-const mentionKey = new PluginKey<{ open: boolean; from: number; query: string; index: number }>("pages-mention");
-const chromeKey = new PluginKey<{ after: number }>("pages-chrome");
 type PagesHover = { pos: number; dragging: boolean; anchor: number; head: number; menuTick: number };
 const hoverKey = new PluginKey<PagesHover>("pages-hover");
 const EMPTY_HOVER: PagesHover = { pos: -1, dragging: false, anchor: -1, head: -1, menuTick: 0 };
@@ -188,134 +181,6 @@ function headingCommand(level: 1 | 2 | 3): Command {
     }
     return setBlockType(pagesSchema.nodes.heading, { level })(state, dispatch);
   };
-}
-
-const CLIP_IMAGE = /^image\/(png|jpeg|gif|webp)$/iu;
-
-function clipboardImage(data: DataTransfer | null): File | null {
-  if (!data) return null;
-  for (const item of data.items) {
-    if (item.kind === "file" && CLIP_IMAGE.test(item.type)) return item.getAsFile();
-  }
-  return null;
-}
-
-function leafFromDom(node: globalThis.Node): PasteLeaf | string | null {
-  if (node.nodeType === 3) return node.textContent || null;
-  if (node.nodeType !== 1) return null;
-  const el = node as HTMLElement;
-  const tag = el.tagName.toLowerCase();
-  if (tag === "script" || tag === "style") return null;
-  const children: Array<PasteLeaf | string> = [];
-  el.childNodes.forEach((child) => {
-    const next = leafFromDom(child);
-    if (typeof next === "string") children.push(next);
-    else if (next) children.push(next);
-  });
-  const style = el.getAttribute("style") ?? "";
-  const painted = (prop: string) => {
-    const match = new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`, "i").exec(`;${style}`);
-    return toneFromCssColor(match?.[1] ?? "");
-  };
-  const ink = el.getAttribute("data-pages-ink") ? toneFromCssColor(el.getAttribute("data-pages-ink")) : painted("color");
-  const wash = el.getAttribute("data-pages-wash") ? toneFromCssColor(el.getAttribute("data-pages-wash")) : painted("background-color");
-  return {
-    tag,
-    href: el.getAttribute("href") ?? undefined,
-    src: el.getAttribute("src") ?? undefined,
-    ...(ink ? { ink } : {}),
-    ...(wash ? { wash } : {}),
-    ...(el.hasAttribute("data-pages-bookmark") ? { bookmark: true } : {}),
-    ...(el.getAttribute("alt") ? { alt: el.getAttribute("alt") ?? "" } : {}),
-    ...(el.hasAttribute("data-pages-task") ? { task: true, checked: el.getAttribute("data-checked") === "true" } : {}),
-    ...(el.hasAttribute("data-pages-tasks") ? { tasks: true } : {}),
-    children,
-  };
-}
-
-function keepSelectedVisible(menu: HTMLElement): void {
-  const current = menu.querySelector(".is-on");
-  if (!(current instanceof HTMLElement)) return;
-  menu.scrollTop = scrollChildIntoView(
-    { scrollTop: menu.scrollTop, clientHeight: menu.clientHeight },
-    { offsetTop: current.offsetTop, offsetHeight: current.offsetHeight },
-  );
-}
-
-function paragraphNode(text = ""): Node {
-  return text
-    ? pagesSchema.nodes.paragraph.create(null, pagesSchema.text(text))
-    : pagesSchema.nodes.paragraph.create();
-}
-
-function blockFor(id: string): Node {
-  const s = pagesSchema;
-  if (id === "heading1") return s.nodes.heading.create({ level: 1 });
-  if (id === "heading2") return s.nodes.heading.create({ level: 2 });
-  if (id === "heading3") return s.nodes.heading.create({ level: 3 });
-  if (id === "bullet_list") return s.nodes.bullet_list.create(null, s.nodes.list_item.create(null, paragraphNode()));
-  if (id === "ordered_list") return s.nodes.ordered_list.create({ order: 1 }, s.nodes.list_item.create(null, paragraphNode()));
-  if (id === "task_list") return s.nodes.task_list.create(null, s.nodes.task_item.create({ checked: false }, paragraphNode()));
-  if (id === "callout") return s.nodes.callout.create({ tone: "cyan" }, paragraphNode());
-  if (id === "blockquote") return s.nodes.blockquote.create(null, paragraphNode());
-  if (id === "code_block") return s.nodes.code_block.create();
-  if (id === "toggle") return s.nodes.toggle.create({ open: true }, [paragraphNode(), paragraphNode()]);
-  if (id === "horizontal_rule") return s.nodes.horizontal_rule.create();
-  if (id === "toc") return s.nodes.toc.create();
-  if (id === "table") {
-    const header = s.nodes.table_row.create(null, [
-      s.nodes.table_header.create(null, paragraphNode()),
-      s.nodes.table_header.create(null, paragraphNode()),
-    ]);
-    const row = s.nodes.table_row.create(null, [
-      s.nodes.table_cell.create(null, paragraphNode()),
-      s.nodes.table_cell.create(null, paragraphNode()),
-    ]);
-    return s.nodes.table.create(null, [header, row]);
-  }
-  if (id === "page_ref") return s.nodes.page_ref.create({ page_id: "", title: "" });
-  if (id === "task_card") return s.nodes.task_card.create({ title: "", description: "", status: "todo", due: "" });
-  if (id === "event_card") return s.nodes.event_card.create({ title: "", at: new Date().toISOString().slice(0, 10) });
-  if (id === "calendar") return s.nodes.calendar.create();
-  if (id === "columns") {
-    return s.nodes.column_list.create(null, [
-      s.nodes.column.create(null, paragraphNode()),
-      s.nodes.column.create(null, paragraphNode()),
-    ]);
-  }
-  return paragraphNode();
-}
-
-function slashItems(translate: Translate | undefined) {
-  return [
-    { id: "paragraph", icon: "text", group: "basic", label: t(translate, "段落"), hint: t(translate, "正文") },
-    { id: "heading1", icon: "hash", group: "basic", label: t(translate, "标题 1"), hint: "H1" },
-    { id: "heading2", icon: "hash", group: "basic", label: t(translate, "标题 2"), hint: "H2" },
-    { id: "heading3", icon: "hash", group: "basic", label: t(translate, "标题 3"), hint: "H3" },
-    { id: "bullet_list", icon: "rows", group: "basic", label: t(translate, "无序列表"), hint: t(translate, "圆点") },
-    { id: "ordered_list", icon: "list-ordered", group: "basic", label: t(translate, "有序列表"), hint: "1." },
-    { id: "task_list", icon: "check", group: "basic", label: t(translate, "清单"), hint: t(translate, "待办") },
-    { id: "callout", icon: "info", group: "basic", label: t(translate, "Callout"), hint: t(translate, "提示块") },
-    { id: "blockquote", icon: "message", group: "basic", label: t(translate, "引用"), hint: t(translate, "摘一句") },
-    { id: "code_block", icon: "code", group: "basic", label: t(translate, "代码"), hint: t(translate, "等宽") },
-    { id: "table", icon: "grid", group: "basic", label: t(translate, "表"), hint: t(translate, "两列表") },
-    { id: "columns", icon: "columns", group: "basic", label: t(translate, "分栏"), hint: t(translate, "并排") },
-    { id: "toggle", icon: "chevron-right", group: "basic", label: t(translate, "Toggle"), hint: t(translate, "折叠") },
-    { id: "image", icon: "image", group: "basic", label: t(translate, "图片"), hint: t(translate, "上传") },
-    { id: "horizontal_rule", icon: "minus", group: "basic", label: t(translate, "分隔线"), hint: t(translate, "横线") },
-    { id: "toc", icon: "library", group: "basic", label: t(translate, "目录"), hint: t(translate, "按标题生成") },
-    { id: "page_ref", icon: "link", group: "card", label: t(translate, "引用文档"), hint: "@" },
-    { id: "task_card", icon: "clipboard", group: "card", label: t(translate, "任务卡"), hint: t(translate, "待办") },
-    { id: "event_card", icon: "clock", group: "card", label: t(translate, "日程卡"), hint: t(translate, "日期") },
-    { id: "calendar", icon: "calendar", group: "card", label: t(translate, "月历"), hint: t(translate, "本篇事件") },
-  ];
-}
-
-function replaceTopBlock(view: EditorView, node: Node): void {
-  const tr = applySlash(view.state, node);
-  if (!tr) return;
-  view.dispatch(tr.scrollIntoView());
-  view.focus();
 }
 
 /** Run a block command against the view and hand focus back to the editor. */
@@ -444,499 +309,6 @@ function turnIntoItems(translate: Translate | undefined) {
     { id: "toggle", icon: "chevron-right", label: t(translate, "Toggle") },
     { id: "code_block", icon: "code", label: t(translate, "代码") },
   ];
-}
-
-function matchSlash(item: { id: string; label: string; hint: string }, query: string): boolean {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return true;
-  return [item.id, item.label, item.hint].join(" ").toLowerCase().includes(needle);
-}
-
-function dismissPickerOutside<T extends { open: boolean }>(view: EditorView, menu: HTMLElement, key: PluginKey<T>): () => void {
-  const dismiss = (event: PointerEvent) => {
-    const target = event.target as globalThis.Node | null;
-    if (!target || menu.hidden || menu.contains(target) || view.dom.contains(target)) return;
-    const current = key.getState(view.state);
-    if (current?.open) view.dispatch(view.state.tr.setMeta(key, { ...current, open: false }));
-  };
-  document.addEventListener("pointerdown", dismiss, true);
-  return () => document.removeEventListener("pointerdown", dismiss, true);
-}
-
-function slashPlugin(translate: Translate | undefined) {
-  const picker = document.createElement("input");
-  picker.type = "file";
-  picker.accept = "image/png,image/jpeg,image/gif,image/webp";
-  picker.hidden = true;
-  const pickImage = (editor: EditorView) => {
-    const session = slashSession(editor.state);
-    const tr = session ? editor.state.tr.delete(session.from, session.to) : editor.state.tr;
-    editor.dispatch(tr.setMeta(slashKey, { open: false, pos: 0, query: "", index: 0 }));
-    picker.value = "";
-    const stopPicker = ownPagesTransient(editor, () => { picker.onchange = null; });
-    picker.onchange = () => {
-      stopPicker();
-      const file = picker.files?.[0];
-      if (!file) return;
-      readPagesImage(editor, file);
-    };
-    picker.click();
-  };
-  const choose = (editor: EditorView, id: string) => {
-    if (id === "image") {
-      pickImage(editor);
-      return;
-    }
-    replaceTopBlock(editor, blockFor(id));
-  };
-  return new Plugin({
-    key: slashKey,
-    state: {
-      init: () => ({ open: false, pos: 0, query: "", index: 0 }),
-      apply(tr, value, _old, next) {
-        const meta = tr.getMeta(slashKey);
-        if (meta) return meta;
-        if (!tr.docChanged && !tr.selectionSet) return value;
-        const session = slashSession(next);
-        if (!session) return { open: false, pos: 0, query: "", index: 0 };
-        return {
-          open: true,
-          pos: session.rowPos,
-          query: session.query,
-          index: session.query === value.query ? value.index : 0,
-        };
-      },
-    },
-    appendTransaction(trs, oldState, newState) {
-      const was = slashKey.getState(oldState);
-      const now = slashKey.getState(newState);
-      const session = slashSession(oldState);
-      const range = dismissedMenuRange(
-        Boolean(was?.open),
-        Boolean(now?.open),
-        trs.some((tr) => tr.docChanged),
-        session ? { from: session.from, to: session.to } : null,
-        newState.selection.from,
-        newState.selection.to,
-      );
-      if (!range) return null;
-      return newState.tr.delete(range.from, range.to);
-    },
-    props: {
-      handleKeyDown(view, event) {
-        if (view.composing || event.isComposing) return false;
-        const value = slashKey.getState(view.state);
-        if (!value?.open) return false;
-        const items = slashItems(translate).filter((item) => matchSlash(item, value.query));
-        const action = menuKey(event.key, items.length);
-        if (action === "pass") return false;
-        if (action === "close") {
-          const session = slashSession(view.state);
-          const closed = { open: false, pos: 0, query: "", index: 0 };
-          const tr = session ? view.state.tr.delete(session.from, session.to) : view.state.tr;
-          view.dispatch(tr.setMeta(slashKey, closed));
-          return true;
-        }
-        if (action === "hold") {
-          event.preventDefault();
-          return true;
-        }
-        if (action === "next" || action === "prev") {
-          const index = action === "next"
-            ? Math.min(items.length - 1, value.index + 1)
-            : Math.max(0, value.index - 1);
-          view.dispatch(view.state.tr.setMeta(slashKey, { ...value, index }));
-          return true;
-        }
-        event.preventDefault();
-        const item = items[Math.min(value.index, items.length - 1)];
-        if (item) choose(view, item.id);
-        return true;
-      },
-    },
-    view(editorView) {
-      const menu = document.createElement("div");
-      menu.className = "pages-slash";
-      menu.hidden = true;
-      overlayRoot().append(menu, picker);
-      let rendered = "";
-      const dismiss = dismissPickerOutside(editorView, menu, slashKey);
-      const stopScroll = followScroll(menu, () => {
-        if (menu.hidden) return;
-        placeOverlay(menu, editorView.coordsAtPos(editorView.state.selection.from), "below");
-      });
-      return {
-        update(view) {
-          const value = slashKey.getState(view.state);
-          if (!value?.open) {
-            menu.hidden = true;
-            return;
-          }
-          const items = slashItems(translate).filter((item) => matchSlash(item, value.query));
-          menu.hidden = false;
-          const renderKey = items.map((item) => item.id).join("|");
-          if (renderKey !== rendered || !menu.childNodes.length) {
-            rendered = renderKey;
-            menu.replaceChildren();
-            let lastGroup = "";
-            items.forEach((item, index) => {
-              if (item.group !== lastGroup) {
-                lastGroup = item.group;
-                const group = document.createElement("p");
-                group.className = "pages-slash-group";
-                group.textContent = t(translate, item.group === "card" ? "卡片" : "基础");
-                menu.append(group);
-              }
-              const button = document.createElement("button");
-              button.type = "button";
-              button.className = "pages-slash-item" + (index === value.index ? " is-on" : "");
-              button.innerHTML = `<span class="pages-slash-icon">${dsIcon(item.icon)}</span><span class="pages-slash-copy"><strong>${escapeHtml(item.label)}</strong><em class="pages-slash-hint">${escapeHtml(item.hint)}</em></span>`;
-              button.addEventListener("mouseenter", () => {
-                const current = slashKey.getState(view.state);
-                if (!current?.open) return;
-                const next = hoverMenuIndex(current.index, index, items.length);
-                if (next == null) return;
-                view.dispatch(view.state.tr.setMeta(slashKey, { ...current, index: next }));
-              });
-              button.addEventListener("mousedown", (event) => event.preventDefault());
-              button.addEventListener("click", () => choose(view, item.id));
-              menu.append(button);
-            });
-            if (!items.length) {
-              const empty = document.createElement("p");
-              empty.textContent = t(translate, "没有匹配的块");
-              menu.append(empty);
-            }
-          }
-          menu.querySelectorAll("button").forEach((button, index) => {
-            button.classList.toggle("is-on", index === value.index);
-            button.setAttribute("aria-current", String(index === value.index));
-          });
-          const coords = view.coordsAtPos(view.state.selection.from);
-          placeOverlay(menu, coords, "below");
-          keepSelectedVisible(menu);
-        },
-        destroy() { stopScroll(); dismiss(); menu.remove(); picker.remove(); },
-      };
-    },
-  });
-}
-
-function mentionPlugin(options: PagesEditorMountOptions) {
-  const translate = options.translate;
-  return new Plugin({
-    key: mentionKey,
-    state: {
-      init: () => ({ open: false, from: 0, query: "", index: 0 }),
-      apply(tr, value, _old, next) {
-        const meta = tr.getMeta(mentionKey);
-        if (meta) return meta;
-        if (!tr.docChanged && !tr.selectionSet) return value;
-        const slash = slashKey.getState(next);
-        if (slash?.open) return { open: false, from: 0, query: "", index: 0 };
-        const $from = tr.selection.$from;
-        if (!$from.parent.isTextblock) return { open: false, from: 0, query: "", index: 0 };
-        const prefix = $from.parent.textBetween(0, $from.parentOffset, undefined, "\ufffc");
-        const matched = /(?:^|\s)@([^\s@]*)$/u.exec(prefix);
-        if (!matched) return { open: false, from: 0, query: "", index: 0 };
-        const query = matched[1] ?? "";
-        const from = $from.start() + (matched.index ?? 0) + (matched[0].startsWith("@") ? 0 : 1);
-        return { open: true, from, query, index: query === value.query ? value.index : 0 };
-      },
-    },
-    appendTransaction(trs, oldState, newState) {
-      const was = mentionKey.getState(oldState);
-      const now = mentionKey.getState(newState);
-      const token = was?.open ? { from: was.from, to: was.from + 1 + was.query.length } : null;
-      const range = dismissedMenuRange(
-        Boolean(was?.open),
-        Boolean(now?.open),
-        trs.some((tr) => tr.docChanged),
-        token,
-        newState.selection.from,
-        newState.selection.to,
-      );
-      if (!range) return null;
-      return newState.tr.delete(range.from, range.to);
-    },
-    props: {
-      handleKeyDown(view, event) {
-        if (view.composing || event.isComposing) return false;
-        const value = mentionKey.getState(view.state);
-        if (!value?.open) return false;
-        const items = filterPages(options.pages?.() ?? [], value.query);
-        const action = menuKey(event.key, items.length);
-        if (action === "pass") return false;
-        if (action === "close") {
-          view.dispatch(view.state.tr.setMeta(mentionKey, { open: false, from: 0, query: "", index: 0 }));
-          return true;
-        }
-        if (action === "hold") {
-          event.preventDefault();
-          return true;
-        }
-        if (action === "next" || action === "prev") {
-          const index = action === "next"
-            ? Math.min(items.length - 1, value.index + 1)
-            : Math.max(0, value.index - 1);
-          view.dispatch(view.state.tr.setMeta(mentionKey, { ...value, index }));
-          return true;
-        }
-        event.preventDefault();
-        const item = items[Math.min(value.index, items.length - 1)];
-        if (item) insertMention(view, value.from, view.state.selection.from, item);
-        return true;
-      },
-    },
-    view(editorView) {
-      const menu = document.createElement("div");
-      menu.className = "pages-slash pages-mention-menu";
-      menu.hidden = true;
-      overlayRoot().append(menu);
-      let rendered = "";
-      const dismiss = dismissPickerOutside(editorView, menu, mentionKey);
-      const stopScroll = followScroll(menu, () => {
-        if (menu.hidden) return;
-        placeOverlay(menu, editorView.coordsAtPos(editorView.state.selection.from), "below");
-      });
-      return {
-        update(view) {
-          const value = mentionKey.getState(view.state);
-          if (!value?.open) {
-            menu.hidden = true;
-            return;
-          }
-          const items = filterPages(options.pages?.() ?? [], value.query);
-          menu.hidden = false;
-          const renderKey = JSON.stringify(items);
-          if (renderKey !== rendered || !menu.childNodes.length) {
-            rendered = renderKey;
-            menu.replaceChildren();
-            items.forEach((item, index) => {
-              const button = document.createElement("button");
-              button.type = "button";
-              button.className = "pages-slash-item" + (index === value.index ? " is-on" : "");
-              button.innerHTML = `<span class="pages-slash-icon">${dsIcon("note")}</span><strong>${escapeHtml(item.title)}</strong>`;
-              button.addEventListener("mouseenter", () => {
-                const current = mentionKey.getState(view.state);
-                if (!current?.open) return;
-                const next = hoverMenuIndex(current.index, index, items.length);
-                if (next == null) return;
-                view.dispatch(view.state.tr.setMeta(mentionKey, { ...current, index: next }));
-              });
-              button.addEventListener("mousedown", (event) => event.preventDefault());
-              button.addEventListener("click", () => {
-                const current = mentionKey.getState(view.state);
-                if (current?.open) insertMention(view, current.from, view.state.selection.from, item);
-              });
-              menu.append(button);
-            });
-            if (!items.length) {
-              const empty = document.createElement("p");
-              empty.textContent = t(translate, "没有匹配的文档");
-              menu.append(empty);
-            }
-          }
-          menu.querySelectorAll("button").forEach((button, index) => {
-            button.classList.toggle("is-on", index === value.index);
-            button.setAttribute("aria-current", String(index === value.index));
-          });
-          const coords = view.coordsAtPos(view.state.selection.from);
-          placeOverlay(menu, coords, "below");
-          keepSelectedVisible(menu);
-        },
-        destroy() { stopScroll(); dismiss(); menu.remove(); },
-      };
-    },
-  });
-}
-
-function filterPages(pages: readonly PagesListItem[], query: string): PagesListItem[] {
-  const needle = query.trim().toLowerCase();
-  return pages.filter((item) => !needle || item.title.toLowerCase().includes(needle)).slice(0, 8);
-}
-
-function insertMention(view: EditorView, from: number, to: number, item: PagesListItem): void {
-  const mention = pagesSchema.nodes.page_mention.create({ page_id: item.id, title: item.title });
-  const tr = view.state.tr.replaceWith(from, to, mention);
-  view.dispatch(tr.scrollIntoView());
-  view.focus();
-}
-
-function chromePlugin(translate: Translate | undefined, renderOnly = false) {
-  return new Plugin({
-    key: chromeKey,
-    state: {
-      init: () => ({ after: -1 }),
-      apply(tr, value) {
-        const meta = tr.getMeta(chromeKey) as { after?: number } | undefined;
-        if (meta && typeof meta.after === "number") return { after: meta.after };
-        if (tr.docChanged && value.after >= 0) return { after: -1 };
-        return value;
-      },
-    },
-    props: {
-      decorations(state) {
-        const widgets: Decoration[] = [];
-        const $from = state.selection.$from;
-        const first = state.doc.firstChild;
-        const blank = state.doc.childCount === 1 && first?.type === pagesSchema.nodes.paragraph && first.content.size === 0;
-        if (blank) {
-          widgets.push(Decoration.node(0, first.nodeSize, {
-            class: "is-empty",
-            "data-placeholder": t(translate, "输入 / 插入块，或直接写"),
-          }));
-        } else {
-          const hint = blockPlaceholder($from);
-          if (hint) {
-            widgets.push(Decoration.node($from.before(), $from.after(), {
-              class: "is-empty",
-              "data-placeholder": t(translate, hint),
-            }));
-          }
-        }
-        const pending = renderOnly ? -1 : chromeKey.getState(state)?.after ?? -1;
-        state.doc.forEach((node, offset, index) => {
-          if (index < state.doc.childCount - 1) {
-            widgets.push(Decoration.widget(offset + node.nodeSize, () => gapWidget(index, translate), {
-              side: -1,
-              key: "gap-" + (offset + node.nodeSize),
-              ignoreSelection: true,
-            }));
-          }
-          if (index === pending) {
-            widgets.push(Decoration.widget(offset + node.nodeSize, () => provisionalField(translate), {
-              side: 1,
-              key: "pages-provisional",
-              ignoreSelection: true,
-              stopEvent: () => true,
-            }));
-          }
-        });
-        return DecorationSet.create(state.doc, widgets);
-      },
-      handleDOMEvents: {
-        mousedown(view, event) {
-          const gap = (event.target as HTMLElement).closest("[data-pages-gap]");
-          if (!gap) return false;
-          event.preventDefault();
-          const index = Number(gap.getAttribute("data-after") || "0");
-          view.dispatch(view.state.tr.setMeta(chromeKey, { after: index }));
-          return true;
-        },
-      },
-    },
-    view(editorView) {
-      if (renderOnly) return {};
-      provisionalView = editorView;
-      let shown = -1;
-      return {
-        update(view) {
-          provisionalView = view;
-          const after = chromeKey.getState(view.state)?.after ?? -1;
-          if (after >= 0 && after !== shown) {
-            provisionalField(translate).replaceChildren();
-            requestAnimationFrame(() => provisionalField(translate).focus());
-          }
-          shown = after;
-        },
-        destroy() {
-          provisionalView = null;
-          provisionalField(translate).remove();
-        },
-      };
-    },
-  });
-}
-
-let provisional: HTMLElement | null = null;
-let provisionalView: EditorView | null = null;
-
-function provisionalField(translate: Translate | undefined): HTMLElement {
-  if (provisional) return provisional;
-  const field = document.createElement("div");
-  field.className = "pages-provisional";
-  field.contentEditable = "true";
-  field.dataset.pagesProvisional = "1";
-  field.dataset.placeholder = t(translate, "输入 / 插入块，或直接写");
-  field.setAttribute("role", "textbox");
-  field.setAttribute("aria-label", t(translate, "在此输入"));
-  let composing = false;
-  const viewOf = (): EditorView | null => provisionalView;
-  const clear = () => {
-    const view = viewOf();
-    if (!view || (chromeKey.getState(view.state)?.after ?? -1) < 0) return;
-    field.replaceChildren();
-    view.dispatch(view.state.tr.setMeta(chromeKey, { after: -1 }));
-    view.focus();
-  };
-  const commit = () => {
-    const view = viewOf();
-    const value = field.textContent ?? "";
-    if (!view || !value.trim()) return;
-    const after = chromeKey.getState(view.state)?.after ?? -1;
-    if (after < 0) return;
-    const tr = commitGap(view.state, after, value);
-    if (!tr) return;
-    field.replaceChildren();
-    view.dispatch(tr.setMeta(chromeKey, { after: -1 }).scrollIntoView());
-    view.focus();
-  };
-  field.addEventListener("compositionstart", () => { composing = true; });
-  field.addEventListener("compositionend", () => {
-    composing = false;
-    commit();
-  });
-  field.addEventListener("input", () => {
-    if (!composing) commit();
-  });
-  field.addEventListener("paste", (event) => {
-    const file = clipboardImage(event.clipboardData);
-    if (file) {
-      event.preventDefault();
-      const view = viewOf(), after = view ? chromeKey.getState(view.state)?.after ?? -1 : -1;
-      if (!view || after < 0) return;
-      const pos = blockPos(view.state.doc, after), text = field.textContent;
-      readPagesImage(view, file, { from: pos, to: pos + view.state.doc.child(after).nodeSize }, (state, src, anchor) => {
-        if (field.textContent !== text) return null;
-        const tr = commitGap(state, state.doc.resolve(anchor.from).index(0), src);
-        if (!tr) return null;
-        field.replaceChildren();
-        return tr.setMeta(chromeKey, { after: -1 });
-      });
-      return;
-    }
-    event.preventDefault();
-    const text = event.clipboardData?.getData("text/plain") ?? "";
-    if (!text.trim()) return;
-    field.textContent = text;
-    commit();
-  });
-  field.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" || (event.key === "Enter" && !(field.textContent ?? "").trim())) {
-      event.preventDefault();
-      event.stopPropagation();
-      clear();
-      return;
-    }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !event.shiftKey) {
-      event.preventDefault();
-      const view = viewOf();
-      clear();
-      if (view) undo(view.state, view.dispatch);
-    }
-  });
-  field.addEventListener("blur", () => {
-    window.setTimeout(() => {
-      if (composing) return;
-      const view = viewOf();
-      if (!view || (chromeKey.getState(view.state)?.after ?? -1) < 0) return;
-      if ((field.textContent ?? "").trim()) commit();
-      else clear();
-    }, 0);
-  });
-  provisional = field;
-  return field;
 }
 
 
@@ -1743,17 +1115,6 @@ function handleWidget(translate: Translate | undefined): HTMLElement {
     <button type="button" data-pages-plus aria-label="${escapeHtml(t(translate, "插入块"))}">${dsIcon("plus")}</button>
     <button type="button" data-pages-grip aria-label="${escapeHtml(t(translate, "拖动以排序或缩进"))}">${dsIcon("grip")}</button>`;
   return wrap;
-}
-
-function gapWidget(index: number, translate?: Translate): HTMLElement {
-  const line = document.createElement("span");
-  line.className = "pages-insert-line";
-  line.dataset.pagesGap = "1";
-  line.dataset.after = String(index);
-  line.setAttribute("role", "button");
-  line.setAttribute("aria-label", t(translate, "在此插入"));
-  line.contentEditable = "false";
-  return line;
 }
 
 function calendarPlugin() {

@@ -1126,3 +1126,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18：#661 → f7d07b658：click 默认等目标可用，故意去点禁用按钮的写 allowDisabled（点之前先断言它是禁用的）；goals-dialogs 查出的是真实产品问题（后台刷新会在表单保存时整页换掉），已修：正在保存的表单也算「人还在操作」，这个判断提前到重载之前。workbench.js 1,110,056。作者 08:00 又自己加了标签，全量 run 39109760320，gate-661 盯着。
 - 10-18：#717（jingxusandra-gif，只改文档，产品运营文档）没经统筹、作者自己合了（59fd7850c）。事后复查：只有文档、门禁全过，不用补跑全量；提醒以后先交统筹，并建议约 41k 行的快照 JSON 别放进公开仓库。#661 的合并会在新 main 上测。
 - 10-18：**#661 已合入（de6dbfc8b）**；#716（快速失败）随后入队。已通知：#712 merge main、重新取键（workbench 1,110,056 → 实测），走 merge-only；#713 merge main，走 merge-only；#708 merge main、重新量 coding.js、加上两条断言修正，走 merge-only；#699 merge main、S-34 改成 S-38，走 merge-only；#684 merge main 后先审、再跑全量。
+- 10-18：#712 已合入。#699 改用 S-38，走 merge-only 已入队。#719（jingxusandra-gif，只改文档）按 #717 的复查意见把约 41k 行的快照 JSON 移出了仓库，还是作者自己合的，事后看过没问题。#708 修了自己引入的 AC-08 竞态（第二个页签收到 round_ended 后，状态行刚显示就被清掉），又改了产品代码，要重跑全量。

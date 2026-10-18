@@ -306,8 +306,8 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a method with a name over 80 characters", manifest: declarationManifest({ methods: [method({ name: "n".repeat(81) })] }), expected: "方法 summarize 需要名称（80 字以内）" },
   { rule: "a method without a summary", manifest: declarationManifest({ methods: [method({ summary: "" })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
   { rule: "a method with a summary over 300 characters", manifest: declarationManifest({ methods: [method({ summary: "s".repeat(301) })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
-  { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait" },
-  { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait" },
+  { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
+  { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
   { rule: "ASC-19: a business method can declare persistent waiting", manifest: declarationManifest({ methods: [method({ tools: ["board-wait"] })] }), expected: "" },
   // views and commands
   { rule: "conforming views and commands", manifest: declarationManifest({ ui: uiOf() }), expected: "" },
@@ -332,10 +332,10 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a route path that climbs out", manifest: declarationManifest({ routes: [route({ path: "/../items" })] }), expected: "路由 example.list 的路径不合法" },
   { rule: "a route path twice under another id", manifest: declarationManifest({ routes: [route(), route({ route_id: "example.again" })] }), expected: "路由路径重复：GET /items" },
   { rule: "a route permission the Manifest never declared", manifest: declarationManifest({ routes: [route({ permission: "storage:private" })] }), expected: "路由 example.list 要求未声明的权限 storage:private" },
-  // W4-04: a route may ask the Host to read a larger body, up to the Home edge's 12 MiB.
-  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 12 * 1024 * 1024 })] }), expected: "" },
-  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 12 * 1024 * 1024 + 1 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 12582912 字节）" },
-  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 12582912 字节）" },
+  // RAC-21 / RAC-37: explicit limits may reach 45,000,000 bytes, preserving Cognia batch uploads (user decision 2026-10-17).
+  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 45_000_000 })] }), expected: "" },
+  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 45_000_001 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 45000000 字节）" },
+  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 45000000 字节）" },
   // required capabilities
   { rule: "a conforming requirement", manifest: declarationManifest({ capabilities: { provides: [], consumes: ["projects.read.v1"] }, requires: [requirement()] }), expected: "" },
   { rule: "a requirement without a capability id", manifest: declarationManifest({ requires: [requirement({ capability_id: undefined })] }), expected: "依赖缺少 Capability ID" },
@@ -366,7 +366,7 @@ for (const { rule, manifest, expected } of MANIFEST_RULES) {
 
 const reader = { role_id: "reader", version: 1, name: "Reader" };
 const readerPrompt = { prompt_id: "reader", version: 1 };
-const BUSINESS_TOOLS = "ask-user、update-todo、find-tools、context-remaining、board-wait";
+const BUSINESS_TOOLS = "ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs";
 const TASK_DELEGATE = { role_id: "child", version: 1, name: "Child" };
 
 /** An Agent block that satisfies every rule, with `over` laid over it. */

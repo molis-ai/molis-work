@@ -162,11 +162,33 @@ export type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/m
 export type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare const MATERIAL_EXTENSIONS: {
+    readonly text: readonly [".txt", ".md", ".markdown", ".html", ".htm", ".csv", ".json", ".log"];
+    readonly image: readonly [".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif", ".tif", ".tiff", ".bmp", ".gif"];
+    readonly media: readonly [".mp3", ".wav", ".m4a", ".aac", ".aiff", ".aif", ".flac", ".mp4", ".mov", ".m4v", ".webm"];
+    readonly document: readonly [".pdf"];
+};
+
+export declare const MATERIAL_UPLOAD_MAX_BYTES: number;
+
+export type { MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";
+export type { MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
+export type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/services/materials";
+export type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
+
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
+    line_bytes: 65536;
+    lines: 10000;
+    progress_bytes: 1048576;
+}>;
+
 export type { PlacementResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactPublishInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -176,6 +198,9 @@ export type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/p
 export type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginMaterialRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginMaterialSourceRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginMaterialsClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -266,6 +291,8 @@ export declare function comparePluginVersions(left: string, right: string): numb
 export declare function compareTexts(before: string, after: string): TextDiff;
 
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
+
+export declare function decodeMaterialUpload(upload: MaterialUpload): MaterialSource;
 
 export declare function defineAction<Input, Output>(definition: ActionDefinition<Input, Output>, handle: (context: ActionExecutionContext, input: Input) => Output | Promise<Output>): {
     readonly definition: ActionDefinition<Input, Output>;
@@ -384,6 +411,8 @@ export { searchText } from "@molis-ai/molis-work-contracts/platform/actions";
 export declare function splitLines(text: string): DiffLine[];
 
 export { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function supportsMaterialExtension(extension: string): boolean;
 
 export declare function sweepActionCard<Card extends ActionCard>(card: Card, ports: Pick<ActionCardPorts<Card>, "store" | "readSubject" | "now" | "timeZone">): Promise<Card>;
 

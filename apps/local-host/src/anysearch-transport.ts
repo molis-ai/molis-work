@@ -34,7 +34,7 @@ function tooLarge(): SearchError {
  * proxy setup (system answer in 198.18.0.0/15 with a proxy variable set) is verified over public DNS; every address is
  * still checked to be public and the socket's peer must be the pinned address.
  */
-export function createAnySearchTransport(): SearchHostTransportPort {
+export function createAnySearchTransport(control?: { beforeDispatch?: () => Promise<void>; assertCurrent?: () => void }): SearchHostTransportPort {
   const shutdown = new AbortController();
   const active = new Set<Promise<unknown>>();
   const sockets = new Set<Promise<void>>();
@@ -42,7 +42,7 @@ export function createAnySearchTransport(): SearchHostTransportPort {
   return {
     execute(call) {
       const signal = AbortSignal.any([call.signal, shutdown.signal]);
-      const task = execute(call, signal, sockets).finally(() => active.delete(task));
+      const task = execute(call, signal, sockets, control).finally(() => active.delete(task));
       active.add(task);
       return task;
     },
@@ -53,7 +53,7 @@ export function createAnySearchTransport(): SearchHostTransportPort {
   };
 }
 
-async function execute(call: SearchHostTransportCall, signal: AbortSignal, sockets: Set<Promise<void>>): Promise<SearchProviderExecutionResponse> {
+async function execute(call: SearchHostTransportCall, signal: AbortSignal, sockets: Set<Promise<void>>, control?: { beforeDispatch?: () => Promise<void>; assertCurrent?: () => void }): Promise<SearchProviderExecutionResponse> {
   signal.throwIfAborted();
   if (call.appId !== "molis-work" || call.binding.providerId !== "anysearch" || call.request.providerId !== "anysearch"
     || call.binding.transportProfileId !== ANYSEARCH_TRANSPORT_PROFILE_ID || call.binding.credentialRef !== undefined
@@ -71,6 +71,9 @@ async function execute(call: SearchHostTransportCall, signal: AbortSignal, socke
   const pinned = addresses[0]!;
   const family = isIP(pinned) as 4 | 6;
   const peer = new BlockList(); peer.addAddress(pinned, family === 4 ? "ipv4" : "ipv6");
+  await control?.beforeDispatch?.();
+  control?.assertCurrent?.();
+  signal.throwIfAborted();
   return new Promise((resolve, reject) => {
     let settled = false;
     const finish = (error?: unknown, response?: SearchProviderExecutionResponse) => {
@@ -105,7 +108,7 @@ async function execute(call: SearchHostTransportCall, signal: AbortSignal, socke
       if (!tls.authorized || !tls.remoteAddress || !peer.check(tls.remoteAddress, family === 4 ? "ipv4" : "ipv6")) {
         finish(unavailable()); return;
       }
-      req.end(body);
+      try { control?.assertCurrent?.(); req.end(body); } catch (error) { finish(error); }
     }));
     req.once("response", response => {
       const status = response.statusCode ?? 0;

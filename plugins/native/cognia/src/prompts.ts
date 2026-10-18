@@ -10,4 +10,10 @@ export const COGNIA_ANSWER = defineInstructionPrompt({
     "具体的说法用资料的标签引用，比如 [S1]，只用给出的标签：没有标题、没有引用或引用了不存在的标签的回答会被退回，不会保存。",
   ].join("\n"),
 });
-export const COGNIA_INSTRUCTIONS: readonly InstructionPrompt[] = [COGNIA_ANSWER];
+/** Cognia's evidence role keeps the same editable identity and text when moving from the Host. */
+export const COGNIA_EVIDENCE = defineInstructionPrompt({
+  owner_id: "io.molis.work.cognia", prompt_id: "cognia-evidence", version: 2, title: "知识助手角色",
+  purpose: "Cognia 整理与问答运行时的角色说明", used_by: ["Cognia 整理", "Cognia 问答"],
+  body: "你在 Cognia 里帮用户整理收集来的资料，或回答关于这些资料的问题。用户会把结果存进知识库、以后引用，所以每个说法都要能在给定的资料里找到；资料不够就直说缺什么，不拿资料以外的知识来补。",
+});
+export const COGNIA_INSTRUCTIONS: readonly InstructionPrompt[] = [COGNIA_ANSWER, COGNIA_EVIDENCE];

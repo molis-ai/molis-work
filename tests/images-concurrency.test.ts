@@ -51,7 +51,7 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
     assert.ok(providerAddress && typeof providerAddress === "object");
     const { origin, controlToken: token } = web;
     const http = async (method: string, path: string, body?: unknown, expected = 200) => {
-      const result = await fetch(`${origin}/projects/${project.project_id}/api/plugins/images${path}`, { method, headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      const result = await fetch(`${origin}/projects/${project.project_id}/api/plugins/io.molis.work.images${path}`, { method, headers: { "content-type": "application/json", origin, "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       const value = await result.json() as any; assert.equal(result.status, expected, JSON.stringify(value)); return value;
     };
     await withCatalog({ homeDirectory: home }, c => c.bindRuntimeContext({
@@ -94,7 +94,7 @@ test("Images Web and the standard MCP launcher share live jobs through the resid
     requests.get("race")!.end(JSON.stringify({ data: [{ b64_json: PNG }] }));
     await until(async () => (await http("GET", `/jobs/${race.id}`)).job.status === "succeeded");
     const finished = (await mcp(client, imagesActions.get, { id: race.id })).job;
-    const bytes = await fetch(`${origin}/projects/${project.project_id}/api/plugins/images/jobs/${race.id}/images/${finished.images[0].id}`);
+    const bytes = await fetch(`${origin}/projects/${project.project_id}/api/plugins/io.molis.work.images/jobs/${race.id}/images/${finished.images[0].id}`);
     assert.deepEqual(Buffer.from(await bytes.arrayBuffer()), Buffer.from(PNG, "base64"));
 
     // The Home-wide cap applies across entries, and either entry cancels the other's job.

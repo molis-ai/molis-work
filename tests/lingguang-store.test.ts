@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createLingguangActionHandlers, openLingguangStore, type LingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { createLingguangActionHandlers, ownLingguangStores, openLingguangStore, type LingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 
 function fixture(t: test.TestContext): LingguangStore {
   const home = mkdtempSync(join(tmpdir(), "lingguang-store-"));
@@ -31,7 +31,7 @@ test("a request id names one save: the same input repeats, another input under i
 
 test("lingguang.create refuses a reused request id for different content, whoever asks", async t => {
   const store = fixture(t);
-  const handlers = createLingguangActionHandlers({ withStore: run => run(store), modelAvailability: () => ({ available: false }) });
+  const handlers = createLingguangActionHandlers({ ...ownLingguangStores(run => run(store)), modelAvailability: () => ({ available: false }) });
   const handler = handlers.find(handler => handler.capability_id === "lingguang.create")!;
   const caller = (actor: string) => ({ actor_id: actor, project_id: "P", audience: "mcp", permissions: ["lingguang:write"], beforeEffect: async () => {} }) as never;
   const create = async (actor: string, input: Record<string, string>) => (await handler.handle(caller(actor), input)) as { spark: { id: string } };

@@ -1,3 +1,4 @@
+import { acceptTestJob } from "../fixtures/job-authority.js";
 import { expect, it, vi } from "vitest";
 import { createTempDatabase } from "../db/helpers/temp-database.js";
 import { openDatabase } from "../../src/studio/server/db/open-database.js";
@@ -27,14 +28,15 @@ it("renews a blocked operation while another connection repeatedly attempts reco
   let calls = 0;
   const job = f.a.enqueue({ kind: "slow", payload: {} });
   const worker = new LocalWorker(f.a, { slow: async (_job, control) => {
-    calls++; await release.promise; control.saveCheckpoint({ done: true });
+    calls++; await release.promise; await control.saveCheckpoint({ done: true });
   } });
+  acceptTestJob(worker, job.id);
   const running = worker.runNext();
+  await vi.advanceTimersByTimeAsync(0);
   try {
     for (let i = 0; i < 12; i++) {
       await vi.advanceTimersByTimeAsync(100);
-      expect(f.b.recoverExpired()).toBe(0);
-      expect(f.b.claimNext()).toBeUndefined();
+      expect(f.b.claim(job.id)).toBeUndefined();
     }
     release.resolve(); await running;
     expect(calls).toBe(1);
@@ -50,9 +52,11 @@ it("a remote cancellation aborts the original wait and rejects a late business c
   let signal: AbortSignal | undefined;
   const worker = new LocalWorker(f.a, { slow: async (_job, control) => {
     signal = control.signal; await release.promise;
-    control.commit(() => f.first.prepare("INSERT INTO business_result VALUES ('late')").run());
+    await control.commit(() => f.first.prepare("INSERT INTO business_result VALUES ('late')").run());
   } });
+  acceptTestJob(worker, job.id);
   const running = worker.runNext();
+  await vi.advanceTimersByTimeAsync(0);
   try {
     f.b.cancel(job.id); await vi.advanceTimersByTimeAsync(100);
     expect(signal?.aborted).toBe(true);
@@ -70,14 +74,16 @@ for (const rejects of [false, true]) it(`local shutdown rejects late writes and 
   const job = f.a.enqueue({ kind: "slow", payload: {} });
   let cancelled = false, commitError: unknown, checkpointError: unknown;
   const worker = new LocalWorker(f.a, { slow: async (_job, control) => {
-    control.saveCheckpoint({ phase: "external_call_started" });
+    await control.saveCheckpoint({ phase: "external_call_started" });
     await release.promise;
     cancelled = control.isCancelled();
-    try { control.commit(() => f.first.prepare("INSERT INTO business_result VALUES ('late')").run()); } catch (error) { commitError = error; }
-    try { control.saveCheckpoint({ phase: "done" }); } catch (error) { checkpointError = error; }
+    try { await control.commit(() => f.first.prepare("INSERT INTO business_result VALUES ('late')").run()); } catch (error) { commitError = error; }
+    try { await control.saveCheckpoint({ phase: "done" }); } catch (error) { checkpointError = error; }
     if (rejects) throw new Error("late failure");
   } });
+  acceptTestJob(worker, job.id);
   const running = worker.runNext();
+  await vi.advanceTimersByTimeAsync(0);
   try {
     const original = f.b.get(job.id);
     worker.stop();
@@ -93,7 +99,7 @@ for (const rejects of [false, true]) it(`local shutdown rejects late writes and 
   } finally { release.resolve(); await running; f.close(); vi.useRealTimers(); }
 });
 
-it("a replaced worker cannot overwrite the recovered brainstorm or repeat its ambiguous model call", async () => {
+it("W5-01-ALC-RES03/04 a replaced worker cannot overwrite explicitly resumed brainstorm", async () => {
   vi.useFakeTimers();
   const f = fixture(), release = Promise.withResolvers<void>();
   const now = f.clock.now();
@@ -105,28 +111,30 @@ it("a replaced worker cannot overwrite the recovered brainstorm or repeat its am
   const original = model.generateStructured.bind(model);
   const generate = vi.spyOn(model, "generateStructured").mockImplementation(async input => { await release.promise; return original(input); });
   const handlers = createJobHandlers({ explorations, runtime: model, idFactory: f.idFactory, clock: f.clock });
-  const old = new LocalWorker(f.a, handlers), replacement = new LocalWorker(f.b, createJobHandlers({ explorations: new SqliteExplorationRepository(f.second), runtime: model, idFactory: f.idFactory, clock: f.clock }));
+  const old = new LocalWorker(f.a, handlers), replacement = new LocalWorker(f.b, createJobHandlers({ explorations: new SqliteExplorationRepository(f.second), runtime: new FixtureAiRuntimeAdapter(), idFactory: f.idFactory, clock: f.clock }));
+  acceptTestJob(old, receipt.jobId);
   const running = old.runNext();
+  await vi.advanceTimersByTimeAsync(0);
   try {
     // Simulate a paused process: its heartbeat never ran while wall time advanced.
     vi.setSystemTime(Date.now() + 1000);
-    expect(f.b.recoverExpired()).toBe(1);
     expect(f.a.renewLease(receipt.jobId)).toBe(false);
+    expect(await replacement.runNext()).toBe(false);
+    acceptTestJob(replacement, receipt.jobId);
     await replacement.runNext();
-    expect(f.b.get(receipt.jobId)).toMatchObject({ status: "failed", errorCode: "alchemist.ai_call_interrupted", attempt: 2 });
+    expect(f.b.get(receipt.jobId)).toMatchObject({ status: "completed", attempt: 2 });
+    const saved = explorations.get(receipt.runId);
     release.resolve(); await running;
     expect(generate).toHaveBeenCalledTimes(1);
-    expect(explorations.get(receipt.runId)).toMatchObject({ status: "failed", errorCode: "alchemist.ai_call_interrupted", cards: [] });
-    expect(f.b.get(receipt.jobId)?.errorCode).toBe("alchemist.ai_call_interrupted");
-    // J5C-01/J5C-03: the same current code is durable in the job and its event payload.
-    expect(f.b.listEvents(receipt.jobId).find(event => event.type === "failed")?.payload).toEqual({ errorCode: "alchemist.ai_call_interrupted" });
+    expect(explorations.get(receipt.runId)).toEqual(saved);
+    expect(f.b.listEvents(receipt.jobId).filter(event => event.type === "failed")).toEqual([]);
   } finally { release.resolve(); await running; f.close(); vi.useRealTimers(); }
 });
 
 for (const event of ["checkpoint_saved", "cancelled", "completed"]) it(`rolls back job changes if its ${event} event cannot be saved`, () => {
   const f = fixture();
   try {
-    const job = f.a.enqueue({ kind: "atomic", payload: {} }); f.a.claimNext();
+    const job = f.a.enqueue({ kind: "atomic", payload: {} }); f.a.claim(job.id);
     f.first.exec(`CREATE TRIGGER reject_event BEFORE INSERT ON job_events WHEN NEW.type = '${event}' BEGIN SELECT RAISE(ABORT, 'injected event failure'); END`);
     const change = () => event === "checkpoint_saved" ? f.a.saveCheckpoint(job.id, { value: "new" }) : event === "cancelled" ? f.a.cancel(job.id) : f.a.complete(job.id);
     expect(change).toThrow("injected event failure");

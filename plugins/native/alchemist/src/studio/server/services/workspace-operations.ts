@@ -1,3 +1,4 @@
+import { DISCOVERY_PULSE_JOB } from "./start-pulse-run.js";
 import { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ApiDependencies } from "../api/dependencies.js";
 import type { AlchemistOperationInput } from "../../shared/contracts/actions.js";
@@ -85,7 +86,12 @@ export function createWorkspaceOperations(d: ApiDependencies) {
     pulseReports: () => ({ latestRun: d.pulse.getLatestRun(), reports: d.pulse.listReports().map(report => ({ report, opportunities: d.pulse.listOpportunities(report.id), signals: d.pulse.listSignals(report.runId) })) }),
     pulseSources: () => ({ sources: d.pulse.listSourceSettings() }),
     pulseSourceUpdate: (input: AlchemistOperationInput<"pulseSourceUpdate">) => ({ source: d.pulse.updateSourceSetting(input.sourceId, input.enabled, d.clock.now()) }),
-    pulseStart: (input: AlchemistOperationInput<"pulseStart">) => ({ run: d.startPulseRun(input) }),
+    pulseStart: async (input: AlchemistOperationInput<"pulseStart">, signal?: AbortSignal, control?: AlchemistEffectControl) => {
+      const accepted = await d.jobResumption.prepareStart(DISCOVERY_PULSE_JOB, control);
+      signal?.throwIfAborted();
+      const run = d.startPulseRun(input); d.jobResumption.accept(run.jobId, accepted);
+      return { run };
+    },
     opportunitySave: (input: AlchemistOperationInput<"opportunitySave">) => ({ opportunity: d.opportunityActions.saveForLater(input.id), destination: { surface: "pulse", collection: "saved_for_later" } }),
     opportunityConvert: (input: AlchemistOperationInput<"opportunityConvert">) => {
       const result = d.opportunityActions.convert(input.id);

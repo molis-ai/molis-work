@@ -22,6 +22,17 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
   trace?: ArtifactReference[];
 }
 
+/** A process line has fixed versions without a pinned work object's source revision. */
+export interface PluginProcessItemHead { version: number }
+
+/** A consumable fixed version's summary, without content, owner or storage details. */
+export interface PluginConsumableVersion extends ArtifactReference {
+  kind: "artifact" | "process_item";
+  artifact_type_id: string;
+  schema_version: number;
+  title: string | null;
+}
+
 /** Host-bound author surface: project, user and producer identity cannot be supplied by a Plugin. */
 export interface PluginArtifactClient {
   /** Pin a version into the 成果库; the type must be in `artifacts.produces`. */
@@ -40,6 +51,8 @@ export interface PluginArtifactClient {
    * another producer pinned is refused.
    */
   readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
+  /** All consumable fixed versions: 成果 first, then process items, in each owner's listing order. */
+  listConsumable(): PluginConsumableVersion[];
 }
 
 /**
@@ -49,4 +62,8 @@ export interface PluginArtifactClient {
  */
 export interface PluginProcessItemClient {
   record(input: PluginProcessItemInput): ProcessItemResult;
+  /** Latest own process version, including archived/unavailable versions, or null. Checks producer signature and personal owner. */
+  head(artifactId: string): PluginProcessItemHead | null;
+  /** Recover an own process version without consumes; producer upgrades with the same signature keep access. */
+  readOwn(reference: ArtifactReference): ProcessItemRecord | null;
 }

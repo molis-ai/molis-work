@@ -102,17 +102,25 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/contextual/surfaces" },
   { method: "GET", path: "/api/functions" },
   { method: "GET", path: "/api/functions/settings" },
-  { method: "GET", path: "/api/lingguang" },
+  { method: "GET", path: "/api/plugins/io.molis.work.lingguang/sparks" },
   { method: "GET", path: "/api/pages" },
   { method: "POST", path: "/api/pages/import/preview", body: {} },
   { method: "GET", path: "/api/dataset" },
   { method: "GET", path: "/api/dataset/no-such" },
+  // Dataset's positive path is its Runtime route; the short route above is only the removed alias.
+  { method: "GET", path: "/api/plugins/io.molis.work.dataset/datasets" },
+  { method: "GET", path: "/api/plugins/io.molis.work.dataset/datasets/no-such" },
   { method: "GET", path: "/api/images" },
+  { method: "GET", path: "/api/plugins/io.molis.work.images/jobs" },
+  { method: "GET", path: "/api/plugins/io.molis.work.images/connections" },
   { method: "GET", path: "/api/ppt" },
+  { method: "GET", path: "/api/plugins/io.molis.work.ppt/ppt" },
+  { method: "GET", path: "/api/plugins/io.molis.work.ppt/ppt/no-such" },
   { method: "GET", path: "/api/jelly" },
-  { method: "GET", path: "/api/todo" },
-  { method: "GET", path: "/api/todo/no-such" },
-  { method: "GET", path: "/api/cognia" },
+  { method: "GET", path: "/api/plugins/io.molis.work.jelly/" },
+  { method: "GET", path: "/api/plugins/io.molis.work.todo/items" },
+  { method: "GET", path: "/api/plugins/io.molis.work.todo/items/no-such" },
+  { method: "GET", path: "/api/plugins/io.molis.work.cognia/library" },
   { method: "GET", path: "/api/alchemist" },
   { method: "GET", path: "/api/shelf" },
   { method: "GET", path: "/api/memory/" },
@@ -208,7 +216,7 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
     seen.push([key.replace("<project>", "<missing>"), value]);
   }
   seen.push(await ask({ method: "GET", path: "/projects/personal/health" }, ""));
-  seen.push(await ask({ method: "GET", path: "/projects/personal/api/todo" }, ""));
+  seen.push(await ask({ method: "GET", path: "/projects/personal/api/plugins/io.molis.work.todo/items" }, ""));
   const actual = Object.fromEntries(seen);
   assert.equal(Object.keys(actual).length, seen.length, "every probe has its own key");
   if (process.env.MOLIS_WORK_UPDATE_ROUTE_SNAPSHOT === "1") {

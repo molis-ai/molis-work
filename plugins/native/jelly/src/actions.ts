@@ -4,7 +4,7 @@ import { runJellyAi, type JellyAiInput, type JellyAiPorts } from "./ai.js";
 import { jellyOccurrences, jellyProgress } from "./calendar.js";
 import { jellyErrors } from "./error.js";
 import { jellyNoteToHtml, jellyNoteToMarkdown } from "./markdown.js";
-import type { JellyPreview, JellyStore } from "./store.js";
+import type { JellyPreview, JellyStores } from "./store.js";
 import { createJellyCommandHandlers, defineJellyAction as define, jellyCommandActions, JELLY_READ } from "./command-actions.js";
 import * as s from "./action-schema.js";
 import { jellyServiceActions } from "./service-actions.js";
@@ -42,13 +42,12 @@ export const jellyActions = {
 };
 export const JELLY_ACTIONS: readonly ActionDefinition[] = [...Object.values(jellyCommandActions), ...Object.values(jellyActions), ...Object.values(jellyServiceActions), ...Object.values(jellyContentActions)];
 export const JELLY_ACTION_PERMISSIONS = [...new Set(JELLY_ACTIONS.flatMap(definition => definition.action.permissions))];
-export interface JellyActionPorts {
-  withStore<T>(run: (store: JellyStore) => T): T;
+export interface JellyActionPorts extends JellyStores {
   modelAvailability(): ActionAvailability;
   ai(caller: ActionExecutionContext): JellyAiPorts;
 }
 export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandlerBinding[] {
-  const read = <T>(run: (state: JellyWorkspace) => T) => ports.withStore(store => run(store.read()));
+  const read = <T>(run: (state: JellyWorkspace) => T) => ports.read(store => run(store.read()));
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const ai = async (input: AiInput, kind: JellyAiInput["kind"], manual: boolean, caller: ActionExecutionContext): Promise<AiResult> => {
     caller.signal?.throwIfAborted();
@@ -57,9 +56,9 @@ export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandle
     await caller.beforeEffect();
     return result;
   };
-  return [...createJellyCommandHandlers(ports.withStore),
+  return [...createJellyCommandHandlers(ports),
     bind(jellyActions.state, () => read(state => ({ state, capabilities: { ai: ports.modelAvailability().available } }))),
-    bind(jellyActions.export, () => ports.withStore(store => ({ workspace: store.export() }))),
+    bind(jellyActions.export, () => ports.read(store => ({ workspace: store.export() }))),
     bind(jellyActions.calendar, input => read(state => ({ revision: state.revision, items: jellyOccurrences(state, input.start, input.end) }))),
     bind(jellyActions.progress, input => read(state => ({ progress: jellyProgress(state, input.start, input.end, input.today, input.category_ids) }))),
     bind(jellyActions.item, input => read(state => { const item = state.items.find(i => i.id === input.id) ?? state.series.find(i => i.id === input.id); if (!item) throw jellyErrors.not_found("事项不存在"); return { revision: state.revision, item }; })),
@@ -73,11 +72,11 @@ export function createJellyActionHandlers(ports: JellyActionPorts): ActionHandle
       const html = input.format === "html";
       return { content: html ? jellyNoteToHtml(note) : jellyNoteToMarkdown(note), filename: note.title.replace(/[\/\\:*?"<>|]/gu, "-").slice(0, 100) + (html ? ".html" : ".md"), mime: html ? "text/html;charset=utf-8" : "text/markdown;charset=utf-8" };
     })),
-    bind(jellyActions.previewImport, input => ports.withStore(store => ({ preview: store.previewImport(input.source) }))),
-    bind(jellyActions.previewNoteDelete, input => ports.withStore(store => ({ preview: store.previewDelete(input.id) }))),
+    bind(jellyActions.previewImport, (input, caller) => ports.write(caller, store => ({ preview: store.previewImport(input.source) }))),
+    bind(jellyActions.previewNoteDelete, (input, caller) => ports.write(caller, store => ({ preview: store.previewDelete(input.id) }))),
     bind(jellyActions.manualPlan, (input, caller) => ai(input, "decompose", true, caller)),
     bind(jellyActions.modelPlan, (input, caller) => ai(input, "decompose", false, caller), () => ports.modelAvailability()),
-    ...createJellySearchHandlers(ports.withStore),
-    ...createJellyContentHandlers(ports.withStore),
+    ...createJellySearchHandlers(ports.read),
+    ...createJellyContentHandlers(ports),
   ];
 }

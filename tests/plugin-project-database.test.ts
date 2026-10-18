@@ -365,13 +365,13 @@ test("W4-11-03 a fixture the Host is given registers its library as its own, so 
     const reference = molisWorkHostProjectReference({ databasePath: created.database_path, projectId: created.project_id });
     const plugin = probe({ name: "hostprobe" });
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
-      // Todo's own name and baseline: only that the library is another owner's can refuse it.
-      pluginFixtures: { project: [{ definition: plugin.definition, database: { ...DECLARATION, ...homeStores().get("todo")!.library!.baseline, store_name: "todo" } }] } });
+      // Lingguang's own name and baseline (a library its owner opens only when used): only that it is another owner's can refuse it.
+      pluginFixtures: { project: [{ definition: plugin.definition, database: { ...DECLARATION, ...homeStores().get("lingguang")!.library!.baseline, store_name: "lingguang" } }] } });
     try {
-      // The project's platform refuses its start list whole (the registry finds `todo` registered twice), so the fixture's
+      // The project's platform refuses its start list whole (the registry finds `lingguang` registered twice), so the fixture's
       // action never registers: the same answer a caller gets for any plugin that did not start.
-      await assert.rejects(host.actionClient(reference).invoke(asUser(reference.project_id), plugin.note, { text: "写进待办库" }), /能力未注册/);
+      await assert.rejects(host.actionClient(reference).invoke(asUser(reference.project_id), plugin.note, { text: "写进灵光库" }), /能力未注册/);
       assert.equal(plugin.started.length, 0, "the fixture never started");
-      assert.equal(existsSync(join(home, "todo")), false, "nothing of the Todo library was made");
+      assert.equal(existsSync(join(home, "lingguang")), false, "nothing of the Lingguang library was made");
     } finally { await host.close(); }
   }));

@@ -89,6 +89,8 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly plugin_install_id?: string;
   /** Trusted typed-capability origin. Never accepted from business arguments or persisted. */
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
+  /** Restrict this call and its descendants to registered query operations; never grants authority. */
+  readonly query_only?: true;
   readonly permissions: readonly string[];
   readonly allowed_capability_ids?: readonly string[];
   /** Exact grants; when present, ID-only restrictions cannot widen versions or providers. */
@@ -102,6 +104,9 @@ export interface ActionCallContext extends ActionCallOrigin {
   /** Recheck permissions consumed directly by a scene, without pretending it invoked another action. */
   readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
   readonly signal?: AbortSignal;
+  /** Trusted entrypoint only: capture revocable authority independently of its completed transport.
+   * The dispatcher wraps this with exact registration checks; business input never supplies it. */
+  readonly retain_background_authority?: (references: readonly ActionReference[], additionalPermissions?: readonly string[]) => RetainedActionAuthority;
   /**
    * Trusted transport callback; never accepted as capability input or persisted as run state. `text_delta` is new text a
    * model wrote since the last event, a preview only: what the action returns, after its checks, is the result.
@@ -125,6 +130,10 @@ export interface ActionExecutionContext extends ActionCallContext {
   readonly beforeEffect: () => Promise<void>;
   /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect. */
   readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+  /** Capture this command's registration and original authority while active, for explicitly accepted background work.
+   * Additional permissions must already belong to this caller and remain revocable. Entry-owned transport may detach;
+   * absent a separate authority, the original cancellation boundary remains. */
+  readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
 
 export interface ActionMetadata {
@@ -421,16 +430,23 @@ export function requireSynchronous<T>(value: T, message = "此操作需要异步
 }
 
 /** An entrypoint binds its authenticated context once; callers supply only business input. */
+/** One progress event a running action reports; on a streamed route the Host writes it as a `progress` line. */
+export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
+
+/** Where a call's progress goes. It carries no identity or authority, so it never changes whose call this is. */
+export interface ActionInvokeTransport { readonly on_progress?: (event: ActionProgressEvent) => void }
+
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
-  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">): Promise<Output>;
+  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return { discover: async () => client.discover(context()),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">) => {
-      const caller = context();
-      return await client.invoke(control ? { ...caller, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport) => {
+      const bound = context(), caller = transport?.on_progress ? { ...bound, on_progress: transport.on_progress } : bound;
+      return await client.invoke(control ? { ...caller, query_only: caller.query_only || control.query_only || undefined, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
+        retain_background_authority: control.retainBackgroundAuthority ? (references, additionalPermissions) => boundBackgroundAuthority(caller, definition, references, control.retainBackgroundAuthority!(), additionalPermissions) : undefined,
         validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
         assert_authority_current: (reference, requiredPermissions) => {
           // The control belongs to its original caller; the bound caller owns the child's reference and permissions.
@@ -438,6 +454,25 @@ export function bindActionClient(client: ActionClient, context: () => ActionCall
           requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
         } } : caller, definition, input) as Output;
     } };
+}
+
+/** Keep both identities when a bound client accepts work on behalf of a parent. */
+function boundBackgroundAuthority(caller: ActionCallContext, definition: ActionDefinition, references: readonly ActionReference[], parent: RetainedActionAuthority, additionalPermissions: readonly string[] = []): RetainedActionAuthority {
+  const required = [...new Set([...definition.action.permissions, ...additionalPermissions])];
+  if (!required.every(permission => caller.permissions.includes(permission))) throw new ActionError("actions.forbidden", "不能保留调用者没有的权限");
+  const own = caller.retain_background_authority?.(references, additionalPermissions);
+  const check = () => {
+    requireSynchronous(parent.assertCurrent());
+    if (own) { requireSynchronous(own.assertCurrent()); return; }
+    caller.signal?.throwIfAborted();
+    for (const ref of references) requireSynchronous(caller.assert_authority_current?.(ref, required));
+  };
+  return Object.assign(async () => {
+    check(); await parent();
+    if (own) await own();
+    else { for (const ref of references) await caller.validate_authority?.(ref); await caller.validate_permissions?.(required); }
+    check();
+  }, { assertCurrent: check });
 }
 
 /** Keep the originating operation's transport authority when it calls a nested action or scene.

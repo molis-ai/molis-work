@@ -14,11 +14,11 @@
 
 公开研究通过宿主 Search Evidence Layer 收集实际 URL 和摘要；市场脉搏保留 Toolify、Watcha、GitHub 来源，界面在市场脉搏列表里写明采集会联网访问这三个站点；GitHub 来源只带用户在「来源设置」里选定的那个「设置 › 服务连接」GitHub 账号的令牌，没选就匿名访问（限额较低），不读环境变量；令牌不交给插件：宿主经 `pulseGithub.fetch` 在请求发往 `api.github.com` 时加上请求头（`SafePublicHttpClient` 的 `fetch` 选项，插件自己不建这个头，`source-adapters.test.ts` 扫源码保证），`pulseGithub.read/select` 只列账号与选择（动作 `alchemist.pulse.github`、`alchemist.pulse.github.configure`：只有 user 受众，声明在 Home 作用域（`scope: "home"`），权限是自己的 `alchemist:connections:read/write`，和 Images 的 `connections.*` 一样；绑定记在连接登记表 `home/alchemist/pulse-github`，是整个 Home 共用的一条，在任一项目里选的账号所有项目都用，来源设置对话框也写明「所有项目共用」；这两个动作由 `createAlchemistActionHandlers` 的 `pulseGithub` 端口直接服务，不需要项目、不打开任何项目的工作室）；界面上的说明与 `docs/platform/NETWORK.md` 第 7 类写的是同一条规则。单次 Lens 的本地计划不消费 AI 调用，执行阶段的搜索、交叉判断和综合计入确认的调用预算。一次搜索计为一个业务调用，包含一次搜索供应商请求和最多三个页面的提取；不是底层 HTTP 请求数。预算不足会产生部分报告，不能作为完整双 Lens 决策依据。供应商费用不可观测，不把调用数换算为金额。
 
-数据按项目存于 `{home}/alchemist/projects/<encoded projectId>/studio.sqlite`。安全检查点可恢复；外部请求已发出但无法确认结果时，任务标记中断，由用户重新研究，避免后台重复消费。停止会中断当前请求并阻止后续阶段。已完成的报告可重新研究，过程中保留上一份报告；新任务失败或取消不会显示成研究完成。
+数据按项目存于 `{home}/alchemist/projects/<encoded projectId>/studio.sqlite`。重启后保留任务与安全检查点，由用户明确点击继续；外部请求已发出但无法确认结果时，先说明可能重复收费，再从最近可恢复阶段执行，仍受原预算约束。停止会中断当前请求并阻止后续阶段。已完成的报告可重新研究，过程中保留上一份报告；新任务失败或取消不会显示成研究完成。
 
 执行中的任务持续续租，其他进程不会因原始租期结束而接管仍在执行的任务。取消或租约丢失后，原执行者停止等待；业务结果和检查点写入在原任务库中校验执行归属。任务状态与事件同事务保存，失败不会留下只有状态、没有对应事件的半次更新。系统动作服务迁移仍在进行，进度见 `specs/action-architecture/migration.md`。
 
-Studio 的 54 项业务已声明为 `alchemistActions`，输入输出验证与目录 JSON Schema 来自同一 Zod 合同。`createAlchemistActionHandlers` 为 Host 提供处理器，`LocalRuntime.actions` 执行原有业务；HTTP 仅负责参数映射、状态码、SSE 和下载。事件读取使用原任务库的一致快照，取消观察不会取消任务。生产 Host 注册这 54 项，HTTP 经同一 Kernel 执行；旧演示数据的只读能力与「历史演示记录」入口已删除（2026-10-02，artifact-positioning P8）；按 Home/项目共享运行时，最后一个 Host 释放才停止。可信调用者身份保留到对象、任务和 Prologue 会话，重启后后台任务继续使用原发起身份。标准 MCP 测试使用真实 Host 和显式 fixture 权限，不能当作生产客户端授权管理完成。旧演示 writer 和生成器已移除，仅保留历史读取及导出。
+Studio 业务由 `alchemistActions` 声明，输入输出验证与目录 JSON Schema 来自同一 Zod 合同。`createAlchemistActionHandlers` 为 Host 提供处理器，`LocalRuntime.actions` 执行原有业务；HTTP 仅负责参数映射、状态码、SSE 和下载。事件读取使用原任务库的一致快照，取消观察不会取消任务。生产 Host 注册同一动作清单，HTTP 经同一 Kernel 执行；旧演示数据的只读能力与「历史演示记录」入口已删除（2026-10-02，artifact-positioning P8）；按 Home/项目共享运行时，最后一个 Host 释放才停止。可信调用者身份保留到对象、任务和 Prologue 会话；重启后的任务保留历史作者，但需当前调用者明确继续并获得本轮权限才能执行。标准 MCP 测试使用真实 Host 和显式 fixture 权限，不能当作生产客户端授权管理完成。旧演示 writer 和生成器已移除，仅保留历史读取及导出。
 
 `src/studio` 是迁入后的唯一实现来源，不依赖原仓库路径。UI 使用宿主 plugin-stage、设计 token、列表与详情、对象侧面板及原生对话框；不再发布独立 React 页面或插件 iframe。业务 API 和已有数据原样保留，模型接入仍使用 Prologue。凭据只由宿主管理，不进入业务数据库或导出。此插件不自动创建 Goal 或修改其他插件。
 
@@ -41,17 +41,19 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
   - 执行中的任务持续续租；任务状态与事件同事务保存。
   - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送与复用适用性判断声明 `scheduling: "concurrent"`，等模型不占项目串行队列。
   - 包内还有 vitest 用例：`pnpm --filter @molis-ai/molis-work-plugin-alchemist test`。
-  - 项目被删除时宿主关闭并移出该项目的工作室（含 worker 与搜索库），再删除 `alchemist/projects/<项目>` 目录，同 id 的项目重建后从空开始。
+  - 项目被删除时，先撤销工作室的前台与 worker 提交权限，等待真实执行退出，再关闭工作室与搜索库，最后删除 `alchemist/projects/<项目>` 目录。清理失败保留资源与关闭状态，下次删除或 Host 关闭重试；期间不再接纳动作，也不开第二份工作室。`tests/security-invariants-alchemist-lifecycle.test.ts` 覆盖 W5-01-ALC-LIFE 的迟到结果和失败重试。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-alchemist run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
   - 打开的工作室每 250 毫秒取一次任务。宿主（`apps/local-host/src/alchemist-service-host.ts`）关掉 10 分钟没人用、手上也没事的工作室（W4-09）：没有进行中的操作、没有正在取的任务、没有排队或运行中的任务（运行时的 `idle()`）；下一次操作再打开。等模型的前台操作和后台任务都让它保持打开。
-- 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-studio-idle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts tests/project-deletion-studios.test.ts tests/alchemist-pulse-github.test.ts tests/model-unavailable-declarations.test.ts tests/network-notices.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/security-invariants-alchemist-lifecycle.test.ts tests/alchemist-studio-idle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts tests/project-deletion-studios.test.ts tests/alchemist-pulse-github.test.ts tests/model-unavailable-declarations.test.ts tests/network-notices.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[specs/archive/alchemist-plugin/spec.md](../../../specs/archive/alchemist-plugin/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 LocalWorker 经 Plugin SDK 共用执行生命周期：本地关闭、取消和失租都禁止迟到的业务提交、检查点和终态写入，并停止续租。关闭后的未决外部调用保留原检查点，恢复仍由 Alchemist 判断，不自动重复模型请求。
 
-前台调用逐次传递原 `signal/beforeEffect/assert_authority_current`，模型或来源等待结束后在实际写点复查，并在最后一次等待后同步检查。取消或撤权不产生新的失败回复、研究计划或模型设置；已合法保存的本人消息保留，正常模型失败仍有解释。已接受的后台任务沿原任务生命周期运行，不携带创建调用的临时授权。页面通过共享 UI 生命周期管理事件、读取与轮询，隐藏停读、卸载取消，系统搜索可按对象 ID 跨集合与过滤打开。
+前台调用逐次传递原 `signal/beforeEffect/assert_authority_current`，模型或来源等待结束后在实际写点复查，并在最后一次等待后同步检查。取消或撤权不产生新的失败回复、研究计划或模型设置；已合法保存的本人消息保留，正常模型失败仍有解释。已接受的后台任务保留本次真实调用的持续授权，正常 HTTP 响应结束后仍可执行；撤权、停用或 Host 关闭仍阻止后续派出与业务写入。页面通过共享 UI 生命周期管理事件、读取与轮询，隐藏停读、卸载取消，系统搜索可按对象 ID 跨集合与过滤打开。
 
 固定研究成果的生产 Host 端口尚未接线。报告根据当前成果入口的 availability 禁用「保存固定版本」并解释原因，研究方法复用仍可使用；fixture 端口不代表生产支持，完整固定成果发布与预览仍未完成。
 
-本轮控制与客户端回归：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-client-boundaries.e2e.test.ts`。浏览器用例使用真实 Studio HTTP/SQLite 与受控模型响应；正式 Host 的等待后提交另由生命周期用例覆盖，不代替真实模型质量与整合实操。
+本轮控制与客户端回归：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/security-invariants-alchemist-lifecycle.test.ts tests/alchemist-client-boundaries.e2e.test.ts`。浏览器用例使用真实 Studio HTTP/SQLite 与受控模型响应；正式 Host 的等待后提交另由生命周期用例覆盖，不代替真实模型质量与整合实操。
+
+重启只读取原任务，不重新领取租约或执行 queued/running。`runs.resume` 展示继续条件，`runs.continue` 在真实调用者确认后只受理指定任务：探索固定本次模型与 Taste，Lens 沿原计划并从完整 `call_started` 历史累计预约数。未知结果可能已经收费，继续可能重复收费，且仍占原预算；安全 checkpoint 可零模型落库，耗尽不扩额。worker 的领取、续租、checkpoint、成功和失败写入都保留本轮类别权限与原授权；旧 actorId 不授予继续权。WorkReuse Host 真实外部接线尚未完成，fixture 接收方的 guard 证明不等于生产闭环。改恢复路径加跑 `tests/alchemist-resumption.test.ts`、`tests/security-invariants-alchemist-resumption.test.ts`、`tests/alchemist-resumption.e2e.test.ts` 及包内 acceptance、budget-history、recovery、lease、work-reuse 用例。

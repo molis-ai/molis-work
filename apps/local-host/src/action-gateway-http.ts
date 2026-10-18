@@ -46,7 +46,9 @@ export async function handleActionGatewayHttp(request: IncomingMessage, response
           abort.signal.throwIfAborted();
           if (host.instanceId !== instance || host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭");
         };
-        const { context, service } = await authorizeMcpActions(host, caller, home, reference, checkTransport, checkTransport);
+        const { context, service } = await authorizeMcpActions(host, caller, home, reference, checkTransport, checkTransport, () => {
+          if (host.instanceId !== instance || host.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭");
+        });
         if (body.operation === "discover") { sendJson(response, 200, { instance_id: instance, actions: await service.discover(context) }); return; }
         const capability = body.capability as ActionReference | undefined;
         if (!capability || typeof capability !== "object" || Array.isArray(capability)

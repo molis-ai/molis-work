@@ -1,10 +1,11 @@
 import path from "node:path";
 import { closeAssistantService } from "./assistant/assistant-http.js";
-import type { PluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { homeStores } from "./home-stores.js";
 import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
+import type { PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginPlatformEntry } from "./plugin-platform.js";
 import type { MolisWorkLocalHost, MolisWorkLocalHostOptions } from "./project-host.js";
 import { ensureSystemAgentService, releaseSystemAgentService } from "./system-agent-service.js";
@@ -60,13 +61,16 @@ export function pluginHomeFor(homeDirectory: string): PluginPlatformHome {
  * name no one has registered is: one the Host, a module, a shipped plugin or an earlier fixture has stays theirs, and the
  * start list's check (`assertDatabaseEntries`) refuses the fixture with the reason.
  */
-function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]): HomeStoreRegistry {
+export function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]): HomeStoreRegistry {
   const registry = homeStores(), own = new Map<string, HomeStore>();
   for (const fixture of [...fixtures?.project ?? [], ...fixtures?.home ?? []]) {
     if ("manifest" in fixture) continue;
-    const name = fixture.database.store_name;
-    if (registry.get(name) || own.has(name) || !PLUGIN_LIBRARY_NAME.test(name)) continue;
-    own.set(name, { path: name, owner: fixture.definition.manifest.plugin_id, library: { baseline: fixture.database } });
+    const names = new Set([fixture.database?.store_name, fixture.files?.store_name, fixture.owner_files?.store_name]);
+    for (const name of names) {
+      if (!name || registry.get(name) || own.has(name) || !PLUGIN_LIBRARY_NAME.test(name)) continue;
+      own.set(name, { path: name, owner: fixture.definition.manifest.plugin_id,
+        ...(fixture.database?.store_name === name ? { library: { baseline: fixture.database } } : {}) });
+    }
   }
   return own.size ? homeStoreRegistry([...registry.stores, ...own.values()]) : registry;
 }
@@ -75,26 +79,35 @@ function storesWithFixtures(fixtures: HomeSideOptions["pluginFixtures"]): HomeSt
  * A plugin a Host is given for a test or a probe: a definition, or a definition with the library in the Home the Host gives it
  * (what a start-list entry does for a shipped plugin, `PluginPlatformEntry.database`; the definition itself declares none).
  */
-export type PluginFixture = PluginDefinition | { readonly definition: PluginDefinition; readonly database: PluginDatabaseDeclaration };
+export type PluginFixture = PluginDefinition | PluginOwnerFilesEntry;
 
 /**
  * The test fixtures the Host bound to this Home was given, as start entries for a project's platform. Never `bundled`: a
  * fixture is not a plugin the Host ships, so it registers under its installation id and no shipped plugin's id.
  */
 export function projectFixtureEntries(homeDirectory: string | undefined): PluginPlatformEntry[] {
-  return pluginFixtureEntries(homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.project ?? [] : []);
+  return pluginFixtureEntries(fixtureDeclarationsFor(homeDirectory, "project"));
 }
 
 /** The same Home's fixtures, for comparing the actual two start lists. */
 export function homeFixtureEntries(homeDirectory: string): PluginPlatformEntry[] {
-  return pluginFixtureEntries(sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.home ?? []);
+  return pluginFixtureEntries(fixtureDeclarationsFor(homeDirectory, "home"));
+}
+
+/** Pure projection for cross-scope declaration checks; unrelated execution checks stay at the original startup entry. */
+export function pluginFixtureDeclarations(fixtures: readonly PluginFixture[]): PluginPlatformEntry[] {
+  return fixtures.map(fixture => "manifest" in fixture ? { definition: fixture } : { ...fixture });
+}
+
+export function fixtureDeclarationsFor(homeDirectory: string | undefined, scope: "home" | "project"): PluginPlatformEntry[] {
+  return pluginFixtureDeclarations(homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.[scope] ?? [] : []);
 }
 
 /** Both scopes use the same unbundled, in-process fixture declarations. */
 export function pluginFixtureEntries(fixtures: readonly PluginFixture[]): PluginPlatformEntry[] {
-  return fixtures.map(fixture => {
-    const { definition, database } = "manifest" in fixture ? { definition: fixture, database: undefined } : fixture;
+  return pluginFixtureDeclarations(fixtures).map(entry => {
+    const { definition } = entry;
     if (definition.execution === "sandbox") throw new Error(`夹具插件 ${definition.manifest.plugin_id} 是沙箱执行的；夹具是宿主自己运行的测试插件`);
-    return { definition, ...(database ? { database } : {}) };
+    return { ...entry };
   });
 }

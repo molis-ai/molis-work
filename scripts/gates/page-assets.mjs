@@ -235,15 +235,14 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for W3-C (specs/context-program §21.4, §21.6; specs/side-shelf AC-S04: a side panel plugin tab reports
-// what is in hand, as a split pane does). The page's context bus now also takes a side tab's messages, checked by the one
-// `SIDE_FRAME_FROM_SCRIPT` that `molis:side-forward` uses (S-30), so that check ships twice in this script; with marking the
-// focus as in the side panel, the workbench script is +273, once. Tried: shortening the shared check's names (about 40 bytes,
-// at the cost of a security check that reads less plainly); the side tab's own half runs in its own document, not here.
-// The entry is for exactly one merge-base budget (main de6dbfc8b), capped at the measured size, and used once: the next baseline
-// freezes again. This replaces receipts 3d-4's spent entry; delete it in the next change to this gate (as #541, #584 and #611 did).
+// W5-01 Lingguang: the shared browser NDJSON reader adds 2,231 B to workbench.js, while Lingguang's own bundle loses
+// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. Actual main now includes
+// Todo and receipts 3e-1, starting at 1,111,791 B. Preserve only the unspent +2,231 B; every prior start remains refused.
+// This exact increase is spent once; later growth stays frozen.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110056, 1110329],
+  "/assets/molis-work-workbench.js": [1111791, 1114022],
+  // User approved 2026-10-18: explicit Alchemist continuation, original budget and unknown-call fee warning.
+  "/assets/molis-work-plugins/alchemist.js": [50619, 52373],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

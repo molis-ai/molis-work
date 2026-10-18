@@ -12,7 +12,8 @@ import { planInformationWork } from "../apps/local-host/dist/information-planner
 import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
-import { readJellyModelSettings, saveJellyModelSettings, createJellyCompletion } from "../apps/local-host/dist/jelly-model.js";
+import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
+import { JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
 
 const listen = async (server: Server) => {
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -103,13 +104,20 @@ test("production settings HTTP -> shared connection -> Lingguang action actually
     const response = await fetch(origin + path, { method: method ?? (body === undefined ? "GET" : "POST"), headers: {
       origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(),
     }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    if (response.headers.get("content-type")?.includes("ndjson")) {
+      const events = (await response.text()).trim().split("\n").map(line => JSON.parse(line));
+      const last = events.at(-1); assert.equal(response.status, 200);
+      assert.equal(last.type, expected === 200 ? "result" : "error");
+      if (last.type === "error") assert.equal(last.status, expected);
+      return last.type === "result" ? last.result : last;
+    }
     const payload = await response.json() as any; assert.equal(response.status, expected, JSON.stringify(payload)); return payload;
   };
   try {
     const { connection } = await http("/api/settings/connectors/connections", { service_id: "model-api", display_name: "本机验证模型", token: "http-model-fixture-key" }, 201);
     await http("/api/settings/models/from-settings", { display_name: "配置页模型", base_url: f.modelOrigin + "/v1", api_format: "openai-chat-completions",
       prompt_cache: "off", enabled: true, models: [{ model_id: "settings-model", enabled: true }], connection_id: connection.connection_id });
-    const path = `/projects/${project.project_id}/api/plugins/lingguang`;
+    const path = `/projects/${project.project_id}/api/plugins/io.molis.work.lingguang/sparks`;
     const { spark } = await http(path, { title: "来自真实设置", body: "本轮材料" });
     const { conversation } = await http(path + "/conversations", { spark_ids: [spark.id] });
     const reply = await http(`${path}/conversations/${conversation.id}/messages`, { body: "继续讨论" });
@@ -133,22 +141,23 @@ test("production settings HTTP -> shared connection -> Lingguang action actually
 
 test("discovery and Jelly settings never decrypt; explicit selections stay invalid rather than changing account", async t => fixture(async f => {
   const first = configure(f, "a"), second = configure(f, "b");
-  saveJellyModelSettings(f.home, { provider_id: "a", model_id: "a-model" });
+  const configuration = createConsumerModelConfiguration(f.home, JELLY_MODEL_CONFIGURATION);
+  configuration.save({ provider_id: "a", model_id: "a-model" });
   const secrets = runWithMolisWorkHome(f.home, () => createFileSecretStore());
   const spy = t.mock.method(secrets, "get", () => { throw new Error("Directory attempted to decrypt a key"); });
   const closure = hostCompleteText({ homeDirectory: f.home }); assert.ok(closure);
-  assert.equal(readJellyModelSettings(f.home).effective_selection?.provider_id, "a");
+  assert.equal(configuration.read().effective_selection?.provider_id, "a");
   assert.equal(spy.mock.callCount(), 0);
   spy.mock.restore();
   withConnectorConnections(f.home, store => store.disconnect(first.connection_id));
   process.env.MOLIS_WORK_TEXT_API_KEY = "legacy-environment-must-not-override-selection";
-  const settings = readJellyModelSettings(f.home);
+  const settings = configuration.read();
   assert.equal(settings.configured, false);
   assert.deepEqual(settings.selection, { provider_id: "a", model_id: "a-model" });
   assert.equal(settings.effective_selection, undefined);
-  assert.equal(createJellyCompletion(f.home), undefined);
-  assert.throws(() => saveJellyModelSettings(f.home, { provider_id: "a", model_id: "a-model" }), /原选择已保留/);
-  assert.deepEqual(readJellyModelSettings(f.home).selection, settings.selection);
+  assert.equal(hostCompleteText({ homeDirectory: f.home, selection: configuration.selection() }), undefined);
+  assert.throws(() => configuration.save({ provider_id: "a", model_id: "a-model" }), /原选择已保留/);
+  assert.deepEqual(configuration.read().selection, settings.selection);
   await assert.rejects(closure("must not switch to b"), { code: "actions.connection_required" });
   assert.equal(f.requests.length, 0);
   withConnectorConnections(f.home, store => store.replaceToken(first.connection_id, "restored-fixture-key"));

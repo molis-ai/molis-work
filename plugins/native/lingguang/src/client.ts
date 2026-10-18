@@ -94,7 +94,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const headers = () => typeof molisWorkControlHeaders === "function"
     ? molisWorkControlHeaders()
     : { "content-type": "application/json" };
-  const api = "/api/plugins/lingguang";
+  const api = "/api/plugins/io.molis.work.lingguang/sparks";
   const request = async (method, path, body, keepalive) => {
     const response = await fetch(host.route(path), {
       method,
@@ -128,30 +128,6 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
   const linkDialog = workbench.querySelector("[data-lingguang-link]");
   const fileInput = workbench.querySelector("[data-lingguang-file]");
   const READING_STAGES = { extracting: "正在读取内容", fetching: "正在读取网页", downloading: "正在下载转写模型", model_download: "正在下载转写模型", transcribing: "正在转写音频", loading: "正在加载模型", ocr: "正在识别文字", frames: "正在读取视频画面", frame_ocr: "正在读取视频画面" };
-  /**
-   * POST with ?stream=1 and read the reply line by line: each progress line goes to onProgress, an error line is
-   * thrown, and the result line is returned. Aborting the signal closes the request, which stops the call on the Host.
-   */
-  const postStream = async (path, payload, signal, onProgress) => {
-    const response = await fetch(host.route(path) + "?stream=1", { method: "POST", headers: headers(), body: JSON.stringify(payload), signal });
-    const reader = response.body.getReader(), decoder = new TextDecoder();
-    let buffer = "", result = null;
-    const consume = (line) => {
-      if (!line.trim()) return;
-      const event = JSON.parse(line);
-      if (event.type === "progress") onProgress(event);
-      else if (event.type === "result") result = event.result;
-      else if (event.type === "error") { const error = new Error(event.error || L("灵光请求失败")); error.code = event.code; error.details = event.details; throw error; }
-    };
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      buffer += decoder.decode(chunk.value, { stream: true });
-      const lines = buffer.split("\\n"); buffer = lines.pop(); lines.forEach(consume);
-    }
-    buffer += decoder.decode(); if (buffer.trim()) consume(buffer);
-    return result;
-  };
   /** Read a file or a page with its progress shown; closing the dialog stops it. The reading, or null when stopped. */
   const readMaterial = async (path, payload) => {
     const controller = new AbortController();
@@ -162,17 +138,17 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     readingDialog.showModal();
     let result = null, failure = null;
     try {
-      result = await postStream(path, payload, controller.signal, (event) => {
+      result = await molisWorkRequest.stream(host.route(path), { body: payload, signal: controller.signal, onProgress: (event) => {
         stage.textContent = L(READING_STAGES[event.stage] || "正在读取…"); if (typeof event.progress === "number") bar.value = Math.max(0, Math.min(1, event.progress));
-      });
+      } });
       if (!result) throw new Error(L("读取没有返回结果"));
     } catch (error) { failure = error; }
     finally { readingDialog.removeEventListener("close", onClose); if (readingDialog.open) readingDialog.close(); }
     if (failure) {
       if (failure.name === "AbortError") { showNote(L("已停止读取")); return null; }
       // Transcription needs a local speech model: downloaded only on the person's yes, then the reading starts again.
-      if (failure.code === "jelly.material.model_required") {
-        const size = failure.details && failure.details.approximate_bytes;
+      if (failure.code === "material.model_required") {
+        const size = failure.body?.details?.approximate_bytes;
         const ok = await ask(L("转写需要下载本机语音模型") + (size ? "（" + Math.round(size / 1024 / 1024) + " MB）" : "") + L("，只在这台机器上用。现在下载并继续？"), L("下载并继续"));
         return ok ? readMaterial(path, { ...payload, allow_model_download: true }) : null;
       }
@@ -660,8 +636,8 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     chatController = new AbortController();
     if (chatStop) chatStop.hidden = false;
     try {
-      const payload = await postStream("/api/plugins/lingguang/conversations/" + encodeURIComponent(conversationId) + "/messages", { body }, chatController.signal,
-        (progress) => { if (typeof progress.text_delta === "string") draftBody.textContent += progress.text_delta; });
+      const payload = await molisWorkRequest.stream(host.route(api + "/conversations/" + encodeURIComponent(conversationId) + "/messages"), { body: { body }, signal: chatController.signal, onProgress:
+        (progress) => { if (typeof progress.text_delta === "string") draftBody.textContent += progress.text_delta; } });
       if (!payload) throw new Error(L("回复没有保存，输入已保留，可重试"));
       if (conversation?.id !== conversationId) return;
       conversation = payload.conversation;

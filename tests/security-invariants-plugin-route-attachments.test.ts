@@ -37,7 +37,7 @@ for (const scope of ["home", "project"] as const) {
       ["图像.svg", "image/svg+xml", Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>')],
       ["empty.bin", "application/octet-stream", Buffer.alloc(0)],
     ] as const) {
-      probe.behavior.route = async () => ({ status: 200, bytes, filename, mime, body: { mustNotReplaceBytes: true },
+      probe.behavior.route = async () => ({ status: 200, bytes, filename, mime, disposition: "inline", body: { mustNotReplaceBytes: true },
         headers: { "content-type": mime, "content-disposition": "inline", "content-security-policy": "default-src *", "cache-control": "public" } });
       const response = await f.request(path);
       assert.equal(response.status, 200);
@@ -52,5 +52,28 @@ for (const scope of ["home", "project"] as const) {
     const json = await f.request(path);
     assert.match(json.headers.get("content-type")!, /application\/json/);
     assert.deepEqual(await json.json(), { still: "JSON" });
+  });
+}
+
+for (const scope of ["home", "project"] as const) {
+  test(`S-03 W5-01-IMGHTTP-01 ${scope} permits explicit raster previews while retaining safe download headers`, async t => {
+    const probe = streamProbe(scope), route = probe.definition.manifest.routes!.find(route => route.route_id === "direct")!;
+    delete route.stream; route.method = "GET";
+    const f = await serveHomeRuntime(t, { pluginFixtures: { [scope]: [probe.definition] } });
+    const project = scope === "project" ? await f.project("Raster preview") : undefined;
+    const path = `${project ? `/projects/${project.project_id}` : ""}/api/plugins/${probe.id}/direct`;
+    for (const mime of ["image/png", "image/jpeg", "image/webp"]) {
+      for (const disposition of [undefined, "inline", "attachment"] as const) {
+        const bytes = Buffer.from("raster response bytes"), filename = "图片.bin";
+        probe.behavior.route = async () => ({ status: 200, bytes, mime, filename, disposition });
+        const response = await f.request(path);
+        assert.equal(response.status, 200); assert.equal(response.headers.get("content-type"), mime);
+        assert.equal(response.headers.get("content-disposition"), `${disposition ?? "attachment"}; filename*=UTF-8''${encodeURIComponent(filename)}`);
+        assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+        assert.equal(response.headers.get("content-security-policy"), "sandbox");
+        assert.equal(response.headers.get("cache-control"), "no-store");
+        assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+      }
+    }
   });
 }

@@ -355,10 +355,11 @@ export interface PluginRouteResponse {
   status: number;
   body?: unknown;
   headers?: Readonly<Record<string, string>>;
-  /** Non-stream HTTP routes deliver these bytes as an inert attachment; the Host fixes the security headers. */
+  /** Non-stream HTTP bytes default to attachment; the Host allows inline only for PNG, JPEG and WebP MIME. */
   bytes?: Uint8Array;
   filename?: string;
   mime?: string;
+  disposition?: "inline" | "attachment";
 }
 
 export interface PluginRouteBinding {

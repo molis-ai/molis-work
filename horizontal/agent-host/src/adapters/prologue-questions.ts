@@ -1,4 +1,4 @@
-import { validateQuestionnaireAnswer, type AgentControl, type ModelEvent, type PendingQuestion, type QuestionnaireAnswer } from "@prologue/sdk";
+import { validateQuestionnaireAnswer, type ModelEvent, type PendingQuestion, type QuestionnaireAnswer } from "@prologue/sdk";
 import type { AgentQuestion, AgentQuestionProblem } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 
 /** Historical questions remain readable, but only their live owner can accept answers. */
@@ -9,15 +9,16 @@ export function questionUnavailable(pending: { state: string; expiresAtMs: numbe
 }
 
 /** A malformed question or confirmation may be corrected once. Stop at the second failed receipt,
- * before the next model call; a prompt alone cannot enforce this limit. */
-export function withInteractionRepairLimit(control: Pick<AgentControl, "stop">, listener: (event: ModelEvent) => void) {
+ * before the next model call; a prompt alone cannot enforce this limit. The stop says which of the two was refused twice, in the
+ * person's words like the runtime's own circuit breaker, without the refusal's internal text. */
+export function withInteractionRepairLimit(stop: (reason: string) => void, listener: (event: ModelEvent) => void) {
   const failures = new Map<string, Set<string>>();
   return (event: ModelEvent) => {
     listener(event);
     if (event.type !== "tool-result" || !["ask-user", "suggest-action"].includes(event.name) || event.errorCode !== "TOOL_ARGUMENTS_INVALID") return;
     const calls = failures.get(event.name) ?? new Set<string>();
     calls.add(event.callId); failures.set(event.name, calls);
-    if (calls.size >= 2) control.stop("stopped");
+    if (calls.size >= 2) stop(`${event.name === "ask-user" ? "要向你提的问题" : "要给你的操作建议"}连续两次格式不合格，没能交给你，这一轮先停在这里；已完成的保留，可以说明怎么调整后继续`);
   };
 }
 

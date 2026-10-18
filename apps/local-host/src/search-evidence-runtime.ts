@@ -39,8 +39,10 @@ export function createSearchEvidenceRuntime(options: {
   const secretStore = options.secretStore ?? createFileSecretStore();
   const content = options.content ?? createEvidenceContentStore({ secretStore });
   const hostContent = createSearchContentPort(content);
+  const transport = options.queryTransport ?? createAnySearchTransport();
+  // Own fallible transport cleanup here: SEL memoizes a rejected host shutdown permanently.
   const queryHost = createPortBackedNodeSearchHost({
-    appId: APP_ID, transport: options.queryTransport ?? createAnySearchTransport(), content: hostContent,
+    appId: APP_ID, transport: { execute: call => transport.execute(call) }, content: hostContent,
   });
   const queryRuntime = createAnySearchRuntime(queryHost.host);
   const source = options.source;
@@ -62,16 +64,17 @@ export function createSearchEvidenceRuntime(options: {
       ? queryRoutes : source.routeResolver).resolveExact(input) },
   });
   let closing: Promise<void> | undefined;
+  const pending = new Set([intelligenceCollect, queryRuntime, { shutdown: async () => { await transport.shutdown?.(); } }, ...(source ? [source.runtime] : [])]);
   return {
     intelligenceCollect, content,
     shutdown() {
       return closing ??= (async () => {
-        const results = await Promise.allSettled([
-          intelligenceCollect.shutdown(), queryRuntime.shutdown(), ...(source ? [source.runtime.shutdown()] : []),
-        ]);
+        const results = await Promise.allSettled([...pending].map(async resource => {
+          await resource.shutdown(); pending.delete(resource);
+        }));
         const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
         if (failure) throw failure.reason;
-      })();
+      })().catch(error => { closing = undefined; throw error; });
     },
   };
 }

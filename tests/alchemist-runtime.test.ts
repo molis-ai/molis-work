@@ -268,7 +268,7 @@ test("Alchemist: Copilot consumes object content, prior discussion, and enabled 
   });
 });
 
-test("Alchemist: close waits for cancelled in-flight work before closing SQLite", async () => {
+test("W5-01-ALC-LIFE-02: Alchemist close waits for cancelled in-flight work before closing SQLite", async () => {
   await withRuntime(async (runtime, host, databasePath) => {
     const entered = Promise.withResolvers<void>();
     const released = Promise.withResolvers<void>();

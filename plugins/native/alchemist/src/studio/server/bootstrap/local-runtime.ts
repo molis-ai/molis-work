@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { studioLifecycle } from "./studio-lifecycle.js";
 import { actionsInFlight, bindAlchemistActor } from "./actor-actions.js";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -274,43 +275,13 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     ...(options.localSecurity ? { localSecurity: options.localSecurity } : {}),
   };
   const actions = createAlchemistOperationExecutor(dependencies);
-  const app = createApp(dependencies, options.actions ?? actions);
-
-  let interval: NodeJS.Timeout | undefined, draining: Promise<void> | undefined, closing: Promise<void> | undefined, closed = false;
   const inFlight = actionsInFlight();
-  const runPending = (): Promise<void> => {
-    if (draining) return draining;
-    if (closed) return Promise.resolve();
-    draining = (async () => {
-      // A restart can precede the former lease deadline; recover on each idle tick.
-      jobs.recoverExpired();
-      while (!closed && await worker.runNext()) { /* drain sequentially */ }
-    })().finally(() => { draining = undefined; });
-    return draining;
-  };
+  const app = createApp(dependencies, inFlight.track(options.actions ?? actions));
 
+  const { closed, ...lifecycle } = studioLifecycle({ database, worker, jobs, actions: inFlight, intervalMs: options.workerIntervalMs });
   return {
-    app,
-    actions,
-    actionsFor(owner) { return inFlight.track(bindAlchemistActor(owner, { database, actors, clock, actions, closed: () => closed })); },
-    database,
-    worker,
-    runPending,
-    idle: () => !closed && !draining && inFlight.none() && !jobs.hasActive(),
-    start() {
-      if (interval || closed) return;
-      void runPending();
-      interval = setInterval(() => void runPending(), options.workerIntervalMs ?? 250);
-      interval.unref();
-    },
-    close() {
-      if (closing) return closing;
-      closed = true;
-      if (interval) clearInterval(interval);
-      worker.stop();
-      closing = (async () => { try { await draining; await worker.whenIdle(); } finally { database.close(); } })();
-      return closing;
-    },
+    app, actions: inFlight.track(actions), database, worker, ...lifecycle,
+    actionsFor(owner) { return inFlight.track(bindAlchemistActor(owner, { database, actors, clock, actions, closed })); },
   };
 }
 

@@ -41,7 +41,7 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
   - 执行中的任务持续续租；任务状态与事件同事务保存。
   - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送与复用适用性判断声明 `scheduling: "concurrent"`，等模型不占项目串行队列。
   - 包内还有 vitest 用例：`pnpm --filter @molis-ai/molis-work-plugin-alchemist test`。
-  - 项目被删除时宿主关闭并移出该项目的工作室（含 worker 与搜索库），再删除 `alchemist/projects/<项目>` 目录，同 id 的项目重建后从空开始。
+  - 项目被删除时，先撤销工作室的前台与 worker 提交权限，等待真实执行退出，再关闭工作室与搜索库，最后删除 `alchemist/projects/<项目>` 目录。清理失败保留资源与关闭状态，下次删除或 Host 关闭重试；期间不再接纳动作，也不开第二份工作室。`tests/alchemist-host-lifecycle.test.ts` 覆盖 W5-01-ALC-LIFE 的迟到结果和失败重试。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-alchemist run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
   - 打开的工作室每 250 毫秒取一次任务。宿主（`apps/local-host/src/alchemist-service-host.ts`）关掉 10 分钟没人用、手上也没事的工作室（W4-09）：没有进行中的操作、没有正在取的任务、没有排队或运行中的任务（运行时的 `idle()`）；下一次操作再打开。等模型的前台操作和后台任务都让它保持打开。
 - 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-studio-idle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts tests/project-deletion-studios.test.ts tests/alchemist-pulse-github.test.ts tests/model-unavailable-declarations.test.ts tests/network-notices.test.ts`

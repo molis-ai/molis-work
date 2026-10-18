@@ -96,6 +96,8 @@ node scripts/run-tests.mjs tests/local-host.test.ts tests/web-home-isolation.tes
 
 ## 开发要求
 
+炼金术士的关闭先停止接纳并撤销提交，再等待前台动作与 worker 的真实退出；只有工作室与搜索资源全部关闭后才移出登记和删除目录。失败保留 live 删除钩子与未关闭资源，公开 Host.close 可单独重试炼金术士收尾，其余已完成 Host 收尾不重复执行。搜索组合直接拥有 query transport 的清理，避免 SEL 缓存一次关闭失败后无法重试；SEL 内部终端故障仍保留失败和资源，不假称清理成功。回归：`tests/alchemist-host-lifecycle.test.ts`、`tests/alchemist-studio-idle.test.ts`、`tests/search-evidence-runtime.test.ts`。
+
 助理每轮的未完成接入材料由 `src/assistant/assistant-setup-material.ts` 从接入 owner 读取，按当前 actor、会话、项目和读取授权筛选；只给公开状态、意图修订及实际旧等待撤回结果，不带凭据、不决定保留/取消。新消息后的暂缓与等待撤回仍分别由连接 owner 和 SDK 负责。回归：`tests/assistant-connector-business.test.ts`。
 
 Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalHost 时归该 Host 所有，关闭或重建借用的 Web 传输仍保留连接，最终 Host 关闭才释放。借用时复核 owner/schema，查询不缓存授权或项目事实，关闭等待已有借用。当前 schema 的目录打开不取得初始化写事务，也不执行建表。首次准备遇到 SQLITE_BUSY 延迟重试目录准备，确定性 owner/schema 拒绝不自动重试，关闭取消待重试；不会重新执行失败的业务回调。`/health` 在请求校验后读取服务就绪状态，不通过目录数据库探活。

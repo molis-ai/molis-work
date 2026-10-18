@@ -128,9 +128,8 @@ export function createIntelligenceCollectAdapter(options: {
       return closing ??= (async () => {
         await Promise.allSettled([...active]);
         if (!ready) return;
-        try { const state = await ready; await state.foundation.shutdown(); }
-        finally { ready = null; }
-      })();
+        const state = await ready; await state.foundation.shutdown(); ready = null;
+      })().catch(error => { closing = undefined; throw error; });
     },
   };
 }

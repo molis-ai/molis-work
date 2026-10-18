@@ -31,9 +31,9 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
       });
     } catch (error) { storage.close(); throw error; }
   })();
-  let closing: Promise<void> | undefined;
-  return {
-    search: input => runWithMolisWorkHome(options.homeDirectory, async () => {
+  let closing: Promise<void> | undefined, stopped = false, runtimeClosed = false;
+  const active = new Set<Promise<Awaited<ReturnType<AlchemistAiPort["search"]>>>>();
+  const search: AlchemistAiPort["search"] = input => runWithMolisWorkHome(options.homeDirectory, async () => {
       input.signal?.throwIfAborted();
       const selectors = [{ kind: "provider" as const, value: "anysearch" }, { kind: "channel" as const, value: "web" as const },
         { kind: "source_definition" as const, namespace: "app" as const, value: "anysearch" }];
@@ -60,11 +60,20 @@ export function createAlchemistSearchPort(options: { homeDirectory: string; proj
       }
       if (!sources.length) throw Object.assign(new Error("公开来源未提供可用正文；本次研究仍未知，请调整范围后重试。"), { code: "alchemist.research_no_sources" });
       return sources;
-    }),
+    });
+  return {
+    async search(input) {
+      if (stopped) throw new Error("alchemist.search_closed");
+      const work = search(input); active.add(work);
+      try { return await work; } finally { active.delete(work); }
+    },
     shutdown() {
+      stopped = true;
       return closing ??= runWithMolisWorkHome(options.homeDirectory, async () => {
-        try { await runtime.shutdown(); } finally { storage.close(); }
-      });
+        await Promise.allSettled([...active]);
+        if (!runtimeClosed) { await runtime.shutdown(); runtimeClosed = true; }
+        storage.close();
+      }).catch(error => { closing = undefined; throw error; });
     },
   };
 }

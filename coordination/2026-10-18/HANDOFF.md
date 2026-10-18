@@ -23,16 +23,16 @@
 | PR | 线 | 现在 | 合进去还差什么 |
 | --- | --- | --- | --- |
 | #725 | 采用（C4：coding-base v12，删三句工具自己已经说清的话） | 全量绿了，已在合并队列第 1 位 | 等队列合入 |
-| #726 | 回执（3e-0b：7 个 Coding 角色列上 acknowledge-inputs，常量 WORKSPACE_PARENT_TOOLS） | 统筹审过，全量排着 | 同上 |
+| #726 | 回执（3e-0b：7 个 Coding 角色列上 acknowledge-inputs，常量 WORKSPACE_PARENT_TOOLS） | 1152516e1 让 `tests/prologue-taskboard.test.ts` 稳定变红（interrupted 那段停下时是 ready，不是 running），已交回执线定性并修 | 新 head 核增量后重排全量 |
 | #720 | 情境（W3-C2 + Esc 的修复 `bus.hush()`） | 50b018acc 审过；等作者 merge main，按 `[1111791, 1111910]` 重新取键 | 新 head 核对后加 full-suite |
 | #708 | 交互（AC-08 两个页签答同一题） | 952e2628e 的产品修复审过；测试里的 1.5 秒等待要改成等「拒绝之后完成的那次会话读取」 | 新 head 核对后加 full-suite |
 | prologue#50 | 手册（todo 只在这一轮收得下时才提） | 统筹严格审过；等作者回答 tool-runner 里退路的问题 | 回答（必要时补用例）后统筹合并 |
-| 待开 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 在做 | 开 PR，审过跑全量 |
+| #728 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 281028f12 审过，要改一处（`keptWriteCheckers` 插进了 `workspaceGrants` 的文档注释和函数之间） | 新 head 核增量后加 full-suite |
 | 待开 | 情境 W4-1（选中的文字直接记成 Todo 或灵光，带撤销提示） | 在做 | 开 PR，审过跑全量 |
 | 待开 | 手册 BL-163/T5 评测与处理 | 96+16 次 MiniMax 在跑 | 开 PR；只改文档和提示词的话按规则判断要不要跑全量 |
 
 不在本交接里的：
-- #703、#727：防腐线 W5-01，Codex 在做，两个草稿叠在一起。
+- #703、#727：防腐线 W5-01，Codex 在做，两个 PR 叠在一起。#703 10-18 晚已转为待审。
 - #721：Computer Use 线，DeepSeek Harness 在做。10-18 晚已转为待审；按「合并一律经统筹」要审 diff、跑全量再入队。
 - #631、#156：jingxusandra-gif 的草稿。
 

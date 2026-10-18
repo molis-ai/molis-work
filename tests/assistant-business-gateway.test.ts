@@ -90,7 +90,7 @@ test("a project work finds, reads and — after the person approves the exact in
     await until(() => f.requests[0], "first model request");
     // The model saw only the gateway and root-free tools: no file, command or per-action tools.
     const offered = f.requests[0].tools.map((tool: any) => tool.name).sort();
-    assert.deepEqual(offered, ["ask-user", "board-wait", "change-capability", "change-reversible", "context-remaining", "find-capabilities", "read-capability", "suggest-action", "update-todo"]);
+    assert.deepEqual(offered, ["acknowledge-inputs", "ask-user", "board-wait", "change-capability", "change-reversible", "context-remaining", "find-capabilities", "read-capability", "suggest-action", "update-todo"]);
     assert.ok(JSON.stringify(f.requests[0]).includes("可用能力目录"), "the round carries the capability directory");
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     assert.equal(view.work.state, "waiting-review");
@@ -179,6 +179,32 @@ test("a repeated Send starts nothing twice; a new Send while running reaches the
     release();
     const done = await until(async () => { const v = await f.service.read(first.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(done.rounds.length, 1, "one round, one run");
+  } finally { release(); await f.close(); }
+});
+
+// specs/ai-input-receipts 3e-0: a business role may say how it handles a supplement. The runtime shows the model each
+// supplement's id only when the round lists acknowledge-inputs, and keeps what it says as the AI's claim.
+test("RCPT-362, 3e-0: the Assistant's work round is offered acknowledge-inputs, sees the supplement's id, and what it says lands on the receipt as its claim", { timeout: 60_000 }, async t => {
+  let release!: () => void, seen = "";
+  const hold = new Promise<void>(resolve => { release = resolve; });
+  const tools = (body: { tools?: Array<{ name: string }> }) => (body.tools ?? []).map(tool => tool.name);
+  const f = await fixture(t, [async () => { await hold; return reply({ name: "context-remaining", input: {} }); },
+    (body: unknown) => { seen = JSON.stringify(body).match(/steer-[0-9a-z]+-[0-9a-z]+/)?.[0] ?? "";
+      return reply({ name: "acknowledge-inputs", input: { items: [{ input: seen, treatment: "apply-now", kind: "constraint", impacts: ["constraint"], note: "不直接发邮件" }] } }); },
+    () => reply(undefined, "好的。")] as never);
+  try {
+    const first = await f.service.send({ text: "帮我约周四的客户会", request_id: "req-00000362" }, {});
+    await until(() => f.requests.length >= 1, "the first model request");
+    const more = await f.service.send({ work_id: first.work.work_id, text: "别直接发邮件给客户，我自己发", request_id: "req-00000363" }, {});
+    assert.equal(more.outcome, "steered");
+    release();
+    const done = await until(async () => { const v = await f.service.read(first.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.ok(tools(f.requests[0]).includes("acknowledge-inputs"), `RCPT-362 the business round lists it: ${tools(f.requests[0])}`);
+    const steer = done.rounds[0]!.turns.find(turn => turn.steer)?.steer;
+    assert.ok(steer, "the supplement has its receipt");
+    assert.equal(seen, steer.id, "RCPT-362 the model saw the supplement's id, as the runtime gave it");
+    assert.deepEqual([steer.model_claim?.treatment, steer.model_claim?.kind, steer.model_claim?.impacts], ["apply-now", "constraint", ["constraint"]], "RCPT-362 kept as the AI's own claim");
+    assert.equal(steer.state, "read", "the ledger's fact stays the ledger's");
   } finally { release(); await f.close(); }
 });
 

@@ -152,3 +152,26 @@ test("RC-19 (D32): words the person asked to keep that the write gate held show 
   await browser.evaluate(`${item}.querySelector('.assistant-item-actions button').click()`);
   await waitWork(browser, id, view => !view.memory_candidates?.length);
 });
+
+test("RCPT-361, 3e-1: what the AI says it takes as a constraint shows in the side pane's 当前约定, as its word, and opens the supplement's receipt", { timeout: 120_000 }, async t => {
+  const browser = await assistantPage(t, { question: "free-text", acknowledge: { treatment: "apply-now", kind: "constraint", impacts: ["constraint"] } }); if (!browser) return;
+  await send(browser, "帮我记一个问题");
+  const id = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
+  await waitWork(browser, id, view => view.rounds.at(-1)?.phase === "awaiting-input");
+  await browser.waitFor("!document.querySelector('[data-assistant-answer]').hidden");
+  await browser.click("[data-assistant-answer]");
+  await send(browser, "别直接发邮件给客户，我自己发");
+  await browser.click("[data-assistant-answer]");
+  await send(browser, "首页点保存没有反应");
+  await waitWork(browser, id, view => view.work.state === "completed");
+  const block = "document.querySelector('[data-assistant-block=\"agreements\"]')";
+  await browser.waitFor(`!${block}.hidden && ${block}.textContent.includes('别直接发邮件给客户，我自己发')`, 15_000)
+    .catch(async error => assert.fail(`${error}; turns: ${JSON.stringify((await readWork(browser, id)).rounds.at(-1)!.turns.map(turn => turn.steer))}`));
+  const shown = await browser.evaluate<{ title: string; claim: string; notes: string[] }>(`(() => { const node = ${block}; return { title: node.querySelector('.assistant-block-title').textContent,
+    claim: node.querySelector('.mw-receipt__claim').textContent, notes: [...node.querySelectorAll('.mw-receipt__note')].map(one => one.textContent) }; })()`);
+  assert.deepEqual(shown, { title: "当前约定", claim: "AI 说采纳为约束", notes: ["AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 1 轮"] },
+    "RCPT-361 the AI's word on the receipt's dashed line, said to be unchecked, with what was looked at");
+  await shot(browser, "assistant-agreements.png");
+  await browser.evaluate(`[...${block}.querySelectorAll('button')].find(node => node.textContent === '别直接发邮件给客户，我自己发').click()`);
+  assert.equal(await browser.evaluate("[...document.querySelectorAll('[data-assistant-thread] .mw-receipt')].find(node => node.textContent.includes('AI 说'))?.open"), true, "RCPT-361 it opens the supplement's receipt in the thread");
+});

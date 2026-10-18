@@ -50,8 +50,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const side = part("side");
   const sideToggle = part("side-toggle");
   const sideDot = part("side-dot");
-  const blocks = { attention: findEl(island, '[data-assistant-block="attention"]'), path: findEl(island, '[data-assistant-block="path"]'), materials: findEl(island, '[data-assistant-block="materials"]'),
-    results: findEl(island, '[data-assistant-block="results"]') };
+  const blocks = Object.fromEntries([...allEls(island, "[data-assistant-block]")].map(node => [node.dataset.assistantBlock, node]));
   const target = part("target");
   const targetWrap = part("target-wrap");
   const targetLabel = part("target-label");
@@ -204,7 +203,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let activeSend = null;
 
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:L("助理暂时无法完成")}), post = (path, body, route) => api(path, "POST", body, route);
-  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: part("answer"), api, work: () => curId, reload: () => reload() });
+  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: part("answer"), api, work: () => curId, reload: () => reload(),
+    pact: (content, badge) => paintBlock(blocks.agreements, L("当前约定"), "list", content, badge) });
   const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
@@ -1352,7 +1352,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     };
     rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
     putPageCards(null);
-    receipts.tray(thread, put, work && view);
+    receipts.after(thread, put, work && view);
     const reviews = work ? view.reviews : [];
     [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) card.remove(); });
     reviews.forEach((review) => {

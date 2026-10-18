@@ -132,6 +132,7 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
     const runFile = !bail ? attempt : async (entry) => {
       let result = await attempt(entry);
       for (let round = 1; round <= retries && !culprit && !ok(result); round++) {
+        console.log(`[before retry ${round}] ${entry.file}: ${statusOf(result).status}\n${result.output.trimEnd()}${result.timedOut ? `\n(killed after ${timeoutSeconds} s)` : ""}\n`);
         const again = await attempt(entry);
         if (!culprit) console.log(`[retry ${round}] ${ok(again) ? "ok  " : statusOf(again).status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(again.seconds)}`);
         if (ok(again)) return { ...again, flaky: true };

@@ -192,6 +192,7 @@ test("--bail: a file that still fails after its retry stops the run, so the file
   const output = `${run.stdout}${run.stderr}`;
   assert.equal(run.status, 1, output);
   assert.match(output, /\[retry 1\] ok\s+\S*flaky\.test\.mjs/, "the flaky file is retried at once and passes");
+  assert.match(output, /first try fails/, "the original failure remains diagnosable even when its retry passes");
   assert.match(output, /\[retry 1\] FAIL\s+\S*broken\.test\.mjs/);
   assert.match(output, /1 of 4 files passed \(1 only on a retry\)/);
   assert.match(output, /stopped at the first failure \(--bail\): 2 of 4 files did not run or were stopped/);

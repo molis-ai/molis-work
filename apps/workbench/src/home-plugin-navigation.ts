@@ -8,7 +8,7 @@ export function homePluginSideTabs(): SidePanelPluginTab[] {
     (entry.manifest.ui?.views ?? []).filter(view => view.slot === "side").map((view, index) => ({
       key: `${entry.project_plugin_id}/${view.view_id}`, title: view.title,
       ...(view.context_binding ? { contextOwner: entry.manifest.plugin_id, contextSurface: entry.project_plugin_id } : {}),
-      icon: (view.icon ?? "package") as MolisWorkIcon,
+      icon: (view.icon ?? "package") as MolisWorkIcon, ...(view.order === undefined ? {} : { order: view.order }),
       src: `/plugins/${encodeURIComponent(entry.project_plugin_id)}?side=${encodeURIComponent(view.view_id)}`,
       ...(index === 0 && entry.runtime?.keys ? { keys: entry.runtime.keys } : {}),
     })));
@@ -46,7 +46,7 @@ export function renderHomePluginNavigation(href?: (path: string) => string): str
       ? ` aria-keyshortcuts="${escapeHtml(keys.replace("Mod+", "Meta+"))}" title="${escapeHtml(`${entry.manifest.name} ${keysLabel(keys)}`)}"` : ""}`;
     // The label stays visible at narrow widths, where other arrival tools become icon-only.
     const content = `${glyph ? icon(glyph as MolisWorkIcon) : ""}${escapeHtml(entry.manifest.name)}`;
-    return [side ? `<button ${attrs} type="button" data-side-plugin-open="${escapeHtml(`${entry.project_plugin_id}/${side.view_id}`)}" aria-controls="dock-window-im" aria-expanded="false">${content}</button>` : href
+    return [side ? `<button ${attrs} type="button" data-side-plugin-open="${escapeHtml(`${entry.project_plugin_id}/${side.view_id}`)}" aria-controls="side-panel" aria-expanded="false">${content}</button>` : href
       ? `<a ${attrs} href="${escapeHtml(href(`/plugins/${encodeURIComponent(entry.project_plugin_id)}`))}">${content}</a>`
       : `<button ${attrs} type="button" data-work-surface-open="${escapeHtml(stage.view_id)}">${content}</button>`];
   }).join("");

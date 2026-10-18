@@ -402,6 +402,7 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 | 2026-10-14 | CI 必过检查拆成并行作业（弹窗，「开发、CI 都慢」的系统优化，PR #497） | 合入（推荐）；只合测试运行器，CI 结构先不动 | 合入 | 原来 `Verify` 约 28–29 分钟，全卡在串行的 `architecture-boundaries`。拆成 `gates`、`health-gate-rules`（都不构建，后者分两个 runner）与 `architecture-boundaries`、`action-contracts`（各自构建），都在 `Verify` 的 `needs` 里（PR 上第一次运行 `Verify` 约 7.7 分钟；健康门禁的变异用例每个文件本身就占一个多核，4 核 runner 上并行几乎不再加快，所以分到更多 runner 上，并用 `actions/cache` 留下用时让长的先跑）；安全不变量单独一个不挡合并的作业；`workspace:verify` 去掉重复构建 `tsc` 的 `workspace:typecheck`。检查一项不少、不放宽。按 `AGENTS.md`，改 CI 步骤要用户确认，这一行就是 |
 | 2026-10-14 | Linux 探针跑的频率（弹窗） | 每晚一次 + 手动（推荐）；保持每次推送都跑；只在推送到 main 时跑 | 每晚一次 + 手动 | `schedule` 每晚跑 main（有自己的并发组，夜里的合并取消不到它），保留 `workflow_dispatch`；PR 和推送上不跑。每次推送占一小时 runner、不决定任何事，main 上又常被下一次合并取消 |
 | 2026-10-14 | 产品子集作业的并行份数（弹窗） | 现在提到 4 份（推荐）；等并入 `Verify` 时再说 | 提到 4 份 | 拆分后必过检查约 10 分钟，子集约 15 分钟，并入后会成为最长的一项；runner 是 4 核，趁作业还不挡合并（W2-16）看负载会不会让文件变得不稳定 |
+| 2026-10-18 | 页面体积是不是硬上限（改 #17，用户在统筹会话里提出） | 用户直接给出 | 体积控制，不是硬上限 | 默认只许变小、能省先省；功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数与试过的省法，评审认可后在 `APPROVED_CEILINGS` 一次性放行（只认 merge-base 的准确数字，上限等于实测，下一条放行进来时删掉用完的），合入后照样冻结。一个资源一次涨超过 10 KB、或新增资源（要改门禁），先问用户（10 KB 这条线是统筹 10-18 定）。此前每次放行都弹窗问用户（#589、AC-03 +606、回执 3d-4 +889） |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -532,7 +533,7 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 | R-14 | 仍然成立 [已确认] | `git ls-files .impeccable` 1,085 个文件、约 111 MiB（`git ls-tree -r -l HEAD -- .impeccable` 求和 111.3 MiB）；`.gitignore` 只忽略 `.impeccable/qa/`、`config.local.json`、`questions/` | 决定 #22（只留现行 spec、文档或测试引用的评审组与设计参考，其余从树里删、不改历史，门禁只许减少）：W1-23、W1-06（数量门禁） |
 | 皮肤 | 仍然成立 [已确认] | `packages/design-system/src/visual-foundation.ts` 按顺序拼接 14 个样式模块，含 `momentum` 1,170 行、`quiet-paper` 382、`calm-desktop` 1,391、`personal-shell` 373、`personal-workbench-v2` 393、`-v3` 1,421；`styles/` 共 17 个文件、11,885 行（报告时 11,338）；`craft-finish.ts` 2,312 行 | 决定 #17（自动比对像素、超阈值给用户看；页面体积先冻结）：W1-07（体积门禁）、W4-12（视觉比对）、W5-05（逐个删除） |
 | Goals UI | 部分，已不完全成立 [已确认] | `apps/workbench/src/goals-*.ts` 16 个、573 行：15 个是 5–59 行的挂载转接层，已不含 Goals 业务界面；`goals-page-renderer.ts`（335 行）是工作台外壳的页面渲染器，名字起错了，留在工作台改名 | §4.3/§4.6：W5-06（通用贡献挂载器取代 15 个转接层，并改名） |
-| Server | 已不按原样成立 [已确认] | `server/` 与 `packages/im-ui` 支撑侧栏「项目讨论」页签（`apps/workbench/src/side-panel.ts:42` 的 `data-dock-frame="im"`；`apps/local-host/src/im-server.ts:3-4` 引入二者）；`apps/server`（5 个文件）这个独立启动器仍没有产品入口，只有 `tests/cross-device-*.test.ts` 在用；SSOT 标「实验性」（`docs/SSOT-MATRIX.md:57`）；`server/server.sqlite` 已登记进 `docs/system/HOME-DATA.md` | 决定 #4（保留并继续迭代，不冻结；只修账目：备份表、宿主不再直接读它的表、包归类）：「宿主不再直接读它的表」已由 W2-06 做完（`im-server.ts` 与 `apps/server/src/main.ts` 改走 `Identity`、`ContinuityService` 的方法），其余 W2-12 |
+| Server | 已不按原样成立 [已确认] | `server/` 与 `packages/im-ui` 支撑侧栏「项目讨论」页签（`apps/workbench/src/side-panel.ts` 的 `data-side-body="discussion"`；`apps/local-host/src/im-server.ts:3-4` 引入二者）；`apps/server`（5 个文件）这个独立启动器仍没有产品入口，只有 `tests/cross-device-*.test.ts` 在用；SSOT 标「实验性」（`docs/SSOT-MATRIX.md:57`）；`server/server.sqlite` 已登记进 `docs/system/HOME-DATA.md` | 决定 #4（保留并继续迭代，不冻结；只修账目：备份表、宿主不再直接读它的表、包归类）：「宿主不再直接读它的表」已由 W2-06 做完（`im-server.ts` 与 `apps/server/src/main.ts` 改走 `Identity`、`ContinuityService` 的方法），其余 W2-12 |
 | N-01 | 已修复 [已确认] | 标题栏只剩底栏铃铛 `data-assistant-attention`（#140，`597d15d2`）；`data-plugin-notifications`、「通知，暂不可用」「通知功能即将开放」在源码里 0 处，只在两处断言里作为「不应出现」被检查（`tests/plugin-notification-bell.test.ts:17`、`tests/plugin-event-recovery.e2e.test.ts:22`） | — |
 | N-02 | 已修复 [已确认] | `vendor/prologue-sdk/` 只剩 1 份 tgz（`prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`，#170 删旧包）；`tooling/gates/limits.json` 的 `vendoredPrologueSdk` 上限 2，由 `pnpm health:check` 守，CI 里跑 | 来源与补丁见 N-14 |
 | N-03 | 已按决定收口为文档分类，代码不搬 [已确认] | 决定 #2：架构里加一类「平台产品服务」。已写进 `docs/system/ARCHITECTURE.md`「平台产品服务」小节与 `docs/SSOT-MATRIX.md` §6（#296）；代码未动：`horizontal/memory/src/service.ts` 1,337 行（写入门、自动写入、插件写入审批）、`horizontal/placement/src/index.ts` 479 行。记忆与放置两页已补（`docs/horizontal/memory.md`、`placement.md`，#319）。余：边界规则入门禁 | W1-05（边界规则）、W4-08（按决定改为文档与边界规则，不搬代码） |
@@ -1020,7 +1021,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | vendored 包数量 | `vendor/prologue-sdk/*.tgz` 不超过 2 份 | #170 合入后 1 份 | 放回一份旧包 |
 | spec 状态句与根目录 | `specs/` 根目录每份都有状态句；只许在做的与现行规范 | 当前根目录 | 新建一份没有状态句的 spec |
 | 兼容逻辑不回流 | 源码不再出现 `ALTER TABLE`、`ensureSqliteColumn`、旧产品名与兼容标记（建库基线与允许名单除外） | 删兼容后为 0 | 加一处 `ALTER TABLE` |
-| 页面资源预算（§4.8，用户决定 #17） | 宿主 `apps/local-host/src/web-assets.ts` 里写成字符串字面量的每个 `/assets/` 路径（三份样式表、`molis-work-workbench.js` 与 `molis-work-capabilities.js` 两份脚本、Pages 编辑器、各插件客户端包、字体）向构建产物要内容，量发出去的字节数；预算文件（当前的与 merge-base 的）里读不到路由、宿主却还在发的路径照样量并按发现遗漏失败，所以删条目躲不掉；读不成整条字面量的写法（模板、拼接、前缀）、拿请求路径和非字面量比较、文件里除整条 `/assets/…` 字面量和插件包那一条已知正则以外还出现单词 `assets`（正则或带转义斜杠的写法：`\/assets\/`、`[\/]assets`、`(assets)`），退出 2；CI 在 `workspace:verify` 之后跑，预算文件与 merge-base 里的那份比，调大数字、加条目、删仍在发的条目都放不过；数字必须等于实测 | `tooling/gates/page-assets.json`（先冻结，只许变小；旧皮肤删完后再定真实上限） | 工作台样式表多一个字节；新增一个 `/assets/` 路由（含写成正则的，但把 `assets` 一词本身拆开的除外，见没覆盖的几项）；手改预算调大；把路由改成读不到的写法并删掉预算条目 |
+| 页面资源预算（§4.8，用户决定 #17） | 宿主 `apps/local-host/src/web-assets.ts` 里写成字符串字面量的每个 `/assets/` 路径（三份样式表、`molis-work-workbench.js` 与 `molis-work-capabilities.js` 两份脚本、Pages 编辑器、各插件客户端包、字体）向构建产物要内容，量发出去的字节数；预算文件（当前的与 merge-base 的）里读不到路由、宿主却还在发的路径照样量并按发现遗漏失败，所以删条目躲不掉；读不成整条字面量的写法（模板、拼接、前缀）、拿请求路径和非字面量比较、文件里除整条 `/assets/…` 字面量和插件包那一条已知正则以外还出现单词 `assets`（正则或带转义斜杠的写法：`\/assets\/`、`[\/]assets`、`(assets)`），退出 2；CI 在 `workspace:verify` 之后跑，预算文件与 merge-base 里的那份比，调大数字、加条目、删仍在发的条目都放不过；数字必须等于实测 | `tooling/gates/page-assets.json`（先冻结，默认只许变小；2026-10-18 起是体积控制、不是硬上限，功能必需的增长经评审在 `APPROVED_CEILINGS` 一次性放行，见决策记录） | 工作台样式表多一个字节；新增一个 `/assets/` 路由（含写成正则的，但把 `assets` 一词本身拆开的除外，见没覆盖的几项）；手改预算调大；把路由改成读不到的写法并删掉预算条目 |
 | 独立整页（artifact-positioning S7） | 除例外清单外没有路由返回完整 HTML；插件内容里不出现自带外壳；站内链接不跳出工作台 | [artifact-positioning §4](../artifact-positioning/spec.md) | 加一个返回整页的路由 |
 | 成果库声明（artifact-positioning A7） | manifest 声明与实际写入一致；可见类型必须有预览；交换数据不进用户可见列表 | 同上 | 写一个未声明的类型 |
 | 文档引用（W1-06） | 活文档（`archive/` 之外的 `.md`）没有断链（含标题锚点）；`skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md` 引用的路径、`pnpm` 脚本与动作 id 存在；`specs/README.md` 索引与根目录分类一致；`specs/BACKLOG.md` 没有完成行 | 从 0 开始，没有基线；有意的例外在 `tooling/gates/doc-citation-exceptions.json`（带理由，不再需要就要删） | 加一处断链、引用一个不存在的 id、少列一份 spec、留一行已完成 |
@@ -1045,7 +1046,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 - 终端客户端 `dist/web/pty-client.js`（根 `pnpm build:pty-client` 生成，CI 不跑）。
 - 只在 macOS 上量过；输出不随语言、时区、路径变，但 Linux CI 上的第一次运行才是核对。
 
-工作流上要知道：冻结按资源、等号严格，也没有像巨大单元那样的例外文件（用户决定 #17 就是这样写的），所以合入后，任何给 `workbench.css`、`workbench.js`、`settings.css`、`arrival.css` 或某个插件包多加一个字节的在途界面 PR 都会在 CI 里红，除非它在同一个资源里省回同样多；两个 PR 都压低同一个资源时会在 `page-assets.json` 的同一行冲突，合并后要重新 `--update --base origin/main`。
+工作流上要知道：冻结按资源、等号严格，也没有像巨大单元那样的例外文件（用户决定 #17 就是这样写的），所以合入后，任何给 `workbench.css`、`workbench.js`、`settings.css`、`arrival.css` 或某个插件包多加一个字节的在途界面 PR 都会在 CI 里红，除非它在同一个资源里省回同样多；两个 PR 都压低同一个资源时会在 `page-assets.json` 的同一行冲突，合并后要重新 `--update --base origin/main`。2026-10-18 用户改了这一条：体积是控制，不是硬上限。功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数与试过的省法，评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条一次性放行（只认 merge-base 的准确数字，上限等于实测），合入后照样冻结；一个资源一次涨超过 10 KB 或新增资源，先问用户。
 
 CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.yml`）；以上门禁都以非浏览器用例或脚本形式加到 `architecture-boundaries` 作业里，时间预算 3 分钟以内。
 
@@ -1439,7 +1440,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | 14 | CI 产品子集 | 先不挡、两周后并入 Verify |
 | 15 | 「不留兼容」窗口 | 第一个装到开发机外的版本 |
 | 16 | 翻译 | 全部换成稳定键 |
-| 17 | 视觉验收与页面体积 | 自动比对像素、超阈值给用户看；体积先冻结 |
+| 17 | 视觉验收与页面体积 | 自动比对像素、超阈值给用户看；体积先冻结，2026-10-18 改为体积控制：必需的增长经评审一次性放行 |
 | 18 | 非内置插件的 methods | 和内置插件一样注册 |
 | 19 | 没有使用者的接口 | 删按需搜索，记忆只给 MCP |
 | 20 | 备份与清除范围 | 离线快照命令，清除覆盖所有登记的库 |

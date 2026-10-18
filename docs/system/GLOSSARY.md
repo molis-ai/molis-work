@@ -39,7 +39,7 @@
 | 项目（Project） | 唯一的工作边界与身份，`project_id` | 项目 | Board（指项目时） |
 | 目标资料库（Goals 根记录） | Goals 在每个项目库里的根记录，一个项目一条，不是项目本身 | 目标资料库（报错与动作「初始化目标资料库」） | Board（指它时） |
 | 讨论（项目讨论） | 右栏里一个项目的群聊与 Thread，在用并继续迭代的产品功能 | 讨论、项目讨论、群聊与 Thread | IM 实验、实验线（它不是实验） |
-| 常开插件 | Manifest 声明 `always_on: true` 的内置插件：每个项目都开着，不进插件列表、市场、Dock 的选择和项目插件管理，不能从项目里移除；只有随宿主发布的插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-34）。现在只有 Shelf，是右栏的第一格。`openPlugin=shelf` 一类的链接说的是插件，按声明打开它的侧栏格（`docs/system/EXTENSION-POINTS.md` §3.7） | 无（界面上它就是右栏的一格） | 平台自带（指 Shelf 时）、常驻插件 |
+| 常开插件 | Manifest 声明 `always_on: true` 的内置插件：每个项目都开着，不进插件列表、市场、Dock 的选择和项目插件管理，不能从项目里移除；只有随宿主发布的插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-34；2026-10-18 用户定改成按声明与授权，实现前代码仍如此）。现在只有 Shelf，是右栏的第一格。`openPlugin=shelf` 一类的链接说的是插件，按声明打开它的侧栏格（`docs/system/EXTENSION-POINTS.md` §3.7） | 无（界面上它就是右栏的一格） | 平台自带（指 Shelf 时）、常驻插件 |
 | 插件的名字 | `project_plugin_id`、`manifest.plugin_id`、`manifest.name`、界面显示名、目录与包名，五样各有用处 | 显示名中英文混用 | 见第 3 节 |
 | 翻译键 | 界面文字在词典里的稳定标识，标识概念和位置，不含措辞；措辞是词典的值 | 无（用户看不见） | 中文原文当键（现状，将被取代，见 2.7） |
 
@@ -138,7 +138,7 @@
 **Character**
 
 - 定义：个人拥有的 AI 做事方式：标题、指令、可选的内置工具范围和动作范围（用来限制，不授予权限）、可附带导入的规则与 Skill 快照。草稿归 `modules/characters`，发布到项目后是成果的一个固定版本（类型 `character.definition.v1`）。起跑时按精确版本选用，且只对插件在 Manifest 的 `agent` 块里用 `characters.role_ids` 声明接受 Character 的 Agent role 开放（声明类型 `AgentManifest`，`packages/contracts/src/platform/plugin-agent.ts:189`；Coding 的声明在 `plugins/native/coding/src/roles.ts:38`；起跑时的核对在 `horizontal/agent-host/src/index.ts:466`）。
-- 归属（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「Characters 的代码身份」）：Characters 不是插件，是宿主设置里的一节，界面仍是「设置 › 角色」；代码并进宿主或一个 Module，它的安装记录与 Runtime 条目一起删。文档按「设置的一节」写；只有讲落地前的代码时才写「Characters 插件」。
+- 归属（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「Characters 的代码身份」）：Characters 不是插件，是宿主设置里的一节，界面仍是「设置 › 角色」；代码并进宿主或一个 Module（2026-10-18 定为 `modules/characters`），它的安装记录与 Runtime 条目一起删。文档按「设置的一节」写；只有讲落地前的代码时才写「Characters 插件」。
 - 现状代码（上面的决定还没落地）：`plugins/native/characters` 仍是经 Plugin Runtime 装配的插件（`kind: "app"`，`plugin_id` 为 `io.molis.work.characters`），在内置插件清单里带 `personal: true`（`apps/workbench/src/builtin-plugins.ts`），宿主侧另有 4 个文件：`apps/local-host/src/characters-host.ts`、`apps/local-host/src/character-import-discovery.ts`、`apps/local-host/src/character-import-plugins.ts`、`apps/local-host/src/character-native-execution.ts`。已发布的版本里存着生产者身份（`CHARACTER_PLUGIN_ID`、`CHARACTER_PUBLISHER_SIGNATURE`，`packages/contracts/src/modules/characters.ts:12-13`），`plugins/native/characters/src/plugin.ts:36` 读取时核对；并入宿主时这两个值保留还是迁移，由并入的切片定，不属于术语改名。
 - 代码：`CharacterDraft`、`CharacterContent`（`packages/contracts/src/modules/characters.ts`）。
 - 注意：设置的「角色」页同时列出 Character（「我的角色」）和 Agent role（「系统与插件带来的角色」）。界面把两者统称「角色」，文档分开写：个人的叫 Character，声明出来的叫 Agent role。裸写「角色」只用于引用这个界面标签。

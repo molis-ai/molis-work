@@ -45,7 +45,7 @@ test("bounded text uses Prologue's native protocol, fixed model, endpoint and cr
   assert.equal(calls, 1);
 });
 
-test("revoking a credential during Runtime initialization prevents model dispatch", async () => {
+test("W5-01-SHM-04 revoking a credential during Runtime initialization preserves the refusal and prevents model dispatch", async () => {
   const source = env(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let calls = 0;
   const complete = hostCompleteText({ env: source, resolveInference: async () => {
@@ -53,7 +53,13 @@ test("revoking a credential during Runtime initialization prevents model dispatc
     return { completeTextResult: async () => { calls++; throw new Error("must not dispatch"); } } as Client;
   } })!;
   const pending = complete("material");
-  const rejected = assert.rejects(pending, { code: "actions.connection_required" });
+  const rejected = assert.rejects(pending, error => {
+    assert.ok(error instanceof Error && "code" in error);
+    assert.equal(error.code, "actions.connection_required");
+    assert.equal("execution" in error, false);
+    assert.equal("validateResult" in error, false);
+    return true;
+  });
   await entered.promise; source.MOLIS_WORK_TEXT_API_KEY = ""; release.resolve(); await rejected;
   assert.equal(calls, 0);
 });

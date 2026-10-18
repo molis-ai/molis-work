@@ -105,9 +105,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * waits on a questionnaire whose one text question is among others (the Host marks it `draft_from_composer` with that
  * field), the default is 「写进问卷」 instead: Send writes the words into the card's draft and hands nothing back (R4, D14).
  */
-export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, api, work, reload }) => {
+export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, api, work, reload, pact }) => {
   const CHOICES = { answer: "回答上面的问题", draft: "写进问卷", steer: "补充这一轮" };
-  let asked = "", ask = null, choice = "answer";
+  let asked = "", ask = null, choice = "answer", pacted = null;
   const question = (round) => {
     const waiting = round && round.phase === "awaiting-input" ? round.awaiting_input || [] : [];
     return waiting.find((item) => item.from_composer || item.draft_from_composer) || null;
@@ -137,10 +137,15 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
     target: () => chip.hidden || choice === "draft" ? undefined : choice,
     /** The question whose draft the next Send fills instead. */
     into: () => !chip.hidden && choice === "draft" ? ask : null,
-    /** What is still open in the work, after its rounds (the tray); none when nothing is. Its queue is left out when not read. */
-    tray(thread, put, view) {
+    /**
+     * After the rounds are drawn: what is still open in the work (the tray; its queue left out when not read), and in the side
+     * pane 「当前约定」 from the receipts just drawn, redrawn only when it reads differently so focus in it stays.
+     */
+    after(thread, put, view) {
       const round = view?.rounds.at(-1), tray = round ? shared.tray(thread, view.queued_inputs, round, act(round)) : null;
       if (tray) put(tray); else thread.querySelector(":scope > .mw-tray")?.remove();
+      const kept = view ? shared.agreements(thread, view.rounds.map((one) => one.run_id)) : null, read = kept ? kept.textContent : "";
+      if (read !== pacted) { pacted = read; pact(kept, kept ? String(kept.querySelectorAll("li").length) : ""); }
     },
   };
 }`;

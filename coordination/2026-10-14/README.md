@@ -1087,3 +1087,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #698 已合入 31c48ed5d。
 - 10-18 用户弹窗批准回执线 3d-4 的 workbench.js +860 B（只此一次），键 [1109312, 1110172]；要求计划卡与回执的步骤状态措辞只留一份（计划卡改从 host.receipts 取，coding.js 只会变小）。
 - 10-18 #702 在 797f2dcd9 上的全量全绿；9a6385be3 走 merge-only（gate-702b）。
+- 10-18 3d-4 改成计划卡与回执共用一份措辞后，workbench.js 改为 +889（多出的 29 B 是 host.receipts.step），coding.js −253，页面合计净减 224 B；用户弹窗批准把放行改成 +889（只此一次），键 [1109312, 1110201]。

@@ -25,7 +25,7 @@ import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { prepareGitOperation } from "./git-operations.js";
 import { draftText } from "./model-draft.js";
-import { agentHostCapabilities, type AgentMcpLibrary, type AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import { prepareGitIndex } from "./workspace-git-index.js";
@@ -97,8 +97,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   let ready: Promise<void> | undefined;
   let markStarted!: () => void;
   const started = new Promise<void>(resolve => { markStarted = resolve; });
-  let disposed = false;
-  let disposal: Promise<void> | undefined;
+  let disposed = false, disposal: Promise<void> | undefined;
   const initialize = (): Promise<void> => {
     if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
     return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
@@ -126,6 +125,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
       projectId: (runtime) => runtime.project_id,
       mcpChanged: (runtime, runtimeId, pluginId, library, owner) => externalMcp.sync(runtime, pluginId, runtimeId, library, owner),
+      writeCheckers: async (runtime) => ({ workspaces: await workspaceGrants(options, runtime.project_id), store: keptWriteCheckers(prologue) }),
     },
   );
   const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input, invocation) => {
@@ -345,6 +345,12 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
  * neither invents a fallback.
  */
 /** The project's authorized workspaces, from the list when the Host keeps one, else the single one. */
+/** Where the runtime keeps the person's after-write checkers; the call that asks has started it. */
+function keptWriteCheckers(prologue: { writeCheckers: AgentWriteCheckerStore } | undefined): AgentWriteCheckerStore {
+  if (!prologue) throw new Error("Agent 运行时没有启动，读不到写后检查器");
+  return prologue.writeCheckers;
+}
+
 async function workspaceGrants(options: Pick<AgentHostCompositionOptions, "workspacesFor" | "workspaceFor">, projectId: string): Promise<readonly ProjectWorkspaceRef[]> {
   return options.workspacesFor ? await options.workspacesFor(projectId) : [await options.workspaceFor(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
 }

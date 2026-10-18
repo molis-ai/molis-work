@@ -118,7 +118,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `horizontal/memory` | 平台记忆：个人与项目记忆的开关与策略、确定性写入门、召回编排、候选、最近变动与撤销、界面信号计数 | `MemoryService`；系统动作 `memory.*` 由 Host 装配；正文、版本、删除与隔离在 Prologue Memory（经 Agent Host）；旁表在 storage 适配；不调用模型 | `partial` | `specs/archive/memory-system/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/placement` | 放在哪里：对象的位置、访问范围、关联（用于项目、Goal 资料、来自/复制自）与移动后的位置索引 | `PlacementService`；系统动作 `placement.describe/spaces/related/locate/link/unlink/move/copy/convert/goals/goal.bind/create` 由 Host 装配；关系写 Home 级 Context Ledger（`placement.db`）；对象事实总向所有者读；移动/复制经插件放置协议 | `partial` | `specs/archive/work-placement/spec.md` | 横向服务：@yijunw0212 |
 
-本节 8 个包分两类（见[系统架构 §3](system/ARCHITECTURE.md)）：`connector-host`、`listener-host`、`scheduler`、`runtime-host`、`agent-host` 是横向运行服务，只保存 cursor、lease、retry 等可恢复的技术状态；`memory`、`placement`、`search` 按职责属于「平台产品服务」（目录暂留在 `horizontal/` 下），可以持有跨插件的策略和本服务自己的机制记录（放置的关联与来源、记忆的开关、候选与撤销、可重建的搜索索引）。情境排序（`packages/kernel` 的 `contextual.ts`）同属平台产品服务，代码位置不变。两类都不拥有 Goal、Signal、Action、Session 等插件或 Module 的业务事实。
+本节 8 个包分两类（见[系统架构 §3](system/ARCHITECTURE.md)）：`connector-host`、`listener-host`、`scheduler`、`runtime-host`、`agent-host` 是横向运行服务，只保存 cursor、lease、retry 等可恢复的技术状态。例外只有一处：`agent-host` 另外保存人保存的 Agent 配置，只有外部 MCP 服务器、装进项目的 Skill（界面叫「方法」）、写后检查器三类，各在下面「Agent Host 保存的人的配置」里有一行；除此之外它也只存技术状态。`memory`、`placement`、`search` 按职责属于「平台产品服务」（目录暂留在 `horizontal/` 下），可以持有跨插件的策略和本服务自己的机制记录（放置的关联与来源、记忆的开关、候选与撤销、可重建的搜索索引）。情境排序（`packages/kernel` 的 `contextual.ts`）同属平台产品服务，代码位置不变。两类都不拥有 Goal、Signal、Action、Session 等插件或 Module 的业务事实。
 
 ## 7. Plugins
 
@@ -187,6 +187,16 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 4. `contract-only` 不得被 UI、CLI、MCP 或 Plugin Runtime 宣称为可用功能。
 5. 旧 owner 只有在 caller 清零、行为兼容、数据迁移和回滚证据齐全后才能标为 `retired`。
 6. 第 3 至 7 节各表的「归属」列（角色与评审账号）和 `.github/CODEOWNERS` 由 `scripts/package-owners.mjs` 的规则生成，不手改。新增、删除、改名 package 或换负责人后，改规则并运行 `node scripts/package-owners.mjs --write`；`pnpm boundary:check` 检查每个工作区包恰有一行、「归属」列与规则一致、CODEOWNERS 与规则一致。未建包的行（`absent`）归属写 `—`。CODEOWNERS 只请求评审，不改分支保护（`specs/repository-anti-corruption/spec.md` §1，2026-10-02、10-07）。
+
+## Agent Host 保存的人的配置
+
+| 责任 | Owner | 唯一事实源 |
+| --- | --- | --- |
+| 外部 MCP 服务器的配置（地址或命令、超时、启用；凭据只给引用） | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-mcp`；宿主能力 `agent.mcp.*` |
+| 装进项目的 Skill（界面叫「方法」） | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-coding-method`；宿主能力 `agent.skills.*` |
+| 写后检查器：每个项目、每个已授权工作区一份，带版本 | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-write-checkers`；动作 `agent.write_checkers.list.v1`、`agent.write_checkers.save.v1`，受众只有人（`specs/prologue-adoption/spec.md` §6.0p.2） |
+
+三类都由人保存，`agent-host` 只经 Prologue 的存储读写，不建自己的表。工作区授权本身归 Home 的项目目录（读法是 `projects.settings.workspaces.read.v1`），这里只引用它。
 
 ## 图片生成插件
 

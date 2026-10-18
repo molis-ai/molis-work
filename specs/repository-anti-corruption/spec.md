@@ -6,6 +6,8 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+Cognia 唯一页面挂载补修（2026-10-18，RAC-43，本地验证通过）：共享全量 39141589229 的按需客户端 Chrome 回归在切回 Cognia 后丢失原 surface；干净材料基线两条通过、完整组合一条失败。根因是迁入 Home Runtime 后，项目页仍调用 Cognia 的旧构建期 renderer，同时追加 Runtime 返回的同名页面，形成两个同 id 根节点。删除这条旧渲染链，只保留 Runtime 提供的视图；客户端资源、样式与目录登记保持。既有浏览器用例补每个可打开页面恰好一个根节点的断言，原节点保留、失败重试、单次资源下载和 companion 断言不变；真实 Home HTTP 另验证停用时项目页只保留不可用视图，重新启用后恢复唯一业务视图。验证：整体 build、工作台包必跑、原 Chrome 回归、相关 Home/Cognia 路径与完整 health/boundary/资源检查；不以延长等待或放宽断言处理。 新唯一性断言在修前明确得到 2 个根节点，修后原 Chrome 两条通过；工作台必跑与相关组合 32 文件最终 177 条通过（13 个 Chrome 文件 39 条）。原纯 renderer 测试在删除旧装配后失败，改为真实 Host HTTP，全部原结构/客户端断言保持，另验证停用/恢复。整体 build、API、完整 merge-base health、boundary 和 25 项资源检查通过，7,479,612 B 无变化；日志 /tmp/molis-cognia-single-stage-*.log。共享全量与更新后正式 CI 待结算。
+
 Cognia 交接收口（2026-10-18，Codex，本地同步通过）：已 merge 灵光 a1a10e86d 与实际 main 63639a764。业务源码保持此前已审候选，冲突仅整合安全表与重生成派生记录；S-18 同时保留主线跨分区恢复与模型 metadata 拒绝证据。整体 build、API/动作快照（均无额外变化）、boundary、merge-base health 和资源检查通过；13 个直接相关文件 344 条通过，覆盖 Cognia 动作/Store/AI/HTTP/Runtime、Host 模型与附件拒绝、声明、路由和 Home 平台。Cognia 客户端仍减少 260 B，25 项资源共 7,478,372 B；日志 /tmp/molis-cognia-closeout-{build,api,actions,health,boundary,assets,targeted}.log。此前组合的 203 文件 1,823 条、其中 5 个 Chrome 文件 20 条及 1 条环境跳过证据保留，未重复计为本次重跑。正式 PR、CI 与合入仍按前置顺序推进，整线未完成。
 
 共享全量路由断言补齐（2026-10-18，RAC-31、PPT-07、W5-01 Dataset）：39135082261 的 4/16 在 personal-plugins-review-fixes 仍要求旧短路径时失败，其余分片由 fail-fast 取消。相同文件在干净已合入材料树 8145f96bd 为 16/16；该文件和三插件客户端在这份基线与实际 main f4207e064 间均无变化，组合本机复现 Dataset 旧路径断言失败。分别在灵光、PPT、Dataset 所属片将对应客户端断言改为 Manifest 路径；不恢复旧路由、不改生产行为或放宽授权，保留现有真实 Runtime HTTP 拒绝与消费者回归。此处先补灵光，当前 2 文件 31 条通过（跨插件回归 16、真实 Runtime HTTP 15），日志 /tmp/molis-lingguang-route-assertions-after.log；下一轮共享全量另记。

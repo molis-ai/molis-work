@@ -136,6 +136,7 @@
   - 只改测试、文档、门禁变严、CI 的 PR；
   - 已经跑过全量的 PR，新 head 只是 merge main、重新取键、改文档或注释、改那一个红的用例。
 - main 上本来就红的用例：PR 只红在它上面时，等 main 修好、merge main 后走 merge-only（用户 10-18）。
+- 10-18 交接前的最后一批，用户为提速定不逐个跑全量（Verify 绿就入队，合完 main 上跑一次）。这是那一批的一次性决定，接手后照常按上面的规则跑；要不要沿用，先问用户。
 
 **页面资源**（用户 10-18，PR #705）
 - 默认只许变小。必需的增长写进 PR，统筹审过后给一次性 `APPROVED_CEILINGS`，按合入时的 merge-base 取键 `[基线, 实测]`。
@@ -178,6 +179,7 @@
 - 安全编号容易撞：开 PR 前看 main 上最大的 S 号，被别人先占了就往后顺延，并在 PR 里写明。
 - 本机只有一个浏览器槽。别的工具（DeepSeek Harness）在 computer-use 的工作树里跑过本机全量，把槽占了 30 多分钟，用户同意后统筹按 pid 停了它（10-18）。
 - `tests/coding-input-receipts.e2e.test.ts`（RC-10/11/13/16）在 CI 负载下会停在「点发送方式触发器、菜单没打开」：#703 之后 main 上两次红、单独重跑第 8 片通过，本机 7.7 秒通过（10-18）。PR 全量只红它时，先 `gh run rerun <run> --failed` 重跑，不加进 KNOWN；#726 这类改 Coding 回执的 PR 红在这里要先看是不是自己的。根因（猜是状态刷新把触发器重画或藏起）留给回执线的接手人。
+- `tests/context-landing-panes.e2e.test.ts`（PANE-LAND-02）在 CI 负载下会多收到一条落点：是分屏窗格里真的 Pages 又报了一次（带真实 pane_id、光标与上下文），不是伪造的那条被放进来（#708 的全量，10-18）。红在这里时先看 `detail.pane_id` 是不是空的，空的才是 S-30 的问题。
 - `sleep` 在前台被 harness 拦着，要等就用后台 until 循环或 Monitor。
 - 情境线 10-18 晚曾用 `pkill -f "check-health-gates.mjs --base"` 停自己的健康检查（没按 pid），可能顺带停了别的会话同一时刻的健康检查。哪个会话说那段时间 health 莫名中断，让它重跑。停进程一律按 pid。
 - 草稿 PR 用 workflow_dispatch 手动触发的全量也占空位：`label-when-free2.zsh` 数的是全部在跑或排队的全量，所以统筹的标签链会排在它们后面。
@@ -186,6 +188,6 @@
 
 ## 5. 待定、留给接手的人
 
-- Molis 要不要设 `inputReminders.holdFinish`：等手册线 BL-163 的结果，单开一片定。
+- Molis 要不要设 `inputReminders.holdFinish`：BL-163 的结果已出（收工前没说明 2、1、0 跑），手册线单开一片定。
 - Coding 里写死的三个 SDK 资源种类，改用 SDK 导出的常量（采用线记在 BACKLOG）。
 - 批 B 合入 Prologue 之后，由采用线把它和已合的 #50 合成一次换包。

@@ -6,8 +6,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // specs/ai-interaction-experience AC-05: what a person writes stays with the session it was written in. After「新会话」is
 // pressed, the composer takes nothing until the new session is made and its first read has put its own draft and next-round
-// settings in: the box still shows the session before it, and what is typed or sent then would land in the wrong one, or be
-// wiped when the read lands.
+// settings in. UIV-04 changes the displayed draft owner immediately; input and send stay closed so a late read cannot
+// overwrite newly typed words or submit words under the wrong owner.
 
 const coding = "[data-coding-workbench]";
 const FIRST_WORDS = "甲会话里写了一半的任务";
@@ -117,8 +117,8 @@ test("AC-05: until a new session's first read lands, its composer stays closed a
   await afterAStateRead();
   const second = await current();
   assert.notEqual(second, first);
-  // The box still shows the first session's words: this is the moment they could have gone into the second one.
-  assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS);
+  // UIV-04: the new owner immediately shows its own empty draft; the pending first read still keeps it closed.
+  assert.equal(await evaluate<string>(`${box}.value`), "", "the previous session's words are never shown under the new owner");
   assert.deepEqual(await closed(), ALL_CLOSED, "the composer is closed while the new session's first read is on its way");
   await trySend();
   assert.deepEqual(await sentWith(FIRST_WORDS), [], "nothing carrying the first session's words is sent");
@@ -131,6 +131,13 @@ test("AC-05: until a new session's first read lands, its composer stays closed a
   await type("乙会话的任务");
   await new Promise(resolve => setTimeout(resolve, 1000));
   assert.equal(await evaluate<string>(`${box}.value`), "乙会话的任务", "what is typed once the box opens stays");
+  // The original words were retained by their owner, rather than cleared when the new owner appeared.
+  await click(`${coding} [data-coding-session="${first}"]`);
+  await waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(first)} && !${box}.disabled`);
+  assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS, "the first session retains its complete draft");
+  await click(`${coding} [data-coding-session="${second}"]`);
+  await waitFor(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession === ${JSON.stringify(second)} && !${box}.disabled`);
+  assert.equal(await evaluate<string>(`${box}.value`), "乙会话的任务", "the second session keeps its own draft on return");
 });
 
 test("AC-05: when a session's first read fails, the next read gives the box its draft and opens it", { timeout: 90_000 }, async t => {

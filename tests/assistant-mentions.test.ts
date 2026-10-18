@@ -97,7 +97,7 @@ test("an object picked with “@” is checked with its owner and read by it bef
     assert.equal(kinds.lingguang, "lingguang_spark");
     assert.equal(kinds[found.open?.surface ?? ""], found.subject.kind);
   } finally {
-    await adapter.close();
+    service.continuations.close(); await adapter.close();
     await local.close();
     await rm(home, { recursive: true, force: true });
   }

@@ -1,5 +1,5 @@
 import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
-import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
+import { openPluginInSide, sideOpenedTabs } from "./plugin-place.js";
 import { pluginSearchRows } from "../../plugin-workbench.js";
 import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
@@ -44,6 +44,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     leavePlugin() { return false; }, closeCover() { return false; }, openCover() {}, registerCover() {}, noteCover() {}, coverPlace() { return ""; }, goHistory() { return false; }, shownPlugin() { return null; }, exclusive() { return null; } };
   const PLUGIN_COLOR = ${JSON.stringify(Object.fromEntries(MW_PLUGINS.map((plugin) => [plugin.id, `var(--plugin-${plugin.id})`])))};
   const PLUGIN_TAB_ICON = ${JSON.stringify(pluginTabGlyphs())};
+  const openInSide = (${openPluginInSide}).bind(null, ${sideOpenedTabs()});
   const PLUGIN_TAB_TITLES = { home: "项目首页", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   // Plugins installed at run time (built in the studio) name their own stage.
   document.querySelectorAll("[data-work-surface][data-installed-plugin]").forEach((surface) => { PLUGIN_TAB_TITLES[surface.dataset.workSurface] = surface.dataset.workSurfaceLabel; PLUGIN_TAB_ICON[surface.dataset.workSurface] = "package"; });
@@ -74,7 +75,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   let pluginRequestedOnLoad = false;
   const embedded = window.parent !== window && paneParams.has("workbenchPane");
   if (embedded) document.body.dataset.paneEmbedded = "true";
-  const panes = ${PANE_MESSAGES_SCRIPT};
+  const panes = host.paneMessages;
   const notifyParent = (type, payload = {}) => { if (embedded) parent.postMessage({ type, paneId: paneParams.get("workbenchPane"), ...payload }, location.origin); };
   if (embedded) {
     document.addEventListener("pointerdown", () => notifyParent("workbench-pane-focus"), true);
@@ -124,15 +125,16 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
     } catch {}
     if (state.exclusive) coverPlace = historyCoverPlace(state.exclusive);
-    const requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
+    const dropParams = (...names) => { const url = new URL(location.href); names.forEach(name => url.searchParams.delete(name)); history.replaceState(history.state, "", url); };
+    let requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
+    // A side-panel plugin takes the link there (plugin-place).
+    if (requestedPlugin && openInSide(requestedPlugin, requestedItem || paneParams.get("openRecord"), paneParams.get("openTitle"))) { dropParams("openPlugin", "openItem", "openTitle", "openRecord"); requestedPlugin = null; }
     if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem) {
       ops.setExclusive(state, null);
       const opened = ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
       // A Goal opened for its materials lands on its work view rather than the Frame canvas.
       if (requestedPlugin === "goals" && paneParams.get("openGoalView") === "work" && opened) opened.goalView = "work";
-      const returnedUrl = new URL(location.href);
-      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openItem"); returnedUrl.searchParams.delete("openTitle"); returnedUrl.searchParams.delete("openGoalView");
-      history.replaceState(history.state, "", returnedUrl);
+      dropParams("openPlugin", "openItem", "openTitle", "openGoalView");
     }
     // A record in a plugin whose objects open from its own list (Forms, Dataset, PPT…): jump to it once the list is up.
     const requestedRecord = paneParams.get("openRecord");
@@ -145,14 +147,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         ops.openPlugin(state, requestedPlugin);
         pluginRequestedOnLoad = true;
       }
-      const returnedUrl = new URL(location.href);
-      returnedUrl.searchParams.delete("openPlugin");
-      history.replaceState(history.state, "", returnedUrl);
+      dropParams("openPlugin");
     }
     if (requestedPlugin && requestedRecord) {
-      const returnedUrl = new URL(location.href);
-      returnedUrl.searchParams.delete("openPlugin"); returnedUrl.searchParams.delete("openRecord");
-      history.replaceState(history.state, "", returnedUrl);
+      dropParams("openPlugin", "openRecord");
       requestAnimationFrame(() => openPluginRecord(requestedPlugin, requestedRecord));
     }
     // Resolve an explicit Goal link before applying saved tabs; applying the old
@@ -178,8 +176,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   const pluginSurface = (plugin) => plugin === "goals" ? "goal" : plugin === "home" ? "home" : plugin;
   const directoryOf = (plugin) => {
-      if (plugin === "home" || plugin === "market") return "root";
-      const directory = plugin === "goals" ? "goals" : plugin;
+      if (plugin === "home" || plugin === "market") return "root"; const directory = plugin === "goals" ? "goals" : plugin;
       return document.querySelector('[data-directory-panel="' + directory + '"]') ? directory : "root";
     };
   const supportsGoalFrames = () => document.body.dataset.boardView === "current";
@@ -187,9 +184,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     ? document.querySelector("[data-goal-canvas-shell]") || document.querySelector('[data-document-pane]')
     : [...document.querySelectorAll('[data-work-surface="' + pluginSurface(plugin) + '"]')]
       .find((node) => !node.closest("[data-goal-canvas-shell]")) || null;
-  const topLevelSurface = plugin => {
-    const surface = findTopLevelSurface(plugin); host.prepareSurface?.(surface); return surface;
-  };
+  const topLevelSurface = plugin => { const surface = findTopLevelSurface(plugin); host.prepareSurface?.(surface); return surface; };
   const systemTabs = (${SYSTEM_TABS_FACTORY})({getState:()=>state,ops,apply:()=>apply(),persist,close:(pane,id)=>closeTabBack(pane,id),embedded});
   const rootForTab = (tab) => tab?.kind === "system" ? systemTabs.root(tab) : supportsGoalFrames() && tab?.plugin === "goals" && tab.kind === "item" && tab.goalView !== "work"
     ? document.querySelector("[data-goal-frame-surface]") : tab ? topLevelSurface(tab.plugin) : null;
@@ -203,7 +198,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const surface = topLevelSurface(plugin);
     if (!surface) return;
     surface.setAttribute("data-expanded", "false");
-    const workspace = surface.querySelector(".plugin-stage-workspace, [data-session-stage-workspace], [data-artifact-stage-workspace], [data-shelf-stage-workspace], [data-schedule-stage-workspace]");
+    const workspace = surface.querySelector(".plugin-stage-workspace, [data-session-stage-workspace], [data-artifact-stage-workspace], [data-schedule-stage-workspace]");
     if (workspace) workspace.hidden = true;
     surface.querySelectorAll(".is-selected").forEach((row) => {
       row.classList.remove("is-selected");
@@ -1181,6 +1176,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const openSettingsPage = (plugin) => document.dispatchEvent(new CustomEvent("molis-work:open-settings-section", { detail: { section: plugin } }));
   const openPlugin = (plugin) => {
     if (embedded) { notifyParent("workbench-pane-open", { plugin }); return; }
+    if (openInSide(plugin)) return;
     if (settingsPageOf(plugin)) { openSettingsPage(plugin); return; }
     state.focusedPaneId = ops.focused(state).id;
     ops.openPlugin(state, plugin);
@@ -1195,6 +1191,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const spec = SEARCH_ROWS.find(([id]) => id === plugin) || [plugin, '[data-record-row-none]', 'none'];
     if (typeof itemId !== 'string' || !itemId) return;
     if (embedded) { notifyParent('workbench-pane-open', { plugin, recordId: itemId }); return; }
+    if (openInSide(plugin, itemId)) return;
     cancelRecordJump?.();
     if (settingsPageOf(plugin)) {
       // The record sits on the plugin's settings page: open it there once it is listed.
@@ -1316,6 +1313,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-expanded"] });
   const openItem = (plugin, itemId, title, goalView) => {
     if (embedded) { notifyParent("workbench-pane-open", { plugin, itemId, title: titleForItem(plugin, itemId, title), goalView }); return; }
+    if (openInSide(plugin, itemId, title)) return;
     const tab = ops.openItem(state, plugin, itemId, titleForItem(plugin, itemId, title));
     if (plugin === "goals" && goalView === "frame") {
       delete tab.goalView;
@@ -1327,6 +1325,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   // An item (or a plugin's own view) in the pane beside this one; a narrow window has no room, so it opens in place.
   const openBeside = (plugin, itemId, title) => {
     if (embedded) { notifyParent("workbench-pane-open-beside", { plugin, itemId: itemId || null, title: itemId ? titleForItem(plugin, itemId, title) : null }); return; }
+    if (openInSide(plugin, itemId, title)) return;
     if (narrow()) { if (itemId) openItem(plugin, itemId, title); else openPlugin(plugin); return; }
     ops.openBeside(state, plugin, itemId || null, itemId ? titleForItem(plugin, itemId, title) : undefined);
     apply();

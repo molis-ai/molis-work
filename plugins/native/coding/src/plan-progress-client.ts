@@ -2,17 +2,18 @@
  * The running plan, in the conversation: every step of the round's own graph with its reported state, and — while
  * the round is live — the person's controls to skip, insert, reorder or unblock. Each control is one SDK graph
  * operation through the Host; the card never infers a step's state from the model's prose.
+ *
+ * A supplement the AI says is a new task (D2, stage 3d-3) is not a step: it shows under the steps as the AI's words,
+ * dashed, until the person adds it with 「加进计划」, the same insert a person makes, pointing at that supplement. A step
+ * added that way links back to its receipt (`from`, the same button as the TaskBoard's). A step's state is said in the
+ * receipt's own words (`word`, `host.receipts.step`), so the card and the receipt never name one state two ways (3d-4).
  */
 export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const lifetime=ports.lifetime;
-  const {api,current,status,refresh,openStep}=ports;
+  const {api,current,status,refresh,openStep,from,stepOf,skipped,settled,word}=ports;
   const svg=(name)=>'<svg aria-hidden="true"><use href="#icon-'+name+'"></use></svg>';
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
   const MARK={succeeded:'done',running:'running',failed:'failed',blocked:'blocked',cancelled:'cancelled',ready:'ready','not-started':'waiting'};
-  const LABEL={succeeded:'模型报告完成',running:'进行中',failed:'模型报告失败',blocked:'受阻，等你决定',waiting:'在等别的步骤','needs-reconciliation':'重启后需要核对',cancelled:'已取消',ready:'可以开始','not-started':'等待前一步'};
-  const skipped=(node)=>node.state==='cancelled'&&node.reports.some(report=>report.note.startsWith('用户跳过'));
-  const stepOf=(plan,node)=>node.inserted?{title:node.title||node.id,acceptance:(node.reports.find(report=>report.note.startsWith('用户插入'))?.note.split('完成条件：')[1])||''}
-    :plan?.content.steps[Number(node.id.replace('step-',''))-1]||{title:node.title||node.id,acceptance:''};
   const amend=async(card,runId,version,amendment)=>{
     const id=current();card.dataset.busy='true';
     try{
@@ -27,7 +28,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   // One inline form at a time, placed under the step it acts on.
   const form=(card,row,fields,submit,label)=>{
     card.querySelector('.coding-plan-form')?.remove();card.dataset.editing='true';
-    const box=el('form','coding-plan-form'),inputs=fields.map(([name,placeholder,max])=>{const input=el('input','mw-input');input.name=name;input.placeholder=placeholder;input.maxLength=max;input.required=true;box.append(input);return input;});
+    const box=el('form','coding-plan-form'),inputs=fields.map(([name,placeholder,max,value])=>{const input=el('input','mw-input');input.name=name;input.placeholder=placeholder;input.maxLength=max;input.required=true;input.value=value||'';box.append(input);return input;});
     const actions=el('div','coding-plan-form-actions'),cancel=el('button','mw-btn mw-btn--ghost','取消'),ok=el('button','mw-btn mw-btn--primary',label);cancel.type='button';ok.type='submit';actions.append(cancel,ok);box.append(actions);
     lifetime.listen(cancel,'click',()=>{box.remove();delete card.dataset.editing;});
     lifetime.listen(box,'keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();box.remove();delete card.dataset.editing;}});
@@ -38,7 +39,9 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const board=entry?.board;if(!board)return null;
     let card=document.querySelector('[data-coding-plan-progress="'+CSS.escape(run.ref.run_id)+'"]');
     if(!card){card=el('section','coding-plan-progress');card.dataset.codingPlanProgress=run.ref.run_id;card.setAttribute('aria-label','本轮计划进度');}
-    const signature=JSON.stringify([board.version,board.terminal,live,latest,run.phase,entry.verdicts]);
+    // What the AI says should be a new task, while no step points at it yet.
+    const taken=board.nodes.flatMap(node=>(node.origins||[]).map(one=>one.input_id)),offers=(run.turns||[]).filter(turn=>turn.steer?.model_claim?.treatment==='new-task'&&!taken.includes(turn.steer.id));
+    const signature=JSON.stringify([board.version,board.terminal,live,latest,run.phase,entry.verdicts,offers.map(turn=>turn.steer.id)]);
     // Never rebuild under the person's hands: an open form keeps the card as it is until they finish.
     if(card.dataset.editing==='true'||card.dataset.busy==='true'||card.dataset.signature===signature)return card;
     card.dataset.signature=signature;card.replaceChildren();
@@ -54,20 +57,22 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const pad=(n)=>String(n).padStart(2,'0'),clock=(ms)=>{const date=new Date(ms);return pad(date.getHours())+':'+pad(date.getMinutes());};
     const who=run.frozen?.character?.title||({builder:'构建者',writer:'改写者',writers:'并行写入',coordinator:'协作',reader:'阅读者',planner:'规划者',reviewer:'评审者'})[run.frozen?.role_id]||'Agent';
     let hueValue=0;for(const char of who)hueValue=(hueValue*31+char.codePointAt(0))%360;
-    const settledNode=(other)=>other.state==='succeeded'||skipped(other);
     const change=(amendment)=>amend(card,run.ref.run_id,board.version,amendment);
+    // A new step, after a step or for a supplement the AI says is a new task (its words as the title to start from).
+    const insert=(row,after,label,value,origin)=>form(card,row,[['title','新步骤要做什么',120,value],['acceptance','完成条件',300]],([title,acceptance])=>change({kind:'insert',after,title,acceptance,origin}),label);
     board.nodes.forEach((node,index)=>{
       const step=stepOf(entry.plan,node),row=el('li','coding-board-item coding-plan-step');row.dataset.state=skipped(node)?'skipped':node.state;row.dataset.step=node.id;if(node.inserted)row.dataset.inserted='true';
       const line=el('div','coding-board-entry'),lead=el('span','coding-board-lead'),main=el('button','coding-board-node coding-plan-title');main.type='button';
       const note=node.reports.at(-1)?.note;main.title=(step.acceptance?'完成条件：'+step.acceptance:'')+(note?'\\n最近回报：'+note:'')||'查看这一步的回报并验收';
       main.append(el('span','coding-board-key',node.inserted?'插入':'S'+(index+1)),el('strong','',step.title));lifetime.listen(main,'click',()=>openStep(run.ref.run_id,node.id));
       lead.append(el('span','coding-board-guide'),main);
+      const source=from(node);if(source)lead.append(source);
       const verdict=entry.verdicts?.[node.id],decided=verdict&&verdict.board_version===board.version?verdict.status:null;
       const state=el('span','coding-board-state coding-plan-state');state.dataset.tone=decided==='accepted'?'accepted':decided==='needs-work'?'attention':skipped(node)?'quiet':TONE[node.state]||'idle';
       state.dataset.mwState=decided==='accepted'?'done':decided==='needs-work'?'blocked':skipped(node)?'cancelled':node.state==='running'?(node.owner?.kind==='person'?'doing':['starting','running','compacting'].includes(run.phase)?'running':({paused:'paused',pausing:'paused','awaiting-input':'answer','awaiting-review':'approval'})[run.phase]||'doing'):MARK[node.state]||'idle';
       const yours=node.owner?.kind==='person'&&['succeeded','failed'].includes(node.state);
-      state.append(el('span','',decided==='accepted'?'你已验收':decided==='needs-work'?'要求返工':skipped(node)?'你跳过了':yours?(node.state==='succeeded'?'你标记完成':'你标记失败'):LABEL[node.state]||node.state));if(decided)state.dataset.verdict=decided;
-      const deps=(node.depends_on||[]).map(id=>board.nodes.find(other=>other.id===id)).filter(Boolean),waiting=deps.filter(dep=>!settledNode(dep)),stuck=waiting.filter(dep=>['failed','blocked'].includes(dep.state));
+      state.append(el('span','',decided==='accepted'?'你已验收':decided==='needs-work'?'要求返工':skipped(node)?'你跳过了':yours?(node.state==='succeeded'?'你标记完成':'你标记失败'):word(node.state)));if(decided)state.dataset.verdict=decided;
+      const deps=(node.depends_on||[]).map(id=>board.nodes.find(other=>other.id===id)).filter(Boolean),waiting=deps.filter(dep=>!settled(dep)),stuck=waiting.filter(dep=>['failed','blocked'].includes(dep.state));
       const chip=el('span','coding-board-deps '+(!deps.length?'is-empty':stuck.length?'is-blocked':waiting.length?'is-waiting':'is-ready'));
       if(deps.length){chip.textContent=deps.length+' 个前置'+(stuck.length?' · '+stuck.length+' 个阻塞':waiting.length?' · '+waiting.length+' 个未完成':' · 已就绪');chip.title=deps.map(dep=>stepOf(entry.plan,dep).title).join('\\n');}
       // Who holds the step on the graph: this session (its executor), a subtask, you, or no one.
@@ -83,7 +88,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         if(waiting&&['not-started','ready'].includes(board.nodes[index+1]?.state))tool('推后一步','chevron-down',()=>void change({kind:'move',node:node.id,direction:'down'}));
         if(node.state==='blocked')tool('给出决定','edit',()=>form(card,row,[['note','你的决定，例如：用方案 B，接受行号变化',500]],([note])=>change({kind:'unblock',node:node.id,note}),'继续'));
         if(waiting||node.state==='blocked'||node.state==='failed')tool(node.state==='failed'?'越过这一步':'跳过','minus',()=>form(card,row,[['reason','跳过原因',300]],([reason])=>change({kind:'skip',node:node.id,reason}),'跳过'));
-        if(!['cancelled'].includes(node.state))tool('在后面插入一步','plus',()=>form(card,row,[['title','新步骤要做什么',120],['acceptance','完成条件',300]],([title,acceptance])=>change({kind:'insert',after:node.id,title,acceptance}),'插入'));
+        if(!['cancelled'].includes(node.state))tool('在后面插入一步','plus',()=>insert(row,node.id,'插入'));
         const open=!['succeeded','failed','cancelled'].includes(node.state),kind=node.owner?.kind;
         if(open&&kind!=='person')tool('由我处理','user',()=>void change({kind:'assign',node:node.id,to:'me'}));
         if(open&&kind&&kind!=='session')tool(kind==='none'?'交给本会话':'交回本会话','undo',()=>void change({kind:'assign',node:node.id,to:'session'}));
@@ -95,8 +100,33 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       }
       list.append(row);
     });
+    if(editable)for(const turn of offers){
+      const row=el('li','coding-plan-offer'),add=el('button','mw-btn mw-btn--ghost','加进计划');row.append(el('small','','AI 说这是新任务，待你确认'),el('q','',turn.text),add);list.append(row);
+      lifetime.listen(add,'click',()=>insert(row,board.nodes.at(-1).id,'加进计划',turn.text.slice(0,120),turn.steer.id));
+    }
     card.append(list);
     card.append(el('p','coding-plan-foot',editable?(live?'状态来自模型对任务图的回报；调整会记录在图上，并告诉执行中的这一轮。':'状态来自模型对任务图的回报；这一轮已结束，调整会记录在图上，点「继续计划」后按新的图继续。'):'状态来自模型对任务图的回报；点步骤可以查看回报并验收。'));
     return card;
   }};
 }`;
+
+/** The plan card's layout (in Coding's stylesheet, at its place there). */
+export const CODING_PLAN_PROGRESS_STYLES = `/* Running plan: the round's own step graph under the task, with the person's controls while it runs. */
+.coding-plan-progress { max-width:76ch; margin:0 auto 24px; padding:12px 16px; border:1px solid var(--line); border-radius:12px; background:var(--paper); font-size:13px; animation:coding-rise 130ms var(--ease-quint); }
+.coding-plan-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; color:var(--ink); }
+.coding-plan-head svg { width:14px; height:14px; color:var(--muted); flex:none; }
+.coding-plan-head strong { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+.coding-plan-count { flex:none; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.coding-plan-revision { flex:none; font-size:11px; color:var(--faint); }
+/* The plan card in the conversation uses the TaskBoard's rows, without the progress column. */
+.coding-plan-steps { margin:4px 0 0; }
+.coding-board--compact .coding-board-entry { grid-template-columns:minmax(0,1fr) 7.5rem 7rem auto; padding:0 8px; }
+.coding-plan-step[data-state=running] .coding-board-node strong { font-weight:500; }
+.coding-plan-step:is([data-state=skipped],[data-state=cancelled]) .coding-board-node strong { color:var(--faint); text-decoration:line-through; }
+.coding-plan-step[data-inserted=true] .coding-board-node strong::after { content:"你插入的"; margin-left:8px; padding:0 8px; border-radius:999px; background:color-mix(in srgb,var(--blue) 12%,transparent); color:var(--blue); font-size:11px; text-decoration:none; }
+.coding-plan-offer { display:flex; align-items:center; gap:8px; margin:4px 0; padding:4px 8px; border:1px dashed var(--line); border-radius:8px; }
+.coding-plan-form { display:grid; gap:8px; margin:4px 0 8px 32px; padding:8px; border:1px solid var(--line); border-radius:8px; }
+.coding-plan-form .mw-input { height:30px; font-size:13px; }
+.coding-plan-form-actions { display:flex; justify-content:flex-end; gap:8px; }
+.coding-plan-form-actions .mw-btn { height:26px; min-height:26px; font-size:12px; }
+.coding-plan-foot { margin:8px 0 0; font-size:12px; color:var(--faint); }`;

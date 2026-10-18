@@ -1,0 +1,45 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "3adc5e87e81567af59983d1e7ac411a703454167",
+    "mergedUpstream": {
+      "pullRequest": 49,
+      "head": "185f3bbc28b5ad33067059edd0a071b4663851cd",
+      "mergedAt": "2026-10-18T06:12:22Z",
+      "note": "Upstream main after #49 (docs only: docs/slices/input-board-refs.md records that todo stays offered), on top of #48 (merge 72866036, head cb904b48: acknowledge-inputs offers app-ref only when the app injected an appRefs resolver and board-node only when the turn lists a task-board tool), #47 (merge feef0443, head d0646b92: the after-write check's executor gets the check's identity, afterWriteCheck.operationKey and writeCallId, filled by the SDK; isAfterWriteCheckOperationKey, afterWriteCheckReceiptKey and the three workspace resource kinds are exported), #46 (merge 94ee1ea4, head ccd6a649), #45 (the after-write check returns a command; merge 7b201ed5, head f29a0ec5), #44, #43 and #42. Includes everything from #41 and before."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz",
+    "bytes": 1223766,
+    "sha256": "ac2029b40e4e8a8a3d8cd85e9b239b27700161a3431903f7128192e045caedc8",
+    "integrity": "sha512-8BEgVLFs0BFD3ymSOR9RKsQuw/bewvKRJWb3Y1XOINr06s4DZ0EdcDQ1MXfTl1Voa6S3mR2ipBRVGHy1CYilSQ=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive 3adc5e87e81567af59983d1e7ac411a703454167 | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --offline",
+      "pnpm --filter @prologue/sdk run build",
+      "cd packages/sdk && pnpm pack --out <dir>/prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz"
+    ],
+    "packedOn": "2026-10-18",
+    "reproducedFrom": "3adc5e87e81567af59983d1e7ac411a703454167",
+    "reproducedByteIdentical": true,
+    "note": "Packed twice from two separate clean archives of upstream main 3adc5e87; the two packs are byte-identical. On that tree: tsc (tsconfig.typecheck.json) and build pass; SDK suite without live tests: 208 files, 2860 tests passed, no type errors (live tests not run except coding-diagnose-after-write.live, 1 passed); the 13 consumer fixtures pass against this pack in a clean install. No paid model requests or real desktop-control tests."
+  }
+}

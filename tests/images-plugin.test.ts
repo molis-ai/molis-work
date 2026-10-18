@@ -8,6 +8,8 @@ import { tmpdir } from "node:os";
 import { ImagesService, imagesManifest, handleImagesRoute, IMAGES_CLIENT_FACTORY_SCRIPT, imagesUiContribution } from "@molis-ai/molis-work-plugin-images";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { PERSONAL_PLUGIN_IDS, pluginMarketCards, railEntries } from "@molis-ai/molis-work-app-workbench";
+import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 
@@ -53,4 +55,32 @@ test("HTTP route 使用Host项目，拒绝伪造project_id，图片下载同样�
     assert.equal(existsSync(join(homeDirectory,"images","assets",completed.images[0]!.filename)),false);
     assert.throws(() => service.getJob("project-a", job.id), /找不到/);
   } finally {await service.close();await rm(homeDirectory,{recursive:true,force:true});}
+});
+
+test("IMAGES-SHELF-01 「放进 Shelf」 hands the image to shelf.items.admit by the action's id, never through Shelf's code", async () => {
+  // The reference the contract publishes is the action Shelf provides.
+  assert.equal(shelfActions.admit, SHELF_ADMIT_ACTION, "Shelf registers the very definition the contract gives, and Images invokes it");
+  const homeDirectory = await mkdtemp(join(tmpdir(), "images-shelf-"));
+  const service = new ImagesService({homeDirectory, resolveConnectionKey: () => undefined, selectConnection: () => {}, selectedConnectionId: () => null, clearConnection: () => {}, generate: async () => [{bytes: Buffer.from(PNG, "base64"), mime: "image/png"}]});
+  try {
+    const admitted: unknown[] = [];
+    const kept = (name: string) => ({ item_id: "item_kept", group: "material", kind: "image", name, relative_path: `files/item_kept/${name}`, mime: "image/png", size_bytes: 68,
+      origin_hash: "0".repeat(64), hidden: false, created_at: "2026-10-18T00:00:00.000Z", source_item_id: null, source_item_ids: [], job_id: null, preview_text: null,
+      status: "done", failure_reason: null, children: [] });
+    // A stand-in provider of the published definition: the route reaches it only through the action directory.
+    const shelf = { provider: { provider: { provider_id: "io.molis.work.shelf", title: "Shelf", kind: "plugin" as const }, definitions: [shelfActions.admit],
+      handlers: [{ capability_id: shelfActions.admit.capability_id, version: shelfActions.admit.version, handle: (_caller: unknown, input: unknown) => {
+        admitted.push(input); return { item: kept((input as { filename: string }).filename) }; } }] }, permissions: shelfActions.admit.action.permissions };
+    const route = (input: Parameters<typeof handleImagesRoute>[1]) => handleImagesRoute(imagesTestClient(service, input.projectId, shelf), input);
+    const connection = service.saveConnection({name:"受控本地服务", api_format:"openai-images",base_url:"http://127.0.0.1:9999/v1",model:"fixture-image"});
+    const job = service.start("project-a", {request_id:"keep",connection_id:connection.id,prompt:"留一张"});
+    for (let n = 0; n < 100 && service.getJob("project-a", job.id).status === "running"; n++) await new Promise((r) => setTimeout(r, 10));
+    const path = `/api/images/jobs/${job.id}/images/${service.getJob("project-a", job.id).images[0]!.id}/shelf`;
+    const answer = await route({method:"POST",pathname:path,body:{filename:"留一张.png"},projectId:"project-a"});
+    assert.deepEqual(answer, { status: 200, body: { item: kept("留一张.png") } });
+    assert.deepEqual(admitted, [{ filename: "留一张.png", mime: "image/png", bytes_base64: PNG }]);
+    // Another project's image is not handed over.
+    await assert.rejects(() => route({method:"POST",pathname:path,body:{},projectId:"project-b"}));
+    assert.equal(admitted.length, 1);
+  } finally { await service.close(); await rm(homeDirectory, { recursive: true, force: true }); }
 });

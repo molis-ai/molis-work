@@ -69,7 +69,7 @@ function cardStore(context: PluginStartContext, sessionId: string, beforeWrite: 
 export function codingCardPorts(context: PluginStartContext, api: PluginCapabilityClient, record: CodingSessionRecord, card: Pick<CodingActionCard, "offer_id" | "run_id">,
   beforeWrite: CodingBeforeWrite, timeZone?: string): ActionCardPorts<CodingActionCard> {
   const runtimeSession = record.runtime_session_id ?? "";
-  return { store: cardStore(context, record.session_id, beforeWrite), readSubject: async () => null, now: () => new Date(), ...(timeZone ? { timeZone } : {}),
+  return { store: cardStore(context, record.session_id, beforeWrite), readSubject: async () => null, now: () => new Date(), ...(context.project_id ? { projectId: context.project_id } : {}), ...(timeZone ? { timeZone } : {}),
     refuse: (reason, message) => codingCardErrors[REFUSALS[reason]](message),
     authority: async () => ({
       discover: () => api.invoke(agent.listActions, [record.runtime_id, context.plugin_id]),

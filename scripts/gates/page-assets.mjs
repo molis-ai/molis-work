@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Page resource budget (specs/repository-anti-corruption §4.8/§4.13, slice W1-07, decision #17): the workbench's
-// stylesheets and scripts, the plugin client packs and the fonts are frozen at the size they have now and may only fall.
-// The real per-asset targets are set after the superseded skins are deleted; until then nothing may grow.
+// stylesheets and scripts, the plugin client packs and the fonts are frozen at the size they have now and by default only fall.
+// The budget is a size control, not a hard ceiling (the user amended decision #17 on 2026-10-18): growth a feature needs and
+// that cannot be won back in the same asset is admitted once through APPROVED_CEILINGS below, after review, with the reason,
+// the bytes and what was tried written in the PR. More than 10 KB on one asset at once, or a new asset, is asked of the user
+// first (AGENTS.md).
 //
 // What is measured is what the host sends: every `/assets/...` path that apps/local-host/src/web-assets.ts serves
 // (`serveWorkbenchAsset`), requested from the built `createLocalWebAssets`, with the byte length of the body. The host
@@ -227,17 +230,17 @@ const headErrors = (measured, budget, base) => {
     if (allowed === undefined && base?.[asset] !== undefined) errors.push(`${asset} (${bytes} bytes) is still sent by the host but its entry was deleted from ${BUDGET_FILE} (the merge-base budgets ${base[asset]} bytes); deleting an entry does not exempt an asset the host sends, restore it`);
     else if (allowed === undefined) errors.push(`${asset} (${bytes} bytes) has no budget in ${BUDGET_FILE}; budgets only fall, so a new asset is refused: serve less, or fold it into an existing asset`);
     else if (bytes === undefined) errors.push(`${asset} has a budget but the host no longer serves it; remove the entry from ${BUDGET_FILE} (removing is always allowed)`);
-    else if (bytes > allowed) errors.push(`${asset} grew: budget ${allowed} → built ${bytes} bytes (+${bytes - allowed}); make the page lighter, the budget cannot be raised`);
+    else if (bytes > allowed) errors.push(`${asset} grew: budget ${allowed} → built ${bytes} bytes (+${bytes - allowed}); make the page lighter; growth a feature needs is admitted once through APPROVED_CEILINGS after review (AGENTS.md), never by raising the budget file`);
     else if (bytes < allowed) errors.push(`${asset} is ${allowed - bytes} bytes under its budget (${allowed} → built ${bytes}); lower the budget with \`node scripts/gates/page-assets.mjs --update --base origin/main\` so the slack cannot be used again`);
   }
   return errors;
 };
 // W5-01 Lingguang: the shared browser NDJSON reader adds 2,231 B to workbench.js, while Lingguang's own bundle loses
-// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. This starts at the Todo
-// prerequisite's already approved 1,109,330 B and is spent once; later growth stays frozen. Rekey against actual main
-// after the prerequisite merges, preserving only this +2,231 B. Todo's earlier +28 B is in the spent-increase test.
+// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. Actual main now includes
+// Todo and receipts 3e-1, starting at 1,111,791 B. Preserve only the unspent +2,231 B; every prior start remains refused.
+// This exact increase is spent once; later growth stays frozen.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1109330, 1111561],
+  "/assets/molis-work-workbench.js": [1111791, 1114022],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

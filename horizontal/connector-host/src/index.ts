@@ -165,7 +165,8 @@ async function withTimeout<T>(
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-export { ConnectorConnectionStore, CONNECTOR_CONNECTIONS_SCHEMA } from "./connection-store.js";
-export type { ConnectorConnectionSecrets } from "./connection-store.js";
+export { ConnectorConnectionStore, CONNECTOR_CONNECTIONS_SCHEMA, normalizeConnectorTokenInput } from "./connection-store.js";
+export type { ConnectorConnectionSecrets, ConnectorTokenInput } from "./connection-store.js";
 
 export * from "./protocol-store.js";
+export * from "./connection-observations.js";

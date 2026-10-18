@@ -163,7 +163,7 @@ interface ItemAttach {
 | 内容站幂等键 | 泛化为请求号（只认现行形状，不新增读取兼容） | quick-create |
 | 插件 SDK 页面端 | 一个 `contextual` 模块：报告手上的东西或落点、发布工具、开面板槽、接收放进与工具调用 | 合并 side-shelf 4.4 与 context-toolbar §11 |
 | 平台自带的格 | 讨论、浏览器、文件按 side 视图的形状登记；`browser_page`、`discussion_message` 的读取动作 | side-shelf |
-| Shelf「平台自带」 | 内置目录里的一个通用标记：始终启用、不进插件列表、市场、Dock、项目插件管理；只有 side 视图 | side-shelf §7、§11 |
+| Shelf 是常开插件 | Manifest 的通用声明 `always_on: true`（「常开插件」）：始终启用、不进插件列表、市场、Dock、项目插件管理，不能从项目里移除；只有内置插件能声明（S-34）；Shelf 只有 side 视图 | side-shelf §7、§11 |
 | 页面自己陈列动作 | 对象声明里的一个通用字段，表示「本提供方的动作由我自己陈列」；浮条在这个表面上不重复列出这个提供方的动作（Shelf 格用它） | 本文 §7 |
 
 目录检查合并为一组（side-shelf 4.3 与 context-toolbar §11.5 的覆盖率门禁放在一起）：
@@ -379,7 +379,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 
 | # | 要求 | 写在 |
 | --- | --- | --- |
-| R1 | Shelf 放到右边侧栏，不当插件，也不是右栏里的一个插件标签 | side-shelf 3.2、§7；本文 §4「Shelf 平台自带」 |
+| R1 | Shelf 放到右边侧栏，不当插件，也不是右栏里的一个插件标签 | side-shelf 3.2、§7；本文 §4「Shelf 是常开插件」 |
 | R2 | 右边的内容包括灵光、文件、浏览器内容、群聊 | side-shelf 3.1、§6 |
 | R3 | 右边可以和左边互动，右边的内容可以发送到左边 | 本文 3.2、3.4、3.6；side-shelf 3.3 |
 | R4 | 侧边不止是群聊里 | side-shelf 3.1、§7（去掉 `dock-window-im` 等群聊命名） |
@@ -476,7 +476,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 - Shelf 的 `navigator` 视图删掉后，左边主区不再有 Shelf 页。原来指向它的入口都要改道到右栏的 Shelf 格：
   - `shelf.items.admit` 结果视图里的链接 `?openPlugin=shelf&openItem=…`；
   - 搜索结果的 `open: { surface: "shelf" }`；
-  - 桌面的 `molisWorkOpenShelf`（现在的做法是点插件列表里 Shelf 那一行）。
+  - 桌面的 `molisWorkOpenShelf`（W2'-3 起调 `molisWorkOpenPlugin("shelf")`，与上两条走同一条规则）。
 - 整页门禁会沿工作台里的链接逐个打开地址，改道之后仍须落在工作台里。
 - 浏览器格、文件格、助理面板都在顶层文档里，浮条直接画在那里，不涉及整页。
 
@@ -683,7 +683,7 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 | R1 | 未做 | Shelf 仍是 `navigator` 视图的插件（`plugins/native/shelf/src/manifest.ts`），底栏 `BAR_RESIDENT_IDS = ["shelf", "lingguang"]`（`apps/workbench/src/immersive-shell.ts`）。W2' |
 | R2 | 部分 | 右栏有讨论、浏览器、文件、电脑与插件侧栏视图（灵光、Issue 声明了 `slot: "side"`）；Shelf 不在其中 |
 | R3 | 部分（只有底层） | 落点类型 `SurfaceLanding`、`FrozenFocus.landing`（`services/contextual.ts`）、宿主读请求（`contextual-request.ts`）、内核 `attach` 候选（`kernel/src/contextual/destinations.ts`，`tests/contextual-landing.test.ts`）都在；没有页面报告落点，没有插件声明 `attach`，界面上不出现。W3 |
-| R4 | 部分 | 右栏已有多格，但 id 与提示仍是群聊命名（`dock-window-im`、`data-dock-toggle="im"`、「侧栏：讨论、浏览器与文件」）。W2' |
+| R4 | 部分 | 右栏已有多格，但 id 与提示仍是群聊命名（`dock-window-im`、`data-dock-toggle="im"`、「侧栏：讨论、浏览器与文件」）。W2'-1（#694）改成通用名，§21.6 |
 | R5 | 部分 | 左边：同一个池、Jev 排序、浮条陈列已在（`tests/contextual-interaction.test.ts`、`contextual-interaction.e2e`、`context-toolbar.e2e`）；右栏与助理面板还不报告手上的东西 |
 | R6 | 未做 | 同 R1 |
 | R7 | 未做 | 右→左（W3）、左→右（W6）都没有 |
@@ -1257,7 +1257,8 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | W3-A3 | 写动作留在当前工作（`work_id`）；助理回复与结果可以拿起（`place: assistant`），浮条画在岛里 | W3-A2 |
 | W3-A3c | ① 分屏窗格里的落点也闪：顶层把「闪一下」转给报告落点的那个窗格；② 浮条「更多」菜单里的放进去也闪（实现记录见 21.6） | W3-A3b |
 | W3-B | Pages 报告落点、三个确定性的 `attach`、落点处预览；落点事件登记；情境条显示落点。执行前宿主用 H3 的 `confirmReferences` 按调用者的权限重读落点对象，不在或没权限用合同里的 `reference-unavailable`，不另写一套；`attach` 的 `find` 取候选（`search.references@1`）改到 W4 的 F2（统筹 2026-10-15 定，见 21.8）。拆成 W3-B1（落点、动作、预览、执行）与 W3-B2（情境条显示落点） | W3-B1：H3 合入；W3-B2：W3-A2 |
-| W3-C | 右栏各格报告手上的东西（中枢接右栏） | W2'（右栏改版） |
+| W3-C | 右栏各格报告手上的东西（中枢接右栏；实现记录见 21.6） | W2'（右栏改版） |
+| W3-C2 | 在分屏窗格或右栏格自己画的浮条上悬停「放进去」时，左边的落点也闪：窗格报的保位（`workbench-context-hold`）带上悬停的键（含「更多」菜单里的），顶层据此调 `landing.hint`（统筹 10-18 定为后续） | W3-C |
 
 每片：`assistant-island.ts` 只减不增，新东西写新文件；页面资源每个文件只减（删掉的旧渲染抵新增）；`pnpm build`、`affected-tests.mjs` 选出的用例、`check-health-gates --base origin/main`、`page-assets --base origin/main`、1440/1024/800/390 与深色截图。
 
@@ -1356,6 +1357,32 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 大小：浮条程序 13,883 字（上限 13,900）：去掉被 `pointerover` 包含的 `pointerenter`，焦点进出时「在浮条或菜单里」的判断合成一处 `inside`。顶层的转发不另看 `pane_id`（落点元素是 iframe 就转给它，否则在本页发），也不再查元素是否在本文档（它总是本文档上听到的事件的目标）。删掉没有发送方的窗格消息处理 `workbench-feed-add`、没有产出方的 `.project-settings-hub`（选择器与样式；两者的另一半都在 `fe9f98064` 里没了）。`molis-work-workbench.js` 仍比 W3-A3b 多 318 B，两份样式表各少 149 B；抵不下的数字已报统筹，预算不由本片调。
   - 还没做：手上的东西在窗格里时浮条画在窗格自己的文档里，那里悬停放进去还不闪（窗格的 `workbench-context-hold` 只带 `pinned`，顶层不据它问落点）。
   - 验收：PANE-FLASH-01（落点在分屏窗格：悬停浮条上的「插入到光标处」，窗格画出闪线，顶层不发）、PANE-FLASH-02（窗格自己发、窗格里别的框发的「闪一下」都不闪）、MENU-FLASH-01（「更多」菜单里同一项悬停也闪；菜单项在 `pointed()` 里、不在 `pinned()` 和发给宿主的 `pinned` 里），在 `tests/context-landing-flash-panes.e2e.test.ts`；S-30 的拒绝在 `tests/security-invariants-pane-messages.test.ts`「S-30 a pane shows its landing only when the page around it asks, from this origin」。
+- 2026-10-17 W2'-1 右栏本身（分支 `context/w2p-shelf-side`；分片：W2'-1 右栏本身，W2'-2 Shelf 成为第一格、「常开插件」声明（`always_on: true`）、窄宽度版式、旧入口改道，W2'-3 桌面入口与文档）：
+  - 底栏右侧只剩侧栏按钮（`data-side-toggle`，提示「侧栏：Shelf、灵光、文件、浏览器、电脑与讨论」）；Shelf、灵光两个常驻按钮与 `BAR_RESIDENT_IDS` 删掉，点按钮只发 `molis:side-open` / `molis:side-close`，不再另开一套窗口状态。
+  - 群聊命名直接换掉、不留别名（side-shelf §7）：面板 `id="side-panel"`，讨论框 `data-side-body="discussion"`；`data-dock-window`、`data-dock-frame`、`data-dock-toggle`、`dock-window-im` 全仓只剩历史原型与 spec 的对照记录。GLOSSARY 的 R-A10（`im` 指整个右栏）一并删掉。
+  - 格的顺序由声明决定：平台格带 `order`（文件 20、浏览器 30、电脑 40、讨论 50），插件侧栏视图的 `order` 原样带进来（灵光 10，没写的 100），一起排序，不写名单。默认格是排在第一的那格；W2'-2 Shelf 声明 0 后自然成为第一格、首次打开就在它。
+  - Dock 里 Shelf 与灵光的钉子原来因常驻固定按下，现在是普通钉子（DOCK-04 测试随之改；Shelf 的钉子在 W2'-2 随 Shelf 离开插件列表一起消失）。
+  - 页面资源只变小（数字见 PR）；`assistant-island.ts`、`client.ts`、`context-bus.ts` 不动。
+- 2026-10-17 W2'-2 Shelf 成为右栏第一格（分支 `context/w2p2-shelf-always-on`，叠在 #694 上）：
+  - Manifest 新增 `always_on`（v2，布尔）：SDK 解析，Plugin Runtime 在安装和确认升级时拒绝非内置的声明（S-34，`tests/security-invariants-always-on.test.ts`）；项目移除时拒绝（`catalog.plugin_always_on`），市场与插件切换跳过，旧的隐藏存值不再生效。
+  - Shelf 只剩一个界面面 `side`（`order: 0`，第一格）；工作区的 Shelf 舞台、目录与工作台里为它写的路径删掉。样式改成填满格子：窄时目录全宽、打开一项盖住目录并带返回，容器 ≥ 640px 时目录 213px 留在左边（容器查询，不看视口）。
+  - 存值：保存的标签状态里点名 shelf 的，工作区回到项目首页一次（现有的通用处理）；Dock 里存过的 shelf 钉子渲染时跳过，存值不改。
+  - 统筹 10-18 定的四项（同一个 PR，各一个提交）：
+    - `openPlugin` / `open.surface` 指插件，位置由声明决定：只有侧栏视图、没有工作区面（`workbench.main`、`workbench.directory`）的插件，打开时落到它的侧栏格（`sideOpenedPlugins`，`apps/workbench/src/plugin-catalog.ts`；页面上只有 `openPluginInSide` 一处，不写 `shelf`）。三处存值（动作链接、搜索索引的 `open_json`、助理通知的 `open`）不改写，各有一条点开落到那一条的用例（`tests/shelf-side-links.e2e.test.ts` SHELF-LINK-01～03）；用不是 Shelf、只声明侧栏视图的假插件证明规则通用（OPEN-PLACE-01）。
+    - 侧栏文档把登记的落点事件（`molis:placement-convert`、`-request`、`-result`，名单只在 `SIDE_FORWARD_SCRIPT` 一处）转给页面；页面只收同源、来源窗口是侧栏插件格框架的消息，名单外的名字丢掉（S-30 扩展，`tests/security-invariants-pane-messages.test.ts`、SIDE-FWD-01）。
+    - 图片「放进 Shelf」经宿主路由调 `shelf.items.admit`（定义只在合同里一份，`SHELF_ADMIT_ACTION`：Shelf 按它注册，图片按它调用，不转型），`molis:shelf-admit` 从登记表删掉；放好后出一张落点卡片，从卡片的「打开」进 Shelf 格（不自动打开）。
+    - 侧栏格按条目打开：`molis:side-open` 带 `target {item,title}`，侧栏对已载入的格框架以本页源发 `molis:side-target`，格文档按同一检查收下后在自己的工作面上发 `molis-work:select-item`；工作台不读条目 id。
+- 2026-10-18 W2'-3 桌面入口（分支 `context/w2p3-desktop-entries`，叠在 #701 上；统筹 10-18 认可计划并定两处做法）：
+  - 热键、菜单栏打开 Shelf 只说插件名：`molisWorkOpenShelf` 调页面的 `molisWorkOpenPlugin("shelf")`，它就是工作台的 `openPlugin`，判断仍只在 `openPluginInSide` 一处；不写死格名，不加 focus（原来点插件列表时也不移焦点）。热键脚本里点插件列表的兜底删掉。
+  - 壳从顶层文档（不是框架）报「右栏开着且选中的是 Shelf 格」时那一格的矩形：现成的 `shelf_surface_changed` 把 `active` 换成 `panel`（CSS 像素，内容区左上为原点）；矩形先经 `reported_panel` 检查，轮盘命中只用 `over_reported_panel`（S-14 表与 `tests/security-invariants-desktop-ipc.test.ts` 同步，Rust 用例 `s14_…`）。热键的显示/隐藏开关以「Shelf 格正在显示」为准。
+  - 页面顶部的插件说明（`STAGE_SUMMARIES`）按工作区面取，只开在右栏的插件没有工作区面，按同一条规则（`sideOpenedPlugins`）不再带进页面，`workbench.js` 由此不超过 #701 的大小。
+  - 用例：`tests/desktop-shelf-side.e2e.test.ts`（DESK-SHELF-01、DESK-SHELF-02，用真的壳脚本和一个记录调用的替身桥）、`tests/desktop-tui.test.ts`。
+- 2026-10-18 W3-C 右栏各格报告手上的东西（分支 `context/w3c-side-in-hand`；做法统筹 10-18 定：像分屏窗格一样，复用现成的来源检查，不加新消息类型）：
+  - 右栏插件格的文档跑 `context-actions.ts` 里窗格那一半（`CONTEXT_PANE_FACTORY_SCRIPT`：DOM 选区读取、给打开的条目起名、自己画浮条），与分屏窗格是同一段代码；格里选中的东西经 `workbench-surface-focus` 交给顶层，浮条的方案与选择、悬停保位、交不出去的选择都走分屏窗格已有的消息。
+  - 顶层的上下文总线收这些消息时，来源除了分屏窗格框，再认右栏插件框；认框只用一段 `SIDE_FRAME_FROM_SCRIPT`（`molis:side-forward` 的 `from` 也是它，S-30）。顶层按框所在的格标上 `place: "side"` 与 `side_tab`（`landing.place`，和顶层文档里的右栏格同一条规则），`pane_id` 是 `side`；格里报来的 `place` 不算数。
+  - 由此左边的落点对右栏格里的选区也成立：浮条给出「插入到光标处」；在左边选中时浮条回到左边；右栏收起后框看不见，总线照旧放下手上的东西，格里的浮条随之收起。
+  - 没做：在格里的浮条上悬停「放进去」时，左边的落点不闪（分屏窗格的浮条今天也不闪：窗格报的保位只带浮条上的键，不带菜单的），记作后续 W3-C2（§21.4）。
+  - 用例：`tests/security-invariants-pane-messages.test.ts`「S-30 AC-S04 …」（真的工厂脚本跑在一个小页面上：不是右栏插件框也不是分屏窗格发来的焦点被丢掉、不问 Host、哪里都不画浮条；Shelf 框发来的标上右栏与格、只让那个框画）、`tests/side-shelf-in-hand.e2e.test.ts`（W3-C AC-S04，Shelf 格里选中一段材料，左边是 Pages 的光标）。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

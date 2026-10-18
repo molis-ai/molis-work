@@ -4,7 +4,7 @@
 
 包名：`@molis-ai/molis-work-plugin-ppt`。
 
-插件在 `src/actions.ts` 声明列表、读取、新建、编辑、删除、JSON 导出、PPTX 导出、按文字或 Pages 文档生成大纲、AI 整理大纲和存成成果等能力。项目 Host 注册原 Store 处理器；HTTP 只转发同一动作客户端，MCP 只经授权的动作工具，可信项目、调用者和权限由 Host 注入。
+插件在 `src/actions.ts` 声明列表、读取、新建、编辑、删除、JSON 导出、PPTX 导出、按文字或 Pages 文档生成大纲、AI 整理大纲和存成成果等能力。项目 Host 经 Plugin Runtime 装配 `createPptPlugin`，数据库事务使用 Runtime 端口；Manifest 的 11 条 HTTP 路由经 SDK 转发同一动作客户端，MCP 只经授权的动作工具，可信项目、调用者和权限由 Host 注入。Pages 原文经 `services.actions.invokeQuery` 保留原调用者授权；每个发布阶段在实际写入前重新核对取消与授权。
 
 JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME 类型与完整 JSON；浏览器下载同一结果。`ppt.pptx` 导出 PowerPoint 文件（标题、要点、讲者备注与配色，不含图片与图表）。不生成 SVG。
 

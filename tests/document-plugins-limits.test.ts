@@ -8,7 +8,7 @@ import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, formRes
 import { datasetActions, createDatasetActionHandlers, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { lingguangActions, lingguangContentActions, createLingguangActionHandlers, ownLingguangStores, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesActions, pagesContentActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
+import { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
 import { createWorkflowContentPorts } from "@molis-ai/molis-work-plugin-workflows";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
@@ -87,6 +87,10 @@ function hostModel(state: { revoked: boolean; dispatched: number; sawBeforeDispa
     return reply;
   };
 }
+function completeModel(state: { revoked: boolean; dispatched: number; sawBeforeDispatch: unknown[] }, reply: string) {
+  const model = hostModel(state, reply);
+  return async (prompt: unknown, options?: { beforeDispatch?: () => Promise<void> }) => ({ text: await model(prompt, options), validateResult: () => {} });
+}
 const revocable = (state: { revoked: boolean }, audience: ActionAudience = "agent"): ActionExecutionContext => ({ actor_id: "agent-1", project_id: "p", audience, permissions: [],
   beforeEffect: async () => { if (state.revoked) throw Object.assign(new Error("grant revoked"), { code: "actions.forbidden" }); } });
 const handle = (handlers: ActionHandlerBinding[], capabilityId: string) => handlers.find(handler => handler.capability_id === capabilityId)!;
@@ -107,7 +111,7 @@ test("AI actions of Form, Dataset, PPT and 灵光 recheck the grant right before
       run: state => handle(createDatasetActionHandlers({ withStore: run => run(datasets), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "列") }), datasetActions.generateAi.capability_id)
         .handle(revocable(state), { id: dataset.id, prompt: "加一列" }) },
     { name: "ppt.outline_ai", unchanged: () => decks.get(deck.id, "p").version,
-      run: state => handle(createPptActionHandlers({ withStore: run => run(decks), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "## 一页\n- 要点") }), pptActions.outlineAi.capability_id)
+      run: state => handle(createPptActionHandlers({ ...ownPptStores(run => run(decks)), modelAvailability: () => ({ available: true }), complete: completeModel(state, "## 一页\n- 要点") }), pptActions.outlineAi.capability_id)
         .handle(revocable(state), { id: deck.id, text: "整理" }) },
     { name: "lingguang.conversation.message", unchanged: () => sparks.conversation(conversation.id, "p").messages.length,
       run: state => handle(createLingguangActionHandlers({ ...ownLingguangStores(run => run(sparks)), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "回复") }), lingguangActions.message.capability_id)
@@ -142,7 +146,7 @@ test("an outline for a deck that already has 40 pages is refused before anything
   const state = { revoked: false, dispatched: 0, sawBeforeDispatch: [] as unknown[] };
   const store = openPptStore(f.home);
   t.after(() => store.close());
-  const handlers = createPptActionHandlers({ withStore: run => run(store), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "## New\n- point") });
+  const handlers = createPptActionHandlers({ ...ownPptStores(run => run(store)), modelAvailability: () => ({ available: true }), complete: completeModel(state, "## New\n- point") });
   const caller = { ...f.caller, beforeEffect: async () => {} } as ActionExecutionContext;
   await assert.rejects(f.bound.invoke(pptActions.outline, { id: full.id, text: "## New\n- point" }), { code: "ppt.invalid" });
   await assert.rejects(handle(handlers, pptActions.outlineAi.capability_id).handle(caller, { id: full.id, text: "new" }), { code: "ppt.invalid" });

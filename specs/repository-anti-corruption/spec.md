@@ -10,6 +10,12 @@ SHM 模型失败集成补正（2026-10-18）：39130898172 的灵光失败回归
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+PPT 成果继续回归路径补齐（2026-10-18，W5-01-PPT-02）：同类旧 URL 审计发现 artifact-continue 的创建、编辑、固定和读取四次请求仍用 /api/ppt，组合已复现 404；干净材料基线该文件通过。只改为现行 /api/plugins/io.molis.work.ppt/ppt，保留固定内容、全新对象身份、原版本和跨插件拒绝断言。与已补齐的客户端路径断言共同验证：整体 build 通过，两文件 17 条通过（包含四类成果实际从固定版本创建新对象），日志 /tmp/molis-ppt-continue-after.log；不改生产行为。
+
+PPT 全量路由断言补齐（2026-10-18，W5-01-PPT-02）：personal-plugins-review-fixes 中 PPT 客户端路径按现行 Manifest 固定为 /api/plugins/io.molis.work.ppt/ppt。生产实现与旧 HTTP 路径拒绝保持；同文件及真实 HTTP 错误边界/路由表三文件 34 条通过，日志 /tmp/molis-ppt-route-assertions-after.log。
+
+PPT 交接收口（2026-10-18，Codex，本地组合通过）：DSH 的现行 Runtime 候选与 root 同步 publish 点尾检已 merge 当前 Alchemist/D1/OwnerFiles/SHM/AQD 和实际 main 63639a764。请求入口同时保留 Alchemist 原调用授权并删除 PPT 旧路由。整体 offline install/build、API、动作快照、boundary、merge-base health 与资源通过；九个有效相关文件 95 条通过，覆盖发布前同步撤权、Pages 查询委托、业务动作、错误/大小限制、移动后固定、路由与动作合同。首批两个测试路径误写，实际 ppt-promote-authority 和 document-pin-after-move 已补跑14条通过。动作快照为本次新增 PPT Runtime 安装补齐 D1 三个 query，原动作合同不变；25 项资源7,479,717 B，比前置减少97 B。日志 /tmp/molis-ppt-closeout-{build,api,actions,health,boundary,assets,targeted,authority-pin}.log；先前红/绿授权回归、DSH真实Chrome与相关回归证据保留。正式 PR/CI 与共享组合全量待前置；不是整线或发布完成证明。
+
 Alchemist 交接收口（2026-10-18，Codex，本地组合通过）：既有生命周期/显式继续候选已 merge 当前 D1/OwnerFiles/SHM/AQD 与实际 main 63639a764。动作客户端冲突同时保留 query_only 的只减权传播和后台额外权限的持续核验；请求入口保留原用户授权。整体 offline install/build、API/动作快照（均无额外变化）、boundary、merge-base health 和实测资源通过；12 个直接相关文件 178 条通过，覆盖关闭排空、迟到零写、显式恢复、搜索最终效果、后台权限和查询委托。workbench 沿前置已批准 +2,231 B，Alchemist 沿原已批准 50,619→52,373 B（+1,754 B）；25 项共 7,479,814 B，未再扩大额度。日志 /tmp/molis-alchemist-closeout-{build,api,actions,health,boundary,assets,targeted}.log。前期190文件/1732条、27文件/95条和4 Chrome文件/15条证据保留；正式 PR/CI 与共享组合全量仍待队列。这里只收已完成的生命周期与恢复，Runtime 迁移和 WorkReuse 生产接入仍未做。
 
 D1 项目成果操作交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前 OwnerFiles/SHM/AQD 与实际 main 63639a764，原固定身份及 owner 操作实现不变。安全表 S-17 保留 D1 真实拒绝，S-18 并入 OwnerFiles 与当前主线；整体 offline install/build、API/动作快照（均无额外变化）、boundary、merge-base health 与资源核对通过。11 个直接相关文件 99 条通过，覆盖创建参数后续变更不能换权、过程 own 恢复、公开 SDK/输入图、真实 Host/Runtime、查询委托、OwnerFiles 生命周期与动作合同。25 项 7,478,060 B，无本片增量。日志 /tmp/molis-d1-closeout-{build,api,actions,health,boundary,assets,targeted}.log；原79文件921条及修前红/修后绿证据保留。正式 PR/CI 待前置；D2/D3 与 Shelf 业务迁移均未启动。
@@ -375,6 +381,23 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 - #570 评审的两点并入本片：像键只是形状检查，不是密钥识别（邮箱、`sk-` 令牌形状像键，会照写），所以字段只放调用处自己定的编号、枚举和计数，`host-log.ts` 注释与 README 写明，`W5-13-09` 钉住；搜索索引的告警按（遍次、错误码）在进程内只记一次，`W5-13-10` 钉住。
 - 测试：`tests/host-log-catches.test.ts`：`W5-13-04`（项目查找只把 not_found 当没有，目录读不了与别的目录错误照抛）、`W5-13-05`（预览失败按类型记，forbidden、not_found 不记，消息与路径不进日志）、`W5-13-06`（Coding 后台清单，经宿主的真实接线：没有 Coding 的项目不记，读不了的库开始失败时记一条、读通后再失败再记；没有 Coding 的库用不带 Coding 表的空库——演示看板会建 Coding 的表，用它就量不到这一条；去掉接线里的询问即红）、`W5-13-08`（重复失败只在开始时记）、`W5-13-11`（项目简介与侧栏浏览器：没有这个项目仍是 404，目录读不了是 500 并记一条，服务照常答下一个）；`tests/im-local-project.test.ts` 的 `W5-13-11`（群聊连接：目录读不了 500，没有这个项目仍 403，之后照常连上）；`tests/connector-mcp.test.ts` 的 `W5-13-07`（重启后一个连接登记失败按 id 记，另一个照常登记）。变异检查：项目查找改回全捕获（04 失败）、预览不分种类（05 失败）、重复失败不去重（06、08 失败）、连接登记改回静默（07 失败）、Coding 去掉表检查（06 失败）。
 - 门禁：`--base origin/main` 通过；新加的几行没有留在巨大单元里（移到模块级小函数或同行注释），巨大单元的行数不变。
+
+W5-01-PPT 正式 Runtime 迁移（2026-10-18，本地实现与复审收口，待主线整合与 CI；merge 公共 head `dfc21df3b`，未推、未开 PR）：
+- 范围：PPT 从构建期宿主适配器迁到每个项目一个 Plugin Runtime 实例；库仍是 `{home}/ppt/ppt.db` 的 `PPT_DATABASE`，动作、11 条 HTTP 路由和成果发布改走 Manifest/`bindPluginActionRoute`/`services.artifacts`，Pages 读取走 `services.actions.invokeQuery`，模型走 `services.model.complete` 的完整结果；删除宿主 `ppt-actions.ts`/`ppt-native-plugin-http.ts`/路由表与提供方接线，目录条目只保留 UI/client/styles。
+- 不变：1–39 页可追加、满 40 页才拒绝、title-only 页保留、replace 语义；原 `ppt.db` v1、两表、`project_id` 分区、发布意图/完成两阶段与恢复；动作 id/version/schema/scheduling 不借迁移改。
+- 验收：`W5-01-PPT-01` 项目 Runtime 装配、Home 库/旧数据、目录与冻结名单；`W5-01-PPT-02` 动作与 11 条路由经 Manifest/SDK，旧 `/api/ppt` 404、未知 id `ppt.not_found`；`W5-01-PPT-03` 发布两阶段、成果身份/恢复、actor 隔离、重启后保留；`W5-01-PPT-04` Pages 读取保留原 caller/audience/allowlist，text-only 不依赖 Pages，不无条件 required_actions；`W5-01-PPT-05` 模型返回完整 `validateResult`，事务同步回调首条业务 SQL 前调用，失败不写、撤权不记失败业务数据；`W5-01-PPT-06` 1–39/40/title-only/replace 行为；`W5-01-PPT-07` HTTP/MCP/Agent 原入口授权，克隆 control/命令/别安装拒绝；`W5-01-PPT-08` 定向用例、build、boundary、health、page-assets、动作/API 快照、assembly gate 与包清单。
+- 证据（2026-10-18，本地；公共 head `dfc21df3b` + PPT Store `db4ab7244`）：整体 `pnpm build` 71 包通过；`ppt-actions` 5/5、`ppt-store` 3/3、`ppt-subject-kind` 1/1、`creative-tools-plugins` 8/8、`creative-artifact-promote` 2/2、`document-plugins-limits` 9/9、`project-deletion-owners` 12/12、`document-plugins-error-model` 17/17、`ppt-promote-authority` 1/1（原 6 个取消/撤权交错 + 正常对照；下述 root 复核扩为 8 个）、`document-pin-after-move` 13/13、`web-route-table` 1/1、`builtin-plugin-assembly-gate` 6/6、`ppt-mcp` 1/1、`action-contract-snapshot` 25/25、`plugin-client-served` 3/3、`artifact-compare-moved` 与 `content-owner-regressions` 通过；真实 Chrome 的 `ppt-actions.e2e` 1440/390 2/2、`content-editing-regressions.e2e` 9/9、`model-ready-surfaces.e2e` 12/12。`boundary:check`、health（merge-base `7faaa027`）、page-assets（25 项 7,476,529 B）、`verify-release-versions` 通过；日志见 `logs/ppt-runtime-*.log`（`p1-tests`、`document-limits`、`document-pin`、`readme-browser`、`e2e-final`、`health-0a9237ced`）。
+- P1 修复（2026-10-18，`ppt-runtime-a414-review.md`）：发布的两个业务事务都重新等待原 caller `beforeEffect`，并在同步 SQL 前检查原 `signal`/`assert_authority_current`；`begin` 提交到 `artifacts.publish` 之间增加同一原 caller 的 `beforePublish` 等待。root 复审发现外层 await 仍可在回调尾检后失权，已在实际同步 publish wrapper 紧前复核 current。`tests/ppt-promote-authority.test.ts` 的 `W5-01-PPT-07` 用实际 `createPptPlugin` + 真 SQLite `PptStore` + 可控 database/artifact 阶段，覆盖入口后到begin SQL、begin后到publish、异步publish检查成功后到真实publish、artifact后到complete SQL四个交错点，分别取消与撤权，并验正常对照；新增微任务用例在旧 `9198c2d3c` 构建上稳定失败（本应零发布却发生一次），补 wrapper 后通过。已合法提交的 pending/artifact 保留，后续阶段零新增。整体 build、4 个相关文件 21 条测试及 merge-base health/boundary 通过，原始日志 `/tmp/ppt-authority-final-tail-{before,build,tests,health,boundary}.log`；该测试使用真实插件与 SQLite、受控授权阶段，未声称外部进程全链验收。
+- 未做/未验：推送、PR、合并、标签；`api` 快照的公共 AQD/SHM 变化由 root 持有，不在这片改；真实 Home 未动。
+- 待办：正式 head 的基线/同步顺序由 Codex 定；本地实现完再做完整回归，不推送、不开 PR、不自行合并。
+
+W5-01-PPT 纯 Store 准备（2026-10-18；Codex 允许先做包内 Store；工作树 `feature/w5-01-ppt-store`，未推、未开 PR）：
+- 范围：PPT 仍按每个项目一个 Runtime 的目标；本片只改 `plugins/native/ppt/src/store.ts` 的窄 SQL 端口（`PptSql`/`PptStores`/`ownPptStores`）与唯一 `PPT_DATABASE`（`store_name: "ppt"`、version 1、原 schema 与列顺序不变），`openPptStore` 保留同一 Store 的本地连接适配；`PPT_HOME_STORE`、`project-data.ts` 与发布库版本表引用同一份 `PPT_DATABASE`，删除 `PPT_STORE_BASELINE` 别名。
+- 不变：原 `{home}/ppt/ppt.db`、`project_id` 分区、三阶段发布、动作 id/版本/权限、Manifest/路由、Pages 读取、模型调用、宿主接线与目录条目。不改 Host 或包外调用方。
+- 验证：现有 PPT Store 消费者（actions、MCP、placement、project deletion、creative artifact）保持；`PPT_DATABASE` 与 Home baseline、`docs/releases` 版本表一致；health 对照 merge-base。
+- 证据（2026-10-18，本地；基于 `origin/main 7faaa027`，未带 Dataset 分支的宿主改动）：`pnpm --filter @molis-ai/molis-work-plugin-ppt run build` 通过；`tests/ppt-store.test.ts` 的 `W5-01-PPT-STORE-01`–`03` 3/3（唯一声明与 Home baseline 一致；`ownPptStores` 经原 Store 读写；真实原库的 duplicate/receive 中途失败回滚，无半份 deck/receipt；`beforeEffect` 拒绝时回调未进入、库不变）；`ppt-actions` 5/5、`ppt-subject-kind` 1/1、`project-deletion-owners` 12/12、`creative-tools-plugins` 8/8、`creative-artifact-promote` 2/2、`ppt-mcp` 1/1；`verify-release-versions` 的 29 个库表行与代码一致；`pnpm boundary:check` 通过；health 对 merge-base `7faaa027` 通过。原始日志在交接通道 `logs/ppt-store-tests.log`、`logs/ppt-store-port-test.log`、`logs/ppt-store-health.log`。
+- 未做/未验：Manifest 路由、Pages/模型调用、宿主接线、动作/API 快照、page-assets 都未动；没有 UI 变化，未跑浏览器与真实 Home。
+- 待办（另片）：公共动作委托、`validateResult` 集成、Manifest 路由、Pages/模型调用、宿主接线删除与调用方迁移；等 Codex 的实际基线与 spec 编号。
 
 ## 0. 现场与范围
 
@@ -1357,7 +1380,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/lingguang` | 内置插件 | 13 | 1,840 | `client.ts` 707 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/pages` | 内置插件 | 44 | 14,848 | `editor-browser.ts` 4,043 | 3 | 3 | 2 | 构建期 | 深 | 已审 |
 | `plugins/native/plugin-builder` | 内置插件 | 17 | 2,855 | `agent-authoring.ts` 800 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/ppt` | 内置插件 | 18 | 2,276 | `client.ts` 806 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/ppt` | 内置插件 | 17 | 2,248 | `client.ts` 807 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/schedule` | 内置插件 | 24 | 2,484 | `client.ts` 379 | 1 | 1 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/shelf` | 内置插件 | 21 | 5,037 | `client.ts` 1,708 | 2 | 3 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 已审 |

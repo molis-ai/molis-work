@@ -111,6 +111,8 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/plugins/io.molis.work.images/jobs" },
   { method: "GET", path: "/api/plugins/io.molis.work.images/connections" },
   { method: "GET", path: "/api/ppt" },
+  { method: "GET", path: "/api/plugins/io.molis.work.ppt/ppt" },
+  { method: "GET", path: "/api/plugins/io.molis.work.ppt/ppt/no-such" },
   { method: "GET", path: "/api/jelly" },
   { method: "GET", path: "/api/plugins/io.molis.work.jelly/" },
   { method: "GET", path: "/api/plugins/io.molis.work.todo/items" },

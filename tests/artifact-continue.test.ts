@@ -52,12 +52,12 @@ test("a pinned document, form, deck and table each continue as a new object of t
   const copiedForm = (await get(`/api/plugins/io.molis.work.form/forms/${formOpen.id}`)).form as { title: string; description: string; questions: Array<{ title: string }> };
   assert.deepEqual([copiedForm.title, copiedForm.description, copiedForm.questions.map(question => question.title)], ["满意度", "季度回访", ["哪里可以更好？"]]);
 
-  // PPT: slides and colours.
-  let deck = (await post("/api/ppt", { title: "周会" })).presentation as { id: string; version: number };
-  deck = (await post(`/api/ppt/${deck.id}`, { slides: [{ title: "进展", bullets: ["上线", "复盘"], notes: "" }], expected_version: deck.version })).presentation;
-  const pinnedDeck = (await post(`/api/ppt/${deck.id}/promote`, { expected_version: deck.version })).artifact as { artifact_id: string; version: number };
+  // W5-01-PPT-02: slides and colours, using the current Runtime collection route.
+  let deck = (await post("/api/plugins/io.molis.work.ppt/ppt", { title: "周会" })).presentation as { id: string; version: number };
+  deck = (await post(`/api/plugins/io.molis.work.ppt/ppt/${deck.id}`, { slides: [{ title: "进展", bullets: ["上线", "复盘"], notes: "" }], expected_version: deck.version })).presentation;
+  const pinnedDeck = (await post(`/api/plugins/io.molis.work.ppt/ppt/${deck.id}/promote`, { expected_version: deck.version })).artifact as { artifact_id: string; version: number };
   const deckOpen = await continueFrom(pinnedDeck, "io.molis.work.ppt");
-  const copiedDeck = (await get(`/api/ppt/${deckOpen.id}`)).presentation as { title: string; slides: Array<{ title: string; bullets: string[] }> };
+  const copiedDeck = (await get(`/api/plugins/io.molis.work.ppt/ppt/${deckOpen.id}`)).presentation as { title: string; slides: Array<{ title: string; bullets: string[] }> };
   assert.deepEqual([copiedDeck.title, copiedDeck.slides.map(slide => [slide.title, slide.bullets])], ["周会", [["进展", ["上线", "复盘"]]]]);
 
   // Dataset: columns and rows.

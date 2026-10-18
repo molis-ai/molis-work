@@ -83,7 +83,9 @@ test("answer route preserves the original run and questionnaire, rejects foreign
   const call=(body:unknown)=>route.handle({params:{sessionId:'app'},body} as PluginRouteRequest);
   const answer={kind:'answer',run_id:'owned',pending_id:'original',pending_revision:7,answers:[{question:1,indexes:[2,4],other:'保留原文'}]};
   try {
-    assert.equal((await call({...answer,run_id:'foreign'})).status,400);
+    // A run of another session is not found here, which also says nothing of whether it exists elsewhere (AC-08, #708).
+    const refused=async(body:unknown)=>{const {status,body:reply}=await call(body);return [status,(reply as {code?:string}).code];};
+    assert.deepEqual(await refused({...answer,run_id:'foreign'}),[404,'coding.run_not_found']);
     assert.equal((await call({...answer,pending_revision:0})).status,400);
     assert.equal((await call({...answer,answers:[{question:1,indexes:['invented']}]})).status,400);
     assert.equal(delivered.length,0);
@@ -95,7 +97,7 @@ test("answer route preserves the original run and questionnaire, rejects foreign
     assert.deepEqual(delivered[1],[{runtime_id:'prologue',session_id:'sdk'},{session_id:'sdk',run_id:'owned'},
       {kind:'answer',pending_id:'original',pending_revision:7,text:verbatim}]);
     assert.equal((await call({...answer,answers:undefined,text:' \n '})).status,400);
-    phase='stopped';assert.equal((await call(answer)).status,400);assert.equal(delivered.length,2);
+    phase='stopped';assert.deepEqual(await refused(answer),[409,'coding.round_ended'],'an answer to an ended round');assert.equal(delivered.length,2);
   }finally{db.close();}
 });
 

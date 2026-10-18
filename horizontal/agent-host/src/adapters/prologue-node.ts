@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { BUILT_IN_ADAPTERS, createAdapterRegistry } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
-import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics, AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { endedOnPromise } from "./prologue-stop-guard.js";
 import type { createPluginBuilderAgent, PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { actionToolRefs } from "./prologue-action-tools.js";
@@ -21,6 +21,7 @@ import { createPrologueRecovery } from "./prologue-recovery.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
 import { createPrologueSchedule } from "./prologue-schedule.js";
 import { createSessionIndexStore } from "./prologue-session-index.js";
+import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 import { createPrologueSurfaces, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { resolveModelHostname } from "./node-model-dns.js";
@@ -86,7 +87,7 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
  */
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
-): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort;
+): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
   surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
   const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
   try {
@@ -196,7 +197,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),
     approvals,
     answerPending: answerPending({ runtime, host, state, readQuestion, index, options, effects }),
-  }), { inference, createBuilderAgent, gitReviews, diagnostics: () => {
+  }), { inference, createBuilderAgent, gitReviews, writeCheckers: createPrologueWriteCheckers(runtime), diagnostics: () => {
     const seen = runtimeDiagnostics(runtime);
     return { ...seen, ledger_failures: [...seen.ledger_failures, ...workGraphs.failures().map((entry, at) => ({ ...entry, seq: seen.ledger_failures.length + at + 1 }))] };
   },

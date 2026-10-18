@@ -8,7 +8,11 @@ import type { AssistantCharacterChoice, AssistantCharacterRef, AssistantMaterial
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import { identity } from "./assistant-relations.js";
 
-const MAX_DELEGATED = 6, MAX_ACTIVE_DELEGATED = 3, MAX_FOLLOW_UPS = 2;
+/**
+ * How much one work may hand out: the Assistant's own product rule, defined here and nowhere else. `parts` sub-tasks in
+ * all (put away ones count), `active` of them going at once, `followUps` follow-ups on each.
+ */
+const DELEGATION_LIMITS = { parts: 6, active: 3, followUps: 2 } as const;
 const RUNTIME = "prologue";
 const ENDED: readonly string[] = ["succeeded", "failed", "cancelled"];
 /** A part's steps on its delegating work's graph: the one it was handed out as, and those under it (follow-ups, the person's rounds). */
@@ -95,8 +99,8 @@ export class AssistantDelegations {
           if (!role.available) throw assistantErrors.character_unavailable(`角色「${role.title}」现在不能用：${role.reason ?? "不可用"}；没有换成别的角色`);
         }
         const children = store.delegatedBy(actorId, { graph_id }, "any"), nodes = await graphs.read(graph_id);
-        if (children.length >= MAX_DELEGATED) throw assistantErrors.limit(`这项工作已经委托了 ${MAX_DELEGATED} 个子任务，不能再多；请自己完成剩下的部分或告诉用户`);
-        if (children.filter(child => open(partSteps(nodes, child)).length).length >= MAX_ACTIVE_DELEGATED) throw assistantErrors.limit(`已有 ${MAX_ACTIVE_DELEGATED} 个子任务在进行，等其中一个结束再委托`);
+        if (children.length >= DELEGATION_LIMITS.parts) throw assistantErrors.limit(`这项工作已经委托了 ${DELEGATION_LIMITS.parts} 个子任务，不能再多；请自己完成剩下的部分或告诉用户`);
+        if (children.filter(child => open(partSteps(nodes, child)).length).length >= DELEGATION_LIMITS.active) throw assistantErrors.limit(`已有 ${DELEGATION_LIMITS.active} 个子任务在进行，等其中一个结束再委托`);
         const node_id = `p-${randomUUID().slice(0, 12)}`;
         const child = store.create({ actor_id: actorId, title: input.title.slice(0, 80), scope: parent.scope, ...(parent.scope_title ? { scope_title: parent.scope_title } : {}),
           origin: { surface: "assistant", title: `「${parent.title}」委托` }, ...(parent.project_ref ? { project_ref: parent.project_ref } : {}),
@@ -134,7 +138,7 @@ export class AssistantDelegations {
         if (child.delegated_by?.taken_back_at) throw assistantErrors.invalid("用户已把这个子任务收回到这项工作，这部分由你在这里继续，不要再对它追加");
         const steps = partSteps(await graphs.read(graph_id), child);
         if (open(steps).length || !child.session_id) throw assistantErrors.state("这个子任务还在做：先用 check-delegated-work 等它交回，再按验收标准追加");
-        if (followUps(steps) >= MAX_FOLLOW_UPS) throw assistantErrors.limit(`已经追加过 ${MAX_FOLLOW_UPS} 次；仍达不到验收时停止它，并把实际情况告诉用户`);
+        if (followUps(steps) >= DELEGATION_LIMITS.followUps) throw assistantErrors.limit(`已经追加过 ${DELEGATION_LIMITS.followUps} 次；仍达不到验收时停止它，并把实际情况告诉用户`);
         // A follow-up is a step of its own under the part: an ended step is never reopened. The work waits for it too.
         const step = steps.length ? { graph_id, node_id: `${node_id}.f${followUps(steps) + 1}`, under: node_id, session_id: child.session_id, title: `追加：${text.split("\n")[0]!.slice(0, 60)}` }
           : { graph_id, node_id, session_id: child.session_id, title: child.title };
@@ -182,8 +186,8 @@ export class AssistantDelegations {
   shown(work: StoredWork): AssistantWork["delegated_by"] {
     const parent = this.parentOf(work);
     if (!work.delegated_by || !parent) return undefined;
-    const { graph_id: _graph, node_id: _node, ...rest } = work.delegated_by;
-    return { work_id: parent.work_id, ...rest };
+    const { title, acceptance, taken_back_at } = work.delegated_by;
+    return { work_id: parent.work_id, title, acceptance, ...(taken_back_at !== undefined ? { taken_back_at } : {}) };
   }
 
   /** The sub-tasks `work` handed out, as its board lists them. */

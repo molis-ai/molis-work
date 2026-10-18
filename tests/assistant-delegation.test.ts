@@ -90,7 +90,9 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     await until(async () => (await graph()).every(node => node.node_id === "work" || ["succeeded", "failed", "cancelled"].includes(node.state)), "first follow-up ended");
     await delegation.follow_up(child.work.work_id, "去掉编号");
     await until(async () => (await graph()).every(node => node.node_id === "work" || ["succeeded", "failed", "cancelled"].includes(node.state)), "second follow-up ended");
-    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid", "follow-ups are bounded");
+    // W2-18-A4-LIMITS-01: the limits are the Assistant's own table, in the words the model has always been told.
+    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid"
+      && error.message === "已经追加过 2 次；仍达不到验收时停止它，并把实际情况告诉用户", "follow-ups are bounded");
     const part = childStored.delegated_by!.node_id;
     assert.deepEqual((await graph()).filter(node => node.node_id !== "work").map(node => [node.node_id, node.parent, node.state]),
       [[part, "work", "succeeded"], [`${part}.f1`, part, "succeeded"], [`${part}.f2`, part, "succeeded"]]);
@@ -338,7 +340,9 @@ test("a sub-task the person put away still counts for the work that handed it ou
     }
     for (const id of made.slice(1, 3)) await f.service.archive(id, true);
     const delegation = f.service.delegation(f.store.get("web-user", sent.work.work_id))!;
-    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid");
+    // W2-18-A4-LIMITS-01
+    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid"
+      && error.message === "这项工作已经委托了 6 个子任务，不能再多；请自己完成剩下的部分或告诉用户");
 
     // The parent's stop reaches a put-away sub-task that a follow-up has set going again.
     await delegation.follow_up(childId, "再改改");
@@ -348,6 +352,27 @@ test("a sub-task the person put away still counts for the work that handed it ou
     const child = await until(async () => { const view = await f.service.read(childId); return ["stopped", "failed"].includes(view.work.state) ? view : undefined; }, "the put-away sub-task stopped");
     assert.equal(child.work.state, "stopped");
   } finally { release(); await f.close(); }
+});
+
+// W2-18-A4-LIMITS-01: three parts with a step still going leave no room for a fourth, in the words the model has always been told.
+test("W2-18-A4-LIMITS-01 three sub-tasks still going leave no room for another one", { timeout: 60_000 }, async t => {
+  const f = await delegationFixture(t, [() => reply({ name: "delegate-work", input: { title: "起草", brief: "起草一段话。", acceptance: "一段话" } }), () => reply(undefined, "已交给子任务。")],
+    async () => reply(undefined, "草稿。"));
+  try {
+    const sent = await f.service.send({ text: "分给子任务起草", request_id: "req-delegation-active" }, { project_ref: f.project });
+    await until(async () => { const view = await f.service.read(sent.work.work_id); return view.work.state === "completed" && view.rounds.length === 2 && view.delegated?.[0]?.state === "completed" ? view : undefined; }, "child done, handed back");
+    const parent = f.store.get("web-user", sent.work.work_id), works = f.adapter.collaboration!.works!;
+    // Three parts whose step has not ended (the finished one is not going).
+    for (let index = 0; index < 3; index++) {
+      const node_id = `p-going-${index}`;
+      await works.add({ graph_id: parent.graph_id!, node_id, under: "work", session_id: parent.session_id!, title: `子任务 ${index}` });
+      f.store.create({ actor_id: "web-user", title: `子任务 ${index}`, scope: { kind: "project", project_id: "board" }, origin: null, project_ref: f.project,
+        delegated_by: { graph_id: parent.graph_id!, node_id, title: parent.title, acceptance: "完成" } });
+    }
+    await assert.rejects(f.service.delegation(f.store.get("web-user", sent.work.work_id))!.start({ title: "第五个", brief: "再来一个。", acceptance: "完成" }),
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.message === "已有 3 个子任务在进行，等其中一个结束再委托");
+    assert.equal(f.store.delegatedBy("web-user", parent).length, 4, "the refused one left no work behind");
+  } finally { await f.close(); }
 });
 
 // W2-18-DELEGATION-PLACED-01: the person's own round in a finished sub-task stands on a new step under it. A round that

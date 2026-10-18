@@ -1,5 +1,5 @@
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { STATE_RING_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { INPUT_RECEIPTS_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -26,7 +26,7 @@ test("RCPT-352/353 the AI's new task waits on the plan card for the person; the 
       const taskboard=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id,navigate:async()=>{},amend:async()=>{},
         from:node=>from(node,()=>opened.push('board closed'))});
       const card=(${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api:async(path,method,body)=>{posted.push({path,method,body});return {board:{terminal:false},steered:true};},current:()=>'s',status:()=>{},refresh:async()=>{},openStep:()=>{},
-        from:node=>from(node),stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled});
+        from:node=>from(node),stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:(${INPUT_RECEIPTS_CLIENT_SCRIPT})(text=>text).step});
       const claim=(id,treatment,text)=>({turn_id:id,kind:'user',text,steer:{id,state:'read',model_claim:{treatment,targets:[],impacts:['scope'],revisions:1}}});
       const turns=[claim('in-1','new-task','顺便把注册接口也覆盖一下'),claim('in-2','apply-now','日志改成中文'),claim('in-3','new-task','再加一个导出')];
       const plan={revision:2,content:{title:'改登录',steps:[{title:'改登录接口',acceptance:'测试通过'}]}};

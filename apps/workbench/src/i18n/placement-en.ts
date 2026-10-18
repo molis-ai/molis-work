@@ -176,6 +176,8 @@ export const PLACEMENT_EN: Record<string, string> = {
   "它已经在这个位置": "It's already here",
   "插件返回的副本与请求不一致，请刷新后核对": "The plugin returned a copy that doesn't match the request. Refresh and check.",
   "插件返回的移动结果与请求不一致，请刷新后核对": "The plugin's move result doesn't match the request. Refresh and check.",
+  "移回原处时找不到移动动作": "No move action was found to put it back where it was.",
+  "移回原处的结果与请求不一致": "Putting it back did not return the place that was asked for.",
   "暂时打不开它所在的位置": "Can't open its location right now",
   "暂时读不到": "Can't read it right now",
   "暂时读不到原对象": "Can't read the original right now",

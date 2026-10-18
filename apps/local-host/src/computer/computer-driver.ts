@@ -59,7 +59,7 @@ function renderTree(state: AppState, tree: Tree): { text: string; cut: boolean }
     `窗口：「${tree.window.title || "无标题"}」，${width}×${height}。坐标以这个窗口的左上角为原点，单位是点；点击、滚动、拖动、悬停都用这里的坐标。`,
     ...(tree.menus.length ? [`菜单栏：${tree.menus.join("、")}（用 surface-act 的 menu 动作按菜单路径选，例如 ["${tree.menus[1] ?? tree.menus[0]}", "…"]）`] : []),
     "",
-    "窗口里的元素（@ 后是点击用的中心坐标；pointer 的 node 可以填 [n]，也可以写「角色:名称」或 /正则/）：",
+    "窗口里的元素（@ 后是点击用的中心坐标；pointer 的 node 可以填 [n]，也可以写「名称」「角色:名称」，或「~名称里的一段字」）：",
   ];
   let used = lines.join("\n").length;
   let cut = tree.truncated;

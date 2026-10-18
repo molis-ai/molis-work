@@ -11,6 +11,7 @@ export * from "./ui.js";
 export * from "./client.js";
 export * from "./styles.js";
 export * from "./en.js";
+export { IMAGES_MESSAGES } from "./messages.js";
 export * from "./routes.js";
 
 export * from "./actions.js";

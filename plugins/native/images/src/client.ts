@@ -26,8 +26,8 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   let submitting = false, saving = false, cancelling = false, listSeq = 0, loadSeq = 0;
   let timer = 0, listSignature = '', resultSignature = '';
   const statuses = {
-    running: L('生成中'), succeeded: L('已生成'), failed: L('生成失败'),
-    cancelled: L('已停止本机等待'), interrupted: L('已中断'),
+    running: L('images.status.running'), succeeded: L('images.status.succeeded'), failed: L('images.status.failed'),
+    cancelled: L('images.status.cancelled'), interrupted: L('images.status.interrupted'),
   };
   const text = (tag, value, className) => {
     const node = document.createElement(tag);
@@ -74,7 +74,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const payload = await response.json().catch(() => ({}));
     life.assertCurrent(signal);
     if (!response.ok) {
-      const error = new Error(payload.error || L('图片服务请求失败'));
+      const error = new Error(payload.error || L('images.error.request'));
       error.httpStatus = response.status; throw error;
     }
     return payload;
@@ -82,7 +82,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   // Files are named after what was asked for, not the stored image id; several images from one prompt are numbered.
   const fileNameOf = (job, item) => {
     const ext = (/\.[a-z0-9]{2,5}$/i.exec(item.filename || '') || ['.png'])[0];
-    const base = String(job.prompt || '').replace(/[\\/:*?"<>|\s]+/g, ' ').trim().slice(0, 40) || L('图片');
+    const base = String(job.prompt || '').replace(/[\\/:*?"<>|\s]+/g, ' ').trim().slice(0, 40) || L('images.page.title');
     const index = (job.images || []).findIndex((entry) => entry.id === item.id);
     return base + ((job.images || []).length > 1 && index >= 0 ? ' ' + (index + 1) : '') + ext;
   };
@@ -94,7 +94,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const syncGenerate = () => {
     if (!life.alive) return;
     generate.disabled = submitting || !context || !pickedConn() || pickedConn().available === false || !prompt.value.trim();
-    generate.textContent = submitting ? L('正在提交…') : L('生成图片');
+    generate.textContent = submitting ? L('images.compose.submitting') : L('images.compose.generate');
     $('[data-images-project-note]').hidden = Boolean(context);
   };
   const syncParameters = () => {
@@ -103,10 +103,10 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     $('[data-images-connection-empty]').hidden = conns.length > 0;
     // Until a service is connected, connecting is the step; the generate row waits.
     const submitRow = $('.images-submit-row'); if (submitRow) submitRow.hidden = !conns.length;
-    $('[data-images-service-label]').textContent = connection ? connection.name + ' · ' + connection.model : L('所选生图服务不可用，请重新选择');
+    $('[data-images-service-label]').textContent = connection ? connection.name + ' · ' + connection.model : L('images.service.unavailable');
     const unavailable = $('[data-images-service-unavailable]');
     unavailable.hidden = !cid || Boolean(connection && connection.available !== false);
-    unavailable.textContent = connection?.unavailable_reason || L('所选生图服务不可用，请重新选择');
+    unavailable.textContent = connection?.unavailable_reason || L('images.service.unavailable');
     $('[data-images-size-field]').hidden = !connection || connection.api_format !== 'openai-images';
     $('[data-images-ratio-field]').hidden = !connection || connection.api_format !== 'gemini';
     $('[data-images-service-options]').querySelectorAll('[data-images-use-connection]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.imagesUseConnection === cid)));
@@ -118,14 +118,14 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     options.replaceChildren(...conns.map(connection => {
       const node = button('', 'data-images-use-connection', connection.id);
       node.className = 'images-service-option';
-      node.append(text('span', connection.name), text('small', connection.model + (connection.available === false ? ' · ' + L('连接不可用') : '')));
+      node.append(text('span', connection.name), text('small', connection.model + (connection.available === false ? ' · ' + L('images.account.unavailable') : '')));
       return node;
     }));
     $('[data-images-saved-connections]').replaceChildren(...conns.map(connection => {
       const row = text('div', '', 'images-saved-connection');
       const node = button(connection.name, 'data-images-edit-connection', connection.id, 'secondary');
       node.setAttribute('aria-pressed', String(editingId === connection.id));
-      row.append(node, button(L('删除'), 'data-images-delete-connection', connection.id));
+      row.append(node, button(L('images.service.delete'), 'data-images-delete-connection', connection.id));
       return row;
     }));
     syncParameters();
@@ -161,42 +161,42 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   /** The generation record on screen, for the placement bar and the Assistant. */
   const publishContext = (job) => {
-    const value = { plugin_id: 'io.molis.work.images', surface_title: L('图片') };
+    const value = { plugin_id: 'io.molis.work.images', surface_title: L('images.page.title') };
     if (job) value.object = { kind: 'image_job', id: job.id, version: job.status + ':' + (job.images || []).length, title: job.prompt.slice(0, 80) };
     root.setAttribute('data-assistant-context', JSON.stringify(value));
   };
   const showCompose = (focus = false) => {
     jobId = ''; resultSignature = ''; result.hidden = true; compose.hidden = false;
     publishContext(null);
-    $('[data-images-title]').textContent = L('新建图片');
+    $('[data-images-title]').textContent = L('images.compose.new');
     expand(); paintList(); saveDraft(); syncGenerate();
     if (focus) prompt.focus();
   };
   const paintResult = (job) => {
     if (!job || jobId !== job.id) return;
     compose.hidden = true; result.hidden = false;
-    $('[data-images-title]').textContent = L('生成结果');
+    $('[data-images-title]').textContent = L('images.result.title');
     publishContext(job);
     const signature = JSON.stringify([job, cancelling]);
     if (resultSignature === signature) return;
     resultSignature = signature; result.replaceChildren();
     const heading = text('div', '', 'images-result-heading');
-    const status = text('h2', statuses[job.status] || job.status); status.dataset.mwState = job.status === 'succeeded' ? 'done' : job.status === 'running' ? 'generating' : job.status; heading.append(status, button(L('使用这个提示词'), 'data-images-reuse', job.id, 'secondary'));
-    if (job.status !== 'running') heading.append(button(L('删除记录'), 'data-images-delete-job', job.id));
+    const status = text('h2', statuses[job.status] || job.status); status.dataset.mwState = job.status === 'succeeded' ? 'done' : job.status === 'running' ? 'generating' : job.status; heading.append(status, button(L('images.result.reuse'), 'data-images-reuse', job.id, 'secondary'));
+    if (job.status !== 'running') heading.append(button(L('images.result.delete'), 'data-images-delete-job', job.id));
     result.append(heading, text('p', job.connection_name + ' · ' + job.model + ' · ' + dateLabel(job.created_at), 'images-result-meta'));
     if (job.status !== 'succeeded') {
       const panel = text('div', '', 'images-status-panel'); panel.dataset.status = job.status;
-      const message = job.status === 'running' ? L('正在等待服务生成图片，可以离开此页后再回来查看。')
-        : job.status === 'cancelled' ? L('本机已停止等待，远端请求可能仍在生成和计费。')
-        : job.status === 'interrupted' ? L('上次生成因本机服务重启而中断。没有自动重新调用厂商。')
-        : job.error || L('服务没有返回图片。请检查连接、模型与提示词。');
+      const message = job.status === 'running' ? L('images.status.waiting')
+        : job.status === 'cancelled' ? L('images.status.cancelled-help')
+        : job.status === 'interrupted' ? L('images.status.interrupted-help')
+        : job.error || L('images.error.no-image');
       panel.append(text('p', message));
       if (job.status === 'running') {
-        panel.append(text('small', L('停止本机等待不能保证厂商停止处理或计费。')));
-        const cancel = button(cancelling ? L('正在停止…') : L('停止本机等待'), 'data-images-cancel', job.id, 'secondary');
+        panel.append(text('small', L('images.status.cancel-warning')));
+        const cancel = button(cancelling ? L('images.status.cancelling') : L('images.status.cancel'), 'data-images-cancel', job.id, 'secondary');
         cancel.disabled = cancelling; panel.append(cancel);
       } else {
-        panel.append(text('small', L('可以复用提示词，调整服务配置后再次生成。再次生成会发起新的请求。')));
+        panel.append(text('small', L('images.status.retry-help')));
       }
       result.append(panel);
     }
@@ -206,32 +206,32 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       img.src = imageUrl(job, item); img.alt = job.prompt;
       img.addEventListener('error', () => {
         if (resultSignature === signature) resultSignature = '';
-        const failure = text('p', L('图片暂时无法读取，请刷新记录后重试。'), 'images-note is-error');
+        const failure = text('p', L('images.error.image-read'), 'images-note is-error');
         img.replaceWith(failure);
       }, { once: true });
       const caption = document.createElement('figcaption');
-      const download = text('a', L('下载图片'), 'mw-btn mw-btn--secondary');
+      const download = text('a', L('images.result.download'), 'mw-btn mw-btn--secondary');
       download.href = imageUrl(job, item, true) + '&name=' + encodeURIComponent(fileNameOf(job, item)); download.download = fileNameOf(job, item);
       // Keep a generated image as a personal material: from Shelf it can be used in a project or handed to other work.
-      const keep = text('button', L('放进 Shelf'), 'mw-btn mw-btn--ghost'); keep.type = 'button';
-      keep.title = L('复制一份到你的 Shelf（个人空间），之后可以用于项目；这里的生成记录不变');
+      const keep = text('button', L('images.result.shelf'), 'mw-btn mw-btn--ghost'); keep.type = 'button';
+      keep.title = L('images.result.shelf-help');
       keep.addEventListener('click', async () => {
         keep.disabled = true;
         try {
           const response = await fetch(imageUrl(job, item, true), { cache: 'no-store' });
-          if (!response.ok) throw new Error(L('图片暂时无法读取，请刷新记录后重试。'));
+          if (!response.ok) throw new Error(L('images.error.image-read'));
           const bytes = new Uint8Array(await response.arrayBuffer());
           let binary = ''; for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(index, index + 0x8000));
           window.dispatchEvent(new CustomEvent('molis:shelf-admit', { detail: { filename: fileNameOf(job, item), mime: item.mime_type || response.headers.get('content-type') || 'image/png', bytes_base64: btoa(binary),
-            source: L('图片') + ' · ' + job.prompt.slice(0, 40) } }));
-        } catch (error) { say(error.message || L('放进 Shelf 失败'), true); }
+            source: L('images.page.title') + ' · ' + job.prompt.slice(0, 40) } }));
+        } catch (error) { say(error.message || L('images.error.shelf'), true); }
         finally { setTimeout(() => { keep.disabled = false; }, 1200); }
       });
       caption.append(text('span', Math.max(1, Math.round(item.byte_length / 1024)) + ' KB'), download, keep);
       figure.append(img, caption); result.append(figure);
     }
     result.append(text('p', job.prompt, 'images-result-prompt'));
-    if (job.size || job.aspect_ratio) result.append(text('p', (job.api_format === 'gemini' ? L('宽高比') : L('图片尺寸')) + ' · ' + (job.aspect_ratio || job.size), 'images-result-meta'));
+    if (job.size || job.aspect_ratio) result.append(text('p', (job.api_format === 'gemini' ? L('images.result.ratio') : L('images.result.size')) + ' · ' + (job.aspect_ratio || job.size), 'images-result-meta'));
   };
   const rememberJob = (job) => {
     listSeq += 1;
@@ -264,8 +264,8 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       say('', false, '[data-images-list-note]');
     } catch (error) {
       if (!life.alive || signal?.aborted || ctx !== projectId() || seq !== listSeq) return;
-      say((error.message || L('无法读取生成记录')) + ' ' + L('可点击刷新重试。'), true, '[data-images-list-note]');
-      if (jobId) say(L('暂时无法更新进度，恢复连接后会继续读取。') + ' ' + L('可点击刷新重试。'), true);
+      say((error.message || L('images.error.history')) + ' ' + L('images.history.retry'), true, '[data-images-list-note]');
+      if (jobId) say(L('images.error.progress') + ' ' + L('images.history.retry'), true);
       throw error;
     } finally {
       if (!signal?.aborted && ctx === projectId() && seq === listSeq) schedulePoll();
@@ -285,16 +285,16 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const existing = conns.find(item => item.id === editingId);
     const changedDestination = existing && (existing.api_format !== editingFormat || existing.base_url !== connectionUrl.value.trim());
     const choices = authConnections.filter(item=>item.state==='connected' || item.connection_id===editingAuth);
-    connectionAuth.replaceChildren(new Option(L(existing?.auth_connection_id ? '保留当前连接' : '本机无鉴权服务'), ''), ...choices.map(item=>new Option(item.display_name+(item.state==='connected' ? '' : ' · '+L('连接不可用')), item.connection_id)));
+    connectionAuth.replaceChildren(new Option(L(existing?.auth_connection_id ? 'images.account.keep' : 'images.account.anonymous'), ''), ...choices.map(item=>new Option(item.display_name+(item.state==='connected' ? '' : ' · '+L('images.account.unavailable')), item.connection_id)));
     if (editingAuth && !choices.some(item=>item.connection_id===editingAuth)) {
-      const missing = new Option(L('所选连接已失效'), editingAuth); connectionAuth.add(missing);
+      const missing = new Option(L('images.account.missing'), editingAuth); connectionAuth.add(missing);
     }
     connectionAuth.value = editingAuth;
     const unavailable = editingAuth && !authConnections.some(item=>item.connection_id===editingAuth && item.state==='connected');
-    $('[data-images-key-help]').textContent = unavailable ? L('所选连接已失效，请重新连接或选择其他账号。') : changedDestination ? L('修改 API 基址或协议后，请重新选择账号连接。')
-      : existing?.has_key ? L('账号连接已保存；密钥在 Connectors 中管理。')
-      : L('密钥在 Connectors 中管理。');
-    $('[data-images-connection-heading]').textContent = editingId ? L('编辑服务') : L('添加服务');
+    $('[data-images-key-help]').textContent = unavailable ? L('images.account.reconnect') : changedDestination ? L('images.account.reselect')
+      : existing?.has_key ? L('images.account.saved')
+      : L('images.account.key-help');
+    $('[data-images-connection-heading]').textContent = editingId ? L('images.service.edit') : L('images.service.add');
   };
   const usePreset = (preset) => {
     editingFormat = preset === 'gemini' ? 'gemini' : 'openai-images';
@@ -316,13 +316,13 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const openConnections = () => {
     if (resumeConnection !== cid) editConnection(cid); resumeConnection = null; if (!dialog.open) dialog.showModal(); connectionName.focus();
     const seq = loadSeq + 1, signal = viewSignal;
-    void loadConnections(signal).catch(error => { if (seq === loadSeq && !signal?.aborted && dialog.open) say(error.message || L('图片服务请求失败'), true, '[data-images-connection-note]'); });
+    void loadConnections(signal).catch(error => { if (seq === loadSeq && !signal?.aborted && dialog.open) say(error.message || L('images.error.request'), true, '[data-images-connection-note]'); });
   };
   const syncSaving = () => {
     if (!life.alive) return;
     $('[data-images-connection-fields]').disabled = saving;
     dialog.querySelectorAll('[data-images-edit-connection], [data-images-delete-connection], [data-images-add-connection], [data-images-dialog-close], [data-images-save-connection]').forEach(node => node.disabled = saving);
-    $('[data-images-save-connection]').textContent = saving ? L('正在保存…') : L('保存服务');
+    $('[data-images-save-connection]').textContent = saving ? L('images.service.saving') : L('images.service.save');
   };
   life.listen(connectionForm, 'submit', async event => {
     event.preventDefault(); if (saving || !connectionForm.reportValidity()) return;
@@ -337,9 +337,9 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const index = conns.findIndex(item => item.id === payload.connection.id);
       if (index >= 0) conns[index] = payload.connection; else conns.push(payload.connection);
       cid = payload.connection.id; editingId = cid;
-      paintConnections(); saveDraft(); dialog.close(); say(L(payload.connection.available === false ? '服务已保存，请先完成账号连接。' : '服务已保存。可以开始生成图片。'));
+      paintConnections(); saveDraft(); dialog.close(); say(L(payload.connection.available === false ? 'images.service.saved-connect' : 'images.service.saved'));
     } catch (error) {
-      say(error.message || L('保存服务失败'), true, '[data-images-connection-note]');
+      say(error.message || L('images.error.save'), true, '[data-images-connection-note]');
     } finally { saving = false; syncSaving(); }
   });
   life.listen(dialog, 'cancel', event => { if (saving) event.preventDefault(); });
@@ -363,7 +363,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       pending = null; jobId = payload.job.id; expand(); rememberJob(payload.job); saveDraft(); schedulePoll();
     } catch (error) {
       if (currentContext !== projectId()) return;
-      const message = error.httpStatus ? error.message : L('提交结果未确认。再次点击生成会复用同一请求，避免重复创建任务。') + ' ' + (error.message || '');
+      const message = error.httpStatus ? error.message : L('images.compose.unconfirmed') + ' ' + (error.message || '');
       say(message, true);
       void loadJobs().catch(() => {});
     } finally {
@@ -382,7 +382,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       if (target.dataset.imagesEditConnection) { if (!saving) editConnection(target.dataset.imagesEditConnection); return; }
       if (target.dataset.imagesDeleteConnection) {
         const id = target.dataset.imagesDeleteConnection;
-        if (!confirm(L('删除这个生图服务？已有生成记录会保留。'))) return;
+        if (!confirm(L('images.service.delete-confirm'))) return;
         target.disabled = true;
         const enable = life.own(() => { target.disabled = false; });
         try {
@@ -390,7 +390,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
           conns = conns.filter(item => item.id !== id);
           if (editingId === id) editConnection('');
           paintConnections(); saveDraft();
-          say(L('服务已删除。'), false, '[data-images-connection-note]');
+          say(L('images.service.deleted'), false, '[data-images-connection-note]');
         } finally { enable(); }
         return;
       }
@@ -421,7 +421,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       }
       if (target.dataset.imagesDeleteJob) {
         const id = target.dataset.imagesDeleteJob, currentContext = context;
-        if (!confirm(L('删除这次生成记录和图片文件？'))) return;
+        if (!confirm(L('images.result.delete-confirm'))) return;
         target.disabled = true;
         const enable = life.own(() => { target.disabled = false; });
         try {
@@ -443,7 +443,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
           if (life.alive && currentContext === projectId()) { cancelling = false; paintResult(jobs.find(item => item.id === jobId)); }
         }
       }
-    } catch (error) { say(error.message || L('图片服务请求失败'), true); }
+    } catch (error) { say(error.message || L('images.error.request'), true); }
   });
   // The stage stays as the workbench set it (its list first); the composer opens from 新建图片 or a chosen record. Since the
   // client loads when its surface opens (#150), expanding here would override the workbench's own choice.
@@ -451,7 +451,7 @@ export const IMAGES_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   life.whenVisible(signal => {
     viewSignal = signal; ensureContext(); syncGenerate();
     void Promise.all([loadConnections(signal), loadJobs(signal)]).catch(error => {
-      if (!signal.aborted) say(error.message || L('图片服务请求失败'), true);
+      if (!signal.aborted) say(error.message || L('images.error.request'), true);
     });
     return () => { life.clearTimeout(timer); listSeq++; loadSeq++; };
   });

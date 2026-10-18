@@ -26,6 +26,12 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 下面的目录、资源、英文和公开包登记仍适用；第 3 步只给实际导入者登记依赖（Home 的可信工厂来自 Workbench 目录，不必给 Local Host 增加插件专属 import），第 6、7 步的项目监督器名单由 Home 声明和实际启动测试代替。第 8 步使用通用 Home 页面与运行实例 contribution；不再添加插件专属 Host 渲染函数。
 
+### 已受理的后台执行
+
+需要返回任务编号后继续运行时，在本安装的活跃并发 command 中 `await context.services.background.start(async control => …, { signal? })`；动作须声明 `background_job`，沙箱与升级预检没有服务。句柄的 `result` 交付结果，`cancel()` 取消等待；任务记录、幂等与重启恢复由插件自己拥有，平台不自动重放。回调可用既有模型与数据服务，但写入必须用这个回调的新控制 `await control.beforeEffect()` 并在提交前同步核 `control.assert_authority_current?.()`，不保留旧处理器的 caller。
+
+正常 HTTP/MCP 断开不会取消已经受理的工作；原授权撤销、安装停用/升级、Host 关闭或显式取消后，成功和失败业务写入都拒绝。原身份、项目与注册一直保留，没有独立入口授权时仍沿用原 signal，因此不脱离 Agent 的取消。只受理一次有限执行，不在启动钩子、路由、过期计时器或后台回调里再开一轮。详见 `docs/platform/PLUGIN-DEVELOPMENT.md`「已受理的后台执行」。
+
 ### 流式路由
 
 等待模型或外部服务时，动作声明 `scheduling: "concurrent"`，路由声明 POST 与 `stream: "ndjson"`，仍用 `bindPluginActionRoute`。动作通过 `caller.on_progress?.({ stage, progress, text_delta? })` 发进度，Host 将它编码为 NDJSON 的 `progress` 行，最后写唯一 `result` 或 `error` 行。不要让插件写末行，也不要复制或展开 `request.execution` 来补进度；SDK 用动作客户端第四个传输参数传 `on_progress`，保留可信控制对象的身份。直接路由可用 `request.emit`，它只在声明 stream 时存在。

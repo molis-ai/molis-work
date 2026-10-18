@@ -102,6 +102,9 @@ export interface ActionCallContext extends ActionCallOrigin {
   /** Recheck permissions consumed directly by a scene, without pretending it invoked another action. */
   readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
   readonly signal?: AbortSignal;
+  /** Trusted entrypoint only: capture revocable authority independently of its completed transport.
+   * The dispatcher wraps this with exact registration checks; business input never supplies it. */
+  readonly retain_background_authority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
   /**
    * Trusted transport callback; never accepted as capability input or persisted as run state. `text_delta` is new text a
    * model wrote since the last event, a preview only: what the action returns, after its checks, is the result.
@@ -125,6 +128,9 @@ export interface ActionExecutionContext extends ActionCallContext {
   readonly beforeEffect: () => Promise<void>;
   /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect. */
   readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+  /** Capture this command's registration and original authority while active, for explicitly accepted background work.
+   * Entry-owned transport may detach; absent a separate authority, the original cancellation boundary remains. */
+  readonly retainBackgroundAuthority?: () => RetainedActionAuthority;
 }
 
 export interface ActionMetadata {
@@ -429,14 +435,15 @@ export interface ActionInvokeTransport { readonly on_progress?: (event: ActionPr
 
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
-  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">, transport?: ActionInvokeTransport): Promise<Output>;
+  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return { discover: async () => client.discover(context()),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">, transport?: ActionInvokeTransport) => {
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority">, transport?: ActionInvokeTransport) => {
       const bound = context(), caller = transport?.on_progress ? { ...bound, on_progress: transport.on_progress } : bound;
       return await client.invoke(control ? { ...caller, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
+        retain_background_authority: control.retainBackgroundAuthority ? references => boundBackgroundAuthority(caller, definition, references, control.retainBackgroundAuthority!()) : undefined,
         validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
         assert_authority_current: (reference, requiredPermissions) => {
           // The control belongs to its original caller; the bound caller owns the child's reference and permissions.
@@ -444,6 +451,23 @@ export function bindActionClient(client: ActionClient, context: () => ActionCall
           requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
         } } : caller, definition, input) as Output;
     } };
+}
+
+/** Keep both identities when a bound client accepts work on behalf of a parent. */
+function boundBackgroundAuthority(caller: ActionCallContext, definition: ActionDefinition, references: readonly ActionReference[], parent: RetainedActionAuthority): RetainedActionAuthority {
+  const own = caller.retain_background_authority?.(references);
+  const check = () => {
+    requireSynchronous(parent.assertCurrent());
+    if (own) { requireSynchronous(own.assertCurrent()); return; }
+    caller.signal?.throwIfAborted();
+    for (const ref of references) requireSynchronous(caller.assert_authority_current?.(ref, definition.action.permissions));
+  };
+  return Object.assign(async () => {
+    check(); await parent();
+    if (own) await own();
+    else { for (const ref of references) await caller.validate_authority?.(ref); await caller.validate_permissions?.(definition.action.permissions); }
+    check();
+  }, { assertCurrent: check });
 }
 
 /** Keep the originating operation's transport authority when it calls a nested action or scene.

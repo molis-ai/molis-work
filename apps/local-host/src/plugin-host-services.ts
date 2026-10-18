@@ -19,6 +19,7 @@ import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
+import { pluginBackgroundFor } from "./plugin-background-service.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -41,9 +42,10 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
   let files: ReturnType<typeof openPluginFiles> | undefined;
+  let background: ReturnType<typeof pluginBackgroundFor>;
   let withdrawAgentDefinitions: (() => void) | undefined;
   let withdrawCaller: (() => void) | undefined;
-  const dispose = () => { active = false; withdrawCaller?.(); disposeArtifacts(); library?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
+  const dispose = () => { active = false; background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
@@ -62,10 +64,11 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       files = openPluginFiles(options.home.directory, fileDeclaration, permission => { assertActive(); context.requireGrant(permission); });
     }
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
+    background = pluginBackgroundFor(definition, context, assertActive);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       database: library?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
-      materials: pluginMaterialsFor(options.home, definition, context, assertActive) });
-    return { context: hosted, revoke: () => { active = false; withdrawCaller?.(); }, dispose };
+      materials: pluginMaterialsFor(options.home, definition, context, assertActive), background: background?.client });
+    return { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();
     throw error;
@@ -109,6 +112,7 @@ interface SessionParts {
   /** The Host's text model, when the Manifest declares `model:invoke` and the Host runs the plugin itself (`pluginModelFor`). */
   readonly model: PluginModelClient | undefined;
   readonly materials: ReturnType<typeof pluginMaterialsFor>;
+  readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;
 }
 
 /** The context the Plugin's `start` receives: its identity plus the services below. */
@@ -131,6 +135,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.files === undefined ? {} : { files: parts.files }),
       ...(parts.model === undefined ? {} : { model: parts.model }),
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),
+      ...(parts.background === undefined ? {} : { background: parts.background }),
       ...coordinationServices(options, manifest, context, parts),
     }) });
 }

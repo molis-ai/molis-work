@@ -175,7 +175,7 @@ export class LocalMcpServer {
         ports: createActionMcpPorts({ service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName }) };
     }
     const reference = this.runtimeConnection ? molisWorkHostProjectReference(this.runtimeConnection) : undefined;
-    const { context } = await authorizeMcpActions(this.localHost, current.context, home, reference, checkContext, checkContext);
+    const { context } = await authorizeMcpActions(this.localHost, current.context, home, reference, checkContext, checkContext, () => { if (this.localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "原系统服务已关闭"); });
     return { ...current, context,
       ports: createActionMcpPorts({ service: current.service, context: () => context, serverInfo: SERVER_INFO, toolName: molisWorkActionToolName }) };
   }

@@ -25,6 +25,7 @@ PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新
 | [src/package-verification.ts](src/package-verification.ts) | 包和签名验证 |
 | [src/runtime-rules.ts](src/runtime-rules.ts) | 清单校验、安装身份、必需授权检查这些不碰状态的规则 |
 | [src/model-service.ts](src/model-service.ts)、[src/action-scope.ts](src/action-scope.ts) | `services.model` 的规则（谁能调、调之前问什么）与「正在执行哪个动作」的记录 |
+| [src/background-service.ts](src/background-service.ts) | 一次已受理后台执行的原授权、取消与结束；不拥有任务状态或重放 |
 | [src/memory-repository.ts](src/memory-repository.ts)、[src/native-executor.ts](src/native-executor.ts) | 内存里的安装记录；直接运行插件代码的执行器 |
 
 可对照现有调用方 [apps/local-host/src/plugin-development.ts](../../apps/local-host/src/plugin-development.ts) 阅读装配方式。
@@ -87,6 +88,8 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
   - 固定成果输入优先于普通输出线；状态、引用和连线展示共用同一版的解析规则，缺失、不可读或归档时不改读最新版本。成果输入须在 Manifest 的 `artifacts.consumes` 声明；SDK 的输入状态、引用和正文每次检查当前读取授权，正文仍走成果 client 的权限与类型校验。回归见 [plugin-fixed-input-sdk.test.ts](../../tests/plugin-fixed-input-sdk.test.ts)。
 - 改动后必跑：`node scripts/run-tests.mjs tests/security-invariants-plugin-materials.test.ts tests/plugin-runtime-integration.test.ts tests/plugin-private-storage.test.ts tests/plugin-upgrades.test.ts tests/plugin-host-executor.test.ts tests/plugin-events.test.ts tests/plugin-platform-composition.test.ts tests/plugin-event-recovery.test.ts tests/plugin-release-artifact.test.ts tests/plugin-lifecycle-states.test.ts tests/bundled-plugin-grants.test.ts tests/runtime-provider-identity.test.ts tests/plugin-declaration-rules.test.ts tests/action-artifact-references.test.ts tests/plugin-declarative-mounting.test.ts tests/plugin-model-service.test.ts` Home 装配/服务改动另跑：`node scripts/run-tests.mjs tests/home-plugin-platform.test.ts tests/home-plugin-private-store.test.ts tests/home-plugin-model-lifecycle.test.ts tests/home-store-baselines.test.ts tests/issue-home-runtime.test.ts tests/local-web-actions.test.ts`。
 - 相关手册：[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[skills/molis-plugin-dev/host.md](../../skills/molis-plugin-dev/host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+`services.background` 只在非沙箱定义声明 `background_job` 时由 Host 提供，与模型是否配置、平台是否有 Home 无关；只能由本安装仍活跃的并发 command 受理。捕获 Kernel 保留的原注册与权限后，使用既有 `createExecutionLifetime` 建立一次有限执行；模型通过 `runInPluginAction` 读到这个新控制，原处理器的控制仍按时结束。两个执行器先关闭所有后台执行，再等待插件清理；撤权后的成功、失败都不能写业务事实，停止后不重放。公开回归：`tests/security-invariants-plugin-background.test.ts`、`tests/plugin-model-service.test.ts`。
 
 ## 进一步阅读
 

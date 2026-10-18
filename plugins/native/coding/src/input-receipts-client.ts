@@ -14,10 +14,13 @@
  * From a receipt (`act`, stage 3b-2a) the person takes back a supplement the round has not put in the context, or sends a
  * correction naming it (`about`); both go through the round's control, and the receipt keeps the words until they arrive.
  *
+ * A step a person added for a supplement says so (`from`, stage 3d-3): the plan card and the TaskBoard draw the same
+ * 「来自补充「…」」 button, the shared receipt's own link to the receipt Coding's conversation drew; none when it drew none.
+ *
  * Interrupting drops the reply the model was writing: the page dims the one it was showing being written and says so. The runtime's
  * record does not mark that reply (a Prologue need in the spec), so the mark is the page's own and a reload loses it.
  */
-export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,landed})=>{
+export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,landed,receipts})=>{
   const SENT={'next-boundary':'已送达，当前回复或这批工具结束后交给 AI。',interrupt:'已送达：正在写的回复已丢掉，按你的话接着做；已执行的操作不撤销。','after-run':'已存好，下一轮开始时带上。'};
   const small=text=>{const node=document.createElement('small');node.className='coding-turn-receipt';node.textContent=text;return node;};
   const AGAIN='之前已送到，没有重复发送。',unsure=error=>error instanceof TypeError||error.name=='SyntaxError',control=id=>'/sessions/'+encodeURIComponent(id)+'/control';let item=null;
@@ -32,6 +35,7 @@ export const CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT = `({api,refresh,q,land
     finally{refresh();}
   };
   return {
+    from(node,first){const one=node?.origins?.[0];return one?receipts.link(q('[data-coding-turns]'),one.input_id,first,'来自补充「'):null;},
     steer(id,run,text,mode){
       return send({id,run,text,mode,key:item?.lost&&item.id==id&&item.text==text&&item.mode==mode?item.key:'send.'+crypto.randomUUID()});
     },

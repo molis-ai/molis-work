@@ -1196,6 +1196,7 @@ export type AgentStepAmendment = {
     title: string;
     acceptance: string;
     mine?: true;
+    origin?: string;
 } | {
     kind: "unblock";
     node: string;
@@ -1233,6 +1234,7 @@ export interface AgentStepBoard {
         title?: string;
         depends_on?: string[];
         inserted?: boolean;
+        origins?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef[];
     }>;
 }
 

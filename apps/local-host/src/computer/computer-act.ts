@@ -47,13 +47,16 @@ export function modelImageReason(nodes: readonly TreeNode[], cut: boolean): "tru
 
 type NodeTree = { nodes: TreeNode[] };
 
-/** `保存`, `按钮:保存` (localized or AX role), or `/正则/`: resolved on the tree read at injection time. */
+/**
+ * `保存`, `按钮:保存` (localized or AX role), or `~保存` (the name contains it, case-insensitively): resolved on the tree
+ * read at injection time. The selector comes from the model, which page text can steer, so it is never compiled into a
+ * pattern: a plain substring test stays linear over the whole tree (S-25).
+ */
 function selector(trimmed: string): (node: TreeNode) => boolean {
-  if (trimmed.length > 2 && trimmed.startsWith("/") && trimmed.endsWith("/")) {
-    let pattern: RegExp;
-    try { pattern = new RegExp(trimmed.slice(1, -1), "iu"); }
-    catch { throw new Error(`「${trimmed}」不是可用的正则`); }
-    return node => pattern.test(node.name ?? "");
+  if (trimmed.startsWith("~")) {
+    const fragment = trimmed.slice(1).trim().toLowerCase();
+    if (!fragment) throw new Error("「~」后面要写名称里的一段文字");
+    return node => (node.name ?? "").toLowerCase().includes(fragment);
   }
   const colon = trimmed.indexOf(":");
   if (colon > 0) {
@@ -66,8 +69,8 @@ function selector(trimmed: string): (node: TreeNode) => boolean {
 
 /**
  * The center of node `[index]` in the tree just read, relative to the window's origin. A node can also be named by
- * its name (`保存`), role and name (`按钮:保存`) or a regular expression (`/保存|另存/`); the tree read at injection is
- * the one resolved. A missing or ambiguous node is not clicked at an older coordinate.
+ * its name (`保存`), role and name (`按钮:保存`) or a part of its name (`~保存`); the tree read at injection is the one
+ * resolved. A missing or ambiguous node is not clicked at an older coordinate.
  */
 export function pointerFromNode(nodeId: string, tree: NodeTree, windowFrame: readonly [number, number, number, number]): { x: number; y: number } {
   const trimmed = nodeId.trim();

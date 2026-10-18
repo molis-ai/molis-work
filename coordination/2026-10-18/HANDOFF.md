@@ -12,7 +12,7 @@
 
 ## 1. 用户 10-18 定的事（都要照做）
 
-全文在 `specs/repository-anti-corruption/spec.md` §1 末尾 13 行，由 PR #737 写入 main。#737 还在仍描述旧规则的文档处标了「2026-10-18 改」：代码没改之前照旧，改完同步删掉这个标记。
+全文在 `specs/repository-anti-corruption/spec.md` §1 末尾 13 行，由 PR #737 写入 main（`5972daefd`）。#737 还在仍描述旧规则的文档处标了「2026-10-18 改」：代码没改之前照旧，改完同步删掉这个标记。
 
 | 事项 | 决定 |
 | --- | --- |
@@ -36,7 +36,7 @@
 **要求从哪来**：防腐线最初的六份原文，`docs/prompts/repository-anti-corruption.md`、`docs/prompts/repository-systematic-review.md`（15 节）、`docs/prompts/code-health-report-2026-09-30.md`（R-01～R-14）、`docs/prompts/post-merge-functional-review.md`、`specs/archive/post-merge-review/spec.md`、`specs/archive/repository-systematic-review/spec.md`（F-01～F-35）；外加 10-18 的新规则（第 1 节）。口径和 §10.11～§10.26 一样：CI 通过、已经合入、自查过，都不能单独证明合规；要分清已批准的预期变化和没有依据的行为回退；授权内能修的就修；原文之间有冲突的，指出来交用户定，不自己改目标；不靠放宽断言、删约束或改记录来过关。
 
 **范围**：
-1. §10.26（main `4b063bf98`）之后合入的 56 个 PR（到 #729），加上交接时还在合的 #735、#736、#737、#733。每个按**合入时的 head** 审（`git show --remerge-diff <合并提交>`）。
+1. §10.26（main `4b063bf98`）之后合入的 56 个 PR（到 #729），加上交接时合入的 #735、#736、#737，和还是草稿的 #733。每个按**合入时的 head** 审（`git show --remerge-diff <合并提交>`）。
 2. 交接时的整个 main 再看一遍，专门找三类东西：只有内置插件才有的特权；宿主替某个插件开的私路；平台缺、插件只好绕过去的能力。
 3. Codex 防腐线的候选（第 5.2 节），在它们开 PR 的时候审。
 
@@ -147,10 +147,9 @@
 
 ### 5.1 已合与在途
 
-- 已合：#679（Home 路由按项目路径跑）、#677（W5-05）、#686（§10.26）、#684（Todo 迁到 Runtime）、#703（流式路由）、#727（材料服务）、#729（灵光迁到 Runtime）、#735（Computer Use 选择器不再编译成正则，S-25）。
-- #736（Codex）：#729 合入后 main 上 `personal-plugins-review-fixes` 红了，这个 PR 修灵光那条断言（收紧，不是放宽）。统筹审过，gate 已在跑，Verify 绿了就合。
+- 已合：#679（Home 路由按项目路径跑）、#677（W5-05）、#686（§10.26）、#684（Todo 迁到 Runtime）、#703（流式路由）、#727（材料服务）、#729（灵光迁到 Runtime）、#735（Computer Use 选择器不再编译成正则，S-25）、#736（`7d0e7b09b`，修 #729 之后灵光那条 `personal-plugins-review-fixes` 断言，收紧不是放宽）。
 - #733（Codex，草稿）：Cognia 迁到 Home Runtime。原来的 base 是灵光分支，#729 合入后要改成接 main、转正，再审。
-- #737（统筹）：把 10-18 的决定写进文档，gate 在跑。
+- #737（统筹）：把 10-18 的决定写进文档，已合（`5972daefd`）。
 
 ### 5.2 Codex 本地做完、还没开 PR 的候选
 
@@ -188,10 +187,10 @@
 
 ### 6.1 main
 
-- main 在 `ce4df86f1`（#729）之后，#735 已合，#736、#737 在合。Prologue main 在 `dd639069c`。Molis vendored 的 SDK 还是 3adc5e87，prologue#50 还没换进来（交给④，和批 B 一起换）。
+- main 在 `5972daefd`（#729、#735、#736、#737 都已合入）。Prologue main 在 `dd639069c`。Molis vendored 的 SDK 还是 3adc5e87，prologue#50 还没换进来（交给④，和批 B 一起换）。
 - 安全不变量编到 S-40，BACKLOG 编到 BL-177（#737）。coding-base 是 v13。
 - **main 全量**（run 39133836119，`f4207e064`）：第 13 片的 `tests/side-shelf-in-hand.e2e.test.ts` AC-S04 两次红，Shelf 侧栏里选中一段文字后浮条没出现；第 14～16 片被 fail-fast 取消。同一份 main 在本机跑这个文件 2/2 通过（AC-S04 7.6 秒）；`gh run rerun --failed` 重跑那 4 片后整次运行成功。判负载时序，`f4207e064` 的全量算通过（#721、#730 等最后一批由它覆盖）。#735、#729 之后的 main 由下一次批全量或每晚的定时全量覆盖。
-- #729 合入后 main 上 `personal-plugins-review-fixes` 应该是红的，#736 修。
+- #729 合入后 main 上 `personal-plugins-review-fixes` 的红已由 #736 修掉。#729～#737 这几个合入之后的 main 还没跑过全量：由第一个批全量或当晚的定时全量覆盖，统筹开工先看那一次。
 
 ### 6.2 还开着的别人的 PR
 

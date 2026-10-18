@@ -212,8 +212,8 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | `jelly/preferences.json` | `apps/local-host/src/jelly-model.ts:16`：Jelly 选中的模型 | JSON · `schema_version` = 1 | 必备份 | purge（`jelly` 目录） |
 | `characters/runs/character-*/` | `apps/local-host/src/character-native-execution.ts:18-20`：交给外部 Agent 执行时临时写出的角色包 | 目录 | 临时 | purge |
 | `images/assets/` | `plugins/native/images/src/service.ts:37`：生成的图片文件 | 文件目录 · 无版本 | 必备份 | purge（`images` 目录） |
-| `lingguang/imports/<sha256><ext>` | 旧版本留下的上传原始副本；现行 `apps/local-host/src/jelly-native-material.ts` 不再写，也没有代码读，上传的文件只在内存里提取文字（读取不保存灵光，副本没有读者也没有主人）。旧 Home 里已有的文件可以直接删除 | 文件目录 · 无版本 | 可重建（不会再被读取；删除不影响任何记录） | purge（`lingguang` 目录） |
-| `lingguang/models/` | `apps/local-host/src/jelly-native-material.ts` 的 `modelCacheDirectory`：音视频素材转写用的模型缓存目录（报错文案里叫“素材模型缓存目录”），用户允许下载时本机辅助程序往里下载（`apps/local-host/src/material-native.ts:52`、`:61`）；只在上传音视频素材时创建 | 目录 · 无版本 | 可重建（重新下载） | purge（`lingguang` 目录） |
+| `lingguang/imports/<sha256><ext>` | 旧版本留下的上传原始副本；现行 `apps/local-host/src/material-home.ts` 不再写，也没有代码读，上传的文件只在内存里提取文字（读取不保存灵光，副本没有读者也没有主人）。旧 Home 里已有的文件可以直接删除 | 文件目录 · 无版本 | 可重建（不会再被读取；删除不影响任何记录） | purge（`lingguang` 目录） |
+| `lingguang/models/` | `apps/local-host/src/material-home.ts` 的 `modelCacheDirectory`：平台材料服务拥有的音视频转写模型缓存；路径沿用既有名称。只有可信 user 调用且明确允许时，原生辅助程序才可下载（`apps/local-host/src/material-native.ts`）；读取音视频时按需创建目录 | 目录 · 无版本 | 可重建（重新下载） | purge（`lingguang` 目录） |
 | `directory-access/bookmarks.json` | `apps/desktop/adapters/tauri/src/context_directories.rs:109-125`：桌面壳保存的目录授权书签。设了 `MOLIS_WORK_HOME` 时在 Home 里，否则在应用数据目录（第 8 节） | JSON · 无版本 | 授权书签与机器绑定，换机后失效，按可重建对待 [推断，未读格式] | purge |
 
 ### 6.3 配置、日志与安装物
@@ -314,6 +314,8 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 ## 11. 已知缺口，与怎样维护这张表
 
 缺口（按处理它的路线图条目）：
+
+- `lingguang/models/` 是平台材料服务的缓存，名称仍沿用灵光目录；W5-01 材料前置片只改服务归属与调用，不搬目录。今后改路径单列维护并核对已有授权和缓存，无需在读取时保留两条查找路径。
 
 - Home 存储已有单一登记（W4-11）。登记只认 owner 声明的条目，没有门禁去找代码里**没登记**就写进 Home 的新目录；这一点仍靠评审、本表和上面几条用例（讨论挂载那条用例的写法可以照搬到别的入口）。
 - 共享日志表 `events`、`idempotency_records` 还有 `modules/goals` 与 `modules/governance-collaboration` 各抄一份读写语句（依赖方向所致，见 4.5）；两个模块改用宿主注入的日志端口后，删掉 `tooling/gates/table-owners.json` 里这两条 `shared` 登记。其余跨 owner 直接 SQL 已由 W2-06 清零并有门禁。

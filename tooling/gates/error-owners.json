@@ -230,7 +230,8 @@
     },
     "material": {
       "paths": [
-        "apps/local-host/src/material-*"
+        "apps/local-host/src/material-*",
+        "packages/plugin-sdk/src/material-upload.ts"
       ],
       "reason": "Text extraction from documents and web pages: the Host's material files raise material.* codes (materialErrors, spec W3-02 F)."
     },

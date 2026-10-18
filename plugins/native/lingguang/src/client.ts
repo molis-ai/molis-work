@@ -171,7 +171,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (failure) {
       if (failure.name === "AbortError") { showNote(L("已停止读取")); return null; }
       // Transcription needs a local speech model: downloaded only on the person's yes, then the reading starts again.
-      if (failure.code === "jelly.material.model_required") {
+      if (failure.code === "material.model_required") {
         const size = failure.details && failure.details.approximate_bytes;
         const ok = await ask(L("转写需要下载本机语音模型") + (size ? "（" + Math.round(size / 1024 / 1024) + " MB）" : "") + L("，只在这台机器上用。现在下载并继续？"), L("下载并继续"));
         return ok ? readMaterial(path, { ...payload, allow_model_download: true }) : null;

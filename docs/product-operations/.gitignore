@@ -1,0 +1,3 @@
+# 原始采集保存在仓库外的本地私有目录。
+/research/*-快照.json
+/research/raw/

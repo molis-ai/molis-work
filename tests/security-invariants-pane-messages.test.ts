@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
-import { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "@molis-ai/molis-work-app-workbench";
+import { CONTEXT_ACTIONS_FACTORY_SCRIPT, PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 
 const ORIGIN = "http://127.0.0.1:4173";
 interface Panes {
@@ -118,4 +118,92 @@ test("S-30 a side view hands the page only the events on the one list; any other
   for (const name of ["molis:side-open", "molis:shelf-admit", "molis-work:open-settings-path", "constructor", "toString", "__proto__", "hasOwnProperty", "", 7, null, undefined, ["molis:placement-result"]]) {
     assert.equal(forwarded.event(name, {}), null, `name ${JSON.stringify(name)}`);
   }
+});
+
+/**
+ * The page's context bus with what a side view has in hand (specs/context-program §21.4 W3-C, specs/side-shelf AC-S04): the
+ * shipped factory runs on a small page port. A `workbench-surface-focus` counts only from the window of a side panel plugin
+ * frame (the same `SIDE_FRAME_FROM_SCRIPT` check as `molis:side-forward`) or of a split pane; from anywhere else it is dropped:
+ * nothing is asked of the Host and no toolbar is drawn, here or in any frame.
+ */
+function contextPage() {
+  const requests: Array<{ path: string; body: Record<string, unknown> }> = [], told: Array<{ to: string; message: Record<string, unknown> }> = [];
+  const windowListeners: Array<(event: unknown) => void> = [];
+  const timers: Array<() => void> = [];
+  const made: Array<Record<string, unknown>> = [];
+  const element = (extra: Record<string, unknown> = {}): Record<string, unknown> => {
+    const self: Record<string, unknown> = {
+      hidden: true, textContent: "", className: "", dataset: {}, style: { setProperty() {} }, children: [], isConnected: true,
+      classList: { toggle() {}, add() {}, remove() {}, contains: () => false }, setAttribute() {}, getAttribute: () => null, removeAttribute() {},
+      toggleAttribute() {}, hasAttribute: () => false, matches: () => false, closest: () => null, contains: () => false, remove() {}, focus() {},
+      append(...nodes: unknown[]) { (self.children as unknown[]).push(...nodes); }, replaceChildren(...nodes: unknown[]) { self.children = nodes; },
+      querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, removeEventListener() {},
+      getBoundingClientRect: () => ({ left: 0, right: 10, top: 0, bottom: 10, width: 10, height: 10 }), getClientRects: () => [{}], ...extra,
+    };
+    return self;
+  };
+  const frameWindow = (to: string) => ({ postMessage: (message: Record<string, unknown>) => told.push({ to, message }) });
+  // The Shelf tab's frame sits in the side panel's cell for that tab (context-landing's `place`).
+  const cell = { dataset: { sideBody: "plugin:shelf/side" } };
+  const shelf = element({ contentWindow: frameWindow("shelf"), closest: (selector: string) => selector === "[data-side-panel] [data-side-body]" ? cell : null });
+  const pane = element({ contentWindow: frameWindow("pane"), dataset: { paneOwner: "pane-b" } });
+  // A same-origin frame that is neither: a plugin's own preview inside the work area, say.
+  const stray = element({ contentWindow: frameWindow("stray") });
+  const top: Record<string, unknown> = { addEventListener: (type: string, fn: (event: unknown) => void) => { if (type === "message") windowListeners.push(fn); }, dispatchEvent: () => true };
+  top.parent = top;
+  const document = {
+    body: element({ append() {} }), documentElement: element(), activeElement: null,
+    createElement: () => { const node = element(); made.push(node); return node; },
+    querySelector: () => null, getElementById: () => null, addEventListener() {}, dispatchEvent: () => true,
+    querySelectorAll: (selector: string) => selector === "#side-panel iframe[data-side-frame]" ? [shelf] : selector === "iframe[data-pane-owner]" ? [pane] : [],
+  };
+  const plan = { context_id: "ctx-1", primary: ["k"], more: [], candidates: [{ key: "k", title: "放进 Goal", available: true, source: { provider_id: "io.molis.work.goals" } }] };
+  const context = vm.createContext({
+    window: top, document, location: { origin: ORIGIN, href: ORIGIN + "/projects/p/" }, innerWidth: 1440, innerHeight: 900,
+    matchMedia: () => ({ matches: false }), getSelection: () => null, addEventListener() {}, MutationObserver: class { observe() {} },
+    setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; }, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
+    CustomEvent: class { constructor(readonly type: string, readonly init: unknown) {} }, crypto: { randomUUID: () => "id" }, AbortController,
+    molisWorkRequest: (path: string, options: { body?: Record<string, unknown> } = {}) => {
+      requests.push({ path, body: options.body ?? {} });
+      return Promise.resolve(path.endsWith("/candidates") || path.endsWith("/judge") ? { plan, receipt: {} } : {});
+    },
+  });
+  const factory = vm.runInContext(`(${CONTEXT_ACTIONS_FACTORY_SCRIPT})`, context) as (host: unknown) => unknown;
+  factory({ translate: (text: string) => text, route: (path: string) => path, showToast() {}, paneMessages: vm.runInContext(PANE_MESSAGES_SCRIPT, context) });
+  const settle = async () => { for (let round = 0; round < 6; round += 1) { await new Promise(resolve => setImmediate(resolve)); timers.splice(0).forEach(fn => fn()); } };
+  const focus = { context_id: "ctx-1", plugin_id: "io.molis.work.shelf", activity: "selecting", granularity: "range",
+    object: { kind: "shelf_item", id: "item-1", title: "在手材料.md" }, targets: [{ kind: "text_range", role: "paragraph", text: "右栏里选中的一段" }] };
+  const send = (source: unknown, origin = ORIGIN) => windowListeners.forEach(fn => fn({ origin, source, data: { type: "workbench-surface-focus", focus } }));
+  const toolbarShown = () => made.some(node => node.className === "mw-ctx" && node.hidden === false);
+  return { top, shelf, pane, stray, requests, told, send, settle, toolbarShown };
+}
+
+test("S-30 AC-S04 a workbench-surface-focus that is not from a side panel plugin frame (or a split pane) is dropped: nothing is asked, no toolbar", async () => {
+  type Page = ReturnType<typeof contextPage>;
+  const refused: Array<[string, (page: Page) => unknown, string?]> = [
+    ["a same-origin frame that is not a side tab", page => page.stray.contentWindow],
+    ["the page itself", page => page.top],
+    ["a window that is not a frame here", () => ({ postMessage() {} })],
+    ...["http://127.0.0.1:4174", "https://example.com", "null", ""].map((origin): [string, (page: Page) => unknown, string] => [`the Shelf frame, from ${JSON.stringify(origin)}`, page => page.shelf.contentWindow, origin]),
+  ];
+  for (const [why, source, origin] of refused) {
+    const page = contextPage();
+    page.send(source(page), origin);
+    await page.settle();
+    assert.deepEqual(page.requests.filter(request => request.path.startsWith("/api/contextual/")), [], `${why}: nothing asked of the Host`);
+    assert.deepEqual(page.told, [], `${why}: no toolbar drawn in any frame`);
+    assert.equal(page.toolbarShown(), false, `${why}: no toolbar on the page`);
+  }
+
+  // From the Shelf tab's frame it counts: marked as in the side panel and which tab, and that frame draws the toolbar.
+  const page = contextPage();
+  page.send(page.shelf.contentWindow);
+  await page.settle();
+  const asked = page.requests.find(request => request.path === "/api/contextual/candidates");
+  assert.ok(asked, "the Host is asked for the candidates");
+  assert.equal(asked.body.pane_id, "side");
+  assert.deepEqual([(asked.body.focus as Record<string, unknown>).place, (asked.body.focus as Record<string, unknown>).side_tab], ["side", "plugin:shelf/side"]);
+  assert.ok(page.told.some(({ to, message }) => to === "shelf" && message.type === "workbench-context-view" && message.op === "render"), "the Shelf frame is told to draw it");
+  assert.ok(page.told.every(({ to }) => to === "shelf"), "no other frame hears of it");
+  assert.equal(page.toolbarShown(), false, "the page draws none of its own");
 });

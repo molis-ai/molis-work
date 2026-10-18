@@ -1503,24 +1503,37 @@ mod tests {
     use objc2_app_kit::NSPasteboardItem;
     use objc2_foundation::NSData;
 
-    struct TestPasteboard(Retained<NSPasteboard>);
+    // AppKit's pasteboard is not safe to drive from several libtest threads at once: run in parallel, a reading test sometimes
+    // saw another test's types (1 run in 4 here). Each test holds this lock for as long as its board lives.
+    static BOARDS: Mutex<()> = Mutex::new(());
+
+    struct TestPasteboard {
+        board: Retained<NSPasteboard>,
+        _turn: std::sync::MutexGuard<'static, ()>,
+    }
 
     impl TestPasteboard {
         fn new() -> Self {
-            Self(NSPasteboard::pasteboardWithUniqueName())
+            let turn = BOARDS
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            Self {
+                board: NSPasteboard::pasteboardWithUniqueName(),
+                _turn: turn,
+            }
         }
 
         fn write(&self, items: &[Retained<NSPasteboardItem>]) {
-            self.0.clearContents();
+            self.board.clearContents();
             let array = NSArray::from_retained_slice(items);
-            let ok: bool = unsafe { msg_send![&*self.0, writeObjects: &*array] };
+            let ok: bool = unsafe { msg_send![&*self.board, writeObjects: &*array] };
             assert!(ok, "write isolated pasteboard fixture");
         }
     }
 
     impl Drop for TestPasteboard {
         fn drop(&mut self) {
-            self.0.clearContents();
+            self.board.clearContents();
         }
     }
 
@@ -1547,11 +1560,11 @@ mod tests {
             let empty = NSArray::<NSString>::from_slice(&[]);
             assert!(unsafe {
                 board
-                    .0
+                    .board
                     .setPropertyList_forType(&empty, ns_string!("NSFilenamesPboardType"))
             });
             let legacy = board
-                .0
+                .board
                 .propertyListForType(ns_string!("NSFilenamesPboardType"))
                 .unwrap()
                 .downcast::<NSArray>()
@@ -1562,7 +1575,7 @@ mod tests {
                 "modern URLs must exercise the fallback path"
             );
 
-            let cargo = read_board_cargo(&board.0);
+            let cargo = read_board_cargo(&board.board);
             assert_eq!(cargo.files, paths.map(PathBuf::from));
             assert!(cargo.has_content());
             assert!(cargo.has_cargo());
@@ -1581,7 +1594,7 @@ mod tests {
             assert!(item.setData_forType(&NSData::with_bytes(&png), ns_string!("public.png")));
             board.write(&[item]);
 
-            let cargo = read_board_cargo(&board.0);
+            let cargo = read_board_cargo(&board.board);
             assert!(cargo.files.is_empty());
             assert!(cargo.has_content());
             assert!(cargo.has_cargo());
@@ -1605,7 +1618,7 @@ mod tests {
             assert!(item.setString_forType(ns_string!(""), ns_string!("public.utf8-plain-text")));
             board.write(&[item]);
 
-            let cargo = read_board_cargo(&board.0);
+            let cargo = read_board_cargo(&board.board);
             assert_eq!(cargo.text.as_deref(), Some("This is rich text."));
             assert!(cargo.has_content());
             assert!(cargo.has_cargo());
@@ -1623,7 +1636,7 @@ mod tests {
                 .setString_forType(ns_string!("文档标题"), ns_string!("public.utf8-plain-text")));
             board.write(&[item]);
 
-            let cargo = read_board_cargo(&board.0);
+            let cargo = read_board_cargo(&board.board);
             assert_eq!(cargo.url.as_deref(), Some(url));
             assert_eq!(cargo.text.as_deref(), Some("文档标题"));
             assert!(cargo.is_http_url());

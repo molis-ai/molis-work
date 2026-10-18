@@ -143,24 +143,28 @@ test("AC-03, R4: among other questions, the composer writes into the questionnai
   const { command, sessionId, evaluate, waitFor, click, navigate, requests, homeDirectory } = page;
   const chip = "document.querySelector('[data-assistant-answer]')", notes = "document.querySelector('[data-ix-question] [data-ix-field=t1] textarea, [data-ix-question] [data-ix-field=t1] input')";
   const send = async (text: string) => { await click("[data-assistant-input]"); await command("Input.insertText", { text }, sessionId); await click("[data-assistant-send]"); };
-  const work = () => evaluate<string>(`fetch(document.body.dataset.routePrefix + '/api/assistant/works', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => JSON.stringify(body.works))`);
+  const work = () => evaluate<Array<{ revision: number }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/works', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
+  const apart = (works: Array<{ revision: number }>) => works.map(({ revision: _revision, ...rest }) => rest);
   await waitFor(`${notes} && !${chip}.hidden`, 20_000);
-  assert.equal(await evaluate(`${chip}.textContent`), "写进问卷：补充要求", "the default and the field it writes into are on the chip");
+  assert.equal(await evaluate(`${chip}.textContent`), "写进问卷", "the default is on the chip");
   const before = { files: await runtimeFiles(homeDirectory), works: await work() };
 
   await send("只约周三下午");
   await waitFor(`${notes}.value === '只约周三下午' && document.querySelector('[data-assistant-input]').value === ''`, 10_000);
   await send("会议室要有投影");
-  await waitFor(`${notes}.value === '只约周三下午\\n会议室要有投影'`, 10_000);
+  await waitFor(`${notes}.value === '只约周三下午 会议室要有投影'`, 10_000);
   await new Promise(resolve => setTimeout(resolve, 800));
   assert.equal(requests.length, 1, "nothing reaches the AI");
   assert.deepEqual(await runtimeFiles(homeDirectory), before.files, "the session, its run and its queue are unchanged on disk: nothing was handed back or queued");
-  assert.equal(await work(), before.works, "the Assistant's works are unchanged");
+  const after = await work();
+  assert.deepEqual(apart(after), apart(before.works), "the Assistant's works are unchanged");
+  // The card's drafts are kept on its work (`question_drafts`, assistant-questions.ts); each save is one revision and nothing else.
+  assert.equal(after[0]!.revision, before.works[0]!.revision + 2, "the only writes are the two draft saves");
   assert.equal(await evaluate("document.querySelectorAll('[data-assistant-thread] .assistant-msg--user').length"), 1, "only the first message: no supplement in the thread");
   assert.equal(await evaluate("document.querySelectorAll('[data-assistant-thread] [data-entry^=receipt]').length"), 0, "and no receipt");
 
   await navigate(() => command("Page.reload", {}, sessionId));
-  await waitFor(`${notes}?.value === '只约周三下午\\n会议室要有投影'`, 20_000);
+  await waitFor(`${notes}?.value === '只约周三下午 会议室要有投影'`, 20_000);
 
   await click("[data-assistant-answer]");
   assert.equal(await evaluate(`${chip}.textContent`), "补充这一轮");
@@ -169,10 +173,10 @@ test("AC-03, R4: among other questions, the composer writes into the questionnai
   await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('顺便发个日历邀请')", 15_000);
   assert.notDeepEqual(await runtimeFiles(homeDirectory), before.files, "switched, the words reach the round as a supplement");
   assert.equal(requests.length, 1, "a supplement waits behind the answer; the AI is not called");
-  assert.equal(await evaluate(`${notes}.value`), "只约周三下午\n会议室要有投影", "the supplement does not touch the draft");
+  assert.equal(await evaluate(`${notes}.value`), "只约周三下午 会议室要有投影", "the supplement does not touch the draft");
   await click("[data-assistant-answer]");
-  assert.equal(await evaluate(`${chip}.textContent`), "写进问卷：补充要求", "one click back");
-  assert.equal(await evaluate(`${notes}.value`), "只约周三下午\n会议室要有投影", "and the draft is still on the card");
+  assert.equal(await evaluate(`${chip}.textContent`), "写进问卷", "one click back");
+  assert.equal(await evaluate(`${notes}.value`), "只约周三下午 会议室要有投影", "and the draft is still on the card");
 
   await evaluate(`(() => { const node = document.querySelector('[data-ix-question] [data-ix-field=n0] input'); node.focus(); node.value = '45'; node.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await click("[data-ix-question] [data-ix-action=answer]");

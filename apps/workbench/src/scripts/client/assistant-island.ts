@@ -437,6 +437,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     node.ix = ixClient(node, handlers); node.ixBase = JSON.stringify(node.ix.read());
     return node.ix;
   };
+  // R4: words from the composer follow what the named field holds, saved as that card's draft (assistant-send.ts).
+  const fills = new Map();
   const renderQuestion = (card, work, round, question) => {
     const path = "/works/" + encodeURIComponent(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() });
     let saving = 0;
@@ -452,8 +454,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         catch (error) { if (error.body?.details?.errors) client.showErrors(error.body.details.errors, { focus: true }); else showError(error); if (button) button.disabled = false; }
       },
     }, question.pending_id + question.pending_revision + question.answerable);
-    // Words from the composer go into the field the Host named, after what is there, and are kept as the card's draft (R4).
-    card.fill = (field, text) => { const now = client.read()[field]; client.write({ [field]: now ? now + "\n" + text : text }); clearTimeout(saving); return api(path + "/question-draft", "POST", held()); };
+    fills.set(question.pending_id, (field, text) => { const now = client.read()[field]; client.write({ [field]: now ? now + " " + text : text }); clearTimeout(saving); return api(path + "/question-draft", "POST", held()); });
   };
   const renderReview = (card, work, review) => {
     card.innerHTML = review.html;

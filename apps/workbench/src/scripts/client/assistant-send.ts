@@ -17,9 +17,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     event.preventDefault();
     const text = String(input.value || "").trim();
     if (!text || busy) return;
-    const into = curId && receipts.into(), card = into && thread.querySelector("[data-question=\"" + CSS.escape(into.pending_id) + "\"]");
-    if (card?.fill) {
-      await card.fill(into.draft_from_composer, text).then(() => { input.value = ""; saveDraft(true); syncSend(); host.showToast?.(L("已写进问卷；按「提交回答」才交回")); }, showError);
+    const into = curId && receipts.into(), fill = into && fills.get(into.pending_id);
+    if (fill) {
+      await fill(into.draft_from_composer, text).then(() => { input.value = ""; saveDraft(true); syncSend(); host.showToast?.(L("已写进问卷；按「提交回答」才交回")); }, showError);
       return;
     }
     const again = unsettled.get(curId), byPage = pageText === text, kept = unsent();
@@ -106,17 +106,14 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * field), the default is 「写进问卷」 instead: Send writes the words into the card's draft and hands nothing back (R4, D14).
  */
 export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, api, work, reload }) => {
-  const CHOICES = { answer: ["回答上面的问题", "点一下改成：补充这一轮"], draft: ["写进问卷", "点一下改成：补充这一轮"], steer: ["补充这一轮", "点一下改成：回答上面的问题", "点一下改成：写进问卷"] };
+  const CHOICES = { answer: "回答上面的问题", draft: "写进问卷", steer: "补充这一轮" };
   let asked = "", ask = null, choice = "answer";
   const question = (round) => {
     const waiting = round && round.phase === "awaiting-input" ? round.awaiting_input || [] : [];
     return waiting.find((item) => item.from_composer || item.draft_from_composer) || null;
   };
-  const first = () => ask && ask.draft_from_composer ? "draft" : "answer";
-  const label = () => {
-    const [text, other, toDraft] = CHOICES[choice], field = choice === "draft" && (ask.questions || []).find((item) => "t" + item.index === ask.draft_from_composer);
-    chip.textContent = L(text) + (field ? "：" + field.prompt : ""); chip.title = L(first() === "draft" && toDraft || other);
-  };
+  const first = () => ask?.draft_from_composer ? "draft" : "answer";
+  const label = () => { chip.textContent = L(CHOICES[choice]); chip.title = L("点一下改成：" + CHOICES[choice === "steer" ? first() : "steer"]); };
   chip.addEventListener("click", () => { choice = choice === "steer" ? first() : "steer"; label(); });
   const lost = (error) => { throw error.code === "ui_host.outcome_unknown" ? new Error(L("没确认送到：再按一次，同一条不会重复。")) : error; };
   const act = (round) => round && round.run_id ? {
@@ -130,7 +127,7 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
       if (!line) { [...node.children].find((child) => child.dataset.entry === key)?.remove(); return; }
       line.dataset.entry = key; put(line);
     },
-    /** Shows the chip while the round waits on a question the composer can answer or fill; a new question starts at its default. */
+    /** Shows the chip while the round waits on a question the composer can answer or fill; a new one starts at its default. */
     paint(round) {
       ask = question(round); const id = ask ? ask.pending_id + ":" + ask.pending_revision : "";
       if (id !== asked) { asked = id; choice = first(); label(); }
@@ -138,7 +135,7 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
     },
     /** What the next Send does while the chip shows; nothing otherwise (the words go to the round as a supplement). */
     target: () => chip.hidden || choice === "draft" ? undefined : choice,
-    /** The question whose draft the next Send writes into, while the chip says so; the Send then goes nowhere else. */
+    /** The question whose draft the next Send fills instead. */
     into: () => !chip.hidden && choice === "draft" ? ask : null,
     /** What is still open in the work, after its rounds (the tray); none when nothing is. Its queue is left out when not read. */
     tray(thread, put, view) {

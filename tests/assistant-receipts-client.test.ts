@@ -69,7 +69,7 @@ test("AC-03, R4: a questionnaire with its text question among others starts the 
   const { ui, chip, calls } = page();
   const form = (revision = 1) => ({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q3", pending_revision: revision, questions: [{ index: 0, prompt: "选哪个？", type: "choice" }, { index: 1, prompt: "补充要求", type: "text" }], draft_from_composer: "t1" }] });
   ui.paint(form());
-  assert.equal(chip.hidden, false); assert.equal(chip.textContent, "写进问卷：补充要求", "the default and the field it writes into are on the chip");
+  assert.equal(chip.hidden, false); assert.equal(chip.textContent, "写进问卷", "the default is on the chip");
   assert.match(chip.title, /补充这一轮/u);
   assert.equal(ui.target(), undefined, "nothing is sent as an answer or a supplement"); assert.equal(ui.into()?.pending_id, "q3"); assert.equal(ui.into()?.draft_from_composer, "t1");
   chip.click();

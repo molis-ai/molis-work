@@ -156,7 +156,7 @@ test("services.model is for a plugin the Host runs itself that declares model:in
     try {
       assert.deepEqual((await item.platform.start([{ definition: declared.definition, ...GRANTED }, { definition: undeclared.definition }])).running.sort(), [declared.id, undeclared.id].sort());
       const model = declared.model();
-      assert.deepEqual(Object.keys(model).sort(), ["availability", "complete"]);
+      assert.deepEqual(Object.keys(model).sort(), ["availability", "choices", "complete"]);
       assert.equal(Object.isFrozen(model), true, "what the plugin holds cannot be extended into a way round the Host");
       assert.equal(undeclared.started.at(-1)?.model, undefined, "the Manifest is the account of what a plugin reaches");
 

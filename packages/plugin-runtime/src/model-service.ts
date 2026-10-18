@@ -120,6 +120,7 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
       let answer: Awaited<ReturnType<PluginModelPort["complete"]>>;
       try { answer = await port.complete(manifest.plugin_id, prompt, dispatch); }
       catch (error) {
+        receiving = false;
         await authority(caller);
         validateCall();
         const failure: PluginModelFailure = error instanceof ActionError ? error : pluginModelErrors.model_failed("模型请求失败，请重试");

@@ -14,7 +14,6 @@ export function createTabWorkspaceOps(titles) {
     inbox: "Inbox",
     schedule: "Schedule",
     feed: "Feed",
-    shelf: "Shelf",
     characters: "Characters",
     images: "图片",
     pages: "Pages",

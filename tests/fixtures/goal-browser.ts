@@ -133,13 +133,13 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     await waitFor(SURFACES_SETTLED, 10_000);
     const point = await evaluate<{ x: number; y: number; covered: boolean }>(`(async () => { let element = document.querySelector(${JSON.stringify(selector)});
       if (!element) throw new Error('Missing click target: ' + ${JSON.stringify(selector)});
-      // Reach an entry the way a person would: its Dock window, the full plugin list, a collapsed source drawer, or the menu it sits in.
+      // Reach an entry the way a person would: the side panel, the full plugin list, a collapsed source drawer, or the menu it sits in.
       // Each step looks at the current state, so it is safe to repeat (a list closing from the previous choice, say).
       const reveal = (element) => {
         const picker = element.closest('[data-plugin-picker-popover]');
         if (picker && picker.hidden) document.querySelector('[data-plugin-picker-toggle]')?.click();
-        const dockWindow = element.closest('[data-dock-window]');
-        if (dockWindow && dockWindow.hidden) document.querySelector('[data-dock-toggle="' + dockWindow.dataset.dockWindow + '"]')?.click();
+        const sidePanel = element.closest('[data-side-panel]');
+        if (sidePanel && sidePanel.hidden) document.querySelector('[data-side-toggle]')?.click();
         const rail = element.closest('.plugin-rail-items');
         if (rail && !element.getClientRects().length && !rail.classList.contains('is-tools-open')) rail.querySelector('[data-rail-tools-toggle]')?.click();
         // A Goal tab opens on its Frame; its workspace (directory, records, timeline) is behind 打开工作区.

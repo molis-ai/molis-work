@@ -8,18 +8,18 @@ import type { PluginArtifactClient, PluginDatabase, PluginStartContext, PluginDa
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createPptPlugin, openPptStore, PPT_DATABASE } from "@molis-ai/molis-work-plugin-ppt";
 
-type Stage = "before-begin" | "after-begin" | "after-artifact" | "none";
+type Stage = "before-begin" | "after-begin" | "after-publish-check" | "after-artifact" | "none";
 type Failure = "revoke" | "cancel";
 
 /** W5-01-PPT-07: every publication side effect rechecks the original caller after its own wait. */
 test("W5-01-PPT-07: cancel or revoke at each publication stage keeps only already-committed stages", async t => {
-  for (const stage of ["before-begin", "after-begin", "after-artifact"] as const) for (const failure of ["revoke", "cancel"] as const) {
+  for (const stage of ["before-begin", "after-begin", "after-publish-check", "after-artifact"] as const) for (const failure of ["revoke", "cancel"] as const) {
     const home = await mkdtemp(join(tmpdir(), `ppt-authority-${stage}-`));
     const db = openHomeSqliteDatabase(home, "ppt");
     applySqliteBaseline(db, homeSqlitePath(home, "ppt"), PPT_DATABASE);
     const seed = openPptStore(home), deck = seed.create({ project_id: "a", title: "Authority" });
     seed.close();
-    let revoked = false, phase = 0, published = 0;
+    let revoked = false, phase = 0, published = 0, beginCommitted = false, armed = false;
     const controller = new AbortController();
     const fail = () => { if (failure === "cancel") controller.abort(); else revoked = true; };
     const database: PluginDatabase = {
@@ -32,6 +32,7 @@ test("W5-01-PPT-07: cancel or revoke at each publication stage keeps only alread
         const transaction: PluginDatabaseTransaction = { get: database.get, all: database.all,
           run: (sql, parameters = []) => db.prepare(sql).run(...parameters) };
         const result = write(transaction);
+        if (phase === 1) beginCommitted = true;
         if (phase === 1 && stage === "after-begin") fail();
         return result;
       },
@@ -48,7 +49,11 @@ test("W5-01-PPT-07: cancel or revoke at each publication stage keeps only alread
     const caller: ActionExecutionContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: ["ppt:read", "ppt:write", "artifact:write", "artifact:read"],
       signal: controller.signal,
       beforeEffect: async () => { controller.signal.throwIfAborted(); if (revoked) throw Object.assign(new Error("revoked"), { code: "actions.forbidden" }); },
-      assert_authority_current: () => { controller.signal.throwIfAborted(); if (revoked) throw Object.assign(new Error("revoked"), { code: "actions.forbidden" }); } };
+      assert_authority_current: () => {
+        controller.signal.throwIfAborted(); if (revoked) throw Object.assign(new Error("revoked"), { code: "actions.forbidden" });
+        // W5-01-PPT-07: revoke after the nested async check succeeds, before its caller resumes to publish.
+        if (stage === "after-publish-check" && beginCommitted && !armed) { armed = true; queueMicrotask(fail); }
+      } };
     await assert.rejects(handler.handle(caller, { id: deck.id }), error => {
       const value = error as { code?: string; name?: string };
       return failure === "revoke" ? value.code === "actions.forbidden" : value.name === "AbortError";
@@ -58,6 +63,7 @@ test("W5-01-PPT-07: cancel or revoke at each publication stage keeps only alread
       const row = after.get(deck.id, "a");
       if (stage === "before-begin") { assert.equal(row.publication_pending, undefined); assert.equal(published, 0); }
       if (stage === "after-begin") { assert.equal(row.publication_pending?.version, 1); assert.equal(published, 0); assert.equal(row.artifact_version, 0); }
+      if (stage === "after-publish-check") { assert.equal(armed, true); assert.equal(row.publication_pending?.version, 1); assert.equal(published, 0); assert.equal(row.artifact_version, 0); }
       if (stage === "after-artifact") { assert.equal(row.publication_pending?.version, 1); assert.equal(published, 1); assert.equal(row.artifact_version, 0); }
     } finally { after.close(); db.close(); await rm(home, { recursive: true, force: true }); }
   }

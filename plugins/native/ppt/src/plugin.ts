@@ -57,7 +57,7 @@ export function createPptPlugin(): PluginDefinition {
             current(); return new PptStore(transaction).completePublication(...args);
           }),
         };
-        return promotePpt(facade, id, projectId, publishArtifact,
+        return promotePpt(facade, id, projectId, value => { current(); return publishArtifact(value); },
           { actorId: caller.actor_id, expectedVersion, readArtifact: artifactPorts.readArtifact ? value => artifactPorts.readArtifact!(value, caller) : undefined, lineHead: artifactPorts.lineHead,
             beforePublish: async () => { await caller.beforeEffect(); current(); } });
       } };

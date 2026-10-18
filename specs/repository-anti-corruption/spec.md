@@ -421,6 +421,23 @@ W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `featur
 - 证据（2026-10-18，本地；基于 `origin/main 7faaa027`）：整体 `pnpm build` 71 包通过；`tests/workflows-store.test.ts` 的 `W5-01-WORKFLOWS-STORE-01`/`02` 2/2，连同 workflows-plugin 7/7、handoff 3/3、stop-and-token 3/3、stop-effects 2/2、action-steps 1/1、content-actions 3/3、project-deletion-owners 12/12，共 8 文件 33/33；`verify-release-versions`、`boundary:check`、health（merge-base `7faaa027`）通过。日志：`logs/workflows-store-build.log`、`logs/workflows-store-tests.log`、`logs/workflows-store-health.log`。
 - 待办：Manifest/路由、动作切换、宿主接线删除与 Runtime 迁移另片；等 Codex 的实际基线与公共前置。
 
+### W5-03 第一片：Images 稳定翻译键与共同运行时（2026-10-17，本地验证通过，待按队列集成）
+
+收尾整合（2026-10-18，本地通过）：合入当前 Runtime、PPT/Dataset 与 Workflows Store 候选 `e55aa3545`，保留当前 Images 放入 Shelf 的 placement 路径和稳定翻译键。整体构建、API、boundary、merge-base health 与资源更新通过；5 个非浏览器文件 164 条及 2 个真实 Chrome 文件 6 条通过。资源为 25 项 7,478,980 B，较上游减少 537 B；当前中文内联 936→5,904 B（+4,968），英文 692,183→691,038 B（−1,145），仍在已批准的同一增量内。日志 `/tmp/molis-images-i18n-closeout-*.log`；最终共享全量和 PR/CI 合并仍待，不据此宣称整条 W5-03 完成。
+
+目标是形成可继续迁移的内部完整样板，落实决定 #16 与 Workbench README 已定的 Images 首片。基于 main `4726820a8` 实测：Images 的 `ui.ts`、`client.ts` 共 107 处翻译调用、85 个不同文案；原词典 90 条，16 条仍由其他页面或目录元数据消费。服务端 `L` 与浏览器 `L` 当前只查中文键，直接换键会把键显示给用户。
+
+实现边界：Images 在自己的 `src/messages.ts` 声明中英并排的稳定键，在现有 `BUILTIN_PLUGIN_CATALOG` 条目登记；Workbench 按页面语言派生词典，服务端与浏览器沿用同一调用接口。现有其他主人的中文键继续按现行入口查找，保留仍被使用的 Images 中文条目，删除无人使用的旧条目。稳定键不另建中心 import 清单、不加新的公开 SDK/Manifest 合同。英文以迁移前实际 `EN` 的结果为准，中文与交互保持不变。Images 的生成、连接、任务、持久化与授权，以及 W5-01 Runtime 迁移均不在本片改动范围内；#661 未改动这两份 UI/客户端源文件。
+
+验收与证据：
+- **RAC-56**：插件的两条翻译路径使用主人稳定键，键在主人词典中只定义一次、中英完整；保留其他消费者实际需要的中文条目，迁移前后同语言可见文字相同。由 `tests/i18n.test.ts` 的实际服务词典/Images 渲染断言及现有翻译扫描证明。
+- **RAC-57**：服务端请求交错时语言隔离，浏览器收到当前语言的稳定键表，中文、英文和参数替换均正确，现有中文键调用正常；由 `tests/i18n.test.ts` 运行真实脚本与公开 Host 入口证明。
+- **RAC-58**：真实浏览器中的 Images 空态、服务管理、提交与生成结果在中英两种语言均不显示稳定键，受控 provider 的原有调用次数、图片字节及授权失败路径保持；由 `tests/images-actions.e2e.test.ts` 与 `tests/content-context-regressions.e2e.test.ts` 证明。
+- **RAC-59**：给现有翻译检查补上“稳定词典实际登记到目录”的拒绝条件，断开登记时明确失败，且不放宽已有规则。该门禁改动已于 2026-10-17 经用户弹窗批准，按可审补丁落实；`tests/translation-check.test.ts` 的变异场景证明。
+- **RAC-60**：整体构建、Workbench/Images README 要求的定向用例、health（对 main merge-base）、boundary 与 page-assets 通过。逐项测量静态资源和内联翻译脚本；若受预算约束的资源增长，记录实际增量、按已有约定弹窗确认后再改放行。共享运行时的完整回归交统筹在 CI 排，不在本机跑全量。
+
+验证命令：`pnpm build`、`pnpm workspace:build`（机器 build 槽位串行）；`node scripts/run-tests.mjs` 加上述测试与两包 README 的必跑列表（浏览器走 browser 槽位）；`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`、`node scripts/gates/page-assets.mjs --base origin/main`。2026-10-17 本地证据：整体构建及 workspace 构建通过；翻译 2 文件 73 项、两包必跑 24 文件 185 项、真实浏览器 2 文件 6 项、门禁集成 2 文件 136 项全部通过（合计 30 文件 400 项）。85 条英文逐条与迁移前实际 EN 比较相同；中英桌面/窄屏生成返回的 provider 次数与图片字节通过。health 对 merge-base `4726820a8` 与 boundary 通过。Images 静态脚本 22,546→21,978 B（−568 B），预算随实测下调；内联翻译脚本中文 952→5,920 B（+4,968 B）、英文 683,136→681,991 B（−1,145 B）。RAC-56/57/58 已验证。2026-10-17 用户分别批准“允许新增检查”和“允许这项内联增长”：登记检查仅增加拒绝、不放宽已有规则；中文内联增长限于上述 +4,968 B，其他静态预算不增长。RAC-59 已按获准补丁落实并验证：未登记、只有 import、无关对象与错误字段四种场景均拒绝；两种 `--update` 写过基线后仍拒绝；导入别名通过；断开真实 Images 目录登记也被发现。登记识别按导出名字、不解析模块路径，边界与现有英文词典检查一致。RAC-60 的本地构建与门禁已通过，最终集成与 CI 仍待。未宣称整个 W5-03 完成。
+
 ## 0. 现场与范围
 
 - **基线**：第一步最终 main。第一步全量回归基线见 [post-merge-review §7.1](../archive/post-merge-review/spec.md#71-回归基线)；能力快照见 [§7.2](../archive/post-merge-review/spec.md#72-能力快照)；跨功能场景清单见 [§7.4](../archive/post-merge-review/spec.md#74-跨功能场景清单)。

@@ -2,7 +2,7 @@ import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js"
 import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, COGNIA_DATABASE, createCogniaPlugin } from "@molis-ai/molis-work-plugin-cognia";
 import { BUILDER_CHOICE_INSTRUCTIONS, builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
-import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData, createImagesPlugin, IMAGES_DATABASE, IMAGES_FILES, IMAGES_IMAGE_GENERATION } from "@molis-ai/molis-work-plugin-images";
+import { IMAGES_PROJECT_PLUGIN_ID, IMAGES_MESSAGES, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData, createImagesPlugin, IMAGES_DATABASE, IMAGES_FILES, IMAGES_IMAGE_GENERATION } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin, JELLY_DATABASE, JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
 import { type ProjectDataDeclaration, type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type PluginManifest, type PluginDefinition, type PluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -67,6 +67,8 @@ export interface BuiltinPluginWorkbench {
 export interface BuiltinPluginEntry {
   readonly project_plugin_id: ProjectPluginId;
   readonly manifest: PluginManifest;
+  /** Owner-scoped UI words, projected into the page language by the common translator. */
+  readonly messages?: Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
   readonly personal?: boolean;
   /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable and enabled where already added. */
   readonly developer?: boolean;
@@ -138,6 +140,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     runtime: { scope: "home", create: createImagesPlugin, database: IMAGES_DATABASE, files: IMAGES_FILES, image_generation: IMAGES_IMAGE_GENERATION,
       package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" },
     manifest: imagesManifest,
+    messages: IMAGES_MESSAGES,
     project_data: imagesProjectData,
     personal: true,
     summary: "连接生图服务，按描述生成图片。",

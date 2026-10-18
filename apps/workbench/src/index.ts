@@ -71,7 +71,8 @@ export {
 } from "./browser-assets.js";
 export { EN } from "./i18n/en.js";
 export { ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./scripts/client/assistant-send.js";
-export { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
+export { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT, SIDE_FRAME_FROM_SCRIPT } from "./scripts/client/pane-messages.js";
+export { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./scripts/client/context-actions.js";
 export { CARD_TARGET_ASK_SCRIPT } from "./scripts/client/context-card-target.js";
 export { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./scripts/client/assistant-work-objects.js";
 export const packageDescriptor = {

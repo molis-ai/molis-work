@@ -6,17 +6,20 @@
  * pointing at, and never shows a ranking for a context that is no longer current. A click hands the choice back to
  * the page that owns the object (`molis:assistant-context-action-chosen`), which prepares it through the Host and
  * shows a preview before anything is written. A split pane is its own document: it draws its own toolbar from the plan the
- * top document sends it, and sends its choices back.
+ * top document sends it, and sends its choices back. So is a plugin's tab in the side panel (specs/context-program §21.4 W3-C):
+ * its document runs the same part alone, and the top document hears it through the side frames' check (S-30).
  */
 import { compactScript, CONTEXT_TOOLBAR_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { CONTEXT_BAR_SCRIPT } from "./context-bar.js";
 import { CONTEXT_BUS_SCRIPT } from "./context-bus.js";
 import { CONTEXT_LANDING_PANE_SCRIPT, CONTEXT_LANDING_SCRIPT } from "./context-landing.js";
+import { SIDE_FRAME_FROM_SCRIPT } from "./pane-messages.js";
 
 // The factory is one closure, so the four files are joined into one script, in the order of the original text.
-export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) => {
-  const L = host.translate;
-  const embedded = window.parent !== window && document.body.hasAttribute("data-pane-embedded");
+// What a surface's own document runs: the selection reader, the naming of an opened item and, in a split pane or a side
+// view, the toolbar it draws for the top document. A side view's document runs this part alone (side-view-document.ts).
+const PANE_PART = String.raw`  const L = host.translate;
+  const embedded = window.parent !== window && document.body.matches("[data-pane-embedded],[data-side-view]");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
   const panes = host.paneMessages;
   const post=(path,body,signal)=>molisWorkRequest(host.route(path),{body,signal,fallback:L("暂时处理不了，请稍后重试")});
@@ -185,8 +188,12 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
     window.addEventListener("pagehide", () => parent.postMessage({ type: "workbench-surface-focus", focus: null }, location.origin));
 ${CONTEXT_LANDING_PANE_SCRIPT}
     return null;
-  }
+  }`;
 
+export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) => {
+${PANE_PART}
+
+  const sideFrame = ${SIDE_FRAME_FROM_SCRIPT};
   const openAssistant = (detail) => document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail }));
   const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));
 ${CONTEXT_BAR_SCRIPT}
@@ -194,4 +201,9 @@ ${CONTEXT_BAR_SCRIPT}
 ${CONTEXT_BUS_SCRIPT}
 ${CONTEXT_LANDING_SCRIPT}
   return { current: () => bus.focus, plan: () => bar.plan };
+}`);
+
+/** The same part for a document of its own (a plugin's side view): it needs `translate`, `paneMessages` and `route`. */
+export const CONTEXT_PANE_FACTORY_SCRIPT = compactScript(String.raw`(host) => {
+${PANE_PART}
 }`);

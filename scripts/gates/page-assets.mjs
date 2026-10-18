@@ -235,14 +235,15 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for receipts 3d-4 (specs/ai-input-receipts §4.3, D21, RCPT-354–356: the receipt shows the step the
-// board says was added for a supplement, apart from what the AI says, and hands its step words to Coding's plan card). The
-// user approved it on 2026-10-18 in the coordinator's popup: the workbench script +889, once (Coding's bundle shrinks by 253).
-// The entry is for exactly one merge-base budget (main a56a2763d, after #702 and #701), capped at the measured size, and used once:
-// the next baseline freezes again. This replaces AC-03's spent entry; delete it in the next change to this gate (as #541,
-// #584 and #611 did).
+// One-time allowance for W3-C (specs/context-program §21.4, §21.6; specs/side-shelf AC-S04: a side panel plugin tab reports
+// what is in hand, as a split pane does). The page's context bus now also takes a side tab's messages, checked by the one
+// `SIDE_FRAME_FROM_SCRIPT` that `molis:side-forward` uses (S-30), so that check ships twice in this script; with marking the
+// focus as in the side panel, the workbench script is +273, once. Tried: shortening the shared check's names (about 40 bytes,
+// at the cost of a security check that reads less plainly); the side tab's own half runs in its own document, not here.
+// The entry is for exactly one merge-base budget (main c31291c34), capped at the measured size, and used once: the next baseline
+// freezes again. This replaces receipts 3d-4's spent entry; delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1109913, 1110802],
+  "/assets/molis-work-workbench.js": [1110801, 1111074],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

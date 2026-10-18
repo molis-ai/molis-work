@@ -93,3 +93,20 @@ describe('revocable source projections and final-dispatch business guards',{time
   await captured!();expect(new Set(actors)).toEqual(new Set(['original-caller']));
  });
 });
+
+
+it('W5-01-ALC-RES03: revocation during external consumption linking preserves the pending receipt and external ledger',async()=>{
+  const {reuse}=await seed();const {plan}=await f.plan(reuse);const gate=barrier();
+  const link=f.host.linkConsumption;
+  f.host.linkConsumption=async(caller,input)=>{gate.enter();await gate.waiting;await link(caller,input)};
+  await f.call(a.researchStart,{id:f.idea.id,lens:'market_space',planId:plan.id});
+  const operation=f.runtime.runPending();
+  try{
+    await gate.entered;f.revokeAuthority();
+    const facts=()=>['jobs','job_events','work_reuse_receipts','lens_runs','lens_reports'].map(table=>f.runtime.database.prepare('SELECT * FROM '+table+' ORDER BY rowid').all());
+    const before=facts(),external=f.ledger.query.list(f.access);
+    gate.release();await operation;
+    expect(facts()).toEqual(before);expect(f.ledger.query.list(f.access)).toEqual(external);
+    expect(f.runtime.database.prepare('SELECT relation_state FROM work_reuse_receipts WHERE plan_id=?').get(plan.id)).toEqual({relation_state:'pending'});
+  }finally{gate.release();await operation}
+});

@@ -1,4 +1,4 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { CogniaSql } from "./store.js";
 import { contentHash, metadata } from "./content.js";
 import type { Draft, Material, Source } from "./types.js";
 
@@ -9,9 +9,9 @@ export const KNOWLEDGE_SOURCE: Source = { id: "knowledge", name: "知识库", ki
 export interface StoredDraft extends Draft { earlier_ids?: string[] }
 
 /** The drafts people see: a draft counts as saved only while the material it was adopted as still exists. */
-export function viewDrafts(db: DatabaseSync): Draft[] {
-  const kept = new Set((db.prepare("SELECT id FROM cognia_materials").all() as Array<{ id: string }>).map(m => m.id));
-  return db.prepare("SELECT body FROM cognia_drafts WHERE archived=0 ORDER BY rowid DESC").all().map(row => {
+export function viewDrafts(db: CogniaSql): Draft[] {
+  const kept = new Set((db.all("SELECT id FROM cognia_materials") as Array<{ id: string }>).map(m => m.id));
+  return db.all("SELECT body FROM cognia_drafts WHERE archived=0 ORDER BY rowid DESC").map(row => {
     const { earlier_ids: _earlier, ...draft } = JSON.parse((row as { body: string }).body) as StoredDraft;
     return draft.saved_id && !kept.has(draft.saved_id) ? { ...draft, saved_id: null } : draft;
   });

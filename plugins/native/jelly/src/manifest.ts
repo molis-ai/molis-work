@@ -12,5 +12,17 @@ export const jellyManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
   actions: [...JELLY_ACTIONS],
+  routes: [
+    { route_id: "jelly.workspace", method: "GET", path: "/" },
+    { route_id: "jelly.calendar", method: "GET", path: "/calendar" },
+    { route_id: "jelly.progress", method: "GET", path: "/progress" },
+    { route_id: "jelly.export", method: "GET", path: "/export" },
+    { route_id: "jelly.model.read", method: "GET", path: "/model-settings" },
+    { route_id: "jelly.note.export", method: "GET", path: "/notes/:id/export" },
+    { route_id: "jelly.commands", method: "POST", path: "/commands", max_body_bytes: 36_000_000 },
+    { route_id: "jelly.preview", method: "POST", path: "/preview", max_body_bytes: 36_000_000 },
+    { route_id: "jelly.ai", method: "POST", path: "/ai", max_body_bytes: 36_000_000, stream: "ndjson" },
+    { route_id: "jelly.model.save", method: "POST", path: "/model-settings", max_body_bytes: 36_000_000 },
+  ],
   ui: { contributions: [JELLY_UI_CONTRIBUTION_ID], views: [{ view_id: "jelly", slot: "navigator", title: "Jelly", contribution_id: JELLY_UI_CONTRIBUTION_ID, icon: "calendar", order: 35 }] },
 };

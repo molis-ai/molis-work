@@ -235,14 +235,14 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for receipts 3d-4 (specs/ai-input-receipts §4.3, D21, RCPT-354–356: the receipt shows the step the
-// board says was added for a supplement, apart from what the AI says, and hands its step words to Coding's plan card). The
-// user approved it on 2026-10-18 in the coordinator's popup: the workbench script +889, once (Coding's bundle shrinks by 253).
-// The entry is for exactly one merge-base budget (main a56a2763d, after #702 and #701), capped at the measured size, and used once:
-// the next baseline freezes again. This replaces AC-03's spent entry; delete it in the next change to this gate (as #541,
-// #584 and #611 did).
+// W5-01 Lingguang: the shared browser NDJSON reader adds 2,231 B to workbench.js, while Lingguang's own bundle loses
+// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. Actual main now includes
+// Todo and receipts 3e-1, starting at 1,111,791 B. Preserve only the unspent +2,231 B; every prior start remains refused.
+// This exact increase is spent once; later growth stays frozen.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1109913, 1110802],
+  "/assets/molis-work-workbench.js": [1111791, 1114022],
+  // User approved 2026-10-18: explicit Alchemist continuation, original budget and unknown-call fee warning.
+  "/assets/molis-work-plugins/alchemist.js": [50619, 52373],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

@@ -29,7 +29,7 @@ export function createLocalFeedConnectorSync(
       const original = withConnectorConnections(homeDirectory, store => store.get(id));
       return () => withConnectorConnections(homeDirectory, store => {
         const current = store.get(id);
-        if (!original || !current || current.disconnected_at || current.updated_at !== original.updated_at
+        if (!original || !current || !current.enabled || current.disconnected_at || current.updated_at !== original.updated_at
           || current.credential_ref !== source.credential_ref) {
           throw feedErrors.source_connection_changed("账号连接已断开或改变，请重新确认来源账号后拉取");
         }

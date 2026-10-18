@@ -9,8 +9,8 @@ import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { createFormActionHandlers, formActions, formManifest, FORM_ACTION_PERMISSIONS, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, openPagesStore, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
-import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
-import { createCogniaActionHandlers, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
+import { createCogniaActionHandlers, ownCogniaStores, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 
 const paragraph = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
@@ -136,7 +136,7 @@ test("W2-18-COGNIA-EFFECT-01: only the originating grant is revoked during real 
     validate_authority: check, assert_authority_current: check };
   await writeFile(join(home, "vault.md"), "# Fixed evidence\nActual bytes read before the barrier.");
   service.registerProvider({ provider: { provider_id: cogniaManifest.plugin_id, title: "Cognia", kind: "plugin" }, definitions: cogniaManifest.actions!, handlers: createCogniaActionHandlers({
-    withStore: run => run(store), model: () => ({}), ai: () => ({}), actions: context => bindActionClient(service, () => context),
+    ...ownCogniaStores(run => run(store)), model: () => ({}), ai: () => ({}), actions: bindActionClient(service, () => caller),
     scan: async path => { const data = await readFile(join(path, "vault.md")); entered.resolve(); await release.promise; return { locator: path, name: "Vault", files: [{ path: "vault.md", data: data.toString("base64") }] }; },
   }) });
   const counts = () => ["cognia_previews", "cognia_materials", "cognia_sources"].map(table => Number(db.prepare(`SELECT count(*) AS total FROM ${table}`).get()!.total));
@@ -156,7 +156,7 @@ for (const refusal of ["revoke", "cancel", "disable", "edit"] as const) test(`W2
   const check = (reference?: { capability_id: string }) => { if (revoked && reference?.capability_id === pptActions.outline.capability_id) throw new ActionError("mcp.permission_revoked", "Origin revoked"); };
   const context: ActionCallContext = { ...f.caller, signal: controller.signal, validate_authority: check, assert_authority_current: check };
   const stop = f.service.registerProvider({ provider: f.provider(pptManifest), definitions: Object.values(pptActions), handlers: createPptActionHandlers({
-    withStore: run => run(f.ppt), readPage: async (id, caller) => {
+    ...ownPptStores(run => run(f.ppt)), readPage: async (id, caller) => {
       const page = await bindActionClient(f.service, () => caller).invoke(pagesContentActions.read, { item_id: id });
       entered.resolve(); await release.promise; return { title: page.title, body: page.body };
     },
@@ -176,7 +176,7 @@ for (const refusal of ["revoke", "cancel", "disable", "edit"] as const) test(`W2
 
 test("W2-18-PPT-03: title-only slides survive append; a genuinely empty starter and explicit replace still work", async t => {
   const f = await owners(t);
-  f.service.registerProvider({ provider: f.provider(pptManifest), definitions: Object.values(pptActions), handlers: createPptActionHandlers({ withStore: run => run(f.ppt) }) });
+  f.service.registerProvider({ provider: f.provider(pptManifest), definitions: Object.values(pptActions), handlers: createPptActionHandlers({ ...ownPptStores(run => run(f.ppt)) }) });
   const created = f.ppt.create({ title: "Deck", project_id: f.project });
   const titled = f.ppt.update(created.id, { slides: [{ id: created.slides[0]!.id, title: "Original heading", bullets: [], notes: "" }] }, f.project);
   const appended = await f.bound.invoke(pptActions.outline, { id: titled.id, text: "## Added\n- bullet", replace: false });

@@ -98,12 +98,6 @@
       ],
       "reason": "The Coding plugin's Host side (surface, background tasks, shelf material); its codes start with coding."
     },
-    "cognia": {
-      "paths": [
-        "apps/local-host/src/cognia-*"
-      ],
-      "reason": "The Cognia plugin and the Host files that serve it; its codes start with cognia."
-    },
     "computer": {
       "paths": [
         "apps/local-host/src/computer/"
@@ -178,12 +172,6 @@
       ],
       "reason": "The IM server package and its identity and continuity services (ImError): its im, identity, continuity and server prefixes become im.* (spec W3-02 R6; stored codes wait for the maintenance)."
     },
-    "images": {
-      "paths": [
-        "apps/local-host/src/images-*"
-      ],
-      "reason": "The Images plugin and the Host files that serve it; its codes already start with images."
-    },
     "inbox": {
       "paths": [
         "apps/local-host/src/inbox-*",
@@ -197,23 +185,11 @@
       ],
       "reason": "The installer, uninstaller, web service and Runtime integration code: one area whose single-use prefixes (source, home, release, runtime, uninstall, service) become installer.* (spec W3-02 R5)."
     },
-    "jelly": {
-      "paths": [
-        "apps/local-host/src/jelly-*"
-      ],
-      "reason": "The Jelly plugin and the Host files that read its sources and material; its codes already start with jelly."
-    },
     "kernel": {
       "paths": [
         "packages/kernel/"
       ],
       "reason": "The action kernel: kernel.* for its own failures (the runtime-identity code mcp.runtime_identity_missing becomes kernel.runtime_identity_missing)."
-    },
-    "lingguang": {
-      "paths": [
-        "apps/local-host/src/lingguang-*"
-      ],
-      "reason": "The Lingguang plugin and the Host files that serve it; its codes already start with lingguang."
     },
     "listener": {
       "paths": [
@@ -224,7 +200,8 @@
     },
     "material": {
       "paths": [
-        "apps/local-host/src/material-*"
+        "apps/local-host/src/material-*",
+        "packages/plugin-sdk/src/material-upload.ts"
       ],
       "reason": "Text extraction from documents and web pages: the Host's material files raise material.* codes (materialErrors, spec W3-02 F)."
     },
@@ -282,12 +259,6 @@
       ],
       "reason": "The plugin builder (Studio) plugin and its Host side."
     },
-    "ppt": {
-      "paths": [
-        "apps/local-host/src/ppt-*"
-      ],
-      "reason": "The PPT plugin and the Host files that serve it; its codes already start with ppt."
-    },
     "runtime_host": {
       "paths": [
         "horizontal/runtime-host/"
@@ -339,12 +310,6 @@
         "packages/contracts/src/modules/sources.ts"
       ],
       "reason": "The sources module (SourcesError): its source_* codes become sources.*."
-    },
-    "todo": {
-      "paths": [
-        "apps/local-host/src/todo-*"
-      ],
-      "reason": "The Todo plugin and its Host actions file; its codes already start with todo."
     },
     "ui_host": {
       "paths": [

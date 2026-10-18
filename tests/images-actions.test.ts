@@ -66,7 +66,9 @@ test('Images connection revocation rejects late results and cannot fall back to 
   const {connection}=await f.global.invoke(actions.saveConnection,{name:'Bound local',api_format:'openai-images',base_url:`http://127.0.0.1:${address.port}/v1`,model:'fixture',auth_connection_id:auth.connection_id});
   const {job}=await f.client.invoke(actions.start,{request_id:'revoke',connection_id:connection.id,prompt:'first'});await entered.promise;
   withConnectorConnections(f.home,store=>store.disconnect(auth.connection_id));release.resolve();
-  const failed=await terminal(f.client,job.id);assert.equal(failed.status,'failed');assert.deepEqual(failed.images,[]);assert.match(failed.error,/改变或撤销/);
+  // W5-01-IMGPORT-02: connection revocation cannot append even a failure business record.
+  await new Promise(resolve=>setTimeout(resolve,300));
+  const {job:unchanged}=await f.client.invoke(actions.get,{id:job.id});assert.equal(unchanged.status,'running');assert.deepEqual(unchanged.images,[]);assert.equal(unchanged.error,'');
   const listed=await f.global.invoke(actions.connections,{});assert.equal(listed.connections[0]!.available,false);assert.equal(listed.auth_connections[0]!.state,'disconnected');
   await assert.rejects(f.client.invoke(actions.start,{request_id:'new',connection_id:connection.id,prompt:'second'}),{code:'images.key_required'});assert.equal(calls,1);
 });
@@ -103,15 +105,26 @@ test('Images discovery never decrypts the chosen connection key, and generation 
     base_url: `http://127.0.0.1:${address.port}/v1`, model: 'existing-model', auth_connection_id: account.connection_id });
   const sealed = () => runWithMolisWorkHome(f.home, () => peekSealedEntry(account.credential_ref!));
   const original = sealed(); assert.ok(original);
-  const get = t.mock.method(secrets, 'get', () => { throw new Error('Discovery must not decrypt'); });
+  let decryptStack = '';
+  const get = t.mock.method(secrets, 'get', () => { const error = new Error('Discovery must not decrypt'); decryptStack = error.stack ?? ''; throw error; });
   const list = await f.global.invoke(actions.connections, {});
-  assert.equal(get.mock.callCount(), 0);
+  assert.equal(get.mock.callCount(), 0, decryptStack);
   assert.equal(list.connections[0]!.id, connection.id); assert.equal(list.connections[0]!.available, true);
   assert.equal(list.auth_connections.length, 1);
   assert.equal(list.connections[0]!.auth_connection_id, account.connection_id);
   assert.equal(sealed(), original);
   assert.doesNotMatch(JSON.stringify(list), /existing-fixture-image-key|credential_ref|api_key/);
   get.mock.restore();
+  // ASC-16 ASC-20: disabling preserves the selected account and key, but refuses dispatch.
+  withConnectorConnections(f.home, store => store.setEnabled(account.connection_id, false));
+  const disabled = await f.global.invoke(actions.connections, {});
+  assert.equal(disabled.auth_connections[0]!.enabled, false);
+  assert.equal(disabled.connections[0]!.auth_connection_id, account.connection_id);
+  assert.equal(disabled.connections[0]!.available, false);
+  await assert.rejects(f.client.invoke(actions.start, { connection_id: connection.id, request_id: 'disabled-key', prompt: 'must not send' }), { code: 'images.key_required' });
+  assert.deepEqual(authorizations, []);
+  withConnectorConnections(f.home, store => store.setEnabled(account.connection_id, true));
+  assert.equal(sealed(), original);
   const { job } = await f.client.invoke(actions.start, { connection_id: connection.id, request_id: 'chosen-key', prompt: 'chosen image' });
   const ended = await terminal(f.client, job.id);
   assert.equal(ended.status, 'succeeded', ended.error);
@@ -122,6 +135,14 @@ test('Images discovery never decrypts the chosen connection key, and generation 
   assert.equal(revoked.connections[0]!.available, false);
   assert.equal(revoked.connections[0]!.auth_connection_id, account.connection_id);
   assert.equal(revoked.auth_connections.length, 1, 'a disconnected account stays listed as disconnected, not recreated');
+  withConnectorConnections(f.home, store => store.remove(account.connection_id));
+  const removed = await f.global.invoke(actions.connections, {});
+  assert.equal(removed.auth_connections.length, 0);
+  assert.equal(removed.connections[0]!.auth_connection_id, account.connection_id, 'a removed account does not erase the consumer selection');
+  assert.equal(removed.connections[0]!.available, false);
+  await assert.rejects(f.client.invoke(actions.start, { connection_id: connection.id, request_id: 'removed-key', prompt: 'must not become anonymous' }), { code: 'images.key_required' });
+  assert.equal(authorizations.length, 1, 'remove cannot turn a bound local provider into an anonymous request');
+
 });
 
 test('Images names a busy Home execution service instead of blaming the provider or network',async t=>{

@@ -1,15 +1,13 @@
 import path from "node:path";
+import { MATERIAL_EXTENSIONS, supportsMaterialExtension } from "@molis-ai/molis-work-plugin-sdk";
 import { runMaterialWorker } from "./material-worker.js";
 import type { MaterialExtraction, MaterialExtractionOptions, MaterialExtractor, MaterialLimits, MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
-import { extractNativeMaterial, materialImageExtensions, materialMediaExtensions, type NativeMaterialOptions } from "./material-native.js";
+import { extractNativeMaterial, type NativeMaterialOptions } from "./material-native.js";
 import { extractMaterialText, materialErrors } from "./material-text.js";
 
 const defaults: MaterialLimits = { maxBytes: 25 * 1024 * 1024, maxCharacters: 2_000_000, maxTextBytes: 8_000_000, maxPages: 200 };
 const ceilings: MaterialLimits = { ...defaults, maxBytes: 32 * 1024 * 1024 };
-export const materialTextExtensions = new Set([".txt", ".md", ".markdown", ".html", ".htm", ".csv", ".json", ".log"]);
-export function supportsMaterialExtension(extension: string): boolean {
-  return materialTextExtensions.has(extension) || materialImageExtensions.has(extension) || materialMediaExtensions.has(extension) || extension === ".pdf";
-}
+export const materialTextExtensions = new Set<string>(MATERIAL_EXTENSIONS.text);
 function checkedLimits(options: MaterialExtractionOptions): MaterialLimits {
   const limits = { ...defaults, ...options.limits };
   for (const [key, value] of Object.entries(limits)) {

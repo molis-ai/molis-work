@@ -1,10 +1,196 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-15，Claude 按用户 10-14 目标接手，Codex 写线已暂停交接）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR，#523 已合入 main（`f74e29d86`；#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑，macOS 专有用例在本机补，失败逐个对照 main 基线，合入后的三项 Linux 修复与一处合并留下的旧错误码在后续 PR 补进。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 #523 进了 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
+状态：执行中，整线未完成（2026-10-17，Codex 按用户授权接手防腐线，目标与原验收保持）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR，#523 已合入 main（`f74e29d86`；#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑，macOS 专有用例在本机补，失败逐个对照 main 基线，合入后的三项 Linux 修复与一处合并留下的旧错误码在后续 PR 补进。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 #523 进了 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
+
+模型端口与 Images/Jelly 交接收口（2026-10-18，Codex，本地同步通过）：候选 merge 前置后台服务 c99e348ec，包含实际 main 63639a764 与已验证的灵光、Cognia、插件文件服务；保留主线 vendor/receipts 与完整的已消费资源拒绝用例。整体 offline install/build、API 与动作快照（均无额外变化）、boundary、merge-base health 及实测资源通过，19 个直接相关文件 235 条通过，覆盖模型选择/配置/图片调用、项目清理/路由、Images/Jelly HTTP/MCP、授权并发及公开合同。25 项共 7,478,060 B，比当前后台服务前置减少 312 B；本次没有新增资源额度。日志 /tmp/molis-model-closeout-{install,build,api,actions,health,boundary,assets,targeted}.log；前期必跑与 Chrome 证据继续有效，未冒称重复运行。共享核心全量和正式 PR/CI/合入仍待队列，整线未完成。
+
+后台授权交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前私有文件/Cognia/灵光与实际 main 63639a764，保留安全表和 CI 子集双方条目，后台授权生产实现不变。整体 build、API、boundary、merge-base health 及资源核对通过；六个直接相关文件 81 条通过，涵盖后台失权拒绝、Kernel 授权、真实 HTTP 生命周期、模型/文件服务与 Host 接线。25 项资源共 7,478,372 B，无本片增量；日志 /tmp/molis-background-closeout-{build,api,health,boundary,assets,targeted}.log。原完整相关组合证据保留，正式 PR/CI 待前置；不把模型端口或插件业务迁移算成本片已合入。
+插件私有文件交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前 Cognia/灵光与实际 main 63639a764；保留主线 Assistant 关闭接线、Shelf IPC 拒绝和产品子集两项连接器回归，同时保留 files 类型/授权接线与安全断言。整体 build、API、boundary、merge-base health 及资源重测通过；六个直接相关文件 54 条通过，覆盖文件边界、Home 生命周期、真实 Host 服务/执行器、项目库和安装 grant。25 项资源共 7,478,372 B，与 Cognia 相同；日志 /tmp/molis-plugin-files-closeout-{build,api,health,boundary,assets,targeted}.log。早前完整相关组合证据保持，正式 PR/CI 待依赖顺序，未开始新的业务迁移。
+Cognia 交接收口（2026-10-18，Codex，本地同步通过）：已 merge 灵光 a1a10e86d 与实际 main 63639a764。业务源码保持此前已审候选，冲突仅整合安全表与重生成派生记录；S-18 同时保留主线跨分区恢复与模型 metadata 拒绝证据。整体 build、API/动作快照（均无额外变化）、boundary、merge-base health 和资源检查通过；13 个直接相关文件 344 条通过，覆盖 Cognia 动作/Store/AI/HTTP/Runtime、Host 模型与附件拒绝、声明、路由和 Home 平台。Cognia 客户端仍减少 260 B，25 项资源共 7,478,372 B；日志 /tmp/molis-cognia-closeout-{build,api,actions,health,boundary,assets,targeted}.log。此前组合的 203 文件 1,823 条、其中 5 个 Chrome 文件 20 条及 1 条环境跳过证据保留，未重复计为本次重跑。正式 PR、CI 与合入仍按前置顺序推进，整线未完成。
+
+灵光交接收口（2026-10-18，Codex，本地同步通过）：本片已 merge 材料 8145f96bd 及实际 main 63639a764，保留主线 receipts/vendor/Coding 变化。整体 build、API、boundary、merge-base health 与实测资源通过；13 个直接相关文件 187 条通过（含资源预算拒绝、流读取、浏览器同源请求、Runtime HTTP、灵光动作/材料/MCP/丢弃/库、客户端与项目清理）。前期 159 文件 1,474 条通过、1 条环境跳过及其中 9 个 Chrome 文件 41 条证据仍保留；没有声称重跑这一批。workbench.js 只沿用用户已批的 +2,231 B，按实际前置重定为 1,111,791→1,114,022，灵光包减少 725 B；25 项共 7,478,632 B。Todo 与 receipts 的旧起点均进入拒绝回归，不重复消费额度。原日志 /tmp/molis-lingguang-post703-{build,api,health,boundary,assets,targeted,actions}.log。正式 CI、共享核心组合回归与合入待 PR 队列；整线尚未完成。
+
+交接收口（2026-10-18，Codex）：用户已要求停止开启后续实现，将手头候选经 PR、问题处理与合并 main 后统一交接。#703 的全部分支检查及合并队列 Verify 已通过，实际合入 main `63639a76498a44320018ed4d935ace2abed1c886`。原 MCP stdio 用例在源码、断言和 60 秒时限不变下低并发复跑 20.8 秒通过；桌面包必跑三文件共 39 条及 Shelf Rust 七条通过，原两次超时记录保留。材料 #727 已 merge 该实际 main，offline install、整体 build、API（无额外变化）、boundary、merge-base health 与资源核对通过；六个直接相关文件 39 条通过。25 项资源 7,477,126 B，仍比这份 main 少 6 B，没有新增额度；日志 /tmp/molis-materials-post703-{build,api,health,boundary,assets,targeted}.log。共享全量运行 39125232628 针对此前材料头 846d0baa8，结果另行结算。以下旧“待合入/不自行合并”等文字保留为当时记录，当前授权按本段；整条 W5/W6 仍未完成。
+
+材料服务接续（2026-10-18，Codex，本地组合验证通过，准备 PR）：#684 已以 c5d2b3cf6 合入，本片 merge #703 的本地同步源码 efd9c18de，纳入同一实际 main c5d2b3cf6。保留主线 S-38 命令 PATH，材料服务沿原顺延决定使用 S-39，测试同号；此前 S-38 记录仅为历史时点。最终 offline install、整体 build、API、boundary、merge-base health/快查下调与资源测量均通过；25 项 7,475,692 B，比前置少 6 B，来自灵光客户端的现错误码替换，无新资源额度。包要求及影响面的 183 个非浏览器文件全部通过，1,817 条通过、1 条原有沙箱环境条件跳过；实际 Chrome 的 plugin-sample.e2e 1/1 通过，去重184文件共1,818条通过、1条跳过、0失败。安全表合并材料不可信输入与主线桌面边界，派生表按组合重测。没有带入后续灵光、Cognia、Images、Jelly 的迁移源码；本片功能可用的本地证据不代表共享核心全量、正式 CI 或 W5/W6 整线完成。
+
+STREAM 正式 CI 补修（2026-10-18）：a0f47c314 的 CI 39121688588 中，边界、健康、动作合同、安全和产品子集通过，Rust 测试因 Shelf 测试目录只用进程号与时钟、并发时重名而失败；同一夹具在 c5d2b3cf6 中存在。本次仅给测试目录补进程内原子序号，生产代码和断言不变。rustfmt 与 8 线程的 Shelf Rust 定向 7/7 通过；桌面包另外两文件38条通过。MCP stdio 的原60秒用例两次超时，未放宽时限；逐阶段诊断显示三个进程启动累计约65.6秒、读写及重连均返回，总计69.6秒，仍须低并发重跑原用例确认。该超时不宣称基线已证；先推已验证的 Rust 夹具修复以重启正式 CI，不把待补证写成全绿。
+
+W5-01 STREAM 接实际 main（2026-10-18，PR #703，本地整合验证通过，待正式 CI）：#684 已在固定 head b1683481b 经 Verify、16/16 全量分片与汇总通过后合入，main 的实际 squash 提交为 c5d2b3cf66bcc6b48e0d35770480a708c5a6cccf。按原 merge-only 次序将该 main 合入 #703（efd9c18de）；保留原流式路由、增量终态与停用尾检，冲突保留主线的 Shelf/Todo 挂载清理、S-35 跨分区移动复原、全部现行安全用例与已消费资源许可。最终组合整体 build、API、boundary、merge-base health/快查下调及资源测量通过；25 项 7,475,698 B，与该 main 相同，增量 0 B。包要求及影响面的178个非浏览器文件全部通过，1,667 条通过、1 条原有沙箱环境条件跳过；真实 Chrome 的 plugin-sample.e2e 1/1 通过，去重179文件共1,668条通过、1条跳过、0失败。推送前 fetch 与 secrets 扫描通过。正式 CI 与共享核心全量仍交统筹排，不自行合并或加标签；这些是本片证据，不代表 W5/W6 整线完成。
+
+W5-01 Todo 最新主线整合（2026-10-18，merge `576b98556`，准备推送）：固定 main `7faaa027c`，保留 #712 的侧栏上下文、#699 正式 SDK 与 #719 文档。冲突仅资源许可/测试/派生表，Todo 业务源码保持原迁移。原 +28 B 重定为 workbench.js 1,110,329→1,110,357，todo.js 62,081→62,036（−45）；25 项 7,475,698 B，相对该 main 少17 B。整体 build、offline install、boundary、API/merge-base health、资源检查通过；36 个非浏览器文件 418/418，覆盖 Todo、Home Runtime、SDK/授权、侧栏消息安全和资源旧额度失效。真实 Chrome 的 todo-app、side-shelf-in-hand、context-toolbar-panes 三文件仍在机器公共窗口排队，尚无该组合结果；此前5f03的11文件29条仅是对应版本证据。推送前 fetch 确认 main 未变，secrets 扫描933行通过。先更新 PR 候选以启动正式 CI/源码复核，不称浏览器补验、全量或整线完成；不自行合并/加标签。
+
+
+W5-01 Todo 合入 #661 后验证（2026-10-18，本地 merge `c07e47e96`，未推）：merge main `5f03d1e4`，两份派生表重新生成，Todo 生产源码与原 `3272c36df` 相同。原 +28 B 许可重定为 workbench.js 1,110,056→1,110,084；todo.js 62,081→62,036（−45），25 项共 7,475,425 B，比该 main 少17 B。整体/workspace build、boundary、API/完整 merge-base health、资源实测通过；17 非浏览器文件222条、11真实Chrome文件29条，去重28文件251条最终通过。Goal刷新与对话框初跑导航超时，原源码/断言/时限不改后串行复跑7条通过，失败日志保留；未声称已查明时序根因。`prologue-origin-withdraw-race` 两条也通过。日志 `/tmp/molis-todo-main-661-{nonbrowser,browser,browser-rerun}.log`。推送前 main 又合入 #712/#719/#699，仍需合入并重测实际资源与受影响路径，本段仅记录5f03切点，不代表最终远端CI或整线完成。
+
+W5-01 Todo 同步（2026-10-17，PR #684，仍待合入）：按交接的 merge-only 顺序纳入 main `8fcff0442`。冲突仅为单次资源许可、对应测试及两份派生表；主线的交互、回执、SDK 与 S-32/S-33 保留。Todo 的 +28 B 已按既有批准重定为 workbench.js 1,109,302→1,109,330，Todo 客户端 62,081→62,036 B（−45）；25 项资源总计 7,479,372 B，整体与 workspace 构建、资源实测及 boundary 已通过。#688 已用的 Coding 373,784 与 workbench.js 1,108,502 两个起点补进拒绝回归。合并后定向 10 文件 / 162 条、真实 Chrome 2 文件 / 7 条、安全清单 63 文件全部通过；sandbox 文件保留 1 个环境条件跳过项。merge-base health 与快查下调通过。共享核心全量交统筹在 CI 排；不把已做好的后续本地切片算作已合入。
+
+材料服务编号（2026-10-18，用户确认顺延）：Runtime 材料服务改用 **S-38**，保留当前 main 的 S-34 常开插件及 S-35～S-37。安全表与对应拒绝测试同步；以下旧验证中的 S-33/S-34 只表示当时编号，保留原运行事实。本次不改变授权、行为或断言；材料候选在前置合入后接实际 main，旧基点没有的中间编号不补造条目。其他在途分支的编号由其 owner 接当前 main 排列。
+
+W5-01 Todo 再同步（2026-10-17，本地晚间，PR #684）：按统筹 PR 评论先 merge main `b3499cda5`，再 merge `a56a2763d`，全程不变基。主线 #701 的 Shelf 侧栏和常开插件保留；两处渲染器冲突只同时删除 Shelf 与 Todo 的旧挂载引用。Todo 业务源码与此前审过的补丁一致。+28 B 许可重定为 workbench.js 1,109,913→1,109,941，Todo 客户端 62,081→62,036 B（−45）；主线已用预算起点全部保留，AC-03 的 1,109,312 B 加入拒绝回归，活动许可只有本片一条。整体构建、boundary、merge-base health/快查下调及资源实测通过，25 项资源共 7,475,644 B。109 个非浏览器文件 1,111 条通过、1 条原有公网 npm 条件跳过；7 个真实 Chrome 文件覆盖 14 条：首次 `todo-from-inbox` 宽屏在灵光转待办提示处超时，其余 13 条通过；不改源码或断言单独复跑，该文件 2 条通过。另建干净 main `a56a2763d` 工作树同构建、同文件 2 条通过。此为一次尚未稳定复现的时序失败，不把它写成首次全绿，也不据此认定基线已有同一缺陷。共享核心全量及合入仍由统筹在 CI 排；本线不加标签。
+
+W5-01 Todo 第三次同步（2026-10-17，PR #684，本地定向通过，待正式 CI）：按统筹评论 `6246076698` merge main `4bea52c84`，不变基，合并提交 `dfcb0439f`。冲突仅为资源许可脚本、对应测试和资源派生表；Todo 业务源码与冻结 head `f7fffda2e` 逐字相同。正式构建实测 workbench.js 为 1,110,215 B（main 1,110,187，仍只增加已批准的 28 B），todo.js 62,036 B（main 62,081，减少 45 B）；25 项合计 7,475,589 B，比 main 少 17 B。#706 已用的许可与本片同为 workbench.js 一个键，故按原有单次合同将活动起点换为 `[1110187, 1110215]`，保留全部已用起点拒绝回归，并新增 #706 的 1,109,913 与 1,110,802 B 两种再次增长拒绝；不扩展许可格式或保留已用增长权限。整体构建、边界和资源更新已通过；16 个非浏览器文件合计 220 条、另一个转待办调用方文件 3 条、3 个真实 Chrome 文件 4 条通过（去重共 20 文件 227 条）。资源用例首次在合并提交和预算落定前读到 1,110,187 B，1 条失败；完成合并与派生表后该文件 73 条重跑全过，未改断言。完整 merge-base health/API（64 份快照、2,506 项声明）通过，快查重测后无额外变化；全量仍交统筹 CI，整线未完成。
+
+W5-01 OwnerFiles 服务前置（2026-10-18，Codex；本地实现与相关验证通过，待PR/CI整合）：目标为公共服务功能可用，基于已冻结的 SHM+AQD `dfc21df3b` 在独立工作树串行实现。Shelf 现有同步文件树需要受本次真实动作控制的短同步写入段；现 PluginFiles 的单层 ASCII/独占文件合同不能承担嵌套 Unicode 树。新增 `PluginOwnerFilesReader/Writer/Client/Declaration`，继续从 `platform/plugin` 导出；`services.ownerFiles` 只给可信 Home native 定义，升级预检、sandbox、project executor 不提供。声明只来自可信 entry 和真实 definition 的 WeakMap，深复制冻结目录条目及初始化函数绑定，不能由 Manifest、自报 plugin_id 或替换 definition 继承。不改 ShelfStore、现 Shelf owner/装配、原件来源、桌面导入导出、模型、项目成果或 PDF；服务 fixture 不能冒领 Shelf 真实迁移验收。
+
+合同：Reader 为 `stat/read/list(relative)`；Writer 另有 `mkdir`、`writeFile(relative,bytes,"create"|"replace")`、`replaceFileAtomic`、`copyFile`、`removeTree`、`setAccess(relative,"readonly"|"readwrite")`。Client 的 `write(run)` 捕获真实 currentPluginAction，检查本安装、command、action/manifest/caller/实时 grant，再等待原 beforeEffect；等待后与每个原语同步复核原 caller、signal 和现有实例 gate。callback 以现 requireSynchronous 检查并在 finally 撤销 writer，旧 writer 不能借新动作/新授权续命。writer 内读按已授予的写权限；独立 Reader 要读权限。原语同步消费 bytes；跨 await 的业务输入快照归以后 Shelf 调用者，本片不新增通用克隆协议。不增加第二 active/generation、持久句柄或 close，现 executor 的 activeRecord/revoke 是实例权威。
+
+Host 只绑定 canonical Home 和声明，打开 port 不创建目录。受信 initializer 在有效 activation、storage:private 与写 grant 检查后取得单次短 writer，完成后才 start/register；初始化失败不注册且保留已经合法写入的字节，无跨文件回滚承诺。初始化入口不进 PluginHostServices。初始化幂等/坏 catalog 拒绝由 fixture 自己证明，服务不理解 catalog 或建立 seed 日志。完整可信 Home+project 名单在受管 Home 库/owner 目录/seed 前一次性校验，沿唯一 HomeStoreRegistry：owner 正确、名字/权限/顶层条目有效、只准 Home 非 sandbox；owner_files 所占 store 不带 library、不与任何 scope 的 database/旧 files 或第二 owner_files 共根。即使相同 plugin_id 的不同 definition 也查交叉冲突；不另建 owner registry。fixture 只登记尚未占用目录，不覆盖现 Shelf。可信 create 工厂自身副作用不属于受管 IO 零写承诺；project 调用方已开的 db 不计入该声明。
+
+登记接线裁定：Home 预检读取实际 shipped Home 与双 scope fixtures，现 shipped project 的 Form/Lingguang 库根由唯一 home.stores.library 覆盖拒绝；其余现 shipped project 条目均无 files/database。project.start 再以实际 entries 与 Home catalog/fixtures 做共同纯校验。不把整个项目装配导入 Home、不移动插件 imports 或复制一张声明表。这里的完整性针对当前 Home 已知的受管声明与根；未来新增 project 旧 files 声明必须先接入同一 Home 预检，不能静默遗漏。跨 scope fixture 共根与坏尾项的零 seed 证明仍不可省；既有 assertFixtureScopes 同 id 拒绝保留，共根纯校验另测，不能为新测试放松旧约束。
+
+路径只接受已声明顶层下严格相对 `/` 路径，Unicode 原样保留，拒绝绝对/盘符/反斜杠/空段/dot/NUL；在任何写前验证完整路径。逐层拒绝现存链接/非目录；普通文件统一拒绝 nlink>1，NOFOLLOW/NONBLOCK 打开并 fstat 后才读写/截断/chmod，fd 每次 finally 关闭。list 遇不安全节点整次拒绝，不能过滤；缺失返回 null/空列表，类型和权限错误不能装成缺失。create/copy 目标独占，replace 要存在；atomic replace 用同目录随机独占临时文件，rename 前失败旧 bytes 不变且只清本次 tmp。removeTree 先预检整棵树，不安全节点零删除，不删 owner 根或声明目录顶层；合法 file 顶层可删。固定 access 位为文件 0444/0644、目录 0555/0755，目录用安全只读 fd。无新增 32MiB 通用限制，不承诺多文件/树事务、fsync 掉电持久或抵御同 OS 用户并发换父目录（本片无 openat/native helper）。
+
+范围：contracts/plugin-owner-files 与 plugin 类型；Runtime owner-files-service/public export；Host owner-files IO/路径/纯 entry 校验、entry identity、Home executor/home-plugins/home-side、project platform 的显式拒绝；workbench builtin runtime 只改可信类型，不启用 Shelf；真实 Home Runtime fixture/拒绝测试。root 串行维护 API、README、安全表和 spec，不修改门禁阈值、资源许可或 vendor。对照 accepted service-slice 的原语和职责实施，文件按实际职责拆小，不建立通用资源登记框架。
+
+验收编号（测试名/注释标记）：`SHF-IO-S01` 完整名单坏尾项、跨 Home/project 同 owner 同根、错 owner/权限/sandbox/project 等在 owner 目录与 seed 前拒绝，正反启动顺序均验证；`SHF-IO-S02` 真实授权初始化先于动作可见，无 grant 零 seed，坏 catalog 不覆盖，失败不注册，重复 query 不写，停用回调与逃逸/async initializer 拒绝；`SHF-IO-S03` 合法 Unicode 与各类路径/链接/FIFO/硬链接拒绝，读/stat/list/copy/replace/atomic/chmod/removeTree 一致，坏子树零删除、非法末段零父目录写；`SHF-IO-S04` 真实 beforeEffect barrier 中取消/撤权/stop/同 id 换代后零文件副作用，query/无 scope/错安装/缺权限拒绝；`SHF-IO-S05` 旧 writer/晚到 ALS/非法 Promise/重启后旧 client 均不获新权，Promise 拒绝被观察，不谎称同步已写部分回滚；`SHF-IO-S06` 独占/替换缺失/copy 冲突与真实 rename 前失败语义、完整成功 bytes、同步源 buffer 后续修改隔离、超过32MiB普通文件；`SHF-IO-S07` upgrade/project/sandbox 无服务且既有 files/database fixture 保持。
+
+验证：先整体 `pnpm build`，再新真实 Home 安全测试及 Runtime/Host/contracts README 对应定向用例，包含现 private storage/files/database/upgrade/Home lifecycle；拒绝必须核磁盘状态。随后 boundary、API、merge-base health、资源门禁。共享核心全量交统筹 CI，本机不跑全量；不增加浏览器资源，正式 Shelf 产品/桌面体验仍留后片。
+
+本地证据（2026-10-18，本地实现与相关验证通过，待PR/CI整合）：整体build、新增/既有9文件72条、API、merge-base health、boundary和25项资源测量均通过；资源7,476,626 B，与前置S相同。IO测试首轮因macOS /var→/private/var真实路径未匹配故障注入而失败，修fixture后原rename/chmod故障与字节/临时文件断言5/5通过，无生产修改。另163文件相关回归首轮162通过；唯一home-plugin-project-routes旧期待与冻结S dfc21df3b同样冲突。合并公共测试补正4c39270a7后，原完整用例1/1通过，精确400/project_required与撤grant403均保留；其余162文件不重复跑。README测试通配符改成现存文件名后边界复查通过。日志 /tmp/owner-files-required-tests.log、/tmp/owner-files-home-route-final.log、/tmp/owner-files-boundary-recheck.log；保留原sandbox环境条件跳过。真实Shelf接入、Store迁移和产品/桌面体验尚未做，本片仅公共OwnerFiles服务，不称整线完成。
+
+### W5-01 Shelf 前置 D1：项目成果操作与过程项恢复（2026-10-18，本地实现、复审与定向验证通过，待主线整合/CI；负责人 Codex）
+
+目标等级为公共前置功能可用。现 `createPluginArtifactClient` 将动作注册和成果政策混在一起，过程项只有 record，Shelf 后续 Home 迁移缺少复用的 owner 操作、读取自己过程版本和可消费目录。本片基于已交付 S `dfc21df3b` 提取现 owner 操作，并立即由现项目 SDK client 消费；不做 D2 图参与者、D3 Home invocation 门面、Shelf 正式迁移或新增 Home 声明，不改 C OwnerFiles、A Alchemist，也不另建 registry、库或直接跨包 SQL。
+
+保留旧五个 SDK 动作的 identity/schema/version、project/actor/producer 绑定、created_by 来源与停用/撤权拒绝。特别是既有 artifact head/readOwn 仍仅按 producer_plugin_id 判自己，不顺便加严签名/owner；普通 read 仍成果优先、过程其次，过程个人 owner 与 consumes/归档/可用性规则不变。已经固定的合法版本在生产者停用后仍可被消费，不新增 active-producer 条件。
+
+作者合同新增 `PluginProcessItemHead { version: number }`；`PluginProcessItemClient.head(artifactId)` 与 `readOwn(reference)` 返回过程最新版本/固定记录或 null；校验 producer id、publisher signature，personal 还需 owner_actor_id 等于安装 actor_id，不比较 producer version，归档/unavailable 自恢复可读且不要求 consumes。record 的 owner/author 仍按现 Module 规则，不为恢复接口重写旧 owner；由其他 author 写下的个人过程项对安装 actor 的 own 读取明确拒绝。`PluginArtifactClient.listConsumable()` 返回 `PluginConsumableVersion extends ArtifactReference { kind: "artifact" | "process_item"; artifact_type_id; schema_version; title: string | null }[]`，不返回正文、metadata、owner 或路径。返回所有可消费固定版本（不限 latest/端口），成果在前、过程在后，分别保持 owner listArtifacts 顺序；过程 metadata.title 仅非空字符串原样返回，其余 null。与 read 共用消费判定，拒绝项过滤，查询错误抛出。同 id/version 碰撞时成果优先：用于排除过程引用的集合必须取全部成果记录，包括不可消费成果，保证列表随后 read 不会读到另一种类；集合仅为单次查询局部值。
+
+在 artifacts owner 包新增 `createPluginArtifactOperations({ api, process, manifest, project_id, actor_id, author?, authorize, assertInput })`，返回分开的 `{ client, process }`（两个 head/readOwn 不能交叉合成一个对象）。工厂 clone Manifest，每方法先核声明再调可信 authorize；不创建身份、不登记动作。共享输入投影/动作 schema 提取为一个包内文件，白名单先丢弃伪身份字段再校验，保留现客户端语义。Host 注入 kernel 已公开的 assertActionInput；项目 ActionService 与 owner 直调边界使用同一 schema/validator，不复制解析规则、不加 no-op 或调用方可开的跳过开关。owner 包不依赖 kernel，现 Host/client/test 调用点补 required validator。公开工厂只经 artifacts 包出口，作者从 contracts/platform/plugin 得新类型，本片不额外扩 SDK 的便利 type export。
+
+`createPluginArtifactClient` 保留安装匹配、一次 provider 注册、availability、caller allowlist、invokeSync 与 dispose，五项旧 handler 全委托共同工厂；同 provider 新增 `process-head`、`process-own`、`list` 三个 query @1，project scope、plugin audience、artifact:read、sync。旧 @1 的输入输出不变。Home 不提前接这份工厂。动态 SDK 动作可能不被当前无安装身份的 host snapshot 枚举到：按现 actions:update 实测记录，不为快照放开 availability；定向 discovery 固定新动作的 schema/版本/受众/权限。
+
+允许源码范围：contracts 的 plugin-artifacts.ts/plugin.ts；artifacts 的 plugin-client.ts、plugin-operations.ts、plugin-action-contracts.ts、index.ts（现 action-schemas.ts 仅共享 schema 必需时）；Host plugin-host-services.ts 的 validator 注入；plugin-artifact-client、plugin-artifact-operations、plugin-host-services 与必要 typed fixture 测试。既有公共 client 新增 required 方法导致的 typed fixture 仅补实际语义，不改可选方法兜底。root 串行维护唯一 spec、包 README/必要 Skill、安全表与 API/动作派生快照。没有数据库迁移或页面资源变化；错误沿现 artifacts.plugin_denied/plugin_incompatible 与 kernel 校验模型。
+
+验收：
+- **W5-01-D1-01**：旧五动作经实际项目 client 委托唯一操作工厂；返回、事件游标、replayed、身份白名单、停止/撤权/旧 client 拒绝不变。
+- **W5-01-D1-02**：process head/readOwn 的精确 store、null/最新/归档/unavailable 恢复、错 producer/签名/个人 owner 拒绝与跨 producer version 恢复；artifact own 原规则不加严。
+- **W5-01-D1-03**：两类多版本/未连端口目录、标题、过滤和引用碰撞优先级符合上述合同；列出的每个 ref 经 read 得到同 kind/type/version；查询故障抛出，空库返回空列表。
+- **W5-01-D1-04**：未声明 type/schema、跨 store 同ID、冲突版本、伪身份与非法输入拒绝后版本/事件不增加；SDK 与直调共享验证；author 与安装 actor 不同时保留原 created_by/owner 并按新 own 边界拒绝。
+- **W5-01-D1-05**：真实 SDK discovery 新三 query @1 的完整合同，其他安装、无 grant 和伪受众拒绝；旧五 action schema 不变。不能全用裸工厂 fixture 代替生产链。
+- **W5-01-D1-06**：真实项目 Host 暴露 process head/readOwn 和 listConsumable；现 inputs/outputs 的 record/select 继续工作，生产者 stop 后固定可消费版本仍可读；工厂不注册 provider，client 仍只注册一份且可 dispose。
+
+验证：整体 build 与包要求相关 79 个不同文件、921 条测试通过（71 文件 865 条，加最终 8 文件 56 条；不重复计算初轮）。创建参数身份回归在修前代码精确复现修改 actor_id 后借读他人过程项，修正后通过。API 源码匹配、动作合同 25 条、boundary、merge-base health 与资源检查通过；25 项资源仍为 7,476,626 B，本片增量为零。API 仅增 plugin 合同，动作快照新增 9 个安装各自的三个 query（27 行），旧五动作 schema/version 保持，不新增用户/MCP 动作。日志为 /tmp/molis-artifact-operations-d1-{required,binding-before,binding-build,binding-tests}.log 及 /tmp/molis-d1-{api-check,actions-final,contracts-final,boundary-final,health-final,assets-final}.log。contracts-final 中曾误传不存在的 plugin-api-snapshot 文件；实际动作合同 25/25 通过，API 已用正式脚本核对成功，该参数错误不计为产品失败。共享核心全量及正式主线整合仍待 CI；未实施 D2/D3 或 Shelf 迁移。
+
+AQD 测试合同补正（2026-10-18，生产源码不变）：OwnerFiles 的相关回归发现 home-plugin-project-routes 在 personal 路径附 query project_id 时仍期待403/forbidden，冻结 S dfc21df3b复现同一400!=403。实际可信项目只从路径建立；现AQD已经明确保留Home缺项目400/actions.project_required并先于caller allowlist，因此只将这两个旧期待改为精确400/project_required。保留合法项目路径400/input_invalid、拒绝后jobs为空、撤grant后的403/forbidden和Home读仍可用等断言；这是与已接受合同对齐，不改生产或放宽成任意拒绝。原文件复跑1/1通过，真实响应确认精确project_required；合法project路径、拒绝后空jobs及撤grant后的403对照均保留并通过。
+
+SHM+AQD 公共候选（2026-10-18，本地功能可用，可供 PPT 本地迁移；整线/发布未完成）：本分支已合并 M 的 9c1635a96，含 main 7faaa027c 和 Todo b168 的源码组合，以及同一份模型 validateResult 与原调用者 invokeQuery。最终整体 pnpm build 通过；按该组合 merge-base 7faaa027 的 health（含公开API匹配）、boundary 与资源检查通过，25项资源7,476,626 B，AQD无客户端增量。包要求相关107文件首轮106通过，唯一旧Home缺项目诊断400→403已修复并原测试7/7重验；最终对应107文件1,294条通过。五个query文件最终37条通过（正式SDK/真实HTTP/Runtime/Kernel/MCP），与旧Home平台合计6文件44条；原background21/21保持有效。SHM此前真实模型/最终提交拒绝与组合7文件147条证据保留。日志为 /tmp/molis-shelf-aqd-final-build.log、molis-shelf-aqd-main-required.log、molis-shelf-aqd-final-query.log、molis-shelf-aqd-home-final3.log、molis-shelf-aqd-final-health-tracked.log、molis-shelf-aqd-final-assets.log；原失败日志保留。
+
+own-action复核的最终行为：公开bindPluginActionRoute原样传execution，Host原caller自然包含Pages content.read/get，因此不需要父动作required_actions；无可信入口的自主own调用拒绝借owner，MCP/Agent allowed refs保持上限。真实来源缺grant时Pages读取拒绝而text成功；Pages是personal，项目隐藏只隐藏入口、仍可读取，测试保留这一原语义；owner不可用的分支由现公开actionAvailability受控拒绝验证，未伪称存在真实Pages停用功能。尚未完成的验证：README要求的plugin-sample Chrome已排队，受整机另一1103文件批次占槽；正式PR与共享核心CI待原队列推进。本地PPT可基于固定提交实施，不等同于这些待验项通过。
+
+W5-01 原调用者 query 委托（AQD，2026-10-18，Codex 接受方案、实施中；PPT 消费者归 DSH）：目标为公共前置功能可用。插件只在本安装正在执行的真实动作中，经 PluginHostServices.actions.invokeQuery(reference,input) 读取已声明 consumes 的外部 query；保留原 actor/project/audience/permissions/allowed refs 和动态授权，再与来源 manifest/grant/实例寿命取交集。普通 actions.invoke 的 plugin audience 自主消费语义不变；不扩 Pages audience，不新增 PPT 专属 pagesRead，不无条件 required_actions，不增加后台委托或持久授权。模型 validateResult 沿已验证 SHM，不重复实现。
+
+公共合同为 PluginActionClient extends BoundActionClient 的 invokeQuery，以及 ActionCallContext 的只减权 query_only?: true。bindActionClient 的父 control 与子 caller 只要任一 query_only 为 true 就保留 true，相关控制 Pick 同步承载，不能在新 bound caller 中丢限制。引用只收现 ActionReference；实际目录选唯一 id/version/provider 的 query，固定 provider，Kernel 在实际派发时检查 query_only 并沿子链保留，拒绝发现后换成 command。 invoke/invokeSync 的 handler 前同步检查同时传实际当前注册 definition.action.permissions，让委托 wrapper 按实际权限复核来源 manifest/grant；只读 handler 不调用 beforeEffect 也不能绕过。来源 consumes 只限制直接目标，Pages content.read/list 内部 get/list 仍受原 allowed refs 和 query_only，不借委托加入原未授权引用。缺 scope、别安装、结束后的 ALS、普通 start/route/timer 不获委托权。保留原父 beforeEffect/同步断言，并用现 retainAuthority 固定目标注册；等待前后、结果交付前复核原父、实例、目标注册/权限，不新增 token registry 或 generation。
+
+真实本机 HTTP 的 authority 在已认证 Host 入口用现 localWebActionContext 取得，原完整 caller 与 client 通过 plugin-actions-client 现 routedControls WeakMap 按原 control 身份保留，克隆/伪造 control 不能取权。项目 root/catalog 路由统一传入可信入口回调；Home 挂项目使用已验证 reference，Home 无项目不读项目 query。Home client 选择只从 Host 已打开/核对的项目引用按可信 caller.project_id 取得，不从 input/query/path 新开库。own route 动作沿原 caller 再加实例/route 检查，不用安装全 grants 或 own+required 替换原 authority。直接 MCP/Agent 沿 currentPluginAction 的原 caller，不调用本机用户工厂补权。派出/嵌套 query 的实际 permission 始终同时核来源声明、实时 grant 与原 caller；新增 grant 或父动作已结束不能延长旧调用。
+
+AQD own-action 复核收敛（2026-10-18）：用户指出普通 services.actions.invoke(own) 的 own+required 包装不能调用外部 query，此现象已核实；其 authority 与 retainAuthority 也只认 own，不能仅给子 allowed_actions 加目标。PPT 已接受接线为公开 bindPluginActionRoute，它传递真实 request.execution 原对象，Host routedActions 取认证入口的完整 caller，因此不经过无来源的 actionCaller。补公开 SDK route 的真实 HTTP 正反回归，确认父 refs 来自 Host 目录、无 Pages required_actions、Pages 可用读取、不可用或缺 grant 时文本仍独立。无可信入口的普通自主 own 调用继续拒绝借用 owner 读取 Pages；克隆 control、MCP/Agent 原 allowlist 不得扩展。AQD-04 的 root 指真实 Home root；单库 standalone 无 catalog 的 Runtime 入口保持原拒绝，不新增入口。另恢复 Home 缺项目的原 400/actions.project_required 诊断，在 Kernel 结算内按真实 own Manifest scope 先于原 caller allowlist 校验，不放大授权。
+
+允许范围：contracts/plugin 与 actions 的上述窄类型、Kernel visibleAction/实际派发限制、Host plugin-actions-client 与一个同职责 query helper、coding-surface/web-request/home-plugin-http 的可信入口、必要 Home executor/host client 装配、真实 Runtime/HTTP/MCP fixture 与拒绝回归。复用现服务/动作目录，不加第二 dispatcher；不改 PPT/Pages 业务代码、动作 schema/version、数据库、文件服务、模型服务或门禁。公开 API 快照、README、安全表由 root 串行整合。共享核心全量交统筹 CI，本机仅整体 build 与包必跑/影响面定向。
+
+验收：`W5-01-AQD-01` 真实 Runtime 父动作调用现 Pages content→get/list 成功且身份不变；原权限/目标 allowed/底层 allowed、来源 grant/consumes 任一不足拒绝且零业务写。`W5-01-AQD-02` 父或目标授权等待、交付前撤权/停用/同 id 重装均拒绝旧结果，旧 scope/timer/别安装不可复用。`W5-01-AQD-03` 直接 command、伪造 operation、发现后同 id/version 换成 command 及子链 command 零 handler 进入；引用缺失/版本/provider/歧义不回退。`W5-01-AQD-04` 真 root 与 catalog Runtime HTTP 保原 caller，伪造/克隆 control、输入项目伪装、断开/隐藏/停用均拒绝；Home 无项目拒绝项目 query，未知项目不新开库。`W5-01-AQD-05` 真实受限 MCP 只授权父动作时拒绝，齐备目标与底层授权时成功；撤权不会被安装全 grants 补回。`W5-01-AQD-06` 文本分支在 Pages 未启用或未 grant 时仍成功，Pages 分支明确不可用，required_actions 不转授权。`W5-01-AQD-07` 原 invoke 的 plugin audience/consumes、own route command 的原取消/权限保持；无 scope 不得作为 owner 委托。用真实 Kernel/Runtime/Host route/MCP、handler 计数及拒绝后可观察状态证明，不以 mock invokeQuery 成功为主证据。
+
+W5-01 Shelf 模型服务前置（SHM，2026-10-18，Codex，本地定向通过、待主线整合）：目标为功能可用，先补 Shelf 迁 Runtime 实际缺少的原图输入、完整推理回执、最终精确绑定复核与只读模型 choices。保留 Shelf 现有工作流、catalog、文件和任务语义，不在此片切换 Shelf 的 Runtime 装配；不改 SDK/vendor、数据库、项目桥或恢复策略。既有公共 model 服务扩展 images（bytes/label）、execution、validateResult() 与 choices()；不接受文件路径、URL、凭据或调用方自带的验证函数，不建立 service map、token/receipt registry。
+
+Host 沿现 hostTextGeneration 真实 dispatch snapshot 产生同步 validateResult，成功及可记账失败保留同次 BoundedInferenceReceipt 和 guard；Runtime 再包原动作 scope、当前安装/grant、signal、同步 caller 授权，动作结束或换代后不能复活。提交仍为原 beforeEffect 等待之后立即 validateResult 再同步写，不用 guard 替代等待。JSON 解码失败保留真实已完成推理的 receipt，普通 provider 失败有真实 receipt 才传，无推理事实不伪造。原图 bytes/label 在首个 await 前复制；沿既有 30 张、单张 32 MiB、总 128 MiB 限制，Host 私有临时目录用内部生成文件名适配现 PrologueInputImage，finally 清理；SDK intake 的格式/原字节校验与资源回收照旧。choices 直接复用 configuredModelChoices 元数据，不解密、联网或重写用户选择。 模型服务内未分类的 provider 错误按 plugin.model_failed/upstream（HTTP 502）返回，可携带真实 receipt 与 guard；已有 ActionError 保留原码/分类，普通领域错误仍按 actions.execution_failed/500，取消、撤权及配置变化不提供可记账失败回执。
+
+范围：contracts/plugin-model、Runtime model-service、Host plugin-model-service/host-complete-text（必要时一个原图暂存 helper）、相关测试与必要开发说明；公共出口、API快照、安全表、共享 spec 与资源由主会话整合。`W5-01-SHM-01`：真实 Runtime→Host→本机模型链验证两种协议原图字节/顺序、等待前快照、prompt覆盖、真实成功/失败/JSON解码回执与暂存清理，伪图/非vision拒绝零请求。`W5-01-SHM-02`：真实最终 beforeEffect barrier 期间连接/模型变化、撤权、停止再启用，成功与失败 guard 都阻止零迟到业务写；原调用结束后及另一次调用不复用旧 guard，未变化对照可提交。`W5-01-SHM-03`：choices 随目录状态即时变化且零请求/零解密、不含地址或凭据引用，精确 selection 与 availability/complete一致、不回退。先整体 build，再模型service/selection/lifecycle/metadata/progress、host-configured-text、prologue-inference-images/native、Shelf AI/job/recipes/settings、prompt-registration与新真实用例；boundary、API、merge-base health、资源门禁由主会话统一做。共享核心全量交统筹CI，本机不跑；本片通过也不代表Shelf迁移完成。
+
+SHM 验证：正式整体构建、API、boundary、merge-base health、资源检查通过；新增及定向 7 文件 71 条通过，原选择测试 4 条通过。包要求与受影响补充 198 文件首轮 195 通过；goal-pin 与 local-mcp 在原源码原断言串行复跑 18 条通过，Jelly 错误测试按上述现行分类分开领域错误与模型错误后 12 条通过，198 文件均已有终态通过证据。未运行本机全量；不将混合批次累加为新全量。后续 main 整合需复测变化面。 SHM 接入 M 主线刷新候选后的 9c19b4ad3 组合已完成整体构建、API、merge-base health（固定5f03）、正式资源及7文件147条定向回归，全部通过。资源仍25项7,476,353 B；这份已核模型guard与随后AQD实现分开记录。
+
+W5-01 Alchemist 生命周期前置（ALC-LIFE，2026-10-18，Codex 已接受、本地定向验证通过，等待整合）：目标为现行架构下功能可用，关闭/删项目先阻止接纳与迟到业务写，再等待真实前台、worker 和搜索工作退出，最后关闭数据库/删除目录；失败后仍能找到未释放资源并重试。源码证据是 local-runtime 只等 worker 而未等前台动作，Host eviction 在失败 finally 遗忘 studio，关闭期 alive 错落离线 purge，四层关闭函数缓存失败或遗忘资源。先修这条完整调用链，不引入分区数据库、borrowedSql、持久授权平台或重复 Store，不把本片称为 Runtime 迁移完成。
+
+插件在现有 actor-actions/helper 统一追踪原始 invoke Promise，覆盖 actions、actionsFor 与内置 HTTP app；传合并 signal 和 studio 自己的同步/异步 effect fence，原 caller 权限仍由原控制决定。关闭同步撤销本实例前台和 worker，等待所有原始工作 settlement 后才关 DB；动作本身的正常拒绝不算关资源失败。并发 close 共用当前 Promise，关库失败保留句柄和禁止接纳状态，下次只重试未成功步骤。Host 共享 studio 同样分开“不再接纳”“关闭中”“已释放”，保留失败 entry/owner，get 不得绕过 draining；runtime、search、目录按依赖收尾。两个 Host 的既有共享语义保持：第一 owner 退出不取消另一 owner，最后 owner 才关闭。idle 清理失败必须被观察且可重试，不吞为成功或紧循环。
+
+Host 关闭开始至资源真正释放期间，项目删除 hook 继续等待同一 live drain；失败不得改走静态 purge。公共 MolisWorkLocalHost.close 对 Alchemist 收尾保留单独重试路径，不重新执行已完成的其它 Host 关闭。搜索组合及 intelligence adapter 保留失败子资源/已 bootstrap 的 foundation，成功的子资源不重复关闭；不在 finally 丢引用或提前关搜索库。任何底层 SDK 无法重试的真实证据须先报告并重新诊断，不能用外层 stub 证明实际资源已释放。
+
+允许修改 Alchemist bootstrap 的 actor-actions/local-runtime（必要时一个同职责内部 helper）；Host 的 alchemist-service-host、alchemist-search、search-evidence-runtime、search-intelligence-client、project-host；对应既有 lifecycle/idle/runtime/search 测试和 README。只有实际回归证明某前台服务缺 effect fence 才补该点。共享 spec、安全表和快照由 root 串行维护；不动 HomePluginExecutor/PluginBackgroundClient/PluginDatabase、SQL schema、动作合同、恢复队列、模型 vendor、UI 或资源门禁。新单元和既有巨大单元都遵守当前阈值，不为修复增长巨大函数。
+
+验收：`W5-01-ALC-LIFE-01` 正式前台模型/metadata 等待中关闭或删除，立即取消和拒绝新工作，原始 Promise 未退出时不关库；迟到成功/失败零新业务写，已合法保存输入保留。`W5-01-ALC-LIFE-02` worker 忽略 abort 的等待同样 drain，现有业务/恢复回归保持。`W5-01-ALC-LIFE-03` 真实 DB.close 一次失败后仍拒绝动作、第二次关闭成功且之后幂等。`W5-01-ALC-LIFE-04` ProjectDeletionService 的关闭/搜索收尾一次失败保留目录与唯一 studio，重试才清理，其他 Host 不另开同项目。`W5-01-ALC-LIFE-05` 公共 Host.close 真实再次进入未完成 Alchemist 步骤，其它成功资源不重复关闭。`W5-01-ALC-LIFE-06` 关闭/删除交错和关闭失败后 clear 始终等待 live owner，成功后才允许离线清理。`W5-01-ALC-LIFE-07` 多 Host owner 和 idle/get 交错保持，idle 失败无 unhandled rejection。`W5-01-ALC-LIFE-08` 实际搜索组合的一项收尾失败仅重试失败项，foundation 和 DB 引用保留到成功。
+
+验证先整体 build，再 `tests/security-invariants-alchemist-lifecycle.test.ts`、`tests/alchemist-studio-idle.test.ts`、`tests/alchemist-runtime.test.ts`、`tests/search-evidence-runtime.test.ts` 及改动包 README 必跑；用 deferred 制造真实交错，可经已有 wrapStudio/测试 mock 注入一次资源关闭失败，但不能替换整个生产清理链。同步 effect 拒绝需要接入安全不变量验证。root 核实际 diff、boundary、API、merge-base health/资源与 Host/search 相关回归，独立复查后记录证据。本机全量不运行，两个在途 PR 上限保持。
+
+ALC-LIFE 本地证据（2026-10-18，生产候选 `f26f8216e`）：整体构建、boundary、API、merge-base health 与资源实测通过；25 项资源共 7,476,413 B，本片无客户端变化。四个针对文件 41/41 条、包内 25 文件 81/81 条通过；其余 75 个相关文件首跑 74/75，`action-before-effect` 的两个 Form 等待用例超时，源码与断言未改后单独复跑 23/23 通过（原失败日志保留）。实际覆盖前台/worker drain、迟到零写、数据库/搜索关闭重试、多 Host owner 与删除交错；独立源码复核无 Blocker/P1。安全用例改名为 `security-invariants-alchemist-lifecycle.test.ts`，进入现有安全发现规则。证据日志 `/tmp/molis-alchemist-life-{targeted,unit,remaining,rerun}.log`；未运行本机全量、未推送或开 PR，最新 main/Runtime 前置整合及 CI 待后续。本片维持现行恢复队列，下一段用户恢复裁定尚未实现。
+
+Alchemist 后续恢复裁定（用户 2026-10-18 选择，尚未实施）：重启保留任务与进度，由用户点“继续”重新授权；禁止自动续跑，不把 actor/job/lease 当授权。沿用 interrupted 与当前实例执行登记派生等待继续视图，query 不写 actor/seed，首次有权 command 再初始化。继续固定原 job/input/方向快照；Exploration 明确展示并在本次等待前冻结当前模型/taste，不承诺缺失的历史上下文逐字相同，不新造 JSON 兼容。Lens 保留原 plan/model/budget/callsUsed，未知调用从最近可恢复 checkpoint 重做，只花原剩余额度，提示可能重复计费；耗尽保留待审阅，并明确需另发新研究，不自行增加预算。安全 checkpoint 不二次调用，继续 A 不消费 B，同一 job 并发点击只能受理一次。此决定写入后续分库/恢复实施合同，本生命周期前置仍保持现行队列行为，不能用本片通过宣称此决定已经实现。
+
+W5-01 Alchemist 显式继续（ALC-RES，2026-10-18，Codex 已完成本地实现与相关验证，待 PR/CI 整合）：目标为现单一 Store 上的恢复功能可用，承接用户上段决定及已验证 ALC-LIFE，不在本片迁移项目数据库或 Plugin Runtime。重启只读显示原 job/checkpoint；旧 queued/running/interrupted 及有明确当前中断原因的 failed 均按实际 checkpoint 判定是否可继续，完成/取消/不可恢复记录拒绝。查询不写 actor、默认 settings、来源或恢复状态，空库 workspace/settings/Pulse 返回一致的纯默认视图；首次有效 command 在同一提交内依 workspace→真实 actor→必要 defaults 顺序初始化。坏记录明确失败，不补猜历史形状。
+
+ALC-RES 本地最终证据（2026-10-18）：整体构建、公开 API/动作快照、boundary、merge-base health 与资源实测通过；正式客户端52,373 B，25项资源共7,478,380 B。包内27文件95条、相关非浏览器190文件1,732条、真实Chrome4文件15条最终通过；保留sandbox原环境条件跳过1条。非浏览器首轮3文件失败：旧生命周期用例沿用自动恢复断言，已改为真实Host的领取前交错、新操作者明确继续并保留历史作者；HTTP测试旧手工入口把正常response关闭当撤权，已改走现有serveTestHost正式入口；Goals MCP原60秒超时后未改源码/时限，低并发复跑通过。浏览器下载首轮在ZIP未完成时读文件，改等CDP对应guid完成事件后保留原内容断言，复跑通过。仅重跑受影响4文件，不把首轮失败抹去。日志为 `/tmp/alchemist-res-final-{build,unit,required,browser,health}.log`、`/tmp/alchemist-res-test-repairs.log`、`/tmp/alchemist-res-download-repair.log` 及最终 reviewed health/boundary；独立源码复核无Blocker/P1，root核最终测试差异与原始日志。用户确认的预算/重复收费提示已实现且桌面、手机实测通过；生产WorkReuse外部接线、项目分库与Runtime迁移仍未完成。本机全量未运行，远端全量/合入及整线验收不能由本段替代。
+
+ALC-RES 共享授权补充（2026-10-18，主会话复核接受）：现单一 continue 的类别来自已存 job，静态 read/write 加实际类别持续权限；Exploration/Lens 需要 generate，Pulse 需要 collect，不能要求两类同时具备。扩展既有 retainBackgroundAuthority(additionalPermissions?) 及可信入口 hook，参数只增加检查、复制冻结，不替换原动作权限或允许引用，不引入授权存储。Kernel 只在活跃 handler 捕获，额外权限必须属于原 caller；无独立入口沿原 signal，独立入口沿后台授权，原 beforeEffect 到期保持。MCP 固定受理时原 allowed refs 与权限来源集合，之后只取该原集合与最新有效 grant 的交集；受理后新增动作、另一版本/provider 不能救活旧授权。绑定父/子 guard 分别保留各自身份与撤权，子额外权限不能替换父权限。HTTP 本地固定 owner 由可信绑定身份持续检查，response signal 只归 route control，正常响应后不撤已受理任务，受理前断开仍拒绝。继续必须先纯读 job 和类别校验，再初始化；缺权限零 seed/claim/失败记账。
+
+
+
+ALC-RES08 确认界面补齐（2026-10-18，root核实际UI后接受窄实现）：Lens继续前显示原计划模型及原预算总数/已预约/剩余；计数只从现有效 call_started ledger与绑定原plan派生，不持久化第二份计数、不把预约当已扣费。当前合法 call_dispatched 表示未知结果时明确提示“上次调用可能已收费，继续可能重复收费；该次已计入原预算，不增加预算”。沿同一 lens-progress 解析/校验提取只读inspect摘要，执行read继续保耗尽拒绝；损坏历史仍拒绝且不猜0。ResumeView仅增budget{limit,reserved,remaining}和unknownCall{operation}；耗尽也显示数字但不可提交，安全checkpoint允许零模型完成。真实UI补可继续Lens的数字/原模型/风险提示及桌面手机截图，旧耗尽、双击和正常返回路径保持。最终Chrome用例1/1通过，桌面/手机图已核，无模型真实扣费验证；用户在2026-10-18明确批准客户端脚本单次50,619→53,507 B（+2,888 B）以保留完整提示。只登记这个资源和起点，合入后的已用额度不可复用，其余资源规则不变；最终组合整合及门禁仍待完成。
+
+ALC-RES08 正式体积核对：整合后按正式 Host 服务口径实测为52,373 B（+1,754 B），上段53,507是未包装 factory 字符串。既有服务压缩保留全部预算与收费提示，最终许可因此下调为50,619→52,373，不留1,134 B余量；门禁同时拒绝多一字节、其它资源增长和新基点再次增长。
+
+ALC-RES 动作合同：新增 runs.list/resume/continue@1；explorations.start/research.start@1 改为 concurrent，受理中的授权等待不占串行队列。后两者的输入输出、provider、权限及任务引用不变，固定@1引用仍执行同一受理合同，因此只更新调度元数据与快照，不改工具名；旧串行例外移除。此改动不能证明生产WorkReuse外部接线已完成。
+
+ALC-RES 搜索最终边界补充（2026-10-18，root 已直接核对调用链并接受窄实现）：现 beforeDispatch 仅在入口，之后还等待 bootstrap、DNS 与 TLS；SEL 会写 opaque operation、secret 与正文。RES03 必须覆盖这些实际业务效果，不能以每秒撤权轮询代替。允许在 Alchemist search 资源现 owner 内用每次调用的 AsyncLocalStorage 传递本次 beforeDispatch/assertCurrent，Host search-evidence-runtime/search-intelligence-client/anysearch-transport 接同一可选检查；storage 的既有 search-storage blob/secret owner 在最终同步写入前检查，不越 owner 写 SQL、不改 vendor 或密文/schema/路径、不加授权持久化。查询控制不存在时，已配置此检查的 Alchemist 调用拒绝；未配置的 Feed 现行为保持。bootstrap 共享 promise 不能固化首次调用的权限，失败后沿现 ready reset 可再尝试；资源关闭仍等待真实 promise 退出。
+
+`W5-01-ALC-RES-SEARCH-01`：真实 AnySearch DNS 等待后撤权，最终建请求前拒绝；TLS 等待期间撤权，在 secureConnect 已核合法 peer 后、req.end(body) 紧前再次同步检查，零请求正文发送；extract 也逐次检查，不放宽原 SSRF/TLS/响应上限。`W5-01-ALC-RES-SEARCH-02`：真实 SEL bootstrap/provider 晚回执期间撤权后，search.sqlite opaque rows、secret/content 与 Studio job/checkpoint/events 均无迟到结果或失败记账，原合法预约保持；同步 blob 各写方法实际拒绝、原行不变。`W5-01-ALC-RES-SEARCH-03`：未配置 hooks 的 Feed/Search 现回归不变通过；无 scope 的业务写拒绝但关闭可完成，真实文件/SQLite owner 与模型入口不增加第二实现。新增 API、安全表与派生检查仍由 root 整合；本段是现 RES03 完整修复范围，不引入数据库分区或 Runtime 迁移。
+
+允许最小新增范围：contracts/actions.ts、Kernel action-execution-context.ts、Host mcp-background-authority 与必要的 mcp-action-client 原解析上下文传递、plugin-route-control、web-request/web-project-context 可信入口和 actor-actions 参数透传；不全局移除 signal 检查、不变更 action refs 或模型 availability。`W5-01-ALC-RES-AUTH-01`：两类单独权限成功、缺类别在初始化前拒绝、参数快照及原动作到期保持。`W5-01-ALC-RES-AUTH-02`：真实 MCP 原来源撤销、新 grant/版本/provider 不恢复旧 guard、最终同步检查拒绝且零迟到写；父子撤权独立。`W5-01-ALC-RES-AUTH-03`：真实 HTTP 正常响应后继续，受理前断开、studio stop/Host close/项目删除/provider 换代拒绝；安全 checkpoint 在模型离线但类别权限有效时零模型落库。API、README、安全表及快照由 root 整合。
+
+继续动作只收 jobId 与必要所见上下文确认值；项目与操作者来自真实 caller，历史 job.actorId 不授予权限。保留原 input/方向/plan；Exploration 固定本次确认的当前具体 modelId 与 taste，列表等待前先冻结选择政策与 taste，配置变化要求重新确认，不静默改模型。Lens 沿原 plan/model/budget；唯一累计预约数读完整 call_started 序列，严格验证 1…n、原 budget 与 checkpoint 一致，每次外部调用前在同一事务保存 n+1 事件及 marker。未知调用可能已收费，从最近安全 checkpoint 重做仍占原剩余额度；不把阶段 max3 字段当累计重试次数，不取 max、不用尾页或 fallback 猜数。安全 ready_to_persist 零模型落库；还需模型而预算耗尽时保留待审阅，不扩额或伪装正常成功。
+
+每次 start/continue 在有效动作内取得既有 retained authority，并同步按 jobId 登记当前实例的 pending 防重；单 worker 忙时等待的本次命令不先占 lease。worker 只从有本次授权的内存队列取指定 job，授权后 CAS 状态与 lease；不消费旧持久队列、不并发第二 worker、不引入后台持久授权。未过期陌生 lease 拒绝接管并显示到期等待，过期后仍需新 command CAS。每次模型/搜索/外部 link 派出、续租、checkpoint、领域成功/失败记账前复核同一 authority 与 lease，撤权/停用/关闭后零业务写；等待中的真实 Promise 未退出仍由 ALC-LIFE drain，不提前关库。取消只作用指定 job。Pulse 共用此继续入口与授权，已完成来源不重复消费。
+
+HTTP 接入须沿现 plugin-route-control 捕获 entry-owned 权限与 Kernel 注册身份，再交 retained authority：正常 response 结束后已受理工作继续，受理前断开拒绝，项目删除/Host 关闭/provider 换代/撤权仍阻止。MCP 走真实 gateway 的 backgroundHostCurrent，不手造永远成功的 guard。Lens workReuse.reconcile 的外部 linkConsumption 与本地 receipt UPDATE 都受本次权限，后者还走 worker lease 提交；撤权后迟到结果不得更新 receipt 或记失败。原复用 snapshot.actorId 归属校验保持，换操作者不符明确拒绝，不修改历史作者绕过。
+
+允许范围：Alchemist bootstrap/jobs/相关 services/shared contracts/manifest/既有 client 及测试；Host 现 Alchemist HTTP/retained-authority 必要接缝与 work-reuse 实际接收端。一个 Store、现物理路径、现 SQLite schema 保持；不增加恢复平台、锁系统、并发 worker、第二队列事实或 vendor。唯一 spec、README、安全表、API/action 快照由 root 串行维护，门禁不放宽。现模型/搜索/复用合同复用公开入口；项目分库与 Runtime 接线另片，不能冒领本片完成。具体字段与函数划分由实施者在现结构中选择，小函数遵守现门禁。
+
+验收：`W5-01-ALC-RES01` 真实进程重启后旧任务/lease/checkpoint保留，重复 query 零业务写、零自动 dispatch，空库三种视图可读。`W5-01-ALC-RES02` 同 job 双击只一份登记/lease/dispatch/产物，继续 A 不消费旧 B，A 忙时新授权 B 等待且不占 lease，等待撤权零写。`W5-01-ALC-RES03` 授权/模型/搜索/linkConsumption/提交各实际等待中撤权、禁用、关闭或删除，迟到成功与失败零业务写/续租/额外派出，真实工作未退出不关库。`W5-01-ALC-RES04` 原方向不变，本次所示 model/taste 固定且不可用明确拒绝，安全卡片 checkpoint 不重复模型或产物。`W5-01-ALC-RES05` Lens 四类未知调用恢复累计计数不归零，计数不完整拒绝，耗尽无 dispatch/扩额且可读，安全 checkpoint 可完成。`W5-01-ALC-RES06` 首次 command 外键顺序/一次默认值、query 零 seed/actor、真实继续操作者与历史作者分明，伪改 job.actorId 不增权。`W5-01-ALC-RES07` Pulse 已完成来源不重复，取消与权限拒绝不写失败。`W5-01-ALC-RES08` 真实 UI 重启视图确认并继续、双击忙态、耗尽提示与原任务链接；真实 HTTP 正常返回后后台继续/受理前断开拒绝/MCP 同动作结果均验证。
+
+先整体构建，再按 README 运行 Alchemist runtime/worker/recovery/authority/Host 生命周期与包内测试，新增交错调用生产路径；根排真实 Chrome 和合并后的边界/API/action/health/资源验证。工程通过、真实本地替身路径通过与用户本人体验分开记录。本机全量及真实 Home 不运行；本节尚无实施或运行证据。
+
+W5-01 Runtime 最新主线整合（2026-10-18，merge `9eb049928`，本地定向通过）：纳入 Todo `b1683481b` 与 main `7faaa027c` 的侧栏/正式 SDK；Host/合同/Images/Jelly 生产增量相对前一 Runtime 候选 `3cb549a9c` 为空。完整 offline 安装与整体 build、API（0变化）、merge-base health/快查、实际资源与边界检查均通过。25资源共7,476,626 B，workbench.js 1,112,588 B，仍仅 main 1,110,329 B 加原未使用的 Todo28 B+灵光2,231 B；#661原减少量已在main内，未重复抵扣。保留全部历史许可失效回归；材料安全编号因main S-38已归命令PATH而顺延S-39，只改表/测试编号。
+
+本组合17个相关非浏览器文件最终228/228通过：模型/原beforeEffect/材料/进度6文件75条，以及正式资源、Images/Jelly真实MCP、Home生命周期/项目路由/删除、命令PATH、错误模型及动作合同11文件153条。首次脚本误列5个不存在的文件，且资源用例早于派生预算完成而失败；不存在的项未执行，完成派生后按仓库真实文件名补验，未改产品源码或断言。此为当前main组合的定向证据，不是本机全量或SHM/AQD完成。下一步在各writer冻结后向S/A串行整合，PPT仍等AQD+SHM实际可用head。
+
+Todo固定head b1683481b 的Chrome补验现已完成：todo.e2e 5条、side-shelf-in-hand 1条、context-toolbar-panes 3条，共9/9；首次不存在的todo-app文件名已纠正，未用它作为产品失败。PR #684正文/评论已更新而不另推文档打断CI；必需Verify、产品子集、安全检查成功，远端全量仍在跑。下段保留该提交准备时的记录，不代表这些Chrome仍未完成。
+
+W5-01 合并 #661 后复核（2026-10-18，候选 `236f3a57d`，本地定向通过）：merge 固定 main `5f03d1e4`，保留原历史和通用 Runtime 接线；生产增量仅纳入 main 的忙碌表单刷新保护，Host/合同/Images/Jelly 生产源码与原 `9892c6b9d` 一致。原 Todo +28 B、灵光 +2,231 B 的未使用额度仍合计 +2,259 B；main 已含 #661 原分支的 −71 B（旧 main 1,110,187→原 #661 1,110,116），不能再次扣除。因此本次许可重定至实际 main 1,110,056→实测 1,112,315，原消耗起点继续拒绝，没有新增额度。API/action 已按实际生成；整体构建、健康、边界与正式资源门禁通过，25 项资源共 7,476,353 B。合并后 12 个相关文件最终全部通过；其中 Jelly MCP 首轮超时，原测试串行复跑通过。错误模型测试恢复本组合原断言后 12/12 通过。此证据固定 main 5f03d1e4，尚不包含之后侧栏及 vendor 更新，不称远端 CI 或整线完成。Jelly 流错误在本组合仍按原 500/actions.execution_failed 断言；Shelf 的后续 SHM 才新增可携带回执/guard 的模型失败合同，相关 502 断言留在 SHM，不提前混入此组合。
+
+W5-01 Jelly / Images 并行前置（2026-10-18，本地定向通过，待队列与 CI）：用户要求每个插件迁移独立 worktree，plan 与已明确的实现并行、主会话 review。当前工具最多主会话加三个运行中的子代理，四个子任务负责人按依赖接续；不增加在途 PR 数、不合并、不加标签、不碰真实 Home。此候选包含模型选择前置 `e8925f8ea`、#661 `0fbc0c89e` 与已验证的后台、材料、灵光、Cognia 前置，不宣称这些候选或 #661 已合入。材料已按用户 10-18 决定顺延 S-38，主线常开插件 S-34 保留。已有 Todo +28 B、灵光 +2231 B 的许可重定至实际 main 的 workbench.js 1,110,187 B；保留组合中减少的 71 B，实测 1,112,375 B，净增 2,188 B，无新增增长授权，前序合入后只可重定仍未使用的额度。
+
+- Jelly 模型配置采用 `services.model.configuration.selection/read/save`，可信 Home 条目声明唯一 preference 文件、固定 custom provider、设置 read/save 动作引用；不接受调用方路径、身份、凭据或任意 service map。Host 消费者模型配置服务独占解释与读写模型选择，仍用原 `jelly/preferences.json` v1 和现有 ModelProvider/Connector owner；Jelly 拥有日历、笔记、设置动作/UI和消费入口。53 动作全部由 Runtime 唯一提供，受众/权限/schema不缩小；显式模型选择不回退。通用配置实现替换原 Jelly 专属 Host 实现，不留第二份设置逻辑；原 provider+preference 同步补偿保留，Connector 首次 origin pin 不随之后文件失败回滚的现有边界明确保留。配置 read/save 绑定原执行动作，所有持久效果前复核 beforeEffect、当前安装/权限/同步授权；selection 只给当前安装自身模型名字供 availability。`W5-01-JMC-01`：真实 Runtime 保原53动作/模型选择/配置格式且保存不联网。`W5-01-JMC-02`：设置专属调用、伪声明、跨安装、停用/换代/撤权/过期回调拒绝，原文件/provider/连接零迟到写。`W5-01-JMC-03`：输入等待前复制，失效选择不回退，文件失败后按现有 provider/preference/pin 各自边界断言。
+- Images 采用专用 `services.imageGeneration.connections/inspect/bind/unbind/generate`；声明在可信启动条目，保留 `("home","images",slot)` 绑定、原 v1 库与资产位置。连接和密钥仍只由 Connector owner 解释，模型只经 agent-host；输出字节交插件验证/保存，不把任务、调度或私有SQL搬入Host。inspect必须只读，assertTarget首次pin只在授权后；并发指纹只含不透明摘要，不向插件泄露密文或secret引用。生成使用既有后台授权与文件服务，前后和每次派出核原连接/权限，取消或撤权不写失败记录。`W5-01-IMGPORT-01`：无密钥loopback、有失效绑定loopback、错误服务/目标、disabled/removed及凭据/绑定中途变化均按现行边界拒绝；实际请求与结果可核对。`W5-01-IMGPORT-02`：真实Runtime当前动作/安装与后台授权检查，迟到成功/失败均零业务写，停止、重新启用、孤儿文件及最多两项运行/幂等行为实证。
+- 恢复沿现有可信 native 安装的数据库/文件生命周期授权，在新实例注册并接受任务之前把旧 running 标 interrupted、清未引用资产，绝不重派厂商；不伪造 user/action 身份，不新增恢复任务平台。项目删除保留原“同步取消该项目后台，再 purge”的语义，不能改成只等200ms轮询。公共 live-owner 接缝由主会话在现有 ProjectDeletedHooks/可信 catalog 上接线，插件只给自己的同步停止回调，停止/卸载/升级后回落原离线 purge。`W5-01-IMGPORT-03`：真实删除、固定id重建、等待中撤权/停用交错，删除回执返回前停止且之后无迟到资产/记录。
+
+整合中发现并补充的合同保持：图片生成返回当次派出检查后的 `{ images, revision }`，Runtime交付及插件写文件/任务时均按该receipt的revision复核，不能在返回后重新inspect并把新连接版本当作旧结果的版本。selection/inspect/connections供availability读取，只读检查保留安装、声明、scope、权限和取消，不再递归触发会重算availability的完整assert_authority_current；设置写、绑定与真实模型调用的beforeEffect/最终同步授权保持。Jelly保留原NDJSON planning进度和断开取消。Home插件的项目路由按Host已从路径验证的project构造本地授权，不能用无项目的目录漏掉仅项目动作的权限；未带项目、隐藏插件或失效安装仍拒绝。`W5-01-HPR-01`：真实HTTP有项目时抵达输入校验/成功动作，Home或隐藏/撤权后拒绝，不借另一项目、请求体或query授予项目身份。原完整Images HTTP/并发用例与新增Home项目路由拒绝回归共同证明。
+
+整合 HTTP 回归补充：Images 的图片预览必须内联显示、显式下载保留附件文件名；现有 Runtime bytes 一律 octet-stream 附件会使图片 UI 无法显示。公共响应补可选 disposition（inline/attachment，省略仍 attachment），Host 只保留 image/png、image/jpeg、image/webp 三种无脚本位图 MIME，只有显式 inline 才内联；其他 MIME（含 HTML/SVG）一律仍为 octet-stream 附件。所有二进制响应继续由 Host 固定 nosniff、sandbox、no-store，不接受插件 headers。`W5-01-IMGHTTP-01`：真实 Home/project HTTP 验证三种位图的内联/下载与字节、文件名，HTML/SVG及伪头仍拒绝内联；Images 实际生成→预览→下载回归通过。未知 Images 错误继续对外只给 images.internal 与原通用句，不能泄露内部路径；已知 owner/平台错误保持原码和状态。
+
+数据库声明收尾：Images/Jelly 各自以 IMAGES_DATABASE/JELLY_DATABASE 作为唯一 version/schema 定义，Runtime、离线项目清理与 Home 库目录共用；删除旧 baseline 名字及重复包装，同步发布版本表与调用测试，物理路径/版本/SQL 不变。客户端只收束重复 data-images 选择器，保持任意 selector 的 $、class 与 directory 查询路径；用于抵消完整插件路由带来的 44 B，不修改压缩器或资源上限。
+
+动作合同收尾：Images jobs.start 因 Runtime 后台受理改为 concurrent、增加 model:invoke 并声明后台状态追踪，按当前合同规则升到 version 2；输入输出和 request_id 幂等形状保持。客户端、HTTP和连接使用位置从同一 imagesActions 引用取版本；MCP 当前工具为 images.jobs.start__v2，旧版固定引用失效并要求重新选择，不加兼容别名或改真实Home。只读MCP客户端须在当前v2仍被拒绝，v1不再发现；动作快照显式登记这一版本变化。
+
+项目清理接缝：HomePluginHost 用目录原 project_data 的 owner、label 与 purge 注册既有 owner 栈的 wrapper；clear 从 Runtime 取当前已发布 contribution，同步调用可选 onProjectDeleted 后立即执行原 purge，中间不 await。可信声明按 definition 对象冻结并在正式发行物恢复时传递；无声明却返回回调、异步回调均拒绝。回调仅取消本实例内存任务，不授予写库/文件权；停止/卸载期间无 contribution 即走原 purge，Home 释放在实例停止后恢复原 owner。Images 在第一个 await 前登记受理取消信号，删除与固定 id rebuild 后旧信号不可复活；已写入但尚未引用的文件按启动恢复清理，不宣称回执当刻全部收回。`W5-01-RPC-01`：同步取消先于 purge、当前代次投递及 close 恢复原 owner；`W5-01-RPC-02`：缺可信声明、原声明被变更、异步回调及抛错均真实拒绝或保持冻结身份，拒绝不执行 purge；`W5-01-RPC-03`：受理等待/文件提交交错、旧任务晚到与恢复按 IMGPORT-02/03 实证。
+
+实施边界：配置合同与其Runtime gate/Host owner、图片合同与其Runtime gate/Host adapter可分别准备；共享 plugin合同出口、可信identity、Home executor、catalog、公开API/动作快照、SSOT、安全表与资源由主会话串行。两项新服务仅接当前 Home 消费方，不为项目执行器预埋。插件迁移各自独立worktree，平台前置与插件切换分提交，先冻结合同再整合消费者。验证先整体build，再各包README、真实临时Home/Host/Runtime、定向Chrome、boundary、merge-base health、API/actions与实测资源；共享全量交统筹CI，不在本机跑全量。尚未实现/运行的编号不记通过。
+
+本片验收：W5-01-JMC-01～03、IMGPORT-01～03、HPR-01、IMGHTTP-01、RPC-01～03 的真实临时 Home/Runtime/HTTP/MCP、并发拒绝和持久化路径通过。最终整体构建、API/动作快照、boundary、完整 merge-base health 与资源通过；健康快查收紧为 136 个巨大单元、486 处测试内部引用、20 个插件专属 Host 文件、20 处 registerProvider、393 处插件包外点名。25 项资源共 7,476,413 B，其中 Images 22,458→22,212 B、Jelly 91,233→91,167 B。135 个包要求及相关非浏览器文件首轮 133 通过：Images MCP 仍找旧 v1、发布版本表未识别重复包装声明两项已按上述现行合同修复，并在补充批通过。安全/合同与变更重验 103 文件首轮 102 通过；assistant-thread-reply 第二条在 fetch 收到 ECONNRESET，原代码单独复跑 3/3 通过，没有改断言或超时。5 个真实 Chrome 文件 19 条通过（configured-text、content-context-regressions、model-ready-surfaces、plugin-sample、images-actions）。保留 plugin-sandbox-network 原环境条件跳过 1 条；没有据此声称所有环境已覆盖。
+
+运行证据：`/tmp/molis-runtime-migrations-{required,completion,browser-final,final3-build,health-final2,boundary-final2,assets-final3}.log` 与 `/tmp/molis-runtime-assistant-recheck.log`。这批验证使用本机受控供应商和隔离 Home，证明配置/授权/真实请求及结果保存的调用链，不代替真实外部厂商、一骏本人体验或最终 CI；本机全量未运行。后续仍需按原队列逐插件接实际 main、正式 CI 与 PR 交付，整个 W5/W6 未完成。
+
+W5-01 模型选择前置（2026-10-17，Codex，本地定向通过，待前序与 CI）：Jelly 的现行 `preferences.json` 保存独立的供应商/模型选择，Shelf 也有逐次选择；Runtime 的 `services.model` 目前只用默认模型。迁移不能丢掉人的选择，因此先补公共服务的精确选择入口，目标为功能可用并由真实 Host/Runtime 与本机模型替身验证。`availability(selection?)` 和 `complete(prompt, { selection })` 只收已有目录中的 `provider_id`、`model_id`；不指定时沿用默认选择，指定后找不到、停用或连接失效均拒绝，不落到另一供应商或环境模型。选择在任何异步等待前复制，调用途中改原对象不改变本次目标；凭据、地址及模型配置仍由 Host 持有，派出前与返回后的现行授权/连接检查照旧。
+
+范围为 contracts 的 `plugin-model`、Runtime `model-service`、Host `plugin-model-service`、对应测试/API 快照与开发说明；不修改 Jelly/Shelf 的 UI、偏好格式、库版本、专用配置入口、连接管理或 Prologue SDK，也不触碰真实 Home。Jelly 的偏好存储与专用供应商管理仍是后续迁移依赖，本片不冒称 Jelly 已迁完。基于已验证后台授权候选 `46058ab7b` 本地准备；#661 定形后的连接启停语义由其公共 Host 路径继承，不复制到 Runtime。
+
+验收：`W5-01-SEL-01` 两个已配置模型下，默认调用保持原选择，显式选择只到目标模型，状态标签也对应目标；`W5-01-SEL-02` 无效形状、目录缺失、已停用/断开的目标均不发模型请求，不因另一个模型可用而回退；`W5-01-SEL-03` 等待授权时修改原选择不改变此次请求，撤权/取消与连接变化仍阻止派出或交付结果。以隔离 Home 的公开配置 HTTP、真实 Runtime 动作、本机替身请求记录和拒绝后零请求/零业务写入证明；运行 `tests/plugin-model-selection.test.ts`、`tests/plugin-model-service.test.ts`、`tests/home-plugin-model-lifecycle.test.ts`、`tests/security-invariants-plugin-model-progress.test.ts`、`tests/host-configured-text.test.ts` 与包必跑定向批次。整体构建、API 快照、boundary、merge-base health 和资源检查通过后提交本地候选；共享核心全量仍由统筹在 CI 排，不新增第三个在途 PR。
+
+本地验证：整体构建、API 重生成、boundary、merge-base health 与资源通过；资源仍为 25 项、7,480,612 B，本片增量 0。首批 5 文件 51 条（新选择测试 4 条）与相关包补充 83 文件 954 条全部通过，共 88 文件、1,005 条、0 失败/跳过；日志 `/tmp/molis-model-selection-{targeted,required}.log`，用例清单 `/tmp/molis-model-selection-required.json`。新测试 4 秒且无 Linux 限制，加入 CI 产品子集，Linux 实跑仍待发布后的 CI。`W5-01-SEL-01/02/03` 的功能与拒绝路径均已由真实 Host/Runtime、本机模型替身验证；不代表真实外部模型、Jelly 迁移或整线验收通过。未运行本机全量；共享核心全量由统筹安排。
+
+材料服务编号（2026-10-18，用户确认顺延）：Runtime 材料服务原顺延为 S-38；main 7faaa027c 的 SDK 命令路径规则现占 S-38，本地整合沿原顺延原则将材料改为 **S-39**，保留 main S-34～S-38。安全表与对应拒绝测试同步；以下旧验证中的 S-33/S-34 只表示当时编号，保留原运行事实。本次不改变授权、行为或断言；材料候选在前置合入后接实际 main，旧基点没有的中间编号不补造条目。其他在途分支的编号由其 owner 接当前 main 排列。
+
 
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
@@ -146,6 +332,23 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 - 测试：`tests/host-log-catches.test.ts`：`W5-13-04`（项目查找只把 not_found 当没有，目录读不了与别的目录错误照抛）、`W5-13-05`（预览失败按类型记，forbidden、not_found 不记，消息与路径不进日志）、`W5-13-06`（Coding 后台清单，经宿主的真实接线：没有 Coding 的项目不记，读不了的库开始失败时记一条、读通后再失败再记；没有 Coding 的库用不带 Coding 表的空库——演示看板会建 Coding 的表，用它就量不到这一条；去掉接线里的询问即红）、`W5-13-08`（重复失败只在开始时记）、`W5-13-11`（项目简介与侧栏浏览器：没有这个项目仍是 404，目录读不了是 500 并记一条，服务照常答下一个）；`tests/im-local-project.test.ts` 的 `W5-13-11`（群聊连接：目录读不了 500，没有这个项目仍 403，之后照常连上）；`tests/connector-mcp.test.ts` 的 `W5-13-07`（重启后一个连接登记失败按 id 记，另一个照常登记）。变异检查：项目查找改回全捕获（04 失败）、预览不分种类（05 失败）、重复失败不去重（06、08 失败）、连接登记改回静默（07 失败）、Coding 去掉表检查（06 失败）。
 - 门禁：`--base origin/main` 通过；新加的几行没有留在巨大单元里（移到模块级小函数或同行注释），巨大单元的行数不变。
 
+W5-01-PPT 正式 Runtime 迁移（2026-10-18，本地实现与复审收口，待主线整合与 CI；merge 公共 head `dfc21df3b`，未推、未开 PR）：
+- 范围：PPT 从构建期宿主适配器迁到每个项目一个 Plugin Runtime 实例；库仍是 `{home}/ppt/ppt.db` 的 `PPT_DATABASE`，动作、11 条 HTTP 路由和成果发布改走 Manifest/`bindPluginActionRoute`/`services.artifacts`，Pages 读取走 `services.actions.invokeQuery`，模型走 `services.model.complete` 的完整结果；删除宿主 `ppt-actions.ts`/`ppt-native-plugin-http.ts`/路由表与提供方接线，目录条目只保留 UI/client/styles。
+- 不变：1–39 页可追加、满 40 页才拒绝、title-only 页保留、replace 语义；原 `ppt.db` v1、两表、`project_id` 分区、发布意图/完成两阶段与恢复；动作 id/version/schema/scheduling 不借迁移改。
+- 验收：`W5-01-PPT-01` 项目 Runtime 装配、Home 库/旧数据、目录与冻结名单；`W5-01-PPT-02` 动作与 11 条路由经 Manifest/SDK，旧 `/api/ppt` 404、未知 id `ppt.not_found`；`W5-01-PPT-03` 发布两阶段、成果身份/恢复、actor 隔离、重启后保留；`W5-01-PPT-04` Pages 读取保留原 caller/audience/allowlist，text-only 不依赖 Pages，不无条件 required_actions；`W5-01-PPT-05` 模型返回完整 `validateResult`，事务同步回调首条业务 SQL 前调用，失败不写、撤权不记失败业务数据；`W5-01-PPT-06` 1–39/40/title-only/replace 行为；`W5-01-PPT-07` HTTP/MCP/Agent 原入口授权，克隆 control/命令/别安装拒绝；`W5-01-PPT-08` 定向用例、build、boundary、health、page-assets、动作/API 快照、assembly gate 与包清单。
+- 证据（2026-10-18，本地；公共 head `dfc21df3b` + PPT Store `db4ab7244`）：整体 `pnpm build` 71 包通过；`ppt-actions` 5/5、`ppt-store` 3/3、`ppt-subject-kind` 1/1、`creative-tools-plugins` 8/8、`creative-artifact-promote` 2/2、`document-plugins-limits` 9/9、`project-deletion-owners` 12/12、`document-plugins-error-model` 17/17、`ppt-promote-authority` 1/1（原 6 个取消/撤权交错 + 正常对照；下述 root 复核扩为 8 个）、`document-pin-after-move` 13/13、`web-route-table` 1/1、`builtin-plugin-assembly-gate` 6/6、`ppt-mcp` 1/1、`action-contract-snapshot` 25/25、`plugin-client-served` 3/3、`artifact-compare-moved` 与 `content-owner-regressions` 通过；真实 Chrome 的 `ppt-actions.e2e` 1440/390 2/2、`content-editing-regressions.e2e` 9/9、`model-ready-surfaces.e2e` 12/12。`boundary:check`、health（merge-base `7faaa027`）、page-assets（25 项 7,476,529 B）、`verify-release-versions` 通过；日志见 `logs/ppt-runtime-*.log`（`p1-tests`、`document-limits`、`document-pin`、`readme-browser`、`e2e-final`、`health-0a9237ced`）。
+- P1 修复（2026-10-18，`ppt-runtime-a414-review.md`）：发布的两个业务事务都重新等待原 caller `beforeEffect`，并在同步 SQL 前检查原 `signal`/`assert_authority_current`；`begin` 提交到 `artifacts.publish` 之间增加同一原 caller 的 `beforePublish` 等待。root 复审发现外层 await 仍可在回调尾检后失权，已在实际同步 publish wrapper 紧前复核 current。`tests/ppt-promote-authority.test.ts` 的 `W5-01-PPT-07` 用实际 `createPptPlugin` + 真 SQLite `PptStore` + 可控 database/artifact 阶段，覆盖入口后到begin SQL、begin后到publish、异步publish检查成功后到真实publish、artifact后到complete SQL四个交错点，分别取消与撤权，并验正常对照；新增微任务用例在旧 `9198c2d3c` 构建上稳定失败（本应零发布却发生一次），补 wrapper 后通过。已合法提交的 pending/artifact 保留，后续阶段零新增。整体 build、4 个相关文件 21 条测试及 merge-base health/boundary 通过，原始日志 `/tmp/ppt-authority-final-tail-{before,build,tests,health,boundary}.log`；该测试使用真实插件与 SQLite、受控授权阶段，未声称外部进程全链验收。
+- 未做/未验：推送、PR、合并、标签；`api` 快照的公共 AQD/SHM 变化由 root 持有，不在这片改；真实 Home 未动。
+- 待办：正式 head 的基线/同步顺序由 Codex 定；本地实现完再做完整回归，不推送、不开 PR、不自行合并。
+
+W5-01-PPT 纯 Store 准备（2026-10-18；Codex 允许先做包内 Store；工作树 `feature/w5-01-ppt-store`，未推、未开 PR）：
+- 范围：PPT 仍按每个项目一个 Runtime 的目标；本片只改 `plugins/native/ppt/src/store.ts` 的窄 SQL 端口（`PptSql`/`PptStores`/`ownPptStores`）与唯一 `PPT_DATABASE`（`store_name: "ppt"`、version 1、原 schema 与列顺序不变），`openPptStore` 保留同一 Store 的本地连接适配；`PPT_HOME_STORE`、`project-data.ts` 与发布库版本表引用同一份 `PPT_DATABASE`，删除 `PPT_STORE_BASELINE` 别名。
+- 不变：原 `{home}/ppt/ppt.db`、`project_id` 分区、三阶段发布、动作 id/版本/权限、Manifest/路由、Pages 读取、模型调用、宿主接线与目录条目。不改 Host 或包外调用方。
+- 验证：现有 PPT Store 消费者（actions、MCP、placement、project deletion、creative artifact）保持；`PPT_DATABASE` 与 Home baseline、`docs/releases` 版本表一致；health 对照 merge-base。
+- 证据（2026-10-18，本地；基于 `origin/main 7faaa027`，未带 Dataset 分支的宿主改动）：`pnpm --filter @molis-ai/molis-work-plugin-ppt run build` 通过；`tests/ppt-store.test.ts` 的 `W5-01-PPT-STORE-01`–`03` 3/3（唯一声明与 Home baseline 一致；`ownPptStores` 经原 Store 读写；真实原库的 duplicate/receive 中途失败回滚，无半份 deck/receipt；`beforeEffect` 拒绝时回调未进入、库不变）；`ppt-actions` 5/5、`ppt-subject-kind` 1/1、`project-deletion-owners` 12/12、`creative-tools-plugins` 8/8、`creative-artifact-promote` 2/2、`ppt-mcp` 1/1；`verify-release-versions` 的 29 个库表行与代码一致；`pnpm boundary:check` 通过；health 对 merge-base `7faaa027` 通过。原始日志在交接通道 `logs/ppt-store-tests.log`、`logs/ppt-store-port-test.log`、`logs/ppt-store-health.log`。
+- 未做/未验：Manifest 路由、Pages/模型调用、宿主接线、动作/API 快照、page-assets 都未动；没有 UI 变化，未跑浏览器与真实 Home。
+- 待办（另片）：公共动作委托、`validateResult` 集成、Manifest 路由、Pages/模型调用、宿主接线删除与调用方迁移；等 Codex 的实际基线与 spec 编号。
+
 W5-01-DATASET（2026-10-18，本地候选已审（Codex 10-18 裁定代码候选无 Blocker/P1，文案收尾后等待整合），工作树 `feature/w5-01-dataset-runtime`，未推、未开 PR；等 #684 合入后的空位）：
 - 范围：Dataset 从构建期装配迁到 Plugin Runtime，每个项目一个实例；库仍是 `{home}/dataset/dataset.db`，项目分区、目录条目与 `project_data` 不变。不改成 Home 单实例，不动其他插件。
 - 包：`store.ts` 的 SQL 端口（`DatasetSql`/`DatasetStores`/`ownDatasetStores`）与 `DATASET_DATABASE`；`actions.ts` 读/写分开；`promote.ts` 三段写（intent → publish → complete）；新增 `plugin.ts` 与 13 条 Manifest 路由（`/datasets…`），`max_body_bytes` 保持 1,000,000 B，CSV 的 2,000,000 字符仍是动作层限制；导出 `createDatasetPlugin`/`DATASET_DATABASE`，删旧 `routes.ts`/`route-handlers.ts`。
@@ -161,10 +364,168 @@ W5-01-DATASET（2026-10-18，本地候选已审（Codex 10-18 裁定代码候选
 - **范围**：全仓 71 个 workspace 包（2026-10-08，`scripts/workspace-packages.mjs` 的 `WORKSPACE_PACKAGES`：`apps` 6、`horizontal` 8、`modules` 13、`packages` 10、`plugins/native` 26、`plugins/official-integrations` 6、`server` 1、`tooling/plugin-cli` 1）。开工时是 73 个，`modules/execution` 与 `modules/evidence-verification` 随 #268 删除；2026-10-10 实验插件删除（`plugins/native/experiments`）后曾为 70 个；Issue 加入后恢复为 71 个，`plugins/native` 26（I6 `af0fe957` 的登记表与代码重算）。每个包都至少做一次结构审查，交出 §5 的包级清单。
 - **在途的其他线**（开工前要重新核对）：`feature/side-shelf`、`feat/plugin-picker-pins`、`docs/archive-project-arrival-flow`、`feature/fix-project-management-freeze`（另一工作树）、Codex 工作树 `~/.codex/worktrees/d62d`。
 
+W5-01 流式路由（a）（2026-10-17，Codex 接手继续，未验收）：保留已实现的 Runtime 路由、Home 项目身份与统一动作目录，补齐 Host 的 NDJSON 传输。仅声明 `stream: "ndjson"` 的 POST 路由启用；插件只发进度，Host 写唯一的结果或错误末行。单行至多 65,536 字节、进度至多 10,000 行且合计 1,048,576 字节，超限取消并返回 `actions.output_invalid`。按已接受的交接方案，单路由显式声明的请求体最大值为 36,000,000 字节，未声明的默认上限不变。项目与 Home 共用传输，断连、停用或撤权后结束等待，晚到的处理器不得写业务记录；实例观察器在成功、失败和取消时释放。进度单独传入动作客户端，保持 Host 发出的执行控制对象身份不变。
+
+范围为 contracts、plugin-sdk、plugin-runtime 与 local-host 的路由、模型文本进度及配套测试、开发手册和 S-03；不迁业务插件、不改真实 Home、不改页面资源或门禁上限。先在隔离 Home 上验证真实 HTTP 和写入拒绝，再按机器槽位整体构建、跑相关包要求与安全回归；共享核心全量交统筹的 CI 标签链。验收与验证记录如下。
+
+2026-10-17 接续整合：按用户「直接接续，不浪费时间」继续本片，四个流式路由提交已重放到 Todo #684 的最新候选 `8738385e3`，未改动本片业务实现；唯一冲突为本 spec 的整线状态句，保留最新状态。已开草稿 PR #703，以 Todo 分支为基线仅展示本片差异供审阅，保持 Todo → 流式路由的合入次序和至多两片在途。Todo 合入后再移到实际 main，改 PR 基线并交正式 CI；不加标签、不自行合并。整体与 workspace 构建、merge-base health、boundary、API 和资源检查已通过，25 项资源共 7,479,372 B，与 Todo 候选相同；当前组合的包要求与安全回归 162 个非浏览器文件全部通过（1,538 条通过、1 条原有沙箱环境跳过）；插件作者从打包 SDK、CLI 脚手架到安装后的真实 Chrome 成果与私有界面用例 1 条通过，共 163 文件、1,539 条通过、1 条跳过、无失败。共享核心全量仍由统筹在 CI 排。
+
+迁移前核对灵光的模型调用发现，现有 `services.model` 没有传递文字增量，会丢失现有的生成中预览。本片补可选的 `PluginModelRequest.onText(delta)`，Host 只把现有模型端口的 `text-delta` 传给它；Runtime 每次同步核对本次调用与安装仍有效、请求未取消，模型请求结束后关闭回调。插件仍负责把文字转换成自己的动作进度，不改模型提示词、配置、限额或业务存储。新增公开入口测试验证顺序、非文本事件过滤、取消/撤权/停用/模型结束后的拒绝与无晚到业务写入，随后重跑受影响的模型、动作与 Runtime 包回归。
+
+### W5-01 流式路由验收
+
+| 编号 | 场景与必须成立的行为 | 本地证据 |
+| --- | --- | --- |
+| RAC-20 | `W5-01-STREAM-01`：真实动作进度先于唯一结果或错误末行；JSON 路由不获得 emit；Home 路由的可信项目身份保持；模型文字增量按原顺序交给插件，非文字事件不转发 | 路由：`tests/security-invariants-plugin-route-stream.test.ts`、`tests/security-invariants-home-route-project.test.ts` 通过；模型：`tests/security-invariants-plugin-model-progress.test.ts` 通过 |
+| RAC-21 | `W5-01-STREAM-02`：Manifest 拒绝非法 stream 和请求体上限；36,000,000 字节可进入，超一字节在处理器前以 JSON 413 拒绝 | `tests/security-invariants-plugin-route-stream.test.ts`、`tests/plugin-declaration-rules.test.ts`，通过 |
+| RAC-22 | `W5-01-STREAM-03`：伪造末行字段被丢弃；单行、行数和总字节超限均取消且只出一个错误末行 | `tests/security-invariants-plugin-route-stream.test.ts`，通过 |
+| RAC-23 | `W5-01-STREAM-04`：Home 与项目流在断连、停用、撤权和升级后结束；原处理器仍被阻塞时连接已结束，释放后业务写入被拒；恢复后存储无晚到数据；模型文字回调在取消/停用/撤权/请求结束后拒绝 | 路由：`tests/runtime-plugin-http-discovery.test.ts`，8 种真实 HTTP 中断通过；模型：`tests/security-invariants-plugin-model-progress.test.ts` 通过 |
+| RAC-24 | `W5-01-STREAM-05`：反复成功、抛错、取消、停用后计时器均回到零；停用后 emit 当场拒绝 | `tests/plugin-route-stream-lifecycle.test.ts`，通过 |
+
+2026-10-17 灵光实接发现的 RAC-23 缺口：`supervisor.revoke()` 已返回而 Runtime 的停止仍在队列里时，同步文本回调原先仍能通过。停止请求现在同步撤销当前 activation 的 grant 与动作注册，清理 hook 保留原上下文并按原队列执行；不新增生命周期状态或绕过串行队列。`security-invariants-plugin-model-progress.test.ts` 的 `supervisor-revoke`、`stop-request` 在任何 await 之前断言文字被拒，并验证迟到结果不写业务记录及重新启用可恢复。 整体构建、23 个相关文件 481 条用例与 merge-base health 通过。
+
+本地定向验证：整体构建通过；上述 4 文件 27 条，加 Home 平台、Home 模型生命周期、共同路由操作与 SDK 路由适配 4 文件 23 条，共 8 文件 50 条通过。构建搬迁后失效的 Swift PCH 缓存已在本工作树内清理并重建。公开 API 快照、包边界和页面资源预算检查通过；另跑相关包 README 要求与安全集共 150 个非浏览器文件：149 个初次通过；`plugin-declaration-rules` 的两条旧 12 MiB 断言按已批准合同改为 36,000,000 与超一字节后，整文件 265 条通过。该批最终 1,416 条通过、1 条沙箱环境用例按既有条件跳过；插件安装浏览器用例 1 条通过。merge-base health 与快查基线更新通过，无门禁数字增长。共享核心全量尚未由 CI 验证，本片未完成合入验收。
+
+本片复用 SDK 已有 `createExecutionLifetime` 取消等待，Home/项目均保留原执行控制对象。按 10-17 最终交接，浏览器统一读流器留到第三片灵光迁移，在 `ui-host` 的 `molisWorkRequest.stream` 接入，不在本片新增 Node SDK 读取器；当时同时删除灵光的旧解析器并按实测资源变化报批。
+
+合入 Todo 的最新候选 `ce6d460108`（含 main `9626b24b1`）后，模型预览补齐并在真实 Host 的隔离 Home 中通过 8 条拒绝/交付测试；新测试归入 S-18 与安全回归。此次受影响的路由、模型、Runtime、授权和 Todo/Form/Characters 消费路径共 36 个文件、589 条通过；补验安全文档 1 条通过。命令里一度写了不存在的 `todo-ai-assist` 文件，已换成仓库实际的 `todo-organize` 与 `todo-actions`，无产品测试失败。整体与工作台构建、boundary、公开 API、merge-base health、25 项页面资源预算通过；没有新增页面资源。前一批 150 文件与浏览器验证仍作为此前路由实现的证据，共享核心最终组合全量由 CI 验证。
+
+### W5-01 材料服务前置片（2026-10-17，实施中）
+
+2026-10-17 接续整合：材料候选的实现与编号提交已重放到流式路由候选 `7a4c2c04a`，保留 Todo 与流式路由的现行实现、S-32 / S-33 及各自验收记录。S-13 同时保留主线对象引用题说明与材料来源说明，材料使用用户指定的 S-34。本片仍仅本地准备，不增加第三个在途 PR；新在途 #699 也声明 S-34，编号归属须在材料开 PR 前交用户转达统筹协调，当前不改动其他线。此次只整合已有实现，产品源码增删与原材料提交一致。整体与 workspace 构建、API 重生成（无额外差异）、boundary、merge-base health、资源检查通过；25 项资源共 7,479,366 B，较流式路由少 6 B。当前包要求、材料消费者与完整安全清单 181 个非浏览器文件全部通过（1,688 条通过、1 条原有沙箱环境跳过），真实 Chrome 插件安装用例通过 1 条，合计 182 文件、1,689 条通过、1 条跳过、0 失败。完整安全表与材料权限/下载/撤权拒绝均已通过；下方旧基点缺 S-32 的记录仅保留为历史结果。共享核心全量与最终 main 组合仍待 CI 验证。
+
+目标是让 Host 执行的 Runtime 插件在自己的并发动作里调用平台已有的材料读取口，达到功能可用；本片不迁灵光的装配和浏览器流读取器，不搬真实 Home 数据，不新增材料存储。`contracts/services/materials`、`material-extraction.ts` 是材料提取的事实与实现来源，Shelf、Artifacts 和项目上手已共用；不能因旧包装文件带 Jelly 前缀就把它归给 Jelly。
+
+用户决定的经过：第一次询问错误地把已有实现说成 Jelly 的代码，用户据此前提选择归 Jelly；核对上述共同入口并更正前提后，用户选择「照现状归平台（推荐）」。因此本片给 `PluginHostServices.materials` 接现有平台能力，保留 `{home}/lingguang/models` 缓存位置，在 `HOME-DATA.md` 写清归属，搬目录作为后续维护。
+
+合同与边界：`materials:read` 只给 `extract(source, options)`，输入为文件名与已授权字节，不接受路径；`materials:fetch` 只给 `readSource(url, options)`，沿用公开地址、DNS/重定向和容量限制。两项独立声明；沙箱定义与升级预检拿不到服务。运行时从 `currentPluginAction()` 取安装、动作、调用者、取消与授权，不接受插件传入身份，要求自己安装的并发动作声明对应权限，每次外部副作用前与结果返回后重查。`allowModelDownload` 只有可信 `caller.audience === "user"` 且明确为 true 才传给底层；其余来源按 false，不因为业务参数中写了身份而放行。
+
+上传检查只在 SDK 的 `decodeMaterialUpload` 实现：文件名、支持格式、规范 Base64、非空与 25 MiB；Host 和插件共用。公开来源读取实现去掉 Jelly 前缀，错误由材料服务拥有；灵光现有调用方同步识别 `material.model_required`。已有文件/来源提取结果的业务形状保持，缓存与原生 helper 位置保持。生产调用链核对显示旧 `extractJellyMaterial` / `readJellyMaterialSource` 只被灵光使用，不保留无人消费的 Jelly 错误转译层。现有来源解析测试保留文件名以保留逐文件内部引用预算，内容与用例名改成平台语义；不为重命名增加公开 API 或门禁例外。
+
+允许修改：contracts 的材料与插件服务合同、SDK 上传工具、Runtime 的材料权限绑定、Host 材料入口与服务装配、灵光当前材料调用与错误识别、对应测试/手册/Skill/安全表和 API 快照。错误主人新增路径仅登记新增的 SDK 工具，不改变已有文件的主人。原生格式提取与业务内容转换不重写。改合同后整体构建、API 快照、包 README 要求的相关测试、安全集、boundary/health（对 merge-base）、页面资源实测；全量由统筹在 CI 排。
+
+| 验收编号 | 应有行为 | 证明方式 |
+| --- | --- | --- |
+| RAC-25 | 服务按 read/fetch 分别暴露；未声明、撤权、沙箱、启动/路由/外来安装、串行动作不能调用 | `tests/security-invariants-plugin-materials.test.ts`，正式 Runtime 与拒绝断言 |
+| RAC-26 | 只有 user 的明确同意允许模型下载；agent/mcp/workflow/plugin 带 true 仍不下载 | `tests/security-invariants-plugin-materials.test.ts`，记录传给真实服务端口的选择并验证缺模型拒绝 |
+| RAC-27 | 取消、停用、升级、撤权与动作结束后，材料返回与业务写入均被拒绝；外部请求前重查 | `tests/security-invariants-plugin-materials.test.ts`，制造等待交错并检查调用数与持久化结果 |
+| RAC-28 | 上传检查唯一且拒绝路径、坏扩展名、坏/非规范 Base64、空内容与超过 25 MiB；合法材料仍可提取 | `tests/material-upload.test.ts`、现有材料提取用例 |
+| RAC-29 | 公开来源地址、重定向、解压容量与各来源解析行为保留；现有灵光路径使用平台错误 | 现有 `tests/jelly-source-providers.test.ts` 与材料/灵光回归 |
+| RAC-30 | 服务只读文件名与字节；模型缓存位置不变且授权失效后没有下载或业务记录 | 材料集成拒绝测试、HOME-DATA 记录与实际 diff 复核 |
+
+当前证据（2026-10-17，Codex）：材料服务已接入项目与 Home 两种执行器；合入 main `9626b24b1` 后整体构建和工作台构建通过。9 条实际 Runtime/Host 服务测试通过，覆盖五类调用方的下载授权、按权限暴露、沙箱/预检、外来安装/过期调用，以及取消/停用/撤权/升级后的零业务写入。相关包 README 要求、安全集与实际材料消费者共 170 个非浏览器文件，169 个通过，唯一失败为 `security-invariants-doc`：S-33 前面缺等待 #681 的 S-32；merge-base health 同样仅此一项失败，不通过填空行或改门禁跳过。插件作者从打包 SDK、CLI 创建项目、安装到真实浏览器成果和私有 UI 的用例通过。SDK 上传边界与来源拒绝、现有材料和灵光回归通过；灵光脚本减少 6 B，page-assets、boundary 通过。前序合入后同步并复验安全表；全量待统筹在 CI 排，尚未开 PR。RAC-25–30 不替代整线 RAC-01–19 的最终裁决。
+
+### W5-01 灵光迁到项目 Runtime（2026-10-17，实施中）
+
+2026-10-17 接续整合：按用户继续推进后续工作及启用本会话 Goal 的要求，将本片三个独立提交重放到已验证的材料候选 `17c99cef1`，旧分支保留可恢复引用。业务源码增删与原实现 `fa0348ed5` 一致；安全表保留主线 S-32/S-33 与用户指定的材料 S-34，仅将灵光实现位置改到插件。已批准的 workbench.js +2,231 B 按材料候选的 1,109,330 B 起点重定为 1,111,561 B，既有耗用起点全部保留并追加 Todo 的 1,109,302 B；整体/workspace 构建、boundary、对材料基点的 merge-base health 与快查下调已通过，API/动作快照重生成无额外差异。资源实测 25 项共 7,480,872 B，对材料基点门禁通过，保持原批准额度。当前组合 150 个非浏览器文件全部通过（1,433 条通过、1 条原有沙箱环境跳过），9 个真实 Chrome 文件全部通过（41 条），合计 159 文件、1,474 条通过、1 条跳过、0 失败；完整安全表与原来缺号的文档断言均通过。下方初次实现与旧安全表缺号的运行记录保留为历史证据。当前只做本地整合，不增加第三个在途 PR；后续仍按实际合入顺序接 main，完整 CI 由统筹排。
+
+本片接在流式路由/模型文字进度（RAC-20–24）与平台材料服务（RAC-25–30）之后，恢复现有灵光完整动线。按 §1 的 2026-10-10 决定，灵光每个项目一个 Runtime 实例；保留 Home 中 `lingguang/lingguang.db` 的基线 1、稳定 ID、项目分区、请求幂等、跨项目移动/复制、对话快照比较与项目删除清理。AI 仍使用原登记指令、所选灵光和历史，经同一个 Host 模型服务；文字先作预览，只有模型完成且原材料、调用权限仍有效才成对保存消息。失败、取消、停用、撤权和重启均不留下半轮消息。
+
+实现边界：插件提供 `createLingguangPlugin`、数据库声明与 Manifest 路由，经 `project-plugins.ts` 的监督器装配。存储改用读端口和带 `beforeEffect` 的 Runtime 事务；独立连接只供现有维护/测试入口，SQL、表、数据归属不变。模型接 `services.model`，读取上传/链接分别接 `services.materials.extract` / `readSource` 与 SDK 的唯一上传解码器；动作补上对应材料权限，既有 id、输入输出和提供方不变。工作流内容处理器走当前实例的共同动作客户端；先由原调用的 `retainAuthority` 核对目标业务动作的权限与限定名单，后续写入持续检查该授权及原调用控制，不能借实例自己的授权扩大原调用范围。删除 Host 的灵光专属动作/HTTP 适配、插件的旧路由表与流封装，现有 `/api/lingguang` 停用；页面改用项目下 `/api/plugins/io.molis.work.lingguang/sparks…`，业务参数中的异项目身份仍拒绝。
+
+浏览器统一读流器在 `ui-host` 的 `molisWorkRequest.stream` 实现，继承共同请求器的同源、令牌、一次性键和取消控制。按 UTF-8 与跨块分行解码，只向调用者发进度，以唯一结果/错误末行结束；非成功 HTTP、无末行、无效行与中途断开均失败。灵光删除自己的 `postStream`，保留编辑输入、生成中预览、模型下载同意与可恢复错误。空白灵光离开时的软丢弃、版本冲突、工作台导航/刷新与保留输入行为保持。页面资源已实测并获用户批准（2026-10-17 弹窗答「放行这 2,231 字节（推荐）」）：以 Todo/材料前置为基准，workbench.js 1,105,181 → 1,107,412（+2,231 B），lingguang.js 26,110 → 25,385（−725 B），合计 +1,506 B；门禁只在这个起点放行一次，前置实际合入后重新核对起点，不增加额度。不开新的业务页、不动真实 Home、不改提示词、不迁其他插件。
+
+允许修改：灵光包、上述 Host 装配/路由删除、ui-host 请求器与其 UI 合同、工作台目录的路由基址、受影响测试/开发手册/安全表/动作与 API 快照、包清单判定。共享核心全量由统筹在 CI 排；本地先整体构建，跑包要求、真实 HTTP 与浏览器用例、boundary、merge-base health、actions/API、资源与 secret 检查。和 #661 的 `project-host.ts` 改动位于不同注册段；合入时按最新 main 复核。页面资源沿既有批准流程处理；材料服务 S-34 随前序同步 main #681/#695 的既有安全编号后复验。
+
+| 验收编号 | 应有行为 | 证明方式与状态 |
+| --- | --- | --- |
+| RAC-31 | 唯一 Runtime 装配；项目真实 HTTP 完成创建、编辑、列表、材料提取、打开/继续对话；旧路径 404，伪造项目被拒 | 新 Runtime 路由集成与装配门禁，`lingguang-plugin`、`lingguang-actions`、`lingguang-mcp` 通过 |
+| RAC-32 | 原库与数据不变；请求幂等、移动/复制、版本冲突、搜索/工作流/MCP、项目删除保持 | 现有 store/actions/MCP/删除与内容回归，灵光动作、存储、内容与项目删除用例通过 |
+| RAC-33 | 文件与链接读取经平台，五类 audience 的下载同意规则保持；提取不写灵光，36 MB 请求边界保留 | 真实 Runtime 材料与拒绝用例，材料读取及 SDK/Runtime 拒绝用例通过；前置材料服务 S-34 在同步含 S-32/S-33 的 main 后复验 |
+| RAC-34 | 模型预览先到；模型失败/空回复/材料变化/取消/停用/撤权后无半轮、无晚到写入；恢复后继续可用 | 延迟模型、真实 HTTP 中断与数据库重开检查，停用、重启、调用者撤权及安装同步撤权通过；真实 HTTP 断连后迟到进度被拒，恢复轮正常保存并在重开库后可读 |
+| RAC-35 | 统一浏览器流读取器处理跨字节/跨行块、唯一末行、HTTP/解析/中断错误与取消；控制头只给同源 | ui-host 单元与安全边界用例，6 条流读取用例、同源拒绝与 3 个浏览器公共请求文件通过 |
+| RAC-36 | 真实页面创建、文件/链接读取、预览与对话、编辑冲突、空白丢弃、刷新/返回路径正常；页面资源按批准值 | 现有灵光/编辑/小体验浏览器用例与实测，灵光、内容编辑、小体验、产品体验及公共请求共 7 个浏览器文件 39 条通过；资源许可见上 |
+
+本地阶段证据：整体构建与 workspace 构建通过；动作、材料、库、HTTP、MCP、内容授权与公共请求定向回归通过。第一批浏览器回归被本工作树重建干扰的三个文件已完整重跑，与公共请求等共 7 文件全部通过，另一个入口用例通过。路由快照按已声明的新 Runtime 地址更新后通过。merge-base health 仍有前置 S-33 等待 S-32 的明确依赖；本片不填占位行，也不放宽门禁。已合入前置 Runtime 的同步撤权修复；实际灵光 HTTP 的停用/重启/两种撤权和断连恢复全部通过，相关 HTTP 文件 15 条均通过。其余相关包与安全回归 100 个非浏览器文件中 99 个通过，唯一失败是上述安全表编号依赖；未用占位表行绕过。尚未开 PR，未做真实 Home 操作，未完成 CI 全量与人工体验验收。
+
+### W5-01 Cognia 的平台前置与 Home Runtime 迁移（2026-10-17，本地定向通过，待前置合入与 CI）
+
+2026-10-17 接续整合：平台前置与 Cognia 迁移已分两提交重放到最新灵光候选 `5df681d44`；原分支及 `feature/w5-01-cognia-before-sync-20261017` 保留旧引用。两片业务源码增删与原 `287bf0f7b` / `1df4b89d2` 完全一致。冲突仅保留现行安全表、灵光已完成的中断证据和各资源当前值，Cognia 客户端仍只减 260 B；用户指定的材料 S-34 已由前置带入，重复编号提交无新增差异。本组合整体/workspace 构建、API/动作快照、boundary 与对灵光基点的 merge-base health 通过，快查基线已下调；18 个独立定向文件 378 条全过。Cognia 客户端 −260 B，25 项资源共 7,480,612 B。随后在后台授权组合 `8a8518329` 上统一跑包要求、安全与相关消费者：198 非浏览器文件 1,803 条通过、1 条原有公网 npm 条件跳过；5 个真实 Chrome 文件 20 条通过。合计 203 文件 1,823 条通过、0 失败，覆盖导入、固定版本、审阅采纳、模型恢复和公开 SDK 安装。共同结果属于该组合，未单独重复全量；旧缺号失败仅是下方历史记录。尚未推送，按前序合入顺序接实际 main；全量仍交统筹 CI。
+
+目标是保留现有知识导入、版本阅读、附件下载、引用生成、审阅和明确采纳的完整动线。Cognia 仍是 Home 个人知识的唯一主人，库路径 `cognia/cognia.db`、基线 1、稳定 ID、预览时限与幂等不变；不会读写真实 Home。采用现有 Home 监督器，不另建平台，不增加后台扫描或模型调用。
+
+迁移前发现三处共同平台缺口，按 RUNTIME-MIGRATION §4.2 独立提交平台前置片，再提交插件迁移片：
+- 原 Cognia HTTP 明确接受 45,000,000 字节，保留 32,000,000 字节原始文件批次的 Base64 JSON 上传；Runtime 声明目前封顶 36,000,000，直接迁移会拒绝原本可导入的合法批次。拟将**显式声明**封顶改到 45,000,000，未声明的项目 256,000 / Home 12 MiB 保持；仅 Cognia 导入预览声明 45,000,000，其他路由的声明保持原值或更小。用户 2026-10-17 弹窗已批准保留 32 MB 批次并将显式封顶升到 45 MB；按上述范围实施。
+- `PluginRouteResponse` 已有 bytes/filename/mime，但共同 HTTP 只发 JSON。共同路径支持现有 bytes 合同，强制 octet-stream、attachment、nosniff、sandbox、no-store，保持 Cognia 原下载隔离；不让插件自选可执行响应头。流式路由仍只发既定 NDJSON。
+- 模型可用性只给布尔状态，现有 Cognia 显示实际提供方与模型。`PluginModelClient.availability()` 补可选 `runtime_label`，由 Host 的既有配置选择读取，不解密凭据、不调用模型；缺模型或实例无效不泄露标签。执行仍在同一个 Host/Prologue 服务，原提示词、180 秒上限和用户指令覆盖保持。无模型的提示沿共享服务现有文案「请先在『模型设置』里连接文字模型」，错误码 `actions.connection_required`；Runtime 失败返回共同 `call_id` 供定位。
+
+插件片把 `CogniaStore` 改成库端口，读用快照、写在 `database.transaction(caller.beforeEffect, …)`；目录扫描实现归插件，保留独立 `cognia:read-local-files` 权限、realpath/符号链接与批量限制，并在扫描后复核权限才存预览。动作目录和 25 个业务动作的 schema/id/version 不变，内嵌扫描/预览沿原调用身份执行。生成只读取固定版本、释放读操作再等模型、校验引用后受控保存草稿；取消/停用/撤权/删除领域均不得存草稿，只有明确采纳才存知识。知识角色文本移回插件的指令目录，同 owner/id/version/body 与覆盖键不变。
+
+Manifest 声明现有各 HTTP 行为，客户端和仓库消费者一并改用完整插件 id 路径；删除旧原生路由、Host 动作/模型/目录适配和构建期舞台，保留目录元数据、样式与客户端。跨项目看到同一库，带项目的路由继续受 S-31 约束。工作台样式及交互结构保持；若资源实测增长，按具体差值再提批准，不预先提高预算。
+
+| 编号 | 验收 | 验证 |
+| --- | --- | --- |
+| RAC-37 | 显式体积上限按用户决定；缺省不变，超过声明一字节在执行动作前拒绝，原 32 MB 批次可上传 | SDK 声明用例、真实 Home/项目 HTTP 请求体拒绝；安全表 S-03 |
+| RAC-38 | 普通 Runtime 路由按原字节下载，HTML/SVG 也只能附件；空字节、中文文件名、JSON/NDJSON 路径各正确 | 真 HTTP 下载及头部断言，安全表 S-03 |
+| RAC-39 | 模型标签来自当前配置，切换/失效立即反映，发现不解密不请求；无授权/停用不返回标签 | Host 模型服务、Runtime 权限拒绝、受控模型配置用例 |
+| RAC-40 | Home 只装一次，各项目同库；创建/改名/导入预览提交取消、阅读下载搜索和 MCP 同路径成功，项目旧路径 404（Home 未知 API 沿用公共 400） | Cognia actions/store/http、装配门禁与 MCP/导入消费者 |
+| RAC-41 | 固定来源版本、导入与采纳幂等、预览冲突/过期和源文件不改；目录权限失效后无预览 | Cognia store/ai、内容授权、真实目录与 Runtime 中断测试 |
+| RAC-42 | 生成预览草稿、明确采纳、有效引用、指令覆盖、180 秒模型选项保持；取消/失败/停用/撤权无晚到草稿，恢复及重开正常 | Cognia AI/Prologue 与延迟模型交错，重开库检查 |
+| RAC-43 | 桌面/窄屏真实导入、阅读、生成审阅采纳与模型停用/恢复可操作，现有显示名保持 | Cognia 浏览器、model-ready、content-context 用例 |
+| RAC-44 | 仅公共合同接入；库版本与形状未变、旧宿主接线删除；API/动作快照与资源/健康/包边界通过 | 整体 build、workspace build、api/actions 更新、boundary、merge-base health/page-assets、包 README 定向回归；全量由统筹排 CI |
+
+范围边界：平台片只改 contracts/plugin-sdk/plugin-runtime/local-host 的共同能力及对应测试/手册；插件片改 Cognia 包、目录/路由装配和已有消费者。安全上限已获用户批准，平台前置与插件片按依赖顺序实施。两片保持独立提交，在本线空出在途名额且前序合入后才推送/开 PR；不以本地工程通过代替最终产物与人工验收。
+
+平台前置本地证据：整体与工作台构建、API 更新、boundary 通过；9 个相关文件 325 条通过，包括新加的 45 MB 真实请求边界、强制附件与模型元数据用例。相对灵光前序分支 25 项资源 7,491,168 B，零增长。新增测试纳入索引后安全表检查仅失败于前序 S-33 等待 #681 S-32 的编号依赖；不写占位行。平台代码为单独提交，尚未推送或验收。
+
+本地插件片证据（2026-10-17）：整体构建、workspace 构建、包边界与动作快照通过；93 个非浏览器定向文件共 745 条测试通过，覆盖包 README 要求、HTTP/MCP、32 MB 批次、两项目同库、HTTP 断开与停用/撤权/重启/取消/领域删除后拒绝晚到草稿。4 个浏览器文件共 19 条通过（桌面与 390 px 导入/引用/真实本机 HTTP Prologue/审阅采纳、停用后本地编辑、模型恢复、设置跳转与当前对象情境）；检查了实际截图。`tests/cognia-runtime.test.ts` 加入 CI 产品子集。Cognia 客户端由 23,963 降到 23,703 字节，25 项页面资源总计 7,490,908 字节，对平台前置提交 `287bf0f7` 的资源门禁通过。health 同样只剩 S-32 在途造成的 S-31→S-33 缺号；未放松门禁，待前置合入后同步 main 并更新快查基线。全量 CI、真实 Home 与用户本人验收尚未完成。
+
+### W5-01 Images 的私有文件前置片（2026-10-17，本地定向通过，待前序与 CI）
+
+2026-10-17 接续整合：已在 Cognia 当前候选 `a9d6bb9d3` 上重放本片，产品源码增删与原 `8a9c21476` 完全一致；原分支与 `feature/w5-01-plugin-files-before-sync-20261017` 保留旧引用，材料 S-34 与主线 S-32/S-33 从前置保留。本片整体/workspace 构建、API、boundary 与对 Cognia 基点的 merge-base health 通过，快查基线已下调；14 条实际 Runtime/磁盘安全用例全过。资源保持 25 项 7,480,612 B，零增量；共同包要求、安全与消费者在后台授权组合 `8a8518329` 上统一验证，203 文件 1,823 条通过、1 条原有环境跳过、0 失败（含 5 个真实 Chrome 文件 20 条），不能当作本片独立全量。下方旧安全表缺号仅是历史运行事实，当前安全表门禁已过。Images 本身继续等待 #661 评论指出的连接合同、库维护和拆片要求落定。
+
+Images 迁移仍等待 #661 的连接合同定形。本片先补不依赖该合同的共同缺口：Runtime 插件保存与读取自己拥有的二进制文件。当前 `ImagesService` 直接使用 `{home}/images/assets/`，`PluginStartContext` 没有文件服务；直接把 Home 路径交给插件会扩大文件权限，改存成果库又会改变事实归属。目标为功能可用的平台前置，Images 的生成、后台任务、连接选择和界面留在后续片，不在本片实施。
+
+采用 `services.files`：宿主可信启动条目声明 `store_name`、单层子目录、单文件字节上限、读写权限；运行时只给已登记为该插件所有的 Home 存储目录。声明不来自 Manifest、动作参数或安装脚本；沙箱与无 Home 平台拒绝，升级预检不提供。Home 与项目执行器使用同一实现，原路径可直接读取，不搬数据、不改库版本，不开放任意本机路径。
+
+客户端只提供 `list()`、`read(name)`、`create(control, name, bytes)`、`remove(control, name)`。文件名是单个普通文件名，不能带分隔符、父路径、绝对路径或隐藏路径；只读取普通文件，拒绝符号链接。读与列举不创建目录；创建采用排他写入、0600，不覆盖已有文件；读写都服从声明的单文件上限。每次操作核对当前实例和授权，变更接收原动作执行控制，在等待 `beforeEffect()` 后同步检查 signal、`assert_authority_current()` 与安装授权，再执行磁盘操作，停用/撤权/升级后旧句柄不能继续写。清理归文件主人，平台不新增任务、重试或业务记录。
+
+文件边界：contracts 的公开类型；local-host 的可信声明检查、文件 IO、Home/项目两条装配；既有安全表、插件开发手册与对应测试。以 S-15/S-18 的现行原生插件信任与生命周期为边界，独立于外部插件沙箱，不新增 typed 能力、每插件宿主分支、读取兼容或预算例外。#661 与本片共同涉及 `home-side.ts`、公开 plugin 合同和文档，后合片逐块保留双方内容；不改 #661 工作树。
+
+| 编号 | 验收 | 验证 |
+| --- | --- | --- |
+| RAC-45 | 只有可信启动条目、正确 Home owner 与已声明权限能取得文件服务；另一 owner、无 Home、沙箱和升级预检均不能取得 | 真实 Home/项目 Runtime 夹具与拒绝用例 |
+| RAC-46 | 现有文件字节可读；列举/缺失读取不创建目录；排他创建、删除、重开正常，原文件不会覆盖 | 实际临时 Home 文件读写与重开检查 |
+| RAC-47 | 路径越界、目录/文件符号链接、非普通文件和超过声明大小均在读写前被拒，目录外与原文件不变 | 真实磁盘拒绝断言，含上限与超一字节 |
+| RAC-48 | 写入等待中取消、停用、撤权、升级与关闭拒绝，旧句柄失效；新实例只使用新授权 | 真实动作屏障和生命周期交错，磁盘/重开检查 |
+| RAC-49 | 两个执行器使用同一公共服务；无业务动作或界面变化，公共 API/边界/健康/资源检查通过 | 整体 build、API 更新、相关包用例与 merge-base health/boundary；全量由统筹排 CI |
+
+实现已接入两种执行器；包要求与安全回归合计 127 个定向文件，126 个通过（1,171 条测试），唯一失败是安全表 S-31→S-33 中等待 #681 的 S-32 缺号。新增 14 条实际 Runtime/磁盘用例通过，先复现并修复了异步授权返回后的最终调用者撤权，以及原声明对象被改动后重定目录两处问题；文件变更接收完整执行控制，可信条目与发行物恢复共用已校验声明的不可变快照。整体与 workspace 构建、包边界、公开 API 通过，资源对 Cognia 前序分支为 25 项共 7,490,908 B、零增长；对当前 main 的资源检查仍被前序已批准但尚未合入的工作台增长阻挡，待按实际合入顺序同步。健康检查只剩上述 S-32 缺口，未放宽规则。与 Cognia 平台/插件片分别保留提交；仍按本线两片在途与既定提交顺序推进，不提前占 PR 名额。共享核心全量待统筹在 CI 排，未操作真实 Home。
+
+Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.start` 在返回 running 后继续执行，HTTP/MCP 断开不取消；后台只持续检查选中的生图配置和连接，并未持续核对原 MCP 的动作授权。2026-10-17 用户弹窗决定「立即停止等待，不保存晚到结果（推荐，遵守统一撤权规则）」：后台须保留原调用者的可撤销授权，撤销后停止等待，不写生成结果或失败业务记录。正常 HTTP/MCP 断开仍保留已受理任务；取消、停用和重启后的恢复按同一生命周期边界验证。#661 当前正式 PR head `0090afe3887a1b9fd5861d4ee3e61c99a3931248`，仍未合入；连接合同相关实现继续等待。
+
+### W5-01 已受理后台执行的授权前置片（2026-10-17，本地定向通过，待前序与 CI）
+
+2026-10-17 接续整合：本片已重放到当前私有文件候选 `abddd84ad`，产品源码增删与原 `079987005` 完全一致；原分支及 `feature/w5-01-plugin-background-before-sync-20261017` 保留旧引用。主线 S-32/S-33 和用户指定的材料 S-34 从前置保留，重复编号提交仅有既有文档差异。本组合整体/workspace 构建、API/动作快照、boundary 与对私有文件基点的 merge-base health 通过，快查基线已下调；资源保持 25 项 7,480,612 B，零增量。在 `8a8518329` 上统一完成相关 Kernel/Runtime/Host、包 README、安全与消费者回归：198 非浏览器文件 1,803 条通过、1 条原有公网 npm 条件跳过；5 个真实 Chrome 文件 20 条通过，合计 203 文件 1,823 条通过、0 失败，包含新后台授权文件的 21 条安全用例。日志 `/tmp/molis-platform-combo-{regression,browser}.log` 与清单 `/tmp/molis-platform-combo-files.json` 保留，源码和 Skill 构建后未改。旧缺号失败仅是历史证据；当前安全表已过。本地未推送，仍待实际前序/main 复验与统筹 CI，不据此宣称 Images 已迁移。
+
+用户已决定 Images 原 MCP 动作授权撤销后立即停止等待，不保存晚到结果。当前 `retainAuthority` 能保留注册与权限检查，但 HTTP 路由把请求结束和授权生命周期放在同一个控制上；直接复用会让已受理任务随正常响应结束而取消。`services.model` 又只允许本安装的活跃并发动作，不能把已结束处理器的 `beforeEffect` 留给后台使用。本片补共同的有限后台执行边界，不迁 Images，不做生图/连接服务、调度器、持久任务表、自动重试或重启后重放；业务任务、幂等与恢复仍由插件拥有。目标为功能可用的平台前置，整线目标不变。
+
+采用 `services.background.start(work, { signal? })`，只允许本安装当前的并发 command，且该动作声明了 `background_job`。接收前检查原动作，捕获原动作的精确注册、身份、项目和可撤销权限；返回含结果 Promise 与取消方法的临时句柄。后台回调取得独立的执行控制，并在同一个插件动作范围内使用既有模型与数据服务；它只延长这次已受理工作的执行，原处理器的 `beforeEffect` 仍随处理器结束失效。执行结束、取消、撤权、停用、升级或关闭后控制失效，复查失败立即结束本机等待，之后到达的成功和失败都不能提交业务事实。复用 SDK 的 `createExecutionLifetime` 监听与等待，200 ms 复查间隔沿用 Images 当前标准，提交前另有同步检查。
+
+入口把可保留授权和临时传输分开：Kernel 只在活跃处理器内提供 `retainBackgroundAuthority()`；可信入口通过 `ActionCallContext.retain_background_authority` 提供不依赖已结束传输的检查，Kernel 仍固定原注册并核对可见性。绑定客户端保留父调用的后台授权，不能转换成插件自身权限；HTTP 路由保留 Host/项目存在与安装检查，MCP 保留原动作授权，明确保留 Agent/调用方自身的取消与身份约束。没有独立入口授权时，沿用原取消边界，不自动脱离。沙箱、升级预检、启动钩子、路由、计时器和其他安装的动作均不能启动后台执行。
+
+修改边界：contracts、Kernel 的授权捕获、Runtime 的一次执行与两个 Host 执行器、HTTP/MCP 与绑定客户端的授权组合、既有 S-18 和开发手册。公共 API 快照随新可选字段更新；当前业务动作 schema、库版本、页面资源上限与安全上限不变。#661 仍仅作为后续连接合同依赖；本片不改其连接实现。共享安全文档与 #675/#681 逐块合并，保留 main S-32/S-33，材料服务用 S-34；本片自身不新占编号。
+
+| 编号 | 验收 | 验证 |
+| --- | --- | --- |
+| RAC-50 | 只有本安装正在执行且声明后台结果的并发 command 可受理；没有父授权不能变成插件自身权限 | 真实 Kernel/Runtime 拒绝用例，含启动/路由/过期/外来安装/嵌套调用 |
+| RAC-51 | 受理后正常 HTTP/MCP 断开仍继续；原处理器和旧路由控制已过期，不能另起未受理工作 | 真实 HTTP/动作网关关闭响应后完成、磁盘重开验证 |
+| RAC-52 | 原 MCP 授权撤销、安装撤权/停用/替换、Host 关闭、显式取消均停止等待；迟到成功与失败不写记录或文件 | 实际授权文件/Runtime 生命周期交错，未配合取消的提供方与同步尾检 |
+| RAC-53 | 后台模型调用保留原身份、项目、声明权限与注册；结束后的模型进度、控制与进一步后台启动拒绝 | 实际 Host 模型端口、原调用结束及后台结束边界 |
+| RAC-54 | 执行器撤销先于插件清理；重启不复活旧工作；无计时器/未处理拒绝残留 | 两执行器公开生命周期、关闭与新实例恢复；包要求与安全回归 |
+| RAC-55 | API、包边界、merge-base health/资源检查及适用回归通过；全量交统筹 CI | 整体 build、api:update、相关 Kernel/Runtime/Host 用例和现有合同回放 |
+
+项目 HTTP 的正向用例暴露既有授权缺口：`coding-surface` 未传路由分发器要求的 `granted`，因此带 `permission` 的路由即使安装已授权也返回 403，尚未进入动作。本片让可信本地 HTTP 入口读取目标安装的现行 grants，保持分发器的权限断言；RAC-51/52 同时验证授权时能受理、撤销该权限后进入处理器之前拒绝，不从请求体补权限。
+
+本地证据：相关 Kernel/Runtime/Host/contracts 包要求、授权消费者和安全集共 158 个不同文件，157 个通过；1,479 条通过、1 条公网 npm 条件跳过，唯一失败是既有 `security-invariants-doc` 的 S-32 缺口（材料前置已登记 S-33，S-32 等 #681）。新增后台安全文件 21 条全部通过：实际 Home/项目 HTTP、项目路径下的 Home 实例、MCP 网关及直接 MCP 关闭、原授权撤销、未配合取消的提供方、停止钩子尚未返回、重启和晚到失败；另核受理后的文件与业务结果在重开隔离 Home 后仍在，取消后的两者都不存在。Kernel 新 4 条与既有保留授权 5 条、Runtime HTTP 17 条和模型服务 15 条通过；沙箱、无声明、过期作用域、外来安装、预检与没有模型 Home 的边界均覆盖。RAC-50–54 在这些路径上通过，不外推为 Images 已迁移或真实外部模型已验收。
+
+工程证据：整体 `pnpm build`、`pnpm workspace:build`、boundary 和 API 快照通过；与前置私有文件分支比较的 25 个页面资源均不变，总计 7,490,908 B。merge-base health 也仅 S-32 缺口一项失败，没有调大门禁或占位行。一次测试与 workspace 构建重叠，两个目录探针遇到构建产物被重写而 404；构建结束后原样重跑通过，后续回归固定源码与产物。RAC-55 仍待前置合入后的 main 检查及统筹安排的共享核心全量 CI；本片未推送，不读取或维护真实 Home、钥匙串。
+
 ## 1. 决策记录与待决事项
 
 | 日期 | 事项 | 选项 | 结论 | 说明 |
 | --- | --- | --- | --- | --- |
+| 2026-10-17 | Images 已受理后台任务遇到原 MCP 动作授权撤销（弹窗） | 立即停止等待，不保存晚到结果（推荐）；保留既有行为继续已受理任务 | 立即停止等待，不保存晚到结果 | 后台保留原授权并持续检查；撤权后不写结果或失败业务记录。正常断开不等于撤权，已受理任务仍继续；本决定用于后续 Runtime 后台执行与 Images 迁移 |
 | 2026-10-16 | 已安装的插件能不能在 Manifest 里声明默认数据来源（`default_source`、默认输入组；W4-03 第一片 #565 留下的产品问题，统筹弹窗） | 暂只在随宿主发的插件之间（推荐）；已安装的也生效 | 暂只在随宿主发的插件之间 | 已安装或生成的插件写了也当作没写，免得没人同意就拿到 Coding 的变更集或 Shelf 的材料；装插件时有同意流程后再议。改的是 #565 留下的「产品还没定」措辞（合同注释、宿主注释、EXTENSION-POINTS、Skill 的 elements/host、Host README、本规格），行为不变 |
 | 2026-10-15 | CI 全量占满 runner（弹窗） | 限流并只在加标签时跑（推荐）；只限流；全量只在每晚和集成分支跑 | 限流并只在加标签时跑 | 6 个带 `full-suite` 标签的 PR 每次推送各开 16 个分片，占满仓库的 20 台并发，`Verify` 与 main 的 CI 排队 10–20 分钟。`full-suite.yml`：PR 只在加上标签时跑一次，`max-parallel: 6`；要再跑就重新加标签或手动触发 |
 | 2026-10-15 | F109 在启动时打开所有项目（为了恢复各项目的定时任务），每次打开都同步编译全部动作合同（Goals 一项约 250 ms），Catalog 读取被卡住（`tests/catalog-read-contention.test.ts`：最长停顿 84 ms，main 是 22 ms；加载重时 3 次都失败；弹窗） | 推迟到第一次调度时再打开（推荐）；拆小打开项目的同步工作；撤掉启动时打开项目 | 推迟到第一次调度时再打开 | 启动不打开项目，第一轮调度（30 秒）先从 Catalog 打开各项目、再跑到期的任务；同一份合同只编译一次（按合同全文缓存），打开项目时先分批编译再注册。最长停顿回到 22 ms；`tests/schedule-reminder-recovery.test.ts` W2-18-SCHEDULE-01 改为断言启动不打开、第一轮打开 |
@@ -861,12 +1222,14 @@ W5-01-DATASET（2026-10-18，本地候选已审（Codex 10-18 裁定代码候选
   - **重装与复查**（2026-10-11）：`origin/main` `9f9bda551` 的干净工作树里整体构建（经整机构建锁），`node dist/cli/main.js install --source .` 输出「同版本内容已刷新（0.2.0）」，常驻服务未启用（`service status`：absent），新装的 MCP 经 stdio 列出 18 个项目。然后只读拷出五处到会话临时目录（700 权限）：`config/mcp-tools.json` 直接拷贝；`workflows/workflows.db`、`characters/characters.sqlite`、`assistant/assistant.db` 用 `?mode=ro` 打开 `VACUUM INTO`；18 个项目库是 WAL 模式、没有 `-wal` 文件、没有进程打开，只读打开建不了 `-shm`，改用 `immutable=1` 打开 `VACUUM INTO`。在拷贝上跑 `list`：各类都是 0（拷贝里只有这五处，`NOT READ` 也是 0），退出码 0；拷贝随即删除。真实 Home 一个字都没改（`workflows.db-shm` 的修改时间因只读连接更新，它是共享内存索引，不是数据）。
   - **收尾**：工具 `tests/fixtures/provider-identity-maintenance.mjs` 与演练用例 `tests/provider-identity-maintenance.test.ts` 删除，从 Git 历史 `9f9bda551` 取；检查清单第 4.3 节维护七一项勾上并写明结果，CHANGELOG 的 W3-06 C 一行注明已核对。会话里已经开着的 MCP 进程跑的是旧代码（用户要重开 Claude Code、Codex、Grok 会话）；克隆 `2026-10-10-before-maint7` 留着，删不删由用户定。
 - 真实 Home 维护八（候选，未做；动真实 Home 之前弹窗问用户）：做下面「库版本维护清单」里还没做的行，与装下一个版本同一步做，不提前：已装的构建只认旧版本，提前改了它就拒绝打开。
+  - **#661 旧 HTTP MCP 凭据配置**（候选，未做）：此前通过 `replace-secret` 保存的 Prologue `molis-mcp` 配置可能只有 `credential_ref`，新版本连接时会拒绝该引用并提示重新填写。与 `connectors/connectors.db` 1→2 同一次维护：先在停宿主后的完整备份副本中，经 Agent Runtime 的公开存储入口列出受影响配置的 owner、id、地址与数量，不输出秘密；能通过凭据 owner 恢复的，演练迁成固定地址的 Host 连接，并将配置改存 `auth_connection_id`；不能恢复的，保留配置并明确请用户升级后重新填写或选择已有连接。真实 Home 当前未核对，不预报数量，也不宣称已迁移。演练须核对配置归属、地址和现行版本、重启后认证、原调用授权及秘密不进入日志；失败恢复同一时点的完整副本。维护及安装新构建仍需当次授权，产品读取不增加旧值兜底。
   - **10-17 只读核对**（真实 Home 各库的只读拷贝，读完即删；只读 `user_version` 与 `catalog_meta`、`session_meta` 的版本，不读内容、不碰密钥；真实 Home 跑的是 10-11 构建的安装版 0.2.0）：19 个项目库都是 7，目录库 22、会话库 7，Functions 3，助理、记忆、Form 2，`homeStores()` 登记的其余各库 1，都与基线相符；不符的只有 Pages（真实 1，代码 2）。`plugin-runtime/plugin-runtime.db`、`issues/issues.db`（都是 2）真实 Home 里还没有，新版本第一次打开时按基线新建，不用维护。没有核对的：搜索索引 `search/search.db`（可重建的派生库，版本记在 `search_meta`，不符就重建、不拒绝）和两个 JSON 文件（`feed/secrets.json`、`config/mcp-tools.json`）。
 
 **库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只读这张表）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 归维护八，与安装新构建同一步进行；真实 Home 未执行，仍需当次授权，不得先用新构建打开旧库或让旧构建打开维护后的库。隔离 v1 副本已演练：停宿主并完整备份，按当前 `CONNECTORS_STORE_BASELINE` 增加连接启停/移除字段、协议/授权请求与技术观察字段和表，在事务中写基线 2，核对原连接 id、凭据引用、绑定、协议及取消记录不变；失败恢复完整副本。证据见 [服务接入 spec](../assistant-service-connections/spec.md) 的连接生命周期、正式接入准备与技术观察记录 |
 | `projects/<project_id>/molis-work.db` | 6 → 7 | #369（删 Casebook 的 5 张表） | 维护六，真实 Home 的 18 个项目库 10-10 已做（上面「维护六」） |
 | `pages/pages.db` | 1 → 2 | `0ff3adb8a`（10-13，直接提交到 main、没有 PR；只多一张 `page_comments`，其余建库语句逐条相同） | 维护八，未做：一个事务里按 `PAGES_STORE_BASELINE` 建 `page_comments`，写 `PRAGMA user_version = 2`，不动已有的表和行；先在副本上演练（检查清单第 4.3 节）。那个提交在检查清单第 3 节写了「真实 Home 尚未执行这一项维护」，但没有进这张表、也没有待办行，10-17 只读核对时才发现（BL-157） |
 
@@ -949,26 +1312,26 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/artifacts` | 内置插件 | 19 | 1,628 | `browser-ui.ts` 242 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/characters` | 内置插件 | 13 | 978 | `client.ts` 217 | 1 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/coding` | 内置插件 | 79 | 11,574 | `client.ts` 1,644 | 1 | 3 | 2 | Runtime | 深 | 已审 |
-| `plugins/native/cognia` | 内置插件 | 16 | 723 | `store.ts` 151 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/dataset` | 内置插件 | 15 | 2,019 | `client.ts` 711 | 1 | 4 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/cognia` | 内置插件 | 15 | 757 | `store.ts` 173 | 1 | 4 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/dataset` | 内置插件 | 16 | 2,124 | `client.ts` 711 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 已审 |
 | `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/form` | 内置插件 | 33 | 3,163 | `store.ts` 522 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 已审 |
-| `plugins/native/images` | 内置插件 | 13 | 1,443 | `client.ts` 456 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/images` | 内置插件 | 16 | 1,531 | `client.ts` 458 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/inbox` | 内置插件 | 13 | 1,016 | `ui.ts` 189 | 1 | 1 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/jelly` | 内置插件 | 27 | 2,355 | `content.ts` 202 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/lingguang` | 内置插件 | 14 | 1,819 | `client.ts` 645 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/jelly` | 内置插件 | 28 | 2,485 | `content.ts` 202 | 1 | 4 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/lingguang` | 内置插件 | 13 | 1,840 | `client.ts` 707 | 1 | 4 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/pages` | 内置插件 | 44 | 14,848 | `editor-browser.ts` 4,043 | 3 | 3 | 2 | 构建期 | 深 | 已审 |
 | `plugins/native/plugin-builder` | 内置插件 | 17 | 2,855 | `agent-authoring.ts` 800 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/ppt` | 内置插件 | 18 | 2,276 | `client.ts` 806 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/ppt` | 内置插件 | 17 | 2,248 | `client.ts` 807 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/schedule` | 内置插件 | 24 | 2,484 | `client.ts` 379 | 1 | 1 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/shelf` | 内置插件 | 21 | 5,037 | `client.ts` 1,708 | 2 | 3 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
-| `plugins/native/todo` | 内置插件 | 22 | 4,271 | `client.ts` 1,245 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/todo` | 内置插件 | 22 | 4,276 | `client.ts` 1,240 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/workflows` | 内置插件 | 15 | 3,708 | `client.ts` 1,387 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 已审 |

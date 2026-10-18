@@ -5,6 +5,10 @@ const lines=value=>String(value||'').split(/\r?\n/).map(x=>x.trim()).filter(Bool
 const modelChoices=()=>'<fieldset class="alc-radios"><legend>'+tx('研究模型')+'</legend><label><input class="mw-radio" type="radio" name="model" value="auto" '+(runtime.modelPolicy==='auto'?'checked':'')+'>'+tx('使用可用模型')+'</label>'+runtime.models.map(m=>'<label><input class="mw-radio" type="radio" name="model" required value="'+esc(m.id)+'" '+(runtime.modelPolicy==='fixed'&&runtime.modelId===m.id?'checked':'')+'>'+esc(m.label)+'</label>').join('')+'</fieldset>';
 function show(title,html,label,submit){returnFocus=document.activeElement;sheet.querySelector('h2').textContent=L(title);bodySlot.innerHTML=html;formError('');submitBtn.textContent=L(label);submitBtn.hidden=false;onSubmit=submit;if(!sheet.open)sheet.showModal();bodySlot.querySelector('textarea,input')?.focus();}
 function closeDialog(){if(busy)return;sheet.close();onSubmit=null;returnFocus?.isConnected&&returnFocus.focus();}
+async function resumeJob(id){
+const r=await api('/runs/'+enc(id)+'/resume'),reasons={'alchemist.research_budget_exhausted':'原预算已用尽，不能继续派出调用。','alchemist.job_lease_active':'原执行租约尚未到期，请稍后重新查看。','alchemist.job_not_resumable':'这次任务不能继续，请回到原内容查看。'};
+show('继续上次任务',paraHtml(r.reason?L(reasons[r.reason]||'暂时无法继续，请检查模型或任务记录。'):L('沿用原任务与已完成阶段。'))+(r.budget?paraHtml([['原预算',r.budget.limit],['已预约',r.budget.reserved],['剩余',r.budget.remaining]].map(([label,count])=>L(label)+'：'+count+' '+L('次')).join(' · ')):'')+(r.unknownCall?paraHtml(L('上次调用的结果未知，可能已收费；继续可能重复收费。该次已预约计入原预算，不会增加预算。')):'')+(r.modelId?section('研究模型',runtime.models.find(m=>m.id===r.modelId)?.label||r.modelId):'')+(r.tasteTitles?section('个人判断偏好',r.tasteTitles):''),'确认继续',async()=>{await api('/runs/'+enc(id)+'/continue',{confirmation:r.confirmation});closeAfterSubmit();await refresh();});submitBtn.hidden=!r.canContinue;
+}
 async function plan(){
 const chosen={...focus},lens=chosen.panel==='market'?'market_space':'build_cost';
 show('确认研究范围',paraHtml(L('正在读取可沿用的成果与方法…')),'生成研究计划',null);submitBtn.hidden=true;
@@ -45,6 +49,7 @@ if(name==='close'){closeDialog();return;}
 if(name==='side-close'){side.hidden=true;sideMode='';if(focus?.kind==='idea'&&['market','cost'].includes(focus.panel)&&study&&JSON.stringify(study)!==detailId){const scroll=mainEl.scrollTop;paintStudy(study);mainEl.scrollTop=scroll;detailId=JSON.stringify(study);$('action=annotations').hidden=!target;}return;}
 if(name==='reload'){await load();if(focus)await open(focus,false);notice('');return;}
 if(name==='archived-toggle'){archived=!archived;renderList();return;}
+if(name==='continue-job'){await resumeJob(el.dataset.job);return;}
 if(name==='new'){let created=null;show('新建方向',field('你想探索的问题','description',{area:true,rows:5,required:true,max:4000})+muted(tx('从一个具体的人和场景开始，AI 会给出不同的候选机制。')),'保存并炼化',async f=>{const r=created||(created=await api('/directions',{description:f.get('description')}));await api('/directions/'+enc(r.direction.id)+'/explorations',{});closeAfterSubmit();view='directions';await load();await open({kind:'direction',id:r.direction.id});});return;}
 if(name==='settings'){await open({kind:'settings'});return;}
 if(name==='runtime'){await runtimeForm();return;}

@@ -25,9 +25,8 @@ import {
 } from "@molis-ai/molis-work-plugin-pages";
 import {
   PPT_CLIENT_FACTORY_SCRIPT,
-  PptPluginRouteTable,
-  createPptRouteHandlers,
   openPptStore,
+  pptActions,
   renderPptWorkbench,
 } from "@molis-ai/molis-work-plugin-ppt";
 
@@ -103,19 +102,19 @@ test("问卷、数据表、演示稿可以连续存成两版 Artifact，编辑�
 
   const decks = openPptStore(home);
   try {
-    const routes = new PptPluginRouteTable(createPptRouteHandlers(pptTestPorts(decks, query.get("project_id")!, {
+    const { actions } = pptTestPorts(decks, query.get("project_id")!, {
       publishArtifact: (input) => {
         assert.ok(input.content.slides.length > 0);
         return { artifact_id: "ppt-" + input.record_id, version: input.version };
       },
-    })));
-    const created = await routes.handle({ method: "POST", pathname: "/api/ppt", query, body: { title: "发布会" } });
-    const id = (created?.body as { presentation: { id: string } }).presentation.id;
-    const first = await routes.handle({ method: "POST", pathname: `/api/ppt/${id}/promote`, query, body: {} });
-    const second = await routes.handle({ method: "POST", pathname: `/api/ppt/${id}/promote`, query, body: {} });
-    assert.equal((first?.body as { artifact: { version: number } }).artifact.version, 1);
-    assert.equal((second?.body as { presentation: { title: string; artifact_version: number } }).presentation.title, "发布会");
-    assert.equal((second?.body as { presentation: { artifact_version: number } }).presentation.artifact_version, 2);
+    });
+    const created = await actions.invoke(pptActions.create, { title: "发布会" });
+    const id = created.presentation.id;
+    const first = await actions.invoke(pptActions.promote, { id });
+    const second = await actions.invoke(pptActions.promote, { id });
+    assert.equal(first.artifact.version, 1);
+    assert.equal(second.presentation.title, "发布会");
+    assert.equal(second.presentation.artifact_version, 2);
   } finally {
     decks.close();
   }

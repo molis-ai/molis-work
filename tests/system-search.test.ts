@@ -22,7 +22,7 @@ import { SEARCH_PROVIDER_ID, searchActions } from "@molis-ai/molis-work-contract
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { homeSqlitePath, openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { SearchService } from "@molis-ai/molis-work-service-search";
-import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 
 /** `refuse`: the object is still listed, but its reader will not hand it over now (a locked document, a version kept only as a file reference). */
 type Note = { id: string; title: string; body: string; version: number; secret?: boolean; refuse?: { code: string; text: string } | Error };
@@ -234,7 +234,7 @@ test("a Home plugin's project source is searched with its project: Todo's projec
   const store = openTodoStore(f.home, () => new Date("2026-10-01T10:00:00Z"));
   t.after(() => store.close());
   f.actions.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
-    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ withStore: run => run(store), today: () => "2026-10-01" }) });
+    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)), today: () => "2026-10-01" }) });
   const person = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: [...TODO_ACTION_PERMISSIONS, "search:read"] });
   const create = (project_id: string | null, title: string, placement: "project" | "personal") => f.actions.invoke(person(project_id), todoActions.create, { title, placement });
   await create("a", "复盘付款节奏（A）", "project");

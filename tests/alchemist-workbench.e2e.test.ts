@@ -4,7 +4,7 @@ import test from "node:test";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { createAlchemistStudioRuntime as createLocalRuntime } from "@molis-ai/molis-work-plugin-alchemist";
+import { createLocalRuntime } from "./fixtures/alchemist-runtime.js";
 import { alchemistActions } from "@molis-ai/molis-work-plugin-alchemist";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
@@ -85,11 +85,36 @@ test("native Alchemist: candidates, reports, decision, memory, annotations, Puls
   await click('[data-alc-action="settings"]');await includes('个人判断偏好');await click('[data-alc-action="taste"]');await fill('title','首版边界');await fill('statement','优先单人可用');await fill('appliesTo','新想法');await click('[data-alc-submit]');await includes('首版边界');await click('[data-alc-action="disable-taste"]');await waitFor(`!document.querySelector('[data-alc-action="disable-taste"]')`);
   assert.equal((await read('/memory')).taste[0].status,'disabled');
   await click('[data-alc-action="runtime"]');await visible('[name="model"][value="auto"]');await click('[name="model"][value="auto"]');await fill('market','5');await click('[data-alc-submit]');await waitFor(`!document.querySelector('[data-alc-dialog]').open`);assert.equal((await read('/settings/runtime')).defaultBudgets.marketSpace.limit,5);
-  const downloads=join(b.homeDirectory,'downloads');await mkdir(downloads);await command('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});
-  for(const extension of ['json','zip']){await click('[data-alc-action="export-'+extension+'"]');await includes('导出已生成。');await click('[data-alc-action="notice-close"]');}
-  let exported:Buffer|undefined;for(let n=0;n<20;n++){try{exported=await readFile(join(downloads,'alchemist-'+new Date().toISOString().slice(0,10)+'.json'));break;}catch{await new Promise(r=>setTimeout(r,100));}}
-  assert.ok(exported);const archive=JSON.parse(exported.toString());assert.ok(JSON.stringify(archive).includes('先验证持续使用再投入'));assert.doesNotMatch(exported.toString(),/apiKey|api_key|secretReference/);
-  const zip=await readFile(join(downloads,'alchemist-'+new Date().toISOString().slice(0,10)+'.zip'));assert.equal(zip.subarray(0,2).toString(),'PK');
+  const downloads=join(b.homeDirectory,'downloads');await mkdir(downloads);
+  await command('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads,eventsEnabled:true});
+  const exportedFiles = new Map<string, Buffer>();
+  for (const extension of ['json', 'zip']) {
+    let filename = '', guid: unknown;
+    const finished = Promise.withResolvers<void>();
+    const offBegin = b.on('Browser.downloadWillBegin', event => {
+      if (typeof event.suggestedFilename === 'string' && event.suggestedFilename.endsWith('.' + extension)) {
+        filename = event.suggestedFilename; guid = event.guid;
+      }
+    });
+    const offProgress = b.on('Browser.downloadProgress', event => {
+      if (!guid || event.guid !== guid) return;
+      if (event.state === 'completed') finished.resolve();
+      if (event.state === 'canceled') finished.reject(new Error(`Export download canceled: ${extension}`));
+    });
+    const timer = setTimeout(() => finished.reject(new Error(`Export download did not complete: ${extension}`)), 12_000);
+    try {
+      await Promise.all([finished.promise, (async () => {
+        await click('[data-alc-action="export-' + extension + '"]');
+        await includes('导出已生成。');await click('[data-alc-action="notice-close"]');
+      })()]);
+      assert.match(filename, /^alchemist-\d{4}-\d{2}-\d{2}\.(json|zip)$/);
+      exportedFiles.set(extension, await readFile(join(downloads, filename)));
+    } finally { clearTimeout(timer); offBegin(); offProgress(); }
+  }
+  const exported = exportedFiles.get('json')!;
+  const archive=JSON.parse(exported.toString());assert.ok(JSON.stringify(archive).includes('先验证持续使用再投入'));assert.doesNotMatch(exported.toString(),/apiKey|api_key|secretReference/);
+  const zip=exportedFiles.get('zip')!;assert.equal(zip.subarray(0,2).toString(),'PK');
+
 
   // The GitHub source takes the account the person picks in the source settings; with none picked it is anonymous (W2-18 decision 7).
   const fake=(name:string)=>`e2e-${name}-value`;

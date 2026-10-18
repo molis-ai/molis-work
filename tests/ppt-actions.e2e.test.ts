@@ -48,7 +48,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   await click('[data-ppt-slide-list] .ppt-slide-row:last-child [data-slide-remove]');await idle();await saved();assert.equal(read()[0]!.slides.length,2);
   // A delayed real save response cannot erase edits made while it is in flight.
   await evaluate(`(()=>{const original=window.fetch;window.pptSaveRequests=0;window.fetch=async(url,init)=>{
-    const response=await original(url,init);if(init?.method==='POST'&&new URL(url,location.href).pathname==='/api/plugins/ppt/${id}'){
+    const response=await original(url,init);if(init?.method==='POST'&&new URL(url,location.href).pathname.endsWith('/api/plugins/io.molis.work.ppt/ppt/${id}')){
       window.pptSaveRequests++;if(window.pptSaveRequests===1)await new Promise(resolve=>window.releasePptSave=resolve);
     }return response;};window.restorePptFetch=()=>window.fetch=original;})()`);
   await input('[data-ppt-title]','第一次编辑');await waitFor("typeof window.releasePptSave === 'function'");
@@ -98,7 +98,7 @@ for(const width of [1440,390])test(`PPT ${width}px: slides, colors, download, sa
   // The presentation being edited comes back by itself (specs/archive/page-interaction-flow: a plugin's page reopens the record that was open in it after a reload).
   await reloadPage();await open();await waitFor("document.querySelector('[data-ppt-title]')?.getClientRects().length > 0");await idle();
   await click('[data-ppt-artifact-bar]');await idle();assert.equal(read()[0]!.artifact_version,1);assert.equal(read()[0]!.publication_pending,undefined);assert.equal(read()[0]!.description,'继续编辑保留');
-  const denied=await evaluate<number>(`fetch('/api/plugins/ppt?project_id=${projectId}',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'wrong',title:'denied'})}).then(r=>r.status)`);
+  const denied=await evaluate<number>(`fetch('/projects/${projectId}/api/plugins/io.molis.work.ppt/ppt?project_id=${projectId}',{method:'POST',headers:molisWorkControlHeaders(),body:JSON.stringify({project_id:'wrong',title:'denied'})}).then(r=>r.status)`);
   assert.equal(denied,403);assert.equal(read().length,1);
   assert.equal(await evaluate("document.querySelector('[data-ppt-stage-workspace]').scrollLeft"),0);
   assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'));

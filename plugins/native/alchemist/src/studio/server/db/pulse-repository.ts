@@ -146,14 +146,10 @@ export class SqlitePulseRepository {
   }
 
   listSourceSettings(): SourceSetting[] {
-    return (
-      this.database
-        .prepare(
-          `SELECT * FROM source_settings
-           ORDER BY CASE source_id WHEN 'toolify' THEN 1 WHEN 'watcha' THEN 2 ELSE 3 END`,
-        )
-        .all() as SourceSettingRow[]
-    ).map(mapSourceSetting);
+    const rows = this.database.prepare(`SELECT * FROM source_settings
+      ORDER BY CASE source_id WHEN 'toolify' THEN 1 WHEN 'watcha' THEN 2 ELSE 3 END`).all() as SourceSettingRow[];
+    const settings = rows.map(mapSourceSetting);
+    return settings.length ? settings : defaultSourceSettings.map(setting => ({ ...setting, updatedAt: "1970-01-01T00:00:00.000Z" }));
   }
 
   updateSourceSetting(sourceId: PulseSourceId, enabled: boolean, now: string): SourceSetting {

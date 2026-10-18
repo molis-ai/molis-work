@@ -414,6 +414,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly audience: ActionAudience;
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
+    readonly query_only?: true;
     readonly permissions: readonly string[];
     readonly allowed_capability_ids?: readonly string[];
     readonly allowed_actions?: readonly ActionReference[];
@@ -421,6 +422,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
     readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
     readonly signal?: AbortSignal;
+    readonly retain_background_authority?: (references: readonly ActionReference[], additionalPermissions?: readonly string[]) => RetainedActionAuthority;
     readonly on_progress?: (event: {
         readonly stage: string;
         readonly progress: number;
@@ -465,6 +467,7 @@ export interface ActionErrorOptions {
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
     readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+    readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
 
 export interface ActionExecutionPolicy {
@@ -487,6 +490,10 @@ export interface ActionIntake extends DestinationDeclaration {
     readonly examples: readonly string[];
     readonly effect?: "creates" | "proposes";
     readonly multiple?: boolean;
+}
+
+export interface ActionInvokeTransport {
+    readonly on_progress?: (event: ActionProgressEvent) => void;
 }
 
 export interface ActionMetadata {
@@ -545,6 +552,8 @@ export interface ActionMetadata {
         readonly input: Readonly<Record<string, string | readonly [string]>>;
     };
 }
+
+export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
 
 export interface ActionProvider {
     readonly provider_id: string;
@@ -903,11 +912,11 @@ export interface ArtifactReferrersResult {
     referrers: ArtifactReferrer[];
 }
 
-export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining"];
+export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2197,6 +2206,10 @@ export interface IntegrationProviderItem {
 export interface IntegrationProviderPort {
     readonly type: string;
     health(): Promise<{
+        account?: {
+            login: string;
+            account_id?: string;
+        };
         ok: boolean;
         status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
         message: string;
@@ -2227,7 +2240,23 @@ export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
 
-export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining"];
+export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
+
+export interface MaterialSourceContent {
+    text: string;
+    title?: string;
+    source_url: string;
+    provider: string;
+    extractor: string;
+    coverage: MaterialExtraction["coverage"];
+    pages?: MaterialExtraction["pages"];
+    segments?: MaterialExtraction["segments"];
+    frames?: MaterialExtraction["frames"];
+    model_required?: {
+        approximate_bytes?: number;
+        variant?: string;
+    };
+}
 
 export declare const PERSONAL_SPACE_PROJECT_ID = "personal";
 
@@ -2362,8 +2391,13 @@ export interface PlacementResult {
     revision: string;
 }
 
+export interface PluginActionClient extends BoundActionClient {
+    invokeQuery<Input = unknown, Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: Input): Promise<Output>;
+}
+
 export interface PluginAppContribution {
     kind: "app";
+    onProjectDeleted?(projectId: string): void;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
     views?: readonly UiContribution[];
@@ -2380,6 +2414,7 @@ export interface PluginArtifactClient {
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
     head(artifactId: string): ArtifactLineHead | null;
     readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
+    listConsumable(): PluginConsumableVersion[];
 }
 
 export interface PluginArtifactPublishInput extends PluginProcessItemInput {
@@ -2387,6 +2422,17 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
     title: string;
     media_type: string;
     trace?: ArtifactReference[];
+}
+
+export interface PluginBackgroundClient {
+    start<T>(work: (control: PluginExecutionControl) => Promise<T>, options?: {
+        signal?: AbortSignal;
+    }): Promise<PluginBackgroundExecution<T>>;
+}
+
+export interface PluginBackgroundExecution<T> {
+    readonly result: Promise<T>;
+    cancel(): void;
 }
 
 export interface PluginCapabilityClient {
@@ -2401,6 +2447,13 @@ export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommand
 }> | PluginCommandInputOf<"artifacts", {
     references: readonly ArtifactReference[];
 }>;
+
+export interface PluginConsumableVersion extends ArtifactReference {
+    kind: "artifact" | "process_item";
+    artifact_type_id: string;
+    schema_version: number;
+    title: string | null;
+}
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
 
@@ -2638,7 +2691,7 @@ export interface PluginEventsRepository {
     deleteCursors(projectId: string, subscriberPluginId: string): void;
 }
 
-export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current"> & {
+export type PluginExecutionControl = Pick<import("@molis-ai/molis-work-contracts/platform/actions").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only"> & {
     readonly project_id?: string;
 };
 
@@ -2654,11 +2707,31 @@ export interface PluginExecutorHandle {
     contribution: PluginContribution;
 }
 
+export interface PluginFilesClient {
+    list(): readonly string[];
+    read(name: string): Uint8Array | null;
+    create(control: PluginExecutionControl, name: string, bytes: Uint8Array): Promise<void>;
+    remove(control: PluginExecutionControl, name: string): Promise<void>;
+}
+
+export interface PluginFilesDeclaration {
+    readonly store_name: string;
+    readonly directory: string;
+    readonly max_file_bytes: number;
+    readonly read_permission: string;
+    readonly write_permission: string;
+}
+
 export interface PluginHostServices {
-    readonly actions?: import("@molis-ai/molis-work-contracts/platform/actions").BoundActionClient;
+    readonly background?: import("platform/plugin-background").PluginBackgroundClient;
+    readonly actions?: PluginActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
+    readonly files?: import("platform/plugin-files").PluginFilesClient;
+    readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
     readonly model?: PluginModelClient;
+    readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
+    readonly materials?: PluginMaterialsClient;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
     readonly ui: PluginUiClient;
@@ -2666,6 +2739,51 @@ export interface PluginHostServices {
     readonly inputs?: PluginInputsClient;
     readonly outputs?: PluginOutputsClient;
     readonly capabilities?: PluginCapabilityClient;
+}
+
+export interface PluginImageConnectionState {
+    readonly connection_id: string | null;
+    readonly available: boolean;
+    readonly has_key: boolean;
+    readonly reason?: string;
+    readonly revision: string;
+}
+
+export interface PluginImageGenerationClient {
+    connections(): readonly ConnectorConnectionView[];
+    inspect(target: PluginImageTarget): PluginImageConnectionState;
+    bind(target: PluginImageTarget, connection_id: string): Promise<void>;
+    unbind(slot_id: string): Promise<void>;
+    generate(request: PluginImageGenerationRequest, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<{
+        readonly images: readonly {
+            readonly bytes: Uint8Array;
+            readonly mime?: string;
+        }[];
+        readonly revision: string;
+    }>;
+}
+
+export interface PluginImageGenerationDeclaration {
+    readonly store_name: string;
+    readonly read_permission: string;
+    readonly write_permission: string;
+    readonly generate_permission: string;
+}
+
+export interface PluginImageGenerationRequest extends PluginImageTarget {
+    readonly expected_revision: string;
+    readonly protocol: "openai-images" | "gemini";
+    readonly model: string;
+    readonly prompt: string;
+    readonly size?: string;
+    readonly aspect_ratio?: string;
+}
+
+export interface PluginImageTarget {
+    readonly slot_id: string;
+    readonly base_url: string;
 }
 
 export interface PluginInputDeliveryContext {
@@ -2859,13 +2977,99 @@ export interface PluginManifest {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
 }
 
+export type PluginMaterialRequest = MaterialExtractionOptions;
+
+export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress">;
+
+export interface PluginMaterialsClient {
+    extract?(source: MaterialSource, request?: PluginMaterialRequest): Promise<MaterialExtraction>;
+    readSource?(url: string, request?: PluginMaterialSourceRequest): Promise<MaterialSourceContent>;
+}
+
+export type PluginModelAvailability = ActionAvailability & {
+    readonly runtime_label?: string;
+};
+
+export interface PluginModelChoice extends PluginModelSelection {
+    readonly label: string;
+    readonly vision: boolean;
+    readonly reasoning_effort: boolean;
+}
+
 export interface PluginModelClient {
-    availability(): ActionAvailability;
+    readonly configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationClient;
+    choices(): readonly PluginModelChoice[];
+    availability(selection?: PluginModelSelection): PluginModelAvailability;
     complete(prompt: InstructedPrompt, request?: PluginModelRequest): Promise<PluginModelResult>;
 }
 
+export interface PluginModelConfigurationClient {
+    selection(): PluginModelSelection | undefined;
+    read(): Promise<PluginModelConfigurationView>;
+    save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
+}
+
+export interface PluginModelConfigurationDeclaration {
+    readonly preference: {
+        readonly store_name: string;
+        readonly file_name: string;
+    };
+    readonly custom_provider: {
+        readonly provider_id: string;
+        readonly display_name: string;
+    };
+    readonly actions: {
+        readonly read: Pick<ActionReference, "capability_id" | "version">;
+        readonly save: Pick<ActionReference, "capability_id" | "version">;
+    };
+}
+
+export interface PluginModelConfigurationInput {
+    readonly provider_id?: string;
+    readonly model_id?: string;
+    readonly base_url?: string;
+    readonly api_format?: ModelApiFormat;
+    readonly connection_id?: string;
+}
+
+export interface PluginModelConfigurationView {
+    readonly configured: boolean;
+    readonly providers: readonly {
+        readonly id: string;
+        readonly provider_id: string;
+        readonly name: string;
+        readonly base_url: string;
+        readonly api_format: ModelApiFormat;
+        readonly enabled: boolean;
+        readonly has_credential: boolean;
+        readonly models: readonly ModelRecord[];
+    }[];
+    readonly selection?: PluginModelSelection;
+    readonly effective_selection?: PluginModelSelection;
+    readonly source: "selection" | "provider" | "environment" | "none";
+    readonly connections: readonly {
+        readonly connection_id: string;
+        readonly display_name: string;
+        readonly state: string;
+    }[];
+    readonly custom_connection_id?: string;
+}
+
+export type PluginModelFailure = ActionError & {
+    readonly execution?: BoundedInferenceReceipt;
+    readonly validateResult?: () => void;
+};
+
+export interface PluginModelImage {
+    readonly bytes: Uint8Array;
+    readonly label?: string;
+}
+
 export interface PluginModelRequest {
+    readonly images?: readonly PluginModelImage[];
+    readonly selection?: PluginModelSelection;
     readonly signal?: AbortSignal;
+    readonly onText?: (delta: string) => void;
     readonly system?: InstructionPrompt;
     readonly output?: "text" | "json";
     readonly timeout_ms?: number;
@@ -2873,12 +3077,19 @@ export interface PluginModelRequest {
 }
 
 export interface PluginModelResult {
+    readonly execution?: BoundedInferenceReceipt;
+    validateResult(): void;
     readonly text: string;
     readonly value?: unknown;
     readonly usage?: {
         readonly input_tokens: number;
         readonly output_tokens: number;
     };
+}
+
+export interface PluginModelSelection {
+    readonly provider_id: string;
+    readonly model_id: string;
 }
 
 export interface PluginOutputPublishInput {
@@ -2899,6 +3110,44 @@ export interface PluginOutputsClient {
     invalidate(port: string, safe_reason: string): void;
     retain(reference: ArtifactReference): void;
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
+}
+
+export interface PluginOwnerFileEntry {
+    readonly name: string;
+    readonly kind: "file" | "directory";
+}
+
+export type PluginOwnerFileInfo = {
+    readonly kind: "file";
+    readonly byte_length: number;
+} | {
+    readonly kind: "directory";
+};
+
+export interface PluginOwnerFilesClient extends PluginOwnerFilesReader {
+    write<Result>(run: (writer: PluginOwnerFilesWriter) => Result): Promise<Result>;
+}
+
+export interface PluginOwnerFilesDeclaration {
+    readonly store_name: string;
+    readonly entries: readonly PluginOwnerFileEntry[];
+    readonly read_permission: string;
+    readonly write_permission: string;
+}
+
+export interface PluginOwnerFilesReader {
+    stat(relative: string): PluginOwnerFileInfo | null;
+    read(relative: string): Uint8Array | null;
+    list(relative: string): readonly PluginOwnerFileEntry[];
+}
+
+export interface PluginOwnerFilesWriter extends PluginOwnerFilesReader {
+    mkdir(relative: string): void;
+    writeFile(relative: string, bytes: Uint8Array, mode: "create" | "replace"): void;
+    replaceFileAtomic(relative: string, bytes: Uint8Array): void;
+    copyFile(source: string, target: string): void;
+    removeTree(relative: string): void;
+    setAccess(relative: string, access: "readonly" | "readwrite"): void;
 }
 
 export interface PluginPackageBundle {
@@ -3004,6 +3253,12 @@ export interface PluginPrivateStorage {
 
 export interface PluginProcessItemClient {
     record(input: PluginProcessItemInput): ProcessItemResult;
+    head(artifactId: string): PluginProcessItemHead | null;
+    readOwn(reference: ArtifactReference): ProcessItemRecord | null;
+}
+
+export interface PluginProcessItemHead {
+    version: number;
 }
 
 export interface PluginProcessItemInput extends ArtifactReference {
@@ -3032,6 +3287,7 @@ export interface PluginRouteDeclaration {
     path: string;
     permission?: string;
     max_body_bytes?: number;
+    stream?: "ndjson";
 }
 
 export type PluginRouteMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -3044,6 +3300,7 @@ export interface PluginRouteRequest {
     body: unknown;
     actor_id: string;
     execution?: PluginExecutionControl;
+    emit?(event: import("@molis-ai/molis-work-contracts/platform/actions").ActionProgressEvent): void;
 }
 
 export interface PluginRouteResponse {
@@ -3053,7 +3310,22 @@ export interface PluginRouteResponse {
     bytes?: Uint8Array;
     filename?: string;
     mime?: string;
+    disposition?: "inline" | "attachment";
 }
+
+export type PluginRouteStreamLine = ({
+    type: "progress";
+} & import("@molis-ai/molis-work-contracts/platform/actions").ActionProgressEvent) | {
+    type: "result";
+    result: unknown;
+} | {
+    type: "error";
+    status: number;
+    code: string;
+    error: string;
+    call_id?: string;
+    details?: Readonly<Record<string, unknown>>;
+};
 
 export interface PluginRuntimeApi {
     register(definition: PluginDefinition): void;
@@ -3125,7 +3397,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "model"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

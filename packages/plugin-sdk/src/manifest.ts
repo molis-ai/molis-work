@@ -288,8 +288,8 @@ function inspectCommandDeclarations(parsed: PluginManifest): string[] {
   return problems;
 }
 
-/** The most a route may ask the Host to read: the Home edge's own bound for image-bearing actions. */
-const MAX_ROUTE_BODY_BYTES = 12 * 1024 * 1024;
+/** The most a route may ask the Host to read: a 32 MB batch sent as base64 inside JSON (user decision, 2026-10-17). */
+const MAX_ROUTE_BODY_BYTES = 45_000_000;
 
 function inspectRouteDeclarations(parsed: PluginManifest): string[] {
   const routes = parsed.routes;
@@ -323,6 +323,9 @@ function inspectRouteDeclarations(parsed: PluginManifest): string[] {
     }
     if (route.max_body_bytes !== undefined && !(Number.isSafeInteger(route.max_body_bytes) && route.max_body_bytes > 0 && route.max_body_bytes <= MAX_ROUTE_BODY_BYTES)) {
       problems.push(`路由 ${route.route_id} 的请求体上限不合法（1 到 ${MAX_ROUTE_BODY_BYTES} 字节）`);
+    }
+    if (route.stream !== undefined && !(route.stream === "ndjson" && route.method === "POST")) {
+      problems.push(`路由 ${route.route_id} 的流式回复不合法（只有 POST 能声明 "ndjson"）`);
     }
   }
   return problems;

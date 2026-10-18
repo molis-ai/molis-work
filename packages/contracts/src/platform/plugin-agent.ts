@@ -15,12 +15,14 @@ export const platformPluginAgentContract = {
 export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" | "operate";
 
 /**
- * Host tools a business role (`workspace: "business"`) may name. None of them reads or writes a directory: asking the
- * person, the round's todo list, looking up deferred tool schemas, and the context room left. A business role's real
- * work is the unified actions it is given at start; `operate` lets it call commands among them, each under the effect
- * policy, while `read-only` limits it to queries.
+ * Host tools a business role (`workspace: "business"`) may name. None of them reads or writes a directory or runs a
+ * command: asking the person, the round's todo list, looking up deferred tool schemas, the context room left,
+ * registering a wait on the round's step (`board-wait`), and saying how it handles the person's supplements
+ * (`acknowledge-inputs`: the runtime records it on its own input ledger as the AI's claim, and shows the model each
+ * supplement's id only when a round lists it; specs/ai-input-receipts 3e-0). A business role's real work is the unified actions it is given at start; `operate` lets it call commands among them,
+ * each under the effect policy, while `read-only` limits it to queries.
  */
-export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"] as const;
+export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"] as const;
 
 /**
  * Tools a method for business work may name: the capability gateway and the tools that touch no directory. A method a

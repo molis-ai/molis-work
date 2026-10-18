@@ -34,7 +34,7 @@ export const JELLY_CALENDAR_CLIENT_SCRIPT = String.raw`
   };
   const bulkBar=()=>'<div class="jelly-bulk-bar"><span class="jelly-muted" data-jelly-selection-count>'+calendarSelected.size+' '+tx('项已选择')+'</span>'+btn('移动所选','data-jelly-move-selected','calendar')+(view==='progress'?btn('搬到下周','data-jelly-review-move="week"')+btn('搬到下月','data-jelly-review-move="month"'):'')+btn('清空选择','data-jelly-clear-selected')+'</div>';
   const renderCalendar=async()=>{
-    const seq=++calendarSeq;const {start,end}=range();const result=await request('GET','/api/jelly/calendar?start='+start+'&end='+end);
+    const seq=++calendarSeq;const {start,end}=range();const result=await request('GET',API+'/calendar?start='+start+'&end='+end);
     if(seq!==calendarSeq||view!=='calendar')return;occurrences=result.occurrences||[];
     $('[data-jelly-period-title]').textContent=mode==='week'?dateLabel(start,true)+' — '+dateLabel(end,true):dayDate(anchor).toLocaleDateString(document.documentElement.lang||undefined,{year:'numeric',month:'long'});
     const items=visibleOccurrences();
@@ -182,7 +182,7 @@ export const JELLY_CALENDAR_CLIENT_SCRIPT = String.raw`
     if(reviewPeriod==='week'){start=addDays(anchor,-((selectedDay.getDay()+6)%7));end=addDays(start,6);}else{selectedDay.setDate(1);start=civil(selectedDay);selectedDay.setMonth(selectedDay.getMonth()+1);selectedDay.setDate(0);end=civil(selectedDay);}
     if(start<=civil()&&end>=civil())end=civil();
     $('[data-jelly-period-title]').textContent=dateLabel(start,true)+' — '+dateLabel(end,true);
-    const [{progress},calendar]=await Promise.all([request('GET','/api/jelly/progress?start='+start+'&end='+end+'&today='+civil()+(filterCategory?'&category_id='+encodeURIComponent(filterCategory):'')),request('GET','/api/jelly/calendar?start='+start+'&end='+end)]);
+    const [{progress},calendar]=await Promise.all([request('GET',API+'/progress?start='+start+'&end='+end+'&today='+civil()+(filterCategory?'&category_id='+encodeURIComponent(filterCategory):'')),request('GET',API+'/calendar?start='+start+'&end='+end)]);
     if(seq!==calendarSeq||view!=='progress')return;occurrences=calendar.occurrences||[];const items=occurrences.filter((item)=>matches(item,item.notes));const done=items.filter((item)=>item.completed_at);const open=items.filter((item)=>!item.completed_at);const due=open.filter((item)=>item.end_date<civil());
     const ratio=items.length?Math.round(done.length/items.length*100):0;const displayed=reviewTab==='completed'?done:reviewTab==='overdue'?due:reviewTab==='priority'?open.filter((item)=>['P0','P1'].includes(item.priority)):open;
     const categories=state.categories.map((entry)=>{const all=items.filter((item)=>item.category_id===entry.id);const completed=all.filter((item)=>item.completed_at).length;return all.length?'<div class="jelly-agenda-row">'+categoryDot(entry.id)+'<span>'+esc(entry.name)+'</span><span class="jelly-muted">'+completed+' / '+all.length+' '+tx('已完成')+'</span></div>':'';}).join('');

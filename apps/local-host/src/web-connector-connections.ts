@@ -1,36 +1,36 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentMcpEndpoint } from "./agent-connector-ports.js";
-import { connectorAuthorizationStatus } from "./connector-authorization-status.js";
+import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { connectorManagementActions } from "./connector-management-actions.js";
+import { handleConnectionActionsHttp } from "./web-connection-actions.js";
+import { listConnectorConnectionViews } from "./connector-connection-views.js";
+import { cancelConnectorAuthorization, connectorAuthorizationStatus } from "./connector-authorization-status.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
+import { controlConnectorConnection } from "./connector-management-service.js";
 import { HOST_CONNECTOR_DIRECTORY } from "./connector-directory.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
+import { startConnectorSetupSubmission } from "./connector-setup-submission.js";
+import { activateConnectorConnection, type ConnectorActivation } from "./connector-activation.js";
+import { verifyEnabledConnection } from "./connector-check-service.js";
+import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
 import { refreshFeedConnectionState } from "./connector-source-state.js";
 export { refreshFeedConnectionState } from "./connector-source-state.js";
 
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
 
-export function listConnectorConnectionViews(homeDirectory: string, serviceId?: string) {
-  return withConnectorConnections(homeDirectory, (store) => store.list(serviceId).map((row) => {
-    const endpoint = row.auth_method === "mcp" ? agentMcpEndpoint(homeDirectory, row.connection_id) : null;
-    const view = { ...store.view(row), ...(row.auth_method === "mcp" ? { agent_available: Boolean(endpoint), ...(endpoint ? { mcp_endpoint: endpoint } : {}) } : {}) };
-    if (row.source !== "external" || row.disconnected_at) return view;
-    // A CLI account stays usable while the CLI configuration that verified it is still there.
-    const configuration = withConnectorProtocols(homeDirectory, protocols => protocols.get(row.connection_id));
-    return configuration?.protocol === "cli" && configuration.serviceId === row.service_id ? view : { ...view, state: "reauth_required" as const };
-  }));
-}
 
 export async function handleConnectorConnectionsHttp(
   request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory?: string,
+  remember?: ConnectorMcpDirectory["remember"],
+  actions?: BoundActionClient,
 ): Promise<boolean> {
   if (!homeDirectory) return false;
+  if (actions && await handleConnectionActionsHttp(request, response, url, actions)) return true;
   const authorization = /^\/api\/settings\/connectors\/authorizations\/([0-9a-f-]{36})$/u.exec(url.pathname);
-  if (authorization && request.method === "GET") {
-    const result = connectorAuthorizationStatus(homeDirectory, authorization[1]!);
+  if (authorization && ["GET", "DELETE"].includes(request.method ?? "")) {
+    const result = request.method === "DELETE" ? cancelConnectorAuthorization(homeDirectory, authorization[1]!) : connectorAuthorizationStatus(homeDirectory, authorization[1]!);
     sendJson(response, result ? 200 : 404, result ?? { error: "授权记录已失效，请重新登录" });
     return true;
   }
@@ -40,7 +40,7 @@ export async function handleConnectorConnectionsHttp(
   try {
     if (request.method === "GET" && collection) {
       const serviceId = url.searchParams.get("service_id") || undefined;
-      const connections = listConnectorConnectionViews(homeDirectory, serviceId);
+      const connections = actions ? (await actions.invoke(connectorManagementActions.list, { service_id: serviceId })).connections : listConnectorConnectionViews(homeDirectory, serviceId);
       sendJson(response, 200, { connections });
       return true;
     }
@@ -58,31 +58,47 @@ export async function handleConnectorConnectionsHttp(
       const body = await readLocalWebBody(request);
       const service = HOST_CONNECTOR_DIRECTORY.find(entry => entry.connector_id === body.service_id);
       if (!service?.method_options?.some(method => method.kind === "token" && method.support === "paste")) throw connectorErrors["connector.connection.invalid"]("此服务不提供可粘贴的 API 凭据，请使用列出的连接方式");
-      const connection = withConnectorConnections(homeDirectory, (store) => store.createToken({
-        serviceId: body.service_id as string, displayName: body.display_name as string,
-        token: body.token as string,
-        accountLabel: typeof body.account_label === "string" ? body.account_label : null,
-      }));
-      const view = withConnectorConnections(homeDirectory, (store) => store.view(connection));
-      sendJson(response, 201, { connection: view });
+      const setup = startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined, { service_id: body.service_id as string, method: "token" });
+      try {
+        setup?.assertCurrent();
+        const completion: ConnectorActivation = { kind: "token", input: {
+          serviceId: body.service_id as string, displayName: body.display_name as string,
+          token: body.token as string, accountLabel: typeof body.account_label === "string" ? body.account_label : null,
+        } };
+        const result = setup ? setup.submit(completion) : { connection: activateConnectorConnection(homeDirectory, completion) };
+        sendJson(response, "status" in result && result.status === "pending" ? 202 : 201, result);
+      } catch (error) { setup?.fail(); throw error; }
       return true;
     }
     if (item && request.method === "PATCH") {
       const body = await readLocalWebBody(request);
+      const setup = typeof body.token === "string" ? startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined,
+        { service_id: withConnectorConnections(homeDirectory, store => store.require(item[1]!).service_id), method: "token", connection_id: item[1]! }) : undefined;
+      if (setup && typeof body.token === "string") {
+        try {
+          const current = withConnectorConnections(homeDirectory, store => store.require(item[1]!));
+          const result = setup.submit({ kind: "token", input: { serviceId: current.service_id, displayName: typeof body.display_name === "string" ? body.display_name : current.display_name, token: body.token },
+            target: { connectionId: current.connection_id, expectedRevision: current.updated_at } });
+          sendJson(response, result.status === "pending" ? 202 : 200, result); return true;
+        } catch (error) { setup.fail(); throw error; }
+      }
       const connection = withConnectorConnections(homeDirectory, (store) => {
         let updated = store.require(item[1]!);
         if (typeof body.display_name === "string") updated = store.rename(updated.connection_id, body.display_name);
         if (typeof body.token === "string") updated = store.replaceToken(updated.connection_id, body.token);
         return store.view(updated);
       });
+      if (typeof body.enabled === "boolean") {
+        const result = controlConnectorConnection(homeDirectory, item[1]!, body.enabled ? "enable" : "disable");
+        const verification = body.enabled && remember ? await verifyEnabledConnection(homeDirectory, item[1]!, remember) : undefined;
+        sendJson(response, 200, { ...result, ...(verification ? { verification } : {}) }); return true;
+      }
       if (typeof body.token === "string") refreshFeedConnectionState(homeDirectory, item[1]!);
       sendJson(response, 200, { connection });
       return true;
     }
     if (item && request.method === "DELETE") {
-      const connection = withConnectorConnections(homeDirectory, (store) => store.view(store.disconnect(item[1]!)));
-      refreshFeedConnectionState(homeDirectory, item[1]!);
-      sendJson(response, 200, { connection });
+      sendJson(response, 200, controlConnectorConnection(homeDirectory, item[1]!, "disconnect"));
       return true;
     }
     sendJson(response, 405, { error: "不支持的连接操作" });

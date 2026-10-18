@@ -13,6 +13,7 @@ const original = docOf(paragraph("Both", [link("https://one.example/path"), comm
 async function mount(t: TestContext) {
   const b = await openGoalBrowser(t, true, undefined, null);
   if (!b) return;
+  await b.command("Emulation.setDeviceMetricsOverride", { width: 780, height: 493, deviceScaleFactor: 1, mobile: false }, b.sessionId);
   await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/` }, b.sessionId));
   // W5-10-PPV-01/02: formal host bundle/CSS, public mount, real Chrome DOM and input.
   await b.evaluate(`Promise.all([
@@ -84,6 +85,13 @@ test("W5-10-PPV-01: previews follow current marks, buttons, edits and the origin
   await b.click(".pages-comment-preview button");
   assert.equal(await b.evaluate("document.querySelector('.pages-pop textarea').value"), "Second note");
   await b.evaluate("document.querySelector('.pages-pop textarea').value='Edited note'"); await b.click(".pages-pop-actions .mw-btn--primary");
+  assert.equal(await b.evaluate("previewEditor.view.state.doc.child(2).firstChild.marks.find(mark=>mark.type.name==='comment').attrs.text"), "Edited note");
+  // W5-10-PPV-03: the extracted comment form must close its current transient, after showPop replaced the previous one.
+  assert.equal(await b.evaluate("document.querySelector('.pages-pop').hidden"), true, "saving closes the current comment form");
+  await b.click(".pages-comment-preview button");
+  await b.evaluate("document.querySelector('.pages-pop textarea').value='Button cancelled note'");
+  await b.click(".pages-pop-actions .mw-btn--ghost");
+  assert.equal(await b.evaluate("document.querySelector('.pages-pop').hidden"), true, "cancel button closes the current comment form");
   assert.equal(await b.evaluate("previewEditor.view.state.doc.child(2).firstChild.marks.find(mark=>mark.type.name==='comment').attrs.text"), "Edited note");
   await b.click(".pages-comment-preview button");
   await b.evaluate("document.querySelector('.pages-pop textarea').value='Cancelled note'"); await escape(b);

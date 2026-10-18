@@ -1071,3 +1071,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 A2 第 2、3 条走 A：Prologue 小 PR 把写后检查的键改成 after-write-check:<callId>（每次写入都有 callId 就只留这一种形状），导出判断函数和构造函数，执行器入参带上这个键；可顺手导出另外三种资源种类的常量。审过即合，合完换包，排在 A2-2 前面。
 - 10-18 #697 全量绿，已入队。#699 全量红：interaction-no-crosstalk AC-05（第二个会话没调到模型），已退回采用线，用 #699 的 head 和 main 基线对比。#702（交互线 AC-03，8980904a1）审过：字段名 t${index} 写了两份，要求从 agent-question-card 导出一个函数两处共用；assistant-island 为守行数压行，这次放行，下次必须真拆。#700 与 #702 都替换 3d-2 的放行条目，后合的那个重新定键。
 - 10-18 #697 已合入 8cc8fb67b；已通知手册线把 #698 改到 main、merge main。
+- 10-18 prologue#47 审过，已合入 feef0443：写后检查的键保留「第几次检查」的计数（callId 不唯一，有的写入也没有 callId）；执行器拿到 {operationKey, writeCallId?}，只由 SDK 填；导出判断函数、回执键函数和三个资源种类常量；本地 54 条全过。Molis 按 (run, operationKey) 记。下一次换包排在 #699 查清之后。

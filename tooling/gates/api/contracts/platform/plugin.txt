@@ -2414,6 +2414,7 @@ export interface PluginArtifactClient {
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
     head(artifactId: string): ArtifactLineHead | null;
     readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
+    listConsumable(): PluginConsumableVersion[];
 }
 
 export interface PluginArtifactPublishInput extends PluginProcessItemInput {
@@ -2446,6 +2447,13 @@ export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommand
 }> | PluginCommandInputOf<"artifacts", {
     references: readonly ArtifactReference[];
 }>;
+
+export interface PluginConsumableVersion extends ArtifactReference {
+    kind: "artifact" | "process_item";
+    artifact_type_id: string;
+    schema_version: number;
+    title: string | null;
+}
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
 
@@ -3206,6 +3214,12 @@ export interface PluginPrivateStorage {
 
 export interface PluginProcessItemClient {
     record(input: PluginProcessItemInput): ProcessItemResult;
+    head(artifactId: string): PluginProcessItemHead | null;
+    readOwn(reference: ArtifactReference): ProcessItemRecord | null;
+}
+
+export interface PluginProcessItemHead {
+    version: number;
 }
 
 export interface PluginProcessItemInput extends ArtifactReference {

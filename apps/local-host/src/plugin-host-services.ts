@@ -3,6 +3,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
 import {
   createPluginCapabilityClient,
@@ -52,7 +53,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
     withdrawCaller = options.qualifyCaller?.(definition, pluginCaller);
     const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
-    const artifactService = createPluginArtifactClient({ api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions,
+    const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions,
       project_id: options.project_id, actor_id: options.actor_id,
       // A version pinned inside one of this installation's actions is the caller's (an Agent, a workflow, an MCP client, the person).
       author: () => { const scope = currentPluginAction(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });

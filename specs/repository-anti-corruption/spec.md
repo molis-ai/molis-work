@@ -6,7 +6,7 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
-### W5-01 Shelf 前置 D1：项目成果操作与过程项恢复（2026-10-18，方案接受，实施待开始；负责人 Codex）
+### W5-01 Shelf 前置 D1：项目成果操作与过程项恢复（2026-10-18，本地实现与复审修正完成，最终验证中；负责人 Codex）
 
 目标等级为公共前置功能可用。现 `createPluginArtifactClient` 将动作注册和成果政策混在一起，过程项只有 record，Shelf 后续 Home 迁移缺少复用的 owner 操作、读取自己过程版本和可消费目录。本片基于已交付 S `dfc21df3b` 提取现 owner 操作，并立即由现项目 SDK client 消费；不做 D2 图参与者、D3 Home invocation 门面、Shelf 正式迁移或新增 Home 声明，不改 C OwnerFiles、A Alchemist，也不另建 registry、库或直接跨包 SQL。
 
@@ -28,7 +28,7 @@
 - **W5-01-D1-05**：真实 SDK discovery 新三 query @1 的完整合同，其他安装、无 grant 和伪受众拒绝；旧五 action schema 不变。不能全用裸工厂 fixture 代替生产链。
 - **W5-01-D1-06**：真实项目 Host 暴露 process head/readOwn 和 listConsumable；现 inputs/outputs 的 record/select 继续工作，生产者 stop 后固定可消费版本仍可读；工厂不注册 provider，client 仍只注册一份且可 dispose。
 
-验证：先整体 pnpm build，再按 artifacts/Host/contracts README 与实际影响面运行相关文件，包含 plugin-artifact-client、plugin-artifact-operations、plugin-host-services、personal-artifact-owner、artifacts-module、artifacts-actions、artifact-browser、artifact-document-import、artifact-links、artifact-source-and-links、artifact-subject-context、artifact-search-summary；API/actions/boundary/merge-base health 由 root 集成核验。共享核心全量交 CI 队列，不在本机跑。此前 S 的证据不能替代本片新增行为；当前无 D1 实现或测试通过证据。
+验证：先整体 pnpm build，再按 artifacts/Host/contracts README 与实际影响面运行相关文件，包含 plugin-artifact-client、plugin-artifact-operations、plugin-host-services、personal-artifact-owner、artifacts-module、artifacts-actions、artifact-browser、artifact-document-import、artifact-links、artifact-source-and-links、artifact-subject-context、artifact-search-summary；API/actions/boundary/merge-base health 由 root 集成核验。共享核心全量交 CI 队列，不在本机跑。此前 S 的证据不能替代本片新增行为；已完成唯一 owner 工厂与项目 client 接线；初轮 3 文件 20 条与其余包要求 71 文件通过。复审要求固定消费检查的创建身份，新增回归在旧构建精确复现修改 options.actor_id 后借读他人过程项，修正后整体构建及 8 个相关文件重验中；最终证据随后在本节结算。
 
 AQD 测试合同补正（2026-10-18，生产源码不变）：OwnerFiles 的相关回归发现 home-plugin-project-routes 在 personal 路径附 query project_id 时仍期待403/forbidden，冻结 S dfc21df3b复现同一400!=403。实际可信项目只从路径建立；现AQD已经明确保留Home缺项目400/actions.project_required并先于caller allowlist，因此只将这两个旧期待改为精确400/project_required。保留合法项目路径400/input_invalid、拒绝后jobs为空、撤grant后的403/forbidden和Home读仍可用等断言；这是与已接受合同对齐，不改生产或放宽成任意拒绝。原文件复跑1/1通过，真实响应确认精确project_required；合法project路径、拒绝后空jobs及撤grant后的403对照均保留并通过。
 

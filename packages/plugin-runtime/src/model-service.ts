@@ -27,6 +27,8 @@ export interface PluginModelDispatch {
   readonly signal: AbortSignal;
   /** Asked again just before the model is reached: the plugin is running, holds the grant, and the call is not over. */
   readonly beforeDispatch: () => Promise<void>;
+  /** Only text deltas; the Runtime checks the original call's current authority before handing each one to the plugin. */
+  readonly onText?: (delta: string) => void;
   readonly system?: InstructionPrompt;
   readonly timeout_ms: number;
   readonly max_output_tokens: number;
@@ -78,10 +80,22 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
       if (!caller.permissions.includes(MODEL_INVOKE)) throw new ActionError("actions.forbidden", "这次调用没有模型调用权限");
       await authority(caller);
       const checked = checkRequest(manifest.plugin_id, prompt, request);
-      const dispatch: PluginModelDispatch = { signal: AbortSignal.any([caller.signal, request.signal].filter(item => item !== undefined)),
+      const signal = AbortSignal.any([caller.signal, request.signal].filter(item => item !== undefined)), onText = request.onText;
+      let receiving = true;
+      const dispatch: PluginModelDispatch = { signal,
         beforeDispatch: () => authority(caller), timeout_ms: checked.timeout_ms, max_output_tokens: checked.max_output_tokens,
+        ...(onText ? { onText: (delta: string) => {
+          if (!receiving) throw new ActionError("actions.expired", "这次模型请求已结束，不能继续发送文字");
+          signal.throwIfAborted();
+          gate.assertActive(); gate.requireGrant(MODEL_INVOKE);
+          caller.assert_authority_current?.();
+          onText(delta);
+        } } : {}),
         ...(request.system ? { system: request.system } : {}) };
-      const answer = await port.complete(manifest.plugin_id, prompt, dispatch);
+      let answer: Awaited<ReturnType<PluginModelPort["complete"]>>;
+      try { answer = await port.complete(manifest.plugin_id, prompt, dispatch); }
+      finally { receiving = false; }
+      signal.throwIfAborted();
       await authority(caller);
       if (checked.output === "text") return { text: answer.text, ...(answer.usage ? { usage: answer.usage } : {}) };
       const decoded = port.decodeJson(answer.text);

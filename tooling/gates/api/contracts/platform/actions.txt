@@ -487,6 +487,10 @@ export interface ActionIntake extends DestinationDeclaration {
     readonly multiple?: boolean;
 }
 
+export interface ActionInvokeTransport {
+    readonly on_progress?: (event: ActionProgressEvent) => void;
+}
+
 export interface ActionMetadata {
     readonly title: string;
     readonly description: string;
@@ -543,6 +547,8 @@ export interface ActionMetadata {
         readonly input: Readonly<Record<string, string | readonly [string]>>;
     };
 }
+
+export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
 
 export interface ActionProvider {
     readonly provider_id: string;
@@ -809,7 +815,7 @@ export interface ArtifactReferrersResult {
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";

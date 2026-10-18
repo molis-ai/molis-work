@@ -241,11 +241,11 @@ const headErrors = (measured, budget, base) => {
 // no fields (the page reads them as empty); one helper for both key lists came out larger and was dropped. With it, +38 so that
 // Esc also stops a plan still on its way (a judgment coming back after Esc brought the toolbar up again; the full suite caught
 // it on #720): the stop already there for a new thing in hand became one `hush()` both use. +119 in all.
-// The entry is for exactly one merge-base budget (main d9a58f37f, after W5-01's +28), capped at the measured size, and used once:
-// the next baseline freezes again. This replaces W5-01's spent entry; delete it in the next change to this gate (as #541, #584 and
+// The entry is for exactly one merge-base budget (main 63639a764, after receipts 3e-1), capped at the measured size, and used once:
+// the next baseline freezes again. This replaces receipts 3e-1's spent entry; delete it in the next change to this gate (as #541, #584 and
 // #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110357, 1110476],
+  "/assets/molis-work-workbench.js": [1111791, 1111910],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

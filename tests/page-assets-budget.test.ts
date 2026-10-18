@@ -622,7 +622,8 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // Receipts 3d-3 (#700, RCPT-349–353) took Coding's bundle, both stylesheets and the workbench script from the next four; AC-03 (R4) replaced that allowance.
 // AC-03 (#702, specs/ai-interaction-experience R4) took the workbench script from the next sizes; receipts 3d-4 replaced that allowance.
 // Receipts 3d-4 (#706, RCPT-354–356) then used 1109913→1110802; W5-01 keeps both that spent start and its ceiling frozen.
-// W5-01 (#684) then used 1110329→1110357, and W3-C2 replaced that allowance.
+// W5-01 (#684) used 1110329→1110357 on main; receipts 3e-1 replaced that allowance.
+// Receipts 3e-1 (#714) then used 1110357→1111791, and W3-C2 replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -645,7 +646,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1109913], ["/assets/molis-work-workbench.js", 1110802],
   ["/assets/molis-work-workbench.js", 1110187], ["/assets/molis-work-workbench.js", 1110215],
   ["/assets/molis-work-workbench.js", 1110056], ["/assets/molis-work-workbench.js", 1110084],
-  ["/assets/molis-work-workbench.js", 1110329],
+  ["/assets/molis-work-workbench.js", 1110329], ["/assets/molis-work-workbench.js", 1110357],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -660,9 +661,9 @@ for (const [asset, old] of [
 
 // W3-C2 (specs/context-program §21.4, §21.6): a pane's hold names the keys under the pointer, and the page flashes the landing
 // for an attach key of its own plan; approved by the coordinator on 2026-10-18, the workbench script may grow once, from exactly
-// the current baseline (main after W5-01) to the measured size (+81, and +38 for Esc to stop a plan still on its way). One byte more, another asset, or growth from the new baseline still fails.
+// the current baseline (main after receipts 3e-1) to the measured size (+81, and +38 for Esc to stop a plan still on its way). One byte more, another asset, or growth from the new baseline still fails.
 test("W3-C2 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const asset = "/assets/molis-work-workbench.js", [from, to] = [1110357, 1110476];
+  const asset = "/assets/molis-work-workbench.js", [from, to] = [1111791, 1111910];
   branch("w3c2-hover-base", () => { sizes[asset] = from; putBudget(sizes); });
   git("checkout", "-q", "-B", "w3c2-hover-change");
   sizes[asset] = to;

@@ -144,8 +144,8 @@
 - 构建期内置插件的停用靠宿主层可用性检查，而不是注销动作，所以目录里它们仍在，只是标为不可用。成员关系是项目目录库里的事实（`project.plugin_added`、`project.plugin_removed` 事件），不是 Runtime 的状态。
 - 没有一个可移除的探针插件把 undo、到期提醒、`background_job`、情境片段、`methods`、放置走完「安装 → 发现 → 调用 → 停用 → 撤权 → 卸载 → 升级」；这些合同的生产方都是构建期插件（W4-01，台账见 [PLUGIN-PLATFORM §9](../platform/PLUGIN-PLATFORM.md)）。
 - Manifest 的 `methods` 通过校验，但只有构建期内置插件会被登记：`builtinRegistrations`（`apps/local-host/src/agent-definitions/builtin-agents.ts`）遍历 `BUILTIN_PLUGIN_CATALOG`，现有的声明方是 Pages 与 Todo；Runtime 插件和已安装插件的宿主都不登记它，声明了也不生效。已定（决定 18）：和内置插件一样注册，启动时登记，停用、卸载、升级时收回（W4-02）。
-- 已定（决定 9）：个人插件装在一个 Home 级的 Runtime 实例里，按项目启用照旧，数据文件留在 `{home}/<id>/<id>.db`、由平台库服务打开；Goals、Artifacts、Sessions 和插件创作台列为批准的构建期例外，其余构建期插件逐族迁到 Runtime（W5-01）。Issue 已复用唯一 Home Runtime；安装/发行物/KV 在 v2 Home 库，其他个人插件仍按迁移次序逐个接入。Home/project 重复身份被实际启动名单拒绝，业务库不搬入 Runtime；新工程证据按 spec §10.2 记录。
-- 已定（决定 26）：Characters 不再是 Runtime 插件，代码并进宿主或一个 Module，界面仍是「设置」里的一节；它的安装记录与 `project-plugins.ts` 里的监督器条目一起删（第 4 波的一片）。今天它仍是上表第二种。
+- 已定（决定 9）：个人插件装在一个 Home 级的 Runtime 实例里，按项目启用照旧，数据文件留在 `{home}/<id>/<id>.db`、由平台库服务打开；Goals、Artifacts、Sessions 和插件创作台列为批准的构建期例外，其余构建期插件逐族迁到 Runtime（W5-01）。（四个例外 2026-10-18 取消：Goals 按标准迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理；见防腐 spec §1。）Issue 已复用唯一 Home Runtime；安装/发行物/KV 在 v2 Home 库，其他个人插件仍按迁移次序逐个接入。Home/project 重复身份被实际启动名单拒绝，业务库不搬入 Runtime；新工程证据按 spec §10.2 记录。
+- 已定（决定 26）：Characters 不再是 Runtime 插件，代码并进宿主或一个 Module（2026-10-18 定为 `modules/characters`），界面仍是「设置」里的一节；它的安装记录与 `project-plugins.ts` 里的监督器条目一起删（第 4 波的一片）。今天它仍是上表第二种。
 
 ## 6. 链 5：后台——调度与监听 → Feed → Inbox → 提醒与通知
 

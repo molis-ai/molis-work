@@ -32,6 +32,7 @@ import type { PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
+import { assertFilesEntries } from "./plugin-files-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 
 /**
@@ -55,6 +56,7 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
  */
 export interface PluginPlatformEntry extends PluginSupervisorEntry {
   readonly database?: PluginDatabaseDeclaration;
+  readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
 }
 
 export interface PluginPlatformOptions {
@@ -126,6 +128,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     providerFor,
     qualifyCaller: identity.qualifyCaller,
     databaseFor: identity.databaseFor,
+    filesFor: identity.filesFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
@@ -214,6 +217,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
         listed.add(definition.manifest.plugin_id);
       }
       assertDatabaseEntries(entries, options.home);
+      assertFilesEntries(entries, options.home);
       identity.remember(entries);
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.

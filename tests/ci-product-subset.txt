@@ -449,6 +449,7 @@ tests/workflows-stop-and-token.test.ts
 tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
+tests/security-invariants-plugin-files.test.ts
 
 tests/connector-status.test.ts
 tests/connector-consumer-usages.test.ts

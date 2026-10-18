@@ -71,7 +71,7 @@ export interface BuiltinPluginEntry {
   /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable and enabled where already added. */
   readonly developer?: boolean;
   /** Explicit Runtime activation; personal visibility alone never migrates an existing plugin. */
-  readonly runtime?: { readonly scope: "home"; readonly create: () => PluginDefinition; readonly database?: PluginDatabaseDeclaration;
+  readonly runtime?: { readonly scope: "home"; readonly create: () => PluginDefinition; readonly database?: PluginDatabaseDeclaration; readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
     readonly package_name: string; readonly factory_export: string;
     /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
     readonly keys?: string };

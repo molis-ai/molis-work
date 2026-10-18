@@ -51,33 +51,35 @@ export const codingAgentManifest: AgentManifest = {
   // 2026-09-28 decision to continue an ending that only announces covers Coding too.
   ending_review: { prompt_id: "coding-ending-review" },
   skills: codingMethods.map(({ body: _body, ...declaration }) => declaration),
+  // acknowledge-inputs: every role the person talks to may say how it handles a supplement; the runtime keeps that as the AI's
+  // claim on its own input ledger and shows the round each supplement's id only when it lists the tool (receipts 3e-0b).
   roles: [
     {
-      role_id: CODING_PLANNER_ROLE, version: 3, name: "规划者", execution: "read-only",
+      role_id: CODING_PLANNER_ROLE, version: 4, name: "规划者", execution: "read-only",
       prompts: ["coding-base", "coding-planner"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search"],
     },
     {
       role_id: CODING_READER_ROLE,
-      version: 8,
+      version: 9,
       name: "阅读者",
       execution: "read-only",
       prompts: ["coding-base", "coding-reader"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search"],
     },
     {
       role_id: CODING_REVIEWER_ROLE,
-      version: 8,
+      version: 9,
       name: "评审者",
       // Reviewing is reading with a different question in mind, so it stays
       // read-only: a reviewer that could edit would be fixing, not reviewing.
       execution: "read-only",
       prompts: ["coding-base", "coding-reviewer"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search"],
     },
     {
       role_id: CODING_COORDINATOR_ROLE,
-      version: 14,
+      version: 15,
       name: "协作",
       // It holds run-command only so its independent reviewer can be given it: a subagent gets no tool its parent lacks.
       execution: "workspace-write",
@@ -85,38 +87,38 @@ export const codingAgentManifest: AgentManifest = {
       // session-send: it may ask another session of the project, or answer one (they are neighbours on the project's board), without a review each time (the person's decision).
       // Background commands: started and stopped under review like any command; reading and waiting on them are reads.
       // board-read / board-report: held so its children can report the steps handed to them (a child never holds a tool its parent lacks).
-      host_tools: ["suggest-action", "context-remaining", "find-tools", "ask-user", "read-file", "list", "search", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
+      host_tools: ["suggest-action", "context-remaining", "find-tools", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "run-command", "start-command", "command-output", "command-stop", "await-commands", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_WRITERS_ROLE,
-      version: 12,
+      version: 13,
       name: "并行写入",
       // Parallel writers work in their own worktrees; the parent itself only
       // reads and reports; integration is a separate reviewed Host operation.
       execution: "read-only",
       subagent_workspaces: "required",
       prompts: ["coding-base", "coding-writers"],
-      host_tools: ["context-remaining", "ask-user", "read-file", "list", "search", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
+      host_tools: ["context-remaining", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "dispatch-subagent", "await-subagents", "steer-subagent", "board-read", "board-report", "session-send"],
     },
     {
       role_id: CODING_BUILDER_ROLE,
-      version: 15,
+      version: 16,
       name: "构建者",
       // Edits and runs commands. Needs a Runtime that supports both under Host
       // approval, so it stays unavailable until one does.
       execution: "workspace-write",
       prompts: ["coding-base", "coding-builder", "coding-background"],
       // board-wait: the step waits on something outside (a result file, a read-only query's state) with the round over; a wait is a read.
-      host_tools: ["suggest-action", "context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "run-command", "start-command", "command-output", "command-stop", "await-commands", "board-read", "board-report", "board-wait", "session-send"],
+      host_tools: ["suggest-action", "context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "write", "edit-file", "run-command", "start-command", "command-output", "command-stop", "await-commands", "board-read", "board-report", "board-wait", "session-send"],
     },
     {
       role_id: CODING_WRITER_ROLE,
-      version: 10,
+      version: 11,
       name: "改写者",
       // File-only work does not request command permission.
       execution: "text-edit",
       prompts: ["coding-base", "coding-writer"],
-      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "read-file", "list", "search", "write", "edit-file", "session-send"],
+      host_tools: ["context-remaining", "find-tools", "list-mcp-resources", "read-mcp-resource", "ask-user", "acknowledge-inputs", "read-file", "list", "search", "write", "edit-file", "session-send"],
     },
   ],
   prompts: [

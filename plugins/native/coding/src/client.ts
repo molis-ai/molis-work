@@ -110,13 +110,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let goalRows=[],goalCursor=null,goalChoice=null,goalTicket=0,goalReading=0,goalSaving=false;
   /** The header names the folder; the full path stays one hover away. */
   const showWorkspace=(path,fallback)=>{const label=q('[data-coding-workspace-label]'),name=path?path.split('/').filter(Boolean).at(-1):fallback;label.innerHTML=(path?'<svg aria-hidden="true"><use href="#icon-folder"></use></svg>':'')+'<span></span>';label.lastChild.textContent=name;label.title=path||'';label.dataset.empty=String(!path);root.dataset.codingWorkspaceName=path?name:'';turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=path?name:'当前工作区';node.parentElement.title=path||'';});};
+  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'挂起等待',done:'本轮结束'};
   const status=(message,error=false)=>{if(!lifetime.alive)return;const node=q('[data-coding-status]');node.textContent=message;node.dataset.error=String(error);},sessionPath=(id,run)=>'/sessions/'+encodeURIComponent(id)+(run===undefined?'':'/runs/'+encodeURIComponent(run));
   const api = async (path, method = 'GET', body, requestSignal) => {
     const signal=requestSignal || (method==='GET' && lifetime.visible && !viewSignal?.aborted ? viewSignal : undefined);
     const response = await lifetime.fetch(prefix + path, { method, cache:'no-store', signal,
       ...(method === 'GET' ? {} : { headers:molisWorkControlHeaders(), body:JSON.stringify(body ?? {}) }) });
     const result = await response.json();lifetime.assertCurrent(signal);
-    if (!response.ok) throw Object.assign(new Error(result.error || '无法完成 Coding 操作'),{details:result.details});
+    if (!response.ok) throw Object.assign(new Error(result.error || '无法完成 Coding 操作'),{code:result.code,details:result.details});
     return result;
   };
   const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,host,status});
@@ -427,7 +428,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     for(const [id,row] of directoryRows) if(!visibleIds.has(id)) {row.remove();directoryRows.delete(id);}
     list.querySelector('.mw-empty')?.remove();
     if (!visible.length) { const empty=make('div');empty.className='mw-empty';const label=make('p');label.textContent=needle ? '没有匹配的会话' : selectedFilter!=='all' ? '当前没有这类会话' : '还没有编码会话';empty.append(label);list.append(empty); return; }
-    const labels = { idle:'尚未执行', running:'执行中', paused:'已暂停', 'waiting-answer':'等你回答', 'waiting-approval':'等你审查', failed:'失败待处理', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'待核对结果', queued:'挂起等待', done:'本轮结束' };
     for (const session of visible) {
       let row=directoryRows.get(session.session_id);
       if(!row) {
@@ -453,7 +453,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const holders=session.steps?[session.steps.mine?'你负责 '+session.steps.mine+' 步':'',session.steps.subtasks?session.steps.subtasks+' 步在子任务手上':'',session.steps.unowned?'没人认领 '+session.steps.unowned+' 步':''].filter(Boolean).join(' · '):'';
       // Two sessions under way on the same Goal may be doing the same thing twice.
       const busyStates=['running','paused','waiting-answer','waiting-approval','queued'],twin=session.goal_id&&busyStates.includes(session.state)?visible.find(other=>other!==session&&other.goal_id===session.goal_id&&busyStates.includes(other.state)):null;
-      const label=(session.priority?'优先 · ':'')+(session.checkpoint_busy ? '回退待处理' : labels[session.state] || session.state)+(session.background_unreadable?' · 后台命令 · 状态暂不可读':'')+(holders?' · '+holders:'')+(twin?' · 可能与「'+twin.title.slice(0,16)+'」重复':'');if(mark.textContent!==label) mark.textContent=label;
+      const label=(session.priority?'优先 · ':'')+(session.checkpoint_busy ? '回退待处理' : SESSION_STATE[session.state] || session.state)+(session.background_unreadable?' · 后台命令 · 状态暂不可读':'')+(holders?' · '+holders:'')+(twin?' · 可能与「'+twin.title.slice(0,16)+'」重复':'');if(mark.textContent!==label) mark.textContent=label;
       mark.dataset.state=session.checkpoint_busy ? 'waiting-approval' : session.state; mark.dataset.mwState=session.checkpoint_busy?'verify':({running:'running',ready:'ready','waiting-answer':'answer','waiting-approval':'approval',paused:'paused',failed:'failed','reconcile-required':'verify',completed:'round-ended',stopped:'stopped',cancelled:'cancelled'})[session.state]||'idle';
       const goalKey=session.goal_id || '';let group=directoryGroups.get(goalKey);
       if(!group) {group=make('section');group.className='coding-session-group';const heading=make('h2');heading.className='mw-dir__heading';group.append(heading);directoryGroups.set(goalKey,group);}
@@ -690,7 +690,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               void saveDraft(id,localDraft(id) || '').catch(()=>{});
               if(current===id) {void readCurrent();void refreshState().catch(()=>{});}
             } catch(error) {if(!lifetime.alive)return;
-              note.textContent=error.message;card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=card.dataset.answerable!=='true');if(error.details?.errors)client.showErrors(error.details.errors,{focus:true});
+              const closed=['coding.round_ended','agent.pending_not_open'].includes(error.code);if(closed){answeredQuestions.add(key);card.dataset.refused='true';if(current===id)void readCurrent();}
+              note.textContent=error.message;card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=closed||card.dataset.answerable!=='true');if(error.details?.errors)client.showErrors(error.details.errors,{focus:true});
             } finally {delete card.dataset.busy;}
           },
         });
@@ -703,7 +704,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(!canAnswer && form.dataset.busy!=='true') form.querySelector('[data-ix-note]').textContent=question.unavailable_reason || '这一轮已结束，原问题不可再回答。';
     }
     for(const form of block.querySelectorAll('[data-coding-question]')) {
-      if(!live.has(form.dataset.questionKey)) {
+      if(!live.has(form.dataset.questionKey) && !(form.dataset.busy || form.dataset.refused)) {
         const hadFocus=form.contains(document.activeElement);form.ix?.destroy();form.remove();if(hadFocus)input.focus({preventScroll:true});
       }
     }
@@ -1476,7 +1477,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
   lifetime.listen(directory.querySelector('[data-coding-artifact-search]'),'input',renderArtifacts);
   // The same commands in the composer's slash menu, the palette and the shortcuts; each says when it is not available.
-  const SESSION_STATE={idle:'尚未执行',running:'执行中',paused:'已暂停','waiting-answer':'等你回答','waiting-approval':'等你审查',failed:'失败待处理',stopped:'已停止',cancelled:'已取消','reconcile-required':'待核对结果',queued:'挂起等待',done:'本轮结束'};
   const codingCommands=()=>{
     const intents=[...q('[data-coding-intent]').options].map(option=>({slash:option.value,label:'方式：'+option.textContent.replace(/（.*）/,''),hint:'下一轮用这个方式',keywords:['方式','intent'],enabled:!option.disabled && Boolean(current),
       run:()=>{const select=q('[data-coding-intent]');select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));status('下一轮方式：'+option.textContent+'。');input.focus();}}));

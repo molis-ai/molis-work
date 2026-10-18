@@ -14,13 +14,16 @@ export interface PluginModelConfigurationPort {
 
 export function createPluginModelConfigurationClient(manifest: PluginManifest, declaration: PluginModelConfigurationDeclaration,
   port: PluginModelConfigurationPort, gate: PluginModelGate): PluginModelConfigurationClient {
-  const check = (scope: PluginActionScope) => {
+  const checkScope = (scope: PluginActionScope) => {
     gate.assertActive(); gate.requireGrant("storage:private");
     scope.caller.signal?.throwIfAborted();
     for (const permission of scope.definition.action.permissions) {
       gate.requireGrant(permission);
       if (!scope.caller.permissions.includes(permission)) throw new ActionError("actions.forbidden", "这次调用没有模型设置动作需要的权限");
     }
+  };
+  const check = (scope: PluginActionScope) => {
+    checkScope(scope);
     requireSynchronous(scope.caller.assert_authority_current?.(), "模型设置最终授权检查必须同步完成");
   };
   const requireAction = (kind: "read" | "save") => {
@@ -40,7 +43,9 @@ export function createPluginModelConfigurationClient(manifest: PluginManifest, d
       const scope = currentPluginAction();
       if (scope) {
         if (scope.install_id !== gate.install_id) throw errors.model_configuration_action_required("不能从另一个插件的动作读取模型选择");
-        check(scope);
+        // Selection is also read by availability, which the caller authority check itself evaluates.
+        // Model execution checks current authority through beforeEffect after reading this metadata.
+        checkScope(scope);
       }
       const selection = port.selection();
       return selection ? { provider_id: selection.provider_id, model_id: selection.model_id } : undefined;

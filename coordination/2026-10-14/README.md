@@ -1044,3 +1044,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #695 全量红一处：security-invariants-doc「S-20 the table is checked」——S-33 行正文用「未执行」引语，被当成测试标题；只改文档（不用「」），连同本地 merge main（aead5fe32，coding.js 373970）一起推，统筹核 diff 后走 merge-only。
 
 - 10-18 prologue#45 合入 7b201ed5（写后检查：执行器只回命令，SDK 核过走命令审查；Run 停下在解析前、解析中、答完后各有一道；变异 33 处 31 红）。#694 全量已排队。采用线下一步：从 7b201ed5 打包换包（含 #42–#45），SECURITY-INVARIANTS 命令节加一行，先发一行计划。
+
+- 10-18 #695 新 head c28ef7500：门禁之外 627 行逐行一致，只多 S-33 行去掉「」与重新取键，走 merge-only（gate-695b）。#697（手册 coding-base v11，56a1ec63b）只删不加，48 次评测按规则采用（① 3/4、② 2/3 边界判断统筹复核同意、③ 7/7、④ 0/0），排在 chain36。统筹 10-18 定：④ 单独一道 text 题算可接受；后续两片：Prologue PR 让 id 说明写出校验认的格式（同一常量、配用例），Molis agent-host 片让 withInteractionRepairLimit 停下时带上事实原因。

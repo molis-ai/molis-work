@@ -1075,3 +1075,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #698 已改到 main，新 head d4e496cc5：改动行与审过的完全一致，合并无冲突，交 chain39。
 - 10-18 #702 新 head 797f2dcd9：只把字段名改成用 textFieldId(index)，宿主三处共用；已核，交 chain40。#702 和 #700 谁后合，谁就在 page-assets 上冲突，到时要重定键。
 - 10-18 #700 推了 19a55e2c7，只改 RING-07 用例（计划卡的端口），改得对。eb1c02020 的全量跑完后，如果只红 coding-state-rings，就对 19a55e2c7 走 merge-only；已请回执线在本机跑这个文件。
+- 10-18 #701（情境线 W2'-2，dfa8720de，叠在 #694 上）审过：always_on 由宿主判断是否随宿主发布，S-30 侧栏转发只认一份名单，Images 改走动作（删掉 molis:shelf-admit），字节对 main 净减。认可「放进 Shelf 后不自动打开侧栏」。要求三处：①把 #694 并进 #701（base 改成 main、merge main，我关掉 #694）：#694 的 DOCK-04 一直红着，而且分开合会让 #701 对新 main +676 B；②S-33 和 #695 撞号，取下一个空号；③shelf.items.admit 的定义挪进 contracts/modules/shelf，不再硬转型。W2'-3 先交计划。

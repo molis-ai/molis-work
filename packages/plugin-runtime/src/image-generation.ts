@@ -34,7 +34,7 @@ export function createPluginImageGenerationClient(manifest: PluginManifest, port
     if (!declared.has(permission)) throw errors.image_permission_undeclared("清单未声明图片服务需要的权限");
     gate.requireGrant(permission);
   };
-  const action = (required: readonly string[], command = false) => {
+  const action = (required: readonly string[], command = false, checkAuthority = true) => {
     const scope = currentPluginAction();
     if (!scope || scope.install_id !== gate.install_id) throw errors.image_action_required("图片服务只接受本安装正在执行的动作");
     for (const permission of required) {
@@ -44,14 +44,15 @@ export function createPluginImageGenerationClient(manifest: PluginManifest, port
     }
     if (command && scope.definition.operation !== "command") throw errors.image_action_required("连接变更只能由 command 动作执行");
     scope.caller.signal?.throwIfAborted();
-    requireSynchronous(scope.caller.assert_authority_current?.(), "最终图片授权检查必须同步完成");
+    if (checkAuthority) requireSynchronous(scope.caller.assert_authority_current?.(), "最终图片授权检查必须同步完成");
     return scope;
   };
   const read = (generationAllowed = false) => {
     const scope = currentPluginAction();
     const permission = generationAllowed && scope?.definition.action.permissions.includes(permissions.generate) ? permissions.generate
       : generationAllowed && scope?.definition.action.permissions.includes(permissions.write) ? permissions.write : permissions.read;
-    if (scope) action([permission]);
+    // Availability can read metadata during the kernel authority check; never recursively re-enter that check.
+    if (scope) action([permission], false, false);
     else permit(permission); // Discovery sees metadata; it cannot dispatch or mutate a binding.
   };
   const current = (caller: ActionExecutionContext, required: readonly string[]) => {

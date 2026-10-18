@@ -105,9 +105,10 @@ test('Images discovery never decrypts the chosen connection key, and generation 
     base_url: `http://127.0.0.1:${address.port}/v1`, model: 'existing-model', auth_connection_id: account.connection_id });
   const sealed = () => runWithMolisWorkHome(f.home, () => peekSealedEntry(account.credential_ref!));
   const original = sealed(); assert.ok(original);
-  const get = t.mock.method(secrets, 'get', () => { throw new Error('Discovery must not decrypt'); });
+  let decryptStack = '';
+  const get = t.mock.method(secrets, 'get', () => { const error = new Error('Discovery must not decrypt'); decryptStack = error.stack ?? ''; throw error; });
   const list = await f.global.invoke(actions.connections, {});
-  assert.equal(get.mock.callCount(), 0);
+  assert.equal(get.mock.callCount(), 0, decryptStack);
   assert.equal(list.connections[0]!.id, connection.id); assert.equal(list.connections[0]!.available, true);
   assert.equal(list.auth_connections.length, 1);
   assert.equal(list.connections[0]!.auth_connection_id, account.connection_id);

@@ -6,10 +6,9 @@ import { existsSync } from "node:fs";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import type { PluginPlatformHome } from "./home-side.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { resolvePrologueInference } from "./prologue-inference-host.js";
-import { imageBaseUrl, imageConnectionSnapshot, imagePortErrors } from "./plugin-image-connections.js";
+import { imageBaseUrl, imageConnectionSnapshot, imageConnectionViews, imagePortErrors } from "./plugin-image-connections.js";
 
 export function pluginImageGenerationFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
   declaration: PluginImageGenerationDeclaration | undefined, assertActive: () => void): PluginImageGenerationClient | undefined {
@@ -21,7 +20,7 @@ export function pluginImageGenerationFor(home: PluginPlatformHome | null | undef
 /** Connector owner manages bindings; agent-host owns every actual model dispatch. */
 export function createPluginImageGenerationPort(home: string, namespace: string): PluginImageGenerationPort {
   return {
-    connections: () => existsSync(homeSqlitePath(home, "connectors")) ? listConnectorConnectionViews(home, "image-api") : [],
+    connections: () => imageConnectionViews(home),
     inspect: target => imageConnectionSnapshot(home, namespace, target),
     bind: (target, connectionId) => withConnectorConnections(home, store => {
       const base = imageBaseUrl(target.base_url), selected = store.require(connectionId, "image-api");

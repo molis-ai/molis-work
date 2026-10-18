@@ -118,3 +118,13 @@ test("a connection replaced after dispatch returns cannot authorize old image by
   assert.equal(current.status, "running"); assert.deepEqual(current.images, []); assert.equal(current.error, "");
   assert.equal(f.calls.length, 1);
 });
+
+test("W5-01-IMGPORT-02: MCP availability metadata cannot recurse into its own authority check", async t => {
+  const f = await imageRuntimeFixture(t), { connection } = await f.connection();
+  const client = f.client("project-a", { audience: "mcp" });
+  const available = await client.discover();
+  assert.equal(available.find(view => view.capability_id === actions.start.capability_id)?.availability.available, true);
+  const { job } = await client.invoke(actions.start, { request_id: "mcp-availability", connection_id: connection.id, prompt: "actual MCP audience" });
+  assert.equal((await imageTerminal(client, job.id)).status, "succeeded");
+  assert.equal(f.calls.length, 1);
+});

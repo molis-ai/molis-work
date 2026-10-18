@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { PluginImageTarget } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -38,4 +39,17 @@ export function imageConnectionSnapshot(home: string, namespace: string, target:
     selected?.enabled ?? null, selected?.disconnected_at ?? null, targetOrigin, sealed])).digest("hex");
   return { connection_id: binding?.connection_id ?? null, available, has_key: available && !!sealed, revision,
     ...(!available ? { reason: "所选图像连接不可用，请检查服务连接" } : {}) };
+}
+
+/** Discovery only checks sealed-key presence, as the Images picker has always done. */
+export function imageConnectionViews(home: string): readonly ConnectorConnectionView[] {
+  if (!existsSync(homeSqlitePath(home, "connectors"))) return [];
+  return withConnectorConnections(home, store => store.list("image-api").map(row => {
+    const target = store.targetOrigin(row.connection_id);
+    const present = row.credential_ref && runWithMolisWorkHome(home, () => peekSealedEntry(row.credential_ref!));
+    return { connection_id: row.connection_id, service_id: row.service_id, display_name: row.display_name, account_label: row.account_label,
+      auth_method: row.auth_method, source: row.source, enabled: row.enabled,
+      state: !row.enabled || row.disconnected_at ? "disconnected" : present ? "connected" : "reauth_required",
+      ...(target ? { target_origin: target } : {}) };
+  }));
 }

@@ -47,9 +47,10 @@ test("W5-01-IMGPORT-02 HTTP Runtime binds project identity, reads bytes and save
   assert.equal((await f.request(second + imagePath)).status, 404);
   const image = await f.request(first + imagePath);
   assert.equal(image.status, 200); assert.match(image.headers.get("content-type") ?? "", /image\/png/);
+  assert.match(image.headers.get("content-disposition") ?? "", /^inline;/);
   assert.equal(Buffer.from(await image.arrayBuffer()).toString("base64"), IMAGE_PNG);
   const download = await f.request(first + imagePath + "?download=1&name=retained.png");
-  assert.match(download.headers.get("content-disposition") ?? "", /retained\.png/);
+  assert.match(download.headers.get("content-disposition") ?? "", /^attachment;.*retained\.png/);
   // IMAGES-SHELF-01: the real Shelf action receives the copy through the shared action contract.
   assert.equal(shelfActions.admit, SHELF_ADMIT_ACTION);
   const kept = await post(first + imagePath + "/shelf", { filename: "留一张.png" });

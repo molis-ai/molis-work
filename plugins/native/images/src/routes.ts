@@ -24,7 +24,8 @@ export function imagesRoutes(context: PluginStartContext): PluginRouteBinding[] 
       const result = await image.handle(request);
       if (result.status !== 200) return result;
       const file = result.body as { base64: string; mime_type: string; filename: string };
-      return { status: 200, bytes: Buffer.from(file.base64, "base64"), mime: file.mime_type, filename: downloadName(request, file.filename) };
+      return { status: 200, bytes: Buffer.from(file.base64, "base64"), mime: file.mime_type, filename: downloadName(request, file.filename),
+        disposition: request.query.download === "1" ? "attachment" as const : "inline" as const };
     } },
     { route_id: "images.images.shelf", async handle(request) {
       const result = await image.handle(request);

@@ -28,6 +28,12 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 下面的目录、资源、英文和公开包登记仍适用；第 3 步只给实际导入者登记依赖（Home 的可信工厂来自 Workbench 目录，不必给 Local Host 增加插件专属 import），第 6、7 步的项目监督器名单由 Home 声明和实际启动测试代替。第 8 步使用通用 Home 页面与运行实例 contribution；不再添加插件专属 Host 渲染函数。
 
+### Home 主人文件树
+
+只有可信 Home 启动条目可声明 `owner_files: { store_name, entries, read_permission, write_permission }`，其中 entries 固定顶层文件或目录，根须已登记归该插件所有；不与任何 scope 的 database/旧 files 共根。`services.ownerFiles` 提供 `stat/read/list` 与 `await write(writer => …)`；写回调同步完成，每个原语重查原动作权限，不能保存 writer 或跨 await 使用。Writer 支持 mkdir、独占 create/copy、存在文件 replace、原子替换、树删除与固定访问模式，接受 Unicode 相对路径但拒绝链接、硬链接和特殊节点。声明目录顶层不能删除。
+
+`initialize_owner_files` 只在当前安装与写 grant 有效后、插件 start 前获得单次同步 writer；失败不注册动作，但已经合法写入的字节不回滚。原子替换在 rename 前失败保留原文件，树删除先预检；没有多文件事务或抵御同 OS 用户并发替换父目录的承诺。Manifest、自报 id、project、sandbox 和升级预检不能取得此服务；现 Shelf 尚未迁移。详情见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-主人的私有文件树)。
+
 ### Home 模型配置与生图
 
 消费者的独立模型设置使用可信条目的 `model_configuration` 与 `services.model.configuration`；真实生图使用 `image_generation` 与 `services.imageGeneration`，任务调度和图片校验仍由插件拥有。不要把 Home 路径或凭据解析器交给插件。生成返回的 revision 必须用于后续写入复核；失效时成功和失败记录都不能写。项目删除通过原可信 project_data 与同步 contribution.onProjectDeleted 先取消再清理。调用范围、声明字段和路由字节响应见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-消费者的模型配置生图与项目清理)。

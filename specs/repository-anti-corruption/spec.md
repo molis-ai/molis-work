@@ -6,6 +6,30 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+### W5-01 Shelf 前置 D1：项目成果操作与过程项恢复（2026-10-18，方案接受，实施待开始；负责人 Codex）
+
+目标等级为公共前置功能可用。现 `createPluginArtifactClient` 将动作注册和成果政策混在一起，过程项只有 record，Shelf 后续 Home 迁移缺少复用的 owner 操作、读取自己过程版本和可消费目录。本片基于已交付 S `dfc21df3b` 提取现 owner 操作，并立即由现项目 SDK client 消费；不做 D2 图参与者、D3 Home invocation 门面、Shelf 正式迁移或新增 Home 声明，不改 C OwnerFiles、A Alchemist，也不另建 registry、库或直接跨包 SQL。
+
+保留旧五个 SDK 动作的 identity/schema/version、project/actor/producer 绑定、created_by 来源与停用/撤权拒绝。特别是既有 artifact head/readOwn 仍仅按 producer_plugin_id 判自己，不顺便加严签名/owner；普通 read 仍成果优先、过程其次，过程个人 owner 与 consumes/归档/可用性规则不变。已经固定的合法版本在生产者停用后仍可被消费，不新增 active-producer 条件。
+
+作者合同新增 `PluginProcessItemHead { version: number }`；`PluginProcessItemClient.head(artifactId)` 与 `readOwn(reference)` 返回过程最新版本/固定记录或 null；校验 producer id、publisher signature，personal 还需 owner_actor_id 等于安装 actor_id，不比较 producer version，归档/unavailable 自恢复可读且不要求 consumes。record 的 owner/author 仍按现 Module 规则，不为恢复接口重写旧 owner；由其他 author 写下的个人过程项对安装 actor 的 own 读取明确拒绝。`PluginArtifactClient.listConsumable()` 返回 `PluginConsumableVersion extends ArtifactReference { kind: "artifact" | "process_item"; artifact_type_id; schema_version; title: string | null }[]`，不返回正文、metadata、owner 或路径。返回所有可消费固定版本（不限 latest/端口），成果在前、过程在后，分别保持 owner listArtifacts 顺序；过程 metadata.title 仅非空字符串原样返回，其余 null。与 read 共用消费判定，拒绝项过滤，查询错误抛出。同 id/version 碰撞时成果优先：用于排除过程引用的集合必须取全部成果记录，包括不可消费成果，保证列表随后 read 不会读到另一种类；集合仅为单次查询局部值。
+
+在 artifacts owner 包新增 `createPluginArtifactOperations({ api, process, manifest, project_id, actor_id, author?, authorize, assertInput })`，返回分开的 `{ client, process }`（两个 head/readOwn 不能交叉合成一个对象）。工厂 clone Manifest，每方法先核声明再调可信 authorize；不创建身份、不登记动作。共享输入投影/动作 schema 提取为一个包内文件，白名单先丢弃伪身份字段再校验，保留现客户端语义。Host 注入 kernel 已公开的 assertActionInput；项目 ActionService 与 owner 直调边界使用同一 schema/validator，不复制解析规则、不加 no-op 或调用方可开的跳过开关。owner 包不依赖 kernel，现 Host/client/test 调用点补 required validator。公开工厂只经 artifacts 包出口，作者从 contracts/platform/plugin 得新类型，本片不额外扩 SDK 的便利 type export。
+
+`createPluginArtifactClient` 保留安装匹配、一次 provider 注册、availability、caller allowlist、invokeSync 与 dispose，五项旧 handler 全委托共同工厂；同 provider 新增 `process-head`、`process-own`、`list` 三个 query @1，project scope、plugin audience、artifact:read、sync。旧 @1 的输入输出不变。Home 不提前接这份工厂。动态 SDK 动作可能不被当前无安装身份的 host snapshot 枚举到：按现 actions:update 实测记录，不为快照放开 availability；定向 discovery 固定新动作的 schema/版本/受众/权限。
+
+允许源码范围：contracts 的 plugin-artifacts.ts/plugin.ts；artifacts 的 plugin-client.ts、plugin-operations.ts、plugin-action-contracts.ts、index.ts（现 action-schemas.ts 仅共享 schema 必需时）；Host plugin-host-services.ts 的 validator 注入；plugin-artifact-client、plugin-artifact-operations、plugin-host-services 与必要 typed fixture 测试。既有公共 client 新增 required 方法导致的 typed fixture 仅补实际语义，不改可选方法兜底。root 串行维护唯一 spec、包 README/必要 Skill、安全表与 API/动作派生快照。没有数据库迁移或页面资源变化；错误沿现 artifacts.plugin_denied/plugin_incompatible 与 kernel 校验模型。
+
+验收：
+- **W5-01-D1-01**：旧五动作经实际项目 client 委托唯一操作工厂；返回、事件游标、replayed、身份白名单、停止/撤权/旧 client 拒绝不变。
+- **W5-01-D1-02**：process head/readOwn 的精确 store、null/最新/归档/unavailable 恢复、错 producer/签名/个人 owner 拒绝与跨 producer version 恢复；artifact own 原规则不加严。
+- **W5-01-D1-03**：两类多版本/未连端口目录、标题、过滤和引用碰撞优先级符合上述合同；列出的每个 ref 经 read 得到同 kind/type/version；查询故障抛出，空库返回空列表。
+- **W5-01-D1-04**：未声明 type/schema、跨 store 同ID、冲突版本、伪身份与非法输入拒绝后版本/事件不增加；SDK 与直调共享验证；author 与安装 actor 不同时保留原 created_by/owner 并按新 own 边界拒绝。
+- **W5-01-D1-05**：真实 SDK discovery 新三 query @1 的完整合同，其他安装、无 grant 和伪受众拒绝；旧五 action schema 不变。不能全用裸工厂 fixture 代替生产链。
+- **W5-01-D1-06**：真实项目 Host 暴露 process head/readOwn 和 listConsumable；现 inputs/outputs 的 record/select 继续工作，生产者 stop 后固定可消费版本仍可读；工厂不注册 provider，client 仍只注册一份且可 dispose。
+
+验证：先整体 pnpm build，再按 artifacts/Host/contracts README 与实际影响面运行相关文件，包含 plugin-artifact-client、plugin-artifact-operations、plugin-host-services、personal-artifact-owner、artifacts-module、artifacts-actions、artifact-browser、artifact-document-import、artifact-links、artifact-source-and-links、artifact-subject-context、artifact-search-summary；API/actions/boundary/merge-base health 由 root 集成核验。共享核心全量交 CI 队列，不在本机跑。此前 S 的证据不能替代本片新增行为；当前无 D1 实现或测试通过证据。
+
 SHM+AQD 公共候选（2026-10-18，本地功能可用，可供 PPT 本地迁移；整线/发布未完成）：本分支已合并 M 的 9c1635a96，含 main 7faaa027c 和 Todo b168 的源码组合，以及同一份模型 validateResult 与原调用者 invokeQuery。最终整体 pnpm build 通过；按该组合 merge-base 7faaa027 的 health（含公开API匹配）、boundary 与资源检查通过，25项资源7,476,626 B，AQD无客户端增量。包要求相关107文件首轮106通过，唯一旧Home缺项目诊断400→403已修复并原测试7/7重验；最终对应107文件1,294条通过。五个query文件最终37条通过（正式SDK/真实HTTP/Runtime/Kernel/MCP），与旧Home平台合计6文件44条；原background21/21保持有效。SHM此前真实模型/最终提交拒绝与组合7文件147条证据保留。日志为 /tmp/molis-shelf-aqd-final-build.log、molis-shelf-aqd-main-required.log、molis-shelf-aqd-final-query.log、molis-shelf-aqd-home-final3.log、molis-shelf-aqd-final-health-tracked.log、molis-shelf-aqd-final-assets.log；原失败日志保留。
 
 own-action复核的最终行为：公开bindPluginActionRoute原样传execution，Host原caller自然包含Pages content.read/get，因此不需要父动作required_actions；无可信入口的自主own调用拒绝借owner，MCP/Agent allowed refs保持上限。真实来源缺grant时Pages读取拒绝而text成功；Pages是personal，项目隐藏只隐藏入口、仍可读取，测试保留这一原语义；owner不可用的分支由现公开actionAvailability受控拒绝验证，未伪称存在真实Pages停用功能。尚未完成的验证：README要求的plugin-sample Chrome已排队，受整机另一1103文件批次占槽；正式PR与共享核心CI待原队列推进。本地PPT可基于固定提交实施，不等同于这些待验项通过。

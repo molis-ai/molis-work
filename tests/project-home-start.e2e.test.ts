@@ -309,7 +309,7 @@ test("Home background refresh across a clock minute preserves a pressed Inbox ac
   const feed = createLocalFeedApplication(store.db);
   const before = feed.listInboxEntries(projectId).find(entry => entry.subject_type === "feed_item" && entry.status === "open");
   assert.ok(before);
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1180, height: 760, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.querySelector('[data-home-subject-kind=inbox_entry]')");
@@ -317,6 +317,7 @@ test("Home background refresh across a clock minute preserves a pressed Inbox ac
   await evaluate(`(() => { for (const day of [...document.querySelectorAll('[data-home-day]')].map(button=>button.dataset.homeDay)) {
     document.querySelector('[data-home-day="'+day+'"]').click(); if (document.querySelector(${JSON.stringify(row)})) return;
   } throw new Error('Seeded Inbox entry is missing'); })()`);
+  await evaluate(`(() => { const input=document.querySelector('[data-assistant-input]'); input.value='助手草稿第一行\\n第二行保留\\n第三行保留\\n第四行保留'; input.dispatchEvent(new Event('input',{bubbles:true})); })()`);
   await click(row);
   const done = '[data-home-offer="0"]';
   await waitFor(`document.querySelector(${JSON.stringify(done)})?.textContent === '做完了' && !document.querySelector(${JSON.stringify(done)}).disabled`);
@@ -339,7 +340,9 @@ test("Home background refresh across a clock minute preserves a pressed Inbox ac
   await waitFor(`window.__homePress.prepares > 0 && !document.querySelector(${JSON.stringify(done)}).disabled`);
   assert.equal(await evaluate("window.__homePress.executions"),0,'releasing outside cancels the click and lets refresh resume');
   assert.equal(feed.getInboxEntry(projectId,before.entry_id).revision,before.revision);
-  await evaluate(`window.__heldHomeButton=document.querySelector(${JSON.stringify(done)}); window.__homePress.refreshes=0`);
+  await evaluate(`window.__heldHomeButton=document.querySelector(${JSON.stringify(done)}); window.__homePress.refreshes=0;
+    window.__homeStableNodes=['[data-home-dates]','[data-home-hero]','[data-home-detail-head]','[data-home-detail-body]'].map(selector=>[selector,document.querySelector(selector).firstElementChild]);
+    window.__homeScrollTop=document.querySelector('[data-home-scroll]').scrollTop`);
   await command('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1},sessionId);
   const clock = await evaluate<string>("document.querySelector('.home-tl__now span').textContent");
   try {
@@ -349,6 +352,9 @@ test("Home background refresh across a clock minute preserves a pressed Inbox ac
     await waitFor("window.__homePress.refreshes > 0");
     await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
     assert.equal(await evaluate(`window.__heldHomeButton === document.querySelector(${JSON.stringify(done)}) && !window.__heldHomeButton.disabled`),true,'refresh must not replace or disable the button while it is pressed');
+    assert.equal(await evaluate("window.__homeStableNodes.every(([selector,node])=>document.querySelector(selector).firstElementChild===node)"),true,'unchanged content must retain its nodes; WebKit clamps scroll during transient empty layouts');
+    assert.ok(await evaluate("window.__homeScrollTop > 0"),'the regression exercises a scrolled Home');
+    assert.equal(await evaluate("document.querySelector('[data-home-scroll]').scrollTop"),await evaluate("window.__homeScrollTop"),'refresh preserves the visible button position');
     assert.notEqual(await evaluate("document.querySelector('.home-tl__now span').textContent"),clock,'the clock updates without moving the pressed row');
     assert.equal(feed.getInboxEntry(projectId,before.entry_id).status,'open','press and refresh have not executed the action');
   } finally { await command('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1},sessionId); }

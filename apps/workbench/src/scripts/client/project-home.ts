@@ -98,14 +98,19 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     pop.style.bottom = Math.round(ar.bottom - anchor + gap) + "px";
   };
   const shortWeek = (id) => new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(id + "T12:00:00"));
+  // Replacing unchanged content briefly empties the WebKit layout and clamps the Home scroll position.
+  const renderedContent = new WeakMap();
+  const updateContent = (node, html) => {
+    if (renderedContent.get(node) !== html) { node.innerHTML = html; renderedContent.set(node, html); }
+  };
   const renderDates = () => {
-    $("[data-home-dates]").innerHTML = days.map((day) => {
+    updateContent($("[data-home-dates]"), days.map((day) => {
       const list = homeFlow.eventsOnDay(events, day.id);
       const count = list.length ? " · " + L("{n} 件事").replace("{n}", String(list.length)) : "";
       return '<button class="home-day" type="button" data-home-day="' + day.id + '" aria-label="' + esc(day.week + " " + day.n + (day.today ? " · " + L("今天") : "") + count) + '">' +
         '<span class="home-day__w">' + esc(shortWeek(day.id)) + '</span><b class="home-day__n">' + day.n + '</b>' +
         (day.today ? '<em class="home-day__today">' + L("今天") + '</em>' : '<span class="home-day__dots">' + dotsHTML(list) + '</span>') + '</button>';
-    }).join("");
+    }).join(""));
     $$("[data-home-day]").forEach((btn) => {
       const on = btn.dataset.homeDay === dayId;
       btn.classList.toggle("is-on", on);
@@ -121,13 +126,13 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const hero = $("[data-home-hero]");
     const dayChanged = hero.dataset.day !== dayId;
     hero.dataset.day = dayId;
-    hero.className = "home-heading home-hero home-enter";
+    if (dayChanged) hero.className = "home-heading home-hero home-enter";
     const hour = new Date().getHours();
     const greeting = hour >= 5 && hour < 11 ? L("早上好") : hour >= 11 && hour < 13 ? L("中午好")
       : hour >= 13 && hour < 18 ? L("下午好") : hour >= 18 && hour < 23 ? L("晚上好") : L("夜深了");
     const date = new Intl.DateTimeFormat(locale, { month: "long", day: "numeric" }).format(new Date(stamp + "T12:00:00"));
     const sum = loadingEvents && !eventRows.length ? L("正在读取事项…") : eventIssues.length && !eventRows.length ? L("事项暂时无法完整读取") : summary.sum;
-    hero.innerHTML =
+    updateContent(hero,
       '<div class="home-heading__main"><h1>' + esc(day.today ? L("今天的工作") : L("{date}的工作").replace("{date}", date)) + '</h1>' +
       '<p class="home-heading__sub">' + (day.today ? '<span class="craft-greeting">' + esc(greeting) + '</span><i>·</i>' : '') +
         '<time data-home-date datetime="' + stamp + '">' + esc(L("{week}，{date}").replace("{week}", day.week).replace("{date}", date)) + '</time><i>·</i>' +
@@ -135,10 +140,10 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         (list.length ? '<i>·</i><span class="home-hero__lead">' + esc(summary.lead) + '</span>' : '') + '</p>' +
       '<div data-home-event-status role="status">' + eventIssues.map(issue => '<p>' + esc(issueText(issue)) + '</p>').join('') +
       (eventIssues.length ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-events-reload>' + L('重新读取') + '</button>' : '') + '</div></div>' +
-      '<p class="home-month">' + ico("calendar") + esc(new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(new Date(stamp + "T12:00:00"))) + '</p>';
-    $("[data-home-list-stats]").innerHTML = list.length
+      '<p class="home-month">' + ico("calendar") + esc(new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }).format(new Date(stamp + "T12:00:00"))) + '</p>');
+    updateContent($("[data-home-list-stats]"), list.length
       ? L("个人") + ' <b>' + summary.me + '</b> · ' + L("组织") + ' <b>' + summary.org + '</b>'
-      : '';
+      : '');
     const problems=[...hero.querySelectorAll('[data-home-event-status] p')];eventIssues.forEach((issue,index)=>{if(typeof issue!=='string' && problems[index])molisWorkRequest.show(problems[index],issue);});
     if (dayChanged) enter(hero); else hero.classList.add("is-in");
   };
@@ -158,7 +163,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const pick = (active && active.status === "in_progress" ? active : null)
       || goals.find((item) => item.status === "in_progress")
       || goals.find((item) => item.status === "waiting_user");
-    if (!pick) { card.hidden = true; card.innerHTML = ""; focusGoalId = ""; return; }
+    if (!pick) { card.hidden = true; updateContent(card, ""); focusGoalId = ""; return; }
     focusGoalId = pick.goal.goal_id;
     const children = pick.children || [];
     const done = children.filter((child) => child.status === "completed").length;
@@ -174,7 +179,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       '<div class="home-focus__bottom"><button class="mw-btn mw-btn--primary" type="button" data-home-focus-open>' + esc(moving ? L("继续这个目标") : L("去做决定")) + ico("arrow") + '</button>' + progress + '</div>' +
       '<div class="home-focus__art" aria-hidden="true"><span class="home-focus__sheet is-back"></span><span class="home-focus__sheet is-front"><i></i><i></i><i></i>' +
         '<b>' + ico("check") + '<i></i></b><b>' + ico("check") + '<i></i></b><b class="is-open">' + ico("circle") + '<i></i></b></span></div>';
-    if (card.dataset.html !== html) { card.innerHTML = html; card.dataset.html = html; }
+    updateContent(card, html);
     card.hidden = false;
   };
   let arrivedAs = null, paintedRows = null;
@@ -254,17 +259,17 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const renderDetail = () => {
     const event = current();
     if (!event) return;
-    $("[data-home-detail-head]", detailNode).innerHTML =
+    updateContent($("[data-home-detail-head]", detailNode),
       '<span class="home-detail__src">' + ico(event.icon) + esc(event.origin.title) + "</span>" +
       "<time>" + esc(event.when) + "</time>" +
-      '<button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-home-close-event aria-label="' + L("收起详情") + '">' + ico("x") + "</button>";
-    $("[data-home-detail-body]", detailNode).innerHTML =
+      '<button class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" type="button" data-home-close-event aria-label="' + L("收起详情") + '">' + ico("x") + "</button>");
+    updateContent($("[data-home-detail-body]", detailNode),
       "<h2>" + esc(event.title) + "</h2>" +
       '<p class="home-detail__kind">' + ico(event.kind === "org" ? "review" : "user") +
         (event.kind === "org" ? L("组织事件") : L("个人事件")) + "</p>" +
       '<p class="home-detail__text">' + esc(event.text) + "</p>" +
       '<dl class="home-detail__facts">' + event.facts.map((fact) =>
-        "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>";
+        "<div><dt>" + esc(fact[0]) + "</dt><dd>" + esc(fact[1]) + "</dd></div>").join("") + "</dl>");
     const talkOn = home.dataset.dock === "open";
     const left = event.open ? '<button class="mw-btn mw-btn--primary" type="button" data-home-open-target' + (opening === event.id ? ' disabled' : '') + '>' + ico("arrow") +
       esc(opening === event.id ? L('正在打开…') : L(event.open.label)) + '</button>' : '';
@@ -298,7 +303,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const html = entries.map((entry) => '<li><button type="button" class="home-quick__item" data-home-quick-open="' + esc(entry.id) + '">' +
       '<span class="home-shortcut-icon">' + ico(entry.glyph) + '</span><span class="home-quick__text">' + esc(entry.name) +
       (QUICK_CAPTIONS[entry.id] ? '<small>' + esc(L(QUICK_CAPTIONS[entry.id])) + '</small>' : '') + '</span>' + ico("chevron-right") + '</button></li>').join("");
-    if (list.dataset.html !== html) { list.innerHTML = html; list.dataset.html = html; }
+    updateContent(list, html);
   };
   const render = () => {
     collect();

@@ -40,7 +40,9 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
       (!s.busy && (s.error || s.pending || s.issues.length) ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-offers-reload>' + L('重新读取事项') + '</button>' : '');
     if (rendered.get(node)?.html !== html || rendered.get(node)?.key !== s.key) {
       const keepResultOpen = rendered.get(node)?.key === s.key && node.querySelector('.home-offers-result')?.open;
+      const scroller = root.querySelector('[data-home-scroll]'), top = scroller?.scrollTop;
       node.innerHTML = html; rendered.set(node, { html, key: s.key });
+      if (scroller) scroller.scrollTop = top;
       if (keepResultOpen && node.querySelector('.home-offers-result')) node.querySelector('.home-offers-result').open = true;
     }
     if(s.error && typeof s.error!=='string')molisWorkRequest.show(node.querySelector('[role=alert]'),s.error);

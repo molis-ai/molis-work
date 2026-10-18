@@ -1042,3 +1042,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #694 新 head 9066de74b（merge 877dc7626）：门禁之外 283 行逐行一致，workbench.js 1108607（1109302−695），排在 chain35。
 
 - 10-18 #695 全量红一处：security-invariants-doc「S-20 the table is checked」——S-33 行正文用「未执行」引语，被当成测试标题；只改文档（不用「」），连同本地 merge main（aead5fe32，coding.js 373970）一起推，统筹核 diff 后走 merge-only。
+
+- 10-18 prologue#45 合入 7b201ed5（写后检查：执行器只回命令，SDK 核过走命令审查；Run 停下在解析前、解析中、答完后各有一道；变异 33 处 31 红）。#694 全量已排队。采用线下一步：从 7b201ed5 打包换包（含 #42–#45），SECURITY-INVARIANTS 命令节加一行，先发一行计划。

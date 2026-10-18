@@ -1,17 +1,16 @@
-import { imagesTestClient } from "./fixtures/images-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { createServer } from "node:http";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { ImagesService, imagesManifest, handleImagesRoute, IMAGES_CLIENT_FACTORY_SCRIPT, imagesUiContribution } from "@molis-ai/molis-work-plugin-images";
+import { imagesManifest, IMAGES_CLIENT_FACTORY_SCRIPT, imagesUiContribution } from "@molis-ai/molis-work-plugin-images";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { PERSONAL_PLUGIN_IDS, pluginMarketCards, railEntries } from "@molis-ai/molis-work-app-workbench";
 import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
-
-const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { IMAGE_PNG, imageReply } from "./fixtures/images-runtime.js";
+import type { ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
 
 test("图片插件通过Manifest进入个人导航和市场，客户端可解析", () => {
   assert.equal(parsePluginManifest(imagesManifest).plugin_id, "io.molis.work.images");
@@ -22,65 +21,43 @@ test("图片插件通过Manifest进入个人导航和市场，客户端可解析
   assert.doesNotThrow(() => new Function(`return (${IMAGES_CLIENT_FACTORY_SCRIPT});`));
 });
 
-test("HTTP route 使用Host项目，拒绝伪造project_id，图片下载同样隔离", async () => {
-  const homeDirectory = await mkdtemp(join(tmpdir(), "images-routes-"));
-  const service = new ImagesService({homeDirectory, resolveConnectionKey: () => undefined, selectConnection: () => {}, selectedConnectionId: () => null, clearConnection: () => {}, generate: async () => [{bytes: Buffer.from(PNG, "base64"), mime: "image/png"}]});
-  try {
-    const route = (input: Parameters<typeof handleImagesRoute>[1]) => handleImagesRoute(imagesTestClient(service, input.projectId), input);
-    const connection = service.saveConnection({name:"受控本地服务", api_format:"openai-images",base_url:"http://127.0.0.1:9999/v1",model:"fixture-image"});
-    assert.deepEqual((await route( {method:"GET",pathname:"/api/images/jobs",body:{},projectId:""})).body, {jobs:[]});
-    await assert.rejects(() => route( {method:"POST",pathname:"/api/images/jobs",body:{project_id:"forged"},projectId:""}), /项目/);
-    const response = await route( {method:"POST",pathname:"/api/images/jobs",body:{request_id:"route-test",connection_id:connection.id,prompt:"测试图",project_id:"project-a"},projectId:"project-a"});
-    const {job} = response.body as {job: {id:string}};
-    for (let n = 0; n < 100 && service.getJob("project-a", job.id).status === "running"; n++) await new Promise((r) => setTimeout(r, 10));
-    const completed = service.getJob("project-a", job.id);
-    assert.equal(completed.status, "succeeded");
-    assert.equal(completed.project_id, "project-a");
-    await assert.rejects(() => route( {method:"GET",pathname:`/api/images/jobs/${job.id}`,body:{},projectId:"project-b"}));
-    const path = `/api/images/jobs/${job.id}/images/${completed.images[0]!.id}`;
-    await assert.rejects(() => route( {method:"GET",pathname:path,body:{},projectId:"project-b"}));
-    const image = (await route( {method:"GET",pathname:path,body:{},projectId:"project-a"})).image;
-    assert.equal(image?.mime,"image/png");
-    assert.deepEqual(Buffer.from(image!.bytes), Buffer.from(PNG,"base64"));
-    assert.equal((await route( {method:"GET",pathname:path+"/unknown",body:{},projectId:"project-a"})).status,404);
-    const next = service.start("project-a", {request_id:"delete-running",connection_id:connection.id,prompt:"下一张"});
-    await assert.rejects(() => route( {method:"DELETE",pathname:`/api/images/jobs/${next.id}`,body:{},projectId:"project-a"}), /先停止生成/);
-    service.cancel("project-a", next.id);
-    assert.equal((await route( {method:"DELETE",pathname:`/api/images/jobs/${next.id}`,body:{},projectId:"project-a"})).status,200);
-    assert.equal((await route( {method:"DELETE",pathname:`/api/images/connections/${connection.id}`,body:{},projectId:"project-a"})).status,200);
-    assert.equal(service.getJob("project-a", job.id).status,"succeeded");
-    assert.throws(() => service.start("project-a", {request_id:"after-connection-delete",connection_id:connection.id,prompt:"新图"}), /找不到所选生图服务/);
-    await assert.rejects(() => route( {method:"DELETE",pathname:`/api/images/jobs/${job.id}`,body:{},projectId:"project-b"}), /找不到/);
-    assert.equal((await route( {method:"DELETE",pathname:`/api/images/jobs/${job.id}`,body:{},projectId:"project-a"})).status,200);
-    assert.equal(existsSync(join(homeDirectory,"images","assets",completed.images[0]!.filename)),false);
-    assert.throws(() => service.getJob("project-a", job.id), /找不到/);
-  } finally {await service.close();await rm(homeDirectory,{recursive:true,force:true});}
-});
 
-test("IMAGES-SHELF-01 「放进 Shelf」 hands the image to shelf.items.admit by the action's id, never through Shelf's code", async () => {
-  // The reference the contract publishes is the action Shelf provides.
-  assert.equal(shelfActions.admit, SHELF_ADMIT_ACTION, "Shelf registers the very definition the contract gives, and Images invokes it");
-  const homeDirectory = await mkdtemp(join(tmpdir(), "images-shelf-"));
-  const service = new ImagesService({homeDirectory, resolveConnectionKey: () => undefined, selectConnection: () => {}, selectedConnectionId: () => null, clearConnection: () => {}, generate: async () => [{bytes: Buffer.from(PNG, "base64"), mime: "image/png"}]});
-  try {
-    const admitted: unknown[] = [];
-    const kept = (name: string) => ({ item_id: "item_kept", group: "material", kind: "image", name, relative_path: `files/item_kept/${name}`, mime: "image/png", size_bytes: 68,
-      origin_hash: "0".repeat(64), hidden: false, created_at: "2026-10-18T00:00:00.000Z", source_item_id: null, source_item_ids: [], job_id: null, preview_text: null,
-      status: "done", failure_reason: null, children: [] });
-    // A stand-in provider of the published definition: the route reaches it only through the action directory.
-    const shelf = { provider: { provider: { provider_id: "io.molis.work.shelf", title: "Shelf", kind: "plugin" as const }, definitions: [shelfActions.admit],
-      handlers: [{ capability_id: shelfActions.admit.capability_id, version: shelfActions.admit.version, handle: (_caller: unknown, input: unknown) => {
-        admitted.push(input); return { item: kept((input as { filename: string }).filename) }; } }] }, permissions: shelfActions.admit.action.permissions };
-    const route = (input: Parameters<typeof handleImagesRoute>[1]) => handleImagesRoute(imagesTestClient(service, input.projectId, shelf), input);
-    const connection = service.saveConnection({name:"受控本地服务", api_format:"openai-images",base_url:"http://127.0.0.1:9999/v1",model:"fixture-image"});
-    const job = service.start("project-a", {request_id:"keep",connection_id:connection.id,prompt:"留一张"});
-    for (let n = 0; n < 100 && service.getJob("project-a", job.id).status === "running"; n++) await new Promise((r) => setTimeout(r, 10));
-    const path = `/api/images/jobs/${job.id}/images/${service.getJob("project-a", job.id).images[0]!.id}/shelf`;
-    const answer = await route({method:"POST",pathname:path,body:{filename:"留一张.png"},projectId:"project-a"});
-    assert.deepEqual(answer, { status: 200, body: { item: kept("留一张.png") } });
-    assert.deepEqual(admitted, [{ filename: "留一张.png", mime: "image/png", bytes_base64: PNG }]);
-    // Another project's image is not handed over.
-    await assert.rejects(() => route({method:"POST",pathname:path,body:{},projectId:"project-b"}));
-    assert.equal(admitted.length, 1);
-  } finally { await service.close(); await rm(homeDirectory, { recursive: true, force: true }); }
+test("W5-01-IMGPORT-02 HTTP Runtime binds project identity, reads bytes and saves the same image to Shelf", async t => {
+  const f = await serveHomeRuntime(t), one = await f.project("Images one"), two = await f.project("Images two");
+  const server = createServer(async (request, response) => { for await (const _chunk of request) { /* drain input */ } imageReply(response); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => { server.closeAllConnections(); return new Promise<void>(resolve => server.close(() => resolve())); });
+  const address = server.address(); assert.ok(address && typeof address === "object");
+  const root = "/api/plugins/io.molis.work.images", first = `/projects/${one.project_id}${root}`, second = `/projects/${two.project_id}${root}`;
+  const post = (path: string, body: object) => f.request(path, { method: "POST", body });
+  const saved = await post(root + "/connections", { name: "Runtime HTTP", api_format: "openai-images", base_url: `http://127.0.0.1:${address.port}/v1`, model: "fixture" });
+  assert.equal(saved.status, 200, await saved.clone().text());
+  const { connection } = await saved.json();
+  const forged = await post(first + "/jobs", { request_id: "forged", connection_id: connection.id, prompt: "forged", project_id: two.project_id });
+  assert.equal(forged.status, 400, await forged.clone().text());
+  assert.equal((await post(first + "/jobs", { prompt: "x".repeat(170_000) })).status, 413);
+  const accepted = await post(first + "/jobs", { request_id: "real", connection_id: connection.id, prompt: "HTTP image" });
+  assert.equal(accepted.status, 202, await accepted.clone().text());
+  let job: ImageJob = (await accepted.json()).job;
+  for (let attempt = 0; attempt < 100 && job.status === "running"; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, 20)); job = (await (await f.request(first + `/jobs/${job.id}`)).json()).job;
+  }
+  assert.equal(job.status, "succeeded"); assert.equal(job.project_id, one.project_id);
+  const imagePath = `/jobs/${job.id}/images/${job.images[0]!.id}`;
+  assert.equal((await f.request(second + imagePath)).status, 404);
+  const image = await f.request(first + imagePath);
+  assert.equal(image.status, 200); assert.match(image.headers.get("content-type") ?? "", /image\/png/);
+  assert.equal(Buffer.from(await image.arrayBuffer()).toString("base64"), IMAGE_PNG);
+  const download = await f.request(first + imagePath + "?download=1&name=retained.png");
+  assert.match(download.headers.get("content-disposition") ?? "", /retained\.png/);
+  // IMAGES-SHELF-01: the real Shelf action receives the copy through the shared action contract.
+  assert.equal(shelfActions.admit, SHELF_ADMIT_ACTION);
+  const kept = await post(first + imagePath + "/shelf", { filename: "留一张.png" });
+  assert.equal(kept.status, 200, await kept.clone().text());
+  const { item } = await kept.json(); assert.equal(item.name, "留一张.png"); assert.equal(item.mime, "image/png");
+  assert.equal((await post(second + imagePath + "/shelf", {})).status, 404);
+  assert.equal((await f.request(second + `/jobs/${job.id}`, { method: "DELETE" })).status, 404);
+  assert.equal((await f.request(first + `/jobs/${job.id}`, { method: "DELETE" })).status, 200);
+  assert.equal(existsSync(join(f.home, "images", "assets", job.images[0]!.filename)), false);
+  assert.equal((await f.request(first + `/jobs/${job.id}`)).status, 404);
 });

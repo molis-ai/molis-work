@@ -143,7 +143,7 @@ test("CU-G08: a step whose tree is not enough hands the model a close crop of th
   assert.deepEqual(zoom.payload?.rect, [200, 150, 400, 300]);
 });
 
-test("CU-G11: a node can be named by name, role and name, or regular expression; an ambiguous name is refused", async () => {
+test("CU-G11: a node can be named by name, role and name, or a part of its name; an ambiguous name is refused", async () => {
   const nodes: Node[] = [
     { role: "AXButton", name: "保存", depth: 0, frame: [10, 10, 40, 20] },
     { role: "AXButton", name: "另存", depth: 0, frame: [60, 10, 40, 20] },
@@ -154,12 +154,15 @@ test("CU-G11: a node can be named by name, role and name, or regular expression;
   calls.length = 0;
   await acted(desk({ nodes, calls }), click("按钮:另存"));
   assert.deepEqual(calls.find(call => call.op === "input.pointer")?.payload?.point, [80, 20]);
-  await acted(desk({ nodes }), click("/另/"));
+  calls.length = 0;
+  await acted(desk({ nodes, calls }), click("~另"));
+  assert.deepEqual(calls.find(call => call.op === "input.pointer")?.payload?.point, [80, 20]);
   const duplicate: Node[] = [
     { role: "AXButton", name: "删除", depth: 0, frame: [10, 10, 40, 20] },
     { role: "AXMenuItem", name: "删除", depth: 0, frame: [60, 10, 40, 20] },
   ];
   await assert.rejects(() => acted(desk({ nodes: duplicate }), click("删除")), /2 个/);
   await assert.rejects(() => acted(desk({ nodes }), click("不存在")), /重新观察/);
-  await assert.rejects(() => acted(desk({ nodes }), click("/[/")), /正则/);
+  await assert.rejects(() => acted(desk({ nodes }), click("~存")), /2 个/);
+  await assert.rejects(() => acted(desk({ nodes }), click("/[/")), /重新观察/);
 });

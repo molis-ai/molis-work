@@ -103,8 +103,11 @@ test("UIV-01/02/11 三入口共用书写样式，长文增高后内部滚动，�
   const setDraft = async (selector: string, text: string) => {
     await evaluate(`(() => { const field = document.querySelector(${JSON.stringify(selector)}); field.value = ${JSON.stringify(text)}; field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   };
-  const styleOf = (selector: string) => evaluate<WritingStyle>(`(() => {
-    const field = document.querySelector(${JSON.stringify(selector)}); field.focus(); const style = getComputedStyle(field);
+  // Compare settled focus styles, not a frame within the production CSS transition.
+  const styleOf = (selector: string) => evaluate<WritingStyle>(`(async () => {
+    const field = document.querySelector(${JSON.stringify(selector)}); field.focus();
+    await Promise.all(field.getAnimations().map(animation => animation.finished));
+    const style = getComputedStyle(field);
     return { font: style.fontSize, line: style.lineHeight, padding: style.padding, border: style.border, radius: style.borderRadius, background: style.backgroundColor, outline: style.outline, shadow: style.boxShadow };
   })()`);
   const closeAssistant = async () => {

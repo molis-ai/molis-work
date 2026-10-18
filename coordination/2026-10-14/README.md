@@ -1086,3 +1086,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #702 新 head 9a6385be3 已核：除门禁文件外，改动行和 797f2dcd9 完全一致；键改成 [1109312, 1109918]，合并无冲突。等 797f2dcd9 的全量：全绿就对 9a6385be3 走 merge-only；如果只红 AC-05，就等 AC-05 的修复合入后再走 merge-only。
 - 10-18 #698 已合入 31c48ed5d。
 - 10-18 用户弹窗批准回执线 3d-4 的 workbench.js +860 B（只此一次），键 [1109312, 1110172]；要求计划卡与回执的步骤状态措辞只留一份（计划卡改从 host.receipts 取，coding.js 只会变小）。
+- 10-18 #702 在 797f2dcd9 上的全量全绿；9a6385be3 走 merge-only（gate-702b）。

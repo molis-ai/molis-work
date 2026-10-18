@@ -7,6 +7,14 @@
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
 
+W5-08 Module 存储出口第二片（2026-10-17，Codex，本地定向通过，待队列与 CI）：在第一片 `5b1493e28` 上收 Goals、Artifacts 与 ProcessItems 的公开 Repository。当前包级搜索确认 `GoalsRepository`、`ArtifactsRepository` 及服务构造只在各自包内使用，外部生产调用已经走命令/查询服务。目标为功能可用：两个 Repository 不再由包入口导出；三个 Module 只在构造期持有局部 Repository；`createGoalReadServices` 返回的查询服务与 Artifacts/ProcessItems 的 service/query/commands 使用私有字段保存 Repository，去掉可直接读到的 `repository` 成员。
+
+本片仅改两包的入口、查询/成果服务、README 与既有公开入口用例及下降快查。保留所有业务服务、查询结果、错误、SQL、事务和版本结构；不动 Host、Plugin SDK、动作合同、门禁规则或真实 Home。第一片保持独立分支；其余 Module 与 Host 入口仍属后续工作。本片不将内部实现隔离描述成安全沙箱。
+
+验收：`W5-08-MOD-03` 两个包不再导出 Repository，三个 Module 及返回的上述服务不公开 `repository`；`W5-08-MOD-04` 通过公开入口创建/读取 Goal、生命周期、成果和过程项版本仍正常，幂等、冲突拒绝与持久化结果保持。先整体构建，再运行两包 README 必跑和相关公开调用方（含过程项、Goal 只读装配、规划与生命周期）；核对 boundary、merge-base health、API/动作快照及页面资源，结构计数只下降。共享核心全量仍在统筹 CI，按已有授权不运行本机全量。
+
+本片验证：整体构建、boundary、完整 `check-health-gates --base origin/main`（含 64 份 API 快照 2,506 声明）及下降快查、页面资源检查通过。README 必跑、公开入口、Goal 生命周期/规划/CLI-MCP、成果与过程项消费、动作合同快照共 36 文件 295 条全部通过，无失败/跳过；日志 `/tmp/molis-goals-artifacts-{build,regression,health,health-check,boundary,assets}.log`，精确文件清单 `/tmp/molis-goals-artifacts-files.json`。Module Repository/Store 公开项由首片后的 16 降到 9（相对 main 为 21→9），快查仅下降这七项；页面资源仍 25 项、7,475,661 B，本片增量 0。构建声明不再公开上述五个 repository 成员或导出两个类，内部服务构造的参数类型保留。未改变页面行为，不重复界面全套；整线及共享核心 CI 全量未记完成。
+
 W5-08 Module 存储出口第一片（2026-10-17，Codex，本地定向通过，待队列与 CI）：按路线图先收 Projects 与 Governance 两个 Module。当前 `repository` 是公开成员，包入口还导出 `ProjectsRepository`、`GovernanceRepository`、`GovernanceRecordStore`；生产调用已经使用 `query` / `commands` / `lifecycle` / `records` / `decisions`，只有两个测试直接构造 Governance Store。这些出口允许调用方绕过 Module 的业务入口，且不再承担装配需求。目标为功能可用：把 Repository 保留为构造期局部实例供既有服务闭包使用，移除三个类的包导出；两个测试改用 `GovernanceCollaborationModule.records`，不增加 testing 子路径或内部导入。
 
 范围仅两包入口/README、两个既有测试调用方、对应公开入口回归与下降快查。本片不改表、结构版本、事务、事件、身份、业务服务签名或 Host 装配；余下 Module 和 Host 大入口继续按 W5-08 后续片处理，不将本片记为全部收口。以实际 main `a56a2763d` 为基点，本地独立候选，最多两片在途限制照旧。

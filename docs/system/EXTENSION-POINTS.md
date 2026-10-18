@@ -153,6 +153,8 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 底栏插件切换器 | 0 | `navigator` 视图加目录条目的 `summary`（`pluginMarketCards()` 只收有 `summary` 且有 `navigator`/`island` 视图的条目）；没有分组的插件落在「更多」（`immersive-shell.ts` 注释：adding a Plugin never edits the shell） |
 | 分组、默认固定 | 1 | `apps/workbench/src/immersive-shell.ts` 的 `RAIL_TOOL_GROUPS`；`DOCK_DEFAULT_PINS` 在 `plugin-catalog.ts`，只有 4 个核心插件 |
 | 侧栏标签 | 0 | `side` 视图，贡献的目标槽是 `workbench.side`；插件启用才出现 |
+
+**打开插件时落在哪里由声明决定**（W2'-2）：`?openPlugin=`、搜索命中的 `open.surface`、助理通知与放置卡片的 `open`、页面里各处的「打开某插件」都只说是哪个插件（和可选的条目 id），不说位置。工作台在一处（`apps/workbench/src/plugin-catalog.ts` 的 `sideOpenedPlugins`，页面一侧 `apps/workbench/src/scripts/client/plugin-place.ts`）按声明决定：界面有工作区界面（`workbench.main` 或 `workbench.directory`）的在工作区打开，和以前一样，即使它也有 `side` 视图；只有 `side` 视图的打开它的侧栏格，条目 id 原样交给那个视图（`molis-work:select-item`），工作台不解释。所以加一个只住在侧栏的插件不用改任何打开它的地方，存着的链接与 `open` 也不用迁移。
 | 标题栏 | 插件没有入口 | 标题栏的状态项（后台任务、插件通知铃铛）是宿主的。插件通过 `background_job` 声明（后台任务）或到期提醒、插件事件间接出现，不是自己的槽。新增一种宿主状态项要改 4–6 个文件：`immersive-shell.ts`、一个客户端脚本（如 `scripts/client/background-tasks.ts`）、`scripts/client/initialization.ts`、`styles/immersive-navigation.ts`；进入流程页也要显示时再加 `arrival/chooser.ts`、`styles/arrival.ts` |
 
 **目标：0 / 0 / 0 / 2。** 分组、常驻、默认固定作为 Manifest 或目录的放置提示（W5-02 已把「shell placement hints」列入范围）；标题栏状态项做成声明加一个渲染入口。标题栏这一项无切片。

@@ -374,3 +374,21 @@ test("a 常开插件 is shown in every project, even one that once hid it, and i
   assert.equal(shown.includes("lingguang"), false);
   assert.equal(pluginMarketCards().some((card) => card.id === "shelf"), false, "nobody adds what is always on");
 });
+
+test("OPEN-PLACE-01 a plugin opens where its declarations put it: the work area if it has a stage, else its side tab", async () => {
+  const { sideOpenedPlugins } = await import("@molis-ai/molis-work-app-workbench");
+  const entry = (id: string, slots: string[], views: Array<{ view_id: string; slot: string }>) => ({
+    project_plugin_id: id,
+    manifest: { ui: { views } },
+    workbench: { contributions: [{ descriptor: { surfaces: slots.map((target_slot_id) => ({ target_slot_id })) } }] },
+  });
+  // A side view and nothing else (not Shelf): its side tab. A stage and a side view: the stage, as before.
+  assert.deepEqual(sideOpenedPlugins([
+    entry("notes-sidecar", ["workbench.side"], [{ view_id: "pad", slot: "side" }]),
+    entry("both", ["workbench.main", "workbench.side"], [{ view_id: "main", slot: "navigator" }, { view_id: "side", slot: "side" }]),
+    entry("listed", ["workbench.directory", "workbench.side"], [{ view_id: "side", slot: "side" }]),
+    entry("nowhere", [], []),
+  ]), { "notes-sidecar": "plugin:notes-sidecar/pad" });
+  // The shipped plugins: Shelf is the only one with nothing but a side view.
+  assert.deepEqual(sideOpenedPlugins(), { shelf: "plugin:shelf/side" });
+});

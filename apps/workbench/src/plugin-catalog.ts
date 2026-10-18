@@ -198,6 +198,28 @@ function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | 
   });
 }
 
+/**
+ * Where opening a plugin lands (specs/context-program §21.6, W2'-2): `?openPlugin=`, a search hit's `open.surface` and an
+ * opener's plugin name say which plugin, never where. A plugin whose UI has a work-area surface (main or directory) opens
+ * there, as it always has, even when it also has a side view; one whose only place is a side view opens that tab of the
+ * side panel. The answer is the side tab (`plugin:<plugin>/<view>`) of each plugin that opens in the panel.
+ */
+export interface PlacedPluginDeclarations {
+  readonly project_plugin_id: string;
+  readonly manifest: { readonly ui: { readonly views?: readonly { readonly view_id: string; readonly slot: string }[] } };
+  readonly workbench?: { readonly contributions: readonly { readonly descriptor: { readonly surfaces?: readonly { readonly target_slot_id: string }[] } }[] };
+}
+export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] = BUILTIN_PLUGIN_CATALOG): Record<string, string> {
+  const placed: Record<string, string> = {};
+  for (const entry of entries) {
+    const surfaces = (entry.workbench?.contributions ?? []).flatMap((contribution) => contribution.descriptor.surfaces ?? []);
+    if (surfaces.some((surface) => surface.target_slot_id === "workbench.main" || surface.target_slot_id === "workbench.directory")) continue;
+    const side = entry.manifest.ui.views?.find((view) => view.slot === "side");
+    if (side) placed[entry.project_plugin_id] = `plugin:${entry.project_plugin_id}/${side.view_id}`;
+  }
+  return placed;
+}
+
 /** Side panel tabs the enabled plugins declare (`slot: "side"`), in Manifest order; the Host serves each one's document. */
 export function sideEntries(enabled: readonly ProjectPluginId[]): Array<UiPlacedView & { project_plugin_id: string }> {
   const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({

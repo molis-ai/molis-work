@@ -212,7 +212,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   };
   const paintPins = () => {
     if (!pins) return;
-    // The choice itself is this browser's. Shelf and 灵光 are always on, so their pin is never repainted.
+    // The choice itself is this browser's.
     const chosen = readPins();
     dock.querySelectorAll('[data-dock-choice]:not(:disabled)').forEach((button) => markKept(button, chosen.includes(button.dataset.dockChoice)));
     paintDock();

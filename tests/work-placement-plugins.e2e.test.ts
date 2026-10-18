@@ -161,10 +161,18 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const admitted = await post("/api/shelf/items", { text: "A 厂 12 元，B 厂 15 元，C 厂 11 元。", title: "竞品价格表" });
   const item = admitted.item as { item_id: string; name: string };
   assert.ok(item?.item_id, "admitted into the Shelf");
+  // Shelf is a 常开插件 living in the side panel (W2'-2): its tab is its own document, so the steps inside it run there, and
+  // what it asks of the page (the shared dialog, the cards) reaches the page through the side panel.
+  const shelfDoc = "document.querySelector('[data-side-body=\"plugin:shelf/side\"] iframe')?.contentDocument";
+  const shelfShows = (id: string) => waitFor(`document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === 'plugin:shelf/side'
+    && ${shelfDoc}?.querySelector('[data-shelf-list=materials] [data-shelf-item="${id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
+  const inShelf = (selector: string) => evaluate(`(() => { const node = [...(${shelfDoc}?.querySelectorAll(${text(selector)}) || [])].find(node => node.getClientRects().length); node?.click(); return Boolean(node); })()`);
   const useHere = async (project: string, title: string) => {
-    await openPlugin("shelf", project);
-    await press(`[data-shelf-list=materials] [data-shelf-item="${item.item_id}"]`);
-    await press("[data-shelf-use-in-project]");
+    // The plugin is named, never placed: `openPlugin=shelf` opens Shelf's side tab on the item.
+    await go(`/projects/${project}/?openPlugin=shelf&openItem=${encodeURIComponent(item.item_id)}`);
+    await shelfShows(item.item_id);
+    await waitFor(`Boolean([...(${shelfDoc}?.querySelectorAll('[data-shelf-use-in-project]') || [])].find(node => node.getClientRects().length))`, 15_000);
+    assert.equal(await inShelf("[data-shelf-use-in-project]"), true);
     await waitFor("document.querySelector('dialog.placement-dialog')?.open", 12_000);
     assert.equal(await evaluate(`document.querySelector('dialog.placement-dialog input[name="project"]:checked')?.value`), project, "the project you are in is the default");
     await click("dialog.placement-dialog [data-placement-confirm]");
@@ -179,10 +187,10 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   // From the project, “打开” lands on that very item in the Shelf (a link load, not a list to search through).
   await projectHome(projectId!);
   await press(`[data-placement-related] [data-placement-open="${item.item_id}"]`);
-  await waitFor(`document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-list=materials] [data-shelf-item="${item.item_id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
-  assert.equal((await current())?.id, item.item_id, "the Shelf names the opened item");
-  await press(`[data-shelf-list=materials] [data-shelf-item="${item.item_id}"] [data-shelf-row-action="delete"]`);
-  await waitFor(`!document.querySelector('[data-shelf-list=materials] [data-shelf-item="${item.item_id}"]')`, 15_000);
+  await shelfShows(item.item_id);
+  assert.equal(await evaluate(`JSON.parse([...(${shelfDoc}?.querySelectorAll('[data-assistant-context]') || [])].find(node => JSON.parse(node.getAttribute('data-assistant-context') || '{}').object)?.getAttribute('data-assistant-context') || '{}').object?.id`), item.item_id, "the Shelf names the opened item");
+  assert.equal(await inShelf(`[data-shelf-list=materials] [data-shelf-item="${item.item_id}"] [data-shelf-row-action="delete"]`), true);
+  await waitFor(`!${shelfDoc}?.querySelector('[data-shelf-list=materials] [data-shelf-item="${item.item_id}"]')`, 15_000);
   for (const [project, name] of [[other.project_id, "other"], [projectId!, "first"]] as const) {
     await projectHome(project);
     await waitFor(`[...document.querySelectorAll('[data-placement-related] .placement-related-row.is-gone')].some(row => row.innerText.includes('竞品价格表') && row.innerText.includes('原对象已删除'))`, 15_000);

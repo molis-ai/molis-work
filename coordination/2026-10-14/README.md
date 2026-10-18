@@ -1050,3 +1050,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 采用线换包计划认可（after-write-check 包含 prologue#42–#45，照 #690 验证）。统筹 10-18 定：PATH 规则进 SECURITY-INVARIANTS 正式一行（不放 §4），配一份对 vendored 包断言拒绝的 Molis 用例（照 S-13 写法）；S-33 归 #695，换包与 W2'-2 的 always_on 各取开 PR 时的下一个空号，后合入者顺延；表里非标题引语不用「」。
 
 - 10-18 prologue#46 合入 94ee1ea4（ask-user 的 id 说明由校验用的 QUESTION_ID_PATTERN 拼出，用例读模型拿到的说明逐个试边界）。换包改从 94ee1ea4 打（#42–#46）。手册线在途剩 #697，后续 ② 可开。
+
+- 10-18 #695 合入 6505378e8（BL-156 Molis 半边、S-33、AC-07），coding.js 373970；#694/#696/#697 与新 main 合并干净、不用重新取键。交互线发下一片计划。

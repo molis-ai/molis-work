@@ -389,6 +389,11 @@ export const DOM_EVENTS = [
     summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",
   },
   {
+    name: "molis:placement-flush", kind: "announcement", owner: "placement", on: "window",
+    detail: "{ mode, object, settle }",
+    summary: "The placement bar is about to move an object; the page that has it open pushes a promise onto settle that stores unsaved edits. The bar waits, and does not move if that promise fails.",
+  },
+  {
     name: "molis:placement-request", kind: "request", owner: "placement", on: "window",
     detail: "{ action: use-in-project | move | copy, object }",
     summary: "Open the shared dialog that uses, moves or copies an object. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).",

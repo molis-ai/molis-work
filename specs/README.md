@@ -4,6 +4,7 @@
 
 ## 在做的
 
+- [logic-diagnosis-fixes](logic-diagnosis-fixes/spec.md)：2026-10-16 诊断确认的八个逻辑问题；实现中。
 - [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。
 - [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。
 - [work-brief](work-brief/spec.md)：工作简报内容插件；用户已确认纳入，需求已整理，尚未实现。

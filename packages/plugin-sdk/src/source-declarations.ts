@@ -68,7 +68,8 @@ export function fragmentOfferDeclarationProblems(key: string, action: Record<str
     && (choice.granularities === undefined || (Array.isArray(choice.granularities) && choice.granularities.length > 0 && choice.granularities.every(item => (FRAGMENT_GRANULARITIES as readonly string[]).includes(item))))
     && (choice.roles === undefined || (Array.isArray(choice.roles) && choice.roles.length > 0 && choice.roles.every(item => (FRAGMENT_ROLES as readonly string[]).includes(item))))
     && (choice.requires === undefined || (Array.isArray(choice.requires) && choice.requires.length > 0 && choice.requires.every(item => item === "goal")));
-  if (!Array.isArray(choices) || !choices.length || choices.some(choice => !valid(choice)) || new Set(choices.map(choice => choice.offer_id)).size !== choices.length) {
+  // No choices: the query only prepares a creation entry's input (its `prepare`), checked against the Manifest in context-declarations.ts.
+  if (!Array.isArray(choices) || choices.some(choice => !valid(choice)) || new Set(choices.map(choice => choice.offer_id)).size !== choices.length) {
     problems.push(`能力 ${key} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`);
   }
   return problems;

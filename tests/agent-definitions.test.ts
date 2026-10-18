@@ -127,7 +127,7 @@ test("over HTTP: what the person saved in 设置 › 提示词 for the selection
   const unbind = bindPrologueInference(home, inference);
   const actions = { discover: async () => views, invoke: async () => ({ offers: [] }) };
   const server = createServer((request, response) => {
-    void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { homeDirectory: home, scope: "wording-home", actions: () => actions })
+    void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { homeDirectory: home, scope: "wording-home", actor_id: "user", actions: () => actions })
       .then(handled => { if (!handled) { response.statusCode = 404; response.end(); } });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

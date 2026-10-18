@@ -2,6 +2,14 @@
 
 状态：执行中，整线未完成（2026-10-18，Codex 继续用户已授权的 W5/W6 与独立复查；Claude 原分工按既有交接保留）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR，#523 已合入 main（`f74e29d86`；#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑，macOS 专有用例在本机补，失败逐个对照 main 基线，合入后的三项 Linux 修复与一处合并留下的旧错误码在后续 PR 补进。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 #523 进了 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
 
+W5-10 Pages 键盘命令装配拆分（2026-10-18，Codex，已接受、执行中）：接已验证的 PGP，目标为功能可用且行为保持。将 mount 中 37 个自定义绑定按原连续顺序分成 shortcutKeys、blockKeys、navigationKeys 三个短职责函数，由新内部 editor-keyboard 的 pagesKeymap 装配成原位置的同一个 keymap 插件；turnCurrent、applySelected、nudgeTableColumn、cellNav 一并迁入，共用 commandToggle 仍只有一份供键盘与工具栏使用。每个 mount 仍创建自己的键表；原闭包 view 改为 ProseMirror keydownHandler 每次执行给出的第三参数，不在装配时读 view，不引入 view/selection 缓存或 getView 端口。只把现有 openLink 回调交给该模块，弹层 owner 与生命周期保持。
+
+范围只含 Pages 新内部模块、editor-browser、README、受影响的位置断言、新 Chrome 键盘用例、本 spec/迁移表与下降快照；公开 27 出口、文档/存储/动作/Host/样式、插件数组顺序不变。保留 Enter 的逐项回退至 task/base keymap、Backspace/Delete 的组优先与 base 回退、Tab/Shift-Tab 的表格/代码/列表/容器次序及吞键、Arrow 的短路和边界返回、格式/复制/移动/历史的原事务与 focus。Mod-c/x 保持原 execCommand 与 boolean 返回；不改系统剪贴板或平台键位。依赖只向原命令/schema/选择/查找模块，不回指入口。键盘拆分不代表整个 mount 或 W5-10 完成。
+
+`W5-10-PGK-01`：37 键名和顺序、各 handler/chain/返回逐项对照，view 参数化按现行 keydownHandler 合同单列；公开出口与其余入口 AST 保持，无循环/新巨大单元，正式编辑器资源不超过 706888 B，完整 merge-base health/API/boundary/资源通过。`W5-10-PGK-02`：新用例先在 PGP 正式资源通过、再在最终资源通过；真实 Chrome 键盘验证格式/块转换/复制/历史、Enter与删除回退、表格/代码/容器Tab和导航的代表状态，断言文档/选区/相邻内容/undo/focus。`W5-10-PGK-03`：同一编辑器 setDoc 和 destroy/remount 后命令作用于当前实例，slash/mention、块菜单/拖拽capture、find与clipboard优先级由原浏览器用例保持；Mac Chrome为实操平台，保留原 Mod 依赖与键名支持跨平台判断，不把模拟平台当作Windows/AltGr实操。
+
+先准备新测试并跑拆分前基线，再外部候选预览和语义对照，通过预算后应用源码；只在本职责内去确实重复，不能改门禁/minifier或将整键表换成巨大函数。子代理负责有限源码/测试路径，root串行维护共享spec/快照、最终整体构建、README必跑与相关浏览器。独立只读复查与实际diff核验后记本地完成，不运行本机全量、不新增第三个在途PR。
+
 W5-10 Pages 剪贴板与图片拖入拆分（2026-10-18，Codex，本地定向通过，待队列与 CI）：接块手柄提交 `5109581ba`，目标为功能可用且行为保持。把 mount 内的 paste、图片 drop/dragover、copy/cut 及 writeSpanClipboard 移到现有 `editor-paste.ts`，共用的 dropSelectedBlock 移到 `editor-block-selection.ts`；入口只装配事件处理器。保持图片→块组选区替换→Shift 纯文本→URL→HTML→Markdown 的分支顺序，复制先写完整 HTML/Markdown、剪切后删选中块；图片仍由既有 transient 持有映射锚点并处理换文档/销毁，继续同一 dispatchTransaction 和 onChange 链。处理器使用当前事件传入的 EditorView，不另存 view/selection、不增加监听 owner。范围仅这些 Pages 内部模块、README、受影响的位置断言、新剪贴板浏览器用例、本 spec/迁移表与下降快照；不改公开 API、schema、存储、Host、样式、模型、生命周期顺序与资源门禁。键盘、弹层和 AI 留后续片；本片不表示整个 mount 或 W5-10 完成。
 
 `W5-10-PGP-01`：27 个公开出口/签名保持，模块无环、无新巨大单元，mount/入口实测减少，正式编辑器资源不超过 PGH 的706897 B并通过merge-base资源门禁。`W5-10-PGP-02`：正式bundle/CSS和公开mount的Chrome事件链验证多块copy/cut的HTML与Markdown、正文变化/undo、整组替换与邻块保留，以及HTML/URL/结构化Markdown/Shift纯文本优先级；空和不支持输入不多写正文。`W5-10-PGP-03`：真实DOM图片paste/drop及落点、等待中的映射锚点、换文档/销毁后零写入、重挂可用；优先复用原W2-18-PAGES-TRANSIENT-01，不复制异步夹具。DataTransfer/ClipboardEvent只证明浏览器编辑路径，不声明系统剪贴板或系统拖入授权已验证。新动线先在PGH正式资源保存基线，再应用拆分；最终整体build、README必跑与相关浏览器、health/API/boundary/资源/diff核验，本机不跑全量。资源若增长先在本职责内去真实重复，不改门禁或借无关模块抵扣；无法同时满足时记录具体差值。

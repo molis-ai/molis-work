@@ -92,6 +92,8 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
 
 `services.background` 只在非沙箱定义声明 `background_job` 时由 Host 提供，与模型是否配置、平台是否有 Home 无关；只能由本安装仍活跃的并发 command 受理。捕获 Kernel 保留的原注册与权限后，使用既有 `createExecutionLifetime` 建立一次有限执行；模型通过 `runInPluginAction` 读到这个新控制，原处理器的控制仍按时结束。两个执行器先关闭所有后台执行，再等待插件清理；撤权后的成功、失败都不能写业务事实，停止后不重放。公开回归：`tests/security-invariants-plugin-background.test.ts`、`tests/plugin-model-service.test.ts`。
 
+`createPluginOwnerFilesClient` 绑定现有安装 gate 与真实 `currentPluginAction`，不另建实例寿命或关闭协议。读取检查读权限；`write` 等待原 `beforeEffect()` 后，每个同步原语重查写权限、原 caller 与取消。返回、抛错和异步回调都会撤销 writer。初始化入口只由可信 Host 调用，沙箱、项目与升级预检不提供此服务；IO 端口没有授权判断。改动后运行 `tests/security-invariants-plugin-owner-files.test.ts`、`tests/security-invariants-plugin-owner-files-registration.test.ts`、`tests/security-invariants-plugin-owner-files-lifecycle.test.ts`。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/platform/PLUGIN-DEVELOPMENT.md)
@@ -103,5 +105,6 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
+模型原图服务在首次等待前检查并复制字节（30 张、单张 32 MiB、合计 128 MiB）。`validateResult()` 同步复核原动作 scope、存活授权、安装及 Host 的原模型快照；成功、普通推理失败与 JSON 解码失败都保留同次执行事实，取消、撤权或过期后不能据此记业务失败。只读 `choices()` 检查安装与模型 grant，不递归调用会重算可用性的完整动作授权。回归见 `tests/security-invariants-plugin-model-materials.test.ts`。
 
 Home 的消费者设置与生图服务分别由 `model-configuration.ts`、`image-generation.ts` 核对可信声明、当前实例、动作权限与执行范围。只读 selection/inspect 供可用性判断，不递归进入完整动作可用性；真实模型/配置写入仍复查 beforeEffect 和同步授权。图片结果携带派出时的 revision，交付与业务写入按该版本复核。合同和恢复边界见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-消费者的模型配置生图与项目清理)；改这些路径加跑 `tests/plugin-model-configuration.test.ts`、`tests/plugin-image-generation.test.ts`、`tests/home-plugin-project-cleanup.test.ts`、`tests/home-plugin-project-routes.test.ts`。

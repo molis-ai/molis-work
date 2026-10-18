@@ -72,6 +72,8 @@ export interface BuiltinPluginEntry {
   readonly developer?: boolean;
   /** Explicit Runtime activation; personal visibility alone never migrates an existing plugin. */
   readonly runtime?: { readonly scope: "home"; readonly create: () => PluginDefinition; readonly database?: PluginDatabaseDeclaration; readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
+    readonly owner_files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesDeclaration;
+    readonly initialize_owner_files?: (writer: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesWriter) => void;
     readonly model_configuration?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration;
     readonly image_generation?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration;
     readonly package_name: string; readonly factory_export: string;

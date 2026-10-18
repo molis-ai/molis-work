@@ -11,7 +11,8 @@ import { assertFilesEntries } from "./plugin-files-entries.js";
 import { assertModelConfigurationEntries } from "./model-configuration-entries.js";
 import { assertImageGenerationEntries } from "./plugin-image-generation-entries.js";
 import { assertProjectCleanupEntries, registerPluginProjectCleanup, type PluginProjectCleanup } from "./plugin-project-cleanup.js";
-import { pluginFixtureEntries, pluginHomeFor, type PluginFixture } from "./home-side.js";
+import { pluginFixtureEntries, pluginHomeFor, fixtureDeclarationsFor, type PluginFixture } from "./home-side.js";
+import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 
@@ -21,6 +22,8 @@ export interface HomePluginEntry {
   readonly create: () => PluginDefinition;
   readonly database?: PluginDatabaseDeclaration;
   readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
+  readonly owner_files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesDeclaration;
+  readonly initialize_owner_files?: (writer: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesWriter) => void;
   readonly model_configuration?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration;
   readonly image_generation?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration;
   readonly project_data?: PluginProjectCleanup;
@@ -99,11 +102,12 @@ export class HomePluginHost {
     const identity = pluginEntryIdentity();
     const shipped = this.options.entries.map(entry => {
       const definition = entry.create();
-      return { definition, bundled: true, database: entry.database, files: entry.files,
+      return { definition, bundled: true, database: entry.database, files: entry.files, owner_files: entry.owner_files, initialize_owner_files: entry.initialize_owner_files,
         model_configuration: entry.model_configuration, image_generation: entry.image_generation, project_data: entry.project_data,
         releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => {
           const released = factory();
           identity.remember([{ definition: released, bundled: true, database: entry.database, files: identity.filesFor(definition),
+            owner_files: identity.ownerFilesFor(definition)?.declaration, initialize_owner_files: identity.ownerFilesFor(definition)?.initialize,
             model_configuration: identity.modelConfigurationFor(definition), image_generation: identity.imageGenerationFor(definition), project_data: identity.projectDataFor(definition) }]);
           return released;
         }) };
@@ -115,6 +119,7 @@ export class HomePluginHost {
       ids.add(entry.definition.manifest.plugin_id);
     }
     const home = pluginHomeFor(this.options.home);
+    assertOwnerFilesEntries(entries, fixtureDeclarationsFor(this.options.home, "project"), home);
     assertDatabaseEntries(entries, home);
     assertFilesEntries(entries, home);
     assertModelConfigurationEntries(entries, home);
@@ -125,7 +130,7 @@ export class HomePluginHost {
     this.db = db;
     const repository = new SqlitePluginRuntimeRepository(db);
     const executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id), database: identity.databaseFor, files: identity.filesFor,
-      modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, projectData: identity.projectDataFor,
+      modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, projectData: identity.projectDataFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, qualifyCaller: identity.qualifyCaller });
     const runtime = new PluginRuntime(repository, executor, { actions: { registry: this.options.registry,
       providerId: (record, definition) => identity.providerFor(definition, record.install_id) } });

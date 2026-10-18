@@ -152,16 +152,19 @@ Cognia 同时保留已登记的知识角色与回答指令：角色作为共享�
 - **路径**：宿主端口 → `hostTextGeneration` → agent-host 的 Prologue 推理，和别的调用方同一条；不新开供应商直连，不向 Prologue 传调用编号（2026-10-10）。宿主构造时给的 `completeText`（函数是测试替身，`null` 是没有模型）照旧有效，每次调用时才读。`availability()` 可以接在动作的 `availability` 上。
 - **模型显示名**：`services.model.availability()` 可带 `runtime_label`，表示当前配置的提供方与模型（仅显示名和模型 ID）；读取只查元数据，不解密、不发请求。实例停止、缺授权或配置不可用时不带标签。模型执行仍按实际调用时的配置与授权复核。
 - **明确选择模型**：`complete(prompt, { selection: { provider_id, model_id } })` 和 `availability(selection)` 指向同一个已配置模型。不指定时才使用默认，目标缺失、停用或连接失效时拒绝，不回退到其他模型或环境配置。Runtime 在第一次等待前复制两个 ID，插件之后改原对象不改变本次请求；地址和凭据由 Host 解析，派出前和返回后仍检查当前配置。模型清单与供应商设置不由此接口管理。
-- **其他边界**：图片输入与列出可选模型尚未提供；动作返回后的有限继续执行须经 `services.background` 保留原授权，不能直接留一个游离的异步调用（见插件开发手册）。
+- **原图与模型清单**：请求的 `images` 只收 `{ bytes, label? }`，首次等待前复制；最多 30 张、单张 32 MiB、总共 128 MiB。Host 用私有临时文件接现有 SDK intake，文件名由 Host 生成，结束清理，不接受插件路径或 URL；SDK 保留格式检查与不支持视觉模型的拒绝。`choices()` 只投影可用模型的 provider_id/model_id/label/vision/reasoning_effort，安装失效或缺 model:invoke 拒绝，读取零联网、零解密；选择仍由插件自己的设置 owner 保存。
+- **回执与最终提交**：成功返回 `execution` 的真实 run_ref/state/configuredModel/reportedModels/usage；只有注入纯文字替身时缺省。普通推理失败、空正文与 JSON 解码失败在已有推理事实时保留原回执，不伪造调用/用量。结果和可记账失败提供 `validateResult()`，它保留原动作及实际派出时的 Host 绑定；插件在最后一次 `await beforeEffect()` 后立即同步调用，再提交业务。原调用结束、另一个动作借用或连接/模型改变均拒绝，失败记账同样受限。回归见 `tests/security-invariants-plugin-model-materials.test.ts`。
+- **后台边界**：动作返回后的有限继续执行须经 `services.background` 保留原授权，不能直接留一个游离的异步调用（见插件开发手册）。
 
 ```ts
 const SUMMARIZE = defineInstructionPrompt({ owner_id: "io.example.notes", prompt_id: "summarize", version: 1, title: "摘要", purpose: "把笔记压成一句话", used_by: ["笔记摘要"], body: "把下面的笔记压成一句话。" });
 // definition.instructions: [SUMMARIZE]；动作：permissions: ["model:invoke"], scheduling: "concurrent"
 handle: async (caller, input) => {
   const note = readNote(input.id);                                    // 读快照
-  const { text } = await services.model!.complete(instructed(SUMMARIZE, note.body));
+  const result = await services.model!.complete(instructed(SUMMARIZE, note.body));
   await caller.beforeEffect();                                        // 写之前再问一次
-  return saveSummary(input.id, text, note);                           // 按读取时的版本提交
+  result.validateResult();                                            // 同步核原调用与模型绑定
+  return saveSummary(input.id, result.text, note);                    // 按读取时的版本提交
 },
 ```
 

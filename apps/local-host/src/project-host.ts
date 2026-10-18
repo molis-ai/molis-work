@@ -57,7 +57,7 @@ import { registerProjectRuntimeOwner } from "./project-deleted-runtime.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { HomePluginHost } from "./home-plugins.js";
 import { assertFixtureScopes } from "./plugin-scope-entries.js";
-import { withPreparedActions } from "./plugin-actions-client.js";
+import { homePluginActions, withPreparedActions } from "./plugin-actions-client.js";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { hostLog, logSearchIndexFailure } from "./host-log.js";
@@ -204,7 +204,7 @@ export class MolisWorkLocalHost {
       },
     });
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
-      registry: this.host.actionRegistry(), client: this.host.homeActionClient(), entries: BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, manifest: entry.manifest,
+      registry: this.host.actionRegistry(), client: homePluginActions(this.host), entries: BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, manifest: entry.manifest,
         ...(entry.project_data ? { project_data: { owner_id: entry.project_plugin_id, declaration: entry.project_data } } : {}),
       }] : []), fixtures: options.pluginFixtures?.home });
     if (this.personalPlanningHome) this.personalPlanning = new PersonalPlanningActions(this.personalPlanningHome, this.host.actionRegistry(),

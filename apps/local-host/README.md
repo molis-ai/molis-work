@@ -94,6 +94,8 @@ node scripts/run-tests.mjs tests/local-host.test.ts tests/web-home-isolation.tes
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受当前同安装动作 scope，保留原调用者并交给同一动作服务检查。HTTP 在既有 routedControls 保存可信 caller；项目来自已核路径，Home 无项目不借项目，复制 control 不能取得身份。本机 owner 的 native 读取集合由原 LOCAL_OWNER_PERMISSIONS 提供，来源插件自身仍必须声明并持有目标权限。请求 signal 归 route control，接受前断开拒绝；已接受的后台工作保留现 entry-owned lifetime。Home 插件内使用底层已有 client，避免 start 内 discover 重入 Home ready；公开入口仍负责原 Runtime 准备。相关验证：`tests/plugin-action-query-http.test.ts`、`tests/plugin-action-query-home-http.test.ts`、`tests/plugin-action-query-mcp.test.ts` 与 `tests/security-invariants-plugin-background.test.ts`。
+
 ## 开发要求
 
 炼金术士的关闭先停止接纳并撤销提交，再等待前台动作与 worker 的真实退出；只有工作室与搜索资源全部关闭后才移出登记和删除目录。失败保留 live 删除钩子与未关闭资源，公开 Host.close 可单独重试炼金术士收尾，其余已完成 Host 收尾不重复执行。搜索组合直接拥有 query transport 的清理，避免 SEL 缓存一次关闭失败后无法重试；SEL 内部终端故障仍保留失败和资源，不假称清理成功。回归：`tests/security-invariants-alchemist-lifecycle.test.ts`、`tests/alchemist-studio-idle.test.ts`、`tests/search-evidence-runtime.test.ts`。
@@ -175,6 +177,8 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-preference-integrity.test.ts tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
+可信 Home 条目的 `owner_files` 与 `initialize_owner_files` 由实际 definition 对象绑定，先以唯一 HomeStoreRegistry 和两个 scope 的现行声明检查归属/共根，再向当前实例提供 `services.ownerFiles`。文件端口只接受声明顶层下的严格相对路径；每个文件句柄经 NOFOLLOW/NONBLOCK/fstat 后才读写，拒绝软硬链接与特殊节点。原子替换只承诺 rename 前失败保留原字节，树删除先预检；不承诺多文件事务、掉电持久或抵御同 OS 用户并发换父目录。对应 `tests/security-invariants-plugin-owner-files.test.ts`、`tests/security-invariants-plugin-owner-files-registration.test.ts`、`tests/security-invariants-plugin-owner-files-lifecycle.test.ts`；Shelf 本体尚未切换到此服务。
+
 ## 进一步阅读
 
 - [职责与接入说明](../../docs/platform/LOCAL-HOST.md)
@@ -252,3 +256,5 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-actions.ts` 只在动作校验副本中去掉一级基本类型参数上的有效 `x-mcp-header` 传输注释；不改参数约束，不关闭严格 schema 检查，未知关键字、嵌套或无效注释继续使该工具不可调用。HTTP 传输仍按 MCP SDK 实际协商的协议执行；这项处理不表示支持 2026-07-28 的头映射。真实 HTTP 派出与拒绝回归见 `tests/connector-mcp.test.ts` 的 ASC-03/13/31 注释用例。
 
 后台类别权限从受理时的真实 MCP allowed refs 固定来源，再与当前精确 grants/声明求交；新授予的同权限动作不能救活旧任务。Alchemist HTTP 的请求 signal 只约束本次传输控制，正常响应结束后已受理工作仍检查 Host/项目/原动作权限。搜索派出在 DNS 后、TLS 请求体前及后续请求复核同一调用，SearchEvidence/secret/opaque/content 写入保留最终同步检查。回归见 `tests/security-invariants-alchemist-resumption.test.ts`、`tests/search-effect-authority.test.ts`、`tests/action-background-authority.test.ts`。
+
+公共模型服务的原图由 `plugin-model-images.ts` 在 Host 私有临时目录适配现有 Prologue intake，路径由 Host 生成、目录 0700、文件 0600，调用结束清除源副本；SDK 继续负责图片格式和 intake 资源回收。`hostTextGeneration` 返回实际 dispatch 快照的同步复核函数，成功与可记账失败保留原推理事实；公共服务的 `choices()` 复用 `configuredModelChoices`，不解密或联网。回归见 `tests/security-invariants-plugin-model-materials.test.ts`、`tests/prologue-inference-images.test.ts`。

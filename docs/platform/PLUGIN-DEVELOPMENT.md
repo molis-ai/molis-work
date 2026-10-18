@@ -276,6 +276,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 - Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在 `apps/workbench/src/builtin-plugins.ts` 自己的目录条目上声明 `instructions`，Host 从共同目录派生登记，`builtin-instructions.ts` 的 `BUILTIN_INSTRUCTIONS` 除目录派生的之外只列 Host 自己的 `system:*` 题面，不点名插件的指令。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
 - 宿主自己运行的 Runtime 插件（非沙箱执行）调模型用 `context.services.model`，不写宿主绑定文件：Manifest 声明 `model:invoke`；只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调；传 `instructed(自己的指令, 数据)`，发送用户改过的版本；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`。没有目录条目的插件在 `PluginDefinition.instructions` 里声明自己的指令（SDK 导出 `defineInstructionPrompt`、`instructed`）；有目录条目的内置插件仍在条目上声明；目录已经为某个主人登记了角色或方法而没有指令（Schedule、助理、Issues）的，也算有条目，`PluginDefinition.instructions` 对它启动失败。一个主人的定义只在一处。限额、错误码和不做的事见 [Prologue AI 手册第 4 节](PROLOGUE-AI.md)。
 - 模型请求可带 `selection: { provider_id, model_id }`，可用性用 `services.model.availability(selection)`；明确选择失败不改用默认模型。仅指定已有目录项，地址、凭据和供应商配置仍由 Host 管理。
+- `services.model.choices()` 只返回当前可用模型的名称与能力，不解密或联网。原图输入用 `images: [{ bytes, label? }]`，首次等待前复制，最多 30 张、单张 32 MiB、合计 128 MiB，不收路径或 URL；Host 临时副本和 SDK intake 各自清理。成功结果带真实 `execution` 回执和同步 `validateResult()`，失败及 JSON 解码失败在已有推理事实时也保留回执；未知用量保持未知。写业务前先 `await caller.beforeEffect()`，随后立即 `result.validateResult()` 再同步提交；失败记账用相同检查，不能借另一动作或新模型绑定提交旧结果。细节与示例见 Prologue AI 手册第 4 节。
 - 门禁 `tests/prompt-registration.test.ts`：没登记的指令、收裸字符串的端口、绕开登记直接调模型的 Host 模块都会失败；确需过渡的写进清单并写明原因。
 - 插件创作台生成的插件同样如此：要求在操作代码里 `export const prompts = [{ id, title, purpose, body }]` 声明，`model.generate` 传 `{ prompt: id, input }`；安装时登记、卸载时撤下（用户的修改保留）。检查 G4 会拒绝未声明的 id 和仍传 `instructions` 的调用。
 - 设置“Prompt 与 Character”底部的“开发者诊断”列出每个来源登记了什么、哪些没有生效及原因，以及仍未登记的模型调用。
@@ -394,6 +395,14 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 
 连接的业务使用位置由消费方通过 `defineConnectorUsagesAction` 报告（contracts 的 `services/connector-host`）。输入是连接 id，输出是 owner 当前保存的使用位置、启用状态和已有业务动作引用及非敏感对象参数。共同目录按 `molis.connector-usages.input.v1` / `output.v1` 发现查询，由 `connectors.usages.read` 以原调用者权限汇总；没有宿主插件白名单和第二份绑定库。Feed 只返回当前项目来源，Images 返回原生图配置，Functions 返回使用当前绑定账号的已发布规则；模型配置不伪称所有文本动作都固定使用该账号。查询不调用业务操作，展示的操作仍按当前目录权限、作用域与可用性决定是否可用。
 
+
+## Home 主人的私有文件树
+
+可信 Home 条目可声明 `owner_files` 与可选的 `initialize_owner_files`，根目录沿唯一 HomeStoreRegistry 验证 owner；同一根不能同时被 database、旧 files 或第二份 owner_files 占用，完整声明校验在受管开库和初始化之前完成。声明绑定实际 definition 并深复制冻结。项目、沙箱、升级预检以及 Manifest 自报字段均不能获得服务。它是平台前置，现 Shelf owner 和正式装配保持现状。
+
+`services.ownerFiles.stat/read/list(relative)` 需要本安装正在执行的真实动作读权限。`write(run)` 需要 command 和原写权限，等待原 `beforeEffect()` 后才给同步 writer；每个原语继续复核原调用、安装与取消，退出或 Promise 回调后 writer 永久失效。Writer 内读取沿写权限，不借新动作延长旧句柄。可信 initializer 在有效 activation 与写 grant 下获得同样的短 writer，完成后才 start/register；它不进入插件 services。
+
+路径是已声明顶层下的严格相对路径，可包含 Unicode；软硬链接、特殊节点和不安全子树均拒绝。create/copy 独占，replace 要已有文件；replaceFileAtomic 使用同目录独占临时文件，rename 前失败保留原字节并清本次临时文件。removeTree 先预检且不删除声明目录顶层。读写无额外32MiB限制，仍受运行环境字节上限约束。没有多文件事务、掉电持久或同 OS 用户并发替换父目录防护的承诺；同步成功后又抛错不会回滚此前合法写入。
 
 ## Home 消费者的模型配置、生图与项目清理
 

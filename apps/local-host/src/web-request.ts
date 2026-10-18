@@ -4,7 +4,7 @@ import { builtinRegistrations } from "./agent-definitions/builtin-registrations.
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { bindLocalWebActions } from "./local-web-actions.js";
+import { bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
@@ -154,7 +154,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
   const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
   const goalActions = bindGoalsWebActions(localHost.actionClient(hostReference), hostReference);
   const codingServices = projectCodingServices(context);
-  const pluginPorts: CodingSurfacePorts = { ...codingServices, store, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
+  const pluginPorts: CodingSurfacePorts = { ...codingServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
     actorId: LOCAL_PERSON_ACTOR_ID, goalTitle: (id) => coordinator.goalQueries.getGoal(options.projectId, id)?.title, escapeHtml: (value) => String(value), translate: (value) => value };
   const withoutView = { ...context, store, coordinator, feedOptions, homeActions, goalActions, codingServices, pluginPorts };
   return { ...withoutView, readWebView: projectWebView(withoutView) };

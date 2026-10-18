@@ -1,6 +1,6 @@
 import { ActionError, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { createPluginOwnerFilesClient, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { openPluginDatabase } from "./plugin-database.js";
@@ -12,6 +12,8 @@ import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
 import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
+import type { PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
+import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
@@ -20,6 +22,7 @@ export class HomePluginExecutor implements PluginExecutor {
     home: string; actorId: string; client: ActionClient;
     database(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
     files(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
+    ownerFiles(definition: PluginDefinition): PluginOwnerFilesBinding | undefined;
     modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
     projectData(definition: PluginDefinition): PluginProjectCleanup | undefined;
@@ -72,6 +75,10 @@ export class HomePluginExecutor implements PluginExecutor {
       if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize);
       const fileDeclaration = this.options.files(definition);
       if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize);
+      const owned = this.options.ownerFiles(definition);
+      const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
+        { install_id: context.install_id, assertActive, requireGrant: authorize }) : undefined;
+      if (owned?.initialize && context.grants.includes("storage:private") && context.grants.includes(owned.declaration.write_permission)) ownerFiles!.initializeTrusted(owned.initialize);
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
@@ -84,7 +91,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, database: database?.client, ...(files ? { files: files.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
+        ui: ui.client, database: database?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });

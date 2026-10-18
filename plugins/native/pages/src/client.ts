@@ -27,8 +27,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const templateDialog = el("[data-pages-template-dialog]");
   const Editor = window.MolisWorkPagesEditor;
   const ICON = (name) => '<svg aria-hidden="true"><use href="#icon-' + name + '"></use></svg>';
-  const moreMenu = el("[data-pages-more-menu]");
-  const moreButton = el("[data-pages-more]");
+  const moreMenu = el("[data-pages-more-menu]"), moreButton = el("[data-pages-more]");
   const createMenu = el("[data-pages-create-menu]");
   const createMore = el("[data-pages-create-more]");
   const moveMenu = el("[data-pages-move-menu]");
@@ -673,6 +672,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const saveOpen = (id) => sel?.id === id && (saveTimer || dirty) && persist();
   const commentOpen = Editor.bindComments({ workbench: bench, persistCurrent: persist, showNote, translate: L, get selected() { return sel; }, get editor() { return editor; }, get unshowable() { return unshowable; }, get dirty() { return dirty || Boolean(saveTimer); } });
+  // Shown again (item tab, reload): the workbench took its name off when it hid it, so name it again.
   const revealEditor = () => {
     bench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
@@ -796,6 +796,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
       placed({ verb: "versioned", title: payload.document.title, object: { kind: "pages_document", id: payload.document.id }, artifact: payload.artifact,
         note: L("第 {version} 版 · 放在这个位置的成果里；继续编辑不会改变这一版", { version: payload.document.artifact_version }) });
     } catch (error) {
+      // A failed response may follow a committed version: refresh recovery state, keep local edits.
       try {
         const payload = await request("GET", pageUrl(id));
         if (draft) adoptSaved(draft, payload.document); else storeDocument(payload.document);

@@ -8,19 +8,19 @@ import { startWebProjectSchedulers } from "@molis-ai/molis-work-app-local-host";
 
 // LOGIC-01: one failed project open must not keep the rest of the projects unscheduled for the life of the process.
 
-test("LOGIC-01 a failed open is recorded and the next tick tries the projects again", async (t) => {
+test("LOGIC-01 a project that will not open is skipped: the ones after it open, the round runs, and it is tried again, reported once", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "schedulers-"));
   t.after(() => rm(home, { recursive: true, force: true }));
   const paths = [join(home, "a.db"), join(home, "b.db")];
   await Promise.all(paths.map(path => writeFile(path, "")));
   const opened: string[] = [];
-  let failB = true;
+  let failA = true, rounds = 0;
   const errors: unknown[] = [];
   let run: (() => Promise<void>) | undefined;
   const schedulers = startWebProjectSchedulers({
     localHost: { async withProject(reference: { project_id: string }) {
       opened.push(reference.project_id);
-      if (reference.project_id === "b" && failB) throw Object.assign(new Error("database is locked"), { code: "SQLITE_BUSY" });
+      if (reference.project_id === "a" && failA) throw Object.assign(new Error("file is not a database"), { code: "SQLITE_NOTADB" });
     } } as never,
     homeDirectory: home,
     withCatalog: async (_options, operation) => operation({ listProjects: async () => [
@@ -34,13 +34,24 @@ test("LOGIC-01 a failed open is recorded and the next tick tries the projects ag
     onError(error) { errors.push(error); },
   });
   t.after(() => schedulers.stop());
-  await assert.rejects(run!());
-  assert.deepEqual(opened, ["a", "b"]);
-  assert.equal((errors[0] as Error).message, "database is locked");
-  failB = false;
+  // The project that did open runs its schedules on this round.
+  schedulers.runtimes.set(paths[1]!, { scheduler: { tick: async () => { rounds += 1; return {}; } }, schedule: { tick: async () => ({}) } } as never);
+  await run!();
+  assert.deepEqual(opened, ["a", "b"], "the broken first project does not stop the second from opening");
+  assert.equal(rounds, 1, "the round runs although one project would not open");
+  assert.deepEqual(errors.map(error => (error as Error).message), ["file is not a database"]);
   opened.length = 0;
   await run!();
   assert.deepEqual(opened, ["a", "b"], "the project that failed to open is tried again");
+  assert.equal(errors.length, 1, "the same failure is not reported again while it keeps failing");
+  failA = false;
+  opened.length = 0;
+  await run!();
+  assert.deepEqual(opened, ["a", "b"]);
+  opened.length = 0;
+  await run!();
+  assert.deepEqual(opened, [], "once every project opened, the next round does not open them again");
+  assert.equal(errors.length, 1);
 });
 
 test("LOGIC-01 stopping the host finishes while an open is still failing", async (t) => {
@@ -67,5 +78,6 @@ test("LOGIC-01 stopping the host finishes while an open is still failing", async
   const stopping = schedulers.stop();
   rejectOpen(new Error("database is locked"));
   await stopping;
-  await assert.rejects(started, /database is locked/);
+  // The failed open is skipped, not reported (onError throws above), and the stopped round ends without running.
+  await started;
 });

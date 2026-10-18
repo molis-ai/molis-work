@@ -87,6 +87,18 @@ test("LOGIC-04 a lost lease writes no failure sentence", async () => {
   db.close();
 });
 
+test("LOGIC-04 the lease that guards the failure sentence is asked inside its write, so it cannot be lost in between", async () => {
+  const db = new Database(":memory:");
+  const task = createScheduleConversationTask(db, { title: "租约", instructions: "看一眼", hour: 9, minute: 0, notify_important: false }, () => new Date("2026-09-20T01:00:00.000Z"));
+  const asked: boolean[] = [];
+  await assert.rejects(() => handleScheduleTaskWakeup(db, task.task_id, {
+    async run() { throw new Error("模型没接上"); },
+  }, () => new Date("2026-09-20T01:05:00.000Z"), { beforeEffect() { asked.push(db.inTransaction); } }));
+  assert.equal(asked.at(-1), true, "the last check before the sentence runs inside the transaction that writes it");
+  assert.match(getScheduleConversationTask(db, task.task_id)!.turns.at(-1)?.text ?? "", /到点了，但这一轮没跑成：模型没接上/);
+  db.close();
+});
+
 test("a concurrent calendar tick does not replace the lease of a running one-shot conversation", async () => {
   const db = new Database(":memory:"), clock = { now: new Date(2026, 8, 20, 8, 50) };
   const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();

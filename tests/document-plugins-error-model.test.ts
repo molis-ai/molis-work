@@ -332,6 +332,16 @@ test("real routes: a publish in an environment with no publisher is refused by t
   assert.deepEqual(form.get(draft.id), draft, "form: the refusal keeps the persisted draft unchanged");
 });
 
+test("W5-01-PPT-02: real routes: PPT's Runtime edge reads up to the 1 MB its routes declare, answers more with 413 and a broken body with 400", async t => {
+  const decks = await pptRoutes(t);
+  const large = await decks.raw("", JSON.stringify({ title: "大", padding: " ".repeat(1_000_000) }));
+  assert.deepEqual([large.status, large.body], [413, { error: "请求内容过大", code: "actions.input_too_large" }]);
+  const broken = await decks.raw("", "{not json");
+  assert.deepEqual([broken.status, broken.body.code], [400, "actions.input_invalid"], JSON.stringify(broken.body));
+  const created = await decks.post("", { title: "边界" });
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+});
+
 test("real routes: Form's Runtime edge reads up to the 1 MB its routes declare, answers more with 413 and a broken body with 400", async t => {
   // The Host's Form edge read 1,000,000 bytes; on the Runtime each route declares it (`max_body_bytes`), past the Runtime's 256,000.
   const forms = await formRoutes(t);

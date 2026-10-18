@@ -30,7 +30,7 @@
 | #728 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 7cfb9f317 审过（只挪了 `keptWriteCheckers` 的位置），chain64 等空位 | 全量绿了自动入队 |
 | #730 | 情境 W4-1（记成待办、记下灵光成为创建入口，立即建好，由主人自己的撤销收回） | e757d682c 审过：S-40、BL-174 都已改，正文有动作快照对调用方的影响。health 只剩安全不变量断档一项（S-38 后直接 S-40），要等 #727（S-39）合入 | #727、#720 合入后 merge main、重新取键 `[新起点, +1,158]`，再排全量（它自己还没跑过全量） |
 | #731 | 手册线 BL-163/T5 评测结果（coding-base v13 删补充半句；BL-163 按 ① 删行；BL-175、BL-176） | 9a9de4bc9 审过 | 提示词改动，要全量；等 main 的红用例定了再排 |
-| #732 | jingxusandra-gif，产品运营文档对抗式审查（只改 `docs/product-operations/`） | 501cf1fa8 审过，按 #722 先例 merge-only | gate-732 等 Verify 绿入队 |
+| #732 | jingxusandra-gif，产品运营文档对抗式审查（只改 `docs/product-operations/`） | 501cf1fa8 审过、只改文档；统筹曾按 #722 先例入队，用户 10-18 把它移出了合并队列 | 不再入队，交作者与用户定 |
 | 待开 | 手册 BL-163/T5 评测与处理（分支 `ai/bl163-ack-eval`） | 乙重跑完：两版都没把补充当成回答，按规则删半句。甲约 37/96 | 开 PR 前要 merge main：#725 已把 coding-base 升到 v12，T5 要升 v13 |
 
 用户 10-18 补充：交接之前把存量 PR 都处理掉。各 PR 的处理：

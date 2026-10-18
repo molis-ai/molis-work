@@ -18,8 +18,7 @@ import {
 } from "@molis-ai/molis-work-app-workbench";
 import {
   DATASET_CLIENT_FACTORY_SCRIPT,
-  DatasetPluginRouteTable,
-  createDatasetRouteHandlers,
+  datasetActions,
   mergeDatasetDraftRows,
   openDatasetStore,
   parseCsv,
@@ -347,53 +346,28 @@ test("Forms：建题、预览提交、结果计数，重开还在；出题是本
 test("Dataset：行列、CSV、导出、版本回滚，重开还在；加列是本地 stub", async () => {
   await withHome(async (home) => {
     const store = openDatasetStore(home);
-    const routes = new DatasetPluginRouteTable(createDatasetRouteHandlers(datasetTestPorts(store, projectQuery().get("project_id")!)));
-    const created = await routes.handle({ method: "POST", pathname: "/api/dataset", query: projectQuery(), body: projectBody({ title: "成绩" }) });
-    const id = (created?.body as { dataset: { id: string } }).dataset.id;
-    const imported = await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}/import-csv`,
-      query: projectQuery(),
-      body: projectBody({ csv: "姓名,分数\n一骏,95\n小陈,88" }),
-    });
-    const table = (imported?.body as { dataset: { columns: Array<{ name: string; type: string }>; rows: unknown[] } }).dataset;
+    const { actions } = datasetTestPorts(store, PROJECT);
+    const created = await actions.invoke(datasetActions.create, { title: "成绩" });
+    const id = created.dataset.id;
+    const imported = await actions.invoke(datasetActions.import, { id, csv: "姓名,分数\n一骏,95\n小陈,88" });
+    const table = imported.dataset;
     assert.equal(table.columns.length, 2);
     assert.equal(table.rows.length, 2);
     assert.equal(table.columns[0]?.type, "text");
     assert.equal(table.columns[1]?.type, "number");
-    const generated = await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}/generate-column`,
-      query: projectQuery(),
-      body: projectBody({ prompt: "完成日期" }),
-    });
-    const withColumn = (generated?.body as { dataset: { columns: Array<{ name: string; type: string }> } }).dataset;
+    const generated = await actions.invoke(datasetActions.generate, { id, prompt: "完成日期" });
+    const withColumn = generated.dataset;
     assert.equal(withColumn.columns.at(-1)?.name, "完成日期");
     assert.equal(withColumn.columns.at(-1)?.type, "text");
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}/versions`,
-      query: projectQuery(),
-      body: projectBody({ note: "导入后" }),
-    });
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}`,
-      query: projectQuery(),
-      body: projectBody({ rows: [] }),
-    });
-    const versions = await routes.handle({ method: "GET", pathname: `/api/dataset/${id}/versions`, query: projectQuery(), body: {} });
-    const versionId = (versions?.body as { versions: Array<{ id: string }> }).versions[0]?.id ?? "";
-    const rolled = await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}/rollback`,
-      query: projectQuery(),
-      body: projectBody({ version_id: versionId }),
-    });
-    const restored = (rolled?.body as { dataset: { rows: unknown[] } }).dataset;
+    await actions.invoke(datasetActions.snapshot, { id, note: "导入后" });
+    await actions.invoke(datasetActions.update, { id, rows: [] });
+    const versions = await actions.invoke(datasetActions.versions, { id });
+    const versionId = versions.versions[0]?.id ?? "";
+    const rolled = await actions.invoke(datasetActions.rollback, { id, version_id: versionId });
+    const restored = rolled.dataset;
     assert.equal(restored.rows.length, 2);
-    const exported = await routes.handle({ method: "GET", pathname: `/api/dataset/${id}/export`, query: projectQuery(), body: {} });
-    const csv = (exported?.body as { csv: string }).csv;
+    const exported = await actions.invoke(datasetActions.export, { id });
+    const csv = exported.csv;
     assert.match(csv, /姓名/);
     assert.match(csv, /一骏/);
     const parsed = parseCsv(csv);

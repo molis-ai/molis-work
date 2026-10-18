@@ -10,6 +10,10 @@ SHM 模型失败集成补正（2026-10-18）：39130898172 的灵光失败回归
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+Dataset 全量路由断言补齐（2026-10-18，W5-01-DATASET-05）：跨插件客户端回归必须匹配现行 Manifest 的 /api/plugins/io.molis.work.dataset/datasets，保留旧 URL 的真实 HTTP 拒绝与错误边界。只修迁移遗留断言，不改生产行为；当前组合整体构建通过，该文件和真实 HTTP 错误边界/路由表三文件 35 条通过，日志 /tmp/molis-dataset-route-assertions-after.log。
+
+Dataset 交接收口（2026-10-18，Codex，本地组合通过）：DSH 已审 Runtime 候选 merge 当前 PPT/公共服务与实际 main 63639a764。项目监督器沿现 homeLibraryPlugins 加入 Dataset 单一声明，Form/PPT/灵光/其他已迁移插件保留，旧 Host 提供方及路由全部删除；共同文档与错误模型测试同时保留 PPT、Dataset 的真实 Runtime、体积/冲突/发布拒绝证据。整体 offline install/build、API、动作快照、boundary、merge-base health 与实测资源通过；14 个相关文件 145 条最终通过。首轮13文件仅 Dataset 普通 provider 失败仍期待旧原始消息，现 SHM 合同明确返回 plugin.model_failed；仅改测试为精确码与文案，失败后数据不变等断言保持，复跑Dataset11条与模型材料14条通过。动作快照新增当前 Dataset 安装的 D1 三个 query（PPT的三个随前置并入），原业务动作合同不变。25 项7,479,517 B，比PPT前置减少200 B，无新增额度；日志 /tmp/molis-dataset-closeout-{build,api,actions,health,boundary,assets,targeted,model-contract}.log。正式 PR/CI 与共享组合全量待队列，先前DSH相关与Chrome证据保留。
+
 PPT 成果继续回归路径补齐（2026-10-18，W5-01-PPT-02）：同类旧 URL 审计发现 artifact-continue 的创建、编辑、固定和读取四次请求仍用 /api/ppt，组合已复现 404；干净材料基线该文件通过。只改为现行 /api/plugins/io.molis.work.ppt/ppt，保留固定内容、全新对象身份、原版本和跨插件拒绝断言。与已补齐的客户端路径断言共同验证：整体 build 通过，两文件 17 条通过（包含四类成果实际从固定版本创建新对象），日志 /tmp/molis-ppt-continue-after.log；不改生产行为。
 
 PPT 全量路由断言补齐（2026-10-18，W5-01-PPT-02）：personal-plugins-review-fixes 中 PPT 客户端路径按现行 Manifest 固定为 /api/plugins/io.molis.work.ppt/ppt。生产实现与旧 HTTP 路径拒绝保持；同文件及真实 HTTP 错误边界/路由表三文件 34 条通过，日志 /tmp/molis-ppt-route-assertions-after.log。
@@ -398,6 +402,15 @@ W5-01-PPT 纯 Store 准备（2026-10-18；Codex 允许先做包内 Store；工�
 - 证据（2026-10-18，本地；基于 `origin/main 7faaa027`，未带 Dataset 分支的宿主改动）：`pnpm --filter @molis-ai/molis-work-plugin-ppt run build` 通过；`tests/ppt-store.test.ts` 的 `W5-01-PPT-STORE-01`–`03` 3/3（唯一声明与 Home baseline 一致；`ownPptStores` 经原 Store 读写；真实原库的 duplicate/receive 中途失败回滚，无半份 deck/receipt；`beforeEffect` 拒绝时回调未进入、库不变）；`ppt-actions` 5/5、`ppt-subject-kind` 1/1、`project-deletion-owners` 12/12、`creative-tools-plugins` 8/8、`creative-artifact-promote` 2/2、`ppt-mcp` 1/1；`verify-release-versions` 的 29 个库表行与代码一致；`pnpm boundary:check` 通过；health 对 merge-base `7faaa027` 通过。原始日志在交接通道 `logs/ppt-store-tests.log`、`logs/ppt-store-port-test.log`、`logs/ppt-store-health.log`。
 - 未做/未验：Manifest 路由、Pages/模型调用、宿主接线、动作/API 快照、page-assets 都未动；没有 UI 变化，未跑浏览器与真实 Home。
 - 待办（另片）：公共动作委托、`validateResult` 集成、Manifest 路由、Pages/模型调用、宿主接线删除与调用方迁移；等 Codex 的实际基线与 spec 编号。
+
+W5-01-DATASET（2026-10-18，本地候选已审（Codex 10-18 裁定代码候选无 Blocker/P1，文案收尾后等待整合），工作树 `feature/w5-01-dataset-runtime`，未推、未开 PR；等 #684 合入后的空位）：
+- 范围：Dataset 从构建期装配迁到 Plugin Runtime，每个项目一个实例；库仍是 `{home}/dataset/dataset.db`，项目分区、目录条目与 `project_data` 不变。不改成 Home 单实例，不动其他插件。
+- 包：`store.ts` 的 SQL 端口（`DatasetSql`/`DatasetStores`/`ownDatasetStores`）与 `DATASET_DATABASE`；`actions.ts` 读/写分开；`promote.ts` 三段写（intent → publish → complete）；新增 `plugin.ts` 与 13 条 Manifest 路由（`/datasets…`），`max_body_bytes` 保持 1,000,000 B，CSV 的 2,000,000 字符仍是动作层限制；导出 `createDatasetPlugin`/`DATASET_DATABASE`，删旧 `routes.ts`/`route-handlers.ts`。
+- 宿主：删 `dataset-actions.ts`、`dataset-native-plugin-http.ts`、`project-host.ts` 的 provider、`web-request.ts`/`web-catalog.ts` 的处理段、`index.ts` 导出、`creative-artifacts.ts` 的三个 Dataset 端口；`project-plugins.ts` 加 `bundled` + `database: DATASET_DATABASE`；装配名单把 dataset 从构建期移到 Runtime，删短路由名单。
+- 客户端：路由前缀 `api` 常量指向 `/api/plugins/io.molis.work.dataset`；旧 `/api/dataset` 不留别名，加 404 拒绝用例。
+- 测试：`dataset-actions` 经宿主动作；`dataset-mcp` 改一个常驻 Host + 网关；e2e 路径更新；公开 action id/version/schema/provider 不变。验收编号 `W5-01-DATASET-01` 起。
+- 证据（2026-10-18，本地；未推、未开 PR）：整体构建通过（machine-slot，37.6 s；增量 15.9 s）；`tests/dataset-actions.test.ts` 11/11（`W5-01-DATASET-01`）、`tests/dataset-mcp.test.ts` 1/1（`W5-01-DATASET-02`；同一测试进程内构造 MCP gateway/adapter，关闭并重建 Host 对象验证持久化重开，不是外部 MCP 子进程或 OS 重启）、`tests/dataset-actions.e2e.test.ts` 3/3 与 `tests/dataset-file-import.e2e.test.ts` 6/6（`W5-01-DATASET-03/-04`）、`tests/creative-tools-plugins.test.ts` 8/8、`tests/builtin-plugin-assembly-gate.test.ts` 6/6；`pnpm boundary:check` 通过；health 对 merge-base `aceffff86` 通过；`tests/action-contract-snapshot.test.ts` 25/25、`tests/page-assets-budget.test.ts` 71/71；`page-assets` 里 `dataset.js` 25,832 → 25,632 字节（低于 merge-base，已 `--update` 降预算）。动作快照多 5 条 `sdk.artifacts.<Dataset 安装>.{publish,read,own,head,record}@1` 宿主行，来自 Dataset 的 Runtime 安装；Dataset 自己的动作 id/版本/schema/提供方不变。`package-inventory --table` 的 Dataset 行已从构建期改为 Runtime。
+- 未验证：全量回归（按 Codex 与本线规则交 CI/统筹）、真实 Home、`#684` 合入后的 main 重跑；等 Codex 在 `to-dsh/w5-dataset.md` 给出空位与基线后再推送。
 
 ## 0. 现场与范围
 
@@ -1367,7 +1380,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/characters` | 内置插件 | 13 | 978 | `client.ts` 217 | 1 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/coding` | 内置插件 | 79 | 11,574 | `client.ts` 1,644 | 1 | 3 | 2 | Runtime | 深 | 已审 |
 | `plugins/native/cognia` | 内置插件 | 15 | 757 | `store.ts` 173 | 1 | 4 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/dataset` | 内置插件 | 16 | 2,042 | `client.ts` 694 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/dataset` | 内置插件 | 16 | 2,124 | `client.ts` 711 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 已审 |
 | `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 已审 |

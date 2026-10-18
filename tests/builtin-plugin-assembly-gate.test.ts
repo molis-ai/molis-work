@@ -33,6 +33,7 @@ const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
   ["diff", "@molis-ai/molis-work-plugin-diff"],
   ["text-stats", "@molis-ai/molis-work-plugin-text-stats"],
   ["form", "@molis-ai/molis-work-plugin-form"],
+  ["dataset", "@molis-ai/molis-work-plugin-dataset"],
   ["lingguang", "@molis-ai/molis-work-plugin-lingguang"],
   ["ppt", "@molis-ai/molis-work-plugin-ppt"],
 ]);
@@ -42,13 +43,13 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
-  "alchemist", "artifacts", "dataset", "feed", "goals",
+  "alchemist", "artifacts", "feed", "goals",
   "inbox", "pages", "plugin-builder", "schedule", "sessions", "workflows",
 ]);
 
 /** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
-  "alchemist", "artifact", "dataset", "feed", "inbox",
+  "alchemist", "artifact", "feed", "inbox",
   "pages", "personal", "schedule", "shelf", "workflows",
 ]);
 

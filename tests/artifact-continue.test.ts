@@ -61,12 +61,12 @@ test("a pinned document, form, deck and table each continue as a new object of t
   assert.deepEqual([copiedDeck.title, copiedDeck.slides.map(slide => [slide.title, slide.bullets])], ["周会", [["进展", ["上线", "复盘"]]]]);
 
   // Dataset: columns and rows.
-  let table = (await post("/api/dataset", { title: "预算" })).dataset as { id: string; version: number; columns: Array<{ id: string }> };
-  table = (await post(`/api/dataset/${table.id}`, { columns: [{ id: "c1", name: "项目", type: "text" }, { id: "c2", name: "金额", type: "number" }],
+  let table = (await post("/api/plugins/io.molis.work.dataset/datasets", { title: "预算" })).dataset as { id: string; version: number; columns: Array<{ id: string }> };
+  table = (await post(`/api/plugins/io.molis.work.dataset/datasets/${table.id}`, { columns: [{ id: "c1", name: "项目", type: "text" }, { id: "c2", name: "金额", type: "number" }],
     rows: [{ id: "r1", cells: { c1: "差旅", c2: "1200" } }], expected_version: table.version })).dataset;
-  const pinnedTable = (await post(`/api/dataset/${table.id}/promote`, { expected_version: table.version })).artifact as { artifact_id: string; version: number };
+  const pinnedTable = (await post(`/api/plugins/io.molis.work.dataset/datasets/${table.id}/promote`, { expected_version: table.version })).artifact as { artifact_id: string; version: number };
   const tableOpen = await continueFrom(pinnedTable, "io.molis.work.dataset");
-  const copiedTable = (await get(`/api/dataset/${tableOpen.id}`)).dataset as { title: string; columns: Array<{ name: string }>; rows: Array<{ cells: Record<string, string> }> };
+  const copiedTable = (await get(`/api/plugins/io.molis.work.dataset/datasets/${tableOpen.id}`)).dataset as { title: string; columns: Array<{ name: string }>; rows: Array<{ cells: Record<string, string> }> };
   assert.deepEqual([copiedTable.title, copiedTable.columns.map(column => column.name), copiedTable.rows.map(row => Object.values(row.cells))], ["预算", ["项目", "金额"], [["差旅", "1200"]]]);
 
   // Only a plugin that declares it can continue from a type is accepted.

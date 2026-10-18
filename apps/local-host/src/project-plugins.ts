@@ -14,6 +14,7 @@ import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
+import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
 import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
 import { PPT_DATABASE, createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -250,6 +251,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
 /** Project instances whose own libraries live in this Home. */
 function homeLibraryPlugins(): PluginPlatformEntry[] {
   return [{
+    definition: createDatasetPlugin(), bundled: true, database: DATASET_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createDatasetPlugin>(
+      "@molis-ai/molis-work-plugin-dataset", "createDatasetPlugin", factory => factory()),
+  }, {
     definition: createFormPlugin(), bundled: true, database: FORM_DATABASE,
     releaseArtifact: nativePluginReleaseArtifact<typeof createFormPlugin>(
       "@molis-ai/molis-work-plugin-form", "createFormPlugin", factory => factory()),

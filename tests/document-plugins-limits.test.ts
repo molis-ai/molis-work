@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
-import { datasetActions, createDatasetActionHandlers, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
+import { datasetActions, createDatasetActionHandlers, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { lingguangActions, lingguangContentActions, createLingguangActionHandlers, ownLingguangStores, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesActions, pagesContentActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
@@ -108,7 +108,7 @@ test("AI actions of Form, Dataset, PPT and 灵光 recheck the grant right before
         completeText: hostModel(state, JSON.stringify({ status: "done", questions: [{ title: "题目？", type: "text" }] })) }), formActions.draft.capability_id)
         .handle(revocable(state), { id: form.id, prompt: "加一题" }) },
     { name: "dataset.columns.ai", unchanged: () => datasets.get(dataset.id, "p").columns.length,
-      run: state => handle(createDatasetActionHandlers({ withStore: run => run(datasets), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "列") }), datasetActions.generateAi.capability_id)
+      run: state => handle(createDatasetActionHandlers({ ...ownDatasetStores(run => run(datasets)), modelAvailability: () => ({ available: true }), completeText: hostModel(state, "列") }), datasetActions.generateAi.capability_id)
         .handle(revocable(state), { id: dataset.id, prompt: "加一列" }) },
     { name: "ppt.outline_ai", unchanged: () => decks.get(deck.id, "p").version,
       run: state => handle(createPptActionHandlers({ ...ownPptStores(run => run(decks)), modelAvailability: () => ({ available: true }), complete: completeModel(state, "## 一页\n- 要点") }), pptActions.outlineAi.capability_id)

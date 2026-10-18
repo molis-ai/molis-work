@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
+import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { createFormActionHandlers, formActions, formManifest, FORM_ACTION_PERMISSIONS, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, openPagesStore, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
 import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
@@ -28,8 +28,9 @@ async function owners(t: TestContext, completion?: PagesActionPorts["completeTex
   ] });
   service.registerProvider({ provider: provider(formManifest), definitions: Object.values(formActions),
     handlers: createFormActionHandlers({ ...ownFormStores(run => run(forms)), modelAvailability }) });
+  const datasetStores = ownDatasetStores(run => run(datasets));
   service.registerProvider({ provider: provider(datasetManifest), definitions: datasetManifest.actions!, handlers: [
-    ...createDatasetActionHandlers({ withStore: run => run(datasets), modelAvailability }), ...createDatasetContentHandlers(run => run(datasets)),
+    ...createDatasetActionHandlers({ ...datasetStores, modelAvailability }), ...createDatasetContentHandlers(datasetStores),
   ] });
   const caller: ActionCallContext = { actor_id: "person", actor_kind: "user", audience: "user", project_id: project,
     permissions: [...new Set([...PAGES_ACTION_PERMISSIONS, ...FORM_ACTION_PERMISSIONS, ...DATASET_ACTION_PERMISSIONS, ...PPT_ACTION_PERMISSIONS])] };

@@ -130,7 +130,6 @@ export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } 
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 export { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
-export { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 export { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
 export { workflowsActionProvider } from "./workflows-actions.js";
 

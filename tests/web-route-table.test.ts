@@ -107,6 +107,9 @@ const PROJECT_PROBES: Probe[] = [
   { method: "POST", path: "/api/pages/import/preview", body: {} },
   { method: "GET", path: "/api/dataset" },
   { method: "GET", path: "/api/dataset/no-such" },
+  // Dataset's positive path is its Runtime route; the short route above is only the removed alias.
+  { method: "GET", path: "/api/plugins/io.molis.work.dataset/datasets" },
+  { method: "GET", path: "/api/plugins/io.molis.work.dataset/datasets/no-such" },
   { method: "GET", path: "/api/images" },
   { method: "GET", path: "/api/plugins/io.molis.work.images/jobs" },
   { method: "GET", path: "/api/plugins/io.molis.work.images/connections" },

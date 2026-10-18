@@ -10,8 +10,6 @@ import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-artifacts";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
-import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -208,8 +206,6 @@ const sessionsAndPlanningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "pages", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePagesNativePluginHttp(request, response, url, { projectId: hostReference.project_id, actions: userActions(PAGES_ACTION_PERMISSIONS) }) },
-  { id: "dataset", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
-    && await handleDatasetNativePluginHttp(request, response, url, (_input, transport) => ({ projectId: hostReference.project_id, actions: userActions(DATASET_ACTION_PERMISSIONS, transport) })) },
   { id: "personal", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePersonalNativePluginHttp(request, response, url, {
       projectId: options.project?.project_id ?? "",

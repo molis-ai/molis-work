@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
-import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMoveHandler, defineFragmentOffersAction, defineObjectCopyAction, defineObjectMoveAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMoveHandler, defineFragmentOffersAction, defineObjectCopyAction, defineObjectMoveAction, type FragmentActionOffer, type FragmentOffersInput, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState, LingguangStores } from "./store.js";
 import { createLingguangSearchHandlers, lingguangSearchActions, revisionOf } from "./search.js";
@@ -32,28 +32,30 @@ function define<I, O>(name: string, title: string, description: string, operatio
     // A reply waits on a model, and reading a file or page on its source: neither holds the project's queue.
     ...(CONCURRENT.has(name) ? { scheduling: "concurrent" as const } : {}) } };
 }
-const undoable = <I, O>(definition: ActionDefinition<I, O>, undo: NonNullable<ActionDefinition["action"]["undo"]>): ActionDefinition<I, O> =>
-  ({ ...definition, action: { ...definition.action, undo } });
+const declaring = <I, O>(definition: ActionDefinition<I, O>, extra: Partial<ActionDefinition["action"]>): ActionDefinition<I, O> =>
+  ({ ...definition, action: { ...definition.action, ...extra } });
 /**
- * Noting part of anything down (specs/archive/contextual-interaction §10 P2): a word, a passage or several, from any object,
- * becomes a spark that waits in 灵光. It writes, so it is offered as a prepared card the person confirms.
+ * 「记下灵光」 for what the person has in hand (context-program §3.3, quick-create §7): a creation entry on `lingguang.create`.
+ * The offers query below computes its whole input from the selection without a model; it shows nothing on the bar by itself.
  */
-export const LINGGUANG_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
-  { offer_id: "capture", title: "记下灵光", intent: "capture", apply: "record", hint: "把这个想法记到灵光，稍后再处理",
-    action: { capability_id: "lingguang.create", version: 1 }, granularities: ["word", "range", "block", "blocks"] },
-];
+const LINGGUANG_INTAKE = { intake_id: "capture", item_kind: "lingguang_spark", title: "灵光", verb: "记下灵光", material_field: "body",
+  describe: "一个想法或一闪而过的念头，先记下、稍后再想；不是要去做的事，也不是要留存的资料",
+  examples: ["也许可以让新人先看一遍历史讨论", "周报能不能自动生成", "试试把评审改到周四"], prepare: { capability_id: "lingguang.fragment.offers", version: 1 } } as const;
 
 export const lingguangActions = {
   list: define<Record<string, never>, { sparks: LingguangSpark[] }>("list", "灵光列表", "读取当前项目尚未丢弃的全部灵光", "query", object({}), object({ sparks: { type: "array", items: spark } }), read),
   get: define<{ id: string }, { spark: LingguangSpark }>("get", "读取灵光", "读取当前项目的一条灵光，包括已丢弃记录", "query", object({ id }), object({ spark }), read),
-  // Noting a spark is taken back by discarding it (kept as a discarded record, not erased): the Assistant may note one
-  // when asked without a confirmation, and the person can undo it.
-  create: undoable(define<{ title?: string; body?: string; request_id?: string }, { spark: LingguangSpark }>("create", "记下灵光", "在当前项目保存一条灵光；带同一 request_id 重试同样的内容时返回第一次保存的那条，同一 request_id 换了内容会被拒绝", "command",
-    object({ ...fields, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ spark }), write), { capability_id: "lingguang.discard", version: 1, input: { ids: ["spark.id"] } }),
+  // Noting a spark is taken back by discarding it (kept as a discarded record, not erased), only while it is as it was noted:
+  // the Assistant may note one when asked without a confirmation, and the person can undo it.
+  create: declaring(define<{ title?: string; body?: string; request_id?: string }, { spark: LingguangSpark }>("create", "记下灵光", "在当前项目保存一条灵光；带同一 request_id 重试同样的内容时返回第一次保存的那条，同一 request_id 换了内容会被拒绝", "command",
+    object({ ...fields, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ spark }), write), { intake: LINGGUANG_INTAKE,
+    undo: { capability_id: "lingguang.revert", version: 1, input: { id: "spark.id", expected_updated_at: "spark.updated_at" } } }),
   update: define<{ id: string; title?: string; body?: string; expected_updated_at?: string }, { spark: LingguangSpark }>("update", "修改灵光", "修改当前项目灵光；提供读取时的 updated_at 可防止覆盖其他编辑", "command",
     object({ id, ...fields, expected_updated_at: text }, ["id"]), object({ spark }), write),
   discard: define<{ ids: string[]; expected_updated_at?: Record<string, string> }, { ok: true }>("discard", "丢弃灵光", "全部对象校验通过后将所选灵光移出列表，保留原数据；按灵光 id 提供读取时的 updated_at 可防止丢掉别处刚写了字的那条，其中任何一条已变化则整批不丢",
     "command", object({ ids, expected_updated_at: { type: "object", additionalProperties: text } }, ["ids"]), object({ ok: { const: true } }), write),
+  revert: define<{ id: string; expected_updated_at: string }, { ok: true }>("revert", "撤销记下灵光", "撤销刚记下的一条灵光：移出列表、保留原数据；记下之后在别处改过就拒绝，不丢也不改", "command",
+    object({ id, expected_updated_at: text }), object({ ok: { const: true } }), write),
   openConversation: define<{ spark_ids: string[] }, LingguangConversationState>("conversation.open", "打开灵光对话", "为所选灵光打开或恢复原有对话与历史，不调用模型", "command", object({ spark_ids: ids }), conversationState, [...read, ...write]),
   getConversation: define<{ id: string }, LingguangConversationState>("conversation.get", "读取灵光对话", "读取当前项目的一场对话、关联灵光和历史消息", "query", object({ id }), conversationState, read),
   message: define<{ id: string; body: string }, LingguangConversationState>("conversation.message", "继续灵光对话", "结合所选灵光和历史生成回复；需要文字模型，失败保留原会话且不生成占位回复", "command",
@@ -66,7 +68,7 @@ export const lingguangActions = {
     object({ file_name: { type: "string", minLength: 1, maxLength: 240 }, data_base64: { type: "string", minLength: 1 }, allow_model_download: { type: "boolean" } }, ["file_name", "data_base64"]), material, [...write, "materials:read"]),
   readSource: define<MaterialSource, LingguangMaterial>("source.read", "读取链接内容", "读取公开网页、视频字幕或播客音频的文字，不保存灵光；遵守原来源的边界", "command",
     object({ url: { type: "string", minLength: 1, maxLength: 2000 }, allow_model_download: { type: "boolean" } }, ["url"]), material, [...write, "materials:fetch"]),
-  fragmentOffers: defineFragmentOffersAction("lingguang.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记下", read, LINGGUANG_FRAGMENT_CHOICES),
+  fragmentOffers: defineFragmentOffersAction("lingguang.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记下", read, []),
 };
 /** The complete `lingguang.create` input for a fragment; pure. The same request id saves it once. */
 export function prepareLingguangFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {
@@ -121,6 +123,7 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
     bind(lingguangActions.create, (input, caller) => ports.write(caller, store => ({ spark: store.create({ ...input, project_id: project(caller) }) }))),
     bind(lingguangActions.update, (input, caller) => ports.write(caller, store => ({ spark: store.update(input.id, input, project(caller)) }))),
     bind(lingguangActions.discard, (input, caller) => ports.write(caller, store => { store.discard(input.ids, project(caller), input.expected_updated_at); return { ok: true }; })),
+    bind(lingguangActions.revert, (input, caller) => ports.write(caller, store => { store.discard([input.id], project(caller), { [input.id]: input.expected_updated_at }); return { ok: true }; })),
     bind(lingguangActions.openConversation, (input, caller) => ports.write(caller, store => store.openConversation(input.spark_ids, project(caller)))),
     bind(lingguangActions.getConversation, (input, caller) => ports.read(store => store.conversation(input.id, project(caller)))),
     bind(lingguangActions.message, async (input, caller) => {

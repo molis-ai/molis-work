@@ -226,7 +226,7 @@ test("Q03: a sentence written on the plugin's own page is drafted for the entry 
 test("W1-07: POST /api/contextual/draft refuses a stale, unavailable or malformed ask; destinations that add to an object are not drafted here", async () => {
   const views = directory({ todoAvailable: true });
   const { actions, invoked } = recorder(views);
-  const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "draft-a", actions: () => actions }); });
+  const server = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "draft-a", actor_id: "user", actions: () => actions }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const call = async (path: string, body: unknown) => {
@@ -260,7 +260,7 @@ test("W1-07: POST /api/contextual/draft refuses a stale, unavailable or malforme
   } finally { server.close(); }
 
   const off = directory({ todoAvailable: false });
-  const gone = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "draft-b", actions: () => recorder(off).actions }); });
+  const gone = createServer((request, response) => { void handleContextualHttp(request, response, new URL(request.url!, "http://local"), { scope: "draft-b", actor_id: "user", actions: () => recorder(off).actions }); });
   await new Promise<void>(resolve => gone.listen(0, "127.0.0.1", resolve));
   try {
     const response = await fetch(`http://127.0.0.1:${(gone.address() as AddressInfo).port}/api/contextual/draft`, { method: "POST", headers: { "content-type": "application/json" },

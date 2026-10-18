@@ -690,8 +690,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               void saveDraft(id,localDraft(id) || '').catch(()=>{});
               if(current===id) {void readCurrent();void refreshState().catch(()=>{});}
             } catch(error) {if(!lifetime.alive)return;
-              if(['coding.round_ended','agent.pending_not_open'].includes(error.code)){status(error.message,true);if(current===id)void readCurrent();return;}
-              note.textContent=error.message;card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=card.dataset.answerable!=='true');if(error.details?.errors)client.showErrors(error.details.errors,{focus:true});
+              const closed=['coding.round_ended','agent.pending_not_open'].includes(error.code);if(closed){answeredQuestions.add(key);card.dataset.refused='true';if(current===id)void readCurrent();}
+              note.textContent=error.message;card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=closed||card.dataset.answerable!=='true');if(error.details?.errors)client.showErrors(error.details.errors,{focus:true});
             } finally {delete card.dataset.busy;}
           },
         });
@@ -704,7 +704,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(!canAnswer && form.dataset.busy!=='true') form.querySelector('[data-ix-note]').textContent=question.unavailable_reason || '这一轮已结束，原问题不可再回答。';
     }
     for(const form of block.querySelectorAll('[data-coding-question]')) {
-      if(!live.has(form.dataset.questionKey)) {
+      if(!live.has(form.dataset.questionKey) && !form.dataset.refused) {
         const hadFocus=form.contains(document.activeElement);form.ix?.destroy();form.remove();if(hadFocus)input.focus({preventScroll:true});
       }
     }

@@ -1074,3 +1074,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 prologue#47 审过，已合入 feef0443：写后检查的键保留「第几次检查」的计数（callId 不唯一，有的写入也没有 callId）；执行器拿到 {operationKey, writeCallId?}，只由 SDK 填；导出判断函数、回执键函数和三个资源种类常量；本地 54 条全过。Molis 按 (run, operationKey) 记。下一次换包排在 #699 查清之后。
 - 10-18 #698 已改到 main，新 head d4e496cc5：改动行与审过的完全一致，合并无冲突，交 chain39。
 - 10-18 #702 新 head 797f2dcd9：只把字段名改成用 textFieldId(index)，宿主三处共用；已核，交 chain40。#702 和 #700 谁后合，谁就在 page-assets 上冲突，到时要重定键。
+- 10-18 #700 推了 19a55e2c7，只改 RING-07 用例（计划卡的端口），改得对。eb1c02020 的全量跑完后，如果只红 coding-state-rings，就对 19a55e2c7 走 merge-only；已请回执线在本机跑这个文件。

@@ -58,7 +58,7 @@ function receipts() {
   const program = vm.runInNewContext(`(${INPUT_RECEIPTS_CLIENT_SCRIPT})`, {
     document: { createElement: (tag: string) => new Node(tag), body, get activeElement() { return focus.on; } }, queueMicrotask, crypto: { randomUUID: () => `key-${++keys}` },
   }) as (L: (text: string) => string) => { line(owner: object, turn: Turn, round?: object, act?: Actions): Node | null; tray(owner: object, queued: object[] | undefined, round?: object, act?: Pick<Actions, "withdraw">): Node | null;
-    link(owner: object, inputId: string, first?: () => void): Node | null };
+    link(owner: object, inputId: string, first?: () => void): Node | null; step(state: string): string };
   const ui = program(text => text);
   const said = () => new Promise<string[]>(resolve => setTimeout(() => resolve(body.children.map(node => node.textContent)), 0));
   return { ui, body, said };
@@ -409,6 +409,7 @@ test("RCPT-354, 3d-4: the step the board says was added for it is a fact of the 
   const alone = ui.line(here, { ...supplement({ state: "read" }), turn_id: "t2" }, { run_id: "run-2", step_board: added("running") })!;
   assert.doesNotMatch(alone.text, /记录里的/u, "with nothing the AI said beside it, the facts need no heading");
   assert.match(alone.all("mw-receipt__facts")[0]!.text, /现在：进行中$/u);
+  assert.equal(ui.step("blocked"), "受阻，等你决定", "RCPT-356 the same words are handed to the plan card, so one state is never named two ways");
 });
 
 test("RCPT-355, 3d-4: only what the board records is shown; nothing is worked out from report times or order", () => {

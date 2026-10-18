@@ -46,6 +46,8 @@ export interface InputReceipts {
    * `lead` is its first words: 「来自补充「」 on a step added for the input (stage 3d-3).
    */
   link(owner: Element, inputId: string, first?: () => void, lead?: "关于补充「" | "来自补充「"): HTMLElement | null;
+  /** The words for a plan step's state, the same everywhere a step is shown (the receipt, Coding's plan card; stage 3d-4). */
+  step(state: AgentStepState): string;
 }
 
 /**
@@ -122,7 +124,7 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
     const open = questions.filter(one => one.state === "open").length;
     return open ? L("为这条问了你问题，等你回答") : questions.some(one => one.state === "unresolved") ? L("为这条问的问题没等到回答") : "";
   };
-  const { cites, added } = board(L, STEP);
+  const word = (state: AgentStepState) => L(STEP[state]), { cites, added } = board(L, word);
   const body = (steer: AgentTurnSteer, cited: string[][], steps: string[]) => {
     const part = make("div", "mw-receipt__body"), facts = make("dl", "mw-receipt__facts"), claim = steer.model_claim, beside = Boolean(claim || cited.length);
     // Side by side with what the AI says, the facts say whose they are.
@@ -214,6 +216,7 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
   const parts = { L, say, make, button, quote, latest, attempt, redraw, treatment }, correct = correction<Shown>(parts, entry => draw(entry, true));
   return {
     tray: tray(parts),
+    step: word,
     link(owner, inputId, first, lead = "关于补充「") {
       const at = surfaces.get(owner), entry = at && of(at, inputId);
       return entry ? button("mw-btn--link", L(lead) + quote(entry.turn.text) + L("」"), () => { first?.(); reveal(entry); }) : null;
@@ -354,7 +357,7 @@ export function createInputTray({ L, say, make, button, quote, latest, attempt, 
 }
 
 /** What a receipt reads of the round's step board, made in the page with the receipt's own translate and step words. */
-function readBoard(L: (text: string) => string, STEP: typeof RECEIPT_WORDS["STEP"]) {
+function readBoard(L: (text: string) => string, word: (state: AgentStepState) => string) {
   /** Each step's key on the plan card (S1, S2…, 插入). */
   const step = (node: InputReceiptBoard["nodes"][number], index: number) => node.inserted ? L("插入") : "S" + (index + 1);
   /** The reports on the round's board that name this input, each under its step's key. */
@@ -365,7 +368,7 @@ function readBoard(L: (text: string) => string, STEP: typeof RECEIPT_WORDS["STEP
    * that a person added it, and its state now. Not when it was added or at which version: the board does not keep those.
    */
   const added = (steer: AgentTurnSteer, board?: InputReceiptBoard) => (board?.nodes ?? []).flatMap((node, index) =>
-    node.origins?.some(one => one.input_id === steer.id) ? [step(node, index) + (node.title ? L("「") + node.title + L("」") : "") + (node.inserted ? L(" · ") + L("你加的") : "") + L(" · 现在：") + L(STEP[node.state])] : []);
+    node.origins?.some(one => one.input_id === steer.id) ? [step(node, index) + (node.title ? L("「") + node.title + L("」") : "") + (node.inserted ? L(" · 你加的") : "") + L(" · 现在：") + word(node.state)] : []);
   return { cites, added };
 }
 
@@ -458,6 +461,7 @@ export const INPUT_RECEIPTS_EN: Readonly<Record<string, string>> = {
   "来自补充「": "From the supplement \"",
   "记录里的": "From the records",
   "为它加的步骤": "Step added for it",
+  " · 你加的": " · added by you",
   " · 现在：": " · now: ",
   "等待前一步": "Waiting for the step before",
   "在等别的步骤": "Waiting for other steps",

@@ -880,6 +880,7 @@ interface AgentInputView {
 - **验收编号与证据：**
   - RCPT-354：为补充加的步骤在事实一侧，写编号、标题、你加的、现在的状态；有 AI 说法时两边各有标题，步骤不在 AI 一侧；状态变了原地重画；只有事实时不加标题（`tests/input-receipts-client.test.ts`）。
   - RCPT-355：只写板记录里有的：没有标题、不是人插入的就都不写；不写板版本、加入时间和「已生效」；为别的补充加的步骤、这次没读到的板都不显示（同上）。
+  - RCPT-356：步骤状态只有一份措辞：回执把 `RECEIPT_WORDS.STEP` 经 `host.receipts.step` 交出去，Coding 的计划卡删掉自己的 `LABEL`、改用它（统筹 10-18 定，属防腐；coding.js 只变小）（`tests/input-receipts-client.test.ts`、`tests/coding-state-rings.e2e.test.ts`）。TaskBoard 的状态表把未开始写成「等待前置」，和这里不一样，记为 BL-164。
 
 ### 阶段 4：产品对象与 Goals 层
 

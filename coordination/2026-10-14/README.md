@@ -1079,3 +1079,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #695 和 #696 合在一起后，main 上 AC-05（interaction-no-crosstalk）会红，是偶发竞态：#700 的全量里它过了，#699 的全量里两次都红。已交交互线修。用户弹窗定：只红 AC-05 的 PR，等 main 修好、merge main 后走 merge-only，不重跑全量；修好之前不合。#700 在 eb1c02020 上只红 RING-07，19a55e2c7 只改了这个用例，已走 merge-only（gate-700b）。
 - 10-18 AC-05 根因（采用线查到）：Coding 页面早就有的竞态。第一次读落地前，controls() 就把输入框放开了，读落地时把刚填的字清空，发送拿到空任务直接 return。#696 自己的 head 在本机也次次红。修复由采用线单开 PR（只改 coding client.ts，coding.js −25 B），修复前后要各连跑多次，另加一个把时序卡死的用例；交互线已叫停，免得重复做。#701 新 head 45b6de994：#694 已并入，always_on 那一行改号为 S-34（和 #699 的 S-34 撞号，后合的那个改号）；还差 base 改成 main，以及 admit 的定义挪进 contracts。
 - 10-18 #700 已合入 e128c1203（workbench.js 1109312，coding.js 374707）。已请 #702 merge main、重定键为 [1109312, 1109918]，3d-3 的四条移进已用名单；797f2dcd9 的全量照常跑完。
+- 10-18 回执线 3d-4 计划认可（D21「观察到的影响」：只取板记录里现成的事实并排写出，核不出的不写；文件归因记 BL，需要上游给调用归因；字节到时弹窗问用户）。prompts.ts 里补充的处理说明交手册线评估，排在 #698 之后。

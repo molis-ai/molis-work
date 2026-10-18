@@ -1258,6 +1258,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | W3-A3c | ① 分屏窗格里的落点也闪：顶层把「闪一下」转给报告落点的那个窗格；② 浮条「更多」菜单里的放进去也闪（实现记录见 21.6） | W3-A3b |
 | W3-B | Pages 报告落点、三个确定性的 `attach`、落点处预览；落点事件登记；情境条显示落点。执行前宿主用 H3 的 `confirmReferences` 按调用者的权限重读落点对象，不在或没权限用合同里的 `reference-unavailable`，不另写一套；`attach` 的 `find` 取候选（`search.references@1`）改到 W4 的 F2（统筹 2026-10-15 定，见 21.8）。拆成 W3-B1（落点、动作、预览、执行）与 W3-B2（情境条显示落点） | W3-B1：H3 合入；W3-B2：W3-A2 |
 | W3-C | 右栏各格报告手上的东西（中枢接右栏；实现记录见 21.6） | W2'（右栏改版） |
+| W3-C2 | 在分屏窗格或右栏格自己画的浮条上悬停「放进去」时，左边的落点也闪：窗格报的保位（`workbench-context-hold`）带上悬停的键（含「更多」菜单里的），顶层据此调 `landing.hint`（统筹 10-18 定为后续） | W3-C |
 
 每片：`assistant-island.ts` 只减不增，新东西写新文件；页面资源每个文件只减（删掉的旧渲染抵新增）；`pnpm build`、`affected-tests.mjs` 选出的用例、`check-health-gates --base origin/main`、`page-assets --base origin/main`、1440/1024/800/390 与深色截图。
 
@@ -1380,7 +1381,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 右栏插件格的文档跑 `context-actions.ts` 里窗格那一半（`CONTEXT_PANE_FACTORY_SCRIPT`：DOM 选区读取、给打开的条目起名、自己画浮条），与分屏窗格是同一段代码；格里选中的东西经 `workbench-surface-focus` 交给顶层，浮条的方案与选择、悬停保位、交不出去的选择都走分屏窗格已有的消息。
   - 顶层的上下文总线收这些消息时，来源除了分屏窗格框，再认右栏插件框；认框只用一段 `SIDE_FRAME_FROM_SCRIPT`（`molis:side-forward` 的 `from` 也是它，S-30）。顶层按框所在的格标上 `place: "side"` 与 `side_tab`（`landing.place`，和顶层文档里的右栏格同一条规则），`pane_id` 是 `side`；格里报来的 `place` 不算数。
   - 由此左边的落点对右栏格里的选区也成立：浮条给出「插入到光标处」；在左边选中时浮条回到左边；右栏收起后框看不见，总线照旧放下手上的东西，格里的浮条随之收起。
-  - 没做：在格里的浮条上悬停「放进去」时，左边的落点不闪（分屏窗格的浮条今天也不闪：窗格报的保位只带浮条上的键，不带菜单的），记作后续。
+  - 没做：在格里的浮条上悬停「放进去」时，左边的落点不闪（分屏窗格的浮条今天也不闪：窗格报的保位只带浮条上的键，不带菜单的），记作后续 W3-C2（§21.4）。
   - 用例：`tests/security-invariants-pane-messages.test.ts`「S-30 AC-S04 …」（真的工厂脚本跑在一个小页面上：不是右栏插件框也不是分屏窗格发来的焦点被丢掉、不问 Host、哪里都不画浮条；Shelf 框发来的标上右栏与格、只让那个框画）、`tests/side-shelf-in-hand.e2e.test.ts`（W3-C AC-S04，Shelf 格里选中一段材料，左边是 Pages 的光标）。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）

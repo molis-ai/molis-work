@@ -6,6 +6,8 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+Images/Jelly 唯一页面挂载补修（2026-10-18，W5-01-HOME-STAGE-01，本地验证通过）：共享全量在 Cognia 发现同名页面重复挂载后，同链检查确认 Images/Jelly 的 Home Runtime 视图也与旧构建期 renderer 并存。沿本候选的迁移合同删除两条旧页面链，只保留 Home Runtime 返回的视图；资源/样式/目录登记与业务 API 保持。验收由 workbench-deferred-clients 的唯一根节点、原节点保留与单次资源下载断言，以及实际 Images/Jelly 页面动线共同证明；工作台必跑、整体 build、完整 health/boundary/API/资源检查后再汇入共享集成。Cognia 修复是前置，本条不修改或复述它的业务代码。 前置接入后原 Chrome 唯一性断言在 Images 得到 2 而非 1；删除旧渲染链后 33 文件 170 条通过（15 个 Chrome 文件 40 条），包含原失败回归、真实 Images 生成/恢复与 Jelly 1440/390 操作。整体 build、API、完整 merge-base health、boundary 与资源通过；25 项仍 7,479,312 B，无增长。日志 /tmp/molis-model-single-stage-*.log；共享全量待重新运行。
+
 Images 生命周期夹具补齐（2026-10-18，W5-01-IMAGES-LIFECYCLE-01）：同类旧 URL 审计发现 ui-client-lifecycle 的测试服务器仍只接 /api/images，而生产客户端已使用 Runtime 完整插件 id。仅将 jobs/connections 两个夹具地址同步到当前合同；隐藏停轮询、重开刷新、移除取消、迟到响应与复用 DOM 单监听的原断言和时限全部保持。干净材料基线的该 Chrome 文件 3/3，完整组合在读取当前行处超时；修后本片整体 build 与真实 Chrome 3/3 通过，原断言和 30 秒时限不变。日志 /tmp/molis-images-lifecycle-{combined-before,after}.log、/tmp/molis-remaining-route-fixtures-baseline.log。已取消本线含已知旧夹具的全量 39136942882，不计通过；不改生产生命周期。
 
 Jelly Runtime 首屏修复（2026-10-18，第二轮全量发现）：真实 Chrome 在 1440/390 两宽均无法加载日历；隔离页面诊断确认客户端 GET `/api/plugins/io.molis.work.jelly` 返回 404，同一现行 Manifest 根路由带末尾 `/` 返回 200。只修客户端初载、冲突后刷新、按 ID 打开前刷新三处工作区读取，统一请求声明的 `/`；Host 匹配、路由权限、业务动作与数据不变，不新增旧地址兼容。`W5-01-JELLYHTTP-02`：正式 Chrome 初载、创建/编辑、手工拆解、复制日程与重载持久化均通过（1440/390）；同原用例在主线基线通过、修前组合失败。整体构建后跑 Jelly 现行必跑、模型设置页面回归、health/boundary/API及资源；不得以加长等待掩盖 404。

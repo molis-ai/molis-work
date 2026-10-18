@@ -10,7 +10,7 @@ import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActio
 import { createFormActionHandlers, formActions, formManifest, FORM_ACTION_PERMISSIONS, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, openPagesStore, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
 import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
-import { createCogniaActionHandlers, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { createCogniaActionHandlers, ownCogniaStores, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 
 const paragraph = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
@@ -135,7 +135,7 @@ test("W2-18-COGNIA-EFFECT-01: only the originating grant is revoked during real 
     validate_authority: check, assert_authority_current: check };
   await writeFile(join(home, "vault.md"), "# Fixed evidence\nActual bytes read before the barrier.");
   service.registerProvider({ provider: { provider_id: cogniaManifest.plugin_id, title: "Cognia", kind: "plugin" }, definitions: cogniaManifest.actions!, handlers: createCogniaActionHandlers({
-    withStore: run => run(store), model: () => ({}), ai: () => ({}), actions: context => bindActionClient(service, () => context),
+    ...ownCogniaStores(run => run(store)), model: () => ({}), ai: () => ({}), actions: bindActionClient(service, () => caller),
     scan: async path => { const data = await readFile(join(path, "vault.md")); entered.resolve(); await release.promise; return { locator: path, name: "Vault", files: [{ path: "vault.md", data: data.toString("base64") }] }; },
   }) });
   const counts = () => ["cognia_previews", "cognia_materials", "cognia_sources"].map(table => Number(db.prepare(`SELECT count(*) AS total FROM ${table}`).get()!.total));

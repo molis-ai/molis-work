@@ -99,6 +99,11 @@ export async function dispatchRuntimePluginRoute(
   const result = await router.dispatch(input);
   if (!result) return false;
   await hooks.afterDispatch?.(result);
-  sendLocalWebJson(response, result.status, withPluginInteraction(result.body));
+  if (result.bytes !== undefined) {
+    response.writeHead(result.status, { "content-type": "application/octet-stream",
+      "content-disposition": "attachment; filename*=UTF-8''" + encodeURIComponent(result.filename ?? "material"),
+      "x-content-type-options": "nosniff", "content-security-policy": "sandbox", "cache-control": "no-store" });
+    response.end(result.bytes);
+  } else sendLocalWebJson(response, result.status, withPluginInteraction(result.body));
   return true;
 }

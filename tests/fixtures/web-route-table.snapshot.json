@@ -556,7 +556,7 @@
     "code": "todo.not_found",
     "error": "找不到这件待办，可能已被删除"
   },
-  "GET <project>/api/cognia": {
+  "GET <project>/api/plugins/io.molis.work.cognia/library": {
     "status": 200,
     "type": "application/json",
     "keys": [

@@ -35,6 +35,9 @@ export interface PluginModelResult {
   readonly usage?: { readonly input_tokens: number; readonly output_tokens: number };
 }
 
+/** Model display metadata only; never a credential reference or endpoint. */
+export type PluginModelAvailability = ActionAvailability & { readonly runtime_label?: string };
+
 /**
  * The Host's text model, for a plugin the Host runs itself that declares `model:invoke`. It works only inside one of the plugin's
  * own actions that declares `model:invoke` and is scheduled "concurrent": the Host knows which action is running, the plugin
@@ -44,7 +47,7 @@ export interface PluginModelResult {
  */
 export interface PluginModelClient {
   /** Whether a call could be answered now: the plugin is running with the grant, and the Host has a model set up. */
-  availability(): ActionAvailability;
+  availability(): PluginModelAvailability;
   /**
    * `prompt` is the plugin's own registered instruction and this call's data (`instructed(instruction, data)`); a plain string is
    * refused. The person's version of the instruction is what is sent.

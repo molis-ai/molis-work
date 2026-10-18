@@ -62,8 +62,10 @@ test("registered clients mount on demand, retry resources and retain their origi
     const link = `[data-plugin-strip] [data-plugin-id="${id}"]`;
     // Characters is a settings page; its existing dedicated browser test exercises that entry.
     if (!await evaluate(`!!document.querySelector(${JSON.stringify(link)})`)) continue;
-    await click(link);
     const root = `[data-work-surface="${id}"]`;
+    // RAC-43: a Runtime view replaces its old build-time stage; both must never mount together.
+    assert.equal(await evaluate(`document.querySelectorAll(${JSON.stringify(root)}).length`), 1, id);
+    await click(link);
     await waitFor(`document.querySelector(${JSON.stringify(root)})?.dataset.uiClientState === 'ready'`);
     assert.equal(await evaluate(`document.querySelector(${JSON.stringify(root)}).inert`), false, id);
     await evaluate(`document.querySelector(${JSON.stringify(root)}).retainedClientRoot = true`);

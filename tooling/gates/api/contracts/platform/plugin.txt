@@ -2895,8 +2895,12 @@ export interface PluginMaterialsClient {
     readSource?(url: string, request?: PluginMaterialSourceRequest): Promise<MaterialSourceContent>;
 }
 
+export type PluginModelAvailability = ActionAvailability & {
+    readonly runtime_label?: string;
+};
+
 export interface PluginModelClient {
-    availability(): ActionAvailability;
+    availability(): PluginModelAvailability;
     complete(prompt: InstructedPrompt, request?: PluginModelRequest): Promise<PluginModelResult>;
 }
 

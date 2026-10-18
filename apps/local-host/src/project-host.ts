@@ -21,7 +21,6 @@ import { ImagesHostService } from "./images-service-host.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
 import { imagesActionProvider } from "./images-actions.js";
 import { pptActionProvider } from "./ppt-actions.js";
-import { cogniaActionProvider } from "./cognia-actions.js";
 import { pagesActionProvider } from "./pages-actions.js";
 import { datasetActionProvider } from "./dataset-actions.js";
 import { jellyActionProvider } from "./jelly-actions.js";
@@ -224,7 +223,6 @@ export class MolisWorkLocalHost {
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(jellyActionProvider(options.homeDirectory, options.completeText));
-    if (options.homeDirectory) this.host.actionRegistry().registerProvider(cogniaActionProvider(options.homeDirectory, this.homeActionClient(), options.completeText));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.status().projects.find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.status().projects.find(project => project.project_id === caller.project_id)!) : this.homeActionClient()));
     if (options.homeDirectory) {

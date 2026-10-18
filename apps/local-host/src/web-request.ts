@@ -14,8 +14,6 @@ import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
 import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
 import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
-import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
-import { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
@@ -222,8 +220,6 @@ const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     && await handlePptNativePluginHttp(request, response, url, (_input, transport) => ({ projectId: hostReference.project_id, actions: userActions(PPT_ACTION_PERMISSIONS, transport) })) },
   { id: "jelly", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory)
     && await handleJellyNativePluginHttp(request, response, url, transport => asHomePerson(localHost, JELLY_ACTION_PERMISSIONS, transport)) },
-  { id: "cognia", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory)
-    && await handleCogniaNativePluginHttp(request, response, url, transport => asHomePerson(localHost, COGNIA_ACTION_PERMISSIONS, transport)) },
   { id: "personal", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost }) => Boolean(serverOptions.homeDirectory)
     && await handlePersonalNativePluginHttp(request, response, url, {
       projectId: options.project?.project_id ?? "",

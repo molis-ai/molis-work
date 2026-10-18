@@ -59,7 +59,7 @@ Coding 的 `agent.draft-text.v1` 经 `agent-host-composition.ts` → `model-draf
 
 Coding 的提交说明与接续摘要定义在 `plugins/native/coding/src/prompts.ts`，共同目录登记 `CODING_INSTRUCTIONS`。请求传 `{ purpose, prompt: CODING_COMMIT_DRAFT.prompt_id, material, model_selection }`；Host 从原 invocation 的插件身份确定 owner，再读取用户修改后的有效正文，材料仍单独传递。输入不能冒充 owner；未知引用或缺失身份拒绝派出。请求必须带已登记的 `prompt`，不再接受 `instructions` 字符串。Prompt 使用记录在初次授权复查之后写入，原授权等待与模型执行共用两分钟生命周期；取消或撤权后的迟到检查不登记使用、不启动模型。
 
-Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`cognia-prologue.ts` 只经 `apps/local-host/src/configured-text-port.ts` 固定目录中的模型并注入 `hostCompleteText`，使用 Home 已绑定的同一 Runtime（项目上手用同一个 helper，但用它自己的主人、不带 Cognia 的角色）；不再建立 cognia/runtime/runs。发现只读元数据，执行才解析凭据。
+Cognia 的资料选择、提示词、Markdown 与引用校验由 `plugins/native/cognia/src/ai.ts` 拥有。`plugins/native/cognia/src/plugin.ts` 从 Home Runtime 的 `services.model` 读取可用性和实际提供方/模型标签，调用同一个 Host/Prologue 服务；证据角色与回答指令由插件登记，原指令覆盖键保持。模型返回后经 Runtime 数据库事务复查原调用授权，才存审阅草稿。发现只读元数据，执行才解析凭据；不建立第二个 Runtime。项目上手仍用自己的配置模型 helper 和主人。
 
 Alchemist 的 `alchemist-prologue.ts` 复用同一模型目录与 `hostTextGeneration`，不另行解密或复制配置比对逻辑；首次授权等待与模型执行复用 Plugin SDK 的 `createExecutionLifetime`（`@molis-ai/molis-work-plugin-sdk`，Kernel 不转出它）取三分钟生命周期，固定模型不可用时明确拒绝，不切换供应商。Host 使用 SDK `decodeJsonOutput` 解码（显式允许整个响应的代码围栏），把语法成功/失败与原文、用量一起交给插件。`generateWithHost` 只做领域 parse；只有业务预算显式允许才纠正一次，纠正调用重新经过原派出授权。Zod 校验属于插件，不能把提示词中的 schema 宣称为 SDK 原生约束。
 
@@ -149,6 +149,7 @@ Cognia 同时保留已登记的知识角色与回答指令：角色作为共享�
 - **限额**：`timeout_ms` 默认 120 秒、至多 600 秒，`max_output_tokens` 默认 5000、至多 12000（`PLUGIN_MODEL_LIMITS`），超出以 `plugin.model_limit_exceeded` 拒绝，不截断。`output: "json"` 用 agent-host 的 `decodePrologueJsonOutput` 解码（允许代码围栏），解不出是 `plugin.model_output_invalid`；它只解码，结构由插件自己校验。结果的 `usage` 只在供应商报告了才有。
 - **生成中预览**：可选的 `onText(delta)` 按模型原顺序接收文字增量，不含运行、模型信息或用量事件。每次交给插件之前，Runtime 同步复查原动作、安装授权和取消状态；请求结束即关闭回调，即使动作还在继续也不再交文字。插件自行把文字变为页面或动作进度；预览不表示结果已通过末尾检查或已保存。回归见 `tests/security-invariants-plugin-model-progress.test.ts`。
 - **路径**：宿主端口 → `hostTextGeneration` → agent-host 的 Prologue 推理，和别的调用方同一条；不新开供应商直连，不向 Prologue 传调用编号（2026-10-10）。宿主构造时给的 `completeText`（函数是测试替身，`null` 是没有模型）照旧有效，每次调用时才读。`availability()` 可以接在动作的 `availability` 上。
+- **模型显示名**：`services.model.availability()` 可带 `runtime_label`，表示当前配置的提供方与模型（仅显示名和模型 ID）；读取只查元数据，不解密、不发请求。实例停止、缺授权或配置不可用时不带标签。模型执行仍按实际调用时的配置与授权复核。
 - **不在这一片里**：图片输入、选定某个模型与列出可选模型、动作返回之后的后台任务里调模型（动作一返回，调用就被拒）。有消费者的迁移再加。
 
 ```ts
@@ -255,7 +256,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
   | Runtime 插件的 `services.model` | 默认 120 秒、至多 600 秒；5000、至多 12000 个输出 token | `PLUGIN_MODEL_LIMITS`（`packages/contracts/src/platform/plugin-model.ts`） |
   | 生成插件的 `model.generate` | 110 秒 | `apps/local-host/src/plugin-builder/model.ts` |
   | Shelf 的自动处理 | 600 秒、12000 个输出 token | `apps/local-host/src/shelf-ai.ts` |
-  | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `apps/local-host/src/cognia-prologue.ts`、`apps/local-host/src/alchemist-prologue.ts` |
+  | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `plugins/native/cognia/src/plugin.ts`、`apps/local-host/src/alchemist-prologue.ts` |
   | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |
   | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-run.ts`（`MODEL_CALL_TIMEOUT_MS`） |
   | 创作台的角色 | designer 600 秒、coder 300 秒 | `horizontal/agent-host/src/adapters/plugin-builder.ts`（`MODEL_CALL_LIMIT_MS`） |

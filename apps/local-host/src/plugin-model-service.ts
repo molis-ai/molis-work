@@ -7,6 +7,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { registeredInstructionBody, resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { hostTextGeneration, textModelAvailability, textModelMissing, textModelRequired, type HostTextRequestOptions } from "./host-complete-text.js";
+import { openConfiguredModels, selectConfiguredTextModel } from "./configured-models.js";
 import type { PluginPlatformHome } from "./home-side.js";
 
 /**
@@ -34,7 +35,17 @@ export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort
     availability() {
       const injected = home.completeText();
       if (injected !== undefined) return injected === null ? unavailable(textModelMissing()) : { available: true };
-      return textModelAvailability(configured);
+      let label: string | undefined;
+      const state = textModelAvailability(() => {
+        if (!configured()) return false;
+        const catalog = openConfiguredModels(home.directory);
+        try {
+          const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store);
+          if (selected) label = `Prologue · ${selected.provider.display_name} · ${selected.model.model_id}`;
+          return true;
+        } finally { catalog?.storage.close(); }
+      });
+      return state.available && label ? { ...state, runtime_label: label } : state;
     },
     complete: (owner, prompt, dispatch) => runWithMolisWorkHome(home.directory, async () => {
       const injected = home.completeText();

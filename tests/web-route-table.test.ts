@@ -112,7 +112,7 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/jelly" },
   { method: "GET", path: "/api/plugins/io.molis.work.todo/items" },
   { method: "GET", path: "/api/plugins/io.molis.work.todo/items/no-such" },
-  { method: "GET", path: "/api/cognia" },
+  { method: "GET", path: "/api/plugins/io.molis.work.cognia/library" },
   { method: "GET", path: "/api/alchemist" },
   { method: "GET", path: "/api/shelf" },
   { method: "GET", path: "/api/memory/" },

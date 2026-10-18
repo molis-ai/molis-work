@@ -98,12 +98,6 @@
       ],
       "reason": "The Coding plugin's Host side (surface, background tasks, shelf material); its codes start with coding."
     },
-    "cognia": {
-      "paths": [
-        "apps/local-host/src/cognia-*"
-      ],
-      "reason": "The Cognia plugin and the Host files that serve it; its codes start with cognia."
-    },
     "computer": {
       "paths": [
         "apps/local-host/src/computer/"

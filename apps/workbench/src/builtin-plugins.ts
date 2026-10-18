@@ -1,5 +1,5 @@
 import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js";
-import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, COGNIA_HOME_STORE } from "@molis-ai/molis-work-plugin-cognia";
+import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, COGNIA_DATABASE, createCogniaPlugin } from "@molis-ai/molis-work-plugin-cognia";
 import { BUILDER_CHOICE_INSTRUCTIONS, builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
 import { IMAGES_PROJECT_PLUGIN_ID, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData, IMAGES_HOME_STORE } from "@molis-ai/molis-work-plugin-images";
@@ -102,7 +102,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   },
   {
     project_plugin_id: COGNIA_PROJECT_PLUGIN_ID,
-    home_store: COGNIA_HOME_STORE,
+    runtime: { scope: "home", create: createCogniaPlugin, database: COGNIA_DATABASE, package_name: "@molis-ai/molis-work-plugin-cognia", factory_export: "createCogniaPlugin" },
     manifest: cogniaManifest,
     instructions: COGNIA_INSTRUCTIONS,
     personal: true,

@@ -343,6 +343,7 @@ tests/chrome-inner-scroll.test.ts
 tests/cli-protocol.test.ts
 tests/codex-transport.test.ts
 tests/cognia-ai.test.ts
+tests/cognia-runtime.test.ts
 tests/cognia-workbench.test.ts
 tests/contextual-interaction.test.ts
 tests/coss-control-language.test.ts

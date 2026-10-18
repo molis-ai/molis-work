@@ -1369,7 +1369,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 统筹 10-18 定的四项（同一个 PR，各一个提交）：
     - `openPlugin` / `open.surface` 指插件，位置由声明决定：只有侧栏视图、没有工作区面（`workbench.main`、`workbench.directory`）的插件，打开时落到它的侧栏格（`sideOpenedPlugins`，`apps/workbench/src/plugin-catalog.ts`；页面上只有 `openPluginInSide` 一处，不写 `shelf`）。三处存值（动作链接、搜索索引的 `open_json`、助理通知的 `open`）不改写，各有一条点开落到那一条的用例（`tests/shelf-side-links.e2e.test.ts` SHELF-LINK-01～03）；用不是 Shelf、只声明侧栏视图的假插件证明规则通用（OPEN-PLACE-01）。
     - 侧栏文档把登记的落点事件（`molis:placement-convert`、`-request`、`-result`，名单只在 `SIDE_FORWARD_SCRIPT` 一处）转给页面；页面只收同源、来源窗口是侧栏插件格框架的消息，名单外的名字丢掉（S-30 扩展，`tests/security-invariants-pane-messages.test.ts`、SIDE-FWD-01）。
-    - 图片「放进 Shelf」经宿主路由调 `shelf.items.admit`（只按合同 id，`SHELF_ADMIT_ACTION`），`molis:shelf-admit` 从登记表删掉；放好后出一张落点卡片，从卡片的「打开」进 Shelf 格（不自动打开）。
+    - 图片「放进 Shelf」经宿主路由调 `shelf.items.admit`（定义只在合同里一份，`SHELF_ADMIT_ACTION`：Shelf 按它注册，图片按它调用，不转型），`molis:shelf-admit` 从登记表删掉；放好后出一张落点卡片，从卡片的「打开」进 Shelf 格（不自动打开）。
     - 侧栏格按条目打开：`molis:side-open` 带 `target {item,title}`，侧栏对已载入的格框架以本页源发 `molis:side-target`，格文档按同一检查收下后在自己的工作面上发 `molis-work:select-item`；工作台不读条目 id。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）

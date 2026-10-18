@@ -1,5 +1,5 @@
-import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SHELF_ADMIT_ACTION, type ShelfAdmitFile, type ShelfItemRecord } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { imagesActions } from "./actions.js";
 export interface ImagesRouteResult { status:number; body?:unknown; image?:{bytes:Uint8Array;mime:string;filename:string} }
@@ -28,8 +28,7 @@ export async function handleImagesRoute(actions:BoundActionClient,input:{method:
     if(path.length===5&&path[2]==='images'&&path[4]==='shelf'&&method==='POST'){
       const image=await actions.invoke(imagesActions.image,{id:path[1]!,image_id:path[3]!});
       const filename=typeof body.filename==='string'&&body.filename.trim()?body.filename.trim():image.filename;
-      const admit=SHELF_ADMIT_ACTION as ActionDefinition<ShelfAdmitFile,{item:ShelfItemRecord}>;
-      return {status:200,body:await actions.invoke(admit,{filename,mime:image.mime_type,bytes_base64:image.base64})};
+      return {status:200,body:await actions.invoke(SHELF_ADMIT_ACTION,{filename,mime:image.mime_type,bytes_base64:image.base64})};
     }
   }
   return {status:['GET','POST','DELETE'].includes(method)?404:405,body:{error:'找不到图片操作或请求方法不支持'}};

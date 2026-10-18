@@ -59,7 +59,7 @@ test("HTTP route 使用Host项目，拒绝伪造project_id，图片下载同样�
 
 test("IMAGES-SHELF-01 「放进 Shelf」 hands the image to shelf.items.admit by the action's id, never through Shelf's code", async () => {
   // The reference the contract publishes is the action Shelf provides.
-  assert.deepEqual([shelfActions.admit.capability_id, shelfActions.admit.version], [SHELF_ADMIT_ACTION.capability_id, SHELF_ADMIT_ACTION.version]);
+  assert.equal(shelfActions.admit, SHELF_ADMIT_ACTION, "Shelf registers the very definition the contract gives, and Images invokes it");
   const homeDirectory = await mkdtemp(join(tmpdir(), "images-shelf-"));
   const service = new ImagesService({homeDirectory, resolveConnectionKey: () => undefined, selectConnection: () => {}, selectedConnectionId: () => null, clearConnection: () => {}, generate: async () => [{bytes: Buffer.from(PNG, "base64"), mime: "image/png"}]});
   try {

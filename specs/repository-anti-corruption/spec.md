@@ -6,7 +6,7 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
-W5-01 OwnerFiles 服务前置（2026-10-18，Codex；方案已接受，实施中）：目标为公共服务功能可用，基于已冻结的 SHM+AQD `dfc21df3b` 在独立工作树串行实现。Shelf 现有同步文件树需要受本次真实动作控制的短同步写入段；现 PluginFiles 的单层 ASCII/独占文件合同不能承担嵌套 Unicode 树。新增 `PluginOwnerFilesReader/Writer/Client/Declaration`，继续从 `platform/plugin` 导出；`services.ownerFiles` 只给可信 Home native 定义，升级预检、sandbox、project executor 不提供。声明只来自可信 entry 和真实 definition 的 WeakMap，深复制冻结目录条目及初始化函数绑定，不能由 Manifest、自报 plugin_id 或替换 definition 继承。不改 ShelfStore、现 Shelf owner/装配、原件来源、桌面导入导出、模型、项目成果或 PDF；服务 fixture 不能冒领 Shelf 真实迁移验收。
+W5-01 OwnerFiles 服务前置（2026-10-18，Codex；本地实现与相关验证通过，待PR/CI整合）：目标为公共服务功能可用，基于已冻结的 SHM+AQD `dfc21df3b` 在独立工作树串行实现。Shelf 现有同步文件树需要受本次真实动作控制的短同步写入段；现 PluginFiles 的单层 ASCII/独占文件合同不能承担嵌套 Unicode 树。新增 `PluginOwnerFilesReader/Writer/Client/Declaration`，继续从 `platform/plugin` 导出；`services.ownerFiles` 只给可信 Home native 定义，升级预检、sandbox、project executor 不提供。声明只来自可信 entry 和真实 definition 的 WeakMap，深复制冻结目录条目及初始化函数绑定，不能由 Manifest、自报 plugin_id 或替换 definition 继承。不改 ShelfStore、现 Shelf owner/装配、原件来源、桌面导入导出、模型、项目成果或 PDF；服务 fixture 不能冒领 Shelf 真实迁移验收。
 
 合同：Reader 为 `stat/read/list(relative)`；Writer 另有 `mkdir`、`writeFile(relative,bytes,"create"|"replace")`、`replaceFileAtomic`、`copyFile`、`removeTree`、`setAccess(relative,"readonly"|"readwrite")`。Client 的 `write(run)` 捕获真实 currentPluginAction，检查本安装、command、action/manifest/caller/实时 grant，再等待原 beforeEffect；等待后与每个原语同步复核原 caller、signal 和现有实例 gate。callback 以现 requireSynchronous 检查并在 finally 撤销 writer，旧 writer 不能借新动作/新授权续命。writer 内读按已授予的写权限；独立 Reader 要读权限。原语同步消费 bytes；跨 await 的业务输入快照归以后 Shelf 调用者，本片不新增通用克隆协议。不增加第二 active/generation、持久句柄或 close，现 executor 的 activeRecord/revoke 是实例权威。
 
@@ -22,7 +22,7 @@ Host 只绑定 canonical Home 和声明，打开 port 不创建目录。受信 i
 
 验证：先整体 `pnpm build`，再新真实 Home 安全测试及 Runtime/Host/contracts README 对应定向用例，包含现 private storage/files/database/upgrade/Home lifecycle；拒绝必须核磁盘状态。随后 boundary、API、merge-base health、资源门禁。共享核心全量交统筹 CI，本机不跑全量；不增加浏览器资源，正式 Shelf 产品/桌面体验仍留后片。
 
-本地证据（2026-10-18，尚在整合）：实现、文档与真实 fixture 已完成，整体 build、新增/既有9文件72条、API、merge-base health、boundary 和25项资源测量均通过；资源7,476,626 B，与前置S相同。IO测试首轮因macOS /var→/private/var真实路径未匹配故障注入而失败，修fixture后原rename/chmod故障与字节/临时文件断言5/5通过，无生产修改。另163文件相关回归仍在执行；其中 home-plugin-project-routes 期待403而实际400，冻结S dfc21df3b同文件复现同一失败，正在对照AQD“Home无项目400/project_required”的现行合同判断，未计为通过。README测试通配符改成现存文件名后边界复查通过；不因此提前宣称本片或Shelf迁移完成。
+本地证据（2026-10-18，本地实现与相关验证通过，待PR/CI整合）：整体build、新增/既有9文件72条、API、merge-base health、boundary和25项资源测量均通过；资源7,476,626 B，与前置S相同。IO测试首轮因macOS /var→/private/var真实路径未匹配故障注入而失败，修fixture后原rename/chmod故障与字节/临时文件断言5/5通过，无生产修改。另163文件相关回归首轮162通过；唯一home-plugin-project-routes旧期待与冻结S dfc21df3b同样冲突。合并公共测试补正4c39270a7后，原完整用例1/1通过，精确400/project_required与撤grant403均保留；其余162文件不重复跑。README测试通配符改成现存文件名后边界复查通过。日志 /tmp/owner-files-required-tests.log、/tmp/owner-files-home-route-final.log、/tmp/owner-files-boundary-recheck.log；保留原sandbox环境条件跳过。真实Shelf接入、Store迁移和产品/桌面体验尚未做，本片仅公共OwnerFiles服务，不称整线完成。
 
 AQD 测试合同补正（2026-10-18，生产源码不变）：OwnerFiles 的相关回归发现 home-plugin-project-routes 在 personal 路径附 query project_id 时仍期待403/forbidden，冻结 S dfc21df3b复现同一400!=403。实际可信项目只从路径建立；现AQD已经明确保留Home缺项目400/actions.project_required并先于caller allowlist，因此只将这两个旧期待改为精确400/project_required。保留合法项目路径400/input_invalid、拒绝后jobs为空、撤grant后的403/forbidden和Home读仍可用等断言；这是与已接受合同对齐，不改生产或放宽成任意拒绝。原文件复跑1/1通过，真实响应确认精确project_required；合法project路径、拒绝后空jobs及撤grant后的403对照均保留并通过。
 

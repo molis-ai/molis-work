@@ -1088,3 +1088,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 用户弹窗批准回执线 3d-4 的 workbench.js +860 B（只此一次），键 [1109312, 1110172]；要求计划卡与回执的步骤状态措辞只留一份（计划卡改从 host.receipts 取，coding.js 只会变小）。
 - 10-18 #702 在 797f2dcd9 上的全量全绿；9a6385be3 走 merge-only（gate-702b）。
 - 10-18 3d-4 改成计划卡与回执共用一份措辞后，workbench.js 改为 +889（多出的 29 B 是 host.receipts.step），coding.js −253，页面合计净减 224 B；用户弹窗批准把放行改成 +889（只此一次），键 [1109312, 1110201]。
+
+- 10-18：用户改决定 #17——页面资源字节数不是硬要求，必要时可增大、尽量控制。PR #705（docs-only，merge-only 入队）写进 AGENTS.md、PR 模板、cli-and-development、防腐 spec 与门禁头注释。统筹审过即在 APPROVED_CEILINGS 一次性放行，不再弹窗；一个资源一次 >10 KB 或新增资源才问用户。#702 已合（b3499cda5）。

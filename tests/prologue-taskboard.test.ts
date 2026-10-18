@@ -18,7 +18,7 @@ const response = (text: string, tool?: {name:string; input:unknown}) => {
 
 test('confirmed step graphs use scoped SDK reports, dependency/version guards and durable original state', {timeout:45_000}, async t=>{
   const root=await mkdtemp(join(tmpdir(),'molis-step-board-'));await writeFile(join(root,'sample.txt'),'ORIGINAL PLAN EVIDENCE');
-  let stage='success',turn=0,calls=0,firstBoard='',currentBoard='',firstPrefix='',currentPrefix='';
+  let stage='success',turn=0,asked=0,calls=0,firstBoard='',currentBoard='',firstPrefix='',currentPrefix='';
   t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
     calls++;turn++;const body=JSON.parse(typeof init.body==='string'?init.body:new TextDecoder().decode(init.body as Uint8Array));
     const system=JSON.stringify(body.system),messages=JSON.stringify(body.messages);
@@ -61,8 +61,12 @@ test('confirmed step graphs use scoped SDK reports, dependency/version guards an
       assert.match(messages,/之前那一轮计划的步骤；要接着做，请用户点「继续计划」/);return response('Old run graph denied.');
     }
     if(stage==='interrupted'){
-      if(turn===1)return response('',{name:'board-read',input:{board}});
-      if(turn===2)return report('step-1','running','已开始核对，尚无完成证据');
+      // The session's history has grown by now, so the runtime may first ask (with no tools) which history to keep before
+      // compacting; that request is not one of the round's turns.
+      if(!body.tools?.length)return response('{"selections":[]}');
+      const own=++asked;
+      if(own===1)return response('',{name:'board-read',input:{board}});
+      if(own===2)return report('step-1','running','已开始核对，尚无完成证据');
       return new Promise<Response>((_resolve,reject)=>{const abort=()=>reject(new DOMException('Stopped','AbortError'));if(init.signal?.aborted)abort();else init.signal?.addEventListener('abort',abort,{once:true});});
     }
     throw new Error(stage);
@@ -96,7 +100,8 @@ test('confirmed step graphs use scoped SDK reports, dependency/version guards an
     stage='ordinary';turn=0;const ordinary=await host.start('prologue',{...request(other),execution_plan:undefined,text_materials:[]},authority);assert.equal((await finish(ordinary.ref)).step_board,undefined);
     await assert.rejects(adapter.read({...first.ref,session_id:other.session_id}),/不属于/);
     stage='interrupted';turn=0;const interrupted=await host.start('prologue',request(other),authority);
-    const deadline=Date.now()+10_000;while(turn<3){if(Date.now()>deadline)throw new Error('provider did not enter the unfinished step');await new Promise(resolve=>setTimeout(resolve,10));}
+    // Stop once the step is really running and the provider is inside the unfinished request.
+    const deadline=Date.now()+10_000;while(asked<3||(await adapter.read(interrupted.ref)).step_board?.nodes[0]?.state!=='running'){if(Date.now()>deadline)throw new Error('provider did not enter the unfinished step');await new Promise(resolve=>setTimeout(resolve,10));}
     await adapter.control(interrupted.ref,{kind:'stop'});const stopped=await finish(interrupted.ref);
     assert.equal(stopped.phase,'stopped');assert.deepEqual(stopped.step_board?.nodes.map(node=>node.state),['running','not-started']);
     const count=calls;await adapter.close();adapter=await make();

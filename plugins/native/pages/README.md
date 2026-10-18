@@ -52,6 +52,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
   - 编辑器单独打成浏览器脚本，不进工作台 factory 字符串。
   - 编辑命令由 `src/commands.ts` 显式汇总既有出口；实现按选区与菜单、块变更、内容插入、列表与容器、光标与代码、格式、Markdown 分在 `commands-*.ts`。命令族直接依赖所需的内部模块，不回指汇总入口；选区/位置读取不依赖编辑命令，函数不跨模块保留编辑状态。
   - 工具定义、heading/list 命令工厂、分组与 pressed/opens 投影、选区矩形归 `src/editor-tools.ts`；每次 tools/screen 调用都读当次 view/state，不缓存编辑器或选区。runTool 仍由入口路由原弹层或命令；列表工厂只捕获固定类型，工具定义的创建与翻译顺序保持。
+  - 链接与评论预览的 DOM、绘制、按钮、120ms blur 和滚动/resize 跟随归 `src/editor-previews.ts`；工厂仅返回两根节点及操作，内部按钮不外露。入口保留原挂载、绑定与释放时点，先解除跟随，再关闭表单，最后移除预览；不另存 view 或选区，翻译与 onScreen 仍动态读取原 options。
   - 自定义键盘命令归 `src/editor-keyboard.ts`，三组短键表仍在原插件位置装配为一个 keymap；工具栏共用同一 commandToggle。命令执行时从事件第三参数读取当前 view，只有链接面板沿用入口回调；方向键和 Tab 的方向助手不保存编辑状态，保持原回退与吞键顺序。
   - 编辑器的布局、媒体和卡片节点视图分别在 `src/editor-node-layout.ts`、`src/editor-node-media.ts`、`src/editor-node-cards.ts`；共用类型与 DOM 小函数在 `src/editor-types.ts`、`src/editor-view-ui.ts`。节点视图依赖现有命令与临时资源 owner，挂载入口依赖视图，不反向引用入口；跨文档的延迟操作仍由 transient API 归属和撤销。
   - 查找替换的状态键、查找栏创建/更新/销毁及打开动作归 `src/editor-find.ts`；匹配与替换计算仍在 `src/find.ts`。浏览器入口只装配这一个插件和快捷键，不另存查询或匹配状态。
@@ -70,6 +71,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 剪贴板/图片拖入改动加跑：`node scripts/run-tests.mjs tests/pages-clipboard.e2e.test.ts`（正式编辑器与样式，多块 HTML/Markdown 复制剪切、整组替换与撤销、粘贴优先级、空输入零写、图片落点及销毁重挂；DataTransfer/ClipboardEvent 验证浏览器事件路径）。图片等待中的映射与换文档隔离复用 `tests/content-editing-regressions.e2e.test.ts` 的 `W2-18-PAGES-TRANSIENT-01`。
 - 键盘命令装配改动加跑：`node scripts/run-tests.mjs tests/pages-keyboard.e2e.test.ts`（正式编辑器与样式，真实 Chrome 格式/块转换/复制/历史、Enter与删除回退、表格/代码/容器 Tab、方向移动、setDoc 与销毁重挂；Mac Chrome 实操，非 Windows/AltGr 验收）。菜单、查找、拖拽 capture 与剪贴板优先级复用上述对应浏览器回归。
 - 工具定义/选区投影改动加跑：`node scripts/run-tests.mjs tests/pages-tools.e2e.test.ts tests/pages-keyboard.e2e.test.ts tests/context-toolbar-panes.e2e.test.ts tests/contextual-interaction.e2e.test.ts`（正式编辑器与样式，工具字段/译文顺序/动态 pressed、命令/撤销/弹层路由、DOM Range 矩形、滚动、setDoc 与重挂；后两项覆盖真实工作台接线和窄屏）。
+- 链接/评论预览改动加跑：`node scripts/run-tests.mjs tests/pages-previews.e2e.test.ts tests/content-editing-regressions.e2e.test.ts tests/pages-tools.e2e.test.ts tests/context-toolbar-panes.e2e.test.ts tests/contextual-interaction.e2e.test.ts`（正式编辑器与样式，当前目标、编辑与取消、焦点、滚动/resize、setDoc 原刷新时点、释放重入和带待处理 blur 的销毁重挂）。
 - 上述内容与编辑状态的定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-editing-regressions.e2e.test.ts tests/content-portable-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；受控模型与下载/打印拦截不代替真实模型、文件应用或读屏体验验收）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

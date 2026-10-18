@@ -1,3 +1,4 @@
+import { createEditorPreviews } from "./editor-previews.js";
 import { editorToolDefinitions, editorToolGroups, editorSelectionScreen } from "./editor-tools.js";
 import { pagesKeymap } from "./editor-keyboard.js";
 import { hoverKey, runBlockCommand, hoveredGroup } from "./editor-block-selection.js";
@@ -13,14 +14,14 @@ import { EditorState, NodeSelection, Plugin, TextSelection } from "prosemirror-s
 import { EditorView } from "prosemirror-view";
 import { applyPagesActions, endPagesTransients, ownPagesTransient } from "./editor-transient.js";
 import { fillStaticIndexes } from "./card-content.js";
-import { blockPos, focusBelowContent, linkAt, revealHeading, headingIndexAt, selectEnclosingBlock, replaceSelectedBlock, replaceSpan, docStart, tripleClickSelection, popEscape, blockSpanToRow, splitTaskItem, setCalloutStyle, toggleTaskChecked, toggleTaskGroup, setLink, setTone, toneAt, commentAt, setComment } from "./commands.js";
-import { bookmarkLabel, linkClickOpens, safePagesHref } from "./link.js";
+import { blockPos, focusBelowContent, linkAt, revealHeading, headingIndexAt, selectEnclosingBlock, replaceSelectedBlock, replaceSpan, docStart, tripleClickSelection, popEscape, blockSpanToRow, splitTaskItem, setCalloutStyle, toggleTaskChecked, toggleTaskGroup, setLink, setTone, toneAt, setComment } from "./commands.js";
+import { linkClickOpens, safePagesHref } from "./link.js";
 import { calloutIconFor, PAGES_CALLOUT_ICONS, safePagesCalloutTone } from "./callout.js";
 import { findPlugin } from "./editor-find.js";
 import { slashPlugin, mentionPlugin, paragraphNode } from "./editor-insert-menu.js";
 import { chromePlugin } from "./editor-gap.js";
 import { handlePaste, handleDrop, handleDragOver, writeSpanClipboard } from "./editor-paste.js";
-import { followScroll, placeOverlay, type FloatingAnchor } from "@molis-ai/molis-work-design-system/floating";
+import { placeOverlay, type FloatingAnchor } from "@molis-ai/molis-work-design-system/floating";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { PAGES_TONES } from "./tone.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
@@ -234,28 +235,10 @@ function fillCalloutStyle(pop: HTMLElement, view: EditorView, at: () => ReturnTy
 
 export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}): PagesEditorHandle {
   host.replaceChildren();
-  const linkPreview = document.createElement("div");
-  linkPreview.className = "pages-link-preview";
-  linkPreview.hidden = true;
-  const linkLabel = document.createElement("span");
-  const linkOpen = document.createElement("button");
-  linkOpen.type = "button";
-  linkOpen.textContent = t(options.translate, "打开");
-  const linkEdit = document.createElement("button");
-  linkEdit.type = "button";
-  linkEdit.textContent = t(options.translate, "编辑");
-  linkPreview.append(linkLabel, linkOpen, linkEdit);
-  const commentPreview = document.createElement("div");
-  commentPreview.className = "pages-comment-preview";
-  commentPreview.hidden = true;
-  const commentText = document.createElement("p");
-  const commentEdit = document.createElement("button");
-  commentEdit.type = "button";
-  commentEdit.textContent = t(options.translate, "编辑");
-  commentPreview.append(commentText, commentEdit);
+  const previews = createEditorPreviews(options);
   // The tools the context toolbar draws (context-toolbar §3: an editor's own commands, not actions). `group` is how they sit on the bar.
   const toolDefs = editorToolDefinitions(options.translate);
-  overlayRoot().append(linkPreview, commentPreview);
+  overlayRoot().append(previews.linkPreview, previews.commentPreview);
 
   const pop = document.createElement("div");
   pop.className = "pages-pop";
@@ -556,42 +539,6 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     else { tool.run?.(view.state, view.dispatch.bind(view)); view.focus(); }
   };
 
-  const placeLinkPreview = (current: EditorView) => {
-    const selection = current.state.selection;
-    if (!selection.empty || !(selection instanceof TextSelection)) {
-      linkPreview.hidden = true;
-      return;
-    }
-    const found = linkAt(current.state.doc, selection);
-    if (!found?.href) {
-      linkPreview.hidden = true;
-      return;
-    }
-    linkLabel.textContent = bookmarkLabel(found.href) || found.href;
-    linkPreview.hidden = false;
-    const start = current.coordsAtPos(found.from);
-    const end = current.coordsAtPos(found.to);
-    placeOverlay(linkPreview, { left: start.left, right: end.left, top: start.top, bottom: end.bottom }, "above");
-  };
-
-  const placeCommentPreview = (current: EditorView) => {
-    const selection = current.state.selection;
-    if (!selection.empty || !(selection instanceof TextSelection)) {
-      commentPreview.hidden = true;
-      return;
-    }
-    const found = commentAt(current.state.doc, selection);
-    if (!found?.text) {
-      commentPreview.hidden = true;
-      return;
-    }
-    commentText.textContent = found.text;
-    commentPreview.hidden = false;
-    const start = current.coordsAtPos(found.from);
-    const end = current.coordsAtPos(found.to);
-    placeOverlay(commentPreview, { left: start.left, right: end.left, top: start.top, bottom: end.bottom }, "below");
-  };
-
   view = new EditorView(host, {
     attributes: { role: "textbox", "aria-multiline": "true", "aria-label": t(options.translate, "文档正文") },
     state: EditorState.create({
@@ -619,8 +566,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     dispatchTransaction(tr) {
       const next = view.state.apply(tr);
       view.updateState(next);
-      placeLinkPreview(view);
-      placeCommentPreview(view);
+      previews.update(view);
       options.onTools?.();
       if (tr.docChanged) options.onChange?.();
     },
@@ -713,29 +659,12 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
         return writeSpanClipboard(current, event, true);
       },
       dragover: handleDragOver,
-      blur: () => {
-        window.setTimeout(() => {
-          if (!linkPreview.contains(document.activeElement) && !commentPreview.contains(document.activeElement) && !pop.contains(document.activeElement) && document.activeElement !== view.dom) {
-            linkPreview.hidden = true;
-            commentPreview.hidden = true;
-          }
-        }, 120);
-        return false;
-      },
+      blur: (current) => previews.blur(current, pop),
     },
   });
 
-  placeLinkPreview(view);
-  placeCommentPreview(view);
-  linkPreview.addEventListener("mousedown", (event) => event.preventDefault());
-  commentPreview.addEventListener("mousedown", (event) => event.preventDefault());
-  commentEdit.addEventListener("click", () => openComment(view));
-  linkOpen.addEventListener("click", () => {
-    const found = linkAt(view.state.doc, view.state.selection);
-    const href = safePagesHref(found?.href);
-    if (href) window.open(href, "_blank", "noopener,noreferrer");
-  });
-  linkEdit.addEventListener("click", () => openLink(view));
+  previews.update(view);
+  previews.bind(view, openLink, openComment);
   const onPopEscape = (event: KeyboardEvent) => {
     if (event.isComposing || !popEscape(!pop.hidden, event.key)) return;
     event.preventDefault();
@@ -745,28 +674,14 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
   };
   document.addEventListener("keydown", onPopEscape, true);
   refreshToc(view, options.translate);
-  const reposition = () => {
-    if (view.hasFocus()) {
-      placeLinkPreview(view);
-      placeCommentPreview(view);
-    } else {
-      linkPreview.hidden = true;
-      commentPreview.hidden = true;
-    }
-    // The toolbar follows the selection while a form it holds has the focus too.
-    options.onScreen?.();
-  };
-  const stopScroll = followScroll(linkPreview, reposition);
-  window.addEventListener("resize", reposition);
+  const stopPreviews = previews.follow(view, () => options.onScreen?.());
   return { view, runCommand: (command, style, preset) => runAiCommand(view, command, style, preset), tools: () => editorToolGroups(view, toolDefs), runTool, screen: () => editorSelectionScreen(view),
     release: () => {
-      stopScroll();
-      window.removeEventListener("resize", reposition);
+      stopPreviews();
       hidePop();
       document.removeEventListener("keydown", onPopEscape, true);
       pop.remove();
-      linkPreview.remove();
-      commentPreview.remove();
+      previews.remove();
     } };
 }
 

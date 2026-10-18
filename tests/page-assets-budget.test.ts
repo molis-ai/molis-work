@@ -640,6 +640,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-plugins/coding.js", 373970], ["/assets/molis-work-settings.css", 988484], ["/assets/molis-work-workbench.css", 1591639],
   ["/assets/molis-work-workbench.js", 1109302],
   ["/assets/molis-work-workbench.js", 1109312], ["/assets/molis-work-workbench.js", 1109918],
+  ["/assets/molis-work-workbench.js", 1109913], ["/assets/molis-work-workbench.js", 1110802],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -652,26 +653,24 @@ for (const [asset, old] of [
   });
 }
 
-// RCPT-354–356 (specs/ai-input-receipts §4.3, D21, receipts 3d-4): approved by the user on 2026-10-18 in the coordinator's popup,
-// the step added for a supplement in its receipt, and the step words handed to the plan card, may grow the workbench script
-// once, from exactly the current baseline to the measured size (+889). One byte more, another asset, or growth from the new
-// baseline still fails.
-test("receipts 3d-4 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const asset = "/assets/molis-work-workbench.js", [from, to] = [1109913, 1110802];
-  branch("rcpt-3d4-base", () => { sizes[asset] = from; putBudget(sizes); });
-  git("checkout", "-q", "-B", "rcpt-3d4-change");
+// W5-10-PPV: the user approved the measured preview extraction on 2026-10-18 (+103 B), once.
+// One byte more, another asset, or growth from the new baseline still fails.
+test("W5-10-PPV has one bounded allowance on the pages editor; other assets and later growth still fail", () => {
+  const asset = "/assets/molis-work-pages-editor.js", [from, to] = [706825, 706928];
+  branch("ppv-base", () => { sizes[asset] = from; putBudget(sizes); });
+  git("checkout", "-q", "-B", "ppv-change");
   sizes[asset] = to;
-  assert.equal(gate("--update", "--base", "rcpt-3d4-base").code, 0);
-  assert.equal(gate("--base", "rcpt-3d4-base").code, 0);
+  assert.equal(gate("--update", "--base", "ppv-base").code, 0);
+  assert.equal(gate("--base", "ppv-base").code, 0);
   sizes[asset]++;
-  assert.equal(gate("--update", "--base", "rcpt-3d4-base").code, 1, "one byte over its allowance");
+  assert.equal(gate("--update", "--base", "ppv-base").code, 1, "one byte over its allowance");
   sizes[asset]--;
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "rcpt-3d4-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "rcpt-3d4-base").code, 0);
-  commit("freeze the measured 3d-4 size"); git("branch", "-f", "rcpt-3d4-frozen");
+  assert.equal(gate("--update", "--base", "ppv-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "ppv-base").code, 0);
+  commit("freeze the measured PPV size"); git("branch", "-f", "ppv-frozen");
   sizes[asset]++; putBudget(sizes);
-  assert.equal(gate("--base", "rcpt-3d4-frozen").code, 1, "the new baseline has no allowance");
-  assert.equal(gate("--update", "--base", "rcpt-3d4-frozen").code, 1);
+  assert.equal(gate("--base", "ppv-frozen").code, 1, "the new baseline has no allowance");
+  assert.equal(gate("--update", "--base", "ppv-frozen").code, 1);
   sizes[asset]--; putBudget(sizes);
 });

@@ -74,6 +74,15 @@ W5-10 Pages 命令族拆分（2026-10-17，Codex，本地定向通过，待队�
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+
+W5-10 Pages 预览层（PPV，2026-10-18，Codex，本地定向通过，待队列整合）：目标为行为保持的结构拆分。当前 PGT head `90d279993` 的编辑器入口 804 行、mount 537 行，链接与评论预览的创建、绘制、按钮、blur、跟随和释放仍嵌在 mount。将这些同职责代码交给唯一内部 `createEditorPreviews(options)` 闭包：只持有原七个 DOM 引用，返回两根节点及 update/blur/bind/follow/remove；入口保留全部原时点，pop/AI/token/请求状态仍归入口，不存另一份 view、不加 Controller/Plugin、getter、缓存或新的代次。按钮创建、坐标放置及一次同步绘制中的空 TextSelection 判断按相同效果去重，翻译与 onScreen 仍按原时点动态读取 options。
+
+不改变公开编辑器 API、DOM 类名、文字、120ms blur、选择/编辑/打开链接、重定位和销毁语义；setDoc 不额外重画。release 先解除 scroll/resize，再由原入口 hidePop（允许原重入 dispatch）与移除 pop，最后移除预览；迟到 blur 仍只引用旧实例 DOM。允许修改 editor-browser、新 editor-previews、既有源码定位断言、一个真实浏览器回归及必要 README。主会话维护本 spec、HUGE 记录与派生表。实现先在原正式 PGT 构建上跑新用例基线，再应用候选，整体 build 后复跑同一用例与既有相关动线。
+
+`W5-10-PPV-01`：真实公开 mount + DOM 验两组 link/comment 及重叠标记、空/非空选择、当前目标按钮、window.open 参数、编辑与取消，以及 setDoc 保持原刷新时点。`W5-10-PPV-02`：真实焦点/blur、scroll/resize、onScreen、release 重入、销毁后重挂及旧 timer/订阅验证：旧实例不影响新实例，按钮和表单仍可用。复用 content-editing-regressions、pages-tools、context-toolbar-panes、contextual-interaction 的现有覆盖，不再造第二套 AI 延迟矩阵；同时按 Pages README 跑相关非浏览器回归，boundary/API、merge-base health、正式资源与图结构核验。
+
+外部配对预演的原 raw 731,794 B 与正式产物逐字节相同；当前闭包候选 served 为 706,928 B，对 PGT 706,825 B 增加 103 B。纯提取/自由函数/职责内去重已比较；不改压缩器、短名或跨职责补偿。正式整体构建复得相同 706,928 B，新增 Chrome 在原 PGT 基线和候选上各 2/2 通过；Pages 插件 127 条、README 必跑 14 文件以及六个相关 Chrome 文件 39 条全部通过。boundary/API 与 merge-base health 通过，文件 804→719 行、mount 537→451 行，新闭包 89 行。用户已于 2026-10-18 批准本片实测 +103 B；精确许可仅 706,825→706,928，其余资源与后续增长继续冻结。最终整体构建、merge-base health/API、资源门禁与前一提交 HEAD 的精确预算检查通过；预算正反回归 73/73 通过，25 项资源总计 7,476,234 B。授权已覆盖本片必要的单次精确资源例外；不占 Todo/灵光额度。本片仅为 Pages 结构拆分的一段本地候选，主体 mount 与整线工作继续；未推送、未开第三个 PR。
+
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
 W4-03 第一片（2026-10-15，端口的默认来源由 Manifest 声明，#565；BL-087、D-04 的 A）：任务书要求「当时选择短期维持的项（例如 D-04 端口默认连线）重新判断是否到了该做的时候」，路线图把它排进 W4-03；新增一个端口插件只改自己的包和声明（§4.6），名单挡着这条，所以现在做。

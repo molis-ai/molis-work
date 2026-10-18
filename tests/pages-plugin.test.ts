@@ -2793,7 +2793,8 @@ test("浮层放不下就翻到另一边，菜单里的当前项滚进视野", ()
   assert.equal(handle.match(/followScroll\(menu/g)?.length, 1);
   assert.doesNotMatch(editor, /followScroll\(menu/);
   assert.equal(menus.match(/followScroll\(menu/g)?.length, 2);
-  assert.match(editor, /followScroll\(linkPreview/);
+  const previews = readFileSync(new URL("../plugins/native/pages/src/editor-previews.ts", import.meta.url), "utf8");
+  assert.match(previews, /followScroll\(linkPreview/);
 });
 
 test("代码块空行回车走出去，快捷键只翻转当前待办", () => {

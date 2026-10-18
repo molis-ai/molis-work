@@ -13,7 +13,9 @@
  * - `watch`: a surface that goes out of sight voids what was in hand there, looked for only while something is in hand.
  * - `signal`: what the person did with an offered action, for the memory to count (its capability and title, never the
  *   content). Nothing waits on it and nothing breaks without it.
- * - `choose`: a write goes to the Assistant as a prepared card; when no page here takes the choice (several objects, or a
+ * - `choose`: a creation entry (`intake.`) is drafted and made at once when its owner declared how it is undone, and the
+ *   completion card offers 「打开」 and 「撤销」 (the undo stays on the Host behind a token); without an undo it is a card. Any other
+ *   write goes to the Assistant as a prepared card; when no page here takes the choice (several objects, or a
  *   surface without its own handler) it is a card too, and only when even that fails the Assistant gets what is in hand. A card carries the exact action and its complete input; the Assistant runs it only when the person clicks,
  *   and the click places it (POST /api/assistant/cards) and opens the panel on that work.
  * - `starters` (spec §6.4.2): what the directory offers for the whole object open now, by rules only (no judgment for opening
@@ -127,10 +129,28 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
     const prepared = () => post("/api/contextual/prepare", { pane_id: pane, focus, key: candidate.key, request_id: newRequestId() });
     if (candidate.origin === "attach") landing.choose(focus, candidate);
+    else if (candidate.origin === "intake") create(focus, candidate);
     else if (candidate.action.capability_id === "search.query" && host.openSearch) prepared().then((offer) => host.openSearch(offer.input && offer.input.query)).catch((error) => bar.error(error));
     else if (candidate.apply === "record") prepared().then((offer) => suggestCard(focus, candidate, offer)).catch((error) => bar.error(error));
     else return prepared;
     return null;
+  };
+  // A creation entry: made at once when its owner can undo it, the result offering 「打开」 and 「撤销」; else a card. Choosing it
+  // again for the same thing sends the same request, which its owner makes once.
+  const made = new Map();
+  const create = (focus, candidate) => {
+    const id = focus.context_id + "\n" + candidate.key, held = made.get(id) || { request_id: newRequestId() };
+    if (held.busy) return;
+    made.delete(id); made.set(id, held); held.busy = true;
+    if (made.size > 20) made.delete(made.keys().next().value);
+    post("/api/contextual/create", { focus, ...landing.with(focus), key: candidate.key, request_id: held.request_id }).then((out) => {
+      if (!out.created) { made.delete(id); return suggestCard(focus, candidate, out.draft); }
+      const place = globalThis.molisPlacement, title = out.draft.summary || "", actions = [];
+      if (out.subject) actions.push({ label: L("打开"), primary: true, run: () => place.describe({ ...out.subject, project_id: document.body.dataset.projectId || null }, true).then((view) => view.open && place.openObject(view.open)) });
+      if (out.undo_token) actions.push({ label: L("撤销"), run: () => post("/api/contextual/undo", { undo_token: out.undo_token })
+        .then(() => { made.delete(id); place.card(L("已撤销"), title, [], "done"); }, (error) => place.card(L("没能撤销"), error, [], "error")) });
+      place.card(L("已{verb}", { verb: candidate.title }), title, actions, "done");
+    }).catch((error) => { made.delete(id); bar.error(error); }).finally(() => { held.busy = false; });
   };
   const suggestCard = async (focus, candidate, offer) => {
     const material = { title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) };

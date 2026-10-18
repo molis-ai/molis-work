@@ -157,6 +157,7 @@ export { createContextualJudgmentService, type ContextualJudgmentPorts, type Con
 export { readJudgeRequest, readLanding } from "./contextual/contextual-request.js";
 export { handleContextualHttp } from "./contextual/contextual-http.js";
 export { draftRequest } from "./contextual/contextual-draft.js";
+export { createChosen, undoCreated, type ContextualCreated } from "./contextual/contextual-create.js";
 export { draftIntake, type DraftInput, type DraftModel, type DraftPorts } from "./drafting/draft-service.js";
 export type { DraftTarget } from "./drafting/draft-data.js";
 export { bindScheduledTaskRunner, bindScheduleDeliveryFeed, scheduleServiceFor } from "./schedule-runtime.js";

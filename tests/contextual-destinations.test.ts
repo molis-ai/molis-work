@@ -107,6 +107,10 @@ test("W1-05: destinations only take recommended slots: never in more, and listed
   assert.equal(plan.more.flatMap(group => group.keys).some(key => destinationKeys.has(key)), false, "not one destination under 更多");
   assert.ok(plan.candidates.every(item => item.origin !== "intake" || plan.primary.includes(item.key)), "全部操作 lists no destination that is not recommended");
   assert.ok(plan.candidates.filter(item => item.origin !== "intake").length >= 4, "the actions on the thing itself are all there");
+  // W4-1 (quick-create §6.1): without a judgment the rules recommend exactly one destination, the first by rule order, in the last slot.
+  assert.deepEqual(plan.primary.filter(key => destinationKeys.has(key)), [[...destinationKeys][0]]);
+  assert.equal(plan.primary.indexOf([...destinationKeys][0]!), 2);
+  assert.equal(plan.emphasis, null);
   // A judgment that likes two destinations puts them in the slots, and they are listed with them.
   const [first, second] = [...destinationKeys];
   const judged = planContextualLayout({ focus: hand(), candidates, judgment: { basis: "jev", next: { [first!]: 0.5, [second!]: 0.3 }, intent: {}, surface: "none", surface_probability: null, speak_up: null, confidence: 0.7, latency_ms: 1 } });

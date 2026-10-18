@@ -27,7 +27,7 @@
   - 整理只产生待确认的候选，不直接新建或修改待办；依据必须能在原文里找到，原文没写的日期只作建议，用户手动改过的字段只作冲突提示——采用时按待办此刻的状态再判断，整理之后才改的字段同样不被覆盖。
   - 截止日期和时间按原文说法与写下时间确定性换算；候选、新建、原项的更新与受保护字段使用同一结果，不采用模型的日期算术。没有写时间就不补时刻，有歧义时只给建议日期。
   - 保存失败或标题为空会阻止离开与后续动作，保留编辑器各字段；明确确认重新读取或删除才丢弃。删除会先等正在派出的保存结束，之后不再派出该项的保存。
-  - 选中文本的“记成待办”先准备 Assistant 确认卡，点击执行才落库；来源文本与对象固定在准备时。它保留工作所在项目的调用上下文，默认归属仍为暂未归类，不自动变成项目待办。
+  - 选中文本的“记成待办”是 `todo.items.create` 上的创建入口（`intake`，context-program W4-1）：`todo.fragment.offers` 只做它的 `prepare`，从选区确定地算出整份输入（来源文本与对象固定在这时），浮条不再从它单独出选项。因为声明了 `undo`（`todo.changes.revert`），点一下就直接建，完成卡片上有「打开」「撤销」；同一请求号只建一条，之后在别处改过就拒绝撤销、不删也不改。默认归属仍为暂未归类，不自动变成项目待办。
   - 项目被删除时宿主按目录条目上的 `project_data`（`todoProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeTodoProject`）调用清掉放在这个项目里的待办及其历史、请求回执、整理器的记忆与审阅批次；个人待办不带项目，保留；只读库文件，库不存在时不创建，重复运行没有副作用。
-- 改动后必跑：`node scripts/run-tests.mjs tests/todo-actions.test.ts tests/todo-organize.test.ts tests/todo-plugin.test.ts tests/todo.e2e.test.ts tests/todo-draft-recovery.e2e.test.ts tests/contextual-todo.e2e.test.ts tests/context-onboarding-todo.test.ts tests/context-onboarding-todo.e2e.test.ts tests/project-deletion-owners.test.ts tests/action-error-model.test.ts tests/action-error-edges.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/todo-actions.test.ts tests/todo-organize.test.ts tests/todo-plugin.test.ts tests/todo.e2e.test.ts tests/todo-draft-recovery.e2e.test.ts tests/contextual-todo.e2e.test.ts tests/contextual-create.test.ts tests/context-onboarding-todo.test.ts tests/context-onboarding-todo.e2e.test.ts tests/project-deletion-owners.test.ts tests/action-error-model.test.ts tests/action-error-edges.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[continuity.md](../../../skills/molis-plugin-dev/continuity.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

@@ -354,7 +354,12 @@ export function planContextualLayout(input: PlanInput): ContextualLayoutPlan {
   const score = (key: string) => (judged ? (judged.next[key] ?? 0) + rules[key]! * 0.01 : rules[key]!) * (dismissed.has(key) ? 0.3 : 1);
   const ranked = [...available].sort((a, b) => score(b.key) - score(a.key) || order.get(a.key)! - order.get(b.key)!).map(candidate => candidate.key);
 
+  const byKey = new Map(available.map(candidate => [candidate.key, candidate]));
   const primary = ranked.slice(0, 3);
+  // Without a judgment the rules recommend one destination, in the last slot and never emphasised (quick-create §6.1): a
+  // destination is never under “更多”, so without it nothing could be put anywhere.
+  const destination = judged || primary.some(key => isDestination(byKey.get(key)!)) ? undefined : ranked.find(key => isDestination(byKey.get(key)!));
+  if (destination) primary.splice(Math.min(primary.length, 2), primary.length >= 3 ? 1 : 0, destination);
   const pinned = new Set(input.pinned ?? []);
   // Slots are kept only within one context: a new selection is a new row, and nothing there is under the pointer.
   if (input.previous && input.previous.context_id === input.focus.context_id) {
@@ -372,7 +377,6 @@ export function planContextualLayout(input: PlanInput): ContextualLayoutPlan {
 
   const priors = intentPriors(input.focus);
   const intentScore = (intent: FragmentIntent) => judged ? (judged.intent[intent] ?? 0) + priors[intent] * 0.01 : priors[intent];
-  const byKey = new Map(available.map(candidate => [candidate.key, candidate]));
   // A destination is only ever recommended: it takes a slot or it is not shown, never “更多” (a long list of everywhere).
   const rest = ranked.filter(key => !primary.includes(key) && !isDestination(byKey.get(key)!));
   const groups = new Map<FragmentIntent, string[]>();

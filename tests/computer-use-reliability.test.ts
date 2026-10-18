@@ -175,3 +175,19 @@ test("CU-G10: a secure field in the tree keeps OCR from running", async () => {
   assert.doesNotMatch(text, /OCR/);
   assert.equal(calls.some(call => call.op === "observe.ocr"), false);
 });
+
+test("CU-G06: unnamed containers are left out, and node ids still point at the raw tree", async () => {
+  const groups = Array.from({ length: 100 }, () => ({ role: "AXGroup", name: "", depth: 0, frame: [0, 0, 120, 80] as [number, number, number, number] }));
+  const namedGroup = { role: "AXGroup", name: "工具栏", depth: 0, frame: [0, 0, 120, 20] as [number, number, number, number] };
+  const secure = { role: "AXTextField", subrole: "AXSecureTextField", name: "密码", secure: true, depth: 0, frame: [0, 20, 100, 20] as [number, number, number, number] };
+  const calls: Call[] = [];
+  const driver = new ComputerDriver(desk({ nodes: [...groups, namedGroup, secure, button], calls }));
+  const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
+  assert.doesNotMatch(text, /组「无名称」/);
+  assert.match(text, /组「工具栏」/);
+  assert.match(text, /密码框「密码」/);
+  assert.match(text, /\[103\] 按钮「保存」/);
+  assert.ok(text.length < 1_500, `compressed tree is ${text.length} chars`);
+  await driver.surface().perform({ what: "pointer", node: "[103]", x: 1, y: 1, button: "left", clicks: 1 }, { session_id: "s" });
+  assert.deepEqual(calls.find(call => call.op === "input.pointer")?.payload?.point, [30, 20]);
+});

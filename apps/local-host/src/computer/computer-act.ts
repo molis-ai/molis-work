@@ -5,6 +5,11 @@ export const OBSERVATION_TTL_MS = 10_000;
 
 const CONTAINERS = new Set(["AXGroup", "AXScrollArea", "AXWindow", "AXToolbar", "AXList", "AXTable", "AXOutline", "AXWebArea"]);
 
+/** A container with no name, value or secure text: indentation already says where its children sit. */
+export function isUnnamedContainer(node: TreeNode): boolean {
+  return CONTAINERS.has(node.role) && !node.name && !node.value && !node.secure;
+}
+
 export function observationExpired(observedAt: number | null, now: number): boolean {
   return observedAt !== null && now - observedAt > OBSERVATION_TTL_MS;
 }

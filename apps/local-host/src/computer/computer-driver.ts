@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
 import { showsMolis, tierOf, type AppTierVerdict } from "./app-tiers.js";
-import { modelImageReason, nodeIsClickable, observationExpired, pointerFromNode } from "./computer-act.js";
+import { isUnnamedContainer, modelImageReason, nodeIsClickable, observationExpired, pointerFromNode } from "./computer-act.js";
 import { isHelperFailure, isRefused, refused } from "./computer-errors.js";
 import { injectDesktopAction } from "./computer-inject.js";
 import { refuseCapture, refuseDespiteWindowText, refuseLanding, refuseSelfApproval, type LandingProbe } from "./computer-policy.js";
@@ -69,16 +69,16 @@ function renderTree(state: AppState, tree: Tree): { text: string; cut: boolean }
     "窗口里的元素（@ 后是点击用的中心坐标）：",
   ];
   let used = lines.join("\n").length;
-  let index = 0;
   let cut = tree.truncated;
-  for (const node of tree.nodes) {
+  for (const [offset, node] of tree.nodes.entries()) {
+    if (isUnnamedContainer(node)) continue;
     const role = node.subrole === "AXSecureTextField" ? "密码框" : node.subrole === "AXSearchField" ? "搜索框" : ROLE_NAMES[node.role] ?? node.role.replace(/^AX/u, "");
     const states = [node.disabled ? "不可用" : "", node.focused ? "有焦点" : "", node.selected ? "已选中" : "", node.expanded ? "已展开" : ""].filter(Boolean);
     const value = node.secure ? (node.filled ? "（已填写，已隐藏）" : "") : node.value && node.value !== node.name ? ` 值=${node.value.replace(/\s+/gu, " ").slice(0, 300)}` : "";
     const at = node.frame && node.frame[2] > 0 && node.frame[3] > 0
       ? ` @(${Math.round(node.frame[0] - ox + node.frame[2] / 2)},${Math.round(node.frame[1] - oy + node.frame[3] / 2)})` : "";
     const name = node.name ? `「${node.name.replace(/\s+/gu, " ")}」` : node.role === "AXStaticText" ? "" : "「无名称」";
-    const line = `${"  ".repeat(Math.min(node.depth, 6))}[${++index}] ${role}${name}${value}${states.length ? ` （${states.join("、")}）` : ""}${at}`;
+    const line = `${"  ".repeat(Math.min(node.depth, 6))}[${offset + 1}] ${role}${name}${value}${states.length ? ` （${states.join("、")}）` : ""}${at}`;
     if (used + line.length > TREE_TEXT_BUDGET) { lines.push("（元素较多，后面的没有列出；可以滚动后再观察，或者看截图）"); cut = true; break; }
     lines.push(line);
     used += line.length + 1;

@@ -1,5 +1,5 @@
 {
-  "giantUnits": 135,
+  "giantUnits": 128,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
     "file apps/local-host/src/assistant/assistant-service.ts": 1874,
@@ -216,14 +216,7 @@
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
     "file plugins/native/pages/src/client.ts": 1117,
-    "file plugins/native/pages/src/commands.ts": 2241,
-    "file plugins/native/pages/src/editor-browser.ts": 3829,
-    "function plugins/native/pages/src/editor-browser.ts#slashPlugin": 158,
-    "function plugins/native/pages/src/editor-browser.ts#hoverHandlePlugin": 795,
-    "function plugins/native/pages/src/editor-browser.ts#view": 673,
-    "function plugins/native/pages/src/editor-browser.ts#renderMenu": 173,
-    "function plugins/native/pages/src/editor-browser.ts#findPlugin": 169,
-    "function plugins/native/pages/src/editor-browser.ts#mount": 828,
+    "function plugins/native/pages/src/editor-browser.ts#mount": 451,
     "class plugins/native/pages/src/store.ts#PagesStore": {
       "lines": 374,
       "methods": 28

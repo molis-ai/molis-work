@@ -139,7 +139,8 @@ for (const width of [1440, 390]) {
     await waitFor("!document.querySelector('[data-lingguang-pane=chat]').hidden");
     await evaluate(`document.querySelector('[data-lingguang-chat-input]').value = '明天怎么继续？'`);
     await click('[data-lingguang-chat] [type=submit]');
-    await waitFor("document.querySelector('[data-lingguang-note]').textContent.includes('测试模型暂不可用')");
+    // W5-01-SHM-01: the Runtime exposes its public failure, keeping the injected provider message private.
+    await waitFor("document.querySelector('[data-lingguang-note]').textContent === '模型请求失败，请重试'");
     assert.equal(await evaluate("document.querySelector('[data-lingguang-chat-input]').value"), "明天怎么继续？");
     assert.equal(await evaluate("document.querySelectorAll('.lingguang-message').length"), 0);
     fail = false;

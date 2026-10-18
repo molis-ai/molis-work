@@ -323,13 +323,16 @@ test("Jelly's streamed error event keeps the code and the details, and carries t
   const edge = await failingEdge("jelly", t);
   try {
     const download = new ActionError("material.model_required", "需要下载语音模型", { kind: "conflict", details: { approximate_bytes: 626_000_000, variant: "base" } });
-    for (const [error, status, code, details] of [
-      [download, 409, "material.model_required", { approximate_bytes: 626_000_000, variant: "base" }],
-      [new ActionError("actions.plugin_disabled", "此项目未启用该插件"), 403, "actions.plugin_disabled", undefined],
-      [new Error("没有码"), 500, "actions.execution_failed", undefined],
+    for (const [error, status, code, details, atStore] of [
+      [download, 409, "material.model_required", { approximate_bytes: 626_000_000, variant: "base" }, false],
+      [new ActionError("actions.plugin_disabled", "此项目未启用该插件"), 403, "actions.plugin_disabled", undefined, false],
+      [new Error("没有码"), 500, "actions.execution_failed", undefined, true],
+      [new Error("模型失败"), 502, "plugin.model_failed", undefined, false],
     ] as const) {
       edge.setFailure(error);
-      const answer = await edge.send("POST", "/api/plugins/io.molis.work.jelly/ai?stream=1", JSON.stringify({ kind: "decompose", source_type: "text", text: "写周报" }));
+      // W5-01-SHM-01 / W5-01-JMC-03: generic domain failures remain 500; a raw model failure crosses the model service and becomes upstream 502.
+      const read = atStore ? t.mock.method(jellyPlugin.JellyStore.prototype, "read", () => { throw error; }) : undefined;
+      const answer = await edge.send("POST", "/api/plugins/io.molis.work.jelly/ai?stream=1", JSON.stringify({ kind: "decompose", source_type: "text", text: "写周报" })).finally(() => read?.mock.restore());
       assert.equal(answer.status, 200, "a stream starts as 200 and says what went wrong in its last line");
       const events = answer.text.trim().split("\n").map(line => JSON.parse(line) as Record<string, unknown>);
       const event = events.at(-1)!;

@@ -7,8 +7,9 @@ import { decodePrologueJsonOutput, reportedTokenTotal } from "@molis-ai/molis-wo
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { registeredInstructionBody, resolveModelPrompt } from "./agent-definitions/instructions.js";
-import { hostTextGeneration, textModelAvailability, textModelMissing, textModelRequired, type HostTextRequestOptions } from "./host-complete-text.js";
-import { openConfiguredModels, selectConfiguredTextModel } from "./configured-models.js";
+import { hostTextGeneration, textModelAvailability, textModelMissing, textModelRequired, type HostTextRequestOptions, type HostTextGenerationFailure } from "./host-complete-text.js";
+import { configuredModelChoices, openConfiguredModels, selectConfiguredTextModel } from "./configured-models.js";
+import { withPluginModelImages } from "./plugin-model-images.js";
 import type { PluginPlatformHome } from "./home-side.js";
 
 /**
@@ -35,6 +36,7 @@ const unavailable = (reason: string): ActionAvailability => ({ available: false,
 export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort {
   const configured = (selection?: PluginModelSelection) => hostTextGeneration({ homeDirectory: home.directory, selection });
   return {
+    choices: () => configuredModelChoices(home.directory),
     availability(selection) {
       const injected = home.completeText();
       if (injected !== undefined) return injected === null ? unavailable(textModelMissing()) : { available: true };
@@ -50,20 +52,28 @@ export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort
       });
       return state.available && label ? { ...state, runtime_label: label } : state;
     },
-    complete: (owner, prompt, dispatch) => runWithMolisWorkHome(home.directory, async () => {
+    complete: (owner, prompt, dispatch) => runWithMolisWorkHome(home.directory, () => withPluginModelImages(dispatch, async images => {
       const injected = home.completeText();
       if (injected === null) throw textModelRequired();
       const { text, system } = resolved(home.directory, owner, prompt, dispatch.system);
-      const options: HostTextRequestOptions = { signal: dispatch.signal, beforeDispatch: dispatch.beforeDispatch,
+      const options: HostTextRequestOptions = { ...(images ? { images } : {}), signal: dispatch.signal, beforeDispatch: dispatch.beforeDispatch,
         timeoutMs: dispatch.timeout_ms, maxOutputTokens: dispatch.max_output_tokens, ...(system === undefined ? {} : { system }),
         ...(dispatch.onText ? { onProgress: event => { if (event.type === "text-delta") dispatch.onText!(event.text); } } : {}) };
-      if (injected) return { text: await injected(text, options) };
+      if (injected) return { text: await injected(text, options), validateResult: () => {} };
       const generate = configured(dispatch.selection);
       if (!generate) throw textModelRequired();
-      const result = await generate(text, options);
+      let result;
+      try { result = await generate(text, options); }
+      catch (error) {
+        const source = error instanceof Error ? error as HostTextGenerationFailure : undefined;
+        const failure = error instanceof ActionError ? error : pluginModelErrors.model_failed(source?.message ?? "模型请求失败，请重试");
+        if (source?.execution) Object.defineProperty(failure, "execution", { value: structuredClone(source.execution), configurable: true });
+        if (source?.validateResult) Object.defineProperty(failure, "validateResult", { value: source.validateResult, configurable: true });
+        throw failure;
+      }
       const input = reportedTokenTotal(result.usage, "input"), output = reportedTokenTotal(result.usage, "output");
-      return { text: result.value, ...(input !== undefined && output !== undefined ? { usage: { input_tokens: input, output_tokens: output } } : {}) };
-    }),
+      return { text: result.value, execution: structuredClone({ run_ref: result.run_ref, state: result.state, configuredModel: result.configuredModel, reportedModels: result.reportedModels, usage: result.usage }), validateResult: result.validateResult, ...(input !== undefined && output !== undefined ? { usage: { input_tokens: input, output_tokens: output } } : {}) };
+    })),
     decodeJson: text => decodePrologueJsonOutput(text, { allowCodeFence: true }),
   };
 }

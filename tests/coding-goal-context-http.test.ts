@@ -73,10 +73,8 @@ async function rejectStoppedGoalProgress(host: MolisWorkLocalHost, ref: ReturnTy
     await releaseCodingSurface(owner, DEMO_PROJECT_ID);
     barrier.release();
     const refused = await pending;
-    // D26: a stopped instance's call is expired, a conflict by its platform kind, so Coding's edge answers 409 (was 400).
-    const stopStatuses: Record<string, number> = { "actions.expired": 409, "actions.forbidden": 403, "goals.builtin_plugin_required": 400 };
-    const expectedStatus = stopStatuses[String(refused.body.code)];
-    assert.ok(expectedStatus, JSON.stringify(refused.body)); assert.equal(refused.status, expectedStatus, JSON.stringify(refused.body));
+    // W5-01-AQD-07: the shared route checks the stopped instance before the Goal write resumes.
+    assert.deepEqual([refused.status, refused.body.code], [503, "actions.plugin_unavailable"], JSON.stringify(refused.body));
     assert.deepEqual(owner.readEventsDescending(DEMO_PROJECT_ID), before, "revocation writes no progress, receipt or Goal event");
   } finally { barrier.release(); }
   assert.ok(caller);

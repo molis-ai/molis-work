@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import type { PluginModelRequest, PluginModelSelection } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginModelFailure, PluginModelRequest, PluginModelSelection } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
@@ -82,7 +82,7 @@ test("W5-01-SEL-03 changing the caller's selection while beforeEffect yields can
   assert.equal(first.server.requests.length, 0);
 });
 
-test("W5-01-SEL-03 a selected model whose connection changes while it answers cannot hand its result to the plugin", { timeout: 60_000 }, async t => {
+test("W5-01-SHM-02 / W5-01-SEL-03 a selected model whose connection changes while it answers cannot hand its result to the plugin", { timeout: 60_000 }, async t => {
   const { home, host, probe, first, second } = await fixture(t);
   let handed = false, disconnected = false;
   probe.behavior.ask = async context => {
@@ -90,7 +90,14 @@ test("W5-01-SEL-03 a selected model whose connection changes while it answers ca
       if (disconnected) return;
       disconnected = true;
       withConnectorConnections(home, store => store.disconnect(second.connectionId));
-    } });
+    } }).catch((error: unknown) => {
+      assert.ok(error instanceof Error);
+      const failure = error as PluginModelFailure;
+      assert.equal(failure.code, "actions.configuration_changed");
+      assert.equal(failure.execution, undefined, "a terminal refusal cannot be recorded as a model failure");
+      assert.equal(failure.validateResult, undefined, "a terminal refusal offers no commit guard");
+      throw error;
+    });
     handed = true;
     context.services!.storage!.set("answer", answer.text);
     return answer.text;

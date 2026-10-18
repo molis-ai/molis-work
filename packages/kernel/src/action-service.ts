@@ -206,7 +206,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         await call.validate_authority({ ...reference, provider_id: definition.action_provider?.provider_id });
         if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
       }
-      assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id });
+      assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id }, definition.action?.permissions);
       return this.registry.invoke(call, definition, input);
     });
   }
@@ -220,7 +220,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       const registration = this.registry.registrationToken(definition);
       requireSynchronous(call.validate_authority?.({ ...reference, provider_id: definition.action_provider?.provider_id }), "授权检查需要异步调用");
       if (registration !== this.registry.registrationToken(definition)) throw new ActionError("actions.provider_changed", "授权检查期间能力已重新加载，请重新执行");
-      assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id });
+      assertCurrentAuthority(call, { ...reference, provider_id: definition.action_provider?.provider_id }, definition.action?.permissions);
       return this.registry.invokeSync(call, definition, input);
     });
   }

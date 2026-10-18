@@ -128,7 +128,7 @@ export class MolisWorkLocalHost {
   private readonly systemFunctions?: SystemFunctionsActions;
   private readonly alchemist?: AlchemistHostService;
   private agents?: { home: string; service: AgentHostComposition };
-  private closing?: Promise<void>;
+  private readonly closing: { resources?: Promise<void>; attempt?: Promise<void> } = {};
   private readonly sessions: SessionRuntimeService;
   /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
   readonly callLog?: ActionCallLog;
@@ -266,7 +266,7 @@ export class MolisWorkLocalHost {
 
   /** A borrowed Web transport keeps the shared connection alive until its external Host closes. */
   ensureWebCatalog(home: string, open: Parameters<typeof createWebCatalogAccess>[1]) {
-    if (this.closing || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+    if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const canonicalHome = path.resolve(home);
     if (this.options.homeDirectory && path.resolve(this.options.homeDirectory) !== canonicalHome || this.webCatalog && this.webCatalog.home !== canonicalHome) {
       throw new ActionError("actions.home_mismatch", "项目目录与 Host 必须属于同一个 Home");
@@ -276,7 +276,7 @@ export class MolisWorkLocalHost {
 
   /** Platform startup injects the existing Catalog owner before accepting requests. */
   configurePersonalPlanning(home: string, withCatalog: LocalWebCatalogRunner): void {
-    if (this.closing || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+    if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const canonicalHome = path.resolve(home);
     if (this.personalPlanningHome && this.personalPlanningHome !== canonicalHome) throw new ActionError("actions.scope_mismatch", "不能把个人规划服务绑定到其他 Home");
     this.personalPlanningHome = canonicalHome;
@@ -287,7 +287,7 @@ export class MolisWorkLocalHost {
 
   /** A transport borrows this service; only the Host owns its lifetime. */
   ensureAgentService(homeDirectory: string, create: () => AgentHostComposition): AgentHostComposition {
-    if (this.closing || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+    if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     const home = path.resolve(homeDirectory);
     if (this.options.homeDirectory && path.resolve(this.options.homeDirectory) !== home || this.agents && this.agents.home !== home) {
       throw new ActionError("actions.home_mismatch", "Agent 服务与 Host 必须属于同一个 Home");
@@ -356,7 +356,7 @@ export class MolisWorkLocalHost {
   }
 
   private async prepareHomeActions(): Promise<void> {
-    if (this.closing || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+    if (this.closing.resources || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
     // The Home keeps its failed ready promise; unrelated providers remain available while its HTTP entry reports that failure.
     await this.homePlugins?.ready().catch(() => undefined);
     this.systemFunctions?.refresh();
@@ -393,7 +393,7 @@ export class MolisWorkLocalHost {
   sessionResources() { return this.sessions.resources(); }
 
   close(): Promise<void> {
-    return settleHostClose(this.closing ??= (async () => {
+    return this.closing.attempt ??= settleHostClose(this.closing.resources ??= (async () => {
       releaseHomeSide(this);
       await closeConnectorResources(this.options.homeDirectory, this.connectorMcp);
       await this.search?.close().catch(error => { hostLog.warn("projects", "close_step_failed", error, { step: "search" }); });
@@ -404,7 +404,7 @@ export class MolisWorkLocalHost {
         try { await Promise.all([this.agents?.service.dispose(), this.sessions.close(), this.homePlugins?.close()]); }
         finally { await this.webCatalog?.access.close(); }
       }
-    })(), this.alchemist?.close());
+    })(), this.alchemist?.close()).catch(error => { this.closing.attempt = undefined; throw error; });
   }
 
   get instanceId(): string {
@@ -412,7 +412,7 @@ export class MolisWorkLocalHost {
   }
 
   lifecycle(): LocalHostStatus["state"] {
-    return this.closing && this.host.lifecycle() === "running" ? "closing" : this.host.lifecycle();
+    return this.closing.resources && this.host.lifecycle() === "running" ? "closing" : this.host.lifecycle();
   }
 
   status(): LocalHostStatus {

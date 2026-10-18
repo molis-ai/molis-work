@@ -103,7 +103,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         makeTodo.setAttribute("aria-busy", "true");
         if (status) status.hidden = true;
         try {
-          const result = await api("/api/todo","POST",{
+          const result = await api("/api/plugins/io.molis.work.todo/items","POST",{
               title,
               placement: state.project?.project_id || document.body.dataset.projectId ? "project" : "personal",
               request_id: kind + ":" + id,

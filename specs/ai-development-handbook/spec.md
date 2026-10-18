@@ -1,6 +1,6 @@
 # Molis Work AI 能力开发手册
 
-状态：手册正文已写入（2026-10-16）：`docs/platform/PROLOGUE-AI.md` 第二部分（第 12–17 节）与 `skills/molis-prologue-ai/SKILL.md` 的入口，ADH-01 至 ADH-11 的工程侧核对记在 §9，ADH-12 至 ADH-15（存量清理 A3②）、ADH-16 至 ADH-18（存量清理 D1②）的证明见 §8 与 §9.5；真实模型前后对比的第一份记录在 §9.5（存量清理 B1，项目上手），用户验收未做。负责人：AI 能力开发手册线（Claude，由统筹会话排期与评审）；需求整理为 Codex；现有 AI 平台、各业务插件与相关 Skill 的 owner 保留原归属。
+状态：手册正文已写入（2026-10-16）：`docs/platform/PROLOGUE-AI.md` 第二部分（第 12–17 节）与 `skills/molis-prologue-ai/SKILL.md` 的入口，ADH-01 至 ADH-11 的工程侧核对记在 §9，ADH-12 至 ADH-15（存量清理 A3②）、ADH-16 至 ADH-18（存量清理 D1②）的证明见 §8 与 §9.5；2026-10-18 补充 ADH-19 至 ADH-23（技能包渐进披露、从一次过程生成 Skill、评测循环、作者侧校验）。真实模型前后对比的第一份记录在 §9.5（存量清理 B1，项目上手），用户验收未做。负责人：AI 能力开发手册线（Claude，由统筹会话排期与评审）；需求整理为 Codex；现有 AI 平台、各业务插件与相关 Skill 的 owner 保留原归属。
 
 ## 1. 要解决的问题
 
@@ -137,6 +137,11 @@ Skill 可以包含适用的确定步骤和脚本，但必须说明哪些是业�
 | ADH-16 | 可写的一轮没有成功的改动就要结束时，结尾连同宿主记的这一轮事实，按这一轮主人登记的「收尾核对」提示词交给模型核对一次（只说了下一步、说已保存、记住、忘掉、按钮好了而事实没有），对不上的每种每轮拦一次；宿主不再按措辞表判断；核对出错、超时或答得不对就放过 | `tests/announce-guard.test.ts` 断言事实来自事件、答案只按问的读；`tests/assistant-business-gateway.test.ts` 断言核对请求没有工具、事实作为围起来的数据、拦一次与放过；`tests/assistant-memory.test.ts` 的记忆说法；`tests/agent-definitions.test.ts` 断言核对的指令登记在「收尾核对」下、用用户改过的版本、版本冻结在开跑记录里（注释带编号） |
 | ADH-17 | 内部标识只认宿主这一轮给过模型的（工具名、能力标识、字段名、工具结果里的 id 与错误码），不按形状猜；子任务交回给派它的那项工作的报告不查标识 | `tests/announce-guard.test.ts`「only identifiers the Host handed the model」；`tests/assistant-delegation.test.ts`「a sub-task reports to the work that handed it over」（注释带编号） |
 | ADH-18 | [人工] D1② 有真实模型前后对比和核对本身的单次评测，按手册 16.3 写进 §9.5，每条问题标为设计问题、模型能力或拿不准 | §9.5 D1② 记录本身 |
+| ADH-19 | [人工] Skill 章节讲清 metadata → 正文 → references/scripts/assets 的渐进披露，以及 description/when_to_use/applies_to 怎样帮助选择；示例不把整本手册塞进正文 | 场景 Skill 示例走读；对照 [skill-packs](../skill-packs/spec.md) |
+| ADH-20 | [人工] 手册给出“从一次真实过程生成 Skill”的做法：区分固定/可变/判断点、判断点做 approval gate、用已知答案回放、注册但不自动启用 | 开发者按正文生成一个 Skill 并回放 |
+| ADH-21 | [人工] 手册给出 Skill/插件评测循环：测试 prompt、多次运行看方差、触发率与结果质量、改 description/正文后重跑；不以一次成功宣称稳定 | 评测记录与前后对比 |
+| ADH-22 | [人工] 手册列出作者侧校验：manifest、hook schema、agent/skill 声明、LSP 声明、打包/签名、跨 surface UI 测试；说明哪些是拒绝、哪些只是报告 | 校验脚本与失败样例 |
+| ADH-23 | [人工] 一个开发者按手册写出一个技能包，在个人助理和 Coding 各用一次，并按评测循环改进一次；不新增第二套权限/事实 | 真实使用与改进记录 |
 
 ## 9. 当前证据与后续验证
 
@@ -1141,3 +1146,52 @@ ai-handbook-coding-base-ask-blind.md，判的人是手册线会话的 Claude）�
 - 被拒停下的原因：`withInteractionRepairLimit` 停的时候交出原因（哪一种交互连续两次不合格，用人的话说），读回时显示，宿主重开后也一样；停的条件不变。用例 `tests/interaction-repair-limit.test.ts`。
 
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。
+
+## 10. 2026-10-18 补充：Skill 包、渐进披露与评测
+
+对照 Anthropic 的 `skill-creator`、`plugin-dev`、`knowledge-work-plugins` 与 `claude-code-action`，补上原手册“Skill 章节”没有展开的三件事：**一份 Skill 怎样分层、怎样从一次真实过程生成、怎样证明它值得用。**
+
+### 10.1 渐进披露
+
+一份 Skill 分三层加载：
+
+1. **metadata**（name、description、when_to_use、applies_to）：常驻，供模型/前门选择；description 要写“做什么 + 什么时候用”，不要只写一句宣传。
+2. **正文**（`SKILL.md`）：触发后进入上下文；保持在 500 行以内，按步骤写，不写整本手册。
+3. **资源**（`references/`、`scripts/`、`assets/`）：正文指向哪份才读哪份；脚本只做确定性辅助，执行仍受权限岛、沙箱和审查。
+
+资源是包的一部分，不是第二套事实；正文要写清“什么时候读哪一份”，不要用一句“详见资料”把选择丢给模型。
+
+### 10.2 从一次真实过程生成 Skill
+
+优先用刚发生过的真实过程（用户做过的步骤、纠正、拒绝）作为规格；没有就用具体的一次经历访谈。写之前先区分：
+
+- **固定**：顺序、来源、输出格式、规则。
+- **可变**：日期、名字、金额、文件、客户。
+- **判断**：用户犹豫、纠正、需要决定的地方；这些做成 approval gate。
+
+会发送、花费、发布、删除的步骤必须有 gate；不要每个步骤都问。写完后用用户已知答案的真实案例回放，对照手工结果；不一致先改，不让用户接受“差不多”。注册到目录/前门，但不自动启用、不自动排期、不扩大权限。
+
+### 10.3 评测循环
+
+1. 写 3–5 个测试 prompt，覆盖触发、不触发、边界和失败。
+2. 每个跑多次（例如 8 次），记录触发率、结果质量、耗时/用量与方差。
+3. 用已知答案或盲评判断质量；不要用一次成功宣称稳定。
+4. 改 description/正文后重跑同一组；比较前后，不只比较文案。
+5. 把原始结果、判定规则与版本存下来，供复查。
+
+评测是方法，不是新的审批系统；不因为一次评测就自动改有效版本。
+
+### 10.4 作者侧校验
+
+- manifest：必填字段、版本、来源、引用文件存在、路径不逃逸。
+- hook schema：事件、匹配器、动作、超时、阻塞语义合法。
+- agent/skill：id/version 唯一、正文长度、`tools` 在允许范围、`applies_to` 合法。
+- LSP：command/args/扩展名映射/超时合法，server 缺失时是提示不是崩溃。
+- 打包/签名/安装：固定文件列表、签名可验证、卸载只删包内容。
+- UI：跨 surface 的挂载/交互测试；没有 surface 的包不假装有界面。
+
+校验能拒绝的要在安装/启动前拒绝；只能报告的（例如建议的质量）明确标为报告，不冒充拒绝。
+
+### 10.5 与技能包的关系
+
+本节是 [skill-packs](../skill-packs/spec.md) 的作者/评测手册：技能包定义“装什么”，本节定义“怎样写、怎样证明”。两者都不新增权限、事实或第二套目录。

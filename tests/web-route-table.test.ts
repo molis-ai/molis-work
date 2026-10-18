@@ -110,8 +110,8 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/images" },
   { method: "GET", path: "/api/ppt" },
   { method: "GET", path: "/api/jelly" },
-  { method: "GET", path: "/api/todo" },
-  { method: "GET", path: "/api/todo/no-such" },
+  { method: "GET", path: "/api/plugins/io.molis.work.todo/items" },
+  { method: "GET", path: "/api/plugins/io.molis.work.todo/items/no-such" },
   { method: "GET", path: "/api/cognia" },
   { method: "GET", path: "/api/alchemist" },
   { method: "GET", path: "/api/shelf" },
@@ -208,7 +208,7 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
     seen.push([key.replace("<project>", "<missing>"), value]);
   }
   seen.push(await ask({ method: "GET", path: "/projects/personal/health" }, ""));
-  seen.push(await ask({ method: "GET", path: "/projects/personal/api/todo" }, ""));
+  seen.push(await ask({ method: "GET", path: "/projects/personal/api/plugins/io.molis.work.todo/items" }, ""));
   const actual = Object.fromEntries(seen);
   assert.equal(Object.keys(actual).length, seen.length, "every probe has its own key");
   if (process.env.MOLIS_WORK_UPDATE_ROUTE_SNAPSHOT === "1") {

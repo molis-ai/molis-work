@@ -116,3 +116,25 @@ test("AC-07 a round parked on its question at shutdown comes back with that ques
   assert.match(bodies[heard]!, /answered-after-interruption/, "the next round is told the question was answered after the interruption");
   assert.match(bodies[heard]!, /明天/, "and gets the answer");
 });
+
+// specs/ai-input-receipts 3e-0: business roles now also name acknowledge-inputs. That adds no reach: a business role naming
+// a tool that touches a directory or runs a command is still refused before any run exists, and the model is never asked.
+test("RCPT-363, 3e-0: a business role still gets no directory or command tool; acknowledge-inputs alone starts", { timeout: 30_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), "molis-business-tools-"));
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async () => (requests++, cogniaModelResponse("好的。")));
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.business-tools-test", appVersion: "1.0.0" }, storageRoot: join(root, "runtime"), reviewQueue: new AgentReviewQueue(),
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => "test-only" });
+  t.after(async () => { await adapter.close(); await rm(root, { recursive: true, force: true }); });
+  const owner = { project_id: "business", plugin_id: "io.molis.work.test", install_id: "test", actor_id: "person" };
+  const session = await adapter.createSession({ ...owner, workspace: "business", title: "Business tools" });
+  const start = (host_tools: string[]) => adapter.start({ ...owner, session, workspace: "business", role_id: "helper", task: "安排会议",
+    role: { role_id: "helper", version: 1, workspace: "business" as const, execution: "operate" as const, prompts: [], host_tools } });
+  for (const tool of ["read-file", "list", "search", "write", "edit-file", "run-command"]) {
+    await assert.rejects(start(["acknowledge-inputs", tool]), (error: { code?: string }) => error.code === "agent.capability_unavailable", `RCPT-363 ${tool} is refused`);
+  }
+  assert.equal(requests, 0, "RCPT-363 refused before the model is asked");
+  const started = await start(["acknowledge-inputs"]);
+  assert.ok(started.ref.run_id, "RCPT-363 the business set itself starts");
+});

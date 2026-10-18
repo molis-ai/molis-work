@@ -4,7 +4,7 @@ import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/ser
 import { currentPluginAction } from "./action-scope.js";
 
 const errors = defineErrorCodes("plugin", {
-  image_action_required: "forbidden", image_permission_undeclared: "forbidden", image_concurrent_required: "forbidden", image_input_invalid: "invalid",
+  image_action_required: "forbidden", image_permission_undeclared: "forbidden", image_concurrent_required: "forbidden", image_input_invalid: "invalid", image_connection_changed: "conflict",
 });
 export interface PluginImageGenerationDispatch {
   readonly signal: AbortSignal;
@@ -86,6 +86,8 @@ export function createPluginImageGenerationClient(manifest: PluginManifest, port
       await beforeEffect();
       const result = await port.generate(copied, { signal, beforeEffect, assertCurrent });
       await beforeEffect();
+      const state = port.inspect(copied);
+      if (!state.available || state.revision !== result.revision) throw errors.image_connection_changed("生图连接已改变，结果未交付");
       return result;
     },
   });

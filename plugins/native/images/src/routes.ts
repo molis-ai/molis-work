@@ -7,7 +7,7 @@ import { imagesErrors } from "./error.js";
 
 export function imagesRoutes(context: PluginStartContext): PluginRouteBinding[] {
   const body = (request: PluginRouteRequest): Record<string, unknown> => {
-    if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw imagesErrors.invalid("请求必须是 JSON 对象。");
+    if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw imagesErrors.invalid("请求必须是 JSON 对象");
     return request.body as Record<string, unknown>;
   };
   const route = (action: ActionDefinition, input: (request: PluginRouteRequest) => unknown, routeId = action.capability_id) =>
@@ -23,7 +23,7 @@ export function imagesRoutes(context: PluginStartContext): PluginRouteBinding[] 
       const result = await image.handle(request);
       if (result.status !== 200) return result;
       const file = result.body as { base64: string; mime_type: string; filename: string };
-      return { status: 200, bytes: Buffer.from(file.base64, "base64"), mime: file.mime_type, filename: file.filename };
+      return { status: 200, bytes: Buffer.from(file.base64, "base64"), mime: file.mime_type, filename: downloadName(request, file.filename) };
     } },
     { route_id: "images.images.shelf", async handle(request) {
       const result = await image.handle(request);
@@ -33,4 +33,11 @@ export function imagesRoutes(context: PluginStartContext): PluginRouteBinding[] 
       return bindPluginActionRoute(context, SHELF_ADMIT_ACTION, () => ({ filename, mime: file.mime_type, bytes_base64: file.base64 }), "images.images.shelf").handle(request);
     } },
   ];
+}
+
+function downloadName(request: PluginRouteRequest, stored: string): string {
+  if (request.query.download !== "1") return stored;
+  const name = (request.query.name ?? "").replace(/[\u0000-\u001f\u007f"\\/:*?<>|]+/gu, " ").trim().slice(0, 80);
+  const extension = /\.[a-z0-9]{2,5}$/iu.exec(stored)?.[0] ?? "";
+  return name ? name.toLowerCase().endsWith(extension.toLowerCase()) ? name : name + extension : stored;
 }

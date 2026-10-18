@@ -27,9 +27,11 @@ export interface PluginImageGenerationClient {
   inspect(target: PluginImageTarget): PluginImageConnectionState;
   bind(target: PluginImageTarget, connection_id: string): Promise<void>;
   unbind(slot_id: string): Promise<void>;
-  generate(request: PluginImageGenerationRequest, options?: { readonly signal?: AbortSignal }): Promise<readonly {
-    readonly bytes: Uint8Array; readonly mime?: string;
-  }[]>;
+  generate(request: PluginImageGenerationRequest, options?: { readonly signal?: AbortSignal }): Promise<{
+    readonly images: readonly { readonly bytes: Uint8Array; readonly mime?: string }[];
+    /** Host snapshot checked for this result; consumers recheck it before later business writes. */
+    readonly revision: string;
+  }>;
 }
 /** Only the trusted Host start entry chooses the binding namespace and grants. */
 export interface PluginImageGenerationDeclaration {

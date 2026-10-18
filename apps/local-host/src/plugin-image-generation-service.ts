@@ -67,7 +67,7 @@ async function generate(home: string, namespace: string, request: PluginImageGen
       })();
       const result = await lifetime.wait(pending);
       await beforeDispatch();
-      return result;
+      return { images: result, revision: pinned.revision };
     } catch (error) {
       lifetime.assertActive(); current();
       throw providerFailure(error);

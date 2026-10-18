@@ -35,8 +35,11 @@ export async function runImageJob(run: JobRun): Promise<void> {
     check();
     const images = await generateProviderImages({ ...target, expected_revision: run.revision, protocol: connection.api_format,
       model: connection.model, prompt: job.prompt, ...(job.size ? { size: job.size } : {}), ...(job.aspect_ratio ? { aspect_ratio: job.aspect_ratio } : {}) },
-      lifetime.signal, (request, signal) => run.imageGeneration.generate(request, { signal }));
-    resultRevision = run.imageGeneration.inspect(target).revision;
+      lifetime.signal, async (request, signal) => {
+        const result = await run.imageGeneration.generate(request, { signal });
+        resultRevision = result.revision;
+        return result.images;
+      });
     check();
     const saved: GeneratedImage[] = [];
     for (const image of images) {
@@ -52,10 +55,18 @@ export async function runImageJob(run: JobRun): Promise<void> {
       check();
       const state = run.imageGeneration.inspect(target);
       if (state.revision !== (resultRevision ?? run.revision)) return;
+      resultRevision = state.revision;
     } catch { return; }
-    await run.write(guarded, store => store.finish(job.project_id, job.id, "failed", [], isImagesFailure(error) ? error.message : error && typeof error === "object" && "kind" in error && error.kind === "timeout"
-      ? "等待厂商响应已超过 180 秒。厂商可能仍在生成或计费，请检查用量后再手动重试。" :
-      "生成失败：无法连接厂商、下载图片或保存结果。请检查网络、API 基址及磁盘空间，然后手动重试。"));
+    await run.write(guarded, store => store.finish(job.project_id, job.id, "failed", [], failureMessage(error)));
   } finally { lifetime.dispose(); }
   // Unreferenced files from a partial write are reclaimed during the next authorized plugin start.
+}
+
+function failureMessage(error: unknown): string {
+  if (isImagesFailure(error)) return error.message;
+  if (error && typeof error === "object" && "code" in error && typeof error.code === "string" && "message" in error && typeof error.message === "string") {
+    if ("kind" in error && error.kind === "timeout") return "等待厂商响应已超过 180 秒。厂商可能仍在生成或计费，请检查用量后再手动重试。";
+    if (["host.image_runtime_unavailable", "host.image_provider_failed"].includes(error.code)) return error.message;
+  }
+  return "生成失败：无法连接厂商、下载图片或保存结果。请检查网络、API 基址及磁盘空间，然后手动重试。";
 }

@@ -57,7 +57,7 @@ import type {
   RuntimeContextBindingRecord,
 } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import {
-  RuntimeContextBindingRepository, RuntimeProjectResolution, RuntimeProjectBindingCommands, createRuntimeProjectSetup, createRuntimeProjectBindingValidation,
+  createRuntimeContextModule, createRuntimeProjectBindingValidation,
 } from "@molis-ai/molis-work-module-private-work-context";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "./demo-seed.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -155,9 +155,7 @@ export class MolisWorkProjectCatalog {
   readonly projectDeletion: ManagedProjectDeletion;
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
-  private readonly workContexts: RuntimeContextBindingRepository;
-  private readonly contextBindings: RuntimeProjectBindingCommands;
-  private readonly contextResolution: RuntimeProjectResolution;
+  private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
   readonly desktopPanels: DesktopPanelCatalogApi;
   readonly personalPlanningMethods: PersonalPlanningMethods;
   readonly models: ModelProviderStore;
@@ -185,17 +183,12 @@ export class MolisWorkProjectCatalog {
       // from a list compiled into Projects.
       plugins: BUILTIN_PLUGIN_REGISTRY,
     });
-    this.workContexts = new RuntimeContextBindingRepository(db, {
-      ledger, assertProject: (projectId) => { this.projects.query.getProject(projectId); },
+    this.runtimeContexts = createRuntimeContextModule({
+      db, ledger, projects: this.projects, validation: contextBindingValidation,
     });
-    this.contextResolution = new RuntimeProjectResolution(this.projects.query, this.workContexts);
-    this.contextBindings = new RuntimeProjectBindingCommands(
-      this.workContexts, this.contextResolution, this.projects, contextBindingValidation,
-      operation => db.transaction(operation)(),
-    );
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
-      removeBindings: (projectId, actorId, at) => this.workContexts.removeProjectFacts(projectId, actorId, at),
+      removeBindings: (projectId, actorId, at) => this.runtimeContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
     }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
     this.demoProjects = new DemoProjectLifecycle(
@@ -215,7 +208,7 @@ export class MolisWorkProjectCatalog {
           const workspace = input.cwd
             ? normalizeRuntimeWorkspaceContext({ canonical_path: input.cwd, realpath_verified: false })
             : undefined;
-          this.contextBindings.bindRuntimeContextInTransaction({
+          this.runtimeContexts.commands.bindRuntimeContextInTransaction({
             normalized: {
               runtime_id: input.runtime_id,
               stable_work_context_id: input.stable_work_context_id,
@@ -308,27 +301,23 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.getProject(projectId);
   }
   resolveRuntimeContext(context: RuntimeWorkContext, suggestionClues: readonly RuntimeProjectSuggestionClue[] = []): MolisWorkRuntimeContextResolution {
-    return this.contextResolution.resolveRuntimeContext(normalizeRuntimeWorkContext(context), suggestionClues);
+    return this.runtimeContexts.commands.resolveRuntimeContext(context, suggestionClues);
   }
   rejectRuntimeContextSuggestion(
     input: RejectRuntimeContextSuggestionInput,
-  ): MolisWorkRuntimeContextSuggestionRejectionResult { return this.contextBindings.rejectRuntimeContextSuggestion(input); }
-  bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution { return this.contextBindings.bindRuntimeContext(input); }
-  unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult { return this.contextBindings.unbindRuntimeContext(input); }
+  ): MolisWorkRuntimeContextSuggestionRejectionResult { return this.runtimeContexts.commands.rejectRuntimeContextSuggestion(input); }
+  bindRuntimeContext(input: BindRuntimeWorkContextInput): MolisWorkRuntimeContextResolution { return this.runtimeContexts.commands.bindRuntimeContext(input); }
+  unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult { return this.runtimeContexts.commands.unbindRuntimeContext(input); }
   async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput): Promise<MolisWorkRuntimeContextResolution> {
-    return createRuntimeProjectSetup({
-      bindings: this.contextBindings, validation: contextBindingValidation,
-      getProject: projectId => this.getProject(projectId),
+    return this.runtimeContexts.createProjectAndBindRuntimeContext(input, {
       registerProject: (record, eventType, actorId) => this.insertProjectInTransaction(record, eventType, actorId),
-      insertSetupRequest: input => this.workContexts.insertSetupRequest(input),
-      transaction: operation => this.storage.db.transaction(operation)(),
       provisionCreatedProject: (input, commit) => this.projectFiles.provisionCreatedProject(input, commit),
-    })(input);
+    });
   }
   listRuntimeContextBindingEvents(
     context?: RuntimeWorkContext,
-  ): MolisWorkRuntimeContextBindingEvent[] { return this.contextBindings.listRuntimeContextBindingEvents(context); }
-  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.contextBindings.listRuntimeContextBindings(); }
+  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.commands.listRuntimeContextBindingEvents(context); }
+  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.commands.listRuntimeContextBindings(); }
 
   openDesktopPanel(input: OpenMolisWorkDesktopPanelInput): MolisWorkDesktopPanelRecord {
     return this.desktopPanels.open(input);

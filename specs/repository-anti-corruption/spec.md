@@ -7,6 +7,14 @@
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
 
+W5-08 Runtime 项目绑定出口（2026-10-17，Codex，本地定向通过，待队列与 CI）：在第二片 `0a1a9f7c3` 上处理 `private-work-context`。唯一包外生产构造在 Host 的 `project-catalog.ts`：它直接装配 `RuntimeContextBindingRepository`、Resolution、Commands，并把 Repository 方法接进项目创建和删除。目标为功能可用：由 owner 的 `createRuntimeContextModule` 在同一数据库连接上完成装配，只向 Host 提供现有绑定命令、创建并绑定服务与删除项目绑定事实的服务；Repository 不再从包入口导出。项目目录创建/补偿仍由 Host 的 provision 端口负责，原事务、确认、幂等、项目事件、Session/Ledger 语义保持。
+
+范围为 owner 内一份小型装配、包入口/README、Host catalog 装配与对应公开入口用例；不改 Repository SQL、库版本、模型或插件配置、路径授权、真实 Home、加密内容 API及其格式。其余八项 Store/interface 出口另按实际消费者处理，不做为过计数的改名；没有新增 testing 子路径或内部导入。已核对在途 #661/#699/#634/#704/#706/#708/#631 的文件清单，与本片不重叠。
+
+验收：`W5-08-CTX-01` owner 包不导出 RuntimeContextBindingRepository，Host 不再构造/保存它，绑定服务仍由同一 owner 装配；`W5-08-CTX-02` 通过公开 Catalog 入口确认绑定、读取事件、创建并绑定的幂等重试及删除时的绑定清理仍正常，缺少确认时零绑定/事件；`W5-08-CTX-03` private-work-context 和 Host README 必跑、相关 Runtime/MCP/Session/项目删除用例及构建、完整 health、boundary、API/动作快照/资源通过；`W5-08-CTX-04` 边界门禁要求 owner 工厂并拒绝包出口/Host 再暴露 Repository，原直接 SQL 和大小限制仍能拒绝，新增装配文件纳入原大小检查（`tests/private-work-context-boundaries.test.mjs`）。以隔离临时 Home 验证；共享核心全量仍交统筹 CI，不运行本机全量。
+
+本片验证（2026-10-17）：整体构建、完整 merge-base health/API/下降快查及页面资源通过；公开入口首批 3 文件 17 条、Chrome 2 文件 20 条、README/受影响补充 97 文件 1,072 条，共 102 文件 1,109 条全部通过，零失败/跳过（`/tmp/molis-runtime-context-{build,regression,health,assets}.log`）。结构计数由 9 降到 8，Host catalog 类 289→278 行，页面资源增量 0。首次 boundary 失败于 `checkPrivateWorkContextOwnership` 硬编码要求 owner 导出及 Host 使用 RuntimeContextBindingRepository。用户随后明确批准已展示的门禁补丁：改为要求 owner 装配并拒绝旧 Repository 出口，保留 SQL/大小限制且把新装配文件纳入大小检查；已应用仓库，补充整体构建、新门禁和相邻边界 5 文件 16 条、真实 boundary 及完整 merge-base health/API 均通过（`/tmp/molis-runtime-context-{gate-build,gate-tests,boundary-final,health-final}.log`）。现有语义回归不因仅改变门禁重复跑；共享核心全量仍由统筹 CI 安排，没有宣称整条 W5-08 完成。
+
 W5-08 Module 存储出口第二片（2026-10-17，Codex，本地定向通过，待队列与 CI）：在第一片 `5b1493e28` 上收 Goals、Artifacts 与 ProcessItems 的公开 Repository。当前包级搜索确认 `GoalsRepository`、`ArtifactsRepository` 及服务构造只在各自包内使用，外部生产调用已经走命令/查询服务。目标为功能可用：两个 Repository 不再由包入口导出；三个 Module 只在构造期持有局部 Repository；`createGoalReadServices` 返回的查询服务与 Artifacts/ProcessItems 的 service/query/commands 使用私有字段保存 Repository，去掉可直接读到的 `repository` 成员。
 
 本片仅改两包的入口、查询/成果服务、README 与既有公开入口用例及下降快查。保留所有业务服务、查询结果、错误、SQL、事务和版本结构；不动 Host、Plugin SDK、动作合同、门禁规则或真实 Home。第一片保持独立分支；其余 Module 与 Host 入口仍属后续工作。本片不将内部实现隔离描述成安全沙箱。

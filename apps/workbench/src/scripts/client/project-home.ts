@@ -222,7 +222,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       return;
     }
     const nowAt = Date.now(), nowLabel = homeFlow.clockLabel(new Date(nowAt));
-    const nowLine = '<div class="home-tl__now"><span>' + L("此刻") + " " + nowLabel + "</span><u></u></div>";
+    const nowLine = '<div class="home-tl__now"><span></span><u></u></div>';
     let html = "";
     let nowDrawn = false;
     list.forEach((event) => {
@@ -244,6 +244,9 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     // Everything today has already happened: "now" comes after the last of it.
     if (day?.today && !nowDrawn) html += nowLine;
     paint(html);
+    // Advancing the clock must not detach the pressed action with its detail row.
+    const clock = $(".home-tl__now span", rows);
+    if (clock) clock.textContent = L("此刻") + " " + nowLabel;
     const slot = $("[data-home-slot]", rows);
     if (slot && detailNode.parentElement !== slot) slot.append(detailNode);
     if (!slot) parkDetail();

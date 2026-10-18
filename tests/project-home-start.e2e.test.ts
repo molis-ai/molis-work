@@ -208,8 +208,17 @@ test("Home opens original Inbox items and source groups, completes Inbox, and ke
   await waitFor("[...document.querySelectorAll('[data-home-offer]')].some(button=>button.textContent==='做完了' && !button.disabled)");
   const beforeCount = await evaluate<number>("document.querySelectorAll('[data-home-open-event]').length");
   const doneIndex = await evaluate<string>("[...document.querySelectorAll('[data-home-offer]')].find(button=>button.textContent==='做完了').dataset.homeOffer");
+  await evaluate(`(() => {
+    window.__homeReceipt=[]; const log=(event)=>window.__homeReceipt.push({at:performance.now(),...event});
+    for(const type of ['pointerdown','pointerup','click'])document.addEventListener(type,e=>log({type,target:e.target.outerHTML.slice(0,200)}),true);
+    const fetch=window.fetch.bind(window);window.fetch=async(...args)=>{
+      const url=String(args[0]);if(!url.includes('/api/home/'))return fetch(...args);
+      log({type:'request',url});const response=await fetch(...args);log({type:'response',url,status:response.status});return response;
+    };
+  })()`);
   await click('[data-home-offer="' + doneIndex + '"]');
-  await waitFor(`!document.querySelector('[data-home-subject-id="${inboxId}"]')`, 8_000);
+  try { await waitFor(`!document.querySelector('[data-home-subject-id="${inboxId}"]')`, 8_000); }
+  catch(error) { t.diagnostic(JSON.stringify(await evaluate("({events:window.__homeReceipt,offers:document.querySelector('[data-home-offers]')?.innerHTML})"))); throw error; }
   assert.ok(await evaluate<number>("document.querySelectorAll('[data-home-open-event]').length") < beforeCount);
   const openedAuth = await evaluate<boolean>(`(() => {
     if (document.querySelector("[data-home-open-target]")?.textContent === "查看来源") return true;
@@ -293,7 +302,7 @@ test("ASC-38, ASC-39: Home refresh cannot consume a click while Inbox offers are
   } finally { await evaluate("window.__releaseHomeOffers()"); }
 });
 
-test("Home background refresh preserves a pressed Inbox action until its single click commits", { timeout: 45_000 }, async t => {
+test("Home background refresh across a clock minute preserves a pressed Inbox action until its single click commits", { timeout: 45_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
   assert.ok(projectId);
@@ -332,11 +341,15 @@ test("Home background refresh preserves a pressed Inbox action until its single 
   assert.equal(feed.getInboxEntry(projectId,before.entry_id).revision,before.revision);
   await evaluate(`window.__heldHomeButton=document.querySelector(${JSON.stringify(done)}); window.__homePress.refreshes=0`);
   await command('Input.dispatchMouseEvent',{type:'mousePressed',...point,button:'left',clickCount:1},sessionId);
+  const clock = await evaluate<string>("document.querySelector('.home-tl__now span').textContent");
   try {
-    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await evaluate(`(() => { const RealDate=Date; const tick=Date.now()+60000;
+      window.Date=class extends RealDate {constructor(...args){super(...(args.length?args:[tick]))} static now(){return tick}};
+      document.dispatchEvent(new Event('visibilitychange')); })()`);
     await waitFor("window.__homePress.refreshes > 0");
     await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
     assert.equal(await evaluate(`window.__heldHomeButton === document.querySelector(${JSON.stringify(done)}) && !window.__heldHomeButton.disabled`),true,'refresh must not replace or disable the button while it is pressed');
+    assert.notEqual(await evaluate("document.querySelector('.home-tl__now span').textContent"),clock,'the clock updates without moving the pressed row');
     assert.equal(feed.getInboxEntry(projectId,before.entry_id).status,'open','press and refresh have not executed the action');
   } finally { await command('Input.dispatchMouseEvent',{type:'mouseReleased',...point,button:'left',clickCount:1},sessionId); }
   await waitFor(`!document.querySelector(${JSON.stringify(row)})`,8_000);

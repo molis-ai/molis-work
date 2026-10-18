@@ -96,7 +96,7 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
     const offline = (await client.discover(user)).find(row => row.capability_id === ref.capability_id && row.version === ref.version)!;
     assert.equal(offline.availability.available, true);
     assert.equal((await library.list(owner))[0]?.health, "disconnected");
-    await assert.rejects(client.invoke({ ...user, audience: "agent", permissions: [] }, ref, { note: "无权限不能重连" }));
+    await assert.rejects(client.invoke({ ...user, audience: "agent", permissions: [] }, ref, { note: "无权限不能重连" }), { code: "actions.forbidden" });
     assert.equal((await library.list(owner))[0]?.health, "disconnected");
     await library.control(owner, saved.id, "connect");
     await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);

@@ -24,7 +24,7 @@ export function validateManagedToolSource(source: ManagedToolSource): ManagedToo
     let url: URL;
     try { url = new URL(source.url); } catch { throw toolInstallErrors.invalid("原生客户端来源地址无效"); }
     if (!exactToolVersion(source.version) || !/^[0-9a-f]{64}$/u.test(source.sha256) || source.entry !== undefined && !safeEntry(source.entry)
-      || url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !["github.com", "gitlab.com", "acli.atlassian.com", "api.hubapi.com"].includes(url.hostname)) throw toolInstallErrors.invalid("原生客户端来源、固定版本、校验和或包内路径无效");
+      || url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !["github.com", "gitlab.com", "acli.atlassian.com"].includes(url.hostname)) throw toolInstallErrors.invalid("原生客户端来源、固定版本、校验和或包内路径无效");
     return source;
   }
   if (source.kind === "npm") {

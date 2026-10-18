@@ -81,7 +81,8 @@ test("S-35 ASC-25: revoked or cancelled local setup never commits, and disabled 
 
 test("S-35 ASC-14: local launch rejects relative executables and loader environment injection before executing", async t => {
   const home = await openTestHome(t), plan = input(home.home);
-  for (const launch of [{ ...plan.launch, executable: "node" }, { ...plan.launch, environment_names: ["NODE_OPTIONS"] }]) {
+  const reserved = ["NODE_OPTIONS", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "RUBYOPT", "PERL5OPT"];
+  for (const launch of [{ ...plan.launch, executable: "node" }, ...reserved.map(name => ({ ...plan.launch, environment_names: [name] }))]) {
     await assert.rejects(connectLocalMcp(home.home, { ...plan, launch }, { beforeDispatch() {} }), /程序、参数/);
     assert.equal(existsSync(join(home.home, "child-pid")), false);
   }

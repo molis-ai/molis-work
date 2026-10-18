@@ -10,6 +10,10 @@
 
 ## 1. 用户目标与产品承诺
 
+2026-10-18 统筹结论（[审查及用户决定](https://github.com/molis-ai/molis-work/pull/661#issuecomment-6246058612)）：#661 保留为一个集成 PR，完成下述修订并同步已合入 #634、#709 的 main 后，由统筹复核最终 head、安排一次 full-suite。用户接受 `images.connections.list` 从 v1 升 v2，外部 MCP 工具名由 `images.connections.list__v1` 改为 `images.connections.list__v2`，旧名停用，调用方须改用新名。
+
+本轮修订沿用 ASC-07、ASC-14、ASC-22：HubSpot [官方安装脚本](https://api.hubapi.com/hub/cli/backend/hub-cli/latest/install.sh) 已明确忽略 `HUBSPOT_VERSION`、只下载 `latest`，[官方版本页](https://github.com/HubSpot/agent-cli/releases) 没有可固定版本的二进制附件，因此移除 HubSpot 的受管安装适配及安装下载源许可，保留已有 CLI 的登录、账号检测和业务读取。准备受管安装时须在下载、建立请求或安装目录前明确拒绝；由 `tests/security-invariants-native-cli.test.ts` 验证拒绝错误码、零下载及无连接/安装副作用，既有 CLI 路径由 `tests/connector-cli.test.ts` 验证。同时补充 stdio MCP 的 Java、Ruby、Perl 加载环境变量拒绝项（`JAVA_TOOL_OPTIONS`、`_JAVA_OPTIONS`、`RUBYOPT`、`PERL5OPT`），由 `tests/security-invariants-local-mcp.test.ts` 逐项断言启动前拒绝；外部 MCP 无权限重连用例明确断言 `actions.forbidden`。旧 HTTP MCP 的 Prologue `credential_ref` 不加读取兼容，归维护八与连接库 1→2 同次处理，细节登记在防腐 spec §4.1；安全编号待 main 合入后按空号顺延，文档与用例同步。PowerShell 的 Graph 模块只由 PSGallery 固定版本，未另校验文件摘要，此边界不计为与原生发行物同等的校验和保证。
+
 用户希望把 Molis Work 中已经接入的服务交给个人助理使用，也能直接说“帮我接入这个服务”，提供服务名、MCP 地址或安装说明，由助理完成检查、选择方式、安装、配置、连接、验证及后续管理。用户只在必须本人登录、填写凭据、选择账号或批准新增权限时介入。
 
 同一 Home 内，连接最初从服务连接、Coding 或其他产品入口添加，不应决定助理能否使用它。助理在已有有效授权覆盖的范围内自动发现和使用实际能力，与其他插件配合完成任务；需要扩展授权时，解释具体差额并提供操作入口，不要求用户重配一份连接。
@@ -648,7 +652,7 @@ CLI 页面恢复合同（ASC-14、ASC-19、ASC-22）：关闭页面不停止 Hos
 
 第 73—75 轮证据：CLI 工程回归包含真实 npm 测试包安装、PTY 登录、关闭页面后由 Host 提交、停机终止进程及重启后重新登录；安装安全 3 项与原 CLI 6 项通过，授权恢复 8 项和设置行为 13 项通过。第 75 轮整体构建、页面资源预算通过（25 项、7,878,211 字节），第 74 轮健康门禁对 `cee899c4` 通过。原 CLI 页面和新恢复路径的真实浏览器检查仍在等待机器时段，尚不计通过。
 
-官方包实装（macOS arm64，一次性 Home）：Box `@box/cli@4.10.1`、Vercel `64.4.0`、Wrangler `4.151.1`、Sentry `0.47.0`、Salesforce `@salesforce/cli@2.154.4`、Supabase `2.121.0` 均用官方 npm 源与 Node 24.14.0 安装，Hugging Face `huggingface_hub==2.2.0` 用官方 PyPI 与 Python 3.12.11 建立隔离环境；全部经过生产准备/安装动作执行真实版本检查，结果回到等待本人登录，没有创建账号连接，候选和临时 Home 已清理。此证据不包含真实账号登录或业务读写。原生文件以正式发布校验和固定：GitHub Releases 的附件 digest、GitLab 的 checksums、[Atlassian 官方 formula](https://github.com/atlassian/homebrew-acli/blob/main/Formula/acli.rb) 与 HubSpot 官方下载的 sha256；尚未实装的客户端不计入上述结果。
+官方包实装（macOS arm64，一次性 Home）：Box `@box/cli@4.10.1`、Vercel `64.4.0`、Wrangler `4.151.1`、Sentry `0.47.0`、Salesforce `@salesforce/cli@2.154.4`、Supabase `2.121.0` 均用官方 npm 源与 Node 24.14.0 安装，Hugging Face `huggingface_hub==2.2.0` 用官方 PyPI 与 Python 3.12.11 建立隔离环境；全部经过生产准备/安装动作执行真实版本检查，结果回到等待本人登录，没有创建账号连接，候选和临时 Home 已清理。此证据不包含真实账号登录或业务读写。原生文件以正式发布校验和固定：GitHub Releases 的附件 digest、GitLab 的 checksums、[Atlassian 官方 formula](https://github.com/atlassian/homebrew-acli/blob/main/Formula/acli.rb)；HubSpot 原有 `latest` 下载不满足固定版本合同，已按 2026-10-18 评审修订移除受管安装，旧实操只在覆盖表保留为历史结果。尚未实装的客户端不计入上述结果。
 
 CLI 前置配置接线：飞书/Lark 的官方配置向导与账号登录使用同一私有安装和交互进程 owner，向导完成仅更新配置、仍等待本人登录；页面可重开继续向导，取消和 Host 关闭终止自己的进程。X 开发应用信息从受保护表单按适配声明的环境变量注入本次登录，由官方 xurl 保存；不放到命令参数、模型状态或通用凭据输入中，交互输出同时遮蔽这些提交值。既有客户端没有新增字段时保持原登录路径。配置能力与字段都从 CLI 适配表派生，不另建服务名单。
 

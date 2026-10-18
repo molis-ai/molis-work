@@ -35,10 +35,22 @@ test("S-35 ASC-07 ASC-14 ASC-22: official native bytes are checked and only the 
   assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
   assert.equal(removeManagedConnectorTool(home.home, installed.id), "removed");
   assert.equal(existsSync(join(home.home, "good/bin/unselected")), true);
-  for (const changed of [{ sha256: "0".repeat(64) }, { entry: "../outside" }, { entry: "/tmp/outside" }, { url: "https://untrusted.example/fixture" }]) {
+  for (const changed of [{ sha256: "0".repeat(64) }, { entry: "../outside" }, { entry: "/tmp/outside" }, { url: "https://untrusted.example/fixture" }, { url: "https://api.hubapi.com/hub/cli/backend/hub-cli/latest/hubspot-darwin-arm64.bin" }]) {
     await assert.rejects(installManagedConnectorTool(home.home, { ...source, ...changed }, control));
     assert.deepEqual(readdirSync(join(home.home, "runtime/connectors/installs")), []);
   }
+});
+
+test("S-35 ASC-07 ASC-14 ASC-22: HubSpot cannot prepare a managed install from a mutable release", async t => {
+  const home = await openTestHome(t);
+  const fetch = globalThis.fetch; t.after(() => { globalThis.fetch = fetch; });
+  let reads = 0;
+  globalThis.fetch = async () => { reads++; throw new Error("HubSpot preparation must not download mutable release metadata"); };
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorCliActions.prepare,
+    { service_id: "hubspot", display_name: "HubSpot managed", version: "0.16.0" }), { code: "connector.connection.invalid" });
+  assert.equal(reads, 0);
+  assert.equal(existsSync(join(home.home, "runtime/connectors/installs")), false);
+  assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
 });
 
 test("S-35 ASC-14: native archive links and off-provider redirects cannot execute or overwrite files", async t => {

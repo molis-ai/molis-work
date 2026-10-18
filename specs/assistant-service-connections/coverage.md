@@ -100,8 +100,8 @@ Connector 库基线 2 的隔离维护演练已覆盖原连接、协议、绑定�
 | Notion | npm `ntn@0.23.20` 内的当前平台二进制 | 直接使用已核对包内文件，未运行复制脚本；版本启动通过 |
 | GitHub、GitLab、飞书、Lark、Stripe、X | `gh 2.102.0`、`glab 1.123.0`、`lark-cli 1.0.98`（两个地区入口）、`stripe 1.54.0`、`xurl 1.3.4` | 官方归档校验、指定普通文件提取与版本启动通过 |
 | Jira | `acli 1.3.39-stable` | 官方 formula 的地址/校验和；已按实际版本目录提取并启动 |
-| HubSpot | `hubspot 0.16.0` | 官方当前下载与校验和；实际版本通过。GitHub 页的 0.15.0 与下载不符时已被拦截，未把它报告为成功 |
-| Outlook、OneDrive、SharePoint、Teams | `Microsoft.Graph.Authentication 2.41.2` + PowerShell 7.6.7 | 四个入口均通过模块包管理器下载和实际 Import-Module/版本检查，共用同一 Home 的解释器 |
+| HubSpot | `hubspot 0.16.0`（历史实操） | 旧实现下载当前版本后启动通过，但地址及摘要均来自可变的 `latest`，不能证明固定版本。2026-10-18 评审后移除受管安装，现仅支持已有 CLI；本行保留历史结果，不计为现行受管安装通过 |
+| Outlook、OneDrive、SharePoint、Teams | `Microsoft.Graph.Authentication 2.41.2` + PowerShell 7.6.7 | 四个入口均通过模块包管理器下载和实际 Import-Module/版本检查，共用同一 Home 的解释器；Graph 模块在 PSGallery 固定版本，未另校验文件摘要 |
 
 真实账号仍需要用户完成官方授权和必要服务商资格；以上不证明任何账号的业务权限。飞书/Lark 的本人配置与 X 的应用凭据表单，另由真实子进程夹具验证私有目录、环境注入、重开、完成后再登录和不向模型/参数/输出暴露凭据。
 
@@ -113,6 +113,8 @@ Connector 库基线 2 的隔离维护演练已覆盖原连接、协议、绑定�
 
 
 ## 当前验证与剩余事项
+
+2026-10-18 统筹审查修订（main 同步前的定向证据）：HubSpot 受管安装已移除，官方可变地址不再获准下载，已有 CLI 路径保留；新增拒绝用例验证错误码、零下载和无安装/连接副作用。stdio 的 Java/Ruby/Perl loader 环境变量逐项在启动前拒绝；外部 MCP 无权限重连明确断言 `actions.forbidden`。整体构建、包边界、基于 merge-base `c31291c34` 的健康门禁通过，Local Host 必跑及安装/MCP 定向回归共 66 文件、526 项通过，无跳过。旧 Prologue HTTP MCP 凭据已登记维护八；用户接受 Images MCP v1→v2 改名，#661 保留一个集成 PR。安全编号、#634/#709 合入后的 main 同步及重测尚待完成，本轮没有触发 full-suite 或增加模型调用。
 
 本轮最新（2026-10-17）：本轮约定的非 OAuth 真实路径均已有通过记录；OAuth 真实账号验收按一骏决定本次暂缓。正式 PR 前另做 OAuth 代码核查，发现并修复旧回调及刷新写回竞态，代码证据与真实服务商验收分别记录。模型累计 **663/680**，没有重置账本，全部失败原样保留，不再新增调用。不同版本、修订和重试的结果不能合并成当前模型成功率。
 

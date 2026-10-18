@@ -23,7 +23,7 @@ export interface LocalMcpConfiguration extends ConnectorProtocolConfiguration {
   installation_id?: string;
 }
 const invalid = () => connectorErrors["connector.mcp.configuration"]("本地 MCP 的程序、参数、工作目录或环境变量无效，请重新准备接入");
-const reservedEnvironment = /^(?:PATH|HOME|SHELL|ENV|BASH_ENV|NODE_OPTIONS|NODE_PATH|PYTHONPATH|PYTHONHOME|LD_.*|DYLD_.*)$/u;
+const reservedEnvironment = /^(?:PATH|HOME|SHELL|ENV|BASH_ENV|NODE_OPTIONS|NODE_PATH|PYTHONPATH|PYTHONHOME|JAVA_TOOL_OPTIONS|_JAVA_OPTIONS|RUBYOPT|PERL5OPT|LD_.*|DYLD_.*)$/u;
 
 /** Persist canonical paths, so a later symlink change cannot redirect a previously selected launch. */
 export function validateLocalMcpLaunch(input: LocalMcpLaunch): LocalMcpLaunch {

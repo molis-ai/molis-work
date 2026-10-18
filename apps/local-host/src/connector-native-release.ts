@@ -2,7 +2,7 @@ import { runtimeReleaseBytes } from "./connector-tool-download.js";
 import { toolInstallErrors } from "./connector-tool-process.js";
 import type { NativeToolSource } from "./connector-tool-source.js";
 
-const hosts = new Set(["github.com", "api.github.com", "raw.githubusercontent.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com", "gitlab.com", "acli.atlassian.com", "api.hubapi.com"]);
+const hosts = new Set(["github.com", "api.github.com", "raw.githubusercontent.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com", "gitlab.com", "acli.atlassian.com"]);
 export const nativeReleaseBytes = (url: string, limit: number, signal?: AbortSignal) => runtimeReleaseBytes(url, limit, signal, hosts);
 export interface NativeCliDistribution { kind: "native"; resolve(version: string, signal?: AbortSignal): Promise<NativeToolSource> }
 export function nativeTarget() {
@@ -63,12 +63,4 @@ export const atlassianCliDistribution: NativeCliDistribution = { kind: "native",
   const match = [...formula.matchAll(/url "([^"]+)"[^\n]*\n\s*sha256 "([0-9a-f]{64})"/gu)].find(row => row[1] === url);
   if (!match) throw toolInstallErrors.failed("Atlassian 官方安装源没有此平台的文件或校验和");
   return { kind: "native", package: "atlassian/acli", version, bin: "acli", url, sha256: match[2]!, entry: `acli_${version}_${platform}_${arch === "x64" ? "amd64" : arch}/acli` };
-} };
-
-export const hubspotCliDistribution: NativeCliDistribution = { kind: "native", resolve: async (version, signal) => {
-  const { platform, arch } = nativeTarget();
-  const base = `https://api.hubapi.com/hub/cli/backend/hub-cli/latest/hubspot-${platform}-${arch === "x64" ? "amd64" : arch}`;
-  const sha256 = (await nativeReleaseBytes(`${base}.sha256`, 1024, signal)).toString("utf8").trim().split(/\s+/u)[0]!;
-  if (!/^[0-9a-f]{64}$/u.test(sha256)) throw toolInstallErrors.failed("HubSpot 官方文件校验和无效");
-  return { kind: "native", package: "HubSpot/agent-cli", version, bin: "hubspot", url: `${base}.bin`, sha256 };
 } };

@@ -41,10 +41,10 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
   - 执行中的任务持续续租；任务状态与事件同事务保存。
   - 可信调用者身份保留到对象、任务与 Prologue 会话；对话发送与复用适用性判断声明 `scheduling: "concurrent"`，等模型不占项目串行队列。
   - 包内还有 vitest 用例：`pnpm --filter @molis-ai/molis-work-plugin-alchemist test`。
-  - 项目被删除时，先撤销工作室的前台与 worker 提交权限，等待真实执行退出，再关闭工作室与搜索库，最后删除 `alchemist/projects/<项目>` 目录。清理失败保留资源与关闭状态，下次删除或 Host 关闭重试；期间不再接纳动作，也不开第二份工作室。`tests/alchemist-host-lifecycle.test.ts` 覆盖 W5-01-ALC-LIFE 的迟到结果和失败重试。
+  - 项目被删除时，先撤销工作室的前台与 worker 提交权限，等待真实执行退出，再关闭工作室与搜索库，最后删除 `alchemist/projects/<项目>` 目录。清理失败保留资源与关闭状态，下次删除或 Host 关闭重试；期间不再接纳动作，也不开第二份工作室。`tests/security-invariants-alchemist-lifecycle.test.ts` 覆盖 W5-01-ALC-LIFE 的迟到结果和失败重试。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-alchemist run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
   - 打开的工作室每 250 毫秒取一次任务。宿主（`apps/local-host/src/alchemist-service-host.ts`）关掉 10 分钟没人用、手上也没事的工作室（W4-09）：没有进行中的操作、没有正在取的任务、没有排队或运行中的任务（运行时的 `idle()`）；下一次操作再打开。等模型的前台操作和后台任务都让它保持打开。
-- 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-studio-idle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts tests/project-deletion-studios.test.ts tests/alchemist-pulse-github.test.ts tests/model-unavailable-declarations.test.ts tests/network-notices.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host.test.ts tests/security-invariants-alchemist-lifecycle.test.ts tests/alchemist-studio-idle.test.ts tests/alchemist-runtime.test.ts tests/alchemist-mcp.test.ts tests/project-deletion-studios.test.ts tests/alchemist-pulse-github.test.ts tests/model-unavailable-declarations.test.ts tests/network-notices.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[specs/archive/alchemist-plugin/spec.md](../../../specs/archive/alchemist-plugin/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
@@ -54,4 +54,4 @@ LocalWorker 经 Plugin SDK 共用执行生命周期：本地关闭、取消和�
 
 固定研究成果的生产 Host 端口尚未接线。报告根据当前成果入口的 availability 禁用「保存固定版本」并解释原因，研究方法复用仍可使用；fixture 端口不代表生产支持，完整固定成果发布与预览仍未完成。
 
-本轮控制与客户端回归：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/alchemist-host-lifecycle.test.ts tests/alchemist-client-boundaries.e2e.test.ts`。浏览器用例使用真实 Studio HTTP/SQLite 与受控模型响应；正式 Host 的等待后提交另由生命周期用例覆盖，不代替真实模型质量与整合实操。
+本轮控制与客户端回归：`node scripts/run-tests.mjs tests/alchemist-actions.test.ts tests/security-invariants-alchemist-lifecycle.test.ts tests/alchemist-client-boundaries.e2e.test.ts`。浏览器用例使用真实 Studio HTTP/SQLite 与受控模型响应；正式 Host 的等待后提交另由生命周期用例覆盖，不代替真实模型质量与整合实操。

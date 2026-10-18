@@ -183,7 +183,7 @@
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
     "function packages/storage/src/adapters/search-storage.ts#createSearchOpaqueBlobStore": 161,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 153,
-    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 233,
+    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
     "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
       "lines": 381,
       "methods": 23

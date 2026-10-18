@@ -1111,9 +1111,9 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 | --- | --- | --- |
 | AC-01 范围 | 部分 | §14.3 只有首轮分组；逐插件的证据没补；第二批入口（P5）未开始 |
 | AC-02 输入体验 | 部分 | Option 在问卷卡里（助理 `agent-question-card.ts`、Coding 同一函数，用例 `assistant-interaction-html`、`coding-question-card.e2e`）。**同排推荐没有**：D14 把下一步放在最新一轮之下，不在输入框旁；Coding 没有下一步（H4）。§3 第 2 条「与输入框平齐、横向展开」是用户特别强调的，现在归情境线的助理面板布局（跨线，见下） |
-| AC-03 交互语义 | 部分 | 操作卡不点不执行、推荐不等于选中、默认值不提交（`assistant-offers.ts`；`coding-question-card.e2e`「不预选」）。输入框目标芯片（D14 修订后的 R4：「写进问卷 / 补充这一轮」）两边都没做：本线的「写进问卷」一半与回执线 1e 的一半都未开工 |
+| AC-03 交互语义 | 部分 | 操作卡不点不执行、推荐不等于选中、默认值不提交（`assistant-offers.ts`；`coding-question-card.e2e`「不预选」）。输入框目标芯片（D14 修订后的 R4）：助理一侧本线的「写进问卷」已做——问卷有两道以上题、其中只有一道文本题时，宿主用同一份 `composerQuestion`（`assistant-inputs.ts`）判一次、在那一题上标 `draft_from_composer`（字段 id，与 D34 的 `from_composer` 互斥），芯片默认「写进问卷：<题目>」，回车只把文字接在那一栏后面、经现有的问卷草稿保存，不发给 AI、不交回，卡上的「提交回答」才交回；一下切到回执线的「补充这一轮」、再一下切回（`assistant-receipts-client`、`assistant-interaction-html`、`assistant-typed-questions.e2e`「AC-03, R4」）。Coding 还没有芯片，另片 |
 | AC-04 补充信息 | 已实现 | 助理与 Coding 的 `ask-user` 带六种题型（T1、T2），宿主逐题校验与字段旁的错误（`answerProblems` → `agent.answer_invalid` → `questionErrors`）；§15.8 示例 1 一张卡问日期时间、数字与对象引用，错一题只报那一题，改对后原 Run 接着做（`interaction-examples`，2026-10-17）；浏览器里的同一条路是 `assistant-typed-questions.e2e` |
-| AC-05 对象与材料 | 部分 | H3 与 T2：候选只按题目的种类、以会话主人的权限搜（`search.references@1`），提交前宿主向主人重读，主人此刻的标题进回答，读不到的退回（S-26，`security-invariants-object-references`）；操作卡的目标对象改版后失效（`assistant-offers.ts` 的失效巡检）。没有的：选区与会话、项目切换时的不串线用例。BL-152（D38）：每一轮按自己项目里装着、显示着的插件给种类清单，外部插件的也在内，进模型前由宿主筛（S-32，`security-invariants-reference-kinds`）；外部插件的种类能被问到、两轮顺序不变、退回内置清单（`agent-reference-questions` 的 BL-152 用例） |
+| AC-05 对象与材料 | 达成 | H3 与 T2：候选只按题目的种类、以会话主人的权限搜（`search.references@1`），提交前宿主向主人重读，主人此刻的标题进回答，读不到的退回（S-26，`security-invariants-object-references`）；操作卡的目标对象改版后失效（`assistant-offers.ts` 的失效巡检）。不串线（2026-10-18）：`tests/interaction-no-crosstalk.e2e.test.ts` 三条——问题的草稿与回答留在提问的会话里，切换会话不带过去；引用题在一个项目里只搜到、只留下这个项目的对象，切换项目不带走选择与回答，经 Coding 的接口交另一个项目的对象被宿主拒绝（S-26）且 Agent 运行时的文件一个不变；操作卡按生成时的选区执行，卡出来以后或按下按钮的那一刻改选区都不改变它做的事。写用例时查出 Coding 的回答接口不收引用题的对象（动作的 schema 收、处理器拒），已修：Coding 只核形状，限额取插件 SDK 的 `QUESTION_LIMITS`，合不合题交运行时，归属交宿主（`tests/coding-run-control-contract.test.ts` 的 AC-05 两条）。BL-152（D38）：每一轮按自己项目里装着、显示着的插件给种类清单，外部插件的也在内，进模型前由宿主筛（S-32，`security-invariants-reference-kinds`）；外部插件的种类能被问到、两轮顺序不变、退回内置清单（`agent-reference-questions` 的 BL-152 用例） |
 | AC-06 预览与结果 | 部分 | 助理操作卡有对象、参数、影响与回执（`assistant-card-view.ts`）；结果只有一行文字；下一步只有「打开结果 / 再试一次」。Coding 没有操作卡（H4） |
 | AC-07 失败恢复 | 达成 | 等待期限 24 小时（`prologue-node.ts` 的 `inputWaitTtlMs`）；草稿存在工作记录与 Coding 会话（D13、`question_drafts`）；卡片 CAS、结果未知不重试。Home 重启（BL-156，§15.9）：正常关机把等人回答的一轮停放在题上，重启后卡片可答，回答后下一轮带着答案；开轮失败时答案留在排队里并写明原因，说「继续」或点「从断点继续」再开；授权按回答那一刻（S-33）。过期与已结束的题用「请 AI 重新问」（D37）。崩溃留下的孤儿照旧由人核对或关掉（§15.9 第 7 条）。用例 `tests/interaction-parked-answer.test.ts`、`tests/prologue-start-refusal.test.ts`、`tests/coding-session-recovery.test.ts`、`tests/security-invariants-parked-answer.test.ts` |
 | AC-08 并发与输入 | 部分 | 卡片版本 CAS、问题版本核对；两个入口同时交同一题：只收一份，另一份带码退回，模型只听到一次，跑完后再交也退回（`interaction-recovery`，2026-10-17）。没有的：浏览器里两个页签同时作答的用例 |
@@ -1123,7 +1123,7 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 | AC-12 长期接入 | 部分 | D1（2026-10-17）：`skills/molis-prologue-ai/SKILL.md` 的「交互」一节、`docs/platform/PROLOGUE-AI.md` §6「问人、建议一步、引用对象」、`skills/molis-plugin-dev/SKILL.md` 的索引行、设计系统 README 的引用搜索；§15.8 示例 1 有新用例 `interaction-examples`，示例 3 是 `form-draft-questions`；示例 2 的操作卡有 `action-cards`、`agent-host-offers`。没有的：示例 2 的同排按钮（归情境线）；`generated-ai.md` 未改（它挂在创作台的 Skill 里，改它要真实模型冒烟，生成插件也没有这几条路） |
 | AC-17 共享部件 | 已实现 | `interaction-components.test.ts`、`interaction-sdk-mapping.test.ts` |
 | AC-18 共享客户端 | 已实现 | `interaction-client.e2e.test.ts` |
-| AC-19、AC-20 带类型的题进宿主 | 已实现 | C1+H1（#410）；用例 `agent-typed-questions.test.ts`（用例名里没写 AC-19/20 的编号，随下一片补上） |
+| AC-19、AC-20 带类型的题进宿主 | 已实现 | C1+H1（#410）；用例 `agent-typed-questions.test.ts`（用例名带 AC-19/AC-20 编号，2026-10-18 补上） |
 | AC-21 助理问卷卡 | 已实现 | #492；`assistant-interaction-html.test.ts` |
 | AC-22 Coding 问卷卡 | 已实现 | #496；`coding-question-card.e2e.test.ts` |
 | AC-23 操作卡协作者 | 已实现（助理） | #492；`assistant-offers.ts`（W5-10 形状） |

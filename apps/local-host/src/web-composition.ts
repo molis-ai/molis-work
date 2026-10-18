@@ -11,6 +11,7 @@ import { createLocalHostCapsule } from "./capsule.js";
 import { createLocalOnboardingHttp } from "./web-onboarding.js";
 import { createLocalPlanningHttp } from "./web-planning.js";
 import { createLocalGoalsReadHttp } from "./web-goals-read.js";
+import { registerConnectorDevicePolling } from "./connector-github-device.js";
 import { createPeriodicTasks } from "./periodic-tasks.js";
 import type { MolisWorkProjectCatalog, MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 
@@ -27,7 +28,7 @@ export interface LocalWebPlatform {
   ptyClientFilePath(): string;
 }
 
-export function createLocalWebComposition(platform: LocalWebPlatform) {
+export function createLocalWebComposition(platform: LocalWebPlatform, home: string) {
   // Shared controls draw select chevrons as inline data: SVG; images cannot run script.
   // frame-ancestors: only this origin may put a page of the host in a frame (the plugin side panels and the Studio are same-origin frames; the
   // desktop shell loads the page as the window's own document). Another site cannot overlay the page that already holds the control token
@@ -49,6 +50,8 @@ export function createLocalWebComposition(platform: LocalWebPlatform) {
     isRuntimeKind: platform.panel.isRuntimeKind, cliAvailability: platform.cliAvailability,
     isDesktopShellRequest, pageCsp: PAGE_CSP,
   });
+  const periodicTasks = createPeriodicTasks();
+  registerConnectorDevicePolling(home, periodicTasks);
   return {
     PAGE_CSP, withCatalog, workbenchRenderer, isDesktopShellRequest,
     desktopRuntimeAvailability: platform.cliAvailability,
@@ -56,7 +59,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform) {
     servePtyClient, serveWorkbenchAsset, handleArtifactNativePluginHttp,
     buildCapsuleSnapshot, renderCapsuleShell, planningHttp, goalsReadHttp, handleOnboarding,
     /** This server's periodic tasks (W4-09): registered by their owners, listed in Settings › 诊断, stopped when the server closes. */
-    periodicTasks: createPeriodicTasks(),
+    periodicTasks,
   };
 }
 export type LocalWebComposition = ReturnType<typeof createLocalWebComposition>;

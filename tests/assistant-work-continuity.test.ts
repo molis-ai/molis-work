@@ -86,7 +86,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     projectTitle: async () => "Fixture project",
     // H3's owner read, as the notes plugin would answer it: the note's label while it exists.
     readReferences: async (_projectId, picked) => picked.map(item => item.kind === "note" && notes.has(item.id) ? { label: notes.get(item.id)!.text } : null) }, "web-user");
-  return { service, store, notes, requests, project, local, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, notes, requests, project, local, async close() { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 const ref = (capability_id: string) => ({ capability_id, version: 1, provider_id: "fixture.notes" });

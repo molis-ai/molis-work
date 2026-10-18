@@ -49,7 +49,7 @@ git ls-tree -r --name-only e4bdeb12 -- .impeccable
 
 | 材料 | 现在 | 说明 |
 | --- | --- | --- |
-| `molis-work-introduction.html`（9/25 第四版介绍页） | `docs/product-intro/archive/molis-work-introduction.html` | 对外介绍的正式位置是 `docs/product-intro/`；旧介绍页只作叙事参考，`v0`、`v1` 里的链接已改过去 |
+| `molis-work-introduction.html`（9/25 第四版介绍页） | `docs/product-operations/archive/molis-work-introduction.html` | 对外介绍与运营文档统一在 `docs/product-operations/`（2026-10-18 整理）；旧介绍页与 V0–V3 归档，旧稿链接随迁移修正 |
 | `outputs/`（定位材料与商业计划） | 不入库 | `.gitignore` 的 `/outputs/`；商业材料放在仓库之外 |
 | `.zcode/`（个人工具的会话计划） | 不入库 | `.gitignore` 的 `/.zcode/`；个人工具状态不进仓库 |
 

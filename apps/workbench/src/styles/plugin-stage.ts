@@ -45,8 +45,6 @@ export const PLUGIN_STAGE_STYLES = `
   .plugin-stage-list .goal-collection-empty { margin: 0; padding: 8px 8px 12px 24px; font-size: 12px; color: var(--muted); }
   body.immersive-workbench .plugin-stage-list .goal-collection-fold .feed-stage-entry { padding-left: 24px; }
   body.immersive-workbench .plugin-stage-list .goal-collection-fold > :is(.mw-dir-row, a.mw-dir-row) { padding-left: 24px; }
-  body.immersive-workbench .plugin-stage-list .goal-collection-fold .shelf-row { padding-left: 24px; }
-  body.immersive-workbench .plugin-stage-list .goal-collection-fold .shelf-row.is-child { padding-left: 48px; }
   body.immersive-workbench .plugin-stage-list :is(.mw-dir-row.is-selected, .mw-dir-row[aria-current="page"], .directory-list-row.is-selected, .feed-stage-entry:is(.is-selected, .is-open, [aria-selected="true"])) {
     background: var(--nav-active); color: var(--ink);
   }

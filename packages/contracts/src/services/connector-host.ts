@@ -1,5 +1,8 @@
 import { defineErrorCodes } from "../platform/action-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
+export type { ConnectorCheckObservation, ConnectorCallObservation, ConnectorObservations, ConnectorConnectionStatus } from "./connector-status.js";
+export { defineConnectorUsagesAction, CONNECTOR_USAGES_INPUT_TYPE, CONNECTOR_USAGES_OUTPUT_TYPE, CONNECTOR_USAGES_INPUT_SCHEMA, CONNECTOR_USAGE_SCHEMA, CONNECTOR_USAGES_OUTPUT_SCHEMA } from "./connector-usages.js";
+export type { ConnectorUsage, ConnectorUsagesInput } from "./connector-usages.js";
 
 export const servicesConnectorHostContract = {
   contractId: "io.molis.work.service.connector-host.v1",
@@ -116,7 +119,7 @@ export interface ConnectorMethodOption {
   readonly links: readonly ConnectorSetupLink[];
   readonly mcp?: { readonly endpoint: string; readonly client_registration?: "dynamic" | "manual"; readonly note?: string };
   readonly oauth?: { readonly client_secret_required: boolean; readonly fields: readonly { key: string; label: string; placeholder?: string; required?: boolean }[]; readonly note?: string };
-  readonly cli?: { readonly binary: string; readonly installed: boolean; readonly install_url: string; readonly note?: string };
+  readonly cli?: { readonly binary: string; readonly installed: boolean; readonly install_url: string; readonly setup_available?: boolean; readonly environment_fields?: readonly { readonly name: string; readonly label: string; readonly secret: boolean }[]; readonly note?: string };
 }
 
 export interface ConnectorDirectoryEntry {
@@ -152,6 +155,7 @@ export interface ConnectorConnectionRecord {
   readonly expires_ref: string | null;
   /** Managed: the key is in the Home's secret store. External: the account lives in an official CLI. */
   readonly source: "managed" | "external";
+  readonly enabled: boolean;
   readonly disconnected_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
@@ -159,7 +163,7 @@ export interface ConnectorConnectionRecord {
 
 /** Safe for settings and plugin selectors. */
 export type ConnectorConnectionView = Pick<ConnectorConnectionRecord,
-  "connection_id" | "service_id" | "display_name" | "account_label" | "auth_method" | "source"> & {
+  "connection_id" | "service_id" | "display_name" | "account_label" | "auth_method" | "source" | "enabled"> & {
     readonly state: ConnectorConnectionState;
     readonly target_origin?: string;
     readonly mcp_endpoint?: string;

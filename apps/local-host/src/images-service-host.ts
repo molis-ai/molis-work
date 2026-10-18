@@ -79,8 +79,8 @@ export class ImagesHostService {
           const local = isLoopbackHostname(new URL(connection.base_url).hostname);
           const target = selected ? store.targetOrigin(selected.connection_id) : null;
           const available = selected
-            ? selected.service_id === "image-api" && !selected.disconnected_at && !!token && (!target || target === new URL(connection.base_url).origin)
-            : local;
+            ? selected.service_id === "image-api" && selected.enabled && !selected.disconnected_at && !!token && (!target || target === new URL(connection.base_url).origin)
+            : local && !binding;
           return { available, has_key: !!token && available, reason: available ? undefined : "所选图像连接不可用，请检查服务连接",
             revision: JSON.stringify([selected?.connection_id ?? null, selected?.updated_at ?? null, selected?.disconnected_at ?? null, token]) };
         }),
@@ -109,7 +109,7 @@ export class ImagesHostService {
       const target = store.targetOrigin(row.connection_id);
       const present = row.credential_ref && runWithMolisWorkHome(this.home, () => peekSealedEntry(row.credential_ref!));
       return { connection_id: row.connection_id, service_id: row.service_id, display_name: row.display_name, account_label: row.account_label,
-        auth_method: row.auth_method, source: row.source, state: row.disconnected_at ? "disconnected" : present ? "connected" : "reauth_required",
+        auth_method: row.auth_method, source: row.source, enabled: row.enabled, state: !row.enabled || row.disconnected_at ? "disconnected" : present ? "connected" : "reauth_required",
         ...(target ? { target_origin: target } : {}) };
     }));
   }

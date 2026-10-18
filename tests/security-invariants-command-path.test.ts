@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 
 /**
- * S-34 (docs/system/SECURITY-INVARIANTS.md): an Agent's command names a bare executable, and the Host finds it only through
+ * S-38 (docs/system/SECURITY-INVARIANTS.md): an Agent's command names a bare executable, and the Host finds it only through
  * PATH entries that are absolute and outside every authorized root. The model can write in the root, so a `.`, a relative
  * entry, the root itself or a link into it would run a file the model rewrote, not the one the person approved. The rule is
  * held in the SDK's two Hosts (Prologue #44); this asserts it against the vendored package, through the agent-host adapter.
@@ -87,14 +87,14 @@ async function approvedFakecheck(t: TestContext, path: (dirs: { project: string;
   }
 }
 
-test("S-34 a command finds its bare name in an absolute directory outside the root, past `.`, a relative entry, the root, a directory in it and a link into it", { timeout: 30_000 }, async t => {
+test("S-38 a command finds its bare name in an absolute directory outside the root, past `.`, a relative entry, the root, a directory in it and a link into it", { timeout: 30_000 }, async t => {
   // Every entry before `outside` would find a fakecheck the model can rewrite; the first one the Host kept would win.
   const sent = await approvedFakecheck(t, ({ project, outside }) => [".", "bin", project, join(project, "bin"), join(outside, "linked-bin"), outside, "/usr/bin", "/bin"].join(":"));
   assert.match(sent, /OUTSIDE/, "the command ran the fakecheck outside the root");
   assert.doesNotMatch(sent, /IN-ROOT/, "no fakecheck in the root ran");
 });
 
-test("S-34 when every PATH entry leads into the root, the command gets no PATH and nothing in the root runs", { timeout: 30_000 }, async t => {
+test("S-38 when every PATH entry leads into the root, the command gets no PATH and nothing in the root runs", { timeout: 30_000 }, async t => {
   // No entry is left, so the Host gives no PATH; an empty one would be an empty entry, and an empty entry is the root.
   const sent = await approvedFakecheck(t, ({ project, outside }) => [".", "", "bin", project, join(project, "bin"), join(outside, "linked-bin")].join(":"));
   assert.doesNotMatch(sent, /IN-ROOT/, "no fakecheck in the root ran");

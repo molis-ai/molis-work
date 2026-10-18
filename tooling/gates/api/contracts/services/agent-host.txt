@@ -346,9 +346,17 @@ export interface AgentMcpCapability {
 }
 
 export interface AgentMcpLibrary {
+    catalog?(): Promise<Array<{
+        owner: AgentSkillOwner;
+        server: AgentMcpServerView;
+    }>>;
     list(owner: AgentSkillOwner): Promise<AgentMcpServerView[]>;
     save(owner: AgentSkillOwner, input: AgentMcpServerInput): Promise<AgentMcpServerView>;
-    control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove"): Promise<void>;
+    control(owner: AgentSkillOwner, id: string, action: "connect" | "refresh" | "disconnect" | "cancel" | "remove", options?: {
+        expected_version?: number;
+        signal?: AbortSignal;
+        beforeDispatch?(): void | Promise<void>;
+    }): Promise<void>;
     validateSources(owner: AgentSkillOwner, selected: readonly AgentMcpSourceRef[]): Promise<AgentMcpSourceRef[]>;
     validate(owner: AgentSkillOwner, selected: readonly AgentMcpToolRef[]): Promise<AgentMcpToolRef[]>;
     tools?(owner: AgentSkillOwner): Promise<AgentMcpToolDescriptor[]>;
@@ -356,6 +364,8 @@ export interface AgentMcpLibrary {
     call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: {
         signal?: AbortSignal;
         beforeDispatch?(): void | Promise<void>;
+        onBusinessDispatch?(): void;
+        onBusinessResult?(outcome: "succeeded" | "failed" | "unknown"): void;
     }): Promise<AgentMcpCallResult>;
 }
 
@@ -1196,6 +1206,7 @@ export type AgentStepAmendment = {
     title: string;
     acceptance: string;
     mine?: true;
+    origin?: string;
 } | {
     kind: "unblock";
     node: string;
@@ -1233,6 +1244,7 @@ export interface AgentStepBoard {
         title?: string;
         depends_on?: string[];
         inserted?: boolean;
+        origins?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef[];
     }>;
 }
 

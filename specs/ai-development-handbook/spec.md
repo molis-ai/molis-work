@@ -1050,4 +1050,94 @@ Coding 的指令单测（同 A 的做法，10 条自编的 Coding 结尾 × 3，
   BL-159 那半句只有删字，由 tests/prologue-subagents.test.ts「(A1)」覆盖，没有单独跑真实模型。
 ```
 
+#### coding-base 不再教怎样填 ask-user 的问卷（2026-10-18）
+
+判定规则在第一次调用之前写下并经统筹确认（10-18），单独作为一笔提交；结果在下面另记。
+
+```text
+改动：plugins/native/coding/src/roles.ts 的 coding-base 升 v11，只删不加：
+  删「自由文字问题只传 why 并省略 questions；只有需要固定选项时才使用问卷，保留要求的多选与自由补充。选择题的每个选项用一句话
+  说清差别；推荐的那一项标为推荐并写理由，推荐不是替用户选；可以不答的题标为选填。」前半句「何时该问」不动。
+  宿主给 Coding 的是带类型的 ask-user（Prologue tool/core/system.ts 的 typedAskUserParameters），它的参数说明逐条写着：
+  questions "Omit to ask free text"；options[].description "How this choice differs. For the recommended one, say why"；
+  recommended "Your recommendation. It is not a choice: the person still picks"；required "Set false when the person may
+  leave it empty"。这是 A3① 记下的「问卷细则第三份」；工具的用法归工具（手册 13.1）。
+比什么：改前 v10（main 14bb4bc55），改后 v11（ai/coding-base-questionnaire efaa5d2e0）。同一个工作树、同一份 vendored SDK、
+  同一份 agent-host 构建；v10 的 coding 包构建进被忽略的 plugins/native/coding/node_modules/.eval-v10，开跑前核对版本号。
+环境：MiniMax / MiniMax-M3，anthropic-messages。每次一个进程，构建出来的 AgentHost + createPrologueNodeAdapter，适配器拿产品
+  宿主给的 hostQuestionTypes() 与 hostReferenceKinds()；Coding 的 builder 角色（coding-base + coding-builder +
+  coding-background），不带方法。不建 Home，密钥只在命令上内联读取、只交给 resolveCredential。一轮跑到模型第一次真正问出来
+  （awaiting-input）就停、不回答，5 分钟封顶；读取放行，问之前的写文件与命令一律拒绝并记下。
+任务（每次一个新的临时项目）：
+  Q1 选库：「我想让 src/config.js 也能读 YAML 配置文件。用哪个 YAML 解析库，你先给我几个候选让我选，我选好了你再动手。」
+  Q2 只能自由问：「把 scripts/deploy.sh 里的上传地址换成我们新服务器的地址。」新地址仓库里没有。
+  Q3 有一道可不答：「给项目加一个 CHANGELOG.md。动手前先问我：用 Keep a Changelog 格式还是简单的列表；第一条写哪个版本号。
+    另外维护者的联系邮箱想写的话也可以写进去，这一项我可能不填。」
+次数：三题各 8 次 × 两版，共 48 次；第 r 轮按 Q1、Q2、Q3 跑，r 为偶数先改前、奇数先改后。正式开跑前冒烟一次（Q1 改后），
+  只验脚本、不计入结果；脚本要改，开跑前交统筹。
+判定看这次运行在等的那个问题，即最后一次 ask-user 的参数（原样存进结果文件，连同首个请求里 ask-user 的工具定义与其中是否有
+  recommended）；没问出来的运行四项都算不对。判定代码在评测脚本 judge.mjs：
+  ① 选项有差别说明（Q1，程序）：至少一道选择题有两个及以上选项，每道选择题的每个选项都有非空且不同于 label 的 description。
+  ② 推荐带理由（Q1，两步都要满足）：程序判正好一个选项标 recommended: true；人判全读、不抽样，推荐项的 description、那道题
+    的 help 与整次的 why 按固定种子打乱、去掉版本号后逐条判，判完再揭盲。标准：说了为什么推荐它（适合这个项目的什么、比
+    另几个好在哪里）；只说它是什么不算。盲评表与揭盲对照放进统筹笔记夹，写明判的人。
+  ③ 选填标对（Q3，程序）：正好一道题指维护者邮箱，它的 required 是 false，其余题都不是 false。
+  ④ 该自由问时不建问卷（Q2，程序）：没有 questions 或是空列表；只放一道 type: "text" 的题也算建了问卷。
+判定：四项各自「改后 ≥ 改前 − 1」（各 8 次）就采用 v11、没有后续。有一项不满足，仍只删不加、不把句子放回角色：那一项按归属
+  记设计问题，主人是 Prologue 的 typedAskUserParameters 参数说明，先把结果交统筹再定是否开 Prologue PR、换包后再量；模型照着
+  说明仍做不到的记模型能力，不打补丁。
+照实记录、不作为条件：问出来的次数、问之前被拒的写与命令、ask-user 调用与被拒次数、Q3 选择题的选项说明、用时、模型调用数、
+  token、系统文字长度。
+出错：Provider 5xx/429、网络、超时算没对，照实列出，不挑出来重跑；任一版出错超过 2 次先把整批交统筹再判。每条没对的逐条标
+  「设计问题 / 模型能力 / 拿不准」，设计问题写清主人。
+```
+
+结果（2026-10-18，48 次，0 次出错；逐次表在统筹共享笔记 ai-handbook-coding-base-ask-results.md，② 的盲评表与揭盲对照在
+ai-handbook-coding-base-ask-blind.md，判的人是手册线会话的 Claude）：
+
+```text
+判定：采用 v11。四项各自都在界内（改后 ≥ 改前 − 1）：
+  ① 选项有差别说明（Q1）：v11 3，v10 4。
+  ② 推荐带理由（Q1，两步都满足）：v11 2，v10 3。只看程序那一步（正好一个推荐）是 v11 2、v10 4，人判又去掉 v10 一次
+    （#2 只列了它是什么）。v11 #3 是边界（「文档最多，社区默认选择」，算作和另几个比），把它算成没有理由就是 1 对 3、
+    不在界内。
+  ③ 选填标对（Q3）：v11 7，v10 7。
+  ④ 该自由问时不建问卷（Q2）：v11 0，v10 0。v10 写着「自由文字问题只传 why 并省略 questions」也是 0/8：问出来的每次都放了一
+    道 type: "text" 的题（v10 #5 另加一道选择题）。删掉那句没有改变什么。
+照实记录：
+  问出来：Q1 v11 3/8、v10 4/8；Q2 两版各 5/8；Q3 两版各 8/8。Q1 没问的（v11 5 次、v10 4 次）都在散文里列候选、给推荐和理由，
+  然后结束这一轮；v11 #7 问了，但问的是需求（运行环境、看重什么、要哪些 YAML 特性），没给候选。
+  ask-user 被拒：v10 9 次，v11 5 次。缺 why（v10 5、v11 3）、题目 id 带连字符（v10 3、v11 1）、选择题缺 options（v10 1）、
+  about 指向没读过的输入（v11 1）。同一轮连拒两次就停的：Q2 v10 #2、#7，v11 #7，都是两次都缺 why，停下后读回只写「已停止」。
+  ask-user 的工具定义里每次都有 recommended（48/48）；问之前没有写文件或跑命令（0 次被拒）。
+  用时（平均）：Q1 7.8 对 8.9 秒，Q2 5.6 对 5.6 秒，Q3 12.2 对 6.5 秒。builder 一轮的系统文字 2581 对 2688 字。
+```
+
+| 失误 | 出现在 | 分类 | 依据 | 处理 |
+| --- | --- | --- | --- | --- |
+| 人要「先给我几个候选让我选」，模型在散文里列候选、给推荐后结束这一轮，没调 ask-user | Q1：v11 5/8，v10 4/8 | 模型能力 | 删的是怎样填问卷，前半句「何时该问」和下一句「需要用户回答就调用 ask-user」都还在；两版次数相近，散文里都有推荐和理由 | 不处理 |
+| Q2 不调 ask-user，用一句话问新地址 | Q2：v11 #1、#5，v10 #0 | 模型能力 | 同上 | 不处理 |
+| 自由回答放成一道 `type: "text"` 的题，没有省略 questions | Q2：两版问出来的每一次 | 拿不准 | 带类型的 ask-user 既写「Omit to ask free text」，又有 text 题型，没说两者怎么选；v10 明说了只传 why 也是 0/8。一道 text 题对人也是一个文字框，算不算错要工具的主人定 | 交统筹：要不要请 Prologue 在说明里写清 |
+| 推荐项的说明只列它是什么，没说为什么推荐 | Q1 v10 #2（v11 #3 是边界） | 拿不准 | 两版各一次，一次看不出和删字有关 | 不处理 |
+| 问的是需求，没给候选 | Q1 v11 #7 | 拿不准 | 一次 | 不处理 |
+| 可不答的邮箱没问 | Q3 v10 #1 | 模型能力 | 人在题目里明说了这一项 | 不处理 |
+| 版本号那题也标成可不填 | Q3 v11 #2 | 拿不准 | 它在 help 里写了「留空我会用 1.0.0」，说得通 | 不处理 |
+| ask-user 缺 why | v10 5 次（3 次运行），v11 3 次（2 次运行） | 模型能力 | why 在参数里是必填，拒绝里也说了；两版各有 1 次运行下一次补上，其余连拒两次停下 | 不处理 |
+| 题目 id 写成 `yaml-lib` 这样带连字符，被拒 | v10 3 次，v11 1 次 | 设计问题（主人 Prologue） | id 的说明只写 'A short stable name to read the answer by, like "deadline"'，没写格式，校验却按格式拒；每次看了拒绝都改对了 | 交统筹，看要不要和下一条合进一个 PR |
+| 连拒两次后这一轮停下，读回只写「已停止」，人和结果文件都看不出是被拒停的 | Q2 v10 #2、#7，v11 #7 | 设计问题（主人 Molis agent-host） | 不是 Prologue 停的：`horizontal/agent-host/src/adapters/prologue-questions.ts` 的 `withInteractionRepairLimit`（18f169b15 加的）在同一工具第二次 TOOL_ARGUMENTS_INVALID 后调 `control.stop("stopped")`，不带原因；读回时 `prologue.ts` 对没有原因的停止只写「已停止」。是用假模型重放、在 SDK 的 `control.stop` 上打栈查到的 | 交统筹：Molis 这边停的时候写出原因，不进 Prologue PR |
+| about 指向没读过的输入 | Q3 v11 #4 | 模型能力 | 拒绝里说清了，下一次改对 | 不处理 |
+
+```text
+结论与未验证：按规则采用，没有要因删字而做的后续。② 在界内只靠一次边界判断（v11 #3），记在这里供复核。Q2 两版都是 0/8，
+  说明 v10 那句「只传 why 并省略 questions」本来就没起作用。只在这 3 道题、builder 这一个角色、这一个模型上成立。
+  没跑：别的角色（coordinator、writer…）、多选和「其他」选项、引用题、日期与数字题。
+  上面两条设计问题（id 的格式、被拒停下的原因）两版都会遇到，不影响这次比较，交统筹定归属后另做。
+```
+
+后续（统筹 10-18 定）：
+
+- ④：单独一道 `type: "text"` 的题，对人就是一个自由文字框，这个结果可以接受，不算错误。规则 ④ 的判定照原样记，不另改。
+- id 的格式：molis-ai/prologue#46 已合（94ee1ea4），`id` 的说明写出校验用的同一个格式，随下一次换包进 Molis。
+- 被拒停下的原因：`withInteractionRepairLimit` 停的时候交出原因（哪一种交互连续两次不合格，用人的话说），读回时显示，宿主重开后也一样；停的条件不变。用例 `tests/interaction-repair-limit.test.ts`。
+
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。

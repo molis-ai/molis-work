@@ -39,7 +39,7 @@
 Molis 侧的验证：
 - 在 main `6505378e`（#695 合入之后）上换包：`pnpm install --frozen-lockfile --offline`、`pnpm build` 通过。
 - 相关的非浏览器用例 238 个文件一次全过（`prologue-*`、`agent-*`、`assistant-*`、`coding-*`、`interaction-*`、`security-invariants-*`、创作台的非浏览器部分，`vendor-provenance`，加上 `affected-tests` 另选的）；S-13 的 `prologue-memory-boundary` 在其中，在新包上再过一次。
-- 新加 S-34（`tests/security-invariants-command-path.test.ts`，命令的 `PATH` 只用授权根之外的绝对项）：把装进来的包里 `commandEnv` 改成五种变体（不过滤、不查根、按字面比、留相对项、一项不剩时给空 `PATH`）各跑一次，每种至少红一条。
+- 新加 S-38（`tests/security-invariants-command-path.test.ts`，命令的 `PATH` 只用授权根之外的绝对项）：把装进来的包里 `commandEnv` 改成五种变体（不过滤、不查根、按字面比、留相对项、一项不剩时给空 `PATH`）各跑一次，每种至少红一条。
 - `pnpm test:security` 63/63，`pnpm test:contracts` 44/44（动作合同快照没有变化）。
 - `check-health-gates --base origin/main`、`page-assets --base origin/main`、`boundary:check`、`verify-release-versions` 都过；vendored SDK 仍是 1 份。
 - 浏览器用例交给全量，由统筹跑。

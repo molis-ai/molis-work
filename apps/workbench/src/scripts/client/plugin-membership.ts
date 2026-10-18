@@ -53,11 +53,10 @@ export const PLUGIN_MEMBERSHIP_FACTORY_SCRIPT = `(host) => {
     const buttons = [...live.querySelectorAll(':scope > .plugin-rail-ops > button')], buttonsNext = [...next.querySelectorAll(':scope > .plugin-rail-ops > button')];
     buttons.forEach((button, index) => {
       const mate = buttonsNext[index]; if (!mate) return;
-      // The pin's colour is the Dock's (this browser's choice) except Shelf's and 灵光's, which are always on; the plus's and the trash can's colour is the project's.
-      const dockOwned = button.matches('.dock-keep:not([data-resident])');
+      // The pin's colour is the Dock's (this browser's choice); the plus's and the trash can's colour is the project's.
+      const dockOwned = button.matches('.dock-keep');
       attrs(button, mate, dockOwned ? ['class', 'aria-pressed'] : ['class']);
       if (!dockOwned) button.className = mate.className;
-      if (button.matches('[data-resident]')) live.classList.toggle('is-kept', mate.getAttribute('aria-pressed') === 'true');
       const words = button.querySelector('.mw-sr-only'), wordsNext = mate.querySelector('.mw-sr-only');
       if (words && wordsNext) words.textContent = wordsNext.textContent;
     });

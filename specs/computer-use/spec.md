@@ -117,3 +117,4 @@
 - 真机不可用时不伪造：屏幕锁着、人在用或模型没配时记下时间与原因，继续不依赖真机的切片，标 blocked。
 - 2026-10-18 阶段 0：独立工作树 `feat/computer-use-wrapup-20261018` 从 origin/main `aceffff86` 起；目标用例 `tests/computer-use-act-loop.test.ts`、`tests/computer-use-reliability.test.ts`、`tests/computer-use-gaps.test.ts`、`tests/computer-use-task-done.test.ts`、`tests/assistant-tool-words.test.ts` 共 5 个文件、25 项通过。屏幕未锁，但控制台前有人（前台 Claude，刚有输入），没有启动真机走查；不锁屏、不猜密码。
 - 2026-10-18 第一个切片（CU-G07）：`apps/local-host/src/computer/computer-progress.ts` 的 `StepProgress` 记住模型看到的树与上一步；树未变化时回执附一句说明，同一 pointer/scroll/drag 连续三次无变化后第四次拒绝并记 `failed`。`ComputerDriver` 仍 288 行（阈值 300），逻辑放在新模块；未改合同。`tests/computer-use-reliability.test.ts` 4 项通过。
+- 2026-10-18 第二个切片（CU-G05）：`ROUND_TURNS` 从 24 提到 60，一轮约能容纳二十步「看 + 做」；逐工作的 token 上限照旧，轮次仍是有限值。业务网关的步数上限用例改为 60 并延长脚本，`stopInWords` 的文案用例补 60。

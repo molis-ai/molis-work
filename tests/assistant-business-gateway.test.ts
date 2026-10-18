@@ -405,14 +405,14 @@ test("a change stopped while its owner is still running: shown as not known, the
 
 test("a round that reaches its step limit stops there, keeps what it did, says so in words, and the next round goes on", { timeout: 60_000 }, async t => {
   const script: Array<(body: any) => Response> = [() => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "kept" } } })];
-  for (let i = 0; i < 40; i++) script.push(() => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }));
+  for (let i = 0; i < 70; i++) script.push(() => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }));
   const f = await fixture(t, script);
   try {
     const sent = await f.service.send({ text: "save kept, then keep counting", request_id: "req-00000026" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed", "stopped"].includes(v.work.state) ? v : undefined; }, "limit");
-    assert.match(done.rounds[0]!.stop_reason ?? "", /步数上限（24 步）.*已完成的修改都保留/);
+    assert.match(done.rounds[0]!.stop_reason ?? "", /步数上限（60 步）.*已完成的修改都保留/);
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "what it did before the limit stays");
     assert.ok(done.objects.length === 0 || done.objects.every(object => object.relation !== "result" || object.state !== "missing"));
     const again = await f.service.send({ work_id: sent.work.work_id, text: "继续", request_id: "req-00000027" }, {});

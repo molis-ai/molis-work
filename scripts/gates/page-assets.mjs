@@ -241,10 +241,10 @@ const headErrors = (measured, budget, base) => {
 // card with 「打开」 and 「撤销」; with the one new English line, the workbench script is +1,158, once. Tried: the comments ship
 // stripped; the two old fragment choices left no page code to remove; 「打开」 reuses the placement's describe and openObject
 // rather than a new path, and the card is the placement's own. The entry is for exactly one merge-base budget (main
-// 63639a764, after receipts 3e-1), capped at the measured size, and used once: the next baseline freezes again. This replaces receipts 3e-1's spent entry;
+// f28088b2b, after W3-C2), capped at the measured size, and used once: the next baseline freezes again. This replaces W3-C2's spent entry;
 // delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1111791, 1112949],
+  "/assets/molis-work-workbench.js": [1111910, 1113068],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

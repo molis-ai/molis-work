@@ -197,7 +197,8 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/form/src/browser/request.ts", import.meta.url)), "utf8"), /host\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /\.route\("\/api\/plugins\/io\.molis\.work\.form\/forms"/);
   assert.match(DATASET_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/dataset/);
-  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/ppt/);
+  // W5-01-PPT-02: the Runtime client uses its Manifest route, including the resource path.
+  assert.match(PPT_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.ppt\/ppt/);
   // RAC-31: the Runtime client targets its declared route; the HTTP discovery test rejects the removed URL.
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /\/api\/plugins\/io\.molis\.work\.lingguang\/sparks/);
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);

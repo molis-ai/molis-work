@@ -8,6 +8,8 @@ SHM 模型失败集成补正（2026-10-18）：39130898172 的灵光失败回归
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+PPT 全量路由断言补齐（2026-10-18，W5-01-PPT-02）：personal-plugins-review-fixes 中 PPT 客户端路径按现行 Manifest 固定为 /api/plugins/io.molis.work.ppt/ppt。生产实现与旧 HTTP 路径拒绝保持；同文件及真实 HTTP 错误边界/路由表三文件 34 条通过，日志 /tmp/molis-ppt-route-assertions-after.log。
+
 PPT 交接收口（2026-10-18，Codex，本地组合通过）：DSH 的现行 Runtime 候选与 root 同步 publish 点尾检已 merge 当前 Alchemist/D1/OwnerFiles/SHM/AQD 和实际 main 63639a764。请求入口同时保留 Alchemist 原调用授权并删除 PPT 旧路由。整体 offline install/build、API、动作快照、boundary、merge-base health 与资源通过；九个有效相关文件 95 条通过，覆盖发布前同步撤权、Pages 查询委托、业务动作、错误/大小限制、移动后固定、路由与动作合同。首批两个测试路径误写，实际 ppt-promote-authority 和 document-pin-after-move 已补跑14条通过。动作快照为本次新增 PPT Runtime 安装补齐 D1 三个 query，原动作合同不变；25 项资源7,479,717 B，比前置减少97 B。日志 /tmp/molis-ppt-closeout-{build,api,actions,health,boundary,assets,targeted,authority-pin}.log；先前红/绿授权回归、DSH真实Chrome与相关回归证据保留。正式 PR/CI 与共享组合全量待前置；不是整线或发布完成证明。
 
 Alchemist 交接收口（2026-10-18，Codex，本地组合通过）：既有生命周期/显式继续候选已 merge 当前 D1/OwnerFiles/SHM/AQD 与实际 main 63639a764。动作客户端冲突同时保留 query_only 的只减权传播和后台额外权限的持续核验；请求入口保留原用户授权。整体 offline install/build、API/动作快照（均无额外变化）、boundary、merge-base health 和实测资源通过；12 个直接相关文件 178 条通过，覆盖关闭排空、迟到零写、显式恢复、搜索最终效果、后台权限和查询委托。workbench 沿前置已批准 +2,231 B，Alchemist 沿原已批准 50,619→52,373 B（+1,754 B）；25 项共 7,479,814 B，未再扩大额度。日志 /tmp/molis-alchemist-closeout-{build,api,actions,health,boundary,assets,targeted}.log。前期190文件/1732条、27文件/95条和4 Chrome文件/15条证据保留；正式 PR/CI 与共享组合全量仍待队列。这里只收已完成的生命周期与恢复，Runtime 迁移和 WorkReuse 生产接入仍未做。

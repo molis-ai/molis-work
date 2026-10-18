@@ -19,7 +19,7 @@ async function archive(home: string, name: string, contents: (directory: string)
   return readFileSync(path);
 }
 
-test("S-35 ASC-07 ASC-14 ASC-22: official native bytes are checked and only the selected regular executable belongs to the managed installation", async t => {
+test("S-36 ASC-07 ASC-14 ASC-22: official native bytes are checked and only the selected regular executable belongs to the managed installation", async t => {
   const home = await openTestHome(t);
   const bytes = await archive(home.home, "good", directory => {
     mkdirSync(join(directory, "bin"));
@@ -41,7 +41,7 @@ test("S-35 ASC-07 ASC-14 ASC-22: official native bytes are checked and only the 
   }
 });
 
-test("S-35 ASC-07 ASC-14 ASC-22: HubSpot cannot prepare a managed install from a mutable release", async t => {
+test("S-36 ASC-07 ASC-14 ASC-22: HubSpot cannot prepare a managed install from a mutable release", async t => {
   const home = await openTestHome(t);
   const fetch = globalThis.fetch; t.after(() => { globalThis.fetch = fetch; });
   let reads = 0;
@@ -53,7 +53,7 @@ test("S-35 ASC-07 ASC-14 ASC-22: HubSpot cannot prepare a managed install from a
   assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
 });
 
-test("S-35 ASC-14: native archive links and off-provider redirects cannot execute or overwrite files", async t => {
+test("S-36 ASC-14: native archive links and off-provider redirects cannot execute or overwrite files", async t => {
   const home = await openTestHome(t), outside = join(home.home, "business-result"); writeFileSync(outside, "keep");
   const bytes = await archive(home.home, "linked", directory => { mkdirSync(join(directory, "bin")); symlinkSync(outside, join(directory, "bin/fixture")); });
   const fetch = globalThis.fetch; t.after(() => { globalThis.fetch = fetch; });
@@ -67,7 +67,7 @@ test("S-35 ASC-14: native archive links and off-provider redirects cannot execut
   assert.deepEqual(visited, [url]); assert.deepEqual(readdirSync(join(home.home, "runtime/connectors/installs")), []);
 });
 
-test("S-35 ASC-07 ASC-14: native CLI preparation fixes official version, asset and checksum before install and refuses malformed release metadata", async t => {
+test("S-36 ASC-07 ASC-14: native CLI preparation fixes official version, asset and checksum before install and refuses malformed release metadata", async t => {
   const home = await openTestHome(t), actions = home.host.homeActionClient();
   const fetch = globalThis.fetch; t.after(() => { globalThis.fetch = fetch; });
   const platform = process.platform === "linux" ? "linux" : "macOS", arch = process.arch === "x64" ? "amd64" : "arm64";

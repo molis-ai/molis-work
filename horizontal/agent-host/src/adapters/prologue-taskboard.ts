@@ -1,7 +1,7 @@
 import { APP_MODE_SURFACE_TOOLS, SYSTEM_TOOL_NAMES, type ExactRef, type Runtime, type PolicyRule } from "@prologue/sdk";
 import type { AgentExecutionPlan, AgentRunRef, AgentStepAmendment, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { blockId, isBlock, isPlanStep, PROJECT_STEP } from "./prologue-collaboration.js";
-import { amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace } from "./prologue-plan-steps.js";
+import { amendPlan, finished, fullId, localId, shape, stepLine, summary, type PlanPlace, type RoundLedger } from "./prologue-plan-steps.js";
 import { SUGGEST_TOOL_PREFIX } from "./prologue-action-tools.js";
 
 type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
@@ -167,10 +167,10 @@ export function createPrologueTaskBoards(runtime: Runtime, original: (run: Agent
       return shape(runtime, runtime.boards.get(place.ref), place, run.session_id, alive);
     },
     /** A person's change to the running plan (prologue-plan-steps.ts). */
-    async amend(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actor: string): Promise<AgentStepBoard> {
+    async amend(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actor: string, ledger: RoundLedger): Promise<AgentStepBoard> {
       const attempt = await original(run), place = placeOf(attempt);
       if (!place) throw new Error("这一轮没有确认计划的任务图");
-      const board = await amendPlan(runtime, place, amendment, expectedVersion, actor, attempt!.session);
+      const board = await amendPlan(runtime, place, amendment, expectedVersion, actor, attempt!.session, ledger);
       return shape(runtime, board, place, run.session_id, alive);
     },
     close() { runtime.hooks.unregister(hook); unsubscribe(); for (const id of [...following.keys()]) stopFollowing(id); },

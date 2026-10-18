@@ -19,7 +19,7 @@ async function eventually(run: () => Promise<boolean>, message: string) {
 const installations = (home: string) => join(home, "runtime", "connectors", "installs");
 
 
-test("S-35 ASC-07 ASC-14 ASC-19 ASC-22: an installed CLI keeps its own login, connects after the page leaves, survives restart and reads through the shared owner", { timeout: 60_000 }, async t => {
+test("S-36 ASC-07 ASC-14 ASC-19 ASC-22: an installed CLI keeps its own login, connects after the page leaves, survives restart and reads through the shared owner", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), source = await createCliPackageFixture(t, home.home), actions = home.host.homeActionClient();
   writeFileSync(join(home.home, ".env"), "ASC_PRIVATE_HOST_VALUE=fixture-config-must-not-load");
   const request = await actions.invoke(caller, connectorCliActions.prepare, source.input) as Setup;
@@ -66,7 +66,7 @@ test("S-35 ASC-07 ASC-14 ASC-19 ASC-22: an installed CLI keeps its own login, co
   } finally { if (previous === undefined) delete process.env.ASC_PRIVATE_HOST_VALUE; else process.env.ASC_PRIVATE_HOST_VALUE = previous; }
 });
 
-test("S-35 ASC-07 ASC-25 ASC-34: cancelling a CLI login kills its PTY and clears its candidate; a held completion waits for the latest intent", { timeout: 60_000 }, async t => {
+test("S-36 ASC-07 ASC-25 ASC-34: cancelling a CLI login kills its PTY and clears its candidate; a held completion waits for the latest intent", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), source = await createCliPackageFixture(t, home.home), actions = home.host.homeActionClient();
   const prepare = () => actions.invoke(caller, connectorCliActions.prepare, source.input) as Promise<Setup>;
   const install = (id: string) => actions.invoke(caller, connectorCliActions.install, { authorization_id: id });
@@ -90,7 +90,7 @@ test("S-35 ASC-07 ASC-25 ASC-34: cancelling a CLI login kills its PTY and clears
   assert.equal((await status(held.authorization_id)).status, "connected"); assert.equal(readdirSync(installations(home.home)).length, 1);
 });
 
-test("S-35 ASC-19 ASC-22: Host shutdown terminates its CLI login; restart keeps the installation and permits a fresh login", { timeout: 60_000 }, async t => {
+test("S-36 ASC-19 ASC-22: Host shutdown terminates its CLI login; restart keeps the installation and permits a fresh login", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), source = await createCliPackageFixture(t, home.home), actions = home.host.homeActionClient();
   const prepared = await actions.invoke(caller, connectorCliActions.prepare, source.input) as Setup;
   await actions.invoke(caller, connectorCliActions.install, { authorization_id: prepared.authorization_id });

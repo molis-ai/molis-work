@@ -37,7 +37,7 @@ async function eventually(check: () => Promise<boolean>, message: string) {
   while (!await check()) { assert.ok(Date.now() < until, message); await new Promise(resolve => setTimeout(resolve, 20)); }
 }
 
-test("S-35 ASC-07 ASC-14 ASC-19: configuring a managed Lark-family client resumes the same PTY and still requires a separate account login", { timeout: 30_000 }, async t => {
+test("S-36 ASC-07 ASC-14 ASC-19: configuring a managed Lark-family client resumes the same PTY and still requires a separate account login", { timeout: 30_000 }, async t => {
   const home = await fixture(t, "feishu", "larksuite/cli", `lark-cli-1.2.3-${process.platform}-${process.arch === "x64" ? "amd64" : process.arch}.tar.gz`, "lark-cli", `
 if(args[0]==='config'){
  if(command!=='config init --brand feishu')process.exit(9);
@@ -62,7 +62,7 @@ else if(args[0]==='calendar')process.stdout.write(JSON.stringify({events:[{title
   assert.match(JSON.stringify(await home.host.homeActionClient().invoke(caller, connectorRecordActions.read, { connection_id: (await home.status()).connection_id })), /configured agenda/);
 });
 
-test("S-35 ASC-07 ASC-14: X application credentials enter only the declared login environment and never process arguments, output or model status", { timeout: 30_000 }, async t => {
+test("S-36 ASC-07 ASC-14: X application credentials enter only the declared login environment and never process arguments, output or model status", { timeout: 30_000 }, async t => {
   const home = await fixture(t, "x", "xdevplatform/xurl", `xurl_${process.platform === "linux" ? "Linux" : "Darwin"}_${process.arch === "x64" ? "x86_64" : process.arch}.tar.gz`, "xurl", `
 if(args[0]==='auth'){
  if(process.env.CLIENT_ID!=='fixture-x-app'||process.env.CLIENT_SECRET!=='fixture-x-private-secret')process.exit(2);

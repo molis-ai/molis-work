@@ -337,7 +337,7 @@ test("MCP settings keep authorization at 401 and missing connections as safe pro
   }
 });
 
-for (const service of ["gmail", "notion"] as const) test(`S-36 ASC-19 ASC-35 ${service} cancellation and stale callbacks preserve existing credentials`, { timeout: 30_000 }, async t => {
+for (const service of ["gmail", "notion"] as const) test(`S-37 ASC-19 ASC-35 ${service} cancellation and stale callbacks preserve existing credentials`, { timeout: 30_000 }, async t => {
   const home = mkdtempSync(join(tmpdir(), `molis-${service}-cancel-`));
   const prior = { home: process.env.MOLIS_WORK_HOME, backend: process.env.MOLIS_WORK_SECRET_BACKEND };
   process.env.MOLIS_WORK_HOME = home; process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();

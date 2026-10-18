@@ -175,7 +175,7 @@ export interface PrologueRuntimePort {
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentsCapability;
   projectWork?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentProjectWorkCapability;
   messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
-  collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
+  collaboration?: import("./prologue-plan-steps.js").PlanCollaborationPort;
   /** The session's queue for the next round; absent where the runtime keeps none. */ queue?: SessionQueue;
   background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
   recovery?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecoveryCapability;
@@ -703,7 +703,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       if (later.some(view => view.frozen.execution_plan || !isEnded(view.phase))) throw agentErrors.session_busy("这一轮之后已有新的计划轮或仍在进行的一轮，它的计划图不再调整；请在最新的计划轮上调整");
       if (!current.step_board || current.step_board.terminal) throw agentErrors.session_busy("这一轮的计划图已经结束，不再调整；请调整计划后开始新一轮");
     }
-    return this.#runtime.collaboration!.revise(run, amendment, expectedVersion, actorId);
+    return this.#runtime.collaboration!.revise(run, amendment, expectedVersion, actorId, () => this.#requireRun(run.run_id).state.turns);
   }
 
   async control(run: AgentRunRef, control: AgentRunControl): Promise<void> {

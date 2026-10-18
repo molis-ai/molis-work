@@ -8,7 +8,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 const input = { kind: "npm" as const, package: "fixture-package", version: "1.2.3", bin: "fixture-command", node_version: "24.99.99" };
 const control = { beforeEffect() {} };
 
-test("S-35 ASC-14: mutable package sources and credential-bearing registries are refused before any install effect", async t => {
+test("S-36 ASC-14: mutable package sources and credential-bearing registries are refused before any install effect", async t => {
   const home = await openTestHome(t); let effects = 0;
   for (const changed of [{ version: "latest" }, { version: "^1.2.3" }, { package: "https://example.com/pkg.tgz" }, { bin: "../escape" }, { entrypoint: "../escape" }, { entrypoint: "/tmp/escape" }, { registry: "https://person:fixture-secret@example.com/" }]) {
     await assert.rejects(installManagedConnectorTool(home.home, { ...input, ...changed }, { beforeEffect() { effects++; } }));
@@ -16,7 +16,7 @@ test("S-35 ASC-14: mutable package sources and credential-bearing registries are
   assert.equal(effects, 0); assert.equal(existsSync(join(home.home, "runtime/connectors")), false);
 });
 
-test("S-35 ASC-14: runtime checksum mismatch and foreign redirect are refused before archive execution", async t => {
+test("S-36 ASC-14: runtime checksum mismatch and foreign redirect are refused before archive execution", async t => {
   for (const mode of ["checksum", "redirect"] as const) {
     const home = await openTestHome(t); const requested: string[] = [];
     const archive = `node-v24.99.99-${process.platform}-${process.arch}.tar.gz`;
@@ -34,7 +34,7 @@ test("S-35 ASC-14: runtime checksum mismatch and foreign redirect are refused be
   }
 });
 
-test("S-35 ASC-25: cancellation during a runtime download cannot unpack, execute or retain a candidate", async t => {
+test("S-36 ASC-25: cancellation during a runtime download cannot unpack, execute or retain a candidate", async t => {
   const home = await openTestHome(t), controller = new AbortController();
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let requests = 0;
@@ -46,7 +46,7 @@ test("S-35 ASC-25: cancellation during a runtime download cannot unpack, execute
   assert.deepEqual(readdirSync(join(home.home, "runtime/connectors/runtimes")).filter(name => name.startsWith("node-") || name.startsWith(".node-")), []);
 });
 
-test("S-35 ASC-17: installation and cleanup refuse symlinks or a directory without matching ownership", async t => {
+test("S-36 ASC-17: installation and cleanup refuse symlinks or a directory without matching ownership", async t => {
   const home = await openTestHome(t), outside = join(home.home, "person-owned"), marker = join(outside, "keep.txt");
   mkdirSync(outside); writeFileSync(marker, "business file"); mkdirSync(join(home.home, "runtime"), { recursive: true });
   symlinkSync(outside, join(home.home, "runtime/connectors"));

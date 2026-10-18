@@ -61,7 +61,7 @@ test("ASC-15 ASC-17 ASC-19: a failed local update preserves the working configur
   assert.equal(dispatched, false); assert.deepEqual(calls(home.home), [{ text: "old remains usable" }]);
 });
 
-test("S-35 ASC-25: revoked or cancelled local setup never commits, and disabled connections stop their actual child", async t => {
+test("S-36 ASC-25: revoked or cancelled local setup never commits, and disabled connections stop their actual child", async t => {
   const home = await openTestHome(t), plan = input(home.home);
   await assert.rejects(connectLocalMcp(home.home, plan, { beforeDispatch() { throw new ActionError("actions.forbidden", "Revoked"); } }));
   assert.equal(existsSync(join(home.home, "child-pid")), false);
@@ -79,7 +79,7 @@ test("S-35 ASC-25: revoked or cancelled local setup never commits, and disabled 
   assert.deepEqual(calls(home.home), [{ text: "hold" }]);
 });
 
-test("S-35 ASC-14: local launch rejects relative executables and loader environment injection before executing", async t => {
+test("S-36 ASC-14: local launch rejects relative executables and loader environment injection before executing", async t => {
   const home = await openTestHome(t), plan = input(home.home);
   const reserved = ["NODE_OPTIONS", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "RUBYOPT", "PERL5OPT"];
   for (const launch of [{ ...plan.launch, executable: "node" }, ...reserved.map(name => ({ ...plan.launch, environment_names: [name] }))]) {

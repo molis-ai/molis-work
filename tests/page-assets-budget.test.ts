@@ -694,3 +694,25 @@ test("W5-01 has one bounded allowance on the workbench script; other assets and 
     sizes[asset]--; putBudget(sizes);
   }
 });
+
+test("W5-01-ALC-RES08: approved continuation UI allowance cannot grow or be reused", () => {
+  const asset = "/assets/molis-work-plugins/alchemist.js";
+  branch("alchemist-res-base", () => { sizes[asset] = 50619; putBudget(sizes); });
+  git("checkout", "-q", "-B", "alchemist-res-change");
+  sizes[asset] = 52373;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 0);
+  assert.equal(gate("--base", "alchemist-res-base").code, 0);
+  sizes[asset]++;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 1);
+  sizes[asset]--;
+  sizes["/assets/a.css"]++;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 1);
+  sizes["/assets/a.css"]--;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 0);
+  commit("freeze the approved Alchemist continuation UI size");
+  git("branch", "-f", "alchemist-res-frozen");
+  sizes[asset]++;
+  putBudget(sizes);
+  assert.equal(gate("--base", "alchemist-res-frozen").code, 1);
+  assert.equal(gate("--update", "--base", "alchemist-res-frozen").code, 1);
+});

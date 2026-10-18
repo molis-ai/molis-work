@@ -14,6 +14,12 @@ interface RuntimeSettingsRow {
   updated_at: string;
 }
 
+export function defaultRuntimeSettings(workspaceId: string): RuntimeSettings {
+  return { workspaceId, provider: "none", modelId: "", modelPolicy: "auto",
+    defaultBudgets: { marketSpace: { kind: "calls", limit: 6 }, buildCost: { kind: "calls", limit: 4 } },
+    updatedAt: "1970-01-01T00:00:00.000Z" };
+}
+
 export class SqliteSettingsRepository {
   constructor(private readonly database: SqliteDatabase) {}
 

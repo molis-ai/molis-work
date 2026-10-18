@@ -1,5 +1,5 @@
 {
-  "giantUnits": 136,
+  "giantUnits": 135,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
@@ -181,11 +181,10 @@
       "methods": 26
     },
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
-    "function packages/storage/src/adapters/search-storage.ts#createSearchOpaqueBlobStore": 161,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 153,
-    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 233,
+    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
     "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
-      "lines": 381,
+      "lines": 377,
       "methods": 23
     },
     "class plugins/native/alchemist/src/studio/server/db/research-repository.ts#SqliteResearchRepository": {
@@ -255,7 +254,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 486,
+  "testInternalImports": 485,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -276,7 +275,7 @@
     "tests/agent-definitions.test.ts": 5,
     "tests/agent-studio.e2e.test.ts": 2,
     "tests/agent-workspace-none.test.ts": 2,
-    "tests/alchemist-host.test.ts": 6,
+    "tests/alchemist-host.test.ts": 5,
     "tests/alchemist-structured-output.test.ts": 2,
     "tests/announce-guard.test.ts": 1,
     "tests/artifact-document-import.test.ts": 1,

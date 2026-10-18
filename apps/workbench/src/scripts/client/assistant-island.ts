@@ -1,4 +1,4 @@
-import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT } from "./assistant-stage.js";
+import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
@@ -44,8 +44,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const side = island.querySelector("[data-assistant-side]");
   const sideToggle = island.querySelector("[data-assistant-side-toggle]");
   const sideDot = island.querySelector("[data-assistant-side-dot]");
-  const blocks = { attention: island.querySelector('[data-assistant-block="attention"]'), path: island.querySelector('[data-assistant-block="path"]'), materials: island.querySelector('[data-assistant-block="materials"]'),
-    results: island.querySelector('[data-assistant-block="results"]') };
+  const blocks = Object.fromEntries([...island.querySelectorAll("[data-assistant-block]")].map((node) => [node.dataset.assistantBlock, node]));
   const target = island.querySelector("[data-assistant-target]");
   const targetWrap = island.querySelector("[data-assistant-target-wrap]");
   const targetLabel = island.querySelector("[data-assistant-target-label]");
@@ -198,7 +197,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let activeSend = null;
 
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:L("助理暂时无法完成")});
-  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: island.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload() });
+  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: island.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
+    pact: (content, badge) => paintBlock(blocks.agreements, L("当前约定"), "list", content, badge) });
   const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
@@ -430,7 +430,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
      shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
-  const ixClient = host.interaction;
+  const ixClient = host.interaction, fills = new Map(); // fills: words from the composer into a card's draft (R4, assistant-send.ts)
   const drawn = (node, html, handlers, key = html) => {
     if (node.ixKey === key) return node.ix;
     node.ix?.destroy(); node.innerHTML = html || ""; node.ixKey = key;
@@ -438,8 +438,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node.ix;
   };
   const renderQuestion = (card, work, round, question) => {
-    const path = "/works/" + encodeURIComponent(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() });
-    let saving = 0;
+    const path = "/works/" + encodeURIComponent(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() }); let saving = 0;
     const client = drawn(card, question.html, {
       onAction: () => reaskQuestion(work, round, question),
       // A half-written answer is kept with the work, so a reload or another tab finds it.
@@ -452,6 +451,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         catch (error) { if (error.body?.details?.errors) client.showErrors(error.body.details.errors, { focus: true }); else showError(error); if (button) button.disabled = false; }
       },
     }, question.pending_id + question.pending_revision + question.answerable);
+    fills.set(question.pending_id, (field, text) => { const now = client.read()[field]; client.write({ [field]: now ? now + " " + text : text }); clearTimeout(saving); return api(path + "/question-draft", "POST", held()); });
   };
   const renderReview = (card, work, review) => {
     card.innerHTML = review.html;
@@ -485,17 +485,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       } catch (error) { showError(error); lock(false); if (hadFocus) button.focus(); }
     } });
   };
-  /* Puts children in order without moving any that already stand in place: moving a node drops the focus inside it
-     (an answer being typed, a button reached by keyboard), and a running work repaints every few seconds. */
-  const placer = (parent) => {
-    let last = null;
-    return (child) => {
-      const want = last ? last.nextElementSibling : parent.firstElementChild;
-      if (want !== child) parent.insertBefore(child, want);
-      last = child;
-      return child;
-    };
-  };
+  const placer = ${ASSISTANT_PLACER_SCRIPT};
   /** A card no round proposed: a page put it in (it names the page in from), or its round is not one of this work's. */
   const pageCard = (card) => Boolean(card.from) || !card.run_id || !(view && view.rounds.some((round) => round.run_id === card.run_id));
   // Both round cards and page cards use the same Host-drawn view without deleting chronological siblings.
@@ -628,7 +618,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           bubble.dataset.text = turn.text;
           if (kind === "assistant") { bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
         }
-        put(bubble); receipts.line(node, put, turn, round);
+        put(bubble); receipts.line(thread, node, put, turn, round);
         if (kind === "assistant") {
           const copy = keyed(node, "data-entry", "copy:" + turn.turn_id, () => {
             const btnEl = el("button", "assistant-copy", L("复制")); btnEl.type = "button";
@@ -1017,7 +1007,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     node.dataset.signature = signature;
     keepFocus(node, () => {
       const UNDO = { available: "可以撤销", undone: "已撤销", failed: "没能撤销" };
-      const made = results.map((o) => objectCard(o, "done"));
+      const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o)));
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
         title: change.title, sub: L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
         actions: change.state !== "undone" ? [sideAct(L("撤销"), change.title, async () => {
@@ -1192,7 +1182,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     controls("resume").forEach((btnEl) => { btnEl.hidden = state !== "paused"; });
     /* Stop also reaches the sub-tasks it handed out, so it stays offered while any of them still runs. */
     const liveChildren = work && view && view.delegated ? view.delegated.filter((child) => isLive(child.state)).length : 0;
-    controls("stop").forEach((btnEl) => { btnEl.hidden = !isLive(state) && !liveChildren; });
+    controls("stop").forEach((btnEl) => { btnEl.hidden = btnEl.hasAttribute("data-keep-connections") ? state !== "waiting-input" || work.executor.kind !== "assistant" : !isLive(state) && !liveChildren; });
     paintStrip();
     if (!metaEl) return;
     const characters = allowsCharacter() ? characterChoices() : null;
@@ -1395,6 +1385,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     };
     rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
     putPageCards(null);
+    receipts.after(thread, put, work && view);
     const reviews = work ? view.reviews : [];
     [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) card.remove(); });
     reviews.forEach((review) => {
@@ -1712,8 +1703,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
      the current work (opened from it, produced by it) or the person adds it with +; then the model sees it and the work
      is linked under it, otherwise neither (spec §21.5). What a page hands over brings its object along. */
   const joined = new Set();
-  const { objectKey, belongsToWork, holds, relatedWorks, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: () => Boolean(panel && !panel.hidden),
-    current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats() });
+  const { objectKey, belongsToWork, holds, relatedWorks, pickable, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: () => Boolean(panel && !panel.hidden),
+    current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats(), L });
   /** The Coding session open on the page, which a new Coding work continues instead of starting another. */
   const codingSession = () => { const ctx = pageCtx(); return ctx && ctx.object && ctx.object.kind === "coding_session" ? ctx.object.id : null; };
   const pageObject = () => {
@@ -2180,7 +2171,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   island.querySelectorAll("[data-assistant-control]").forEach((btnEl) => btnEl.addEventListener("click", async () => {
     if (!curId) return;
     btnEl.disabled = true;
-    try { view = await api("/works/" + encodeURIComponent(curId) + "/control", "POST", { kind: btnEl.dataset.assistantControl }); render(); }
+    try { view = await api("/works/" + encodeURIComponent(curId) + "/control", "POST", { kind: btnEl.dataset.assistantControl, ...(btnEl.hasAttribute("data-keep-connections") ? { keep_connections: true } : {}) }); render(); }
     catch (error) { showError(error); }
     finally { btnEl.disabled = false; poll(); }
   }));

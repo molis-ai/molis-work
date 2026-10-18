@@ -73,7 +73,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" };
   const service: AssistantService = new AssistantService(store, ports, "web-user", options.now);
-  return { service, ports, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, ports, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { service.continuations.close(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a project work finds, reads and — after the person approves the exact input — changes through the gateway, with no directory", { timeout: 60_000 }, async t => {
@@ -90,7 +90,7 @@ test("a project work finds, reads and — after the person approves the exact in
     await until(() => f.requests[0], "first model request");
     // The model saw only the gateway and root-free tools: no file, command or per-action tools.
     const offered = f.requests[0].tools.map((tool: any) => tool.name).sort();
-    assert.deepEqual(offered, ["ask-user", "change-capability", "change-reversible", "context-remaining", "find-capabilities", "read-capability", "suggest-action", "update-todo"]);
+    assert.deepEqual(offered, ["acknowledge-inputs", "ask-user", "board-wait", "change-capability", "change-reversible", "context-remaining", "find-capabilities", "read-capability", "suggest-action", "update-todo"]);
     assert.ok(JSON.stringify(f.requests[0]).includes("可用能力目录"), "the round carries the capability directory");
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     assert.equal(view.work.state, "waiting-review");
@@ -179,6 +179,32 @@ test("a repeated Send starts nothing twice; a new Send while running reaches the
     release();
     const done = await until(async () => { const v = await f.service.read(first.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(done.rounds.length, 1, "one round, one run");
+  } finally { release(); await f.close(); }
+});
+
+// specs/ai-input-receipts 3e-0: a business role may say how it handles a supplement. The runtime shows the model each
+// supplement's id only when the round lists acknowledge-inputs, and keeps what it says as the AI's claim.
+test("RCPT-362, 3e-0: the Assistant's work round is offered acknowledge-inputs, sees the supplement's id, and what it says lands on the receipt as its claim", { timeout: 60_000 }, async t => {
+  let release!: () => void, seen = "";
+  const hold = new Promise<void>(resolve => { release = resolve; });
+  const tools = (body: { tools?: Array<{ name: string }> }) => (body.tools ?? []).map(tool => tool.name);
+  const f = await fixture(t, [async () => { await hold; return reply({ name: "context-remaining", input: {} }); },
+    (body: unknown) => { seen = JSON.stringify(body).match(/steer-[0-9a-z]+-[0-9a-z]+/)?.[0] ?? "";
+      return reply({ name: "acknowledge-inputs", input: { items: [{ input: seen, treatment: "apply-now", kind: "constraint", impacts: ["constraint"], note: "不直接发邮件" }] } }); },
+    () => reply(undefined, "好的。")] as never);
+  try {
+    const first = await f.service.send({ text: "帮我约周四的客户会", request_id: "req-00000362" }, {});
+    await until(() => f.requests.length >= 1, "the first model request");
+    const more = await f.service.send({ work_id: first.work.work_id, text: "别直接发邮件给客户，我自己发", request_id: "req-00000363" }, {});
+    assert.equal(more.outcome, "steered");
+    release();
+    const done = await until(async () => { const v = await f.service.read(first.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.ok(tools(f.requests[0]).includes("acknowledge-inputs"), `RCPT-362 the business round lists it: ${tools(f.requests[0])}`);
+    const steer = done.rounds[0]!.turns.find(turn => turn.steer)?.steer;
+    assert.ok(steer, "the supplement has its receipt");
+    assert.equal(seen, steer.id, "RCPT-362 the model saw the supplement's id, as the runtime gave it");
+    assert.deepEqual([steer.model_claim?.treatment, steer.model_claim?.kind, steer.model_claim?.impacts], ["apply-now", "constraint", ["constraint"]], "RCPT-362 kept as the AI's own claim");
+    assert.equal(steer.state, "read", "the ledger's fact stays the ledger's");
   } finally { release(); await f.close(); }
 });
 
@@ -559,9 +585,11 @@ test("W2-18-JOB-02: running a card whose action starts a background job follows 
     await until(() => f.service.notices(null).some(notice => /后台完成了/.test(notice.text)), "the person is told");
     // The Assistant built again on the same Home (as after a restart) hears every job that has ended at once: still one notice.
     const again = new AssistantService(f.store, f.ports, "web-user");
-    assert.equal(await again.attachSchedule(), true);
-    await new Promise(resolve => setTimeout(resolve, 300));
-    assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
+    try {
+      assert.equal(await again.attachSchedule(), true);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
+    } finally { again.continuations.close(); }
   } finally { await f.close(); }
 });
 test("W2-18-JOB-04: a work that 500 newer works have passed still answers for the job it follows: the job is looked at to its end and the person told", { timeout: 60_000 }, async t => {
@@ -695,9 +723,9 @@ test("a suggestion whose moment has passed, or that counted days from another da
   } finally { await f.close(); }
 });
 
-// ADH-16
+// ADH-16 ASC-28 ASC-34: a completed prerequisite must not hide an unperformed next step.
 test("a round that changed nothing has its ending reviewed against its facts; one that only announced is continued once, and the person sees that it was", { timeout: 60_000 }, async t => {
-  const f = await fixture(t, [() => reply(undefined, "现在去保存这条笔记。"), () => reply(undefined, reviewAnswer(["will_do"])), () => reply(undefined, "现在就去保存。"), () => reply(undefined, "never asked")], { review: true });
+  const f = await fixture(t, [() => reply(undefined, "接入已完成。现在去保存这条笔记。"), () => reply(undefined, reviewAnswer(["will_do"])), () => reply(undefined, "现在就去保存。"), () => reply(undefined, "never asked")], { review: true });
   try {
     const sent = await f.service.send({ text: "Save a note saying hi", request_id: "req-00000031" }, {});
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
@@ -707,7 +735,7 @@ test("a round that changed nothing has its ending reviewed against its facts; on
     assert.match(JSON.stringify(review.system), /AI 助理在这一轮结束时/);
     const data = JSON.stringify(review.messages);
     assert.match(data, /不可信数据/);
-    assert.match(data, /现在去保存这条笔记/);
+    assert.match(data, /接入已完成。现在去保存这条笔记/);
     assert.match(data, /\\"tools\\":\[\]/, "the facts say no tool was called");
     // Held once: the next request carries the first ending and the Host's reason; nothing new was called, so it is not reviewed again.
     assert.equal(f.requests.length, 3);
@@ -1046,6 +1074,19 @@ test("the developer diagnostics trace a round by its exact identities and frozen
   } finally { await f.close(); }
 });
 
+test("ASC-28: malformed capability identity names the field and type before discovery or dispatch", async () => {
+  let discovered = 0, invoked = 0;
+  const client = { discover: async () => { discovered++; return []; }, invoke: async () => { invoked++; } };
+  const gateway = { client, operate: true };
+  const reference = { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" };
+  assert.match(await gatewayProblem(gateway, "change-capability", { ...reference, version: "1" }) ?? "", /version must be a JSON integer.*not the string "1"/);
+  assert.match(await gatewayProblem(gateway, "read-capability", { ...reference, capability_id: 1 }) ?? "", /capability_id must be a non-empty string/);
+  assert.match(await gatewayProblem(gateway, "change-capability", { ...reference, provider_id: null }) ?? "", /provider_id must be a non-empty string/);
+  assert.equal(discovered, 0); assert.equal(invoked, 0);
+  assert.match(await gatewayProblem(gateway, "change-capability", reference) ?? "", /No capability with that exact identity/);
+  assert.equal(discovered, 1, "a correctly typed identity reaches the existing catalog lookup");
+});
+
 test("a revision or other number written as text is passed on as written, and the refusal names the place and what was there (adoption §6.0g)", async () => {
   const schema = { type: "object", properties: { id: { type: "string" }, expected_revision: { type: "integer" }, due_date: { type: "string" },
     priority: { anyOf: [{ type: "number" }, { type: "null" }] }, done: { type: "boolean" }, code: { type: "string" },
@@ -1194,12 +1235,44 @@ test("a round declares at most 12 found capabilities per tool and 24 KiB in all,
   assert.ok(bytes <= 24 * 1024, `${bytes} bytes`);
   assert.equal(declared().at(-1), "fixture.notes.wide-11@1", "the newest stays");
   assert.ok(declared().length < 12 && declared().every(title => title.includes("wide")), "the oldest found go first");
+  // ASC-30: a re-read capability is current context even after later searches evicted its native schema.
+  await find(small[0]!.capability_id);
+  assert.equal(declared().at(-1), `${small[0]!.capability_id}@1`);
   await find("fixture.notes.huge");
   assert.ok(!declared().includes("fixture.notes.huge@1"), "a schema over 8 KiB is not declared");
   await round.executors["read-capability"]!({ args: { capability_id: "fixture.notes.huge", version: 1, provider_id: "fixture.notes", input: {} } } as never);
   assert.deepEqual(ran, ["fixture.notes.huge"], "and still runs");
   const next = prologueActionGateway({ client, operate: true } as never);
   assert.equal(next.parameterBranches("read-capability"), undefined, "a new round (or the Host after a restart) starts with none");
+});
+
+test("ASC-30: a refused call restores its exact input schema in the next real SDK request without accepting the bad value", { timeout: 60_000 }, async t => {
+  type Request = { tools: Array<{ name: string; input_schema?: { properties?: { input?: { anyOf?: Array<{ title?: string }> } } } }> };
+  const titles = (body: Request) => body.tools.find(tool => tool.name === "read-capability")?.input_schema?.properties?.input?.anyOf?.map(branch => branch.title);
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "fixture.notes.count" } }),
+    () => reply({ name: "find-capabilities", input: { query: "Wide alpha" } }),
+    () => reply({ name: "find-capabilities", input: { query: "Wide bravo" } }),
+    body => {
+      assert.ok(!titles(body)?.includes("fixture.notes.count@1"), "later large lookups evicted the old native schema");
+      return reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: "" } });
+    },
+    body => {
+      assert.ok(titles(body)?.includes("fixture.notes.count@1"), "the refusal restores the current capability's native schema");
+      return reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } });
+    },
+    () => reply(undefined, "There are no notes yet."),
+  ]);
+  const wide = ["alpha", "bravo"].flatMap(group => Array.from({ length: 8 }, (_, index): ActionDefinition => ({ ...count, capability_id: `wide.${group}.${index}`,
+    action: { ...count.action, title: `Wide ${group} ${index}`, description: `Wide ${group}`, input_schema: { type: "object", properties: { text: { type: "string", description: "x".repeat(3000) } } } } })));
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "wide", kind: "plugin", title: "Wide" }, definitions: wide,
+    handlers: wide.map(definition => ({ ...definition, handle: () => { throw new Error("discovery must not call these capabilities"); } })) });
+  try {
+    const sent = await f.service.send({ text: "How many notes are there?", request_id: "req-schema-current" }, { project_ref: f.project });
+    const done = await until(async () => { const value = await f.service.read(sent.work.work_id); return value.work.state === "completed" ? value : undefined; });
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "read").map(item => item.state), ["failed", "completed"]);
+    assert.equal(f.calls.length, 1, "the invalid value never reaches the owner");
+  } finally { await f.close(); }
 });
 
 test("a change's receipt survives micro-compaction in the next request; an older read's result is compacted (§6.0b item 5)", { timeout: 60_000 }, async t => {

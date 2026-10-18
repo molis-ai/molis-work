@@ -12,7 +12,7 @@
 export const CONTEXT_BAR_SCRIPT = String.raw`  const toolbar = makeToolbar({
     translate: L, inset: { top: 54, bottom: 100 }, width: () => (host.width ? host.width() : innerWidth),
     choose: (key) => choose(key), assistant: () => bringToAssistant(),
-    dismiss: () => bar.dismissAll(), hold: () => bar.leave(), settled: () => bar.leave(),
+    dismiss: () => bar.dismissAll(), hold: () => { bar.leave(); landing.hint(toolbar.pointed(), bar.plan); }, settled: () => bar.leave(),
   });
   const live = document.createElement("div");
   live.className = "mw-sr-only"; live.setAttribute("data-context-actions-live", ""); live.setAttribute("aria-live", "polite");

@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-17",
-    "mainHead": "24e6908352a9d2b164f62b83381b1f4cc6fc7643",
-    "statement": "2026-10-17 对上游 main 24e6908352a9d2b164f62b83381b1f4cc6fc7643（Prologue #38，含 #37 与此前各项）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。",
+    "checkedOn": "2026-10-18",
+    "mainHead": "3adc5e87e81567af59983d1e7ac411a703454167",
+    "statement": "2026-10-18 对上游 main 3adc5e87e81567af59983d1e7ac411a703454167（Prologue #49，含 #48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -47,7 +47,10 @@
       "e69b71cf91fd34b737ce8744c65bfb14d54b2686",
       "f5ef12e6085c2865133b732ebc8ec235142685e1",
       "d2b3daa3de0744504b3098a17604f5f66019a29e",
-      "24e6908352a9d2b164f62b83381b1f4cc6fc7643"
+      "24e6908352a9d2b164f62b83381b1f4cc6fc7643",
+      "b541a8e62752fce23c83f959d55e549b3086557f",
+      "94ee1ea4f48baf529b2ce624b8ee54acefb7bb7f",
+      "3adc5e87e81567af59983d1e7ac411a703454167"
     ]
   },
   "patches": [
@@ -720,6 +723,30 @@
       "gitBlob": "7801db7d40c549c4ec784c5a974dc0387e64dd21",
       "commit": "d2b3daa3de0744504b3098a17604f5f66019a29e",
       "description": "上游 main d2b3daa3（Prologue #36，MCP 参数注解与派出校验）。2026-10-17 被包含 #37 App 的等待了结步骤与 #38 每次运行自带引用种类的统一包替换；旧包及其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-app-wait-ends-step.tgz",
+      "bytes": 1195429,
+      "sha256": "cc4386e2d6edd1d6395f2c73d3cba722ac76da0855131049dd06796886ee0f0a",
+      "gitBlob": "ee08ce670869534e495f72c910b233a36160ae34",
+      "commit": "24e6908352a9d2b164f62b83381b1f4cc6fc7643",
+      "description": "上游 main 24e69083（Prologue #38，含 #37 App 的等待了结步骤）。2026-10-17 被包含 #39 交接时去掉了结步骤的等待、#40 等人回答的那一跑活过正常关机与 #41 停放的那一跑不再拖住进程的统一包替换；旧包及其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-parked-run.tgz",
+      "bytes": 1211301,
+      "sha256": "6f551e02050f85bb431aca88ac76ed67f0495b2c606e5e60b3e1c2625a9e61e2",
+      "gitBlob": "da38441c019b12a2aa7ebf768be2c4ef32d8172c",
+      "commit": "b541a8e62752fce23c83f959d55e549b3086557f",
+      "description": "上游 main b541a8e6（Prologue #41，含 #40 等人回答的那一跑活过正常关机、#39 交接时去掉了结步骤的等待）。2026-10-17 被包含 #42 派出子任务的说明、#43 搜索的说明、#44 起命令时 PATH 只留授权根之外的绝对项、#45 写后检查交回命令与 #46 提问 id 的说明的统一包替换；旧包及其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-after-write-check.tgz",
+      "bytes": 1218580,
+      "sha256": "ba2507c9e02a11c4768d0234e67f9eb8b3ee3e93b9ce4ca026e05054f5a7448d",
+      "gitBlob": "7ef7ca59ab13b45a50592874c64bf78d03df5e69",
+      "commit": "94ee1ea4f48baf529b2ce624b8ee54acefb7bb7f",
+      "description": "上游 main 94ee1ea4（Prologue #46，含 #45 写后检查交回命令、#44 起命令时 PATH 只留授权根之外的绝对项、#43、#42 与此前各项）。2026-10-18 被包含 #47（写后检查的身份交给执行器、导出认它的函数与三个资源种类）与 #48（acknowledge-inputs 只列这一轮收的目标）的统一包替换；旧包及其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

@@ -15,6 +15,8 @@ export interface AlchemistHostOptions {
   pulseSourceMode?: "live" | "fixture";
   /** How long a project's studio stays open with no action and no job before it is closed (W4-09); the next action opens it again. */
   idleReclaimMs?: number;
+  /** Called with the studio just opened. Tests hold `close` so a second action can arrive while it is still closing. */
+  wrapStudio?(runtime: AlchemistStudioRuntime): void;
 }
 interface SharedStudio { runtime: AlchemistStudioRuntime; search?: ReturnType<typeof createAlchemistSearchPort>; owners: Set<AlchemistHostService>; closing?: Promise<void>; lastUsed: number }
 const studios = new Map<string, SharedStudio>();
@@ -70,6 +72,7 @@ export class AlchemistHostService {
       } });
       const runtime = createAlchemistStudioRuntime({ databasePath: join(alchemistProjectDirectory(this.home, projectId), "studio.sqlite"),
         ai, pulseSourceMode: this.options.pulseSourceMode, pulseGithub: this.pulseGithub });
+      this.options.wrapStudio?.(runtime);
       entry = { runtime, owners: new Set(), lastUsed: Date.now() }; studios.set(key, entry); runtime.start();
     }
     entry.owners.add(this); this.entries.set(key, entry); entry.lastUsed = Date.now();
@@ -87,11 +90,13 @@ export class AlchemistHostService {
       if (!this.entries.size) { clearInterval(this.sweep); this.sweep = undefined; }
     }, Math.min(60_000, idleMs)).unref();
   }
-  /** Takes the studio out of every Host in this process that holds it and closes it, its worker and search database with it. */
+  /** Takes the studio out of every Host that would reuse it, then closes it. The process table keeps it until close finishes, so a request in that window is told to wait instead of opening another. */
   private evict(key: string, entry: SharedStudio): Promise<void> {
-    if (studios.get(key) === entry) studios.delete(key);
     for (const owner of entry.owners) owner.entries.delete(key);
-    return entry.closing ??= (async () => { try { await entry.runtime.close(); } finally { await entry.search?.shutdown(); } })();
+    return entry.closing ??= (async () => {
+      try { await entry.runtime.close(); }
+      finally { try { await entry.search?.shutdown(); } finally { if (studios.get(key) === entry) studios.delete(key); } }
+    })();
   }
   /**
    * The project is deleted: its studio is evicted from every Host in this process that holds it, closed (its worker and

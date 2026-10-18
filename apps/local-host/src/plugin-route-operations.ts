@@ -5,6 +5,7 @@ import type { PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
+import { answerPluginRouteStream } from "./plugin-route-stream.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /**
@@ -25,7 +26,10 @@ export interface RuntimePluginRouteHooks {
 export interface RuntimePluginRouteControls {
   granted?: readonly string[];
   execution?: PluginExecutionControl;
-  readBody?(request: IncomingMessage): Promise<unknown>;
+  /** `maxBytes` is the route's declared `max_body_bytes`, when it declares one. */
+  readBody?(request: IncomingMessage, maxBytes: number | undefined): Promise<unknown>;
+  /** Ends this call (its `execution.signal`): a streamed route uses it when the plugin stops or its progress overflows. */
+  stop?(): void;
 }
 
 /**
@@ -76,7 +80,7 @@ export async function dispatchRuntimePluginRoute(
   await hooks.beforeDispatch?.(router);
   let body: unknown;
   if (!["GET", "HEAD"].includes(request.method ?? "GET")) {
-    try { body = await (controls.readBody ?? (request => readLocalWebBody(request, match.max_body_bytes ?? undefined)))(request); }
+    try { body = await (controls.readBody ?? ((request, maxBytes) => readLocalWebBody(request, maxBytes)))(request, match.max_body_bytes ?? undefined); }
     catch (error) {
       if (!(error instanceof ActionError)) throw error;
       const refusal = actionErrorResponse(error);
@@ -84,10 +88,15 @@ export async function dispatchRuntimePluginRoute(
       return true;
     }
   }
-  const result = await router.dispatch({
-    method: request.method ?? "GET", pathname: url.pathname, actor_id: actorId,
-    query: Object.fromEntries(url.searchParams), body, granted: controls.granted, execution: controls.execution,
-  });
+  const input = { method: request.method ?? "GET", pathname: url.pathname, actor_id: actorId,
+    query: Object.fromEntries(url.searchParams), body, granted: controls.granted, execution: controls.execution };
+  const stop = () => controls.stop?.();
+  if (match.stream) return answerPluginRouteStream(response, async emit => {
+    const result = await router.dispatch({ ...input, emit, stopped: stop });
+    if (result) await hooks.afterDispatch?.(result);
+    return result;
+  }, stop);
+  const result = await router.dispatch(input);
   if (!result) return false;
   await hooks.afterDispatch?.(result);
   sendLocalWebJson(response, result.status, withPluginInteraction(result.body));

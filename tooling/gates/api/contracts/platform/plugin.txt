@@ -489,6 +489,10 @@ export interface ActionIntake extends DestinationDeclaration {
     readonly multiple?: boolean;
 }
 
+export interface ActionInvokeTransport {
+    readonly on_progress?: (event: ActionProgressEvent) => void;
+}
+
 export interface ActionMetadata {
     readonly title: string;
     readonly description: string;
@@ -545,6 +549,8 @@ export interface ActionMetadata {
         readonly input: Readonly<Record<string, string | readonly [string]>>;
     };
 }
+
+export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
 
 export interface ActionProvider {
     readonly provider_id: string;
@@ -903,11 +909,11 @@ export interface ArtifactReferrersResult {
     referrers: ArtifactReferrer[];
 }
 
-export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining"];
+export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
-    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">): Promise<Output>;
+    invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
@@ -2197,6 +2203,10 @@ export interface IntegrationProviderItem {
 export interface IntegrationProviderPort {
     readonly type: string;
     health(): Promise<{
+        account?: {
+            login: string;
+            account_id?: string;
+        };
         ok: boolean;
         status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
         message: string;
@@ -2227,7 +2237,7 @@ export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
 
-export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining"];
+export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export declare const PERSONAL_SPACE_PROJECT_ID = "personal";
 
@@ -2794,6 +2804,7 @@ export interface PluginManifest {
         signature: string;
     };
     host_api_version: 1 | 2;
+    always_on?: boolean;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
     capabilities: {
@@ -2865,6 +2876,7 @@ export interface PluginModelClient {
 
 export interface PluginModelRequest {
     readonly signal?: AbortSignal;
+    readonly onText?: (delta: string) => void;
     readonly system?: InstructionPrompt;
     readonly output?: "text" | "json";
     readonly timeout_ms?: number;
@@ -3031,6 +3043,7 @@ export interface PluginRouteDeclaration {
     path: string;
     permission?: string;
     max_body_bytes?: number;
+    stream?: "ndjson";
 }
 
 export type PluginRouteMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -3043,6 +3056,7 @@ export interface PluginRouteRequest {
     body: unknown;
     actor_id: string;
     execution?: PluginExecutionControl;
+    emit?(event: import("@molis-ai/molis-work-contracts/platform/actions").ActionProgressEvent): void;
 }
 
 export interface PluginRouteResponse {
@@ -3053,6 +3067,20 @@ export interface PluginRouteResponse {
     filename?: string;
     mime?: string;
 }
+
+export type PluginRouteStreamLine = ({
+    type: "progress";
+} & import("@molis-ai/molis-work-contracts/platform/actions").ActionProgressEvent) | {
+    type: "result";
+    result: unknown;
+} | {
+    type: "error";
+    status: number;
+    code: string;
+    error: string;
+    call_id?: string;
+    details?: Readonly<Record<string, unknown>>;
+};
 
 export interface PluginRuntimeApi {
     register(definition: PluginDefinition): void;

@@ -306,8 +306,9 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a method with a name over 80 characters", manifest: declarationManifest({ methods: [method({ name: "n".repeat(81) })] }), expected: "方法 summarize 需要名称（80 字以内）" },
   { rule: "a method without a summary", manifest: declarationManifest({ methods: [method({ summary: "" })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
   { rule: "a method with a summary over 300 characters", manifest: declarationManifest({ methods: [method({ summary: "s".repeat(301) })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
-  { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining" },
-  { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining" },
+  { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
+  { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
+  { rule: "ASC-19: a business method can declare persistent waiting", manifest: declarationManifest({ methods: [method({ tools: ["board-wait"] })] }), expected: "" },
   // views and commands
   { rule: "conforming views and commands", manifest: declarationManifest({ ui: uiOf() }), expected: "" },
   { rule: "views that are not a list", manifest: declarationManifest({ ui: uiOf({ views: {}, commands: undefined }) }), expected: "ui.views 必须为数组" },
@@ -331,10 +332,10 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a route path that climbs out", manifest: declarationManifest({ routes: [route({ path: "/../items" })] }), expected: "路由 example.list 的路径不合法" },
   { rule: "a route path twice under another id", manifest: declarationManifest({ routes: [route(), route({ route_id: "example.again" })] }), expected: "路由路径重复：GET /items" },
   { rule: "a route permission the Manifest never declared", manifest: declarationManifest({ routes: [route({ permission: "storage:private" })] }), expected: "路由 example.list 要求未声明的权限 storage:private" },
-  // W4-04: a route may ask the Host to read a larger body, up to the Home edge's 12 MiB.
-  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 12 * 1024 * 1024 })] }), expected: "" },
-  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 12 * 1024 * 1024 + 1 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 12582912 字节）" },
-  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 12582912 字节）" },
+  // RAC-21 / W5-01-STREAM-02: only explicitly declared limits may reach 36,000,000 bytes (user decision 2026-10-17).
+  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 36_000_000 })] }), expected: "" },
+  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 36_000_001 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 36000000 字节）" },
+  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 36000000 字节）" },
   // required capabilities
   { rule: "a conforming requirement", manifest: declarationManifest({ capabilities: { provides: [], consumes: ["projects.read.v1"] }, requires: [requirement()] }), expected: "" },
   { rule: "a requirement without a capability id", manifest: declarationManifest({ requires: [requirement({ capability_id: undefined })] }), expected: "依赖缺少 Capability ID" },
@@ -365,7 +366,7 @@ for (const { rule, manifest, expected } of MANIFEST_RULES) {
 
 const reader = { role_id: "reader", version: 1, name: "Reader" };
 const readerPrompt = { prompt_id: "reader", version: 1 };
-const BUSINESS_TOOLS = "ask-user、update-todo、find-tools、context-remaining";
+const BUSINESS_TOOLS = "ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs";
 const TASK_DELEGATE = { role_id: "child", version: 1, name: "Child" };
 
 /** An Agent block that satisfies every rule, with `over` laid over it. */
@@ -396,6 +397,7 @@ const AGENT_RULES: ReadonlyArray<{ rule: string; agent: Part; ports?: Part; expe
   { rule: "a business role with a tool outside the business set", agent: roleOf({ workspace: "business", host_tools: ["write"] }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
   { rule: "a business role that dispatches sub-tasks", agent: withChild({}, { roles: [{ ...reader, workspace: "business" }] }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
   { rule: "a conforming operating business role", agent: roleOf({ workspace: "business", execution: "operate", host_tools: ["ask-user"] }), expected: "" },
+  { rule: "ASC-19: a business role can declare persistent waiting", agent: roleOf({ workspace: "business", execution: "operate", host_tools: ["board-wait"] }), expected: "" },
   { rule: "operate outside a business role", agent: roleOf({ execution: "operate" }), expected: "Agent 角色 reader 的 operate 执行方式只用于业务角色" },
   { rule: "a no-workspace role that writes", agent: roleOf({ workspace: "none", execution: "text-edit" }), expected: "无工作区角色 reader 必须为不使用工具或子任务的只读推理" },
   { rule: "a no-workspace role with tools", agent: roleOf({ workspace: "none", host_tools: ["read-file"] }), expected: "无工作区角色 reader 必须为不使用工具或子任务的只读推理" },

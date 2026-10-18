@@ -109,15 +109,17 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     await until(() => schedule.find(staleKey)?.state === "failed", "the queue gave up");
     unhandled();
     const service2 = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
-    await service2.attachSchedule();
-    assert.equal(service2.followUps.list(sent.work.work_id).find(item => item.followup_id === orphan.followup_id)!.last?.outcome, "missed");
+    try {
+      await service2.attachSchedule();
+      assert.equal(service2.followUps.list(sent.work.work_id).find(item => item.followup_id === orphan.followup_id)!.last?.outcome, "missed");
+    } finally { service2.continuations.close(); }
 
     // Cancelling takes it out of the queue.
     const standing = service.followUps.list(sent.work.work_id).find(item => item.followup_id === after.followup_id)!;
     await service.followUps.remove(standing.followup_id);
     assert.equal(schedule.find(`fu-${standing.followup_id}-${Date.parse(standing.next_at!)}`)?.state, "cancelled");
     assert.equal(service.followUps.list(sent.work.work_id).some(item => item.followup_id === standing.followup_id), false);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a daily time keeps the person's wall-clock time across a daylight-saving change", () => {
@@ -180,5 +182,5 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
     await new Promise(resolve => setTimeout(resolve, 1800));
     assert.equal((await service.read(workId)).rounds.length, 2, "no timed round ran for the archived work");
     assert.equal(requests.length, 2);
-  } finally { hold = null; release?.(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { hold = null; release?.(); service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

@@ -1,8 +1,8 @@
-import { ActionError, FRAGMENT_ANY_OBJECT, PERSONAL_SPACE_PROJECT_ID, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, FRAGMENT_ANY_OBJECT, PERSONAL_SPACE_PROJECT_ID, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, localDate } from "./dates.js";
 import { todoCallerProject } from "./caller.js";
-import type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoStore } from "./store.js";
+import type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoStores } from "./store.js";
 import { selectView, todoFlags, viewCounts, type TodoFlag } from "./views.js";
 import { createTodoSearchHandlers, todoSearchActions } from "./search.js";
 import { createTodoHomeEventsHandler, todoHomeEventsAction } from "./home-events.js";
@@ -160,8 +160,7 @@ export function prepareTodoFragmentOffers(input: FragmentOffersInput): FragmentA
 }
 export const TODO_ACTION_PERMISSIONS = [...new Set(TODO_ACTIONS.flatMap(definition => definition.action.permissions))];
 
-export interface TodoActionPorts {
-  withStore<T>(run: (store: TodoStore) => T): T;
+export interface TodoActionPorts extends TodoStores {
   /** Today in the person's time zone; tests pin it. */
   today?(): string;
   /** The current instant, for reminders; tests pin it. */
@@ -179,11 +178,12 @@ export function todoAccess(caller: ActionCallContext, everything = false): TodoA
 
 export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerBinding[] {
   const today = (value?: string) => value && isTodoDate(value) ? value : ports.today?.() ?? localDate();
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version, execution: "sync", handle: (caller, input) => handle(input as I, caller),
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
+    capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller),
   });
+  const { read, write } = ports;
   return [
-    bind(todoActions.list, (input, caller) => ports.withStore(store => {
+    bind(todoActions.list, (input, caller) => read(store => {
       const access = todoAccess(caller, input.all_projects === true);
       const day = today(input.today);
       const query = input.query?.trim().toLocaleLowerCase() ?? "";
@@ -197,34 +197,34 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
       return { today: day, project_id: todoCallerProject(caller), everything: access.everything, counts,
         items: selected.map(entry => ({ ...entry, flags: todoFlags(entry, day) })) };
     })),
-    bind(todoActions.get, (input, caller) => ports.withStore(store => {
+    bind(todoActions.get, (input, caller) => read(store => {
       const access = todoAccess(caller, caller.audience === "user");
       const entry = store.get(input.id, access);
       return { item: entry, flags: todoFlags(entry, today()), history: store.history(input.id, access),
         backlinks: store.backlinks(input.id, access).map(({ item: other, link: back }) => ({ item_id: other.id, title: other.title, relation: back.relation })) };
     })),
     bind(todoActions.fragmentOffers, input => ({ offers: prepareTodoFragmentOffers(input) })),
-    bind(todoActions.create, (input, caller) => ports.withStore(store => store.create(input, todoAccess(caller)))),
-    bind(todoActions.update, (input, caller) => ports.withStore(store => {
+    bind(todoActions.create, (input, caller) => write(caller, store => store.create(input, todoAccess(caller)))),
+    bind(todoActions.update, (input, caller) => write(caller, store => {
       const { id: target, expected_revision, ...patch } = input;
       return store.update(target, patch, expected_revision, todoAccess(caller, caller.audience === "user"));
     })),
-    bind(todoActions.status, (input, caller) => ports.withStore(store => store.setStatus(input.id, input.status, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.archive, (input, caller) => ports.withStore(store => store.setArchived(input.id, input.archived, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.remove, (input, caller) => ports.withStore(store => {
+    bind(todoActions.status, (input, caller) => write(caller, store => store.setStatus(input.id, input.status, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.archive, (input, caller) => write(caller, store => store.setArchived(input.id, input.archived, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.remove, (input, caller) => write(caller, store => {
       store.delete(input.id, input.expected_revision, todoAccess(caller, caller.audience === "user"));
       return { deleted: true as const, id: input.id };
     })),
-    bind(todoActions.batch, (input, caller) => ports.withStore(store => store.batch(input.ids, input.change, input.expected_revisions, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.revert, (input, caller) => ports.withStore(store => store.revert(input, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.link, (input, caller) => ports.withStore(store => store.link(input.id, { add: input.add, remove_link_id: input.remove_link_id }, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.dueReminders, (_input, caller) => ports.withStore(store => ({
+    bind(todoActions.batch, (input, caller) => write(caller, store => store.batch(input.ids, input.change, input.expected_revisions, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.revert, (input, caller) => write(caller, store => store.revert(input, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.link, (input, caller) => write(caller, store => store.link(input.id, { add: input.add, remove_link_id: input.remove_link_id }, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.dueReminders, (_input, caller) => read(store => ({
       reminders: store.dueReminders(todoAccess(caller, caller.audience === "user"), ports.now?.()) }))),
-    bind(todoActions.acknowledgeReminder, (input, caller) => ports.withStore(store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, caller.audience === "user")) }))),
+    bind(todoActions.acknowledgeReminder, (input, caller) => write(caller, store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, caller.audience === "user")) }))),
     bind(todoActions.dueWindow, (input, caller) => {
       assertDueReminderWindow(input);
       // The person's own reminders from every project and the personal space: reminders are for them, wherever the todo sits.
-      return ports.withStore(store => ({ source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办" },
+      return read(store => ({ source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办" },
         reminders: store.list(todoAccess(caller, true))
           .filter(item => item.remind_at && item.reminder_acknowledged_at === null && item.archived_at === null
             && ["open", "doing", "waiting"].includes(item.status) && withinDueReminderWindow(item.remind_at, input))
@@ -233,7 +233,7 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
             subject: { kind: TODO_SUBJECT_KIND, id: item.id }, project_id: item.placement === "project" ? item.project_id : null,
             open: { surface: TODO_PROJECT_PLUGIN_ID, id: item.id } })) }));
     }),
-    bindHomeObjectMoveHandler(todoActions.move, (input, caller) => ports.withStore(store => {
+    bindHomeObjectMoveHandler(todoActions.move, (input, caller) => write(caller, store => {
       if (input.subject.kind !== TODO_SUBJECT_KIND) throw new ActionError("actions.input_invalid", "这里只能移动待办");
       // The person, across projects: the placement service calls at Home with their own authority.
       const access = todoAccess(caller, true);
@@ -244,9 +244,9 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
       const { item } = store.move(current.id, to, access);
       return { subject: { kind: TODO_SUBJECT_KIND, id: item.id }, project_id: item.project_id ?? PERSONAL_SPACE_PROJECT_ID, revision: String(item.revision) };
     })),
-    createTodoHomeEventsHandler(ports.withStore, ports.now),
-    ...createTodoOrganizeHandlers({ withStore: ports.withStore, today: ports.today, completeText: ports.completeText, access: todoAccess,
+    createTodoHomeEventsHandler(read, ports.now),
+    ...createTodoOrganizeHandlers({ read, write, today: ports.today, completeText: ports.completeText, access: todoAccess,
       modelAvailability: () => ports.modelAvailability?.() ?? (ports.completeText ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" }) }),
-    ...createTodoSearchHandlers(ports.withStore),
+    ...createTodoSearchHandlers(read),
   ];
 }

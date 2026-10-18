@@ -42,14 +42,12 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
   "alchemist", "artifacts", "cognia", "dataset", "feed", "goals", "images",
   "inbox", "jelly", "lingguang", "pages", "plugin-builder", "ppt", "schedule", "sessions", "workflows",
-  // PR #98 (system assistant) adds Todo on the build-time path; listed so it can land, then migrate.
-  "todo",
 ]);
 
-/** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today, plus Todo from PR #98. */
+/** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
   "alchemist", "artifact", "cognia", "dataset", "feed", "images", "inbox", "jelly",
-  "lingguang", "pages", "personal", "ppt", "schedule", "shelf", "todo", "workflows",
+  "lingguang", "pages", "personal", "ppt", "schedule", "shelf", "workflows",
 ]);
 
 test("every built-in catalog entry is either Runtime-assembled or on the frozen build-time list", () => {

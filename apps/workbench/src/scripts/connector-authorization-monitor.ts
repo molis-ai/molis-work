@@ -1,8 +1,8 @@
 /** DOM-independent state controller, also serialized into the settings client. */
 export function createConnectorAuthorizationMonitor(ports: {
-  read(): Promise<"pending" | "connected" | "cancelled" | "failed" | "expired">;
+  read(): Promise<"prepared" | "pending" | "connected" | "cancelled" | "failed" | "expired">;
   connected(): Promise<void>;
-  ended(status: "cancelled" | "failed" | "expired"): void;
+  ended(status: "prepared" | "cancelled" | "failed" | "expired"): void;
   refreshFailed(error: unknown): void;
   alive(): boolean;
   expires: number;

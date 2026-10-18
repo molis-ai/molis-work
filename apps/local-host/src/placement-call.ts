@@ -27,5 +27,16 @@ export function placementCallPorts(ports: PlacementPorts, origin: ActionExecutio
         },
       } };
     },
+    // The plugin has already moved the object. Putting it back does not ask the call that is being refused; the location edge still does.
+    revert: async projectId => {
+      if (!alive()) throw new ActionError("actions.expired", "原放置服务已关闭");
+      const { client, caller } = await ports.scope(projectId);
+      return { client, caller: { ...caller,
+        validate_authority: async reference => { await caller.validate_authority?.(reference); },
+        assert_authority_current: (reference, permissions) => {
+          requireSynchronous(caller.assert_authority_current?.(reference, permissions), "最终授权检查必须同步完成");
+        },
+      } };
+    },
   };
 }

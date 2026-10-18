@@ -4,10 +4,11 @@ import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-h
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { composeAgentHost, workspaceRefFor, type AgentHostCompositionOptions } from "./agent-host-composition.js";
 import { hostQuestionTypes, hostReferenceKinds } from "./agent-question-surfaces.js";
+import { referenceKindsPort } from "./agent-reference-kinds.js";
 import { createAgentConnectorPorts } from "./agent-connector-ports.js";
 import { openConfiguredModels } from "./configured-models.js";
 import { bindPrologueInference, bindPrologueBuilder } from "./prologue-inference-host.js";
-import type { MolisWorkLocalHost } from "./project-host.js";
+import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { ModelProviderStore } from "./model-provider-store.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
@@ -36,6 +37,13 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     const connectors = createAgentConnectorPorts(storageHome);
     const service = composeAgentHost({
       localHost, homeDirectory: storageHome,
+      projectReference: async projectId => {
+        if (!owner.withCatalog) throw new Error("项目连接目录尚未装配");
+        return owner.withCatalog({ homeDirectory: storageHome }, catalog => {
+          const project = catalog.getProject(projectId);
+          return molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+        });
+      },
       prompts: agentDefinitionsFor(storageHome, builtinRegistrations),
       authorizeWriterDirectory: async (projectId, canonicalPath) => {
         if (!owner.withCatalog) throw new Error("项目目录授权服务尚未装配");
@@ -53,6 +61,8 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         questionTypes: hostQuestionTypes(),
         // The kinds a reference question may ask for, so the model names one the person can find (T2, AC-28-1).
         referenceKinds: hostReferenceKinds(),
+        // Each round's own: the kinds of the plugins installed and shown in its project, external ones too (BL-152).
+        referenceKindsFor: referenceKindsPort(localHost, storageHome, () => owner.withCatalog),
         // A picked object goes on only while its owner still hands it to the local person, read through search, under its label now (S-26).
         readReferences: async (sessionOwner, picked, kinds) => sessionOwner.actor_id === LOCAL_PERSON_ACTOR_ID && localHost.search
           ? localHost.search.readReferences(sessionOwner.project_id, picked, kinds) : picked.map(() => null),
@@ -63,7 +73,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
           siteDecisions: () => browserSurfacesFor(localHost)?.siteDecisions() ?? [],
           desktop: () => computerSurfacesFor(localHost)?.desktop() ?? null,
         },
-        resolveMcpConnection: connectors.resolveMcpConnection,
+        resolveMcpConnection: connectors.resolveMcpConnection, saveMcpConnection: connectors.saveMcpConnection,
         subscribeMcpConnections: connectors.subscribeMcpConnections,
         modelConfiguration: selection => models(store => prologueModelConfiguration(store?.resolveConfiguration(selection) ?? null)),
         resolveCredential: ref => models(store => {

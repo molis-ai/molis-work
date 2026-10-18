@@ -19,9 +19,9 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   await evaluate(`(() => { window.todoFetch = window.fetch; window.todoWrites = []; window.todoFailures = []; window.todoErrors = []; window.todoMode = '500';
     addEventListener('unhandledrejection', event => window.todoErrors.push(String(event.reason)));
     window.fetch = async (url, options) => {
-      if (options?.method === 'POST' && String(url).includes('/api/todo')) {
+      if (options?.method === 'POST' && String(url).includes('/api/plugins/io.molis.work.todo/')) {
         window.todoWrites.push({ url: String(url), body: JSON.parse(options.body || '{}') });
-        if (String(url).endsWith('/api/todo/' + ${JSON.stringify(first!.id)})) {
+        if (String(url).endsWith('/items/' + ${JSON.stringify(first!.id)})) {
           if (window.todoMode === 'network') { window.todoFailures.push('network'); throw new TypeError('fixture offline'); }
           if (window.todoMode === '500') { window.todoFailures.push('500'); return new Response(JSON.stringify({ error: 'fixture save refused' }), { status: 500, headers: { 'content-type': 'application/json' } }); }
           const response = await window.todoFetch(url, options);
@@ -52,7 +52,7 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
     await waitFor(`window.todoWrites.length > ${before} && !document.querySelector('[data-todo-save-status]').textContent.includes('保存中')`);
     assert.deepEqual(await fields(), retained, operation);
     assert.equal(await evaluate("document.querySelector('[data-todo-stage-workspace]').hidden"), false, operation);
-    assert.equal(await evaluate(`window.todoWrites.every(row => row.url.endsWith('/api/todo/' + ${JSON.stringify(first!.id)}))`), true, operation);
+    assert.equal(await evaluate(`window.todoWrites.every(row => row.url.endsWith('/items/' + ${JSON.stringify(first!.id)}))`), true, operation);
   }
   const failed = openTodoStore(homeDirectory);
   try { assert.deepEqual([failed.get(first!.id, access).title, failed.get(first!.id, access).notes, failed.get(first!.id, access).revision], [first!.title, first!.notes, first!.revision]); } finally { failed.close(); }
@@ -102,7 +102,7 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   assert.deepEqual(await evaluate("window.todoErrors"), []);
   // Explicit delete waits for the already-dispatched save to settle, even when that save fails.
   await evaluate(`(() => { window.deleteOrder = []; window.fetch = async (url, options) => {
-    if (options?.method === 'POST' && String(url).endsWith('/api/todo/' + ${JSON.stringify(first!.id)})) {
+    if (options?.method === 'POST' && String(url).endsWith('/items/' + ${JSON.stringify(first!.id)})) {
       window.deleteOrder.push('save-start'); await new Promise(resolve => { window.deleteSaveRelease = resolve; });
       window.deleteOrder.push('save-end'); return new Response(JSON.stringify({ error: 'fixture pending save failed' }), { status: 500, headers: { 'content-type': 'application/json' } });
     }

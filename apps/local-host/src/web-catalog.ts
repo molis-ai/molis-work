@@ -1,4 +1,5 @@
 import { handleSearchHttp } from "./search-http.js";
+import { connectorSettingsView } from "./web-connector-settings.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -15,8 +16,6 @@ import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
 import { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
 import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
-import { TODO_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-todo";
-import { handleTodoNativePluginHttp } from "./todo-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -51,10 +50,9 @@ import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
 import { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
 import { handleConnectorConnectionsHttp } from "./web-connector-connections.js";
 import { handleConnectorMethodsHttp } from "./web-connector-methods.js";
-import { listConnectorConnectionViews } from "./web-connector-connections.js";
+import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { selectedTypeSafeConnection } from "./typesafe-connection.js";
-import { listConnectorSettingsCards } from "./connector-directory.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
 import { codingBackgroundTasks } from "./coding-background-tasks.js";
@@ -136,9 +134,6 @@ export async function handleLocalCatalogWebRequest(
   })) return;
   if (serverOptions.homeDirectory && await handleJellyNativePluginHttp(request, response, url, transport =>
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS, ...transport })))) return;
-  // Without a project the person reaches personal and unplaced todos only.
-  if (serverOptions.homeDirectory && await handleTodoNativePluginHttp(request, response, url, transport =>
-    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: TODO_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handleCogniaNativePluginHttp(request, response, url, transport =>
     bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {
@@ -239,9 +234,7 @@ export async function handleLocalCatalogWebRequest(
       hidden_plugins: membership.hidden,
       runtimes,
       mcp_access,
-      connectors: section === "connectors" ? listConnectorSettingsCards() : [],
-      connector_connections: section === "connectors" && serverOptions.homeDirectory
-        ? listConnectorConnectionViews(serverOptions.homeDirectory) : [],
+      ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url) : {}),
       projects,
       web_service: await webService.detect(),
       diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
@@ -327,8 +320,8 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
+  if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory, localHost.connectorMcp?.remember, bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost)) return;
-  if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;

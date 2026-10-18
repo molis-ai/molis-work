@@ -147,6 +147,7 @@ Cognia 同时保留已登记的知识角色与回答指令：角色作为共享�
 - **发出前和返回后各问一次**：实例仍在运行、安装仍持有 `model:invoke`、这次调用的 `beforeEffect()` 通过，才发出；模型返回后再问一遍，才把结果交给插件。动作已经返回的调用得到 `actions.expired`（定时器里迟到的调用就是这样被挡下的），取消、撤权、停用的调用拿不到结果。插件写入前仍要自己 `await caller.beforeEffect()`，按读取时的版本提交。
 - **只收自己登记的指令**：`complete(instructed(指令, 数据), { system?, output?, timeout_ms?, max_output_tokens? })`。`owner_id` 必须是本插件（`system` 也是），裸字符串、别人的指令、没登记的指令以 `plugin.model_instruction_refused` 拒绝；发送的是用户在设置 › 提示词里改过的版本。有目录条目的内置插件，指令仍由目录条目的 `instructions` 登记；没有目录条目的插件在 `PluginDefinition.instructions` 里声明，随实例启动登记、最后一个运行它的实例停止时撤下；目录里已经为这个主人登记了任何 Agent 定义（指令、Agent 提示词、角色或方法，例如 Schedule、助理的角色，Issues 的方法）的，不能再用 `PluginDefinition.instructions`，启动失败：一个主人的定义只在一处，第二个来源会在设置和别的 Agent 眼里顶掉目录登记的角色与方法；同一个插件的两个安装（两个发布者签名）可以并排登记。
 - **限额**：`timeout_ms` 默认 120 秒、至多 600 秒，`max_output_tokens` 默认 5000、至多 12000（`PLUGIN_MODEL_LIMITS`），超出以 `plugin.model_limit_exceeded` 拒绝，不截断。`output: "json"` 用 agent-host 的 `decodePrologueJsonOutput` 解码（允许代码围栏），解不出是 `plugin.model_output_invalid`；它只解码，结构由插件自己校验。结果的 `usage` 只在供应商报告了才有。
+- **生成中预览**：可选的 `onText(delta)` 按模型原顺序接收文字增量，不含运行、模型信息或用量事件。每次交给插件之前，Runtime 同步复查原动作、安装授权和取消状态；请求结束即关闭回调，即使动作还在继续也不再交文字。插件自行把文字变为页面或动作进度；预览不表示结果已通过末尾检查或已保存。回归见 `tests/security-invariants-plugin-model-progress.test.ts`。
 - **路径**：宿主端口 → `hostTextGeneration` → agent-host 的 Prologue 推理，和别的调用方同一条；不新开供应商直连，不向 Prologue 传调用编号（2026-10-10）。宿主构造时给的 `completeText`（函数是测试替身，`null` 是没有模型）照旧有效，每次调用时才读。`availability()` 可以接在动作的 `availability` 上。
 - **不在这一片里**：图片输入、选定某个模型与列出可选模型、动作返回之后的后台任务里调模型（动作一返回，调用就被拒）。有消费者的迁移再加。
 
@@ -226,7 +227,9 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 2. **「改到周五」**：一张操作卡，人点了才执行，对象改了版就失效。输入框旁的同排按钮归情境线，还没做。
 3. **Form「AI 生成题目」**：要求不够具体时先问几道选择题，答完接着生成（`plugins/native/form/src/drafting.ts`）。
 
-还没有的：外部插件的对象种类不在模型的清单里（BL-152，Prologue 在创建 Runtime 时固定清单）；单次接续现在只问选择题；生成插件沙箱没有 Agent 的 `ask-user` 与 `suggest-action`。
+对象引用题的种类清单每一轮按自己项目里装着、显示着的插件算，外部插件的也在内，进模型前由宿主筛（`docs/system/SECURITY-INVARIANTS.md` S-32）。
+
+还没有的：单次接续现在只问选择题；生成插件沙箱没有 Agent 的 `ask-user` 与 `suggest-action`。
 
 ## 7. 注册、入口与事件
 
@@ -238,7 +241,9 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 
 - **流式**：Agent 轮次用 `agent.run.wait.v1`（最长 25 秒的长轮询，按版本返回变化）；有界推理可用 `onProgress` 观察原 Run 的文本、模型和用量事件，最终结果仍需等待终态与领域校验。
 - **等待与接续**（Coding 的协作轮次）：模型等答复、等后台命令、等另一个会话的那一步，人排队等另一轮，都挂在 Prologue 任务图的步骤上；等待与接续的事实只在任务图里，插件不另存一份。读与控制走 `@molis-ai/molis-work-contracts/services/agent-collaboration` 的两个动作：`agent.collaboration.read.v1`（每个会话一条视图）、`agent.collaboration.control.v1`（`cancel-wait`、`continue-now`）。等到有接续可以走，用 typed 等待 `agentHostCapabilities.awaitContinuations`（最长 25 秒；动作不能是等待）。接续由插件用它的请求键起下一轮，照常经过宿主开跑前的全部复核；被重启截断、结果未知的等待留给人核对，不自动起跑（`specs/prologue-adoption/spec.md` §4.6.4、§4.6.10）。
-- **等外面的结果**（Coding 的执行角色，P3c）：一步要等的东西在宿主之外（一个作业跑完、一个结果文件写好），模型用 `board-wait` 登记 `{ kind: "external", checker, params }` 后这一轮结束；之后由宿主的检查器按 SDK 的节奏去看（第一次约 1 秒后，间隔逐次加倍，至多 1 小时），不经模型、不花 token。现有两个检查器，都在 `horizontal/agent-host/src/adapters/prologue-checkers.ts`：`molis.action-query@1` 调一个只读查询动作（`params.tool` 写这一轮的动作工具名，宿主按这一轮冻结的动作换回精确引用），把回答里 `status.path` 那一项按给定的 `satisfied`、`failed`、`pending` 对上，对不上、查询出错都算 unknown，不算结果；`molis.file-present@1` 看授权目录里的一个相对路径，比登记那一轮旧的、空的（`non_empty`）、缺完成标记（`marker`）的都还在等，有失败标记（`failed_marker`）就是失败，「在」只说明文件在，不证明内容对。要判断好坏的条件（「测试都过了」「结果合理」）不能这样等：判断要问模型，是命令；声明了 `model:invoke` 的查询也拒，因为每看一次就调一次模型。能等什么、每次看都怎样复核、什么一律拒绝，见 `docs/system/SECURITY-INVARIANTS.md` 的 S-27；等完之后照常是一条接续，由插件起下一轮。
+- **等外面的结果**（Coding 的执行角色，P3c）：一步要等的东西在宿主之外（一个作业跑完、一个结果文件写好），模型用 `board-wait` 登记 `{ kind: "external", checker, params }` 后这一轮结束；之后由宿主的检查器按 SDK 的节奏去看（第一次约 1 秒后，间隔逐次加倍，至多 1 小时），不经模型、不花 token。现有两个通用检查器，都在 `horizontal/agent-host/src/adapters/prologue-checkers.ts`：`molis.action-query@1` 调一个只读查询动作（`params.tool` 写这一轮的动作工具名，宿主按这一轮冻结的动作换回精确引用），把回答里 `status.path` 那一项按给定的 `satisfied`、`failed`、`pending` 对上，对不上、查询出错都算 unknown，不算结果；`molis.file-present@1` 看授权目录里的一个相对路径，比登记那一轮旧的、空的（`non_empty`）、缺完成标记（`marker`）的都还在等，有失败标记（`failed_marker`）就是失败，「在」只说明文件在，不证明内容对。要判断好坏的条件（「测试都过了」「结果合理」）不能这样等：判断要问模型，是命令；声明了 `model:invoke` 的查询也拒，因为每看一次就调一次模型。能等什么、每次看都怎样复核、什么一律拒绝，见 `docs/system/SECURITY-INVARIANTS.md` 的 S-27；等完之后照常是一条接续，由插件起下一轮。
+
+接入本人操作的等待使用 `molis.connector-setup@1`，参数仅 `{ authorization_id }`，来自本会话的 `connectors.setup.prepare`。Host 在登记与每次读取前后检查请求的原会话、用户、项目及当前助理查询权限；重启后只恢复这项窄读取，不恢复通用动作或文件授权。检查只证明请求和连接状态，等待满足后还须按最新任务调用真实业务能力。已有连接的跨入口修复使用 `molis.connection-ready@1`：稳定连接、真实账号要求与精确能力引用由原任务提供，检查当前工作和授权后只读连接事实；不会在检查器里联网、启用连接或执行业务动作。设置页检查、其他会话修复、Host 重启沿用同一 owner 事实；换账号或缺权限仍等待。App-tools 业务角色使用同一个 SDK 持久等待，只允许其 App 登记的只读外部检查器；命令、信封、节点及待答问题条件不向此模式开放。无绑定、其他会话与已撤权检查均拒绝。真实 SDK 与本机协议替身已验证等待、最新请求、单次接续及重启，真实模型和服务账号的验收仍见 `specs/assistant-service-connections/spec.md` §11。
 - **结构化输出**：SDK `structured` 执行明确支持的 schema；`decodeJsonOutput` 只处理格式，不能替代领域验证。Alchemist 默认不纠正，仅在原业务预算明确允许时增加一次；Jelly 不自动重试。判断类用 TypeSafe（`evaluateTypeSafe`），返回 Choice/Score/Noul。
 - **错误**：推理层抛 `PrologueInferenceError`（保留 `code`，文字统一为安全文案）。消费方先用 `inferenceServiceUnavailableReason(error)` 识别「执行服务被本机另一进程占用 / 未就绪」，如实告诉用户，不要改写成网络或厂商问题；宿主自己的派出前复核（`beforeDispatch`、凭据是否变了）拒绝时，SDK 报 `EFFECT_NOT_AUTHORIZED`，推理层把复核自己抛的错误原样交回，消费方用 `isDispatchRefusal(error)` 识别并说明「没有发出」；Agent 轮次的 `stop_reason` 同样以 `EFFECT_NOT_AUTHORIZED` 开头；HTTP 4xx/5xx 按状态给可操作提示。
 - **取消**：`caller.signal` 一路传到 SDK（`run.cancel()`）；被取消、撤权、停用的调用**不再写任何业务记录**，包括失败记账（action-architecture F2，`tests/action-before-effect.test.ts`）；其中处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记），不算业务数据（用户 2026-10-10 决定）。需要让用户能立刻重试的，用「发起者已结束即可接管」的设计，而不是在被拒绝后写记录。
@@ -429,7 +434,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 ### 13.3 上下文：足够、相关、可追溯、可恢复
 
-**组成。** 目标、最新输入、工作状态、相关对象、可用能力，以及每一项的来源。参考实现是助理的 `roundMaterials`（`apps/local-host/src/assistant/assistant-service.ts`）：每一轮按需组成「本轮情况」（时间、时区、工作范围、发起页面）、「用户对建议的处理」「用户撤销的修改」「后台任务」「上一轮停止时仍在执行的修改」「这项工作的对象」「可用能力目录」「可用的方法」「当前对象（所有者提供）」「当前页面（发送时）」。每一节只在有内容时出现，标题说明它是什么。
+**组成。** 目标、最新输入、工作状态、相关对象、可用能力，以及每一项的来源。参考实现是助理的 `roundMaterials`（`apps/local-host/src/assistant/assistant-service.ts`）：每一轮按需组成「本轮情况」（时间、时区、工作范围、发起页面）、「本会话未完成的服务接入」（连接 owner 的当前状态、意图修订，以及这轮是否撤回了旧等待；只在当前读取权限允许时提供）、「用户对建议的处理」「用户撤销的修改」「后台任务」「上一轮停止时仍在执行的修改」「这项工作的对象」「可用能力目录」「可用的方法」「当前对象（所有者提供）」「当前页面（发送时）」。每一节只在有内容时出现，标题说明它是什么。
 
 **分清事实、推断、用户要求和外部材料。** 状态写在材料里：「对象有未保存的修改：选区来自草稿，不是已保存版本」「（已截断）」；提炼记忆时写明依据是用户明说的（`explicit`）还是推断的（`inferred`）（`MEMORY_EXTRACT`）；页面给的对象只是指针，背景从所有者重读（源码注释「The page's claim is only a pointer」）。
 
@@ -455,7 +460,7 @@ Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种�
 
 **描述写清用途、适用对象、输入输出、影响和常见失败。** 参考能力网关（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）：`change-capability` 的描述告诉模型「执行前用户会审查确切的能力和输入，不必另外征求同意」，省掉一轮多余的确认；参数说明里写清 `input` 必须是对象、不是 JSON 字符串。
 
-**回执说真实状态，让 AI 能决定下一步。** 写入已经发出却没结束时，网关返回 `actions.outcome_unknown`，并写明它可能已经生效、不要再次提交、先用 `read-capability` 读回对象；`suggest-action` 的回执写明「nothing has run」；委派追加到上限时，错误写明「仍达不到验收时停止它，并把实际情况告诉用户」（`apps/local-host/src/assistant/assistant-delegation.ts` 的 `MAX_FOLLOW_UPS`）。「成功」不能只代表请求已经收下。
+**回执说真实状态，让 AI 能决定下一步。** 写入已经发出却没结束时，网关返回 `actions.outcome_unknown`，并写明它可能已经生效、不要再次提交、先用 `read-capability` 读回对象；`suggest-action` 的回执写明「nothing has run」；委派追加到上限时，错误写明「仍达不到验收时停止它，并把实际情况告诉用户」（`apps/local-host/src/assistant/assistant-delegation.ts` 的 `DELEGATION_LIMITS`）。「成功」不能只代表请求已经收下。
 
 **工具多了会被延后：只列名字，照样调得动。** Prologue SDK 在一轮的工具超过 20 个时，只给多出来的那些一行名册（`deferToolSchemasBeyond: 20`）。模型照名册上的名字直接调，调用照样进工具链；用 `find-tools` 取过形状的，这一跑之后的请求照常声明（[Prologue #28](https://github.com/molis-ai/prologue/pull/28)，2026-10-16 换包，见 `specs/prologue-adoption/spec.md` §6.0e）。延后了工具，`find-tools` 就带着名册在请求里，不看角色和这一轮的名单点没点它（[Prologue #30](https://github.com/molis-ai/prologue/pull/30)，同日换包）：角色不必为延后去点它。之前两样都不行，是 SDK 的设计缺陷，不是模型能力；那段时间用过一个不延后的临时做法，已删。不要在提示词里另教模型怎样调被延后的工具。
 

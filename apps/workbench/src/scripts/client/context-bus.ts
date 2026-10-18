@@ -1,8 +1,8 @@
 /**
- * What the person has in hand and what to do about it: the bus takes a surface's focus (from this document or a split
- * pane's frame), asks the Host for the candidates by rules at once and by the judgment shortly after, and hands a
- * choice to the page that owns the object or to the Assistant as a prepared card. Also the Assistant's starters and the
- * listeners that clear what was in hand. A fragment of the factory script in context-actions.ts: it shares that
+ * What the person has in hand and what to do about it: the bus takes a surface's focus (from this document, a split
+ * pane's frame or a side panel's plugin frame, which it marks as in the side panel and which tab), asks the Host for the
+ * candidates by rules at once and by the judgment shortly after, and hands a choice to the page that owns the object or to
+ * the Assistant as a prepared card. Also the Assistant's starters and the listeners that clear what was in hand. A fragment of the factory script in context-actions.ts: it shares that
  * closure (host, L, post, deliver, bar, ...) and is joined there in the order the text had before the split.
  *
  * Notes on the parts below (kept here, not in the script, because the script ships to every page):
@@ -215,9 +215,9 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
   });
 
   window.addEventListener("message", (event) => {
-    const frame = panes.from(event), data = event.data;
+    const frame = panes.from(event) || sideFrame(event), data = event.data;
     if (!frame) return;
-    if (data.type === "workbench-surface-focus") bus.report({ pane: frame.dataset.paneOwner || "pane", element: frame, frame }, data.focus || null);
+    if (data.type === "workbench-surface-focus") bus.report({ pane: frame.dataset.paneOwner || "side", element: frame, frame }, data.focus && { ...data.focus, ...landing.place(frame) });
     else if (data.type === "workbench-context-action-unhandled" && data.detail) unhandled(data.context_id, data.key, data.detail);
     else if (!bus.source || bus.source.frame !== frame || !bus.focus || data.context_id !== bus.focus.context_id) return;
     else if (data.type === "workbench-context-action-choose") chooseFrom(data.context_id, data.key);

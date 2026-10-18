@@ -90,7 +90,9 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     await until(async () => (await graph()).every(node => node.node_id === "work" || ["succeeded", "failed", "cancelled"].includes(node.state)), "first follow-up ended");
     await delegation.follow_up(child.work.work_id, "去掉编号");
     await until(async () => (await graph()).every(node => node.node_id === "work" || ["succeeded", "failed", "cancelled"].includes(node.state)), "second follow-up ended");
-    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid", "follow-ups are bounded");
+    // W2-18-A4-LIMITS-01: the limits are the Assistant's own table, in the words the model has always been told.
+    await assert.rejects(delegation.follow_up(child.work.work_id, "再改一次"), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid"
+      && error.message === "已经追加过 2 次；仍达不到验收时停止它，并把实际情况告诉用户", "follow-ups are bounded");
     const part = childStored.delegated_by!.node_id;
     assert.deepEqual((await graph()).filter(node => node.node_id !== "work").map(node => [node.node_id, node.parent, node.state]),
       [[part, "work", "succeeded"], [`${part}.f1`, part, "succeeded"], [`${part}.f2`, part, "succeeded"]]);
@@ -98,7 +100,7 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     const other = await service.send({ text: "别的事", request_id: "req-delegation-2" }, { project_ref: project });
     await assert.rejects(service.delegation(store.get("web-user", other.work.work_id))!.stop(child.work.work_id), (error: unknown) => error instanceof ActionError && error.code === "assistant.scope" && error.kind === "forbidden");
     assert.equal(service.delegation(store.get("web-user", child.work.work_id)), undefined);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a sub-task reports to the work that handed it over: its report is not held for the identifiers that work needs (D1②, ADH-17)", { timeout: 60_000 }, async t => {
@@ -131,7 +133,7 @@ test("a sub-task reports to the work that handed it over: its report is not held
     assert.equal(childRequests, 1, "the sub-task's report went back as it was");
     assert.deepEqual(child.rounds[0]!.activity.filter(item => item.verb === "auto-continue"), []);
     assert.equal(parentStep, 4, "the parent's own reply was held once for the tool's name");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a sub-task whose session opened under the Assistant's own role carries its next round as the delegated role, on that same session", { timeout: 60_000 }, async t => {
@@ -173,7 +175,7 @@ test("a sub-task whose session opened under the Assistant's own role carries its
     const own = requests.filter(request => request.messages.includes("接着把这一部分做完") && !request.messages.includes("子任务都已交回"));
     assert.ok(own.length > 0 && own.every(request => delegatedLayer.test(request.system)), "the sub-task's round carries the delegated layer");
     assert.ok(own.every(request => !/## 分工|## 记忆/.test(request.system)), "and not the delegating work's layer: it neither delegates nor keeps memories");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("stopping a work also stops the sub-tasks it handed out that are still running, even after its own round ended", { timeout: 60_000 }, async t => {
@@ -212,7 +214,7 @@ test("stopping a work also stops the sub-tasks it handed out that are still runn
     const child = await until(async () => { const view = await service.read(parent.delegated![0]!.work_id); return ["stopped", "failed"].includes(view.work.state) ? view : undefined; }, "child stopped");
     assert.equal(child.work.state, "stopped");
     await assert.rejects(service.control(sent.work.work_id, { kind: "stop" }), /没有在执行/, "nothing left to stop");
-  } finally { releaseChild(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { releaseChild(); service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("the person takes a sub-task back: it stops, the board says so, no more follow-ups go to it, and the delegating work finishes that part", { timeout: 60_000 }, async t => {
@@ -277,7 +279,7 @@ test("the person takes a sub-task back: it stops, the board says so, no more fol
     assert.equal(step.state, "cancelled");
     assert.equal(step.ended_by_person?.note, "用户把这个子任务收回到这项工作：它已停下，已产出的保留。");
     assert.deepEqual(nodes.filter(node => node.session_id === stored.session_id).map(node => node.node_id), ["work"]);
-  } finally { releaseChild(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { releaseChild(); service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 /** A delegating work and a runtime whose model can be held or switched off; the parent's model script is the caller's. */
@@ -304,7 +306,7 @@ async function delegationFixture(t: import("node:test").TestContext, parentScrip
       if (!work.delegated_by) await flags.beforeAuthority?.();
       return { ...base, beforeStart: async () => { await base.beforeStart?.(); await (work.delegated_by ? flags.partBeforeStart : flags.beforeStart)?.(); }, assertBeforeStart: () => { base.assertBeforeStart?.(); if(!work.delegated_by)flags.assertBeforeStart?.(); } };
     }, projectTitle: async () => "项目" }, "web-user");
-  return { service, store, project, flags, adapter, home, close: async () => { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, project, flags, adapter, home, close: async () => { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a sub-task the person put away still counts for the work that handed it out: its tokens, its place among the limit, and the stop", { timeout: 60_000 }, async t => {
@@ -338,7 +340,9 @@ test("a sub-task the person put away still counts for the work that handed it ou
     }
     for (const id of made.slice(1, 3)) await f.service.archive(id, true);
     const delegation = f.service.delegation(f.store.get("web-user", sent.work.work_id))!;
-    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid");
+    // W2-18-A4-LIMITS-01
+    await assert.rejects(delegation.start({ title: "第七个", brief: "再来一个。", acceptance: "完成" }), (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.kind === "invalid"
+      && error.message === "这项工作已经委托了 6 个子任务，不能再多；请自己完成剩下的部分或告诉用户");
 
     // The parent's stop reaches a put-away sub-task that a follow-up has set going again.
     await delegation.follow_up(childId, "再改改");
@@ -348,6 +352,27 @@ test("a sub-task the person put away still counts for the work that handed it ou
     const child = await until(async () => { const view = await f.service.read(childId); return ["stopped", "failed"].includes(view.work.state) ? view : undefined; }, "the put-away sub-task stopped");
     assert.equal(child.work.state, "stopped");
   } finally { release(); await f.close(); }
+});
+
+// W2-18-A4-LIMITS-01: three parts with a step still going leave no room for a fourth, in the words the model has always been told.
+test("W2-18-A4-LIMITS-01 three sub-tasks still going leave no room for another one", { timeout: 60_000 }, async t => {
+  const f = await delegationFixture(t, [() => reply({ name: "delegate-work", input: { title: "起草", brief: "起草一段话。", acceptance: "一段话" } }), () => reply(undefined, "已交给子任务。")],
+    async () => reply(undefined, "草稿。"));
+  try {
+    const sent = await f.service.send({ text: "分给子任务起草", request_id: "req-delegation-active" }, { project_ref: f.project });
+    await until(async () => { const view = await f.service.read(sent.work.work_id); return view.work.state === "completed" && view.rounds.length === 2 && view.delegated?.[0]?.state === "completed" ? view : undefined; }, "child done, handed back");
+    const parent = f.store.get("web-user", sent.work.work_id), works = f.adapter.collaboration!.works!;
+    // Three parts whose step has not ended (the finished one is not going).
+    for (let index = 0; index < 3; index++) {
+      const node_id = `p-going-${index}`;
+      await works.add({ graph_id: parent.graph_id!, node_id, under: "work", session_id: parent.session_id!, title: `子任务 ${index}` });
+      f.store.create({ actor_id: "web-user", title: `子任务 ${index}`, scope: { kind: "project", project_id: "board" }, origin: null, project_ref: f.project,
+        delegated_by: { graph_id: parent.graph_id!, node_id, title: parent.title, acceptance: "完成" } });
+    }
+    await assert.rejects(f.service.delegation(f.store.get("web-user", sent.work.work_id))!.start({ title: "第五个", brief: "再来一个。", acceptance: "完成" }),
+      (error: unknown) => error instanceof ActionError && error.code === "assistant.limit" && error.message === "已有 3 个子任务在进行，等其中一个结束再委托");
+    assert.equal(f.store.delegatedBy("web-user", parent).length, 4, "the refused one left no work behind");
+  } finally { await f.close(); }
 });
 
 // W2-18-DELEGATION-PLACED-01: the person's own round in a finished sub-task stands on a new step under it. A round that

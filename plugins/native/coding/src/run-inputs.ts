@@ -1,7 +1,7 @@
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort, type AgentRunControl } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AGENT_INPUT_KEY_PATTERN, AGENT_STEER_MODES, type AgentInputSend, type AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
-import { questionAnswer as cardAnswer } from "@molis-ai/molis-work-plugin-sdk";
+import { QUESTION_LIMITS, questionAnswer as cardAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { codingWriterAssignments } from "./writers.js";
 import type { CodingModelChoice } from "./routes.js";
 
@@ -11,6 +11,7 @@ const identity = {
 };
 /** A string the handler's text() accepts: present, within the cap, and not only spaces. */
 const words = (maximum: number) => ({ type: "string", minLength: 1, maxLength: maximum, pattern: "\\S" });
+const reference = { type: "string", maxLength: QUESTION_LIMITS.maxReferenceChars };
 /** A choice question's picks, or the value of any other question: words, a date or a moment as text, a number, picked objects, or nothing. */
 const answerItem = { oneOf: [{
   type: "object", additionalProperties: false, required: ["question", "indexes"],
@@ -20,8 +21,8 @@ const answerItem = { oneOf: [{
     other: { type: "string", maxLength: 500 },
   },
 }, { type: "object", additionalProperties: false, required: ["question", "value"],
-  properties: { question: { type: "integer" }, value: { oneOf: [{ type: "string", maxLength: 2000 }, { type: "number" }, { type: "null" }, { type: "array", maxItems: 20, items: {
-    type: "object", additionalProperties: false, required: ["kind", "id", "label"], properties: { kind: { type: "string", maxLength: 200 }, id: { type: "string", maxLength: 200 }, label: { type: "string", maxLength: 200 } } } }] } } }],
+  properties: { question: { type: "integer" }, value: { oneOf: [{ type: "string", maxLength: 2000 }, { type: "number" }, { type: "null" }, { type: "array", maxItems: QUESTION_LIMITS.maxReferences, items: {
+    type: "object", additionalProperties: false, required: ["kind", "id", "label"], properties: { kind: reference, id: reference, label: reference } } }] } } }],
 };
 function controlBranch(kind: string, extra: Record<string, unknown>, required: readonly string[]): ActionSchema {
   return {
@@ -87,6 +88,16 @@ export function nextConfiguration(value: unknown) {
     ...(config.writer_assignments === undefined ? {} : { writer_assignments: codingWriterAssignments(config.writer_assignments) }) };
 }
 
+/** Picked objects as a reference question's answer: within the SDK's limits, each a kind, an id and a label as text. */
+function pickedObjects(given: unknown[]): Array<{ kind: string; id: string; label: string }> {
+  if (given.length > QUESTION_LIMITS.maxReferences) throw new Error(`一道题最多选 ${QUESTION_LIMITS.maxReferences} 个对象`);
+  return given.map(item => {
+    const { kind, id, label } = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+    if (![kind, id, label].every(field => typeof field === "string" && field.length <= QUESTION_LIMITS.maxReferenceChars)) throw new Error("选中的对象格式无效");
+    return { kind: kind as string, id: id as string, label: label as string };
+  });
+}
+
 export function questionAnswer(body: Record<string, unknown>): Extract<AgentRunControl, { kind: "answer" }> {
   const pending_id = text(body.pending_id, "问题引用");
   const pending_revision = body.pending_revision;
@@ -100,8 +111,11 @@ export function questionAnswer(body: Record<string, unknown>): Extract<AgentRunC
   const answers = body.answers.map(value => {
     if (!value || typeof value !== "object") throw new Error("问卷回答格式无效");
     const { question, indexes, other, value: given } = value as Record<string, unknown>;
-    // A question that is not a choice is answered with a value: words, a date or a moment as text, a number, or nothing.
+    // A question that is not a choice is answered with a value: words, a date or a moment as text, a number, picked objects,
+    // or nothing. Only the shape is read here; whether it fits its question (one or several, which kinds) is the Runtime's
+    // to judge, and whether the person may hand the objects over is the Host's (S-26).
     if (indexes === undefined && typeof question === "number" && Number.isInteger(question)) {
+      if (Array.isArray(given) && other === undefined) return { question, value: pickedObjects(given) };
       if (!(given === null || typeof given === "string" && given.length <= 2000 || typeof given === "number" && Number.isFinite(given)) || other !== undefined) throw new Error("问题的回答格式无效");
       return { question, value: given as string | number | null };
     }

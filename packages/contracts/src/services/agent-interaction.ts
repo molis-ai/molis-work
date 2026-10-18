@@ -143,6 +143,12 @@ export interface AgentPendingQuestion {
   /** Frozen questionnaire read from its execution owner, never reconstructed from prose. */
   questions?: ReadonlyArray<AgentQuestion>;
   answerable?: boolean;
+  /**
+   * The round stopped at a restart while this question was open, and it can still be answered: the answer ends that round and
+   * waits in the session for its next round, which whoever answered opens. Absent: the round, if it is answerable, takes the
+   * answer itself.
+   */
+  parked?: true;
   unavailable_reason?: string;
 }
 

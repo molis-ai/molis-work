@@ -4,7 +4,8 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 function nativePluginHttpAliases(): Readonly<Record<string, string>> {
   const aliases: Record<string, string> = { functions: "functions", "io.molis.work.functions": "functions" };
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
-    if (entry.personal !== true) continue;
+    // A Home runtime plugin's routes are served by the Home runtime under its own id; it has no short native path.
+    if (entry.personal !== true || entry.runtime) continue;
     aliases[entry.project_plugin_id] = entry.project_plugin_id;
     aliases[entry.manifest.plugin_id] = entry.project_plugin_id;
   }

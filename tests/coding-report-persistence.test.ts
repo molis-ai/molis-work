@@ -132,6 +132,12 @@ const steerRun = (): AgentRunView => ({
     { turn_id: "s5", kind: "user", text: "不要动数据库", at: null, steer: { id: "s5", state: "withdrawn" } },
     { turn_id: "answer", kind: "assistant", text: "改好了", at: null }],
   activity: [], command_outputs: [], usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [], stop_reason: null,
+  // Stage 3d-2: step reports naming supplements; one quotes the smuggled words.
+  step_board: { project_id: "plan", version: 3, terminal: true, nodes: [
+    { id: "step-1", state: "succeeded", reports: [{ note: "建好 fixture", at_ms: 1 }] },
+    { id: "step-2", state: "succeeded", reports: [{ note: "已改用新 fixture", at_ms: 2, inputs: [{ session_id: "sdk", input_id: "s1" }] }] },
+    { id: "added", state: "failed", inserted: true, reports: [{ note: inject, at_ms: 3, inputs: [{ session_id: "sdk", input_id: "s1" }, { session_id: "sdk", input_id: "s2" }] }] },
+  ] },
 });
 /** Lines the report says in its own voice: everything outside its fenced quotes. */
 const ownLines = (markdown: string) => {
@@ -170,14 +176,20 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
     assert.equal(res.status, 200);
     const body = saved.report.body_markdown, section = body.slice(body.indexOf("## 补充要求"), body.indexOf("## 模型答复"));
     // RCPT-341: one entry per supplement, from the ledger's state; the AI's statement is quoted as its words, never a state.
+    // The words are the shared receipt's (BL-158), so the report says each value the way the conversation does.
     assert.deepEqual(ownLines(section).filter(line => /^(补充 \d|这是|后来|AI|为它)/u.test(line)), [
-      "补充 1：AI 已读到", "后来由补充 3更正", "AI 说：作为新任务；会改变范围、验收（第 2 次说明）", "AI 的说明",
+      "补充 1：AI 已读到", "后来由补充 3更正", "AI 说：作为新任务；会改变范围、验收条件（第 2 次说明）", "AI 的说明",
       "补充 2：AI 已读到", "AI 读到了，没说怎么处理", "为它问的问题有 1 个还没回答",
-      "补充 3：已放进上下文，AI 还没读到", "这是一条更正，针对补充 1",
-      "补充 4：这一轮结束时 AI 没读到", "这是一条更正，针对更早的一条",
+      "补充 3：已放进上下文，等 AI 回应", "这是一条更正，针对补充 1",
+      "补充 4：这一轮结束时 AI 没读到，留给下一轮", "这是一条更正，针对更早的一条",
       "补充 5：已撤回",
     ]);
     assert.match(section, /「AI 说」是 AI 自己的说法，Molis 没有核对/u, "RCPT-341 the AI's words are marked as its own");
+    // RCPT-346 (3d-2): each step report naming a supplement is quoted under it as the AI's words, keyed as on the plan card.
+    assert.deepEqual(ownLines(section).filter(line => line.includes("步骤报告")), ["步骤报告提到它（S2，AI 的说法）", "步骤报告提到它（插入，AI 的说法）", "步骤报告提到它（插入，AI 的说法）"],
+      "RCPT-346 two reports name 补充 1 and one names 补充 2; the report that names none is not listed");
+    assert.match(section, /步骤报告提到它（S2，AI 的说法）\n`{3,}\n已改用新 fixture\n`{3,}/u, "RCPT-346 its words in a fenced quote");
+    assert.doesNotMatch(section, /建好 fixture/u);
     assert.doesNotMatch(section, /已生效|部分生效/u, "RCPT-341 nothing observed, so nothing is said to have taken effect (D21)");
     // RCPT-342: what the person or the model wrote stays inside its quote, so it cannot speak as the report.
     assert.deepEqual(ownLines(body).filter(line => line.startsWith("## 执行状态")), ["## 执行状态"], "RCPT-342 an injected heading stays quoted");

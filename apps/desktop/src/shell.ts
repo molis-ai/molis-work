@@ -14,10 +14,7 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
   };
   if(!native)return;
   globalThis.molisWorkOpenExternalUrl=(url)=>globalThis.__TAURI__.core.invoke("open_external_url",{url});
-  globalThis.molisWorkOpenShelf=()=>{
-    const button=document.querySelector&&document.querySelector('[data-plugin-strip] [data-plugin-id="shelf"]');
-    if(button) button.click();
-  };
+  globalThis.molisWorkOpenShelf=()=>globalThis.molisWorkOpenPlugin?.("shelf");
   globalThis.molisWorkShelfNotice=(message)=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
     window.dispatchEvent(new CustomEvent("molis-shelf-notice",{detail:{message:String(message||"")}}));
@@ -26,16 +23,32 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     if(typeof CustomEvent!=="function"||typeof window==="undefined"||typeof window.dispatchEvent!=="function")return;
     window.dispatchEvent(new CustomEvent("molis-shelf-refresh"));
   };
+  const shelfPanel=()=>{
+    const tab=document.body.dataset.sideOpen==="true"&&document.querySelector('#side-panel [data-side-plugin^="shelf/"][aria-selected="true"]');
+    const box=tab&&document.getElementById(tab.getAttribute("aria-controls"))?.getBoundingClientRect();
+    return box&&box.width>0&&box.height>0?{x:box.left,y:box.top,width:box.width,height:box.height}:null;
+  };
+  let notifying=0;
   const notifyShelfSurface=()=>{
-    try{
-      const on=document.body&&document.body.dataset.desktopSurface==="shelf";
-      globalThis.__TAURI__?.core?.invoke("shelf_surface_changed",{active:Boolean(on),language:document.documentElement.lang,theme:document.documentElement.dataset.resolvedTheme}).catch(()=>{});
-    }catch{}
+    if(notifying)return;
+    notifying=requestAnimationFrame(()=>{
+      notifying=0;
+      try{
+        globalThis.__TAURI__?.core?.invoke("shelf_surface_changed",{panel:shelfPanel(),language:document.documentElement.lang,theme:document.documentElement.dataset.resolvedTheme}).catch(()=>{});
+      }catch{}
+    });
   };
   const watchShelfSurface=()=>{
-    if(!document.body)return;
-    new MutationObserver(notifyShelfSurface).observe(document.body,{attributes:true,attributeFilter:["data-desktop-surface"]});
+    if(!document.body||window.top!==window)return;
+    new MutationObserver(notifyShelfSurface).observe(document.body,{attributes:true,attributeFilter:["data-side-open"]});
     new MutationObserver(notifyShelfSurface).observe(document.documentElement,{attributes:true,attributeFilter:["lang","data-resolved-theme"]});
+    const panel=document.getElementById("side-panel");
+    if(panel){
+      new MutationObserver(notifyShelfSurface).observe(panel,{subtree:true,attributes:true,attributeFilter:["aria-selected"]});
+      new ResizeObserver(notifyShelfSurface).observe(panel);
+      panel.addEventListener("transitionend",notifyShelfSurface);
+    }
+    addEventListener("resize",notifyShelfSurface);
     notifyShelfSurface();
   };
   if(document.body)watchShelfSurface();

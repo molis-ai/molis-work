@@ -46,7 +46,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
-      fail-fast: false
+      # A shard that fails cancels the others still running or waiting: a red run reports its first failing file and frees the
+      # runners, instead of finishing all sixteen shards first (user 2026-10-18).
+      fail-fast: true
       # At most six runners per run, so several runs at once still leave most of the repository's 20 runners to `Verify` and the
       # merge queue (user 2026-10-15). The sixteen shards then run in about three waves: some 30 to 35 minutes a run.
       max-parallel: 6
@@ -73,6 +75,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # ASC-06: the managed Python MCP test runs real uv against a local package registry.
+      - name: uv for the managed Python installer tests
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.12.19"
+          enable-cache: false
 
       # The tests import the built workspace packages and dist/, and the installer tests compare the build fingerprint.
       - name: Build
@@ -111,11 +120,12 @@ jobs:
           key: full-suite-durations-${{ matrix.shard }}-${{ github.run_id }}
           restore-keys: full-suite-durations-${{ matrix.shard }}-
 
-      # A file that fails is run once more; one that then passes is listed as flaky in the summary and does not turn the shard red, so
-      # the check shows the files that fail every time (user 2026-10-15).
+      # A file that fails is run once more at once; one that then passes is listed as flaky in the summary and does not turn the shard
+      # red, so the check shows the files that fail every time (user 2026-10-15). One that fails again stops the shard (`--bail`): no
+      # more files start and the running ones are stopped (user 2026-10-18).
       - name: Run this shard
         shell: bash
-        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/16 --timeout-seconds 900 --retries 1 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
+        run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/16 --timeout-seconds 900 --retries 1 --bail 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
 
       # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.
       - name: Summary

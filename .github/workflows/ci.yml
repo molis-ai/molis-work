@@ -307,7 +307,7 @@ jobs:
           fi
 
   # Static checks for what is not TypeScript (specs/repository-anti-corruption W1-09, scripts/gates/native-checks.mjs): rustfmt and
-  # clippy with every warning an error, and a type check of the Swift. Needs macOS because the Rust crate is the macOS desktop
+  # clippy with every warning an error, the crate's tests, and a type check of the Swift. Needs macOS because the Rust crate is the macOS desktop
   # shell. Nothing here installs Node dependencies: the script and its tests use Node alone. RUSTUP_TOOLCHAIN pins the Rust the
   # code was cleaned against: clippy gains lints with every release, and `-D warnings` on "stable" would turn each release into a
   # red build. Moving the pin is a deliberate change (clean the new warnings in the same PR).
@@ -326,15 +326,21 @@ jobs:
       - name: Install the pinned Rust toolchain
         run: rustup toolchain install 1.96.0 --profile minimal --component clippy --component rustfmt
 
+      # The key names what the cache holds: since cargo test runs here, the dependencies built with code, not only clippy's
+      # metadata. rust-cache does not save again on an exact hit, so without a new key the clippy-only cache saved earlier kept
+      # being restored and the test build was redone every run (about 80 s; 统筹 10-18 定).
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri
+          key: with-tests
 
       # Each check is broken once on a scratch repository and must go red (the shell cases use a stand-in for shellcheck here).
       - name: Native check rules reject what they claim to
         run: node --test tests/native-checks.test.mjs
 
-      - name: rustfmt and clippy
+      # cargo test runs the crate's tests (the S-14 refusals among them, apps/desktop/adapters/tauri/src/drop_wheel.rs), not only
+      # compiles them as clippy --all-targets does (统筹 10-18 定).
+      - name: rustfmt, clippy and cargo test
         run: node scripts/gates/native-checks.mjs rust
 
       - name: Swift type check

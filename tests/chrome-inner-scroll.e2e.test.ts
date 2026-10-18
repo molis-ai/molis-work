@@ -149,12 +149,6 @@ test("Window chrome stays put while chooser, settings, Feed, Sessions and Goals 
   await expectContained("[data-workspace-chrome]", "[data-artifact-directory]");
   await expectContained(".workbench-bar", "[data-artifact-directory]");
 
-  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
-  await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
-  await expectContained(".immersive-titlebar", "[data-shelf=directory] .shelf-side-scroll");
-  await expectContained("[data-workspace-chrome]", "[data-shelf=directory] .shelf-side-scroll");
-  await expectContained(".workbench-bar", "[data-shelf=directory] .shelf-side-scroll");
-
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-stage-list]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await expectContained(".immersive-titlebar", "[data-goal-stage-list]");

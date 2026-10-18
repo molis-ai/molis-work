@@ -71,7 +71,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const view = contribution?.kind === "app" ? contribution.views?.find(view => (!sideView || view.descriptor.contribution_id === sideView.contribution_id)
       && view.descriptor.surfaces?.some(surface => surface.target_slot_id === slot)) : undefined;
     const surface = view?.descriptor.surfaces?.find(surface => surface.target_slot_id === slot);
-    const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: null }) : null;
+    const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: homeViewModel() }) : null;
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
     response.end(renderHomePluginPage(entry, html, platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript }, false, Boolean(sideView)));
     return true;
@@ -89,7 +89,8 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     return true;
   }
   const abort = new AbortController();
-  const disconnected = () => { if (!response.writableEnded) abort.abort(); };
+  const stop = () => abort.abort(new ActionError("actions.cancelled", "调用已取消"));
+  const disconnected = () => { if (!response.writableEnded) stop(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
   const plain = { signal: abort.signal, page_context: homePageContext(request, url),
     beforeEffect: async () => { if (abort.signal.aborted) throw new ActionError("actions.cancelled", "调用已取消"); } };
@@ -103,15 +104,16 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
       granted: caller.permissions,
       execution: routed?.control ?? plain,
-      readBody: async request => {
-        // Bounded image-bearing Home actions; each plugin additionally validates its own input.
-        try { return await readLocalWebBody(request, 12 * 1024 * 1024); }
+      stop,
+      readBody: async (request, maxBytes) => {
+        // The route's own limit when it declares one; otherwise bounded for image-bearing Home actions. Each plugin also validates its input.
+        try { return await readLocalWebBody(request, maxBytes ?? 12 * 1024 * 1024); }
         catch (error) { if (error instanceof ActionError) throw error; throw new ActionError(error instanceof RangeError ? "actions.input_too_large" : "actions.input_invalid",
           error instanceof Error ? error.message : "请求读取失败"); }
       },
     });
     if (!handled) sendLocalWebJson(response, 404, { error: "插件没有这个入口" });
-  } finally { routed?.end(); request.off("aborted", disconnected); response.off("close", disconnected); }
+  } finally { stop(); routed?.end(); request.off("aborted", disconnected); response.off("close", disconnected); }
   return true;
 }
 
@@ -141,6 +143,11 @@ function homePageContext(request: IncomingMessage, url: URL) {
   } catch { return undefined; /* A Referer that is not a URL names no page. */ }
 }
 
+/** What a Home view is drawn with: the page's own escaping and language, as the workbench gives its built-in stages. */
+function homeViewModel() {
+  return { primitives: { escape: (value: unknown) => escapeHtml(String(value)), text: L } };
+}
+
 /** A fresh Runtime view for every page render; the catalog does not grant activation or render a stopped instance. */
 export async function renderHomePluginStages(host?: HomePluginHost): Promise<string[]> {
   if (!host) return [];
@@ -151,7 +158,7 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<str
     const install = host.installation(entry.manifest.plugin_id);
     const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
     const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
-    if (view) return view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: null });
+    if (view) return view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: homeViewModel() });
     return renderPluginStageShell({ surface: entry.project_plugin_id, label: entry.manifest.name, dataset: "home-plugin-unavailable",
       body: `<div class="mw-empty" role="alert"><h2>${escapeHtml(entry.manifest.name)} 暂不可用</h2><p>${escapeHtml(failure ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message ?? "插件已停用")}</p><a class="mw-btn mw-btn--secondary" href="/plugins/${encodeURIComponent(entry.project_plugin_id)}">查看插件状态</a></div>` });
   });

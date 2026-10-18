@@ -112,7 +112,7 @@ Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留�
 
 Home 的 `services.storage` 复用安装隔离 KV 与原子 `compareAndSet`；升级校验只给 `get`，候选启动失败恢复原 KV。`services.model` 和指令登记使用项目执行器同一入口与限制；只在自己的 concurrent 动作中调用，停用、取消、撤权或动作结束后的结果不交付。数据库、模型、动作和 KV 句柄随实例与安装世代失效，停止钩子开始时也不能继续写。普通关闭保留启用意图，用户停用跨重启保留，重装不继承旧授权。
 
-Home 动作/场景可以声明 Home 或项目 scope。项目作用域必须经真实项目的动作/场景客户端；缺项目拒绝。`/api/plugins/<id>/…` 与真实 `/projects/<id>` 前缀后的同一路由访问同一个 Home 实例，HTTP 保持 Home scope，不能从 body/query 构造项目。API 归实际 Runtime 注册，目录只供现有页面；共用 `plugin-route-operations.ts` 的重启/解除隔离/升级/视图版本与分发，保留当前网页授权、断开取消、`beforeEffect`、client_reported 页面上下文和 12 MiB 读体上限。项目 Files/wiring/Coding 钩子仍只属于项目。
+Home 动作/场景可以声明 Home 或项目 scope。项目作用域必须经真实项目的动作/场景客户端；缺项目拒绝。`/api/plugins/<id>/…` 与真实 `/projects/<id>` 前缀后的同一路由访问同一个 Home 实例：不带前缀时调用不在任何项目里；带前缀时宿主先核对项目存在、并且显示这个插件，再把项目放进它自己发出的调用控制，插件的动作在 `caller.project_id` 里看到它，每次写之前再核对一次，请求结束后这份控制作废（`docs/system/SECURITY-INVARIANTS.md` S-31）。项目不能从 body/query 或插件自己造的控制里来。API 归实际 Runtime 注册，目录只供现有页面；共用 `plugin-route-operations.ts` 的重启/解除隔离/升级/视图版本与分发，保留当前网页授权、断开取消、`beforeEffect`、client_reported 页面上下文；读体上限是路由声明的 `max_body_bytes`，没声明时 12 MiB。项目 Files/wiring/Coding 钩子仍只属于项目。
 
 Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与其他项目动作仍可用；普通 ready 保持失败，不自动重试。受保护的 POST retry 才重试，并发 retry 共用一次启动；清理失败或关闭不能再开第二实例。`pluginFixtures.home` 与 `.project` 沿用 definition 或 `{ definition, database }` 夹具形状，不是 bundled、不接受沙箱或内置同名伪造，实际两份启动名单不能重复插件身份。
 
@@ -126,11 +126,19 @@ Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与�
 - `BoundActionClient.invoke` 的第三个控制参数仅限 Host 内部传递取消、`beforeEffect` 和带来源的 `page_context`；不会进入业务 JSON。父调用和子调用的取消信号都保留。 Home 消费宿主动作的 `HostPluginCaller` 同样来自执行器，项目为 `null`，插件、安装和操作者仍为真实值；项目和 Agent 入口拒绝这份身份，业务参数不能给它补项目。
 - 浏览器同源 Referrer 与助理页面快照当前标为 `client_reported`，不代表屏幕内容已经核实；缺页面时为空，不从用户正文推断。
 
-公共页面 `/plugins/<短名>` 在没有项目时也能打开；项目工作台挂同一运行实例的 contribution。Manifest 路由在 `/api/plugins/<plugin_id>/` 转调公共动作，经过统一 Host / Origin / token 检查。插件页面的启用与停用是显式操作；停用跨重启保留，正常 Host 退出只释放运行实例并保留启用意图。 已声明的 Home 条目卸载后，其 API 以 `actions.missing` 和 404 拒绝；读取、重试与启用入口不重建安装，也不借项目前缀落到另一个实例。外部 MCP 仍须逐客户端逐动作授权，安装插件不等于授权外部客户端。
+公共页面 `/plugins/<短名>` 在没有项目时也能打开；项目工作台挂同一运行实例的 contribution。宿主渲染 Home 视图时给的 model 和工作台给内置舞台的一样：`{ primitives: { escape, text } }`（`text` 按页面语言翻译）。Manifest 路由在 `/api/plugins/<plugin_id>/` 转调公共动作，经过统一 Host / Origin / token 检查。插件页面的启用与停用是显式操作；停用跨重启保留，正常 Host 退出只释放运行实例并保留启用意图。 已声明的 Home 条目卸载后，其 API 以 `actions.missing` 和 404 拒绝；读取、重试与启用入口不重建安装，也不借项目前缀落到另一个实例。外部 MCP 仍须逐客户端逐动作授权，安装插件不等于授权外部客户端。
 
 Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbench.side` surface。Host 用 `/plugins/<短名>?side=<view_id>` 渲染正在运行的 contribution，拒绝未声明的视图；客户端收到 `side: true`。首页及项目右上角的 Home 工具由目录声明派生，在既有侧栏打开该文档，保留主页面。侧栏按需加载，收起及切换标签不销毁文档；插件自行决定初次展示什么内容，位置和宽度仍归 Host。Home 侧栏不要求创建或授权一个假项目。
 
 新增包、SDK 类型、公开 API 与动作快照、Home 库归属及 purge 清单须同步维护。资源按插件自己的客户端包加载；新增资源需要独立预算审阅，不能抬高既有资源上限。实现与验收见 [Issue V0](../../specs/issue-home-v0/spec.md)。
+
+## Runtime 流式路由
+
+Manifest 路由可声明 `stream: "ndjson"`，只支持 POST。`bindPluginActionRoute` 将真实动作的 `caller.on_progress` 接到 HTTP：每行是 `{ type: "progress", stage, progress, text_delta? }`，随后只有一个 `{ type: "result", result }` 或 `{ type: "error", status, code, error, call_id?, details? }`。末行由 Host 写，进度里的其他字段丢弃，插件不能伪造结果或诊断编号。HTTP 已经开始后状态保持 200，调用失败看错误末行；请求体超限则在开流前按普通 JSON 返回 413。未声明 stream 的路由继续返回 JSON。
+
+`BoundActionClient.invoke` 第四个参数是传输回调 `{ on_progress }`，不属于业务输入。第三个 `request.execution` 必须原样传下去：Host 用这一个对象确认 Home 路由来自哪个项目，展开或另造对象不继承这个证明。直接路由通过可选的 `request.emit` 发进度；等待模型或外部服务的动作仍声明 `scheduling: "concurrent"`。
+
+SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UTF-8 字节（含换行），至多 10,000 行，合计 1,048,576 字节；任一超限取消调用，并以 `actions.output_invalid` 错误末行结束。显式 `max_body_bytes` 最大 36,000,000 字节，项目默认 256,000、Home 默认 12 MiB 不变。客户端断连或实例停用、撤权后，Host 结束等待并释放观察器；已经开始的外部操作由插件用取消信号清理。处理器晚到时，仍须在写入前执行 `beforeEffect()`，不得写成功、失败或其他业务记录。
 
 ## 当前项目设置
 
@@ -267,6 +275,8 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 - 助理会在“可用的方法”里看到它（只列名称和适用说明），合适时读取正文照做；用户也可以用“/”直接选定。方法只对采用它的那一轮有效。插件停用后，方法就不再列出。
 - 正文写步骤和边界，不要写死对象标识；需要改数据的步骤照常经 change-capability，由用户确认。
 
+项目外部 MCP 配置由同一 Home 的 Prologue owner 保存；来源插件仅说明来历，关闭添加页或停用该入口不撤销连接。共同动作保留项目范围，按实际消费者权限调用，派出前复核原工作区与配置版本。持久认证只引用 Home Connector owner，不持久使用 SDK 进程内的凭据引用。连接启停独立于凭据，所有消费方尊重启用状态。
+
 ## 对外 MCP
 
 Molis Work 对外只有一个 MCP 进程：`molis-work-mcp`。插件的 MCP 能力就是它在 Manifest 里声明的 `actions`：每个动作在共同目录里登记一次，对外就是动作工具 `molis_work_v1_action_<动作>__v<版本>`，由用户在「能力 → 对外接入」按客户端与范围逐项授权。插件不另外登记 MCP 工具、不开自己的 MCP 端口，也不新开 MCP 包；没有按名称的开关。
@@ -364,3 +374,7 @@ Builder 的截图评审把 presentation、design、host、unverified 问题分�
 宿主的 `assistant.threads.start/status/retry/stop` 统一管理执行与投递，使用同一个 Home 的 Prologue。普通评论不调用它；只有用户明确请求助理回复才发 start。保存评论与调用模型分别幂等，重试已完成的运行只重投递；正文仍由原插件独占管理。Pages 是第一项实现，动作与侧栏协议不要求助理导入 Pages。
 
 评论上下文读取动作可接受用户明确提供的 `draft: { text, revision }`（公开类型 `AssistantThreadDraft`）：owner 先核对它的基准版本与当前对象权限，再返回带「未保存草稿」标识的上下文。它不授予写正文的权限，也不替换保存后的对象；未声明支持的 owner 不接收该可选输入。
+
+Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? }`。该字段只能来自本次已认证的服务身份响应；优先携带稳定账号 id，不从显示标签或 message 文案推断。Host 连接检查将它与当前配置修订关联，跨入口恢复等待据此防止自动换用另一账号；没有身份查询能力的服务保持账号未知。
+
+连接的业务使用位置由消费方通过 `defineConnectorUsagesAction` 报告（contracts 的 `services/connector-host`）。输入是连接 id，输出是 owner 当前保存的使用位置、启用状态和已有业务动作引用及非敏感对象参数。共同目录按 `molis.connector-usages.input.v1` / `output.v1` 发现查询，由 `connectors.usages.read` 以原调用者权限汇总；没有宿主插件白名单和第二份绑定库。Feed 只返回当前项目来源，Images 返回原生图配置，Functions 返回使用当前绑定账号的已发布规则；模型配置不伪称所有文本动作都固定使用该账号。查询不调用业务操作，展示的操作仍按当前目录权限、作用域与可用性决定是否可用。

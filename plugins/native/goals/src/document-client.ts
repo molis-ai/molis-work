@@ -10,10 +10,7 @@ export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       template.innerHTML = String(html || "").trim();
       const nextView = template.content.querySelector("[data-goal-view]");
       if (!nextView) throw new Error("Goal 正文响应不完整");
-      const goalSurface = documentPane.querySelector('[data-work-surface="goal"]');
-      const paneHeader = goalSurface ? null : documentPane.querySelector(":scope > .desktop-pane-header");
-      if (goalSurface) goalSurface.replaceChildren(nextView);
-      else documentPane.replaceChildren(...(paneHeader ? [paneHeader, nextView] : [nextView]));
+      (documentPane.querySelector('[data-work-surface="goal"]') || documentPane).replaceChildren(nextView);
       afterReplace();
     };
 
@@ -27,10 +24,7 @@ export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       indicator.dataset.goalDocumentLoading = "true";
       indicator.setAttribute("role", "status");
       indicator.textContent = L("正在载入 Goal…");
-      const goalSurface = documentPane.querySelector('[data-work-surface="goal"]');
-      const paneHeader = goalSurface ? null : documentPane.querySelector(":scope > .desktop-pane-header");
-      if (paneHeader) paneHeader.after(indicator);
-      else (goalSurface || documentPane).prepend(indicator);
+      (documentPane.querySelector('[data-work-surface="goal"]') || documentPane).prepend(indicator);
     };
 
     const loadGoalDocument = async (goalId) => {

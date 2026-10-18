@@ -86,6 +86,16 @@ test("every displayed official method has an executable host adapter and configu
   }
 });
 
+test("ASC-28: MCP method facts distinguish authentication from OAuth client registration", () => {
+  const mcp = (id: string) => listConnectorSettingsCards().find(row => row.connector_id === id)!.method_options!.find(method => method.kind === "mcp")!;
+  const github = mcp("github");
+  assert.equal(github.mcp?.client_registration, "manual");
+  assert.match(github.mcp?.note ?? "", /认证方式：OAuth 或 Bearer/);
+  assert.match(github.mcp?.note ?? "", /仅描述 OAuth 客户端注册要求/);
+  assert.match(mcp("notion").mcp?.note ?? "", /认证方式：OAuth。/);
+  assert.match(mcp("figma").mcp?.note ?? "", /认证方式：无需鉴权。/);
+});
+
 test("onboarding prefers ready account login and keeps developer configuration optional", () => {
   const p = { L: (s: string) => s, escapeHtml: (v: unknown) => String(v ?? ""), icon: () => "" };
   for (const service of ["gmail", "notion", "github"]) {

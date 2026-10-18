@@ -13,8 +13,9 @@ export async function authorizeMcpActions(host: Pick<MolisWorkLocalHost, "inspec
   let currentCatalog = catalog;
   // An external Runtime with no stable Session says so on its context; dispatch then refuses every action that declares
   // `authorship: "session"`, whether the client calls it or a wrapper (an offer, a workflow step) does.
-  const context: ActionCallContext = { ...resolveMcpActionContext(caller, catalog, preference),
-    ...(backgroundHostCurrent ? { retain_background_authority: mcpBackgroundAuthority(caller, home, preference, catalog, source => host.inspectActions(source, reference), backgroundHostCurrent) } : {}),
+  const authorized = resolveMcpActionContext(caller, catalog, preference);
+  const context: ActionCallContext = { ...authorized,
+    ...(backgroundHostCurrent ? { retain_background_authority: mcpBackgroundAuthority(authorized, home, preference, catalog, source => host.inspectActions(source, reference), backgroundHostCurrent) } : {}),
     ...(isExternalRuntimeClient(caller.actor_id) && !caller.runtime_session_id ? { runtime_session_missing: true as const } : {}),
     validate_permissions: async permissions => {
       await checkTransport?.();

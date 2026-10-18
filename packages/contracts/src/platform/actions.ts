@@ -106,7 +106,7 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly signal?: AbortSignal;
   /** Trusted entrypoint only: capture revocable authority independently of its completed transport.
    * The dispatcher wraps this with exact registration checks; business input never supplies it. */
-  readonly retain_background_authority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+  readonly retain_background_authority?: (references: readonly ActionReference[], additionalPermissions?: readonly string[]) => RetainedActionAuthority;
   /**
    * Trusted transport callback; never accepted as capability input or persisted as run state. `text_delta` is new text a
    * model wrote since the last event, a preview only: what the action returns, after its checks, is the result.
@@ -131,8 +131,9 @@ export interface ActionExecutionContext extends ActionCallContext {
   /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect. */
   readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
   /** Capture this command's registration and original authority while active, for explicitly accepted background work.
-   * Entry-owned transport may detach; absent a separate authority, the original cancellation boundary remains. */
-  readonly retainBackgroundAuthority?: () => RetainedActionAuthority;
+   * Additional permissions must already belong to this caller and remain revocable. Entry-owned transport may detach;
+   * absent a separate authority, the original cancellation boundary remains. */
+  readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
 
 export interface ActionMetadata {
@@ -445,7 +446,7 @@ export function bindActionClient(client: ActionClient, context: () => ActionCall
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport) => {
       const bound = context(), caller = transport?.on_progress ? { ...bound, on_progress: transport.on_progress } : bound;
       return await client.invoke(control ? { ...caller, query_only: caller.query_only || control.query_only || undefined, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
-        retain_background_authority: control.retainBackgroundAuthority ? references => boundBackgroundAuthority(caller, definition, references, control.retainBackgroundAuthority!()) : undefined,
+        retain_background_authority: control.retainBackgroundAuthority ? (references, additionalPermissions) => boundBackgroundAuthority(caller, definition, references, control.retainBackgroundAuthority!(), additionalPermissions) : undefined,
         validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
         assert_authority_current: (reference, requiredPermissions) => {
           // The control belongs to its original caller; the bound caller owns the child's reference and permissions.
@@ -456,18 +457,20 @@ export function bindActionClient(client: ActionClient, context: () => ActionCall
 }
 
 /** Keep both identities when a bound client accepts work on behalf of a parent. */
-function boundBackgroundAuthority(caller: ActionCallContext, definition: ActionDefinition, references: readonly ActionReference[], parent: RetainedActionAuthority): RetainedActionAuthority {
-  const own = caller.retain_background_authority?.(references);
+function boundBackgroundAuthority(caller: ActionCallContext, definition: ActionDefinition, references: readonly ActionReference[], parent: RetainedActionAuthority, additionalPermissions: readonly string[] = []): RetainedActionAuthority {
+  const required = [...new Set([...definition.action.permissions, ...additionalPermissions])];
+  if (!required.every(permission => caller.permissions.includes(permission))) throw new ActionError("actions.forbidden", "不能保留调用者没有的权限");
+  const own = caller.retain_background_authority?.(references, additionalPermissions);
   const check = () => {
     requireSynchronous(parent.assertCurrent());
     if (own) { requireSynchronous(own.assertCurrent()); return; }
     caller.signal?.throwIfAborted();
-    for (const ref of references) requireSynchronous(caller.assert_authority_current?.(ref, definition.action.permissions));
+    for (const ref of references) requireSynchronous(caller.assert_authority_current?.(ref, required));
   };
   return Object.assign(async () => {
     check(); await parent();
     if (own) await own();
-    else { for (const ref of references) await caller.validate_authority?.(ref); await caller.validate_permissions?.(definition.action.permissions); }
+    else { for (const ref of references) await caller.validate_authority?.(ref); await caller.validate_permissions?.(required); }
     check();
   }, { assertCurrent: check });
 }

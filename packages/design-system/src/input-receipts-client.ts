@@ -48,6 +48,13 @@ export interface InputReceipts {
   link(owner: Element, inputId: string, first?: () => void, lead?: "关于补充「" | "来自补充「"): HTMLElement | null;
   /** The words for a plan step's state, the same everywhere a step is shown (the receipt, Coding's plan card; stage 3d-4). */
   step(state: AgentStepState): string;
+  /**
+   * 「当前约定」 (§9.2, stage 3e-1): of the receipts `owner` has drawn, the supplements the AI says it takes as a constraint,
+   * goal or acceptance condition, in the order sent; null when there are none. It is the AI's word, marked so, never shown as
+   * in force. Each opens its receipt, where it is corrected. `runs` are the rounds the surface shows now (a surface may have
+   * drawn another work's before), all it looks at, and it says so.
+   */
+  agreements(owner: Element, runs: readonly string[]): HTMLElement | null;
 }
 
 /**
@@ -91,7 +98,7 @@ export const RECEIPT_WORDS = {
  *
  * The tray of what is still open is `createInputTray`, made from these receipts' own pieces.
  */
-export function createInputReceipts(L: (text: string) => string, tray: (parts: InputReceiptParts) => InputReceipts["tray"], correction: <E extends CorrectionEntry>(parts: InputReceiptParts, again: (entry: E) => void) => (entry: E) => void, words: typeof RECEIPT_WORDS, board: typeof readBoard): InputReceipts {
+export function createInputReceipts(L: (text: string) => string, tray: (parts: InputReceiptParts) => InputReceipts["tray"], correction: <E extends CorrectionEntry>(parts: InputReceiptParts, again: (entry: E) => void) => (entry: E) => void, words: typeof RECEIPT_WORDS, board: typeof readBoard, agreements: typeof createAgreements): InputReceipts {
   const { FACT, TREATMENT, KIND, IMPACT, TARGET, QUESTION, STEP } = words;
   type Surface = { shown: Map<string, Shown>; byInput: Map<string, Shown>; fixes: Map<string, string[]> };
   type Shown = { at: Surface; root: HTMLDetailsElement; said: string; turn: InputReceiptTurn; round?: InputReceiptRound; act?: InputReceiptActions; form?: HTMLFormElement; problem?: string; fix?: { key: string; text: string } };
@@ -207,15 +214,17 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
     }
     entry.said = key;
   };
-  /** The latest drawing of each input on the surface `owner`, each with a way to open it (the tray's items). */
+  /** The latest drawing of each input on the surface `owner`, each with a way to open it (the tray's items). It opens the
+   * latest drawing at the click: a list kept because it reads the same still opens a supplement carried into a later round. */
   const latest = (owner: Element) => {
     const at = surfaces.get(owner);
-    return at ? [...at.byInput.values()].map(entry => ({ turn: entry.turn, round: entry.round, open: () => reveal(entry) })) : [];
+    return at ? [...at.byInput.values()].map(entry => ({ turn: entry.turn, round: entry.round, open: () => reveal(of(at, entry.turn.steer!.id)) })) : [];
   };
   // What the tray and the correction form share of the receipts.
   const parts = { L, say, make, button, quote, latest, attempt, redraw, treatment }, correct = correction<Shown>(parts, entry => draw(entry, true));
   return {
     tray: tray(parts),
+    agreements: agreements(parts, words),
     step: word,
     link(owner, inputId, first, lead = "关于补充「") {
       const at = surfaces.get(owner), entry = at && of(at, inputId);
@@ -356,6 +365,35 @@ export function createInputTray({ L, say, make, button, quote, latest, attempt, 
   };
 }
 
+/**
+ * 「当前约定」 (§9.2, stage 3e-1, for the Assistant first): what the AI says it took as a constraint (by its kind or what it
+ * says it changes), a goal or an acceptance condition, from each input's latest receipt on the surface, unless the input was
+ * taken back or the AI says it does not adopt it, answered it, or needs it clarified. Nothing here is checked: the line is
+ * the dashed 「AI 说」 of the receipt, with no mark of taking effect. A later supplement naming it (`about`, the person's
+ * own link on the ledger) is said beside it. Changing one is a correction from its receipt; the list keeps nothing.
+ */
+export function createAgreements({ L, make, button, latest }: InputReceiptParts, { IMPACT }: typeof RECEIPT_WORDS): InputReceipts["agreements"] {
+  const KEPT = ["constraint", "objective", "acceptance"] as const, OUT: readonly AgentInputTreatment[] = ["not-adopted", "answered", "needs-clarification"];
+  return (owner, runs) => {
+    const drawn = latest(owner).filter(one => runs.includes(one.round?.run_id ?? "")), list = make("ul", "mw-tray__list");
+    for (const { turn, open } of drawn) {
+      const steer = turn.steer!, claim = steer.model_claim;
+      if (!claim || steer.state === "withdrawn" || OUT.includes(claim.treatment)) continue;
+      const as = KEPT.filter(one => claim.impacts.includes(one) || (one === "constraint" && claim.kind === "constraint"));
+      if (!as.length) continue;
+      const item = make("li", ""), said = make("p", "mw-receipt__claim");
+      said.append(make("b", "", L("AI 说")), L("采纳为") + as.map(one => L(IMPACT[one])).join(L("、")));
+      item.append(button("mw-btn--link", turn.text, open), said);
+      if (drawn.some(other => other.turn.steer!.about === steer.id)) item.append(make("p", "mw-receipt__link", L("后来有一条更正指向它")));
+      list.append(item);
+    }
+    if (!list.childElementCount) return null;
+    const part = make("div", "mw-receipt mw-receipt__body");
+    part.append(list, make("p", "mw-receipt__note", L("AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 ") + runs.length + L(" 轮")));
+    return part;
+  };
+}
+
 /** What a receipt reads of the round's step board, made in the page with the receipt's own translate and step words. */
 function readBoard(L: (text: string) => string, word: (state: AgentStepState) => string) {
   /** Each step's key on the plan card (S1, S2…, 插入). */
@@ -373,7 +411,7 @@ function readBoard(L: (text: string) => string, word: (state: AgentStepState) =>
 }
 
 /** The page program: `(translate) => InputReceipts`. The workbench makes one and hands it to the Assistant and every plugin (`host.receipts`). */
-export const INPUT_RECEIPTS_CLIENT_SCRIPT = compactScript("(L) => (" + createInputReceipts.toString() + ")(L, " + createInputTray.toString() + ", " + createCorrection.toString() + ", " + JSON.stringify(RECEIPT_WORDS) + ", " + readBoard.toString() + ")");
+export const INPUT_RECEIPTS_CLIENT_SCRIPT = compactScript("(L) => (" + createInputReceipts.toString() + ")(L, " + createInputTray.toString() + ", " + createCorrection.toString() + ", " + JSON.stringify(RECEIPT_WORDS) + ", " + readBoard.toString() + ", " + createAgreements.toString() + ")");
 
 /** The receipt's words in English (served through the workbench catalog, `apps/workbench/src/i18n/en.ts`). */
 export const INPUT_RECEIPTS_EN: Readonly<Record<string, string>> = {
@@ -468,4 +506,9 @@ export const INPUT_RECEIPTS_EN: Readonly<Record<string, string>> = {
   "模型报告完成": "Model reports done",
   "受阻，等你决定": "Blocked, waiting for your decision",
   "重启后需要核对": "Needs checking after a restart",
+  "采纳为": "taken as ",
+  "后来有一条更正指向它": "A later correction points to it",
+  "AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 ": "What the AI says itself; Molis has not checked it. To change one, open it and send a correction. Only the latest ",
+  " 轮": " rounds were read",
+  "当前约定": "Current agreements",
 };

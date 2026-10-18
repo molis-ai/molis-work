@@ -14,7 +14,7 @@ SDK 导出 `PluginDatabaseDeclaration`、`PluginDatabase`、读事务接口和 S
 
 definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组合成 Connector Driver 与 Raw Event → Signal Adapter。Host 通过 context.services 提供私人存储、Artifact 和 UI 客户端，作者不需要访问数据库。
 
-`context.services.artifacts.publish/read` 是同步接口，由 Host 根据 Manifest 自动注册到同一动作 Kernel；作者只提交成果正文和固定版本。项目、用户、生产者签名及安装身份均由 Host 绑定，不能通过参数覆盖。声明所需 `artifact:read/write` 和 `artifacts.produces/consumes` 后，Runtime 授权才使接口可用；停止或崩溃后的旧客户端不能继续操作。Inputs/Outputs 同样经这个接口交换固定版本，无需另注册一套成果读写或维护 Host 名单。
+`context.services.artifacts.publish/read` 是同步接口，由 Host 根据 Manifest 自动注册到同一动作 Kernel；作者只提交成果正文和固定版本。项目、用户、生产者签名及安装身份均由 Host 绑定，不能通过参数覆盖。声明所需 `artifact:read/write` 和 `artifacts.produces/consumes` 后，Runtime 授权才使接口可用；停止或崩溃后的旧客户端不能继续操作。Inputs/Outputs 同样经这个接口交换固定版本，无需另注册一套成果读写或维护 Host 名单。 `artifacts.listConsumable()` 返回当前安装可消费的所有固定版本摘要；`processItems.head/readOwn` 读取本插件同签名、同个人 owner 的过程版本供恢复使用，即使归档或内容失效也可读取自己的记录。这些项目服务需要 `artifact:read`，Home 执行器尚不提供。
 
 公开业务能力放入 Manifest `actions`，从 `start` 返回对应 `actions` 处理器。已有 HTTP 入口可用 `bindPluginActionRoute(context, definition, request => input, routeId?)` 转发；仍需声明原 `routes`。这个适配器只转换参数/HTTP 结果，实际执行经过同一 Kernel 的 schema、项目策略和权限检查，禁止缺少动作服务时直调业务兜底。`context.services.actions` 调本插件声明的公开动作时绑定当前本地入口用户；另外，Manifest 在 `capabilities.consumes` 里写了宿主自己登记的动作 id 时（现在是工作区的两个读 `projects.workspace.files.read` 与 `projects.workspace.git.inspect`），它也能调这一个动作：按插件受众、用插件自己的 grant（要在 Manifest 里声明并持有该动作的权限，这两个是 `workspace:read`）、只放行写明的那个动作，受众、可用性与入参 schema 照常检查；别的插件的动作、没写进 `consumes` 的动作一律拒绝。`consumes` 非空的插件就有这个客户端，自己没有动作的插件也一样；`consumes` 为空而又没有自己的动作时没有。整份文件（`kind: "bytes"`，图片与 PDF 预览）只给宿主运行的这类插件：宿主按调用里由它确认的插件身份判断，生成（沙箱）插件以插件受众调用也没有这个身份，会被拒绝。它在停止、崩溃或启动失败后失效；外部 MCP 使用自己的逐客户端授权，不能借用此客户端冒充本地用户。私有同步成果 SDK 不通过这个异步入口递归调用。
 

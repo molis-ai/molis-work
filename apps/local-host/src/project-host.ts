@@ -393,7 +393,7 @@ export class MolisWorkLocalHost {
   sessionResources() { return this.sessions.resources(); }
 
   close(): Promise<void> {
-    return this.closing ??= (async () => {
+    return settleHostClose(this.closing ??= (async () => {
       releaseHomeSide(this);
       await closeConnectorResources(this.options.homeDirectory, this.connectorMcp);
       await this.search?.close().catch(error => { hostLog.warn("projects", "close_step_failed", error, { step: "search" }); });
@@ -401,10 +401,10 @@ export class MolisWorkLocalHost {
       try { await this.host.close(); }
       finally {
         this.systemFunctions?.dispose();
-        try { await Promise.all([this.agents?.service.dispose(), this.alchemist?.close(), this.sessions.close(), this.homePlugins?.close()]); }
+        try { await Promise.all([this.agents?.service.dispose(), this.sessions.close(), this.homePlugins?.close()]); }
         finally { await this.webCatalog?.access.close(); }
       }
-    })();
+    })(), this.alchemist?.close());
   }
 
   get instanceId(): string {
@@ -449,4 +449,11 @@ export function createMolisWorkLocalHost(options: MolisWorkLocalHostOptions = {}
   const host = new MolisWorkLocalHost(options);
   if (options.homeDirectory) registerProjectRuntimeOwner(host, path.resolve(options.homeDirectory));
   return host;
+}
+
+/** Retry Alchemist independently, while the remaining Host teardown retains its original lifetime. */
+async function settleHostClose(host: Promise<void>, alchemist: Promise<void> | undefined): Promise<void> {
+  const results = await Promise.allSettled([host, alchemist]);
+  const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+  if (failure) throw failure.reason;
 }

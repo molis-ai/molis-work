@@ -1,3 +1,4 @@
+import { hostLog } from "./host-log.js";
 import { resolve, join } from "node:path";
 import { rm } from "node:fs/promises";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
@@ -18,7 +19,7 @@ export interface AlchemistHostOptions {
   /** Called with the studio just opened. Tests hold `close` so a second action can arrive while it is still closing. */
   wrapStudio?(runtime: AlchemistStudioRuntime): void;
 }
-interface SharedStudio { runtime: AlchemistStudioRuntime; search?: ReturnType<typeof createAlchemistSearchPort>; owners: Set<AlchemistHostService>; closing?: Promise<void>; lastUsed: number }
+interface SharedStudio { runtime: AlchemistStudioRuntime; search?: ReturnType<typeof createAlchemistSearchPort>; owners: Set<AlchemistHostService>; closing?: Promise<void>; draining?: boolean; runtimeClosed?: boolean; lastUsed: number }
 const studios = new Map<string, SharedStudio>();
 /** An open studio drains its jobs four times a second; one nobody has used for this long and with no job is closed. */
 const STUDIO_IDLE_MS = 10 * 60_000;
@@ -35,7 +36,7 @@ export class AlchemistHostService {
     this.home = resolve(home);
     this.pulseGithub = alchemistPulseGithub(this.home);
     // Deleting a project closes its studio here (a running worker would keep writing to a database about to go) before its directory goes.
-    projectDeletedHooksFor(this.home).register({ id: "alchemist", label: "炼金术士的研究空间", alive: () => !this.closed, clear: projectId => this.deleteProject(projectId) });
+    projectDeletedHooksFor(this.home).register({ id: "alchemist", label: "炼金术士的研究空间", alive: () => !this.closed || this.entries.size > 0, clear: projectId => this.deleteProject(projectId) });
   }
   provider(): ActionProviderRegistration {
     return { provider: { provider_id: alchemistManifest.plugin_id, plugin_id: alchemistManifest.plugin_id, title: alchemistManifest.name, kind: "plugin" },
@@ -61,9 +62,8 @@ export class AlchemistHostService {
     this.assertOpen();
     if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目。");
     const key = JSON.stringify([this.home, caller.project_id]);
-    const own = this.entries.get(key); if (own) { own.lastUsed = Date.now(); return own.runtime; }
-    let entry = studios.get(key);
-    if (entry?.closing) throw new ActionError("alchemist.closing", "炼金术士服务正在关闭，请稍后重试。");
+    let entry = this.entries.get(key) ?? studios.get(key);
+    if (entry?.draining) throw new ActionError("alchemist.closing", "炼金术士服务正在关闭，请稍后重试。");
     if (!entry) {
       const projectId = caller.project_id;
       const ai = this.options.ai?.(projectId) ?? createAlchemistProloguePort({ homeDirectory: this.home, search: input => {
@@ -86,17 +86,19 @@ export class AlchemistHostService {
   private watchIdle(): void {
     const idleMs = this.options.idleReclaimMs ?? STUDIO_IDLE_MS;
     this.sweep ??= setInterval(() => {
-      for (const [key, entry] of this.entries) if (!entry.closing && Date.now() - entry.lastUsed >= idleMs && entry.runtime.idle()) void this.evict(key, entry);
+      for (const [key, entry] of this.entries) if (!entry.closing && Date.now() - entry.lastUsed >= idleMs && entry.runtime.idle()) void this.evict(key, entry).catch(error => { hostLog.warn("alchemist", "idle_close_failed", error); });
       if (!this.entries.size) { clearInterval(this.sweep); this.sweep = undefined; }
     }, Math.min(60_000, idleMs)).unref();
   }
-  /** Takes the studio out of every Host that would reuse it, then closes it. The process table keeps it until close finishes, so a request in that window is told to wait instead of opening another. */
+  /** Keep the entry and its owners until every resource has actually closed. */
   private evict(key: string, entry: SharedStudio): Promise<void> {
-    for (const owner of entry.owners) owner.entries.delete(key);
+    entry.draining = true;
     return entry.closing ??= (async () => {
-      try { await entry.runtime.close(); }
-      finally { try { await entry.search?.shutdown(); } finally { if (studios.get(key) === entry) studios.delete(key); } }
-    })();
+      if (!entry.runtimeClosed) { await entry.runtime.close(); entry.runtimeClosed = true; }
+      await entry.search?.shutdown();
+      for (const owner of entry.owners) owner.entries.delete(key);
+      if (studios.get(key) === entry) studios.delete(key);
+    })().catch(error => { entry.closing = undefined; throw error; });
   }
   /**
    * The project is deleted: its studio is evicted from every Host in this process that holds it, closed (its worker and
@@ -113,11 +115,13 @@ export class AlchemistHostService {
     clearInterval(this.sweep); this.sweep = undefined;
     const closing: Promise<void>[] = [];
     for (const [key, entry] of this.entries) {
-      entry.owners.delete(this);
-      if (entry.owners.size) continue;
-      entry.closing ??= (async () => { try { await entry.runtime.close(); } finally { try { await entry.search?.shutdown(); } finally { if (studios.get(key) === entry) studios.delete(key); } } })();
-      closing.push(entry.closing);
+      if (!entry.draining && [...entry.owners].some(owner => owner !== this && !owner.closed)) {
+        entry.owners.delete(this); this.entries.delete(key); continue;
+      }
+      closing.push(this.evict(key, entry));
     }
-    this.entries.clear(); await Promise.all(closing);
+    const results = await Promise.allSettled(closing);
+    const failure = results.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    if (failure) throw failure.reason;
   }
 }

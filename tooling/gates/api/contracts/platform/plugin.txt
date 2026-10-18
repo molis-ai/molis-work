@@ -422,7 +422,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly assert_authority_current?: (reference?: ActionReference, requiredPermissions?: readonly string[]) => void;
     readonly validate_permissions?: (permissions: readonly string[]) => void | Promise<void>;
     readonly signal?: AbortSignal;
-    readonly retain_background_authority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+    readonly retain_background_authority?: (references: readonly ActionReference[], additionalPermissions?: readonly string[]) => RetainedActionAuthority;
     readonly on_progress?: (event: {
         readonly stage: string;
         readonly progress: number;
@@ -467,7 +467,7 @@ export interface ActionErrorOptions {
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
     readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
-    readonly retainBackgroundAuthority?: () => RetainedActionAuthority;
+    readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
 
 export interface ActionExecutionPolicy {
@@ -912,7 +912,7 @@ export interface ArtifactReferrersResult {
     referrers: ArtifactReferrer[];
 }
 
-export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait"];
+export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
@@ -2240,7 +2240,7 @@ export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
 
-export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait"];
+export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export interface MaterialSourceContent {
     text: string;
@@ -2414,6 +2414,7 @@ export interface PluginArtifactClient {
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
     head(artifactId: string): ArtifactLineHead | null;
     readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
+    listConsumable(): PluginConsumableVersion[];
 }
 
 export interface PluginArtifactPublishInput extends PluginProcessItemInput {
@@ -2446,6 +2447,13 @@ export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommand
 }> | PluginCommandInputOf<"artifacts", {
     references: readonly ArtifactReference[];
 }>;
+
+export interface PluginConsumableVersion extends ArtifactReference {
+    kind: "artifact" | "process_item";
+    artifact_type_id: string;
+    schema_version: number;
+    title: string | null;
+}
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
 
@@ -2720,6 +2728,7 @@ export interface PluginHostServices {
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
     readonly files?: import("platform/plugin-files").PluginFilesClient;
+    readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
     readonly model?: PluginModelClient;
     readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
     readonly materials?: PluginMaterialsClient;
@@ -3103,6 +3112,44 @@ export interface PluginOutputsClient {
     read(reference: ArtifactReference): ArtifactVersionRecord | ProcessItemRecord | null;
 }
 
+export interface PluginOwnerFileEntry {
+    readonly name: string;
+    readonly kind: "file" | "directory";
+}
+
+export type PluginOwnerFileInfo = {
+    readonly kind: "file";
+    readonly byte_length: number;
+} | {
+    readonly kind: "directory";
+};
+
+export interface PluginOwnerFilesClient extends PluginOwnerFilesReader {
+    write<Result>(run: (writer: PluginOwnerFilesWriter) => Result): Promise<Result>;
+}
+
+export interface PluginOwnerFilesDeclaration {
+    readonly store_name: string;
+    readonly entries: readonly PluginOwnerFileEntry[];
+    readonly read_permission: string;
+    readonly write_permission: string;
+}
+
+export interface PluginOwnerFilesReader {
+    stat(relative: string): PluginOwnerFileInfo | null;
+    read(relative: string): Uint8Array | null;
+    list(relative: string): readonly PluginOwnerFileEntry[];
+}
+
+export interface PluginOwnerFilesWriter extends PluginOwnerFilesReader {
+    mkdir(relative: string): void;
+    writeFile(relative: string, bytes: Uint8Array, mode: "create" | "replace"): void;
+    replaceFileAtomic(relative: string, bytes: Uint8Array): void;
+    copyFile(source: string, target: string): void;
+    removeTree(relative: string): void;
+    setAccess(relative: string, access: "readonly" | "readwrite"): void;
+}
+
 export interface PluginPackageBundle {
     payload: PluginPackagePayload;
     signature: null | {
@@ -3206,6 +3253,12 @@ export interface PluginPrivateStorage {
 
 export interface PluginProcessItemClient {
     record(input: PluginProcessItemInput): ProcessItemResult;
+    head(artifactId: string): PluginProcessItemHead | null;
+    readOwn(reference: ArtifactReference): ProcessItemRecord | null;
+}
+
+export interface PluginProcessItemHead {
+    version: number;
 }
 
 export interface PluginProcessItemInput extends ArtifactReference {
@@ -3344,7 +3397,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "imageGeneration" | "materials" | "background"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

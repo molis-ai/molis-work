@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { PulseReport } from "../../domain/discovery/pulse.js";
+import { pulseReport, opportunity } from "../../shared/contracts/actions.js";
+import { pulseSourceIds } from "../../domain/discovery/source.js";
 import type { PulseSourceId, SourceCollectionResult, SourcePort } from "../../domain/discovery/source.js";
 import type { Clock, IdFactory } from "../../domain/kernel/identity.js";
 import type { SqlitePulseRepository } from "../db/pulse-repository.js";
@@ -10,12 +11,19 @@ import type { PersistedJob } from "./sqlite-job-runner.js";
 
 const inputSchema = z.object({ pulseRunId: z.string().min(1), periodStart: z.string().datetime(), actorId: z.string().min(1).optional() }).strict();
 
-type PulseCheckpoint =
-  | { stage: "planning_complete" }
-  | { stage: "collecting"; completedSourceIds: PulseSourceId[] }
-  | { stage: "collecting_complete" }
-  | { stage: "cross_checking_complete"; report: PulseReport; opportunities: unknown[] }
-  | { stage: "ready_to_persist"; reportId: string };
+const checkpointSchema = z.discriminatedUnion("stage", [
+  z.object({ stage: z.literal("planning_complete") }).strict(),
+  z.object({ stage: z.literal("collecting"), completedSourceIds: z.array(z.enum(pulseSourceIds)) }).strict(),
+  z.object({ stage: z.literal("collecting_complete") }).strict(),
+  z.object({ stage: z.literal("cross_checking_complete"), report: pulseReport, opportunities: z.array(opportunity) }).strict(),
+  z.object({ stage: z.literal("ready_to_persist"), reportId: z.string().min(1) }).strict(),
+]);
+type PulseCheckpoint = z.infer<typeof checkpointSchema>;
+export function validatePulseJob(job: PersistedJob) {
+  const input = inputSchema.parse(job.input);
+  parseCheckpoint(job.checkpoint);
+  return input;
+}
 
 export interface PulseJobDependencies {
   repository: SqlitePulseRepository;
@@ -45,7 +53,7 @@ async function handlePulseJob(
     input = inputSchema.parse(job.input);
     let run = dependencies.repository.getRun(input.pulseRunId);
     if (!run || run.jobId !== job.id) throw new Error("alchemist.pulse_run_input_invalid");
-    control.commit(() => dependencies.repository.updateRun(run!.id, {
+    await control.commit(() => dependencies.repository.updateRun(run!.id, {
       status: "running",
       stage: run!.stage,
       now: dependencies.clock.now(),
@@ -53,8 +61,8 @@ async function handlePulseJob(
     let checkpoint = parseCheckpoint(job.checkpoint);
     if (!checkpoint) {
       checkpoint = { stage: "planning_complete" };
-      saveStage(control, checkpoint, "planning");
-      run = control.commit(() => dependencies.repository.updateRun(run!.id, {
+      await saveStage(control, checkpoint, "planning");
+      run = await control.commit(() => dependencies.repository.updateRun(run!.id, {
         stage: "collecting",
         now: dependencies.clock.now(),
       }));
@@ -66,22 +74,23 @@ async function handlePulseJob(
       for (const sourceId of run.sourceIds) {
         if (collected.has(sourceId)) continue;
         const source = dependencies.sources.find((candidate) => candidate.sourceId === sourceId);
+        await control.beforeEffect();
         const result = source
-          ? await collectSafely(source, { since: input.periodStart, limit: 20 })
+          ? await collectSafely(source, { since: input.periodStart, limit: 20 }, control.signal)
           : missingAdapter(sourceId, dependencies.clock.now());
         if (control.isCancelled()) return;
-        control.commit(() => dependencies.repository.saveSourceCollection(
+        await control.commit(() => dependencies.repository.saveSourceCollection(
           run!.id,
           dependencies.idFactory.next("source_fetch"),
           result,
         ));
         collected.add(sourceId);
         checkpoint = { stage: "collecting", completedSourceIds: [...collected] };
-        control.saveCheckpoint(checkpoint);
+        await control.saveCheckpoint(checkpoint);
       }
       checkpoint = { stage: "collecting_complete" };
-      saveStage(control, checkpoint, "collecting");
-      run = control.commit(() => dependencies.repository.updateRun(run!.id, {
+      await saveStage(control, checkpoint, "collecting");
+      run = await control.commit(() => dependencies.repository.updateRun(run!.id, {
         stage: "cross_checking",
         now: dependencies.clock.now(),
       }));
@@ -102,30 +111,30 @@ async function handlePulseJob(
       if (control.isCancelled()) return;
       checkpoint = {
         stage: "cross_checking_complete",
-        report: synthesis.report,
-        opportunities: [...synthesis.opportunities],
+        report: pulseReport.parse(synthesis.report),
+        opportunities: synthesis.opportunities.map(value => opportunity.parse(value)),
       };
-      saveStage(control, checkpoint, "cross_checking");
-      run = control.commit(() => dependencies.repository.updateRun(run!.id, {
+      await saveStage(control, checkpoint, "cross_checking");
+      run = await control.commit(() => dependencies.repository.updateRun(run!.id, {
         stage: "synthesizing",
         now: dependencies.clock.now(),
       }));
     }
     if (checkpoint.stage === "cross_checking_complete") {
       const result = checkpoint;
-      control.commit(() => dependencies.repository.saveReport({
+      await control.commit(() => dependencies.repository.saveReport({
         report: result.report,
         opportunities: result.opportunities as Parameters<
           SqlitePulseRepository["saveReport"]
         >[0]["opportunities"],
       }));
       checkpoint = { stage: "ready_to_persist", reportId: checkpoint.report.id };
-      saveStage(control, checkpoint, "synthesizing");
+      await saveStage(control, checkpoint, "synthesizing");
     }
     if (checkpoint.stage === "ready_to_persist") {
       const report = dependencies.repository.getReport(checkpoint.reportId);
       if (!report) throw new Error("alchemist.pulse_report_not_found");
-      control.commit(() => dependencies.repository.updateRun(run!.id, {
+      await control.commit(() => dependencies.repository.updateRun(run!.id, {
         status: report.status,
         stage: "synthesizing",
         now: dependencies.clock.now(),
@@ -137,7 +146,7 @@ async function handlePulseJob(
     if (input) {
       const run = dependencies.repository.getRun(input.pulseRunId);
       if (run) {
-        control.commit(() => dependencies.repository.updateRun(run.id, {
+        await control.commit(() => dependencies.repository.updateRun(run.id, {
           status: "failed",
           errorCode: code,
           now: dependencies.clock.now(),
@@ -151,9 +160,10 @@ async function handlePulseJob(
 async function collectSafely(
   source: SourcePort,
   query: { since: string; limit: number },
+  signal: AbortSignal,
 ): Promise<SourceCollectionResult> {
   try {
-    return await source.collect(query);
+    return await source.collect(query, signal);
   } catch {
     return missingAdapter(source.sourceId, new Date().toISOString(), "alchemist.source_adapter_failed");
   }
@@ -175,26 +185,15 @@ function missingAdapter(
 }
 
 function parseCheckpoint(value: unknown): PulseCheckpoint | undefined {
-  if (!value || typeof value !== "object" || !("stage" in value)) return undefined;
-  const stage = (value as { stage?: unknown }).stage;
-  if (
-    stage === "planning_complete" ||
-    stage === "collecting" ||
-    stage === "collecting_complete" ||
-    stage === "cross_checking_complete" ||
-    stage === "ready_to_persist"
-  ) {
-    return value as PulseCheckpoint;
-  }
-  throw new Error("alchemist.pulse_checkpoint_invalid");
+  return value === undefined ? undefined : checkpointSchema.parse(value);
 }
 
-function saveStage(
+async function saveStage(
   control: JobHandlerControl,
   checkpoint: PulseCheckpoint,
   stage: "planning" | "collecting" | "cross_checking" | "synthesizing",
-): void {
-  control.saveCheckpoint(checkpoint, { type: "stage_completed", payload: { stage } });
+): Promise<void> {
+  await control.saveCheckpoint(checkpoint, { type: "stage_completed", payload: { stage } });
 }
 
 function classifyError(error: unknown): string {

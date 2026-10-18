@@ -93,6 +93,7 @@ interface Answer { readonly status: number; readonly body: Record<string, unknow
 
 async function failingEdge(owner: Owner, t: TestContext) {
   if (owner === "cognia") return failingCogniaRuntime(t);
+  if (owner === "jelly" || owner === "images") return failingMigratedRuntime(owner, t);
   const failure: { current: unknown } = { current: undefined };
   // The shelf route that catches a failed job asks for the shelf again to send it back with the error: that call must work.
   const snapshotId = shelfPlugin.shelfActions.snapshot.capability_id;
@@ -107,11 +108,11 @@ async function failingEdge(owner: Owner, t: TestContext) {
     const handler = (host as Record<string, unknown>)[`handle${owner[0]!.toUpperCase()}${owner.slice(1)}NativePluginHttp`] as
       ((request: IncomingMessage, response: ServerResponse, url: URL, ports: unknown) => Promise<boolean>) | undefined;
     assert.equal(typeof handler, "function", `the Host exports handle${owner[0]!.toUpperCase()}${owner.slice(1)}NativePluginHttp`);
-    return handler!(request, response, url, owner === "shelf" ? { actions } : owner === "images" ? () => ({ projectId: "p", actions }) : () => actions);
+    return handler!(request, response, url, { actions });
   };
   // A route of the plugin whose handler calls one action first, so the failure comes out of the action and goes through the edge.
-  const route = { shelf: ["POST", "/api/shelf/sample"], jelly: ["POST", "/api/jelly/preview"], cognia: ["POST", "/api/plugins/io.molis.work.cognia/library/domains"], images: ["POST", "/api/images/jobs"] }[owner] as [string, string];
-  const body = { shelf: {}, jelly: { kind: "import", source: "x" }, cognia: { name: "领域" }, images: { prompt: "画" } }[owner];
+  const route = ["POST", "/api/shelf/sample"] as const;
+  const body = {};
   const server = createServer((request, response) => {
     handle(request, response, new URL(request.url ?? "/", "http://127.0.0.1")).then(handled => {
       if (!handled) { response.statusCode = 404; response.end("{}"); }
@@ -138,6 +139,32 @@ async function failingEdge(owner: Owner, t: TestContext) {
     send,
     setFailure(error: unknown) { failure.current = error; },
     close: () => new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); }),
+  };
+}
+
+/** W5-01-JMC-03 / W5-01-IMGPORT-03: migrated errors cross their actual Runtime action and route. */
+async function failingMigratedRuntime(owner: "jelly" | "images", t: TestContext) {
+  let failure: unknown;
+  const method = owner === "jelly"
+    ? t.mock.method(jellyPlugin.JellyStore.prototype, "previewImport", () => { throw failure; })
+    : t.mock.method(imagesPlugin.ImagesService.prototype, "start", async () => { throw failure; });
+  const f = await serveHomeRuntime(t, { completeText: async () => { throw failure; } });
+  const root = owner === "jelly" ? "/api/plugins/io.molis.work.jelly/preview"
+    : `/projects/${(await f.project("图片错误回归")).project_id}/api/plugins/io.molis.work.images/jobs`;
+  const input = owner === "jelly" ? { kind: "import", source: "x" }
+    : { request_id: "error-parity", connection_id: "chosen", prompt: "画" };
+  const send = async (verb: string, path: string, payload?: string): Promise<Answer> => {
+    const response = await f.request(path, { method: verb, raw: payload });
+    const text = await response.text();
+    let body: Record<string, unknown> = {};
+    try { body = JSON.parse(text) as Record<string, unknown>; } catch { /* NDJSON is asserted through text. */ }
+    return { status: response.status, text, body };
+  };
+  return {
+    fail: (error: unknown) => { failure = error; return send("POST", root, JSON.stringify(input)); },
+    rawBody: (payload: string) => send("POST", root, payload), send,
+    setFailure(error: unknown) { failure = error; },
+    close: async () => { method.mock.restore(); },
   };
 }
 
@@ -302,7 +329,7 @@ test("Jelly's streamed error event keeps the code and the details, and carries t
       [new Error("没有码"), 500, "actions.execution_failed", undefined],
     ] as const) {
       edge.setFailure(error);
-      const answer = await edge.send("POST", "/api/jelly/ai?stream=1", JSON.stringify({ kind: "decompose", source_type: "text", text: "写周报" }));
+      const answer = await edge.send("POST", "/api/plugins/io.molis.work.jelly/ai?stream=1", JSON.stringify({ kind: "decompose", source_type: "text", text: "写周报" }));
       assert.equal(answer.status, 200, "a stream starts as 200 and says what went wrong in its last line");
       const events = answer.text.trim().split("\n").map(line => JSON.parse(line) as Record<string, unknown>);
       const event = events.at(-1)!;
@@ -341,7 +368,7 @@ test("no error class, no route-error mapper, no mapError and no readBody is left
     const text = read(path);
     for (const name of removed) assert.ok(!new RegExp(`\\b${name}\\b`, "u").test(text), `${path} still mentions ${name}`);
   }
-  for (const path of ["shelf", "jelly", "images"].map(owner => `apps/local-host/src/${owner}-native-plugin-http.ts`)) {
+  for (const path of ["apps/local-host/src/shelf-native-plugin-http.ts", "plugins/native/jelly/src/plugin-routes.ts", "plugins/native/images/src/routes.ts"]) {
     const text = read(path);
     assert.ok(!/\bmapError\b/u.test(text), `${path} passes no mapError: the dispatcher answers through the SDK`);
     assert.ok(!/\breadBody\b/u.test(text), `${path} reads its body with the shared reader`);

@@ -1,3 +1,4 @@
+import { githubAccountIdentity, grantedScopes, type GithubAccountIdentity } from "./account-identity.js";
 /**
  * GitHub Connector — live mode by default.
  * Fixture mode is available only in an explicit test/fixture process.
@@ -82,8 +83,7 @@ interface GithubNotificationCursor {
   synced_at: string;
 }
 
-interface GithubIdentity {
-  login: string;
+interface GithubIdentity extends GithubAccountIdentity {
   scopes: string[];
 }
 
@@ -168,7 +168,7 @@ export function createGithubProvider(opts?: {
         return {
           ok: true,
           status: "connected",
-          message: `GitHub live as @${identity.login}${scopeCopy}`,
+          message: `GitHub live as @${identity.login}${scopeCopy}`, account: { login: identity.login, ...(identity.account_id ? { account_id: identity.account_id } : {}) },
         };
       } catch (error) {
         const failure = classifyGithubLiveError(error);
@@ -305,14 +305,6 @@ function githubHeaders(token: string): Record<string, string> {
   };
 }
 
-function grantedScopes(response: Response): string[] {
-  return (response.headers.get("x-oauth-scopes") ?? "")
-    .split(",")
-    .map((scope) => scope.trim())
-    .filter(Boolean)
-    .sort();
-}
-
 function retryAfterAt(response: Response, at: Date): string {
   const retryAfterSeconds = Number(response.headers.get("retry-after"));
   const resetSeconds = Number(response.headers.get("x-ratelimit-reset"));
@@ -356,7 +348,7 @@ function throwGithubResponseError(response: Response, at: Date): never {
 }
 
 export type GithubWhoamiResult =
-  | { ok: true; login: string; scopes: string[] }
+  | ({ ok: true; scopes: string[] } & GithubAccountIdentity)
   | {
       ok: false;
       failure: "needs_auth" | "network" | "provider" | "rate_limited";
@@ -376,7 +368,7 @@ export async function githubWhoami(input: {
   }
   try {
     const identity = await fetchGithubIdentity(fetchImpl, input.token, input.now?.() ?? new Date());
-    return { ok: true, login: identity.login, scopes: identity.scopes };
+    return { ok: true, ...identity };
   } catch (error) {
     const failure = classifyGithubLiveError(error);
     return {
@@ -403,16 +395,17 @@ async function fetchGithubIdentity(
     throw new GithubLiveError("network");
   }
   if (!res.ok) throwGithubResponseError(res, at);
-  let raw: { login?: unknown };
+  let raw: unknown;
   try {
-    raw = (await res.json()) as typeof raw;
+    raw = await res.json();
   } catch {
     throw new GithubLiveError("provider");
   }
-  if (typeof raw.login !== "string" || !raw.login.trim()) {
+  const account = githubAccountIdentity(raw);
+  if (!account) {
     throw new GithubLiveError("provider", res.status);
   }
-  return { login: raw.login.trim(), scopes: grantedScopes(res) };
+  return { ...account, scopes: grantedScopes(res) };
 }
 
 function githubCursor(value: unknown): GithubNotificationCursor | null {

@@ -36,3 +36,5 @@ node scripts/run-tests.mjs tests/functions-system-capability.test.ts
   - 项目被删除时由宿主按 `functionsProjectData`（`src/project-data.ts`：确认框里的标签与 `purgeFunctionsProject`；Functions 不是插件，宿主自己列它）调用清掉这个项目的场景绑定与判断记录；规则本身是本人的，保留；只读库文件，库不存在时不创建，重复运行没有副作用。
 - 改动后必跑：`node scripts/run-tests.mjs tests/functions-authoring-actions.test.ts tests/functions-system-capability.test.ts tests/functions-draft-retention.test.ts tests/project-deletion-owners.test.ts tests/functions-plugin.test.ts tests/functions-choice-validation.test.ts`
 - 相关手册：[specs/archive/functions-independent-authoring/spec.md](../../specs/archive/functions-independent-authoring/spec.md)、[skills/molis-prologue-ai/SKILL.md](../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+`functions.connection.usages` 通过 Host 端口读取当前 TypeSafe 连接 id，列出已发布规则及其原动作；不用环境变量或测试凭据覆盖时才归到该账号。未发布草稿不返回，读取不会执行判断或暴露凭据。连接状态由原 credential availability 与派出检查决定。

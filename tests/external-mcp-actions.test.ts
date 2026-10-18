@@ -14,15 +14,17 @@ import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability } from "../apps/local-host
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
-test("a connected external MCP tool is one directory action: local user, workflow step and granted MCP client all run it through the runtime's gate", { timeout: 120_000 }, async t => {
+test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory action: local user, workflow step and granted MCP client all run it through the runtime's gate", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "external-mcp-actions-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   // The Home is served so that the project and the MCP client's grant are made the way a person makes them; this file keeps its own host (it needs `src` types of the directory).
   const served = await serveTestHost(t, { home, host });
   const project = await served.createProject("外部 MCP", ["feed"]);
   await writeFile(join(home, "server.mjs"), MCP_FIXTURE);
+  let directoryAllowed = true;
   const openAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.external-mcp-test", appVersion: "1.0.0" }, reviewQueue: new AgentReviewQueue(),
-    storageRoot: join(home, "runtime"), modelConfiguration: async () => null, resolveCredential: () => null });
+    storageRoot: join(home, "runtime"), modelConfiguration: async () => null, resolveCredential: () => null,
+    checks: { directoryAuthorized: async (id, directory) => directoryAllowed && id === project.project_id && directory === home } });
   let adapter = await openAdapter();
   const reference = project.reference;
   let directory = createExternalMcpDirectory({ localHost: host, homeDirectory: home });
@@ -42,6 +44,8 @@ test("a connected external MCP tool is one directory action: local user, workflo
     const view = (await client.discover(user)).find(row => isMcpToolCapability(row.capability_id) && row.action.title === "record_review_note")!;
     assert.ok(view, "the external tool is in the project directory");
     assert.equal(view.provider.title, "笔记服务");
+    assert.equal(view.provider.plugin_id, undefined, "Coding is provenance, not the execution provider");
+    assert.equal(view.provider.kind, "mcp");
     assert.equal(view.availability.available, true);
     assert.deepEqual((view.action.input_schema as { required: string[] }).required, ["note"]);
     const ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
@@ -85,21 +89,22 @@ test("a connected external MCP tool is one directory action: local user, workflo
       assert.deepEqual(await notes(), ["直接调用", "工作流交来的标题", "MCP 客户端"], "revocation after SDK discovery must prevent the actual stdio write");
     } finally { library.validate = validate; }
 
-    // Disconnecting keeps the entry and says why; nothing is sent. Reconnecting with the same shape keeps the same version.
+    // An enabled disconnected server stays usable on demand. Discovery starts no process, and missing authority cannot reconnect it.
     await library.control(owner, saved.id, "disconnect");
-    // The product re-syncs after every connection change; the configured server's tool stays, unavailable.
+    // Sync preserves the exact discovered tool version.
     await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
     const offline = (await client.discover(user)).find(row => row.capability_id === ref.capability_id && row.version === ref.version)!;
-    assert.equal(offline.availability.available, false);
-    assert.match(offline.availability.available ? "" : offline.availability.reason, /已断开/);
-    await assert.rejects(client.invoke(user, ref, { note: "断开后" }), { code: "actions.connection_unavailable" });
+    assert.equal(offline.availability.available, true);
+    assert.equal((await library.list(owner))[0]?.health, "disconnected");
+    await assert.rejects(client.invoke({ ...user, audience: "agent", permissions: [] }, ref, { note: "无权限不能重连" }), { code: "actions.forbidden" });
+    assert.equal((await library.list(owner))[0]?.health, "disconnected");
     await library.control(owner, saved.id, "connect");
     await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
     assert.ok((await client.discover(user)).some(row => row.capability_id === ref.capability_id && row.version === ref.version && row.availability.available));
     assert.equal((await notes()).length, 3);
 
     // After a restart the saved server's tool is back in the directory before anyone opens the MCP settings:
-    // unavailable with the reason, the same reference, and no process started on its own.
+    // the same reference, no process started by discovery, and available to the Assistant under its own identity.
     directory.close();
     await adapter.close?.();
     adapter = await openAdapter(); library = adapter.mcpLibrary!;
@@ -109,11 +114,23 @@ test("a connected external MCP tool is one directory action: local user, workflo
     const restored = (await client.discover(user)).find(row => row.capability_id === ref.capability_id && row.version === ref.version)!;
     assert.ok(restored, "the saved server's tool is back after the restart");
     assert.equal(restored.provider.title, "笔记服务");
-    assert.equal(restored.availability.available, false);
-    await assert.rejects(client.invoke(user, ref, { note: "重启后未连接" }), { code: "actions.connection_unavailable" });
-    await library.control(owner, saved.id, "connect");
+    assert.equal(restored.availability.available, true);
+    assert.equal((await library.list(owner))[0]?.health, "disconnected");
+    assert.deepEqual((await library.catalog!()).map(entry => entry.owner), [owner]);
+    const assistant: ActionCallContext = { ...user, actor_id: "assistant:test-work", audience: "agent" };
+    assert.ok((await client.discover(assistant)).some(row => row.capability_id === ref.capability_id));
+    await assert.rejects(client.invoke({ ...assistant, project_id: "another-project" }, ref, { note: "跨项目拒绝" }));
+    directoryAllowed = false;
+    await assert.rejects(client.invoke(assistant, ref, { note: "撤销目录授权" }), /取消授权/);
+    assert.equal((await library.list(owner))[0]?.health, "disconnected", "a revoked directory never starts a process");
+    directoryAllowed = true;
+    assert.deepEqual(await client.invoke(assistant, ref, { note: "重启后" }), { text: "Saved one note: 重启后", truncated: false });
+    assert.equal((await notes()).length, 4);
+    // Explicitly disabling the configuration refuses the old reference and starts no process.
+    await library.save(owner, { id: saved.id, expected_version: saved.version, label: saved.label, enabled: false,
+      transport: "stdio", timeout_ms: 5000, directory: saved.directory, executable: saved.executable, argv: saved.argv });
     await directory.sync(runtime, owner.plugin_id, "prologue", library, owner);
-    assert.deepEqual(await client.invoke(user, ref, { note: "重启后" }), { text: "Saved one note: 重启后", truncated: false });
+    await assert.rejects(client.invoke(assistant, ref, { note: "停用后" }), { code: "actions.connection_unavailable" });
     assert.equal((await notes()).length, 4);
     // Removing the configuration removes its entries.
     await library.control(owner, saved.id, "remove");
@@ -138,7 +155,7 @@ test("listing the servers again while an external tool is being called replaces 
   const place = { project_id: "p1", storage_key: "memory:p1" };
   const tool = (name: string, description = name) => ({ server: "srv", server_label: "Srv", configuration_version: 1, tool: name, version: `shape-${name}`, description, input_schema: { type: "object", properties: { m: { type: "string" } } } });
   let tools = [tool("echo")], dispatched = 0, resync: (() => Promise<void>) | undefined;
-  const library = { list: async () => [{ id: "srv" }], tools: async () => tools, live: () => true,
+  const library = { list: async () => [{ id: "srv", enabled: true, version: 1, health: "connected" }], tools: async () => tools, live: () => true,
     call: async (_owner: unknown, _tool: unknown, _args: unknown, options: { beforeDispatch?: () => Promise<void> }) => {
       // Between the handler's start and its dispatch (validation, workspace authority, clock) the settings page lists the servers.
       await resync?.();

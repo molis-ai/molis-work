@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 //   --verbose               print every file's output, not only the failing ones'
 //   --retries <n>           run a failed file again, up to n more times (default 0); one that then passes is listed as flaky and
 //                           does not fail the run (the CI full suite uses 1)
+//   --bail                  stop at the first file that fails (after its retries, run at once): nothing more starts and the files
+//                           still running are stopped; the CI full suite uses it, so a red shard ends early
 //   --shard <k>/<n>         only every n-th file of the list, starting at the k-th (CI spreads one list over n jobs: the same
 //                           list in each job gives each file to exactly one of them)
 //   --skip-macos-only       leave out the files the Linux probe marks darwin and not browser (scripts/ci-linux-probe/select.mjs),
@@ -20,7 +22,7 @@ import { fileURLToPath } from "node:url";
 // One file: one `node --test` process, as before. Several files: each file runs alone in its own process with its own
 // MOLIS_WORK_HOME and secret store (this script again, with that one file), several at once (scripts/run-tests/pool.mjs).
 // A run with a browser file first takes the machine's browser slot (scripts/machine-slot.mjs) and waits its turn for it.
-const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--retries <n>] [--shard <k>/<n>] [--skip-macos-only] [node --test options] [files…]";
+const USAGE = "usage: run-tests.mjs [--jobs <n>] [--browser-jobs <n>] [--timeout-seconds <n>] [--verbose] [--retries <n>] [--bail] [--shard <k>/<n>] [--skip-macos-only] [node --test options] [files…]";
 const die = (message) => { console.error(`run-tests: ${message}\n${USAGE}`); process.exit(2); };
 const whole = (name, value, least) => {
   const number = Number(value);
@@ -28,7 +30,7 @@ const whole = (name, value, least) => {
   return number;
 };
 
-const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false, retries: 0, shard: undefined, skipMacosOnly: false };
+const options = { jobs: undefined, browserJobs: undefined, timeoutSeconds: 1200, verbose: false, retries: 0, bail: false, shard: undefined, skipMacosOnly: false };
 const targets = [], testArgs = [];
 const args = process.argv.slice(2);
 for (let index = 0; index < args.length; index++) {
@@ -40,6 +42,7 @@ for (let index = 0; index < args.length; index++) {
   else if (name === "--verbose") options.verbose = true;
   else if (name === "--retries") options.retries = whole(name, value(), 0);
   else if (name === "--skip-macos-only") options.skipMacosOnly = true;
+  else if (name === "--bail") options.bail = true;
   else if (name === "--shard") {
     const shard = /^(\d+)\/(\d+)$/.exec(value() ?? "");
     if (!shard || Number(shard[1]) < 1 || Number(shard[1]) > Number(shard[2])) die(`--shard needs <k>/<n> with 1 <= k <= n, not "${args[index]}"`);
@@ -79,7 +82,7 @@ if (targets.length > 1) {
   const jobs = options.jobs ?? fromEnvironment("MOLIS_WORK_TEST_JOBS", Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2))));
   const browserJobs = Math.min(jobs, options.browserJobs ?? fromEnvironment("MOLIS_WORK_TEST_BROWSER_JOBS", 2));
   const { runParallel } = await import("./run-tests/pool.mjs");
-  process.exitCode = await runParallel(root, targets, { jobs, browserJobs, timeoutSeconds: options.timeoutSeconds, testArgs, verbose: options.verbose, retries: options.retries });
+  process.exitCode = await runParallel(root, targets, { jobs, browserJobs, timeoutSeconds: options.timeoutSeconds, testArgs, verbose: options.verbose, retries: options.retries, bail: options.bail });
 } else {
   // Test processes, including spawned web servers, inherit an isolated credential
   // home. Production's Keychain selection and existing ciphertext stay untouched.

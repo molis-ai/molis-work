@@ -883,6 +883,14 @@ interface AgentInputView {
   - RCPT-355：只写板记录里有的：没有标题、不是人插入的就都不写；不写板版本、加入时间和「已生效」；为别的补充加的步骤、这次没读到的板都不显示（同上）。
   - RCPT-356：步骤状态只有一份措辞：回执把 `RECEIPT_WORDS.STEP` 经 `host.receipts.step` 交出去，Coding 的计划卡删掉自己的 `LABEL`、改用它（统筹 10-18 定，属防腐；coding.js 只变小）（`tests/input-receipts-client.test.ts`、`tests/coding-state-rings.e2e.test.ts`）。TaskBoard 的状态表把未开始写成「等待前置」，和这里不一样，记为 BL-164。
 
+**3d-5 实现记录（2026-10-18，D2、D23；统筹 10-18 定，不记 BL）：**
+
+- **缺口。** 3d-3 的宿主在 `agent.collaboration.revise` 等调用变成现行（`beforeEffect`）之前就核了来源；等的时候那条补充被撤回，插入照样成功，板上的 `origins` 指向一条撤回了的输入。防腐线复查时复现。
+- **两处核。** 处理器先等调用现行，再按这一轮的记录核来源。运行时在插入里再核一次：读这一轮自己的输入账本（适配器按运行时推来的事件维护的那份），紧贴着 `addNode`，中间不隔 `await`。核不过都抛 `agent.input_not_origin`，板上和业务记录都不写。核来源的函数只有一份（`horizontal/agent-host/src/input-origin.ts`），宿主和运行时共用；运行时那一次经内部端口的 `revise` 把账本交下去，合同不变。
+- **照实写的边界。** SDK 的 `addNode` 把写入排在同一张板上更早的写入后面（`serially`），排队时会跨 `await`。在它排队之后才撤回的，算「撤在之后」：步骤留着，回执照实显示那条补充已撤回、这一步指向它。适配器的账本跟着运行时的事件走，运行时撤回了、事件还没推到时也算之后。
+- **验收编号与证据：**
+  - RCPT-357：插入在等调用现行时那条补充被撤回，宿主拒（`agent.input_not_origin`），板的版本和步骤都没变、没有步骤指向它；绕过宿主直接交给运行时，运行时按自己的账本同样拒、同样不写（`tests/prologue-origin-withdraw-race.test.ts`）。
+
 **3e-0 实现记录（2026-10-18，3e 的前提；统筹 10-18 定选 A）：**
 
 - **缺口。** SDK 只在一轮的工具名单里列了 `acknowledge-inputs` 时，才给模型看每条补充的编号、才收它的处理说明（`offersAcknowledgement`）。助理的两个工作角色只能列 `BUSINESS_HOST_TOOLS`，里面没有它，所以助理从来给不出处理说明，回执里的「AI 说」和 3e-1 的「当前约定」在真实使用里都是空的。

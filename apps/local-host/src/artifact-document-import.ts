@@ -7,7 +7,7 @@ import {
   type ArtifactDocumentImportPorts, type ExternalDocumentSource,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { listConnectorConnectionViews } from "./web-connector-connections.js";
+import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";

@@ -1,10 +1,21 @@
 # 系统性代码与架构防腐整理
 
-状态：执行中，整线未完成（2026-10-15，Claude 按用户 10-14 目标接手，Codex 写线已暂停交接）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR，#523 已合入 main（`f74e29d86`；#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑，macOS 专有用例在本机补，失败逐个对照 main 基线，合入后的三项 Linux 修复与一处合并留下的旧错误码在后续 PR 补进。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 #523 进了 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
+状态：执行中，整线未完成（2026-10-17，Codex 按用户授权接手防腐线，目标与原验收保持）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR，#523 已合入 main（`f74e29d86`；#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑，macOS 专有用例在本机补，失败逐个对照 main 基线，合入后的三项 Linux 修复与一处合并留下的旧错误码在后续 PR 补进。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 #523 进了 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
 
 任务要求：`docs/prompts/repository-anti-corruption.md`（2026-10-03 起以 main 上的版本为准，见 §1）。同时适用 `docs/prompts/repository-systematic-review.md` 与 `docs/prompts/code-health-report-2026-09-30.md`。上一轮整理见 [repository-systematic-review](../archive/repository-systematic-review/spec.md)，这里不重复它的内容。
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
+
+W5-01 Todo 最新主线整合（2026-10-18，merge `576b98556`，准备推送）：固定 main `7faaa027c`，保留 #712 的侧栏上下文、#699 正式 SDK 与 #719 文档。冲突仅资源许可/测试/派生表，Todo 业务源码保持原迁移。原 +28 B 重定为 workbench.js 1,110,329→1,110,357，todo.js 62,081→62,036（−45）；25 项 7,475,698 B，相对该 main 少17 B。整体 build、offline install、boundary、API/merge-base health、资源检查通过；36 个非浏览器文件 418/418，覆盖 Todo、Home Runtime、SDK/授权、侧栏消息安全和资源旧额度失效。真实 Chrome 的 todo-app、side-shelf-in-hand、context-toolbar-panes 三文件仍在机器公共窗口排队，尚无该组合结果；此前5f03的11文件29条仅是对应版本证据。推送前 fetch 确认 main 未变，secrets 扫描933行通过。先更新 PR 候选以启动正式 CI/源码复核，不称浏览器补验、全量或整线完成；不自行合并/加标签。
+
+
+W5-01 Todo 合入 #661 后验证（2026-10-18，本地 merge `c07e47e96`，未推）：merge main `5f03d1e4`，两份派生表重新生成，Todo 生产源码与原 `3272c36df` 相同。原 +28 B 许可重定为 workbench.js 1,110,056→1,110,084；todo.js 62,081→62,036（−45），25 项共 7,475,425 B，比该 main 少17 B。整体/workspace build、boundary、API/完整 merge-base health、资源实测通过；17 非浏览器文件222条、11真实Chrome文件29条，去重28文件251条最终通过。Goal刷新与对话框初跑导航超时，原源码/断言/时限不改后串行复跑7条通过，失败日志保留；未声称已查明时序根因。`prologue-origin-withdraw-race` 两条也通过。日志 `/tmp/molis-todo-main-661-{nonbrowser,browser,browser-rerun}.log`。推送前 main 又合入 #712/#719/#699，仍需合入并重测实际资源与受影响路径，本段仅记录5f03切点，不代表最终远端CI或整线完成。
+
+W5-01 Todo 同步（2026-10-17，PR #684，仍待合入）：按交接的 merge-only 顺序纳入 main `8fcff0442`。冲突仅为单次资源许可、对应测试及两份派生表；主线的交互、回执、SDK 与 S-32/S-33 保留。Todo 的 +28 B 已按既有批准重定为 workbench.js 1,109,302→1,109,330，Todo 客户端 62,081→62,036 B（−45）；25 项资源总计 7,479,372 B，整体与 workspace 构建、资源实测及 boundary 已通过。#688 已用的 Coding 373,784 与 workbench.js 1,108,502 两个起点补进拒绝回归。合并后定向 10 文件 / 162 条、真实 Chrome 2 文件 / 7 条、安全清单 63 文件全部通过；sandbox 文件保留 1 个环境条件跳过项。merge-base health 与快查下调通过。共享核心全量交统筹在 CI 排；不把已做好的后续本地切片算作已合入。
+
+W5-01 Todo 再同步（2026-10-17，本地晚间，PR #684）：按统筹 PR 评论先 merge main `b3499cda5`，再 merge `a56a2763d`，全程不变基。主线 #701 的 Shelf 侧栏和常开插件保留；两处渲染器冲突只同时删除 Shelf 与 Todo 的旧挂载引用。Todo 业务源码与此前审过的补丁一致。+28 B 许可重定为 workbench.js 1,109,913→1,109,941，Todo 客户端 62,081→62,036 B（−45）；主线已用预算起点全部保留，AC-03 的 1,109,312 B 加入拒绝回归，活动许可只有本片一条。整体构建、boundary、merge-base health/快查下调及资源实测通过，25 项资源共 7,475,644 B。109 个非浏览器文件 1,111 条通过、1 条原有公网 npm 条件跳过；7 个真实 Chrome 文件覆盖 14 条：首次 `todo-from-inbox` 宽屏在灵光转待办提示处超时，其余 13 条通过；不改源码或断言单独复跑，该文件 2 条通过。另建干净 main `a56a2763d` 工作树同构建、同文件 2 条通过。此为一次尚未稳定复现的时序失败，不把它写成首次全绿，也不据此认定基线已有同一缺陷。共享核心全量及合入仍由统筹在 CI 排；本线不加标签。
+
+W5-01 Todo 第三次同步（2026-10-17，PR #684，本地定向通过，待正式 CI）：按统筹评论 `6246076698` merge main `4bea52c84`，不变基，合并提交 `dfcb0439f`。冲突仅为资源许可脚本、对应测试和资源派生表；Todo 业务源码与冻结 head `f7fffda2e` 逐字相同。正式构建实测 workbench.js 为 1,110,215 B（main 1,110,187，仍只增加已批准的 28 B），todo.js 62,036 B（main 62,081，减少 45 B）；25 项合计 7,475,589 B，比 main 少 17 B。#706 已用的许可与本片同为 workbench.js 一个键，故按原有单次合同将活动起点换为 `[1110187, 1110215]`，保留全部已用起点拒绝回归，并新增 #706 的 1,109,913 与 1,110,802 B 两种再次增长拒绝；不扩展许可格式或保留已用增长权限。整体构建、边界和资源更新已通过；16 个非浏览器文件合计 220 条、另一个转待办调用方文件 3 条、3 个真实 Chrome 文件 4 条通过（去重共 20 文件 227 条）。资源用例首次在合并提交和预算落定前读到 1,110,187 B，1 条失败；完成合并与派生表后该文件 73 条重跑全过，未改断言。完整 merge-base health/API（64 份快照、2,506 项声明）通过，快查重测后无额外变化；全量仍交统筹 CI，整线未完成。
 
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
@@ -852,12 +863,14 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
   - **重装与复查**（2026-10-11）：`origin/main` `9f9bda551` 的干净工作树里整体构建（经整机构建锁），`node dist/cli/main.js install --source .` 输出「同版本内容已刷新（0.2.0）」，常驻服务未启用（`service status`：absent），新装的 MCP 经 stdio 列出 18 个项目。然后只读拷出五处到会话临时目录（700 权限）：`config/mcp-tools.json` 直接拷贝；`workflows/workflows.db`、`characters/characters.sqlite`、`assistant/assistant.db` 用 `?mode=ro` 打开 `VACUUM INTO`；18 个项目库是 WAL 模式、没有 `-wal` 文件、没有进程打开，只读打开建不了 `-shm`，改用 `immutable=1` 打开 `VACUUM INTO`。在拷贝上跑 `list`：各类都是 0（拷贝里只有这五处，`NOT READ` 也是 0），退出码 0；拷贝随即删除。真实 Home 一个字都没改（`workflows.db-shm` 的修改时间因只读连接更新，它是共享内存索引，不是数据）。
   - **收尾**：工具 `tests/fixtures/provider-identity-maintenance.mjs` 与演练用例 `tests/provider-identity-maintenance.test.ts` 删除，从 Git 历史 `9f9bda551` 取；检查清单第 4.3 节维护七一项勾上并写明结果，CHANGELOG 的 W3-06 C 一行注明已核对。会话里已经开着的 MCP 进程跑的是旧代码（用户要重开 Claude Code、Codex、Grok 会话）；克隆 `2026-10-10-before-maint7` 留着，删不删由用户定。
 - 真实 Home 维护八（候选，未做；动真实 Home 之前弹窗问用户）：做下面「库版本维护清单」里还没做的行，与装下一个版本同一步做，不提前：已装的构建只认旧版本，提前改了它就拒绝打开。
+  - **#661 旧 HTTP MCP 凭据配置**（候选，未做）：此前通过 `replace-secret` 保存的 Prologue `molis-mcp` 配置可能只有 `credential_ref`，新版本连接时会拒绝该引用并提示重新填写。与 `connectors/connectors.db` 1→2 同一次维护：先在停宿主后的完整备份副本中，经 Agent Runtime 的公开存储入口列出受影响配置的 owner、id、地址与数量，不输出秘密；能通过凭据 owner 恢复的，演练迁成固定地址的 Host 连接，并将配置改存 `auth_connection_id`；不能恢复的，保留配置并明确请用户升级后重新填写或选择已有连接。真实 Home 当前未核对，不预报数量，也不宣称已迁移。演练须核对配置归属、地址和现行版本、重启后认证、原调用授权及秘密不进入日志；失败恢复同一时点的完整副本。维护及安装新构建仍需当次授权，产品读取不增加旧值兜底。
   - **10-17 只读核对**（真实 Home 各库的只读拷贝，读完即删；只读 `user_version` 与 `catalog_meta`、`session_meta` 的版本，不读内容、不碰密钥；真实 Home 跑的是 10-11 构建的安装版 0.2.0）：19 个项目库都是 7，目录库 22、会话库 7，Functions 3，助理、记忆、Form 2，`homeStores()` 登记的其余各库 1，都与基线相符；不符的只有 Pages（真实 1，代码 2）。`plugin-runtime/plugin-runtime.db`、`issues/issues.db`（都是 2）真实 Home 里还没有，新版本第一次打开时按基线新建，不用维护。没有核对的：搜索索引 `search/search.db`（可重建的派生库，版本记在 `search_meta`，不符就重建、不拒绝）和两个 JSON 文件（`feed/secrets.json`、`config/mcp-tools.json`）。
 
 **库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只读这张表）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `connectors/connectors.db` | 1 → 2 | #661（`7074abe67`、`fe5634dd3`、`7007532b8`） | 归维护八，与安装新构建同一步进行；真实 Home 未执行，仍需当次授权，不得先用新构建打开旧库或让旧构建打开维护后的库。隔离 v1 副本已演练：停宿主并完整备份，按当前 `CONNECTORS_STORE_BASELINE` 增加连接启停/移除字段、协议/授权请求与技术观察字段和表，在事务中写基线 2，核对原连接 id、凭据引用、绑定、协议及取消记录不变；失败恢复完整副本。证据见 [服务接入 spec](../assistant-service-connections/spec.md) 的连接生命周期、正式接入准备与技术观察记录 |
 | `projects/<project_id>/molis-work.db` | 6 → 7 | #369（删 Casebook 的 5 张表） | 维护六，真实 Home 的 18 个项目库 10-10 已做（上面「维护六」） |
 | `pages/pages.db` | 1 → 2 | `0ff3adb8a`（10-13，直接提交到 main、没有 PR；只多一张 `page_comments`，其余建库语句逐条相同） | 维护八，未做：一个事务里按 `PAGES_STORE_BASELINE` 建 `page_comments`，写 `PRAGMA user_version = 2`，不动已有的表和行；先在副本上演练（检查清单第 4.3 节）。那个提交在检查清单第 3 节写了「真实 Home 尚未执行这一项维护」，但没有进这张表、也没有待办行，10-17 只读核对时才发现（BL-157） |
 
@@ -959,7 +972,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/shelf` | 内置插件 | 21 | 5,037 | `client.ts` 1,708 | 2 | 3 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
-| `plugins/native/todo` | 内置插件 | 22 | 4,271 | `client.ts` 1,245 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/todo` | 内置插件 | 22 | 4,276 | `client.ts` 1,240 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 已审 |
 | `plugins/native/workflows` | 内置插件 | 15 | 3,708 | `client.ts` 1,387 | 1 | 3 | 2 | 构建期 | 中 | 已审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 已审 |

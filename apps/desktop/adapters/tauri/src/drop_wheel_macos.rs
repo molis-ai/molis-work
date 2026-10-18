@@ -5,9 +5,9 @@
 
 use crate::drop_wheel::{
     self, arc_angles, mid_radius, slice_index, tile_thickness, window_frame, window_size,
-    DropWheelSession, MouseUpOutcome, Point, WheelAction, WheelFrame, WheelSlice, BOUNCE_DURATION,
-    BOUNCE_SCALE, CONCEAL_DURATION, ICON_LIFT, LABEL_DROP, LABEL_MAX_WIDTH, PETAL_PAD,
-    REVEAL_DELAY, REVEAL_FADE, SHADOW_OFFSET_Y, SHADOW_OPACITY, SHADOW_OPACITY_DISABLED,
+    DropWheelSession, MouseUpOutcome, PanelBox, Point, WheelAction, WheelFrame, WheelSlice,
+    BOUNCE_DURATION, BOUNCE_SCALE, CONCEAL_DURATION, ICON_LIFT, LABEL_DROP, LABEL_MAX_WIDTH,
+    PETAL_PAD, REVEAL_DELAY, REVEAL_FADE, SHADOW_OFFSET_Y, SHADOW_OPACITY, SHADOW_OPACITY_DISABLED,
     SHADOW_OPACITY_HOT, SHADOW_RADIUS, SHADOW_RADIUS_HOT, SLICE_COUNT,
 };
 use crate::shelf_http;
@@ -49,7 +49,8 @@ use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Position, Size};
 const DRAG_BOARD: &str = "Apple CFPasteboard drag";
 const TRAY_ID: &str = "molis-work-status";
 
-static SHELF_SURFACE: AtomicBool = AtomicBool::new(false);
+// Shelf's side tab, checked when it was reported (`drop_wheel::reported_panel`); `None` while it is not showing.
+static SHELF_PANEL: Mutex<Option<PanelBox>> = Mutex::new(None);
 static HOST: AtomicPtr<Host> = AtomicPtr::new(ptr::null_mut());
 static REVEAL_GEN: AtomicU64 = AtomicU64::new(0);
 static WATCHDOG_GEN: AtomicU64 = AtomicU64::new(0);
@@ -496,8 +497,10 @@ impl DropWheelView {
     }
 }
 
-pub fn set_shelf_surface(active: bool, language: Option<&str>, theme: Option<&str>) {
-    SHELF_SURFACE.store(active, Ordering::SeqCst);
+pub fn set_shelf_surface(panel: Option<PanelBox>, language: Option<&str>, theme: Option<&str>) {
+    if let Ok(mut shown) = SHELF_PANEL.lock() {
+        *shown = drop_wheel::reported_panel(panel);
+    }
     if let Some(language) = language {
         ENGLISH.store(language.starts_with("en"), Ordering::SeqCst);
     }
@@ -507,7 +510,11 @@ pub fn set_shelf_surface(active: bool, language: Option<&str>, theme: Option<&st
 }
 
 pub fn is_shelf_surface() -> bool {
-    SHELF_SURFACE.load(Ordering::SeqCst)
+    shelf_panel().is_some()
+}
+
+fn shelf_panel() -> Option<PanelBox> {
+    SHELF_PANEL.lock().ok().and_then(|shown| *shown)
 }
 
 pub fn install(app: &AppHandle) -> Result<(), String> {
@@ -1088,9 +1095,9 @@ fn screen_max_y(mouse: Point) -> f64 {
 }
 
 fn over_shelf_panel(app: &AppHandle, mouse: Point) -> bool {
-    if !SHELF_SURFACE.load(Ordering::SeqCst) {
+    let Some(panel) = shelf_panel() else {
         return false;
-    }
+    };
     let Some(window) = app.get_webview_window("main") else {
         return false;
     };
@@ -1107,11 +1114,16 @@ fn over_shelf_panel(app: &AppHandle, mouse: Point) -> bool {
     if !ns.isVisible() || ns.isMiniaturized() {
         return false;
     }
-    let frame = ns.frame();
-    mouse.x >= frame.origin.x
-        && mouse.x < frame.origin.x + frame.size.width
-        && mouse.y >= frame.origin.y
-        && mouse.y < frame.origin.y + frame.size.height
+    let content = ns.contentRectForFrameRect(ns.frame());
+    drop_wheel::over_reported_panel(
+        mouse,
+        panel,
+        (
+            Point::new(content.origin.x, content.origin.y),
+            content.size.width,
+            content.size.height,
+        ),
+    )
 }
 
 fn tray_contains(app: &AppHandle, mouse: Point, screen_max_y: f64) -> bool {
@@ -1503,24 +1515,37 @@ mod tests {
     use objc2_app_kit::NSPasteboardItem;
     use objc2_foundation::NSData;
 
-    struct TestPasteboard(Retained<NSPasteboard>);
+    // AppKit's pasteboard is not safe to drive from several libtest threads at once: run in parallel, a reading test sometimes
+    // saw another test's types (1 run in 4 here). Each test holds this lock for as long as its board lives.
+    static BOARDS: Mutex<()> = Mutex::new(());
+
+    struct TestPasteboard {
+        board: Retained<NSPasteboard>,
+        _turn: std::sync::MutexGuard<'static, ()>,
+    }
 
     impl TestPasteboard {
         fn new() -> Self {
-            Self(NSPasteboard::pasteboardWithUniqueName())
+            let turn = BOARDS
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            Self {
+                board: NSPasteboard::pasteboardWithUniqueName(),
+                _turn: turn,
+            }
         }
 
         fn write(&self, items: &[Retained<NSPasteboardItem>]) {
-            self.0.clearContents();
+            self.board.clearContents();
             let array = NSArray::from_retained_slice(items);
-            let ok: bool = unsafe { msg_send![&*self.0, writeObjects: &*array] };
+            let ok: bool = unsafe { msg_send![&*self.board, writeObjects: &*array] };
             assert!(ok, "write isolated pasteboard fixture");
         }
     }
 
     impl Drop for TestPasteboard {
         fn drop(&mut self) {
-            self.0.clearContents();
+            self.board.clearContents();
         }
     }
 
@@ -1547,11 +1572,11 @@ mod tests {
             let empty = NSArray::<NSString>::from_slice(&[]);
             assert!(unsafe {
                 board
-                    .0
+                    .board
                     .setPropertyList_forType(&empty, ns_string!("NSFilenamesPboardType"))
             });
             let legacy = board
-                .0
+                .board
                 .propertyListForType(ns_string!("NSFilenamesPboardType"))
                 .unwrap()
                 .downcast::<NSArray>()
@@ -1562,7 +1587,7 @@ mod tests {
                 "modern URLs must exercise the fallback path"
             );
 
-            let cargo = read_board_cargo(&board.0);
+            let cargo = read_board_cargo(&board.board);
             assert_eq!(cargo.files, paths.map(PathBuf::from));
             assert!(cargo.has_content());
             assert!(cargo.has_cargo());
@@ -1581,7 +1606,7 @@ mod tests {
             assert!(item.setData_forType(&NSData::with_bytes(&png), ns_string!("public.png")));
             board.write(&[item]);
 
-            let cargo = read_board_cargo(&board.0);
+            let cargo = read_board_cargo(&board.board);
             assert!(cargo.files.is_empty());
             assert!(cargo.has_content());
             assert!(cargo.has_cargo());
@@ -1605,7 +1630,7 @@ mod tests {
             assert!(item.setString_forType(ns_string!(""), ns_string!("public.utf8-plain-text")));
             board.write(&[item]);
 
-            let cargo = read_board_cargo(&board.0);
+            let cargo = read_board_cargo(&board.board);
             assert_eq!(cargo.text.as_deref(), Some("This is rich text."));
             assert!(cargo.has_content());
             assert!(cargo.has_cargo());
@@ -1623,7 +1648,7 @@ mod tests {
                 .setString_forType(ns_string!("文档标题"), ns_string!("public.utf8-plain-text")));
             board.write(&[item]);
 
-            let cargo = read_board_cargo(&board.0);
+            let cargo = read_board_cargo(&board.board);
             assert_eq!(cargo.url.as_deref(), Some(url));
             assert_eq!(cargo.text.as_deref(), Some("文档标题"));
             assert!(cargo.is_http_url());

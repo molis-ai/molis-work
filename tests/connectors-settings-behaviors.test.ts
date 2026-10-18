@@ -245,7 +245,7 @@ test("every connector detail exposes official https setup links", () => {
 
 });
 
-test("an existing Gmail account offers targeted OAuth reauthorization while the form adds another account", () => {
+test("ASC-20 ASC-23: an existing Home account offers lifecycle controls and targeted OAuth reauthorization", () => {
   const html = renderConnectorsSettings({
     connector_connections: [{ connection_id: "33333333-3333-4333-8333-333333333333", service_id: "gmail", display_name: "工作邮箱", account_label: "work@example.com", auth_method: "oauth", source: "managed", state: "connected" }],
     connectors: HOST_CONNECTOR_DIRECTORY
@@ -261,6 +261,9 @@ test("an existing Gmail account offers targeted OAuth reauthorization while the 
   assert.match(html, /data-connection-state data-mw-state="saved">已保存/);
   assert.match(html, /data-account-login="gmail"/);
   assert.match(html, /data-connection-disconnect="33333333-3333-4333-8333-333333333333"/);
+  assert.match(html, /data-connection-manage="disable"/);
+  assert.match(html, /data-connection-manage="remove"/);
+  assert.doesNotMatch(html, /data-connection-manage="enable"/);
   assert.match(html, /添加另一个账号/);
   const manualTokenHtml = renderConnectorsSettings({
     connectors: HOST_CONNECTOR_DIRECTORY
@@ -273,6 +276,22 @@ test("an existing Gmail account offers targeted OAuth reauthorization while the 
   });
   assert.match(manualTokenHtml, /data-protocol-field="client_id"/);
   assert.match(manualTokenHtml, /data-protocol-start="oauth"/);
+});
+
+test("ASC-20 ASC-23: stopped Home and project connections can resume; external credentials have no local lifecycle controls", () => {
+  const base = { connection_id: "33333333-3333-4333-8333-333333333333", service_id: "github", display_name: "验收连接", account_label: null,
+    auth_method: "mcp", source: "managed", state: "connected", revision: "current-revision", enabled: false } as const;
+  const render = (connection: NonNullable<Parameters<typeof renderConnectorsSettings>[0]["connector_connections"]>[number]) => renderConnectorsSettings({
+    connectors: HOST_CONNECTOR_DIRECTORY.filter(row => row.connector_id === "github"), connector_connections: [connection],
+  }, { L: text => text, escapeHtml: value => String(value ?? ""), icon: () => "" });
+  for (const connection of [base, { ...base, source: "external" as const, project_id: "project-fixture" }]) {
+    const html = render(connection);
+    assert.match(html, /data-connection-revision="current-revision"/);
+    assert.match(html, /data-connection-manage="enable"/);
+    assert.match(html, /data-connection-manage="remove"/);
+    assert.doesNotMatch(html, /data-connection-manage="disable"/);
+  }
+  assert.doesNotMatch(render({ ...base, source: "external" }), /data-connection-manage=/);
 });
 
 test("Feed add-source panel sends GitHub and Gmail to project-scoped Connectors", () => {

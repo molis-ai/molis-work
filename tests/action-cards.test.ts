@@ -12,6 +12,40 @@ const view = (extra: Partial<ActionView> = {}): ActionView => ({ ...reference, o
   availability: { available: true }, ...extra }) as never;
 const refused = (reason: string) => (error: unknown) => (error as { reason?: string }).reason === reason;
 
+test("ASC-08 ASC-24 ASC-36: successful cards keep only the declared bounded result and trusted internal destination", async () => {
+  const k = keeper();
+  const resultView = { summary: "接入方案已准备", title_pointer: "/name", text_pointer: "/description", link: { label: "继续接入", href_template: "/projects/{project_id}/connections?setup={/id}" } };
+  k.view = view({ action: { ...view().action, result_view: resultView } });
+  k.reply = async () => ({ id: "request/one?next=//outside.example", project_id: "untrusted-project", name: "本次连接", description: "a".repeat(4100), unselected: "PRIVATE-FIXTURE" });
+  const card = await k.draft({ title: "准备接入" });
+  const done = await runActionCard(card, { revision: 1, values: {} }, { ...k.ports, projectId: "trusted-project" });
+  assert.equal(done.status, "done");
+  assert.equal(done.outcome, "接入方案已准备");
+  assert.equal(done.presentation?.title, "本次连接");
+  assert.equal(done.presentation?.text?.length, 4000);
+  assert.equal(done.presentation?.text_truncated, true);
+  assert.equal(done.presentation?.link?.href, "/projects/trusted-project/connections?setup=request%2Fone%3Fnext%3D%2F%2Foutside.example");
+  assert.doesNotMatch(JSON.stringify(done), /PRIVATE-FIXTURE|untrusted-project/);
+  k.view = view();
+  assert.deepEqual(await runActionCard(done, { revision: done.revision, values: {} }, k.ports), done, "a later provider cannot change the original result snapshot");
+  assert.equal(k.invoked.length, 1);
+
+  const home = await k.draft({ title: "Home" });
+  k.view = view({ action: { ...view().action, result_view: resultView } });
+  assert.equal((await runActionCard(home, { revision: 1, values: {} }, k.ports)).presentation?.link, undefined, "output cannot invent a project when the trusted scope has none");
+  for (const href_template of ["//outside.example/{/id}", "javascript:{/id}", "/\\outside.example/{/id}"]) {
+    k.view = view({ action: { ...view().action, result_view: { summary: "Prepared", link: { label: "Open", href_template } } } });
+    const unsafe = await k.draft({ title: "Unsafe destination" });
+    assert.equal((await runActionCard(unsafe, { revision: 1, values: {} }, k.ports)).presentation?.link, undefined);
+  }
+  for (const error of [new Error("Refused"), new ActionError("actions.outcome_unknown", "Unknown")]) {
+    const failed = await k.draft({ title: "Failed" });
+    k.reply = async () => { throw error; };
+    const result = await runActionCard(failed, { revision: 1, values: {} }, k.ports);
+    assert.equal(result.presentation, undefined, "no successful link on a failed or unconfirmed call");
+  }
+});
+
 function keeper(now = "2026-10-15T09:00:00Z", subjects: Record<string, string | "missing"> = { t1: "3" }) {
   const cards = new Map<string, ActionCard>();
   const invoked: unknown[] = [];

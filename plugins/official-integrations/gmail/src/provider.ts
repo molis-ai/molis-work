@@ -1,3 +1,4 @@
+import { gmailHealthResponse } from "./health-response.js";
 /**
  * Gmail Connector - live mode by default; deterministic fixture mode is
  * available only in an explicit test/fixture process.
@@ -365,28 +366,7 @@ export function createGmailProvider(opts?: {
             action: boundaryFailure.action,
           };
         }
-        if (!res.ok) {
-          return {
-            ok: false,
-            status: "error",
-            message: `Gmail health HTTP ${res.status}`,
-          };
-        }
-        let profile: { emailAddress?: string };
-        try {
-          profile = (await res.json()) as { emailAddress?: string };
-        } catch {
-          return {
-            ok: false,
-            status: "error",
-            message: "Gmail health returned malformed response",
-          };
-        }
-        return {
-          ok: true,
-          status: "connected",
-          message: `Gmail live ${profile.emailAddress || ""}`.trim(),
-        };
+        return await gmailHealthResponse(res);
       } catch {
         return {
           ok: false,

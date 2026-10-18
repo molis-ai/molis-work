@@ -1,8 +1,9 @@
 import { ActionError, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
-  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAiStatus,
+  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAiStatus, ShelfAdmitActionInput,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
 import { shelfTextMaterial } from "./material.js";
 import { createShelfSearchHandlers, shelfClipboardSearchEntriesAction, shelfFileContentAction, shelfFileEntriesAction, shelfSearchEntriesAction, shelfSubjectAction } from "./search.js";
@@ -39,10 +40,7 @@ function jobDefinition(name: string, title: string, description: string, recipes
 }
 const AI_RECIPES = [...SHELF_RECIPES, SHELF_SHORTCUT_RECIPE].filter(recipe => recipe.requires_agent).map(recipe => recipe.recipe);
 
-export interface ShelfAdmitActionInput {
-  text?: string; title?: string; capture_pages?: boolean;
-  filename?: string; bytes_base64?: string; mime?: string; origin_realpath?: string;
-}
+export type { ShelfAdmitActionInput };
 export interface ShelfTextView { item_id: string; title: string; text: string; content_hash: string; fingerprint: string }
 export const shelfActions = {
   snapshot: define<Record<string, never>, ShelfSnapshot>("snapshot", "读取置物架面板",
@@ -56,13 +54,8 @@ export const shelfActions = {
   file: define<{ item_id: string; child?: string }, { name: string; mime: string; bytes_base64: string }>("items.file", "读取 Shelf 原文件",
     "读取置物架副本或文件夹内文件的原始字节", "query", object({ item_id: id, child: { type: "string", maxLength: 1000 } }, ["item_id"]),
     object({ name: text, mime: text, bytes_base64: text }), read, LOCAL),
-  admit: define<ShelfAdmitActionInput, { item: ShelfItemRecord }>("items.admit", "放进 Shelf",
-    "把一段文字（可抓取其中网页）或一个文件副本放进置物架；同一原件重复加入保留原副本", "command",
-    object({ text: { type: "string", maxLength: 2_000_000, title: "文字" }, title: { type: "string", maxLength: 200, title: "标题" }, capture_pages: { type: "boolean", title: "抓取其中的网页" },
-      filename: { type: "string", maxLength: 500, title: "文件名" }, bytes_base64: { type: "string", maxLength: 128 * 1024 * 1024, title: "文件内容（Base64）" }, mime: { type: "string", maxLength: 200, title: "文件类型" },
-      origin_realpath: { type: "string", maxLength: 4096, title: "原文件位置", description: "仅本机界面拖入文件时提供，用于任务前核对原件未变" } }, []),
-    object({ item }), write, SHARED, { summary: "已接收材料", title_pointer: "/item/name",
-      link: { label: "打开材料", href_template: "/projects/{project_id}/?openPlugin=shelf&openItem={/item/item_id}&openTitle={/item/name}" } }),
+  // Defined in the Shelf contract, so another plugin invokes this very definition.
+  admit: SHELF_ADMIT_ACTION,
   admitFolder: define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[]; origin_realpath?: string }, { item: ShelfItemRecord }>("items.admit-folder", "放进文件夹",
     "把本机界面选中的整个文件夹复制进置物架", "command",
     object({ name: { type: "string", minLength: 1, maxLength: 500 }, entries: { type: "array", minItems: 1, items: object({ relative: { type: "string", minLength: 1, maxLength: 1000 },

@@ -23,6 +23,36 @@ const task = (one: BackgroundTask): AgentBackgroundTask => ({
   ...(one.exitCode === undefined ? {} : { exit_code: one.exitCode }), started_at_ms: one.startedAtMs, ...(one.endedAtMs === undefined ? {} : { ended_at_ms: one.endedAtMs }),
 });
 
+const boardNode = (runtime: Runtime, board: string, node: string) => { try { return runtime.boards.get(boardRef(board)).nodes.find(one => one.id === node); } catch { return undefined; } };
+
+/** One condition as a person would say it. */
+const conditionLabel = async (runtime: Runtime, sessions: WaitSessions, condition: WaitCondition): Promise<{ ref: string; label: string }> => {
+  if (condition.kind === "command") return { ref: condition.task, label: `后台命令 ${runtime.background.get(condition.task)?.summary ?? condition.task}${condition.until === "output" ? (condition.match ? `输出「${condition.match}」` : "的新输出") : "结束"}` };
+  if (condition.kind === "envelope") {
+    let to: string | undefined;
+    try { to = runtime.delivery.get(condition.envelope).to.id; } catch { to = undefined; }
+    return { ref: condition.envelope.id, label: `会话「${to ? await sessions.title(to) : "?"}」的答复` };
+  }
+  if (condition.kind === "node") {
+    const title = boardNode(runtime, condition.board, condition.node)?.title;
+    // A project work item's title is 「session」task: the person knows it by the session.
+    return { ref: `${condition.board}/${condition.node}`, label: `${title?.match(/^「[^」]*」/)?.[0] ?? title ?? condition.node}那一步` };
+  }
+  if (condition.kind === "pending") return { ref: condition.pending.id, label: "你的回答" };
+  return { ref: `${condition.check.checker.id}@${condition.check.checker.version}`, label: condition.check.source ? `${condition.check.source.kind} ${condition.check.source.id}` : "外部检查" };
+};
+const waitView = async (runtime: Runtime, sessions: WaitSessions, wait: HeldWait): Promise<AgentCollaborationWait> => {
+  const conditions: AgentCollaborationCondition[] = [];
+  for (const [index, condition] of wait.on.entries()) {
+    const seen = wait.observations[index]!, named = await conditionLabel(runtime, sessions, condition);
+    conditions.push({ kind: condition.kind, ...named, last: { status: seen.status, at: iso(seen.atMs), ...(seen.note ? { note: seen.note } : {}), ...(seen.checkerError ? { checker_error: seen.checkerError.code } : {}) } });
+  }
+  return { wait_id: wait.ref.id, session_id: wait.session.id, ...(wait.run ? { run_id: wait.run.id } : {}), graph_id: wait.scope.board, node_id: wait.scope.node,
+    by: wait.by, reason: wait.reason, mode: wait.mode, until: wait.until, on_failure: wait.onFailure, deadline_at: iso(wait.deadlineMs), conditions, state: wait.state,
+    ...(wait.continued ? { continued: true as const } : {}), created_at: iso(wait.createdAtMs), ...(wait.settledAtMs === undefined ? {} : { settled_at: iso(wait.settledAtMs) }),
+    ...(wait.note === undefined ? {} : { note: wait.note }) };
+};
+
 /**
  * The project's waits and continuations as Molis reads them, and its background commands (specs/prologue-adoption
  * §4.6.10). The SDK's task graph owns every wait (it hangs on a step) and the step's one continuation; nothing here
@@ -36,34 +66,7 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
   const changed = () => { for (const listener of [...listeners]) listener(); };
   const unsubscribe = [runtime.waits.subscribe(changed), runtime.boards.subscribe(event => { if (event.type === "wait") changed(); })];
   const inProject = async (project: string, sessionId: string) => (await sessions.project(sessionId)) === project;
-  const nodeOf = (board: string, node: string) => { try { return runtime.boards.get(boardRef(board)).nodes.find(one => one.id === node); } catch { return undefined; } };
-  /** One condition as a person would say it. */
-  const label = async (condition: WaitCondition): Promise<{ ref: string; label: string }> => {
-    if (condition.kind === "command") return { ref: condition.task, label: `后台命令 ${runtime.background.get(condition.task)?.summary ?? condition.task}${condition.until === "output" ? (condition.match ? `输出「${condition.match}」` : "的新输出") : "结束"}` };
-    if (condition.kind === "envelope") {
-      let to: string | undefined;
-      try { to = runtime.delivery.get(condition.envelope).to.id; } catch { to = undefined; }
-      return { ref: condition.envelope.id, label: `会话「${to ? await sessions.title(to) : "?"}」的答复` };
-    }
-    if (condition.kind === "node") {
-      const title = nodeOf(condition.board, condition.node)?.title;
-      // A project work item's title is 「session」task: the person knows it by the session.
-      return { ref: `${condition.board}/${condition.node}`, label: `${title?.match(/^「[^」]*」/)?.[0] ?? title ?? condition.node}那一步` };
-    }
-    if (condition.kind === "pending") return { ref: condition.pending.id, label: "你的回答" };
-    return { ref: `${condition.check.checker.id}@${condition.check.checker.version}`, label: condition.check.source ? `${condition.check.source.kind} ${condition.check.source.id}` : "外部检查" };
-  };
-  const waitView = async (wait: HeldWait): Promise<AgentCollaborationWait> => {
-    const conditions: AgentCollaborationCondition[] = [];
-    for (const [index, condition] of wait.on.entries()) {
-      const seen = wait.observations[index]!, named = await label(condition);
-      conditions.push({ kind: condition.kind, ...named, last: { status: seen.status, at: iso(seen.atMs), ...(seen.note ? { note: seen.note } : {}), ...(seen.checkerError ? { checker_error: seen.checkerError.code } : {}) } });
-    }
-    return { wait_id: wait.ref.id, session_id: wait.session.id, ...(wait.run ? { run_id: wait.run.id } : {}), graph_id: wait.scope.board, node_id: wait.scope.node,
-      by: wait.by, reason: wait.reason, mode: wait.mode, until: wait.until, on_failure: wait.onFailure, deadline_at: iso(wait.deadlineMs), conditions, state: wait.state,
-      ...(wait.continued ? { continued: true as const } : {}), created_at: iso(wait.createdAtMs), ...(wait.settledAtMs === undefined ? {} : { settled_at: iso(wait.settledAtMs) }),
-      ...(wait.note === undefined ? {} : { note: wait.note }) };
-  };
+  const nodeOf = (board: string, node: string) => boardNode(runtime, board, node);
   const continuationOf = (wait: HeldWait): AgentContinuationView | undefined => {
     const continuation = nodeOf(wait.scope.board, wait.scope.node)?.continuation;
     if (!continuation || continuation.wait.ref.id !== wait.ref.id) return undefined;
@@ -84,7 +87,7 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
     for (const wait of held) {
       const continuation = continuationOf(wait);
       if (wait.state === "waiting" || continuation && !["started", "cancelled"].includes(continuation.state) && (!HELD.includes(continuation.state) || stillHeld(wait, continuation))) {
-        return { session_id: sessionId, wait: await waitView(wait), ...(continuation ? { continuation } : {}) };
+        return { session_id: sessionId, wait: await waitView(runtime, sessions, wait), ...(continuation ? { continuation } : {}) };
       }
     }
     return { session_id: sessionId };
@@ -125,6 +128,12 @@ export function createPrologueWaits(runtime: Runtime, sessions: WaitSessions) {
         // Over already, its step held for the person: giving it up gives the step back (the person's decision, on the
         // step's record); going on is the round the person starts now, which gives it back the same way.
         const continuation = continuationOf(wait);
+        if (control.kind === "cancel-wait" && continuation?.state === "eligible") {
+          const step = nodeOf(wait.scope.board, wait.scope.node)!;
+          await runtime.boards.handOver({ ref: boardRef(wait.scope.board), nodeId: step.id, from: step.assignee, to: step.assignee,
+            scope: wait.scope, note: control.note ?? "用户取消了等待后的接续", atMs: at, human: { kind: "human", id: actorId } });
+          return sessionView(wait.session.id);
+        }
         if (!continuation || !stillHeld(wait, continuation)) throw agentErrors.collaboration_conflict("这个等待已经结束");
         if (control.kind === "cancel-wait") await readyStep(runtime, wait.scope.board, wait.scope.node, actorId, control.note ?? "用户取消了等待");
         return sessionView(wait.session.id);

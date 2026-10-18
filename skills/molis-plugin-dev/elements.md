@@ -12,6 +12,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 - `publisher.signature` 变了 = 新身份，旧 grant 不继承。
 - `entrypoints[]`：`deployment: "local" | "server"` + `entrypoint` 路径。一等插件常用 `./index.js`。
 - `kind`：`native` | `app` | `integration`。选贡献形态，不是信任等级。
+- `always_on`（schema 2）：常开插件，每个项目都开着、不进插件列表与市场、不能移除。只有随宿主发布的内置插件能声明；插件包、开发目录和创作台的产物带 `always_on: true` 会在安装时被拒（`plugin.declaration_invalid`），升级到带它的版本也被拒。外部插件不写它。
 
 ## 版本升级
 

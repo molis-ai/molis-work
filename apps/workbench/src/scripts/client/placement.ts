@@ -123,13 +123,13 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     item.querySelectorAll("button").forEach((button) => button.addEventListener("pointerenter", () => clearTimeout(timer), { once: true }));
     return item;
   };
-  const followUps = (description) => {
+  const followUps = (view) => {
     const list = [];
-    if (!description || description.state !== "ok") return list;
-    if (description.location && description.location.kind === "personal") {
-      if (description.can.use_in_project) list.push({ label: L("用于项目…"), run: () => useInProject(description) });
-      if (description.can.move) list.push({ label: L("移到…"), run: () => moveOrCopy(description, "move") });
-    } else if (description.can.move) list.push({ label: L("移到…"), run: () => moveOrCopy(description, "move") });
+    if (!view || view.state !== "ok") return list;
+    if (view.location && view.location.kind === "personal") {
+      if (view.can.use_in_project) list.push({ label: L("用于项目…"), run: () => useInProject(view) });
+      if (view.can.move) list.push({ label: L("移到…"), run: () => moveOrCopy(view, "move") });
+    } else if (view.can.move) list.push({ label: L("移到…"), run: () => moveOrCopy(view, "move") });
     return list;
   };
   const named = (verb, title) => title ? L("{verb}《{title}》", { verb, title }) : verb;
@@ -144,19 +144,19 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (detail.verb === "printed") { card(L("已打开打印"), L("在打印窗口里选“存储为 PDF”即可得到 PDF 文件"), [], "done"); return; }
     if (detail.verb === "failed") { card(named(L("没有完成"), detail.title || ""), detail.note || "", [], "error"); return; }
     const object = detail.object ? { kind: detail.object.kind, id: detail.object.id, project_id: detail.object.project_id === undefined ? here() : detail.object.project_id } : null;
-    let description = null;
-    try { if (object) description = await describe(object, true); } catch { description = null; }
-    const where = description && description.location ? description.location.title : hereTitle();
-    const title = (detail.title || (description && description.title) || "");
+    let view = null;
+    try { if (object) view = await describe(object, true); } catch { view = null; }
+    const where = view && view.location ? view.location.title : hereTitle();
+    const title = (detail.title || (view && view.title) || "");
     const head = named(L(VERB[detail.verb] || "已保存"), title);
-    const lines = [detail.verb === "versioned" ? (detail.note || "") : L("存到 {place}", { place: where }) + (description && description.location ? " · " + L(description.location.access_label) : "")];
+    const lines = [detail.verb === "versioned" ? (detail.note || "") : L("存到 {place}", { place: where }) + (view && view.location ? " · " + L(view.location.access_label) : "")];
     if (detail.note && detail.verb !== "versioned") lines.push(detail.note);
     const actions = [];
     // A version just pinned opens in the 成果库, not the object it was pinned from (artifact-positioning walkthrough).
     const open = detail.open || (detail.verb === "versioned" && detail.artifact ? { surface: "artifacts", id: "/artifacts/" + encodeURIComponent(detail.artifact.artifact_id) + "/versions/" + detail.artifact.version, project_id: null } : null);
     if (open) actions.push({ label: L("打开"), primary: true, run: () => openObject(open, title) });
-    else if (description && description.open && detail.verb !== "created") actions.push({ label: L("打开"), primary: true, run: () => openObject(description.open, title) });
-    if (detail.verb !== "versioned") actions.push(...followUps(description));
+    else if (view && view.open && detail.verb !== "created") actions.push({ label: L("打开"), primary: true, run: () => openObject(view.open, title) });
+    if (detail.verb !== "versioned") actions.push(...followUps(view));
     card(head, lines.filter(Boolean).join(" · "), actions.slice(0, 3), "done");
   });
 
@@ -166,10 +166,10 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (!detail.object || !detail.object.id) return;
     const object = { kind: detail.object.kind, id: detail.object.id, project_id: detail.object.project_id === undefined ? here() : detail.object.project_id };
     try {
-      const description = await describe(object, true);
-      if (description.state !== "ok") { card(L("暂时读不到它"), description.reason || "", [], "error"); return; }
-      if (detail.action === "use-in-project") await useInProject(description);
-      else if (detail.action === "move" || detail.action === "copy") await moveOrCopy(description, detail.action);
+      const view = await describe(object, true);
+      if (view.state !== "ok") { card(L("暂时读不到它"), view.reason || "", [], "error"); return; }
+      if (detail.action === "use-in-project") await useInProject(view);
+      else if (detail.action === "move" || detail.action === "copy") await moveOrCopy(view, detail.action);
     } catch (error) { card(L("暂时处理不了"), error, [], "error"); }
   });
 
@@ -225,13 +225,13 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     if (saved.textContent) saved.dataset.mwState = context.unsaved ? "unsaved" : "saved";
     bar.append(where, access, links, saved);
     slot.append(bar);
-    let description = null;
-    try { description = await describe(object, false); } catch (error) { if(slot.isConnected&&slot.dataset.placementPainted===signature){where.textContent=L("位置读不到");const note=node("p",undefined,"placement-read-error");molisWorkRequest.show(note,error);slot.append(note);}return; }
+    let view = null;
+    try { view = await describe(object, false); } catch (error) { if(slot.isConnected&&slot.dataset.placementPainted===signature){where.textContent=L("位置读不到");const note=node("p",undefined,"placement-read-error");molisWorkRequest.show(note,error);slot.append(note);}return; }
     if (slot.dataset.placementPainted !== signature) return;
-    const location = description.location;
+    const location = view.location;
     where.textContent = location ? location.title : L("位置读不到");
     access.textContent = location ? L(location.access_label) : "";
-    const count = description.associations.length;
+    const count = view.associations.length;
     links.textContent = count ? L("关联 {count}", { count }) : "";
     links.hidden = !count;
     bar.dataset.kind = location ? location.kind : "unknown";
@@ -246,29 +246,29 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     closePanel();
     // Measured now: the bar may be repainted (and this node replaced) while the description loads.
     const rect = anchor.getBoundingClientRect();
-    const description = await describe(object, true);
+    const view = await describe(object, true);
     panel = node("section", undefined, "placement-panel mw-menu");
     panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", L("放在哪里"));
     panel.style.left = Math.max(8, Math.min(rect.left, innerWidth - 400)) + "px";
     panel.style.top = Math.min(rect.bottom + 8, innerHeight - 120) + "px";
-    panel.append(node("h2", description.title, "placement-panel-title"));
-    if (description.state !== "ok") panel.append(node("p", description.reason || L("暂时读不到"), "placement-panel-warning"));
+    panel.append(node("h2", view.title, "placement-panel-title"));
+    if (view.state !== "ok") panel.append(node("p", view.reason || L("暂时读不到"), "placement-panel-warning"));
     const facts = node("dl", undefined, "placement-panel-facts");
     const fact = (label, value) => { facts.append(node("dt", label), node("dd", value)); };
-    if (description.location) {
-      fact(L("存放位置"), description.location.title);
-      fact(L("谁能看到"), description.location.access === "home"
+    if (view.location) {
+      fact(L("存放位置"), view.location.title);
+      fact(L("谁能看到"), view.location.access === "home"
         ? L("只有你能打开和修改。各项目里获授权使用这个插件的助理、工作流和客户端可以读取它，授权在设置里管理。")
-        : description.location.kind === "personal"
+        : view.location.kind === "personal"
           ? L("只有你。项目里的助理、Runtime 和工作流读不到它，除非你把它移到项目或存一份到项目。")
           : L("这个项目里的助理、Runtime、工作流和已授权的客户端。"));
     }
-    if (description.moved_from) fact(L("原来在"), description.moved_from.title);
+    if (view.moved_from) fact(L("原来在"), view.moved_from.title);
     panel.append(facts);
     panel.append(node("h3", L("关联的工作")));
     const list = node("div", undefined, "placement-panel-links");
-    if (!description.associations.length) list.append(node("p", L("还没有。放着也没关系，之后再整理。"), "placement-panel-empty"));
-    for (const link of description.associations) {
+    if (!view.associations.length) list.append(node("p", L("还没有。放着也没关系，之后再整理。"), "placement-panel-empty"));
+    for (const link of view.associations) {
       const row = node("div", undefined, "placement-panel-link");
       row.append(node("span", link.label));
       const target = link.target;
@@ -300,11 +300,11 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     panel.append(list);
     const actions = node("div", undefined, "placement-panel-actions");
     const action = (name, label, run, enabled, why) => { const button = node("button", label, "mw-btn mw-btn--secondary mw-btn--sm"); button.type = "button"; button.dataset.placementAction = name; button.disabled = !enabled; if (why) button.title = why; button.onclick = () => { closePanel(); run(); }; actions.append(button); };
-    if (description.state === "ok") {
-      action("use-in-project", L("用于项目…"), () => useInProject(description), description.can.use_in_project, L("还没有其他项目"));
-      action("move", L("移到…"), () => moveOrCopy(description, "move"), description.can.move, description.object.project_id === null ? L("这类内容只放在个人空间") : L("这个插件的内容还不能移动"));
-      action("copy", L("复制到…"), () => moveOrCopy(description, "copy"), description.can.copy, description.object.project_id === null ? L("这类内容只放在个人空间") : L("这个插件的内容还不能复制到别处"));
-      action("goal", L("关联到 Goal…"), () => bindToGoal(description), Boolean(description.object.project_id || here()), L("先打开一个项目或个人空间"));
+    if (view.state === "ok") {
+      action("use-in-project", L("用于项目…"), () => useInProject(view), view.can.use_in_project, L("还没有其他项目"));
+      action("move", L("移到…"), () => moveOrCopy(view, "move"), view.can.move, view.object.project_id === null ? L("这类内容只放在个人空间") : L("这个插件的内容还不能移动"));
+      action("copy", L("复制到…"), () => moveOrCopy(view, "copy"), view.can.copy, view.object.project_id === null ? L("这类内容只放在个人空间") : L("这个插件的内容还不能复制到别处"));
+      action("goal", L("关联到 Goal…"), () => bindToGoal(view), Boolean(view.object.project_id || here()), L("先打开一个项目或个人空间"));
     }
     panel.append(actions);
     document.body.append(panel);
@@ -383,61 +383,60 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       card(L("已加入这个 Goal 的输入"), data.get("mode") === "fixed" || subject.kind === "artifact" ? L("目标认的是这一版") : L("目标会跟着原文"), [], "done");
     });
   };
-  const useInProject = async (description) => {
+  const useInProject = async (view) => {
     const all = await loadSpaces();
-    const used = new Set(description.associations.filter(link => link.type === "used_in").map(link => link.target.project_id));
-    const projects = all.filter(space => space.kind === "project" && space.project_id !== description.object.project_id);
+    const used = new Set(view.associations.filter(link => link.type === "used_in").map(link => link.target.project_id));
+    const projects = all.filter(space => space.kind === "project" && space.project_id !== view.object.project_id);
     if (!projects.length) { card(L("还没有项目"), L("建好项目后就能把它用于项目。"), [], "error"); return; }
     const preferred = projects.find(space => space.project_id === here()) || projects[0];
     const rows = projects.map(space => choice("project", space.project_id, L("项目「{name}」", { name: space.title }),
       used.has(space.project_id) ? L("已经用于这个项目") : (space.project_id === here() ? L("你正在这个项目里") : ""), space.project_id === preferred.project_id));
-    const note = node("p", description.location && description.location.access === "home"
+    const note = node("p", view.location && view.location.access === "home"
       ? L("用于项目只是建立关联：项目首页的“关联资料”会列出它，你在项目里能直接打开，看到的总是最新内容。它仍在你的个人空间，项目里的助理按你给这个插件的授权读取。")
       : L("用于项目只是建立关联：项目首页的“关联资料”会列出它，你在项目里能直接打开，看到的总是最新内容。它仍在原位置，项目里的助理和 Runtime 读不到正文；需要它们读到时，用“移到…”把它放进项目。"), "placement-dialog-note");
-    dialog(L("把《{title}》用于项目", { title: description.title }), L("它仍然放在 {place}，只是和项目建立关联。", { place: description.location ? description.location.title : L("原来的位置") }), [...rows, note], L("用于项目"), async (data) => {
+    dialog(L("把《{title}》用于项目", { title: view.title }), L("它仍然放在 {place}，只是和项目建立关联。", { place: view.location ? view.location.title : L("原来的位置") }), [...rows, note], L("用于项目"), async (data) => {
       const projectId = String(data.get("project") || "");
-      await api("link", { object: description.object, project_id: projectId }).catch((error) => dropGone("project", error));
+      await api("link", { object: view.object, project_id: projectId }).catch((error) => dropGone("project", error));
       invalidate(); repaint();
       const space = projects.find(entry => entry.project_id === projectId);
-      card(L("已用于项目「{project}」", { project: space ? space.title : "" }), L("《{title}》仍在 {place}", { title: description.title, place: description.location ? description.location.title : "" }) + " · " + L("项目首页的“关联资料”可以打开"),
+      card(L("已用于项目「{project}」", { project: space ? space.title : "" }), L("《{title}》仍在 {place}", { title: view.title, place: view.location ? view.location.title : "" }) + " · " + L("项目首页的“关联资料”可以打开"),
         projectId === here() ? [] : [{ label: L("去项目看看"), primary: true, run: () => location.assign("/projects/" + encodeURIComponent(projectId) + "/") }], "done");
     });
   };
-  const moveOrCopy = async (description, mode) => {
+  const moveOrCopy = async (view, mode) => {
     const all = await loadSpaces();
-    // Not where it is now: its partition, or where a Home-kept object belongs (the personal space when it belongs nowhere).
-    const current = description.location ? description.location.project_id || "personal" : description.object.project_id;
-    const kept = description.location && description.location.access === "home";
+    const current = view.location ? view.location.project_id || "personal" : view.object.project_id;
+    const kept = view.location && view.location.access === "home";
     const targets = all.filter(space => space.project_id !== current);
     if (!targets.length) { card(L("没有别的位置"), L("建好项目后再移动或复制。"), [], "error"); return; }
-    const links = description.associations.length;
+    const links = view.associations.length;
     const rows = targets.map((space, index) => choice("to", space.project_id, space.kind === "personal" ? L("个人空间") : L("项目「{name}」", { name: space.title }),
-      mode === "copy" ? L("新的一份会写上“复制自 {place}”。", { place: description.location ? description.location.title : "" })
+      mode === "copy" ? L("新的一份会写上“复制自 {place}”。", { place: view.location ? view.location.title : "" })
         : kept ? (space.kind === "personal" ? L("算作你个人的，不再属于哪个项目；谁能读取它仍按你给这个插件的授权。") : L("算作这个项目的，在这个项目里列出；谁能读取它仍按你给这个插件的授权。"))
         : space.kind === "personal" ? L("移到个人空间后，原项目里的助理、Runtime 和工作流将读不到它。") : L("移到项目后，这个项目里的助理、Runtime 和工作流能读取它。"), index === 0));
     const body = [...rows];
     if (mode === "move" && links) body.push(node("p", L("它现在有 {count} 项关联，移动后都保留。", { count: links }), "placement-dialog-note"));
-    dialog(mode === "move" ? L("移动《{title}》", { title: description.title }) : L("复制《{title}》", { title: description.title }),
+    dialog(mode === "move" ? L("移动《{title}》", { title: view.title }) : L("复制《{title}》", { title: view.title }),
       mode === "move" ? L("移动只改存放位置：还是同一份内容，关联和引用继续有效。") : L("得到一份新的、独立的内容；之后改哪一份都不影响另一份。"),
       body, mode === "move" ? L("移动") : L("复制"), async (data) => {
         const to = String(data.get("to") || "");
-        const result = await api(mode, mode === "move" ? { object: description.object, to_project_id: to } : { object: description.object, to_project_id: to, request_id: crypto.randomUUID() })
+        if (mode === "move") { const flushing = { mode, object: view.object, settle: [] }; window.dispatchEvent(new CustomEvent("molis:placement-flush", { detail: flushing })); await Promise.all(flushing.settle); }
+        const result = await api(mode, mode === "move" ? { object: view.object, to_project_id: to } : { object: view.object, to_project_id: to, request_id: crypto.randomUUID() })
           .catch((error) => dropGone("to", error));
         invalidate();
         const where = result.location ? result.location.title : "";
-        window.dispatchEvent(new CustomEvent("molis:placement-changed", { detail: { mode, from: description.object, to: result.object } }));
-        if (mode === "move" && description.open && host.closeItem && result.object.project_id !== here()) host.closeItem(description.open.surface, description.open.id);
-        card(mode === "move" ? L("已移到 {place}", { place: where }) : L("已复制到 {place}", { place: where }), named("", description.title).trim() + " · " + (mode === "move" ? L("原位置不再列出它；关联都还在") : L("复制自 {place}", { place: description.location ? description.location.title : "" })),
-          result.open ? [{ label: L("在新位置打开"), primary: true, run: () => openObject(result.open, description.title) }] : [], "done");
+        window.dispatchEvent(new CustomEvent("molis:placement-changed", { detail: { mode, from: view.object, to: result.object } }));
+        if (mode === "move" && view.open && host.closeItem && result.object.project_id !== here()) host.closeItem(view.open.surface, view.open.id);
+        card(mode === "move" ? L("已移到 {place}", { place: where }) : L("已复制到 {place}", { place: where }), named("", view.title).trim() + " · " + (mode === "move" ? L("原位置不再列出它；关联都还在") : L("复制自 {place}", { place: view.location ? view.location.title : "" })),
+          result.open ? [{ label: L("在新位置打开"), primary: true, run: () => openObject(result.open, view.title) }] : [], "done");
         repaint();
       });
   };
 
   /* ---- Goals: bind an object to a Goal, create straight into a Goal ---- */
-  const bindToGoal = async (description) => {
-    const home = description.object.project_id || here();
-    // Goals where it lives first, then in projects it is used in, then in the one open now: a personal note used in a project can serve that project's Goal.
-    const places = [home, ...description.associations.filter((link) => link.type === "used_in").map((link) => link.target.project_id), here()]
+  const bindToGoal = async (view) => {
+    const home = view.object.project_id || here();
+    const places = [home, ...view.associations.filter((link) => link.type === "used_in").map((link) => link.target.project_id), here()]
       .filter((id, index, all) => id && all.indexOf(id) === index);
     let spaces = [];
     try { spaces = (await api("spaces")).spaces || []; } catch { spaces = []; }
@@ -451,14 +450,14 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       catch (error) { if (projectId === home) { card(L("读不到目标"), error, [], "error"); return; } }
     }
     if (!found.length) { card(L("这里还没有目标"), L("先在 Goals 里建一个目标，再把资料关联过去。"), [], "error"); return; }
-    const bound = new Set(description.associations.filter((link) => link.type === "goal").map((link) => link.target.project_id + "|" + link.target.goal_id));
+    const bound = new Set(view.associations.filter((link) => link.type === "goal").map((link) => link.target.project_id + "|" + link.target.goal_id));
     const several = new Set(found.map((goal) => goal.project_id)).size > 1;
     const rows = found.slice(0, 60).map((goal, index) => choice("goal", goal.project_id + "|" + goal.goal_id, goal.title,
       [several ? nameOf(goal.project_id) : "", bound.has(goal.project_id + "|" + goal.goal_id) ? L("已经关联") : ""].filter(Boolean).join(" · "), index === 0));
     const where = home === "personal" ? L("个人空间") : L("本项目");
-    dialog(L("把《{title}》关联到 Goal", { title: description.title }), L("目标的“输入”里会记下它；它仍放在 {place}，不会复制或移动。", { place: description.location ? description.location.title : where }), [...rows, inputMode()], L("关联"), async (data) => {
+    dialog(L("把《{title}》关联到 Goal", { title: view.title }), L("目标的“输入”里会记下它；它仍放在 {place}，不会复制或移动。", { place: view.location ? view.location.title : where }), [...rows, inputMode()], L("关联"), async (data) => {
       const [projectId, goalId] = String(data.get("goal") || "").split("|");
-      await takeAsInput(projectId, goalId, description.object, data.get("mode") === "fixed");
+      await takeAsInput(projectId, goalId, view.object, data.get("mode") === "fixed");
       invalidate(); repaint();
       const goal = found.find((entry) => entry.project_id === projectId && entry.goal_id === goalId);
       // The Goal's materials are in its work view, not on the Frame canvas.
@@ -478,17 +477,17 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
       row.dataset.placementFilled = "1";
       const state = row.querySelector("[data-placement-material-state]"), actions = row.querySelector(".placement-goal-material-actions");
       const object = { kind: row.dataset.placementKind, id: row.dataset.placementId, project_id: here() };
-      void describe(object, false).then((description) => {
-        const where = description.location ? description.location.title : "";
-        state.textContent = description.state === "ok"
-          ? (description.plugin ? description.plugin.title + " · " : "") + L("放在 {place}", { place: where }) + (description.moved_from ? " · " + L("从 {place} 移来", { place: description.moved_from.title }) : "")
-          : description.state === "missing" ? L("原对象已删除") : (description.reason || L("暂时读不到"));
-        row.classList.toggle("is-gone", description.state !== "ok");
-        if (description.state === "ok" && description.open) {
+      void describe(object, false).then((view) => {
+        const where = view.location ? view.location.title : "";
+        state.textContent = view.state === "ok"
+          ? (view.plugin ? view.plugin.title + " · " : "") + L("放在 {place}", { place: where }) + (view.moved_from ? " · " + L("从 {place} 移来", { place: view.moved_from.title }) : "")
+          : view.state === "missing" ? L("原对象已删除") : (view.reason || L("暂时读不到"));
+        row.classList.toggle("is-gone", view.state !== "ok");
+        if (view.state === "ok" && view.open) {
           const open = ghost(L("打开"));
-          open.onclick = () => openObject(description.open, description.title); actions.append(open);
+          open.onclick = () => openObject(view.open, view.title); actions.append(open);
         }
-        const remove = ghost(description.state === "ok" ? L("移除关联") : L("清理"));
+        const remove = ghost(view.state === "ok" ? L("移除关联") : L("清理"));
         remove.onclick = async () => {
           try {
             await api("unlink", { key: JSON.stringify(["goal", here(), row.dataset.goalId, row.dataset.placementBinding]) });

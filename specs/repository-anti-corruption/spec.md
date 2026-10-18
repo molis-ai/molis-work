@@ -6,6 +6,8 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+插件私有文件交接收口（2026-10-18，Codex，本地同步通过）：已 merge 当前 Cognia/灵光与实际 main 63639a764；保留主线 Assistant 关闭接线、Shelf IPC 拒绝和产品子集两项连接器回归，同时保留 files 类型/授权接线与安全断言。整体 build、API、boundary、merge-base health 及资源重测通过；六个直接相关文件 54 条通过，覆盖文件边界、Home 生命周期、真实 Host 服务/执行器、项目库和安装 grant。25 项资源共 7,478,372 B，与 Cognia 相同；日志 /tmp/molis-plugin-files-closeout-{build,api,health,boundary,assets,targeted}.log。早前完整相关组合证据保持，正式 PR/CI 待依赖顺序，未开始新的业务迁移。
+
 灵光交接收口（2026-10-18，Codex，本地同步通过）：本片已 merge 材料 8145f96bd 及实际 main 63639a764，保留主线 receipts/vendor/Coding 变化。整体 build、API、boundary、merge-base health 与实测资源通过；13 个直接相关文件 187 条通过（含资源预算拒绝、流读取、浏览器同源请求、Runtime HTTP、灵光动作/材料/MCP/丢弃/库、客户端与项目清理）。前期 159 文件 1,474 条通过、1 条环境跳过及其中 9 个 Chrome 文件 41 条证据仍保留；没有声称重跑这一批。workbench.js 只沿用用户已批的 +2,231 B，按实际前置重定为 1,111,791→1,114,022，灵光包减少 725 B；25 项共 7,478,632 B。Todo 与 receipts 的旧起点均进入拒绝回归，不重复消费额度。原日志 /tmp/molis-lingguang-post703-{build,api,health,boundary,assets,targeted,actions}.log。正式 CI、共享核心组合回归与合入待 PR 队列；整线尚未完成。
 
 交接收口（2026-10-18，Codex）：用户已要求停止开启后续实现，将手头候选经 PR、问题处理与合并 main 后统一交接。#703 的全部分支检查及合并队列 Verify 已通过，实际合入 main `63639a76498a44320018ed4d935ace2abed1c886`。原 MCP stdio 用例在源码、断言和 60 秒时限不变下低并发复跑 20.8 秒通过；桌面包必跑三文件共 39 条及 Shelf Rust 七条通过，原两次超时记录保留。材料 #727 已 merge 该实际 main，offline install、整体 build、API（无额外变化）、boundary、merge-base health 与资源核对通过；六个直接相关文件 39 条通过。25 项资源 7,477,126 B，仍比这份 main 少 6 B，没有新增额度；日志 /tmp/molis-materials-post703-{build,api,health,boundary,assets,targeted}.log。共享全量运行 39125232628 针对此前材料头 846d0baa8，结果另行结算。以下旧“待合入/不自行合并”等文字保留为当时记录，当前授权按本段；整条 W5/W6 仍未完成。

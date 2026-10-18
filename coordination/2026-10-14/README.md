@@ -1060,3 +1060,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #694 全量红一处：plugin-picker-pins.e2e DOCK-04 仍断言 Shelf/灵光钉子固定（W2'-1 已改成普通钉子，单元用例改了、浏览器用例漏了）；预期变化，让情境线改成断言新行为，核 diff 后走 merge-only。
 
 - 10-18 #696 合入 8fcff0442（AC-05，没动页面资源）；#694、#697 与新 main 合并干净。
+
+- 10-18 #699（采用线换包 after-write-check，Prologue 94ee1ea4，含 #42–#46）审过：两份 archive 逐字节相同、parked-run 删除入 packagesWithoutPatch、provenance/README/vendor-provenance 一致；S-34 经 agent-host 公开出口断言 PATH 只用根外绝对项（五种变异各红）。排在 chain37 跑全量。

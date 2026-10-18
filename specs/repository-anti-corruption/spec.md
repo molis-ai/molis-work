@@ -6,7 +6,7 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
-灵光接 W4-1 主线（2026-10-18，actual main f4207e064）：主线 #721/#731/#730 已合入，后一项直接改变灵光创建/撤销合同，PR 再次冲突。保留当前主线的 intake/quick-create 声明、独立 revert 动作与空 fragment 选择；新 revert 沿 Runtime 唯一 ports.write(caller, ...) 写入，仍以所见 updated_at 拒绝后续改动，不退回已删除的 Host withStore 接线。材料 read/fetch 权限及进度回调保留；S-39 指向 Runtime 插件，新增 S-40 撤销令牌边界按主线保留。原 +2,231 B 额度仅重定为 1,113,068→1,115,299，已消费 W3-C2/W4-1 与两次中间起点继续拒绝。当前只完成源码冲突处理；整体构建、真实创建/撤销与浏览器、完整门禁及新全量仍待验证。已申请取消本线旧组合全量 39133888386，不影响其他运行。
+灵光接 W4-1 主线（2026-10-18，actual main f4207e064）：主线 #721/#731/#730 已合入，后一项直接改变灵光创建/撤销合同，PR 再次冲突。保留当前主线的 intake/quick-create 声明、独立 revert 动作与空 fragment 选择；新 revert 沿 Runtime 唯一 ports.write(caller, ...) 写入，仍以所见 updated_at 拒绝后续改动，不退回已删除的 Host withStore 接线。材料 read/fetch 权限及进度回调保留；S-39 指向 Runtime 插件，新增 S-40 撤销令牌边界按主线保留。原 +2,231 B 额度仅重定为 1,113,068→1,115,299，已消费 W3-C2/W4-1 与两次中间起点继续拒绝。整体 build、API/动作快照（无新增变化）、完整 merge-base health、boundary 与资源通过；18 文件 246 条通过，含真实 Host 创建/撤销、令牌边界与 Chrome 2 文件 18 条。25 项资源实测 7,479,872 B，workbench.js 1,115,299 B。日志 /tmp/molis-lingguang-main3-*.log。旧组合全量 39133888386 已确认 cancelled，不计通过；当前共享组合全量待后置候选串行接入后重跑。
 
 灵光 a989 主线复验（2026-10-18）：整体 build、API 与动作快照（均无额外变化）、完整 merge-base health、boundary 和页面资源通过；原 13 个直接相关文件共 189 条通过，新增两条旧额度起点拒绝。25 项共 7,478,714 B，workbench.js 实测 1,114,141 B，符合原 +2,231 B 的重定上限。日志 `/tmp/molis-lingguang-main2-*.log`。新 head 的正式 CI 和同步后的共享全量另记，未将先前全绿 head 冒充本次结果。
 

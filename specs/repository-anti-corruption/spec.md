@@ -505,6 +505,8 @@ W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `featur
 
 ### W5-13 补片：后台作业授权读取失败不冒充工作删除（2026-10-17，进行中）
 
+收尾组合验证（2026-10-18）：已合入 Pages 及其前置的现有 Runtime、成果服务和 Module 出口候选；完整 build、API/动作快照（均无额外变化）、boundary、merge-base health 与资源检查通过。真实暂时读不到再恢复的作业路径、外部检查安全及 SDK 作业回归 3 文件 72 条通过；日志 `/tmp/molis-job-combined-*.log`。25 项资源仍 7,478,901 B，本修复无页面变化；原 64 文件 581 条证据保留。共享核心全量与正式 PR/CI、合入 main 仍待，未将本地候选记作主线已修。
+
 独立复查 #675（`b75e20738`）确认 `AssistantJobs.#follower` 把 `store.get` 的全部异常都当作“工作不存在”，与 `specs/prologue-adoption/spec.md` §6.0o 已定的“工作不在就 refused；读不到算这次不知道，SDK 再看”冲突。在隔离 SQLite 文件上持有真实排他锁，真实 Prologue 适配器第一次检查即把作业置为 `needs-reconciliation/unchecked`，解锁后仍不恢复，查询未执行。复现基于 main `8dad2fb96` 的同一生产实现；不读取真实 Home。
 
 最小修复仅改 `apps/local-host/src/assistant/assistant-jobs.ts` 的授权查找：只吞掉 owner 明确的 `assistant.not_found`，其他异常向现有检查器传播；检查器继续使用原有 unknown 有界重查，不新建重试、计时器或状态。作业执行、授权撤销、五次未知后交人、通知、卡片及库版本均保持原合同。复用现有 `tests/assistant-business-gateway.test.ts` 的服务与适配器夹具，允许为这条用例传入隔离的真实文件数据库。

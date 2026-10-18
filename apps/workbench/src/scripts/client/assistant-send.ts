@@ -114,9 +114,9 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
     correct: (about, text, key) => api("/send", "POST", { work_id: work(), text, about, request_id: key }).then((res) => res.outcome === "queued" ? L("已保存，下一轮开始生效") : "", lost).finally(reload),
   } : undefined;
   return {
-    /** The receipt under one of the person's supplements, placed after it; none for anything else. */
-    line(node, put, turn, round) {
-      const key = "receipt:" + turn.turn_id, line = shared.line(turn, round, act(round));
+    /** The receipt under one of the person's supplements, placed after it; none for anything else. The thread is its surface. */
+    line(thread, node, put, turn, round) {
+      const key = "receipt:" + turn.turn_id, line = shared.line(thread, turn, round, act(round));
       if (!line) { [...node.children].find((child) => child.dataset.entry === key)?.remove(); return; }
       line.dataset.entry = key; put(line);
     },

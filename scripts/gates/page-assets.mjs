@@ -232,12 +232,14 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for receipts 3b-2c (specs/ai-input-receipts §4.4, D31, RCPT-334–337: the Assistant's tray, one per surface,
-// and a queue that was not read is not an empty one). The user approved it on 2026-10-17 in the receipts line's own popup:
-// workbench.js up to +325, measured +313. The entry is for exactly one merge-base budget (main b75e20738, after #675), capped at the measured size, and used once: the next baseline freezes again. This replaces 3b-2b's spent entries;
-// delete it in the next change to this gate (as #541, #584 and #611 did).
+// One-time allowance for receipts 3d-2 (specs/ai-input-receipts §4.5, RCPT-344–347: a step's report and the supplement it
+// names, seen from both ends; RCPT-348, one receipt per surface). The user approved it on 2026-10-17 in the receipts line's
+// own popup: workbench.js +602 and Coding's bundle +169, then +198 and +32 more for the per-surface receipt. Each entry is for exactly one merge-base budget (main df00646d8, after
+// #691), capped at the measured size, and used once: the next baseline freezes again. This replaces W3-A3c's spent
+// entry; delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1108184, 1108502],
+  "/assets/molis-work-plugins/coding.js": [373784, 373985],
+  "/assets/molis-work-workbench.js": [1108502, 1109302],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

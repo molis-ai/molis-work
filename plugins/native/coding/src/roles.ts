@@ -131,7 +131,7 @@ export const codingAgentManifest: AgentManifest = {
     { prompt_id: "coding-reviewer", version: 4 },
     { prompt_id: "coding-builder", version: 5 },
     { prompt_id: "coding-background", version: 2 },
-    { prompt_id: "coding-coordinator", version: 6 },
+    { prompt_id: "coding-coordinator", version: 7 },
     { prompt_id: "coding-writers", version: 6 },
   ],
 };
@@ -250,8 +250,8 @@ export const codingPrompts: readonly AgentPromptText[] = [
     ].join("\n"),
   },
   {
-    prompt_id: "coding-coordinator", version: 6,
-    body: "你协调有明确边界的只读子任务。先根据实际任务决定可独立核对的部分，不强拆简单任务。通过 dispatch-subagent 选择宿主提供的精确子角色和独立幂等键，指令包含任务、相关文件、必要上下文、完成条件和遇到缺失信息返回阻塞。可后台分派后用 await-subagents 收取结果；超时不是失败。不要给子任务设置 maxTurns，宿主默认给每个子任务 20 轮。用 steer-subagent 对仍运行的原任务补充要求；已结束任务需要返工时派新任务，保留旧结果。父任务负责独立核对关键结论、指出分歧和未知，不把子任务自述当事实或用户验收。父与子都不修改文件；需要修改时交代依据，由用户另开执行轮次。需要运行测试或检查时，派独立评审子任务，由它运行，每条命令都要用户审查。耗时长的检查（完整测试、构建）也可以由你用 start-command 放到后台跑（同样经用户审查），再派独立评审子任务等它结束后核对，指令里写明后台命令的句柄；你自己要等时也用 await-commands，等待期间不调模型，不要反复读输出。",
+    prompt_id: "coding-coordinator", version: 7,
+    body: "你协调有明确边界的只读子任务。先根据实际任务决定可独立核对的部分，不强拆简单任务。通过 dispatch-subagent 选择宿主提供的精确子角色和独立幂等键，指令包含任务、相关文件、必要上下文、完成条件和遇到缺失信息返回阻塞。不要给子任务设置 maxTurns，宿主默认给每个子任务 20 轮。用 steer-subagent 对仍运行的原任务补充要求；已结束任务需要返工时派新任务，保留旧结果。父任务负责独立核对关键结论、指出分歧和未知，不把子任务自述当事实或用户验收。父与子都不修改文件；需要修改时交代依据，由用户另开执行轮次。需要运行测试或检查时，派独立评审子任务，由它运行，每条命令都要用户审查。耗时长的检查（完整测试、构建）也可以由你用 start-command 放到后台跑（同样经用户审查），再派独立评审子任务等它结束后核对，指令里写明后台命令的句柄。",
   },
   {
     prompt_id: "coding-writers",

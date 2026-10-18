@@ -38,7 +38,7 @@
 | BL-105 | 打开 Molis Work 的重做：项目选择页（预选上次项目、右边是项目简介）、开场与 Welcome、新建项目引导、更新页（#159） | [project-arrival-flow](archive/project-arrival-flow/spec.md) | 无 | 中 | 用户 |
 | BL-109 | #150 性能修复：完整视觉走查，以及原生窗口里的输入与导航验收 | [performance-preserving-fixes](archive/performance-preserving-fixes/spec.md) | 无 | 中 | 用户 |
 | BL-111 | 首页一屏与侧栏间距：首页在一屏内放下、侧栏间距对齐 | [home-one-screen](archive/home-one-screen/spec.md) | 无 | 低 | 用户 |
-| BL-171 | 没有模型时，规则推的那一个去处按内容挑（清单项、带动词的短句 → 记成待办；较长的叙述 → 记下灵光）：要在 `intake` 声明里写它收哪类内容，是改合同。现在规则只按共同目录的顺序挑第一个，代码不点名任何插件 | [quick-create §6.1](quick-create/spec.md)、[context-program §21.5](context-program/spec.md)（W4-1，统筹 10-18） | W4-1 合入 | 中 | 情境线 |
+| BL-174 | 没有模型时，规则推的那一个去处按内容挑（清单项、带动词的短句 → 记成待办；较长的叙述 → 记下灵光）：要在 `intake` 声明里写它收哪类内容，是改合同。现在规则只按共同目录的顺序挑第一个，代码不点名任何插件 | [quick-create §6.1](quick-create/spec.md)、[context-program §21.5](context-program/spec.md)（W4-1，统筹 10-18） | W4-1 合入 | 中 | 情境线 |
 
 ## 2. 待你决定
 

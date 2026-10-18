@@ -1143,3 +1143,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 
 - 10-18 晚（交接）：用户定，防腐线与 Computer Use 线之外的五条线做完手上这件就推送、暂停，推上来的由统筹合进 main，然后交接。交接文档在 `coordination/2026-10-18/HANDOFF.md`，统筹脚本拷到 `coordination/2026-10-18/tools/`。#708 c4e6d38e0 审过（AC-08 的 1.5 秒等待换成了计数的再读等待），952e2628e 没跑过全量，排了 chain62。
 - 10-18 晚：#728（采用 A2-1）281028f12 审过，要改一处：`keptWriteCheckers` 插进了 `workspaceGrants` 的文档注释和函数之间。#726 1152516e1 的 product-subset 红在 `prologue-taskboard`（本机也复现，f7f8adbf2 上是绿的），交回执线修。手册线乙批出错 6 次，原因都在脚本（一卷多题映射不到、追问被取消），统筹定按新映射整批重跑 16 跑：映射先单独提交，旧批只留作记录。采用线的批 B 不开，写进交接。#703、#721 10-18 晚转为待审，不在本次交接里。
+- 10-18 晚：prologue#50 作者答复说 SDK 自己的组装里没有那条退路。统筹核过源码（每轮清空 `pending`、`requestTools` 在出网前、恢复模块不引用执行器）后合并（Prologue main dd639069c）。Molis 换包交给采用线，和批 B 合成一次。手册线交接与评测脚本已入库 `coordination/2026-10-18/lines/`。

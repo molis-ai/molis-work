@@ -14,8 +14,8 @@
 
 ## 1. 现在停在哪
 
-- Molis main：`e5adc24c2`（#714 合入之后）。Prologue main：`3adc5e87`。Molis vendored 的 SDK 就是 3adc5e87，包是 `prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz`。
-- 10-18 合入 Molis main 的：#709、#711、#715、#661、#716、#712、#699、#717、#719、#722、#684、#718、#713、#724、#723、#714。合入 Prologue main 的：#48、#49。
+- Molis main：`e5adc24c2`（#714 合入之后）。Prologue main：`dd639069c`（#50 合入之后）。Molis vendored 的 SDK 还是 3adc5e87（`prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz`），#50 还没换进来。
+- 10-18 合入 Molis main 的：#709、#711、#715、#661、#716、#712、#699、#717、#719、#722、#684、#718、#713、#724、#723、#714。合入 Prologue main 的：#48、#49、#50。
 - main 上 `molis-work-workbench.js` 是 1,111,791 B，安全不变量编到 S-38。S-39 留给 #727（材料服务），S-40 留给情境线 W4-1。
 
 ### 1.1 在途 PR
@@ -26,10 +26,10 @@
 | #726 | 回执（3e-0b：7 个 Coding 角色列上 acknowledge-inputs，常量 WORKSPACE_PARENT_TOOLS） | 1152516e1 让 `tests/prologue-taskboard.test.ts` 稳定变红（interrupted 那段停下时是 ready，不是 running），已交回执线定性并修 | 新 head 核增量后重排全量 |
 | #720 | 情境（W3-C2 + Esc 的修复 `bus.hush()`） | 50b018acc 审过；等作者 merge main，按 `[1111791, 1111910]` 重新取键 | 新 head 核对后加 full-suite |
 | #708 | 交互（AC-08 两个页签答同一题） | 952e2628e 的产品修复审过；测试里的 1.5 秒等待要改成等「拒绝之后完成的那次会话读取」 | 新 head 核对后加 full-suite |
-| prologue#50 | 手册（todo 只在这一轮收得下时才提） | 统筹严格审过；等作者回答 tool-runner 里退路的问题 | 回答（必要时补用例）后统筹合并 |
+| prologue#50 | 手册（todo 只在这一轮收得下时才提） | 已合进 Prologue main（dd639069c，10-18） | Molis 换包交给采用线，和批 B 合成一次 |
 | #728 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 281028f12 审过，要改一处（`keptWriteCheckers` 插进了 `workspaceGrants` 的文档注释和函数之间） | 新 head 核增量后加 full-suite |
 | 待开 | 情境 W4-1（选中的文字直接记成 Todo 或灵光，带撤销提示） | 在做 | 开 PR，审过跑全量 |
-| 待开 | 手册 BL-163/T5 评测与处理 | 96+16 次 MiniMax 在跑 | 开 PR；只改文档和提示词的话按规则判断要不要跑全量 |
+| 待开 | 手册 BL-163/T5 评测与处理（分支 `ai/bl163-ack-eval`） | 甲 96 跑在跑；乙按映射 v2 重跑 16 跑 | 开 PR；只改文档和提示词的话按规则判断要不要跑全量 |
 
 不在本交接里的：
 - #703、#727：防腐线 W5-01，Codex 在做，两个 PR 叠在一起。#703 10-18 晚已转为待审。
@@ -85,9 +85,16 @@
 **情境线（情境动作）** — 总纲 `specs/context-program/spec.md`（§21 是当前接续入口）。
 - 待补。
 
-**手册线（AI 能力开发手册）** — `specs/ai-development-handbook/spec.md`。
-- 已批、没开工：#726 合入后，用 BL-163 同一套规则在 Coding 上小跑一次。
-- 待补。
+**手册线（AI 能力开发手册）** — `specs/ai-development-handbook/spec.md`。全文：[`lines/handbook.md`](lines/handbook.md)；BL-163 规则：[`lines/handbook-bl163-rule.md`](lines/handbook-bl163-rule.md)；评测脚本：[`lines/handbook-eval-163/`](lines/handbook-eval-163/)（密钥只从命令行的 `MINIMAX_API_KEY` 读）。
+- prologue#50 已合进 Prologue main（dd639069c）。Molis 还没换这个包：交给采用线，和批 B 合成一次。
+- 在途：分支 `ai/bl163-ack-eval`，BL-163/T5 评测。甲 96 跑、乙按映射 v2 重跑 16 跑，跑完开 PR。
+- 剩下的需求：
+  1. Coding 小跑：规则已提交，等 #726 合入后再跑。
+  2. holdFinish：等 BL-163 的结果再定，另开一片。
+  3. 手册 §10 的正文（ADH-19～23）：一句没写。
+  4. `default` 的措辞：`skills/molis-plugin-dev/elements.md:161` 和 `docs/platform/PROLOGUE-AI.md:206` 写得像宿主已经在开轮时选上了默认方法，其实宿主现在不读 `skills.default`。防腐 §10.16 把这件交给本线，要在 PR B 之前改。
+  5. BL-145、146、149。
+  6. 手册的用户验收。
 
 ## 2. 统筹怎么做
 
@@ -153,4 +160,4 @@
 
 - Molis 要不要设 `inputReminders.holdFinish`：等手册线 BL-163 的结果，单开一片定。
 - Coding 里写死的三个 SDK 资源种类，改用 SDK 导出的常量（采用线记在 BACKLOG）。
-- prologue#50 和批 B 合入 Prologue 之后，由采用线合成一次换包。
+- 批 B 合入 Prologue 之后，由采用线把它和已合的 #50 合成一次换包。

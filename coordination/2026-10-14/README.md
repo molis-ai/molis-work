@@ -1056,3 +1056,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 #696 全量过，在入队。#698（手册后续 ②，324bece38，叠在 #697 上）审过：withInteractionRepairLimit 停下带人话原因、活读与重开读同一原因、条件不变；等 #697 合入后改 base 为 main、merge main，再加标签。
 
 - 10-18 #696 全量过、在合并队列。交互线下一片 AC-03「写进问卷」认可（只做助理，宿主判 draft_from_composer，回车只写草稿不交回，可切到「补充这一轮」）；开写前查与回执线 3d-3 的文件重叠，零写入要逐项断言，字节增长先报准数。
+
+- 10-18 #694 全量红一处：plugin-picker-pins.e2e DOCK-04 仍断言 Shelf/灵光钉子固定（W2'-1 已改成普通钉子，单元用例改了、浏览器用例漏了）；预期变化，让情境线改成断言新行为，核 diff 后走 merge-only。

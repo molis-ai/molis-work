@@ -51,7 +51,7 @@
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 335,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2254,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
-    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2014,
+    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2013,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
@@ -236,7 +236,7 @@
       "methods": 40
     },
     "file plugins/native/ppt/src/client.ts": 806,
-    "file plugins/native/shelf/src/client.ts": 1708,
+    "file plugins/native/shelf/src/client.ts": 1692,
     "file plugins/native/todo/src/client.ts": 1240,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 381,
@@ -677,7 +677,7 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 87,
+  "rawFetchInScriptsTotal": 86,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/goals/src/relation-client.ts": 2,
@@ -696,7 +696,7 @@
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
     "plugins/native/cognia/src/client.ts": 1,
     "plugins/native/plugin-builder/src/agent-studio.ts": 2,
-    "plugins/native/images/src/client.ts": 2,
+    "plugins/native/images/src/client.ts": 1,
     "plugins/native/jelly/src/client.ts": 1,
     "plugins/native/jelly/src/client-material.ts": 1,
     "plugins/native/schedule/src/client.ts": 4,

@@ -1,4 +1,5 @@
-/** Reparents the one Assistant controller; tabs own presentation, never execution. */
+/** Reparents the one Assistant controller; tabs own presentation, never execution.
+ * Handing a prepared result to a page hides the floating panel so it cannot cover the destination preview. */
 export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,switchTo,showProblem,L,el})=>{
   if(document.body.hasAttribute('data-pane-embedded'))return null;
   const home=document.createComment('assistant-home');island.before(home);
@@ -49,6 +50,7 @@ export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,s
   document.addEventListener('molis-work:system-view-open',event=>{if(event.detail?.owner==='assistant')dockedTab=null;},true);
   document.addEventListener('click',event=>{if(event.target.closest?.('[data-tab-id]')?.dataset.tabId===dockedTab)dockedTab=null;},true);
   const closeToHome=()=>{const id=shownId;returnHome();returning=true;try{request('molis-work:system-view-close',id);}finally{returning=false;}};
+  window.addEventListener('molis:assistant-context-action-chosen',e=>{if(e.detail?.landing&&!staged)panel.hidden=true;});
   launcher.addEventListener('click',focus);
   expand?.addEventListener('click',focus);
   retract?.addEventListener('click',()=>{

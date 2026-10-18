@@ -151,6 +151,13 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   await evaluate(`${INSERT}.click()`);
   await waitFor("document.querySelector('.pages-landing-preview')?.textContent === '访谈纪要'", 10_000);
   assert.equal(await evaluate<string>(editorText), "先完成核心体验。再安排发布。", "nothing is written before the person confirms");
-  await evaluate(`[...document.querySelectorAll('.pages-pop .mw-btn--primary')].find((node) => node.textContent === '放进去').click()`);
+  // A visible preview must also be above the Assistant panel; DOM click alone can hit a covered control.
+  const confirm = await evaluate<{ x: number; y: number; exposed: boolean }>(`(() => {
+    const button = [...document.querySelectorAll('.pages-pop .mw-btn--primary')].find(node => node.textContent === '放进去');
+    const box = button.getBoundingClientRect(), x = box.left + box.width / 2, y = box.top + box.height / 2;
+    return { x, y, exposed: button.contains(document.elementFromPoint(x, y)) };
+  })()`);
+  assert.equal(confirm.exposed, true, "the insertion preview can be seen and clicked above the Assistant panel");
+  for (const type of ["mousePressed", "mouseReleased"]) await command("Input.dispatchMouseEvent", { type, x: confirm.x, y: confirm.y, button: "left", clickCount: 1 }, sessionId);
   await waitFor(`${editorText} === '先完访谈纪要成核心体验。再安排发布。'`, 10_000);
 });

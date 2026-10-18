@@ -140,7 +140,15 @@ test("a new person's first run: the opening, two questions, materials, a name, a
   await waitFor("document.querySelectorAll('.ob-right .mw-file-group').length === 2");
   assert.equal(await evaluate("document.activeElement?.id"), "cx-browser-text", "typing is not interrupted by the list redrawing");
   await assertLayoutClean(evaluate, "sources, two groups");
-  await click(".ob-right .mw-file-group[data-group=browser] .mw-file-group__x");
+  // A pointer press blurs the textarea before releasing on Remove. Saving that same value must not replace the button.
+  const removeAt = await evaluate<{ x: number; y: number }>(`(() => {
+    window.removeBrowserGroup = document.querySelector('.ob-right .mw-file-group[data-group=browser] .mw-file-group__x');
+    const box = window.removeBrowserGroup.getBoundingClientRect(); return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  })()`);
+  await journey.command("Input.dispatchMouseEvent", { type: "mousePressed", ...removeAt, button: "left", clickCount: 1 }, journey.sessionId);
+  await evaluate("new Promise(resolve => setTimeout(resolve, 500))");
+  assert.equal(await evaluate("window.removeBrowserGroup.isConnected"), true, "blur does not replace the pressed Remove button");
+  await journey.command("Input.dispatchMouseEvent", { type: "mouseReleased", ...removeAt, button: "left", clickCount: 1 }, journey.sessionId);
   await waitFor("document.querySelectorAll('.ob-right .mw-file-group').length === 1");
 
   // Confirm the scope: each file is a choice, and unchecking one makes its group read as partly chosen.

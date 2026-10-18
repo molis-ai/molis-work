@@ -212,7 +212,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const words = () => String(input.value || "");
   const isLive = (state) => state === "running" || state === "waiting-input" || state === "waiting-review" || state === "paused";
   let presentation, stepRow;
-  const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
+  const isOpen = () => panel?.hidden === false, setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
   const syncSend = () => { send.disabled = busy || !!getWork()?.reply_target || !words().trim(); };
 
   /* ─── Where the next Send goes ─────────────────────────────────────────── */
@@ -414,8 +414,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return verb + what + " — " + L("结果未确认");
   };
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
-     shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
-  const ixClient = host.interaction, fills = new Map(); // fills: words from the composer into a card's draft (R4, assistant-send.ts)
+     shared client. A node is redrawn only when its key changes, so typing stays put. fills holds composer words for a card draft (R4, assistant-send.ts). */
+  const ixClient = host.interaction, fills = new Map();
   const drawn = (node, html, handlers, key = html) => {
     if (node.ixKey === key) return node.ix;
     node.ix?.destroy(); node.innerHTML = html || ""; node.ixKey = key;
@@ -1489,7 +1489,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   onEl(document, "visibilitychange", () => { if (!document.hidden) { reload().then(poll); loadWorks(); } });
   // Another window may have changed this work (a Coding mode, a new round): coming back to this one reads it again.
   onEl(window, "focus", () => { if (!document.hidden && curId) reload().then(poll); });
-  const listTimer = setInterval(() => { if (!document.hidden && panel && !panel.hidden) loadWorks(); }, 15000);
+  const listTimer = setInterval(() => { if (!document.hidden && isOpen()) loadWorks(); }, 15000);
 
   /* ─── What deserves the person's attention (their rules decide where it stays quiet) ─────────────────────── */
   const noticeBtn = part("attention");
@@ -1600,7 +1600,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (Array.isArray(detail.notices)) {
       notices = detail.notices;
       // A work the person has open in front of them is being seen: its notices need no badge.
-      if (panel && !panel.hidden && curId && notices.some((notice) => notice.work_id === curId && !notice.held)) { void settleNotice({ work_id: curId }, "seen"); return; }
+      if (isOpen() && curId && notices.some((notice) => notice.work_id === curId && !notice.held)) { void settleNotice({ work_id: curId }, "seen"); return; }
     }
     paintAttention();
   });
@@ -1668,7 +1668,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
      the current work (opened from it, produced by it) or the person adds it with +; then the model sees it and the work
      is linked under it, otherwise neither (spec §21.5). What a page hands over brings its object along. */
   const joined = new Set();
-  const { objectKey, belongsToWork, holds, relatedWorks, pickable, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: () => Boolean(panel && !panel.hidden),
+  const { objectKey, belongsToWork, holds, relatedWorks, pickable, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: isOpen,
     current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats(), L });
   /** The Coding session open on the page, which a new Coding work continues instead of starting another. */
   const codingSession = () => { const ctx = pageCtx(); return ctx && ctx.object && ctx.object.kind === "coding_session" ? ctx.object.id : null; };
@@ -1703,7 +1703,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     else if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
   }
   const stripNode = part("context-strip");
-  contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, L, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,
+  contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, L, el, items: materialsNow, open: isOpen, focused: () => document.activeElement === input,
     add: () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMats(); },
     drop: (item) => { dropMaterial(item); paintMats(); },
     go: (work) => { void switchTo(work.work_id); input.focus(); } });
@@ -1884,7 +1884,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const stop = () => { event.preventDefault(); event.stopPropagation(); }, put = ([pop, close, btn]) => pop && !pop.hidden && (stop(), close(false), (visible(btn) ? btn : attach)?.focus(), true);
     const [worksOpen, moreOpen, ...choosers] = popovers();
     if (put(worksOpen)) return;
-    if (panel && !panel.hidden && !spacious() && drawer) { stop(); drawer = false; layout(); sideToggle?.focus(); return; }
+    if (isOpen() && !spacious() && drawer) { stop(); drawer = false; layout(); sideToggle?.focus(); return; }
     if (put(moreOpen)) return;
     if (starts && !starts.hidden) { stop(); closeStarts(); }
     choosers.forEach(put);
@@ -2113,7 +2113,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   });
   ${ASSISTANT_SEND_CLIENT_SCRIPT}
   const nextRow = part("next-row");
-  stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, L, el, drawn, jumpTo, view: () => (view && view.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
+  stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, L, el, drawn, jumpTo, view: () => (view && view.work.work_id === curId ? view : null), open: isOpen,
     // A page's words and materials go in the input, in the work it named; nothing is sent.
     take: async (message) => { if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); setPanel(true); input.focus(); },
     other: (id) => {
@@ -2180,7 +2180,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const RESTING_MS = 15 * 60 * 1000;
   const restIfStale = () => {
     const work = getWork();
-    if (!work || isLive(work.state) || (panel && !panel.hidden) || words().trim()) return;
+    if (!work || isLive(work.state) || isOpen() || words().trim()) return;
     const at = Date.parse(work.updated_at || "");
     if (Number.isFinite(at) && Date.now() - at > RESTING_MS) void switchTo(null);
   };
@@ -2204,7 +2204,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   // The work's own draft is known only once the list arrives; fill it then unless the person has already typed.
   // Changes already done before this page loaded are not news; only ones completing from now on are announced.
   loadWorks().then(() => { restIfStale(); if (!typed) loadDraft(); if (curId) return reload().then(poll); }).finally(() => { announcing = true; });
-  return { isOpen: () => Boolean(panel && !panel.hidden),
+  return { isOpen,
     /** Where a new work goes, as the page changes what it is about: a project, or null for the person's own space. */
     setProject: (next) => { if ((project?.id || "") === (next?.id || "")) return; saveDraft(true); project = next && next.id ? next : null; loadDraft(); paintAim(); paintSum(); paintMats(); },
     dispose: () => { follower.stop(); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };

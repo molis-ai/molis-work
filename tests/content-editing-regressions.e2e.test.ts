@@ -44,14 +44,14 @@ const typeEnd = async (b: Browser, text: string) => {
   await b.evaluate(`(() => { const editor=document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus(); const range=document.createRange(); range.selectNodeContents(editor);range.collapse(false); const selection=getSelection();selection.removeAllRanges();selection.addRange(range); })()`);
   await b.command("Input.insertText", { text }, b.sessionId);
 };
-// A person moves the caret with the pointer; the editor puts a caret set only through the DOM back where its own state has
-// it, so a script that sets a DOM range and then presses keys races the editor (on Linux CI the editor won, and "Prefix "
-// landed at the paragraph's end). Click at the start or the end of the paragraph's text, then wait until the caret is there.
+// The mapping test needs the paragraph boundary, not a font-dependent click within its first/last glyph.
+// Focus that paragraph with the pointer, then use Home/End and verify the exact resulting caret before editing.
 const clickCaret = async (b: Browser, paragraph: number, at: "start" | "end") => {
   const point = await b.evaluate<{ x: number; y: number }>(`(() => { const text=document.querySelectorAll('.ProseMirror p')[${paragraph}].firstChild,range=document.createRange();
-    ${at === "start" ? "range.setStart(text,0);range.setEnd(text,1);" : "range.setStart(text,text.length-1);range.setEnd(text,text.length);"}
-    const rect=range.getBoundingClientRect();return {x:${at === "start" ? "rect.left+1" : "rect.right-1"},y:rect.top+rect.height/2}; })()`);
+    range.selectNodeContents(text); const rect=range.getBoundingClientRect();return {x:rect.left+rect.width/2,y:rect.top+rect.height/2}; })()`);
   for (const type of ["mousePressed", "mouseReleased"]) await b.command("Input.dispatchMouseEvent", { type, ...point, button: "left", clickCount: 1 }, b.sessionId);
+  const key = at === "start" ? "Home" : "End";
+  for (const type of ["keyDown", "keyUp"]) await b.command("Input.dispatchKeyEvent", { type, key, code: key, windowsVirtualKeyCode: at === "start" ? 36 : 35 }, b.sessionId);
   await b.waitFor(`(() => { const s=getSelection(),p=document.querySelectorAll('.ProseMirror p')[${paragraph}];if(!s.isCollapsed||!p.contains(s.anchorNode))return false;
     const r=document.createRange();r.setStart(p,0);r.setEnd(s.anchorNode,s.anchorOffset);return r.toString().length===${at === "start" ? "0" : "p.textContent.length"}; })()`);
 };

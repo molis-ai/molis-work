@@ -568,7 +568,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       if(el.dataset.draft){if(el.checked)todoPicked.add(el.dataset.draft);else todoPicked.delete(el.dataset.draft);render();return;}
       if(el.id==='cx-project-title'||el.id==='cx-summary-editor'){preserveEdits();await saveDraft();return;}
       if(el.dataset.filesAll!==undefined){const s=source(el.dataset.filesAll),all=included(s).length===s.metadata.files.length;invalidateSource(s);s.excluded=all?s.metadata.files.map(f=>f.path):[];changed=true;}
-      else if(el.dataset.field){const s=source(el.dataset.kind);invalidateSource(s);s[el.dataset.field]=el.dataset.field==='days'?Number(el.value):el.value;if(el.dataset.field==='connection_id')s.selected=Boolean(el.value);changed=true;}
+      else if(el.dataset.field){const s=source(el.dataset.kind),value=el.dataset.field==='days'?Number(el.value):el.value;if(s[el.dataset.field]===value)return;invalidateSource(s);s[el.dataset.field]=value;if(el.dataset.field==='connection_id')s.selected=Boolean(value);changed=true;}
       else if(el.dataset.file||el.dataset.folder){
         const s=source(el.dataset.file||el.dataset.folder);invalidateSource(s);const path=el.dataset.folder?el.dataset.path:s.metadata.files[Number(el.dataset.index)].path;
         let excluded=new Set(s.excluded||[]);

@@ -240,10 +240,10 @@ const headErrors = (measured, budget, base) => {
 // `SIDE_FRAME_FROM_SCRIPT` that `molis:side-forward` uses (S-30), so that check ships twice in this script; with marking the
 // focus as in the side panel, the workbench script is +273, once. Tried: shortening the shared check's names (about 40 bytes,
 // at the cost of a security check that reads less plainly); the side tab's own half runs in its own document, not here.
-// The entry is for exactly one merge-base budget (main 4bea52c84), capped at the measured size, and used once: the next baseline
+// The entry is for exactly one merge-base budget (main de6dbfc8b), capped at the measured size, and used once: the next baseline
 // freezes again. This replaces receipts 3d-4's spent entry; delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110187, 1110460],
+  "/assets/molis-work-workbench.js": [1110056, 1110329],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

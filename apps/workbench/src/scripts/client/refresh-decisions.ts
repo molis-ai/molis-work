@@ -81,8 +81,8 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
 
     const liveUiInteractionActive = () => {
       const active = document.activeElement;
-      // A menu the person opened in a Goal document counts too: replacing the document now would close it under their next click.
-      if (active?.closest?.("[data-live-form], [data-event-form]") || document.querySelector("[data-record-menu][open], .goal-more[open]")) return true;
+      // Open menus and saving forms stay intact even after focus is lost.
+      if (active?.closest?.("[data-live-form], [data-event-form]") || document.querySelector("[data-record-menu][open],.goal-more[open],[aria-busy=true]:is([data-live-form],[data-event-form])")) return true;
       const dirtyVisibleForm = [...document.querySelectorAll('[data-live-form][data-live-dirty="true"], [data-event-form][data-live-dirty="true"]')]
         .some((form) => form.getClientRects().length > 0 || form.closest("[data-goal-node-workspace]")?.hidden);
       if (dirtyVisibleForm) return true;
@@ -91,10 +91,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       );
     };
 
-    document.addEventListener("input", (event) => {
-      event.target?.closest?.("[data-live-form], [data-event-form]")?.setAttribute("data-live-dirty", "true");
-    });
-    document.addEventListener("change", (event) => {
+    for (const type of ["input", "change"]) document.addEventListener(type, (event) => {
       event.target?.closest?.("[data-live-form], [data-event-form]")?.setAttribute("data-live-dirty", "true");
     });
     document.addEventListener("reset", (event) => {
@@ -151,6 +148,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
         if (!pageResponse.ok) throw new Error("无法更新 Goal 页面");
         const parsed = new DOMParser().parseFromString(await pageResponse.text(), "text/html");
         boardLifetime.assertCurrent(signal);
+        if (!force && liveUiInteractionActive()) return;
         if (parsed.body.dataset.boardView !== document.body.dataset.boardView) {
           location.reload();
           return;
@@ -183,7 +181,6 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
           location.replace(globalThis.molisWorkNavigationUrl(route(movedPath)));
           return "reloading";
         }
-        if (!force && liveUiInteractionActive()) return;
         const ui = readUiState();
         goalRefresh.apply(() => {});
         state = nextState;

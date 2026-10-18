@@ -61,6 +61,20 @@ const card = (status: AssistantCard["status"], fields: AssistantCard["fields"] =
   card_id: "card-1", revision: 3, run_id: "run-1", title: "新建待办", summary: "把「报销」记成待办", provider: "待办", capability_title: "新建待办", capability_id: "todo.items.create",
   effect: "write", fields, missing: [], status, created_at: "2026-10-13T00:00:00.000Z", updated_at: "2026-10-13T00:00:00.000Z" });
 
+test("ASC-08 ASC-36: a completed operation exposes its protected result as navigation without an execution hook", () => {
+  const presentation = { summary: "接入方案已准备", title: "知识库 <工作>", link: { label: "继续接入", href: "/capabilities/connections?setup=request-1&from=assistant" } };
+  const html = assistantCardHtml({ ...card("done"), presentation }, say);
+  assert.match(html, /知识库 &lt;工作&gt;/);
+  assert.match(html, /<a href="\/capabilities\/connections\?setup=request-1&amp;from=assistant"[^>]*class="mw-btn mw-btn--primary mw-btn--sm"/);
+  assert.doesNotMatch(html, /data-ix-action="result"|data-ix-action="run"/);
+  for (const status of ["failed", "unknown", "running", "stale"] as const) {
+    assert.doesNotMatch(assistantCardHtml({ ...card(status), presentation }, say), /<a\b[^>]*href=|继续接入/);
+  }
+  for (const href of ["javascript:alert(1)", "//outside.example", "/\\outside.example", "/\noutside.example"]) {
+    assert.doesNotMatch(assistantCardHtml({ ...card("done"), presentation: { ...presentation, link: { label: "Open", href } } }, say), /<a\b[^>]*href=/);
+  }
+});
+
 test("RING-07: Host action headings distinguish execution states from irreversible effects", () => {
   const expected = { ready: "ready", running: "running", done: "done", failed: "failed", unknown: "verify", stale: "stale", dismissed: "cancelled", "needs-input": "answer" } as const;
   for (const status of Object.keys(expected) as Array<keyof typeof expected>) {

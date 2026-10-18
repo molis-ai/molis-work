@@ -26,6 +26,7 @@ import {
   openTodoStore,
   todoActions,
   todoManifest,
+  ownTodoStores,
 } from "@molis-ai/molis-work-plugin-todo";
 import { PLACEMENT_LEDGER_ACCESS, PlacementService } from "@molis-ai/molis-work-service-placement";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -44,7 +45,7 @@ function todoHost(t: { after(fn: () => void): void }) {
   const store = openTodoStore(home);
   const service = new ActionService();
   service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
-    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ withStore: run => run(store) }) });
+    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)) }) });
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
   const caller = (audience: ActionCallContext["audience"], project_id: string | null = null): ActionCallContext =>
     ({ actor_id: audience === "user" ? "web-user" : "mcp-client", project_id, audience, permissions: TODO_ACTION_PERMISSIONS });

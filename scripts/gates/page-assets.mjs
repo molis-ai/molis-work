@@ -239,10 +239,11 @@ const headErrors = (measured, budget, base) => {
 // bar, or in its menu, flashes the landing on the left). A pane's hold names the keys under the pointer and the page looks them up
 // in its own plan; the workbench script is +81, once, approved by the coordinator on 2026-10-18. Tried: the pane's last hold sends
 // no fields (the page reads them as empty); one helper for both key lists came out larger and was dropped.
-// The entry is for exactly one merge-base budget (main 38beba3dd), capped at the measured size, and used once: the next baseline
-// freezes again. This replaces W3-C's spent entry; delete it in the next change to this gate (as #541, #584 and #611 did).
+// The entry is for exactly one merge-base budget (main d9a58f37f, after W5-01's +28), capped at the measured size, and used once:
+// the next baseline freezes again. This replaces W5-01's spent entry; delete it in the next change to this gate (as #541, #584 and
+// #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110329, 1110410],
+  "/assets/molis-work-workbench.js": [1110357, 1110438],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

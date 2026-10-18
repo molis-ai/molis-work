@@ -44,17 +44,17 @@ const entry = (item: TodoItem): SearchEntry => ({
 });
 const goals = (item: TodoItem) => item.links.filter(link => link.kind === "goal").map(link => link.subject.id);
 
-export function createTodoSearchHandlers(withStore: <T>(run: (store: TodoStore) => T) => T): ActionHandlerBinding[] {
+export function createTodoSearchHandlers(read: <T>(run: (store: TodoStore) => T) => T): ActionHandlerBinding[] {
   // Search and readers see what the caller sees: personal, unplaced, and the caller's own project.
   const access = (caller: ActionCallContext): TodoAccess => ({ projectId: todoCallerProject(caller), everything: false, actor: "other", actorId: caller.actor_id });
   return [
-    bindSearchEntriesHandler(todoSearchActions.entries, caller => withStore(store => store.list(access(caller))
+    bindSearchEntriesHandler(todoSearchActions.entries, caller => read(store => store.list(access(caller))
       .filter(item => item.placement !== "project").map(entry))),
     bindSearchEntriesHandler(todoSearchActions.projectEntries, caller => {
       const project = todoCallerProject(caller);
-      return project ? withStore(store => store.list(access(caller)).filter(item => item.placement === "project" && item.project_id === project).map(entry)) : [];
+      return project ? read(store => store.list(access(caller)).filter(item => item.placement === "project" && item.project_id === project).map(entry)) : [];
     }),
-    { ...todoSearchActions.subject, handle: (caller, input) => withStore(store => {
+    { ...todoSearchActions.subject, handle: (caller, input) => read(store => {
       // The person reading from their own Home or personal space (the placement panel after a move) reaches every todo
       // of theirs and learns its project; anyone in a project, and any agent, workflow or client outside one, keeps the
       // usual scope, so another project's todo still reads as not there.

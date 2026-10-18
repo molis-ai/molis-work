@@ -107,7 +107,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 这些是读代码发现的、迁移会改变的行为，设计稿必须回答，否则样板会悄悄改了用户看得见的东西：
 
-- **提供方身份会变，而且不只是存量数据会失配。** 构建期插件的提供方 `provider_id` 是 `manifest.plugin_id`（例如 `apps/local-host/src/todo-actions.ts`、`form-actions.ts`、`pages-actions.ts`）；Runtime 插件的提供方 `provider_id` 是安装的 `install_id`（`packages/plugin-runtime/src/action-provider.ts`）。`install_id` 是 `plugin-install-` 加 plugin_id 与发布者签名的哈希前 32 位（`packages/plugin-runtime/src/index.ts` 的 `installIdentity`）；签名写在各插件自己的 Manifest 里（例如 `plugins/native/pages/src/manifest.ts` 第 20 行），不在公开合同 `packages/contracts` 里，别的插件的代码拿不到它，除非 import 对方的实现，而这是被禁止的。凡是拿 `provider_id` 做精确匹配的地方，迁移后都会失配，已知有三类后果：**（已定并实现：用户 2026-10-10 选「内置插件一律用插件名」，W3-06 C。随宿主发布的插件登记在 `plugin_id` 之下，其余仍用安装编号；已在 Runtime 上的 7 个插件的存量记录由维护七改写，见 [CHECKLIST.md](../releases/CHECKLIST.md) 第 4.3 节。迁移候选不再改变提供方编号，下面三类后果对它们不再发生。）**
+- **提供方身份会变，而且不只是存量数据会失配。** 构建期插件的提供方 `provider_id` 是 `manifest.plugin_id`（例如 `apps/local-host/src/pages-actions.ts`）；Runtime 插件的提供方 `provider_id` 是安装的 `install_id`（`packages/plugin-runtime/src/action-provider.ts`）。`install_id` 是 `plugin-install-` 加 plugin_id 与发布者签名的哈希前 32 位（`packages/plugin-runtime/src/index.ts` 的 `installIdentity`）；签名写在各插件自己的 Manifest 里（例如 `plugins/native/pages/src/manifest.ts` 第 20 行），不在公开合同 `packages/contracts` 里，别的插件的代码拿不到它，除非 import 对方的实现，而这是被禁止的。凡是拿 `provider_id` 做精确匹配的地方，迁移后都会失配，已知有三类后果：**（已定并实现：用户 2026-10-10 选「内置插件一律用插件名」，W3-06 C。随宿主发布的插件登记在 `plugin_id` 之下，其余仍用安装编号；已在 Runtime 上的 7 个插件的存量记录由维护七改写，见 [CHECKLIST.md](../releases/CHECKLIST.md) 第 4.3 节。迁移候选不再改变提供方编号，下面三类后果对它们不再发生。）**
   1. **MCP 授权。** 逐客户端的授权按 `provider_id` 匹配（`apps/local-host/src/mcp-action-grants.ts` 第 27、39 行），失配后这些存量授权不再对应任何动作。
   2. **存储里的引用。** 工作流的动作步骤存 `provider_id`，执行时按它在目录里找动作（`plugins/native/workflows/src/actions.ts` 的 `reachFor`，第 200–209 行，其中 `find` 在第 206 行）；判断规则在 Functions 库里存场景提供方 `scene_provider_id`（`modules/functions/src/store.ts` 第 39 行），内核按它比对，不符就报「此规则仅适用于选定的场景版本和提供方」（`packages/kernel/src/action-service.ts` 第 465 行）。声明场景的插件是 Feed（`plugins/native/feed/src/manifest.ts` 第 39 行）和 Inbox（`plugins/native/inbox/src/manifest.ts` 第 31 行）。
   3. **代码里写死的 `provider_id`。** 插件和宿主的源码把 `<插件>_PLUGIN_ID`（值就是 `plugin_id`）或字面量直接写成 `provider_id`，都是精确匹配，有三种用法：
@@ -172,7 +172,9 @@ Characters 并进宿主（第 5.4 节）是第 4 波的另一片，不在这条�
 
 **Todo 是第二个迁移，排在 Form 之后、其余各族之前**（2026-10-07 决定）。W5-01 的描述把「Dataset/PPT/Pages」列在「Todo」前面，只是那条描述的列举顺序，不改这个决定。
 
-Todo 打开 Home 级路径：它是第一个在 Home 级实例上的插件，用到 Home 级实例、Home 库服务、`services.model`（`todo-actions.ts` 注入 `completeText`），以及 4.1 第 5 项的路由带项目（项目里的待办页走 `/projects/<id>/api/plugins/io.molis.work.todo/…`）。提供方身份和授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：Todo 迁来时条目标 `bundled: true`，`todo:write` 虽是 `required: false`，也随清单声明的全部权限一起授予，写动作不会因此不可用；动作登记在 `plugin_id` 之下。它的表带可空的 `project_id`，「项目已删」步骤只清带项目的条目，个人待办留下。
+**已迁（W5-01，2026-10-17）**：`plugins/native/todo/src/plugin.ts` 的 `createTodoPlugin`，目录条目 `runtime: { scope: "home" }`；宿主的 `todo-actions.ts`、`todo-native-plugin-http.ts` 与构建期舞台已删，路由在 Manifest 里（`/api/plugins/io.molis.work.todo/…`）。
+
+Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，用到 Home 级实例、Home 库服务、`services.model`（迁移前由 `todo-actions.ts` 注入 `completeText`），以及 4.1 第 5 项的路由带项目（项目里的待办页走 `/projects/<id>/api/plugins/io.molis.work.todo/…`）。提供方身份和授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：Todo 迁来时条目标 `bundled: true`，`todo:write` 虽是 `required: false`，也随清单声明的全部权限一起授予，写动作不会因此不可用；动作登记在 `plugin_id` 之下。它的表带可空的 `project_id`，「项目已删」步骤只清带项目的条目，个人待办留下。
 
 ### 5.3 其余各族（W5-01，一个 PR 一族）
 

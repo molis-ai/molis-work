@@ -1,0 +1,45 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/prologue.git",
+    "path": "packages/sdk",
+    "commit": "94ee1ea4f48baf529b2ce624b8ee54acefb7bb7f",
+    "mergedUpstream": {
+      "pullRequest": 46,
+      "head": "ccd6a649f95e69adf6e210afe55891c3c692597f",
+      "mergedAt": "2026-10-18T00:32:10Z",
+      "note": "Upstream main after #46 (ask-user's id description states the pattern the check accepts), on top of #45 (the after-write check returns a command the SDK reviews and runs; config.workspace.diagnoseAfterWrite removed; merge 7b201ed5, head f29a0ec5), #44 (commands find bare names only through absolute PATH entries outside every authorized root; head 17436096), #43 (search says it matches file contents; head c4b1652b) and #42 (dispatch-subagent says what a named character and the child's step do to its tools; head 67098790). Includes everything from #41 and before."
+    },
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": []
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-after-write-check.tgz",
+    "bytes": 1218580,
+    "sha256": "ba2507c9e02a11c4768d0234e67f9eb8b3ee3e93b9ce4ca026e05054f5a7448d",
+    "integrity": "sha512-wd9dSJiJGj86+LHcK59/rKmC7IcM+XWP/XWrnXe12arnZMjO1cNw8ZEIrOwOJBH47yFax92qRAl+g7A2FgKdBw=="
+  },
+  "build": {
+    "node": "24.14.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "git archive 94ee1ea4f48baf529b2ce624b8ee54acefb7bb7f | tar -x -C <dir>",
+      "pnpm install --frozen-lockfile --offline",
+      "pnpm --filter @prologue/sdk run build",
+      "cd packages/sdk && pnpm pack --out <dir>/prologue-sdk-0.0.0-rc.1-after-write-check.tgz"
+    ],
+    "packedOn": "2026-10-17",
+    "reproducedFrom": "94ee1ea4f48baf529b2ce624b8ee54acefb7bb7f",
+    "reproducedByteIdentical": true,
+    "note": "Packed twice from two separate clean archives of upstream main 94ee1ea4; the two packs are byte-identical. On that tree: tsc (tsconfig.typecheck.json) and build pass; SDK suite without live tests: 208 files, 2849 tests passed, no type errors (live tests not run except coding-diagnose-after-write.live, 1 passed); the 13 consumer fixtures pass against this pack in a clean install. No paid model requests or real desktop-control tests."
+  }
+}

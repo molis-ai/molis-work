@@ -2,6 +2,7 @@ import type { AgentRunView, AgentSessionView, AgentTurnView } from "@molis-ai/mo
 import type { AgentAnswerControl } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { AGENT_INPUT_KEY_PATTERN, type AgentInputSend, type AgentInputsPort, type AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AssistantContextSnapshot, AssistantMaterial, AssistantSendInput, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { textFieldId } from "../agent-question-card.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
 
@@ -128,5 +129,5 @@ export function composerQuestion(questions: AgentRunView["awaiting_input"]): { q
   if (!only || more.length) return undefined;
   if (!asked.length) return only.allows_free_text ? { question: only } : undefined;
   if (words.length !== 1) return undefined;
-  return asked.length === 1 ? { question: only } : { question: only, field: `t${words[0]!.index}` };
+  return asked.length === 1 ? { question: only } : { question: only, field: textFieldId(words[0]!.index) };
 }

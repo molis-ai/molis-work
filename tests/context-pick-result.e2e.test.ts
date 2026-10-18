@@ -35,10 +35,11 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
 
   // A work, and the document it made handed back to it as its result.
   await issueModel(t, homeDirectory, { replyText: "整理好了，写在「访谈纪要」里。" });
+  // UIV-02: Enter edits the multiline draft; Ctrl+Enter submits it. Card Enter below still picks up the card.
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "把访谈整理成纪要" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", modifiers: 2, windowsVirtualKeyCode: 13 }, sessionId);
   await waitFor("document.querySelector('.assistant-msg--assistant')?.textContent.includes('访谈纪要')", 20_000);
   const api = `/projects/${projectId}/api/assistant/works`;
   const workId = await evaluate<string>(`fetch(${JSON.stringify(api)}).then((r) => r.json()).then((body) => body.works[0].work_id)`);

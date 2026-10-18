@@ -1,6 +1,5 @@
-import { isCodedFailure } from "@molis-ai/molis-work-plugin-sdk";
 import { randomUUID } from "node:crypto";
-import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { JellyCommand, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
@@ -95,7 +94,7 @@ export class JellyStore {
       // Read back from SQLite while still in the transaction; bad serialization never becomes committed state.
       decode(this.db.get("SELECT revision, body, checksum FROM jelly_workspace WHERE singleton = 1"));
       return structuredClone(next);
-    } catch (error) { if (isCodedFailure(error)) throw error; throw jellyErrors.invalid(error instanceof Error ? error.message : "Jelly 操作失败"); }
+    } catch (error) { if (error instanceof ActionError || isJellyFailure(error)) throw error; throw jellyErrors.invalid(error instanceof Error ? error.message : "Jelly 操作失败"); }
     });
   }
   private requirePreview(command: JellyCommand, fingerprint: string, revision: number): void {

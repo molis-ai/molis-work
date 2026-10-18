@@ -128,7 +128,7 @@ test("Workbench registers Native Plugin surfaces against stable slots", () => {
   assert.ok(shelf);
   assert.deepEqual(
     new Set(shelf.surfaces?.map((surface) => surface.target_slot_id)),
-    new Set(["workbench.directory", "workbench.main"]),
+    new Set(["workbench.side"]),
   );
   const shelfSettings = descriptors.find((item) => item.contribution_id === "io.molis.work.native.shelf.settings.v1");
   assert.ok(shelfSettings);

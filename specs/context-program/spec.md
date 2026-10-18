@@ -163,7 +163,7 @@ interface ItemAttach {
 | 内容站幂等键 | 泛化为请求号（只认现行形状，不新增读取兼容） | quick-create |
 | 插件 SDK 页面端 | 一个 `contextual` 模块：报告手上的东西或落点、发布工具、开面板槽、接收放进与工具调用 | 合并 side-shelf 4.4 与 context-toolbar §11 |
 | 平台自带的格 | 讨论、浏览器、文件按 side 视图的形状登记；`browser_page`、`discussion_message` 的读取动作 | side-shelf |
-| Shelf「平台自带」 | 内置目录里的一个通用标记：始终启用、不进插件列表、市场、Dock、项目插件管理；只有 side 视图 | side-shelf §7、§11 |
+| Shelf 是常开插件 | Manifest 的通用声明 `always_on: true`（「常开插件」）：始终启用、不进插件列表、市场、Dock、项目插件管理，不能从项目里移除；只有内置插件能声明（S-33）；Shelf 只有 side 视图 | side-shelf §7、§11 |
 | 页面自己陈列动作 | 对象声明里的一个通用字段，表示「本提供方的动作由我自己陈列」；浮条在这个表面上不重复列出这个提供方的动作（Shelf 格用它） | 本文 §7 |
 
 目录检查合并为一组（side-shelf 4.3 与 context-toolbar §11.5 的覆盖率门禁放在一起）：
@@ -379,7 +379,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 
 | # | 要求 | 写在 |
 | --- | --- | --- |
-| R1 | Shelf 放到右边侧栏，不当插件，也不是右栏里的一个插件标签 | side-shelf 3.2、§7；本文 §4「Shelf 平台自带」 |
+| R1 | Shelf 放到右边侧栏，不当插件，也不是右栏里的一个插件标签 | side-shelf 3.2、§7；本文 §4「Shelf 是常开插件」 |
 | R2 | 右边的内容包括灵光、文件、浏览器内容、群聊 | side-shelf 3.1、§6 |
 | R3 | 右边可以和左边互动，右边的内容可以发送到左边 | 本文 3.2、3.4、3.6；side-shelf 3.3 |
 | R4 | 侧边不止是群聊里 | side-shelf 3.1、§7（去掉 `dock-window-im` 等群聊命名） |
@@ -1362,6 +1362,11 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 格的顺序由声明决定：平台格带 `order`（文件 20、浏览器 30、电脑 40、讨论 50），插件侧栏视图的 `order` 原样带进来（灵光 10，没写的 100），一起排序，不写名单。默认格是排在第一的那格；W2'-2 Shelf 声明 0 后自然成为第一格、首次打开就在它。
   - Dock 里 Shelf 与灵光的钉子原来因常驻固定按下，现在是普通钉子（DOCK-04 测试随之改；Shelf 的钉子在 W2'-2 随 Shelf 离开插件列表一起消失）。
   - 页面资源只变小（数字见 PR）；`assistant-island.ts`、`client.ts`、`context-bus.ts` 不动。
+- 2026-10-17 W2'-2 Shelf 成为右栏第一格（分支 `context/w2p2-shelf-always-on`，叠在 #694 上）：
+  - Manifest 新增 `always_on`（v2，布尔）：SDK 解析，Plugin Runtime 在安装和确认升级时拒绝非内置的声明（S-33，`tests/security-invariants-always-on.test.ts`）；项目移除时拒绝（`catalog.plugin_always_on`），市场与插件切换跳过，旧的隐藏存值不再生效。
+  - Shelf 只剩一个界面面 `side`（`order: 0`，第一格）；工作区的 Shelf 舞台、目录与工作台里为它写的路径删掉。样式改成填满格子：窄时目录全宽、打开一项盖住目录并带返回，容器 ≥ 640px 时目录 213px 留在左边（容器查询，不看视口）。
+  - 存值：保存的标签状态里点名 shelf 的，工作区回到项目首页一次（现有的通用处理）；Dock 里存过的 shelf 钉子渲染时跳过，存值不改。
+  - 待统筹定（已发）：旧入口（`?openPlugin=shelf`、搜索 `surface:"shelf"`、动作的 `href_template`）通用改道到侧栏格；侧栏文档里的落点事件转给页面；图片「放进 Shelf」改调 `shelf.items.admit` 再打开格子；侧栏格按条目打开。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

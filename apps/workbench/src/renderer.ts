@@ -50,7 +50,6 @@ import {
   createWorkbenchGoalsStatusRenderer,
   createWorkbenchGoalsTreeRenderer,
   renderProjectOperations,
-  renderShelfContribution,
   renderImagesContribution,
   renderPagesContribution,
   renderFormContribution,
@@ -84,17 +83,6 @@ const { renderGoalTreeProposalDecision } = createWorkbenchGoalsProposalRenderer(
 const { renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L, dateTimeLocale });
 const { renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
 const { renderScheduleNativePluginSurface } = createWorkbenchScheduleProjectionRenderer({ L, dateTimeLocale });
-function renderShelfNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderShelfContribution(surface, {
-    materials: [],
-    results: [],
-    clipboard: [],
-    recipes: [],
-    selected_id: null,
-    primitives: { escape: escapeHtml, text: L },
-  });
-}
-
 function renderPagesNativePluginSurface(surface: "directory" | "workbench"): string {
   return renderPagesContribution(surface, {
     primitives: { escape: escapeHtml, text: L },
@@ -388,7 +376,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,

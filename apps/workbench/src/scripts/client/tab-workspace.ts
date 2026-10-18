@@ -203,7 +203,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const surface = topLevelSurface(plugin);
     if (!surface) return;
     surface.setAttribute("data-expanded", "false");
-    const workspace = surface.querySelector(".plugin-stage-workspace, [data-session-stage-workspace], [data-artifact-stage-workspace], [data-shelf-stage-workspace], [data-schedule-stage-workspace]");
+    const workspace = surface.querySelector(".plugin-stage-workspace, [data-session-stage-workspace], [data-artifact-stage-workspace], [data-schedule-stage-workspace]");
     if (workspace) workspace.hidden = true;
     surface.querySelectorAll(".is-selected").forEach((row) => {
       row.classList.remove("is-selected");

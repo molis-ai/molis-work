@@ -12,11 +12,11 @@ import {
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 
-const CATALOG_PLUGINS = ["goals", "inbox", "feed", "sessions", "schedule", "workflows", "pages", "shelf", "lingguang", "plugin-builder"] as const;
+const CATALOG_PLUGINS = ["goals", "inbox", "feed", "sessions", "schedule", "workflows", "pages", "lingguang", "plugin-builder"] as const;
 
 /**
  * The resident bar exactly as the workbench composes it, on a strip of desk: Dock menu, pinned plugins,
- * the plugin switcher with the Assistant line, Shelf and 灵光, discussion and the project. Pins are filled
+ * the plugin switcher with the Assistant line, the side panel's button and the project. Pins are filled
  * the way the workbench client fills them; the switcher opens with the same popover.
  */
 function renderBarSpecimen(): string {

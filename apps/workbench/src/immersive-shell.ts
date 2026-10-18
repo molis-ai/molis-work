@@ -94,7 +94,7 @@ const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
 const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly string[]]> = [
   ["推进", ["schedule", "workflows"]],
   ["写与做", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
-  ["个人", ["todo", "jelly", "cognia", "shelf"]],
+  ["个人", ["todo", "jelly", "cognia"]],
   ["研究", ["alchemist"]],
   ["编码", ["coding"]],
 ];

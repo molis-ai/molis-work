@@ -1501,25 +1501,25 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.dataTransfer.effectAllowed = "copy";
   });
   lifetime.listen(document,"dragenter", (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
     markDrop(true);
   });
   lifetime.listen(document,"dragover", (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   });
   lifetime.listen(document,"dragleave", (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (insideShelfDrop(event.relatedTarget)) return;
     if (!insideShelfDrop(event.target)) return;
     markDrop(false);
   });
   lifetime.listen(document,"drop", async (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
     markDrop(false);
@@ -1542,7 +1542,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
 
   lifetime.listen(document,"paste", async (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (event.target.closest("input, textarea, [contenteditable=true]")) return;
     const data = event.clipboardData;
     if (!data) return;
@@ -1583,7 +1583,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     applySnapshot(admitted.snapshot, admitted.item.item_id);
   };
   lifetime.listen(document,"keydown", async (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (matchesPanelKey(event, "hide") && editing) {
       event.preventDefault();
       await stopEdit();

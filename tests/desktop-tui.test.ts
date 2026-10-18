@@ -593,9 +593,10 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const pluginStrip = browser.match(/<nav class="[^"]*plugin-rail immersive-plugin-strip"[^>]*>[\s\S]*?<\/nav>/)?.[0];
     assert.ok(pluginStrip);
     assert.match(pluginStrip, /data-plugin-id="home"[^>]*data-work-surface-open="home"/);
-    for (const plugin of ["goals", "sessions", "inbox", "feed", "shelf", "artifacts"]) {
+    for (const plugin of ["goals", "sessions", "inbox", "feed", "artifacts"]) {
       assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
     }
+    assert.doesNotMatch(pluginStrip, /data-plugin-id="shelf"/, "Shelf is a 常开插件, a tab of the side panel, not an entry of the switcher");
     assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
     // No rail: one bar at the foot. At its left the switcher, which holds, under search and the two buttons that get more
     // plugins (the market, the studio), every plugin (each with its own Dock button), then the Dock; the Assistant is only an
@@ -717,7 +718,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="sessions"/);
     assert.match(desktopMarkup, /data-session-stage-shell/);
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="shelf"/);
-    assert.match(desktopMarkup, /data-shelf-stage-shell/);
+    assert.doesNotMatch(desktopMarkup, /data-shelf-stage-shell/, "Shelf has no stage in the work area; it opens in its side tab");
     assert.match(desktop, /data-plugin-section="feed"/);
     assert.match(desktop, /data-directory-panel="sources"[^>]*data-source-directory hidden/);
     assert.doesNotMatch(desktop, /data-directory-open="inbox"/);

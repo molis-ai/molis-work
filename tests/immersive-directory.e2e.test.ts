@@ -167,10 +167,10 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
     if (row.relationsHeight != null) assert.ok(row.relationsHeight <= 28, "Prerequisite control does not wrap the row");
   }
   await capture("directory-goals-light");
-  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
-  await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && document.querySelector('[data-shelf-stage-group=materials]')");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-section=shelf]')"), null);
-  assert.equal(await evaluate("document.querySelector('[data-directory-panel=shelf]')"), null);
+  await click('[data-plugin-strip] [data-plugin-id="todo"]');
+  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-section=todo]')"), null);
+  assert.equal(await evaluate("document.querySelector('[data-directory-panel=todo]')"), null);
   await viewport(1280);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + other.project_id + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
@@ -178,8 +178,8 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await navigate(() => command("Page.navigate", { url: page }, sessionId));
-  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
-  await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await click('[data-plugin-strip] [data-plugin-id="todo"]');
+  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await click('[data-plugin-strip] [data-plugin-id="sessions"]');
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=sessions]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && document.querySelector('[data-session-stage-list]') && document.querySelector('[data-session-stage-chrome] [data-open-session-add]')");
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=sessions]')"), null);
@@ -299,17 +299,17 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await evaluate("document.documentElement.dataset.resolvedTheme='dark'");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-operation-row=session] strong')).color"), await evaluate("(()=>{const n=document.createElement('span');n.style.color='var(--ink)';document.body.append(n);const c=getComputedStyle(n).color;n.remove();return c;})()"));
   await capture("directory-sessions-dark");
-  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
-  await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await click('[data-plugin-strip] [data-plugin-id="todo"]');
+  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.titlebar-chrome [data-directory-toggle]')).display"), "none");
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-directory-show]')).display"), "none");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-collapsed')"), false);
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "shelf");
+  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "todo");
   await reloadPage();
-  await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await waitFor("document.body.dataset.desktopSurface === 'todo' && document.querySelector('[data-todo-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-collapsed')"), false);
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "shelf");
-  assert.equal(await evaluate("document.querySelector('[data-plugin-section=shelf]')"), null);
+  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "todo");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-section=todo]')"), null);
   const coreTitle = store.snapshot(projectId!).goals.find((goal) => goal.goal_id === "CORE")!.title;
   await click("[data-global-search-open]");
   await waitFor("document.querySelector('[data-global-search-dialog]')?.open === true");
@@ -324,12 +324,12 @@ test("Immersive directories resize and retain compact, operable Goal, Feed and S
   await viewport(1024, 800);
   assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth"));
   await capture("directory-1024");
-  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
-  await waitFor("document.querySelector('[data-shelf-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
+  await click('[data-plugin-strip] [data-plugin-id="todo"]');
+  await waitFor("document.querySelector('[data-todo-stage-shell]') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await viewport(700, 800);
   await viewport(390, 844);
-  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
-  await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-shelf-stage-shell]')");
+  await click('[data-plugin-strip] [data-plugin-id="todo"]');
+  await waitFor("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-todo-stage-shell]')");
   // Round 4 phone bar: menu, the Assistant with its plugin switcher, and the project, at the foot of the page.
   assert.ok(await evaluate("(()=>{const bar=document.querySelector('.workbench-bar').getBoundingClientRect();return bar.height>0 && bar.bottom<=innerHeight+1 && bar.width<=innerWidth+1 && document.querySelector('[data-plugin-picker-toggle]').getClientRects().length>0;})()"), "On a phone the bottom bar stays in view with its plugin switcher");
   assert.equal(await evaluate("document.querySelector('[data-tree-resizer]').getClientRects().length"), 0);

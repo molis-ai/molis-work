@@ -60,7 +60,8 @@ test('Shelf saves the last keystroke before returning and keeps a failed draft a
   assert.ok(layout.shelf.top >= 0 && layout.shelf.bottom <= layout.viewport.h && layout.shelf.right <= layout.viewport.w, 'the side panel button stays inside the viewport');
   assert.equal(layout.neighbours, 0, 'no other bar control overlaps the side panel button');
   assert.equal(layout.hitsShelf, true, `elementFromPoint must hit the side panel button (got ${layout.hitTag})`);
-  await click('[data-plugin-strip] [data-plugin-id=shelf]');
+  // Shelf's side panel tab, in the document the panel's frame loads.
+  await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));
   const row = `[data-shelf-list=materials] [data-shelf-item="${a.item_id}"]`;
   await waitFor(`document.querySelector('${row}')`);
   await click(row);

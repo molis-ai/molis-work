@@ -74,7 +74,7 @@ test("DOCK-01 DOCK-13 the market and the plugin studio are two buttons at the he
   assert.doesNotMatch(without, /data-plugin-id="plugin-builder"/);
 });
 
-test("DOCK-04 the pin: grey while not kept, graphite while kept, out of reach until the plugin is in; Shelf's and 灵光's are ordinary pins", () => {
+test("DOCK-04 the pin: grey while not kept, graphite while kept, out of reach until the plugin is in; 灵光's is an ordinary pin and Shelf has no tile", () => {
   const html = renderPluginRail(primitives, ["goals", "pages", "shelf", "lingguang"], "");
   const kept = tileOf(html, "goals"), loose = tileOf(html, "pages"), grey = tileOf(html, "schedule");
   assert.ok(DOCK_DEFAULT_PINS.includes("goals") && !DOCK_DEFAULT_PINS.includes("pages"));
@@ -83,9 +83,10 @@ test("DOCK-04 the pin: grey while not kept, graphite while kept, out of reach un
   assert.match(loose.pin, /mw-btn--secondary/); assert.match(loose.pin, /aria-pressed="false"/); assert.doesNotMatch(loose.pin, / disabled/);
   assert.doesNotMatch(loose.wrapper, /is-kept/);
   assert.match(grey.pin, / disabled/);
-  // The bar no longer keeps Shelf and 灵光 as residents (side-shelf §7: the bar has only the side panel's button), so their
-  // pins are like any other: in the project, not kept unless the person keeps them.
-  for (const id of ["shelf", "lingguang"]) {
+  // The bar no longer keeps 灵光 as a resident (side-shelf §7: the bar has only the side panel's button), so its pin is like
+  // any other: in the project, not kept unless the person keeps it. Shelf is a 常开插件, a tab of the side panel: no tile.
+  assert.doesNotMatch(html, /data-plugin-id="shelf"/);
+  for (const id of ["lingguang"]) {
     const plain = tileOf(html, id);
     assert.doesNotMatch(plain.pin, /data-resident/); assert.doesNotMatch(plain.pin, / disabled/); assert.match(plain.pin, /aria-pressed="false"/);
     assert.doesNotMatch(plain.wrapper, /is-kept/);

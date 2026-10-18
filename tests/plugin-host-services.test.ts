@@ -527,7 +527,8 @@ test("Shelf's Runtime action wraps an outside IO error before the SDK route can 
   try {
     const definition = createShelfPlugin({ references: () => [], preview: () => assert.fail("the failed IO must not reach preview"),
       receive: () => assert.fail("a failed read must not import a copy") });
-    await rig.supervisor.start([{ definition }]);
+    // Shelf is a 常开插件: only an install that ships with the Host may carry the mark (S-33).
+    await rig.supervisor.start([{ definition, bundled: true }]);
     const contribution = rig.supervisor.contribution(definition.manifest.plugin_id);
     assert.equal(contribution?.kind, "app");
     if (contribution?.kind !== "app") throw new Error("Expected Shelf app contribution");

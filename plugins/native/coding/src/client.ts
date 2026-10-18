@@ -303,7 +303,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     draftWrites.set(id,next);
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
   };
-  // The box is a session's once its first read put its draft in (draftOwner) and no session is being made: only then is it saved, typed into or sent.
+  // The box is a session's once its first read put its draft in (draftOwner): only then is it saved. Typing and sending also wait for a new session.
   const flushDraft = () => { lifetime.clearTimeout(draftTimer); return current && draftOwner === current ? saveDraft(current,input.value) : Promise.resolve(); };
   const returnFromChange = () => {const fromArtifact=changeItem;changeItem='';renderArtifacts();if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);};
   const changeReview = (${CODING_CHANGESET_CLIENT_FACTORY_SCRIPT})({lifetime,root,q,api,turns,current:()=>current,closeReport:()=>closeReport(),

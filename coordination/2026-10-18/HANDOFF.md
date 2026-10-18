@@ -16,7 +16,7 @@
 
 - Molis main：`e5adc24c2`（#714 合入之后）。Prologue main：`dd639069c`（#50 合入之后）。Molis vendored 的 SDK 还是 3adc5e87（`prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz`），#50 还没换进来。
 - 10-18 合入 Molis main 的：#709、#711、#715、#661、#716、#712、#699、#717、#719、#722、#684、#718、#713、#724、#723、#714。合入 Prologue main 的：#48、#49、#50。
-- main 上 `molis-work-workbench.js` 是 1,111,791 B，安全不变量编到 S-38。S-39 给 #727（材料服务），S-40 给情境线 W4-1（#730）。BL：BL-171～173 给 #728，BL-174 给 #730，BL-175 给手册线的 PR。
+- main 上 `molis-work-workbench.js` 是 1,111,791 B，安全不变量编到 S-38。S-39 给 #727（材料服务），S-40 给情境线 W4-1（#730）。BL：BL-171～173 给 #728，BL-174 给 #730，BL-175 给手册线的 PR（appRefs 解析），BL-176 给手册线乙发现的 ask-user 结果键名 `pending` 误读（归 Prologue 设计，另开一片）。
 
 ### 1.1 在途 PR
 
@@ -164,6 +164,7 @@
 - 安全编号容易撞：开 PR 前看 main 上最大的 S 号，被别人先占了就往后顺延，并在 PR 里写明。
 - 本机只有一个浏览器槽。别的工具（DeepSeek Harness）在 computer-use 的工作树里跑过本机全量，把槽占了 30 多分钟，用户同意后统筹按 pid 停了它（10-18）。
 - `sleep` 在前台被 harness 拦着，要等就用后台 until 循环或 Monitor。
+- 情境线 10-18 晚曾用 `pkill -f "check-health-gates.mjs --base"` 停自己的健康检查（没按 pid），可能顺带停了别的会话同一时刻的健康检查。哪个会话说那段时间 health 莫名中断，让它重跑。停进程一律按 pid。
 - 草稿 PR 用 workflow_dispatch 手动触发的全量也占空位：`label-when-free2.zsh` 数的是全部在跑或排队的全量，所以统筹的标签链会排在它们后面。
 - PR 里多一个工具，可能让测试里的会话历史到整理阈值，多出一个没有工具的「选择保留历史」请求。按轮数写的假模型会因此错位，要按事实等（#726）。
 - product-subset 的作业名写着「not required yet」，但 `gate-and-queue.sh` 把它当失败，不入队。这是对的：它红了，多半是真问题（#726）。

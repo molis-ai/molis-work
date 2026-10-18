@@ -10,8 +10,8 @@
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
     "checkedOn": "2026-10-17",
-    "mainHead": "b541a8e62752fce23c83f959d55e549b3086557f",
-    "statement": "2026-10-17 对上游 main b541a8e62752fce23c83f959d55e549b3086557f（Prologue #41，含 #40、#39 与此前各项）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。",
+    "mainHead": "94ee1ea4f48baf529b2ce624b8ee54acefb7bb7f",
+    "statement": "2026-10-17 对上游 main 94ee1ea4f48baf529b2ce624b8ee54acefb7bb7f（Prologue #46，含 #45、#44、#43、#42 与此前各项）逐项用 git merge-base --is-ancestor 复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -48,7 +48,8 @@
       "f5ef12e6085c2865133b732ebc8ec235142685e1",
       "d2b3daa3de0744504b3098a17604f5f66019a29e",
       "24e6908352a9d2b164f62b83381b1f4cc6fc7643",
-      "b541a8e62752fce23c83f959d55e549b3086557f"
+      "b541a8e62752fce23c83f959d55e549b3086557f",
+      "94ee1ea4f48baf529b2ce624b8ee54acefb7bb7f"
     ]
   },
   "patches": [
@@ -729,6 +730,14 @@
       "gitBlob": "ee08ce670869534e495f72c910b233a36160ae34",
       "commit": "24e6908352a9d2b164f62b83381b1f4cc6fc7643",
       "description": "上游 main 24e69083（Prologue #38，含 #37 App 的等待了结步骤）。2026-10-17 被包含 #39 交接时去掉了结步骤的等待、#40 等人回答的那一跑活过正常关机与 #41 停放的那一跑不再拖住进程的统一包替换；旧包及其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-parked-run.tgz",
+      "bytes": 1211301,
+      "sha256": "6f551e02050f85bb431aca88ac76ed67f0495b2c606e5e60b3e1c2625a9e61e2",
+      "gitBlob": "da38441c019b12a2aa7ebf768be2c4ef32d8172c",
+      "commit": "b541a8e62752fce23c83f959d55e549b3086557f",
+      "description": "上游 main b541a8e6（Prologue #41，含 #40 等人回答的那一跑活过正常关机、#39 交接时去掉了结步骤的等待）。2026-10-17 被包含 #42 派出子任务的说明、#43 搜索的说明、#44 起命令时 PATH 只留授权根之外的绝对项、#45 写后检查交回命令与 #46 提问 id 的说明的统一包替换；旧包及其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

@@ -166,6 +166,7 @@
 - 合并预览过期：GitHub 不一定按新 main 重算。标签链会等 10 分钟，之后只有 main 新增的改动和本 PR 没有文件重叠时才照常加标签。
 - 安全编号容易撞：开 PR 前看 main 上最大的 S 号，被别人先占了就往后顺延，并在 PR 里写明。
 - 本机只有一个浏览器槽。别的工具（DeepSeek Harness）在 computer-use 的工作树里跑过本机全量，把槽占了 30 多分钟，用户同意后统筹按 pid 停了它（10-18）。
+- `tests/coding-input-receipts.e2e.test.ts`（RC-10/11/13/16）在 CI 负载下会停在「点发送方式触发器、菜单没打开」：#703 之后 main 上两次红、单独重跑第 8 片通过，本机 7.7 秒通过（10-18）。PR 全量只红它时，先 `gh run rerun <run> --failed` 重跑，不加进 KNOWN；#726 这类改 Coding 回执的 PR 红在这里要先看是不是自己的。根因（猜是状态刷新把触发器重画或藏起）留给回执线的接手人。
 - `sleep` 在前台被 harness 拦着，要等就用后台 until 循环或 Monitor。
 - 情境线 10-18 晚曾用 `pkill -f "check-health-gates.mjs --base"` 停自己的健康检查（没按 pid），可能顺带停了别的会话同一时刻的健康检查。哪个会话说那段时间 health 莫名中断，让它重跑。停进程一律按 pid。
 - 草稿 PR 用 workflow_dispatch 手动触发的全量也占空位：`label-when-free2.zsh` 数的是全部在跑或排队的全量，所以统筹的标签链会排在它们后面。

@@ -154,15 +154,21 @@ function contextPage() {
   const document = {
     body: element({ append() {} }), documentElement: element(), activeElement: null,
     createElement: () => { const node = element(); made.push(node); return node; },
-    querySelector: () => null, getElementById: () => null, addEventListener() {}, dispatchEvent: () => true,
+    querySelector: () => null, getElementById: () => null, dispatchEvent: () => true,
+    addEventListener: (type: string, fn: (event: unknown) => void) => { (documentListeners[type] ||= []).push(fn); },
     querySelectorAll: (selector: string) => selector === "#side-panel iframe[data-side-frame]" ? [shelf] : selector === "iframe[data-pane-owner]" ? [pane] : [],
   };
-  const plan = { context_id: "ctx-1", primary: ["k"], more: [], candidates: [{ key: "k", title: "放进 Goal", available: true, source: { provider_id: "io.molis.work.goals" } }] };
+  const documentListeners: Record<string, Array<(event: unknown) => void>> = {};
+  class PageElement {}
+  // A write, and 「插入到光标处」 for the landing on the left (W3-C2).
+  const plan = { context_id: "ctx-1", primary: ["k"], more: [], candidates: [{ key: "k", title: "放进 Goal", available: true, source: { provider_id: "io.molis.work.goals" } },
+    { key: "attach.cursor", origin: "attach", title: "插入到光标处", available: true, source: { provider_id: "io.molis.work.pages" } }] };
   const context = vm.createContext({
     window: top, document, location: { origin: ORIGIN, href: ORIGIN + "/projects/p/" }, innerWidth: 1440, innerHeight: 900,
     matchMedia: () => ({ matches: false }), getSelection: () => null, addEventListener() {}, MutationObserver: class { observe() {} },
     setTimeout: (fn: () => void) => { timers.push(fn); return timers.length; }, clearTimeout() {}, setInterval: () => 0, clearInterval() {},
     CustomEvent: class { constructor(readonly type: string, readonly init: unknown) {} }, crypto: { randomUUID: () => "id" }, AbortController,
+    HTMLIFrameElement: class {}, Element: PageElement,
     molisWorkRequest: (path: string, options: { body?: Record<string, unknown> } = {}) => {
       requests.push({ path, body: options.body ?? {} });
       return Promise.resolve(path.endsWith("/candidates") || path.endsWith("/judge") ? { plan, receipt: {} } : {});
@@ -175,7 +181,13 @@ function contextPage() {
     object: { kind: "shelf_item", id: "item-1", title: "在手材料.md" }, targets: [{ kind: "text_range", role: "paragraph", text: "右栏里选中的一段" }] };
   const send = (source: unknown, origin = ORIGIN) => windowListeners.forEach(fn => fn({ origin, source, data: { type: "workbench-surface-focus", focus } }));
   const toolbarShown = () => made.some(node => node.className === "mw-ctx" && node.hidden === false);
-  return { top, shelf, pane, stray, requests, told, send, settle, toolbarShown };
+  // Pages on the left reports where a thing in hand would go: its editor is the landing's element, and hears the flash.
+  const flashes: string[] = [];
+  const editor = Object.setPrototypeOf(element({ dispatchEvent: (event: { type: string }) => { flashes.push(event.type); return true; } }), PageElement.prototype);
+  const land = () => (documentListeners["molis:surface-landing"] ?? []).forEach(fn => fn({ target: editor, detail: { plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: "doc-1" }, position: "cursor", version: 1 } }));
+  const hold = (source: unknown, pointed: unknown, context_id = focus.context_id) =>
+    windowListeners.forEach(fn => fn({ origin: ORIGIN, source, data: { type: "workbench-context-hold", context_id, interacting: true, pinned: [], pointed } }));
+  return { top, shelf, pane, stray, requests, told, send, settle, toolbarShown, land, hold, flashes };
 }
 
 test("S-30 AC-S04 a workbench-surface-focus that is not from a side panel plugin frame (or a split pane) is dropped: nothing is asked, no toolbar", async () => {
@@ -206,4 +218,29 @@ test("S-30 AC-S04 a workbench-surface-focus that is not from a side panel plugin
   assert.ok(page.told.some(({ to, message }) => to === "shelf" && message.type === "workbench-context-view" && message.op === "render"), "the Shelf frame is told to draw it");
   assert.ok(page.told.every(({ to }) => to === "shelf"), "no other frame hears of it");
   assert.equal(page.toolbarShown(), false, "the page draws none of its own");
+});
+
+test("S-30 W3-C2 a side tab's hold flashes the landing on the left only for an attach key of the page's own plan, and only from that tab", async () => {
+  const page = contextPage();
+  page.land();
+  page.send(page.shelf.contentWindow);
+  await page.settle();
+  // Whatever the frame names is looked up in the plan this page holds; anything else flashes nothing.
+  for (const pointed of [["k"], [7, null, {}], "attach.cursor", { 0: "attach.cursor", length: 1 }, ["attach.other"], [], undefined]) {
+    page.hold(page.shelf.contentWindow, pointed);
+    assert.deepEqual(page.flashes, [], `pointed ${JSON.stringify(pointed)}: nothing flashes`);
+  }
+  // Another source with a valid key, or the tab about a passage it no longer holds: dropped before the key is read.
+  page.hold(page.stray.contentWindow, ["attach.cursor"]);
+  page.hold(page.top, ["attach.cursor"]);
+  page.hold(page.pane.contentWindow, ["attach.cursor"]);
+  page.hold(page.shelf.contentWindow, ["attach.cursor"], "ctx-old");
+  assert.deepEqual(page.flashes, [], "not from the frame that holds what is in hand: nothing flashes");
+  // From the Shelf tab, hovering 「插入到光标处」 (on its bar or in its menu): the landing flashes once, not again while it stays under the pointer.
+  page.hold(page.shelf.contentWindow, ["k", "attach.cursor"]);
+  page.hold(page.shelf.contentWindow, ["attach.cursor"]);
+  assert.deepEqual(page.flashes, ["molis:surface-landing-flash"]);
+  page.hold(page.shelf.contentWindow, []);
+  page.hold(page.shelf.contentWindow, ["attach.cursor"]);
+  assert.deepEqual(page.flashes, ["molis:surface-landing-flash", "molis:surface-landing-flash"], "left and came back: it flashes again");
 });

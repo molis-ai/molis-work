@@ -22,6 +22,9 @@
  *   checks again anyway.
  * - `chooseFrom`: a choice made in a split pane's toolbar is handled exactly as one made here, also after the person put the toolbar
  *   away for this passage.
+ * - A split pane's or side tab's hold also names the keys under the pointer on its bar and in its menu (`pointed`, W3-C2): they
+ *   are only looked up in this document's own plan (`landing.hint`), so a key that is not an `attach.` candidate there flashes
+ *   nothing; the message has already passed the frame check (S-30) and the current-focus check.
  */
 import { CARD_TARGET_ASK_SCRIPT } from "./context-card-target.js";
 
@@ -53,11 +56,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       const leaving = this.source, previous = this.focus;
       this.focus = focus; this.source = focus ? source : null; this.at = Date.now();
       this.watch(Boolean(focus && source && source.element));
-      clearTimeout(this.timer);
-      clearTimeout(this.rulesTimer);
-      if (this.judging) this.judging.abort();
-      this.judging = null;
-      const seq = ++this.seq;
+      const seq = this.hush();
       if (!focus) {
         if (leaving) post("/api/contextual/cancel", { pane_id: leaving.pane }).catch(() => undefined);
         bar.idle();
@@ -73,6 +72,8 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
       if (writing) this.rulesTimer = setTimeout(() => this.flush && this.flush(), 400); else this.flush();
       this.timer = setTimeout(() => this.judge(seq, focus), writing ? 900 : 350);
     },
+    // Nothing still on its way for what was in hand comes back to the toolbar: a new thing in hand, or Esc.
+    hush() { clearTimeout(this.timer); clearTimeout(this.rulesTimer); if (this.judging) this.judging.abort(); this.judging = null; return ++this.seq; },
     async judge(seq, focus) {
       const controller = new AbortController();
       this.judging = controller;
@@ -226,7 +227,7 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     else if (data.type === "workbench-context-summon") bar.summon(true);
     else if (data.type === "workbench-context-hold") {
       bar.paneHold = { interacting: !!data.interacting, pinned: Array.isArray(data.pinned) ? data.pinned.filter((key) => typeof key === "string").slice(0, 8) : [] };
-      bar.leave();
+      bar.leave(); landing.hint(Array.isArray(data.pointed) ? data.pointed.slice(0, 16) : [], bar.plan);
     }
   });
   const chooseFrom = (contextId, key) => {

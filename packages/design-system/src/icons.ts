@@ -298,7 +298,7 @@ export const ICON_LIBRARY: ReadonlyArray<{ id: string; label: string; icons: rea
     id: "action",
     label: "动作",
     icons: [
-      "plus", "minus", "check", "edit", "save", "copy", "share", "send", "undo", "redo",
+      "plus", "minus", "check", "edit", "save", "copy", "share", "send", "mic", "undo", "redo",
       "download", "upload", "external", "filter", "pin", "pin-off", "play", "pause", "refresh", "trash",
       "eye", "eye-off", "logout",
     ],

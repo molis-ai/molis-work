@@ -26,9 +26,10 @@ html body form.uiv-composer.bar-composer[data-assistant-composer][data-uiv-bound
   position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
   box-sizing: border-box; width: 100%; height: auto; min-height: 0; max-height: none; padding: 4px 8px; overflow: visible;
 }
-html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-uiv-input] { flex: 1 1 120px; width: auto; min-width: 80px; order: 1; }
-html body form.uiv-composer.bar-composer[data-uiv-bound][data-uiv-multiline] > [data-uiv-input] { flex-basis: 100%; width: 100%; }
+html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-uiv-input] { flex: 1 1 64px; width: auto; min-width: 64px; order: 1; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > :is([data-assistant-attach], .uiv-bar, [data-assistant-send]) { order: 2; }
+html body form.uiv-composer.bar-composer[data-uiv-bound]:has(.uiv-bar button:not([data-uiv-mic], [hidden])) > [data-uiv-input] { flex-basis: 100%; width: 100%; order: -1; }
+html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-assistant-send] { margin-left: auto; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > .uiv-status { order: 3; }
 
 html body form.uiv-composer[data-uiv-bound] .uiv-bar { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; max-width: 100%; }

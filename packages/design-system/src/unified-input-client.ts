@@ -226,7 +226,6 @@ function uivApplyPending(form: HTMLFormElement, live: UivLive, host: UivPageHost
 }
 function uivResize(field: UivField): void {
   if (!(field instanceof HTMLTextAreaElement) || !field.getClientRects().length) return;
-  field.closest("form")?.toggleAttribute("data-uiv-multiline", field.value.includes("\n"));
   const style = getComputedStyle(field);
   field.style.height = "0px";
   field.style.height = `${field.scrollHeight + parseFloat(style.borderTopWidth || "0") + parseFloat(style.borderBottomWidth || "0")}px`;

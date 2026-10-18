@@ -187,6 +187,7 @@ test("UIV-01/02/11 三入口共用书写样式，长文增高后内部滚动，�
     assert.ok(layout.bar.bottom <= height + 1 && layout.bar.top >= 0, `${width} dock remains in window: ${JSON.stringify(layout)}`);
     assert.ok(layout.field.top >= layout.bar.top && layout.field.bottom <= layout.bar.bottom, `${width} writing area stays in dock`);
     assert.ok(layout.field.width >= layout.form.width * .7, `${width} writing area remains the primary surface`);
+    assert.ok(layout.form.right - layout.controls.at(-1)!.right <= 9, `${width} send stays on the right during recording`);
     assert.ok(layout.overflow <= 1, `${width} no horizontal page overflow`);
     for (const control of layout.controls) {
       assert.ok(!control.hidden && control.hit, `${width} ${control.label} is reachable: ${JSON.stringify(control)}`);

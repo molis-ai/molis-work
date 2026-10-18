@@ -336,6 +336,12 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   } };
 }
 
+/** Where the runtime keeps the person's after-write checkers; the call that asks has started it. */
+function keptWriteCheckers(prologue: { writeCheckers: AgentWriteCheckerStore } | undefined): AgentWriteCheckerStore {
+  if (!prologue) throw new Error("Agent 运行时没有启动，读不到写后检查器");
+  return prologue.writeCheckers;
+}
+
 /**
  * What one Plugin is allowed to start, resolved from its own declarations.
  *
@@ -345,12 +351,6 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
  * neither invents a fallback.
  */
 /** The project's authorized workspaces, from the list when the Host keeps one, else the single one. */
-/** Where the runtime keeps the person's after-write checkers; the call that asks has started it. */
-function keptWriteCheckers(prologue: { writeCheckers: AgentWriteCheckerStore } | undefined): AgentWriteCheckerStore {
-  if (!prologue) throw new Error("Agent 运行时没有启动，读不到写后检查器");
-  return prologue.writeCheckers;
-}
-
 async function workspaceGrants(options: Pick<AgentHostCompositionOptions, "workspacesFor" | "workspaceFor">, projectId: string): Promise<readonly ProjectWorkspaceRef[]> {
   return options.workspacesFor ? await options.workspacesFor(projectId) : [await options.workspaceFor(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
 }

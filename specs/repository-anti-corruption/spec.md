@@ -8,6 +8,8 @@ SHM 模型失败集成补正（2026-10-18）：39130898172 的灵光失败回归
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+Dataset 全量路由断言补齐（2026-10-18，W5-01-DATASET-05）：跨插件客户端回归必须匹配现行 Manifest 的 /api/plugins/io.molis.work.dataset/datasets，保留旧 URL 的真实 HTTP 拒绝与错误边界。只修迁移遗留断言，不改生产行为；当前组合整体构建通过，该文件和真实 HTTP 错误边界/路由表三文件 35 条通过，日志 /tmp/molis-dataset-route-assertions-after.log。
+
 Dataset 交接收口（2026-10-18，Codex，本地组合通过）：DSH 已审 Runtime 候选 merge 当前 PPT/公共服务与实际 main 63639a764。项目监督器沿现 homeLibraryPlugins 加入 Dataset 单一声明，Form/PPT/灵光/其他已迁移插件保留，旧 Host 提供方及路由全部删除；共同文档与错误模型测试同时保留 PPT、Dataset 的真实 Runtime、体积/冲突/发布拒绝证据。整体 offline install/build、API、动作快照、boundary、merge-base health 与实测资源通过；14 个相关文件 145 条最终通过。首轮13文件仅 Dataset 普通 provider 失败仍期待旧原始消息，现 SHM 合同明确返回 plugin.model_failed；仅改测试为精确码与文案，失败后数据不变等断言保持，复跑Dataset11条与模型材料14条通过。动作快照新增当前 Dataset 安装的 D1 三个 query（PPT的三个随前置并入），原业务动作合同不变。25 项7,479,517 B，比PPT前置减少200 B，无新增额度；日志 /tmp/molis-dataset-closeout-{build,api,actions,health,boundary,assets,targeted,model-contract}.log。正式 PR/CI 与共享组合全量待队列，先前DSH相关与Chrome证据保留。
 
 PPT 全量路由断言补齐（2026-10-18，W5-01-PPT-02）：personal-plugins-review-fixes 中 PPT 客户端路径按现行 Manifest 固定为 /api/plugins/io.molis.work.ppt/ppt。生产实现与旧 HTTP 路径拒绝保持；同文件及真实 HTTP 错误边界/路由表三文件 34 条通过，日志 /tmp/molis-ppt-route-assertions-after.log。

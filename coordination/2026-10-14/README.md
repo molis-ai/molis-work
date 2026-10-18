@@ -1040,3 +1040,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18 prologue#45 新 head 89f9bb4c：执行器拿到 Run 信号、与停下/时限赛跑、迟到回答丢掉，可以；ToolCall.abort 是工具期限、在途命令由 abortForeground 掐，认可不加第二条路径。再退一处：执行器答完到 prepareCommand 之间没人看信号（只靠 mutator 标记，变异未覆盖），prepare 前再看一次并加用例。
 
 - 10-18 #694 新 head 9066de74b（merge 877dc7626）：门禁之外 283 行逐行一致，workbench.js 1108607（1109302−695），排在 chain35。
+
+- 10-18 #695 全量红一处：security-invariants-doc「S-20 the table is checked」——S-33 行正文用「未执行」引语，被当成测试标题；只改文档（不用「」），连同本地 merge main（aead5fe32，coding.js 373970）一起推，统筹核 diff 后走 merge-only。

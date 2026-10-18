@@ -1,12 +1,17 @@
 /// <reference lib="dom" />
+import type { AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputImpact, AgentInputKind, AgentInputModelClaim, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { compactScript } from "./compact-script.js";
 
 /** What the receipt reads of a run-view turn (`AgentTurnView`) and its round: the round's run id and the questions it waits on. */
 export interface InputReceiptTurn { turn_id: string; kind: string; text: string; steer?: AgentTurnSteer }
 export interface InputReceiptRound { run_id?: string; awaiting_input?: readonly unknown[]; step_board?: InputReceiptBoard }
-/** What the receipt reads of the round's step board (`AgentStepBoard`): the reports on each step that name an input. Absent: not read. */
-export interface InputReceiptBoard { nodes: readonly { inserted?: boolean; reports: readonly { note: string; inputs?: readonly { input_id: string }[] }[] }[] }
+/**
+ * What the receipt reads of the round's step board (`AgentStepBoard`): the reports on each step that name an input, and the
+ * steps added for one (`origins`) with their title, state and whether a person added them. Absent: not read.
+ */
+export interface InputReceiptBoard { nodes: readonly { state: AgentStepState; title?: string; inserted?: boolean; origins?: readonly { input_id: string }[]; reports: readonly { note: string; inputs?: readonly { input_id: string }[] }[] }[] }
+type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 /** What the tray reads of an input waiting in the session for the next round (`AgentQueuedInput`). */
 export interface InputReceiptQueued { input_id: string; text: string }
 /**
@@ -54,9 +59,12 @@ export const RECEIPT_WORDS = {
   IMPACT: { objective: "目标", scope: "范围", priority: "优先级", approach: "实现方案", acceptance: "验收条件", outputs: "已有成果", constraint: "约束" },
   TARGET: { input: "另一条补充", "app-ref": "应用里的对象", todo: "这一轮的待办", pending: "一个问题", "board-node": "计划的一步" },
   QUESTION: { open: "等你回答", settled: "已回答", expired: "已过期", cancelled: "已取消", unresolved: "这一轮结束时还没回答" },
+  // A step's state as the plan card says it: the model's report of done or failed is its report, not a check.
+  STEP: { "not-started": "等待前一步", ready: "可以开始", running: "进行中", waiting: "在等别的步骤", succeeded: "模型报告完成", failed: "模型报告失败", cancelled: "已取消", blocked: "受阻，等你决定", "needs-reconciliation": "重启后需要核对" },
 } satisfies {
   FACT: Record<AgentTurnSteer["state"], string>; TREATMENT: Record<AgentInputTreatment, string>; KIND: Record<AgentInputKind, string>;
   IMPACT: Record<AgentInputImpact, string>; TARGET: Record<AgentInputTarget["kind"], string>; QUESTION: Record<AgentInputQuestion["state"], string>;
+  STEP: Record<AgentStepState, string>;
 };
 
 /**
@@ -81,8 +89,8 @@ export const RECEIPT_WORDS = {
  *
  * The tray of what is still open is `createInputTray`, made from these receipts' own pieces.
  */
-export function createInputReceipts(L: (text: string) => string, tray: (parts: InputReceiptParts) => InputReceipts["tray"], correction: <E extends CorrectionEntry>(parts: InputReceiptParts, again: (entry: E) => void) => (entry: E) => void, words: typeof RECEIPT_WORDS): InputReceipts {
-  const { FACT, TREATMENT, KIND, IMPACT, TARGET, QUESTION } = words;
+export function createInputReceipts(L: (text: string) => string, tray: (parts: InputReceiptParts) => InputReceipts["tray"], correction: <E extends CorrectionEntry>(parts: InputReceiptParts, again: (entry: E) => void) => (entry: E) => void, words: typeof RECEIPT_WORDS, board: typeof readBoard): InputReceipts {
+  const { FACT, TREATMENT, KIND, IMPACT, TARGET, QUESTION, STEP } = words;
   type Surface = { shown: Map<string, Shown>; byInput: Map<string, Shown>; fixes: Map<string, string[]> };
   type Shown = { at: Surface; root: HTMLDetailsElement; said: string; turn: InputReceiptTurn; round?: InputReceiptRound; act?: InputReceiptActions; form?: HTMLFormElement; problem?: string; fix?: { key: string; text: string } };
   // What each surface drew: its receipts, which one is each input's latest, and the corrections it has seen of each input.
@@ -114,16 +122,15 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
     const open = questions.filter(one => one.state === "open").length;
     return open ? L("为这条问了你问题，等你回答") : questions.some(one => one.state === "unresolved") ? L("为这条问的问题没等到回答") : "";
   };
-  /** The reports on the round's board that name this input, each under its step's key on the plan card (S1, S2…, 插入). */
-  const cites = (steer: AgentTurnSteer, board?: InputReceiptBoard) => (board?.nodes ?? []).flatMap((node, index) =>
-    node.reports.filter(report => report.inputs?.some(one => one.input_id === steer.id)).map(report => [node.inserted ? L("插入") : "S" + (index + 1), report.note]));
-  const body = (steer: AgentTurnSteer, cited: string[][]) => {
-    const part = make("div", "mw-receipt__body"), facts = make("dl", "mw-receipt__facts");
-    part.append(make("p", "mw-receipt__note", L("读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。")), facts);
+  const { cites, added } = board(L, STEP);
+  const body = (steer: AgentTurnSteer, cited: string[][], steps: string[]) => {
+    const part = make("div", "mw-receipt__body"), facts = make("dl", "mw-receipt__facts"), claim = steer.model_claim, beside = Boolean(claim || cited.length);
+    // Side by side with what the AI says, the facts say whose they are.
+    part.append(make("p", "mw-receipt__note", L("读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。")), ...beside ? [make("p", "mw-receipt__who", L("记录里的"))] : [], facts);
     row(facts, "运行记录", L(FACT[steer.state]) + L(" · 输入 ") + steer.id);
     for (const [index, question] of (steer.questions ?? []).entries()) row(facts, index ? "" : "为它问的问题", L(QUESTION[question.state]) + L(" · 问题 ") + question.pending_id);
-    const claim = steer.model_claim;
-    if (!claim && !cited.length) return part;
+    for (const [index, line] of steps.entries()) row(facts, index ? "" : "为它加的步骤", line);
+    if (!beside) return part;
     const group = make("div", "mw-receipt__claimed"), said = make("dl", "");
     group.append(make("p", "mw-receipt__who", L("AI 自己说的，Molis 没有核对")), said);
     if (claim) {
@@ -176,11 +183,11 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
     const waits = (round?.awaiting_input ?? []).length > 0 && (steer.state === "received" || steer.state === "applied");
     const fact = L(waits ? "已补充到这一轮；问题仍在等你回答" : FACT[steer.state]);
     const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
-    const [about, fixed] = ends(entry), cited = cites(steer, round?.step_board);
+    const [about, fixed] = ends(entry), cited = cites(steer, round?.step_board), steps = added(steer, round?.step_board);
     const link = steer.about ? L("纠正：针对") + (about ? L("「") + quote(about.turn.text) + L("」") : L("更早的一条")) : fixed ? L("你改为：「") + quote(fixed.turn.text) + L("」") : "";
-    const key = JSON.stringify([fact, claim, ask, steer, link, Boolean(entry.act), cited]), before = entry.said ? JSON.parse(entry.said) as string[] : null;
+    const key = JSON.stringify([fact, claim, ask, steer, link, Boolean(entry.act), cited, steps]), before = entry.said ? JSON.parse(entry.said) as string[] : null;
     if (!force && entry.said === key) return;
-    const summary = make("summary", ""), head = make("span", "mw-receipt__fact", fact), part = body(steer, cited);
+    const summary = make("summary", ""), head = make("span", "mw-receipt__fact", fact), part = body(steer, cited, steps);
     summary.append(head);
     if (claim) { const line = make("span", "mw-receipt__claim"); line.append(make("b", "", L("AI 说")), claim); summary.append(line); }
     if (ask) summary.append(make("span", "mw-receipt__ask", ask));
@@ -346,8 +353,24 @@ export function createInputTray({ L, say, make, button, quote, latest, attempt, 
   };
 }
 
+/** What a receipt reads of the round's step board, made in the page with the receipt's own translate and step words. */
+function readBoard(L: (text: string) => string, STEP: typeof RECEIPT_WORDS["STEP"]) {
+  /** Each step's key on the plan card (S1, S2…, 插入). */
+  const step = (node: InputReceiptBoard["nodes"][number], index: number) => node.inserted ? L("插入") : "S" + (index + 1);
+  /** The reports on the round's board that name this input, each under its step's key. */
+  const cites = (steer: AgentTurnSteer, board?: InputReceiptBoard) => (board?.nodes ?? []).flatMap((node, index) =>
+    node.reports.filter(report => report.inputs?.some(one => one.input_id === steer.id)).map(report => [step(node, index), report.note]));
+  /**
+   * The steps the board says were added for this input (stage 3d-4, D21): only what the board records, its key and title,
+   * that a person added it, and its state now. Not when it was added or at which version: the board does not keep those.
+   */
+  const added = (steer: AgentTurnSteer, board?: InputReceiptBoard) => (board?.nodes ?? []).flatMap((node, index) =>
+    node.origins?.some(one => one.input_id === steer.id) ? [step(node, index) + (node.title ? L("「") + node.title + L("」") : "") + (node.inserted ? L(" · ") + L("你加的") : "") + L(" · 现在：") + L(STEP[node.state])] : []);
+  return { cites, added };
+}
+
 /** The page program: `(translate) => InputReceipts`. The workbench makes one and hands it to the Assistant and every plugin (`host.receipts`). */
-export const INPUT_RECEIPTS_CLIENT_SCRIPT = compactScript("(L) => (" + createInputReceipts.toString() + ")(L, " + createInputTray.toString() + ", " + createCorrection.toString() + ", " + JSON.stringify(RECEIPT_WORDS) + ")");
+export const INPUT_RECEIPTS_CLIENT_SCRIPT = compactScript("(L) => (" + createInputReceipts.toString() + ")(L, " + createInputTray.toString() + ", " + createCorrection.toString() + ", " + JSON.stringify(RECEIPT_WORDS) + ", " + readBoard.toString() + ")");
 
 /** The receipt's words in English (served through the workbench catalog, `apps/workbench/src/i18n/en.ts`). */
 export const INPUT_RECEIPTS_EN: Readonly<Record<string, string>> = {
@@ -433,4 +456,12 @@ export const INPUT_RECEIPTS_EN: Readonly<Record<string, string>> = {
   "步骤报告提到它": "Step reports naming it",
   "关于补充「": "About the supplement \"",
   "来自补充「": "From the supplement \"",
+  "记录里的": "From the records",
+  "为它加的步骤": "Step added for it",
+  " · 现在：": " · now: ",
+  "等待前一步": "Waiting for the step before",
+  "在等别的步骤": "Waiting for other steps",
+  "模型报告完成": "Model reports done",
+  "受阻，等你决定": "Blocked, waiting for your decision",
+  "重启后需要核对": "Needs checking after a restart",
 };

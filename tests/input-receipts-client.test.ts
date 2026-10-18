@@ -388,6 +388,40 @@ test("RCPT-345, 3d-2: link opens a receipt this page drew, after the caller's ow
   focus.on = null;
 });
 
+// Stage 3d-4 (§4.3, D21): what the board records about the step added for a supplement, apart from what the AI says.
+const added = (state: string, extra: Record<string, unknown> = {}) => ({ nodes: [
+  { state: "succeeded", reports: [{ note: "建好 fixture", at_ms: 1, by: "本会话" }] },
+  { state, title: "注册接口失败路径测试", inserted: true, origins: [{ session_id: "s", input_id: "steer-1" }], reports: [{ note: "用户插入：注册接口失败路径测试；完成条件：测试通过", at_ms: 2, by: "用户" }], ...extra },
+] });
+
+test("RCPT-354, 3d-4: the step the board says was added for it is a fact of the records, said apart from what the AI says", () => {
+  const { ui } = receipts();
+  const root = ui.line(here, supplement({ state: "read", model_claim: { ...claim, treatment: "new-task" } }), { run_id: "run-1", step_board: added("not-started") })!;
+  const facts = root.all("mw-receipt__facts")[0]!;
+  assert.match(facts.text, /为它加的步骤插入「注册接口失败路径测试」 · 你加的 · 现在：等待前一步$/u, "RCPT-354 its key and title as on the plan card, that a person added it, and its state now");
+  const body = root.all("mw-receipt__body")[0]!.text;
+  assert.ok(body.indexOf("记录里的") < body.indexOf("为它加的步骤") && body.indexOf("为它加的步骤") < body.indexOf("AI 自己说的，Molis 没有核对"), "RCPT-354 the records' side is named, and the AI's side stays under its own heading");
+  assert.doesNotMatch(root.all("mw-receipt__claimed")[0]!.text, /为它加的步骤/u, "the step is not among what the AI says");
+  assert.equal(root.all("mw-receipt__fact")[0]!.text, "AI 已读到", "a step moves no fact line");
+  const later = ui.line(here, supplement({ state: "read", model_claim: { ...claim, treatment: "new-task" } }), { run_id: "run-1", step_board: added("succeeded") })!;
+  assert.equal(later, root, "the same element");
+  assert.match(later.all("mw-receipt__facts")[0]!.text, /现在：模型报告完成$/u, "RCPT-354 the state is read again; done is the model's report, not a check");
+  const alone = ui.line(here, { ...supplement({ state: "read" }), turn_id: "t2" }, { run_id: "run-2", step_board: added("running") })!;
+  assert.doesNotMatch(alone.text, /记录里的/u, "with nothing the AI said beside it, the facts need no heading");
+  assert.match(alone.all("mw-receipt__facts")[0]!.text, /现在：进行中$/u);
+});
+
+test("RCPT-355, 3d-4: only what the board records is shown; nothing is worked out from report times or order", () => {
+  const { ui } = receipts();
+  const root = ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: added("running", { inserted: undefined, title: undefined }) })!;
+  assert.match(root.all("mw-receipt__facts")[0]!.text, /为它加的步骤S2 · 现在：进行中$/u, "RCPT-355 no title, not marked as a person's: neither is said");
+  assert.doesNotMatch(root.text, /版|14:|加入|已生效/u, "RCPT-355 no board version, no time it was added, and nothing said to have taken effect");
+  const other = ui.line(here, { ...supplement({ state: "read" }), turn_id: "t2", steer: { id: "steer-2", state: "read" } }, { run_id: "run-1", step_board: added("running") })!;
+  assert.doesNotMatch(other.text, /为它加的步骤/u, "a step added for another supplement is not this one's");
+  const unread = ui.line(here, { ...supplement({ state: "read" }), turn_id: "t3" }, { run_id: "run-3" })!;
+  assert.doesNotMatch(unread.text, /为它加的步骤/u, "a board not read this time shows no step");
+});
+
 // The receipt is kept per surface, like the tray: the Assistant showing a round Coding runs, beside the Coding page.
 test("RCPT-348: one receipt per surface that draws it; a correction updates every copy, and link finds only its own surface's", async () => {
   const { ui, said } = receipts();

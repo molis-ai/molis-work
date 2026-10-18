@@ -237,7 +237,8 @@ for (const mode of ["cancel", "failure", "success"] as const) test(`Jelly model 
   if (mode === "cancel") controller.abort();
   release();
   if (mode === "success") assert.equal((await pending).plan.actions[0]!.title, "核对来源");
-  else await assert.rejects(pending, mode === "cancel" ? { code: "jelly.cancelled" } : /model down/);
+  // W5-01-SHM-01: Runtime exposes the public model failure; the original workspace remains untouched.
+  else await assert.rejects(pending, mode === "cancel" ? { code: "jelly.cancelled" } : { code: "plugin.model_failed", message: "模型请求失败，请重试" });
   assert.deepEqual(await f.read(), before);
 });
 

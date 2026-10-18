@@ -658,7 +658,7 @@ for (const [asset, old] of [
 // from exactly the current baseline to the measured size (+273). One byte more, another asset, or growth from the new baseline
 // still fails.
 test("W3-C has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const asset = "/assets/molis-work-workbench.js", [from, to] = [1110187, 1110460];
+  const asset = "/assets/molis-work-workbench.js", [from, to] = [1110056, 1110329];
   branch("w3c-side-base", () => { sizes[asset] = from; putBudget(sizes); });
   git("checkout", "-q", "-B", "w3c-side-change");
   sizes[asset] = to;

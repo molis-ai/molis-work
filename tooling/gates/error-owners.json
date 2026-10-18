@@ -215,12 +215,6 @@
       ],
       "reason": "The action kernel: kernel.* for its own failures (the runtime-identity code mcp.runtime_identity_missing becomes kernel.runtime_identity_missing)."
     },
-    "lingguang": {
-      "paths": [
-        "apps/local-host/src/lingguang-*"
-      ],
-      "reason": "The Lingguang plugin and the Host files that serve it; its codes already start with lingguang."
-    },
     "listener": {
       "paths": [
         "horizontal/listener-host/",

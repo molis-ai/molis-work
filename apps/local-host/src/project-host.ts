@@ -25,7 +25,6 @@ import { cogniaActionProvider } from "./cognia-actions.js";
 import { pagesActionProvider } from "./pages-actions.js";
 import { datasetActionProvider } from "./dataset-actions.js";
 import { jellyActionProvider } from "./jelly-actions.js";
-import { lingguangActionProvider } from "./lingguang-actions.js";
 import { scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
 import { workflowsActionProvider } from "./workflows-actions.js";
@@ -186,7 +185,6 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) add(pagesActionProvider(options.homeDirectory, runtime, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(pptActionProvider(options.homeDirectory, runtime, options.completeText, this.actionClient(reference)));
             if (options.homeDirectory) add(datasetActionProvider(options.homeDirectory, runtime, options.completeText));
-            if (options.homeDirectory) add(lingguangActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions }, feed));
             add(scheduleActionProvider(runtime, { homeDirectory: options.homeDirectory, workspaceFor: options.workspaceFor }));
             add(scheduleReminderActionProvider(runtime, options.projectRoutePrefix?.(reference.project_id)));

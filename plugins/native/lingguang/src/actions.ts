@@ -2,7 +2,7 @@ import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contract
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
 import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMoveHandler, defineFragmentOffersAction, defineObjectCopyAction, defineObjectMoveAction, type FragmentActionOffer, type FragmentOffersInput, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
-import type { LingguangConversationState, LingguangStore } from "./store.js";
+import type { LingguangConversationState, LingguangStores } from "./store.js";
 import { createLingguangSearchHandlers, lingguangSearchActions, revisionOf } from "./search.js";
 import { lingguangErrors } from "./error.js";
 
@@ -65,9 +65,9 @@ export const lingguangActions = {
   move: defineObjectMoveAction("lingguang.placement.move", ["lingguang_spark"], "灵光", [...read, ...write]),
   copy: defineObjectCopyAction("lingguang.placement.copy", ["lingguang_spark"], "灵光", [...read, ...write]),
   readFile: define<MaterialUpload, LingguangMaterial>("material.read", "读取文件内容", "提取上传文件的文字（含图片识别与音视频转写），不保存灵光；需要下载本机识别模型时先得到同意", "command",
-    object({ file_name: { type: "string", minLength: 1, maxLength: 240 }, data_base64: { type: "string", minLength: 1 }, allow_model_download: { type: "boolean" } }, ["file_name", "data_base64"]), material, write),
+    object({ file_name: { type: "string", minLength: 1, maxLength: 240 }, data_base64: { type: "string", minLength: 1 }, allow_model_download: { type: "boolean" } }, ["file_name", "data_base64"]), material, [...write, "materials:read"]),
   readSource: define<MaterialSource, LingguangMaterial>("source.read", "读取链接内容", "读取公开网页、视频字幕或播客音频的文字，不保存灵光；遵守原来源的边界", "command",
-    object({ url: { type: "string", minLength: 1, maxLength: 2000 }, allow_model_download: { type: "boolean" } }, ["url"]), material, write),
+    object({ url: { type: "string", minLength: 1, maxLength: 2000 }, allow_model_download: { type: "boolean" } }, ["url"]), material, [...write, "materials:fetch"]),
   fragmentOffers: defineFragmentOffersAction("lingguang.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记下", read, []),
 };
 /** The complete `lingguang.create` input for a fragment; pure. The same request id saves it once. */
@@ -84,8 +84,7 @@ export function prepareLingguangFragmentOffers(input: FragmentOffersInput): Frag
 
 export const LINGGUANG_ACTIONS: readonly ActionDefinition[] = Object.values(lingguangActions);
 export const LINGGUANG_ACTION_PERMISSIONS = [...new Set(LINGGUANG_ACTIONS.flatMap(definition => definition.action.permissions))];
-export interface LingguangActionPorts {
-  withStore<T>(run: (store: LingguangStore) => T): T;
+export interface LingguangActionPorts extends LingguangStores {
   /** Reading files and public pages, where this machine can. */
   readFile?(input: MaterialUpload, caller: ActionExecutionContext): Promise<LingguangHostMaterial>;
   readSource?(input: MaterialSource, caller: ActionExecutionContext): Promise<LingguangHostMaterial>;
@@ -102,41 +101,47 @@ export function createLingguangActionHandlers(ports: LingguangActionPorts): Acti
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}),
   });
   return [
-    bindObjectMoveHandler(lingguangActions.move, input => ports.withStore(store => {
+    bindObjectMoveHandler(lingguangActions.move, (input, caller) => ports.write(caller, store => {
       const moved = store.relocate(input.subject.id, input.from_project_id, input.to_project_id);
       return { subject: { kind: "lingguang_spark", id: moved.id }, project_id: moved.project_id, revision: revisionOf(moved) };
     })),
-    bindObjectCopyHandler(lingguangActions.copy, input => ports.withStore(store => {
+    bindObjectCopyHandler(lingguangActions.copy, (input, caller) => ports.write(caller, store => {
       const copy = store.duplicate(input.subject.id, input.from_project_id, input.to_project_id, input.request_id);
       return { subject: { kind: "lingguang_spark", id: copy.id }, project_id: copy.project_id, revision: revisionOf(copy) };
     })),
-    bind(lingguangActions.list, (_, caller) => ports.withStore(store => ({ sparks: store.list(project(caller)) }))),
-    bind(lingguangActions.get, (input, caller) => ports.withStore(store => ({ spark: store.get(input.id, project(caller)) }))),
+    bind(lingguangActions.list, (_, caller) => ports.read(store => ({ sparks: store.list(project(caller)) }))),
+    bind(lingguangActions.get, (input, caller) => ports.read(store => ({ spark: store.get(input.id, project(caller)) }))),
     bind(lingguangActions.fragmentOffers, input => ({ offers: prepareLingguangFragmentOffers(input) })),
-    bind(lingguangActions.readFile, async (input, caller) => keptMaterial(await ports.readFile!(input, caller)), () => reading(ports.readFile)),
-    bind(lingguangActions.readSource, async (input, caller) => keptMaterial(await ports.readSource!(input, caller)), () => reading(ports.readSource)),
-    bind(lingguangActions.create, (input, caller) => ports.withStore(store => ({ spark: store.create({ ...input, project_id: project(caller) }) }))),
-    bind(lingguangActions.update, (input, caller) => ports.withStore(store => ({ spark: store.update(input.id, input, project(caller)) }))),
-    bind(lingguangActions.discard, (input, caller) => ports.withStore(store => { store.discard(input.ids, project(caller), input.expected_updated_at); return { ok: true }; })),
-    bind(lingguangActions.revert, (input, caller) => ports.withStore(store => { store.discard([input.id], project(caller), { [input.id]: input.expected_updated_at }); return { ok: true }; })),
-    bind(lingguangActions.openConversation, (input, caller) => ports.withStore(store => store.openConversation(input.spark_ids, project(caller)))),
-    bind(lingguangActions.getConversation, (input, caller) => ports.withStore(store => store.conversation(input.id, project(caller)))),
+    bind(lingguangActions.readFile, async (input, caller) => {
+      caller.on_progress?.({ stage: "extracting", progress: 0 });
+      return keptMaterial(await ports.readFile!(input, caller));
+    }, () => reading(ports.readFile)),
+    bind(lingguangActions.readSource, async (input, caller) => {
+      caller.on_progress?.({ stage: "extracting", progress: 0 });
+      return keptMaterial(await ports.readSource!(input, caller));
+    }, () => reading(ports.readSource)),
+    bind(lingguangActions.create, (input, caller) => ports.write(caller, store => ({ spark: store.create({ ...input, project_id: project(caller) }) }))),
+    bind(lingguangActions.update, (input, caller) => ports.write(caller, store => ({ spark: store.update(input.id, input, project(caller)) }))),
+    bind(lingguangActions.discard, (input, caller) => ports.write(caller, store => { store.discard(input.ids, project(caller), input.expected_updated_at); return { ok: true }; })),
+    bind(lingguangActions.revert, (input, caller) => ports.write(caller, store => { store.discard([input.id], project(caller), { [input.id]: input.expected_updated_at }); return { ok: true }; })),
+    bind(lingguangActions.openConversation, (input, caller) => ports.write(caller, store => store.openConversation(input.spark_ids, project(caller)))),
+    bind(lingguangActions.getConversation, (input, caller) => ports.read(store => store.conversation(input.id, project(caller)))),
     bind(lingguangActions.message, async (input, caller) => {
       const projectId = project(caller);
-      const snapshot = ports.withStore(store => store.conversation(input.id, projectId));
+      const snapshot = ports.read(store => store.conversation(input.id, projectId));
       if (snapshot.sparks.some(spark => spark.status !== "inbox")) throw lingguangErrors.invalid("关联灵光已丢弃，不能继续这场对话");
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置文字模型，再继续对话");
       const prompt = conversationPrompt(snapshot, input.body);
       caller.signal?.throwIfAborted();
+      caller.on_progress?.({ stage: "waiting", progress: 0 });
       // What the model writes reaches the page as a preview; only the checked reply below is saved.
       const reply = (await ports.completeText(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect,
         ...(caller.on_progress ? { onText: (delta: string) => caller.on_progress!({ stage: "writing", progress: 0, text_delta: delta }) } : {}) })).trim();
       caller.signal?.throwIfAborted();
       if (!reply) throw lingguangErrors.empty_reply("模型没有返回正文，输入已保留，可重试");
-      await caller.beforeEffect();
-      return ports.withStore(store => store.addReply(input.id, input.body, reply, projectId, snapshot));
+      return ports.write(caller, store => store.addReply(input.id, input.body, reply, projectId, snapshot));
     }, () => ports.modelAvailability()),
-    ...createLingguangSearchHandlers(ports.withStore),
+    ...createLingguangSearchHandlers(ports.read),
   ];
 }
 

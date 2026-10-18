@@ -24,7 +24,7 @@ async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller
   finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }
 
-test("all Lingguang business actions register before UI, enforce identity and share content writes", async () => {
+test("RAC-32 all Lingguang business actions register before UI, enforce identity and share content writes", async () => {
   await fixture(async ({ home, client, caller, bound, host, ref }) => {
     const discovered = await client.discover(caller);
     for (const action of Object.values(actions)) assert.ok(discovered.some(row => row.capability_id === action.capability_id));
@@ -138,7 +138,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "discard", 
   });
 }
 
-test("real HTTP canonical and legacy URLs share Host actions and reject project tampering", async () => {
+test("RAC-31 real Runtime HTTP shares Host actions, rejects project tampering and retires old URLs", async () => {
   const home = await mkdtemp(join(tmpdir(), "lingguang-http-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "Lingguang", actor_id: "test" });
@@ -155,7 +155,7 @@ test("real HTTP canonical and legacy URLs share Host actions and reject project 
         headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() } });
       const result = await response.json() as any; assert.equal(response.status, status, JSON.stringify(result)); return result;
     };
-    const path = `/projects/${project.project_id}/api/plugins/lingguang`;
+    const path = `/projects/${project.project_id}/api/plugins/io.molis.work.lingguang/sparks`;
     const { spark } = await http(path, { title: "Canonical", body: "Same data" });
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const bound = bindActionClient(host.actionClient(ref), () => ({ actor_id: "owner", project_id: project.project_id, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS }));
@@ -163,10 +163,14 @@ test("real HTTP canonical and legacy URLs share Host actions and reject project 
     await http(`${path}?project_id=other`, { title: "Denied" }, 403);
     await http(path, { project_id: "other", title: "Denied" }, 403);
     // Only the project's own URL reaches 灵光; there is no unscoped one that picks a project from the request.
-    assert.notEqual((await fetch(origin + `/api/plugins/lingguang?project_id=${project.project_id}`)).status, 200);
+    assert.notEqual((await fetch(origin + `/api/plugins/io.molis.work.lingguang/sparks?project_id=${project.project_id}`)).status, 200);
     const state = await http(`${path}/conversations`, { spark_ids: [spark.id] });
     // W3-02-D: no model is `actions.connection_required`, whose kind (unavailable) is 503 at every plugin; 灵光 answered 400 through its own mapper.
-    await http(`${path}/conversations/${state.conversation.id}/messages`, { body: "No model" }, 503);
+    const stream = await fetch(origin + `${path}/conversations/${state.conversation.id}/messages`, { method: "POST", body: JSON.stringify({ body: "No model" }),
+      headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() } });
+    const refusedReply = (await stream.text()).trim().split("\n").map(line => JSON.parse(line)).at(-1);
+    assert.deepEqual([refusedReply.type, refusedReply.status, refusedReply.code], ["error", 503, "actions.connection_required"]);
+    for (const old of ["/api/lingguang", "/api/plugins/lingguang"]) assert.equal((await fetch(origin + `/projects/${project.project_id}` + old)).status, 404);
     assert.equal((await bound.invoke(actions.getConversation, { id: state.conversation.id })).messages.length, 0);
     assert.equal((await bound.invoke(actions.list, {})).sparks.length, 1);
     // The page's own discard: the copy it read is named, and a spark written to since is refused (409) and stays.
@@ -245,14 +249,14 @@ test("a streamed reply shows the model's text as it comes; closing the request s
     const headers = { origin, "content-type": "application/json", "x-molis-work-control-token": token };
     const post = (path: string, body: unknown, signal?: AbortSignal) => fetch(origin + path, { method: "POST", body: JSON.stringify(body), signal,
       headers: { ...headers, "x-molis-work-idempotency-key": crypto.randomUUID() } });
-    const path = `/projects/${project.project_id}/api/plugins/lingguang`;
+    const path = `/projects/${project.project_id}/api/plugins/io.molis.work.lingguang/sparks`;
     const { spark } = await (await post(path, { title: "Stream", body: "A thought" })).json() as { spark: { id: string } };
     const { conversation } = await (await post(`${path}/conversations`, { spark_ids: [spark.id] })).json() as { conversation: { id: string } };
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const bound = bindActionClient(host.actionClient(ref), () => ({ actor_id: "owner", project_id: project.project_id, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS }));
     // Stopped: the page reads the first words, then closes the request.
     const controller = new AbortController();
-    const first = await post(`${path}/conversations/${conversation.id}/messages?stream=1`, { body: "继续" }, controller.signal);
+    const first = await post(`${path}/conversations/${conversation.id}/messages`, { body: "继续" }, controller.signal);
     assert.match(first.headers.get("content-type") ?? "", /ndjson/);
     const reader = first.body!.getReader(), decoder = new TextDecoder();
     let seen = "";
@@ -266,13 +270,13 @@ test("a streamed reply shows the model's text as it comes; closing the request s
     assert.equal((await bound.invoke(actions.getConversation, { id: conversation.id })).messages.length, 0, "a stopped reply saves nothing");
     // Finished: the preview lines, then the saved state.
     finish.resolve();
-    const lines = (await (await post(`${path}/conversations/${conversation.id}/messages?stream=1`, { body: "继续" })).text()).trim().split("\n").map(line => JSON.parse(line));
+    const lines = (await (await post(`${path}/conversations/${conversation.id}/messages`, { body: "继续" })).text()).trim().split("\n").map(line => JSON.parse(line));
     assert.deepEqual(lines.filter(line => line.type === "progress" && line.text_delta).map(line => line.text_delta), ["第一句，", "第二句。"]);
     const result = lines.find(line => line.type === "result");
     assert.equal(result.result.messages.at(-1).body, "第一句，第二句。");
     assert.deepEqual((await bound.invoke(actions.getConversation, { id: conversation.id })).messages.map((message: { body: string }) => message.body), ["继续", "第一句，第二句。"]);
-    const hostSource = readFileSync(new URL("../apps/local-host/src/lingguang-native-plugin-http.ts", import.meta.url), "utf8");
-    for (const word of ["waiting", "extracting", "writing", "text_delta"]) assert.equal(hostSource.includes(word), false, `the host still names ${word}`);
+    const hostSource = readFileSync(new URL("../apps/local-host/src/plugin-route-stream.ts", import.meta.url), "utf8");
+    for (const word of ["waiting", "extracting", "writing"]) assert.equal(hostSource.includes(word), false, `the host still names ${word}`);
     const client = readFileSync(new URL("../plugins/native/lingguang/src/client.ts", import.meta.url), "utf8");
     const submit = client.slice(client.indexOf('chatForm.addEventListener("submit"'), client.indexOf('chatForm.addEventListener("keydown"'));
     const caught = submit.slice(submit.indexOf("} catch"), submit.indexOf("} finally"));

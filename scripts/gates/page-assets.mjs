@@ -235,16 +235,12 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for W4-1 (specs/context-program §21.4, §21.6; quick-create §8 point 3, AC Q02/Q04/Q08: 记成待办 and
-// 记下灵光 are creation entries, made at once and taken back by their owner's own undo). The bar's choice of a creation entry now
-// posts it to the Host, keeps one request per selection and entry (so a second click makes it once) and shows the completion
-// card with 「打开」 and 「撤销」; with the one new English line, the workbench script is +1,158, once. Tried: the comments ship
-// stripped; the two old fragment choices left no page code to remove; 「打开」 reuses the placement's describe and openObject
-// rather than a new path, and the card is the placement's own. The entry is for exactly one merge-base budget (main
-// f28088b2b, after W3-C2), capped at the measured size, and used once: the next baseline freezes again. This replaces W3-C2's spent entry;
-// delete it in the next change to this gate (as #541, #584 and #611 did).
+// W5-01 Lingguang: the shared browser NDJSON reader adds 2,231 B to workbench.js, while Lingguang's own bundle loses
+// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. Actual main now includes
+// Todo, receipts 3e-1, W3-C2 and W4-1, starting at 1,113,068 B. Preserve only the unspent +2,231 B; every prior start remains refused.
+// This exact increase is spent once; later growth stays frozen.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1111910, 1113068],
+  "/assets/molis-work-workbench.js": [1113068, 1115299],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

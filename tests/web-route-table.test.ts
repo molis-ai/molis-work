@@ -102,7 +102,7 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/contextual/surfaces" },
   { method: "GET", path: "/api/functions" },
   { method: "GET", path: "/api/functions/settings" },
-  { method: "GET", path: "/api/lingguang" },
+  { method: "GET", path: "/api/plugins/io.molis.work.lingguang/sparks" },
   { method: "GET", path: "/api/pages" },
   { method: "POST", path: "/api/pages/import/preview", body: {} },
   { method: "GET", path: "/api/dataset" },

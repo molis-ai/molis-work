@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostSurfaceActReceipt, HostSurfaceAction } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { ComputerDriver, type DeskContext } from "@molis-ai/molis-work-app-local-host";
+import { ComputerDriver, isRefused, type DeskContext } from "@molis-ai/molis-work-app-local-host";
 
 type Node = { role: string; name: string; depth: number; frame: [number, number, number, number] };
 type Step = { kind?: string; summary?: string };
@@ -9,19 +9,24 @@ type Step = { kind?: string; summary?: string };
 const button: Node = { role: "AXButton", name: "保存", depth: 0, frame: [10, 10, 40, 20] };
 const saved: Node = { ...button, name: "已保存" };
 
-function desk(options: { trees?: Node[][]; steps?: Step[] } = {}): DeskContext {
+type Call = { op: string; payload?: Record<string, unknown> };
+
+function desk(options: { trees?: Node[][]; steps?: Step[]; nodes?: Node[]; windows?: string[]; menus?: string[]; windowMenuItems?: { title: string; enabled?: boolean }[]; calls?: Call[] } = {}): DeskContext {
   const state = { bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
-    window: { title: "Notes", frame: [0, 0, 120, 80] as [number, number, number, number], window_id: 1, document: "" } };
-  const trees = [...(options.trees ?? [[button]])];
+    window: { title: "Notes", frame: [0, 0, 120, 80] as [number, number, number, number], window_id: 1, document: "" },
+    windows: (options.windows ?? []).map(title => ({ title, frame: [0, 0, 120, 80] as [number, number, number, number], focused: title === "Notes", minimized: false })) };
+  const trees = [...(options.trees ?? [options.nodes ?? [button]])];
   return {
-    helper: { async call<T>(op: string): Promise<T> {
+    helper: { async call<T>(op: string, payload?: Record<string, unknown>): Promise<T> {
+      options.calls?.push({ op, ...(payload ? { payload } : {}) });
       if (op === "app.state" || op === "app.open") return state as T;
       if (op === "apps.installed" || op === "apps.running") return { apps: [{ bundle_id: state.bundle_id, name: state.name }] } as T;
       if (op === "observe.screenshot") return { png: Buffer.from("png").toString("base64"), included_pids: [4], password_fields: 0, masked: 0 } as T;
       if (op === "observe.tree") {
         const nodes = trees.length > 1 ? trees.shift()! : trees[0]!;
-        return { window: { title: "Notes", frame: state.window.frame }, nodes, truncated: false, menus: [] } as T;
+        return { window: { title: "Notes", frame: state.window.frame }, nodes, truncated: false, menus: options.menus ?? [] } as T;
       }
+      if (op === "observe.menus") return { items: options.windowMenuItems ?? [] } as T;
       if (op === "probe.point") return { window: { pid: 4, title: "Notes" }, element: { pid: 4, name: "保存", window_title: "Notes" } } as T;
       if (op.startsWith("input.")) return {} as T;
       throw new Error(op);
@@ -93,4 +98,34 @@ test("CU-G07: alternating actions do not count as the same stuck action", async 
   await acted(driver);
   await acted(driver);
   await acted(driver);
+});
+
+test("CU-G09: the Window menu names the app's other windows, and the typed menu action switches", async () => {
+  const calls: Call[] = [];
+  const driver = new ComputerDriver(desk({
+    windows: ["Notes", "Ideas", "确认 · Molis Work"],
+    menus: ["文件", "窗口", "帮助"],
+    windowMenuItems: [{ title: "Notes" }, { title: "Ideas" }, { title: "Minimize" }, { title: "确认 · Molis Work" }],
+    calls,
+  }));
+  const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
+  assert.match(text, /「窗口」菜单列着这些窗口/);
+  assert.match(text, /Notes/);
+  assert.match(text, /Ideas/);
+  assert.doesNotMatch(text, /Minimize/);
+  assert.doesNotMatch(text, /Molis Work/, "a window that shows Molis Work is not offered");
+  const receipt = await acted(driver);
+  assert.match(receipt.tree, /没有变化/, "the menu hint is not part of the tree the step compares against");
+  await driver.surface().perform({ what: "menu", path: ["窗口", "Ideas"] }, { session_id: "s" });
+  assert.deepEqual(calls.find(call => call.op === "input.menu")?.payload?.path, ["窗口", "Ideas"]);
+  await assert.rejects(() => driver.surface().perform({ what: "menu", path: ["窗口", "确认 · Molis Work"] }, { session_id: "s" }),
+    (error: unknown) => isRefused(error) && /Molis Work/.test(error.message));
+  const metadata = JSON.parse(new TextDecoder().decode(await driver.surface().observe("window-metadata", { session_id: "s" }))) as { windows: { title: string }[] };
+  assert.equal(metadata.windows.some(one => one.title.includes("Molis Work")), false);
+});
+
+test("CU-G09: a sheet is named in the tree, not left as its raw accessibility role", async () => {
+  const driver = new ComputerDriver(desk({ nodes: [{ role: "AXSheet", name: "保存", depth: 0, frame: [0, 0, 100, 50] }] }));
+  const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
+  assert.match(text, /表单「保存」/);
 });

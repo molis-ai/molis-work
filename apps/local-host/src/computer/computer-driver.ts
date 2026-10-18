@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
-import { tierOf, type AppTierVerdict } from "./app-tiers.js";
+import { showsMolis, tierOf, type AppTierVerdict } from "./app-tiers.js";
 import { modelImageReason, observationExpired, pointerFromNode } from "./computer-act.js";
 import { isHelperFailure, isRefused, refused } from "./computer-errors.js";
 import { injectDesktopAction } from "./computer-inject.js";
 import { refuseCapture, refuseDespiteWindowText, refuseLanding, refuseSelfApproval, type LandingProbe } from "./computer-policy.js";
 import { StepProgress, treeHash } from "./computer-progress.js";
+import { windowMenuHint } from "./computer-windows.js";
 import type { ComputerRecords } from "./computer-records.js";
 import type { HelperConnection } from "./helper-connection.js";
 
@@ -22,7 +23,7 @@ const ROLE_NAMES: Readonly<Record<string, string>> = {
   AXPopUpButton: "弹出菜单", AXMenuButton: "菜单按钮", AXLink: "链接", AXTab: "标签", AXRow: "行", AXCell: "单元格", AXImage: "图像",
   AXSlider: "滑块", AXComboBox: "组合框", AXMenuItem: "菜单项", AXMenuBarItem: "菜单", AXGroup: "组", AXScrollArea: "滚动区",
   AXTable: "表格", AXOutline: "大纲", AXList: "列表", AXToolbar: "工具栏", AXWebArea: "网页区域", AXHeading: "标题",
-  AXDisclosureTriangle: "展开按钮", AXIncrementor: "步进器", AXSegmentedControl: "分段控件", AXSwitch: "开关", AXWindow: "窗口",
+  AXDisclosureTriangle: "展开按钮", AXIncrementor: "步进器", AXSegmentedControl: "分段控件", AXSwitch: "开关", AXSheet: "表单", AXDialog: "对话框", AXPopover: "浮层", AXWindow: "窗口",
 };
 
 /** Words on a control or menu item that mean the step cannot be taken back. */
@@ -275,14 +276,15 @@ export class ComputerDriver {
     if (kind === "window-metadata") {
       const [x, y] = state.window.frame;
       return new TextEncoder().encode(JSON.stringify({ app: { bundle_id: state.bundle_id, name: state.name }, window: { title: state.window.title,
-        width: state.window.frame[2], height: state.window.frame[3] }, windows: (state.windows ?? []).map(one => ({ title: one.title, focused: one.focused,
+        width: state.window.frame[2], height: state.window.frame[3] }, windows: (state.windows ?? []).filter(one => !showsMolis(one.title)).map(one => ({ title: one.title, focused: one.focused,
           minimized: one.minimized, at: [Number(one.frame[0]) - x, Number(one.frame[1]) - y], size: [one.frame[2], one.frame[3]] })) }));
     }
     if (kind === "dom") throw new Error("桌面应用没有 DOM：请用 accessibility-tree 观察");
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
-    const text = renderTree(state, tree).text;
+    const base = renderTree(state, tree).text;
+    const text = base + await windowMenuHint(this.ctx.helper, target.pid, tree.menus, (state.windows ?? []).map(one => one.title));
     this.observedAt = this.now();
-    this.progress.seen(text);
+    this.progress.seen(base);
     // The words go to the model; the person's record and the tab get the picture of the same moment.
     const png = await this.screenshot(state).catch(error => { if (isRefused(error)) throw error; return undefined; });
     this.ctx.recordStep({ kind: "look", app: this.appRef(), summary: `查看「${target.name}」的窗口（${state.window.title || "无标题"}）` }, png);
@@ -309,6 +311,11 @@ export class ComputerDriver {
     const [ox, oy] = state.window.frame;
     const at = (x: number, y: number): [number, number] => [ox + x, oy + y];
     const aimed = await this.aim(action, target.pid, state.window.frame);
+    if (aimed.what === "menu" && aimed.path.some(showsMolis)) {
+      const why = "菜单项指向显示着 Molis Work 的窗口：助理不能操作自己的确认卡";
+      this.ctx.recordStep({ kind: "refused", app: this.appRef(), summary: why });
+      throw refused("outside-target", why);
+    }
     const step = this.progress.before(aimed);
     if (step.stuck) {
       this.ctx.recordStep({ kind: "failed", app: this.appRef(), summary: `没有执行：${step.stuck}` });

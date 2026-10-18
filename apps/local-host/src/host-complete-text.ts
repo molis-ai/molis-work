@@ -123,6 +123,8 @@ async function guardedGeneration(run: () => Promise<PrologueTextResult>, changed
     validateResult();
     return Object.defineProperty({ ...result }, "validateResult", { value: validateResult }) as HostTextGenerationResult;
   } catch (error) {
+    // Dispatch already classified terminal refusals; they carry no recordable result.
+    if (error instanceof ActionError) throw error;
     validateResult();
     if (error instanceof Error) Object.defineProperty(error, "validateResult", { value: validateResult, configurable: true });
     throw error;

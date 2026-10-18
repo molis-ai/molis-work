@@ -14,6 +14,7 @@ import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
+import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -183,8 +184,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       },
       onWorkingTreeChanged: () => { platform.invalidateView(GIT_PLUGIN_ID); },
     };
-    // Forms keeps its library in the Home (`form/form.db`), so a platform without a Home has no Forms.
-    const formPlugin = createFormPlugin();
     const entries: PluginPlatformEntry[] = [
       {
         definition: createCharactersPlugin(charactersPorts),
@@ -198,13 +197,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         releaseArtifact: nativePluginReleaseArtifact<typeof createShelfPlugin>(
           "@molis-ai/molis-work-plugin-shelf", "createShelfPlugin", factory => factory(shelfPorts)),
       },
-      ...ports.homeDirectory ? [{
-        definition: formPlugin,
-        bundled: true,
-        database: FORM_DATABASE,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createFormPlugin>(
-          "@molis-ai/molis-work-plugin-form", "createFormPlugin", factory => factory()),
-      }] : [],
+      ...ports.homeDirectory ? homeLibraryPlugins() : [],
       {
         definition: createCodingPlugin(codingPorts),
         bundled: true,
@@ -251,6 +244,19 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.running = false;
   }
   return record;
+}
+
+/** Project instances whose own libraries live in this Home. */
+function homeLibraryPlugins(): PluginPlatformEntry[] {
+  return [{
+    definition: createFormPlugin(), bundled: true, database: FORM_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createFormPlugin>(
+      "@molis-ai/molis-work-plugin-form", "createFormPlugin", factory => factory()),
+  }, {
+    definition: createLingguangPlugin(), bundled: true, database: LINGGUANG_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createLingguangPlugin>(
+      "@molis-ai/molis-work-plugin-lingguang", "createLingguangPlugin", factory => factory()),
+  }];
 }
 
 /**

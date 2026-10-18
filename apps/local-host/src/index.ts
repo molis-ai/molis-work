@@ -128,15 +128,10 @@ export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
-export { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
-export { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
-export { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 export { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 export { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 export { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
-export { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
-export { handleTodoNativePluginHttp } from "./todo-native-plugin-http.js";
 export { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
 export { workflowsActionProvider } from "./workflows-actions.js";
 

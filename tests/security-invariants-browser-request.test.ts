@@ -51,6 +51,15 @@ test("S-03 the page request helper never sends the control token to another orig
   }
 });
 
+test("S-03 RAC-35 streamed requests refuse every foreign origin before fetching", async () => {
+  for (const [what, address] of FOREIGN) {
+    const { sent, request } = helper(); let used = 0;
+    const scope = { fetch: async () => { used++; return new Response("{}"); }, assertCurrent: () => {} };
+    for (const scoped of [undefined, scope]) await assert.rejects(request.stream(address, { body: {}, scope: scoped }), { code: "ui_host.cross_origin" }, what);
+    assert.equal(sent.length, 0); assert.equal(used, 0);
+  }
+});
+
 test("S-03 the refusal also holds for a request owned by a view's scope", async () => {
   const { request } = helper();
   let used = 0;

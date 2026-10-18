@@ -83,6 +83,7 @@ node scripts/run-tests.mjs tests/local-host.test.ts
   - `admit` 是宿主的异步策略，在解析与授权复查之前跑；`invokeSync` 不跑它（事务里不能等），同步入口自己的检查用第四个参数传入，在结算范围内先跑，它的拒绝同样结算。
   - 核心代码不调用情境排序：核心文件不导入它，也不经入口转手导入它的名字（`pnpm health:check` 的 K1）。根入口不转出它，情境排序走子入口 `@molis-ai/molis-work-kernel/contextual`，所以核心的导入闭包里没有情境排序。它只读 `contracts/platform/actions`、`contracts/services/contextual` 和 `node:crypto`（K2、K3）。
   - 情境排序无 I/O、无计时器、无模块级可变状态，同样的输入得到同样的陈列（K4）。候选只从授权目录来，不点名插件或能力 id（K5）；陈列不删候选；答案里不在候选中的键一律丢掉，模型不能编出动作。会写入的先确认，不可撤回的不推荐。
+- query_only 调用在发现和实际派发（含同步）都拒绝 command；传入 assert_authority_current 的权限取当前注册定义，避免发现后权限变化而只读 handler 未调用 beforeEffect 的漏洞。绑定的后代调用保留此收窄。定向验证：`tests/action-query-only.test.ts`、`tests/plugin-action-query.test.ts`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/action-service.test.ts tests/action-sync.test.ts tests/action-schema-compiler.test.ts tests/action-dependencies.test.ts tests/action-call-log.test.ts tests/action-concurrency.test.ts tests/execution-lifetime.test.ts tests/action-authorship-dispatch.test.ts tests/contextual-interaction.test.ts tests/contextual-fragment-offers.test.ts tests/contextual-dock-parity.test.ts tests/home-action-scenes.test.ts tests/health-gates-kernel-contextual.test.ts tests/security-invariants-injection.test.ts tests/action-call-id.test.ts tests/action-cross-references.test.ts tests/action-availability-kind.test.ts`
 - 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)、[docs/system/ARCHITECTURE.md](../../docs/system/ARCHITECTURE.md)、[docs/horizontal/README.md](../../docs/horizontal/README.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
@@ -106,6 +107,8 @@ AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字
 后台动作所有者可在处理器仍存活时调用 `ActionExecutionContext.retainAuthority(references)`，保留已有动作的授权和注册实例检查。返回的函数不延长 `beforeEffect`，不授予新能力；后台开始新调用之前应执行它，并在新调用的可信 `validate_authority` 中继续执行。原提供方重新注册、外部撤权或原入口取消均拒绝旧结果。它不持久化：宿主重启后恢复投递需要新的显式用户请求。验证：`node scripts/run-tests.mjs tests/action-retained-authority.test.ts`。
 
 返回的临时 `RetainedActionAuthority` 同时提供 `assertCurrent()`：新调用者须在 `validate_authority` 里执行原异步guard，并把它的同步断言与自己的断言合成到 `assert_authority_current`，覆盖下游最后一次权限等待；不复用已结束处理器的 `beforeEffect`。同步断言不得返回Promise。真实Host/Pages交错回归见 `tests/assistant-thread-reply.test.ts` 的S-18-102-02/03。
+
+显式受理的后台执行另用 `retainBackgroundAuthority()`：只在活跃处理器内捕获本动作，固定原注册与可见性，并在异步检查后再次同步核权。可信 HTTP/MCP 入口通过 `retain_background_authority` 分开传输与可撤销授权；没有该入口钩子就仍服从原取消。原始入口钩子不交给处理器，绑定客户端同时保留父调用与自己的授权，不能用子动作的权限替换原调用。这个 guard 不延长旧 `beforeEffect`，后台执行控制由 Runtime 建立。验证：`tests/action-background-authority.test.ts`。
 
 `registeredActionMetadata` 只读当前登记的动作声明，沿目录的同一项目与 audience 过滤，先筛后出行，不调用提供方、处理器、依赖或 Host 可用性策略；结果没有 `availability`，不代表执行许可。常规目录把原可见性检查并进同一次筛选，再给每行算可用性。取消操作的诊断可借它命名，实际动作仍经完整调度与最终授权。
 

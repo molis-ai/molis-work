@@ -54,3 +54,17 @@ export interface MaterialDocument {
 export interface MaterialDocumentBatch { documents: MaterialDocument[]; warnings: string[] }
 export interface MaterialDocumentOptions { signal?: AbortSignal; timeoutMs?: number }
 export type MaterialDocumentReader = (sources: readonly MaterialSource[], options?: MaterialDocumentOptions) => Promise<MaterialDocumentBatch>;
+
+/** The readable content and provenance of a public source; business conversions remain with the plugin. */
+export interface MaterialSourceContent {
+  text: string;
+  title?: string;
+  source_url: string;
+  provider: string;
+  extractor: string;
+  coverage: MaterialExtraction["coverage"];
+  pages?: MaterialExtraction["pages"];
+  segments?: MaterialExtraction["segments"];
+  frames?: MaterialExtraction["frames"];
+  model_required?: { approximate_bytes?: number; variant?: string };
+}

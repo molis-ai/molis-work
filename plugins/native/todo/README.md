@@ -4,7 +4,7 @@
 
 包名：`@molis-ai/molis-work-plugin-todo`。需求见 [specs/archive/todo-plugin/spec.md](../../../specs/archive/todo-plugin/spec.md)，实现与进度见 [implementation.md](../../../specs/archive/todo-plugin/implementation.md)。
 
-所有动作由插件的 `actions.ts` 声明，`scope: "home"`，由 Host 的一个 Home 级提供方登记：没有项目时也能用。调用方在项目里时只看到个人、暂未归类和这个项目的待办；跨项目的“所有项目”只对用户本人的界面（`audience: "user"`）开放，助理、工作流和 MCP 看不到。HTTP 只转参数，身份与项目由 Host 绑定。
+所有动作由插件的 `actions.ts` 声明，`scope: "home"`。Todo 是 Plugin Runtime 上的 Home 级插件（`src/plugin.ts` 的 `createTodoPlugin`，目录条目 `runtime: { scope: "home" }`，库由宿主的 Home 库服务按 `TODO_DATABASE` 打开）：没有项目时也能用。调用方在项目里时只看到个人、暂未归类和这个项目的待办；跨项目的“所有项目”只对用户本人的界面（`audience: "user"`）开放，助理、工作流和 MCP 看不到。HTTP 是 Manifest 声明的路由（`/api/plugins/io.molis.work.todo/…`，每条经 `bindPluginActionRoute` 转成一个动作），只转参数：身份由 Host 绑定，项目只来自页面路径 `/projects/<id>/api/plugins/io.molis.work.todo/…`（宿主核对项目存在且显示 Todo，见 SECURITY-INVARIANTS S-31），请求体里的 `project_id` 被丢掉。
 
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
@@ -29,5 +29,5 @@
   - 保存失败或标题为空会阻止离开与后续动作，保留编辑器各字段；明确确认重新读取或删除才丢弃。删除会先等正在派出的保存结束，之后不再派出该项的保存。
   - 选中文本的“记成待办”先准备 Assistant 确认卡，点击执行才落库；来源文本与对象固定在准备时。它保留工作所在项目的调用上下文，默认归属仍为暂未归类，不自动变成项目待办。
   - 项目被删除时宿主按目录条目上的 `project_data`（`todoProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeTodoProject`）调用清掉放在这个项目里的待办及其历史、请求回执、整理器的记忆与审阅批次；个人待办不带项目，保留；只读库文件，库不存在时不创建，重复运行没有副作用。
-- 改动后必跑：`node scripts/run-tests.mjs tests/todo-actions.test.ts tests/todo-organize.test.ts tests/todo-plugin.test.ts tests/todo.e2e.test.ts tests/todo-draft-recovery.e2e.test.ts tests/contextual-todo.e2e.test.ts tests/context-onboarding-todo.test.ts tests/context-onboarding-todo.e2e.test.ts tests/project-deletion-owners.test.ts tests/action-error-model.test.ts tests/action-error-edges.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/todo-actions.test.ts tests/todo-organize.test.ts tests/todo-plugin.test.ts tests/todo.e2e.test.ts tests/todo-draft-recovery.e2e.test.ts tests/contextual-todo.e2e.test.ts tests/context-onboarding-todo.test.ts tests/context-onboarding-todo.e2e.test.ts tests/project-deletion-owners.test.ts tests/action-error-model.test.ts tests/action-error-edges.test.ts tests/todo-from-inbox.e2e.test.ts tests/todo-placement.e2e.test.ts tests/todo-assistant.e2e.test.ts tests/web-route-table.test.ts tests/security-invariants-home-route-project.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)、[continuity.md](../../../skills/molis-plugin-dev/continuity.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

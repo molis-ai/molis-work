@@ -18,6 +18,7 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
+import { backgroundProbe } from "./fixtures/plugin-background.js";
 
 // W3-06 E: a plugin the Host runs itself can call the Host's text model through `services.model`, and only from inside one of its
 // own actions that declares model:invoke and is scheduled "concurrent". The Host decides which action is running (the plugin
@@ -155,7 +156,7 @@ test("services.model is for a plugin the Host runs itself that declares model:in
     try {
       assert.deepEqual((await item.platform.start([{ definition: declared.definition, ...GRANTED }, { definition: undeclared.definition }])).running.sort(), [declared.id, undeclared.id].sort());
       const model = declared.model();
-      assert.deepEqual(Object.keys(model).sort(), ["availability", "complete"]);
+      assert.deepEqual(Object.keys(model).sort(), ["availability", "choices", "complete"]);
       assert.equal(Object.isFrozen(model), true, "what the plugin holds cannot be extended into a way round the Host");
       assert.equal(undeclared.started.at(-1)?.model, undefined, "the Manifest is the account of what a plugin reaches");
 
@@ -552,3 +553,32 @@ test("production path: a fixture the Host is given reaches the model the Host wa
       await assert.rejects(noModel.actionClient(reference).invoke(asUser, plugin.ask, {}), { code: "actions.connection_required" });
     } finally { await noModel.close(); }
   }));
+
+test("S-18 RAC-50 RAC-53 background execution needs its declaration and active action, is absent from sandbox/preflight, and needs no model Home", withDirectory(async directory => {
+  for (const kind of ["declared", "sandbox", "undeclared"] as const) {
+    const item = platformIn(directory, null), probe = backgroundProbe(`background-${kind}`, "project");
+    // This platform uses an inert private-storage port; lifecycle/storage refusal is tested over the real Home and project stores.
+    delete probe.definition.stop;
+    if (kind === "sandbox") probe.definition.execution = "sandbox";
+    if (kind === "undeclared") for (const action of probe.definition.manifest.actions ?? []) delete action.action.background_job;
+    try {
+      assert.deepEqual((await item.platform.start([{ definition: probe.definition, grants: probe.permissions }])).running, [probe.id]);
+      const services = probe.contexts.at(-1)!.services!;
+      assert.equal(services.model, undefined);
+      if (kind !== "declared") assert.equal(services.background, undefined);
+      else {
+        assert.ok(services.background); assert.equal(Object.isFrozen(services.background), true);
+        await assert.rejects(services.background.start(async () => "startup"), { code: "plugin.background_action_required" });
+        await item.actions.client.invoke(item.caller({ permissions: probe.permissions }), probe.start, { id: "no-model" });
+        assert.equal(await probe.handles[0]!.result, "saved result");
+        const next = backgroundProbe(`background-${kind}`, "project", "1.1.0"); delete next.definition.stop;
+        await item.platform.runtime.upgrade({ install_id: item.installId(probe.id), definition: next.definition, grants: probe.permissions });
+        assert.equal(next.preflight.length, 1); assert.equal(next.preflight[0]!.services?.background, undefined);
+      }
+    } finally {
+      await item.platform.closeCoordination();
+      for (const install of item.platform.runtime.list()) if (install.state === "running") await item.platform.runtime.stop(install.install_id);
+      item.store.close();
+    }
+  }
+}));

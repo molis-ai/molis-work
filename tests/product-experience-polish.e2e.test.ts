@@ -73,7 +73,7 @@ test('Product journeys: discover tools, create from empty states, save and recov
   await input('[data-lingguang-body]', '这一笔需要真实保存');
   await waitFor("document.querySelector('[data-lingguang-save-status]').textContent === '已保存'");
   // An actual failed HTTP save must leave the draft available and offer recovery.
-  await evaluate(`(() => { const original = window.fetch; window.restorePolishFetch = () => window.fetch = original; window.fetch = (url, init) => init?.method === 'POST' && String(url).includes('/api/plugins/lingguang/') ? Promise.resolve(new Response(JSON.stringify({ error: '保存暂时失败' }), { status: 503, headers: { 'content-type': 'application/json' } })) : original(url, init); })()`);
+  await evaluate(`(() => { const original = window.fetch; window.restorePolishFetch = () => window.fetch = original; window.fetch = (url, init) => init?.method === 'POST' && String(url).includes('/api/plugins/io.molis.work.lingguang/sparks/') ? Promise.resolve(new Response(JSON.stringify({ error: '保存暂时失败' }), { status: 503, headers: { 'content-type': 'application/json' } })) : original(url, init); })()`);
   await input('[data-lingguang-body]', '失败后这一笔也要保留');
   await waitFor("document.querySelector('[data-lingguang-save-status]').textContent === '保存失败'");
   assert.equal(await evaluate("document.querySelector('[data-lingguang-body]').value"), '失败后这一笔也要保留');

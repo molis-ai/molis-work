@@ -2,7 +2,6 @@ export * from "@molis-ai/molis-work-contracts/modules/private-work-context";
 export { findSessionForHostSignals } from "./session-host-signals.js";
 export { createSessionContentStore, type SessionContentStore } from "./content-store.js";
 export {
-  RuntimeContextBindingRepository,
   createRuntimeContextBindingTables,
   createRuntimeContextSetupRequestTable,
   createRuntimeContextSuggestionRejectionTable,
@@ -45,3 +44,4 @@ export { createRuntimeProjectBindingValidation, type RuntimeProjectBindingValida
 export { RuntimeProjectBindingCommands, type RuntimeProjectBindingPorts } from "./project-binding-commands.js";
 
 export { createRuntimeProjectSetup, type RuntimeProjectSetupPorts } from "./project-setup.js";
+export { createRuntimeContextModule, type RuntimeContextModuleOptions } from "./runtime-context-module.js";

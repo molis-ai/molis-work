@@ -27,6 +27,10 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
   // A plugin that declares actions (the preview of its 成果 type) is installed against the Kernel that holds them.
   const runtime = new PluginRuntime(undefined, undefined, { actions: pluginActions(store, DEMO_PROJECT_ID) });
   try {
+    // W5-08-MOD-03/04: process-item publication stays behind the same business services.
+    for (const entry of [processItems, processItems.service, processItems.query, processItems.commands]) {
+      assert.equal("repository" in entry, false);
+    }
     const base = createGithubIntegrationPlugin({ provider: {
       type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
       async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },

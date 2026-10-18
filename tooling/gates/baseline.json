@@ -28,7 +28,7 @@
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
     "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 289,
+      "lines": 278,
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
@@ -744,27 +744,14 @@
     "plugin-module-import#plugins/native/shelf -> modules/shelf": 1,
     "lists#declared": 1
   },
-  "moduleRepositoryExportsTotal": 21,
+  "moduleRepositoryExportsTotal": 8,
   "moduleRepositoryExports": {
-    "modules/artifacts#member:ArtifactsModule.repository": 1,
-    "modules/artifacts#member:ProcessItemsModule.repository": 1,
-    "modules/artifacts#export:ArtifactsRepository": 1,
-    "modules/artifacts#member:ArtifactsService.repository": 1,
     "modules/feed#export:FeedEvidenceContentStore": 1,
     "modules/feed#export:createFeedEvidenceContentStore": 1,
     "modules/functions#export:openFunctionsStore": 1,
     "modules/functions#export:FunctionsStore": 1,
-    "modules/goals#member:GoalsModule.repository": 1,
-    "modules/goals#member:GoalsQueryService.repository": 1,
-    "modules/goals#export:GoalsRepository": 1,
-    "modules/governance-collaboration#member:GovernanceCollaborationModule.repository": 1,
-    "modules/governance-collaboration#export:GovernanceRepository": 1,
-    "modules/governance-collaboration#export:GovernanceRecordStore": 1,
     "modules/private-work-context#export:createSessionContentStore": 1,
     "modules/private-work-context#export:SessionContentStore": 1,
-    "modules/private-work-context#export:RuntimeContextBindingRepository": 1,
-    "modules/projects#member:ProjectsModule.repository": 1,
-    "modules/projects#export:ProjectsRepository": 1,
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },

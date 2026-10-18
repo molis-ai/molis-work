@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import Database from "better-sqlite3";
+import * as artifactsPackage from "@molis-ai/molis-work-module-artifacts";
 import {
   artifactContentDigest,
   ArtifactsModule,
@@ -116,6 +117,11 @@ function expectCode(operation: () => unknown, code: string): void {
 test("Artifacts Module owns exact id + version, opaque content, scope and producer binding", () => {
   const { db, module } = createHarness();
   try {
+    // W5-08-MOD-03/04: public version services retain replay and refusal behavior below.
+    assert.equal("ArtifactsRepository" in artifactsPackage, false);
+    for (const entry of [module, module.service, module.query, module.commands]) {
+      assert.equal("repository" in entry, false);
+    }
     const payload = (registration().content as { kind: "inline"; payload: ArtifactJsonValue }).payload;
     const expectedDigest = artifactContentDigest(canonicalArtifactJson(payload));
     const firstInput = registration({ expected_digest: expectedDigest });

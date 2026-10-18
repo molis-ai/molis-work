@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { GovernanceRecordStore } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,9 +26,11 @@ const OTHER_BOARD = "board-other";
 const OTHER_GOAL = "goal-other";
 
 function hooks(db: LocalProjectDatabase["db"]) {
+  // W5-08-MOD-02: Goal events use the Module's business records, not its storage implementation.
+  const { records } = new GovernanceCollaborationModule({ db });
   return {
-    supersedePendingContractProposals: (...args: Parameters<GovernanceRecordStore["supersedePendingContractProposals"]>) =>
-      new GovernanceRecordStore(db).supersedePendingContractProposals(...args),
+    supersedePendingContractProposals: (...args: Parameters<typeof records.supersedePendingContractProposals>) =>
+      records.supersedePendingContractProposals(...args),
     currentActionToken: () => "unused",
     authorizeRiskUpdate: () => undefined,
     authorizeRiskState: () => undefined,

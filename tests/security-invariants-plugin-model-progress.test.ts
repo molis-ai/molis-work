@@ -75,6 +75,9 @@ for (const invalidation of ["action-cancel", "request-cancel", "disable", "insta
     try {
       await Promise.race([entered.promise, pending]);
       assert.deepEqual(chunks, ["before"]);
+      // W5-01-SHM-02: a provider callback outside the action's ALS still uses the original live authority.
+      progress!({ type: "text-delta", text: "still-authorized" });
+      assert.deepEqual(chunks, ["before", "still-authorized"]);
       if (invalidation === "action-cancel") actionAbort.abort();
       else if (invalidation === "request-cancel") requestAbort.abort();
       else if (invalidation === "caller-revoke") allowed = false;
@@ -83,7 +86,7 @@ for (const invalidation of ["action-cancel", "request-cancel", "disable", "insta
       else if (invalidation === "disable") assert.equal((await request(`/api/plugins/${probe.id}/disable`, { method: "POST", body: {} })).status, 200);
       else { await platform.runtime.stop(install.install_id); platform.runtime.grant(install.install_id, ["storage:private"]); }
       assert.throws(() => progress!({ type: "text-delta", text: "after" }));
-      assert.deepEqual(chunks, ["before"], "no text is delivered after authority ends, even if the model ignores cancellation");
+      assert.deepEqual(chunks, ["before", "still-authorized"], "no text is delivered after authority ends, even if the model ignores cancellation");
     } finally { release.resolve(); }
     await over.promise; await refused; await stopping;
     assert.equal(handed, false);

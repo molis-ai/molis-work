@@ -235,11 +235,11 @@ const headErrors = (measured, budget, base) => {
 // One-time allowance for receipts 3d-3 (specs/ai-input-receipts §4.5, D2, RCPT-352/353: the AI's new task waits dashed on the
 // plan card for the person's 「加进计划」, and the step added for a supplement links back to its receipt on both boards). The
 // user approved it on 2026-10-18 in the receipts line's own popup: Coding's bundle +737, each stylesheet +147, the workbench
-// script +10. Each entry is for exactly one merge-base budget (after receipts 3d-2, #688), capped at the measured size, and
+// script +10. Each entry is for exactly one merge-base budget (main 8fcff0442, after #688 and #696), capped at the measured size, and
 // used once: the next baseline freezes again. This replaces 3d-2's spent entries; delete it in the next change to this gate
 // (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [373985, 374722],
+  "/assets/molis-work-plugins/coding.js": [373970, 374707],
   "/assets/molis-work-settings.css": [988484, 988631],
   "/assets/molis-work-workbench.css": [1591639, 1591786],
   "/assets/molis-work-workbench.js": [1109302, 1109312],

@@ -653,7 +653,7 @@ for (const [asset, old] of [
 // another asset, or growth from the new baseline still fails.
 test("receipts 3d-3 has one bounded allowance on Coding's bundle, the stylesheets and the workbench script; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-plugins/coding.js": [373985, 374722],
+    "/assets/molis-work-plugins/coding.js": [373970, 374707],
     "/assets/molis-work-settings.css": [988484, 988631],
     "/assets/molis-work-workbench.css": [1591639, 1591786],
     "/assets/molis-work-workbench.js": [1109302, 1109312],

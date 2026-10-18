@@ -119,3 +119,4 @@
 - 2026-10-18 第一个切片（CU-G07）：`apps/local-host/src/computer/computer-progress.ts` 的 `StepProgress` 记住模型看到的树与上一步；树未变化时回执附一句说明，同一 pointer/scroll/drag 连续三次无变化后第四次拒绝并记 `failed`。`ComputerDriver` 仍 288 行（阈值 300），逻辑放在新模块；未改合同。`tests/computer-use-reliability.test.ts` 4 项通过。
 - 2026-10-18 第二个切片（CU-G05）：`ROUND_TURNS` 从 24 提到 60，一轮约能容纳二十步「看 + 做」；逐工作的 token 上限照旧，轮次仍是有限值。业务网关的步数上限用例改为 60 并延长脚本，`stopInWords` 的文案用例补 60。
 - 2026-10-18 第三个切片（CU-G09，部分）：sheet 在观察里叫「表单」；应用有不止一个窗口时，观察会读它的「窗口」菜单，只列与窗口标题匹配的项，并提示用已有的 `menu` 动作切换——不新增动作、不改合同。系统打开/保存面板常由另一个进程承载，现有落点校验会拒绝；这一条要先做策略决定，留待后续切片和真机记录。`tests/computer-use-reliability.test.ts` 两个 CU-G09 用例通过（共 6 项）。窗口列表与「窗口」菜单提示都不列出显示 Molis Work 的窗口；菜单路径指向它时在注入前拒绝并记 refused。
+- 真机验收按 [acceptance-runbook.md](acceptance-runbook.md) 执行；2026-10-18 复查时屏幕没锁，但前台有人在用（Chrome / DeepSeek Harness，刚有输入），没有启动二十步，也没有锁屏或猜密码；CU-G02–G04 仍未勾。

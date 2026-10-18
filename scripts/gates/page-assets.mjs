@@ -236,11 +236,11 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // W5-01 Lingguang: the shared browser NDJSON reader adds 2,231 B to workbench.js, while Lingguang's own bundle loses
-// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. This starts at the Todo
-// prerequisite's already approved 1,110,357 B and is spent once; later growth stays frozen. Rekey against actual main
-// after the prerequisite merges, preserving only this +2,231 B. Todo's earlier +28 B is in the spent-increase test.
+// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. Actual main now includes
+// Todo and receipts 3e-1, starting at 1,111,791 B. Preserve only the unspent +2,231 B; every prior start remains refused.
+// This exact increase is spent once; later growth stays frozen.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110357, 1112588],
+  "/assets/molis-work-workbench.js": [1111791, 1114022],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

@@ -265,12 +265,6 @@
       ],
       "reason": "The plugin builder (Studio) plugin and its Host side."
     },
-    "ppt": {
-      "paths": [
-        "apps/local-host/src/ppt-*"
-      ],
-      "reason": "The PPT plugin and the Host files that serve it; its codes already start with ppt."
-    },
     "runtime_host": {
       "paths": [
         "horizontal/runtime-host/"

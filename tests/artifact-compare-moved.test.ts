@@ -10,7 +10,7 @@ import { PPT_ARTIFACT_TYPE_ID, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-con
 import { pagesActions, createPagesActionHandlers, openPagesStore, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
 import { formActions, createFormActionHandlers, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, createDatasetActionHandlers, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
-import { pptActions, createPptActionHandlers, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
+import { pptActions, createPptActionHandlers, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
 
 // 「原文已改」 (specs/artifact-positioning A4b): the owner compares a pinned version with the object it came from. An object
 // moved to another place still exists; only one that is gone is "missing", and the 成果库 must not call a move a deletion.
@@ -23,7 +23,7 @@ const owners = [
   { name: "Dataset", type: DATASET_ARTIFACT_TYPE_ID, kind: "dataset", definition: datasetActions.artifactCompare,
     open: openDatasetStore, handlers: (withStore: any) => createDatasetActionHandlers({ withStore, modelAvailability: unavailable }) },
   { name: "PPT", type: PPT_ARTIFACT_TYPE_ID, kind: PPT_SUBJECT_KIND, definition: pptActions.artifactCompare,
-    open: openPptStore, handlers: (withStore: any) => createPptActionHandlers({ withStore }) },
+    open: openPptStore, handlers: (withStore: any) => createPptActionHandlers({ ...ownPptStores(withStore) }) },
 ];
 
 for (const owner of owners) {

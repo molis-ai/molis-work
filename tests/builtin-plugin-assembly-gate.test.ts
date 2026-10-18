@@ -34,6 +34,7 @@ const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
   ["text-stats", "@molis-ai/molis-work-plugin-text-stats"],
   ["form", "@molis-ai/molis-work-plugin-form"],
   ["lingguang", "@molis-ai/molis-work-plugin-lingguang"],
+  ["ppt", "@molis-ai/molis-work-plugin-ppt"],
 ]);
 
 const HOME_RUNTIME_ENTRIES = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home");
@@ -42,13 +43,13 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
   "alchemist", "artifacts", "dataset", "feed", "goals",
-  "inbox", "pages", "plugin-builder", "ppt", "schedule", "sessions", "workflows",
+  "inbox", "pages", "plugin-builder", "schedule", "sessions", "workflows",
 ]);
 
 /** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
   "alchemist", "artifact", "dataset", "feed", "inbox",
-  "pages", "personal", "ppt", "schedule", "shelf", "workflows",
+  "pages", "personal", "schedule", "shelf", "workflows",
 ]);
 
 test("every built-in catalog entry is either Runtime-assembled or on the frozen build-time list", () => {

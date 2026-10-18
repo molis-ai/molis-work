@@ -6,8 +6,6 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
-import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
-import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
 import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
 import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
@@ -106,15 +104,6 @@ export async function handleLocalCatalogWebRequest(
     return { projectId: project.project_id,
       actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
         audience: "user", permissions: DATASET_ACTION_PERMISSIONS, ...transport })) };
-  })) return;
-  if (serverOptions.homeDirectory && await handlePptNativePluginHttp(request, response, url, async (input, transport) => {
-    const projectId = input.query.get("project_id") ?? input.body.project_id;
-    if (typeof projectId !== "string" || !projectId.trim()) throw new ActionError("actions.project_required", "请选择项目");
-    const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    return { projectId: project.project_id,
-      actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
-        audience: "user", permissions: PPT_ACTION_PERMISSIONS, ...transport })) };
   })) return;
   if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {
     shelf: { actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })) },

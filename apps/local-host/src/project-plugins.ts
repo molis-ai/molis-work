@@ -15,6 +15,7 @@ import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
+import { PPT_DATABASE, createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -256,6 +257,10 @@ function homeLibraryPlugins(): PluginPlatformEntry[] {
     definition: createLingguangPlugin(), bundled: true, database: LINGGUANG_DATABASE,
     releaseArtifact: nativePluginReleaseArtifact<typeof createLingguangPlugin>(
       "@molis-ai/molis-work-plugin-lingguang", "createLingguangPlugin", factory => factory()),
+  }, {
+    definition: createPptPlugin(), bundled: true, database: PPT_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createPptPlugin>(
+      "@molis-ai/molis-work-plugin-ppt", "createPptPlugin", factory => factory()),
   }];
 }
 

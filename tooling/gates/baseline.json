@@ -32,10 +32,10 @@
       "methods": 41
     },
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 303,
+      "lines": 302,
       "methods": 22
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 299,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 290,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
@@ -796,7 +796,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 20,
+  "hostPluginFilesTotal": 18,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -809,8 +809,6 @@
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/pages-actions.ts#actions": 1,
     "apps/local-host/src/pages-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/ppt-actions.ts#actions": 1,
-    "apps/local-host/src/ppt-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/schedule-actions.ts#actions": 1,
     "apps/local-host/src/schedule-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
@@ -843,7 +841,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 393,
+  "pluginOutsideMentionsTotal": 389,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -862,9 +860,9 @@
     "issues#outside-files": 4,
     "jelly#outside-files": 7,
     "lingguang#outside-files": 9,
-    "pages#outside-files": 20,
+    "pages#outside-files": 19,
     "plugin-builder#outside-files": 19,
-    "ppt#outside-files": 12,
+    "ppt#outside-files": 9,
     "schedule#outside-files": 19,
     "shelf#outside-files": 16,
     "text-stats#outside-files": 7,

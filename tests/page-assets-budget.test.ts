@@ -643,6 +643,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1109312], ["/assets/molis-work-workbench.js", 1109918],
   ["/assets/molis-work-workbench.js", 1109913], ["/assets/molis-work-workbench.js", 1110802],
   ["/assets/molis-work-workbench.js", 1110187], ["/assets/molis-work-workbench.js", 1110215],
+  ["/assets/molis-work-workbench.js", 1110056], ["/assets/molis-work-workbench.js", 1110084],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -655,11 +656,12 @@ for (const [asset, old] of [
   });
 }
 
+// W3-C used 1110056→1110329 on main; the former Todo start and ceiling are also spent.
 // W5-01 (Todo on the Home runtime): approved by the user on 2026-10-17 in the anti-corruption line's session, 「转为待办」's longer
 // route may grow the workbench script once, from exactly the current baseline to the measured size (+28). One byte more, another
 // asset, or growth from the new baseline still fails.
 test("W5-01 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1110056, 1110084] } as const;
+  const allowed = { "/assets/molis-work-workbench.js": [1110329, 1110357] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("w501-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "w501-change");

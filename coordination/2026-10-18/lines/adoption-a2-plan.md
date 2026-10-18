@@ -1,4 +1,4 @@
-# A2 写后检查：Molis 实现计划（采用线，2026-10-18，待统筹认可）
+# A2 写后检查：Molis 实现计划（采用线，2026-10-18；统筹 10-18 已认可）
 
 合同在 `specs/prologue-adoption` §6.0p（#692，写在 Prologue #45 之前）。#45 落地后（随 #699 的包进来）有四处和 §6.0p 对不上，第一片先把 spec 改成 SDK 实际的形状，再实现。
 
@@ -20,8 +20,8 @@
 
 ## 切片（每线最多两片）
 
-- **A2-1 配置与动作（agent-host）**：检查器清单的存储（每项目每工作区、带版本）、`agent.checkers.list@1`（query）与 `agent.checkers.save@1`（command，受众只有 `user`、权限 `projects:settings`、`expected_version`）；保存时的拒绝（未授权工作区、`{file}` 不是一个完整参数或出现两次、没有 `{file}`、带 `grants`、时限出 1,000–60,000）。SSOT 加一行（主人 agent-host）；`actions:update`；spec §6.0p 按上面四处改。用例 PA-25、PA-26（保存那半）、PA-28。
-- **A2-2 执行器与时间线（agent-host + Coding）**：Molis 的包声明这一样；执行器按配置拼命令或回 `unchecked`；每轮 10 次；撤权；审查卡那一行；Coding 时间线从 `:diagnostics` 回执读。安全不变量 S-35（取那时的下一个空号），`tests/security-invariants-checkers.test.ts`。用例 PA-26（撤权那半）、PA-27、PA-29～PA-38（真实 Node Host 加脚本模型，不调付费模型）。
+- **A2-1 配置与动作（agent-host）**：检查器清单的存储（每项目每工作区、带版本）、`agent.write_checkers.list.v1`（query）与 `agent.write_checkers.save.v1`（command；已随 #728 合入，id 以 main 为准，受众只有 `user`、权限 `projects:settings`、`expected_version`）；保存时的拒绝（未授权工作区、`{file}` 不是一个完整参数或出现两次、没有 `{file}`、带 `grants`、时限出 1,000–60,000）。SSOT 加一行（主人 agent-host）；`actions:update`；spec §6.0p 按上面四处改。用例 PA-25、PA-26（保存那半）、PA-28。
+- **A2-2 执行器与时间线（agent-host + Coding）**：Molis 的包声明这一样；执行器按配置拼命令或回 `unchecked`；每轮 10 次；撤权；审查卡那一行；Coding 时间线从 `:diagnostics` 回执读。安全不变量取开 PR 时的下一个空号（S-35～S-40 已用，现在是 S-41），`tests/security-invariants-checkers.test.ts`。用例 PA-26（撤权那半）、PA-27、PA-29～PA-38（真实 Node Host 加脚本模型，不调付费模型）。
 - **A2-3 设置页（Coding 设置里，和方法、MCP 并列）**：列出、添加、编辑、删除，带版本冲突提示；浏览器用例 1 个。
 
 顺序 A2-1 → A2-2 → A2-3；A2-3 可在 A2-1 合入后和 A2-2 并行。开工在 C4 那一片开 PR 之后。

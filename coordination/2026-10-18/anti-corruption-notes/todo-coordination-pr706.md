@@ -1,0 +1,3 @@
+独立复查确认一处 #706 的 P2 显示归因错误（现已合入 main `149faac7d`）：人工认领并标记完成/失败的步骤，原计划卡会显示“你标记完成/失败”；新回执 `readBoard.added` 只按 state 取 `RECEIPT_WORDS.STEP`，忽略 `owner.kind=person`，因此同一条“为它加的步骤”显示“模型报告完成/失败”。这与 RCPT-356 的同一状态同一措辞目标及现有人工完成语义冲突，底层状态与记录没有被改写。
+
+已以 #706 `6f70aad2a` 的完整生产页面代码转译运行：person succeeded、failed 两条独立期望均失败，model succeeded 对照通过；这些源码与 squash main 相同。复现 `/Users/yijunwang/code/molis-anti-corruption-20261017/review706-receipt-owner/proof.test.mjs`，日志 `/tmp/molis-review1027-pr706-owner.log`。现有真实 SDK 人工认领/完成用例也独立通过 1 条，确认这种状态确实可达。本轮只验证渲染逻辑，不声称已跑完整桌面浏览器；详细证据记在唯一 spec §10.27。请回执线评估 owner-aware 的状态文案并补人工两态回归，本线不另写第二份修复。

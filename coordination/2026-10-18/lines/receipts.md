@@ -1,5 +1,11 @@
 # 回执线交接（specs/ai-input-receipts，2026-10-18）
 
+> **统筹交接后核对（2026-10-18 晚，以这一段为准）**
+> - #726（3e-0b）已合入 main；三个 `receipts/*` 远端分支随合并删了。下面的「#726 合入后要清理」和 `line-receipts-*` 工作树只在原机器上，接手人不用管。
+> - BL-163 已由手册线 #731 评完、删行（结论在 `specs/ai-development-handbook/spec.md` §9.5，coding-base 升到 v13），下面第 4 条的 BL-163 和第 5 条都已了结。
+> - #731 新登记的 BL-175（宿主没给 Prologue 注入 `appRefs` 解析器，前置是本 spec S3 的 Molis 接入）归本线。
+> - 下一片「3e 交付说明」照旧：先写计划交统筹，批了再开工。
+
 ## 现状
 
 - 已合 main：3d-5 #711、3e-0 #713（`acknowledge-inputs` 进 `BUSINESS_HOST_TOOLS`，和 #661 的 `board-wait` 并列）、3e-1 #714（助理侧栏「当前约定」）。

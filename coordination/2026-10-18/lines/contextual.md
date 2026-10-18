@@ -1,5 +1,10 @@
 # 情境线交接（specs/context-program，2026-10-18）
 
+> **统筹交接后核对（2026-10-18 晚，以这一段为准）**
+> - #720（W3-C2）、#730（W4-1）都已合入 main；两条远端分支随合并删了。#727（S-39）也已合入，S-39、S-40 已连续，下文「#727 合入之前 health 必红」不再适用。
+> - 下面「合入后要清理」里的本地分支、工作树和 `~/.codex/worktrees/context-w0` 都只在原机器上，接手人不用管。
+> - 下一片（W4 的 Pages、Inbox、Goals 创建入口，F2 的 `find`）照旧：先写计划交统筹。
+
 总纲 `specs/context-program/spec.md`：第 9 节是波次，第 16 节是需求状态表，§21 是接续入口（21.4 各片、21.5 决策、21.6 进度与证据、21.8 W3-B 的设计记录）。子需求书：`specs/context-toolbar`、`specs/quick-create`、`specs/side-shelf`。
 
 ## 现状

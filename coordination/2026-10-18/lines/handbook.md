@@ -1,5 +1,11 @@
 # AI 手册线交接（2026-10-18）
 
+> **统筹交接后核对（2026-10-18 晚，以这一段为准）**
+> - prologue#50 已合入（Prologue main `dd639069c`）；换包交采用线，和批 B 合成一次。Prologue 远端分支 `fix/ack-inputs-todo-offered` 还在，删要先问用户。
+> - 第 1 节的 Molis 分支已经是 #731，已合入 main：BL-163 删行，T5 照规则处理，coding-base 升到 v13，新登记 BL-175（归回执线）和 BL-176（`ask-user` 结果里题目编号的键叫 `pending`，归本线：开一个 Prologue PR，换包随批 B 或下一次）。第 1 节整张表都已了结。
+> - Coding 小跑的前置 #726 已合入，可以做了。
+> - 文中的共享笔记换了名字放在本目录：`ai-handbook-eval-163/` → `handbook-eval-163/`，`ai-handbook-bl163-rule.md` → `handbook-bl163-rule.md`。`ai-handbook-t5-batch1.md`、`ai-handbook-inventory.md` 和本线 scratchpad 只在原机器上，结果已写进手册 spec §9.5。
+
 按用户 10-18 的决定，手册线做完 BL-163/T5 这一件就推送、暂停、交接。这份写给接手的人。
 
 ## 1. 在途

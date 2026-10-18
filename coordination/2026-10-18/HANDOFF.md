@@ -27,7 +27,7 @@
 
 | 线 | 做什么 | 需求书（唯一记录） | 交接全文 | 归哪个会话 |
 | --- | --- | --- | --- | --- |
-| 防腐线 | 系统性代码与架构整理：插件全部迁到 Plugin Runtime，去掉宿主里按插件写的私路，门禁数字只降不升 | `specs/repository-anti-corruption/spec.md`，计划在同目录 `roadmap-2026-10-07.md` 与 `docs/system/RUNTIME-MIGRATION.md` | 本文第 2、5 节 | 平台能力与去特权归②，插件迁移归③，审查和 W6-04～W6-06 归① |
+| 防腐线 | 系统性代码与架构整理：插件全部迁到 Plugin Runtime，去掉宿主里按插件写的私路，门禁数字只降不升 | `specs/repository-anti-corruption/spec.md`，计划在同目录 `roadmap-2026-10-07.md` 与 `docs/system/RUNTIME-MIGRATION.md` | 本文第 2、5 节，Codex 的笔记快照在 `anti-corruption-notes/` | 平台能力与去特权归②，插件迁移归③，审查和 W6-04～W6-06 归① |
 | Computer Use 线 | 个人助理在桌面上操作别的应用，带确认、记录与安全拒绝 | `specs/computer-use/spec.md`（另有 `open-decisions.md`、`acceptance-runbook.md`） | 本文第 3 节④第 4 项 | ④ 助理与 AI 组 |
 | 采用线 | 把 Prologue SDK 的能力接进 Molis，TaskBoard 统一协作；vendored Prologue 包由它换 | `specs/prologue-adoption/spec.md` | `lines/adoption.md`（附 A2、批 B 的计划） | ④ 助理与 AI 组 |
 | 回执线 | AI 对话的输入回执：用户的每句话被怎么处理、在哪里处理、改变了什么、还差什么 | `specs/ai-input-receipts/spec.md` | `lines/receipts.md` | ④ 助理与 AI 组 |
@@ -37,6 +37,27 @@
 
 - 需求书开头的「远端交接」「统筹更正」等段落是更早几轮的接续入口，有的已经过时。**现在的接续入口是 `lines/` 里那份交接全文**，它和需求书不一致时以交接全文为准，做完后把需求书改到一致。
 - 界面一面一主（10-15 定，照旧）：助理面板的布局、下一步行与部件归情境线；卡和题的合同、卡内渲染、Coding 的呈现归交互线；回执的内容归回执线，画在情境线留的位置上；采用线不开界面。④一个会话管这几条，照这个分法写 PR，跨面的改动在 PR 里写清楚。
+
+### 0.3 做决定、模型力度、界面质量（用户 10-18 定）
+
+**做决定**：大部分情况按推荐做，不停下来问；取舍和理由写进对应 spec 的决策记录或 PR 正文，统筹在流水里记一笔。只有第 10 节列的、确实需要人确认的事，才用 AskUserQuestion 弹窗问（带方案和「（推荐）」，攒成一批问，问之前先做完不依赖它的工作）。弹窗前先核事实：10-18 统筹就因为把「删项目时哪些插件已清数据」的前提写错，问了两次。
+
+**模型与力度**：
+
+| 会话 | 模型 | 力度 |
+| --- | --- | --- |
+| ① 统筹 | Opus 5.5 | high；第 2 节开头的防腐审查用 xhigh |
+| ② 平台（防腐线） | Opus 5.5 | xhigh |
+| ③ 迁移（防腐线） | Opus 5.5 | xhigh |
+| ④ 需求 | Opus 5.5 | high；做采用线的片时切到 xhigh |
+
+子代理照同一条：防腐线和采用线的活用 xhigh，其余 high；不用 max。
+
+**界面、动线与交互**：需求开发里，界面不是做完功能再补的，要当成需求本身来设计。
+- 按 `DESIGN.md`、`specs/craft-finish/spec.md` 和规格板 `/__ui/catalog` 做；页面之间用同一套组件，只换布局；插件只在工作台的位置里放内容，不出自己的整页、不开第二个标签页（`tests/shell-page-gate.test.ts`）。
+- 先想动线再写代码：用户从哪里进来、下一步去哪、做完怎样回到原处。spec 里写清动线，以及空、加载、出错、没有权限、可以撤销这几种状态。
+- 交互：点了立刻有反馈；能撤销的给撤销，删除和覆盖先确认；键盘能走通、焦点不丢；动效按 `DESIGN.md` 与 craft-finish 的规定（10-17 有一片因为 700ms ease-out 超出动效门禁被拦回）。不为了把功能露出来而加入口和说明文字。
+- 验证：在隔离 Home 里按真实动线走一遍；改了界面就在 PR 里附三个宽度加深色的截图（默认写到 `.impeccable/qa/review/`），统筹审 PR 时按动线看，不只看 diff。
 
 ## 1. 用户 10-18 定的事（都要照做）
 
@@ -69,7 +90,7 @@
 3. Codex 防腐线的候选（第 5.2 节），在它们开 PR 的时候审。
 
 **交付**：
-- 防腐 spec 新开一节 §10.27：每个 PR 的结论，以及发现的问题、归属和修法。
+- 防腐 spec 新开一节 §10.28：每个 PR 的结论，以及发现的问题、归属和修法。§10.27 已被 Codex 的「接续独立复查」占用（在「独立复查记录」那一片里，已读到 main `aceffff86`，还在进行中）：先把它落进 main，再从它停下的地方接着审，它没覆盖的从 §10.26 起补。
 - 「内置特权与平台缺口」清单：每一项写上代码位置、受影响的插件、补什么平台能力、归哪个会话、先后顺序。②③两个会话的排期以它为准。
 - 发现的问题派给对应的会话，排在它们下一片之前。
 
@@ -88,6 +109,7 @@
 - 之后的日常：按 ANTI-CORRUPTION-REVIEW §3 加第 1 节的新规则审每个 PR，结论写在 PR 评论里；组批、跑集成全量、按依赖合并（第 4 节）；盯每晚 main 的全量；维护本文和流水；能按规则定的替用户定，不能定的弹窗问。
 - 机械性的跟进统筹可以自己做，省得来回等：给别人的 PR merge main、重取页面资源的放行键、顺延撞了的编号。做之前在 PR 评论里说一声，只做这几样，不碰业务改动。
 - 统筹不写功能。只改文档、记录、门禁说明。
+- BACKLOG 里归统筹的：BL-126（维护六收尾核对只剩第③步，要用户重开一次会话，到时候请用户做）。
 
 ### ② 平台（补平台能力、去掉内置特权）
 
@@ -101,13 +123,15 @@
 5. W5-02 声明式注册（3 个 PR）：工作台的目录和设置节、搜索页签、翻译词典归属、页面资源包、设计系统名单、home-sqlite 名单、`project_data`、X-1 依赖清单，都改成从各包的声明生成。它会和③每次迁移改的 `builtin-plugins.ts` 撞车：先和③约好一个时间点，那之前的迁移先合，那之后③只写自己包里的声明。
 6. 插件创作台并进平台：删掉它的插件目录条目，代码进平台的模块；生成的插件照旧走 Runtime 和沙箱。
 7. W5-06 通用挂载器；W5-03 按主人分翻译；W5-08、W5-09、W5-11、W5-13～W5-16。W5-17（catalog 路径与真实 Home 维护）要先弹窗问用户。
+8. 真实 Home 的维护八：防腐 spec「库版本维护清单」里还没做的行（`connectors.db` 1→2、`pages.db` 1→2 即 BL-157，等等），加上采用线 A4 的存量脚本和助理库 3 号基线（删 `assistant_jobs`），都和装下一个版本同一步、在用户的机器上做。先把要做的整理成一张单子，弹窗问用户；A4 的脚本只在原机器上（见 `lines/adoption.md` 开头）。
+9. BL-137（Prologue SDK 释放 8 MiB 资源要约 0.8 秒）：开一个 Prologue PR，换包交④一起换。
 
 ### ③ 迁移（插件迁到 Runtime，加上清理）
 
 负责的文件：`plugins/native/*`，以及删掉 `apps/local-host/src/<插件>-*.ts`、`project-host.ts` 里的 `registerProvider`、`web-request.ts` 路由表里的行。`project-plugins.ts` 里的监督器条目，W5-02 之前也归它。
 
 顺序：
-1. **先把 Codex 已经做完的候选落进 main**（第 5.2 节，一共 18 片左右）。这是最快的进度。按 Codex 表里的顺序组批：集成分支已经有了，先修好它全量里那一处红（`tests/personal-plugins-review-fixes.test.ts` 的 Dataset 和 PPT 断言，修法和 #736 一样），重跑全量，过了就按依赖一片一片开 PR、各自过 Verify、逐个合。
+1. **先把 Codex 已经做完的候选落进 main**（第 5.2 节，十几片）。这是最快的进度。交接时 Codex 还在收口（#733、#738 和集成分支的全量）：接手时先看它停在哪——PR 状态、集成分支的头、`anti-corruption-notes/HANDOFF-2026-10-18.md` 的最新版——从那里接，已经合入的按 squash 提交结算，不重复合并。剩下的按 Codex 表里的顺序：集成全量过了，就按依赖一片一片开 PR、各自过 Verify、逐个合。
 2. 不需要新平台能力的几族：Workflows 的 Runtime 接线、Pages、Jelly、Images（在 model-selection 之后）、Shelf 的 D2/D3、Characters 并进 `modules/characters`。
 3. Goals（被宿主点名最多，单独写计划，交统筹审）。
 4. Schedule、Inbox、Feed：等②的项目库服务。Feed 要单独写计划。
@@ -121,10 +145,10 @@
 ④一个会话管两组。一组的 PR 在等的时候，就做另一组。统筹派来的防腐问题先做。需要平台能力时找②，不在宿主里另开一条路。
 
 **助理与 AI 组**，按顺序（详细在 `lines/` 各文件）：
-1. 采用线：A2-2 执行器与时间线；A2-3 设置页，可以和 A2-2 并行；批 B，read 的窗口读带上行号，和已合的 prologue#50 一起，**只换一次 vendored 包**；BL-172。换包由这一组独占，别的会话要换包，交给它一起换。
-2. 回执线：3e 的交付说明（先写计划交统筹）；§20 的 RCPT-103～107；阶段 4～6；BL-144、148、161、162、164。
+1. 采用线：A2-2 执行器与时间线；A2-3 设置页，可以和 A2-2 并行；批 B，read 的窗口读带上行号，和已合的 prologue#50 一起，**只换一次 vendored 包**；BL-155、BL-160、BL-171、BL-172。换包由这一组独占，别的会话要换包，交给它一起换。
+2. 回执线：3e 的交付说明（先写计划交统筹）；§20 的 RCPT-103～107；阶段 4～6；BL-144、148、161、162、164、175。
 3. 手册线：Coding 小跑；`inputReminders.holdFinish` 要不要设；BL-176，ask-user 结果里的 `pending` 键名，开一个 Prologue PR；手册 §10 正文；`skills.default` 的措辞；BL-145、146、149；用户验收。
-4. Computer Use：CU-G13（非浏览器全量和 `test:security` 全量交 CI）；CU-G14（索引和归档）；CU-G06、G08、G10 的真机数据，以及 CU-G02～G04 的二十步真机验收，要用户的 Mac 空出来，先和用户约时间，按 `specs/computer-use/acceptance-runbook.md` 做；打开/保存面板按 A 补同进程 sheet 的真机用例；CU-G15 可选。
+4. Computer Use（入口是 `specs/computer-use/goal-prompt-wrapup.md`；spec 的状态句还停在 10-11，先按现状改）：CU-G13（非浏览器全量和 `test:security` 全量交 CI）；CU-G14（索引和归档）；CU-G06、G08、G10 的真机数据，以及 CU-G02～G04 的二十步真机验收，要用户的 Mac 空出来，先和用户约时间，按 `specs/computer-use/acceptance-runbook.md` 做；打开/保存面板按 A 补同进程 sheet 的真机用例；CU-G15 可选。
 
 **界面组**，按顺序：
 1. 情境线：W4 剩下的 Pages、Inbox、Goals 创建入口（Goals 用 `effect: "proposes"`）、F2、F3、C9、C10、C13；内容站请求号泛化；W5 拖放；W6、W7；BL-174；PICK-05 改成等事实；§16 状态表核对；最后真实 Home 的全面验证（先弹窗问），三份子需求书归档。
@@ -171,38 +195,39 @@
 
 ## 5. 防腐线现状（Codex 交来的部分）
 
-防腐线 10-17 起由 Codex 负责。Codex 的交接草稿在原机器的本地文件里，接手人拿不到，要点已经摘在下面；Codex 收尾后如果把它的交接推到远端，以那份为准。唯一的记录是 `specs/repository-anti-corruption/spec.md`，计划是 `roadmap-2026-10-07.md` 与 `docs/system/RUNTIME-MIGRATION.md`。
+防腐线 10-17 起由 Codex 负责。Codex 的交接草稿和它的计划、复查笔记（共 90 份，含 Alchemist 的 `alchemist-partition-next-plan.md`、`alchemist-partition-prerequisite-review.md`）已经拷进 `anti-corruption-notes/`，是 10-18 08:31 PDT 的快照；里面写的本机路径（`wt-*` 工作树、`/tmp` 日志、PR 正文草稿）都在原机器上。Codex 收尾后如果推了新版，以新版为准。唯一的记录是 `specs/repository-anti-corruption/spec.md`，计划是 `roadmap-2026-10-07.md` 与 `docs/system/RUNTIME-MIGRATION.md`。
 
 ### 5.1 已合与在途
 
 - 已合：#679（Home 路由按项目路径跑）、#677（W5-05）、#686（§10.26）、#684（Todo 迁到 Runtime）、#703（流式路由）、#727（材料服务）、#729（灵光迁到 Runtime）、#735（Computer Use 选择器不再编译成正则，S-25）、#736（`7d0e7b09b`，修 #729 之后灵光那条 `personal-plugins-review-fixes` 断言，收紧不是放宽）。
-- #733（Codex，草稿）：Cognia 迁到 Home Runtime。原来的 base 是灵光分支，#729 合入后要改成接 main、转正，再审。
+- #733（Codex，草稿）：Cognia 迁到 Home Runtime，head `f3cfab550`，base 已是 main，正式 CI（39138719901）全绿，等集成全量。
+- #738（Codex，草稿）：插件私有文件，head `c42c4e7d1`，base 是 Cognia 的分支，#733 合入后转到 main。
 - #737（统筹）：把 10-18 的决定写进文档，已合（`5972daefd`）。
 
 ### 5.2 Codex 本地做完、还没开 PR 的候选
 
-它们都在远端集成分支 `integration/anti-corruption-closeout-20261018`（头 `c34b65e4e`，比 main 多 371 个提交、430 个文件）上，一片叠一片地 merge 进去。单片的分支多数没推到远端，但每片的 head 都在这个集成分支的历史里，可以用 `git branch <名字> <sha>` 取出来。Codex 定的顺序：
+它们都在远端集成分支 `integration/anti-corruption-closeout-20261018`（交接时头 `e9eb14774`）上，一片叠一片地 merge 进去。单片的分支多数没推到远端，但下表每个 head 都核对过在这个集成分支的历史里，可以用 `git branch <名字> <sha>` 取出来。Codex 定的顺序：
 
 | 内容 | head | 状态 |
 | --- | --- | --- |
-| Cognia Runtime | `6f57c2b2d` | 本地已接上新前置；#733 还停在旧 head |
-| 插件私有文件 | `70d77c06e` | 等前置 |
-| 后台授权 | `402d7fcc4` | 重复的 CI 选择已修 |
-| 模型端口、Images 与 Jelly | `41fe68f0c` | 存储声明的回归已修（`wt-images-runtime`、`wt-jelly-runtime` 是旧树，不要合） |
-| 模型回执与 query 委托 | `f3cdd1724` | 公共前置；Shelf 本身还没迁 |
-| Home owner 文件服务 | `0725712ec` | 公共前置；业务接线没做 |
-| 项目成果 D1 | `bebc037a8` | 安全 CI 的选择已补 |
-| Alchemist 生命周期与恢复 | `36b2ac2c9` | Runtime 和 WorkReuse 没做 |
-| PPT Runtime | `ea0c78ed6` | 含同步 publish 的尾检 |
-| Dataset Runtime | `3cb2a9fcc` | 组合通过 |
-| Workflows Store | `7cf7795cf` | 只做了 Store 端口，Runtime 接线没做 |
-| Images 稳定翻译键 | `d60ac2b24` | 组合通过 |
-| Module 公开边界 | `4decd87da` | 组合通过 |
-| Pages 编辑职责拆分 | `858411ab7` | 组合通过，44 个文件 |
-| Job 授权读取 | `36bc503b3` | 组合通过，3 个文件 |
-| 独立复查记录 | `2dc1973dd` | 文档 |
+| Cognia Runtime | `f3cfab550` | #733（草稿，base main） |
+| 插件私有文件 | `c42c4e7d1` | #738（草稿，base Cognia） |
+| 后台授权 | `7114b4ca6` | 重复的 CI 选择已修 |
+| 模型端口、Images 与 Jelly | `bfc991097` | 存储声明的回归已修（`wt-images-runtime`、`wt-jelly-runtime` 是旧树，不要合） |
+| 模型回执与 query 委托（SHM/AQD） | `aab6f3f9a` | 公共前置；Shelf 本身还没迁 |
+| Home owner 文件服务 | `17a4e53f9` | 公共前置；业务接线没做 |
+| 项目成果 D1 | `d5421ea3f` | 安全 CI 的选择已补 |
+| Alchemist 生命周期与恢复 | `ce1b56494` | Runtime 和 WorkReuse 没做 |
+| PPT Runtime | `434b2bf2e` | 含同步 publish 的尾检 |
+| Dataset Runtime | `061f72b84` | 组合通过 |
+| Workflows Store | `2ffd25617` | 只做了 Store 端口，Runtime 接线没做 |
+| Images 稳定翻译键 | `69707b4a6` | 组合通过 |
+| Module 公开边界 | `ea2da5ff2` | 组合通过 |
+| Pages 编辑职责拆分 | `82ab6bdf0` | 组合通过，44 个文件 |
+| Job 授权读取 | `db133b9ca` | 组合通过，3 个文件 |
+| 独立复查记录（§10.27） | `029a6b7fc` | 文档 |
 
-- 这个集成分支的全量 39135082261 红在 `tests/personal-plugins-review-fixes.test.ts`：Dataset 的客户端断言还要求旧的短路径；fail-fast 取消了其他分片，所以其他文件都没验证。Codex 的修法是在灵光、PPT、Dataset 各自那一片里，把断言改成 Manifest 路径（灵光的那条就是 #736）。PPT、Dataset 的修完后重跑全量。
+- 集成全量：交接时 39140030877 在排队。之前几轮的红都已在所属的片里修掉、再传到集成分支：39135082261 与 39136942882（旧短路径的断言，灵光、PPT、Dataset、Images 夹具改成 Manifest 路径；灵光那条就是 #736）、39137670023（Host 启动期凭据撤销：SHM 包装改写了原来的派发拒绝，SHM `5cf3c3380` 修）、39138797210（Coding 停止响应的旧码列表，SHM `aab6f3f9a` 把断言收紧到准确结果，只改测试）。被 fail-fast 取消的分片都不算通过。
 - 灵光已用掉 +2,231 B 的放行；Alchemist 的 +1,754 B 还没用，按实际 main 核对。Pages 比 main 小 79 B。
 - 各片的 PR 正文草稿只在原机器上，接手人拿不到：开 PR 时按这一片的 diff、防腐 spec 里它那一节和实际的 CI 结果重写。
 - Codex 自己的规矩里有「不跑本机全量、不加标签、最多两个在途 PR」。按 10-18 的新规则，这些候选按第 4 节组批合入，不用一个一个排全量。
@@ -240,6 +265,7 @@
 - 手册线：分支 `ai/bl163-ack-eval`，评测用的临时 Home。
 - Codex：`~/code/molis-anti-corruption-20261017/` 下的各工作树，等候选全部合入、证据核对完再清，由用户决定。
 - 统筹：scratchpad 里的 `integ` 工作树。
+- 远端（接手人能处理，删之前先问用户）：Prologue 的 `fix/ack-inputs-todo-offered`（prologue#50 已合入，分支还在）。Molis 这边已合入 PR 的远端分支都随合并删了。
 - 主检出 `/Users/yijunwang/code/goalboard` 上有一堆没提交的文档改动，不知道是谁的。它常被真实 Home（4207）用着，不碰。
 
 ## 7. 需求线跟着防腐规范走（不制造新的技术债）
@@ -282,11 +308,23 @@
 
 ## 10. 需要用户的事
 
-- 发版、真实 Home 的任何操作（W5-16、W5-17 的维护，Characters 和 Sessions 的存量数据），先弹窗问。
-- 改信任边界的设计（S-34 `always_on`、默认连线的安装同意），先弹窗问。
+其余的事按第 0.3 节，按推荐做、记下来，不问。
+
+**确实要人确认的，先弹窗问**：
+- 发版、改版本号。
+- 真实 Home 与真实数据的任何读写：维护八（第 3 节② 第 8 项）、W5-16、W5-17、Characters 和 Sessions 的存量数据、A4 的存量脚本。
+- 放宽门禁，或者改门禁脚本、阈值、CI 的必需检查。
+- 真实凭据和密钥（MiniMax 的密钥向用户要）。
+- 别人的分支、进程和 PR（#732、#734、#631 交作者；Codex 自己还在推的片，接之前先确认它停了）。
+- 非 Prologue 的 vendored 包和别的上游合并。
+- 信任与安全边界的设计：S-34 `always_on`、默认连线的安装同意。
+- 会断用户外部配置的对外改名（MCP 工具名）。
+- 远端分支的删除（第 6.3 节）。
+
+**只有用户本人能做的**：
+- Computer Use 的真机验收（CU-G02～G04 等），要在 macOS 上做，用哪台机器、什么时间先和用户约。
+- 真实中文输入法和读屏（BL-016），各需求线和手册的用户验收。
 - Sessions 重做的需求书（BL-177），给用户审。
-- Computer Use 的真机验收（CU-G02～G04 等）要在 macOS 上做，用哪台机器、什么时间，先和用户约。
 - 发布签名与公证（BL-021），还没定。
-- 远端分支的删除，一项一项弹窗批（原机器上的工作树由原机器那边清）。
-- #732、#631 交给作者和用户。
+- BL-126 维护六的第③步，要用户重开一次会话。
 - 这份文档和 Claude Docs 的交接说明，用户分享后接手的人才能打开。

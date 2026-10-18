@@ -1,5 +1,13 @@
 # 采用线交接（specs/prologue-adoption，2026-10-18）
 
+> **统筹交接后核对（2026-10-18 晚，以这一段为准）**
+> - #725（C4）、#728（A2-1）都已合入 main；远端分支随合并删了。下面「现状」表和「合入后要清的工作树和分支」只在原机器上有效，接手人不用管。
+> - 共享笔记里接手要用的已经拷进本目录：`adoption-a2-plan.md`（就是文中的 `adoption-a2-impl-plan.md`，统筹 10-18 已认可）、`adoption-batchB-plan.md`、`adoption-c4-eval/`（C4 的规则 `rules.md`、结果 `results.md`、驱动脚本 `run.mjs`；批 B 的评测照它做）。其余笔记（A2-1 开工清单、§6.0p 草稿、A4、P3、网关等）只在原机器上，内容已经写进 spec。
+> - A2-2 的安全不变量号：S-35～S-40 已用掉，开 PR 时取 main 上下一个空号（现在是 S-41）。
+> - 本线在 BACKLOG 里还有两行，下文漏了：BL-155（「校验用的参数合同去掉 `x-mcp-header`」这条规则 SDK 和 Molis 各写了一份）、BL-160（写后检查要不要有「本会话允许这个检查器」的规则）。
+> - A4 的存量脚本 `adoption-a4-stored-works.mjs` 按用户 10-17 的决定不进仓库，只在原机器上。真实 Home 的库在装下一个版本时、和维护八同一步写，先问用户（spec §6.0q 第 3 条）；这一步要在用户的机器上做。
+> - 批 B：Prologue main 已到 `dd639069c`（含 prologue#50）。计划里按 3adc5e87 记的行号、按 Molis main d9a58f37f 做的「谁读 read 的输出」审计，开片时按当时的两边 main 重核。
+
 按用户 10-18 的决定，各线做完手上这件就推送、暂停交接。#728 是本线最后一片。
 
 `$S` = `/private/tmp/claude-501/-Users-yijunwang-code-goalboard--claude-worktrees-line-adoption/0b1995fa-f45d-4fc1-8491-9d8ab2d8e26d/scratchpad`
@@ -44,7 +52,7 @@ spec 状态句：P4 两半与 A1–A4 都在 main，A2 只做了 A2-1；没做�
 
 ## 下一片原本打算做什么
 
-**A2-2 执行器与时间线**（agent-host + Coding）。计划见 `adoption-a2-impl-plan.md`「切片」，已经统筹认可：
+**A2-2 执行器与时间线**（agent-host + Coding）。计划见本目录 `adoption-a2-plan.md`「切片」，已经统筹认可：
 
 - **执行**：
   - Molis 的包声明写后检查。

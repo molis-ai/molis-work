@@ -1,0 +1,7 @@
+Images now uses 85 owner-scoped translation keys for all 107 server and browser translation calls. Its existing catalog entry registers the bilingual dictionary; the common translator supplies the page's language to both renderers. Visible Chinese and English wording stays the same. Sixteen Chinese-key entries remain because other pages or catalog metadata still consume them.
+
+Validation: full and workspace builds; 30 files / 400 tests passed, including both languages at 1440 and 390 pixels with controlled provider calls and image-byte assertions. Health and package boundaries passed. All 85 English texts were checked against the actually served pre-migration catalog.
+
+Images' static script shrank by 568 bytes (22,546 to 21,978); its budget is lowered. The English inline translation script shrank by 1,145 bytes; the Chinese inline script grew by 4,968 bytes (952 to 5,920).
+
+The user approved both the registration check and the +4,968-byte Chinese inline increase on 2026-10-17. The check now rejects missing registration, import-only use, unrelated objects and wrong fields, even after rewriting the baseline; import aliases pass. Removing Images' actual registration is also covered. Like the existing English-catalog check, it follows exported names, not module resolution. Existing gate semantics are unchanged. This is the first W5-03 sample; the other owners and remaining central Chinese dictionaries are still pending. It does not migrate the Images service to Plugin Runtime or change generation/connection behavior.

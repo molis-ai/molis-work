@@ -235,15 +235,16 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for W3-C (specs/context-program §21.4, §21.6; specs/side-shelf AC-S04: a side panel plugin tab reports
-// what is in hand, as a split pane does). The page's context bus now also takes a side tab's messages, checked by the one
-// `SIDE_FRAME_FROM_SCRIPT` that `molis:side-forward` uses (S-30), so that check ships twice in this script; with marking the
-// focus as in the side panel, the workbench script is +273, once. Tried: shortening the shared check's names (about 40 bytes,
-// at the cost of a security check that reads less plainly); the side tab's own half runs in its own document, not here.
-// The entry is for exactly one merge-base budget (main de6dbfc8b), capped at the measured size, and used once: the next baseline
-// freezes again. This replaces receipts 3d-4's spent entry; delete it in the next change to this gate (as #541, #584 and #611 did).
+// One-time allowance for W4-1 (specs/context-program §21.4, §21.6; quick-create §8 point 3, AC Q02/Q04/Q08: 记成待办 and
+// 记下灵光 are creation entries, made at once and taken back by their owner's own undo). The bar's choice of a creation entry now
+// posts it to the Host, keeps one request per selection and entry (so a second click makes it once) and shows the completion
+// card with 「打开」 and 「撤销」; with the one new English line, the workbench script is +1,158, once. Tried: the comments ship
+// stripped; the two old fragment choices left no page code to remove; 「打开」 reuses the placement's describe and openObject
+// rather than a new path, and the card is the placement's own. The entry is for exactly one merge-base budget (main
+// 7faaa027c), capped at the measured size, and used once: the next baseline freezes again. This replaces W3-C's spent entry;
+// delete it in the next change to this gate (as #541, #584 and #611 did).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110056, 1110329],
+  "/assets/molis-work-workbench.js": [1110329, 1111487],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

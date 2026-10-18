@@ -703,20 +703,20 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 | R21 | 部分 | 情境条（W3-A2）带上手上的东西与正在看的对象；落点在对象已加入时出现、可 ×，发送时带给宿主、宿主经主人重读后告诉模型（W3-B2）；分屏窗格里的落点也一样（W3-B3） |
 | R22 | 未做 | W3 |
 | R23 | 部分 | 助理回复里选中的一段是手上的东西（`assistant_reply`，`place: "assistant"`），能放进左边的落点（BL-150）；点结果小片还不算 |
-| R24 | 部分（按设计成立） | `intake`/`attach` 写在普通写入动作上，工作流与 MCP 天然可用；还没有插件声明 |
+| R24 | 部分（按设计成立） | `intake`/`attach` 写在普通写入动作上，工作流与 MCP 天然可用；Todo、灵光已声明 `intake`（W4-1） |
 | R25 | 未做 | W2' |
 | R26 | 部分 | `attach` 带 `positions` 已在 SDK；材料篮 = Shelf 没有；「四份文档一个 PR」已由用户 10-13 的规则取代（每线一个交接分支，现在按波次开 PR） |
 | C1 | 已实现 | 浮条取代底栏、与 Pages 格式条合并（#411）：`context-toolbar.e2e`、`contextual-interaction.e2e`、`context-toolbar-panes.e2e`、`pages-actions.e2e` |
 | C2 | 部分 | 手册已有（`contextual.md`）；存量插件补齐与「待补」名单没有 |
-| C3 | 部分（只有底层） | 起草服务 `POST /api/contextual/draft`（`tests/contextual-draft.test.ts`）与 SDK 的 `intake` 声明在；没有插件声明，界面上没有「✦」。W4 |
-| C4 | 部分（只有底层） | 内核把去处排进推荐位（`destinations.ts`，`contextual-destinations.test.ts`）；没有插件声明，用户看不到。W4 |
+| C3 | 部分 | 起草服务与 SDK 的 `intake` 声明在；Todo、灵光已声明（W4-1，`tests/contextual-create.test.ts`）；Pages、Inbox、Goals 与「✦」没有。W4 |
+| C4 | 部分 | 内核把去处排进推荐位（`destinations.ts`）；只有规则时一段文字放一个（W4-1，`contextual-destinations.test.ts`）；按内容挑去处要判断 |
 | C5 | 未做 | W7 |
 | C6 | 未做 | W7 |
 | C7 | 已实现 | 单行、打字不浮出、底部动作条删除（#411）：`context-toolbar.e2e` |
 | C8 | 已实现 | `ContextTools` 合同、Pages 的 14 个工具（`plugins/native/pages/src/client.ts`）、`contextual.md` 第六节 |
 | C9 | 部分 | 「去处只进推荐位」的内核规则已在并有测试；「✦」没有 |
-| C10 | 未做 | 执行端按 `undo` 直接 / 出卡片没有接（W4） |
-| C11 | 未做 | 「记成待办」（`plugins/native/todo/src/actions.ts`）、「记下」（灵光）仍是选区动作，没有并进创建入口 |
+| C10 | 部分 | 浮条选创建入口时按 `undo` 直接建或出卡片（W4-1，`contextual-create.test.ts`、`contextual-todo.e2e`）；「✦」与追加没有 |
+| C11 | 已实现 | 「记成待办」「记下灵光」并进创建入口，旧的片段动作选项删掉（W4-1）：`contextual-create.test.ts`、`contextual-fragment-offers.test.ts` |
 | C12 | 部分 | 已做的部分随代码写了手册；W3 起随各波 |
 | C13 | 未做 | 覆盖率门禁骨架挪到插件开始声明 `intake` 之后（第 18.7 节 W1-8） |
 | C14 | 部分 | F1 的底层（起草、声明）在；F2–F13 没有 |
@@ -1258,6 +1258,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | W3-A3c | ① 分屏窗格里的落点也闪：顶层把「闪一下」转给报告落点的那个窗格；② 浮条「更多」菜单里的放进去也闪（实现记录见 21.6） | W3-A3b |
 | W3-B | Pages 报告落点、三个确定性的 `attach`、落点处预览；落点事件登记；情境条显示落点。执行前宿主用 H3 的 `confirmReferences` 按调用者的权限重读落点对象，不在或没权限用合同里的 `reference-unavailable`，不另写一套；`attach` 的 `find` 取候选（`search.references@1`）改到 W4 的 F2（统筹 2026-10-15 定，见 21.8）。拆成 W3-B1（落点、动作、预览、执行）与 W3-B2（情境条显示落点） | W3-B1：H3 合入；W3-B2：W3-A2 |
 | W3-C | 右栏各格报告手上的东西（中枢接右栏；实现记录见 21.6） | W2'（右栏改版） |
+| W4-1 | 「记成待办」「记下灵光」并进创建入口（F1 第一批的前两个）：两个插件在写入动作上声明 `intake`，旧的片段动作选项删掉；浮条选中创建入口时，有主人声明的撤销就直接建、完成卡片给「打开」「撤销」，否则出卡片（C10）；只有规则时，一段文字的推荐位里放一个去处（quick-create §6.1） | W3 |
 | W3-C2 | 在分屏窗格或右栏格自己画的浮条上悬停「放进去」时，左边的落点也闪：窗格报的保位（`workbench-context-hold`）带上悬停的键（含「更多」菜单里的），顶层据此调 `landing.hint`（统筹 10-18 定为后续） | W3-C |
 
 每片：`assistant-island.ts` 只减不增，新东西写新文件；页面资源每个文件只减（删掉的旧渲染抵新增）；`pnpm build`、`affected-tests.mjs` 选出的用例、`check-health-gates --base origin/main`、`page-assets --base origin/main`、1440/1024/800/390 与深色截图。
@@ -1285,6 +1286,10 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | 2026-10-16 | 落点小片只在页面对象已加入（实线的「正在看」，或点了「＋」）时出现；× 只去掉落点，对象照旧带上，直到落点换到另一个对象前不再出现（L-1，统筹 10-16 定） | 否：按 R21 字面一律默认带上（落点带着前后原文，没点「＋」就把文档内容给了模型，与上一行「没加入两件都不做」和 STRIP-01 冲突） |
 | 2026-10-16 | 发送时带上落点：合同 `AssistantContextSnapshot` 加可选的 `landing`（`AssistantLanding`，`SurfaceLanding` 的有界子集）；宿主在这一轮开始前用 H3 的主人读取（`readReferences`，与 `confirmReferences` 同一份）按本人在这个项目里的权限重读落点对象，读不到就整项丢掉，对象名用主人读到的 label；给模型的只是事实（对象、位置、选中的文字、前后原文），不写「请放到这里」一类的话；逻辑在单独的 `assistant-landing.ts`，`assistant-service.ts` 只加调用、行数不增（L-2a，统筹 10-16 定） | 否：只显示不带给模型（R21 的「带上」落空，「帮我续写这一段」写不出贴合位置的内容）；否：宿主另写一套读取（与 W3-B1 执行前那一道重复） |
 | 2026-10-16 | 落点的名字是「最近的标题 + 位置词 + 原文片段」：小片写「发布计划 · 「步骤」光标处」，读屏与悬停读完整的一句「放进去的位置：发布计划，「步骤」，光标处（「…第二步，」之后）」；标题由 Pages（落点的主人）填进 `surroundings.heading_path`。取代 §14「最近的标题 · 第 N 段」（L-3，统筹 10-16 定） | 否：第 N 段（合同里没有段落序号，加要改合同；标题加原文片段比数段落更认得出） |
+| 2026-10-18 | W4-1 创建入口直接建时，撤销留在 Host：宿主按主人声明的 `undo` 从这次的输出取输入，存在一个一次性令牌后面（只给本项目的页面、30 分钟、最多 50 条），「撤销」把令牌交回 `POST /api/contextual/undo`，以本人的权限经动作网关调主人自己的撤销；页面不点名任何撤销动作。与助理工作的撤销共用 `declaredUndo`（`apps/local-host/src/action-undo.ts`） | 否：把撤销动作与输入交给页面（页面就能调任意写入动作的「撤销」，等于在动作网关旁边多开一个门）；否：宿主自己删（绕过主人，S-35 的「只经主人」） |
+| 2026-10-18 | 灵光加 `lingguang.revert {id, expected_updated_at}`，`create.undo` 指向它：别处改过以后撤销被主人按版本拒绝，不删也不改（统筹条件②）。Todo 已有按版本拒绝的 `todo.items.revert` | 否：用现成的 `lingguang.discard`（不带版本，别处改过也照删） |
+| 2026-10-18 | 只有规则、没有判断时，一段文字（`range`、`block`、`blocks`）的推荐位里放排名最高的一个去处，占最后一个主位；一个词或整个对象照旧（quick-create §6.1）。按内容挑去处（「像待办」就推待办）留给判断 | 否：去处一律进「更多」（只有规则时创建入口永远看不到）；否：一个词也推（「在项目里查找」被挤出主位） |
+| 2026-10-18 | SDK：片段动作的 offers 查询可以没有自己的选项，条件是它是本插件某个创建入口或追加的 `prepare`（`inspectContextDeclarations`） | 否：给 Todo、灵光留一个假选项（浮条上同一件事出现两次） |
 | 2026-10-16 | 选区旁的浮条显示前，在锚点中心做一次命中测试：落在助理面板或右栏里、而选区又不在这块面板里，浮条先不出；盖住它的面板一收起，浮条回来。不按宽度分支，只改 `context-bar.ts`，不碰 design-system 的浮条组件；选中的内容照旧在情境条上（统筹 10-16 定） | 否：390px 以下一律不出浮条（宽屏的浮动面板同样会盖住选区，按宽度分支漏掉它）；否：把浮条压到面板下面（浮条指着一段看不见的文字） |
 
 ### 21.6 进度与证据
@@ -1383,6 +1388,14 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 由此左边的落点对右栏格里的选区也成立：浮条给出「插入到光标处」；在左边选中时浮条回到左边；右栏收起后框看不见，总线照旧放下手上的东西，格里的浮条随之收起。
   - 没做：在格里的浮条上悬停「放进去」时，左边的落点不闪（分屏窗格的浮条今天也不闪：窗格报的保位只带浮条上的键，不带菜单的），记作后续 W3-C2（§21.4）。
   - 用例：`tests/security-invariants-pane-messages.test.ts`「S-30 AC-S04 …」（真的工厂脚本跑在一个小页面上：不是右栏插件框也不是分屏窗格发来的焦点被丢掉、不问 Host、哪里都不画浮条；Shelf 框发来的标上右栏与格、只让那个框画）、`tests/side-shelf-in-hand.e2e.test.ts`（W3-C AC-S04，Shelf 格里选中一段材料，左边是 Pages 的光标）。
+- 2026-10-18 W4-1 创建入口：记成待办、记下灵光（分支 `context/w4-1-intake-todo-lingguang`；统筹 10-18 认可，带四个条件）：
+  - Todo 的 `todo.items.create` 与灵光的 `lingguang.create` 声明 `intake`（`prepare` 是各自的 `*.fragment.offers`，不经模型）；两个旧的片段动作选项连同只有它们用的代码删掉（页面上没有只给它们的文案、事件与翻译键）。灵光加 `lingguang.revert`，`create.undo` 指向它。
+  - 宿主 `POST /api/contextual/create`（`apps/local-host/src/contextual/contextual-create.ts`）：起草后按声明决定；能直接建的条件与助理相同（`directEligible`：撤销此刻可用），再加不是 `proposes`、不是 `multiple`、没有缺的字段。直接建时以本人的权限调用、返回建好的对象与撤销令牌；否则返回草稿，页面出卡片。`POST /api/contextual/undo` 花掉令牌。
+  - 页面（`context-bus.ts` 的 `create`）：同一个选区与入口复用同一个请求号（连点两次只建一个，主人按请求号去重），在途时第二次点击不发；完成卡片用落点的卡片，「打开」走 `describe` + `openObject`，「撤销」失败时卡片说「没能撤销」。
+  - 顺带修好：Goals「拆成目标步骤」的提案条目号原来固定是 `step-1` 一类，同一个项目的第二份提案被拒；改成按请求号区分（`plugins/native/goals/src/fragment-offers.ts`）。
+  - 动作合同快照：Todo、灵光几个动作的 `traits` 哈希变了，输入输出 schema 不变，不升版本；新增 `lingguang.revert@1`（MCP 工具多一个）。
+  - 页面资源：`workbench.js` +1,158 字节，一次性放行（`APPROVED_CEILINGS`，理由与试过的写在 `scripts/gates/page-assets.mjs`）。
+  - 用例：`tests/contextual-create.test.ts`（真 Host：两个入口直接建、一次请求只建一个、别处改过后撤销被拒且不删不改、令牌只能用一次、别的项目的令牌被拒；假目录：没有撤销、提案、多个、缺字段都出卡片，只调 `prepare`）、`tests/plugin-context-declarations.test.ts`、`tests/contextual-destinations.test.ts`（只有规则时一段文字一个去处、一个词没有）、`tests/contextual-fragment-offers.test.ts`（同项目第二份拆分提案）、`tests/contextual-todo.e2e.test.ts`（连点、重选、改后撤销被拒、撤销、打开）；原来用「记成待办」「记下灵光」的三个浏览器用例改用「拆成目标步骤」。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

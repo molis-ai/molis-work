@@ -621,7 +621,8 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // Receipts 3d-2 (#688, RCPT-344–348) took Coding's bundle and the workbench script from the next two; receipts 3d-3 replaced that allowance.
 // Receipts 3d-3 (#700, RCPT-349–353) took Coding's bundle, both stylesheets and the workbench script from the next four; AC-03 (R4) replaced that allowance.
 // AC-03 (#702, specs/ai-interaction-experience R4) took the workbench script from the last size; receipts 3d-4 replaced that allowance,
-// and W3-C replaced receipts 3d-4's.
+// and W3-C replaced receipts 3d-4's. W3-C (#712, specs/side-shelf AC-S04) took the workbench script from the last size; W4-1
+// replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -641,6 +642,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-plugins/coding.js", 373970], ["/assets/molis-work-settings.css", 988484], ["/assets/molis-work-workbench.css", 1591639],
   ["/assets/molis-work-workbench.js", 1109302],
   ["/assets/molis-work-workbench.js", 1109312], ["/assets/molis-work-workbench.js", 1109918], ["/assets/molis-work-workbench.js", 1109913],
+  ["/assets/molis-work-workbench.js", 1110056],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -653,26 +655,25 @@ for (const [asset, old] of [
   });
 }
 
-// W3-C (specs/context-program §21.4, §21.6; specs/side-shelf AC-S04): the page's context bus takes a side tab's messages through
-// the one side-frame check, which then ships twice in the workbench script; for the coordinator's review it may grow once,
-// from exactly the current baseline to the measured size (+273). One byte more, another asset, or growth from the new baseline
-// still fails.
-test("W3-C has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const asset = "/assets/molis-work-workbench.js", [from, to] = [1110056, 1110329];
-  branch("w3c-side-base", () => { sizes[asset] = from; putBudget(sizes); });
-  git("checkout", "-q", "-B", "w3c-side-change");
+// W4-1 (specs/context-program §21.4, §21.6; quick-create §8 point 3): the bar makes a creation entry at once and shows its
+// completion card with 「打开」 and 「撤销」; for the coordinator's review the workbench script may grow once, from exactly the
+// current baseline to the measured size (+1,158). One byte more, another asset, or growth from the new baseline still fails.
+test("W4-1 has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
+  const asset = "/assets/molis-work-workbench.js", [from, to] = [1110329, 1111487];
+  branch("w4-1-base", () => { sizes[asset] = from; putBudget(sizes); });
+  git("checkout", "-q", "-B", "w4-1-change");
   sizes[asset] = to;
-  assert.equal(gate("--update", "--base", "w3c-side-base").code, 0);
-  assert.equal(gate("--base", "w3c-side-base").code, 0);
+  assert.equal(gate("--update", "--base", "w4-1-base").code, 0);
+  assert.equal(gate("--base", "w4-1-base").code, 0);
   sizes[asset]++;
-  assert.equal(gate("--update", "--base", "w3c-side-base").code, 1, "one byte over its allowance");
+  assert.equal(gate("--update", "--base", "w4-1-base").code, 1, "one byte over its allowance");
   sizes[asset]--;
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "w3c-side-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "w3c-side-base").code, 0);
-  commit("freeze the measured W3-C size"); git("branch", "-f", "w3c-side-frozen");
+  assert.equal(gate("--update", "--base", "w4-1-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "w4-1-base").code, 0);
+  commit("freeze the measured W4-1 size"); git("branch", "-f", "w4-1-frozen");
   sizes[asset]++; putBudget(sizes);
-  assert.equal(gate("--base", "w3c-side-frozen").code, 1, "the new baseline has no allowance");
-  assert.equal(gate("--update", "--base", "w3c-side-frozen").code, 1);
+  assert.equal(gate("--base", "w4-1-frozen").code, 1, "the new baseline has no allowance");
+  assert.equal(gate("--update", "--base", "w4-1-frozen").code, 1);
   sizes[asset]--; putBudget(sizes);
 });

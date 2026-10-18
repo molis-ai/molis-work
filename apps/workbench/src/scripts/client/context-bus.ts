@@ -13,9 +13,8 @@
  * - `watch`: a surface that goes out of sight voids what was in hand there, looked for only while something is in hand.
  * - `signal`: what the person did with an offered action, for the memory to count (its capability and title, never the
  *   content). Nothing waits on it and nothing breaks without it.
- * - `choose`: a creation entry (`intake.`) is drafted and made at once when its owner declared how it is undone, and the
- *   completion card offers 「打开」 and 「撤销」 (the undo stays on the Host behind a token); without an undo it is a card. Any other
- *   write goes to the Assistant as a prepared card; when no page here takes the choice (several objects, or a
+ * - `choose`: a creation entry is made at once when its owner can undo it (`create`), else it is a card. Any other write goes
+ *   to the Assistant as a prepared card; when no page here takes the choice (several objects, or a
  *   surface without its own handler) it is a card too, and only when even that fails the Assistant gets what is in hand. A card carries the exact action and its complete input; the Assistant runs it only when the person clicks,
  *   and the click places it (POST /api/assistant/cards) and opens the panel on that work.
  * - `starters` (spec §6.4.2): what the directory offers for the whole object open now, by rules only (no judgment for opening
@@ -122,9 +121,10 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     if (fallback) prepared().then((offer) => suggestCard(focus, candidate, offer)).catch(() => openAssistant(fallback));
   };
   // A choice from the row or a starter alike: into the object open on the left, its owner previews it at the landing
-  // (context-landing.ts; an attach is a record too, so it goes first); a word looked up across the project opens in the
-  // search palette; a write goes to the Assistant as a prepared card, which the person sees and confirms there. Anything
-  // else is the caller's to hand over, with the prepare call it needs.
+  // (context-landing.ts; an attach is a record too, so it goes first); a creation entry is made at once or drafted for a
+  // card (create); a word looked up across the project opens in the search palette; a write goes to the Assistant as a
+  // prepared card, which the person sees and confirms there. Anything else is the caller's to hand over, with the prepare
+  // call it needs.
   const settle = (focus, candidate, pane) => {
     bus.recent = [candidate.title, ...bus.recent.filter((title) => title !== candidate.title)].slice(0, 3);
     const prepared = () => post("/api/contextual/prepare", { pane_id: pane, focus, key: candidate.key, request_id: newRequestId() });
@@ -135,13 +135,14 @@ export const CONTEXT_BUS_SCRIPT = String.raw`  const bus = {
     else return prepared;
     return null;
   };
-  // A creation entry: made at once when its owner can undo it, the result offering 「打开」 and 「撤销」; else a card. Choosing it
-  // again for the same thing sends the same request, which its owner makes once.
+  // A creation entry (intake.): drafted on the Host and made at once when its owner declared how it is undone; the completion
+  // card offers 「打开」 and 「撤销」, whose undo stays on the Host behind a token. Without an undo it comes back as a draft, shown
+  // as a card. Choosing it again for the same thing sends the same request, which its owner makes once.
   const made = new Map();
   const create = (focus, candidate) => {
     const id = focus.context_id + "\n" + candidate.key, held = made.get(id) || { request_id: newRequestId() };
     if (held.busy) return;
-    made.delete(id); made.set(id, held); held.busy = true;
+    made.set(id, held); held.busy = true;
     if (made.size > 20) made.delete(made.keys().next().value);
     post("/api/contextual/create", { focus, ...landing.with(focus), key: candidate.key, request_id: held.request_id }).then((out) => {
       if (!out.created) { made.delete(id); return suggestCard(focus, candidate, out.draft); }

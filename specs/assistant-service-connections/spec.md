@@ -2,9 +2,9 @@
 
 预算续授权（2026-10-17）：一骏在累计 636/640 次后明确将同一 MiniMax 的累计上限提高到 680，补完远程 MCP 等待中改为只读的任务；前 636 次和全部失败保留，新增结束检查、压缩等请求同样计入。不换模型，不扩到无关任务。
 
-状态：实施中（2026-10-17）。已完成本轮远程 MCP 保存与改意图只读、Token、CLI、官方 npm/Python、本机 HTTP、Coding 复用和 UI 的真实路径验证；模型累计 663/680，本轮停止新增调用。[PR #661](https://github.com/molis-ai/molis-work/pull/661) 承载本功能，OAuth 代码核查后已转为正式评审，本次按一骏要求同步 main 并处理 PR 评论。代码核查发现的旧授权回调及刷新写回竞态已修复，新增拒绝回归通过；旧提交的常规 CI 全部通过；本轮三次 main 同步至 `c31291c34` 后，相关批次去重 93 个文件、775 项（含 13 个 Chrome 文件）通过，更新后的集成证据见[覆盖表](coverage.md#当前验证与剩余事项)。整功能 full-suite 仍待统筹安排，整体尚不宣称「内部完整」。OAuth 真实账号验收按一骏决定本次暂缓，模型附加说明错误另列。负责人：Codex（设计、实现与验证）。
+状态：实施中（2026-10-18）。[PR #661](https://github.com/molis-ai/molis-work/pull/661) 保留为一个集成 PR，统筹审查的安装、旧 MCP 凭据维护、工具改名说明及安全编号问题均已修订；当前同步 main `a19524f58`（含 #634、#709、#711）。修订前常规 CI 全绿；修订的 66 个定向文件、526 项通过，历史与当前集成证据见[覆盖表](coverage.md#当前验证与剩余事项)，新 head 的回归与 CI 结果随 PR 评论记录。远程 MCP 保存与改意图只读、Token、CLI、官方 npm/Python、本机 HTTP、Coding 复用和 UI 的既有真实路径证据保留；模型累计 663/680，本轮未新增调用。整功能 full-suite 仍待统筹安排，整体尚不宣称「内部完整」。OAuth 真实账号验收按一骏决定暂缓，模型附加说明错误另列。负责人：Codex（设计、实现与验证）。
 
-本轮交付目标为「内部完整」：用户能在个人助理对话中完成接入，在必要的登录或授权界面完成本人操作后，回到同一任务，让助理真实调用服务并交付结果。保存配置、登录成功、列出工具和工程测试通过，都不能单独证明这个目标完成。开发基线现同步到 `c31291c34`，含统一 SDK #650、事实结束检查 #629、委派起跑恢复 #648、分屏消息检查 #651、交互手册 #655，以及后续 P4 后台作业、子任务交回、回执撤回/纠正和重启后回答，分支 `feature/assistant-service-connections`；不改主检出或真实 Home。
+本轮交付目标为「内部完整」：用户能在个人助理对话中完成接入，在必要的登录或授权界面完成本人操作后，回到同一任务，让助理真实调用服务并交付结果。保存配置、登录成功、列出工具和工程测试通过，都不能单独证明这个目标完成。开发基线现同步到 `a19524f58`，含统一 SDK #650、事实结束检查 #629、委派起跑恢复 #648、分屏消息检查 #651、交互手册 #655，以及后续 P4 后台作业、子任务交回、回执撤回/纠正和重启后回答，分支 `feature/assistant-service-connections`；不改主检出或真实 Home。
 
 2026-10-17 集成决定：采用已合入的统一 SDK #650 及主线 #629 的事实结束检查，继续使用同一 MiniMax，不保留本分支对旧措辞列表的局部修补。保留可打开的受保护接入链接、链接显示文字中的内部标识检查，以及 ASC-28/ASC-34 的真实接续与业务结果要求。已完成原基线的凭据界面复测；同步主线时保留连接等待与新版委派起跑恢复，更新结构化模型替身以独立回答结束检查，业务调用和结果断言不变。随后整体构建并验证相关业务与结束检查，界面补齐 1440/1024/390 的浅深两色；最终答复质量仍须获准预算下的真实任务证明。整体目标与 OAuth 本次暂不验收的决定不变。
 
@@ -12,7 +12,7 @@
 
 2026-10-18 统筹结论（[审查及用户决定](https://github.com/molis-ai/molis-work/pull/661#issuecomment-6246058612)）：#661 保留为一个集成 PR，完成下述修订并同步已合入 #634、#709 的 main 后，由统筹复核最终 head、安排一次 full-suite。用户接受 `images.connections.list` 从 v1 升 v2，外部 MCP 工具名由 `images.connections.list__v1` 改为 `images.connections.list__v2`，旧名停用，调用方须改用新名。
 
-本轮修订沿用 ASC-07、ASC-14、ASC-22：HubSpot [官方安装脚本](https://api.hubapi.com/hub/cli/backend/hub-cli/latest/install.sh) 已明确忽略 `HUBSPOT_VERSION`、只下载 `latest`，[官方版本页](https://github.com/HubSpot/agent-cli/releases) 没有可固定版本的二进制附件，因此移除 HubSpot 的受管安装适配及安装下载源许可，保留已有 CLI 的登录、账号检测和业务读取。准备受管安装时须在下载、建立请求或安装目录前明确拒绝；由 `tests/security-invariants-native-cli.test.ts` 验证拒绝错误码、零下载及无连接/安装副作用，既有 CLI 路径由 `tests/connector-cli.test.ts` 验证。同时补充 stdio MCP 的 Java、Ruby、Perl 加载环境变量拒绝项（`JAVA_TOOL_OPTIONS`、`_JAVA_OPTIONS`、`RUBYOPT`、`PERL5OPT`），由 `tests/security-invariants-local-mcp.test.ts` 逐项断言启动前拒绝；外部 MCP 无权限重连用例明确断言 `actions.forbidden`。旧 HTTP MCP 的 Prologue `credential_ref` 不加读取兼容，归维护八与连接库 1→2 同次处理，细节登记在防腐 spec §4.1；安全编号待 main 合入后按空号顺延，文档与用例同步。PowerShell 的 Graph 模块只由 PSGallery 固定版本，未另校验文件摘要，此边界不计为与原生发行物同等的校验和保证。
+本轮修订沿用 ASC-07、ASC-14、ASC-22：HubSpot [官方安装脚本](https://api.hubapi.com/hub/cli/backend/hub-cli/latest/install.sh) 已明确忽略 `HUBSPOT_VERSION`、只下载 `latest`，[官方版本页](https://github.com/HubSpot/agent-cli/releases) 没有可固定版本的二进制附件，因此移除 HubSpot 的受管安装适配及安装下载源许可，保留已有 CLI 的登录、账号检测和业务读取。准备受管安装时须在下载、建立请求或安装目录前明确拒绝；由 `tests/security-invariants-native-cli.test.ts` 验证拒绝错误码、零下载及无连接/安装副作用，既有 CLI 路径由 `tests/connector-cli.test.ts` 验证。同时补充 stdio MCP 的 Java、Ruby、Perl 加载环境变量拒绝项（`JAVA_TOOL_OPTIONS`、`_JAVA_OPTIONS`、`RUBYOPT`、`PERL5OPT`），由 `tests/security-invariants-local-mcp.test.ts` 逐项断言启动前拒绝；外部 MCP 无权限重连用例明确断言 `actions.forbidden`。旧 HTTP MCP 的 Prologue `credential_ref` 不加读取兼容，归维护八与连接库 1→2 同次处理，细节登记在防腐 spec §4.1；安全编号保留主线 S-35，本功能安装/跨入口 MCP 为 S-36、接入意图为 S-37，文档与用例同步。PowerShell 的 Graph 模块只由 PSGallery 固定版本，未另校验文件摘要，此边界不计为与原生发行物同等的校验和保证。
 
 用户希望把 Molis Work 中已经接入的服务交给个人助理使用，也能直接说“帮我接入这个服务”，提供服务名、MCP 地址或安装说明，由助理完成检查、选择方式、安装、配置、连接、验证及后续管理。用户只在必须本人登录、填写凭据、选择账号或批准新增权限时介入。
 

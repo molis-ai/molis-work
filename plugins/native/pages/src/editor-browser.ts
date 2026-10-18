@@ -1,28 +1,26 @@
-import { hoverKey, dropSelectedBlock, runBlockCommand, hoveredGroup, dropHoveredGroup, duplicateHoveredGroup, nudgeEditor } from "./editor-block-selection.js";
+import { pagesKeymap, commandToggle } from "./editor-keyboard.js";
+import { hoverKey, runBlockCommand, hoveredGroup } from "./editor-block-selection.js";
 import { openEditorComment } from "./editor-comments.js";
-import { baseKeymap, chainCommands, setBlockType } from "prosemirror-commands";
+import { baseKeymap, setBlockType } from "prosemirror-commands";
 import { dropCursor } from "prosemirror-dropcursor";
 import { gapCursor } from "prosemirror-gapcursor";
-import { history, redo, undo } from "prosemirror-history";
-import { undoInputRule } from "prosemirror-inputrules";
-import { confirmCodeFence, pagesInputRules } from "./input-rules.js";
+import { history } from "prosemirror-history";
+import { pagesInputRules } from "./input-rules.js";
 import { keymap } from "prosemirror-keymap";
 import { DOMSerializer, Fragment, Node } from "prosemirror-model";
-import { splitListItem } from "prosemirror-schema-list";
 import { Command, EditorState, NodeSelection, Plugin, TextSelection, Transaction } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { applyPagesActions, endPagesTransients, ownPagesTransient } from "./editor-transient.js";
 import { fillStaticIndexes } from "./card-content.js";
-import { blockPos, duplicateEnclosingRow, enterHeading, enterInToggle, exitWrappedBlock, indentListItem, indentUnderPrevious, insertCodeIndent, insertHardBreak, leaveCodeDown, leaveEmptyCodeLine, leaveCodeUp, continuePastEnd, continueBeforeStart, focusBelowContent, selectNeighborAtom, linkAt, moveColumnEdge, outdentListItem, outdentFromContainer, removeCodeIndent, revealHeading, headingIndexAt, listKindAt, headingLevelAt, applyListSelection, applyHeading, selectBlockThenAll, selectEnclosingBlock, replaceSelectedBlock, replaceSpan, docStart, tripleClickSelection, moveSelectedBlock, collapseSelectedBlock, insertAfterSelectedBlock, insertAfterSpan, hardBreakAtSpanEnd, popEscape, blockSpanToRow, splitTaskItem, setCalloutStyle, toggleTaskChecked, toggleTaskGroup, setLink, setTone, toggleInlineMark, toggleSpanMark, markCovers, toneAt, turnRowInto, turnGroup, clearSpanMarks, clearInlineMarks, collapseEmptyColumn, commentAt, setComment, unwrapAtStart } from "./commands.js";
+import { blockPos, focusBelowContent, linkAt, revealHeading, headingIndexAt, listKindAt, headingLevelAt, applyListSelection, applyHeading, selectEnclosingBlock, replaceSelectedBlock, replaceSpan, docStart, tripleClickSelection, popEscape, blockSpanToRow, splitTaskItem, setCalloutStyle, toggleTaskChecked, toggleTaskGroup, setLink, setTone, markCovers, toneAt, commentAt, setComment } from "./commands.js";
 import { bookmarkLabel, linkClickOpens, safePagesHref } from "./link.js";
 import { calloutIconFor, PAGES_CALLOUT_ICONS, safePagesCalloutTone } from "./callout.js";
-import { findPlugin, openFind } from "./editor-find.js";
+import { findPlugin } from "./editor-find.js";
 import { slashPlugin, mentionPlugin, paragraphNode } from "./editor-insert-menu.js";
 import { chromePlugin } from "./editor-gap.js";
 import { handlePaste, handleDrop, handleDragOver, writeSpanClipboard } from "./editor-paste.js";
 import { followScroll, placeOverlay, type FloatingAnchor } from "@molis-ai/molis-work-design-system/floating";
 import { nodesToMarkdown } from "./to-markdown.js";
-import { addTableRow, atLastTableCell, moveTableColumn, moveTableEdge, tableHit } from "./table-edit.js";
 import { PAGES_TONES } from "./tone.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
 import { applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen } from "./focus.js";
@@ -40,21 +38,6 @@ export { emptyDoc, pagesSchema };
 export { applyToPagesFrozen, freezePagesFocus, readPagesFocus, releasePagesFrozen, resolvePagesFrozen, type PagesFocus, type FrozenPagesFocus } from "./focus.js";
 export { mountPagesLanding } from "./landing-editor.js";
 export type { PagesEditorHandle, PagesToolItem, PagesToolGroup, PagesCommandPreset, PagesListItem, PagesEditorMountOptions } from "./editor-types.js";
-
-function commandToggle(markName: string): Command {
-  return (state, dispatch, editor) => {
-    if (editor) {
-      const group = hoveredGroup(editor);
-      if (group) {
-        const tr = toggleSpanMark(state, group.anchor, group.head, markName);
-        if (!tr) return false;
-        if (dispatch) dispatch(tr.scrollIntoView());
-        return true;
-      }
-    }
-    return toggleInlineMark(markName)(state, dispatch);
-  };
-}
 
 /** The document as Markdown, the same conversion the server uses when it hands a page to another plugin. */
 export function toMarkdown(value: unknown): string {
@@ -81,21 +64,6 @@ function headingCommand(level: 1 | 2 | 3): Command {
     }
     return setBlockType(pagesSchema.nodes.heading, { level })(state, dispatch);
   };
-}
-
-function applySelected(tr: Transaction | null, dispatch?: (tr: Transaction) => void): boolean {
-  if (!tr) return false;
-  if (dispatch && (tr.docChanged || tr.selectionSet)) dispatch(tr.scrollIntoView());
-  return true;
-}
-
-function nudgeTableColumn(view: EditorView, direction: -1 | 1): boolean {
-  if (!tableHit(view.state)) return false;
-  const moved = moveTableColumn(view.state, direction);
-  if (!moved) return true;
-  view.dispatch(moved.scrollIntoView());
-  view.focus();
-  return true;
 }
 
 function calendarPlugin() {
@@ -194,26 +162,6 @@ function tocPlugin(translate: Translate | undefined) {
       return { update: paint };
     },
   });
-}
-
-function cellNav(view: EditorView, dir: 1 | -1): boolean {
-  if (dir > 0 && atLastTableCell(view.state)) {
-    const tr = addTableRow(view.state);
-    if (!tr) return false;
-    view.dispatch(tr.scrollIntoView());
-    return true;
-  }
-  const $from = view.state.selection.$from;
-  let depth = $from.depth;
-  while (depth > 0 && $from.node(depth).type.name !== "table_cell" && $from.node(depth).type.name !== "table_header") {
-    depth -= 1;
-  }
-  if (depth === 0) return false;
-  const cellPos = dir > 0 ? $from.after(depth) : $from.before(depth);
-  const found = TextSelection.findFrom(view.state.doc.resolve(cellPos), dir, true);
-  if (!found) return false;
-  view.dispatch(view.state.tr.setSelection(found).scrollIntoView());
-  return true;
 }
 
 function applyComment(view: EditorView, from: number, to: number, text: string, id?: string): void {
@@ -615,196 +563,12 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     }
   };
 
-  const listItem = pagesSchema.nodes.list_item;
   let view!: EditorView;
-  const turnCurrent = (id: string) => {
-    const group = hoveredGroup(view);
-    const grouped = group ? turnGroup(view.state, group.anchor, group.head, id) : null;
-    if (grouped) {
-      view.dispatch(grouped.scrollIntoView());
-      view.focus();
-      return true;
-    }
-    let tr: Transaction | null = null;
-    if (id === "heading1" || id === "heading2" || id === "heading3") {
-      tr = applyHeading(view.state, Number(id.slice(-1)) as 1 | 2 | 3);
-    } else if (id === "bullet_list" || id === "ordered_list" || id === "task_list") {
-      tr = applyListSelection(view.state, id);
-    }
-    if (!tr) tr = turnRowInto(view.state, id);
-    if (!tr) return false;
-    view.dispatch(tr.scrollIntoView());
-    view.focus();
-    return true;
-  };
   const plugins = [
     history(),
     slashPlugin(options.translate),
     mentionPlugin(options),
-    keymap({
-      "Mod-z": undo,
-      "Mod-y": redo,
-      "Mod-Shift-z": redo,
-      "Mod-c": (state, _dispatch, editor) => {
-        if (state.selection.empty || !editor) return false;
-        return document.execCommand("copy");
-      },
-      "Mod-x": (state, _dispatch, editor) => {
-        if (state.selection.empty || !editor) return false;
-        return document.execCommand("cut");
-      },
-      "Mod-b": commandToggle("strong"),
-      "Mod-i": commandToggle("em"),
-      "Mod-u": commandToggle("underline"),
-      "Mod-e": commandToggle("code"),
-      "Mod-Shift-x": commandToggle("strike"),
-      "Mod-k": () => {
-        openLink(view);
-        return true;
-      },
-      "Mod-f": (_state, _dispatch, editor) => {
-        if (!editor) return false;
-        openFind(editor);
-        return true;
-      },
-      "Shift-Enter": (state, dispatch, editor) => {
-        const group = editor ? hoveredGroup(editor) : null;
-        if (group) {
-          const tr = hardBreakAtSpanEnd(state, group.anchor, group.head);
-          if (tr && dispatch) dispatch(tr);
-          return true;
-        }
-        return insertHardBreak(state, dispatch);
-      },
-      "Mod-d": () => {
-        if (duplicateHoveredGroup(view)) return true;
-        const tr = duplicateEnclosingRow(view.state);
-        if (!tr) return false;
-        view.dispatch(tr.scrollIntoView());
-        view.focus();
-        return true;
-      },
-      "Mod-Enter": (state, dispatch, editor) => {
-        if (editor) {
-          const group = hoveredGroup(editor);
-          const flipped = group ? toggleTaskGroup(state, group.anchor, group.head) : null;
-          if (flipped) {
-            if (dispatch) dispatch(flipped.scrollIntoView());
-            return true;
-          }
-        }
-        return toggleTaskChecked(state, dispatch);
-      },
-      "Mod-Alt-0": () => turnCurrent("paragraph"),
-      "Mod-Alt-1": () => turnCurrent("heading1"),
-      "Mod-Alt-2": () => turnCurrent("heading2"),
-      "Mod-Alt-3": () => turnCurrent("heading3"),
-      "Mod-Shift-8": () => turnCurrent("bullet_list"),
-      "Mod-Shift-7": () => turnCurrent("ordered_list"),
-      "Mod-Shift-9": () => turnCurrent("task_list"),
-      Enter: chainCommands(
-        confirmCodeFence,
-        (state, dispatch, editorView) => {
-          const group = editorView ? hoveredGroup(editorView) : null;
-          if (!group) return false;
-          const tr = insertAfterSpan(state, group.anchor, group.head);
-          if (!tr) return false;
-          if (dispatch) dispatch(tr.setMeta(hoverKey, { span: null }));
-          return true;
-        },
-        (state, dispatch) => applySelected(insertAfterSelectedBlock(state), dispatch),
-        leaveEmptyCodeLine,
-        enterInToggle,
-        exitWrappedBlock,
-        splitListItem(listItem),
-        enterHeading,
-      ),
-      Backspace: (state, dispatch, editor) => {
-        if (editor && dropHoveredGroup(editor)) return true;
-        return chainCommands(undoInputRule, dropSelectedBlock, moveTableEdge("left"), collapseEmptyColumn, unwrapAtStart, baseKeymap.Backspace)(state, dispatch, editor);
-      },
-      Delete: (state, dispatch, editor) => {
-        if (editor && dropHoveredGroup(editor)) return true;
-        return chainCommands(dropSelectedBlock, moveTableEdge("right"), baseKeymap.Delete)(state, dispatch, editor);
-      },
-      "Mod-\\": (state, dispatch, editor) => {
-        if (editor) {
-          const group = hoveredGroup(editor);
-          if (group) {
-            const tr = clearSpanMarks(state, group.anchor, group.head);
-            if (!tr) return false;
-            if (dispatch) dispatch(tr.scrollIntoView());
-            return true;
-          }
-        }
-        return clearInlineMarks(state, dispatch);
-      },
-      "Mod-a": selectBlockThenAll,
-      "Mod-Shift-ArrowUp": () => nudgeEditor(view, -1),
-      "Mod-Shift-ArrowDown": () => nudgeEditor(view, 1),
-      "Mod-Alt-ArrowLeft": () => nudgeTableColumn(view, -1),
-      "Mod-Alt-ArrowRight": () => nudgeTableColumn(view, 1),
-      ArrowLeft: (state, dispatch) => applySelected(collapseSelectedBlock(state, "start"), dispatch) || applySelected(selectNeighborAtom(state, -1), dispatch) || moveTableEdge("left")(state, dispatch) || moveColumnEdge("left")(state, dispatch),
-      ArrowRight: (state, dispatch) => applySelected(collapseSelectedBlock(state, "end"), dispatch) || applySelected(selectNeighborAtom(state, 1), dispatch) || moveTableEdge("right")(state, dispatch) || moveColumnEdge("right")(state, dispatch),
-      ArrowDown: (state, dispatch) => {
-        const moved = moveSelectedBlock(state, 1);
-        if (moved && (moved.docChanged || moved.selectionSet)) {
-          if (dispatch) dispatch(moved.scrollIntoView());
-          return true;
-        }
-        if (moved) {
-          const extra = continuePastEnd(state);
-          if (extra && dispatch) dispatch(extra);
-          return true;
-        }
-        if (moveTableEdge("down")(state, dispatch)) return true;
-        if (moveColumnEdge("down")(state, dispatch)) return true;
-        if (leaveCodeDown(state, dispatch)) return true;
-        if (applySelected(selectNeighborAtom(state, 1), dispatch)) return true;
-        const extra = continuePastEnd(state);
-        if (!extra) return false;
-        if (dispatch) dispatch(extra);
-        return true;
-      },
-      ArrowUp: (state, dispatch) => {
-        const moved = moveSelectedBlock(state, -1);
-        if (moved && (moved.docChanged || moved.selectionSet)) {
-          if (dispatch) dispatch(moved.scrollIntoView());
-          return true;
-        }
-        if (moved) {
-          const extra = continueBeforeStart(state);
-          if (extra && dispatch) dispatch(extra);
-          return true;
-        }
-        if (moveTableEdge("up")(state, dispatch)) return true;
-        if (moveColumnEdge("up")(state, dispatch)) return true;
-        if (leaveCodeUp(state, dispatch)) return true;
-        if (applySelected(selectNeighborAtom(state, -1), dispatch)) return true;
-        const extra = continueBeforeStart(state);
-        if (!extra) return false;
-        if (dispatch) dispatch(extra);
-        return true;
-      },
-      Tab: (state, dispatch, current) => {
-        if (current && cellNav(current, 1)) return true;
-        if (insertCodeIndent(state, dispatch)) return true;
-        if (indentListItem(state, dispatch)) return true;
-        const hover = current ? hoverKey.getState(current.state) : null;
-        const nested = indentUnderPrevious(state, hover && hover.anchor >= 0 ? hover.anchor : -1, hover && hover.head >= 0 ? hover.head : -1);
-        if (nested && dispatch) dispatch(nested.setMeta(hoverKey, { span: null }).scrollIntoView());
-        return true;
-      },
-      "Shift-Tab": (state, dispatch, current) => {
-        if (current && cellNav(current, -1)) return true;
-        if (removeCodeIndent(state, dispatch)) return true;
-        if (outdentListItem(state, dispatch)) return true;
-        const hover = current ? hoverKey.getState(current.state) : null;
-        const lifted = outdentFromContainer(state, hover && hover.anchor >= 0 ? hover.anchor : -1, hover && hover.head >= 0 ? hover.head : -1);
-        if (lifted && dispatch) dispatch(lifted.setMeta(hoverKey, { span: null }).scrollIntoView());
-        return true;
-      },
-    }),
+    pagesKeymap(openLink),
     keymap({ Enter: splitTaskItem }),
     keymap(baseKeymap),
     pagesInputRules(),

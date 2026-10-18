@@ -459,11 +459,13 @@ test("方向键碰到图片或横线会先选中那一块", () => {
   const pair = pagesSchema.node("doc", null, [text("甲"), text("乙")]);
   const between = EditorState.create({ schema: pagesSchema, doc: pair, selection: TextSelection.create(pair, 2) });
   assert.equal(selectNeighborAtom(between, 1), null);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  const down = editor.indexOf("leaveCodeDown(state, dispatch)");
-  const up = editor.indexOf("leaveCodeUp(state, dispatch)");
-  assert.ok(editor.indexOf("selectNeighborAtom(state, 1)", down) > down);
-  assert.ok(editor.indexOf("selectNeighborAtom(state, -1)", up) > up);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
+  assert.match(editor, /ArrowDown: verticalArrow\(1\)/);
+  assert.match(editor, /ArrowUp: verticalArrow\(-1\)/);
+  const vertical = editor.slice(editor.indexOf("function verticalArrow("), editor.indexOf("function tabKey("));
+  assert.match(vertical, /direction > 0 \? leaveCodeDown : leaveCodeUp/);
+  const leave = vertical.indexOf("leaveCode(state, dispatch)");
+  assert.ok(leave > 0 && vertical.indexOf("selectNeighborAtom(state, direction)") > leave);
 });
 
 test("点待办的勾选框会翻转这一条", () => {
@@ -1695,7 +1697,7 @@ test("折叠块标题按回车，后半段进到里面，关着的会打开", ()
   });
   assert.equal(run(caret(body, inside), enterInToggle).ok, false);
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
   const enter = editor.indexOf("Enter: chainCommands");
   const leave = editor.indexOf("exitWrappedBlock", enter);
   assert.ok(editor.indexOf("enterInToggle", enter) > enter);
@@ -1810,7 +1812,7 @@ test("Cmd+/ 打开光标所在块的菜单，Tab 留在编辑器里", () => {
     pagesSchema.node("callout", { tone: "cyan" }, [text("甲")]),
   ]);
   assert.equal(blockMenuTarget(callout, 2), 1);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
   const plugin = readFileSync(new URL("../plugins/native/pages/src/editor-block-plugin.ts", import.meta.url), "utf8");
   const handle = readFileSync(new URL("../plugins/native/pages/src/editor-block-handle.ts", import.meta.url), "utf8");
   const keys = plugin.indexOf("blockMenuShortcut(event.key");
@@ -1818,13 +1820,19 @@ test("Cmd+/ 打开光标所在块的菜单，Tab 留在编辑器里", () => {
   assert.ok(plugin.indexOf("openMenu: true", keys) > keys);
   const tick = handle.indexOf("hover.menuTick !== menuTick");
   assert.ok(handle.indexOf("openMenu()", tick) > tick);
-  const tab = editor.indexOf("Tab: (state, dispatch, current)");
-  const shift = editor.indexOf("\"Shift-Tab\":", tab);
-  assert.match(editor.slice(tab, shift), /indentListItem\(state, dispatch\)/);
-  assert.match(editor.slice(tab, shift), /indentUnderPrevious\(state,/);
-  assert.match(editor.slice(tab, shift), /return true/);
-  assert.match(editor.slice(shift, shift + 700), /outdentListItem\(state, dispatch\)/);
-  assert.match(editor.slice(shift, shift + 700), /outdentFromContainer\(state,/);
+  // W5-10-PGK-01: both directions use the same ordered Tab handler.
+  assert.match(editor, /Tab: tabKey\(1\)/);
+  assert.match(editor, /"Shift-Tab": tabKey\(-1\)/);
+  const tab = editor.slice(editor.indexOf("function tabKey("));
+  assert.match(tab, /direction > 0 \? insertCodeIndent : removeCodeIndent/);
+  assert.match(tab, /direction > 0 \? indentListItem : outdentListItem/);
+  assert.match(tab, /direction > 0 \? indentUnderPrevious : outdentFromContainer/);
+  const cell = tab.indexOf("cellNav(current, direction)");
+  const code = tab.indexOf("code(state, dispatch)");
+  const list = tab.indexOf("list(state, dispatch)");
+  const nest = tab.indexOf("nest(state,");
+  assert.ok(cell > 0 && code > cell && list > code && nest > list);
+  assert.match(tab.slice(nest), /if \(changed && dispatch\) dispatch\(changed\.setMeta\(hoverKey, \{ span: null \}\)\.scrollIntoView\(\)\);\s*return true;/);
 });
 
 test("握把跟着光标，鼠标停在别的块上时才让开", () => {
@@ -1906,7 +1914,7 @@ test("选中几块再删除或复制，动的是整组", () => {
   assert.equal(spanIsGroup(doc, 0, para("甲").nodeSize), true);
   assert.equal(spanIsGroup(doc, 0, 0), false);
   assert.equal(spanIsGroup(doc, -1, para("甲").nodeSize), false);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
   const backspace = editor.indexOf("dropHoveredGroup(editor)");
   const single = editor.indexOf("dropSelectedBlock, moveTableEdge(\"left\")");
   const duplicate = editor.indexOf("duplicateHoveredGroup(view)");
@@ -4184,7 +4192,7 @@ test("选中几块再按回车，空段落开在最后一块下面", () => {
   assert.equal(nested.doc.child(0).child(2).textContent, "");
   assert.equal(nested.doc.child(1).textContent, "丙");
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
   const enter = editor.indexOf("Enter: chainCommands(");
   const selected = editor.indexOf("insertAfterSelectedBlock(state)", enter);
   assert.ok(editor.indexOf("insertAfterSpan(state, group.anchor, group.head)", enter) > enter);
@@ -4213,7 +4221,7 @@ test("选中几块再按 Shift 回车，在最后一块末尾换行", () => {
   assert.equal(withLine.doc.child(1).textContent, "甲\n");
   assert.equal(withLine.doc.child(1).attrs.language, "typescript");
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
   assert.match(editor, /hardBreakAtSpanEnd\(state, group\.anchor, group\.head\)/);
   assert.ok(editor.indexOf("return insertHardBreak(state, dispatch)") > editor.indexOf("hardBreakAtSpanEnd(state, group.anchor, group.head)"));
 });

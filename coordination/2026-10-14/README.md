@@ -1097,3 +1097,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18：#706 全量红 2 个：coding-client-lifecycle（#706 挂载时取 host.receipts.step，改为用到时再取）、context-card-in-work W3-A3a（:46 菜单项点前消失，要对基线）。产品代码要改，下个 head 重跑全量；键 [1109913, 实测 ≤ +889]。
 - 10-18：#704（W2'-3，684a1ca3b，base main）审过，chain43 跑全量；rAF 合并报告在后台可能晚一步，真机见到再记 BL。
 - 10-18：#707（native-checks 加 cargo test，统筹 10-18 定；先修剪贴板用例并行偶发红）审过，merge-only。交互线 AC-08 查出 Coding coding.control-run 回合已结束时抛无码 Error（400），批准改成 defineErrorCodes 的 conflict 码，重跑全量。
+- 10-18：#707 已合（3edf9c91f），native-checks 从此真跑 cargo test。#704 全量在跑、#706 全量排队。采用线 AC-05 修复前 2/9 红、修复后 10/10 绿。

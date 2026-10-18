@@ -15,9 +15,9 @@ function shot(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return { png: png.toString("base64"), included_pids: [4], password_fields: 0, masked: 0, ...extra };
 }
 
-function desk(options: { nodes?: Node[]; truncated?: boolean; picture?: Record<string, unknown>; now?: () => number; calls?: Call[] } = {}): DeskContext {
+function desk(options: { nodes?: Node[]; truncated?: boolean; picture?: Record<string, unknown>; now?: () => number; calls?: Call[]; frame?: [number, number, number, number] } = {}): DeskContext {
   const state = { bundle_id: "com.apple.TextEdit", name: "TextEdit", pid: 4, active: true, hidden: false, front_pid: 4,
-    window: { title: "Notes", frame: [0, 0, 120, 80] as [number, number, number, number], window_id: 1, document: "" } };
+    window: { title: "Notes", frame: options.frame ?? [0, 0, 120, 80], window_id: 1, document: "" } };
   const nodes = options.nodes ?? [button];
   return {
     helper: { async call<T>(op: string, payload?: Record<string, unknown>): Promise<T> {
@@ -132,6 +132,15 @@ test("switching apps keeps that window's picture when the tree is not enough", a
   assert.equal(deliverDesktopAct(complete), undefined);
 
   await assert.rejects(() => acted(desk({ picture: shot({ password_fields: 1, masked: 0 }) }), app), /密码/);
+});
+
+test("CU-G08: a step whose tree is not enough hands the model a close crop of the action point", async () => {
+  const calls: Call[] = [];
+  const receipt = await acted(desk({ truncated: true, calls, frame: [0, 0, 800, 600] }), { what: "pointer", x: 400, y: 300, button: "left", clicks: 1 });
+  assert.equal(receipt.image_reason, "truncated");
+  const zoom = calls.find(call => call.op === "observe.screenshot" && call.payload?.scale === 2);
+  assert.ok(zoom);
+  assert.deepEqual(zoom.payload?.rect, [200, 150, 400, 300]);
 });
 
 test("CU-G11: a node can be named by name, role and name, or regular expression; an ambiguous name is refused", async () => {

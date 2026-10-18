@@ -9,6 +9,7 @@ import { refuseCapture, refuseDespiteWindowText, refuseLanding, refuseSelfApprov
 import { StepProgress, treeHash } from "./computer-progress.js";
 import { ocrText } from "./computer-ocr.js";
 import { windowMenuHint } from "./computer-windows.js";
+import { modelPicture } from "./computer-zoom.js";
 import type { ComputerRecords } from "./computer-records.js";
 import type { HelperConnection } from "./helper-connection.js";
 
@@ -365,7 +366,8 @@ export class ComputerDriver {
     if (step) note = this.progress.after({ action: step.action, signature: step.signature, beforeHash: step.beforeHash, afterHash: treeHash(rendered.text) });
     else this.progress.seen(rendered.text);
     const reason = modelImageReason(tree.nodes, rendered.cut);
-    return { tree: rendered.text + note, ...(reason && png ? { model_image: png, image_reason: reason } : {}) };
+    const modelImage = step ? await modelPicture(this.ctx, state, step.action, png, reason !== null) : png;
+    return { tree: rendered.text + note, ...(reason && modelImage ? { model_image: modelImage, image_reason: reason } : {}) };
   }
 
   private async switchApp(bundleId: string): Promise<Uint8Array | undefined> {

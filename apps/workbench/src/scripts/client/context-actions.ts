@@ -156,8 +156,10 @@ const PANE_PART = String.raw`  const L = host.translate;
       choose: (key) => say({ type: "workbench-context-action-choose", key }),
       assistant: () => say({ type: "workbench-context-assistant" }),
       dismiss: () => say({ type: "workbench-context-dismiss" }),
-      hold: (state) => say({ type: "workbench-context-hold", ...state }),
-      settled: () => say({ type: "workbench-context-hold", interacting: false, pinned: [] }),
+      // With the keys under the pointer on the bar and in its menu, for the top document to flash the landing (W3-C2).
+      hold: (state) => say({ type: "workbench-context-hold", ...state, pointed: toolbar.pointed() }),
+      // Nothing held, nothing under the pointer: the top document reads missing fields as that.
+      settled: () => say({ type: "workbench-context-hold" }),
     });
     document.addEventListener("molis:surface-focus", (event) => {
       shown = event.detail && typeof event.detail === "object" ? event.detail : null;

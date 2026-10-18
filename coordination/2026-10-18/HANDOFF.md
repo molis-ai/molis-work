@@ -23,16 +23,16 @@
 | PR | 线 | 现在 | 合进去还差什么 |
 | --- | --- | --- | --- |
 | #725 | 采用（C4：coding-base v12，删三句工具自己已经说清的话） | 全量绿了，已在合并队列第 1 位 | 等队列合入 |
-| #726 | 回执（3e-0b：7 个 Coding 角色列上 acknowledge-inputs，常量 WORKSPACE_PARENT_TOOLS） | 1152516e1 让 `tests/prologue-taskboard.test.ts` 稳定变红（interrupted 那段停下时是 ready，不是 running），已交回执线定性并修 | 新 head 核增量后重排全量 |
+| #726 | 回执（3e-0b：7 个 Coding 角色列上 acknowledge-inputs，常量 WORKSPACE_PARENT_TOOLS） | 3bf06ff60 审过：只改 `prologue-taskboard` 测试。原因是多一个工具让历史到了整理阈值，多出一个没有工具的请求；测试改成按事实停，断言没放宽。chain63 等空位 | 全量绿了自动入队 |
 | #720 | 情境（W3-C2 + Esc 的修复 `bus.hush()`） | 50b018acc 审过；等作者 merge main，按 `[1111791, 1111910]` 重新取键 | 新 head 核对后加 full-suite |
 | #708 | 交互（AC-08 两个页签答同一题） | 952e2628e 的产品修复审过；测试里的 1.5 秒等待要改成等「拒绝之后完成的那次会话读取」 | 新 head 核对后加 full-suite |
 | prologue#50 | 手册（todo 只在这一轮收得下时才提） | 已合进 Prologue main（dd639069c，10-18） | Molis 换包交给采用线，和批 B 合成一次 |
-| #728 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 281028f12 审过，要改一处（`keptWriteCheckers` 插进了 `workspaceGrants` 的文档注释和函数之间） | 新 head 核增量后加 full-suite |
+| #728 | 采用 A2-1（`agent.write_checkers.{list,save}.v1`） | 7cfb9f317 审过（只挪了 `keptWriteCheckers` 的位置），chain64 等空位 | 全量绿了自动入队 |
 | 待开 | 情境 W4-1（选中的文字直接记成 Todo 或灵光，带撤销提示） | 在做 | 开 PR，审过跑全量 |
 | 待开 | 手册 BL-163/T5 评测与处理（分支 `ai/bl163-ack-eval`） | 甲 96 跑在跑；乙按映射 v2 重跑 16 跑 | 开 PR；只改文档和提示词的话按规则判断要不要跑全量 |
 
 不在本交接里的：
-- #703、#727：防腐线 W5-01，Codex 在做，两个 PR 叠在一起。#703 10-18 晚已转为待审。
+- #703、#727：防腐线 W5-01，Codex 在做，两个 PR 叠在一起。#703 10-18 11:59 由本账号标成待审并直接入队，没经统筹、没跑全量。统筹已事后审（PR 评论里有三条不挡合并的记录）；合入后由后台任务用 workflow_dispatch 在 main 上补跑全量，结果要看并写回 #703。
 - #721：Computer Use 线，DeepSeek Harness 在做。10-18 晚已转为待审；按「合并一律经统筹」要审 diff、跑全量再入队。
 - #631、#156：jingxusandra-gif 的草稿。
 
@@ -155,6 +155,9 @@
 - 安全编号容易撞：开 PR 前看 main 上最大的 S 号，被别人先占了就往后顺延，并在 PR 里写明。
 - 本机只有一个浏览器槽。别的工具（DeepSeek Harness）在 computer-use 的工作树里跑过本机全量，把槽占了 30 多分钟，用户同意后统筹按 pid 停了它（10-18）。
 - `sleep` 在前台被 harness 拦着，要等就用后台 until 循环或 Monitor。
+- 草稿 PR 用 workflow_dispatch 手动触发的全量也占空位：`label-when-free2.zsh` 数的是全部在跑或排队的全量，所以统筹的标签链会排在它们后面。
+- PR 里多一个工具，可能让测试里的会话历史到整理阈值，多出一个没有工具的「选择保留历史」请求。按轮数写的假模型会因此错位，要按事实等（#726）。
+- product-subset 的作业名写着「not required yet」，但 `gate-and-queue.sh` 把它当失败，不入队。这是对的：它红了，多半是真问题（#726）。
 
 ## 5. 待定、留给接手的人
 

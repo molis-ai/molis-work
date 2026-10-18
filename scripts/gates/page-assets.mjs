@@ -235,13 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// One-time allowance for W5-01 (Todo on the Home runtime): the longer 「转为待办」 route adds 28 B to workbench.js.
-// Approved by the user on 2026-10-17; re-keyed after main 7faaa027c under the agreed merge-only synchronization rule.
-// Receipts 3d-4's [1109913, 1110802] is already spent on main; its old starting sizes remain refusal tests.
-// W3-C used 1110056→1110329 on main; this allowance preserves that result and adds only Todo's approved 28 B.
+// One-time allowance for receipts 3e-1 (#714, specs/ai-input-receipts §9.2): the Assistant's 「当前约定」 block, its list
+// in the shared receipt and their English add 1,434 B to workbench.js (the list's two notes were merged into one first).
+// Approved by the coordinator on 2026-10-18 under the 10-18 rule (under 10 KB, no new asset), keyed on main 0ffa9842d.
+// W5-01 used 1110329→1110357 on main; its old starting sizes remain refusal tests.
 // Only this exact starting size may grow once; the next baseline freezes again.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110329, 1110357],
+  "/assets/molis-work-workbench.js": [1110357, 1111791],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

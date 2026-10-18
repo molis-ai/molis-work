@@ -196,7 +196,7 @@
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
     "file plugins/native/coding/src/client.ts": 1638,
-    "file plugins/native/coding/src/styles.ts": 828,
+    "file plugins/native/coding/src/styles.ts": 812,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
@@ -751,7 +751,7 @@
     "plugin-module-import#plugins/native/shelf -> modules/shelf": 1,
     "lists#declared": 1
   },
-  "moduleRepositoryExportsTotal": 21,
+  "moduleRepositoryExportsTotal": 16,
   "moduleRepositoryExports": {
     "modules/artifacts#member:ArtifactsModule.repository": 1,
     "modules/artifacts#member:ProcessItemsModule.repository": 1,
@@ -764,14 +764,9 @@
     "modules/goals#member:GoalsModule.repository": 1,
     "modules/goals#member:GoalsQueryService.repository": 1,
     "modules/goals#export:GoalsRepository": 1,
-    "modules/governance-collaboration#member:GovernanceCollaborationModule.repository": 1,
-    "modules/governance-collaboration#export:GovernanceRepository": 1,
-    "modules/governance-collaboration#export:GovernanceRecordStore": 1,
     "modules/private-work-context#export:createSessionContentStore": 1,
     "modules/private-work-context#export:SessionContentStore": 1,
     "modules/private-work-context#export:RuntimeContextBindingRepository": 1,
-    "modules/projects#member:ProjectsModule.repository": 1,
-    "modules/projects#export:ProjectsRepository": 1,
     "modules/shelf#export:ShelfStore": 1,
     "modules/shelf#export:openShelfStore": 1
   },

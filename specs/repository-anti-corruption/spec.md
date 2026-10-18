@@ -6,6 +6,15 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+
+W5-08 Module 存储出口第一片（2026-10-17，Codex，本地定向通过，待队列与 CI）：按路线图先收 Projects 与 Governance 两个 Module。当前 `repository` 是公开成员，包入口还导出 `ProjectsRepository`、`GovernanceRepository`、`GovernanceRecordStore`；生产调用已经使用 `query` / `commands` / `lifecycle` / `records` / `decisions`，只有两个测试直接构造 Governance Store。这些出口允许调用方绕过 Module 的业务入口，且不再承担装配需求。目标为功能可用：把 Repository 保留为构造期局部实例供既有服务闭包使用，移除三个类的包导出；两个测试改用 `GovernanceCollaborationModule.records`，不增加 testing 子路径或内部导入。
+
+范围仅两包入口/README、两个既有测试调用方、对应公开入口回归与下降快查。本片不改表、结构版本、事务、事件、身份、业务服务签名或 Host 装配；余下 Module 和 Host 大入口继续按 W5-08 后续片处理，不将本片记为全部收口。以实际 main `a56a2763d` 为基点，本地独立候选，最多两片在途限制照旧。
+
+验收：`W5-08-MOD-01` 两个包不再导出上述存储实现，Module 实例没有公开 repository；`W5-08-MOD-02` 既有项目查询/修改/删除回执及结构提案/可信决定、Goal 事件/规划用例仍经公开服务完成，拒绝路径与持久化结果保持。先整体构建，再跑两包 README 必跑、真实 Host 项目删除与 Goals 事件/规划定向批次；验证 boundary、merge-base health、API/动作快照与资源，现有结构门禁的 Module Repository/Store 数量应由 21 降到 16，不放宽规则。共享核心完整回归按统筹 CI 安排，不运行本机全量。
+
+本片验证：整体与 workspace 构建、boundary、merge-base health/下降快查、contracts/SDK API 及动作合同快照通过。公开入口断言与业务回归 23 文件 186 条，加动作合同 1 文件 25 条，共 24 文件 211 条全部通过，零失败/跳过。日志 `/tmp/molis-module-boundaries-{regression,actions,health,boundary,assets}.log`。两个包的构建声明也已不含上述三个类或公开 repository；结构计数 21→16，页面资源仍为 25 项、7,475,661 B，本片增量 0。快查另同步 main 已有 Coding 样式行数下降（828→812），未改该源码或门禁规则。没有 UI 行为改动，不重复浏览器；共享核心全量仍由统筹 CI 安排。
+
 W4-06 / #498 合并验收补充（2026-10-14，本地验证通过）：本次只拆分 Agent Host 内部组合，公开合同与启动副作用顺序保持原样。`W4-06-01`：携带确认计划的协调者请求若因子目录重叠而被拒绝，不能先建立计划图或启动模型；关闭并重开同一隔离运行时后仍无该计划图。已恢复原先的「文本材料 → 子任务校验 → 计划与项目材料」顺序。组合版本 `b532b87ad`（含 #489 最终候选 `308dd02d`）整体构建、边界、merge-base 健康与 29 项资源预算检查通过；包要求、全部 `agent-*` / `prologue-*` 及相关调用方共 95 文件、1333 条通过，2 条按条件跳过（真实 MiniMax 凭据、公网 npm 安装），无失败。`tests/prologue-node-start-order.test.ts` 经真实 Host / 已打包 SDK 正反验证：修复版通过；临时恢复旧顺序后，关闭重开运行时的计划图为空断言明确失败；随后已恢复源码并重建。远端检查与合并结果以 PR #498 为准；不升级 SDK、不改公开接口或门禁。
 
 W4-03 第一片（2026-10-15，端口的默认来源由 Manifest 声明，#565；BL-087、D-04 的 A）：任务书要求「当时选择短期维持的项（例如 D-04 端口默认连线）重新判断是否到了该做的时候」，路线图把它排进 W4-03；新增一个端口插件只改自己的包和声明（§4.6），名单挡着这条，所以现在做。

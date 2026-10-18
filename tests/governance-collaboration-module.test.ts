@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import * as governanceExports from "@molis-ai/molis-work-module-governance-collaboration";
 
 import {
   GovernanceCollaborationModule,
@@ -41,6 +42,10 @@ function fixture(name: string): {
 test("Governance decision provenance and target-owner materialization share one rollback boundary", () => {
   const { store, governance, dispose } = fixture("decisions");
   try {
+    // W5-08-MOD-01/02: only business services are public; their transaction still owns both effects below.
+    assert.equal("GovernanceRepository" in governanceExports, false);
+    assert.equal("GovernanceRecordStore" in governanceExports, false);
+    assert.equal("repository" in governance, false);
     const proposalId = "goal-tree-proposal-module-test";
     const itemId = "goal-tree-item-module-test";
     governance.records.insertGoalTreeProposal({

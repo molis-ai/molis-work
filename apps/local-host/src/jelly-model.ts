@@ -8,7 +8,7 @@ export type { JellyModelSelection, JellyModelSettings, JellyModelInput } from "@
 
 import { openConfiguredModels as openProviders, selectConfiguredTextModel, modelCredentialMetadata, validateTextModelUrl as validBaseUrl } from "./configured-models.js";
 import { hostCompleteText, type HostCompleteText } from "./host-complete-text.js";
-import { listConnectorConnectionViews } from "./web-connector-connections.js";
+import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 
 const CUSTOM_PROVIDER_ID = "jelly-text";
@@ -31,7 +31,7 @@ export function readJellyModelSettings(home: string): JellyModelSettings {
   const pref = readPreference(home), opened = openProviders(home);
   const connections = existsSync(join(home, "connectors", "connectors.db"))
     ? withConnectorConnections(home, store => store.list("model-api").map(connection => ({ connection_id: connection.connection_id,
-      display_name: connection.display_name, state: connection.disconnected_at ? "disconnected" : connection.credential_ref
+      display_name: connection.display_name, state: !connection.enabled || connection.disconnected_at ? "disconnected" : connection.credential_ref
         && runWithMolisWorkHome(home, () => peekSealedEntry(connection.credential_ref!)) ? "connected" : "reauth_required" }))) : [];
   let settings: JellyModelSettings = { configured: false, providers: [], connections,
     ...(pref ? { selection: { provider_id: pref.provider_id, model_id: pref.model_id } } : {}), source: "none" };
@@ -67,7 +67,7 @@ export function saveJellyModelSettings(home: string, input: JellyModelInput): Je
     if (custom && !baseUrl) throw jellyErrors.invalid("请填写自定义模型的 Base URL");
     const selectedConnection = input.connection_id?.trim()
       ? withConnectorConnections(home, (store) => store.require(input.connection_id!.trim(), "model-api")) : null;
-    if (selectedConnection && (!selectedConnection.credential_ref || selectedConnection.disconnected_at)) throw jellyErrors.invalid("所选模型连接不可用");
+    if (selectedConnection && (!selectedConnection.enabled || !selectedConnection.credential_ref || selectedConnection.disconnected_at)) throw jellyErrors.invalid("所选模型连接不可用");
     if (!selectedConnection && (!existing || !modelCredentialMetadata(home, { ...existing, base_url: baseUrl ?? existing.base_url }).available)) {
       throw jellyErrors.invalid("所选模型连接不可用，请恢复连接或重新选择；原选择已保留");
     }

@@ -2,7 +2,7 @@ import { functionsActionProvider, publishedFunctionProvider, publishedFunctionAc
 import { sceneConfigurationActions, retainActionAuthority, ActionError, type ActionRegistryPort, type ActionCallContext, type ActionClient, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_MCP_DESTINATION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { actionSceneCompatibilityReason } from "@molis-ai/molis-work-kernel";
-import { functionsCredentialConfigured, withFunctionsService, withFunctionsServiceAsync, type FunctionsHostOptions } from "./functions-host.js";
+import { functionsConnectionId, functionsCredentialConfigured, withFunctionsService, withFunctionsServiceAsync, type FunctionsHostOptions } from "./functions-host.js";
 import { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
 
 type FunctionContext = (caller: ActionCallContext) => { actions: ActionClient; scenes: ActionSceneClient; projectId?: string };
@@ -17,7 +17,7 @@ export class SystemFunctionsActions {
     this.ports = {
       read: operation => withFunctionsService(home, operation, options),
       run: operation => withFunctionsServiceAsync(home, operation, options),
-      credentialAvailable: () => functionsCredentialConfigured(home, options),
+      credentialAvailable: () => functionsCredentialConfigured(home, options), connectionId: () => functionsConnectionId(home, options),
       validateRecommendations: async (record, caller) => {
         const references = Object.values(record.action_map ?? {});
         if (!references.length) return;

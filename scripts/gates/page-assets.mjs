@@ -236,11 +236,11 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // One-time allowance for W5-01 (Todo on the Home runtime): the longer 「转为待办」 route adds 28 B to workbench.js.
-// Approved by the user on 2026-10-17; re-keyed after main 4bea52c84 under the agreed merge-only synchronization rule.
+// Approved by the user on 2026-10-17; re-keyed after main 5f03d1e45 under the agreed merge-only synchronization rule.
 // Receipts 3d-4's [1109913, 1110802] is already spent on main; its old starting sizes remain refusal tests.
 // Only this exact starting size may grow once; the next baseline freezes again.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1110187, 1110215],
+  "/assets/molis-work-workbench.js": [1110056, 1110084],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

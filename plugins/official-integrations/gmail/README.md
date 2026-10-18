@@ -56,6 +56,7 @@ node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/feed-connectors.test.
 - 不变量：
   - 授权邮件更新进入 Signal/Feed 链路，本包不拥有其状态。
   - 凭据不写进 Source 或 Signal 正文。
+  - 刷新令牌写入前同步调用宿主提供的 `beforePersist`；宿主复查连接修订，停用、删除或重授权后的旧请求不得写入。
   - 测试用隔离数据或注入端口，通过不代表真实账号已连通。
 - 改动后必跑：`node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/feed-connectors.test.ts tests/integration-pagination.test.ts`
 - 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
@@ -70,3 +71,5 @@ node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/feed-connectors.test.
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+真实账号检查在 `health().account` 返回已认证响应中的账号身份，供连接 owner 在当前配置修订下核对修复等待。未取得身份时不填写，不能用本地账号显示名代替。
